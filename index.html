@@ -1,0 +1,3122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>BLOC — Training</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0a;
+  --surface: #141414;
+  --surface2: #1c1c1c;
+  --surface3: #242424;
+  --border: rgba(255,255,255,0.08);
+  --border2: rgba(255,255,255,0.14);
+  --text: #f0ede8;
+  --text2: #888880;
+  --text3: #555550;
+  --accent: #c8f060;
+  --accent2: #a8d040;
+  --red: #ff5f4e;
+  --amber: #f5a623;
+  --blue: #60a8f0;
+  --purple: #b060f0;
+  --font-display: 'Syne', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+  --r: 12px;
+  --r-sm: 8px;
+  --nav-h: 72px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overscroll-behavior: none;
+}
+
+/* ── LAYOUT ─────────────────────────────── */
+#app { display: flex; flex-direction: column; height: 100dvh; }
+
+#content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 16px);
+}
+
+.screen { display: none; padding: 0 16px; }
+.screen.active { display: block; }
+
+/* ── NAV ─────────────────────────────────── */
+#nav {
+  position: fixed;
+  bottom: 0;
+  left: 0; right: 0;
+  height: calc(var(--nav-h) + var(--safe-bottom));
+  background: rgba(10,10,10,0.95);
+  backdrop-filter: blur(20px);
+  border-top: 0.5px solid var(--border2);
+  display: flex;
+  align-items: flex-start;
+  padding-top: 10px;
+  padding-bottom: var(--safe-bottom);
+  z-index: 100;
+}
+
+.nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--text3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 4px 0;
+  transition: color 0.15s;
+  letter-spacing: 0.05em;
+}
+.nav-btn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.nav-btn.active { color: var(--accent); }
+
+/* ── TYPOGRAPHY ──────────────────────────── */
+.page-header {
+  padding: 20px 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.page-title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.page-sub {
+  font-size: 11px;
+  color: var(--text3);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+
+.label {
+  font-size: 11px;
+  color: var(--text3);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+/* ── CARDS ───────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+.card-accent {
+  border-color: var(--accent);
+  border-width: 1px;
+}
+
+/* ── BUTTONS ─────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border2);
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+  letter-spacing: 0.03em;
+}
+.btn:active { transform: scale(0.97); }
+.btn-accent {
+  background: var(--accent);
+  color: #0a0a0a;
+  border-color: var(--accent);
+  font-weight: 500;
+}
+.btn-accent:active { background: var(--accent2); }
+.btn-sm { padding: 7px 12px; font-size: 12px; }
+.btn-block { width: 100%; justify-content: center; }
+.btn-ghost { border-color: transparent; color: var(--text2); }
+.btn-danger { border-color: var(--red); color: var(--red); }
+
+/* ── INPUTS ──────────────────────────────── */
+input, select, textarea {
+  background: var(--surface2);
+  border: 0.5px solid var(--border2);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  padding: 10px 12px;
+  width: 100%;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+input:focus, select:focus { border-color: var(--accent); }
+select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%23888' stroke-width='1.5'%3E%3Cpath d='M1 1l5 5 5-5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+input[type=number] { -moz-appearance: textfield; }
+input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+.input-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.input-row > * { flex: 1; }
+.form-group { margin-bottom: 12px; }
+
+/* ── BADGE / CHIP ────────────────────────── */
+.badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  font-weight: 500;
+}
+.badge-green { background: rgba(200,240,96,0.15); color: var(--accent); }
+.badge-amber { background: rgba(245,166,35,0.15); color: var(--amber); }
+.badge-red { background: rgba(255,95,78,0.15); color: var(--red); }
+.badge-blue { background: rgba(96,168,240,0.15); color: var(--blue); }
+.badge-purple { background: rgba(176,96,240,0.15); color: var(--purple); }
+
+/* ── TAGS ────────────────────────────────── */
+.tag { padding: 4px 10px; border-radius: 20px; font-size: 11px; border: 0.5px solid var(--border2); color: var(--text2); cursor: pointer; }
+.tag.active { border-color: var(--accent); color: var(--accent); background: rgba(200,240,96,0.08); }
+
+/* ── PROGRESS BAR ────────────────────────── */
+.progress-track {
+  height: 4px;
+  background: var(--surface3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+/* ── DIVIDER ─────────────────────────────── */
+.divider { height: 0.5px; background: var(--border); margin: 16px 0; }
+
+/* ── STAT ROW ────────────────────────────── */
+.stat-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.stat-box {
+  flex: 1;
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 10px 12px;
+  text-align: center;
+}
+.stat-num { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: var(--text); }
+.stat-lbl { font-size: 10px; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; margin-top: 2px; }
+
+/* ── MODAL ───────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0.7);
+  display: flex; align-items: flex-end;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s;
+}
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+#modal-custom-exercise { z-index: 300; }
+.modal-sheet {
+  width: 100%;
+  background: var(--surface);
+  border-radius: 20px 20px 0 0;
+  border-top: 0.5px solid var(--border2);
+  padding: 16px 16px calc(20px + var(--safe-bottom));
+  max-height: 92dvh;
+  overflow-y: auto;
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.32,0.72,0,1);
+}
+.modal-overlay.open .modal-sheet { transform: translateY(0); }
+.modal-handle { width: 36px; height: 4px; background: var(--border2); border-radius: 2px; margin: 0 auto; }
+.modal-handle-row { display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 16px; }
+.modal-close-btn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); background: var(--surface3); border: none; color: var(--text2); width: 28px; height: 28px; border-radius: 50%; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; }
+.modal-title { font-family: var(--font-display); font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+
+/* ── TOGGLE ──────────────────────────────── */
+.toggle-row { display: flex; background: var(--surface2); border-radius: var(--r-sm); padding: 3px; gap: 3px; margin-bottom: 14px; }
+.toggle-btn { flex: 1; padding: 8px; text-align: center; border-radius: 6px; border: none; background: transparent; color: var(--text2); font-family: var(--font-mono); font-size: 12px; cursor: pointer; transition: all 0.15s; }
+.toggle-btn.active { background: var(--surface3); color: var(--text); }
+
+/* ── LOG SET ROW ─────────────────────────── */
+.set-log-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 0.5px solid var(--border);
+}
+.set-log-row:last-child { border-bottom: none; }
+.set-num { width: 20px; font-size: 12px; color: var(--text3); flex-shrink: 0; }
+.set-log-row input { flex: 1; text-align: center; padding: 8px 6px; }
+.set-check {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 1.5px solid var(--border2);
+  background: transparent;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0; transition: all 0.15s;
+}
+.set-check.done { background: var(--accent); border-color: var(--accent); }
+.set-check svg { width: 14px; height: 14px; stroke: #0a0a0a; fill: none; stroke-width: 2.5; }
+
+/* ── PROGRESSION CHIP ────────────────────── */
+.prog-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.prog-up { background: rgba(200,240,96,0.12); color: var(--accent); border: 1px solid rgba(200,240,96,0.25); }
+.prog-hold { background: rgba(245,166,35,0.12); color: var(--amber); border: 1px solid rgba(245,166,35,0.25); }
+
+/* ── PIE CHART ───────────────────────────── */
+#pie-svg { display: block; margin: 0 auto; }
+
+/* ── SCROLL HINT ─────────────────────────── */
+.section-title {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text3);
+  margin: 20px 0 10px;
+}
+
+/* ── WEEK SELECTOR ───────────────────────── */
+.week-strip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 4px 0 10px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.week-strip::-webkit-scrollbar { display: none; }
+.week-pill {
+  flex-shrink: 0;
+  padding: 7px 14px;
+  border-radius: 20px;
+  border: 0.5px solid var(--border2);
+  background: transparent;
+  color: var(--text2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.week-pill.active { background: var(--accent); color: #0a0a0a; border-color: var(--accent); font-weight: 500; }
+
+/* ── DAY TABS ────────────────────────────── */
+.day-tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.day-tab {
+  padding: 7px 14px;
+  border-radius: 20px;
+  border: 0.5px solid var(--border2);
+  background: transparent;
+  color: var(--text2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.day-tab.active { background: var(--accent); color: #0a0a0a; border-color: var(--accent); font-weight: 500; }
+
+/* ── EXERCISE CARD HEADER ────────────────── */
+.ex-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.ex-name { font-family: var(--font-display); font-size: 16px; font-weight: 700; }
+.ex-meta { font-size: 11px; color: var(--text2); margin-top: 3px; }
+
+/* ── BODY STATS ──────────────────────────── */
+.bw-entry { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 0.5px solid var(--border); }
+.bw-date { font-size: 12px; color: var(--text2); }
+.bw-val { font-family: var(--font-display); font-size: 18px; font-weight: 700; }
+
+/* ── SWIPE HINT ─────────────────────────── */
+.empty-state { text-align: center; padding: 48px 24px; color: var(--text3); }
+.empty-state svg { width: 40px; height: 40px; stroke: var(--text3); fill: none; margin: 0 auto 12px; display: block; }
+.empty-state p { font-size: 13px; line-height: 1.6; }
+
+/* CHART */
+.macro-bar { height: 8px; border-radius: 4px; background: var(--surface3); overflow: hidden; margin-top: 4px; }
+.macro-fill { height: 100%; border-radius: 4px; transition: width 0.4s; }
+
+.nutrition-day-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r); padding: 14px 16px; margin-bottom: 10px; }
+
+/* scrollable hidden content */
+.collapsible { overflow: hidden; max-height: 0; transition: max-height 0.3s ease; }
+.collapsible.open { max-height: 2000px; }
+
+/* split option cards */
+#split-options label:has(input:checked) {
+  border-color: var(--accent);
+  background: rgba(200,240,96,0.06);
+}
+
+/* js-driven option cards */
+.meso-opt {
+  padding: 12px 14px;
+  background: var(--surface2);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border2);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.meso-opt-selected {
+  border-color: var(--accent) !important;
+  background: rgba(200,240,96,0.06) !important;
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="content">
+
+    <!-- ════════════════════════════════════════
+         SCREEN 0: HOME
+    ═══════════════════════════════════════════ -->
+    <div class="screen" id="screen-home">
+      <div class="page-header" style="padding-bottom:8px;">
+        <div>
+          <div class="page-title">BLOC</div>
+          <div class="page-sub" id="home-date"></div>
+        </div>
+        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v2.05</span>
+      </div>
+
+      <!-- Active cycle card -->
+      <div class="section-title">Active Cycle</div>
+      <div id="home-cycle" style="margin-bottom:4px;"></div>
+
+      <!-- Body weight -->
+      <div class="section-title" style="margin-top:16px;">Body Weight</div>
+      <div id="home-body" style="margin-bottom:4px;"></div>
+
+      <!-- Steps -->
+      <div class="section-title" style="margin-top:16px;">Steps (7-day avg)</div>
+      <div id="home-steps" style="margin-bottom:4px;"></div>
+
+      <!-- Nutrition -->
+      <div class="section-title" style="margin-top:16px;">Nutrition (7-day avg)</div>
+      <div id="home-nutrition" style="margin-bottom:4px;"></div>
+
+      <!-- Goals -->
+      <div class="section-title" style="margin-top:16px;" id="home-goals-title" style="display:none;">Today's Goals</div>
+      <div id="home-goals" style="margin-bottom:4px;"></div>
+    </div>
+
+    <!-- ════════════════════════════════════════
+         SCREEN 1: PLAN
+    ═══════════════════════════════════════════ -->
+    <div class="screen" id="screen-plan">
+      <div class="page-header">
+        <div>
+          <div class="page-title">BLOC</div>
+          <div class="page-sub">Training Planner</div>
+        </div>
+        <button class="btn btn-accent btn-sm" onclick="openModal('modal-meso')">+ Mesocycle</button>
+      </div>
+
+      <div id="meso-overview"></div>
+      <div id="plan-content"></div>
+    </div>
+
+    <!-- ════════════════════════════════════════
+         SCREEN 2: TRAIN
+    ═══════════════════════════════════════════ -->
+    <div class="screen" id="screen-train">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Train</div>
+          <div class="page-sub" id="train-sub">Select week &amp; day</div>
+        </div>
+      </div>
+
+      <div class="week-strip" id="week-strip"></div>
+
+      <div class="day-tabs" id="day-tabs"></div>
+
+      <div id="train-content">
+        <div class="empty-state">
+          <svg viewBox="0 0 24 24"><path d="M6 4v16M18 4v16M3 8h4M17 8h4M3 16h4M17 16h4"/></svg>
+          <p>Build your mesocycle in the Plan tab first, then select a week and day to start training.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════
+         SCREEN 3: BODY
+    ═══════════════════════════════════════════ -->
+    <div class="screen" id="screen-body">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Body</div>
+          <div class="page-sub">Weight &amp; Steps</div>
+        </div>
+        <button class="btn btn-accent btn-sm" onclick="openModal('modal-body-log')">+ Log</button>
+      </div>
+
+      <div class="stat-row" id="body-stats-row">
+        <div class="stat-box"><div class="stat-num" id="bw-avg">—</div><div class="stat-lbl">7d avg lbs</div></div>
+        <div class="stat-box"><div class="stat-num" id="bw-change">—</div><div class="stat-lbl">vs last wk</div></div>
+        <div class="stat-box"><div class="stat-num" id="steps-avg">—</div><div class="stat-lbl">avg steps</div></div>
+      </div>
+
+      <div class="section-title">Recent Entries</div>
+      <div id="body-log-list"></div>
+    </div>
+
+    <!-- ════════════════════════════════════════
+         SCREEN: GOALS
+    ═══════════════════════════════════════════ -->
+    <div class="screen" id="screen-goals">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Goals</div>
+          <div class="page-sub">Daily targets per cycle</div>
+        </div>
+        <button class="btn btn-accent btn-sm" onclick="openModal('modal-add-goal')">+ Goal</button>
+      </div>
+      <div id="goals-content"></div>
+    </div>
+
+    <!-- ════════════════════════════════════════
+         SCREEN 5: SETTINGS
+    ═══════════════════════════════════════════ -->
+    <div class="screen" id="screen-settings">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Settings</div>
+          <div class="page-sub">Data &amp; Backup</div>
+        </div>
+      </div>
+
+      <div class="section-title">About</div>
+      <div class="card" style="margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
+          <span class="badge badge-green">v2.05</span>
+        </div>
+      </div>
+
+      <div class="section-title">Backup</div>
+      <div class="card" style="margin-bottom:10px;">
+        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Export data</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Downloads a complete JSON snapshot of all your plans, logs, and nutrition data. Save it to Files for safekeeping.</div>
+        <button class="btn btn-accent btn-block" onclick="exportData()">
+          <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export JSON backup
+        </button>
+      </div>
+      <div class="card" style="margin-bottom:10px;">
+        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Export exercise library</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Downloads just your exercise library (including custom exercises) as a JSON file.</div>
+        <button class="btn btn-block" onclick="exportLibrary()">
+          <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export library
+        </button>
+      </div>
+
+      <div class="card" style="margin-bottom:10px;">
+        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Restore from backup</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Select a previously exported JSON file. This will <span style="color:var(--red);">replace all current data</span> — export first if needed.</div>
+        <label class="btn btn-block" style="cursor:pointer;justify-content:center;">
+          <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Import JSON backup
+          <input type="file" accept=".json,application/json" style="display:none;" onchange="importData(event)">
+        </label>
+        <div id="import-status" style="font-size:12px;margin-top:10px;text-align:center;"></div>
+      </div>
+
+      <div class="section-title">Storage</div>
+      <div class="card" style="margin-bottom:10px;">
+        <div id="storage-info" style="font-size:13px;color:var(--text2);line-height:1.8;"></div>
+      </div>
+
+      <div class="section-title">Danger Zone</div>
+      <div class="card">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Permanently delete all data from this device. Cannot be undone.</div>
+        <button class="btn btn-danger btn-block" onclick="clearAllData()">Clear all data</button>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════
+         SCREEN 4: NUTRITION
+    ═══════════════════════════════════════════ -->
+    <div class="screen" id="screen-nutrition">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Nutrition</div>
+        </div>
+        <button class="btn btn-accent btn-sm" onclick="openModal('modal-nutrition-log')">+ Log</button>
+      </div>
+
+      <div class="toggle-row">
+        <button class="toggle-btn active" id="nutr-tab-day" onclick="switchNutrTab('day')">Daily</button>
+        <button class="toggle-btn" id="nutr-tab-week" onclick="switchNutrTab('week')">Weekly</button>
+      </div>
+
+      <div id="nutr-daily-view"></div>
+      <div id="nutr-weekly-view" style="display:none;"></div>
+    </div>
+
+  </div><!-- /content -->
+
+  <!-- ════════════════════════════════════════
+       BOTTOM NAV
+  ═══════════════════════════════════════════ -->
+  <nav id="nav">
+    <button class="nav-btn active" id="nav-home" onclick="showScreen('home')">
+      <svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>
+      home
+    </button>
+    <button class="nav-btn" id="nav-plan" onclick="showScreen('plan')">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      plan
+    </button>
+    <button class="nav-btn" id="nav-train" onclick="showScreen('train')">
+      <svg viewBox="0 0 24 24"><path d="M6 4v16M18 4v16M3 8h4M17 8h4M3 16h4M17 16h4"/></svg>
+      train
+    </button>
+    <button class="nav-btn" id="nav-body" onclick="showScreen('body')">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><path d="M12 8v6M9 11h6M9 22l3-4 3 4"/></svg>
+      body
+    </button>
+    <button class="nav-btn" id="nav-nutrition" onclick="showScreen('nutrition')">
+      <svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7z"/><circle cx="12" cy="9" r="2"/></svg>
+      nutrition
+    </button>
+    <button class="nav-btn" id="nav-goals" onclick="showScreen('goals')">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" style="fill:currentColor"/></svg>
+      goals
+    </button>
+    <button class="nav-btn" id="nav-settings" onclick="showScreen('settings')">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      settings
+    </button>
+  </nav>
+</div>
+
+<!-- ════════════════════════════════════════
+     MODALS
+═══════════════════════════════════════════ -->
+
+<!-- Create Mesocycle -->
+<div class="modal-overlay" id="modal-meso">
+  <div class="modal-sheet" data-modal="modal-meso">
+    <div class="modal-handle-row">
+      <div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-meso')">✕</button>
+    </div>
+    <div class="modal-title">New Mesocycle</div>
+    <div class="form-group">
+      <div class="label">Name</div>
+      <input type="text" id="meso-name-input" placeholder="e.g. Weight Loss Phase 1">
+    </div>
+    <div class="input-row">
+      <div>
+        <div class="label">Macrocycles</div>
+        <input type="number" id="meso-weeks-input" value="8" min="2" max="52">
+      </div>
+      <div>
+        <div class="label">Start Date</div>
+        <input type="date" id="meso-start-input">
+      </div>
+    </div>
+    <div class="input-row">
+      <div>
+        <div class="label">Weeks per macrocycle</div>
+        <select id="meso-weeks-per-macro-input">
+          <option value="1" selected>1 week</option>
+          <option value="2">2 weeks</option>
+        </select>
+      </div>
+      <div>
+        <div class="label">Sessions per week</div>
+        <input type="number" id="meso-sessions-input" value="3" min="1" max="7" placeholder="e.g. 4">
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">e.g. 4-day split over 2 weeks = 2 weeks per macrocycle, 4 sessions/week</div>
+    <div class="form-group">
+      <div class="label">Goal</div>
+      <input type="text" id="meso-goal-input" placeholder="e.g. Cut to 82kg">
+    </div>
+    <div class="form-group">
+      <div class="label">Target body weight (lbs) <span style="color:var(--text3);font-size:11px;">— optional</span></div>
+      <input type="number" id="meso-target-bw-input" placeholder="e.g. 180" step="0.1">
+    </div>
+
+    <div class="form-group">
+      <div class="label">Training Split</div>
+      <div style="display:flex;flex-direction:column;gap:8px;" id="split-options">
+        <div class="meso-opt meso-opt-selected" id="split-opt-ppl" onclick="selectMesoOpt('split','ppl')">
+          <div style="font-weight:500;font-size:13px;">Push / Pull / Legs</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">3 sessions — Push, Pull, Legs</div>
+        </div>
+        <div class="meso-opt" id="split-opt-fullbody" onclick="selectMesoOpt('split','fullbody')">
+          <div style="font-weight:500;font-size:13px;">Full Body Split</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">Choose the number of weekly sessions per body part(s)</div>
+        </div>
+        <div class="meso-opt" id="split-opt-custom" onclick="selectMesoOpt('split','custom')">
+          <div style="font-weight:500;font-size:13px;">Custom Split</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">Define your own session names</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Custom session builder — shown only when custom is selected -->
+    <div id="custom-split-builder" style="display:none;margin-bottom:14px;">
+      <div class="label" id="custom-sessions-label">Sessions per microcycle</div>
+      <div id="custom-sessions-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>
+      <button class="btn btn-sm" onclick="addCustomSession()" style="width:100%;justify-content:center;">+ Add session</button>
+    </div>
+
+    <div class="form-group">
+      <div class="label">Microcycles</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div class="meso-opt meso-opt-selected" id="micro-opt-yes" onclick="selectMesoOpt('micro','yes')">
+          <div style="font-weight:500;font-size:13px;">Use microcycles</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">Each week has 2 microcycles with slightly varied sessions</div>
+        </div>
+        <div class="meso-opt" id="micro-opt-no" onclick="selectMesoOpt('micro','no')">
+          <div style="font-weight:500;font-size:13px;">No microcycles</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">Same sessions each week — one set of exercises per macrocycle</div>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-accent btn-block" onclick="createMesocycle()">Create Mesocycle →</button>
+  </div>
+</div>
+
+<!-- Edit Mesocycle -->
+<div class="modal-overlay" id="modal-edit-meso">
+  <div class="modal-sheet" data-modal="modal-edit-meso">
+    <div class="modal-handle-row">
+      <div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-edit-meso')">✕</button>
+    </div>
+    <div class="modal-title">Edit Mesocycle</div>
+    <div class="form-group">
+      <div class="label">Name</div>
+      <input type="text" id="edit-meso-name-input" placeholder="e.g. Weight Loss Phase 1">
+    </div>
+    <div class="input-row">
+      <div>
+        <div class="label">Macrocycles</div>
+        <input type="number" id="edit-meso-weeks-input" min="2" max="52">
+      </div>
+      <div>
+        <div class="label">Start Date</div>
+        <input type="date" id="edit-meso-start-input">
+      </div>
+    </div>
+    <div class="input-row">
+      <div>
+        <div class="label">Weeks per macrocycle</div>
+        <select id="edit-meso-weeks-per-macro-input">
+          <option value="1">1 week</option>
+          <option value="2">2 weeks</option>
+        </select>
+      </div>
+      <div>
+        <div class="label">Sessions per week</div>
+        <input type="number" id="edit-meso-sessions-per-week-input" min="1" max="7">
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="label">Goal</div>
+      <input type="text" id="edit-meso-goal-input" placeholder="e.g. Cut to 180lbs">
+    </div>
+    <div class="form-group">
+      <div class="label">Target body weight (lbs) <span style="color:var(--text3);font-size:11px;">— optional</span></div>
+      <input type="number" id="edit-meso-target-bw-input" placeholder="e.g. 180" step="0.1">
+    </div>
+    <div class="form-group">
+      <div class="label">Goal type</div>
+      <select id="edit-meso-goal-type-input">
+        <option value="loss">Weight Loss</option>
+        <option value="maintenance">Maintenance</option>
+        <option value="gain">Weight Gain</option>
+      </select>
+    </div>
+    <button class="btn btn-accent btn-block" onclick="saveEditMeso()">Save Changes →</button>
+  </div>
+</div>
+
+<!-- Add / Edit Goal -->
+<div class="modal-overlay" id="modal-add-goal">
+  <div class="modal-sheet" data-modal="modal-add-goal">
+    <div class="modal-handle-row">
+      <div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-add-goal')">✕</button>
+    </div>
+    <div class="modal-title" id="goal-modal-title">New Goal Period</div>
+    <div class="form-group">
+      <div class="label">Mesocycle</div>
+      <select id="goal-meso-select"></select>
+    </div>
+    <div class="input-row">
+      <div>
+        <div class="label">Start Date</div>
+        <input type="date" id="goal-start-input">
+      </div>
+      <div>
+        <div class="label">End Date</div>
+        <input type="date" id="goal-end-input">
+      </div>
+    </div>
+    <div class="input-row">
+      <div>
+        <div class="label">Daily kcal</div>
+        <input type="number" id="goal-kcal-input" placeholder="2000">
+      </div>
+      <div>
+        <div class="label">Daily steps</div>
+        <input type="number" id="goal-steps-input" placeholder="10000">
+      </div>
+    </div>
+    <div class="input-row">
+      <div>
+        <div class="label">Protein (g)</div>
+        <input type="number" id="goal-protein-input" placeholder="160">
+      </div>
+      <div>
+        <div class="label">Carbs (g)</div>
+        <input type="number" id="goal-carbs-input" placeholder="200">
+      </div>
+    </div>
+    <div class="input-row">
+      <div>
+        <div class="label">Fats (g)</div>
+        <input type="number" id="goal-fats-input" placeholder="70">
+      </div>
+      <div></div>
+    </div>
+    <button class="btn btn-accent btn-block" onclick="saveGoal()">Save Goal Period →</button>
+  </div>
+</div>
+
+<!-- Add Custom Exercise -->
+<div class="modal-overlay" id="modal-custom-exercise">
+  <div class="modal-sheet" data-modal="modal-custom-exercise">
+    <div class="modal-handle-row">
+      <div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-custom-exercise')">✕</button>
+    </div>
+    <div class="modal-title">Custom Exercise</div>
+    <div class="form-group">
+      <div class="label">Body Part</div>
+      <select id="custom-ex-bodypart">
+        <option value="Back">Back</option>
+        <option value="Biceps">Biceps</option>
+        <option value="Calves">Calves</option>
+        <option value="Chest">Chest</option>
+        <option value="Legs">Legs</option>
+        <option value="Shoulders">Shoulders</option>
+        <option value="Triceps">Triceps</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <div class="label">Exercise Name</div>
+      <input type="text" id="custom-ex-name-input" placeholder="e.g. Dumbbell Curl">
+    </div>
+    <button class="btn btn-accent btn-block" onclick="saveCustomExercise()">Add to Library →</button>
+  </div>
+</div>
+
+<!-- Add Exercise -->
+<div class="modal-overlay" id="modal-exercise">
+  <div class="modal-sheet" data-modal="modal-exercise">
+    <div class="modal-handle-row">
+      <div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-exercise')">✕</button>
+    </div>
+    <div class="modal-title" id="modal-ex-title">Add Exercise</div>
+
+    <div class="form-group">
+      <div class="label">Exercise</div>
+      <select id="ex-name-input" onchange="onExNameChange(this)">
+      </select>
+    </div>
+
+    <div class="form-group">
+      <div class="label">Set Type</div>
+      <select id="ex-type-select" onchange="onExTypeChange()">
+        <option value="standard">Standard</option>
+        <option value="myorep">Myorep Giant Set</option>
+        <option value="myomatch">Myorep Matching</option>
+      </select>
+    </div>
+
+    <div class="input-row">
+      <div>
+        <div class="label">Reps (target)</div>
+        <select id="ex-reps-input">
+          <option value="5">5</option><option value="6">6</option><option value="7">7</option>
+          <option value="8">8</option><option value="9">9</option><option value="10" selected>10</option>
+          <option value="11">11</option><option value="12">12</option><option value="13">13</option>
+          <option value="14">14</option><option value="15">15</option><option value="16">16</option>
+          <option value="17">17</option><option value="18">18</option><option value="19">19</option>
+          <option value="20">20</option><option value="25">25</option><option value="30">30</option>
+          <option value="35">35</option><option value="40">40</option><option value="45">45</option>
+          <option value="50">50</option><option value="60">60</option><option value="70">70</option>
+          <option value="80">80</option><option value="90">90</option><option value="100">100</option>
+          <option value="110">110</option><option value="120">120</option>
+        </select>
+      </div>
+      <div>
+        <div class="label">Starting Weight (kg)</div>
+        <input type="number" id="ex-weight-input" placeholder="60" step="0.5">
+      </div>
+    </div>
+
+    <div class="input-row" id="ex-sets-row">
+      <div>
+        <div class="label">Starting Sets</div>
+        <select id="ex-sets-start-input">
+          <option value="2" selected>2</option><option value="3">3</option><option value="4">4</option>
+          <option value="5">5</option><option value="6">6</option><option value="7">7</option>
+        </select>
+      </div>
+      <div>
+        <div class="label">Peak Sets</div>
+        <select id="ex-sets-end-input">
+          <option value="2">2</option><option value="3">3</option><option value="4">4</option>
+          <option value="5" selected>5</option><option value="6">6</option><option value="7">7</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <div class="label">Is this a heavy leg exercise? (3 kg jumps)</div>
+      <select id="ex-leg-select">
+        <option value="0">No (1–2 kg)</option>
+        <option value="1">Yes (up to 3 kg)</option>
+      </select>
+    </div>
+
+    <button class="btn btn-accent btn-block" onclick="saveExercise()">Save Exercise →</button>
+  </div>
+</div>
+
+<!-- Body Log -->
+<div class="modal-overlay" id="modal-body-log">
+  <div class="modal-sheet" data-modal="modal-body-log">
+    <div class="modal-handle-row">
+      <div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-body-log')">✕</button>
+    </div>
+    <div class="modal-title">Log Body Stats</div>
+    <div class="form-group">
+      <div class="label">Date</div>
+      <input type="date" id="body-date-input">
+    </div>
+    <div class="input-row">
+      <div>
+        <div class="label">Weight (lbs)</div>
+        <input type="number" id="body-weight-input" step="0.1" placeholder="183.5">
+      </div>
+      <div>
+        <div class="label">Steps</div>
+        <input type="number" id="body-steps-input" placeholder="8500">
+      </div>
+    </div>
+    <button class="btn btn-accent btn-block" onclick="saveBodyLog()">Save →</button>
+  </div>
+</div>
+
+<!-- Nutrition Log -->
+<div class="modal-overlay" id="modal-nutrition-log">
+  <div class="modal-sheet" data-modal="modal-nutrition-log">
+    <div class="modal-handle-row">
+      <div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-nutrition-log')">✕</button>
+    </div>
+    <div class="modal-title">Log Nutrition</div>
+    <div class="form-group">
+      <div class="label">Date</div>
+      <input type="date" id="nutr-date-input">
+    </div>
+    <div class="input-row">
+      <div>
+        <div class="label">Calories (kcal)</div>
+        <input type="number" id="nutr-kcal-input" placeholder="2200">
+      </div>
+      <div>
+        <div class="label">Protein (g)</div>
+        <input type="number" id="nutr-protein-input" placeholder="170">
+      </div>
+    </div>
+    <div class="input-row">
+      <div>
+        <div class="label">Carbs (g)</div>
+        <input type="number" id="nutr-carbs-input" placeholder="220">
+      </div>
+      <div>
+        <div class="label">Fats (g)</div>
+        <input type="number" id="nutr-fats-input" placeholder="70">
+      </div>
+    </div>
+    <button class="btn btn-accent btn-block" onclick="saveNutritionLog()">Save →</button>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════
+let state = {
+  mesocycles: [],
+  exercises: {},    // key: mesoId_week_day -> [{...}]
+  trainLogs: {},    // key: mesoId_week_day_exIdx_setIdx -> {weight, reps, done}
+  bodyLogs: [],     // [{date, weight, steps}]
+  nutritionLogs: [], // [{date, kcal, protein, carbs, fats}]
+  goals: [],        // [{mesoId, startDate, endDate, kcal, steps, protein, carbs, fats}]
+  customLibrary: [], // [{name, bodyPart}]
+  currentMesoId: null,
+  currentWeek: 1,
+  currentDay: 'push',
+  currentEditContext: null,
+};
+
+function save() { localStorage.setItem('bloc_state', JSON.stringify(state)); }
+function load() {
+  const raw = localStorage.getItem('bloc_state');
+  if (raw) { try { state = JSON.parse(raw); } catch(e) {} }
+}
+
+load();
+
+// ════════════════════════════════════════════════
+// NAVIGATION
+// ════════════════════════════════════════════════
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+  if (name === 'home') renderHome();
+  if (name === 'plan') renderPlan();
+  if (name === 'train') renderTrain();
+  if (name === 'body') renderBody();
+  if (name === 'nutrition') renderNutrition();
+  if (name === 'settings') renderSettings();
+  if (name === 'goals') renderGoals();
+}
+
+// ════════════════════════════════════════════════
+// MODALS
+// ════════════════════════════════════════════════
+function openModal(id) {
+  const today = new Date().toISOString().split('T')[0];
+  if (id === 'modal-body-log') {
+    // Only reset date to today when opening fresh (not when editing — openEditBodyLog sets originalDate first)
+    if (!document.getElementById('body-date-input').dataset.originalDate) {
+      document.getElementById('body-date-input').value = today;
+    }
+  }
+  if (id === 'modal-nutrition-log') {
+    if (!document.getElementById('nutr-date-input').dataset.originalDate) {
+      document.getElementById('nutr-date-input').value = today;
+    }
+  }
+  if (id === 'modal-add-goal') {
+    if (!state.goals) state.goals = [];
+    const sel = document.getElementById('goal-meso-select');
+    sel.innerHTML = state.mesocycles.map(m => '<option value="' + m.id + '">' + m.name + '</option>').join('') || '<option value="">No mesocycles yet</option>';
+    const modal = document.getElementById('modal-add-goal');
+    // Only reset fields when opening fresh — openEditGoal pre-sets _editIdx and field values
+    const isEditing = modal._editIdx !== undefined && modal._editIdx !== null;
+    if (!isEditing) {
+      document.getElementById('goal-start-input').value = today;
+      document.getElementById('goal-end-input').value = '';
+      document.getElementById('goal-kcal-input').value = '';
+      document.getElementById('goal-steps-input').value = '';
+      document.getElementById('goal-protein-input').value = '';
+      document.getElementById('goal-carbs-input').value = '';
+      document.getElementById('goal-fats-input').value = '';
+      document.getElementById('goal-modal-title').textContent = 'New Goal Period';
+      modal._editIdx = undefined;
+    }
+  }
+  if (id === 'modal-meso') {
+    document.getElementById('meso-start-input').value = today;
+    document.getElementById('meso-target-bw-input').value = '';
+    if (document.getElementById('meso-sessions-input')) document.getElementById('meso-sessions-input').value = '3';
+    if (document.getElementById('meso-weeks-per-macro-input')) document.getElementById('meso-weeks-per-macro-input').value = '1';
+    // Reset form state
+    state._mesoForm = { split: 'ppl', micro: 'yes' };
+    state._customSessions = ['Day A', 'Day B', 'Day C'];
+    // Reset visual selection
+    ['ppl','fullbody','custom'].forEach(v => {
+      document.getElementById('split-opt-'+v).classList.toggle('meso-opt-selected', v === 'ppl');
+    });
+    ['yes','no'].forEach(v => {
+      document.getElementById('micro-opt-'+v).classList.toggle('meso-opt-selected', v === 'yes');
+    });
+    document.getElementById('custom-split-builder').style.display = 'none';
+    document.getElementById('custom-sessions-label').textContent = 'Sessions per microcycle';
+    renderCustomSessions();
+  }
+  document.getElementById(id).classList.add('open');
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function closeModalOutside(e, id) { if (e.target.id === id) closeModal(id); }
+
+function selectMesoOpt(group, value) {
+  if (!state._mesoForm) state._mesoForm = { split: 'ppl', micro: 'yes' };
+  state._mesoForm[group] = value;
+
+  if (group === 'split') {
+    ['ppl','fullbody','custom'].forEach(v => {
+      document.getElementById('split-opt-'+v).classList.toggle('meso-opt-selected', v === value);
+    });
+    const showBuilder = value === 'custom' || value === 'fullbody';
+    document.getElementById('custom-split-builder').style.display = showBuilder ? 'block' : 'none';
+    if (value === 'fullbody') {
+      // Pre-populate with the standard bro-split template
+      state._customSessions = ['Back', 'Chest', 'Legs', 'Arms'];
+      renderCustomSessions();
+    } else if (value === 'custom' && (!state._customSessions || state._customSessions[0] === 'Back')) {
+      // Reset to generic defaults when switching to custom
+      state._customSessions = ['Session 1', 'Session 2', 'Session 3'];
+      renderCustomSessions();
+    }
+    const lbl = document.getElementById('custom-sessions-label');
+    if (lbl) {
+      const micro = state._mesoForm.micro || 'yes';
+      lbl.textContent = value === 'fullbody'
+        ? 'Body part sessions'
+        : (micro === 'no' ? 'Sessions per week' : 'Sessions per microcycle');
+    }
+  }
+  if (group === 'micro') {
+    ['yes','no'].forEach(v => {
+      document.getElementById('micro-opt-'+v).classList.toggle('meso-opt-selected', v === value);
+    });
+    const lbl = document.getElementById('custom-sessions-label');
+    if (lbl) lbl.textContent = value === 'no' ? 'Sessions per week' : 'Sessions per microcycle';
+  }
+}
+
+// ════════════════════════════════════════════════
+// MESOCYCLE DURATION HELPERS
+// ════════════════════════════════════════════════
+function getMesoDurationWeeks(meso) {
+  // Total calendar weeks = macrocycles × weeks-per-macrocycle (default 1 for legacy)
+  return (meso.weeks || 8) * (meso.weeksPerMacro || 1);
+}
+function getMesoSummaryLabel(meso) {
+  const wpm = meso.weeksPerMacro || 1;
+  const spw = meso.sessionsPerWeek || 3;
+  const totalWks = getMesoDurationWeeks(meso);
+  if (wpm > 1) return `${meso.weeks} macrocycles · ${wpm} wks each · ${spw} sessions/wk · ${totalWks} wks total`;
+  return `${meso.weeks} macrocycles · ${spw} sessions/wk · ${totalWks} wks total`;
+}
+
+// ════════════════════════════════════════════════
+// MESOCYCLE
+// ════════════════════════════════════════════════
+function createMesocycle() {
+  const name = document.getElementById('meso-name-input').value.trim() || 'Mesocycle';
+  const weeks = parseInt(document.getElementById('meso-weeks-input').value) || 8;
+  const weeksPerMacro = parseInt(document.getElementById('meso-weeks-per-macro-input').value) || 1;
+  const sessionsPerWeek = parseInt(document.getElementById('meso-sessions-input').value) || 3;
+  const start = document.getElementById('meso-start-input').value;
+  const goal = document.getElementById('meso-goal-input').value.trim();
+  const targetBw = parseFloat(document.getElementById('meso-target-bw-input').value) || null;
+  const form = state._mesoForm || { split: 'ppl', micro: 'yes' };
+  const splitType = form.split;
+  const useMicrocycles = form.micro !== 'no';
+
+  let days, dayLabels;
+  if (splitType === 'ppl') {
+    days = ['push','pull','legs'];
+    dayLabels = { push:'Push', pull:'Pull', legs:'Legs' };
+  } else {
+    const sessions = (state._customSessions || ['Session 1','Session 2','Session 3']).filter(s => s.trim());
+    days = sessions.map((_,i) => 'session'+i);
+    dayLabels = {};
+    sessions.forEach((s,i) => { dayLabels['session'+i] = s.trim() || ('Session '+(i+1)); });
+  }
+
+  const id = 'meso_' + Date.now();
+  state.mesocycles.push({ id, name, weeks, weeksPerMacro, sessionsPerWeek, start, goal, targetBw, splitType, days, dayLabels, useMicrocycles });
+  state.currentMesoId = id;
+  state.currentDay = useMicrocycles ? (days[0] + 'm1') : days[0];
+  save();
+  closeModal('modal-meso');
+  renderPlan();
+}
+
+function addCustomSession() {
+  if (!state._customSessions) state._customSessions = [];
+  state._customSessions.push('Session ' + (state._customSessions.length + 1));
+  renderCustomSessions();
+}
+
+function removeCustomSession(idx) {
+  state._customSessions.splice(idx, 1);
+  renderCustomSessions();
+}
+
+function renderCustomSessions() {
+  const list = document.getElementById('custom-sessions-list');
+  if (!list) return;
+  list.innerHTML = (state._customSessions || []).map((s, i) =>
+    `<div style="display:flex;gap:6px;align-items:center;">
+      <input type="text" value="${s}" placeholder="e.g. Chest &amp; Triceps"
+        oninput="state._customSessions[${i}]=this.value" style="flex:1;">
+      <button class="btn btn-sm btn-danger" style="padding:6px 10px;flex-shrink:0;" onclick="removeCustomSession(${i})">✕</button>
+    </div>`
+  ).join('');
+}
+
+// ════════════════════════════════════════════════
+// EXERCISES
+// ════════════════════════════════════════════════
+function onExTypeChange() {
+  const type = document.getElementById('ex-type-select').value;
+  const setsRow = document.getElementById('ex-sets-row');
+  if (type === 'myorep') {
+    // Giant set: lock sets to 1
+    document.getElementById('ex-sets-start-input').value = '1';
+    document.getElementById('ex-sets-end-input').value = '1';
+    setsRow.style.opacity = '0.4';
+    setsRow.style.pointerEvents = 'none';
+  } else {
+    setsRow.style.opacity = '';
+    setsRow.style.pointerEvents = '';
+  }
+}
+
+function setSelectValue(id, val) {
+  const el = document.getElementById(id);
+  // Try exact match first, then closest
+  const strVal = String(val);
+  for (const opt of el.options) { if (opt.value === strVal) { el.value = strVal; return; } }
+  // Fallback: pick closest numeric option
+  const num = parseFloat(val);
+  let closest = el.options[0];
+  for (const opt of el.options) { if (Math.abs(parseFloat(opt.value) - num) < Math.abs(parseFloat(closest.value) - num)) closest = opt; }
+  el.value = closest.value;
+}
+
+function openAddExercise(week, day) {
+  state.currentEditContext = { week, day, editIdx: null };
+  document.getElementById('modal-ex-title').textContent = 'Add Exercise';
+  populateExerciseSelect(null);
+  setSelectValue('ex-reps-input', '10');
+  setSelectValue('ex-sets-start-input', '2');
+  setSelectValue('ex-sets-end-input', '5');
+  document.getElementById('ex-weight-input').value = '';
+  document.getElementById('ex-type-select').value = 'standard';
+  document.getElementById('ex-leg-select').value = '0';
+  onExTypeChange();
+  openModal('modal-exercise');
+}
+
+function openEditExercise(week, day, idx) {
+  const key = state.currentMesoId + '_' + week + '_' + day;
+  const ex = (state.exercises[key] || [])[idx];
+  if (!ex) return;
+  state.currentEditContext = { week, day, editIdx: idx };
+  document.getElementById('modal-ex-title').textContent = 'Edit Exercise';
+  populateExerciseSelect(ex.name);
+  setSelectValue('ex-reps-input', ex.reps);
+  setSelectValue('ex-sets-start-input', ex.setsStart);
+  setSelectValue('ex-sets-end-input', ex.setsEnd);
+  document.getElementById('ex-weight-input').value = ex.startWeight;
+  document.getElementById('ex-type-select').value = ex.type || 'standard';
+  document.getElementById('ex-leg-select').value = ex.isHeavyLeg ? '1' : '0';
+  onExTypeChange();
+  openModal('modal-exercise');
+}
+
+function saveExercise() {
+  const ctx = state.currentEditContext;
+  if (!ctx || !state.currentMesoId) return;
+  const key = state.currentMesoId + '_' + ctx.week + '_' + ctx.day;
+  if (!state.exercises[key]) state.exercises[key] = [];
+  const type = document.getElementById('ex-type-select').value;
+  const isMyorepGiant = type === 'myorep';
+  const ex = {
+    name: document.getElementById('ex-name-input').value.trim() || 'Exercise',
+    reps: document.getElementById('ex-reps-input').value,
+    setsStart: isMyorepGiant ? 1 : parseInt(document.getElementById('ex-sets-start-input').value),
+    setsEnd:   isMyorepGiant ? 1 : parseInt(document.getElementById('ex-sets-end-input').value),
+    startWeight: parseFloat(document.getElementById('ex-weight-input').value) || 0,
+    type,
+    isHeavyLeg: document.getElementById('ex-leg-select').value === '1',
+  };
+  if (ctx.editIdx !== null) {
+    state.exercises[key][ctx.editIdx] = ex;
+  } else {
+    state.exercises[key].push(ex);
+  }
+  save();
+  closeModal('modal-exercise');
+  renderPlan();
+}
+
+function deleteExercise(week, day, idx) {
+  const key = state.currentMesoId + '_' + week + '_' + day;
+  if (state.exercises[key]) {
+    state.exercises[key].splice(idx, 1);
+    save(); renderPlan();
+  }
+}
+
+// ════════════════════════════════════════════════
+// PROGRESSION LOGIC
+// ════════════════════════════════════════════════
+function getWeekSets(ex, week, totalWeeks) {
+  // Linearly scale from setsStart to setsEnd
+  const t = totalWeeks > 1 ? (week - 1) / (totalWeeks - 1) : 0;
+  return Math.round(ex.setsStart + t * (ex.setsEnd - ex.setsStart));
+}
+
+function getWeekWeight(ex, week, progType) {
+  // progType passed explicitly — no longer stored on exercise
+  if (progType !== 'weight') return ex.startWeight;
+  const jump = ex.isHeavyLeg ? 2.5 : 1.5;
+  return ex.startWeight + jump * (week - 1);
+}
+
+function getWeekReps(ex, week, progType) {
+  if (progType !== 'reps') return ex.reps;
+  const match = ex.reps.match(/(\d+)/);
+  if (!match) return ex.reps;
+  const base = parseInt(match[1]);
+  const added = base + (week - 1);
+  if (ex.reps.includes('–')) {
+    const top = parseInt(ex.reps.split('–')[1]);
+    return added + '–' + (top + (week - 1));
+  }
+  return String(added);
+}
+
+function getMyorepProgression(ex, week) {
+  // myorep giant: +10 reps/week; myomatch: reps don't increase (weight only)
+  if (ex.type === 'myomatch') {
+    const base = parseInt(ex.reps.match(/\d+/)?.[0]) || 20;
+    return base + ' reps'; // fixed — progression is weight only
+  }
+  const add = 10; // giant set: +10 per week
+  const base = parseInt(ex.reps.match(/\d+/)?.[0]) || 20;
+  return (base + add * (week - 1)) + ' reps';
+}
+
+function getProgressionNote(ex, week, progType) {
+  if (week === 1) return null;
+  if (ex.type === 'myomatch') {
+    return `+${ex.isHeavyLeg ? '2.5–3' : '1–2'} kg`; // weight only
+  }
+  if (ex.type === 'myorep') {
+    if (progType === 'weight') return `+${ex.isHeavyLeg ? '2.5–3' : '1–2'} kg`;
+    return `+10 reps`;
+  }
+  if (progType === 'weight') return `+${ex.isHeavyLeg ? '2.5–3' : '1–2'} kg`;
+  return `+1 rep`;
+}
+
+// ════════════════════════════════════════════════
+// RENDER: HOME
+// ════════════════════════════════════════════════
+function renderHome() {
+  // Date subtitle
+  const todayStr = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' });
+  document.getElementById('home-date').textContent = todayStr;
+
+  // ── Active cycle ─────────────────────────────
+  const cycleEl = document.getElementById('home-cycle');
+  const meso = state.mesocycles.find(m => m.id === state.currentMesoId);
+  if (!meso) {
+    cycleEl.innerHTML = `<div class="card" style="cursor:pointer;" onclick="showScreen('plan')">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:13px;color:var(--text3);">No active cycle — tap to create one</span>
+        <span style="color:var(--text3);font-size:18px;">→</span>
+      </div>
+    </div>`;
+  } else {
+    const startDate = meso.start ? new Date(meso.start + 'T00:00:00') : new Date();
+    const totalCalWks = getMesoDurationWeeks(meso);
+    const endDate = new Date(startDate); endDate.setDate(endDate.getDate() + totalCalWks * 7);
+    const today = new Date(); today.setHours(0,0,0,0); startDate.setHours(0,0,0,0);
+    const totalDays = totalCalWks * 7;
+    const elapsedDays = Math.max(0, Math.min(today - startDate, endDate - startDate)) / (1000*60*60*24);
+    const pct = Math.min(100, Math.round((elapsedDays / totalDays) * 100));
+    const currentMacro = today < startDate ? 0 : Math.min(meso.weeks, Math.floor(elapsedDays / ((meso.weeksPerMacro || 1) * 7)) + 1);
+    const weekLabel = today < startDate ? 'Not started' : `MC ${currentMacro} of ${meso.weeks}`;
+    const endStr = endDate.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+    const splitBadge = meso.splitType === 'fullbody' ? 'Full Body' : meso.splitType === 'custom' ? 'Custom' : 'PPL';
+
+    // Body weight vs target
+    const bwLogs = (state.bodyLogs || []).filter(l => l.weight).sort((a,b) => b.date.localeCompare(a.date));
+    const latestBw = bwLogs.length ? parseFloat(bwLogs[0].weight) : null;
+    let bwHtml = '';
+    if (meso.targetBw && latestBw !== null) {
+      const diff = latestBw - meso.targetBw;
+      const diffStr = Math.abs(diff) <= 0.1
+        ? 'On target ✓'
+        : diff > 0
+          ? (diff.toFixed(1) + ' lbs above target')
+          : (Math.abs(diff).toFixed(1) + ' lbs below target');
+      const diffColor = Math.abs(diff) <= 0.1 ? 'var(--accent)' : diff > 0 ? 'var(--amber)' : 'var(--blue)';
+      bwHtml = `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:0.5px solid var(--border);">
+        <span style="font-size:12px;color:var(--text2);">Body weight</span>
+        <span style="font-size:12px;">${latestBw} lbs → <span style="color:${diffColor};">${meso.targetBw} lbs target · ${diffStr}</span></span>
+      </div>`;
+    } else if (meso.targetBw) {
+      bwHtml = `<div style="font-size:11px;color:var(--text3);margin-top:6px;">Target: ${meso.targetBw} lbs — no weigh-ins yet</div>`;
+    }
+
+    cycleEl.innerHTML = `<div class="card card-accent" style="cursor:pointer;" onclick="showScreen('plan')">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+        <div>
+          <div style="font-family:var(--font-display);font-size:16px;font-weight:800;">${meso.name}</div>
+          ${meso.goal ? `<div style="font-size:12px;color:var(--text2);margin-top:2px;">${meso.goal}</div>` : ''}
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">
+          <span class="badge badge-green">${totalCalWks}wk</span>
+          <span class="badge badge-blue">${splitBadge}</span>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Ends ${endStr}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <span style="font-size:12px;color:var(--text2);">${weekLabel}</span>
+        <span style="font-size:12px;color:var(--accent);">${pct}%</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+      ${bwHtml}
+    </div>`;
+  }
+
+  // ── Body weight (last 7 days) ─────────────────
+  const bodyEl = document.getElementById('home-body');
+  const weightLogs = [...state.bodyLogs].sort((a,b) => b.date.localeCompare(a.date));
+  const cutoff7 = new Date(); cutoff7.setDate(cutoff7.getDate() - 7); cutoff7.setHours(0,0,0,0);
+  const cutoff14 = new Date(); cutoff14.setDate(cutoff14.getDate() - 14); cutoff14.setHours(0,0,0,0);
+  const last7w = weightLogs.filter(l => l.weight && new Date(l.date+'T00:00:00') >= cutoff7);
+  const prev7w = weightLogs.filter(l => l.weight && new Date(l.date+'T00:00:00') >= cutoff14 && new Date(l.date+'T00:00:00') < cutoff7);
+  const latest = weightLogs.find(l => l.weight);
+  const avg7 = last7w.length ? (last7w.reduce((a,b) => a + parseFloat(b.weight), 0) / last7w.length) : null;
+  const avg7prev = prev7w.length ? (prev7w.reduce((a,b) => a + parseFloat(b.weight), 0) / prev7w.length) : null;
+  const wkChange = avg7 !== null && avg7prev !== null ? (avg7 - avg7prev) : null;
+  const changeColor = wkChange === null ? 'var(--text3)' : wkChange < 0 ? 'var(--accent)' : wkChange > 0 ? 'var(--red)' : 'var(--text2)';
+  const changeStr = wkChange !== null ? (wkChange >= 0 ? '+' : '') + wkChange.toFixed(1) + ' lbs vs last wk' : 'Not enough data';
+
+  bodyEl.innerHTML = `<div class="card" style="cursor:pointer;" onclick="showScreen('body')">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-family:var(--font-display);font-size:28px;font-weight:800;line-height:1;">${latest ? latest.weight + ' lbs' : '—'}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:3px;">Latest · ${avg7 !== null ? '7d avg: ' + avg7.toFixed(1) + ' lbs' : 'no recent data'}</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:13px;font-weight:500;color:${changeColor};">${changeStr}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:3px;">${last7w.length} entries this week</div>
+      </div>
+    </div>
+  </div>`;
+
+  // Sparkline for body weight (last 14 entries)
+  const sparkData = weightLogs.filter(l => l.weight).slice(0, 14).reverse();
+  if (sparkData.length >= 2) {
+    const vals = sparkData.map(l => parseFloat(l.weight));
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const range = max - min || 1;
+    const W = 320, H = 40, pad = 4;
+    const pts = vals.map((v, i) => {
+      const x = pad + (i / (vals.length - 1)) * (W - pad*2);
+      const y = H - pad - ((v - min) / range) * (H - pad*2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    bodyEl.innerHTML += `<div style="padding:0 0 6px;">
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:40px;display:block;">
+        <polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.7"/>
+      </svg>
+    </div>`;
+  }
+
+  // ── Steps (last 7 days) ───────────────────────
+  const stepsEl = document.getElementById('home-steps');
+  const last7s = weightLogs.filter(l => l.steps && new Date(l.date+'T00:00:00') >= cutoff7);
+  const avgSteps = last7s.length ? Math.round(last7s.reduce((a,b) => a + parseInt(b.steps), 0) / last7s.length) : null;
+  const latestSteps = weightLogs.find(l => l.steps);
+  stepsEl.innerHTML = `<div class="card" style="cursor:pointer;" onclick="showScreen('body')">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-family:var(--font-display);font-size:28px;font-weight:800;line-height:1;">${avgSteps !== null ? avgSteps.toLocaleString() : '—'}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:3px;">7-day avg steps</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:13px;color:var(--text2);">${latestSteps ? parseInt(latestSteps.steps).toLocaleString() + ' today' : 'No data'}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:3px;">${last7s.length} entries this week</div>
+      </div>
+    </div>
+  </div>`;
+
+  // ── Nutrition (last 7 days avg) ───────────────
+  const nutrEl = document.getElementById('home-nutrition');
+  const last7n = state.nutritionLogs.filter(l => new Date(l.date+'T00:00:00') >= cutoff7);
+  if (!last7n.length) {
+    nutrEl.innerHTML = `<div class="card" style="cursor:pointer;" onclick="showScreen('nutrition')">
+      <span style="font-size:13px;color:var(--text3);">No nutrition data this week — tap to log</span>
+    </div>`;
+  } else {
+    const avgKcal = Math.round(last7n.reduce((a,b) => a + (b.kcal||0), 0) / last7n.length);
+    const avgP = Math.round(last7n.reduce((a,b) => a + (b.protein||0), 0) / last7n.length);
+    const avgC = Math.round(last7n.reduce((a,b) => a + (b.carbs||0), 0) / last7n.length);
+    const avgF = Math.round(last7n.reduce((a,b) => a + (b.fats||0), 0) / last7n.length);
+    const totalCals = avgP*4 + avgC*4 + avgF*9 || 1;
+    const pPct = Math.round((avgP*4/totalCals)*100);
+    const cPct = Math.round((avgC*4/totalCals)*100);
+    const fPct = Math.round((avgF*9/totalCals)*100);
+    const pie = makePie(pPct, cPct, fPct);
+
+    // Goal comparison
+    const ag = getActiveGoal ? getActiveGoal() : null;
+
+    // Calculate goal macro percentages if goal exists
+    let goalPPct = null, goalCPct = null, goalFPct = null;
+    if (ag) {
+      const goalTotalCals = (ag.protein||0)*4 + (ag.carbs||0)*4 + (ag.fats||0)*9;
+      if (goalTotalCals > 0) {
+        goalPPct = Math.round(((ag.protein||0)*4 / goalTotalCals)*100);
+        goalCPct = Math.round(((ag.carbs||0)*4 / goalTotalCals)*100);
+        goalFPct = Math.round(((ag.fats||0)*9 / goalTotalCals)*100);
+      }
+    }
+
+    function pctLabel(actual, target) {
+      if (target === null) return '(' + actual + '%)';
+      return '(' + actual + '% vs target ' + target + '%)';
+    }
+
+    function macroStatus(val, goalVal, isWarningWhenOver) {
+      if (!goalVal) return '';
+      const diff = val - goalVal;
+      if (isWarningWhenOver) {
+        // carbs & fats: tick if at or below target, warning if over
+        if (diff <= 1) return '<span style="color:var(--accent);margin-left:4px;">✓</span>';
+        return '<span style="color:var(--amber);margin-left:4px;">⚠ +' + diff + 'g</span>';
+      } else {
+        // protein: tick if at or above target, grey deficit if below
+        if (diff >= -1) return '<span style="color:var(--accent);margin-left:4px;">✓</span>';
+        return '<span style="color:var(--text3);margin-left:4px;">' + diff + 'g</span>';
+      }
+    }
+
+    nutrEl.innerHTML = `<div class="card" style="cursor:pointer;" onclick="showScreen('nutrition')">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div>${pie}</div>
+        <div style="flex:1;">
+          <div style="font-family:var(--font-display);font-size:22px;font-weight:800;margin-bottom:8px;">${avgKcal}${ag && ag.kcal ? '<span style="font-size:12px;font-weight:400;color:var(--text3);"> / ' + ag.kcal + '</span>' : ''} <span style="font-size:13px;font-weight:400;color:var(--text2);">kcal / day</span></div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:12px;color:var(--blue);">● Protein <span style="color:var(--text);font-weight:500;">${avgP}g</span>${ag && ag.protein ? macroStatus(avgP, ag.protein, false) : ''}</span>
+              <span style="font-size:11px;color:var(--text3);">${pctLabel(pPct, goalPPct)}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:12px;color:var(--amber);">● Carbs <span style="color:var(--text);font-weight:500;">${avgC}g</span>${ag && ag.carbs ? macroStatus(avgC, ag.carbs, true) : ''}</span>
+              <span style="font-size:11px;color:var(--text3);">${pctLabel(cPct, goalCPct)}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:12px;color:var(--red);">● Fats <span style="color:var(--text);font-weight:500;">${avgF}g</span>${ag && ag.fats ? macroStatus(avgF, ag.fats, true) : ''}</span>
+              <span style="font-size:11px;color:var(--text3);">${pctLabel(fPct, goalFPct)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // ── Goals today section ───────────────────────
+  const goalsEl = document.getElementById('home-goals');
+  const goalsTitleEl = document.getElementById('home-goals-title');
+  const activeGoal = getActiveGoal ? getActiveGoal() : null;
+  if (goalsEl) {
+    if (activeGoal) {
+      if (goalsTitleEl) goalsTitleEl.style.display = '';
+      goalsEl.innerHTML = buildGoalsHomeSection(activeGoal);
+    } else {
+      if (goalsTitleEl) goalsTitleEl.style.display = 'none';
+      goalsEl.innerHTML = '';
+    }
+  }
+}
+
+function buildBwProgress(meso) {
+  try {
+    if (!meso || !meso.targetBw) return '';
+    var target = parseFloat(meso.targetBw);
+    if (isNaN(target)) return '';
+    var bwLogs = (state.bodyLogs || []).filter(function(l) { return l && l.weight; })
+      .sort(function(a,b) { return b.date.localeCompare(a.date); });
+    if (!bwLogs.length) {
+      return '<div style="margin-top:10px;font-size:12px;color:var(--text3);">Body weight target: ' + target + ' lbs \u2014 no weigh-ins logged yet</div>';
+    }
+    var current = parseFloat(bwLogs[0].weight);
+    var startLogs = (state.bodyLogs || []).filter(function(l) { return l && l.weight && meso.start && l.date >= meso.start; })
+      .sort(function(a,b) { return a.date.localeCompare(b.date); });
+    var startBw = startLogs.length > 0 ? parseFloat(startLogs[0].weight) : current;
+    var goalType = meso.goalType || 'loss';
+    var totalNeeded, achieved, bwPct;
+    if (goalType === 'maintenance') {
+      // Show variance from target
+      bwPct = 100;
+    } else if (goalType === 'gain') {
+      totalNeeded = target - startBw; // gaining
+      achieved = current - startBw;
+      bwPct = totalNeeded > 0 ? Math.min(100, Math.max(0, Math.round((achieved / totalNeeded) * 100))) : 100;
+    } else {
+      // loss (default)
+      totalNeeded = startBw - target;
+      achieved = startBw - current;
+      bwPct = totalNeeded !== 0 ? Math.min(100, Math.max(0, Math.round((achieved / totalNeeded) * 100))) : 100;
+    }
+    var diff = current - target;
+    var diffStr, diffColor;
+    if (Math.abs(diff) <= 0.5) { diffStr = 'On target'; diffColor = 'var(--accent)'; }
+    else if (goalType === 'gain') {
+      // Gaining: above target = good (accent), below = amber
+      diffStr = diff > 0 ? diff.toFixed(1) + ' lbs above target' : Math.abs(diff).toFixed(1) + ' lbs below target';
+      diffColor = diff > 0 ? 'var(--accent)' : 'var(--amber)';
+    } else if (goalType === 'maintenance') {
+      diffStr = diff > 0 ? diff.toFixed(1) + ' lbs above target' : Math.abs(diff).toFixed(1) + ' lbs below target';
+      diffColor = 'var(--blue)';
+    } else {
+      // Loss: below target = good (accent), above = amber
+      diffStr = diff > 0 ? diff.toFixed(1) + ' lbs above target' : Math.abs(diff).toFixed(1) + ' lbs below target';
+      diffColor = diff > 0 ? 'var(--amber)' : 'var(--accent)';
+    }
+    return '<div style="margin-top:10px;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
+      +   '<span style="font-size:11px;color:var(--text3);">Body weight target: ' + target + ' lbs</span>'
+      +   '<span style="font-size:11px;color:' + diffColor + ';">' + current.toFixed(1) + ' lbs &middot; ' + diffStr + '</span>'
+      + '</div>'
+      + '<div class="progress-track"><div class="progress-fill" style="width:' + bwPct + '%;background:var(--blue);"></div></div>'
+      + '<div style="display:flex;justify-content:space-between;margin-top:3px;">'
+      +   '<span style="font-size:10px;color:var(--text3);">' + startBw.toFixed(1) + ' lbs start</span>'
+      +   '<span style="font-size:10px;color:var(--text3);">' + target + ' lbs goal</span>'
+      + '</div></div>';
+  } catch(e) { return ''; }
+}
+
+// ════════════════════════════════════════════════
+// RENDER: PLAN
+// ════════════════════════════════════════════════
+function renderPlan() {
+  const meso = state.mesocycles.find(m => m.id === state.currentMesoId);
+  const overviewEl = document.getElementById('meso-overview');
+  const contentEl = document.getElementById('plan-content');
+
+  if (!meso) {
+    overviewEl.innerHTML = '';
+    contentEl.innerHTML = `<div class="empty-state">
+      <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+      <p>Tap <strong>+ Mesocycle</strong> to start building your 8-week plan.</p>
+    </div>`;
+    return;
+  }
+
+  // Mesocycle switcher if multiple
+  let mesoSwitch = '';
+  if (state.mesocycles.length > 1) {
+    mesoSwitch = '<div class="week-strip">' + state.mesocycles.map(m =>
+      `<button class="week-pill ${m.id === state.currentMesoId ? 'active' : ''}" onclick="selectMeso('${m.id}')">${m.name}</button>`
+    ).join('') + '</div>';
+  }
+
+  // Progress — day-based using total calendar duration
+  const totalCalendarWeeks = getMesoDurationWeeks(meso);
+  const startDate = meso.start ? new Date(meso.start + 'T00:00:00') : new Date();
+  const endDate = new Date(startDate);
+  endDate.setDate(endDate.getDate() + totalCalendarWeeks * 7);
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  startDate.setHours(0,0,0,0);
+  const totalDays = totalCalendarWeeks * 7;
+  const elapsedDays = Math.max(0, Math.min(today - startDate, endDate - startDate)) / (1000*60*60*24);
+  const pct = Math.min(100, Math.round((elapsedDays / totalDays) * 100));
+  const currentMacro = today < startDate ? 0 : Math.min(meso.weeks, Math.floor(elapsedDays / ((meso.weeksPerMacro || 1) * 7)) + 1);
+  const weekLabel = today < startDate ? 'Not started' : `Macrocycle ${currentMacro} of ${meso.weeks}`;
+  const endStr = endDate.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+  const splitBadge = meso.splitType === 'fullbody' ? 'Full Body' : meso.splitType === 'custom' ? 'Custom' : 'PPL';
+  const microBadge = meso.useMicrocycles === false ? 'no microcycles' : 'microcycles';
+
+  overviewEl.innerHTML = `
+    ${mesoSwitch}
+    <div class="card card-accent" style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-family:var(--font-display);font-size:18px;font-weight:800;">${meso.name}</div>
+          ${meso.goal ? `<div style="font-size:12px;color:var(--text2);margin-top:2px;">${meso.goal}</div>` : ''}
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;margin-left:10px;flex-shrink:0;">
+          <span class="badge badge-green">${totalCalendarWeeks}wk</span>
+          <span class="badge badge-blue">${splitBadge}</span>
+          <div style="display:flex;gap:4px;margin-top:2px;">
+            <button class="btn btn-sm" id="btn-edit-meso" style="padding:4px 10px;font-size:11px;">Edit</button>
+            <button class="btn btn-sm btn-danger" id="btn-delete-meso" style="padding:4px 10px;font-size:11px;">Delete</button>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">${getMesoSummaryLabel(meso)} · Ends ${endStr} · ${microBadge}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <span style="font-size:12px;color:var(--text2);">${weekLabel}</span>
+        <span style="font-size:12px;color:var(--accent);">${pct}%</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+      ${buildBwProgress(meso)}
+    </div>`;
+
+  // Wire delete button after innerHTML is set — avoids all quote/scope issues
+  const delBtn = document.getElementById('btn-delete-meso');
+  if (delBtn) delBtn.onclick = () => deleteMesocycle(meso.id);
+  const editBtn = document.getElementById('btn-edit-meso');
+  if (editBtn) editBtn.onclick = () => openEditMeso(meso.id);
+
+  // Build plan — exercises defined once in Week 1, propagated automatically
+  let html = '';
+  const days = meso.days || ['push','pull','legs'];
+  const dayLabels = meso.dayLabels || { push:'Push', pull:'Pull', legs:'Legs' };
+  const useMicro = meso.useMicrocycles !== false;
+
+  // ── Week 1: editable template ──────────────────
+  html += `<div style="margin-bottom:24px;">
+    <div class="section-title" style="margin-top:0;color:var(--accent);">Set your exercises here</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Exercises defined here carry forward to all weeks automatically.</div>
+    ${useMicro
+      ? renderMicroBlock(meso, 1, 1, days, dayLabels, true) + renderMicroBlock(meso, 1, 2, days, dayLabels, true)
+      : renderMicroBlock(meso, 1, 0, days, dayLabels, true)
+    }
+  </div>`;
+
+  // ── Weeks 2+: read-only progression preview ────
+  // Check if any exercises have been defined at all
+  const hasExercises = days.some(day => {
+    const micros = useMicro ? ['m1','m2'] : [''];
+    return micros.some(mk => (state.exercises[meso.id + '_1_' + day + mk] || []).length > 0);
+  });
+
+  if (hasExercises && meso.weeks > 1) {
+    html += `<div class="section-title" style="margin-top:0;">Weeks 2–${meso.weeks} — Progression preview</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Sets scale from your starting sets to peak sets. Targets shown use weight progression — you choose per-exercise each session.</div>`;
+
+    for (let w = 2; w <= meso.weeks; w++) {
+      html += `<div style="margin-bottom:16px;">
+        <div style="font-family:var(--font-display);font-weight:700;font-size:13px;color:var(--text2);margin-bottom:8px;">Week ${w}</div>
+        ${useMicro
+          ? renderMicroBlock(meso, w, 1, days, dayLabels, false) + renderMicroBlock(meso, w, 2, days, dayLabels, false)
+          : renderMicroBlock(meso, w, 0, days, dayLabels, false)
+        }
+      </div>`;
+    }
+  }
+
+  contentEl.innerHTML = html;
+}
+
+function renderMicroBlock(meso, week, micro, days, dayLabels, editable) {
+  const microKey = micro === 0 ? '' : `m${micro}`;
+  const sectionTitle = micro === 0 ? '' : `<div class="section-title" style="font-size:10px;">${editable ? 'Microcycle ' + micro : 'MC' + micro}</div>`;
+  let html = `<div style="margin-bottom:${editable ? 12 : 8}px;">${sectionTitle}`;
+
+  days.forEach(day => {
+    // Always read exercises from Week 1 template
+    const templateKey = meso.id + '_1_' + day + microKey;
+    const exercises = state.exercises[templateKey] || [];
+
+    if (editable) {
+      // Fully editable — show add button and exercise list with delete
+      html += `<div class="card" style="margin-bottom:8px;">
+        <div class="ex-header">
+          <div>
+            <div class="ex-name">${dayLabels[day]}</div>
+            <div class="ex-meta">${exercises.length} exercise${exercises.length !== 1 ? 's' : ''}</div>
+          </div>
+          <button class="btn btn-sm" onclick="openAddExercise(1,'${day + microKey}')">+ Add</button>
+        </div>`;
+
+      exercises.forEach((ex, idx) => {
+        const sets = getWeekSets(ex, 1, meso.weeks);
+        const typeLabel = ex.type === 'standard' ? 'std' : ex.type === 'myorep' ? 'myorep giant' : 'myomatch';
+        html += `<div style="padding:10px 0;border-top:0.5px solid var(--border);display:flex;align-items:flex-start;gap:10px;">
+          <button onclick="openEditExercise(1,'${day + microKey}',${idx})"
+            style="flex:1;background:none;border:none;padding:0;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+            <div style="font-weight:500;font-size:13px;color:var(--text);">${ex.name}</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:3px;">${sets} sets · ${ex.reps} reps · ${ex.startWeight} kg start</div>
+            <div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap;">
+              <span class="badge ${ex.type==='standard'?'badge-blue':ex.type==='myorep'?'badge-purple':'badge-amber'}">${typeLabel}</span>
+              ${ex.isHeavyLeg ? '<span class="badge badge-amber">heavy leg</span>' : ''}
+            </div>
+          </button>
+          <button class="btn btn-sm btn-danger" style="padding:5px 8px;flex-shrink:0;" onclick="deleteExercise(1,'${day + microKey}',${idx})">✕</button>
+        </div>`;
+      });
+
+      html += `</div>`;
+    } else {
+      // Read-only progression preview — compact
+      if (exercises.length === 0) return;
+      html += `<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:6px;">
+        <div style="font-size:11px;font-weight:500;color:var(--text2);margin-bottom:6px;">${dayLabels[day]}</div>`;
+      exercises.forEach(ex => {
+        const sets = getWeekSets(ex, week, meso.weeks);
+        const weightTarget = getWeekWeight(ex, week, 'weight').toFixed(1);
+        const repsTarget = (ex.type === 'myorep' || ex.type === 'myomatch')
+          ? getMyorepProgression(ex, week)
+          : ex.reps;
+        html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-top:0.5px solid var(--border);">
+          <span style="font-size:12px;color:var(--text);">${ex.name}</span>
+          <span style="font-size:11px;color:var(--text3);">${sets} sets · ${repsTarget} · ${weightTarget}kg</span>
+        </div>`;
+      });
+      html += `</div>`;
+    }
+  });
+
+  html += `</div>`;
+  return html;
+}
+
+function openEditMeso(id) {
+  const meso = state.mesocycles.find(m => m.id === id);
+  if (!meso) return;
+  document.getElementById('edit-meso-name-input').value = meso.name || '';
+  document.getElementById('edit-meso-weeks-input').value = meso.weeks || 8;
+  document.getElementById('edit-meso-start-input').value = meso.start || '';
+  document.getElementById('edit-meso-goal-input').value = meso.goal || '';
+  document.getElementById('edit-meso-target-bw-input').value = meso.targetBw || '';
+  document.getElementById('edit-meso-goal-type-input').value = meso.goalType || 'loss';
+  document.getElementById('edit-meso-weeks-per-macro-input').value = meso.weeksPerMacro || 1;
+  document.getElementById('edit-meso-sessions-per-week-input').value = meso.sessionsPerWeek || 3;
+  document.getElementById('modal-edit-meso')._editId = id;
+  openModal('modal-edit-meso');
+}
+
+function saveEditMeso() {
+  const id = document.getElementById('modal-edit-meso')._editId;
+  const meso = state.mesocycles.find(m => m.id === id);
+  if (!meso) return;
+  meso.name = document.getElementById('edit-meso-name-input').value.trim() || meso.name;
+  meso.weeks = parseInt(document.getElementById('edit-meso-weeks-input').value) || meso.weeks;
+  meso.start = document.getElementById('edit-meso-start-input').value || meso.start;
+  meso.goal = document.getElementById('edit-meso-goal-input').value.trim();
+  meso.targetBw = parseFloat(document.getElementById('edit-meso-target-bw-input').value) || null;
+  meso.goalType = document.getElementById('edit-meso-goal-type-input').value;
+  meso.weeksPerMacro = parseInt(document.getElementById('edit-meso-weeks-per-macro-input').value) || 1;
+  meso.sessionsPerWeek = parseInt(document.getElementById('edit-meso-sessions-per-week-input').value) || 3;
+  save();
+  closeModal('modal-edit-meso');
+  renderPlan();
+}
+
+function selectMeso(id) {
+  state.currentMesoId = id;
+  save();
+  renderPlan();
+}
+
+function deleteMesocycle(id) {
+  const meso = state.mesocycles.find(m => m.id === id);
+  if (!meso) return;
+  showConfirm(
+    'Delete cycle?',
+    `"${meso.name}" and all its exercises and training logs will be permanently removed.`,
+    'Delete',
+    () => {
+      showConfirm(
+        'Are you really sure?',
+        `This cannot be undone. "${meso.name}" will be gone forever.`,
+        'Yes, delete it',
+        () => {
+          state.mesocycles = state.mesocycles.filter(m => m.id !== id);
+          Object.keys(state.exercises).forEach(k => { if (k.startsWith(id)) delete state.exercises[k]; });
+          Object.keys(state.trainLogs).forEach(k => { if (k.startsWith(id)) delete state.trainLogs[k]; });
+          state.currentMesoId = state.mesocycles.length ? state.mesocycles[state.mesocycles.length - 1].id : null;
+          const next = state.mesocycles.find(m => m.id === state.currentMesoId);
+          state.currentWeek = 1;
+          state.currentDay = next ? ((next.useMicrocycles !== false) ? (next.days[0] + 'm1') : next.days[0]) : 'push';
+          save();
+          renderPlan();
+        }
+      );
+    }
+  );
+}
+
+// ════════════════════════════════════════════════
+// RENDER: TRAIN
+// ════════════════════════════════════════════════
+function renderTrain() {
+  const meso = state.mesocycles.find(m => m.id === state.currentMesoId);
+  const stripEl = document.getElementById('week-strip');
+  const tabsEl = document.getElementById('day-tabs');
+  const subEl = document.getElementById('train-sub');
+
+  if (!meso) {
+    stripEl.innerHTML = '';
+    tabsEl.innerHTML = '';
+    document.getElementById('train-content').innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24"><path d="M6 4v16M18 4v16M3 8h4M17 8h4M3 16h4M17 16h4"/></svg><p>Create a mesocycle in the Plan tab first.</p></div>`;
+    return;
+  }
+
+  // Macrocycle strip — renamed from Week
+  let wHtml = '';
+  for (let w = 1; w <= meso.weeks; w++) {
+    // Check if all sessions in this macrocycle are complete
+    const days = meso.days || ['push','pull','legs'];
+    const useMicro = meso.useMicrocycles !== false;
+    const micros = useMicro ? [1,2] : [0];
+    let allSessionsDone = true;
+    let hasAnySessions = false;
+    micros.forEach(mc => {
+      days.forEach(d => {
+        const dayKey = mc === 0 ? d : d + 'm' + mc;
+        const templateKey = meso.id + '_1_' + dayKey;
+        const exercises = state.exercises[templateKey] || [];
+        if (exercises.length === 0) return;
+        hasAnySessions = true;
+        exercises.forEach((ex, exIdx) => {
+          const sets = getWeekSets(ex, w, meso.weeks);
+          for (let s = 0; s < sets; s++) {
+            const lk = meso.id + '_' + w + '_' + dayKey + '_' + exIdx + '_' + s;
+            if (!state.trainLogs[lk] || !state.trainLogs[lk].done) allSessionsDone = false;
+          }
+        });
+      });
+    });
+    const isDone = hasAnySessions && allSessionsDone;
+    wHtml += `<button class="week-pill ${state.currentWeek===w?'active':''}" onclick="selectTrainWeek(${w})">MC ${w}${isDone ? ' ✓' : ''}</button>`;
+  }
+  stripEl.innerHTML = wHtml;
+
+  // Day tabs — driven by meso split and microcycle setting
+  const days = meso.days || ['push','pull','legs'];
+  const dayLabels = meso.dayLabels || { push:'Push', pull:'Pull', legs:'Legs' };
+  const useMicro = meso.useMicrocycles !== false;
+  const micros = useMicro ? [1,2] : [0];
+  let tHtml = '';
+  micros.forEach(mc => {
+    days.forEach(d => {
+      const key = mc === 0 ? d : (d + 'm' + mc);
+      const label = useMicro ? ((dayLabels[d] || d) + ' M' + mc) : (dayLabels[d] || d);
+      tHtml += `<button class="day-tab ${state.currentDay===key?'active':''}" onclick="selectTrainDay('${key}')">${label}</button>`;
+    });
+  });
+  tabsEl.innerHTML = tHtml;
+
+  // Ensure currentDay is valid for this meso
+  const validKeys = micros.flatMap(mc => days.map(d => mc === 0 ? d : d+'m'+mc));
+  if (!validKeys.includes(state.currentDay)) {
+    state.currentDay = validKeys[0];
+    save();
+  }
+
+  // Subtitle
+  const dayKey = state.currentDay;
+  const dayId = useMicro ? dayKey.replace(/m[12]$/, '') : dayKey;
+  const microSuffix = useMicro ? (' ' + (dayKey.endsWith('m1') ? 'MC1' : 'MC2')) : '';
+  const dayDisplay = dayLabels[dayId] || dayId;
+  subEl.textContent = `MC ${state.currentWeek} · ${dayDisplay}${microSuffix}`;
+
+  renderTrainDay(meso);
+}
+
+function selectTrainWeek(w) {
+  state.currentWeek = w;
+  save();
+  renderTrain();
+}
+
+function selectTrainDay(d) {
+  state.currentDay = d;
+  save();
+  renderTrain();
+}
+
+function getProgKey(mesoId, week, day, exIdx) {
+  return mesoId + '_prog_' + week + '_' + day + '_' + exIdx;
+}
+
+function selectProgType(mesoId, week, day, exIdx, progType) {
+  const pk = getProgKey(mesoId, week, day, exIdx);
+  if (!state.trainLogs[pk]) state.trainLogs[pk] = {};
+  state.trainLogs[pk].progType = progType;
+  save();
+  const meso = state.mesocycles.find(m => m.id === mesoId);
+  if (meso) renderTrainDay(meso);
+}
+
+// Tracks which exercise cards are expanded: key = mesoId_week_day_exIdx
+const expandedExercises = {};
+
+function toggleExercise(expandKey) {
+  expandedExercises[expandKey] = !expandedExercises[expandKey];
+  const meso = state.mesocycles.find(m => m.id === state.currentMesoId);
+  if (meso) renderTrainDay(meso);
+}
+
+function renderTrainDay(meso) {
+  // Exercises are always defined in Week 1 — used as the template for all weeks
+  const templateKey = meso.id + '_1_' + state.currentDay;
+  const exercises = state.exercises[templateKey] || [];
+  const key = meso.id + '_' + state.currentWeek + '_' + state.currentDay;
+  const el = document.getElementById('train-content');
+
+  if (exercises.length === 0) {
+    el.innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg><p>No exercises for this day. Add them in the Plan tab.</p></div>`;
+    return;
+  }
+
+  const prevWeek = state.currentWeek - 1;
+  const prevKey = meso.id + '_' + prevWeek + '_' + state.currentDay;
+
+  let html = '';
+  exercises.forEach((ex, exIdx) => {
+    const expandKey = meso.id + '_' + state.currentWeek + '_' + state.currentDay + '_' + exIdx;
+    const isExpanded = !!expandedExercises[expandKey];
+    const sets = getWeekSets(ex, state.currentWeek, meso.weeks);
+    const pk = getProgKey(meso.id, state.currentWeek, state.currentDay, exIdx);
+    const progLog = state.trainLogs[pk] || {};
+    const progType = progLog.progType || 'weight';
+    const prevPk = getProgKey(meso.id, prevWeek, state.currentDay, exIdx);
+    const prevProgLog = state.trainLogs[prevPk] || {};
+    const prevProgType = prevProgLog.progType || null;
+    const isMyorep = ex.type === 'myorep' || ex.type === 'myomatch';
+    const isMyomatch = ex.type === 'myomatch';
+    const weightJump = ex.isHeavyLeg ? 2.5 : 1.5;
+    const myoAdd = ex.type === 'myorep' ? 10 : 0; // giant: +10; match: weight only
+    const typeLabel = ex.type === 'standard' ? 'std' : ex.type === 'myorep' ? 'myorep giant' : 'myomatch';
+
+    // ── Gather previous week's actual logged Set 1 values ─────────────────────
+    // prevKey is built from the same day — logs are stored per-week per-day per-set
+    let prevLoggedSets = [];
+    if (prevWeek >= 1) {
+      const prevSetsCount = getWeekSets(ex, prevWeek, meso.weeks);
+      for (let s = 0; s < prevSetsCount; s++) {
+        const lk = prevKey + '_' + exIdx + '_' + s;
+        const lg = state.trainLogs[lk];
+        prevLoggedSets.push(lg || null);
+      }
+    }
+    const prevSet1 = prevLoggedSets[0];
+    const prevActualWeight = prevSet1 && prevSet1.weight ? parseFloat(prevSet1.weight) : null;
+    const prevActualReps   = prevSet1 && prevSet1.reps  ? prevSet1.reps : null;
+
+    // ── Recommended weight: last week's actual + jump (fallback to formula) ───
+    const recommendedWeight = prevActualWeight !== null
+      ? prevActualWeight + weightJump
+      : getWeekWeight(ex, state.currentWeek, 'weight');
+
+    // ── Recommended reps: last week's actual + 1 (fallback to formula) ────────
+    const recommendedReps = (() => {
+      if (isMyorep) return getMyorepProgression(ex, state.currentWeek);
+      if (prevActualReps !== null) {
+        const m = String(prevActualReps).match(/^(\d+)(?:–(\d+))?$/);
+        if (m) {
+          const lo = parseInt(m[1]) + 1;
+          return m[2] ? lo + '–' + (parseInt(m[2]) + 1) : String(lo);
+        }
+      }
+      return getWeekReps(ex, state.currentWeek, 'reps');
+    })();
+
+    // ── Placeholder values — driven by progType ───────────────────────────────
+    // Weight placeholder: if progType=weight → recommended (prev+jump); if reps → prev actual (no jump)
+    const weightPlaceholder = state.currentWeek === 1
+      ? ex.startWeight.toFixed(1)
+      : progType === 'weight'
+        ? recommendedWeight.toFixed(1)
+        : (prevActualWeight !== null ? prevActualWeight.toFixed(1) : ex.startWeight.toFixed(1));
+
+    // Reps placeholder: if progType=reps → recommended (+1); if weight → prev actual reps (no change)
+    const repsPlaceholder = state.currentWeek === 1
+      ? ex.reps
+      : progType === 'reps'
+        ? recommendedReps
+        : (prevActualReps !== null ? prevActualReps : ex.reps);
+
+    // ── Target for compact summary subtitle ───────────────────────────────────
+    const targetWeight = progType === 'weight' ? recommendedWeight : (prevActualWeight || ex.startWeight);
+    const targetReps   = progType === 'reps'   ? recommendedReps   : (isMyorep ? getMyorepProgression(ex, state.currentWeek) : ex.reps);
+
+    // ── Current week's logged values for compact display ──────────────────────
+    let doneSets = 0, loggedWeights = [], loggedRepsArr = [];
+    for (let s = 0; s < sets; s++) {
+      const lk = key + '_' + exIdx + '_' + s;
+      const lg = state.trainLogs[lk] || {};
+      if (lg.done) doneSets++;
+      if (lg.weight) loggedWeights.push(parseFloat(lg.weight));
+      if (lg.reps)   loggedRepsArr.push(lg.reps);
+    }
+    const allDone = doneSets === sets && sets > 0;
+    const summaryWeight = loggedWeights.length > 0 ? loggedWeights[0].toFixed(1) + ' kg' : weightPlaceholder + ' kg';
+    const summaryReps   = loggedRepsArr.length  > 0 ? loggedRepsArr[0]  : repsPlaceholder;
+
+    // ── Best confirmed weight: scan all weeks desc for any logged Set 1 weight ─
+    const startWeight = ex.startWeight || 0;
+    let bestLoggedWeight = null;
+    for (let w = state.currentWeek; w >= 1; w--) {
+      const wKey = meso.id + '_' + w + '_' + state.currentDay + '_' + exIdx + '_0';
+      const wLog = state.trainLogs[wKey];
+      if (wLog && wLog.weight) { bestLoggedWeight = parseFloat(wLog.weight); break; }
+    }
+    const progressKg  = bestLoggedWeight !== null ? bestLoggedWeight - startWeight : 0;
+    const progressPct = startWeight > 0 && bestLoggedWeight !== null
+      ? Math.round(((bestLoggedWeight - startWeight) / startWeight) * 100)
+      : 0;
+    const showProgress = bestLoggedWeight !== null && bestLoggedWeight !== startWeight;
+    const progressBadge = showProgress
+      ? `<span style="font-size:10px;color:${progressKg >= 0 ? 'var(--accent)' : 'var(--red)'};font-weight:500;white-space:nowrap;">${progressKg >= 0 ? '+' : ''}${progressKg.toFixed(1)}kg&nbsp;/&nbsp;${progressPct >= 0 ? '+' : ''}${progressPct}%</span>`
+      : '';
+
+    // ── Compact header ─────────────────────────────────────────────────────────
+    html += `<div class="card" style="margin-bottom:8px;padding:0;">
+      <button onclick="toggleExercise('${expandKey}')"
+        style="width:100%;background:none;border:none;padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;text-align:left;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${ex.name}</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:2px;flex-wrap:wrap;">
+            <span style="font-size:12px;color:var(--text2);">${sets} sets · ${summaryReps} · ${summaryWeight}</span>
+            ${progressBadge}
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+          ${allDone
+            ? `<span style="font-size:11px;color:var(--accent);font-weight:500;">✓ done</span>`
+            : doneSets > 0
+              ? `<span style="font-size:11px;color:var(--text3);">${doneSets}/${sets}</span>`
+              : `<span class="badge ${ex.type==='standard'?'badge-blue':ex.type==='myorep'?'badge-purple':'badge-amber'}" style="font-size:10px;">${typeLabel}</span>`
+          }
+          <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0;transition:transform 0.2s;transform:rotate(${isExpanded?'180':'0'}deg)"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+      </button>`;
+
+    // ── Expanded detail ────────────────────────────────────────────────────────
+    if (isExpanded) {
+
+      // Rec chip text (not shown on week 1)
+      const isMyomatch = ex.type === 'myomatch';
+      const myoAdd = ex.type === 'myorep' ? 10 : 15;
+      let weightRec = '', repsRec = '';
+      if (state.currentWeek > 1) {
+        const prevWLabel = prevActualWeight !== null ? prevActualWeight.toFixed(1) : getWeekWeight(ex, prevWeek, 'weight').toFixed(1);
+        weightRec = `${prevWLabel} kg → ${recommendedWeight.toFixed(1)} kg (+${ex.isHeavyLeg ? '2.5–3' : '1–2'} kg)`;
+        if (ex.type === 'myorep') {
+          repsRec = `${getMyorepProgression(ex, prevWeek)} → ${getMyorepProgression(ex, state.currentWeek)} (+10 reps)`;
+        } else if (!isMyomatch) {
+          const prevRLabel = prevActualReps || getWeekReps(ex, prevWeek, 'reps');
+          repsRec = `${prevRLabel} → ${recommendedReps} (+1 rep)`;
+        }
+      }
+
+      // Progression chips — hidden on week 1; myomatch shows weight only
+      const progSelector = state.currentWeek === 1 ? '' : `<div style="margin-bottom:12px;">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">This week — choose progression</div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="selectProgType('${meso.id}',${state.currentWeek},'${state.currentDay}',${exIdx},'weight')"
+            style="flex:1;padding:8px 10px;border-radius:var(--r-sm);border:1px solid ${progType==='weight'?'var(--accent)':'var(--border2)'};background:${progType==='weight'?'rgba(200,240,96,0.1)':'var(--surface2)'};color:${progType==='weight'?'var(--accent)':'var(--text2)'};font-family:var(--font-mono);font-size:12px;cursor:pointer;text-align:left;line-height:1.5;">
+            <div style="font-weight:500;">↑ Weight</div>
+            <div style="font-size:11px;opacity:0.85;">${weightRec}</div>
+          </button>
+          ${isMyomatch ? '' : `<button onclick="selectProgType('${meso.id}',${state.currentWeek},'${state.currentDay}',${exIdx},'reps')"
+            style="flex:1;padding:8px 10px;border-radius:var(--r-sm);border:1px solid ${progType==='reps'?'var(--accent)':'var(--border2)'};background:${progType==='reps'?'rgba(200,240,96,0.1)':'var(--surface2)'};color:${progType==='reps'?'var(--accent)':'var(--text2)'};font-family:var(--font-mono);font-size:12px;cursor:pointer;text-align:left;line-height:1.5;">
+            <div style="font-weight:500;">↑ Reps</div>
+            <div style="font-size:11px;opacity:0.85;">${repsRec}</div>
+          </button>`}
+        </div>
+      </div>`;
+
+      // Last week panel
+      let prevProgHtml = prevWeek >= 1 && prevProgType
+        ? '<span style="font-size:11px;color:var(--text3);">Last wk: <span style="color:var(--text2);">' + (prevProgType === 'weight' ? '↑ weight' : '↑ reps') + '</span></span>'
+        : '';
+      let lastWeekHtml = '';
+      if (prevWeek >= 1) {
+        const hasAny = prevLoggedSets.some(lg => lg && (lg.weight || lg.reps || lg.done));
+        if (hasAny) {
+          const setsSummary = prevLoggedSets.map((lg, i) =>
+            lg ? `<span style="font-size:11px;color:var(--text2);">Set ${i+1}: ${lg.weight ? lg.weight + 'kg' : '—'} × ${lg.reps || '—'}</span>` : ''
+          ).filter(Boolean).join('<span style="color:var(--text3);margin:0 4px;">·</span>');
+          lastWeekHtml = `<div style="background:var(--surface2);border-radius:var(--r-sm);padding:8px 10px;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+              <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;">Last week (Wk ${prevWeek})</div>
+              ${prevProgHtml}
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:4px;">${setsSummary}</div>
+          </div>`;
+        } else {
+          lastWeekHtml = `<div style="background:var(--surface2);border-radius:var(--r-sm);padding:8px 10px;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;">Last week (Wk ${prevWeek}) — no sets logged</div>
+              ${prevProgHtml}
+            </div>
+          </div>`;
+        }
+      }
+
+      // Fill suggested button + set rows
+      let setRows = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;">Log sets</div>
+        <div style="display:flex;gap:6px;">
+          <button onclick="fillSuggested('${meso.id}',${state.currentWeek},'${state.currentDay}',${exIdx},${sets},'${weightPlaceholder}','${repsPlaceholder}')"
+            style="font-size:11px;padding:5px 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;color:var(--text2);font-family:var(--font-mono);cursor:pointer;">
+            ↓ Fill suggested
+          </button>
+          <button onclick="clearExerciseLogs('${meso.id}',${state.currentWeek},'${state.currentDay}',${exIdx},${sets})"
+            style="font-size:11px;padding:5px 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;color:var(--red);font-family:var(--font-mono);cursor:pointer;">
+            Clear
+          </button>
+        </div>
+      </div>`;
+      for (let s = 0; s < sets; s++) {
+        const logKey = key + '_' + exIdx + '_' + s;
+        const log = state.trainLogs[logKey] || {};
+        setRows += `<div class="set-log-row">
+          <div class="set-num">${s + 1}</div>
+          <input type="number" step="0.5" placeholder="${weightPlaceholder}" value="${log.weight || ''}"
+            oninput="logSet('${logKey}','weight',this.value)" style="max-width:80px;" id="inp-w-${logKey}">
+          <input type="text" placeholder="${repsPlaceholder}" value="${log.reps || ''}"
+            oninput="logSet('${logKey}','reps',this.value)" style="max-width:80px;" id="inp-r-${logKey}">
+          <button class="set-check ${log.done ? 'done' : ''}" onclick="toggleSetDone('${logKey}')">
+            <svg viewBox="0 0 14 14"><polyline points="2,7 5.5,10.5 12,3"/></svg>
+          </button>
+        </div>`;
+      }
+
+      html += `<div style="padding:0 14px 14px;border-top:0.5px solid var(--border);">
+        <div style="height:10px;"></div>
+        ${lastWeekHtml}
+        ${progSelector}
+        ${setRows}
+      </div>`;
+    }
+
+    html += `</div>`;
+  });
+
+  el.innerHTML = html;
+}
+
+function logSet(key, field, value) {
+  if (!state.trainLogs[key]) state.trainLogs[key] = {};
+  state.trainLogs[key][field] = value;
+  save();
+}
+
+function fillSuggested(mesoId, week, day, exIdx, sets, weight, reps) {
+  const baseKey = mesoId + '_' + week + '_' + day;
+  for (let s = 0; s < sets; s++) {
+    const logKey = baseKey + '_' + exIdx + '_' + s;
+    if (!state.trainLogs[logKey]) state.trainLogs[logKey] = {};
+    state.trainLogs[logKey].weight = weight;
+    state.trainLogs[logKey].reps = reps;
+    const wEl = document.getElementById('inp-w-' + logKey);
+    const rEl = document.getElementById('inp-r-' + logKey);
+    if (wEl) wEl.value = weight;
+    if (rEl) rEl.value = reps;
+  }
+  save();
+  const meso = state.mesocycles.find(m => m.id === mesoId);
+  if (meso) renderTrainDay(meso);
+}
+
+function clearExerciseLogs(mesoId, week, day, exIdx, sets) {
+  const baseKey = mesoId + '_' + week + '_' + day;
+  for (let s = 0; s < sets; s++) {
+    const logKey = baseKey + '_' + exIdx + '_' + s;
+    delete state.trainLogs[logKey];
+  }
+  // Also clear prog key
+  const pk = mesoId + '_prog_' + week + '_' + day + '_' + exIdx;
+  delete state.trainLogs[pk];
+  save();
+  const meso = state.mesocycles.find(m => m.id === mesoId);
+  if (meso) renderTrainDay(meso);
+}
+
+function toggleSetDone(key) {
+  const log = state.trainLogs[key] || {};
+  // If trying to mark done, validate weight and reps are filled
+  if (!log.done) {
+    const wEl = document.getElementById('inp-w-' + key);
+    const rEl = document.getElementById('inp-r-' + key);
+    const hasWeight = log.weight && String(log.weight).trim() !== '';
+    const hasReps   = log.reps   && String(log.reps).trim()   !== '';
+    if (!hasWeight || !hasReps) {
+      if (wEl) wEl.style.borderColor = hasWeight ? '' : 'var(--red)';
+      if (rEl) rEl.style.borderColor = hasReps   ? '' : 'var(--red)';
+      // Clear red after 1.5s
+      setTimeout(() => {
+        if (wEl) wEl.style.borderColor = '';
+        if (rEl) rEl.style.borderColor = '';
+      }, 1500);
+      return;
+    }
+  }
+  if (!state.trainLogs[key]) state.trainLogs[key] = {};
+  state.trainLogs[key].done = !state.trainLogs[key].done;
+  save();
+  const meso = state.mesocycles.find(m => m.id === state.currentMesoId);
+  if (meso) renderTrainDay(meso);
+}
+
+// ════════════════════════════════════════════════
+// RENDER: BODY
+// ════════════════════════════════════════════════
+function renderBody() {
+  const logs = [...state.bodyLogs].sort((a,b) => b.date.localeCompare(a.date));
+
+  // Stats
+  const last7 = logs.filter(l => {
+    const d = new Date(l.date);
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 7);
+    return d >= cutoff;
+  });
+  const prev7 = logs.filter(l => {
+    const d = new Date(l.date);
+    const c1 = new Date(); c1.setDate(c1.getDate() - 14);
+    const c2 = new Date(); c2.setDate(c2.getDate() - 7);
+    return d >= c1 && d < c2;
+  });
+
+  const avg7w = last7.filter(l=>l.weight).reduce((a,b)=>a+(parseFloat(b.weight)||0),0) / (last7.filter(l=>l.weight).length||1);
+  const avg7wPrev = prev7.filter(l=>l.weight).reduce((a,b)=>a+(parseFloat(b.weight)||0),0) / (prev7.filter(l=>l.weight).length||1);
+  const avgSteps = last7.filter(l=>l.steps).reduce((a,b)=>a+(parseInt(b.steps)||0),0) / (last7.filter(l=>l.steps).length||1);
+  const change = last7.length && prev7.length ? (avg7w - avg7wPrev) : null;
+
+  document.getElementById('bw-avg').textContent = last7.length ? avg7w.toFixed(1) : '—';
+  document.getElementById('bw-change').textContent = change !== null ? (change >= 0 ? '+' : '') + change.toFixed(1) : '—';
+  document.getElementById('steps-avg').textContent = last7.filter(l=>l.steps).length ? Math.round(avgSteps).toLocaleString() : '—';
+
+  const el = document.getElementById('body-log-list');
+  if (!logs.length) {
+    el.innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 9l-5 5-4-4-3 3"/></svg><p>No entries yet. Tap + Log to start tracking.</p></div>`;
+    return;
+  }
+
+  el.innerHTML = logs.slice(0,30).map(l => `
+    <div class="bw-entry" onclick="openEditBodyLog('${l.date}')" style="cursor:pointer;">
+      <div>
+        <div class="bw-val">${l.weight ? l.weight + ' lbs' : '—'}</div>
+        <div class="bw-date">${formatDate(l.date)}</div>
+      </div>
+      <div style="text-align:right;">
+        ${l.steps ? `<div style="font-size:13px;color:var(--text2);">${parseInt(l.steps).toLocaleString()} steps</div>` : ''}
+        <div style="font-size:11px;color:var(--text3);margin-top:3px;">tap to edit</div>
+      </div>
+    </div>`).join('');
+}
+
+function openEditBodyLog(date) {
+  const log = state.bodyLogs.find(l => l.date === date);
+  if (!log) return;
+  document.getElementById('body-date-input').value = log.date;
+  document.getElementById('body-date-input').dataset.originalDate = log.date;
+  document.getElementById('body-weight-input').value = log.weight || '';
+  document.getElementById('body-steps-input').value = log.steps || '';
+  openModal('modal-body-log');
+}
+
+function saveBodyLog() {
+  const dateEl = document.getElementById('body-date-input');
+  const date = dateEl.value;
+  const originalDate = dateEl.dataset.originalDate || '';
+  const weight = document.getElementById('body-weight-input').value;
+  const steps = document.getElementById('body-steps-input').value;
+  if (!date) return;
+  const entry = { date, weight: parseFloat(weight)||null, steps: parseInt(steps)||null };
+  // If date changed, remove the old entry first
+  if (originalDate && originalDate !== date) {
+    state.bodyLogs = state.bodyLogs.filter(l => l.date !== originalDate);
+  }
+  const existing = state.bodyLogs.findIndex(l => l.date === date);
+  if (existing >= 0) state.bodyLogs[existing] = entry;
+  else state.bodyLogs.push(entry);
+  dateEl.dataset.originalDate = '';
+  save();
+  closeModal('modal-body-log');
+  renderBody();
+}
+
+// ════════════════════════════════════════════════
+// RENDER: NUTRITION
+// ════════════════════════════════════════════════
+let nutrTab = 'day';
+function switchNutrTab(tab) {
+  nutrTab = tab;
+  document.getElementById('nutr-tab-day').classList.toggle('active', tab==='day');
+  document.getElementById('nutr-tab-week').classList.toggle('active', tab==='week');
+  document.getElementById('nutr-daily-view').style.display = tab==='day' ? '' : 'none';
+  document.getElementById('nutr-weekly-view').style.display = tab==='week' ? '' : 'none';
+  renderNutrition();
+}
+
+function renderNutrition() {
+  const logs = [...state.nutritionLogs].sort((a,b) => b.date.localeCompare(a.date));
+  if (nutrTab === 'day') renderNutrDaily(logs);
+  else renderNutrWeekly(logs);
+}
+
+function renderNutrDaily(logs) {
+  const el = document.getElementById('nutr-daily-view');
+  if (!logs.length) {
+    el.innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7z"/><circle cx="12" cy="9" r="2"/></svg><p>No entries yet. Tap + Log to start.</p></div>`;
+    return;
+  }
+
+  el.innerHTML = logs.slice(0,14).map(l => {
+    const totalCals = (l.protein||0)*4 + (l.carbs||0)*4 + (l.fats||0)*9;
+    const pPct = totalCals ? Math.round(((l.protein||0)*4/totalCals)*100) : 0;
+    const cPct = totalCals ? Math.round(((l.carbs||0)*4/totalCals)*100) : 0;
+    const fPct = totalCals ? Math.round(((l.fats||0)*9/totalCals)*100) : 0;
+    return `<div class="nutrition-day-card" onclick="openEditNutrLog('${l.date}')" style="cursor:pointer;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div style="font-family:var(--font-display);font-weight:700;font-size:15px;">${formatDate(l.date)}</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="badge badge-green">${l.kcal || Math.round(totalCals)} kcal</span>
+          <span style="font-size:11px;color:var(--text3);">tap to edit</span>
+        </div>
+      </div>
+      <div class="input-row" style="margin-bottom:6px;">
+        <div style="text-align:center;">
+          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">Protein</div>
+          <div style="font-family:var(--font-display);font-weight:700;color:var(--blue);">${l.protein||0}g</div>
+          <div style="font-size:11px;color:var(--text3);">${pPct}%</div>
+          <div class="macro-bar"><div class="macro-fill" style="width:${pPct}%;background:var(--blue);"></div></div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">Carbs</div>
+          <div style="font-family:var(--font-display);font-weight:700;color:var(--amber);">${l.carbs||0}g</div>
+          <div style="font-size:11px;color:var(--text3);">${cPct}%</div>
+          <div class="macro-bar"><div class="macro-fill" style="width:${cPct}%;background:var(--amber);"></div></div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">Fats</div>
+          <div style="font-family:var(--font-display);font-weight:700;color:var(--red);">${l.fats||0}g</div>
+          <div style="font-size:11px;color:var(--text3);">${fPct}%</div>
+          <div class="macro-bar"><div class="macro-fill" style="width:${fPct}%;background:var(--red);"></div></div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderNutrWeekly(logs) {
+  const el = document.getElementById('nutr-weekly-view');
+  if (!logs.length) {
+    el.innerHTML = `<div class="empty-state"><p>Log at least a few days to see weekly summaries.</p></div>`;
+    return;
+  }
+
+  // Group by ISO week
+  const weeks = {};
+  logs.forEach(l => {
+    const wk = getISOWeek(l.date);
+    if (!weeks[wk]) weeks[wk] = [];
+    weeks[wk].push(l);
+  });
+
+  let html = '';
+  Object.entries(weeks).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,8).forEach(([wk, entries]) => {
+    const avgKcal = entries.reduce((a,b)=>a+(b.kcal||0),0)/entries.length;
+    const avgP = entries.reduce((a,b)=>a+(b.protein||0),0)/entries.length;
+    const avgC = entries.reduce((a,b)=>a+(b.carbs||0),0)/entries.length;
+    const avgF = entries.reduce((a,b)=>a+(b.fats||0),0)/entries.length;
+
+    const totalCals = avgP*4 + avgC*4 + avgF*9 || 1;
+    const pPct = Math.round((avgP*4/totalCals)*100);
+    const cPct = Math.round((avgC*4/totalCals)*100);
+    const fPct = Math.round((avgF*9/totalCals)*100);
+    const pie = makePie(pPct, cPct, fPct);
+
+    // Derive Mon and Sun from ISO week key (e.g. "2026-W23")
+    const [yr, wNum] = wk.split('-W').map(Number);
+    // Jan 4 is always in week 1 of its year (ISO rule)
+    const jan4 = new Date(yr, 0, 4);
+    const jan4Day = jan4.getDay() || 7; // Mon=1 … Sun=7
+    const weekMon = new Date(jan4);
+    weekMon.setDate(jan4.getDate() - (jan4Day - 1) + (wNum - 1) * 7);
+    const weekSun = new Date(weekMon);
+    weekSun.setDate(weekMon.getDate() + 6);
+
+    function ordinal(n) {
+      const s = ['th','st','nd','rd'], v = n % 100;
+      return n + (s[(v-20)%10] || s[v] || s[0]);
+    }
+    function fmtWeekDate(d, includeYear) {
+      const day = d.toLocaleDateString('en-GB', {weekday:'short'});
+      const month = d.toLocaleDateString('en-GB', {month:'short'});
+      const yr = includeYear ? ' ' + d.getFullYear() : '';
+      return day + ' ' + ordinal(d.getDate()) + ' ' + month + yr;
+    }
+    const sameYear = weekMon.getFullYear() === weekSun.getFullYear();
+    const weekLabel = fmtWeekDate(weekMon, !sameYear) + ' – ' + fmtWeekDate(weekSun, true);
+
+    html += `<div class="card" style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div>
+          <div style="font-family:var(--font-display);font-weight:700;font-size:13px;">${weekLabel}</div>
+          <div style="font-size:12px;color:var(--text2);">${entries.length} days logged</div>
+        </div>
+        <span class="badge badge-green">${Math.round(avgKcal)} kcal avg</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px;">
+        <div>${pie}</div>
+        <div style="flex:1;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+            <span style="font-size:12px;color:var(--blue);">● Protein</span>
+            <span style="font-size:12px;font-weight:500;">${Math.round(avgP)}g · ${pPct}%</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+            <span style="font-size:12px;color:var(--amber);">● Carbs</span>
+            <span style="font-size:12px;font-weight:500;">${Math.round(avgC)}g · ${cPct}%</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span style="font-size:12px;color:var(--red);">● Fats</span>
+            <span style="font-size:12px;font-weight:500;">${Math.round(avgF)}g · ${fPct}%</span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  el.innerHTML = html;
+}
+
+function makePie(pPct, cPct, fPct) {
+  const cx=40, cy=40, r=34, size=80;
+  function slice(start, pct, color) {
+    if (pct <= 0) return '';
+    if (pct >= 100) return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="12"/>`;
+    const startA = (start/100)*2*Math.PI - Math.PI/2;
+    const endA = ((start+pct)/100)*2*Math.PI - Math.PI/2;
+    const x1=cx+r*Math.cos(startA), y1=cy+r*Math.sin(startA);
+    const x2=cx+r*Math.cos(endA), y2=cy+r*Math.sin(endA);
+    const large = pct > 50 ? 1 : 0;
+    return `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} Z" fill="${color}" opacity="0.85"/>`;
+  }
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--surface3)"/>
+    ${slice(0, pPct, '#60a8f0')}
+    ${slice(pPct, cPct, '#f5a623')}
+    ${slice(pPct+cPct, fPct, '#ff5f4e')}
+    <circle cx="${cx}" cy="${cy}" r="20" fill="var(--surface)"/>
+  </svg>`;
+}
+
+function openEditNutrLog(date) {
+  const log = state.nutritionLogs.find(l => l.date === date);
+  if (!log) return;
+  const dateEl = document.getElementById('nutr-date-input');
+  dateEl.value = log.date;
+  dateEl.dataset.originalDate = log.date;
+  document.getElementById('nutr-kcal-input').value = log.kcal || '';
+  document.getElementById('nutr-protein-input').value = log.protein || '';
+  document.getElementById('nutr-carbs-input').value = log.carbs || '';
+  document.getElementById('nutr-fats-input').value = log.fats || '';
+  openModal('modal-nutrition-log');
+}
+
+function saveNutritionLog() {
+  const dateEl = document.getElementById('nutr-date-input');
+  const date = dateEl.value;
+  const originalDate = dateEl.dataset.originalDate || '';
+  if (!date) return;
+  const entry = {
+    date,
+    kcal: parseInt(document.getElementById('nutr-kcal-input').value)||0,
+    protein: parseInt(document.getElementById('nutr-protein-input').value)||0,
+    carbs: parseInt(document.getElementById('nutr-carbs-input').value)||0,
+    fats: parseInt(document.getElementById('nutr-fats-input').value)||0,
+  };
+  if (originalDate && originalDate !== date) {
+    state.nutritionLogs = state.nutritionLogs.filter(l => l.date !== originalDate);
+  }
+  const existing = state.nutritionLogs.findIndex(l => l.date === date);
+  if (existing >= 0) state.nutritionLogs[existing] = entry;
+  else state.nutritionLogs.push(entry);
+  dateEl.dataset.originalDate = '';
+  save();
+  closeModal('modal-nutrition-log');
+  renderNutrition();
+}
+
+// ════════════════════════════════════════════════
+// UTILS
+// ════════════════════════════════════════════════
+function formatDate(str) {
+  if (!str) return '';
+  const d = new Date(str + 'T12:00:00');
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function getISOWeek(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  const day = d.getDay() || 7;
+  d.setDate(d.getDate() + 4 - day);
+  const yearStart = new Date(d.getFullYear(), 0, 1);
+  const wk = Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+  return d.getFullYear() + '-W' + String(wk).padStart(2,'0');
+}
+
+// ════════════════════════════════════════════════
+// SETTINGS & BACKUP
+// ════════════════════════════════════════════════
+function renderSettings() {
+  const raw = localStorage.getItem('bloc_state') || '';
+  const kb = (new Blob([raw]).size / 1024).toFixed(1);
+  const el = document.getElementById('storage-info');
+  const mesos = state.mesocycles.length;
+  const logs = Object.keys(state.trainLogs).length;
+  const bodyLogs = state.bodyLogs.length;
+  const nutrLogs = state.nutritionLogs.length;
+  el.innerHTML = `${mesos} mesocycle${mesos!==1?'s':''} &nbsp;·&nbsp; ${logs} set logs<br>${bodyLogs} body entries &nbsp;·&nbsp; ${nutrLogs} nutrition entries<br><span style="color:var(--text3);">~${kb} KB stored in Safari localStorage</span>`;
+}
+
+function exportData() {
+  const payload = JSON.stringify(state, null, 2);
+  const blob = new Blob([payload], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const date = new Date().toISOString().split('T')[0];
+  a.href = url;
+  a.download = `bloc-backup-${date}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('import-status');
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      // Validate it looks like a BLOC backup
+      if (!parsed.mesocycles || !parsed.exercises || !parsed.trainLogs) {
+        statusEl.style.color = 'var(--red)';
+        statusEl.textContent = '✕ Invalid backup file — does not look like a BLOC export.';
+        return;
+      }
+      state = parsed;
+      save();
+      statusEl.style.color = 'var(--accent)';
+      statusEl.textContent = '✓ Backup restored successfully.';
+      renderSettings();
+      // Reset file input
+      event.target.value = '';
+    } catch(err) {
+      statusEl.style.color = 'var(--red)';
+      statusEl.textContent = '✕ Could not parse file. Make sure it\'s a valid JSON backup.';
+    }
+  };
+  reader.readAsText(file);
+}
+
+function clearAllData() {
+  showConfirm(
+    'Clear all data?',
+    'This will permanently delete every mesocycle, exercise, log, and nutrition entry. Export a backup first if needed.',
+    'Clear everything',
+    () => {
+      showConfirm(
+        'Are you really sure?',
+        'All data will be gone forever. This cannot be undone.',
+        'Yes, clear it all',
+        () => {
+          state = {
+            mesocycles: [], exercises: {}, trainLogs: {},
+            bodyLogs: [], nutritionLogs: [],
+            goals: [], customLibrary: [],
+            currentMesoId: null, currentWeek: 1,
+            currentDay: 'push', currentEditContext: null,
+          };
+          save();
+          renderSettings();
+          showScreen('home');
+        }
+      );
+    }
+  );
+}
+
+// ════════════════════════════════════════════════
+// EXERCISE LIBRARY
+// ════════════════════════════════════════════════
+const DEFAULT_LIBRARY = [
+  {name:'Cable Curls',bodyPart:'Biceps'},
+  {name:'Reverse Grip Curls',bodyPart:'Biceps'},
+  {name:'Rope Curls',bodyPart:'Biceps'},
+  {name:'Calf Raises',bodyPart:'Calves'},
+  {name:'Cross Incline Press',bodyPart:'Chest'},
+  {name:'Decline Press',bodyPart:'Chest'},
+  {name:'Flat Press',bodyPart:'Chest'},
+  {name:'Incline Press',bodyPart:'Chest'},
+  {name:'Hamstring Curl',bodyPart:'Legs'},
+  {name:'Leg Extension',bodyPart:'Legs'},
+  {name:'Leg Press',bodyPart:'Legs'},
+  {name:'RDL',bodyPart:'Legs'},
+  {name:'Split Squat',bodyPart:'Legs'},
+  {name:'Walking Lunge',bodyPart:'Legs'},
+  {name:'Lat Pull Machine',bodyPart:'Back'},
+  {name:'Lat Pulldown',bodyPart:'Back'},
+  {name:'Low Row',bodyPart:'Back'},
+  {name:'Machine Row',bodyPart:'Back'},
+  {name:'T-Bar Lat Pulldown',bodyPart:'Back'},
+  {name:'T-Bar Row',bodyPart:'Back'},
+  {name:'Lateral Raise',bodyPart:'Shoulders'},
+  {name:'Cross Cable Extensions',bodyPart:'Triceps'},
+  {name:'Push Downs',bodyPart:'Triceps'},
+  {name:'Reverse Grip Extensions',bodyPart:'Triceps'},
+  {name:'Rope Extensions',bodyPart:'Triceps'},
+  {name:'Skull Crushers',bodyPart:'Triceps'},
+];
+
+function getLibrary() {
+  const custom = state.customLibrary || [];
+  const all = [...DEFAULT_LIBRARY, ...custom];
+  return all.sort((a,b) => a.bodyPart.localeCompare(b.bodyPart) || a.name.localeCompare(b.name));
+}
+
+function populateExerciseSelect(selectedName) {
+  const sel = document.getElementById('ex-name-input');
+  if (!sel) return;
+  const lib = getLibrary();
+  const bodyParts = [...new Set(lib.map(e => e.bodyPart))];
+  sel.innerHTML = '';
+  bodyParts.forEach(bp => {
+    const og = document.createElement('optgroup');
+    og.label = bp;
+    lib.filter(e => e.bodyPart === bp).forEach(e => {
+      const opt = document.createElement('option');
+      opt.value = e.name;
+      opt.textContent = e.name;
+      if (e.name === selectedName) opt.selected = true;
+      og.appendChild(opt);
+    });
+    sel.appendChild(og);
+  });
+  // Add custom option at bottom
+  const customOpt = document.createElement('option');
+  customOpt.value = '__custom__';
+  customOpt.textContent = 'Custom…';
+  sel.appendChild(customOpt);
+  if (!selectedName) sel.selectedIndex = 0;
+}
+
+function onExNameChange(sel) {
+  if (sel.value === '__custom__') {
+    sel.selectedIndex = 0;
+    // Use requestAnimationFrame to let the current event cycle finish before opening
+    requestAnimationFrame(() => {
+      document.getElementById('custom-ex-name-input').value = '';
+      document.getElementById('modal-custom-exercise').classList.add('open');
+    });
+  }
+}
+
+function saveCustomExercise() {
+  const name = document.getElementById('custom-ex-name-input').value.trim();
+  const bodyPart = document.getElementById('custom-ex-bodypart').value;
+  if (!name) return;
+  if (!state.customLibrary) state.customLibrary = [];
+  if (!state.customLibrary.find(e => e.name === name)) {
+    state.customLibrary.push({name, bodyPart});
+    save();
+  }
+  closeModal('modal-custom-exercise');
+  populateExerciseSelect(name);
+}
+
+function exportLibrary() {
+  const lib = getLibrary();
+  const blob = new Blob([JSON.stringify(lib, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'bloc-exercise-library-' + new Date().toISOString().split('T')[0] + '.json';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ════════════════════════════════════════════════
+// GOALS
+// ════════════════════════════════════════════════
+function renderGoals() {
+  if (!state.goals) state.goals = [];
+  const el = document.getElementById('goals-content');
+  const mesos = state.mesocycles;
+
+  // Populate meso select in modal
+  const sel = document.getElementById('goal-meso-select');
+  if (sel) {
+    sel.innerHTML = mesos.map(m => '<option value="' + m.id + '">' + m.name + '</option>').join('') ||
+      '<option value="">No mesocycles yet</option>';
+  }
+
+  if (!state.goals.length) {
+    el.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" style="fill:currentColor"/></svg><p>No goal periods yet. Tap + Goal to set daily targets for a mesocycle.</p></div>';
+    return;
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  let html = '';
+  state.goals.slice().sort((a,b)=>b.startDate.localeCompare(a.startDate)).forEach((g, i) => {
+    const meso = mesos.find(m => m.id === g.mesoId);
+    const isActive = g.startDate <= today && g.endDate >= today;
+    html += '<div class="card' + (isActive ? ' card-accent' : '') + '" style="margin-bottom:10px;">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">';
+    html += '<div><div style="font-family:var(--font-display);font-weight:700;font-size:15px;">' + (meso ? meso.name : 'Unknown cycle') + '</div>';
+    html += '<div style="font-size:11px;color:var(--text3);margin-top:2px;">' + formatDate(g.startDate) + ' – ' + formatDate(g.endDate) + '</div></div>';
+    if (isActive) html += '<span class="badge badge-green">Active</span>';
+    html += '</div>';
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">';
+    if (g.kcal) html += '<div style="font-size:12px;"><span style="color:var(--text3);">kcal </span>' + g.kcal + '</div>';
+    if (g.steps) html += '<div style="font-size:12px;"><span style="color:var(--text3);">steps </span>' + parseInt(g.steps).toLocaleString() + '</div>';
+    if (g.protein) html += '<div style="font-size:12px;"><span style="color:var(--blue);">protein </span>' + g.protein + 'g</div>';
+    if (g.carbs) html += '<div style="font-size:12px;"><span style="color:var(--amber);">carbs </span>' + g.carbs + 'g</div>';
+    if (g.fats) html += '<div style="font-size:12px;"><span style="color:var(--red);">fats </span>' + g.fats + 'g</div>';
+    html += '</div>';
+    html += '<div style="display:flex;gap:6px;">';
+    html += '<button class="btn btn-sm" style="flex:1;" onclick="openEditGoal(' + i + ')">Edit</button>';
+    html += '<button class="btn btn-sm btn-danger" style="padding:7px 12px;" onclick="deleteGoal(' + i + ')">✕</button>';
+    html += '</div></div>';
+  });
+  el.innerHTML = html;
+}
+
+function getActiveGoal() {
+  if (!state.goals) return null;
+  const today = new Date().toISOString().split('T')[0];
+  return state.goals.find(g => g.startDate <= today && g.endDate >= today) || null;
+}
+
+function openEditGoal(idx) {
+  const g = state.goals[idx];
+  if (!g) return;
+  document.getElementById('goal-modal-title').textContent = 'Edit Goal Period';
+  const sel = document.getElementById('goal-meso-select');
+  sel.innerHTML = state.mesocycles.map(m => '<option value="' + m.id + '"' + (m.id === g.mesoId ? ' selected' : '') + '>' + m.name + '</option>').join('');
+  document.getElementById('goal-start-input').value = g.startDate;
+  document.getElementById('goal-end-input').value = g.endDate;
+  document.getElementById('goal-kcal-input').value = g.kcal || '';
+  document.getElementById('goal-steps-input').value = g.steps || '';
+  document.getElementById('goal-protein-input').value = g.protein || '';
+  document.getElementById('goal-carbs-input').value = g.carbs || '';
+  document.getElementById('goal-fats-input').value = g.fats || '';
+  document.getElementById('modal-add-goal')._editIdx = idx;
+  openModal('modal-add-goal');
+}
+
+function deleteGoal(idx) {
+  state.goals.splice(idx, 1);
+  save(); renderGoals();
+}
+
+function saveGoal() {
+  if (!state.goals) state.goals = [];
+  const modal = document.getElementById('modal-add-goal');
+  const editIdx = modal._editIdx !== undefined ? modal._editIdx : -1;
+  const g = {
+    mesoId: document.getElementById('goal-meso-select').value,
+    startDate: document.getElementById('goal-start-input').value,
+    endDate: document.getElementById('goal-end-input').value,
+    kcal: parseInt(document.getElementById('goal-kcal-input').value) || 0,
+    steps: parseInt(document.getElementById('goal-steps-input').value) || 0,
+    protein: parseInt(document.getElementById('goal-protein-input').value) || 0,
+    carbs: parseInt(document.getElementById('goal-carbs-input').value) || 0,
+    fats: parseInt(document.getElementById('goal-fats-input').value) || 0,
+  };
+  if (!g.startDate || !g.endDate) return;
+  if (editIdx >= 0) state.goals[editIdx] = g;
+  else state.goals.push(g);
+  modal._editIdx = undefined;
+  save(); closeModal('modal-add-goal'); renderGoals();
+}
+
+function buildGoalsHomeSection(goal) {
+  if (!goal) return '';
+  const today = new Date().toISOString().split('T')[0];
+  const todayNutr = state.nutritionLogs.find(l => l.date === today) || {};
+  const todayBody = state.bodyLogs.find(l => l.date === today) || {};
+  const todaySteps = parseInt(todayBody.steps) || 0;
+  const todayKcal = parseInt(todayNutr.kcal) || 0;
+  const todayProtein = parseInt(todayNutr.protein) || 0;
+  const todayCarbs = parseInt(todayNutr.carbs) || 0;
+  const todayFats = parseInt(todayNutr.fats) || 0;
+
+  // Weekly catch-up: figure out which day of the week we're on
+  const dayOfWeek = new Date().getDay(); // 0=Sun
+  const daysElapsed = dayOfWeek === 0 ? 7 : dayOfWeek;
+  const daysLeft = 7 - daysElapsed;
+
+  // Get this week's logs (Mon–today)
+  const weekLogs = [];
+  for (let i = 0; i < daysElapsed; i++) {
+    const d = new Date(); d.setDate(d.getDate() - (daysElapsed - 1 - i));
+    const ds = d.toISOString().split('T')[0];
+    const n = state.nutritionLogs.find(l => l.date === ds) || {};
+    const b = state.bodyLogs.find(l => l.date === ds) || {};
+    weekLogs.push({ steps: parseInt(b.steps)||0, kcal: parseInt(n.kcal)||0 });
+  }
+  const weekStepsTotal = weekLogs.reduce((a,b)=>a+b.steps,0);
+  const weekKcalTotal = weekLogs.reduce((a,b)=>a+b.kcal,0);
+  const weekStepsGoal = (goal.steps||0) * 7;
+  const weekKcalGoal = (goal.kcal||0) * 7;
+  const stepsNeededPerDay = daysLeft > 0 ? Math.max(0, Math.round((weekStepsGoal - weekStepsTotal) / daysLeft)) : 0;
+  const kcalNeededPerDay = daysLeft > 0 ? Math.max(0, Math.round((weekKcalGoal - weekKcalTotal) / daysLeft)) : 0;
+
+  function bar(val, goal) {
+    if (!goal) return '';
+    const pct = Math.min(100, Math.round((val/goal)*100));
+    const col = pct >= 100 ? 'var(--accent)' : pct >= 60 ? 'var(--amber)' : 'var(--red)';
+    return '<div class="progress-track" style="margin-top:4px;"><div class="progress-fill" style="width:' + pct + '%;background:' + col + ';"></div></div>';
+  }
+
+  let html = '<div class="card" style="margin-bottom:10px;cursor:pointer;" onclick="showScreen(\'goals\')">';
+  html += '<div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:10px;">Today vs Goal</div>';
+
+  if (goal.steps) {
+    const stepsLeft = Math.max(0, (goal.steps||0) - todaySteps);
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">';
+    html += '<span style="font-size:12px;color:var(--text2);">Steps</span>';
+    html += '<span style="font-size:12px;">' + todaySteps.toLocaleString() + ' / ' + (goal.steps||0).toLocaleString() + (stepsLeft > 0 ? ' <span style="color:var(--text3);">(' + stepsLeft.toLocaleString() + ' left)</span>' : ' <span style="color:var(--accent);">✓</span>') + '</span></div>';
+    html += bar(todaySteps, goal.steps);
+    if (daysLeft > 0 && stepsNeededPerDay > goal.steps) {
+      html += '<div style="font-size:11px;color:var(--amber);margin-top:3px;">Avg ' + stepsNeededPerDay.toLocaleString() + ' steps/day needed to hit weekly goal</div>';
+    }
+    html += '<div style="height:8px;"></div>';
+  }
+
+  if (goal.kcal) {
+    const kcalLeft = Math.max(0, (goal.kcal||0) - todayKcal);
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">';
+    html += '<span style="font-size:12px;color:var(--text2);">kcal</span>';
+    html += '<span style="font-size:12px;">' + todayKcal + ' / ' + goal.kcal + (kcalLeft > 0 ? ' <span style="color:var(--text3);">(' + kcalLeft + ' left)</span>' : ' <span style="color:var(--accent);">✓</span>') + '</span></div>';
+    html += bar(todayKcal, goal.kcal);
+    html += '<div style="height:8px;"></div>';
+  }
+
+  if (goal.protein) {
+    const left = Math.max(0, (goal.protein||0) - todayProtein);
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">';
+    html += '<span style="font-size:12px;color:var(--blue);">Protein</span>';
+    html += '<span style="font-size:12px;">' + todayProtein + 'g / ' + goal.protein + 'g' + (left > 0 ? ' <span style="color:var(--text3);">(' + left + 'g left)</span>' : ' <span style="color:var(--accent);">✓</span>') + '</span></div>';
+    html += bar(todayProtein, goal.protein);
+    html += '<div style="height:4px;"></div>';
+  }
+  if (goal.carbs) {
+    const left = (goal.carbs||0) - todayCarbs;
+    const over = todayCarbs - (goal.carbs||0);
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">';
+    html += '<span style="font-size:12px;color:var(--amber);">Carbs</span>';
+    if (left > 0) {
+      html += '<span style="font-size:12px;">' + todayCarbs + 'g / ' + goal.carbs + 'g <span style="color:var(--text3);">(' + left + 'g left)</span></span></div>';
+    } else if (over > 0) {
+      html += '<span style="font-size:12px;">' + todayCarbs + 'g / ' + goal.carbs + 'g <span style="color:var(--amber);">⚠ +' + over + 'g over</span></span></div>';
+    } else {
+      html += '<span style="font-size:12px;">' + todayCarbs + 'g / ' + goal.carbs + 'g <span style="color:var(--accent);">✓</span></span></div>';
+    }
+    html += bar(todayCarbs, goal.carbs);
+    html += '<div style="height:4px;"></div>';
+  }
+  if (goal.fats) {
+    const left = (goal.fats||0) - todayFats;
+    const over = todayFats - (goal.fats||0);
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">';
+    html += '<span style="font-size:12px;color:var(--red);">Fats</span>';
+    if (left > 0) {
+      html += '<span style="font-size:12px;">' + todayFats + 'g / ' + goal.fats + 'g <span style="color:var(--text3);">(' + left + 'g left)</span></span></div>';
+    } else if (over > 0) {
+      html += '<span style="font-size:12px;">' + todayFats + 'g / ' + goal.fats + 'g <span style="color:var(--amber);">⚠ +' + over + 'g over</span></span></div>';
+    } else {
+      html += '<span style="font-size:12px;">' + todayFats + 'g / ' + goal.fats + 'g <span style="color:var(--accent);">✓</span></span></div>';
+    }
+    html += bar(todayFats, goal.fats);
+  }
+  html += '</div>';
+
+  // Weekly avg comparison
+  if (daysElapsed > 0 && (goal.kcal || goal.steps)) {
+    // Compute weekly macro avgs
+    const weekNutrLogs = [];
+    for (let i = 0; i < daysElapsed; i++) {
+      const d = new Date(); d.setDate(d.getDate() - (daysElapsed - 1 - i));
+      const ds = d.toISOString().split('T')[0];
+      const n = state.nutritionLogs.find(l => l.date === ds) || {};
+      weekNutrLogs.push(n);
+    }
+    const avgP7 = Math.round(weekNutrLogs.reduce((a,b)=>a+(b.protein||0),0)/daysElapsed);
+    const avgC7 = Math.round(weekNutrLogs.reduce((a,b)=>a+(b.carbs||0),0)/daysElapsed);
+    const avgF7 = Math.round(weekNutrLogs.reduce((a,b)=>a+(b.fats||0),0)/daysElapsed);
+
+    html += '<div class="card" style="margin-bottom:10px;cursor:pointer;" onclick="showScreen(\'goals\')">';
+    html += '<div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:8px;">Weekly averages</div>';
+    const avgSteps = Math.round(weekStepsTotal / daysElapsed);
+    const avgKcal = Math.round(weekKcalTotal / daysElapsed);
+    if (goal.steps) {
+      html += '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span style="color:var(--text2);">Avg steps</span><span>' + avgSteps.toLocaleString() + ' / ' + (goal.steps||0).toLocaleString() + '</span></div>';
+      html += bar(avgSteps, goal.steps);
+      if (daysLeft > 0 && stepsNeededPerDay > 0) {
+        html += '<div style="font-size:11px;color:var(--amber);margin-top:3px;margin-bottom:6px;">Need ' + stepsNeededPerDay.toLocaleString() + ' steps/day for remaining ' + daysLeft + ' day' + (daysLeft !== 1 ? 's' : '') + ' to hit weekly goal</div>';
+      } else html += '<div style="height:6px;"></div>';
+    }
+    if (goal.kcal) {
+      html += '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span style="color:var(--text2);">Avg kcal</span><span>' + avgKcal + ' / ' + goal.kcal + '</span></div>';
+      html += bar(avgKcal, goal.kcal);
+      if (daysLeft > 0 && kcalNeededPerDay > 0) {
+        html += '<div style="font-size:11px;color:var(--amber);margin-top:3px;margin-bottom:4px;">Need ' + kcalNeededPerDay + ' kcal/day for remaining ' + daysLeft + ' day' + (daysLeft !== 1 ? 's' : '') + ' to hit weekly goal</div>';
+      } else html += '<div style="height:4px;"></div>';
+    }
+    if (goal.protein) {
+      html += '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span style="color:var(--blue);">Avg protein</span><span>' + avgP7 + 'g / ' + goal.protein + 'g</span></div>';
+      html += bar(avgP7, goal.protein);
+      html += '<div style="height:4px;"></div>';
+    }
+    if (goal.carbs) {
+      html += '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span style="color:var(--amber);">Avg carbs</span><span>' + avgC7 + 'g / ' + goal.carbs + 'g</span></div>';
+      html += bar(avgC7, goal.carbs);
+      html += '<div style="height:4px;"></div>';
+    }
+    if (goal.fats) {
+      html += '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span style="color:var(--red);">Avg fats</span><span>' + avgF7 + 'g / ' + goal.fats + 'g</span></div>';
+      html += bar(avgF7, goal.fats);
+    }
+    html += '</div>';
+  }
+  return html;
+}
+
+// ── Modal swipe-down + tap-outside ───────────────────────────────────────────
+(function() {
+  function initModal(overlayEl) {
+    const sheet = overlayEl.querySelector('.modal-sheet');
+    if (!sheet) return;
+    const modalId = overlayEl.id;
+
+    // Tap the dark backdrop to close
+    overlayEl.addEventListener('pointerdown', function(e) {
+      if (e.target === overlayEl) closeModal(modalId);
+    });
+
+    // Swipe the handle row down to close
+    const handleRow = sheet.querySelector('.modal-handle-row');
+    if (!handleRow) return;
+
+    let startY = 0, dragging = false;
+
+    handleRow.addEventListener('touchstart', function(e) {
+      startY = e.touches[0].clientY;
+      dragging = true;
+    }, { passive: true });
+
+    handleRow.addEventListener('touchmove', function(e) {
+      if (!dragging) return;
+      const delta = e.touches[0].clientY - startY;
+      if (delta > 0) {
+        e.preventDefault(); // stop Safari zoom/scroll while dragging down
+        sheet.style.transform = `translateY(${delta}px)`;
+      }
+    }, { passive: false });
+
+    handleRow.addEventListener('touchend', function(e) {
+      if (!dragging) return;
+      dragging = false;
+      const delta = e.changedTouches[0].clientY - startY;
+      sheet.style.transform = '';
+      if (delta > 80) closeModal(modalId);
+    }, { passive: true });
+  }
+
+  document.querySelectorAll('.modal-overlay').forEach(initModal);
+})();
+
+// Init
+showScreen('home');
+</script>
+<!-- Custom Confirm Modal -->
+<div class="modal-overlay" id="modal-confirm" style="align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border-radius:var(--r);border:0.5px solid var(--border2);padding:24px 20px;width:calc(100% - 48px);max-width:340px;text-align:center;">
+    <div style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px;" id="confirm-title"></div>
+    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:20px;" id="confirm-msg"></div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-block" id="confirm-cancel-btn" style="flex:1;">Cancel</button>
+      <button class="btn btn-danger btn-block" id="confirm-ok-btn" style="flex:1;"></button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Custom confirm (replaces window.confirm for PWA compatibility) ──────────
+let _confirmCallback = null;
+
+function showConfirm(title, message, okLabel, callback) {
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-msg').textContent = message;
+  document.getElementById('confirm-ok-btn').textContent = okLabel || 'Confirm';
+  _confirmCallback = callback;
+  document.getElementById('modal-confirm').classList.add('open');
+}
+
+document.getElementById('confirm-ok-btn').onclick = function() {
+  document.getElementById('modal-confirm').classList.remove('open');
+  if (_confirmCallback) { const cb = _confirmCallback; _confirmCallback = null; cb(); }
+};
+document.getElementById('confirm-cancel-btn').onclick = function() {
+  document.getElementById('modal-confirm').classList.remove('open');
+  _confirmCallback = null;
+};
+</script>
