@@ -424,7 +424,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
           <div class="page-title">BLOC</div>
           <div class="page-sub" id="home-date"></div>
         </div>
-        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v2.05</span>
+        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v2.07</span>
       </div>
 
       <!-- Active cycle card -->
@@ -538,7 +538,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v2.05</span>
+          <span class="badge badge-green">v2.07</span>
         </div>
       </div>
 
@@ -681,8 +681,15 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     </div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">e.g. 4-day split over 2 weeks = 2 weeks per macrocycle, 4 sessions/week</div>
     <div class="form-group">
+      <div class="label">Mesocycle Type</div>
+      <select id="meso-goal-type-input">
+        <option value="loss">Weight Loss — conservative weight progression</option>
+        <option value="gain">Weight / Strength Gain — aggressive weight progression</option>
+      </select>
+    </div>
+    <div class="form-group">
       <div class="label">Goal</div>
-      <input type="text" id="meso-goal-input" placeholder="e.g. Cut to 82kg">
+      <input type="text" id="meso-goal-input" placeholder="e.g. Cut to 200lbs">
     </div>
     <div class="form-group">
       <div class="label">Target body weight (lbs) <span style="color:var(--text3);font-size:11px;">— optional</span></div>
@@ -776,11 +783,10 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <input type="number" id="edit-meso-target-bw-input" placeholder="e.g. 180" step="0.1">
     </div>
     <div class="form-group">
-      <div class="label">Goal type</div>
+      <div class="label">Mesocycle Type</div>
       <select id="edit-meso-goal-type-input">
-        <option value="loss">Weight Loss</option>
-        <option value="maintenance">Maintenance</option>
-        <option value="gain">Weight Gain</option>
+        <option value="loss">Weight Loss — conservative weight progression</option>
+        <option value="gain">Weight / Strength Gain — aggressive weight progression</option>
       </select>
     </div>
     <button class="btn btn-accent btn-block" onclick="saveEditMeso()">Save Changes →</button>
@@ -1055,14 +1061,23 @@ function showScreen(name) {
 function openModal(id) {
   const today = new Date().toISOString().split('T')[0];
   if (id === 'modal-body-log') {
-    // Only reset date to today when opening fresh (not when editing — openEditBodyLog sets originalDate first)
-    if (!document.getElementById('body-date-input').dataset.originalDate) {
-      document.getElementById('body-date-input').value = today;
+    const dateEl = document.getElementById('body-date-input');
+    if (!dateEl.dataset.originalDate) {
+      dateEl.value = today;
+      dateEl.dataset.originalDate = '';
+      document.getElementById('body-weight-input').value = '';
+      document.getElementById('body-steps-input').value = '';
     }
   }
   if (id === 'modal-nutrition-log') {
-    if (!document.getElementById('nutr-date-input').dataset.originalDate) {
-      document.getElementById('nutr-date-input').value = today;
+    const dateEl = document.getElementById('nutr-date-input');
+    if (!dateEl.dataset.originalDate) {
+      dateEl.value = today;
+      dateEl.dataset.originalDate = '';
+      document.getElementById('nutr-kcal-input').value = '';
+      document.getElementById('nutr-protein-input').value = '';
+      document.getElementById('nutr-carbs-input').value = '';
+      document.getElementById('nutr-fats-input').value = '';
     }
   }
   if (id === 'modal-add-goal') {
@@ -1085,8 +1100,10 @@ function openModal(id) {
     }
   }
   if (id === 'modal-meso') {
-    document.getElementById('meso-start-input').value = today;
+    const nextStart = getNextMesoStart();
+    document.getElementById('meso-start-input').value = nextStart;
     document.getElementById('meso-target-bw-input').value = '';
+    if (document.getElementById('meso-goal-type-input')) document.getElementById('meso-goal-type-input').value = 'loss';
     if (document.getElementById('meso-sessions-input')) document.getElementById('meso-sessions-input').value = '3';
     if (document.getElementById('meso-weeks-per-macro-input')) document.getElementById('meso-weeks-per-macro-input').value = '1';
     // Reset form state
@@ -1105,7 +1122,12 @@ function openModal(id) {
   }
   document.getElementById(id).classList.add('open');
 }
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  // Always clear originalDate flags when closing so fresh opens start clean
+  if (id === 'modal-body-log') document.getElementById('body-date-input').dataset.originalDate = '';
+  if (id === 'modal-nutrition-log') document.getElementById('nutr-date-input').dataset.originalDate = '';
+}
 function closeModalOutside(e, id) { if (e.target.id === id) closeModal(id); }
 
 function selectMesoOpt(group, value) {
@@ -1148,8 +1170,29 @@ function selectMesoOpt(group, value) {
 // MESOCYCLE DURATION HELPERS
 // ════════════════════════════════════════════════
 function getMesoDurationWeeks(meso) {
-  // Total calendar weeks = macrocycles × weeks-per-macrocycle (default 1 for legacy)
   return (meso.weeks || 8) * (meso.weeksPerMacro || 1);
+}
+
+function getMesoEndDate(meso) {
+  // End on the Sunday of the last week: start + (weeks*7) - 1 day
+  const startDate = meso.start ? new Date(meso.start + 'T00:00:00') : new Date();
+  const totalCalWks = getMesoDurationWeeks(meso);
+  const endDate = new Date(startDate);
+  endDate.setDate(endDate.getDate() + totalCalWks * 7 - 1);
+  return endDate;
+}
+
+function getNextMesoStart() {
+  // Find the latest end date across all mesocycles, return the day after
+  if (!state.mesocycles.length) return new Date().toISOString().split('T')[0];
+  let latest = null;
+  state.mesocycles.forEach(m => {
+    const end = getMesoEndDate(m);
+    if (!latest || end > latest) latest = end;
+  });
+  const next = new Date(latest);
+  next.setDate(next.getDate() + 1);
+  return next.toISOString().split('T')[0];
 }
 function getMesoSummaryLabel(meso) {
   const wpm = meso.weeksPerMacro || 1;
@@ -1170,6 +1213,7 @@ function createMesocycle() {
   const start = document.getElementById('meso-start-input').value;
   const goal = document.getElementById('meso-goal-input').value.trim();
   const targetBw = parseFloat(document.getElementById('meso-target-bw-input').value) || null;
+  const goalType = document.getElementById('meso-goal-type-input') ? document.getElementById('meso-goal-type-input').value : 'loss';
   const form = state._mesoForm || { split: 'ppl', micro: 'yes' };
   const splitType = form.split;
   const useMicrocycles = form.micro !== 'no';
@@ -1186,7 +1230,7 @@ function createMesocycle() {
   }
 
   const id = 'meso_' + Date.now();
-  state.mesocycles.push({ id, name, weeks, weeksPerMacro, sessionsPerWeek, start, goal, targetBw, splitType, days, dayLabels, useMicrocycles });
+  state.mesocycles.push({ id, name, weeks, weeksPerMacro, sessionsPerWeek, start, goal, targetBw, goalType, splitType, days, dayLabels, useMicrocycles });
   state.currentMesoId = id;
   state.currentDay = useMicrocycles ? (days[0] + 'm1') : days[0];
   save();
@@ -1247,6 +1291,15 @@ function setSelectValue(id, val) {
   el.value = closest.value;
 }
 
+function updateLegSelectLabels() {
+  const activeMeso = state.mesocycles.find(m => m.id === state.currentMesoId);
+  const isGain = activeMeso && activeMeso.goalType === 'gain';
+  const legSel = document.getElementById('ex-leg-select');
+  if (!legSel) return;
+  legSel.options[0].text = isGain ? 'No (5 kg per macrocycle)' : 'No (1–2 kg per macrocycle)';
+  legSel.options[1].text = isGain ? 'Yes (10 kg per macrocycle)' : 'Yes (up to 3 kg per macrocycle)';
+}
+
 function openAddExercise(week, day) {
   state.currentEditContext = { week, day, editIdx: null };
   document.getElementById('modal-ex-title').textContent = 'Add Exercise';
@@ -1258,6 +1311,7 @@ function openAddExercise(week, day) {
   document.getElementById('ex-type-select').value = 'standard';
   document.getElementById('ex-leg-select').value = '0';
   onExTypeChange();
+  updateLegSelectLabels();
   openModal('modal-exercise');
 }
 
@@ -1275,6 +1329,7 @@ function openEditExercise(week, day, idx) {
   document.getElementById('ex-type-select').value = ex.type || 'standard';
   document.getElementById('ex-leg-select').value = ex.isHeavyLeg ? '1' : '0';
   onExTypeChange();
+  updateLegSelectLabels();
   openModal('modal-exercise');
 }
 
@@ -1321,10 +1376,13 @@ function getWeekSets(ex, week, totalWeeks) {
   return Math.round(ex.setsStart + t * (ex.setsEnd - ex.setsStart));
 }
 
-function getWeekWeight(ex, week, progType) {
-  // progType passed explicitly — no longer stored on exercise
+function getWeekWeight(ex, week, progType, goalType) {
   if (progType !== 'weight') return ex.startWeight;
-  const jump = ex.isHeavyLeg ? 2.5 : 1.5;
+  // Jump per macrocycle based on mesocycle type
+  const isGain = goalType === 'gain';
+  const jump = ex.isHeavyLeg
+    ? (isGain ? 10 : 2.5)
+    : (isGain ? 5 : 1.5);
   return ex.startWeight + jump * (week - 1);
 }
 
@@ -1352,16 +1410,16 @@ function getMyorepProgression(ex, week) {
   return (base + add * (week - 1)) + ' reps';
 }
 
-function getProgressionNote(ex, week, progType) {
+function getProgressionNote(ex, week, progType, goalType) {
   if (week === 1) return null;
-  if (ex.type === 'myomatch') {
-    return `+${ex.isHeavyLeg ? '2.5–3' : '1–2'} kg`; // weight only
-  }
+  const isGain = goalType === 'gain';
+  const jump = ex.isHeavyLeg ? (isGain ? '10' : '2.5–3') : (isGain ? '5' : '1–2');
+  if (ex.type === 'myomatch') return `+${jump} kg`;
   if (ex.type === 'myorep') {
-    if (progType === 'weight') return `+${ex.isHeavyLeg ? '2.5–3' : '1–2'} kg`;
+    if (progType === 'weight') return `+${jump} kg`;
     return `+10 reps`;
   }
-  if (progType === 'weight') return `+${ex.isHeavyLeg ? '2.5–3' : '1–2'} kg`;
+  if (progType === 'weight') return `+${jump} kg`;
   return `+1 rep`;
 }
 
@@ -1386,7 +1444,7 @@ function renderHome() {
   } else {
     const startDate = meso.start ? new Date(meso.start + 'T00:00:00') : new Date();
     const totalCalWks = getMesoDurationWeeks(meso);
-    const endDate = new Date(startDate); endDate.setDate(endDate.getDate() + totalCalWks * 7);
+    const endDate = getMesoEndDate(meso);
     const today = new Date(); today.setHours(0,0,0,0); startDate.setHours(0,0,0,0);
     const totalDays = totalCalWks * 7;
     const elapsedDays = Math.max(0, Math.min(today - startDate, endDate - startDate)) / (1000*60*60*24);
@@ -1673,11 +1731,9 @@ function renderPlan() {
     ).join('') + '</div>';
   }
 
-  // Progress — day-based using total calendar duration
   const totalCalendarWeeks = getMesoDurationWeeks(meso);
   const startDate = meso.start ? new Date(meso.start + 'T00:00:00') : new Date();
-  const endDate = new Date(startDate);
-  endDate.setDate(endDate.getDate() + totalCalendarWeeks * 7);
+  const endDate = getMesoEndDate(meso);
   const today = new Date();
   today.setHours(0,0,0,0);
   startDate.setHours(0,0,0,0);
@@ -1703,6 +1759,7 @@ function renderPlan() {
           <span class="badge badge-blue">${splitBadge}</span>
           <div style="display:flex;gap:4px;margin-top:2px;">
             <button class="btn btn-sm" id="btn-edit-meso" style="padding:4px 10px;font-size:11px;">Edit</button>
+            <button class="btn btn-sm" id="btn-copy-meso" style="padding:4px 10px;font-size:11px;">Copy</button>
             <button class="btn btn-sm btn-danger" id="btn-delete-meso" style="padding:4px 10px;font-size:11px;">Delete</button>
           </div>
         </div>
@@ -1721,6 +1778,8 @@ function renderPlan() {
   if (delBtn) delBtn.onclick = () => deleteMesocycle(meso.id);
   const editBtn = document.getElementById('btn-edit-meso');
   if (editBtn) editBtn.onclick = () => openEditMeso(meso.id);
+  const copyBtn = document.getElementById('btn-copy-meso');
+  if (copyBtn) copyBtn.onclick = () => copyMesocycle(meso.id);
 
   // Build plan — exercises defined once in Week 1, propagated automatically
   let html = '';
@@ -1809,7 +1868,7 @@ function renderMicroBlock(meso, week, micro, days, dayLabels, editable) {
         <div style="font-size:11px;font-weight:500;color:var(--text2);margin-bottom:6px;">${dayLabels[day]}</div>`;
       exercises.forEach(ex => {
         const sets = getWeekSets(ex, week, meso.weeks);
-        const weightTarget = getWeekWeight(ex, week, 'weight').toFixed(1);
+        const weightTarget = getWeekWeight(ex, week, 'weight', meso.goalType).toFixed(1);
         const repsTarget = (ex.type === 'myorep' || ex.type === 'myomatch')
           ? getMyorepProgression(ex, week)
           : ex.reps;
@@ -1860,6 +1919,32 @@ function saveEditMeso() {
 
 function selectMeso(id) {
   state.currentMesoId = id;
+  save();
+  renderPlan();
+}
+
+function copyMesocycle(id) {
+  const src = state.mesocycles.find(m => m.id === id);
+  if (!src) return;
+  const newId = 'meso_' + Date.now();
+  // Deep copy the mesocycle metadata (no logs)
+  const copy = JSON.parse(JSON.stringify(src));
+  copy.id = newId;
+  copy.name = src.name + ' (Copy)';
+  copy.start = getNextMesoStart();
+  state.mesocycles.push(copy);
+
+  // Copy exercises only (no trainLogs) — exercises are keyed mesoId_week_day
+  Object.entries(state.exercises).forEach(([key, val]) => {
+    if (key.startsWith(id + '_')) {
+      const newKey = newId + key.slice(id.length);
+      state.exercises[newKey] = JSON.parse(JSON.stringify(val));
+    }
+  });
+
+  state.currentMesoId = newId;
+  state.currentWeek = 1;
+  state.currentDay = copy.useMicrocycles !== false ? (copy.days[0] + 'm1') : copy.days[0];
   save();
   renderPlan();
 }
@@ -2032,8 +2117,9 @@ function renderTrainDay(meso) {
     const prevProgType = prevProgLog.progType || null;
     const isMyorep = ex.type === 'myorep' || ex.type === 'myomatch';
     const isMyomatch = ex.type === 'myomatch';
-    const weightJump = ex.isHeavyLeg ? 2.5 : 1.5;
-    const myoAdd = ex.type === 'myorep' ? 10 : 0; // giant: +10; match: weight only
+    const isGain = meso.goalType === 'gain';
+    const weightJump = ex.isHeavyLeg ? (isGain ? 10 : 2.5) : (isGain ? 5 : 1.5);
+    const myoAdd = ex.type === 'myorep' ? 10 : 0;
     const typeLabel = ex.type === 'standard' ? 'std' : ex.type === 'myorep' ? 'myorep giant' : 'myomatch';
 
     // ── Gather previous week's actual logged Set 1 values ─────────────────────
@@ -2054,7 +2140,7 @@ function renderTrainDay(meso) {
     // ── Recommended weight: last week's actual + jump (fallback to formula) ───
     const recommendedWeight = prevActualWeight !== null
       ? prevActualWeight + weightJump
-      : getWeekWeight(ex, state.currentWeek, 'weight');
+      : getWeekWeight(ex, state.currentWeek, 'weight', meso.goalType);
 
     // ── Recommended reps: last week's actual + 1 (fallback to formula) ────────
     const recommendedReps = (() => {
@@ -2101,22 +2187,27 @@ function renderTrainDay(meso) {
     const summaryWeight = loggedWeights.length > 0 ? loggedWeights[0].toFixed(1) + ' kg' : weightPlaceholder + ' kg';
     const summaryReps   = loggedRepsArr.length  > 0 ? loggedRepsArr[0]  : repsPlaceholder;
 
-    // ── Best confirmed weight: scan all weeks desc for any logged Set 1 weight ─
+    // ── Progress badge: compare this week's logged/recommended vs startWeight for % ─
+    // Use prevActualWeight (last week's Set 1) for per-cycle delta; startWeight for total %
     const startWeight = ex.startWeight || 0;
-    let bestLoggedWeight = null;
-    for (let w = state.currentWeek; w >= 1; w--) {
-      const wKey = meso.id + '_' + w + '_' + state.currentDay + '_' + exIdx + '_0';
-      const wLog = state.trainLogs[wKey];
-      if (wLog && wLog.weight) { bestLoggedWeight = parseFloat(wLog.weight); break; }
+    // Current weight: use logged Set 1 if available, else fall back to recommendedWeight
+    const currentLogKey = key + '_' + exIdx + '_0';
+    const currentLog = state.trainLogs[currentLogKey];
+    const currentActualWeight = currentLog && currentLog.weight ? parseFloat(currentLog.weight) : null;
+
+    // Only show badge once we have at least one week of actual logged data
+    const baseForDelta = prevActualWeight !== null ? prevActualWeight : startWeight;
+    const compareWeight = currentActualWeight !== null ? currentActualWeight : null;
+
+    let progressBadge = '';
+    if (compareWeight !== null && compareWeight !== baseForDelta) {
+      const progressKg = compareWeight - baseForDelta;
+      const progressPct = startWeight > 0
+        ? Math.round(((compareWeight - startWeight) / startWeight) * 100)
+        : 0;
+      const col = progressKg >= 0 ? 'var(--accent)' : 'var(--red)';
+      progressBadge = `<span style="font-size:10px;color:${col};font-weight:500;white-space:nowrap;">${progressKg >= 0 ? '+' : ''}${progressKg.toFixed(1)}kg&nbsp;/&nbsp;${progressPct >= 0 ? '+' : ''}${progressPct}%</span>`;
     }
-    const progressKg  = bestLoggedWeight !== null ? bestLoggedWeight - startWeight : 0;
-    const progressPct = startWeight > 0 && bestLoggedWeight !== null
-      ? Math.round(((bestLoggedWeight - startWeight) / startWeight) * 100)
-      : 0;
-    const showProgress = bestLoggedWeight !== null && bestLoggedWeight !== startWeight;
-    const progressBadge = showProgress
-      ? `<span style="font-size:10px;color:${progressKg >= 0 ? 'var(--accent)' : 'var(--red)'};font-weight:500;white-space:nowrap;">${progressKg >= 0 ? '+' : ''}${progressKg.toFixed(1)}kg&nbsp;/&nbsp;${progressPct >= 0 ? '+' : ''}${progressPct}%</span>`
-      : '';
 
     // ── Compact header ─────────────────────────────────────────────────────────
     html += `<div class="card" style="margin-bottom:8px;padding:0;">
@@ -2148,8 +2239,8 @@ function renderTrainDay(meso) {
       const myoAdd = ex.type === 'myorep' ? 10 : 15;
       let weightRec = '', repsRec = '';
       if (state.currentWeek > 1) {
-        const prevWLabel = prevActualWeight !== null ? prevActualWeight.toFixed(1) : getWeekWeight(ex, prevWeek, 'weight').toFixed(1);
-        weightRec = `${prevWLabel} kg → ${recommendedWeight.toFixed(1)} kg (+${ex.isHeavyLeg ? '2.5–3' : '1–2'} kg)`;
+        const prevWLabel = prevActualWeight !== null ? prevActualWeight.toFixed(1) : getWeekWeight(ex, prevWeek, 'weight', meso.goalType).toFixed(1);
+        weightRec = `${prevWLabel} kg → ${recommendedWeight.toFixed(1)} kg (+${weightJump} kg)`;
         if (ex.type === 'myorep') {
           repsRec = `${getMyorepProgression(ex, prevWeek)} → ${getMyorepProgression(ex, state.currentWeek)} (+10 reps)`;
         } else if (!isMyomatch) {
@@ -2216,6 +2307,12 @@ function renderTrainDay(meso) {
             Clear
           </button>
         </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;padding:0 0 4px;">
+        <div style="width:20px;"></div>
+        <div style="flex:1;max-width:80px;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;text-align:center;">Weight</div>
+        <div style="flex:1;max-width:80px;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;text-align:center;">Reps</div>
+        <div style="width:32px;"></div>
       </div>`;
       for (let s = 0; s < sets; s++) {
         const logKey = key + '_' + exIdx + '_' + s;
