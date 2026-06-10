@@ -1,35 +1,39 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Barcode Test</title>
 <style>
 :root{--bg:#0a0a0a;--surface:#141414;--surface2:#1c1c1c;--border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.14);--text:#f0ede8;--text2:#888880;--text3:#555550;--accent:#c8f060;--red:#ff5f4e;--amber:#f5a623;--blue:#60a8f0;--r:12px;--r-sm:8px}
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:'Courier New',monospace;font-size:14px;padding:16px 14px 40px}
-h1{font-family:system-ui,sans-serif;font-size:24px;font-weight:800;margin-bottom:2px}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{background:var(--bg);color:var(--text);font-family:'Courier New',monospace;font-size:14px;padding:20px 16px 60px}
+h1{font-family:system-ui,sans-serif;font-size:24px;font-weight:800;margin-bottom:3px}
 .sub{font-size:10px;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:20px}
-.btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:12px 16px;border-radius:var(--r-sm);border:none;font-family:'Courier New',monospace;font-size:13px;cursor:pointer;width:100%;font-weight:500}
-.btn-accent{background:var(--accent);color:#0a0a0a}
-.btn-outline{background:transparent;border:1px solid var(--border2);color:var(--text2);margin-top:8px}
+.btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:13px 16px;border-radius:var(--r-sm);border:none;font-family:'Courier New',monospace;font-size:13px;cursor:pointer;width:100%;font-weight:500}
+.btn-accent{background:var(--accent);color:#0a0a0a;margin-bottom:8px}
+.btn-outline{background:transparent;border:1px solid var(--border2);color:var(--text2)}
 .card{background:var(--surface);border:.5px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px}
 .label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px}
-input{background:var(--surface2);border:.5px solid var(--border2);border-radius:var(--r-sm);color:var(--text);font-family:'Courier New',monospace;font-size:14px;padding:9px 11px;width:100%;outline:none;-webkit-appearance:none}
+input{background:var(--surface2);border:.5px solid var(--border2);border-radius:var(--r-sm);color:var(--text);font-family:'Courier New',monospace;font-size:14px;padding:10px 12px;width:100%;outline:none;-webkit-appearance:none}
 input:focus{border-color:var(--accent)}
-.row{display:flex;gap:8px;margin-bottom:10px}.row>*{flex:1}
-#status{text-align:center;padding:10px;border-radius:var(--r-sm);font-size:12px;margin-bottom:10px;display:none}
+input[readonly]{opacity:.5}
+.row{display:flex;gap:8px;margin-bottom:12px}.row>*{flex:1}
+#status{padding:10px 12px;border-radius:var(--r-sm);font-size:12px;margin-bottom:12px;display:none;line-height:1.6}
 #status.info{display:block;background:rgba(96,168,240,.1);color:var(--blue);border:1px solid rgba(96,168,240,.2)}
 #status.error{display:block;background:rgba(255,95,78,.1);color:var(--red);border:1px solid rgba(255,95,78,.2)}
 #status.success{display:block;background:rgba(200,240,96,.1);color:var(--accent);border:1px solid rgba(200,240,96,.2)}
-#result-section{display:none}.macro-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px}
-.macro-box{background:var(--surface2);border-radius:var(--r-sm);padding:9px;text-align:center}
-.macro-val{font-family:system-ui,sans-serif;font-size:18px;font-weight:700}
+#result-section{display:none}
+.macro-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px}
+.macro-box{background:var(--surface2);border-radius:var(--r-sm);padding:10px;text-align:center}
+.macro-val{font-family:system-ui,sans-serif;font-size:20px;font-weight:700}
 .macro-lbl{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
 .macro-val.kcal{color:var(--accent)}.macro-val.protein{color:var(--blue)}.macro-val.carbs{color:var(--amber)}.macro-val.fats{color:var(--red)}
-.product-name{font-family:system-ui,sans-serif;font-size:16px;font-weight:700;margin-bottom:2px}
+.product-name{font-family:system-ui,sans-serif;font-size:17px;font-weight:700;margin-bottom:3px}
 .product-brand{font-size:11px;color:var(--text2);margin-bottom:12px}
-.section-title{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
 .divider{height:.5px;background:var(--border);margin:14px 0}
-.logged-item{display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:.5px solid var(--border);gap:8px}
+.section-title{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
+.logged-item{display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:.5px solid var(--border);gap:8px}
 .logged-item:last-child{border-bottom:none}
 .logged-name{font-size:12px;font-weight:500}
 .logged-macros{font-size:10px;color:var(--text2);margin-top:2px}
@@ -38,17 +42,17 @@ input:focus{border-color:var(--accent)}
 #scanner-overlay.open{display:flex}
 #preview{width:100%;height:100%;object-fit:cover}
 .scan-frame-wrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
-.scan-frame{width:240px;height:140px;position:relative}
-.scan-frame::before,.scan-frame::after,.scan-frame>span::before,.scan-frame>span::after{content:'';position:absolute;width:28px;height:28px;border-color:var(--accent);border-style:solid}
+.scan-frame{width:260px;height:160px;position:relative}
+.scan-frame::before,.scan-frame::after,.scan-frame>span::before,.scan-frame>span::after{content:'';position:absolute;width:30px;height:30px;border-color:var(--accent);border-style:solid}
 .scan-frame::before{top:0;left:0;border-width:3px 0 0 3px;border-radius:3px 0 0 0}
 .scan-frame::after{top:0;right:0;border-width:3px 3px 0 0;border-radius:0 3px 0 0}
 .scan-frame>span::before{bottom:0;left:0;border-width:0 0 3px 3px;border-radius:0 0 0 3px}
 .scan-frame>span::after{bottom:0;right:0;border-width:0 3px 3px 0;border-radius:0 0 3px 0}
-.scan-line{position:absolute;left:4px;right:4px;height:2px;background:var(--accent);opacity:.7;animation:scanline 2s ease-in-out infinite}
+.scan-line{position:absolute;left:4px;right:4px;height:2px;background:var(--accent);opacity:.8;animation:scanline 2s ease-in-out infinite}
 @keyframes scanline{0%,100%{top:5%}50%{top:90%}}
-.scan-hint{position:absolute;bottom:80px;left:0;right:0;text-align:center;color:rgba(255,255,255,.7);font-size:12px}
-.scan-close-btn{position:absolute;top:env(safe-area-inset-top,20px);right:20px;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:16px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.camera-note{background:rgba(200,240,96,.08);border:1px solid rgba(200,240,96,.2);border-radius:var(--r-sm);padding:10px;font-size:11px;color:var(--text2);margin-bottom:12px;line-height:1.6}
+.scan-hint{position:absolute;bottom:100px;left:0;right:0;text-align:center;color:rgba(255,255,255,.8);font-size:13px}
+.scan-status{position:absolute;top:20px;left:20px;right:60px;background:rgba(0,0,0,.6);color:#fff;font-size:12px;padding:8px 12px;border-radius:8px;font-family:'Courier New',monospace}
+.scan-close-btn{position:absolute;top:16px;right:16px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:18px;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center}
 </style>
 </head>
 <body>
@@ -56,20 +60,12 @@ input:focus{border-color:var(--accent)}
 <h1>Barcode Test</h1>
 <div class="sub">BLOC nutrition scanner prototype</div>
 
-<div class="camera-note">
-  📱 <strong style="color:var(--accent)">On iPhone:</strong> Camera scanning works best when opened directly in Safari (not inside an app). If camera is blocked, use the manual barcode entry below — try scanning any product and typing the number shown under the barcode.
-</div>
+<button class="btn btn-accent" onclick="openScanner()">&#x1F4F7; Scan Barcode</button>
 
-<button class="btn btn-accent" onclick="openScanner()">
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="5" height="5"/><rect x="16" y="3" width="5" height="5"/><rect x="3" y="16" width="5" height="5"/><line x1="10" y1="4" x2="10" y2="10"/><line x1="14" y1="4" x2="14" y2="10"/><line x1="10" y1="14" x2="10" y2="20"/><line x1="14" y1="14" x2="14" y2="20"/><line x1="16" y1="10" x2="22" y2="10"/><line x1="16" y1="14" x2="22" y2="14"/></svg>
-  Scan Barcode
-</button>
-
-<div style="margin:10px 0;text-align:center;font-size:11px;color:var(--text3);">— or enter barcode manually —</div>
-
+<div style="margin:8px 0;text-align:center;font-size:11px;color:var(--text3);">— or enter barcode manually —</div>
 <div style="display:flex;gap:8px;margin-bottom:14px;">
   <input type="text" id="manual-barcode" placeholder="e.g. 5000112548175" inputmode="numeric" style="flex:1;">
-  <button class="btn btn-outline" style="width:auto;padding:9px 14px;margin-top:0;" onclick="lookupManual()">Look up</button>
+  <button class="btn btn-outline" style="width:auto;padding:10px 14px;" onclick="lookupManual()">Look up</button>
 </div>
 
 <div id="status"></div>
@@ -79,17 +75,14 @@ input:focus{border-color:var(--accent)}
     <div class="product-name" id="product-name"></div>
     <div class="product-brand" id="product-brand"></div>
     <div class="macro-grid">
-      <div class="macro-box" style="grid-column:1/-1;">
-        <div class="macro-val kcal" id="result-kcal">—</div>
-        <div class="macro-lbl">kcal per serving</div>
-      </div>
+      <div class="macro-box" style="grid-column:1/-1;"><div class="macro-val kcal" id="result-kcal">—</div><div class="macro-lbl">kcal per serving</div></div>
       <div class="macro-box"><div class="macro-val protein" id="result-protein">—</div><div class="macro-lbl">Protein (g)</div></div>
       <div class="macro-box"><div class="macro-val carbs" id="result-carbs">—</div><div class="macro-lbl">Carbs (g)</div></div>
       <div class="macro-box"><div class="macro-val fats" id="result-fats">—</div><div class="macro-lbl">Fats (g)</div></div>
     </div>
     <div class="row">
       <div><div class="label">Serving size (g)</div><input type="number" id="serving-size" value="100" min="1" oninput="recalcServing()"></div>
-      <div><div class="label">Per 100g kcal</div><input type="number" id="per100-kcal" readonly style="opacity:.5;"></div>
+      <div><div class="label">Per 100g kcal</div><input type="number" id="per100-kcal" readonly></div>
     </div>
     <button class="btn btn-accent" onclick="logProduct()">+ Add to today's log</button>
   </div>
@@ -106,14 +99,12 @@ input:focus{border-color:var(--accent)}
   </div>
 </div>
 
-<!-- Camera overlay -->
 <div id="scanner-overlay">
   <div style="position:relative;flex:1;overflow:hidden;">
     <video id="preview" autoplay playsinline muted></video>
-    <div class="scan-frame-wrap">
-      <div class="scan-frame"><span></span><div class="scan-line"></div></div>
-    </div>
+    <div class="scan-frame-wrap"><div class="scan-frame"><span></span><div class="scan-line"></div></div></div>
     <div class="scan-hint">Align barcode within the frame</div>
+    <div class="scan-status" id="scan-status">Initialising…</div>
     <button class="scan-close-btn" onclick="closeScanner()">✕</button>
   </div>
 </div>
@@ -121,60 +112,108 @@ input:focus{border-color:var(--accent)}
 <script>
 let currentProduct = null;
 let loggedItems = [];
-let codeReader = null;
 let stream = null;
-let zxingLoaded = false;
+let scanInterval = null;
 
-// Dynamically load ZXing
+function setScanStatus(msg) {
+  const el = document.getElementById('scan-status');
+  if (el) el.textContent = msg;
+}
+
+async function openScanner() {
+  setStatus('Opening camera…', 'info');
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+    });
+  } catch(e) {
+    setStatus('Camera error: ' + e.name + ' — ' + e.message, 'error');
+    return;
+  }
+
+  const video = document.getElementById('preview');
+  video.srcObject = stream;
+  document.getElementById('scanner-overlay').classList.add('open');
+  setStatus('', '');
+
+  try {
+    await video.play();
+  } catch(e) {
+    setScanStatus('Video play error: ' + e.message);
+  }
+
+  // Try native BarcodeDetector first (iOS 17+, no CDN needed)
+  if (typeof BarcodeDetector !== 'undefined') {
+    setScanStatus('Using native scanner — point at barcode');
+    startNativeScan(video);
+  } else {
+    // Fall back to ZXing
+    setScanStatus('Loading scanner library…');
+    loadZXing().then(() => {
+      setScanStatus('Ready — point at barcode');
+      startZXingScan(video);
+    }).catch(e => {
+      setScanStatus('Library load failed: ' + e.message);
+    });
+  }
+}
+
+function startNativeScan(video) {
+  const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'] });
+  const canvas = document.createElement('canvas');
+  let scanning = true;
+
+  async function tick() {
+    if (!scanning) return;
+    if (video.readyState >= 2) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      try {
+        const codes = await detector.detect(canvas);
+        if (codes.length > 0) {
+          scanning = false;
+          closeScanner();
+          lookupBarcode(codes[0].rawValue);
+          return;
+        }
+      } catch(e) {}
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
 function loadZXing() {
   return new Promise((resolve, reject) => {
     if (typeof ZXing !== 'undefined') { resolve(); return; }
     const s = document.createElement('script');
     s.src = 'https://cdnjs.cloudflare.com/ajax/libs/zxing-js/0.20.0/zxing.min.js';
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error('ZXing failed to load'));
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('CDN load failed'));
     document.head.appendChild(s);
   });
 }
 
-async function openScanner() {
-  setStatus('Requesting camera access…', 'info');
-  try {
-    await loadZXing();
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }
-    });
-    const video = document.getElementById('preview');
-    video.srcObject = stream;
-    await video.play();
-    document.getElementById('scanner-overlay').classList.add('open');
-    setStatus('', '');
-
-    const hints = new Map();
-    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-      ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8,
-      ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.CODE_128
-    ]);
-    codeReader = new ZXing.BrowserMultiFormatReader(hints);
-    codeReader.decodeFromVideoElement(video, (result, err) => {
-      if (result) {
-        closeScanner();
-        lookupBarcode(result.getText());
-      }
-    });
-  } catch(e) {
-    closeScanner();
-    if (e.name === 'NotAllowedError') {
-      setStatus('Camera permission denied. Please allow camera access in your browser settings, or use manual barcode entry above.', 'error');
-    } else {
-      setStatus('Camera unavailable. Use the manual barcode entry above instead.', 'error');
+function startZXingScan(video) {
+  const hints = new Map();
+  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+    ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8,
+    ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.CODE_128
+  ]);
+  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+  const reader = new ZXing.BrowserMultiFormatReader(hints);
+  reader.decodeFromVideoElement(video, (result, err) => {
+    if (result) {
+      reader.reset();
+      closeScanner();
+      lookupBarcode(result.getText());
     }
-  }
+  });
 }
 
 function closeScanner() {
   document.getElementById('scanner-overlay').classList.remove('open');
-  if (codeReader) { try { codeReader.reset(); } catch(e){} codeReader = null; }
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
 }
 
@@ -191,17 +230,14 @@ async function lookupBarcode(barcode) {
     const res = await fetch('https://world.openfoodfacts.org/api/v2/product/' + barcode + '.json');
     const data = await res.json();
     if (data.status !== 1 || !data.product) {
-      setStatus('Product not found. It may not be in the Open Food Facts database yet.', 'error');
+      setStatus('Product not found in Open Food Facts database.', 'error');
       return;
     }
     const p = data.product;
     const n = p.nutriments || {};
     const per100kcal = n['energy-kcal_100g'] ?? n['energy-kcal'] ?? null;
-    const per100p = n['proteins_100g'] ?? n['proteins'] ?? 0;
-    const per100c = n['carbohydrates_100g'] ?? n['carbohydrates'] ?? 0;
-    const per100f = n['fat_100g'] ?? n['fat'] ?? 0;
     if (per100kcal === null) {
-      setStatus('Product found but calorie data is missing in the database.', 'error');
+      setStatus('Product found (' + (p.product_name || '') + ') but calorie data is missing.', 'error');
       return;
     }
     currentProduct = {
@@ -209,22 +245,21 @@ async function lookupBarcode(barcode) {
       brand: p.brands || '',
       barcode,
       per100kcal: Math.round(per100kcal),
-      per100p: parseFloat(per100p),
-      per100c: parseFloat(per100c),
-      per100f: parseFloat(per100f),
+      per100p: parseFloat(n['proteins_100g'] ?? n['proteins'] ?? 0),
+      per100c: parseFloat(n['carbohydrates_100g'] ?? n['carbohydrates'] ?? 0),
+      per100f: parseFloat(n['fat_100g'] ?? n['fat'] ?? 0),
       servingSize: parseFloat(p.serving_quantity) || 100,
     };
     setStatus('Found: ' + currentProduct.name, 'success');
     showResult();
   } catch(e) {
-    setStatus('Network error — check your connection and try again.', 'error');
+    setStatus('Network error: ' + e.message, 'error');
   }
 }
 
 function showResult() {
-  if (!currentProduct) return;
   document.getElementById('product-name').textContent = currentProduct.name;
-  document.getElementById('product-brand').textContent = currentProduct.brand || '';
+  document.getElementById('product-brand').textContent = currentProduct.brand;
   document.getElementById('per100-kcal').value = currentProduct.per100kcal;
   document.getElementById('serving-size').value = currentProduct.servingSize;
   recalcServing();
@@ -238,8 +273,7 @@ function hideResult() {
 
 function recalcServing() {
   if (!currentProduct) return;
-  const g = parseFloat(document.getElementById('serving-size').value) || 100;
-  const r = g / 100;
+  const r = (parseFloat(document.getElementById('serving-size').value) || 100) / 100;
   document.getElementById('result-kcal').textContent = Math.round(currentProduct.per100kcal * r);
   document.getElementById('result-protein').textContent = (currentProduct.per100p * r).toFixed(1);
   document.getElementById('result-carbs').textContent = (currentProduct.per100c * r).toFixed(1);
@@ -248,11 +282,10 @@ function recalcServing() {
 
 function logProduct() {
   if (!currentProduct) return;
-  const g = parseFloat(document.getElementById('serving-size').value) || 100;
-  const r = g / 100;
+  const r = (parseFloat(document.getElementById('serving-size').value) || 100) / 100;
   loggedItems.push({
     name: currentProduct.name,
-    serving: g,
+    serving: parseFloat(document.getElementById('serving-size').value) || 100,
     kcal: Math.round(currentProduct.per100kcal * r),
     protein: parseFloat((currentProduct.per100p * r).toFixed(1)),
     carbs: parseFloat((currentProduct.per100c * r).toFixed(1)),
@@ -271,13 +304,13 @@ function removeItem(i) {
 function renderLog() {
   if (!loggedItems.length) { document.getElementById('log-section').style.display = 'none'; return; }
   document.getElementById('log-section').style.display = 'block';
-  const tK = loggedItems.reduce((a,b)=>a+b.kcal,0);
-  const tP = loggedItems.reduce((a,b)=>a+b.protein,0).toFixed(1);
-  const tC = loggedItems.reduce((a,b)=>a+b.carbs,0).toFixed(1);
-  const tF = loggedItems.reduce((a,b)=>a+b.fats,0).toFixed(1);
+  const tK = loggedItems.reduce((a,b) => a+b.kcal, 0);
+  const tP = loggedItems.reduce((a,b) => a+b.protein, 0).toFixed(1);
+  const tC = loggedItems.reduce((a,b) => a+b.carbs, 0).toFixed(1);
+  const tF = loggedItems.reduce((a,b) => a+b.fats, 0).toFixed(1);
   document.getElementById('total-kcal').textContent = tK + ' kcal';
   document.getElementById('total-macros').textContent = 'P: '+tP+'g · C: '+tC+'g · F: '+tF+'g';
-  document.getElementById('log-list').innerHTML = loggedItems.map((item,i) => `
+  document.getElementById('log-list').innerHTML = loggedItems.map((item, i) => `
     <div class="logged-item">
       <div style="flex:1;min-width:0;">
         <div class="logged-name">${item.name}</div>
@@ -285,7 +318,7 @@ function renderLog() {
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
         <div class="logged-kcal">${item.kcal}</div>
-        <button onclick="removeItem(${i})" style="background:none;border:none;color:var(--text3);font-size:15px;cursor:pointer;">✕</button>
+        <button onclick="removeItem(${i})" style="background:none;border:none;color:var(--text3);font-size:15px;cursor:pointer;padding:4px;">✕</button>
       </div>
     </div>`).join('');
 }
