@@ -424,7 +424,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
           <div class="page-title">BLOC</div>
           <div class="page-sub" id="home-date"></div>
         </div>
-        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v2.07</span>
+        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v2.08</span>
       </div>
 
       <!-- Active cycle card -->
@@ -538,7 +538,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v2.07</span>
+          <span class="badge badge-green">v2.08</span>
         </div>
       </div>
 
@@ -1190,7 +1190,9 @@ function getNextMesoStart() {
     const end = getMesoEndDate(m);
     if (!latest || end > latest) latest = end;
   });
+  // Use local date arithmetic to avoid UTC timezone rollback issues
   const next = new Date(latest);
+  next.setHours(12, 0, 0, 0); // anchor to noon to avoid DST/timezone edge cases
   next.setDate(next.getDate() + 1);
   return next.toISOString().split('T')[0];
 }
