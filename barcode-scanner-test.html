@@ -175,9 +175,9 @@ function startNativeScan(video) {
 
 function loadZXing() {
   return new Promise((resolve, reject) => {
-    if (typeof ZXing !== 'undefined') { resolve(); return; }
+    if (typeof ZXingBrowser !== 'undefined') { resolve(); return; }
     const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/zxing-js/0.20.0/zxing.min.js';
+    s.src = 'https://unpkg.com/@zxing/browser@latest/umd/index.min.js';
     s.onload = resolve;
     s.onerror = () => reject(new Error('CDN load failed'));
     document.head.appendChild(s);
@@ -185,20 +185,21 @@ function loadZXing() {
 }
 
 function startZXingScan(video) {
-  const hints = new Map();
-  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-    ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8,
-    ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.CODE_128
-  ]);
-  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-  const reader = new ZXing.BrowserMultiFormatReader(hints);
-  reader.decodeFromVideoElement(video, (result, err) => {
-    if (result) {
-      reader.reset();
-      closeScanner();
-      lookupBarcode(result.getText());
-    }
-  });
+  function tryStart() {
+    if (video.videoWidth === 0) { setTimeout(tryStart, 200); return; }
+    setScanStatus('Ready — point at barcode');
+    const hints = new Map();
+    hints.set(ZXingBrowser.DecodeContinuouslyHints.TRY_HARDER, true);
+    const reader = new ZXingBrowser.BrowserMultiFormatReader();
+    reader.decodeFromVideoElement(video, (result, err) => {
+      if (result) {
+        reader.reset();
+        closeScanner();
+        lookupBarcode(result.getText());
+      }
+    });
+  }
+  tryStart();
 }
 
 function closeScanner() {
