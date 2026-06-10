@@ -142,19 +142,11 @@ async function openScanner() {
     setScanStatus('Video play error: ' + e.message);
   }
 
-  // Try native BarcodeDetector first (iOS 17+, no CDN needed)
   if (typeof BarcodeDetector !== 'undefined') {
-    setScanStatus('Using native scanner — point at barcode');
+    setScanStatus('Ready — point at barcode');
     startNativeScan(video);
   } else {
-    // Fall back to ZXing
-    setScanStatus('Loading scanner library…');
-    loadZXing().then(() => {
-      setScanStatus('Ready — point at barcode');
-      startZXingScan(video);
-    }).catch(e => {
-      setScanStatus('Library load failed: ' + e.message);
-    });
+    setScanStatus('Barcode scanning not supported on this browser. Use manual entry.');
   }
 }
 
