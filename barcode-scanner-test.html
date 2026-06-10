@@ -121,15 +121,12 @@ function setScanStatus(msg) {
 }
 
 async function openScanner() {
+  // Diagnostic — remove after testing
+  const hasBD = typeof BarcodeDetector !== 'undefined';
+  const hasMD = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  setStatus('BarcodeDetector: ' + hasBD + ' | mediaDevices: ' + hasMD + ' | iOS: ' + navigator.userAgent.match(/OS [\d_]+/), 'info');
+  await new Promise(r => setTimeout(r, 3000));
   setStatus('Opening camera…', 'info');
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
-    });
-  } catch(e) {
-    setStatus('Camera error: ' + e.name + ' — ' + e.message, 'error');
-    return;
-  }
 
   const video = document.getElementById('preview');
   video.srcObject = stream;
