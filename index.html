@@ -564,12 +564,35 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
         </button>
       </div>
       <div class="card" style="margin-bottom:10px;">
-        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Export exercise library</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Downloads just your exercise library (including custom exercises) as a JSON file.</div>
-        <button class="btn btn-block" onclick="exportLibrary()">
-          <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Export library
-        </button>
+        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Exercise library</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Export or import your exercise library. Import merges by name — existing exercises are updated, new ones are added.</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-block" style="flex:1;" onclick="exportLibrary()">
+            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export
+          </button>
+          <label class="btn btn-block" style="flex:1;cursor:pointer;justify-content:center;">
+            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Import
+            <input type="file" accept=".json,application/json" style="display:none;" onchange="importExerciseLibrary(this.files[0]);this.value='';">
+          </label>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:10px;">
+        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Food library</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Export or import your scanned and manually entered foods. Import merges by name — existing entries are updated, new ones are added.</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-block" style="flex:1;" onclick="exportFoodLibrary()">
+            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export
+          </button>
+          <label class="btn btn-block" style="flex:1;cursor:pointer;justify-content:center;">
+            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Import
+            <input type="file" accept=".json,application/json" style="display:none;" onchange="importFoodLibrary(this.files[0]);this.value='';">
+          </label>
+        </div>
       </div>
 
       <div class="card" style="margin-bottom:10px;">
@@ -1244,6 +1267,7 @@ let state = {
   customLibrary: [], // [{name, bodyPart}]
   nutritionMeals: {}, // {date: {Breakfast:[], Lunch:[], Dinner:[]}}
   nutritionQuickLog: {}, // {date: {kcal, protein, carbs, fats}}
+  foodLibrary: [], // [{id, name, per100kcal, per100p, per100c, per100f, defaultServing, source}]
   currentMesoId: null,
   currentWeek: 1,
   currentDay: 'push',
@@ -3149,14 +3173,21 @@ async function lookupNutrBarcode() {
       statusEl.textContent = 'Product found but no calorie data available.';
       return;
     }
+    // Serving size priority: product_quantity (whole pack) → serving_quantity → 100g
+    const packQty = parseFloat(p.product_quantity) || null;
+    const servingQty = parseFloat(p.serving_quantity) || null;
+    const defaultServing = packQty || servingQty || 100;
+    const baseName = p.product_name || p.product_name_en || 'Unknown product';
+    // Append pack size in brackets so it's always visible
+    const displayName = packQty ? baseName + ' (' + packQty + 'g)' : baseName;
     nutrPendingProduct = {
-      name: p.product_name || p.product_name_en || 'Unknown product',
+      name: displayName,
       brand: p.brands || '',
       per100kcal: Math.round(kcal),
       per100p: parseFloat(n['proteins_100g'] ?? n['proteins'] ?? 0),
       per100c: parseFloat(n['carbohydrates_100g'] ?? n['carbohydrates'] ?? 0),
       per100f: parseFloat(n['fat_100g'] ?? n['fat'] ?? 0),
-      defaultServing: parseFloat(p.serving_quantity) || 100,
+      defaultServing,
     };
     closeModal('modal-nutr-barcode');
     requestAnimationFrame(() => openNutrServingModal());
@@ -3166,6 +3197,107 @@ async function lookupNutrBarcode() {
     statusEl.style.border = '1px solid rgba(255,95,78,0.2)';
     statusEl.textContent = 'Network error — check your connection.';
   }
+}
+
+// ── Food Library ──────────────────────────────────────────────────────────
+function addToFoodLibrary(item) {
+  if (!state.foodLibrary) state.foodLibrary = [];
+  // Merge by name — update if exists, add if not
+  const idx = state.foodLibrary.findIndex(f => f.name.toLowerCase() === item.name.toLowerCase());
+  const entry = {
+    id: idx >= 0 ? state.foodLibrary[idx].id : 'lib_' + Date.now(),
+    name: item.name,
+    per100kcal: item.per100kcal,
+    per100p: item.per100p,
+    per100c: item.per100c,
+    per100f: item.per100f,
+    defaultServing: item.defaultServing || 100,
+    source: item.source || 'manual',
+  };
+  if (idx >= 0) state.foodLibrary[idx] = entry;
+  else state.foodLibrary.push(entry);
+}
+
+function exportFoodLibrary() {
+  if (!state.foodLibrary || !state.foodLibrary.length) {
+    alert('No foods in library yet.');
+    return;
+  }
+  const blob = new Blob([JSON.stringify(state.foodLibrary, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'bloc-food-library-' + getLocalToday() + '.json';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+function importFoodLibrary(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const items = JSON.parse(e.target.result);
+      if (!Array.isArray(items)) throw new Error('Invalid format');
+      if (!state.foodLibrary) state.foodLibrary = [];
+      let added = 0, updated = 0;
+      items.forEach(item => {
+        if (!item.name) return;
+        const idx = state.foodLibrary.findIndex(f => f.name.toLowerCase() === item.name.toLowerCase());
+        if (idx >= 0) { state.foodLibrary[idx] = { ...state.foodLibrary[idx], ...item }; updated++; }
+        else { state.foodLibrary.push({ id: 'lib_' + Date.now() + Math.random(), ...item }); added++; }
+      });
+      save();
+      showConfirm('Library imported', added + ' new, ' + updated + ' updated.', 'OK', () => {});
+    } catch(e) {
+      showConfirm('Import failed', 'File is not a valid food library JSON.', 'OK', () => {});
+    }
+  };
+  reader.readAsText(file);
+}
+
+function renderPreviousMeals() {
+  const query = (document.getElementById('nutr-prev-search').value || '').toLowerCase().trim();
+  const lib = state.foodLibrary || [];
+  const items = lib
+    .filter(i => !query || i.name.toLowerCase().includes(query))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const el = document.getElementById('nutr-prev-list');
+  if (!items.length) {
+    el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:20px 0;">'
+      + (query ? 'No matches for "' + query + '"' : 'No foods in library yet. Add foods via barcode or manual entry.') + '</div>';
+    el._items = [];
+    return;
+  }
+  el.innerHTML = items.map((item, idx) =>
+    '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);">'
+    + '<div style="flex:1;min-width:0;">'
+    + '<div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + item.name + '</div>'
+    + '<div style="font-size:10px;color:var(--text3);margin-top:2px;">'
+    + item.per100kcal + ' kcal / 100g · P:' + item.per100p + 'g C:' + item.per100c + 'g F:' + item.per100f + 'g'
+    + ' · default ' + (item.defaultServing || 100) + 'g</div>'
+    + '</div>'
+    + '<button onclick="selectFromLibrary(' + idx + ')" class="btn btn-sm" style="flex-shrink:0;padding:6px 12px;margin-left:8px;">Add</button>'
+    + '</div>'
+  ).join('');
+  el._items = items;
+}
+
+function selectFromLibrary(idx) {
+  const el = document.getElementById('nutr-prev-list');
+  const item = (el._items || [])[idx];
+  if (!item) return;
+  nutrPendingProduct = {
+    name: item.name,
+    brand: '',
+    per100kcal: item.per100kcal,
+    per100p: item.per100p,
+    per100c: item.per100c,
+    per100f: item.per100f,
+    defaultServing: item.defaultServing || 100,
+    source: item.source || 'library',
+  };
+  closeModal('modal-nutr-previous');
+  requestAnimationFrame(() => openNutrServingModal());
 }
 
 function openNutrServingModal() {
@@ -3223,6 +3355,18 @@ function confirmServing() {
     fats: parseFloat((nutrPendingProduct.per100f * r).toFixed(1)),
     source: nutrPendingProduct.source || 'barcode',
   };
+  // Save to library (skip if sourced from library itself to avoid loops)
+  if (nutrPendingProduct.source !== 'library') {
+    addToFoodLibrary({
+      name: nutrPendingProduct.name,
+      per100kcal: nutrPendingProduct.per100kcal,
+      per100p: nutrPendingProduct.per100p,
+      per100c: nutrPendingProduct.per100c,
+      per100f: nutrPendingProduct.per100f,
+      defaultServing: baseSize,
+      source: nutrPendingProduct.source || 'barcode',
+    });
+  }
   addFoodEntry(entry);
   nutrPendingProduct = null;
   closeModal('modal-nutr-serving');
@@ -3232,53 +3376,6 @@ function openNutrPrevious() {
   closeModal('modal-nutr-add');
   document.getElementById('nutr-prev-search').value = '';
   requestAnimationFrame(() => { renderPreviousMeals(); openModal('modal-nutr-previous'); });
-}
-
-function renderPreviousMeals() {
-  const query = (document.getElementById('nutr-prev-search').value || '').toLowerCase().trim();
-  const seen = new Map(); // name -> latest entry
-  Object.entries(state.nutritionMeals || {}).sort((a,b)=>b[0].localeCompare(a[0])).forEach(([date, meals]) => {
-    Object.values(meals).forEach(items => {
-      items.forEach(item => {
-        const key = item.name.toLowerCase();
-        if (!seen.has(key)) seen.set(key, item);
-      });
-    });
-  });
-
-  const items = [...seen.values()].filter(i => !query || i.name.toLowerCase().includes(query));
-  const el = document.getElementById('nutr-prev-list');
-  if (!items.length) {
-    el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:20px;">' + (query ? 'No matches' : 'No previous meals logged yet') + '</div>';
-    return;
-  }
-  el.innerHTML = items.map((item, idx) =>
-    '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);">'
-    + '<div><div style="font-size:13px;font-weight:500;">' + item.name + '</div>'
-    + '<div style="font-size:11px;color:var(--text3);margin-top:2px;">' + item.serving + 'g · ' + item.kcal + ' kcal · P:' + item.protein + 'g C:' + item.carbs + 'g F:' + item.fats + 'g</div></div>'
-    + '<button onclick="addFoodFromPrevious(' + idx + ')" class="btn btn-sm" style="flex-shrink:0;padding:6px 12px;">Add</button>'
-    + '</div>'
-  ).join('');
-  // Store reference for click handler
-  el._items = items;
-}
-
-function addFoodFromPrevious(idx) {
-  const el = document.getElementById('nutr-prev-list');
-  const items = el._items || [];
-  const item = items[idx];
-  if (!item) return;
-  nutrPendingProduct = {
-    name: item.name,
-    brand: '',
-    per100kcal: item.serving > 0 ? Math.round(item.kcal / item.serving * 100) : item.kcal,
-    per100p: item.serving > 0 ? parseFloat((item.protein / item.serving * 100).toFixed(1)) : item.protein,
-    per100c: item.serving > 0 ? parseFloat((item.carbs / item.serving * 100).toFixed(1)) : item.carbs,
-    per100f: item.serving > 0 ? parseFloat((item.fats / item.serving * 100).toFixed(1)) : item.fats,
-    defaultServing: item.serving,
-  };
-  closeModal('modal-nutr-previous');
-  requestAnimationFrame(() => openNutrServingModal());
 }
 
 function openNutrManual() {
@@ -3310,15 +3407,33 @@ function saveManualEntry() {
   if (!name) { return; }
   const servings = parseFloat(document.getElementById('nutr-manual-servings').value) || 1;
   const servingSize = parseFloat(document.getElementById('nutr-manual-serving-size').value) || 100;
+  const kcalPerServing = parseFloat(document.getElementById('nutr-manual-kcal').value)||0;
+  const pPerServing = parseFloat(document.getElementById('nutr-manual-protein').value)||0;
+  const cPerServing = parseFloat(document.getElementById('nutr-manual-carbs').value)||0;
+  const fPerServing = parseFloat(document.getElementById('nutr-manual-fats').value)||0;
+
   const entry = {
     name,
     serving: Math.round(servingSize * servings),
-    kcal: Math.round((parseFloat(document.getElementById('nutr-manual-kcal').value)||0) * servings),
-    protein: parseFloat(((parseFloat(document.getElementById('nutr-manual-protein').value)||0) * servings).toFixed(1)),
-    carbs: parseFloat(((parseFloat(document.getElementById('nutr-manual-carbs').value)||0) * servings).toFixed(1)),
-    fats: parseFloat(((parseFloat(document.getElementById('nutr-manual-fats').value)||0) * servings).toFixed(1)),
+    kcal: Math.round(kcalPerServing * servings),
+    protein: parseFloat((pPerServing * servings).toFixed(1)),
+    carbs: parseFloat((cPerServing * servings).toFixed(1)),
+    fats: parseFloat((fPerServing * servings).toFixed(1)),
     source: 'manual',
   };
+
+  // Store per-100g values in library (convert from per-serving)
+  const ratio = servingSize > 0 ? 100 / servingSize : 1;
+  addToFoodLibrary({
+    name,
+    per100kcal: Math.round(kcalPerServing * ratio),
+    per100p: parseFloat((pPerServing * ratio).toFixed(1)),
+    per100c: parseFloat((cPerServing * ratio).toFixed(1)),
+    per100f: parseFloat((fPerServing * ratio).toFixed(1)),
+    defaultServing: servingSize,
+    source: 'manual',
+  });
+
   addFoodEntry(entry);
   closeModal('modal-nutr-manual');
 }
@@ -3650,7 +3765,7 @@ function clearAllData() {
           state = {
             mesocycles: [], exercises: {}, trainLogs: {},
             bodyLogs: [], nutritionLogs: [],
-            goals: [], customLibrary: [], nutritionMeals: {}, nutritionQuickLog: {},
+            goals: [], customLibrary: [], nutritionMeals: {}, nutritionQuickLog: {}, foodLibrary: [],
             currentMesoId: null, currentWeek: 1,
             currentDay: 'push', currentEditContext: null,
           };
@@ -3761,6 +3876,33 @@ function exportLibrary() {
   document.body.appendChild(a); a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+function importExerciseLibrary(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const items = JSON.parse(e.target.result);
+      if (!Array.isArray(items)) throw new Error('Invalid format');
+      if (!state.customLibrary) state.customLibrary = [];
+      const defaultNames = new Set(DEFAULT_LIBRARY.map(e => e.name.toLowerCase()));
+      let added = 0, updated = 0;
+      items.forEach(item => {
+        if (!item.name || !item.bodyPart) return;
+        // Skip default exercises — they're always present
+        if (defaultNames.has(item.name.toLowerCase())) return;
+        const idx = state.customLibrary.findIndex(e => e.name.toLowerCase() === item.name.toLowerCase());
+        if (idx >= 0) { state.customLibrary[idx] = { name: item.name, bodyPart: item.bodyPart }; updated++; }
+        else { state.customLibrary.push({ name: item.name, bodyPart: item.bodyPart }); added++; }
+      });
+      save();
+      showConfirm('Exercise library imported', added + ' new exercises added, ' + updated + ' updated.', 'OK', () => {});
+    } catch(e) {
+      showConfirm('Import failed', 'File is not a valid exercise library JSON.', 'OK', () => {});
+    }
+  };
+  reader.readAsText(file);
 }
 
 // ════════════════════════════════════════════════
