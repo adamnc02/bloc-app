@@ -424,7 +424,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
           <div class="page-title">BLOC</div>
           <div class="page-sub" id="home-date"></div>
         </div>
-        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v2.08</span>
+        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v2.10</span>
       </div>
 
       <!-- Active cycle card -->
@@ -436,11 +436,23 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div id="home-body" style="margin-bottom:4px;"></div>
 
       <!-- Steps -->
-      <div class="section-title" style="margin-top:16px;">Steps (7-day avg)</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;margin-bottom:6px;">
+        <div class="section-title" style="margin:0;">Steps</div>
+        <div style="display:flex;background:var(--surface2);border-radius:6px;padding:2px;gap:1px;">
+          <button id="steps-tog-today" onclick="setHomeToggle('steps','today')" style="padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:var(--surface);color:var(--text);font-family:var(--font-mono);">Today</button>
+          <button id="steps-tog-avg" onclick="setHomeToggle('steps','avg')" style="padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:transparent;color:var(--text3);font-family:var(--font-mono);">7-day</button>
+        </div>
+      </div>
       <div id="home-steps" style="margin-bottom:4px;"></div>
 
       <!-- Nutrition -->
-      <div class="section-title" style="margin-top:16px;">Nutrition (7-day avg)</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;margin-bottom:6px;">
+        <div class="section-title" style="margin:0;">Nutrition</div>
+        <div style="display:flex;background:var(--surface2);border-radius:6px;padding:2px;gap:1px;">
+          <button id="nutr-tog-today" onclick="setHomeToggle('nutr','today')" style="padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:var(--surface);color:var(--text);font-family:var(--font-mono);">Today</button>
+          <button id="nutr-tog-avg" onclick="setHomeToggle('nutr','avg')" style="padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:transparent;color:var(--text3);font-family:var(--font-mono);">7-day</button>
+        </div>
+      </div>
       <div id="home-nutrition" style="margin-bottom:4px;"></div>
 
       <!-- Goals -->
@@ -538,7 +550,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v2.08</span>
+          <span class="badge badge-green">v2.10</span>
         </div>
       </div>
 
@@ -588,10 +600,8 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     ═══════════════════════════════════════════ -->
     <div class="screen" id="screen-nutrition">
       <div class="page-header">
-        <div>
-          <div class="page-title">Nutrition</div>
-        </div>
-        <button class="btn btn-accent btn-sm" onclick="openModal('modal-nutrition-log')">+ Log</button>
+        <div><div class="page-title">Nutrition</div></div>
+        <button class="btn btn-sm" onclick="openNutrQuickAdd()" style="font-size:11px;padding:6px 10px;">⚡ Quick add</button>
       </div>
 
       <div class="toggle-row">
@@ -599,7 +609,29 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
         <button class="toggle-btn" id="nutr-tab-week" onclick="switchNutrTab('week')">Weekly</button>
       </div>
 
-      <div id="nutr-daily-view"></div>
+      <!-- Daily view -->
+      <div id="nutr-daily-view">
+        <!-- Date picker row -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <button onclick="nutrShiftDate(-1)" style="background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;padding:4px 8px;">‹</button>
+          <input type="date" id="nutr-day-picker" onchange="nutrPickDate(this.value)"
+            style="background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);color:var(--text);font-family:var(--font-mono);font-size:13px;padding:7px 12px;text-align:center;cursor:pointer;-webkit-appearance:none;">
+          <button onclick="nutrShiftDate(1)" style="background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;padding:4px 8px;">›</button>
+        </div>
+
+        <!-- Day badges -->
+        <div style="display:flex;gap:5px;margin-bottom:14px;" id="nutr-day-badges"></div>
+
+        <!-- Kcal summary -->
+        <div class="card" style="margin-bottom:10px;" id="nutr-kcal-card"></div>
+
+        <!-- Macro panel -->
+        <div class="card" style="margin-bottom:10px;" id="nutr-macro-card"></div>
+
+        <!-- Diary -->
+        <div id="nutr-diary"></div>
+      </div>
+
       <div id="nutr-weekly-view" style="display:none;"></div>
     </div>
 
@@ -977,6 +1009,192 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 </div>
 
 <!-- Nutrition Log -->
+<!-- Nutrition: meal log chooser -->
+<div class="modal-overlay" id="modal-nutr-add">
+  <div class="modal-sheet" data-modal="modal-nutr-add">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-add')">✕</button></div>
+    <div class="modal-title" id="nutr-add-title">Add to Breakfast</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+      <button onclick="openNutrBarcode()" style="display:flex;align-items:center;gap:12px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:12px 14px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:13px;text-align:left;width:100%;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/><line x1="13" y1="8" x2="13" y2="12"/><line x1="16" y1="8" x2="16" y2="16"/></svg>
+        <div><div style="font-weight:600;">Enter barcode</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">Look up any product</div></div>
+      </button>
+      <button onclick="openNutrPrevious()" style="display:flex;align-items:center;gap:12px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:12px 14px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:13px;text-align:left;width:100%;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><polyline points="12 6 12 12 8 14"/></svg>
+        <div><div style="font-weight:600;">Previous meals</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">Search all logged foods</div></div>
+      </button>
+      <button onclick="openNutrManual()" style="display:flex;align-items:center;gap:12px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:12px 14px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:13px;text-align:left;width:100%;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        <div><div style="font-weight:600;">Enter manually</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">Type name, kcal &amp; macros</div></div>
+      </button>
+      <button id="nutr-copy-yesterday-btn" onclick="copyFromYesterday()" style="display:flex;align-items:center;gap:12px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:12px 14px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:13px;text-align:left;width:100%;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <div><div style="font-weight:600;">Copy from yesterday</div><div style="font-size:11px;color:var(--text3);margin-top:2px;" id="nutr-copy-sub">—</div></div>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Nutrition: barcode entry -->
+<div class="modal-overlay" id="modal-nutr-barcode">
+  <div class="modal-sheet" data-modal="modal-nutr-barcode">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-barcode')">✕</button></div>
+    <div class="modal-title">Enter Barcode</div>
+    <div class="form-group">
+      <div class="label">Barcode number</div>
+      <input type="text" id="nutr-barcode-input" placeholder="e.g. 5000112548175" inputmode="numeric">
+    </div>
+    <div id="nutr-barcode-status" style="display:none;padding:10px;border-radius:var(--r-sm);font-size:12px;margin-bottom:12px;"></div>
+    <button class="btn btn-accent btn-block" onclick="lookupNutrBarcode()">Look up →</button>
+  </div>
+</div>
+
+<!-- Nutrition: serving size confirm -->
+<div class="modal-overlay" id="modal-nutr-serving">
+  <div class="modal-sheet" data-modal="modal-nutr-serving">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-serving')">✕</button></div>
+    <div class="modal-title" id="nutr-serving-title">Confirm Serving</div>
+    <div class="card" style="margin-bottom:14px;">
+      <div style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:2px;" id="nutr-serving-name"></div>
+      <div style="font-size:12px;color:var(--text2);" id="nutr-serving-brand"></div>
+    </div>
+    <div class="input-row">
+      <div>
+        <div class="label">Servings</div>
+        <select id="nutr-serving-multiplier" onchange="updateServingPreview()">
+          <option value="0.25">¼ serving</option>
+          <option value="0.5">½ serving</option>
+          <option value="0.75">¾ serving</option>
+          <option value="1" selected>1 serving</option>
+          <option value="1.25">1¼ servings</option>
+          <option value="1.5">1½ servings</option>
+          <option value="2">2 servings</option>
+          <option value="3">3 servings</option>
+          <option value="custom">Custom…</option>
+        </select>
+      </div>
+      <div>
+        <div class="label">Serving size</div>
+        <input type="number" id="nutr-serving-size" min="1" oninput="updateServingPreview()" style="opacity:0.6;" readonly>
+      </div>
+    </div>
+    <div id="nutr-serving-custom" style="display:none;margin-bottom:10px;">
+      <div class="label">Custom grams</div>
+      <input type="number" id="nutr-serving-custom-g" min="1" placeholder="e.g. 75" oninput="updateServingPreview()">
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;">
+      <div class="card" style="text-align:center;padding:10px;">
+        <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--accent);" id="sp-kcal">—</div>
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px;">kcal</div>
+      </div>
+      <div class="card" style="text-align:center;padding:10px;">
+        <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--blue);" id="sp-protein">—</div>
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px;">protein</div>
+      </div>
+      <div class="card" style="text-align:center;padding:10px;">
+        <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--amber);" id="sp-carbs">—</div>
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px;">carbs</div>
+      </div>
+      <div class="card" style="text-align:center;padding:10px;">
+        <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--red);" id="sp-fats">—</div>
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px;">fats</div>
+      </div>
+    </div>
+    <button class="btn btn-accent btn-block" onclick="confirmServing()">Add to meal →</button>
+  </div>
+</div>
+
+<!-- Nutrition: previous meals search -->
+<div class="modal-overlay" id="modal-nutr-previous">
+  <div class="modal-sheet" data-modal="modal-nutr-previous">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-previous')">✕</button></div>
+    <div class="modal-title">Previous Meals</div>
+    <input type="text" id="nutr-prev-search" placeholder="Search foods…" oninput="renderPreviousMeals()" style="margin-bottom:12px;">
+    <div id="nutr-prev-list" style="max-height:60vh;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<!-- Nutrition: manual entry -->
+<div class="modal-overlay" id="modal-nutr-manual">
+  <div class="modal-sheet" data-modal="modal-nutr-manual">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-manual')">✕</button></div>
+    <div class="modal-title" id="nutr-manual-title">Add Food Manually</div>
+    <input type="hidden" id="nutr-manual-editid">
+    <div class="form-group">
+      <div class="label">Name</div>
+      <input type="text" id="nutr-manual-name" placeholder="e.g. Chicken breast">
+    </div>
+    <div class="input-row">
+      <div>
+        <div class="label">Servings</div>
+        <input type="number" id="nutr-manual-servings" value="1" min="0.5" step="0.5">
+      </div>
+      <div>
+        <div class="label">Serving size (g)</div>
+        <input type="number" id="nutr-manual-serving-size" value="100" min="1" oninput="updateManualPreview()">
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Enter values per serving size above</div>
+    <div class="input-row">
+      <div><div class="label">kcal</div><input type="number" id="nutr-manual-kcal" placeholder="320" oninput="updateManualPreview()"></div>
+      <div><div class="label">Protein (g)</div><input type="number" id="nutr-manual-protein" placeholder="30" oninput="updateManualPreview()"></div>
+    </div>
+    <div class="input-row">
+      <div><div class="label">Carbs (g)</div><input type="number" id="nutr-manual-carbs" placeholder="20" oninput="updateManualPreview()"></div>
+      <div><div class="label">Fats (g)</div><input type="number" id="nutr-manual-fats" placeholder="10" oninput="updateManualPreview()"></div>
+    </div>
+    <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px;margin-bottom:14px;font-size:12px;color:var(--text2);" id="nutr-manual-preview">Total: — kcal · P:—g C:—g F:—g</div>
+    <button class="btn btn-accent btn-block" onclick="saveManualEntry()">Add to meal →</button>
+  </div>
+</div>
+
+<!-- Nutrition: edit food item -->
+<div class="modal-overlay" id="modal-nutr-edit">
+  <div class="modal-sheet" data-modal="modal-nutr-edit">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-edit')">✕</button></div>
+    <div class="modal-title">Edit Food Entry</div>
+    <input type="hidden" id="nutr-edit-date">
+    <input type="hidden" id="nutr-edit-meal">
+    <input type="hidden" id="nutr-edit-idx">
+    <div class="form-group">
+      <div class="label">Name</div>
+      <input type="text" id="nutr-edit-name">
+    </div>
+    <div class="input-row">
+      <div><div class="label">kcal</div><input type="number" id="nutr-edit-kcal"></div>
+      <div><div class="label">Protein (g)</div><input type="number" id="nutr-edit-protein"></div>
+    </div>
+    <div class="input-row">
+      <div><div class="label">Carbs (g)</div><input type="number" id="nutr-edit-carbs"></div>
+      <div><div class="label">Fats (g)</div><input type="number" id="nutr-edit-fats"></div>
+    </div>
+    <div class="form-group">
+      <div class="label">Serving (g)</div>
+      <input type="number" id="nutr-edit-serving">
+    </div>
+    <button class="btn btn-accent btn-block" onclick="saveEditFoodEntry()">Save →</button>
+  </div>
+</div>
+
+<!-- Nutrition: quick add daily totals -->
+<div class="modal-overlay" id="modal-nutr-quick">
+  <div class="modal-sheet" data-modal="modal-nutr-quick">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-quick')">✕</button></div>
+    <div class="modal-title">Quick Add</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6;">Log today's totals directly. When a quick log exists for a day, it overrides any meal entries for that day's summary.</div>
+    <div class="input-row">
+      <div><div class="label">kcal</div><input type="number" id="qa-kcal" placeholder="1830"></div>
+      <div><div class="label">Protein (g)</div><input type="number" id="qa-protein" placeholder="290"></div>
+    </div>
+    <div class="input-row">
+      <div><div class="label">Carbs (g)</div><input type="number" id="qa-carbs" placeholder="100"></div>
+      <div><div class="label">Fats (g)</div><input type="number" id="qa-fats" placeholder="30"></div>
+    </div>
+    <button class="btn btn-accent btn-block" onclick="saveNutrQuickAdd()">Save daily totals →</button>
+  </div>
+</div>
+
+<!-- old nutrition log modal kept for back-compat -->
 <div class="modal-overlay" id="modal-nutrition-log">
   <div class="modal-sheet" data-modal="modal-nutrition-log">
     <div class="modal-handle-row">
@@ -1024,6 +1242,8 @@ let state = {
   nutritionLogs: [], // [{date, kcal, protein, carbs, fats}]
   goals: [],        // [{mesoId, startDate, endDate, kcal, steps, protein, carbs, fats}]
   customLibrary: [], // [{name, bodyPart}]
+  nutritionMeals: {}, // {date: {Breakfast:[], Lunch:[], Dinner:[]}}
+  nutritionQuickLog: {}, // {date: {kcal, protein, carbs, fats}}
   currentMesoId: null,
   currentWeek: 1,
   currentDay: 'push',
@@ -1190,9 +1410,7 @@ function getNextMesoStart() {
     const end = getMesoEndDate(m);
     if (!latest || end > latest) latest = end;
   });
-  // Use local date arithmetic to avoid UTC timezone rollback issues
   const next = new Date(latest);
-  next.setHours(12, 0, 0, 0); // anchor to noon to avoid DST/timezone edge cases
   next.setDate(next.getDate() + 1);
   return next.toISOString().split('T')[0];
 }
@@ -1543,98 +1761,9 @@ function renderHome() {
     </div>`;
   }
 
-  // ── Steps (last 7 days) ───────────────────────
-  const stepsEl = document.getElementById('home-steps');
-  const last7s = weightLogs.filter(l => l.steps && new Date(l.date+'T00:00:00') >= cutoff7);
-  const avgSteps = last7s.length ? Math.round(last7s.reduce((a,b) => a + parseInt(b.steps), 0) / last7s.length) : null;
-  const latestSteps = weightLogs.find(l => l.steps);
-  stepsEl.innerHTML = `<div class="card" style="cursor:pointer;" onclick="showScreen('body')">
-    <div style="display:flex;align-items:center;justify-content:space-between;">
-      <div>
-        <div style="font-family:var(--font-display);font-size:28px;font-weight:800;line-height:1;">${avgSteps !== null ? avgSteps.toLocaleString() : '—'}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:3px;">7-day avg steps</div>
-      </div>
-      <div style="text-align:right;">
-        <div style="font-size:13px;color:var(--text2);">${latestSteps ? parseInt(latestSteps.steps).toLocaleString() + ' today' : 'No data'}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:3px;">${last7s.length} entries this week</div>
-      </div>
-    </div>
-  </div>`;
-
-  // ── Nutrition (last 7 days avg) ───────────────
-  const nutrEl = document.getElementById('home-nutrition');
-  const last7n = state.nutritionLogs.filter(l => new Date(l.date+'T00:00:00') >= cutoff7);
-  if (!last7n.length) {
-    nutrEl.innerHTML = `<div class="card" style="cursor:pointer;" onclick="showScreen('nutrition')">
-      <span style="font-size:13px;color:var(--text3);">No nutrition data this week — tap to log</span>
-    </div>`;
-  } else {
-    const avgKcal = Math.round(last7n.reduce((a,b) => a + (b.kcal||0), 0) / last7n.length);
-    const avgP = Math.round(last7n.reduce((a,b) => a + (b.protein||0), 0) / last7n.length);
-    const avgC = Math.round(last7n.reduce((a,b) => a + (b.carbs||0), 0) / last7n.length);
-    const avgF = Math.round(last7n.reduce((a,b) => a + (b.fats||0), 0) / last7n.length);
-    const totalCals = avgP*4 + avgC*4 + avgF*9 || 1;
-    const pPct = Math.round((avgP*4/totalCals)*100);
-    const cPct = Math.round((avgC*4/totalCals)*100);
-    const fPct = Math.round((avgF*9/totalCals)*100);
-    const pie = makePie(pPct, cPct, fPct);
-
-    // Goal comparison
-    const ag = getActiveGoal ? getActiveGoal() : null;
-
-    // Calculate goal macro percentages if goal exists
-    let goalPPct = null, goalCPct = null, goalFPct = null;
-    if (ag) {
-      const goalTotalCals = (ag.protein||0)*4 + (ag.carbs||0)*4 + (ag.fats||0)*9;
-      if (goalTotalCals > 0) {
-        goalPPct = Math.round(((ag.protein||0)*4 / goalTotalCals)*100);
-        goalCPct = Math.round(((ag.carbs||0)*4 / goalTotalCals)*100);
-        goalFPct = Math.round(((ag.fats||0)*9 / goalTotalCals)*100);
-      }
-    }
-
-    function pctLabel(actual, target) {
-      if (target === null) return '(' + actual + '%)';
-      return '(' + actual + '% vs target ' + target + '%)';
-    }
-
-    function macroStatus(val, goalVal, isWarningWhenOver) {
-      if (!goalVal) return '';
-      const diff = val - goalVal;
-      if (isWarningWhenOver) {
-        // carbs & fats: tick if at or below target, warning if over
-        if (diff <= 1) return '<span style="color:var(--accent);margin-left:4px;">✓</span>';
-        return '<span style="color:var(--amber);margin-left:4px;">⚠ +' + diff + 'g</span>';
-      } else {
-        // protein: tick if at or above target, grey deficit if below
-        if (diff >= -1) return '<span style="color:var(--accent);margin-left:4px;">✓</span>';
-        return '<span style="color:var(--text3);margin-left:4px;">' + diff + 'g</span>';
-      }
-    }
-
-    nutrEl.innerHTML = `<div class="card" style="cursor:pointer;" onclick="showScreen('nutrition')">
-      <div style="display:flex;align-items:center;gap:14px;">
-        <div>${pie}</div>
-        <div style="flex:1;">
-          <div style="font-family:var(--font-display);font-size:22px;font-weight:800;margin-bottom:8px;">${avgKcal}${ag && ag.kcal ? '<span style="font-size:12px;font-weight:400;color:var(--text3);"> / ' + ag.kcal + '</span>' : ''} <span style="font-size:13px;font-weight:400;color:var(--text2);">kcal / day</span></div>
-          <div style="display:flex;flex-direction:column;gap:6px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <span style="font-size:12px;color:var(--blue);">● Protein <span style="color:var(--text);font-weight:500;">${avgP}g</span>${ag && ag.protein ? macroStatus(avgP, ag.protein, false) : ''}</span>
-              <span style="font-size:11px;color:var(--text3);">${pctLabel(pPct, goalPPct)}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <span style="font-size:12px;color:var(--amber);">● Carbs <span style="color:var(--text);font-weight:500;">${avgC}g</span>${ag && ag.carbs ? macroStatus(avgC, ag.carbs, true) : ''}</span>
-              <span style="font-size:11px;color:var(--text3);">${pctLabel(cPct, goalCPct)}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <span style="font-size:12px;color:var(--red);">● Fats <span style="color:var(--text);font-weight:500;">${avgF}g</span>${ag && ag.fats ? macroStatus(avgF, ag.fats, true) : ''}</span>
-              <span style="font-size:11px;color:var(--text3);">${pctLabel(fPct, goalFPct)}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>`;
-  }
+  // ── Steps & Nutrition ─────────────────────────
+  renderHomeSteps();
+  renderHomeNutr();
 
   // ── Goals today section ───────────────────────
   const goalsEl = document.getElementById('home-goals');
@@ -1649,6 +1778,182 @@ function renderHome() {
       goalsEl.innerHTML = '';
     }
   }
+}
+
+// ════════════════════════════════════════════════
+// HOME — Steps & Nutrition toggle + bar charts
+// ════════════════════════════════════════════════
+const homeToggle = { steps: 'today', nutr: 'today' };
+
+function setHomeToggle(section, val) {
+  homeToggle[section] = val;
+  const ids = section === 'steps'
+    ? ['steps-tog-today', 'steps-tog-avg']
+    : ['nutr-tog-today', 'nutr-tog-avg'];
+  const vals = ['today', 'avg'];
+  ids.forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.background = vals[i] === val ? 'var(--surface)' : 'transparent';
+    el.style.color = vals[i] === val ? 'var(--text)' : 'var(--text3)';
+  });
+  if (section === 'steps') renderHomeSteps();
+  else renderHomeNutr();
+}
+
+function getLocal7Days() {
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    days.push({ date: y+'-'+m+'-'+day, letter: 'SMTWTFS'[d.getDay()] });
+  }
+  return days;
+}
+
+function fmtK(val) {
+  if (val >= 1000) return (val/1000).toFixed(1)+'k';
+  return String(Math.round(val));
+}
+
+function buildHomeBarChart(days, values, color, unitFn, todayDate) {
+  const max = Math.max(...values.filter(v=>v!==null), 1);
+  const barMaxH = 48;
+  return '<div style="display:flex;gap:4px;align-items:flex-end;height:'+(barMaxH+28)+'px;padding-top:14px;">'
+    + days.map((d, i) => {
+      const v = values[i];
+      const barH = v !== null ? Math.max(3, Math.round((v/max)*barMaxH)) : 0;
+      const isToday = d.date === todayDate;
+      return '<div style="display:flex;flex-direction:column;align-items:center;flex:1;position:relative;">'
+        + (v !== null ? '<div style="font-size:8px;color:'+color+';line-height:1;margin-bottom:2px;text-align:center;">'+unitFn(v)+'</div>' : '<div style="height:12px;"></div>')
+        + '<div style="width:40%;height:'+barH+'px;background:'+(v!==null?color:'var(--surface2)')+';border-radius:3px 3px 0 0;opacity:'+(isToday?'1':'0.5')+'"></div>'
+        + '<div style="font-size:9px;color:'+(isToday?'var(--text)':'var(--text3)')+';font-weight:'+(isToday?700:400)+';margin-top:3px;">' + d.letter + '</div>'
+        + '</div>';
+    }).join('')
+    + '</div>';
+}
+
+function buildHomeProgressBar(logged, target, color, overColor) {
+  if (!target) return '';
+  const isOver = logged > target;
+  const pct = Math.min(100, Math.round(logged/target*100));
+  const markerPct = isOver ? Math.round(target/logged*100) : null;
+  return '<div style="height:7px;background:var(--surface2);border-radius:4px;position:relative;overflow:hidden;margin-top:8px;">'
+    + '<div style="height:100%;background:'+(isOver?overColor:color)+';border-radius:4px;width:'+pct+'%;"></div>'
+    + (markerPct!==null ? '<div style="position:absolute;top:0;bottom:0;width:2px;background:rgba(255,255,255,0.55);left:'+markerPct+'%;"></div>' : '')
+    + '</div>';
+}
+
+function renderHomeSteps() {
+  const el = document.getElementById('home-steps');
+  if (!el) return;
+  const today = getLocalToday();
+  const goal = typeof getActiveGoal === 'function' ? getActiveGoal() : null;
+  const stepsGoal = goal ? (goal.steps||0) : 0;
+  const days = getLocal7Days();
+  const values = days.map(d => {
+    const log = (state.bodyLogs||[]).find(l => l.date === d.date);
+    return log && log.steps ? parseInt(log.steps) : null;
+  });
+  const todayVal = values[6];
+  const validVals = values.filter(v => v !== null);
+  const avg7 = validVals.length ? Math.round(validVals.reduce((a,b)=>a+b,0)/validVals.length) : null;
+  const isToday = homeToggle.steps === 'today';
+  const displayVal = isToday ? todayVal : avg7;
+
+  let insight = '';
+  if (isToday && displayVal !== null && stepsGoal) {
+    const diff = stepsGoal - displayVal;
+    insight = diff > 0 ? fmtK(diff) + ' left to go' : fmtK(Math.abs(diff)) + ' over goal';
+  } else if (!isToday && avg7 !== null) {
+    if (stepsGoal) {
+      const diff = avg7 - stepsGoal;
+      insight = diff >= 0 ? 'Avg ' + fmtK(diff) + ' above daily goal' : 'Avg ' + fmtK(Math.abs(diff)) + ' below daily goal';
+    } else {
+      insight = validVals.length + ' of 7 days logged';
+    }
+  }
+
+  const right = isToday
+    ? (stepsGoal ? buildHomeProgressBar(displayVal||0, stepsGoal, 'var(--accent)', 'var(--accent)') : '')
+    : buildHomeBarChart(days, values, 'var(--accent)', fmtK, today);
+
+  el.innerHTML = '<div class="card" style="cursor:pointer;" onclick="showScreen(\'body\')">'
+    + '<div style="display:flex;align-items:flex-start;gap:14px;">'
+    + '<div style="flex:1;">'
+    + '<div style="font-family:var(--font-display);font-size:26px;font-weight:800;line-height:1;">'+(displayVal!==null?displayVal.toLocaleString():'—')+'</div>'
+    + '<div style="font-size:11px;color:var(--text3);margin-top:3px;">'+(isToday?'today':'7-day avg')+(stepsGoal?' / '+stepsGoal.toLocaleString()+' goal':'')+'</div>'
+    + (insight?'<div style="font-size:11px;color:var(--text2);margin-top:6px;">'+insight+'</div>':'')
+    + (isToday?right:'')
+    + '</div>'
+    + (!isToday?'<div style="flex:1.4;min-width:0;">'+right+'</div>':'')
+    + '</div></div>';
+}
+
+function renderHomeNutr() {
+  const el = document.getElementById('home-nutrition');
+  if (!el) return;
+  const today = getLocalToday();
+  const goal = typeof getActiveGoal === 'function' ? getActiveGoal() : null;
+  const days = getLocal7Days();
+  const isToday = homeToggle.nutr === 'today';
+
+  const getLog = (date) => {
+    const q = state.nutritionQuickLog && state.nutritionQuickLog[date];
+    if (q) return q;
+    return (state.nutritionLogs||[]).find(l => l.date === date) || null;
+  };
+
+  const todayLog = getLog(today);
+  const weekLogs = days.map(d => getLog(d.date));
+  const validLogs = weekLogs.filter(Boolean);
+
+  const metrics = [
+    { key:'kcal',    label:'kcal',    color:'var(--accent)', goal:goal?.kcal,    fmt:fmtK,     fmtFull:v=>Math.round(v).toLocaleString(), overColor:'var(--red)',   warnOver:false },
+    { key:'protein', label:'protein', color:'var(--blue)',   goal:goal?.protein, fmt:v=>v+'g', fmtFull:v=>v+'g', overColor:'var(--accent)',warnOver:false },
+    { key:'carbs',   label:'carbs',   color:'var(--amber)',  goal:goal?.carbs,   fmt:v=>v+'g', fmtFull:v=>v+'g', overColor:'var(--amber)', warnOver:true  },
+    { key:'fats',    label:'fats',    color:'var(--red)',    goal:goal?.fats,    fmt:v=>v+'g', fmtFull:v=>v+'g', overColor:'var(--red)',   warnOver:true  },
+  ];
+
+  const rows = metrics.map(m => {
+    const todayVal = todayLog ? Math.round(todayLog[m.key]||0) : null;
+    const avgVal = validLogs.length ? Math.round(validLogs.reduce((a,b)=>a+(b[m.key]||0),0)/validLogs.length) : null;
+    const displayVal = isToday ? todayVal : avgVal;
+    const vals7 = days.map(d => { const l = getLog(d.date); return l ? Math.round(l[m.key]||0) : null; });
+
+    let insight = '';
+    if (isToday && displayVal !== null && m.goal) {
+      const diff = m.goal - displayVal;
+      if (m.warnOver && displayVal > m.goal) insight = m.fmtFull(displayVal - m.goal) + ' over';
+      else insight = diff > 0 ? m.fmtFull(diff) + ' left' : (m.key==='protein' ? 'Goal hit ✓' : m.fmtFull(Math.abs(diff)) + ' over');
+    } else if (!isToday && avgVal !== null && m.goal) {
+      const diff = avgVal - m.goal;
+      if (m.key === 'protein') insight = diff >= -5 ? 'Avg hitting goal ✓' : m.fmtFull(Math.abs(diff)) + ' below target avg';
+      else if (m.warnOver) insight = diff > 0 ? 'Avg '+m.fmtFull(diff)+' over target' : 'Avg within target ✓';
+      else insight = diff >= 0 ? 'Avg '+m.fmtFull(diff)+' above goal' : 'Avg '+m.fmtFull(Math.abs(diff))+' below goal';
+    }
+
+    const right = isToday
+      ? (m.goal ? buildHomeProgressBar(displayVal||0, m.goal, m.color, m.overColor) : '')
+      : buildHomeBarChart(days, vals7, m.color, m.fmt, today);
+
+    return '<div style="display:flex;align-items:flex-start;gap:12px;padding-bottom:10px;border-bottom:0.5px solid var(--border);margin-bottom:10px;">'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-size:10px;color:'+m.color+';text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px;">'+m.label+'</div>'
+      + '<div style="font-family:var(--font-display);font-size:20px;font-weight:800;line-height:1;">'+(displayVal!==null?m.fmtFull(displayVal):'—')+'</div>'
+      + (m.goal?'<div style="font-size:10px;color:var(--text3);margin-top:2px;">/ '+m.fmtFull(m.goal)+(isToday?' goal':' avg goal')+'</div>':'')
+      + (insight?'<div style="font-size:10px;color:var(--text2);margin-top:4px;">'+insight+'</div>':'')
+      + (isToday?right:'')
+      + '</div>'
+      + (!isToday?'<div style="flex:1.4;min-width:0;">'+right+'</div>':'')
+      + '</div>';
+  });
+
+  el.innerHTML = '<div class="card" style="cursor:pointer;" onclick="showScreen(\'nutrition\')">'
+    + rows.join('') + '</div>';
 }
 
 function buildBwProgress(meso) {
@@ -2499,55 +2804,622 @@ function switchNutrTab(tab) {
   renderNutrition();
 }
 
-function renderNutrition() {
-  const logs = [...state.nutritionLogs].sort((a,b) => b.date.localeCompare(a.date));
-  if (nutrTab === 'day') renderNutrDaily(logs);
-  else renderNutrWeekly(logs);
+// ════════════════════════════════════════════════
+// NUTRITION — new daily view
+// ════════════════════════════════════════════════
+
+let nutrSelectedDate = null; // set on first render using local date
+let nutrMacroView = 0;
+let nutrActiveMeal = null;
+let nutrPendingProduct = null;
+
+function getLocalToday() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return y + '-' + m + '-' + day;
 }
 
-function renderNutrDaily(logs) {
+function renderNutrDaily() {
   const el = document.getElementById('nutr-daily-view');
-  if (!logs.length) {
-    el.innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7z"/><circle cx="12" cy="9" r="2"/></svg><p>No entries yet. Tap + Log to start.</p></div>`;
-    return;
+  if (!el) return;
+  const today = getLocalToday();
+  if (!nutrSelectedDate) nutrSelectedDate = today;
+
+  const picker = document.getElementById('nutr-day-picker');
+  if (picker) picker.value = nutrSelectedDate;
+
+  renderNutrBadges();
+  renderNutrKcal();
+  renderNutrMacroPanel();
+  renderNutrDiary();
+}
+
+function renderNutrBadges() {
+  const el = document.getElementById('nutr-day-badges');
+  if (!el) return;
+  const today = getLocalToday();
+  const todayDate = new Date(today + 'T00:00:00');
+  const dayLetters = ['S','M','T','W','T','F','S'];
+  const badges = [];
+  for (let i = -3; i <= 3; i++) {
+    const d = new Date(todayDate);
+    d.setDate(todayDate.getDate() + i);
+    const y = d.getFullYear(), mo = String(d.getMonth()+1).padStart(2,'0'), dy = String(d.getDate()).padStart(2,'0');
+    const ds = y + '-' + mo + '-' + dy;
+    const isSel = ds === nutrSelectedDate;
+    const hasLog = !!(state.nutritionQuickLog && state.nutritionQuickLog[ds]) ||
+      !!(state.nutritionMeals && state.nutritionMeals[ds] && Object.values(state.nutritionMeals[ds]).some(a => a.length > 0));
+    const letter = dayLetters[d.getDay()];
+    badges.push(
+      '<div onclick="nutrSelectBadge(\'' + ds + '\')" style="flex:1;height:40px;border-radius:10px;'
+      + 'background:' + (isSel ? 'var(--accent)' : 'var(--surface2)') + ';'
+      + 'border:0.5px solid ' + (isSel ? 'var(--accent)' : 'rgba(255,255,255,0.08)') + ';'
+      + 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;cursor:pointer;">'
+      + '<span style="font-size:11px;font-weight:' + (isSel?'800':'500') + ';color:' + (isSel?'#0a0a0a':hasLog?'var(--text)':'var(--text3)') + ';">' + letter + '</span>'
+      + (hasLog && !isSel ? '<span style="font-size:9px;color:var(--accent);line-height:1;">✓</span>' : '')
+      + '</div>'
+    );
+  }
+  el.innerHTML = badges.join('');
+}
+
+function getNutrDayLog(date) {
+  const log = (state.nutritionLogs || []).find(l => l.date === date);
+  return log || null;
+}
+
+function getNutrDayMeals(date) {
+  if (!state.nutritionMeals) state.nutritionMeals = {};
+  return state.nutritionMeals[date] || { Breakfast: [], Lunch: [], Dinner: [] };
+}
+
+function getDayTotals(date) {
+  // Quick log overrides meal items
+  if (state.nutritionQuickLog && state.nutritionQuickLog[date]) {
+    const q = state.nutritionQuickLog[date];
+    return { kcal: q.kcal||0, p: q.protein||0, c: q.carbs||0, f: q.fats||0, isQuick: true };
+  }
+  const meals = getNutrDayMeals(date);
+  const items = [...(meals.Breakfast||[]), ...(meals.Lunch||[]), ...(meals.Dinner||[])];
+  return {
+    kcal: items.reduce((a,b)=>a+(b.kcal||0),0),
+    p: items.reduce((a,b)=>a+(b.protein||0),0),
+    c: items.reduce((a,b)=>a+(b.carbs||0),0),
+    f: items.reduce((a,b)=>a+(b.fats||0),0),
+    isQuick: false,
+  };
+}
+
+function openNutrQuickAdd() {
+  if (!state.nutritionQuickLog) state.nutritionQuickLog = {};
+  const existing = state.nutritionQuickLog[nutrSelectedDate];
+  document.getElementById('qa-kcal').value = existing ? existing.kcal : '';
+  document.getElementById('qa-protein').value = existing ? existing.protein : '';
+  document.getElementById('qa-carbs').value = existing ? existing.carbs : '';
+  document.getElementById('qa-fats').value = existing ? existing.fats : '';
+  openModal('modal-nutr-quick');
+}
+
+function saveNutrQuickAdd() {
+  if (!state.nutritionQuickLog) state.nutritionQuickLog = {};
+  const entry = {
+    kcal: parseInt(document.getElementById('qa-kcal').value)||0,
+    protein: parseFloat(document.getElementById('qa-protein').value)||0,
+    carbs: parseFloat(document.getElementById('qa-carbs').value)||0,
+    fats: parseFloat(document.getElementById('qa-fats').value)||0,
+  };
+  state.nutritionQuickLog[nutrSelectedDate] = entry;
+  // Sync to legacy log
+  const idx = (state.nutritionLogs||[]).findIndex(l => l.date === nutrSelectedDate);
+  const legEntry = { date: nutrSelectedDate, kcal: entry.kcal, protein: entry.protein, carbs: entry.carbs, fats: entry.fats };
+  if (idx >= 0) state.nutritionLogs[idx] = legEntry;
+  else { if (!state.nutritionLogs) state.nutritionLogs = []; state.nutritionLogs.push(legEntry); }
+  save();
+  closeModal('modal-nutr-quick');
+  renderNutrDaily();
+}
+
+function clearNutrQuickAdd() {
+  if (!state.nutritionQuickLog) return;
+  delete state.nutritionQuickLog[nutrSelectedDate];
+  // Re-sync legacy log from meals
+  const allEmpty = !state.nutritionMeals || !state.nutritionMeals[nutrSelectedDate] ||
+    Object.values(state.nutritionMeals[nutrSelectedDate]).every(a => a.length === 0);
+  if (allEmpty) state.nutritionLogs = (state.nutritionLogs||[]).filter(l => l.date !== nutrSelectedDate);
+  else syncNutrLegacyLog(nutrSelectedDate);
+  save();
+  renderNutrDaily();
+}
+
+function renderNutrKcal() {
+  const el = document.getElementById('nutr-kcal-card');
+  if (!el) return;
+  const goal = getActiveGoal();
+  const totals = getDayTotals(nutrSelectedDate);
+  const kcalGoal = goal ? goal.kcal : 0;
+  const pct = kcalGoal > 0 ? Math.min(100, Math.round(totals.kcal/kcalGoal*100)) : 0;
+  const left = kcalGoal - totals.kcal;
+  el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">'
+    + '<div style="display:flex;align-items:baseline;gap:4px;">'
+    + '<span style="font-family:var(--font-display);font-size:28px;font-weight:800;">' + totals.kcal + '</span>'
+    + '<span style="font-size:13px;color:var(--text3);">/ ' + (kcalGoal || '—') + ' kcal</span>'
+    + '</div>'
+    + (kcalGoal ? '<div style="text-align:right;">'
+      + '<div style="font-size:12px;color:' + (left>=0?'var(--accent)':'var(--red)') + ';font-weight:500;">' + (left>=0 ? left+' left' : Math.abs(left)+' over') + '</div>'
+      + '<div style="font-size:10px;color:var(--text3);margin-top:1px;">' + pct + '% of goal</div>'
+      + '</div>' : '')
+    + '</div>'
+    + (kcalGoal ? '<div class="progress-track"><div class="progress-fill" style="width:'+pct+'%"></div></div>' : '');
+}
+
+function renderNutrMacroPanel() {
+  const el = document.getElementById('nutr-macro-card');
+  if (!el) return;
+  const goal = getActiveGoal();
+  const totals = getDayTotals(nutrSelectedDate);
+  const v = nutrMacroView;
+
+  const macros = [
+    {key:'p',label:'Protein',logged:totals.p,target:goal?goal.protein:0,color:'var(--blue)',bg:'rgba(96,168,240,0.12)',kcalPer:4},
+    {key:'c',label:'Carbs',logged:totals.c,target:goal?goal.carbs:0,color:'var(--amber)',bg:'rgba(245,166,35,0.12)',kcalPer:4},
+    {key:'f',label:'Fats',logged:totals.f,target:goal?goal.fats:0,color:'var(--red)',bg:'rgba(255,95,78,0.12)',kcalPer:9},
+  ];
+
+  const totalGoalKcal = goal ? (goal.protein*4 + goal.carbs*4 + goal.fats*9) : 0;
+  const totalLogKcal = totals.p*4 + totals.c*4 + totals.f*9 || 1;
+
+  let rows = macros.map(m => {
+    const isOver = m.target > 0 && m.logged > m.target;
+    const overAmt = m.logged - m.target;
+    const barPct = m.target > 0 ? Math.min(100, Math.round(m.logged/m.target*100)) : 0;
+    const markerPct = isOver && m.logged > 0 ? Math.round((m.target/m.logged)*100) : null;
+
+    let mainText = '', subText = '', subColor = 'var(--text3)', mainColor = 'var(--text)';
+
+    if (v === 0) {
+      mainText = m.logged + 'g';
+      subText = m.target ? '/ ' + m.target + 'g' : '';
+    } else if (v === 1) {
+      mainText = overAmt > 0 ? '+' + overAmt + 'g over' : overAmt < 0 ? Math.abs(overAmt) + 'g left' : 'on target';
+      mainColor = 'var(--text)';
+      subText = '';
+    } else {
+      const logPct = totalGoalKcal > 0 ? Math.round(m.logged*m.kcalPer/totalGoalKcal*100) : Math.round(m.logged*m.kcalPer/totalLogKcal*100);
+      const tgtPct = totalGoalKcal > 0 ? Math.round(m.target*m.kcalPer/totalGoalKcal*100) : 0;
+      mainText = logPct + '%';
+      subText = tgtPct ? 'target ' + tgtPct + '%' : '';
+    }
+
+    return '<div style="margin-bottom:10px;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">'
+      + '<span style="font-size:11px;color:' + m.color + ';text-transform:uppercase;letter-spacing:.06em;">' + m.label + '</span>'
+      + '<div style="display:flex;align-items:baseline;gap:3px;">'
+      + '<span style="font-family:var(--font-display);font-size:16px;font-weight:700;color:' + mainColor + ';">' + mainText + '</span>'
+      + '<span style="font-size:11px;color:' + subColor + ';">' + subText + '</span>'
+      + '</div></div>'
+      + '<div style="height:7px;background:' + m.bg + ';border-radius:4px;position:relative;overflow:hidden;">'
+      + '<div style="height:100%;background:' + m.color + ';border-radius:4px;width:' + barPct + '%;"></div>'
+      + (markerPct !== null ? '<div style="position:absolute;top:0;bottom:0;width:2px;background:rgba(255,255,255,0.55);left:' + markerPct + '%;border-radius:1px;"></div>' : '')
+      + '</div>'
+      + (isOver && v===0 ? '<div style="font-size:10px;color:' + m.color + ';margin-top:2px;text-align:right;">+' + overAmt + 'g over</div>' : '')
+      + '</div>';
+  }).join('');
+
+  el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">'
+    + '<span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">Macros</span>'
+    + '<div style="display:flex;background:var(--surface2);border-radius:6px;padding:2px;gap:1px;">'
+    + ['g','±','%'].map((lbl,i) => '<button onclick="setNutrMacroView(' + i + ')" style="padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:' + (nutrMacroView===i?'var(--surface)':'transparent') + ';color:' + (nutrMacroView===i?'var(--text)':'var(--text3)') + ';font-family:var(--font-mono);">' + lbl + '</button>').join('')
+    + '</div></div>'
+    + rows;
+}
+
+function setNutrMacroView(v) {
+  nutrMacroView = v;
+  renderNutrMacroPanel();
+}
+
+function renderNutrDiary() {
+  const el = document.getElementById('nutr-diary');
+  if (!el) return;
+  const isQuick = !!(state.nutritionQuickLog && state.nutritionQuickLog[nutrSelectedDate]);
+
+  // Quick log banner
+  let bannerHtml = '';
+  if (isQuick) {
+    const q = state.nutritionQuickLog[nutrSelectedDate];
+    bannerHtml = '<div style="background:rgba(200,240,96,0.08);border:1px solid rgba(200,240,96,0.2);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">'
+      + '<div><div style="font-size:12px;color:var(--accent);font-weight:600;">⚡ Quick log active</div>'
+      + '<div style="font-size:11px;color:var(--text2);margin-top:2px;">' + q.kcal + ' kcal · P:' + q.protein + 'g C:' + q.carbs + 'g F:' + q.fats + 'g</div>'
+      + '<div style="font-size:10px;color:var(--text3);margin-top:2px;">Meal entries below are ignored for this day\'s totals</div></div>'
+      + '<div style="display:flex;gap:6px;flex-shrink:0;">'
+      + '<button onclick="openNutrQuickAdd()" style="background:none;border:0.5px solid var(--border2);border-radius:var(--r-sm);color:var(--text2);font-size:11px;padding:5px 8px;cursor:pointer;">Edit</button>'
+      + '<button onclick="clearNutrQuickAdd()" style="background:none;border:0.5px solid var(--border2);border-radius:var(--r-sm);color:var(--red);font-size:11px;padding:5px 8px;cursor:pointer;">Clear</button>'
+      + '</div></div>';
   }
 
-  el.innerHTML = logs.slice(0,14).map(l => {
-    const totalCals = (l.protein||0)*4 + (l.carbs||0)*4 + (l.fats||0)*9;
-    const pPct = totalCals ? Math.round(((l.protein||0)*4/totalCals)*100) : 0;
-    const cPct = totalCals ? Math.round(((l.carbs||0)*4/totalCals)*100) : 0;
-    const fPct = totalCals ? Math.round(((l.fats||0)*9/totalCals)*100) : 0;
-    return `<div class="nutrition-day-card" onclick="openEditNutrLog('${l.date}')" style="cursor:pointer;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-        <div style="font-family:var(--font-display);font-weight:700;font-size:15px;">${formatDate(l.date)}</div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span class="badge badge-green">${l.kcal || Math.round(totalCals)} kcal</span>
-          <span style="font-size:11px;color:var(--text3);">tap to edit</span>
-        </div>
-      </div>
-      <div class="input-row" style="margin-bottom:6px;">
-        <div style="text-align:center;">
-          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">Protein</div>
-          <div style="font-family:var(--font-display);font-weight:700;color:var(--blue);">${l.protein||0}g</div>
-          <div style="font-size:11px;color:var(--text3);">${pPct}%</div>
-          <div class="macro-bar"><div class="macro-fill" style="width:${pPct}%;background:var(--blue);"></div></div>
-        </div>
-        <div style="text-align:center;">
-          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">Carbs</div>
-          <div style="font-family:var(--font-display);font-weight:700;color:var(--amber);">${l.carbs||0}g</div>
-          <div style="font-size:11px;color:var(--text3);">${cPct}%</div>
-          <div class="macro-bar"><div class="macro-fill" style="width:${cPct}%;background:var(--amber);"></div></div>
-        </div>
-        <div style="text-align:center;">
-          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">Fats</div>
-          <div style="font-family:var(--font-display);font-weight:700;color:var(--red);">${l.fats||0}g</div>
-          <div style="font-size:11px;color:var(--text3);">${fPct}%</div>
-          <div class="macro-bar"><div class="macro-fill" style="width:${fPct}%;background:var(--red);"></div></div>
-        </div>
-      </div>
-    </div>`;
+  const meals = getNutrDayMeals(nutrSelectedDate);
+  const mealNames = ['Breakfast', 'Lunch', 'Dinner'];
+
+  el.innerHTML = bannerHtml + mealNames.map(meal => {
+    const items = meals[meal] || [];
+    const tot = items.reduce((a,b)=>({kcal:a.kcal+(b.kcal||0),p:a.p+(b.protein||0),c:a.c+(b.carbs||0),f:a.f+(b.fats||0)}),{kcal:0,p:0,c:0,f:0});
+    const hasItems = items.length > 0;
+
+    const itemRows = items.map((item, idx) =>
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:0.5px solid var(--border);">'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + item.name + '</div>'
+      + '<div style="font-size:10px;color:var(--text3);margin-top:2px;">' + (item.serving||100) + 'g · P:' + (item.protein||0) + 'g C:' + (item.carbs||0) + 'g F:' + (item.fats||0) + 'g</div>'
+      + '</div>'
+      + '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">'
+      + '<span style="font-family:var(--font-display);font-size:13px;font-weight:700;color:var(--accent);">' + (item.kcal||0) + '</span>'
+      + '<button onclick="openEditFoodEntry(\'' + nutrSelectedDate + '\',\'' + meal + '\',' + idx + ')" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:3px;font-size:14px;">✎</button>'
+      + '<button onclick="deleteFoodEntry(\'' + nutrSelectedDate + '\',\'' + meal + '\',' + idx + ')" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:3px;font-size:14px;">✕</button>'
+      + '</div></div>'
+    ).join('');
+
+    return '<div class="card" style="margin-bottom:8px;padding:0;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;">'
+      + '<div><div style="font-family:var(--font-display);font-size:14px;font-weight:700;">' + meal + '</div>'
+      + '<div style="font-size:11px;color:var(--text3);margin-top:2px;">' + (hasItems ? tot.kcal + ' kcal · P:' + tot.p + 'g C:' + tot.c + 'g F:' + tot.f + 'g' : 'Nothing logged yet') + '</div>'
+      + '</div>'
+      + '<button onclick="openNutrAdd(\'' + meal + '\')" class="btn btn-accent btn-sm">+ Log</button>'
+      + '</div>'
+      + (hasItems ? '<div style="padding:0 14px 10px;border-top:0.5px solid var(--border);">' + itemRows + '</div>' : '')
+      + '</div>';
   }).join('');
 }
+
+// ── Navigation ─────────────────────────────────────────────────────────────
+function nutrShiftDate(delta) {
+  const d = new Date(nutrSelectedDate + 'T00:00:00');
+  d.setDate(d.getDate() + delta);
+  nutrSelectedDate = d.toISOString().split('T')[0];
+  renderNutrDaily();
+}
+
+function nutrPickDate(val) {
+  if (val) { nutrSelectedDate = val; renderNutrDaily(); }
+}
+
+function nutrSelectBadge(date) {
+  nutrSelectedDate = date;
+  renderNutrDaily();
+}
+
+// ── Log entry flow ─────────────────────────────────────────────────────────
+function openNutrAdd(meal) {
+  nutrActiveMeal = meal;
+  document.getElementById('nutr-add-title').textContent = 'Add to ' + meal;
+
+  // Update copy-from-yesterday label
+  const prevDate = new Date(nutrSelectedDate + 'T00:00:00');
+  prevDate.setDate(prevDate.getDate() - 1);
+  const prevDs = prevDate.getFullYear() + '-' + String(prevDate.getMonth()+1).padStart(2,'0') + '-' + String(prevDate.getDate()).padStart(2,'0');
+  const prevMeals = getNutrDayMeals(prevDs);
+  const prevItems = (prevMeals[meal] || []);
+  const sub = document.getElementById('nutr-copy-sub');
+  const btn = document.getElementById('nutr-copy-yesterday-btn');
+  if (prevItems.length > 0) {
+    sub.textContent = prevItems.length + ' item' + (prevItems.length!==1?'s':'') + ' from ' + formatDate(prevDs);
+    btn.style.opacity = '1';
+    btn.style.pointerEvents = 'all';
+  } else {
+    sub.textContent = 'No ' + meal.toLowerCase() + ' logged for ' + formatDate(prevDs);
+    btn.style.opacity = '0.4';
+    btn.style.pointerEvents = 'none';
+  }
+  openModal('modal-nutr-add');
+}
+
+function openNutrBarcode() {
+  closeModal('modal-nutr-add');
+  document.getElementById('nutr-barcode-input').value = '';
+  document.getElementById('nutr-barcode-status').style.display = 'none';
+  requestAnimationFrame(() => openModal('modal-nutr-barcode'));
+}
+
+async function lookupNutrBarcode() {
+  const barcode = document.getElementById('nutr-barcode-input').value.trim();
+  if (!barcode) return;
+  const statusEl = document.getElementById('nutr-barcode-status');
+  statusEl.style.display = 'block';
+  statusEl.style.background = 'rgba(96,168,240,0.1)';
+  statusEl.style.color = 'var(--blue)';
+  statusEl.style.border = '1px solid rgba(96,168,240,0.2)';
+  statusEl.textContent = 'Looking up ' + barcode + '…';
+  try {
+    const res = await fetch('https://world.openfoodfacts.org/api/v2/product/' + barcode + '.json');
+    const data = await res.json();
+    if (data.status !== 1 || !data.product) {
+      statusEl.style.background = 'rgba(255,95,78,0.1)';
+      statusEl.style.color = 'var(--red)';
+      statusEl.style.border = '1px solid rgba(255,95,78,0.2)';
+      statusEl.textContent = 'Product not found. Try another barcode or enter manually.';
+      return;
+    }
+    const p = data.product, n = p.nutriments || {};
+    const kcal = n['energy-kcal_100g'] ?? n['energy-kcal'] ?? null;
+    if (kcal === null) {
+      statusEl.style.background = 'rgba(255,95,78,0.1)';
+      statusEl.style.color = 'var(--red)';
+      statusEl.style.border = '1px solid rgba(255,95,78,0.2)';
+      statusEl.textContent = 'Product found but no calorie data available.';
+      return;
+    }
+    nutrPendingProduct = {
+      name: p.product_name || p.product_name_en || 'Unknown product',
+      brand: p.brands || '',
+      per100kcal: Math.round(kcal),
+      per100p: parseFloat(n['proteins_100g'] ?? n['proteins'] ?? 0),
+      per100c: parseFloat(n['carbohydrates_100g'] ?? n['carbohydrates'] ?? 0),
+      per100f: parseFloat(n['fat_100g'] ?? n['fat'] ?? 0),
+      defaultServing: parseFloat(p.serving_quantity) || 100,
+    };
+    closeModal('modal-nutr-barcode');
+    requestAnimationFrame(() => openNutrServingModal());
+  } catch(e) {
+    statusEl.style.background = 'rgba(255,95,78,0.1)';
+    statusEl.style.color = 'var(--red)';
+    statusEl.style.border = '1px solid rgba(255,95,78,0.2)';
+    statusEl.textContent = 'Network error — check your connection.';
+  }
+}
+
+function openNutrServingModal() {
+  if (!nutrPendingProduct) return;
+  document.getElementById('nutr-serving-title').textContent = 'Add to ' + nutrActiveMeal;
+  document.getElementById('nutr-serving-name').textContent = nutrPendingProduct.name;
+  document.getElementById('nutr-serving-brand').textContent = nutrPendingProduct.brand || '';
+  document.getElementById('nutr-serving-size').value = nutrPendingProduct.defaultServing;
+  document.getElementById('nutr-serving-multiplier').value = '1';
+  document.getElementById('nutr-serving-custom').style.display = 'none';
+  document.getElementById('nutr-serving-custom-g').value = '';
+  updateServingPreview();
+  openModal('modal-nutr-serving');
+}
+
+function updateServingPreview() {
+  if (!nutrPendingProduct) return;
+  const multiplierSel = document.getElementById('nutr-serving-multiplier');
+  const baseSize = parseFloat(document.getElementById('nutr-serving-size').value) || 100;
+  const customEl = document.getElementById('nutr-serving-custom');
+
+  let grams;
+  if (multiplierSel.value === 'custom') {
+    customEl.style.display = 'block';
+    grams = parseFloat(document.getElementById('nutr-serving-custom-g').value) || baseSize;
+  } else {
+    customEl.style.display = 'none';
+    grams = baseSize * parseFloat(multiplierSel.value);
+  }
+
+  const r = grams / 100;
+  document.getElementById('sp-kcal').textContent = Math.round(nutrPendingProduct.per100kcal * r);
+  document.getElementById('sp-protein').textContent = (nutrPendingProduct.per100p * r).toFixed(1) + 'g';
+  document.getElementById('sp-carbs').textContent = (nutrPendingProduct.per100c * r).toFixed(1) + 'g';
+  document.getElementById('sp-fats').textContent = (nutrPendingProduct.per100f * r).toFixed(1) + 'g';
+}
+
+function confirmServing() {
+  if (!nutrPendingProduct) return;
+  const multiplierSel = document.getElementById('nutr-serving-multiplier');
+  const baseSize = parseFloat(document.getElementById('nutr-serving-size').value) || 100;
+  let grams;
+  if (multiplierSel.value === 'custom') {
+    grams = parseFloat(document.getElementById('nutr-serving-custom-g').value) || baseSize;
+  } else {
+    grams = baseSize * parseFloat(multiplierSel.value);
+  }
+  const r = grams / 100;
+  const entry = {
+    name: nutrPendingProduct.name,
+    serving: Math.round(grams),
+    kcal: Math.round(nutrPendingProduct.per100kcal * r),
+    protein: parseFloat((nutrPendingProduct.per100p * r).toFixed(1)),
+    carbs: parseFloat((nutrPendingProduct.per100c * r).toFixed(1)),
+    fats: parseFloat((nutrPendingProduct.per100f * r).toFixed(1)),
+    source: nutrPendingProduct.source || 'barcode',
+  };
+  addFoodEntry(entry);
+  nutrPendingProduct = null;
+  closeModal('modal-nutr-serving');
+}
+
+function openNutrPrevious() {
+  closeModal('modal-nutr-add');
+  document.getElementById('nutr-prev-search').value = '';
+  requestAnimationFrame(() => { renderPreviousMeals(); openModal('modal-nutr-previous'); });
+}
+
+function renderPreviousMeals() {
+  const query = (document.getElementById('nutr-prev-search').value || '').toLowerCase().trim();
+  const seen = new Map(); // name -> latest entry
+  Object.entries(state.nutritionMeals || {}).sort((a,b)=>b[0].localeCompare(a[0])).forEach(([date, meals]) => {
+    Object.values(meals).forEach(items => {
+      items.forEach(item => {
+        const key = item.name.toLowerCase();
+        if (!seen.has(key)) seen.set(key, item);
+      });
+    });
+  });
+
+  const items = [...seen.values()].filter(i => !query || i.name.toLowerCase().includes(query));
+  const el = document.getElementById('nutr-prev-list');
+  if (!items.length) {
+    el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:20px;">' + (query ? 'No matches' : 'No previous meals logged yet') + '</div>';
+    return;
+  }
+  el.innerHTML = items.map((item, idx) =>
+    '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);">'
+    + '<div><div style="font-size:13px;font-weight:500;">' + item.name + '</div>'
+    + '<div style="font-size:11px;color:var(--text3);margin-top:2px;">' + item.serving + 'g · ' + item.kcal + ' kcal · P:' + item.protein + 'g C:' + item.carbs + 'g F:' + item.fats + 'g</div></div>'
+    + '<button onclick="addFoodFromPrevious(' + idx + ')" class="btn btn-sm" style="flex-shrink:0;padding:6px 12px;">Add</button>'
+    + '</div>'
+  ).join('');
+  // Store reference for click handler
+  el._items = items;
+}
+
+function addFoodFromPrevious(idx) {
+  const el = document.getElementById('nutr-prev-list');
+  const items = el._items || [];
+  const item = items[idx];
+  if (!item) return;
+  nutrPendingProduct = {
+    name: item.name,
+    brand: '',
+    per100kcal: item.serving > 0 ? Math.round(item.kcal / item.serving * 100) : item.kcal,
+    per100p: item.serving > 0 ? parseFloat((item.protein / item.serving * 100).toFixed(1)) : item.protein,
+    per100c: item.serving > 0 ? parseFloat((item.carbs / item.serving * 100).toFixed(1)) : item.carbs,
+    per100f: item.serving > 0 ? parseFloat((item.fats / item.serving * 100).toFixed(1)) : item.fats,
+    defaultServing: item.serving,
+  };
+  closeModal('modal-nutr-previous');
+  requestAnimationFrame(() => openNutrServingModal());
+}
+
+function openNutrManual() {
+  closeModal('modal-nutr-add');
+  document.getElementById('nutr-manual-title').textContent = 'Add to ' + nutrActiveMeal;
+  document.getElementById('nutr-manual-editid').value = '';
+  document.getElementById('nutr-manual-name').value = '';
+  document.getElementById('nutr-manual-servings').value = '1';
+  document.getElementById('nutr-manual-serving-size').value = '100';
+  document.getElementById('nutr-manual-kcal').value = '';
+  document.getElementById('nutr-manual-protein').value = '';
+  document.getElementById('nutr-manual-carbs').value = '';
+  document.getElementById('nutr-manual-fats').value = '';
+  document.getElementById('nutr-manual-preview').textContent = 'Total: — kcal · P:—g C:—g F:—g';
+  requestAnimationFrame(() => openModal('modal-nutr-manual'));
+}
+
+function updateManualPreview() {
+  const servings = parseFloat(document.getElementById('nutr-manual-servings').value) || 1;
+  const kcal = Math.round((parseFloat(document.getElementById('nutr-manual-kcal').value)||0) * servings);
+  const p = ((parseFloat(document.getElementById('nutr-manual-protein').value)||0) * servings).toFixed(1);
+  const c = ((parseFloat(document.getElementById('nutr-manual-carbs').value)||0) * servings).toFixed(1);
+  const f = ((parseFloat(document.getElementById('nutr-manual-fats').value)||0) * servings).toFixed(1);
+  document.getElementById('nutr-manual-preview').textContent = 'Total: ' + kcal + ' kcal · P:' + p + 'g C:' + c + 'g F:' + f + 'g';
+}
+
+function saveManualEntry() {
+  const name = document.getElementById('nutr-manual-name').value.trim();
+  if (!name) { return; }
+  const servings = parseFloat(document.getElementById('nutr-manual-servings').value) || 1;
+  const servingSize = parseFloat(document.getElementById('nutr-manual-serving-size').value) || 100;
+  const entry = {
+    name,
+    serving: Math.round(servingSize * servings),
+    kcal: Math.round((parseFloat(document.getElementById('nutr-manual-kcal').value)||0) * servings),
+    protein: parseFloat(((parseFloat(document.getElementById('nutr-manual-protein').value)||0) * servings).toFixed(1)),
+    carbs: parseFloat(((parseFloat(document.getElementById('nutr-manual-carbs').value)||0) * servings).toFixed(1)),
+    fats: parseFloat(((parseFloat(document.getElementById('nutr-manual-fats').value)||0) * servings).toFixed(1)),
+    source: 'manual',
+  };
+  addFoodEntry(entry);
+  closeModal('modal-nutr-manual');
+}
+
+function copyFromYesterday() {
+  const prevDate = new Date(nutrSelectedDate + 'T00:00:00');
+  prevDate.setDate(prevDate.getDate() - 1);
+  const prevDs = prevDate.getFullYear() + '-' + String(prevDate.getMonth()+1).padStart(2,'0') + '-' + String(prevDate.getDate()).padStart(2,'0');
+  const prevMeals = getNutrDayMeals(prevDs);
+  const items = (prevMeals[nutrActiveMeal] || []);
+  if (!items.length) return;
+  if (!state.nutritionMeals) state.nutritionMeals = {};
+  if (!state.nutritionMeals[nutrSelectedDate]) state.nutritionMeals[nutrSelectedDate] = { Breakfast: [], Lunch: [], Dinner: [] };
+  items.forEach(item => {
+    state.nutritionMeals[nutrSelectedDate][nutrActiveMeal].push(JSON.parse(JSON.stringify(item)));
+  });
+  syncNutrLegacyLog(nutrSelectedDate);
+  save();
+  closeModal('modal-nutr-add');
+  renderNutrDaily();
+}
+
+function addFoodEntry(entry) {
+  if (!state.nutritionMeals) state.nutritionMeals = {};
+  if (!state.nutritionMeals[nutrSelectedDate]) state.nutritionMeals[nutrSelectedDate] = { Breakfast: [], Lunch: [], Dinner: [] };
+  state.nutritionMeals[nutrSelectedDate][nutrActiveMeal].push(entry);
+  syncNutrLegacyLog(nutrSelectedDate);
+  save();
+  renderNutrDaily();
+}
+
+function syncNutrLegacyLog(date) {
+  // Keep legacy nutritionLogs in sync for home screen / goals / weekly view
+  const totals = getDayTotals(date);
+  if (!state.nutritionLogs) state.nutritionLogs = [];
+  const idx = state.nutritionLogs.findIndex(l => l.date === date);
+  const entry = { date, kcal: totals.kcal, protein: totals.p, carbs: totals.c, fats: totals.f };
+  if (idx >= 0) state.nutritionLogs[idx] = entry;
+  else state.nutritionLogs.push(entry);
+}
+
+function deleteFoodEntry(date, meal, idx) {
+  if (!state.nutritionMeals || !state.nutritionMeals[date] || !state.nutritionMeals[date][meal]) return;
+  state.nutritionMeals[date][meal].splice(idx, 1);
+  // If all meals are now empty for this date, clean up the legacy log entry too
+  const allEmpty = !state.nutritionMeals[date] ||
+    Object.values(state.nutritionMeals[date]).every(arr => arr.length === 0);
+  if (allEmpty) {
+    state.nutritionLogs = (state.nutritionLogs || []).filter(l => l.date !== date);
+  } else {
+    syncNutrLegacyLog(date);
+  }
+  save();
+  renderNutrDaily();
+}
+
+function openEditFoodEntry(date, meal, idx) {
+  const item = (state.nutritionMeals && state.nutritionMeals[date] && state.nutritionMeals[date][meal] || [])[idx];
+  if (!item) return;
+  document.getElementById('nutr-edit-date').value = date;
+  document.getElementById('nutr-edit-meal').value = meal;
+  document.getElementById('nutr-edit-idx').value = idx;
+  document.getElementById('nutr-edit-name').value = item.name;
+  document.getElementById('nutr-edit-kcal').value = item.kcal || 0;
+  document.getElementById('nutr-edit-protein').value = item.protein || 0;
+  document.getElementById('nutr-edit-carbs').value = item.carbs || 0;
+  document.getElementById('nutr-edit-fats').value = item.fats || 0;
+  document.getElementById('nutr-edit-serving').value = item.serving || 100;
+  openModal('modal-nutr-edit');
+}
+
+function saveEditFoodEntry() {
+  const date = document.getElementById('nutr-edit-date').value;
+  const meal = document.getElementById('nutr-edit-meal').value;
+  const idx = parseInt(document.getElementById('nutr-edit-idx').value);
+  if (!state.nutritionMeals || !state.nutritionMeals[date] || !state.nutritionMeals[date][meal]) return;
+  state.nutritionMeals[date][meal][idx] = {
+    name: document.getElementById('nutr-edit-name').value.trim(),
+    kcal: parseInt(document.getElementById('nutr-edit-kcal').value)||0,
+    protein: parseFloat(document.getElementById('nutr-edit-protein').value)||0,
+    carbs: parseFloat(document.getElementById('nutr-edit-carbs').value)||0,
+    fats: parseFloat(document.getElementById('nutr-edit-fats').value)||0,
+    serving: parseFloat(document.getElementById('nutr-edit-serving').value)||100,
+    source: 'manual',
+  };
+  syncNutrLegacyLog(date);
+  save();
+  closeModal('modal-nutr-edit');
+  renderNutrDaily();
+}
+
+function renderNutrition() {
+  if (nutrTab === 'day') {
+    if (!nutrSelectedDate) nutrSelectedDate = new Date().toISOString().split('T')[0];
+    renderNutrDaily();
+  } else {
+    renderNutrWeekly([...state.nutritionLogs].sort((a,b)=>b.date.localeCompare(a.date)));
+  }
+}
+
+// ── Legacy renderNutrDaily (replaced above) ────────────────────────────────
 
 function renderNutrWeekly(logs) {
   const el = document.getElementById('nutr-weekly-view');
@@ -2778,7 +3650,7 @@ function clearAllData() {
           state = {
             mesocycles: [], exercises: {}, trainLogs: {},
             bodyLogs: [], nutritionLogs: [],
-            goals: [], customLibrary: [],
+            goals: [], customLibrary: [], nutritionMeals: {}, nutritionQuickLog: {},
             currentMesoId: null, currentWeek: 1,
             currentDay: 'push', currentEditContext: null,
           };
