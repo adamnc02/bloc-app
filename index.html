@@ -380,8 +380,8 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 .empty-state p { font-size: 13px; line-height: 1.6; }
 
 /* CHART */
-.macro-bar { height: 8px; border-radius: 4px; background: var(--surface3); overflow: hidden; margin-top: 4px; }
-.macro-fill { height: 100%; border-radius: 4px; transition: width 0.4s; }
+.meso-bar { height: 8px; border-radius: 4px; background: var(--surface3); overflow: hidden; margin-top: 4px; }
+.meso-fill { height: 100%; border-radius: 4px; transition: width 0.4s; }
 
 .nutrition-day-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r); padding: 14px 16px; margin-bottom: 10px; }
 
@@ -396,7 +396,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 }
 
 /* js-driven option cards */
-.meso-opt {
+.macro-opt {
   padding: 12px 14px;
   background: var(--surface2);
   border-radius: var(--r-sm);
@@ -405,7 +405,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   transition: border-color 0.15s, background 0.15s;
   -webkit-tap-highlight-color: transparent;
 }
-.meso-opt-selected {
+.macro-opt-selected {
   border-color: var(--accent) !important;
   background: rgba(200,240,96,0.06) !important;
 }
@@ -424,7 +424,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
           <div class="page-title">BLOC</div>
           <div class="page-sub" id="home-date"></div>
         </div>
-        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v2.10</span>
+        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v2.11</span>
       </div>
 
       <!-- Active cycle card -->
@@ -469,10 +469,10 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
           <div class="page-title">BLOC</div>
           <div class="page-sub">Training Planner</div>
         </div>
-        <button class="btn btn-accent btn-sm" onclick="openModal('modal-meso')">+ Mesocycle</button>
+        <button class="btn btn-accent btn-sm" onclick="openModal('modal-macro')">+ Macrocycle</button>
       </div>
 
-      <div id="meso-overview"></div>
+      <div id="macro-overview"></div>
       <div id="plan-content"></div>
     </div>
 
@@ -494,7 +494,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div id="train-content">
         <div class="empty-state">
           <svg viewBox="0 0 24 24"><path d="M6 4v16M18 4v16M3 8h4M17 8h4M3 16h4M17 16h4"/></svg>
-          <p>Build your mesocycle in the Plan tab first, then select a week and day to start training.</p>
+          <p>Build your macrocycle in the Plan tab first, then select a week and day to start training.</p>
         </div>
       </div>
     </div>
@@ -550,7 +550,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v2.10</span>
+          <span class="badge badge-green">v2.11</span>
         </div>
       </div>
 
@@ -648,8 +648,8 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
         <!-- Kcal summary -->
         <div class="card" style="margin-bottom:10px;" id="nutr-kcal-card"></div>
 
-        <!-- Macro panel -->
-        <div class="card" style="margin-bottom:10px;" id="nutr-macro-card"></div>
+        <!-- Meso panel -->
+        <div class="card" style="margin-bottom:10px;" id="nutr-meso-card"></div>
 
         <!-- Diary -->
         <div id="nutr-diary"></div>
@@ -699,70 +699,70 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
      MODALS
 ═══════════════════════════════════════════ -->
 
-<!-- Create Mesocycle -->
-<div class="modal-overlay" id="modal-meso">
-  <div class="modal-sheet" data-modal="modal-meso">
+<!-- Create Macrocycle -->
+<div class="modal-overlay" id="modal-macro">
+  <div class="modal-sheet" data-modal="modal-macro">
     <div class="modal-handle-row">
       <div class="modal-handle"></div>
-      <button class="modal-close-btn" onclick="closeModal('modal-meso')">✕</button>
+      <button class="modal-close-btn" onclick="closeModal('modal-macro')">✕</button>
     </div>
-    <div class="modal-title">New Mesocycle</div>
+    <div class="modal-title">New Macrocycle</div>
     <div class="form-group">
       <div class="label">Name</div>
-      <input type="text" id="meso-name-input" placeholder="e.g. Weight Loss Phase 1">
+      <input type="text" id="macro-name-input" placeholder="e.g. Weight Loss Phase 1">
     </div>
     <div class="input-row">
       <div>
-        <div class="label">Macrocycles</div>
-        <input type="number" id="meso-weeks-input" value="8" min="2" max="52">
+        <div class="label">Mesocycles</div>
+        <input type="number" id="macro-weeks-input" value="8" min="2" max="52">
       </div>
       <div>
         <div class="label">Start Date</div>
-        <input type="date" id="meso-start-input">
+        <input type="date" id="macro-start-input">
       </div>
     </div>
     <div class="input-row">
       <div>
-        <div class="label">Weeks per macrocycle</div>
-        <select id="meso-weeks-per-macro-input">
+        <div class="label">Weeks per mesocycle</div>
+        <select id="macro-weeks-per-meso-input">
           <option value="1" selected>1 week</option>
           <option value="2">2 weeks</option>
         </select>
       </div>
       <div>
         <div class="label">Sessions per week</div>
-        <input type="number" id="meso-sessions-input" value="3" min="1" max="7" placeholder="e.g. 4">
+        <input type="number" id="macro-sessions-input" value="3" min="1" max="7" placeholder="e.g. 4">
       </div>
     </div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">e.g. 4-day split over 2 weeks = 2 weeks per macrocycle, 4 sessions/week</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">e.g. 4-day split over 2 weeks = 2 weeks per mesocycle, 4 sessions/week</div>
     <div class="form-group">
-      <div class="label">Mesocycle Type</div>
-      <select id="meso-goal-type-input">
+      <div class="label">Macrocycle Type</div>
+      <select id="macro-goal-type-input">
         <option value="loss">Weight Loss — conservative weight progression</option>
         <option value="gain">Weight / Strength Gain — aggressive weight progression</option>
       </select>
     </div>
     <div class="form-group">
       <div class="label">Goal</div>
-      <input type="text" id="meso-goal-input" placeholder="e.g. Cut to 200lbs">
+      <input type="text" id="macro-goal-input" placeholder="e.g. Cut to 200lbs">
     </div>
     <div class="form-group">
       <div class="label">Target body weight (lbs) <span style="color:var(--text3);font-size:11px;">— optional</span></div>
-      <input type="number" id="meso-target-bw-input" placeholder="e.g. 180" step="0.1">
+      <input type="number" id="macro-target-bw-input" placeholder="e.g. 180" step="0.1">
     </div>
 
     <div class="form-group">
       <div class="label">Training Split</div>
       <div style="display:flex;flex-direction:column;gap:8px;" id="split-options">
-        <div class="meso-opt meso-opt-selected" id="split-opt-ppl" onclick="selectMesoOpt('split','ppl')">
+        <div class="macro-opt macro-opt-selected" id="split-opt-ppl" onclick="selectMacroOpt('split','ppl')">
           <div style="font-weight:500;font-size:13px;">Push / Pull / Legs</div>
           <div style="font-size:11px;color:var(--text3);margin-top:2px;">3 sessions — Push, Pull, Legs</div>
         </div>
-        <div class="meso-opt" id="split-opt-fullbody" onclick="selectMesoOpt('split','fullbody')">
+        <div class="macro-opt" id="split-opt-fullbody" onclick="selectMacroOpt('split','fullbody')">
           <div style="font-weight:500;font-size:13px;">Full Body Split</div>
           <div style="font-size:11px;color:var(--text3);margin-top:2px;">Choose the number of weekly sessions per body part(s)</div>
         </div>
-        <div class="meso-opt" id="split-opt-custom" onclick="selectMesoOpt('split','custom')">
+        <div class="macro-opt" id="split-opt-custom" onclick="selectMacroOpt('split','custom')">
           <div style="font-weight:500;font-size:13px;">Custom Split</div>
           <div style="font-size:11px;color:var(--text3);margin-top:2px;">Define your own session names</div>
         </div>
@@ -779,72 +779,72 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div class="form-group">
       <div class="label">Microcycles</div>
       <div style="display:flex;flex-direction:column;gap:8px;">
-        <div class="meso-opt meso-opt-selected" id="micro-opt-yes" onclick="selectMesoOpt('micro','yes')">
+        <div class="macro-opt macro-opt-selected" id="micro-opt-yes" onclick="selectMacroOpt('micro','yes')">
           <div style="font-weight:500;font-size:13px;">Use microcycles</div>
           <div style="font-size:11px;color:var(--text3);margin-top:2px;">Each week has 2 microcycles with slightly varied sessions</div>
         </div>
-        <div class="meso-opt" id="micro-opt-no" onclick="selectMesoOpt('micro','no')">
+        <div class="macro-opt" id="micro-opt-no" onclick="selectMacroOpt('micro','no')">
           <div style="font-weight:500;font-size:13px;">No microcycles</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px;">Same sessions each week — one set of exercises per macrocycle</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">Same sessions each week — one set of exercises per mesocycle</div>
         </div>
       </div>
     </div>
 
-    <button class="btn btn-accent btn-block" onclick="createMesocycle()">Create Mesocycle →</button>
+    <button class="btn btn-accent btn-block" onclick="createMacrocycle()">Create Macrocycle →</button>
   </div>
 </div>
 
-<!-- Edit Mesocycle -->
-<div class="modal-overlay" id="modal-edit-meso">
-  <div class="modal-sheet" data-modal="modal-edit-meso">
+<!-- Edit Macrocycle -->
+<div class="modal-overlay" id="modal-edit-macro">
+  <div class="modal-sheet" data-modal="modal-edit-macro">
     <div class="modal-handle-row">
       <div class="modal-handle"></div>
-      <button class="modal-close-btn" onclick="closeModal('modal-edit-meso')">✕</button>
+      <button class="modal-close-btn" onclick="closeModal('modal-edit-macro')">✕</button>
     </div>
-    <div class="modal-title">Edit Mesocycle</div>
+    <div class="modal-title">Edit Macrocycle</div>
     <div class="form-group">
       <div class="label">Name</div>
-      <input type="text" id="edit-meso-name-input" placeholder="e.g. Weight Loss Phase 1">
+      <input type="text" id="edit-macro-name-input" placeholder="e.g. Weight Loss Phase 1">
     </div>
     <div class="input-row">
       <div>
-        <div class="label">Macrocycles</div>
-        <input type="number" id="edit-meso-weeks-input" min="2" max="52">
+        <div class="label">Mesocycles</div>
+        <input type="number" id="edit-macro-weeks-input" min="2" max="52">
       </div>
       <div>
         <div class="label">Start Date</div>
-        <input type="date" id="edit-meso-start-input">
+        <input type="date" id="edit-macro-start-input">
       </div>
     </div>
     <div class="input-row">
       <div>
-        <div class="label">Weeks per macrocycle</div>
-        <select id="edit-meso-weeks-per-macro-input">
+        <div class="label">Weeks per mesocycle</div>
+        <select id="edit-macro-weeks-per-meso-input">
           <option value="1">1 week</option>
           <option value="2">2 weeks</option>
         </select>
       </div>
       <div>
         <div class="label">Sessions per week</div>
-        <input type="number" id="edit-meso-sessions-per-week-input" min="1" max="7">
+        <input type="number" id="edit-macro-sessions-per-week-input" min="1" max="7">
       </div>
     </div>
     <div class="form-group">
       <div class="label">Goal</div>
-      <input type="text" id="edit-meso-goal-input" placeholder="e.g. Cut to 180lbs">
+      <input type="text" id="edit-macro-goal-input" placeholder="e.g. Cut to 180lbs">
     </div>
     <div class="form-group">
       <div class="label">Target body weight (lbs) <span style="color:var(--text3);font-size:11px;">— optional</span></div>
-      <input type="number" id="edit-meso-target-bw-input" placeholder="e.g. 180" step="0.1">
+      <input type="number" id="edit-macro-target-bw-input" placeholder="e.g. 180" step="0.1">
     </div>
     <div class="form-group">
-      <div class="label">Mesocycle Type</div>
-      <select id="edit-meso-goal-type-input">
+      <div class="label">Macrocycle Type</div>
+      <select id="edit-macro-goal-type-input">
         <option value="loss">Weight Loss — conservative weight progression</option>
         <option value="gain">Weight / Strength Gain — aggressive weight progression</option>
       </select>
     </div>
-    <button class="btn btn-accent btn-block" onclick="saveEditMeso()">Save Changes →</button>
+    <button class="btn btn-accent btn-block" onclick="saveEditMacro()">Save Changes →</button>
   </div>
 </div>
 
@@ -857,8 +857,8 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     </div>
     <div class="modal-title" id="goal-modal-title">New Goal Period</div>
     <div class="form-group">
-      <div class="label">Mesocycle</div>
-      <select id="goal-meso-select"></select>
+      <div class="label">Macrocycle</div>
+      <select id="goal-macro-select"></select>
     </div>
     <div class="input-row">
       <div>
@@ -1048,7 +1048,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       </button>
       <button onclick="openNutrManual()" style="display:flex;align-items:center;gap:12px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:12px 14px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:13px;text-align:left;width:100%;">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-        <div><div style="font-weight:600;">Enter manually</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">Type name, kcal &amp; macros</div></div>
+        <div><div style="font-weight:600;">Enter manually</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">Type name, kcal &amp; mesos</div></div>
       </button>
       <button id="nutr-copy-yesterday-btn" onclick="copyFromYesterday()" style="display:flex;align-items:center;gap:12px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:12px 14px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:13px;text-align:left;width:100%;">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
@@ -1258,17 +1258,17 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 // STATE
 // ════════════════════════════════════════════════
 let state = {
-  mesocycles: [],
-  exercises: {},    // key: mesoId_week_day -> [{...}]
-  trainLogs: {},    // key: mesoId_week_day_exIdx_setIdx -> {weight, reps, done}
+  macrocycles: [],
+  exercises: {},    // key: macroId_week_day -> [{...}]
+  trainLogs: {},    // key: macroId_week_day_exIdx_setIdx -> {weight, reps, done}
   bodyLogs: [],     // [{date, weight, steps}]
   nutritionLogs: [], // [{date, kcal, protein, carbs, fats}]
-  goals: [],        // [{mesoId, startDate, endDate, kcal, steps, protein, carbs, fats}]
+  goals: [],        // [{macroId, startDate, endDate, kcal, steps, protein, carbs, fats}]
   customLibrary: [], // [{name, bodyPart}]
   nutritionMeals: {}, // {date: {Breakfast:[], Lunch:[], Dinner:[]}}
   nutritionQuickLog: {}, // {date: {kcal, protein, carbs, fats}}
   foodLibrary: [], // [{id, name, per100kcal, per100p, per100c, per100f, defaultServing, source}]
-  currentMesoId: null,
+  currentMacroId: null,
   currentWeek: 1,
   currentDay: 'push',
   currentEditContext: null,
@@ -1326,8 +1326,8 @@ function openModal(id) {
   }
   if (id === 'modal-add-goal') {
     if (!state.goals) state.goals = [];
-    const sel = document.getElementById('goal-meso-select');
-    sel.innerHTML = state.mesocycles.map(m => '<option value="' + m.id + '">' + m.name + '</option>').join('') || '<option value="">No mesocycles yet</option>';
+    const sel = document.getElementById('goal-macro-select');
+    sel.innerHTML = state.macrocycles.map(m => '<option value="' + m.id + '">' + m.name + '</option>').join('') || '<option value="">No macrocycles yet</option>';
     const modal = document.getElementById('modal-add-goal');
     // Only reset fields when opening fresh — openEditGoal pre-sets _editIdx and field values
     const isEditing = modal._editIdx !== undefined && modal._editIdx !== null;
@@ -1343,22 +1343,22 @@ function openModal(id) {
       modal._editIdx = undefined;
     }
   }
-  if (id === 'modal-meso') {
-    const nextStart = getNextMesoStart();
-    document.getElementById('meso-start-input').value = nextStart;
-    document.getElementById('meso-target-bw-input').value = '';
-    if (document.getElementById('meso-goal-type-input')) document.getElementById('meso-goal-type-input').value = 'loss';
-    if (document.getElementById('meso-sessions-input')) document.getElementById('meso-sessions-input').value = '3';
-    if (document.getElementById('meso-weeks-per-macro-input')) document.getElementById('meso-weeks-per-macro-input').value = '1';
+  if (id === 'modal-macro') {
+    const nextStart = getNextMacroStart();
+    document.getElementById('macro-start-input').value = nextStart;
+    document.getElementById('macro-target-bw-input').value = '';
+    if (document.getElementById('macro-goal-type-input')) document.getElementById('macro-goal-type-input').value = 'loss';
+    if (document.getElementById('macro-sessions-input')) document.getElementById('macro-sessions-input').value = '3';
+    if (document.getElementById('macro-weeks-per-meso-input')) document.getElementById('macro-weeks-per-meso-input').value = '1';
     // Reset form state
-    state._mesoForm = { split: 'ppl', micro: 'yes' };
+    state._macroForm = { split: 'ppl', micro: 'yes' };
     state._customSessions = ['Day A', 'Day B', 'Day C'];
     // Reset visual selection
     ['ppl','fullbody','custom'].forEach(v => {
-      document.getElementById('split-opt-'+v).classList.toggle('meso-opt-selected', v === 'ppl');
+      document.getElementById('split-opt-'+v).classList.toggle('macro-opt-selected', v === 'ppl');
     });
     ['yes','no'].forEach(v => {
-      document.getElementById('micro-opt-'+v).classList.toggle('meso-opt-selected', v === 'yes');
+      document.getElementById('micro-opt-'+v).classList.toggle('macro-opt-selected', v === 'yes');
     });
     document.getElementById('custom-split-builder').style.display = 'none';
     document.getElementById('custom-sessions-label').textContent = 'Sessions per microcycle';
@@ -1374,13 +1374,13 @@ function closeModal(id) {
 }
 function closeModalOutside(e, id) { if (e.target.id === id) closeModal(id); }
 
-function selectMesoOpt(group, value) {
-  if (!state._mesoForm) state._mesoForm = { split: 'ppl', micro: 'yes' };
-  state._mesoForm[group] = value;
+function selectMacroOpt(group, value) {
+  if (!state._macroForm) state._macroForm = { split: 'ppl', micro: 'yes' };
+  state._macroForm[group] = value;
 
   if (group === 'split') {
     ['ppl','fullbody','custom'].forEach(v => {
-      document.getElementById('split-opt-'+v).classList.toggle('meso-opt-selected', v === value);
+      document.getElementById('split-opt-'+v).classList.toggle('macro-opt-selected', v === value);
     });
     const showBuilder = value === 'custom' || value === 'fullbody';
     document.getElementById('custom-split-builder').style.display = showBuilder ? 'block' : 'none';
@@ -1395,7 +1395,7 @@ function selectMesoOpt(group, value) {
     }
     const lbl = document.getElementById('custom-sessions-label');
     if (lbl) {
-      const micro = state._mesoForm.micro || 'yes';
+      const micro = state._macroForm.micro || 'yes';
       lbl.textContent = value === 'fullbody'
         ? 'Body part sessions'
         : (micro === 'no' ? 'Sessions per week' : 'Sessions per microcycle');
@@ -1403,7 +1403,7 @@ function selectMesoOpt(group, value) {
   }
   if (group === 'micro') {
     ['yes','no'].forEach(v => {
-      document.getElementById('micro-opt-'+v).classList.toggle('meso-opt-selected', v === value);
+      document.getElementById('micro-opt-'+v).classList.toggle('macro-opt-selected', v === value);
     });
     const lbl = document.getElementById('custom-sessions-label');
     if (lbl) lbl.textContent = value === 'no' ? 'Sessions per week' : 'Sessions per microcycle';
@@ -1413,52 +1413,52 @@ function selectMesoOpt(group, value) {
 // ════════════════════════════════════════════════
 // MESOCYCLE DURATION HELPERS
 // ════════════════════════════════════════════════
-function getMesoDurationWeeks(meso) {
-  return (meso.weeks || 8) * (meso.weeksPerMacro || 1);
+function getMacroDurationWeeks(macro) {
+  return (macro.weeks || 8) * (macro.weeksPerMeso || 1);
 }
 
-function getMesoEndDate(meso) {
+function getMacroEndDate(macro) {
   // End on the Sunday of the last week: start + (weeks*7) - 1 day
-  const startDate = meso.start ? new Date(meso.start + 'T00:00:00') : new Date();
-  const totalCalWks = getMesoDurationWeeks(meso);
+  const startDate = macro.start ? new Date(macro.start + 'T00:00:00') : new Date();
+  const totalCalWks = getMacroDurationWeeks(macro);
   const endDate = new Date(startDate);
   endDate.setDate(endDate.getDate() + totalCalWks * 7 - 1);
   return endDate;
 }
 
-function getNextMesoStart() {
-  // Find the latest end date across all mesocycles, return the day after
-  if (!state.mesocycles.length) return new Date().toISOString().split('T')[0];
+function getNextMacroStart() {
+  // Find the latest end date across all macrocycles, return the day after
+  if (!state.macrocycles.length) return new Date().toISOString().split('T')[0];
   let latest = null;
-  state.mesocycles.forEach(m => {
-    const end = getMesoEndDate(m);
+  state.macrocycles.forEach(m => {
+    const end = getMacroEndDate(m);
     if (!latest || end > latest) latest = end;
   });
   const next = new Date(latest);
   next.setDate(next.getDate() + 1);
   return next.toISOString().split('T')[0];
 }
-function getMesoSummaryLabel(meso) {
-  const wpm = meso.weeksPerMacro || 1;
-  const spw = meso.sessionsPerWeek || 3;
-  const totalWks = getMesoDurationWeeks(meso);
-  if (wpm > 1) return `${meso.weeks} macrocycles · ${wpm} wks each · ${spw} sessions/wk · ${totalWks} wks total`;
-  return `${meso.weeks} macrocycles · ${spw} sessions/wk · ${totalWks} wks total`;
+function getMacroSummaryLabel(macro) {
+  const wpm = macro.weeksPerMeso || 1;
+  const spw = macro.sessionsPerWeek || 3;
+  const totalWks = getMacroDurationWeeks(macro);
+  if (wpm > 1) return `${macro.weeks} mesocycles · ${wpm} wks each · ${spw} sessions/wk · ${totalWks} wks total`;
+  return `${macro.weeks} mesocycles · ${spw} sessions/wk · ${totalWks} wks total`;
 }
 
 // ════════════════════════════════════════════════
 // MESOCYCLE
 // ════════════════════════════════════════════════
-function createMesocycle() {
-  const name = document.getElementById('meso-name-input').value.trim() || 'Mesocycle';
-  const weeks = parseInt(document.getElementById('meso-weeks-input').value) || 8;
-  const weeksPerMacro = parseInt(document.getElementById('meso-weeks-per-macro-input').value) || 1;
-  const sessionsPerWeek = parseInt(document.getElementById('meso-sessions-input').value) || 3;
-  const start = document.getElementById('meso-start-input').value;
-  const goal = document.getElementById('meso-goal-input').value.trim();
-  const targetBw = parseFloat(document.getElementById('meso-target-bw-input').value) || null;
-  const goalType = document.getElementById('meso-goal-type-input') ? document.getElementById('meso-goal-type-input').value : 'loss';
-  const form = state._mesoForm || { split: 'ppl', micro: 'yes' };
+function createMacrocycle() {
+  const name = document.getElementById('macro-name-input').value.trim() || 'Macrocycle';
+  const weeks = parseInt(document.getElementById('macro-weeks-input').value) || 8;
+  const weeksPerMeso = parseInt(document.getElementById('macro-weeks-per-meso-input').value) || 1;
+  const sessionsPerWeek = parseInt(document.getElementById('macro-sessions-input').value) || 3;
+  const start = document.getElementById('macro-start-input').value;
+  const goal = document.getElementById('macro-goal-input').value.trim();
+  const targetBw = parseFloat(document.getElementById('macro-target-bw-input').value) || null;
+  const goalType = document.getElementById('macro-goal-type-input') ? document.getElementById('macro-goal-type-input').value : 'loss';
+  const form = state._macroForm || { split: 'ppl', micro: 'yes' };
   const splitType = form.split;
   const useMicrocycles = form.micro !== 'no';
 
@@ -1473,12 +1473,12 @@ function createMesocycle() {
     sessions.forEach((s,i) => { dayLabels['session'+i] = s.trim() || ('Session '+(i+1)); });
   }
 
-  const id = 'meso_' + Date.now();
-  state.mesocycles.push({ id, name, weeks, weeksPerMacro, sessionsPerWeek, start, goal, targetBw, goalType, splitType, days, dayLabels, useMicrocycles });
-  state.currentMesoId = id;
+  const id = 'macro_' + Date.now();
+  state.macrocycles.push({ id, name, weeks, weeksPerMeso, sessionsPerWeek, start, goal, targetBw, goalType, splitType, days, dayLabels, useMicrocycles });
+  state.currentMacroId = id;
   state.currentDay = useMicrocycles ? (days[0] + 'm1') : days[0];
   save();
-  closeModal('modal-meso');
+  closeModal('modal-macro');
   renderPlan();
 }
 
@@ -1536,12 +1536,12 @@ function setSelectValue(id, val) {
 }
 
 function updateLegSelectLabels() {
-  const activeMeso = state.mesocycles.find(m => m.id === state.currentMesoId);
-  const isGain = activeMeso && activeMeso.goalType === 'gain';
+  const activeMacro = state.macrocycles.find(m => m.id === state.currentMacroId);
+  const isGain = activeMacro && activeMacro.goalType === 'gain';
   const legSel = document.getElementById('ex-leg-select');
   if (!legSel) return;
-  legSel.options[0].text = isGain ? 'No (5 kg per macrocycle)' : 'No (1–2 kg per macrocycle)';
-  legSel.options[1].text = isGain ? 'Yes (10 kg per macrocycle)' : 'Yes (up to 3 kg per macrocycle)';
+  legSel.options[0].text = isGain ? 'No (5 kg per mesocycle)' : 'No (1–2 kg per mesocycle)';
+  legSel.options[1].text = isGain ? 'Yes (10 kg per mesocycle)' : 'Yes (up to 3 kg per mesocycle)';
 }
 
 function openAddExercise(week, day) {
@@ -1560,7 +1560,7 @@ function openAddExercise(week, day) {
 }
 
 function openEditExercise(week, day, idx) {
-  const key = state.currentMesoId + '_' + week + '_' + day;
+  const key = state.currentMacroId + '_' + week + '_' + day;
   const ex = (state.exercises[key] || [])[idx];
   if (!ex) return;
   state.currentEditContext = { week, day, editIdx: idx };
@@ -1579,8 +1579,8 @@ function openEditExercise(week, day, idx) {
 
 function saveExercise() {
   const ctx = state.currentEditContext;
-  if (!ctx || !state.currentMesoId) return;
-  const key = state.currentMesoId + '_' + ctx.week + '_' + ctx.day;
+  if (!ctx || !state.currentMacroId) return;
+  const key = state.currentMacroId + '_' + ctx.week + '_' + ctx.day;
   if (!state.exercises[key]) state.exercises[key] = [];
   const type = document.getElementById('ex-type-select').value;
   const isMyorepGiant = type === 'myorep';
@@ -1604,7 +1604,7 @@ function saveExercise() {
 }
 
 function deleteExercise(week, day, idx) {
-  const key = state.currentMesoId + '_' + week + '_' + day;
+  const key = state.currentMacroId + '_' + week + '_' + day;
   if (state.exercises[key]) {
     state.exercises[key].splice(idx, 1);
     save(); renderPlan();
@@ -1622,7 +1622,7 @@ function getWeekSets(ex, week, totalWeeks) {
 
 function getWeekWeight(ex, week, progType, goalType) {
   if (progType !== 'weight') return ex.startWeight;
-  // Jump per macrocycle based on mesocycle type
+  // Jump per mesocycle based on macrocycle type
   const isGain = goalType === 'gain';
   const jump = ex.isHeavyLeg
     ? (isGain ? 10 : 2.5)
@@ -1677,8 +1677,8 @@ function renderHome() {
 
   // ── Active cycle ─────────────────────────────
   const cycleEl = document.getElementById('home-cycle');
-  const meso = state.mesocycles.find(m => m.id === state.currentMesoId);
-  if (!meso) {
+  const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
+  if (!macro) {
     cycleEl.innerHTML = `<div class="card" style="cursor:pointer;" onclick="showScreen('plan')">
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <span style="font-size:13px;color:var(--text3);">No active cycle — tap to create one</span>
@@ -1686,43 +1686,57 @@ function renderHome() {
       </div>
     </div>`;
   } else {
-    const startDate = meso.start ? new Date(meso.start + 'T00:00:00') : new Date();
-    const totalCalWks = getMesoDurationWeeks(meso);
-    const endDate = getMesoEndDate(meso);
+    const startDate = macro.start ? new Date(macro.start + 'T00:00:00') : new Date();
+    const totalCalWks = getMacroDurationWeeks(macro);
+    const endDate = getMacroEndDate(macro);
     const today = new Date(); today.setHours(0,0,0,0); startDate.setHours(0,0,0,0);
     const totalDays = totalCalWks * 7;
     const elapsedDays = Math.max(0, Math.min(today - startDate, endDate - startDate)) / (1000*60*60*24);
     const pct = Math.min(100, Math.round((elapsedDays / totalDays) * 100));
-    const currentMacro = today < startDate ? 0 : Math.min(meso.weeks, Math.floor(elapsedDays / ((meso.weeksPerMacro || 1) * 7)) + 1);
-    const weekLabel = today < startDate ? 'Not started' : `MC ${currentMacro} of ${meso.weeks}`;
+    const currentMeso = today < startDate ? 0 : Math.min(macro.weeks, Math.floor(elapsedDays / ((macro.weeksPerMeso || 1) * 7)) + 1);
+    const weekLabel = today < startDate ? 'Not started' : `MC ${currentMeso} of ${macro.weeks}`;
     const endStr = endDate.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
-    const splitBadge = meso.splitType === 'fullbody' ? 'Full Body' : meso.splitType === 'custom' ? 'Custom' : 'PPL';
+    const splitBadge = macro.splitType === 'fullbody' ? 'Full Body' : macro.splitType === 'custom' ? 'Custom' : 'PPL';
 
     // Body weight vs target
     const bwLogs = (state.bodyLogs || []).filter(l => l.weight).sort((a,b) => b.date.localeCompare(a.date));
     const latestBw = bwLogs.length ? parseFloat(bwLogs[0].weight) : null;
     let bwHtml = '';
-    if (meso.targetBw && latestBw !== null) {
-      const diff = latestBw - meso.targetBw;
+    if (macro.targetBw && latestBw !== null) {
+      const diff = latestBw - macro.targetBw;
       const diffStr = Math.abs(diff) <= 0.1
         ? 'On target ✓'
         : diff > 0
-          ? (diff.toFixed(1) + ' lbs above target')
+          ? (diff.toFixed(1) + ' lbs left to go')
           : (Math.abs(diff).toFixed(1) + ' lbs below target');
       const diffColor = Math.abs(diff) <= 0.1 ? 'var(--accent)' : diff > 0 ? 'var(--amber)' : 'var(--blue)';
+      // Total lost/gained since first entry in this cycle
+      const cycleStartLogs = (state.bodyLogs || []).filter(l => l.weight && macro.start && l.date >= macro.start)
+        .sort((a,b) => a.date.localeCompare(b.date));
+      let cycleTotalStr = '';
+      if (cycleStartLogs.length >= 2) {
+        const cycleFirstBw = parseFloat(cycleStartLogs[0].weight);
+        const cycleDelta = latestBw - cycleFirstBw;
+        const goalType = macro.goalType || 'loss';
+        const absDelta = Math.abs(cycleDelta).toFixed(1);
+        if (Math.abs(cycleDelta) >= 0.1) {
+          const direction = cycleDelta < 0 ? 'lost' : 'gained';
+          cycleTotalStr = `${absDelta} lbs ${direction} so far`;
+        }
+      }
       bwHtml = `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:0.5px solid var(--border);">
         <span style="font-size:12px;color:var(--text2);">Body weight</span>
-        <span style="font-size:12px;">${latestBw} lbs → <span style="color:${diffColor};">${meso.targetBw} lbs target · ${diffStr}</span></span>
+        <span style="font-size:12px;"><span style="color:var(--amber);">${latestBw} lbs${cycleTotalStr ? ' · ' + cycleTotalStr : ''}</span><span style="color:var(--text3);"> · ${diffStr}</span></span>
       </div>`;
-    } else if (meso.targetBw) {
-      bwHtml = `<div style="font-size:11px;color:var(--text3);margin-top:6px;">Target: ${meso.targetBw} lbs — no weigh-ins yet</div>`;
+    } else if (macro.targetBw) {
+      bwHtml = `<div style="font-size:11px;color:var(--text3);margin-top:6px;">Target: ${macro.targetBw} lbs — no weigh-ins yet</div>`;
     }
 
     cycleEl.innerHTML = `<div class="card card-accent" style="cursor:pointer;" onclick="showScreen('plan')">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
         <div>
-          <div style="font-family:var(--font-display);font-size:16px;font-weight:800;">${meso.name}</div>
-          ${meso.goal ? `<div style="font-size:12px;color:var(--text2);margin-top:2px;">${meso.goal}</div>` : ''}
+          <div style="font-family:var(--font-display);font-size:16px;font-weight:800;">${macro.name}</div>
+          ${macro.goal ? `<div style="font-size:12px;color:var(--text2);margin-top:2px;">${macro.goal}</div>` : ''}
         </div>
         <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">
           <span class="badge badge-green">${totalCalWks}wk</span>
@@ -1902,8 +1916,8 @@ function renderHomeSteps() {
   }
 
   const right = isToday
-    ? (stepsGoal ? buildHomeProgressBar(displayVal||0, stepsGoal, 'var(--accent)', 'var(--accent)') : '')
-    : buildHomeBarChart(days, values, 'var(--accent)', fmtK, today);
+    ? (stepsGoal ? buildHomeProgressBar(displayVal||0, stepsGoal, 'var(--purple)', 'var(--purple)') : '')
+    : buildHomeBarChart(days, values, 'var(--purple)', fmtK, today);
 
   el.innerHTML = '<div class="card" style="cursor:pointer;" onclick="showScreen(\'body\')">'
     + '<div style="display:flex;align-items:flex-start;gap:14px;">'
@@ -1936,7 +1950,7 @@ function renderHomeNutr() {
   const validLogs = weekLogs.filter(Boolean);
 
   const metrics = [
-    { key:'kcal',    label:'kcal',    color:'var(--accent)', goal:goal?.kcal,    fmt:fmtK,     fmtFull:v=>Math.round(v).toLocaleString(), overColor:'var(--red)',   warnOver:false },
+    { key:'kcal',    label:'kcal',    color:'var(--accent)', goal:goal?.kcal,    fmt:v=>v,     fmtFull:v=>Math.round(v).toLocaleString(), overColor:'var(--red)',   warnOver:false },
     { key:'protein', label:'protein', color:'var(--blue)',   goal:goal?.protein, fmt:v=>v+'g', fmtFull:v=>v+'g', overColor:'var(--accent)',warnOver:false },
     { key:'carbs',   label:'carbs',   color:'var(--amber)',  goal:goal?.carbs,   fmt:v=>v+'g', fmtFull:v=>v+'g', overColor:'var(--amber)', warnOver:true  },
     { key:'fats',    label:'fats',    color:'var(--red)',    goal:goal?.fats,    fmt:v=>v+'g', fmtFull:v=>v+'g', overColor:'var(--red)',   warnOver:true  },
@@ -1980,10 +1994,10 @@ function renderHomeNutr() {
     + rows.join('') + '</div>';
 }
 
-function buildBwProgress(meso) {
+function buildBwProgress(macro) {
   try {
-    if (!meso || !meso.targetBw) return '';
-    var target = parseFloat(meso.targetBw);
+    if (!macro || !macro.targetBw) return '';
+    var target = parseFloat(macro.targetBw);
     if (isNaN(target)) return '';
     var bwLogs = (state.bodyLogs || []).filter(function(l) { return l && l.weight; })
       .sort(function(a,b) { return b.date.localeCompare(a.date); });
@@ -1991,10 +2005,10 @@ function buildBwProgress(meso) {
       return '<div style="margin-top:10px;font-size:12px;color:var(--text3);">Body weight target: ' + target + ' lbs \u2014 no weigh-ins logged yet</div>';
     }
     var current = parseFloat(bwLogs[0].weight);
-    var startLogs = (state.bodyLogs || []).filter(function(l) { return l && l.weight && meso.start && l.date >= meso.start; })
+    var startLogs = (state.bodyLogs || []).filter(function(l) { return l && l.weight && macro.start && l.date >= macro.start; })
       .sort(function(a,b) { return a.date.localeCompare(b.date); });
     var startBw = startLogs.length > 0 ? parseFloat(startLogs[0].weight) : current;
-    var goalType = meso.goalType || 'loss';
+    var goalType = macro.goalType || 'loss';
     var totalNeeded, achieved, bwPct;
     if (goalType === 'maintenance') {
       // Show variance from target
@@ -2014,20 +2028,28 @@ function buildBwProgress(meso) {
     if (Math.abs(diff) <= 0.5) { diffStr = 'On target'; diffColor = 'var(--accent)'; }
     else if (goalType === 'gain') {
       // Gaining: above target = good (accent), below = amber
-      diffStr = diff > 0 ? diff.toFixed(1) + ' lbs above target' : Math.abs(diff).toFixed(1) + ' lbs below target';
+      diffStr = diff > 0 ? diff.toFixed(1) + ' lbs left to go' : Math.abs(diff).toFixed(1) + ' lbs below target';
       diffColor = diff > 0 ? 'var(--accent)' : 'var(--amber)';
     } else if (goalType === 'maintenance') {
-      diffStr = diff > 0 ? diff.toFixed(1) + ' lbs above target' : Math.abs(diff).toFixed(1) + ' lbs below target';
+      diffStr = diff > 0 ? diff.toFixed(1) + ' lbs left to go' : Math.abs(diff).toFixed(1) + ' lbs below target';
       diffColor = 'var(--blue)';
     } else {
       // Loss: below target = good (accent), above = amber
-      diffStr = diff > 0 ? diff.toFixed(1) + ' lbs above target' : Math.abs(diff).toFixed(1) + ' lbs below target';
+      diffStr = diff > 0 ? diff.toFixed(1) + ' lbs left to go' : Math.abs(diff).toFixed(1) + ' lbs below target';
       diffColor = diff > 0 ? 'var(--amber)' : 'var(--accent)';
+    }
+    var cycleDelta = current - startBw;
+    var cycleTotalStr = '';
+    if (startLogs.length >= 2 || (startLogs.length === 1 && Math.abs(cycleDelta) >= 0.1)) {
+      if (Math.abs(cycleDelta) >= 0.1) {
+        var direction = cycleDelta < 0 ? 'lost' : 'gained';
+        cycleTotalStr = Math.abs(cycleDelta).toFixed(1) + ' lbs ' + direction + ' so far';
+      }
     }
     return '<div style="margin-top:10px;">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
       +   '<span style="font-size:11px;color:var(--text3);">Body weight target: ' + target + ' lbs</span>'
-      +   '<span style="font-size:11px;color:' + diffColor + ';">' + current.toFixed(1) + ' lbs &middot; ' + diffStr + '</span>'
+      +   '<span style="font-size:11px;"><span style="color:var(--amber);">' + current.toFixed(1) + ' lbs' + (cycleTotalStr ? ' · ' + cycleTotalStr : '') + '</span><span style="color:var(--text3);"> · ' + diffStr + '</span></span>'
       + '</div>'
       + '<div class="progress-track"><div class="progress-fill" style="width:' + bwPct + '%;background:var(--blue);"></div></div>'
       + '<div style="display:flex;justify-content:space-between;margin-top:3px;">'
@@ -2041,90 +2063,90 @@ function buildBwProgress(meso) {
 // RENDER: PLAN
 // ════════════════════════════════════════════════
 function renderPlan() {
-  const meso = state.mesocycles.find(m => m.id === state.currentMesoId);
-  const overviewEl = document.getElementById('meso-overview');
+  const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
+  const overviewEl = document.getElementById('macro-overview');
   const contentEl = document.getElementById('plan-content');
 
-  if (!meso) {
+  if (!macro) {
     overviewEl.innerHTML = '';
     contentEl.innerHTML = `<div class="empty-state">
       <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
-      <p>Tap <strong>+ Mesocycle</strong> to start building your 8-week plan.</p>
+      <p>Tap <strong>+ Macrocycle</strong> to start building your 8-week plan.</p>
     </div>`;
     return;
   }
 
-  // Mesocycle switcher if multiple
-  let mesoSwitch = '';
-  if (state.mesocycles.length > 1) {
-    mesoSwitch = '<div class="week-strip">' + state.mesocycles.map(m =>
-      `<button class="week-pill ${m.id === state.currentMesoId ? 'active' : ''}" onclick="selectMeso('${m.id}')">${m.name}</button>`
+  // Macrocycle switcher if multiple
+  let macroSwitch = '';
+  if (state.macrocycles.length > 1) {
+    macroSwitch = '<div class="week-strip">' + state.macrocycles.map(m =>
+      `<button class="week-pill ${m.id === state.currentMacroId ? 'active' : ''}" onclick="selectMacro('${m.id}')">${m.name}</button>`
     ).join('') + '</div>';
   }
 
-  const totalCalendarWeeks = getMesoDurationWeeks(meso);
-  const startDate = meso.start ? new Date(meso.start + 'T00:00:00') : new Date();
-  const endDate = getMesoEndDate(meso);
+  const totalCalendarWeeks = getMacroDurationWeeks(macro);
+  const startDate = macro.start ? new Date(macro.start + 'T00:00:00') : new Date();
+  const endDate = getMacroEndDate(macro);
   const today = new Date();
   today.setHours(0,0,0,0);
   startDate.setHours(0,0,0,0);
   const totalDays = totalCalendarWeeks * 7;
   const elapsedDays = Math.max(0, Math.min(today - startDate, endDate - startDate)) / (1000*60*60*24);
   const pct = Math.min(100, Math.round((elapsedDays / totalDays) * 100));
-  const currentMacro = today < startDate ? 0 : Math.min(meso.weeks, Math.floor(elapsedDays / ((meso.weeksPerMacro || 1) * 7)) + 1);
-  const weekLabel = today < startDate ? 'Not started' : `Macrocycle ${currentMacro} of ${meso.weeks}`;
+  const currentMeso = today < startDate ? 0 : Math.min(macro.weeks, Math.floor(elapsedDays / ((macro.weeksPerMeso || 1) * 7)) + 1);
+  const weekLabel = today < startDate ? 'Not started' : `Mesocycle ${currentMeso} of ${macro.weeks}`;
   const endStr = endDate.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
-  const splitBadge = meso.splitType === 'fullbody' ? 'Full Body' : meso.splitType === 'custom' ? 'Custom' : 'PPL';
-  const microBadge = meso.useMicrocycles === false ? 'no microcycles' : 'microcycles';
+  const splitBadge = macro.splitType === 'fullbody' ? 'Full Body' : macro.splitType === 'custom' ? 'Custom' : 'PPL';
+  const microBadge = macro.useMicrocycles === false ? 'no microcycles' : 'microcycles';
 
   overviewEl.innerHTML = `
-    ${mesoSwitch}
+    ${macroSwitch}
     <div class="card card-accent" style="margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
         <div style="flex:1;min-width:0;">
-          <div style="font-family:var(--font-display);font-size:18px;font-weight:800;">${meso.name}</div>
-          ${meso.goal ? `<div style="font-size:12px;color:var(--text2);margin-top:2px;">${meso.goal}</div>` : ''}
+          <div style="font-family:var(--font-display);font-size:18px;font-weight:800;">${macro.name}</div>
+          ${macro.goal ? `<div style="font-size:12px;color:var(--text2);margin-top:2px;">${macro.goal}</div>` : ''}
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;margin-left:10px;flex-shrink:0;">
           <span class="badge badge-green">${totalCalendarWeeks}wk</span>
           <span class="badge badge-blue">${splitBadge}</span>
           <div style="display:flex;gap:4px;margin-top:2px;">
-            <button class="btn btn-sm" id="btn-edit-meso" style="padding:4px 10px;font-size:11px;">Edit</button>
-            <button class="btn btn-sm" id="btn-copy-meso" style="padding:4px 10px;font-size:11px;">Copy</button>
-            <button class="btn btn-sm btn-danger" id="btn-delete-meso" style="padding:4px 10px;font-size:11px;">Delete</button>
+            <button class="btn btn-sm" id="btn-edit-macro" style="padding:4px 10px;font-size:11px;">Edit</button>
+            <button class="btn btn-sm" id="btn-copy-macro" style="padding:4px 10px;font-size:11px;">Copy</button>
+            <button class="btn btn-sm btn-danger" id="btn-delete-macro" style="padding:4px 10px;font-size:11px;">Delete</button>
           </div>
         </div>
       </div>
-      <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">${getMesoSummaryLabel(meso)} · Ends ${endStr} · ${microBadge}</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">${getMacroSummaryLabel(macro)} · Ends ${endStr} · ${microBadge}</div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
         <span style="font-size:12px;color:var(--text2);">${weekLabel}</span>
         <span style="font-size:12px;color:var(--accent);">${pct}%</span>
       </div>
       <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
-      ${buildBwProgress(meso)}
+      ${buildBwProgress(macro)}
     </div>`;
 
   // Wire delete button after innerHTML is set — avoids all quote/scope issues
-  const delBtn = document.getElementById('btn-delete-meso');
-  if (delBtn) delBtn.onclick = () => deleteMesocycle(meso.id);
-  const editBtn = document.getElementById('btn-edit-meso');
-  if (editBtn) editBtn.onclick = () => openEditMeso(meso.id);
-  const copyBtn = document.getElementById('btn-copy-meso');
-  if (copyBtn) copyBtn.onclick = () => copyMesocycle(meso.id);
+  const delBtn = document.getElementById('btn-delete-macro');
+  if (delBtn) delBtn.onclick = () => deleteMacrocycle(macro.id);
+  const editBtn = document.getElementById('btn-edit-macro');
+  if (editBtn) editBtn.onclick = () => openEditMacro(macro.id);
+  const copyBtn = document.getElementById('btn-copy-macro');
+  if (copyBtn) copyBtn.onclick = () => copyMacrocycle(macro.id);
 
   // Build plan — exercises defined once in Week 1, propagated automatically
   let html = '';
-  const days = meso.days || ['push','pull','legs'];
-  const dayLabels = meso.dayLabels || { push:'Push', pull:'Pull', legs:'Legs' };
-  const useMicro = meso.useMicrocycles !== false;
+  const days = macro.days || ['push','pull','legs'];
+  const dayLabels = macro.dayLabels || { push:'Push', pull:'Pull', legs:'Legs' };
+  const useMicro = macro.useMicrocycles !== false;
 
   // ── Week 1: editable template ──────────────────
   html += `<div style="margin-bottom:24px;">
     <div class="section-title" style="margin-top:0;color:var(--accent);">Set your exercises here</div>
     <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Exercises defined here carry forward to all weeks automatically.</div>
     ${useMicro
-      ? renderMicroBlock(meso, 1, 1, days, dayLabels, true) + renderMicroBlock(meso, 1, 2, days, dayLabels, true)
-      : renderMicroBlock(meso, 1, 0, days, dayLabels, true)
+      ? renderMicroBlock(macro, 1, 1, days, dayLabels, true) + renderMicroBlock(macro, 1, 2, days, dayLabels, true)
+      : renderMicroBlock(macro, 1, 0, days, dayLabels, true)
     }
   </div>`;
 
@@ -2132,19 +2154,19 @@ function renderPlan() {
   // Check if any exercises have been defined at all
   const hasExercises = days.some(day => {
     const micros = useMicro ? ['m1','m2'] : [''];
-    return micros.some(mk => (state.exercises[meso.id + '_1_' + day + mk] || []).length > 0);
+    return micros.some(mk => (state.exercises[macro.id + '_1_' + day + mk] || []).length > 0);
   });
 
-  if (hasExercises && meso.weeks > 1) {
-    html += `<div class="section-title" style="margin-top:0;">Weeks 2–${meso.weeks} — Progression preview</div>
+  if (hasExercises && macro.weeks > 1) {
+    html += `<div class="section-title" style="margin-top:0;">Weeks 2–${macro.weeks} — Progression preview</div>
     <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Sets scale from your starting sets to peak sets. Targets shown use weight progression — you choose per-exercise each session.</div>`;
 
-    for (let w = 2; w <= meso.weeks; w++) {
+    for (let w = 2; w <= macro.weeks; w++) {
       html += `<div style="margin-bottom:16px;">
         <div style="font-family:var(--font-display);font-weight:700;font-size:13px;color:var(--text2);margin-bottom:8px;">Week ${w}</div>
         ${useMicro
-          ? renderMicroBlock(meso, w, 1, days, dayLabels, false) + renderMicroBlock(meso, w, 2, days, dayLabels, false)
-          : renderMicroBlock(meso, w, 0, days, dayLabels, false)
+          ? renderMicroBlock(macro, w, 1, days, dayLabels, false) + renderMicroBlock(macro, w, 2, days, dayLabels, false)
+          : renderMicroBlock(macro, w, 0, days, dayLabels, false)
         }
       </div>`;
     }
@@ -2153,14 +2175,14 @@ function renderPlan() {
   contentEl.innerHTML = html;
 }
 
-function renderMicroBlock(meso, week, micro, days, dayLabels, editable) {
+function renderMicroBlock(macro, week, micro, days, dayLabels, editable) {
   const microKey = micro === 0 ? '' : `m${micro}`;
   const sectionTitle = micro === 0 ? '' : `<div class="section-title" style="font-size:10px;">${editable ? 'Microcycle ' + micro : 'MC' + micro}</div>`;
   let html = `<div style="margin-bottom:${editable ? 12 : 8}px;">${sectionTitle}`;
 
   days.forEach(day => {
     // Always read exercises from Week 1 template
-    const templateKey = meso.id + '_1_' + day + microKey;
+    const templateKey = macro.id + '_1_' + day + microKey;
     const exercises = state.exercises[templateKey] || [];
 
     if (editable) {
@@ -2175,7 +2197,7 @@ function renderMicroBlock(meso, week, micro, days, dayLabels, editable) {
         </div>`;
 
       exercises.forEach((ex, idx) => {
-        const sets = getWeekSets(ex, 1, meso.weeks);
+        const sets = getWeekSets(ex, 1, macro.weeks);
         const typeLabel = ex.type === 'standard' ? 'std' : ex.type === 'myorep' ? 'myorep giant' : 'myomatch';
         html += `<div style="padding:10px 0;border-top:0.5px solid var(--border);display:flex;align-items:flex-start;gap:10px;">
           <button onclick="openEditExercise(1,'${day + microKey}',${idx})"
@@ -2198,8 +2220,8 @@ function renderMicroBlock(meso, week, micro, days, dayLabels, editable) {
       html += `<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:6px;">
         <div style="font-size:11px;font-weight:500;color:var(--text2);margin-bottom:6px;">${dayLabels[day]}</div>`;
       exercises.forEach(ex => {
-        const sets = getWeekSets(ex, week, meso.weeks);
-        const weightTarget = getWeekWeight(ex, week, 'weight', meso.goalType).toFixed(1);
+        const sets = getWeekSets(ex, week, macro.weeks);
+        const weightTarget = getWeekWeight(ex, week, 'weight', macro.goalType).toFixed(1);
         const repsTarget = (ex.type === 'myorep' || ex.type === 'myomatch')
           ? getMyorepProgression(ex, week)
           : ex.reps;
@@ -2216,56 +2238,56 @@ function renderMicroBlock(meso, week, micro, days, dayLabels, editable) {
   return html;
 }
 
-function openEditMeso(id) {
-  const meso = state.mesocycles.find(m => m.id === id);
-  if (!meso) return;
-  document.getElementById('edit-meso-name-input').value = meso.name || '';
-  document.getElementById('edit-meso-weeks-input').value = meso.weeks || 8;
-  document.getElementById('edit-meso-start-input').value = meso.start || '';
-  document.getElementById('edit-meso-goal-input').value = meso.goal || '';
-  document.getElementById('edit-meso-target-bw-input').value = meso.targetBw || '';
-  document.getElementById('edit-meso-goal-type-input').value = meso.goalType || 'loss';
-  document.getElementById('edit-meso-weeks-per-macro-input').value = meso.weeksPerMacro || 1;
-  document.getElementById('edit-meso-sessions-per-week-input').value = meso.sessionsPerWeek || 3;
-  document.getElementById('modal-edit-meso')._editId = id;
-  openModal('modal-edit-meso');
+function openEditMacro(id) {
+  const macro = state.macrocycles.find(m => m.id === id);
+  if (!macro) return;
+  document.getElementById('edit-macro-name-input').value = macro.name || '';
+  document.getElementById('edit-macro-weeks-input').value = macro.weeks || 8;
+  document.getElementById('edit-macro-start-input').value = macro.start || '';
+  document.getElementById('edit-macro-goal-input').value = macro.goal || '';
+  document.getElementById('edit-macro-target-bw-input').value = macro.targetBw || '';
+  document.getElementById('edit-macro-goal-type-input').value = macro.goalType || 'loss';
+  document.getElementById('edit-macro-weeks-per-meso-input').value = macro.weeksPerMeso || 1;
+  document.getElementById('edit-macro-sessions-per-week-input').value = macro.sessionsPerWeek || 3;
+  document.getElementById('modal-edit-macro')._editId = id;
+  openModal('modal-edit-macro');
 }
 
-function saveEditMeso() {
-  const id = document.getElementById('modal-edit-meso')._editId;
-  const meso = state.mesocycles.find(m => m.id === id);
-  if (!meso) return;
-  meso.name = document.getElementById('edit-meso-name-input').value.trim() || meso.name;
-  meso.weeks = parseInt(document.getElementById('edit-meso-weeks-input').value) || meso.weeks;
-  meso.start = document.getElementById('edit-meso-start-input').value || meso.start;
-  meso.goal = document.getElementById('edit-meso-goal-input').value.trim();
-  meso.targetBw = parseFloat(document.getElementById('edit-meso-target-bw-input').value) || null;
-  meso.goalType = document.getElementById('edit-meso-goal-type-input').value;
-  meso.weeksPerMacro = parseInt(document.getElementById('edit-meso-weeks-per-macro-input').value) || 1;
-  meso.sessionsPerWeek = parseInt(document.getElementById('edit-meso-sessions-per-week-input').value) || 3;
+function saveEditMacro() {
+  const id = document.getElementById('modal-edit-macro')._editId;
+  const macro = state.macrocycles.find(m => m.id === id);
+  if (!macro) return;
+  macro.name = document.getElementById('edit-macro-name-input').value.trim() || macro.name;
+  macro.weeks = parseInt(document.getElementById('edit-macro-weeks-input').value) || macro.weeks;
+  macro.start = document.getElementById('edit-macro-start-input').value || macro.start;
+  macro.goal = document.getElementById('edit-macro-goal-input').value.trim();
+  macro.targetBw = parseFloat(document.getElementById('edit-macro-target-bw-input').value) || null;
+  macro.goalType = document.getElementById('edit-macro-goal-type-input').value;
+  macro.weeksPerMeso = parseInt(document.getElementById('edit-macro-weeks-per-meso-input').value) || 1;
+  macro.sessionsPerWeek = parseInt(document.getElementById('edit-macro-sessions-per-week-input').value) || 3;
   save();
-  closeModal('modal-edit-meso');
+  closeModal('modal-edit-macro');
   renderPlan();
 }
 
-function selectMeso(id) {
-  state.currentMesoId = id;
+function selectMacro(id) {
+  state.currentMacroId = id;
   save();
   renderPlan();
 }
 
-function copyMesocycle(id) {
-  const src = state.mesocycles.find(m => m.id === id);
+function copyMacrocycle(id) {
+  const src = state.macrocycles.find(m => m.id === id);
   if (!src) return;
-  const newId = 'meso_' + Date.now();
-  // Deep copy the mesocycle metadata (no logs)
+  const newId = 'macro_' + Date.now();
+  // Deep copy the macrocycle metadata (no logs)
   const copy = JSON.parse(JSON.stringify(src));
   copy.id = newId;
   copy.name = src.name + ' (Copy)';
-  copy.start = getNextMesoStart();
-  state.mesocycles.push(copy);
+  copy.start = getNextMacroStart();
+  state.macrocycles.push(copy);
 
-  // Copy exercises only (no trainLogs) — exercises are keyed mesoId_week_day
+  // Copy exercises only (no trainLogs) — exercises are keyed macroId_week_day
   Object.entries(state.exercises).forEach(([key, val]) => {
     if (key.startsWith(id + '_')) {
       const newKey = newId + key.slice(id.length);
@@ -2273,31 +2295,31 @@ function copyMesocycle(id) {
     }
   });
 
-  state.currentMesoId = newId;
+  state.currentMacroId = newId;
   state.currentWeek = 1;
   state.currentDay = copy.useMicrocycles !== false ? (copy.days[0] + 'm1') : copy.days[0];
   save();
   renderPlan();
 }
 
-function deleteMesocycle(id) {
-  const meso = state.mesocycles.find(m => m.id === id);
-  if (!meso) return;
+function deleteMacrocycle(id) {
+  const macro = state.macrocycles.find(m => m.id === id);
+  if (!macro) return;
   showConfirm(
     'Delete cycle?',
-    `"${meso.name}" and all its exercises and training logs will be permanently removed.`,
+    `"${macro.name}" and all its exercises and training logs will be permanently removed.`,
     'Delete',
     () => {
       showConfirm(
         'Are you really sure?',
-        `This cannot be undone. "${meso.name}" will be gone forever.`,
+        `This cannot be undone. "${macro.name}" will be gone forever.`,
         'Yes, delete it',
         () => {
-          state.mesocycles = state.mesocycles.filter(m => m.id !== id);
+          state.macrocycles = state.macrocycles.filter(m => m.id !== id);
           Object.keys(state.exercises).forEach(k => { if (k.startsWith(id)) delete state.exercises[k]; });
           Object.keys(state.trainLogs).forEach(k => { if (k.startsWith(id)) delete state.trainLogs[k]; });
-          state.currentMesoId = state.mesocycles.length ? state.mesocycles[state.mesocycles.length - 1].id : null;
-          const next = state.mesocycles.find(m => m.id === state.currentMesoId);
+          state.currentMacroId = state.macrocycles.length ? state.macrocycles[state.macrocycles.length - 1].id : null;
+          const next = state.macrocycles.find(m => m.id === state.currentMacroId);
           state.currentWeek = 1;
           state.currentDay = next ? ((next.useMicrocycles !== false) ? (next.days[0] + 'm1') : next.days[0]) : 'push';
           save();
@@ -2312,38 +2334,38 @@ function deleteMesocycle(id) {
 // RENDER: TRAIN
 // ════════════════════════════════════════════════
 function renderTrain() {
-  const meso = state.mesocycles.find(m => m.id === state.currentMesoId);
+  const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
   const stripEl = document.getElementById('week-strip');
   const tabsEl = document.getElementById('day-tabs');
   const subEl = document.getElementById('train-sub');
 
-  if (!meso) {
+  if (!macro) {
     stripEl.innerHTML = '';
     tabsEl.innerHTML = '';
-    document.getElementById('train-content').innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24"><path d="M6 4v16M18 4v16M3 8h4M17 8h4M3 16h4M17 16h4"/></svg><p>Create a mesocycle in the Plan tab first.</p></div>`;
+    document.getElementById('train-content').innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24"><path d="M6 4v16M18 4v16M3 8h4M17 8h4M3 16h4M17 16h4"/></svg><p>Create a macrocycle in the Plan tab first.</p></div>`;
     return;
   }
 
-  // Macrocycle strip — renamed from Week
+  // Mesocycle strip — renamed from Week
   let wHtml = '';
-  for (let w = 1; w <= meso.weeks; w++) {
-    // Check if all sessions in this macrocycle are complete
-    const days = meso.days || ['push','pull','legs'];
-    const useMicro = meso.useMicrocycles !== false;
+  for (let w = 1; w <= macro.weeks; w++) {
+    // Check if all sessions in this mesocycle are complete
+    const days = macro.days || ['push','pull','legs'];
+    const useMicro = macro.useMicrocycles !== false;
     const micros = useMicro ? [1,2] : [0];
     let allSessionsDone = true;
     let hasAnySessions = false;
     micros.forEach(mc => {
       days.forEach(d => {
         const dayKey = mc === 0 ? d : d + 'm' + mc;
-        const templateKey = meso.id + '_1_' + dayKey;
+        const templateKey = macro.id + '_1_' + dayKey;
         const exercises = state.exercises[templateKey] || [];
         if (exercises.length === 0) return;
         hasAnySessions = true;
         exercises.forEach((ex, exIdx) => {
-          const sets = getWeekSets(ex, w, meso.weeks);
+          const sets = getWeekSets(ex, w, macro.weeks);
           for (let s = 0; s < sets; s++) {
-            const lk = meso.id + '_' + w + '_' + dayKey + '_' + exIdx + '_' + s;
+            const lk = macro.id + '_' + w + '_' + dayKey + '_' + exIdx + '_' + s;
             if (!state.trainLogs[lk] || !state.trainLogs[lk].done) allSessionsDone = false;
           }
         });
@@ -2354,10 +2376,10 @@ function renderTrain() {
   }
   stripEl.innerHTML = wHtml;
 
-  // Day tabs — driven by meso split and microcycle setting
-  const days = meso.days || ['push','pull','legs'];
-  const dayLabels = meso.dayLabels || { push:'Push', pull:'Pull', legs:'Legs' };
-  const useMicro = meso.useMicrocycles !== false;
+  // Day tabs — driven by macro split and microcycle setting
+  const days = macro.days || ['push','pull','legs'];
+  const dayLabels = macro.dayLabels || { push:'Push', pull:'Pull', legs:'Legs' };
+  const useMicro = macro.useMicrocycles !== false;
   const micros = useMicro ? [1,2] : [0];
   let tHtml = '';
   micros.forEach(mc => {
@@ -2369,7 +2391,7 @@ function renderTrain() {
   });
   tabsEl.innerHTML = tHtml;
 
-  // Ensure currentDay is valid for this meso
+  // Ensure currentDay is valid for this macro
   const validKeys = micros.flatMap(mc => days.map(d => mc === 0 ? d : d+'m'+mc));
   if (!validKeys.includes(state.currentDay)) {
     state.currentDay = validKeys[0];
@@ -2383,7 +2405,7 @@ function renderTrain() {
   const dayDisplay = dayLabels[dayId] || dayId;
   subEl.textContent = `MC ${state.currentWeek} · ${dayDisplay}${microSuffix}`;
 
-  renderTrainDay(meso);
+  renderTrainDay(macro);
 }
 
 function selectTrainWeek(w) {
@@ -2398,33 +2420,33 @@ function selectTrainDay(d) {
   renderTrain();
 }
 
-function getProgKey(mesoId, week, day, exIdx) {
-  return mesoId + '_prog_' + week + '_' + day + '_' + exIdx;
+function getProgKey(macroId, week, day, exIdx) {
+  return macroId + '_prog_' + week + '_' + day + '_' + exIdx;
 }
 
-function selectProgType(mesoId, week, day, exIdx, progType) {
-  const pk = getProgKey(mesoId, week, day, exIdx);
+function selectProgType(macroId, week, day, exIdx, progType) {
+  const pk = getProgKey(macroId, week, day, exIdx);
   if (!state.trainLogs[pk]) state.trainLogs[pk] = {};
   state.trainLogs[pk].progType = progType;
   save();
-  const meso = state.mesocycles.find(m => m.id === mesoId);
-  if (meso) renderTrainDay(meso);
+  const macro = state.macrocycles.find(m => m.id === macroId);
+  if (macro) renderTrainDay(macro);
 }
 
-// Tracks which exercise cards are expanded: key = mesoId_week_day_exIdx
+// Tracks which exercise cards are expanded: key = macroId_week_day_exIdx
 const expandedExercises = {};
 
 function toggleExercise(expandKey) {
   expandedExercises[expandKey] = !expandedExercises[expandKey];
-  const meso = state.mesocycles.find(m => m.id === state.currentMesoId);
-  if (meso) renderTrainDay(meso);
+  const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
+  if (macro) renderTrainDay(macro);
 }
 
-function renderTrainDay(meso) {
+function renderTrainDay(macro) {
   // Exercises are always defined in Week 1 — used as the template for all weeks
-  const templateKey = meso.id + '_1_' + state.currentDay;
+  const templateKey = macro.id + '_1_' + state.currentDay;
   const exercises = state.exercises[templateKey] || [];
-  const key = meso.id + '_' + state.currentWeek + '_' + state.currentDay;
+  const key = macro.id + '_' + state.currentWeek + '_' + state.currentDay;
   const el = document.getElementById('train-content');
 
   if (exercises.length === 0) {
@@ -2433,22 +2455,22 @@ function renderTrainDay(meso) {
   }
 
   const prevWeek = state.currentWeek - 1;
-  const prevKey = meso.id + '_' + prevWeek + '_' + state.currentDay;
+  const prevKey = macro.id + '_' + prevWeek + '_' + state.currentDay;
 
   let html = '';
   exercises.forEach((ex, exIdx) => {
-    const expandKey = meso.id + '_' + state.currentWeek + '_' + state.currentDay + '_' + exIdx;
+    const expandKey = macro.id + '_' + state.currentWeek + '_' + state.currentDay + '_' + exIdx;
     const isExpanded = !!expandedExercises[expandKey];
-    const sets = getWeekSets(ex, state.currentWeek, meso.weeks);
-    const pk = getProgKey(meso.id, state.currentWeek, state.currentDay, exIdx);
+    const sets = getWeekSets(ex, state.currentWeek, macro.weeks);
+    const pk = getProgKey(macro.id, state.currentWeek, state.currentDay, exIdx);
     const progLog = state.trainLogs[pk] || {};
     const progType = progLog.progType || 'weight';
-    const prevPk = getProgKey(meso.id, prevWeek, state.currentDay, exIdx);
+    const prevPk = getProgKey(macro.id, prevWeek, state.currentDay, exIdx);
     const prevProgLog = state.trainLogs[prevPk] || {};
     const prevProgType = prevProgLog.progType || null;
     const isMyorep = ex.type === 'myorep' || ex.type === 'myomatch';
     const isMyomatch = ex.type === 'myomatch';
-    const isGain = meso.goalType === 'gain';
+    const isGain = macro.goalType === 'gain';
     const weightJump = ex.isHeavyLeg ? (isGain ? 10 : 2.5) : (isGain ? 5 : 1.5);
     const myoAdd = ex.type === 'myorep' ? 10 : 0;
     const typeLabel = ex.type === 'standard' ? 'std' : ex.type === 'myorep' ? 'myorep giant' : 'myomatch';
@@ -2457,7 +2479,7 @@ function renderTrainDay(meso) {
     // prevKey is built from the same day — logs are stored per-week per-day per-set
     let prevLoggedSets = [];
     if (prevWeek >= 1) {
-      const prevSetsCount = getWeekSets(ex, prevWeek, meso.weeks);
+      const prevSetsCount = getWeekSets(ex, prevWeek, macro.weeks);
       for (let s = 0; s < prevSetsCount; s++) {
         const lk = prevKey + '_' + exIdx + '_' + s;
         const lg = state.trainLogs[lk];
@@ -2471,7 +2493,7 @@ function renderTrainDay(meso) {
     // ── Recommended weight: last week's actual + jump (fallback to formula) ───
     const recommendedWeight = prevActualWeight !== null
       ? prevActualWeight + weightJump
-      : getWeekWeight(ex, state.currentWeek, 'weight', meso.goalType);
+      : getWeekWeight(ex, state.currentWeek, 'weight', macro.goalType);
 
     // ── Recommended reps: last week's actual + 1 (fallback to formula) ────────
     const recommendedReps = (() => {
@@ -2570,7 +2592,7 @@ function renderTrainDay(meso) {
       const myoAdd = ex.type === 'myorep' ? 10 : 15;
       let weightRec = '', repsRec = '';
       if (state.currentWeek > 1) {
-        const prevWLabel = prevActualWeight !== null ? prevActualWeight.toFixed(1) : getWeekWeight(ex, prevWeek, 'weight', meso.goalType).toFixed(1);
+        const prevWLabel = prevActualWeight !== null ? prevActualWeight.toFixed(1) : getWeekWeight(ex, prevWeek, 'weight', macro.goalType).toFixed(1);
         weightRec = `${prevWLabel} kg → ${recommendedWeight.toFixed(1)} kg (+${weightJump} kg)`;
         if (ex.type === 'myorep') {
           repsRec = `${getMyorepProgression(ex, prevWeek)} → ${getMyorepProgression(ex, state.currentWeek)} (+10 reps)`;
@@ -2584,12 +2606,12 @@ function renderTrainDay(meso) {
       const progSelector = state.currentWeek === 1 ? '' : `<div style="margin-bottom:12px;">
         <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">This week — choose progression</div>
         <div style="display:flex;gap:8px;">
-          <button onclick="selectProgType('${meso.id}',${state.currentWeek},'${state.currentDay}',${exIdx},'weight')"
+          <button onclick="selectProgType('${macro.id}',${state.currentWeek},'${state.currentDay}',${exIdx},'weight')"
             style="flex:1;padding:8px 10px;border-radius:var(--r-sm);border:1px solid ${progType==='weight'?'var(--accent)':'var(--border2)'};background:${progType==='weight'?'rgba(200,240,96,0.1)':'var(--surface2)'};color:${progType==='weight'?'var(--accent)':'var(--text2)'};font-family:var(--font-mono);font-size:12px;cursor:pointer;text-align:left;line-height:1.5;">
             <div style="font-weight:500;">↑ Weight</div>
             <div style="font-size:11px;opacity:0.85;">${weightRec}</div>
           </button>
-          ${isMyomatch ? '' : `<button onclick="selectProgType('${meso.id}',${state.currentWeek},'${state.currentDay}',${exIdx},'reps')"
+          ${isMyomatch ? '' : `<button onclick="selectProgType('${macro.id}',${state.currentWeek},'${state.currentDay}',${exIdx},'reps')"
             style="flex:1;padding:8px 10px;border-radius:var(--r-sm);border:1px solid ${progType==='reps'?'var(--accent)':'var(--border2)'};background:${progType==='reps'?'rgba(200,240,96,0.1)':'var(--surface2)'};color:${progType==='reps'?'var(--accent)':'var(--text2)'};font-family:var(--font-mono);font-size:12px;cursor:pointer;text-align:left;line-height:1.5;">
             <div style="font-weight:500;">↑ Reps</div>
             <div style="font-size:11px;opacity:0.85;">${repsRec}</div>
@@ -2629,11 +2651,11 @@ function renderTrainDay(meso) {
       let setRows = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
         <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;">Log sets</div>
         <div style="display:flex;gap:6px;">
-          <button onclick="fillSuggested('${meso.id}',${state.currentWeek},'${state.currentDay}',${exIdx},${sets},'${weightPlaceholder}','${repsPlaceholder}')"
+          <button onclick="fillSuggested('${macro.id}',${state.currentWeek},'${state.currentDay}',${exIdx},${sets},'${weightPlaceholder}','${repsPlaceholder}')"
             style="font-size:11px;padding:5px 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;color:var(--text2);font-family:var(--font-mono);cursor:pointer;">
             ↓ Fill suggested
           </button>
-          <button onclick="clearExerciseLogs('${meso.id}',${state.currentWeek},'${state.currentDay}',${exIdx},${sets})"
+          <button onclick="clearExerciseLogs('${macro.id}',${state.currentWeek},'${state.currentDay}',${exIdx},${sets})"
             style="font-size:11px;padding:5px 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;color:var(--red);font-family:var(--font-mono);cursor:pointer;">
             Clear
           </button>
@@ -2680,8 +2702,8 @@ function logSet(key, field, value) {
   save();
 }
 
-function fillSuggested(mesoId, week, day, exIdx, sets, weight, reps) {
-  const baseKey = mesoId + '_' + week + '_' + day;
+function fillSuggested(macroId, week, day, exIdx, sets, weight, reps) {
+  const baseKey = macroId + '_' + week + '_' + day;
   for (let s = 0; s < sets; s++) {
     const logKey = baseKey + '_' + exIdx + '_' + s;
     if (!state.trainLogs[logKey]) state.trainLogs[logKey] = {};
@@ -2693,22 +2715,22 @@ function fillSuggested(mesoId, week, day, exIdx, sets, weight, reps) {
     if (rEl) rEl.value = reps;
   }
   save();
-  const meso = state.mesocycles.find(m => m.id === mesoId);
-  if (meso) renderTrainDay(meso);
+  const macro = state.macrocycles.find(m => m.id === macroId);
+  if (macro) renderTrainDay(macro);
 }
 
-function clearExerciseLogs(mesoId, week, day, exIdx, sets) {
-  const baseKey = mesoId + '_' + week + '_' + day;
+function clearExerciseLogs(macroId, week, day, exIdx, sets) {
+  const baseKey = macroId + '_' + week + '_' + day;
   for (let s = 0; s < sets; s++) {
     const logKey = baseKey + '_' + exIdx + '_' + s;
     delete state.trainLogs[logKey];
   }
   // Also clear prog key
-  const pk = mesoId + '_prog_' + week + '_' + day + '_' + exIdx;
+  const pk = macroId + '_prog_' + week + '_' + day + '_' + exIdx;
   delete state.trainLogs[pk];
   save();
-  const meso = state.mesocycles.find(m => m.id === mesoId);
-  if (meso) renderTrainDay(meso);
+  const macro = state.macrocycles.find(m => m.id === macroId);
+  if (macro) renderTrainDay(macro);
 }
 
 function toggleSetDone(key) {
@@ -2733,8 +2755,8 @@ function toggleSetDone(key) {
   if (!state.trainLogs[key]) state.trainLogs[key] = {};
   state.trainLogs[key].done = !state.trainLogs[key].done;
   save();
-  const meso = state.mesocycles.find(m => m.id === state.currentMesoId);
-  if (meso) renderTrainDay(meso);
+  const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
+  if (macro) renderTrainDay(macro);
 }
 
 // ════════════════════════════════════════════════
@@ -2833,7 +2855,7 @@ function switchNutrTab(tab) {
 // ════════════════════════════════════════════════
 
 let nutrSelectedDate = null; // set on first render using local date
-let nutrMacroView = 0;
+let nutrMesoView = 0;
 let nutrActiveMeal = null;
 let nutrPendingProduct = null;
 
@@ -2856,7 +2878,7 @@ function renderNutrDaily() {
 
   renderNutrBadges();
   renderNutrKcal();
-  renderNutrMacroPanel();
+  renderNutrMesoPanel();
   renderNutrDiary();
 }
 
@@ -2978,14 +3000,14 @@ function renderNutrKcal() {
     + (kcalGoal ? '<div class="progress-track"><div class="progress-fill" style="width:'+pct+'%"></div></div>' : '');
 }
 
-function renderNutrMacroPanel() {
-  const el = document.getElementById('nutr-macro-card');
+function renderNutrMesoPanel() {
+  const el = document.getElementById('nutr-meso-card');
   if (!el) return;
   const goal = getActiveGoal();
   const totals = getDayTotals(nutrSelectedDate);
-  const v = nutrMacroView;
+  const v = nutrMesoView;
 
-  const macros = [
+  const mesos = [
     {key:'p',label:'Protein',logged:totals.p,target:goal?goal.protein:0,color:'var(--blue)',bg:'rgba(96,168,240,0.12)',kcalPer:4},
     {key:'c',label:'Carbs',logged:totals.c,target:goal?goal.carbs:0,color:'var(--amber)',bg:'rgba(245,166,35,0.12)',kcalPer:4},
     {key:'f',label:'Fats',logged:totals.f,target:goal?goal.fats:0,color:'var(--red)',bg:'rgba(255,95,78,0.12)',kcalPer:9},
@@ -2994,7 +3016,7 @@ function renderNutrMacroPanel() {
   const totalGoalKcal = goal ? (goal.protein*4 + goal.carbs*4 + goal.fats*9) : 0;
   const totalLogKcal = totals.p*4 + totals.c*4 + totals.f*9 || 1;
 
-  let rows = macros.map(m => {
+  let rows = mesos.map(m => {
     const isOver = m.target > 0 && m.logged > m.target;
     const overAmt = m.logged - m.target;
     const barPct = m.target > 0 ? Math.min(100, Math.round(m.logged/m.target*100)) : 0;
@@ -3032,16 +3054,16 @@ function renderNutrMacroPanel() {
   }).join('');
 
   el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">'
-    + '<span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">Macros</span>'
+    + '<span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">Mesos</span>'
     + '<div style="display:flex;background:var(--surface2);border-radius:6px;padding:2px;gap:1px;">'
-    + ['g','±','%'].map((lbl,i) => '<button onclick="setNutrMacroView(' + i + ')" style="padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:' + (nutrMacroView===i?'var(--surface)':'transparent') + ';color:' + (nutrMacroView===i?'var(--text)':'var(--text3)') + ';font-family:var(--font-mono);">' + lbl + '</button>').join('')
+    + ['g','±','%'].map((lbl,i) => '<button onclick="setNutrMesoView(' + i + ')" style="padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:' + (nutrMesoView===i?'var(--surface)':'transparent') + ';color:' + (nutrMesoView===i?'var(--text)':'var(--text3)') + ';font-family:var(--font-mono);">' + lbl + '</button>').join('')
     + '</div></div>'
     + rows;
 }
 
-function setNutrMacroView(v) {
-  nutrMacroView = v;
-  renderNutrMacroPanel();
+function setNutrMesoView(v) {
+  nutrMesoView = v;
+  renderNutrMesoPanel();
 }
 
 function renderNutrDiary() {
@@ -3701,11 +3723,11 @@ function renderSettings() {
   const raw = localStorage.getItem('bloc_state') || '';
   const kb = (new Blob([raw]).size / 1024).toFixed(1);
   const el = document.getElementById('storage-info');
-  const mesos = state.mesocycles.length;
+  const macros = state.macrocycles.length;
   const logs = Object.keys(state.trainLogs).length;
   const bodyLogs = state.bodyLogs.length;
   const nutrLogs = state.nutritionLogs.length;
-  el.innerHTML = `${mesos} mesocycle${mesos!==1?'s':''} &nbsp;·&nbsp; ${logs} set logs<br>${bodyLogs} body entries &nbsp;·&nbsp; ${nutrLogs} nutrition entries<br><span style="color:var(--text3);">~${kb} KB stored in Safari localStorage</span>`;
+  el.innerHTML = `${macros} macrocycle${macros!==1?'s':''} &nbsp;·&nbsp; ${logs} set logs<br>${bodyLogs} body entries &nbsp;·&nbsp; ${nutrLogs} nutrition entries<br><span style="color:var(--text3);">~${kb} KB stored in Safari localStorage</span>`;
 }
 
 function exportData() {
@@ -3731,7 +3753,7 @@ function importData(event) {
     try {
       const parsed = JSON.parse(e.target.result);
       // Validate it looks like a BLOC backup
-      if (!parsed.mesocycles || !parsed.exercises || !parsed.trainLogs) {
+      if (!parsed.macrocycles || !parsed.exercises || !parsed.trainLogs) {
         statusEl.style.color = 'var(--red)';
         statusEl.textContent = '✕ Invalid backup file — does not look like a BLOC export.';
         return;
@@ -3754,7 +3776,7 @@ function importData(event) {
 function clearAllData() {
   showConfirm(
     'Clear all data?',
-    'This will permanently delete every mesocycle, exercise, log, and nutrition entry. Export a backup first if needed.',
+    'This will permanently delete every macrocycle, exercise, log, and nutrition entry. Export a backup first if needed.',
     'Clear everything',
     () => {
       showConfirm(
@@ -3763,10 +3785,10 @@ function clearAllData() {
         'Yes, clear it all',
         () => {
           state = {
-            mesocycles: [], exercises: {}, trainLogs: {},
+            macrocycles: [], exercises: {}, trainLogs: {},
             bodyLogs: [], nutritionLogs: [],
             goals: [], customLibrary: [], nutritionMeals: {}, nutritionQuickLog: {}, foodLibrary: [],
-            currentMesoId: null, currentWeek: 1,
+            currentMacroId: null, currentWeek: 1,
             currentDay: 'push', currentEditContext: null,
           };
           save();
@@ -3911,28 +3933,28 @@ function importExerciseLibrary(file) {
 function renderGoals() {
   if (!state.goals) state.goals = [];
   const el = document.getElementById('goals-content');
-  const mesos = state.mesocycles;
+  const macros = state.macrocycles;
 
-  // Populate meso select in modal
-  const sel = document.getElementById('goal-meso-select');
+  // Populate macro select in modal
+  const sel = document.getElementById('goal-macro-select');
   if (sel) {
-    sel.innerHTML = mesos.map(m => '<option value="' + m.id + '">' + m.name + '</option>').join('') ||
-      '<option value="">No mesocycles yet</option>';
+    sel.innerHTML = macros.map(m => '<option value="' + m.id + '">' + m.name + '</option>').join('') ||
+      '<option value="">No macrocycles yet</option>';
   }
 
   if (!state.goals.length) {
-    el.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" style="fill:currentColor"/></svg><p>No goal periods yet. Tap + Goal to set daily targets for a mesocycle.</p></div>';
+    el.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" style="fill:currentColor"/></svg><p>No goal periods yet. Tap + Goal to set daily targets for a macrocycle.</p></div>';
     return;
   }
 
   const today = new Date().toISOString().split('T')[0];
   let html = '';
   state.goals.slice().sort((a,b)=>b.startDate.localeCompare(a.startDate)).forEach((g, i) => {
-    const meso = mesos.find(m => m.id === g.mesoId);
+    const macro = macros.find(m => m.id === g.macroId);
     const isActive = g.startDate <= today && g.endDate >= today;
     html += '<div class="card' + (isActive ? ' card-accent' : '') + '" style="margin-bottom:10px;">';
     html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">';
-    html += '<div><div style="font-family:var(--font-display);font-weight:700;font-size:15px;">' + (meso ? meso.name : 'Unknown cycle') + '</div>';
+    html += '<div><div style="font-family:var(--font-display);font-weight:700;font-size:15px;">' + (macro ? macro.name : 'Unknown cycle') + '</div>';
     html += '<div style="font-size:11px;color:var(--text3);margin-top:2px;">' + formatDate(g.startDate) + ' – ' + formatDate(g.endDate) + '</div></div>';
     if (isActive) html += '<span class="badge badge-green">Active</span>';
     html += '</div>';
@@ -3961,8 +3983,8 @@ function openEditGoal(idx) {
   const g = state.goals[idx];
   if (!g) return;
   document.getElementById('goal-modal-title').textContent = 'Edit Goal Period';
-  const sel = document.getElementById('goal-meso-select');
-  sel.innerHTML = state.mesocycles.map(m => '<option value="' + m.id + '"' + (m.id === g.mesoId ? ' selected' : '') + '>' + m.name + '</option>').join('');
+  const sel = document.getElementById('goal-macro-select');
+  sel.innerHTML = state.macrocycles.map(m => '<option value="' + m.id + '"' + (m.id === g.macroId ? ' selected' : '') + '>' + m.name + '</option>').join('');
   document.getElementById('goal-start-input').value = g.startDate;
   document.getElementById('goal-end-input').value = g.endDate;
   document.getElementById('goal-kcal-input').value = g.kcal || '';
@@ -3984,7 +4006,7 @@ function saveGoal() {
   const modal = document.getElementById('modal-add-goal');
   const editIdx = modal._editIdx !== undefined ? modal._editIdx : -1;
   const g = {
-    mesoId: document.getElementById('goal-meso-select').value,
+    macroId: document.getElementById('goal-macro-select').value,
     startDate: document.getElementById('goal-start-input').value,
     endDate: document.getElementById('goal-end-input').value,
     kcal: parseInt(document.getElementById('goal-kcal-input').value) || 0,
@@ -4104,7 +4126,7 @@ function buildGoalsHomeSection(goal) {
 
   // Weekly avg comparison
   if (daysElapsed > 0 && (goal.kcal || goal.steps)) {
-    // Compute weekly macro avgs
+    // Compute weekly meso avgs
     const weekNutrLogs = [];
     for (let i = 0; i < daysElapsed; i++) {
       const d = new Date(); d.setDate(d.getDate() - (daysElapsed - 1 - i));
