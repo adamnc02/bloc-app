@@ -485,6 +485,11 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
           <div class="page-title">Train</div>
           <div class="page-sub" id="train-sub">Select week &amp; day</div>
         </div>
+        <button id="timer-open-btn" onclick="openTimerModal()" style="background:none;border:none;cursor:pointer;color:var(--text2);display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;transition:color 0.15s,background 0.15s;" aria-label="Rest timer">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9.5 2.5h5"/><path d="M12 2.5V5"/>
+          </svg>
+        </button>
       </div>
 
       <div class="week-strip" id="week-strip"></div>
@@ -4222,6 +4227,54 @@ function buildGoalsHomeSection(goal) {
 // Init
 showScreen('home');
 </script>
+<!-- ── Rest Timer Modal ───────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-timer">
+  <div class="modal-sheet" style="max-height:70dvh;">
+    <div class="modal-handle-row">
+      <div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeTimerModal()">✕</button>
+    </div>
+    <div class="toggle-row" style="margin-bottom:20px;">
+      <button class="toggle-btn active" id="timer-tog-countdown" onclick="setTimerMode('countdown')">Countdown</button>
+      <button class="toggle-btn" id="timer-tog-stopwatch" onclick="setTimerMode('stopwatch')">Stopwatch</button>
+    </div>
+    <div id="timer-panel-countdown">
+      <div id="timer-picker" style="display:flex;justify-content:center;align-items:center;gap:0;margin-bottom:24px;user-select:none;">
+        <div style="text-align:center;">
+          <div style="font-size:11px;color:var(--text3);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;">Min</div>
+          <div style="position:relative;height:120px;overflow:hidden;width:80px;" id="picker-min-wrap">
+            <div id="picker-min" style="display:flex;flex-direction:column;align-items:center;cursor:ns-resize;touch-action:none;"></div>
+          </div>
+        </div>
+        <div style="font-size:32px;font-weight:700;color:var(--text3);padding:0 4px;margin-top:14px;">:</div>
+        <div style="text-align:center;">
+          <div style="font-size:11px;color:var(--text3);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;">Sec</div>
+          <div style="position:relative;height:120px;overflow:hidden;width:80px;" id="picker-sec-wrap">
+            <div id="picker-sec" style="display:flex;flex-direction:column;align-items:center;cursor:ns-resize;touch-action:none;"></div>
+          </div>
+        </div>
+      </div>
+      <div id="timer-display" style="display:none;text-align:center;margin-bottom:24px;">
+        <div id="timer-digits" style="font-family:var(--font-display);font-size:64px;font-weight:800;letter-spacing:-0.02em;color:var(--text);line-height:1;"></div>
+        <div id="timer-status" style="font-size:12px;color:var(--text3);margin-top:8px;letter-spacing:0.08em;text-transform:uppercase;"></div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button id="cd-start-btn" class="btn btn-accent btn-block" onclick="countdownStart()">Start</button>
+        <button id="cd-reset-btn" class="btn btn-block" onclick="countdownReset()" style="display:none;">Reset</button>
+      </div>
+    </div>
+    <div id="timer-panel-stopwatch" style="display:none;">
+      <div style="text-align:center;margin-bottom:24px;">
+        <div id="sw-digits" style="font-family:var(--font-display);font-size:64px;font-weight:800;letter-spacing:-0.02em;color:var(--text);line-height:1;">0:00.0</div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button id="sw-start-btn" class="btn btn-accent btn-block" onclick="swToggle()">Start</button>
+        <button id="sw-reset-btn" class="btn btn-block" onclick="swReset()">Reset</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Custom Confirm Modal -->
 <div class="modal-overlay" id="modal-confirm" style="align-items:center;justify-content:center;">
   <div style="background:var(--surface);border-radius:var(--r);border:0.5px solid var(--border2);padding:24px 20px;width:calc(100% - 48px);max-width:340px;text-align:center;">
@@ -4254,4 +4307,255 @@ document.getElementById('confirm-cancel-btn').onclick = function() {
   document.getElementById('modal-confirm').classList.remove('open');
   _confirmCallback = null;
 };
+</script>
+<script>
+// ── Rest Timer ────────────────────────────────────────────────────────────────
+let timerMode = 'countdown';
+let cdPickerMin = 1;
+let cdPickerSec = 0;
+let cdInterval = null;
+let cdRemaining = 0;
+let cdRunning = false;
+let swInterval = null;
+let swRunning = false;
+let swElapsed = 0;
+
+function playBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const beepSeq = [
+      { freq: 880,  start: 0,    dur: 0.12 },
+      { freq: 880,  start: 0.18, dur: 0.12 },
+      { freq: 1100, start: 0.36, dur: 0.22 },
+    ];
+    beepSeq.forEach(({ freq, start, dur }) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, ctx.currentTime + start);
+      gain.gain.linearRampToValueAtTime(0.35, ctx.currentTime + start + 0.01);
+      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + start + dur);
+      osc.start(ctx.currentTime + start);
+      osc.stop(ctx.currentTime + start + dur + 0.05);
+    });
+    setTimeout(() => ctx.close(), 1200);
+  } catch(e) {}
+}
+
+const ITEM_H = 40;
+
+function buildPicker(elId, count, zeroPad, initial, onPick) {
+  const wrap = document.getElementById(elId);
+  wrap.innerHTML = '';
+  wrap.insertAdjacentHTML('afterbegin',
+    `<div style="pointer-events:none;position:absolute;inset:0;z-index:2;
+      background:linear-gradient(to bottom,var(--surface) 0%,transparent 35%,transparent 65%,var(--surface) 100%);"></div>
+     <div style="pointer-events:none;position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);height:${ITEM_H}px;
+      border-top:1px solid var(--border2);border-bottom:1px solid var(--border2);z-index:1;"></div>`);
+  const col = document.createElement('div');
+  col.style.cssText = 'display:flex;flex-direction:column;align-items:center;will-change:transform;';
+  col.dataset.value = initial;
+  for (let i = 0; i < count; i++) {
+    const item = document.createElement('div');
+    item.style.cssText = `height:${ITEM_H}px;line-height:${ITEM_H}px;font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--text);width:80px;text-align:center;flex-shrink:0;`;
+    item.textContent = zeroPad ? String(i).padStart(2, '0') : i;
+    col.appendChild(item);
+  }
+  wrap.appendChild(col);
+  const setPos = (val) => {
+    const y = -(val * ITEM_H) + (120 / 2 - ITEM_H / 2);
+    col.style.transition = 'none';
+    col.style.transform = `translateY(${y}px)`;
+    col.dataset.value = val;
+  };
+  setPos(initial);
+  let startY = 0, startVal = initial, dragging = false;
+  const onStart = (clientY) => { dragging = true; startY = clientY; startVal = parseInt(col.dataset.value); col.style.transition = 'none'; };
+  const onMove = (clientY) => {
+    if (!dragging) return;
+    const delta = startY - clientY;
+    const newVal = Math.max(0, Math.min(count - 1, startVal + Math.round(delta / ITEM_H)));
+    col.style.transform = `translateY(${-(newVal * ITEM_H) + (120 / 2 - ITEM_H / 2)}px)`;
+    col.dataset.value = newVal;
+    onPick(newVal);
+  };
+  const onEnd = () => {
+    if (!dragging) return;
+    dragging = false;
+    const val = parseInt(col.dataset.value);
+    col.style.transition = 'transform 0.15s ease';
+    col.style.transform = `translateY(${-(val * ITEM_H) + (120 / 2 - ITEM_H / 2)}px)`;
+    onPick(val);
+  };
+  col.addEventListener('touchstart', e => { e.preventDefault(); onStart(e.touches[0].clientY); }, { passive: false });
+  col.addEventListener('touchmove',  e => { e.preventDefault(); onMove(e.touches[0].clientY); },  { passive: false });
+  col.addEventListener('touchend',   e => { onEnd(); }, { passive: true });
+  col.addEventListener('mousedown',  e => { onStart(e.clientY); });
+  window.addEventListener('mousemove', e => { if (dragging) onMove(e.clientY); });
+  window.addEventListener('mouseup',   e => { if (dragging) onEnd(); });
+  return { setPos };
+}
+
+let pickerMinCtrl, pickerSecCtrl;
+
+function initPickers() {
+  pickerMinCtrl = buildPicker('picker-min', 60, false, cdPickerMin, (v) => { cdPickerMin = v; });
+  pickerSecCtrl = buildPicker('picker-sec', 60, true,  cdPickerSec, (v) => { cdPickerSec = v; });
+}
+
+function openTimerModal() {
+  document.getElementById('modal-timer').classList.add('open');
+  if (!pickerMinCtrl) initPickers();
+}
+
+function closeTimerModal() {
+  document.getElementById('modal-timer').classList.remove('open');
+  countdownReset();
+  swReset();
+  updateTimerIcon();
+}
+
+function updateTimerIcon() {
+  const btn = document.getElementById('timer-open-btn');
+  if (!btn) return;
+  btn.style.color = (cdRunning || swRunning) ? 'var(--accent)' : 'var(--text2)';
+}
+
+function setTimerMode(mode) {
+  timerMode = mode;
+  document.getElementById('timer-tog-countdown').classList.toggle('active', mode === 'countdown');
+  document.getElementById('timer-tog-stopwatch').classList.toggle('active', mode === 'stopwatch');
+  document.getElementById('timer-panel-countdown').style.display = mode === 'countdown' ? '' : 'none';
+  document.getElementById('timer-panel-stopwatch').style.display = mode === 'stopwatch' ? '' : 'none';
+}
+
+function cdFormat(ms) {
+  const totalSec = Math.ceil(ms / 1000);
+  return Math.floor(totalSec / 60) + ':' + String(totalSec % 60).padStart(2, '0');
+}
+
+function countdownStart() {
+  if (cdRunning) {
+    clearInterval(cdInterval);
+    cdRunning = false;
+    document.getElementById('cd-start-btn').textContent = 'Resume';
+    document.getElementById('cd-start-btn').className = 'btn btn-block';
+    updateTimerIcon();
+    return;
+  }
+  if (cdRemaining === 0) {
+    cdRemaining = (cdPickerMin * 60 + cdPickerSec) * 1000;
+    if (cdRemaining === 0) return;
+    document.getElementById('timer-picker').style.display = 'none';
+    document.getElementById('timer-display').style.display = 'block';
+    document.getElementById('cd-reset-btn').style.display = '';
+  }
+  cdRunning = true;
+  document.getElementById('cd-start-btn').textContent = 'Pause';
+  document.getElementById('cd-start-btn').className = 'btn btn-accent btn-block';
+  document.getElementById('timer-status').textContent = 'Rest timer running';
+  updateTimerIcon();
+  const tick = () => {
+    document.getElementById('timer-digits').textContent = cdFormat(cdRemaining);
+    if (cdRemaining <= 0) {
+      clearInterval(cdInterval);
+      cdRunning = false;
+      cdRemaining = 0;
+      document.getElementById('timer-digits').textContent = '0:00';
+      document.getElementById('timer-digits').style.color = 'var(--accent)';
+      document.getElementById('timer-status').textContent = "Time's up!";
+      document.getElementById('cd-start-btn').textContent = 'Start';
+      document.getElementById('cd-start-btn').className = 'btn btn-accent btn-block';
+      playBeep();
+      updateTimerIcon();
+      return;
+    }
+    cdRemaining -= 100;
+    document.getElementById('timer-digits').style.color = cdRemaining <= 10000 ? 'var(--amber)' : 'var(--text)';
+  };
+  tick();
+  cdInterval = setInterval(tick, 100);
+}
+
+function countdownReset() {
+  clearInterval(cdInterval);
+  cdRunning = false;
+  cdRemaining = 0;
+  const picker = document.getElementById('timer-picker');
+  const display = document.getElementById('timer-display');
+  if (picker) picker.style.display = 'flex';
+  if (display) display.style.display = 'none';
+  const startBtn = document.getElementById('cd-start-btn');
+  const resetBtn = document.getElementById('cd-reset-btn');
+  if (startBtn) { startBtn.textContent = 'Start'; startBtn.className = 'btn btn-accent btn-block'; }
+  if (resetBtn) resetBtn.style.display = 'none';
+  const digits = document.getElementById('timer-digits');
+  if (digits) digits.style.color = 'var(--text)';
+  updateTimerIcon();
+}
+
+function swFormat(ms) {
+  const totalTenths = Math.floor(ms / 100);
+  const tenths = totalTenths % 10;
+  const totalSec = Math.floor(totalTenths / 10);
+  return Math.floor(totalSec / 60) + ':' + String(totalSec % 60).padStart(2, '0') + '.' + tenths;
+}
+
+let swLastTick = 0;
+
+function swToggle() {
+  if (swRunning) {
+    swRunning = false;
+    clearInterval(swInterval);
+    document.getElementById('sw-start-btn').textContent = 'Resume';
+    document.getElementById('sw-start-btn').className = 'btn btn-block';
+    updateTimerIcon();
+  } else {
+    swRunning = true;
+    swLastTick = Date.now() - swElapsed;
+    swInterval = setInterval(() => {
+      swElapsed = Date.now() - swLastTick;
+      document.getElementById('sw-digits').textContent = swFormat(swElapsed);
+    }, 100);
+    document.getElementById('sw-start-btn').textContent = 'Pause';
+    document.getElementById('sw-start-btn').className = 'btn btn-accent btn-block';
+    updateTimerIcon();
+  }
+}
+
+function swReset() {
+  swRunning = false;
+  clearInterval(swInterval);
+  swElapsed = 0;
+  const el = document.getElementById('sw-digits');
+  if (el) el.textContent = '0:00.0';
+  const btn = document.getElementById('sw-start-btn');
+  if (btn) { btn.textContent = 'Start'; btn.className = 'btn btn-accent btn-block'; }
+  updateTimerIcon();
+}
+
+(function() {
+  const overlay = document.getElementById('modal-timer');
+  const sheet = overlay.querySelector('.modal-sheet');
+  overlay.addEventListener('pointerdown', function(e) {
+    if (e.target === overlay) closeTimerModal();
+  });
+  const handleRow = sheet.querySelector('.modal-handle-row');
+  let startY = 0, dragging = false;
+  handleRow.addEventListener('touchstart', e => { startY = e.touches[0].clientY; dragging = true; }, { passive: true });
+  handleRow.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    const delta = e.touches[0].clientY - startY;
+    if (delta > 0) { e.preventDefault(); sheet.style.transform = `translateY(${delta}px)`; }
+  }, { passive: false });
+  handleRow.addEventListener('touchend', e => {
+    if (!dragging) return;
+    dragging = false;
+    sheet.style.transform = '';
+    if (e.changedTouches[0].clientY - startY > 80) closeTimerModal();
+  }, { passive: true });
+})();
 </script>
