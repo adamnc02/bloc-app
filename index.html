@@ -288,6 +288,20 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 .set-log-row:last-child { border-bottom: none; }
 .set-num { width: 20px; font-size: 12px; color: var(--text3); flex-shrink: 0; }
 .set-log-row input { flex: 1; text-align: center; padding: 8px 6px; }
+@keyframes inputFlash {
+  0%   { border-color: var(--border2); box-shadow: none; }
+  20%  { border-color: var(--amber); box-shadow: 0 0 0 2px rgba(245,166,35,0.35); }
+  65%  { border-color: var(--amber); box-shadow: 0 0 0 2px rgba(245,166,35,0.35); }
+  100% { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(200,240,96,0.18); }
+}
+@keyframes fillFlash {
+  0%   { background: transparent; color: var(--text2); border-color: var(--border2); }
+  20%  { background: var(--amber); color: #0a0a0a; border-color: var(--amber); }
+  65%  { background: var(--amber); color: #0a0a0a; border-color: var(--amber); }
+  100% { background: transparent; color: var(--text2); border-color: var(--border2); }
+}
+.input-flash { animation: inputFlash 0.8s ease forwards; }
+.fill-flash  { animation: fillFlash 0.8s ease forwards; }
 .set-check {
   width: 32px; height: 32px; border-radius: 50%;
   border: 1.5px solid var(--border2);
@@ -424,7 +438,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
           <div class="page-title">BLOC</div>
           <div class="page-sub" id="home-date"></div>
         </div>
-        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v3.01</span>
+        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v3.02</span>
       </div>
 
       <!-- Active cycle card -->
@@ -555,7 +569,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v3.01</span>
+          <span class="badge badge-green">v3.02</span>
         </div>
       </div>
 
@@ -596,6 +610,11 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
             <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             Import
             <input type="file" accept=".json,application/json" style="display:none;" onchange="importFoodLibrary(this.files[0]);this.value='';">
+          </label>
+          <label class="btn btn-block" style="flex:1;cursor:pointer;justify-content:center;">
+            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            Import item
+            <input type="file" accept=".json,application/json" style="display:none;" onchange="importSharedFoodItem(this.files[0]);this.value='';">
           </label>
         </div>
         <div style="display:flex;gap:8px;">
@@ -2615,6 +2634,7 @@ function renderTrainDay(macro) {
         <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;">Log sets</div>
         <div style="display:flex;gap:6px;">
           <button onclick="fillSuggested('${macro.id}',${state.currentWeek},'${state.currentDay}',${exIdx},${sets},'${weightPlaceholder}','${repsPlaceholder}')"
+            id="fill-btn-${macro.id}-${exIdx}"
             style="font-size:11px;padding:5px 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;color:var(--text2);font-family:var(--font-mono);cursor:pointer;">
             ↓ Fill suggested
           </button>
@@ -2671,15 +2691,40 @@ function fillSuggested(macroId, week, day, exIdx, sets, weight, reps) {
     const logKey = baseKey + '_' + exIdx + '_' + s;
     if (!state.trainLogs[logKey]) state.trainLogs[logKey] = {};
     state.trainLogs[logKey].weight = weight;
-    state.trainLogs[logKey].reps = reps;
+    state.trainLogs[logKey].reps   = reps;
     const wEl = document.getElementById('inp-w-' + logKey);
     const rEl = document.getElementById('inp-r-' + logKey);
-    if (wEl) wEl.value = weight;
-    if (rEl) rEl.value = reps;
+    if (wEl) {
+      wEl.value = weight;
+      // Force reflow so animation restarts even if called again
+      wEl.classList.remove('input-flash');
+      void wEl.offsetWidth;
+      wEl.classList.add('input-flash');
+    }
+    if (rEl) {
+      rEl.value = reps;
+      rEl.classList.remove('input-flash');
+      void rEl.offsetWidth;
+      rEl.classList.add('input-flash');
+    }
+  }
+  // Flash the fill button
+  const btnEl = document.getElementById('fill-btn-' + macroId + '-' + exIdx);
+  if (btnEl) {
+    btnEl.classList.remove('fill-flash');
+    void btnEl.offsetWidth;
+    btnEl.classList.add('fill-flash');
   }
   save();
-  const macro = state.macrocycles.find(m => m.id === macroId);
-  if (macro) renderTrainDay(macro);
+  // Remove animation classes after they complete so state is clean
+  setTimeout(() => {
+    for (let s = 0; s < sets; s++) {
+      const logKey = baseKey + '_' + exIdx + '_' + s;
+      document.getElementById('inp-w-' + logKey)?.classList.remove('input-flash');
+      document.getElementById('inp-r-' + logKey)?.classList.remove('input-flash');
+    }
+    if (btnEl) btnEl.classList.remove('fill-flash');
+  }, 900);
 }
 
 function clearExerciseLogs(macroId, week, day, exIdx, sets) {
@@ -3120,7 +3165,7 @@ function renderNutrDiary() {
       <div class="card" style="margin-bottom:8px;padding:0;">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;">
           <div>
-            <div style="font-family:var(--font-display);font-size:14px;font-weight:700;">${meal}</div>
+            <div style="font-family:var(--font-display);font-size:16px;font-weight:700;">${meal}</div>
             <div style="font-size:11px;color:var(--text3);margin-top:2px;">
               ${hasItems ? `${tot.kcal} kcal · P:${tot.p}g C:${tot.c}g F:${tot.f}g` : 'Nothing logged yet'}
             </div>
@@ -3340,7 +3385,10 @@ function renderNutrAddList() {
             ${brand ? ` · ${brand}` : ''}
           </div>
         </div>
-        <button onclick="selectFromAddList(${idx})" class="btn btn-sm" style="flex-shrink:0;padding:6px 12px;margin-left:8px;">Add</button>
+        <button onclick="shareFoodLibItemByName(${JSON.stringify(item.name)})" class="btn btn-sm" style="flex-shrink:0;padding:6px 8px;margin-left:4px;" title="Share">
+          <svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        </button>
+        <button onclick="selectFromAddList(${idx})" class="btn btn-sm" style="flex-shrink:0;padding:6px 12px;margin-left:4px;">Add</button>
       </div>`;
   }).join('');
   el._items = items;
@@ -3563,6 +3611,101 @@ function importFoodLibrary(file) {
       showConfirm('Library imported', added + ' new, ' + updated + ' updated.', 'OK', () => {});
     } catch(e) {
       showConfirm('Import failed', 'File is not a valid food library JSON.', 'OK', () => {});
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ── Share individual food library item ────────────────────────────────────
+function _buildSharePayload(item) {
+  // Build a self-contained share payload for one food item.
+  // If the item is a recipe, attach the full recipe (including ingredients).
+  const payload = { foodItem: item, recipe: null };
+  if (item.source === 'recipe' || item.isRecipe) {
+    const recipe = (state.recipes || []).find(r => r.name === item.name);
+    if (recipe) payload.recipe = recipe;
+  }
+  return payload;
+}
+
+function shareFoodLibItem(idx) {
+  const el = document.getElementById('food-lib-list');
+  const item = (el._items || [])[idx];
+  if (!item) return;
+  const payload = _buildSharePayload(item);
+  const safeName = item.name.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'bloc-item-' + safeName + '.json';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+function shareFoodLibItemByName(name) {
+  const item = (state.foodLibrary || []).find(f => f.name === name);
+  if (!item) return;
+  const payload = _buildSharePayload(item);
+  const safeName = item.name.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'bloc-item-' + safeName + '.json';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+function importSharedFoodItem(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const payload = JSON.parse(e.target.result);
+
+      // Support both single-item share payloads and plain food library arrays
+      let foodItem = null;
+      let recipe   = null;
+
+      if (payload.foodItem) {
+        // New share format: { foodItem, recipe }
+        foodItem = payload.foodItem;
+        recipe   = payload.recipe || null;
+      } else if (payload.name && payload.per100kcal != null) {
+        // Raw food item object shared directly
+        foodItem = payload;
+      } else {
+        throw new Error('Unrecognised format');
+      }
+
+      if (!foodItem || !foodItem.name) throw new Error('Missing name');
+
+      if (!state.foodLibrary) state.foodLibrary = [];
+      if (!state.recipes)     state.recipes     = [];
+
+      // Upsert food library entry
+      const libIdx = state.foodLibrary.findIndex(f => f.name.toLowerCase() === foodItem.name.toLowerCase());
+      if (libIdx >= 0) {
+        state.foodLibrary[libIdx] = { ...state.foodLibrary[libIdx], ...foodItem };
+      } else {
+        state.foodLibrary.push({ ...foodItem, id: foodItem.id || ('lib_' + Date.now()) });
+      }
+
+      // Upsert recipe if present
+      if (recipe && recipe.name) {
+        const recIdx = state.recipes.findIndex(r => r.name.toLowerCase() === recipe.name.toLowerCase());
+        if (recIdx >= 0) {
+          state.recipes[recIdx] = { ...state.recipes[recIdx], ...recipe };
+        } else {
+          state.recipes.push({ ...recipe, id: recipe.id || ('recipe_' + Date.now()) });
+        }
+      }
+
+      save();
+      const detail = recipe ? `"${foodItem.name}" imported with ${(recipe.ingredients || []).length} ingredient${(recipe.ingredients || []).length !== 1 ? 's' : ''}.` : `"${foodItem.name}" added to your food library.`;
+      showConfirm('Item imported', detail, 'OK', () => {});
+    } catch(err) {
+      showConfirm('Import failed', 'File does not appear to be a valid BLOC food item.', 'OK', () => {});
     }
   };
   reader.readAsText(file);
@@ -4829,6 +4972,7 @@ function renderFoodLibEditor() {
       + '</div>'
       + '</div>'
       + '<div style="display:flex;gap:6px;flex-shrink:0;margin-left:8px;">'
+      + '<button onclick="shareFoodLibItem(' + idx + ')" class="btn btn-sm" style="padding:5px 10px;" title="Share"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>'
       + '<button onclick="openFoodLibEntry(' + idx + ')" class="btn btn-sm" style="padding:5px 10px;" title="Edit"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>'
       + '<button onclick="deleteFoodLibEntry(' + idx + ')" class="btn btn-sm btn-danger" style="padding:5px 10px;" title="Delete"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>'
       + '</div>'
