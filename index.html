@@ -424,7 +424,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
           <div class="page-title">BLOC</div>
           <div class="page-sub" id="home-date"></div>
         </div>
-        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v2.12</span>
+        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v3.01</span>
       </div>
 
       <!-- Active cycle card -->
@@ -555,7 +555,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v2.12</span>
+          <span class="badge badge-green">v3.01</span>
         </div>
       </div>
 
@@ -598,18 +598,14 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
             <input type="file" accept=".json,application/json" style="display:none;" onchange="importFoodLibrary(this.files[0]);this.value='';">
           </label>
         </div>
-        <button class="btn btn-block" onclick="openFoodLibraryEditor()" style="margin-bottom:8px;">
-          <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-          Edit library
-        </button>
-        <div style="display:flex;gap:8px;margin-top:0;">
-          <button class="btn btn-block" style="flex:1;" onclick="openRecipeBuilder()">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-            Create recipe
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-block" style="flex:1;" onclick="openFoodLibraryEditor()">
+            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            Edit library
           </button>
           <button class="btn btn-block" style="flex:1;" onclick="openRecipeList()">
             <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-            View recipes
+            My recipes
           </button>
         </div>
       </div>
@@ -1065,6 +1061,10 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
         <span style="font-weight:600;">Manual</span>
       </button>
+      <button onclick="openNutrRecipeBuilder()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        <span style="font-weight:600;">Recipe</span>
+      </button>
     </div>
     <input type="text" id="nutr-add-search" placeholder="Search foods…" oninput="renderNutrAddList()" style="margin-bottom:10px;flex-shrink:0;">
     <div id="nutr-add-list" style="overflow-y:auto;flex:1;"></div>
@@ -1087,42 +1087,49 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
 <!-- Nutrition: serving size confirm -->
 <div class="modal-overlay" id="modal-nutr-serving">
-  <div class="modal-sheet" data-modal="modal-nutr-serving">
-    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-serving')">✕</button></div>
-    <div class="modal-title" id="nutr-serving-title">Confirm Serving</div>
-    <div class="card" style="margin-bottom:14px;">
-      <div style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:2px;" id="nutr-serving-name"></div>
-      <div style="font-size:12px;color:var(--text2);" id="nutr-serving-brand"></div>
+  <div class="modal-sheet" data-modal="modal-nutr-serving" style="max-height:90dvh;display:flex;flex-direction:column;">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-serving')">✕</button></div>
+    <div class="modal-title" id="nutr-serving-title" style="flex-shrink:0;">Confirm Serving</div>
+    <div style="overflow-y:auto;flex:1;">
+      <div class="card" style="margin-bottom:14px;">
+        <div style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:2px;" id="nutr-serving-name"></div>
+        <div style="font-size:12px;color:var(--text2);" id="nutr-serving-brand"></div>
+      </div>
+      <!-- Recipe ingredients — shown only for recipe items -->
+      <div id="nutr-serving-recipe-ings" style="display:none;margin-bottom:14px;">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Ingredients</div>
+        <div id="nutr-serving-recipe-ing-list"></div>
+      </div>
+      <div class="input-row" style="margin-bottom:14px;">
+        <div>
+          <div class="label">Amount (g)</div>
+          <input type="number" id="nutr-serving-grams" min="1" placeholder="100" oninput="updateServingPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
+        </div>
+        <div>
+          <div class="label">Servings</div>
+          <input type="number" id="nutr-serving-servings" min="0.5" step="0.5" value="1" oninput="updateServingPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;">
+        <div class="card" style="text-align:center;padding:10px;">
+          <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--accent);" id="sp-kcal">—</div>
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px;">kcal</div>
+        </div>
+        <div class="card" style="text-align:center;padding:10px;">
+          <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--blue);" id="sp-protein">—</div>
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px;">protein</div>
+        </div>
+        <div class="card" style="text-align:center;padding:10px;">
+          <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--amber);" id="sp-carbs">—</div>
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px;">carbs</div>
+        </div>
+        <div class="card" style="text-align:center;padding:10px;">
+          <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--red);" id="sp-fats">—</div>
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px;">fats</div>
+        </div>
+      </div>
+      <button class="btn btn-accent btn-block" onclick="confirmServing()">Add to meal →</button>
     </div>
-    <div class="input-row" style="margin-bottom:14px;">
-      <div>
-        <div class="label">Amount (g)</div>
-        <input type="number" id="nutr-serving-grams" min="1" placeholder="100" oninput="updateServingPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
-      </div>
-      <div>
-        <div class="label">Servings</div>
-        <input type="number" id="nutr-serving-servings" min="0.5" step="0.5" value="1" oninput="updateServingPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;">
-      <div class="card" style="text-align:center;padding:10px;">
-        <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--accent);" id="sp-kcal">—</div>
-        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px;">kcal</div>
-      </div>
-      <div class="card" style="text-align:center;padding:10px;">
-        <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--blue);" id="sp-protein">—</div>
-        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px;">protein</div>
-      </div>
-      <div class="card" style="text-align:center;padding:10px;">
-        <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--amber);" id="sp-carbs">—</div>
-        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px;">carbs</div>
-      </div>
-      <div class="card" style="text-align:center;padding:10px;">
-        <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--red);" id="sp-fats">—</div>
-        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px;">fats</div>
-      </div>
-    </div>
-    <button class="btn btn-accent btn-block" onclick="confirmServing()">Add to meal →</button>
   </div>
 </div>
 
@@ -1207,40 +1214,6 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 </div>
 
 <!-- old nutrition log modal kept for back-compat -->
-<div class="modal-overlay" id="modal-nutrition-log">
-  <div class="modal-sheet" data-modal="modal-nutrition-log">
-    <div class="modal-handle-row">
-      <div class="modal-handle"></div>
-      <button class="modal-close-btn" onclick="closeModal('modal-nutrition-log')">✕</button>
-    </div>
-    <div class="modal-title">Log Nutrition</div>
-    <div class="form-group">
-      <div class="label">Date</div>
-      <input type="date" id="nutr-date-input">
-    </div>
-    <div class="input-row">
-      <div>
-        <div class="label">Calories (kcal)</div>
-        <input type="number" id="nutr-kcal-input" placeholder="2200">
-      </div>
-      <div>
-        <div class="label">Protein (g)</div>
-        <input type="number" id="nutr-protein-input" placeholder="170">
-      </div>
-    </div>
-    <div class="input-row">
-      <div>
-        <div class="label">Carbs (g)</div>
-        <input type="number" id="nutr-carbs-input" placeholder="220">
-      </div>
-      <div>
-        <div class="label">Fats (g)</div>
-        <input type="number" id="nutr-fats-input" placeholder="70">
-      </div>
-    </div>
-    <button class="btn btn-accent btn-block" onclick="saveNutritionLog()">Save →</button>
-  </div>
-</div>
 
 <script>
 // ════════════════════════════════════════════════
@@ -1268,6 +1241,27 @@ function save() { localStorage.setItem('bloc_state', JSON.stringify(state)); }
 function load() {
   const raw = localStorage.getItem('bloc_state');
   if (raw) { try { state = JSON.parse(raw); } catch(e) {} }
+  // Migrate old mesocycles key → macrocycles
+  if (state.mesocycles && !state.macrocycles) {
+    state.macrocycles = state.mesocycles;
+    delete state.mesocycles;
+  }
+  if (state.currentMesoId && !state.currentMacroId) {
+    state.currentMacroId = state.currentMesoId;
+    delete state.currentMesoId;
+  }
+  // Ensure all required fields exist (defensive defaults)
+  if (!state.macrocycles) state.macrocycles = [];
+  if (!state.exercises) state.exercises = {};
+  if (!state.trainLogs) state.trainLogs = {};
+  if (!state.bodyLogs) state.bodyLogs = [];
+  if (!state.nutritionLogs) state.nutritionLogs = [];
+  if (!state.goals) state.goals = [];
+  if (!state.customLibrary) state.customLibrary = [];
+  if (!state.nutritionMeals) state.nutritionMeals = {};
+  if (!state.nutritionQuickLog) state.nutritionQuickLog = {};
+  if (!state.foodLibrary) state.foodLibrary = [];
+  if (!state.recipes) state.recipes = [];
 }
 
 load();
@@ -1303,21 +1297,11 @@ function openModal(id) {
       document.getElementById('body-steps-input').value = '';
     }
   }
-  if (id === 'modal-nutrition-log') {
-    const dateEl = document.getElementById('nutr-date-input');
-    if (!dateEl.dataset.originalDate) {
-      dateEl.value = today;
-      dateEl.dataset.originalDate = '';
-      document.getElementById('nutr-kcal-input').value = '';
-      document.getElementById('nutr-protein-input').value = '';
-      document.getElementById('nutr-carbs-input').value = '';
-      document.getElementById('nutr-fats-input').value = '';
-    }
-  }
+
   if (id === 'modal-add-goal') {
     if (!state.goals) state.goals = [];
     const sel = document.getElementById('goal-macro-select');
-    sel.innerHTML = state.macrocycles.map(m => '<option value="' + m.id + '">' + m.name + '</option>').join('') || '<option value="">No macrocycles yet</option>';
+    sel.innerHTML = (state.macrocycles || []).map(m => '<option value="' + m.id + '">' + m.name + '</option>').join('') || '<option value="">No macrocycles yet</option>';
     const modal = document.getElementById('modal-add-goal');
     // Only reset fields when opening fresh — openEditGoal pre-sets _editIdx and field values
     const isEditing = modal._editIdx !== undefined && modal._editIdx !== null;
@@ -1360,9 +1344,7 @@ function closeModal(id) {
   document.getElementById(id).classList.remove('open');
   // Always clear originalDate flags when closing so fresh opens start clean
   if (id === 'modal-body-log') document.getElementById('body-date-input').dataset.originalDate = '';
-  if (id === 'modal-nutrition-log') document.getElementById('nutr-date-input').dataset.originalDate = '';
 }
-function closeModalOutside(e, id) { if (e.target.id === id) closeModal(id); }
 
 function selectMacroOpt(group, value) {
   if (!state._macroForm) state._macroForm = { split: 'ppl', micro: 'yes' };
@@ -1644,19 +1626,6 @@ function getMyorepProgression(ex, week) {
   return (base + add * (week - 1)) + ' reps';
 }
 
-function getProgressionNote(ex, week, progType, goalType) {
-  if (week === 1) return null;
-  const isGain = goalType === 'gain';
-  const jump = ex.isHeavyLeg ? (isGain ? '10' : '2.5–3') : (isGain ? '5' : '1–2');
-  if (ex.type === 'myomatch') return `+${jump} kg`;
-  if (ex.type === 'myorep') {
-    if (progType === 'weight') return `+${jump} kg`;
-    return `+10 reps`;
-  }
-  if (progType === 'weight') return `+${jump} kg`;
-  return `+1 rep`;
-}
-
 // ════════════════════════════════════════════════
 // RENDER: HOME
 // ════════════════════════════════════════════════
@@ -1746,16 +1715,20 @@ function renderHome() {
   // ── Body weight (last 7 days) ─────────────────
   const bodyEl = document.getElementById('home-body');
   const weightLogs = [...state.bodyLogs].sort((a,b) => b.date.localeCompare(a.date));
-  const cutoff7 = new Date(); cutoff7.setDate(cutoff7.getDate() - 7); cutoff7.setHours(0,0,0,0);
-  const cutoff14 = new Date(); cutoff14.setDate(cutoff14.getDate() - 14); cutoff14.setHours(0,0,0,0);
-  const last7w = weightLogs.filter(l => l.weight && new Date(l.date+'T00:00:00') >= cutoff7);
-  const prev7w = weightLogs.filter(l => l.weight && new Date(l.date+'T00:00:00') >= cutoff14 && new Date(l.date+'T00:00:00') < cutoff7);
+  const today = getLocalToday();
+  const todayDate = new Date(today + 'T00:00:00');
+  const cutoff7  = new Date(todayDate); cutoff7.setDate(todayDate.getDate() - 7);
+  const cutoff14 = new Date(todayDate); cutoff14.setDate(todayDate.getDate() - 14);
+  const last7w  = weightLogs.filter(l => l.weight && new Date(l.date+'T00:00:00') >= cutoff7);
+  const prev7w  = weightLogs.filter(l => l.weight && new Date(l.date+'T00:00:00') >= cutoff14 && new Date(l.date+'T00:00:00') < cutoff7);
   const latest = weightLogs.find(l => l.weight);
   const avg7 = last7w.length ? (last7w.reduce((a,b) => a + parseFloat(b.weight), 0) / last7w.length) : null;
   const avg7prev = prev7w.length ? (prev7w.reduce((a,b) => a + parseFloat(b.weight), 0) / prev7w.length) : null;
   const wkChange = avg7 !== null && avg7prev !== null ? (avg7 - avg7prev) : null;
   const changeColor = wkChange === null ? 'var(--text3)' : wkChange < 0 ? 'var(--accent)' : wkChange > 0 ? 'var(--red)' : 'var(--text2)';
-  const changeStr = wkChange !== null ? (wkChange >= 0 ? '+' : '') + wkChange.toFixed(1) + ' lbs vs last wk' : 'Not enough data';
+  const changeStr = wkChange !== null
+    ? (wkChange >= 0 ? '+' : '') + wkChange.toFixed(1) + ' lbs vs last wk'
+    : avg7 !== null ? 'No prior week data' : 'No data this week';
 
   bodyEl.innerHTML = `<div class="card" style="cursor:pointer;" onclick="showScreen('body')">
     <div style="display:flex;align-items:center;justify-content:space-between;">
@@ -2101,9 +2074,9 @@ function renderPlan() {
           <span class="badge badge-green">${totalCalendarWeeks}wk</span>
           <span class="badge badge-blue">${splitBadge}</span>
           <div style="display:flex;gap:4px;margin-top:2px;">
-            <button class="btn btn-sm" id="btn-edit-macro" style="padding:4px 10px;font-size:11px;">Edit</button>
-            <button class="btn btn-sm" id="btn-copy-macro" style="padding:4px 10px;font-size:11px;">Copy</button>
-            <button class="btn btn-sm btn-danger" id="btn-delete-macro" style="padding:4px 10px;font-size:11px;">Delete</button>
+            <button class="btn btn-sm" id="btn-edit-macro" style="padding:4px 10px;font-size:11px;" title="Edit"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+            <button class="btn btn-sm" id="btn-copy-macro" style="padding:4px 10px;font-size:11px;" title="Copy"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+            <button class="btn btn-sm btn-danger" id="btn-delete-macro" style="padding:4px 10px;font-size:11px;" title="Delete"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
           </div>
         </div>
       </div>
@@ -2845,7 +2818,7 @@ function switchNutrTab(tab) {
 // ════════════════════════════════════════════════
 
 let nutrSelectedDate = null; // set on first render using local date
-let nutrMesoView = 0;
+let nutrMacroView = 0;
 let nutrActiveMeal = null;
 let nutrPendingProduct = null;
 
@@ -2868,8 +2841,9 @@ function renderNutrDaily() {
 
   renderNutrBadges();
   renderNutrKcal();
-  renderNutrMesoPanel();
+  renderNutrMacroPanel();
   renderNutrDiary();
+  requestAnimationFrame(initYesterdaySwipes);
 }
 
 function renderNutrBadges() {
@@ -2882,28 +2856,22 @@ function renderNutrBadges() {
   for (let i = -3; i <= 3; i++) {
     const d = new Date(todayDate);
     d.setDate(todayDate.getDate() + i);
-    const y = d.getFullYear(), mo = String(d.getMonth()+1).padStart(2,'0'), dy = String(d.getDate()).padStart(2,'0');
-    const ds = y + '-' + mo + '-' + dy;
+    const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const isSel = ds === nutrSelectedDate;
-    const hasLog = !!(state.nutritionQuickLog && state.nutritionQuickLog[ds]) ||
-      !!(state.nutritionMeals && state.nutritionMeals[ds] && Object.values(state.nutritionMeals[ds]).some(a => a.length > 0));
+    const hasLog = !!(state.nutritionQuickLog?.[ds]) ||
+      !!(state.nutritionMeals?.[ds] && Object.values(state.nutritionMeals[ds]).some(a => a.length > 0));
     const letter = dayLetters[d.getDay()];
-    badges.push(
-      '<div onclick="nutrSelectBadge(\'' + ds + '\')" style="flex:1;height:40px;border-radius:10px;'
-      + 'background:' + (isSel ? 'var(--accent)' : 'var(--surface2)') + ';'
-      + 'border:0.5px solid ' + (isSel ? 'var(--accent)' : 'rgba(255,255,255,0.08)') + ';'
-      + 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;cursor:pointer;">'
-      + '<span style="font-size:11px;font-weight:' + (isSel?'800':'500') + ';color:' + (isSel?'#0a0a0a':hasLog?'var(--text)':'var(--text3)') + ';">' + letter + '</span>'
-      + (hasLog && !isSel ? '<span style="font-size:9px;color:var(--accent);line-height:1;">✓</span>' : '')
-      + '</div>'
-    );
+    badges.push(`
+      <div onclick="nutrSelectBadge('${ds}')" style="flex:1;height:40px;border-radius:10px;
+        background:${isSel ? 'var(--accent)' : 'var(--surface2)'};
+        border:0.5px solid ${isSel ? 'var(--accent)' : 'rgba(255,255,255,0.08)'};
+        display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;cursor:pointer;">
+        <span style="font-size:11px;font-weight:${isSel ? '800' : '500'};
+          color:${isSel ? '#0a0a0a' : hasLog ? 'var(--text)' : 'var(--text3)'};">${letter}</span>
+        ${hasLog && !isSel ? '<span style="font-size:9px;color:var(--accent);line-height:1;">✓</span>' : ''}
+      </div>`);
   }
   el.innerHTML = badges.join('');
-}
-
-function getNutrDayLog(date) {
-  const log = (state.nutritionLogs || []).find(l => l.date === date);
-  return log || null;
 }
 
 function getNutrDayMeals(date) {
@@ -2975,163 +2943,331 @@ function renderNutrKcal() {
   const goal = getActiveGoal();
   const totals = getDayTotals(nutrSelectedDate);
   const kcalGoal = goal ? goal.kcal : 0;
-  const pct = kcalGoal > 0 ? Math.min(100, Math.round(totals.kcal/kcalGoal*100)) : 0;
+  const pct = kcalGoal > 0 ? Math.min(100, Math.round(totals.kcal / kcalGoal * 100)) : 0;
   const left = kcalGoal - totals.kcal;
-  el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">'
-    + '<div style="display:flex;align-items:baseline;gap:4px;">'
-    + '<span style="font-family:var(--font-display);font-size:28px;font-weight:800;">' + totals.kcal + '</span>'
-    + '<span style="font-size:13px;color:var(--text3);">/ ' + (kcalGoal || '—') + ' kcal</span>'
-    + '</div>'
-    + (kcalGoal ? '<div style="text-align:right;">'
-      + '<div style="font-size:12px;color:' + (left>=0?'var(--accent)':'var(--red)') + ';font-weight:500;">' + (left>=0 ? left+' left' : Math.abs(left)+' over') + '</div>'
-      + '<div style="font-size:10px;color:var(--text3);margin-top:1px;">' + pct + '% of goal</div>'
-      + '</div>' : '')
-    + '</div>'
-    + (kcalGoal ? '<div class="progress-track"><div class="progress-fill" style="width:'+pct+'%"></div></div>' : '');
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+      <div style="display:flex;align-items:baseline;gap:4px;">
+        <span style="font-family:var(--font-display);font-size:28px;font-weight:800;">${totals.kcal}</span>
+        <span style="font-size:13px;color:var(--text3);">/ ${kcalGoal || '—'} kcal</span>
+      </div>
+      ${kcalGoal ? `<div style="text-align:right;">
+        <div style="font-size:12px;color:${left >= 0 ? 'var(--accent)' : 'var(--red)'};font-weight:500;">${left >= 0 ? left + ' left' : Math.abs(left) + ' over'}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:1px;">${pct}% of goal</div>
+      </div>` : ''}
+    </div>
+    ${kcalGoal ? `<div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>` : ''}`;
 }
 
-function renderNutrMesoPanel() {
+function renderNutrMacroPanel() {
   const el = document.getElementById('nutr-meso-card');
   if (!el) return;
   const goal = getActiveGoal();
   const totals = getDayTotals(nutrSelectedDate);
-  const v = nutrMesoView;
-
-  const mesos = [
-    {key:'p',label:'Protein',logged:Math.round(totals.p),target:goal?Math.round(goal.protein):0,color:'var(--blue)',bg:'rgba(96,168,240,0.12)',kcalPer:4},
-    {key:'c',label:'Carbs',logged:Math.round(totals.c),target:goal?Math.round(goal.carbs):0,color:'var(--amber)',bg:'rgba(245,166,35,0.12)',kcalPer:4},
-    {key:'f',label:'Fats',logged:Math.round(totals.f),target:goal?Math.round(goal.fats):0,color:'var(--red)',bg:'rgba(255,95,78,0.12)',kcalPer:9},
-  ];
-
+  const v = nutrMacroView;
   const totalGoalKcal = goal ? (goal.protein*4 + goal.carbs*4 + goal.fats*9) : 0;
   const totalLogKcal = totals.p*4 + totals.c*4 + totals.f*9 || 1;
 
-  let rows = mesos.map(m => {
+  const macros = [
+    {key:'p', label:'Protein', logged:Math.round(totals.p), target:goal?Math.round(goal.protein):0, color:'var(--blue)',  bg:'rgba(96,168,240,0.12)',  kcalPer:4},
+    {key:'c', label:'Carbs',   logged:Math.round(totals.c), target:goal?Math.round(goal.carbs):0,   color:'var(--amber)', bg:'rgba(245,166,35,0.12)', kcalPer:4},
+    {key:'f', label:'Fats',    logged:Math.round(totals.f), target:goal?Math.round(goal.fats):0,    color:'var(--red)',   bg:'rgba(255,95,78,0.12)',  kcalPer:9},
+  ];
+
+  const rows = macros.map(m => {
     const isOver = m.target > 0 && m.logged > m.target;
     const overAmt = m.logged - m.target;
-    const barPct = m.target > 0 ? Math.min(100, Math.round(m.logged/m.target*100)) : 0;
-    const markerPct = isOver && m.logged > 0 ? Math.round((m.target/m.logged)*100) : null;
+    const barPct = m.target > 0 ? Math.min(100, Math.round(m.logged / m.target * 100)) : 0;
+    const markerPct = isOver && m.logged > 0 ? Math.round((m.target / m.logged) * 100) : null;
 
-    let mainText = '', subText = '', subColor = 'var(--text3)', mainColor = 'var(--text)';
-
+    let mainText, subText = '', mainColor = 'var(--text)';
     if (v === 0) {
-      mainText = m.logged + 'g';
-      subText = m.target ? '/ ' + m.target + 'g' : '';
+      mainText = `${m.logged}g`;
+      subText = m.target ? `/ ${m.target}g` : '';
     } else if (v === 1) {
-      mainText = overAmt > 0 ? '+' + overAmt + 'g over' : overAmt < 0 ? Math.abs(overAmt) + 'g left' : 'on target';
-      mainColor = 'var(--text)';
-      subText = '';
+      mainText = overAmt > 0 ? `+${overAmt}g over` : overAmt < 0 ? `${Math.abs(overAmt)}g left` : 'on target';
     } else {
-      const logPct = totalGoalKcal > 0 ? Math.round(m.logged*m.kcalPer/totalGoalKcal*100) : Math.round(m.logged*m.kcalPer/totalLogKcal*100);
-      const tgtPct = totalGoalKcal > 0 ? Math.round(m.target*m.kcalPer/totalGoalKcal*100) : 0;
-      mainText = logPct + '%';
-      subText = tgtPct ? 'target ' + tgtPct + '%' : '';
+      const logPct = totalGoalKcal > 0
+        ? Math.round(m.logged * m.kcalPer / totalGoalKcal * 100)
+        : Math.round(m.logged * m.kcalPer / totalLogKcal * 100);
+      const tgtPct = totalGoalKcal > 0 ? Math.round(m.target * m.kcalPer / totalGoalKcal * 100) : 0;
+      mainText = `${logPct}%`;
+      subText = tgtPct ? `target ${tgtPct}%` : '';
     }
 
-    return '<div style="margin-bottom:10px;">'
-      + '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">'
-      + '<span style="font-size:11px;color:' + m.color + ';text-transform:uppercase;letter-spacing:.06em;">' + m.label + '</span>'
-      + '<div style="display:flex;align-items:baseline;gap:3px;">'
-      + '<span style="font-family:var(--font-display);font-size:16px;font-weight:700;color:' + mainColor + ';">' + mainText + '</span>'
-      + '<span style="font-size:11px;color:' + subColor + ';">' + subText + '</span>'
-      + '</div></div>'
-      + '<div style="height:7px;background:' + m.bg + ';border-radius:4px;position:relative;overflow:hidden;">'
-      + '<div style="height:100%;background:' + m.color + ';border-radius:4px;width:' + barPct + '%;"></div>'
-      + (markerPct !== null ? '<div style="position:absolute;top:0;bottom:0;width:2px;background:rgba(255,255,255,0.55);left:' + markerPct + '%;border-radius:1px;"></div>' : '')
-      + '</div>'
-      + (isOver && v===0 ? '<div style="font-size:10px;color:' + m.color + ';margin-top:2px;text-align:right;">+' + overAmt + 'g over</div>' : '')
-      + '</div>';
+    return `
+      <div style="margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+          <span style="font-size:11px;color:${m.color};text-transform:uppercase;letter-spacing:.06em;">${m.label}</span>
+          <div style="display:flex;align-items:baseline;gap:3px;">
+            <span style="font-family:var(--font-display);font-size:16px;font-weight:700;color:${mainColor};">${mainText}</span>
+            <span style="font-size:11px;color:var(--text3);">${subText}</span>
+          </div>
+        </div>
+        <div style="height:7px;background:${m.bg};border-radius:4px;position:relative;overflow:hidden;">
+          <div style="height:100%;background:${m.color};border-radius:4px;width:${barPct}%;"></div>
+          ${markerPct !== null ? `<div style="position:absolute;top:0;bottom:0;width:2px;background:rgba(255,255,255,0.55);left:${markerPct}%;border-radius:1px;"></div>` : ''}
+        </div>
+        ${isOver && v === 0 ? `<div style="font-size:10px;color:${m.color};margin-top:2px;text-align:right;">+${overAmt}g over</div>` : ''}
+      </div>`;
   }).join('');
 
-  el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">'
-    + '<span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">Macros</span>'
-    + '<div style="display:flex;background:var(--surface2);border-radius:6px;padding:2px;gap:1px;">'
-    + ['g','±','%'].map((lbl,i) => '<button onclick="setNutrMesoView(' + i + ')" style="padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:' + (nutrMesoView===i?'var(--surface)':'transparent') + ';color:' + (nutrMesoView===i?'var(--text)':'var(--text3)') + ';font-family:var(--font-mono);">' + lbl + '</button>').join('')
-    + '</div></div>'
-    + rows;
+  const toggleBtns = ['g','±','%'].map((lbl, i) => `
+    <button onclick="setNutrMacroView(${i})" style="padding:3px 8px;border-radius:4px;border:none;font-size:10px;
+      cursor:pointer;background:${nutrMacroView===i ? 'var(--surface)' : 'transparent'};
+      color:${nutrMacroView===i ? 'var(--text)' : 'var(--text3)'};font-family:var(--font-mono);">${lbl}</button>`
+  ).join('');
+
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">Macros</span>
+      <div style="display:flex;background:var(--surface2);border-radius:6px;padding:2px;gap:1px;">${toggleBtns}</div>
+    </div>
+    ${rows}`;
 }
 
-function setNutrMesoView(v) {
-  nutrMesoView = v;
-  renderNutrMesoPanel();
+function setNutrMacroView(v) {
+  nutrMacroView = v;
+  renderNutrMacroPanel();
 }
 
 function renderNutrDiary() {
   const el = document.getElementById('nutr-diary');
   if (!el) return;
-  const isQuick = !!(state.nutritionQuickLog && state.nutritionQuickLog[nutrSelectedDate]);
+  const isQuick = !!(state.nutritionQuickLog?.[nutrSelectedDate]);
 
   // Quick log banner
-  let bannerHtml = '';
+  let banner = '';
   if (isQuick) {
     const q = state.nutritionQuickLog[nutrSelectedDate];
-    bannerHtml = '<div style="background:rgba(200,240,96,0.08);border:1px solid rgba(200,240,96,0.2);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">'
-      + '<div><div style="font-size:12px;color:var(--accent);font-weight:600;">⚡ Quick log active</div>'
-      + '<div style="font-size:11px;color:var(--text2);margin-top:2px;">' + q.kcal + ' kcal · P:' + q.protein + 'g C:' + q.carbs + 'g F:' + q.fats + 'g</div>'
-      + '<div style="font-size:10px;color:var(--text3);margin-top:2px;">Meal entries below are ignored for this day\'s totals</div></div>'
-      + '<div style="display:flex;gap:6px;flex-shrink:0;">'
-      + '<button onclick="openNutrQuickAdd()" style="background:none;border:0.5px solid var(--border2);border-radius:var(--r-sm);color:var(--text2);font-size:11px;padding:5px 8px;cursor:pointer;">Edit</button>'
-      + '<button onclick="clearNutrQuickAdd()" style="background:none;border:0.5px solid var(--border2);border-radius:var(--r-sm);color:var(--red);font-size:11px;padding:5px 8px;cursor:pointer;">Clear</button>'
-      + '</div></div>';
+    banner = `
+      <div style="background:rgba(200,240,96,0.08);border:1px solid rgba(200,240,96,0.2);border-radius:var(--r-sm);
+        padding:10px 12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-size:12px;color:var(--accent);font-weight:600;">⚡ Quick log active</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px;">${q.kcal} kcal · P:${q.protein}g C:${q.carbs}g F:${q.fats}g</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px;">Meal entries below are ignored for this day's totals</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+          <button onclick="openNutrQuickAdd()" style="background:none;border:0.5px solid var(--border2);border-radius:var(--r-sm);color:var(--text2);font-size:11px;padding:5px 8px;cursor:pointer;" title="Edit"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+          <button onclick="clearNutrQuickAdd()" style="background:none;border:0.5px solid var(--border2);border-radius:var(--r-sm);color:var(--red);font-size:11px;padding:5px 8px;cursor:pointer;">Clear</button>
+        </div>
+      </div>`;
   }
+
+  // Previous day for copy feature
+  const prevDate = new Date(nutrSelectedDate + 'T00:00:00');
+  prevDate.setDate(prevDate.getDate() - 1);
+  const prevDs = `${prevDate.getFullYear()}-${String(prevDate.getMonth()+1).padStart(2,'0')}-${String(prevDate.getDate()).padStart(2,'0')}`;
 
   const meals = getNutrDayMeals(nutrSelectedDate);
   const mealNames = ['Breakfast', 'Lunch', 'Dinner', 'Snacks'];
 
-  el.innerHTML = bannerHtml + mealNames.map(meal => {
+  const mealCards = mealNames.map(meal => {
     const items = meals[meal] || [];
-    const tot = items.reduce((a,b)=>({kcal:a.kcal+(b.kcal||0),p:a.p+(b.protein||0),c:a.c+(b.carbs||0),f:a.f+(b.fats||0)}),{kcal:0,p:0,c:0,f:0});
+    const tot = items.reduce((a, b) => ({
+      kcal: a.kcal + (b.kcal||0), p: a.p + (b.protein||0),
+      c: a.c + (b.carbs||0), f: a.f + (b.fats||0)
+    }), {kcal:0, p:0, c:0, f:0});
     const hasItems = items.length > 0;
 
-    const itemRows = items.map((item, idx) =>
-      '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:0.5px solid var(--border);">'
-      + '<div style="flex:1;min-width:0;">'
-      + '<div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + item.name + '</div>'
-      + '<div style="font-size:10px;color:var(--text3);margin-top:2px;">'
-      + (item.grams && item.servings && item.servings !== 1
-          ? item.grams + 'g × ' + item.servings
-          : (item.serving||100) + 'g')
-      + ' · P:' + Math.round(item.protein||0) + 'g C:' + Math.round(item.carbs||0) + 'g F:' + Math.round(item.fats||0) + 'g'
-      + (item.brand ? ' · ' + item.brand : '')
-      + '</div>'
-      + '</div>'
-      + '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">'
-      + '<span style="font-family:var(--font-display);font-size:13px;font-weight:700;color:var(--accent);">' + (item.kcal||0) + '</span>'
-      + '<button onclick="openEditFoodEntry(\'' + nutrSelectedDate + '\',\'' + meal + '\',' + idx + ')" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:3px;font-size:14px;">✎</button>'
-      + '<button onclick="deleteFoodEntry(\'' + nutrSelectedDate + '\',\'' + meal + '\',' + idx + ')" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:3px;font-size:14px;">✕</button>'
-      + '</div></div>'
-    ).join('');
+    const itemRows = items.map((item, idx) => {
+      const servingLabel = item.grams && item.servings && item.servings !== 1
+        ? `${item.grams}g × ${item.servings}`
+        : `${item.serving || 100}g`;
+      return `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:0.5px solid var(--border);">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:2px;">
+              ${servingLabel} · P:${Math.round(item.protein||0)}g C:${Math.round(item.carbs||0)}g F:${Math.round(item.fats||0)}g
+              ${item.brand ? ` · ${item.brand}` : ''}
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+            <span style="font-family:var(--font-display);font-size:13px;font-weight:700;color:var(--accent);">${item.kcal||0}</span>
+            <button onclick="openEditFoodEntry('${nutrSelectedDate}','${meal}',${idx})" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:3px;" title="Edit"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+            <button onclick="openCopyFoodEntry('${nutrSelectedDate}','${meal}',${idx})" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:3px;" title="Copy"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+            <button onclick="deleteFoodEntry('${nutrSelectedDate}','${meal}',${idx})" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:3px;" title="Delete"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
+          </div>
+        </div>`;
+    }).join('');
 
-    // Copy from yesterday row
-    const prevDate = new Date(nutrSelectedDate + 'T00:00:00');
-    prevDate.setDate(prevDate.getDate() - 1);
-    const prevDs = prevDate.getFullYear() + '-' + String(prevDate.getMonth()+1).padStart(2,'0') + '-' + String(prevDate.getDate()).padStart(2,'0');
-    const prevMealItems = (getNutrDayMeals(prevDs)[meal] || []);
-    const prevTot = prevMealItems.reduce((a,b)=>({kcal:a.kcal+(b.kcal||0)}),{kcal:0});
+    // Copy-from-yesterday swipe row
+    const prevMealItems = getNutrDayMeals(prevDs)[meal] || [];
     const alreadyCopied = items.some(i => i.copiedFrom === prevDs);
-    const copyRow = prevMealItems.length && !alreadyCopied
-      ? (function() {
-          const firstName = prevMealItems[0].name;
-          const rest = prevMealItems.length - 1;
-          const label = rest > 0 ? firstName + ' and ' + rest + ' more · ' + prevTot.kcal + ' kcal' : firstName + ' · ' + prevTot.kcal + ' kcal';
-          return '<div style="border-top:0.5px solid var(--border);padding:8px 14px;display:flex;justify-content:space-between;align-items:center;">'
-            + '<div style="font-size:11px;color:var(--text3);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:8px;">Yesterday: ' + label + '</div>'
-            + '<button onclick="copyMealFromYesterday(\'' + meal + '\')" style="background:none;border:0.5px solid var(--border2);border-radius:var(--r-sm);color:var(--text2);font-size:11px;font-family:var(--font-mono);padding:4px 10px;cursor:pointer;flex-shrink:0;">Copy</button>'
-            + '</div>';
-        })()
-      : '';
+    let copyRow = '';
+    if (prevMealItems.length && !alreadyCopied) {
+      const prevTotKcal = prevMealItems.reduce((a,b) => a + (b.kcal||0), 0);
+      const rest = prevMealItems.length - 1;
+      const label = rest > 0
+        ? `${prevMealItems[0].name} and ${rest} more · ${prevTotKcal} kcal`
+        : `${prevMealItems[0].name} · ${prevTotKcal} kcal`;
+      const swipeId = `swipe-yesterday-${meal.toLowerCase()}`;
+      copyRow = `
+        <div style="border-top:0.5px solid var(--border);overflow:hidden;border-radius:0 0 var(--r) var(--r);">
+          <div id="${swipeId}" data-meal="${meal}"
+            style="position:relative;padding:10px 14px;cursor:grab;user-select:none;touch-action:pan-y;">
+            <div class="swipe-fill" style="position:absolute;inset:0;background:var(--accent);opacity:0.15;width:0%;border-radius:0 0 var(--r) var(--r);pointer-events:none;"></div>
+            <div class="swipe-text" style="position:relative;font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+              Yesterday: ${label} · <span style="color:var(--accent);font-style:italic;">swipe → to copy</span>
+            </div>
+          </div>
+        </div>`;
+    }
 
-    return '<div class="card" style="margin-bottom:8px;padding:0;">'
-      + '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;">'
-      + '<div><div style="font-family:var(--font-display);font-size:14px;font-weight:700;">' + meal + '</div>'
-      + '<div style="font-size:11px;color:var(--text3);margin-top:2px;">' + (hasItems ? tot.kcal + ' kcal · P:' + tot.p + 'g C:' + tot.c + 'g F:' + tot.f + 'g' : 'Nothing logged yet') + '</div>'
-      + '</div>'
-      + '<button onclick="openNutrAdd(\'' + meal + '\')" class="btn btn-accent btn-sm">+ Log</button>'
-      + '</div>'
-      + (hasItems ? '<div style="padding:0 14px 10px;border-top:0.5px solid var(--border);">' + itemRows + '</div>' : '')
-      + copyRow
-      + '</div>';
+    return `
+      <div class="card" style="margin-bottom:8px;padding:0;">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;">
+          <div>
+            <div style="font-family:var(--font-display);font-size:14px;font-weight:700;">${meal}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px;">
+              ${hasItems ? `${tot.kcal} kcal · P:${tot.p}g C:${tot.c}g F:${tot.f}g` : 'Nothing logged yet'}
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button onclick="openMealMenu('${meal}')" style="background:none;border:0.5px solid var(--border2);border-radius:var(--r-sm);color:var(--text3);padding:4px 8px;cursor:pointer;font-size:16px;line-height:1;" title="Meal options">···</button>
+            <button onclick="openNutrAdd('${meal}')" class="btn btn-accent btn-sm">+ Log</button>
+          </div>
+        </div>
+        ${hasItems ? `<div style="padding:0 14px 10px;border-top:0.5px solid var(--border);">${itemRows}</div>` : ''}
+        ${copyRow}
+      </div>`;
   }).join('');
+
+  el.innerHTML = banner + mealCards;
+}
+
+// ── Swipe-to-copy-from-yesterday ───────────────────────────────────────────
+function initYesterdaySwipes() {
+  document.querySelectorAll('[id^="swipe-yesterday-"]').forEach(el => {
+    const meal = el.dataset.meal;
+    const fill = el.querySelector('.swipe-fill');
+    const text = el.querySelector('.swipe-text');
+    let startX = 0, currentX = 0, active = false;
+    const THRESHOLD = el.offsetWidth / 3;
+
+    function onStart(clientX) {
+      startX = clientX; currentX = 0; active = true;
+      el.style.transition = 'none';
+      fill.style.transition = 'none';
+      text.style.transition = 'none';
+    }
+    function onMove(clientX) {
+      if (!active) return;
+      currentX = Math.max(0, clientX - startX);
+      const pct = Math.min(100, (currentX / el.offsetWidth) * 100);
+      fill.style.width = pct + '%';
+      text.style.transform = `translateX(${Math.min(currentX * 0.4, 30)}px)`;
+      fill.style.opacity = 0.08 + (pct / 100) * 0.22;
+    }
+    function onEnd() {
+      if (!active) return; active = false;
+      const threshold = el.offsetWidth / 3;
+      if (currentX >= threshold) {
+        // Animate to completion
+        fill.style.transition = 'width 0.2s ease';
+        fill.style.width = '100%';
+        fill.style.opacity = '0.3';
+        text.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
+        text.style.transform = 'translateX(40px)';
+        text.style.opacity = '0';
+        setTimeout(() => copyMealFromYesterday(meal), 220);
+      } else {
+        // Snap back
+        fill.style.transition = 'width 0.2s ease';
+        fill.style.width = '0%';
+        fill.style.opacity = '0.15';
+        text.style.transition = 'transform 0.2s ease';
+        text.style.transform = 'translateX(0)';
+      }
+      currentX = 0;
+    }
+
+    el.addEventListener('touchstart', e => onStart(e.touches[0].clientX), { passive: true });
+    el.addEventListener('touchmove',  e => onMove(e.touches[0].clientX),  { passive: true });
+    el.addEventListener('touchend',   () => onEnd());
+    el.addEventListener('mousedown',  e => onStart(e.clientX));
+    el.addEventListener('mousemove',  e => { if (active) onMove(e.clientX); });
+    el.addEventListener('mouseup',    () => onEnd());
+    el.addEventListener('mouseleave', () => { if (active) onEnd(); });
+  });
+}
+
+// ── Meal ellipsis menu + copy/move meal ────────────────────────────────────
+let _mealMenuMeal = null;
+
+function openMealMenu(meal) {
+  _mealMenuMeal = meal;
+  // Build a quick action sheet via the confirm modal repurposed as a menu
+  // Instead, use a dedicated small popover-style confirm
+  showMealMenuSheet(meal);
+}
+
+function showMealMenuSheet(meal) {
+  // Remove any existing sheet
+  const old = document.getElementById('meal-menu-sheet');
+  if (old) old.remove();
+
+  const sheet = document.createElement('div');
+  sheet.id = 'meal-menu-sheet';
+  sheet.style.cssText = 'position:fixed;inset:0;z-index:250;display:flex;flex-direction:column;justify-content:flex-end;background:rgba(0,0,0,0.4);';
+  sheet.innerHTML = `
+    <div style="background:var(--surface);border-radius:var(--r) var(--r) 0 0;padding:16px 14px 32px;border-top:0.5px solid var(--border2);">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px;">${meal}</div>
+      <button onclick="openMealCopyMove('copy')"
+        style="display:flex;align-items:center;gap:12px;width:100%;background:none;border:none;color:var(--text);font-size:15px;padding:12px 0;cursor:pointer;border-bottom:0.5px solid var(--border);">
+        <svg viewBox="0 0 24 24" width="18" height="18" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy meal to…
+      </button>
+      <button onclick="openMealCopyMove('move')"
+        style="display:flex;align-items:center;gap:12px;width:100%;background:none;border:none;color:var(--text);font-size:15px;padding:12px 0;cursor:pointer;">
+        <svg viewBox="0 0 24 24" width="18" height="18" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+        Move meal to…
+      </button>
+      <button onclick="document.getElementById('meal-menu-sheet').remove()"
+        style="width:100%;margin-top:14px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:12px;font-size:14px;color:var(--text2);cursor:pointer;">
+        Cancel
+      </button>
+    </div>`;
+  sheet.addEventListener('pointerdown', e => { if (e.target === sheet) sheet.remove(); });
+  document.body.appendChild(sheet);
+}
+
+function openMealCopyMove(mode) {
+  const sheet = document.getElementById('meal-menu-sheet');
+  if (sheet) sheet.remove();
+
+  document.getElementById('nce-date').value  = nutrSelectedDate;
+  document.getElementById('nce-meal').value  = _mealMenuMeal || '';
+  document.getElementById('nce-idx').value   = '-1'; // -1 = whole meal
+  document.getElementById('nce-mode').value  = mode; // 'copy' or 'move'
+
+  // Update modal title
+  document.getElementById('nce-modal-title').textContent = mode === 'move' ? 'Move meal to…' : 'Copy meal to…';
+  document.getElementById('nce-confirm-btn').textContent = mode === 'move' ? 'Move →' : 'Copy →';
+
+  // Populate date select
+  const sel = document.getElementById('nce-target-date');
+  sel.innerHTML = '';
+  const today = getLocalToday();
+  const todayDate = new Date(today + 'T00:00:00');
+  const ordinals = ['th','st','nd','rd'];
+  for (let i = -6; i <= 6; i++) {
+    const d = new Date(todayDate);
+    d.setDate(todayDate.getDate() + i);
+    const ds = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    const dayNum = d.getDate();
+    const ord = dayNum % 100 >= 11 && dayNum % 100 <= 13 ? 'th' : (ordinals[dayNum % 10] || 'th');
+    const label = d.toLocaleDateString('en-GB', { weekday:'short' }) + ' ' + dayNum + ord + ' ' +
+                  d.toLocaleDateString('en-GB', { month:'short' }) + ' ' + d.getFullYear();
+    const opt = document.createElement('option');
+    opt.value = ds; opt.textContent = label;
+    if (ds === today) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  document.getElementById('nce-target-meal').value = _mealMenuMeal || 'Breakfast';
+  openModal('modal-nutr-copy-entry');
 }
 
 // ── Navigation ─────────────────────────────────────────────────────────────
@@ -3165,7 +3301,7 @@ function renderNutrAddList() {
   const lib = state.foodLibrary || [];
   const el = document.getElementById('nutr-add-list');
 
-  // Build last-logged timestamps for sorting by most recently used
+  // Sort by most recently used
   const allMeals = state.nutritionMeals || {};
   const lastLogged = {};
   Object.keys(allMeals).sort().reverse().forEach(date => {
@@ -3174,40 +3310,38 @@ function renderNutrAddList() {
     });
   });
 
-  let items = lib.filter(i => !query || i.name.toLowerCase().includes(query) || (i.brand && i.brand.toLowerCase().includes(query)));
-  items = items.slice().sort((a, b) => {
-    const da = lastLogged[a.name] || '0000-00-00';
-    const db = lastLogged[b.name] || '0000-00-00';
-    if (db !== da) return db.localeCompare(da);
-    return a.name.localeCompare(b.name);
-  });
-
-  // Backfill brand from meal logs for items saved before brand was stored
-  const allEntries = Object.values(allMeals).flatMap(day => Object.values(day).flat());
+  const items = lib
+    .filter(i => !query || i.name.toLowerCase().includes(query) || (i.brand && i.brand.toLowerCase().includes(query)))
+    .sort((a, b) => {
+      const da = lastLogged[a.name] || '0000-00-00';
+      const db = lastLogged[b.name] || '0000-00-00';
+      return db !== da ? db.localeCompare(da) : a.name.localeCompare(b.name);
+    });
 
   if (!items.length) {
-    el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:20px 0;">'
-      + (query ? 'No matches for "' + query + '"' : 'No foods saved yet — scan a barcode or add manually.') + '</div>';
+    el.innerHTML = `<div style="text-align:center;color:var(--text3);font-size:13px;padding:20px 0;">
+      ${query ? `No matches for "${query}"` : 'No foods saved yet — scan a barcode or add manually.'}
+    </div>`;
     el._items = [];
     return;
   }
 
+  // Backfill brand from meal logs for items saved before brand was stored
+  const allEntries = Object.values(allMeals).flatMap(day => Object.values(day).flat());
+
   el.innerHTML = items.map((item, idx) => {
-    let brand = item.brand || '';
-    if (!brand) {
-      const match = allEntries.find(e => e.name === item.name && e.brand);
-      if (match) brand = match.brand;
-    }
-    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);">'
-      + '<div style="flex:1;min-width:0;">'
-      + '<div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + item.name + '</div>'
-      + '<div style="font-size:10px;color:var(--text3);margin-top:2px;">'
-      + item.per100kcal + ' kcal / 100g · P:' + item.per100p + 'g C:' + item.per100c + 'g F:' + item.per100f + 'g'
-      + (brand ? ' · ' + brand : '')
-      + '</div>'
-      + '</div>'
-      + '<button onclick="selectFromAddList(' + idx + ')" class="btn btn-sm" style="flex-shrink:0;padding:6px 12px;margin-left:8px;">Add</button>'
-      + '</div>';
+    const brand = item.brand || (allEntries.find(e => e.name === item.name && e.brand)?.brand) || '';
+    return `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px;">
+            ${item.per100kcal} kcal / 100g · P:${item.per100p}g C:${item.per100c}g F:${item.per100f}g
+            ${brand ? ` · ${brand}` : ''}
+          </div>
+        </div>
+        <button onclick="selectFromAddList(${idx})" class="btn btn-sm" style="flex-shrink:0;padding:6px 12px;margin-left:8px;">Add</button>
+      </div>`;
   }).join('');
   el._items = items;
 }
@@ -3235,8 +3369,78 @@ function selectFromAddList(idx) {
   requestAnimationFrame(() => openNutrServingModal());
 }
 
-function openNutrBarcode() {
+function openNutrRecipeBuilder() {
+  // Open recipe builder from nutrition — returns to nutrition after save
   closeModal('modal-nutr-add');
+  requestAnimationFrame(() => openRecipeBuilder());
+}
+
+// ── Copy food entry to another meal/date ──────────────────────────────────
+function openCopyFoodEntry(date, meal, idx) {
+  document.getElementById('nce-date').value = date;
+  document.getElementById('nce-meal').value = meal;
+  document.getElementById('nce-idx').value  = idx;
+  document.getElementById('nce-mode').value = 'copy';
+  document.getElementById('nce-modal-title').textContent = 'Copy to…';
+  document.getElementById('nce-confirm-btn').textContent = 'Copy →';
+
+  // Populate date select
+  const sel = document.getElementById('nce-target-date');
+  sel.innerHTML = '';
+  const today = getLocalToday();
+  const todayDate = new Date(today + 'T00:00:00');
+  const ordinals = ['th','st','nd','rd'];
+  for (let i = -6; i <= 6; i++) {
+    const d = new Date(todayDate);
+    d.setDate(todayDate.getDate() + i);
+    const ds = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    const dayNum = d.getDate();
+    const ord = dayNum % 100 >= 11 && dayNum % 100 <= 13 ? 'th' : (ordinals[dayNum % 10] || 'th');
+    const label = d.toLocaleDateString('en-GB', { weekday:'short' }) + ' ' + dayNum + ord + ' ' +
+                  d.toLocaleDateString('en-GB', { month:'short' }) + ' ' + d.getFullYear();
+    const opt = document.createElement('option');
+    opt.value = ds; opt.textContent = label;
+    if (ds === today) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  document.getElementById('nce-target-meal').value = meal;
+  openModal('modal-nutr-copy-entry');
+}
+
+function confirmCopyFoodEntry() {
+  const srcDate  = document.getElementById('nce-date').value;
+  const srcMeal  = document.getElementById('nce-meal').value;
+  const srcIdx   = parseInt(document.getElementById('nce-idx').value);
+  const tgtDate  = document.getElementById('nce-target-date').value;
+  const tgtMeal  = document.getElementById('nce-target-meal').value;
+  const mode     = document.getElementById('nce-mode').value || 'copy';
+
+  if (!state.nutritionMeals[tgtDate]) state.nutritionMeals[tgtDate] = { Breakfast:[], Lunch:[], Dinner:[], Snacks:[] };
+  if (!state.nutritionMeals[tgtDate][tgtMeal]) state.nutritionMeals[tgtDate][tgtMeal] = [];
+
+  if (srcIdx === -1) {
+    // Whole meal copy/move
+    const srcItems = (state.nutritionMeals?.[srcDate]?.[srcMeal] || []);
+    if (!srcItems.length) { closeModal('modal-nutr-copy-entry'); return; }
+    const copies = srcItems.map(i => JSON.parse(JSON.stringify(i)));
+    state.nutritionMeals[tgtDate][tgtMeal].push(...copies);
+    if (mode === 'move') {
+      state.nutritionMeals[srcDate][srcMeal] = [];
+      syncNutrLegacyLog(srcDate);
+    }
+  } else {
+    // Single item copy
+    const srcItem = (state.nutritionMeals?.[srcDate]?.[srcMeal] || [])[srcIdx];
+    if (!srcItem) { closeModal('modal-nutr-copy-entry'); return; }
+    state.nutritionMeals[tgtDate][tgtMeal].push(JSON.parse(JSON.stringify(srcItem)));
+  }
+  syncNutrLegacyLog(tgtDate);
+  save();
+  closeModal('modal-nutr-copy-entry');
+  renderNutrDaily();
+}
+
+function openNutrBarcode() {
   document.getElementById('nutr-barcode-input').value = '';
   document.getElementById('nutr-barcode-status').style.display = 'none';
   requestAnimationFrame(() => openModal('modal-nutr-barcode'));
@@ -3426,11 +3630,34 @@ function openNutrServingModal() {
   document.getElementById('nutr-serving-title').textContent = 'Add to ' + nutrActiveMeal;
   document.getElementById('nutr-serving-name').textContent = nutrPendingProduct.name;
   document.getElementById('nutr-serving-brand').textContent = nutrPendingProduct.brand || '';
+
+  // Show recipe ingredients if this is a recipe
+  const ingPanel = document.getElementById('nutr-serving-recipe-ings');
+  const ingList  = document.getElementById('nutr-serving-recipe-ing-list');
+  const isRecipe = nutrPendingProduct.source === 'recipe';
+  if (isRecipe) {
+    // Find the recipe in state.recipes to get ingredient list
+    const recipe = (state.recipes || []).find(r => r.name === nutrPendingProduct.name);
+    if (recipe && recipe.ingredients && recipe.ingredients.length) {
+      ingList.innerHTML = recipe.ingredients.map(ing =>
+        `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:0.5px solid var(--border);">
+          <span style="font-size:12px;color:var(--text2);">${ing.name}</span>
+          <span style="font-size:12px;color:var(--text3);">${ing.grams}g · ${ing.kcal} kcal</span>
+        </div>`
+      ).join('');
+      ingPanel.style.display = 'block';
+    } else {
+      ingPanel.style.display = 'none';
+    }
+  } else {
+    ingPanel.style.display = 'none';
+  }
+
   // Pre-fill from last logged entry for this food; fall back to RSS then 100g
   const allEntries = Object.values(state.nutritionMeals || {}).flatMap(day => Object.values(day).flat());
   const lastEntry = allEntries.filter(e => e.name === nutrPendingProduct.name).pop();
   const gramsInput = document.getElementById('nutr-serving-grams');
-  if (nutrPendingProduct.source === 'recipe') {
+  if (isRecipe) {
     gramsInput.value = 100;
     gramsInput.readOnly = true;
     gramsInput.style.opacity = '0.4';
@@ -3499,12 +3726,6 @@ function confirmServing() {
   closeModal('modal-nutr-serving');
 }
 
-function openNutrPrevious() {
-  closeModal('modal-nutr-add');
-  document.getElementById('nutr-prev-search').value = '';
-  requestAnimationFrame(() => { renderPreviousMeals(); openModal('modal-nutr-previous'); });
-}
-
 function openNutrManual() {
   closeModal('modal-nutr-add');
   document.getElementById('nutr-manual-title').textContent = 'Quick Add to ' + nutrActiveMeal;
@@ -3532,11 +3753,6 @@ function saveManualEntry() {
   if (!kcal && !protein && !carbs && !fats) return;
   addFoodEntry({ name: 'Manual entry', kcal, protein, carbs, fats, serving: 1, source: 'manual' });
   closeModal('modal-nutr-manual');
-}
-
-function copyFromYesterday() {
-  // Legacy wrapper
-  copyMealFromYesterday(nutrActiveMeal);
 }
 
 function copyMealFromYesterday(meal) {
@@ -3780,42 +3996,6 @@ function makePie(pPct, cPct, fPct) {
   </svg>`;
 }
 
-function openEditNutrLog(date) {
-  const log = state.nutritionLogs.find(l => l.date === date);
-  if (!log) return;
-  const dateEl = document.getElementById('nutr-date-input');
-  dateEl.value = log.date;
-  dateEl.dataset.originalDate = log.date;
-  document.getElementById('nutr-kcal-input').value = log.kcal || '';
-  document.getElementById('nutr-protein-input').value = log.protein || '';
-  document.getElementById('nutr-carbs-input').value = log.carbs || '';
-  document.getElementById('nutr-fats-input').value = log.fats || '';
-  openModal('modal-nutrition-log');
-}
-
-function saveNutritionLog() {
-  const dateEl = document.getElementById('nutr-date-input');
-  const date = dateEl.value;
-  const originalDate = dateEl.dataset.originalDate || '';
-  if (!date) return;
-  const entry = {
-    date,
-    kcal: parseInt(document.getElementById('nutr-kcal-input').value)||0,
-    protein: parseInt(document.getElementById('nutr-protein-input').value)||0,
-    carbs: parseInt(document.getElementById('nutr-carbs-input').value)||0,
-    fats: parseInt(document.getElementById('nutr-fats-input').value)||0,
-  };
-  if (originalDate && originalDate !== date) {
-    state.nutritionLogs = state.nutritionLogs.filter(l => l.date !== originalDate);
-  }
-  const existing = state.nutritionLogs.findIndex(l => l.date === date);
-  if (existing >= 0) state.nutritionLogs[existing] = entry;
-  else state.nutritionLogs.push(entry);
-  dateEl.dataset.originalDate = '';
-  save();
-  closeModal('modal-nutrition-log');
-  renderNutrition();
-}
 
 // ════════════════════════════════════════════════
 // UTILS
@@ -4085,7 +4265,7 @@ function renderGoals() {
     if (g.fats) html += '<div style="font-size:12px;"><span style="color:var(--red);">fats </span>' + g.fats + 'g</div>';
     html += '</div>';
     html += '<div style="display:flex;gap:6px;">';
-    html += '<button class="btn btn-sm" style="flex:1;" onclick="openEditGoal(' + i + ')">Edit</button>';
+    html += '<button class="btn btn-sm" style="padding:7px 12px;" title="Edit" onclick="openEditGoal(' + i + ')"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>';
     html += '<button class="btn btn-sm btn-danger" style="padding:7px 12px;" onclick="deleteGoal(' + i + ')">✕</button>';
     html += '</div></div>';
   });
@@ -4295,265 +4475,53 @@ function buildGoalsHomeSection(goal) {
 }
 
 // ── Modal swipe-down + tap-outside ───────────────────────────────────────────
-(function() {
-  function initModal(overlayEl) {
-    const sheet = overlayEl.querySelector('.modal-sheet');
-    if (!sheet) return;
-    const modalId = overlayEl.id;
+function initModal(overlayEl) {
+  const sheet = overlayEl.querySelector('.modal-sheet');
+  if (!sheet) return;
+  const modalId = overlayEl.id;
 
-    // Tap the dark backdrop to close
-    overlayEl.addEventListener('pointerdown', function(e) {
-      if (e.target === overlayEl) closeModal(modalId);
-    });
+  // Tap the dark backdrop to close
+  overlayEl.addEventListener('pointerdown', function(e) {
+    if (e.target === overlayEl) closeModal(modalId);
+  });
 
-    // Swipe the handle row down to close
-    const handleRow = sheet.querySelector('.modal-handle-row');
-    if (!handleRow) return;
+  // Swipe the handle row down to close
+  const handleRow = sheet.querySelector('.modal-handle-row');
+  if (!handleRow) return;
 
-    let startY = 0, dragging = false;
+  let startY = 0, dragging = false;
 
-    handleRow.addEventListener('touchstart', function(e) {
-      startY = e.touches[0].clientY;
-      dragging = true;
-    }, { passive: true });
+  handleRow.addEventListener('touchstart', function(e) {
+    startY = e.touches[0].clientY;
+    dragging = true;
+  }, { passive: true });
 
-    handleRow.addEventListener('touchmove', function(e) {
-      if (!dragging) return;
-      const delta = e.touches[0].clientY - startY;
-      if (delta > 0) {
-        e.preventDefault(); // stop Safari zoom/scroll while dragging down
-        sheet.style.transform = `translateY(${delta}px)`;
-      }
-    }, { passive: false });
+  handleRow.addEventListener('touchmove', function(e) {
+    if (!dragging) return;
+    const delta = e.touches[0].clientY - startY;
+    if (delta > 0) {
+      e.preventDefault();
+      sheet.style.transform = `translateY(${delta}px)`;
+    }
+  }, { passive: false });
 
-    handleRow.addEventListener('touchend', function(e) {
-      if (!dragging) return;
-      dragging = false;
-      const delta = e.changedTouches[0].clientY - startY;
-      sheet.style.transform = '';
-      if (delta > 80) closeModal(modalId);
-    }, { passive: true });
-  }
+  handleRow.addEventListener('touchend', function(e) {
+    if (!dragging) return;
+    dragging = false;
+    const delta = e.changedTouches[0].clientY - startY;
+    sheet.style.transform = '';
+    if (delta > 80) closeModal(modalId);
+  }, { passive: true });
+}
 
-  document.querySelectorAll('.modal-overlay').forEach(initModal);
-})();
+// Init — runs after all HTML (including appended modals) is parsed
+window.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.modal-overlay').forEach(el => {
+    if (el.id !== 'modal-timer') initModal(el); // timer has its own close handler
+  });
+  showScreen('home');
+});
 
-// Init
-showScreen('home');
-</script>
-<!-- ── Rest Timer Modal ───────────────────────────────────────────── -->
-<div class="modal-overlay" id="modal-timer">
-  <div class="modal-sheet" style="max-height:70dvh;">
-    <div class="modal-handle-row">
-      <div class="modal-handle"></div>
-      <button class="modal-close-btn" onclick="closeTimerModal()">✕</button>
-    </div>
-    <div class="toggle-row" style="margin-bottom:20px;">
-      <button class="toggle-btn active" id="timer-tog-countdown" onclick="setTimerMode('countdown')">Countdown</button>
-      <button class="toggle-btn" id="timer-tog-stopwatch" onclick="setTimerMode('stopwatch')">Stopwatch</button>
-    </div>
-    <div id="timer-panel-countdown">
-      <div id="timer-picker" style="display:flex;justify-content:center;align-items:center;gap:0;margin-bottom:24px;user-select:none;">
-        <div style="text-align:center;">
-          <div style="font-size:11px;color:var(--text3);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;">Min</div>
-          <div style="position:relative;height:120px;overflow:hidden;width:80px;" id="picker-min-wrap">
-            <div id="picker-min" style="display:flex;flex-direction:column;align-items:center;cursor:ns-resize;touch-action:none;"></div>
-          </div>
-        </div>
-        <div style="font-size:32px;font-weight:700;color:var(--text3);padding:0 4px;margin-top:14px;">:</div>
-        <div style="text-align:center;">
-          <div style="font-size:11px;color:var(--text3);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;">Sec</div>
-          <div style="position:relative;height:120px;overflow:hidden;width:80px;" id="picker-sec-wrap">
-            <div id="picker-sec" style="display:flex;flex-direction:column;align-items:center;cursor:ns-resize;touch-action:none;"></div>
-          </div>
-        </div>
-      </div>
-      <div id="timer-display" style="display:none;text-align:center;margin-bottom:24px;">
-        <div id="timer-digits" style="font-family:var(--font-display);font-size:64px;font-weight:800;letter-spacing:-0.02em;color:var(--text);line-height:1;"></div>
-        <div id="timer-status" style="font-size:12px;color:var(--text3);margin-top:8px;letter-spacing:0.08em;text-transform:uppercase;"></div>
-      </div>
-      <div style="display:flex;gap:10px;">
-        <button id="cd-start-btn" class="btn btn-accent btn-block" onclick="countdownStart()">Start</button>
-        <button id="cd-reset-btn" class="btn btn-block" onclick="countdownReset()" style="display:none;">Reset</button>
-      </div>
-    </div>
-    <div id="timer-panel-stopwatch" style="display:none;">
-      <div style="text-align:center;margin-bottom:24px;">
-        <div id="sw-digits" style="font-family:var(--font-display);font-size:64px;font-weight:800;letter-spacing:-0.02em;color:var(--text);line-height:1;">0:00.0</div>
-      </div>
-      <div style="display:flex;gap:10px;">
-        <button id="sw-start-btn" class="btn btn-accent btn-block" onclick="swToggle()">Start</button>
-        <button id="sw-reset-btn" class="btn btn-block" onclick="swReset()">Reset</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ── Food Library Editor Modal ─────────────────────────────────── -->
-<div class="modal-overlay" id="modal-food-lib-editor">
-  <div class="modal-sheet" data-modal="modal-food-lib-editor" style="max-height:90dvh;display:flex;flex-direction:column;">
-    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-food-lib-editor')">✕</button></div>
-    <div class="modal-title" style="flex-shrink:0;">Food Library</div>
-    <input type="text" id="food-lib-search" placeholder="Search foods…" oninput="renderFoodLibEditor()" style="margin-bottom:10px;flex-shrink:0;">
-    <div id="food-lib-list" style="overflow-y:auto;flex:1;"></div>
-  </div>
-</div>
-
-<!-- ── Food Library Entry Edit Modal ─────────────────────────────── -->
-<div class="modal-overlay" id="modal-food-lib-entry">
-  <div class="modal-sheet" data-modal="modal-food-lib-entry">
-    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-food-lib-entry')">✕</button></div>
-    <div class="modal-title">Edit Food</div>
-    <input type="hidden" id="fle-id">
-    <div class="form-group">
-      <div class="label">Name</div>
-      <input type="text" id="fle-name">
-    </div>
-    <div class="form-group">
-      <div class="label">Brand</div>
-      <input type="text" id="fle-brand" placeholder="Optional">
-    </div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Values per 100g</div>
-    <div class="input-row">
-      <div><div class="label">kcal / 100g</div><input type="number" id="fle-kcal" oninput="updateFlePreview()"></div>
-      <div><div class="label">Protein (g)</div><input type="number" id="fle-protein" oninput="updateFlePreview()"></div>
-    </div>
-    <div class="input-row">
-      <div><div class="label">Carbs (g)</div><input type="number" id="fle-carbs" oninput="updateFlePreview()"></div>
-      <div><div class="label">Fats (g)</div><input type="number" id="fle-fats" oninput="updateFlePreview()"></div>
-    </div>
-    <div class="form-group">
-      <div class="label">RSS (g) <span style="color:var(--text3);font-size:10px;">Recommended serving size — optional</span></div>
-      <input type="number" id="fle-rss" placeholder="e.g. 250" oninput="updateFlePreview()">
-    </div>
-    <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px;margin-bottom:14px;font-size:12px;color:var(--text2);" id="fle-preview">—</div>
-    <button class="btn btn-accent btn-block" onclick="saveFoodLibEntry()" style="margin-bottom:8px;">Save →</button>
-  </div>
-</div>
-
-<!-- ── Recipe Builder: Step 1 — Name & Servings ──────────────────── -->
-<div class="modal-overlay" id="modal-recipe-step1">
-  <div class="modal-sheet" data-modal="modal-recipe-step1">
-    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-step1')">✕</button></div>
-    <div class="modal-title" id="recipe-step1-title">New Recipe</div>
-    <input type="hidden" id="recipe-edit-id">
-    <div class="form-group">
-      <div class="label">Recipe name</div>
-      <input type="text" id="recipe-name-input" placeholder="e.g. Chicken pasta">
-    </div>
-    <div class="form-group">
-      <div class="label">No. servings this recipe makes</div>
-      <input type="number" id="recipe-servings-input" value="1" min="1" step="0.5" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
-    </div>
-    <button class="btn btn-accent btn-block" onclick="recipeGoToIngredients()">Next: Add ingredients →</button>
-  </div>
-</div>
-
-<!-- ── Recipe Builder: Step 2 — Ingredients ──────────────────────── -->
-<div class="modal-overlay" id="modal-recipe-ingredients">
-  <div class="modal-sheet" data-modal="modal-recipe-ingredients" style="max-height:90dvh;display:flex;flex-direction:column;">
-    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-ingredients')">✕</button></div>
-    <div class="modal-title" style="flex-shrink:0;" id="recipe-ing-title">Ingredients</div>
-    <!-- Action buttons -->
-    <div style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0;">
-      <button onclick="openRecipeBarcode()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/><line x1="13" y1="8" x2="13" y2="12"/><line x1="16" y1="8" x2="16" y2="16"/></svg>
-        <span style="font-weight:600;">Barcode</span>
-      </button>
-      <button onclick="openRecipeManual()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-        <span style="font-weight:600;">Manual</span>
-      </button>
-    </div>
-    <!-- Ingredient list -->
-    <div id="recipe-ing-list" style="overflow-y:auto;flex:1;margin-bottom:12px;"></div>
-    <!-- Totals -->
-    <div id="recipe-ing-totals" style="flex-shrink:0;background:var(--surface2);border-radius:var(--r-sm);padding:10px 12px;font-size:12px;color:var(--text2);margin-bottom:12px;">No ingredients yet</div>
-    <button class="btn btn-accent btn-block" style="flex-shrink:0;" onclick="saveRecipe()">Save recipe →</button>
-  </div>
-</div>
-
-<!-- ── Recipe: Barcode entry ──────────────────────────────────────── -->
-<div class="modal-overlay" id="modal-recipe-barcode">
-  <div class="modal-sheet" data-modal="modal-recipe-barcode">
-    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-barcode')">✕</button></div>
-    <div class="modal-title">Add Ingredient — Barcode</div>
-    <div class="form-group">
-      <div class="label">Barcode number</div>
-      <input type="text" id="recipe-barcode-input" placeholder="e.g. 5000112548175" inputmode="numeric">
-    </div>
-    <div id="recipe-barcode-status" style="display:none;padding:10px;border-radius:var(--r-sm);font-size:12px;margin-bottom:12px;"></div>
-    <button class="btn btn-accent btn-block" onclick="lookupRecipeBarcode()">Look up →</button>
-  </div>
-</div>
-
-<!-- ── Recipe: Barcode serving confirm ───────────────────────────── -->
-<div class="modal-overlay" id="modal-recipe-serving">
-  <div class="modal-sheet" data-modal="modal-recipe-serving">
-    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-serving')">✕</button></div>
-    <div class="modal-title">Confirm Amount</div>
-    <div class="card" style="margin-bottom:14px;">
-      <div style="font-family:var(--font-display);font-size:15px;font-weight:700;margin-bottom:2px;" id="recipe-serving-name"></div>
-      <div style="font-size:12px;color:var(--text2);" id="recipe-serving-brand"></div>
-    </div>
-    <div class="form-group">
-      <div class="label">Amount (g)</div>
-      <input type="number" id="recipe-serving-grams" min="1" oninput="updateRecipeServingPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
-    </div>
-    <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px;margin-bottom:14px;font-size:12px;color:var(--text2);" id="recipe-serving-preview">—</div>
-    <button class="btn btn-accent btn-block" onclick="confirmRecipeIngredient()">Add ingredient →</button>
-  </div>
-</div>
-
-<!-- ── Recipe: Manual ingredient ─────────────────────────────────── -->
-<div class="modal-overlay" id="modal-recipe-manual">
-  <div class="modal-sheet" data-modal="modal-recipe-manual">
-    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-manual')">✕</button></div>
-    <div class="modal-title">Add Ingredient — Manual</div>
-    <div class="form-group">
-      <div class="label">Ingredient name</div>
-      <input type="text" id="recipe-manual-name" placeholder="e.g. Olive oil">
-    </div>
-    <div class="form-group">
-      <div class="label">No. servings</div>
-      <input type="number" id="recipe-manual-servings" value="1" min="0.5" step="0.5" oninput="updateRecipeManualPreview()">
-    </div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Values per 1 serving (serving size = 1)</div>
-    <div class="input-row">
-      <div><div class="label">kcal</div><input type="number" id="recipe-manual-kcal" placeholder="0" oninput="updateRecipeManualPreview()"></div>
-      <div><div class="label">Protein (g)</div><input type="number" id="recipe-manual-protein" placeholder="0" oninput="updateRecipeManualPreview()"></div>
-    </div>
-    <div class="input-row">
-      <div><div class="label">Carbs (g)</div><input type="number" id="recipe-manual-carbs" placeholder="0" oninput="updateRecipeManualPreview()"></div>
-      <div><div class="label">Fats (g)</div><input type="number" id="recipe-manual-fats" placeholder="0" oninput="updateRecipeManualPreview()"></div>
-    </div>
-    <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px;margin-bottom:14px;font-size:12px;color:var(--text2);" id="recipe-manual-preview">Total: — kcal</div>
-    <button class="btn btn-accent btn-block" onclick="confirmRecipeManual()">Add ingredient →</button>
-  </div>
-</div>
-
-<!-- ── Recipe list / manager ──────────────────────────────────────── -->
-<div class="modal-overlay" id="modal-recipe-list">
-  <div class="modal-sheet" data-modal="modal-recipe-list" style="max-height:85dvh;display:flex;flex-direction:column;">
-    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-list')">✕</button></div>
-    <div class="modal-title" style="flex-shrink:0;">Recipes</div>
-    <div id="recipe-list-content" style="overflow-y:auto;flex:1;"></div>
-  </div>
-</div>
-
-<!-- Custom Confirm Modal -->
-<div class="modal-overlay" id="modal-confirm" style="align-items:center;justify-content:center;">
-  <div style="background:var(--surface);border-radius:var(--r);border:0.5px solid var(--border2);padding:24px 20px;width:calc(100% - 48px);max-width:340px;text-align:center;">
-    <div style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px;" id="confirm-title"></div>
-    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:20px;" id="confirm-msg"></div>
-    <div style="display:flex;gap:10px;">
-      <button class="btn btn-block" id="confirm-cancel-btn" style="flex:1;">Cancel</button>
-      <button class="btn btn-danger btn-block" id="confirm-ok-btn" style="flex:1;"></button>
-    </div>
-  </div>
-</div>
-
-<script>
 // ── Custom confirm (replaces window.confirm for PWA compatibility) ──────────
 let _confirmCallback = null;
 
@@ -4565,16 +4533,18 @@ function showConfirm(title, message, okLabel, callback) {
   document.getElementById('modal-confirm').classList.add('open');
 }
 
-document.getElementById('confirm-ok-btn').onclick = function() {
-  document.getElementById('modal-confirm').classList.remove('open');
-  if (_confirmCallback) { const cb = _confirmCallback; _confirmCallback = null; cb(); }
-};
-document.getElementById('confirm-cancel-btn').onclick = function() {
-  document.getElementById('modal-confirm').classList.remove('open');
-  _confirmCallback = null;
-};
-</script>
-<script>
+// Confirm button handlers wired after DOM is ready
+window.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('confirm-ok-btn').onclick = function() {
+    document.getElementById('modal-confirm').classList.remove('open');
+    if (_confirmCallback) { const cb = _confirmCallback; _confirmCallback = null; cb(); }
+  };
+  document.getElementById('confirm-cancel-btn').onclick = function() {
+    document.getElementById('modal-confirm').classList.remove('open');
+    _confirmCallback = null;
+  };
+});
+
 // ── Rest Timer ────────────────────────────────────────────────────────────────
 let timerMode = 'countdown';
 let cdPickerMin = 1;
@@ -4803,13 +4773,15 @@ function swReset() {
   updateTimerIcon();
 }
 
-(function() {
+window.addEventListener('DOMContentLoaded', function() {
   const overlay = document.getElementById('modal-timer');
+  if (!overlay) return;
   const sheet = overlay.querySelector('.modal-sheet');
   overlay.addEventListener('pointerdown', function(e) {
     if (e.target === overlay) closeTimerModal();
   });
   const handleRow = sheet.querySelector('.modal-handle-row');
+  if (!handleRow) return;
   let startY = 0, dragging = false;
   handleRow.addEventListener('touchstart', e => { startY = e.touches[0].clientY; dragging = true; }, { passive: true });
   handleRow.addEventListener('touchmove', e => {
@@ -4823,9 +4795,8 @@ function swReset() {
     sheet.style.transform = '';
     if (e.changedTouches[0].clientY - startY > 80) closeTimerModal();
   }, { passive: true });
-})();
-</script>
-<script>
+});
+
 // ── Food Library Editor ───────────────────────────────────────────────────────
 
 function openFoodLibraryEditor() {
@@ -4858,8 +4829,8 @@ function renderFoodLibEditor() {
       + '</div>'
       + '</div>'
       + '<div style="display:flex;gap:6px;flex-shrink:0;margin-left:8px;">'
-      + '<button onclick="openFoodLibEntry(' + idx + ')" class="btn btn-sm" style="padding:5px 10px;">Edit</button>'
-      + '<button onclick="deleteFoodLibEntry(' + idx + ')" class="btn btn-sm btn-danger" style="padding:5px 10px;">✕</button>'
+      + '<button onclick="openFoodLibEntry(' + idx + ')" class="btn btn-sm" style="padding:5px 10px;" title="Edit"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>'
+      + '<button onclick="deleteFoodLibEntry(' + idx + ')" class="btn btn-sm btn-danger" style="padding:5px 10px;" title="Delete"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>'
       + '</div>'
       + '</div>';
   }).join('');
@@ -4949,8 +4920,7 @@ function deleteFoodLibEntry(idx) {
     }
   );
 }
-</script>
-<script>
+
 // ── Recipe Builder ────────────────────────────────────────────────────────────
 
 let recipeIngredients = []; // working list while building
@@ -4983,15 +4953,17 @@ function renderRecipeIngredients() {
   if (!recipeIngredients.length) {
     el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:20px 0;">No ingredients yet — add via barcode or manual entry</div>';
   } else {
-    el.innerHTML = recipeIngredients.map((ing, idx) =>
-      '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:0.5px solid var(--border);">'
-      + '<div style="flex:1;min-width:0;">'
-      + '<div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + ing.name + '</div>'
-      + '<div style="font-size:10px;color:var(--text3);margin-top:2px;">' + ing.grams + 'g · ' + ing.kcal + ' kcal · P:' + ing.protein + 'g C:' + ing.carbs + 'g F:' + ing.fats + 'g</div>'
-      + '</div>'
-      + '<button onclick="removeRecipeIngredient(' + idx + ')" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px 8px;font-size:16px;flex-shrink:0;">✕</button>'
-      + '</div>'
-    ).join('');
+    el.innerHTML = recipeIngredients.map((ing, idx) => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:0.5px solid var(--border);">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${ing.name}</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px;">${ing.grams}g · ${ing.kcal} kcal · P:${ing.protein}g C:${ing.carbs}g F:${ing.fats}g</div>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0;margin-left:8px;">
+          <button onclick="editRecipeIngredient(${idx})" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px 8px;font-size:14px;">✎</button>
+          <button onclick="removeRecipeIngredient(${idx})" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px 8px;font-size:16px;">✕</button>
+        </div>
+      </div>`).join('');
   }
   // Totals
   const tot = recipeIngredients.reduce((a,b) => ({
@@ -4999,15 +4971,106 @@ function renderRecipeIngredients() {
   }), {kcal:0, p:0, c:0, f:0});
   const servings = parseFloat(document.getElementById('recipe-servings-input').value) || 1;
   const perServing = servings > 1
-    ? ' · Per serving: ' + Math.round(tot.kcal/servings) + ' kcal P:' + Math.round(tot.p/servings) + 'g C:' + Math.round(tot.c/servings) + 'g F:' + Math.round(tot.f/servings) + 'g'
+    ? ` · Per serving: ${Math.round(tot.kcal/servings)} kcal P:${Math.round(tot.p/servings)}g C:${Math.round(tot.c/servings)}g F:${Math.round(tot.f/servings)}g`
     : '';
   document.getElementById('recipe-ing-totals').textContent = recipeIngredients.length
-    ? 'Total: ' + tot.kcal + ' kcal · P:' + tot.p + 'g C:' + tot.c + 'g F:' + tot.f + 'g' + perServing
+    ? `Total: ${tot.kcal} kcal · P:${tot.p}g C:${tot.c}g F:${tot.f}g${perServing}`
     : 'No ingredients yet';
 }
 
 function removeRecipeIngredient(idx) {
   recipeIngredients.splice(idx, 1);
+  renderRecipeIngredients();
+}
+
+function editRecipeIngredient(idx) {
+  const ing = recipeIngredients[idx];
+  if (!ing) return;
+  const isBarcode = ing.source === 'barcode' && ing.per1kcal != null;
+  document.getElementById('recipe-edit-ing-idx').value = idx;
+  document.getElementById('recipe-edit-ing-name').value = ing.name;
+  document.getElementById('recipe-edit-ing-source').value = ing.source || 'manual';
+
+  if (isBarcode) {
+    document.getElementById('recipe-edit-ing-grams-row').style.display = '';
+    document.getElementById('recipe-edit-ing-manual-row').style.display = 'none';
+    document.getElementById('recipe-edit-ing-grams').value = ing.grams;
+    const per100kcal = Math.round(ing.per1kcal * 100);
+    const per100p    = Math.round(ing.per1p    * 100 * 10) / 10;
+    const per100c    = Math.round(ing.per1c    * 100 * 10) / 10;
+    const per100f    = Math.round(ing.per1f    * 100 * 10) / 10;
+    document.getElementById('recipe-edit-ing-per100-info').textContent =
+      `Per 100g: ${per100kcal} kcal · P:${per100p}g C:${per100c}g F:${per100f}g`;
+  } else {
+    document.getElementById('recipe-edit-ing-grams-row').style.display = 'none';
+    document.getElementById('recipe-edit-ing-manual-row').style.display = '';
+    // For manual: grams field = servings, kcal/macros stored as totals — back-calculate per-serving
+    const servings = ing.grams || 1;
+    document.getElementById('recipe-edit-ing-servings').value = servings;
+    document.getElementById('recipe-edit-ing-kcal').value     = servings > 0 ? Math.round(ing.kcal    / servings) : ing.kcal;
+    document.getElementById('recipe-edit-ing-protein').value  = servings > 0 ? Math.round(ing.protein / servings * 10) / 10 : ing.protein;
+    document.getElementById('recipe-edit-ing-carbs').value    = servings > 0 ? Math.round(ing.carbs   / servings * 10) / 10 : ing.carbs;
+    document.getElementById('recipe-edit-ing-fats').value     = servings > 0 ? Math.round(ing.fats    / servings * 10) / 10 : ing.fats;
+  }
+  updateRecipeIngredientEditPreview();
+  openModal('modal-recipe-edit-ingredient');
+}
+
+function updateRecipeIngredientEditPreview() {
+  const idx = parseInt(document.getElementById('recipe-edit-ing-idx').value);
+  const source = document.getElementById('recipe-edit-ing-source').value;
+  const isBarcode = source === 'barcode' && !isNaN(idx) && recipeIngredients[idx]?.per1kcal != null;
+  let kcal, p, c, f;
+  if (isBarcode) {
+    const ing = recipeIngredients[idx];
+    const grams = parseFloat(document.getElementById('recipe-edit-ing-grams').value) || 0;
+    kcal = Math.round(ing.per1kcal * grams);
+    p    = Math.round(ing.per1p    * grams);
+    c    = Math.round(ing.per1c    * grams);
+    f    = Math.round(ing.per1f    * grams);
+  } else {
+    const servings = parseFloat(document.getElementById('recipe-edit-ing-servings').value) || 1;
+    kcal = Math.round((parseFloat(document.getElementById('recipe-edit-ing-kcal').value)    || 0) * servings);
+    p    = Math.round((parseFloat(document.getElementById('recipe-edit-ing-protein').value)  || 0) * servings * 10) / 10;
+    c    = Math.round((parseFloat(document.getElementById('recipe-edit-ing-carbs').value)    || 0) * servings * 10) / 10;
+    f    = Math.round((parseFloat(document.getElementById('recipe-edit-ing-fats').value)     || 0) * servings * 10) / 10;
+  }
+  document.getElementById('recipe-edit-ing-preview').textContent =
+    `Total: ${kcal} kcal · P:${p}g C:${c}g F:${f}g`;
+}
+
+function saveRecipeIngredientEdit() {
+  const idx = parseInt(document.getElementById('recipe-edit-ing-idx').value);
+  if (isNaN(idx) || idx < 0 || idx >= recipeIngredients.length) return;
+  const ing = recipeIngredients[idx];
+  const source = document.getElementById('recipe-edit-ing-source').value;
+  const isBarcode = source === 'barcode' && ing.per1kcal != null;
+  const name = document.getElementById('recipe-edit-ing-name').value.trim() || ing.name;
+
+  if (isBarcode) {
+    const grams = parseFloat(document.getElementById('recipe-edit-ing-grams').value) || ing.grams;
+    recipeIngredients[idx] = {
+      ...ing, name, grams,
+      kcal:    Math.round(ing.per1kcal * grams),
+      protein: Math.round(ing.per1p    * grams),
+      carbs:   Math.round(ing.per1c    * grams),
+      fats:    Math.round(ing.per1f    * grams),
+    };
+  } else {
+    const servings   = parseFloat(document.getElementById('recipe-edit-ing-servings').value) || (ing.grams || 1);
+    const perKcal    = parseFloat(document.getElementById('recipe-edit-ing-kcal').value)    || 0;
+    const perProtein = parseFloat(document.getElementById('recipe-edit-ing-protein').value) || 0;
+    const perCarbs   = parseFloat(document.getElementById('recipe-edit-ing-carbs').value)   || 0;
+    const perFats    = parseFloat(document.getElementById('recipe-edit-ing-fats').value)    || 0;
+    recipeIngredients[idx] = {
+      ...ing, name, grams: servings,
+      kcal:    Math.round(perKcal    * servings),
+      protein: Math.round(perProtein * servings * 10) / 10,
+      carbs:   Math.round(perCarbs   * servings * 10) / 10,
+      fats:    Math.round(perFats    * servings * 10) / 10,
+    };
+  }
+  closeModal('modal-recipe-edit-ingredient');
   renderRecipeIngredients();
 }
 
@@ -5070,7 +5133,7 @@ function updateRecipeServingPreview() {
   const r = grams / 100;
   const i = recipePendingIngredient;
   document.getElementById('recipe-serving-preview').textContent =
-    Math.round(i.per100kcal*r) + ' kcal · P:' + Math.round(i.per100p*r) + 'g C:' + Math.round(i.per100c*r) + 'g F:' + Math.round(i.per100f*r) + 'g';
+    `${Math.round(i.per100kcal*r)} kcal · P:${Math.round(i.per100p*r)}g C:${Math.round(i.per100c*r)}g F:${Math.round(i.per100f*r)}g`;
 }
 
 function confirmRecipeIngredient() {
@@ -5079,12 +5142,16 @@ function confirmRecipeIngredient() {
   const r = grams / 100;
   const i = recipePendingIngredient;
   recipeIngredients.push({
-    name: i.name, brand: i.brand, grams,
+    name: i.name, brand: i.brand || '', grams,
     kcal:    Math.round(i.per100kcal * r),
     protein: Math.round(i.per100p * r),
     carbs:   Math.round(i.per100c * r),
     fats:    Math.round(i.per100f * r),
-    per100kcal: i.per100kcal, per100p: i.per100p, per100c: i.per100c, per100f: i.per100f,
+    // Store per1g for editing — never multiply by 100 again
+    per1kcal: i.per100kcal / 100,
+    per1p:    i.per100p / 100,
+    per1c:    i.per100c / 100,
+    per1f:    i.per100f / 100,
     source: 'barcode',
   });
   recipePendingIngredient = null;
@@ -5163,7 +5230,7 @@ function saveRecipe() {
   addToFoodLibrary({
     id: recipe.id,
     name: recipe.name,
-    brand: '',
+    brand: 'My Recipe',
     barcode: null,
     per100kcal: perServingKcal,
     per100p:    perServingP,
@@ -5191,36 +5258,347 @@ function renderRecipeList() {
   const el = document.getElementById('recipe-list-content');
   const recipes = state.recipes || [];
   if (!recipes.length) {
-    el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:30px 0;">No recipes yet — create one from Settings → Food library</div>';
+    el.innerHTML = `
+      <div style="text-align:center;color:var(--text3);font-size:13px;padding:40px 0;">
+        No recipes yet.<br>
+        <span style="font-size:12px;">Tap <strong style="color:var(--accent);">+ Create new</strong> to build your first recipe.</span>
+      </div>`;
     return;
   }
-  el.innerHTML = recipes.map(r =>
-    '<div style="padding:12px 0;border-bottom:0.5px solid var(--border);">'
-    + '<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
-    + '<div style="flex:1;min-width:0;">'
-    + '<div style="font-size:14px;font-weight:700;font-family:var(--font-display);">' + r.name + '</div>'
-    + '<div style="font-size:11px;color:var(--text3);margin-top:3px;">'
-    + r.servings + ' serving' + (r.servings!==1?'s':'') + ' · '
-    + r.per_serving_kcal + ' kcal / serving · P:' + r.per_serving_p + 'g C:' + r.per_serving_c + 'g F:' + r.per_serving_f + 'g'
-    + '</div>'
-    + '<div style="font-size:10px;color:var(--text3);margin-top:2px;">' + (r.ingredients||[]).length + ' ingredient' + ((r.ingredients||[]).length!==1?'s':'') + ' · Total: ' + r.total_kcal + ' kcal</div>'
-    + '</div>'
-    + '<div style="display:flex;gap:6px;flex-shrink:0;margin-left:8px;">'
-    + '<button onclick="openRecipeBuilder(\'' + r.id + '\')" class="btn btn-sm" style="padding:5px 10px;">Edit</button>'
-    + '<button onclick="deleteRecipe(\'' + r.id + '\')" class="btn btn-sm btn-danger" style="padding:5px 10px;">✕</button>'
-    + '</div></div>'
-    + '</div>'
-  ).join('');
+
+  el.innerHTML = recipes.map(r => {
+    const ingredients = r.ingredients || [];
+    const ingList = ingredients.length
+      ? ingredients.map(ing => `
+          <div style="display:flex;justify-content:space-between;align-items:baseline;padding:3px 0;border-bottom:0.5px solid var(--border);">
+            <span style="font-size:11px;color:var(--text2);">${ing.name}</span>
+            <span style="font-size:11px;color:var(--text3);">${ing.grams}g · ${ing.kcal} kcal</span>
+          </div>`).join('')
+      : `<div style="font-size:11px;color:var(--text3);padding:4px 0;">No ingredients recorded</div>`;
+
+    return `
+      <div style="padding:14px 0;border-bottom:0.5px solid var(--border2);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:15px;font-weight:700;font-family:var(--font-display);">${r.name}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:3px;">
+              ${r.servings} serving${r.servings !== 1 ? 's' : ''} ·
+              ${r.per_serving_kcal} kcal/serving ·
+              P:${r.per_serving_p}g C:${r.per_serving_c}g F:${r.per_serving_f}g
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0;margin-left:10px;">
+            <button onclick="closeModal('modal-recipe-list');requestAnimationFrame(()=>openRecipeBuilder('${r.id}'))"
+              class="btn btn-sm" style="padding:5px 10px;" title="Edit"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+            <button onclick="deleteRecipe('${r.id}')"
+              class="btn btn-sm btn-danger" style="padding:5px 10px;" title="Delete"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
+          </div>
+        </div>
+        <div style="background:var(--surface2);border-radius:var(--r-sm);padding:8px 10px;margin-top:4px;">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">
+            ${ingredients.length} ingredient${ingredients.length !== 1 ? 's' : ''} · Total: ${r.total_kcal} kcal
+          </div>
+          ${ingList}
+        </div>
+      </div>`;
+  }).join('');
 }
 
 function deleteRecipe(id) {
-  const recipe = (state.recipes||[]).find(r => r.id === id);
+  const recipe = (state.recipes || []).find(r => r.id === id);
   if (!recipe) return;
-  showConfirm('Delete recipe?', '"' + recipe.name + '" will be removed from your library.', 'Delete', () => {
-    state.recipes = (state.recipes||[]).filter(r => r.id !== id);
-    state.foodLibrary = (state.foodLibrary||[]).filter(f => f.id !== id);
+  showConfirm('Delete recipe?', `"${recipe.name}" will be removed from your library. Existing nutrition logs are not affected.`, 'Delete', () => {
+    state.recipes = (state.recipes || []).filter(r => r.id !== id);
+    state.foodLibrary = (state.foodLibrary || []).filter(f => f.id !== id);
     save();
     renderRecipeList();
   });
 }
 </script>
+
+<!-- ── Rest Timer Modal ───────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-timer">
+  <div class="modal-sheet" style="max-height:70dvh;">
+    <div class="modal-handle-row">
+      <div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeTimerModal()">✕</button>
+    </div>
+    <div class="toggle-row" style="margin-bottom:20px;">
+      <button class="toggle-btn active" id="timer-tog-countdown" onclick="setTimerMode('countdown')">Countdown</button>
+      <button class="toggle-btn" id="timer-tog-stopwatch" onclick="setTimerMode('stopwatch')">Stopwatch</button>
+    </div>
+    <div id="timer-panel-countdown">
+      <div id="timer-picker" style="display:flex;justify-content:center;align-items:center;gap:0;margin-bottom:24px;user-select:none;">
+        <div style="text-align:center;">
+          <div style="font-size:11px;color:var(--text3);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;">Min</div>
+          <div style="position:relative;height:120px;overflow:hidden;width:80px;" id="picker-min-wrap">
+            <div id="picker-min" style="display:flex;flex-direction:column;align-items:center;cursor:ns-resize;touch-action:none;"></div>
+          </div>
+        </div>
+        <div style="font-size:32px;font-weight:700;color:var(--text3);padding:0 4px;margin-top:14px;">:</div>
+        <div style="text-align:center;">
+          <div style="font-size:11px;color:var(--text3);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;">Sec</div>
+          <div style="position:relative;height:120px;overflow:hidden;width:80px;" id="picker-sec-wrap">
+            <div id="picker-sec" style="display:flex;flex-direction:column;align-items:center;cursor:ns-resize;touch-action:none;"></div>
+          </div>
+        </div>
+      </div>
+      <div id="timer-display" style="display:none;text-align:center;margin-bottom:24px;">
+        <div id="timer-digits" style="font-family:var(--font-display);font-size:64px;font-weight:800;letter-spacing:-0.02em;color:var(--text);line-height:1;"></div>
+        <div id="timer-status" style="font-size:12px;color:var(--text3);margin-top:8px;letter-spacing:0.08em;text-transform:uppercase;"></div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button id="cd-start-btn" class="btn btn-accent btn-block" onclick="countdownStart()">Start</button>
+        <button id="cd-reset-btn" class="btn btn-block" onclick="countdownReset()" style="display:none;">Reset</button>
+      </div>
+    </div>
+    <div id="timer-panel-stopwatch" style="display:none;">
+      <div style="text-align:center;margin-bottom:24px;">
+        <div id="sw-digits" style="font-family:var(--font-display);font-size:64px;font-weight:800;letter-spacing:-0.02em;color:var(--text);line-height:1;">0:00.0</div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button id="sw-start-btn" class="btn btn-accent btn-block" onclick="swToggle()">Start</button>
+        <button id="sw-reset-btn" class="btn btn-block" onclick="swReset()">Reset</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Food Library Editor Modal ─────────────────────────────────── -->
+<div class="modal-overlay" id="modal-food-lib-editor">
+  <div class="modal-sheet" data-modal="modal-food-lib-editor" style="max-height:90dvh;display:flex;flex-direction:column;">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-food-lib-editor')">✕</button></div>
+    <div class="modal-title" style="flex-shrink:0;">Food Library</div>
+    <input type="text" id="food-lib-search" placeholder="Search foods…" oninput="renderFoodLibEditor()" style="margin-bottom:10px;flex-shrink:0;">
+    <div id="food-lib-list" style="overflow-y:auto;flex:1;"></div>
+  </div>
+</div>
+
+<!-- ── Food Library Entry Edit Modal ─────────────────────────────── -->
+<div class="modal-overlay" id="modal-food-lib-entry">
+  <div class="modal-sheet" data-modal="modal-food-lib-entry">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-food-lib-entry')">✕</button></div>
+    <div class="modal-title">Edit Food</div>
+    <input type="hidden" id="fle-id">
+    <div class="form-group">
+      <div class="label">Name</div>
+      <input type="text" id="fle-name">
+    </div>
+    <div class="form-group">
+      <div class="label">Brand</div>
+      <input type="text" id="fle-brand" placeholder="Optional">
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Values per 100g</div>
+    <div class="input-row">
+      <div><div class="label">kcal / 100g</div><input type="number" id="fle-kcal" oninput="updateFlePreview()"></div>
+      <div><div class="label">Protein (g)</div><input type="number" id="fle-protein" oninput="updateFlePreview()"></div>
+    </div>
+    <div class="input-row">
+      <div><div class="label">Carbs (g)</div><input type="number" id="fle-carbs" oninput="updateFlePreview()"></div>
+      <div><div class="label">Fats (g)</div><input type="number" id="fle-fats" oninput="updateFlePreview()"></div>
+    </div>
+    <div class="form-group">
+      <div class="label">RSS (g) <span style="color:var(--text3);font-size:10px;">Recommended serving size — optional</span></div>
+      <input type="number" id="fle-rss" placeholder="e.g. 250" oninput="updateFlePreview()">
+    </div>
+    <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px;margin-bottom:14px;font-size:12px;color:var(--text2);" id="fle-preview">—</div>
+    <button class="btn btn-accent btn-block" onclick="saveFoodLibEntry()" style="margin-bottom:8px;">Save →</button>
+  </div>
+</div>
+
+<!-- ── Recipe Builder: Step 1 — Name & Servings ──────────────────── -->
+<div class="modal-overlay" id="modal-recipe-step1">
+  <div class="modal-sheet" data-modal="modal-recipe-step1">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-step1')">✕</button></div>
+    <div class="modal-title" id="recipe-step1-title">New Recipe</div>
+    <input type="hidden" id="recipe-edit-id">
+    <div class="form-group">
+      <div class="label">Recipe name</div>
+      <input type="text" id="recipe-name-input" placeholder="e.g. Chicken pasta">
+    </div>
+    <div class="form-group">
+      <div class="label">No. servings this recipe makes</div>
+      <input type="number" id="recipe-servings-input" value="1" min="1" step="0.5" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
+    </div>
+    <button class="btn btn-accent btn-block" onclick="recipeGoToIngredients()">Next: Add ingredients →</button>
+  </div>
+</div>
+
+<!-- ── Recipe Builder: Step 2 — Ingredients ──────────────────────── -->
+<div class="modal-overlay" id="modal-recipe-ingredients">
+  <div class="modal-sheet" data-modal="modal-recipe-ingredients" style="max-height:90dvh;display:flex;flex-direction:column;">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-ingredients')">✕</button></div>
+    <div class="modal-title" style="flex-shrink:0;" id="recipe-ing-title">Ingredients</div>
+    <!-- Action buttons -->
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0;">
+      <button onclick="openRecipeBarcode()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/><line x1="13" y1="8" x2="13" y2="12"/><line x1="16" y1="8" x2="16" y2="16"/></svg>
+        <span style="font-weight:600;">Barcode</span>
+      </button>
+      <button onclick="openRecipeManual()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        <span style="font-weight:600;">Manual</span>
+      </button>
+    </div>
+    <!-- Ingredient list -->
+    <div id="recipe-ing-list" style="overflow-y:auto;flex:1;margin-bottom:12px;"></div>
+    <!-- Totals -->
+    <div id="recipe-ing-totals" style="flex-shrink:0;background:var(--surface2);border-radius:var(--r-sm);padding:10px 12px;font-size:12px;color:var(--text2);margin-bottom:12px;">No ingredients yet</div>
+    <button class="btn btn-accent btn-block" style="flex-shrink:0;" onclick="saveRecipe()">Save recipe →</button>
+  </div>
+</div>
+
+<!-- ── Recipe: Barcode entry ──────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-recipe-barcode">
+  <div class="modal-sheet" data-modal="modal-recipe-barcode">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-barcode')">✕</button></div>
+    <div class="modal-title">Add Ingredient — Barcode</div>
+    <div class="form-group">
+      <div class="label">Barcode number</div>
+      <input type="text" id="recipe-barcode-input" placeholder="e.g. 5000112548175" inputmode="numeric">
+    </div>
+    <div id="recipe-barcode-status" style="display:none;padding:10px;border-radius:var(--r-sm);font-size:12px;margin-bottom:12px;"></div>
+    <button class="btn btn-accent btn-block" onclick="lookupRecipeBarcode()">Look up →</button>
+  </div>
+</div>
+
+<!-- ── Recipe: Barcode serving confirm ───────────────────────────── -->
+<div class="modal-overlay" id="modal-recipe-serving">
+  <div class="modal-sheet" data-modal="modal-recipe-serving">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-serving')">✕</button></div>
+    <div class="modal-title">Confirm Amount</div>
+    <div class="card" style="margin-bottom:14px;">
+      <div style="font-family:var(--font-display);font-size:15px;font-weight:700;margin-bottom:2px;" id="recipe-serving-name"></div>
+      <div style="font-size:12px;color:var(--text2);" id="recipe-serving-brand"></div>
+    </div>
+    <div class="form-group">
+      <div class="label">Amount (g)</div>
+      <input type="number" id="recipe-serving-grams" min="1" oninput="updateRecipeServingPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
+    </div>
+    <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px;margin-bottom:14px;font-size:12px;color:var(--text2);" id="recipe-serving-preview">—</div>
+    <button class="btn btn-accent btn-block" onclick="confirmRecipeIngredient()">Add ingredient →</button>
+  </div>
+</div>
+
+<!-- ── Recipe: Manual ingredient ─────────────────────────────────── -->
+<div class="modal-overlay" id="modal-recipe-manual">
+  <div class="modal-sheet" data-modal="modal-recipe-manual">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-manual')">✕</button></div>
+    <div class="modal-title">Add Ingredient — Manual</div>
+    <div class="form-group">
+      <div class="label">Ingredient name</div>
+      <input type="text" id="recipe-manual-name" placeholder="e.g. Olive oil">
+    </div>
+    <div class="form-group">
+      <div class="label">No. servings</div>
+      <input type="number" id="recipe-manual-servings" value="1" min="0.5" step="0.5" oninput="updateRecipeManualPreview()">
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Values per 1 serving (serving size = 1)</div>
+    <div class="input-row">
+      <div><div class="label">kcal</div><input type="number" id="recipe-manual-kcal" placeholder="0" oninput="updateRecipeManualPreview()"></div>
+      <div><div class="label">Protein (g)</div><input type="number" id="recipe-manual-protein" placeholder="0" oninput="updateRecipeManualPreview()"></div>
+    </div>
+    <div class="input-row">
+      <div><div class="label">Carbs (g)</div><input type="number" id="recipe-manual-carbs" placeholder="0" oninput="updateRecipeManualPreview()"></div>
+      <div><div class="label">Fats (g)</div><input type="number" id="recipe-manual-fats" placeholder="0" oninput="updateRecipeManualPreview()"></div>
+    </div>
+    <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px;margin-bottom:14px;font-size:12px;color:var(--text2);" id="recipe-manual-preview">Total: — kcal</div>
+    <button class="btn btn-accent btn-block" onclick="confirmRecipeManual()">Add ingredient →</button>
+  </div>
+</div>
+
+<!-- ── Recipe: Edit ingredient ─────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-recipe-edit-ingredient">
+  <div class="modal-sheet" data-modal="modal-recipe-edit-ingredient">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-edit-ingredient')">✕</button></div>
+    <div class="modal-title">Edit Ingredient</div>
+    <input type="hidden" id="recipe-edit-ing-idx">
+    <input type="hidden" id="recipe-edit-ing-source">
+    <div class="form-group">
+      <div class="label">Name</div>
+      <input type="text" id="recipe-edit-ing-name">
+    </div>
+
+    <!-- Barcode ingredient: edit grams only, macros recalculate -->
+    <div id="recipe-edit-ing-grams-row">
+      <div class="form-group">
+        <div class="label">Amount (g)</div>
+        <input type="number" id="recipe-edit-ing-grams" min="1"
+          style="font-size:18px;font-family:var(--font-display);font-weight:700;"
+          oninput="updateRecipeIngredientEditPreview()">
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px;" id="recipe-edit-ing-per100-info"></div>
+    </div>
+
+    <!-- Manual ingredient: edit servings + per-serving macros -->
+    <div id="recipe-edit-ing-manual-row" style="display:none;">
+      <div class="form-group">
+        <div class="label">Servings</div>
+        <input type="number" id="recipe-edit-ing-servings" value="1" min="0.5" step="0.5"
+          oninput="updateRecipeIngredientEditPreview()">
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Values per 1 serving</div>
+      <div class="input-row">
+        <div><div class="label">kcal</div><input type="number" id="recipe-edit-ing-kcal" oninput="updateRecipeIngredientEditPreview()"></div>
+        <div><div class="label">Protein (g)</div><input type="number" id="recipe-edit-ing-protein" oninput="updateRecipeIngredientEditPreview()"></div>
+      </div>
+      <div class="input-row">
+        <div><div class="label">Carbs (g)</div><input type="number" id="recipe-edit-ing-carbs" oninput="updateRecipeIngredientEditPreview()"></div>
+        <div><div class="label">Fats (g)</div><input type="number" id="recipe-edit-ing-fats" oninput="updateRecipeIngredientEditPreview()"></div>
+      </div>
+    </div>
+
+    <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px;margin-bottom:14px;font-size:12px;color:var(--text2);" id="recipe-edit-ing-preview">—</div>
+    <button class="btn btn-accent btn-block" onclick="saveRecipeIngredientEdit()">Save →</button>
+  </div>
+</div>
+
+<!-- ── Recipe list / manager ──────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-recipe-list">
+  <div class="modal-sheet" data-modal="modal-recipe-list" style="max-height:85dvh;display:flex;flex-direction:column;">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-list')">✕</button></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-shrink:0;">
+      <div class="modal-title" style="margin:0;">My Recipes</div>
+      <button class="btn btn-accent btn-sm" onclick="closeModal('modal-recipe-list');requestAnimationFrame(()=>openRecipeBuilder())">+ Create new</button>
+    </div>
+    <div id="recipe-list-content" style="overflow-y:auto;flex:1;"></div>
+  </div>
+</div>
+
+<!-- Copy food entry to another meal/date -->
+<div class="modal-overlay" id="modal-nutr-copy-entry">
+  <div class="modal-sheet" data-modal="modal-nutr-copy-entry">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-copy-entry')">✕</button></div>
+    <div class="modal-title" id="nce-modal-title">Copy to…</div>
+    <input type="hidden" id="nce-date">
+    <input type="hidden" id="nce-meal">
+    <input type="hidden" id="nce-idx">
+    <input type="hidden" id="nce-mode" value="copy">
+    <div class="form-group">
+      <div class="label">Date</div>
+      <select id="nce-target-date" style="font-size:14px;"></select>
+    </div>
+    <div class="form-group">
+      <div class="label">Meal</div>
+      <select id="nce-target-meal" style="font-size:14px;">
+        <option value="Breakfast">Breakfast</option>
+        <option value="Lunch">Lunch</option>
+        <option value="Dinner">Dinner</option>
+        <option value="Snacks">Snacks</option>
+      </select>
+    </div>
+    <button id="nce-confirm-btn" class="btn btn-accent btn-block" onclick="confirmCopyFoodEntry()">Copy →</button>
+  </div>
+</div>
+
+<!-- Custom Confirm Modal -->
+<div class="modal-overlay" id="modal-confirm" style="align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border-radius:var(--r);border:0.5px solid var(--border2);padding:24px 20px;width:calc(100% - 48px);max-width:340px;text-align:center;">
+    <div style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px;" id="confirm-title"></div>
+    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:20px;" id="confirm-msg"></div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-block" id="confirm-cancel-btn" style="flex:1;">Cancel</button>
+      <button class="btn btn-danger btn-block" id="confirm-ok-btn" style="flex:1;"></button>
+    </div>
+  </div>
+</div>
