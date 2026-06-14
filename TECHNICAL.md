@@ -50,6 +50,7 @@ BLOC is a single-file Progressive Web App (`index.html`) with no build toolchain
 - No module imports — all functions are global
 - Rendering is manual DOM manipulation (no virtual DOM)
 - Every screen re-renders fully on navigation; there is no partial diffing
+- The ZXing barcode library (~336KB minified) is bundled inline in the `<script>` block, setting `window.ZXing`
 
 ---
 
@@ -84,26 +85,26 @@ The file is organised into clearly commented sections in this order:
       Screens: home, plan, train, body, nutrition, goals, settings
     #nav (bottom navigation bar)
 
-  Modals (26 total, appended after #app):
+  Modals (25 total, appended after #app):
     modal-macro              — new macrocycle
     modal-edit-macro         — edit macrocycle
     modal-add-goal           — add/edit goal
     modal-custom-exercise    — create custom exercise
     modal-exercise           — add/edit exercise
     modal-body-log           — log body weight / steps
-    modal-nutr-add           — nutrition log chooser (Barcode / Manual / Recipe)
-    modal-nutr-barcode       — barcode number entry
+    modal-nutr-add           — nutrition log chooser (Scan Barcode / Manual / Recipe)
+    modal-nutr-barcode       — camera barcode scanner with manual fallback
     modal-nutr-serving       — serving size confirm (shows recipe ingredients for recipes)
     modal-nutr-previous      — food library search
     modal-nutr-manual        — manual food entry
-    modal-nutr-edit          — edit a logged food entry
+    modal-nutr-edit          — edit a logged food entry (grams/servings for barcode; direct macros for manual)
     modal-nutr-quick         — quick-add daily macro totals
     modal-timer              — rest timer (countdown + stopwatch)
     modal-food-lib-editor    — browse and edit the food library
     modal-food-lib-entry     — edit a single food library entry
     modal-recipe-step1       — recipe builder step 1: name and servings
     modal-recipe-ingredients — recipe builder step 2: ingredient list
-    modal-recipe-barcode     — barcode lookup for recipe ingredient
+    modal-recipe-barcode     — camera barcode scanner for recipe ingredient
     modal-recipe-serving     — serving confirm for recipe ingredient
     modal-recipe-manual      — manual entry for recipe ingredient
     modal-recipe-edit-ingredient — edit an existing recipe ingredient
@@ -112,6 +113,7 @@ The file is organised into clearly commented sections in this order:
     modal-confirm            — custom confirm dialog (centre-aligned)
 
 <script>
+  ZXing barcode library bundle (~336KB, sets window.ZXing)
   State declaration & load/save
   Navigation (showScreen, openModal, closeModal)
   Macrocycle helpers & CRUD
@@ -122,6 +124,8 @@ The file is organised into clearly commented sections in this order:
   Render: Train + training log functions
   Render: Body
   Render: Nutrition (full module — daily, weekly, diary, serving, library, recipes)
+  Barcode scanner engine (startScannerCamera, stopScannerCamera, _onScannerDetected)
+  Food library (addToFoodLibrary, share/export/import functions)
   Render: Settings
   Data export/import
   Exercise library
@@ -541,13 +545,61 @@ renderNutrDaily()
 ```
 openNutrAdd(meal)
   └─ modal-nutr-add shows three source buttons:
-      ├─ Barcode     → openNutrBarcode() → lookupNutrBarcode()
-      │                → sets nutrPendingProduct → openNutrServingModal()
+      ├─ Scan Barcode → openNutrBarcode()
+      │                  → startScannerCamera('nutr')  [auto-starts immediately]
+      │                  → on detection: lookupNutrBarcode()
+      │                  → on success: stopScannerCamera('nutr') → openNutrServingModal()
       ├─ Manual      → openNutrManual() → saveManualEntry()
       ├─ Recipe      → openNutrRecipeBuilder() → openRecipeBuilder()
       │                (returns to nutrition after saveRecipe())
       └─ Library list → selectFromAddList() → openNutrServingModal()
 ```
+
+### Barcode Scanner
+
+The scanner is shared between the nutrition flow (`ctx = 'nutr'`) and the recipe builder flow (`ctx = 'recipe'`). All state is held in the `_scannerState` object keyed by context.
+
+```js
+const _scannerState = {};  // { [ctx]: { scanning, cooldown, lastCode, stream, zxReader, canvas, canvasCtx } }
+```
+
+**Detection strategy (chosen once at startup, cached in `_nativeDetector`):**
+
+1. **`BarcodeDetector` API** — if `'BarcodeDetector' in window`, initialised with formats `['ean_13','ean_8','upc_a','upc_e','code_128','code_39','qr_code']`. Runs natively on the GPU thread, zero JS overhead per frame
+2. **ZXing JS** — if `BarcodeDetector` is unavailable, a `MultiFormatReader` is created with the same format list. Each frame is drawn to an offscreen canvas and passed through `HTMLCanvasElementLuminanceSource` → `BinaryBitmap` → `HybridBinarizer` → `decode()`
+
+**Scan loop:** `requestAnimationFrame` drives the loop. Each frame checks `video.readyState >= 2 && video.videoWidth > 0` before attempting detection. A 3-second cooldown prevents re-triggering on the same code.
+
+**On detection:**
+1. Viewfinder corners flash white (`.scanner-detected` class)
+2. Device vibrates 60ms
+3. Barcode is written to `nutr-barcode-input` (or `recipe-barcode-input`)
+4. `lookupNutrBarcode()` (or `lookupRecipeBarcode()`) is called
+5. On successful API response: `stopScannerCamera(ctx)` then the serving modal opens
+
+**Camera stops** when: a product is found, the modal is closed via ✕ or swipe, or the app is backgrounded (`visibilitychange` listener).
+
+**CSS classes on `#nutr-scanner-viewfinder`:**
+- `.scanner-scanning` — corner brackets pulse, scan line animates top→bottom
+- `.scanner-detected` — corner brackets turn white
+
+### Edit Food Entry (`openEditFoodEntry`)
+
+The edit modal has two modes, selected automatically based on `item.source`:
+
+**Barcode/library/recipe mode** (`source !== 'manual'`):
+- Shows Amount (g) + Servings inputs
+- Per-100g values loaded from the food library entry (or back-calculated from the log if no library entry exists)
+- Macros recalculate as `per100 / 100 * grams * servings`
+- Recipe entries: grams locked to 1, only servings is editable
+
+**Manual mode** (`source === 'manual'`):
+- Hides Amount (g) and Servings entirely
+- Shows four direct inputs: kcal, protein (g), carbs (g), fats (g)
+- Pre-filled from the logged values
+- `saveEditFoodEntry` writes the values straight through without any per-100g calculation
+
+The mode is stored in `#nutr-edit-mode` (hidden field, values `'barcode'` or `'manual'`) and checked in both `updateEditPreview()` and `saveEditFoodEntry()`.
 
 ### nutrPendingProduct
 
@@ -570,10 +622,6 @@ kcal = Math.round(kcalPer1 * total);
 
 `confirmServing()` calls `addFoodEntry()` then (if not sourced from the library) `addToFoodLibrary()`.
 
-### Serving Modal — Recipe Ingredient Display
-
-When `nutrPendingProduct.source === 'recipe'`, `openNutrServingModal()` looks up the recipe in `state.recipes` by name and renders its ingredient list (name, grams, kcal per ingredient) in a panel above the serving inputs. The grams input is set to 100 and locked (`readOnly`).
-
 ### Swipe-to-Copy from Yesterday
 
 `initYesterdaySwipes()` is called after every `renderNutrDiary()` via `requestAnimationFrame`. It attaches touch and mouse listeners to each `[id^="swipe-yesterday-"]` element:
@@ -582,11 +630,9 @@ When `nutrPendingProduct.source === 'recipe'`, `openNutrServingModal()` looks up
 - ≥ one-third of element width → triggers `copyMealFromYesterday(meal)` with a completion animation
 - Less than threshold → snaps back
 
-The element uses two internal children: `.swipe-fill` (absolute positioned fill div) and `.swipe-text` (the label).
-
 ### Meal Ellipsis Menu
 
-A `···` button on each meal header calls `openMealMenu(meal)`, which appends a `#meal-menu-sheet` div directly to `document.body` (not managed by the modal system). It presents "Copy meal to…" and "Move meal to…". Both open `modal-nutr-copy-entry` with `nce-mode` set to `'copy'` or `'move'`.
+A `···` button on each meal header calls `openMealMenu(meal)`, which appends a `#meal-menu-sheet` div directly to `document.body`. It presents "Copy meal to…" and "Move meal to…". Both open `modal-nutr-copy-entry` with `nce-mode` set to `'copy'` or `'move'`.
 
 ### Copy/Move Modal (modal-nutr-copy-entry)
 
@@ -599,11 +645,7 @@ Used for both single-item copy and whole-meal copy/move. Hidden fields:
 | `nce-idx` | Source item index, or `-1` for whole meal |
 | `nce-mode` | `'copy'` or `'move'` |
 
-`confirmCopyFoodEntry()` handles both modes:
-- `srcIdx === -1`: copies all items from `state.nutritionMeals[srcDate][srcMeal]` to target; if mode is `'move'`, clears the source array and syncs legacy log
-- `srcIdx >= 0`: copies a single item
-
-### Food Library
+### Food Library & Sharing
 
 ```js
 function addToFoodLibrary(item) {
@@ -615,7 +657,15 @@ function addToFoodLibrary(item) {
 }
 ```
 
-De-duplicated by name (case-insensitive). Recipes are stored with `brand: 'My Recipe'` and `source: 'recipe'`.
+**Share payload format** (`_buildSharePayload(item)`):
+```js
+{ foodItem: FoodItem, recipe: Recipe | null }
+```
+Recipes include the full `ingredients` array. Non-recipe items have `recipe: null`.
+
+`_shareOrDownload(item)` uses `navigator.share()` with a `File` object (triggers the native iOS share sheet) with a download fallback for desktop browsers.
+
+`importSharedFoodItem(file)` accepts both the `{ foodItem, recipe }` format and raw `FoodItem` objects. Upserts both `state.foodLibrary` and `state.recipes` by name.
 
 ### Recipe Builder
 
@@ -623,36 +673,14 @@ Two-step flow:
 
 **Step 1** (`modal-recipe-step1`): Recipe name and number of servings.
 
-**Step 2** (`modal-recipe-ingredients`): Ingredient list with Barcode and Manual add buttons.
+**Step 2** (`modal-recipe-ingredients`): Ingredient list. Barcode button opens `modal-recipe-barcode` with the same camera scanner engine (ctx = `'recipe'`). Camera auto-starts immediately.
 
 Working state is held in `recipeIngredients[]` (not persisted until `saveRecipe()`).
-
-**Barcode ingredient flow:**
-1. `openRecipeBarcode()` → `lookupRecipeBarcode()` → Open Food Facts
-2. Sets `recipePendingIngredient` with `per100*` values
-3. `modal-recipe-serving` → user enters grams → `confirmRecipeIngredient()`
-4. Entry stored with computed totals and `per1*` values (= `per100 / 100`) for future editing
-
-**Manual ingredient flow:**
-1. `openRecipeManual()` → user enters name, servings, per-serving macros
-2. `confirmRecipeManual()` → stored with `grams: servings` and computed totals (no per-unit values)
-
-**Editing ingredients** (`editRecipeIngredient(idx)`):
-- Barcode ingredients: shows grams field only; macros recalculate from stored `per1*` as `per1kcal * grams`
-- Manual ingredients: shows servings field plus per-serving macro fields; totals recalculate as `perValue * servings`
 
 **Saving** (`saveRecipe()`):
 1. Computes per-serving and total macros from `recipeIngredients`
 2. Upserts `state.recipes`
 3. Calls `addToFoodLibrary()` with `isRecipe: true`, `brand: 'My Recipe'`, `source: 'recipe'`
-4. Closes `modal-recipe-ingredients`, opens `modal-recipe-list`
-
-### My Recipes (modal-recipe-list)
-
-Lists all recipes with per-serving macros and a full ingredient breakdown per recipe. Provides:
-- **+ Create new** (top-right) — opens the builder
-- **Edit** — reopens builder pre-loaded with existing recipe data; saves back to same record
-- **Delete** — removes from `state.recipes` and `state.foodLibrary`; existing nutrition logs are not affected
 
 ---
 
@@ -1034,10 +1062,17 @@ All interactive icons throughout the app use inline SVG (13×13px, `stroke:curre
 | `initYesterdaySwipes()` | Attaches swipe handlers to yesterday copy strips |
 | `syncNutrLegacyLog(date)` | Backfills `nutritionLogs` from `nutritionMeals` |
 | `deleteFoodEntry(date, meal, idx)` | Removes a food entry |
-| `openEditFoodEntry(date, meal, idx)` | Opens edit modal for a food entry |
-| `saveEditFoodEntry()` | Saves edited food entry in-place |
+| `openEditFoodEntry(date, meal, idx)` | Opens edit modal; detects barcode vs manual mode automatically |
+| `updateEditPreview()` | Live preview; branches on `nutr-edit-mode` field |
+| `saveEditFoodEntry()` | Saves edit; direct macros for manual, per-100g calc for barcode |
 | `renderNutrWeekly()` | Renders 7-day weekly tab with bar charts and pie |
 | `makePie(p, c, f)` | Generates inline SVG macro pie chart |
+| `startScannerCamera(ctx)` | Requests camera, starts scan loop; ctx = 'nutr' or 'recipe' |
+| `stopScannerCamera(ctx)` | Stops camera stream and resets viewfinder UI |
+| `closeScannerModal(ctx)` | Stops camera then closes the modal |
+| `_onScannerDetected(ctx, code)` | Handles a detected barcode; feeds into lookup function |
+| `_getNativeDetector()` | Lazy-inits BarcodeDetector; cached after first call |
+| `_initZxReader()` | Creates a ZXing MultiFormatReader with barcode format hints |
 
 ### Food Library & Recipes
 | Function | Description |
@@ -1171,7 +1206,8 @@ onEnd():
 |---|---|
 | **Offline** | No service worker. Google Fonts require a network connection on first load. |
 | **Cross-device sync** | Data is device-local. No sync between devices or browsers. |
-| **Barcode scanning** | Camera-based scanning evaluated and found unreliable without a paid SDK. Manual barcode entry only. |
+| **Bundle size** | The ZXing barcode library adds ~336KB to the file. This is loaded once and cached by the browser. |
+| **Camera permissions** | iOS Safari requires explicit camera permission per site. If denied, the manual barcode entry field remains available as a fallback. |
 | **Push notifications** | No background timer alerts when the app is backgrounded or screen is locked. |
 | **Storage limit** | `localStorage` capped at 5–10 MB. Extremely large libraries or years of logs could approach this. |
 | **Undo** | No undo mechanism. Deletes are confirmed but irreversible. |
