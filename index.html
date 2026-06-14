@@ -3612,21 +3612,19 @@ async function lookupNutrBarcode() {
 // ── Barcode Scanner (shared for nutrition + recipe) ───────────────────────
 const _scannerState = {};   // keyed by context: 'nutr' or 'recipe'
 
-// Lazy-init native BarcodeDetector or ZXing
+// Initialise BarcodeDetector immediately at load (mirrors food-scanner.html)
 let _nativeDetector = null;
-let _nativeDetectorInitDone = false;
-function _getNativeDetector() {
-  if (_nativeDetectorInitDone) return _nativeDetector;
-  _nativeDetectorInitDone = true;
-  if ('BarcodeDetector' in window) {
-    try {
-      _nativeDetector = new BarcodeDetector({
-        formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','qr_code']
-      });
-    } catch(e) { _nativeDetector = null; }
-  }
-  return _nativeDetector;
+if ('BarcodeDetector' in window) {
+  try {
+    _nativeDetector = new BarcodeDetector({
+      formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','qr_code']
+    });
+  } catch(e) { _nativeDetector = null; }
 }
+
+// Persistent ZXing canvas — created once, reused every frame (mirrors food-scanner.html)
+const _zxCanvas    = document.createElement('canvas');
+const _zxCanvasCtx = _zxCanvas.getContext('2d', { willReadFrequently: true });
 
 function _initZxReader() {
   if (typeof ZXing === 'undefined') return null;
@@ -3659,53 +3657,60 @@ async function startScannerCamera(ctx) {
     placeholder.style.display = 'none';
     viewfinder.classList.add('scanner-scanning');
 
-    const native = _getNativeDetector();
-    const zxReader = native ? null : _initZxReader();
-    const canvas = document.createElement('canvas');
-    const canvasCtx = canvas.getContext('2d', { willReadFrequently: true });
+    // Init ZXing reader if no native detector
+    const zxReader = _nativeDetector ? null : _initZxReader();
 
-    _scannerState[ctx] = { scanning: true, cooldown: false, lastCode: null, stream, zxReader, canvas, canvasCtx };
+    _scannerState[ctx] = { scanning: true, cooldown: false, lastCode: null, animFrame: null, zxReader };
 
-    msg.textContent = native ? 'Scanning…' : (zxReader ? 'Scanning…' : 'Camera ready — enter barcode below');
+    msg.textContent = (_nativeDetector || zxReader) ? 'Scanning…' : 'Camera ready — enter barcode below';
 
-    function loop() {
+    // Scan loop — mirrors food-scanner.html exactly: named async function, rAF handle stored
+    async function scanLoop() {
       const st = _scannerState[ctx];
       if (!st || !st.scanning) return;
-      const doFrame = async () => {
-        try {
-          if (video.readyState >= 2 && video.videoWidth > 0) {
-            let code = null;
-            if (native) {
-              const results = await native.detect(video);
-              if (results.length > 0) code = results[0].rawValue;
-            } else if (st.zxReader) {
-              canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-              canvasCtx.drawImage(video, 0, 0);
-              try {
-                const Z = ZXing;
-                const lum    = new Z.HTMLCanvasElementLuminanceSource(canvas);
-                const bitmap = new Z.BinaryBitmap(new Z.HybridBinarizer(lum));
-                const result = st.zxReader.decode(bitmap);
-                if (result) code = result.getText();
-              } catch(e) {}
-            }
-            if (code) _onScannerDetected(ctx, code);
+
+      try {
+        if (video.readyState >= 2 && video.videoWidth > 0) {
+          let code = null;
+
+          if (_nativeDetector) {
+            const results = await _nativeDetector.detect(video);
+            if (results.length > 0) code = results[0].rawValue;
+          } else if (st.zxReader) {
+            _zxCanvas.width  = video.videoWidth;
+            _zxCanvas.height = video.videoHeight;
+            _zxCanvasCtx.drawImage(video, 0, 0);
+            try {
+              const Z       = ZXing;
+              const lum     = new Z.HTMLCanvasElementLuminanceSource(_zxCanvas);
+              const bitmap  = new Z.BinaryBitmap(new Z.HybridBinarizer(lum));
+              const result  = st.zxReader.decode(bitmap);
+              if (result) code = result.getText();
+            } catch(e) { /* NotFoundException — normal, no barcode in frame */ }
           }
-        } catch(e) {}
-        if (_scannerState[ctx]?.scanning) requestAnimationFrame(doFrame);
-      };
-      requestAnimationFrame(doFrame);
+
+          if (code) _onScannerDetected(ctx, code);
+        }
+      } catch(e) { /* transient frame error — ignore */ }
+
+      if (_scannerState[ctx]?.scanning) {
+        _scannerState[ctx].animFrame = requestAnimationFrame(scanLoop);
+      }
     }
-    loop();
+
+    _scannerState[ctx].animFrame = requestAnimationFrame(scanLoop);
+
   } catch(err) {
-    const msg2 = document.getElementById(ctx + '-barcode-status');
-    msg2.style.display = 'block';
-    msg2.style.background = 'rgba(255,95,78,0.1)';
-    msg2.style.color = 'var(--red)';
-    msg2.style.border = '1px solid rgba(255,95,78,0.2)';
-    msg2.textContent = err.name === 'NotAllowedError'
-      ? 'Camera access denied. Allow camera in browser settings, or enter barcode below.'
-      : 'Camera unavailable: ' + err.message + '. Enter barcode below.';
+    const statusEl = document.getElementById(ctx + '-barcode-status');
+    if (statusEl) {
+      statusEl.style.display    = 'block';
+      statusEl.style.background = 'rgba(255,95,78,0.1)';
+      statusEl.style.color      = 'var(--red)';
+      statusEl.style.border     = '1px solid rgba(255,95,78,0.2)';
+      statusEl.textContent      = err.name === 'NotAllowedError'
+        ? 'Camera access denied. Allow camera in browser settings, or enter barcode below.'
+        : 'Camera unavailable: ' + err.message + '. Enter barcode below.';
+    }
   }
 }
 
@@ -3713,6 +3718,7 @@ function stopScannerCamera(ctx) {
   const st = _scannerState[ctx];
   if (st) {
     st.scanning = false;
+    if (st.animFrame) { cancelAnimationFrame(st.animFrame); st.animFrame = null; }
     if (st.stream) st.stream.getTracks().forEach(t => t.stop());
     delete _scannerState[ctx];
   }
