@@ -288,6 +288,26 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 .set-log-row:last-child { border-bottom: none; }
 .set-num { width: 20px; font-size: 12px; color: var(--text3); flex-shrink: 0; }
 .set-log-row input { flex: 1; text-align: center; padding: 8px 6px; }
+
+/* ── Barcode scanner ───────────────────────────────────────────── */
+.scanner-viewport { position:relative; background:#000; width:100%; aspect-ratio:4/3; overflow:hidden; border-radius:var(--r-sm); margin-bottom:12px; }
+.scanner-viewport video { width:100%; height:100%; object-fit:cover; display:block; }
+.scanner-viewfinder { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; }
+.scanner-vf-box { position:relative; width:70%; aspect-ratio:2/1; }
+.scanner-vf-box::before,.scanner-vf-box::after,.scanner-vf-inner::before,.scanner-vf-inner::after { content:''; position:absolute; width:22px; height:22px; border-color:var(--accent); border-style:solid; }
+.scanner-vf-box::before { top:0;left:0; border-width:2.5px 0 0 2.5px; }
+.scanner-vf-box::after  { top:0;right:0; border-width:2.5px 2.5px 0 0; }
+.scanner-vf-inner::before { bottom:0;left:0; border-width:0 0 2.5px 2.5px; }
+.scanner-vf-inner::after  { bottom:0;right:0; border-width:0 2.5px 2.5px 0; }
+.scanner-scan-line { position:absolute; left:6%; right:6%; height:2px; background:linear-gradient(90deg,transparent,var(--accent),transparent); box-shadow:0 0 8px var(--accent); animation:scanline 2s ease-in-out infinite; opacity:0; }
+@keyframes scanline { 0%{top:8%;opacity:0;} 10%{opacity:1;} 90%{opacity:1;} 100%{top:92%;opacity:0;} }
+.scanner-scanning .scanner-vf-box::before,.scanner-scanning .scanner-vf-box::after,.scanner-scanning .scanner-vf-inner::before,.scanner-scanning .scanner-vf-inner::after { animation:scanner-pulse 1.6s ease-in-out infinite; }
+@keyframes scanner-pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+.scanner-detected .scanner-vf-box::before,.scanner-detected .scanner-vf-box::after,.scanner-detected .scanner-vf-inner::before,.scanner-detected .scanner-vf-inner::after { border-color:#fff; }
+.scanner-msg { position:absolute; bottom:8px; left:0; right:0; text-align:center; font-size:11px; letter-spacing:.06em; color:rgba(255,255,255,0.55); text-transform:uppercase; font-family:var(--font-mono); }
+.scanner-placeholder { position:absolute; inset:0; background:var(--surface2); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; }
+.scanner-placeholder p { font-size:12px; color:var(--text3); }
+
 @keyframes inputFlash {
   0%   { border-color: var(--border2); box-shadow: none; }
   20%  { border-color: var(--amber); box-shadow: 0 0 0 2px rgba(245,166,35,0.35); }
@@ -1074,7 +1094,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0;">
       <button onclick="openNutrBarcode()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/><line x1="13" y1="8" x2="13" y2="12"/><line x1="16" y1="8" x2="16" y2="16"/></svg>
-        <span style="font-weight:600;">Barcode</span>
+        <span style="font-weight:600;">Scan Barcode</span>
       </button>
       <button onclick="openNutrManual()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -1092,15 +1112,34 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
 <!-- Nutrition: barcode entry -->
 <div class="modal-overlay" id="modal-nutr-barcode">
-  <div class="modal-sheet" data-modal="modal-nutr-barcode">
-    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-barcode')">✕</button></div>
-    <div class="modal-title">Enter Barcode</div>
-    <div class="form-group">
-      <div class="label">Barcode number</div>
-      <input type="text" id="nutr-barcode-input" placeholder="e.g. 5000112548175" inputmode="numeric">
+  <div class="modal-sheet" data-modal="modal-nutr-barcode" style="max-height:90dvh;display:flex;flex-direction:column;">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeScannerModal('nutr')">✕</button></div>
+    <div class="modal-title" style="flex-shrink:0;">Scan Barcode</div>
+    <div style="overflow-y:auto;flex:1;">
+      <!-- Camera viewfinder -->
+      <div class="scanner-viewport" id="nutr-scanner-viewport">
+        <video id="nutr-scanner-video" autoplay muted playsinline webkit-playsinline></video>
+        <div class="scanner-viewfinder" id="nutr-scanner-viewfinder">
+          <div class="scanner-vf-box">
+            <div class="scanner-vf-inner">
+              <div class="scanner-scan-line"></div>
+            </div>
+          </div>
+        </div>
+        <div class="scanner-msg" id="nutr-scanner-msg">Starting camera…</div>
+        <div class="scanner-placeholder" id="nutr-scanner-placeholder">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          <p>Starting camera…</p>
+        </div>
+      </div>
+      <!-- Manual fallback -->
+      <div style="font-size:11px;color:var(--text3);text-align:center;margin-bottom:8px;">or enter barcode manually</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <input type="text" id="nutr-barcode-input" placeholder="e.g. 5000112548175" inputmode="numeric" style="flex:1;">
+        <button class="btn btn-accent" onclick="lookupNutrBarcode()" style="flex-shrink:0;padding:0 16px;">Go</button>
+      </div>
+      <div id="nutr-barcode-status" style="display:none;padding:10px;border-radius:var(--r-sm);font-size:12px;margin-bottom:12px;"></div>
     </div>
-    <div id="nutr-barcode-status" style="display:none;padding:10px;border-radius:var(--r-sm);font-size:12px;margin-bottom:12px;"></div>
-    <button class="btn btn-accent btn-block" onclick="lookupNutrBarcode()">Look up →</button>
   </div>
 </div>
 
@@ -1189,11 +1228,14 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <input type="hidden" id="nutr-edit-date">
     <input type="hidden" id="nutr-edit-meal">
     <input type="hidden" id="nutr-edit-idx">
+    <input type="hidden" id="nutr-edit-is-recipe" value="0">
+    <input type="hidden" id="nutr-edit-mode" value="barcode"> <!-- barcode | manual -->
     <div class="form-group">
       <div class="label">Name</div>
       <input type="text" id="nutr-edit-name" readonly style="opacity:0.6;">
     </div>
-    <div class="input-row" id="nutr-edit-grams-row">
+    <!-- Barcode/library/recipe mode: grams + servings -->
+    <div id="nutr-edit-grams-row" class="input-row">
       <div>
         <div class="label">Amount (g)</div>
         <input type="number" id="nutr-edit-grams" min="1" oninput="updateEditPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
@@ -1203,13 +1245,23 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
         <input type="number" id="nutr-edit-servings" min="0.5" step="0.5" value="1" oninput="updateEditPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
       </div>
     </div>
+    <!-- Manual mode: direct macro inputs -->
+    <div id="nutr-edit-manual-row" style="display:none;">
+      <div class="input-row" style="margin-bottom:8px;">
+        <div><div class="label">kcal</div><input type="number" id="nutr-edit-manual-kcal" min="0" oninput="updateEditPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;"></div>
+        <div><div class="label">Protein (g)</div><input type="number" id="nutr-edit-manual-protein" min="0" step="0.1" oninput="updateEditPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;"></div>
+      </div>
+      <div class="input-row" style="margin-bottom:14px;">
+        <div><div class="label">Carbs (g)</div><input type="number" id="nutr-edit-manual-carbs" min="0" step="0.1" oninput="updateEditPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;"></div>
+        <div><div class="label">Fats (g)</div><input type="number" id="nutr-edit-manual-fats" min="0" step="0.1" oninput="updateEditPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;"></div>
+      </div>
+    </div>
     <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px;margin-bottom:14px;font-size:12px;color:var(--text2);" id="nutr-edit-preview">—</div>
     <input type="hidden" id="nutr-edit-kcal">
     <input type="hidden" id="nutr-edit-protein">
     <input type="hidden" id="nutr-edit-carbs">
     <input type="hidden" id="nutr-edit-fats">
     <input type="hidden" id="nutr-edit-serving">
-    <input type="hidden" id="nutr-edit-is-recipe" value="0">
     <button class="btn btn-accent btn-block" onclick="saveEditFoodEntry()">Save →</button>
   </div>
 </div>
@@ -3491,7 +3543,9 @@ function confirmCopyFoodEntry() {
 function openNutrBarcode() {
   document.getElementById('nutr-barcode-input').value = '';
   document.getElementById('nutr-barcode-status').style.display = 'none';
-  requestAnimationFrame(() => openModal('modal-nutr-barcode'));
+  stopScannerCamera('nutr');
+  openModal('modal-nutr-barcode');
+  requestAnimationFrame(() => startScannerCamera('nutr'));
 }
 
 async function lookupNutrBarcode() {
@@ -3545,6 +3599,7 @@ async function lookupNutrBarcode() {
       per100f: parseFloat(n['fat_100g'] ?? n['fat'] ?? 0),
     };
     closeModal('modal-nutr-barcode');
+    stopScannerCamera('nutr');
     requestAnimationFrame(() => openNutrServingModal());
   } catch(e) {
     statusEl.style.background = 'rgba(255,95,78,0.1)';
@@ -3553,6 +3608,168 @@ async function lookupNutrBarcode() {
     statusEl.textContent = 'Network error — check your connection.';
   }
 }
+
+// ── Barcode Scanner (shared for nutrition + recipe) ───────────────────────
+const _scannerState = {};   // keyed by context: 'nutr' or 'recipe'
+
+// Lazy-init native BarcodeDetector or ZXing
+let _nativeDetector = null;
+let _nativeDetectorInitDone = false;
+function _getNativeDetector() {
+  if (_nativeDetectorInitDone) return _nativeDetector;
+  _nativeDetectorInitDone = true;
+  if ('BarcodeDetector' in window) {
+    try {
+      _nativeDetector = new BarcodeDetector({
+        formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','qr_code']
+      });
+    } catch(e) { _nativeDetector = null; }
+  }
+  return _nativeDetector;
+}
+
+function _initZxReader() {
+  if (typeof ZXing === 'undefined') return null;
+  const Z = ZXing;
+  const hints = new Map();
+  hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, [
+    Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8,
+    Z.BarcodeFormat.UPC_A,  Z.BarcodeFormat.UPC_E,
+    Z.BarcodeFormat.CODE_128, Z.BarcodeFormat.CODE_39,
+  ]);
+  hints.set(Z.DecodeHintType.TRY_HARDER, true);
+  const reader = new Z.MultiFormatReader();
+  reader.setHints(hints);
+  return reader;
+}
+
+async function startScannerCamera(ctx) {
+  const video       = document.getElementById(ctx + '-scanner-video');
+  const placeholder = document.getElementById(ctx + '-scanner-placeholder');
+  const viewfinder  = document.getElementById(ctx + '-scanner-viewfinder');
+  const msg         = document.getElementById(ctx + '-scanner-msg');
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+    });
+    video.srcObject = stream;
+    await video.play();
+
+    placeholder.style.display = 'none';
+    viewfinder.classList.add('scanner-scanning');
+
+    const native = _getNativeDetector();
+    const zxReader = native ? null : _initZxReader();
+    const canvas = document.createElement('canvas');
+    const canvasCtx = canvas.getContext('2d', { willReadFrequently: true });
+
+    _scannerState[ctx] = { scanning: true, cooldown: false, lastCode: null, stream, zxReader, canvas, canvasCtx };
+
+    msg.textContent = native ? 'Scanning…' : (zxReader ? 'Scanning…' : 'Camera ready — enter barcode below');
+
+    function loop() {
+      const st = _scannerState[ctx];
+      if (!st || !st.scanning) return;
+      const doFrame = async () => {
+        try {
+          if (video.readyState >= 2 && video.videoWidth > 0) {
+            let code = null;
+            if (native) {
+              const results = await native.detect(video);
+              if (results.length > 0) code = results[0].rawValue;
+            } else if (st.zxReader) {
+              canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+              canvasCtx.drawImage(video, 0, 0);
+              try {
+                const Z = ZXing;
+                const lum    = new Z.HTMLCanvasElementLuminanceSource(canvas);
+                const bitmap = new Z.BinaryBitmap(new Z.HybridBinarizer(lum));
+                const result = st.zxReader.decode(bitmap);
+                if (result) code = result.getText();
+              } catch(e) {}
+            }
+            if (code) _onScannerDetected(ctx, code);
+          }
+        } catch(e) {}
+        if (_scannerState[ctx]?.scanning) requestAnimationFrame(doFrame);
+      };
+      requestAnimationFrame(doFrame);
+    }
+    loop();
+  } catch(err) {
+    const msg2 = document.getElementById(ctx + '-barcode-status');
+    msg2.style.display = 'block';
+    msg2.style.background = 'rgba(255,95,78,0.1)';
+    msg2.style.color = 'var(--red)';
+    msg2.style.border = '1px solid rgba(255,95,78,0.2)';
+    msg2.textContent = err.name === 'NotAllowedError'
+      ? 'Camera access denied. Allow camera in browser settings, or enter barcode below.'
+      : 'Camera unavailable: ' + err.message + '. Enter barcode below.';
+  }
+}
+
+function stopScannerCamera(ctx) {
+  const st = _scannerState[ctx];
+  if (st) {
+    st.scanning = false;
+    if (st.stream) st.stream.getTracks().forEach(t => t.stop());
+    delete _scannerState[ctx];
+  }
+  const video       = document.getElementById(ctx + '-scanner-video');
+  const placeholder = document.getElementById(ctx + '-scanner-placeholder');
+  const viewfinder  = document.getElementById(ctx + '-scanner-viewfinder');
+  const msg         = document.getElementById(ctx + '-scanner-msg');
+  if (!video) return;
+  if (video.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); video.srcObject = null; }
+  viewfinder?.classList.remove('scanner-scanning', 'scanner-detected');
+  if (placeholder) placeholder.style.display = '';
+  if (msg) msg.textContent = 'Starting camera…';
+}
+
+function closeScannerModal(ctx) {
+  stopScannerCamera(ctx);
+  closeModal('modal-' + ctx + '-barcode');
+}
+
+function _onScannerDetected(ctx, code) {
+  const st = _scannerState[ctx];
+  if (!st || st.cooldown || code === st.lastCode) return;
+  st.lastCode = code;
+  st.cooldown = true;
+
+  const viewfinder = document.getElementById(ctx + '-scanner-viewfinder');
+  const msg        = document.getElementById(ctx + '-scanner-msg');
+  viewfinder?.classList.add('scanner-detected');
+  viewfinder?.classList.remove('scanner-scanning');
+  if (msg) msg.textContent = 'Found: ' + code;
+  if ('vibrate' in navigator) navigator.vibrate(60);
+
+  setTimeout(() => {
+    viewfinder?.classList.remove('scanner-detected');
+    viewfinder?.classList.add('scanner-scanning');
+  }, 500);
+
+  // Feed barcode into the appropriate lookup function
+  if (ctx === 'nutr') {
+    document.getElementById('nutr-barcode-input').value = code;
+    lookupNutrBarcode();
+  } else {
+    document.getElementById('recipe-barcode-input').value = code;
+    lookupRecipeBarcode();
+  }
+
+  setTimeout(() => { if (_scannerState[ctx]) _scannerState[ctx].cooldown = false; }, 3000);
+}
+
+// Stop camera when app goes to background
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    ['nutr', 'recipe'].forEach(ctx => {
+      if (_scannerState[ctx]?.scanning) stopScannerCamera(ctx);
+    });
+  }
+});
 
 // ── Food Library ──────────────────────────────────────────────────────────
 function addToFoodLibrary(item) {
@@ -3969,70 +4186,109 @@ function deleteFoodEntry(date, meal, idx) {
 function openEditFoodEntry(date, meal, idx) {
   const item = (state.nutritionMeals && state.nutritionMeals[date] && state.nutritionMeals[date][meal] || [])[idx];
   if (!item) return;
-  const libEntry = (state.foodLibrary || []).find(f => f.name === item.name);
+  const isManual = item.source === 'manual';
+  const libEntry = isManual ? null : (state.foodLibrary || []).find(f => f.name === item.name);
   const isRecipe = !!(libEntry && libEntry.source === 'recipe');
+
   document.getElementById('nutr-edit-date').value = date;
   document.getElementById('nutr-edit-meal').value = meal;
-  document.getElementById('nutr-edit-idx').value = idx;
+  document.getElementById('nutr-edit-idx').value  = idx;
   document.getElementById('nutr-edit-name').value = item.name;
-  // Recipes: grams locked to 1 (1 serving = 1 unit), only servings is editable
-  // Show/hide grams column based on recipe status
-  const gramsRow = document.getElementById('nutr-edit-grams-row');
-  const gramsEl  = document.getElementById('nutr-edit-grams');
-  if (isRecipe) {
-    gramsRow.children[0].style.display = 'none'; // hide Amount (g) column
-    gramsEl.value = 1;
-  } else {
-    gramsRow.children[0].style.display = '';
-    gramsEl.value = item.grams || item.serving || 100;
-  }
   document.getElementById('nutr-edit-is-recipe').value = isRecipe ? '1' : '0';
-  document.getElementById('nutr-edit-servings').value = item.servings || 1;
-  document.getElementById('nutr-edit-kcal').value    = libEntry ? libEntry.per100kcal : (item.serving ? Math.round(item.kcal / item.serving * 100) : 0);
-  document.getElementById('nutr-edit-protein').value = libEntry ? libEntry.per100p    : (item.serving ? Math.round(item.protein / item.serving * 100) : 0);
-  document.getElementById('nutr-edit-carbs').value   = libEntry ? libEntry.per100c    : (item.serving ? Math.round(item.carbs / item.serving * 100) : 0);
-  document.getElementById('nutr-edit-fats').value    = libEntry ? libEntry.per100f    : (item.serving ? Math.round(item.fats / item.serving * 100) : 0);
-  document.getElementById('nutr-edit-serving').value = item.serving || 100;
+  document.getElementById('nutr-edit-mode').value = isManual ? 'manual' : 'barcode';
+
+  const gramsRow  = document.getElementById('nutr-edit-grams-row');
+  const manualRow = document.getElementById('nutr-edit-manual-row');
+
+  if (isManual) {
+    // Show direct macro inputs, hide grams/servings
+    gramsRow.style.display  = 'none';
+    manualRow.style.display = '';
+    document.getElementById('nutr-edit-manual-kcal').value    = item.kcal    || 0;
+    document.getElementById('nutr-edit-manual-protein').value = item.protein || 0;
+    document.getElementById('nutr-edit-manual-carbs').value   = item.carbs   || 0;
+    document.getElementById('nutr-edit-manual-fats').value    = item.fats    || 0;
+  } else {
+    gramsRow.style.display  = '';
+    manualRow.style.display = 'none';
+    if (isRecipe) {
+      gramsRow.children[0].style.display = 'none';
+      document.getElementById('nutr-edit-grams').value = 1;
+    } else {
+      gramsRow.children[0].style.display = '';
+      document.getElementById('nutr-edit-grams').value = item.grams || item.serving || 100;
+    }
+    document.getElementById('nutr-edit-servings').value = item.servings || 1;
+    document.getElementById('nutr-edit-kcal').value    = libEntry ? libEntry.per100kcal : (item.serving ? Math.round(item.kcal    / item.serving * 100) : 0);
+    document.getElementById('nutr-edit-protein').value = libEntry ? libEntry.per100p    : (item.serving ? Math.round(item.protein / item.serving * 100) : 0);
+    document.getElementById('nutr-edit-carbs').value   = libEntry ? libEntry.per100c    : (item.serving ? Math.round(item.carbs   / item.serving * 100) : 0);
+    document.getElementById('nutr-edit-fats').value    = libEntry ? libEntry.per100f    : (item.serving ? Math.round(item.fats    / item.serving * 100) : 0);
+    document.getElementById('nutr-edit-serving').value = item.serving || 100;
+  }
+
   updateEditPreview();
   openModal('modal-nutr-edit');
 }
 
 function updateEditPreview() {
-  const grams    = parseFloat(document.getElementById('nutr-edit-grams').value) || 0;
-  const servings = parseFloat(document.getElementById('nutr-edit-servings').value) || 1;
-  const total    = grams * servings;
-  const per100k  = parseFloat(document.getElementById('nutr-edit-kcal').value) || 0;
-  const per100p  = parseFloat(document.getElementById('nutr-edit-protein').value) || 0;
-  const per100c  = parseFloat(document.getElementById('nutr-edit-carbs').value) || 0;
-  const per100f  = parseFloat(document.getElementById('nutr-edit-fats').value) || 0;
+  const isManual = document.getElementById('nutr-edit-mode').value === 'manual';
+  let kcal, p, c, f;
+  if (isManual) {
+    kcal = parseFloat(document.getElementById('nutr-edit-manual-kcal').value)    || 0;
+    p    = parseFloat(document.getElementById('nutr-edit-manual-protein').value) || 0;
+    c    = parseFloat(document.getElementById('nutr-edit-manual-carbs').value)   || 0;
+    f    = parseFloat(document.getElementById('nutr-edit-manual-fats').value)    || 0;
+  } else {
+    const grams    = parseFloat(document.getElementById('nutr-edit-grams').value)    || 0;
+    const servings = parseFloat(document.getElementById('nutr-edit-servings').value) || 1;
+    const total    = grams * servings;
+    const per100k  = parseFloat(document.getElementById('nutr-edit-kcal').value)    || 0;
+    const per100p  = parseFloat(document.getElementById('nutr-edit-protein').value) || 0;
+    const per100c  = parseFloat(document.getElementById('nutr-edit-carbs').value)   || 0;
+    const per100f  = parseFloat(document.getElementById('nutr-edit-fats').value)    || 0;
+    kcal = Math.round(per100k / 100 * total);
+    p    = Math.round(per100p / 100 * total);
+    c    = Math.round(per100c / 100 * total);
+    f    = Math.round(per100f / 100 * total);
+  }
   document.getElementById('nutr-edit-preview').textContent =
-    Math.round(per100k/100*total) + ' kcal · P:' + Math.round(per100p/100*total) + 'g C:' + Math.round(per100c/100*total) + 'g F:' + Math.round(per100f/100*total) + 'g';
+    kcal + ' kcal · P:' + p + 'g C:' + c + 'g F:' + f + 'g';
 }
 
 function saveEditFoodEntry() {
-  const date = document.getElementById('nutr-edit-date').value;
-  const meal = document.getElementById('nutr-edit-meal').value;
-  const idx  = parseInt(document.getElementById('nutr-edit-idx').value);
+  const date    = document.getElementById('nutr-edit-date').value;
+  const meal    = document.getElementById('nutr-edit-meal').value;
+  const idx     = parseInt(document.getElementById('nutr-edit-idx').value);
+  const isManual = document.getElementById('nutr-edit-mode').value === 'manual';
   if (!state.nutritionMeals || !state.nutritionMeals[date] || !state.nutritionMeals[date][meal]) return;
-  const isRecipeEdit = document.getElementById('nutr-edit-is-recipe').value === '1';
-  const grams    = isRecipeEdit ? 1 : (parseFloat(document.getElementById('nutr-edit-grams').value) || 100);
-  const servings = parseFloat(document.getElementById('nutr-edit-servings').value) || 1;
-  const total    = grams * servings;
-  const per100k  = parseFloat(document.getElementById('nutr-edit-kcal').value) || 0;
-  const per100p  = parseFloat(document.getElementById('nutr-edit-protein').value) || 0;
-  const per100c  = parseFloat(document.getElementById('nutr-edit-carbs').value) || 0;
-  const per100f  = parseFloat(document.getElementById('nutr-edit-fats').value) || 0;
   const existing = state.nutritionMeals[date][meal][idx];
-  state.nutritionMeals[date][meal][idx] = {
-    ...existing,
-    grams,
-    servings,
-    serving: Math.round(total),
-    kcal:    Math.round(per100k/100*total),
-    protein: Math.round(per100p/100*total),
-    carbs:   Math.round(per100c/100*total),
-    fats:    Math.round(per100f/100*total),
-  };
+
+  let updated;
+  if (isManual) {
+    const kcal    = Math.round(parseFloat(document.getElementById('nutr-edit-manual-kcal').value)    || 0);
+    const protein = parseFloat(document.getElementById('nutr-edit-manual-protein').value) || 0;
+    const carbs   = parseFloat(document.getElementById('nutr-edit-manual-carbs').value)   || 0;
+    const fats    = parseFloat(document.getElementById('nutr-edit-manual-fats').value)    || 0;
+    updated = { ...existing, kcal, protein, carbs, fats, grams: 1, servings: 1, serving: 1 };
+  } else {
+    const isRecipeEdit = document.getElementById('nutr-edit-is-recipe').value === '1';
+    const grams    = isRecipeEdit ? 1 : (parseFloat(document.getElementById('nutr-edit-grams').value) || 100);
+    const servings = parseFloat(document.getElementById('nutr-edit-servings').value) || 1;
+    const total    = grams * servings;
+    const per100k  = parseFloat(document.getElementById('nutr-edit-kcal').value)    || 0;
+    const per100p  = parseFloat(document.getElementById('nutr-edit-protein').value) || 0;
+    const per100c  = parseFloat(document.getElementById('nutr-edit-carbs').value)   || 0;
+    const per100f  = parseFloat(document.getElementById('nutr-edit-fats').value)    || 0;
+    updated = {
+      ...existing, grams, servings, serving: Math.round(total),
+      kcal:    Math.round(per100k / 100 * total),
+      protein: Math.round(per100p / 100 * total),
+      carbs:   Math.round(per100c / 100 * total),
+      fats:    Math.round(per100f / 100 * total),
+    };
+  }
+
+  state.nutritionMeals[date][meal][idx] = updated;
   syncNutrLegacyLog(date);
   save();
   closeModal('modal-nutr-edit');
@@ -5236,7 +5492,9 @@ function saveRecipeIngredientEdit() {
 function openRecipeBarcode() {
   document.getElementById('recipe-barcode-input').value = '';
   document.getElementById('recipe-barcode-status').style.display = 'none';
+  stopScannerCamera('recipe');
   openModal('modal-recipe-barcode');
+  requestAnimationFrame(() => startScannerCamera('recipe'));
 }
 
 async function lookupRecipeBarcode() {
@@ -5274,6 +5532,7 @@ async function lookupRecipeBarcode() {
       defaultServing: servingQty || 100,
     };
     closeModal('modal-recipe-barcode');
+    stopScannerCamera('recipe');
     document.getElementById('recipe-serving-name').textContent = recipePendingIngredient.name;
     document.getElementById('recipe-serving-brand').textContent = recipePendingIngredient.brand;
     document.getElementById('recipe-serving-grams').value = recipePendingIngredient.defaultServing;
@@ -5591,7 +5850,7 @@ function deleteRecipe(id) {
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0;">
       <button onclick="openRecipeBarcode()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/><line x1="13" y1="8" x2="13" y2="12"/><line x1="16" y1="8" x2="16" y2="16"/></svg>
-        <span style="font-weight:600;">Barcode</span>
+        <span style="font-weight:600;">Scan Barcode</span>
       </button>
       <button onclick="openRecipeManual()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -5608,15 +5867,32 @@ function deleteRecipe(id) {
 
 <!-- ── Recipe: Barcode entry ──────────────────────────────────────── -->
 <div class="modal-overlay" id="modal-recipe-barcode">
-  <div class="modal-sheet" data-modal="modal-recipe-barcode">
-    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-barcode')">✕</button></div>
-    <div class="modal-title">Add Ingredient — Barcode</div>
-    <div class="form-group">
-      <div class="label">Barcode number</div>
-      <input type="text" id="recipe-barcode-input" placeholder="e.g. 5000112548175" inputmode="numeric">
+  <div class="modal-sheet" data-modal="modal-recipe-barcode" style="max-height:90dvh;display:flex;flex-direction:column;">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeScannerModal('recipe')">✕</button></div>
+    <div class="modal-title" style="flex-shrink:0;">Scan Ingredient</div>
+    <div style="overflow-y:auto;flex:1;">
+      <div class="scanner-viewport" id="recipe-scanner-viewport">
+        <video id="recipe-scanner-video" autoplay muted playsinline webkit-playsinline></video>
+        <div class="scanner-viewfinder" id="recipe-scanner-viewfinder">
+          <div class="scanner-vf-box">
+            <div class="scanner-vf-inner">
+              <div class="scanner-scan-line"></div>
+            </div>
+          </div>
+        </div>
+        <div class="scanner-msg" id="recipe-scanner-msg">Starting camera…</div>
+        <div class="scanner-placeholder" id="recipe-scanner-placeholder">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          <p>Starting camera…</p>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);text-align:center;margin-bottom:8px;">or enter barcode manually</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <input type="text" id="recipe-barcode-input" placeholder="e.g. 5000112548175" inputmode="numeric" style="flex:1;">
+        <button class="btn btn-accent" onclick="lookupRecipeBarcode()" style="flex-shrink:0;padding:0 16px;">Go</button>
+      </div>
+      <div id="recipe-barcode-status" style="display:none;padding:10px;border-radius:var(--r-sm);font-size:12px;margin-bottom:12px;"></div>
     </div>
-    <div id="recipe-barcode-status" style="display:none;padding:10px;border-radius:var(--r-sm);font-size:12px;margin-bottom:12px;"></div>
-    <button class="btn btn-accent btn-block" onclick="lookupRecipeBarcode()">Look up →</button>
   </div>
 </div>
 
