@@ -3543,12 +3543,27 @@ function confirmCopyFoodEntry() {
   renderNutrDaily();
 }
 
+function _startScannerAfterTransition(ctx) {
+  const sheet = document.querySelector('#modal-' + ctx + '-barcode .modal-sheet');
+  if (!sheet) { startScannerCamera(ctx); return; }
+  const onEnd = () => {
+    sheet.removeEventListener('transitionend', onEnd);
+    startScannerCamera(ctx);
+  };
+  sheet.addEventListener('transitionend', onEnd, { once: true });
+  // Fallback in case transitionend doesn't fire
+  setTimeout(() => {
+    sheet.removeEventListener('transitionend', onEnd);
+    if (!_scannerState[ctx]) startScannerCamera(ctx);
+  }, 400);
+}
+
 function openNutrBarcode() {
   document.getElementById('nutr-barcode-input').value = '';
   document.getElementById('nutr-barcode-status').style.display = 'none';
   stopScannerCamera('nutr');
   openModal('modal-nutr-barcode');
-  requestAnimationFrame(() => startScannerCamera('nutr'));
+  _startScannerAfterTransition('nutr');
 }
 
 async function lookupNutrBarcode() {
@@ -3652,7 +3667,7 @@ async function startScannerCamera(ctx) {
 
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+      video: { facingMode: { ideal: 'environment' } }
     });
     video.srcObject = stream;
     await video.play();
@@ -3665,7 +3680,7 @@ async function startScannerCamera(ctx) {
 
     _scannerState[ctx] = { scanning: true, cooldown: false, lastCode: null, animFrame: null, zxReader };
 
-    msg.textContent = (_nativeDetector || zxReader) ? 'Scanning…' : 'Camera ready — enter barcode below';
+    msg.textContent = _nativeDetector ? 'Scanning… (native)' : (zxReader ? 'Scanning… (ZXing)' : 'Camera ready — enter barcode below');
 
     // Scan loop — mirrors food-scanner.html exactly: named async function, rAF handle stored
     async function scanLoop() {
@@ -5503,7 +5518,7 @@ function openRecipeBarcode() {
   document.getElementById('recipe-barcode-status').style.display = 'none';
   stopScannerCamera('recipe');
   openModal('modal-recipe-barcode');
-  requestAnimationFrame(() => startScannerCamera('recipe'));
+  _startScannerAfterTransition('recipe');
 }
 
 async function lookupRecipeBarcode() {
