@@ -424,7 +424,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
           <div class="page-title">BLOC</div>
           <div class="page-sub" id="home-date"></div>
         </div>
-        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v2.12</span>
+        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v2.11</span>
       </div>
 
       <!-- Active cycle card -->
@@ -555,7 +555,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v2.12</span>
+          <span class="badge badge-green">v2.11</span>
         </div>
       </div>
 
@@ -587,7 +587,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Food library</div>
         <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Export or import your scanned and manually entered foods. Import merges by name — existing entries are updated, new ones are added.</div>
-        <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <div style="display:flex;gap:8px;">
           <button class="btn btn-block" style="flex:1;" onclick="exportFoodLibrary()">
             <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Export
@@ -597,20 +597,6 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
             Import
             <input type="file" accept=".json,application/json" style="display:none;" onchange="importFoodLibrary(this.files[0]);this.value='';">
           </label>
-        </div>
-        <button class="btn btn-block" onclick="openFoodLibraryEditor()" style="margin-bottom:8px;">
-          <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-          Edit library
-        </button>
-        <div style="display:flex;gap:8px;margin-top:0;">
-          <button class="btn btn-block" style="flex:1;" onclick="openRecipeBuilder()">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-            Create recipe
-          </button>
-          <button class="btn btn-block" style="flex:1;" onclick="openRecipeList()">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-            View recipes
-          </button>
         </div>
       </div>
 
@@ -1053,21 +1039,27 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 <!-- Nutrition Log -->
 <!-- Nutrition: meal log chooser -->
 <div class="modal-overlay" id="modal-nutr-add">
-  <div class="modal-sheet" data-modal="modal-nutr-add" style="max-height:85dvh;display:flex;flex-direction:column;">
-    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-add')">✕</button></div>
-    <div class="modal-title" id="nutr-add-title" style="flex-shrink:0;">Add to Breakfast</div>
-    <div style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0;">
-      <button onclick="openNutrBarcode()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/><line x1="13" y1="8" x2="13" y2="12"/><line x1="16" y1="8" x2="16" y2="16"/></svg>
-        <span style="font-weight:600;">Barcode</span>
+  <div class="modal-sheet" data-modal="modal-nutr-add">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-add')">✕</button></div>
+    <div class="modal-title" id="nutr-add-title">Add to Breakfast</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+      <button onclick="openNutrBarcode()" style="display:flex;align-items:center;gap:12px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:12px 14px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:13px;text-align:left;width:100%;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/><line x1="13" y1="8" x2="13" y2="12"/><line x1="16" y1="8" x2="16" y2="16"/></svg>
+        <div><div style="font-weight:600;">Enter barcode</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">Look up any product</div></div>
       </button>
-      <button onclick="openNutrManual()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-        <span style="font-weight:600;">Manual</span>
+      <button onclick="openNutrPrevious()" style="display:flex;align-items:center;gap:12px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:12px 14px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:13px;text-align:left;width:100%;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><polyline points="12 6 12 12 8 14"/></svg>
+        <div><div style="font-weight:600;">Previous meals</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">Search all logged foods</div></div>
+      </button>
+      <button onclick="openNutrManual()" style="display:flex;align-items:center;gap:12px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:12px 14px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:13px;text-align:left;width:100%;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        <div><div style="font-weight:600;">Enter manually</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">Type name, kcal &amp; mesos</div></div>
+      </button>
+      <button id="nutr-copy-yesterday-btn" onclick="copyFromYesterday()" style="display:flex;align-items:center;gap:12px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:12px 14px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:13px;text-align:left;width:100%;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <div><div style="font-weight:600;">Copy from yesterday</div><div style="font-size:11px;color:var(--text3);margin-top:2px;" id="nutr-copy-sub">—</div></div>
       </button>
     </div>
-    <input type="text" id="nutr-add-search" placeholder="Search foods…" oninput="renderNutrAddList()" style="margin-bottom:10px;flex-shrink:0;">
-    <div id="nutr-add-list" style="overflow-y:auto;flex:1;"></div>
   </div>
 </div>
 
@@ -1094,15 +1086,29 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:2px;" id="nutr-serving-name"></div>
       <div style="font-size:12px;color:var(--text2);" id="nutr-serving-brand"></div>
     </div>
-    <div class="input-row" style="margin-bottom:14px;">
-      <div>
-        <div class="label">Amount (g)</div>
-        <input type="number" id="nutr-serving-grams" min="1" placeholder="100" oninput="updateServingPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
-      </div>
+    <div class="input-row">
       <div>
         <div class="label">Servings</div>
-        <input type="number" id="nutr-serving-servings" min="0.5" step="0.5" value="1" oninput="updateServingPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
+        <select id="nutr-serving-multiplier" onchange="updateServingPreview()">
+          <option value="0.25">¼ serving</option>
+          <option value="0.5">½ serving</option>
+          <option value="0.75">¾ serving</option>
+          <option value="1" selected>1 serving</option>
+          <option value="1.25">1¼ servings</option>
+          <option value="1.5">1½ servings</option>
+          <option value="2">2 servings</option>
+          <option value="3">3 servings</option>
+          <option value="custom">Custom…</option>
+        </select>
       </div>
+      <div>
+        <div class="label">Serving size</div>
+        <input type="number" id="nutr-serving-size" min="1" oninput="updateServingPreview()" style="opacity:0.6;" readonly>
+      </div>
+    </div>
+    <div id="nutr-serving-custom" style="display:none;margin-bottom:10px;">
+      <div class="label">Custom grams</div>
+      <input type="number" id="nutr-serving-custom-g" min="1" placeholder="e.g. 75" oninput="updateServingPreview()">
     </div>
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;">
       <div class="card" style="text-align:center;padding:10px;">
@@ -1140,8 +1146,23 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 <div class="modal-overlay" id="modal-nutr-manual">
   <div class="modal-sheet" data-modal="modal-nutr-manual">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-manual')">✕</button></div>
-    <div class="modal-title" id="nutr-manual-title">Quick Add</div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">Enter total macros to add directly to this meal</div>
+    <div class="modal-title" id="nutr-manual-title">Add Food Manually</div>
+    <input type="hidden" id="nutr-manual-editid">
+    <div class="form-group">
+      <div class="label">Name</div>
+      <input type="text" id="nutr-manual-name" placeholder="e.g. Chicken breast">
+    </div>
+    <div class="input-row">
+      <div>
+        <div class="label">Servings</div>
+        <input type="number" id="nutr-manual-servings" value="1" min="0.5" step="0.5">
+      </div>
+      <div>
+        <div class="label">Serving size (g)</div>
+        <input type="number" id="nutr-manual-serving-size" value="100" min="1" oninput="updateManualPreview()">
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Enter values per serving size above</div>
     <div class="input-row">
       <div><div class="label">kcal</div><input type="number" id="nutr-manual-kcal" placeholder="320" oninput="updateManualPreview()"></div>
       <div><div class="label">Protein (g)</div><input type="number" id="nutr-manual-protein" placeholder="30" oninput="updateManualPreview()"></div>
@@ -1165,25 +1186,20 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <input type="hidden" id="nutr-edit-idx">
     <div class="form-group">
       <div class="label">Name</div>
-      <input type="text" id="nutr-edit-name" readonly style="opacity:0.6;">
+      <input type="text" id="nutr-edit-name">
     </div>
-    <div class="input-row" id="nutr-edit-grams-row">
-      <div>
-        <div class="label">Amount (g)</div>
-        <input type="number" id="nutr-edit-grams" min="1" oninput="updateEditPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
-      </div>
-      <div>
-        <div class="label">Servings</div>
-        <input type="number" id="nutr-edit-servings" min="0.5" step="0.5" value="1" oninput="updateEditPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
-      </div>
+    <div class="input-row">
+      <div><div class="label">kcal</div><input type="number" id="nutr-edit-kcal"></div>
+      <div><div class="label">Protein (g)</div><input type="number" id="nutr-edit-protein"></div>
     </div>
-    <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px;margin-bottom:14px;font-size:12px;color:var(--text2);" id="nutr-edit-preview">—</div>
-    <input type="hidden" id="nutr-edit-kcal">
-    <input type="hidden" id="nutr-edit-protein">
-    <input type="hidden" id="nutr-edit-carbs">
-    <input type="hidden" id="nutr-edit-fats">
-    <input type="hidden" id="nutr-edit-serving">
-    <input type="hidden" id="nutr-edit-is-recipe" value="0">
+    <div class="input-row">
+      <div><div class="label">Carbs (g)</div><input type="number" id="nutr-edit-carbs"></div>
+      <div><div class="label">Fats (g)</div><input type="number" id="nutr-edit-fats"></div>
+    </div>
+    <div class="form-group">
+      <div class="label">Serving (g)</div>
+      <input type="number" id="nutr-edit-serving">
+    </div>
     <button class="btn btn-accent btn-block" onclick="saveEditFoodEntry()">Save →</button>
   </div>
 </div>
@@ -1257,7 +1273,6 @@ let state = {
   nutritionMeals: {}, // {date: {Breakfast:[], Lunch:[], Dinner:[]}}
   nutritionQuickLog: {}, // {date: {kcal, protein, carbs, fats}}
   foodLibrary: [], // [{id, name, per100kcal, per100p, per100c, per100f, defaultServing, source}]
-  recipes: [],      // [{id, name, servings, ingredients, per_serving_kcal, per_serving_p, per_serving_c, per_serving_f}]
   currentMacroId: null,
   currentWeek: 1,
   currentDay: 'push',
@@ -2908,7 +2923,7 @@ function getNutrDayLog(date) {
 
 function getNutrDayMeals(date) {
   if (!state.nutritionMeals) state.nutritionMeals = {};
-  return state.nutritionMeals[date] || { Breakfast: [], Lunch: [], Dinner: [], Snacks: [] };
+  return state.nutritionMeals[date] || { Breakfast: [], Lunch: [], Dinner: [] };
 }
 
 function getDayTotals(date) {
@@ -2918,7 +2933,7 @@ function getDayTotals(date) {
     return { kcal: q.kcal||0, p: q.protein||0, c: q.carbs||0, f: q.fats||0, isQuick: true };
   }
   const meals = getNutrDayMeals(date);
-  const items = [...(meals.Breakfast||[]), ...(meals.Lunch||[]), ...(meals.Dinner||[]), ...(meals.Snacks||[])];
+  const items = [...(meals.Breakfast||[]), ...(meals.Lunch||[]), ...(meals.Dinner||[])];
   return {
     kcal: items.reduce((a,b)=>a+(b.kcal||0),0),
     p: items.reduce((a,b)=>a+(b.protein||0),0),
@@ -2998,9 +3013,9 @@ function renderNutrMesoPanel() {
   const v = nutrMesoView;
 
   const mesos = [
-    {key:'p',label:'Protein',logged:Math.round(totals.p),target:goal?Math.round(goal.protein):0,color:'var(--blue)',bg:'rgba(96,168,240,0.12)',kcalPer:4},
-    {key:'c',label:'Carbs',logged:Math.round(totals.c),target:goal?Math.round(goal.carbs):0,color:'var(--amber)',bg:'rgba(245,166,35,0.12)',kcalPer:4},
-    {key:'f',label:'Fats',logged:Math.round(totals.f),target:goal?Math.round(goal.fats):0,color:'var(--red)',bg:'rgba(255,95,78,0.12)',kcalPer:9},
+    {key:'p',label:'Protein',logged:totals.p,target:goal?goal.protein:0,color:'var(--blue)',bg:'rgba(96,168,240,0.12)',kcalPer:4},
+    {key:'c',label:'Carbs',logged:totals.c,target:goal?goal.carbs:0,color:'var(--amber)',bg:'rgba(245,166,35,0.12)',kcalPer:4},
+    {key:'f',label:'Fats',logged:totals.f,target:goal?goal.fats:0,color:'var(--red)',bg:'rgba(255,95,78,0.12)',kcalPer:9},
   ];
 
   const totalGoalKcal = goal ? (goal.protein*4 + goal.carbs*4 + goal.fats*9) : 0;
@@ -3044,7 +3059,7 @@ function renderNutrMesoPanel() {
   }).join('');
 
   el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">'
-    + '<span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">Macros</span>'
+    + '<span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">Mesos</span>'
     + '<div style="display:flex;background:var(--surface2);border-radius:6px;padding:2px;gap:1px;">'
     + ['g','±','%'].map((lbl,i) => '<button onclick="setNutrMesoView(' + i + ')" style="padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:' + (nutrMesoView===i?'var(--surface)':'transparent') + ';color:' + (nutrMesoView===i?'var(--text)':'var(--text3)') + ';font-family:var(--font-mono);">' + lbl + '</button>').join('')
     + '</div></div>'
@@ -3076,7 +3091,7 @@ function renderNutrDiary() {
   }
 
   const meals = getNutrDayMeals(nutrSelectedDate);
-  const mealNames = ['Breakfast', 'Lunch', 'Dinner', 'Snacks'];
+  const mealNames = ['Breakfast', 'Lunch', 'Dinner'];
 
   el.innerHTML = bannerHtml + mealNames.map(meal => {
     const items = meals[meal] || [];
@@ -3087,13 +3102,7 @@ function renderNutrDiary() {
       '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:0.5px solid var(--border);">'
       + '<div style="flex:1;min-width:0;">'
       + '<div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + item.name + '</div>'
-      + '<div style="font-size:10px;color:var(--text3);margin-top:2px;">'
-      + (item.grams && item.servings && item.servings !== 1
-          ? item.grams + 'g × ' + item.servings
-          : (item.serving||100) + 'g')
-      + ' · P:' + Math.round(item.protein||0) + 'g C:' + Math.round(item.carbs||0) + 'g F:' + Math.round(item.fats||0) + 'g'
-      + (item.brand ? ' · ' + item.brand : '')
-      + '</div>'
+      + '<div style="font-size:10px;color:var(--text3);margin-top:2px;">' + (item.serving||100) + 'g · P:' + (item.protein||0) + 'g C:' + (item.carbs||0) + 'g F:' + (item.fats||0) + 'g</div>'
       + '</div>'
       + '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">'
       + '<span style="font-family:var(--font-display);font-size:13px;font-weight:700;color:var(--accent);">' + (item.kcal||0) + '</span>'
@@ -3101,25 +3110,6 @@ function renderNutrDiary() {
       + '<button onclick="deleteFoodEntry(\'' + nutrSelectedDate + '\',\'' + meal + '\',' + idx + ')" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:3px;font-size:14px;">✕</button>'
       + '</div></div>'
     ).join('');
-
-    // Copy from yesterday row
-    const prevDate = new Date(nutrSelectedDate + 'T00:00:00');
-    prevDate.setDate(prevDate.getDate() - 1);
-    const prevDs = prevDate.getFullYear() + '-' + String(prevDate.getMonth()+1).padStart(2,'0') + '-' + String(prevDate.getDate()).padStart(2,'0');
-    const prevMealItems = (getNutrDayMeals(prevDs)[meal] || []);
-    const prevTot = prevMealItems.reduce((a,b)=>({kcal:a.kcal+(b.kcal||0)}),{kcal:0});
-    const alreadyCopied = items.some(i => i.copiedFrom === prevDs);
-    const copyRow = prevMealItems.length && !alreadyCopied
-      ? (function() {
-          const firstName = prevMealItems[0].name;
-          const rest = prevMealItems.length - 1;
-          const label = rest > 0 ? firstName + ' and ' + rest + ' more · ' + prevTot.kcal + ' kcal' : firstName + ' · ' + prevTot.kcal + ' kcal';
-          return '<div style="border-top:0.5px solid var(--border);padding:8px 14px;display:flex;justify-content:space-between;align-items:center;">'
-            + '<div style="font-size:11px;color:var(--text3);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:8px;">Yesterday: ' + label + '</div>'
-            + '<button onclick="copyMealFromYesterday(\'' + meal + '\')" style="background:none;border:0.5px solid var(--border2);border-radius:var(--r-sm);color:var(--text2);font-size:11px;font-family:var(--font-mono);padding:4px 10px;cursor:pointer;flex-shrink:0;">Copy</button>'
-            + '</div>';
-        })()
-      : '';
 
     return '<div class="card" style="margin-bottom:8px;padding:0;">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;">'
@@ -3129,7 +3119,6 @@ function renderNutrDiary() {
       + '<button onclick="openNutrAdd(\'' + meal + '\')" class="btn btn-accent btn-sm">+ Log</button>'
       + '</div>'
       + (hasItems ? '<div style="padding:0 14px 10px;border-top:0.5px solid var(--border);">' + itemRows + '</div>' : '')
-      + copyRow
       + '</div>';
   }).join('');
 }
@@ -3155,84 +3144,25 @@ function nutrSelectBadge(date) {
 function openNutrAdd(meal) {
   nutrActiveMeal = meal;
   document.getElementById('nutr-add-title').textContent = 'Add to ' + meal;
-  document.getElementById('nutr-add-search').value = '';
-  renderNutrAddList();
-  openModal('modal-nutr-add');
-}
 
-function renderNutrAddList() {
-  const query = (document.getElementById('nutr-add-search').value || '').toLowerCase().trim();
-  const lib = state.foodLibrary || [];
-  const el = document.getElementById('nutr-add-list');
-
-  // Build last-logged timestamps for sorting by most recently used
-  const allMeals = state.nutritionMeals || {};
-  const lastLogged = {};
-  Object.keys(allMeals).sort().reverse().forEach(date => {
-    Object.values(allMeals[date]).flat().forEach(entry => {
-      if (entry.name && !lastLogged[entry.name]) lastLogged[entry.name] = date;
-    });
-  });
-
-  let items = lib.filter(i => !query || i.name.toLowerCase().includes(query) || (i.brand && i.brand.toLowerCase().includes(query)));
-  items = items.slice().sort((a, b) => {
-    const da = lastLogged[a.name] || '0000-00-00';
-    const db = lastLogged[b.name] || '0000-00-00';
-    if (db !== da) return db.localeCompare(da);
-    return a.name.localeCompare(b.name);
-  });
-
-  // Backfill brand from meal logs for items saved before brand was stored
-  const allEntries = Object.values(allMeals).flatMap(day => Object.values(day).flat());
-
-  if (!items.length) {
-    el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:20px 0;">'
-      + (query ? 'No matches for "' + query + '"' : 'No foods saved yet — scan a barcode or add manually.') + '</div>';
-    el._items = [];
-    return;
+  // Update copy-from-yesterday label
+  const prevDate = new Date(nutrSelectedDate + 'T00:00:00');
+  prevDate.setDate(prevDate.getDate() - 1);
+  const prevDs = prevDate.getFullYear() + '-' + String(prevDate.getMonth()+1).padStart(2,'0') + '-' + String(prevDate.getDate()).padStart(2,'0');
+  const prevMeals = getNutrDayMeals(prevDs);
+  const prevItems = (prevMeals[meal] || []);
+  const sub = document.getElementById('nutr-copy-sub');
+  const btn = document.getElementById('nutr-copy-yesterday-btn');
+  if (prevItems.length > 0) {
+    sub.textContent = prevItems.length + ' item' + (prevItems.length!==1?'s':'') + ' from ' + formatDate(prevDs);
+    btn.style.opacity = '1';
+    btn.style.pointerEvents = 'all';
+  } else {
+    sub.textContent = 'No ' + meal.toLowerCase() + ' logged for ' + formatDate(prevDs);
+    btn.style.opacity = '0.4';
+    btn.style.pointerEvents = 'none';
   }
-
-  el.innerHTML = items.map((item, idx) => {
-    let brand = item.brand || '';
-    if (!brand) {
-      const match = allEntries.find(e => e.name === item.name && e.brand);
-      if (match) brand = match.brand;
-    }
-    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);">'
-      + '<div style="flex:1;min-width:0;">'
-      + '<div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + item.name + '</div>'
-      + '<div style="font-size:10px;color:var(--text3);margin-top:2px;">'
-      + item.per100kcal + ' kcal / 100g · P:' + item.per100p + 'g C:' + item.per100c + 'g F:' + item.per100f + 'g'
-      + (brand ? ' · ' + brand : '')
-      + '</div>'
-      + '</div>'
-      + '<button onclick="selectFromAddList(' + idx + ')" class="btn btn-sm" style="flex-shrink:0;padding:6px 12px;margin-left:8px;">Add</button>'
-      + '</div>';
-  }).join('');
-  el._items = items;
-}
-
-function selectFromAddList(idx) {
-  const el = document.getElementById('nutr-add-list');
-  const item = (el._items || [])[idx];
-  if (!item) return;
-  nutrPendingProduct = {
-    name: item.name,
-    brand: item.brand || '',
-    barcode: item.barcode || null,
-    per1kcal: item.per100kcal / 100,
-    per1p:    item.per100p / 100,
-    per1c:    item.per100c / 100,
-    per1f:    item.per100f / 100,
-    per100kcal: item.per100kcal,
-    per100p: item.per100p,
-    per100c: item.per100c,
-    per100f: item.per100f,
-    defaultServing: item.defaultServing || null,
-    source: item.source || 'library',
-  };
-  closeModal('modal-nutr-add');
-  requestAnimationFrame(() => openNutrServingModal());
+  openModal('modal-nutr-add');
 }
 
 function openNutrBarcode() {
@@ -3273,24 +3203,18 @@ async function lookupNutrBarcode() {
     // Serving size priority: product_quantity (whole pack) → serving_quantity → 100g
     const packQty = parseFloat(p.product_quantity) || null;
     const servingQty = parseFloat(p.serving_quantity) || null;
+    const defaultServing = packQty || servingQty || 100;
     const baseName = p.product_name || p.product_name_en || 'Unknown product';
-    // Only include RSS suffix if serving_quantity exists
-    const displayName = servingQty ? baseName + ' (RSS - ' + servingQty + 'g)' : baseName;
-    const brand = (p.brands || p.brand_owner || '').trim();
+    // Append pack size in brackets so it's always visible
+    const displayName = packQty ? baseName + ' (' + packQty + 'g)' : baseName;
     nutrPendingProduct = {
       name: displayName,
-      brand,
-      barcode,
-      defaultServing: servingQty || null,
-      per1kcal: Math.round(kcal) / 100,
-      per1p: parseFloat(n['proteins_100g'] ?? n['proteins'] ?? 0) / 100,
-      per1c: parseFloat(n['carbohydrates_100g'] ?? n['carbohydrates'] ?? 0) / 100,
-      per1f: parseFloat(n['fat_100g'] ?? n['fat'] ?? 0) / 100,
-      // Keep per100 for library storage
+      brand: p.brands || '',
       per100kcal: Math.round(kcal),
       per100p: parseFloat(n['proteins_100g'] ?? n['proteins'] ?? 0),
       per100c: parseFloat(n['carbohydrates_100g'] ?? n['carbohydrates'] ?? 0),
       per100f: parseFloat(n['fat_100g'] ?? n['fat'] ?? 0),
+      defaultServing,
     };
     closeModal('modal-nutr-barcode');
     requestAnimationFrame(() => openNutrServingModal());
@@ -3310,17 +3234,11 @@ function addToFoodLibrary(item) {
   const entry = {
     id: idx >= 0 ? state.foodLibrary[idx].id : 'lib_' + Date.now(),
     name: item.name,
-    brand: item.brand || '',
-    barcode: item.barcode || null,
     per100kcal: item.per100kcal,
     per100p: item.per100p,
     per100c: item.per100c,
     per100f: item.per100f,
-    per1kcal: item.per1kcal !== undefined ? item.per1kcal : item.per100kcal / 100,
-    per1p:    item.per1p    !== undefined ? item.per1p    : item.per100p / 100,
-    per1c:    item.per1c    !== undefined ? item.per1c    : item.per100c / 100,
-    per1f:    item.per1f    !== undefined ? item.per1f    : item.per100f / 100,
-    defaultServing: item.defaultServing || null,
+    defaultServing: item.defaultServing || 100,
     source: item.source || 'manual',
   };
   if (idx >= 0) state.foodLibrary[idx] = entry;
@@ -3377,25 +3295,17 @@ function renderPreviousMeals() {
     el._items = [];
     return;
   }
-  // Backfill brand from meal logs for items saved before brand was stored in library
-  const allEntries = Object.values(state.nutritionMeals || {}).flatMap(day => Object.values(day).flat());
-  el.innerHTML = items.map((item, idx) => {
-    let brand = item.brand || '';
-    if (!brand) {
-      const match = allEntries.find(e => e.name === item.name && e.brand);
-      if (match) brand = match.brand;
-    }
-    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);">'
+  el.innerHTML = items.map((item, idx) =>
+    '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);">'
     + '<div style="flex:1;min-width:0;">'
     + '<div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + item.name + '</div>'
     + '<div style="font-size:10px;color:var(--text3);margin-top:2px;">'
     + item.per100kcal + ' kcal / 100g · P:' + item.per100p + 'g C:' + item.per100c + 'g F:' + item.per100f + 'g'
-    + (brand ? ' · ' + brand : '')
-    + '</div>'
+    + ' · default ' + (item.defaultServing || 100) + 'g</div>'
     + '</div>'
     + '<button onclick="selectFromLibrary(' + idx + ')" class="btn btn-sm" style="flex-shrink:0;padding:6px 12px;margin-left:8px;">Add</button>'
-    + '</div>';
-  }).join('');
+    + '</div>'
+  ).join('');
   el._items = items;
 }
 
@@ -3405,17 +3315,13 @@ function selectFromLibrary(idx) {
   if (!item) return;
   nutrPendingProduct = {
     name: item.name,
-    brand: item.brand || '',
-    barcode: item.barcode || null,
-    per1kcal: item.per1kcal !== undefined ? item.per1kcal : item.per100kcal / 100,
-    per1p:    item.per1p    !== undefined ? item.per1p    : item.per100p / 100,
-    per1c:    item.per1c    !== undefined ? item.per1c    : item.per100c / 100,
-    per1f:    item.per1f    !== undefined ? item.per1f    : item.per100f / 100,
+    brand: '',
     per100kcal: item.per100kcal,
     per100p: item.per100p,
     per100c: item.per100c,
     per100f: item.per100f,
-    source: 'library',
+    defaultServing: item.defaultServing || 100,
+    source: item.source || 'library',
   };
   closeModal('modal-nutr-previous');
   requestAnimationFrame(() => openNutrServingModal());
@@ -3426,71 +3332,65 @@ function openNutrServingModal() {
   document.getElementById('nutr-serving-title').textContent = 'Add to ' + nutrActiveMeal;
   document.getElementById('nutr-serving-name').textContent = nutrPendingProduct.name;
   document.getElementById('nutr-serving-brand').textContent = nutrPendingProduct.brand || '';
-  // Pre-fill from last logged entry for this food; fall back to RSS then 100g
-  const allEntries = Object.values(state.nutritionMeals || {}).flatMap(day => Object.values(day).flat());
-  const lastEntry = allEntries.filter(e => e.name === nutrPendingProduct.name).pop();
-  const gramsInput = document.getElementById('nutr-serving-grams');
-  if (nutrPendingProduct.source === 'recipe') {
-    gramsInput.value = 100;
-    gramsInput.readOnly = true;
-    gramsInput.style.opacity = '0.4';
-  } else {
-    gramsInput.value = (lastEntry && lastEntry.grams) ? lastEntry.grams : (nutrPendingProduct.defaultServing || 100);
-    gramsInput.readOnly = false;
-    gramsInput.style.opacity = '1';
-  }
-  document.getElementById('nutr-serving-servings').value = (lastEntry && lastEntry.servings) ? lastEntry.servings : 1;
+  document.getElementById('nutr-serving-size').value = nutrPendingProduct.defaultServing;
+  document.getElementById('nutr-serving-multiplier').value = '1';
+  document.getElementById('nutr-serving-custom').style.display = 'none';
+  document.getElementById('nutr-serving-custom-g').value = '';
   updateServingPreview();
   openModal('modal-nutr-serving');
 }
 
 function updateServingPreview() {
   if (!nutrPendingProduct) return;
-  const grams    = parseFloat(document.getElementById('nutr-serving-grams').value) || 0;
-  const servings = parseFloat(document.getElementById('nutr-serving-servings').value) || 1;
-  const total    = grams * servings;
-  const kcalPer1 = nutrPendingProduct.per100kcal / 100;
-  const pPer1    = nutrPendingProduct.per100p / 100;
-  const cPer1    = nutrPendingProduct.per100c / 100;
-  const fPer1    = nutrPendingProduct.per100f / 100;
-  document.getElementById('sp-kcal').textContent = Math.round(kcalPer1 * total);
-  document.getElementById('sp-protein').textContent = Math.round(pPer1 * total) + 'g';
-  document.getElementById('sp-carbs').textContent = Math.round(cPer1 * total) + 'g';
-  document.getElementById('sp-fats').textContent = Math.round(fPer1 * total) + 'g';
+  const multiplierSel = document.getElementById('nutr-serving-multiplier');
+  const baseSize = parseFloat(document.getElementById('nutr-serving-size').value) || 100;
+  const customEl = document.getElementById('nutr-serving-custom');
+
+  let grams;
+  if (multiplierSel.value === 'custom') {
+    customEl.style.display = 'block';
+    grams = parseFloat(document.getElementById('nutr-serving-custom-g').value) || baseSize;
+  } else {
+    customEl.style.display = 'none';
+    grams = baseSize * parseFloat(multiplierSel.value);
+  }
+
+  const r = grams / 100;
+  document.getElementById('sp-kcal').textContent = Math.round(nutrPendingProduct.per100kcal * r);
+  document.getElementById('sp-protein').textContent = (nutrPendingProduct.per100p * r).toFixed(1) + 'g';
+  document.getElementById('sp-carbs').textContent = (nutrPendingProduct.per100c * r).toFixed(1) + 'g';
+  document.getElementById('sp-fats').textContent = (nutrPendingProduct.per100f * r).toFixed(1) + 'g';
 }
 
 function confirmServing() {
   if (!nutrPendingProduct) return;
-  const grams    = parseFloat(document.getElementById('nutr-serving-grams').value) || 100;
-  const servings = parseFloat(document.getElementById('nutr-serving-servings').value) || 1;
-  const total    = grams * servings;
-  const kcalPer1 = nutrPendingProduct.per100kcal / 100;
-  const pPer1    = nutrPendingProduct.per100p / 100;
-  const cPer1    = nutrPendingProduct.per100c / 100;
-  const fPer1    = nutrPendingProduct.per100f / 100;
+  const multiplierSel = document.getElementById('nutr-serving-multiplier');
+  const baseSize = parseFloat(document.getElementById('nutr-serving-size').value) || 100;
+  let grams;
+  if (multiplierSel.value === 'custom') {
+    grams = parseFloat(document.getElementById('nutr-serving-custom-g').value) || baseSize;
+  } else {
+    grams = baseSize * parseFloat(multiplierSel.value);
+  }
+  const r = grams / 100;
   const entry = {
-    name:     nutrPendingProduct.name,
-    brand:    nutrPendingProduct.brand || '',
-    grams,
-    servings,
-    serving:  Math.round(total),
-    kcal:     Math.round(kcalPer1 * total),
-    protein:  Math.round(pPer1    * total),
-    carbs:    Math.round(cPer1    * total),
-    fats:     Math.round(fPer1    * total),
-    source:   nutrPendingProduct.source || 'barcode',
+    name: nutrPendingProduct.name,
+    serving: Math.round(grams),
+    kcal: Math.round(nutrPendingProduct.per100kcal * r),
+    protein: parseFloat((nutrPendingProduct.per100p * r).toFixed(1)),
+    carbs: parseFloat((nutrPendingProduct.per100c * r).toFixed(1)),
+    fats: parseFloat((nutrPendingProduct.per100f * r).toFixed(1)),
+    source: nutrPendingProduct.source || 'barcode',
   };
   // Save to library (skip if sourced from library itself to avoid loops)
   if (nutrPendingProduct.source !== 'library') {
     addToFoodLibrary({
       name: nutrPendingProduct.name,
-      brand: nutrPendingProduct.brand || '',
-      barcode: nutrPendingProduct.barcode || null,
-      per100kcal: nutrPendingProduct.per100kcal || Math.round(kcalPer1 * 100),
-      per100p: nutrPendingProduct.per100p || parseFloat((pPer1 * 100).toFixed(1)),
-      per100c: nutrPendingProduct.per100c || parseFloat((cPer1 * 100).toFixed(1)),
-      per100f: nutrPendingProduct.per100f || parseFloat((fPer1 * 100).toFixed(1)),
-      defaultServing: nutrPendingProduct.defaultServing || null,
+      per100kcal: nutrPendingProduct.per100kcal,
+      per100p: nutrPendingProduct.per100p,
+      per100c: nutrPendingProduct.per100c,
+      per100f: nutrPendingProduct.per100f,
+      defaultServing: baseSize,
       source: nutrPendingProduct.source || 'barcode',
     });
   }
@@ -3507,7 +3407,11 @@ function openNutrPrevious() {
 
 function openNutrManual() {
   closeModal('modal-nutr-add');
-  document.getElementById('nutr-manual-title').textContent = 'Quick Add to ' + nutrActiveMeal;
+  document.getElementById('nutr-manual-title').textContent = 'Add to ' + nutrActiveMeal;
+  document.getElementById('nutr-manual-editid').value = '';
+  document.getElementById('nutr-manual-name').value = '';
+  document.getElementById('nutr-manual-servings').value = '1';
+  document.getElementById('nutr-manual-serving-size').value = '100';
   document.getElementById('nutr-manual-kcal').value = '';
   document.getElementById('nutr-manual-protein').value = '';
   document.getElementById('nutr-manual-carbs').value = '';
@@ -3517,51 +3421,71 @@ function openNutrManual() {
 }
 
 function updateManualPreview() {
-  const kcal = Math.round(parseFloat(document.getElementById('nutr-manual-kcal').value)||0);
-  const p    = Math.round(parseFloat(document.getElementById('nutr-manual-protein').value)||0);
-  const c    = Math.round(parseFloat(document.getElementById('nutr-manual-carbs').value)||0);
-  const f    = Math.round(parseFloat(document.getElementById('nutr-manual-fats').value)||0);
+  const servings = parseFloat(document.getElementById('nutr-manual-servings').value) || 1;
+  const kcal = Math.round((parseFloat(document.getElementById('nutr-manual-kcal').value)||0) * servings);
+  const p = ((parseFloat(document.getElementById('nutr-manual-protein').value)||0) * servings).toFixed(1);
+  const c = ((parseFloat(document.getElementById('nutr-manual-carbs').value)||0) * servings).toFixed(1);
+  const f = ((parseFloat(document.getElementById('nutr-manual-fats').value)||0) * servings).toFixed(1);
   document.getElementById('nutr-manual-preview').textContent = 'Total: ' + kcal + ' kcal · P:' + p + 'g C:' + c + 'g F:' + f + 'g';
 }
 
 function saveManualEntry() {
-  const kcal    = Math.round(parseFloat(document.getElementById('nutr-manual-kcal').value)||0);
-  const protein = Math.round(parseFloat(document.getElementById('nutr-manual-protein').value)||0);
-  const carbs   = Math.round(parseFloat(document.getElementById('nutr-manual-carbs').value)||0);
-  const fats    = Math.round(parseFloat(document.getElementById('nutr-manual-fats').value)||0);
-  if (!kcal && !protein && !carbs && !fats) return;
-  addFoodEntry({ name: 'Manual entry', kcal, protein, carbs, fats, serving: 1, source: 'manual' });
+  const name = document.getElementById('nutr-manual-name').value.trim();
+  if (!name) { return; }
+  const servings = parseFloat(document.getElementById('nutr-manual-servings').value) || 1;
+  const servingSize = parseFloat(document.getElementById('nutr-manual-serving-size').value) || 100;
+  const kcalPerServing = parseFloat(document.getElementById('nutr-manual-kcal').value)||0;
+  const pPerServing = parseFloat(document.getElementById('nutr-manual-protein').value)||0;
+  const cPerServing = parseFloat(document.getElementById('nutr-manual-carbs').value)||0;
+  const fPerServing = parseFloat(document.getElementById('nutr-manual-fats').value)||0;
+
+  const entry = {
+    name,
+    serving: Math.round(servingSize * servings),
+    kcal: Math.round(kcalPerServing * servings),
+    protein: parseFloat((pPerServing * servings).toFixed(1)),
+    carbs: parseFloat((cPerServing * servings).toFixed(1)),
+    fats: parseFloat((fPerServing * servings).toFixed(1)),
+    source: 'manual',
+  };
+
+  // Store per-100g values in library (convert from per-serving)
+  const ratio = servingSize > 0 ? 100 / servingSize : 1;
+  addToFoodLibrary({
+    name,
+    per100kcal: Math.round(kcalPerServing * ratio),
+    per100p: parseFloat((pPerServing * ratio).toFixed(1)),
+    per100c: parseFloat((cPerServing * ratio).toFixed(1)),
+    per100f: parseFloat((fPerServing * ratio).toFixed(1)),
+    defaultServing: servingSize,
+    source: 'manual',
+  });
+
+  addFoodEntry(entry);
   closeModal('modal-nutr-manual');
 }
 
 function copyFromYesterday() {
-  // Legacy wrapper
-  copyMealFromYesterday(nutrActiveMeal);
-}
-
-function copyMealFromYesterday(meal) {
   const prevDate = new Date(nutrSelectedDate + 'T00:00:00');
   prevDate.setDate(prevDate.getDate() - 1);
   const prevDs = prevDate.getFullYear() + '-' + String(prevDate.getMonth()+1).padStart(2,'0') + '-' + String(prevDate.getDate()).padStart(2,'0');
-  const items = (getNutrDayMeals(prevDs)[meal] || []);
+  const prevMeals = getNutrDayMeals(prevDs);
+  const items = (prevMeals[nutrActiveMeal] || []);
   if (!items.length) return;
   if (!state.nutritionMeals) state.nutritionMeals = {};
-  if (!state.nutritionMeals[nutrSelectedDate]) state.nutritionMeals[nutrSelectedDate] = {};
-  if (!state.nutritionMeals[nutrSelectedDate][meal]) state.nutritionMeals[nutrSelectedDate][meal] = [];
+  if (!state.nutritionMeals[nutrSelectedDate]) state.nutritionMeals[nutrSelectedDate] = { Breakfast: [], Lunch: [], Dinner: [] };
   items.forEach(item => {
-    const copied = JSON.parse(JSON.stringify(item));
-    copied.copiedFrom = prevDs;
-    state.nutritionMeals[nutrSelectedDate][meal].push(copied);
+    state.nutritionMeals[nutrSelectedDate][nutrActiveMeal].push(JSON.parse(JSON.stringify(item)));
   });
   syncNutrLegacyLog(nutrSelectedDate);
   save();
+  closeModal('modal-nutr-add');
   renderNutrDaily();
 }
 
 function addFoodEntry(entry) {
   if (!state.nutritionMeals) state.nutritionMeals = {};
-  if (!state.nutritionMeals[nutrSelectedDate]) state.nutritionMeals[nutrSelectedDate] = {};
-  if (!state.nutritionMeals[nutrSelectedDate][nutrActiveMeal]) state.nutritionMeals[nutrSelectedDate][nutrActiveMeal] = [];
+  if (!state.nutritionMeals[nutrSelectedDate]) state.nutritionMeals[nutrSelectedDate] = { Breakfast: [], Lunch: [], Dinner: [] };
   state.nutritionMeals[nutrSelectedDate][nutrActiveMeal].push(entry);
   syncNutrLegacyLog(nutrSelectedDate);
   save();
@@ -3573,7 +3497,7 @@ function syncNutrLegacyLog(date) {
   const totals = getDayTotals(date);
   if (!state.nutritionLogs) state.nutritionLogs = [];
   const idx = state.nutritionLogs.findIndex(l => l.date === date);
-  const entry = { date, kcal: Math.round(totals.kcal), protein: Math.round(totals.p), carbs: Math.round(totals.c), fats: Math.round(totals.f) };
+  const entry = { date, kcal: totals.kcal, protein: totals.p, carbs: totals.c, fats: totals.f };
   if (idx >= 0) state.nutritionLogs[idx] = entry;
   else state.nutritionLogs.push(entry);
 }
@@ -3596,69 +3520,31 @@ function deleteFoodEntry(date, meal, idx) {
 function openEditFoodEntry(date, meal, idx) {
   const item = (state.nutritionMeals && state.nutritionMeals[date] && state.nutritionMeals[date][meal] || [])[idx];
   if (!item) return;
-  const libEntry = (state.foodLibrary || []).find(f => f.name === item.name);
-  const isRecipe = !!(libEntry && libEntry.source === 'recipe');
   document.getElementById('nutr-edit-date').value = date;
   document.getElementById('nutr-edit-meal').value = meal;
   document.getElementById('nutr-edit-idx').value = idx;
   document.getElementById('nutr-edit-name').value = item.name;
-  // Recipes: grams locked to 1 (1 serving = 1 unit), only servings is editable
-  // Show/hide grams column based on recipe status
-  const gramsRow = document.getElementById('nutr-edit-grams-row');
-  const gramsEl  = document.getElementById('nutr-edit-grams');
-  if (isRecipe) {
-    gramsRow.children[0].style.display = 'none'; // hide Amount (g) column
-    gramsEl.value = 1;
-  } else {
-    gramsRow.children[0].style.display = '';
-    gramsEl.value = item.grams || item.serving || 100;
-  }
-  document.getElementById('nutr-edit-is-recipe').value = isRecipe ? '1' : '0';
-  document.getElementById('nutr-edit-servings').value = item.servings || 1;
-  document.getElementById('nutr-edit-kcal').value    = libEntry ? libEntry.per100kcal : (item.serving ? Math.round(item.kcal / item.serving * 100) : 0);
-  document.getElementById('nutr-edit-protein').value = libEntry ? libEntry.per100p    : (item.serving ? Math.round(item.protein / item.serving * 100) : 0);
-  document.getElementById('nutr-edit-carbs').value   = libEntry ? libEntry.per100c    : (item.serving ? Math.round(item.carbs / item.serving * 100) : 0);
-  document.getElementById('nutr-edit-fats').value    = libEntry ? libEntry.per100f    : (item.serving ? Math.round(item.fats / item.serving * 100) : 0);
+  document.getElementById('nutr-edit-kcal').value = item.kcal || 0;
+  document.getElementById('nutr-edit-protein').value = item.protein || 0;
+  document.getElementById('nutr-edit-carbs').value = item.carbs || 0;
+  document.getElementById('nutr-edit-fats').value = item.fats || 0;
   document.getElementById('nutr-edit-serving').value = item.serving || 100;
-  updateEditPreview();
   openModal('modal-nutr-edit');
-}
-
-function updateEditPreview() {
-  const grams    = parseFloat(document.getElementById('nutr-edit-grams').value) || 0;
-  const servings = parseFloat(document.getElementById('nutr-edit-servings').value) || 1;
-  const total    = grams * servings;
-  const per100k  = parseFloat(document.getElementById('nutr-edit-kcal').value) || 0;
-  const per100p  = parseFloat(document.getElementById('nutr-edit-protein').value) || 0;
-  const per100c  = parseFloat(document.getElementById('nutr-edit-carbs').value) || 0;
-  const per100f  = parseFloat(document.getElementById('nutr-edit-fats').value) || 0;
-  document.getElementById('nutr-edit-preview').textContent =
-    Math.round(per100k/100*total) + ' kcal · P:' + Math.round(per100p/100*total) + 'g C:' + Math.round(per100c/100*total) + 'g F:' + Math.round(per100f/100*total) + 'g';
 }
 
 function saveEditFoodEntry() {
   const date = document.getElementById('nutr-edit-date').value;
   const meal = document.getElementById('nutr-edit-meal').value;
-  const idx  = parseInt(document.getElementById('nutr-edit-idx').value);
+  const idx = parseInt(document.getElementById('nutr-edit-idx').value);
   if (!state.nutritionMeals || !state.nutritionMeals[date] || !state.nutritionMeals[date][meal]) return;
-  const isRecipeEdit = document.getElementById('nutr-edit-is-recipe').value === '1';
-  const grams    = isRecipeEdit ? 1 : (parseFloat(document.getElementById('nutr-edit-grams').value) || 100);
-  const servings = parseFloat(document.getElementById('nutr-edit-servings').value) || 1;
-  const total    = grams * servings;
-  const per100k  = parseFloat(document.getElementById('nutr-edit-kcal').value) || 0;
-  const per100p  = parseFloat(document.getElementById('nutr-edit-protein').value) || 0;
-  const per100c  = parseFloat(document.getElementById('nutr-edit-carbs').value) || 0;
-  const per100f  = parseFloat(document.getElementById('nutr-edit-fats').value) || 0;
-  const existing = state.nutritionMeals[date][meal][idx];
   state.nutritionMeals[date][meal][idx] = {
-    ...existing,
-    grams,
-    servings,
-    serving: Math.round(total),
-    kcal:    Math.round(per100k/100*total),
-    protein: Math.round(per100p/100*total),
-    carbs:   Math.round(per100c/100*total),
-    fats:    Math.round(per100f/100*total),
+    name: document.getElementById('nutr-edit-name').value.trim(),
+    kcal: parseInt(document.getElementById('nutr-edit-kcal').value)||0,
+    protein: parseFloat(document.getElementById('nutr-edit-protein').value)||0,
+    carbs: parseFloat(document.getElementById('nutr-edit-carbs').value)||0,
+    fats: parseFloat(document.getElementById('nutr-edit-fats').value)||0,
+    serving: parseFloat(document.getElementById('nutr-edit-serving').value)||100,
+    source: 'manual',
   };
   syncNutrLegacyLog(date);
   save();
@@ -4389,158 +4275,6 @@ showScreen('home');
   </div>
 </div>
 
-<!-- ── Food Library Editor Modal ─────────────────────────────────── -->
-<div class="modal-overlay" id="modal-food-lib-editor">
-  <div class="modal-sheet" data-modal="modal-food-lib-editor" style="max-height:90dvh;display:flex;flex-direction:column;">
-    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-food-lib-editor')">✕</button></div>
-    <div class="modal-title" style="flex-shrink:0;">Food Library</div>
-    <input type="text" id="food-lib-search" placeholder="Search foods…" oninput="renderFoodLibEditor()" style="margin-bottom:10px;flex-shrink:0;">
-    <div id="food-lib-list" style="overflow-y:auto;flex:1;"></div>
-  </div>
-</div>
-
-<!-- ── Food Library Entry Edit Modal ─────────────────────────────── -->
-<div class="modal-overlay" id="modal-food-lib-entry">
-  <div class="modal-sheet" data-modal="modal-food-lib-entry">
-    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-food-lib-entry')">✕</button></div>
-    <div class="modal-title">Edit Food</div>
-    <input type="hidden" id="fle-id">
-    <div class="form-group">
-      <div class="label">Name</div>
-      <input type="text" id="fle-name">
-    </div>
-    <div class="form-group">
-      <div class="label">Brand</div>
-      <input type="text" id="fle-brand" placeholder="Optional">
-    </div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Values per 100g</div>
-    <div class="input-row">
-      <div><div class="label">kcal / 100g</div><input type="number" id="fle-kcal" oninput="updateFlePreview()"></div>
-      <div><div class="label">Protein (g)</div><input type="number" id="fle-protein" oninput="updateFlePreview()"></div>
-    </div>
-    <div class="input-row">
-      <div><div class="label">Carbs (g)</div><input type="number" id="fle-carbs" oninput="updateFlePreview()"></div>
-      <div><div class="label">Fats (g)</div><input type="number" id="fle-fats" oninput="updateFlePreview()"></div>
-    </div>
-    <div class="form-group">
-      <div class="label">RSS (g) <span style="color:var(--text3);font-size:10px;">Recommended serving size — optional</span></div>
-      <input type="number" id="fle-rss" placeholder="e.g. 250" oninput="updateFlePreview()">
-    </div>
-    <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px;margin-bottom:14px;font-size:12px;color:var(--text2);" id="fle-preview">—</div>
-    <button class="btn btn-accent btn-block" onclick="saveFoodLibEntry()" style="margin-bottom:8px;">Save →</button>
-  </div>
-</div>
-
-<!-- ── Recipe Builder: Step 1 — Name & Servings ──────────────────── -->
-<div class="modal-overlay" id="modal-recipe-step1">
-  <div class="modal-sheet" data-modal="modal-recipe-step1">
-    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-step1')">✕</button></div>
-    <div class="modal-title" id="recipe-step1-title">New Recipe</div>
-    <input type="hidden" id="recipe-edit-id">
-    <div class="form-group">
-      <div class="label">Recipe name</div>
-      <input type="text" id="recipe-name-input" placeholder="e.g. Chicken pasta">
-    </div>
-    <div class="form-group">
-      <div class="label">No. servings this recipe makes</div>
-      <input type="number" id="recipe-servings-input" value="1" min="1" step="0.5" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
-    </div>
-    <button class="btn btn-accent btn-block" onclick="recipeGoToIngredients()">Next: Add ingredients →</button>
-  </div>
-</div>
-
-<!-- ── Recipe Builder: Step 2 — Ingredients ──────────────────────── -->
-<div class="modal-overlay" id="modal-recipe-ingredients">
-  <div class="modal-sheet" data-modal="modal-recipe-ingredients" style="max-height:90dvh;display:flex;flex-direction:column;">
-    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-ingredients')">✕</button></div>
-    <div class="modal-title" style="flex-shrink:0;" id="recipe-ing-title">Ingredients</div>
-    <!-- Action buttons -->
-    <div style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0;">
-      <button onclick="openRecipeBarcode()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/><line x1="13" y1="8" x2="13" y2="12"/><line x1="16" y1="8" x2="16" y2="16"/></svg>
-        <span style="font-weight:600;">Barcode</span>
-      </button>
-      <button onclick="openRecipeManual()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-        <span style="font-weight:600;">Manual</span>
-      </button>
-    </div>
-    <!-- Ingredient list -->
-    <div id="recipe-ing-list" style="overflow-y:auto;flex:1;margin-bottom:12px;"></div>
-    <!-- Totals -->
-    <div id="recipe-ing-totals" style="flex-shrink:0;background:var(--surface2);border-radius:var(--r-sm);padding:10px 12px;font-size:12px;color:var(--text2);margin-bottom:12px;">No ingredients yet</div>
-    <button class="btn btn-accent btn-block" style="flex-shrink:0;" onclick="saveRecipe()">Save recipe →</button>
-  </div>
-</div>
-
-<!-- ── Recipe: Barcode entry ──────────────────────────────────────── -->
-<div class="modal-overlay" id="modal-recipe-barcode">
-  <div class="modal-sheet" data-modal="modal-recipe-barcode">
-    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-barcode')">✕</button></div>
-    <div class="modal-title">Add Ingredient — Barcode</div>
-    <div class="form-group">
-      <div class="label">Barcode number</div>
-      <input type="text" id="recipe-barcode-input" placeholder="e.g. 5000112548175" inputmode="numeric">
-    </div>
-    <div id="recipe-barcode-status" style="display:none;padding:10px;border-radius:var(--r-sm);font-size:12px;margin-bottom:12px;"></div>
-    <button class="btn btn-accent btn-block" onclick="lookupRecipeBarcode()">Look up →</button>
-  </div>
-</div>
-
-<!-- ── Recipe: Barcode serving confirm ───────────────────────────── -->
-<div class="modal-overlay" id="modal-recipe-serving">
-  <div class="modal-sheet" data-modal="modal-recipe-serving">
-    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-serving')">✕</button></div>
-    <div class="modal-title">Confirm Amount</div>
-    <div class="card" style="margin-bottom:14px;">
-      <div style="font-family:var(--font-display);font-size:15px;font-weight:700;margin-bottom:2px;" id="recipe-serving-name"></div>
-      <div style="font-size:12px;color:var(--text2);" id="recipe-serving-brand"></div>
-    </div>
-    <div class="form-group">
-      <div class="label">Amount (g)</div>
-      <input type="number" id="recipe-serving-grams" min="1" oninput="updateRecipeServingPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
-    </div>
-    <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px;margin-bottom:14px;font-size:12px;color:var(--text2);" id="recipe-serving-preview">—</div>
-    <button class="btn btn-accent btn-block" onclick="confirmRecipeIngredient()">Add ingredient →</button>
-  </div>
-</div>
-
-<!-- ── Recipe: Manual ingredient ─────────────────────────────────── -->
-<div class="modal-overlay" id="modal-recipe-manual">
-  <div class="modal-sheet" data-modal="modal-recipe-manual">
-    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-manual')">✕</button></div>
-    <div class="modal-title">Add Ingredient — Manual</div>
-    <div class="form-group">
-      <div class="label">Ingredient name</div>
-      <input type="text" id="recipe-manual-name" placeholder="e.g. Olive oil">
-    </div>
-    <div class="form-group">
-      <div class="label">No. servings</div>
-      <input type="number" id="recipe-manual-servings" value="1" min="0.5" step="0.5" oninput="updateRecipeManualPreview()">
-    </div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Values per 1 serving (serving size = 1)</div>
-    <div class="input-row">
-      <div><div class="label">kcal</div><input type="number" id="recipe-manual-kcal" placeholder="0" oninput="updateRecipeManualPreview()"></div>
-      <div><div class="label">Protein (g)</div><input type="number" id="recipe-manual-protein" placeholder="0" oninput="updateRecipeManualPreview()"></div>
-    </div>
-    <div class="input-row">
-      <div><div class="label">Carbs (g)</div><input type="number" id="recipe-manual-carbs" placeholder="0" oninput="updateRecipeManualPreview()"></div>
-      <div><div class="label">Fats (g)</div><input type="number" id="recipe-manual-fats" placeholder="0" oninput="updateRecipeManualPreview()"></div>
-    </div>
-    <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px;margin-bottom:14px;font-size:12px;color:var(--text2);" id="recipe-manual-preview">Total: — kcal</div>
-    <button class="btn btn-accent btn-block" onclick="confirmRecipeManual()">Add ingredient →</button>
-  </div>
-</div>
-
-<!-- ── Recipe list / manager ──────────────────────────────────────── -->
-<div class="modal-overlay" id="modal-recipe-list">
-  <div class="modal-sheet" data-modal="modal-recipe-list" style="max-height:85dvh;display:flex;flex-direction:column;">
-    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-list')">✕</button></div>
-    <div class="modal-title" style="flex-shrink:0;">Recipes</div>
-    <div id="recipe-list-content" style="overflow-y:auto;flex:1;"></div>
-  </div>
-</div>
-
 <!-- Custom Confirm Modal -->
 <div class="modal-overlay" id="modal-confirm" style="align-items:center;justify-content:center;">
   <div style="background:var(--surface);border-radius:var(--r);border:0.5px solid var(--border2);padding:24px 20px;width:calc(100% - 48px);max-width:340px;text-align:center;">
@@ -4824,403 +4558,4 @@ function swReset() {
     if (e.changedTouches[0].clientY - startY > 80) closeTimerModal();
   }, { passive: true });
 })();
-</script>
-<script>
-// ── Food Library Editor ───────────────────────────────────────────────────────
-
-function openFoodLibraryEditor() {
-  document.getElementById('food-lib-search').value = '';
-  renderFoodLibEditor();
-  openModal('modal-food-lib-editor');
-}
-
-function renderFoodLibEditor() {
-  const query = (document.getElementById('food-lib-search').value || '').toLowerCase().trim();
-  const lib = (state.foodLibrary || []).slice().sort((a,b) => a.name.localeCompare(b.name));
-  const items = lib.filter(i => !query || i.name.toLowerCase().includes(query) || (i.brand && i.brand.toLowerCase().includes(query)));
-  const el = document.getElementById('food-lib-list');
-
-  if (!items.length) {
-    el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:20px 0;">'
-      + (query ? 'No matches for "' + query + '"' : 'No foods in library yet.') + '</div>';
-    el._items = [];
-    return;
-  }
-
-  el.innerHTML = items.map((item, idx) => {
-    const rss = item.defaultServing ? ' · RSS ' + item.defaultServing + 'g' : '';
-    const brand = item.brand ? ' · ' + item.brand : '';
-    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);">'
-      + '<div style="flex:1;min-width:0;">'
-      + '<div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + item.name + '</div>'
-      + '<div style="font-size:10px;color:var(--text3);margin-top:2px;">'
-      + item.per100kcal + ' kcal / 100g · P:' + item.per100p + 'g C:' + item.per100c + 'g F:' + item.per100f + 'g' + rss + brand
-      + '</div>'
-      + '</div>'
-      + '<div style="display:flex;gap:6px;flex-shrink:0;margin-left:8px;">'
-      + '<button onclick="openFoodLibEntry(' + idx + ')" class="btn btn-sm" style="padding:5px 10px;">Edit</button>'
-      + '<button onclick="deleteFoodLibEntry(' + idx + ')" class="btn btn-sm btn-danger" style="padding:5px 10px;">✕</button>'
-      + '</div>'
-      + '</div>';
-  }).join('');
-  el._items = items;
-}
-
-function openFoodLibEntry(idx) {
-  const el = document.getElementById('food-lib-list');
-  const item = (el._items || [])[idx];
-  if (!item) return;
-  document.getElementById('fle-id').value = item.id || '';
-  document.getElementById('fle-name').value = item.name;
-  document.getElementById('fle-brand').value = item.brand || '';
-  document.getElementById('fle-kcal').value = item.per100kcal || '';
-  document.getElementById('fle-protein').value = item.per100p || '';
-  document.getElementById('fle-carbs').value = item.per100c || '';
-  document.getElementById('fle-fats').value = item.per100f || '';
-  document.getElementById('fle-rss').value = item.defaultServing || '';
-  updateFlePreview();
-  openModal('modal-food-lib-entry');
-}
-
-function updateFlePreview() {
-  const kcal    = parseFloat(document.getElementById('fle-kcal').value) || 0;
-  const protein = parseFloat(document.getElementById('fle-protein').value) || 0;
-  const carbs   = parseFloat(document.getElementById('fle-carbs').value) || 0;
-  const fats    = parseFloat(document.getElementById('fle-fats').value) || 0;
-  const rss     = parseFloat(document.getElementById('fle-rss').value) || null;
-  let preview = kcal + ' kcal · P:' + protein + 'g C:' + carbs + 'g F:' + fats + 'g per 100g';
-  if (rss) {
-    const r = rss / 100;
-    preview += ' · Per RSS (' + rss + 'g): ' + Math.round(kcal*r) + ' kcal P:' + Math.round(protein*r) + 'g C:' + Math.round(carbs*r) + 'g F:' + Math.round(fats*r) + 'g';
-  }
-  document.getElementById('fle-preview').textContent = preview;
-}
-
-function saveFoodLibEntry() {
-  if (!state.foodLibrary) state.foodLibrary = [];
-  const id      = document.getElementById('fle-id').value;
-  const name    = document.getElementById('fle-name').value.trim();
-  const brand   = document.getElementById('fle-brand').value.trim();
-  const kcal    = Math.round(parseFloat(document.getElementById('fle-kcal').value) || 0);
-  const protein = Math.round(parseFloat(document.getElementById('fle-protein').value) || 0);
-  const carbs   = Math.round(parseFloat(document.getElementById('fle-carbs').value) || 0);
-  const fats    = Math.round(parseFloat(document.getElementById('fle-fats').value) || 0);
-  const rss     = parseFloat(document.getElementById('fle-rss').value) || null;
-  if (!name) return;
-
-  const idx = id ? state.foodLibrary.findIndex(f => f.id === id) : state.foodLibrary.findIndex(f => f.name.toLowerCase() === name.toLowerCase());
-  const existing = idx >= 0 ? state.foodLibrary[idx] : null;
-  const updated = {
-    ...(existing || {}),
-    id:           existing ? existing.id : 'lib_' + Date.now(),
-    name,
-    brand,
-    per100kcal:   kcal,
-    per100p:      protein,
-    per100c:      carbs,
-    per100f:      fats,
-    per1kcal:     kcal / 100,
-    per1p:        protein / 100,
-    per1c:        carbs / 100,
-    per1f:        fats / 100,
-    defaultServing: rss,
-  };
-
-  if (idx >= 0) state.foodLibrary[idx] = updated;
-  else state.foodLibrary.push(updated);
-
-  save();
-  closeModal('modal-food-lib-entry');
-  renderFoodLibEditor();
-}
-
-function deleteFoodLibEntry(idx) {
-  const el = document.getElementById('food-lib-list');
-  const item = (el._items || [])[idx];
-  if (!item) return;
-  showConfirm(
-    'Delete food?',
-    '"' + item.name + '" will be removed from your library. Logged entries using this food are not affected.',
-    'Delete',
-    () => {
-      state.foodLibrary = (state.foodLibrary || []).filter(f => f.id !== item.id && f.name !== item.name);
-      save();
-      renderFoodLibEditor();
-    }
-  );
-}
-</script>
-<script>
-// ── Recipe Builder ────────────────────────────────────────────────────────────
-
-let recipeIngredients = []; // working list while building
-let recipePendingIngredient = null; // barcode lookup result pending confirm
-
-// ── Step 1: open builder ──────────────────────────────────────────────────────
-function openRecipeBuilder(editId) {
-  recipeIngredients = [];
-  const existing = editId ? (state.recipes || []).find(r => r.id === editId) : null;
-  document.getElementById('recipe-edit-id').value = editId || '';
-  document.getElementById('recipe-step1-title').textContent = existing ? 'Edit Recipe' : 'New Recipe';
-  document.getElementById('recipe-name-input').value = existing ? existing.name : '';
-  document.getElementById('recipe-servings-input').value = existing ? existing.servings : 1;
-  if (existing) recipeIngredients = JSON.parse(JSON.stringify(existing.ingredients || []));
-  openModal('modal-recipe-step1');
-}
-
-function recipeGoToIngredients() {
-  const name = document.getElementById('recipe-name-input').value.trim();
-  if (!name) { document.getElementById('recipe-name-input').focus(); return; }
-  document.getElementById('recipe-ing-title').textContent = name;
-  renderRecipeIngredients();
-  closeModal('modal-recipe-step1');
-  requestAnimationFrame(() => openModal('modal-recipe-ingredients'));
-}
-
-// ── Ingredient list render ────────────────────────────────────────────────────
-function renderRecipeIngredients() {
-  const el = document.getElementById('recipe-ing-list');
-  if (!recipeIngredients.length) {
-    el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:20px 0;">No ingredients yet — add via barcode or manual entry</div>';
-  } else {
-    el.innerHTML = recipeIngredients.map((ing, idx) =>
-      '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:0.5px solid var(--border);">'
-      + '<div style="flex:1;min-width:0;">'
-      + '<div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + ing.name + '</div>'
-      + '<div style="font-size:10px;color:var(--text3);margin-top:2px;">' + ing.grams + 'g · ' + ing.kcal + ' kcal · P:' + ing.protein + 'g C:' + ing.carbs + 'g F:' + ing.fats + 'g</div>'
-      + '</div>'
-      + '<button onclick="removeRecipeIngredient(' + idx + ')" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px 8px;font-size:16px;flex-shrink:0;">✕</button>'
-      + '</div>'
-    ).join('');
-  }
-  // Totals
-  const tot = recipeIngredients.reduce((a,b) => ({
-    kcal: a.kcal+b.kcal, p: a.p+b.protein, c: a.c+b.carbs, f: a.f+b.fats
-  }), {kcal:0, p:0, c:0, f:0});
-  const servings = parseFloat(document.getElementById('recipe-servings-input').value) || 1;
-  const perServing = servings > 1
-    ? ' · Per serving: ' + Math.round(tot.kcal/servings) + ' kcal P:' + Math.round(tot.p/servings) + 'g C:' + Math.round(tot.c/servings) + 'g F:' + Math.round(tot.f/servings) + 'g'
-    : '';
-  document.getElementById('recipe-ing-totals').textContent = recipeIngredients.length
-    ? 'Total: ' + tot.kcal + ' kcal · P:' + tot.p + 'g C:' + tot.c + 'g F:' + tot.f + 'g' + perServing
-    : 'No ingredients yet';
-}
-
-function removeRecipeIngredient(idx) {
-  recipeIngredients.splice(idx, 1);
-  renderRecipeIngredients();
-}
-
-// ── Barcode flow ──────────────────────────────────────────────────────────────
-function openRecipeBarcode() {
-  document.getElementById('recipe-barcode-input').value = '';
-  document.getElementById('recipe-barcode-status').style.display = 'none';
-  openModal('modal-recipe-barcode');
-}
-
-async function lookupRecipeBarcode() {
-  const barcode = document.getElementById('recipe-barcode-input').value.trim();
-  if (!barcode) return;
-  const statusEl = document.getElementById('recipe-barcode-status');
-  statusEl.style.display = 'block';
-  statusEl.style.background = 'rgba(96,168,240,0.1)';
-  statusEl.style.color = 'var(--blue)';
-  statusEl.style.border = '1px solid rgba(96,168,240,0.2)';
-  statusEl.textContent = 'Looking up ' + barcode + '…';
-  try {
-    const res = await fetch('https://world.openfoodfacts.org/api/v2/product/' + barcode + '.json');
-    const data = await res.json();
-    if (data.status !== 1 || !data.product) {
-      statusEl.style.background = 'rgba(255,95,78,0.1)'; statusEl.style.color = 'var(--red)'; statusEl.style.border = '1px solid rgba(255,95,78,0.2)';
-      statusEl.textContent = 'Product not found.'; return;
-    }
-    const p = data.product, n = p.nutriments || {};
-    const kcal = n['energy-kcal_100g'] ?? n['energy-kcal'] ?? null;
-    if (kcal === null) {
-      statusEl.style.background = 'rgba(255,95,78,0.1)'; statusEl.style.color = 'var(--red)'; statusEl.style.border = '1px solid rgba(255,95,78,0.2)';
-      statusEl.textContent = 'No calorie data available.'; return;
-    }
-    const servingQty = parseFloat(p.serving_quantity) || null;
-    const baseName = p.product_name || p.product_name_en || 'Unknown product';
-    const displayName = servingQty ? baseName + ' (RSS - ' + servingQty + 'g)' : baseName;
-    recipePendingIngredient = {
-      name: displayName,
-      brand: (p.brands || p.brand_owner || '').trim(),
-      per100kcal: Math.round(kcal),
-      per100p: parseFloat(n['proteins_100g'] ?? n['proteins'] ?? 0),
-      per100c: parseFloat(n['carbohydrates_100g'] ?? n['carbohydrates'] ?? 0),
-      per100f: parseFloat(n['fat_100g'] ?? n['fat'] ?? 0),
-      defaultServing: servingQty || 100,
-    };
-    closeModal('modal-recipe-barcode');
-    document.getElementById('recipe-serving-name').textContent = recipePendingIngredient.name;
-    document.getElementById('recipe-serving-brand').textContent = recipePendingIngredient.brand;
-    document.getElementById('recipe-serving-grams').value = recipePendingIngredient.defaultServing;
-    updateRecipeServingPreview();
-    requestAnimationFrame(() => openModal('modal-recipe-serving'));
-  } catch(e) {
-    statusEl.style.background = 'rgba(255,95,78,0.1)'; statusEl.style.color = 'var(--red)'; statusEl.style.border = '1px solid rgba(255,95,78,0.2)';
-    statusEl.textContent = 'Network error — check your connection.';
-  }
-}
-
-function updateRecipeServingPreview() {
-  if (!recipePendingIngredient) return;
-  const grams = parseFloat(document.getElementById('recipe-serving-grams').value) || 0;
-  const r = grams / 100;
-  const i = recipePendingIngredient;
-  document.getElementById('recipe-serving-preview').textContent =
-    Math.round(i.per100kcal*r) + ' kcal · P:' + Math.round(i.per100p*r) + 'g C:' + Math.round(i.per100c*r) + 'g F:' + Math.round(i.per100f*r) + 'g';
-}
-
-function confirmRecipeIngredient() {
-  if (!recipePendingIngredient) return;
-  const grams = parseFloat(document.getElementById('recipe-serving-grams').value) || 100;
-  const r = grams / 100;
-  const i = recipePendingIngredient;
-  recipeIngredients.push({
-    name: i.name, brand: i.brand, grams,
-    kcal:    Math.round(i.per100kcal * r),
-    protein: Math.round(i.per100p * r),
-    carbs:   Math.round(i.per100c * r),
-    fats:    Math.round(i.per100f * r),
-    per100kcal: i.per100kcal, per100p: i.per100p, per100c: i.per100c, per100f: i.per100f,
-    source: 'barcode',
-  });
-  recipePendingIngredient = null;
-  closeModal('modal-recipe-serving');
-  renderRecipeIngredients();
-}
-
-// ── Manual ingredient flow ────────────────────────────────────────────────────
-function openRecipeManual() {
-  document.getElementById('recipe-manual-name').value = '';
-  document.getElementById('recipe-manual-servings').value = '1';
-  document.getElementById('recipe-manual-kcal').value = '';
-  document.getElementById('recipe-manual-protein').value = '';
-  document.getElementById('recipe-manual-carbs').value = '';
-  document.getElementById('recipe-manual-fats').value = '';
-  document.getElementById('recipe-manual-preview').textContent = 'Total: — kcal';
-  openModal('modal-recipe-manual');
-}
-
-function updateRecipeManualPreview() {
-  const servings = parseFloat(document.getElementById('recipe-manual-servings').value) || 1;
-  const kcal = Math.round((parseFloat(document.getElementById('recipe-manual-kcal').value)||0) * servings);
-  const p    = Math.round((parseFloat(document.getElementById('recipe-manual-protein').value)||0) * servings);
-  const c    = Math.round((parseFloat(document.getElementById('recipe-manual-carbs').value)||0) * servings);
-  const f    = Math.round((parseFloat(document.getElementById('recipe-manual-fats').value)||0) * servings);
-  document.getElementById('recipe-manual-preview').textContent = 'Total: ' + kcal + ' kcal · P:' + p + 'g C:' + c + 'g F:' + f + 'g';
-}
-
-function confirmRecipeManual() {
-  const name = document.getElementById('recipe-manual-name').value.trim();
-  if (!name) { document.getElementById('recipe-manual-name').focus(); return; }
-  const servings = parseFloat(document.getElementById('recipe-manual-servings').value) || 1;
-  const kcal    = Math.round((parseFloat(document.getElementById('recipe-manual-kcal').value)||0) * servings);
-  const protein = Math.round((parseFloat(document.getElementById('recipe-manual-protein').value)||0) * servings);
-  const carbs   = Math.round((parseFloat(document.getElementById('recipe-manual-carbs').value)||0) * servings);
-  const fats    = Math.round((parseFloat(document.getElementById('recipe-manual-fats').value)||0) * servings);
-  recipeIngredients.push({ name, grams: servings, kcal, protein, carbs, fats, source: 'manual' });
-  closeModal('modal-recipe-manual');
-  renderRecipeIngredients();
-}
-
-// ── Save recipe ───────────────────────────────────────────────────────────────
-function saveRecipe() {
-  const name     = document.getElementById('recipe-name-input').value.trim();
-  const servings = parseFloat(document.getElementById('recipe-servings-input').value) || 1;
-  if (!name || !recipeIngredients.length) return;
-
-  const tot = recipeIngredients.reduce((a,b) => ({
-    kcal: a.kcal+b.kcal, p: a.p+b.protein, c: a.c+b.carbs, f: a.f+b.fats
-  }), {kcal:0, p:0, c:0, f:0});
-
-  const perServingKcal = Math.round(tot.kcal / servings);
-  const perServingP    = Math.round(tot.p    / servings);
-  const perServingC    = Math.round(tot.c    / servings);
-  const perServingF    = Math.round(tot.f    / servings);
-
-  const editId = document.getElementById('recipe-edit-id').value;
-  if (!state.recipes) state.recipes = [];
-  const existingIdx = editId ? state.recipes.findIndex(r => r.id === editId) : -1;
-
-  const recipe = {
-    id: existingIdx >= 0 ? editId : 'recipe_' + Date.now(),
-    name, servings, ingredients: recipeIngredients,
-    per_serving_kcal: perServingKcal,
-    per_serving_p:    perServingP,
-    per_serving_c:    perServingC,
-    per_serving_f:    perServingF,
-    total_kcal: tot.kcal, total_p: tot.p, total_c: tot.c, total_f: tot.f,
-  };
-
-  if (existingIdx >= 0) state.recipes[existingIdx] = recipe;
-  else state.recipes.push(recipe);
-
-  // Save to food library so it appears in the log Add list
-  // Store as per-serving (1 serving = 1 unit). per100 fields hold per-serving values × 100 for compatibility.
-  addToFoodLibrary({
-    id: recipe.id,
-    name: recipe.name,
-    brand: '',
-    barcode: null,
-    per100kcal: perServingKcal,
-    per100p:    perServingP,
-    per100c:    perServingC,
-    per100f:    perServingF,
-    defaultServing: null,
-    isRecipe: true,
-    source: 'recipe',
-  });
-
-  save();
-  recipeIngredients = [];
-  closeModal('modal-recipe-ingredients');
-  renderRecipeList();
-  openModal('modal-recipe-list');
-}
-
-// ── Recipe list (view / edit / delete) ───────────────────────────────────────
-function openRecipeList() {
-  renderRecipeList();
-  openModal('modal-recipe-list');
-}
-
-function renderRecipeList() {
-  const el = document.getElementById('recipe-list-content');
-  const recipes = state.recipes || [];
-  if (!recipes.length) {
-    el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:30px 0;">No recipes yet — create one from Settings → Food library</div>';
-    return;
-  }
-  el.innerHTML = recipes.map(r =>
-    '<div style="padding:12px 0;border-bottom:0.5px solid var(--border);">'
-    + '<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
-    + '<div style="flex:1;min-width:0;">'
-    + '<div style="font-size:14px;font-weight:700;font-family:var(--font-display);">' + r.name + '</div>'
-    + '<div style="font-size:11px;color:var(--text3);margin-top:3px;">'
-    + r.servings + ' serving' + (r.servings!==1?'s':'') + ' · '
-    + r.per_serving_kcal + ' kcal / serving · P:' + r.per_serving_p + 'g C:' + r.per_serving_c + 'g F:' + r.per_serving_f + 'g'
-    + '</div>'
-    + '<div style="font-size:10px;color:var(--text3);margin-top:2px;">' + (r.ingredients||[]).length + ' ingredient' + ((r.ingredients||[]).length!==1?'s':'') + ' · Total: ' + r.total_kcal + ' kcal</div>'
-    + '</div>'
-    + '<div style="display:flex;gap:6px;flex-shrink:0;margin-left:8px;">'
-    + '<button onclick="openRecipeBuilder(\'' + r.id + '\')" class="btn btn-sm" style="padding:5px 10px;">Edit</button>'
-    + '<button onclick="deleteRecipe(\'' + r.id + '\')" class="btn btn-sm btn-danger" style="padding:5px 10px;">✕</button>'
-    + '</div></div>'
-    + '</div>'
-  ).join('');
-}
-
-function deleteRecipe(id) {
-  const recipe = (state.recipes||[]).find(r => r.id === id);
-  if (!recipe) return;
-  showConfirm('Delete recipe?', '"' + recipe.name + '" will be removed from your library.', 'Delete', () => {
-    state.recipes = (state.recipes||[]).filter(r => r.id !== id);
-    state.foodLibrary = (state.foodLibrary||[]).filter(f => f.id !== id);
-    save();
-    renderRecipeList();
-  });
-}
 </script>
