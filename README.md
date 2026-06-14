@@ -2,7 +2,7 @@
 
 > A personal, offline-first Progressive Web App for structured weight training and nutrition tracking. Single HTML file. No backend. No dependencies.
 
-![Version](https://img.shields.io/badge/version-v3.02-brightgreen) ![PWA](https://img.shields.io/badge/PWA-ready-blue) ![License](https://img.shields.io/badge/license-MIT-lightgrey)
+![Version](https://img.shields.io/badge/version-v3.03-brightgreen) ![PWA](https://img.shields.io/badge/PWA-ready-blue) ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ---
 
@@ -176,7 +176,7 @@ To restore: Settings → Restore from backup → select your `.json` file.
 
 | Version | Notes |
 |---|---|
-| v3.02 | Camera barcode scanning (BarcodeDetector + ZXing fallback), camera auto-starts on modal open, manual edit mode for manual nutrition log entries |
+| v3.03 | Camera barcode scanning (BarcodeDetector + ZXing fallback), camera auto-starts on modal open, manual edit mode for manual nutrition log entries |
 | v3.01 | Meal ellipsis menu (copy/move entire meal), swipe-to-copy from yesterday, per-item copy icon, recipe builder from nutrition log, recipe ingredients in serving modal, SVG icons throughout, food library item sharing (Web Share API + JSON export), Fill Suggested animations |
 | v2.12 | Recipe builder (barcode + manual ingredients, per-1g storage), food library editor, rest timer, food library export/import |
 | v2.10 | Home page overhaul — Today/7-day toggle with animated bar charts for steps and all nutrition metrics |

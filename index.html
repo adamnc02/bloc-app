@@ -458,7 +458,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
           <div class="page-title">BLOC</div>
           <div class="page-sub" id="home-date"></div>
         </div>
-        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v3.02</span>
+        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v3.03</span>
       </div>
 
       <!-- Active cycle card -->
@@ -589,7 +589,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v3.02</span>
+          <span class="badge badge-green">v3.03</span>
         </div>
       </div>
 
@@ -3680,7 +3680,7 @@ async function startScannerCamera(ctx) {
 
     _scannerState[ctx] = { scanning: true, cooldown: false, lastCode: null, animFrame: null, zxReader };
 
-    msg.textContent = _nativeDetector ? 'Scanning… (native)' : (zxReader ? 'Scanning… (ZXing)' : 'Camera ready — enter barcode below');
+    msg.textContent = (_nativeDetector || zxReader) ? 'Scanning…' : 'Camera ready — enter barcode below';
 
     // Scan loop — mirrors food-scanner.html exactly: named async function, rAF handle stored
     async function scanLoop() {

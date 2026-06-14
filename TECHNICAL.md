@@ -577,6 +577,8 @@ const _scannerState = {};  // { [ctx]: { scanning, cooldown, lastCode, stream, z
 4. `lookupNutrBarcode()` (or `lookupRecipeBarcode()`) is called
 5. On successful API response: `stopScannerCamera(ctx)` then the serving modal opens
 
+**Camera starts** via `_startScannerAfterTransition(ctx)`, which listens for `transitionend` on the modal sheet before calling `startScannerCamera`. This ensures the video element has a real rendered size before `getUserMedia` fires — starting the camera while the sheet is still animating in (`translateY(100%)`) results in a zero-size video that produces no detections. A 400ms `setTimeout` fallback handles any edge case where `transitionend` does not fire.
+
 **Camera stops** when: a product is found, the modal is closed via ✕ or swipe, or the app is backgrounded (`visibilitychange` listener).
 
 **CSS classes on `#nutr-scanner-viewfinder`:**
