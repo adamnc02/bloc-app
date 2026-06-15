@@ -2968,20 +2968,37 @@ let nutrPendingProduct = null;
 let _swipeOpenWrap = null;
 
 function _swipeShowCatcher() {
-  const el = document.getElementById('swipe-tap-catcher');
-  if (!el) return;
-  el.style.display = 'block';
-  el.ontouchstart = function(e) {
-    e.preventDefault(); // swallow — nothing underneath fires
-    _swipeCloseAll();
-  };
-  el.onclick = function(e) {
-    e.preventDefault();
-    _swipeCloseAll();
-  };
+  // If the open row is inside a modal, we need the catcher inside the modal
+  // sheet so it sits above the modal content (fixed position respects the
+  // viewport but z-index fights with the modal overlay at z-index:200).
+  // Solution: append a catcher div directly into the nearest .modal-sheet
+  // ancestor (if any), positioned absolute to fill it, at a high local z-index.
+  // For rows on the main screen, use the global fixed catcher at z-index:150.
+  _swipeHideCatcher(); // clear any existing
+
+  const modal = _swipeOpenWrap && _swipeOpenWrap.closest('.modal-sheet');
+  if (modal) {
+    const el = document.createElement('div');
+    el.id = 'swipe-tap-catcher-modal';
+    el.style.cssText = 'position:absolute;inset:0;z-index:10;';
+    el.ontouchstart = function(e) { e.preventDefault(); _swipeCloseAll(); };
+    el.onclick = function(e) { e.preventDefault(); _swipeCloseAll(); };
+    modal.style.position = 'relative'; // ensure absolute child is contained
+    modal.appendChild(el);
+  } else {
+    const el = document.getElementById('swipe-tap-catcher');
+    if (!el) return;
+    el.style.display = 'block';
+    el.ontouchstart = function(e) { e.preventDefault(); _swipeCloseAll(); };
+    el.onclick = function(e) { e.preventDefault(); _swipeCloseAll(); };
+  }
 }
 
 function _swipeHideCatcher() {
+  // Remove modal catcher if present
+  const mc = document.getElementById('swipe-tap-catcher-modal');
+  if (mc) mc.remove();
+  // Hide global catcher
   const el = document.getElementById('swipe-tap-catcher');
   if (el) { el.style.display = 'none'; el.ontouchstart = null; el.onclick = null; }
 }
