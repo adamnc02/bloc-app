@@ -407,14 +407,15 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 .bw-entry { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 0.5px solid var(--border); }
 
 /* ── Swipe rows ──────────────────────────────────────────────────── */
-.swipe-row-wrap { position:relative; overflow:hidden; }
-.swipe-row-content { position:relative; z-index:1; transition:transform 0.25s ease; will-change:transform; }
-.swipe-actions { position:absolute; right:0; top:0; bottom:0; display:flex; align-items:stretch; gap:6px; padding:6px 10px; pointer-events:none; }
+.swipe-row-wrap { position:relative; overflow:hidden; touch-action:pan-y; }
+.swipe-row-content { position:relative; z-index:1; width:100%; box-sizing:border-box; transition:transform 0.25s ease; will-change:transform; touch-action:pan-y; }
+.swipe-actions { position:absolute; right:0; top:0; bottom:0; display:flex; align-items:stretch; gap:6px; padding:6px 10px; pointer-events:none; opacity:0; }
 .swipe-actions.vertical { flex-direction:column; }
 .swipe-actions.vertical .swipe-btn { flex:1; padding:0; }
+.swipe-row-wrap.card-wrap .swipe-actions { padding:12px 10px; }
 .swipe-row-wrap.swiped .swipe-row-content { transform:translateX(calc(-1 * var(--swipe-reveal-w, 100px))); }
-.swipe-row-wrap.swiped .swipe-actions { pointer-events:all; }
-.swipe-btn { display:flex; align-items:center; justify-content:center; padding:0 12px; min-width:36px; border-radius:var(--r-sm); border:1.5px solid var(--border2); background:none; cursor:pointer; flex-shrink:0; }
+.swipe-row-wrap.swiped .swipe-actions { pointer-events:all; opacity:1; }
+.swipe-btn { display:flex; align-items:center; justify-content:center; padding:0 12px; min-width:36px; border-radius:var(--r-sm); border:1.5px solid var(--border2); background:var(--surface); cursor:pointer; flex-shrink:0; }
 .swipe-btn-default { color:var(--text2); }
 .swipe-btn-danger  { color:var(--red); border-color:rgba(255,95,78,0.5); }
 .bw-date { font-size: 12px; color: var(--text2); }
@@ -470,7 +471,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
           <div class="page-title">BLOC</div>
           <div class="page-sub" id="home-date"></div>
         </div>
-        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v3.04</span>
+        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v3.08</span>
       </div>
 
       <!-- Active cycle card -->
@@ -601,7 +602,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v3.04</span>
+          <span class="badge badge-green">v3.08</span>
         </div>
       </div>
 
@@ -2150,7 +2151,7 @@ function renderPlan() {
 
   overviewEl.innerHTML = `
     ${macroSwitch}
-    <div class="swipe-row-wrap" style="border-radius:var(--r);margin-bottom:10px;">
+    <div class="swipe-row-wrap card-wrap" style="border-radius:var(--r);margin-bottom:10px;">
       <div class="swipe-row-content">
         <div class="card card-accent" style="width:100%;box-sizing:border-box;cursor:pointer;" onclick="openEditMacro('${macro.id}')">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
@@ -2950,23 +2951,43 @@ let nutrMacroView = 0;
 let nutrActiveMeal = null;
 let nutrPendingProduct = null;
 
-// ── Shared swipe-left-to-reveal-actions ──────────────────────────────────
-// Strategy: only the content element moves. The actions panel sits fixed at
-// right:0 inside overflow:hidden — it's revealed as content slides left.
-// We never animate actions.style.transform, avoiding all jitter/flash.
+// ── Swipe row system ──────────────────────────────────────────────────────
+let _swipeOpenWrap = null;
+let _swipeJustClosed = false;
 
-// Global touchstart capture: close any open swipe row before the touch reaches
-// underlying onclick handlers. This fixes the tap-on-edit-while-open bug.
+// Capture-phase touchstart: close any open row before underlying handlers fire.
+// passive:true so we don't interfere with getUserMedia gesture chain on iOS.
 document.addEventListener('touchstart', function(e) {
-  document.querySelectorAll('.swipe-row-wrap.swiped').forEach(wrap => {
-    if (!wrap.contains(e.target)) {
-      // Close this row
-      wrap.classList.remove('swiped');
-      const content = wrap.querySelector('.swipe-row-content');
-      if (content) { content.style.transition = ''; content.style.transform = ''; }
-    }
-  });
+  if (!_swipeOpenWrap) return;
+  const actions = _swipeOpenWrap.querySelector('.swipe-actions');
+  if (actions && actions.contains(e.target)) return; // button tap — let through
+  _swipeJustClosed = true;
+  _swipeCloseAll();
 }, { passive: true, capture: true });
+
+// Capture-phase click: swallow the synthetic click that follows a close-tap.
+document.addEventListener('click', function(e) {
+  if (_swipeJustClosed) {
+    _swipeJustClosed = false;
+    e.stopImmediatePropagation();
+    e.preventDefault();
+  }
+}, { capture: true });
+
+function _swipeCloseAll() {
+  if (!_swipeOpenWrap) return;
+  const wrap    = _swipeOpenWrap;
+  const actions = wrap.querySelector('.swipe-actions');
+  const content = wrap.querySelector('.swipe-row-content');
+  _swipeOpenWrap = null;
+  if (actions) actions.style.opacity = '0';
+  wrap.classList.remove('swiped');
+  if (content) { content.style.transition = ''; content.style.transform = 'translateX(0px)'; }
+  setTimeout(() => { if (actions) actions.style.opacity = ''; }, 260);
+  // Keep _swipeJustClosed true long enough for the synthetic click to arrive
+  // (iOS fires click ~300ms after touchstart on older Safari, ~instant on newer)
+  setTimeout(() => { _swipeJustClosed = false; }, 500);
+}
 
 function initSwipeRows(container) {
   const wraps = (container || document).querySelectorAll('.swipe-row-wrap');
@@ -2981,29 +3002,33 @@ function initSwipeRows(container) {
       const revealW = actions.offsetWidth || 100;
       wrap.style.setProperty('--swipe-reveal-w', revealW + 'px');
 
-      let startX = 0, startY = 0, dragging = false, moved = false, blockNextClick = false;
-
-      function getOpen() { return wrap.classList.contains('swiped'); }
+      let startX = 0, startY = 0, dragging = false, moved = false;
 
       function setOpen(open) {
-        wrap.classList.toggle('swiped', open);
-        // Re-enable transition, clear inline transform — CSS class handles final position
-        content.style.transition = '';
-        content.style.transform  = '';
+        if (open) {
+          if (_swipeOpenWrap && _swipeOpenWrap !== wrap) _swipeCloseAll();
+          _swipeOpenWrap = wrap;
+          wrap.classList.add('swiped');
+          content.style.transition = '';
+          content.style.transform  = `translateX(${-revealW}px)`;
+        } else {
+          if (_swipeOpenWrap === wrap) _swipeOpenWrap = null;
+          actions.style.opacity = '0';
+          wrap.classList.remove('swiped');
+          content.style.transition = '';
+          content.style.transform  = 'translateX(0px)';
+          setTimeout(() => { actions.style.opacity = ''; }, 260);
+        }
       }
 
       content.addEventListener('touchstart', e => {
-        if (getOpen()) {
-          // Row is already open — the global capture listener above will close it.
-          // Set blockNextClick so the tap doesn't fire the onclick underneath.
-          blockNextClick = true;
-          return;
-        }
-        startX = e.touches[0].clientX;
-        startY = e.touches[0].clientY;
+        // If row is open, the document capture listener handles closing.
+        // Don't start a drag — it would interfere with the close.
+        if (wrap.classList.contains('swiped')) return;
+        startX   = e.touches[0].clientX;
+        startY   = e.touches[0].clientY;
         dragging = true;
         moved    = false;
-        // Freeze position with no transition so first move is instant
         content.style.transition = 'none';
         content.style.transform  = 'translateX(0px)';
       }, { passive: true });
@@ -3013,26 +3038,30 @@ function initSwipeRows(container) {
         const dx = e.touches[0].clientX - startX;
         const dy = e.touches[0].clientY - startY;
         if (!moved && Math.abs(dy) > Math.abs(dx) + 4) { dragging = false; return; }
-        if (Math.abs(dx) > 3) moved = true;
-        // Only slide content left (no right past 0)
+        if (Math.abs(dx) > 3 && !moved) {
+          moved = true;
+          // Lock scroll for the rest of this gesture now we know it's horizontal
+          wrap.style.touchAction = 'none';
+        }
+        if (!moved) return;
         const clamped = Math.max(-revealW, Math.min(0, dx));
         content.style.transform = `translateX(${clamped}px)`;
       }, { passive: true });
 
       content.addEventListener('touchend', e => {
+        wrap.style.touchAction = ''; // restore CSS default (pan-y)
         if (!dragging) return;
         dragging = false;
-        if (!moved) return; // pure tap — let click fire
-        blockNextClick = true; // swipe gesture — suppress synthetic click
+        if (!moved) return;
         const dx = e.changedTouches[0].clientX - startX;
         if (dx < -revealW / 3) setOpen(true);
         else setOpen(false);
       }, { passive: true });
 
-      // Capture-phase click suppressor — fires before any onclick
-      content.addEventListener('click', e => {
-        if (blockNextClick) { blockNextClick = false; e.stopImmediatePropagation(); e.preventDefault(); }
-      }, true);
+      content.addEventListener('touchcancel', () => {
+        wrap.style.touchAction = '';
+        dragging = false; moved = false;
+      }, { passive: true });
     });
   });
 }
@@ -3676,17 +3705,18 @@ function confirmCopyFoodEntry() {
 
 function _startScannerAfterTransition(ctx) {
   const sheet = document.querySelector('#modal-' + ctx + '-barcode .modal-sheet');
-  if (!sheet) { startScannerCamera(ctx); return; }
-  const onEnd = () => {
-    sheet.removeEventListener('transitionend', onEnd);
+  let started = false;
+  function start() {
+    if (started) return; // prevent double-start from both transitionend and timeout
+    started = true;
     startScannerCamera(ctx);
-  };
-  sheet.addEventListener('transitionend', onEnd, { once: true });
-  // Fallback in case transitionend doesn't fire
-  setTimeout(() => {
+  }
+  if (!sheet) { start(); return; }
+  sheet.addEventListener('transitionend', function onEnd() {
     sheet.removeEventListener('transitionend', onEnd);
-    if (!_scannerState[ctx]) startScannerCamera(ctx);
-  }, 400);
+    start();
+  }, { once: true });
+  setTimeout(start, 400);
 }
 
 function openNutrBarcode() {
@@ -4819,7 +4849,7 @@ function renderGoals() {
   state.goals.slice().sort((a,b)=>b.startDate.localeCompare(a.startDate)).forEach((g, i) => {
     const macro = macros.find(m => m.id === g.macroId);
     const isActive = g.startDate <= today && g.endDate >= today;
-    html += `<div class="swipe-row-wrap" style="border-radius:var(--r);margin-bottom:10px;">
+    html += `<div class="swipe-row-wrap card-wrap" style="border-radius:var(--r);margin-bottom:10px;">
       <div class="swipe-row-content">
         <div class="card${isActive ? ' card-accent' : ''}" style="width:100%;box-sizing:border-box;cursor:pointer;" onclick="openEditGoal(${i})">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
@@ -5056,10 +5086,10 @@ function initModal(overlayEl) {
   if (!sheet) return;
   const modalId = overlayEl.id;
 
-  // Tap the dark backdrop to close — use touchstart to intercept before any underlying onclick
+  // Tap the dark backdrop to close — must NOT be passive so stopPropagation works on iOS
   overlayEl.addEventListener('touchstart', function(e) {
     if (e.target === overlayEl) { e.stopPropagation(); closeModal(modalId); }
-  }, { passive: true });
+  }, { passive: false });
   // Pointer fallback for non-touch (desktop)
   overlayEl.addEventListener('pointerdown', function(e) {
     if (e.pointerType !== 'touch' && e.target === overlayEl) closeModal(modalId);
@@ -5401,25 +5431,19 @@ function renderFoodLibEditor() {
   el.innerHTML = items.map((item, idx) => {
     const rss = item.defaultServing ? ' · RSS ' + item.defaultServing + 'g' : '';
     const brand = item.brand ? ' · ' + item.brand : '';
-    return `<div class="swipe-row-wrap" style="border-bottom:0.5px solid var(--border);">
-      <div class="swipe-row-content" style="padding:10px 0;width:100%;box-sizing:border-box;" onclick="openFoodLibEntry(${idx})">
-        <div style="flex:1;min-width:0;cursor:pointer;">
-          <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:2px;">${item.per100kcal} kcal / 100g · P:${item.per100p}g C:${item.per100c}g F:${item.per100f}g${rss}${brand}</div>
-        </div>
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);">
+      <div style="flex:1;min-width:0;cursor:pointer;" onclick="openFoodLibEntry(${idx})">
+        <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px;">${item.per100kcal} kcal / 100g · P:${item.per100p}g C:${item.per100c}g F:${item.per100f}g${rss}${brand}</div>
       </div>
-      <div class="swipe-actions">
-        <button class="swipe-btn swipe-btn-default" onclick="event.stopPropagation();shareFoodLibItem(${idx})" title="Share">
-          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 10 5 10 5 20 19 20 19 10 15 10"/><polyline points="12 3 8 7 12 3 16 7"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        </button>
-        <button class="swipe-btn swipe-btn-danger" onclick="event.stopPropagation();deleteFoodLibEntry(${idx})" title="Delete">
-          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-        </button>
+      <div style="display:flex;gap:6px;flex-shrink:0;margin-left:10px;">
+        <button class="btn btn-sm" style="padding:5px 10px;" onclick="shareFoodLibItem(${idx})" title="Share"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="9 10 5 10 5 20 19 20 19 10 15 10"/><polyline points="12 3 8 7 12 3 16 7"/><line x1="12" y1="3" x2="12" y2="15"/></svg></button>
+        <button class="btn btn-sm" style="padding:5px 10px;" onclick="openFoodLibEntry(${idx})" title="Edit"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+        <button class="btn btn-sm btn-danger" style="padding:5px 10px;" onclick="deleteFoodLibEntry(${idx})" title="Delete"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
       </div>
     </div>`;
   }).join('');
   el._items = items;
-  requestAnimationFrame(() => initSwipeRows(el));
 }
 
 function openFoodLibEntry(idx) {
@@ -5865,10 +5889,9 @@ function renderRecipeList() {
       : `<div style="font-size:11px;color:var(--text3);padding:4px 0;">No ingredients recorded</div>`;
 
     return `
-      <div class="swipe-row-wrap" style="border-bottom:0.5px solid var(--border2);">
-        <div class="swipe-row-content" style="padding:14px 0;width:100%;box-sizing:border-box;display:block;"
-          onclick="closeModal('modal-recipe-list');requestAnimationFrame(()=>openRecipeBuilder('${r.id}'))">
-          <div style="cursor:pointer;">
+      <div style="padding:14px 0;border-bottom:0.5px solid var(--border2);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
+          <div style="flex:1;min-width:0;cursor:pointer;" onclick="closeModal('modal-recipe-list');requestAnimationFrame(()=>openRecipeBuilder('${r.id}'))">
             <div style="font-size:15px;font-weight:700;font-family:var(--font-display);">${r.name}</div>
             <div style="font-size:11px;color:var(--text3);margin-top:3px;">
               ${r.servings} serving${r.servings !== 1 ? 's' : ''} ·
@@ -5876,21 +5899,19 @@ function renderRecipeList() {
               P:${r.per_serving_p}g C:${r.per_serving_c}g F:${r.per_serving_f}g
             </div>
           </div>
-          <div style="background:var(--surface2);border-radius:var(--r-sm);padding:8px 10px;margin-top:8px;">
-            <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">
-              ${ingredients.length} ingredient${ingredients.length !== 1 ? 's' : ''} · Total: ${r.total_kcal} kcal
-            </div>
-            ${ingList}
+          <div style="display:flex;gap:6px;flex-shrink:0;margin-left:10px;">
+            <button class="btn btn-sm" style="padding:5px 10px;" onclick="closeModal('modal-recipe-list');requestAnimationFrame(()=>openRecipeBuilder('${r.id}'))" title="Edit"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+            <button class="btn btn-sm btn-danger" style="padding:5px 10px;" onclick="deleteRecipe('${r.id}')" title="Delete"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
           </div>
         </div>
-        <div class="swipe-actions">
-          <button class="swipe-btn swipe-btn-danger" onclick="event.stopPropagation();deleteRecipe('${r.id}')" title="Delete">
-            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-          </button>
+        <div style="background:var(--surface2);border-radius:var(--r-sm);padding:8px 10px;margin-top:4px;">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">
+            ${ingredients.length} ingredient${ingredients.length !== 1 ? 's' : ''} · Total: ${r.total_kcal} kcal
+          </div>
+          ${ingList}
         </div>
       </div>`;
   }).join('');
-  requestAnimationFrame(() => initSwipeRows(el));
 }
 
 function deleteRecipe(id) {
