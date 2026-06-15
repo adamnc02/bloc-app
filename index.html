@@ -471,7 +471,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
           <div class="page-title">BLOC</div>
           <div class="page-sub" id="home-date"></div>
         </div>
-        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v3.05</span>
+        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v3.06</span>
       </div>
 
       <!-- Active cycle card -->
@@ -602,7 +602,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v3.05</span>
+          <span class="badge badge-green">v3.06</span>
         </div>
       </div>
 
@@ -2954,19 +2954,27 @@ let nutrPendingProduct = null;
 // ── Swipe row system ──────────────────────────────────────────────────────
 let _swipeOpenWrap = null;
 
-// Single document-level capture listener — fires before ANY element handler.
-// If a row is open and the touch is outside its .swipe-actions, close the row
-// and cancel the event so nothing underneath (edit windows etc) can fire.
+// Two capture listeners needed:
+// 1. touchstart (non-passive): close the open row and prevent scroll/delay
+// 2. click (capture): block the synthetic click that fires after the touch
+//    — preventDefault on touchstart does NOT prevent onclick on iOS.
 document.addEventListener('touchstart', function(e) {
   if (!_swipeOpenWrap) return;
   const actions = _swipeOpenWrap.querySelector('.swipe-actions');
-  // If the tap is inside the revealed action buttons — let it through
-  if (actions && actions.contains(e.target)) return;
-  // Otherwise: close and swallow
+  if (actions && actions.contains(e.target)) return; // let button taps through
   e.preventDefault();
-  e.stopImmediatePropagation();
   _swipeCloseAll();
 }, { passive: false, capture: true });
+
+document.addEventListener('click', function(e) {
+  if (_swipeJustClosed) {
+    _swipeJustClosed = false;
+    e.stopImmediatePropagation();
+    e.preventDefault();
+  }
+}, { capture: true });
+
+let _swipeJustClosed = false;
 
 function _swipeCloseAll() {
   if (!_swipeOpenWrap) return;
@@ -2974,6 +2982,9 @@ function _swipeCloseAll() {
   const actions = wrap.querySelector('.swipe-actions');
   const content = wrap.querySelector('.swipe-row-content');
   _swipeOpenWrap = null;
+  _swipeJustClosed = true;
+  // Reset flag after a tick so only the immediate click is blocked
+  setTimeout(() => { _swipeJustClosed = false; }, 50);
   if (actions) actions.style.opacity = '0';
   wrap.classList.remove('swiped');
   if (content) { content.style.transition = ''; content.style.transform = 'translateX(0px)'; }
