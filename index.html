@@ -407,21 +407,17 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 .bw-entry { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 0.5px solid var(--border); }
 
 /* ── Swipe rows ──────────────────────────────────────────────────── */
-.swipe-row-wrap { position:relative; overflow:hidden; z-index:0; }
-.swipe-row-wrap.swiped { z-index:160; overflow:visible; }
+.swipe-row-wrap { position:relative; overflow:hidden; }
 .swipe-row-content { position:relative; z-index:1; width:100%; box-sizing:border-box; transition:transform 0.25s ease; will-change:transform; }
-.swipe-actions { position:absolute; right:0; top:0; bottom:0; display:flex; align-items:stretch; gap:6px; padding:6px 10px; pointer-events:none; opacity:0; z-index:0; }
+.swipe-actions { position:absolute; right:0; top:0; bottom:0; display:flex; align-items:stretch; gap:6px; padding:6px 10px; pointer-events:none; opacity:0; }
 .swipe-actions.vertical { flex-direction:column; }
 .swipe-actions.vertical .swipe-btn { flex:1; padding:0; }
-/* Card-style swipe wrappers need inset padding to align buttons with card edges */
-.swipe-row-wrap.card-wrap .swipe-actions { top:0; bottom:0; padding:12px 10px; }
+.swipe-row-wrap.card-wrap .swipe-actions { padding:12px 10px; }
 .swipe-row-wrap.swiped .swipe-row-content { transform:translateX(calc(-1 * var(--swipe-reveal-w, 100px))); }
-.swipe-row-wrap.swiped .swipe-actions { pointer-events:all; opacity:1; z-index:200; }
+.swipe-row-wrap.swiped .swipe-actions { pointer-events:all; opacity:1; }
 .swipe-btn { display:flex; align-items:center; justify-content:center; padding:0 12px; min-width:36px; border-radius:var(--r-sm); border:1.5px solid var(--border2); background:var(--surface); cursor:pointer; flex-shrink:0; }
 .swipe-btn-default { color:var(--text2); }
 .swipe-btn-danger  { color:var(--red); border-color:rgba(255,95,78,0.5); }
-/* Full-screen tap-catcher that swallows touches when any row is open */
-#swipe-tap-catcher { display:none; position:fixed; inset:0; z-index:150; }
 .bw-date { font-size: 12px; color: var(--text2); }
 .bw-val { font-family: var(--font-display); font-size: 18px; font-weight: 700; }
 
@@ -771,8 +767,6 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 ═══════════════════════════════════════════ -->
 
 <!-- Create Macrocycle -->
-<div id="swipe-tap-catcher"></div>
-
 <div class="modal-overlay" id="modal-macro">
   <div class="modal-sheet" data-modal="modal-macro">
     <div class="modal-handle-row">
@@ -2957,67 +2951,33 @@ let nutrMacroView = 0;
 let nutrActiveMeal = null;
 let nutrPendingProduct = null;
 
-// ── Swipe row system ─────────────────────────────────────────────────────
-// Layout: .swipe-row-wrap (overflow:hidden, position:relative)
-//   └─ .swipe-row-content  (width:100%, slides left — clips the actions)
-//   └─ .swipe-actions      (position:absolute right:0 — hidden behind content)
-//
-// Tap-catcher: a fixed full-screen div (#swipe-tap-catcher) sits above
-// everything (z-index:150) when any row is open. Any tap on it closes the
-// open row and swallows the event completely, so nothing underneath fires.
-
+// ── Swipe row system ──────────────────────────────────────────────────────
 let _swipeOpenWrap = null;
 
-function _swipeShowCatcher() {
-  // If the open row is inside a modal, we need the catcher inside the modal
-  // sheet so it sits above the modal content (fixed position respects the
-  // viewport but z-index fights with the modal overlay at z-index:200).
-  // Solution: append a catcher div directly into the nearest .modal-sheet
-  // ancestor (if any), positioned absolute to fill it, at a high local z-index.
-  // For rows on the main screen, use the global fixed catcher at z-index:150.
-  _swipeHideCatcher(); // clear any existing
-
-  const modal = _swipeOpenWrap && _swipeOpenWrap.closest('.modal-sheet');
-  if (modal) {
-    const el = document.createElement('div');
-    el.id = 'swipe-tap-catcher-modal';
-    el.style.cssText = 'position:absolute;inset:0;z-index:10;';
-    el.ontouchstart = function(e) { e.preventDefault(); _swipeCloseAll(); };
-    el.onclick = function(e) { e.preventDefault(); _swipeCloseAll(); };
-    modal.style.position = 'relative'; // ensure absolute child is contained
-    modal.appendChild(el);
-  } else {
-    const el = document.getElementById('swipe-tap-catcher');
-    if (!el) return;
-    el.style.display = 'block';
-    el.ontouchstart = function(e) { e.preventDefault(); _swipeCloseAll(); };
-    el.onclick = function(e) { e.preventDefault(); _swipeCloseAll(); };
-  }
-}
-
-function _swipeHideCatcher() {
-  // Remove modal catcher if present
-  const mc = document.getElementById('swipe-tap-catcher-modal');
-  if (mc) mc.remove();
-  // Hide global catcher
-  const el = document.getElementById('swipe-tap-catcher');
-  if (el) { el.style.display = 'none'; el.ontouchstart = null; el.onclick = null; }
-}
+// Single document-level capture listener — fires before ANY element handler.
+// If a row is open and the touch is outside its .swipe-actions, close the row
+// and cancel the event so nothing underneath (edit windows etc) can fire.
+document.addEventListener('touchstart', function(e) {
+  if (!_swipeOpenWrap) return;
+  const actions = _swipeOpenWrap.querySelector('.swipe-actions');
+  // If the tap is inside the revealed action buttons — let it through
+  if (actions && actions.contains(e.target)) return;
+  // Otherwise: close and swallow
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  _swipeCloseAll();
+}, { passive: false, capture: true });
 
 function _swipeCloseAll() {
-  if (_swipeOpenWrap) {
-    const wrap = _swipeOpenWrap;
-    // Hide buttons immediately — don't let them slide back into view
-    const actions = wrap.querySelector('.swipe-actions');
-    if (actions) actions.style.opacity = '0';
-    wrap.classList.remove('swiped');
-    const c = wrap.querySelector('.swipe-row-content');
-    if (c) { c.style.transition = ''; c.style.transform = 'translateX(0px)'; }
-    // Restore opacity after slide animation completes
-    setTimeout(() => { if (actions) actions.style.opacity = ''; }, 260);
-    _swipeOpenWrap = null;
-  }
-  _swipeHideCatcher();
+  if (!_swipeOpenWrap) return;
+  const wrap    = _swipeOpenWrap;
+  const actions = wrap.querySelector('.swipe-actions');
+  const content = wrap.querySelector('.swipe-row-content');
+  _swipeOpenWrap = null;
+  if (actions) actions.style.opacity = '0';
+  wrap.classList.remove('swiped');
+  if (content) { content.style.transition = ''; content.style.transform = 'translateX(0px)'; }
+  setTimeout(() => { if (actions) actions.style.opacity = ''; }, 260);
 }
 
 function initSwipeRows(container) {
@@ -3037,16 +2997,13 @@ function initSwipeRows(container) {
 
       function setOpen(open) {
         if (open) {
-          // Close any other open row first
           if (_swipeOpenWrap && _swipeOpenWrap !== wrap) _swipeCloseAll();
           _swipeOpenWrap = wrap;
           wrap.classList.add('swiped');
           content.style.transition = '';
           content.style.transform  = `translateX(${-revealW}px)`;
-          _swipeShowCatcher();
         } else {
-          if (_swipeOpenWrap === wrap) { _swipeOpenWrap = null; _swipeHideCatcher(); }
-          // Hide buttons immediately on close
+          if (_swipeOpenWrap === wrap) _swipeOpenWrap = null;
           actions.style.opacity = '0';
           wrap.classList.remove('swiped');
           content.style.transition = '';
@@ -3056,9 +3013,6 @@ function initSwipeRows(container) {
       }
 
       content.addEventListener('touchstart', e => {
-        // If THIS row is open, the catcher handles closing — but touches on the
-        // swipe-btn buttons (which are above the catcher via pointer-events:all)
-        // should still fire. Touches on the content itself should close.
         startX   = e.touches[0].clientX;
         startY   = e.touches[0].clientY;
         dragging = true;
@@ -3081,11 +3035,7 @@ function initSwipeRows(container) {
       content.addEventListener('touchend', e => {
         if (!dragging) return;
         dragging = false;
-        if (!moved) {
-          // Pure tap on content — close if open
-          if (wrap.classList.contains('swiped')) setOpen(false);
-          return;
-        }
+        if (!moved) return; // pure tap — let document capture handler deal with it
         const dx = e.changedTouches[0].clientX - startX;
         if (dx < -revealW / 3) setOpen(true);
         else setOpen(false);
