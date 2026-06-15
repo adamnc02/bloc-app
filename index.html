@@ -2953,23 +2953,19 @@ let nutrPendingProduct = null;
 
 // ── Swipe row system ──────────────────────────────────────────────────────
 let _swipeOpenWrap = null;
+let _swipeJustClosed = false;
 
-// Two capture listeners needed:
-// 1. touchstart (non-passive): close the open row and prevent scroll/delay
-// 2. click (capture): block the synthetic click that fires after the touch
-//    — preventDefault on touchstart does NOT prevent onclick on iOS.
+// Capture-phase touchstart: close any open row before underlying handlers fire.
+// passive:true so we don't interfere with getUserMedia gesture chain on iOS.
 document.addEventListener('touchstart', function(e) {
   if (!_swipeOpenWrap) return;
   const actions = _swipeOpenWrap.querySelector('.swipe-actions');
-  if (actions && actions.contains(e.target)) return; // let button taps through
-  // Close the row and flag that the next click should be swallowed.
-  // Do NOT call e.preventDefault() here — on iOS it breaks getUserMedia
-  // (camera) by interrupting the user gesture chain.
+  if (actions && actions.contains(e.target)) return; // button tap — let through
   _swipeJustClosed = true;
-  setTimeout(() => { _swipeJustClosed = false; }, 600);
   _swipeCloseAll();
 }, { passive: true, capture: true });
 
+// Capture-phase click: swallow the synthetic click that follows a close-tap.
 document.addEventListener('click', function(e) {
   if (_swipeJustClosed) {
     _swipeJustClosed = false;
@@ -2978,21 +2974,19 @@ document.addEventListener('click', function(e) {
   }
 }, { capture: true });
 
-let _swipeJustClosed = false;
-
 function _swipeCloseAll() {
   if (!_swipeOpenWrap) return;
   const wrap    = _swipeOpenWrap;
   const actions = wrap.querySelector('.swipe-actions');
   const content = wrap.querySelector('.swipe-row-content');
   _swipeOpenWrap = null;
-  _swipeJustClosed = true;
-  // Reset flag after a tick so only the immediate click is blocked
-  setTimeout(() => { _swipeJustClosed = false; }, 50);
   if (actions) actions.style.opacity = '0';
   wrap.classList.remove('swiped');
   if (content) { content.style.transition = ''; content.style.transform = 'translateX(0px)'; }
   setTimeout(() => { if (actions) actions.style.opacity = ''; }, 260);
+  // Keep _swipeJustClosed true long enough for the synthetic click to arrive
+  // (iOS fires click ~300ms after touchstart on older Safari, ~instant on newer)
+  setTimeout(() => { _swipeJustClosed = false; }, 500);
 }
 
 function initSwipeRows(container) {
@@ -3003,6 +2997,10 @@ function initSwipeRows(container) {
     const content = wrap.querySelector('.swipe-row-content');
     const actions  = wrap.querySelector('.swipe-actions');
     if (!content || !actions) return;
+
+    // Use CSS touch-action to prevent vertical scroll during horizontal swipe —
+    // avoids needing passive:false on touchmove (which breaks getUserMedia on iOS).
+    content.style.touchAction = 'pan-y';
 
     requestAnimationFrame(() => {
       const revealW = actions.offsetWidth || 100;
@@ -3028,12 +3026,15 @@ function initSwipeRows(container) {
       }
 
       content.addEventListener('touchstart', e => {
+        // If row is open, the document capture listener handles closing.
+        // Don't start a drag — it would interfere with the close.
+        if (wrap.classList.contains('swiped')) return;
         startX   = e.touches[0].clientX;
         startY   = e.touches[0].clientY;
         dragging = true;
         moved    = false;
         content.style.transition = 'none';
-        content.style.transform  = getComputedStyle(content).transform;
+        content.style.transform  = 'translateX(0px)';
       }, { passive: true });
 
       content.addEventListener('touchmove', e => {
@@ -3041,19 +3042,15 @@ function initSwipeRows(container) {
         const dx = e.touches[0].clientX - startX;
         const dy = e.touches[0].clientY - startY;
         if (!moved && Math.abs(dy) > Math.abs(dx) + 4) { dragging = false; return; }
-        if (Math.abs(dx) > 3) {
-          moved = true;
-          e.preventDefault(); // prevent page scroll during horizontal swipe
-        }
-        const base    = wrap.classList.contains('swiped') ? -revealW : 0;
-        const clamped = Math.max(-revealW, Math.min(0, base + dx));
+        if (Math.abs(dx) > 3) moved = true;
+        const clamped = Math.max(-revealW, Math.min(0, dx));
         content.style.transform = `translateX(${clamped}px)`;
-      }, { passive: false });
+      }, { passive: true });
 
       content.addEventListener('touchend', e => {
         if (!dragging) return;
         dragging = false;
-        if (!moved) return; // pure tap — let document capture handler deal with it
+        if (!moved) return;
         const dx = e.changedTouches[0].clientX - startX;
         if (dx < -revealW / 3) setOpen(true);
         else setOpen(false);
