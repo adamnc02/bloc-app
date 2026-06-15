@@ -2,7 +2,7 @@
 
 > A personal, offline-first Progressive Web App for structured weight training and nutrition tracking. Single HTML file. No backend. No dependencies.
 
-![Version](https://img.shields.io/badge/version-v3.03-brightgreen) ![PWA](https://img.shields.io/badge/PWA-ready-blue) ![License](https://img.shields.io/badge/license-MIT-lightgrey)
+![Version](https://img.shields.io/badge/version-v3.04-brightgreen) ![PWA](https://img.shields.io/badge/PWA-ready-blue) ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ---
 
@@ -32,8 +32,9 @@ The app is structured around the concept of a **macrocycle** — a multi-week tr
   - Optional **microcycles** (alternating A/B sessions within a week)
   - Optional target body weight
 - Per-exercise configuration: name, sets, reps, starting weight, exercise type (standard, myorep giant, myomatch), heavy leg flag
-- Edit, copy, and delete macrocycles
+- Edit, copy, and delete macrocycles — tap the macrocycle card to edit; swipe left to reveal copy and delete buttons (vertically stacked)
 - Body weight progress bar within the plan card, showing start → current → target
+- Exercise rows — tap to edit; swipe left to reveal delete button
 
 ### Train
 - Week and day selector to navigate your macrocycle
@@ -51,7 +52,7 @@ The app is structured around the concept of a **macrocycle** — a multi-week tr
 ### Body
 - Log body weight (lbs) and steps per day
 - 7-day average weight, week-on-week change, and entry count
-- Full log of all entries with edit and delete
+- Full log of all entries — tap to edit; swipe left to reveal delete button
 
 ### Nutrition
 - Per-day food logging across named meals (Breakfast, Lunch, Dinner, Snacks)
@@ -63,10 +64,9 @@ The app is structured around the concept of a **macrocycle** — a multi-week tr
   - **Food library** — search previously used foods, sorted by most recently logged
 - **Quick Add** — log kcal, protein, carbs, and fats directly without a named food, overriding meal items for that day's totals
 - Serving confirmation modal showing grams and servings fields, live macro preview, and (for recipes) a full ingredient breakdown
-- Swipe-to-copy from yesterday — an animated swipe strip under each meal shows the previous day's items and copies them on a one-third-width swipe right
+- Swipe-to-copy from yesterday — an animated swipe strip under each meal shows the previous day's items and copies them on a one-third-width swipe right. The strip shows full text (no truncation)
 - Meal ellipsis menu (`···`) — copy or move an entire meal to any date and meal target via a bottom action sheet
-- Per-item copy icon — copy any individual food entry to another date and meal
-- Edit logged entries — barcode/library entries show grams and servings; manual entries show direct kcal/protein/carbs/fats inputs
+- Per-item interactions — tap a food entry to edit it; swipe left to reveal copy and delete buttons. Edit modal defaults the gram amount to the food's RSS (recommended serving size) where available. Manual entries show direct kcal/protein/carbs/fats inputs instead of grams/servings
 - Daily macro panel with g / ± / % toggle for protein, carbs, and fats
 - Daily kcal card with progress bar vs. goal
 - 7-day weekly tab with bar charts and a macro pie chart
@@ -79,12 +79,13 @@ The app is structured around the concept of a **macrocycle** — a multi-week tr
 - Today vs. goal progress bars with left-to-go or over-target indicators
 - Weekly average comparison across all tracked metrics
 - Projected pacing — if you're behind on a weekly goal, BLOC calculates what you need per remaining day
+- Tap a goal card to edit; swipe left to reveal delete button
 
 ### Settings
 - Export full app data as a JSON backup
 - Restore from a JSON backup (replaces all current data)
 - **Exercise library** — export and import (merges by name; default exercises cannot be overwritten)
-- **Food library** — Export / Import (whole library JSON); Import recipe (single shared item file, including recipe ingredients); Edit library (browse and edit per-100g values and default serving, with share/edit/delete per row); My Recipes (list of all saved recipes with ingredient details, edit, delete, and Create new)
+- **Food library** — Export / Import (whole library JSON); Import recipe (single shared item file, including recipe ingredients); Edit library (tap row to edit, swipe left to reveal share and delete); My Recipes (tap row to edit recipe builder, swipe left to delete)
 - Storage usage indicator
 - Full data wipe (danger zone)
 
@@ -176,6 +177,7 @@ To restore: Settings → Restore from backup → select your `.json` file.
 
 | Version | Notes |
 |---|---|
+| v3.04 | Swipe-left gestures on all list rows (plan, body, nutrition, goals, food library, recipes), tap-to-edit on all rows, deleteBodyLog, yesterday strip wraps text, edit modal defaults grams to RSS
 | v3.03 | Camera barcode scanning (BarcodeDetector + ZXing fallback), camera auto-starts on modal open, manual edit mode for manual nutrition log entries |
 | v3.01 | Meal ellipsis menu (copy/move entire meal), swipe-to-copy from yesterday, per-item copy icon, recipe builder from nutrition log, recipe ingredients in serving modal, SVG icons throughout, food library item sharing (Web Share API + JSON export), Fill Suggested animations |
 | v2.12 | Recipe builder (barcode + manual ingredients, per-1g storage), food library editor, rest timer, food library export/import |

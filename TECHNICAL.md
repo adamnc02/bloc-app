@@ -16,13 +16,14 @@
 12. [Module: Home](#12-module-home)
 13. [Module: Settings & Data Management](#13-module-settings--data-management)
 14. [Module: Rest Timer](#14-module-rest-timer)
-15. [Exercise Library](#15-exercise-library)
-16. [Progression Logic](#16-progression-logic)
-17. [External APIs](#17-external-apis)
-18. [Design System](#18-design-system)
-19. [Function Reference](#19-function-reference)
-20. [Key Algorithms](#20-key-algorithms)
-21. [Known Limitations & Future Considerations](#21-known-limitations--future-considerations)
+15. [Swipe Row System](#15-swipe-row-system)
+16. [Exercise Library](#16-exercise-library)
+17. [Progression Logic](#17-progression-logic)
+18. [External APIs](#18-external-apis)
+19. [Design System](#19-design-system)
+20. [Function Reference](#20-function-reference)
+21. [Key Algorithms](#21-key-algorithms)
+22. [Known Limitations & Future Considerations](#22-known-limitations--future-considerations)
 
 ---
 
@@ -591,6 +592,7 @@ The edit modal has two modes, selected automatically based on `item.source`:
 
 **Barcode/library/recipe mode** (`source !== 'manual'`):
 - Shows Amount (g) + Servings inputs
+- Grams defaults to `libEntry.defaultServing` (RSS from food library) if available, then `item.grams`, then `item.serving`, then `100`
 - Per-100g values loaded from the food library entry (or back-calculated from the log if no library entry exists)
 - Macros recalculate as `per100 / 100 * grams * servings`
 - Recipe entries: grams locked to 1, only servings is editable
@@ -831,7 +833,68 @@ Closing the modal resets both timers and returns the icon to its default colour.
 
 ---
 
-## 15. Exercise Library
+## 15. Swipe Row System
+
+All list rows across the app use a shared swipe-left-to-reveal-actions pattern implemented via `initSwipeRows(container)`.
+
+### HTML Structure
+
+```html
+<div class="swipe-row-wrap">
+  <div class="swipe-row-content" onclick="editAction()">
+    <!-- row content -->
+  </div>
+  <div class="swipe-actions">                        <!-- or .vertical for stacked -->
+    <button class="swipe-btn swipe-btn-default" onclick="event.stopPropagation(); copyAction()">…</button>
+    <button class="swipe-btn swipe-btn-danger"  onclick="event.stopPropagation(); deleteAction()">…</button>
+  </div>
+</div>
+```
+
+### CSS
+
+`.swipe-actions` starts off-screen to the right via `transform: translateX(100%)`. On `.swiped`, both transforms fire together:
+- `.swipe-row-content` slides left by `--swipe-reveal-w` (measured from `actions.offsetWidth`)
+- `.swipe-actions` slides to `translateX(0)`
+
+Both use the same `0.25s ease` transition.
+
+### JS (`initSwipeRows`)
+
+Called via `requestAnimationFrame` after every render that contains swipe rows. Guards against double-init with `wrap._swipeInited`.
+
+During a drag, `setLive(dx)` drives both transforms inline (transition disabled) so the actions appear to emerge from under the content as the finger moves. On `touchend`:
+- `dx < -revealW/3` → open
+- `dx > revealW/3` → close
+- Otherwise → snap back to current state
+- Zero movement (pure tap) → fires the content's `onclick` naturally
+
+Opening any row closes all other open rows. Tapping outside an open row closes it.
+
+### Button styles
+
+| Class | Background | Use |
+|---|---|---|
+| `.swipe-btn-default` | `var(--surface3)` | Non-destructive (copy, share) |
+| `.swipe-btn-danger` | `var(--red)` | Destructive (delete) |
+
+Each button is `56px` wide. Two buttons = `112px` reveal width. Vertical stacking (macrocycle card) uses `.swipe-actions.vertical`.
+
+### Where used
+
+| Screen | Row | Actions |
+|---|---|---|
+| Plan | Macrocycle card | Copy (default) + Delete (danger) — vertical |
+| Plan | Exercise rows | Delete (danger) |
+| Body | Log entries | Delete (danger) |
+| Nutrition | Food diary entries | Copy (default) + Delete (danger) |
+| Goals | Goal cards | Delete (danger) |
+| Settings › Edit library | Food library rows | Share (default) + Delete (danger) |
+| Settings › My Recipes | Recipe rows | Delete (danger) |
+
+---
+
+## 16. Exercise Library
 
 ### Default Library
 
@@ -857,7 +920,7 @@ Import skips exercises matching a default name (case-insensitive). Export includ
 
 ---
 
-## 16. Progression Logic
+## 17. Progression Logic
 
 ### Set Volume
 
@@ -896,7 +959,7 @@ function getWeekWeight(ex, week, progType, goalType) {
 
 ---
 
-## 17. External APIs
+## 18. External APIs
 
 ### Open Food Facts
 
@@ -931,7 +994,7 @@ Only external dependency required for correct visual rendering. System monospace
 
 ---
 
-## 18. Design System
+## 19. Design System
 
 All design tokens are CSS custom properties on `:root`.
 
@@ -985,7 +1048,7 @@ All interactive icons throughout the app use inline SVG (13×13px, `stroke:curre
 
 ---
 
-## 19. Function Reference
+## 20. Function Reference
 
 ### Persistence
 | Function | Description |
@@ -1043,6 +1106,12 @@ All interactive icons throughout the app use inline SVG (13×13px, `stroke:curre
 | `renderBody()` | Renders the Body screen |
 | `openEditBodyLog(date)` | Opens edit modal for a body log entry |
 | `saveBodyLog()` | Upserts a body log entry |
+| `deleteBodyLog(date)` | Confirms and removes a body log entry; re-renders |
+
+### Swipe Rows
+| Function | Description |
+|---|---|
+| `initSwipeRows(container)` | Attaches swipe-left gesture handlers to all `.swipe-row-wrap` elements within `container`; guards against double-init; measures reveal width from `actions.offsetWidth` |
 
 ### Nutrition
 | Function | Description |
@@ -1064,7 +1133,7 @@ All interactive icons throughout the app use inline SVG (13×13px, `stroke:curre
 | `initYesterdaySwipes()` | Attaches swipe handlers to yesterday copy strips |
 | `syncNutrLegacyLog(date)` | Backfills `nutritionLogs` from `nutritionMeals` |
 | `deleteFoodEntry(date, meal, idx)` | Removes a food entry |
-| `openEditFoodEntry(date, meal, idx)` | Opens edit modal; detects barcode vs manual mode automatically |
+| `openEditFoodEntry(date, meal, idx)` | Opens edit modal; detects barcode vs manual mode automatically; defaults grams to `libEntry.defaultServing` (RSS) if available |
 | `updateEditPreview()` | Live preview; branches on `nutr-edit-mode` field |
 | `saveEditFoodEntry()` | Saves edit; direct macros for manual, per-100g calc for barcode |
 | `renderNutrWeekly()` | Renders 7-day weekly tab with bar charts and pie |
@@ -1143,7 +1212,7 @@ All interactive icons throughout the app use inline SVG (13×13px, `stroke:curre
 
 ---
 
-## 20. Key Algorithms
+## 21. Key Algorithms
 
 ### Local Date Handling
 
@@ -1200,7 +1269,7 @@ onEnd():
 
 ---
 
-## 21. Known Limitations & Future Considerations
+## 22. Known Limitations & Future Considerations
 
 ### Current Limitations
 

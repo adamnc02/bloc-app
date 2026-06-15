@@ -409,14 +409,14 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 /* ── Swipe rows ──────────────────────────────────────────────────── */
 .swipe-row-wrap { position:relative; overflow:hidden; }
 .swipe-row-content { position:relative; z-index:1; display:flex; align-items:center; transition:transform 0.25s ease; will-change:transform; background:inherit; }
-.swipe-actions { position:absolute; right:0; top:0; bottom:0; display:flex; align-items:stretch; transform:translateX(100%); transition:transform 0.25s ease; }
-.swipe-actions.vertical { flex-direction:column; }
+.swipe-actions { position:absolute; right:0; top:0; bottom:0; display:flex; align-items:center; gap:6px; padding:0 8px; transform:translateX(100%); transition:transform 0.25s ease; pointer-events:none; }
+.swipe-actions.vertical { flex-direction:column; gap:4px; }
 .swipe-row-wrap.swiped .swipe-row-content { transform:translateX(calc(-1 * var(--swipe-reveal-w, 112px))); }
-.swipe-row-wrap.swiped .swipe-actions { transform:translateX(0); }
-.swipe-btn { display:flex; align-items:center; justify-content:center; width:56px; border:none; cursor:pointer; font-size:0; flex-shrink:0; }
+.swipe-row-wrap.swiped .swipe-actions { transform:translateX(0); pointer-events:all; }
+.swipe-btn { display:flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:var(--r-sm); border:0.5px solid var(--border2); background:none; cursor:pointer; flex-shrink:0; }
 .swipe-btn svg { flex-shrink:0; }
-.swipe-btn-default { background:var(--surface3); color:var(--text2); }
-.swipe-btn-danger  { background:var(--red);      color:#fff; }
+.swipe-btn-default { color:var(--text2); }
+.swipe-btn-danger  { color:var(--red); border-color:rgba(255,95,78,0.35); }
 .bw-date { font-size: 12px; color: var(--text2); }
 .bw-val { font-family: var(--font-display); font-size: 18px; font-weight: 700; }
 
@@ -2958,46 +2958,48 @@ function initSwipeRows(container) {
     const actions  = wrap.querySelector('.swipe-actions');
     if (!content || !actions) return;
 
-    // Measure reveal width after a paint so layout is complete
     requestAnimationFrame(() => {
-      const revealW = actions.offsetWidth || 112;
+      const revealW = actions.offsetWidth || 96;
       wrap.style.setProperty('--swipe-reveal-w', revealW + 'px');
 
-      let startX = 0, startY = 0, dragging = false, moved = false;
+      let startX = 0, startY = 0, dragging = false, moved = false, suppressClick = false;
 
       function getOpen() { return wrap.classList.contains('swiped'); }
 
-      function closeAll(except) {
+      function closeOthers() {
         document.querySelectorAll('.swipe-row-wrap.swiped').forEach(w => {
-          if (w !== except) w.classList.remove('swiped');
+          if (w !== wrap) w.classList.remove('swiped');
         });
       }
 
       function setLive(dx) {
-        // dx is negative (dragging left) or positive (dragging right when open)
-        const base = getOpen() ? -revealW : 0;
+        const base    = getOpen() ? -revealW : 0;
         const clamped = Math.max(-revealW, Math.min(0, base + dx));
-        const pct = ((clamped + revealW) / revealW) * 100; // 0% when closed, 100% when open
-        content.style.transition = 'none';
-        actions.style.transition  = 'none';
+        const pct     = (clamped + revealW) / revealW; // 0=closed, 1=fully open
         content.style.transform = `translateX(${clamped}px)`;
-        actions.style.transform  = `translateX(${100 - pct}%)`;
+        actions.style.transform = `translateX(${(1 - pct) * 100}%)`;
       }
 
       function settle(open) {
         content.style.transition = '';
-        actions.style.transition  = '';
+        actions.style.transition = '';
         content.style.transform  = '';
-        actions.style.transform   = '';
+        actions.style.transform  = '';
         if (open) wrap.classList.add('swiped');
         else      wrap.classList.remove('swiped');
       }
 
       content.addEventListener('touchstart', e => {
-        closeAll(wrap);
+        closeOthers();
         startX = e.touches[0].clientX;
         startY = e.touches[0].clientY;
-        dragging = true; moved = false;
+        dragging = true; moved = false; suppressClick = false;
+        // Disable transitions and snap inline to current state immediately
+        // This prevents the flash where CSS state shows before JS takes over
+        content.style.transition = 'none';
+        actions.style.transition = 'none';
+        content.style.transform  = getOpen() ? `translateX(${-revealW}px)` : 'translateX(0px)';
+        actions.style.transform  = getOpen() ? 'translateX(0%)' : 'translateX(100%)';
       }, { passive: true });
 
       content.addEventListener('touchmove', e => {
@@ -3014,17 +3016,23 @@ function initSwipeRows(container) {
         dragging = false;
         const dx = e.changedTouches[0].clientX - startX;
         if (!moved) {
-          // Pure tap — close if open, let click fire naturally
-          if (getOpen()) { settle(false); }
+          // Pure tap — if open, close and swallow the click; if closed, let click through
+          if (getOpen()) { suppressClick = true; settle(false); }
           return;
         }
-        // Swipe left past threshold → open; swipe right past threshold → close
+        // Gesture — always suppress click
+        suppressClick = true;
         if (dx < -revealW / 3) settle(true);
         else if (dx > revealW / 3) settle(false);
-        else settle(getOpen()); // snap back to current state
+        else settle(getOpen());
       }, { passive: true });
 
-      // Tap outside → close
+      // Intercept click in capture phase to swallow it when needed
+      content.addEventListener('click', e => {
+        if (suppressClick) { suppressClick = false; e.stopImmediatePropagation(); e.preventDefault(); }
+      }, true);
+
+      // Tap outside an open row → close it
       document.addEventListener('touchstart', e => {
         if (getOpen() && !wrap.contains(e.target)) settle(false);
       }, { passive: true });
