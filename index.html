@@ -471,7 +471,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
           <div class="page-title">BLOC</div>
           <div class="page-sub" id="home-date"></div>
         </div>
-        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v3.05</span>
+        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v3.06</span>
       </div>
 
       <!-- Active cycle card -->
@@ -602,7 +602,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v3.05</span>
+          <span class="badge badge-green">v3.06</span>
         </div>
       </div>
 
@@ -2962,9 +2962,13 @@ document.addEventListener('touchstart', function(e) {
   if (!_swipeOpenWrap) return;
   const actions = _swipeOpenWrap.querySelector('.swipe-actions');
   if (actions && actions.contains(e.target)) return; // let button taps through
-  e.preventDefault();
+  // Close the row and flag that the next click should be swallowed.
+  // Do NOT call e.preventDefault() here — on iOS it breaks getUserMedia
+  // (camera) by interrupting the user gesture chain.
+  _swipeJustClosed = true;
+  setTimeout(() => { _swipeJustClosed = false; }, 600);
   _swipeCloseAll();
-}, { passive: false, capture: true });
+}, { passive: true, capture: true });
 
 document.addEventListener('click', function(e) {
   if (_swipeJustClosed) {
@@ -3037,11 +3041,14 @@ function initSwipeRows(container) {
         const dx = e.touches[0].clientX - startX;
         const dy = e.touches[0].clientY - startY;
         if (!moved && Math.abs(dy) > Math.abs(dx) + 4) { dragging = false; return; }
-        if (Math.abs(dx) > 3) moved = true;
+        if (Math.abs(dx) > 3) {
+          moved = true;
+          e.preventDefault(); // prevent page scroll during horizontal swipe
+        }
         const base    = wrap.classList.contains('swiped') ? -revealW : 0;
         const clamped = Math.max(-revealW, Math.min(0, base + dx));
         content.style.transform = `translateX(${clamped}px)`;
-      }, { passive: true });
+      }, { passive: false });
 
       content.addEventListener('touchend', e => {
         if (!dragging) return;
