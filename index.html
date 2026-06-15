@@ -407,8 +407,8 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 .bw-entry { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 0.5px solid var(--border); }
 
 /* ── Swipe rows ──────────────────────────────────────────────────── */
-.swipe-row-wrap { position:relative; overflow:hidden; }
-.swipe-row-content { position:relative; z-index:1; width:100%; box-sizing:border-box; transition:transform 0.25s ease; will-change:transform; }
+.swipe-row-wrap { position:relative; overflow:hidden; touch-action:pan-y; }
+.swipe-row-content { position:relative; z-index:1; width:100%; box-sizing:border-box; transition:transform 0.25s ease; will-change:transform; touch-action:pan-y; }
 .swipe-actions { position:absolute; right:0; top:0; bottom:0; display:flex; align-items:stretch; gap:6px; padding:6px 10px; pointer-events:none; opacity:0; }
 .swipe-actions.vertical { flex-direction:column; }
 .swipe-actions.vertical .swipe-btn { flex:1; padding:0; }
@@ -471,7 +471,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
           <div class="page-title">BLOC</div>
           <div class="page-sub" id="home-date"></div>
         </div>
-        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v3.06</span>
+        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v3.07</span>
       </div>
 
       <!-- Active cycle card -->
@@ -602,7 +602,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v3.06</span>
+          <span class="badge badge-green">v3.07</span>
         </div>
       </div>
 
@@ -2998,10 +2998,6 @@ function initSwipeRows(container) {
     const actions  = wrap.querySelector('.swipe-actions');
     if (!content || !actions) return;
 
-    // Use CSS touch-action to prevent vertical scroll during horizontal swipe —
-    // avoids needing passive:false on touchmove (which breaks getUserMedia on iOS).
-    content.style.touchAction = 'pan-y';
-
     requestAnimationFrame(() => {
       const revealW = actions.offsetWidth || 100;
       wrap.style.setProperty('--swipe-reveal-w', revealW + 'px');
@@ -3698,17 +3694,18 @@ function confirmCopyFoodEntry() {
 
 function _startScannerAfterTransition(ctx) {
   const sheet = document.querySelector('#modal-' + ctx + '-barcode .modal-sheet');
-  if (!sheet) { startScannerCamera(ctx); return; }
-  const onEnd = () => {
-    sheet.removeEventListener('transitionend', onEnd);
+  let started = false;
+  function start() {
+    if (started) return; // prevent double-start from both transitionend and timeout
+    started = true;
     startScannerCamera(ctx);
-  };
-  sheet.addEventListener('transitionend', onEnd, { once: true });
-  // Fallback in case transitionend doesn't fire
-  setTimeout(() => {
+  }
+  if (!sheet) { start(); return; }
+  sheet.addEventListener('transitionend', function onEnd() {
     sheet.removeEventListener('transitionend', onEnd);
-    if (!_scannerState[ctx]) startScannerCamera(ctx);
-  }, 400);
+    start();
+  }, { once: true });
+  setTimeout(start, 400);
 }
 
 function openNutrBarcode() {
