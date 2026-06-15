@@ -470,7 +470,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
           <div class="page-title">BLOC</div>
           <div class="page-sub" id="home-date"></div>
         </div>
-        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v3.04</span>
+        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v3.05</span>
       </div>
 
       <!-- Active cycle card -->
@@ -601,7 +601,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v3.04</span>
+          <span class="badge badge-green">v3.05</span>
         </div>
       </div>
 
@@ -2987,9 +2987,16 @@ function initSwipeRows(container) {
 
       function setOpen(open) {
         wrap.classList.toggle('swiped', open);
-        // Re-enable transition, clear inline transform — CSS class handles final position
+        // Set the final position explicitly rather than clearing to ''
+        // Clearing to '' causes a single frame where browser shows transform:none
+        // before the CSS class is processed, causing a visible flash.
         content.style.transition = '';
-        content.style.transform  = '';
+        content.style.transform  = open ? `translateX(${-revealW}px)` : 'translateX(0px)';
+        // After the transition completes, hand off fully to CSS
+        content.addEventListener('transitionend', function cleanup() {
+          content.removeEventListener('transitionend', cleanup);
+          content.style.transform = '';
+        });
       }
 
       content.addEventListener('touchstart', e => {
@@ -5056,10 +5063,10 @@ function initModal(overlayEl) {
   if (!sheet) return;
   const modalId = overlayEl.id;
 
-  // Tap the dark backdrop to close — use touchstart to intercept before any underlying onclick
+  // Tap the dark backdrop to close — must NOT be passive so stopPropagation works on iOS
   overlayEl.addEventListener('touchstart', function(e) {
     if (e.target === overlayEl) { e.stopPropagation(); closeModal(modalId); }
-  }, { passive: true });
+  }, { passive: false });
   // Pointer fallback for non-touch (desktop)
   overlayEl.addEventListener('pointerdown', function(e) {
     if (e.pointerType !== 'touch' && e.target === overlayEl) closeModal(modalId);
