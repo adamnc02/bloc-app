@@ -409,14 +409,14 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 /* ── Swipe rows ──────────────────────────────────────────────────── */
 .swipe-row-wrap { position:relative; overflow:hidden; }
 .swipe-row-content { position:relative; z-index:1; transition:transform 0.25s ease; will-change:transform; }
-.swipe-actions { position:absolute; right:0; top:0; bottom:0; display:flex; align-items:stretch; gap:6px; padding:6px 10px; transform:translateX(100%); transition:transform 0.25s ease; pointer-events:none; }
+.swipe-actions { position:absolute; right:0; top:0; bottom:0; display:flex; align-items:stretch; gap:6px; padding:6px 10px; pointer-events:none; }
 .swipe-actions.vertical { flex-direction:column; }
 .swipe-actions.vertical .swipe-btn { flex:1; padding:0; }
 .swipe-row-wrap.swiped .swipe-row-content { transform:translateX(calc(-1 * var(--swipe-reveal-w, 100px))); }
-.swipe-row-wrap.swiped .swipe-actions { transform:translateX(0); pointer-events:all; }
-.swipe-btn { display:flex; align-items:center; justify-content:center; padding:0 12px; min-width:36px; border-radius:var(--r-sm); border:0.5px solid var(--border2); background:none; cursor:pointer; flex-shrink:0; }
+.swipe-row-wrap.swiped .swipe-actions { pointer-events:all; }
+.swipe-btn { display:flex; align-items:center; justify-content:center; padding:0 12px; min-width:36px; border-radius:var(--r-sm); border:1.5px solid var(--border2); background:none; cursor:pointer; flex-shrink:0; }
 .swipe-btn-default { color:var(--text2); }
-.swipe-btn-danger  { color:var(--red); border-color:rgba(255,95,78,0.4); }
+.swipe-btn-danger  { color:var(--red); border-color:rgba(255,95,78,0.5); }
 .bw-date { font-size: 12px; color: var(--text2); }
 .bw-val { font-family: var(--font-display); font-size: 18px; font-weight: 700; }
 
@@ -2951,6 +2951,23 @@ let nutrActiveMeal = null;
 let nutrPendingProduct = null;
 
 // ── Shared swipe-left-to-reveal-actions ──────────────────────────────────
+// Strategy: only the content element moves. The actions panel sits fixed at
+// right:0 inside overflow:hidden — it's revealed as content slides left.
+// We never animate actions.style.transform, avoiding all jitter/flash.
+
+// Global touchstart capture: close any open swipe row before the touch reaches
+// underlying onclick handlers. This fixes the tap-on-edit-while-open bug.
+document.addEventListener('touchstart', function(e) {
+  document.querySelectorAll('.swipe-row-wrap.swiped').forEach(wrap => {
+    if (!wrap.contains(e.target)) {
+      // Close this row
+      wrap.classList.remove('swiped');
+      const content = wrap.querySelector('.swipe-row-content');
+      if (content) { content.style.transition = ''; content.style.transform = ''; }
+    }
+  });
+}, { passive: true, capture: true });
+
 function initSwipeRows(container) {
   const wraps = (container || document).querySelectorAll('.swipe-row-wrap');
   wraps.forEach(wrap => {
@@ -2964,58 +2981,31 @@ function initSwipeRows(container) {
       const revealW = actions.offsetWidth || 100;
       wrap.style.setProperty('--swipe-reveal-w', revealW + 'px');
 
-      let startX = 0, startY = 0, dragging = false, moved = false, blockClick = false;
+      let startX = 0, startY = 0, dragging = false, moved = false, blockNextClick = false;
 
       function getOpen() { return wrap.classList.contains('swiped'); }
 
-      function settle(open) {
-        // Apply the class first so the CSS target state is set,
-        // then clear inline styles in the next frame to avoid a flash
-        // where inline '' briefly shows the CSS default (translateX 100%)
+      function setOpen(open) {
         wrap.classList.toggle('swiped', open);
-        requestAnimationFrame(() => {
-          content.style.transition = '';
-          actions.style.transition = '';
-          content.style.transform  = '';
-          actions.style.transform  = '';
-        });
-      }
-
-      function snapInline() {
-        content.style.transition = 'none';
-        actions.style.transition = 'none';
-        content.style.transform  = getOpen() ? `translateX(${-revealW}px)` : 'translateX(0px)';
-        actions.style.transform  = getOpen() ? 'translateX(0%)' : 'translateX(100%)';
-      }
-
-      function setLive(dx) {
-        const base    = getOpen() ? -revealW : 0;
-        const clamped = Math.max(-revealW, Math.min(0, base + dx));
-        const pct     = (clamped + revealW) / revealW;
-        content.style.transform = `translateX(${clamped}px)`;
-        actions.style.transform = `translateX(${(1 - pct) * 100}%)`;
+        // Re-enable transition, clear inline transform — CSS class handles final position
+        content.style.transition = '';
+        content.style.transform  = '';
       }
 
       content.addEventListener('touchstart', e => {
-        // Close other open rows
-        document.querySelectorAll('.swipe-row-wrap.swiped').forEach(w => {
-          if (w !== wrap) w.classList.remove('swiped');
-        });
-
-        // Key fix: if row is open, close it immediately on touchstart
-        // and set blockClick so the following click event (from iOS tap) is suppressed
         if (getOpen()) {
-          blockClick = true;
-          settle(false);
-          return; // don't begin a drag
+          // Row is already open — the global capture listener above will close it.
+          // Set blockNextClick so the tap doesn't fire the onclick underneath.
+          blockNextClick = true;
+          return;
         }
-
-        blockClick = false;
         startX = e.touches[0].clientX;
         startY = e.touches[0].clientY;
         dragging = true;
-        moved = false;
-        snapInline(); // freeze current position so first move is smooth, no flash
+        moved    = false;
+        // Freeze position with no transition so first move is instant
+        content.style.transition = 'none';
+        content.style.transform  = 'translateX(0px)';
       }, { passive: true });
 
       content.addEventListener('touchmove', e => {
@@ -3024,33 +3014,29 @@ function initSwipeRows(container) {
         const dy = e.touches[0].clientY - startY;
         if (!moved && Math.abs(dy) > Math.abs(dx) + 4) { dragging = false; return; }
         if (Math.abs(dx) > 3) moved = true;
-        setLive(dx);
+        // Only slide content left (no right past 0)
+        const clamped = Math.max(-revealW, Math.min(0, dx));
+        content.style.transform = `translateX(${clamped}px)`;
       }, { passive: true });
 
       content.addEventListener('touchend', e => {
         if (!dragging) return;
         dragging = false;
-        if (!moved) return; // pure tap on closed row — let click fire
-        // After a swipe gesture, always block the following synthetic click
-        blockClick = true;
+        if (!moved) return; // pure tap — let click fire
+        blockNextClick = true; // swipe gesture — suppress synthetic click
         const dx = e.changedTouches[0].clientX - startX;
-        if (dx < -revealW / 3) settle(true);
-        else if (dx > revealW / 3) settle(false);
-        else settle(getOpen());
+        if (dx < -revealW / 3) setOpen(true);
+        else setOpen(false);
       }, { passive: true });
 
-      // Capture-phase click blocker — fires before any onclick handler
+      // Capture-phase click suppressor — fires before any onclick
       content.addEventListener('click', e => {
-        if (blockClick) { blockClick = false; e.stopImmediatePropagation(); e.preventDefault(); }
+        if (blockNextClick) { blockNextClick = false; e.stopImmediatePropagation(); e.preventDefault(); }
       }, true);
-
-      // Tap outside → close
-      document.addEventListener('touchstart', e => {
-        if (getOpen() && !wrap.contains(e.target)) settle(false);
-      }, { passive: true });
     });
   });
 }
+
 
 function deleteBodyLog(date) {
   showConfirm('Delete entry?', formatDate(date), 'Delete', () => {
