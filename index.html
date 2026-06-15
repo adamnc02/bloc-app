@@ -5457,25 +5457,19 @@ function renderFoodLibEditor() {
   el.innerHTML = items.map((item, idx) => {
     const rss = item.defaultServing ? ' · RSS ' + item.defaultServing + 'g' : '';
     const brand = item.brand ? ' · ' + item.brand : '';
-    return `<div class="swipe-row-wrap" style="border-bottom:0.5px solid var(--border);">
-      <div class="swipe-row-content" style="padding:10px 0;width:100%;box-sizing:border-box;" onclick="openFoodLibEntry(${idx})">
-        <div style="flex:1;min-width:0;cursor:pointer;">
-          <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:2px;">${item.per100kcal} kcal / 100g · P:${item.per100p}g C:${item.per100c}g F:${item.per100f}g${rss}${brand}</div>
-        </div>
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);">
+      <div style="flex:1;min-width:0;cursor:pointer;" onclick="openFoodLibEntry(${idx})">
+        <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px;">${item.per100kcal} kcal / 100g · P:${item.per100p}g C:${item.per100c}g F:${item.per100f}g${rss}${brand}</div>
       </div>
-      <div class="swipe-actions">
-        <button class="swipe-btn swipe-btn-default" onclick="event.stopPropagation();shareFoodLibItem(${idx})" title="Share">
-          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 10 5 10 5 20 19 20 19 10 15 10"/><polyline points="12 3 8 7 12 3 16 7"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        </button>
-        <button class="swipe-btn swipe-btn-danger" onclick="event.stopPropagation();deleteFoodLibEntry(${idx})" title="Delete">
-          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-        </button>
+      <div style="display:flex;gap:6px;flex-shrink:0;margin-left:10px;">
+        <button class="btn btn-sm" style="padding:5px 10px;" onclick="shareFoodLibItem(${idx})" title="Share"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="9 10 5 10 5 20 19 20 19 10 15 10"/><polyline points="12 3 8 7 12 3 16 7"/><line x1="12" y1="3" x2="12" y2="15"/></svg></button>
+        <button class="btn btn-sm" style="padding:5px 10px;" onclick="openFoodLibEntry(${idx})" title="Edit"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+        <button class="btn btn-sm btn-danger" style="padding:5px 10px;" onclick="deleteFoodLibEntry(${idx})" title="Delete"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
       </div>
     </div>`;
   }).join('');
   el._items = items;
-  requestAnimationFrame(() => initSwipeRows(el));
 }
 
 function openFoodLibEntry(idx) {
@@ -5921,10 +5915,9 @@ function renderRecipeList() {
       : `<div style="font-size:11px;color:var(--text3);padding:4px 0;">No ingredients recorded</div>`;
 
     return `
-      <div class="swipe-row-wrap" style="border-bottom:0.5px solid var(--border2);">
-        <div class="swipe-row-content" style="padding:14px 0;width:100%;box-sizing:border-box;display:block;"
-          onclick="closeModal('modal-recipe-list');requestAnimationFrame(()=>openRecipeBuilder('${r.id}'))">
-          <div style="cursor:pointer;">
+      <div style="padding:14px 0;border-bottom:0.5px solid var(--border2);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
+          <div style="flex:1;min-width:0;cursor:pointer;" onclick="closeModal('modal-recipe-list');requestAnimationFrame(()=>openRecipeBuilder('${r.id}'))">
             <div style="font-size:15px;font-weight:700;font-family:var(--font-display);">${r.name}</div>
             <div style="font-size:11px;color:var(--text3);margin-top:3px;">
               ${r.servings} serving${r.servings !== 1 ? 's' : ''} ·
@@ -5932,21 +5925,19 @@ function renderRecipeList() {
               P:${r.per_serving_p}g C:${r.per_serving_c}g F:${r.per_serving_f}g
             </div>
           </div>
-          <div style="background:var(--surface2);border-radius:var(--r-sm);padding:8px 10px;margin-top:8px;">
-            <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">
-              ${ingredients.length} ingredient${ingredients.length !== 1 ? 's' : ''} · Total: ${r.total_kcal} kcal
-            </div>
-            ${ingList}
+          <div style="display:flex;gap:6px;flex-shrink:0;margin-left:10px;">
+            <button class="btn btn-sm" style="padding:5px 10px;" onclick="closeModal('modal-recipe-list');requestAnimationFrame(()=>openRecipeBuilder('${r.id}'))" title="Edit"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+            <button class="btn btn-sm btn-danger" style="padding:5px 10px;" onclick="deleteRecipe('${r.id}')" title="Delete"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
           </div>
         </div>
-        <div class="swipe-actions">
-          <button class="swipe-btn swipe-btn-danger" onclick="event.stopPropagation();deleteRecipe('${r.id}')" title="Delete">
-            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-          </button>
+        <div style="background:var(--surface2);border-radius:var(--r-sm);padding:8px 10px;margin-top:4px;">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">
+            ${ingredients.length} ingredient${ingredients.length !== 1 ? 's' : ''} · Total: ${r.total_kcal} kcal
+          </div>
+          ${ingList}
         </div>
       </div>`;
   }).join('');
-  requestAnimationFrame(() => initSwipeRows(el));
 }
 
 function deleteRecipe(id) {
