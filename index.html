@@ -408,15 +408,14 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
 /* ── Swipe rows ──────────────────────────────────────────────────── */
 .swipe-row-wrap { position:relative; overflow:hidden; }
-.swipe-row-content { position:relative; z-index:1; display:flex; align-items:center; transition:transform 0.25s ease; will-change:transform; background:inherit; }
-.swipe-actions { position:absolute; right:0; top:0; bottom:0; display:flex; align-items:center; gap:6px; padding:0 8px; transform:translateX(100%); transition:transform 0.25s ease; pointer-events:none; }
-.swipe-actions.vertical { flex-direction:column; gap:4px; }
-.swipe-row-wrap.swiped .swipe-row-content { transform:translateX(calc(-1 * var(--swipe-reveal-w, 112px))); }
+.swipe-row-content { position:relative; z-index:1; transition:transform 0.25s ease; will-change:transform; }
+.swipe-actions { position:absolute; right:0; top:0; bottom:0; display:flex; align-items:center; gap:6px; padding:0 10px; transform:translateX(100%); transition:transform 0.25s ease; pointer-events:none; background:inherit; }
+.swipe-actions.vertical { flex-direction:column; justify-content:center; gap:5px; }
+.swipe-row-wrap.swiped .swipe-row-content { transform:translateX(calc(-1 * var(--swipe-reveal-w, 100px))); }
 .swipe-row-wrap.swiped .swipe-actions { transform:translateX(0); pointer-events:all; }
-.swipe-btn { display:flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:var(--r-sm); border:0.5px solid var(--border2); background:none; cursor:pointer; flex-shrink:0; }
-.swipe-btn svg { flex-shrink:0; }
+.swipe-btn { display:inline-flex; align-items:center; justify-content:center; padding:5px 10px; border-radius:var(--r-sm); border:0.5px solid var(--border2); background:none; cursor:pointer; flex-shrink:0; }
 .swipe-btn-default { color:var(--text2); }
-.swipe-btn-danger  { color:var(--red); border-color:rgba(255,95,78,0.35); }
+.swipe-btn-danger  { color:var(--red); border-color:rgba(255,95,78,0.4); }
 .bw-date { font-size: 12px; color: var(--text2); }
 .bw-val { font-family: var(--font-display); font-size: 18px; font-weight: 700; }
 
@@ -470,7 +469,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
           <div class="page-title">BLOC</div>
           <div class="page-sub" id="home-date"></div>
         </div>
-        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v3.04</span>
+        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v3.03</span>
       </div>
 
       <!-- Active cycle card -->
@@ -601,7 +600,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v3.04</span>
+          <span class="badge badge-green">v3.03</span>
         </div>
       </div>
 
@@ -2151,32 +2150,34 @@ function renderPlan() {
   overviewEl.innerHTML = `
     ${macroSwitch}
     <div class="swipe-row-wrap" style="border-radius:var(--r);margin-bottom:10px;">
-      <div class="swipe-row-content card card-accent" style="width:100%;box-sizing:border-box;" onclick="openEditMacro('${macro.id}')">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-          <div style="flex:1;min-width:0;">
-            <div style="font-family:var(--font-display);font-size:18px;font-weight:800;">${macro.name}</div>
-            ${macro.goal ? `<div style="font-size:12px;color:var(--text2);margin-top:2px;">${macro.goal}</div>` : ''}
+      <div class="swipe-row-content">
+        <div class="card card-accent" style="width:100%;box-sizing:border-box;cursor:pointer;" onclick="openEditMacro('${macro.id}')">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-family:var(--font-display);font-size:18px;font-weight:800;">${macro.name}</div>
+              ${macro.goal ? `<div style="font-size:12px;color:var(--text2);margin-top:2px;">${macro.goal}</div>` : ''}
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;margin-left:10px;flex-shrink:0;">
+              <span class="badge badge-green">${totalCalendarWeeks}wk</span>
+              <span class="badge badge-blue">${splitBadge}</span>
+            </div>
           </div>
-          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;margin-left:10px;flex-shrink:0;">
-            <span class="badge badge-green">${totalCalendarWeeks}wk</span>
-            <span class="badge badge-blue">${splitBadge}</span>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">${getMacroSummaryLabel(macro)} · Ends ${endStr} · ${microBadge}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <span style="font-size:12px;color:var(--text2);">${weekLabel}</span>
+            <span style="font-size:12px;color:var(--accent);">${pct}%</span>
           </div>
+          <div class="progress-track"><div class="progress-fill" style="width:${pct}%;"></div></div>
+          ${macro.targetBw ? buildBwProgress(macro) : ''}
+          <div style="font-size:10px;color:var(--text3);margin-top:10px;text-align:right;">swipe ← for options</div>
         </div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">${getMacroSummaryLabel(macro)} · Ends ${endStr} · ${microBadge}</div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-          <span style="font-size:12px;color:var(--text2);">${weekLabel}</span>
-          <span style="font-size:12px;color:var(--accent);">${pct}%</span>
-        </div>
-        <div class="progress-track"><div class="progress-fill" style="width:${pct}%;"></div></div>
-        ${macro.targetBw ? buildBwProgress(macro) : ''}
-        <div style="font-size:10px;color:var(--text3);margin-top:10px;text-align:right;">swipe ← for options</div>
       </div>
       <div class="swipe-actions vertical" style="width:100px;">
         <button class="swipe-btn swipe-btn-default" onclick="event.stopPropagation();copyMacrocycle('${macro.id}')" title="Copy">
-          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         </button>
         <button class="swipe-btn swipe-btn-danger" onclick="event.stopPropagation();deleteMacrocycle('${macro.id}')" title="Delete">
-          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+          <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
         </button>
       </div>
     </div>`;
@@ -2959,47 +2960,56 @@ function initSwipeRows(container) {
     if (!content || !actions) return;
 
     requestAnimationFrame(() => {
-      const revealW = actions.offsetWidth || 96;
+      const revealW = actions.offsetWidth || 100;
       wrap.style.setProperty('--swipe-reveal-w', revealW + 'px');
 
-      let startX = 0, startY = 0, dragging = false, moved = false, suppressClick = false;
+      let startX = 0, startY = 0, dragging = false, moved = false, blockClick = false;
 
       function getOpen() { return wrap.classList.contains('swiped'); }
-
-      function closeOthers() {
-        document.querySelectorAll('.swipe-row-wrap.swiped').forEach(w => {
-          if (w !== wrap) w.classList.remove('swiped');
-        });
-      }
-
-      function setLive(dx) {
-        const base    = getOpen() ? -revealW : 0;
-        const clamped = Math.max(-revealW, Math.min(0, base + dx));
-        const pct     = (clamped + revealW) / revealW; // 0=closed, 1=fully open
-        content.style.transform = `translateX(${clamped}px)`;
-        actions.style.transform = `translateX(${(1 - pct) * 100}%)`;
-      }
 
       function settle(open) {
         content.style.transition = '';
         actions.style.transition = '';
         content.style.transform  = '';
         actions.style.transform  = '';
-        if (open) wrap.classList.add('swiped');
-        else      wrap.classList.remove('swiped');
+        wrap.classList.toggle('swiped', open);
       }
 
-      content.addEventListener('touchstart', e => {
-        closeOthers();
-        startX = e.touches[0].clientX;
-        startY = e.touches[0].clientY;
-        dragging = true; moved = false; suppressClick = false;
-        // Disable transitions and snap inline to current state immediately
-        // This prevents the flash where CSS state shows before JS takes over
+      function snapInline() {
         content.style.transition = 'none';
         actions.style.transition = 'none';
         content.style.transform  = getOpen() ? `translateX(${-revealW}px)` : 'translateX(0px)';
         actions.style.transform  = getOpen() ? 'translateX(0%)' : 'translateX(100%)';
+      }
+
+      function setLive(dx) {
+        const base    = getOpen() ? -revealW : 0;
+        const clamped = Math.max(-revealW, Math.min(0, base + dx));
+        const pct     = (clamped + revealW) / revealW;
+        content.style.transform = `translateX(${clamped}px)`;
+        actions.style.transform = `translateX(${(1 - pct) * 100}%)`;
+      }
+
+      content.addEventListener('touchstart', e => {
+        // Close other open rows
+        document.querySelectorAll('.swipe-row-wrap.swiped').forEach(w => {
+          if (w !== wrap) w.classList.remove('swiped');
+        });
+
+        // Key fix: if row is open, close it immediately on touchstart
+        // and set blockClick so the following click event (from iOS tap) is suppressed
+        if (getOpen()) {
+          blockClick = true;
+          settle(false);
+          return; // don't begin a drag
+        }
+
+        blockClick = false;
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+        dragging = true;
+        moved = false;
+        snapInline(); // freeze current position so first move is smooth, no flash
       }, { passive: true });
 
       content.addEventListener('touchmove', e => {
@@ -3014,25 +3024,21 @@ function initSwipeRows(container) {
       content.addEventListener('touchend', e => {
         if (!dragging) return;
         dragging = false;
+        if (!moved) return; // pure tap on closed row — let click fire
+        // After a swipe gesture, always block the following synthetic click
+        blockClick = true;
         const dx = e.changedTouches[0].clientX - startX;
-        if (!moved) {
-          // Pure tap — if open, close and swallow the click; if closed, let click through
-          if (getOpen()) { suppressClick = true; settle(false); }
-          return;
-        }
-        // Gesture — always suppress click
-        suppressClick = true;
         if (dx < -revealW / 3) settle(true);
         else if (dx > revealW / 3) settle(false);
         else settle(getOpen());
       }, { passive: true });
 
-      // Intercept click in capture phase to swallow it when needed
+      // Capture-phase click blocker — fires before any onclick handler
       content.addEventListener('click', e => {
-        if (suppressClick) { suppressClick = false; e.stopImmediatePropagation(); e.preventDefault(); }
+        if (blockClick) { blockClick = false; e.stopImmediatePropagation(); e.preventDefault(); }
       }, true);
 
-      // Tap outside an open row → close it
+      // Tap outside → close
       document.addEventListener('touchstart', e => {
         if (getOpen() && !wrap.contains(e.target)) settle(false);
       }, { passive: true });
@@ -4822,24 +4828,26 @@ function renderGoals() {
     const macro = macros.find(m => m.id === g.macroId);
     const isActive = g.startDate <= today && g.endDate >= today;
     html += `<div class="swipe-row-wrap" style="border-radius:var(--r);margin-bottom:10px;">
-      <div class="swipe-row-content card${isActive ? ' card-accent' : ''}" style="width:100%;box-sizing:border-box;display:block;" onclick="openEditGoal(${i})">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-          <div><div style="font-family:var(--font-display);font-weight:700;font-size:15px;">${macro ? macro.name : 'Unknown cycle'}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px;">${formatDate(g.startDate)} – ${formatDate(g.endDate)}</div></div>
-          ${isActive ? '<span class="badge badge-green">Active</span>' : ''}
+      <div class="swipe-row-content">
+        <div class="card${isActive ? ' card-accent' : ''}" style="width:100%;box-sizing:border-box;cursor:pointer;" onclick="openEditGoal(${i})">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+            <div><div style="font-family:var(--font-display);font-weight:700;font-size:15px;">${macro ? macro.name : 'Unknown cycle'}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px;">${formatDate(g.startDate)} – ${formatDate(g.endDate)}</div></div>
+            ${isActive ? '<span class="badge badge-green">Active</span>' : ''}
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+            ${g.kcal    ? `<div style="font-size:12px;"><span style="color:var(--text3);">kcal </span>${g.kcal}</div>` : ''}
+            ${g.steps   ? `<div style="font-size:12px;"><span style="color:var(--text3);">steps </span>${parseInt(g.steps).toLocaleString()}</div>` : ''}
+            ${g.protein ? `<div style="font-size:12px;"><span style="color:var(--blue);">protein </span>${g.protein}g</div>` : ''}
+            ${g.carbs   ? `<div style="font-size:12px;"><span style="color:var(--amber);">carbs </span>${g.carbs}g</div>` : ''}
+            ${g.fats    ? `<div style="font-size:12px;"><span style="color:var(--red);">fats </span>${g.fats}g</div>` : ''}
+          </div>
+          <div style="font-size:10px;color:var(--text3);margin-top:10px;text-align:right;">swipe ← to delete</div>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-          ${g.kcal    ? `<div style="font-size:12px;"><span style="color:var(--text3);">kcal </span>${g.kcal}</div>` : ''}
-          ${g.steps   ? `<div style="font-size:12px;"><span style="color:var(--text3);">steps </span>${parseInt(g.steps).toLocaleString()}</div>` : ''}
-          ${g.protein ? `<div style="font-size:12px;"><span style="color:var(--blue);">protein </span>${g.protein}g</div>` : ''}
-          ${g.carbs   ? `<div style="font-size:12px;"><span style="color:var(--amber);">carbs </span>${g.carbs}g</div>` : ''}
-          ${g.fats    ? `<div style="font-size:12px;"><span style="color:var(--red);">fats </span>${g.fats}g</div>` : ''}
-        </div>
-        <div style="font-size:10px;color:var(--text3);margin-top:10px;text-align:right;">swipe ← to delete</div>
       </div>
       <div class="swipe-actions">
         <button class="swipe-btn swipe-btn-danger" onclick="event.stopPropagation();deleteGoal(${i})" title="Delete">
-          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+          <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
         </button>
       </div>
     </div>`;
