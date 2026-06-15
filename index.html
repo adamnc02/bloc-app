@@ -409,11 +409,13 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 /* ── Swipe rows ──────────────────────────────────────────────────── */
 .swipe-row-wrap { position:relative; overflow:hidden; }
 .swipe-row-content { position:relative; z-index:1; width:100%; box-sizing:border-box; transition:transform 0.25s ease; will-change:transform; }
-.swipe-actions { position:absolute; right:0; top:0; bottom:0; display:flex; align-items:stretch; gap:6px; padding:6px 10px; pointer-events:none; opacity:0; transition:opacity 0s 0.25s; }
+.swipe-actions { position:absolute; right:0; top:0; bottom:0; display:flex; align-items:stretch; gap:6px; padding:6px 10px; pointer-events:none; opacity:0; }
 .swipe-actions.vertical { flex-direction:column; }
 .swipe-actions.vertical .swipe-btn { flex:1; padding:0; }
+/* Card-style swipe wrappers need inset padding to align buttons with card edges */
+.swipe-row-wrap.card-wrap .swipe-actions { top:0; bottom:0; padding:12px 10px; }
 .swipe-row-wrap.swiped .swipe-row-content { transform:translateX(calc(-1 * var(--swipe-reveal-w, 100px))); }
-.swipe-row-wrap.swiped .swipe-actions { pointer-events:all; opacity:1; transition:opacity 0s; }
+.swipe-row-wrap.swiped .swipe-actions { pointer-events:all; opacity:1; }
 .swipe-btn { display:flex; align-items:center; justify-content:center; padding:0 12px; min-width:36px; border-radius:var(--r-sm); border:1.5px solid var(--border2); background:var(--surface); cursor:pointer; flex-shrink:0; }
 .swipe-btn-default { color:var(--text2); }
 .swipe-btn-danger  { color:var(--red); border-color:rgba(255,95,78,0.5); }
@@ -2154,7 +2156,7 @@ function renderPlan() {
 
   overviewEl.innerHTML = `
     ${macroSwitch}
-    <div class="swipe-row-wrap" style="border-radius:var(--r);margin-bottom:10px;">
+    <div class="swipe-row-wrap card-wrap" style="border-radius:var(--r);margin-bottom:10px;">
       <div class="swipe-row-content">
         <div class="card card-accent" style="width:100%;box-sizing:border-box;cursor:pointer;" onclick="openEditMacro('${macro.id}')">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
@@ -2986,9 +2988,15 @@ function _swipeHideCatcher() {
 
 function _swipeCloseAll() {
   if (_swipeOpenWrap) {
-    _swipeOpenWrap.classList.remove('swiped');
-    const c = _swipeOpenWrap.querySelector('.swipe-row-content');
+    const wrap = _swipeOpenWrap;
+    // Hide buttons immediately — don't let them slide back into view
+    const actions = wrap.querySelector('.swipe-actions');
+    if (actions) actions.style.opacity = '0';
+    wrap.classList.remove('swiped');
+    const c = wrap.querySelector('.swipe-row-content');
     if (c) { c.style.transition = ''; c.style.transform = 'translateX(0px)'; }
+    // Restore opacity after slide animation completes
+    setTimeout(() => { if (actions) actions.style.opacity = ''; }, 260);
     _swipeOpenWrap = null;
   }
   _swipeHideCatcher();
@@ -3020,9 +3028,12 @@ function initSwipeRows(container) {
           _swipeShowCatcher();
         } else {
           if (_swipeOpenWrap === wrap) { _swipeOpenWrap = null; _swipeHideCatcher(); }
+          // Hide buttons immediately on close
+          actions.style.opacity = '0';
           wrap.classList.remove('swiped');
           content.style.transition = '';
           content.style.transform  = 'translateX(0px)';
+          setTimeout(() => { actions.style.opacity = ''; }, 260);
         }
       }
 
@@ -4847,7 +4858,7 @@ function renderGoals() {
   state.goals.slice().sort((a,b)=>b.startDate.localeCompare(a.startDate)).forEach((g, i) => {
     const macro = macros.find(m => m.id === g.macroId);
     const isActive = g.startDate <= today && g.endDate >= today;
-    html += `<div class="swipe-row-wrap" style="border-radius:var(--r);margin-bottom:10px;">
+    html += `<div class="swipe-row-wrap card-wrap" style="border-radius:var(--r);margin-bottom:10px;">
       <div class="swipe-row-content">
         <div class="card${isActive ? ' card-accent' : ''}" style="width:100%;box-sizing:border-box;cursor:pointer;" onclick="openEditGoal(${i})">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
