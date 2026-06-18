@@ -471,7 +471,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
           <div class="page-title">BLOC</div>
           <div class="page-sub" id="home-date"></div>
         </div>
-        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v3.08</span>
+        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v4.01</span>
       </div>
 
       <!-- Active cycle card -->
@@ -481,13 +481,14 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <!-- Body weight -->
       <div class="section-title" style="margin-top:16px;">Body Weight</div>
       <div id="home-body" style="margin-bottom:4px;"></div>
+      <div id="home-corr-chart"></div>
 
       <!-- Steps -->
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;margin-bottom:6px;">
         <div class="section-title" style="margin:0;">Steps</div>
         <div style="display:flex;background:var(--surface2);border-radius:6px;padding:2px;gap:1px;">
-          <button id="steps-tog-today" onclick="setHomeToggle('steps','today')" style="padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:var(--surface);color:var(--text);font-family:var(--font-mono);">Today</button>
-          <button id="steps-tog-avg" onclick="setHomeToggle('steps','avg')" style="padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:transparent;color:var(--text3);font-family:var(--font-mono);">7-day</button>
+          <button id="steps-tog-today" onclick="setHomeToggle('steps','today')" style="padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:transparent;color:var(--text3);font-family:var(--font-mono);">Today</button>
+          <button id="steps-tog-avg" onclick="setHomeToggle('steps','avg')" style="padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:var(--surface);color:var(--text);font-family:var(--font-mono);">7-day</button>
         </div>
       </div>
       <div id="home-steps" style="margin-bottom:4px;"></div>
@@ -496,8 +497,8 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;margin-bottom:6px;">
         <div class="section-title" style="margin:0;">Nutrition</div>
         <div style="display:flex;background:var(--surface2);border-radius:6px;padding:2px;gap:1px;">
-          <button id="nutr-tog-today" onclick="setHomeToggle('nutr','today')" style="padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:var(--surface);color:var(--text);font-family:var(--font-mono);">Today</button>
-          <button id="nutr-tog-avg" onclick="setHomeToggle('nutr','avg')" style="padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:transparent;color:var(--text3);font-family:var(--font-mono);">7-day</button>
+          <button id="nutr-tog-today" onclick="setHomeToggle('nutr','today')" style="padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:transparent;color:var(--text3);font-family:var(--font-mono);">Today</button>
+          <button id="nutr-tog-avg" onclick="setHomeToggle('nutr','avg')" style="padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:var(--surface);color:var(--text);font-family:var(--font-mono);">7-day</button>
         </div>
       </div>
       <div id="home-nutrition" style="margin-bottom:4px;"></div>
@@ -602,7 +603,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v3.08</span>
+          <span class="badge badge-green">v4.01</span>
         </div>
       </div>
 
@@ -1349,6 +1350,59 @@ function load() {
   if (!state.nutritionQuickLog) state.nutritionQuickLog = {};
   if (!state.foodLibrary) state.foodLibrary = [];
   if (!state.recipes) state.recipes = [];
+
+  // ── Migrate exercises: add stable id and order fields ──────────────────
+  // Old trainLogs keys used positional index: macroId_week_day_exIdx_setIdx
+  // New keys use stable exercise id:          macroId_week_day_exId_setIdx
+  // On first migration, assign id = 'ex' + index and order = index * 10
+  // then remap all existing trainLog keys from positional to id-based.
+  migrateExerciseIds();
+}
+
+function migrateExerciseIds() {
+  let anyMigrated = false;
+  Object.entries(state.exercises || {}).forEach(([sessionKey, exArr]) => {
+    if (!Array.isArray(exArr)) return;
+    exArr.forEach((ex, idx) => {
+      if (!ex.id) {
+        ex.id    = 'ex_' + sessionKey + '_' + idx;
+        ex.order = idx * 10;
+        anyMigrated = true;
+      }
+      if (ex.order === undefined) ex.order = idx * 10;
+    });
+  });
+  if (!anyMigrated) return;
+
+  // Remap trainLog keys from positional index to exercise id
+  const newLogs = {};
+  Object.entries(state.trainLogs || {}).forEach(([key, val]) => {
+    // Key formats:
+    //   regular: macroId_week_day_exIdx_setIdx   (5 underscore-separated parts after macroId prefix)
+    //   prog:    macroId_prog_week_day_exIdx
+    const progMatch = key.match(/^(.+_prog_\d+_.+)_(\d+)$/);
+    const regMatch  = !progMatch && key.match(/^(.+_\d+_.+)_(\d+)_(\d+)$/);
+
+    if (progMatch) {
+      const [, base, exIdx] = progMatch;
+      // base = macroId_prog_week_day  — extract sessionKey = macroId_1_day
+      const dayKey = base.replace(/_prog_\d+_/, '_1_');
+      const exArr  = state.exercises[dayKey] || [];
+      const ex     = exArr[parseInt(exIdx)];
+      newLogs[ex ? base + '_' + ex.id : key] = val;
+    } else if (regMatch) {
+      const [, base, exIdx, setIdx] = regMatch;
+      // base = macroId_week_day — map to template key macroId_1_day
+      const templateKey = base.replace(/_\d+_([^_]+)$/, '_1_$1');
+      const exArr = state.exercises[templateKey] || [];
+      const ex    = exArr[parseInt(exIdx)];
+      newLogs[ex ? base + '_' + ex.id + '_' + setIdx : key] = val;
+    } else {
+      newLogs[key] = val;
+    }
+  });
+  state.trainLogs = newLogs;
+  save();
 }
 
 load();
@@ -1603,6 +1657,19 @@ function updateLegSelectLabels() {
   legSel.options[1].text = isGain ? 'Yes (10 kg per mesocycle)' : 'Yes (up to 3 kg per mesocycle)';
 }
 
+function reorderExercise(day, fromSortedIdx, toSortedIdx) {
+  const key = state.currentMacroId + '_1_' + day;
+  const arr = state.exercises[key];
+  if (!arr) return;
+  const sorted = arr.slice().sort((a,b) => (a.order||0)-(b.order||0));
+  // Reassign order values based on new position
+  const moved = sorted.splice(fromSortedIdx, 1)[0];
+  sorted.splice(toSortedIdx, 0, moved);
+  sorted.forEach((ex, i) => { ex.order = i * 10; });
+  save();
+  renderPlan();
+}
+
 function openAddExercise(week, day) {
   state.currentEditContext = { week, day, editIdx: null };
   document.getElementById('modal-ex-title').textContent = 'Add Exercise';
@@ -1620,9 +1687,12 @@ function openAddExercise(week, day) {
 
 function openEditExercise(week, day, idx) {
   const key = state.currentMacroId + '_' + week + '_' + day;
-  const ex = (state.exercises[key] || [])[idx];
+  const sorted = (state.exercises[key] || []).slice().sort((a,b) => (a.order||0)-(b.order||0));
+  const ex = sorted[idx];
   if (!ex) return;
-  state.currentEditContext = { week, day, editIdx: idx };
+  // Find the real index in the unsorted array so saveExercise can update it
+  const realIdx = (state.exercises[key] || []).findIndex(e => e.id === ex.id);
+  state.currentEditContext = { week, day, editIdx: realIdx };
   document.getElementById('modal-ex-title').textContent = 'Edit Exercise';
   populateExerciseSelect(ex.name);
   setSelectValue('ex-reps-input', ex.reps);
@@ -1652,9 +1722,16 @@ function saveExercise() {
     type,
     isHeavyLeg: document.getElementById('ex-leg-select').value === '1',
   };
-  if (ctx.editIdx !== null) {
+  if (ctx.editIdx !== null && state.exercises[key][ctx.editIdx]) {
+    // Preserve existing id and order when editing
+    ex.id    = state.exercises[key][ctx.editIdx].id    || ('ex_' + key + '_' + ctx.editIdx);
+    ex.order = state.exercises[key][ctx.editIdx].order !== undefined ? state.exercises[key][ctx.editIdx].order : ctx.editIdx * 10;
     state.exercises[key][ctx.editIdx] = ex;
   } else {
+    // New exercise — assign id and order
+    const existingCount = (state.exercises[key] || []).length;
+    ex.id    = 'ex_' + key + '_' + Date.now();
+    ex.order = existingCount * 10;
     state.exercises[key].push(ex);
   }
   save();
@@ -1664,10 +1741,21 @@ function saveExercise() {
 
 function deleteExercise(week, day, idx) {
   const key = state.currentMacroId + '_' + week + '_' + day;
-  if (state.exercises[key]) {
-    state.exercises[key].splice(idx, 1);
-    save(); renderPlan();
+  if (!state.exercises[key]) return;
+  const sorted = state.exercises[key].slice().sort((a,b) => (a.order||0)-(b.order||0));
+  const ex = sorted[idx];
+  if (!ex) return;
+  // Remove from array
+  state.exercises[key] = state.exercises[key].filter(e => e.id !== ex.id);
+  // Delete all logs for this exercise across all weeks
+  if (ex.id) {
+    Object.keys(state.trainLogs).forEach(k => {
+      if (k.includes('_' + ex.id + '_') || k.endsWith('_' + ex.id)) {
+        delete state.trainLogs[k];
+      }
+    });
   }
+  save(); renderPlan();
 }
 
 // ════════════════════════════════════════════════
@@ -1830,24 +1918,8 @@ function renderHome() {
     </div>
   </div>`;
 
-  // Sparkline for body weight (last 14 entries)
-  const sparkData = weightLogs.filter(l => l.weight).slice(0, 14).reverse();
-  if (sparkData.length >= 2) {
-    const vals = sparkData.map(l => parseFloat(l.weight));
-    const min = Math.min(...vals), max = Math.max(...vals);
-    const range = max - min || 1;
-    const W = 320, H = 40, pad = 4;
-    const pts = vals.map((v, i) => {
-      const x = pad + (i / (vals.length - 1)) * (W - pad*2);
-      const y = H - pad - ((v - min) / range) * (H - pad*2);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    }).join(' ');
-    bodyEl.innerHTML += `<div style="padding:0 0 6px;">
-      <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:40px;display:block;">
-        <polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.7"/>
-      </svg>
-    </div>`;
-  }
+  // ── Factor correlation chart ──────────────────
+  renderCorrelationChart();
 
   // ── Steps & Nutrition ─────────────────────────
   renderHomeSteps();
@@ -1871,7 +1943,7 @@ function renderHome() {
 // ════════════════════════════════════════════════
 // HOME — Steps & Nutrition toggle + bar charts
 // ════════════════════════════════════════════════
-const homeToggle = { steps: 'today', nutr: 'today' };
+const homeToggle = { steps: 'avg', nutr: 'avg' };
 
 function setHomeToggle(section, val) {
   homeToggle[section] = val;
@@ -1933,6 +2005,221 @@ function buildHomeProgressBar(logged, target, color, overColor) {
     + '<div style="height:100%;background:'+(isOver?overColor:color)+';border-radius:4px;width:'+pct+'%;"></div>'
     + (markerPct!==null ? '<div style="position:absolute;top:0;bottom:0;width:2px;background:rgba(255,255,255,0.55);left:'+markerPct+'%;"></div>' : '')
     + '</div>';
+}
+
+// ── Factor vs Weight correlation chart ───────────────────────────────────
+let corrPeriod = 'week'; // 'day' | 'week' | 'biweek'
+
+function setCorrPeriod(p) {
+  corrPeriod = p;
+  renderCorrelationChart();
+}
+
+function renderCorrelationChart() {
+  const el = document.getElementById('home-corr-chart');
+  if (!el) return;
+
+  const today = getLocalToday();
+  const todayMs = new Date(today + 'T00:00:00').getTime();
+
+  // Build per-day data map: date → { weight, steps, kcal, protein }
+  const dayMap = {};
+  const ensureDay = d => { if (!dayMap[d]) dayMap[d] = { weight: null, steps: null, kcal: 0, protein: 0, nutrDays: 0 }; };
+
+  // Weight & steps from bodyLogs
+  (state.bodyLogs || []).forEach(l => {
+    ensureDay(l.date);
+    if (l.weight) dayMap[l.date].weight = parseFloat(l.weight);
+    if (l.steps)  dayMap[l.date].steps  = parseInt(l.steps);
+  });
+
+  // Kcal & protein from nutritionMeals
+  Object.entries(state.nutritionMeals || {}).forEach(([date, meals]) => {
+    ensureDay(date);
+    let kcal = 0, protein = 0;
+    Object.values(meals).forEach(items => (items || []).forEach(item => {
+      kcal    += item.kcal    || 0;
+      protein += item.protein || 0;
+    }));
+    if (kcal > 0 || protein > 0) {
+      dayMap[date].kcal    = kcal;
+      dayMap[date].protein = protein;
+      dayMap[date].nutrDays = 1;
+    }
+  });
+
+  const allDates = Object.keys(dayMap).sort();
+  if (allDates.length < 2) {
+    el.innerHTML = `<div style="font-size:12px;color:var(--text3);text-align:center;padding:20px 0;">Log weight and nutrition to see trends</div>`;
+    return;
+  }
+
+  // ── Bucket dates into periods ──────────────────────────────────────────
+  const periodDays = corrPeriod === 'day' ? 1 : corrPeriod === 'week' ? 7 : 14;
+  // Anchor from earliest date, group forward in chunks
+  const firstDate = new Date(allDates[0] + 'T00:00:00');
+  const periods = [];
+  let cursor = new Date(firstDate);
+  while (cursor.getTime() <= todayMs) {
+    const start = cursor.toISOString().split('T')[0];
+    const end   = new Date(cursor.getTime() + (periodDays - 1) * 86400000).toISOString().split('T')[0];
+    const days  = allDates.filter(d => d >= start && d <= end);
+    if (days.length > 0) {
+      const weightDays = days.filter(d => dayMap[d].weight !== null);
+      const stepsDays  = days.filter(d => dayMap[d].steps  !== null);
+      const nutrDays   = days.filter(d => dayMap[d].nutrDays > 0);
+
+      const firstW = weightDays.length ? dayMap[weightDays[0]].weight : null;
+      const lastW  = weightDays.length ? dayMap[weightDays[weightDays.length-1]].weight : null;
+      const weightDelta = (firstW !== null && lastW !== null && weightDays.length > 1) ? lastW - firstW : null;
+      const avgWeight   = weightDays.length ? weightDays.reduce((s,d) => s + dayMap[d].weight, 0) / weightDays.length : null;
+      const avgSteps    = stepsDays.length  ? stepsDays.reduce((s,d)  => s + dayMap[d].steps,  0) / stepsDays.length  : null;
+      const avgKcal     = nutrDays.length   ? nutrDays.reduce((s,d)   => s + dayMap[d].kcal,   0) / nutrDays.length   : null;
+      const avgProtein  = nutrDays.length   ? nutrDays.reduce((s,d)   => s + dayMap[d].protein,0) / nutrDays.length   : null;
+
+      periods.push({ start, end, weightDelta, avgWeight, avgSteps, avgKcal, avgProtein, days: days.length });
+    }
+    cursor = new Date(cursor.getTime() + periodDays * 86400000);
+  }
+
+  // Only keep last 8 periods for readability
+  const visiblePeriods = periods.slice(-8);
+  if (visiblePeriods.length < 2) {
+    el.innerHTML = `<div style="font-size:12px;color:var(--text3);text-align:center;padding:20px 0;">Not enough data yet for this period</div>`;
+    return;
+  }
+
+  // ── Normalise each metric 0–1 across all visible periods ──────────────
+  function normRange(vals) {
+    const nonNull = vals.filter(v => v !== null);
+    if (!nonNull.length) return { min: 0, max: 1 };
+    return { min: Math.min(...nonNull), max: Math.max(...nonNull) };
+  }
+  function norm(v, min, max) {
+    if (v === null) return null;
+    return max === min ? 0.5 : (v - min) / (max - min);
+  }
+
+  const wDeltas  = visiblePeriods.map(p => p.weightDelta);
+  const steps    = visiblePeriods.map(p => p.avgSteps);
+  const kcals    = visiblePeriods.map(p => p.avgKcal);
+  const proteins = visiblePeriods.map(p => p.avgProtein);
+
+  // Weight delta: centre on 0 for visual balance
+  const wMax = Math.max(...wDeltas.filter(v=>v!==null).map(Math.abs), 0.5);
+  const stepsR   = normRange(steps);
+  const kcalR    = normRange(kcals);
+  const proteinR = normRange(proteins);
+
+  // ── Build SVG ─────────────────────────────────────────────────────────
+  const n   = visiblePeriods.length;
+  const SVW = 320, SVH = 130;
+  const leftPad = 8, rightPad = 8, topPad = 8, bottomPad = 28;
+  const chartW = SVW - leftPad - rightPad;
+  const chartH = SVH - topPad - bottomPad;
+  const colW   = chartW / n;
+  const barW   = Math.max(4, Math.floor(colW * 0.18));
+  const gap    = Math.max(1, Math.floor(colW * 0.05));
+  const groupW = 4 * barW + 3 * gap;
+  // Colours: weight=accent(green), steps=blue, kcal=amber, protein=purple
+  const colours = ['var(--accent)', 'var(--blue)', 'var(--amber)', '#a78bfa'];
+  const labels  = ['Δwt', 'steps', 'kcal', 'prot'];
+  const midY    = topPad + chartH * 0.5; // centre line for weight delta
+
+  let bars = '';
+  let xLabels = '';
+
+  visiblePeriods.forEach((p, i) => {
+    const cx = leftPad + i * colW + (colW - groupW) / 2;
+    const metrics = [
+      // weight delta: bars go up (loss) or down (gain) from centre
+      (() => {
+        if (p.weightDelta === null) return null;
+        const normD = p.weightDelta / wMax; // -1 to +1
+        const barH  = Math.abs(normD) * (chartH * 0.45);
+        const y     = normD < 0 ? midY - barH : midY;
+        return { y, h: Math.max(1, barH), colour: normD < 0 ? 'var(--accent)' : 'var(--red)' };
+      })(),
+      // steps: bar from bottom, taller = more steps
+      (() => {
+        const n = norm(p.avgSteps, stepsR.min, stepsR.max);
+        if (n === null) return null;
+        const barH = n * chartH * 0.85;
+        return { y: topPad + chartH - barH, h: Math.max(1, barH), colour: colours[1] };
+      })(),
+      // kcal: bar from bottom, higher kcal = taller (inverted may be more intuitive but keep consistent)
+      (() => {
+        const n = norm(p.avgKcal, kcalR.min, kcalR.max);
+        if (n === null) return null;
+        const barH = n * chartH * 0.85;
+        return { y: topPad + chartH - barH, h: Math.max(1, barH), colour: colours[2] };
+      })(),
+      // protein: bar from bottom
+      (() => {
+        const n = norm(p.avgProtein, proteinR.min, proteinR.max);
+        if (n === null) return null;
+        const barH = n * chartH * 0.85;
+        return { y: topPad + chartH - barH, h: Math.max(1, barH), colour: colours[3] };
+      })(),
+    ];
+
+    metrics.forEach((m, mi) => {
+      if (!m) return;
+      const x = cx + mi * (barW + gap);
+      bars += `<rect x="${x.toFixed(1)}" y="${m.y.toFixed(1)}" width="${barW}" height="${m.h.toFixed(1)}" rx="1" fill="${m.colour}" opacity="0.85"/>`;
+    });
+
+    // X-axis label: short date
+    const labelDate = corrPeriod === 'day'
+      ? p.start.slice(5)  // MM-DD
+      : p.start.slice(5); // same — short enough
+    xLabels += `<text x="${(leftPad + i * colW + colW/2).toFixed(1)}" y="${SVH - 4}" text-anchor="middle" font-size="8" fill="var(--text3)" font-family="var(--font-mono)">${labelDate}</text>`;
+  });
+
+  // Centre line for weight delta
+  const centreLine = `<line x1="${leftPad}" y1="${midY.toFixed(1)}" x2="${SVW - rightPad}" y2="${midY.toFixed(1)}" stroke="var(--border2)" stroke-width="0.5" stroke-dasharray="3,3"/>`;
+
+  // Legend
+  const legendY = SVH - 18;
+  let legend = '';
+  const legendItems = [
+    { label: '● Δweight', colour: 'var(--accent)' },
+    { label: '● steps',   colour: 'var(--blue)' },
+    { label: '● kcal',    colour: 'var(--amber)' },
+    { label: '● protein', colour: '#a78bfa' },
+  ];
+  const lx = [0, 76, 140, 196];
+  legendItems.forEach((li, i) => {
+    legend += `<text x="${leftPad + lx[i]}" y="${SVH - 3}" font-size="8" fill="${li.colour}" font-family="var(--font-mono)">${li.label}</text>`;
+  });
+
+  const svg = `<svg viewBox="0 0 ${SVW} ${SVH}" style="width:100%;display:block;overflow:visible;">
+    ${centreLine}
+    ${bars}
+    ${xLabels}
+  </svg>`;
+
+  // Period toggle buttons
+  const btnStyle = (p) => corrPeriod === p
+    ? 'padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:var(--surface);color:var(--text);font-family:var(--font-mono);'
+    : 'padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:transparent;color:var(--text3);font-family:var(--font-mono);';
+
+  el.innerHTML = `
+    <div class="card" style="margin-top:8px;padding:12px 14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div style="font-size:11px;color:var(--text2);font-weight:500;">Factor trends vs weight</div>
+        <div style="display:flex;background:var(--surface2);border-radius:6px;padding:2px;gap:1px;">
+          <button onclick="setCorrPeriod('day')"    style="${btnStyle('day')}">Daily</button>
+          <button onclick="setCorrPeriod('week')"   style="${btnStyle('week')}">Weekly</button>
+          <button onclick="setCorrPeriod('biweek')" style="${btnStyle('biweek')}">2-week</button>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">Δweight bars rise from centre (↑ = gain, ↓ = loss). Other bars from bottom, taller = higher avg.</div>
+      ${svg}
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">
+        ${legendItems.map(li => `<span style="font-size:10px;color:${li.colour};font-family:var(--font-mono);">${li.label}</span>`).join('')}
+      </div>
+    </div>`;
 }
 
 function renderHomeSteps() {
@@ -2235,7 +2522,7 @@ function renderMicroBlock(macro, week, micro, days, dayLabels, editable) {
   days.forEach(day => {
     // Always read exercises from Week 1 template
     const templateKey = macro.id + '_1_' + day + microKey;
-    const exercises = state.exercises[templateKey] || [];
+    const exercises = (state.exercises[templateKey] || []).slice().sort((a,b) => (a.order||0)-(b.order||0));
 
     if (editable) {
       // Fully editable — show add button and exercise list with delete
@@ -2251,20 +2538,28 @@ function renderMicroBlock(macro, week, micro, days, dayLabels, editable) {
       exercises.forEach((ex, idx) => {
         const sets = getWeekSets(ex, 1, macro.weeks);
         const typeLabel = ex.type === 'standard' ? 'std' : ex.type === 'myorep' ? 'myorep giant' : 'myomatch';
-        html += `<div class="swipe-row-wrap" style="border-top:0.5px solid var(--border);">
+        const dayKey = day + microKey;
+        html += `<div class="swipe-row-wrap" style="border-top:0.5px solid var(--border);"
+          draggable="true"
+          ondragstart="event.dataTransfer.setData('text/plain','${idx}|${dayKey}')"
+          ondragover="event.preventDefault()"
+          ondrop="event.preventDefault();const d=event.currentTarget.closest('[data-ex-list]');const parts=event.dataTransfer.getData('text/plain').split('|');if(parts[1]==='${dayKey}')reorderExercise('${dayKey}',parseInt(parts[0]),${idx})">
           <div class="swipe-row-content" style="padding:10px 0;width:100%;box-sizing:border-box;"
-            onclick="openEditExercise(1,'${day + microKey}',${idx})">
-            <div style="flex:1;cursor:pointer;-webkit-tap-highlight-color:transparent;">
-              <div style="font-weight:500;font-size:13px;color:var(--text);">${ex.name}</div>
-              <div style="font-size:12px;color:var(--text2);margin-top:3px;">${sets} sets · ${ex.reps} reps · ${ex.startWeight} kg start</div>
-              <div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap;">
-                <span class="badge ${ex.type==='standard'?'badge-blue':ex.type==='myorep'?'badge-purple':'badge-amber'}">${typeLabel}</span>
-                ${ex.isHeavyLeg ? '<span class="badge badge-amber">heavy leg</span>' : ''}
+            onclick="openEditExercise(1,'${dayKey}',${idx})">
+            <div style="display:flex;align-items:center;gap:8px;width:100%;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+              <div style="color:var(--text3);cursor:grab;padding:0 4px;flex-shrink:0;touch-action:none;">⠿</div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-weight:500;font-size:13px;color:var(--text);">${ex.name}</div>
+                <div style="font-size:12px;color:var(--text2);margin-top:3px;">${sets} sets · ${ex.reps} reps · ${ex.startWeight} kg start</div>
+                <div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap;">
+                  <span class="badge ${ex.type==='standard'?'badge-blue':ex.type==='myorep'?'badge-purple':'badge-amber'}">${typeLabel}</span>
+                  ${ex.isHeavyLeg ? '<span class="badge badge-amber">heavy leg</span>' : ''}
+                </div>
               </div>
             </div>
           </div>
           <div class="swipe-actions">
-            <button class="swipe-btn swipe-btn-danger" onclick="event.stopPropagation();deleteExercise(1,'${day + microKey}',${idx})" title="Delete">
+            <button class="swipe-btn swipe-btn-danger" onclick="event.stopPropagation();deleteExercise(1,'${dayKey}',${idx})" title="Delete">
               <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
             </button>
           </div>
@@ -2417,13 +2712,13 @@ function renderTrain() {
       days.forEach(d => {
         const dayKey = mc === 0 ? d : d + 'm' + mc;
         const templateKey = macro.id + '_1_' + dayKey;
-        const exercises = state.exercises[templateKey] || [];
+        const exercises = (state.exercises[templateKey] || []).slice().sort((a,b) => (a.order||0)-(b.order||0));
         if (exercises.length === 0) return;
         hasAnySessions = true;
-        exercises.forEach((ex, exIdx) => {
+        exercises.forEach((ex) => {
           const sets = getWeekSets(ex, w, macro.weeks);
           for (let s = 0; s < sets; s++) {
-            const lk = macro.id + '_' + w + '_' + dayKey + '_' + exIdx + '_' + s;
+            const lk = macro.id + '_' + w + '_' + dayKey + '_' + ex.id + '_' + s;
             if (!state.trainLogs[lk] || !state.trainLogs[lk].done) allSessionsDone = false;
           }
         });
@@ -2478,12 +2773,12 @@ function selectTrainDay(d) {
   renderTrain();
 }
 
-function getProgKey(macroId, week, day, exIdx) {
-  return macroId + '_prog_' + week + '_' + day + '_' + exIdx;
+function getProgKey(macroId, week, day, exId) {
+  return macroId + '_prog_' + week + '_' + day + '_' + exId;
 }
 
-function selectProgType(macroId, week, day, exIdx, progType) {
-  const pk = getProgKey(macroId, week, day, exIdx);
+function selectProgType(macroId, week, day, exId, progType) {
+  const pk = getProgKey(macroId, week, day, exId);
   if (!state.trainLogs[pk]) state.trainLogs[pk] = {};
   state.trainLogs[pk].progType = progType;
   save();
@@ -2503,7 +2798,7 @@ function toggleExercise(expandKey) {
 function renderTrainDay(macro) {
   // Exercises are always defined in Week 1 — used as the template for all weeks
   const templateKey = macro.id + '_1_' + state.currentDay;
-  const exercises = state.exercises[templateKey] || [];
+  const exercises = (state.exercises[templateKey] || []).slice().sort((a,b) => (a.order||0)-(b.order||0));
   const key = macro.id + '_' + state.currentWeek + '_' + state.currentDay;
   const el = document.getElementById('train-content');
 
@@ -2516,14 +2811,15 @@ function renderTrainDay(macro) {
   const prevKey = macro.id + '_' + prevWeek + '_' + state.currentDay;
 
   let html = '';
-  exercises.forEach((ex, exIdx) => {
-    const expandKey = macro.id + '_' + state.currentWeek + '_' + state.currentDay + '_' + exIdx;
+  exercises.forEach((ex) => {
+    const exId = ex.id;
+    const expandKey = macro.id + '_' + state.currentWeek + '_' + state.currentDay + '_' + exId;
     const isExpanded = !!expandedExercises[expandKey];
     const sets = getWeekSets(ex, state.currentWeek, macro.weeks);
-    const pk = getProgKey(macro.id, state.currentWeek, state.currentDay, exIdx);
+    const pk = getProgKey(macro.id, state.currentWeek, state.currentDay, exId);
     const progLog = state.trainLogs[pk] || {};
     const progType = progLog.progType || 'weight';
-    const prevPk = getProgKey(macro.id, prevWeek, state.currentDay, exIdx);
+    const prevPk = getProgKey(macro.id, prevWeek, state.currentDay, exId);
     const prevProgLog = state.trainLogs[prevPk] || {};
     const prevProgType = prevProgLog.progType || null;
     const isMyorep = ex.type === 'myorep' || ex.type === 'myomatch';
@@ -2539,7 +2835,7 @@ function renderTrainDay(macro) {
     if (prevWeek >= 1) {
       const prevSetsCount = getWeekSets(ex, prevWeek, macro.weeks);
       for (let s = 0; s < prevSetsCount; s++) {
-        const lk = prevKey + '_' + exIdx + '_' + s;
+        const lk = prevKey + '_' + exId + '_' + s;
         const lg = state.trainLogs[lk];
         prevLoggedSets.push(lg || null);
       }
@@ -2588,7 +2884,7 @@ function renderTrainDay(macro) {
     // ── Current week's logged values for compact display ──────────────────────
     let doneSets = 0, loggedWeights = [], loggedRepsArr = [];
     for (let s = 0; s < sets; s++) {
-      const lk = key + '_' + exIdx + '_' + s;
+      const lk = key + '_' + exId + '_' + s;
       const lg = state.trainLogs[lk] || {};
       if (lg.done) doneSets++;
       if (lg.weight) loggedWeights.push(parseFloat(lg.weight));
@@ -2602,7 +2898,7 @@ function renderTrainDay(macro) {
     // Use prevActualWeight (last week's Set 1) for per-cycle delta; startWeight for total %
     const startWeight = ex.startWeight || 0;
     // Current weight: use logged Set 1 if available, else fall back to recommendedWeight
-    const currentLogKey = key + '_' + exIdx + '_0';
+    const currentLogKey = key + '_' + exId + '_0';
     const currentLog = state.trainLogs[currentLogKey];
     const currentActualWeight = currentLog && currentLog.weight ? parseFloat(currentLog.weight) : null;
 
@@ -2709,12 +3005,12 @@ function renderTrainDay(macro) {
       let setRows = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
         <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;">Log sets</div>
         <div style="display:flex;gap:6px;">
-          <button onclick="fillSuggested('${macro.id}',${state.currentWeek},'${state.currentDay}',${exIdx},${sets},'${weightPlaceholder}','${repsPlaceholder}')"
-            id="fill-btn-${macro.id}-${exIdx}"
+          <button onclick="fillSuggested('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholder}','${repsPlaceholder}')"
+            id="fill-btn-${macro.id}-${exId}"
             style="font-size:11px;padding:5px 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;color:var(--text2);font-family:var(--font-mono);cursor:pointer;">
             ↓ Fill suggested
           </button>
-          <button onclick="clearExerciseLogs('${macro.id}',${state.currentWeek},'${state.currentDay}',${exIdx},${sets})"
+          <button onclick="clearExerciseLogs('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets})"
             style="font-size:11px;padding:5px 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;color:var(--red);font-family:var(--font-mono);cursor:pointer;">
             Clear
           </button>
@@ -2727,7 +3023,7 @@ function renderTrainDay(macro) {
         <div style="width:32px;"></div>
       </div>`;
       for (let s = 0; s < sets; s++) {
-        const logKey = key + '_' + exIdx + '_' + s;
+        const logKey = key + '_' + exId + '_' + s;
         const log = state.trainLogs[logKey] || {};
         setRows += `<div class="set-log-row">
           <div class="set-num">${s + 1}</div>
@@ -2761,10 +3057,10 @@ function logSet(key, field, value) {
   save();
 }
 
-function fillSuggested(macroId, week, day, exIdx, sets, weight, reps) {
+function fillSuggested(macroId, week, day, exId, sets, weight, reps) {
   const baseKey = macroId + '_' + week + '_' + day;
   for (let s = 0; s < sets; s++) {
-    const logKey = baseKey + '_' + exIdx + '_' + s;
+    const logKey = baseKey + '_' + exId + '_' + s;
     if (!state.trainLogs[logKey]) state.trainLogs[logKey] = {};
     state.trainLogs[logKey].weight = weight;
     state.trainLogs[logKey].reps   = reps;
@@ -2785,7 +3081,7 @@ function fillSuggested(macroId, week, day, exIdx, sets, weight, reps) {
     }
   }
   // Flash the fill button
-  const btnEl = document.getElementById('fill-btn-' + macroId + '-' + exIdx);
+  const btnEl = document.getElementById('fill-btn-' + macroId + '-' + exId);
   if (btnEl) {
     btnEl.classList.remove('fill-flash');
     void btnEl.offsetWidth;
@@ -2795,7 +3091,7 @@ function fillSuggested(macroId, week, day, exIdx, sets, weight, reps) {
   // Remove animation classes after they complete so state is clean
   setTimeout(() => {
     for (let s = 0; s < sets; s++) {
-      const logKey = baseKey + '_' + exIdx + '_' + s;
+      const logKey = baseKey + '_' + exId + '_' + s;
       document.getElementById('inp-w-' + logKey)?.classList.remove('input-flash');
       document.getElementById('inp-r-' + logKey)?.classList.remove('input-flash');
     }
@@ -2803,14 +3099,14 @@ function fillSuggested(macroId, week, day, exIdx, sets, weight, reps) {
   }, 900);
 }
 
-function clearExerciseLogs(macroId, week, day, exIdx, sets) {
+function clearExerciseLogs(macroId, week, day, exId, sets) {
   const baseKey = macroId + '_' + week + '_' + day;
   for (let s = 0; s < sets; s++) {
-    const logKey = baseKey + '_' + exIdx + '_' + s;
+    const logKey = baseKey + '_' + exId + '_' + s;
     delete state.trainLogs[logKey];
   }
   // Also clear prog key
-  const pk = macroId + '_prog_' + week + '_' + day + '_' + exIdx;
+  const pk = macroId + '_prog_' + week + '_' + day + '_' + exId;
   delete state.trainLogs[pk];
   save();
   const macro = state.macrocycles.find(m => m.id === macroId);
@@ -3632,8 +3928,11 @@ function selectFromAddList(idx) {
   requestAnimationFrame(() => openNutrServingModal());
 }
 
+let _nutrRecipeMeal = null; // set when recipe builder opened from nutrition
+
 function openNutrRecipeBuilder() {
-  // Open recipe builder from nutrition — returns to nutrition after save
+  // Save the active meal so saveRecipe can auto-log after creating
+  _nutrRecipeMeal = nutrActiveMeal || 'Dinner';
   closeModal('modal-nutr-add');
   requestAnimationFrame(() => openRecipeBuilder());
 }
@@ -4417,12 +4716,21 @@ function openEditFoodEntry(date, meal, idx) {
 
 function updateEditPreview() {
   const isManual = document.getElementById('nutr-edit-mode').value === 'manual';
+  const isRecipe = document.getElementById('nutr-edit-is-recipe').value === '1';
   let kcal, p, c, f;
   if (isManual) {
     kcal = parseFloat(document.getElementById('nutr-edit-manual-kcal').value)    || 0;
     p    = parseFloat(document.getElementById('nutr-edit-manual-protein').value) || 0;
     c    = parseFloat(document.getElementById('nutr-edit-manual-carbs').value)   || 0;
     f    = parseFloat(document.getElementById('nutr-edit-manual-fats').value)    || 0;
+  } else if (isRecipe) {
+    // For recipes, per100* fields hold per-serving values (not per-100g).
+    // Total = perServingValue * servings — no /100 needed.
+    const servings = parseFloat(document.getElementById('nutr-edit-servings').value) || 1;
+    kcal = Math.round((parseFloat(document.getElementById('nutr-edit-kcal').value)    || 0) * servings);
+    p    = Math.round((parseFloat(document.getElementById('nutr-edit-protein').value) || 0) * servings);
+    c    = Math.round((parseFloat(document.getElementById('nutr-edit-carbs').value)   || 0) * servings);
+    f    = Math.round((parseFloat(document.getElementById('nutr-edit-fats').value)    || 0) * servings);
   } else {
     const grams    = parseFloat(document.getElementById('nutr-edit-grams').value)    || 0;
     const servings = parseFloat(document.getElementById('nutr-edit-servings').value) || 1;
@@ -4459,18 +4767,29 @@ function saveEditFoodEntry() {
     const isRecipeEdit = document.getElementById('nutr-edit-is-recipe').value === '1';
     const grams    = isRecipeEdit ? 1 : (parseFloat(document.getElementById('nutr-edit-grams').value) || 100);
     const servings = parseFloat(document.getElementById('nutr-edit-servings').value) || 1;
-    const total    = grams * servings;
-    const per100k  = parseFloat(document.getElementById('nutr-edit-kcal').value)    || 0;
-    const per100p  = parseFloat(document.getElementById('nutr-edit-protein').value) || 0;
-    const per100c  = parseFloat(document.getElementById('nutr-edit-carbs').value)   || 0;
-    const per100f  = parseFloat(document.getElementById('nutr-edit-fats').value)    || 0;
-    updated = {
-      ...existing, grams, servings, serving: Math.round(total),
-      kcal:    Math.round(per100k / 100 * total),
-      protein: Math.round(per100p / 100 * total),
-      carbs:   Math.round(per100c / 100 * total),
-      fats:    Math.round(per100f / 100 * total),
-    };
+    const perServingKcal = parseFloat(document.getElementById('nutr-edit-kcal').value)    || 0;
+    const perServingP    = parseFloat(document.getElementById('nutr-edit-protein').value) || 0;
+    const perServingC    = parseFloat(document.getElementById('nutr-edit-carbs').value)   || 0;
+    const perServingF    = parseFloat(document.getElementById('nutr-edit-fats').value)    || 0;
+    if (isRecipeEdit) {
+      // Recipes: per100* stores per-serving values. Total = perServing * servings.
+      updated = {
+        ...existing, grams: 1, servings, serving: servings,
+        kcal:    Math.round(perServingKcal * servings),
+        protein: Math.round(perServingP    * servings),
+        carbs:   Math.round(perServingC    * servings),
+        fats:    Math.round(perServingF    * servings),
+      };
+    } else {
+      const total = grams * servings;
+      updated = {
+        ...existing, grams, servings, serving: Math.round(total),
+        kcal:    Math.round(perServingKcal / 100 * total),
+        protein: Math.round(perServingP    / 100 * total),
+        carbs:   Math.round(perServingC    / 100 * total),
+        fats:    Math.round(perServingF    / 100 * total),
+      };
+    }
   }
 
   state.nutritionMeals[date][meal][idx] = updated;
@@ -5856,8 +6175,34 @@ function saveRecipe() {
   save();
   recipeIngredients = [];
   closeModal('modal-recipe-ingredients');
-  renderRecipeList();
-  openModal('modal-recipe-list');
+
+  // If opened from the nutrition screen, go straight to the serving modal
+  if (_nutrRecipeMeal) {
+    const meal = _nutrRecipeMeal;
+    _nutrRecipeMeal = null;
+    nutrActiveMeal = meal;
+    // Build nutrPendingProduct from the new recipe's food library entry
+    const libEntry = (state.foodLibrary || []).find(f => f.name === recipe.name);
+    if (libEntry) {
+      nutrPendingProduct = {
+        name:     libEntry.name,
+        brand:    libEntry.brand || '',
+        barcode:  null,
+        per100kcal: libEntry.per100kcal,
+        per100p:    libEntry.per100p,
+        per100c:    libEntry.per100c,
+        per100f:    libEntry.per100f,
+        defaultServing: null,
+        source: 'recipe',
+      };
+      requestAnimationFrame(() => openNutrServingModal());
+    } else {
+      showScreen('nutrition');
+    }
+  } else {
+    renderRecipeList();
+    openModal('modal-recipe-list');
+  }
 }
 
 // ── Recipe list (view / edit / delete) ───────────────────────────────────────
