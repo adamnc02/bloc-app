@@ -471,17 +471,19 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
           <div class="page-title">BLOC</div>
           <div class="page-sub" id="home-date"></div>
         </div>
-        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v4.01</span>
+        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v4.02</span>
       </div>
 
       <!-- Active cycle card -->
       <div class="section-title">Active Cycle</div>
       <div id="home-cycle" style="margin-bottom:4px;"></div>
 
-      <!-- Body weight -->
+      <!-- Body weight + peak insight -->
       <div class="section-title" style="margin-top:16px;">Body Weight</div>
       <div id="home-body" style="margin-bottom:4px;"></div>
-      <div id="home-corr-chart"></div>
+
+      <!-- Factor charts + weekly table -->
+      <div id="home-progress-charts" style="margin-bottom:4px;"></div>
 
       <!-- Steps -->
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;margin-bottom:6px;">
@@ -502,10 +504,6 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
         </div>
       </div>
       <div id="home-nutrition" style="margin-bottom:4px;"></div>
-
-      <!-- Goals -->
-      <div class="section-title" style="margin-top:16px;" id="home-goals-title" style="display:none;">Today's Goals</div>
-      <div id="home-goals" style="margin-bottom:4px;"></div>
     </div>
 
     <!-- ════════════════════════════════════════
@@ -603,7 +601,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v4.01</span>
+          <span class="badge badge-green">v4.02</span>
         </div>
       </div>
 
@@ -733,8 +731,8 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   ═══════════════════════════════════════════ -->
   <nav id="nav">
     <button class="nav-btn active" id="nav-home" onclick="showScreen('home')">
-      <svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>
-      home
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="12" width="4" height="9" rx="0.5"/><rect x="10" y="7" width="4" height="14" rx="0.5"/><rect x="17" y="3" width="4" height="18" rx="0.5"/></svg>
+      progress
     </button>
     <button class="nav-btn" id="nav-plan" onclick="showScreen('plan')">
       <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
@@ -1802,10 +1800,101 @@ function getMyorepProgression(ex, week) {
 }
 
 // ════════════════════════════════════════════════
-// RENDER: HOME
+// RENDER: HOME / PROGRESS
 // ════════════════════════════════════════════════
+
+// Build per-day stats map from all logs
+function buildDayMap() {
+  const days = {};
+  const ensure = d => { if (!days[d]) days[d] = { weight: null, steps: null, kcal: 0, protein: 0, hasNutr: false }; };
+  (state.bodyLogs || []).forEach(l => {
+    ensure(l.date);
+    if (l.weight) days[l.date].weight  = parseFloat(l.weight);
+    if (l.steps)  days[l.date].steps   = parseInt(l.steps);
+  });
+  (state.nutritionLogs || []).forEach(l => {
+    ensure(l.date);
+    if (l.kcal || l.protein) {
+      days[l.date].kcal    = parseInt(l.kcal)    || 0;
+      days[l.date].protein = parseFloat(l.protein) || 0;
+      days[l.date].hasNutr = true;
+    }
+  });
+  // Also sum from nutritionMeals if available
+  Object.entries(state.nutritionMeals || {}).forEach(([date, meals]) => {
+    ensure(date);
+    let kcal = 0, protein = 0;
+    Object.values(meals).forEach(items => (items || []).forEach(item => {
+      kcal    += item.kcal    || 0;
+      protein += item.protein || 0;
+    }));
+    if (kcal > 0 || protein > 0) {
+      days[date].kcal    = kcal;
+      days[date].protein = Math.round(protein);
+      days[date].hasNutr = true;
+    }
+  });
+  return days;
+}
+
+// Bucket dates into weekly chunks anchored to cycle start (or earliest log)
+function buildWeekBuckets(dayMap, macroStart) {
+  const dates = Object.keys(dayMap).sort();
+  if (!dates.length) return [];
+  const anchor = macroStart && macroStart <= dates[0] ? macroStart : dates[0];
+  const anchorMs = new Date(anchor + 'T00:00:00').getTime();
+  const weeks = [];
+  dates.forEach(d => {
+    const dMs = new Date(d + 'T00:00:00').getTime();
+    const wIdx = Math.floor((dMs - anchorMs) / (7 * 86400000));
+    if (!weeks[wIdx]) weeks[wIdx] = { label: 'W' + (wIdx + 1), start: d, end: d, days: [] };
+    weeks[wIdx].days.push(d);
+    if (d < weeks[wIdx].start) weeks[wIdx].start = d;
+    if (d > weeks[wIdx].end)   weeks[wIdx].end   = d;
+  });
+  return weeks.filter(Boolean);
+}
+
+// Find the best 7-day rolling window
+function findPeakWindow(dayMap, goalType) {
+  const dates = Object.keys(dayMap).sort();
+  if (dates.length < 2) return null;
+  const wantLoss = !goalType || goalType === 'loss';
+  let best = null;
+  for (let i = 0; i < dates.length; i++) {
+    const startMs = new Date(dates[i] + 'T00:00:00').getTime();
+    const endMs   = startMs + 6 * 86400000;
+    const wSlice  = dates.filter(d => {
+      const ms = new Date(d + 'T00:00:00').getTime();
+      return ms >= startMs && ms <= endMs;
+    });
+    const wDates   = wSlice.filter(d => dayMap[d].weight !== null);
+    if (wDates.length < 2) continue;
+    const firstW   = dayMap[wDates[0]].weight;
+    const lastW    = dayMap[wDates[wDates.length - 1]].weight;
+    const delta    = lastW - firstW;
+    const score    = wantLoss ? -delta : delta; // higher = better
+    if (best === null || score > best.score) {
+      const stepDays  = wSlice.filter(d => dayMap[d].steps !== null);
+      const nutrDays  = wSlice.filter(d => dayMap[d].hasNutr);
+      best = {
+        score,
+        delta,
+        startDate: dates[i],
+        endDate: new Date(endMs).toISOString().split('T')[0],
+        avgSteps:   stepDays.length  ? Math.round(stepDays.reduce((s,d)  => s + dayMap[d].steps,   0) / stepDays.length)  : null,
+        avgKcal:    nutrDays.length  ? Math.round(nutrDays.reduce((s,d)  => s + dayMap[d].kcal,    0) / nutrDays.length)  : null,
+        avgProtein: nutrDays.length  ? Math.round(nutrDays.reduce((s,d)  => s + dayMap[d].protein, 0) / nutrDays.length)  : null,
+      };
+    }
+  }
+  return best;
+}
+
+let progressPeriod = 'week'; // 'day' | 'week' | 'biweek'
+function setProgressPeriod(p) { progressPeriod = p; renderProgressCharts(); }
+
 function renderHome() {
-  // Date subtitle
   const todayStr = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' });
   document.getElementById('home-date').textContent = todayStr;
 
@@ -1817,8 +1906,7 @@ function renderHome() {
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <span style="font-size:13px;color:var(--text3);">No active cycle — tap to create one</span>
         <span style="color:var(--text3);font-size:18px;">→</span>
-      </div>
-    </div>`;
+      </div></div>`;
   } else {
     const startDate = macro.start ? new Date(macro.start + 'T00:00:00') : new Date();
     const totalCalWks = getMacroDurationWeeks(macro);
@@ -1831,41 +1919,24 @@ function renderHome() {
     const weekLabel = today < startDate ? 'Not started' : `MC ${currentMeso} of ${macro.weeks}`;
     const endStr = endDate.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
     const splitBadge = macro.splitType === 'fullbody' ? 'Full Body' : macro.splitType === 'custom' ? 'Custom' : 'PPL';
-
-    // Body weight vs target
     const bwLogs = (state.bodyLogs || []).filter(l => l.weight).sort((a,b) => b.date.localeCompare(a.date));
     const latestBw = bwLogs.length ? parseFloat(bwLogs[0].weight) : null;
     let bwHtml = '';
     if (macro.targetBw && latestBw !== null) {
       const diff = latestBw - macro.targetBw;
-      const diffStr = Math.abs(diff) <= 0.1
-        ? 'On target ✓'
-        : diff > 0
-          ? (diff.toFixed(1) + ' lbs left to go')
-          : (Math.abs(diff).toFixed(1) + ' lbs below target');
-      const diffColor = Math.abs(diff) <= 0.1 ? 'var(--accent)' : diff > 0 ? 'var(--amber)' : 'var(--blue)';
-      // Total lost/gained since first entry in this cycle
-      const cycleStartLogs = (state.bodyLogs || []).filter(l => l.weight && macro.start && l.date >= macro.start)
-        .sort((a,b) => a.date.localeCompare(b.date));
+      const diffStr = Math.abs(diff) <= 0.1 ? 'On target ✓' : diff > 0 ? diff.toFixed(1) + ' lbs left to go' : Math.abs(diff).toFixed(1) + ' lbs below target';
+      const cycleStartLogs = (state.bodyLogs||[]).filter(l => l.weight && macro.start && l.date >= macro.start).sort((a,b) => a.date.localeCompare(b.date));
       let cycleTotalStr = '';
       if (cycleStartLogs.length >= 2) {
-        const cycleFirstBw = parseFloat(cycleStartLogs[0].weight);
-        const cycleDelta = latestBw - cycleFirstBw;
-        const goalType = macro.goalType || 'loss';
-        const absDelta = Math.abs(cycleDelta).toFixed(1);
-        if (Math.abs(cycleDelta) >= 0.1) {
-          const direction = cycleDelta < 0 ? 'lost' : 'gained';
-          cycleTotalStr = `${absDelta} lbs ${direction} so far`;
-        }
+        const cycleDelta = latestBw - parseFloat(cycleStartLogs[0].weight);
+        if (Math.abs(cycleDelta) >= 0.1) cycleTotalStr = ` · ${Math.abs(cycleDelta).toFixed(1)} lbs ${cycleDelta < 0 ? 'lost' : 'gained'} so far`;
       }
       bwHtml = `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:0.5px solid var(--border);">
         <span style="font-size:12px;color:var(--text2);">Body weight</span>
-        <span style="font-size:12px;"><span style="color:var(--amber);">${latestBw} lbs${cycleTotalStr ? ' · ' + cycleTotalStr : ''}</span><span style="color:var(--text3);"> · ${diffStr}</span></span>
-      </div>`;
+        <span style="font-size:12px;"><span style="color:var(--amber);">${latestBw} lbs${cycleTotalStr}</span><span style="color:var(--text3);"> · ${diffStr}</span></span></div>`;
     } else if (macro.targetBw) {
       bwHtml = `<div style="font-size:11px;color:var(--text3);margin-top:6px;">Target: ${macro.targetBw} lbs — no weigh-ins yet</div>`;
     }
-
     cycleEl.innerHTML = `<div class="card card-accent" style="cursor:pointer;" onclick="showScreen('plan')">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
         <div>
@@ -1887,25 +1958,94 @@ function renderHome() {
     </div>`;
   }
 
-  // ── Body weight (last 7 days) ─────────────────
+  // ── Body weight card ──────────────────────────
   const bodyEl = document.getElementById('home-body');
-  const weightLogs = [...state.bodyLogs].sort((a,b) => b.date.localeCompare(a.date));
+  const weightLogs = [...(state.bodyLogs||[])].sort((a,b) => b.date.localeCompare(a.date));
   const today = getLocalToday();
   const todayDate = new Date(today + 'T00:00:00');
   const cutoff7  = new Date(todayDate); cutoff7.setDate(todayDate.getDate() - 7);
   const cutoff14 = new Date(todayDate); cutoff14.setDate(todayDate.getDate() - 14);
-  const last7w  = weightLogs.filter(l => l.weight && new Date(l.date+'T00:00:00') >= cutoff7);
-  const prev7w  = weightLogs.filter(l => l.weight && new Date(l.date+'T00:00:00') >= cutoff14 && new Date(l.date+'T00:00:00') < cutoff7);
-  const latest = weightLogs.find(l => l.weight);
-  const avg7 = last7w.length ? (last7w.reduce((a,b) => a + parseFloat(b.weight), 0) / last7w.length) : null;
-  const avg7prev = prev7w.length ? (prev7w.reduce((a,b) => a + parseFloat(b.weight), 0) / prev7w.length) : null;
-  const wkChange = avg7 !== null && avg7prev !== null ? (avg7 - avg7prev) : null;
+  const last7w   = weightLogs.filter(l => l.weight && new Date(l.date+'T00:00:00') >= cutoff7);
+  const prev7w   = weightLogs.filter(l => l.weight && new Date(l.date+'T00:00:00') >= cutoff14 && new Date(l.date+'T00:00:00') < cutoff7);
+  const latest   = weightLogs.find(l => l.weight);
+  const avg7     = last7w.length ? last7w.reduce((a,b) => a + parseFloat(b.weight), 0) / last7w.length : null;
+  const avg7prev = prev7w.length ? prev7w.reduce((a,b) => a + parseFloat(b.weight), 0) / prev7w.length : null;
+  const wkChange = avg7 !== null && avg7prev !== null ? avg7 - avg7prev : null;
   const changeColor = wkChange === null ? 'var(--text3)' : wkChange < 0 ? 'var(--accent)' : wkChange > 0 ? 'var(--red)' : 'var(--text2)';
   const changeStr = wkChange !== null
     ? (wkChange >= 0 ? '+' : '') + wkChange.toFixed(1) + ' lbs vs last wk'
     : avg7 !== null ? 'No prior week data' : 'No data this week';
 
-  bodyEl.innerHTML = `<div class="card" style="cursor:pointer;" onclick="showScreen('body')">
+  // Peak 7-day window insight
+  const dayMap = buildDayMap();
+  const goalType = macro ? (macro.goalType || 'loss') : 'loss';
+  const peak = findPeakWindow(dayMap, goalType);
+  let peakHtml = '';
+  if (peak && Math.abs(peak.delta) >= 0.1) {
+    const verb = peak.delta < 0 ? 'lost' : 'gained';
+    const startFmt = new Date(peak.startDate + 'T00:00:00').toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+    const endFmt   = new Date(peak.endDate   + 'T00:00:00').toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+    const parts = [];
+    if (peak.avgSteps   !== null) parts.push(`${peak.avgSteps.toLocaleString()} avg steps/day`);
+    if (peak.avgKcal    !== null) parts.push(`${peak.avgKcal} avg kcal/day`);
+    if (peak.avgProtein !== null) parts.push(`${peak.avgProtein}g avg protein/day`);
+    const factorStr = parts.length ? ' During this time: ' + parts.join(', ') + '.' : '';
+    peakHtml = `<div style="margin-top:10px;padding-top:10px;border-top:0.5px solid var(--border);font-size:12px;color:var(--text2);line-height:1.5;">
+      <span style="color:var(--accent);font-weight:600;">★ Best 7-day window</span> — ${startFmt} to ${endFmt}, <strong>${Math.abs(peak.delta).toFixed(1)} lbs ${verb}</strong>.${factorStr}
+    </div>`;
+
+    // Peak-vs-this-week callout
+    const activeGoal = getActiveGoal ? getActiveGoal() : null;
+    if (activeGoal) {
+      // Week runs Mon–Sun. dayOfWeek: 0=Sun,1=Mon...6=Sat
+      const dow = new Date().getDay();
+      // Days elapsed this week (Mon=1 through today). Sunday counts as 7th day.
+      const daysElapsed = dow === 0 ? 7 : dow; // Mon=1 ... Sat=6 ... Sun=7
+      const daysLeft    = 7 - daysElapsed;      // remaining days including today? No — remaining AFTER today
+      // Completed days = days before today this week (for summing actuals)
+      const completedDays = daysElapsed - 1;    // excludes today
+
+      // Build list of completed dates this week (Mon through yesterday)
+      const completedDates = [];
+      for (let i = completedDays; i >= 1; i--) {
+        const d = new Date(todayDate); d.setDate(todayDate.getDate() - i);
+        completedDates.push(d.toISOString().split('T')[0]);
+      }
+      // Days remaining = today + rest of week until Sun
+      const daysRemaining = daysLeft + 1; // include today
+
+      // Peak week totals (avg * 7)
+      const peakStepsTotal   = peak.avgSteps   !== null ? peak.avgSteps   * 7 : null;
+      const peakKcalTotal    = peak.avgKcal    !== null ? peak.avgKcal    * 7 : null;
+      const peakProteinTotal = peak.avgProtein !== null ? peak.avgProtein * 7 : null;
+
+      // Completed days totals (sum actual logged values, exclude today)
+      const compSteps   = completedDates.reduce((s,d) => s + (dayMap[d]?.steps   ?? 0), 0);
+      const compKcal    = completedDates.reduce((s,d) => s + (dayMap[d]?.kcal    ?? 0), 0);
+      const compProtein = completedDates.reduce((s,d) => s + (dayMap[d]?.protein ?? 0), 0);
+
+      const hints = [];
+      if (peakStepsTotal !== null && daysRemaining > 0) {
+        const needed = Math.round((peakStepsTotal - compSteps) / daysRemaining);
+        if (needed > 0) hints.push(`${needed.toLocaleString()} steps/day`);
+      }
+      if (peakKcalTotal !== null && daysRemaining > 0) {
+        const needed = Math.round((peakKcalTotal - compKcal) / daysRemaining);
+        if (needed > 0) hints.push(`${needed} kcal/day`);
+      }
+      if (peakProteinTotal !== null && daysRemaining > 0) {
+        const needed = Math.round((peakProteinTotal - compProtein) / daysRemaining);
+        if (needed > 0) hints.push(`${needed}g protein/day`);
+      }
+      if (hints.length && daysRemaining > 0) {
+        peakHtml += `<div style="margin-top:8px;font-size:12px;color:var(--text2);line-height:1.5;">
+          <span style="color:var(--amber);font-weight:600;">↗ To match your peak week</span>, aim for ${hints.join(', ')} for the remaining ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''} (including today).
+        </div>`;
+      }
+    }
+  }
+
+  bodyEl.innerHTML = `<div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;">
       <div>
         <div style="font-family:var(--font-display);font-size:28px;font-weight:800;line-height:1;">${latest ? latest.weight + ' lbs' : '—'}</div>
@@ -1916,46 +2056,275 @@ function renderHome() {
         <div style="font-size:11px;color:var(--text3);margin-top:3px;">${last7w.length} entries this week</div>
       </div>
     </div>
+    ${peakHtml}
   </div>`;
 
-  // ── Factor correlation chart ──────────────────
-  renderCorrelationChart();
+  // ── Progress charts ───────────────────────────
+  renderProgressCharts();
 
   // ── Steps & Nutrition ─────────────────────────
   renderHomeSteps();
   renderHomeNutr();
-
-  // ── Goals today section ───────────────────────
-  const goalsEl = document.getElementById('home-goals');
-  const goalsTitleEl = document.getElementById('home-goals-title');
-  const activeGoal = getActiveGoal ? getActiveGoal() : null;
-  if (goalsEl) {
-    if (activeGoal) {
-      if (goalsTitleEl) goalsTitleEl.style.display = '';
-      goalsEl.innerHTML = buildGoalsHomeSection(activeGoal);
-    } else {
-      if (goalsTitleEl) goalsTitleEl.style.display = 'none';
-      goalsEl.innerHTML = '';
-    }
-  }
 }
 
-// ════════════════════════════════════════════════
-// HOME — Steps & Nutrition toggle + bar charts
-// ════════════════════════════════════════════════
+function renderProgressCharts() {
+  const el = document.getElementById('home-progress-charts');
+  if (!el) return;
+  const dayMap = buildDayMap();
+  const macro  = state.macrocycles.find(m => m.id === state.currentMacroId);
+  const goalType = macro ? (macro.goalType || 'loss') : 'loss';
+  const isLoss = goalType === 'loss';
+  const allDates = Object.keys(dayMap).sort();
+
+  if (allDates.length < 2) {
+    el.innerHTML = '';
+    return;
+  }
+
+  // ── Build period buckets ──────────────────────
+  const periodDays = progressPeriod === 'day' ? 1 : progressPeriod === 'week' ? 7 : 14;
+  const anchor = (macro && macro.start && macro.start <= allDates[0]) ? macro.start : allDates[0];
+  const anchorMs = new Date(anchor + 'T00:00:00').getTime();
+  const todayMs  = new Date(getLocalToday() + 'T00:00:00').getTime();
+
+  const buckets = [];
+  let cur = new Date(anchorMs);
+  while (cur.getTime() <= todayMs) {
+    const bStart = cur.toISOString().split('T')[0];
+    const bEnd   = new Date(cur.getTime() + (periodDays - 1) * 86400000).toISOString().split('T')[0];
+    const bDates = allDates.filter(d => d >= bStart && d <= bEnd);
+    if (bDates.length > 0) {
+      const wDates = bDates.filter(d => dayMap[d].weight !== null);
+      const sDates = bDates.filter(d => dayMap[d].steps  !== null);
+      const nDates = bDates.filter(d => dayMap[d].hasNutr);
+      const firstW = wDates.length ? dayMap[wDates[0]].weight : null;
+      const lastW  = wDates.length ? dayMap[wDates[wDates.length-1]].weight : null;
+      // weightDelta filled in post-processing pass for daily; for weekly/biweekly compute inline
+      const weightDelta = periodDays === 1
+        ? null // placeholder — filled below
+        : (firstW !== null && lastW !== null && wDates.length > 1 ? parseFloat((lastW - firstW).toFixed(1)) : null);
+      buckets.push({
+        label:      bStart.slice(5).split('-').reverse().join('-'), // dd-mm
+        start:      bStart,
+        rawWeight:  firstW, // used for daily delta calculation
+        weightDelta,
+        avgSteps:   sDates.length ? Math.round(sDates.reduce((s,d) => s + dayMap[d].steps,   0) / sDates.length) : null,
+        avgKcal:    nDates.length ? Math.round(nDates.reduce((s,d) => s + dayMap[d].kcal,    0) / nDates.length) : null,
+        avgProtein: nDates.length ? Math.round(nDates.reduce((s,d) => s + dayMap[d].protein, 0) / nDates.length) : null,
+        weekNum:    Math.floor((new Date(bStart+'T00:00:00').getTime() - anchorMs) / (7 * 86400000)) + 1,
+      });
+    }
+    cur = new Date(cur.getTime() + periodDays * 86400000);
+  }
+
+  // Post-process: for daily view, set weightDelta = delta vs previous day's weight
+  // First bucket shows starting weight (no previous); subsequent show day-on-day change
+  if (periodDays === 1) {
+    // Find the most recent weight before each bucket to compute delta
+    const weightedBuckets = buckets.filter(b => b.rawWeight !== null);
+    buckets.forEach((b, i) => {
+      if (b.rawWeight === null) { b.weightDelta = null; return; }
+      // Find previous bucket that had a weight
+      let prevW = null;
+      for (let j = i - 1; j >= 0; j--) {
+        if (buckets[j].rawWeight !== null) { prevW = buckets[j].rawWeight; break; }
+      }
+      b.weightDelta = prevW !== null
+        ? parseFloat((b.rawWeight - prevW).toFixed(1))
+        : 0; // first entry: delta of 0 (starting point)
+    });
+  }
+
+  if (buckets.length < 1) { el.innerHTML = ''; return; }
+
+  // ── Build dual-axis SVG line chart ────────────
+  const C = {
+    weight:  'var(--accent)',   // green
+    steps:   'var(--blue)',
+    kcal:    'var(--amber)',
+  };
+
+  function dualLineChart(buckets, rightKey, rightColor, rightLabel) {
+    const wVals = buckets.map(b => b.weightDelta).filter(v => v !== null);
+    const rVals = buckets.map(b => b[rightKey]).filter(v => v !== null);
+    if (!wVals.length || !rVals.length) return '<div style="font-size:11px;color:var(--text3);padding:8px 0;">Not enough data</div>';
+
+    const W = 300, H = 115, padL = 8, padR = 8, padT = 8, padB = 22;
+    const cW = W - padL - padR, cH = H - padT - padB;
+    const n  = buckets.length;
+
+    // Left axis: weight delta
+    const wMin = Math.min(...wVals, 0), wMax = Math.max(...wVals, 0);
+    const wRange = wMax - wMin || 1;
+    const normW = v => v === null ? null : padT + cH - ((v - wMin) / wRange) * cH;
+
+    // Right axis: steps or kcal
+    const rMin = Math.min(...rVals) * 0.9, rMax = Math.max(...rVals) * 1.05;
+    const rRange = rMax - rMin || 1;
+    const normR = v => v === null ? null : padT + cH - ((v - rMin) / rRange) * cH;
+
+    const xPos = i => padL + (i / Math.max(n - 1, 1)) * cW;
+
+    function polyline(pts, color) {
+      const valid = pts.filter(p => p.y !== null);
+      if (valid.length < 2) return '';
+      return `<polyline points="${valid.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+    }
+
+    const wPts = buckets.map((b, i) => ({ x: xPos(i), y: normW(b.weightDelta) }));
+    const rPts = buckets.map((b, i) => ({ x: xPos(i), y: normR(b[rightKey]) }));
+
+    // Zero line for weight only (no labels)
+    const zeroY = normW(0);
+    const zeroLine = `<line x1="${padL}" y1="${zeroY.toFixed(1)}" x2="${W - padR}" y2="${zeroY.toFixed(1)}" stroke="var(--border2)" stroke-width="0.5" stroke-dasharray="3,2"/>`;
+
+    // X axis date labels only — no numbers
+    const step = Math.max(1, Math.ceil(n / 6));
+    const xLabels = buckets.map((b, i) => i % step === 0
+      ? `<text x="${xPos(i).toFixed(1)}" y="${H - 2}" text-anchor="middle" font-size="7" fill="var(--text3)" font-family="var(--font-mono)">${b.label}</text>`
+      : ''
+    ).join('');
+
+    return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;overflow:visible;">
+      ${zeroLine}
+      ${polyline(wPts, C.weight)}
+      ${polyline(rPts, rightColor)}
+      ${xLabels}
+    </svg>`;
+  }
+
+  // ── Weekly summary table ──────────────────────
+  // Always use 7-day buckets for the table
+  const weekBuckets = (() => {
+    const b = [];
+    let cur2 = new Date(anchorMs);
+    let wn = 1;
+    let prevLastWeight = null; // carry last weight from previous week
+    while (cur2.getTime() <= todayMs) {
+      const bStart = cur2.toISOString().split('T')[0];
+      const bEnd   = new Date(cur2.getTime() + 6 * 86400000).toISOString().split('T')[0];
+      const bDates = allDates.filter(d => d >= bStart && d <= bEnd);
+      if (bDates.length > 0) {
+        const wD = bDates.filter(d => dayMap[d].weight !== null);
+        const sD = bDates.filter(d => dayMap[d].steps  !== null);
+        const nD = bDates.filter(d => dayMap[d].hasNutr);
+        const firstW = wD.length ? dayMap[wD[0]].weight : null;
+        const lastW  = wD.length ? dayMap[wD[wD.length-1]].weight : null;
+        // Delta: last entry this week minus first entry this week.
+        // If only one entry this week, use prev week's last as the baseline.
+        let delta = null;
+        if (firstW !== null && lastW !== null && wD.length > 1) {
+          delta = parseFloat((lastW - firstW).toFixed(1));
+        } else if (lastW !== null && prevLastWeight !== null) {
+          delta = parseFloat((lastW - prevLastWeight).toFixed(1));
+        }
+        if (lastW !== null) prevLastWeight = lastW;
+        b.push({
+          label:   'W' + wn++,
+          delta,
+          steps:   sD.length ? Math.round(sD.reduce((s,d) => s + dayMap[d].steps,   0) / sD.length) : null,
+          kcal:    nD.length ? Math.round(nD.reduce((s,d) => s + dayMap[d].kcal,    0) / nD.length) : null,
+          protein: nD.length ? Math.round(nD.reduce((s,d) => s + dayMap[d].protein, 0) / nD.length) : null,
+        });
+      }
+      cur2 = new Date(cur2.getTime() + 7 * 86400000);
+    }
+    return b;
+  })();
+
+  // Heat-map colour for a column of values
+  function heatColour(val, vals, lowGood) {
+    const nonNull = vals.filter(v => v !== null);
+    if (nonNull.length < 2 || val === null) return 'var(--text3)';
+    const mn = Math.min(...nonNull), mx = Math.max(...nonNull);
+    if (mn === mx) return 'var(--amber)';
+    const pct = (val - mn) / (mx - mn); // 0=lowest, 1=highest
+    const score = lowGood ? (1 - pct) : pct;
+    return score >= 0.66 ? 'var(--accent)' : score >= 0.33 ? 'var(--amber)' : 'var(--red)';
+  }
+  const allSteps   = weekBuckets.map(b => b.steps);
+  const allKcal    = weekBuckets.map(b => b.kcal);
+  const allProtein = weekBuckets.map(b => b.protein);
+  // kcal: high is bad for loss, good for gain
+  const kcalLowGood = isLoss;
+
+  function sq(colour) {
+    return `<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${colour};margin-right:4px;flex-shrink:0;vertical-align:middle;"></span>`;
+  }
+
+  const tableRows = weekBuckets.map(b => {
+    const deltaStr = b.delta === null ? '—'
+      : (b.delta >= 0 ? '+' : '') + b.delta.toFixed(1) + ' lbs';
+    const deltaCol = b.delta === null ? 'var(--text3)' : b.delta < 0 ? 'var(--accent)' : b.delta > 0 ? 'var(--red)' : 'var(--text2)';
+    const stepsHeat   = heatColour(b.steps,   allSteps,   false); // high steps = good
+    const kcalHeat    = heatColour(b.kcal,    allKcal,    kcalLowGood);
+    const proteinHeat = heatColour(b.protein, allProtein, false); // high protein = good
+    return `<tr>
+      <td style="font-family:var(--font-mono);font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);">${b.label}</td>
+      <td style="font-size:11px;color:${deltaCol};padding:5px 4px;border-bottom:0.5px solid var(--border);font-weight:500;">${deltaStr}</td>
+      <td style="font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);">${sq(kcalHeat)}${b.kcal ?? '—'}</td>
+      <td style="font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);">${sq(stepsHeat)}${b.steps !== null ? b.steps.toLocaleString() : '—'}</td>
+      <td style="font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);">${sq(proteinHeat)}${b.protein !== null ? b.protein + 'g' : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  // ── Period toggle ─────────────────────────────
+  const togBtn = (p, label) => {
+    const active = progressPeriod === p;
+    return `<button onclick="setProgressPeriod('${p}')" style="padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:${active ? 'var(--surface)' : 'transparent'};color:${active ? 'var(--text)' : 'var(--text3)'};font-family:var(--font-mono);">${label}</button>`;
+  };
+
+  el.innerHTML = `<div class="card" style="margin-top:8px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-size:12px;color:var(--text2);font-weight:500;">Weight Δ vs Steps</div>
+      <div style="display:flex;background:var(--surface2);border-radius:6px;padding:2px;gap:1px;">
+        ${togBtn('day','Daily')}${togBtn('week','Weekly')}${togBtn('biweek','2-wk')}
+      </div>
+    </div>
+    <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">
+      <span style="color:var(--accent);">── weight Δ (lbs, left)</span> &nbsp;
+      <span style="color:var(--blue);">── steps (right)</span>
+    </div>
+    ${dualLineChart(buckets, 'avgSteps', C.steps, 'steps')}
+
+    <div style="font-size:12px;color:var(--text2);font-weight:500;margin-top:16px;margin-bottom:6px;">Weight Δ vs Kcal</div>
+    <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">
+      <span style="color:var(--accent);">── weight Δ (lbs, left)</span> &nbsp;
+      <span style="color:var(--amber);">── kcal (right)</span>
+    </div>
+    ${dualLineChart(buckets, 'avgKcal', C.kcal, 'kcal')}
+
+    <div style="font-size:12px;color:var(--text2);font-weight:500;margin-top:16px;margin-bottom:8px;">Weekly Summary</div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th style="font-size:10px;color:var(--text3);text-align:left;padding:4px 4px;font-weight:500;">Week</th>
+            <th style="font-size:10px;color:var(--text3);text-align:left;padding:4px 4px;font-weight:500;">Δ weight</th>
+            <th style="font-size:10px;color:var(--text3);text-align:left;padding:4px 4px;font-weight:500;">Avg kcal</th>
+            <th style="font-size:10px;color:var(--text3);text-align:left;padding:4px 4px;font-weight:500;">Avg steps</th>
+            <th style="font-size:10px;color:var(--text3);text-align:left;padding:4px 4px;font-weight:500;">Avg prot</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+
+
 const homeToggle = { steps: 'avg', nutr: 'avg' };
 
 function setHomeToggle(section, val) {
   homeToggle[section] = val;
-  const ids = section === 'steps'
-    ? ['steps-tog-today', 'steps-tog-avg']
-    : ['nutr-tog-today', 'nutr-tog-avg'];
+  const ids  = section === 'steps' ? ['steps-tog-today','steps-tog-avg'] : ['nutr-tog-today','nutr-tog-avg'];
   const vals = ['today', 'avg'];
   ids.forEach((id, i) => {
     const el = document.getElementById(id);
     if (!el) return;
     el.style.background = vals[i] === val ? 'var(--surface)' : 'transparent';
-    el.style.color = vals[i] === val ? 'var(--text)' : 'var(--text3)';
+    el.style.color       = vals[i] === val ? 'var(--text)'    : 'var(--text3)';
   });
   if (section === 'steps') renderHomeSteps();
   else renderHomeNutr();
@@ -1966,10 +2335,8 @@ function getLocal7Days() {
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    const y = d.getFullYear();
-    const m = String(d.getMonth()+1).padStart(2,'0');
-    const day = String(d.getDate()).padStart(2,'0');
-    days.push({ date: y+'-'+m+'-'+day, letter: 'SMTWTFS'[d.getDay()] });
+    const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), dy = String(d.getDate()).padStart(2,'0');
+    days.push({ date: y+'-'+m+'-'+dy, letter: 'SMTWTFS'[d.getDay()] });
   }
   return days;
 }
@@ -2003,223 +2370,8 @@ function buildHomeProgressBar(logged, target, color, overColor) {
   const markerPct = isOver ? Math.round(target/logged*100) : null;
   return '<div style="height:7px;background:var(--surface2);border-radius:4px;position:relative;overflow:hidden;margin-top:8px;">'
     + '<div style="height:100%;background:'+(isOver?overColor:color)+';border-radius:4px;width:'+pct+'%;"></div>'
-    + (markerPct!==null ? '<div style="position:absolute;top:0;bottom:0;width:2px;background:rgba(255,255,255,0.55);left:'+markerPct+'%;"></div>' : '')
+    + (markerPct!==null ? '<div style="position:absolute;top:0;bottom:0;width:2px;background:rgba(255,255,255,0.55);left:'+markerPct+'%;border-radius:1px;"></div>' : '')
     + '</div>';
-}
-
-// ── Factor vs Weight correlation chart ───────────────────────────────────
-let corrPeriod = 'week'; // 'day' | 'week' | 'biweek'
-
-function setCorrPeriod(p) {
-  corrPeriod = p;
-  renderCorrelationChart();
-}
-
-function renderCorrelationChart() {
-  const el = document.getElementById('home-corr-chart');
-  if (!el) return;
-
-  const today = getLocalToday();
-  const todayMs = new Date(today + 'T00:00:00').getTime();
-
-  // Build per-day data map: date → { weight, steps, kcal, protein }
-  const dayMap = {};
-  const ensureDay = d => { if (!dayMap[d]) dayMap[d] = { weight: null, steps: null, kcal: 0, protein: 0, nutrDays: 0 }; };
-
-  // Weight & steps from bodyLogs
-  (state.bodyLogs || []).forEach(l => {
-    ensureDay(l.date);
-    if (l.weight) dayMap[l.date].weight = parseFloat(l.weight);
-    if (l.steps)  dayMap[l.date].steps  = parseInt(l.steps);
-  });
-
-  // Kcal & protein from nutritionMeals
-  Object.entries(state.nutritionMeals || {}).forEach(([date, meals]) => {
-    ensureDay(date);
-    let kcal = 0, protein = 0;
-    Object.values(meals).forEach(items => (items || []).forEach(item => {
-      kcal    += item.kcal    || 0;
-      protein += item.protein || 0;
-    }));
-    if (kcal > 0 || protein > 0) {
-      dayMap[date].kcal    = kcal;
-      dayMap[date].protein = protein;
-      dayMap[date].nutrDays = 1;
-    }
-  });
-
-  const allDates = Object.keys(dayMap).sort();
-  if (allDates.length < 2) {
-    el.innerHTML = `<div style="font-size:12px;color:var(--text3);text-align:center;padding:20px 0;">Log weight and nutrition to see trends</div>`;
-    return;
-  }
-
-  // ── Bucket dates into periods ──────────────────────────────────────────
-  const periodDays = corrPeriod === 'day' ? 1 : corrPeriod === 'week' ? 7 : 14;
-  // Anchor from earliest date, group forward in chunks
-  const firstDate = new Date(allDates[0] + 'T00:00:00');
-  const periods = [];
-  let cursor = new Date(firstDate);
-  while (cursor.getTime() <= todayMs) {
-    const start = cursor.toISOString().split('T')[0];
-    const end   = new Date(cursor.getTime() + (periodDays - 1) * 86400000).toISOString().split('T')[0];
-    const days  = allDates.filter(d => d >= start && d <= end);
-    if (days.length > 0) {
-      const weightDays = days.filter(d => dayMap[d].weight !== null);
-      const stepsDays  = days.filter(d => dayMap[d].steps  !== null);
-      const nutrDays   = days.filter(d => dayMap[d].nutrDays > 0);
-
-      const firstW = weightDays.length ? dayMap[weightDays[0]].weight : null;
-      const lastW  = weightDays.length ? dayMap[weightDays[weightDays.length-1]].weight : null;
-      const weightDelta = (firstW !== null && lastW !== null && weightDays.length > 1) ? lastW - firstW : null;
-      const avgWeight   = weightDays.length ? weightDays.reduce((s,d) => s + dayMap[d].weight, 0) / weightDays.length : null;
-      const avgSteps    = stepsDays.length  ? stepsDays.reduce((s,d)  => s + dayMap[d].steps,  0) / stepsDays.length  : null;
-      const avgKcal     = nutrDays.length   ? nutrDays.reduce((s,d)   => s + dayMap[d].kcal,   0) / nutrDays.length   : null;
-      const avgProtein  = nutrDays.length   ? nutrDays.reduce((s,d)   => s + dayMap[d].protein,0) / nutrDays.length   : null;
-
-      periods.push({ start, end, weightDelta, avgWeight, avgSteps, avgKcal, avgProtein, days: days.length });
-    }
-    cursor = new Date(cursor.getTime() + periodDays * 86400000);
-  }
-
-  // Only keep last 8 periods for readability
-  const visiblePeriods = periods.slice(-8);
-  if (visiblePeriods.length < 2) {
-    el.innerHTML = `<div style="font-size:12px;color:var(--text3);text-align:center;padding:20px 0;">Not enough data yet for this period</div>`;
-    return;
-  }
-
-  // ── Normalise each metric 0–1 across all visible periods ──────────────
-  function normRange(vals) {
-    const nonNull = vals.filter(v => v !== null);
-    if (!nonNull.length) return { min: 0, max: 1 };
-    return { min: Math.min(...nonNull), max: Math.max(...nonNull) };
-  }
-  function norm(v, min, max) {
-    if (v === null) return null;
-    return max === min ? 0.5 : (v - min) / (max - min);
-  }
-
-  const wDeltas  = visiblePeriods.map(p => p.weightDelta);
-  const steps    = visiblePeriods.map(p => p.avgSteps);
-  const kcals    = visiblePeriods.map(p => p.avgKcal);
-  const proteins = visiblePeriods.map(p => p.avgProtein);
-
-  // Weight delta: centre on 0 for visual balance
-  const wMax = Math.max(...wDeltas.filter(v=>v!==null).map(Math.abs), 0.5);
-  const stepsR   = normRange(steps);
-  const kcalR    = normRange(kcals);
-  const proteinR = normRange(proteins);
-
-  // ── Build SVG ─────────────────────────────────────────────────────────
-  const n   = visiblePeriods.length;
-  const SVW = 320, SVH = 130;
-  const leftPad = 8, rightPad = 8, topPad = 8, bottomPad = 28;
-  const chartW = SVW - leftPad - rightPad;
-  const chartH = SVH - topPad - bottomPad;
-  const colW   = chartW / n;
-  const barW   = Math.max(4, Math.floor(colW * 0.18));
-  const gap    = Math.max(1, Math.floor(colW * 0.05));
-  const groupW = 4 * barW + 3 * gap;
-  // Colours: weight=accent(green), steps=blue, kcal=amber, protein=purple
-  const colours = ['var(--accent)', 'var(--blue)', 'var(--amber)', '#a78bfa'];
-  const labels  = ['Δwt', 'steps', 'kcal', 'prot'];
-  const midY    = topPad + chartH * 0.5; // centre line for weight delta
-
-  let bars = '';
-  let xLabels = '';
-
-  visiblePeriods.forEach((p, i) => {
-    const cx = leftPad + i * colW + (colW - groupW) / 2;
-    const metrics = [
-      // weight delta: bars go up (loss) or down (gain) from centre
-      (() => {
-        if (p.weightDelta === null) return null;
-        const normD = p.weightDelta / wMax; // -1 to +1
-        const barH  = Math.abs(normD) * (chartH * 0.45);
-        const y     = normD < 0 ? midY - barH : midY;
-        return { y, h: Math.max(1, barH), colour: normD < 0 ? 'var(--accent)' : 'var(--red)' };
-      })(),
-      // steps: bar from bottom, taller = more steps
-      (() => {
-        const n = norm(p.avgSteps, stepsR.min, stepsR.max);
-        if (n === null) return null;
-        const barH = n * chartH * 0.85;
-        return { y: topPad + chartH - barH, h: Math.max(1, barH), colour: colours[1] };
-      })(),
-      // kcal: bar from bottom, higher kcal = taller (inverted may be more intuitive but keep consistent)
-      (() => {
-        const n = norm(p.avgKcal, kcalR.min, kcalR.max);
-        if (n === null) return null;
-        const barH = n * chartH * 0.85;
-        return { y: topPad + chartH - barH, h: Math.max(1, barH), colour: colours[2] };
-      })(),
-      // protein: bar from bottom
-      (() => {
-        const n = norm(p.avgProtein, proteinR.min, proteinR.max);
-        if (n === null) return null;
-        const barH = n * chartH * 0.85;
-        return { y: topPad + chartH - barH, h: Math.max(1, barH), colour: colours[3] };
-      })(),
-    ];
-
-    metrics.forEach((m, mi) => {
-      if (!m) return;
-      const x = cx + mi * (barW + gap);
-      bars += `<rect x="${x.toFixed(1)}" y="${m.y.toFixed(1)}" width="${barW}" height="${m.h.toFixed(1)}" rx="1" fill="${m.colour}" opacity="0.85"/>`;
-    });
-
-    // X-axis label: short date
-    const labelDate = corrPeriod === 'day'
-      ? p.start.slice(5)  // MM-DD
-      : p.start.slice(5); // same — short enough
-    xLabels += `<text x="${(leftPad + i * colW + colW/2).toFixed(1)}" y="${SVH - 4}" text-anchor="middle" font-size="8" fill="var(--text3)" font-family="var(--font-mono)">${labelDate}</text>`;
-  });
-
-  // Centre line for weight delta
-  const centreLine = `<line x1="${leftPad}" y1="${midY.toFixed(1)}" x2="${SVW - rightPad}" y2="${midY.toFixed(1)}" stroke="var(--border2)" stroke-width="0.5" stroke-dasharray="3,3"/>`;
-
-  // Legend
-  const legendY = SVH - 18;
-  let legend = '';
-  const legendItems = [
-    { label: '● Δweight', colour: 'var(--accent)' },
-    { label: '● steps',   colour: 'var(--blue)' },
-    { label: '● kcal',    colour: 'var(--amber)' },
-    { label: '● protein', colour: '#a78bfa' },
-  ];
-  const lx = [0, 76, 140, 196];
-  legendItems.forEach((li, i) => {
-    legend += `<text x="${leftPad + lx[i]}" y="${SVH - 3}" font-size="8" fill="${li.colour}" font-family="var(--font-mono)">${li.label}</text>`;
-  });
-
-  const svg = `<svg viewBox="0 0 ${SVW} ${SVH}" style="width:100%;display:block;overflow:visible;">
-    ${centreLine}
-    ${bars}
-    ${xLabels}
-  </svg>`;
-
-  // Period toggle buttons
-  const btnStyle = (p) => corrPeriod === p
-    ? 'padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:var(--surface);color:var(--text);font-family:var(--font-mono);'
-    : 'padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:transparent;color:var(--text3);font-family:var(--font-mono);';
-
-  el.innerHTML = `
-    <div class="card" style="margin-top:8px;padding:12px 14px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-        <div style="font-size:11px;color:var(--text2);font-weight:500;">Factor trends vs weight</div>
-        <div style="display:flex;background:var(--surface2);border-radius:6px;padding:2px;gap:1px;">
-          <button onclick="setCorrPeriod('day')"    style="${btnStyle('day')}">Daily</button>
-          <button onclick="setCorrPeriod('week')"   style="${btnStyle('week')}">Weekly</button>
-          <button onclick="setCorrPeriod('biweek')" style="${btnStyle('biweek')}">2-week</button>
-        </div>
-      </div>
-      <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">Δweight bars rise from centre (↑ = gain, ↓ = loss). Other bars from bottom, taller = higher avg.</div>
-      ${svg}
-      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">
-        ${legendItems.map(li => `<span style="font-size:10px;color:${li.colour};font-family:var(--font-mono);">${li.label}</span>`).join('')}
-      </div>
-    </div>`;
 }
 
 function renderHomeSteps() {
