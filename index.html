@@ -2,46 +2,80 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>BLOC — Training</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #0a0a0a;
-  --surface: #141414;
-  --surface2: #1c1c1c;
-  --surface3: #242424;
+  /* ── Surfaces (sampled from approved mockup screenshots) ──── */
+  --bg: #1a1a19;
+  --surface: #262624;
+  --surface2: #302f2e;
+  --surface3: #3a3937;
   --border: rgba(255,255,255,0.08);
   --border2: rgba(255,255,255,0.14);
-  --text: #f0ede8;
-  --text2: #888880;
-  --text3: #555550;
-  --accent: #c8f060;
-  --accent2: #a8d040;
-  --red: #ff5f4e;
-  --amber: #f5a623;
-  --blue: #60a8f0;
-  --purple: #b060f0;
-  --font-display: 'Syne', sans-serif;
-  --font-mono: 'DM Mono', monospace;
+  --text: #f5f4f0;
+  --text2: #8c8a84;
+  --text3: #67655f;
+  --accent: #1D9E75;
+  --accent2: #17a884;
+  --red: #E24B4A;
+  --amber: #EF9F27;
+  --blue: #378ADD;
+  --purple: #7F77DD;
+  --font-display: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  /* DM Mono retired app-wide — Inter is now the only typeface in the app.
+     --font-mono is kept (rather than removed) so every existing call site
+     that already references it continues to work without needing to be
+     individually rewritten; it just resolves to Inter like everything else. */
+  --font-mono: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --r: 12px;
   --r-sm: 8px;
-  --nav-h: 72px;
+  --r-lg: 20px;
+  --nav-h: 54px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+
+  /* ── Hero theme tokens ──────────────────────────────────────
+     Each page hero reads --hero-1/--hero-2 for its gradient.
+     Default ("multi" theme) sets a different pair per page via
+     [data-theme="multi"] [data-page="..."] overrides below.
+     Single-colour themes override --hero-1/--hero-2 globally. */
+  --hero-1: #1D9E75;
+  --hero-2: #085041;
 }
 
+/* ── Single-colour theme options ─────────────────────────── */
+[data-theme="teal"]   { --hero-1: #1D9E75; --hero-2: #085041; }
+[data-theme="blue"]   { --hero-1: #378ADD; --hero-2: #0C447C; }
+[data-theme="amber"]  { --hero-1: #EF9F27; --hero-2: #633806; }
+[data-theme="purple"] { --hero-1: #7F77DD; --hero-2: #3C3489; }
+[data-theme="mono"]   { --hero-1: #4a4a48; --hero-2: #232321; }
+
+/* ── Multi theme: distinct hero colour per page, matching mockup ── */
+[data-theme="multi"] [data-page="home"]      { --hero-1: #5FC4E8; --hero-2: #1A5C7A; }
+[data-theme="multi"] [data-page="plan"]      { --hero-1: #378ADD; --hero-2: #0C447C; }
+[data-theme="multi"] [data-page="train"]     { --hero-1: #378ADD; --hero-2: #0C447C; }
+[data-theme="multi"] [data-page="body"]      { --hero-1: #1D9E75; --hero-2: #085041; }
+[data-theme="multi"] [data-page="nutrition"] { --hero-1: #EF9F27; --hero-2: #633806; }
+[data-theme="multi"] [data-page="goals"]     { --hero-1: #E24B4A; --hero-2: #6B1414; }
+
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
 
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: var(--font-mono);
+  font-family: var(--font-display);
   font-size: 14px;
-  min-height: 100vh;
-  min-height: 100dvh;
   overscroll-behavior: none;
 }
 
@@ -53,46 +87,89 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 16px);
+  padding-top: var(--safe-top);
+  padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 16px + 18px);
 }
 
-.screen { display: none; padding: 0 16px; }
+.screen { display: none; padding: 16px 16px 0; }
 .screen.active { display: block; }
 
-/* ── NAV ─────────────────────────────────── */
+/* ── NAV ─────────────────────────────────────────────────────
+   Floating pill bottom nav. #nav-pill is one shared highlight
+   element that JS (positionNavPill(), see NAVIGATION) slides and
+   resizes behind whichever button is .active — that produces the
+   morphing-bubble animation between screens. Inactive buttons show
+   icon only; the active button's label reveals via the max-width/
+   opacity transition on .nav-label. */
 #nav {
   position: fixed;
-  bottom: 0;
-  left: 0; right: 0;
-  height: calc(var(--nav-h) + var(--safe-bottom));
-  background: rgba(10,10,10,0.95);
-  backdrop-filter: blur(20px);
-  border-top: 0.5px solid var(--border2);
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + 16px);
+  transform: translateX(-50%);
   display: flex;
-  align-items: flex-start;
-  padding-top: 10px;
-  padding-bottom: var(--safe-bottom);
+  align-items: center;
+  gap: 2px;
+  max-width: calc(100% - 24px);
+  background: rgba(20,20,18,0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 0.5px solid var(--border2);
+  border-radius: 999px;
+  padding: 5px;
+  box-shadow: 0 14px 32px rgba(0,0,0,0.38), 0 2px 10px rgba(0,0,0,0.22);
   z-index: 100;
 }
 
+#nav-pill {
+  position: absolute;
+  top: 5px;
+  left: 0;
+  height: 44px;
+  width: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  transform: translateX(0);
+  z-index: 0;
+  pointer-events: none;
+}
+
 .nav-btn {
-  flex: 1;
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  height: 44px;
+  padding: 0 9px;
+  border-radius: 999px;
   background: none;
   border: none;
   color: var(--text3);
-  font-family: var(--font-mono);
-  font-size: 10px;
+  font-family: var(--font-display);
+  font-size: 12.5px;
+  font-weight: 600;
   cursor: pointer;
-  padding: 4px 0;
-  transition: color 0.15s;
-  letter-spacing: 0.05em;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+  transition: color 0.3s ease;
 }
-.nav-btn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.nav-btn.active { color: var(--accent); }
+.nav-btn:active svg { transform: scale(0.88); }
+.nav-btn svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; transition: transform 0.2s ease; }
+.nav-btn .nav-label {
+  display: inline-block;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  margin-left: 0;
+  transition: max-width 0.38s cubic-bezier(.34,1.56,.64,1), opacity 0.22s ease, margin-left 0.38s cubic-bezier(.34,1.56,.64,1);
+}
+.nav-btn.active { color: var(--bg); }
+.nav-btn.active .nav-label {
+  max-width: 90px;
+  opacity: 1;
+  margin-left: 6px;
+}
 
 /* ── TYPOGRAPHY ──────────────────────────── */
 .page-header {
@@ -136,12 +213,157 @@ h3 {
   background: var(--surface);
   border: 0.5px solid var(--border);
   border-radius: var(--r);
-  padding: 14px 16px;
+  padding: 16px 18px;
   margin-bottom: 10px;
 }
 .card-accent {
   border-color: var(--accent);
   border-width: 1px;
+}
+
+/* ── HERO CARD ───────────────────────────────────────────────
+   The signature element: a gradient card with two soft radial
+   blobs in the top-right, a label/value pair, and a row of
+   translucent callout chips. Used on Progress/Home, Body,
+   Train, Nutrition. */
+.hero-card {
+  position: relative;
+  border-radius: var(--r-lg);
+  padding: 18px 18px 22px;
+  margin-bottom: 14px;
+  overflow: hidden;
+  background: linear-gradient(150deg, var(--hero-1), var(--hero-2));
+  color: #fff;
+  isolation: isolate;
+}
+.hero-card::before {
+  content: '';
+  position: absolute;
+  top: -40px; right: -30px;
+  width: 120px; height: 120px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.05);
+  z-index: -1;
+}
+.hero-card::after {
+  content: '';
+  position: absolute;
+  bottom: -20px; left: 30px;
+  width: 70px; height: 70px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.05);
+  z-index: -1;
+}
+.hero-tappable { cursor: pointer; }
+.hero-tappable:active { opacity: 0.92; }
+.hero-label {
+  font-size: 11px;
+  color: rgba(255,255,255,0.6);
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+.hero-value {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  color: #fff;
+}
+.hero-value .unit {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 400;
+  color: rgba(255,255,255,0.75);
+  margin-left: 4px;
+}
+.hero-sub {
+  font-size: 13px;
+  color: rgba(255,255,255,0.7);
+  margin-top: 2px;
+}
+.hero-callouts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 14px;
+}
+.hero-callout {
+  background: rgba(255,255,255,0.1);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+}
+.hero-callout-lbl {
+  font-size: 10px;
+  color: rgba(255,255,255,0.6);
+  margin-bottom: 2px;
+}
+.hero-callout-val {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+}
+.hero-callout-sub {
+  font-size: 10px;
+  color: rgba(255,255,255,0.6);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+.hero-progress-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  margin-bottom: 4px;
+  font-size: 10px;
+  color: rgba(255,255,255,0.6);
+}
+.hero-progress-track {
+  height: 4px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.hero-progress-fill {
+  height: 100%;
+  background: rgba(255,255,255,0.7);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+.hero-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 12px;
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 500;
+  background: rgba(255,255,255,0.14);
+}
+.hero-nav-arrows {
+  position: absolute;
+  top: 18px; right: 18px;
+  display: flex;
+  gap: 6px;
+  z-index: 2;
+}
+.hero-nav-arrows button {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255,255,255,0.16);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.hero-date-pill {
+  position: absolute;
+  top: 18px; right: 18px;
+  font-size: 11.5px;
+  color: rgba(255,255,255,0.78);
+  z-index: 2;
 }
 
 /* ── BUTTONS ─────────────────────────────── */
@@ -205,11 +427,11 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   letter-spacing: 0.06em;
   font-weight: 500;
 }
-.badge-green { background: rgba(200,240,96,0.15); color: var(--accent); }
-.badge-amber { background: rgba(245,166,35,0.15); color: var(--amber); }
-.badge-red { background: rgba(255,95,78,0.15); color: var(--red); }
-.badge-blue { background: rgba(96,168,240,0.15); color: var(--blue); }
-.badge-purple { background: rgba(176,96,240,0.15); color: var(--purple); }
+.badge-green { background: #E1F5EE; color: #085041; }
+.badge-amber { background: #FAEEDA; color: #412402; }
+.badge-red { background: #FCEBEB; color: #501313; }
+.badge-blue { background: #E6F1FB; color: #042C53; }
+.badge-purple { background: #EEEDFE; color: #26215C; }
 
 /* ── TAGS ────────────────────────────────── */
 .tag { padding: 4px 10px; border-radius: 20px; font-size: 11px; border: 0.5px solid var(--border2); color: var(--text2); cursor: pointer; }
@@ -277,17 +499,39 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 .toggle-btn { flex: 1; padding: 8px; text-align: center; border-radius: 6px; border: none; background: transparent; color: var(--text2); font-family: var(--font-mono); font-size: 12px; cursor: pointer; transition: all 0.15s; }
 .toggle-btn.active { background: var(--surface3); color: var(--text); }
 
-/* ── LOG SET ROW ─────────────────────────── */
-.set-log-row {
-  display: flex;
+/* ── LOG SET ROW (matches mockup's .set-row grid exactly) ─── */
+.set-row {
+  display: grid;
+  grid-template-columns: 24px 1fr 60px 60px 40px;
+  gap: 6px;
   align-items: center;
-  gap: 8px;
-  padding: 8px 0;
+  padding: 7px 0;
   border-bottom: 0.5px solid var(--border);
 }
-.set-log-row:last-child { border-bottom: none; }
-.set-num { width: 20px; font-size: 12px; color: var(--text3); flex-shrink: 0; }
-.set-log-row input { flex: 1; text-align: center; padding: 8px 6px; }
+.set-row:last-child { border-bottom: none; }
+.set-num { font-size: 11px; color: var(--text3); text-align: center; }
+.set-suggested { font-size: 11px; color: var(--text2); }
+.set-input {
+  background: var(--surface2);
+  border: 0.5px solid var(--border2);
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  padding: 7px 4px;
+  text-align: center;
+  color: var(--text);
+  width: 100%;
+  font-family: var(--font-display);
+}
+.check-done, .check-empty {
+  width: 28px; height: 28px; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0; margin: 0 auto; border: none; transition: all 0.15s;
+}
+.check-done { background: #E1F5EE; }
+.check-done svg { stroke: #0F6E56; }
+.check-empty { background: var(--surface2); border: 0.5px solid var(--border2); }
+.check-empty svg { stroke: transparent; }
+.check-done svg, .check-empty svg { width: 13px; height: 13px; fill: none; stroke-width: 2.5; }
 
 /* ── Barcode scanner ───────────────────────────────────────────── */
 .scanner-viewport { position:relative; background:#000; width:100%; aspect-ratio:4/3; overflow:hidden; border-radius:var(--r-sm); margin-bottom:12px; }
@@ -456,9 +700,30 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   border-color: var(--accent) !important;
   background: rgba(200,240,96,0.06) !important;
 }
+
+/* ── THEME SWATCHES (Settings) ──────────────── */
+.theme-swatch {
+  border-radius: var(--r-sm);
+  padding: 12px 10px;
+  border: 1.5px solid var(--border2);
+  background: var(--surface2);
+  cursor: pointer;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.theme-swatch.active { border-color: var(--accent); background: rgba(200,240,96,0.08); }
+.theme-swatch-preview {
+  height: 32px;
+  border-radius: 8px;
+  margin: 0 auto 8px;
+}
+.theme-swatch-label { font-size: 11px; color: var(--text2); }
+.theme-swatch.active .theme-swatch-label { color: var(--text); font-weight: 500; }
+.theme-swatch-multi-preview { display: flex; height: 32px; border-radius: 8px; overflow: hidden; margin-bottom: 8px; }
+.theme-swatch-multi-preview > div { flex: 1; }
 </style>
 </head>
-<body>
+<body data-theme="multi">
 <div id="app">
   <div id="content">
 
@@ -466,21 +731,18 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
          SCREEN 0: HOME
     ═══════════════════════════════════════════ -->
     <div class="screen" id="screen-home">
-      <div class="page-header" style="padding-bottom:8px;">
-        <div>
-          <div class="page-title">BLOC</div>
-          <div class="page-sub" id="home-date"></div>
-        </div>
-        <span style="font-size:11px;color:var(--text3);letter-spacing:0.06em;align-self:flex-start;padding-top:6px;">v4.02</span>
-      </div>
+      <div id="home-date" style="display:none;"></div>
 
       <!-- Active cycle card -->
-      <div class="section-title">Active Cycle</div>
+      <div class="section-title" style="margin-top:0;">Active Cycle</div>
       <div id="home-cycle" style="margin-bottom:4px;"></div>
 
       <!-- Body weight + peak insight -->
       <div class="section-title" style="margin-top:16px;">Body Weight</div>
       <div id="home-body" style="margin-bottom:4px;"></div>
+
+      <!-- Volume over time (moved here from Plan page) -->
+      <div id="home-volume-chart" style="margin-bottom:4px;"></div>
 
       <!-- Factor charts + weekly table -->
       <div id="home-progress-charts" style="margin-bottom:4px;"></div>
@@ -510,14 +772,6 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
          SCREEN 1: PLAN
     ═══════════════════════════════════════════ -->
     <div class="screen" id="screen-plan">
-      <div class="page-header">
-        <div>
-          <div class="page-title">BLOC</div>
-          <div class="page-sub">Training Planner</div>
-        </div>
-        <button class="btn btn-accent btn-sm" onclick="openModal('modal-macro')">+ Macrocycle</button>
-      </div>
-
       <div id="macro-overview"></div>
       <div id="plan-content"></div>
     </div>
@@ -526,21 +780,11 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
          SCREEN 2: TRAIN
     ═══════════════════════════════════════════ -->
     <div class="screen" id="screen-train">
-      <div class="page-header">
-        <div>
-          <div class="page-title">Train</div>
-          <div class="page-sub" id="train-sub">Select week &amp; day</div>
-        </div>
-        <button id="timer-open-btn" onclick="openTimerModal()" style="background:none;border:none;cursor:pointer;color:var(--text2);display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;transition:color 0.15s,background 0.15s;" aria-label="Rest timer">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9.5 2.5h5"/><path d="M12 2.5V5"/>
-          </svg>
-        </button>
-      </div>
+      <div id="train-sub" style="display:none;"></div>
 
-      <div class="week-strip" id="week-strip"></div>
+      <div id="train-hero"></div>
 
-      <div class="day-tabs" id="day-tabs"></div>
+      <div id="train-session-picker"></div>
 
       <div id="train-content">
         <div class="empty-state">
@@ -554,19 +798,9 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
          SCREEN 3: BODY
     ═══════════════════════════════════════════ -->
     <div class="screen" id="screen-body">
-      <div class="page-header">
-        <div>
-          <div class="page-title">Body</div>
-          <div class="page-sub">Weight &amp; Steps</div>
-        </div>
-        <button class="btn btn-accent btn-sm" onclick="openModal('modal-body-log')">+ Log</button>
-      </div>
-
-      <div class="stat-row" id="body-stats-row">
-        <div class="stat-box"><div class="stat-num" id="bw-avg">—</div><div class="stat-lbl">7d avg lbs</div></div>
-        <div class="stat-box"><div class="stat-num" id="bw-change">—</div><div class="stat-lbl">vs last wk</div></div>
-        <div class="stat-box"><div class="stat-num" id="steps-avg">—</div><div class="stat-lbl">avg steps</div></div>
-      </div>
+      <div id="body-hero"></div>
+      <div id="body-history-card"></div>
+      <div id="body-logform-card"></div>
 
       <div class="section-title">Recent Entries</div>
       <div id="body-log-list"></div>
@@ -576,11 +810,8 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
          SCREEN: GOALS
     ═══════════════════════════════════════════ -->
     <div class="screen" id="screen-goals">
-      <div class="page-header">
-        <div>
-          <div class="page-title">Goals</div>
-          <div class="page-sub">Daily targets per cycle</div>
-        </div>
+      <div id="goals-toprow" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div class="section-title" style="margin:0;">Goals</div>
         <button class="btn btn-accent btn-sm" onclick="openModal('modal-add-goal')">+ Goal</button>
       </div>
       <div id="goals-content"></div>
@@ -590,19 +821,21 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
          SCREEN 5: SETTINGS
     ═══════════════════════════════════════════ -->
     <div class="screen" id="screen-settings">
-      <div class="page-header">
-        <div>
-          <div class="page-title">Settings</div>
-          <div class="page-sub">Data &amp; Backup</div>
-        </div>
-      </div>
+      <div class="section-title" style="margin-top:0;">Settings · Data &amp; Backup</div>
 
       <div class="section-title">About</div>
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v4.02</span>
+          <span class="badge badge-green">v5.02</span>
         </div>
+      </div>
+
+      <div class="section-title">Appearance</div>
+      <div class="card" style="margin-bottom:10px;">
+        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Theme</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Choose a single accent colour for every page, or let each page have its own colour.</div>
+        <div id="theme-swatch-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;"></div>
       </div>
 
       <div class="section-title">Backup</div>
@@ -688,11 +921,6 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
          SCREEN 4: NUTRITION
     ═══════════════════════════════════════════ -->
     <div class="screen" id="screen-nutrition">
-      <div class="page-header">
-        <div><div class="page-title">Nutrition</div></div>
-        <button class="btn btn-sm" onclick="openNutrQuickAdd()" style="font-size:11px;padding:6px 10px;">⚡ Quick add</button>
-      </div>
-
       <div class="toggle-row">
         <button class="toggle-btn active" id="nutr-tab-day" onclick="switchNutrTab('day')">Daily</button>
         <button class="toggle-btn" id="nutr-tab-week" onclick="switchNutrTab('week')">Weekly</button>
@@ -700,22 +928,8 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
       <!-- Daily view -->
       <div id="nutr-daily-view">
-        <!-- Date picker row -->
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-          <button onclick="nutrShiftDate(-1)" style="background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;padding:4px 8px;">‹</button>
-          <input type="date" id="nutr-day-picker" onchange="nutrPickDate(this.value)"
-            style="background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);color:var(--text);font-family:var(--font-mono);font-size:13px;padding:7px 12px;text-align:center;cursor:pointer;-webkit-appearance:none;">
-          <button onclick="nutrShiftDate(1)" style="background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;padding:4px 8px;">›</button>
-        </div>
-
-        <!-- Day badges -->
-        <div style="display:flex;gap:5px;margin-bottom:14px;" id="nutr-day-badges"></div>
-
-        <!-- Kcal summary -->
-        <div class="card" style="margin-bottom:10px;" id="nutr-kcal-card"></div>
-
-        <!-- Meso panel -->
-        <div class="card" style="margin-bottom:10px;" id="nutr-meso-card"></div>
+        <!-- Hero: kcal + macros, swipeable left/right between days -->
+        <div id="nutr-hero-wrap"><div id="nutr-hero-card"></div></div>
 
         <!-- Diary -->
         <div id="nutr-diary"></div>
@@ -728,35 +942,40 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
   <!-- ════════════════════════════════════════
        BOTTOM NAV
+       Floating pill nav. #nav-pill is a single shared highlight that
+       positionNavPill() (see NAVIGATION in the script) slides/resizes
+       behind whichever button is .active. Inactive buttons show icon
+       only; .nav-label reveals on the active button via CSS transition.
   ═══════════════════════════════════════════ -->
   <nav id="nav">
+    <div id="nav-pill"></div>
     <button class="nav-btn active" id="nav-home" onclick="showScreen('home')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="12" width="4" height="9" rx="0.5"/><rect x="10" y="7" width="4" height="14" rx="0.5"/><rect x="17" y="3" width="4" height="18" rx="0.5"/></svg>
-      progress
+      <svg class="nav-icon" viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="9" rx="0.5"/><rect x="10" y="7" width="4" height="14" rx="0.5"/><rect x="17" y="3" width="4" height="18" rx="0.5"/></svg>
+      <span class="nav-label">Progress</span>
     </button>
     <button class="nav-btn" id="nav-plan" onclick="showScreen('plan')">
-      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-      plan
+      <svg class="nav-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      <span class="nav-label">Plan</span>
     </button>
     <button class="nav-btn" id="nav-train" onclick="showScreen('train')">
-      <svg viewBox="0 0 24 24"><path d="M6 4v16M18 4v16M3 8h4M17 8h4M3 16h4M17 16h4"/></svg>
-      train
+      <svg class="nav-icon" viewBox="0 0 24 24"><path d="M6 4v16M18 4v16M3 8h4M17 8h4M3 16h4M17 16h4"/></svg>
+      <span class="nav-label">Train</span>
     </button>
     <button class="nav-btn" id="nav-body" onclick="showScreen('body')">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><path d="M12 8v6M9 11h6M9 22l3-4 3 4"/></svg>
-      body
+      <svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><path d="M12 8v6M9 11h6M9 22l3-4 3 4"/></svg>
+      <span class="nav-label">Body</span>
     </button>
     <button class="nav-btn" id="nav-nutrition" onclick="showScreen('nutrition')">
-      <svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7z"/><circle cx="12" cy="9" r="2"/></svg>
-      nutrition
+      <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7z"/><circle cx="12" cy="9" r="2"/></svg>
+      <span class="nav-label">Nutrition</span>
     </button>
     <button class="nav-btn" id="nav-goals" onclick="showScreen('goals')">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" style="fill:currentColor"/></svg>
-      goals
+      <svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" style="fill:currentColor"/></svg>
+      <span class="nav-label">Goals</span>
     </button>
     <button class="nav-btn" id="nav-settings" onclick="showScreen('settings')">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-      settings
+      <svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span class="nav-label">Settings</span>
     </button>
   </nav>
 </div>
@@ -861,6 +1080,36 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 </div>
 
 <!-- Edit Macrocycle -->
+<!-- Cycle History Modal: shown when tapping the Progress page hero card -->
+<!-- Date Picker Modal: shown when tapping the Nutrition page hero card -->
+<div class="modal-overlay" id="modal-nutr-date">
+  <div class="modal-sheet" data-modal="modal-nutr-date">
+    <div class="modal-handle-row">
+      <div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-nutr-date')">✕</button>
+    </div>
+    <div class="modal-title">Jump to date</div>
+    <div class="form-group">
+      <input type="date" id="nutr-date-input" onchange="nutrPickDate(this.value);closeModal('modal-nutr-date');" style="font-size:15px;">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px;">
+      <button class="btn btn-block" style="flex:1;" onclick="nutrPickDate(getLocalToday());closeModal('modal-nutr-date');">Today</button>
+      <button class="btn btn-block" style="flex:1;" onclick="(function(){const d=new Date();d.setDate(d.getDate()-1);nutrPickDate(toLocalDateStr(d));closeModal('modal-nutr-date');})();">Yesterday</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-cycle-history">
+  <div class="modal-sheet" data-modal="modal-cycle-history">
+    <div class="modal-handle-row">
+      <div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-cycle-history')">✕</button>
+    </div>
+    <div class="modal-title">Cycle history</div>
+    <div id="cycle-history-list"></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-edit-macro">
   <div class="modal-sheet" data-modal="modal-edit-macro">
     <div class="modal-handle-row">
@@ -1303,6 +1552,21 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 </script>
 <script>
 // ════════════════════════════════════════════════
+// DATE HELPERS
+// ════════════════════════════════════════════════
+// Builds a YYYY-MM-DD string from a Date's LOCAL calendar date.
+// Use this everywhere a date is turned into a storage/lookup key —
+// never `.toISOString().split('T')[0]`, which converts to UTC first
+// and can silently land on the wrong day (or the same day twice)
+// depending on the user's timezone offset.
+function toLocalDateStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// ════════════════════════════════════════════════
 // STATE
 // ════════════════════════════════════════════════
 let state = {
@@ -1348,6 +1612,8 @@ function load() {
   if (!state.nutritionQuickLog) state.nutritionQuickLog = {};
   if (!state.foodLibrary) state.foodLibrary = [];
   if (!state.recipes) state.recipes = [];
+  if (!state.theme) state.theme = 'multi';
+  document.body.setAttribute('data-theme', state.theme);
 
   // ── Migrate exercises: add stable id and order fields ──────────────────
   // Old trainLogs keys used positional index: macroId_week_day_exIdx_setIdx
@@ -1404,6 +1670,7 @@ function migrateExerciseIds() {
 }
 
 load();
+requestAnimationFrame(() => requestAnimationFrame(positionNavPill));
 
 // ════════════════════════════════════════════════
 // NAVIGATION
@@ -1413,6 +1680,7 @@ function showScreen(name) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('screen-' + name).classList.add('active');
   document.getElementById('nav-' + name).classList.add('active');
+  animateNavPill();
   if (name === 'home') renderHome();
   if (name === 'plan') renderPlan();
   if (name === 'train') renderTrain();
@@ -1422,11 +1690,48 @@ function showScreen(name) {
   if (name === 'goals') renderGoals();
 }
 
+// Sizes/positions the shared #nav-pill highlight to exactly match whatever
+// .nav-btn is currently .active right now. offsetLeft/offsetWidth are read
+// relative to #nav (its nearest positioned ancestor), so this stays correct
+// regardless of where the pill nav itself sits on screen.
+function positionNavPill() {
+  const nav = document.getElementById('nav');
+  const pill = document.getElementById('nav-pill');
+  const active = nav && nav.querySelector('.nav-btn.active');
+  if (!nav || !pill || !active) return;
+  pill.style.width = active.offsetWidth + 'px';
+  pill.style.transform = `translateX(${active.offsetLeft}px)`;
+}
+
+// The active button's width/position aren't static — they're mid-transition
+// (the label is expanding/collapsing via CSS, which changes the flex layout
+// of every button in the row). Reading offsetWidth/offsetLeft just once,
+// synchronously after toggling .active, catches the layout still at its
+// pre-transition (icon-only) size — the pill ends up too small. Instead,
+// re-measure every frame for the duration of that CSS transition so the
+// pill always exactly matches the real, currently-animating layout.
+let _navPillAnimId = null;
+function animateNavPill() {
+  if (_navPillAnimId) cancelAnimationFrame(_navPillAnimId);
+  const start = performance.now();
+  const duration = 420; // covers the .nav-label transition (380ms) plus a small buffer
+  (function step(now) {
+    positionNavPill();
+    if (now - start < duration) {
+      _navPillAnimId = requestAnimationFrame(step);
+    } else {
+      _navPillAnimId = null;
+    }
+  })(start);
+}
+window.addEventListener('resize', positionNavPill);
+window.addEventListener('load', positionNavPill);
+
 // ════════════════════════════════════════════════
 // MODALS
 // ════════════════════════════════════════════════
 function openModal(id) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalToday();
   if (id === 'modal-body-log') {
     const dateEl = document.getElementById('body-date-input');
     if (!dateEl.dataset.originalDate) {
@@ -1539,7 +1844,7 @@ function getMacroEndDate(macro) {
 
 function getNextMacroStart() {
   // Find the latest end date across all macrocycles, return the day after
-  if (!state.macrocycles.length) return new Date().toISOString().split('T')[0];
+  if (!state.macrocycles.length) return getLocalToday();
   let latest = null;
   state.macrocycles.forEach(m => {
     const end = getMacroEndDate(m);
@@ -1547,7 +1852,7 @@ function getNextMacroStart() {
   });
   const next = new Date(latest);
   next.setDate(next.getDate() + 1);
-  return next.toISOString().split('T')[0];
+  return toLocalDateStr(next);
 }
 function getMacroSummaryLabel(macro) {
   const wpm = macro.weeksPerMeso || 1;
@@ -1799,10 +2104,6 @@ function getMyorepProgression(ex, week) {
   return (base + add * (week - 1)) + ' reps';
 }
 
-// ════════════════════════════════════════════════
-// RENDER: HOME / PROGRESS
-// ════════════════════════════════════════════════
-
 // Build per-day stats map from all logs
 function buildDayMap() {
   const days = {};
@@ -1836,6 +2137,90 @@ function buildDayMap() {
   });
   return days;
 }
+
+// Parse a reps log value like "8" or "6-8" (range) into a single number for
+// volume math — uses the lower bound of a range, or the plain integer.
+function parseRepsForVolume(repsVal) {
+  if (repsVal === null || repsVal === undefined) return 0;
+  const m = String(repsVal).match(/(\d+)/);
+  return m ? parseInt(m[1]) : 0;
+}
+
+// Total volume (kg) for a single session: macroId_week_dayKey, summed over
+// all exercises/sets that have a logged weight+reps (done or not — logged is
+// enough). dayKey already includes any microcycle suffix (e.g. 'pushm1').
+function getSessionVolume(macro, week, dayKey) {
+  const templateKey = macro.id + '_1_' + dayKey;
+  const exercises = state.exercises[templateKey] || [];
+  const key = macro.id + '_' + week + '_' + dayKey;
+  let vol = 0;
+  exercises.forEach(ex => {
+    const sets = getWeekSets(ex, week, macro.weeks);
+    for (let s = 0; s < sets; s++) {
+      const log = state.trainLogs[key + '_' + ex.id + '_' + s];
+      if (log && log.weight && log.reps) {
+        vol += parseFloat(log.weight) * parseRepsForVolume(log.reps);
+      }
+    }
+  });
+  return vol;
+}
+
+// Returns the list of session day-keys for a macro, including microcycle
+// suffixes when the macro uses them (e.g. ['pushm1','pullm1','legsm1',
+// 'pushm2','pullm2','legsm2']) or bare day names when it doesn't.
+function getMacroSessionDayKeys(macro) {
+  const days = macro.days || ['push','pull','legs'];
+  const useMicro = macro.useMicrocycles !== false;
+  if (!useMicro) return days.slice();
+  const keys = [];
+  [1,2].forEach(mc => days.forEach(d => keys.push(d + 'm' + mc)));
+  return keys;
+}
+
+// Total volume (kg) across an entire macrocycle — all weeks, all sessions.
+function getMacroTotalVolume(macro) {
+  const dayKeys = getMacroSessionDayKeys(macro);
+  let total = 0;
+  for (let w = 1; w <= macro.weeks; w++) {
+    dayKeys.forEach(dayKey => { total += getSessionVolume(macro, w, dayKey); });
+  }
+  return total;
+}
+
+// Volume time series for a macrocycle — one point per session date (week+day
+// mapped onto a real calendar date via the macro start date), used for the
+// Plan page's "volume over time" area chart. Only includes sessions with
+// logged volume > 0, sorted chronologically.
+function getMacroVolumeSeries(macro) {
+  const dayKeys = getMacroSessionDayKeys(macro);
+  const startDate = macro.start ? new Date(macro.start + 'T00:00:00') : new Date();
+  const sessionsPerWeek = dayKeys.length;
+  const points = [];
+  for (let w = 1; w <= macro.weeks; w++) {
+    dayKeys.forEach((dayKey, di) => {
+      const vol = getSessionVolume(macro, w, dayKey);
+      if (vol > 0) {
+        // Approximate calendar date: week start + proportional day offset
+        const d = new Date(startDate);
+        d.setDate(d.getDate() + (w - 1) * 7 + Math.round((di / sessionsPerWeek) * 7));
+        points.push({ date: d, week: w, day: dayKey, vol });
+      }
+    });
+  }
+  points.sort((a,b) => a.date - b.date);
+  return points;
+}
+
+// Average a dayMap field (steps/kcal/protein) across a date range [startStr, endStr] inclusive.
+function avgDayMapField(dayMap, field, startStr, endStr) {
+  const dates = Object.keys(dayMap).filter(d => d >= startStr && d <= endStr && (field === 'steps' ? dayMap[d].steps !== null : dayMap[d].hasNutr));
+  if (!dates.length) return null;
+  const sum = dates.reduce((s,d) => s + (dayMap[d][field] || 0), 0);
+  return Math.round(sum / dates.length);
+}
+
+
 
 // Bucket dates into weekly chunks anchored to cycle start (or earliest log)
 function buildWeekBuckets(dayMap, macroStart) {
@@ -1881,7 +2266,7 @@ function findPeakWindow(dayMap, goalType) {
         score,
         delta,
         startDate: dates[i],
-        endDate: new Date(endMs).toISOString().split('T')[0],
+        endDate: toLocalDateStr(new Date(endMs)),
         avgSteps:   stepDays.length  ? Math.round(stepDays.reduce((s,d)  => s + dayMap[d].steps,   0) / stepDays.length)  : null,
         avgKcal:    nutrDays.length  ? Math.round(nutrDays.reduce((s,d)  => s + dayMap[d].kcal,    0) / nutrDays.length)  : null,
         avgProtein: nutrDays.length  ? Math.round(nutrDays.reduce((s,d)  => s + dayMap[d].protein, 0) / nutrDays.length)  : null,
@@ -1894,13 +2279,113 @@ function findPeakWindow(dayMap, goalType) {
 let progressPeriod = 'week'; // 'day' | 'week' | 'biweek'
 function setProgressPeriod(p) { progressPeriod = p; renderProgressCharts(); }
 
+// Which macrocycle the Progress hero is currently showing. Separate from
+// state.currentMacroId (which drives Plan/Train) so browsing history here
+// never changes what's "active" for training. Defaults to current cycle.
+let progressViewMacroId = null;
+// Train page session picker: collapsed by default, showing only a compact
+// bar with the current session + a chevron. Expands into the full MC/day
+// pill grid on tap. trainManualSelect tracks whether the person has
+// explicitly picked a session this app-load — until they do, renderTrain()
+// auto-jumps to the next incomplete session whenever it runs.
+let trainPickerExpanded = false;
+let trainManualSelect = false;
+function toggleTrainPicker() {
+  trainPickerExpanded = !trainPickerExpanded;
+  renderTrain();
+}
+// Tracks which "Weeks 2+" progression-preview blocks are expanded on the
+// Plan page, keyed by `${macroId}_${week}`. Collapsed by default — these
+// are read-only previews, not the editable Week 1 template, so showing
+// all of them at once for a long macrocycle becomes a huge wall of cards.
+let planExpandedWeeks = {};
+function togglePlanWeek(macroId, week) {
+  const key = macroId + '_' + week;
+  planExpandedWeeks[key] = !planExpandedWeeks[key];
+  renderPlan();
+}
+
+// Tapping the Progress hero opens this: a scrollable list of every
+// macrocycle (past, active, upcoming) with the same headline stats shown
+// on the hero itself, so the person can review past cycles without
+// leaving the Progress page or editing anything (tap-to-edit still lives
+// on the Plan page hero, untouched).
+function openCycleHistory() {
+  const el = document.getElementById('cycle-history-list');
+  if (!el) return;
+  const list = state.macrocycles.slice().sort((a,b) => (b.start||'').localeCompare(a.start||''));
+  if (!list.length) {
+    el.innerHTML = `<div class="empty-state"><p>No cycles yet.</p></div>`;
+    openModal('modal-cycle-history');
+    return;
+  }
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dayMapForHistory = buildDayMap();
+  el.innerHTML = list.map(macro => {
+    const startDate = macro.start ? new Date(macro.start + 'T00:00:00') : new Date();
+    const endDate = getMacroEndDate(macro);
+    const isPast = today > endDate;
+    const isFuture = today < startDate;
+    const isActive = macro.id === state.currentMacroId;
+    const endStr = endDate.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+    const startStr = startDate.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+
+    const bwLogsAll = (state.bodyLogs || []).filter(l => l.weight).sort((a,b) => a.date.localeCompare(b.date));
+    const macroEndStr = toLocalDateStr(endDate);
+    const cycleLogs = bwLogsAll.filter(l => macro.start && l.date >= macro.start && l.date <= macroEndStr);
+    const startBw = cycleLogs.length ? parseFloat(cycleLogs[0].weight) : null;
+    const latestBw = cycleLogs.length ? parseFloat(cycleLogs[cycleLogs.length - 1].weight) : null;
+    const cycleDelta = (startBw !== null && latestBw !== null) ? latestBw - startBw : null;
+
+    const avgSteps   = avgDayMapField(dayMapForHistory, 'steps',   macro.start || '0000-00-00', macroEndStr);
+    const avgKcal    = avgDayMapField(dayMapForHistory, 'kcal',    macro.start || '0000-00-00', macroEndStr);
+    const avgProtein = avgDayMapField(dayMapForHistory, 'protein', macro.start || '0000-00-00', macroEndStr);
+    const totalVolume = getMacroTotalVolume(macro);
+
+    return `<div class="card" style="margin-bottom:10px;${isActive ? 'border-color:var(--accent);' : ''}" onclick="closeModal('modal-cycle-history');progressViewMacroId='${macro.id}';renderHome();">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
+        <div>
+          <div style="font-family:var(--font-display);font-size:15px;font-weight:600;">${macro.name}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:1px;">${startStr} – ${endStr}</div>
+        </div>
+        ${isActive ? '<span class="badge badge-green">Active</span>' : isFuture ? '<span class="badge badge-blue">Upcoming</span>' : '<span class="badge badge-purple">Past</span>'}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px;">
+        <div><div style="font-size:10px;color:var(--text3);">Weight</div><div style="font-size:13px;font-weight:500;">${cycleDelta !== null ? Math.abs(cycleDelta).toFixed(1) + ' lbs ' + (cycleDelta < 0 ? 'lost' : 'gained') : '—'}</div></div>
+        <div><div style="font-size:10px;color:var(--text3);">Volume</div><div style="font-size:13px;font-weight:500;">${Math.round(totalVolume).toLocaleString()} kg</div></div>
+        <div><div style="font-size:10px;color:var(--text3);">Avg steps</div><div style="font-size:13px;font-weight:500;">${avgSteps !== null ? avgSteps.toLocaleString() : '—'}</div></div>
+        <div><div style="font-size:10px;color:var(--text3);">Avg kcal</div><div style="font-size:13px;font-weight:500;">${avgKcal !== null ? avgKcal : '—'}</div></div>
+        <div><div style="font-size:10px;color:var(--text3);">Avg protein</div><div style="font-size:13px;font-weight:500;">${avgProtein !== null ? avgProtein+'g' : '—'}</div></div>
+      </div>
+    </div>`;
+  }).join('');
+  openModal('modal-cycle-history');
+}
+
+function cycleProgressMacro(dir) {
+  const list = state.macrocycles.slice().sort((a,b) => (a.start||'').localeCompare(b.start||''));
+  if (list.length < 2) return;
+  if (!progressViewMacroId) progressViewMacroId = state.currentMacroId;
+  const idx = list.findIndex(m => m.id === progressViewMacroId);
+  const nextIdx = ((idx < 0 ? 0 : idx) + dir + list.length) % list.length;
+  progressViewMacroId = list[nextIdx].id;
+  renderHome();
+}
+
 function renderHome() {
   const todayStr = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' });
+  const todayStrShort = new Date().toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
   document.getElementById('home-date').textContent = todayStr;
 
-  // ── Active cycle ─────────────────────────────
+  // ── Active cycle hero ─────────────────────────
   const cycleEl = document.getElementById('home-cycle');
-  const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
+  if (!progressViewMacroId || !state.macrocycles.find(m => m.id === progressViewMacroId)) {
+    progressViewMacroId = state.currentMacroId;
+  }
+  const macro = state.macrocycles.find(m => m.id === progressViewMacroId) || state.macrocycles.find(m => m.id === state.currentMacroId);
+  const macroList = state.macrocycles.slice().sort((a,b) => (a.start||'').localeCompare(b.start||''));
+  const canCycle = macroList.length > 1;
+
   if (!macro) {
     cycleEl.innerHTML = `<div class="card" style="cursor:pointer;" onclick="showScreen('plan')">
       <div style="display:flex;align-items:center;justify-content:space-between;">
@@ -1914,47 +2399,92 @@ function renderHome() {
     const today = new Date(); today.setHours(0,0,0,0); startDate.setHours(0,0,0,0);
     const totalDays = totalCalWks * 7;
     const elapsedDays = Math.max(0, Math.min(today - startDate, endDate - startDate)) / (1000*60*60*24);
-    const pct = Math.min(100, Math.round((elapsedDays / totalDays) * 100));
+    const cyclePct = Math.min(100, Math.round((elapsedDays / totalDays) * 100));
     const currentMeso = today < startDate ? 0 : Math.min(macro.weeks, Math.floor(elapsedDays / ((macro.weeksPerMeso || 1) * 7)) + 1);
     const weekLabel = today < startDate ? 'Not started' : `MC ${currentMeso} of ${macro.weeks}`;
     const endStr = endDate.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
     const splitBadge = macro.splitType === 'fullbody' ? 'Full Body' : macro.splitType === 'custom' ? 'Custom' : 'PPL';
-    const bwLogs = (state.bodyLogs || []).filter(l => l.weight).sort((a,b) => b.date.localeCompare(a.date));
-    const latestBw = bwLogs.length ? parseFloat(bwLogs[0].weight) : null;
-    let bwHtml = '';
+    const isPast = today > endDate;
+    const isFuture = today < startDate;
+
+    // ── Body weight progress within this cycle ──
+    const bwLogsAll = (state.bodyLogs || []).filter(l => l.weight).sort((a,b) => a.date.localeCompare(b.date));
+    const cycleStartLogs = bwLogsAll.filter(l => macro.start && l.date >= macro.start && (!isPast || l.date <= toLocalDateStr(endDate)));
+    const startBw = cycleStartLogs.length ? parseFloat(cycleStartLogs[0].weight) : null;
+    const latestBw = cycleStartLogs.length ? parseFloat(cycleStartLogs[cycleStartLogs.length - 1].weight) : null;
+    const cycleDelta = (startBw !== null && latestBw !== null) ? latestBw - startBw : null;
+
+    let bwLine = '';
     if (macro.targetBw && latestBw !== null) {
       const diff = latestBw - macro.targetBw;
       const diffStr = Math.abs(diff) <= 0.1 ? 'On target ✓' : diff > 0 ? diff.toFixed(1) + ' lbs left to go' : Math.abs(diff).toFixed(1) + ' lbs below target';
-      const cycleStartLogs = (state.bodyLogs||[]).filter(l => l.weight && macro.start && l.date >= macro.start).sort((a,b) => a.date.localeCompare(b.date));
-      let cycleTotalStr = '';
-      if (cycleStartLogs.length >= 2) {
-        const cycleDelta = latestBw - parseFloat(cycleStartLogs[0].weight);
-        if (Math.abs(cycleDelta) >= 0.1) cycleTotalStr = ` · ${Math.abs(cycleDelta).toFixed(1)} lbs ${cycleDelta < 0 ? 'lost' : 'gained'} so far`;
-      }
-      bwHtml = `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:0.5px solid var(--border);">
-        <span style="font-size:12px;color:var(--text2);">Body weight</span>
-        <span style="font-size:12px;"><span style="color:var(--amber);">${latestBw} lbs${cycleTotalStr}</span><span style="color:var(--text3);"> · ${diffStr}</span></span></div>`;
+      const cycleTotalStr = cycleDelta !== null && Math.abs(cycleDelta) >= 0.1 ? `${Math.abs(cycleDelta).toFixed(1)} lbs ${cycleDelta < 0 ? 'lost' : 'gained'} so far · ` : '';
+      bwLine = `${cycleTotalStr}${diffStr}`;
     } else if (macro.targetBw) {
-      bwHtml = `<div style="font-size:11px;color:var(--text3);margin-top:6px;">Target: ${macro.targetBw} lbs — no weigh-ins yet</div>`;
+      bwLine = `Target ${macro.targetBw} lbs — no weigh-ins yet`;
     }
-    cycleEl.innerHTML = `<div class="card card-accent" style="cursor:pointer;" onclick="showScreen('plan')">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-        <div>
-          <div style="font-family:var(--font-display);font-size:16px;font-weight:800;">${macro.name}</div>
-          ${macro.goal ? `<div style="font-size:12px;color:var(--text2);margin-top:2px;">${macro.goal}</div>` : ''}
-        </div>
-        <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">
-          <span class="badge badge-green">${totalCalWks}wk</span>
-          <span class="badge badge-blue">${splitBadge}</span>
+
+    // ── On-track / behind / ahead schedule comparison ──
+    // Compares % through the cycle's timeline vs % progress toward the bodyweight goal.
+    let statusHtml = '';
+    if (macro.targetBw && startBw !== null && latestBw !== null && !isFuture) {
+      const totalBwChangeNeeded = macro.targetBw - startBw;
+      let bwPct = 0;
+      if (Math.abs(totalBwChangeNeeded) >= 0.1) {
+        bwPct = Math.max(0, Math.min(150, ((latestBw - startBw) / totalBwChangeNeeded) * 100));
+      } else {
+        bwPct = 100; // already at goal at cycle start
+      }
+      const gap = bwPct - cyclePct;
+      let statusLabel, statusColor;
+      if (gap >= 8) { statusLabel = '↗ Ahead of schedule'; statusColor = 'rgba(170,255,150,0.95)'; }
+      else if (gap <= -8) { statusLabel = '↘ Falling behind'; statusColor = 'rgba(255,200,150,0.95)'; }
+      else { statusLabel = '● On track'; statusColor = 'rgba(255,255,255,0.95)'; }
+      statusHtml = `<div class="hero-status" style="color:${statusColor};">${statusLabel} — ${Math.round(bwPct)}% of goal vs ${cyclePct}% of cycle</div>`;
+    }
+
+    // ── New callouts: cycle totals, averages, volume ──
+    const dayMapForMacro = buildDayMap();
+    const macroEndStr = toLocalDateStr(endDate);
+    const avgSteps   = avgDayMapField(dayMapForMacro, 'steps',   macro.start || '0000-00-00', macroEndStr);
+    const avgKcal    = avgDayMapField(dayMapForMacro, 'kcal',    macro.start || '0000-00-00', macroEndStr);
+    const avgProtein = avgDayMapField(dayMapForMacro, 'protein', macro.start || '0000-00-00', macroEndStr);
+    const totalVolume = getMacroTotalVolume(macro);
+
+    const weightChangeCallout = cycleDelta !== null
+      ? `<div class="hero-callout"><div class="hero-callout-lbl">Weight ${cycleDelta < 0 ? 'lost' : cycleDelta > 0 ? 'gained' : 'change'}</div><div class="hero-callout-val">${Math.abs(cycleDelta).toFixed(1)} lbs</div></div>`
+      : `<div class="hero-callout"><div class="hero-callout-lbl">Weight change</div><div class="hero-callout-val">—</div></div>`;
+
+    const navArrowButtons = canCycle ? `<div style="display:flex;gap:6px;">
+        <button onclick="cycleProgressMacro(-1)" aria-label="Previous cycle"><svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <button onclick="cycleProgressMacro(1)" aria-label="Next cycle"><svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+      </div>` : '';
+
+    cycleEl.innerHTML = `<div class="hero-card" data-page="home">
+      <div class="hero-nav-arrows" style="top:18px;right:18px;flex-direction:column;align-items:flex-end;gap:4px;" onclick="event.stopPropagation();">
+        <span style="font-size:10px;color:rgba(255,255,255,0.55);letter-spacing:0.04em;white-space:nowrap;">v5.02</span>
+        ${navArrowButtons}
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+        <div class="hero-tappable" style="flex:1;min-width:0;" onclick="openCycleHistory()">
+          <div class="hero-label">${isPast ? 'Past cycle' : isFuture ? 'Upcoming cycle' : 'Active cycle'} · ${todayStrShort}</div>
+          <div class="hero-value" style="font-size:24px;">${macro.name}</div>
         </div>
       </div>
-      <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Ends ${endStr}</div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-        <span style="font-size:12px;color:var(--text2);">${weekLabel}</span>
-        <span style="font-size:12px;color:var(--accent);">${pct}%</span>
+      <div class="hero-sub hero-tappable" onclick="openCycleHistory()">${macro.goal || ''}${macro.goal ? ' · ' : ''}${splitBadge} · ${totalCalWks}wk · Ends ${endStr}</div>
+      <div class="hero-callouts">
+        ${weightChangeCallout}
+        <div class="hero-callout"><div class="hero-callout-lbl">Volume</div><div class="hero-callout-val">${Math.round(totalVolume).toLocaleString()} kg</div></div>
+        <div class="hero-callout"><div class="hero-callout-lbl">Avg steps</div><div class="hero-callout-val">${avgSteps !== null ? avgSteps.toLocaleString() : '—'}</div></div>
       </div>
-      <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
-      ${bwHtml}
+      <div class="hero-callouts">
+        <div class="hero-callout"><div class="hero-callout-lbl">Avg kcal</div><div class="hero-callout-val">${avgKcal !== null ? avgKcal.toLocaleString() : '—'}</div></div>
+        <div class="hero-callout"><div class="hero-callout-lbl">Avg protein</div><div class="hero-callout-val">${avgProtein !== null ? avgProtein+'g' : '—'}</div></div>
+      </div>
+      <div class="hero-progress-row"><span>${weekLabel}</span><span>${cyclePct}%</span></div>
+      <div class="hero-progress-track"><div class="hero-progress-fill" style="width:${cyclePct}%"></div></div>
+      ${bwLine ? `<div class="hero-sub" style="margin-top:10px;">${bwLine}</div>` : ''}
+      ${statusHtml}
     </div>`;
   }
 
@@ -2009,7 +2539,7 @@ function renderHome() {
       const completedDates = [];
       for (let i = completedDays; i >= 1; i--) {
         const d = new Date(todayDate); d.setDate(todayDate.getDate() - i);
-        completedDates.push(d.toISOString().split('T')[0]);
+        completedDates.push(toLocalDateStr(d));
       }
       // Days remaining = today + rest of week until Sun
       const daysRemaining = daysLeft + 1; // include today
@@ -2059,6 +2589,10 @@ function renderHome() {
     ${peakHtml}
   </div>`;
 
+  // ── Volume over time (moved here from Plan page) ──
+  const volChartEl = document.getElementById('home-volume-chart');
+  if (volChartEl) volChartEl.innerHTML = macro ? buildPlanVolumeChartCard(macro) : '';
+
   // ── Progress charts ───────────────────────────
   renderProgressCharts();
 
@@ -2090,8 +2624,8 @@ function renderProgressCharts() {
   const buckets = [];
   let cur = new Date(anchorMs);
   while (cur.getTime() <= todayMs) {
-    const bStart = cur.toISOString().split('T')[0];
-    const bEnd   = new Date(cur.getTime() + (periodDays - 1) * 86400000).toISOString().split('T')[0];
+    const bStart = toLocalDateStr(cur);
+    const bEnd   = toLocalDateStr(new Date(cur.getTime() + (periodDays - 1) * 86400000));
     const bDates = allDates.filter(d => d >= bStart && d <= bEnd);
     if (bDates.length > 0) {
       const wDates = bDates.filter(d => dayMap[d].weight !== null);
@@ -2201,8 +2735,8 @@ function renderProgressCharts() {
     let wn = 1;
     let prevLastWeight = null; // carry last weight from previous week
     while (cur2.getTime() <= todayMs) {
-      const bStart = cur2.toISOString().split('T')[0];
-      const bEnd   = new Date(cur2.getTime() + 6 * 86400000).toISOString().split('T')[0];
+      const bStart = toLocalDateStr(cur2);
+      const bEnd   = toLocalDateStr(new Date(cur2.getTime() + 6 * 86400000));
       const bDates = allDates.filter(d => d >= bStart && d <= bEnd);
       if (bDates.length > 0) {
         const wD = bDates.filter(d => dayMap[d].weight !== null);
@@ -2535,17 +3069,41 @@ function buildBwProgress(macro) {
         cycleTotalStr = Math.abs(cycleDelta).toFixed(1) + ' lbs ' + direction + ' so far';
       }
     }
-    return '<div style="margin-top:10px;">'
+    return '<div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.16);">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
-      +   '<span style="font-size:11px;color:var(--text3);">Body weight target: ' + target + ' lbs</span>'
-      +   '<span style="font-size:11px;"><span style="color:var(--amber);">' + current.toFixed(1) + ' lbs' + (cycleTotalStr ? ' · ' + cycleTotalStr : '') + '</span><span style="color:var(--text3);"> · ' + diffStr + '</span></span>'
+      +   '<span style="font-size:11px;color:rgba(255,255,255,0.65);">Body weight target: ' + target + ' lbs</span>'
+      +   '<span style="font-size:11px;"><span style="color:#fff;font-weight:500;">' + current.toFixed(1) + ' lbs' + (cycleTotalStr ? ' · ' + cycleTotalStr : '') + '</span><span style="color:rgba(255,255,255,0.65);"> · ' + diffStr + '</span></span>'
       + '</div>'
-      + '<div class="progress-track"><div class="progress-fill" style="width:' + bwPct + '%;background:var(--blue);"></div></div>'
-      + '<div style="display:flex;justify-content:space-between;margin-top:3px;">'
-      +   '<span style="font-size:10px;color:var(--text3);">' + startBw.toFixed(1) + ' lbs start</span>'
-      +   '<span style="font-size:10px;color:var(--text3);">' + target + ' lbs goal</span>'
+      + '<div class="hero-progress-track"><div class="hero-progress-fill" style="width:' + bwPct + '%;"></div></div>'
+      + '<div style="display:flex;justify-content:space-between;margin-top:4px;">'
+      +   '<span style="font-size:10px;color:rgba(255,255,255,0.55);">' + startBw.toFixed(1) + ' lbs start</span>'
+      +   '<span style="font-size:10px;color:rgba(255,255,255,0.55);">' + target + ' lbs goal</span>'
       + '</div></div>';
   } catch(e) { return ''; }
+}
+
+// Total macrocycle volume over time, rendered as an area line chart card for
+// the Plan page. One point per logged session (week+day with volume > 0).
+function buildPlanVolumeChartCard(macro) {
+  const series = getMacroVolumeSeries(macro);
+  if (series.length < 2) {
+    return `<div class="card" style="margin-bottom:14px;">
+      <h3 style="margin-bottom:4px;">Volume over time</h3>
+      <div style="font-size:11px;color:var(--text3);padding:20px 0;text-align:center;">Log a few sessions to see your volume trend</div>
+    </div>`;
+  }
+  const points = series.map(p => ({
+    label: `${String(p.date.getDate()).padStart(2,'0')}-${String(p.date.getMonth()+1).padStart(2,'0')}`,
+    y: p.vol
+  }));
+  const totalVol = series.reduce((s,p) => s + p.vol, 0);
+  return `<div class="card" style="margin-bottom:14px;">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px;">
+      <h3>Volume over time</h3>
+      <span style="font-size:11px;color:var(--text3);">${Math.round(totalVol).toLocaleString()} kg total</span>
+    </div>
+    ${buildAreaLineChart(points, 'var(--blue)')}
+  </div>`;
 }
 
 // ════════════════════════════════════════════════
@@ -2558,9 +3116,9 @@ function renderPlan() {
 
   if (!macro) {
     overviewEl.innerHTML = '';
-    contentEl.innerHTML = `<div class="empty-state">
+    contentEl.innerHTML = `<div class="empty-state" onclick="openModal('modal-macro')" style="cursor:pointer;">
       <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
-      <p>Tap <strong>+ Macrocycle</strong> to start building your 8-week plan.</p>
+      <p>Tap here to start building your 8-week plan.</p>
     </div>`;
     return;
   }
@@ -2590,27 +3148,24 @@ function renderPlan() {
 
   overviewEl.innerHTML = `
     ${macroSwitch}
-    <div class="swipe-row-wrap card-wrap" style="border-radius:var(--r);margin-bottom:10px;">
+    <div class="swipe-row-wrap card-wrap" style="border-radius:var(--r-lg);margin-bottom:14px;">
       <div class="swipe-row-content">
-        <div class="card card-accent" style="width:100%;box-sizing:border-box;cursor:pointer;" onclick="openEditMacro('${macro.id}')">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+        <div class="hero-card hero-tappable" data-page="plan" style="width:100%;box-sizing:border-box;margin-bottom:0;" onclick="openEditMacro('${macro.id}')">
+          <div class="hero-nav-arrows" style="top:18px;right:18px;" onclick="event.stopPropagation();">
+            <button onclick="openModal('modal-macro')" aria-label="New macrocycle" style="width:auto;height:26px;padding:0 10px;border-radius:13px;font-size:11px;font-weight:500;white-space:nowrap;">+ New</button>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;">
             <div style="flex:1;min-width:0;">
-              <div style="font-family:var(--font-display);font-size:18px;font-weight:800;">${macro.name}</div>
-              ${macro.goal ? `<div style="font-size:12px;color:var(--text2);margin-top:2px;">${macro.goal}</div>` : ''}
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;margin-left:10px;flex-shrink:0;">
-              <span class="badge badge-green">${totalCalendarWeeks}wk</span>
-              <span class="badge badge-blue">${splitBadge}</span>
+              <div class="hero-label">Macrocycle</div>
+              <div class="hero-value" style="font-size:22px;">${macro.name}</div>
+              ${macro.goal ? `<div class="hero-sub">${macro.goal}</div>` : ''}
             </div>
           </div>
-          <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">${getMacroSummaryLabel(macro)} · Ends ${endStr} · ${microBadge}</div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-            <span style="font-size:12px;color:var(--text2);">${weekLabel}</span>
-            <span style="font-size:12px;color:var(--accent);">${pct}%</span>
-          </div>
-          <div class="progress-track"><div class="progress-fill" style="width:${pct}%;"></div></div>
+          <div class="hero-sub" style="margin-top:10px;">${getMacroSummaryLabel(macro)} · Ends ${endStr} · ${microBadge}</div>
+          <div class="hero-progress-row"><span>${weekLabel}</span><span>${pct}%</span></div>
+          <div class="hero-progress-track"><div class="hero-progress-fill" style="width:${pct}%;"></div></div>
           ${macro.targetBw ? buildBwProgress(macro) : ''}
-          <div style="font-size:10px;color:var(--text3);margin-top:10px;text-align:right;">swipe ← for options</div>
+          <div style="font-size:10px;color:rgba(255,255,255,0.55);margin-top:12px;text-align:right;">swipe ← for options</div>
         </div>
       </div>
       <div class="swipe-actions vertical" style="width:100px;">
@@ -2651,12 +3206,18 @@ function renderPlan() {
     <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Sets scale from your starting sets to peak sets. Targets shown use weight progression — you choose per-exercise each session.</div>`;
 
     for (let w = 2; w <= macro.weeks; w++) {
-      html += `<div style="margin-bottom:16px;">
-        <div style="font-family:var(--font-display);font-weight:700;font-size:13px;color:var(--text2);margin-bottom:8px;">Week ${w}</div>
-        ${useMicro
-          ? renderMicroBlock(macro, w, 1, days, dayLabels, false) + renderMicroBlock(macro, w, 2, days, dayLabels, false)
-          : renderMicroBlock(macro, w, 0, days, dayLabels, false)
-        }
+      const weekKey = macro.id + '_' + w;
+      const isOpen = !!planExpandedWeeks[weekKey];
+      const weekBody = useMicro
+        ? renderMicroBlock(macro, w, 1, days, dayLabels, false) + renderMicroBlock(macro, w, 2, days, dayLabels, false)
+        : renderMicroBlock(macro, w, 0, days, dayLabels, false);
+      html += `<div class="card" style="margin-bottom:10px;padding:0;">
+        <div onclick="togglePlanWeek('${macro.id}',${w})"
+          style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+          <span style="font-family:var(--font-display);font-weight:600;font-size:13px;color:var(--text);">Week ${w}</span>
+          <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${isOpen?'180':'0'}deg)"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        ${isOpen ? `<div style="padding:0 14px 14px;">${weekBody}</div>` : ''}
       </div>`;
     }
   }
@@ -2840,68 +3401,67 @@ function deleteMacrocycle(id) {
 // ════════════════════════════════════════════════
 function renderTrain() {
   const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
-  const stripEl = document.getElementById('week-strip');
-  const tabsEl = document.getElementById('day-tabs');
+  const pickerEl = document.getElementById('train-session-picker');
   const subEl = document.getElementById('train-sub');
 
   if (!macro) {
-    stripEl.innerHTML = '';
-    tabsEl.innerHTML = '';
+    pickerEl.innerHTML = '';
     document.getElementById('train-content').innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24"><path d="M6 4v16M18 4v16M3 8h4M17 8h4M3 16h4M17 16h4"/></svg><p>Create a macrocycle in the Plan tab first.</p></div>`;
     return;
   }
 
-  // Mesocycle strip — renamed from Week
-  let wHtml = '';
+  const days = macro.days || ['push','pull','legs'];
+  const dayLabels = macro.dayLabels || { push:'Push', pull:'Pull', legs:'Legs' };
+  const useMicro = macro.useMicrocycles !== false;
+  const micros = useMicro ? [1,2] : [0];
+
+  // ── Compute completion for every session in the macro, in order ────────
+  // Each session = one (week, dayKey) pair. "Complete" means every set in
+  // every exercise of that session is logged done. Sessions with zero
+  // exercises defined are skipped entirely (not counted as incomplete).
+  const allSessions = [];
   for (let w = 1; w <= macro.weeks; w++) {
-    // Check if all sessions in this mesocycle are complete
-    const days = macro.days || ['push','pull','legs'];
-    const useMicro = macro.useMicrocycles !== false;
-    const micros = useMicro ? [1,2] : [0];
-    let allSessionsDone = true;
-    let hasAnySessions = false;
     micros.forEach(mc => {
       days.forEach(d => {
         const dayKey = mc === 0 ? d : d + 'm' + mc;
         const templateKey = macro.id + '_1_' + dayKey;
         const exercises = (state.exercises[templateKey] || []).slice().sort((a,b) => (a.order||0)-(b.order||0));
         if (exercises.length === 0) return;
-        hasAnySessions = true;
-        exercises.forEach((ex) => {
+        let allDone = true;
+        exercises.forEach(ex => {
           const sets = getWeekSets(ex, w, macro.weeks);
           for (let s = 0; s < sets; s++) {
             const lk = macro.id + '_' + w + '_' + dayKey + '_' + ex.id + '_' + s;
-            if (!state.trainLogs[lk] || !state.trainLogs[lk].done) allSessionsDone = false;
+            if (!state.trainLogs[lk] || !state.trainLogs[lk].done) allDone = false;
           }
         });
+        allSessions.push({ week: w, dayKey, done: allDone });
       });
     });
-    const isDone = hasAnySessions && allSessionsDone;
-    wHtml += `<button class="week-pill ${state.currentWeek===w?'active':''}" onclick="selectTrainWeek(${w})">MC ${w}${isDone ? ' ✓' : ''}</button>`;
   }
-  stripEl.innerHTML = wHtml;
 
-  // Day tabs — driven by macro split and microcycle setting
-  const days = macro.days || ['push','pull','legs'];
-  const dayLabels = macro.dayLabels || { push:'Push', pull:'Pull', legs:'Legs' };
-  const useMicro = macro.useMicrocycles !== false;
-  const micros = useMicro ? [1,2] : [0];
-  let tHtml = '';
-  micros.forEach(mc => {
-    days.forEach(d => {
-      const key = mc === 0 ? d : (d + 'm' + mc);
-      const label = useMicro ? ((dayLabels[d] || d) + ' M' + mc) : (dayLabels[d] || d);
-      tHtml += `<button class="day-tab ${state.currentDay===key?'active':''}" onclick="selectTrainDay('${key}')">${label}</button>`;
-    });
-  });
-  tabsEl.innerHTML = tHtml;
+  // ── Auto-select the next incomplete session, unless the person has
+  // manually picked one this app-load (manual choice always wins until
+  // they navigate away and back, or the macro changes). ──────────────────
+  if (!trainManualSelect) {
+    const nextIncomplete = allSessions.find(s => !s.done);
+    if (nextIncomplete) {
+      state.currentWeek = nextIncomplete.week;
+      state.currentDay = nextIncomplete.dayKey;
+    } else if (allSessions.length) {
+      // Everything done — fall back to the last session in the plan.
+      const last = allSessions[allSessions.length - 1];
+      state.currentWeek = last.week;
+      state.currentDay = last.dayKey;
+    }
+  }
 
-  // Ensure currentDay is valid for this macro
+  // Ensure currentDay is valid for this macro (e.g. after a macro switch)
   const validKeys = micros.flatMap(mc => days.map(d => mc === 0 ? d : d+'m'+mc));
   if (!validKeys.includes(state.currentDay)) {
     state.currentDay = validKeys[0];
-    save();
   }
+  save();
 
   // Subtitle
   const dayKey = state.currentDay;
@@ -2910,17 +3470,60 @@ function renderTrain() {
   const dayDisplay = dayLabels[dayId] || dayId;
   subEl.textContent = `MC ${state.currentWeek} · ${dayDisplay}${microSuffix}`;
 
+  // ── Collapsed picker bar + expandable pill grid ─────────────────────────
+  let pickerHtml = `<div class="card" style="margin-bottom:14px;padding:0;">
+    <div onclick="toggleTrainPicker()" style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+      <div>
+        <span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;">Session</span>
+        <div style="font-family:var(--font-display);font-size:14px;font-weight:600;color:var(--text);margin-top:1px;">MC ${state.currentWeek} · ${dayDisplay}${microSuffix}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:11px;color:var(--text3);">Change</span>
+        <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${trainPickerExpanded?'180':'0'}deg)"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+    </div>`;
+
+  if (trainPickerExpanded) {
+    // Mesocycle strip
+    let wHtml = '';
+    for (let w = 1; w <= macro.weeks; w++) {
+      const weekSessions = allSessions.filter(s => s.week === w);
+      const isDone = weekSessions.length > 0 && weekSessions.every(s => s.done);
+      wHtml += `<button class="week-pill ${state.currentWeek===w?'active':''}" onclick="selectTrainWeek(${w})">MC ${w}${isDone ? ' ✓' : ''}</button>`;
+    }
+    // Day tabs
+    let tHtml = '';
+    micros.forEach(mc => {
+      days.forEach(d => {
+        const key = mc === 0 ? d : (d + 'm' + mc);
+        const label = useMicro ? ((dayLabels[d] || d) + ' M' + mc) : (dayLabels[d] || d);
+        tHtml += `<button class="day-tab ${state.currentDay===key?'active':''}" onclick="selectTrainDay('${key}')">${label}</button>`;
+      });
+    });
+    pickerHtml += `<div style="padding:0 14px 14px;border-top:0.5px solid var(--border);">
+      <div style="height:10px;"></div>
+      <div class="week-strip" style="margin-bottom:10px;">${wHtml}</div>
+      <div class="day-tabs" style="margin-bottom:0;">${tHtml}</div>
+    </div>`;
+  }
+  pickerHtml += `</div>`;
+  pickerEl.innerHTML = pickerHtml;
+
+  renderTrainHero(macro);
+
   renderTrainDay(macro);
 }
 
 function selectTrainWeek(w) {
   state.currentWeek = w;
+  trainManualSelect = true;
   save();
   renderTrain();
 }
 
 function selectTrainDay(d) {
   state.currentDay = d;
+  trainManualSelect = true;
   save();
   renderTrain();
 }
@@ -2945,6 +3548,57 @@ function toggleExercise(expandKey) {
   expandedExercises[expandKey] = !expandedExercises[expandKey];
   const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
   if (macro) renderTrainDay(macro);
+}
+
+// Train hero card: session overview (exercises, sets done, volume, progress).
+// Standalone so it can be refreshed both from renderTrain() and from
+// renderTrainDay() (called whenever a set is logged/toggled/cleared).
+function renderTrainHero(macro) {
+  const heroEl = document.getElementById('train-hero');
+  if (!heroEl || !macro) return;
+  const dayKey = state.currentDay;
+  const macroDayLabels = macro.dayLabels || { push:'Push', pull:'Pull', legs:'Legs' };
+  const useMicro = macro.useMicrocycles !== false;
+  const dayId = useMicro ? dayKey.replace(/m[12]$/, '') : dayKey;
+  const microSuffix = useMicro ? (' ' + (dayKey.endsWith('m1') ? 'MC1' : 'MC2')) : '';
+  const dayDisplay = macroDayLabels[dayId] || dayId;
+
+  const templateKey = macro.id + '_1_' + dayKey;
+  const sessionExercises = (state.exercises[templateKey] || []);
+  let totalSets = 0, doneSets = 0, sessionVolume = 0;
+  sessionExercises.forEach(ex => {
+    const sets = getWeekSets(ex, state.currentWeek, macro.weeks);
+    totalSets += sets;
+    for (let s = 0; s < sets; s++) {
+      const lk = macro.id + '_' + state.currentWeek + '_' + dayKey + '_' + ex.id + '_' + s;
+      const log = state.trainLogs[lk];
+      if (log && log.done) doneSets++;
+      if (log && log.weight && log.reps) sessionVolume += parseFloat(log.weight) * parseRepsForVolume(log.reps);
+    }
+  });
+  const sessionPct = totalSets > 0 ? Math.round((doneSets / totalSets) * 100) : 0;
+  if (sessionExercises.length === 0) {
+    heroEl.innerHTML = '';
+  } else {
+    heroEl.innerHTML = `<div class="hero-card" data-page="train">
+      <div class="hero-nav-arrows" style="top:18px;right:18px;">
+        <button id="timer-open-btn" onclick="openTimerModal()" aria-label="Rest timer">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9.5 2.5h5"/><path d="M12 2.5V5"/>
+          </svg>
+        </button>
+      </div>
+      <div class="hero-label">${dayDisplay}${microSuffix} · MC ${state.currentWeek} / ${macro.weeks}</div>
+      <div class="hero-value" style="font-size:24px;">${macro.name}</div>
+      <div class="hero-callouts">
+        <div class="hero-callout"><div class="hero-callout-lbl">Exercises</div><div class="hero-callout-val">${sessionExercises.length}</div></div>
+        <div class="hero-callout"><div class="hero-callout-lbl">Sets done</div><div class="hero-callout-val">${doneSets} / ${totalSets}</div></div>
+        <div class="hero-callout"><div class="hero-callout-lbl">Volume</div><div class="hero-callout-val">${Math.round(sessionVolume)} kg</div></div>
+      </div>
+      <div class="hero-progress-row"><span>Session progress</span><span>${sessionPct}%</span></div>
+      <div class="hero-progress-track"><div class="hero-progress-fill" style="width:${sessionPct}%"></div></div>
+    </div>`;
+  }
 }
 
 function renderTrainDay(macro) {
@@ -3069,26 +3723,37 @@ function renderTrainDay(macro) {
     }
 
     // ── Compact header ─────────────────────────────────────────────────────────
-    html += `<div class="card" style="margin-bottom:8px;padding:0;">
-      <button onclick="toggleExercise('${expandKey}')"
-        style="width:100%;background:none;border:none;padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;text-align:left;">
-        <div style="flex:1;min-width:0;">
-          <div style="font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${ex.name}</div>
-          <div style="display:flex;align-items:center;gap:8px;margin-top:2px;flex-wrap:wrap;">
-            <span style="font-size:12px;color:var(--text2);">${sets} sets · ${summaryReps} · ${summaryWeight}</span>
-            ${progressBadge}
+    html += `<div class="card" style="margin-bottom:10px;padding:0;">
+      <div onclick="toggleExercise('${expandKey}')"
+        style="width:100%;background:none;border:none;padding:14px;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-family:var(--font-display);font-size:15px;font-weight:600;color:var(--text);">${ex.name}</div>
+            <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap;align-items:center;">
+              <span class="badge ${ex.type==='standard'?'badge-blue':ex.type==='myorep'?'badge-purple':'badge-amber'}">${typeLabel}</span>
+              <span class="badge badge-purple">${sets} sets · ${ex.reps} reps</span>
+              ${progressBadge}
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
+            ${allDone
+              ? `<span style="font-size:11px;color:var(--accent);font-weight:500;white-space:nowrap;">✓ done</span>`
+              : `<div style="display:flex;align-items:center;gap:6px;">
+                   <button onclick="quickFillComplete(event,'${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholder}','${repsPlaceholder}')"
+                     title="Quick fill suggested and mark complete"
+                     style="width:26px;height:26px;border-radius:50%;border:1.5px solid var(--border2);background:transparent;color:var(--text2);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;">
+                     <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                   </button>
+                   ${doneSets > 0 ? `<span style="font-size:11px;color:var(--text3);white-space:nowrap;">${doneSets}/${sets}</span>` : ''}
+                 </div>`
+            }
+            <span style="font-size:11px;color:var(--text3);white-space:nowrap;">Start: ${ex.startWeight} kg</span>
           </div>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-          ${allDone
-            ? `<span style="font-size:11px;color:var(--accent);font-weight:500;">✓ done</span>`
-            : doneSets > 0
-              ? `<span style="font-size:11px;color:var(--text3);">${doneSets}/${sets}</span>`
-              : `<span class="badge ${ex.type==='standard'?'badge-blue':ex.type==='myorep'?'badge-purple':'badge-amber'}" style="font-size:10px;">${typeLabel}</span>`
-          }
-          <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0;transition:transform 0.2s;transform:rotate(${isExpanded?'180':'0'}deg)"><polyline points="6 9 12 15 18 9"/></svg>
+        <div style="display:flex;justify-content:flex-end;margin-top:4px;">
+          <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${isExpanded?'180':'0'}deg)"><polyline points="6 9 12 15 18 9"/></svg>
         </div>
-      </button>`;
+      </div>`;
 
     // ── Expanded detail ────────────────────────────────────────────────────────
     if (isExpanded) {
@@ -3112,16 +3777,16 @@ function renderTrainDay(macro) {
       const progSelector = state.currentWeek === 1 ? '' : `<div style="margin-bottom:12px;">
         <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">This week — choose progression</div>
         <div style="display:flex;gap:8px;">
-          <button onclick="selectProgType('${macro.id}',${state.currentWeek},'${state.currentDay}',${exIdx},'weight')"
-            style="flex:1;padding:8px 10px;border-radius:var(--r-sm);border:1px solid ${progType==='weight'?'var(--accent)':'var(--border2)'};background:${progType==='weight'?'rgba(200,240,96,0.1)':'var(--surface2)'};color:${progType==='weight'?'var(--accent)':'var(--text2)'};font-family:var(--font-mono);font-size:12px;cursor:pointer;text-align:left;line-height:1.5;">
-            <div style="font-weight:500;">↑ Weight</div>
-            <div style="font-size:11px;opacity:0.85;">${weightRec}</div>
-          </button>
-          ${isMyomatch ? '' : `<button onclick="selectProgType('${macro.id}',${state.currentWeek},'${state.currentDay}',${exIdx},'reps')"
-            style="flex:1;padding:8px 10px;border-radius:var(--r-sm);border:1px solid ${progType==='reps'?'var(--accent)':'var(--border2)'};background:${progType==='reps'?'rgba(200,240,96,0.1)':'var(--surface2)'};color:${progType==='reps'?'var(--accent)':'var(--text2)'};font-family:var(--font-mono);font-size:12px;cursor:pointer;text-align:left;line-height:1.5;">
-            <div style="font-weight:500;">↑ Reps</div>
-            <div style="font-size:11px;opacity:0.85;">${repsRec}</div>
-          </button>`}
+          <div onclick="selectProgType('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}','weight')"
+            style="flex:1;padding:10px 12px;border-radius:var(--r-sm);cursor:pointer;background:${progType==='weight'?'var(--accent)':'var(--surface2)'};color:${progType==='weight'?'#06281f':'var(--text2)'};">
+            <div style="font-size:12px;font-weight:600;">↑ Weight</div>
+            <div style="font-size:11px;opacity:0.8;margin-top:1px;">${weightRec}</div>
+          </div>
+          ${isMyomatch ? '' : `<div onclick="selectProgType('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}','reps')"
+            style="flex:1;padding:10px 12px;border-radius:var(--r-sm);cursor:pointer;background:${progType==='reps'?'var(--accent)':'var(--surface2)'};color:${progType==='reps'?'#06281f':'var(--text2)'};">
+            <div style="font-size:12px;font-weight:600;">↑ Reps</div>
+            <div style="font-size:11px;opacity:0.8;margin-top:1px;">${repsRec}</div>
+          </div>`}
         </div>
       </div>`;
 
@@ -3154,38 +3819,40 @@ function renderTrainDay(macro) {
       }
 
       // Fill suggested button + set rows
-      let setRows = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      let setRows = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;">Log sets</div>
         <div style="display:flex;gap:6px;">
           <button onclick="fillSuggested('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholder}','${repsPlaceholder}')"
             id="fill-btn-${macro.id}-${exId}"
-            style="font-size:11px;padding:5px 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;color:var(--text2);font-family:var(--font-mono);cursor:pointer;">
+            style="font-size:11px;padding:5px 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;color:var(--text2);font-family:var(--font-display);cursor:pointer;">
             ↓ Fill suggested
           </button>
           <button onclick="clearExerciseLogs('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets})"
-            style="font-size:11px;padding:5px 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;color:var(--red);font-family:var(--font-mono);cursor:pointer;">
+            style="font-size:11px;padding:5px 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;color:var(--red);font-family:var(--font-display);cursor:pointer;">
             Clear
           </button>
         </div>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;padding:0 0 4px;">
-        <div style="width:20px;"></div>
-        <div style="flex:1;max-width:80px;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;text-align:center;">Weight</div>
-        <div style="flex:1;max-width:80px;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;text-align:center;">Reps</div>
-        <div style="width:32px;"></div>
+      <div class="set-row" style="border-bottom:0.5px solid var(--border);padding-top:0;">
+        <span class="set-num">#</span>
+        <span style="font-size:10px;color:var(--text3);">Suggested</span>
+        <span style="font-size:10px;color:var(--text3);text-align:center;">kg</span>
+        <span style="font-size:10px;color:var(--text3);text-align:center;">reps</span>
+        <span style="font-size:10px;color:var(--text3);text-align:center;">✓</span>
       </div>`;
       for (let s = 0; s < sets; s++) {
         const logKey = key + '_' + exId + '_' + s;
         const log = state.trainLogs[logKey] || {};
-        setRows += `<div class="set-log-row">
-          <div class="set-num">${s + 1}</div>
-          <input type="number" step="0.5" placeholder="${weightPlaceholder}" value="${log.weight || ''}"
-            oninput="logSet('${logKey}','weight',this.value)" style="max-width:80px;" id="inp-w-${logKey}">
-          <input type="text" placeholder="${repsPlaceholder}" value="${log.reps || ''}"
-            oninput="logSet('${logKey}','reps',this.value)" style="max-width:80px;" id="inp-r-${logKey}">
-          <button class="set-check ${log.done ? 'done' : ''}" onclick="toggleSetDone('${logKey}')">
+        setRows += `<div class="set-row">
+          <span class="set-num">${s + 1}</span>
+          <span class="set-suggested">${weightPlaceholder} kg × ${repsPlaceholder}</span>
+          <input class="set-input" type="number" step="0.5" placeholder="${weightPlaceholder}" value="${log.weight || ''}"
+            oninput="logSet('${logKey}','weight',this.value)" id="inp-w-${logKey}">
+          <input class="set-input" type="text" placeholder="${repsPlaceholder}" value="${log.reps || ''}"
+            oninput="logSet('${logKey}','reps',this.value)" id="inp-r-${logKey}">
+          <div class="${log.done ? 'check-done' : 'check-empty'}" onclick="toggleSetDone('${logKey}')">
             <svg viewBox="0 0 14 14"><polyline points="2,7 5.5,10.5 12,3"/></svg>
-          </button>
+          </div>
         </div>`;
       }
 
@@ -3201,6 +3868,7 @@ function renderTrainDay(macro) {
   });
 
   el.innerHTML = html;
+  renderTrainHero(macro);
 }
 
 function logSet(key, field, value) {
@@ -3265,6 +3933,25 @@ function clearExerciseLogs(macroId, week, day, exId, sets) {
   if (macro) renderTrainDay(macro);
 }
 
+// Quick fill + complete: used on a COLLAPSED exercise card to fill every set
+// with its suggested weight/reps and mark all sets done in one tap, without
+// expanding the card. event.stopPropagation() keeps this from also toggling
+// the card open (it sits inside the same clickable header row).
+function quickFillComplete(event, macroId, week, day, exId, sets, weight, reps) {
+  if (event) event.stopPropagation();
+  const baseKey = macroId + '_' + week + '_' + day;
+  for (let s = 0; s < sets; s++) {
+    const logKey = baseKey + '_' + exId + '_' + s;
+    if (!state.trainLogs[logKey]) state.trainLogs[logKey] = {};
+    state.trainLogs[logKey].weight = weight;
+    state.trainLogs[logKey].reps   = reps;
+    state.trainLogs[logKey].done   = true;
+  }
+  save();
+  const macro = state.macrocycles.find(m => m.id === macroId);
+  if (macro) renderTrainDay(macro);
+}
+
 function toggleSetDone(key) {
   const log = state.trainLogs[key] || {};
   // If trying to mark done, validate weight and reps are filled
@@ -3294,8 +3981,54 @@ function toggleSetDone(key) {
 // ════════════════════════════════════════════════
 // RENDER: BODY
 // ════════════════════════════════════════════════
+let bodyHistoryPeriod = 'all'; // '4w' | '8w' | 'all'
+function setBodyHistoryPeriod(p) { bodyHistoryPeriod = p; renderBody(); }
+
+function buildAreaLineChart(points, color) {
+  // points: array of {x:Date|string label, y:number}, sorted ascending
+  const vals = points.map(p => p.y).filter(v => v !== null && v !== undefined);
+  if (vals.length < 2) return '<div style="font-size:11px;color:var(--text3);padding:24px 0;text-align:center;">Not enough data yet</div>';
+
+  const W = 320, H = 150, padL = 4, padR = 4, padT = 14, padB = 22;
+  const cW = W - padL - padR, cH = H - padT - padB;
+  const n = points.length;
+  const yMin = Math.min(...vals), yMax = Math.max(...vals);
+  const yRange = (yMax - yMin) || 1;
+  const pad = yRange * 0.12;
+  const yMin2 = yMin - pad, yMax2 = yMax + pad;
+  const yRange2 = yMax2 - yMin2 || 1;
+  const xPos = i => padL + (i / Math.max(n - 1, 1)) * cW;
+  const yPos = v => padT + cH - ((v - yMin2) / yRange2) * cH;
+
+  const linePts = points.map((p, i) => ({ x: xPos(i), y: yPos(p.y) }));
+  const lineStr = linePts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const areaStr = `${padL},${(padT+cH).toFixed(1)} ${lineStr} ${(padL+cW).toFixed(1)},${(padT+cH).toFixed(1)}`;
+
+  const last = linePts[linePts.length - 1];
+
+  // X axis labels — show ~3 evenly spaced
+  const labelStep = Math.max(1, Math.floor(n / 3));
+  const xLabels = points.map((p, i) => (i === 0 || i === n-1 || i % labelStep === 0)
+    ? `<text x="${xPos(i).toFixed(1)}" y="${H-4}" text-anchor="${i===0?'start':i===n-1?'end':'middle'}" font-size="9" fill="var(--text3)" font-family="var(--font-mono)">${p.label}</text>`
+    : ''
+  ).join('');
+
+  const gradId = 'areaGrad' + Math.random().toString(36).slice(2,8);
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;overflow:visible;">
+    <defs><linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${color}" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+    </linearGradient></defs>
+    <polygon points="${areaStr}" fill="url(#${gradId})"/>
+    <polyline points="${lineStr}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="4" fill="${color}"/>
+    ${xLabels}
+  </svg>`;
+}
+
 function renderBody() {
   const logs = [...state.bodyLogs].sort((a,b) => b.date.localeCompare(a.date));
+  const ascLogs = [...state.bodyLogs].filter(l => l.weight).sort((a,b) => a.date.localeCompare(b.date));
 
   // Stats
   const last7 = logs.filter(l => {
@@ -3312,16 +4045,92 @@ function renderBody() {
 
   const avg7w = last7.filter(l=>l.weight).reduce((a,b)=>a+(parseFloat(b.weight)||0),0) / (last7.filter(l=>l.weight).length||1);
   const avg7wPrev = prev7.filter(l=>l.weight).reduce((a,b)=>a+(parseFloat(b.weight)||0),0) / (prev7.filter(l=>l.weight).length||1);
-  const avgSteps = last7.filter(l=>l.steps).reduce((a,b)=>a+(parseInt(b.steps)||0),0) / (last7.filter(l=>l.steps).length||1);
   const change = last7.length && prev7.length ? (avg7w - avg7wPrev) : null;
+  const latest = ascLogs.length ? ascLogs[ascLogs.length - 1] : null;
+  const latestVal = latest ? parseFloat(latest.weight) : null;
 
-  document.getElementById('bw-avg').textContent = last7.length ? avg7w.toFixed(1) : '—';
-  document.getElementById('bw-change').textContent = change !== null ? (change >= 0 ? '+' : '') + change.toFixed(1) : '—';
-  document.getElementById('steps-avg').textContent = last7.filter(l=>l.steps).length ? Math.round(avgSteps).toLocaleString() : '—';
+  // ── Target / left-to-go (from active macrocycle, if any) ──
+  const activeMacro = state.macrocycles.find(m => m.id === state.currentMacroId);
+  const target = activeMacro ? activeMacro.targetBw : null;
+  const leftToGo = (target && latestVal !== null) ? (latestVal - target) : null;
+  const leftToGoStr = leftToGo === null ? '—'
+    : Math.abs(leftToGo) <= 0.1 ? 'At goal'
+    : Math.abs(leftToGo).toFixed(1) + ' lbs';
+
+  // ── Current cycle weight change (start of active macro → latest) ──
+  let cycleChangeStr = '—';
+  if (activeMacro && activeMacro.start) {
+    const cycleLogs = ascLogs.filter(l => l.date >= activeMacro.start);
+    if (cycleLogs.length >= 1 && latestVal !== null) {
+      const cycleStartVal = parseFloat(cycleLogs[0].weight);
+      const cycleDelta = latestVal - cycleStartVal;
+      cycleChangeStr = Math.abs(cycleDelta) <= 0.05 ? 'No change'
+        : (cycleDelta < 0 ? '−' : '+') + Math.abs(cycleDelta).toFixed(1) + ' lbs';
+    }
+  }
+
+  // ── Hero card ──────────────────────────────────
+  const heroEl = document.getElementById('body-hero');
+  heroEl.innerHTML = `<div class="hero-card" data-page="body">
+    <div class="hero-label">Current weight</div>
+    <div class="hero-value">${latestVal !== null ? latestVal.toFixed(1) : '—'}<span class="unit">lbs</span></div>
+    <div class="hero-sub">${last7.filter(l=>l.weight).length ? '7-day avg ' + avg7w.toFixed(1) + ' lbs' : 'No entries this week'}</div>
+    <div class="hero-callouts" style="grid-template-columns:repeat(4,1fr);">
+      <div class="hero-callout"><div class="hero-callout-lbl">This week</div><div class="hero-callout-val">${change !== null ? (change>=0?'+':'')+change.toFixed(1)+' lbs' : '—'}</div></div>
+      <div class="hero-callout"><div class="hero-callout-lbl">Cycle change</div><div class="hero-callout-val">${cycleChangeStr}</div></div>
+      <div class="hero-callout"><div class="hero-callout-lbl">Target</div><div class="hero-callout-val">${target ? target+' lbs' : '—'}</div></div>
+      <div class="hero-callout"><div class="hero-callout-lbl">Left to go</div><div class="hero-callout-val">${leftToGoStr}</div></div>
+    </div>
+  </div>`;
+
+  // ── Weight history chart ──────────────────────
+  const histEl = document.getElementById('body-history-card');
+  let chartLogs = ascLogs;
+  if (bodyHistoryPeriod !== 'all') {
+    const weeks = bodyHistoryPeriod === '4w' ? 4 : 8;
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - weeks * 7);
+    chartLogs = ascLogs.filter(l => new Date(l.date + 'T00:00:00') >= cutoff);
+  }
+  const chartPoints = chartLogs.map(l => ({
+    label: l.date.slice(5).split('-').reverse().join('-'),
+    y: parseFloat(l.weight)
+  }));
+  histEl.innerHTML = `<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <h3>Weight history</h3>
+      <div class="toggle-row" style="margin-bottom:0;width:auto;display:inline-flex;">
+        <button class="toggle-btn ${bodyHistoryPeriod==='4w'?'active':''}" onclick="setBodyHistoryPeriod('4w')" style="padding:6px 12px;">4w</button>
+        <button class="toggle-btn ${bodyHistoryPeriod==='8w'?'active':''}" onclick="setBodyHistoryPeriod('8w')" style="padding:6px 12px;">8w</button>
+        <button class="toggle-btn ${bodyHistoryPeriod==='all'?'active':''}" onclick="setBodyHistoryPeriod('all')" style="padding:6px 12px;">All</button>
+      </div>
+    </div>
+    ${buildAreaLineChart(chartPoints, 'var(--accent)')}
+  </div>`;
+
+  // ── Inline "Log weigh-in" card ──────────────────
+  // Shows below the weight-history chart only when today has no entry
+  // yet; once today is logged, this hides and the entry appears in
+  // Recent Entries below (where it can be tap-to-edited via the existing
+  // flow). Weight-only — date is always today, set on save.
+  const logFormEl = document.getElementById('body-logform-card');
+  const todayStr = getLocalToday();
+  const todayLog = state.bodyLogs.find(l => l.date === todayStr);
+  if (todayLog) {
+    logFormEl.innerHTML = '';
+  } else {
+    logFormEl.innerHTML = `<div class="card">
+      <h3 style="margin-bottom:10px;">Log weigh-in</h3>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="number" step="0.1" id="inline-bw-weight" placeholder="e.g. 182.4" style="flex:1;font-size:15px;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+        <span style="font-size:13px;color:var(--text2);">lbs</span>
+        <button class="btn btn-accent" onclick="saveInlineBodyLog()" style="padding:10px 16px;">Save</button>
+      </div>
+    </div>`;
+  }
 
   const el = document.getElementById('body-log-list');
   if (!logs.length) {
-    el.innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 9l-5 5-4-4-3 3"/></svg><p>No entries yet. Tap + Log to start tracking.</p></div>`;
+    el.innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 9l-5 5-4-4-3 3"/></svg><p>No entries yet. Log your weight above to start tracking.</p></div>`;
     return;
   }
 
@@ -3354,6 +4163,25 @@ function openEditBodyLog(date) {
   document.getElementById('body-weight-input').value = log.weight || '';
   document.getElementById('body-steps-input').value = log.steps || '';
   openModal('modal-body-log');
+}
+
+// Saves today's weigh-in from the inline "Log weigh-in" card on the Body
+// page (separate from the modal's saveBodyLog, but writes the same
+// state.bodyLogs shape). After saving, the card hides itself since
+// renderBody() re-checks for a today entry on every call.
+function saveInlineBodyLog() {
+  const weight = document.getElementById('inline-bw-weight').value;
+  if (!weight) return;
+  const date = getLocalToday();
+  const existing = state.bodyLogs.findIndex(l => l.date === date);
+  // Weight-only form — preserve any steps value already logged for today
+  // (e.g. synced from a fitness tracker) rather than clobbering it.
+  const existingSteps = existing >= 0 ? state.bodyLogs[existing].steps : null;
+  const entry = { date, weight: parseFloat(weight)||null, steps: existingSteps };
+  if (existing >= 0) state.bodyLogs[existing] = entry;
+  else state.bodyLogs.push(entry);
+  save();
+  renderBody();
 }
 
 function saveBodyLog() {
@@ -3524,11 +4352,7 @@ function deleteBodyLog(date) {
 }
 
 function getLocalToday() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth()+1).padStart(2,'0');
-  const day = String(d.getDate()).padStart(2,'0');
-  return y + '-' + m + '-' + day;
+  return toLocalDateStr(new Date());
 }
 
 function renderNutrDaily() {
@@ -3540,11 +4364,10 @@ function renderNutrDaily() {
   const picker = document.getElementById('nutr-day-picker');
   if (picker) picker.value = nutrSelectedDate;
 
-  renderNutrBadges();
-  renderNutrKcal();
-  renderNutrMacroPanel();
+  renderNutrHero();
   renderNutrDiary();
   requestAnimationFrame(initYesterdaySwipes);
+  requestAnimationFrame(initNutrHeroSwipe);
 }
 
 function renderNutrBadges() {
@@ -3638,99 +4461,61 @@ function clearNutrQuickAdd() {
   renderNutrDaily();
 }
 
-function renderNutrKcal() {
-  const el = document.getElementById('nutr-kcal-card');
+function renderNutrHero() {
+  const el = document.getElementById('nutr-hero-card');
   if (!el) return;
   const goal = getActiveGoal();
   const totals = getDayTotals(nutrSelectedDate);
   const kcalGoal = goal ? goal.kcal : 0;
   const pct = kcalGoal > 0 ? Math.min(100, Math.round(totals.kcal / kcalGoal * 100)) : 0;
   const left = kcalGoal - totals.kcal;
-  el.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
-      <div style="display:flex;align-items:baseline;gap:4px;">
-        <span style="font-family:var(--font-display);font-size:28px;font-weight:800;">${totals.kcal}</span>
-        <span style="font-size:13px;color:var(--text3);">/ ${kcalGoal || '—'} kcal</span>
-      </div>
-      ${kcalGoal ? `<div style="text-align:right;">
-        <div style="font-size:12px;color:${left >= 0 ? 'var(--accent)' : 'var(--red)'};font-weight:500;">${left >= 0 ? left + ' left' : Math.abs(left) + ' over'}</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:1px;">${pct}% of goal</div>
-      </div>` : ''}
-    </div>
-    ${kcalGoal ? `<div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>` : ''}`;
-}
 
-function renderNutrMacroPanel() {
-  const el = document.getElementById('nutr-meso-card');
-  if (!el) return;
-  const goal = getActiveGoal();
-  const totals = getDayTotals(nutrSelectedDate);
-  const v = nutrMacroView;
-  const totalGoalKcal = goal ? (goal.protein*4 + goal.carbs*4 + goal.fats*9) : 0;
-  const totalLogKcal = totals.p*4 + totals.c*4 + totals.f*9 || 1;
+  const dateObj = new Date(nutrSelectedDate + 'T00:00:00');
+  const today = getLocalToday();
+  const dateLabel = nutrSelectedDate === today ? "Today's calories" : dateObj.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
 
   const macros = [
-    {key:'p', label:'Protein', logged:Math.round(totals.p), target:goal?Math.round(goal.protein):0, color:'var(--blue)',  bg:'rgba(96,168,240,0.12)',  kcalPer:4},
-    {key:'c', label:'Carbs',   logged:Math.round(totals.c), target:goal?Math.round(goal.carbs):0,   color:'var(--amber)', bg:'rgba(245,166,35,0.12)', kcalPer:4},
-    {key:'f', label:'Fats',    logged:Math.round(totals.f), target:goal?Math.round(goal.fats):0,    color:'var(--red)',   bg:'rgba(255,95,78,0.12)',  kcalPer:9},
+    { label:'Protein', logged:Math.round(totals.p), target: goal?Math.round(goal.protein):0 },
+    { label:'Carbs',   logged:Math.round(totals.c), target: goal?Math.round(goal.carbs):0 },
+    { label:'Fats',    logged:Math.round(totals.f), target: goal?Math.round(goal.fats):0 },
   ];
-
-  const rows = macros.map(m => {
-    const isOver = m.target > 0 && m.logged > m.target;
-    const overAmt = m.logged - m.target;
-    const barPct = m.target > 0 ? Math.min(100, Math.round(m.logged / m.target * 100)) : 0;
-    const markerPct = isOver && m.logged > 0 ? Math.round((m.target / m.logged) * 100) : null;
-
-    let mainText, subText = '', mainColor = 'var(--text)';
-    if (v === 0) {
-      mainText = `${m.logged}g`;
-      subText = m.target ? `/ ${m.target}g` : '';
-    } else if (v === 1) {
-      mainText = overAmt > 0 ? `+${overAmt}g over` : overAmt < 0 ? `${Math.abs(overAmt)}g left` : 'on target';
-    } else {
-      const logPct = totalGoalKcal > 0
-        ? Math.round(m.logged * m.kcalPer / totalGoalKcal * 100)
-        : Math.round(m.logged * m.kcalPer / totalLogKcal * 100);
-      const tgtPct = totalGoalKcal > 0 ? Math.round(m.target * m.kcalPer / totalGoalKcal * 100) : 0;
-      mainText = `${logPct}%`;
-      subText = tgtPct ? `target ${tgtPct}%` : '';
-    }
-
-    return `
-      <div style="margin-bottom:10px;">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
-          <span style="font-size:11px;color:${m.color};text-transform:uppercase;letter-spacing:.06em;">${m.label}</span>
-          <div style="display:flex;align-items:baseline;gap:3px;">
-            <span style="font-family:var(--font-display);font-size:16px;font-weight:700;color:${mainColor};">${mainText}</span>
-            <span style="font-size:11px;color:var(--text3);">${subText}</span>
-          </div>
-        </div>
-        <div style="height:7px;background:${m.bg};border-radius:4px;position:relative;overflow:hidden;">
-          <div style="height:100%;background:${m.color};border-radius:4px;width:${barPct}%;"></div>
-          ${markerPct !== null ? `<div style="position:absolute;top:0;bottom:0;width:2px;background:rgba(255,255,255,0.55);left:${markerPct}%;border-radius:1px;"></div>` : ''}
-        </div>
-        ${isOver && v === 0 ? `<div style="font-size:10px;color:${m.color};margin-top:2px;text-align:right;">+${overAmt}g over</div>` : ''}
-      </div>`;
+  const macroCallouts = macros.map(m => {
+    const remaining = m.target - m.logged;
+    const remStr = !m.target ? '' : remaining >= 0 ? `${remaining}g left` : `${Math.abs(remaining)}g over`;
+    return `<div class="hero-callout">
+      <div class="hero-callout-lbl">${m.label}</div>
+      <div class="hero-callout-val">${m.logged}g${m.target ? `<span style="font-size:11px;font-weight:400;opacity:0.7;"> / ${m.target}g</span>` : ''}</div>
+      ${remStr ? `<div class="hero-callout-sub">${remStr}</div>` : ''}
+    </div>`;
   }).join('');
 
-  const toggleBtns = ['g','±','%'].map((lbl, i) => `
-    <button onclick="setNutrMacroView(${i})" style="padding:3px 8px;border-radius:4px;border:none;font-size:10px;
-      cursor:pointer;background:${nutrMacroView===i ? 'var(--surface)' : 'transparent'};
-      color:${nutrMacroView===i ? 'var(--text)' : 'var(--text3)'};font-family:var(--font-mono);">${lbl}</button>`
-  ).join('');
-
-  el.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">Macros</span>
-      <div style="display:flex;background:var(--surface2);border-radius:6px;padding:2px;gap:1px;">${toggleBtns}</div>
+  el.innerHTML = `<div class="hero-card hero-tappable" data-page="nutrition" onclick="openNutrDatePicker()">
+    <div class="hero-nav-arrows" style="top:18px;right:18px;" onclick="event.stopPropagation();">
+      <button onclick="openNutrQuickAdd()" aria-label="Quick add" style="width:auto;height:26px;padding:0 10px;border-radius:13px;font-size:11px;font-weight:500;white-space:nowrap;">⚡ Quick add</button>
     </div>
-    ${rows}`;
+    <div class="hero-label">${dateLabel}</div>
+    <div class="hero-value">${totals.kcal}<span class="unit">kcal</span></div>
+    <div class="hero-sub">${kcalGoal ? `/ ${kcalGoal} goal · ${left >= 0 ? left + ' remaining' : Math.abs(left) + ' over'}` : 'No goal set'}</div>
+    <div class="hero-callouts">${macroCallouts}</div>
+    ${kcalGoal ? `<div class="hero-progress-row"><span>Goal ${kcalGoal} kcal</span><span>${left >= 0 ? left + ' left' : Math.abs(left) + ' over'}</span></div>
+    <div class="hero-progress-track"><div class="hero-progress-fill" style="width:${pct}%"></div></div>` : ''}
+  </div>`;
 }
 
 function setNutrMacroView(v) {
   nutrMacroView = v;
-  renderNutrMacroPanel();
+  renderNutrHero();
 }
+
+// Per-meal dot colour for diary item rows, matching the mockup's pattern
+// of a different accent colour per meal (purple breakfast, amber lunch,
+// blue dinner, green snacks).
+const mealDotColors = {
+  Breakfast: 'var(--purple)',
+  Lunch: 'var(--amber)',
+  Dinner: 'var(--blue)',
+  Snacks: 'var(--accent)',
+};
 
 function renderNutrDiary() {
   const el = document.getElementById('nutr-diary');
@@ -3776,18 +4561,20 @@ function renderNutrDiary() {
       const servingLabel = item.grams && item.servings && item.servings !== 1
         ? `${item.grams}g × ${item.servings}`
         : `${item.serving || 100}g`;
+      const dotColor = mealDotColors[meal] || 'var(--purple)';
       return `
         <div class="swipe-row-wrap" style="border-bottom:0.5px solid var(--border);">
-          <div class="swipe-row-content" style="padding:6px 0;width:100%;box-sizing:border-box;align-items:center;"
+          <div class="swipe-row-content" style="padding:9px 0;width:100%;box-sizing:border-box;display:flex;align-items:center;gap:10px;"
             onclick="openEditFoodEntry('${nutrSelectedDate}','${meal}',${idx})">
+            <div style="width:8px;height:8px;border-radius:50%;background:${dotColor};flex-shrink:0;"></div>
             <div style="flex:1;min-width:0;cursor:pointer;">
-              <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</div>
-              <div style="font-size:10px;color:var(--text3);margin-top:2px;">
-                ${servingLabel} · P:${Math.round(item.protein||0)}g C:${Math.round(item.carbs||0)}g F:${Math.round(item.fats||0)}g
-                ${item.brand ? ` · ${item.brand}` : ''}
-              </div>
+              <div style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</div>
+              <div style="font-size:11px;color:var(--text2);margin-top:2px;">${servingLabel}${item.brand ? ` · ${item.brand}` : ''}</div>
             </div>
-            <span style="font-family:var(--font-display);font-size:13px;font-weight:700;color:var(--accent);flex-shrink:0;margin-left:8px;">${item.kcal||0}</span>
+            <div style="text-align:right;flex-shrink:0;">
+              <div style="font-size:13px;font-weight:600;color:var(--text);">${item.kcal||0} kcal</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:2px;">P:${Math.round(item.protein||0)}g C:${Math.round(item.carbs||0)}g F:${Math.round(item.fats||0)}g</div>
+            </div>
           </div>
           <div class="swipe-actions">
             <button class="swipe-btn swipe-btn-default" onclick="event.stopPropagation();openCopyFoodEntry('${nutrSelectedDate}','${meal}',${idx})" title="Copy">
@@ -3800,11 +4587,14 @@ function renderNutrDiary() {
         </div>`;
     }).join('');
 
-    // Copy-from-yesterday swipe row
+    // Copy-from-yesterday swipe row — only offered while today's meal is
+    // still empty. Once anything is logged for this meal today (whether
+    // copied from yesterday or added any other way), the affordance goes
+    // away rather than sticking around as long as it merely wasn't a
+    // direct copy from yesterday specifically.
     const prevMealItems = getNutrDayMeals(prevDs)[meal] || [];
-    const alreadyCopied = items.some(i => i.copiedFrom === prevDs);
     let copyRow = '';
-    if (prevMealItems.length && !alreadyCopied) {
+    if (prevMealItems.length && items.length === 0) {
       const prevTotKcal = prevMealItems.reduce((a,b) => a + (b.kcal||0), 0);
       const rest = prevMealItems.length - 1;
       const label = rest > 0
@@ -3982,8 +4772,163 @@ function openMealCopyMove(mode) {
 function nutrShiftDate(delta) {
   const d = new Date(nutrSelectedDate + 'T00:00:00');
   d.setDate(d.getDate() + delta);
-  nutrSelectedDate = d.toISOString().split('T')[0];
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  nutrSelectedDate = `${y}-${m}-${day}`;
   renderNutrDaily();
+}
+
+// Swipe left/right on the nutrition hero card to move between days.
+// Initialized once; reads nutrSelectedDate fresh on each gesture so it
+// stays correct across re-renders without needing re-initialization.
+// The hero itself is also tap-to-open-date-picker (see openNutrDatePicker),
+// so a capture-phase click listener suppresses that tap whenever the
+// gesture actually moved far enough to count as a swipe.
+//
+// commitSwipe() animates the current card out, calls nutrShiftDate()
+// exactly once, then animates the freshly-rendered card in. renderNutrHero()
+// replaces the card's innerHTML (and therefore its DOM node) on every date
+// change, so the card is re-queried via getCard() rather than held by
+// reference. `busy` plus a monotonically increasing gesture id stop a
+// stray event from triggering a second date change or animating a card
+// that a newer render has already replaced.
+let _nutrHeroSwipeInited = false;
+function initNutrHeroSwipe() {
+  if (_nutrHeroSwipeInited) return;
+  _nutrHeroSwipeInited = true;
+  const wrap = document.getElementById('nutr-hero-wrap');
+  if (!wrap) return;
+  wrap.style.touchAction = 'pan-y';
+
+  let startX = 0, startY = 0;
+  let tracking = false;   // a touch is currently down and being watched
+  let moved = false;      // the touch has moved enough to count as a swipe (not a tap)
+  let busy = false;       // a swipe animation + date change is in flight
+  let suppressClick = false;
+  let gestureId = 0;
+
+  function getCard() { return wrap.querySelector('.hero-card'); }
+
+  function resetGesture() {
+    tracking = false;
+    moved = false;
+  }
+
+  // Animates the current card out, changes the date exactly once, then
+  // animates the new card in. Guarded by `busy` + a gesture token so a
+  // stray extra event can never trigger a second date change.
+  function commitSwipe(dayDelta) {
+    if (busy) return;
+    busy = true;
+    suppressClick = true;
+    const myGesture = ++gestureId;
+
+    const outX = dayDelta > 0 ? -260 : 260; // next day exits left, prev day exits right
+    const card = getCard();
+    if (card) {
+      card.style.transition = 'transform 0.16s ease-in, opacity 0.16s ease-in';
+      card.style.transform = `translateX(${outX}px)`;
+      card.style.opacity = '0';
+    }
+
+    setTimeout(() => {
+      if (myGesture !== gestureId) return; // superseded — bail out silently
+      nutrShiftDate(dayDelta); // exactly one date change per completed swipe
+      requestAnimationFrame(() => {
+        if (myGesture !== gestureId) return;
+        const newCard = getCard();
+        if (newCard) {
+          newCard.style.transition = 'none';
+          newCard.style.transform = `translateX(${-outX}px)`;
+          newCard.style.opacity = '0';
+          // Force layout so the browser registers the start position
+          // before we transition to the end position on the next frame.
+          void newCard.offsetWidth;
+          requestAnimationFrame(() => {
+            if (myGesture !== gestureId) return;
+            newCard.style.transition = 'transform 0.2s ease-out, opacity 0.2s ease-out';
+            newCard.style.transform = 'translateX(0)';
+            newCard.style.opacity = '1';
+          });
+        }
+        setTimeout(() => { if (myGesture === gestureId) busy = false; }, 210);
+      });
+    }, 160);
+  }
+
+  function snapBack() {
+    const card = getCard();
+    if (card) {
+      card.style.transition = 'transform 0.18s ease-out, opacity 0.18s ease-out';
+      card.style.transform = 'translateX(0)';
+      card.style.opacity = '1';
+    }
+  }
+
+  wrap.addEventListener('touchstart', e => {
+    if (busy) { resetGesture(); return; }
+    // Ignore gestures starting on the nav arrow buttons themselves —
+    // otherwise this handler can swallow/interfere with their tap on
+    // some mobile browsers (e.g. iOS Safari's touch-to-click synthesis).
+    if (e.target.closest('.hero-nav-arrows')) { resetGesture(); return; }
+    if (e.touches.length !== 1) { resetGesture(); return; }
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    tracking = true;
+    moved = false;
+  }, { passive: true });
+
+  wrap.addEventListener('touchmove', e => {
+    if (!tracking || busy) return;
+    const dx = e.touches[0].clientX - startX;
+    const dy = e.touches[0].clientY - startY;
+    if (!moved && Math.abs(dy) > Math.abs(dx) + 4) { tracking = false; return; }
+    if (Math.abs(dx) > 8) moved = true;
+  }, { passive: true });
+
+  wrap.addEventListener('touchend', e => {
+    if (busy) { resetGesture(); return; }
+    if (tracking && moved && e.changedTouches.length === 1) {
+      const dx = e.changedTouches[0].clientX - startX;
+      if (Math.abs(dx) > 40) {
+        // Swipe left (negative dx) → next day (+1). Swipe right → prev day (-1).
+        commitSwipe(dx < 0 ? 1 : -1);
+      } else {
+        snapBack();
+      }
+    }
+    resetGesture();
+  }, { passive: true });
+
+  // Without this, a gesture interrupted by the system (edge-swipe-back,
+  // control-centre pull, an incoming call, etc.) leaves `tracking`/`moved`
+  // stuck from the aborted gesture, and the next real touchstart can
+  // inherit stale state. Always reset cleanly on cancel.
+  wrap.addEventListener('touchcancel', () => {
+    if (!busy) snapBack();
+    resetGesture();
+  }, { passive: true });
+
+  // Capture phase so this runs before the hero card's own onclick handler.
+  // suppressClick is cleared here on the very next click regardless of
+  // whether it was the suppressed one, so a missed synthetic click after
+  // a swipe (common on iOS) can never permanently block future taps.
+  wrap.addEventListener('click', e => {
+    if (suppressClick) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    suppressClick = false;
+  }, true);
+}
+
+// Tapping the Nutrition hero (anywhere except Quick Add) opens this date
+// picker, replacing the old left/right arrow buttons — swipe handles
+// quick day-to-day navigation, this handles jumping to an arbitrary date.
+function openNutrDatePicker() {
+  document.getElementById('nutr-date-input').value = nutrSelectedDate;
+  openModal('modal-nutr-date');
 }
 
 function nutrPickDate(val) {
@@ -4953,7 +5898,7 @@ function saveEditFoodEntry() {
 
 function renderNutrition() {
   if (nutrTab === 'day') {
-    if (!nutrSelectedDate) nutrSelectedDate = new Date().toISOString().split('T')[0];
+    if (!nutrSelectedDate) nutrSelectedDate = getLocalToday();
     renderNutrDaily();
   } else {
     renderNutrWeekly([...state.nutritionLogs].sort((a,b)=>b.date.localeCompare(a.date)));
@@ -5087,7 +6032,52 @@ function getISOWeek(dateStr) {
 // ════════════════════════════════════════════════
 // SETTINGS & BACKUP
 // ════════════════════════════════════════════════
+// ── Theme selector ──────────────────────────────────────────────
+// 'multi' (default): each page gets its own hero colour, set via the
+// [data-theme="multi"] [data-page="..."] CSS rules. The single-colour
+// options below override --hero-1/--hero-2 globally for every page.
+const THEMES = [
+  { id:'multi',  label:'Multi',  preview:'multi' },
+  { id:'teal',   label:'Teal',   c1:'#2f8f6f', c2:'#1a4f3d' },
+  { id:'blue',   label:'Blue',   c1:'#3f7fd9', c2:'#1e3f73' },
+  { id:'amber',  label:'Amber',  c1:'#d9943f', c2:'#7a4d1a' },
+  { id:'purple', label:'Purple', c1:'#9156d9', c2:'#4a2873' },
+  { id:'mono',   label:'Mono',   c1:'#3a3a3a', c2:'#1a1a1a' },
+];
+
+function setTheme(themeId) {
+  state.theme = themeId;
+  document.body.setAttribute('data-theme', themeId);
+  save();
+  renderThemeSwatches();
+  // Re-render whichever screen is currently active so hero cards pick up
+  // the new colours immediately rather than waiting for the next nav tap.
+  const activeScreen = document.querySelector('.screen.active');
+  if (activeScreen) showScreen(activeScreen.id.replace('screen-', ''));
+}
+
+function renderThemeSwatches() {
+  const el = document.getElementById('theme-swatch-grid');
+  if (!el) return;
+  el.innerHTML = THEMES.map(t => {
+    const isActive = (state.theme || 'multi') === t.id;
+    const preview = t.preview === 'multi'
+      ? `<div class="theme-swatch-multi-preview">
+          <div style="background:linear-gradient(135deg,#2f8f6f,#1a4f3d);"></div>
+          <div style="background:linear-gradient(135deg,#3f7fd9,#20407a);"></div>
+          <div style="background:linear-gradient(135deg,#d9943f,#7a4d1a);"></div>
+          <div style="background:linear-gradient(135deg,#9156d9,#4a2873);"></div>
+        </div>`
+      : `<div class="theme-swatch-preview" style="background:linear-gradient(135deg,${t.c1},${t.c2});"></div>`;
+    return `<div class="theme-swatch ${isActive ? 'active' : ''}" onclick="setTheme('${t.id}')">
+      ${preview}
+      <div class="theme-swatch-label">${t.label}</div>
+    </div>`;
+  }).join('');
+}
+
 function renderSettings() {
+  renderThemeSwatches();
   const raw = localStorage.getItem('bloc_state') || '';
   const kb = (new Blob([raw]).size / 1024).toFixed(1);
   const el = document.getElementById('storage-info');
@@ -5103,7 +6093,7 @@ function exportData() {
   const blob = new Blob([payload], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const date = new Date().toISOString().split('T')[0];
+  const date = getLocalToday();
   a.href = url;
   a.download = `bloc-backup-${date}.json`;
   document.body.appendChild(a);
@@ -5262,7 +6252,7 @@ function exportLibrary() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'bloc-exercise-library-' + new Date().toISOString().split('T')[0] + '.json';
+  a.download = 'bloc-exercise-library-' + getLocalToday() + '.json';
   document.body.appendChild(a); a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
@@ -5315,43 +6305,84 @@ function renderGoals() {
     return;
   }
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalToday();
+  const sortedGoals = state.goals.slice().sort((a,b)=>b.startDate.localeCompare(a.startDate));
+  const activeIdx = state.goals.findIndex(g => g.startDate <= today && g.endDate >= today);
+
   let html = '';
-  state.goals.slice().sort((a,b)=>b.startDate.localeCompare(a.startDate)).forEach((g, i) => {
+
+  // ── Active goal: red hero card with callout chips ──────────────────
+  if (activeIdx >= 0) {
+    const g = state.goals[activeIdx];
     const macro = macros.find(m => m.id === g.macroId);
-    const isActive = g.startDate <= today && g.endDate >= today;
-    html += `<div class="swipe-row-wrap card-wrap" style="border-radius:var(--r);margin-bottom:10px;">
-      <div class="swipe-row-content">
-        <div class="card${isActive ? ' card-accent' : ''}" style="width:100%;box-sizing:border-box;cursor:pointer;" onclick="openEditGoal(${i})">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-            <div><div style="font-family:var(--font-display);font-weight:700;font-size:15px;">${macro ? macro.name : 'Unknown cycle'}</div>
-            <div style="font-size:11px;color:var(--text3);margin-top:2px;">${formatDate(g.startDate)} – ${formatDate(g.endDate)}</div></div>
-            ${isActive ? '<span class="badge badge-green">Active</span>' : ''}
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-            ${g.kcal    ? `<div style="font-size:12px;"><span style="color:var(--text3);">kcal </span>${g.kcal}</div>` : ''}
-            ${g.steps   ? `<div style="font-size:12px;"><span style="color:var(--text3);">steps </span>${parseInt(g.steps).toLocaleString()}</div>` : ''}
-            ${g.protein ? `<div style="font-size:12px;"><span style="color:var(--blue);">protein </span>${g.protein}g</div>` : ''}
-            ${g.carbs   ? `<div style="font-size:12px;"><span style="color:var(--amber);">carbs </span>${g.carbs}g</div>` : ''}
-            ${g.fats    ? `<div style="font-size:12px;"><span style="color:var(--red);">fats </span>${g.fats}g</div>` : ''}
-          </div>
-          <div style="font-size:10px;color:var(--text3);margin-top:10px;text-align:right;">swipe ← to delete</div>
-        </div>
+    const callouts = [
+      g.kcal    ? { lbl: 'Kcal',    val: g.kcal } : null,
+      g.protein ? { lbl: 'Protein', val: g.protein + 'g' } : null,
+      g.carbs   ? { lbl: 'Carbs',   val: g.carbs + 'g' } : null,
+      g.fats    ? { lbl: 'Fats',    val: g.fats + 'g' } : null,
+      g.steps   ? { lbl: 'Steps',   val: parseInt(g.steps).toLocaleString() } : null,
+    ].filter(Boolean);
+    html += `<div class="hero-card hero-tappable" data-page="goals" onclick="openEditGoal(${activeIdx})">
+      <div class="hero-nav-arrows" style="top:18px;right:18px;" onclick="event.stopPropagation();">
+        <button onclick="openModal('modal-add-goal')" aria-label="New goal" style="width:auto;height:26px;padding:0 10px;border-radius:13px;font-size:11px;font-weight:500;white-space:nowrap;">+ New</button>
       </div>
-      <div class="swipe-actions">
-        <button class="swipe-btn swipe-btn-danger" onclick="event.stopPropagation();deleteGoal(${i})" title="Delete">
-          <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-        </button>
+      <div class="hero-label">Active goal</div>
+      <div class="hero-value" style="font-size:22px;">${macro ? macro.name : 'Unknown cycle'}</div>
+      <div class="hero-sub">${formatDate(g.startDate)} – ${formatDate(g.endDate)}</div>
+      <div class="hero-callouts" style="grid-template-columns:repeat(${Math.min(callouts.length,3)},1fr);">
+        ${callouts.map(c => `<div class="hero-callout"><div class="hero-callout-lbl">${c.lbl}</div><div class="hero-callout-val">${c.val}</div></div>`).join('')}
       </div>
+      <div style="font-size:10px;color:rgba(255,255,255,0.55);margin-top:12px;text-align:right;">tap to edit</div>
     </div>`;
-  });
+  }
+
+  // Show the persistent top-row "+ Goal" button only when there's no
+  // active-goal hero to embed it in (no goals, or none covering today).
+  const toprow = document.getElementById('goals-toprow');
+  if (toprow) toprow.style.display = activeIdx >= 0 ? 'none' : 'flex';
+
+  // ── Past / upcoming goals: plain mono-toned list cards ──────────────
+  const otherGoals = sortedGoals.filter(g => state.goals.indexOf(g) !== activeIdx);
+  if (otherGoals.length) {
+    html += `<div class="section-title" style="margin-top:${activeIdx>=0?'18px':'0'};">${activeIdx>=0?'Past & upcoming':'All goals'}</div>`;
+    otherGoals.forEach((g) => {
+      const i = state.goals.indexOf(g);
+      const macro = macros.find(m => m.id === g.macroId);
+      const isFuture = g.startDate > today;
+      html += `<div class="swipe-row-wrap card-wrap" style="border-radius:var(--r);margin-bottom:10px;">
+        <div class="swipe-row-content">
+          <div class="card" style="width:100%;box-sizing:border-box;cursor:pointer;opacity:0.75;" onclick="openEditGoal(${i})">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+              <div><div style="font-family:var(--font-display);font-weight:600;font-size:14px;color:var(--text2);">${macro ? macro.name : 'Unknown cycle'}</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:2px;">${formatDate(g.startDate)} – ${formatDate(g.endDate)}</div></div>
+              ${isFuture ? '<span class="badge" style="background:var(--surface3);color:var(--text2);">Upcoming</span>' : ''}
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+              ${g.kcal    ? `<div style="font-size:12px;color:var(--text2);"><span style="color:var(--text3);">kcal </span>${g.kcal}</div>` : ''}
+              ${g.steps   ? `<div style="font-size:12px;color:var(--text2);"><span style="color:var(--text3);">steps </span>${parseInt(g.steps).toLocaleString()}</div>` : ''}
+              ${g.protein ? `<div style="font-size:12px;color:var(--text2);"><span style="color:var(--text3);">protein </span>${g.protein}g</div>` : ''}
+              ${g.carbs   ? `<div style="font-size:12px;color:var(--text2);"><span style="color:var(--text3);">carbs </span>${g.carbs}g</div>` : ''}
+              ${g.fats    ? `<div style="font-size:12px;color:var(--text2);"><span style="color:var(--text3);">fats </span>${g.fats}g</div>` : ''}
+            </div>
+            <div style="font-size:10px;color:var(--text3);margin-top:10px;text-align:right;">swipe ← to delete</div>
+          </div>
+        </div>
+        <div class="swipe-actions">
+          <button class="swipe-btn swipe-btn-danger" onclick="event.stopPropagation();deleteGoal(${i})" title="Delete">
+            <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+          </button>
+        </div>
+      </div>`;
+    });
+  }
+
   el.innerHTML = html;
   requestAnimationFrame(() => initSwipeRows(el));
 }
 
 function getActiveGoal() {
   if (!state.goals) return null;
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalToday();
   return state.goals.find(g => g.startDate <= today && g.endDate >= today) || null;
 }
 
@@ -5400,7 +6431,7 @@ function saveGoal() {
 
 function buildGoalsHomeSection(goal) {
   if (!goal) return '';
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalToday();
   const todayNutr = state.nutritionLogs.find(l => l.date === today) || {};
   const todayBody = state.bodyLogs.find(l => l.date === today) || {};
   const todaySteps = parseInt(todayBody.steps) || 0;
@@ -5418,7 +6449,7 @@ function buildGoalsHomeSection(goal) {
   const weekLogs = [];
   for (let i = 0; i < daysElapsed; i++) {
     const d = new Date(); d.setDate(d.getDate() - (daysElapsed - 1 - i));
-    const ds = d.toISOString().split('T')[0];
+    const ds = toLocalDateStr(d);
     const n = state.nutritionLogs.find(l => l.date === ds) || {};
     const b = state.bodyLogs.find(l => l.date === ds) || {};
     weekLogs.push({ steps: parseInt(b.steps)||0, kcal: parseInt(n.kcal)||0 });
@@ -5506,7 +6537,7 @@ function buildGoalsHomeSection(goal) {
     const weekNutrLogs = [];
     for (let i = 0; i < daysElapsed; i++) {
       const d = new Date(); d.setDate(d.getDate() - (daysElapsed - 1 - i));
-      const ds = d.toISOString().split('T')[0];
+      const ds = toLocalDateStr(d);
       const n = state.nutritionLogs.find(l => l.date === ds) || {};
       weekNutrLogs.push(n);
     }
