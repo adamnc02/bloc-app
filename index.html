@@ -21,6 +21,7 @@
   --text: #f5f4f0;
   --text2: #8c8a84;
   --text3: #67655f;
+  --nav-inactive: #d6d4ce;
   --accent: #1D9E75;
   --accent2: #17a884;
   --red: #E24B4A;
@@ -50,6 +51,27 @@
   --hero-2: #085041;
 }
 
+/* ── Light mode ───────────────────────────────────────────────
+   Toggled via [data-mode="light"] on <body> (default is dark —
+   the original palette above is untouched). Neutral surface/text/
+   border tokens are reversed into a blue-tinted light scheme;
+   accent/hero colours are intentionally left unchanged so each
+   page's identity colour stays consistent across modes. */
+[data-mode="light"] {
+  --bg: #e7edf4;
+  --surface: #f2f5f9;
+  --surface2: #fafbfd;
+  --surface3: #ffffff;
+  --border: rgba(20,40,65,0.10);
+  --border2: rgba(20,40,65,0.18);
+  --text: #16222e;
+  --text2: #51606e;
+  --text3: #7c8a98;
+  /* --nav-inactive intentionally NOT overridden here — the floating nav
+     bar keeps its dark background in both modes, so the near-white icon
+     colour from :root stays correct either way. */
+}
+
 /* ── Single-colour theme options ─────────────────────────── */
 [data-theme="teal"]   { --hero-1: #1D9E75; --hero-2: #085041; }
 [data-theme="blue"]   { --hero-1: #378ADD; --hero-2: #0C447C; }
@@ -60,7 +82,7 @@
 /* ── Multi theme: distinct hero colour per page, matching mockup ── */
 [data-theme="multi"] [data-page="home"]      { --hero-1: #5FC4E8; --hero-2: #1A5C7A; }
 [data-theme="multi"] [data-page="plan"]      { --hero-1: #378ADD; --hero-2: #0C447C; }
-[data-theme="multi"] [data-page="train"]     { --hero-1: #378ADD; --hero-2: #0C447C; }
+[data-theme="multi"] [data-page="train"]     { --hero-1: #7F77DD; --hero-2: #3C3489; }
 [data-theme="multi"] [data-page="body"]      { --hero-1: #1D9E75; --hero-2: #085041; }
 [data-theme="multi"] [data-page="nutrition"] { --hero-1: #EF9F27; --hero-2: #633806; }
 [data-theme="multi"] [data-page="goals"]     { --hero-1: #E24B4A; --hero-2: #6B1414; }
@@ -143,7 +165,7 @@ body {
   border-radius: 999px;
   background: none;
   border: none;
-  color: var(--text3);
+  color: var(--nav-inactive);
   font-family: var(--font-display);
   font-size: 12.5px;
   font-weight: 600;
@@ -763,7 +785,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 .theme-swatch-multi-preview > div { flex: 1; }
 </style>
 </head>
-<body data-theme="multi">
+<body data-theme="multi" data-mode="dark">
 <div id="app">
   <div id="content">
 
@@ -861,11 +883,20 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v5.05</span>
+          <span class="badge badge-green">v5.06</span>
         </div>
       </div>
 
       <div class="section-title">Appearance</div>
+      <div class="card" style="margin-bottom:10px;">
+        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Mode</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Dark is the default. Light reverses the app into a blue-tinted light scheme.</div>
+        <div class="toggle-row" id="mode-toggle-row" style="margin-bottom:0;">
+          <button class="toggle-btn active" data-mode="dark" onclick="setMode('dark')">Dark</button>
+          <button class="toggle-btn" data-mode="light" onclick="setMode('light')">Light</button>
+        </div>
+      </div>
+
       <div class="card" style="margin-bottom:10px;">
         <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Theme</div>
         <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Choose a single accent colour for every page, or let each page have its own colour.</div>
@@ -1639,6 +1670,8 @@ function load() {
   if (!state.recipes) state.recipes = [];
   if (!state.theme) state.theme = 'multi';
   document.body.setAttribute('data-theme', state.theme);
+  if (!state.mode) state.mode = 'dark';
+  document.body.setAttribute('data-mode', state.mode);
 
   // ── Migrate exercises: add stable id and order fields ──────────────────
   // Old trainLogs keys used positional index: macroId_week_day_exIdx_setIdx
@@ -2529,7 +2562,7 @@ function buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort) {
 
   return `<div class="hero-card" data-page="home">
     <div class="hero-nav-arrows" style="top:18px;right:18px;flex-direction:column;align-items:flex-end;gap:4px;" onclick="event.stopPropagation();">
-      <span style="font-size:10px;color:rgba(255,255,255,0.55);letter-spacing:0.04em;white-space:nowrap;">v5.05</span>
+      <span style="font-size:10px;color:rgba(255,255,255,0.55);letter-spacing:0.04em;white-space:nowrap;">v5.06</span>
       ${navArrowButtons}
     </div>
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
@@ -2822,16 +2855,21 @@ function progressHeroSnapBack() {
 }
 
 // Animates the current slide out, switches progressHeroIndex exactly once,
-// then animates the new slide in. Out-of-range targets (swiping past either
-// end of the deck) just snap back in place instead of changing the index.
-function progressHeroAnimateTo(newIndex) {
-  if (newIndex < 0 || newIndex > 4 || newIndex === progressHeroIndex) {
+// then animates the new slide in. Wraps around at either end of the deck
+// (index 4 → 0 going forward, index 0 → 4 going backward) instead of
+// stopping — direction is computed from the raw, pre-wrap target so the
+// animation still plays in the swiped direction rather than reversing.
+function progressHeroAnimateTo(rawIndex) {
+  const dir = rawIndex > progressHeroIndex ? 1 : (rawIndex < progressHeroIndex ? -1 : 0);
+  let newIndex = rawIndex;
+  if (newIndex < 0) newIndex = 4;
+  else if (newIndex > 4) newIndex = 0;
+  if (newIndex === progressHeroIndex) {
     progressHeroSnapBack();
     return;
   }
   if (_progressHeroBusy) return;
   _progressHeroBusy = true;
-  const dir = newIndex > progressHeroIndex ? 1 : -1;
   const myGesture = ++_progressHeroGestureId;
 
   const outX = dir > 0 ? -260 : 260;
@@ -6330,6 +6368,25 @@ function setTheme(themeId) {
   if (activeScreen) showScreen(activeScreen.id.replace('screen-', ''));
 }
 
+// Dark/light mode toggle — independent of the accent theme above. Only
+// flips the neutral surface/text/border tokens (see [data-mode="light"]
+// in the stylesheet); hero/accent colours stay the same in both modes.
+function setMode(mode) {
+  state.mode = mode;
+  document.body.setAttribute('data-mode', mode);
+  save();
+  renderModeToggle();
+}
+
+function renderModeToggle() {
+  const el = document.getElementById('mode-toggle-row');
+  if (!el) return;
+  const mode = state.mode || 'dark';
+  el.querySelectorAll('.toggle-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  });
+}
+
 function renderThemeSwatches() {
   const el = document.getElementById('theme-swatch-grid');
   if (!el) return;
@@ -6352,6 +6409,7 @@ function renderThemeSwatches() {
 
 function renderSettings() {
   renderThemeSwatches();
+  renderModeToggle();
   const raw = localStorage.getItem('bloc_state') || '';
   const kb = (new Blob([raw]).size / 1024).toFixed(1);
   const el = document.getElementById('storage-info');
