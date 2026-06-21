@@ -73,6 +73,9 @@ html, body {
 }
 
 body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-display);
@@ -81,7 +84,7 @@ body {
 }
 
 /* ── LAYOUT ─────────────────────────────── */
-#app { display: flex; flex-direction: column; height: 100dvh; }
+#app { display: flex; flex-direction: column; height: 100%; }
 
 #content {
   flex: 1;
@@ -864,7 +867,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v5.04</span>
+          <span class="badge badge-green">v5.05</span>
         </div>
       </div>
 
@@ -1709,6 +1712,7 @@ function showScreen(name) {
   document.getElementById('screen-' + name).classList.add('active');
   document.getElementById('nav-' + name).classList.add('active');
   animateNavPill();
+  updateNavPillColor(name);
   if (name === 'home') renderHome();
   if (name === 'plan') renderPlan();
   if (name === 'train') renderTrain();
@@ -1716,6 +1720,36 @@ function showScreen(name) {
   if (name === 'nutrition') renderNutrition();
   if (name === 'settings') renderSettings();
   if (name === 'goals') renderGoals();
+}
+
+// Reads the --hero-1/--hero-2 a given page's hero card would actually use,
+// by building an invisible offscreen probe with the same data-page attribute
+// and letting it inherit the real data-theme cascade from <body>. This way
+// the nav pill always matches hero cards exactly — same CSS rules, zero
+// duplicated color maps to keep in sync.
+function getHeroColorsForPage(page) {
+  const probe = document.createElement('div');
+  probe.className = 'hero-card';
+  probe.dataset.page = page;
+  probe.style.cssText = 'position:absolute;width:0;height:0;padding:0;border:0;overflow:hidden;visibility:hidden;pointer-events:none;';
+  document.body.appendChild(probe);
+  const cs = getComputedStyle(probe);
+  const c1 = cs.getPropertyValue('--hero-1').trim();
+  const c2 = cs.getPropertyValue('--hero-2').trim();
+  document.body.removeChild(probe);
+  return { c1, c2 };
+}
+
+// Tints the shared nav pill to match whichever page is now active, using
+// the exact same --hero-1/--hero-2 colours as that page's hero card
+// (settings has no hero card, so it falls through to the theme default —
+// getHeroColorsForPage still resolves correctly since the CSS variables
+// cascade from :root/[data-theme] regardless of data-page).
+function updateNavPillColor(page) {
+  const pill = document.getElementById('nav-pill');
+  if (!pill) return;
+  const { c1, c2 } = getHeroColorsForPage(page);
+  if (c1 && c2) pill.style.background = `linear-gradient(150deg, ${c1}, ${c2})`;
 }
 
 // Sizes/positions the shared #nav-pill highlight to exactly match whatever
@@ -2220,18 +2254,29 @@ function getMacroTotalVolume(macro) {
 // mapped onto a real calendar date via the macro start date), used for the
 // Plan page's "volume over time" area chart. Only includes sessions with
 // logged volume > 0, sorted chronologically.
+//
+// Each mesocycle ("week" w) spans weeksPerMeso real calendar weeks (default
+// 1), so its dayKeys — which may include microcycle suffixes representing
+// different calendar weeks within that mesocycle, not just same-week
+// variants — are spread proportionally across the mesocycle's full real
+// span (weeksPerMeso * 7 days), not a flat 7 days. Without this, a 2-week
+// mesocycle (weeks:1, weeksPerMeso:2) using microcycles to represent its
+// two real weeks would have every session's approximate date collapse into
+// the same single 7-day window.
 function getMacroVolumeSeries(macro) {
   const dayKeys = getMacroSessionDayKeys(macro);
   const startDate = macro.start ? new Date(macro.start + 'T00:00:00') : new Date();
   const sessionsPerWeek = dayKeys.length;
+  const mesoSpanDays = (macro.weeksPerMeso || 1) * 7;
   const points = [];
   for (let w = 1; w <= macro.weeks; w++) {
     dayKeys.forEach((dayKey, di) => {
       const vol = getSessionVolume(macro, w, dayKey);
       if (vol > 0) {
-        // Approximate calendar date: week start + proportional day offset
+        // Approximate calendar date: mesocycle block start + proportional
+        // offset within that block's real span.
         const d = new Date(startDate);
-        d.setDate(d.getDate() + (w - 1) * 7 + Math.round((di / sessionsPerWeek) * 7));
+        d.setDate(d.getDate() + (w - 1) * mesoSpanDays + Math.round((di / sessionsPerWeek) * mesoSpanDays));
         points.push({ date: d, week: w, day: dayKey, vol });
       }
     });
@@ -2490,7 +2535,7 @@ function buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort) {
 
   return `<div class="hero-card" data-page="home">
     <div class="hero-nav-arrows" style="top:18px;right:18px;flex-direction:column;align-items:flex-end;gap:4px;" onclick="event.stopPropagation();">
-      <span style="font-size:10px;color:rgba(255,255,255,0.55);letter-spacing:0.04em;white-space:nowrap;">v5.04</span>
+      <span style="font-size:10px;color:rgba(255,255,255,0.55);letter-spacing:0.04em;white-space:nowrap;">v5.05</span>
       ${navArrowButtons}
     </div>
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
@@ -2551,7 +2596,16 @@ function buildWeightHeroChart(macro) {
 }
 
 // Slide 2 — training volume over time (moved here from its old standalone
-// spot below the hero). Same data source as before (getMacroVolumeSeries).
+// spot below the hero). Same data source as before (getMacroVolumeSeries),
+// grouped into one point per CALENDAR week (summed) rather than one per
+// session, so the trend reads at a glance over a full cycle instead of as a
+// noisy session-by-session zigzag.
+//
+// Grouped by real elapsed calendar time since macro.start — NOT by the
+// session's internal mesocycle index (p.week) — because a single mesocycle
+// can span multiple real weeks (weeksPerMeso > 1) with microcycles
+// representing each of those real weeks; grouping by mesocycle index alone
+// would collapse all of them into one bucket.
 function buildVolumeHeroChart(macro) {
   const emptyShell = msg => `<div class="hero-card" data-page="home">
     <div class="hero-label">Volume over time</div>
@@ -2561,10 +2615,19 @@ function buildVolumeHeroChart(macro) {
   const series = getMacroVolumeSeries(macro);
   if (series.length < 2) return emptyShell('Log a few sessions to see your volume trend');
 
-  const points = series.map(p => ({
-    label: `${String(p.date.getDate()).padStart(2,'0')}-${String(p.date.getMonth()+1).padStart(2,'0')}`,
-    y: p.vol
-  }));
+  const startDate = macro.start ? new Date(macro.start + 'T00:00:00') : null;
+  const weekTotals = new Map();
+  series.forEach(p => {
+    const calWeek = startDate
+      ? Math.floor(Math.round((p.date - startDate) / 86400000) / 7) + 1
+      : p.week;
+    weekTotals.set(calWeek, (weekTotals.get(calWeek) || 0) + p.vol);
+  });
+  const points = [...weekTotals.entries()]
+    .sort((a,b) => a[0] - b[0])
+    .map(([week, vol]) => ({ label: 'W' + week, y: vol }));
+  if (points.length < 2) return emptyShell('Log a few more weeks to see your volume trend');
+
   const totalVol = series.reduce((s,p) => s + p.vol, 0);
 
   return `<div class="hero-card" data-page="home">
@@ -2627,8 +2690,17 @@ function buildGoalColumnHeroChart(macro, metric) {
   const allActuals = days.map(d=>d.actual).filter(v=>v!==null);
   if (!allTargets.length && !allActuals.length) return emptyShell('No goals or logs yet for this cycle');
 
-  const yMax = Math.max(...allTargets, ...allActuals, 1) * 1.08;
-  const chartH = 86;
+  // Headroom: the tallest bar (target or actual) should reach ~85% of the
+  // real available card space, leaving ~15% air above it. The actual pixel
+  // value behind --goal-chart-h is measured and set after render (see the
+  // progressHeroIndex===3/4 branch in renderProgressHero) since it depends
+  // on the card's real locked height, which varies cycle to cycle. Each
+  // bar's height is calc(var(--goal-chart-h) * fraction) so a goal change
+  // mid-cycle (e.g. 8000 → 10000) still rescales every bar against the
+  // single tallest value while each target pill stays true to its own
+  // day's goal — same ratio math as before, just against a dynamic base
+  // instead of a fixed 86px one.
+  const yMax = Math.max(...allTargets, ...allActuals, 1) / 0.85;
   const defaultColor = metric === 'steps' ? 'var(--ice-blue)' : 'var(--purple)';
   const overColor    = metric === 'steps' ? 'var(--accent)'   : 'var(--red)';
 
@@ -2638,9 +2710,10 @@ function buildGoalColumnHeroChart(macro, metric) {
 
   let prevWeek = null;
   const cols = days.map(d => {
-    const targetH = d.target ? Math.max(3, Math.round((d.target/yMax)*chartH)) : 0;
+    const targetFrac = d.target ? d.target/yMax : 0;
     const hasActual = d.actual !== null;
-    const actualH = hasActual ? Math.max(d.actual>0?3:0, Math.round((d.actual/yMax)*chartH)) : 0;
+    const actualFrac = hasActual ? d.actual/yMax : 0;
+    const actualMinH = (hasActual && d.actual > 0) ? '3px' : '0px';
     const exceeded = d.target && hasActual && d.actual > d.target;
     const barColor = exceeded ? overColor : defaultColor;
     const isNewWeek = prevWeek !== null && d.week !== prevWeek;
@@ -2648,9 +2721,9 @@ function buildGoalColumnHeroChart(macro, metric) {
     const colFlex = fillMode ? 'flex:1 1 0;min-width:0;' : 'flex:0 0 auto;';
     const barWidth = fillMode ? '100%' : '11px';
     return `<div style="${colFlex}${isNewWeek ? 'margin-left:7px;padding-left:7px;border-left:1px dashed rgba(255,255,255,0.18);' : ''}">
-      <div style="position:relative;height:${chartH}px;width:${barWidth};">
-        ${d.target ? `<div style="position:absolute;bottom:0;left:0;right:0;height:${targetH}px;border-radius:4px;background:rgba(0,0,0,0.3);box-shadow:inset 0 2px 3px rgba(0,0,0,0.55), inset 0 -1px 0 rgba(255,255,255,0.06);"></div>` : ''}
-        ${hasActual ? `<div style="position:absolute;bottom:0;left:0;right:0;height:${actualH}px;border-radius:4px;background:${barColor};box-shadow:0 1px 2px rgba(0,0,0,0.3);"></div>` : ''}
+      <div style="position:relative;height:var(--goal-chart-h, 86px);width:${barWidth};">
+        ${d.target ? `<div style="position:absolute;bottom:0;left:0;right:0;height:calc(var(--goal-chart-h, 86px) * ${targetFrac});min-height:3px;border-radius:4px;background:rgba(0,0,0,0.3);box-shadow:inset 0 2px 3px rgba(0,0,0,0.55), inset 0 -1px 0 rgba(255,255,255,0.06);"></div>` : ''}
+        ${hasActual ? `<div style="position:absolute;bottom:0;left:0;right:0;height:calc(var(--goal-chart-h, 86px) * ${actualFrac});min-height:${actualMinH};border-radius:4px;background:${barColor};box-shadow:0 1px 2px rgba(0,0,0,0.3);"></div>` : ''}
       </div>
       <div style="margin-top:4px;text-align:center;font-size:8px;font-weight:600;color:rgba(255,255,255,0.45);">${d.dowLabel}</div>
     </div>`;
@@ -2663,7 +2736,7 @@ function buildGoalColumnHeroChart(macro, metric) {
       <div class="hero-label" style="margin-bottom:0;">${label}</div>
       <span style="font-size:10px;color:rgba(255,255,255,0.5);">${weeksShown} wk${weeksShown!==1?'s':''}${fillMode ? '' : ' · scroll for more'}</span>
     </div>
-    <div class="hero-chart-fill">
+    <div class="hero-chart-fill" style="justify-content:flex-end;">
       <div class="goal-chart-scroll" style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px;padding:0 4px 4px;">
         <div style="display:flex;align-items:flex-end;gap:3px;${fillMode ? 'width:100%;' : 'width:max-content;'}">${cols}</div>
       </div>
@@ -2712,6 +2785,18 @@ function renderProgressHero() {
         wrap.style.removeProperty('--hero-fixed-h');
         const h = card.getBoundingClientRect().height;
         wrap.style.setProperty('--hero-fixed-h', h + 'px');
+      }
+    }
+
+    // Steps/kcal goal-column bars: size --goal-chart-h to ~85% of the real
+    // available space in the (already height-locked) card, measured live
+    // rather than guessed, so bars genuinely fill the card instead of
+    // sitting in a small fixed box. Runs before paint, so there's no flash.
+    if (progressHeroIndex === 3 || progressHeroIndex === 4) {
+      const fill = el.querySelector('.hero-chart-fill');
+      if (fill) {
+        const h = fill.getBoundingClientRect().height;
+        fill.style.setProperty('--goal-chart-h', Math.max(40, Math.round(h * 0.85)) + 'px');
       }
     }
   });
@@ -2891,7 +2976,7 @@ function renderHome() {
     if (peak.avgProtein !== null) parts.push(`${peak.avgProtein}g avg protein/day`);
     const factorStr = parts.length ? ' During this time: ' + parts.join(', ') + '.' : '';
     peakHtml = `<div style="margin-top:10px;padding-top:10px;border-top:0.5px solid var(--border);font-size:12px;color:var(--text2);line-height:1.5;">
-      <span style="color:var(--accent);font-weight:600;">★ Best 7-day window</span> — ${startFmt} to ${endFmt}, <strong>${Math.abs(peak.delta).toFixed(1)} lbs ${verb}</strong>.${factorStr}
+      <span style="color:var(--ice-blue);font-weight:600;">★ Best 7-day window</span> — ${startFmt} to ${endFmt}, <strong>${Math.abs(peak.delta).toFixed(1)} lbs ${verb}</strong>.${factorStr}
     </div>`;
 
     // Peak-vs-this-week callout
@@ -3203,7 +3288,7 @@ function renderHomeNutr() {
   const validLogs = weekLogs.filter(Boolean);
 
   const metrics = [
-    { key:'kcal',    label:'kcal',    color:'var(--accent)', goal:goal?.kcal,    fmt:v=>v,     fmtFull:v=>Math.round(v).toLocaleString(), overColor:'var(--red)',   warnOver:false },
+    { key:'kcal',    label:'kcal',    color:'var(--accent)', goal:goal?.kcal,    fmt:v=>v.toLocaleString(),     fmtFull:v=>Math.round(v).toLocaleString(), overColor:'var(--red)',   warnOver:false },
     { key:'protein', label:'protein', color:'var(--blue)',   goal:goal?.protein, fmt:v=>v+'g', fmtFull:v=>v+'g', overColor:'var(--accent)',warnOver:false },
     { key:'carbs',   label:'carbs',   color:'var(--amber)',  goal:goal?.carbs,   fmt:v=>v+'g', fmtFull:v=>v+'g', overColor:'var(--amber)', warnOver:true  },
     { key:'fats',    label:'fats',    color:'var(--red)',    goal:goal?.fats,    fmt:v=>v+'g', fmtFull:v=>v+'g', overColor:'var(--red)',   warnOver:true  },
