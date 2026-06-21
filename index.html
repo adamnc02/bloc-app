@@ -13,6 +13,7 @@
 :root {
   /* ── Surfaces — blue-tinted dark scheme, mirrors [data-mode="light"] ── */
   --bg: #0f1620;
+  --bg-rgb: 15, 22, 32;
   --surface: #161f2c;
   --surface2: #1d2837;
   --surface3: #253142;
@@ -59,6 +60,7 @@
    page's identity colour stays consistent across modes. */
 [data-mode="light"] {
   --bg: #e7edf4;
+  --bg-rgb: 231, 237, 244;
   --surface: #f2f5f9;
   --surface2: #fafbfd;
   --surface3: #ffffff;
@@ -92,20 +94,32 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
-html { background: var(--bg); }
+/* html/body can never scroll — #content (inside #app) is the only
+   scrollable element in the app shell. Sized with var(--app-height) —
+   the same JS-measured value #app already uses below — rather than raw
+   100dvh: the comment on that script explains why bare dvh alone can't
+   be trusted on iOS standalone (leaves dead space at the bottom on first
+   paint), and that applies here just as much as it does to #app. */
+html {
+  background: var(--bg);
+  height: 100dvh;
+  height: var(--app-height, 100dvh);
+  overflow: hidden;
+}
 
 body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-display);
   font-size: 14px;
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100dvh;
+  height: var(--app-height, 100dvh);
+  overflow: hidden;
   overscroll-behavior: none;
 }
 
 /* ── LAYOUT ─────────────────────────────── */
-#app { display: flex; flex-direction: column; height: 100dvh; }
+#app { position: relative; display: flex; flex-direction: column; height: 100dvh; height: var(--app-height, 100dvh); }
 
 #content {
   flex: 1;
@@ -113,7 +127,7 @@ body {
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   padding-top: var(--safe-top);
-  padding-bottom: var(--safe-bottom);
+  padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 20px);
 }
 
 .screen { display: none; padding: 16px 16px 0; }
@@ -127,9 +141,22 @@ body {
    icon only; the active button's label reveals via the max-width/
    opacity transition on .nav-label. */
 #nav {
-  position: fixed;
+  /* Anchored to #app (position: relative) rather than the native
+     viewport. #nav used to be `position: fixed`, which on iOS standalone
+     relies on WebKit's own internal sense of the viewport — separate
+     from any CSS/JS value — and that internal reference is stale on
+     first paint until a real scroll forces a recompute. Locking
+     html/body's scroll (above) removed the scroll gesture that used to
+     fix this, so `fixed` was left permanently stuck. Anchoring to #app
+     instead means #nav just follows normal CSS layout against #app's
+     box, which is driven by --app-height — the same JS-measured value
+     used everywhere else — and that already updates itself via the
+     resize/visualViewport listeners with no scroll needed. html, body,
+     #app, and #nav are now all sized from the same single source, so
+     there's no mismatch left for any of these bugs to come from. */
+  position: absolute;
   left: 50%;
-  bottom: var(--safe-bottom);
+  bottom: calc(var(--safe-bottom) - 6px);
   transform: translateX(-50%);
   display: flex;
   align-items: center;
@@ -143,6 +170,34 @@ body {
   padding: 5px;
   box-shadow: 0 14px 32px rgba(0,0,0,0.38), 0 2px 10px rgba(0,0,0,0.22);
   z-index: 100;
+}
+
+/* ── EDGE FADES ──────────────────────────────────────────────
+   Soft gradient strips pinned to the very top/bottom of the screen so
+   scrolling content fades into the background colour as it reaches the
+   edges, instead of being hard-clipped right at the safe area boundary.
+   Anchored to #app (matching --app-height, now confirmed correct) so
+   they always cover the true top/bottom 15px regardless of device.
+   transparent end is written as rgba(var(--bg-rgb), 0) rather than the
+   `transparent` keyword to avoid the classic gradient-darkens-in-the-
+   middle artifact some browsers show when interpolating to a literal
+   transparent black. pointer-events: none so they never block taps;
+   z-index sits above scrolling content but below the floating nav. */
+.edge-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: var(--safe-top);
+  pointer-events: none;
+  z-index: 50;
+}
+.edge-fade-top {
+  top: 0;
+  background: linear-gradient(to bottom, rgba(var(--bg-rgb), 1) 0%, rgba(var(--bg-rgb), 0) 100%);
+}
+.edge-fade-bottom {
+  bottom: 0;
+  background: linear-gradient(to top, rgba(var(--bg-rgb), 1) 0%, rgba(var(--bg-rgb), 0) 100%);
 }
 
 #nav-pill {
@@ -789,9 +844,112 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 .theme-swatch-multi-preview { display: flex; height: 32px; border-radius: 8px; overflow: hidden; margin-bottom: 8px; }
 .theme-swatch-multi-preview > div { flex: 1; }
 </style>
+<script>
+// ── Real viewport height fix ───────────────────────────────────
+// iOS WKWebView (standalone "Add to Home Screen" mode) has a known bug
+// where 100dvh is sometimes computed against a stale/incorrect viewport
+// on first paint, leaving dead space at the bottom until the user
+// scrolls and forces a recalculation. CSS dvh units can't be trusted
+// alone in this context, so we measure the real visual viewport height
+// in JS (most accurate via window.visualViewport, which also already
+// excludes the on-screen keyboard) and expose it as --app-height,
+// re-measuring on every event that could change it. #app then prefers
+// var(--app-height) over 100dvh, with 100dvh kept only as a fallback
+// for the brief instant before this script first runs.
+//
+// ── Safe-area inset fix ──────────────────────────────────────
+// --safe-bottom/--safe-top were defined as `env(safe-area-inset-*)`
+// read straight through a CSS custom property. That bridge has a known
+// WebKit bug where the value returned can be stale or simply wrong
+// (not just zero) — which matches a floating nav sitting too high and
+// a scroll container reserving too much bottom padding at the same
+// time, both fed by the same bad --safe-bottom number. The fix is the
+// same shape as the height fix above: measure the real value with a
+// DOM probe (an element with `height: env(safe-area-inset-bottom)` set
+// directly, not through a variable) and overwrite the custom property
+// with the resolved pixel value instead of trusting the live bridge.
+(function() {
+  function measureEnv(prop) {
+    var el = document.createElement('div');
+    el.style.cssText = 'position:fixed;top:0;left:0;width:0;height:env(' + prop + ', 0px);visibility:hidden;pointer-events:none;';
+    document.documentElement.appendChild(el);
+    var val = el.offsetHeight;
+    document.documentElement.removeChild(el);
+    return val;
+  }
+  // Confirmed via two rounds of on-device diagnostics: window.innerHeight /
+  // visualViewport.height start out ~safeTop px short right after launch,
+  // then self-correct to the true full height a moment later (the original
+  // "settles after a beat" behavior this whole investigation started from —
+  // now backed by real numbers). Unconditionally adding safeTop back in
+  // was only correct for that early/short state; once it self-corrects,
+  // adding safeTop again overshoots past the real bottom edge. Capping at
+  // window.screen.height (which read identically — 956 — in both the
+  // short and the settled state) handles both cases without needing to
+  // know which one we're in, while still tracking visualViewport's
+  // legitimate shrink when the on-screen keyboard appears (which stays
+  // well under screen.height, so the cap never interferes with that).
+  function setAppHeight() {
+    var measured = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+    var h = measured + measureEnv('safe-area-inset-top');
+    if (window.screen && window.screen.height) {
+      h = Math.min(h, window.screen.height);
+    }
+    document.documentElement.style.setProperty('--app-height', h + 'px');
+  }
+  function setSafeAreaVars() {
+    document.documentElement.style.setProperty('--safe-bottom', measureEnv('safe-area-inset-bottom') + 'px');
+    document.documentElement.style.setProperty('--safe-top', measureEnv('safe-area-inset-top') + 'px');
+  }
+  // Bypasses calc(var(--safe-bottom)) entirely for #nav specifically and
+  // sets a literal pixel value via JS instead — in case WebKit is correctly
+  // updating the custom property but failing to repaint elements that
+  // reference it inside calc() without a scroll/compositing pass forcing
+  // it. Directly assigning element.style.bottom is a plain style mutation
+  // with no such known repaint-lag quirk.
+  function positionNavDirect() {
+    var nav = document.getElementById('nav');
+    if (!nav) return;
+    nav.style.bottom = (measureEnv('safe-area-inset-bottom') - 6) + 'px';
+  }
+  function measureAll() {
+    setAppHeight();
+    setSafeAreaVars();
+    positionNavDirect();
+  }
+  // window.innerHeight/visualViewport.height were confirmed (via on-device
+  // testing) to start short right after a standalone launch and settle to
+  // the true value a moment later, so keep re-measuring for a few seconds
+  // after load to catch that settling without needing a manual scroll.
+  document.addEventListener('DOMContentLoaded', function() {
+    var n = 0;
+    var iv = setInterval(function() {
+      measureAll();
+      if (++n > 10) clearInterval(iv);
+    }, 500);
+  });
+  measureAll();
+  // The very first reading above can itself land mid-launch-transition on
+  // iOS standalone, before WebKit's handshake settles — so re-measure a
+  // few more times shortly after load as a safety net. This is what used
+  // to require a manual scroll; now it self-corrects automatically.
+  requestAnimationFrame(function() { requestAnimationFrame(measureAll); });
+  setTimeout(measureAll, 100);
+  setTimeout(measureAll, 400);
+  window.addEventListener('resize', measureAll);
+  window.addEventListener('orientationchange', measureAll);
+  window.addEventListener('pageshow', measureAll);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', measureAll);
+  }
+})();
+</script>
 </head>
 <body data-theme="multi" data-mode="dark">
 <div id="app">
+<div class="edge-fade edge-fade-top"></div>
+<div class="edge-fade edge-fade-bottom"></div>
+
   <div id="content">
 
     <!-- ════════════════════════════════════════
@@ -887,7 +1045,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v5.07</span>
+          <span class="badge badge-green">v5.08</span>
         </div>
       </div>
 
