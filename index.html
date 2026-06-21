@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>BLOC — Training</title>
@@ -67,24 +67,18 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
-html, body {
-  height: 100%;
-  overflow: hidden;
-}
-
 body {
-  position: fixed;
-  inset: 0;
-  width: 100%;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-display);
   font-size: 14px;
+  min-height: 100vh;
+  min-height: 100dvh;
   overscroll-behavior: none;
 }
 
 /* ── LAYOUT ─────────────────────────────── */
-#app { display: flex; flex-direction: column; height: 100%; }
+#app { display: flex; flex-direction: column; height: 100dvh; }
 
 #content {
   flex: 1;
@@ -4813,7 +4807,7 @@ function renderNutrDiary() {
         padding:10px 12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
         <div>
           <div style="font-size:12px;color:var(--accent);font-weight:600;">⚡ Quick log active</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:2px;">${q.kcal.toLocaleString()} kcal · P:${q.protein}g C:${q.carbs}g F:${q.fats}g</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px;">${q.kcal.toLocaleString()} kcal · P:${Math.round(q.protein)}g C:${Math.round(q.carbs)}g F:${Math.round(q.fats)}g</div>
           <div style="font-size:10px;color:var(--text3);margin-top:2px;">Meal entries below are ignored for this day's totals</div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;">
@@ -5271,7 +5265,7 @@ function renderNutrAddList() {
         <div style="flex:1;min-width:0;">
           <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</div>
           <div style="font-size:10px;color:var(--text3);margin-top:2px;">
-            ${item.per100kcal.toLocaleString()} kcal / 100g · P:${item.per100p}g C:${item.per100c}g F:${item.per100f}g
+            ${item.per100kcal.toLocaleString()} kcal / 100g · P:${Math.round(item.per100p)}g C:${Math.round(item.per100c)}g F:${Math.round(item.per100f)}g
             ${brand ? ` · ${brand}` : ''}
           </div>
         </div>
@@ -5830,7 +5824,7 @@ function renderPreviousMeals() {
     + '<div style="flex:1;min-width:0;">'
     + '<div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + item.name + '</div>'
     + '<div style="font-size:10px;color:var(--text3);margin-top:2px;">'
-    + item.per100kcal.toLocaleString() + ' kcal / 100g · P:' + item.per100p + 'g C:' + item.per100c + 'g F:' + item.per100f + 'g'
+    + item.per100kcal.toLocaleString() + ' kcal / 100g · P:' + Math.round(item.per100p) + 'g C:' + Math.round(item.per100c) + 'g F:' + Math.round(item.per100f) + 'g'
     + (brand ? ' · ' + brand : '')
     + '</div>'
     + '</div>'
@@ -7216,7 +7210,7 @@ function renderFoodLibEditor() {
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);">
       <div style="flex:1;min-width:0;cursor:pointer;" onclick="openFoodLibEntry(${idx})">
         <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:2px;">${item.per100kcal.toLocaleString()} kcal / 100g · P:${item.per100p}g C:${item.per100c}g F:${item.per100f}g${rss}${brand}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px;">${item.per100kcal.toLocaleString()} kcal / 100g · P:${Math.round(item.per100p)}g C:${Math.round(item.per100c)}g F:${Math.round(item.per100f)}g${rss}${brand}</div>
       </div>
       <div style="display:flex;gap:6px;flex-shrink:0;margin-left:10px;">
         <button class="btn btn-sm" style="padding:5px 10px;" onclick="shareFoodLibItem(${idx})" title="Share"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="9 10 5 10 5 20 19 20 19 10 15 10"/><polyline points="12 3 8 7 12 3 16 7"/><line x1="12" y1="3" x2="12" y2="15"/></svg></button>
@@ -7348,7 +7342,7 @@ function renderRecipeIngredients() {
       <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:0.5px solid var(--border);">
         <div style="flex:1;min-width:0;">
           <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${ing.name}</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:2px;">${ing.grams}g · ${ing.kcal.toLocaleString()} kcal · P:${ing.protein}g C:${ing.carbs}g F:${ing.fats}g</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px;">${ing.grams}g · ${ing.kcal.toLocaleString()} kcal · P:${Math.round(ing.protein)}g C:${Math.round(ing.carbs)}g F:${Math.round(ing.fats)}g</div>
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0;margin-left:8px;">
           <button onclick="editRecipeIngredient(${idx})" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px 8px;font-size:14px;">✎</button>
