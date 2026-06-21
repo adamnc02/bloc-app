@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>BLOC — Training</title>
@@ -73,11 +73,14 @@
 }
 
 /* ── Single-colour theme options ─────────────────────────── */
-[data-theme="teal"]   { --hero-1: #1D9E75; --hero-2: #085041; }
-[data-theme="blue"]   { --hero-1: #378ADD; --hero-2: #0C447C; }
-[data-theme="amber"]  { --hero-1: #EF9F27; --hero-2: #633806; }
-[data-theme="purple"] { --hero-1: #7F77DD; --hero-2: #3C3489; }
-[data-theme="mono"]   { --hero-1: #4a4a48; --hero-2: #232321; }
+[data-theme="turquoise"]    { --hero-1: #2BC7C4; --hero-2: #0B4F4E; }
+[data-theme="blue"]         { --hero-1: #378ADD; --hero-2: #0C447C; }
+[data-theme="amber"]        { --hero-1: #EF9F27; --hero-2: #633806; }
+[data-theme="purple"]       { --hero-1: #7F77DD; --hero-2: #3C3489; }
+[data-theme="teal"]         { --hero-1: #1D9E75; --hero-2: #085041; }
+[data-theme="yellow"]       { --hero-1: #E8D44D; --hero-2: #6B5A0A; }
+[data-theme="red"]          { --hero-1: #E24B4A; --hero-2: #6B1414; }
+[data-theme="mono"]         { --hero-1: #4a4a48; --hero-2: #232321; }
 
 /* ── Multi theme: distinct hero colour per page, matching mockup ── */
 [data-theme="multi"] [data-page="home"]      { --hero-1: #2BC7C4; --hero-2: #0B4F4E; }
@@ -88,6 +91,8 @@
 [data-theme="multi"] [data-page="goals"]     { --hero-1: #E24B4A; --hero-2: #6B1414; }
 
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+html { background: var(--bg); }
 
 body {
   background: var(--bg);
@@ -6351,12 +6356,15 @@ function getISOWeek(dateStr) {
 // [data-theme="multi"] [data-page="..."] CSS rules. The single-colour
 // options below override --hero-1/--hero-2 globally for every page.
 const THEMES = [
-  { id:'multi',  label:'Multi',  preview:'multi' },
-  { id:'teal',   label:'Teal',   c1:'#2f8f6f', c2:'#1a4f3d' },
-  { id:'blue',   label:'Blue',   c1:'#3f7fd9', c2:'#1e3f73' },
-  { id:'amber',  label:'Amber',  c1:'#d9943f', c2:'#7a4d1a' },
-  { id:'purple', label:'Purple', c1:'#9156d9', c2:'#4a2873' },
-  { id:'mono',   label:'Mono',   c1:'#3a3a3a', c2:'#1a1a1a' },
+  { id:'multi',       label:'Multi',      preview:'multi' },
+  { id:'teal',        label:'Teal',       c1:'#2f8f6f', c2:'#1a4f3d' },
+  { id:'blue',        label:'Blue',       c1:'#3f7fd9', c2:'#1e3f73' },
+  { id:'amber',       label:'Amber',      c1:'#d9943f', c2:'#7a4d1a' },
+  { id:'turquoise',   label:'Turquoise',  c1:'#2bc7c4', c2:'#1a4f3d' },
+  { id:'yellow',      label:'Yellow',     c1:'#e8d44d', c2:'#0b4f4e' },
+  { id:'red',         label:'Red',        c1:'#e24b4a', c2:'#6b1414' },
+  { id:'purple',      label:'Purple',     c1:'#9156d9', c2:'#4a2873' },
+  { id:'mono',        label:'Mono',       c1:'#3a3a3a', c2:'#1a1a1a' },
 ];
 
 function setTheme(themeId) {
