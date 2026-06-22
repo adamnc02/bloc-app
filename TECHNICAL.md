@@ -214,42 +214,29 @@ document.body.setAttribute('data-mode', state.mode);
 
 ## 5. iOS Viewport & App Height
 
-### The problem
-On iOS in standalone PWA mode, `window.innerHeight` and `100dvh` are unreliable on first paint — they report a stale pre-keyboard/pre-chrome value. `position: fixed` nav bars anchored to the viewport get stuck using the wrong offset until a real scroll gesture forces a recompute. Locking `html`/`body` scroll to prevent rubber-banding (using `overflow: hidden`) removes the scroll gesture that used to trigger the recompute, leaving the nav permanently misplaced.
+### The problem: stale height on first paint
+
+On iOS in standalone PWA mode, `window.innerHeight` and `100dvh` are unreliable on first paint — they report a stale pre-chrome value. `position: fixed` nav bars anchored to the viewport get stuck using the wrong offset until a real scroll gesture forces a recompute. Locking `html`/`body` scroll to prevent rubber-banding (using `overflow: hidden`) removes the scroll gesture that used to trigger the recompute, leaving the nav permanently misplaced.
 
 ### The solution: `measureEnv()` DOM probe
 
-A tiny hidden element (`position: fixed; top: 0; left: 0; width: 1px; height: 1px`) is appended to the DOM at runtime. After two `requestAnimationFrame` ticks (to let WebKit settle), its `getBoundingClientRect()` or `window.visualViewport.height` is read to get the true available height. CSS custom properties are set from the measured values:
+`measureEnv(prop)` creates a throwaway `position:fixed` element with `height: env(<prop>, 0px)` set directly on it (not via a CSS variable), reads its `offsetHeight`, then removes it. This bypasses a known WebKit bug where CSS custom properties bridging `env()` values can return stale or incorrect numbers.
 
 ```js
 function measureEnv(prop) {
-  // Reads env() variables via a temporary DOM element
-  // Returns numeric pixel value
-}
-
-function setAppHeight() {
-  const measured = window.visualViewport
-    ? window.visualViewport.height
-    : window.innerHeight;
-  const h = measured + measureEnv('safe-area-inset-top');
-  document.documentElement.style.setProperty('--app-height', h + 'px');
-}
-
-function setSafeAreaVars() {
-  document.documentElement.style.setProperty(
-    '--safe-bottom', measureEnv('safe-area-inset-bottom') + 'px'
-  );
-  document.documentElement.style.setProperty(
-    '--safe-top', measureEnv('safe-area-inset-top') + 'px'
-  );
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;top:0;left:0;width:0;height:env('
+    + prop + ', 0px);visibility:hidden;pointer-events:none;';
+  document.documentElement.appendChild(el);
+  const val = el.offsetHeight;
+  document.documentElement.removeChild(el);
+  return val;
 }
 ```
 
-`setAppHeight()` is called immediately on load and again on `window.resize` and `visualViewport.resize`.
+`--app-height`, `--safe-bottom`, and `--safe-top` are all set from probed values via `setAppHeight()` and `setSafeAreaVars()`. All size-sensitive elements use `var(--app-height, 100dvh)` rather than raw `dvh`.
 
 ### Layout wiring
-
-Every size-sensitive element uses `var(--app-height, 100dvh)` as a fallback-safe override:
 
 ```css
 html, body, #app {
@@ -266,7 +253,7 @@ html, body, #app {
 
 ### Nav bar positioning
 
-`#nav` is `position: absolute` inside `#app` (which is `position: relative`), **not** `position: fixed`. This means the nav simply follows normal CSS layout within `#app`'s box, which is already sized correctly by `--app-height`. There is no viewport-relative positioning for WebKit to get wrong.
+`#nav` is `position: absolute` inside `#app` (`position: relative`), **not** `position: fixed`. It follows normal CSS layout within `#app`'s box, which is already sized correctly by `--app-height`. The `positionNavDirect()` function additionally sets `nav.style.bottom` to a probed pixel value to avoid WebKit's repaint-lag quirk with `calc()` on custom properties.
 
 ```css
 #nav {
@@ -274,11 +261,124 @@ html, body, #app {
   left: 50%;
   bottom: calc(var(--safe-bottom) - 6px);
   transform: translateX(-50%);
-  /* floating pill styles ... */
 }
 ```
 
-The `nav.style.bottom` is also updated via JS using `measureEnv('safe-area-inset-bottom')` so the floating pill always clears the home indicator on notched devices.
+---
+
+### On-screen keyboard handling
+
+iOS standalone PWA mode presents three distinct keyboard challenges, each with a different root cause and fix.
+
+#### 1. Keyboard detection
+
+**Problem:** In iOS standalone, `window.innerHeight` shrinks with the keyboard — making the commonly used `innerHeight - visualViewport.height` approach always return ~0. The keyboard is undetectable by that method.
+
+**Solution:** Compare `visualViewport.height` against `window.screen.height`, which never changes:
+
+```js
+function isKeyboardOpen() {
+  if (!window.visualViewport) return false;
+  const vvh = window.visualViewport.height;
+  const screenH = (window.screen && window.screen.height) || (vvh * 2);
+  return vvh < screenH * 0.75;
+}
+```
+
+`screen.height` is always the full device height in CSS pixels (e.g., 844px on iPhone 14). `visualViewport.height` drops to ~400px when the keyboard opens. The 75% threshold separates keyboard-open from any legitimate small resize (e.g. status bar changes).
+
+#### 2. Train set/rep inputs — scrolling to focused input
+
+**Problem:** When a set row input is tapped, the keyboard opens and `visualViewport.height` shrinks. If `--app-height` were updated to match, `#content` would shrink too, leaving the set inputs in unreachable dead space below the visible area with no scroll room to reach them.
+
+**Solution:** `setAppHeight()` skips its update while the keyboard is open:
+
+```js
+function setAppHeight() {
+  if (isKeyboardOpen()) return;   // ← guard: keep layout at full height
+  const measured = (window.visualViewport && window.visualViewport.height)
+    || window.innerHeight;
+  const h = measured + measureEnv('safe-area-inset-top');
+  document.documentElement.style.setProperty(
+    '--app-height', Math.min(h, window.screen?.height || h) + 'px'
+  );
+}
+```
+
+With the layout frozen at full height, `#content` remains full size and the set inputs are still in the DOM scroll range. `handleKeyboard()` then makes them visible:
+
+```js
+function handleKeyboard() {
+  const open = isKeyboardOpen();
+  const vvh = window.visualViewport?.height ?? window.innerHeight;
+
+  // Hide nav while keyboard is up
+  const nav = document.getElementById('nav');
+  if (nav) nav.style.display = open ? 'none' : '';
+
+  // Extend #content scroll range and scroll focused input to centre
+  const content = document.getElementById('content');
+  if (!content) return;
+  if (open) {
+    content.style.paddingBottom = '440px';   // >any keyboard height
+    setTimeout(() => {
+      const el = document.activeElement;
+      if (!el || !['INPUT','TEXTAREA'].includes(el.tagName)) return;
+      if (el.closest?.('.modal-overlay')) return;  // modals handle themselves
+      const rect = el.getBoundingClientRect();
+      const delta = (rect.top + rect.height / 2) - (vvh / 2);
+      if (Math.abs(delta) > 10) content.scrollTop += delta;
+    }, 350);
+  } else {
+    content.style.paddingBottom = '';
+  }
+}
+```
+
+Key details:
+- `paddingBottom: 440px` is set immediately so `scrollHeight` grows before the `scrollTop` assignment runs.
+- `scrollTop +=` delta is used rather than `scrollBy({behavior:'smooth'})` — direct assignment is more reliable on iOS `-webkit-overflow-scrolling:touch` containers.
+- The 350 ms delay lets the keyboard animation finish and iOS's own partial scroll settle before we override `scrollTop`.
+- Modal inputs are explicitly skipped (they have their own layout mechanism — see §9).
+
+#### 3. Return key navigation between set inputs
+
+Each set row generates two inputs: weight (`inp-w-<logKey>`) and reps (`inp-r-<logKey>`). `onkeydown` handlers chain focus through all sets:
+
+```js
+// Weight input: Return → reps input of same set
+onkeydown="if(event.key==='Enter'){
+  event.preventDefault();
+  document.getElementById('inp-r-${logKey}')?.focus();
+}"
+
+// Reps input: Return → weight input of next set, or blur on last set
+onkeydown="if(event.key==='Enter'){
+  event.preventDefault();
+  ${nextWKey
+    ? `document.getElementById('${nextWKey}')?.focus();`
+    : 'this.blur();'}
+}"
+```
+
+`nextWKey` is computed as `inp-w-${key}_${exId}_${s+1}` for all sets except the last, where it is an empty string (triggering `blur()`).
+
+#### Event listener wiring
+
+All keyboard handlers are driven by `visualViewport.resize`, which fires reliably on both keyboard open and close. A `focusin` listener handles the case where focus moves between inputs while the keyboard is already up (no `resize` fires since viewport height doesn't change):
+
+```js
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', () => {
+    measureAll();      // updates --app-height (guarded), safe-area vars, nav position
+    handleKeyboard();  // adjusts nav visibility and scrolls focused input
+  });
+}
+document.addEventListener('focusin', e => {
+  if (isKeyboardOpen() && ['INPUT','TEXTAREA'].includes(e.target?.tagName)) {
+    setTimeout(handleKeyboard, 80);
+  }
+});
 
 ---
 
@@ -449,7 +549,35 @@ All modals are `.modal-overlay` divs appended after `#app`. Each wraps a `.modal
 - **Swipe-down to close** — `touchstart`/`touchmove`/`touchend` on the sheet; a downward swipe of ≥80px triggers `closeModal()`
 - **Tap-outside to close** — click on the overlay background (not the sheet) calls `closeModal()`
 
-`openModal(id)` adds `.active` to the overlay. `closeModal(id)` removes it and stops any running camera stream if the closed modal was a barcode scanner.
+`openModal(id)` adds `.open` to the overlay. `closeModal(id)` removes it and stops any running camera stream if the closed modal was a barcode scanner.
+
+### Modal sheets and the on-screen keyboard
+
+**How modals sit above the keyboard:**
+
+In iOS standalone, `position: fixed` tracks `window.innerHeight`, which shrinks with the keyboard independently of `--app-height`. The `.modal-overlay` is `position: fixed; inset: 0`, so it already occupies only the visible area above the keyboard when the keyboard is open. With `display: flex; align-items: flex-end` on the overlay, the `.modal-sheet` is naturally anchored just above the keyboard — no JS is needed.
+
+The body log modal (`modal-body-log`) is the canonical reference for this behaviour: its sheet has no inline styles, uses the base `.modal-sheet` CSS (`max-height: 92dvh; overflow-y: auto`), and its compact content (~265px) always fits within the shrunken overlay.
+
+**The `nutr-add` modal (food search):**
+
+This modal requires a scrollable food results list, which creates an additional challenge. The list previously used `flex: 1` inside a `display: flex` sheet, causing the sheet to grow to its full `max-height`. Because `dvh` does not reliably shrink with the keyboard in iOS standalone, this left the sheet taller than the overlay and pushed the search input off the top of the screen.
+
+The fix is structural — the sheet is kept compact by giving the list a fixed `max-height` in pixels rather than `flex: 1`, keeping total sheet height (~380px) within the overlay's natural shrunken size:
+
+```html
+<!-- Sheet: base CSS only, no flex/overflow:hidden override -->
+<div class="modal-sheet" data-modal="modal-nutr-add" style="max-height:85dvh;">
+  <!-- fixed-height elements: handle, title, action buttons, search input -->
+  <!-- List: bounded height, independently scrollable -->
+  <div id="nutr-add-list"
+       style="max-height:165px;overflow-y:auto;
+              overscroll-behavior:contain;-webkit-overflow-scrolling:touch;">
+  </div>
+</div>
+```
+
+`overscroll-behavior: contain` on the list prevents scroll events from bubbling out to `#content` when the list boundary is reached.
 
 ---
 
@@ -493,6 +621,25 @@ Key operations:
 - `fillSuggested(macroId, week, day, exIdx)` — fills all set inputs with suggested values, triggers CSS flash animation
 - `getSuggested(macro, ex, week)` — returns the suggested weight/reps object for this exercise/week
 - `getLastWeekLog(macroId, week, day, exIdx)` — returns the previous week's log row for display
+
+### Exercise card compact header
+
+The collapsed exercise card shows progression-aware information rather than the static plan values:
+
+- **Type pill only** — set type (Standard / Myorep / Myomatch) is the only pill badge. Sets and reps are plain text below it.
+- **Sets/reps text** — shows `N sets • lastReps/suggestedReps reps` where `lastReps` is the actual reps logged in the previous week. Falls back to `N sets • suggestedReps reps` on week 1 or when no prior log exists.
+- **Weight reference** — shows `lastWeight / suggestedWeight kg` (last week's Set 1 logged weight / this week's recommended weight) instead of the static start weight. Falls back to `suggestedWeight kg target` on week 1.
+- **Weight delta** — the `+Xkg / Y%` progress indicator sits inline next to the type pill, not in its own pill.
+
+### Return key navigation between set inputs
+
+Each expanded exercise card renders N set rows, each with a weight input (`inp-w-<logKey>`) and reps input (`inp-r-<logKey>`). `onkeydown` handlers chain focus through all inputs so the user can log a full session without leaving the keyboard:
+
+- Return on weight input → focus reps input of the same set
+- Return on reps input → focus weight input of the next set
+- Return on the final set's reps input → `blur()` (dismisses keyboard)
+
+See §5 for the keyboard scroll behaviour that keeps these inputs visible while typing.
 
 ---
 
@@ -772,12 +919,16 @@ Returns `product.product_name`, `product.brands`, and `product.nutriments` (ener
 | `showConfirm(title, msg, okLabel, callback)` | Shows custom confirm modal |
 | `initModal(overlayEl)` | Attaches swipe-down and tap-outside handlers |
 
-### iOS Viewport
+### iOS Viewport & Keyboard
 | Function | Description |
 |---|---|
-| `measureEnv(prop)` | DOM probe to read CSS `env()` values as numbers |
-| `setAppHeight()` | Reads `visualViewport.height`, sets `--app-height` |
-| `setSafeAreaVars()` | Sets `--safe-bottom` and `--safe-top` CSS vars |
+| `measureEnv(prop)` | DOM probe to read CSS `env()` values as numbers, bypassing WebKit's stale-variable bug |
+| `setAppHeight()` | Sets `--app-height` from `visualViewport.height`; skips update when keyboard is open to keep layout at full height |
+| `setSafeAreaVars()` | Sets `--safe-bottom` and `--safe-top` CSS vars from probed values |
+| `positionNavDirect()` | Sets `nav.style.bottom` directly in pixels to avoid CSS repaint-lag on `calc()` with custom properties |
+| `isKeyboardOpen()` | Returns `true` when `visualViewport.height < screen.height * 0.75`; reliable in iOS standalone where `innerHeight` also shrinks with keyboard |
+| `handleKeyboard()` | Hides nav, extends `#content` scroll range, and scrolls focused set/rep input to centre of visible area above keyboard |
+| `measureAll()` | Calls `setAppHeight`, `setSafeAreaVars`, `positionNavDirect` — run on every `visualViewport.resize` and at boot |
 
 ---
 
