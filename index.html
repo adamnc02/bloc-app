@@ -886,6 +886,11 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   // distinguishes "keyboard open" from any legitimate small resize.
   function isKeyboardOpen() {
     if (!window.visualViewport) return false;
+    // These keyboard workarounds only apply in iOS standalone (home screen PWA)
+    // mode. In all other contexts — desktop browsers, regular iOS Safari, Android
+    // — navigator.standalone is false/undefined and we return early so the nav
+    // is never hidden and layout is never modified.
+    if (!window.navigator.standalone) return false;
     var vvh = window.visualViewport.height;
     var screenH = (window.screen && window.screen.height) || (vvh * 2);
     return vvh < screenH * 0.75;
@@ -4266,6 +4271,20 @@ function renderTrainDay(macro) {
     }
 
     // ── Compact header ─────────────────────────────────────────────────────────
+    // Sets/reps line: sets this meso + last week's actual reps / recommended reps.
+    // Always uses recommendedReps (last week + 1) as the suggestion, regardless
+    // of which progression type (weight vs reps) is currently selected — the
+    // repsPlaceholder changes with progType but the recommendation is always fixed.
+    const lastReps = prevActualReps !== null ? prevActualReps : null;
+    const lastWeight = prevActualWeight !== null ? prevActualWeight.toFixed(1) : null;
+    const setsRepsText = lastReps !== null
+      ? `${sets} sets &bull; ${lastReps}/${recommendedReps} reps`
+      : `${sets} sets &bull; ${recommendedReps} reps`;
+    // Weight reference: last meso weight / suggested weight (replaces "Start: X kg")
+    const weightRefText = lastWeight !== null
+      ? `${lastWeight} / ${recommendedWeight.toFixed(1)} kg`
+      : `${weightPlaceholder} kg target`;
+
     html += `<div class="card" style="margin-bottom:10px;padding:0;">
       <div onclick="toggleExercise('${expandKey}')"
         style="width:100%;background:none;border:none;padding:14px;cursor:pointer;-webkit-tap-highlight-color:transparent;">
@@ -4274,9 +4293,9 @@ function renderTrainDay(macro) {
             <div style="font-family:var(--font-display);font-size:15px;font-weight:600;color:var(--text);">${ex.name}</div>
             <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap;align-items:center;">
               <span class="badge ${ex.type==='standard'?'badge-blue':ex.type==='myorep'?'badge-purple':'badge-amber'}">${typeLabel}</span>
-              <span class="badge badge-purple">${sets} sets · ${ex.reps} reps</span>
               ${progressBadge}
             </div>
+            <div style="font-size:12px;color:var(--text2);margin-top:5px;">${setsRepsText}</div>
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
             ${allDone
@@ -4290,7 +4309,7 @@ function renderTrainDay(macro) {
                    ${doneSets > 0 ? `<span style="font-size:11px;color:var(--text3);white-space:nowrap;">${doneSets}/${sets}</span>` : ''}
                  </div>`
             }
-            <span style="font-size:11px;color:var(--text3);white-space:nowrap;">Start: ${ex.startWeight} kg</span>
+            <span style="font-size:11px;color:var(--text3);white-space:nowrap;">${weightRefText}</span>
           </div>
         </div>
         <div style="display:flex;justify-content:flex-end;margin-top:4px;">
