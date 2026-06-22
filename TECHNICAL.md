@@ -6,24 +6,27 @@
 2. [File Structure](#2-file-structure)
 3. [State Model](#3-state-model)
 4. [Data Persistence](#4-data-persistence)
-5. [Navigation & Screen System](#5-navigation--screen-system)
-6. [Modal System](#6-modal-system)
-7. [Module: Plan](#7-module-plan)
-8. [Module: Train](#8-module-train)
-9. [Module: Body](#9-module-body)
-10. [Module: Nutrition](#10-module-nutrition)
-11. [Module: Goals](#11-module-goals)
-12. [Module: Home](#12-module-home)
-13. [Module: Settings & Data Management](#13-module-settings--data-management)
-14. [Module: Rest Timer](#14-module-rest-timer)
-15. [Swipe Row System](#15-swipe-row-system)
-16. [Exercise Library](#16-exercise-library)
-17. [Progression Logic](#17-progression-logic)
-18. [External APIs](#18-external-apis)
-19. [Design System](#19-design-system)
-20. [Function Reference](#20-function-reference)
-21. [Key Algorithms](#21-key-algorithms)
-22. [Known Limitations & Future Considerations](#22-known-limitations--future-considerations)
+5. [iOS Viewport & App Height](#5-ios-viewport--app-height)
+6. [Navigation & Screen System](#6-navigation--screen-system)
+7. [Design System & Theming](#7-design-system--theming)
+8. [Hero Cards & Progress Deck](#8-hero-cards--progress-deck)
+9. [Modal System](#9-modal-system)
+10. [Module: Progress](#10-module-progress)
+11. [Module: Plan](#11-module-plan)
+12. [Module: Train](#12-module-train)
+13. [Module: Body](#13-module-body)
+14. [Module: Nutrition](#14-module-nutrition)
+15. [Module: Goals](#15-module-goals)
+16. [Module: Settings](#16-module-settings)
+17. [Module: Rest Timer](#17-module-rest-timer)
+18. [Swipe Row System](#18-swipe-row-system)
+19. [Exercise Library](#19-exercise-library)
+20. [Progression Logic](#20-progression-logic)
+21. [Barcode Scanner](#21-barcode-scanner)
+22. [External APIs](#22-external-apis)
+23. [Function Reference](#23-function-reference)
+24. [Key Algorithms](#24-key-algorithms)
+25. [Known Limitations & Future Considerations](#25-known-limitations--future-considerations)
 
 ---
 
@@ -41,8 +44,9 @@ BLOC is a single-file Progressive Web App (`index.html`) with no build toolchain
 │  └─────────┘  └─────────┘  └────────┘ │
 │                                         │
 │  Storage: localStorage (browser)        │
-│  Fonts: Google Fonts CDN                │
+│  Fonts: Google Fonts CDN (Inter)        │
 │  Food data: Open Food Facts API         │
+│  Barcode: ZXing ~336KB bundled inline   │
 └─────────────────────────────────────────┘
 ```
 
@@ -62,11 +66,17 @@ The file is organised into clearly commented sections in this order:
 ```
 <head>
   CSS custom properties (design tokens)
+    :root — surfaces, accent, semantic colours, --hero-1/--hero-2 defaults
+    [data-mode="light"] — light mode surface overrides
+    Single-colour theme overrides ([data-theme="teal"], [data-theme="blue"], etc.)
+    Multi-theme per-page overrides ([data-theme="multi"] [data-page="..."])
   Global reset & base styles
-  Layout (app shell, content scroll area)
-  Navigation bar
-  Typography
-  Cards
+  Layout (#app, #content, .screen)
+  Navigation bar (#nav, #nav-pill, .nav-btn)
+  Edge fades (.edge-fade-top, .edge-fade-bottom)
+  Typography (.page-header, .page-title, h3, .label)
+  Cards (.card, .card-accent, .hero-card, .hero-callouts, .hero-status, etc.)
+  Hero swipe deck (#progress-hero-wrap, #progress-hero-dots, .hero-dot)
   Buttons
   Inputs
   Badges, tags, progress bars
@@ -79,65 +89,69 @@ The file is organised into clearly commented sections in this order:
   Fill suggested animation (@keyframes inputFlash)
   Empty state
   Nutrition-specific styles
+  Theme swatches (Settings)
 
-<body>
+<body data-theme="multi" data-mode="dark">
+  .edge-fade-top / .edge-fade-bottom
   #app
     #content
-      Screens: home, plan, train, body, nutrition, goals, settings
-    #nav (bottom navigation bar)
+      Screens: home (Progress), plan, train, body, nutrition, goals, settings
+    #nav (floating pill bottom nav with #nav-pill highlight and 7 .nav-btn buttons)
 
-  Modals (25 total, appended after #app):
-    modal-macro              — new macrocycle
-    modal-edit-macro         — edit macrocycle
-    modal-add-goal           — add/edit goal
-    modal-custom-exercise    — create custom exercise
-    modal-exercise           — add/edit exercise
-    modal-body-log           — log body weight / steps
-    modal-nutr-add           — nutrition log chooser (Scan Barcode / Manual / Recipe)
-    modal-nutr-barcode       — camera barcode scanner with manual fallback
-    modal-nutr-serving       — serving size confirm (shows recipe ingredients for recipes)
-    modal-nutr-previous      — food library search
-    modal-nutr-manual        — manual food entry
-    modal-nutr-edit          — edit a logged food entry (grams/servings for barcode; direct macros for manual)
-    modal-nutr-quick         — quick-add daily macro totals
-    modal-timer              — rest timer (countdown + stopwatch)
-    modal-food-lib-editor    — browse and edit the food library
-    modal-food-lib-entry     — edit a single food library entry
-    modal-recipe-step1       — recipe builder step 1: name and servings
+  Modals (appended after #app):
+    modal-cycle-history   — past macrocycles list (tapped from Progress hero)
+    modal-macro           — new macrocycle
+    modal-edit-macro      — edit macrocycle
+    modal-add-goal        — add/edit goal
+    modal-custom-exercise — create custom exercise
+    modal-exercise        — add/edit exercise
+    modal-body-log        — log body weight / steps
+    modal-nutr-date       — date picker for Nutrition hero tap
+    modal-nutr-add        — nutrition log chooser (Scan Barcode / Manual / Recipe / Library)
+    modal-nutr-barcode    — camera barcode scanner with manual fallback
+    modal-nutr-serving    — serving size confirm (shows recipe ingredients for recipes)
+    modal-nutr-previous   — food library search
+    modal-nutr-manual     — manual food entry
+    modal-nutr-edit       — edit a logged food entry
+    modal-nutr-quick      — quick-add daily macro totals
+    modal-timer           — rest timer (countdown + stopwatch)
+    modal-food-lib-editor — browse and edit the food library
+    modal-food-lib-entry  — edit a single food library entry
+    modal-recipe-step1    — recipe builder step 1: name and servings
     modal-recipe-ingredients — recipe builder step 2: ingredient list
-    modal-recipe-barcode     — camera barcode scanner for recipe ingredient
-    modal-recipe-serving     — serving confirm for recipe ingredient
-    modal-recipe-manual      — manual entry for recipe ingredient
+    modal-recipe-barcode  — camera barcode scanner for recipe ingredient
+    modal-recipe-serving  — serving confirm for recipe ingredient
+    modal-recipe-manual   — manual entry for recipe ingredient
     modal-recipe-edit-ingredient — edit an existing recipe ingredient
-    modal-recipe-list        — My Recipes list with Create new, Edit, Delete
-    modal-nutr-copy-entry    — copy or move a food entry or entire meal to another date/meal
-    modal-confirm            — custom confirm dialog (centre-aligned)
+    modal-recipe-list     — My Recipes list with Create new, Edit, Delete
+    modal-nutr-copy-entry — copy or move a food entry or entire meal to another date/meal
+    modal-confirm         — custom confirm dialog (centre-aligned)
 
 <script>
   ZXing barcode library bundle (~336KB, sets window.ZXing)
+  iOS viewport measurement (measureEnv, setAppHeight, setSafeAreaVars)
   State declaration & load/save
-  Navigation (showScreen, openModal, closeModal)
+  Navigation (showScreen, openModal, closeModal, positionNavPill, getPageHeroColors)
   Macrocycle helpers & CRUD
   Exercise CRUD
   Progression logic
-  Render: Home (renderHome, renderHomeSteps, renderHomeNutr, helpers)
+  Render: Progress/Home (renderHome, renderProgressHero, initProgressHeroSwipe, etc.)
   Render: Plan
   Render: Train + training log functions
   Render: Body
-  Render: Nutrition (full module — daily, weekly, diary, serving, library, recipes)
+  Render: Nutrition (full module)
   Barcode scanner engine (startScannerCamera, stopScannerCamera, _onScannerDetected)
-  Food library (addToFoodLibrary, share/export/import functions)
-  Render: Settings
+  Food library (addToFoodLibrary, share/export/import)
+  Render: Settings (setTheme, setMode)
   Data export/import
   Exercise library
   Render: Goals
-  Utilities (formatDate, getLocalToday, fmtK, showConfirm, etc.)
+  Utilities (toLocalDateStr, getLocalToday, fmtK, showConfirm, etc.)
   Rest timer (playBeep, buildPicker, countdown, stopwatch)
   Food library editor
   Recipe builder & manager
   Modal swipe-down + tap-outside initialisation (DOMContentLoaded)
-  Confirm button wiring (DOMContentLoaded)
-  Timer modal swipe init (DOMContentLoaded)
+  Nav pill initial positioning (requestAnimationFrame)
 ```
 
 ---
@@ -160,990 +174,553 @@ let state = {
   foodLibrary:       [],   // Array<FoodItem>
   recipes:           [],   // Array<Recipe>
   currentMacroId:    null, // string | null
-  currentWeek:       1,    // number
+  currentWeek:       1,
   currentDay:        'push',
   currentEditContext: null,
+  theme:             'multi',  // string — persisted, applied as data-theme on <body>
+  mode:              'dark',   // 'dark' | 'light' — persisted, applied as data-mode on <body>
 };
 ```
 
-`load()` is called once on startup. After parsing localStorage, it runs a migration pass and applies defensive defaults:
+`load()` is called once on startup. After parsing localStorage, it runs a migration pass:
 
 ```js
 // Migration: old key names
 if (state.mesocycles && !state.macrocycles) { state.macrocycles = state.mesocycles; }
 if (state.currentMesoId && !state.currentMacroId) { state.currentMacroId = state.currentMesoId; }
 
-// Defensive defaults (ensures new fields exist on old data)
+// Defensive defaults
 if (!state.macrocycles)       state.macrocycles = [];
 if (!state.recipes)           state.recipes = [];
 if (!state.foodLibrary)       state.foodLibrary = [];
-if (!state.nutritionMeals)    state.nutritionMeals = {};
-if (!state.nutritionQuickLog) state.nutritionQuickLog = {};
-// etc.
+if (!state.theme)             state.theme = 'multi';
+if (!state.mode)              state.mode = 'dark';
+// ... etc.
 ```
 
-### Type Definitions
-
-#### Macrocycle
+After load, the theme and mode are applied:
 ```js
-{
-  id:               string,   // 'macro_' + Date.now()
-  name:             string,
-  weeks:            number,   // number of mesocycles
-  weeksPerMeso:     number,   // calendar weeks per mesocycle
-  sessionsPerWeek:  number,
-  start:            string,   // ISO date 'YYYY-MM-DD'
-  goal:             string,   // free text goal description
-  targetBw:         number | null,  // lbs
-  goalType:         'loss' | 'gain' | 'maintenance',
-  splitType:        'ppl' | 'fullbody' | 'custom',
-  days:             string[],
-  dayLabels:        Record<string, string>,
-  useMicrocycles:   boolean,
-}
-```
-
-#### Exercise
-```js
-{
-  name:        string,
-  reps:        string,
-  setsStart:   number,
-  setsEnd:     number,
-  startWeight: number,   // kg
-  type:        'standard' | 'myorep' | 'myomatch',
-  isHeavyLeg:  boolean,
-}
-```
-
-Exercises are stored in `state.exercises` under a composite key:
-```
-key = macroId + '_' + week + '_' + dayKey
-```
-Exercises are always templated against week 1. All other weeks read from week 1 and apply progression at render time.
-
-#### SetLog
-```js
-// key = macroId + '_' + week + '_' + dayKey + '_' + exIdx + '_' + setIdx
-{ weight: string, reps: string, done: boolean }
-```
-
-#### BodyLog
-```js
-{ date: string, weight: number, steps: number }
-```
-
-#### NutritionLog (legacy)
-```js
-{ date: string, kcal: number, protein: number, carbs: number, fats: number }
-```
-Preserved for backward compatibility. `syncNutrLegacyLog(date)` backfills this from `nutritionMeals` after every write. `getDayTotals()` reads `nutritionMeals` first (Quick Add overrides all).
-
-#### MealDay
-```js
-// state.nutritionMeals[date]
-{
-  Breakfast: FoodEntry[],
-  Lunch:     FoodEntry[],
-  Dinner:    FoodEntry[],
-  Snacks:    FoodEntry[],
-}
-```
-
-#### FoodEntry
-```js
-{
-  name:       string,
-  brand:      string,
-  grams:      number,   // base gram amount (or serving count for manual entries)
-  servings:   number,   // multiplier applied on top of grams
-  serving:    number,   // total grams logged (grams × servings)
-  kcal:       number,
-  protein:    number,
-  carbs:      number,
-  fats:       number,
-  source:     'barcode' | 'manual' | 'library' | 'recipe',
-  copiedFrom: string | undefined,  // date string, if copied from another day
-}
-```
-
-#### FoodItem (food library)
-```js
-{
-  id:             string,
-  name:           string,
-  brand:          string,   // 'My Recipe' for recipes
-  barcode:        string | null,
-  per100kcal:     number,   // kcal per 100g
-  per100p:        number,
-  per100c:        number,
-  per100f:        number,
-  defaultServing: number | null,   // grams (from product_quantity or serving_quantity)
-  isRecipe:       boolean | undefined,
-  source:         'barcode' | 'manual' | 'recipe',
-}
-```
-
-All serving calculations use `per100 / 100 * grams` to avoid double-multiplication. The library always stores per-100g values regardless of source.
-
-#### Recipe
-```js
-{
-  id:              string,   // 'recipe_' + Date.now()
-  name:            string,
-  servings:        number,
-  ingredients:     RecipeIngredient[],
-  per_serving_kcal: number,
-  per_serving_p:   number,
-  per_serving_c:   number,
-  per_serving_f:   number,
-  total_kcal:      number,
-  total_p:         number,
-  total_c:         number,
-  total_f:         number,
-}
-```
-
-Recipes are stored in both `state.recipes` (full detail) and `state.foodLibrary` (as a FoodItem with `source: 'recipe'`, `brand: 'My Recipe'`, and `isRecipe: true`). This makes them available in the food library search without special-casing.
-
-#### RecipeIngredient
-```js
-{
-  name:    string,
-  brand:   string,
-  grams:   number,    // for barcode: actual grams. For manual: servings count
-  kcal:    number,    // total for this ingredient entry
-  protein: number,
-  carbs:   number,
-  fats:    number,
-  // Barcode ingredients only — used when editing to recalculate from changed grams:
-  per1kcal: number,   // kcal per 1g
-  per1p:    number,
-  per1c:    number,
-  per1f:    number,
-  source:   'barcode' | 'manual',
-}
-```
-
-For **barcode ingredients**, `per1*` values are stored (= API's per100 / 100). When editing, changing grams recalculates totals as `per1kcal * grams`. For **manual ingredients**, no per-unit values are stored; the totals are entered directly as `perServing × servings`.
-
-#### NutritionQuickLog
-```js
-// state.nutritionQuickLog[date]
-{ kcal: number, protein: number, carbs: number, fats: number }
-```
-
-Quick log takes priority over meal items in `getDayTotals()`. It is set, edited, or cleared via the ⚡ Quick Add flow; a banner in the diary indicates when it is active.
-
-#### Goal
-```js
-{
-  macroId:   string,
-  startDate: string,
-  endDate:   string,
-  kcal:      number | null,
-  steps:     number | null,
-  protein:   number | null,
-  carbs:     number | null,
-  fats:      number | null,
-}
-```
-
-#### LibraryEntry (custom exercise)
-```js
-{ name: string, bodyPart: string }
+document.body.setAttribute('data-theme', state.theme);
+document.body.setAttribute('data-mode', state.mode);
 ```
 
 ---
 
 ## 4. Data Persistence
 
-All data is stored in `localStorage` under the key `bloc_state` as a serialised JSON string.
-
-`save()` is called at the end of every mutation — there is no debouncing or batching. `load()` is called once on script initialisation, immediately after the state declaration.
-
-**Storage size:** A mature instance with several macrocycles, exercise definitions, and months of logs will typically use 200–800 KB. The browser's `localStorage` limit is 5–10 MB.
-
-The Settings screen displays current storage usage:
-```js
-new Blob([localStorage.getItem('bloc_state') || '']).size
-```
-
-### Backup Format
-
-The full backup is the `state` object serialised directly to JSON. Filename: `bloc-backup-YYYY-MM-DD.json`.
-
-Import validation checks for `macrocycles`, `exercises`, and `trainLogs` before restoring.
+`save()` calls `localStorage.setItem('bloc_state', JSON.stringify(state))` after every mutation. There is no debouncing or batching — every user action that changes state triggers a synchronous save.
 
 ---
 
-## 5. Navigation & Screen System
+## 5. iOS Viewport & App Height
 
-Single-page architecture with CSS `display` toggling. Only one screen has `class="screen active"` at a time.
+### The problem
+On iOS in standalone PWA mode, `window.innerHeight` and `100dvh` are unreliable on first paint — they report a stale pre-keyboard/pre-chrome value. `position: fixed` nav bars anchored to the viewport get stuck using the wrong offset until a real scroll gesture forces a recompute. Locking `html`/`body` scroll to prevent rubber-banding (using `overflow: hidden`) removes the scroll gesture that used to trigger the recompute, leaving the nav permanently misplaced.
+
+### The solution: `measureEnv()` DOM probe
+
+A tiny hidden element (`position: fixed; top: 0; left: 0; width: 1px; height: 1px`) is appended to the DOM at runtime. After two `requestAnimationFrame` ticks (to let WebKit settle), its `getBoundingClientRect()` or `window.visualViewport.height` is read to get the true available height. CSS custom properties are set from the measured values:
+
+```js
+function measureEnv(prop) {
+  // Reads env() variables via a temporary DOM element
+  // Returns numeric pixel value
+}
+
+function setAppHeight() {
+  const measured = window.visualViewport
+    ? window.visualViewport.height
+    : window.innerHeight;
+  const h = measured + measureEnv('safe-area-inset-top');
+  document.documentElement.style.setProperty('--app-height', h + 'px');
+}
+
+function setSafeAreaVars() {
+  document.documentElement.style.setProperty(
+    '--safe-bottom', measureEnv('safe-area-inset-bottom') + 'px'
+  );
+  document.documentElement.style.setProperty(
+    '--safe-top', measureEnv('safe-area-inset-top') + 'px'
+  );
+}
+```
+
+`setAppHeight()` is called immediately on load and again on `window.resize` and `visualViewport.resize`.
+
+### Layout wiring
+
+Every size-sensitive element uses `var(--app-height, 100dvh)` as a fallback-safe override:
+
+```css
+html, body, #app {
+  height: 100dvh;
+  height: var(--app-height, 100dvh);
+  overflow: hidden;
+}
+#content {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 20px);
+}
+```
+
+### Nav bar positioning
+
+`#nav` is `position: absolute` inside `#app` (which is `position: relative`), **not** `position: fixed`. This means the nav simply follows normal CSS layout within `#app`'s box, which is already sized correctly by `--app-height`. There is no viewport-relative positioning for WebKit to get wrong.
+
+```css
+#nav {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) - 6px);
+  transform: translateX(-50%);
+  /* floating pill styles ... */
+}
+```
+
+The `nav.style.bottom` is also updated via JS using `measureEnv('safe-area-inset-bottom')` so the floating pill always clears the home indicator on notched devices.
+
+---
+
+## 6. Navigation & Screen System
 
 ```js
 function showScreen(name) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('screen-' + name).classList.add('active');
-  document.getElementById('nav-' + name).classList.add('active');
-  if (name === 'home')      renderHome();
-  if (name === 'plan')      renderPlan();
-  if (name === 'train')     renderTrain();
-  if (name === 'body')      renderBody();
-  if (name === 'nutrition') renderNutrition();
-  if (name === 'goals')     renderGoals();
-  if (name === 'settings')  renderSettings();
+  // Deactivates all .screen elements, activates the named one
+  // Calls the relevant render function
+  // Calls positionNavPill() via rAF
 }
 ```
 
-**Screens:** `home`, `plan`, `train`, `body`, `nutrition`, `goals`, `settings`
+Screen internal IDs: `home` (Progress), `plan`, `train`, `body`, `nutrition`, `goals`, `settings`. Note that the Progress screen uses the internal ID `home` for legacy reasons.
 
-Each screen renders fully from scratch on every visit.
+### Nav Pill Animation
 
----
+`positionNavPill()` reads the bounding rect of the currently active `.nav-btn`, then sets `#nav-pill`'s `left` and `width` via inline style. The CSS `transition` on `#nav-pill` (`transform`, `width`) produces the morphing spring animation between nav items.
 
-## 6. Modal System
-
-Modals use CSS opacity/pointer-events toggling with a sheet slide-up transition.
+The pill colour is derived at runtime by `getPageHeroColors(screenName)`:
 
 ```js
-function openModal(id)  { document.getElementById(id).classList.add('open'); }
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
-```
-
-All modals are initialised via `initModal()`, called for each `.modal-overlay` in a `DOMContentLoaded` listener. This ensures modals appended after the script block (timer, food library, recipe modals) are covered.
-
-`initModal()` attaches:
-- **Swipe-down to close** — touch/mouse drag on the handle row, closes if dragged > 80px
-- **Tap backdrop to close** — `pointerdown` on the overlay itself
-
-The **rest timer modal** (`modal-timer`) uses a separate `DOMContentLoaded` handler because closing it calls `closeTimerModal()` (which resets timer state) rather than `closeModal()`.
-
-The **`modal-confirm`** dialog is centre-aligned rather than bottom-sheet style, via inline `style="align-items:center;justify-content:center;"` on the overlay. Its confirm/cancel `onclick` handlers are wired in a `DOMContentLoaded` listener (not inline or at parse time) since the HTML is appended after the script block.
-
----
-
-## 7. Module: Plan
-
-### Macrocycle Lifecycle
-
-```
-createMacrocycle()
-  → pushes to state.macrocycles
-  → sets state.currentMacroId and state.currentDay
-  → save() → renderPlan()
-
-saveEditMacro()
-  → finds existing macro by id, updates fields in-place
-  → save() → renderPlan()
-
-copyMacrocycle(id)
-  → deep-copies macro and all its exercises with new IDs
-  → state.currentMacroId = newId
-  → save() → renderPlan()
-
-deleteMacrocycle(id)
-  → confirms via showConfirm()
-  → removes macro, exercises keyed with id, trainLogs keyed with id
-  → falls back currentMacroId to last remaining macro
-  → save() → renderPlan()
-```
-
-### Exercise Key Scheme
-
-Exercises are templated against week 1:
-```js
-const templateKey = macroId + '_1_' + dayKey;
-const exercises = state.exercises[templateKey] || [];
-```
-Progression is applied at render time.
-
-### Microcycle Day Keys
-
-When `useMicrocycles` is true, day keys are suffixed: `pushm1`, `pushm2`, etc.
-
----
-
-## 8. Module: Train
-
-### Render Flow
-
-```
-renderTrain()
-  → builds week-strip (mesocycle pills)
-  → builds day-tabs
-  → calls renderTrainDay(macro)
-
-renderTrainDay(macro)
-  → for each exercise in templateKey (week 1, currentDay):
-      getWeekSets(ex, currentWeek, totalWeeks)
-      getWeekWeight(ex, currentWeek, goalType)
-      getWeekReps(ex, currentWeek, progType)
-      reads state.trainLogs for last week's actuals
-      renders set log rows
-```
-
-### Log Key Structure
-
-```
-logKey = macroId + '_' + week + '_' + dayKey + '_' + exIdx + '_' + setIdx
-```
-
-Progression type is stored per exercise per session:
-```
-macroId + '_prog_' + week + '_' + dayKey + '_' + exIdx  →  'weight' | 'reps'
-```
-
-### Fill Suggested
-
-`fillSuggested()` writes directly to `state.trainLogs` and updates DOM inputs without calling `renderTrainDay()`, preserving the CSS animation. A `void el.offsetWidth` reflow forces the animation to restart on repeated presses.
-
----
-
-## 9. Module: Body
-
-Body logs store a date, weight in lbs, and step count per entry.
-
-`renderBody()` computes the latest weight, 7-day average, and week-on-week change, then renders all entries as a list.
-
-`saveBodyLog()` upserts by date (updates in-place if found, otherwise pushes).
-
----
-
-## 10. Module: Nutrition
-
-### Architecture
-
-The nutrition module has three log formats for historical compatibility:
-
-| Format | Key | Priority |
-|---|---|---|
-| Meal diary | `state.nutritionMeals[date][meal][]` | Highest (used for all new entries) |
-| Quick Add | `state.nutritionQuickLog[date]` | Overrides meal diary when present |
-| Legacy | `state.nutritionLogs[]` | Read-only; backfilled by `syncNutrLegacyLog()` |
-
-```js
-function getDayTotals(date) {
-  if (state.nutritionQuickLog?.[date]) return { ...quickLog, isQuick: true };
-  // else sum nutritionMeals[date] across all meals
+function getPageHeroColors(name) {
+  const probe = document.createElement('div');
+  probe.className = 'hero-card';
+  probe.setAttribute('data-page', name);
+  probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none';
+  document.body.appendChild(probe);
+  const cs = getComputedStyle(probe);
+  const c1 = cs.getPropertyValue('--hero-1').trim();
+  const c2 = cs.getPropertyValue('--hero-2').trim();
+  probe.remove();
+  return { c1, c2 };
 }
 ```
 
-### Daily Render Flow
+This ensures the pill gradient always matches the hero card exactly, picking up the correct CSS cascade from `data-theme` and `data-page` without any hardcoded colour logic in JS.
 
-```
-renderNutrDaily()
-  → renderNutrBadges()      — 7-day badge strip
-  → renderNutrKcal()        — kcal card with progress bar
-  → renderNutrMacroPanel()  — protein/carbs/fats panel with g/±/% toggle
-  → renderNutrDiary()       — meal sections (Breakfast, Lunch, Dinner, Snacks)
-  → initYesterdaySwipes()   — attaches swipe handlers to yesterday strips
-```
+---
 
-### Food Entry Flow
+## 7. Design System & Theming
 
-```
-openNutrAdd(meal)
-  └─ modal-nutr-add shows three source buttons:
-      ├─ Scan Barcode → openNutrBarcode()
-      │                  → startScannerCamera('nutr')  [auto-starts immediately]
-      │                  → on detection: lookupNutrBarcode()
-      │                  → on success: stopScannerCamera('nutr') → openNutrServingModal()
-      ├─ Manual      → openNutrManual() → saveManualEntry()
-      ├─ Recipe      → openNutrRecipeBuilder() → openRecipeBuilder()
-      │                (returns to nutrition after saveRecipe())
-      └─ Library list → selectFromAddList() → openNutrServingModal()
-```
+### CSS Custom Properties
 
-### Barcode Scanner
+All design tokens are defined in `:root`:
 
-The scanner is shared between the nutrition flow (`ctx = 'nutr'`) and the recipe builder flow (`ctx = 'recipe'`). All state is held in the `_scannerState` object keyed by context.
-
-```js
-const _scannerState = {};  // { [ctx]: { scanning, cooldown, lastCode, stream, zxReader, canvas, canvasCtx } }
-```
-
-**Detection strategy (chosen once at startup, cached in `_nativeDetector`):**
-
-1. **`BarcodeDetector` API** — if `'BarcodeDetector' in window`, initialised with formats `['ean_13','ean_8','upc_a','upc_e','code_128','code_39','qr_code']`. Runs natively on the GPU thread, zero JS overhead per frame
-2. **ZXing JS** — if `BarcodeDetector` is unavailable, a `MultiFormatReader` is created with the same format list. Each frame is drawn to an offscreen canvas and passed through `HTMLCanvasElementLuminanceSource` → `BinaryBitmap` → `HybridBinarizer` → `decode()`
-
-**Scan loop:** `requestAnimationFrame` drives the loop. Each frame checks `video.readyState >= 2 && video.videoWidth > 0` before attempting detection. A 3-second cooldown prevents re-triggering on the same code.
-
-**On detection:**
-1. Viewfinder corners flash white (`.scanner-detected` class)
-2. Device vibrates 60ms
-3. Barcode is written to `nutr-barcode-input` (or `recipe-barcode-input`)
-4. `lookupNutrBarcode()` (or `lookupRecipeBarcode()`) is called
-5. On successful API response: `stopScannerCamera(ctx)` then the serving modal opens
-
-**Camera starts** via `_startScannerAfterTransition(ctx)`, which listens for `transitionend` on the modal sheet before calling `startScannerCamera`. This ensures the video element has a real rendered size before `getUserMedia` fires — starting the camera while the sheet is still animating in (`translateY(100%)`) results in a zero-size video that produces no detections. A 400ms `setTimeout` fallback handles any edge case where `transitionend` does not fire.
-
-**Camera stops** when: a product is found, the modal is closed via ✕ or swipe, or the app is backgrounded (`visibilitychange` listener).
-
-**CSS classes on `#nutr-scanner-viewfinder`:**
-- `.scanner-scanning` — corner brackets pulse, scan line animates top→bottom
-- `.scanner-detected` — corner brackets turn white
-
-### Edit Food Entry (`openEditFoodEntry`)
-
-The edit modal has two modes, selected automatically based on `item.source`:
-
-**Barcode/library/recipe mode** (`source !== 'manual'`):
-- Shows Amount (g) + Servings inputs
-- Grams defaults to `libEntry.defaultServing` (RSS from food library) if available, then `item.grams`, then `item.serving`, then `100`
-- Per-100g values loaded from the food library entry (or back-calculated from the log if no library entry exists)
-- Macros recalculate as `per100 / 100 * grams * servings`
-- Recipe entries: grams locked to 1, only servings is editable
-
-**Manual mode** (`source === 'manual'`):
-- Hides Amount (g) and Servings entirely
-- Shows four direct inputs: kcal, protein (g), carbs (g), fats (g)
-- Pre-filled from the logged values
-- `saveEditFoodEntry` writes the values straight through without any per-100g calculation
-
-The mode is stored in `#nutr-edit-mode` (hidden field, values `'barcode'` or `'manual'`) and checked in both `updateEditPreview()` and `saveEditFoodEntry()`.
-
-### nutrPendingProduct
-
-The serving modal is driven by a global:
-```js
-nutrPendingProduct = {
-  name, brand, barcode,
-  per100kcal, per100p, per100c, per100f,  // always stored per 100g
-  defaultServing,   // from product_quantity → serving_quantity → null
-  source,           // 'barcode' | 'library' | 'recipe'
+```css
+:root {
+  --bg: #0f1620;
+  --bg-rgb: 15, 22, 32;    /* for rgba() gradients */
+  --surface: #161f2c;
+  --surface2: #1d2837;
+  --surface3: #253142;
+  --border: rgba(150,180,210,0.10);
+  --border2: rgba(150,180,210,0.18);
+  --text: #eef3f8;
+  --text2: #9fb0c0;
+  --text3: #6c7e90;
+  --nav-inactive: #d8e2ec;
+  --accent: #1D9E75;
+  --red: #E24B4A;
+  --amber: #EF9F27;
+  --blue: #378ADD;
+  --purple: #7F77DD;
+  --ice-blue: #8FE3F0;
+  --font-display: 'Inter', ...;
+  --font-mono: 'Inter', ...;  /* kept for legacy call sites; resolves to Inter */
+  --r: 12px; --r-sm: 8px; --r-lg: 20px;
+  --nav-h: 54px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --hero-1: #1D9E75;
+  --hero-2: #085041;
 }
 ```
 
-`updateServingPreview()` computes macros as:
-```js
-const total = grams * servings;
-const kcalPer1 = per100kcal / 100;
-kcal = Math.round(kcalPer1 * total);
-```
+### Light Mode
 
-`confirmServing()` calls `addFoodEntry()` then (if not sourced from the library) `addToFoodLibrary()`.
+`[data-mode="light"]` overrides surface, text, and border tokens only. Accent and hero colours are deliberately unchanged:
 
-### Swipe-to-Copy from Yesterday
-
-`initYesterdaySwipes()` is called after every `renderNutrDiary()` via `requestAnimationFrame`. It attaches touch and mouse listeners to each `[id^="swipe-yesterday-"]` element:
-
-- Drag right → animated colour fill from left + text translation
-- ≥ one-third of element width → triggers `copyMealFromYesterday(meal)` with a completion animation
-- Less than threshold → snaps back
-
-### Meal Ellipsis Menu
-
-A `···` button on each meal header calls `openMealMenu(meal)`, which appends a `#meal-menu-sheet` div directly to `document.body`. It presents "Copy meal to…" and "Move meal to…". Both open `modal-nutr-copy-entry` with `nce-mode` set to `'copy'` or `'move'`.
-
-### Copy/Move Modal (modal-nutr-copy-entry)
-
-Used for both single-item copy and whole-meal copy/move. Hidden fields:
-
-| Field | Description |
-|---|---|
-| `nce-date` | Source date |
-| `nce-meal` | Source meal |
-| `nce-idx` | Source item index, or `-1` for whole meal |
-| `nce-mode` | `'copy'` or `'move'` |
-
-### Food Library & Sharing
-
-```js
-function addToFoodLibrary(item) {
-  const idx = state.foodLibrary.findIndex(f =>
-    f.name.toLowerCase() === item.name.toLowerCase()
-  );
-  if (idx >= 0) state.foodLibrary[idx] = item;  // update
-  else state.foodLibrary.push(item);             // add
+```css
+[data-mode="light"] {
+  --bg: #e7edf4;
+  --bg-rgb: 231, 237, 244;
+  --surface: #f2f5f9;
+  --surface2: #fafbfd;
+  --surface3: #ffffff;
+  --border: rgba(20,40,65,0.10);
+  --text: #16222e;
+  --text2: #51606e;
+  --text3: #7c8a98;
 }
 ```
 
-**Share payload format** (`_buildSharePayload(item)`):
-```js
-{ foodItem: FoodItem, recipe: Recipe | null }
+The `#nav` bar intentionally does NOT override `--nav-inactive` in light mode; the floating pill keeps its dark background in both modes.
+
+### Themes
+
+Single-colour themes set `--hero-1` and `--hero-2` globally:
+
+```css
+[data-theme="turquoise"] { --hero-1: #2BC7C4; --hero-2: #0B4F4E; }
+[data-theme="blue"]      { --hero-1: #378ADD; --hero-2: #0C447C; }
+/* ... */
 ```
-Recipes include the full `ingredients` array. Non-recipe items have `recipe: null`.
 
-`_shareOrDownload(item)` uses `navigator.share()` with a `File` object (triggers the native iOS share sheet) with a download fallback for desktop browsers.
+The Multi theme overrides per page using a `[data-page]` attribute set on each `.screen`:
 
-`importSharedFoodItem(file)` accepts both the `{ foodItem, recipe }` format and raw `FoodItem` objects. Upserts both `state.foodLibrary` and `state.recipes` by name.
+```css
+[data-theme="multi"] [data-page="home"]      { --hero-1: #2BC7C4; --hero-2: #0B4F4E; }
+[data-theme="multi"] [data-page="plan"]      { --hero-1: #378ADD; --hero-2: #0C447C; }
+[data-theme="multi"] [data-page="train"]     { --hero-1: #E8D44D; --hero-2: #6B5A0A; }
+[data-theme="multi"] [data-page="body"]      { --hero-1: #1D9E75; --hero-2: #085041; }
+[data-theme="multi"] [data-page="nutrition"] { --hero-1: #EF9F27; --hero-2: #633806; }
+[data-theme="multi"] [data-page="goals"]     { --hero-1: #E24B4A; --hero-2: #6B1414; }
+```
 
-### Recipe Builder
-
-Two-step flow:
-
-**Step 1** (`modal-recipe-step1`): Recipe name and number of servings.
-
-**Step 2** (`modal-recipe-ingredients`): Ingredient list. Barcode button opens `modal-recipe-barcode` with the same camera scanner engine (ctx = `'recipe'`). Camera auto-starts immediately.
-
-Working state is held in `recipeIngredients[]` (not persisted until `saveRecipe()`).
-
-**Saving** (`saveRecipe()`):
-1. Computes per-serving and total macros from `recipeIngredients`
-2. Upserts `state.recipes`
-3. Calls `addToFoodLibrary()` with `isRecipe: true`, `brand: 'My Recipe'`, `source: 'recipe'`
+`setTheme(name)` and `setMode(mode)` update `state.theme` / `state.mode`, call `save()`, set `data-theme`/`data-mode` on `<body>`, and call `positionNavPill()` to re-match the pill colour.
 
 ---
 
-## 11. Module: Goals
+## 8. Hero Cards & Progress Deck
 
-Goals are stored as an array in `state.goals`. Each goal is associated with a macrocycle via `macroId`.
+### Hero Card CSS
 
-```js
-function getActiveGoal() {
-  const today = getLocalToday();
-  return state.goals.find(g => g.startDate <= today && g.endDate >= today) || null;
+```css
+.hero-card {
+  border-radius: var(--r-lg);
+  background: linear-gradient(150deg, var(--hero-1), var(--hero-2));
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+.hero-card::before { /* radial highlight overlay */ }
+.hero-card::after  { /* noise texture overlay */ }
+```
+
+Every screen's hero card container sets `data-page` on the parent `.screen` element so the Multi-theme cascade resolves the correct `--hero-1`/`--hero-2` pair automatically.
+
+### Progress Hero Swipe Deck
+
+The Progress screen renders a 5-slide swipeable deck inside `#progress-hero-wrap > #progress-hero-card`. All slides are fixed to the height of slide 0 via `--hero-fixed-h` (a JS-set CSS variable measured from slide 0's rendered height). Slides with less content centre-align vertically.
+
+```css
+#progress-hero-wrap .hero-card {
+  min-height: var(--hero-fixed-h, auto);
 }
 ```
 
-`buildGoalsHomeSection()` renders "Today vs Goal" and "Weekly averages" on the Home screen. It computes daily progress bars, weekly totals, and remaining-day pacing:
+Slides:
+- 0: Active cycle overview — name, goal, split badge, weeks remaining, progress bar
+- 1: Body weight — 7-day average, WoW delta, rolling line chart (SVG inline)
+- 2: Weekly volume — line chart
+- 3: Steps vs goal — bar chart for current week
+- 4: Kcal vs goal — bar chart for current week
 
-```js
-const stepsNeededPerDay = Math.ceil((weeklyStepsGoal - weekStepsTotal) / daysLeft);
-```
+`renderProgressHero()` renders the current slide into `#progress-hero-card`. `renderProgressHeroDots()` updates the dot indicator below the card.
 
----
+`initProgressHeroSwipe()` attaches `touchstart`/`touchmove`/`touchend` (and mouse equivalents) to `#progress-hero-wrap`. A swipe of more than 30% of the card width triggers `progressHeroIndex` to advance or retreat and calls `renderProgressHero()`. The deck is guarded against concurrent gesture handling via `_progressHeroBusy` and a `_progressHeroGestureId` counter.
 
-## 12. Module: Home
-
-The home screen is composed of independently rendered sections:
-
-| Section | Function | Data source |
-|---|---|---|
-| Active cycle card | `renderHome()` (inline) | `state.macrocycles`, `state.bodyLogs` |
-| Body weight card + sparkline | `renderHome()` (inline) | `state.bodyLogs` (local timezone cutoffs) |
-| Steps | `renderHomeSteps()` | `state.bodyLogs` |
-| Nutrition | `renderHomeNutr()` | `state.nutritionMeals`, `state.nutritionQuickLog` |
-| Goals summary | `buildGoalsHomeSection()` | `state.goals`, all log sources |
-
-### Body Weight (Home)
-
-The home body weight card computes:
-- **Latest weight** — most recent `bodyLogs` entry
-- **7-day average** — entries within 7 local days of today
-- **Week-on-week change** — avg of days 0–7 minus avg of days 7–14
-
-All cutoffs use `getLocalToday()` to build local-timezone `Date` objects, avoiding UTC offset bugs.
-
-`changeStr` is contextual:
-- Two weeks of data → `"+0.6 lbs vs last wk"`
-- Only current week data → `"No prior week data"`
-- No data at all → `"No data this week"`
-
-### Bar Charts
-
-`buildHomeBarChart(days, values, colour, fmtFn, today)` renders a 7-day bar chart as inline HTML with explicit pixel heights:
-
-```js
-const barH = Math.max(3, Math.round((value / max) * barMaxH));
-```
-
-The tallest bar is always `barMaxH` (48px); others scale proportionally. Today's bar is full opacity; prior days are at 0.5 opacity. Value labels above bars use `fmtK()` (abbreviated); large callout values show the full number.
-
-`buildHomeProgressBar(value, max, colour, overColour)` renders a horizontal progress bar. When `value > max`, a white marker line appears at the goal point.
-
-### Toggle Persistence
-
-`homeToggle = { steps: 'today'|'avg', nutr: 'today'|'avg' }` persists toggle state across renders within a session (not saved to `localStorage`).
+`cycleProgressMacro(dir)` and `resolveProgressMacro()` handle navigating between macrocycles when the user taps the left/right arrows on the hero.
 
 ---
 
-## 13. Module: Settings & Data Management
+## 9. Modal System
 
-### Export Functions
+All modals are `.modal-overlay` divs appended after `#app`. Each wraps a `.modal-sheet` with `data-modal` set to the overlay's id. On `DOMContentLoaded`, `initModal(overlayEl)` is called on every overlay to attach:
+- **Swipe-down to close** — `touchstart`/`touchmove`/`touchend` on the sheet; a downward swipe of ≥80px triggers `closeModal()`
+- **Tap-outside to close** — click on the overlay background (not the sheet) calls `closeModal()`
 
-| Function | Output filename | Contents |
-|---|---|---|
-| `exportData()` | `bloc-backup-YYYY-MM-DD.json` | Full `state` object |
-| `exportLibrary()` | `bloc-exercise-library-YYYY-MM-DD.json` | Merged exercise library |
-| `exportFoodLibrary()` | `bloc-food-library-YYYY-MM-DD.json` | `state.foodLibrary` |
-
-### Import Functions
-
-| Function | Behaviour |
-|---|---|
-| `importData(event)` | Validates for `macrocycles`/`exercises`/`trainLogs`, replaces `state` entirely, re-applies defensive defaults |
-| `importExerciseLibrary(file)` | Merges into `state.customLibrary`; skips exercises matching default names |
-| `importFoodLibrary(file)` | Merges into `state.foodLibrary`; upserts by name |
-
-### Settings Layout
-
-The Settings screen has these cards (in order):
-1. Export full data
-2. Exercise library — Export / Import
-3. Food library — Export / Import / Edit library / My recipes
-4. Restore from backup
-5. Storage usage
-6. Danger zone (Clear all data)
+`openModal(id)` adds `.active` to the overlay. `closeModal(id)` removes it and stops any running camera stream if the closed modal was a barcode scanner.
 
 ---
 
-## 14. Module: Rest Timer
+## 10. Module: Progress
 
-### State Variables
+The Progress screen (internal id: `home`) is rendered by `renderHome()`.
 
-```js
-let timerMode   = 'countdown';
-let cdPickerMin = 1;
-let cdPickerSec = 0;
-let cdInterval  = null;
-let cdRemaining = 0;       // ms remaining
-let cdRunning   = false;
-let swInterval  = null;
-let swRunning   = false;
-let swElapsed   = 0;       // ms elapsed
-let swLastTick  = 0;       // Date.now() reference point
-```
+Key sub-functions:
+- `renderProgressHero()` — builds the active hero slide
+- `renderProgressHeroDots()` — updates dot pagination
+- `initProgressHeroSwipe()` — attaches swipe gesture handlers
+- `cycleProgressMacro(dir)` — advances/retreats the displayed macrocycle
+- `resolveProgressMacro()` — returns the currently-displayed macrocycle object
+- `renderHomeSteps()` / `renderHomeNutr()` — render the steps and nutrition sections below the hero
+- `renderHome()` calls `renderProgressHero()` and all sub-section renderers
 
-### Drum Picker
-
-`buildPicker(elId, count, zeroPad, initial, onPick)` creates a scrollable column of 40px items resembling an iOS picker wheel. Drag snaps to the nearest integer with a 150ms ease transition. A gradient overlay fades items at top/bottom.
-
-Position formula:
-```js
-const y = -(value * ITEM_H) + (120/2 - ITEM_H/2);  // = -(value * 40) + 40
-```
-
-### Countdown
-
-Uses `setInterval` at 100ms. Display uses ceiling division so `1:00` shows for the full first second. Colour transitions at 10s remaining (→ amber) and on finish (→ accent).
-
-### Stopwatch
-
-Uses `Date.now()` differencing to prevent drift when the tab is backgrounded:
-```js
-swLastTick = Date.now() - swElapsed;
-swElapsed  = Date.now() - swLastTick;  // on each tick
-```
-
-### Audio Alert
-
-`playBeep()` creates a disposable `AudioContext` per alert. Three sine wave oscillators scheduled with linear gain ramps at 880 Hz, 880 Hz, and 1100 Hz. Routes to `ctx.destination` on the audio worklet thread — does not interrupt or duck music playback. Context closed after 1200ms.
-
-### Icon State
-
-```js
-btn.style.color = (cdRunning || swRunning) ? 'var(--accent)' : 'var(--text2)';
-```
-
-Closing the modal resets both timers and returns the icon to its default colour.
+Progress charts are generated as inline SVG strings using a simple path-drawing helper. The body weight sparkline, line charts, and bar charts are all SVG.
 
 ---
 
-## 15. Swipe Row System
+## 11. Module: Plan
 
-All list rows across the app use a shared swipe-left-to-reveal-actions pattern implemented via `initSwipeRows(container)`.
+Rendered by `renderPlan()`.
 
-### HTML Structure
+Key operations:
+- `saveMacro()` — creates or updates a macrocycle
+- `deleteMacro(id)` — removes a macrocycle and all its exercises/logs
+- `copyMacro(id)` — deep-clones a macrocycle with a new id and start date
+- `togglePlanWeek(macroId, week)` — expands/collapses an exercise list week
+- `openExerciseModal(macroId, week, day, exIdx?)` — opens the exercise add/edit sheet
 
-```html
-<div class="swipe-row-wrap">
-  <div class="swipe-row-content" onclick="editAction()">
-    <!-- row content -->
-  </div>
-  <div class="swipe-actions">                        <!-- or .vertical for stacked -->
-    <button class="swipe-btn swipe-btn-default" onclick="event.stopPropagation(); copyAction()">…</button>
-    <button class="swipe-btn swipe-btn-danger"  onclick="event.stopPropagation(); deleteAction()">…</button>
-  </div>
-</div>
+---
+
+## 12. Module: Train
+
+Rendered by `renderTrain()`.
+
+Key operations:
+- `toggleTrainPicker()` — shows/hides the week/day selector
+- `logSet(macroId, week, day, exIdx, setIdx, field, value)` — updates a single set field in `state.trainLogs`
+- `fillSuggested(macroId, week, day, exIdx)` — fills all set inputs with suggested values, triggers CSS flash animation
+- `getSuggested(macro, ex, week)` — returns the suggested weight/reps object for this exercise/week
+- `getLastWeekLog(macroId, week, day, exIdx)` — returns the previous week's log row for display
+
+---
+
+## 13. Module: Body
+
+Rendered by `renderBody()`.
+
+Key operations:
+- `saveBodyLog()` — upserts a body log entry
+- `deleteBodyLog(idx)` — removes an entry
+- `openBodyLog(idx?)` — opens the log modal pre-filled for edit or blank for new
+
+---
+
+## 14. Module: Nutrition
+
+Rendered by `renderNutrition()`. This is the largest module.
+
+Key sub-functions:
+- `nutrPickDate(dateStr)` — sets the current nutrition date and re-renders
+- `getDayTotals(date)` — aggregates kcal/protein/carbs/fats from `nutritionMeals` and `nutritionQuickLog`
+- `renderNutrDiary()` — renders the per-meal food log cards
+- `renderNutrWeekly()` — renders 7-day bar charts (macro pie chart is now on Progress screen)
+- `openNutrServingModal()` — opens serving confirm; shows recipe ingredients if recipe
+- `updateServingPreview()` — recomputes macro display live as grams/servings change
+- `confirmServing()` — finalises entry; saves to food library
+- `saveManualEntry()` — saves a manual food entry; converts to per-100g for library
+- `openCopyFoodEntry(date, meal, idx)` — opens copy modal for a single diary item
+- `openMealMenu(meal)` — opens bottom action sheet for meal-level copy/move
+- `confirmCopyFoodEntry()` — executes copy or move
+- `copyMealFromYesterday(meal)` — copies previous day's meal entries
+- `initYesterdaySwipes()` — attaches swipe handlers to yesterday copy strips
+- `deleteFoodEntry(date, meal, idx)` — removes a food entry
+- `openEditFoodEntry(date, meal, idx)` — opens edit modal; detects barcode vs manual mode
+- `saveEditFoodEntry()` — saves edit; direct macros for manual, per-100g calc for barcode
+- `makePie(p, c, f)` — generates inline SVG macro pie chart
+
+---
+
+## 15. Module: Goals
+
+Rendered by `renderGoals()`.
+
+Key operations:
+- `getActiveGoal()` — returns the goal active on today's date
+- `saveGoal()` — upserts a goal entry
+- `deleteGoal(idx)` — removes a goal by index
+- `buildGoalsHomeSection(goal)` — renders goals summary for the Progress screen
+
+---
+
+## 16. Module: Settings
+
+Rendered by `renderSettings()`.
+
+Key operations:
+- `setTheme(name)` — updates `state.theme`, sets `data-theme` on `<body>`, saves, re-positions nav pill
+- `setMode(mode)` — updates `state.mode`, sets `data-mode` on `<body>`, saves, re-positions nav pill
+- `exportData()` — downloads full state as JSON
+- `importData(event)` — restores state from a JSON file
+- `clearAllData()` — resets state to empty defaults
+- `exportLibrary()` — downloads merged exercise library
+- `importExerciseLibrary(file)` — merges exercise library from JSON
+
+---
+
+## 17. Module: Rest Timer
+
+Opened via `openTimerModal()` (clock icon in Train screen header).
+
+Two modes — Countdown and Stopwatch — toggled by `setTimerMode(mode)`.
+
+Countdown uses an iOS-style drum-scroll picker (`buildPicker(...)`) for minutes and seconds. `countdownStart()` starts/pauses/resumes; `countdownReset()` resets. Three-beep alert via `playBeep()` (Web Audio API oscillators — does not interrupt media playback).
+
+Stopwatch uses `swToggle()` and `swReset()` with `requestAnimationFrame` for tenths-of-second precision.
+
+`updateTimerIcon()` turns the clock icon accent green while any timer is running, and back to the default when stopped.
+
+Closing the modal via `closeTimerModal()` cancels and resets all timers.
+
+---
+
+## 18. Swipe Row System
+
+All list rows (exercises, body log, nutrition diary, goals, food library, recipes) use the same swipe-left gesture:
+
+```
+onTouchStart: record startX
+onTouchMove:
+  deltaX = startX - currentX  (only left swipe)
+  translate row by -deltaX, clamped to action button width
+  reveal action buttons (delete, copy, etc.)
+onTouchEnd:
+  if deltaX > threshold: lock open
+  else: snap back
 ```
 
-### CSS
-
-`.swipe-actions` starts off-screen to the right via `transform: translateX(100%)`. On `.swiped`, both transforms fire together:
-- `.swipe-row-content` slides left by `--swipe-reveal-w` (measured from `actions.offsetWidth`)
-- `.swipe-actions` slides to `translateX(0)`
-
-Both use the same `0.25s ease` transition.
-
-### JS (`initSwipeRows`)
-
-Called via `requestAnimationFrame` after every render that contains swipe rows. Guards against double-init with `wrap._swipeInited`.
-
-During a drag, `setLive(dx)` drives both transforms inline (transition disabled) so the actions appear to emerge from under the content as the finger moves. On `touchend`:
-- `dx < -revealW/3` → open
-- `dx > revealW/3` → close
-- Otherwise → snap back to current state
-- Zero movement (pure tap) → fires the content's `onclick` naturally
-
-Opening any row closes all other open rows. Tapping outside an open row closes it.
-
-### Button styles
-
-| Class | Background | Use |
-|---|---|---|
-| `.swipe-btn-default` | `var(--surface3)` | Non-destructive (copy, share) |
-| `.swipe-btn-danger` | `var(--red)` | Destructive (delete) |
-
-Each button is `56px` wide. Two buttons = `112px` reveal width. Vertical stacking (macrocycle card) uses `.swipe-actions.vertical`.
-
-### Where used
-
-| Screen | Row | Actions |
-|---|---|---|
-| Plan | Macrocycle card | Copy (default) + Delete (danger) — vertical |
-| Plan | Exercise rows | Delete (danger) |
-| Body | Log entries | Delete (danger) |
-| Nutrition | Food diary entries | Copy (default) + Delete (danger) |
-| Goals | Goal cards | Delete (danger) |
-| Settings › Edit library | Food library rows | Share (default) + Delete (danger) |
-| Settings › My Recipes | Recipe rows | Delete (danger) |
+A `closeAllSwipes()` helper closes any open row when a new swipe begins or when the user taps elsewhere.
 
 ---
 
-## 16. Exercise Library
+## 19. Exercise Library
 
-### Default Library
-
-`DEFAULT_LIBRARY` contains 26 exercises across 7 body parts:
-
-| Body Part | Exercises |
-|---|---|
-| Back | Lat Pull Machine, Lat Pulldown, Low Row, Machine Row, T-Bar Lat Pulldown, T-Bar Row |
-| Biceps | Cable Curls, Reverse Grip Curls, Rope Curls |
-| Calves | Calf Raises |
-| Chest | Cross Incline Press, Decline Press, Flat Press, Incline Press |
-| Legs | Hamstring Curl, Leg Extension, Leg Press, RDL, Split Squat, Walking Lunge |
-| Shoulders | Lateral Raise |
-| Triceps | Cross Cable Extensions, Push Downs, Reverse Grip Extensions, Rope Extensions, Skull Crushers |
-
-### Custom Exercises
-
-Stored in `state.customLibrary` as `{name, bodyPart}`.
-
-`getLibrary()` merges and sorts both arrays by body part then name.
-
-Import skips exercises matching a default name (case-insensitive). Export includes the full merged library.
+The exercise library is a merged set of built-in exercises (hardcoded) and user-added custom exercises (`state.customLibrary`). Built-in exercises cannot be deleted via the UI but can be exported. Custom exercises can be overwritten on import only if they have the same name.
 
 ---
 
-## 17. Progression Logic
+## 20. Progression Logic
 
-### Set Volume
-
-Linear interpolation from `setsStart` to `setsEnd`:
 ```js
-function getWeekSets(ex, week, totalWeeks) {
-  const t = totalWeeks > 1 ? (week - 1) / (totalWeeks - 1) : 0;
-  return Math.round(ex.setsStart + t * (ex.setsEnd - ex.setsStart));
+function getSuggested(macro, ex, week) {
+  // Determines suggested weight and reps for week N
+  // based on the starting weight, exercise type, and macro goal
 }
 ```
 
-### Weight Progression
+Weight progression is calculated per-mesocycle:
 
+| Goal | Standard | Heavy leg |
+|---|---|---|
+| Weight Loss | +1.5 kg / mesocycle | +2.5 kg / mesocycle |
+| Strength Gain | +5 kg / mesocycle | +10 kg / mesocycle |
+
+Rep progression: +1 rep per week (for standard exercises).
+
+Myorep giant: +10 reps per week with optional weight progression. Myomatch: fixed reps, weight only.
+
+---
+
+## 21. Barcode Scanner
+
+The scanner uses a two-tier strategy selected at runtime:
+
+**Tier 1 — Native `BarcodeDetector`**
 ```js
-function getWeekWeight(ex, week, progType, goalType) {
-  if (progType !== 'weight') return ex.startWeight;
-  const isGain = goalType === 'gain';
-  const jump = ex.isHeavyLeg ? (isGain ? 10 : 2.5) : (isGain ? 5 : 1.5);
-  return ex.startWeight + jump * (week - 1);
+function _getNativeDetector() {
+  if (_nativeDetector) return _nativeDetector;
+  if ('BarcodeDetector' in window) {
+    _nativeDetector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'] });
+  }
+  return _nativeDetector;
 }
 ```
 
-| Exercise type | Weight Loss | Strength Gain |
-|---|---|---|
-| Standard | +1.5 kg/mesocycle | +5 kg/mesocycle |
-| Heavy leg | +2.5 kg/mesocycle | +10 kg/mesocycle |
-
-### Rep Progression
-
-`getWeekReps()` parses the base rep count and adds `(week - 1)`. Handles both `'10'` and `'8–12'` formats.
-
-### Myorep Progression
-
-- **Myorep giant** (`type: 'myorep'`): Base reps + 10 per week
-- **Myomatch** (`type: 'myomatch'`): Fixed reps, weight progression only
-
----
-
-## 18. External APIs
-
-### Open Food Facts
-
-- **Endpoint:** `https://world.openfoodfacts.org/api/v2/product/{barcode}.json`
-- **Method:** GET, no auth
-- **Fields used:**
-
-| Field | Usage |
-|---|---|
-| `product.product_name` | Display name |
-| `product.brands` | Brand label |
-| `product.nutriments.energy-kcal_100g` | kcal per 100g |
-| `product.nutriments.proteins_100g` | Protein per 100g |
-| `product.nutriments.carbohydrates_100g` | Carbs per 100g |
-| `product.nutriments.fat_100g` | Fat per 100g |
-| `product.product_quantity` | Whole pack size (preferred default serving) |
-| `product.serving_quantity` | Single serving size (fallback) |
-
-**Serving size priority:** `product_quantity` → `serving_quantity` → 100g
-
-**Product name:** Pack size is appended in brackets if available, e.g. `"Graze Flapjack (150g)"`, making the serving weight visible in all downstream views.
-
-Used in both the nutrition diary barcode flow and the recipe builder barcode flow.
-
-### Google Fonts
-
-```
-https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800
+**Tier 2 — ZXing JS fallback**
+```js
+function _initZxReader() {
+  const hints = new Map();
+  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [...]);
+  const reader = new ZXing.MultiFormatReader();
+  reader.setHints(hints);
+  return reader;
+}
 ```
 
-Only external dependency required for correct visual rendering. System monospace fallback applies without it.
+`startScannerCamera(ctx)` requests camera via `getUserMedia({ video: { facingMode: 'environment' } })`, streams to a `<video>` element, draws frames to a `<canvas>`, and runs detection on each frame. `ctx` is `'nutr'` or `'recipe'` to direct the result to the correct flow.
+
+`_onScannerDetected(ctx, code)` halts the scan loop and feeds the barcode to the Open Food Facts lookup.
+
+On detection: viewfinder corners flash white via CSS class, the device vibrates (`navigator.vibrate(200)`), and the product lookup modal opens.
 
 ---
 
-## 19. Design System
+## 22. External APIs
 
-All design tokens are CSS custom properties on `:root`.
+**Open Food Facts** — barcode product lookup:
+```
+GET https://world.openfoodfacts.org/api/v0/product/{barcode}.json
+```
+Returns `product.product_name`, `product.brands`, and `product.nutriments` (energy-kcal_100g, proteins_100g, carbohydrates_100g, fat_100g). All values are stored per-100g internally.
 
-### Colours
-
-| Token | Value | Usage |
-|---|---|---|
-| `--bg` | `#0a0a0a` | Page background |
-| `--surface` | `#141414` | Card backgrounds |
-| `--surface2` | `#1c1c1c` | Input backgrounds |
-| `--surface3` | `#242424` | Toggle active |
-| `--border` | `rgba(255,255,255,0.08)` | Subtle dividers |
-| `--border2` | `rgba(255,255,255,0.14)` | Input and card borders |
-| `--text` | `#f0ede8` | Primary text |
-| `--text2` | `#888880` | Secondary text |
-| `--text3` | `#555550` | Tertiary / label text |
-| `--accent` | `#c8f060` | Primary action, progress, kcal |
-| `--accent2` | `#a8d040` | Accent pressed state |
-| `--red` | `#ff5f4e` | Danger, fats |
-| `--amber` | `#f5a623` | Warning, carbs, timer |
-| `--blue` | `#60a8f0` | Protein, informational |
-| `--purple` | `#b060f0` | Steps |
-
-### Typography
-
-| Token | Value |
-|---|---|
-| `--font-display` | `'Syne', sans-serif` |
-| `--font-mono` | `'DM Mono', monospace` |
-
-Display font (Syne) used for headings and large numbers. Mono font (DM Mono) used for all body text, labels, and inputs.
-
-### Spacing & Shape
-
-| Token | Value |
-|---|---|
-| `--r` | `12px` |
-| `--r-sm` | `8px` |
-| `--nav-h` | `72px` |
-| `--safe-bottom` | `env(safe-area-inset-bottom, 0px)` |
-
-### Icon Convention
-
-All interactive icons throughout the app use inline SVG (13×13px, `stroke:currentColor`). Text labels on icon-only buttons are avoided. The three standard action icons are:
-
-| Action | Icon |
-|---|---|
-| Edit | Pencil (square with pen) |
-| Delete | Trash can |
-| Copy | Overlapping rectangles |
+**Google Fonts** — Inter font family loaded via `<link>` in `<head>`. Requires network on first load; cached by the browser thereafter.
 
 ---
 
-## 20. Function Reference
-
-### Persistence
-| Function | Description |
-|---|---|
-| `save()` | Serialises `state` to `localStorage` |
-| `load()` | Deserialises `state`, runs migration, applies defensive defaults |
+## 23. Function Reference
 
 ### Navigation
 | Function | Description |
 |---|---|
-| `showScreen(name)` | Activates a screen and triggers its render |
-| `openModal(id)` | Adds `.open` to modal overlay |
-| `closeModal(id)` | Removes `.open` from modal overlay |
+| `showScreen(name)` | Activates the named screen, calls its render function, re-positions nav pill |
+| `positionNavPill()` | Reads active `.nav-btn` rect, sets `#nav-pill` left/width |
+| `getPageHeroColors(name)` | DOM probe to read `--hero-1`/`--hero-2` for the named page |
+| `openModal(id)` | Adds `.active` to the named modal overlay |
+| `closeModal(id)` | Removes `.active`, stops camera if applicable |
 
-### Macrocycle
+### Macrocycle / Plan
 | Function | Description |
 |---|---|
-| `createMacrocycle()` | Reads form and pushes to state |
-| `saveEditMacro()` | Updates existing macro in-place |
-| `copyMacrocycle(id)` | Deep-copies macro and exercises |
-| `deleteMacrocycle(id)` | Removes macro, exercises, and logs |
-| `getMacroDurationWeeks(macro)` | Returns total calendar weeks |
-| `getMacroEndDate(macro)` | Returns last day as Date |
-| `getNextMacroStart()` | Returns day after the latest macro ends |
-| `getMacroSummaryLabel(macro)` | Returns formatted summary string |
+| `saveMacro()` | Creates or updates a macrocycle from modal inputs |
+| `deleteMacro(id)` | Removes macrocycle, exercises, and logs |
+| `copyMacro(id)` | Deep-clones macrocycle to a new id |
+| `getNextSessionDate(macro)` | Returns the ISO date string of the next scheduled session |
+| `getMacroEndDate(macro)` | Calculates the end date from start + weeks |
 
-### Exercises
+### Training
 | Function | Description |
 |---|---|
-| `openAddExercise(week, day)` | Opens modal for new exercise |
-| `openEditExercise(week, day, idx)` | Opens modal to edit existing exercise |
-| `saveExercise()` | Upserts exercise from modal form |
-| `deleteExercise(week, day, idx)` | Removes exercise from state |
-
-### Progression
-| Function | Description |
-|---|---|
-| `getWeekSets(ex, week, totalWeeks)` | Linear interpolation of set count |
-| `getWeekWeight(ex, week, progType, goalType)` | Suggested weight for week |
-| `getWeekReps(ex, week, progType)` | Suggested reps for week |
-| `getMyorepProgression(ex, week)` | Myorep-specific rep count |
-
-### Training Log
-| Function | Description |
-|---|---|
-| `logSet(key, field, value)` | Writes a single field to a set log entry |
-| `fillSuggested(...)` | Fills all set inputs with suggestions, triggers animation |
-| `clearExerciseLogs(...)` | Clears all logs for an exercise |
-| `toggleSetDone(key)` | Toggles done state; validates weight and reps first |
-| `selectProgType(...)` | Saves progression type (weight/reps) choice |
-
-### Body
-| Function | Description |
-|---|---|
-| `renderBody()` | Renders the Body screen |
-| `openEditBodyLog(date)` | Opens edit modal for a body log entry |
-| `saveBodyLog()` | Upserts a body log entry |
-| `deleteBodyLog(date)` | Confirms and removes a body log entry; re-renders |
-
-### Swipe Rows
-| Function | Description |
-|---|---|
-| `initSwipeRows(container)` | Attaches swipe-left gesture handlers to all `.swipe-row-wrap` elements within `container`; guards against double-init; measures reveal width from `actions.offsetWidth` |
+| `getSuggested(macro, ex, week)` | Returns `{ weight, reps }` for this exercise/week |
+| `fillSuggested(macroId, week, day, exIdx)` | Fills set inputs, triggers flash animation |
+| `logSet(...)` | Updates a single set field in `state.trainLogs` |
+| `getLastWeekLog(macroId, week, day, exIdx)` | Returns prior week's log for display |
 
 ### Nutrition
 | Function | Description |
 |---|---|
-| `getDayTotals(date)` | Returns summed macros (Quick Add overrides meal items) |
-| `getNutrDayMeals(date)` | Returns meal-structured entries for a date |
-| `addFoodEntry(entry)` | Appends a food entry to the active meal and date |
-| `addToFoodLibrary(item)` | Upserts a food item by name |
+| `getDayTotals(date)` | Aggregates kcal/protein/carbs/fats for a date |
+| `nutrPickDate(dateStr)` | Sets current date, re-renders nutrition |
+| `renderNutrDiary()` | Renders per-meal food log cards |
 | `openNutrServingModal()` | Opens serving confirm; shows recipe ingredients if recipe |
 | `updateServingPreview()` | Recomputes macro display live |
 | `confirmServing()` | Finalises entry from serving modal; saves to library |
-| `saveManualEntry()` | Saves a manual food entry; converts to per-100g for library |
-| `openNutrRecipeBuilder()` | Closes add modal, opens recipe builder |
-| `openCopyFoodEntry(date, meal, idx)` | Opens copy modal for a single diary item |
-| `openMealMenu(meal)` | Opens bottom action sheet for meal-level copy/move |
-| `openMealCopyMove(mode)` | Opens copy modal for whole meal ('copy' or 'move') |
+| `saveManualEntry()` | Saves manual food entry; converts to per-100g for library |
 | `confirmCopyFoodEntry()` | Executes copy or move; handles both single and whole-meal |
 | `copyMealFromYesterday(meal)` | Copies previous day's meal entries into current date |
-| `initYesterdaySwipes()` | Attaches swipe handlers to yesterday copy strips |
-| `syncNutrLegacyLog(date)` | Backfills `nutritionLogs` from `nutritionMeals` |
 | `deleteFoodEntry(date, meal, idx)` | Removes a food entry |
-| `openEditFoodEntry(date, meal, idx)` | Opens edit modal; detects barcode vs manual mode automatically; defaults grams to `libEntry.defaultServing` (RSS) if available |
-| `updateEditPreview()` | Live preview; branches on `nutr-edit-mode` field |
 | `saveEditFoodEntry()` | Saves edit; direct macros for manual, per-100g calc for barcode |
-| `renderNutrWeekly()` | Renders 7-day weekly tab with bar charts and pie |
 | `makePie(p, c, f)` | Generates inline SVG macro pie chart |
+
+### Barcode Scanner
+| Function | Description |
+|---|---|
 | `startScannerCamera(ctx)` | Requests camera, starts scan loop; ctx = 'nutr' or 'recipe' |
 | `stopScannerCamera(ctx)` | Stops camera stream and resets viewfinder UI |
-| `closeScannerModal(ctx)` | Stops camera then closes the modal |
-| `_onScannerDetected(ctx, code)` | Handles a detected barcode; feeds into lookup function |
+| `closeScannerModal(ctx)` | Stops camera then closes modal |
+| `_onScannerDetected(ctx, code)` | Handles detected barcode; feeds into lookup function |
 | `_getNativeDetector()` | Lazy-inits BarcodeDetector; cached after first call |
-| `_initZxReader()` | Creates a ZXing MultiFormatReader with barcode format hints |
+| `_initZxReader()` | Creates a ZXing MultiFormatReader with hints |
 
 ### Food Library & Recipes
 | Function | Description |
@@ -1156,29 +733,14 @@ All interactive icons throughout the app use inline SVG (13×13px, `stroke:curre
 | `exportFoodLibrary()` | Downloads food library as JSON |
 | `importFoodLibrary(file)` | Merges food library from JSON |
 | `openRecipeBuilder(editId?)` | Opens builder; pre-loads existing recipe if editId given |
-| `recipeGoToIngredients()` | Advances to step 2 of the recipe builder |
-| `renderRecipeIngredients()` | Renders working ingredient list with edit/delete icons |
-| `editRecipeIngredient(idx)` | Opens edit modal; barcode vs manual logic |
-| `saveRecipeIngredientEdit()` | Saves edited ingredient; recalculates from per1g if barcode |
-| `removeRecipeIngredient(idx)` | Removes ingredient from working list |
-| `confirmRecipeIngredient()` | Adds barcode ingredient; stores per1g values |
-| `confirmRecipeManual()` | Adds manual ingredient with per-serving totals |
 | `saveRecipe()` | Saves recipe to state; upserts food library |
-| `openRecipeList()` | Opens My Recipes modal |
-| `renderRecipeList()` | Renders recipe cards with ingredient breakdown |
 | `deleteRecipe(id)` | Removes from `state.recipes` and `state.foodLibrary` |
-
-### Goals
-| Function | Description |
-|---|---|
-| `getActiveGoal()` | Returns goal active on today's date |
-| `saveGoal()` | Upserts a goal entry |
-| `deleteGoal(idx)` | Removes a goal by index |
-| `buildGoalsHomeSection(goal)` | Renders goals summary for Home screen |
 
 ### Settings
 | Function | Description |
 |---|---|
+| `setTheme(name)` | Updates `state.theme`, sets `data-theme` on `<body>`, saves |
+| `setMode(mode)` | Updates `state.mode`, sets `data-mode` on `<body>`, saves |
 | `exportData()` | Downloads full state as JSON |
 | `importData(event)` | Restores state from a JSON file |
 | `clearAllData()` | Resets state to empty defaults |
@@ -1191,7 +753,7 @@ All interactive icons throughout the app use inline SVG (13×13px, `stroke:curre
 | `openTimerModal()` | Opens timer, initialises pickers on first open |
 | `closeTimerModal()` | Closes modal, resets all timer state |
 | `setTimerMode(mode)` | Switches between countdown and stopwatch |
-| `buildPicker(...)` | Constructs a drum-scroll picker |
+| `buildPicker(...)` | Constructs a drum-scroll picker element |
 | `countdownStart()` | Starts, pauses, or resumes countdown |
 | `countdownReset()` | Stops and resets to picker view |
 | `swToggle()` | Starts, pauses, or resumes stopwatch |
@@ -1203,20 +765,27 @@ All interactive icons throughout the app use inline SVG (13×13px, `stroke:curre
 | Function | Description |
 |---|---|
 | `getLocalToday()` | Returns `'YYYY-MM-DD'` in local timezone |
+| `toLocalDateStr(date)` | Converts a Date object to `'YYYY-MM-DD'` in local timezone |
 | `getLocal7Days()` | Returns last 7 days as `{date, letter}` objects |
 | `formatDate(str)` | Returns human-readable date string |
-| `getISOWeek(date)` | Returns ISO week number |
 | `fmtK(n)` | Formats number as `'1.2k'` above 1000, else plain |
 | `showConfirm(title, msg, okLabel, callback)` | Shows custom confirm modal |
 | `initModal(overlayEl)` | Attaches swipe-down and tap-outside handlers |
 
+### iOS Viewport
+| Function | Description |
+|---|---|
+| `measureEnv(prop)` | DOM probe to read CSS `env()` values as numbers |
+| `setAppHeight()` | Reads `visualViewport.height`, sets `--app-height` |
+| `setSafeAreaVars()` | Sets `--safe-bottom` and `--safe-top` CSS vars |
+
 ---
 
-## 21. Key Algorithms
+## 24. Key Algorithms
 
 ### Local Date Handling
 
-All date operations use `getLocalToday()` to avoid UTC offset bugs:
+All date operations use `toLocalDateStr()` or `getLocalToday()` to avoid UTC offset bugs. This was a persistent issue in earlier versions where `date.toISOString()` would return the previous day for UK users in BST.
 
 ```js
 function getLocalToday() {
@@ -1225,9 +794,15 @@ function getLocalToday() {
     String(d.getMonth() + 1).padStart(2, '0') + '-' +
     String(d.getDate()).padStart(2, '0');
 }
+
+function toLocalDateStr(d) {
+  return d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+}
 ```
 
-Date comparisons use string comparison (`a.date.localeCompare(b.date)`) which is valid for ISO 8601 strings. Date cutoffs for home-screen stats are built from `new Date(getLocalToday() + 'T00:00:00')` to ensure local-midnight anchoring.
+Date comparisons use string comparison (`a.date.localeCompare(b.date)`) which is valid for ISO 8601 strings. Date cutoffs use `new Date(getLocalToday() + 'T00:00:00')` for local-midnight anchoring.
 
 ### Body Weight Cycle Progress (Plan Screen)
 
@@ -1241,16 +816,15 @@ bwPct       = clamp(0, 100, round(achieved / totalNeeded * 100))
 
 ### Serving Size Calculation
 
-All serving calculations use per-100g values with a consistent pattern:
+All serving calculations use per-100g values:
+
 ```js
 const total = grams * servings;
 const per1  = per100 / 100;
 kcal        = Math.round(per1 * total);
 ```
 
-This avoids double-multiplication bugs (e.g. applying a ×100 factor to data already expressed per 100g).
-
-### Swipe-to-Copy Animation
+### Swipe-to-Copy Animation (Yesterday Strip)
 
 ```
 onMove(clientX):
@@ -1267,9 +841,20 @@ onEnd():
     snap back
 ```
 
+### Progress Hero Fixed Height
+
+To prevent the swipeable deck from changing height as the user swipes between slides of different content lengths:
+
+```js
+// After rendering slide 0:
+const h = heroCardEl.offsetHeight;
+document.documentElement.style.setProperty('--hero-fixed-h', h + 'px');
+// All subsequent slides use min-height: var(--hero-fixed-h)
+```
+
 ---
 
-## 22. Known Limitations & Future Considerations
+## 25. Known Limitations & Future Considerations
 
 ### Current Limitations
 
@@ -1277,8 +862,8 @@ onEnd():
 |---|---|
 | **Offline** | No service worker. Google Fonts require a network connection on first load. |
 | **Cross-device sync** | Data is device-local. No sync between devices or browsers. |
-| **Bundle size** | The ZXing barcode library adds ~336KB to the file. This is loaded once and cached by the browser. |
-| **Camera permissions** | iOS Safari requires explicit camera permission per site. If denied, the manual barcode entry field remains available as a fallback. |
+| **Bundle size** | The ZXing barcode library adds ~336KB to the file. Loaded once and cached by the browser. |
+| **Camera permissions** | iOS Safari requires explicit camera permission per site. If denied, the manual barcode entry field remains as a fallback. |
 | **Push notifications** | No background timer alerts when the app is backgrounded or screen is locked. |
 | **Storage limit** | `localStorage` capped at 5–10 MB. Extremely large libraries or years of logs could approach this. |
 | **Undo** | No undo mechanism. Deletes are confirmed but irreversible. |
@@ -1292,10 +877,10 @@ A cache-first service worker for fonts would make the app fully offline-capable.
 Supabase + PowerSync has been considered as a sync layer. Would require refactoring `state` into a normalised schema and replacing `localStorage` with a PowerSync-managed SQLite store.
 
 **Native App**
-Capacitor wrapping is compatible with the single-file architecture with minimal changes. Main additions: native push notifications for timer alerts, native camera for barcode scanning.
+Capacitor wrapping is compatible with the single-file architecture with minimal changes. Main additions: native push notifications for timer alerts, native camera API for barcode scanning.
 
 **Data Model Evolution**
 The dual nutrition log format (`nutritionLogs` legacy + `nutritionMeals` current) is technical debt. A migration pass in `importData()` to normalise legacy entries into `nutritionMeals` would simplify `getDayTotals()`.
 
 **Macrocycle/Mesocycle Terminology**
-The S&C terminology in the codebase (variable names use `macro`/`meso`) reflects a historical inversion: what the code calls a "macrocycle" (the short training block) is technically a mesocycle in periodisation theory, and vice versa. The UI labels are correct; the internal variable names are not. A full rename pass on all internal identifiers and comments is deferred pending a stable release.
+The S&C terminology in the codebase (variable names use `macro`/`meso`) reflects a historical inversion: what the code calls a "macrocycle" (the short training block) is technically a mesocycle in periodisation theory, and vice versa. The UI labels are correct; the internal variable names are not. A full rename pass is deferred pending a stable release.
