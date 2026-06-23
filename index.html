@@ -1105,7 +1105,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v5.09</span>
+          <span class="badge badge-green">v5.10</span>
         </div>
       </div>
 
@@ -1598,6 +1598,67 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   </div>
 </div>
 
+<!-- Body Profile (gender / height / birthday) -->
+<div class="modal-overlay" id="modal-body-profile">
+  <div class="modal-sheet" data-modal="modal-body-profile">
+    <div class="modal-handle-row">
+      <div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-body-profile')">✕</button>
+    </div>
+    <div class="modal-title">Body Profile</div>
+
+    <!-- Gender -->
+    <div class="form-group">
+      <div class="label">Gender</div>
+      <div style="display:flex;gap:8px;">
+        <button id="profile-btn-male" onclick="selectProfileGender('male')"
+          style="flex:1;padding:12px;border-radius:var(--r-sm);border:1.5px solid var(--border2);background:var(--surface2);color:var(--text);font-size:18px;cursor:pointer;transition:all .15s;">
+          ♂ Male
+        </button>
+        <button id="profile-btn-female" onclick="selectProfileGender('female')"
+          style="flex:1;padding:12px;border-radius:var(--r-sm);border:1.5px solid var(--border2);background:var(--surface2);color:var(--text);font-size:18px;cursor:pointer;transition:all .15s;">
+          ♀ Female
+        </button>
+      </div>
+    </div>
+
+    <!-- Height -->
+    <div class="form-group">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <div class="label" style="margin-bottom:0;">Height</div>
+        <div style="display:flex;gap:0;border:1px solid var(--border2);border-radius:var(--r-sm);overflow:hidden;">
+          <button id="profile-unit-ftin" onclick="switchHeightUnit('ftin')"
+            style="padding:4px 10px;background:var(--surface2);color:var(--text2);border:none;font-size:11px;cursor:pointer;font-family:var(--font-mono);">ft/in</button>
+          <button id="profile-unit-cm" onclick="switchHeightUnit('cm')"
+            style="padding:4px 10px;background:var(--surface2);color:var(--text2);border:none;font-size:11px;cursor:pointer;font-family:var(--font-mono);">cm</button>
+        </div>
+      </div>
+      <div id="profile-height-ftin" style="display:flex;gap:8px;">
+        <div style="flex:1;">
+          <input type="number" id="profile-feet" min="3" max="8" placeholder="5" style="width:100%;box-sizing:border-box;font-size:15px;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+          <div style="font-size:11px;color:var(--text3);text-align:center;margin-top:3px;">feet</div>
+        </div>
+        <div style="flex:1;">
+          <input type="number" id="profile-inches" min="0" max="11" placeholder="10" style="width:100%;box-sizing:border-box;font-size:15px;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+          <div style="font-size:11px;color:var(--text3);text-align:center;margin-top:3px;">inches</div>
+        </div>
+      </div>
+      <div id="profile-height-cm" style="display:none;">
+        <input type="number" id="profile-cm" min="100" max="250" placeholder="178" style="width:100%;box-sizing:border-box;font-size:15px;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+        <div style="font-size:11px;color:var(--text3);margin-top:3px;">cm</div>
+      </div>
+    </div>
+
+    <!-- Birthday -->
+    <div class="form-group">
+      <div class="label">Date of Birth</div>
+      <input type="date" id="profile-birthday" style="font-size:15px;width:100%;box-sizing:border-box;">
+    </div>
+
+    <button class="btn btn-accent btn-block" onclick="saveBodyProfile()">Save Profile →</button>
+  </div>
+</div>
+
 <!-- Body Log -->
 <div class="modal-overlay" id="modal-body-log">
   <div class="modal-sheet" data-modal="modal-body-log">
@@ -1863,6 +1924,7 @@ let state = {
   currentWeek: 1,
   currentDay: 'push',
   currentEditContext: null,
+  profile: {},  // { gender: 'male'|'female', heightCm: number, birthday: 'YYYY-MM-DD' }
 };
 
 function save() { localStorage.setItem('bloc_state', JSON.stringify(state)); }
@@ -1890,6 +1952,7 @@ function load() {
   if (!state.nutritionQuickLog) state.nutritionQuickLog = {};
   if (!state.foodLibrary) state.foodLibrary = [];
   if (!state.recipes) state.recipes = [];
+  if (!state.profile) state.profile = {};
   if (!state.theme) state.theme = 'multi';
   document.body.setAttribute('data-theme', state.theme);
   if (!state.mode) state.mode = 'dark';
@@ -3206,18 +3269,32 @@ function renderHome() {
   const weightLogs = [...(state.bodyLogs||[])].sort((a,b) => b.date.localeCompare(a.date));
   const today = getLocalToday();
   const todayDate = new Date(today + 'T00:00:00');
-  const cutoff7  = new Date(todayDate); cutoff7.setDate(todayDate.getDate() - 7);
-  const cutoff14 = new Date(todayDate); cutoff14.setDate(todayDate.getDate() - 14);
-  const last7w   = weightLogs.filter(l => l.weight && new Date(l.date+'T00:00:00') >= cutoff7);
-  const prev7w   = weightLogs.filter(l => l.weight && new Date(l.date+'T00:00:00') >= cutoff14 && new Date(l.date+'T00:00:00') < cutoff7);
+
+  // Calendar-week helpers (Mon–Sun)
+  const dowProg = todayDate.getDay(); // 0=Sun
+  const daysFromMonProg = dowProg === 0 ? 6 : dowProg - 1;
+  const thisMonDate = new Date(todayDate); thisMonDate.setDate(todayDate.getDate() - daysFromMonProg);
+  const thisSunDate = new Date(thisMonDate); thisSunDate.setDate(thisMonDate.getDate() + 6);
+  const lastMonDate = new Date(thisMonDate); lastMonDate.setDate(thisMonDate.getDate() - 7);
+  const lastSunDate = new Date(thisMonDate); lastSunDate.setDate(thisMonDate.getDate() - 1);
+  const thisMonStr = toLocalDateStr(thisMonDate);
+  const thisSunStr = toLocalDateStr(thisSunDate);
+  const lastMonStr = toLocalDateStr(lastMonDate);
+  const lastSunStr = toLocalDateStr(lastSunDate);
+
+  // Body logs for this week (Mon to today) and last week (Mon to Sun)
+  const thisWeekWLogs = weightLogs.filter(l => l.weight && l.date >= thisMonStr && l.date <= today);
+  const lastWeekWLogs = weightLogs.filter(l => l.weight && l.date >= lastMonStr && l.date <= lastSunStr);
   const latest   = weightLogs.find(l => l.weight);
-  const avg7     = last7w.length ? last7w.reduce((a,b) => a + parseFloat(b.weight), 0) / last7w.length : null;
-  const avg7prev = prev7w.length ? prev7w.reduce((a,b) => a + parseFloat(b.weight), 0) / prev7w.length : null;
+  const avg7     = thisWeekWLogs.length ? thisWeekWLogs.reduce((a,b) => a + parseFloat(b.weight), 0) / thisWeekWLogs.length : null;
+  const avg7prev = lastWeekWLogs.length ? lastWeekWLogs.reduce((a,b) => a + parseFloat(b.weight), 0) / lastWeekWLogs.length : null;
   const wkChange = avg7 !== null && avg7prev !== null ? avg7 - avg7prev : null;
   const changeColor = wkChange === null ? 'var(--text3)' : wkChange < 0 ? 'var(--accent)' : wkChange > 0 ? 'var(--red)' : 'var(--text2)';
   const changeStr = wkChange !== null
     ? (wkChange >= 0 ? '+' : '') + wkChange.toFixed(1) + ' lbs vs last wk'
     : avg7 !== null ? 'No prior week data' : 'No data this week';
+  // Entry count: body logs Monday to today only
+  const bodyLogsThisWeekCount = thisWeekWLogs.length;
 
   // Peak 7-day window insight
   const dayMap = buildDayMap();
@@ -3288,6 +3365,68 @@ function renderHome() {
     }
   }
 
+  // ── BMR / TDEE sentences ─────────────────────────────────────────────────
+  let bmrHtml = '';
+  const mifflinBmr = calcMifflinBMR();
+  const actInfo    = getActivityMultiplier();
+  const dynResult  = calcDynamicTDEE();
+
+  const bmrSentences = [];
+
+  if (mifflinBmr !== null) {
+    const mifflinTdee = Math.round(mifflinBmr * actInfo.multiplier);
+    bmrSentences.push(
+      `<span style="color:var(--accent);font-weight:600;">⚡ Mifflin BMR</span> — ` +
+      `Your estimated basal metabolic rate is <strong>${mifflinBmr.toLocaleString()} kcal/day</strong>. ` +
+      `Based on your activity level (<em>${actInfo.label}</em>), ` +
+      `your Total Daily Energy Expenditure is <strong>${mifflinTdee.toLocaleString()} kcal/day</strong>.`
+    );
+  } else {
+    bmrSentences.push(
+      `<span style="color:var(--accent);font-weight:600;">⚡ Mifflin BMR</span> — ` +
+      `<span style="color:var(--text3);">Tap the Body card to set your gender, height and date of birth to unlock your BMR estimate.</span>`
+    );
+  }
+
+  if (dynResult !== null) {
+    bmrSentences.push(
+      `<span style="color:#E8875A;font-weight:600;">▸ Log-based TDEE</span> — ` +
+      `Based on ${dynResult.dataPoints} tracked period${dynResult.dataPoints !== 1 ? 's' : ''}, ` +
+      `your estimated Total Daily Energy Expenditure is <strong>${dynResult.tdee.toLocaleString()} kcal/day</strong> ` +
+      `(implied BMR ≈ <strong>${dynResult.bmr.toLocaleString()} kcal/day</strong> at <em>${actInfo.label}</em>).`
+    );
+  } else {
+    bmrSentences.push(
+      `<span style="color:#E8875A;font-weight:600;">▸ Log-based TDEE</span> — ` +
+      `<span style="color:var(--text3);">Log calories alongside weight for at least 2 weigh-ins to get a personalised TDEE estimate.</span>`
+    );
+  }
+
+  // ── Maintainable calorie target sentence ──────────────────────────────────
+  let caloricTargetSentence = '';
+  if (dynResult !== null) {
+    const goalType = macro ? (macro.goalType || 'loss') : 'loss';
+    const isGain = goalType === 'gain' || goalType === 'strength';
+    // Sustainable deficit: ~500 kcal/day ≈ 1 lb/week loss
+    // Conservative surplus: ~250 kcal/day for lean muscle gain
+    const adjustment = isGain ? 250 : -500;
+    const targetKcal = dynResult.tdee + adjustment;
+    const dirWord    = isGain ? 'surplus' : 'deficit';
+    const goalWord   = isGain ? 'lean muscle gain' : 'sustainable weight loss';
+    const rateWord   = isGain ? '~0.5 lbs/week' : '~1 lb/week';
+    caloricTargetSentence =
+      `<span style="color:#5BC4F5;font-weight:600;">◎ Calorie target</span> — ` +
+      `For ${goalWord}, aim for <strong>${targetKcal.toLocaleString()} kcal/day</strong> ` +
+      `— a ${Math.abs(adjustment).toLocaleString()} kcal ${dirWord} from your log-based TDEE, ` +
+      `targeting ${rateWord}.`;
+  }
+
+  bmrHtml = `<div style="margin-top:12px;padding-top:10px;border-top:0.5px solid var(--border);font-size:12px;color:var(--text2);line-height:1.7;">
+    <div>${bmrSentences[0]}</div>
+    <div style="margin-top:6px;">${bmrSentences[1]}</div>
+    ${caloricTargetSentence ? `<div style="margin-top:6px;">${caloricTargetSentence}</div>` : ''}
+  </div>`;
+
   bodyEl.innerHTML = `<div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;">
       <div>
@@ -3296,10 +3435,11 @@ function renderHome() {
       </div>
       <div style="text-align:right;">
         <div style="font-size:13px;font-weight:500;color:${changeColor};">${changeStr}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:3px;">${last7w.length} entries this week</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:3px;">${bodyLogsThisWeekCount} ${bodyLogsThisWeekCount === 1 ? 'log' : 'logs'} this week</div>
       </div>
     </div>
     ${peakHtml}
+    ${bmrHtml}
   </div>`;
 
   // ── Progress charts (weekly summary table) ────
@@ -4596,21 +4736,46 @@ function renderBody() {
   const ascLogs = [...state.bodyLogs].filter(l => l.weight).sort((a,b) => a.date.localeCompare(b.date));
 
   // Stats
+  // "This week" = change from Monday's log to latest log this week (Mon–Sun calendar week).
+  // On Monday with only one log it shows 0; no data shows —.
+  const todayForBody = getLocalToday();
+  const todayDateObj = new Date(todayForBody + 'T00:00:00');
+  const dow = todayDateObj.getDay(); // 0=Sun,1=Mon…6=Sat
+  const daysFromMon = dow === 0 ? 6 : dow - 1; // Mon=0,Tue=1,…,Sun=6
+  const mondayDateObj = new Date(todayDateObj);
+  mondayDateObj.setDate(todayDateObj.getDate() - daysFromMon);
+  const mondayStr = toLocalDateStr(mondayDateObj);
+  const sundayDateObj = new Date(mondayDateObj);
+  sundayDateObj.setDate(mondayDateObj.getDate() + 6);
+  const sundayStr = toLocalDateStr(sundayDateObj);
+
+  // Logs within this calendar week (Mon–Sun)
+  const thisWeekLogs = ascLogs.filter(l => l.date >= mondayStr && l.date <= sundayStr);
+  // Monday's log (first log on or after Monday up to today)
+  const mondayLog = thisWeekLogs.find(l => l.date === mondayStr);
+  // Latest log this week (could be today)
+  const latestThisWeek = thisWeekLogs.length ? thisWeekLogs[thisWeekLogs.length - 1] : null;
+
+  let change = null;
+  if (thisWeekLogs.length === 1) {
+    // Only one log this week — change is 0 (no movement yet)
+    change = 0;
+  } else if (mondayLog && latestThisWeek && latestThisWeek.date !== mondayStr) {
+    // Monday log + a later log this week
+    change = parseFloat(latestThisWeek.weight) - parseFloat(mondayLog.weight);
+  } else if (thisWeekLogs.length >= 2) {
+    // No Monday log, but multiple logs — use first vs last
+    change = parseFloat(thisWeekLogs[thisWeekLogs.length - 1].weight) - parseFloat(thisWeekLogs[0].weight);
+  }
+
+  // 7-day rolling average for the sub-label
   const last7 = logs.filter(l => {
-    const d = new Date(l.date);
-    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 7);
+    const d = new Date(l.date + 'T00:00:00');
+    const cutoff = new Date(todayDateObj); cutoff.setDate(todayDateObj.getDate() - 7);
     return d >= cutoff;
   });
-  const prev7 = logs.filter(l => {
-    const d = new Date(l.date);
-    const c1 = new Date(); c1.setDate(c1.getDate() - 14);
-    const c2 = new Date(); c2.setDate(c2.getDate() - 7);
-    return d >= c1 && d < c2;
-  });
-
   const avg7w = last7.filter(l=>l.weight).reduce((a,b)=>a+(parseFloat(b.weight)||0),0) / (last7.filter(l=>l.weight).length||1);
-  const avg7wPrev = prev7.filter(l=>l.weight).reduce((a,b)=>a+(parseFloat(b.weight)||0),0) / (prev7.filter(l=>l.weight).length||1);
-  const change = last7.length && prev7.length ? (avg7w - avg7wPrev) : null;
+
   const latest = ascLogs.length ? ascLogs[ascLogs.length - 1] : null;
   const latestVal = latest ? parseFloat(latest.weight) : null;
 
@@ -4636,12 +4801,26 @@ function renderBody() {
 
   // ── Hero card ──────────────────────────────────
   const heroEl = document.getElementById('body-hero');
-  heroEl.innerHTML = `<div class="hero-card" data-page="body">
+  // ── Profile badge (gender + height shown in hero top-right) ──
+  const prof = state.profile || {};
+  const genderSymbol = prof.gender === 'male' ? '♂' : prof.gender === 'female' ? '♀' : null;
+  const heightDisplay = prof.heightCm ? Math.round(prof.heightCm) + ' cm' : null;
+  const profileBadge = (genderSymbol || heightDisplay)
+    ? `<div style="position:absolute;top:12px;right:12px;text-align:right;line-height:1.3;cursor:pointer;" onclick="openBodyProfile()">
+        ${genderSymbol ? `<div style="font-size:14px;color:var(--text2);">${genderSymbol}</div>` : ''}
+        ${heightDisplay ? `<div style="font-size:11px;color:var(--text3);">${heightDisplay}</div>` : ''}
+       </div>`
+    : `<div style="position:absolute;top:12px;right:12px;cursor:pointer;" onclick="openBodyProfile()">
+        <div style="font-size:10px;color:var(--text3);opacity:0.6;">+ profile</div>
+       </div>`;
+
+  heroEl.innerHTML = `<div class="hero-card" data-page="body" style="position:relative;cursor:pointer;" onclick="openBodyProfile()">
+    ${profileBadge}
     <div class="hero-label">Current weight</div>
     <div class="hero-value">${latestVal !== null ? latestVal.toFixed(1) : '—'}<span class="unit">lbs</span></div>
     <div class="hero-sub">${last7.filter(l=>l.weight).length ? '7-day avg ' + avg7w.toFixed(1) + ' lbs' : 'No entries this week'}</div>
     <div class="hero-callouts" style="grid-template-columns:repeat(4,1fr);">
-      <div class="hero-callout"><div class="hero-callout-lbl">This week</div><div class="hero-callout-val">${change !== null ? (change>=0?'+':'')+change.toFixed(1)+' lbs' : '—'}</div></div>
+      <div class="hero-callout"><div class="hero-callout-lbl">This week</div><div class="hero-callout-val">${change !== null ? (change===0 ? '0 lbs' : (change>=0?'+':'')+change.toFixed(1)+' lbs') : '—'}</div></div>
       <div class="hero-callout"><div class="hero-callout-lbl">Cycle change</div><div class="hero-callout-val">${cycleChangeStr}</div></div>
       <div class="hero-callout"><div class="hero-callout-lbl">Target</div><div class="hero-callout-val">${target ? target+' lbs' : '—'}</div></div>
       <div class="hero-callout"><div class="hero-callout-lbl">Left to go</div><div class="hero-callout-val">${leftToGoStr}</div></div>
@@ -4718,6 +4897,248 @@ function renderBody() {
       </div>
     </div>`).join('');
   requestAnimationFrame(() => initSwipeRows(el));
+}
+
+// ════════════════════════════════════════════════
+// BODY PROFILE (gender / height / birthday)
+// ════════════════════════════════════════════════
+
+let _profileHeightUnit = 'ftin'; // 'ftin' or 'cm'
+
+function openBodyProfile() {
+  const prof = state.profile || {};
+  _profileHeightUnit = 'ftin';
+
+  // Pre-fill gender buttons
+  updateProfileGenderUI(prof.gender || null);
+
+  // Pre-fill height
+  if (prof.heightCm) {
+    const totalIn = prof.heightCm / 2.54;
+    const ft = Math.floor(totalIn / 12);
+    const inches = Math.round(totalIn % 12);
+    document.getElementById('profile-feet').value = ft;
+    document.getElementById('profile-inches').value = inches;
+    document.getElementById('profile-cm').value = Math.round(prof.heightCm);
+  } else {
+    document.getElementById('profile-feet').value = '';
+    document.getElementById('profile-inches').value = '';
+    document.getElementById('profile-cm').value = '';
+  }
+  switchHeightUnit('ftin');
+
+  // Pre-fill birthday
+  document.getElementById('profile-birthday').value = prof.birthday || '';
+
+  openModal('modal-body-profile');
+}
+
+function selectProfileGender(g) {
+  _selectedProfileGender = g;
+  updateProfileGenderUI(g);
+}
+
+let _selectedProfileGender = null;
+
+function updateProfileGenderUI(g) {
+  _selectedProfileGender = g;
+  const mBtn = document.getElementById('profile-btn-male');
+  const fBtn = document.getElementById('profile-btn-female');
+  if (!mBtn || !fBtn) return;
+  mBtn.style.borderColor = g === 'male' ? 'var(--accent)' : 'var(--border2)';
+  mBtn.style.background  = g === 'male' ? 'rgba(29,158,117,0.15)' : 'var(--surface2)';
+  fBtn.style.borderColor = g === 'female' ? 'var(--accent)' : 'var(--border2)';
+  fBtn.style.background  = g === 'female' ? 'rgba(29,158,117,0.15)' : 'var(--surface2)';
+}
+
+function switchHeightUnit(unit) {
+  _profileHeightUnit = unit;
+  const ftinEl = document.getElementById('profile-height-ftin');
+  const cmEl   = document.getElementById('profile-height-cm');
+  const ftinBtn = document.getElementById('profile-unit-ftin');
+  const cmBtn   = document.getElementById('profile-unit-cm');
+  if (!ftinEl) return;
+
+  if (unit === 'ftin') {
+    ftinEl.style.display = 'flex';
+    cmEl.style.display   = 'none';
+    ftinBtn.style.background = 'var(--accent)';
+    ftinBtn.style.color      = '#0a0a0a';
+    cmBtn.style.background   = 'var(--surface2)';
+    cmBtn.style.color        = 'var(--text2)';
+    // Convert cm → ft/in if cm field has a value
+    const cmVal = parseFloat(document.getElementById('profile-cm').value);
+    if (cmVal && !document.getElementById('profile-feet').value) {
+      const totalIn = cmVal / 2.54;
+      document.getElementById('profile-feet').value = Math.floor(totalIn / 12);
+      document.getElementById('profile-inches').value = Math.round(totalIn % 12);
+    }
+  } else {
+    ftinEl.style.display = 'none';
+    cmEl.style.display   = 'block';
+    cmBtn.style.background = 'var(--accent)';
+    cmBtn.style.color      = '#0a0a0a';
+    ftinBtn.style.background = 'var(--surface2)';
+    ftinBtn.style.color      = 'var(--text2)';
+    // Convert ft/in → cm if fields have values
+    const ft = parseFloat(document.getElementById('profile-feet').value);
+    const inc = parseFloat(document.getElementById('profile-inches').value) || 0;
+    if (ft && !document.getElementById('profile-cm').value) {
+      document.getElementById('profile-cm').value = Math.round((ft * 12 + inc) * 2.54);
+    }
+  }
+}
+
+function saveBodyProfile() {
+  if (!state.profile) state.profile = {};
+  state.profile.gender = _selectedProfileGender || state.profile.gender || null;
+
+  // Height → always store as cm
+  let heightCm = null;
+  if (_profileHeightUnit === 'ftin') {
+    const ft  = parseFloat(document.getElementById('profile-feet').value) || 0;
+    const inc = parseFloat(document.getElementById('profile-inches').value) || 0;
+    if (ft > 0 || inc > 0) heightCm = (ft * 12 + inc) * 2.54;
+  } else {
+    const cm = parseFloat(document.getElementById('profile-cm').value);
+    if (cm > 0) heightCm = cm;
+  }
+  if (heightCm !== null) state.profile.heightCm = heightCm;
+
+  const bday = document.getElementById('profile-birthday').value;
+  if (bday) state.profile.birthday = bday;
+
+  save();
+  closeModal('modal-body-profile');
+  renderBody();
+  renderHome(); // refresh BMR sentences on progress page
+}
+
+// ════════════════════════════════════════════════
+// BMR CALCULATIONS
+// ════════════════════════════════════════════════
+
+function calcAge(birthdayStr) {
+  if (!birthdayStr) return null;
+  const today = new Date();
+  const bday  = new Date(birthdayStr + 'T00:00:00');
+  let age = today.getFullYear() - bday.getFullYear();
+  const m = today.getMonth() - bday.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < bday.getDate())) age--;
+  return age;
+}
+
+/** Return activity multiplier (TDEE = BMR × multiplier) based on training plan + avg steps. */
+function getActivityMultiplier() {
+  const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
+  const spw = macro ? (macro.sessionsPerWeek || 0) : 0;
+
+  // Average daily steps from all body logs with steps logged
+  const stepLogs = (state.bodyLogs || []).filter(l => parseInt(l.steps) > 0);
+  const avgSteps = stepLogs.length
+    ? stepLogs.reduce((a, b) => a + parseInt(b.steps), 0) / stepLogs.length
+    : 0;
+
+  if (spw >= 5 && avgSteps >= 9000) return { multiplier: 1.725, label: 'very active' };
+  if (spw >= 3 && avgSteps >= 7000) return { multiplier: 1.55,  label: 'moderately active' };
+  if (spw >= 1 && avgSteps >= 5000) return { multiplier: 1.375, label: 'lightly active' };
+  return { multiplier: 1.2, label: 'sedentary' };
+}
+
+/** Mifflin-St Jeor BMR (returns kcal/day or null if profile incomplete). */
+function calcMifflinBMR() {
+  const prof = state.profile || {};
+  if (!prof.gender || !prof.heightCm || !prof.birthday) return null;
+  // Use most recent body weight
+  const wLog = [...(state.bodyLogs || [])]
+    .filter(l => l.weight)
+    .sort((a, b) => b.date.localeCompare(a.date))[0];
+  if (!wLog) return null;
+
+  const weightKg  = parseFloat(wLog.weight) / 2.2046;
+  const heightCm  = prof.heightCm;
+  const age       = calcAge(prof.birthday);
+  if (!age || age < 1 || age > 120) return null;
+
+  let bmr = (10 * weightKg) + (6.25 * heightCm) - (5 * age);
+  bmr += prof.gender === 'male' ? 5 : -161;
+  return Math.round(bmr);
+}
+
+/**
+ * Estimate TDEE from weight-change + calorie logs.
+ * Uses the 3,500 kcal ≈ 1 lb fat rule across all consecutive weight-log pairs.
+ * Returns { tdee, bmr, dataPoints } or null.
+ */
+function calcDynamicTDEE() {
+  // Consecutive-pairs method, cycle-scoped, using median for robustness.
+  // Every adjacent pair of weight logs is evaluated. Daily weight fluctuation
+  // (water retention, food mass, glycogen) skews individual estimates but the
+  // median naturally ignores extremes — every log contributes to the result.
+
+  const activeMacro = state.macrocycles.find(m => m.id === state.currentMacroId);
+  const cycleStart  = activeMacro && activeMacro.start ? activeMacro.start : null;
+  const cycleEnd    = activeMacro ? toLocalDateStr(getMacroEndDate(activeMacro)) : null;
+  const today       = getLocalToday();
+  const effectiveEnd = (cycleEnd && cycleEnd < today) ? cycleEnd : today;
+
+  const wLogs = [...(state.bodyLogs || [])]
+    .filter(l => {
+      if (!l.weight) return false;
+      if (cycleStart && l.date < cycleStart) return false;
+      if (l.date > effectiveEnd)             return false;
+      return true;
+    })
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  if (wLogs.length < 2) return null;
+
+  const estimates = [];
+
+  for (let i = 0; i < wLogs.length - 1; i++) {
+    const w1    = wLogs[i], w2 = wLogs[i + 1];
+    const d1    = new Date(w1.date + 'T00:00:00');
+    const d2    = new Date(w2.date + 'T00:00:00');
+    const nDays = Math.round((d2 - d1) / 86400000);
+    if (nDays < 1 || nDays > 21) continue;
+
+    // Collect calorie data from nutritionLogs (confirmed single source of truth;
+    // meals sync here via syncNutrLegacyLog on every save)
+    const kcalValues = [];
+    for (let k = 1; k <= nDays; k++) {
+      const d    = new Date(d1); d.setDate(d.getDate() + k);
+      const ds   = toLocalDateStr(d);
+      const nLog = (state.nutritionLogs || []).find(l => l.date === ds);
+      const kcal = nLog ? parseInt(nLog.kcal) || 0 : 0;
+      if (kcal > 0) kcalValues.push(kcal);
+    }
+    // Need at least 50% calorie coverage for the pair to count
+    if (kcalValues.length < Math.max(1, Math.ceil(nDays * 0.5))) continue;
+
+    const avgKcal          = kcalValues.reduce((a, b) => a + b, 0) / kcalValues.length;
+    const weightChangeLbs  = parseFloat(w2.weight) - parseFloat(w1.weight);
+    const calPerDayImplied = (weightChangeLbs * 3500) / nDays;
+    estimates.push(avgKcal - calPerDayImplied);
+  }
+
+  if (!estimates.length) return null;
+
+  // Median — robust against overnight fluctuation outliers
+  const sorted     = [...estimates].sort((a, b) => a - b);
+  const mid        = Math.floor(sorted.length / 2);
+  const medianTdee = sorted.length % 2 !== 0
+    ? sorted[mid]
+    : (sorted[mid - 1] + sorted[mid]) / 2;
+
+  if (medianTdee < 800 || medianTdee > 6000) return null;
+
+  const roundedTdee = Math.round(medianTdee);
+  const { multiplier } = getActivityMultiplier();
+  return {
+    tdee:       roundedTdee,
+    bmr:        Math.round(roundedTdee / multiplier),
+    dataPoints: estimates.length,
+  };
 }
 
 function openEditBodyLog(date) {
