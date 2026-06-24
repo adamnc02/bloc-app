@@ -1025,7 +1025,8 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
       <!-- Body weight + peak insight -->
       <div class="section-title" style="margin-top:16px;">Insights</div>
-      <div id="home-body" style="margin-bottom:4px;"></div>
+      <div id="home-body" style="margin-bottom:2px;"></div>
+      <div id="home-body-dots" style="display:flex;justify-content:center;gap:6px;margin-bottom:6px;min-height:18px;"></div>
 
       <!-- Weekly summary table -->
       <div class="section-title" style="margin-top:16px;">Weekly Summary</div>
@@ -1105,7 +1106,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v5.10</span>
+          <span class="badge badge-green">v5.11</span>
         </div>
       </div>
 
@@ -1300,10 +1301,20 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">e.g. 4-day split over 2 weeks = 2 weeks per mesocycle, 4 sessions/week</div>
     <div class="form-group">
       <div class="label">Macrocycle Type</div>
-      <select id="macro-goal-type-input">
+      <select id="macro-goal-type-input" onchange="toggleLossIncrementRow()">
         <option value="loss">Weight Loss — conservative weight progression</option>
         <option value="gain">Weight / Strength Gain — aggressive weight progression</option>
       </select>
+    </div>
+
+    <div class="form-group" id="loss-increment-row">
+      <div class="label">Weight increment per session <span style="color:var(--text3);font-size:11px;">— loss cycles only</span></div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <input type="number" id="macro-loss-increment-input" min="0.25" max="10" step="0.25" value="2.5"
+          style="width:70px;font-size:15px;padding:8px 10px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+        <span style="font-size:12px;color:var(--text3);">kg · light exercises. Heavy leg always +5 kg.</span>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;">Common: 1.25 kg (1.25 kg plates) · 2.5 kg (2.5 kg plates)</div>
     </div>
     <div class="form-group">
       <div class="label">Goal</div>
@@ -1436,6 +1447,14 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
         <option value="loss">Weight Loss — conservative weight progression</option>
         <option value="gain">Weight / Strength Gain — aggressive weight progression</option>
       </select>
+    </div>
+    <div class="form-group" id="edit-loss-increment-row">
+      <div class="label">Weight increment per session <span style="color:var(--text3);font-size:11px;">— loss cycles only</span></div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <input type="number" id="edit-macro-loss-increment-input" min="0.25" max="10" step="0.25" value="2.5"
+          style="width:70px;font-size:15px;padding:8px 10px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+        <span style="font-size:12px;color:var(--text3);">kg · light exercises</span>
+      </div>
     </div>
     <button class="btn btn-accent btn-block" onclick="saveEditMacro()">Save Changes →</button>
   </div>
@@ -1587,11 +1606,20 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     </div>
 
     <div class="form-group">
-      <div class="label">Is this a heavy leg exercise? (3 kg jumps)</div>
+      <div class="label">Is this a heavy leg exercise?</div>
       <select id="ex-leg-select">
-        <option value="0">No (1–2 kg)</option>
-        <option value="1">Yes (up to 3 kg)</option>
+        <option value="0">No — light exercise</option>
+        <option value="1">Yes — heavy leg / compound</option>
       </select>
+    </div>
+
+    <div class="form-group">
+      <div class="label">How do you track the weight?</div>
+      <select id="ex-tracking-select">
+        <option value="total">Total weight on the bar / machine</option>
+        <option value="perSide">Weight per side (e.g. per dumbbell)</option>
+      </select>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;">Per-side tracking doubles the weight when calculating volume.</div>
     </div>
 
     <button class="btn btn-accent btn-block" onclick="saveExercise()">Save Exercise →</button>
@@ -1689,7 +1717,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 <!-- Nutrition: meal log chooser -->
 <div class="modal-overlay" id="modal-nutr-add">
   <div class="modal-sheet" data-modal="modal-nutr-add" style="max-height:85dvh;">
-    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-add')">✕</button></div>
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="nutrAddExpand(false);closeModal('modal-nutr-add')">✕</button></div>
     <div class="modal-title" id="nutr-add-title" style="flex-shrink:0;">Add to Breakfast</div>
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0;">
       <button onclick="openNutrBarcode()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
@@ -1705,7 +1733,10 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
         <span style="font-weight:600;">Recipe</span>
       </button>
     </div>
-    <input type="text" id="nutr-add-search" placeholder="Search foods…" oninput="renderNutrAddList()" style="margin-bottom:10px;flex-shrink:0;">
+    <input type="text" id="nutr-add-search" placeholder="Search foods…" oninput="renderNutrAddList()"
+      onfocus="nutrAddExpand(true)"
+      onblur="setTimeout(function(){var a=document.activeElement;if(a&&a.closest&&a.closest('#modal-nutr-add'))return;nutrAddExpand(false);},150)"
+      style="margin-bottom:10px;flex-shrink:0;">
     <div id="nutr-add-list" style="max-height:165px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;"></div>
   </div>
 </div>
@@ -2263,8 +2294,12 @@ function createMacrocycle() {
     sessions.forEach((s,i) => { dayLabels['session'+i] = s.trim() || ('Session '+(i+1)); });
   }
 
+  const lossIncrement = document.getElementById('macro-loss-increment-input')
+    ? document.getElementById('macro-loss-increment-input').value
+    : '2.5';
+
   const id = 'macro_' + Date.now();
-  state.macrocycles.push({ id, name, weeks, weeksPerMeso, sessionsPerWeek, start, goal, targetBw, goalType, splitType, days, dayLabels, useMicrocycles });
+  state.macrocycles.push({ id, name, weeks, weeksPerMeso, sessionsPerWeek, start, goal, targetBw, goalType, lossIncrement, splitType, days, dayLabels, useMicrocycles });
   state.currentMacroId = id;
   state.currentDay = useMicrocycles ? (days[0] + 'm1') : days[0];
   save();
@@ -2357,9 +2392,16 @@ function openAddExercise(week, day) {
   document.getElementById('ex-weight-input').value = '';
   document.getElementById('ex-type-select').value = 'standard';
   document.getElementById('ex-leg-select').value = '0';
+  document.getElementById('ex-tracking-select').value = 'total';
   onExTypeChange();
   updateLegSelectLabels();
   openModal('modal-exercise');
+}
+
+function toggleLossIncrementRow() {
+  const goalType = document.getElementById('macro-goal-type-input')?.value;
+  const row = document.getElementById('loss-increment-row');
+  if (row) row.style.display = goalType === 'gain' ? 'none' : '';
 }
 
 function openEditExercise(week, day, idx) {
@@ -2378,6 +2420,7 @@ function openEditExercise(week, day, idx) {
   document.getElementById('ex-weight-input').value = ex.startWeight;
   document.getElementById('ex-type-select').value = ex.type || 'standard';
   document.getElementById('ex-leg-select').value = ex.isHeavyLeg ? '1' : '0';
+  document.getElementById('ex-tracking-select').value = ex.trackingMode || 'total';
   onExTypeChange();
   updateLegSelectLabels();
   openModal('modal-exercise');
@@ -2398,6 +2441,7 @@ function saveExercise() {
     startWeight: parseFloat(document.getElementById('ex-weight-input').value) || 0,
     type,
     isHeavyLeg: document.getElementById('ex-leg-select').value === '1',
+    trackingMode: document.getElementById('ex-tracking-select').value || 'total',
   };
   if (ctx.editIdx !== null && state.exercises[key][ctx.editIdx]) {
     // Preserve existing id and order when editing
@@ -2533,7 +2577,8 @@ function getSessionVolume(macro, week, dayKey) {
     for (let s = 0; s < sets; s++) {
       const log = state.trainLogs[key + '_' + ex.id + '_' + s];
       if (log && log.weight && log.reps) {
-        vol += parseFloat(log.weight) * parseRepsForVolume(log.reps);
+        const w = parseFloat(log.weight) * (ex.trackingMode === 'perSide' ? 2 : 1);
+        vol += w * parseRepsForVolume(log.reps);
       }
     }
   });
@@ -3193,6 +3238,110 @@ function progressHeroAnimateTo(rawIndex) {
   }, 160);
 }
 
+// ── Insights card swipe deck (3 cards: Progress / Metabolism / Next cycle) ──
+let insightsIndex        = 0;
+let _insightsBusy        = false;
+let _insightsGestureId   = 0;
+const INSIGHTS_CARD_COUNT = 3;
+
+function getInsightsCard() {
+  const wrap = document.getElementById('home-body');
+  return wrap ? wrap.querySelector('.card') : null;
+}
+
+function insightsSnapBack() {
+  const card = getInsightsCard();
+  if (card) {
+    card.style.transition = 'transform 0.18s ease-out, opacity 0.18s ease-out';
+    card.style.transform  = 'translateX(0)';
+    card.style.opacity    = '1';
+  }
+}
+
+function insightsAnimateTo(rawIndex) {
+  const dir = rawIndex > insightsIndex ? 1 : (rawIndex < insightsIndex ? -1 : 0);
+  let newIndex = ((rawIndex % INSIGHTS_CARD_COUNT) + INSIGHTS_CARD_COUNT) % INSIGHTS_CARD_COUNT;
+  if (newIndex === insightsIndex) { insightsSnapBack(); return; }
+  if (_insightsBusy) return;
+  _insightsBusy = true;
+  const myGesture = ++_insightsGestureId;
+
+  const outX = dir > 0 ? -260 : 260;
+  const card = getInsightsCard();
+  if (card) {
+    card.style.transition = 'transform 0.16s ease-in, opacity 0.16s ease-in';
+    card.style.transform  = `translateX(${outX}px)`;
+    card.style.opacity    = '0';
+  }
+
+  setTimeout(() => {
+    if (myGesture !== _insightsGestureId) return;
+    insightsIndex = newIndex;
+    renderHome();   // re-renders card + dots
+    requestAnimationFrame(() => {
+      if (myGesture !== _insightsGestureId) return;
+      const newCard = getInsightsCard();
+      if (newCard) {
+        newCard.style.transition = 'none';
+        newCard.style.transform  = `translateX(${-outX}px)`;
+        newCard.style.opacity    = '0';
+        void newCard.offsetWidth;
+        requestAnimationFrame(() => {
+          if (myGesture !== _insightsGestureId) return;
+          newCard.style.transition = 'transform 0.2s ease-out, opacity 0.2s ease-out';
+          newCard.style.transform  = 'translateX(0)';
+          newCard.style.opacity    = '1';
+          setTimeout(() => { if (myGesture === _insightsGestureId) _insightsBusy = false; }, 210);
+        });
+      } else {
+        setTimeout(() => { if (myGesture === _insightsGestureId) _insightsBusy = false; }, 210);
+      }
+    });
+  }, 160);
+}
+
+let _insightsSwipeInited = false;
+function initInsightsSwipe() {
+  _insightsSwipeInited = false; // re-init on each render (wrap may change)
+  const wrap = document.getElementById('home-body');
+  if (!wrap) return;
+  wrap.style.touchAction = 'pan-y';
+  let startX = 0, startY = 0, tracking = false, moved = false, suppressClick = false;
+  function resetGesture() { tracking = false; moved = false; }
+  wrap.addEventListener('touchstart', e => {
+    if (_insightsBusy) { resetGesture(); return; }
+    if (e.touches.length !== 1) { resetGesture(); return; }
+    startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+    tracking = true; moved = false;
+  }, { passive: true });
+  wrap.addEventListener('touchmove', e => {
+    if (!tracking || _insightsBusy) return;
+    const dx = e.touches[0].clientX - startX;
+    const dy = e.touches[0].clientY - startY;
+    if (!moved && Math.abs(dy) > Math.abs(dx) + 4) { tracking = false; return; }
+    if (Math.abs(dx) > 8) moved = true;
+  }, { passive: true });
+  wrap.addEventListener('touchend', e => {
+    if (_insightsBusy) { resetGesture(); return; }
+    if (tracking && moved && e.changedTouches.length === 1) {
+      const dx = e.changedTouches[0].clientX - startX;
+      if (Math.abs(dx) > 40) {
+        suppressClick = true;
+        insightsAnimateTo(insightsIndex + (dx < 0 ? 1 : -1));
+      } else { insightsSnapBack(); }
+    }
+    resetGesture();
+  }, { passive: true });
+  wrap.addEventListener('touchcancel', () => {
+    if (!_insightsBusy) insightsSnapBack();
+    resetGesture();
+  }, { passive: true });
+  wrap.addEventListener('click', e => {
+    if (suppressClick) { e.stopPropagation(); e.preventDefault(); }
+    suppressClick = false;
+  }, true);
+}
+
 let _progressHeroSwipeInited = false;
 function initProgressHeroSwipe() {
   if (_progressHeroSwipeInited) return;
@@ -3365,69 +3514,77 @@ function renderHome() {
     }
   }
 
-  // ── BMR / TDEE sentences ─────────────────────────────────────────────────
-  let bmrHtml = '';
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // BMR / TDEE / Calorie calculations (shared by cards 2 & 3)
+  // ──────────────────────────────────────────────────────────────────────────
   const mifflinBmr = calcMifflinBMR();
   const actInfo    = getActivityMultiplier();
   const dynResult  = calcDynamicTDEE();
+  const cycleGoalType = macro ? (macro.goalType || 'loss') : 'loss';
+  const isGainCycle   = cycleGoalType === 'gain' || cycleGoalType === 'strength';
 
-  const bmrSentences = [];
+  // ── Goal weight ETA (from body log rate within cycle) ────────────────────
+  const goalWeightETA = (() => {
+    if (!macro || !macro.targetBw || !latest) return null;
+    const target = parseFloat(macro.targetBw);
+    const current = parseFloat(latest.weight);
+    if (isGainCycle ? current >= target : current <= target) return null; // already there
+    // Rate from cycle-scoped body logs
+    const cycleStart = macro.start || null;
+    const cycleLogs = [...(state.bodyLogs||[])]
+      .filter(l => l.weight && (!cycleStart || l.date >= cycleStart))
+      .sort((a,b) => a.date.localeCompare(b.date));
+    if (cycleLogs.length < 2) return null;
+    const first = cycleLogs[0], last2 = cycleLogs[cycleLogs.length - 1];
+    const nDays = Math.round((new Date(last2.date+'T00:00:00') - new Date(first.date+'T00:00:00')) / 86400000);
+    if (nDays < 3) return null;
+    const ratePerDay = (parseFloat(last2.weight) - parseFloat(first.weight)) / nDays; // lbs/day
+    if (isGainCycle ? ratePerDay <= 0 : ratePerDay >= 0) return null; // wrong direction
+    const daysToGoal = Math.abs((current - target) / ratePerDay);
+    const etaDate = new Date(); etaDate.setDate(etaDate.getDate() + Math.round(daysToGoal));
+    return { weeks: (daysToGoal / 7).toFixed(1), date: etaDate.toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}), ratePerWeek: Math.abs(ratePerDay * 7).toFixed(2) };
+  })();
 
-  if (mifflinBmr !== null) {
-    const mifflinTdee = Math.round(mifflinBmr * actInfo.multiplier);
-    bmrSentences.push(
-      `<span style="color:var(--accent);font-weight:600;">⚡ Mifflin BMR</span> — ` +
-      `Your estimated basal metabolic rate is <strong>${mifflinBmr.toLocaleString()} kcal/day</strong>. ` +
-      `Based on your activity level (<em>${actInfo.label}</em>), ` +
-      `your Total Daily Energy Expenditure is <strong>${mifflinTdee.toLocaleString()} kcal/day</strong>.`
-    );
-  } else {
-    bmrSentences.push(
-      `<span style="color:var(--accent);font-weight:600;">⚡ Mifflin BMR</span> — ` +
-      `<span style="color:var(--text3);">Tap the Body card to set your gender, height and date of birth to unlock your BMR estimate.</span>`
-    );
-  }
+  // ── Reverse-diet / next-cycle projection ─────────────────────────────────
+  // Read next-cycle goal from DOM (if card 3 rendered), else default to
+  // the opposite of current goal.
+  const nextGoalEl = document.getElementById('insights-next-goal');
+  const nextGoal   = nextGoalEl ? nextGoalEl.value : (isGainCycle ? 'loss' : 'maintenance');
 
-  if (dynResult !== null) {
-    bmrSentences.push(
-      `<span style="color:#E8875A;font-weight:600;">▸ Log-based TDEE</span> — ` +
-      `Based on ${dynResult.dataPoints} tracked period${dynResult.dataPoints !== 1 ? 's' : ''}, ` +
-      `your estimated Total Daily Energy Expenditure is <strong>${dynResult.tdee.toLocaleString()} kcal/day</strong> ` +
-      `(implied BMR ≈ <strong>${dynResult.bmr.toLocaleString()} kcal/day</strong> at <em>${actInfo.label}</em>).`
-    );
-  } else {
-    bmrSentences.push(
-      `<span style="color:#E8875A;font-weight:600;">▸ Log-based TDEE</span> — ` +
-      `<span style="color:var(--text3);">Log calories alongside weight for at least 2 weigh-ins to get a personalised TDEE estimate.</span>`
-    );
-  }
+  // Current average kcal intake: last 14 days of nutritionLogs
+  const recentKcal = (() => {
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 14);
+    const cutoffStr = toLocalDateStr(cutoff);
+    const logs = (state.nutritionLogs||[]).filter(l => l.date >= cutoffStr && parseInt(l.kcal) > 0);
+    if (!logs.length) return null;
+    return Math.round(logs.reduce((a,b) => a + parseInt(b.kcal), 0) / logs.length);
+  })();
 
-  // ── Maintainable calorie target sentence ──────────────────────────────────
-  let caloricTargetSentence = '';
-  if (dynResult !== null) {
-    const goalType = macro ? (macro.goalType || 'loss') : 'loss';
-    const isGain = goalType === 'gain' || goalType === 'strength';
-    // Sustainable deficit: ~500 kcal/day ≈ 1 lb/week loss
-    // Conservative surplus: ~250 kcal/day for lean muscle gain
-    const adjustment = isGain ? 250 : -500;
-    const targetKcal = dynResult.tdee + adjustment;
-    const dirWord    = isGain ? 'surplus' : 'deficit';
-    const goalWord   = isGain ? 'lean muscle gain' : 'sustainable weight loss';
-    const rateWord   = isGain ? '~0.5 lbs/week' : '~1 lb/week';
-    caloricTargetSentence =
-      `<span style="color:#5BC4F5;font-weight:600;">◎ Calorie target</span> — ` +
-      `For ${goalWord}, aim for <strong>${targetKcal.toLocaleString()} kcal/day</strong> ` +
-      `— a ${Math.abs(adjustment).toLocaleString()} kcal ${dirWord} from your log-based TDEE, ` +
-      `targeting ${rateWord}.`;
-  }
+  // Aggressive cut = deficit > 700 kcal/day vs TDEE
+  const isAggressiveCut = dynResult !== null && recentKcal !== null && (dynResult.tdee - recentKcal) > 700;
+  const weeklyIncrement  = isAggressiveCut ? 75 : 125; // kcal added per week during reverse diet
 
-  bmrHtml = `<div style="margin-top:12px;padding-top:10px;border-top:0.5px solid var(--border);font-size:12px;color:var(--text2);line-height:1.7;">
-    <div>${bmrSentences[0]}</div>
-    <div style="margin-top:6px;">${bmrSentences[1]}</div>
-    ${caloricTargetSentence ? `<div style="margin-top:6px;">${caloricTargetSentence}</div>` : ''}
-  </div>`;
+  // Generate reverse-diet weekly projections up to maintenance
+  const reverseDietRows = (() => {
+    if (!dynResult || !recentKcal) return [];
+    const maintenance = dynResult.tdee;
+    const rows = [];
+    let kcal = recentKcal;
+    let week = 1;
+    while (kcal < maintenance - weeklyIncrement/2 && week <= 20) {
+      kcal = Math.min(kcal + weeklyIncrement, maintenance);
+      rows.push({ week, kcal: Math.round(kcal) });
+      week++;
+    }
+    return rows;
+  })();
 
-  bodyEl.innerHTML = `<div class="card">
+  // ──────────────────────────────────────────────────────────────────────────
+  // Build the 3 insight cards
+  // ──────────────────────────────────────────────────────────────────────────
+  // ─── Card 1: Weight progress + peak window ────────────────────────────────
+  const card1 = `<div>
     <div style="display:flex;align-items:center;justify-content:space-between;">
       <div>
         <div style="font-family:var(--font-display);font-size:28px;font-weight:800;line-height:1;">${latest ? latest.weight + ' lbs' : '—'}</div>
@@ -3439,8 +3596,120 @@ function renderHome() {
       </div>
     </div>
     ${peakHtml}
-    ${bmrHtml}
   </div>`;
+
+  // ─── Card 2: BMR / TDEE / Calorie target / ETA ───────────────────────────
+  const bmrLine1 = mifflinBmr !== null
+    ? `<span style="color:var(--accent);font-weight:600;">⚡ Mifflin BMR</span> — Your estimated basal metabolic rate is <strong>${mifflinBmr.toLocaleString()} kcal/day</strong>. Based on your activity level (<em>${actInfo.label}</em>), your Total Daily Expenditure is <strong>${Math.round(mifflinBmr * actInfo.multiplier).toLocaleString()} kcal/day</strong>.`
+    : `<span style="color:var(--accent);font-weight:600;">⚡ Mifflin BMR</span> — <span style="color:var(--text3);">Tap the Body card to set your gender, height and date of birth.</span>`;
+
+  const bmrLine2 = dynResult !== null
+    ? `<span style="color:#E8875A;font-weight:600;">▸ Log-based TDEE</span> — Based on ${dynResult.dataPoints} tracked period${dynResult.dataPoints !== 1 ? 's' : ''}, your estimated TDEE is <strong>${dynResult.tdee.toLocaleString()} kcal/day</strong> (implied BMR ≈ <strong>${dynResult.bmr.toLocaleString()} kcal/day</strong> at <em>${actInfo.label}</em>).`
+    : `<span style="color:#E8875A;font-weight:600;">▸ Log-based TDEE</span> — <span style="color:var(--text3);">Log calories alongside weight for at least 2 weigh-ins to unlock this.</span>`;
+
+  const bmrLine3 = dynResult !== null
+    ? (() => {
+        const adj = isGainCycle ? 250 : -500;
+        const t   = dynResult.tdee + adj;
+        return `<span style="color:#5BC4F5;font-weight:600;">◎ Calorie target</span> — For ${isGainCycle ? 'lean muscle gain' : 'sustainable weight loss'}, aim for <strong>${t.toLocaleString()} kcal/day</strong> — a ${Math.abs(adj).toLocaleString()} kcal ${isGainCycle ? 'surplus' : 'deficit'} targeting ${isGainCycle ? '~0.5 lbs/week' : '~1 lb/week'}.`;
+      })() : '';
+
+  const etaHtml = goalWeightETA !== null
+    ? `<div style="margin-top:10px;padding-top:10px;border-top:0.5px solid var(--border);font-size:12px;color:var(--text2);line-height:1.6;">
+        <span style="color:var(--amber);font-weight:600;">📅 Goal weight ETA</span> — At your current rate of <strong>${goalWeightETA.ratePerWeek} lbs/week</strong>, you should reach <strong>${macro.targetBw} lbs</strong> around <strong>${goalWeightETA.date}</strong> (~${goalWeightETA.weeks} weeks).
+      </div>` : '';
+
+  const card2 = `<div>
+    <div style="font-size:12px;color:var(--text2);line-height:1.7;">
+      <div>${bmrLine1}</div>
+      <div style="margin-top:6px;">${bmrLine2}</div>
+      ${bmrLine3 ? `<div style="margin-top:6px;">${bmrLine3}</div>` : ''}
+    </div>
+    ${etaHtml}
+  </div>`;
+
+  // ─── Card 3: Next cycle tips ──────────────────────────────────────────────
+  const nextGoalOptions = [
+    { value: 'cut',         label: 'Cut (weight loss)' },
+    { value: 'maintenance', label: 'Maintenance' },
+    { value: 'bulk',        label: 'Bulk (muscle gain)' },
+  ];
+  const nextGoalDropdown = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+    <span style="font-size:11px;color:var(--text3);white-space:nowrap;">Next cycle goal:</span>
+    <select id="insights-next-goal" onchange="renderHome()"
+      style="flex:1;font-size:12px;padding:5px 8px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+      ${nextGoalOptions.map(o => `<option value="${o.value}"${nextGoal===o.value?' selected':''}>${o.label}</option>`).join('')}
+    </select>
+  </div>`;
+
+  // Current state summary
+  const cutDepth = dynResult && recentKcal ? dynResult.tdee - recentKcal : null;
+  const summaryLines = [];
+  if (recentKcal) summaryLines.push(`You're eating <strong>~${recentKcal.toLocaleString()} kcal/day</strong> (14-day avg)`);
+  if (cutDepth !== null) summaryLines.push(`${isGainCycle ? 'Surplus' : 'Deficit'}: ~<strong>${Math.abs(Math.round(cutDepth)).toLocaleString()} kcal/day</strong> — ${Math.abs(cutDepth) > 700 ? '<strong>aggressive</strong>' : 'moderate'}`);
+  if (goalWeightETA) summaryLines.push(`On track for <strong>${macro.targetBw} lbs</strong> by ~<strong>${goalWeightETA.date}</strong>`);
+
+  // Build tip text based on next goal
+  let tipText = '';
+  if (nextGoal === 'cut') {
+    tipText = cutDepth && cutDepth > 700
+      ? 'Your current cut is aggressive. Before starting a new cut cycle, consider a 4–8 week maintenance phase to allow your metabolism to recover.'
+      : 'Your current deficit is sustainable. You can transition straight into another cut cycle, or take a short maintenance break first.';
+  } else if (nextGoal === 'maintenance') {
+    tipText = dynResult
+      ? `Aim to eat at your TDEE of <strong>${dynResult.tdee.toLocaleString()} kcal/day</strong>. A 4–8 week maintenance phase lets your metabolism recover and makes the next phase more effective.`
+      : 'Log more weight + calorie data to get a personalised maintenance target.';
+    if (isAggressiveCut && reverseDietRows.length) {
+      tipText += ` Since you're in an aggressive deficit, a gradual reverse diet is recommended rather than jumping straight to maintenance.`;
+    }
+  } else if (nextGoal === 'bulk') {
+    const bulkTarget = dynResult ? dynResult.tdee + 250 : null;
+    tipText = bulkTarget
+      ? `For a lean bulk, aim for <strong>${bulkTarget.toLocaleString()} kcal/day</strong> (~250 kcal surplus). After an aggressive cut, build back to maintenance first to preserve muscle.`
+      : 'Log more data to get a personalised bulk target.';
+  }
+
+  // Reverse diet table (shown for maintenance or bulk when coming from a cut)
+  let reverseDietTable = '';
+  if (!isGainCycle && reverseDietRows.length && (nextGoal === 'maintenance' || nextGoal === 'bulk')) {
+    const rows = reverseDietRows.map(r =>
+      `<tr><td style="padding:3px 8px;color:var(--text3);">Wk ${r.week}</td><td style="padding:3px 8px;color:var(--text);font-weight:500;">${r.kcal.toLocaleString()} kcal</td></tr>`
+    ).join('');
+    reverseDietTable = `<div style="margin-top:10px;">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.06em;">Reverse diet projection (+${weeklyIncrement} kcal/week)</div>
+      <table style="width:100%;border-collapse:collapse;">${rows}</table>
+      ${dynResult ? `<div style="font-size:11px;color:var(--text3);margin-top:4px;">Target maintenance: ${dynResult.tdee.toLocaleString()} kcal/day</div>` : ''}
+    </div>`;
+  }
+
+  const card3 = `<div>
+    <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Next cycle planner</div>
+    ${nextGoalDropdown}
+    ${summaryLines.length ? `<div style="font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:8px;">${summaryLines.join('<br>')}</div>` : ''}
+    ${tipText ? `<div style="font-size:12px;color:var(--text2);line-height:1.6;padding:10px;background:var(--surface2);border-radius:var(--r-sm);">${tipText}</div>` : ''}
+    ${reverseDietTable}
+  </div>`;
+
+  // ── Assemble swipeable stack ──────────────────────────────────────────────
+  const cards = [card1, card2, card3];
+  const cardTitles = ['Progress', 'Metabolism', 'Next cycle'];
+
+  // Card: no header buttons — swipe only. Content wrapped in animatable .card
+  bodyEl.innerHTML = `<div class="card">${cards[insightsIndex]}</div>`;
+
+  // Dots below the card (outside bodyEl, in sibling home-body-dots)
+  const dotsEl = document.getElementById('home-body-dots');
+  if (dotsEl) {
+    dotsEl.innerHTML = cardTitles.map((t,i) =>
+      `<button onclick="insightsAnimateTo(${i})" style="background:none;border:none;padding:4px;cursor:pointer;display:flex;align-items:center;gap:4px;">
+        <span style="width:${i===insightsIndex?'16px':'6px'};height:6px;border-radius:3px;background:${i===insightsIndex?'var(--accent)':'var(--border2)'};transition:width 0.2s;display:inline-block;"></span>
+        ${i===insightsIndex ? `<span style="font-size:10px;color:var(--accent);font-weight:600;">${t}</span>` : ''}
+      </button>`
+    ).join('');
+  }
+
+  // Attach swipe gestures (re-attach each render since innerHTML was replaced)
+  initInsightsSwipe();
 
   // ── Progress charts (weekly summary table) ────
   renderProgressCharts();
@@ -4001,6 +4270,7 @@ function openEditMacro(id) {
   document.getElementById('edit-macro-goal-input').value = macro.goal || '';
   document.getElementById('edit-macro-target-bw-input').value = macro.targetBw || '';
   document.getElementById('edit-macro-goal-type-input').value = macro.goalType || 'loss';
+  document.getElementById('edit-macro-loss-increment-input').value = macro.lossIncrement || '2.5';
   document.getElementById('edit-macro-weeks-per-meso-input').value = macro.weeksPerMeso || 1;
   document.getElementById('edit-macro-sessions-per-week-input').value = macro.sessionsPerWeek || 3;
   document.getElementById('modal-edit-macro')._editId = id;
@@ -4017,6 +4287,7 @@ function saveEditMacro() {
   macro.goal = document.getElementById('edit-macro-goal-input').value.trim();
   macro.targetBw = parseFloat(document.getElementById('edit-macro-target-bw-input').value) || null;
   macro.goalType = document.getElementById('edit-macro-goal-type-input').value;
+  macro.lossIncrement = document.getElementById('edit-macro-loss-increment-input').value || '2.5';
   macro.weeksPerMeso = parseInt(document.getElementById('edit-macro-weeks-per-meso-input').value) || 1;
   macro.sessionsPerWeek = parseInt(document.getElementById('edit-macro-sessions-per-week-input').value) || 3;
   save();
@@ -4319,7 +4590,10 @@ function renderTrainDay(macro) {
     const isMyorep = ex.type === 'myorep' || ex.type === 'myomatch';
     const isMyomatch = ex.type === 'myomatch';
     const isGain = macro.goalType === 'gain';
-    const weightJump = ex.isHeavyLeg ? (isGain ? 10 : 2.5) : (isGain ? 5 : 1.5);
+    const lossIncrement = macro.lossIncrement || '2.5'; // '1.25' or '2.5'
+    const lightJump = isGain ? 5 : parseFloat(lossIncrement);
+    const heavyJump = isGain ? 10 : 5;
+    const weightJump = ex.isHeavyLeg ? heavyJump : lightJump;
     const myoAdd = ex.type === 'myorep' ? 10 : 0;
     const typeLabel = ex.type === 'standard' ? 'std' : ex.type === 'myorep' ? 'myorep giant' : 'myomatch';
 
@@ -4410,31 +4684,40 @@ function renderTrainDay(macro) {
       progressBadge = `<span style="font-size:10px;color:${col};font-weight:500;white-space:nowrap;">${progressKg >= 0 ? '+' : ''}${progressKg.toFixed(1)}kg&nbsp;/&nbsp;${progressPct >= 0 ? '+' : ''}${progressPct}%</span>`;
     }
 
+    // ── Type badge (hidden for standard) ──────────────────────────────────────
+    const typeBadgeHtml = ex.type !== 'standard'
+      ? `<span class="badge ${ex.type==='myorep'?'badge-purple':'badge-amber'}" style="margin-left:8px;font-size:10px;vertical-align:middle;">${typeLabel}</span>`
+      : '';
+
     // ── Compact header ─────────────────────────────────────────────────────────
-    // Sets/reps line: sets this meso + last week's actual reps / recommended reps.
-    // Always uses recommendedReps (last week + 1) as the suggestion, regardless
-    // of which progression type (weight vs reps) is currently selected — the
-    // repsPlaceholder changes with progType but the recommendation is always fixed.
+    // When done: show what was actually logged this week.
+    // Otherwise: show last week / suggested.
     const lastReps = prevActualReps !== null ? prevActualReps : null;
     const lastWeight = prevActualWeight !== null ? prevActualWeight.toFixed(1) : null;
-    const setsRepsText = lastReps !== null
-      ? `${sets} sets &bull; ${lastReps}/${recommendedReps} reps`
-      : `${sets} sets &bull; ${recommendedReps} reps`;
-    // Weight reference: last meso weight / suggested weight (replaces "Start: X kg")
-    const weightRefText = lastWeight !== null
-      ? `${lastWeight} / ${recommendedWeight.toFixed(1)} kg`
-      : `${weightPlaceholder} kg target`;
+    const setsRepsText = allDone
+      ? `${sets} sets · ${summaryReps} reps`
+      : isMyomatch
+        ? `${sets} sets · ${ex.reps} reps`
+        : lastReps !== null
+          ? `${sets} sets · ${lastReps}/${recommendedReps} reps`
+          : `${sets} sets · ${recommendedReps} reps`;
+    const weightRefText = allDone
+      ? `${summaryWeight} logged`
+      : lastWeight !== null
+        ? `${lastWeight} / ${recommendedWeight.toFixed(1)} kg`
+        : `${weightPlaceholder} kg target`;
+
+    // Tracking mode label — only shown for per-side (default total is unmarked)
+    const trackingLabel = ex.trackingMode === 'perSide'
+      ? `<span style="font-size:10px;color:var(--text3);white-space:nowrap;"> · per side</span>`
+      : '';
 
     html += `<div class="card" style="margin-bottom:10px;padding:0;">
       <div onclick="toggleExercise('${expandKey}')"
         style="width:100%;background:none;border:none;padding:14px;cursor:pointer;-webkit-tap-highlight-color:transparent;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
           <div style="flex:1;min-width:0;">
-            <div style="font-family:var(--font-display);font-size:15px;font-weight:600;color:var(--text);">${ex.name}</div>
-            <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap;align-items:center;">
-              <span class="badge ${ex.type==='standard'?'badge-blue':ex.type==='myorep'?'badge-purple':'badge-amber'}">${typeLabel}</span>
-              ${progressBadge}
-            </div>
+            <div style="font-family:var(--font-display);font-size:15px;font-weight:600;color:var(--text);">${ex.name}${typeBadgeHtml}</div>
             <div style="font-size:12px;color:var(--text2);margin-top:5px;">${setsRepsText}</div>
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
@@ -4449,10 +4732,11 @@ function renderTrainDay(macro) {
                    ${doneSets > 0 ? `<span style="font-size:11px;color:var(--text3);white-space:nowrap;">${doneSets}/${sets}</span>` : ''}
                  </div>`
             }
-            <span style="font-size:11px;color:var(--text3);white-space:nowrap;">${weightRefText}</span>
+            <span style="font-size:11px;color:var(--text3);white-space:nowrap;">${weightRefText}${trackingLabel}</span>
           </div>
         </div>
-        <div style="display:flex;justify-content:flex-end;margin-top:4px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+          <div>${progressBadge}</div>
           <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${isExpanded?'180':'0'}deg)"><polyline points="6 9 12 15 18 9"/></svg>
         </div>
       </div>`;
@@ -4501,11 +4785,11 @@ function renderTrainDay(macro) {
         const hasAny = prevLoggedSets.some(lg => lg && (lg.weight || lg.reps || lg.done));
         if (hasAny) {
           const setsSummary = prevLoggedSets.map((lg, i) =>
-            lg ? `<span style="font-size:11px;color:var(--text2);">Set ${i+1}: ${lg.weight ? lg.weight + 'kg' : '—'} × ${lg.reps || '—'}</span>` : ''
+            lg ? `<span style="font-size:11px;color:var(--text2);">Set ${i+1}: ${lg.weight ? lg.weight + 'kg' : '—'}${isMyomatch ? '' : ` × ${lg.reps || '—'}`}</span>` : ''
           ).filter(Boolean).join('<span style="color:var(--text3);margin:0 4px;">·</span>');
           lastWeekHtml = `<div style="background:var(--surface2);border-radius:var(--r-sm);padding:8px 10px;margin-bottom:10px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
-              <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;">Last week (Wk ${prevWeek})</div>
+              <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;">Last week (Wk ${prevWeek})${isMyomatch ? ' — weight only' : ''}</div>
               ${prevProgHtml}
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:4px;">${setsSummary}</div>
@@ -5700,6 +5984,11 @@ function showMealMenuSheet(meal) {
         <svg viewBox="0 0 24 24" width="18" height="18" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
         Move meal to…
       </button>
+      <button onclick="saveMealAsRecipe()"
+        style="display:flex;align-items:center;gap:12px;width:100%;background:none;border:none;color:var(--text);font-size:15px;padding:12px 0;cursor:pointer;border-top:0.5px solid var(--border);">
+        <svg viewBox="0 0 24 24" width="18" height="18" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.41 0l6.59-6.59a1 1 0 0 0 0-1.41L12 2z"/><path d="M7 7h.01"/></svg>
+        Save meal as recipe…
+      </button>
       <button onclick="document.getElementById('meal-menu-sheet').remove()"
         style="width:100%;margin-top:14px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:12px;font-size:14px;color:var(--text2);cursor:pointer;">
         Cancel
@@ -5707,6 +5996,38 @@ function showMealMenuSheet(meal) {
     </div>`;
   sheet.addEventListener('pointerdown', e => { if (e.target === sheet) sheet.remove(); });
   document.body.appendChild(sheet);
+}
+
+function saveMealAsRecipe() {
+  const sheet = document.getElementById('meal-menu-sheet');
+  if (sheet) sheet.remove();
+
+  const meal  = _mealMenuMeal;
+  const items = (state.nutritionMeals?.[nutrSelectedDate]?.[meal]) || [];
+  if (!items.length) {
+    // Nothing to save — show a brief toast or just return quietly
+    return;
+  }
+
+  // Map meal items → recipe ingredient format
+  // Each item has: name, kcal, protein, carbs, fats, serving (total grams), grams
+  recipeIngredients = items.map(item => ({
+    name:    item.name || 'Item',
+    grams:   item.serving || item.grams || 100,
+    kcal:    item.kcal    || 0,
+    protein: item.protein || 0,
+    carbs:   item.carbs   || 0,
+    fats:    item.fats    || 0,
+  }));
+
+  // Open the recipe name step with a sensible default
+  document.getElementById('recipe-edit-id').value = '';
+  document.getElementById('recipe-step1-title').textContent = 'Save Meal as Recipe';
+  document.getElementById('recipe-name-input').value = meal; // pre-fill with meal name
+  document.getElementById('recipe-servings-input').value = 1;
+
+  // After naming, recipeGoToIngredients() will render the pre-populated list
+  openModal('modal-recipe-step1');
 }
 
 function openMealCopyMove(mode) {
@@ -5918,10 +6239,57 @@ function nutrSelectBadge(date) {
 }
 
 // ── Log entry flow ─────────────────────────────────────────────────────────
+// ── Nutrition add modal: expand to full height on keyboard open ───────────────
+// When the user focuses the search box the keyboard rises. Since the modal uses
+// position:fixed, 100dvh on iOS PWA = exactly the visible space above the
+// keyboard. We expand the sheet to fill it and let the results list grow.
+// On blur we check (after a tick) whether focus is still inside the modal before
+// collapsing, so tapping a result doesn't briefly shrink the sheet mid-gesture.
+function nutrAddExpand(expand) {
+  const sheet = document.querySelector('#modal-nutr-add .modal-sheet');
+  const list  = document.getElementById('nutr-add-list');
+  if (!sheet || !list) return;
+  if (expand) {
+    // Use visualViewport.height if available (accounts for keyboard on iOS PWA)
+    const vvh = (window.visualViewport ? window.visualViewport.height : window.innerHeight);
+    sheet.style.maxHeight     = vvh + 'px';
+    sheet.style.height        = vvh + 'px';
+    sheet.style.display       = 'flex';
+    sheet.style.flexDirection = 'column';
+    sheet.style.overflowY     = 'hidden';
+    list.style.flex           = '1';
+    list.style.maxHeight      = 'none';
+    sheet._nutrExpanded = true;
+  } else {
+    sheet.style.maxHeight     = '';
+    sheet.style.height        = '';
+    sheet.style.display       = '';
+    sheet.style.flexDirection = '';
+    sheet.style.overflowY     = '';
+    list.style.flex           = '';
+    list.style.maxHeight      = '165px';
+    sheet._nutrExpanded = false;
+  }
+}
+
+// Re-measure when keyboard finishes animating (visualViewport.resize fires
+// once keyboard is fully up — height is now correct).
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', function() {
+    const sheet = document.querySelector('#modal-nutr-add .modal-sheet');
+    if (sheet && sheet._nutrExpanded) {
+      const vvh = window.visualViewport.height;
+      sheet.style.maxHeight = vvh + 'px';
+      sheet.style.height    = vvh + 'px';
+    }
+  });
+}
+
 function openNutrAdd(meal) {
   nutrActiveMeal = meal;
   document.getElementById('nutr-add-title').textContent = 'Add to ' + meal;
   document.getElementById('nutr-add-search').value = '';
+  nutrAddExpand(false); // ensure sheet resets to default height on each open
   renderNutrAddList();
   openModal('modal-nutr-add');
 }
