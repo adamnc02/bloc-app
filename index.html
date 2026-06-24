@@ -987,20 +987,10 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   window.addEventListener('resize', measureAll);
   window.addEventListener('orientationchange', measureAll);
   window.addEventListener('pageshow', measureAll);
-
-  // Expand the food-search results list when the keyboard is open so the
-  // user can see more results. Reverts to the compact default when closed.
-  function updateNutrList() {
-    var list = document.getElementById('nutr-add-list');
-    if (!list) return;
-    list.style.maxHeight = isKeyboardOpen() ? 'calc(85dvh - 240px)' : '165px';
-  }
-
   if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', function() {
       measureAll();
       handleKeyboard();
-      updateNutrList();
     });
   }
   // When focus moves between inputs while the keyboard is already open,
@@ -1010,11 +1000,6 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     if (isKeyboardOpen() && e.target &&
         (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) {
       setTimeout(function() { handleKeyboard(); }, 80);
-    }
-    // Also update list height when the nutr search box is focused
-    // (keyboard may not have fired resize yet — check again after it appears)
-    if (e.target && e.target.id === 'nutr-add-search') {
-      setTimeout(updateNutrList, 350);
     }
   });
 })();
@@ -1749,7 +1734,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       </button>
     </div>
     <input type="text" id="nutr-add-search" placeholder="Search foods…" oninput="renderNutrAddList()" style="margin-bottom:10px;flex-shrink:0;">
-    <div id="nutr-add-list" style="max-height:calc(85dvh - 240px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;"></div>
+    <div id="nutr-add-list" style="max-height:165px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;"></div>
   </div>
 </div>
 
