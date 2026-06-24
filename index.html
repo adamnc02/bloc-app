@@ -987,10 +987,20 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   window.addEventListener('resize', measureAll);
   window.addEventListener('orientationchange', measureAll);
   window.addEventListener('pageshow', measureAll);
+
+  // Expand the food-search results list when the keyboard is open so the
+  // user can see more results. Reverts to the compact default when closed.
+  function updateNutrList() {
+    var list = document.getElementById('nutr-add-list');
+    if (!list) return;
+    list.style.maxHeight = isKeyboardOpen() ? 'calc(85dvh - 240px)' : '165px';
+  }
+
   if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', function() {
       measureAll();
       handleKeyboard();
+      updateNutrList();
     });
   }
   // When focus moves between inputs while the keyboard is already open,
@@ -1000,6 +1010,11 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     if (isKeyboardOpen() && e.target &&
         (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) {
       setTimeout(function() { handleKeyboard(); }, 80);
+    }
+    // Also update list height when the nutr search box is focused
+    // (keyboard may not have fired resize yet — check again after it appears)
+    if (e.target && e.target.id === 'nutr-add-search') {
+      setTimeout(updateNutrList, 350);
     }
   });
 })();
@@ -1717,7 +1732,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 <!-- Nutrition: meal log chooser -->
 <div class="modal-overlay" id="modal-nutr-add">
   <div class="modal-sheet" data-modal="modal-nutr-add" style="max-height:85dvh;">
-    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="nutrAddExpand(false);closeModal('modal-nutr-add')">✕</button></div>
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-add')">✕</button></div>
     <div class="modal-title" id="nutr-add-title" style="flex-shrink:0;">Add to Breakfast</div>
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0;">
       <button onclick="openNutrBarcode()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
@@ -1733,11 +1748,8 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
         <span style="font-weight:600;">Recipe</span>
       </button>
     </div>
-    <input type="text" id="nutr-add-search" placeholder="Search foods…" oninput="renderNutrAddList()"
-      onfocus="nutrAddExpand(true)"
-      onblur="setTimeout(function(){var a=document.activeElement;if(a&&a.closest&&a.closest('#modal-nutr-add'))return;nutrAddExpand(false);},150)"
-      style="margin-bottom:10px;flex-shrink:0;">
-    <div id="nutr-add-list" style="max-height:165px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;"></div>
+    <input type="text" id="nutr-add-search" placeholder="Search foods…" oninput="renderNutrAddList()" style="margin-bottom:10px;flex-shrink:0;">
+    <div id="nutr-add-list" style="max-height:calc(85dvh - 240px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;"></div>
   </div>
 </div>
 
@@ -6245,51 +6257,10 @@ function nutrSelectBadge(date) {
 // keyboard. We expand the sheet to fill it and let the results list grow.
 // On blur we check (after a tick) whether focus is still inside the modal before
 // collapsing, so tapping a result doesn't briefly shrink the sheet mid-gesture.
-function nutrAddExpand(expand) {
-  const sheet = document.querySelector('#modal-nutr-add .modal-sheet');
-  const list  = document.getElementById('nutr-add-list');
-  if (!sheet || !list) return;
-  if (expand) {
-    // Use visualViewport.height if available (accounts for keyboard on iOS PWA)
-    const vvh = (window.visualViewport ? window.visualViewport.height : window.innerHeight);
-    sheet.style.maxHeight     = vvh + 'px';
-    sheet.style.height        = vvh + 'px';
-    sheet.style.display       = 'flex';
-    sheet.style.flexDirection = 'column';
-    sheet.style.overflowY     = 'hidden';
-    list.style.flex           = '1';
-    list.style.maxHeight      = 'none';
-    sheet._nutrExpanded = true;
-  } else {
-    sheet.style.maxHeight     = '';
-    sheet.style.height        = '';
-    sheet.style.display       = '';
-    sheet.style.flexDirection = '';
-    sheet.style.overflowY     = '';
-    list.style.flex           = '';
-    list.style.maxHeight      = '165px';
-    sheet._nutrExpanded = false;
-  }
-}
-
-// Re-measure when keyboard finishes animating (visualViewport.resize fires
-// once keyboard is fully up — height is now correct).
-if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', function() {
-    const sheet = document.querySelector('#modal-nutr-add .modal-sheet');
-    if (sheet && sheet._nutrExpanded) {
-      const vvh = window.visualViewport.height;
-      sheet.style.maxHeight = vvh + 'px';
-      sheet.style.height    = vvh + 'px';
-    }
-  });
-}
-
 function openNutrAdd(meal) {
   nutrActiveMeal = meal;
   document.getElementById('nutr-add-title').textContent = 'Add to ' + meal;
   document.getElementById('nutr-add-search').value = '';
-  nutrAddExpand(false); // ensure sheet resets to default height on each open
   renderNutrAddList();
   openModal('modal-nutr-add');
 }
