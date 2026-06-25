@@ -2766,7 +2766,7 @@ function openCycleHistory() {
     const avgProtein = avgDayMapField(dayMapForHistory, 'protein', macro.start || '0000-00-00', macroEndStr);
     const totalVolume = getMacroTotalVolume(macro);
 
-    return `<div class="card" style="margin-bottom:10px;${isActive ? 'border-color:var(--accent);' : ''}" onclick="closeModal('modal-cycle-history');progressViewMacroId='${macro.id}';renderHome();">
+    return `<div class="card" style="margin-bottom:10px;${isActive ? 'border-color:var(--accent);' : ''}" onclick="closeModal('modal-cycle-history');selectCycle('${macro.id}');">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
         <div>
           <div style="font-family:var(--font-display);font-size:15px;font-weight:600;">${macro.name}</div>
@@ -2899,7 +2899,10 @@ function buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort) {
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
       <div class="hero-tappable" style="flex:1;min-width:0;" onclick="openCycleHistory()">
         <div class="hero-label">${todayStrShort}</div>
-        <div class="hero-value" style="font-size:24px;">${macro.name}</div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div class="hero-value" style="font-size:24px;">${macro.name}</div>
+          <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:rgba(255,255,255,0.6);fill:none;stroke-width:2.5;stroke-linecap:round;flex-shrink:0;margin-top:4px;" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
       </div>
     </div>
     <div class="hero-sub hero-tappable" onclick="openCycleHistory()">${macro.goal || ''}${macro.goal ? ' · ' : ''}${splitBadge} · ${totalCalWks}wk · Ends ${endStr}</div>
@@ -4063,141 +4066,6 @@ function buildBwProgress(macro) {
 // ════════════════════════════════════════════════
 // RENDER: PLAN
 // ════════════════════════════════════════════════
-// ── Superset management ───────────────────────────────────────────────────
-// Opens a modal to group/ungroup an exercise with others in the same session.
-// Exercises in the same supersetGroup share the same number of sets (the sets
-// of the exercise you tap the link icon on become the reference).
-function openSupersetPicker(dayKey, exId) {
-  const key = state.currentMacroId + '_1_' + dayKey;
-  const exercises = (state.exercises[key] || []).slice().sort((a,b) => (a.order||0)-(b.order||0));
-  const thisEx = exercises.find(e => e.id === exId);
-  if (!thisEx) return;
-  const currentGroup = thisEx.supersetGroup || null;
-  const others = exercises.filter(e => e.id !== exId);
-
-  let body = `<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Group "${thisEx.name}" with…</div>`;
-  if (!others.length) {
-    body += `<div style="font-size:13px;color:var(--text3);">Add more exercises to this session first.</div>`;
-  } else {
-    body += others.map(e => {
-      const checked = currentGroup && e.supersetGroup === currentGroup ? 'checked' : '';
-      return `<label style="display:flex;align-items:center;gap:10px;padding:9px 10px;border:0.5px solid var(--border);border-radius:var(--r-sm);margin-bottom:6px;cursor:pointer;background:var(--surface);">
-        <input type="checkbox" ${checked} value="${e.id}" style="width:16px;height:16px;accent-color:var(--accent);flex-shrink:0;" />
-        <span style="font-size:13px;color:var(--text);">${e.name}</span>
-      </label>`;
-    }).join('');
-  }
-
-  body += `<div style="display:flex;gap:8px;margin-top:14px;">
-    <button onclick="saveSupersetGroup('${dayKey}','${exId}')" style="flex:1;padding:9px;border-radius:var(--r-sm);border:1px solid var(--accent);background:var(--accent);color:var(--bg);font-size:13px;font-weight:500;cursor:pointer;">Save</button>`;
-  if (currentGroup) {
-    body += `<button onclick="unlinkFromSuperset('${dayKey}','${exId}')" style="padding:9px 14px;border-radius:var(--r-sm);border:0.5px solid var(--red);background:transparent;color:var(--red);font-size:13px;cursor:pointer;">Unlink</button>`;
-  }
-  body += `<button onclick="closeModal('modal-superset-picker')" style="padding:9px 14px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:transparent;color:var(--text2);font-size:13px;cursor:pointer;">Cancel</button>
-  </div>`;
-
-  let modalEl = document.getElementById('modal-superset-picker');
-  if (!modalEl) {
-    modalEl = document.createElement('div');
-    modalEl.id = 'modal-superset-picker';
-    modalEl.className = 'modal-overlay';
-    modalEl.innerHTML = '<div class="modal"><div class="modal-body" id="superset-picker-body"></div></div>';
-    modalEl.addEventListener('click', e => { if (e.target === modalEl) closeModal('modal-superset-picker'); });
-    document.body.appendChild(modalEl);
-  }
-  document.getElementById('superset-picker-body').innerHTML = body;
-  openModal('modal-superset-picker');
-}
-
-function saveSupersetGroup(dayKey, anchorExId) {
-  const key = state.currentMacroId + '_1_' + dayKey;
-  const exercises = state.exercises[key] || [];
-  const anchorEx = exercises.find(e => e.id === anchorExId);
-  if (!anchorEx) return;
-
-  // Collect checked exercise IDs from the modal
-  const checks = document.querySelectorAll('#superset-picker-body input[type=checkbox]');
-  const selectedIds = Array.from(checks).filter(c => c.checked).map(c => c.value);
-
-  // Determine group ID — reuse anchor's existing group or create new
-  let groupId = anchorEx.supersetGroup;
-  if (!selectedIds.length) {
-    // Deselected everything = unlink anchor
-    unlinkFromSuperset(dayKey, anchorExId);
-    return;
-  }
-  if (!groupId) groupId = 'ss_' + Date.now();
-
-  // All exercises in this session that currently share this group — clear them first
-  exercises.forEach(e => { if (e.supersetGroup === groupId) delete e.supersetGroup; });
-
-  // Assign group to anchor + selected
-  anchorEx.supersetGroup = groupId;
-  selectedIds.forEach(id => {
-    const e = exercises.find(ex => ex.id === id);
-    if (e) {
-      e.supersetGroup = groupId;
-      // Enforce same set count as anchor
-      e.setsStart = anchorEx.setsStart;
-      e.setsEnd   = anchorEx.setsEnd;
-    }
-  });
-
-  save();
-  closeModal('modal-superset-picker');
-  renderPlan();
-}
-
-function unlinkFromSuperset(dayKey, exId) {
-  const key = state.currentMacroId + '_1_' + dayKey;
-  const exercises = state.exercises[key] || [];
-  const ex = exercises.find(e => e.id === exId);
-  if (!ex || !ex.supersetGroup) return;
-
-  const groupId = ex.supersetGroup;
-  const groupMembers = exercises.filter(e => e.supersetGroup === groupId);
-
-  delete ex.supersetGroup;
-
-  // If only one member remains, dissolve the group
-  const remaining = groupMembers.filter(e => e.id !== exId);
-  if (remaining.length === 1) delete remaining[0].supersetGroup;
-
-  save();
-  closeModal('modal-superset-picker');
-  renderPlan();
-}
-
-// Returns exercises sorted by order, grouped into ordered blocks.
-// Each block is either { type:'single', ex } or { type:'group', groupId, letter:['A','B',...], exercises:[] }
-function buildExerciseBlocks(exercises) {
-  const sorted = exercises.slice().sort((a,b) => (a.order||0)-(b.order||0));
-  const blocks = [];
-  const seenGroups = new Map(); // groupId -> block index
-  sorted.forEach(ex => {
-    if (ex.supersetGroup) {
-      if (seenGroups.has(ex.supersetGroup)) {
-        blocks[seenGroups.get(ex.supersetGroup)].exercises.push(ex);
-      } else {
-        seenGroups.set(ex.supersetGroup, blocks.length);
-        blocks.push({ type: 'group', groupId: ex.supersetGroup, exercises: [ex] });
-      }
-    } else {
-      blocks.push({ type: 'single', ex });
-    }
-  });
-  // Add letter labels to groups
-  blocks.forEach(b => {
-    if (b.type === 'group') {
-      b.exercises.forEach((e, i) => { e._letter = String.fromCharCode(65 + i); });
-      const n = b.exercises.length;
-      b.label = n === 2 ? 'SS' : (n + 'S');
-      b.title = n === 2 ? 'Superset' : 'Triset';
-    }
-  });
-  return blocks;
-}
-
 function renderPlan() {
   const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
   const overviewEl = document.getElementById('macro-overview');
@@ -4212,13 +4080,7 @@ function renderPlan() {
     return;
   }
 
-  // Macrocycle switcher if multiple
-  let macroSwitch = '';
-  if (state.macrocycles.length > 1) {
-    macroSwitch = '<div class="week-strip">' + state.macrocycles.map(m =>
-      `<button class="week-pill ${m.id === state.currentMacroId ? 'active' : ''}" onclick="selectMacro('${m.id}')">${m.name}</button>`
-    ).join('') + '</div>';
-  }
+  // No pill switcher — cycle selection via name tap (openCycleHistory)
 
   const totalCalendarWeeks = getMacroDurationWeeks(macro);
   const startDate = macro.start ? new Date(macro.start + 'T00:00:00') : new Date();
@@ -4236,7 +4098,6 @@ function renderPlan() {
   const microBadge = macro.useMicrocycles === false ? 'no microcycles' : 'microcycles';
 
   overviewEl.innerHTML = `
-    ${macroSwitch}
     <div class="swipe-row-wrap card-wrap" style="border-radius:var(--r-lg);margin-bottom:14px;">
       <div class="swipe-row-content">
         <div class="hero-card hero-tappable" data-page="plan" style="width:100%;box-sizing:border-box;margin-bottom:0;" onclick="openEditMacro('${macro.id}')">
@@ -4246,7 +4107,10 @@ function renderPlan() {
           <div style="display:flex;justify-content:space-between;align-items:flex-start;">
             <div style="flex:1;min-width:0;">
               <div class="hero-label">Macrocycle</div>
-              <div class="hero-value" style="font-size:22px;">${macro.name}</div>
+              <div onclick="event.stopPropagation();openCycleHistory()" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+                <div class="hero-value" style="font-size:22px;">${macro.name}</div>
+                <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:rgba(255,255,255,0.6);fill:none;stroke-width:2.5;stroke-linecap:round;flex-shrink:0;margin-top:2px;" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
               ${macro.goal ? `<div class="hero-sub">${macro.goal}</div>` : ''}
             </div>
           </div>
@@ -4337,87 +4201,35 @@ function renderMicroBlock(macro, week, micro, days, dayLabels, editable) {
           <button class="btn btn-sm" onclick="openAddExercise(1,'${day + microKey}')">+ Add</button>
         </div>`;
 
-      const dayKey = day + microKey;
-      const blocks = buildExerciseBlocks(exercises);
-      // Track sorted position for drag-drop (across all exercises flattened)
-      const flatSorted = exercises.slice().sort((a,b) => (a.order||0)-(b.order||0));
-
-      blocks.forEach(block => {
-        if (block.type === 'single') {
-          const ex = block.ex;
-          const idx = flatSorted.findIndex(e => e.id === ex.id);
-          const sets = getWeekSets(ex, 1, macro.weeks);
-          const typeLabel = ex.type === 'standard' ? 'std' : ex.type === 'myorep' ? 'myorep giant' : 'myomatch';
-          const isLinked = !!ex.supersetGroup;
-          html += `<div class="swipe-row-wrap" style="border-top:0.5px solid var(--border);"
-            draggable="true"
-            ondragstart="event.dataTransfer.setData('text/plain','${idx}|${dayKey}')"
-            ondragover="event.preventDefault()"
-            ondrop="event.preventDefault();const parts=event.dataTransfer.getData('text/plain').split('|');if(parts[1]==='${dayKey}')reorderExercise('${dayKey}',parseInt(parts[0]),${idx})">
-            <div class="swipe-row-content" style="padding:10px 0;width:100%;box-sizing:border-box;"
-              onclick="openEditExercise(1,'${dayKey}',${idx})">
-              <div style="display:flex;align-items:center;gap:8px;width:100%;cursor:pointer;-webkit-tap-highlight-color:transparent;">
-                <div style="color:var(--text3);cursor:grab;padding:0 4px;flex-shrink:0;touch-action:none;">⠿</div>
-                <div style="flex:1;min-width:0;">
-                  <div style="font-weight:500;font-size:13px;color:var(--text);">${ex.name}</div>
-                  <div style="font-size:12px;color:var(--text2);margin-top:3px;">${sets} sets · ${ex.reps} reps · ${ex.startWeight} kg start</div>
-                  <div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap;">
-                    <span class="badge ${ex.type==='standard'?'badge-blue':ex.type==='myorep'?'badge-purple':'badge-amber'}">${typeLabel}</span>
-                    ${ex.isHeavyLeg ? '<span class="badge badge-amber">heavy leg</span>' : ''}
-                  </div>
+      exercises.forEach((ex, idx) => {
+        const sets = getWeekSets(ex, 1, macro.weeks);
+        const typeLabel = ex.type === 'standard' ? 'std' : ex.type === 'myorep' ? 'myorep giant' : 'myomatch';
+        const dayKey = day + microKey;
+        html += `<div class="swipe-row-wrap" style="border-top:0.5px solid var(--border);"
+          draggable="true"
+          ondragstart="event.dataTransfer.setData('text/plain','${idx}|${dayKey}')"
+          ondragover="event.preventDefault()"
+          ondrop="event.preventDefault();const d=event.currentTarget.closest('[data-ex-list]');const parts=event.dataTransfer.getData('text/plain').split('|');if(parts[1]==='${dayKey}')reorderExercise('${dayKey}',parseInt(parts[0]),${idx})">
+          <div class="swipe-row-content" style="padding:10px 0;width:100%;box-sizing:border-box;"
+            onclick="openEditExercise(1,'${dayKey}',${idx})">
+            <div style="display:flex;align-items:center;gap:8px;width:100%;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+              <div style="color:var(--text3);cursor:grab;padding:0 4px;flex-shrink:0;touch-action:none;">⠿</div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-weight:500;font-size:13px;color:var(--text);">${ex.name}</div>
+                <div style="font-size:12px;color:var(--text2);margin-top:3px;">${sets} sets · ${ex.reps} reps · ${ex.startWeight} kg start</div>
+                <div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap;">
+                  <span class="badge ${ex.type==='standard'?'badge-blue':ex.type==='myorep'?'badge-purple':'badge-amber'}">${typeLabel}</span>
+                  ${ex.isHeavyLeg ? '<span class="badge badge-amber">heavy leg</span>' : ''}
                 </div>
-                <button onclick="event.stopPropagation();openSupersetPicker('${dayKey}','${ex.id}')"
-                  title="Link into superset"
-                  style="width:28px;height:28px;border-radius:50%;border:0.5px solid var(--border2);background:transparent;color:var(--text3);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;">
-                  <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                </button>
               </div>
             </div>
-            <div class="swipe-actions">
-              <button class="swipe-btn swipe-btn-danger" onclick="event.stopPropagation();deleteExercise(1,'${dayKey}',${idx})" title="Delete">
-                <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-              </button>
-            </div>
-          </div>`;
-        } else {
-          // Superset/triset group block
-          const n = block.exercises.length;
-          const accentColor = n === 2 ? 'var(--accent)' : 'var(--purple)';
-          const badgeBg    = n === 2 ? 'rgba(var(--accent-rgb,29,160,117),0.18)' : 'rgba(120,80,200,0.18)';
-          const sets = getWeekSets(block.exercises[0], 1, macro.weeks);
-          html += `<div style="border-top:0.5px solid var(--border);padding:10px 0 6px;">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-              <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:${badgeBg};color:${accentColor};letter-spacing:0.05em;">${block.label}</span>
-              <span style="font-size:12px;font-weight:500;color:var(--text);">
-                ${block.exercises.map(e => e.name).join(' + ')}
-              </span>
-              <span style="font-size:11px;color:var(--text3);margin-left:auto;">${sets} sets each</span>
-            </div>
-            <div style="border-left:2px solid ${accentColor};margin-left:6px;padding-left:10px;display:flex;flex-direction:column;gap:4px;">`;
-
-          block.exercises.forEach((ex, gi) => {
-            const idx = flatSorted.findIndex(e => e.id === ex.id);
-            html += `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-top:${gi>0?'0.5px solid var(--border)':'none'};">
-              <span style="width:18px;height:18px;border-radius:50%;background:${accentColor};color:var(--bg);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${ex._letter}</span>
-              <div style="flex:1;min-width:0;cursor:pointer;" onclick="openEditExercise(1,'${dayKey}',${idx})">
-                <div style="font-size:13px;font-weight:500;color:var(--text);">${ex.name}</div>
-                <div style="font-size:11px;color:var(--text3);">${ex.startWeight} kg · ${ex.reps} reps</div>
-              </div>
-              <button onclick="event.stopPropagation();openSupersetPicker('${dayKey}','${ex.id}')"
-                title="Edit grouping"
-                style="width:28px;height:28px;border-radius:50%;border:0.5px solid ${accentColor};background:transparent;color:${accentColor};display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;">
-                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-              </button>
-              <button class="swipe-btn swipe-btn-danger" onclick="deleteExercise(1,'${dayKey}',${idx})" title="Delete" style="width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;">
-                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-              </button>
-            </div>`;
-          });
-
-          html += `</div>
-            <button onclick="openAddExercise(1,'${dayKey}')" style="width:100%;margin-top:8px;padding:8px;border-radius:var(--r-sm);border:0.5px dashed var(--border2);background:transparent;color:var(--text3);font-size:12px;cursor:pointer;text-align:center;">+ Add exercise to ${block.title.toLowerCase()}</button>
-          </div>`;
-        }
+          </div>
+          <div class="swipe-actions">
+            <button class="swipe-btn swipe-btn-danger" onclick="event.stopPropagation();deleteExercise(1,'${dayKey}',${idx})" title="Delete">
+              <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+            </button>
+          </div>
+        </div>`;
       });
 
       html += `</div>`;
@@ -4479,10 +4291,16 @@ function saveEditMacro() {
   renderPlan();
 }
 
-function selectMacro(id) {
+function selectMacro(id) { selectCycle(id); } // legacy alias
+
+// Unified cycle selection — syncs Progress, Plan, and Train
+function selectCycle(id) {
+  progressViewMacroId = id;
   state.currentMacroId = id;
   save();
+  renderHome();
   renderPlan();
+  renderTrain();
 }
 
 function copyMacrocycle(id) {
@@ -4736,7 +4554,7 @@ function renderTrainHero(macro) {
       <div class="hero-callouts">
         <div class="hero-callout"><div class="hero-callout-lbl">Exercises</div><div class="hero-callout-val">${sessionExercises.length}</div></div>
         <div class="hero-callout"><div class="hero-callout-lbl">Sets done</div><div class="hero-callout-val">${doneSets} / ${totalSets}</div></div>
-        <div class="hero-callout"><div class="hero-callout-lbl">Volume</div><div class="hero-callout-val">${Math.round(sessionVolume)} kg</div></div>
+        <div class="hero-callout"><div class="hero-callout-lbl">Volume</div><div class="hero-callout-val">${Math.round(sessionVolume).toLocaleString()} kg</div></div>
       </div>
       <div class="hero-progress-row"><span>Session progress</span><span>${sessionPct}%</span></div>
       <div class="hero-progress-track"><div class="hero-progress-fill" style="width:${sessionPct}%"></div></div>
@@ -4759,24 +4577,8 @@ function renderTrainDay(macro) {
   const prevWeek = state.currentWeek - 1;
   const prevKey = macro.id + '_' + prevWeek + '_' + state.currentDay;
 
-  // Build blocks (groups + singles) then render
-  const trainBlocks = buildExerciseBlocks(exercises);
   let html = '';
-  trainBlocks.forEach(block => {
-    if (block.type === 'single') {
-      html += renderSingleExerciseCard(macro, block.ex);
-    } else {
-      html += renderSupersetCard(macro, block);
-    }
-  });
-
-  el.innerHTML = html;
-  renderTrainHero(macro);
-}
-
-// ── Single exercise card (unchanged from original renderTrainDay forEach body) ──
-function renderSingleExerciseCard(macro, ex) {
-  let html = '';
+  exercises.forEach((ex) => {
     const exId = ex.id;
     const expandKey = macro.id + '_' + state.currentWeek + '_' + state.currentDay + '_' + exId;
     const isExpanded = !!expandedExercises[expandKey];
@@ -5054,280 +4856,11 @@ function renderSingleExerciseCard(macro, ex) {
     }
 
     html += `</div>`;
-  return html;
-}
-
-// ── Superset card renderer ────────────────────────────────────────────────
-function renderSupersetCard(macro, block) {
-  const exes = block.exercises;
-  const n = exes.length;
-  const sets = getWeekSets(exes[0], state.currentWeek, macro.weeks);
-  const macroId = macro.id;
-  const week = state.currentWeek;
-  const day = state.currentDay;
-  const isGreen = n === 2;
-  const accentColor = isGreen ? 'var(--accent)' : 'var(--purple)';
-  const badgeBg = isGreen ? 'rgba(0,180,120,0.15)' : 'rgba(120,80,200,0.15)';
-
-  const expandKey = macroId + '_ss_' + block.groupId + '_' + week + '_' + day;
-  const isExpanded = !!expandedExercises[expandKey];
-
-  // Count completed rounds (set N is a round — done when all exes have set N logged done)
-  let completedRounds = 0;
-  for (let s = 0; s < sets; s++) {
-    const roundDone = exes.every(ex => {
-      const lk = macroId + '_' + week + '_' + day + '_' + ex.id + '_' + s;
-      return !!(state.trainLogs[lk] && state.trainLogs[lk].done);
-    });
-    if (roundDone) completedRounds++;
-    else break;
-  }
-  const allDone = completedRounds === sets;
-  const currentRound = Math.min(completedRounds, sets - 1);
-
-  // Within the current round, which exercise is active (first not yet done)?
-  let activeExIdx = 0;
-  if (!allDone) {
-    for (let ei = 0; ei < exes.length; ei++) {
-      const lk = macroId + '_' + week + '_' + day + '_' + exes[ei].id + '_' + currentRound;
-      if (!state.trainLogs[lk] || !state.trainLogs[lk].done) { activeExIdx = ei; break; }
-    }
-  }
-
-  // Collapsed summary
-  const loggedWeights = exes.map(ex => {
-    const lk = macroId + '_' + week + '_' + day + '_' + ex.id + '_0';
-    const lg = state.trainLogs[lk];
-    return lg && lg.weight ? lg.weight + ' kg' : null;
-  }).filter(Boolean);
-  const summaryStr = loggedWeights.length
-    ? loggedWeights.join(' / ') + ' logged'
-    : sets + ' sets each';
-
-  let html = `<div class="card" style="margin-bottom:10px;padding:0;">
-    <div onclick="toggleExercise('${expandKey}')"
-      style="padding:14px;cursor:pointer;-webkit-tap-highlight-color:transparent;">
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:${badgeBg};color:${accentColor};letter-spacing:0.05em;flex-shrink:0;">${block.label}</span>
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:14px;font-weight:600;color:var(--text);font-family:var(--font-display);">${exes.map(e=>e.name).join(' + ')}</div>
-          <div style="font-size:12px;color:var(--text2);margin-top:3px;">${allDone
-            ? completedRounds + ' rounds · ' + summaryStr
-            : completedRounds > 0
-              ? 'Round ' + (completedRounds+1) + ' of ' + sets + ' — in progress'
-              : summaryStr
-          }</div>
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;">
-          ${allDone
-            ? '<span style="font-size:11px;color:var(--accent);font-weight:500;">✓ done</span>'
-            : `<div style="display:flex;align-items:center;gap:6px;">
-                <button onclick="quickFillCompleteSuperset(event,'${macroId}',${week},'${day}','${block.groupId}',${sets})"
-                  title="Quick fill all rounds"
-                  style="width:26px;height:26px;border-radius:50%;border:1.5px solid var(--border2);background:transparent;color:var(--text2);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;">
-                  <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                </button>
-                ${completedRounds > 0 ? '<span style="font-size:11px;color:var(--text3);">'+completedRounds+'/'+sets+'</span>' : ''}
-              </div>`
-          }
-          <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${isExpanded?'180':'0'}deg)"><polyline points="6 9 12 15 18 9"/></svg>
-        </div>
-      </div>
-    </div>`;
-
-  if (isExpanded) {
-    html += `<div style="padding:0 14px 14px;border-top:0.5px solid var(--border);">`;
-
-    // Past completed rounds
-    for (let s = 0; s < completedRounds; s++) {
-      const roundSummary = exes.map(ex => {
-        const lk = macroId+'_'+week+'_'+day+'_'+ex.id+'_'+s;
-        const lg = state.trainLogs[lk] || {};
-        return lg.weight ? lg.weight+'kg×'+(lg.reps||'—') : '';
-      }).filter(Boolean).join(' · ');
-      html += `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--border);">
-        <svg viewBox="0 0 24 24" width="16" height="16" style="flex-shrink:0;"><circle cx="12" cy="12" r="10" fill="var(--accent)"/><path d="M8 12l3 3 5-5" stroke="#06281f" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span style="font-size:12px;color:var(--text2);">Round ${s+1} complete</span>
-        <span style="font-size:11px;color:var(--text3);margin-left:auto;">${roundSummary}</span>
-      </div>`;
-    }
-
-    if (!allDone) {
-      html += `<div style="margin-top:10px;">
-        <div style="margin-bottom:10px;">
-          <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;background:${accentColor};color:var(--bg);">Round ${currentRound+1} of ${sets}</span>
-        </div>`;
-
-      exes.forEach((ex, ei) => {
-        const s = currentRound;
-        const lk = macroId + '_' + week + '_' + day + '_' + ex.id + '_' + s;
-        const lg = state.trainLogs[lk] || {};
-        const isDoneThisRound = !!lg.done;
-        const isActive = ei === activeExIdx && !isDoneThisRound;
-
-        // Previous week reference
-        const prevWeek = week - 1;
-        const prevLk0 = macroId + '_' + prevWeek + '_' + day + '_' + ex.id + '_0';
-        const prevLg0 = prevWeek >= 1 ? (state.trainLogs[prevLk0] || {}) : {};
-        const prevW = prevLg0.weight ? parseFloat(prevLg0.weight) : null;
-        const prevR = prevLg0.reps || null;
-
-        const isGainCycle = macro.goalType === 'gain';
-        const lossIncrement = macro.lossIncrement || '2.5';
-        const wJump = ex.isHeavyLeg ? (isGainCycle?10:5) : (isGainCycle?5:parseFloat(lossIncrement));
-        const suggestedW = prevW !== null
-          ? (prevW + wJump).toFixed(1)
-          : (week === 1 ? ex.startWeight.toFixed(1) : getWeekWeight(ex, week, 'weight', macro.goalType).toFixed(1));
-        const suggestedR = (() => {
-          if (prevR) {
-            const m = String(prevR).match(/^(\d+)(?:–(\d+))?$/);
-            if (m) { const lo = parseInt(m[1])+1; return m[2] ? lo+'–'+(parseInt(m[2])+1) : String(lo); }
-          }
-          return ex.reps;
-        })();
-
-        const prevLabel = prevW !== null ? `prev: ${prevW.toFixed(1)} kg × ${prevR||ex.reps}` : '';
-
-        html += `<div style="margin-bottom:12px;padding-bottom:12px;border-bottom:0.5px solid var(--border);opacity:${isDoneThisRound?0.55:1};">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-            <span style="width:22px;height:22px;border-radius:50%;background:${isActive?accentColor:'var(--surface2)'};color:${isActive?'var(--bg)':'var(--text3)'};font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${ex._letter}</span>
-            <span style="font-size:14px;font-weight:600;color:var(--text);font-family:var(--font-display);">${ex.name}</span>
-            ${prevLabel ? `<span style="font-size:11px;color:var(--text3);margin-left:auto;">${prevLabel}</span>` : ''}
-          </div>
-          <div style="display:flex;gap:6px;align-items:center;">
-            <span style="font-size:11px;color:var(--text3);flex-shrink:0;">kg</span>
-            <input type="number" inputmode="decimal"
-              id="ss-inp-w-${lk}"
-              value="${lg.weight || ''}"
-              placeholder="${lg.weight || suggestedW}"
-              onchange="logSet('${lk}','weight',this.value)"
-              oninput="logSet('${lk}','weight',this.value)"
-              style="flex:1;padding:9px 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:15px;text-align:center;font-family:var(--font-display);" />
-            <input type="text" inputmode="text"
-              id="ss-inp-r-${lk}"
-              value="${lg.reps || ''}"
-              placeholder="${lg.reps || suggestedR}"
-              onchange="logSet('${lk}','reps',this.value)"
-              oninput="logSet('${lk}','reps',this.value)"
-              style="flex:1;padding:9px 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:15px;text-align:center;font-family:var(--font-display);" />
-            <button onclick="toggleSetDoneSS('${lk}','${macroId}','${block.groupId}')"
-              style="width:36px;height:36px;border-radius:50%;border:1.5px solid ${isDoneThisRound?accentColor:'var(--border2)'};background:${isDoneThisRound?accentColor:'transparent'};color:${isDoneThisRound?'var(--bg)':'var(--text2)'};display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;transition:all 0.15s;">
-              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            </button>
-          </div>
-        </div>`;
-      });
-
-      // Per-exercise progression selectors + fill suggested
-      html += `<div style="display:flex;gap:6px;margin-top:4px;">
-        <button onclick="fillSupersetRound('${macroId}',${week},'${day}','${block.groupId}',${currentRound})"
-          style="flex:1;font-size:11px;padding:7px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;color:var(--text2);font-family:var(--font-display);cursor:pointer;">↓ Fill suggested</button>
-        <button onclick="clearSupersetRound('${macroId}',${week},'${day}','${block.groupId}',${currentRound})"
-          style="font-size:11px;padding:7px 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;color:var(--red);font-family:var(--font-display);cursor:pointer;">Clear</button>
-      </div>`;
-
-      html += `</div>`; // closes !allDone block
-    }
-
-    html += `</div>`; // closes isExpanded block
-  }
-
-  html += `</div>`;
-  return html;
-}
-
-function toggleSetDoneSS(lk, macroId, groupId) {
-  const log = state.trainLogs[lk] || {};
-  if (!log.done) {
-    const wEl = document.getElementById('ss-inp-w-' + lk);
-    const rEl = document.getElementById('ss-inp-r-' + lk);
-    const hasWeight = log.weight && String(log.weight).trim() !== '';
-    const hasReps   = log.reps   && String(log.reps).trim()   !== '';
-    if (!hasWeight || !hasReps) {
-      if (wEl) wEl.style.borderColor = hasWeight ? '' : 'var(--red)';
-      if (rEl) rEl.style.borderColor = hasReps   ? '' : 'var(--red)';
-      setTimeout(() => {
-        if (wEl) wEl.style.borderColor = '';
-        if (rEl) rEl.style.borderColor = '';
-      }, 1500);
-      return;
-    }
-  }
-  if (!state.trainLogs[lk]) state.trainLogs[lk] = {};
-  state.trainLogs[lk].done = !state.trainLogs[lk].done;
-  save();
-  const macro = state.macrocycles.find(m => m.id === macroId);
-  if (macro) renderTrainDay(macro);
-}
-
-function fillSupersetRound(macroId, week, day, groupId, roundIdx) {
-  const macro = state.macrocycles.find(m => m.id === macroId);
-  if (!macro) return;
-  const templateKey = macroId + '_1_' + day;
-  const exercises = (state.exercises[templateKey] || []).filter(e => e.supersetGroup === groupId);
-  exercises.forEach(ex => {
-    const lk = macroId + '_' + week + '_' + day + '_' + ex.id + '_' + roundIdx;
-    if (!state.trainLogs[lk]) state.trainLogs[lk] = {};
-    const prevLk = macroId + '_' + (week-1) + '_' + day + '_' + ex.id + '_0';
-    const prevLg = week > 1 ? (state.trainLogs[prevLk] || {}) : {};
-    const isGainCycle = macro.goalType === 'gain';
-    const lossIncrement = macro.lossIncrement || '2.5';
-    const wJump = ex.isHeavyLeg ? (isGainCycle?10:5) : (isGainCycle?5:parseFloat(lossIncrement));
-    const prevW = prevLg.weight ? parseFloat(prevLg.weight) : null;
-    const suggested = prevW !== null ? (prevW + wJump).toFixed(1) : ex.startWeight.toFixed(1);
-    state.trainLogs[lk].weight = suggested;
-    state.trainLogs[lk].reps   = ex.reps;
-    const wEl = document.getElementById('ss-inp-w-' + lk);
-    const rEl = document.getElementById('ss-inp-r-' + lk);
-    if (wEl) { wEl.value = suggested; wEl.classList.remove('input-flash'); void wEl.offsetWidth; wEl.classList.add('input-flash'); }
-    if (rEl) { rEl.value = ex.reps;   rEl.classList.remove('input-flash'); void rEl.offsetWidth; rEl.classList.add('input-flash'); }
   });
-  save();
-  setTimeout(() => exercises.forEach(ex => {
-    const lk = macroId+'_'+week+'_'+day+'_'+ex.id+'_'+roundIdx;
-    document.getElementById('ss-inp-w-'+lk)?.classList.remove('input-flash');
-    document.getElementById('ss-inp-r-'+lk)?.classList.remove('input-flash');
-  }), 900);
-}
 
-function clearSupersetRound(macroId, week, day, groupId, roundIdx) {
-  const templateKey = macroId + '_1_' + day;
-  const exercises = (state.exercises[templateKey] || []).filter(e => e.supersetGroup === groupId);
-  exercises.forEach(ex => {
-    const lk = macroId + '_' + week + '_' + day + '_' + ex.id + '_' + roundIdx;
-    delete state.trainLogs[lk];
-  });
-  save();
-  const macro = state.macrocycles.find(m => m.id === macroId);
-  if (macro) renderTrainDay(macro);
+  el.innerHTML = html;
+  renderTrainHero(macro);
 }
-
-function quickFillCompleteSuperset(event, macroId, week, day, groupId, sets) {
-  if (event) event.stopPropagation();
-  const macro = state.macrocycles.find(m => m.id === macroId);
-  if (!macro) return;
-  const templateKey = macroId + '_1_' + day;
-  const exercises = (state.exercises[templateKey] || []).filter(e => e.supersetGroup === groupId);
-  exercises.forEach(ex => {
-    const prevLk = macroId + '_' + (week-1) + '_' + day + '_' + ex.id + '_0';
-    const prevLg = week > 1 ? (state.trainLogs[prevLk] || {}) : {};
-    const isGainCycle = macro.goalType === 'gain';
-    const lossIncrement = macro.lossIncrement || '2.5';
-    const wJump = ex.isHeavyLeg ? (isGainCycle?10:5) : (isGainCycle?5:parseFloat(lossIncrement));
-    const prevW = prevLg.weight ? parseFloat(prevLg.weight) : null;
-    const suggested = prevW !== null ? (prevW + wJump).toFixed(1) : ex.startWeight.toFixed(1);
-    for (let s = 0; s < sets; s++) {
-      const lk = macroId + '_' + week + '_' + day + '_' + ex.id + '_' + s;
-      if (!state.trainLogs[lk]) state.trainLogs[lk] = {};
-      state.trainLogs[lk].weight = suggested;
-      state.trainLogs[lk].reps   = ex.reps;
-      state.trainLogs[lk].done   = true;
-    }
-  });
-  save();
-  if (macro) renderTrainDay(macro);
-}
-
 
 function logSet(key, field, value) {
   if (!state.trainLogs[key]) state.trainLogs[key] = {};
