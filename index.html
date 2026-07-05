@@ -598,7 +598,6 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   display: flex; align-items: flex-end;
   opacity: 0; pointer-events: none;
   transition: opacity 0.2s;
-  transform: translateY(var(--vv-offset-top, 0px));
 }
 .modal-overlay.open { opacity: 1; pointer-events: all; }
 #modal-custom-exercise { z-index: 300; }
@@ -607,21 +606,16 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   background: var(--surface);
   border-radius: 20px 20px 0 0;
   border-top: 0.5px solid var(--border2);
-  /* Only safe-bottom here, not the extra flat +20px #content uses — that
-     20px exists there to clear the floating nav pill sitting on top of
-     scrolling content, which modals don't have. Here it was just reserved
-     space nothing needed, eating directly into flex children like
-     #nutr-add-list's available height. */
-  padding: 16px 16px var(--safe-bottom);
+  padding: 16px 16px calc(20px + var(--safe-bottom));
   max-height: 92dvh;
   overflow-y: auto;
   transform: translateY(100%);
   transition: transform 0.3s cubic-bezier(0.32,0.72,0,1);
 }
 .modal-overlay.open .modal-sheet { transform: translateY(0); }
-.modal-handle { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 36px; height: 4px; background: var(--border2); border-radius: 2px; }
-.modal-handle-row { position: relative; height: 28px; margin-bottom: 12px; }
-.modal-close-btn { position: absolute; right: 0; top: 0; background: var(--surface3); border: none; color: var(--text2); width: 28px; height: 28px; border-radius: 50%; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; }
+.modal-handle { width: 36px; height: 4px; background: var(--border2); border-radius: 2px; margin: 0 auto; }
+.modal-handle-row { display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 16px; }
+.modal-close-btn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); background: var(--surface3); border: none; color: var(--text2); width: 28px; height: 28px; border-radius: 50%; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; }
 .modal-title { font-family: var(--font-display); font-size: 18px; font-weight: 700; margin-bottom: 16px; }
 
 /* ── Keyboard-safe modal pattern ────────────────────────────────────────────
@@ -647,6 +641,28 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   right: 0;
   height: calc(var(--app-height, 100dvh) - var(--safe-top, 0px) - 30px);
   transition: transform 0.3s cubic-bezier(0.32,0.72,0,1);
+  /* Overrides the shared .modal-sheet padding (reverted to v5.13 above,
+     which every *other* modal now uses again) — these two modals keep the
+     tighter padding from later in the session, since it directly feeds
+     .kb-list-wrap's available height. */
+  padding: 16px 16px var(--safe-bottom);
+}
+/* Same idea for the handle/close-button: every other modal is back to the
+   v5.13 look, these two keep the tighter header from later in the session. */
+.kb-pinned-sheet .modal-handle-row {
+  display: block;
+  height: 28px;
+  margin-bottom: 12px;
+}
+.kb-pinned-sheet .modal-handle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.kb-pinned-sheet .modal-close-btn {
+  top: 0;
+  transform: none;
 }
 .kb-list-wrap {
   flex: 1 1 auto;
@@ -1293,29 +1309,11 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     }
   }
 
-  // ── Fixed-element drift compensation ──────────────────────────────────────
-  // iOS shifts the *visual* viewport away from the *layout* viewport's origin
-  // when a focused input triggers the browser's own "scroll into view"
-  // behaviour — even though html/body have overflow:hidden and nothing has
-  // genuinely scrolled. position:fixed elements (like .modal-overlay) are
-  // positioned relative to the layout viewport, so they don't move, but from
-  // the user's point of view (the visual viewport) they appear to drift —
-  // typically upward, since the sheet is bottom-anchored inside the overlay,
-  // making it look like the modal "shrunk" a moment after the keyboard opens.
-  // window.visualViewport.offsetTop is exactly that drift amount, so we
-  // cancel it out with an equal-and-opposite transform on .modal-overlay.
-  function compensateViewportOffset() {
-    if (!window.visualViewport) return;
-    var offsetY = window.visualViewport.offsetTop || 0;
-    document.documentElement.style.setProperty('--vv-offset-top', (-offsetY) + 'px');
-  }
-
   function measureAll() {
     setAppHeight();
     setSafeAreaVars();
     positionNavDirect();
     setKbViewportHeight();
-    compensateViewportOffset();
     if (typeof fitListToKeyboard === 'function') {
       fitListToKeyboard('nutr-add-list-wrap');
       fitListToKeyboard('food-lib-list-wrap');
@@ -1342,10 +1340,6 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       measureAll();
       handleKeyboard();
     });
-    // 'scroll' fires when offsetTop/offsetLeft change independently of a
-    // size change — e.g. iOS nudging the visual viewport to reveal a
-    // focused input without the viewport itself resizing.
-    window.visualViewport.addEventListener('scroll', compensateViewportOffset);
   }
   // When focus moves between inputs while the keyboard is already open,
   // visualViewport.resize does not re-fire (height didn't change).
@@ -1460,7 +1454,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v5.14</span>
+          <span class="badge badge-green">v5.15</span>
         </div>
       </div>
 
@@ -2556,7 +2550,10 @@ function closeModal(id) {
   // funnel through this one function. Previously only blurring on the ✕
   // button (via the input's own onblur) meant swiping down left the
   // keyboard open, since nothing ever removed focus from the input.
-  if (overlay && overlay.contains(document.activeElement) && document.activeElement.blur) {
+  // Scoped to just these two modals (rather than every modal) to keep
+  // everything else byte-for-byte v5.13 behavior.
+  if ((id === 'modal-nutr-add' || id === 'modal-food-lib-editor') &&
+      overlay && overlay.contains(document.activeElement) && document.activeElement.blur) {
     document.activeElement.blur();
   }
   overlay.classList.remove('open');
