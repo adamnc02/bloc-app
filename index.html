@@ -15,6 +15,7 @@
   --bg: #0f1620;
   --bg-rgb: 15, 22, 32;
   --surface: #161f2c;
+  --surface-rgb: 22, 31, 44;
   --surface2: #1d2837;
   --surface3: #253142;
   --border: rgba(150,180,210,0.10);
@@ -62,6 +63,7 @@
   --bg: #e7edf4;
   --bg-rgb: 231, 237, 244;
   --surface: #f2f5f9;
+  --surface-rgb: 242, 245, 249;
   --surface2: #fafbfd;
   --surface3: #ffffff;
   --border: rgba(20,40,65,0.10);
@@ -596,6 +598,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   display: flex; align-items: flex-end;
   opacity: 0; pointer-events: none;
   transition: opacity 0.2s;
+  transform: translateY(var(--vv-offset-top, 0px));
 }
 .modal-overlay.open { opacity: 1; pointer-events: all; }
 #modal-custom-exercise { z-index: 300; }
@@ -604,17 +607,67 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   background: var(--surface);
   border-radius: 20px 20px 0 0;
   border-top: 0.5px solid var(--border2);
-  padding: 16px 16px calc(20px + var(--safe-bottom));
+  /* Only safe-bottom here, not the extra flat +20px #content uses — that
+     20px exists there to clear the floating nav pill sitting on top of
+     scrolling content, which modals don't have. Here it was just reserved
+     space nothing needed, eating directly into flex children like
+     #nutr-add-list's available height. */
+  padding: 16px 16px var(--safe-bottom);
   max-height: 92dvh;
   overflow-y: auto;
   transform: translateY(100%);
   transition: transform 0.3s cubic-bezier(0.32,0.72,0,1);
 }
 .modal-overlay.open .modal-sheet { transform: translateY(0); }
-.modal-handle { width: 36px; height: 4px; background: var(--border2); border-radius: 2px; margin: 0 auto; }
-.modal-handle-row { display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 16px; }
-.modal-close-btn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); background: var(--surface3); border: none; color: var(--text2); width: 28px; height: 28px; border-radius: 50%; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; }
+.modal-handle { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 36px; height: 4px; background: var(--border2); border-radius: 2px; }
+.modal-handle-row { position: relative; height: 28px; margin-bottom: 12px; }
+.modal-close-btn { position: absolute; right: 0; top: 0; background: var(--surface3); border: none; color: var(--text2); width: 28px; height: 28px; border-radius: 50%; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; }
 .modal-title { font-family: var(--font-display); font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+
+/* ── Keyboard-safe modal pattern ────────────────────────────────────────────
+   Shared by any modal with a search+scrollable-list that needs to coexist
+   with the keyboard: .kb-pinned-sheet is a single fixed size always (pinned
+   top via position:fixed, never resizes for the keyboard — so its own
+   background always extends the full screen height and there's no gap for
+   the overlay's dark tint to show through behind the keyboard). Only
+   .kb-list-wrap (sized by JS, see fitListToKeyboard()) shrinks toward the
+   keyboard, extending slightly *behind* it — .kb-list-fade covers that
+   overlap with a soft gradient so it reads as a fade rather than a hard
+   cut. .kb-list-fade uses --surface-rgb since modal-sheet's background is
+   var(--surface), not var(--bg) (mirrors the .edge-fade-bottom technique
+   used on the main app pages). Currently used by: nutrition add-food modal,
+   food library editor modal. ── */
+.kb-pinned-sheet {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: fixed;
+  top: calc(var(--safe-top, 0px) + 30px);
+  left: 0;
+  right: 0;
+  height: calc(var(--app-height, 100dvh) - var(--safe-top, 0px) - 30px);
+  transition: transform 0.3s cubic-bezier(0.32,0.72,0,1);
+}
+.kb-list-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative; /* anchors the fade overlay */
+}
+.kb-list-inner {
+  height: 100%;
+  overflow-y: auto;
+}
+/* Lives as a sibling of the scrolling list, not inside it — the render
+   functions replace that div's innerHTML on every render, which would
+   silently delete this if it were a child. */
+.kb-list-fade {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 32px;
+  background: linear-gradient(to top, rgba(var(--surface-rgb), 1) 0%, rgba(var(--surface-rgb), 0) 100%);
+  pointer-events: none;
+  z-index: 5;
+}
 
 /* ── TOGGLE ──────────────────────────────── */
 .toggle-row { display: flex; background: var(--surface2); border-radius: var(--r-sm); padding: 3px; gap: 3px; margin-bottom: 14px; }
@@ -1181,6 +1234,20 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     document.documentElement.style.setProperty('--safe-top', measureEnv('safe-area-inset-top') + 'px');
   }
 
+  // ── Keyboard-aware viewport height ────────────────────────────────────────
+  // Unlike --app-height (deliberately frozen while the keyboard is open),
+  // --kb-vvh always tracks the live visualViewport height, shrinking when
+  // the keyboard shows. Used by .nutr-add-sheet, which pins its *top* via
+  // position:fixed and only shrinks its *height* (bottom edge) to sit above
+  // the keyboard — see the .nutr-add-sheet CSS for the min() that ties into
+  // this. On-device measurement (July 2026) showed a single clean resize
+  // event on focus/blur with no secondary delayed event, so this is kept
+  // as a plain, immediate measurement rather than debounced.
+  function setKbViewportHeight() {
+    var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+    document.documentElement.style.setProperty('--kb-vvh', h + 'px');
+  }
+
   function positionNavDirect() {
     var nav = document.getElementById('nav');
     if (!nav) return;
@@ -1226,10 +1293,33 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     }
   }
 
+  // ── Fixed-element drift compensation ──────────────────────────────────────
+  // iOS shifts the *visual* viewport away from the *layout* viewport's origin
+  // when a focused input triggers the browser's own "scroll into view"
+  // behaviour — even though html/body have overflow:hidden and nothing has
+  // genuinely scrolled. position:fixed elements (like .modal-overlay) are
+  // positioned relative to the layout viewport, so they don't move, but from
+  // the user's point of view (the visual viewport) they appear to drift —
+  // typically upward, since the sheet is bottom-anchored inside the overlay,
+  // making it look like the modal "shrunk" a moment after the keyboard opens.
+  // window.visualViewport.offsetTop is exactly that drift amount, so we
+  // cancel it out with an equal-and-opposite transform on .modal-overlay.
+  function compensateViewportOffset() {
+    if (!window.visualViewport) return;
+    var offsetY = window.visualViewport.offsetTop || 0;
+    document.documentElement.style.setProperty('--vv-offset-top', (-offsetY) + 'px');
+  }
+
   function measureAll() {
     setAppHeight();
     setSafeAreaVars();
     positionNavDirect();
+    setKbViewportHeight();
+    compensateViewportOffset();
+    if (typeof fitListToKeyboard === 'function') {
+      fitListToKeyboard('nutr-add-list-wrap');
+      fitListToKeyboard('food-lib-list-wrap');
+    }
   }
 
   // Boot sequence
@@ -1252,6 +1342,10 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       measureAll();
       handleKeyboard();
     });
+    // 'scroll' fires when offsetTop/offsetLeft change independently of a
+    // size change — e.g. iOS nudging the visual viewport to reveal a
+    // focused input without the viewport itself resizing.
+    window.visualViewport.addEventListener('scroll', compensateViewportOffset);
   }
   // When focus moves between inputs while the keyboard is already open,
   // visualViewport.resize does not re-fire (height didn't change).
@@ -1366,7 +1460,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v5.13</span>
+          <span class="badge badge-green">v5.14</span>
         </div>
       </div>
 
@@ -1526,8 +1620,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 <!-- Create Macrocycle -->
 <div class="modal-overlay" id="modal-macro">
   <div class="modal-sheet" data-modal="modal-macro">
-    <div class="modal-handle-row">
-      <div class="modal-handle"></div>
+    <div class="modal-handle-row"><div class="modal-handle"></div>
       <button class="modal-close-btn" onclick="closeModal('modal-macro')">✕</button>
     </div>
     <div class="modal-title">New Macrocycle</div>
@@ -1633,8 +1726,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 <!-- Date Picker Modal: shown when tapping the Nutrition page hero card -->
 <div class="modal-overlay" id="modal-nutr-date">
   <div class="modal-sheet" data-modal="modal-nutr-date">
-    <div class="modal-handle-row">
-      <div class="modal-handle"></div>
+    <div class="modal-handle-row"><div class="modal-handle"></div>
       <button class="modal-close-btn" onclick="closeModal('modal-nutr-date')">✕</button>
     </div>
     <div class="modal-title">Jump to date</div>
@@ -1650,8 +1742,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
 <div class="modal-overlay" id="modal-cycle-history">
   <div class="modal-sheet" data-modal="modal-cycle-history">
-    <div class="modal-handle-row">
-      <div class="modal-handle"></div>
+    <div class="modal-handle-row"><div class="modal-handle"></div>
       <button class="modal-close-btn" onclick="closeModal('modal-cycle-history')">✕</button>
     </div>
     <div class="modal-title">Cycle history</div>
@@ -1661,8 +1752,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
 <div class="modal-overlay" id="modal-edit-macro">
   <div class="modal-sheet" data-modal="modal-edit-macro">
-    <div class="modal-handle-row">
-      <div class="modal-handle"></div>
+    <div class="modal-handle-row"><div class="modal-handle"></div>
       <button class="modal-close-btn" onclick="closeModal('modal-edit-macro')">✕</button>
     </div>
     <div class="modal-title">Edit Macrocycle</div>
@@ -1723,8 +1813,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 <!-- Add / Edit Goal -->
 <div class="modal-overlay" id="modal-add-goal">
   <div class="modal-sheet" data-modal="modal-add-goal">
-    <div class="modal-handle-row">
-      <div class="modal-handle"></div>
+    <div class="modal-handle-row"><div class="modal-handle"></div>
       <button class="modal-close-btn" onclick="closeModal('modal-add-goal')">✕</button>
     </div>
     <div class="modal-title" id="goal-modal-title">New Goal Period</div>
@@ -1776,8 +1865,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 <!-- Add Custom Exercise -->
 <div class="modal-overlay" id="modal-custom-exercise">
   <div class="modal-sheet" data-modal="modal-custom-exercise">
-    <div class="modal-handle-row">
-      <div class="modal-handle"></div>
+    <div class="modal-handle-row"><div class="modal-handle"></div>
       <button class="modal-close-btn" onclick="closeModal('modal-custom-exercise')">✕</button>
     </div>
     <div class="modal-title">Custom Exercise</div>
@@ -1806,8 +1894,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 <!-- ── Link Modal ─────────────────────────────────────── -->
 <div class="modal-overlay" id="modal-link">
   <div class="modal-sheet" data-modal="modal-link">
-    <div class="modal-handle-row">
-      <div class="modal-handle"></div>
+    <div class="modal-handle-row"><div class="modal-handle"></div>
       <button class="modal-close-btn" onclick="closeModal('modal-link')">✕</button>
     </div>
     <div class="modal-title">Link exercises</div>
@@ -1819,8 +1906,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
 <div class="modal-overlay" id="modal-exercise">
   <div class="modal-sheet" data-modal="modal-exercise">
-    <div class="modal-handle-row">
-      <div class="modal-handle"></div>
+    <div class="modal-handle-row"><div class="modal-handle"></div>
       <button class="modal-close-btn" onclick="closeModal('modal-exercise')">✕</button>
     </div>
     <div class="modal-title" id="modal-ex-title">Add Exercise</div>
@@ -1903,8 +1989,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 <!-- Body Profile (gender / height / birthday) -->
 <div class="modal-overlay" id="modal-body-profile">
   <div class="modal-sheet" data-modal="modal-body-profile">
-    <div class="modal-handle-row">
-      <div class="modal-handle"></div>
+    <div class="modal-handle-row"><div class="modal-handle"></div>
       <button class="modal-close-btn" onclick="closeModal('modal-body-profile')">✕</button>
     </div>
     <div class="modal-title">Body Profile</div>
@@ -1964,8 +2049,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 <!-- Body Log -->
 <div class="modal-overlay" id="modal-body-log">
   <div class="modal-sheet" data-modal="modal-body-log">
-    <div class="modal-handle-row">
-      <div class="modal-handle"></div>
+    <div class="modal-handle-row"><div class="modal-handle"></div>
       <button class="modal-close-btn" onclick="closeModal('modal-body-log')">✕</button>
     </div>
     <div class="modal-title">Log Body Stats</div>
@@ -1990,25 +2074,28 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 <!-- Nutrition Log -->
 <!-- Nutrition: meal log chooser -->
 <div class="modal-overlay" id="modal-nutr-add">
-  <div class="modal-sheet" data-modal="modal-nutr-add" style="max-height:85dvh;">
+  <div class="modal-sheet kb-pinned-sheet" data-modal="modal-nutr-add">
     <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-add')">✕</button></div>
-    <div class="modal-title" id="nutr-add-title" style="flex-shrink:0;">Add to Breakfast</div>
+    <!-- TEMP DIAGNOSTIC — remove once keyboard-height numbers are gathered -->
+    <input type="text" id="nutr-add-search" placeholder="Search foods…" oninput="renderNutrAddList()" style="margin-bottom:10px;flex-shrink:0;">
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0;">
-      <button onclick="openNutrBarcode()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/><line x1="13" y1="8" x2="13" y2="12"/><line x1="16" y1="8" x2="16" y2="16"/></svg>
-        <span style="font-weight:600;">Scan Barcode</span>
+      <button onclick="toggleNutrRecipeFilter()" id="nutr-recipe-filter-btn" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        <span style="font-weight:600;">Recipes</span>
       </button>
       <button onclick="openNutrManual()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         <span style="font-weight:600;">Manual</span>
       </button>
-      <button onclick="openNutrRecipeBuilder()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-        <span style="font-weight:600;">Recipe</span>
+      <button onclick="openNutrBarcode()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/><line x1="13" y1="8" x2="13" y2="12"/><line x1="16" y1="8" x2="16" y2="16"/></svg>
+        <span style="font-weight:600;">Scan Barcode</span>
       </button>
     </div>
-    <input type="text" id="nutr-add-search" placeholder="Search foods…" oninput="renderNutrAddList()" style="margin-bottom:10px;flex-shrink:0;">
-    <div id="nutr-add-list" style="max-height:165px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;"></div>
+    <div id="nutr-add-list-wrap" class="kb-list-wrap">
+      <div id="nutr-add-list" class="kb-list-inner" style="overscroll-behavior:contain;-webkit-overflow-scrolling:touch;"></div>
+      <div class="kb-list-fade"></div>
+    </div>
   </div>
 </div>
 
@@ -2463,7 +2550,16 @@ function openModal(id) {
   document.getElementById(id).classList.add('open');
 }
 function closeModal(id) {
-  document.getElementById(id).classList.remove('open');
+  const overlay = document.getElementById(id);
+  // Dismiss the keyboard if focus is inside this modal — covers the ✕
+  // button, tap-outside, and the swipe-down gesture alike, since they all
+  // funnel through this one function. Previously only blurring on the ✕
+  // button (via the input's own onblur) meant swiping down left the
+  // keyboard open, since nothing ever removed focus from the input.
+  if (overlay && overlay.contains(document.activeElement) && document.activeElement.blur) {
+    document.activeElement.blur();
+  }
+  overlay.classList.remove('open');
   // Always clear originalDate flags when closing so fresh opens start clean
   if (id === 'modal-body-log') document.getElementById('body-date-input').dataset.originalDate = '';
 }
@@ -6390,6 +6486,7 @@ let nutrSelectedDate = null; // set on first render using local date
 let nutrMacroView = 0;
 let nutrActiveMeal = null;
 let nutrPendingProduct = null;
+let nutrShowRecipesOnly = false;
 
 // ── Swipe row system ──────────────────────────────────────────────────────
 let _swipeOpenWrap = null;
@@ -6722,9 +6819,11 @@ function renderNutrDiary() {
     const hasItems = items.length > 0;
 
     const itemRows = items.map((item, idx) => {
-      const servingLabel = item.grams && item.servings && item.servings !== 1
-        ? `${item.grams}g × ${item.servings}`
-        : `${item.serving || 100}g`;
+      const servingLabel = item.source === 'recipe'
+        ? `${item.servings || 1} Serving${(item.servings || 1) !== 1 ? 's' : ''}`
+        : (item.grams && item.servings && item.servings !== 1
+          ? `${item.grams}g × ${item.servings}`
+          : `${item.serving || 100}g`);
       const dotColor = mealDotColors[meal] || 'var(--purple)';
       return `
         <div class="swipe-row-wrap" style="border-bottom:0.5px solid var(--border);">
@@ -6733,7 +6832,7 @@ function renderNutrDiary() {
             <div style="width:8px;height:8px;border-radius:50%;background:${dotColor};flex-shrink:0;"></div>
             <div style="flex:1;min-width:0;cursor:pointer;">
               <div style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</div>
-              <div style="font-size:11px;color:var(--text2);margin-top:2px;">${servingLabel}${item.brand ? ` · ${item.brand}` : ''}</div>
+              <div style="font-size:11px;color:var(--text2);margin-top:2px;">${servingLabel}${(item.source !== 'recipe' && item.brand) ? ` · ${item.brand}` : ''}</div>
             </div>
             <div style="text-align:right;flex-shrink:0;">
               <div style="font-size:13px;font-weight:600;color:var(--text);">${(item.kcal||0).toLocaleString()} kcal</div>
@@ -7142,18 +7241,81 @@ function nutrSelectBadge(date) {
 }
 
 // ── Log entry flow ─────────────────────────────────────────────────────────
-// ── Nutrition add modal: expand to full height on keyboard open ───────────────
-// When the user focuses the search box the keyboard rises. Since the modal uses
-// position:fixed, 100dvh on iOS PWA = exactly the visible space above the
-// keyboard. We expand the sheet to fill it and let the results list grow.
-// On blur we check (after a tick) whether focus is still inside the modal before
-// collapsing, so tapping a result doesn't briefly shrink the sheet mid-gesture.
 function openNutrAdd(meal) {
   nutrActiveMeal = meal;
-  document.getElementById('nutr-add-title').textContent = 'Add to ' + meal;
+  nutrShowRecipesOnly = false;
+  document.getElementById('nutr-add-search').placeholder = 'Search foods for ' + meal + '…';
   document.getElementById('nutr-add-search').value = '';
+  const listWrap = document.getElementById('nutr-add-list-wrap');
+  if (listWrap) listWrap.style.maxHeight = '';
+  updateNutrRecipeFilterBtn();
   renderNutrAddList();
   openModal('modal-nutr-add');
+  // Measuring the wrap's position has to wait until the sheet's slide-in
+  // transform (0.3s) has settled — mid-transition, getBoundingClientRect()
+  // would return an in-flight position, not the final one.
+  setTimeout(() => fitListToKeyboard('nutr-add-list-wrap'), 320);
+}
+
+// Sizes a .kb-list-wrap element so its bottom edge sits just behind the top
+// of the keyboard (see .kb-list-fade for the visual fade that covers the
+// last ~28px of overlap, so it reads as a soft fade rather than a hard cut
+// right where the keyboard begins). The sheet itself never resizes — only
+// this wrapper — so the sheet's own background always extends the full
+// screen height and there's no gap for the overlay's dark tint to show
+// through behind the keyboard. Shared by any .kb-pinned-sheet modal with a
+// scrollable list (currently: nutrition add-food, food library editor).
+//
+// --kb-vvh already tracks the live post-keyboard viewport height (see
+// setKbViewportHeight). Real on-device measurement (July 2026) showed a
+// single clean resize event with no secondary delayed one, so this is a
+// plain, immediate calculation — no debounce needed.
+function fitListToKeyboard(wrapId) {
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
+  const overlay = wrap.closest('.modal-overlay');
+  if (!overlay || !overlay.classList.contains('open')) return;
+  const vvh = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kb-vvh')) || window.innerHeight;
+  const wrapTop = wrap.getBoundingClientRect().top;
+  const overlapIntoKeyboard = 28; // let the list extend slightly behind the keyboard for the fade
+  wrap.style.maxHeight = Math.max(80, vvh - wrapTop + overlapIntoKeyboard) + 'px';
+}
+
+function toggleNutrRecipeFilter() {
+  nutrShowRecipesOnly = !nutrShowRecipesOnly;
+  updateNutrRecipeFilterBtn();
+  renderNutrAddList();
+}
+
+function updateNutrRecipeFilterBtn() {
+  const btn = document.getElementById('nutr-recipe-filter-btn');
+  if (!btn) return;
+  if (nutrShowRecipesOnly) {
+    btn.style.background = 'var(--blue)';
+    btn.style.borderColor = 'var(--blue)';
+    btn.style.color = 'var(--bg)';
+    btn.querySelector('svg').setAttribute('stroke', 'var(--bg)');
+  } else {
+    btn.style.background = 'var(--surface2)';
+    btn.style.borderColor = 'var(--border2)';
+    btn.style.color = 'var(--text)';
+    btn.querySelector('svg').setAttribute('stroke', 'var(--blue)');
+  }
+}
+
+// Finds the most recent time a given food/recipe name was logged, scanning
+// nutritionMeals dates newest-first (not array push order, which isn't
+// reliably date-ordered). Used to pre-fill quick-add and the serving/edit
+// modal, and to show "last logged" amounts in the add-food list.
+function getLastNutrEntryForFood(name) {
+  const allMeals = state.nutritionMeals || {};
+  const dates = Object.keys(allMeals).sort().reverse();
+  for (const date of dates) {
+    const dayEntries = Object.values(allMeals[date] || {}).flat();
+    const match = dayEntries.find(e => e.name === name);
+    if (match) return match;
+  }
+  return null;
 }
 
 function renderNutrAddList() {
@@ -7171,6 +7333,7 @@ function renderNutrAddList() {
   });
 
   const items = lib
+    .filter(i => !nutrShowRecipesOnly || i.source === 'recipe')
     .filter(i => !query || i.name.toLowerCase().includes(query) || (i.brand && i.brand.toLowerCase().includes(query)))
     .sort((a, b) => {
       const da = lastLogged[a.name] || '0000-00-00';
@@ -7180,7 +7343,9 @@ function renderNutrAddList() {
 
   if (!items.length) {
     el.innerHTML = `<div style="text-align:center;color:var(--text3);font-size:13px;padding:20px 0;">
-      ${query ? `No matches for "${query}"` : 'No foods saved yet — scan a barcode or add manually.'}
+      ${query
+        ? `No matches for "${query}"`
+        : (nutrShowRecipesOnly ? 'No recipes saved yet — create one from Settings → My recipes.' : 'No foods saved yet — scan a barcode or add manually.')}
     </div>`;
     el._items = [];
     return;
@@ -7191,22 +7356,87 @@ function renderNutrAddList() {
 
   el.innerHTML = items.map((item, idx) => {
     const brand = item.brand || (allEntries.find(e => e.name === item.name && e.brand)?.brand) || '';
+    const isRecipe = item.source === 'recipe';
+    const lastEntry = getLastNutrEntryForFood(item.name);
+    let amountLabel, kcal, p, c, f;
+    if (lastEntry) {
+      kcal = lastEntry.kcal || 0;
+      p    = lastEntry.protein || 0;
+      c    = lastEntry.carbs || 0;
+      f    = lastEntry.fats || 0;
+      if (isRecipe) {
+        const servings = lastEntry.servings || 1;
+        amountLabel = `${servings} Serving${servings !== 1 ? 's' : ''}`;
+      } else {
+        amountLabel = `${lastEntry.serving || lastEntry.grams || 100}g`;
+      }
+    } else {
+      // Never logged before — fall back to the library default (per-serving
+      // for recipes, per-100g for regular foods).
+      kcal = item.per100kcal; p = item.per100p; c = item.per100c; f = item.per100f;
+      amountLabel = isRecipe ? '1 Serving' : '100g';
+    }
     return `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);">
+      <div onclick="selectFromAddList(${idx})" style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);cursor:pointer;">
         <div style="flex:1;min-width:0;">
           <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</div>
           <div style="font-size:10px;color:var(--text3);margin-top:2px;">
-            ${item.per100kcal.toLocaleString()} kcal / 100g · P:${Math.round(item.per100p)}g C:${Math.round(item.per100c)}g F:${Math.round(item.per100f)}g
-            ${brand ? ` · ${brand}` : ''}
+            ${amountLabel} · ${kcal.toLocaleString()} kcal · P:${Math.round(p)}g C:${Math.round(c)}g F:${Math.round(f)}g
+            ${(!isRecipe && brand) ? ` · ${brand}` : ''}
           </div>
         </div>
-        <button onclick="shareFoodLibItemByIdx(${idx})" class="btn btn-sm" style="flex-shrink:0;padding:6px 8px;margin-left:4px;" title="Share">
+        <button onclick="event.stopPropagation();shareFoodLibItemByIdx(${idx})" class="btn btn-sm" style="flex-shrink:0;padding:6px 8px;margin-left:4px;" title="Share">
           <svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="9 10 5 10 5 20 19 20 19 10 15 10"/><polyline points="12 3 8 7 12 3 16 7"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         </button>
-        <button onclick="selectFromAddList(${idx})" class="btn btn-sm" style="flex-shrink:0;padding:6px 12px;margin-left:4px;">Add</button>
+        <button onclick="event.stopPropagation();quickAddFromList(${idx})" class="btn btn-sm" style="flex-shrink:0;padding:6px 12px;margin-left:4px;">Add</button>
       </div>`;
   }).join('');
   el._items = items;
+}
+
+// Quick-add: logs the item immediately at its last-logged amount (or the
+// library default if it's never been logged before), without opening the
+// serving/edit modal. Tapping the row itself still opens that modal via
+// selectFromAddList, for adjusting the amount.
+function quickAddFromList(idx) {
+  const el = document.getElementById('nutr-add-list');
+  const item = (el._items || [])[idx];
+  if (!item) return;
+  const isRecipe = item.source === 'recipe';
+  const lastEntry = getLastNutrEntryForFood(item.name);
+
+  let grams, servings, kcal, protein, carbs, fats;
+  if (lastEntry) {
+    grams    = isRecipe ? 1 : (lastEntry.grams || 100);
+    servings = lastEntry.servings || 1;
+    kcal     = lastEntry.kcal    || 0;
+    protein  = lastEntry.protein || 0;
+    carbs    = lastEntry.carbs   || 0;
+    fats     = lastEntry.fats    || 0;
+  } else if (isRecipe) {
+    grams = 1; servings = 1;
+    kcal    = Math.round(item.per100kcal);
+    protein = Math.round(item.per100p);
+    carbs   = Math.round(item.per100c);
+    fats    = Math.round(item.per100f);
+  } else {
+    grams = item.defaultServing || 100;
+    servings = 1;
+    kcal    = Math.round(item.per100kcal / 100 * grams);
+    protein = Math.round(item.per100p    / 100 * grams);
+    carbs   = Math.round(item.per100c    / 100 * grams);
+    fats    = Math.round(item.per100f    / 100 * grams);
+  }
+
+  addFoodEntry({
+    name: item.name,
+    brand: item.brand || '',
+    grams, servings,
+    serving: isRecipe ? servings : Math.round(grams * servings),
+    kcal, protein, carbs, fats,
+    source: item.source || 'library',
+  });
+  closeModal('modal-nutr-add');
 }
 
 function selectFromAddList(idx) {
@@ -7816,8 +8046,7 @@ function openNutrServingModal() {
   }
 
   // Pre-fill from last logged entry for this food; fall back to RSS then 100g
-  const allEntries = Object.values(state.nutritionMeals || {}).flatMap(day => Object.values(day).flat());
-  const lastEntry = allEntries.filter(e => e.name === nutrPendingProduct.name).pop();
+  const lastEntry = getLastNutrEntryForFood(nutrPendingProduct.name);
   const gramsInput = document.getElementById('nutr-serving-grams');
   if (isRecipe) {
     gramsInput.value = 100;
@@ -9141,8 +9370,13 @@ window.addEventListener('DOMContentLoaded', function() {
 
 function openFoodLibraryEditor() {
   document.getElementById('food-lib-search').value = '';
+  const listWrap = document.getElementById('food-lib-list-wrap');
+  if (listWrap) listWrap.style.maxHeight = '';
   renderFoodLibEditor();
   openModal('modal-food-lib-editor');
+  // See fitListToKeyboard() — wait for the sheet's slide-in transform to
+  // settle before measuring the wrap's on-screen position.
+  setTimeout(() => fitListToKeyboard('food-lib-list-wrap'), 320);
 }
 
 function renderFoodLibEditor() {
@@ -9685,8 +9919,7 @@ function deleteRecipe(id) {
 <!-- ── Rest Timer Modal ───────────────────────────────────────────── -->
 <div class="modal-overlay" id="modal-timer">
   <div class="modal-sheet" style="max-height:70dvh;">
-    <div class="modal-handle-row">
-      <div class="modal-handle"></div>
+    <div class="modal-handle-row"><div class="modal-handle"></div>
       <button class="modal-close-btn" onclick="closeTimerModal()">✕</button>
     </div>
     <div class="toggle-row" style="margin-bottom:20px;">
@@ -9732,11 +9965,14 @@ function deleteRecipe(id) {
 
 <!-- ── Food Library Editor Modal ─────────────────────────────────── -->
 <div class="modal-overlay" id="modal-food-lib-editor">
-  <div class="modal-sheet" data-modal="modal-food-lib-editor" style="max-height:90dvh;display:flex;flex-direction:column;">
+  <div class="modal-sheet kb-pinned-sheet" data-modal="modal-food-lib-editor">
     <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-food-lib-editor')">✕</button></div>
     <div class="modal-title" style="flex-shrink:0;">Food Library</div>
     <input type="text" id="food-lib-search" placeholder="Search foods…" oninput="renderFoodLibEditor()" style="margin-bottom:10px;flex-shrink:0;">
-    <div id="food-lib-list" style="overflow-y:auto;flex:1;"></div>
+    <div id="food-lib-list-wrap" class="kb-list-wrap">
+      <div id="food-lib-list" class="kb-list-inner"></div>
+      <div class="kb-list-fade"></div>
+    </div>
   </div>
 </div>
 
