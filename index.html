@@ -87,7 +87,7 @@
 [data-theme="mono"]         { --hero-1: #4a4a48; --hero-2: #232321; }
 
 /* ── Multi theme: distinct hero colour per page, matching mockup ── */
-[data-theme="multi"] [data-page="home"]      { --hero-1: #2BC7C4; --hero-2: #0B4F4E; }
+[data-theme="multi"] [data-page="progress"]      { --hero-1: #2BC7C4; --hero-2: #0B4F4E; }
 [data-theme="multi"] [data-page="plan"]      { --hero-1: #378ADD; --hero-2: #0C447C; }
 [data-theme="multi"] [data-page="train"]     { --hero-1: #E8D44D; --hero-2: #6B5A0A; }
 [data-theme="multi"] [data-page="body"]      { --hero-1: #1D9E75; --hero-2: #085041; }
@@ -306,7 +306,7 @@ h3 {
 /* ── HERO CARD ───────────────────────────────────────────────
    The signature element: a gradient card with two soft radial
    blobs in the top-right, a label/value pair, and a row of
-   translucent callout chips. Used on Progress/Home, Body,
+   translucent callout chips. Used on Progress, Body,
    Train, Nutrition. */
 .hero-card {
   position: relative;
@@ -1375,10 +1375,10 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   <div id="content">
 
     <!-- ════════════════════════════════════════
-         SCREEN 0: HOME
+         SCREEN 0: PROGRESS
     ═══════════════════════════════════════════ -->
-    <div class="screen" id="screen-home">
-      <div id="home-date" style="display:none;"></div>
+    <div class="screen" id="screen-progress">
+      <div id="progress-date" style="display:none;"></div>
 
       <!-- Active cycle hero + swipeable chart deck (cycle overview, weight
            over time, volume over time, steps vs goal, kcal vs goal) -->
@@ -1387,26 +1387,26 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
       <!-- Body weight + peak insight -->
       <div class="section-title" style="margin-top:16px;">Insights</div>
-      <div id="home-body" style="margin-bottom:2px;"></div>
-      <div id="home-body-dots" style="display:flex;justify-content:center;gap:6px;margin-bottom:6px;min-height:18px;"></div>
+      <div id="progress-body" style="margin-bottom:2px;"></div>
+      <div id="progress-body-dots" style="display:flex;justify-content:center;gap:6px;margin-bottom:6px;min-height:18px;"></div>
 
       <!-- Weekly summary table -->
       <div class="section-title" style="margin-top:16px;">Weekly Summary</div>
-      <div id="home-progress-charts" style="margin-bottom:4px;"></div>
+      <div id="progress-charts" style="margin-bottom:4px;"></div>
 
       <!-- Steps + Nutrition, merged into one statistics card with a single toggle -->
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;margin-bottom:6px;">
         <div class="section-title" style="margin:0;">Statistics</div>
         <div style="display:flex;background:var(--surface2);border-radius:6px;padding:2px;gap:1px;">
-          <button id="nutr-tog-today" onclick="setHomeNutrToggle('today')" style="padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:transparent;color:var(--text3);font-family:var(--font-mono);">Today</button>
-          <button id="nutr-tog-avg" onclick="setHomeNutrToggle('avg')" style="padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:var(--surface);color:var(--text);font-family:var(--font-mono);">7-day</button>
+          <button id="nutr-tog-today" onclick="setProgressNutrToggle('today')" style="padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:transparent;color:var(--text3);font-family:var(--font-mono);">Today</button>
+          <button id="nutr-tog-avg" onclick="setProgressNutrToggle('avg')" style="padding:3px 8px;border-radius:4px;border:none;font-size:10px;cursor:pointer;background:var(--surface);color:var(--text);font-family:var(--font-mono);">7-day</button>
         </div>
       </div>
-      <div id="home-nutrition" style="margin-bottom:4px;"></div>
+      <div id="progress-nutrition" style="margin-bottom:4px;"></div>
 
       <!-- Weekly macro split (moved here from the Nutrition tab) -->
       <div class="section-title" style="margin-top:16px;">Weekly Macro Split</div>
-      <div id="home-nutr-pies" style="margin-bottom:4px;"></div>
+      <div id="progress-nutr-pies" style="margin-bottom:4px;"></div>
     </div>
 
     <!-- ════════════════════════════════════════
@@ -1468,7 +1468,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v5.18</span>
+          <span class="badge badge-green">v5.25</span>
         </div>
       </div>
 
@@ -1590,7 +1590,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   ═══════════════════════════════════════════ -->
   <nav id="nav">
     <div id="nav-pill"></div>
-    <button class="nav-btn active" id="nav-home" onclick="showScreen('home')">
+    <button class="nav-btn active" id="nav-progress" onclick="showScreen('progress')">
       <svg class="nav-icon" viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="9" rx="0.5"/><rect x="10" y="7" width="4" height="14" rx="0.5"/><rect x="17" y="3" width="4" height="18" rx="0.5"/></svg>
       <span class="nav-label">Progress</span>
     </button>
@@ -2424,7 +2424,7 @@ function showScreen(name) {
   document.getElementById('nav-' + name).classList.add('active');
   animateNavPill();
   updateNavPillColor(name);
-  if (name === 'home') renderHome();
+  if (name === 'progress') renderProgress();
   if (name === 'plan') renderPlan();
   if (name === 'train') renderTrain();
   if (name === 'body') renderBody();
@@ -3360,24 +3360,6 @@ function avgDayMapField(dayMap, field, startStr, endStr) {
 
 
 
-// Bucket dates into weekly chunks anchored to cycle start (or earliest log)
-function buildWeekBuckets(dayMap, macroStart) {
-  const dates = Object.keys(dayMap).sort();
-  if (!dates.length) return [];
-  const anchor = macroStart && macroStart <= dates[0] ? macroStart : dates[0];
-  const anchorMs = new Date(anchor + 'T00:00:00').getTime();
-  const weeks = [];
-  dates.forEach(d => {
-    const dMs = new Date(d + 'T00:00:00').getTime();
-    const wIdx = Math.floor((dMs - anchorMs) / (7 * 86400000));
-    if (!weeks[wIdx]) weeks[wIdx] = { label: 'W' + (wIdx + 1), start: d, end: d, days: [] };
-    weeks[wIdx].days.push(d);
-    if (d < weeks[wIdx].start) weeks[wIdx].start = d;
-    if (d > weeks[wIdx].end)   weeks[wIdx].end   = d;
-  });
-  return weeks.filter(Boolean);
-}
-
 // Find the best 7-day rolling window
 function findPeakWindow(dayMap, goalType) {
   const dates = Object.keys(dayMap).sort();
@@ -3461,7 +3443,7 @@ function openCycleHistory() {
     const endDate = getMacroEndDate(macro);
     const isPast = today > endDate;
     const isFuture = today < startDate;
-    const isActive = macro.id === state.currentMacroId;
+    const isActive = !isFuture && !isPast;
     const endStr = endDate.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
     const startStr = startDate.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
 
@@ -3498,7 +3480,7 @@ function openCycleHistory() {
 }
 
 // Resolves which macrocycle the Progress page is currently showing —
-// shared by renderHome() and renderProgressHero() so the swipe deck and
+// shared by renderProgress() and renderProgressHero() so the swipe deck and
 // the rest of the page (body weight, weekly table, nutrition) always
 // agree on the same cycle without needing to be rendered together.
 function resolveProgressMacro() {
@@ -3515,7 +3497,7 @@ function cycleProgressMacro(dir) {
   const idx = list.findIndex(m => m.id === progressViewMacroId);
   const nextIdx = ((idx < 0 ? 0 : idx) + dir + list.length) % list.length;
   progressViewMacroId = list[nextIdx].id;
-  renderHome();
+  renderProgress();
 }
 
 // Slide 0 of the progress hero swipe deck — the original "Active Cycle"
@@ -3535,7 +3517,7 @@ function buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort) {
   const totalCalWks = getMacroDurationWeeks(macro);
   const endDate = getMacroEndDate(macro);
   const today = new Date(); today.setHours(0,0,0,0); startDate.setHours(0,0,0,0);
-  const totalDays = totalCalWks * 7;
+  const totalDays = totalCalWks * 7 - 1; // inclusive day count, matches getMacroEndDate's start+days-1
   const elapsedDays = Math.max(0, Math.min(today - startDate, endDate - startDate)) / (1000*60*60*24);
   const cyclePct = Math.min(100, Math.round((elapsedDays / totalDays) * 100));
   const currentMeso = today < startDate ? 0 : Math.min(macro.weeks, Math.floor(elapsedDays / ((macro.weeksPerMeso || 1) * 7)) + 1);
@@ -3545,6 +3527,12 @@ function buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort) {
   const isPast = today > endDate;
   const isFuture = today < startDate;
 
+  // Goal direction for this cycle — used everywhere below that talks about
+  // "progress toward target" so the wording (and sign) always matches
+  // whether this is a loss or gain/strength cycle, rather than assuming loss.
+  const cycleGoalType = macro.goalType || 'loss';
+  const isGainGoal = cycleGoalType === 'gain' || cycleGoalType === 'strength';
+
   // ── Body weight progress within this cycle ──
   const bwLogsAll = (state.bodyLogs || []).filter(l => l.weight).sort((a,b) => a.date.localeCompare(b.date));
   const cycleStartLogs = bwLogsAll.filter(l => macro.start && l.date >= macro.start && (!isPast || l.date <= toLocalDateStr(endDate)));
@@ -3553,19 +3541,44 @@ function buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort) {
   const cycleDelta = (startBw !== null && latestBw !== null) ? latestBw - startBw : null;
 
   let bwLine = '';
-  if (macro.targetBw && latestBw !== null) {
-    const diff = latestBw - macro.targetBw;
-    const diffStr = Math.abs(diff) <= 0.1 ? 'On target ✓' : diff > 0 ? diff.toFixed(1) + ' lbs left to go' : Math.abs(diff).toFixed(1) + ' lbs below target';
-    const cycleTotalStr = cycleDelta !== null && Math.abs(cycleDelta) >= 0.1 ? `${Math.abs(cycleDelta).toFixed(1)} lbs ${cycleDelta < 0 ? 'lost' : 'gained'} so far · ` : '';
+  if (!isPast && macro.targetBw && latestBw !== null) {
+    // "remaining" is signed distance still to travel toward the target in
+    // the cycle's own goal direction: positive means still short of target,
+    // negative means overshot past it — for either a loss or gain cycle.
+    const remaining = isGainGoal ? (macro.targetBw - latestBw) : (latestBw - macro.targetBw);
+    const diffStr = Math.abs(remaining) <= 0.1
+      ? 'On target ✓'
+      : remaining > 0
+        ? remaining.toFixed(1) + ' lbs left to go'
+        : Math.abs(remaining).toFixed(1) + ' lbs ' + (isGainGoal ? 'above target' : 'below target');
+    const cycleTotalStr = cycleDelta !== null && Math.abs(cycleDelta) >= 0.1
+      ? (() => {
+          const actuallyGained = cycleDelta > 0;
+          const matchesGoal = isGainGoal ? actuallyGained : !actuallyGained;
+          const verb = actuallyGained ? 'gained' : 'lost';
+          return `${Math.abs(cycleDelta).toFixed(1)} lbs ${verb}${matchesGoal ? ' so far' : ''} · `;
+        })()
+      : '';
     bwLine = `${cycleTotalStr}${diffStr}`;
-  } else if (macro.targetBw) {
+  } else if (!isPast && macro.targetBw) {
     bwLine = `Target ${macro.targetBw} lbs — no weigh-ins yet`;
   }
 
-  // ── On-track / behind / ahead schedule comparison ──
-  // Compares % through the cycle's timeline vs % progress toward the bodyweight goal.
+  // ── On-track / behind / ahead schedule comparison (ongoing cycles) ──
+  // or final result vs target (finished cycles) ─────────────────────────
   let statusHtml = '';
-  if (macro.targetBw && startBw !== null && latestBw !== null && !isFuture) {
+  if (isPast && macro.targetBw && latestBw !== null) {
+    const diff = latestBw - macro.targetBw; // positive = finished above target, negative = below
+    const isOnTarget = Math.abs(diff) <= 0.1;
+    const posLabel = diff > 0 ? 'above' : 'below';
+    // Bad (red) only when this final position represents falling short of
+    // THIS cycle's own goal: finishing above target on a loss cycle, or
+    // below target on a gain cycle.
+    const isBad = isGainGoal ? diff < -0.1 : diff > 0.1;
+    const statusLabel = isOnTarget ? '✓ Finished on target' : `You finished ${Math.abs(diff).toFixed(1)} lbs ${posLabel} target`;
+    const statusBg = isOnTarget ? 'var(--accent)' : (isBad ? 'var(--red)' : 'var(--accent)');
+    statusHtml = `<div class="hero-status" style="background:${statusBg};color:#eef3f8;">${statusLabel}</div>`;
+  } else if (!isPast && macro.targetBw && startBw !== null && latestBw !== null && !isFuture) {
     const totalBwChangeNeeded = macro.targetBw - startBw;
     let bwPct = 0;
     if (Math.abs(totalBwChangeNeeded) >= 0.1) {
@@ -3589,20 +3602,45 @@ function buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort) {
   const avgProtein = avgDayMapField(dayMapForMacro, 'protein', macro.start || '0000-00-00', macroEndStr);
   const totalVolume = getMacroTotalVolume(macro);
 
+  // Label reflects this cycle's own goal direction (loss vs gain), not the
+  // raw sign of the change — so a gain cycle always says "Weight gained"
+  // even if the actual trend is negative (shown as a negative figure),
+  // rather than flipping to "lost" based on what actually happened.
+  const weightChangeLabel = isGainGoal ? 'Weight gained' : 'Weight lost';
   const weightChangeCallout = cycleDelta !== null
-    ? `<div class="hero-callout"><div class="hero-callout-lbl">Weight ${cycleDelta < 0 ? 'lost' : cycleDelta > 0 ? 'gained' : 'change'}</div><div class="hero-callout-val">${Math.abs(cycleDelta).toFixed(1)} lbs</div></div>`
-    : `<div class="hero-callout"><div class="hero-callout-lbl">Weight change</div><div class="hero-callout-val">—</div></div>`;
+    ? (() => {
+        // Plain number when the actual change matches this cycle's goal
+        // direction. When it opposes the goal, flag it with an explicit
+        // sign: "+" only ever appears on a loss cycle (unwanted gain),
+        // "-" only ever appears on a gain cycle (unwanted loss).
+        let displayVal, sign;
+        if (isGainGoal) {
+          displayVal = cycleDelta; // negative here already reads as "-X" via toFixed
+          sign = '';
+        } else if (cycleDelta > 0) {
+          displayVal = cycleDelta; // unwanted gain during a loss cycle
+          sign = '+';
+        } else {
+          displayVal = -cycleDelta; // plain amount lost, no sign
+          sign = '';
+        }
+        return `<div class="hero-callout"><div class="hero-callout-lbl">${weightChangeLabel}</div><div class="hero-callout-val">${sign}${displayVal.toFixed(1)} lbs</div></div>`;
+      })()
+    : `<div class="hero-callout"><div class="hero-callout-lbl">${weightChangeLabel}</div><div class="hero-callout-val">—</div></div>`;
 
   const navArrowButtons = canCycle ? `<div style="display:flex;gap:6px;">
       <button onclick="cycleProgressMacro(-1)" aria-label="Previous cycle"><svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
       <button onclick="cycleProgressMacro(1)" aria-label="Next cycle"><svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
     </div>` : '';
 
-  const isActiveCycle = macro.id === state.currentMacroId;
-  const cycleStatusLabel = isActiveCycle ? 'Active' : isFuture ? 'Upcoming' : 'Past';
+  // Purely date-based — never tied to state.currentMacroId, which drives
+  // Plan/Train and can lag behind what the cycle dates actually say (e.g.
+  // right after creating a new cycle or editing an existing one's dates).
+  const isActiveCycle = !isFuture && !isPast;
+  const cycleStatusLabel = isFuture ? 'Upcoming' : isPast ? 'Past' : 'Active';
   const cycleStatusPill = `<span style="display:inline-block;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:600;letter-spacing:0.04em;white-space:nowrap;background:${isActiveCycle ? 'rgba(170,255,150,0.22)' : 'rgba(255,255,255,0.18)'};color:${isActiveCycle ? 'rgba(170,255,150,0.95)' : 'rgba(255,255,255,0.85)'};">${cycleStatusLabel.toUpperCase()}</span>`;
 
-  return `<div class="hero-card" data-page="home">
+  return `<div class="hero-card" data-page="progress">
     <div class="hero-nav-arrows" style="top:18px;right:18px;flex-direction:column;align-items:flex-end;gap:6px;" onclick="event.stopPropagation();">
       ${cycleStatusPill}
       ${navArrowButtons}
@@ -3634,38 +3672,81 @@ function buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort) {
 }
 
 // Slide 1 — body weight over time, as a white area line chart on the
-// gradient hero shell. Scoped to the active macrocycle's date range, same
-// as the rest of the Active Cycle stats.
+// gradient hero shell. The x-axis is always the active cycle's own real
+// calendar dates (unchanged from the single-cycle view). Browsing to a
+// different cycle overlays that cycle's weigh-ins as a second (dashed)
+// line on the SAME axis, positioned by days-since-that-cycle's-own-start
+// rather than by real date — so day 1 of an old cut lines up with day 1
+// of the current one, letting the two trends be compared directly. If the
+// old cycle ran longer than the active one, its tail is simply clipped —
+// only the window matching the active cycle's own length is shown.
 function buildWeightHeroChart(macro) {
-  const emptyShell = msg => `<div class="hero-card" data-page="home">
+  const emptyShell = msg => `<div class="hero-card" data-page="progress">
     <div class="hero-label">Weight over time</div>
     <div class="hero-chart-fill" style="font-size:13px;color:rgba(255,255,255,0.6);text-align:center;">${msg}</div>
   </div>`;
-  if (!macro || !macro.start) return emptyShell('No active cycle yet');
 
-  const endDate = getMacroEndDate(macro);
+  const activeMacro = state.macrocycles.find(m => m.id === state.currentMacroId);
+  if (!activeMacro || !activeMacro.start) return emptyShell('No active cycle yet');
+
   const today = new Date(); today.setHours(0,0,0,0);
-  const isPast = today > endDate;
-  const macroEndStr = toLocalDateStr(endDate);
-  const bwLogsAll = (state.bodyLogs||[]).filter(l => l.weight).sort((a,b) => a.date.localeCompare(b.date));
-  const cycleLogs = bwLogsAll.filter(l => l.date >= macro.start && (!isPast || l.date <= macroEndStr));
-  if (cycleLogs.length < 2) return emptyShell('Log a few weigh-ins to see your trend');
+  const activeEndDate = getMacroEndDate(activeMacro);
+  const activeIsPast  = today > activeEndDate;
+  const domainStart    = new Date(activeMacro.start + 'T00:00:00');
+  const domainEndDate  = activeIsPast ? activeEndDate : today;
+  const domainEndStr   = toLocalDateStr(domainEndDate);
+  const domainDays     = Math.round((domainEndDate - domainStart) / 86400000);
 
-  const points = cycleLogs.map(l => {
-    const d = new Date(l.date + 'T00:00:00');
-    return { label: `${String(d.getDate()).padStart(2,'0')}-${String(d.getMonth()+1).padStart(2,'0')}`, y: parseFloat(l.weight) };
-  });
-  const delta = points[points.length-1].y - points[0].y;
+  const bwLogsAll = (state.bodyLogs||[]).filter(l => l.weight).sort((a,b) => a.date.localeCompare(b.date));
+
+  const primaryLogs = bwLogsAll.filter(l => l.date >= activeMacro.start && l.date <= domainEndStr);
+  if (primaryLogs.length < 2) return emptyShell('Log a few weigh-ins to see your trend');
+
+  const primaryPoints = primaryLogs.map(l => ({
+    offset: Math.round((new Date(l.date + 'T00:00:00') - domainStart) / 86400000),
+    y: parseFloat(l.weight),
+  }));
+  const delta = primaryPoints[primaryPoints.length-1].y - primaryPoints[0].y;
   const deltaStr = (Math.abs(delta) < 0.05) ? 'No change' : `${delta > 0 ? '+' : ''}${delta.toFixed(1)} lbs`;
 
-  return `<div class="hero-card" data-page="home">
+  let comparePoints = [];
+  let compareHtml = '';
+  const isComparing = !!(macro && macro.id !== activeMacro.id && macro.start);
+  if (isComparing) {
+    const compareEndStr = toLocalDateStr(getMacroEndDate(macro));
+    const compareLogs = bwLogsAll.filter(l => l.date >= macro.start && l.date <= compareEndStr);
+    if (compareLogs.length > 1) {
+      // The comparison cycle's own delta, from its real (unshifted) values
+      const compareDelta = parseFloat(compareLogs[compareLogs.length-1].weight) - parseFloat(compareLogs[0].weight);
+      const compareDeltaStr = (Math.abs(compareDelta) < 0.05) ? 'no change' : `${compareDelta > 0 ? '+' : ''}${compareDelta.toFixed(1)} lbs`;
+
+      // Position by days-since-that-cycle's-own-start (not real date) so it
+      // lands on the same day-index as the active cycle, then clip to the
+      // active cycle's own length.
+      const compareStart = new Date(macro.start + 'T00:00:00');
+      comparePoints = compareLogs
+        .map(l => ({
+          offset: Math.round((new Date(l.date + 'T00:00:00') - compareStart) / 86400000),
+          y: parseFloat(l.weight),
+        }))
+        .filter(p => p.offset >= 0 && p.offset <= domainDays);
+
+      if (comparePoints.length >= 2) {
+        compareHtml = `<div style="margin-top:8px;font-size:11px;color:rgba(255,255,255,0.75);">Comparing: <strong>${macro.name}</strong> — ${compareDeltaStr}</div>`;
+      }
+    }
+  }
+
+  return `<div class="hero-card" data-page="progress">
     <div style="display:flex;justify-content:space-between;align-items:baseline;">
       <div class="hero-label" style="margin-bottom:0;">Weight over time</div>
       <span style="font-size:11px;color:rgba(255,255,255,0.65);">${deltaStr}</span>
     </div>
-    <div class="hero-chart-fill" style="margin-top:10px;">${buildAreaLineChart(points, 'rgba(255,255,255,0.85)')}</div>
+    <div class="hero-chart-fill" style="margin-top:10px;">${buildWeightCompareChart(domainStart, domainDays, primaryPoints, comparePoints, 'rgba(255,255,255,0.85)', 'rgba(255,255,255,0.55)')}</div>
+    ${compareHtml}
   </div>`;
 }
+
 
 // Slide 2 — training volume over time (moved here from its old standalone
 // spot below the hero). Same data source as before (getMacroVolumeSeries),
@@ -3679,7 +3760,7 @@ function buildWeightHeroChart(macro) {
 // representing each of those real weeks; grouping by mesocycle index alone
 // would collapse all of them into one bucket.
 function buildVolumeHeroChart(macro) {
-  const emptyShell = msg => `<div class="hero-card" data-page="home">
+  const emptyShell = msg => `<div class="hero-card" data-page="progress">
     <div class="hero-label">Volume over time</div>
     <div class="hero-chart-fill" style="font-size:13px;color:rgba(255,255,255,0.6);text-align:center;">${msg}</div>
   </div>`;
@@ -3702,7 +3783,7 @@ function buildVolumeHeroChart(macro) {
 
   const totalVol = series.reduce((s,p) => s + p.vol, 0);
 
-  return `<div class="hero-card" data-page="home">
+  return `<div class="hero-card" data-page="progress">
     <div style="display:flex;justify-content:space-between;align-items:baseline;">
       <div class="hero-label" style="margin-bottom:0;">Volume over time</div>
       <span style="font-size:11px;color:rgba(255,255,255,0.65);">${Math.round(totalVol).toLocaleString()} kg total</span>
@@ -3729,7 +3810,7 @@ function getGoalForDate(dateStr, macroId) {
 // scrollable, defaulting to fully scrolled right (most recent days).
 function buildGoalColumnHeroChart(macro, metric) {
   const label = metric === 'steps' ? 'Steps vs goal' : 'Kcal vs goal';
-  const emptyShell = msg => `<div class="hero-card" data-page="home">
+  const emptyShell = msg => `<div class="hero-card" data-page="progress">
     <div class="hero-label">${label}</div>
     <div class="hero-chart-fill" style="font-size:13px;color:rgba(255,255,255,0.6);text-align:center;">${msg}</div>
   </div>`;
@@ -3803,7 +3884,7 @@ function buildGoalColumnHeroChart(macro, metric) {
 
   const weeksShown = Math.ceil(days.length / 7);
 
-  return `<div class="hero-card" data-page="home">
+  return `<div class="hero-card" data-page="progress">
     <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;">
       <div class="hero-label" style="margin-bottom:0;">${label}</div>
       <span style="font-size:10px;color:rgba(255,255,255,0.5);">${weeksShown} wk${weeksShown!==1?'s':''}${fillMode ? '' : ' · scroll for more'}</span>
@@ -3956,7 +4037,7 @@ let _insightsGestureId   = 0;
 const INSIGHTS_CARD_COUNT = 3;
 
 function getInsightsCard() {
-  const wrap = document.getElementById('home-body');
+  const wrap = document.getElementById('progress-body');
   return wrap ? wrap.querySelector('.card') : null;
 }
 
@@ -3988,7 +4069,7 @@ function insightsAnimateTo(rawIndex) {
   setTimeout(() => {
     if (myGesture !== _insightsGestureId) return;
     insightsIndex = newIndex;
-    renderHome();   // re-renders card + dots
+    renderProgress();   // re-renders card + dots
     requestAnimationFrame(() => {
       if (myGesture !== _insightsGestureId) return;
       const newCard = getInsightsCard();
@@ -4014,7 +4095,7 @@ function insightsAnimateTo(rawIndex) {
 let _insightsSwipeInited = false;
 function initInsightsSwipe() {
   _insightsSwipeInited = false; // re-init on each render (wrap may change)
-  const wrap = document.getElementById('home-body');
+  const wrap = document.getElementById('progress-body');
   if (!wrap) return;
   wrap.style.touchAction = 'pan-y';
   let startX = 0, startY = 0, tracking = false, moved = false, suppressClick = false;
@@ -4115,9 +4196,9 @@ function initProgressHeroSwipe() {
   }, true);
 }
 
-function renderHome() {
+function renderProgress() {
   const todayStr = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' });
-  document.getElementById('home-date').textContent = todayStr;
+  document.getElementById('progress-date').textContent = todayStr;
 
   const macro = resolveProgressMacro();
 
@@ -4125,7 +4206,7 @@ function renderHome() {
   renderProgressHero();
 
   // ── Body weight card ──────────────────────────
-  const bodyEl = document.getElementById('home-body');
+  const bodyEl = document.getElementById('progress-body');
   const weightLogs = [...(state.bodyLogs||[])].sort((a,b) => b.date.localeCompare(a.date));
   const today = getLocalToday();
   const todayDate = new Date(today + 'T00:00:00');
@@ -4347,7 +4428,7 @@ function renderHome() {
   ];
   const nextGoalDropdown = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
     <span style="font-size:11px;color:var(--text3);white-space:nowrap;">Next cycle goal:</span>
-    <select id="insights-next-goal" onchange="renderHome()"
+    <select id="insights-next-goal" onchange="renderProgress()"
       style="flex:1;font-size:12px;padding:5px 8px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
       ${nextGoalOptions.map(o => `<option value="${o.value}"${nextGoal===o.value?' selected':''}>${o.label}</option>`).join('')}
     </select>
@@ -4408,8 +4489,8 @@ function renderHome() {
   // Card: no header buttons — swipe only. Content wrapped in animatable .card
   bodyEl.innerHTML = `<div class="card">${cards[insightsIndex]}</div>`;
 
-  // Dots below the card (outside bodyEl, in sibling home-body-dots)
-  const dotsEl = document.getElementById('home-body-dots');
+  // Dots below the card (outside bodyEl, in sibling progress-body-dots)
+  const dotsEl = document.getElementById('progress-body-dots');
   if (dotsEl) {
     dotsEl.innerHTML = cardTitles.map((t,i) =>
       `<button onclick="insightsAnimateTo(${i})" style="background:none;border:none;padding:4px;cursor:pointer;display:flex;align-items:center;gap:4px;">
@@ -4426,17 +4507,17 @@ function renderHome() {
   renderProgressCharts();
 
   // ── Steps & Nutrition (merged into one card) ──
-  renderHomeNutr();
+  renderProgressNutr();
 
   // ── Weekly macro split pies ───────────────────
-  renderHomeNutrPies();
+  renderProgressNutrPies();
 }
 
 function renderProgressCharts() {
-  const el = document.getElementById('home-progress-charts');
+  const el = document.getElementById('progress-charts');
   if (!el) return;
   const dayMap = buildDayMap();
-  const macro  = state.macrocycles.find(m => m.id === state.currentMacroId);
+  const macro  = resolveProgressMacro();
   const goalType = macro ? (macro.goalType || 'loss') : 'loss';
   const isLoss = goalType === 'loss';
   const allDates = Object.keys(dayMap).sort();
@@ -4446,9 +4527,18 @@ function renderProgressCharts() {
     return;
   }
 
-  const anchor = (macro && macro.start && macro.start <= allDates[0]) ? macro.start : allDates[0];
+  // Bound the table strictly to the resolved (active/browsed) cycle's own
+  // window — anchor at its start, and stop at its end date (or today,
+  // whichever comes first, if the cycle is still ongoing). Previously this
+  // fell back to the earliest-ever logged date and always ran through
+  // today regardless of which cycle was selected, so it never actually
+  // reflected cycle context.
+  const todayStr = getLocalToday();
+  const macroEndStr = macro ? toLocalDateStr(getMacroEndDate(macro)) : null;
+  const anchor = (macro && macro.start) ? macro.start : allDates[0];
   const anchorMs = new Date(anchor + 'T00:00:00').getTime();
-  const todayMs  = new Date(getLocalToday() + 'T00:00:00').getTime();
+  const rangeEndStr = macro ? (macroEndStr < todayStr ? macroEndStr : todayStr) : todayStr;
+  const rangeEndMs = new Date(rangeEndStr + 'T00:00:00').getTime();
 
   // ── Weekly summary table ──────────────────────
   // Always use 7-day buckets for the table
@@ -4457,7 +4547,7 @@ function renderProgressCharts() {
     let cur2 = new Date(anchorMs);
     let wn = 1;
     let prevLastWeight = null; // carry last weight from previous week
-    while (cur2.getTime() <= todayMs) {
+    while (cur2.getTime() <= rangeEndMs) {
       const bStart = toLocalDateStr(cur2);
       const bEnd   = toLocalDateStr(new Date(cur2.getTime() + 6 * 86400000));
       const bDates = allDates.filter(d => d >= bStart && d <= bEnd);
@@ -4545,10 +4635,10 @@ function renderProgressCharts() {
   </div>`;
 }
 
-const homeToggle = { nutr: 'avg' };
+const progressToggle = { nutr: 'avg' };
 
-function setHomeNutrToggle(val) {
-  homeToggle.nutr = val;
+function setProgressNutrToggle(val) {
+  progressToggle.nutr = val;
   const ids  = ['nutr-tog-today','nutr-tog-avg'];
   const vals = ['today', 'avg'];
   ids.forEach((id, i) => {
@@ -4557,7 +4647,7 @@ function setHomeNutrToggle(val) {
     el.style.background = vals[i] === val ? 'var(--surface)' : 'transparent';
     el.style.color       = vals[i] === val ? 'var(--text)'    : 'var(--text3)';
   });
-  renderHomeNutr();
+  renderProgressNutr();
 }
 
 function getLocal7Days() {
@@ -4571,12 +4661,32 @@ function getLocal7Days() {
   return days;
 }
 
+// All days in the resolved (active/browsed) cycle's own window, from its
+// start through today (or its end date, whichever is earlier if the cycle
+// has already finished). Used to scope the stats section's averages to
+// whichever cycle is selected, rather than a fixed rolling 7-day window.
+function getCycleDays(macro) {
+  if (!macro || !macro.start) return getLocal7Days();
+  const today = getLocalToday();
+  const endStr = toLocalDateStr(getMacroEndDate(macro));
+  const rangeEnd = endStr < today ? endStr : today;
+  const days = [];
+  let cur = new Date(macro.start + 'T00:00:00');
+  const endObj = new Date(rangeEnd + 'T00:00:00');
+  while (cur.getTime() <= endObj.getTime()) {
+    const ds = toLocalDateStr(cur);
+    days.push({ date: ds, letter: 'SMTWTFS'[cur.getDay()] });
+    cur.setDate(cur.getDate() + 1);
+  }
+  return days.length ? days : getLocal7Days();
+}
+
 function fmtK(val) {
   if (val >= 1000) return (val/1000).toFixed(1)+'k';
   return String(Math.round(val));
 }
 
-function buildHomeBarChart(days, values, color, unitFn, todayDate) {
+function buildProgressBarChart(days, values, color, unitFn, todayDate) {
   const max = Math.max(...values.filter(v=>v!==null), 1);
   const barMaxH = 48;
   return '<div style="display:flex;gap:4px;align-items:flex-end;height:'+(barMaxH+28)+'px;padding-top:14px;">'
@@ -4593,7 +4703,7 @@ function buildHomeBarChart(days, values, color, unitFn, todayDate) {
     + '</div>';
 }
 
-function buildHomeProgressBar(logged, target, color, overColor) {
+function buildProgressStatBar(logged, target, color, overColor) {
   if (!target) return '';
   const isOver = logged > target;
   const pct = Math.min(100, Math.round(logged/target*100));
@@ -4604,44 +4714,59 @@ function buildHomeProgressBar(logged, target, color, overColor) {
     + '</div>';
 }
 
-// Steps + Nutrition, merged into one card sharing a single Today/7-day
-// toggle (homeToggle.nutr). The steps row links through to Body; the rest
-// of the card links through to Nutrition.
-function renderHomeNutr() {
-  const el = document.getElementById('home-nutrition');
+// Steps + Nutrition, merged into one card sharing a single Today/cycle-avg
+// toggle (progressToggle.nutr). The steps row links through to Body; the rest
+// of the card links through to Nutrition. Averages are scoped to whichever
+// cycle is active/browsed (getCycleDays); the mini bar chart shows only the
+// most recent 7 days of that window so the compact card stays legible even
+// for a long cycle. "Today" mode only shows a value when today actually
+// falls within the selected cycle — browsing a past cycle shows "—" there
+// rather than today's real (out-of-cycle) numbers.
+function renderProgressNutr() {
+  const el = document.getElementById('progress-nutrition');
   if (!el) return;
   const today = getLocalToday();
   const goal = typeof getActiveGoal === 'function' ? getActiveGoal() : null;
-  const days = getLocal7Days();
-  const isToday = homeToggle.nutr === 'today';
+  const macro = resolveProgressMacro();
+  const cycleDays = getCycleDays(macro);
+  const days = cycleDays.slice(-7); // for the mini bar chart only
+  const isToday = progressToggle.nutr === 'today';
+  const todayInCycle = cycleDays.some(d => d.date === today);
 
   // ── Steps row ──
   const stepsGoal = goal ? (goal.steps||0) : 0;
+  const cycleStepsValues = cycleDays.map(d => {
+    const log = (state.bodyLogs||[]).find(l => l.date === d.date);
+    return log && log.steps ? parseInt(log.steps) : null;
+  });
   const stepsValues = days.map(d => {
     const log = (state.bodyLogs||[]).find(l => l.date === d.date);
     return log && log.steps ? parseInt(log.steps) : null;
   });
-  const stepsToday = stepsValues[6];
-  const stepsValid = stepsValues.filter(v => v !== null);
-  const stepsAvg7 = stepsValid.length ? Math.round(stepsValid.reduce((a,b)=>a+b,0)/stepsValid.length) : null;
-  const stepsDisplay = isToday ? stepsToday : stepsAvg7;
+  const stepsToday = todayInCycle ? (() => {
+    const log = (state.bodyLogs||[]).find(l => l.date === today);
+    return log && log.steps ? parseInt(log.steps) : null;
+  })() : null;
+  const stepsValid = cycleStepsValues.filter(v => v !== null);
+  const stepsAvgCycle = stepsValid.length ? Math.round(stepsValid.reduce((a,b)=>a+b,0)/stepsValid.length) : null;
+  const stepsDisplay = isToday ? stepsToday : stepsAvgCycle;
 
   let stepsInsight = '';
   if (isToday && stepsDisplay !== null && stepsGoal) {
     const diff = stepsGoal - stepsDisplay;
     stepsInsight = diff > 0 ? fmtK(diff) + ' left to go' : fmtK(Math.abs(diff)) + ' over target';
-  } else if (!isToday && stepsAvg7 !== null) {
+  } else if (!isToday && stepsAvgCycle !== null) {
     if (stepsGoal) {
-      const diff = stepsAvg7 - stepsGoal;
+      const diff = stepsAvgCycle - stepsGoal;
       stepsInsight = diff >= 0 ? 'Avg ' + diff.toLocaleString() + ' above target' : 'Avg ' + Math.abs(diff).toLocaleString() + ' below target';
     } else {
-      stepsInsight = stepsValid.length + ' of 7 days logged';
+      stepsInsight = stepsValid.length + ' of ' + cycleDays.length + ' days logged';
     }
   }
 
   const stepsRight = isToday
-    ? (stepsGoal ? buildHomeProgressBar(stepsDisplay||0, stepsGoal, 'var(--purple)', 'var(--purple)') : '')
-    : buildHomeBarChart(days, stepsValues, 'var(--purple)', fmtK, today);
+    ? (stepsGoal ? buildProgressStatBar(stepsDisplay||0, stepsGoal, 'var(--purple)', 'var(--purple)') : '')
+    : buildProgressBarChart(days, stepsValues, 'var(--purple)', fmtK, today);
 
   const stepsRow = '<div style="display:flex;align-items:flex-start;gap:12px;padding-bottom:10px;border-bottom:0.5px solid var(--border);margin-bottom:10px;cursor:pointer;" onclick="event.stopPropagation();showScreen(\'body\')">'
     + '<div style="flex:1;min-width:0;">'
@@ -4660,9 +4785,9 @@ function renderHomeNutr() {
     return (state.nutritionLogs||[]).find(l => l.date === date) || null;
   };
 
-  const todayLog = getLog(today);
-  const weekLogs = days.map(d => getLog(d.date));
-  const validLogs = weekLogs.filter(Boolean);
+  const todayLog = todayInCycle ? getLog(today) : null;
+  const cycleLogs = cycleDays.map(d => getLog(d.date));
+  const validLogs = cycleLogs.filter(Boolean);
 
   const metrics = [
     { key:'kcal',    label:'kcal',    color:'var(--accent)', goal:goal?.kcal,    fmt:v=>v.toLocaleString(),     fmtFull:v=>Math.round(v).toLocaleString(), overColor:'var(--red)',   warnOver:false },
@@ -4690,8 +4815,8 @@ function renderHomeNutr() {
     }
 
     const right = isToday
-      ? (m.goal ? buildHomeProgressBar(displayVal||0, m.goal, m.color, m.overColor) : '')
-      : buildHomeBarChart(days, vals7, m.color, m.fmt, today);
+      ? (m.goal ? buildProgressStatBar(displayVal||0, m.goal, m.color, m.overColor) : '')
+      : buildProgressBarChart(days, vals7, m.color, m.fmt, today);
 
     return '<div style="display:flex;align-items:flex-start;gap:12px;padding-bottom:10px;border-bottom:0.5px solid var(--border);margin-bottom:10px;">'
       + '<div style="flex:1;min-width:0;">'
@@ -5083,7 +5208,7 @@ function selectCycle(id) {
   progressViewMacroId = id;
   state.currentMacroId = id;
   save();
-  renderHome();
+  renderProgress();
   renderPlan();
   renderTrain();
 }
@@ -6043,6 +6168,65 @@ function buildAreaLineChart(points, color) {
   </svg>`;
 }
 
+// Slide 1's dual-line variant — same visual language as buildAreaLineChart,
+// but plots a second (comparison-cycle) series on the SAME x-axis as the
+// primary one. The x-axis always represents the active cycle's real
+// calendar dates (domainStart..domainStart+domainDays), unchanged from the
+// single-line view. Comparison points have already been date-shifted and
+// clipped to that same domain by the caller, so a point's "offset" (days
+// since domainStart) is what positions it on x for both series alike —
+// that's what makes day 1 of an old cycle line up with day 1 of the
+// current one regardless of when the old cycle actually happened.
+function buildWeightCompareChart(domainStart, domainDays, primaryPoints, comparePoints, primaryColor, compareColor) {
+  const allVals = primaryPoints.map(p => p.y).concat(comparePoints.map(p => p.y));
+  if (primaryPoints.length < 2) return '<div style="font-size:11px;color:var(--text3);padding:24px 0;text-align:center;">Not enough data yet</div>';
+
+  const W = 320, H = 150, padL = 4, padR = 4, padT = 14, padB = 22;
+  const cW = W - padL - padR, cH = H - padT - padB;
+  const span = Math.max(domainDays, 1);
+  const yMin = Math.min(...allVals), yMax = Math.max(...allVals);
+  const yRange = (yMax - yMin) || 1;
+  const pad = yRange * 0.12;
+  const yMin2 = yMin - pad, yMax2 = yMax + pad;
+  const yRange2 = yMax2 - yMin2 || 1;
+  const xPos = offset => padL + (offset / span) * cW;
+  const yPos = v => padT + cH - ((v - yMin2) / yRange2) * cH;
+
+  const primaryLinePts = primaryPoints.map(p => ({ x: xPos(p.offset), y: yPos(p.y) }));
+  const primaryLineStr = primaryLinePts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const areaStr = `${padL},${(padT+cH).toFixed(1)} ${primaryLineStr} ${(padL+cW).toFixed(1)},${(padT+cH).toFixed(1)}`;
+  const last = primaryLinePts[primaryLinePts.length - 1];
+
+  let compareSvg = '';
+  if (comparePoints.length >= 2) {
+    const compareLinePts = comparePoints.map(p => ({ x: xPos(p.offset), y: yPos(p.y) }));
+    const compareLineStr = compareLinePts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+    compareSvg = `<polyline points="${compareLineStr}" fill="none" stroke="${compareColor}" stroke-width="2" stroke-dasharray="4 3" stroke-linejoin="round" stroke-linecap="round"/>`;
+  }
+
+  // X axis labels — 3 evenly spaced real dates across the active cycle's domain
+  const labelOffsets = [0, Math.round(span/2), span];
+  const xLabels = labelOffsets.map((off, i) => {
+    const d = new Date(domainStart); d.setDate(d.getDate() + off);
+    const label = `${String(d.getDate()).padStart(2,'0')}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const anchor = i === 0 ? 'start' : i === labelOffsets.length-1 ? 'end' : 'middle';
+    return `<text x="${xPos(off).toFixed(1)}" y="${H-4}" text-anchor="${anchor}" font-size="9" fill="var(--text)" font-family="var(--font-mono)">${label}</text>`;
+  }).join('');
+
+  const gradId = 'areaGrad' + Math.random().toString(36).slice(2,8);
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;overflow:visible;">
+    <defs><linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${primaryColor}" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="${primaryColor}" stop-opacity="0"/>
+    </linearGradient></defs>
+    <polygon points="${areaStr}" fill="url(#${gradId})"/>
+    ${compareSvg}
+    <polyline points="${primaryLineStr}" fill="none" stroke="${primaryColor}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="4" fill="${primaryColor}"/>
+    ${xLabels}
+  </svg>`;
+}
+
 function renderBody() {
   const logs = [...state.bodyLogs].sort((a,b) => b.date.localeCompare(a.date));
   const ascLogs = [...state.bodyLogs].filter(l => l.weight).sort((a,b) => a.date.localeCompare(b.date));
@@ -6323,7 +6507,7 @@ function saveBodyProfile() {
   save();
   closeModal('modal-body-profile');
   renderBody();
-  renderHome(); // refresh BMR sentences on progress page
+  renderProgress(); // refresh BMR sentences on progress page
 }
 
 // ════════════════════════════════════════════════
@@ -6383,24 +6567,20 @@ function calcMifflinBMR() {
  * Returns { tdee, bmr, dataPoints } or null.
  */
 function calcDynamicTDEE() {
-  // Consecutive-pairs method, cycle-scoped, using median for robustness.
+  // Consecutive-pairs method, using median for robustness.
   // Every adjacent pair of weight logs is evaluated. Daily weight fluctuation
   // (water retention, food mass, glycogen) skews individual estimates but the
   // median naturally ignores extremes — every log contributes to the result.
-
-  const activeMacro = state.macrocycles.find(m => m.id === state.currentMacroId);
-  const cycleStart  = activeMacro && activeMacro.start ? activeMacro.start : null;
-  const cycleEnd    = activeMacro ? toLocalDateStr(getMacroEndDate(activeMacro)) : null;
-  const today       = getLocalToday();
-  const effectiveEnd = (cycleEnd && cycleEnd < today) ? cycleEnd : today;
+  //
+  // Deliberately NOT scoped to the active/browsed macrocycle: the metabolic
+  // estimate itself should reflect the person's full logging history, not
+  // just whichever cycle happens to be showing. Cycle-specific context (goal
+  // weight, direction, calorie target) is applied separately by the caller
+  // using the resolved macro, not here.
+  const today = getLocalToday();
 
   const wLogs = [...(state.bodyLogs || [])]
-    .filter(l => {
-      if (!l.weight) return false;
-      if (cycleStart && l.date < cycleStart) return false;
-      if (l.date > effectiveEnd)             return false;
-      return true;
-    })
+    .filter(l => l.weight && l.date <= today)
     .sort((a, b) => a.date.localeCompare(b.date));
 
   if (wLogs.length < 2) return null;
@@ -8400,10 +8580,20 @@ function renderNutrition() {
 
 // ── Legacy renderNutrDaily (replaced above) ────────────────────────────────
 
-function renderHomeNutrPies() {
-  const el = document.getElementById('home-nutr-pies');
+// Weekly macro-split pies — scoped to the resolved (active/browsed) cycle's
+// own window, same as the Weekly Summary table, rather than all-time logs.
+function renderProgressNutrPies() {
+  const el = document.getElementById('progress-nutr-pies');
   if (!el) return;
-  const logs = [...(state.nutritionLogs||[])].sort((a,b)=>b.date.localeCompare(a.date));
+  const macro = resolveProgressMacro();
+  const todayStr = getLocalToday();
+  const rangeStart = macro && macro.start ? macro.start : null;
+  const macroEndStr = macro ? toLocalDateStr(getMacroEndDate(macro)) : null;
+  const rangeEnd = macro ? (macroEndStr < todayStr ? macroEndStr : todayStr) : null;
+  const allLogs = [...(state.nutritionLogs||[])];
+  const logs = (rangeStart && rangeEnd)
+    ? allLogs.filter(l => l.date >= rangeStart && l.date <= rangeEnd).sort((a,b)=>b.date.localeCompare(a.date))
+    : allLogs.sort((a,b)=>b.date.localeCompare(a.date));
   if (!logs.length) {
     el.innerHTML = `<div class="empty-state"><p>Log at least a few days to see weekly summaries.</p></div>`;
     return;
@@ -8418,7 +8608,7 @@ function renderHomeNutrPies() {
   });
 
   let html = '';
-  Object.entries(weeks).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,8).forEach(([wk, entries]) => {
+  Object.entries(weeks).sort((a,b)=>b[0].localeCompare(a[0])).forEach(([wk, entries]) => {
     const avgKcal = entries.reduce((a,b)=>a+(b.kcal||0),0)/entries.length;
     const avgP = entries.reduce((a,b)=>a+(b.protein||0),0)/entries.length;
     const avgC = entries.reduce((a,b)=>a+(b.carbs||0),0)/entries.length;
@@ -8669,7 +8859,7 @@ function clearAllData() {
           };
           save();
           renderSettings();
-          showScreen('home');
+          showScreen('progress');
         }
       );
     }
@@ -8956,158 +9146,6 @@ function saveGoal() {
   save(); closeModal('modal-add-goal'); renderGoals();
 }
 
-function buildGoalsHomeSection(goal) {
-  if (!goal) return '';
-  const today = getLocalToday();
-  const todayNutr = state.nutritionLogs.find(l => l.date === today) || {};
-  const todayBody = state.bodyLogs.find(l => l.date === today) || {};
-  const todaySteps = parseInt(todayBody.steps) || 0;
-  const todayKcal = parseInt(todayNutr.kcal) || 0;
-  const todayProtein = parseInt(todayNutr.protein) || 0;
-  const todayCarbs = parseInt(todayNutr.carbs) || 0;
-  const todayFats = parseInt(todayNutr.fats) || 0;
-
-  // Weekly catch-up: figure out which day of the week we're on
-  const dayOfWeek = new Date().getDay(); // 0=Sun
-  const daysElapsed = dayOfWeek === 0 ? 7 : dayOfWeek;
-  const daysLeft = 7 - daysElapsed;
-
-  // Get this week's logs (Mon–today)
-  const weekLogs = [];
-  for (let i = 0; i < daysElapsed; i++) {
-    const d = new Date(); d.setDate(d.getDate() - (daysElapsed - 1 - i));
-    const ds = toLocalDateStr(d);
-    const n = state.nutritionLogs.find(l => l.date === ds) || {};
-    const b = state.bodyLogs.find(l => l.date === ds) || {};
-    weekLogs.push({ steps: parseInt(b.steps)||0, kcal: parseInt(n.kcal)||0 });
-  }
-  const weekStepsTotal = weekLogs.reduce((a,b)=>a+b.steps,0);
-  const weekKcalTotal = weekLogs.reduce((a,b)=>a+b.kcal,0);
-  const weekStepsGoal = (goal.steps||0) * 7;
-  const weekKcalGoal = (goal.kcal||0) * 7;
-  const stepsNeededPerDay = daysLeft > 0 ? Math.max(0, Math.round((weekStepsGoal - weekStepsTotal) / daysLeft)) : 0;
-  const kcalNeededPerDay = daysLeft > 0 ? Math.max(0, Math.round((weekKcalGoal - weekKcalTotal) / daysLeft)) : 0;
-
-  function bar(val, goal) {
-    if (!goal) return '';
-    const pct = Math.min(100, Math.round((val/goal)*100));
-    const col = pct >= 100 ? 'var(--accent)' : pct >= 60 ? 'var(--amber)' : 'var(--red)';
-    return '<div class="progress-track" style="margin-top:4px;"><div class="progress-fill" style="width:' + pct + '%;background:' + col + ';"></div></div>';
-  }
-
-  let html = '<div class="card" style="margin-bottom:10px;cursor:pointer;" onclick="showScreen(\'goals\')">';
-  html += '<div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:10px;">Today vs Goal</div>';
-
-  if (goal.steps) {
-    const stepsLeft = Math.max(0, (goal.steps||0) - todaySteps);
-    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">';
-    html += '<span style="font-size:12px;color:var(--text2);">Steps</span>';
-    html += '<span style="font-size:12px;">' + todaySteps.toLocaleString() + ' / ' + (goal.steps||0).toLocaleString() + (stepsLeft > 0 ? ' <span style="color:var(--text3);">(' + stepsLeft.toLocaleString() + ' left)</span>' : ' <span style="color:var(--accent);">✓</span>') + '</span></div>';
-    html += bar(todaySteps, goal.steps);
-    if (daysLeft > 0 && stepsNeededPerDay > goal.steps) {
-      html += '<div style="font-size:11px;color:var(--amber);margin-top:3px;">Avg ' + stepsNeededPerDay.toLocaleString() + ' steps/day needed to hit weekly goal</div>';
-    }
-    html += '<div style="height:8px;"></div>';
-  }
-
-  if (goal.kcal) {
-    const kcalLeft = Math.max(0, (goal.kcal||0) - todayKcal);
-    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">';
-    html += '<span style="font-size:12px;color:var(--text2);">kcal</span>';
-    html += '<span style="font-size:12px;">' + todayKcal.toLocaleString() + ' / ' + goal.kcal.toLocaleString() + (kcalLeft > 0 ? ' <span style="color:var(--text3);">(' + kcalLeft.toLocaleString() + ' left)</span>' : ' <span style="color:var(--accent);">✓</span>') + '</span></div>';
-    html += bar(todayKcal, goal.kcal);
-    html += '<div style="height:8px;"></div>';
-  }
-
-  if (goal.protein) {
-    const left = Math.max(0, (goal.protein||0) - todayProtein);
-    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">';
-    html += '<span style="font-size:12px;color:var(--blue);">Protein</span>';
-    html += '<span style="font-size:12px;">' + todayProtein + 'g / ' + goal.protein + 'g' + (left > 0 ? ' <span style="color:var(--text3);">(' + left + 'g left)</span>' : ' <span style="color:var(--accent);">✓</span>') + '</span></div>';
-    html += bar(todayProtein, goal.protein);
-    html += '<div style="height:4px;"></div>';
-  }
-  if (goal.carbs) {
-    const left = (goal.carbs||0) - todayCarbs;
-    const over = todayCarbs - (goal.carbs||0);
-    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">';
-    html += '<span style="font-size:12px;color:var(--amber);">Carbs</span>';
-    if (left > 0) {
-      html += '<span style="font-size:12px;">' + todayCarbs + 'g / ' + goal.carbs + 'g <span style="color:var(--text3);">(' + left + 'g left)</span></span></div>';
-    } else if (over > 0) {
-      html += '<span style="font-size:12px;">' + todayCarbs + 'g / ' + goal.carbs + 'g <span style="color:var(--amber);">⚠ +' + over + 'g over</span></span></div>';
-    } else {
-      html += '<span style="font-size:12px;">' + todayCarbs + 'g / ' + goal.carbs + 'g <span style="color:var(--accent);">✓</span></span></div>';
-    }
-    html += bar(todayCarbs, goal.carbs);
-    html += '<div style="height:4px;"></div>';
-  }
-  if (goal.fats) {
-    const left = (goal.fats||0) - todayFats;
-    const over = todayFats - (goal.fats||0);
-    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">';
-    html += '<span style="font-size:12px;color:var(--red);">Fats</span>';
-    if (left > 0) {
-      html += '<span style="font-size:12px;">' + todayFats + 'g / ' + goal.fats + 'g <span style="color:var(--text3);">(' + left + 'g left)</span></span></div>';
-    } else if (over > 0) {
-      html += '<span style="font-size:12px;">' + todayFats + 'g / ' + goal.fats + 'g <span style="color:var(--amber);">⚠ +' + over + 'g over</span></span></div>';
-    } else {
-      html += '<span style="font-size:12px;">' + todayFats + 'g / ' + goal.fats + 'g <span style="color:var(--accent);">✓</span></span></div>';
-    }
-    html += bar(todayFats, goal.fats);
-  }
-  html += '</div>';
-
-  // Weekly avg comparison
-  if (daysElapsed > 0 && (goal.kcal || goal.steps)) {
-    // Compute weekly meso avgs
-    const weekNutrLogs = [];
-    for (let i = 0; i < daysElapsed; i++) {
-      const d = new Date(); d.setDate(d.getDate() - (daysElapsed - 1 - i));
-      const ds = toLocalDateStr(d);
-      const n = state.nutritionLogs.find(l => l.date === ds) || {};
-      weekNutrLogs.push(n);
-    }
-    const avgP7 = Math.round(weekNutrLogs.reduce((a,b)=>a+(b.protein||0),0)/daysElapsed);
-    const avgC7 = Math.round(weekNutrLogs.reduce((a,b)=>a+(b.carbs||0),0)/daysElapsed);
-    const avgF7 = Math.round(weekNutrLogs.reduce((a,b)=>a+(b.fats||0),0)/daysElapsed);
-
-    html += '<div class="card" style="margin-bottom:10px;cursor:pointer;" onclick="showScreen(\'goals\')">';
-    html += '<div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:8px;">Weekly averages</div>';
-    const avgSteps = Math.round(weekStepsTotal / daysElapsed);
-    const avgKcal = Math.round(weekKcalTotal / daysElapsed);
-    if (goal.steps) {
-      html += '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span style="color:var(--text2);">Avg steps</span><span>' + avgSteps.toLocaleString() + ' / ' + (goal.steps||0).toLocaleString() + '</span></div>';
-      html += bar(avgSteps, goal.steps);
-      if (daysLeft > 0 && stepsNeededPerDay > 0) {
-        html += '<div style="font-size:11px;color:var(--amber);margin-top:3px;margin-bottom:6px;">Need ' + stepsNeededPerDay.toLocaleString() + ' steps/day for remaining ' + daysLeft + ' day' + (daysLeft !== 1 ? 's' : '') + ' to hit weekly goal</div>';
-      } else html += '<div style="height:6px;"></div>';
-    }
-    if (goal.kcal) {
-      html += '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span style="color:var(--text2);">Avg kcal</span><span>' + avgKcal.toLocaleString() + ' / ' + goal.kcal.toLocaleString() + '</span></div>';
-      html += bar(avgKcal, goal.kcal);
-      if (daysLeft > 0 && kcalNeededPerDay > 0) {
-        html += '<div style="font-size:11px;color:var(--amber);margin-top:3px;margin-bottom:4px;">Need ' + kcalNeededPerDay.toLocaleString() + ' kcal/day for remaining ' + daysLeft + ' day' + (daysLeft !== 1 ? 's' : '') + ' to hit weekly goal</div>';
-      } else html += '<div style="height:4px;"></div>';
-    }
-    if (goal.protein) {
-      html += '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span style="color:var(--blue);">Avg protein</span><span>' + avgP7 + 'g / ' + goal.protein + 'g</span></div>';
-      html += bar(avgP7, goal.protein);
-      html += '<div style="height:4px;"></div>';
-    }
-    if (goal.carbs) {
-      html += '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span style="color:var(--amber);">Avg carbs</span><span>' + avgC7 + 'g / ' + goal.carbs + 'g</span></div>';
-      html += bar(avgC7, goal.carbs);
-      html += '<div style="height:4px;"></div>';
-    }
-    if (goal.fats) {
-      html += '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span style="color:var(--red);">Avg fats</span><span>' + avgF7 + 'g / ' + goal.fats + 'g</span></div>';
-      html += bar(avgF7, goal.fats);
-    }
-    html += '</div>';
-  }
-  return html;
-}
 
 // ── Modal swipe-down + tap-outside ───────────────────────────────────────────
 function initModal(overlayEl) {
@@ -9158,7 +9196,7 @@ window.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.modal-overlay').forEach(el => {
     if (el.id !== 'modal-timer') initModal(el); // timer has its own close handler
   });
-  showScreen('home');
+  showScreen('progress');
 });
 
 // ── Custom confirm (replaces window.confirm for PWA compatibility) ──────────
