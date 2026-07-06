@@ -757,6 +757,20 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 }
 .input-flash { animation: inputFlash 0.8s ease forwards; }
 .fill-flash  { animation: fillFlash 0.8s ease forwards; }
+@keyframes quickAddPop {
+  0%   { transform: scale(0.4); opacity: 0; }
+  45%  { transform: scale(1.2); opacity: 1; }
+  70%  { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes quickAddBtnFlash {
+  0%   { background: transparent; border-color: var(--border2); color: var(--text2); }
+  25%  { background: var(--accent); border-color: var(--accent); color: #06281f; }
+  100% { background: var(--accent); border-color: var(--accent); color: #06281f; }
+}
+.quick-add-check    { animation: quickAddPop 0.3s ease; transform-origin: center; }
+.quick-add-btn-added { animation: quickAddBtnFlash 0.25s ease forwards; }
+.quick-add-btn-done  { background: var(--accent); border-color: var(--accent); color: #06281f; }
 .set-check {
   width: 32px; height: 32px; border-radius: 50%;
   border: 1.5px solid var(--border2);
@@ -1454,7 +1468,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v5.15</span>
+          <span class="badge badge-green">v5.16</span>
         </div>
       </div>
 
@@ -2129,7 +2143,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 <!-- Nutrition: serving size confirm -->
 <div class="modal-overlay" id="modal-nutr-serving">
   <div class="modal-sheet" data-modal="modal-nutr-serving" style="max-height:90dvh;display:flex;flex-direction:column;">
-    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-serving')">✕</button></div>
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="cancelNutrServing()">✕</button></div>
     <div class="modal-title" id="nutr-serving-title" style="flex-shrink:0;">Confirm Serving</div>
     <div style="overflow-y:auto;flex:1;">
       <div class="card" style="margin-bottom:14px;">
@@ -3200,14 +3214,17 @@ function getWeekReps(ex, week, progType) {
 }
 
 function getMyorepProgression(ex, week) {
-  // myorep giant: +10 reps/week; myomatch: reps don't increase (weight only)
+  // myorep giant: +10 reps/week (mesoweek fallback only — actual logged reps take
+  // priority wherever they're available, see exProgData); myomatch: reps don't
+  // increase (weight only). Returns a bare number string (no ' reps' suffix) so
+  // callers can safely use it as an input value/placeholder as well as for display.
   if (ex.type === 'myomatch') {
     const base = parseInt(ex.reps.match(/\d+/)?.[0]) || 20;
-    return base + ' reps'; // fixed — progression is weight only
+    return String(base); // fixed — progression is weight only
   }
-  const add = 10; // giant set: +10 per week
+  const add = 10; // giant set: +10 per week (mesoweek fallback, e.g. week 2 with no prior log)
   const base = parseInt(ex.reps.match(/\d+/)?.[0]) || 20;
-  return (base + add * (week - 1)) + ' reps';
+  return String(base + add * (week - 1));
 }
 
 // Build per-day stats map from all logs
@@ -5007,7 +5024,7 @@ function renderMicroBlock(macro, week, micro, days, dayLabels, editable) {
         const sets = getWeekSets(ex, week, macro.weeks);
         const weightTarget = getWeekWeight(ex, week, 'weight', macro.goalType).toFixed(1);
         const repsTarget = (ex.type === 'myorep' || ex.type === 'myomatch')
-          ? getMyorepProgression(ex, week)
+          ? getMyorepProgression(ex, week) + ' reps'
           : ex.reps;
         html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-top:0.5px solid var(--border);">
           <span style="font-size:12px;color:var(--text);">${ex.name}</span>
@@ -5396,7 +5413,17 @@ function renderTrainDay(macro) {
       ? prevActualWeight + weightJump
       : getWeekWeight(ex, state.currentWeek, 'weight', macro.goalType);
     const recommendedReps = (() => {
-      if (isMyorep) return getMyorepProgression(ex, state.currentWeek);
+      if (isMyomatch) return getMyorepProgression(ex, state.currentWeek); // fixed base, weight-only progression
+      if (ex.type === 'myorep') {
+        if (prevActualReps !== null) {
+          // Base the suggestion on what was actually logged last week, not on
+          // mesoweek count — so choosing "weight" progression one week doesn't
+          // silently double the reps jump the following week.
+          const baseNum = parseInt(String(prevActualReps).match(/(\d+)/)?.[0]) || 0;
+          return String(baseNum + 10);
+        }
+        return getMyorepProgression(ex, state.currentWeek); // no prior log yet (e.g. week 2)
+      }
       if (prevActualReps !== null) {
         const m = String(prevActualReps).match(/^(\d+)(?:–(\d+))?$/);
         if (m) { const lo = parseInt(m[1]) + 1; return m[2] ? lo + '–' + (parseInt(m[2]) + 1) : String(lo); }
@@ -5511,7 +5538,8 @@ function renderTrainDay(macro) {
           const prevWLabel = prevActualWeight !== null ? prevActualWeight.toFixed(1) : getWeekWeight(ex, prevWeek2, 'weight', macro.goalType).toFixed(1);
           weightRec = `${prevWLabel} kg → ${recommendedWeight.toFixed(1)} kg (+${weightJump} kg)`;
           if (ex.type === 'myorep') {
-            repsRec = `${getMyorepProgression(ex, prevWeek2)} → ${getMyorepProgression(ex, state.currentWeek)} (+10 reps)`;
+            const prevRLabelMyorep = prevActualReps !== null ? prevActualReps : getMyorepProgression(ex, prevWeek2);
+            repsRec = `${prevRLabelMyorep} → ${recommendedReps} (+10 reps)`;
           } else if (!isMyomatch) {
             const prevRLabel = prevActualReps || getWeekReps(ex, prevWeek2, 'reps');
             repsRec = `${prevRLabel} → ${recommendedReps} (+1 rep)`;
@@ -5736,7 +5764,8 @@ function renderTrainDay(macro) {
             const mWeightRec = prevWLabel + ' kg → ' + md.recommendedWeight.toFixed(1) + ' kg (+' + mWeightJump + ' kg)';
             let mRepsRec = '';
             if (m.type === 'myorep') {
-              mRepsRec = getMyorepProgression(m, md.prevWeek2) + ' → ' + getMyorepProgression(m, state.currentWeek) + ' (+10 reps)';
+              const mPrevRLabel = md.prevActualReps !== null ? md.prevActualReps : getMyorepProgression(m, md.prevWeek2);
+              mRepsRec = mPrevRLabel + ' → ' + md.recommendedReps + ' (+10 reps)';
             } else if (!isMyomatch) {
               const prevRLabel = md.prevActualReps || getWeekReps(m, md.prevWeek2, 'reps');
               mRepsRec = prevRLabel + ' → ' + md.recommendedReps + ' (+1 rep)';
@@ -6484,6 +6513,8 @@ let nutrMacroView = 0;
 let nutrActiveMeal = null;
 let nutrPendingProduct = null;
 let nutrShowRecipesOnly = false;
+let _nutrReturnToAddList = false; // true when serving modal was opened via tap-to-edit from the Log Food list
+let _nutrQuickAddedThisSession = new Set(); // items quick-added since the Log Food list was last freshly opened
 
 // ── Swipe row system ──────────────────────────────────────────────────────
 let _swipeOpenWrap = null;
@@ -7238,9 +7269,10 @@ function nutrSelectBadge(date) {
 }
 
 // ── Log entry flow ─────────────────────────────────────────────────────────
-function openNutrAdd(meal) {
+function openNutrAdd(meal, isReopen) {
   nutrActiveMeal = meal;
   nutrShowRecipesOnly = false;
+  if (!isReopen) _nutrQuickAddedThisSession = new Set(); // fresh open — clear ticks from any prior session
   document.getElementById('nutr-add-search').placeholder = 'Search foods for ' + meal + '…';
   document.getElementById('nutr-add-search').value = '';
   const listWrap = document.getElementById('nutr-add-list-wrap');
@@ -7385,7 +7417,9 @@ function renderNutrAddList() {
         <button onclick="event.stopPropagation();shareFoodLibItemByIdx(${idx})" class="btn btn-sm" style="flex-shrink:0;padding:6px 8px;margin-left:4px;" title="Share">
           <svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="9 10 5 10 5 20 19 20 19 10 15 10"/><polyline points="12 3 8 7 12 3 16 7"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         </button>
-        <button onclick="event.stopPropagation();quickAddFromList(${idx})" class="btn btn-sm" style="flex-shrink:0;padding:6px 12px;margin-left:4px;">Add</button>
+        <button onclick="event.stopPropagation();quickAddFromList(${idx})" id="nutr-quickadd-btn-${idx}" class="btn btn-sm${(_nutrQuickAddedThisSession.has(item.id || item.name)) ? ' quick-add-btn-done' : ''}" style="flex-shrink:0;padding:6px 8px;margin-left:4px;" title="Quick add" aria-label="Quick add">
+          <svg viewBox="0 0 24 24" width="14" height="14" style="stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;">${(_nutrQuickAddedThisSession.has(item.id || item.name)) ? '<polyline points="4 12 9 17 20 6"/>' : '<line x1="12" y1="5" x2="12" y2="19" stroke-width="2"/><line x1="5" y1="12" x2="19" y2="12" stroke-width="2"/>'}</svg>
+        </button>
       </div>`;
   }).join('');
   el._items = items;
@@ -7433,7 +7467,18 @@ function quickAddFromList(idx) {
     kcal, protein, carbs, fats,
     source: item.source || 'library',
   });
-  closeModal('modal-nutr-add');
+  _nutrQuickAddedThisSession.add(item.id || item.name);
+  // Briefly swap the plus icon for a tick so the tap feels confirmed, then
+  // refresh the list (amounts/ordering may have changed) once it's had a
+  // moment to register. Keep the food library modal open throughout so the
+  // person can log multiple items in a row without it closing after every add.
+  const btnEl = document.getElementById('nutr-quickadd-btn-' + idx);
+  if (btnEl) {
+    btnEl.disabled = true;
+    btnEl.innerHTML = `<svg class="quick-add-check" viewBox="0 0 24 24" width="14" height="14" style="stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;"><polyline points="4 12 9 17 20 6"/></svg>`;
+    btnEl.classList.add('quick-add-btn-added');
+  }
+  setTimeout(() => { renderNutrAddList(); }, 700);
 }
 
 function selectFromAddList(idx) {
@@ -7455,6 +7500,7 @@ function selectFromAddList(idx) {
     defaultServing: item.defaultServing || null,
     source: item.source || 'library',
   };
+  _nutrReturnToAddList = true;
   closeModal('modal-nutr-add');
   requestAnimationFrame(() => openNutrServingModal());
 }
@@ -8014,6 +8060,17 @@ function selectFromLibrary(idx) {
   requestAnimationFrame(() => openNutrServingModal());
 }
 
+// Cancels the serving modal. If it was reached via tap-to-edit on a Log Food
+// list row, returns to that list instead of just dropping back to Nutrition.
+function cancelNutrServing() {
+  nutrPendingProduct = null;
+  closeModal('modal-nutr-serving');
+  if (_nutrReturnToAddList) {
+    _nutrReturnToAddList = false;
+    requestAnimationFrame(() => openNutrAdd(nutrActiveMeal, true));
+  }
+}
+
 function openNutrServingModal() {
   if (!nutrPendingProduct) return;
   document.getElementById('nutr-serving-title').textContent = 'Add to ' + nutrActiveMeal;
@@ -8112,6 +8169,10 @@ function confirmServing() {
   addFoodEntry(entry);
   nutrPendingProduct = null;
   closeModal('modal-nutr-serving');
+  if (_nutrReturnToAddList) {
+    _nutrReturnToAddList = false;
+    requestAnimationFrame(() => openNutrAdd(nutrActiveMeal, true));
+  }
 }
 
 function openNutrManual() {
@@ -9494,6 +9555,17 @@ function deleteFoodLibEntry(idx) {
 // ── Recipe Builder ────────────────────────────────────────────────────────────
 
 let recipeIngredients = []; // working list while building
+let _recipeListReturnPending = false; // true when the builder was opened from the My Recipes list
+
+// Closes a recipe-builder modal (step1 or ingredients) and, if the builder was
+// opened from the My Recipes list, reopens that list afterwards.
+function exitRecipeBuilder(modalId) {
+  closeModal(modalId);
+  if (_recipeListReturnPending) {
+    _recipeListReturnPending = false;
+    requestAnimationFrame(() => openRecipeList());
+  }
+}
 let recipePendingIngredient = null; // barcode lookup result pending confirm
 
 // ── Step 1: open builder ──────────────────────────────────────────────────────
@@ -9816,7 +9888,7 @@ function saveRecipe() {
 
   save();
   recipeIngredients = [];
-  closeModal('modal-recipe-ingredients');
+  exitRecipeBuilder('modal-recipe-ingredients');
 
   // If opened from the nutrition screen, go straight to the serving modal
   if (_nutrRecipeMeal) {
@@ -9878,7 +9950,7 @@ function renderRecipeList() {
     return `
       <div style="padding:14px 0;border-bottom:0.5px solid var(--border2);">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
-          <div style="flex:1;min-width:0;cursor:pointer;" onclick="closeModal('modal-recipe-list');requestAnimationFrame(()=>openRecipeBuilder('${r.id}'))">
+          <div style="flex:1;min-width:0;cursor:pointer;" onclick="_recipeListReturnPending=true;closeModal('modal-recipe-list');requestAnimationFrame(()=>openRecipeBuilder('${r.id}'))">
             <div style="font-size:15px;font-weight:700;font-family:var(--font-display);">${r.name}</div>
             <div style="font-size:11px;color:var(--text3);margin-top:3px;">
               ${r.servings} serving${r.servings !== 1 ? 's' : ''} ·
@@ -9887,8 +9959,7 @@ function renderRecipeList() {
             </div>
           </div>
           <div style="display:flex;gap:6px;flex-shrink:0;margin-left:10px;">
-            <button class="btn btn-sm" style="padding:5px 10px;" onclick="closeModal('modal-recipe-list');requestAnimationFrame(()=>openRecipeBuilder('${r.id}'))" title="Edit"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-            <button class="btn btn-sm btn-danger" style="padding:5px 10px;" onclick="deleteRecipe('${r.id}')" title="Delete"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
+            <button class="btn btn-sm btn-danger" style="padding:5px 10px;" onclick="event.stopPropagation();deleteRecipe('${r.id}')" title="Delete"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
           </div>
         </div>
         <div style="background:var(--surface2);border-radius:var(--r-sm);padding:8px 10px;margin-top:4px;">
@@ -10008,7 +10079,7 @@ function deleteRecipe(id) {
 <!-- ── Recipe Builder: Step 1 — Name & Servings ──────────────────── -->
 <div class="modal-overlay" id="modal-recipe-step1">
   <div class="modal-sheet" data-modal="modal-recipe-step1">
-    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-step1')">✕</button></div>
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="exitRecipeBuilder('modal-recipe-step1')">✕</button></div>
     <div class="modal-title" id="recipe-step1-title">New Recipe</div>
     <input type="hidden" id="recipe-edit-id">
     <div class="form-group">
@@ -10026,7 +10097,7 @@ function deleteRecipe(id) {
 <!-- ── Recipe Builder: Step 2 — Ingredients ──────────────────────── -->
 <div class="modal-overlay" id="modal-recipe-ingredients">
   <div class="modal-sheet" data-modal="modal-recipe-ingredients" style="max-height:90dvh;display:flex;flex-direction:column;">
-    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-ingredients')">✕</button></div>
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="exitRecipeBuilder('modal-recipe-ingredients')">✕</button></div>
     <div class="modal-title" style="flex-shrink:0;" id="recipe-ing-title">Ingredients</div>
     <!-- Action buttons -->
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0;">
@@ -10175,7 +10246,7 @@ function deleteRecipe(id) {
     <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-list')">✕</button></div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-shrink:0;">
       <div class="modal-title" style="margin:0;">My Recipes</div>
-      <button class="btn btn-accent btn-sm" onclick="closeModal('modal-recipe-list');requestAnimationFrame(()=>openRecipeBuilder())">+ Create new</button>
+      <button class="btn btn-accent btn-sm" onclick="_recipeListReturnPending=true;closeModal('modal-recipe-list');requestAnimationFrame(()=>openRecipeBuilder())">+ Create new</button>
     </div>
     <div id="recipe-list-content" style="overflow-y:auto;flex:1;"></div>
   </div>
