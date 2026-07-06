@@ -1468,7 +1468,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v5.17</span>
+          <span class="badge badge-green">v5.18</span>
         </div>
       </div>
 
@@ -6756,7 +6756,7 @@ function clearNutrQuickAdd() {
 function renderNutrHero() {
   const el = document.getElementById('nutr-hero-card');
   if (!el) return;
-  const goal = getActiveGoal();
+  const goal = getGoalForDay(nutrSelectedDate);
   const totals = getDayTotals(nutrSelectedDate);
   const kcalGoal = goal ? goal.kcal : 0;
   const pct = kcalGoal > 0 ? Math.min(100, Math.round(totals.kcal / kcalGoal * 100)) : 0;
@@ -8902,6 +8902,15 @@ function getActiveGoal() {
   if (!state.goals) return null;
   const today = getLocalToday();
   return state.goals.find(g => g.startDate <= today && g.endDate >= today) || null;
+}
+
+// The goal covering an arbitrary date, regardless of macrocycle — used
+// anywhere the person can navigate to a day other than today (e.g. the
+// Nutrition page's date picker/swipe) so the targets shown always match
+// whichever goal period actually covers that day, not just today's.
+function getGoalForDay(dateStr) {
+  if (!state.goals) return null;
+  return state.goals.find(g => g.startDate <= dateStr && g.endDate >= dateStr) || null;
 }
 
 function openEditGoal(idx) {
