@@ -1468,7 +1468,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v5.16</span>
+          <span class="badge badge-green">v5.17</span>
         </div>
       </div>
 
@@ -2573,6 +2573,9 @@ function closeModal(id) {
   overlay.classList.remove('open');
   // Always clear originalDate flags when closing so fresh opens start clean
   if (id === 'modal-body-log') document.getElementById('body-date-input').dataset.originalDate = '';
+  // Clear stale edit-mode flag so a later "+ New" tap doesn't get mistaken
+  // for a resumed edit (was only cleared on save, not on cancel/close)
+  if (id === 'modal-add-goal') overlay._editIdx = undefined;
 }
 
 function selectMacroOpt(group, value) {
