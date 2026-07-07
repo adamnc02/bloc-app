@@ -542,6 +542,111 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 .input-row > * { flex: 1; }
 .form-group { margin-bottom: 12px; }
 
+/* ── MACRO SLIDERS (goal modal) ──────────────────────────── */
+.macro-slider-cols { display: flex; gap: 16px; align-items: flex-start; }
+.macro-slider-cols-left { flex: 0 0 60%; max-width: 60%; min-width: 0; }
+.macro-slider-cols-right { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; padding-top: 4px; }
+.macro-slider-group { margin-bottom: 14px; }
+.macro-slider-row { display: flex; align-items: center; gap: 10px; }
+.macro-slider-namecol { flex: 0 0 16px; }
+.macro-slider-name { font-family: var(--font-display); font-weight: 600; font-size: 13px; color: var(--text); }
+.macro-slider-sub { font-size: 10px; color: var(--text3); margin: 4px 0 0 26px; }
+.macro-slider-wrap { position: relative; flex: 1; min-width: 0; padding-top: 22px; padding-bottom: 22px; }
+.macro-slider-tooltip, .macro-slider-tooltip-below {
+  position: absolute;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 8px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+/* Each slider wrap carries a --macro-c custom property (set by the
+   .c-protein/.c-carbs/.c-fats modifier below) that both the thumb and
+   the "above" tooltip pick up, so the slider itself and its grams label
+   match that macro's color in the pie chart. The "below" (overall %)
+   label deliberately stays a neutral dark chip regardless of macro. */
+.macro-slider-tooltip { top: 0; background: var(--macro-c, var(--accent)); color: #fff; }
+.macro-slider-tooltip::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: var(--macro-c, var(--accent));
+}
+.macro-slider-tooltip-below { bottom: 0; background: var(--surface3); color: var(--text2); font-weight: 600; }
+.macro-slider-tooltip-below::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-bottom-color: var(--surface3);
+}
+.c-protein { --macro-c: var(--blue); }
+.c-carbs { --macro-c: var(--amber); }
+.c-fats { --macro-c: var(--red); }
+/* The input's own box stays thumb-height-tall (so the round thumb is
+   never clipped); the visible thin bar is drawn on the track
+   pseudo-element instead, which is what actually lets us halve the bar's
+   height independently of the thumb. Thumb size/border must be
+   box-sizing:border-box explicitly — pseudo-elements don't inherit the
+   page's `* { box-sizing: border-box }` reset, so without this the
+   border adds 4px onto the true rendered diameter and every position
+   calculation that assumes a 20px thumb (in JS) drifts further off the
+   more the thumb sits from the track's center. Padding/border are also
+   re-zeroed explicitly: the shared `input, select, textarea` rule
+   elsewhere adds both, and — since specificity gives it priority over
+   properties this class doesn't otherwise set — that silently shrank
+   the real draggable width, which was the actual cause of the tooltip
+   drifting off-center the further the handle sat from the middle. */
+.macro-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 20px;
+  background: transparent;
+  outline: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+}
+.macro-slider::-webkit-slider-runnable-track { height: 3px; border-radius: 1.5px; background: var(--surface3); }
+.macro-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--macro-c, var(--accent));
+  border: 2px solid var(--surface);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+  cursor: pointer;
+  margin-top: -8.5px; /* centers the 20px thumb over the 3px track */
+}
+.macro-slider::-moz-range-track { height: 3px; border-radius: 1.5px; background: var(--surface3); }
+.macro-slider::-moz-range-thumb {
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--surface);
+  background: var(--macro-c, var(--accent));
+  box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+  cursor: pointer;
+}
+.macro-pie-legend { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 12px; }
+.macro-pie-legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text2); }
+.macro-pie-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
 /* ── BADGE / CHIP ────────────────────────── */
 .badge {
   display: inline-block;
@@ -1468,7 +1573,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v5.25</span>
+          <span class="badge badge-green">v5.26</span>
         </div>
       </div>
 
@@ -1842,31 +1947,58 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div class="input-row">
       <div>
         <div class="label">Daily kcal</div>
-        <input type="number" id="goal-kcal-input" placeholder="2000">
+        <input type="number" id="goal-kcal-input" placeholder="2000" oninput="renderGoalMacros()">
       </div>
       <div>
         <div class="label">Daily steps</div>
         <input type="number" id="goal-steps-input" placeholder="10000">
       </div>
     </div>
-    <div class="input-row">
-      <div>
-        <div class="label">Protein (g)</div>
-        <input type="number" id="goal-protein-input" placeholder="160">
+
+    <div class="macro-slider-cols">
+      <div class="macro-slider-cols-left">
+        <div class="macro-slider-group">
+          <div class="macro-slider-row">
+            <div class="macro-slider-namecol"><div class="macro-slider-name">P</div></div>
+            <div class="macro-slider-wrap c-protein">
+              <div class="macro-slider-tooltip" id="goal-protein-tooltip">0g</div>
+              <input type="range" class="macro-slider" id="goal-protein-slider" min="1" max="2" step="0.05" value="1.25" oninput="onGoalProteinSliderInput()">
+              <div class="macro-slider-tooltip-below" id="goal-protein-tooltip-below">0%</div>
+            </div>
+          </div>
+          <div class="macro-slider-sub" id="goal-protein-sub">1.25 g per lb bodyweight</div>
+        </div>
+
+        <div class="macro-slider-group">
+          <div class="macro-slider-row">
+            <div class="macro-slider-namecol"><div class="macro-slider-name">C</div></div>
+            <div class="macro-slider-wrap c-carbs">
+              <div class="macro-slider-tooltip" id="goal-carb-tooltip">0g</div>
+              <input type="range" class="macro-slider" id="goal-carb-slider" min="30" max="80" step="1" value="50" oninput="onGoalCarbSliderInput()">
+              <div class="macro-slider-tooltip-below" id="goal-carb-tooltip-below">0%</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="macro-slider-group" style="margin-bottom:0;">
+          <div class="macro-slider-row">
+            <div class="macro-slider-namecol"><div class="macro-slider-name">F</div></div>
+            <div class="macro-slider-wrap c-fats">
+              <div class="macro-slider-tooltip" id="goal-fat-tooltip">0g</div>
+              <input type="range" class="macro-slider" id="goal-fat-slider" min="20" max="70" step="1" value="50" oninput="onGoalFatSliderInput()">
+              <div class="macro-slider-tooltip-below" id="goal-fat-tooltip-below">0%</div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div>
-        <div class="label">Carbs (g)</div>
-        <input type="number" id="goal-carbs-input" placeholder="200">
+
+      <div class="macro-slider-cols-right">
+        <div id="goal-macro-pie"></div>
+        <div class="macro-pie-legend" id="goal-macro-pie-legend"></div>
       </div>
     </div>
-    <div class="input-row">
-      <div>
-        <div class="label">Fats (g)</div>
-        <input type="number" id="goal-fats-input" placeholder="70">
-      </div>
-      <div></div>
-    </div>
-    <button class="btn btn-accent btn-block" onclick="saveGoal()">Save Goal Period →</button>
+
+    <button class="btn btn-accent btn-block" style="margin-top:16px;" onclick="saveGoal()">Save Goal Period →</button>
   </div>
 </div>
 
@@ -2527,12 +2659,10 @@ function openModal(id) {
       document.getElementById('goal-end-input').value = '';
       document.getElementById('goal-kcal-input').value = '';
       document.getElementById('goal-steps-input').value = '';
-      document.getElementById('goal-protein-input').value = '';
-      document.getElementById('goal-carbs-input').value = '';
-      document.getElementById('goal-fats-input').value = '';
       document.getElementById('goal-modal-title').textContent = 'New Goal Period';
       modal._editIdx = undefined;
     }
+    requestAnimationFrame(() => initGoalMacroSliders(isEditing ? state.goals[modal._editIdx] : null));
   }
   if (id === 'modal-macro') {
     const nextStart = getNextMacroStart();
@@ -8996,6 +9126,15 @@ function importExerciseLibrary(file) {
 // ════════════════════════════════════════════════
 // GOALS
 // ════════════════════════════════════════════════
+// Past/upcoming goal periods are grouped by macrocycle into collapsible
+// cards (collapsed by default) — mirrors the Plan page's per-week
+// collapse pattern. Keyed by macroId, not persisted.
+let goalsExpandedMacros = {};
+function toggleGoalsMacro(macroId) {
+  goalsExpandedMacros[macroId] = !goalsExpandedMacros[macroId];
+  renderGoals();
+}
+
 function renderGoals() {
   if (!state.goals) state.goals = [];
   const el = document.getElementById('goals-content');
@@ -9049,37 +9188,68 @@ function renderGoals() {
   const toprow = document.getElementById('goals-toprow');
   if (toprow) toprow.style.display = activeIdx >= 0 ? 'none' : 'flex';
 
-  // ── Past / upcoming goals: plain mono-toned list cards ──────────────
+  // ── Past / upcoming goals: grouped by macrocycle, collapsible ───────
   const otherGoals = sortedGoals.filter(g => state.goals.indexOf(g) !== activeIdx);
   if (otherGoals.length) {
     html += `<div class="section-title" style="margin-top:${activeIdx>=0?'18px':'0'};">${activeIdx>=0?'Past & upcoming':'All goals'}</div>`;
-    otherGoals.forEach((g) => {
-      const i = state.goals.indexOf(g);
-      const macro = macros.find(m => m.id === g.macroId);
-      const isFuture = g.startDate > today;
-      html += `<div class="swipe-row-wrap card-wrap" style="border-radius:var(--r);margin-bottom:10px;">
-        <div class="swipe-row-content">
-          <div class="card" style="width:100%;box-sizing:border-box;cursor:pointer;opacity:0.75;" onclick="openEditGoal(${i})">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-              <div><div style="font-family:var(--font-display);font-weight:600;font-size:14px;color:var(--text2);">${macro ? macro.name : 'Unknown cycle'}</div>
-              <div style="font-size:11px;color:var(--text3);margin-top:2px;">${formatDate(g.startDate)} – ${formatDate(g.endDate)}</div></div>
-              ${isFuture ? '<span class="badge" style="background:var(--surface3);color:var(--text2);">Upcoming</span>' : ''}
+
+    // Group by macrocycle. otherGoals is already sorted by startDate
+    // descending (from sortedGoals), so each group's goals come out
+    // pre-sorted too — no extra sort needed inside a group.
+    const groupMap = {};
+    otherGoals.forEach(g => {
+      const key = g.macroId || '__none__';
+      (groupMap[key] = groupMap[key] || []).push(g);
+    });
+    // Groups themselves are ordered by their most recent goal's start
+    // date, so whichever macrocycle was most recently relevant sits on top.
+    const groupKeys = Object.keys(groupMap).sort((a, b) => groupMap[b][0].startDate.localeCompare(groupMap[a][0].startDate));
+
+    groupKeys.forEach(key => {
+      const groupGoals = groupMap[key];
+      const macro = macros.find(m => m.id === key);
+      const macroName = macro ? macro.name : 'Unknown cycle';
+      const isOpen = !!goalsExpandedMacros[key];
+      const count = groupGoals.length;
+
+      const itemsHtml = groupGoals.map(g => {
+        const i = state.goals.indexOf(g);
+        const isFuture = g.startDate > today;
+        return `<div class="swipe-row-wrap" style="border-radius:var(--r);margin-bottom:10px;">
+          <div class="swipe-row-content">
+            <div class="card" style="width:100%;box-sizing:border-box;cursor:pointer;opacity:0.85;background:var(--surface2);" onclick="openEditGoal(${i})">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+                <div style="font-size:11px;color:var(--text3);">${formatDate(g.startDate)} – ${formatDate(g.endDate)}</div>
+                ${isFuture ? '<span class="badge" style="background:var(--surface3);color:var(--text2);">Upcoming</span>' : ''}
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                ${g.kcal    ? `<div style="font-size:12px;color:var(--text2);"><span style="color:var(--text3);">kcal </span>${g.kcal.toLocaleString()}</div>` : ''}
+                ${g.steps   ? `<div style="font-size:12px;color:var(--text2);"><span style="color:var(--text3);">steps </span>${parseInt(g.steps).toLocaleString()}</div>` : ''}
+                ${g.protein ? `<div style="font-size:12px;color:var(--text2);"><span style="color:var(--text3);">protein </span>${g.protein}g</div>` : ''}
+                ${g.carbs   ? `<div style="font-size:12px;color:var(--text2);"><span style="color:var(--text3);">carbs </span>${g.carbs}g</div>` : ''}
+                ${g.fats    ? `<div style="font-size:12px;color:var(--text2);"><span style="color:var(--text3);">fats </span>${g.fats}g</div>` : ''}
+              </div>
+              <div style="font-size:10px;color:var(--text3);margin-top:10px;text-align:right;">swipe ← to delete</div>
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-              ${g.kcal    ? `<div style="font-size:12px;color:var(--text2);"><span style="color:var(--text3);">kcal </span>${g.kcal.toLocaleString()}</div>` : ''}
-              ${g.steps   ? `<div style="font-size:12px;color:var(--text2);"><span style="color:var(--text3);">steps </span>${parseInt(g.steps).toLocaleString()}</div>` : ''}
-              ${g.protein ? `<div style="font-size:12px;color:var(--text2);"><span style="color:var(--text3);">protein </span>${g.protein}g</div>` : ''}
-              ${g.carbs   ? `<div style="font-size:12px;color:var(--text2);"><span style="color:var(--text3);">carbs </span>${g.carbs}g</div>` : ''}
-              ${g.fats    ? `<div style="font-size:12px;color:var(--text2);"><span style="color:var(--text3);">fats </span>${g.fats}g</div>` : ''}
-            </div>
-            <div style="font-size:10px;color:var(--text3);margin-top:10px;text-align:right;">swipe ← to delete</div>
           </div>
+          <div class="swipe-actions">
+            <button class="swipe-btn swipe-btn-danger" onclick="event.stopPropagation();deleteGoal(${i})" title="Delete">
+              <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+            </button>
+          </div>
+        </div>`;
+      }).join('');
+
+      html += `<div class="card" style="margin-bottom:10px;padding:0;">
+        <div onclick="toggleGoalsMacro('${key}')"
+          style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+          <div>
+            <div style="font-family:var(--font-display);font-weight:600;font-size:14px;color:var(--text);">${macroName}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px;">${count} goal period${count === 1 ? '' : 's'}</div>
+          </div>
+          <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${isOpen?'180':'0'}deg)"><polyline points="6 9 12 15 18 9"/></svg>
         </div>
-        <div class="swipe-actions">
-          <button class="swipe-btn swipe-btn-danger" onclick="event.stopPropagation();deleteGoal(${i})" title="Delete">
-            <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-          </button>
-        </div>
+        ${isOpen ? `<div style="padding:0 14px 14px;">${itemsHtml}</div>` : ''}
       </div>`;
     });
   }
@@ -9113,9 +9283,6 @@ function openEditGoal(idx) {
   document.getElementById('goal-end-input').value = g.endDate;
   document.getElementById('goal-kcal-input').value = g.kcal || '';
   document.getElementById('goal-steps-input').value = g.steps || '';
-  document.getElementById('goal-protein-input').value = g.protein || '';
-  document.getElementById('goal-carbs-input').value = g.carbs || '';
-  document.getElementById('goal-fats-input').value = g.fats || '';
   document.getElementById('modal-add-goal')._editIdx = idx;
   openModal('modal-add-goal');
 }
@@ -9129,15 +9296,16 @@ function saveGoal() {
   if (!state.goals) state.goals = [];
   const modal = document.getElementById('modal-add-goal');
   const editIdx = modal._editIdx !== undefined ? modal._editIdx : -1;
+  const macros = computeGoalMacroGrams();
   const g = {
     macroId: document.getElementById('goal-macro-select').value,
     startDate: document.getElementById('goal-start-input').value,
     endDate: document.getElementById('goal-end-input').value,
     kcal: parseInt(document.getElementById('goal-kcal-input').value) || 0,
     steps: parseInt(document.getElementById('goal-steps-input').value) || 0,
-    protein: parseInt(document.getElementById('goal-protein-input').value) || 0,
-    carbs: parseInt(document.getElementById('goal-carbs-input').value) || 0,
-    fats: parseInt(document.getElementById('goal-fats-input').value) || 0,
+    protein: macros.proteinG,
+    carbs: macros.carbG,
+    fats: macros.fatG,
   };
   if (!g.startDate || !g.endDate) return;
   if (editIdx >= 0) state.goals[editIdx] = g;
@@ -9146,6 +9314,180 @@ function saveGoal() {
   save(); closeModal('modal-add-goal'); renderGoals();
 }
 
+
+// ── Goal modal: macro sliders ────────────────────────────────────────────
+// Protein slider is a g-per-lb-of-bodyweight multiplier (1.00–2.00, step
+// 0.05) applied to the most recent bodyweight log, rounded to the nearest
+// lb. Carbs and fats then split whatever calories are left after protein,
+// as complementary percentages (carbs 30–80%, fats is just 100 minus
+// that) — dragging either slider updates the other so they always sum to
+// the full remaining budget. goalMacroSliderState just caches the
+// bodyweight used, so grams stay consistent between input events without
+// re-reading the log on every keystroke.
+let goalMacroSliderState = { bwRounded: 150 };
+
+function getLatestBodyweightLbs() {
+  const logs = (state.bodyLogs || []).filter(l => l && l.weight).sort((a, b) => a.date.localeCompare(b.date));
+  return logs.length ? parseFloat(logs[logs.length - 1].weight) : null;
+}
+
+// Called whenever the goal modal opens (both "+ New" and edit). For a new
+// goal, defaults to 1.25 g/lb protein and a 50/50 carb-fat split. For an
+// edit, back-derives the slider positions from the goal's saved grams so
+// re-opening a goal doesn't silently change its targets.
+function initGoalMacroSliders(existingGoal) {
+  const bw = getLatestBodyweightLbs();
+  const bwRounded = bw ? Math.round(bw) : 150;
+  goalMacroSliderState.bwRounded = bwRounded;
+
+  let proteinMult = 1.25;
+  if (existingGoal && existingGoal.protein && bwRounded > 0) {
+    proteinMult = Math.round((existingGoal.protein / bwRounded) * 20) / 20;
+    proteinMult = Math.min(2, Math.max(1, proteinMult));
+  }
+
+  const proteinSlider = document.getElementById('goal-protein-slider');
+  proteinSlider.value = proteinMult;
+
+  const kcalGoal = existingGoal ? (existingGoal.kcal || 0) : (parseInt(document.getElementById('goal-kcal-input').value) || 0);
+  const proteinG = Math.round(bwRounded * proteinMult);
+  const remainingCal = Math.max(0, kcalGoal - proteinG * 4);
+
+  let carbPct = 50;
+  if (existingGoal && existingGoal.carbs && remainingCal > 0) {
+    carbPct = Math.round((existingGoal.carbs * 4 / remainingCal) * 100);
+    carbPct = Math.min(80, Math.max(30, carbPct));
+  }
+  document.getElementById('goal-carb-slider').value = carbPct;
+  document.getElementById('goal-fat-slider').value = 100 - carbPct;
+
+  renderGoalMacros();
+}
+
+// Recomputed from the DOM every time — the sliders themselves are the
+// source of truth (not a hidden JS copy), so this can be called freely
+// from any oninput handler without worrying about stale state.
+function computeGoalMacroGrams() {
+  const bwRounded = goalMacroSliderState.bwRounded || 150;
+  const kcalGoal = parseInt(document.getElementById('goal-kcal-input').value) || 0;
+  const proteinMult = parseFloat(document.getElementById('goal-protein-slider').value) || 1.25;
+  const proteinG = Math.round(bwRounded * proteinMult);
+  const remainingCal = Math.max(0, kcalGoal - proteinG * 4);
+  const carbPct = parseFloat(document.getElementById('goal-carb-slider').value) || 50;
+  const fatPct = 100 - carbPct;
+  const carbG = Math.round(remainingCal * carbPct / 100 / 4);
+  const fatG = Math.round(remainingCal * fatPct / 100 / 9);
+  return { proteinMult, proteinG, carbPct, fatPct, carbG, fatG, remainingCal };
+}
+
+// Positions a floating value bubble (above or below the track) directly
+// over the slider's thumb. Uses getBoundingClientRect (sub-pixel) rather
+// than offsetWidth, since the thumb-width-based formula is otherwise
+// exact but any rounding here compounds visibly toward the ends of the
+// track — worth the extra precision. Must run after the modal is
+// visible, or the rect reads 0-width.
+function positionSliderTooltip(sliderId, tooltipId) {
+  const slider = document.getElementById(sliderId);
+  const tooltip = document.getElementById(tooltipId);
+  if (!slider || !tooltip) return;
+  const min = parseFloat(slider.min), max = parseFloat(slider.max);
+  const val = parseFloat(slider.value);
+  const pct = max > min ? (val - min) / (max - min) : 0;
+  const thumb = 20; // must match .macro-slider::-webkit-slider-thumb / -moz-range-thumb width
+  const trackWidth = slider.getBoundingClientRect().width || 0;
+  const pos = thumb / 2 + pct * Math.max(0, trackWidth - thumb);
+  tooltip.style.left = pos + 'px';
+}
+
+function repositionAllGoalSliderTooltips() {
+  const modal = document.getElementById('modal-add-goal');
+  if (!modal || !modal.classList.contains('open')) return;
+  ['goal-protein', 'goal-carb', 'goal-fat'].forEach(prefix => {
+    positionSliderTooltip(prefix + '-slider', prefix + '-tooltip');
+    positionSliderTooltip(prefix + '-slider', prefix + '-tooltip-below');
+  });
+}
+window.addEventListener('resize', repositionAllGoalSliderTooltips);
+
+// Colors match the Progress page's macro chart (protein/carbs/fats).
+function buildMacroPieSVG(proteinG, carbG, fatG) {
+  const segs = [
+    { cal: proteinG * 4, color: 'var(--blue)',  label: 'Protein' },
+    { cal: carbG * 4,    color: 'var(--amber)', label: 'Carbs' },
+    { cal: fatG * 9,     color: 'var(--red)',   label: 'Fats' },
+  ];
+  const total = segs.reduce((s, x) => s + x.cal, 0) || 1;
+  const r = 40, circ = 2 * Math.PI * r;
+  let offset = 0;
+  const circles = segs.map(s => {
+    const frac = s.cal / total;
+    const dash = frac * circ;
+    const el = `<circle cx="50" cy="50" r="${r}" fill="none" style="stroke:${s.color};" stroke-width="16" stroke-dasharray="${dash} ${circ - dash}" stroke-dashoffset="${-offset}" transform="rotate(-90 50 50)"/>`;
+    offset += dash;
+    return el;
+  }).join('');
+  const svg = `<svg viewBox="0 0 100 100" width="130" height="130">${circles}</svg>`;
+  const legend = segs.map(s => {
+    const pct = Math.round(s.cal / total * 100);
+    return `<div class="macro-pie-legend-item"><span class="macro-pie-dot" style="background:${s.color};"></span>${s.label} ${pct}%</div>`;
+  }).join('');
+  return { svg, legend };
+}
+
+// Single recompute-and-redraw entry point for the whole macro slider
+// section — bound to every slider's oninput plus the kcal field, so any
+// change ripples through consistently instead of having each handler
+// independently update its own little corner of the UI.
+function renderGoalMacros() {
+  const proteinSlider = document.getElementById('goal-protein-slider');
+  if (!proteinSlider) return; // modal not in this page's DOM yet
+  const m = computeGoalMacroGrams();
+
+  // Overall % is share of total calories (protein+carbs+fats), same
+  // basis as the pie chart — distinct from carbPct/fatPct above, which
+  // are shares of *leftover* calories after protein and still drive the
+  // slider ranges/defaults exactly as before.
+  const pCal = m.proteinG * 4, cCal = m.carbG * 4, fCal = m.fatG * 9;
+  const totalCal = pCal + cCal + fCal || 1;
+  const proteinOverallPct = Math.round(pCal / totalCal * 100);
+  const carbOverallPct = Math.round(cCal / totalCal * 100);
+  const fatOverallPct = Math.round(fCal / totalCal * 100);
+
+  document.getElementById('goal-protein-tooltip').textContent = m.proteinG + 'g';
+  document.getElementById('goal-protein-tooltip-below').textContent = proteinOverallPct + '%';
+  document.getElementById('goal-protein-sub').textContent = m.proteinMult.toFixed(2) + ' g per lb bodyweight';
+
+  document.getElementById('goal-carb-tooltip').textContent = m.carbG + 'g';
+  document.getElementById('goal-carb-tooltip-below').textContent = carbOverallPct + '%';
+
+  const fatSlider = document.getElementById('goal-fat-slider');
+  fatSlider.value = m.fatPct;
+  document.getElementById('goal-fat-tooltip').textContent = m.fatG + 'g';
+  document.getElementById('goal-fat-tooltip-below').textContent = fatOverallPct + '%';
+
+  positionSliderTooltip('goal-protein-slider', 'goal-protein-tooltip');
+  positionSliderTooltip('goal-protein-slider', 'goal-protein-tooltip-below');
+  positionSliderTooltip('goal-carb-slider', 'goal-carb-tooltip');
+  positionSliderTooltip('goal-carb-slider', 'goal-carb-tooltip-below');
+  positionSliderTooltip('goal-fat-slider', 'goal-fat-tooltip');
+  positionSliderTooltip('goal-fat-slider', 'goal-fat-tooltip-below');
+
+  const { svg, legend } = buildMacroPieSVG(m.proteinG, m.carbG, m.fatG);
+  document.getElementById('goal-macro-pie').innerHTML = svg;
+  document.getElementById('goal-macro-pie-legend').innerHTML = legend;
+}
+
+function onGoalProteinSliderInput() { renderGoalMacros(); }
+function onGoalCarbSliderInput() { renderGoalMacros(); }
+function onGoalFatSliderInput() {
+  // Fat is being dragged directly — flip it onto the carb slider (its
+  // complement) first so renderGoalMacros' normal carb-driven math produces
+  // the fat/carb split the person actually just set.
+  const fatSlider = document.getElementById('goal-fat-slider');
+  const carbSlider = document.getElementById('goal-carb-slider');
+  carbSlider.value = 100 - parseFloat(fatSlider.value);
+  renderGoalMacros();
+}
 
 // ── Modal swipe-down + tap-outside ───────────────────────────────────────────
 function initModal(overlayEl) {
