@@ -1277,7 +1277,6 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.ss-set-sug { font-size: 10px; color: var(--text3); flex: 1; text-align: right; white-space: nowrap; }
 .ss-set-inp {
   width: 48px;
   background: var(--surface);
@@ -1573,7 +1572,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v5.33</span>
+          <span class="badge badge-green">v5.39</span>
         </div>
       </div>
 
@@ -5642,7 +5641,9 @@ function selectProgType(macroId, week, day, exId, progType) {
   if (macro) renderTrainDay(macro);
 }
 
-// Tracks which exercise cards are expanded: key = macroId_week_day_exIdx
+// Tracks which exercise cards are expanded: key = macroId_week_day_exId
+// (or macroId_ss_week_day_ssId for supersets) — uses the stable exercise/
+// superset id, not a positional index, despite the older naming elsewhere.
 const expandedExercises = {};
 
 function toggleExercise(expandKey) {
@@ -5666,7 +5667,7 @@ function renderTrainHero(macro) {
 
   const templateKey = macro.id + '_1_' + dayKey;
   const sessionExercises = (state.exercises[templateKey] || []);
-  let totalSets = 0, doneSets = 0, sessionVolume = 0;
+  let totalSets = 0, doneSets = 0;
   sessionExercises.forEach(ex => {
     const sets = getWeekSets(ex, state.currentWeek, macro.weeks);
     totalSets += sets;
@@ -5674,9 +5675,12 @@ function renderTrainHero(macro) {
       const lk = macro.id + '_' + state.currentWeek + '_' + dayKey + '_' + ex.id + '_' + s;
       const log = state.trainLogs[lk];
       if (log && log.done) doneSets++;
-      if (log && log.weight && log.reps) sessionVolume += parseFloat(log.weight) * parseRepsForVolume(log.reps);
     }
   });
+  // Reuses the same volume calc as Plan/Progress (correctly doubles per-side
+  // tracked weight) instead of a separate inline calc that was missing that
+  // multiplier and under-reporting volume for per-side exercises.
+  const sessionVolume = getSessionVolume(macro, state.currentWeek, dayKey);
   const sessionPct = totalSets > 0 ? Math.round((doneSets / totalSets) * 100) : 0;
   if (sessionExercises.length === 0) {
     heroEl.innerHTML = '';
@@ -5739,7 +5743,6 @@ function renderTrainDay(macro) {
   // Helper: compute per-exercise progression data (same logic as before, extracted for reuse)
   function exProgData(ex) {
     const exId      = ex.id;
-    const isMyorep  = ex.type === 'myorep' || ex.type === 'myomatch';
     const isMyomatch= ex.type === 'myomatch';
     const isGain    = macro.goalType === 'gain';
     const lossInc   = parseFloat(macro.lossIncrement || '2.5');
@@ -5753,7 +5756,6 @@ function renderTrainDay(macro) {
     const prevWeek2 = state.currentWeek - 1;
     const prevPk    = getProgKey(macro.id, prevWeek2, state.currentDay, exId);
     const prevProgLog = state.trainLogs[prevPk] || {};
-    const prevProgType= prevProgLog.progType || null;
     const prevKey2  = macro.id + '_' + prevWeek2 + '_' + state.currentDay;
 
     let prevLoggedSets = [];
@@ -5767,6 +5769,34 @@ function renderTrainDay(macro) {
     const prevSet1          = prevLoggedSets[0];
     const prevActualWeight  = prevSet1 && prevSet1.weight ? parseFloat(prevSet1.weight) : null;
     const prevActualReps    = prevSet1 && prevSet1.reps   ? prevSet1.reps : null;
+    // Infer which progression path was used last week when it was never
+    // explicitly chosen (e.g. filled via "Fill suggested" then just checked
+    // done): compare last week's actual weight/reps against the week before
+    // that one (or the exercise's starting values, if last week was week 1).
+    // Weight increase wins first; if weight didn't increase, check reps;
+    // if neither increased, there's no detectable progression to report.
+    let prevProgType = prevProgLog.progType || null;
+    let prevNoProgression = false;
+    if (!prevProgType && prevActualWeight !== null) {
+      const priorWeek = prevWeek2 - 1;
+      let priorWeight, priorReps;
+      if (priorWeek < 1) {
+        priorWeight = ex.startWeight;
+        priorReps   = ex.reps;
+      } else {
+        const priorLog = state.trainLogs[macro.id + '_' + priorWeek + '_' + state.currentDay + '_' + exId + '_0'];
+        priorWeight = priorLog && priorLog.weight ? parseFloat(priorLog.weight) : null;
+        priorReps   = priorLog && priorLog.reps   ? priorLog.reps : null;
+      }
+      if (priorWeight !== null && prevActualWeight > priorWeight) {
+        prevProgType = 'weight';
+      } else if (priorReps !== null && prevActualReps !== null &&
+                 parseRepsForVolume(prevActualReps) > parseRepsForVolume(priorReps)) {
+        prevProgType = 'reps';
+      } else {
+        prevNoProgression = true;
+      }
+    }
     const recommendedWeight = prevActualWeight !== null
       ? prevActualWeight + weightJump
       : getWeekWeight(ex, state.currentWeek, 'weight', macro.goalType, macro.lossIncrement);
@@ -5807,7 +5837,7 @@ function renderTrainDay(macro) {
 
     return { exId, sets, progType, prevProgType, prevLoggedSets, prevActualWeight, prevActualReps,
              recommendedWeight, recommendedReps, weightPlaceholder, repsPlaceholder,
-             weightJump, isMyorep, isMyomatch, doneSets, allDone, prevWeek2, prevKey2 };
+             weightJump, isMyomatch, doneSets, allDone, prevWeek2, prevNoProgression };
   }
 
   trainSlots.forEach(slot => {
@@ -5819,7 +5849,7 @@ function renderTrainDay(macro) {
       const d = exProgData(ex);
       const { sets, progType, prevProgType, prevLoggedSets, prevActualWeight, prevActualReps,
               recommendedWeight, recommendedReps, weightPlaceholder, repsPlaceholder,
-              weightJump, isMyorep, isMyomatch, doneSets, allDone, prevWeek2, prevKey2 } = d;
+              weightJump, isMyomatch, doneSets, allDone, prevWeek2, prevNoProgression } = d;
       const key2 = macro.id + '_' + state.currentWeek + '_' + state.currentDay;
       const typeLabel = ex.type === 'standard' ? 'std' : ex.type === 'myorep' ? 'myorep giant' : 'myomatch';
 
@@ -5864,13 +5894,21 @@ function renderTrainDay(macro) {
         : `${weightPlaceholder} kg`;
       const trackingLabel = ex.trackingMode === 'perSide'
         ? `<span style="font-size:10px;color:var(--text3);white-space:nowrap;"> · per side</span>` : '';
+      // Which progression path was used last week, shown in the header now
+      // rather than buried in the expanded "Last week" box (removed below —
+      // its two pieces now live here and in the set rows instead).
+      const lastWkBadge = (prevWeek2 >= 1 && prevProgType)
+        ? ` <span style="font-size:10px;font-weight:400;color:var(--text3);">· Last wk: <span style="color:var(--text2);">${prevProgType === 'weight' ? '↑ weight' : '↑ reps'}</span></span>`
+        : (prevWeek2 >= 1 && prevNoProgression)
+          ? ` <span style="font-size:10px;font-weight:400;color:var(--text3);">· Last wk: no progression</span>`
+          : '';
 
       html += `<div class="card" style="margin-bottom:10px;padding:0;">
         <div onclick="toggleExercise('${expandKey}')"
           style="width:100%;background:none;border:none;padding:14px;cursor:pointer;-webkit-tap-highlight-color:transparent;">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
             <div style="flex:1;min-width:0;">
-              <div style="font-family:var(--font-display);font-size:15px;font-weight:600;color:var(--text);">${ex.name}${typeBadgeHtml}</div>
+              <div style="font-family:var(--font-display);font-size:15px;font-weight:600;color:var(--text);">${ex.name}${typeBadgeHtml}${lastWkBadge}</div>
               <div style="font-size:12px;color:var(--text2);margin-top:5px;">${setsRepsText}</div>
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
@@ -5922,31 +5960,6 @@ function renderTrainDay(macro) {
             </div>`}
           </div>
         </div>`;
-        let prevProgHtml = prevWeek2 >= 1 && prevProgType
-          ? '<span style="font-size:11px;color:var(--text3);">Last wk: <span style="color:var(--text2);">' + (prevProgType === 'weight' ? '↑ weight' : '↑ reps') + '</span></span>' : '';
-        let lastWeekHtml = '';
-        if (prevWeek2 >= 1) {
-          const hasAny = prevLoggedSets.some(lg => lg && (lg.weight || lg.reps || lg.done));
-          if (hasAny) {
-            const setsSummary = prevLoggedSets.map((lg, i) =>
-              lg ? `<span style="font-size:11px;color:var(--text2);">Set ${i+1}: ${lg.weight ? lg.weight + 'kg' : '—'}${isMyomatch ? '' : ` × ${lg.reps || '—'}`}</span>` : ''
-            ).filter(Boolean).join('<span style="color:var(--text3);margin:0 4px;">·</span>');
-            lastWeekHtml = `<div style="background:var(--surface2);border-radius:var(--r-sm);padding:8px 10px;margin-bottom:10px;">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
-                <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;">Last week (Wk ${prevWeek2})${isMyomatch ? ' — weight only' : ''}</div>
-                ${prevProgHtml}
-              </div>
-              <div style="display:flex;flex-wrap:wrap;gap:4px;">${setsSummary}</div>
-            </div>`;
-          } else {
-            lastWeekHtml = `<div style="background:var(--surface2);border-radius:var(--r-sm);padding:8px 10px;margin-bottom:10px;">
-              <div style="display:flex;justify-content:space-between;align-items:center;">
-                <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;">Last week (Wk ${prevWeek2}) — no sets logged</div>
-                ${prevProgHtml}
-              </div>
-            </div>`;
-          }
-        }
         let setRows = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
           <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;">Log sets</div>
           <div style="display:flex;gap:6px;">
@@ -5963,7 +5976,7 @@ function renderTrainDay(macro) {
         </div>
         <div class="set-row" style="border-bottom:0.5px solid var(--border);padding-top:0;">
           <span class="set-num">#</span>
-          <span style="font-size:10px;color:var(--text3);">Suggested</span>
+          <span style="font-size:10px;color:var(--text3);">Last wk</span>
           <span style="font-size:10px;color:var(--text3);text-align:center;">kg</span>
           <span style="font-size:10px;color:var(--text3);text-align:center;">reps</span>
           <span style="font-size:10px;color:var(--text3);text-align:center;">✓</span>
@@ -5972,9 +5985,16 @@ function renderTrainDay(macro) {
           const logKey  = key2 + '_' + exId + '_' + s;
           const log     = state.trainLogs[logKey] || {};
           const nextWKey= s < sets - 1 ? `inp-w-${key2}_${exId}_${s+1}` : '';
+          // What was actually logged for this same set number last week —
+          // replaces the old duplicate-of-the-placeholder "suggested" text,
+          // since the suggestion is already visible in the input placeholder.
+          const prevSet = prevWeek2 >= 1 ? (prevLoggedSets[s] || null) : null;
+          const lastWkCell = prevWeek2 < 1 ? '' : prevSet
+            ? (prevSet.weight ? prevSet.weight + 'kg' : '—') + (isMyomatch ? '' : ` × ${prevSet.reps || '—'}`)
+            : '—';
           setRows += `<div class="set-row">
             <span class="set-num">${s + 1}</span>
-            <span class="set-suggested">${weightPlaceholder} kg × ${repsPlaceholder}</span>
+            <span class="set-suggested">${lastWkCell}</span>
             <input class="set-input" type="number" step="0.5" placeholder="${weightPlaceholder}" value="${log.weight || ''}"
               oninput="logSet('${logKey}','weight',this.value)" id="inp-w-${logKey}"
               onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('inp-r-${logKey}')?.focus();}">
@@ -5988,7 +6008,6 @@ function renderTrainDay(macro) {
         }
         html += `<div style="padding:0 14px 14px;border-top:0.5px solid var(--border);">
           <div style="height:10px;"></div>
-          ${lastWeekHtml}
           ${progSelector}
           ${setRows}
         </div>`;
@@ -6078,9 +6097,17 @@ function renderTrainDay(macro) {
         const mProgressInline = mProgressBadge
           ? ' ' + mProgressBadge.replace('<div ', '<span ').replace('</div>', '</span>').replace('margin-top:1px;', '')
           : '';
+        // Which progression path was used last week — placed next to
+        // sets/reps here (rather than next to the name, as on solo
+        // exercises) since each superset member only gets one compact line.
+        const mLastWkBadge = (md.prevWeek2 >= 1 && md.prevProgType)
+          ? ' <span style="color:var(--text3);">· Last wk: <span style="color:var(--text2);">' + (md.prevProgType === 'weight' ? '↑ weight' : '↑ reps') + '</span></span>'
+          : (md.prevWeek2 >= 1 && md.prevNoProgression)
+            ? ' <span style="color:var(--text3);">· Last wk: no progression</span>'
+            : '';
         return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:3px;">' +
           '<span style="font-size:12px;color:var(--text2);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' +
-            m.name + '  <span style="font-size:11px;color:var(--text3);">' + mSetsRepsText + mProgressInline + '</span>' +
+            m.name + '  <span style="font-size:11px;color:var(--text3);">' + mSetsRepsText + mLastWkBadge + mProgressInline + '</span>' +
           '</span>' +
           '<span style="font-size:11px;color:var(--text3);white-space:nowrap;flex-shrink:0;">' + mWeightRefText + mTracking + '</span>' +
         '</div>';
@@ -6123,8 +6150,7 @@ function renderTrainDay(macro) {
             const pt = md.progType;
             const isMyomatch = m.type === 'myomatch';
             const prevWLabel = md.prevActualWeight !== null ? md.prevActualWeight.toFixed(1) : getWeekWeight(m, md.prevWeek2, 'weight', macro.goalType, macro.lossIncrement).toFixed(1);
-            const mWeightJump = m.isHeavyLeg ? (macro.goalType === 'gain' ? 10 : 5) : (macro.goalType === 'gain' ? 5 : parseFloat(macro.lossIncrement || '2.5'));
-            const mWeightRec = prevWLabel + ' kg → ' + md.recommendedWeight.toFixed(1) + ' kg (+' + mWeightJump + ' kg)';
+            const mWeightRec = prevWLabel + ' kg → ' + md.recommendedWeight.toFixed(1) + ' kg (+' + md.weightJump + ' kg)';
             let mRepsRec = '';
             if (m.type === 'myorep') {
               const mPrevRLabel = md.prevActualReps !== null ? md.prevActualReps : getMyorepProgression(m, md.prevWeek2);
@@ -6133,9 +6159,26 @@ function renderTrainDay(macro) {
               const prevRLabel = md.prevActualReps || getWeekReps(m, md.prevWeek2, 'reps');
               mRepsRec = prevRLabel + ' → ' + md.recommendedReps + ' (+1 rep)';
             }
-            // Single row: exercise name on left, buttons on right
+            // Aggregate last-week summary (sets/reps/weight actually logged),
+            // rather than listing every individual set — mirrors how solo
+            // exercises' header subtitle reads, just using last week's data.
+            const mLastWeekSummary = md.prevWeek2 < 1 ? '' : (() => {
+              if (md.prevActualWeight === null && md.prevActualReps === null) return 'Last wk: no sets logged';
+              const setsCount = md.prevLoggedSets.length;
+              const repsPart  = isMyomatch ? '' : (md.prevActualReps || '—') + ' reps · ';
+              const weightPart = md.prevActualWeight !== null ? md.prevActualWeight.toFixed(1) + 'kg' : '—';
+              return `Last wk: ${setsCount} sets · ${repsPart}${weightPart}`;
+            })();
+            const mTypeLabel = m.type === 'standard' ? '' : m.type === 'myorep' ? 'myorep giant' : 'myomatch';
+            const mTypeBadgeHtml = mTypeLabel
+              ? `<span class="badge ${m.type==='myorep'?'badge-purple':'badge-amber'}" style="font-size:9px;margin-left:6px;vertical-align:middle;">${mTypeLabel}</span>`
+              : '';
+            // Single row: exercise name (+ type badge, + last week summary) on left, buttons on right
             progToggles += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">';
-            progToggles += '<span style="font-size:12px;color:var(--text2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + m.name + '</span>';
+            progToggles += '<div style="flex:1;min-width:0;">' +
+              '<div style="font-size:12px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + m.name + mTypeBadgeHtml + '</div>' +
+              (mLastWeekSummary ? '<div style="font-size:10px;color:var(--text3);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + mLastWeekSummary + '</div>' : '') +
+            '</div>';
             progToggles += '<div onclick="selectProgType(\'' + macro.id + '\',' + state.currentWeek + ',\'' + state.currentDay + '\',\'' + m.id + '\',' + '\'weight\')" style="padding:8px 10px;border-radius:var(--r-sm);cursor:pointer;background:' + (pt==='weight'?'var(--accent)':'var(--surface2)') + ';color:' + (pt==='weight'?'#06281f':'var(--text2)') + ';">' +
               '<div style="font-size:11px;font-weight:600;">↑ Weight</div>' +
               '<div style="font-size:10px;opacity:0.8;margin-top:1px;">' + mWeightRec + '</div>' +
@@ -6168,13 +6211,12 @@ function renderTrainDay(macro) {
             const log    = state.trainLogs[logKey] || {};
             exRows += `<div class="ss-set-ex-row">
               <span class="ss-set-ex-name">${m.name}</span>
-              <span class="ss-set-sug">sug ${md.weightPlaceholder} × ${md.repsPlaceholder}</span>
               <input class="ss-set-inp" type="number" step="0.5" placeholder="${md.weightPlaceholder}" value="${log.weight || ''}"
-                oninput="logSet('${logKey}','weight',this.value)" id="inp-w-${logKey}">
+                oninput="logSet('${logKey}','weight',this.value)" id="inp-w-${logKey}" style="margin-left:auto;">
               <span class="ss-set-x">×</span>
               <input class="ss-set-inp" type="text" placeholder="${md.repsPlaceholder}" value="${log.reps || ''}"
                 oninput="logSet('${logKey}','reps',this.value)" id="inp-r-${logKey}">
-              <div class="${log.done ? 'check-done ss-set-check done' : 'check-empty ss-set-check'}" onclick="toggleSetDone('${logKey}')">
+              <div class="${log.done ? 'check-done ss-set-check done' : 'check-empty ss-set-check'}" onclick="toggleSetDone('${logKey}')" style="margin:0;">
                 <svg viewBox="0 0 14 14"><polyline points="2,7 5.5,10.5 12,3"/></svg>
               </div>
             </div>`;
