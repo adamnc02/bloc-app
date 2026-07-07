@@ -1573,7 +1573,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v5.26</span>
+          <span class="badge badge-green">v5.33</span>
         </div>
       </div>
 
@@ -2461,15 +2461,6 @@ function save() { localStorage.setItem('bloc_state', JSON.stringify(state)); }
 function load() {
   const raw = localStorage.getItem('bloc_state');
   if (raw) { try { state = JSON.parse(raw); } catch(e) {} }
-  // Migrate old mesocycles key → macrocycles
-  if (state.mesocycles && !state.macrocycles) {
-    state.macrocycles = state.mesocycles;
-    delete state.mesocycles;
-  }
-  if (state.currentMesoId && !state.currentMacroId) {
-    state.currentMacroId = state.currentMesoId;
-    delete state.currentMesoId;
-  }
   // Ensure all required fields exist (defensive defaults)
   if (!state.macrocycles) state.macrocycles = [];
   if (!state.exercises) state.exercises = {};
@@ -2488,59 +2479,6 @@ function load() {
   document.body.setAttribute('data-theme', state.theme);
   if (!state.mode) state.mode = 'dark';
   document.body.setAttribute('data-mode', state.mode);
-
-  // ── Migrate exercises: add stable id and order fields ──────────────────
-  // Old trainLogs keys used positional index: macroId_week_day_exIdx_setIdx
-  // New keys use stable exercise id:          macroId_week_day_exId_setIdx
-  // On first migration, assign id = 'ex' + index and order = index * 10
-  // then remap all existing trainLog keys from positional to id-based.
-  migrateExerciseIds();
-}
-
-function migrateExerciseIds() {
-  let anyMigrated = false;
-  Object.entries(state.exercises || {}).forEach(([sessionKey, exArr]) => {
-    if (!Array.isArray(exArr)) return;
-    exArr.forEach((ex, idx) => {
-      if (!ex.id) {
-        ex.id    = 'ex_' + sessionKey + '_' + idx;
-        ex.order = idx * 10;
-        anyMigrated = true;
-      }
-      if (ex.order === undefined) ex.order = idx * 10;
-    });
-  });
-  if (!anyMigrated) return;
-
-  // Remap trainLog keys from positional index to exercise id
-  const newLogs = {};
-  Object.entries(state.trainLogs || {}).forEach(([key, val]) => {
-    // Key formats:
-    //   regular: macroId_week_day_exIdx_setIdx   (5 underscore-separated parts after macroId prefix)
-    //   prog:    macroId_prog_week_day_exIdx
-    const progMatch = key.match(/^(.+_prog_\d+_.+)_(\d+)$/);
-    const regMatch  = !progMatch && key.match(/^(.+_\d+_.+)_(\d+)_(\d+)$/);
-
-    if (progMatch) {
-      const [, base, exIdx] = progMatch;
-      // base = macroId_prog_week_day  — extract sessionKey = macroId_1_day
-      const dayKey = base.replace(/_prog_\d+_/, '_1_');
-      const exArr  = state.exercises[dayKey] || [];
-      const ex     = exArr[parseInt(exIdx)];
-      newLogs[ex ? base + '_' + ex.id : key] = val;
-    } else if (regMatch) {
-      const [, base, exIdx, setIdx] = regMatch;
-      // base = macroId_week_day — map to template key macroId_1_day
-      const templateKey = base.replace(/_\d+_([^_]+)$/, '_1_$1');
-      const exArr = state.exercises[templateKey] || [];
-      const ex    = exArr[parseInt(exIdx)];
-      newLogs[ex ? base + '_' + ex.id + '_' + setIdx : key] = val;
-    } else {
-      newLogs[key] = val;
-    }
-  });
-  state.trainLogs = newLogs;
-  save();
 }
 
 load();
@@ -3323,13 +3261,18 @@ function getWeekSets(ex, week, totalWeeks) {
   return Math.round(ex.setsStart + t * (ex.setsEnd - ex.setsStart));
 }
 
-function getWeekWeight(ex, week, progType, goalType) {
+function getWeekWeight(ex, week, progType, goalType, lossIncrement) {
   if (progType !== 'weight') return ex.startWeight;
-  // Jump per mesocycle based on macrocycle type
+  // Jump per mesocycle based on macrocycle type — mirrors the weightJump
+  // logic in exProgData() so the Plan preview and Train recommendations
+  // never disagree. lossIncrement is the user-configurable per-session
+  // increment (macro.lossIncrement) used for light exercises on a loss cycle;
+  // heavy-leg jumps are fixed (5kg loss / 10kg gain) and not user-editable.
   const isGain = goalType === 'gain';
+  const lossInc = parseFloat(lossIncrement || '2.5');
   const jump = ex.isHeavyLeg
-    ? (isGain ? 10 : 2.5)
-    : (isGain ? 5 : 1.5);
+    ? (isGain ? 10 : 5)
+    : (isGain ? 5 : lossInc);
   return ex.startWeight + jump * (week - 1);
 }
 
@@ -3542,14 +3485,59 @@ function toggleTrainPicker() {
   renderTrain();
 }
 // Tracks which "Weeks 2+" progression-preview blocks are expanded on the
-// Plan page, keyed by `${macroId}_${week}`. Collapsed by default — these
-// are read-only previews, not the editable Week 1 template, so showing
-// all of them at once for a long macrocycle becomes a huge wall of cards.
-let planExpandedWeeks = {};
-function togglePlanWeek(macroId, week) {
-  const key = macroId + '_' + week;
-  planExpandedWeeks[key] = !planExpandedWeeks[key];
+// Plan page, keyed by `${macroId}_${day}${microKey}` (one entry per
+// session — e.g. push/pull/legs, or push/pull/legsm1 + m2 when
+// microcycles are used). Collapsed by default — these are read-only
+// previews, not the editable Week 1 template, so showing all of them at
+// once for a long macrocycle becomes a huge wall of cards.
+let planExpandedSessions = {};
+function togglePlanSession(macroId, sessionKey) {
+  const key = macroId + '_' + sessionKey;
+  planExpandedSessions[key] = !planExpandedSessions[key];
   renderPlan();
+}
+
+// Collapse state for the editable Week 1 day-session cards, keyed by
+// `${macroId}_${day}${microKey}`. Expanded by default (unlike the read-only
+// Weeks 2+ preview above) since this is the primary exercise-editing surface.
+// Collapsing only hides the exercise rows/drag targets for that one day —
+// drag-to-reorder is already scoped per-day, so a collapsed day simply has
+// no rows in the DOM to drag until it's expanded again.
+let planDayCollapsed = {};
+function togglePlanDaySession(macroId, dayKey) {
+  const key = macroId + '_' + dayKey;
+  planDayCollapsed[key] = !planDayCollapsed[key];
+  renderPlan();
+}
+
+// Tap-to-rename a day session's display label (e.g. "Push" → "Upper A").
+// Renames macro.dayLabels[day], so it applies to every microcycle instance
+// of that day and doesn't touch the day's position in macro.days, its
+// exercises, or any training history — all of which are keyed by the day's
+// stable id (push/pull/legs/session0/...), not by this display string.
+function renameDaySessionStart(macroId, day, spanId, currentLabel) {
+  const span = document.getElementById(spanId);
+  if (!span) return;
+  const input = document.createElement('input');
+  input.type  = 'text';
+  input.value = currentLabel || '';
+  input.className = 'ss-rename-input';
+  input.setAttribute('aria-label', 'Session name');
+  const confirm = () => {
+    const val = input.value.trim();
+    const macro = state.macrocycles.find(m => m.id === macroId);
+    if (macro) {
+      if (!macro.dayLabels) macro.dayLabels = {};
+      macro.dayLabels[day] = val || macro.dayLabels[day] || day;
+      save();
+    }
+    renderPlan();
+  };
+  input.addEventListener('blur', confirm);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } });
+  span.replaceWith(input);
+  input.focus();
+  input.select();
 }
 
 // Tapping the Progress hero opens this: a scrollable list of every
@@ -5108,13 +5096,16 @@ function renderPlan() {
     <div class="section-title" style="margin-top:0;color:var(--accent);">Set your exercises here</div>
     <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Exercises defined here carry forward to all weeks automatically.</div>
     ${useMicro
-      ? renderMicroBlock(macro, 1, 1, days, dayLabels, true) + renderMicroBlock(macro, 1, 2, days, dayLabels, true)
-      : renderMicroBlock(macro, 1, 0, days, dayLabels, true)
+      ? renderMicroBlock(macro, 1, 1, days, dayLabels) + renderMicroBlock(macro, 1, 2, days, dayLabels)
+      : renderMicroBlock(macro, 1, 0, days, dayLabels)
     }
   </div>`;
 
   // ── Weeks 2+: read-only progression preview ────
-  // Check if any exercises have been defined at all
+  // Grouped by session (day, or day+microcycle) first, then broken down by
+  // mesocycle week within each session — e.g. "Push · MC1" expands to show
+  // Week 2, Week 3, ... for every exercise in that session, rather than the
+  // old "Week 2" card containing every day's exercises.
   const hasExercises = days.some(day => {
     const micros = useMicro ? ['m1','m2'] : [''];
     return micros.some(mk => (state.exercises[macro.id + '_1_' + day + mk] || []).length > 0);
@@ -5124,51 +5115,179 @@ function renderPlan() {
     html += `<div class="section-title" style="margin-top:0;">Weeks 2–${macro.weeks} — Progression preview</div>
     <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Sets scale from your starting sets to peak sets. Targets shown use weight progression — you choose per-exercise each session.</div>`;
 
-    for (let w = 2; w <= macro.weeks; w++) {
-      const weekKey = macro.id + '_' + w;
-      const isOpen = !!planExpandedWeeks[weekKey];
-      const weekBody = useMicro
-        ? renderMicroBlock(macro, w, 1, days, dayLabels, false) + renderMicroBlock(macro, w, 2, days, dayLabels, false)
-        : renderMicroBlock(macro, w, 0, days, dayLabels, false);
-      html += `<div class="card" style="margin-bottom:10px;padding:0;">
-        <div onclick="togglePlanWeek('${macro.id}',${w})"
-          style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent;">
-          <span style="font-family:var(--font-display);font-weight:600;font-size:13px;color:var(--text);">Week ${w}</span>
-          <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${isOpen?'180':'0'}deg)"><polyline points="6 9 12 15 18 9"/></svg>
-        </div>
-        ${isOpen ? `<div style="padding:0 14px 14px;">${weekBody}</div>` : ''}
-      </div>`;
-    }
+    const microKeys = useMicro ? ['m1', 'm2'] : [''];
+    microKeys.forEach(mk => {
+      days.forEach(day => {
+        const templateKey = macro.id + '_1_' + day + mk;
+        const exercises = (state.exercises[templateKey] || []).slice().sort((a,b) => (a.order||0)-(b.order||0));
+        if (exercises.length === 0) return;
+
+        const sessionKey = day + mk;
+        const sessionLabel = dayLabels[day] + (mk ? ' · MC' + mk.slice(1) : '');
+        const isOpen = !!planExpandedSessions[macro.id + '_' + sessionKey];
+
+        let body = '';
+        exercises.forEach(ex => {
+          body += `<div style="margin-bottom:10px;">
+            <div style="font-size:12px;font-weight:500;color:var(--text);margin-bottom:4px;">${ex.name}</div>`;
+          for (let w = 2; w <= macro.weeks; w++) {
+            const sets = getWeekSets(ex, w, macro.weeks);
+            const weightTarget = getWeekWeight(ex, w, 'weight', macro.goalType, macro.lossIncrement).toFixed(1);
+            // Reps preview always shows the plan's starting reps, for all
+            // three exercise types — matches myomatch/standard (which were
+            // already flat here) rather than escalating myorep giant-set
+            // reps weekly, which read as inconsistent against the other two.
+            const repsTarget = ex.reps;
+            body += `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-top:0.5px solid var(--border);">
+              <span style="font-size:11px;color:var(--text3);">Week ${w}</span>
+              <span style="font-size:11px;color:var(--text3);">${sets} sets · ${repsTarget} · ${weightTarget}kg</span>
+            </div>`;
+          }
+          body += `</div>`;
+        });
+
+        html += `<div class="card" style="margin-bottom:10px;padding:0;">
+          <div onclick="togglePlanSession('${macro.id}','${sessionKey}')"
+            style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+            <span style="font-family:var(--font-display);font-weight:600;font-size:13px;color:var(--text);">${sessionLabel}</span>
+            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${isOpen?'180':'0'}deg)"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+          ${isOpen ? `<div style="padding:0 14px 14px;">${body}</div>` : ''}
+        </div>`;
+      });
+    });
   }
+
+  html += renderBodyPartVolumeTable(macro);
 
   contentEl.innerHTML = html;
   requestAnimationFrame(() => initSwipeRows(document.getElementById('plan-content')));
   initSwipeRows(document.getElementById('macro-overview'));
 }
 
-function renderMicroBlock(macro, week, micro, days, dayLabels, editable) {
+// Cycle-wide MIN/MAX training volume per body part, assuming a single
+// progression path is used consistently for the whole cycle — either
+// "always weight progression" or "always reps progression" — since a
+// blended per-exercise-per-week choice can't be known in advance. Body
+// part is resolved by looking up each exercise's name against the full
+// exercise library (built-in + custom), not stored on the exercise itself,
+// so this works retroactively for exercises added before this feature and
+// needs no data migration. Myorep match sets only ever progress by weight
+// (see getMyorepProgression), so both scenarios collapse to the same value
+// for them and min === max.
+function computeBodyPartVolumeRange(macro) {
+  const useMicro = macro.useMicrocycles !== false;
+  const days = macro.days || ['push', 'pull', 'legs'];
+  const microKeys = useMicro ? ['m1', 'm2'] : [''];
+  const lib = getLibrary();
+  const bodyPartFor = name => {
+    const match = lib.find(e => e.name === name);
+    return match ? match.bodyPart : 'Other';
+  };
+
+  const totals = {}; // bodyPart -> { weightScenario, repsScenario }
+
+  microKeys.forEach(mk => {
+    days.forEach(day => {
+      const templateKey = macro.id + '_1_' + day + mk;
+      const exercises = state.exercises[templateKey] || [];
+      exercises.forEach(ex => {
+        const bp = bodyPartFor(ex.name);
+        if (!totals[bp]) totals[bp] = { weightScenario: 0, repsScenario: 0 };
+        const mult = ex.trackingMode === 'perSide' ? 2 : 1;
+        const baseReps = parseRepsForVolume(ex.reps);
+
+        for (let w = 1; w <= macro.weeks; w++) {
+          const sets = getWeekSets(ex, w, macro.weeks);
+
+          // Weight-progression scenario: weight increases week to week,
+          // reps stay at the exercise's starting value.
+          const scenarioWeightW = getWeekWeight(ex, w, 'weight', macro.goalType, macro.lossIncrement);
+          totals[bp].weightScenario += sets * baseReps * scenarioWeightW * mult;
+
+          // Reps-progression scenario: weight stays at the exercise's
+          // starting value, reps increase. Not a real option for myomatch
+          // (weight-only), so it mirrors the weight scenario for those.
+          let scenarioReps, scenarioWeightFlat;
+          if (ex.type === 'myomatch') {
+            scenarioReps = baseReps;
+            scenarioWeightFlat = scenarioWeightW;
+          } else if (ex.type === 'myorep') {
+            scenarioReps = parseRepsForVolume(getMyorepProgression(ex, w));
+            scenarioWeightFlat = ex.startWeight || 0;
+          } else {
+            scenarioReps = parseRepsForVolume(getWeekReps(ex, w, 'reps'));
+            scenarioWeightFlat = ex.startWeight || 0;
+          }
+          totals[bp].repsScenario += sets * scenarioReps * scenarioWeightFlat * mult;
+        }
+      });
+    });
+  });
+
+  return Object.entries(totals).map(([bodyPart, t]) => ({
+    bodyPart,
+    min: Math.min(t.weightScenario, t.repsScenario),
+    max: Math.max(t.weightScenario, t.repsScenario),
+  })).sort((a, b) => b.min - a.min);
+}
+
+function renderBodyPartVolumeTable(macro) {
+  const rows = computeBodyPartVolumeRange(macro);
+  if (rows.length === 0) return '';
+
+  const rowsHtml = rows.map(r => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:0.5px solid var(--border);">
+      <span style="font-size:13px;color:var(--text);">${r.bodyPart}</span>
+      <span style="font-size:12px;color:var(--text3);">${Math.round(r.min).toLocaleString()}–${Math.round(r.max).toLocaleString()}kg</span>
+    </div>`).join('');
+
+  return `<div class="section-title" style="margin-top:0;">Body part volume — cycle total</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Min–max total volume across the whole cycle, assuming either weight-only or reps-only progression throughout (myorep match sets are weight-only either way, so their min and max match). Sorted by minimum volume, highest first.</div>
+    <div class="card" style="margin-bottom:24px;padding:12px 14px;">${rowsHtml}</div>`;
+}
+function renderMicroBlock(macro, week, micro, days, dayLabels) {
   const microKey = micro === 0 ? '' : `m${micro}`;
-  const sectionTitle = micro === 0 ? '' : `<div class="section-title" style="font-size:10px;">${editable ? 'Microcycle ' + micro : 'MC' + micro}</div>`;
-  let html = `<div style="margin-bottom:${editable ? 12 : 8}px;">${sectionTitle}`;
+  const sectionTitle = micro === 0 ? '' : `<div class="section-title" style="font-size:10px;">Microcycle ${micro}</div>`;
+  let html = `<div style="margin-bottom:12px;">${sectionTitle}`;
 
   days.forEach(day => {
     // Always read exercises from Week 1 template
     const templateKey = macro.id + '_1_' + day + microKey;
     const exercises = (state.exercises[templateKey] || []).slice().sort((a,b) => (a.order||0)-(b.order||0));
+    const dayKey = day + microKey;
+    const dayCollapseKey = macro.id + '_' + dayKey;
+    const isCollapsed = !!planDayCollapsed[dayCollapseKey];
+    const dayLabelSpanId = 'day-label-' + macro.id + '-' + dayKey;
 
-    if (editable) {
-      // Fully editable — show add button and exercise list with delete
-      html += `<div class="card" style="margin-bottom:8px;">
-        <div class="ex-header">
-          <div>
-            <div class="ex-name">${dayLabels[day]}</div>
-            <div class="ex-meta">${exercises.length} exercise${exercises.length !== 1 ? 's' : ''}</div>
+    // Week-1 totals shown in the header — sets and volume are summed across
+    // every exercise in the session (including all superset members, each
+    // using its own stored sets/reps/weight/tracking), so the numbers stay
+    // meaningful whether the card is collapsed or expanded.
+    let totalSets = 0, totalVolume = 0;
+    exercises.forEach(ex => {
+      const exSets = getWeekSets(ex, 1, macro.weeks);
+      totalSets += exSets;
+      const exReps = parseRepsForVolume(ex.reps);
+      const exWeightMult = ex.trackingMode === 'perSide' ? 2 : 1;
+      totalVolume += exSets * exReps * (ex.startWeight || 0) * exWeightMult;
+    });
+
+    // Fully editable — show add button and exercise list with delete
+    html += `<div class="card" style="margin-bottom:8px;">
+        <div class="ex-header" style="cursor:pointer;-webkit-tap-highlight-color:transparent;" onclick="togglePlanDaySession('${macro.id}','${dayKey}')">
+          <div style="min-width:0;">
+            <span id="${dayLabelSpanId}" class="ex-name" style="cursor:text;" onclick="event.stopPropagation();renameDaySessionStart('${macro.id}','${day}','${dayLabelSpanId}','${dayLabels[day].replace(/'/g,"\\'")}')">${dayLabels[day]}</span>
+            <div class="ex-meta">${exercises.length} exercise${exercises.length !== 1 ? 's' : ''} · ${totalSets} set${totalSets !== 1 ? 's' : ''} · ${Math.round(totalVolume).toLocaleString()}kg volume</div>
           </div>
-          <button class="btn btn-sm" onclick="openAddExercise(1,'${day + microKey}')">+ Add</button>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+            ${isCollapsed ? '' : `<button class="btn btn-sm" onclick="event.stopPropagation();openAddExercise(1,'${dayKey}')">+ Add</button>`}
+            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${isCollapsed?'0':'180'}deg)"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
         </div>`;
 
+      if (!isCollapsed) {
       // Build visual slots: standalone exercises and superset groups
-      const dayKey = day + microKey;
       const planSlots = [];
       const seenSsPlan = new Set();
       exercises.forEach((ex, idx) => {
@@ -5271,26 +5390,9 @@ function renderMicroBlock(macro, week, micro, days, dayLabels, editable) {
           </div>`;
         }
       });
+      } // end if (!isCollapsed)
 
       html += `</div>`;
-    } else {
-      // Read-only progression preview — compact
-      if (exercises.length === 0) return;
-      html += `<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:6px;">
-        <div style="font-size:11px;font-weight:500;color:var(--text2);margin-bottom:6px;">${dayLabels[day]}</div>`;
-      exercises.forEach(ex => {
-        const sets = getWeekSets(ex, week, macro.weeks);
-        const weightTarget = getWeekWeight(ex, week, 'weight', macro.goalType).toFixed(1);
-        const repsTarget = (ex.type === 'myorep' || ex.type === 'myomatch')
-          ? getMyorepProgression(ex, week) + ' reps'
-          : ex.reps;
-        html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-top:0.5px solid var(--border);">
-          <span style="font-size:12px;color:var(--text);">${ex.name}</span>
-          <span style="font-size:11px;color:var(--text3);">${sets} sets · ${repsTarget} · ${weightTarget}kg</span>
-        </div>`;
-      });
-      html += `</div>`;
-    }
   });
 
   html += `</div>`;
@@ -5330,8 +5432,6 @@ function saveEditMacro() {
   closeModal('modal-edit-macro');
   renderPlan();
 }
-
-function selectMacro(id) { selectCycle(id); } // legacy alias
 
 // Unified cycle selection — syncs Progress, Plan, and Train
 function selectCycle(id) {
@@ -5669,7 +5769,7 @@ function renderTrainDay(macro) {
     const prevActualReps    = prevSet1 && prevSet1.reps   ? prevSet1.reps : null;
     const recommendedWeight = prevActualWeight !== null
       ? prevActualWeight + weightJump
-      : getWeekWeight(ex, state.currentWeek, 'weight', macro.goalType);
+      : getWeekWeight(ex, state.currentWeek, 'weight', macro.goalType, macro.lossIncrement);
     const recommendedReps = (() => {
       if (isMyomatch) return getMyorepProgression(ex, state.currentWeek); // fixed base, weight-only progression
       if (ex.type === 'myorep') {
@@ -5734,7 +5834,11 @@ function renderTrainDay(macro) {
       const summaryReps   = loggedRepsArr.length  > 0 ? loggedRepsArr[0] : repsPlaceholder;
       const currentLog    = state.trainLogs[key2 + '_' + exId + '_0'];
       const currentActualWeight = currentLog && currentLog.weight ? parseFloat(currentLog.weight) : null;
-      const baseForDelta  = prevActualWeight !== null ? prevActualWeight : (ex.startWeight || 0);
+      // Anchored to week-1 start weight (not the previous week) so the badge
+      // reflects total change since the start of the cycle, matching progressPct
+      // below. Week-on-week suggestions elsewhere (weightJump/recommendedWeight)
+      // are untouched and still anchor to the actual previous week's log.
+      const baseForDelta  = ex.startWeight || 0;
       let progressBadge = '';
       if (currentActualWeight !== null && currentActualWeight !== baseForDelta) {
         const progressKg  = currentActualWeight - baseForDelta;
@@ -5793,7 +5897,7 @@ function renderTrainDay(macro) {
       if (isExpanded) {
         let weightRec = '', repsRec = '';
         if (state.currentWeek > 1) {
-          const prevWLabel = prevActualWeight !== null ? prevActualWeight.toFixed(1) : getWeekWeight(ex, prevWeek2, 'weight', macro.goalType).toFixed(1);
+          const prevWLabel = prevActualWeight !== null ? prevActualWeight.toFixed(1) : getWeekWeight(ex, prevWeek2, 'weight', macro.goalType, macro.lossIncrement).toFixed(1);
           weightRec = `${prevWLabel} kg → ${recommendedWeight.toFixed(1)} kg (+${weightJump} kg)`;
           if (ex.type === 'myorep') {
             const prevRLabelMyorep = prevActualReps !== null ? prevActualReps : getMyorepProgression(ex, prevWeek2);
@@ -5959,7 +6063,8 @@ function renderTrainDay(macro) {
             : md.weightPlaceholder + ' kg';
         const mCurrentLog = state.trainLogs[key2 + '_' + m.id + '_0'];
         const mCurrentActualW = mCurrentLog && mCurrentLog.weight ? parseFloat(mCurrentLog.weight) : null;
-        const mBaseForDelta = md.prevActualWeight !== null ? md.prevActualWeight : (m.startWeight || 0);
+        // Same week-1 anchoring as the solo-exercise badge above.
+        const mBaseForDelta = m.startWeight || 0;
         let mProgressBadge = '';
         if (mCurrentActualW !== null && mCurrentActualW !== mBaseForDelta) {
           const mProgressKg  = mCurrentActualW - mBaseForDelta;
@@ -6017,7 +6122,7 @@ function renderTrainDay(macro) {
             const md = memberData[mi];
             const pt = md.progType;
             const isMyomatch = m.type === 'myomatch';
-            const prevWLabel = md.prevActualWeight !== null ? md.prevActualWeight.toFixed(1) : getWeekWeight(m, md.prevWeek2, 'weight', macro.goalType).toFixed(1);
+            const prevWLabel = md.prevActualWeight !== null ? md.prevActualWeight.toFixed(1) : getWeekWeight(m, md.prevWeek2, 'weight', macro.goalType, macro.lossIncrement).toFixed(1);
             const mWeightJump = m.isHeavyLeg ? (macro.goalType === 'gain' ? 10 : 5) : (macro.goalType === 'gain' ? 5 : parseFloat(macro.lossIncrement || '2.5'));
             const mWeightRec = prevWLabel + ' kg → ' + md.recommendedWeight.toFixed(1) + ' kg (+' + mWeightJump + ' kg)';
             let mRepsRec = '';
