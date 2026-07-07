@@ -1572,7 +1572,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v5.39</span>
+          <span class="badge badge-green">v5.44</span>
         </div>
       </div>
 
@@ -1943,6 +1943,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
         <input type="date" id="goal-end-input">
       </div>
     </div>
+    <div id="goal-overlap-error" style="display:none;font-size:12px;color:var(--red);margin:-6px 0 12px;"></div>
     <div class="input-row">
       <div>
         <div class="label">Daily kcal</div>
@@ -2586,14 +2587,27 @@ function openModal(id) {
 
   if (id === 'modal-add-goal') {
     if (!state.goals) state.goals = [];
+    const errEl = document.getElementById('goal-overlap-error');
+    if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
     const sel = document.getElementById('goal-macro-select');
     sel.innerHTML = (state.macrocycles || []).map(m => '<option value="' + m.id + '">' + m.name + '</option>').join('') || '<option value="">No macrocycles yet</option>';
     const modal = document.getElementById('modal-add-goal');
     // Only reset fields when opening fresh — openEditGoal pre-sets _editIdx and field values
     const isEditing = modal._editIdx !== undefined && modal._editIdx !== null;
     if (!isEditing) {
-      document.getElementById('goal-start-input').value = today;
-      document.getElementById('goal-end-input').value = '';
+      // Default start date: the day after the latest existing goal's end
+      // date (across every goal, any macro) — falls back to today only if
+      // no goals exist yet. Prevents new goals from silently overlapping
+      // the tail end of the most recent one.
+      let defaultStart = today;
+      if (state.goals.length) {
+        const lastEnd = state.goals.reduce((max, g) => g.endDate > max ? g.endDate : max, state.goals[0].endDate);
+        const d = new Date(lastEnd + 'T00:00:00');
+        d.setDate(d.getDate() + 1);
+        defaultStart = toLocalDateStr(d);
+      }
+      document.getElementById('goal-start-input').value = defaultStart;
+      document.getElementById('goal-end-input').value = defaultStart;
       document.getElementById('goal-kcal-input').value = '';
       document.getElementById('goal-steps-input').value = '';
       document.getElementById('goal-modal-title').textContent = 'New Goal Period';
@@ -6557,7 +6571,7 @@ function renderBody() {
   const target = activeMacro ? activeMacro.targetBw : null;
   const leftToGo = (target && latestVal !== null) ? (latestVal - target) : null;
   const leftToGoStr = leftToGo === null ? '—'
-    : Math.abs(leftToGo) <= 0.1 ? 'At goal'
+    : Math.abs(leftToGo) <= 0.05 ? 'At goal'
     : Math.abs(leftToGo).toFixed(1) + ' lbs';
 
   // ── Current cycle weight change (start of active macro → latest) ──
@@ -6969,7 +6983,6 @@ function saveBodyLog() {
 // ════════════════════════════════════════════════
 
 let nutrSelectedDate = null; // set on first render using local date
-let nutrMacroView = 0;
 let nutrActiveMeal = null;
 let nutrPendingProduct = null;
 let nutrShowRecipesOnly = false;
@@ -7119,34 +7132,6 @@ function renderNutrDaily() {
   requestAnimationFrame(initNutrHeroSwipe);
 }
 
-function renderNutrBadges() {
-  const el = document.getElementById('nutr-day-badges');
-  if (!el) return;
-  const today = getLocalToday();
-  const todayDate = new Date(today + 'T00:00:00');
-  const dayLetters = ['S','M','T','W','T','F','S'];
-  const badges = [];
-  for (let i = -3; i <= 3; i++) {
-    const d = new Date(todayDate);
-    d.setDate(todayDate.getDate() + i);
-    const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    const isSel = ds === nutrSelectedDate;
-    const hasLog = !!(state.nutritionQuickLog?.[ds]) ||
-      !!(state.nutritionMeals?.[ds] && Object.values(state.nutritionMeals[ds]).some(a => a.length > 0));
-    const letter = dayLetters[d.getDay()];
-    badges.push(`
-      <div onclick="nutrSelectBadge('${ds}')" style="flex:1;height:40px;border-radius:10px;
-        background:${isSel ? 'var(--accent)' : 'var(--surface2)'};
-        border:0.5px solid ${isSel ? 'var(--accent)' : 'rgba(255,255,255,0.08)'};
-        display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;cursor:pointer;">
-        <span style="font-size:11px;font-weight:${isSel ? '800' : '500'};
-          color:${isSel ? '#0a0a0a' : hasLog ? 'var(--text)' : 'var(--text3)'};">${letter}</span>
-        ${hasLog && !isSel ? '<span style="font-size:9px;color:var(--accent);line-height:1;">✓</span>' : ''}
-      </div>`);
-  }
-  el.innerHTML = badges.join('');
-}
-
 function getNutrDayMeals(date) {
   if (!state.nutritionMeals) state.nutritionMeals = {};
   return state.nutritionMeals[date] || { Breakfast: [], Lunch: [], Dinner: [], Snacks: [] };
@@ -7249,11 +7234,6 @@ function renderNutrHero() {
     ${kcalGoal ? `<div class="hero-progress-row"><span>Goal ${kcalGoal.toLocaleString()} kcal</span><span>${left >= 0 ? left.toLocaleString() + ' left' : Math.abs(left).toLocaleString() + ' over'}</span></div>
     <div class="hero-progress-track"><div class="hero-progress-fill" style="width:${pct}%"></div></div>` : ''}
   </div>`;
-}
-
-function setNutrMacroView(v) {
-  nutrMacroView = v;
-  renderNutrHero();
 }
 
 // Per-meal dot colour for diary item rows, matching the mockup's pattern
@@ -7723,11 +7703,6 @@ function nutrPickDate(val) {
   if (val) { nutrSelectedDate = val; renderNutrDaily(); }
 }
 
-function nutrSelectBadge(date) {
-  nutrSelectedDate = date;
-  renderNutrDaily();
-}
-
 // ── Log entry flow ─────────────────────────────────────────────────────────
 function openNutrAdd(meal, isReopen) {
   nutrActiveMeal = meal;
@@ -7963,15 +7938,6 @@ function selectFromAddList(idx) {
   _nutrReturnToAddList = true;
   closeModal('modal-nutr-add');
   requestAnimationFrame(() => openNutrServingModal());
-}
-
-let _nutrRecipeMeal = null; // set when recipe builder opened from nutrition
-
-function openNutrRecipeBuilder() {
-  // Save the active meal so saveRecipe can auto-log after creating
-  _nutrRecipeMeal = nutrActiveMeal || 'Dinner';
-  closeModal('modal-nutr-add');
-  requestAnimationFrame(() => openRecipeBuilder());
 }
 
 // ── Copy food entry to another meal/date ──────────────────────────────────
@@ -8401,11 +8367,6 @@ function shareFoodLibItem(idx) {
 function shareFoodLibItemByIdx(idx) {
   const el = document.getElementById('nutr-add-list');
   const item = (el._items || [])[idx];
-  if (item) _shareOrDownload(item);
-}
-
-function shareFoodLibItemByName(name) {
-  const item = (state.foodLibrary || []).find(f => f.name === name);
   if (item) _shareOrDownload(item);
 }
 
@@ -9127,13 +9088,25 @@ function clearAllData() {
         'All data will be gone forever. This cannot be undone.',
         'Yes, clear it all',
         () => {
+          // Preserve appearance prefs — the confirm dialog only promises to
+          // delete macrocycles/exercises/logs/nutrition, not theme/mode —
+          // and include every field load() guarantees exists elsewhere
+          // (recipes/supersets/profile were previously dropped here, which
+          // left state.supersets undefined and crashed the next superset
+          // action since several reads there aren't null-guarded).
+          const keepTheme = state.theme;
+          const keepMode  = state.mode;
           state = {
             macrocycles: [], exercises: {}, trainLogs: {},
             bodyLogs: [], nutritionLogs: [],
             goals: [], customLibrary: [], nutritionMeals: {}, nutritionQuickLog: {}, foodLibrary: [],
+            recipes: [], supersets: {}, profile: {},
+            theme: keepTheme || 'multi', mode: keepMode || 'dark',
             currentMacroId: null, currentWeek: 1,
             currentDay: 'push', currentEditContext: null,
           };
+          document.body.setAttribute('data-theme', state.theme);
+          document.body.setAttribute('data-mode', state.mode);
           save();
           renderSettings();
           showScreen('progress');
@@ -9439,22 +9412,69 @@ function deleteGoal(idx) {
   save(); renderGoals();
 }
 
+// Finds an existing goal whose date range overlaps [startDate, endDate],
+// across every macrocycle (goal periods must never overlap regardless of
+// which macro they belong to). excludeIdx skips the goal currently being
+// edited so editing a goal without changing its dates doesn't flag itself.
+function findOverlappingGoal(startDate, endDate, excludeIdx) {
+  return (state.goals || []).find((g, i) =>
+    i !== excludeIdx && g.startDate <= endDate && g.endDate >= startDate
+  ) || null;
+}
+
 function saveGoal() {
   if (!state.goals) state.goals = [];
   const modal = document.getElementById('modal-add-goal');
   const editIdx = modal._editIdx !== undefined ? modal._editIdx : -1;
+  const startDate = document.getElementById('goal-start-input').value;
+  const endDate   = document.getElementById('goal-end-input').value;
+  if (!startDate || !endDate) return;
+
+  const kcalEl  = document.getElementById('goal-kcal-input');
+  const stepsEl = document.getElementById('goal-steps-input');
+  const hasKcal  = kcalEl.value  && String(kcalEl.value).trim()  !== '';
+  const hasSteps = stepsEl.value && String(stepsEl.value).trim() !== '';
+  if (!hasKcal || !hasSteps) {
+    kcalEl.style.borderColor  = hasKcal  ? '' : 'var(--red)';
+    stepsEl.style.borderColor = hasSteps ? '' : 'var(--red)';
+    setTimeout(() => {
+      kcalEl.style.borderColor  = '';
+      stepsEl.style.borderColor = '';
+    }, 1500);
+    return;
+  }
+
+  const overlap = findOverlappingGoal(startDate, endDate, editIdx);
+  const errEl = document.getElementById('goal-overlap-error');
+  if (overlap) {
+    if (errEl) {
+      errEl.textContent = `Overlaps an existing goal period (${formatDate(overlap.startDate)} – ${formatDate(overlap.endDate)}). Adjust the dates to continue.`;
+      errEl.style.display = 'block';
+    }
+    return;
+  }
+  if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+
   const macros = computeGoalMacroGrams();
+  const today = getLocalToday();
+  // Active/past goals keep their exact saved macros unless the person
+  // actually drags a slider this session — otherwise simply re-opening an
+  // old goal (e.g. to tweak the kcal target) would silently recompute
+  // protein/carb/fat grams from today's bodyweight, drifting a goal that's
+  // already underway or finished. New/upcoming goals always use the live
+  // computed values, since there's nothing "locked in" yet to drift from.
+  const isLockedGoal = editIdx >= 0 && state.goals[editIdx].startDate <= today;
+  const useComputedMacros = !isLockedGoal || goalMacroSliderState.userTouched;
+
   const g = {
     macroId: document.getElementById('goal-macro-select').value,
-    startDate: document.getElementById('goal-start-input').value,
-    endDate: document.getElementById('goal-end-input').value,
+    startDate, endDate,
     kcal: parseInt(document.getElementById('goal-kcal-input').value) || 0,
     steps: parseInt(document.getElementById('goal-steps-input').value) || 0,
-    protein: macros.proteinG,
-    carbs: macros.carbG,
-    fats: macros.fatG,
+    protein: useComputedMacros ? macros.proteinG : state.goals[editIdx].protein,
+    carbs:   useComputedMacros ? macros.carbG    : state.goals[editIdx].carbs,
+    fats:    useComputedMacros ? macros.fatG     : state.goals[editIdx].fats,
   };
-  if (!g.startDate || !g.endDate) return;
   if (editIdx >= 0) state.goals[editIdx] = g;
   else state.goals.push(g);
   modal._editIdx = undefined;
@@ -9471,7 +9491,7 @@ function saveGoal() {
 // the full remaining budget. goalMacroSliderState just caches the
 // bodyweight used, so grams stay consistent between input events without
 // re-reading the log on every keystroke.
-let goalMacroSliderState = { bwRounded: 150 };
+let goalMacroSliderState = { bwRounded: 150, userTouched: false };
 
 function getLatestBodyweightLbs() {
   const logs = (state.bodyLogs || []).filter(l => l && l.weight).sort((a, b) => a.date.localeCompare(b.date));
@@ -9483,6 +9503,7 @@ function getLatestBodyweightLbs() {
 // edit, back-derives the slider positions from the goal's saved grams so
 // re-opening a goal doesn't silently change its targets.
 function initGoalMacroSliders(existingGoal) {
+  goalMacroSliderState.userTouched = false;
   const bw = getLatestBodyweightLbs();
   const bwRounded = bw ? Math.round(bw) : 150;
   goalMacroSliderState.bwRounded = bwRounded;
@@ -9624,9 +9645,10 @@ function renderGoalMacros() {
   document.getElementById('goal-macro-pie-legend').innerHTML = legend;
 }
 
-function onGoalProteinSliderInput() { renderGoalMacros(); }
-function onGoalCarbSliderInput() { renderGoalMacros(); }
+function onGoalProteinSliderInput() { goalMacroSliderState.userTouched = true; renderGoalMacros(); }
+function onGoalCarbSliderInput() { goalMacroSliderState.userTouched = true; renderGoalMacros(); }
 function onGoalFatSliderInput() {
+  goalMacroSliderState.userTouched = true;
   // Fat is being dragged directly — flip it onto the carb slider (its
   // complement) first so renderGoalMacros' normal carb-driven math produces
   // the fat/carb split the person actually just set.
@@ -10428,34 +10450,8 @@ function saveRecipe() {
   save();
   recipeIngredients = [];
   exitRecipeBuilder('modal-recipe-ingredients');
-
-  // If opened from the nutrition screen, go straight to the serving modal
-  if (_nutrRecipeMeal) {
-    const meal = _nutrRecipeMeal;
-    _nutrRecipeMeal = null;
-    nutrActiveMeal = meal;
-    // Build nutrPendingProduct from the new recipe's food library entry
-    const libEntry = (state.foodLibrary || []).find(f => f.name === recipe.name);
-    if (libEntry) {
-      nutrPendingProduct = {
-        name:     libEntry.name,
-        brand:    libEntry.brand || '',
-        barcode:  null,
-        per100kcal: libEntry.per100kcal,
-        per100p:    libEntry.per100p,
-        per100c:    libEntry.per100c,
-        per100f:    libEntry.per100f,
-        defaultServing: null,
-        source: 'recipe',
-      };
-      requestAnimationFrame(() => openNutrServingModal());
-    } else {
-      showScreen('nutrition');
-    }
-  } else {
-    renderRecipeList();
-    openModal('modal-recipe-list');
-  }
+  renderRecipeList();
+  openModal('modal-recipe-list');
 }
 
 // ── Recipe list (view / edit / delete) ───────────────────────────────────────
