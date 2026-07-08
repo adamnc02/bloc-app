@@ -2,7 +2,7 @@
 
 > A personal, offline-first Progressive Web App for structured weight training and nutrition tracking. Single HTML file. No backend. No dependencies.
 
-![Version](https://img.shields.io/badge/version-v5.09-brightgreen) ![PWA](https://img.shields.io/badge/PWA-ready-blue) ![License](https://img.shields.io/badge/license-MIT-lightgrey)
+![Version](https://img.shields.io/badge/version-v6.00-brightgreen) ![PWA](https://img.shields.io/badge/PWA-ready-blue) ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ---
 
@@ -66,33 +66,38 @@ Gradient strips are pinned to the top and bottom of the app shell (matching `--a
 - Displays data for the active macrocycle, with left/right arrows to cycle through past macrocycles
 - **Swipeable hero deck** — five slides with touch/mouse swipe and dot pagination:
   1. Cycle overview — name, goal, split, weeks remaining, progress bar
-  2. Body weight — 7-day average, week-on-week change, rolling line chart
+  2. Body weight — anchored to the live active cycle, with a day-index-aligned overlay comparing against past cycles at the same point in their timeline
   3. Volume — weekly training volume line chart
   4. Steps vs goal — bar chart for the current week
   5. Kcal vs goal — bar chart for the current week
 - Tapping the hero deck opens the **Cycle History** modal, listing all past macrocycles with dates and goal types
-- Below the hero: body weight sparkline, 7-day rolling best-weight callout, weekly macro pie chart (moved here from Nutrition), weekly steps and kcal bar charts with today/7-day toggle
+- Below the hero: body weight sparkline, weekly macro pie chart, weekly steps and kcal bar charts with today/7-day toggle
 
 ### Plan
 - Create and manage **macrocycles** with:
   - Name, start date, goal type (Weight Loss / Strength Gain / Maintenance)
-  - Split type: **PPL** (Push/Pull/Legs), **Full Body**, or **Custom**
-  - Number of mesocycles, weeks per mesocycle, sessions per week
-  - Optional **microcycles** (alternating A/B sessions within a week)
-  - Optional target body weight
-- Per-exercise configuration: name, sets, reps, starting weight, exercise type (standard, myorep giant, myomatch), heavy leg flag
-- Edit, copy, and delete macrocycles — tap the macrocycle card to edit; swipe left to reveal copy and delete buttons (vertically stacked)
+  - Split type: **PPL** (Push/Pull/Legs), **Full Body**, or **Custom** (freely named sessions)
+  - Number of mesocycles (weeks), optional microcycles (alternating A/B sessions within a week)
+  - Optional target body weight, configurable weight-loss increment per mesocycle
+- Sessions (Push/Pull/Legs/custom) are shown as individually **collapsible, renameable cards** — tap the header to expand/collapse, tap the name to rename in place. The header always shows a live summary: exercise count, total sets, and total week-1 volume across every exercise in that session (including supersets)
+- Per-exercise configuration: name, sets, reps, starting weight, exercise type (standard, myorep giant, myomatch), heavy leg flag, per-side vs total-on-bar tracking, minimum weight increment
+- **Supersets** — link two or more exercises into a group with a shared badge and optional custom name; reorder within or across a group by drag; unlink an individual exercise or the whole group back into standalone exercises
+- Drag-to-reorder exercises, including moving in/out of superset groups — this ordering drives the exercise order on the Train page
+- Edit, copy, and delete macrocycles — tap the macrocycle card to edit; swipe left to reveal copy and delete buttons
 - Body weight progress bar within the plan card, showing start → current → target
-- Exercise rows — tap to edit; swipe left to reveal delete button
+- **Weeks 2+ progression preview** — collapsible, grouped by session (not by week): expanding a session shows every exercise's sets/reps/weight target broken down week-by-week across the whole cycle
+- **Body part volume table** — below the progression preview, one row per body part (resolved by looking up each exercise's name against the exercise library), showing the cycle's total minimum and maximum training volume for that body part, sorted by minimum descending. Min/max reflects whichever theoretical progression path (all-weight vs all-reps) produces less/more total volume; myorep match sets are weight-only either way, so their min and max are identical
 - Schedule-status pills with solid heat-map colours indicating where each session falls in the cycle
 
 ### Train
-- Week and day selector (week strip + day tabs) to navigate the macrocycle
+- Week and day selector to navigate the macrocycle
 - Per-session exercise cards showing:
-  - Last week's logged sets (weight × reps)
+  - A "Last wk: ↑ weight" / "↑ reps" badge in the header, inferred from whichever explicitly-chosen progression path was used last week — or, if none was explicitly chosen, backfilled by comparing last week's actual weight/reps against the week before; shows "no progression" if neither increased
+  - Last week's logged sets (weight × reps) shown directly in each set row, replacing what used to be a redundant repeat of the current week's suggested value
   - Suggested progression for the current week (weight or reps), with a progression chip showing the delta
   - Set logging with weight, reps, and a done toggle per set
-  - **Fill Suggested** button — fills all sets with suggested values in one tap, with an amber flash animation on the button and a border glow animation on the filled inputs
+  - **Fill Suggested** button — fills all sets with suggested values in one tap, with an amber flash animation
+  - Superset cards show the same last-week badge and progression data per member, plus each member's exercise type badge, consolidated into a compact per-exercise summary line rather than a full per-set breakdown
 - **Rest Timer** (clock icon, top-right):
   - **Countdown** mode with an iOS-style scroll drum picker (0–59 min, 0–59 sec), defaulting to 1:00. Digits turn amber in the final 10 seconds. Three-beep audio alert on completion via the Web Audio API — does not interrupt music or podcast playback
   - **Stopwatch** mode with tenths-of-second precision
@@ -100,32 +105,33 @@ Gradient strips are pinned to the top and bottom of the app shell (matching `--a
   - Clock icon turns accent green while a timer is running
 
 ### Body
+- Tap to select gender, which drives which BMR formula inputs are shown
 - Log body weight (lbs) and steps per day
-- 7-day average weight, week-on-week change, and entry count
+- Weekly change, "left to go" toward the cycle's target weight, and entry count — both use the same ≤0.05 lbs tolerance for "no meaningful change" / "at goal"
+- BMR/TDEE (Mifflin-St Jeor) calculated from profile + activity level, with activity level derived from your all-time average logged steps (intentionally unscoped — more historical data makes the estimate more accurate, not less)
 - Full log of all entries — tap to edit; swipe left to reveal delete button
 
 ### Nutrition
 - Per-day food logging across named meals (Breakfast, Lunch, Dinner, Snacks)
-- Date navigation via a 7-day badge strip and a date picker
-- Tapping the hero card opens a date-picker modal
+- Hero card: tap to open a date picker, or swipe left/right to step one day at a time. A quick-add button in the corner lets you log the day's totals directly (kcal/protein/carbs/fats), overriding whatever's in the meal logs below for that day's totals
 - Food lookup via:
   - **Scan Barcode** — live camera scanning using the native `BarcodeDetector` API (Safari 17+, Chrome 83+) with automatic ZXing JS fallback. Camera launches immediately on tap. Manual barcode entry available below the viewfinder as a fallback. Looks up the scanned code against the Open Food Facts API
   - **Manual entry** — enter name and direct per-serving macros (kcal, protein, carbs, fats)
-  - **Recipe** — open the recipe builder directly from the log screen
+  - **Recipe** — pick a saved recipe from the food library
   - **Food library** — search previously used foods, sorted by most recently logged
-- **Quick Add** — log kcal, protein, carbs, and fats directly without a named food, overriding meal items for that day's totals
-- Serving confirmation modal showing grams and servings fields, live macro preview, and (for recipes) a full ingredient breakdown
+- Serving confirmation modal showing grams and servings fields, live macro preview, and (for recipes) a full ingredient breakdown. This modal (and the food library editor) use a taller sheet whose internal list independently shrinks to stay above the keyboard, rather than the sheet itself resizing
 - Swipe-to-copy from yesterday — an animated swipe strip under each meal shows the previous day's items and copies them on a one-third-width swipe right
-- Meal ellipsis menu (`···`) — copy or move an entire meal to any date and meal target via a bottom action sheet
-- Per-item interactions — tap a food entry to edit it; swipe left to reveal copy and delete buttons. Edit modal defaults the gram amount to the food's RSS (recommended serving size) where available
-- Daily macro panel with g / ± / % toggle for protein, carbs, and fats
-- Daily kcal card with progress bar vs. goal
-- 7-day weekly tab with bar charts (macro pie chart has moved to the Progress screen)
+- Meal ellipsis menu (`···`) — copy or move an entire meal to any date and meal target, or save the whole meal as a new recipe (this only creates the recipe from the meal's current ingredients — it does not automatically log that recipe anywhere)
+- Per-item interactions — tap a food entry to edit it; swipe left to reveal copy and delete buttons. Small print shown per item (brand, serving size) varies by source: recipes show serving count, everything else shows brand where known
+- Daily macro panel and daily kcal card with progress vs. the active goal
+- 7-day weekly tab with bar charts and macro pie chart
 - Personal **food library** — foods saved automatically on first entry; recipes stored with brand "My Recipe"
-- **Recipe builder** — multi-step: name and servings, then add ingredients by barcode scan or manual entry
+- **Recipe builder** — multi-step: name and servings, then add ingredients by barcode scan or manual entry. Reachable from the food library ("My Recipes" in Settings) or from a meal's ellipsis menu
 
 ### Goals
-- Set daily targets per macrocycle: steps, kcal, protein, carbs, fats
+- Set daily targets per macrocycle: steps, kcal, protein, carbs, fats. Kcal and steps are required — the input border flashes red if you try to save without them
+- Goal periods **cannot overlap** — a new goal defaults to starting the day after the latest existing goal ends (across every macrocycle), and saving is blocked with an inline error if the dates collide with any existing goal
+- Macro sliders (protein g/lb multiplier, carb/fat split) back-derive their starting position from an existing goal's saved grams when editing. For a goal that's already **active or past**, saving preserves the exact macros already stored unless you explicitly drag a slider — it won't silently drift just because your bodyweight has changed since the goal was created. New/upcoming goals always compute live from current bodyweight
 - Today vs. goal progress bars with left-to-go or over-target indicators
 - Weekly average comparison across all tracked metrics
 - Projected pacing — if you're behind on a weekly goal, BLOC calculates what you need per remaining day
@@ -134,12 +140,12 @@ Gradient strips are pinned to the top and bottom of the app shell (matching `--a
 ### Settings
 - Export full app data as a JSON backup
 - Restore from a JSON backup (replaces all current data)
-- **Theme selector** — nine colour swatches (Multi, Teal, Blue, Amber, Turquoise, Yellow, Red, Purple, Mono); selecting one updates the `data-theme` attribute on `<body>` immediately
+- **Theme selector** — nine colour swatches; selecting one updates the `data-theme` attribute on `<body>` immediately
 - **Dark / Light mode** toggle — updates the `data-mode` attribute on `<body>` immediately
 - **Exercise library** — export and import (merges by name; default exercises cannot be overwritten)
 - **Food library** — Export / Import (whole library JSON); Import recipe (single shared item file, including recipe ingredients); Edit library (tap row to edit, swipe left to reveal share and delete); My Recipes (tap row to edit recipe builder, swipe left to delete)
 - Storage usage indicator
-- Full data wipe (danger zone)
+- Full data wipe (danger zone) — clears macrocycles, exercises, logs, and nutrition data, but preserves your theme/mode preference, since the confirmation dialog only ever promised to delete tracked data
 
 ---
 
@@ -156,19 +162,21 @@ The camera launches immediately when "Scan Barcode" is tapped. On detection the 
 
 ## Progression Logic
 
-BLOC automatically calculates suggested weights and reps week-over-week based on the macrocycle goal type:
+BLOC automatically calculates suggested weights and reps week-over-week based on the macrocycle goal type. The weight-loss increment is user-configurable per macrocycle (defaults to 2.5 kg); the weight-gain increment and both heavy-leg increments are fixed:
 
 | Goal type | Standard exercises | Heavy leg exercises |
 |---|---|---|
-| Weight Loss | +1.5 kg / mesocycle | +2.5 kg / mesocycle |
+| Weight Loss | + your configured increment / mesocycle | +5 kg / mesocycle |
 | Strength Gain | +5 kg / mesocycle | +10 kg / mesocycle |
 
 For rep progression, 1 rep is added per week to each set.
 
 **Exercise types:**
-- **Standard** — weight or rep progression
-- **Myorep giant** — +10 reps per week (weight progression also available)
+- **Standard** — weight or rep progression, chosen per exercise per week
+- **Myorep giant** — weight or rep progression (giant-set reps add +10/week when reps is chosen)
 - **Myomatch** — fixed reps, weight progression only
+
+This same weight-jump formula is shared by the Plan page's progression preview and the Train page's live recommendations, so both always agree.
 
 ---
 
@@ -176,7 +184,7 @@ For rep progression, 1 rep is added per week to each set.
 
 | Concern | Approach |
 |---|---|
-| File structure | Single `index.html` — HTML, CSS, and JS in one file, one `<script>` block |
+| File structure | Single `index.html` — HTML, CSS, and JS in one file, one main `<script>` block (plus a separate `<script>` tag holding the bundled ZXing library) |
 | Storage | `localStorage` (`bloc_state` key) |
 | Fonts | Google Fonts — Inter (all weights) |
 | Food data | Open Food Facts API (barcode lookup) |
@@ -213,17 +221,26 @@ To restore: Settings → Restore from backup → select your `.json` file.
 ## Known Limitations
 
 - No service worker — fonts require an initial network request
-- Data is device-local; no cross-device sync (future: Supabase + PowerSync considered)
+- Data is device-local; no cross-device sync
 - No native push notifications for timer alerts when the app is backgrounded
 - `localStorage` is capped at 5–10 MB; extremely large food libraries or years of logs could approach this
+- Body weight is tracked in lbs while training weight is tracked in kg — an intentional, but non-obvious, split (there's no unit toggle for body weight)
 
 ---
 
 ## Version History
 
+Recent versions (v5.26 onward) reflect a page-by-page legacy audit pass — removing dead code left over from earlier redesigns, fixing bugs found along the way, and adding a handful of features that came up during the audit. Selected highlights below; see in-file version badge for the exact current build.
+
 | Version | Notes |
 |---|---|
-| v5.08 | iOS standalone viewport fixed via `measureEnv()` DOM probe + `--app-height`; `#nav` repositioned as `absolute` inside `#app` (not `position: fixed`); `viewport-fit=cover` restored; edge-fade strips at top/bottom; nine themes with per-page hero colours (Multi mode); dark/light mode toggle; floating pill nav with `requestAnimationFrame` highlight animation; pill colour matches page hero via CSS probe; Progress screen with 5-slide swipeable hero deck (cycle overview, weight/volume charts, steps/kcal vs goal); Cycle History modal; weekly macro pie chart moved to Progress; Active Cycle status pill on hero card corner; schedule-status pills with heat-map colours; barbell/person/fork/bullseye nav icons; `toLocalDateStr()` timezone fix throughout |
+| v6.00 | Inline comments added throughout entire code base |
+| v5.44 | Settings: "Clear all data" now preserves theme/mode and resets every field `load()` expects (previously left `state.supersets` undefined, a live crash risk) |
+| v5.42–5.43 | Goals: overlap prevention between goal periods; active/past goals no longer silently drift their macros from bodyweight changes; required-field validation on kcal/steps |
+| v5.41 | Nutrition: removed several functions and one dead code branch left over from earlier redesigns (old day-badge strip, an unused macro-view toggle, an unused recipe-builder entry point) |
+| v5.33–5.39 | Plan: body part cycle volume table, session rename/collapse, progression preview redesigned to group by session instead of week. Train: last-week progression data and badges reorganised into the header/set rows; several bug fixes (per-side volume calc, badge inference logic, superset row alignment) |
+| v5.16–5.32 | Progress: weight chart rebuilt to anchor on the live active cycle with a day-index-aligned comparison overlay; macrocycle state management overhaul; superset/tri-set feature fully implemented |
+| v5.08 | iOS standalone viewport fixed via `measureEnv()` DOM probe + `--app-height`; nine themes with per-page hero colours; dark/light mode toggle; floating pill nav; Progress screen with 5-slide swipeable hero deck |
 | v3.08 | Swipe-left gestures on all list rows, tap-to-edit, yesterday strip, edit modal defaults grams to RSS |
 | v3.03 | Camera barcode scanning (BarcodeDetector + ZXing fallback), auto-start camera, manual edit mode |
 | v3.01 | Meal ellipsis menu, swipe-to-copy from yesterday, recipe builder from nutrition log, SVG icons, Fill Suggested animations |
