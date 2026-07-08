@@ -1572,7 +1572,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v5.44</span>
+          <span class="badge badge-green">v6.00</span>
         </div>
       </div>
 
@@ -2437,19 +2437,68 @@ function toLocalDateStr(d) {
 // ════════════════════════════════════════════════
 // STATE
 // ════════════════════════════════════════════════
+// The entire app's data lives in this single global object, serialised
+// whole to localStorage on every mutation (see save() below — there is no
+// per-field persistence, no debouncing). Every screen's render function
+// reads directly from `state`; there is no separate "store" layer or
+// pub/sub — a render function is simply called again after any mutation.
+//
+// Field-by-field, and which module primarily owns each one:
+//   macrocycles        Plan   — the training blocks everything else hangs off
+//   exercises          Plan   — keyed by session, always stored against week 1
+//                                (see comment on the key below); every other
+//                                week's plan is *derived*, never stored
+//   trainLogs          Train  — one entry per logged set, keyed by exercise's
+//                                stable id (not array position — reordering,
+//                                supersets, or editing an exercise mid-cycle
+//                                must never silently remap old logs)
+//   bodyLogs           Body   — one entry per day logged (weight in lbs, steps)
+//   nutritionLogs      —      legacy per-day summary format; still read for
+//                                old-backup compatibility but nothing writes
+//                                to it any more — see nutritionMeals below
+//   goals              Goals  — target periods; validated to never overlap
+//                                (see findOverlappingGoal)
+//   customLibrary      —      user-added exercise library entries (name +
+//                                body part); merged with the built-in list
+//                                by getLibrary()
+//   nutritionMeals     Nutr   — per-day, per-meal food entries
+//   nutritionQuickLog  Nutr   — per-day macro override; when present for a
+//                                date, takes priority over nutritionMeals
+//                                for that day's totals (see getDayTotals)
+//   foodLibrary        Nutr   — foods/recipes the person has actually logged,
+//                                auto-saved on first entry
+//   recipes            Nutr   — recipe builder output; also upserts into
+//                                foodLibrary so recipes are loggable like
+//                                any other food
+//   supersets          Plan   — custom display name only, keyed by a
+//                                generated superset id; which exercises
+//                                belong to a group lives on the exercises
+//                                themselves (their supersetId field), not here
+//   profile            Body   — gender/height/birthday, feeds the BMR/TDEE
+//                                calculation
+//   theme / mode        Settings — NOT present in this object literal; both
+//                                are filled in by load()'s defensive defaults
+//                                below and applied as data-theme/data-mode
+//                                attributes on <body>
 let state = {
   macrocycles: [],
-  exercises: {},    // key: macroId_week_day -> [{...}]
-  trainLogs: {},    // key: macroId_week_day_exIdx_setIdx -> {weight, reps, done}
+  // Keyed by `${macroId}_1_${day}${microKey}` — always week 1 (the
+  // editable template). Every other week's exercise list is calculated on
+  // the fly from this template by the progression functions in §20 of
+  // TECHNICAL.md; there's no separate stored copy per week.
+  exercises: {},
+  // Keyed by `${macroId}_${week}_${day}${microKey}_${exerciseId}_${setIndex}`.
+  // Uses the exercise's stable id, not its position in the exercises array.
+  trainLogs: {},    // {weight, reps, done}
   bodyLogs: [],     // [{date, weight, steps}]
-  nutritionLogs: [], // [{date, kcal, protein, carbs, fats}]
+  nutritionLogs: [], // [{date, kcal, protein, carbs, fats}] — legacy, read-only now
   goals: [],        // [{macroId, startDate, endDate, kcal, steps, protein, carbs, fats}]
   customLibrary: [], // [{name, bodyPart}]
-  nutritionMeals: {}, // {date: {Breakfast:[], Lunch:[], Dinner:[]}}
-  nutritionQuickLog: {}, // {date: {kcal, protein, carbs, fats}}
-  foodLibrary: [], // [{id, name, per100kcal, per100p, per100c, per100f, defaultServing, source}]
+  nutritionMeals: {}, // {date: {Breakfast:[], Lunch:[], Dinner:[], Snacks:[]}}
+  nutritionQuickLog: {}, // {date: {kcal, protein, carbs, fats}} — overrides meal totals when present
+  foodLibrary: [], // [{id, name, brand, per100kcal, per100p, per100c, per100f, defaultServing, source}]
   recipes: [],      // [{id, name, servings, ingredients, per_serving_kcal, per_serving_p, per_serving_c, per_serving_f}]
-  supersets: {},    // key: supersetId -> { name: string|null }
+  supersets: {},    // key: supersetId -> { name: string|null } — membership lives on the exercises, not here
   currentMacroId: null,
   currentWeek: 1,
   currentDay: 'push',
@@ -2457,7 +2506,20 @@ let state = {
   profile: {},  // { gender: 'male'|'female', heightCm: number, birthday: 'YYYY-MM-DD' }
 };
 
+// Writes the entire state object to localStorage. Called after every
+// mutation throughout the app — there's no batching, so a screen with lots
+// of rapid edits (e.g. dragging a slider) can trigger many synchronous
+// writes in quick succession. Cheap enough in practice not to matter.
 function save() { localStorage.setItem('bloc_state', JSON.stringify(state)); }
+
+// Runs once on boot. Parses whatever's in localStorage (if anything), then
+// backfills any field that's missing with an empty default — this is what
+// makes the app tolerant of: a brand new install (nothing in storage), an
+// old backup file missing fields that didn't exist yet when it was
+// exported, or a partial state object from elsewhere in the app (see
+// clearAllData() in the Settings module, which intentionally rebuilds a
+// full state object matching this exact shape). Every field the app ever
+// reads without its own `|| fallback` must be listed here.
 function load() {
   const raw = localStorage.getItem('bloc_state');
   if (raw) { try { state = JSON.parse(raw); } catch(e) {} }
@@ -2482,11 +2544,23 @@ function load() {
 }
 
 load();
+// Nav pill has no size/position until the DOM has painted at least once —
+// double rAF waits for that first paint before measuring, otherwise the
+// pill would start at 0x0 and only snap to the right place on the next
+// screen change.
 requestAnimationFrame(() => requestAnimationFrame(positionNavPill));
 
 // ════════════════════════════════════════════════
 // NAVIGATION
 // ════════════════════════════════════════════════
+// showScreen(name) is the single entry point for switching pages — every
+// nav button, and several in-app "jump to X" actions (e.g. a food-scanned
+// recipe returning to Nutrition), call this rather than touching .screen
+// classes directly. It deliberately does a full re-render of the
+// destination screen every time rather than trying to diff — screens are
+// cheap enough to rebuild from `state` that this has never been a
+// performance problem, and it avoids an entire category of "stale DOM"
+// bugs that partial updates would risk.
 function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -2554,6 +2628,10 @@ function positionNavPill() {
 // re-measure every frame for the duration of that CSS transition so the
 // pill always exactly matches the real, currently-animating layout.
 let _navPillAnimId = null;
+// Smoothly slides/resizes #nav-pill to the newly active nav button over 420ms
+// (matches the .nav-label text-reveal transition timing). Runs its own
+// requestAnimationFrame loop rather than relying on a CSS transition alone,
+// so it can be cancelled mid-flight if the user taps nav buttons rapidly.
 function animateNavPill() {
   if (_navPillAnimId) cancelAnimationFrame(_navPillAnimId);
   const start = performance.now();
@@ -2573,6 +2651,12 @@ window.addEventListener('load', positionNavPill);
 // ════════════════════════════════════════════════
 // MODALS
 // ════════════════════════════════════════════════
+// Adds .open to the named modal overlay, making it visible. A handful of
+// modals need fresh state on every open rather than whatever's left over
+// in the DOM from last time (modal-body-log's blank-vs-edit fields,
+// modal-add-goal's stale overlap-error message, etc) — those are special-
+// cased here rather than in each individual opener function, so the reset
+// always happens regardless of which button triggered the open.
 function openModal(id) {
   const today = getLocalToday();
   if (id === 'modal-body-log') {
@@ -2638,6 +2722,10 @@ function openModal(id) {
   }
   document.getElementById(id).classList.add('open');
 }
+// Removes .open from the given modal overlay. Also stops any running camera
+// stream if the modal being closed is one of the barcode scanner modals
+// (modal-nutr-barcode / modal-recipe-barcode) — otherwise the camera would
+// keep running in the background after the sheet is dismissed.
 function closeModal(id) {
   const overlay = document.getElementById(id);
   // Dismiss the keyboard if focus is inside this modal — covers the ✕
@@ -2659,6 +2747,10 @@ function closeModal(id) {
   if (id === 'modal-add-goal') overlay._editIdx = undefined;
 }
 
+// Handles the segmented-control-style options in the New/Edit Macrocycle
+// modal (split type, microcycles yes/no, etc). Stores the choice in the
+// ephemeral state._macroForm scratch object (not saved until saveMacro()),
+// and toggles dependent UI — e.g. picking a split re-renders the day list.
 function selectMacroOpt(group, value) {
   if (!state._macroForm) state._macroForm = { split: 'ppl', micro: 'yes' };
   state._macroForm[group] = value;
@@ -2698,10 +2790,15 @@ function selectMacroOpt(group, value) {
 // ════════════════════════════════════════════════
 // MESOCYCLE DURATION HELPERS
 // ════════════════════════════════════════════════
+// Total weeks in the macrocycle, accounting for multi-week mesocycles
+// (macro.weeks is the mesocycle *count*, not raw weeks, when weeksPerMeso > 1).
 function getMacroDurationWeeks(macro) {
   return (macro.weeks || 8) * (macro.weeksPerMeso || 1);
 }
 
+// Returns the ISO date string the macrocycle finishes on, calculated from
+// its start date plus total duration in weeks. Used anywhere a cycle's end
+// needs to be compared or displayed (schedule pills, Progress cycle list).
 function getMacroEndDate(macro) {
   // End on the Sunday of the last week: start + (weeks*7) - 1 day
   const startDate = macro.start ? new Date(macro.start + 'T00:00:00') : new Date();
@@ -2711,6 +2808,9 @@ function getMacroEndDate(macro) {
   return endDate;
 }
 
+// Suggests a sensible default start date for a brand new macrocycle: the day
+// after the most recently-ending existing macrocycle, or today if none exist
+// yet. Mirrors the same 'don't overlap the last one' pattern used for Goals.
 function getNextMacroStart() {
   // Find the latest end date across all macrocycles, return the day after
   if (!state.macrocycles.length) return getLocalToday();
@@ -2723,6 +2823,9 @@ function getNextMacroStart() {
   next.setDate(next.getDate() + 1);
   return toLocalDateStr(next);
 }
+// Builds the one-line human-readable summary shown on a macrocycle card, e.g.
+// '4 mesocycles · 4 wks each · 3 sessions/wk · 16 wks total'. Adjusts wording
+// depending on whether the cycle uses multi-week mesocycles or a flat weeks count.
 function getMacroSummaryLabel(macro) {
   const wpm = macro.weeksPerMeso || 1;
   const spw = macro.sessionsPerWeek || 3;
@@ -2734,6 +2837,12 @@ function getMacroSummaryLabel(macro) {
 // ════════════════════════════════════════════════
 // MESOCYCLE
 // ════════════════════════════════════════════════
+// Creates a brand new macrocycle from the New Macrocycle modal's fields —
+// name, duration, split type, goal, and initial per-day session structure.
+// (Historical note: despite the app-wide UI calling this unit a
+// 'macrocycle', an audit confirmed the internal terminology throughout
+// the codebase is consistent and NOT inverted relative to S&C theory —
+// see TECHNICAL.md if that's ever in question again.)
 function createMacrocycle() {
   const name = document.getElementById('macro-name-input').value.trim() || 'Macrocycle';
   const weeks = parseInt(document.getElementById('macro-weeks-input').value) || 8;
@@ -2771,17 +2880,25 @@ function createMacrocycle() {
   renderPlan();
 }
 
+// Adds a new freely-named session (day) to a Custom-split macrocycle being
+// created/edited — e.g. 'Upper A'. Only relevant when split type is 'custom';
+// PPL and Full Body splits have their days fixed.
 function addCustomSession() {
   if (!state._customSessions) state._customSessions = [];
   state._customSessions.push('Session ' + (state._customSessions.length + 1));
   renderCustomSessions();
 }
 
+// Removes a custom-named session by index from the in-progress macrocycle
+// form. Custom splits must keep at least one session — callers guard against
+// removing the last one.
 function removeCustomSession(idx) {
   state._customSessions.splice(idx, 1);
   renderCustomSessions();
 }
 
+// Re-renders the editable list of custom session names in the macrocycle
+// form whenever one is added, removed, or renamed.
 function renderCustomSessions() {
   const list = document.getElementById('custom-sessions-list');
   if (!list) return;
@@ -2797,6 +2914,10 @@ function renderCustomSessions() {
 // ════════════════════════════════════════════════
 // EXERCISES
 // ════════════════════════════════════════════════
+// Adjusts the exercise modal's visible fields when the exercise type
+// changes — myorep giant sets lock the sets field to 1 (a 'set' is the
+// whole giant set), myomatch hides the reps-progression option entirely
+// since it's weight-only.
 function onExTypeChange() {
   const type = document.getElementById('ex-type-select').value;
   const setsRow = document.getElementById('ex-sets-row');
@@ -2812,6 +2933,11 @@ function onExTypeChange() {
   }
 }
 
+// Small helper to set a <select>'s value, trying an exact string match first
+// and falling back to the closest available option. Used when pre-filling
+// form selects from stored data that might not exactly match today's option
+// list (e.g. editing an exercise whose sets value was set before a range
+// of selectable options changed).
 function setSelectValue(id, val) {
   const el = document.getElementById(id);
   // Try exact match first, then closest
@@ -2824,6 +2950,10 @@ function setSelectValue(id, val) {
   el.value = closest.value;
 }
 
+// Updates the heavy-leg toggle's label text in the exercise modal to reflect
+// the active macrocycle's goal type (the weight jump differs for a heavy-leg
+// exercise depending on whether the cycle is a loss or gain cycle — see
+// getWeekWeight()), so the label always shows the real number that will apply.
 function updateLegSelectLabels() {
   const activeMacro = state.macrocycles.find(m => m.id === state.currentMacroId);
   const isGain = activeMacro && activeMacro.goalType === 'gain';
@@ -2833,6 +2963,11 @@ function updateLegSelectLabels() {
   legSel.options[1].text = isGain ? 'Yes (10 kg per mesocycle)' : 'Yes (up to 3 kg per mesocycle)';
 }
 
+// Drag-to-reorder handler for the Week-1 template's exercise list. Treats
+// each superset group as a single slot when reordering — dragging a group
+// moves every member together; reordering *within* a group is handled
+// separately by reorderSupersetExercise(). Persists the new order values
+// and re-renders the Plan page.
 function reorderExercise(day, fromSortedIdx, toSortedIdx) {
   const key = state.currentMacroId + '_1_' + day;
   const arr = state.exercises[key];
@@ -2890,6 +3025,9 @@ function reorderSupersetExercise(day, supersetId, fromInnerIdx, toInnerIdx) {
   renderPlan();
 }
 
+// Opens the add-exercise modal (modal-exercise) for a given week/day, blank
+// and ready for a new exercise. Always operates against week 1's template —
+// there's no such thing as adding an exercise to a single later week only.
 function openAddExercise(week, day) {
   state.currentEditContext = { week, day, editIdx: null };
   document.getElementById('modal-ex-title').textContent = 'Add Exercise';
@@ -2923,12 +3061,18 @@ function openAddExerciseToSuperset(day, ssId) {
   openModal('modal-exercise');
 }
 
+// Shows/hides the configurable weight-loss increment field in the macrocycle
+// form — only relevant for loss-goal cycles, since the gain-goal jump size
+// is fixed (see getWeekWeight()).
 function toggleLossIncrementRow() {
   const goalType = document.getElementById('macro-goal-type-input')?.value;
   const row = document.getElementById('loss-increment-row');
   if (row) row.style.display = goalType === 'gain' ? 'none' : '';
 }
 
+// Opens the exercise modal pre-filled for editing an existing exercise.
+// Disables the sets/reps inputs for non-leader superset members, since their
+// values are intentionally locked to follow the group leader.
 function openEditExercise(week, day, idx) {
   const key = state.currentMacroId + '_' + week + '_' + day;
   const sorted = (state.exercises[key] || []).slice().sort((a,b) => (a.order||0)-(b.order||0));
@@ -2966,6 +3110,10 @@ function openEditExercise(week, day, idx) {
   openModal('modal-exercise');
 }
 
+// Reads the exercise modal's fields and creates or updates an exercise entry
+// in state.exercises. This is the single save path for both solo exercises
+// and superset members — superset-specific fields (supersetId/supersetOrder)
+// are preserved from the existing entry when editing, not re-derived here.
 function saveExercise() {
   const ctx = state.currentEditContext;
   if (!ctx || !state.currentMacroId) return;
@@ -3016,6 +3164,9 @@ function saveExercise() {
   renderPlan();
 }
 
+// Removes a single exercise from the Week-1 template. If it's the last
+// member of a superset group, the group itself is implicitly gone too (no
+// separate cleanup needed since supersets are just a shared id on exercises).
 function deleteExercise(week, day, idx) {
   const key = state.currentMacroId + '_' + week + '_' + day;
   if (!state.exercises[key]) return;
@@ -3080,6 +3231,9 @@ function openLinkModal(day, exId) {
   openModal('modal-link');
 }
 
+// Toggles one exercise's checkbox state in the 'link into superset' modal
+// (modal-link). The exercise that opened the modal (the 'origin') is always
+// forced selected and can't be unchecked.
 function toggleLinkRow(rowEl, exId) {
   const sel = state.linkModalSelected;
   const originId = state.linkModalContext.exId;
@@ -3101,6 +3255,8 @@ function toggleLinkRow(rowEl, exId) {
   updateLinkModalBtn();
 }
 
+// Enables/disables and relabels the Link modal's confirm button based on how
+// many exercises are currently checked — linking requires at least 2.
 function updateLinkModalBtn() {
   const count = state.linkModalSelected ? state.linkModalSelected.size : 0;
   const btn = document.getElementById('modal-link-confirm-btn');
@@ -3116,6 +3272,9 @@ function updateLinkModalBtn() {
   }
 }
 
+// Finalises linking the checked exercises into a superset group: assigns a
+// shared supersetId and sequential supersetOrder to each member, then closes
+// the modal and re-renders Plan.
 function confirmLink() {
   const { day, exId } = state.linkModalContext || {};
   if (!day || !exId) return;
@@ -3268,12 +3427,21 @@ function getSupersetBadge(n) {
 // ════════════════════════════════════════════════
 // PROGRESSION LOGIC
 // ════════════════════════════════════════════════
+// Linearly scales an exercise's set count from its starting value
+// (setsStart) up to its peak value (setsEnd) across the cycle's weeks —
+// week 1 uses setsStart, the final week uses setsEnd, everything between
+// is interpolated and rounded to the nearest whole set.
 function getWeekSets(ex, week, totalWeeks) {
   // Linearly scale from setsStart to setsEnd
   const t = totalWeeks > 1 ? (week - 1) / (totalWeeks - 1) : 0;
   return Math.round(ex.setsStart + t * (ex.setsEnd - ex.setsStart));
 }
 
+// Theoretical target weight for a given exercise/week, used by both the Plan
+// page's progression preview and as a Train page fallback when no prior log
+// exists yet. jump = isHeavyLeg ? (gain?10:5) : (gain?5:lossIncrement) — the
+// same formula Train's live recommendations use, so the two pages never
+// disagree (they used to, before this was consolidated into one function).
 function getWeekWeight(ex, week, progType, goalType, lossIncrement) {
   if (progType !== 'weight') return ex.startWeight;
   // Jump per mesocycle based on macrocycle type — mirrors the weightJump
@@ -3289,6 +3457,9 @@ function getWeekWeight(ex, week, progType, goalType, lossIncrement) {
   return ex.startWeight + jump * (week - 1);
 }
 
+// Theoretical target reps for a given week — returns ex.reps unchanged unless
+// progType is 'reps', in which case it adds +1 rep per week (handling both
+// plain numbers and 'N-M' ranges).
 function getWeekReps(ex, week, progType) {
   if (progType !== 'reps') return ex.reps;
   const match = ex.reps.match(/(\d+)/);
@@ -3302,6 +3473,10 @@ function getWeekReps(ex, week, progType) {
   return String(added);
 }
 
+// Reps target for myorep-family exercises specifically. Myomatch is always
+// weight-only progression, so this returns a fixed base derived from ex.reps
+// regardless of week. Plain myorep (giant sets) adds +10 reps per week when
+// reps progression is chosen.
 function getMyorepProgression(ex, week) {
   // myorep giant: +10 reps/week (mesoweek fallback only — actual logged reps take
   // priority wherever they're available, see exProgData); myomatch: reps don't
@@ -3493,6 +3668,7 @@ let progressViewMacroId = null;
 // auto-jumps to the next incomplete session whenever it runs.
 let trainPickerExpanded = false;
 let trainManualSelect = false;
+// Shows/hides the week/day selector strip on the Train page.
 function toggleTrainPicker() {
   trainPickerExpanded = !trainPickerExpanded;
   renderTrain();
@@ -3504,6 +3680,10 @@ function toggleTrainPicker() {
 // previews, not the editable Week 1 template, so showing all of them at
 // once for a long macrocycle becomes a huge wall of cards.
 let planExpandedSessions = {};
+// Expands/collapses one session's card in the Plan page's read-only
+// 'Weeks 2+' progression preview. Collapsed by default (planExpandedSessions) —
+// distinct from togglePlanDaySession below, which controls the *editable*
+// Week-1 template cards and defaults expanded.
 function togglePlanSession(macroId, sessionKey) {
   const key = macroId + '_' + sessionKey;
   planExpandedSessions[key] = !planExpandedSessions[key];
@@ -3517,6 +3697,11 @@ function togglePlanSession(macroId, sessionKey) {
 // drag-to-reorder is already scoped per-day, so a collapsed day simply has
 // no rows in the DOM to drag until it's expanded again.
 let planDayCollapsed = {};
+// Expands/collapses one session's card in the editable Week-1 template.
+// Collapsing removes the exercise rows (and their drag handlers) from the
+// DOM entirely rather than just hiding them — since drag-to-reorder is
+// already scoped to a single day, a collapsed card simply has nothing
+// draggable in it until it's reopened.
 function togglePlanDaySession(macroId, dayKey) {
   const key = macroId + '_' + dayKey;
   planDayCollapsed[key] = !planDayCollapsed[key];
@@ -3621,6 +3806,9 @@ function resolveProgressMacro() {
   return state.macrocycles.find(m => m.id === progressViewMacroId) || state.macrocycles.find(m => m.id === state.currentMacroId);
 }
 
+// Advances or retreats which macrocycle the Progress page is displaying,
+// when the person taps the left/right arrows on the hero card. Wraps at
+// both ends of the sorted macrocycle list.
 function cycleProgressMacro(dir) {
   const list = state.macrocycles.slice().sort((a,b) => (a.start||'').localeCompare(b.start||''));
   if (list.length < 2) return;
@@ -4036,6 +4224,10 @@ function buildGoalColumnHeroChart(macro, metric) {
 // clamped at both ends rather than wrapping.
 let progressHeroIndex = 0;
 
+// Renders whichever slide of the 5-slide Progress hero deck is currently
+// active (progressHeroIndex) into #progress-hero-card, then locks every
+// slide's card height to slide 0's natural height so the deck doesn't jump
+// as you swipe between charts of different shapes.
 function renderProgressHero() {
   const el = document.getElementById('progress-hero-card');
   if (!el) return;
@@ -4086,6 +4278,8 @@ function renderProgressHero() {
   });
 }
 
+// Updates the dot-pagination indicator below the Progress hero deck to
+// reflect the currently active slide.
 function renderProgressHeroDots() {
   const el = document.getElementById('progress-hero-dots');
   if (!el) return;
@@ -4094,6 +4288,9 @@ function renderProgressHeroDots() {
   ).join('');
 }
 
+// Returns the currently-rendered .hero-card element inside the Progress hero
+// wrap, used by the swipe-gesture handlers to apply drag/snap transforms
+// directly to the live card.
 function getProgressHeroCard() {
   const wrap = document.getElementById('progress-hero-wrap');
   return wrap ? wrap.querySelector('.hero-card') : null;
@@ -4102,6 +4299,8 @@ function getProgressHeroCard() {
 let _progressHeroBusy = false;
 let _progressHeroGestureId = 0;
 
+// Animates the hero card back to its resting position after a swipe gesture
+// that didn't cross the threshold to change slides.
 function progressHeroSnapBack() {
   const card = getProgressHeroCard();
   if (card) {
@@ -4167,11 +4366,18 @@ let _insightsBusy        = false;
 let _insightsGestureId   = 0;
 const INSIGHTS_CARD_COUNT = 3;
 
+// Returns the currently-rendered .card element inside the Progress page's
+// secondary swipeable deck (#progress-body — the 3-card 'insights' strip
+// below the hero: weight sparkline / macro pie / steps+kcal), used by that
+// deck's own swipe-gesture handlers.
 function getInsightsCard() {
   const wrap = document.getElementById('progress-body');
   return wrap ? wrap.querySelector('.card') : null;
 }
 
+// Animates the insights card back to its resting position after a swipe that
+// didn't cross the threshold to change cards — same pattern as
+// progressHeroSnapBack but for the secondary deck.
 function insightsSnapBack() {
   const card = getInsightsCard();
   if (card) {
@@ -4181,6 +4387,8 @@ function insightsSnapBack() {
   }
 }
 
+// Advances the Progress page's secondary 'insights' card deck to a new index
+// (wrapping via INSIGHTS_CARD_COUNT), animating the transition.
 function insightsAnimateTo(rawIndex) {
   const dir = rawIndex > insightsIndex ? 1 : (rawIndex < insightsIndex ? -1 : 0);
   let newIndex = ((rawIndex % INSIGHTS_CARD_COUNT) + INSIGHTS_CARD_COUNT) % INSIGHTS_CARD_COUNT;
@@ -4224,6 +4432,10 @@ function insightsAnimateTo(rawIndex) {
 }
 
 let _insightsSwipeInited = false;
+// Attaches touch/mouse swipe gesture handlers to the Progress page's
+// secondary insights deck (#progress-body) — the same swipe-to-advance
+// pattern as the hero deck (initProgressHeroSwipe), applied to a separate,
+// smaller 3-card carousel.
 function initInsightsSwipe() {
   _insightsSwipeInited = false; // re-init on each render (wrap may change)
   const wrap = document.getElementById('progress-body');
@@ -4266,6 +4478,11 @@ function initInsightsSwipe() {
 }
 
 let _progressHeroSwipeInited = false;
+// Attaches touch/mouse swipe gesture handlers to the Progress hero deck.
+// A swipe of more than 30% of the card's width advances/retreats
+// progressHeroIndex and re-renders. Guarded against overlapping gestures via
+// _progressHeroBusy and a gesture-id counter, since a fast double-swipe could
+// otherwise start a second animation before the first finishes.
 function initProgressHeroSwipe() {
   if (_progressHeroSwipeInited) return;
   _progressHeroSwipeInited = true;
@@ -4327,6 +4544,8 @@ function initProgressHeroSwipe() {
   }, true);
 }
 
+// Top-level render function for the Progress screen. Renders the hero deck,
+// the secondary insights card deck, and wires up both sets of swipe handlers.
 function renderProgress() {
   const todayStr = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' });
   document.getElementById('progress-date').textContent = todayStr;
@@ -4644,6 +4863,8 @@ function renderProgress() {
   renderProgressNutrPies();
 }
 
+// Renders the chart content shown inside the Progress page's secondary
+// insights cards (body weight sparkline, macro pie, steps/kcal bars).
 function renderProgressCharts() {
   const el = document.getElementById('progress-charts');
   if (!el) return;
@@ -4768,6 +4989,7 @@ function renderProgressCharts() {
 
 const progressToggle = { nutr: 'avg' };
 
+// Switches the steps/kcal insight card between 'today' and '7-day' views.
 function setProgressNutrToggle(val) {
   progressToggle.nutr = val;
   const ids  = ['nutr-tog-today','nutr-tog-avg'];
@@ -4781,6 +5003,10 @@ function setProgressNutrToggle(val) {
   renderProgressNutr();
 }
 
+// Returns the last 7 days as an array of {date, letter} objects (letter =
+// single-character weekday initial), anchored to local time via
+// getLocalToday() rather than UTC — used to build the x-axis of every
+// 7-day bar chart in the app.
 function getLocal7Days() {
   const days = [];
   for (let i = 6; i >= 0; i--) {
@@ -4812,11 +5038,17 @@ function getCycleDays(macro) {
   return days.length ? days : getLocal7Days();
 }
 
+// Formats a number for compact display — '1.2k' above 1000, otherwise the
+// plain number. Used in chart labels and callouts where space is tight.
 function fmtK(val) {
   if (val >= 1000) return (val/1000).toFixed(1)+'k';
   return String(Math.round(val));
 }
 
+// Generates an inline SVG bar chart string for a set of daily values (steps,
+// kcal, etc) against a target line, with today's bar visually distinguished.
+// No charting library is used anywhere in the app — every chart is a
+// hand-built SVG string like this one.
 function buildProgressBarChart(days, values, color, unitFn, todayDate) {
   const max = Math.max(...values.filter(v=>v!==null), 1);
   const barMaxH = 48;
@@ -4834,6 +5066,8 @@ function buildProgressBarChart(days, values, color, unitFn, todayDate) {
     + '</div>';
 }
 
+// Generates a single inline SVG progress bar (logged vs target), switching
+// to an 'over target' colour when logged exceeds target.
 function buildProgressStatBar(logged, target, color, overColor) {
   if (!target) return '';
   const isOver = logged > target;
@@ -4965,6 +5199,9 @@ function renderProgressNutr() {
     + stepsRow + rows.join('') + '</div>';
 }
 
+// Computes the start → current → target body-weight progress bar shown on
+// the Plan page's macrocycle card. startBw is the earliest body log on or
+// after the cycle's start date; current is the most recent log of any date.
 function buildBwProgress(macro) {
   try {
     if (!macro || !macro.targetBw) return '';
@@ -5033,6 +5270,11 @@ function buildBwProgress(macro) {
 // ════════════════════════════════════════════════
 // RENDER: PLAN
 // ════════════════════════════════════════════════
+// Top-level render function for the Plan screen. Renders the macrocycle
+// overview card (or the empty state if none exists), every session's
+// editable Week-1 template card, the Weeks-2+ progression preview, and
+// the body-part volume table — in that order, all from state fresh on
+// every call.
 function renderPlan() {
   const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
   const overviewEl = document.getElementById('macro-overview');
@@ -5245,6 +5487,9 @@ function computeBodyPartVolumeRange(macro) {
   })).sort((a, b) => b.min - a.min);
 }
 
+// Renders the Plan page's body-part volume card: one row per body part from
+// computeBodyPartVolumeRange(), sorted by minimum volume descending. Returns
+// an empty string (renders nothing) if the cycle has no exercises yet.
 function renderBodyPartVolumeTable(macro) {
   const rows = computeBodyPartVolumeRange(macro);
   if (rows.length === 0) return '';
@@ -5259,6 +5504,10 @@ function renderBodyPartVolumeTable(macro) {
     <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Min–max total volume across the whole cycle, assuming either weight-only or reps-only progression throughout (myorep match sets are weight-only either way, so their min and max match). Sorted by minimum volume, highest first.</div>
     <div class="card" style="margin-bottom:24px;padding:12px 14px;">${rowsHtml}</div>`;
 }
+// Renders one microcycle's worth of session cards for the *editable* Week-1
+// template (the exercise-adding/editing UI, as opposed to the read-only
+// Weeks-2+ progression preview built separately). Called once per
+// microcycle when the macro uses them, or once for the whole week otherwise.
 function renderMicroBlock(macro, week, micro, days, dayLabels) {
   const microKey = micro === 0 ? '' : `m${micro}`;
   const sectionTitle = micro === 0 ? '' : `<div class="section-title" style="font-size:10px;">Microcycle ${micro}</div>`;
@@ -5412,6 +5661,7 @@ function renderMicroBlock(macro, week, micro, days, dayLabels) {
   return html;
 }
 
+// Opens the macrocycle modal pre-filled for editing an existing macrocycle.
 function openEditMacro(id) {
   const macro = state.macrocycles.find(m => m.id === id);
   if (!macro) return;
@@ -5428,6 +5678,7 @@ function openEditMacro(id) {
   openModal('modal-edit-macro');
 }
 
+// Saves changes to an existing macrocycle from the edit modal.
 function saveEditMacro() {
   const id = document.getElementById('modal-edit-macro')._editId;
   const macro = state.macrocycles.find(m => m.id === id);
@@ -5456,6 +5707,9 @@ function selectCycle(id) {
   renderTrain();
 }
 
+// Deep-clones a macrocycle — including all its exercises — under a new id
+// and start date, so the copy is fully independent (editing one never
+// affects the other, unlike a shallow copy which would share exercise arrays).
 function copyMacrocycle(id) {
   const src = state.macrocycles.find(m => m.id === id);
   if (!src) return;
@@ -5482,6 +5736,8 @@ function copyMacrocycle(id) {
   renderPlan();
 }
 
+// Removes a macrocycle along with every exercise and training log that
+// belongs to it. Irreversible — confirmed via showConfirm() before this runs.
 function deleteMacrocycle(id) {
   const macro = state.macrocycles.find(m => m.id === id);
   if (!macro) return;
@@ -5513,6 +5769,9 @@ function deleteMacrocycle(id) {
 // ════════════════════════════════════════════════
 // RENDER: TRAIN
 // ════════════════════════════════════════════════
+// Top-level render function for the Train screen. Renders the week/day
+// picker, then delegates the actual session content to renderTrainHero()
+// (summary + volume) and renderTrainDay() (the exercise/superset cards).
 function renderTrain() {
   const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
   const pickerEl = document.getElementById('train-session-picker');
@@ -5628,6 +5887,7 @@ function renderTrain() {
   renderTrainDay(macro);
 }
 
+// Switches which week of the macrocycle the Train page is displaying.
 function selectTrainWeek(w) {
   state.currentWeek = w;
   trainManualSelect = true;
@@ -5635,6 +5895,7 @@ function selectTrainWeek(w) {
   renderTrain();
 }
 
+// Switches which day (session) of the macrocycle the Train page is displaying.
 function selectTrainDay(d) {
   state.currentDay = d;
   trainManualSelect = true;
@@ -5642,10 +5903,16 @@ function selectTrainDay(d) {
   renderTrain();
 }
 
+// Builds the storage key used specifically for a 'which progression path was
+// chosen this week' record — distinct from a per-set trainLogs key, since
+// the progression choice applies to the whole exercise/week, not one set.
 function getProgKey(macroId, week, day, exId) {
   return macroId + '_prog_' + week + '_' + day + '_' + exId;
 }
 
+// Records which progression path (weight vs reps) was chosen for an exercise
+// this week, driving which of the two input placeholders shows the boosted
+// suggested value (see exProgData's weightPlaceholder/repsPlaceholder).
 function selectProgType(macroId, week, day, exId, progType) {
   const pk = getProgKey(macroId, week, day, exId);
   if (!state.trainLogs[pk]) state.trainLogs[pk] = {};
@@ -5660,6 +5927,9 @@ function selectProgType(macroId, week, day, exId, progType) {
 // superset id, not a positional index, despite the older naming elsewhere.
 const expandedExercises = {};
 
+// Expands/collapses one exercise (or superset group) card on the Train page.
+// Keyed by macroId_week_day_exId (or _ssId for supersets) — the stable id,
+// not a positional index, so expand state survives reordering.
 function toggleExercise(expandKey) {
   expandedExercises[expandKey] = !expandedExercises[expandKey];
   const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
@@ -5720,6 +5990,10 @@ function renderTrainHero(macro) {
   }
 }
 
+// Renders every exercise/superset card for the currently selected week+day —
+// the bulk of the Train page's UI. Calls exProgData() once per exercise (or
+// once per superset member) to get all the progression/last-week data each
+// card needs.
 function renderTrainDay(macro) {
   // Exercises are always defined in Week 1 — used as the template for all weeks
   const templateKey = macro.id + '_1_' + state.currentDay;
@@ -6283,12 +6557,17 @@ function renderTrainDay(macro) {
   renderTrainHero(macro);
 }
 
+// Writes a single field (weight or reps) of one logged set into
+// state.trainLogs, creating the entry if it doesn't exist yet.
 function logSet(key, field, value) {
   if (!state.trainLogs[key]) state.trainLogs[key] = {};
   state.trainLogs[key][field] = value;
   save();
 }
 
+// Fills every set input for an exercise with the current week's suggested
+// weight/reps in one tap, with an amber flash animation on the button and
+// the filled inputs.
 function fillSuggested(macroId, week, day, exId, sets, weight, reps) {
   const baseKey = macroId + '_' + week + '_' + day;
   for (let s = 0; s < sets; s++) {
@@ -6331,6 +6610,8 @@ function fillSuggested(macroId, week, day, exId, sets, weight, reps) {
   }, 900);
 }
 
+// Clears every logged set for one exercise this week (weight, reps, and done
+// state), used by the 'Clear' button next to Fill Suggested.
 function clearExerciseLogs(macroId, week, day, exId, sets) {
   const baseKey = macroId + '_' + week + '_' + day;
   for (let s = 0; s < sets; s++) {
@@ -6385,6 +6666,9 @@ function quickFillCompleteSuperset(event, macroId, week, day, fillArgsJson) {
   if (macro) renderTrainDay(macro);
 }
 
+// Flips a single set's done flag. If weight or reps is missing when marking
+// done, briefly flashes the empty input's border red instead of allowing it —
+// the same validation pattern reused later for the Goals kcal/steps fields.
 function toggleSetDone(key) {
   const log = state.trainLogs[key] || {};
   // If trying to mark done, validate weight and reps are filled
@@ -6415,8 +6699,13 @@ function toggleSetDone(key) {
 // RENDER: BODY
 // ════════════════════════════════════════════════
 let bodyHistoryPeriod = 'all'; // '4w' | '8w' | 'all'
+// Switches the Body page's weight history chart between its available time
+// ranges (e.g. 30/90/all days).
 function setBodyHistoryPeriod(p) { bodyHistoryPeriod = p; renderBody(); }
 
+// Generates an inline SVG filled-area line chart from a series of {date,
+// value} points — used by the Body page's weight history and one of the
+// Progress hero slides.
 function buildAreaLineChart(points, color) {
   // points: array of {x:Date|string label, y:number}, sorted ascending
   const vals = points.map(p => p.y).filter(v => v !== null && v !== undefined);
@@ -6518,6 +6807,8 @@ function buildWeightCompareChart(domainStart, domainDays, primaryPoints, compare
   </svg>`;
 }
 
+// Top-level render function for the Body screen — hero stats, weight/steps
+// history chart, and the full log list.
 function renderBody() {
   const logs = [...state.bodyLogs].sort((a,b) => b.date.localeCompare(a.date));
   const ascLogs = [...state.bodyLogs].filter(l => l.weight).sort((a,b) => a.date.localeCompare(b.date));
@@ -6692,6 +6983,9 @@ function renderBody() {
 
 let _profileHeightUnit = 'ftin'; // 'ftin' or 'cm'
 
+// Opens the profile modal (gender, height, birthday) used for the BMR/TDEE
+// calculation. Height unit always resets to ft/in on open regardless of
+// which unit was used last time — a known minor friction point, kept as-is.
 function openBodyProfile() {
   const prof = state.profile || {};
   _profileHeightUnit = 'ftin';
@@ -6720,6 +7014,8 @@ function openBodyProfile() {
   openModal('modal-body-profile');
 }
 
+// Sets which gender option is selected in the profile modal (drives which
+// BMR formula variant applies) and updates the tap-card UI to match.
 function selectProfileGender(g) {
   _selectedProfileGender = g;
   updateProfileGenderUI(g);
@@ -6727,6 +7023,9 @@ function selectProfileGender(g) {
 
 let _selectedProfileGender = null;
 
+// Syncs the profile modal's male/female tap-cards to reflect the currently
+// selected gender — shared by both the initial pre-fill on open and
+// selectProfileGender's live update when tapped.
 function updateProfileGenderUI(g) {
   _selectedProfileGender = g;
   const mBtn = document.getElementById('profile-btn-male');
@@ -6738,6 +7037,8 @@ function updateProfileGenderUI(g) {
   fBtn.style.background  = g === 'female' ? 'rgba(29,158,117,0.15)' : 'var(--surface2)';
 }
 
+// Toggles the profile modal's height input between cm and ft/in display,
+// converting the underlying value so nothing is lost switching back and forth.
 function switchHeightUnit(unit) {
   _profileHeightUnit = unit;
   const ftinEl = document.getElementById('profile-height-ftin');
@@ -6776,6 +7077,9 @@ function switchHeightUnit(unit) {
   }
 }
 
+// Saves the profile modal's fields into state.profile. Fields left blank are
+// not overwritten — so leaving height blank on an edit doesn't erase a
+// previously-saved value.
 function saveBodyProfile() {
   if (!state.profile) state.profile = {};
   state.profile.gender = _selectedProfileGender || state.profile.gender || null;
@@ -6805,6 +7109,8 @@ function saveBodyProfile() {
 // BMR CALCULATIONS
 // ════════════════════════════════════════════════
 
+// Returns age in whole years from a stored birthday, accounting for whether
+// this year's birthday has occurred yet.
 function calcAge(birthdayStr) {
   if (!birthdayStr) return null;
   const today = new Date();
@@ -6924,6 +7230,7 @@ function calcDynamicTDEE() {
   };
 }
 
+// Opens the body log modal pre-filled for editing an existing day's entry.
 function openEditBodyLog(date) {
   const log = state.bodyLogs.find(l => l.date === date);
   if (!log) return;
@@ -6953,6 +7260,8 @@ function saveInlineBodyLog() {
   renderBody();
 }
 
+// Saves a body weight/steps entry from the (non-inline) body log modal —
+// upserts by date.
 function saveBodyLog() {
   const dateEl = document.getElementById('body-date-input');
   const date = dateEl.value;
@@ -7012,6 +7321,9 @@ document.addEventListener('click', function(e) {
   }
 }, { capture: true });
 
+// Closes any currently-open swipe row across the whole app. Called whenever
+// a new swipe gesture begins elsewhere, or the person taps outside an open
+// row, so only one row is ever revealed at a time.
 function _swipeCloseAll() {
   if (!_swipeOpenWrap) return;
   const wrap    = _swipeOpenWrap;
@@ -7027,6 +7339,9 @@ function _swipeCloseAll() {
   setTimeout(() => { _swipeJustClosed = false; }, 500);
 }
 
+// Attaches the shared swipe-left-to-reveal-actions gesture to every row
+// within a container. Must be re-called after any re-render that replaces
+// the container's innerHTML, since the gesture doesn't survive a DOM swap.
 function initSwipeRows(container) {
   const wraps = (container || document).querySelectorAll('.swipe-row-wrap');
   wraps.forEach(wrap => {
@@ -7105,6 +7420,7 @@ function initSwipeRows(container) {
 }
 
 
+// Removes a single body log entry by date, after confirmation.
 function deleteBodyLog(date) {
   showConfirm('Delete entry?', formatDate(date), 'Delete', () => {
     state.bodyLogs = state.bodyLogs.filter(l => l.date !== date);
@@ -7113,10 +7429,16 @@ function deleteBodyLog(date) {
   });
 }
 
+// Returns today's date as 'YYYY-MM-DD' in the browser's local timezone.
+// Used everywhere instead of Date#toISOString(), which returns UTC and used
+// to silently show the wrong day for UK users during BST.
 function getLocalToday() {
   return toLocalDateStr(new Date());
 }
 
+// Top-level render function for the Nutrition screen — renders the hero and
+// the per-meal diary for nutrSelectedDate, and (re)initialises the hero's
+// swipe gesture and the yesterday-copy-strip swipe gestures.
 function renderNutrDaily() {
   const el = document.getElementById('nutr-diary');
   if (!el) return;
@@ -7132,11 +7454,16 @@ function renderNutrDaily() {
   requestAnimationFrame(initNutrHeroSwipe);
 }
 
+// Returns the raw meals object for a given date from state.nutritionMeals,
+// or an empty structure if nothing's been logged that day yet.
 function getNutrDayMeals(date) {
   if (!state.nutritionMeals) state.nutritionMeals = {};
   return state.nutritionMeals[date] || { Breakfast: [], Lunch: [], Dinner: [], Snacks: [] };
 }
 
+// Aggregates a day's kcal/protein/carbs/fats. If a quick-log override exists
+// for that date (state.nutritionQuickLog), it takes priority over summing
+// the individual meal entries.
 function getDayTotals(date) {
   // Quick log overrides meal items
   if (state.nutritionQuickLog && state.nutritionQuickLog[date]) {
@@ -7154,6 +7481,8 @@ function getDayTotals(date) {
   };
 }
 
+// Opens the quick-add modal — logging a day's totals directly as a single
+// number per macro, bypassing individual food entries entirely.
 function openNutrQuickAdd() {
   if (!state.nutritionQuickLog) state.nutritionQuickLog = {};
   const existing = state.nutritionQuickLog[nutrSelectedDate];
@@ -7164,6 +7493,8 @@ function openNutrQuickAdd() {
   openModal('modal-nutr-quick');
 }
 
+// Saves the quick-add modal's totals into state.nutritionQuickLog for the
+// selected date, overriding whatever the meal-based totals would otherwise show.
 function saveNutrQuickAdd() {
   if (!state.nutritionQuickLog) state.nutritionQuickLog = {};
   const entry = {
@@ -7183,6 +7514,8 @@ function saveNutrQuickAdd() {
   renderNutrDaily();
 }
 
+// Removes the quick-log override for the selected date, reverting totals
+// back to whatever's actually logged in the meal diary.
 function clearNutrQuickAdd() {
   if (!state.nutritionQuickLog) return;
   delete state.nutritionQuickLog[nutrSelectedDate];
@@ -7195,6 +7528,8 @@ function clearNutrQuickAdd() {
   renderNutrDaily();
 }
 
+// Renders the Nutrition hero card — kcal/macro summary for nutrSelectedDate
+// against the active goal (getGoalForDay).
 function renderNutrHero() {
   const el = document.getElementById('nutr-hero-card');
   if (!el) return;
@@ -7246,6 +7581,8 @@ const mealDotColors = {
   Snacks: 'var(--accent)',
 };
 
+// Renders the per-meal food log cards (Breakfast/Lunch/Dinner/Snacks), each
+// item's small print varying by its source (library/manual/barcode/recipe).
 function renderNutrDiary() {
   const el = document.getElementById('nutr-diary');
   if (!el) return;
@@ -7426,6 +7763,8 @@ function initYesterdaySwipes() {
 // ── Meal ellipsis menu + copy/move meal ────────────────────────────────────
 let _mealMenuMeal = null;
 
+// Opens the '···' bottom action sheet for a meal — copy, move, or save as
+// a new recipe.
 function openMealMenu(meal) {
   _mealMenuMeal = meal;
   // Build a quick action sheet via the confirm modal repurposed as a menu
@@ -7433,6 +7772,7 @@ function openMealMenu(meal) {
   showMealMenuSheet(meal);
 }
 
+// Builds and displays the meal action sheet's markup for openMealMenu().
 function showMealMenuSheet(meal) {
   // Remove any existing sheet
   const old = document.getElementById('meal-menu-sheet');
@@ -7468,6 +7808,10 @@ function showMealMenuSheet(meal) {
   document.body.appendChild(sheet);
 }
 
+// Builds a new recipe from a meal's current ingredients and opens the recipe
+// builder directly. Does NOT auto-log the resulting recipe anywhere — this
+// is purely a shortcut to pre-fill the recipe builder's ingredient list;
+// saving it lands on the Recipe List, same as creating a recipe any other way.
 function saveMealAsRecipe() {
   const sheet = document.getElementById('meal-menu-sheet');
   if (sheet) sheet.remove();
@@ -7500,6 +7844,8 @@ function saveMealAsRecipe() {
   openModal('modal-recipe-step1');
 }
 
+// Opens the copy/move destination picker for an entire meal (as opposed to
+// openCopyFoodEntry, which handles a single item).
 function openMealCopyMove(mode) {
   const sheet = document.getElementById('meal-menu-sheet');
   if (sheet) sheet.remove();
@@ -7562,6 +7908,9 @@ function nutrShiftDate(delta) {
 // stray event from triggering a second date change or animating a card
 // that a newer render has already replaced.
 let _nutrHeroSwipeInited = false;
+// Attaches swipe-left/right gesture handlers to the Nutrition hero card —
+// a completed swipe calls nutrShiftDate() exactly once via a card-swap
+// animation (commitSwipe), moving one day at a time.
 function initNutrHeroSwipe() {
   if (_nutrHeroSwipeInited) return;
   _nutrHeroSwipeInited = true;
@@ -7699,6 +8048,7 @@ function openNutrDatePicker() {
   openModal('modal-nutr-date');
 }
 
+// Sets nutrSelectedDate from the date-picker modal and re-renders.
 function nutrPickDate(val) {
   if (val) { nutrSelectedDate = val; renderNutrDaily(); }
 }
@@ -7745,12 +8095,15 @@ function fitListToKeyboard(wrapId) {
   wrap.style.maxHeight = Math.max(80, vvh - wrapTop + overlapIntoKeyboard) + 'px';
 }
 
+// Toggles the food-search list between showing everything and showing only
+// saved recipes.
 function toggleNutrRecipeFilter() {
   nutrShowRecipesOnly = !nutrShowRecipesOnly;
   updateNutrRecipeFilterBtn();
   renderNutrAddList();
 }
 
+// Updates the recipe-filter toggle button's visual active state.
 function updateNutrRecipeFilterBtn() {
   const btn = document.getElementById('nutr-recipe-filter-btn');
   if (!btn) return;
@@ -7782,6 +8135,10 @@ function getLastNutrEntryForFood(name) {
   return null;
 }
 
+// Renders the food search results list inside the add-food modal, sourced
+// from the merged exercise-adjacent food library (getLibrary()-style merge
+// of built-ins + custom) plus state.foodLibrary, sorted most-recently-logged
+// first via getLastNutrEntryForFood().
 function renderNutrAddList() {
   const query = (document.getElementById('nutr-add-search').value || '').toLowerCase().trim();
   const lib = state.foodLibrary || [];
@@ -7916,6 +8273,8 @@ function quickAddFromList(idx) {
   setTimeout(() => { renderNutrAddList(); }, 700);
 }
 
+// Handles tapping a result in the food search list — routes to the serving
+// confirmation modal with that item pre-loaded.
 function selectFromAddList(idx) {
   const el = document.getElementById('nutr-add-list');
   const item = (el._items || [])[idx];
@@ -7972,6 +8331,9 @@ function openCopyFoodEntry(date, meal, idx) {
   openModal('modal-nutr-copy-entry');
 }
 
+// Executes a pending copy or move (single item or whole meal) to the chosen
+// destination date/meal, deep-cloning entries so the source and destination
+// never share object references.
 function confirmCopyFoodEntry() {
   const srcDate  = document.getElementById('nce-date').value;
   const srcMeal  = document.getElementById('nce-meal').value;
@@ -8005,6 +8367,8 @@ function confirmCopyFoodEntry() {
   renderNutrDaily();
 }
 
+// Delays starting the camera until the barcode modal's slide-in transition
+// has finished, avoiding a jank/frame-drop from starting getUserMedia mid-animation.
 function _startScannerAfterTransition(ctx) {
   const sheet = document.querySelector('#modal-' + ctx + '-barcode .modal-sheet');
   let started = false;
@@ -8021,6 +8385,8 @@ function _startScannerAfterTransition(ctx) {
   setTimeout(start, 400);
 }
 
+// Opens the barcode scanner modal for a nutrition log entry (as opposed to
+// a recipe ingredient, which uses the same scanner engine via a different ctx).
 function openNutrBarcode() {
   document.getElementById('nutr-barcode-input').value = '';
   document.getElementById('nutr-barcode-status').style.display = 'none';
@@ -8029,6 +8395,8 @@ function openNutrBarcode() {
   _startScannerAfterTransition('nutr');
 }
 
+// Looks up a scanned or manually-entered barcode against the Open Food Facts
+// API and routes the result into the serving confirmation modal.
 async function lookupNutrBarcode() {
   const barcode = document.getElementById('nutr-barcode-input').value.trim();
   if (!barcode) return;
@@ -8107,6 +8475,9 @@ if ('BarcodeDetector' in window) {
 const _zxCanvas    = document.createElement('canvas');
 const _zxCanvasCtx = _zxCanvas.getContext('2d', { willReadFrequently: true });
 
+// Lazily constructs a ZXing MultiFormatReader configured for the barcode
+// formats this app supports — the Tier 2 fallback used when the native
+// BarcodeDetector API isn't available.
 function _initZxReader() {
   if (typeof ZXing === 'undefined') return null;
   const Z = ZXing;
@@ -8122,6 +8493,10 @@ function _initZxReader() {
   return reader;
 }
 
+// Requests camera access and starts the barcode detection loop, drawing
+// video frames to a canvas and running either the native BarcodeDetector or
+// the ZXing fallback against each frame. ctx ('nutr' or 'recipe') determines
+// which flow the detected result feeds into.
 async function startScannerCamera(ctx) {
   const video       = document.getElementById(ctx + '-scanner-video');
   const placeholder = document.getElementById(ctx + '-scanner-placeholder');
@@ -8195,6 +8570,8 @@ async function startScannerCamera(ctx) {
   }
 }
 
+// Stops the active camera stream and resets the viewfinder UI, without
+// closing the modal itself (see closeScannerModal for that).
 function stopScannerCamera(ctx) {
   const st = _scannerState[ctx];
   if (st) {
@@ -8214,11 +8591,16 @@ function stopScannerCamera(ctx) {
   if (msg) msg.textContent = 'Starting camera…';
 }
 
+// Stops the camera then closes the scanner modal — the combined action used
+// by the modal's close button and swipe-down gesture.
 function closeScannerModal(ctx) {
   stopScannerCamera(ctx);
   closeModal('modal-' + ctx + '-barcode');
 }
 
+// Fires when a barcode is successfully detected: flashes the viewfinder
+// corners, vibrates the device, stops the scan loop, and feeds the code into
+// the appropriate lookup function for this context.
 function _onScannerDetected(ctx, code) {
   const st = _scannerState[ctx];
   if (!st || st.cooldown || code === st.lastCode) return;
@@ -8283,6 +8665,7 @@ function addToFoodLibrary(item) {
   else state.foodLibrary.push(entry);
 }
 
+// Downloads the food library (state.foodLibrary) as a JSON file.
 function exportFoodLibrary() {
   if (!state.foodLibrary || !state.foodLibrary.length) {
     alert('No foods in library yet.');
@@ -8297,6 +8680,8 @@ function exportFoodLibrary() {
   document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
+// Merges a previously-exported food library JSON file into state.foodLibrary
+// by name — existing entries are updated, new ones added.
 function importFoodLibrary(file) {
   const reader = new FileReader();
   reader.onload = e => {
@@ -8330,6 +8715,8 @@ function _buildSharePayload(item) {
   return payload;
 }
 
+// Shares a single food library item via the Web Share API if available,
+// falling back to a direct JSON file download otherwise.
 async function _shareOrDownload(item) {
   const payload = _buildSharePayload(item);
   const safeName = item.name.replace(/[^a-z0-9]/gi, '-').toLowerCase();
@@ -8358,18 +8745,26 @@ async function _shareOrDownload(item) {
   document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
+// Shares one food library entry, addressed by its index in the food library
+// editor's currently-rendered list.
 function shareFoodLibItem(idx) {
   const el = document.getElementById('food-lib-list');
   const item = (el._items || [])[idx];
   if (item) _shareOrDownload(item);
 }
 
+// Shares one food library entry, addressed by its index in the nutrition
+// add-food search list — a separate entry point from shareFoodLibItem()
+// since it reads from a different rendered list's item array.
 function shareFoodLibItemByIdx(idx) {
   const el = document.getElementById('nutr-add-list');
   const item = (el._items || [])[idx];
   if (item) _shareOrDownload(item);
 }
 
+// Imports a single shared food item (or recipe) JSON file, as produced by
+// _shareOrDownload — the counterpart to sharing a single item, as opposed
+// to importFoodLibrary's whole-library import.
 function importSharedFoodItem(file) {
   const reader = new FileReader();
   reader.onload = e => {
@@ -8424,6 +8819,7 @@ function importSharedFoodItem(file) {
   reader.readAsText(file);
 }
 
+// Renders the food library search modal's (modal-nutr-previous) results list.
 function renderPreviousMeals() {
   const query = (document.getElementById('nutr-prev-search').value || '').toLowerCase().trim();
   const lib = state.foodLibrary || [];
@@ -8459,6 +8855,8 @@ function renderPreviousMeals() {
   el._items = items;
 }
 
+// Handles tapping a food library search result — routes to the serving
+// confirmation modal.
 function selectFromLibrary(idx) {
   const el = document.getElementById('nutr-prev-list');
   const item = (el._items || [])[idx];
@@ -8492,6 +8890,9 @@ function cancelNutrServing() {
   }
 }
 
+// Opens the serving-size confirmation modal (grams/servings, live macro
+// preview), pre-filled from nutrPendingProduct. Shows a full ingredient
+// breakdown instead of a simple grams field when the product is a recipe.
 function openNutrServingModal() {
   if (!nutrPendingProduct) return;
   document.getElementById('nutr-serving-title').textContent = 'Add to ' + nutrActiveMeal;
@@ -8537,6 +8938,8 @@ function openNutrServingModal() {
   openModal('modal-nutr-serving');
 }
 
+// Recomputes the live macro preview in the serving modal as the grams or
+// servings field changes.
 function updateServingPreview() {
   if (!nutrPendingProduct) return;
   const grams    = parseFloat(document.getElementById('nutr-serving-grams').value) || 0;
@@ -8552,6 +8955,8 @@ function updateServingPreview() {
   document.getElementById('sp-fats').textContent = Math.round(fPer1 * total) + 'g';
 }
 
+// Finalises a serving-modal entry into the current meal, and saves the item
+// to the food library if it isn't already there.
 function confirmServing() {
   if (!nutrPendingProduct) return;
   const grams    = parseFloat(document.getElementById('nutr-serving-grams').value) || 100;
@@ -8596,6 +9001,8 @@ function confirmServing() {
   }
 }
 
+// Opens the manual food entry modal (name + direct per-serving macros,
+// rather than a per-100g lookup).
 function openNutrManual() {
   closeModal('modal-nutr-add');
   document.getElementById('nutr-manual-title').textContent = 'Quick Add to ' + nutrActiveMeal;
@@ -8607,6 +9014,7 @@ function openNutrManual() {
   requestAnimationFrame(() => openModal('modal-nutr-manual'));
 }
 
+// Recomputes the live macro preview in the manual entry modal.
 function updateManualPreview() {
   const kcal = Math.round(parseFloat(document.getElementById('nutr-manual-kcal').value)||0);
   const p    = Math.round(parseFloat(document.getElementById('nutr-manual-protein').value)||0);
@@ -8615,6 +9023,9 @@ function updateManualPreview() {
   document.getElementById('nutr-manual-preview').textContent = 'Total: ' + kcal.toLocaleString() + ' kcal · P:' + p + 'g C:' + c + 'g F:' + f + 'g';
 }
 
+// Saves a manual food entry into the current meal, converting the entered
+// per-serving macros to per-100g for food library storage consistency with
+// every other source.
 function saveManualEntry() {
   const kcal    = Math.round(parseFloat(document.getElementById('nutr-manual-kcal').value)||0);
   const protein = Math.round(parseFloat(document.getElementById('nutr-manual-protein').value)||0);
@@ -8625,6 +9036,8 @@ function saveManualEntry() {
   closeModal('modal-nutr-manual');
 }
 
+// Copies yesterday's entries for one meal into today, used by the
+// swipe-to-copy strip once it crosses the one-third-width completion threshold.
 function copyMealFromYesterday(meal) {
   const prevDate = new Date(nutrSelectedDate + 'T00:00:00');
   prevDate.setDate(prevDate.getDate() - 1);
@@ -8644,6 +9057,8 @@ function copyMealFromYesterday(meal) {
   renderNutrDaily();
 }
 
+// Pushes a food entry into state.nutritionMeals for the current date/meal —
+// the common tail end of every logging flow (barcode, manual, library, recipe).
 function addFoodEntry(entry) {
   if (!state.nutritionMeals) state.nutritionMeals = {};
   if (!state.nutritionMeals[nutrSelectedDate]) state.nutritionMeals[nutrSelectedDate] = {};
@@ -8654,6 +9069,11 @@ function addFoodEntry(entry) {
   renderNutrDaily();
 }
 
+// Keeps the legacy state.nutritionLogs array in sync with the real
+// nutritionMeals/nutritionQuickLog data for a given date, by recomputing
+// that date's totals and upserting them. Still actively called after every
+// log change — nutritionLogs is read-legacy for old backups, not a fully
+// dead write path.
 function syncNutrLegacyLog(date) {
   // Keep legacy nutritionLogs in sync for home screen / goals / weekly view
   const totals = getDayTotals(date);
@@ -8664,6 +9084,8 @@ function syncNutrLegacyLog(date) {
   else state.nutritionLogs.push(entry);
 }
 
+// Removes a single food entry from a meal by index, then re-syncs the
+// legacy log for that date.
 function deleteFoodEntry(date, meal, idx) {
   if (!state.nutritionMeals || !state.nutritionMeals[date] || !state.nutritionMeals[date][meal]) return;
   state.nutritionMeals[date][meal].splice(idx, 1);
@@ -8679,6 +9101,9 @@ function deleteFoodEntry(date, meal, idx) {
   renderNutrDaily();
 }
 
+// Opens the edit modal for an existing food entry, detecting whether it was
+// logged from a barcode (per-100g fields) or manually (direct macros) to
+// show the right input mode.
 function openEditFoodEntry(date, meal, idx) {
   const item = (state.nutritionMeals && state.nutritionMeals[date] && state.nutritionMeals[date][meal] || [])[idx];
   if (!item) return;
@@ -8726,6 +9151,7 @@ function openEditFoodEntry(date, meal, idx) {
   openModal('modal-nutr-edit');
 }
 
+// Recomputes the live macro preview in the edit-food-entry modal.
 function updateEditPreview() {
   const isManual = document.getElementById('nutr-edit-mode').value === 'manual';
   const isRecipe = document.getElementById('nutr-edit-is-recipe').value === '1';
@@ -8760,6 +9186,8 @@ function updateEditPreview() {
     kcal.toLocaleString() + ' kcal · P:' + p + 'g C:' + c + 'g F:' + f + 'g';
 }
 
+// Saves changes to an existing food entry — recalculates from per-100g for
+// barcode-sourced items, or takes the direct macro fields for manual entries.
 function saveEditFoodEntry() {
   const date    = document.getElementById('nutr-edit-date').value;
   const meal    = document.getElementById('nutr-edit-meal').value;
@@ -8811,6 +9239,8 @@ function saveEditFoodEntry() {
   renderNutrDaily();
 }
 
+// Legacy top-level entry point retained for any older call sites — delegates
+// to renderNutrDaily(), which is the real current render function for this screen.
 function renderNutrition() {
   if (!nutrSelectedDate) nutrSelectedDate = getLocalToday();
   renderNutrDaily();
@@ -8912,6 +9342,8 @@ function renderProgressNutrPies() {
   el.innerHTML = html;
 }
 
+// Generates an inline SVG macro pie chart (protein/carbs/fats) from gram
+// values — shared by the Nutrition weekly view and the Progress insights deck.
 function makePie(pPct, cPct, fPct) {
   const cx=40, cy=40, r=34, size=80;
   function slice(start, pct, color) {
@@ -8937,12 +9369,18 @@ function makePie(pPct, cPct, fPct) {
 // ════════════════════════════════════════════════
 // UTILS
 // ════════════════════════════════════════════════
+// Formats an ISO date string as a human-readable date (e.g. '8 Jul 2026')
+// for display in confirmations, callouts, and list labels. Note the
+// T12:00:00 anchor — parsing at local midnight risks the date rolling
+// back a day in negative-UTC-offset timezones; noon avoids that entirely.
 function formatDate(str) {
   if (!str) return '';
   const d = new Date(str + 'T12:00:00');
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+// Returns the ISO-8601 week number for a given date string, used for
+// week-boundary calculations in weekly aggregate views.
 function getISOWeek(dateStr) {
   const d = new Date(dateStr + 'T12:00:00');
   const day = d.getDay() || 7;
@@ -8971,6 +9409,9 @@ const THEMES = [
   { id:'mono',        label:'Mono',       c1:'#3a3a3a', c2:'#1a1a1a' },
 ];
 
+// Updates state.theme, applies the data-theme attribute to <body>, saves,
+// and re-renders whichever screen is currently active so its hero picks up
+// the new colours immediately.
 function setTheme(themeId) {
   state.theme = themeId;
   document.body.setAttribute('data-theme', themeId);
@@ -8992,6 +9433,7 @@ function setMode(mode) {
   renderModeToggle();
 }
 
+// Syncs the Settings page's Dark/Light toggle buttons to reflect state.mode.
 function renderModeToggle() {
   const el = document.getElementById('mode-toggle-row');
   if (!el) return;
@@ -9001,6 +9443,7 @@ function renderModeToggle() {
   });
 }
 
+// Renders the nine theme swatches in Settings, marking the active one.
 function renderThemeSwatches() {
   const el = document.getElementById('theme-swatch-grid');
   if (!el) return;
@@ -9021,6 +9464,8 @@ function renderThemeSwatches() {
   }).join('');
 }
 
+// Top-level render function for the Settings screen — theme/mode controls
+// and the storage-usage summary.
 function renderSettings() {
   renderThemeSwatches();
   renderModeToggle();
@@ -9034,6 +9479,7 @@ function renderSettings() {
   el.innerHTML = `${macros} macrocycle${macros!==1?'s':''} &nbsp;·&nbsp; ${logs} set logs<br>${bodyLogs} body entries &nbsp;·&nbsp; ${nutrLogs} nutrition entries<br><span style="color:var(--text3);">~${kb} KB stored in Safari localStorage</span>`;
 }
 
+// Downloads the entire state object as a single JSON backup file.
 function exportData() {
   const payload = JSON.stringify(state, null, 2);
   const blob = new Blob([payload], { type: 'application/json' });
@@ -9048,6 +9494,9 @@ function exportData() {
   URL.revokeObjectURL(url);
 }
 
+// Restores state from a previously-exported JSON backup file, after a
+// basic structural sanity check (must have macrocycles/exercises/trainLogs)
+// so an unrelated JSON file doesn't silently corrupt the app.
 function importData(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -9077,6 +9526,13 @@ function importData(event) {
   reader.readAsText(file);
 }
 
+// Wipes all tracked data (macrocycles, exercises, logs, goals, nutrition,
+// food library, recipes, supersets, profile) after a two-step confirmation.
+// Deliberately preserves theme/mode, since the confirmation dialog only ever
+// promises to delete tracked data — and rebuilds the exact same shape
+// load()'s defensive defaults expect, since an earlier version of this
+// function omitted a few fields and left state.supersets undefined, which
+// crashed the next superset action.
 function clearAllData() {
   showConfirm(
     'Clear all data?',
@@ -9148,12 +9604,17 @@ const DEFAULT_LIBRARY = [
   {name:'Skull Crushers',bodyPart:'Triceps'},
 ];
 
+// Returns the merged exercise library — built-in DEFAULT_LIBRARY entries
+// plus state.customLibrary — used to populate the exercise picker and to
+// resolve a plan exercise's body part by name for the volume table.
 function getLibrary() {
   const custom = state.customLibrary || [];
   const all = [...DEFAULT_LIBRARY, ...custom];
   return all.sort((a,b) => a.bodyPart.localeCompare(b.bodyPart) || a.name.localeCompare(b.name));
 }
 
+// Fills the exercise-name <select> in the add/edit exercise modal from
+// getLibrary(), grouped into optgroups by body part.
 function populateExerciseSelect(selectedName) {
   const sel = document.getElementById('ex-name-input');
   if (!sel) return;
@@ -9180,6 +9641,8 @@ function populateExerciseSelect(selectedName) {
   if (!selectedName) sel.selectedIndex = 0;
 }
 
+// Handles picking '__custom__' from the exercise name select — opens the
+// custom exercise modal instead of accepting that literal value.
 function onExNameChange(sel) {
   if (sel.value === '__custom__') {
     sel.selectedIndex = 0;
@@ -9191,6 +9654,8 @@ function onExNameChange(sel) {
   }
 }
 
+// Saves a new custom exercise (name + required body part) into
+// state.customLibrary, then re-selects it in the picker it was opened from.
 function saveCustomExercise() {
   const name = document.getElementById('custom-ex-name-input').value.trim();
   const bodyPart = document.getElementById('custom-ex-bodypart').value;
@@ -9204,6 +9669,7 @@ function saveCustomExercise() {
   populateExerciseSelect(name);
 }
 
+// Downloads the merged exercise library as a JSON file.
 function exportLibrary() {
   const lib = getLibrary();
   const blob = new Blob([JSON.stringify(lib, null, 2)], {type:'application/json'});
@@ -9216,6 +9682,8 @@ function exportLibrary() {
   URL.revokeObjectURL(url);
 }
 
+// Merges an exported exercise library JSON file into state.customLibrary by
+// name — default built-in exercises can't be overwritten this way.
 function importExerciseLibrary(file) {
   if (!file) return;
   const reader = new FileReader();
@@ -9250,11 +9718,14 @@ function importExerciseLibrary(file) {
 // cards (collapsed by default) — mirrors the Plan page's per-week
 // collapse pattern. Keyed by macroId, not persisted.
 let goalsExpandedMacros = {};
+// Expands/collapses a macrocycle's group of goal periods on the Goals list.
 function toggleGoalsMacro(macroId) {
   goalsExpandedMacros[macroId] = !goalsExpandedMacros[macroId];
   renderGoals();
 }
 
+// Top-level render function for the Goals screen — the list of goal periods
+// grouped by macrocycle, with the currently-active one highlighted.
 function renderGoals() {
   if (!state.goals) state.goals = [];
   const el = document.getElementById('goals-content');
@@ -9378,6 +9849,7 @@ function renderGoals() {
   requestAnimationFrame(() => initSwipeRows(el));
 }
 
+// Returns whichever goal period covers today's date, regardless of macrocycle.
 function getActiveGoal() {
   if (!state.goals) return null;
   const today = getLocalToday();
@@ -9393,6 +9865,7 @@ function getGoalForDay(dateStr) {
   return state.goals.find(g => g.startDate <= dateStr && g.endDate >= dateStr) || null;
 }
 
+// Opens the goal modal pre-filled for editing an existing goal period.
 function openEditGoal(idx) {
   const g = state.goals[idx];
   if (!g) return;
@@ -9407,6 +9880,7 @@ function openEditGoal(idx) {
   openModal('modal-add-goal');
 }
 
+// Removes a goal period by index, after confirmation.
 function deleteGoal(idx) {
   state.goals.splice(idx, 1);
   save(); renderGoals();
@@ -9422,6 +9896,13 @@ function findOverlappingGoal(startDate, endDate, excludeIdx) {
   ) || null;
 }
 
+// Validates required fields (kcal/steps — red-border flash if empty) and
+// date-overlap against every other goal (findOverlappingGoal — blocks the
+// save with an inline error on collision), then upserts. Active/past goals
+// keep their exact stored macros unless a slider was actually touched this
+// session (see goalMacroSliderState.userTouched) — otherwise merely
+// re-opening an old goal to tweak its kcal target would silently recompute
+// its macros from today's bodyweight.
 function saveGoal() {
   if (!state.goals) state.goals = [];
   const modal = document.getElementById('modal-add-goal');
@@ -9493,6 +9974,8 @@ function saveGoal() {
 // re-reading the log on every keystroke.
 let goalMacroSliderState = { bwRounded: 150, userTouched: false };
 
+// Returns the most recent body log's weight in lbs, used as the divisor when
+// back-deriving the goal macro sliders' starting positions.
 function getLatestBodyweightLbs() {
   const logs = (state.bodyLogs || []).filter(l => l && l.weight).sort((a, b) => a.date.localeCompare(b.date));
   return logs.length ? parseFloat(logs[logs.length - 1].weight) : null;
@@ -9567,6 +10050,8 @@ function positionSliderTooltip(sliderId, tooltipId) {
   tooltip.style.left = pos + 'px';
 }
 
+// Re-positions all three goal macro slider tooltips — called on window
+// resize so they stay correctly aligned with their slider handles.
 function repositionAllGoalSliderTooltips() {
   const modal = document.getElementById('modal-add-goal');
   if (!modal || !modal.classList.contains('open')) return;
@@ -9645,8 +10130,16 @@ function renderGoalMacros() {
   document.getElementById('goal-macro-pie-legend').innerHTML = legend;
 }
 
+// Fires only on a genuine user drag of the protein slider (programmatic
+// .value= sets during init don't trigger 'input') — marks
+// goalMacroSliderState.userTouched so saveGoal() knows this session's
+// macros were intentionally changed, and re-renders the live preview.
 function onGoalProteinSliderInput() { goalMacroSliderState.userTouched = true; renderGoalMacros(); }
+// Same as onGoalProteinSliderInput but for the carb slider.
 function onGoalCarbSliderInput() { goalMacroSliderState.userTouched = true; renderGoalMacros(); }
+// Fat is dragged directly but the underlying math is carb-driven, so this
+// flips the dragged value onto the carb slider (its complement) first, then
+// re-renders — same userTouched marking as the other two slider handlers.
 function onGoalFatSliderInput() {
   goalMacroSliderState.userTouched = true;
   // Fat is being dragged directly — flip it onto the carb slider (its
@@ -9713,6 +10206,9 @@ window.addEventListener('DOMContentLoaded', function() {
 // ── Custom confirm (replaces window.confirm for PWA compatibility) ──────────
 let _confirmCallback = null;
 
+// Generic two-button (Cancel/OK) confirmation dialog, built from
+// modal-confirm. Reused throughout the app for destructive actions, and
+// occasionally as a plain one-off alert by passing a no-op callback.
 function showConfirm(title, message, okLabel, callback) {
   document.getElementById('confirm-title').textContent = title;
   document.getElementById('confirm-msg').textContent = message;
@@ -9744,6 +10240,9 @@ let swInterval = null;
 let swRunning = false;
 let swElapsed = 0;
 
+// Plays the rest timer's three-tone completion alert using raw Web Audio API
+// oscillators — no audio files are bundled, and this doesn't interrupt any
+// music/podcast playback already running.
 function playBeep() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -9771,6 +10270,8 @@ function playBeep() {
 
 const ITEM_H = 40;
 
+// Constructs one iOS-style scroll-drum picker column (used for the rest
+// timer's minutes/seconds inputs).
 function buildPicker(elId, count, zeroPad, initial, onPick) {
   const wrap = document.getElementById(elId);
   wrap.innerHTML = '';
@@ -9825,16 +10326,21 @@ function buildPicker(elId, count, zeroPad, initial, onPick) {
 
 let pickerMinCtrl, pickerSecCtrl;
 
+// Builds both drum-scroll picker columns (minutes, seconds) for the
+// countdown timer on first open.
 function initPickers() {
   pickerMinCtrl = buildPicker('picker-min', 60, false, cdPickerMin, (v) => { cdPickerMin = v; });
   pickerSecCtrl = buildPicker('picker-sec', 60, true,  cdPickerSec, (v) => { cdPickerSec = v; });
 }
 
+// Opens the rest timer modal, building the picker columns on first open only.
 function openTimerModal() {
   document.getElementById('modal-timer').classList.add('open');
   if (!pickerMinCtrl) initPickers();
 }
 
+// Closes the timer modal and cancels/resets both the countdown and stopwatch,
+// so a running timer doesn't keep ticking silently in the background.
 function closeTimerModal() {
   document.getElementById('modal-timer').classList.remove('open');
   countdownReset();
@@ -9842,12 +10348,15 @@ function closeTimerModal() {
   updateTimerIcon();
 }
 
+// Turns the Train page's clock icon accent green while any timer (countdown
+// or stopwatch) is actively running, reverting to default when stopped.
 function updateTimerIcon() {
   const btn = document.getElementById('timer-open-btn');
   if (!btn) return;
   btn.style.color = (cdRunning || swRunning) ? 'var(--accent)' : 'var(--text2)';
 }
 
+// Switches the timer modal between Countdown and Stopwatch views.
 function setTimerMode(mode) {
   timerMode = mode;
   document.getElementById('timer-tog-countdown').classList.toggle('active', mode === 'countdown');
@@ -9856,11 +10365,13 @@ function setTimerMode(mode) {
   document.getElementById('timer-panel-stopwatch').style.display = mode === 'stopwatch' ? '' : 'none';
 }
 
+// Formats a countdown's remaining seconds as 'M:SS' for display.
 function cdFormat(ms) {
   const totalSec = Math.ceil(ms / 1000);
   return Math.floor(totalSec / 60) + ':' + String(totalSec % 60).padStart(2, '0');
 }
 
+// Starts, pauses, or resumes the countdown timer depending on its current state.
 function countdownStart() {
   if (cdRunning) {
     clearInterval(cdInterval);
@@ -9904,6 +10415,7 @@ function countdownStart() {
   cdInterval = setInterval(tick, 100);
 }
 
+// Stops the countdown and resets the view back to the picker.
 function countdownReset() {
   clearInterval(cdInterval);
   cdRunning = false;
@@ -9921,6 +10433,7 @@ function countdownReset() {
   updateTimerIcon();
 }
 
+// Formats the stopwatch's elapsed time as 'M:SS.T' (tenths of a second) for display.
 function swFormat(ms) {
   const totalTenths = Math.floor(ms / 100);
   const tenths = totalTenths % 10;
@@ -9930,6 +10443,7 @@ function swFormat(ms) {
 
 let swLastTick = 0;
 
+// Starts, pauses, or resumes the stopwatch depending on its current state.
 function swToggle() {
   if (swRunning) {
     swRunning = false;
@@ -9950,6 +10464,7 @@ function swToggle() {
   }
 }
 
+// Stops the stopwatch and resets elapsed time to zero.
 function swReset() {
   swRunning = false;
   clearInterval(swInterval);
@@ -9987,6 +10502,7 @@ window.addEventListener('DOMContentLoaded', function() {
 
 // ── Food Library Editor ───────────────────────────────────────────────────────
 
+// Opens the browsable food library editor modal (modal-food-lib-editor).
 function openFoodLibraryEditor() {
   document.getElementById('food-lib-search').value = '';
   const listWrap = document.getElementById('food-lib-list-wrap');
@@ -9998,6 +10514,7 @@ function openFoodLibraryEditor() {
   setTimeout(() => fitListToKeyboard('food-lib-list-wrap'), 320);
 }
 
+// Renders the food library editor's searchable list.
 function renderFoodLibEditor() {
   const query = (document.getElementById('food-lib-search').value || '').toLowerCase().trim();
   const lib = (state.foodLibrary || []).slice().sort((a,b) => a.name.localeCompare(b.name));
@@ -10029,6 +10546,7 @@ function renderFoodLibEditor() {
   el._items = items;
 }
 
+// Opens the edit modal for a single food library entry.
 function openFoodLibEntry(idx) {
   const el = document.getElementById('food-lib-list');
   const item = (el._items || [])[idx];
@@ -10045,6 +10563,7 @@ function openFoodLibEntry(idx) {
   openModal('modal-food-lib-entry');
 }
 
+// Recomputes the live macro preview in the food library entry edit modal.
 function updateFlePreview() {
   const kcal    = parseFloat(document.getElementById('fle-kcal').value) || 0;
   const protein = parseFloat(document.getElementById('fle-protein').value) || 0;
@@ -10059,6 +10578,7 @@ function updateFlePreview() {
   document.getElementById('fle-preview').textContent = preview;
 }
 
+// Saves changes to a food library entry.
 function saveFoodLibEntry() {
   if (!state.foodLibrary) state.foodLibrary = [];
   const id      = document.getElementById('fle-id').value;
@@ -10097,6 +10617,7 @@ function saveFoodLibEntry() {
   renderFoodLibEditor();
 }
 
+// Removes a food library entry, after confirmation.
 function deleteFoodLibEntry(idx) {
   const el = document.getElementById('food-lib-list');
   const item = (el._items || [])[idx];
@@ -10141,6 +10662,8 @@ function openRecipeBuilder(editId) {
   openModal('modal-recipe-step1');
 }
 
+// Advances the recipe builder from step 1 (name/servings) to step 2
+// (ingredient list).
 function recipeGoToIngredients() {
   const name = document.getElementById('recipe-name-input').value.trim();
   if (!name) { document.getElementById('recipe-name-input').focus(); return; }
@@ -10181,11 +10704,13 @@ function renderRecipeIngredients() {
     : 'No ingredients yet';
 }
 
+// Removes one ingredient from the recipe currently being built.
 function removeRecipeIngredient(idx) {
   recipeIngredients.splice(idx, 1);
   renderRecipeIngredients();
 }
 
+// Opens the edit modal for an existing ingredient within the recipe builder.
 function editRecipeIngredient(idx) {
   const ing = recipeIngredients[idx];
   if (!ing) return;
@@ -10219,6 +10744,7 @@ function editRecipeIngredient(idx) {
   openModal('modal-recipe-edit-ingredient');
 }
 
+// Recomputes the live macro preview while editing a recipe ingredient.
 function updateRecipeIngredientEditPreview() {
   const idx = parseInt(document.getElementById('recipe-edit-ing-idx').value);
   const source = document.getElementById('recipe-edit-ing-source').value;
@@ -10242,6 +10768,7 @@ function updateRecipeIngredientEditPreview() {
     `Total: ${kcal.toLocaleString()} kcal · P:${p}g C:${c}g F:${f}g`;
 }
 
+// Saves changes to one ingredient within the recipe currently being built.
 function saveRecipeIngredientEdit() {
   const idx = parseInt(document.getElementById('recipe-edit-ing-idx').value);
   if (isNaN(idx) || idx < 0 || idx >= recipeIngredients.length) return;
@@ -10286,6 +10813,9 @@ function openRecipeBarcode() {
   _startScannerAfterTransition('recipe');
 }
 
+// Looks up a scanned/manual barcode against Open Food Facts specifically for
+// a recipe ingredient (as opposed to lookupNutrBarcode, which feeds a
+// regular meal log entry).
 async function lookupRecipeBarcode() {
   const barcode = document.getElementById('recipe-barcode-input').value.trim();
   if (!barcode) return;
@@ -10333,6 +10863,8 @@ async function lookupRecipeBarcode() {
   }
 }
 
+// Recomputes the live macro preview when adding a barcode-sourced ingredient
+// to a recipe.
 function updateRecipeServingPreview() {
   if (!recipePendingIngredient) return;
   const grams = parseFloat(document.getElementById('recipe-serving-grams').value) || 0;
@@ -10342,6 +10874,7 @@ function updateRecipeServingPreview() {
     `${Math.round(i.per100kcal*r).toLocaleString()} kcal · P:${Math.round(i.per100p*r)}g C:${Math.round(i.per100c*r)}g F:${Math.round(i.per100f*r)}g`;
 }
 
+// Adds a barcode-sourced ingredient to the recipe currently being built.
 function confirmRecipeIngredient() {
   if (!recipePendingIngredient) return;
   const grams = parseFloat(document.getElementById('recipe-serving-grams').value) || 100;
@@ -10377,6 +10910,8 @@ function openRecipeManual() {
   openModal('modal-recipe-manual');
 }
 
+// Recomputes the live macro preview when adding a manually-entered
+// ingredient to a recipe.
 function updateRecipeManualPreview() {
   const servings = parseFloat(document.getElementById('recipe-manual-servings').value) || 1;
   const kcal = Math.round((parseFloat(document.getElementById('recipe-manual-kcal').value)||0) * servings);
@@ -10386,6 +10921,7 @@ function updateRecipeManualPreview() {
   document.getElementById('recipe-manual-preview').textContent = 'Total: ' + kcal.toLocaleString() + ' kcal · P:' + p + 'g C:' + c + 'g F:' + f + 'g';
 }
 
+// Adds a manually-entered ingredient to the recipe currently being built.
 function confirmRecipeManual() {
   const name = document.getElementById('recipe-manual-name').value.trim();
   if (!name) { document.getElementById('recipe-manual-name').focus(); return; }
@@ -10460,6 +10996,8 @@ function openRecipeList() {
   openModal('modal-recipe-list');
 }
 
+// Renders the 'My Recipes' list modal (modal-recipe-list) — create new,
+// edit, or delete existing recipes.
 function renderRecipeList() {
   const el = document.getElementById('recipe-list-content');
   const recipes = state.recipes || [];
@@ -10507,6 +11045,8 @@ function renderRecipeList() {
   }).join('');
 }
 
+// Removes a recipe from both state.recipes and its corresponding
+// state.foodLibrary entry, after confirmation.
 function deleteRecipe(id) {
   const recipe = (state.recipes || []).find(r => r.id === id);
   if (!recipe) return;
