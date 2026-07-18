@@ -139,7 +139,7 @@ The file is organised into clearly commented sections in this order:
   Navigation (showScreen, openModal, closeModal, positionNavPill, getPageHeroColors)
   Macrocycle helpers & CRUD, superset helpers
   Exercise CRUD
-  Progression logic (exProgData, getWeekWeight, getWeekReps, getMyorepProgression)
+  Progression logic (exProgData, getWeekWeight, getWeekReps, getGiantSetProgression)
   Render: Progress (renderProgress, hero swipe deck, chart builders)
   Render: Plan (renderPlan, session cards, superset UI, body-part volume table)
   Render: Train (renderTrain, set logging, rest timer)
@@ -167,7 +167,7 @@ The entire application state is held in a single global object:
 
 ```js
 let state = {
-  macrocycles:       [],   // Array<Macrocycle>
+  macrocycles:       [],   // Array<Macrocycle> — each includes weightIncrement (see §20)
   exercises:         {},   // Record<sessionKey, Array<Exercise>> — sessionKey = macroId_1_day(+microKey)
   trainLogs:         {},   // Record<string, SetLog> — see key formats below
   bodyLogs:          [],   // Array<BodyLog>  {date, weight, steps}
@@ -179,6 +179,9 @@ let state = {
   foodLibrary:       [],   // Array<FoodItem>  {id, name, brand, per100kcal, per100p, per100c, per100f, defaultServing, source}
   recipes:           [],   // Array<Recipe>
   supersets:         {},   // Record<supersetId, {name: string|null}> — custom display name only; membership lives on the exercises themselves
+  deloads:           {},   // Record<deloadUnitKey, true> — see §12 Deload Logic. Key = `${macroId}_${week}` (no microcycles) or `${macroId}_${week}_m${1|2}` (microcycles)
+  exerciseHistory:   {},   // Record<nameNorm, Record<setType, HistoryEntry>> — see §12 Exercise History. HistoryEntry = {sets, reps, weight, dropWeight, dropReps, date}
+  exerciseTrackingMode: {}, // Record<nameNorm, 'total'|'perSide'> — remembered tracking mode per exercise name, updated alongside exerciseHistory
   profile:           {},   // {gender, heightCm, birthday} — used for BMR/TDEE calc on the Body screen
   currentMacroId:    null, // string | null
   currentWeek:       1,
@@ -210,6 +213,9 @@ function load() {
   if (!state.foodLibrary)       state.foodLibrary = [];
   if (!state.recipes)           state.recipes = [];
   if (!state.supersets)         state.supersets = {};
+  if (!state.deloads)           state.deloads = {};
+  if (!state.exerciseHistory)   state.exerciseHistory = {};
+  if (!state.exerciseTrackingMode) state.exerciseTrackingMode = {};
   if (!state.profile)           state.profile = {};
   if (!state.theme)             state.theme = 'multi';
   document.body.setAttribute('data-theme', state.theme);
@@ -220,11 +226,19 @@ function load() {
 
 There is no longer a migration pass for old `mesocycles`/`currentMesoId` key names or a positional-index-to-stable-id exercise migration — both were removed once the live data was confirmed fully migrated during a 2026 audit pass. Every exercise has always had a stable `id` and `order` field since.
 
+`Macrocycle.weightIncrement` (string, default `'2.5'`) was `lossIncrement` prior to v6.01 — renamed and generalised when the weight-loss-only increment field became available for gain cycles too (see §20). Existing backups need `lossIncrement` → `weightIncrement` renamed on every macrocycle; nothing else about the field's shape or meaning changed.
+
+`Macrocycle.sessionsPerWeek` is calculated, not user-entered, since v6.04 — always `days.length` at creation time (§11). It's still stored on the macrocycle (used by the Plan summary label and `getActivityMultiplier()`'s TDEE estimate), just no longer editable independently of the actual split.
+
+`Exercise.type` is one of `'standard'`, `'giant'`, `'pause'`, or `'dropset'`. `'giant'` and `'pause'` were `'myorep'` and `'myomatch'` prior to v6.06 — this was a full data-level rename (not just display labels), so existing backups need every exercise's `type` field remapped (`myorep`→`giant`, `myomatch`→`pause`) alongside every function/variable that keyed off the old strings (`getMyorepProgression`→`getGiantSetProgression`, `isMyomatch`→`isPauseSet`, etc.). `'dropset'` is new in v6.05 — see §12 Drop Sets.
+
 ### Key formats
 
 - **`state.exercises`** keys: `` `${macroId}_1_${day}${microKey}` `` — always stored against week 1 (the template); every other week's exercise list is derived from it via the progression functions, never stored separately. `microKey` is `''`, `'m1'`, or `'m2'`.
-- **`state.trainLogs`** keys, per logged set: `` `${macroId}_${week}_${day}${microKey}_${exerciseId}_${setIndex}` ``. Progression-choice keys (which of weight/reps was chosen for a given exercise/week) use a separate key shape from `getProgKey()`.
+- **`state.trainLogs`** keys, per logged set: `` `${macroId}_${week}_${day}${microKey}_${exerciseId}_${setIndex}` ``. Progression-choice keys (which of weight/reps was chosen for a given exercise/week) use a separate key shape from `getProgKey()`. A drop-set's log entry additionally carries `dropWeight`/`dropReps` fields alongside the normal `weight`/`reps`/`done` — same key, no extra set index (§12).
 - Both formats key on the exercise's stable `id`, not a positional array index — this is deliberate, since reordering, superset regrouping, or mid-cycle exercise edits must never silently remap old logs to the wrong exercise.
+- **`state.deloads`** keys: `` `${macroId}_${week}` `` when the macro doesn't use microcycles, or `` `${macroId}_${week}_m${1|2}` `` when it does — always at the week/microcycle level, never per day, since a deload applies to every session within that calendar-week unit (§12).
+- **`state.exerciseHistory`** keys: exercise name lowercased/trimmed, then set type — `state.exerciseHistory['bench press']['standard']`. Independent of `state.exercises`/`DEFAULT_LIBRARY`, so it persists across macrocycles and works for built-in and custom exercises alike.
 
 ---
 
@@ -632,15 +646,21 @@ All charts (sparkline, line charts, bar charts, pies) are generated as inline SV
 Rendered by `renderPlan()`.
 
 ### Macrocycle CRUD
-- `saveMacro()` — creates or updates a macrocycle from the modal inputs
+- `saveMacro()` — creates or updates a macrocycle from the modal inputs. `sessionsPerWeek` is calculated, not read from an input — always `days.length` at creation time (`updateSessionsPerWeekPreview()` shows a live read-only preview in the modal as the split is built; the edit modal shows the same value as a read-only display, since the split itself can't be changed there). `weightIncrement` (default `'2.5'`) is user-editable for any goal type via the modal, superseding the old loss-only `lossIncrement` field (§20).
 - `deleteMacrocycle(id)` / `copyMacrocycle(id)` — delete, or deep-clone with a new id and start date
-- `getMacroSessionDayKeys(macro)` — returns every session's `day(+microKey)` combination for a macro, the shared building block for anything that needs to iterate "every session in this cycle" (progression preview, body-part volume table, etc.)
+- `getMacroSessionDayKeys(macro)` — returns every session's `day(+microKey)` combination for a macro, the shared building block for anything that needs to iterate "every session in this cycle" (progression preview, body-part volume table, deload weeks-since counter, etc.)
 
 ### Session cards (Week 1 template)
 Each day (Push/Pull/Legs, or custom-named sessions) renders as its own collapsible card:
 - `togglePlanDaySession(macroId, dayKey)` — expand/collapse; collapsed state is per-session (`planDayCollapsed`, keyed `${macroId}_${dayKey}`), defaults expanded. Collapsing only removes the exercise rows (and their drag handlers) from the DOM — drag-to-reorder is already scoped to a single day, so a collapsed card simply has nothing draggable in it until reopened.
 - `renameDaySessionStart(macroId, day, spanId, currentLabel)` — tap-to-rename, following the same inline-`<input>`-swap pattern as superset renaming (`renameSupersetStart`). Writes to `macro.dayLabels[day]`, which only affects the display label — the day's position in `macro.days`, its exercises, and its logged history are all keyed by the stable day id (`push`/`pull`/`legs`/`session0`/...), never by this label.
-- The header's summary line (`N exercises · N sets · Nkg volume`) sums `getWeekSets()` and volume across every exercise in the session, including every superset member individually, always using week-1 values.
+- The header's summary line (`N exercises · N sets · Nkg volume`) sums `getWeekSets()` and volume across every exercise in the session, including every superset member individually, always using week-1 values. Drop-set exercises contribute 0 to this theoretical volume figure, since they have no planned rep target to project from (§12) — their real volume only appears once logged, in `getSessionVolume()`.
+
+### Exercise modal
+- Exercise type: **Standard**, **Giant Set**, **Pause Set**, or **Drop Set** (`ex-type-select`, values `standard`/`giant`/`pause`/`dropset`). Giant Set locks sets to 1 (`onExTypeChange()`); Drop Set hides the reps-target field entirely and shows an inline note, since drop-set reps are only ever discovered live (§12). Drop Set is disabled in the type dropdown (`setDropsetOptionEnabled(false)`) whenever the modal is adding into or editing a superset member, since drop sets can't be superset members.
+- **Last logged reference** (`ex-last-logged-note`) — below the exercise name, shows one line per set type this exercise name has history for (e.g. a standard-set line and a separate giant-set line for the same exercise, if you've trained it both ways), pulled from `state.exerciseHistory`. Reference-only — never affects any calculation. Updated by `updateLastLoggedPreview()` whenever the name changes.
+- **History-based defaults** — when adding a new exercise (never when editing an existing one), reps and starting weight prefill from `state.exerciseHistory[name][selectedType]`, and tracking mode prefills from `state.exerciseTrackingMode[name]`, via `applyExerciseHistoryDefaults()`. Switching set type re-applies against that type's own remembered numbers. Sets always stay at the fixed default (2–5), never pulled from history. Everything remains fully editable.
+- `saveCustomExercise()` also refreshes the last-logged preview after re-selecting the newly created exercise.
 
 ### Supersets
 - `openAddExerciseToSuperset(day, ssId)` — add an exercise into an existing group
@@ -650,35 +670,71 @@ Each day (Push/Pull/Legs, or custom-named sessions) renders as its own collapsib
 - `renameSupersetStart(ssId, currentName)` / `getSupersetDisplayName(ssId, members)` — custom group name, stored in `state.supersets[ssId].name`; falls back to a generated "A + B" name from member names when null
 - `getSupersetBadge(n)` — the "SS" / member-count badge shown on group cards
 - Regular (non-superset) drag-to-reorder is handled by `reorderExercise(day, fromSortedIdx, toSortedIdx)`, which treats each superset group as a single slot
+- `openLinkModal(day, exId)` returns immediately without opening anything if the origin exercise is a drop set, and filters drop-set exercises out of the selectable member list regardless of which exercise triggered it — drop sets can't join or be joined into a superset (§12)
 
 ### Progression preview ("Weeks 2+")
-Grouped by **session first, then by week within** — the reverse of the original week-first layout. For each session (`day`+`microKey` combination), a collapsible card (`togglePlanSession`/`planExpandedSessions`, collapsed by default — distinct from the Week-1 template's `togglePlanDaySession`/`planDayCollapsed`, which defaults expanded) lists every exercise, and under each exercise, one row per week showing that week's sets/reps/weight target. Reps always show the exercise's starting reps for every type (standard/myorep/myomatch) — myorep's per-week reps escalation is intentionally not reflected here, only in the live Train recommendations.
+Grouped by **session first, then by week within** — the reverse of the original week-first layout. For each session (`day`+`microKey` combination), a collapsible card (`togglePlanSession`/`planExpandedSessions`, collapsed by default — distinct from the Week-1 template's `togglePlanDaySession`/`planDayCollapsed`, which defaults expanded) lists every exercise, and under each exercise, one row per week showing that week's sets/reps/weight target. Reps always show the exercise's starting reps for every type (standard/giant/pause) — giant-set's per-week reps escalation is intentionally not reflected here, only in the live Train recommendations. Drop-set exercises have no reps target to show here at all (§12).
 
 ### Body part volume table
-- `computeBodyPartVolumeRange(macro)` — for every exercise across every session in the cycle, resolves its body part by looking name up against `getLibrary()` (built-in + custom; nothing is stored on the exercise itself), then computes two whole-cycle volume totals per body part: an all-weight-progression scenario and an all-reps-progression scenario (reusing `getWeekSets`/`getWeekWeight`/`getWeekReps`/`getMyorepProgression`/`parseRepsForVolume` — the same building blocks the progression preview and Train page use). Min/max per body part is the smaller/larger of those two totals; myomatch collapses to the same value in both scenarios since it has no reps-progression path.
+- `computeBodyPartVolumeRange(macro)` — for every exercise across every session in the cycle, resolves its body part by looking name up against `getLibrary()` (built-in + custom; nothing is stored on the exercise itself), then computes two whole-cycle volume totals per body part: an all-weight-progression scenario and an all-reps-progression scenario (reusing `getWeekSets`/`getWeekWeight`/`getWeekReps`/`getGiantSetProgression`/`parseRepsForVolume` — the same building blocks the progression preview and Train page use). Min/max per body part is the smaller/larger of those two totals; pause sets collapse to the same value in both scenarios since they have no reps-progression path. Drop sets contribute 0 (no plan-time rep target to project from).
 - `renderBodyPartVolumeTable(macro)` — renders the result sorted by minimum volume descending. Returns an empty string (renders nothing) if the cycle has no exercises yet.
 
 ---
 
 ## 12. Module: Train
 
-Rendered by `renderTrain()` → `renderTrainHero(macro)` (session summary + volume) → `renderTrainDay(macro)` (the exercise cards).
+Rendered by `renderTrain()` → `renderTrainHero(macro)` (session summary + volume + deload toggle) → `renderTrainDay(macro)` (the exercise cards).
 
 ### Progression data
-`exProgData(ex)` is the single source of truth per exercise for a given week — computed once per exercise per render and either used directly (solo exercises) or mapped across `members.map(m => exProgData(m))` (supersets, as `memberData`). It returns sets, chosen `progType`, previous week's actual weight/reps, `recommendedWeight`/`recommendedReps`, `weightJump`, and progression-inference fields (below). Solo-exercise rendering destructures the fields it needs by name; superset rendering reads them off `memberData[i]` directly — this is why a field can be genuinely used by one path and dead in the other if not double-checked.
+`exProgData(ex)` is the single source of truth per exercise for a given week — computed once per exercise per render and either used directly (solo exercises) or mapped across `members.map(m => exProgData(m))` (supersets, as `memberData`). It returns sets, chosen `progType`, previous week's actual weight/reps, `recommendedWeight`/`recommendedReps`, `weightJump`, progression-inference fields (below), deload flags (`isDeloadSession`/`isPostDeloadSession`), and — for drop sets only — the parallel `dropWeightPlaceholder`/`dropRepsPlaceholder`/`recommendedDropWeight`/`recommendedDropReps`/`prevActualDropWeight`/`prevActualDropReps` fields. Solo-exercise rendering destructures the fields it needs by name; superset rendering reads them off `memberData[i]` directly — this is why a field can be genuinely used by one path and dead in the other if not double-checked.
 
 ### "Last week" progression badge inference
-Shown as "Last wk: ↑ weight" / "↑ reps" / "no progression" in the exercise header (solo) or next to sets/reps in the collapsed preview row (superset members). If a progression path was explicitly chosen last week (via the Weight/Reps toggle), that's used directly. Otherwise it's inferred: compare last week's actual weight against the week before that (or the exercise's starting weight, if last week was week 1) — if it increased, "↑ weight"; else compare reps the same way — if those increased, "↑ reps"; if neither increased, "no progression". This inference exists specifically because filling sets via "Fill Suggested" and just checking them done, without ever tapping the Weight/Reps toggle, is a common real workflow that shouldn't leave the badge silently blank.
+Shown as "Last wk: ↑ weight" / "↑ reps" / "no progression" in the exercise header (solo) or next to sets/reps in the collapsed preview row (superset members). If a progression path was explicitly chosen last week (via the Weight/Reps toggle), that's used directly. Otherwise it's inferred: compare last week's actual weight against the week before that (or the exercise's starting weight, if last week was week 1) — if it increased, "↑ weight"; else compare reps the same way — if those increased, "↑ reps"; if neither increased, "no progression". This inference exists specifically because filling sets via "Fill Suggested" and just checking them done, without ever tapping the Weight/Reps toggle, is a common real workflow that shouldn't leave the badge silently blank. Suppressed during deload and post-deload sessions (below), where a "deload" badge takes its place instead.
 
 ### Set rows
-- Solo: `.set-row` is a CSS grid (`24px 1fr 60px 60px 40px` — set number, last-week actual for that specific set index, weight input, reps input, done checkbox). The "last week" column shows what was actually logged for that set number last week, not a repeat of the current suggestion (which is already visible via the input's placeholder).
-- Superset: `.ss-set-ex-row` is `display: flex`, not a grid — member name, weight input, ×, reps input, done checkbox. The done checkbox shares `.check-done`/`.check-empty` styling with the solo grid rows, which includes `margin: 0 auto` (meant to centre it within a grid cell). In this flex context that competes with any `margin-left: auto` placed elsewhere in the row for the remaining free space — the first input has `margin-left:auto` to right-pack the row, and the checkbox's shared margin is overridden inline (`margin:0`) specifically in this template so the two auto-margins don't fight over the same free space.
-- `logSet(logKey, field, value)` writes a single field; `toggleSetDone(logKey)` flips `done` with a brief red-border flash if weight/reps are missing.
-- `fillSuggested(macroId, week, day, exId, sets, weightPlaceholder, repsPlaceholder)` — fills every set's inputs with the suggested values in one tap, with an amber flash animation on the button and inputs.
-- `quickFillComplete(...)` / `quickFillCompleteSuperset(...)` — the food-scanner-adjacent "tick" quick-fill used on the collapsed card header, tracked per-session via a `_nutrQuickAddedThisSession`-style `Set` so the tick persists correctly within a session (name kept for historical reasons — it lives in the Train module, not Nutrition, despite the `nutr`-looking prefix on a couple of internal helper names it shares patterns with).
+- Solo: `.set-row` is a CSS grid (`24px 1fr 60px 60px 40px` — set number, last-week actual for that specific set index, weight input, reps input, done checkbox). The "last week" column shows what was actually logged for that set number last week, not a repeat of the current suggestion (which is already visible via the input's placeholder). Drop-set exercises use a different layout entirely — see Drop Sets below.
+- Superset: `.ss-set-ex-row` is `display: flex`, not a grid — member name, weight input, ×, reps input, done checkbox. The done checkbox shares `.check-done`/`.check-empty` styling with the solo grid rows, which includes `margin: 0 auto` (meant to centre it within a grid cell). In this flex context that competes with any `margin-left: auto` placed elsewhere in the row for the remaining free space — the first input has `margin-left:auto` to right-pack the row, and the checkbox's shared margin is overridden inline (`margin:0`) specifically in this template so the two auto-margins don't fight over the same free space. Drop sets can't be superset members, so this layout never needs the drop-set two-row treatment.
+- `logSet(logKey, field, value)` writes a single field (`weight`/`reps`/`dropWeight`/`dropReps`); `toggleSetDone(logKey)` flips `done` with a brief red-border flash if weight/reps (and, for drop sets, dropWeight/dropReps) are missing. Resolves the exercise object itself from the log key — by stripping the known `${macroId}_${week}_${day}_` prefix and the trailing `_${setIndex}` suffix — rather than requiring callers to pass type info, so it can determine `isDropSet` and call `recordExerciseHistory()` internally.
+- `fillSuggested(macroId, week, day, exId, sets, weightPlaceholder, repsPlaceholder)` — fills every set's inputs with the suggested values in one tap, with an amber flash animation on the button and inputs. `fillSuggestedDropset(macroId, week, day, exId, sets, weight, dropWeight)` is the drop-set equivalent — only fills weight and drop weight, never reps, since those are only ever discovered live.
+- `quickFillComplete(...)` / `quickFillCompleteSuperset(...)` — the one-tap fill-and-complete button on the collapsed card header. Not shown at all for drop-set exercises (§ Drop Sets) — reps-to-failure can't be sanely auto-filled. Both call `recordExerciseHistory()` after marking sets done, same as `toggleSetDone()`, by resolving the exercise directly from the already-known `exId` parameter (simpler than `toggleSetDone`'s key-parsing, since `exId` is passed in explicitly here).
 
 ### Session volume
-`renderTrainHero()` calls the shared `getSessionVolume(macro, week, dayKey)` rather than computing volume inline — this matters because that shared function correctly doubles weight for `trackingMode === 'perSide'` exercises, and an earlier inline duplicate here did not.
+`renderTrainHero()` calls the shared `getSessionVolume(macro, week, dayKey)` rather than computing volume inline — this matters because that shared function correctly doubles weight for `trackingMode === 'perSide'` exercises, and an earlier inline duplicate here did not. Drop-set exercises contribute both halves (main weight × reps, plus drop weight × drop reps).
+
+### Day-tab pills, grouped by calendar week
+Day tabs (Push/Pull/Legs or custom sessions, per microcycle) are grouped into one row per **real calendar week**, not simply one row per microcycle. A microcycle only represents a distinct calendar week when the mesocycle actually spans more than one real week (`weeksPerMeso === 2`) — M1 gets its own row, M2 gets its own row. If `weeksPerMeso` is 1 (including the edge case of a macro that enables microcycles but keeps a 1-week mesocycle), all microcycles fall inside the same single calendar week and stay merged into one row, matching the layout for a macro with no microcycles at all.
+
+The subtitle and hero label both use `M1`/`M2` for the microcycle suffix — this was previously `MC1`/`MC2` in two separate spots, a genuine inconsistency (not intentional) that collided with "MC" already meaning *mesocycle* elsewhere in the UI ("MC 4 / 8"). Fixed to match the day-tab pills, which always used `M1`/`M2`.
+
+### Deload Logic
+A deload marks a whole **calendar-week unit** — for macros using microcycles, that's `(week, microcycle)`; for macros without, it's just `(week)`. Marking a unit deload applies to every day type within it (the flag isn't day-specific), toggled via a pill on the Train hero (`toggleDeloadWeek(macroId, week, dayKey)`) scoped to whichever week+microcycle is currently selected — never the sibling microcycle in a 2-week mesocycle.
+
+- **Deload week itself**: every exercise's weight drops to 60% of whatever was actually logged last time, rounded to that exercise's own increment (`roundToIncrement(weight, increment)` — the same `weightJump` value used for normal progression); reps carry over unchanged. Progression chips, last-week badges, and the overall since-start progress badge are all suppressed for the deload session — the reduced weight would otherwise read as a misleading loss.
+- **The session immediately after a deload** also skips progression for exactly one occurrence, reverting to the last genuine (non-deload) numbers rather than the deload week's temporarily-reduced ones. "Immediately after" is a **union of two adjacency checks**, not one:
+  - `getPrevTrackUnit(macro, week, dayKey)` — same dayKey, one mesocycle earlier. Mirrors the existing `prevWeek2`/`prevKey2` pairing normal progression already uses, since Push-M1 and Push-M2 progress as two fully independent tracks in this app (each mesocycle's M1 only ever compares against the previous mesocycle's M1, never that mesocycle's own M2).
+  - `getPrevCalendarWeek(macro, week, dayKey)` — true physical-time adjacency, crossing between M1/M2 (a week's M2 is preceded by that same week's M1; a week's M1 is preceded by the previous week's M2).
+  - A deload on MC4 M1 needs to revert **both** MC4 M2 (the immediate physical-calendar sibling — a different track entirely) **and** MC5 M1 (the next occurrence of the same track) — hence the union. `getLastNonDeloadUnit()` walks backward via `getPrevTrackUnit` only (skipping consecutive deloads) to find the actual reference values, since that's always the correct per-track history regardless of which adjacency check flagged the session.
+- `isFirstUnitAfterDeload(macro, week, dayKey)` implements the union check; `isDeloadUnit(macro, week, dayKey)` is the raw flag lookup.
+- `getWeeksSinceLastDeload(macro, week, dayKey)` — a separate, purely physical-calendar walk (via `getPrevCalendarWeek` only) counting real elapsed weeks since the last deload, for the hero's "N weeks since last deload" callout. Returns `null` (hide the callout) when the current unit is itself a deload, or when no deload has happened yet in this macro.
+- The hero's status pill combines both states into one element: red background with the deload warning when active, otherwise the weeks-since-deload text once applicable, otherwise nothing — no "Not a deload week" placeholder text.
+- **`recordExerciseHistory()` skips deload sessions entirely** (checked internally via `isDeloadUnit`) — a 60%-reduced week must never become the reference for "last logged" or the next plan's defaults.
+
+### Drop Sets
+A drop-set exercise (`ex.type === 'dropset'`) has no plan-time rep target at all (`ex.reps` is forced to `''` at save time) — only the main set's starting weight is planned, exactly like other types. Everything else (main reps, drop weight, drop reps) is discovered live, logged to failure each week starting in week 1.
+
+- **Data model**: each set's `trainLogs` entry carries `weight`/`reps` (main) plus `dropWeight`/`dropReps` (drop) on the *same* log object — no separate set index for the drop portion.
+- **Expanded card layout**: one block per set, containing two `.set-row`s — a "Main" row and a "Drop" row — sharing one done-checkbox on the Main row (`toggleSetDone` requires all four fields filled before allowing completion). This replaces the single-row-per-set grid every other type uses.
+- **Progression**: follows the same weight/reps progression choice as every other type, applied identically to both the main and drop pairs (same `weightJump`, same +1-rep step) — computed via the parallel `recommendedDropWeight`/`recommendedDropReps` fields in `exProgData()`. Neither has a plan-time fallback target (unlike main weight, which falls back to `ex.startWeight`) — blank means "nothing to suggest yet, log it live."
+- **Collapsed card**: shows "to failure + drop" instead of blank reps until there's something real to show; a red `badge-red` "drop set" badge; no quick-fill-complete shortcut (§ Set rows above).
+- **Superset restriction**: drop sets can't be superset members. The type option is disabled in the modal (`setDropsetOptionEnabled(false)`) when adding into or editing within a superset, `saveExercise()` has a belt-and-braces fallback to `standard` if one somehow gets submitted anyway, and `openLinkModal()` excludes drop-set exercises from the selectable list entirely (and refuses to open at all if the origin exercise is itself a drop set).
+- **Volume**: `getSessionVolume()` adds the drop portion (drop weight × drop reps) alongside the main portion for drop-set exercises.
+
+### Exercise History
+`state.exerciseHistory` and `state.exerciseTrackingMode` (§3) snapshot the most recent real performance per exercise name (+ set type, for history), refreshed by `recordExerciseHistory(macro, week, dayKey, ex)` every time a set is completed via `toggleSetDone()` or a quick-fill-complete button — never for deload sessions. This replaced an earlier, more expensive approach (searching the single "last completed macrocycle" by end date each time the Add Exercise modal opened) — the running-snapshot approach is O(1) to read, always reflects the true most recent log regardless of which macro it came from, and doesn't require special-casing macros with no logged history yet.
+
+- Recorded fields per (name, type): `sets` (count of sets with a logged weight that week, falling back to the planned count), `reps`, `weight`, `dropWeight`, `dropReps` (drop-set only), `date` (`getLocalToday()`).
+- `formatLastLoggedLine(type, entry)` — builds the modal's display line, e.g. "Last logged: 5 sets · 10 reps @ 50kg (12 Jul)", with a type qualifier when it isn't a plain standard set. Strips a trailing `' reps'` from stored rep values before appending its own, since giant-set reps is a free-text field and real logged data can already contain the word (e.g. someone typed "60 reps").
+- `updateLastLoggedPreview()` / `applyExerciseHistoryDefaults()` — see §11 Plan for how these drive the exercise modal.
 
 ### Rest Timer
 See §17 — opened via the clock icon in the Train header.
@@ -801,32 +857,49 @@ Body part is never stored on an individual plan exercise (`state.exercises[...]`
 Three functions are the shared source of truth for every progression-related calculation in the app (Plan preview, Train recommendations, body-part volume table all call the same ones — this was consolidated during a 2026 audit after finding two of these had drifted into disagreeing hardcoded copies):
 
 ```js
-function getWeekWeight(ex, week, progType, goalType, lossIncrement) {
+function getWeekWeight(ex, week, progType, goalType, weightIncrement) {
   // Returns ex.startWeight unless progType === 'weight'.
-  // jump = ex.isHeavyLeg ? (isGain ? 10 : 5) : (isGain ? 5 : lossIncrement)
+  // jump = ex.isHeavyLeg ? (isGain ? 10 : 5) : weightIncrement
   // return ex.startWeight + jump * (week - 1)
 }
 
 function getWeekReps(ex, week, progType) {
   // Returns ex.reps unless progType === 'reps'. +1 rep/week when active,
-  // handling both single numbers and "8-10"-style ranges.
+  // handling both single numbers and "8-10"-style ranges. Naturally
+  // returns '' for drop-set exercises, since ex.reps is always '' for them.
 }
 
-function getMyorepProgression(ex, week) {
-  // Myomatch: fixed base reps derived from ex.reps — weight-only progression,
+function getGiantSetProgression(ex, week) {
+  // Pause set: fixed base reps derived from ex.reps — weight-only progression,
   // this never changes regardless of week.
-  // Myorep giant: base reps + 10 * (week - 1).
+  // Giant set: base reps + 10 * (week - 1).
 }
 ```
 
-`lossIncrement` is the one user-configurable input — set per macrocycle (defaults to 2.5 kg), used only for standard (non-heavy-leg) exercises on a weight-loss cycle. Every other jump size is fixed:
+`weightIncrement` is the one user-configurable input — set per macrocycle (defaults to 2.5 kg), used for standard (non-heavy-leg) exercises on **any** goal type since v6.01. Prior to that it was `lossIncrement`, editable only on loss cycles (gain cycles used a hardcoded 5kg). Heavy-leg jumps remain fixed regardless of the user's setting:
 
 | Goal type | Standard exercises | Heavy leg exercises |
 |---|---|---|
-| Weight Loss | + configured `lossIncrement` / mesocycle | +5 kg / mesocycle |
-| Strength Gain | +5 kg / mesocycle | +10 kg / mesocycle |
+| Weight Loss | + configured `weightIncrement` / mesocycle | +5 kg / mesocycle |
+| Strength Gain | + configured `weightIncrement` / mesocycle | +10 kg / mesocycle |
 
-`exProgData(ex)` (Train page, §12) is a higher-level wrapper around these three functions that additionally layers in what was *actually logged* (as opposed to the theoretical target) for "previous week" displays and next-week recommendations.
+`exProgData(ex)` (Train page, §12) is a higher-level wrapper around these three functions that additionally layers in what was *actually logged* (as opposed to the theoretical target) for "previous week" displays and next-week recommendations, plus deload-aware overrides (§12) and, for drop-set exercises, the parallel drop-weight/drop-reps computation.
+
+**Exercise types** (renamed from `myorep`/`myomatch` to `giant`/`pause` in v6.06 — a full data-level rename, not just display labels):
+- **Standard** — weight or rep progression, chosen per exercise per week
+- **Giant Set** (was "Myorep Giant Set") — weight or rep progression (giant-set reps add +10/week when reps is chosen)
+- **Pause Set** (was "Myorep Matching") — fixed reps, weight progression only
+- **Drop Set** (new in v6.05) — no plan-time rep target at all; main weight is planned like Standard, everything else (main reps, drop weight, drop reps) is logged to failure live each week. Progression, once there's a prior week to compare against, applies identically to both the main and drop pairs. See §12 for the full data model and UI.
+
+This same weight-jump formula is shared by the Plan page's progression preview and the Train page's live recommendations, so both always agree.
+
+### Deload weight rounding
+```js
+function roundToIncrement(weight, increment) {
+  return Math.round(weight / increment) * increment;
+}
+```
+Used specifically for deload weeks: `roundToIncrement(lastLoggedWeight * 0.6, weightJump)` — 60% of whatever was actually logged last time, rounded to the exercise's own applicable increment (the same value normal progression would add). See §12 Deload Logic for the full session-level behaviour.
 
 ---
 
@@ -896,9 +969,10 @@ Not exhaustive — covers the functions most useful to know when working on the 
 ### Macrocycle / Plan
 | Function | Description |
 |---|---|
-| `saveMacro()` | Creates or updates a macrocycle from modal inputs |
+| `saveMacro()` | Creates or updates a macrocycle from modal inputs; `sessionsPerWeek` is calculated from `days.length`, not read from an input |
 | `deleteMacrocycle(id)` / `copyMacrocycle(id)` | Delete, or deep-clone to a new id/start date |
 | `getMacroSessionDayKeys(macro)` | Every `day(+microKey)` combination in the cycle |
+| `updateSessionsPerWeekPreview()` | Live-updates the read-only sessions-per-week preview in the New Macrocycle modal as the split is built |
 | `togglePlanDaySession(macroId, dayKey)` | Expand/collapse a Week-1 template session card |
 | `renameDaySessionStart(macroId, day, spanId, currentLabel)` | Tap-to-rename a session's display label |
 | `togglePlanSession(macroId, sessionKey)` | Expand/collapse a Weeks-2+ progression preview session card |
@@ -906,22 +980,37 @@ Not exhaustive — covers the functions most useful to know when working on the 
 | `reorderSupersetExercise(day, supersetId, fromInnerIdx, toInnerIdx)` | Reorder within a superset group |
 | `unlinkSuperset(day, ssId)` / `deleteSupersetGroup(day, ssId)` | Dissolve a group, or delete every exercise in it |
 | `renameSupersetStart(ssId, currentName)` | Tap-to-rename a superset group |
+| `openLinkModal(day, exId)` | Link/unlink superset members; excludes drop-set exercises entirely (§12) |
 | `computeBodyPartVolumeRange(macro)` / `renderBodyPartVolumeTable(macro)` | Cycle-wide min/max volume per body part |
-| `getSessionVolume(macro, week, dayKey)` | Total logged volume for one session/week, respecting per-side tracking |
+| `getSessionVolume(macro, week, dayKey)` | Total logged volume for one session/week, respecting per-side tracking and drop-set drop volume |
+| `updateLastLoggedPreview()` | Refreshes the exercise modal's "Last logged" reference note from `state.exerciseHistory` |
+| `applyExerciseHistoryDefaults()` | Prefills reps/weight/tracking-mode defaults from history when adding a new exercise (never when editing) |
+| `setDropsetOptionEnabled(enabled)` | Enables/disables the Drop Set option in the type dropdown (disabled in superset contexts) |
 
 ### Training
 | Function | Description |
 |---|---|
-| `exProgData(ex)` | Full progression data object for one exercise in the current week |
-| `getWeekWeight(ex, week, progType, goalType, lossIncrement)` | Theoretical target weight for a given week |
+| `exProgData(ex)` | Full progression data object for one exercise in the current week, including deload overrides and (for drop sets) the parallel drop-weight/drop-reps fields |
+| `getWeekWeight(ex, week, progType, goalType, weightIncrement)` | Theoretical target weight for a given week |
 | `getWeekReps(ex, week, progType)` | Theoretical target reps for a given week |
-| `getMyorepProgression(ex, week)` | Myorep/myomatch-specific reps target |
-| `logSet(logKey, field, value)` | Updates a single set field in `state.trainLogs` |
-| `toggleSetDone(logKey)` | Flips a set's done state; red-flashes missing weight/reps |
+| `getGiantSetProgression(ex, week)` | Giant-set/pause-set reps target (renamed from `getMyorepProgression` in v6.06) |
+| `logSet(logKey, field, value)` | Updates a single set field (`weight`/`reps`/`dropWeight`/`dropReps`) in `state.trainLogs` |
+| `toggleSetDone(logKey)` | Flips a set's done state; resolves the exercise itself from the key to determine drop-set validation and record history; red-flashes any missing required field |
 | `fillSuggested(macroId, week, day, exId, sets, weightPlaceholder, repsPlaceholder)` | Fills all set inputs with suggested values |
-| `quickFillComplete(...)` / `quickFillCompleteSuperset(...)` | One-tap fill-and-complete from the collapsed card header |
+| `fillSuggestedDropset(macroId, week, day, exId, sets, weight, dropWeight)` | Drop-set equivalent — fills weight and drop weight only, never reps |
+| `quickFillComplete(...)` / `quickFillCompleteSuperset(...)` | One-tap fill-and-complete from the collapsed card header; not shown for drop sets |
 | `getProgKey(macroId, week, day, exId)` | Key format for a progression-choice (weight vs reps) log entry |
 | `selectProgType(...)` | Records which progression path was chosen for an exercise this week |
+| `roundToIncrement(weight, increment)` | Rounds to the nearest multiple of increment — used for deload weight rounding |
+| `isDeloadUnit(macro, week, dayKey)` | Whether a given week(+microcycle) unit is marked deload |
+| `toggleDeloadWeek(macroId, week, dayKey)` | Marks/unmarks the deload flag for the currently-selected week+microcycle unit |
+| `getPrevTrackUnit(macro, week, dayKey)` | Same-track (same dayKey) previous mesocycle unit — used for progression reversion |
+| `getPrevCalendarWeek(macro, week, dayKey)` | True physical-time previous calendar week, crossing between M1/M2 — used only for the weeks-since-deload count |
+| `getLastNonDeloadUnit(macro, week, dayKey)` | Walks back via `getPrevTrackUnit`, skipping deloads, to find the last genuine reference values |
+| `isFirstUnitAfterDeload(macro, week, dayKey)` | Union of same-track and physical-calendar adjacency — true for the session(s) immediately following a deload |
+| `getWeeksSinceLastDeload(macro, week, dayKey)` | Real elapsed calendar weeks since the last deload, for the hero callout |
+| `recordExerciseHistory(macro, week, dayKey, ex)` | Snapshots weight/reps/sets/tracking-mode into `state.exerciseHistory`/`state.exerciseTrackingMode`; no-ops for deload sessions |
+| `formatLastLoggedLine(type, entry)` | Formats one history entry into the modal's display line |
 
 ### Nutrition
 | Function | Description |
@@ -1148,6 +1237,7 @@ Deliberately not a blanket default to "weight" — that produced false positives
 | **Undo** | No undo mechanism. Deletes are confirmed but irreversible. |
 | **Body weight units** | Body weight is lbs-only (training weight elsewhere is kg-only); no unit toggle exists for either, unlike height which has one. Confirmed intentional, not planned to change. |
 | **Legacy nutrition log** | `state.nutritionLogs` (per-day summary format) predates `nutritionMeals`/`nutritionQuickLog` and isn't the primary source of truth — but it's still actively kept in sync by `syncNutrLegacyLog()` after every log change (add, edit, delete), for whichever reads still go through it. An earlier version of this document incorrectly described it as read-only/dead; it was corrected after adding inline code comments surfaced the live call sites. |
+| **Drop-set theoretical volume** | Drop-set exercises contribute 0 to the Plan page's *theoretical* (pre-logged) volume projections — the Week-1 session summary and the body-part volume table both rely on `ex.reps`, which is always `''` for drop sets since there's genuinely no plan-time rep target to project from. Real logged volume (`getSessionVolume()`, used everywhere in Train/Progress) is unaffected and correctly includes both the main and drop portions. A deliberate trade-off, not a bug — inventing a placeholder rep count for the projection would be a fabricated number. |
 
 ### Resolved (previously listed as open questions)
 
