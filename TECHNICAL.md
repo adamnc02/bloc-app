@@ -116,6 +116,8 @@ The file is organised into clearly commented sections in this order:
     modal-nutr-edit          — edit a logged food entry
     modal-nutr-quick         — quick-add daily macro totals (overrides meal-based totals)
     modal-timer              — rest timer (countdown + stopwatch)
+    modal-exercise-lib-editor — browse and edit the exercise library (v6.10)
+    modal-exercise-lib-entry — edit a single custom exercise library entry (v6.10)
     modal-food-lib-editor    — browse and edit the food library
     modal-food-lib-entry     — edit a single food library entry
     modal-recipe-step1       — recipe builder step 1: name and servings
@@ -230,7 +232,7 @@ There is no longer a migration pass for old `mesocycles`/`currentMesoId` key nam
 
 `Macrocycle.sessionsPerWeek` is calculated, not user-entered, since v6.04 — always `days.length` at creation time (§11). It's still stored on the macrocycle (used by the Plan summary label and `getActivityMultiplier()`'s TDEE estimate), just no longer editable independently of the actual split.
 
-`Exercise.type` is one of `'standard'`, `'giant'`, `'pause'`, or `'dropset'`. `'giant'` and `'pause'` were `'myorep'` and `'myomatch'` prior to v6.06 — this was a full data-level rename (not just display labels), so existing backups need every exercise's `type` field remapped (`myorep`→`giant`, `myomatch`→`pause`) alongside every function/variable that keyed off the old strings (`getMyorepProgression`→`getGiantSetProgression`, `isMyomatch`→`isPauseSet`, etc.). `'dropset'` is new in v6.05 — see §12 Drop Sets.
+`Exercise.type` is one of `'standard'`, `'giant'`, `'pause'`, or `'dropset'`. `'giant'` and `'pause'` were `'myorep'` and `'myomatch'` prior to v6.06 — this was a full data-level rename (not just display labels), so existing backups need every exercise's `type` field remapped (`myorep`→`giant`, `myomatch`→`pause`) alongside every function/variable that keyed off the old strings (`getMyorepProgression`→`getGiantSetProgression`, `isMyomatch`→`isPauseSet`, etc.). `'dropset'` is new in v6.05 — see §12 Drop Sets. As of **v6.09**, a drop-set exercise's `reps` field holds a real plan-time target for its **main set**, same as any other type — prior to v6.09 this was always forced to `''` since drop sets had no rep target at all. The drop *portion* still has no plan-time target and is discovered live every week (unchanged).
 
 ### Key formats
 
@@ -600,7 +602,7 @@ In iOS standalone, `position: fixed` tracks `window.innerHeight`, which shrinks 
 
 The body log modal (`modal-body-log`) is the canonical reference for this behaviour: its sheet has no inline styles, uses the base `.modal-sheet` CSS (`max-height: 92dvh; overflow-y: auto`), and its compact content always fits within the shrunken overlay.
 
-**Modals that need a scrollable list (`modal-nutr-add`, `modal-food-lib-editor`):**
+**Modals that need a scrollable list (`modal-nutr-add`, `modal-food-lib-editor`, `modal-exercise-lib-editor`):**
 
 Both require a scrollable results list, which creates an additional challenge. A list using `flex: 1` inside a `display: flex` sheet causes the sheet to grow to its full `max-height`. Because `dvh` does not reliably shrink with the keyboard in iOS standalone, this leaves the sheet taller than the overlay and pushes the search input off the top of the screen.
 
@@ -619,7 +621,7 @@ The fix is structural — the sheet is kept compact by giving the list a fixed `
 </div>
 ```
 
-`fitListToKeyboard(wrapId)` measures the wrap element's distance from the top of the viewport and the current `visualViewport.height`, then sets the list's height so its bottom edge lands just above the keyboard. It's called from the shared `visualViewport.resize` handler (see §5) for both `nutr-add-list-wrap` and `food-lib-list-wrap`, plus once explicitly after each modal's own slide-in transform finishes (a `setTimeout(..., 320)` after opening), since the transform itself doesn't fire a `resize` event.
+`fitListToKeyboard(wrapId)` measures the wrap element's distance from the top of the viewport and the current `visualViewport.height`, then sets the list's height so its bottom edge lands just above the keyboard. It's called from the shared `visualViewport.resize` handler (see §5) for `nutr-add-list-wrap`, `food-lib-list-wrap`, and (since v6.10) `exercise-lib-list-wrap`, plus once explicitly after each modal's own slide-in transform finishes (a `setTimeout(..., 320)` after opening), since the transform itself doesn't fire a `resize` event.
 
 `overscroll-behavior: contain` on the list prevents scroll events from bubbling out to `#content` when the list boundary is reached.
 
@@ -657,7 +659,7 @@ Each day (Push/Pull/Legs, or custom-named sessions) renders as its own collapsib
 - The header's summary line (`N exercises · N sets · Nkg volume`) sums `getWeekSets()` and volume across every exercise in the session, including every superset member individually, always using week-1 values. Drop-set exercises contribute 0 to this theoretical volume figure, since they have no planned rep target to project from (§12) — their real volume only appears once logged, in `getSessionVolume()`.
 
 ### Exercise modal
-- Exercise type: **Standard**, **Giant Set**, **Pause Set**, or **Drop Set** (`ex-type-select`, values `standard`/`giant`/`pause`/`dropset`). Giant Set locks sets to 1 (`onExTypeChange()`); Drop Set hides the reps-target field entirely and shows an inline note, since drop-set reps are only ever discovered live (§12). Drop Set is disabled in the type dropdown (`setDropsetOptionEnabled(false)`) whenever the modal is adding into or editing a superset member, since drop sets can't be superset members.
+- Exercise type: **Standard**, **Giant Set**, **Pause Set**, or **Drop Set** (`ex-type-select`, values `standard`/`giant`/`pause`/`dropset`). Giant Set locks sets to 1 (`onExTypeChange()`). As of **v6.09**, Drop Set keeps the reps-target field visible rather than hiding it — it sets the **main set's** rep target, same as any other type; the inline note below the field is swapped to clarify that only the main set has a target and the drop is always a reduction in weight taken to failure (prior to v6.09 the field was hidden entirely and `ex.reps` was forced to `''`, since drop sets had no rep target at all). Drop Set is disabled in the type dropdown (`setDropsetOptionEnabled(false)`) whenever the modal is adding into or editing a superset member, since drop sets can't be superset members.
 - **Last logged reference** (`ex-last-logged-note`) — below the exercise name, shows one line per set type this exercise name has history for (e.g. a standard-set line and a separate giant-set line for the same exercise, if you've trained it both ways), pulled from `state.exerciseHistory`. Reference-only — never affects any calculation. Updated by `updateLastLoggedPreview()` whenever the name changes.
 - **History-based defaults** — when adding a new exercise (never when editing an existing one), reps and starting weight prefill from `state.exerciseHistory[name][selectedType]`, and tracking mode prefills from `state.exerciseTrackingMode[name]`, via `applyExerciseHistoryDefaults()`. Switching set type re-applies against that type's own remembered numbers. Sets always stay at the fixed default (2–5), never pulled from history. Everything remains fully editable.
 - `saveCustomExercise()` also refreshes the last-logged preview after re-selecting the newly created exercise.
@@ -676,7 +678,7 @@ Each day (Push/Pull/Legs, or custom-named sessions) renders as its own collapsib
 Grouped by **session first, then by week within** — the reverse of the original week-first layout. For each session (`day`+`microKey` combination), a collapsible card (`togglePlanSession`/`planExpandedSessions`, collapsed by default — distinct from the Week-1 template's `togglePlanDaySession`/`planDayCollapsed`, which defaults expanded) lists every exercise, and under each exercise, one row per week showing that week's sets/reps/weight target. Reps always show the exercise's starting reps for every type (standard/giant/pause) — giant-set's per-week reps escalation is intentionally not reflected here, only in the live Train recommendations. Drop-set exercises have no reps target to show here at all (§12).
 
 ### Body part volume table
-- `computeBodyPartVolumeRange(macro)` — for every exercise across every session in the cycle, resolves its body part by looking name up against `getLibrary()` (built-in + custom; nothing is stored on the exercise itself), then computes two whole-cycle volume totals per body part: an all-weight-progression scenario and an all-reps-progression scenario (reusing `getWeekSets`/`getWeekWeight`/`getWeekReps`/`getGiantSetProgression`/`parseRepsForVolume` — the same building blocks the progression preview and Train page use). Min/max per body part is the smaller/larger of those two totals; pause sets collapse to the same value in both scenarios since they have no reps-progression path. Drop sets contribute 0 (no plan-time rep target to project from).
+- `computeBodyPartVolumeRange(macro)` — for every exercise across every session in the cycle, resolves its body part by looking name up against `getLibrary()` (built-in + custom; nothing is stored on the exercise itself), then computes two whole-cycle volume totals per body part: an all-weight-progression scenario and an all-reps-progression scenario (reusing `getWeekSets`/`getWeekWeight`/`getWeekReps`/`getGiantSetProgression`/`parseRepsForVolume` — the same building blocks the progression preview and Train page use). Min/max per body part is the smaller/larger of those two totals; pause sets collapse to the same value in both scenarios since they have no reps-progression path. As of **v6.09**, drop sets contribute their main set's projected volume like any other exercise (`ex.reps` now holds a real target — see §12 Drop Sets); the drop portion itself still contributes 0, since it never has a plan-time target to project from.
 - `renderBodyPartVolumeTable(macro)` — renders the result sorted by minimum volume descending. Returns an empty string (renders nothing) if the cycle has no exercises yet.
 
 ---
@@ -688,6 +690,8 @@ Rendered by `renderTrain()` → `renderTrainHero(macro)` (session summary + volu
 ### Progression data
 `exProgData(ex)` is the single source of truth per exercise for a given week — computed once per exercise per render and either used directly (solo exercises) or mapped across `members.map(m => exProgData(m))` (supersets, as `memberData`). It returns sets, chosen `progType`, previous week's actual weight/reps, `recommendedWeight`/`recommendedReps`, `weightJump`, progression-inference fields (below), deload flags (`isDeloadSession`/`isPostDeloadSession`), and — for drop sets only — the parallel `dropWeightPlaceholder`/`dropRepsPlaceholder`/`recommendedDropWeight`/`recommendedDropReps`/`prevActualDropWeight`/`prevActualDropReps` fields. Solo-exercise rendering destructures the fields it needs by name; superset rendering reads them off `memberData[i]` directly — this is why a field can be genuinely used by one path and dead in the other if not double-checked.
 
+**Per-set suggestions (v6.09):** the scalar `weightPlaceholder`/`repsPlaceholder`/`dropWeightPlaceholder`/`dropRepsPlaceholder` fields above are still returned unchanged (set-1-based, used everywhere the *collapsed* card or the exercise-level progression summary reads a single figure). Alongside them, `exProgData()` also returns **`weightPlaceholders`/`repsPlaceholders`/`dropWeightPlaceholders`/`dropRepsPlaceholders`** — arrays, one entry per set index for the *current* week, each computed from **that same set number** in the previous mesocycle/day rather than always deriving from set 1. This is what lets a suggestion correctly reflect a genuine per-set adjustment — e.g. completing sets 1–3 at a heavier weight but dropping set 4 down because it wasn't sustainable — instead of every set inheriting whatever happened on set 1. If the current week has more sets than the previous week (a set added mid-plan), the extra set(s) simply inherit the previous week's *final* set's suggestion. These arrays are what the expanded card's per-set inputs (and every fill/quick-fill/quick-fill-complete button) actually read from; only the collapsed card and the "This week — choose progression" summary still use the scalar, set-1-based fields.
+
 ### "Last week" progression badge inference
 Shown as "Last wk: ↑ weight" / "↑ reps" / "no progression" in the exercise header (solo) or next to sets/reps in the collapsed preview row (superset members). If a progression path was explicitly chosen last week (via the Weight/Reps toggle), that's used directly. Otherwise it's inferred: compare last week's actual weight against the week before that (or the exercise's starting weight, if last week was week 1) — if it increased, "↑ weight"; else compare reps the same way — if those increased, "↑ reps"; if neither increased, "no progression". This inference exists specifically because filling sets via "Fill Suggested" and just checking them done, without ever tapping the Weight/Reps toggle, is a common real workflow that shouldn't leave the badge silently blank. Suppressed during deload and post-deload sessions (below), where a "deload" badge takes its place instead.
 
@@ -695,8 +699,9 @@ Shown as "Last wk: ↑ weight" / "↑ reps" / "no progression" in the exercise h
 - Solo: `.set-row` is a CSS grid (`24px 1fr 60px 60px 40px` — set number, last-week actual for that specific set index, weight input, reps input, done checkbox). The "last week" column shows what was actually logged for that set number last week, not a repeat of the current suggestion (which is already visible via the input's placeholder). Drop-set exercises use a different layout entirely — see Drop Sets below.
 - Superset: `.ss-set-ex-row` is `display: flex`, not a grid — member name, weight input, ×, reps input, done checkbox. The done checkbox shares `.check-done`/`.check-empty` styling with the solo grid rows, which includes `margin: 0 auto` (meant to centre it within a grid cell). In this flex context that competes with any `margin-left: auto` placed elsewhere in the row for the remaining free space — the first input has `margin-left:auto` to right-pack the row, and the checkbox's shared margin is overridden inline (`margin:0`) specifically in this template so the two auto-margins don't fight over the same free space. Drop sets can't be superset members, so this layout never needs the drop-set two-row treatment.
 - `logSet(logKey, field, value)` writes a single field (`weight`/`reps`/`dropWeight`/`dropReps`); `toggleSetDone(logKey)` flips `done` with a brief red-border flash if weight/reps (and, for drop sets, dropWeight/dropReps) are missing. Resolves the exercise object itself from the log key — by stripping the known `${macroId}_${week}_${day}_` prefix and the trailing `_${setIndex}` suffix — rather than requiring callers to pass type info, so it can determine `isDropSet` and call `recordExerciseHistory()` internally.
-- `fillSuggested(macroId, week, day, exId, sets, weightPlaceholder, repsPlaceholder)` — fills every set's inputs with the suggested values in one tap, with an amber flash animation on the button and inputs. `fillSuggestedDropset(macroId, week, day, exId, sets, weight, dropWeight)` is the drop-set equivalent — only fills weight and drop weight, never reps, since those are only ever discovered live.
-- `quickFillComplete(...)` / `quickFillCompleteSuperset(...)` — the one-tap fill-and-complete button on the collapsed card header. Not shown at all for drop-set exercises (§ Drop Sets) — reps-to-failure can't be sanely auto-filled. Both call `recordExerciseHistory()` after marking sets done, same as `toggleSetDone()`, by resolving the exercise directly from the already-known `exId` parameter (simpler than `toggleSetDone`'s key-parsing, since `exId` is passed in explicitly here).
+- `fillSuggested(macroId, week, day, exId, sets, weightList, repsList)` — fills every set's inputs with **that set's own** suggested values in one tap (v6.09; previously a single flat value applied to every set), with an amber flash animation on the button and inputs. `weightList`/`repsList` are `'|'`-delimited strings built from `exProgData()`'s per-set arrays (see above) — plain scalars can't cross an inline `onclick=""` HTML attribute as an array, so they're joined with `.join('|')` at render time and split back apart with `.split('|')` inside the function; if a set index is missing from the list (shouldn't normally happen) it falls back to the list's last entry. `fillSuggestedDropset(macroId, week, day, exId, sets, weightList, repsList, dropWeightList)` is the drop-set equivalent — as of v6.09 it fills the main set's reps too (previously never did, since drop sets had no rep target at all), but still never fills drop reps, since the drop is always taken to failure and only ever discovered live.
+- `quickFillComplete(...)` / `quickFillCompleteSuperset(...)` — the one-tap fill-and-complete button on the collapsed card header. Both take the same `'|'`-delimited per-set lists as `fillSuggested()` (v6.09) rather than a flat value. Both call `recordExerciseHistory()` after marking sets done, same as `toggleSetDone()`, by resolving the exercise directly from the already-known `exId` parameter (simpler than `toggleSetDone`'s key-parsing, since `exId` is passed in explicitly here).
+- **`quickFillCompleteDropset(...)` (new in v6.10)** — the drop-set equivalent of `quickFillComplete()`, shown on the collapsed card for drop-set exercises (previously no such shortcut existed for drop sets at all — see Drop Sets below for why that changed). Unlike `fillSuggestedDropset()`, this one fills **every** field, including drop reps, and marks every set done — deliberately not a strict completeness check, just the same "log what was suggested" shortcut every other exercise type gets. You can still correct the actual drop reps afterward via the expanded card if what you hit differs from the suggestion.
 
 ### Session volume
 `renderTrainHero()` calls the shared `getSessionVolume(macro, week, dayKey)` rather than computing volume inline — this matters because that shared function correctly doubles weight for `trackingMode === 'perSide'` exercises, and an earlier inline duplicate here did not. Drop-set exercises contribute both halves (main weight × reps, plus drop weight × drop reps).
@@ -720,14 +725,14 @@ A deload marks a whole **calendar-week unit** — for macros using microcycles, 
 - **`recordExerciseHistory()` skips deload sessions entirely** (checked internally via `isDeloadUnit`) — a 60%-reduced week must never become the reference for "last logged" or the next plan's defaults.
 
 ### Drop Sets
-A drop-set exercise (`ex.type === 'dropset'`) has no plan-time rep target at all (`ex.reps` is forced to `''` at save time) — only the main set's starting weight is planned, exactly like other types. Everything else (main reps, drop weight, drop reps) is discovered live, logged to failure each week starting in week 1.
+A drop-set exercise (`ex.type === 'dropset'`) plans its **main set** exactly like any other type — starting weight and, as of **v6.09**, a real reps target (`ex.reps`, prior to v6.09 always forced to `''`). Only the **drop portion** has no plan-time target at all; its weight and reps are both discovered live, logged to failure each week starting in week 1.
 
 - **Data model**: each set's `trainLogs` entry carries `weight`/`reps` (main) plus `dropWeight`/`dropReps` (drop) on the *same* log object — no separate set index for the drop portion.
-- **Expanded card layout**: one block per set, containing two `.set-row`s — a "Main" row and a "Drop" row — sharing one done-checkbox on the Main row (`toggleSetDone` requires all four fields filled before allowing completion). This replaces the single-row-per-set grid every other type uses.
-- **Progression**: follows the same weight/reps progression choice as every other type, applied identically to both the main and drop pairs (same `weightJump`, same +1-rep step) — computed via the parallel `recommendedDropWeight`/`recommendedDropReps` fields in `exProgData()`. Neither has a plan-time fallback target (unlike main weight, which falls back to `ex.startWeight`) — blank means "nothing to suggest yet, log it live."
-- **Collapsed card**: shows "to failure + drop" instead of blank reps until there's something real to show; a red `badge-red` "drop set" badge; no quick-fill-complete shortcut (§ Set rows above).
+- **Expanded card layout**: one block per set, containing two `.set-row`s — a "Main" row and a "Drop" row — sharing one done-checkbox on the Main row (`toggleSetDone` requires all four fields filled before allowing completion). This replaces the single-row-per-set grid every other type uses. The Main row's reps input now shows a genuine per-set suggestion (v6.09) rather than always falling back to a bare "failure" placeholder; the Drop row's reps input still always shows "failure" as its placeholder, since that field never has a suggestion.
+- **Progression**: follows the same weight/reps progression choice as every other type, applied identically to the main pair and (once there's prior drop data logged) the drop pair — computed via the parallel `recommendedDropWeight`/`recommendedDropReps` fields in `exProgData()`, and the per-set `dropWeightPlaceholders`/`dropRepsPlaceholders` arrays (v6.09, see Progression data above). Drop weight/reps have no plan-time fallback target (unlike main weight/reps, which fall back to `ex.startWeight`/`ex.reps`) — blank means "nothing to suggest yet, log it live."
+- **Collapsed card**: shows the real reps target (or "to failure + drop" if nothing's been logged yet at all) instead of always being blank; a red `badge-red` "drop set" badge. As of **v6.10**, a `quickFillCompleteDropset()` shortcut is shown here too (previously no quick-fill-complete existed for drop sets at all, since reps-to-failure couldn't be sanely auto-filled when there was no main-set reps target to suggest in the first place — now that there is one, the shortcut fills weight/reps/drop-weight/drop-reps and marks every set done, same as every other exercise type's shortcut).
 - **Superset restriction**: drop sets can't be superset members. The type option is disabled in the modal (`setDropsetOptionEnabled(false)`) when adding into or editing within a superset, `saveExercise()` has a belt-and-braces fallback to `standard` if one somehow gets submitted anyway, and `openLinkModal()` excludes drop-set exercises from the selectable list entirely (and refuses to open at all if the origin exercise is itself a drop set).
-- **Volume**: `getSessionVolume()` adds the drop portion (drop weight × drop reps) alongside the main portion for drop-set exercises.
+- **Volume**: `getSessionVolume()` adds the drop portion (drop weight × drop reps) alongside the main portion for drop-set exercises. As a side effect of the v6.09 reps-target change, the Plan page's *theoretical* volume projections (Week-1 session summary, body-part volume table) now also include a drop-set exercise's main-set contribution — previously both relied on `ex.reps`, which was always `''` for drop sets, so they contributed nothing at all (see §25, since this resolves a previously-listed limitation). The drop portion still contributes nothing to these theoretical projections, correctly, since it never has a plan-time target to project from.
 
 ### Exercise History
 `state.exerciseHistory` and `state.exerciseTrackingMode` (§3) snapshot the most recent real performance per exercise name (+ set type, for history), refreshed by `recordExerciseHistory(macro, week, dayKey, ex)` every time a set is completed via `toggleSetDone()` or a quick-fill-complete button — never for deload sessions. This replaced an earlier, more expensive approach (searching the single "last completed macrocycle" by end date each time the Add Exercise modal opened) — the running-snapshot approach is O(1) to read, always reflects the true most recent log regardless of which macro it came from, and doesn't require special-casing macros with no logged history yet.
@@ -748,6 +753,30 @@ Rendered by `renderBody()`.
 - `openBodyProfile()` / `saveBodyProfile()` — gender, height (cm or ft/in via `switchHeightUnit`), birthday, stored in `state.profile`. Height unit resets to ft/in on every open regardless of last-used unit (a known minor friction point, not a bug — confirmed as acceptable).
 - `calcAge()`, `getActivityMultiplier()`, `calcMifflinBMR()`, `calcDynamicTDEE()` — BMR/TDEE calculation. Body weight is stored and displayed in **lbs** throughout (confirmed intentional — training weight elsewhere in the app is in kg; there is deliberately no unit toggle for body weight). `getActivityMultiplier()` averages steps across the person's *entire* logged history with no recency window — also intentional, since this multiplier only feeds the BMR/TDEE estimate and more historical data makes it more accurate, not less.
 - `openEditBodyLog(idx)` / `saveInlineBodyLog()` / `saveBodyLog()` / `deleteBodyLog(date)` — body weight + steps log CRUD. The "at goal" / "no meaningful change" tolerance is standardised at ≤0.05 lbs across both the weekly-change and left-to-go hero callouts.
+
+### Recent Entries — month grouping (new in v6.11)
+
+Every log entry with **both** weight and steps filled in is eligible to collapse into a monthly group; anything missing either field always renders as a standalone row, regardless of which month it falls in. This isn't month-scoped (the current calendar month groups exactly the same as any past month) — the only thing that keeps an entry out of a group is being incomplete.
+
+```
+for each log, newest first:
+  monthKey = date.slice(0, 7)                 // 'YYYY-MM'
+  if weight && steps:
+    add to monthGroups[monthKey]
+    if this is the first time monthKey was seen this render:
+      emit a collapsed group header here
+  else:
+    emit this log as a standalone row here
+```
+
+Because `logs` is already sorted newest-first, the first (i.e. most recent) log encountered for a given month is always where that month's group header gets anchored — this is what makes groups come out sorted newest-month-first with zero extra sort step, and why an incomplete entry from a month that's otherwise fully grouped still shows up in its correct chronological position rather than getting shunted to the top or bottom of the list.
+
+**Why incomplete entries are excluded, concretely:** if you log weight from a scale immediately but your phone's steps take until the next day to sync, that entry is genuinely incomplete for a day or two — grouping it anyway would bury it inside a collapsed group you'd have to think to expand, right when you're most likely to want to see it (to finish filling it in). Once you add the steps later — no explicit action needed, it's just a normal edit via `saveBodyLog()` — the next render naturally reclassifies it into whichever month group it belongs to.
+
+- `bodyExpandedMonths` (plain module-level object, not persisted — same pattern as `goalsExpandedMacros`, §15) — keyed by `'YYYY-MM'`, tracks which group(s) are currently expanded.
+- `toggleBodyMonth(monthKey)` — flips a group's expanded state and re-renders.
+- Each collapsed group header shows entry count and average weight for that month; expanding it renders the exact same row template (tap to edit, swipe to delete) used for standalone rows, just nested inside the group's card.
+- The previous hard cap of showing only the most recent 30 entries was removed — grouping keeps the list compact on its own without needing to truncate, and truncating would have arbitrarily cut a month's entries mid-group.
 
 ---
 
@@ -805,6 +834,24 @@ Rendered by `renderSettings()`.
 - `clearAllData()` — resets macrocycles/exercises/logs/goals/nutrition/foodLibrary/recipes/supersets/profile to empty, but **preserves** `theme`/`mode` (carried forward from the pre-clear state and re-applied to `<body>` immediately) since the confirm dialog only ever promises to delete tracked data, not appearance preferences. The reset object's shape is kept in exact sync with everything `load()`'s defensive defaults expect — an earlier version of this function omitted `recipes`/`supersets`/`profile` entirely, which left `state.supersets` undefined and threw on the very next superset action, since several reads of it aren't null-guarded (e.g. `state.supersets[ssId]`).
 - `exportLibrary()` / `importExerciseLibrary(file)` — exercise library backup/restore (merge-by-name)
 
+### Layout (redesigned in v6.10)
+
+The page is organised into: About, Appearance (unchanged), **Libraries** (new consolidated section, below), Backup (now just Export JSON), and **Danger Zone** (now holds both Restore-from-backup and Clear-all-data — previously Restore-from-backup sat up in Backup, separate from Clear-all-data at the bottom, even though both are destructive).
+
+**Two-tier button hierarchy (`.lib-primary-btn` / `.lib-secondary-btn` / `.accent-tint`):** every library card now follows the same shape — one or two bold "primary" tiles for the most-used action(s) at the top, then a quieter row of small "secondary" utility buttons underneath for less-used actions (export/import). Exercise library gets a single full-width primary tile (View / edit library); Food library gets two side by side (View / edit, and My recipes — the latter styled with the `.accent-tint` modifier since it's the single most-used action in that card, mirroring how the app tints other high-frequency UI elements with the active theme colour via `color-mix(in srgb, var(--accent) N%, ...)` rather than a hardcoded hex, so it stays correct under any of the nine themes). This replaces the previous flat, undifferentiated row-of-equal-weight-buttons layout.
+
+**Danger Zone styling is now differentiated by actual severity**, not a blanket "everything red" treatment: "Clear all data" is irreversible, so its button (`.btn-danger-fill`) gets a **solid** red fill with white text — the same visual weight as the accent-filled Export JSON button above it, since it's the app's other truly one-way action. "Restore from backup" is destructive but recoverable (you can always re-import your last export), so its button uses the app's normal neutral button border with just red **text** — no red border — so the two don't visually compete for "most alarming button on the page."
+
+### Exercise Library Editor (new in v6.10)
+
+The first in-app view/edit screen for the exercise library — previously export/import were the only ways to touch it (§19). Deliberately mirrors the Food Library Editor pattern (§14) almost exactly:
+
+- `openExerciseLibraryEditor()` → `renderExerciseLibEditor()` — searchable list (`exercise-lib-search`), built from `getLibrary()` (built-in `DEFAULT_LIBRARY` + `state.customLibrary`), sorted by body part then name same as the picker.
+- **Built-in entries are read-only** — shown with a `default` badge instead of edit/delete buttons, and tapping the row does nothing (`openExerciseLibEntry()` no-ops if the resolved item isn't from `state.customLibrary`). This matches the existing rule already enforced by `importExerciseLibrary()` — default exercises can never be overwritten, this screen just makes that visible rather than only enforcing it silently on import.
+- **Custom entries are fully editable** — `openExerciseLibEntry(idx)` → `saveExerciseLibEntry()` (matched by original name, since `state.customLibrary` entries have no id of their own — same lookup style as `saveCustomExercise()`) / `deleteExerciseLibEntry(idx)` (confirm-gated, filters by name from `state.customLibrary`).
+- **Renaming or deleting only ever affects the picker going forward.** Exercises already added to a plan keep whatever name they were given at the time — plan exercises store their own `name` string, not a reference to the library entry — exactly like editing a food library entry never touches past nutrition logs. `state.exerciseHistory` (§12) is similarly untouched: it's keyed by name independently and isn't cleaned up on rename, so a renamed exercise's history simply becomes unreachable under the new name (matches existing behaviour for `state.exerciseHistory` generally — nothing in the codebase migrates history keys on rename today).
+- Uses the same searchable-list-with-keyboard treatment as the Food Library Editor (`exercise-lib-list-wrap`, `fitListToKeyboard()` — see §9).
+
 ---
 
 ## 17. Module: Rest Timer
@@ -846,7 +893,9 @@ The Nutrition "swipe-to-copy from yesterday" strip (§14, `initYesterdaySwipes`)
 
 ## 19. Exercise Library
 
-The exercise library (`getLibrary()`) is a merged set of built-in exercises (`DEFAULT_LIBRARY`, hardcoded, ~26 entries covering Biceps/Calves/Chest/Legs/Back/Shoulders/Triceps) and user-added custom exercises (`state.customLibrary`). Every custom exercise requires a body part at creation time (`saveCustomExercise()`, via the `modal-custom-exercise` sheet) — there is no way to add one without it. Built-in exercises cannot be deleted via the UI but can be exported. Custom exercises can be overwritten on import only if they have the same name.
+The exercise library (`getLibrary()`) is a merged set of built-in exercises (`DEFAULT_LIBRARY`, hardcoded, ~26 entries covering Biceps/Calves/Chest/Legs/Back/Shoulders/Triceps) and user-added custom exercises (`state.customLibrary`). Every custom exercise requires a body part at creation time (`saveCustomExercise()`, via the `modal-custom-exercise` sheet) — there is no way to add one without it. Built-in exercises cannot be deleted or edited via the UI but can be exported. Custom exercises can be overwritten on import only if they have the same name.
+
+**In-app viewing/editing (new in v6.10):** previously export/import were the only way to touch the library outside the Add Exercise picker. Settings → Libraries → Exercise library → View / edit library now opens a full in-app editor — see §16 for the UI details and the read-only-defaults / custom-only-editing rule.
 
 Body part is never stored on an individual plan exercise (`state.exercises[...]` entries) — it's resolved on demand by looking the exercise's `name` up against `getLibrary()`. This is what powers the Plan page's body-part volume table (§11) without needing any data migration for exercises that were added before that feature existed.
 
@@ -865,8 +914,9 @@ function getWeekWeight(ex, week, progType, goalType, weightIncrement) {
 
 function getWeekReps(ex, week, progType) {
   // Returns ex.reps unless progType === 'reps'. +1 rep/week when active,
-  // handling both single numbers and "8-10"-style ranges. Naturally
-  // returns '' for drop-set exercises, since ex.reps is always '' for them.
+  // handling both single numbers and "8-10"-style ranges. As of v6.09,
+  // this works for drop sets too — ex.reps holds the main set's real
+  // target now, rather than always being '' as it was before v6.09.
 }
 
 function getGiantSetProgression(ex, week) {
@@ -889,7 +939,7 @@ function getGiantSetProgression(ex, week) {
 - **Standard** — weight or rep progression, chosen per exercise per week
 - **Giant Set** (was "Myorep Giant Set") — weight or rep progression (giant-set reps add +10/week when reps is chosen)
 - **Pause Set** (was "Myorep Matching") — fixed reps, weight progression only
-- **Drop Set** (new in v6.05) — no plan-time rep target at all; main weight is planned like Standard, everything else (main reps, drop weight, drop reps) is logged to failure live each week. Progression, once there's a prior week to compare against, applies identically to both the main and drop pairs. See §12 for the full data model and UI.
+- **Drop Set** (new in v6.05; main-set reps target added in v6.09) — main set is planned exactly like Standard (starting weight, and since v6.09 a reps target too); only the drop portion (drop weight, drop reps) is discovered live each week starting in week 1. Progression, once there's a prior week to compare against, applies identically to both the main and drop pairs — and, since v6.09, suggestions are computed **per set** rather than uniformly from set 1 (see §12 Progression data). See §12 for the full data model and UI.
 
 This same weight-jump formula is shared by the Plan page's progression preview and the Train page's live recommendations, so both always agree.
 
@@ -990,15 +1040,16 @@ Not exhaustive — covers the functions most useful to know when working on the 
 ### Training
 | Function | Description |
 |---|---|
-| `exProgData(ex)` | Full progression data object for one exercise in the current week, including deload overrides and (for drop sets) the parallel drop-weight/drop-reps fields |
+| `exProgData(ex)` | Full progression data object for one exercise in the current week — scalar set-1-based fields plus (v6.09) per-set `weightPlaceholders`/`repsPlaceholders`/`dropWeightPlaceholders`/`dropRepsPlaceholders` arrays, deload overrides, and (for drop sets) the parallel drop-weight/drop-reps fields |
 | `getWeekWeight(ex, week, progType, goalType, weightIncrement)` | Theoretical target weight for a given week |
-| `getWeekReps(ex, week, progType)` | Theoretical target reps for a given week |
+| `getWeekReps(ex, week, progType)` | Theoretical target reps for a given week — works for drop sets too since v6.09 (`ex.reps` now holds a real main-set target) |
 | `getGiantSetProgression(ex, week)` | Giant-set/pause-set reps target (renamed from `getMyorepProgression` in v6.06) |
 | `logSet(logKey, field, value)` | Updates a single set field (`weight`/`reps`/`dropWeight`/`dropReps`) in `state.trainLogs` |
 | `toggleSetDone(logKey)` | Flips a set's done state; resolves the exercise itself from the key to determine drop-set validation and record history; red-flashes any missing required field |
-| `fillSuggested(macroId, week, day, exId, sets, weightPlaceholder, repsPlaceholder)` | Fills all set inputs with suggested values |
-| `fillSuggestedDropset(macroId, week, day, exId, sets, weight, dropWeight)` | Drop-set equivalent — fills weight and drop weight only, never reps |
-| `quickFillComplete(...)` / `quickFillCompleteSuperset(...)` | One-tap fill-and-complete from the collapsed card header; not shown for drop sets |
+| `fillSuggested(macroId, week, day, exId, sets, weightList, repsList)` | Fills every set with its own per-set suggestion (v6.09; `weightList`/`repsList` are `'|'`-delimited, previously a single flat value for all sets) |
+| `fillSuggestedDropset(macroId, week, day, exId, sets, weightList, repsList, dropWeightList)` | Drop-set equivalent — as of v6.09 also fills main reps (previously never did); still never fills drop reps |
+| `quickFillComplete(...)` / `quickFillCompleteSuperset(...)` | One-tap fill-and-complete from the collapsed card header; per-set lists since v6.09 |
+| `quickFillCompleteDropset(...)` | Drop-set equivalent (new in v6.10) — fills every field including drop reps and marks every set done, unlike `fillSuggestedDropset()` |
 | `getProgKey(macroId, week, day, exId)` | Key format for a progression-choice (weight vs reps) log entry |
 | `selectProgType(...)` | Records which progression path was chosen for an exercise this week |
 | `roundToIncrement(weight, increment)` | Rounds to the nearest multiple of increment — used for deload weight rounding |
@@ -1009,8 +1060,16 @@ Not exhaustive — covers the functions most useful to know when working on the 
 | `getLastNonDeloadUnit(macro, week, dayKey)` | Walks back via `getPrevTrackUnit`, skipping deloads, to find the last genuine reference values |
 | `isFirstUnitAfterDeload(macro, week, dayKey)` | Union of same-track and physical-calendar adjacency — true for the session(s) immediately following a deload |
 | `getWeeksSinceLastDeload(macro, week, dayKey)` | Real elapsed calendar weeks since the last deload, for the hero callout |
-| `recordExerciseHistory(macro, week, dayKey, ex)` | Snapshots weight/reps/sets/tracking-mode into `state.exerciseHistory`/`state.exerciseTrackingMode`; no-ops for deload sessions |
+| `recordExerciseHistory(macro, week, dayKey, ex)` | Snapshots weight/reps/sets/tracking-mode into `state.exerciseHistory`/`state.exerciseTrackingMode`; no-ops for deload sessions; always reads set index 0 regardless of which set was actually interacted with |
 | `formatLastLoggedLine(type, entry)` | Formats one history entry into the modal's display line |
+
+### Body
+| Function | Description |
+|---|---|
+| `openBodyProfile()` / `saveBodyProfile()` | Gender/height/birthday profile, used for BMR/TDEE |
+| `openEditBodyLog(idx)` / `saveInlineBodyLog()` / `saveBodyLog()` / `deleteBodyLog(date)` | Body weight + steps log CRUD |
+| `calcAge()` / `getActivityMultiplier()` / `calcMifflinBMR()` / `calcDynamicTDEE()` | BMR/TDEE calculation chain |
+| `toggleBodyMonth(monthKey)` | Expands/collapses a month group in Recent Entries (new in v6.11) |
 
 ### Nutrition
 | Function | Description |
@@ -1072,6 +1131,8 @@ Not exhaustive — covers the functions most useful to know when working on the 
 | `clearAllData()` | Resets tracked data to empty defaults; preserves theme/mode |
 | `exportLibrary()` | Downloads merged exercise library |
 | `importExerciseLibrary(file)` | Merges exercise library from JSON |
+| `openExerciseLibraryEditor()` / `renderExerciseLibEditor()` | Browsable exercise library modal (new in v6.10) — mirrors the food library editor |
+| `openExerciseLibEntry(idx)` / `saveExerciseLibEntry()` / `deleteExerciseLibEntry(idx)` | Custom exercise library entry edit CRUD; no-ops for built-in (default) entries |
 
 ### Rest Timer
 | Function | Description |
@@ -1220,6 +1281,26 @@ else:
 
 Deliberately not a blanket default to "weight" — that produced false positives for sessions where nothing had actually changed.
 
+### Per-Set Progression Suggestions (Train, v6.09)
+
+Prior to v6.09, every set's suggested weight/reps came from a single exercise-wide figure derived from set 1 — so if you had to drop the weight partway through a session (set 4 couldn't sustain the same load as sets 1-3), that adjustment was invisible to next mesocycle's suggestions. As of v6.09, each set's suggestion is computed independently, from that same set number the previous time this exercise was trained:
+
+```
+for each set index s in the current week (0-based):
+  srcSet = (s < prevWeekSetCount) ? prevWeek.sets[s] : prevWeek.sets[last]
+  // ^ a newly-added set (no matching index last time) inherits the
+  //   previous week's FINAL set's suggestion, rather than being blank
+
+  if progType === 'weight':
+    suggestion[s].weight = srcSet.weight + weightJump
+    suggestion[s].reps   = srcSet.reps            // unchanged
+  else: // progType === 'reps'
+    suggestion[s].weight = srcSet.weight          // unchanged
+    suggestion[s].reps   = srcSet.reps + 1 (or +10 for giant sets)
+```
+
+Applied identically to `weightPlaceholders`/`repsPlaceholders` (main) and `dropWeightPlaceholders`/`dropRepsPlaceholders` (drop-set only) — see §12 Progression data. Deload and post-deload sessions are unaffected — they still use one flat reference for the whole exercise, since there's no per-set progression decision being made on those weeks anyway.
+
 ---
 
 ## 25. Known Limitations & Future Considerations
@@ -1237,7 +1318,7 @@ Deliberately not a blanket default to "weight" — that produced false positives
 | **Undo** | No undo mechanism. Deletes are confirmed but irreversible. |
 | **Body weight units** | Body weight is lbs-only (training weight elsewhere is kg-only); no unit toggle exists for either, unlike height which has one. Confirmed intentional, not planned to change. |
 | **Legacy nutrition log** | `state.nutritionLogs` (per-day summary format) predates `nutritionMeals`/`nutritionQuickLog` and isn't the primary source of truth — but it's still actively kept in sync by `syncNutrLegacyLog()` after every log change (add, edit, delete), for whichever reads still go through it. An earlier version of this document incorrectly described it as read-only/dead; it was corrected after adding inline code comments surfaced the live call sites. |
-| **Drop-set theoretical volume** | Drop-set exercises contribute 0 to the Plan page's *theoretical* (pre-logged) volume projections — the Week-1 session summary and the body-part volume table both rely on `ex.reps`, which is always `''` for drop sets since there's genuinely no plan-time rep target to project from. Real logged volume (`getSessionVolume()`, used everywhere in Train/Progress) is unaffected and correctly includes both the main and drop portions. A deliberate trade-off, not a bug — inventing a placeholder rep count for the projection would be a fabricated number. |
+| **Drop-set theoretical volume (partially resolved in v6.09)** | The Plan page's *theoretical* (pre-logged) volume projections — the Week-1 session summary and the body-part volume table — now include a drop-set exercise's main-set contribution, since `ex.reps` holds a real target for it as of v6.09 (previously always `''`, contributing 0). The **drop portion** still contributes 0 to these projections, correctly — it never has a plan-time target, only ever discovered live, so there's nothing to project. Real logged volume (`getSessionVolume()`, used everywhere in Train/Progress) was never affected either way and correctly includes both portions. |
 
 ### Resolved (previously listed as open questions)
 

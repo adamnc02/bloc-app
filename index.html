@@ -518,6 +518,35 @@ h3 {
 .btn-block { width: 100%; justify-content: center; }
 .btn-ghost { border-color: transparent; color: var(--text2); }
 .btn-danger { border-color: var(--red); color: var(--red); }
+.btn-danger-fill { background: var(--red); border-color: var(--red); color: #fff; font-weight: 600; }
+.btn-danger-fill:active { background: #c53d3c; }
+
+/* ── SETTINGS: LIBRARY CARD BUTTONS ─────────
+   Two-tier button hierarchy used by the Exercise/Food library cards —
+   a bolder "primary" tile for the most-used actions (view/edit, recipes)
+   and a quieter "secondary" strip underneath for less-used utility
+   actions (export/import). See renderSettings() callers in the HTML. */
+.lib-primary-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 13px 6px; border-radius: var(--r-sm);
+  border: 1px solid var(--border2); background: var(--surface2);
+  color: var(--text); font-size: 13px; font-weight: 600;
+  font-family: var(--font-display); cursor: pointer;
+}
+.lib-primary-btn:active { transform: scale(0.98); }
+.lib-primary-btn.accent-tint {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface2));
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border2));
+  color: var(--accent);
+}
+.lib-secondary-btn {
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  padding: 7px; border-radius: var(--r-sm);
+  border: 1px solid var(--border); background: transparent;
+  color: var(--text2); font-size: 11px; font-family: var(--font-display);
+  cursor: pointer;
+}
+.lib-secondary-btn:active { transform: scale(0.97); }
 
 /* ── INPUTS ──────────────────────────────── */
 input, select, textarea {
@@ -1435,6 +1464,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     if (typeof fitListToKeyboard === 'function') {
       fitListToKeyboard('nutr-add-list-wrap');
       fitListToKeyboard('food-lib-list-wrap');
+      fitListToKeyboard('exercise-lib-list-wrap');
     }
   }
 
@@ -1572,7 +1602,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v6.08</span>
+          <span class="badge badge-green">v6.11</span>
         </div>
       </div>
 
@@ -1592,6 +1622,68 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
         <div id="theme-swatch-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;"></div>
       </div>
 
+      <!-- ── Libraries ──────────────────────────────────────────────
+           v6.10: consolidated exercise + food library management into
+           one section with a consistent two-tier button layout — a
+           bolder primary tile (.lib-primary-btn) for the most-used
+           action(s) up top, and a quieter row of secondary utility
+           buttons (.lib-secondary-btn) for export/import underneath.
+           Exercise library gains its first in-app view/edit screen here
+           (openExerciseLibraryEditor), mirroring the existing food
+           library editor. All prior export/import functionality is
+           unchanged — only the layout and the new exercise editor are new. -->
+      <div class="section-title">Libraries</div>
+      <div class="card" style="margin-bottom:10px;">
+        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:2px;">Exercise library</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Every exercise you've used across all plans.</div>
+        <button class="lib-primary-btn" style="width:100%;margin-bottom:8px;" onclick="openExerciseLibraryEditor()">
+          <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          View / edit library
+        </button>
+        <div style="display:flex;gap:6px;">
+          <button class="lib-secondary-btn" style="flex:1;" onclick="exportLibrary()">
+            <svg viewBox="0 0 24 24" width="14" height="14" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export
+          </button>
+          <label class="lib-secondary-btn" style="flex:1;cursor:pointer;">
+            <svg viewBox="0 0 24 24" width="14" height="14" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Import
+            <input type="file" accept=".json,application/json" style="display:none;" onchange="importExerciseLibrary(this.files[0]);this.value='';">
+          </label>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:10px;">
+        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:2px;">Food library</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Scanned and manual foods, plus your saved recipes.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <button class="lib-primary-btn" onclick="openFoodLibraryEditor()">
+            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            View / edit
+          </button>
+          <button class="lib-primary-btn accent-tint" onclick="openRecipeList()">
+            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            My recipes
+          </button>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="lib-secondary-btn" style="flex:1;" onclick="exportFoodLibrary()">
+            <svg viewBox="0 0 24 24" width="14" height="14" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export
+          </button>
+          <label class="lib-secondary-btn" style="flex:1;cursor:pointer;">
+            <svg viewBox="0 0 24 24" width="14" height="14" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Import
+            <input type="file" accept=".json,application/json" style="display:none;" onchange="importFoodLibrary(this.files[0]);this.value='';">
+          </label>
+          <label class="lib-secondary-btn" style="flex:1;cursor:pointer;">
+            <svg viewBox="0 0 24 24" width="14" height="14" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Import recipe
+            <input type="file" accept=".json,application/json" style="display:none;" onchange="importSharedFoodItem(this.files[0]);this.value='';">
+          </label>
+        </div>
+      </div>
+
       <div class="section-title">Backup</div>
       <div class="card" style="margin-bottom:10px;">
         <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Export data</div>
@@ -1601,73 +1693,37 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
           Export JSON backup
         </button>
       </div>
-      <div class="card" style="margin-bottom:10px;">
-        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Exercise library</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Export or import your exercise library. Import merges by name — existing exercises are updated, new ones are added.</div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-block" style="flex:1;" onclick="exportLibrary()">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Export
-          </button>
-          <label class="btn btn-block" style="flex:1;cursor:pointer;justify-content:center;">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            Import
-            <input type="file" accept=".json,application/json" style="display:none;" onchange="importExerciseLibrary(this.files[0]);this.value='';">
-          </label>
-        </div>
-      </div>
-
-      <div class="card" style="margin-bottom:10px;">
-        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Food library</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Export or import your scanned and manually entered foods. Import merges by name — existing entries are updated, new ones are added.</div>
-        <div style="display:flex;gap:8px;margin-bottom:8px;">
-          <button class="btn btn-block" style="flex:1;" onclick="exportFoodLibrary()">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Export
-          </button>
-          <label class="btn btn-block" style="flex:1;cursor:pointer;justify-content:center;">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            Import
-            <input type="file" accept=".json,application/json" style="display:none;" onchange="importFoodLibrary(this.files[0]);this.value='';">
-          </label>
-          <label class="btn btn-block" style="flex:1;cursor:pointer;justify-content:center;">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            Import recipe
-            <input type="file" accept=".json,application/json" style="display:none;" onchange="importSharedFoodItem(this.files[0]);this.value='';">
-          </label>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-block" style="flex:1;" onclick="openFoodLibraryEditor()">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            Edit library
-          </button>
-          <button class="btn btn-block" style="flex:1;" onclick="openRecipeList()">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-            My recipes
-          </button>
-        </div>
-      </div>
-
-      <div class="card" style="margin-bottom:10px;">
-        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Restore from backup</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Select a previously exported JSON file. This will <span style="color:var(--red);">replace all current data</span> — export first if needed.</div>
-        <label class="btn btn-block" style="cursor:pointer;justify-content:center;">
-          <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          Import JSON backup
-          <input type="file" accept=".json,application/json" style="display:none;" onchange="importData(event)">
-        </label>
-        <div id="import-status" style="font-size:12px;margin-top:10px;text-align:center;"></div>
-      </div>
 
       <div class="section-title">Storage</div>
       <div class="card" style="margin-bottom:10px;">
         <div id="storage-info" style="font-size:13px;color:var(--text2);line-height:1.8;"></div>
       </div>
 
+      <!-- ── Danger Zone ────────────────────────────────────────────
+           v6.10: Restore-from-backup moved here from Backup, since it
+           erases existing data just like Clear-all-data. The two are
+           deliberately styled differently by severity: restoring is
+           destructive but recoverable (you can re-import your last
+           export), so its button just uses red TEXT on the app's normal
+           neutral button border — no red border, so it doesn't compete
+           visually with Clear-all-data below, which is irreversible and
+           gets the solid red fill (btn-danger-fill), matching the visual
+           weight of the accent-filled Export JSON button above. -->
       <div class="section-title">Danger Zone</div>
+      <div class="card" style="margin-bottom:10px;">
+        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Restore from backup</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Select a previously exported JSON file. This will <span style="color:var(--red);">replace all current data</span> — export first if needed.</div>
+        <label class="btn btn-block" style="cursor:pointer;justify-content:center;color:var(--red);">
+          <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Import JSON backup
+          <input type="file" accept=".json,application/json" style="display:none;" onchange="importData(event)">
+        </label>
+        <div id="import-status" style="font-size:12px;margin-top:10px;text-align:center;"></div>
+      </div>
       <div class="card">
+        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Clear all data</div>
         <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Permanently delete all data from this device. Cannot be undone.</div>
-        <button class="btn btn-danger btn-block" onclick="clearAllData()">Clear all data</button>
+        <button class="btn btn-danger-fill btn-block" onclick="clearAllData()">Clear all data</button>
       </div>
     </div>
 
@@ -2091,7 +2147,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
         <input type="number" id="ex-weight-input" placeholder="60" step="0.5">
       </div>
     </div>
-    <div id="ex-dropset-note" style="display:none;font-size:11px;color:var(--text3);margin:-8px 0 12px;">Reps aren't planned for drop sets — log both the main set and the drop to failure each week, starting in week 1.</div>
+    <div id="ex-dropset-note" style="display:none;font-size:11px;color:var(--text3);margin:-8px 0 12px;">Reps above target the main set only — the drop is a reduction in weight and is always logged to failure, starting in week 1.</div>
 
     <div class="input-row" id="ex-sets-row">
       <div>
@@ -3046,9 +3102,10 @@ function renderCustomSessions() {
 // Adjusts the exercise modal's visible fields when the exercise type
 // changes — giant sets lock the sets field to 1 (a 'set' is the whole
 // giant set), pause sets hide the reps-progression option entirely since
-// it's weight-only, and drop sets hide the reps target field entirely
-// since reps are only ever discovered live (logged to failure each week),
-// never planned in advance.
+// it's weight-only. Drop sets (v6.09) keep the reps target field visible —
+// it now sets the MAIN set's rep target only; the drop portion has no rep
+// target and is always logged to failure, so the note below the field is
+// swapped to make that split clear.
 function onExTypeChange() {
   const type = document.getElementById('ex-type-select').value;
   const setsRow = document.getElementById('ex-sets-row');
@@ -3064,7 +3121,6 @@ function onExTypeChange() {
     setsRow.style.opacity = '';
     setsRow.style.pointerEvents = '';
   }
-  if (repsRow) repsRow.style.display = type === 'dropset' ? 'none' : '';
   if (dropNote) dropNote.style.display = type === 'dropset' ? '' : 'none';
   applyExerciseHistoryDefaults();
 }
@@ -3273,12 +3329,12 @@ function saveExercise() {
   const willBeInSuperset = !!ctx.pendingSupersetId || !!(existingForEdit && existingForEdit.supersetId);
   const finalType = (type === 'dropset' && willBeInSuperset) ? 'standard' : type;
   const isGiantSet = finalType === 'giant';
-  const isDropSet = finalType === 'dropset';
   const ex = {
     name: document.getElementById('ex-name-input').value.trim() || 'Exercise',
-    // Drop sets have no plan-time rep target — reps are logged to failure
-    // live each week, starting in week 1, never pre-set here.
-    reps: isDropSet ? '' : document.getElementById('ex-reps-input').value,
+    // v6.09: drop sets now DO take a plan-time rep target, same as any
+    // other exercise — it applies to the main set only. The drop portion
+    // has no rep target of its own and is always logged to failure live.
+    reps: document.getElementById('ex-reps-input').value,
     setsStart: isGiantSet ? 1 : parseInt(document.getElementById('ex-sets-start-input').value),
     setsEnd:   isGiantSet ? 1 : parseInt(document.getElementById('ex-sets-end-input').value),
     startWeight: parseFloat(document.getElementById('ex-weight-input').value) || 0,
@@ -5903,7 +5959,7 @@ function renderMicroBlock(macro, week, micro, days, dayLabels) {
           const isDropSetEx = ex.type === 'dropset';
           const typeLabel = ex.type === 'standard' ? 'std' : ex.type === 'giant' ? 'giant set' : ex.type === 'pause' ? 'pause set' : 'drop set';
           const summaryLine = isDropSetEx
-            ? `${sets} sets · to failure + drop · ${ex.startWeight} kg start`
+            ? `${sets} sets · ${ex.reps} reps + drop to failure · ${ex.startWeight} kg start`
             : `${sets} sets · ${ex.reps} reps · ${ex.startWeight} kg start`;
           html += `<div class="swipe-row-wrap" style="border-top:0.5px solid var(--border);"
             draggable="true"
@@ -6586,6 +6642,86 @@ function renderTrainDay(macro) {
       : progType === 'reps' ? recommendedDropReps
         : (prevActualDropReps !== null ? prevActualDropReps : '');
 
+    // ── Per-set suggested placeholders ─────────────────────────────────
+    // v6.09: suggestions now key off the same set number in the previous
+    // mesocycle/day, rather than a single exercise-wide figure derived from
+    // set 1. This lets an ad-hoc mid-session weight drop (e.g. set 4 dropped
+    // to 195kg because 200kg wasn't sustainable) carry forward correctly
+    // into the next mesocycle for that specific set only, while the other
+    // sets still progress from their own last actual numbers. If this
+    // week has more sets than last week (a set added partway through a
+    // plan), the extra set(s) simply inherit last week's final set's
+    // suggestion. Deload / post-deload / week-1 sessions are unaffected —
+    // they already use a single flat reference for the whole exercise, and
+    // that behaviour is preserved unchanged here.
+    const weightPlaceholders = [], repsPlaceholders = [], dropWeightPlaceholders = [], dropRepsPlaceholders = [];
+    for (let s = 0; s < sets; s++) {
+      if (deloadWeightPlaceholder !== null) {
+        weightPlaceholders.push(deloadWeightPlaceholder);
+        repsPlaceholders.push(deloadRepsPlaceholder);
+        dropWeightPlaceholders.push(!isDropSet ? '' : (deloadDropWeightPlaceholder !== null ? deloadDropWeightPlaceholder : ''));
+        dropRepsPlaceholders.push(!isDropSet ? '' : (deloadDropRepsPlaceholder !== null ? deloadDropRepsPlaceholder : ''));
+        continue;
+      }
+      if (state.currentWeek === 1) {
+        weightPlaceholders.push(ex.startWeight.toFixed(1));
+        repsPlaceholders.push(ex.reps);
+        dropWeightPlaceholders.push('');
+        dropRepsPlaceholders.push('');
+        continue;
+      }
+      // Source set for this index: the same set number logged last week, or
+      // — if this week has extra sets that didn't exist last week — last
+      // week's final logged set, so a newly-added set isn't left blank.
+      const srcSet = s < prevLoggedSets.length
+        ? prevLoggedSets[s]
+        : (prevLoggedSets.length > 0 ? prevLoggedSets[prevLoggedSets.length - 1] : null);
+      const setActualWeight    = srcSet && srcSet.weight ? parseFloat(srcSet.weight) : null;
+      const setActualReps      = srcSet && srcSet.reps   ? srcSet.reps : null;
+      const setActualDropWeight= srcSet && srcSet.dropWeight ? parseFloat(srcSet.dropWeight) : null;
+      const setActualDropReps  = srcSet && srcSet.dropReps   ? srcSet.dropReps : null;
+
+      const setRecWeight = setActualWeight !== null
+        ? setActualWeight + weightJump
+        : getWeekWeight(ex, state.currentWeek, 'weight', macro.goalType, macro.weightIncrement);
+      const setRecReps = (() => {
+        if (isPauseSet) return getGiantSetProgression(ex, state.currentWeek);
+        if (ex.type === 'giant') {
+          if (setActualReps !== null) {
+            const baseNum = parseInt(String(setActualReps).match(/(\d+)/)?.[0]) || 0;
+            return String(baseNum + 10);
+          }
+          return getGiantSetProgression(ex, state.currentWeek);
+        }
+        if (setActualReps !== null) {
+          const m = String(setActualReps).match(/^(\d+)(?:–(\d+))?$/);
+          if (m) { const lo = parseInt(m[1]) + 1; return m[2] ? lo + '–' + (parseInt(m[2]) + 1) : String(lo); }
+        }
+        return getWeekReps(ex, state.currentWeek, 'reps');
+      })();
+      const setRecDropWeight = setActualDropWeight !== null ? setActualDropWeight + weightJump : null;
+      const setRecDropReps = (() => {
+        if (setActualDropReps !== null) {
+          const m = String(setActualDropReps).match(/^(\d+)(?:–(\d+))?$/);
+          if (m) { const lo = parseInt(m[1]) + 1; return m[2] ? lo + '–' + (parseInt(m[2]) + 1) : String(lo); }
+        }
+        return '';
+      })();
+
+      weightPlaceholders.push(progType === 'weight'
+        ? setRecWeight.toFixed(1)
+        : (setActualWeight !== null ? setActualWeight.toFixed(1) : ex.startWeight.toFixed(1)));
+      repsPlaceholders.push(progType === 'reps'
+        ? setRecReps
+        : (setActualReps !== null ? setActualReps : ex.reps));
+      dropWeightPlaceholders.push(!isDropSet ? '' : (progType === 'weight'
+        ? (setRecDropWeight !== null ? setRecDropWeight.toFixed(1) : '')
+        : (setActualDropWeight !== null ? setActualDropWeight.toFixed(1) : '')));
+      dropRepsPlaceholders.push(!isDropSet ? '' : (progType === 'reps'
+        ? setRecDropReps
+        : (setActualDropReps !== null ? setActualDropReps : '')));
+    }
+
     let doneSets = 0;
     const key2 = macro.id + '_' + state.currentWeek + '_' + state.currentDay;
     for (let s = 0; s < sets; s++) {
@@ -6596,6 +6732,7 @@ function renderTrainDay(macro) {
 
     return { exId, sets, progType, prevProgType, prevLoggedSets, prevActualWeight, prevActualReps,
              recommendedWeight, recommendedReps, weightPlaceholder, repsPlaceholder,
+             weightPlaceholders, repsPlaceholders, dropWeightPlaceholders, dropRepsPlaceholders,
              weightJump, isPauseSet, doneSets, allDone, prevWeek2, prevNoProgression,
              isDeloadSession, isPostDeloadSession,
              isDropSet, prevActualDropWeight, prevActualDropReps,
@@ -6611,6 +6748,7 @@ function renderTrainDay(macro) {
       const d = exProgData(ex);
       const { sets, progType, prevProgType, prevLoggedSets, prevActualWeight, prevActualReps,
               recommendedWeight, recommendedReps, weightPlaceholder, repsPlaceholder,
+              weightPlaceholders, repsPlaceholders, dropWeightPlaceholders, dropRepsPlaceholders,
               weightJump, isPauseSet, doneSets, allDone, prevWeek2, prevNoProgression,
               isDeloadSession, isPostDeloadSession,
               isDropSet, prevActualDropWeight, prevActualDropReps,
@@ -6691,9 +6829,16 @@ function renderTrainDay(macro) {
               ${allDone
                 ? `<span style="font-size:11px;color:var(--accent);font-weight:500;white-space:nowrap;">✓ done</span>`
                 : isDropSet
-                ? `<span style="font-size:11px;color:var(--text3);white-space:nowrap;">${doneSets}/${sets}</span>`
+                ? `<div style="display:flex;align-items:center;gap:6px;">
+                     <button onclick="quickFillCompleteDropset(event,'${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholders.join('|')}','${repsPlaceholders.join('|')}','${dropWeightPlaceholders.join('|')}','${dropRepsPlaceholders.join('|')}')"
+                       title="Quick fill suggested and mark complete"
+                       style="width:26px;height:26px;border-radius:50%;border:1.5px solid var(--border2);background:transparent;color:var(--text2);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;">
+                       <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                     </button>
+                     ${doneSets > 0 ? `<span style="font-size:11px;color:var(--text3);white-space:nowrap;">${doneSets}/${sets}</span>` : ''}
+                   </div>`
                 : `<div style="display:flex;align-items:center;gap:6px;">
-                     <button onclick="quickFillComplete(event,'${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholder}','${repsPlaceholder}')"
+                     <button onclick="quickFillComplete(event,'${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholders.join('|')}','${repsPlaceholders.join('|')}')"
                        title="Quick fill suggested and mark complete"
                        style="width:26px;height:26px;border-radius:50%;border:1.5px solid var(--border2);background:transparent;color:var(--text2);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;">
                        <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
@@ -6743,8 +6888,8 @@ function renderTrainDay(macro) {
           <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;">Log sets</div>
           <div style="display:flex;gap:6px;">
             <button onclick="${isDropSet
-                ? `fillSuggestedDropset('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholder}','${dropWeightPlaceholder}')`
-                : `fillSuggested('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholder}','${repsPlaceholder}')`}"
+                ? `fillSuggestedDropset('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholders.join('|')}','${repsPlaceholders.join('|')}','${dropWeightPlaceholders.join('|')}')`
+                : `fillSuggested('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholders.join('|')}','${repsPlaceholders.join('|')}')`}"
               id="fill-btn-${macro.id}-${exId}"
               style="font-size:11px;padding:5px 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;color:var(--text2);font-family:var(--font-display);cursor:pointer;">
               ↓ Fill suggested
@@ -6776,16 +6921,20 @@ function renderTrainDay(macro) {
             const lastWkDropCell = prevWeek2 < 1 ? '' : prevSet
               ? (prevSet.dropWeight ? prevSet.dropWeight + 'kg' : '—') + ` × ${prevSet.dropReps || '—'}`
               : '—';
-            const repsHint     = repsPlaceholder || 'failure';
-            const dropWeightHint = dropWeightPlaceholder || '—';
-            const dropRepsHint   = dropRepsPlaceholder || 'failure';
+            const setWeightPh  = weightPlaceholders[s] !== undefined ? weightPlaceholders[s] : weightPlaceholder;
+            const setRepsPh    = repsPlaceholders[s] !== undefined ? repsPlaceholders[s] : repsPlaceholder;
+            const setDropWPh   = dropWeightPlaceholders[s] !== undefined ? dropWeightPlaceholders[s] : dropWeightPlaceholder;
+            const setDropRPh   = dropRepsPlaceholders[s] !== undefined ? dropRepsPlaceholders[s] : dropRepsPlaceholder;
+            const repsHint     = setRepsPh || 'failure';
+            const dropWeightHint = setDropWPh || '—';
+            const dropRepsHint   = setDropRPh || 'failure';
             const nextSetWKey = s < sets - 1 ? `inp-w-${key2}_${exId}_${s+1}` : '';
             setRows += `<div style="padding:6px 0;border-bottom:0.5px solid var(--border);">
               <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:2px;">Set ${s + 1}</div>
               <div class="set-row" style="border-bottom:none;padding:3px 0;">
                 <span class="set-num">Main</span>
                 <span class="set-suggested">${lastWkMainCell}</span>
-                <input class="set-input" type="number" step="0.5" placeholder="${weightPlaceholder}" value="${log.weight || ''}"
+                <input class="set-input" type="number" step="0.5" placeholder="${setWeightPh}" value="${log.weight || ''}"
                   oninput="logSet('${logKey}','weight',this.value)" id="inp-w-${logKey}"
                   onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('inp-r-${logKey}')?.focus();}">
                 <input class="set-input" type="text" placeholder="${repsHint}" value="${log.reps || ''}"
@@ -6820,13 +6969,15 @@ function renderTrainDay(macro) {
           const lastWkCell = prevWeek2 < 1 ? '' : prevSet
             ? (prevSet.weight ? prevSet.weight + 'kg' : '—') + (isPauseSet ? '' : ` × ${prevSet.reps || '—'}`)
             : '—';
+          const setWeightPh = weightPlaceholders[s] !== undefined ? weightPlaceholders[s] : weightPlaceholder;
+          const setRepsPh   = repsPlaceholders[s] !== undefined ? repsPlaceholders[s] : repsPlaceholder;
           setRows += `<div class="set-row">
             <span class="set-num">${s + 1}</span>
             <span class="set-suggested">${lastWkCell}</span>
-            <input class="set-input" type="number" step="0.5" placeholder="${weightPlaceholder}" value="${log.weight || ''}"
+            <input class="set-input" type="number" step="0.5" placeholder="${setWeightPh}" value="${log.weight || ''}"
               oninput="logSet('${logKey}','weight',this.value)" id="inp-w-${logKey}"
               onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('inp-r-${logKey}')?.focus();}">
-            <input class="set-input" type="text" placeholder="${repsPlaceholder}" value="${log.reps || ''}"
+            <input class="set-input" type="text" placeholder="${setRepsPh}" value="${log.reps || ''}"
               oninput="logSet('${logKey}','reps',this.value)" id="inp-r-${logKey}"
               onkeydown="if(event.key==='Enter'){event.preventDefault();${nextWKey ? `document.getElementById('${nextWKey}')?.focus();` : 'this.blur();'}}">
             <div class="${log.done ? 'check-done' : 'check-empty'}" onclick="toggleSetDone('${logKey}')">
@@ -6949,10 +7100,12 @@ function renderTrainDay(macro) {
       }).join('');
 
       // quickFillComplete for supersets: fill all members' sets then re-render
-      // We pass a JSON-encoded array of [exId, sets, weight, reps] tuples
+      // We pass a JSON-encoded array of [exId, sets, weightList, repsList]
+      // tuples — weightList/repsList are '|'-delimited per-set suggestions
+      // (v6.09), not a single flat value.
       const fillArgs = JSON.stringify(members.map((m, mi) => {
         const md = memberData[mi];
-        return [m.id, md.sets, md.weightPlaceholder, md.repsPlaceholder];
+        return [m.id, md.sets, md.weightPlaceholders.join('|'), md.repsPlaceholders.join('|')];
       })).replace(/"/g, '&quot;');
 
       html += `<div class="ss-train-block">
@@ -7044,12 +7197,14 @@ function renderTrainDay(macro) {
             const md     = memberData[mi];
             const logKey = key2 + '_' + m.id + '_' + s;
             const log    = state.trainLogs[logKey] || {};
+            const mSetWeightPh = md.weightPlaceholders[s] !== undefined ? md.weightPlaceholders[s] : md.weightPlaceholder;
+            const mSetRepsPh   = md.repsPlaceholders[s] !== undefined ? md.repsPlaceholders[s] : md.repsPlaceholder;
             exRows += `<div class="ss-set-ex-row">
               <span class="ss-set-ex-name">${m.name}</span>
-              <input class="ss-set-inp" type="number" step="0.5" placeholder="${md.weightPlaceholder}" value="${log.weight || ''}"
+              <input class="ss-set-inp" type="number" step="0.5" placeholder="${mSetWeightPh}" value="${log.weight || ''}"
                 oninput="logSet('${logKey}','weight',this.value)" id="inp-w-${logKey}" style="margin-left:auto;">
               <span class="ss-set-x">×</span>
-              <input class="ss-set-inp" type="text" placeholder="${md.repsPlaceholder}" value="${log.reps || ''}"
+              <input class="ss-set-inp" type="text" placeholder="${mSetRepsPh}" value="${log.reps || ''}"
                 oninput="logSet('${logKey}','reps',this.value)" id="inp-r-${logKey}">
               <div class="${log.done ? 'check-done ss-set-check done' : 'check-empty ss-set-check'}" onclick="toggleSetDone('${logKey}')" style="margin:0;">
                 <svg viewBox="0 0 14 14"><polyline points="2,7 5.5,10.5 12,3"/></svg>
@@ -7069,7 +7224,7 @@ function renderTrainDay(macro) {
         // Fill suggested / Clear: pre-build onclick strings to avoid nested template literal escaping
         const ssFillOnclick  = members.map((m, mi) => {
           const md = memberData[mi];
-          return "fillSuggested('" + macro.id + "'," + state.currentWeek + ",'" + state.currentDay + "','" + m.id + "'," + md.sets + ",'" + md.weightPlaceholder + "','" + md.repsPlaceholder + "')";
+          return "fillSuggested('" + macro.id + "'," + state.currentWeek + ",'" + state.currentDay + "','" + m.id + "'," + md.sets + ",'" + md.weightPlaceholders.join('|') + "','" + md.repsPlaceholders.join('|') + "')";
         }).join(';');
         const ssClearOnclick = members.map((m, mi) => {
           const md = memberData[mi];
@@ -7114,25 +7269,31 @@ function logSet(key, field, value) {
 
 // Fills every set input for an exercise with the current week's suggested
 // weight/reps in one tap, with an amber flash animation on the button and
-// the filled inputs.
+// the filled inputs. weight/reps are '|'-delimited per-set suggestion lists
+// (see weightPlaceholders/repsPlaceholders in exProgData) — v6.09, replacing
+// the single flat value previously applied to every set.
 function fillSuggested(macroId, week, day, exId, sets, weight, reps) {
   const baseKey = macroId + '_' + week + '_' + day;
+  const weightList = String(weight).split('|');
+  const repsList   = String(reps).split('|');
   for (let s = 0; s < sets; s++) {
     const logKey = baseKey + '_' + exId + '_' + s;
+    const wVal = weightList[s] !== undefined ? weightList[s] : weightList[weightList.length - 1];
+    const rVal = repsList[s] !== undefined ? repsList[s] : repsList[repsList.length - 1];
     if (!state.trainLogs[logKey]) state.trainLogs[logKey] = {};
-    state.trainLogs[logKey].weight = weight;
-    state.trainLogs[logKey].reps   = reps;
+    state.trainLogs[logKey].weight = wVal;
+    state.trainLogs[logKey].reps   = rVal;
     const wEl = document.getElementById('inp-w-' + logKey);
     const rEl = document.getElementById('inp-r-' + logKey);
     if (wEl) {
-      wEl.value = weight;
+      wEl.value = wVal;
       // Force reflow so animation restarts even if called again
       wEl.classList.remove('input-flash');
       void wEl.offsetWidth;
       wEl.classList.add('input-flash');
     }
     if (rEl) {
-      rEl.value = reps;
+      rEl.value = rVal;
       rEl.classList.remove('input-flash');
       void rEl.offsetWidth;
       rEl.classList.add('input-flash');
@@ -7157,28 +7318,46 @@ function fillSuggested(macroId, week, day, exId, sets, weight, reps) {
   }, 900);
 }
 
-// Drop-set-specific fill: only fills main weight and drop weight — the two
-// fields that can have a real numeric suggestion once progression has
-// data. Reps are deliberately never auto-filled here, since they're only
-// ever discovered live (logged to failure each week), never suggested.
-function fillSuggestedDropset(macroId, week, day, exId, sets, weight, dropWeight) {
+// Drop-set-specific fill: fills the main set's weight AND reps (v6.09 —
+// the main set now has a real plan-time rep target, same as any other
+// exercise) plus the drop weight. The drop portion's REPS are deliberately
+// never auto-filled — the drop is always a reduction in weight taken to
+// failure, so its rep count is only ever discovered live, never suggested.
+// weight/reps/dropWeight are '|'-delimited per-set suggestion lists.
+function fillSuggestedDropset(macroId, week, day, exId, sets, weight, reps, dropWeight) {
   const baseKey = macroId + '_' + week + '_' + day;
+  const weightList = String(weight).split('|');
+  const repsList = String(reps).split('|');
+  const dropWeightList = String(dropWeight).split('|');
   for (let s = 0; s < sets; s++) {
     const logKey = baseKey + '_' + exId + '_' + s;
+    const wVal  = weightList[s] !== undefined ? weightList[s] : weightList[weightList.length - 1];
+    const rVal  = repsList[s] !== undefined ? repsList[s] : repsList[repsList.length - 1];
+    const dwVal = dropWeightList[s] !== undefined ? dropWeightList[s] : dropWeightList[dropWeightList.length - 1];
     if (!state.trainLogs[logKey]) state.trainLogs[logKey] = {};
-    state.trainLogs[logKey].weight = weight;
+    state.trainLogs[logKey].weight = wVal;
     const wEl = document.getElementById('inp-w-' + logKey);
     if (wEl) {
-      wEl.value = weight;
+      wEl.value = wVal;
       wEl.classList.remove('input-flash');
       void wEl.offsetWidth;
       wEl.classList.add('input-flash');
     }
-    if (dropWeight) {
-      state.trainLogs[logKey].dropWeight = dropWeight;
+    if (rVal) {
+      state.trainLogs[logKey].reps = rVal;
+      const rEl = document.getElementById('inp-r-' + logKey);
+      if (rEl) {
+        rEl.value = rVal;
+        rEl.classList.remove('input-flash');
+        void rEl.offsetWidth;
+        rEl.classList.add('input-flash');
+      }
+    }
+    if (dwVal) {
+      state.trainLogs[logKey].dropWeight = dwVal;
       const dwEl = document.getElementById('inp-dw-' + logKey);
       if (dwEl) {
-        dwEl.value = dropWeight;
+        dwEl.value = dwVal;
         dwEl.classList.remove('input-flash');
         void dwEl.offsetWidth;
         dwEl.classList.add('input-flash');
@@ -7196,6 +7375,7 @@ function fillSuggestedDropset(macroId, week, day, exId, sets, weight, dropWeight
     for (let s = 0; s < sets; s++) {
       const logKey = baseKey + '_' + exId + '_' + s;
       document.getElementById('inp-w-' + logKey)?.classList.remove('input-flash');
+      document.getElementById('inp-r-' + logKey)?.classList.remove('input-flash');
       document.getElementById('inp-dw-' + logKey)?.classList.remove('input-flash');
     }
     if (btnEl2) btnEl2.classList.remove('fill-flash');
@@ -7221,15 +7401,23 @@ function clearExerciseLogs(macroId, week, day, exId, sets) {
 // Quick fill + complete: used on a COLLAPSED exercise card to fill every set
 // with its suggested weight/reps and mark all sets done in one tap, without
 // expanding the card. event.stopPropagation() keeps this from also toggling
-// the card open (it sits inside the same clickable header row).
+// the card open (it sits inside the same clickable header row). weight/reps
+// are '|'-delimited per-set suggestion lists (v6.09) — each set gets its own
+// figure, matching the expanded card's per-set suggestions. Note this has no
+// bearing on recordExerciseHistory() below: that always reads set 1's log
+// specifically, regardless of what later sets get filled with here.
 function quickFillComplete(event, macroId, week, day, exId, sets, weight, reps) {
   if (event) event.stopPropagation();
   const baseKey = macroId + '_' + week + '_' + day;
+  const weightList = String(weight).split('|');
+  const repsList   = String(reps).split('|');
   for (let s = 0; s < sets; s++) {
     const logKey = baseKey + '_' + exId + '_' + s;
+    const wVal = weightList[s] !== undefined ? weightList[s] : weightList[weightList.length - 1];
+    const rVal = repsList[s] !== undefined ? repsList[s] : repsList[repsList.length - 1];
     if (!state.trainLogs[logKey]) state.trainLogs[logKey] = {};
-    state.trainLogs[logKey].weight = weight;
-    state.trainLogs[logKey].reps   = reps;
+    state.trainLogs[logKey].weight = wVal;
+    state.trainLogs[logKey].reps   = rVal;
     state.trainLogs[logKey].done   = true;
   }
   const macro = state.macrocycles.find(m => m.id === macroId);
@@ -7241,8 +7429,48 @@ function quickFillComplete(event, macroId, week, day, exId, sets, weight, reps) 
   if (macro) renderTrainDay(macro);
 }
 
-// Fill + complete all sets for every exercise in a superset in one tap.
-// fillArgsJson is a JSON array of [exId, sets, weight, reps] tuples.
+// Quick fill + complete for a drop-set exercise: used on a COLLAPSED
+// exercise card to fill EVERY field (main weight/reps, drop weight/reps)
+// with its suggestion and mark all sets done, in one tap — matching
+// quickFillComplete's behavior for every other exercise type (v6.09).
+// Unlike the "Fill suggested" button (fillSuggestedDropset, left
+// untouched), which deliberately leaves the drop's reps blank so you can
+// log the real failure count each week, this overhead shortcut fills
+// every field including drop reps — same "log what was suggested" logic
+// used everywhere else, not a strict completeness check. You can still
+// edit the drop reps afterward via the expanded card if what you actually
+// hit differs. weight/reps/dropWeight/dropReps are '|'-delimited per-set
+// suggestion lists.
+function quickFillCompleteDropset(event, macroId, week, day, exId, sets, weight, reps, dropWeight, dropReps) {
+  if (event) event.stopPropagation();
+  const baseKey = macroId + '_' + week + '_' + day;
+  const weightList = String(weight).split('|');
+  const repsList = String(reps).split('|');
+  const dropWeightList = String(dropWeight).split('|');
+  const dropRepsList = String(dropReps).split('|');
+  for (let s = 0; s < sets; s++) {
+    const logKey = baseKey + '_' + exId + '_' + s;
+    const wVal  = weightList[s] !== undefined ? weightList[s] : weightList[weightList.length - 1];
+    const rVal  = repsList[s] !== undefined ? repsList[s] : repsList[repsList.length - 1];
+    const dwVal = dropWeightList[s] !== undefined ? dropWeightList[s] : dropWeightList[dropWeightList.length - 1];
+    const drVal = dropRepsList[s] !== undefined ? dropRepsList[s] : dropRepsList[dropRepsList.length - 1];
+    if (!state.trainLogs[logKey]) state.trainLogs[logKey] = {};
+    state.trainLogs[logKey].weight = wVal;
+    if (rVal) state.trainLogs[logKey].reps = rVal;
+    if (dwVal) state.trainLogs[logKey].dropWeight = dwVal;
+    if (drVal) state.trainLogs[logKey].dropReps = drVal;
+    state.trainLogs[logKey].done = true;
+  }
+  const macro = state.macrocycles.find(m => m.id === macroId);
+  if (macro) {
+    const ex = (state.exercises[macro.id + '_1_' + day] || []).find(e => e.id === exId);
+    if (ex) recordExerciseHistory(macro, week, day, ex);
+  }
+  save();
+  if (macro) renderTrainDay(macro);
+}
+// fillArgsJson is a JSON array of [exId, sets, weightList, repsList] tuples,
+// where weightList/repsList are '|'-delimited per-set suggestions (v6.09).
 function quickFillCompleteSuperset(event, macroId, week, day, fillArgsJson) {
   if (event) event.stopPropagation();
   let tuples;
@@ -7250,12 +7478,16 @@ function quickFillCompleteSuperset(event, macroId, week, day, fillArgsJson) {
   const baseKey = macroId + '_' + week + '_' + day;
   const macro = state.macrocycles.find(m => m.id === macroId);
   const templateExercises = macro ? (state.exercises[macro.id + '_1_' + day] || []) : [];
-  tuples.forEach(([exId, sets, weight, reps]) => {
+  tuples.forEach(([exId, sets, weightStr, repsStr]) => {
+    const weightList = String(weightStr).split('|');
+    const repsList   = String(repsStr).split('|');
     for (let s = 0; s < sets; s++) {
       const logKey = baseKey + '_' + exId + '_' + s;
+      const wVal = weightList[s] !== undefined ? weightList[s] : weightList[weightList.length - 1];
+      const rVal = repsList[s] !== undefined ? repsList[s] : repsList[repsList.length - 1];
       if (!state.trainLogs[logKey]) state.trainLogs[logKey] = {};
-      state.trainLogs[logKey].weight = weight;
-      state.trainLogs[logKey].reps   = reps;
+      state.trainLogs[logKey].weight = wVal;
+      state.trainLogs[logKey].reps   = rVal;
       state.trainLogs[logKey].done   = true;
     }
     if (macro) {
@@ -7336,6 +7568,15 @@ let bodyHistoryPeriod = 'all'; // '4w' | '8w' | 'all'
 // Switches the Body page's weight history chart between its available time
 // ranges (e.g. 30/90/all days).
 function setBodyHistoryPeriod(p) { bodyHistoryPeriod = p; renderBody(); }
+
+// Which historic month groups are expanded in Recent Entries (v6.11) —
+// keyed by 'YYYY-MM', collapsed by default. Not persisted, purely a
+// render-time UI toggle, same pattern as goalsExpandedMacros.
+let bodyExpandedMonths = {};
+function toggleBodyMonth(monthKey) {
+  bodyExpandedMonths[monthKey] = !bodyExpandedMonths[monthKey];
+  renderBody();
+}
 
 // Generates an inline SVG filled-area line chart from a series of {date,
 // value} points — used by the Body page's weight history and one of the
@@ -7590,7 +7831,10 @@ function renderBody() {
     return;
   }
 
-  el.innerHTML = logs.slice(0,30).map(l => `
+  // Renders a single log entry row — used both for standalone rows and for
+  // rows nested inside an expanded month group, so the markup only lives
+  // in one place.
+  const bodyLogRow = l => `
     <div class="swipe-row-wrap" style="border-bottom:0.5px solid var(--border);">
       <div class="swipe-row-content bw-entry" style="border-bottom:none;" onclick="openEditBodyLog('${l.date}')">
         <div>
@@ -7607,7 +7851,58 @@ function renderBody() {
           <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
         </button>
       </div>
-    </div>`).join('');
+    </div>`;
+
+  // ── Month grouping (v6.11) ──────────────────────────────────────────
+  // Any month — including the current one — collapses into a single
+  // 'Mmm YYYY' group, but only entries that have BOTH weight and steps
+  // filled in ever join that group. An entry missing either field (e.g.
+  // steps still waiting to sync from the day before, or today simply not
+  // logged yet) stays a standalone visible row in its natural place in
+  // the list, even though the rest of its month may already be
+  // collapsed — otherwise it'd be invisible until someone thought to
+  // expand the group to go find it. `logs` is already sorted
+  // newest-first, so the first log encountered for a given month is
+  // always its most recent — that's where the group's collapsed header
+  // is anchored, which also means groups naturally come out sorted
+  // newest-month-first.
+  const monthGroups = {}; // monthKey -> array of complete logs, newest first
+  const renderItems = []; // [{type:'row', log}] | [{type:'group', monthKey}]
+  const seenGroupMonths = new Set();
+  logs.forEach(l => {
+    const monthKey = l.date.slice(0, 7);
+    const isComplete = !!(l.weight && l.steps);
+    if (!isComplete) {
+      renderItems.push({ type: 'row', log: l });
+      return;
+    }
+    if (!monthGroups[monthKey]) monthGroups[monthKey] = [];
+    monthGroups[monthKey].push(l);
+    if (!seenGroupMonths.has(monthKey)) {
+      seenGroupMonths.add(monthKey);
+      renderItems.push({ type: 'group', monthKey });
+    }
+  });
+
+  el.innerHTML = renderItems.map(item => {
+    if (item.type === 'row') return bodyLogRow(item.log);
+    const monthKey    = item.monthKey;
+    const groupLogs   = monthGroups[monthKey];
+    const isExpanded  = !!bodyExpandedMonths[monthKey];
+    const monthLabel  = new Date(monthKey + '-01T00:00:00').toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+    const count       = groupLogs.length;
+    const avgWeight   = groupLogs.reduce((s, g) => s + parseFloat(g.weight), 0) / count;
+    return `<div class="card" style="margin-bottom:8px;padding:0;">
+      <div onclick="toggleBodyMonth('${monthKey}')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+        <div>
+          <div style="font-family:var(--font-display);font-size:14px;font-weight:600;color:var(--text);">${monthLabel}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">${count} ${count === 1 ? 'entry' : 'entries'} · avg ${avgWeight.toFixed(1)} lbs</div>
+        </div>
+        <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${isExpanded ? '180' : '0'}deg)"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      ${isExpanded ? `<div style="padding:0 14px;">${groupLogs.map(bodyLogRow).join('')}</div>` : ''}
+    </div>`;
+  }).join('');
   requestAnimationFrame(() => initSwipeRows(el));
 }
 
@@ -8712,7 +9007,8 @@ function openNutrAdd(meal, isReopen) {
 // this wrapper — so the sheet's own background always extends the full
 // screen height and there's no gap for the overlay's dark tint to show
 // through behind the keyboard. Shared by any .kb-pinned-sheet modal with a
-// scrollable list (currently: nutrition add-food, food library editor).
+// scrollable list (currently: nutrition add-food, food library editor,
+// exercise library editor).
 //
 // --kb-vvh already tracks the live post-keyboard viewport height (see
 // setKbViewportHeight). Real on-device measurement (July 2026) showed a
@@ -11136,6 +11432,111 @@ window.addEventListener('DOMContentLoaded', function() {
   }, { passive: true });
 });
 
+// ── Exercise Library Editor ───────────────────────────────────────────────────
+// v6.10: first in-app view/edit screen for the exercise library. Mirrors the
+// Food Library Editor immediately below almost exactly, with one difference —
+// built-in DEFAULT_LIBRARY entries are shown (so the list is a true picture
+// of what's in the picker) but can't be edited or deleted, only entries in
+// state.customLibrary can. This matches the existing "default exercises can't
+// be overwritten" rule already enforced by importExerciseLibrary().
+
+// Opens the browsable exercise library editor modal (modal-exercise-lib-editor).
+function openExerciseLibraryEditor() {
+  document.getElementById('exercise-lib-search').value = '';
+  const listWrap = document.getElementById('exercise-lib-list-wrap');
+  if (listWrap) listWrap.style.maxHeight = '';
+  renderExerciseLibEditor();
+  openModal('modal-exercise-lib-editor');
+  // See fitListToKeyboard() — wait for the sheet's slide-in transform to
+  // settle before measuring the wrap's on-screen position.
+  setTimeout(() => fitListToKeyboard('exercise-lib-list-wrap'), 320);
+}
+
+// Renders the exercise library editor's searchable list — built-in
+// DEFAULT_LIBRARY entries first for reference (marked with a 'default'
+// badge, no edit/delete buttons), then state.customLibrary entries
+// (editable/deletable), all sorted by body part then name like getLibrary().
+function renderExerciseLibEditor() {
+  const query = (document.getElementById('exercise-lib-search').value || '').toLowerCase().trim();
+  const defaultNames = new Set(DEFAULT_LIBRARY.map(e => e.name.toLowerCase()));
+  const lib = getLibrary().map(e => ({ ...e, isCustom: !defaultNames.has(e.name.toLowerCase()) }));
+  const items = lib.filter(i => !query || i.name.toLowerCase().includes(query) || i.bodyPart.toLowerCase().includes(query));
+  const el = document.getElementById('exercise-lib-list');
+
+  if (!items.length) {
+    el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:20px 0;">'
+      + (query ? 'No matches for "' + query + '"' : 'No exercises in library yet.') + '</div>';
+    el._items = [];
+    return;
+  }
+
+  el.innerHTML = items.map((item, idx) => {
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);">
+      <div style="flex:1;min-width:0;${item.isCustom ? 'cursor:pointer;' : ''}" ${item.isCustom ? `onclick="openExerciseLibEntry(${idx})"` : ''}>
+        <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px;">${item.bodyPart}</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0;margin-left:10px;">
+        ${item.isCustom
+          ? `<button class="btn btn-sm" style="padding:5px 10px;" onclick="openExerciseLibEntry(${idx})" title="Edit"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+             <button class="btn btn-sm btn-danger" style="padding:5px 10px;" onclick="deleteExerciseLibEntry(${idx})" title="Delete"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`
+          : `<span class="badge" style="font-size:10px;">default</span>`}
+      </div>
+    </div>`;
+  }).join('');
+  el._items = items;
+}
+
+// Opens the edit modal for a single custom exercise library entry. No-op
+// for default (built-in) entries — the UI never wires up a click handler
+// for those in the first place, but this guards against it regardless.
+function openExerciseLibEntry(idx) {
+  const el = document.getElementById('exercise-lib-list');
+  const item = (el._items || [])[idx];
+  if (!item || !item.isCustom) return;
+  document.getElementById('ele-original-name').value = item.name;
+  document.getElementById('ele-name').value = item.name;
+  document.getElementById('ele-bodypart').value = item.bodyPart;
+  openModal('modal-exercise-lib-entry');
+}
+
+// Saves changes to a custom exercise library entry. Matched by its
+// original name (custom library entries have no id of their own) rather
+// than a stored id — same lookup style as saveCustomExercise(). Renaming
+// here only affects the picker going forward; exercises already added to
+// a plan keep whatever name they were given at the time, exactly like
+// editing a food library entry doesn't touch past nutrition logs.
+function saveExerciseLibEntry() {
+  const originalName = document.getElementById('ele-original-name').value;
+  const name     = document.getElementById('ele-name').value.trim();
+  const bodyPart = document.getElementById('ele-bodypart').value;
+  if (!name) return;
+  if (!state.customLibrary) state.customLibrary = [];
+  const idx = state.customLibrary.findIndex(e => e.name.toLowerCase() === originalName.toLowerCase());
+  if (idx >= 0) state.customLibrary[idx] = { name, bodyPart };
+  save();
+  closeModal('modal-exercise-lib-entry');
+  renderExerciseLibEditor();
+}
+
+// Removes a custom exercise library entry, after confirmation. Default
+// entries never reach this function — no delete button is rendered for them.
+function deleteExerciseLibEntry(idx) {
+  const el = document.getElementById('exercise-lib-list');
+  const item = (el._items || [])[idx];
+  if (!item || !item.isCustom) return;
+  showConfirm(
+    'Delete exercise?',
+    '"' + item.name + '" will be removed from your library picker. Exercises already added to a plan are not affected.',
+    'Delete',
+    () => {
+      state.customLibrary = (state.customLibrary || []).filter(e => e.name.toLowerCase() !== item.name.toLowerCase());
+      save();
+      renderExerciseLibEditor();
+    }
+  );
+}
+
 // ── Food Library Editor ───────────────────────────────────────────────────────
 
 // Opens the browsable food library editor modal (modal-food-lib-editor).
@@ -11739,6 +12140,55 @@ function deleteRecipe(id) {
         <button id="sw-reset-btn" class="btn btn-block" onclick="swReset()">Reset</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ── Exercise Library Editor Modal ──────────────────────────────
+     v6.10: first in-app view/edit screen for the exercise library.
+     Mirrors the Food Library Editor pattern below exactly — searchable
+     list, tap to edit, swipe-free explicit edit/delete buttons. Built-in
+     DEFAULT_LIBRARY entries are shown for reference but aren't editable
+     or deletable (a 'default' badge takes the place of those buttons) —
+     only state.customLibrary entries can be changed, matching the
+     existing import merge behaviour in importExerciseLibrary(). -->
+<div class="modal-overlay" id="modal-exercise-lib-editor">
+  <div class="modal-sheet kb-pinned-sheet" data-modal="modal-exercise-lib-editor">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-exercise-lib-editor')">✕</button></div>
+    <div class="modal-title" style="flex-shrink:0;">Exercise Library</div>
+    <input type="text" id="exercise-lib-search" placeholder="Search exercises…" oninput="renderExerciseLibEditor()" style="margin-bottom:10px;flex-shrink:0;">
+    <div id="exercise-lib-list-wrap" class="kb-list-wrap">
+      <div id="exercise-lib-list" class="kb-list-inner"></div>
+      <div class="kb-list-fade"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Exercise Library Entry Edit Modal ───────────────────────────
+     Only ever opened for a state.customLibrary entry — see
+     openExerciseLibEntry(), which is a no-op for default entries. -->
+<div class="modal-overlay" id="modal-exercise-lib-entry">
+  <div class="modal-sheet" data-modal="modal-exercise-lib-entry">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-exercise-lib-entry')">✕</button></div>
+    <div class="modal-title">Edit Exercise</div>
+    <input type="hidden" id="ele-original-name">
+    <div class="form-group">
+      <div class="label">Name</div>
+      <input type="text" id="ele-name">
+    </div>
+    <div class="form-group">
+      <div class="label">Body Part</div>
+      <select id="ele-bodypart">
+        <option value="Back">Back</option>
+        <option value="Biceps">Biceps</option>
+        <option value="Calves">Calves</option>
+        <option value="Chest">Chest</option>
+        <option value="Legs">Legs</option>
+        <option value="Shoulders">Shoulders</option>
+        <option value="Triceps">Triceps</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    <button class="btn btn-accent btn-block" onclick="saveExerciseLibEntry()" style="margin-bottom:8px;">Save →</button>
   </div>
 </div>
 
