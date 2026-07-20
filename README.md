@@ -2,7 +2,7 @@
 
 > A personal, offline-first Progressive Web App for structured weight training and nutrition tracking. Single HTML file. No backend. No dependencies.
 
-![Version](https://img.shields.io/badge/version-v6.08-brightgreen) ![PWA](https://img.shields.io/badge/PWA-ready-blue) ![License](https://img.shields.io/badge/license-MIT-lightgrey)
+![Version](https://img.shields.io/badge/version-v6.11-brightgreen) ![PWA](https://img.shields.io/badge/PWA-ready-blue) ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ---
 
@@ -82,14 +82,14 @@ Gradient strips are pinned to the top and bottom of the app shell (matching `--a
   - **Sessions per week is calculated automatically** from whichever split you build below it, live-updating as you add/remove sessions — not a separate number to keep in sync yourself
 - Sessions (Push/Pull/Legs/custom) are shown as individually **collapsible, renameable cards** — tap the header to expand/collapse, tap the name to rename in place. The header always shows a live summary: exercise count, total sets, and total week-1 volume across every exercise in that session (including supersets)
 - Per-exercise configuration: name, sets, reps, starting weight, exercise type (**Standard**, **Giant Set**, **Pause Set**, **Drop Set**), heavy leg flag, per-side vs total-on-bar tracking, minimum weight increment
-  - **Drop Set** exercises skip the reps field entirely — only the starting weight is planned; both the main set and the drop are logged to failure live, starting in week 1
+  - **Drop Set** exercises plan a starting weight *and* (as of v6.09) a reps target for the main set, same as any other type — only the drop portion has no target and is logged to failure live, starting in week 1
   - **Last logged reference** — when adding or editing an exercise, a note below the exercise name shows what you actually logged last time for that exercise (per set type, if you've trained it more than one way — e.g. separate lines for a standard-set history and a giant-set history), and new exercises prefill their reps/weight/tracking-mode defaults from it automatically. Purely a planning aid — never affects any calculation, and always overridable
 - **Supersets** — link two or more exercises into a group with a shared badge and optional custom name; reorder within or across a group by drag; unlink an individual exercise or the whole group back into standalone exercises. Drop sets can't be added to or linked into a superset
 - Drag-to-reorder exercises, including moving in/out of superset groups — this ordering drives the exercise order on the Train page
 - Edit, copy, and delete macrocycles — tap the macrocycle card to edit; swipe left to reveal copy and delete buttons
 - Body weight progress bar within the plan card, showing start → current → target
 - **Weeks 2+ progression preview** — collapsible, grouped by session (not by week): expanding a session shows every exercise's sets/reps/weight target broken down week-by-week across the whole cycle
-- **Body part volume table** — below the progression preview, one row per body part (resolved by looking up each exercise's name against the exercise library), showing the cycle's total minimum and maximum training volume for that body part, sorted by minimum descending. Min/max reflects whichever theoretical progression path (all-weight vs all-reps) produces less/more total volume; pause sets are weight-only either way, so their min and max are identical. Drop sets don't contribute to this projection, since they have no plan-time rep target — their real volume shows up once you've actually logged it
+- **Body part volume table** — below the progression preview, one row per body part (resolved by looking up each exercise's name against the exercise library), showing the cycle's total minimum and maximum training volume for that body part, sorted by minimum descending. Min/max reflects whichever theoretical progression path (all-weight vs all-reps) produces less/more total volume; pause sets are weight-only either way, so their min and max are identical. Drop sets contribute their main set's projected volume like any other exercise; only the drop portion doesn't contribute, since it has no plan-time target to project from
 - Schedule-status pills with solid heat-map colours indicating where each session falls in the cycle
 
 ### Train
@@ -98,12 +98,13 @@ Gradient strips are pinned to the top and bottom of the app shell (matching `--a
 - Per-session exercise cards showing:
   - A "Last wk: ↑ weight" / "↑ reps" badge in the header, inferred from whichever explicitly-chosen progression path was used last week — or, if none was explicitly chosen, backfilled by comparing last week's actual weight/reps against the week before; shows "no progression" if neither increased. Replaced by a "deload" badge during deload weeks, and hidden during the week right after one
   - Last week's logged sets (weight × reps) shown directly in each set row, replacing what used to be a redundant repeat of the current week's suggested value
-  - Suggested progression for the current week (weight or reps), with a progression chip showing the delta
+  - Suggested progression for the current week (weight or reps), with a progression chip showing the delta. **Each set gets its own suggestion** (v6.09), carried forward from that same set number the last time you trained this exercise — so if you had to drop the weight on a later set in a session, that adjustment carries into next mesocycle's suggestion for that set specifically, rather than every set inheriting whatever happened on set 1. A newly-added set (from a plan that ramps sets up over the cycle) simply inherits the previous week's final set's suggestion
   - Set logging with weight, reps, and a done toggle per set
-  - **Fill Suggested** button — fills all sets with suggested values in one tap, with an amber flash animation
+  - **Fill Suggested** button — fills every set with its own suggested values in one tap, with an amber flash animation
   - Superset cards show the same last-week badge and progression data per member, plus each member's exercise type badge, consolidated into a compact per-exercise summary line rather than a full per-set breakdown. Drop sets can't be superset members
-  - **Drop Set** exercises expand into one block per set, each containing a Main row and a Drop row, sharing one done-checkbox — a set isn't complete until both halves are logged. No plan-time reps target exists for these, so both rows show "to failure" until you've logged something to suggest from
-- **Exercise history** — completing a set (via the checkbox or the one-tap fill-and-complete shortcut) remembers your weight/reps/tracking-mode for that exercise and set type, which is what powers the Last Logged reference and defaults on the Plan page. Deload-week completions are deliberately never recorded, so a reduced week can't skew future suggestions
+  - **Drop Set** exercises expand into one block per set, each containing a Main row and a Drop row, sharing one done-checkbox — a set isn't complete until both halves are logged. The main set now has a real reps target like any other exercise type (v6.09); only the drop row shows "to failure", since the drop is always a reduction in weight taken to failure and its reps are only ever discovered live
+- **Exercise history** — completing a set (via the checkbox or the one-tap fill-and-complete shortcut) remembers your weight/reps/tracking-mode for that exercise and set type, which is what powers the Last Logged reference and defaults on the Plan page. Deload-week completions are deliberately never recorded, so a reduced week can't skew future suggestions. This always reads from set 1 specifically, regardless of which set you interacted with or which sets got filled by a quick-fill shortcut — a later set's adjusted numbers can never override what set 1's own suggestion should be next time
+- **Quick fill + complete** — a one-tap shortcut on the collapsed exercise card that fills every set with its suggested values and marks them all done. Drop sets get the same shortcut (v6.10) — previously there was no quick-complete option for them at all, since there was no main-set reps target to suggest; it now fills weight, reps, drop weight, and drop reps, same as any other exercise type
 - **Rest Timer** (clock icon, top-right):
   - **Countdown** mode with an iOS-style scroll drum picker (0–59 min, 0–59 sec), defaulting to 1:00. Digits turn amber in the final 10 seconds. Three-beep audio alert on completion via the Web Audio API — does not interrupt music or podcast playback
   - **Stopwatch** mode with tenths-of-second precision
@@ -116,6 +117,7 @@ Gradient strips are pinned to the top and bottom of the app shell (matching `--a
 - Weekly change, "left to go" toward the cycle's target weight, and entry count — both use the same ≤0.05 lbs tolerance for "no meaningful change" / "at goal"
 - BMR/TDEE (Mifflin-St Jeor) calculated from profile + activity level, with activity level derived from your all-time average logged steps (intentionally unscoped — more historical data makes the estimate more accurate, not less)
 - Full log of all entries — tap to edit; swipe left to reveal delete button
+- **Monthly grouping (v6.11)** — any month collapses into a single tappable "Mmm YYYY" group once its entries have both weight and steps filled in, showing entry count and average weight; tap to expand. Entries missing either field always stay visible individually, regardless of month — so if your steps take a day to sync, that entry won't get buried inside a collapsed group right when you're most likely to want to finish filling it in. Groups sort newest month first
 
 ### Nutrition
 - Per-day food logging across named meals (Breakfast, Lunch, Dinner, Snacks)
@@ -145,13 +147,15 @@ Gradient strips are pinned to the top and bottom of the app shell (matching `--a
 
 ### Settings
 - Export full app data as a JSON backup
-- Restore from a JSON backup (replaces all current data)
 - **Theme selector** — nine colour swatches; selecting one updates the `data-theme` attribute on `<body>` immediately
 - **Dark / Light mode** toggle — updates the `data-mode` attribute on `<body>` immediately
-- **Exercise library** — export and import (merges by name; default exercises cannot be overwritten)
-- **Food library** — Export / Import (whole library JSON); Import recipe (single shared item file, including recipe ingredients); Edit library (tap row to edit, swipe left to reveal share and delete); My Recipes (tap row to edit recipe builder, swipe left to delete)
+- **Libraries** (redesigned in v6.10) — Exercise library and Food library each get a consistent layout: a bold primary action (or two) up top, quieter export/import buttons below
+  - **Exercise library** — **View / edit library** (new in v6.10 — the first in-app way to browse and edit it; previously export/import were the only options). Tap a row to edit name/body part; built-in exercises show a "default" badge and can't be edited or deleted, but your own custom exercises can be (with a confirm on delete). Renaming or deleting only affects the picker going forward — exercises already in a plan keep their existing name. Export / Import (merges by name; default exercises still can't be overwritten)
+  - **Food library** — **View / edit** and **My recipes** side by side up top (My recipes gets a subtle accent tint, since it's the most-used action here). View / edit: tap a row to edit, swipe left to reveal share and delete. Export / Import (whole library JSON) / Import recipe (single shared item, including ingredients) below
+- **Danger zone** (reorganised in v6.10) — now holds both restore-from-backup and full data wipe together, since both are destructive:
+  - **Restore from backup** — replaces all current data with a previously exported JSON file (moved here from its own separate card, since it belongs alongside the other irreversible action)
+  - **Clear all data** — wipes macrocycles, exercises, logs, and nutrition data, but preserves your theme/mode preference, since the confirmation dialog only ever promised to delete tracked data. Styled with a solid red fill, matching the visual weight of the green Export button, since it's the one truly irreversible action on the page — restoring from backup, by contrast, just uses red text on the app's normal button style, since you can always undo it by re-importing your last export
 - Storage usage indicator
-- Full data wipe (danger zone) — clears macrocycles, exercises, logs, and nutrition data, but preserves your theme/mode preference, since the confirmation dialog only ever promised to delete tracked data
 
 ---
 
@@ -181,7 +185,9 @@ For rep progression, 1 rep is added per week to each set.
 - **Standard** — weight or rep progression, chosen per exercise per week
 - **Giant Set** — weight or rep progression (giant-set reps add +10/week when reps is chosen)
 - **Pause Set** — fixed reps, weight progression only
-- **Drop Set** — no rep target is ever planned; only the main set's starting weight is. Both the main set and the drop are logged to failure live, starting in week 1. Once there's a prior week to compare against, progression applies identically to both
+- **Drop Set** — a real reps target is planned for the main set, same as any other type (added in v6.09; previously no rep target was ever planned). Only the drop portion has no target and is logged to failure live, starting in week 1. Once there's a prior week to compare against, progression applies identically to both, and — since v6.09 — is suggested per set rather than uniformly from set 1
+
+**Per-set suggestions (v6.09):** each set's suggested weight/reps is now carried forward from that same set number the last time you trained the exercise, rather than every set copying whatever set 1 did. So if you had to drop the weight partway through a session, that adjustment carries forward correctly into the next mesocycle for that specific set — the other sets still progress normally from their own numbers. A newly-added set (from a plan that adds sets partway through the cycle) inherits the previous week's final set's suggestion.
 
 **Deload weeks** temporarily override all of this: every exercise's weight drops to 60% of last logged (rounded to that exercise's own increment), reps stay the same, and progression suggestions are hidden for the deload week itself and the single session right after it — which instead reverts to your last genuine numbers so the deload never permanently resets your baseline.
 
@@ -234,7 +240,7 @@ To restore: Settings → Restore from backup → select your `.json` file.
 - No native push notifications for timer alerts when the app is backgrounded
 - `localStorage` is capped at 5–10 MB; extremely large food libraries or years of logs could approach this
 - Body weight is tracked in lbs while training weight is tracked in kg — an intentional, but non-obvious, split (there's no unit toggle for body weight)
-- Drop Set exercises don't contribute to the Plan page's *theoretical* volume projections (Week-1 session summary, body-part volume table) since there's no plan-time rep target to project from — real logged volume is unaffected
+- Drop Set exercises' main set now contributes to the Plan page's *theoretical* volume projections (Week-1 session summary, body-part volume table) like any other exercise, as of v6.09 — only the drop portion still doesn't, since it has no plan-time target to project from. Real logged volume was never affected either way
 
 ---
 
@@ -244,6 +250,9 @@ Recent versions (v5.26 onward) reflect a page-by-page legacy audit pass — remo
 
 | Version | Notes |
 |---|---|
+| v6.11 | Body: Recent Entries now groups any month's completed logs (weight + steps both filled in) into a collapsible "Mmm YYYY" summary, sorted newest first; incomplete entries always stay visible individually regardless of month, so a steps-sync lag never buries an entry you still need to finish |
+| v6.10 | Settings: consolidated Exercise + Food library management into one "Libraries" section with a consistent two-tier button layout; new in-app **Exercise Library Editor** (view/edit/delete custom exercises; built-ins read-only); Danger Zone reorganised — Restore-from-backup moved in alongside Clear-all-data, the latter now styled with a solid red fill matching Export's visual weight |
+| v6.09 | Train: progression suggestions are now computed **per set** (from that same set number's previous mesocycle, not uniformly from set 1) instead of one flat figure for the whole exercise — a newly-added set inherits the previous week's final set. Fill Suggested, quick-fill, and quick-fill-complete all updated to match. Drop Set exercises gained a real main-set reps target (previously none at all) — the drop portion still has no target and is still discovered live. Quick-fill-complete is now available for drop sets too (previously no shortcut existed for them). As a side effect, drop sets' main set now contributes to the Plan page's theoretical volume projections |
 | v6.08 | Train: one-tap "quick fill + complete" now also records exercise history, matching the checkbox path (deload weeks still excluded either way) |
 | v6.07 | Exercise history recording excludes deload weeks, so a reduced week can never become the reference for "last logged" or a new plan's defaults |
 | v6.06 | New **exercise history** — completing a set remembers weight/reps/tracking-mode per exercise + set type, powering a "Last logged" reference and auto-filled defaults in the Plan exercise modal. Set-type rename, at the data level: Myorep Giant Set → Giant Set, Myorep Matching → Pause Set. Every stored `type` value, function, and variable renamed to match, not just labels |
