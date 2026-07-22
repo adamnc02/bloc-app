@@ -172,7 +172,7 @@ let state = {
   macrocycles:       [],   // Array<Macrocycle> — each includes weightIncrement (see §20)
   exercises:         {},   // Record<sessionKey, Array<Exercise>> — sessionKey = macroId_1_day(+microKey)
   trainLogs:         {},   // Record<string, SetLog> — see key formats below
-  bodyLogs:          [],   // Array<BodyLog>  {date, weight, steps}
+  bodyLogs:          [],   // Array<BodyLog>  {date, weight, steps, waist?, hip?} — waist/hip always stored in inches regardless of input unit (v6.12)
   nutritionLogs:     [],   // Array<NutritionLog>  (per-day summary — kept in sync by syncNutrLegacyLog() after every log change, for home screen/goals/weekly-view reads that predate nutritionMeals; not the primary source of truth but not dead either)
   goals:             [],   // Array<Goal>  {macroId, startDate, endDate, kcal, steps, protein, carbs, fats}
   customLibrary:     [],   // Array<{name, bodyPart}> — user-added exercise library entries
@@ -184,7 +184,7 @@ let state = {
   deloads:           {},   // Record<deloadUnitKey, true> — see §12 Deload Logic. Key = `${macroId}_${week}` (no microcycles) or `${macroId}_${week}_m${1|2}` (microcycles)
   exerciseHistory:   {},   // Record<nameNorm, Record<setType, HistoryEntry>> — see §12 Exercise History. HistoryEntry = {sets, reps, weight, dropWeight, dropReps, date}
   exerciseTrackingMode: {}, // Record<nameNorm, 'total'|'perSide'> — remembered tracking mode per exercise name, updated alongside exerciseHistory
-  profile:           {},   // {gender, heightCm, birthday} — used for BMR/TDEE calc on the Body screen
+  profile:           {},   // {gender, heightCm, birthday, measureUnit} — used for BMR/TDEE calc on the Body screen; measureUnit ('in'|'cm', default 'in') governs the waist/hip input mode only — storage is always inches regardless (v6.12)
   currentMacroId:    null, // string | null
   currentWeek:       1,
   currentDay:        'push',
@@ -219,6 +219,7 @@ function load() {
   if (!state.exerciseHistory)   state.exerciseHistory = {};
   if (!state.exerciseTrackingMode) state.exerciseTrackingMode = {};
   if (!state.profile)           state.profile = {};
+  if (!state.profile.measureUnit) state.profile.measureUnit = 'in';
   if (!state.theme)             state.theme = 'multi';
   document.body.setAttribute('data-theme', state.theme);
   if (!state.mode)              state.mode = 'dark';
@@ -592,6 +593,10 @@ All modals are `.modal-overlay` divs appended after `#app`. Each wraps a `.modal
 
 `openModal(id)` adds `.open` to the overlay, and additionally special-cases a handful of modals that need fresh state on every open rather than whatever was last left in the DOM — `modal-body-log` (blank vs pre-filled for edit, keyed off a `dataset.originalDate` sentinel), `modal-add-goal` (clears any stale overlap-validation error message, syncs the macro select), and others following the same pattern. `closeModal(id)` removes `.open` and stops any running camera stream if the closed modal was a barcode scanner.
 
+**Stacked modals and z-index (v6.12):** all `.modal-overlay` elements share `z-index: 200` by default (`#modal-custom-exercise` is the one pre-existing exception, at `300`, for the same reason below), and same-z-index elements stack by DOM/source order — later in the HTML wins. This was invisible until `modal-nutr-add` and `modal-nutr-serving` (both defined early in the file) needed to be openable **on top of** `modal-recipe-ingredients` (defined much later), for the recipe-ingredient food-library search flow (§14). Since `modal-recipe-ingredients` deliberately stays open underneath rather than being closed first, it was rendering over both of them. Fixed by bumping `#modal-nutr-add, #modal-nutr-serving` to `z-index: 300` as well — matching the existing pattern for `#modal-custom-exercise`, which has the same "must layer over another open modal" requirement.
+
+**Recipe-context auto-return (v6.12):** `closeModal(id)` also special-cases `modal-nutr-add`: if it's being dismissed outright while `nutrAddContext === 'recipe'` (see §14) — via any of the three dismissal paths (✕ button, backdrop tap, swipe-down, all of which already funnel through this one function) — it reopens `modal-recipe-ingredients` underneath. This is guarded by `_nutrAddTransitioning`, a flag set immediately before `selectFromAddList()` deliberately closes `modal-nutr-add` on its way to `modal-nutr-serving`, so that intentional hand-off isn't misread as the person backing out of the whole flow.
+
 `showConfirm(title, message, okLabel, callback)` builds a generic two-button (Cancel / OK) confirmation using `modal-confirm`; it's also reused anywhere a simple one-off alert is needed by passing a no-op callback.
 
 ### Modal sheets and the on-screen keyboard
@@ -632,7 +637,7 @@ The fix is structural — the sheet is kept compact by giving the list a fixed `
 Rendered by `renderProgress()`.
 
 Key sub-functions:
-- `renderProgressHero()` / `renderProgressHeroDots()` / `initProgressHeroSwipe()` — the swipe deck (see §8)
+- `renderProgressHero()` / `renderProgressHeroDots()` / `initProgressHeroSwipe()` — the 5-slide hero swipe deck (see §8)
 - `cycleProgressMacro(dir)` / `resolveProgressMacro()` — navigate between macrocycles
 - `renderProgressCharts()` — body weight sparkline, macro pie, weekly steps/kcal bars below the hero
 - `setProgressNutrToggle(val)` — today/7-day toggle for the weekly bar charts
@@ -640,6 +645,23 @@ Key sub-functions:
 - `renderProgressNutrPies()` / `makePie(p, c, f)` — shared inline-SVG macro pie chart, also used by Nutrition
 
 All charts (sparkline, line charts, bar charts, pies) are generated as inline SVG strings — there is no charting library.
+
+Between the hero and the weekly table stack sits a separate 3-card swipeable "Insights" deck (Progress/Metabolism/Next cycle — `#progress-body` / `#progress-body-dots`, driven by `insightsAnimateTo()`/`insightsSnapBack()`/`initInsightsSwipe()`), pre-dating this section's v6.12 additions. The weekly table stack below reuses its exact swipe-gesture pattern.
+
+### Weekly table swipe stack (v6.12)
+
+Below the "Insights" card deck sits a second, separate swipeable stack — same visual mechanics (touch/mouse swipe, dot pagination) as the hero and insights decks, but with two cards and no text label under the dots:
+
+- `buildWeeklySummaryCardHTML()` — returns the weekly summary table (weight delta / swing / avg kcal / avg steps / avg protein) as an HTML string rather than writing directly to the DOM, so it can be selected between by `renderProgressTables()`. Returns a short empty-state card instead of `''` when there isn't enough data yet, since the stack always needs something to show on this slide.
+- `buildMeasurementsCardHTML()` — same week-bucket shape, for waist/hip. Same empty-state pattern.
+- `renderProgressTables()` — picks `[buildWeeklySummaryCardHTML(), buildMeasurementsCardHTML()][progressTablesIndex]`, writes it into `#progress-tables-wrap`, and renders the dots into `#progress-tables-dots`
+- `progressTablesAnimateTo(rawIndex)` / `progressTablesSnapBack()` / `initProgressTablesSwipe()` — swipe-gesture handling, directly mirroring `insightsAnimateTo`/`insightsSnapBack`/`initInsightsSwipe` (§ below), except it only re-renders the table stack itself rather than the whole Progress page, since neither table depends on other page state
+
+**Weight delta (reworked in v6.12):** previously compared a single day's weight against another single day's weight (either first-vs-last within the week, or this-week's-only-entry vs last-week's-last-entry) — noisy enough that a genuine plateau could still show as a steady multi-week loss. Now calculated as **this week's average logged weight minus the most recent prior week (with any data)'s average weight**, carried forward across empty weeks the same way the measurements table already worked. Each week's average is always its own strict 7-day calendar bucket — never a trailing/rolling window spanning into other weeks.
+
+**Swing column (new in v6.12):** the smallest and largest **consecutive day-to-day** change within that week (only between chronological weigh-ins that actually happened — a gap between logs isn't treated as a swing), formatted `−1.5lbs/+2.4lbs`. Shows a single value (no slash) if there's only one day-to-day change that week, and `—` if there are fewer than two weigh-ins. Intended to make water-retention-style daily volatility visible without it being mistaken for the trend itself.
+
+**Measurements card:** values are the most recently logged waist/hip measurement within that calendar week; deltas compare against the last known value from the most recent prior week with data — never a same-week first-vs-last comparison, since measurements are typically logged at most once a week.
 
 ---
 
@@ -754,6 +776,18 @@ Rendered by `renderBody()`.
 - `calcAge()`, `getActivityMultiplier()`, `calcMifflinBMR()`, `calcDynamicTDEE()` — BMR/TDEE calculation. Body weight is stored and displayed in **lbs** throughout (confirmed intentional — training weight elsewhere in the app is in kg; there is deliberately no unit toggle for body weight). `getActivityMultiplier()` averages steps across the person's *entire* logged history with no recency window — also intentional, since this multiplier only feeds the BMR/TDEE estimate and more historical data makes it more accurate, not less.
 - `openEditBodyLog(idx)` / `saveInlineBodyLog()` / `saveBodyLog()` / `deleteBodyLog(date)` — body weight + steps log CRUD. The "at goal" / "no meaningful change" tolerance is standardised at ≤0.05 lbs across both the weekly-change and left-to-go hero callouts.
 
+### Waist/hip measurements (new in v6.12)
+
+Optional waist and hip fields on `state.bodyLogs`, entered in the same modal as weight/steps but always stored as inches (never the input unit) so a later unit switch can't corrupt historical data.
+
+- `setMeasUnit(unit)` — toggles the modal between inches and cm input modes, persists the choice to `state.profile.measureUnit`, and swaps which of `#meas-fields-in`/`#meas-fields-cm` is visible.
+- `setFrac(field, val)` — sets the active quarter-inch button (0/¼/½/¾) for `waist` or `hip` in inches mode; tracked in the module-level `fracState` object, not on the input elements themselves, since the whole-number field and the fraction picker are separate controls that together make one value.
+- `cmToIn(cm)` — converts a cm entry to inches, rounded to 2dp, for storage.
+- `fmtInch(val)` — smart display formatting: trims to the minimum decimals needed (`33` / `33.5` / `33.25`) rather than a fixed decimal count.
+- `saveBodyLog()` reads whichever unit mode is active (inches: whole-number field + `fracState`; cm: direct field via `cmToIn()`) and writes the resolved-to-inches `waist`/`hip` values onto the entry alongside weight/steps. `openEditBodyLog()` reverses this to populate both unit modes' fields when editing an existing entry, so switching the toggle mid-edit shows consistent values either way.
+- `saveInlineBodyLog()` (the quick weigh-in card) and `saveBodyLog()`'s date-change path both preserve any existing `waist`/`hip` already logged for that date rather than clobbering them with `null` — same pattern already used for `steps`.
+- Hero card second callout row (waist/hip current value + delta since first log) is built inline in `renderBody()` rather than a separate function — only rendered once at least one measurement has ever been logged (`hasMeasurements`), and each metric's "since first log" delta is `null` (renders as `—`) unless that metric has **two or more** logs, so a single early measurement never gets misread as "no change" when it's really just the only data point so far. A genuine zero change (2+ logs, same value) renders as `0"`, distinct from the `—` shown for insufficient data.
+
 ### Recent Entries — month grouping (new in v6.11)
 
 Every log entry with **both** weight and steps filled in is eligible to collapse into a monthly group; anything missing either field always renders as a standalone row, regardless of which month it falls in. This isn't month-scoped (the current calendar month groups exactly the same as any past month) — the only thing that keeps an entry out of a group is being incomplete.
@@ -806,9 +840,20 @@ Rendered by `renderNutrDaily()`. This is the largest module in the file.
 - Library/recipe row tap → `selectFromLibrary`/`selectFromAddList` → `openNutrServingModal()` → `updateServingPreview()` → `confirmServing()`
 - `fitListToKeyboard('nutr-add-list-wrap')` keeps the search results visible above the keyboard — see §9
 
+### Food library search reused for recipe ingredients (new in v6.12)
+
+The recipe builder's "Add ingredients" screen (`modal-recipe-ingredients`) gained a third action button, "Food Library", alongside Scan Barcode and Manual — `openRecipeIngredientSearch(isReopen)` opens **the same `modal-nutr-add` modal** used for meal logging, rather than a separate search UI, configured for this different purpose:
+
+- `nutrAddContext` (module-level, `'meal'` | `'recipe'`, default `'meal'`) governs what a committed selection actually does. `openNutrAdd()` resets it to `'meal'` on every open (so the modal self-heals back to its original behaviour); `openRecipeIngredientSearch()` sets it to `'recipe'` and hides the Recipes/Manual/Scan Barcode row (`#nutr-add-actions-row`, given an id specifically so it can be toggled) — none of those three apply when the point of opening the modal was already to search the library.
+- `quickAddFromList(idx)` and `confirmServing()` both branch on `nutrAddContext`: in `'recipe'` mode they `recipeIngredients.push(...)` a resolved-total ingredient (`{name, grams: 1, kcal, protein, carbs, fats, source: 'library'|'recipe'}` — deliberately shaped like a manual-entry ingredient, since the totals are already fully resolved and there's no per-gram value to preserve for later gram-based re-editing) and call `renderRecipeIngredients()`, instead of `addFoodEntry(...)`. The isRecipe-vs-regular-food scaling logic (recipe library items store *per-serving* values in their `per100kcal` field, by convention — see the existing per-item branching already in both functions) is unchanged; only the destination of the final totals differs.
+- Because `editRecipeIngredient()`/`saveRecipeIngredientEdit()` gate their gram-based editing path on `ing.source === 'barcode' && ing.per1kcal != null`, these new library-sourced ingredients (no `per1kcal`) automatically fall into the existing manual-style edit path (servings count + per-serving macro fields) with no additional code needed there.
+- **Returning to the parent modal:** all three ways of dismissing `modal-nutr-add` (✕ button, backdrop tap, swipe-down) funnel through the shared `closeModal(id)` function, so the recipe-context "return to `modal-recipe-ingredients`" logic lives there rather than being duplicated per dismissal path — see §9.
+- **Keeping the search open after each addition:** exactly mirrors the existing meal-logging behaviour via the pre-existing `_nutrReturnToAddList` flag — `cancelNutrServing()` and `confirmServing()` both reopen the food search (branching between `openNutrAdd(nutrActiveMeal, true)` and `openRecipeIngredientSearch(true)` by context) after the servings modal closes, so several ingredients can be added in a row without the modal fully closing between each one.
+- `_nutrAddTransitioning` (module-level boolean) suppresses the recipe-context auto-return in `closeModal()` specifically during the brief hand-off when `selectFromAddList()` closes `modal-nutr-add` on its way to opening `modal-nutr-serving` — without this guard, that deliberate transition would be misread as the person dismissing the whole flow, bouncing them back to `modal-recipe-ingredients` mid-flow instead of into the servings editor.
+
 ### Food library & recipes
 - `addToFoodLibrary()`, `exportFoodLibrary()`/`importFoodLibrary()`, `shareFoodLibItem(idx)`/`shareFoodLibItemByIdx(idx)` (two active entry points — list-index-based, used from the two different list contexts they each render in), `importSharedFoodItem(file)`
-- Recipe builder: `openRecipeBuilder(editId?)` → `recipeGoToIngredients()` → `renderRecipeIngredients()` → `confirmRecipeIngredient()`/`confirmRecipeManual()` → `saveRecipe()`
+- Recipe builder: `openRecipeBuilder(editId?)` → `recipeGoToIngredients()` → `renderRecipeIngredients()` → `confirmRecipeIngredient()`/`confirmRecipeManual()`/`openRecipeIngredientSearch()` → `saveRecipe()`
 
 ---
 
@@ -1012,9 +1057,18 @@ Not exhaustive — covers the functions most useful to know when working on the 
 | `positionNavPill()` | Reads active `.nav-btn` rect, sets `#nav-pill` left/width |
 | `getPageHeroColors(name)` | DOM probe to read `--hero-1`/`--hero-2` for the named page |
 | `openModal(id)` | Adds `.open` to the named modal overlay; special-cases a few modals that need fresh state on every open |
-| `closeModal(id)` | Removes `.open`, stops camera if applicable |
+| `closeModal(id)` | Removes `.open`, stops camera if applicable; also special-cases `modal-nutr-add` to auto-return to `modal-recipe-ingredients` in recipe context (v6.12, §9) |
 | `initModal(overlayEl)` | Attaches swipe-down-to-close and tap-outside-to-close to a modal overlay |
 | `showConfirm(title, msg, okLabel, callback)` | Generic two-button confirm dialog; also reused as a plain alert |
+
+### Progress
+| Function | Description |
+|---|---|
+| `renderProgressHero()` / `renderProgressHeroDots()` / `initProgressHeroSwipe()` | The 5-slide hero swipe deck |
+| `insightsAnimateTo(idx)` / `initInsightsSwipe()` | 3-card "Insights" swipe deck (Progress/Metabolism/Next cycle), pre-dates v6.12 |
+| `buildWeeklySummaryCardHTML()` | Weekly summary table (weight delta, swing, avg kcal/steps/protein) as an HTML string; weight delta is this-week-average vs last-week-average (v6.12, was single-day-to-single-day before) |
+| `buildMeasurementsCardHTML()` | Weekly waist/hip table as an HTML string, only including weeks with a measurement logged (v6.12) |
+| `renderProgressTables()` / `progressTablesAnimateTo(idx)` / `initProgressTablesSwipe()` | Swipe deck holding the two table cards above (v6.12) |
 
 ### Macrocycle / Plan
 | Function | Description |
@@ -1067,9 +1121,12 @@ Not exhaustive — covers the functions most useful to know when working on the 
 | Function | Description |
 |---|---|
 | `openBodyProfile()` / `saveBodyProfile()` | Gender/height/birthday profile, used for BMR/TDEE |
-| `openEditBodyLog(idx)` / `saveInlineBodyLog()` / `saveBodyLog()` / `deleteBodyLog(date)` | Body weight + steps log CRUD |
+| `openEditBodyLog(idx)` / `saveInlineBodyLog()` / `saveBodyLog()` / `deleteBodyLog(date)` | Body weight + steps + waist/hip log CRUD (waist/hip added v6.12) |
 | `calcAge()` / `getActivityMultiplier()` / `calcMifflinBMR()` / `calcDynamicTDEE()` | BMR/TDEE calculation chain |
 | `toggleBodyMonth(monthKey)` | Expands/collapses a month group in Recent Entries (new in v6.11) |
+| `setMeasUnit(unit)` | Toggles the body log modal's waist/hip input between inches and cm; persists to `state.profile.measureUnit` (v6.12) |
+| `setFrac(field, val)` | Sets the active quarter-inch fraction (0/¼/½/¾) for `waist` or `hip` in the inches input picker (v6.12) |
+| `cmToIn(cm)` / `fmtInch(val)` | Cm→inch conversion for storage; smart decimal-trimmed display formatting (v6.12) |
 
 ### Nutrition
 | Function | Description |
@@ -1078,7 +1135,7 @@ Not exhaustive — covers the functions most useful to know when working on the 
 | `nutrPickDate(dateStr)` / `nutrShiftDate(delta)` | Set current date via picker, or shift by swipe |
 | `renderNutrDiary()` | Renders per-meal food log cards |
 | `openMealMenu(meal)` / `saveMealAsRecipe()` | The `···` action sheet; save-as-recipe does not auto-log |
-| `openNutrServingModal()` / `updateServingPreview()` / `confirmServing()` | Serving confirm modal flow |
+| `openNutrServingModal()` / `updateServingPreview()` / `confirmServing()` | Serving confirm modal flow; `confirmServing()` branches on `nutrAddContext` since v6.12 to add a recipe ingredient instead of a meal log entry when opened via the recipe builder's food library search |
 | `saveManualEntry()` | Saves manual food entry; converts to per-100g for the library |
 | `confirmCopyFoodEntry()` | Executes copy or move; handles both single-item and whole-meal |
 | `copyMealFromYesterday(meal)` | Copies previous day's meal entries into current date |
@@ -1087,6 +1144,8 @@ Not exhaustive — covers the functions most useful to know when working on the 
 | `saveEditFoodEntry()` | Saves edit; direct macros for manual, per-100g calc for barcode |
 | `makePie(p, c, f)` | Generates inline SVG macro pie chart |
 | `fitListToKeyboard(wrapId)` | Shrinks a modal's scrollable list to stay above the keyboard |
+| `openRecipeIngredientSearch(isReopen)` | Opens `modal-nutr-add` in recipe-ingredient mode (v6.12) — sets `nutrAddContext = 'recipe'`, hides the Recipes/Manual/Scan Barcode row |
+| `quickAddFromList(idx)` | Quick-add from the search list at last-logged amount; branches on `nutrAddContext` since v6.12 (meal log vs recipe ingredient) |
 
 ### Barcode Scanner
 | Function | Description |
@@ -1316,7 +1375,7 @@ Applied identically to `weightPlaceholders`/`repsPlaceholders` (main) and `dropW
 | **Push notifications** | No background timer alerts when the app is backgrounded or screen is locked. |
 | **Storage limit** | `localStorage` capped at 5–10 MB. Extremely large libraries or years of logs could approach this. |
 | **Undo** | No undo mechanism. Deletes are confirmed but irreversible. |
-| **Body weight units** | Body weight is lbs-only (training weight elsewhere is kg-only); no unit toggle exists for either, unlike height which has one. Confirmed intentional, not planned to change. |
+| **Body weight units** | Body weight is lbs-only (training weight elsewhere is kg-only); no unit toggle exists for either, unlike height which has one. Confirmed intentional, not planned to change. Waist/hip measurements (v6.12) are the exception — they do have an inches/cm input toggle, though storage is always inches regardless of which unit was used to enter a given value. |
 | **Legacy nutrition log** | `state.nutritionLogs` (per-day summary format) predates `nutritionMeals`/`nutritionQuickLog` and isn't the primary source of truth — but it's still actively kept in sync by `syncNutrLegacyLog()` after every log change (add, edit, delete), for whichever reads still go through it. An earlier version of this document incorrectly described it as read-only/dead; it was corrected after adding inline code comments surfaced the live call sites. |
 | **Drop-set theoretical volume (partially resolved in v6.09)** | The Plan page's *theoretical* (pre-logged) volume projections — the Week-1 session summary and the body-part volume table — now include a drop-set exercise's main-set contribution, since `ex.reps` holds a real target for it as of v6.09 (previously always `''`, contributing 0). The **drop portion** still contributes 0 to these projections, correctly — it never has a plan-time target, only ever discovered live, so there's nothing to project. Real logged volume (`getSessionVolume()`, used everywhere in Train/Progress) was never affected either way and correctly includes both portions. |
 

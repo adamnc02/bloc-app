@@ -735,6 +735,12 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 }
 .modal-overlay.open { opacity: 1; pointer-events: all; }
 #modal-custom-exercise { z-index: 300; }
+/* modal-nutr-add and modal-nutr-serving can now be opened stacked on top of
+   modal-recipe-ingredients (via openRecipeIngredientSearch, and the
+   tap-to-edit servings flow reached from it) in addition to their original
+   use over the plain Nutrition page — bump both above the default 200 so
+   neither is hidden behind whichever modal is already open underneath. */
+#modal-nutr-add, #modal-nutr-serving { z-index: 300; }
 .modal-sheet {
   width: 100%;
   background: var(--surface);
@@ -1525,8 +1531,9 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div id="progress-body-dots" style="display:flex;justify-content:center;gap:6px;margin-bottom:6px;min-height:18px;"></div>
 
       <!-- Weekly summary table -->
-      <div class="section-title" style="margin-top:16px;">Weekly Summary</div>
-      <div id="progress-charts" style="margin-bottom:4px;"></div>
+      <!-- Weekly tables: swipeable stack (weekly summary / measurements) -->
+      <div id="progress-tables-wrap" style="margin-top:16px;"></div>
+      <div id="progress-tables-dots" style="display:flex;justify-content:center;gap:6px;margin-bottom:6px;min-height:18px;"></div>
 
       <!-- Steps + Nutrition, merged into one statistics card with a single toggle -->
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;margin-bottom:6px;">
@@ -1602,7 +1609,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v6.11</span>
+          <span class="badge badge-green">v6.12</span>
         </div>
       </div>
 
@@ -2268,6 +2275,48 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
         <input type="number" id="body-steps-input" placeholder="8500">
       </div>
     </div>
+    <div style="border-top:0.5px solid var(--border);margin:14px 0 12px;"></div>
+    <div class="label" style="margin-bottom:10px;font-size:10px;text-transform:uppercase;letter-spacing:0.07em;color:var(--text3);">Measurements — optional</div>
+    <div class="toggle-row" style="margin-bottom:12px;width:auto;display:inline-flex;">
+      <button class="toggle-btn active" id="meas-unit-in" onclick="setMeasUnit('in')" style="padding:5px 14px;font-size:12px;">in</button>
+      <button class="toggle-btn" id="meas-unit-cm" onclick="setMeasUnit('cm')" style="padding:5px 14px;font-size:12px;">cm</button>
+    </div>
+    <div id="meas-fields-in">
+      <div style="margin-bottom:12px;">
+        <div class="label">Waist (in)</div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <input type="number" id="body-waist-whole" min="0" max="99" placeholder="33" style="width:58px;flex-shrink:0;text-align:center;">
+          <div class="toggle-row" style="margin:0;flex:1;display:inline-flex;">
+            <button class="toggle-btn active" onclick="setFrac('waist',0)" id="waist-frac-0" style="flex:1;padding:9px 2px;font-size:13px;">0</button>
+            <button class="toggle-btn" onclick="setFrac('waist',0.25)" id="waist-frac-25" style="flex:1;padding:9px 2px;font-size:13px;">¼</button>
+            <button class="toggle-btn" onclick="setFrac('waist',0.5)" id="waist-frac-50" style="flex:1;padding:9px 2px;font-size:13px;">½</button>
+            <button class="toggle-btn" onclick="setFrac('waist',0.75)" id="waist-frac-75" style="flex:1;padding:9px 2px;font-size:13px;">¾</button>
+          </div>
+        </div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <div class="label">Hip (in)</div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <input type="number" id="body-hip-whole" min="0" max="99" placeholder="38" style="width:58px;flex-shrink:0;text-align:center;">
+          <div class="toggle-row" style="margin:0;flex:1;display:inline-flex;">
+            <button class="toggle-btn active" onclick="setFrac('hip',0)" id="hip-frac-0" style="flex:1;padding:9px 2px;font-size:13px;">0</button>
+            <button class="toggle-btn" onclick="setFrac('hip',0.25)" id="hip-frac-25" style="flex:1;padding:9px 2px;font-size:13px;">¼</button>
+            <button class="toggle-btn" onclick="setFrac('hip',0.5)" id="hip-frac-50" style="flex:1;padding:9px 2px;font-size:13px;">½</button>
+            <button class="toggle-btn" onclick="setFrac('hip',0.75)" id="hip-frac-75" style="flex:1;padding:9px 2px;font-size:13px;">¾</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="meas-fields-cm" style="display:none;">
+      <div style="margin-bottom:12px;">
+        <div class="label">Waist (cm)</div>
+        <input type="number" id="body-waist-cm" step="0.1" placeholder="84.5">
+      </div>
+      <div style="margin-bottom:10px;">
+        <div class="label">Hip (cm)</div>
+        <input type="number" id="body-hip-cm" step="0.1" placeholder="97">
+      </div>
+    </div>
     <button class="btn btn-accent btn-block" onclick="saveBodyLog()">Save →</button>
   </div>
 </div>
@@ -2279,7 +2328,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-add')">✕</button></div>
     <!-- TEMP DIAGNOSTIC — remove once keyboard-height numbers are gathered -->
     <input type="text" id="nutr-add-search" placeholder="Search foods…" oninput="renderNutrAddList()" style="margin-bottom:10px;flex-shrink:0;">
-    <div style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0;">
+    <div id="nutr-add-actions-row" style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0;">
       <button onclick="toggleNutrRecipeFilter()" id="nutr-recipe-filter-btn" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
         <span style="font-weight:600;">Recipes</span>
@@ -2551,7 +2600,7 @@ let state = {
   // Keyed by `${macroId}_${week}_${day}${microKey}_${exerciseId}_${setIndex}`.
   // Uses the exercise's stable id, not its position in the exercises array.
   trainLogs: {},    // {weight, reps, done}
-  bodyLogs: [],     // [{date, weight, steps}]
+  bodyLogs: [],     // [{date, weight, steps, waist?, hip?}]  waist/hip always stored in inches
   nutritionLogs: [], // [{date, kcal, protein, carbs, fats}] — legacy, read-only now
   goals: [],        // [{macroId, startDate, endDate, kcal, steps, protein, carbs, fats}]
   customLibrary: [], // [{name, bodyPart}]
@@ -2623,6 +2672,7 @@ function load() {
   if (!state.exerciseHistory) state.exerciseHistory = {};
   if (!state.exerciseTrackingMode) state.exerciseTrackingMode = {};
   if (!state.profile) state.profile = {};
+  if (!state.profile.measureUnit) state.profile.measureUnit = 'in';
   if (!state.theme) state.theme = 'multi';
   document.body.setAttribute('data-theme', state.theme);
   if (!state.mode) state.mode = 'dark';
@@ -2752,6 +2802,13 @@ function openModal(id) {
       dateEl.dataset.originalDate = '';
       document.getElementById('body-weight-input').value = '';
       document.getElementById('body-steps-input').value = '';
+      document.getElementById('body-waist-whole').value = '';
+      document.getElementById('body-hip-whole').value = '';
+      document.getElementById('body-waist-cm').value = '';
+      document.getElementById('body-hip-cm').value = '';
+      setFrac('waist', 0);
+      setFrac('hip', 0);
+      setMeasUnit((state.profile && state.profile.measureUnit) || 'in');
     }
   }
 
@@ -2825,6 +2882,18 @@ function closeModal(id) {
     document.activeElement.blur();
   }
   overlay.classList.remove('open');
+  // If the food-search modal (modal-nutr-add) was opened in "recipe
+  // ingredient search" mode and is being dismissed outright (backdrop tap,
+  // swipe-down, or the ✕ button — all funnel through here) rather than
+  // transitioning onward to the serving modal, return to the recipe
+  // builder's ingredient screen underneath it. _nutrAddTransitioning
+  // suppresses this when selectFromAddList closes the modal on its way to
+  // modal-nutr-serving, since that's a deliberate hand-off, not a dismissal.
+  if (id === 'modal-nutr-add' && nutrAddContext === 'recipe' && !_nutrAddTransitioning) {
+    nutrAddContext = 'meal';
+    requestAnimationFrame(() => openModal('modal-recipe-ingredients'));
+  }
+  _nutrAddTransitioning = false;
   // Always clear originalDate flags when closing so fresh opens start clean
   if (id === 'modal-body-log') document.getElementById('body-date-input').dataset.originalDate = '';
   // Clear stale edit-mode flag so a later "+ New" tap doesn't get mistaken
@@ -5239,8 +5308,8 @@ function renderProgress() {
   // Attach swipe gestures (re-attach each render since innerHTML was replaced)
   initInsightsSwipe();
 
-  // ── Progress charts (weekly summary table) ────
-  renderProgressCharts();
+  // ── Weekly tables (swipeable: summary / measurements) ──
+  renderProgressTables();
 
   // ── Steps & Nutrition (merged into one card) ──
   renderProgressNutr();
@@ -5251,19 +5320,22 @@ function renderProgress() {
 
 // Renders the chart content shown inside the Progress page's secondary
 // insights cards (body weight sparkline, macro pie, steps/kcal bars).
-function renderProgressCharts() {
-  const el = document.getElementById('progress-charts');
-  if (!el) return;
+// Builds the weekly summary table card (weight delta / kcal / steps /
+// protein) as an HTML string for the Progress page's swipeable table
+// stack. Returns an empty-state card rather than '' when there isn't
+// enough data yet, so the stack always has something to show on this slide.
+function buildWeeklySummaryCardHTML() {
   const dayMap = buildDayMap();
   const macro  = resolveProgressMacro();
   const goalType = macro ? (macro.goalType || 'loss') : 'loss';
   const isLoss = goalType === 'loss';
   const allDates = Object.keys(dayMap).sort();
 
-  if (allDates.length < 2) {
-    el.innerHTML = '';
-    return;
-  }
+  const emptyCard = `<div class="card" style="margin-top:8px;">
+    <div style="font-size:12px;color:var(--text3);text-align:center;padding:8px 0;">Log a few days to see weekly summaries.</div>
+  </div>`;
+
+  if (allDates.length < 2) return emptyCard;
 
   // Bound the table strictly to the resolved (active/browsed) cycle's own
   // window — anchor at its start, and stop at its end date (or today,
@@ -5284,7 +5356,7 @@ function renderProgressCharts() {
     const b = [];
     let cur2 = new Date(anchorMs);
     let wn = 1;
-    let prevLastWeight = null; // carry last weight from previous week
+    let prevAvgWeight = null; // carry avg weight from the most recent week that had any
     while (cur2.getTime() <= rangeEndMs) {
       const bStart = toLocalDateStr(cur2);
       const bEnd   = toLocalDateStr(new Date(cur2.getTime() + 6 * 86400000));
@@ -5293,20 +5365,41 @@ function renderProgressCharts() {
         const wD = bDates.filter(d => dayMap[d].weight !== null);
         const sD = bDates.filter(d => dayMap[d].steps  !== null);
         const nD = bDates.filter(d => dayMap[d].hasNutr);
-        const firstW = wD.length ? dayMap[wD[0]].weight : null;
-        const lastW  = wD.length ? dayMap[wD[wD.length-1]].weight : null;
-        // Delta: last entry this week minus first entry this week.
-        // If only one entry this week, use prev week's last as the baseline.
-        let delta = null;
-        if (firstW !== null && lastW !== null && wD.length > 1) {
-          delta = parseFloat((lastW - firstW).toFixed(1));
-        } else if (lastW !== null && prevLastWeight !== null) {
-          delta = parseFloat((lastW - prevLastWeight).toFixed(1));
+
+        // Delta: this week's average weight vs the most recent prior
+        // week's average weight (carried forward across any empty weeks).
+        // Averaging smooths out daily water/food/glycogen noise, which a
+        // single-day-to-single-day comparison doesn't — two noisy points
+        // can make a genuine plateau look like a consistent loss (or vice
+        // versa).
+        const avgWeight = wD.length
+          ? wD.reduce((s,d) => s + dayMap[d].weight, 0) / wD.length
+          : null;
+        const delta = (avgWeight !== null && prevAvgWeight !== null)
+          ? parseFloat((avgWeight - prevAvgWeight).toFixed(1))
+          : null;
+        if (avgWeight !== null) prevAvgWeight = avgWeight;
+
+        // Swing: smallest and largest consecutive day-to-day change within
+        // this week (chronological weigh-ins only, not every calendar
+        // day — gaps between logs aren't treated as a "swing"). Surfaces
+        // day-to-day volatility (e.g. water retention after a big activity
+        // day) separately from the smoothed weekly trend above.
+        let swingMin = null, swingMax = null;
+        if (wD.length >= 2) {
+          const diffs = [];
+          for (let i = 0; i < wD.length - 1; i++) {
+            diffs.push(dayMap[wD[i+1]].weight - dayMap[wD[i]].weight);
+          }
+          swingMin = parseFloat(Math.min(...diffs).toFixed(1));
+          swingMax = parseFloat(Math.max(...diffs).toFixed(1));
         }
-        if (lastW !== null) prevLastWeight = lastW;
+
         b.push({
           label:   'W' + wn++,
           delta,
+          swingMin,
+          swingMax,
           steps:   sD.length ? Math.round(sD.reduce((s,d) => s + dayMap[d].steps,   0) / sD.length) : null,
           kcal:    nD.length ? Math.round(nD.reduce((s,d) => s + dayMap[d].kcal,    0) / nD.length) : null,
           protein: nD.length ? Math.round(nD.reduce((s,d) => s + dayMap[d].protein, 0) / nD.length) : null,
@@ -5317,7 +5410,7 @@ function renderProgressCharts() {
     return b;
   })();
 
-  if (!weekBuckets.length) { el.innerHTML = ''; return; }
+  if (!weekBuckets.length) return emptyCard;
 
   // Heat-map colour for a column of values
   function heatColour(val, vals, lowGood) {
@@ -5339,6 +5432,19 @@ function renderProgressCharts() {
     return `<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${colour};margin-right:4px;flex-shrink:0;vertical-align:middle;"></span>`;
   }
 
+  // Formats a single swing value with sign, matching the app's convention
+  // of using a true minus glyph (−) rather than a plain hyphen for negatives.
+  function swingVal(v) {
+    return (v < 0 ? '−' : '+') + Math.abs(v).toFixed(1) + 'lbs';
+  }
+  function swingStr(b) {
+    if (b.swingMin === null || b.swingMax === null) return '—';
+    // Only one day-to-day change this week — min and max are the same
+    // number, so show it once rather than repeating it either side of a slash.
+    if (b.swingMin === b.swingMax) return swingVal(b.swingMin);
+    return swingVal(b.swingMin) + '/' + swingVal(b.swingMax);
+  }
+
   const tableRows = weekBuckets.map(b => {
     const deltaStr = b.delta === null ? '—'
       : (b.delta >= 0 ? '+' : '') + b.delta.toFixed(1) + ' lbs';
@@ -5349,19 +5455,21 @@ function renderProgressCharts() {
     return `<tr>
       <td style="font-family:var(--font-mono);font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);">${b.label}</td>
       <td style="font-size:11px;color:${deltaCol};padding:5px 4px;border-bottom:0.5px solid var(--border);font-weight:500;">${deltaStr}</td>
+      <td style="font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);white-space:nowrap;">${swingStr(b)}</td>
       <td style="font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);">${sq(kcalHeat)}${b.kcal !== null ? b.kcal.toLocaleString() : '—'}</td>
       <td style="font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);">${sq(stepsHeat)}${b.steps !== null ? b.steps.toLocaleString() : '—'}</td>
       <td style="font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);">${sq(proteinHeat)}${b.protein !== null ? b.protein + 'g' : '—'}</td>
     </tr>`;
   }).join('');
 
-  el.innerHTML = `<div class="card" style="margin-top:8px;">
+  return `<div class="card" style="margin-top:8px;">
     <div style="overflow-x:auto;">
       <table style="width:100%;border-collapse:collapse;">
         <thead>
           <tr>
             <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Week</th>
             <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Δ weight</th>
+            <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Swing</th>
             <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Avg kcal</th>
             <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Avg steps</th>
             <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Avg prot</th>
@@ -5371,6 +5479,232 @@ function renderProgressCharts() {
       </table>
     </div>
   </div>`;
+}
+
+// Builds the weekly waist/hip measurement delta table card as an HTML
+// string for the Progress page's swipeable table stack — a second slide
+// alongside the weekly summary, following the same week-bucket layout but
+// only including weeks where at least one measurement was logged. Values
+// shown are the most recently logged measurement within that calendar
+// week; deltas compare against the last known value from the most recent
+// prior week that had data (carried forward across empty weeks).
+function buildMeasurementsCardHTML() {
+  const emptyCard = `<div class="card" style="margin-top:8px;">
+    <div style="font-size:12px;color:var(--text3);text-align:center;padding:8px 0;">Log a waist or hip measurement to see weekly trends.</div>
+  </div>`;
+
+  const measLogs = [...state.bodyLogs]
+    .filter(l => (l.waist !== null && l.waist !== undefined) || (l.hip !== null && l.hip !== undefined))
+    .sort((a,b) => a.date.localeCompare(b.date));
+
+  if (!measLogs.length) return emptyCard;
+
+  const macro = resolveProgressMacro();
+  const todayStr = getLocalToday();
+  const macroEndStr = macro ? toLocalDateStr(getMacroEndDate(macro)) : null;
+  const anchor = (macro && macro.start) ? macro.start : measLogs[0].date;
+  const anchorMs = new Date(anchor + 'T00:00:00').getTime();
+  const rangeEndStr = macro ? (macroEndStr < todayStr ? macroEndStr : todayStr) : todayStr;
+  const rangeEndMs = new Date(rangeEndStr + 'T00:00:00').getTime();
+
+  const weekBuckets = (() => {
+    const b = [];
+    let cur2 = new Date(anchorMs);
+    let wn = 1;
+    let prevWaist = null, prevHip = null; // carry last value from previous week
+    while (cur2.getTime() <= rangeEndMs) {
+      const bStart = toLocalDateStr(cur2);
+      const bEnd   = toLocalDateStr(new Date(cur2.getTime() + 6 * 86400000));
+      const inRange = measLogs.filter(l => l.date >= bStart && l.date <= bEnd);
+      if (inRange.length > 0) {
+        const wD = inRange.filter(l => l.waist !== null && l.waist !== undefined);
+        const hD = inRange.filter(l => l.hip   !== null && l.hip   !== undefined);
+        const lastWaist = wD.length ? wD[wD.length-1].waist : null;
+        const lastHip   = hD.length ? hD[hD.length-1].hip   : null;
+        const waistDelta = (lastWaist !== null && prevWaist !== null) ? parseFloat((lastWaist - prevWaist).toFixed(2)) : null;
+        const hipDelta   = (lastHip   !== null && prevHip   !== null) ? parseFloat((lastHip   - prevHip).toFixed(2))   : null;
+        if (lastWaist !== null) prevWaist = lastWaist;
+        if (lastHip   !== null) prevHip   = lastHip;
+        b.push({ label: 'W' + wn++, waist: lastWaist, waistDelta, hip: lastHip, hipDelta });
+      } else {
+        wn++;
+      }
+      cur2 = new Date(cur2.getTime() + 7 * 86400000);
+    }
+    return b;
+  })();
+
+  if (!weekBuckets.length) return emptyCard;
+
+  function deltaStr(delta) {
+    if (delta === null) return '—';
+    if (Math.abs(delta) < 0.01) return '0"';
+    return (delta < 0 ? '−' : '+') + fmtInch(Math.abs(delta)) + '"';
+  }
+  function deltaCol(delta) {
+    return delta === null ? 'var(--text3)' : delta < 0 ? 'var(--accent)' : delta > 0 ? 'var(--red)' : 'var(--text2)';
+  }
+
+  const tableRows = weekBuckets.map(b => `<tr>
+    <td style="font-family:var(--font-mono);font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);">${b.label}</td>
+    <td style="font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);">${b.waist !== null ? fmtInch(b.waist)+'"' : '—'}</td>
+    <td style="font-size:11px;color:${deltaCol(b.waistDelta)};padding:5px 4px;border-bottom:0.5px solid var(--border);font-weight:500;">${deltaStr(b.waistDelta)}</td>
+    <td style="font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);">${b.hip !== null ? fmtInch(b.hip)+'"' : '—'}</td>
+    <td style="font-size:11px;color:${deltaCol(b.hipDelta)};padding:5px 4px;border-bottom:0.5px solid var(--border);font-weight:500;">${deltaStr(b.hipDelta)}</td>
+  </tr>`).join('');
+
+  return `<div class="card" style="margin-top:8px;">
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Week</th>
+            <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Waist</th>
+            <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Δ waist</th>
+            <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Hip</th>
+            <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Δ hip</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+// ── Progress table swipe deck (2 cards: Weekly summary / Measurements) ──
+let progressTablesIndex        = 0;
+let _progressTablesBusy        = false;
+let _progressTablesGestureId   = 0;
+const PROGRESS_TABLES_COUNT = 2;
+
+// Renders the currently-selected table card into #progress-tables-wrap and
+// the dot pagination into #progress-tables-dots (no text labels — dots
+// only, per the same visual language as the hero deck's dots).
+function renderProgressTables() {
+  const wrap = document.getElementById('progress-tables-wrap');
+  if (!wrap) return;
+  const cards = [buildWeeklySummaryCardHTML(), buildMeasurementsCardHTML()];
+  wrap.innerHTML = cards[progressTablesIndex];
+
+  const dotsEl = document.getElementById('progress-tables-dots');
+  if (dotsEl) {
+    dotsEl.innerHTML = cards.map((_, i) =>
+      `<button onclick="progressTablesAnimateTo(${i})" style="background:none;border:none;padding:4px;cursor:pointer;display:flex;align-items:center;">
+        <span style="width:${i===progressTablesIndex?'16px':'6px'};height:6px;border-radius:3px;background:${i===progressTablesIndex?'var(--accent)':'var(--border2)'};transition:width 0.2s;display:inline-block;"></span>
+      </button>`
+    ).join('');
+  }
+
+  initProgressTablesSwipe();
+}
+
+// Returns the currently-rendered .card element inside the Progress page's
+// table swipe deck, used by that deck's own swipe-gesture handlers.
+function getProgressTablesCard() {
+  const wrap = document.getElementById('progress-tables-wrap');
+  return wrap ? wrap.querySelector('.card') : null;
+}
+
+// Animates the table card back to its resting position after a swipe that
+// didn't cross the threshold to change cards.
+function progressTablesSnapBack() {
+  const card = getProgressTablesCard();
+  if (card) {
+    card.style.transition = 'transform 0.18s ease-out, opacity 0.18s ease-out';
+    card.style.transform  = 'translateX(0)';
+    card.style.opacity    = '1';
+  }
+}
+
+// Advances the Progress page's table swipe deck to a new index (wrapping
+// via PROGRESS_TABLES_COUNT), animating the transition — same pattern as
+// insightsAnimateTo, but only re-renders the table stack rather than the
+// whole Progress page since the tables don't depend on other page state.
+function progressTablesAnimateTo(rawIndex) {
+  const dir = rawIndex > progressTablesIndex ? 1 : (rawIndex < progressTablesIndex ? -1 : 0);
+  let newIndex = ((rawIndex % PROGRESS_TABLES_COUNT) + PROGRESS_TABLES_COUNT) % PROGRESS_TABLES_COUNT;
+  if (newIndex === progressTablesIndex) { progressTablesSnapBack(); return; }
+  if (_progressTablesBusy) return;
+  _progressTablesBusy = true;
+  const myGesture = ++_progressTablesGestureId;
+
+  const outX = dir > 0 ? -260 : 260;
+  const card = getProgressTablesCard();
+  if (card) {
+    card.style.transition = 'transform 0.16s ease-in, opacity 0.16s ease-in';
+    card.style.transform  = `translateX(${outX}px)`;
+    card.style.opacity    = '0';
+  }
+
+  setTimeout(() => {
+    if (myGesture !== _progressTablesGestureId) return;
+    progressTablesIndex = newIndex;
+    renderProgressTables();
+    requestAnimationFrame(() => {
+      if (myGesture !== _progressTablesGestureId) return;
+      const newCard = getProgressTablesCard();
+      if (newCard) {
+        newCard.style.transition = 'none';
+        newCard.style.transform  = `translateX(${-outX}px)`;
+        newCard.style.opacity    = '0';
+        void newCard.offsetWidth;
+        requestAnimationFrame(() => {
+          if (myGesture !== _progressTablesGestureId) return;
+          newCard.style.transition = 'transform 0.2s ease-out, opacity 0.2s ease-out';
+          newCard.style.transform  = 'translateX(0)';
+          newCard.style.opacity    = '1';
+          setTimeout(() => { if (myGesture === _progressTablesGestureId) _progressTablesBusy = false; }, 210);
+        });
+      } else {
+        setTimeout(() => { if (myGesture === _progressTablesGestureId) _progressTablesBusy = false; }, 210);
+      }
+    });
+  }, 160);
+}
+
+let _progressTablesSwipeInited = false;
+// Attaches touch/mouse swipe gesture handlers to the Progress page's table
+// swipe deck (#progress-tables-wrap) — the same swipe-to-advance pattern
+// as initInsightsSwipe, applied to this 2-card carousel.
+function initProgressTablesSwipe() {
+  _progressTablesSwipeInited = false; // re-init on each render (wrap may change)
+  const wrap = document.getElementById('progress-tables-wrap');
+  if (!wrap) return;
+  wrap.style.touchAction = 'pan-y';
+  let startX = 0, startY = 0, tracking = false, moved = false, suppressClick = false;
+  function resetGesture() { tracking = false; moved = false; }
+  wrap.addEventListener('touchstart', e => {
+    if (_progressTablesBusy) { resetGesture(); return; }
+    if (e.touches.length !== 1) { resetGesture(); return; }
+    startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+    tracking = true; moved = false;
+  }, { passive: true });
+  wrap.addEventListener('touchmove', e => {
+    if (!tracking || _progressTablesBusy) return;
+    const dx = e.touches[0].clientX - startX;
+    const dy = e.touches[0].clientY - startY;
+    if (!moved && Math.abs(dy) > Math.abs(dx) + 4) { tracking = false; return; }
+    if (Math.abs(dx) > 8) moved = true;
+  }, { passive: true });
+  wrap.addEventListener('touchend', e => {
+    if (_progressTablesBusy) { resetGesture(); return; }
+    if (tracking && moved && e.changedTouches.length === 1) {
+      const dx = e.changedTouches[0].clientX - startX;
+      if (Math.abs(dx) > 40) {
+        suppressClick = true;
+        progressTablesAnimateTo(progressTablesIndex + (dx < 0 ? 1 : -1));
+      } else { progressTablesSnapBack(); }
+    }
+    resetGesture();
+  }, { passive: true });
+  wrap.addEventListener('touchcancel', () => {
+    if (!_progressTablesBusy) progressTablesSnapBack();
+    resetGesture();
+  }, { passive: true });
+  wrap.addEventListener('click', e => {
+    if (suppressClick) { e.stopPropagation(); e.preventDefault(); }
+    suppressClick = false;
+  }, true);
 }
 
 const progressToggle = { nutr: 'avg' };
@@ -7752,6 +8086,32 @@ function renderBody() {
     }
   }
 
+  // ── Measurements callout row (waist/hip) ────────
+  // Only shown once at least one measurement has ever been logged — the
+  // hero stays uncluttered for anyone not tracking these yet.
+  const waistLogs = [...state.bodyLogs].filter(l => l.waist !== null && l.waist !== undefined).sort((a,b) => a.date.localeCompare(b.date));
+  const hipLogs   = [...state.bodyLogs].filter(l => l.hip   !== null && l.hip   !== undefined).sort((a,b) => a.date.localeCompare(b.date));
+  const latestWaist = waistLogs.length ? waistLogs[waistLogs.length - 1].waist : null;
+  const firstWaist  = waistLogs.length ? waistLogs[0].waist : null;
+  const waistDelta  = (waistLogs.length >= 2 && latestWaist !== null && firstWaist !== null) ? latestWaist - firstWaist : null;
+  const latestHip   = hipLogs.length ? hipLogs[hipLogs.length - 1].hip : null;
+  const firstHip    = hipLogs.length ? hipLogs[0].hip : null;
+  const hipDelta     = (hipLogs.length >= 2 && latestHip !== null && firstHip !== null) ? latestHip - firstHip : null;
+  const hasMeasurements = latestWaist !== null || latestHip !== null;
+
+  function measDeltaStr(delta) {
+    if (delta === null) return '—';
+    if (Math.abs(delta) < 0.01) return '0"';
+    return (delta < 0 ? '−' : '+') + fmtInch(Math.abs(delta)) + '"';
+  }
+  const measCalloutRow = hasMeasurements ? `
+    <div class="hero-callouts" style="grid-template-columns:repeat(4,1fr);border-top:0.5px solid rgba(255,255,255,0.15);padding-top:10px;margin-top:10px;">
+      <div class="hero-callout"><div class="hero-callout-lbl" style="opacity:0.55;font-size:9px;margin-bottom:1px;">WAIST</div><div class="hero-callout-lbl">Current</div><div class="hero-callout-val">${latestWaist !== null ? fmtInch(latestWaist)+'"' : '—'}</div></div>
+      <div class="hero-callout"><div class="hero-callout-lbl" style="opacity:0.55;font-size:9px;margin-bottom:1px;">WAIST</div><div class="hero-callout-lbl">Since first log</div><div class="hero-callout-val">${measDeltaStr(waistDelta)}</div></div>
+      <div class="hero-callout"><div class="hero-callout-lbl" style="opacity:0.55;font-size:9px;margin-bottom:1px;">HIP</div><div class="hero-callout-lbl">Current</div><div class="hero-callout-val">${latestHip !== null ? fmtInch(latestHip)+'"' : '—'}</div></div>
+      <div class="hero-callout"><div class="hero-callout-lbl" style="opacity:0.55;font-size:9px;margin-bottom:1px;">HIP</div><div class="hero-callout-lbl">Since first log</div><div class="hero-callout-val">${measDeltaStr(hipDelta)}</div></div>
+    </div>` : '';
+
   // ── Hero card ──────────────────────────────────
   const heroEl = document.getElementById('body-hero');
   // ── Profile badge (gender + height shown in hero top-right) ──
@@ -7778,6 +8138,7 @@ function renderBody() {
       <div class="hero-callout"><div class="hero-callout-lbl">Target</div><div class="hero-callout-val">${target ? target+' lbs' : '—'}</div></div>
       <div class="hero-callout"><div class="hero-callout-lbl">Left to go</div><div class="hero-callout-val">${leftToGoStr}</div></div>
     </div>
+    ${measCalloutRow}
   </div>`;
 
   // ── Weight history chart ──────────────────────
@@ -8159,6 +8520,57 @@ function calcDynamicTDEE() {
   };
 }
 
+// ── Measurement unit helpers ────────────────────────────────────────────
+// Waist/hip are always stored on state.bodyLogs entries in inches, to 2dp
+// (quarter-inch precision: 0, 0.25, 0.5, 0.75). The in/cm toggle in the
+// body log modal only affects data ENTRY — cm values are converted to
+// inches on save so the rest of the app (hero deltas, progress table)
+// never has to think about units.
+
+// Tracks the currently-selected quarter-inch fraction per field while the
+// modal is open (the whole-number part lives directly in the input).
+const fracState = { waist: 0, hip: 0 };
+
+// Switches the in/cm toggle in the body log modal and persists the
+// preference so it's remembered next time the modal opens.
+function setMeasUnit(unit) {
+  state.profile = state.profile || {};
+  state.profile.measureUnit = unit;
+  save();
+  document.getElementById('meas-unit-in').classList.toggle('active', unit === 'in');
+  document.getElementById('meas-unit-cm').classList.toggle('active', unit === 'cm');
+  document.getElementById('meas-fields-in').style.display = unit === 'in' ? '' : 'none';
+  document.getElementById('meas-fields-cm').style.display = unit === 'cm' ? '' : 'none';
+}
+
+// Sets the active quarter-inch fraction button for a measurement field
+// (waist or hip) and updates the toggle's visual active state.
+function setFrac(field, val) {
+  fracState[field] = val;
+  const map = { 0: '0', 0.25: '25', 0.5: '50', 0.75: '75' };
+  ['0','25','50','75'].forEach(k => {
+    const btn = document.getElementById(`${field}-frac-${k}`);
+    if (btn) btn.classList.toggle('active', map[val] === k);
+  });
+}
+
+// Converts a cm value to inches, rounded to 2dp (matches internal storage
+// precision — cm entries aren't restricted to quarter-inch steps like the
+// dedicated inch picker, so this just rounds normally).
+function cmToIn(cm) {
+  return Math.round((parseFloat(cm) / 2.54) * 100) / 100;
+}
+
+// Smart inch display: trims to the minimum decimals needed (33 → "33",
+// 33.5 → "33.5", 33.25 → "33.25") rather than always showing a fixed
+// number of decimal places.
+function fmtInch(val) {
+  if (val === null || val === undefined) return '—';
+  const n = parseFloat(val);
+  if (isNaN(n)) return '—';
+  return parseFloat(n.toFixed(2)).toString();
+}
+
 // Opens the body log modal pre-filled for editing an existing day's entry.
 function openEditBodyLog(date) {
   const log = state.bodyLogs.find(l => l.date === date);
@@ -8167,6 +8579,32 @@ function openEditBodyLog(date) {
   document.getElementById('body-date-input').dataset.originalDate = log.date;
   document.getElementById('body-weight-input').value = log.weight || '';
   document.getElementById('body-steps-input').value = log.steps || '';
+  // Restore the last-used measurement unit toggle state
+  const unit = (state.profile && state.profile.measureUnit) || 'in';
+  setMeasUnit(unit);
+  // Populate quarter-inch picker fields
+  if (log.waist !== null && log.waist !== undefined) {
+    const whole = Math.floor(log.waist);
+    const frac  = Math.round((log.waist - whole) * 100) / 100;
+    document.getElementById('body-waist-whole').value = whole;
+    setFrac('waist', frac);
+  } else {
+    document.getElementById('body-waist-whole').value = '';
+    setFrac('waist', 0);
+  }
+  if (log.hip !== null && log.hip !== undefined) {
+    const whole = Math.floor(log.hip);
+    const frac  = Math.round((log.hip - whole) * 100) / 100;
+    document.getElementById('body-hip-whole').value = whole;
+    setFrac('hip', frac);
+  } else {
+    document.getElementById('body-hip-whole').value = '';
+    setFrac('hip', 0);
+  }
+  // Populate cm fields too (converted from stored inches) so switching
+  // the toggle mid-edit shows consistent values either way
+  document.getElementById('body-waist-cm').value = (log.waist !== null && log.waist !== undefined) ? (log.waist * 2.54).toFixed(1) : '';
+  document.getElementById('body-hip-cm').value   = (log.hip   !== null && log.hip   !== undefined) ? (log.hip   * 2.54).toFixed(1) : '';
   openModal('modal-body-log');
 }
 
@@ -8179,10 +8617,13 @@ function saveInlineBodyLog() {
   if (!weight) return;
   const date = getLocalToday();
   const existing = state.bodyLogs.findIndex(l => l.date === date);
-  // Weight-only form — preserve any steps value already logged for today
-  // (e.g. synced from a fitness tracker) rather than clobbering it.
+  // Weight-only form — preserve any steps/waist/hip already logged for
+  // today (e.g. synced from a fitness tracker, or entered earlier via the
+  // full modal) rather than clobbering them.
   const existingSteps = existing >= 0 ? state.bodyLogs[existing].steps : null;
-  const entry = { date, weight: parseFloat(weight)||null, steps: existingSteps };
+  const existingWaist = existing >= 0 ? state.bodyLogs[existing].waist : null;
+  const existingHip   = existing >= 0 ? state.bodyLogs[existing].hip   : null;
+  const entry = { date, weight: parseFloat(weight)||null, steps: existingSteps, waist: existingWaist, hip: existingHip };
   if (existing >= 0) state.bodyLogs[existing] = entry;
   else state.bodyLogs.push(entry);
   save();
@@ -8198,7 +8639,30 @@ function saveBodyLog() {
   const weight = document.getElementById('body-weight-input').value;
   const steps = document.getElementById('body-steps-input').value;
   if (!date) return;
-  const entry = { date, weight: parseFloat(weight)||null, steps: parseInt(steps)||null };
+
+  // Read waist/hip from whichever unit toggle is currently active and
+  // normalise to inches (2dp) for storage.
+  const measUnit = (state.profile && state.profile.measureUnit) || 'in';
+  let waistIn = null, hipIn = null;
+  if (measUnit === 'in') {
+    const wWhole = document.getElementById('body-waist-whole').value;
+    const hWhole = document.getElementById('body-hip-whole').value;
+    if (wWhole !== '') waistIn = Math.round((parseFloat(wWhole) + (fracState.waist || 0)) * 100) / 100;
+    if (hWhole !== '') hipIn   = Math.round((parseFloat(hWhole) + (fracState.hip   || 0)) * 100) / 100;
+  } else {
+    const wCm = document.getElementById('body-waist-cm').value;
+    const hCm = document.getElementById('body-hip-cm').value;
+    if (wCm !== '') waistIn = cmToIn(wCm);
+    if (hCm !== '') hipIn   = cmToIn(hCm);
+  }
+
+  const entry = {
+    date,
+    weight: parseFloat(weight) || null,
+    steps:  parseInt(steps)    || null,
+    waist:  waistIn,
+    hip:    hipIn,
+  };
   // If date changed, remove the old entry first
   if (originalDate && originalDate !== date) {
     state.bodyLogs = state.bodyLogs.filter(l => l.date !== originalDate);
@@ -8226,6 +8690,17 @@ let nutrPendingProduct = null;
 let nutrShowRecipesOnly = false;
 let _nutrReturnToAddList = false; // true when serving modal was opened via tap-to-edit from the Log Food list
 let _nutrQuickAddedThisSession = new Set(); // items quick-added since the Log Food list was last freshly opened
+// The food-search modal (modal-nutr-add) is shared between two contexts:
+// logging a food to today's meal ('meal', the original behaviour), and
+// searching the food library to add an ingredient to the recipe builder
+// ('recipe', opened via openRecipeIngredientSearch). This governs where a
+// committed selection (quick-add or full serving-edit) ends up.
+let nutrAddContext = 'meal';
+// True only in the brief moment between selectFromAddList closing
+// modal-nutr-add and modal-nutr-serving opening — suppresses the recipe-
+// context auto-return-to-ingredients in closeModal so it doesn't fire mid
+// hand-off between the two modals.
+let _nutrAddTransitioning = false;
 
 // ── Swipe row system ──────────────────────────────────────────────────────
 let _swipeOpenWrap = null;
@@ -8985,10 +9460,13 @@ function nutrPickDate(val) {
 // ── Log entry flow ─────────────────────────────────────────────────────────
 function openNutrAdd(meal, isReopen) {
   nutrActiveMeal = meal;
+  nutrAddContext = 'meal';
   nutrShowRecipesOnly = false;
   if (!isReopen) _nutrQuickAddedThisSession = new Set(); // fresh open — clear ticks from any prior session
   document.getElementById('nutr-add-search').placeholder = 'Search foods for ' + meal + '…';
   document.getElementById('nutr-add-search').value = '';
+  const actionsRow = document.getElementById('nutr-add-actions-row');
+  if (actionsRow) actionsRow.style.display = '';
   const listWrap = document.getElementById('nutr-add-list-wrap');
   if (listWrap) listWrap.style.maxHeight = '';
   updateNutrRecipeFilterBtn();
@@ -8997,6 +9475,27 @@ function openNutrAdd(meal, isReopen) {
   // Measuring the wrap's position has to wait until the sheet's slide-in
   // transform (0.3s) has settled — mid-transition, getBoundingClientRect()
   // would return an in-flight position, not the final one.
+  setTimeout(() => fitListToKeyboard('nutr-add-list-wrap'), 320);
+}
+
+// Opens the same food-search modal (modal-nutr-add) used by nutrition
+// logging, but configured to add the selected item as a recipe ingredient
+// instead — reached via the "Food library" button on the recipe builder's
+// ingredients screen. Hides the Recipes/Manual/Scan Barcode action row
+// since none of those apply to this search-only context; the resizing and
+// keyboard behaviour are otherwise identical to openNutrAdd.
+function openRecipeIngredientSearch(isReopen) {
+  nutrAddContext = 'recipe';
+  nutrShowRecipesOnly = false;
+  if (!isReopen) _nutrQuickAddedThisSession = new Set();
+  document.getElementById('nutr-add-search').placeholder = 'Search food library…';
+  if (!isReopen) document.getElementById('nutr-add-search').value = '';
+  const actionsRow = document.getElementById('nutr-add-actions-row');
+  if (actionsRow) actionsRow.style.display = 'none';
+  const listWrap = document.getElementById('nutr-add-list-wrap');
+  if (listWrap) listWrap.style.maxHeight = '';
+  renderNutrAddList();
+  openModal('modal-nutr-add');
   setTimeout(() => fitListToKeyboard('nutr-add-list-wrap'), 320);
 }
 
@@ -9181,14 +9680,27 @@ function quickAddFromList(idx) {
     fats    = Math.round(item.per100f    / 100 * grams);
   }
 
-  addFoodEntry({
-    name: item.name,
-    brand: item.brand || '',
-    grams, servings,
-    serving: isRecipe ? servings : Math.round(grams * servings),
-    kcal, protein, carbs, fats,
-    source: item.source || 'library',
-  });
+  if (nutrAddContext === 'recipe') {
+    // Add straight to the recipe builder's in-memory ingredient list as a
+    // resolved-total ingredient — grams/servings scaling for recipe-vs-food
+    // items has already been applied above, so the totals here are final.
+    recipeIngredients.push({
+      name: item.name,
+      grams: 1,
+      kcal, protein, carbs, fats,
+      source: isRecipe ? 'recipe' : 'library',
+    });
+    renderRecipeIngredients();
+  } else {
+    addFoodEntry({
+      name: item.name,
+      brand: item.brand || '',
+      grams, servings,
+      serving: isRecipe ? servings : Math.round(grams * servings),
+      kcal, protein, carbs, fats,
+      source: item.source || 'library',
+    });
+  }
   _nutrQuickAddedThisSession.add(item.id || item.name);
   // Briefly swap the plus icon for a tick so the tap feels confirmed, then
   // refresh the list (amounts/ordering may have changed) once it's had a
@@ -9225,6 +9737,7 @@ function selectFromAddList(idx) {
     source: item.source || 'library',
   };
   _nutrReturnToAddList = true;
+  _nutrAddTransitioning = true;
   closeModal('modal-nutr-add');
   requestAnimationFrame(() => openNutrServingModal());
 }
@@ -9816,7 +10329,11 @@ function cancelNutrServing() {
   closeModal('modal-nutr-serving');
   if (_nutrReturnToAddList) {
     _nutrReturnToAddList = false;
-    requestAnimationFrame(() => openNutrAdd(nutrActiveMeal, true));
+    if (nutrAddContext === 'recipe') {
+      requestAnimationFrame(() => openRecipeIngredientSearch(true));
+    } else {
+      requestAnimationFrame(() => openNutrAdd(nutrActiveMeal, true));
+    }
   }
 }
 
@@ -9896,16 +10413,39 @@ function confirmServing() {
   const pPer1    = nutrPendingProduct.per100p / 100;
   const cPer1    = nutrPendingProduct.per100c / 100;
   const fPer1    = nutrPendingProduct.per100f / 100;
+  const kcal    = Math.round(kcalPer1 * total);
+  const protein = Math.round(pPer1    * total);
+  const carbs   = Math.round(cPer1    * total);
+  const fats    = Math.round(fPer1    * total);
+
+  if (nutrAddContext === 'recipe') {
+    // Add straight to the recipe builder's in-memory ingredient list —
+    // stored as a resolved-total ingredient (like a manual entry) since the
+    // recipe-vs-food scaling above has already been applied. Doesn't touch
+    // today's meal log or the food library.
+    recipeIngredients.push({
+      name: nutrPendingProduct.name,
+      grams: 1,
+      kcal, protein, carbs, fats,
+      source: nutrPendingProduct.source === 'recipe' ? 'recipe' : 'library',
+    });
+    renderRecipeIngredients();
+    nutrPendingProduct = null;
+    closeModal('modal-nutr-serving');
+    if (_nutrReturnToAddList) {
+      _nutrReturnToAddList = false;
+      requestAnimationFrame(() => openRecipeIngredientSearch(true));
+    }
+    return;
+  }
+
   const entry = {
     name:     nutrPendingProduct.name,
     brand:    nutrPendingProduct.brand || '',
     grams,
     servings,
     serving:  Math.round(total),
-    kcal:     Math.round(kcalPer1 * total),
-    protein:  Math.round(pPer1    * total),
-    carbs:    Math.round(cPer1    * total),
-    fats:     Math.round(fPer1    * total),
+    kcal, protein, carbs, fats,
     source:   nutrPendingProduct.source || 'barcode',
   };
   // Save to library (skip if sourced from library itself to avoid loops)
@@ -12269,6 +12809,10 @@ function deleteRecipe(id) {
       <button onclick="openRecipeManual()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         <span style="font-weight:600;">Manual</span>
+      </button>
+      <button onclick="openRecipeIngredientSearch()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <span style="font-weight:600;">Food Library</span>
       </button>
     </div>
     <!-- Ingredient list -->

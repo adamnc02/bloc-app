@@ -2,7 +2,7 @@
 
 > A personal, offline-first Progressive Web App for structured weight training and nutrition tracking. Single HTML file. No backend. No dependencies.
 
-![Version](https://img.shields.io/badge/version-v6.11-brightgreen) ![PWA](https://img.shields.io/badge/PWA-ready-blue) ![License](https://img.shields.io/badge/license-MIT-lightgrey)
+![Version](https://img.shields.io/badge/version-v6.12-brightgreen) ![PWA](https://img.shields.io/badge/PWA-ready-blue) ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ---
 
@@ -72,6 +72,9 @@ Gradient strips are pinned to the top and bottom of the app shell (matching `--a
   5. Kcal vs goal — bar chart for the current week
 - Tapping the hero deck opens the **Cycle History** modal, listing all past macrocycles with dates and goal types
 - Below the hero: body weight sparkline, weekly macro pie chart, weekly steps and kcal bar charts with today/7-day toggle
+- **Weekly tables — swipeable stack (v6.12)** — a second swipe deck, dot-paginated the same way as the hero deck but with no text labels:
+  1. **Weekly summary** — one row per calendar week showing weight delta, day-to-day swing, and average kcal/steps/protein. The weight delta compares **this week's average weight to the last week (with any data)'s average weight** — not a single day-to-day comparison — since two noisy daily readings can make a genuine plateau look like a steady loss (or vice versa). The **Swing** column shows the smallest and largest consecutive day-to-day change within that week (e.g. `−1.5lbs/+2.4lbs`), surfacing normal water-retention-style volatility separately from the smoothed trend
+  2. **Measurements** — same week-bucket layout for waist/hip, only including weeks with at least one measurement logged; values shown are the most recent measurement logged that week, and deltas compare against the last known value from the most recent prior week with data (carried forward across empty weeks)
 
 ### Plan
 - Create and manage **macrocycles** with:
@@ -114,6 +117,7 @@ Gradient strips are pinned to the top and bottom of the app shell (matching `--a
 ### Body
 - Tap to select gender, which drives which BMR formula inputs are shown
 - Log body weight (lbs) and steps per day
+- **Waist/hip measurements (v6.12)** — optional weekly-style entries logged alongside weight/steps in the same modal. Input unit toggles between inches (whole number + a quarter-inch picker — 0/¼/½/¾) and centimetres (single decimal field); everything is stored internally in inches, so switching units later never corrupts historical entries. Displayed to the minimum decimals needed (`33`, `33.5`, `33.25`). The hero card shows a second callout row — current value and change since your first log for waist and hip — which only appears once you've logged at least one measurement, and hides the "since first log" delta entirely (rather than showing a false "no change") until you have two or more logs
 - Weekly change, "left to go" toward the cycle's target weight, and entry count — both use the same ≤0.05 lbs tolerance for "no meaningful change" / "at goal"
 - BMR/TDEE (Mifflin-St Jeor) calculated from profile + activity level, with activity level derived from your all-time average logged steps (intentionally unscoped — more historical data makes the estimate more accurate, not less)
 - Full log of all entries — tap to edit; swipe left to reveal delete button
@@ -134,7 +138,7 @@ Gradient strips are pinned to the top and bottom of the app shell (matching `--a
 - Daily macro panel and daily kcal card with progress vs. the active goal
 - 7-day weekly tab with bar charts and macro pie chart
 - Personal **food library** — foods saved automatically on first entry; recipes stored with brand "My Recipe"
-- **Recipe builder** — multi-step: name and servings, then add ingredients by barcode scan or manual entry. Reachable from the food library ("My Recipes" in Settings) or from a meal's ellipsis menu
+- **Recipe builder** — multi-step: name and servings, then add ingredients by barcode scan, manual entry, or (v6.12) **Food Library search** — the same search-and-select modal used for regular meal logging, reused in an ingredient-adding context: the Recipes/Manual/Scan Barcode action row is hidden, quick-add and tap-to-edit-serving both add straight to the recipe instead of logging to a meal, and the search list stays open (or reopens) after each addition so several ingredients can be added in a row. Reachable from the food library ("My Recipes" in Settings) or from a meal's ellipsis menu
 
 ### Goals
 - Set daily targets per macrocycle: steps, kcal, protein, carbs, fats. Kcal and steps are required — the input border flashes red if you try to save without them
@@ -239,7 +243,7 @@ To restore: Settings → Restore from backup → select your `.json` file.
 - Data is device-local; no cross-device sync
 - No native push notifications for timer alerts when the app is backgrounded
 - `localStorage` is capped at 5–10 MB; extremely large food libraries or years of logs could approach this
-- Body weight is tracked in lbs while training weight is tracked in kg — an intentional, but non-obvious, split (there's no unit toggle for body weight)
+- Body weight is tracked in lbs while training weight is tracked in kg — an intentional, but non-obvious, split (there's no unit toggle for body weight itself). Waist/hip measurements (v6.12), by contrast, do have an inches/cm input toggle — internally always stored in inches
 - Drop Set exercises' main set now contributes to the Plan page's *theoretical* volume projections (Week-1 session summary, body-part volume table) like any other exercise, as of v6.09 — only the drop portion still doesn't, since it has no plan-time target to project from. Real logged volume was never affected either way
 
 ---
@@ -250,6 +254,7 @@ Recent versions (v5.26 onward) reflect a page-by-page legacy audit pass — remo
 
 | Version | Notes |
 |---|---|
+| v6.12 | Body: new waist/hip measurement tracking (inches/cm input toggle, hero callouts, weekly deltas). Progress: weekly summary and measurements tables merged into a single swipeable dot-paginated stack; weight delta recalculated as this-week-average vs last-week-average instead of a single-day-to-single-day comparison, and a new Swing column shows the week's smallest/largest day-to-day change. Nutrition: recipe builder's "Add ingredients" screen gained a Food Library search option, reusing the same search modal as meal logging but routed to add ingredients instead of log a meal, including a modal z-index fix so it correctly layers above the recipe builder screen it's opened from |
 | v6.11 | Body: Recent Entries now groups any month's completed logs (weight + steps both filled in) into a collapsible "Mmm YYYY" summary, sorted newest first; incomplete entries always stay visible individually regardless of month, so a steps-sync lag never buries an entry you still need to finish |
 | v6.10 | Settings: consolidated Exercise + Food library management into one "Libraries" section with a consistent two-tier button layout; new in-app **Exercise Library Editor** (view/edit/delete custom exercises; built-ins read-only); Danger Zone reorganised — Restore-from-backup moved in alongside Clear-all-data, the latter now styled with a solid red fill matching Export's visual weight |
 | v6.09 | Train: progression suggestions are now computed **per set** (from that same set number's previous mesocycle, not uniformly from set 1) instead of one flat figure for the whole exercise — a newly-added set inherits the previous week's final set. Fill Suggested, quick-fill, and quick-fill-complete all updated to match. Drop Set exercises gained a real main-set reps target (previously none at all) — the drop portion still has no target and is still discovered live. Quick-fill-complete is now available for drop sets too (previously no shortcut existed for them). As a side effect, drop sets' main set now contributes to the Plan page's theoretical volume projections |
