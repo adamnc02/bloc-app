@@ -9466,7 +9466,11 @@ function openNutrAdd(meal, isReopen) {
   document.getElementById('nutr-add-search').placeholder = 'Search foods for ' + meal + '…';
   document.getElementById('nutr-add-search').value = '';
   const actionsRow = document.getElementById('nutr-add-actions-row');
-  if (actionsRow) actionsRow.style.display = '';
+  // Must explicitly restore 'flex' here, not clear the style (''). Clearing
+  // it removes the row's own display:flex, and since each button inside is
+  // itself display:flex (a block-level box), they'd then stack vertically
+  // one per line instead of sitting in a horizontal row.
+  if (actionsRow) actionsRow.style.display = 'flex';
   const listWrap = document.getElementById('nutr-add-list-wrap');
   if (listWrap) listWrap.style.maxHeight = '';
   updateNutrRecipeFilterBtn();
