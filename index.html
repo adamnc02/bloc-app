@@ -1530,6 +1530,12 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div id="progress-body" style="margin-bottom:2px;"></div>
       <div id="progress-body-dots" style="display:flex;justify-content:center;gap:6px;margin-bottom:6px;min-height:18px;"></div>
 
+      <!-- Phase 1 trend insights card (goalType-branched deterministic narrative) -->
+      <div id="progress-trend-insights"></div>
+
+      <!-- Phase 2 AI advice card (rendered after "Ask BLOC for advice" call) -->
+      <div id="progress-ai-advice"></div>
+
       <!-- Weekly summary table -->
       <!-- Weekly tables: swipeable stack (weekly summary / measurements) -->
       <div id="progress-tables-wrap" style="margin-top:16px;"></div>
@@ -1583,6 +1589,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div id="body-hero"></div>
       <div id="body-history-card"></div>
       <div id="body-logform-card"></div>
+      <div id="body-meas-reminder"></div>
 
       <div class="section-title">Recent Entries</div>
       <div id="body-log-list"></div>
@@ -1609,7 +1616,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v6.12</span>
+          <span class="badge badge-green">v7.00</span>
         </div>
       </div>
 
@@ -1689,6 +1696,18 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
             <input type="file" accept=".json,application/json" style="display:none;" onchange="importSharedFoodItem(this.files[0]);this.value='';">
           </label>
         </div>
+      </div>
+
+      <div class="section-title">AI Advice</div>
+      <div class="card" style="margin-bottom:10px;">
+        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:4px;">Anthropic API key</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.5;">Optional. Enables the "Ask BLOC for advice" feature on the Progress page. Stored only on this device. Get a key at <span style="color:var(--accent);">console.anthropic.com</span> — billed separately from Claude Pro, but each call costs under $0.01.</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="password" id="settings-api-key-input" placeholder="sk-ant-…"
+            style="flex:1;font-size:13px;padding:9px 11px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);font-family:var(--font-mono);">
+          <button onclick="saveApiKey()" class="btn btn-accent" style="padding:9px 14px;white-space:nowrap;">Save</button>
+        </div>
+        <div id="api-key-status" style="font-size:11px;margin-top:6px;color:var(--text3);"></div>
       </div>
 
       <div class="section-title">Backup</div>
@@ -1806,7 +1825,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div class="input-row">
       <div>
         <div class="label">Mesocycles</div>
-        <input type="number" id="macro-weeks-input" value="8" min="2" max="52">
+        <input type="number" id="macro-weeks-input" value="8" min="2" max="52" oninput="validateMacroPace('macro')">
       </div>
       <div>
         <div class="label">Start Date</div>
@@ -1830,9 +1849,10 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">Sessions per week is calculated automatically from the split you choose below</div>
     <div class="form-group">
       <div class="label">Macrocycle Type</div>
-      <select id="macro-goal-type-input">
+      <select id="macro-goal-type-input" onchange="onMacroGoalTypeChange('macro')">
         <option value="loss">Weight Loss — conservative weight progression</option>
         <option value="gain">Weight / Strength Gain — aggressive weight progression</option>
+        <option value="maintenance">Maintenance — hold weight, no load progression</option>
       </select>
     </div>
 
@@ -1851,7 +1871,8 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     </div>
     <div class="form-group">
       <div class="label">Target body weight (lbs) <span style="color:var(--text3);font-size:11px;">— optional</span></div>
-      <input type="number" id="macro-target-bw-input" placeholder="e.g. 180" step="0.1">
+      <input type="number" id="macro-target-bw-input" placeholder="e.g. 180" step="0.1" oninput="validateMacroPace('macro')">
+      <div id="macro-pace-warning" style="display:none;margin-top:5px;font-size:11px;color:var(--red);line-height:1.4;"></div>
     </div>
 
     <div class="form-group">
@@ -1939,7 +1960,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div class="input-row">
       <div>
         <div class="label">Mesocycles</div>
-        <input type="number" id="edit-macro-weeks-input" min="2" max="52">
+        <input type="number" id="edit-macro-weeks-input" min="2" max="52" oninput="validateMacroPace('edit-macro')">
       </div>
       <div>
         <div class="label">Start Date</div>
@@ -1966,13 +1987,15 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     </div>
     <div class="form-group">
       <div class="label">Target body weight (lbs) <span style="color:var(--text3);font-size:11px;">— optional</span></div>
-      <input type="number" id="edit-macro-target-bw-input" placeholder="e.g. 180" step="0.1">
+      <input type="number" id="edit-macro-target-bw-input" placeholder="e.g. 180" step="0.1" oninput="validateMacroPace('edit-macro')">
+      <div id="edit-macro-pace-warning" style="display:none;margin-top:5px;font-size:11px;color:var(--red);line-height:1.4;"></div>
     </div>
     <div class="form-group">
       <div class="label">Macrocycle Type</div>
-      <select id="edit-macro-goal-type-input">
+      <select id="edit-macro-goal-type-input" onchange="onMacroGoalTypeChange('edit-macro')">
         <option value="loss">Weight Loss — conservative weight progression</option>
         <option value="gain">Weight / Strength Gain — aggressive weight progression</option>
+        <option value="maintenance">Maintenance — hold weight, no load progression</option>
       </select>
     </div>
     <div class="form-group" id="edit-weight-increment-row">
@@ -1994,6 +2017,13 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <button class="modal-close-btn" onclick="closeModal('modal-add-goal')">✕</button>
     </div>
     <div class="modal-title" id="goal-modal-title">New Goal Period</div>
+    <div id="goal-queue-indicator" style="display:none;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <span id="goal-queue-step-label" style="font-size:11px;font-weight:600;color:var(--accent);letter-spacing:0.04em;"></span>
+        <button onclick="cancelGoalQueue()" style="font-size:11px;color:var(--red);background:none;border:none;padding:2px 6px;cursor:pointer;">✕ Cancel plan</button>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;" id="goal-queue-desc"></div>
+    </div>
     <div class="form-group">
       <div class="label">Macrocycle</div>
       <select id="goal-macro-select"></select>
@@ -2063,7 +2093,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       </div>
     </div>
 
-    <button class="btn btn-accent btn-block" style="margin-top:16px;" onclick="saveGoal()">Save Goal Period →</button>
+    <button class="btn btn-accent btn-block" style="margin-top:16px;" id="goal-save-btn" onclick="saveGoalAndAdvanceQueue()">Save Goal Period →</button>
   </div>
 </div>
 
@@ -2672,6 +2702,8 @@ function load() {
   if (!state.exerciseHistory) state.exerciseHistory = {};
   if (!state.exerciseTrackingMode) state.exerciseTrackingMode = {};
   if (!state.profile) state.profile = {};
+  if (!state.insightsRollup) state.insightsRollup = { completedCycles: [] };
+  if (state.blocAdvice === undefined) state.blocAdvice = null;
   if (!state.profile.measureUnit) state.profile.measureUnit = 'in';
   if (!state.theme) state.theme = 'multi';
   document.body.setAttribute('data-theme', state.theme);
@@ -2848,6 +2880,8 @@ function openModal(id) {
     document.getElementById('macro-target-bw-input').value = '';
     if (document.getElementById('macro-goal-type-input')) document.getElementById('macro-goal-type-input').value = 'loss';
     if (document.getElementById('macro-weeks-per-meso-input')) document.getElementById('macro-weeks-per-meso-input').value = '1';
+    const _pw = document.getElementById('macro-pace-warning'); if (_pw) _pw.style.display = 'none';
+    const _ir = document.getElementById('weight-increment-row'); if (_ir) _ir.style.display = '';
     // Reset form state
     state._macroForm = { split: 'ppl', micro: 'yes' };
     state._customSessions = ['Day A', 'Day B', 'Day C'];
@@ -2898,7 +2932,13 @@ function closeModal(id) {
   if (id === 'modal-body-log') document.getElementById('body-date-input').dataset.originalDate = '';
   // Clear stale edit-mode flag so a later "+ New" tap doesn't get mistaken
   // for a resumed edit (was only cleared on save, not on cancel/close)
-  if (id === 'modal-add-goal') overlay._editIdx = undefined;
+  if (id === 'modal-add-goal') {
+    overlay._editIdx = undefined;
+    // Only abort the queue on a genuine user dismissal (swipe/backdrop).
+    // Programmatic closes between queue steps set _goalQueueAdvancing = true
+    // first so we know not to kill the queue here.
+    if (_goalQueue && !_goalQueueAdvancing) { _goalQueue = null; _resetGoalModal(); }
+  }
 }
 
 // Handles the segmented-control-style options in the New/Edit Macrocycle
@@ -3906,7 +3946,7 @@ function getGiantSetProgression(ex, week) {
 // Build per-day stats map from all logs
 function buildDayMap() {
   const days = {};
-  const ensure = d => { if (!days[d]) days[d] = { weight: null, steps: null, kcal: 0, protein: 0, hasNutr: false }; };
+  const ensure = d => { if (!days[d]) days[d] = { weight: null, steps: null, kcal: 0, protein: 0, carbs: 0, hasNutr: false }; };
   (state.bodyLogs || []).forEach(l => {
     ensure(l.date);
     if (l.weight) days[l.date].weight  = parseFloat(l.weight);
@@ -3917,20 +3957,23 @@ function buildDayMap() {
     if (l.kcal || l.protein) {
       days[l.date].kcal    = parseInt(l.kcal)    || 0;
       days[l.date].protein = parseFloat(l.protein) || 0;
+      days[l.date].carbs   = parseFloat(l.carbs)   || 0;
       days[l.date].hasNutr = true;
     }
   });
   // Also sum from nutritionMeals if available
   Object.entries(state.nutritionMeals || {}).forEach(([date, meals]) => {
     ensure(date);
-    let kcal = 0, protein = 0;
+    let kcal = 0, protein = 0, carbs = 0;
     Object.values(meals).forEach(items => (items || []).forEach(item => {
       kcal    += item.kcal    || 0;
       protein += item.protein || 0;
+      carbs   += item.carbs   || 0;
     }));
     if (kcal > 0 || protein > 0) {
       days[date].kcal    = kcal;
       days[date].protein = Math.round(protein);
+      days[date].carbs   = Math.round(carbs);
       days[date].hasNutr = true;
     }
   });
@@ -4306,6 +4349,7 @@ function buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort) {
   // whether this is a loss or gain/strength cycle, rather than assuming loss.
   const cycleGoalType = macro.goalType || 'loss';
   const isGainGoal = cycleGoalType === 'gain' || cycleGoalType === 'strength';
+  const isMaintenanceGoal = cycleGoalType === 'maintenance';
 
   // ── Body weight progress within this cycle ──
   const bwLogsAll = (state.bodyLogs || []).filter(l => l.weight).sort((a,b) => a.date.localeCompare(b.date));
@@ -4341,7 +4385,20 @@ function buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort) {
   // ── On-track / behind / ahead schedule comparison (ongoing cycles) ──
   // or final result vs target (finished cycles) ─────────────────────────
   let statusHtml = '';
-  if (isPast && macro.targetBw && latestBw !== null) {
+  if (isMaintenanceGoal && latestBw !== null && macro.targetBw) {
+    // Maintenance: success = staying within ±2 lbs of target weight.
+    // No directional schedule comparison — stability IS the goal.
+    const diff = Math.abs(latestBw - macro.targetBw);
+    const isStable = diff <= 2.0;
+    const isFarOff = diff > 5.0;
+    const statusLabel = isStable
+      ? `● Stable — within ${diff.toFixed(1)} lbs of target`
+      : isFarOff
+        ? `⚠ ${diff.toFixed(1)} lbs from target`
+        : `● ${diff.toFixed(1)} lbs from target`;
+    const statusBg = isStable ? 'var(--accent)' : isFarOff ? 'var(--red)' : 'var(--amber)';
+    statusHtml = `<div class="hero-status" style="background:${statusBg};color:#eef3f8;">${statusLabel}</div>`;
+  } else if (isPast && macro.targetBw && latestBw !== null) {
     const diff = latestBw - macro.targetBw; // positive = finished above target, negative = below
     const isOnTarget = Math.abs(diff) <= 0.1;
     const posLabel = diff > 0 ? 'above' : 'below';
@@ -5308,6 +5365,17 @@ function renderProgress() {
   // Attach swipe gestures (re-attach each render since innerHTML was replaced)
   initInsightsSwipe();
 
+  // ── Phase 1 trend insights card ──────────────────────
+  const trendEl = document.getElementById('progress-trend-insights');
+  if (trendEl) trendEl.innerHTML = buildInsightsCardHTML();
+
+  // ── Phase 2 AI advice card ────────────────────────────
+  const aiEl = document.getElementById('progress-ai-advice');
+  if (aiEl) aiEl.innerHTML = buildAiAdviceCardHTML();
+
+  // ── Historical rollup (archive completed cycles) ──────
+  updateInsightsRollup();
+
   // ── Weekly tables (swipeable: summary / measurements) ──
   renderProgressTables();
 
@@ -5569,6 +5637,1407 @@ function buildMeasurementsCardHTML() {
       </table>
     </div>
   </div>`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 1 — Deterministic trend insights
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Computes per-week stats for the resolved macrocycle, detects caloric drift
+// and plateau/undereating signals, and produces a goalType-branched narrative.
+// Pure computation — no DOM writes. Returns null if insufficient data.
+//
+// Anchor-slide logic (loss cycles only):
+//   Weeks 1–2 of a cut often show inflated weight drops (glycogen / digestive
+//   clearance). If either of the first two weeks shows a delta below −2% of
+//   that week's average bodyweight, those weeks are considered anomalously
+//   fast and the baseline slides forward (capped at weeks 3–4). On gain and
+//   maintenance cycles the baseline is always anchored at week 1.
+//
+// A "valid week" for drift comparison requires ≥ 4 days with nutrition logged
+// in that 7-day bucket (same threshold as the drift minimum-data guard).
+//
+// Plateau definition (loss cycles): ≤ 0.3 lbs average weekly weight delta
+// for 2 or more consecutive complete buckets.
+function computeWeeklyInsights(macro) {
+  if (!macro) return null;
+  const goalType = macro.goalType || 'loss';
+  const isLoss = goalType === 'loss';
+  const isGain = goalType === 'gain';
+  const isMaint = goalType === 'maintenance';
+
+  // Reuse the same bucket builder as buildWeeklySummaryCardHTML
+  const dayMap = buildDayMap();
+  const allDates = Object.keys(dayMap).sort();
+  if (allDates.length < 2) return null;
+
+  const todayStr = getLocalToday();
+  const macroEndStr = toLocalDateStr(getMacroEndDate(macro));
+  const anchor = macro.start || allDates[0];
+  const anchorMs = new Date(anchor + 'T00:00:00').getTime();
+  const rangeEndStr = macroEndStr < todayStr ? macroEndStr : todayStr;
+  const rangeEndMs = new Date(rangeEndStr + 'T00:00:00').getTime();
+
+  const weekBuckets = [];
+  let cur = new Date(anchorMs);
+  let wn = 1;
+  let prevAvgWeight = null;
+  while (cur.getTime() <= rangeEndMs) {
+    const bStart = toLocalDateStr(cur);
+    const bEnd   = toLocalDateStr(new Date(cur.getTime() + 6 * 86400000));
+    const bDates = allDates.filter(d => d >= bStart && d <= bEnd);
+    if (bDates.length > 0) {
+      const wD = bDates.filter(d => dayMap[d].weight !== null);
+      const nD = bDates.filter(d => dayMap[d].hasNutr);
+      const avgWeight = wD.length ? wD.reduce((s,d) => s + dayMap[d].weight, 0) / wD.length : null;
+      const avgKcal   = nD.length ? Math.round(nD.reduce((s,d) => s + dayMap[d].kcal, 0) / nD.length) : null;
+      const avgProtein= nD.length ? Math.round(nD.reduce((s,d) => s + dayMap[d].protein, 0) / nD.length) : null;
+      const avgCarbs  = nD.length ? Math.round(nD.reduce((s,d) => s + (dayMap[d].carbs || 0), 0) / nD.length) : null;
+      const delta = (avgWeight !== null && prevAvgWeight !== null)
+        ? parseFloat((avgWeight - prevAvgWeight).toFixed(2)) : null;
+      if (avgWeight !== null) prevAvgWeight = avgWeight;
+      weekBuckets.push({
+        weekNum: wn, label: 'W' + wn,
+        bStart, bEnd,
+        avgWeight, delta, avgKcal, avgProtein, avgCarbs,
+        nutrDayCount: nD.length, weightDayCount: wD.length,
+      });
+    }
+    cur = new Date(cur.getTime() + 7 * 86400000);
+    wn++;
+  }
+  if (weekBuckets.length < 2) return null;
+
+  // ── TDEE estimate ──
+  const tdeeResult = calcDynamicTDEE();
+  const estimatedTDEE = tdeeResult ? tdeeResult.tdee : null;
+
+  // ── Baseline anchor selection (loss cycles only) ──
+  // Find the first valid week bucket (≥4 nutr days) for the baseline.
+  // If weeks 1–2 show weight drops faster than −2% bodyweight/week,
+  // slide the baseline forward (max anchor = weeks 3–4).
+  function isAnomalouslyFast(bucket) {
+    if (!isLoss) return false;
+    if (bucket.delta === null || bucket.avgWeight === null) return false;
+    const pct = bucket.delta / bucket.avgWeight; // negative = loss
+    return pct < -0.02; // dropping faster than 2% bodyweight/week
+  }
+
+  let baselineIdx = -1; // index into weekBuckets
+  // For loss: try wk1, then wk2, cap at wk3 (index 2)
+  // For gain/maintenance: always use wk1
+  if (isLoss) {
+    for (let i = 0; i <= Math.min(2, weekBuckets.length - 2); i++) {
+      const b = weekBuckets[i];
+      if (b.nutrDayCount >= 4 && !isAnomalouslyFast(b)) {
+        baselineIdx = i;
+        break;
+      }
+    }
+    // If all early weeks are anomalous or thin, fall back to first valid week ≤ idx 2
+    if (baselineIdx === -1) {
+      for (let i = 0; i <= Math.min(2, weekBuckets.length - 2); i++) {
+        if (weekBuckets[i].nutrDayCount >= 4) { baselineIdx = i; break; }
+      }
+    }
+  } else {
+    // Gain/maintenance — anchor on first week with ≥4 nutr days
+    baselineIdx = weekBuckets.findIndex(b => b.nutrDayCount >= 4);
+  }
+
+  // Need at least one comparison period after the baseline
+  if (baselineIdx === -1 || baselineIdx >= weekBuckets.length - 1) {
+    return { weekBuckets, estimatedTDEE, insufficientData: true };
+  }
+
+  // ── Baseline and recent windows ──
+  // Baseline: the anchor week itself + the next one (2-week window)
+  const baselineWeeks = weekBuckets.slice(baselineIdx, baselineIdx + 2).filter(b => b.nutrDayCount >= 4);
+  // Recent: the last 2 complete weeks (≥4 nutr days) after the baseline
+  const afterBaseline = weekBuckets.slice(baselineIdx + 2).filter(b => b.nutrDayCount >= 4);
+  if (!baselineWeeks.length || !afterBaseline.length) {
+    return { weekBuckets, estimatedTDEE, insufficientData: true };
+  }
+  const recentWeeks = afterBaseline.slice(-2);
+
+  const avgKcalBaseline = baselineWeeks.reduce((s,b) => s + (b.avgKcal || 0), 0) / baselineWeeks.length;
+  const avgKcalRecent   = recentWeeks.reduce((s,b)   => s + (b.avgKcal || 0), 0) / recentWeeks.length;
+  const avgProteinRecent= recentWeeks.reduce((s,b)   => s + (b.avgProtein || 0), 0) / recentWeeks.length;
+  const caloricDrift    = Math.round(avgKcalRecent - avgKcalBaseline); // +ve = eating more
+
+  // Deficit/surplus vs TDEE (using recent kcal avg)
+  const deficitOrSurplus = estimatedTDEE ? Math.round(avgKcalRecent - estimatedTDEE) : null; // -ve = deficit
+
+  // ── Plateau detection (loss only) — ≤0.5 lbs/wk for 2+ consecutive buckets ──
+  // 0.5 lbs is the right threshold: 0.3 was too tight and would break a real
+  // 3-week plateau if a single week came in at e.g. -0.34 lbs. Weekly average
+  // weight has enough noise (water, glycogen, digestive load) that anything
+  // below 0.5 lbs/week should be treated as effectively flat for a loss cycle.
+  let plateauWeeks = 0, maxPlateauRun = 0, curRun = 0;
+  for (const b of weekBuckets.slice(baselineIdx + 1)) {
+    if (b.delta !== null && Math.abs(b.delta) <= 0.5) {
+      curRun++;
+      if (curRun > maxPlateauRun) maxPlateauRun = curRun;
+    } else { curRun = 0; }
+  }
+  plateauWeeks = maxPlateauRun;
+  const hasPlateauSignal = isLoss && plateauWeeks >= 2;
+
+  // ── Maintenance: weight stability check ──
+  let maintVariance = null;
+  if (isMaint && macro.targetBw) {
+    const wksWithWeight = weekBuckets.filter(b => b.avgWeight !== null);
+    if (wksWithWeight.length >= 2) {
+      const weights = wksWithWeight.map(b => b.avgWeight);
+      maintVariance = parseFloat((Math.max(...weights) - Math.min(...weights)).toFixed(1));
+    }
+  }
+
+  // ── Build narrative (goalType-branched) ──
+  let signal, headline, detail;
+
+  if (isLoss) {
+    if (hasPlateauSignal && deficitOrSurplus !== null && deficitOrSurplus > -200) {
+      // Plateau + deficit has narrowed to near-zero — calorie creep is the cause
+      signal = 'plateau-creep';
+      headline = caloricDrift > 100
+        ? `Intake has drifted up ~${Math.abs(caloricDrift)} kcal since your baseline`
+        : `Your deficit has narrowed — weight has been flat for ${plateauWeeks} weeks`;
+      detail = estimatedTDEE
+        ? `Your estimated TDEE is ~${estimatedTDEE.toLocaleString()} kcal/day. You're currently averaging ${Math.round(avgKcalRecent).toLocaleString()} kcal — only a ~${Math.abs(deficitOrSurplus)} kcal deficit. ${caloricDrift > 100 ? `This compares to ~${Math.round(avgKcalBaseline).toLocaleString()} kcal/day in your baseline weeks.` : ''}`
+        : `You're averaging ${Math.round(avgKcalRecent).toLocaleString()} kcal/day recently vs ~${Math.round(avgKcalBaseline).toLocaleString()} kcal/day at your baseline — a drift of ${caloricDrift > 0 ? '+' : ''}${caloricDrift} kcal.`;
+    } else if (hasPlateauSignal) {
+      // Plateau but deficit still looks real — adaptation or logging gap
+      signal = 'plateau-adaptation';
+      headline = `Weight has been flat for ${plateauWeeks} weeks despite a deficit`;
+      detail = estimatedTDEE
+        ? `You're averaging ${Math.round(avgKcalRecent).toLocaleString()} kcal/day — a ~${Math.abs(deficitOrSurplus).toLocaleString()} kcal deficit vs your estimated TDEE of ${estimatedTDEE.toLocaleString()} kcal. Flat weight despite a real deficit can indicate metabolic adaptation, water retention masking fat loss, or logging gaps.`
+        : `Weight has been flat for ${plateauWeeks} weeks. This can reflect metabolic adaptation, water retention, or calorie logging gaps. Checking your baseline vs recent intake pattern may reveal creep.`;
+    } else if (caloricDrift > 150) {
+      // Drift detected but not yet a confirmed plateau
+      signal = 'drift-warning';
+      headline = `Intake has crept up ~${Math.abs(caloricDrift)} kcal from your baseline`;
+      detail = `You're averaging ${Math.round(avgKcalRecent).toLocaleString()} kcal/day recently vs ~${Math.round(avgKcalBaseline).toLocaleString()} kcal at your baseline${estimatedTDEE ? ` (est. TDEE ~${estimatedTDEE.toLocaleString()} kcal)` : ''}. No plateau yet — but this trend typically leads to one within 1–2 weeks if intake continues rising.`;
+    } else {
+      signal = 'on-track';
+      headline = 'Deficit looks consistent';
+      detail = `You're averaging ${Math.round(avgKcalRecent).toLocaleString()} kcal/day${estimatedTDEE ? ` — a ~${Math.abs(deficitOrSurplus).toLocaleString()} kcal deficit vs estimated TDEE of ${estimatedTDEE.toLocaleString()} kcal` : ''}. Intake drift from baseline is minimal (${caloricDrift > 0 ? '+' : ''}${caloricDrift} kcal).`;
+    }
+
+  } else if (isGain) {
+    const surplusOk = deficitOrSurplus !== null && deficitOrSurplus >= 150 && deficitOrSurplus <= 500;
+    const weightRising = recentWeeks.some(b => b.delta !== null && b.delta > 0.1);
+    const weightStuck  = plateauWeeks >= 2;
+    if (deficitOrSurplus !== null && deficitOrSurplus < 0) {
+      signal = 'gain-deficit';
+      headline = `You're eating below TDEE on a gain cycle`;
+      detail = `Your recent avg intake is ${Math.round(avgKcalRecent).toLocaleString()} kcal/day — ${Math.abs(deficitOrSurplus).toLocaleString()} kcal below your estimated TDEE of ${estimatedTDEE ? estimatedTDEE.toLocaleString() : '?'} kcal. A small surplus of ~200–300 kcal above TDEE is needed to support lean muscle gain.`;
+    } else if (weightStuck && deficitOrSurplus !== null && deficitOrSurplus < 200) {
+      signal = 'gain-undereating';
+      headline = `Weight is flat — surplus may be too small`;
+      detail = `Weight has been flat for ${plateauWeeks} weeks. Your avg intake of ${Math.round(avgKcalRecent).toLocaleString()} kcal yields only a ~${deficitOrSurplus} kcal surplus — likely not enough for consistent lean gain. Aim for 200–300 kcal above TDEE.`;
+    } else if (deficitOrSurplus !== null && deficitOrSurplus > 500) {
+      signal = 'gain-excess';
+      headline = `Surplus may be larger than needed for lean gain`;
+      detail = `You're averaging ${Math.round(avgKcalRecent).toLocaleString()} kcal/day — ~${deficitOrSurplus.toLocaleString()} kcal above estimated TDEE. Lean gain typically only requires ~200–300 kcal surplus. A larger surplus tends to increase fat accumulation without proportionally more muscle.`;
+    } else {
+      signal = 'on-track';
+      headline = 'Intake looks good for lean gain';
+      detail = `You're averaging ${Math.round(avgKcalRecent).toLocaleString()} kcal/day${deficitOrSurplus !== null ? ` — a ~${deficitOrSurplus} kcal surplus vs estimated TDEE` : ''}. ${weightRising ? 'Weight is trending upward, consistent with lean gain.' : 'Keep monitoring weight weekly to confirm the surplus is sufficient.'}`;
+    }
+
+  } else {
+    // Maintenance
+    if (maintVariance !== null && maintVariance > 3) {
+      signal = 'maint-unstable';
+      headline = `Weight varying ${maintVariance} lbs — more than expected for maintenance`;
+      detail = `Maintenance targets ±1–2 lbs variance around goal weight. A ${maintVariance} lb range may indicate inconsistent intake${macro.targetBw ? ` relative to your ${macro.targetBw} lbs target` : ''}. Check if calorie intake is fluctuating significantly week-to-week.`;
+    } else if (maintVariance !== null) {
+      signal = 'maint-stable';
+      headline = `Weight is stable — maintenance on track`;
+      detail = `Weight range across logged weeks is ${maintVariance} lbs${macro.targetBw ? ` around your ${macro.targetBw} lbs target` : ''}. That's within the expected variance for maintenance. Focus on keeping training performance steady.`;
+    } else {
+      signal = 'maint-nodata';
+      headline = 'Log more weigh-ins to track stability';
+      detail = 'Maintenance insights need at least 2 weeks of body weight data to detect variance trends.';
+    }
+  }
+
+  return {
+    weekBuckets,
+    estimatedTDEE,
+    avgKcalBaseline: Math.round(avgKcalBaseline),
+    avgKcalRecent:   Math.round(avgKcalRecent),
+    avgProteinRecent:Math.round(avgProteinRecent),
+    caloricDrift,
+    deficitOrSurplus,
+    plateauWeeks,
+    baselineWeekLabel: weekBuckets[baselineIdx] ? weekBuckets[baselineIdx].label : 'W1',
+    maintVariance,
+    signal, headline, detail,
+    insufficientData: false,
+  };
+}
+
+// Builds and returns the HTML string for the Phase 1 trend insights card,
+// rendered below the existing Insights swipe deck on the Progress page.
+// Returns '' when there is no active macrocycle or insufficient data.
+function buildInsightsCardHTML() {
+  const macro = resolveProgressMacro();
+  if (!macro) return '';
+  const goalType = macro.goalType || 'loss';
+  const ins = computeWeeklyInsights(macro);
+
+  // Signal → pill colour mapping
+  const pillStyles = {
+    'plateau-creep':     { bg: 'rgba(226,75,74,0.15)',   color: 'var(--red)',    label: '⚠ Plateau detected' },
+    'plateau-adaptation':{ bg: 'rgba(239,159,39,0.15)',  color: 'var(--amber)',  label: '⚠ Plateau — adaptation?' },
+    'drift-warning':     { bg: 'rgba(239,159,39,0.15)',  color: 'var(--amber)',  label: '↗ Intake drift detected' },
+    'on-track':          { bg: 'rgba(43,199,196,0.15)',  color: 'var(--accent)', label: '● On track' },
+    'gain-deficit':      { bg: 'rgba(226,75,74,0.15)',   color: 'var(--red)',    label: '↘ Eating at deficit' },
+    'gain-undereating':  { bg: 'rgba(239,159,39,0.15)',  color: 'var(--amber)',  label: '↘ Surplus too small' },
+    'gain-excess':       { bg: 'rgba(239,159,39,0.15)',  color: 'var(--amber)',  label: '↗ Surplus may be large' },
+    'maint-unstable':    { bg: 'rgba(239,159,39,0.15)',  color: 'var(--amber)',  label: '⚠ Weight varying' },
+    'maint-stable':      { bg: 'rgba(43,199,196,0.15)',  color: 'var(--accent)', label: '● Stable' },
+    'maint-nodata':      { bg: 'rgba(255,255,255,0.07)', color: 'var(--text3)',  label: '— Insufficient data' },
+  };
+
+  if (!ins || ins.insufficientData) {
+    // How many weeks until we expect a valid baseline
+    const weeksLogged = ins ? ins.weekBuckets.length : 0;
+    const weeksNeeded = goalType === 'loss' ? 4 : 3; // loss needs baseline+2 comparison weeks
+    const weeksLeft   = Math.max(0, weeksNeeded - weeksLogged);
+    return `<div class="card" style="margin-top:4px;">
+      <div style="font-size:12px;color:var(--text3);line-height:1.5;">
+        ${weeksLeft > 0
+          ? `Trend insights will be available in ~${weeksLeft} more week${weeksLeft !== 1 ? 's' : ''} — needs a valid baseline period and comparison window.`
+          : 'Logging more days with weight and nutrition data will unlock trend insights.'}
+      </div>
+    </div>`;
+  }
+
+  const pill = pillStyles[ins.signal] || pillStyles['on-track'];
+
+  // Stat tiles — vary by goalType
+  let statsHtml = '';
+  const tile = (lbl, val, color) =>
+    `<div style="flex:1;min-width:0;background:var(--surface2);border-radius:8px;padding:8px 10px;">
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-weight:600;">${lbl}</div>
+      <div style="font-size:14px;font-weight:600;color:${color || 'var(--text)'};margin-top:2px;">${val}</div>
+    </div>`;
+
+  if (goalType === 'loss') {
+    const driftColor = Math.abs(ins.caloricDrift) < 100 ? 'var(--accent)' : ins.caloricDrift > 0 ? 'var(--red)' : 'var(--accent)';
+    const defColor   = ins.deficitOrSurplus === null ? 'var(--text3)'
+      : ins.deficitOrSurplus < -150 ? 'var(--accent)' : ins.deficitOrSurplus < 0 ? 'var(--amber)' : 'var(--red)';
+    statsHtml = `<div style="display:flex;gap:6px;margin-top:10px;">
+      ${tile('Avg kcal (recent)', ins.avgKcalRecent.toLocaleString(), null)}
+      ${tile('Baseline', ins.avgKcalBaseline.toLocaleString(), null)}
+      ${tile('Drift', (ins.caloricDrift > 0 ? '+' : '') + ins.caloricDrift, driftColor)}
+      ${ins.deficitOrSurplus !== null ? tile('vs TDEE', (ins.deficitOrSurplus > 0 ? '+' : '') + ins.deficitOrSurplus, defColor) : ''}
+    </div>`;
+    // Intake drift visualisation — shown when drift is meaningful (> 50 kcal).
+    // Shows baseline vs recent avg side by side with an explicit delta so the
+    // direction and magnitude are immediately readable at a glance.
+    if (Math.abs(ins.caloricDrift) > 50 && ins.avgKcalBaseline > 0) {
+      const driftUp = ins.caloricDrift > 0;
+      const driftColor2 = driftUp ? 'var(--red)' : 'var(--accent)';
+      const arrow = driftUp ? '\u2191' : '\u2193';
+      // Bar width = drift as % of the gap between baseline and TDEE (so a drift
+      // that fully closes the deficit would fill the bar 100%). Falls back to
+      // % of baseline when TDEE is unavailable.
+      const span = ins.estimatedTDEE
+        ? Math.max(1, Math.abs(ins.estimatedTDEE - ins.avgKcalBaseline))
+        : ins.avgKcalBaseline;
+      const fillPct = Math.min(100, Math.abs(ins.caloricDrift) / span * 100);
+      const fillGradient = driftUp
+        ? `linear-gradient(90deg,var(--accent),var(--red))`
+        : `linear-gradient(90deg,var(--red),var(--accent))`;
+      statsHtml += `<div style="margin-top:10px;padding:8px 10px;background:var(--surface2);border-radius:8px;">
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-weight:600;margin-bottom:6px;">Intake drift — ${ins.baselineWeekLabel} baseline vs recent 2 weeks</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="flex:1;text-align:center;">
+            <div style="font-size:10px;color:var(--text3);">Baseline avg</div>
+            <div style="font-size:14px;font-weight:600;color:var(--text);">${ins.avgKcalBaseline.toLocaleString()}</div>
+          </div>
+          <div style="font-size:15px;font-weight:700;color:${driftColor2};">${arrow} ${Math.abs(ins.caloricDrift)}</div>
+          <div style="flex:1;text-align:center;">
+            <div style="font-size:10px;color:var(--text3);">Recent avg</div>
+            <div style="font-size:14px;font-weight:600;color:${driftColor2};">${ins.avgKcalRecent.toLocaleString()}</div>
+          </div>
+        </div>
+        <div style="height:4px;background:var(--border);border-radius:2px;margin-top:8px;">
+          <div style="height:4px;width:${fillPct.toFixed(1)}%;border-radius:2px;background:${fillGradient};"></div>
+        </div>
+        ${ins.estimatedTDEE ? `<div style="font-size:10px;color:var(--text3);margin-top:4px;">Est. TDEE ${ins.estimatedTDEE.toLocaleString()} kcal · current deficit ${ins.deficitOrSurplus !== null ? Math.abs(ins.deficitOrSurplus) + ' kcal' : '—'}</div>` : ''}
+      </div>`;
+    }
+  } else if (goalType === 'gain') {
+    const surpColor = ins.deficitOrSurplus === null ? 'var(--text3)'
+      : ins.deficitOrSurplus < 0 ? 'var(--red)' : ins.deficitOrSurplus < 150 ? 'var(--amber)' : ins.deficitOrSurplus <= 500 ? 'var(--accent)' : 'var(--amber)';
+    statsHtml = `<div style="display:flex;gap:6px;margin-top:10px;">
+      ${tile('Avg kcal', ins.avgKcalRecent.toLocaleString(), null)}
+      ${ins.estimatedTDEE ? tile('Est. TDEE', ins.estimatedTDEE.toLocaleString(), null) : ''}
+      ${ins.deficitOrSurplus !== null ? tile('Surplus', (ins.deficitOrSurplus > 0 ? '+' : '') + ins.deficitOrSurplus, surpColor) : ''}
+      ${ins.avgProteinRecent ? tile('Avg protein', ins.avgProteinRecent + 'g', null) : ''}
+    </div>`;
+  } else {
+    // Maintenance
+    statsHtml = `<div style="display:flex;gap:6px;margin-top:10px;">
+      ${ins.maintVariance !== null ? tile('Wt variance', '±' + (ins.maintVariance / 2).toFixed(1) + ' lbs', ins.maintVariance <= 2 ? 'var(--accent)' : ins.maintVariance <= 4 ? 'var(--amber)' : 'var(--red)') : ''}
+      ${ins.avgKcalRecent ? tile('Avg kcal', ins.avgKcalRecent.toLocaleString(), null) : ''}
+      ${ins.estimatedTDEE ? tile('Est. TDEE', ins.estimatedTDEE.toLocaleString(), null) : ''}
+      ${ins.avgProteinRecent ? tile('Avg protein', ins.avgProteinRecent + 'g', null) : ''}
+    </div>`;
+  }
+
+  return `<div class="card" style="margin-top:4px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:600;background:${pill.bg};color:${pill.color};">${pill.label}</div>
+      ${ins.estimatedTDEE ? `<div style="font-size:10px;color:var(--text3);">TDEE ~${ins.estimatedTDEE.toLocaleString()} kcal</div>` : ''}
+    </div>
+    <div style="font-size:13px;font-weight:600;color:var(--text);margin-top:8px;line-height:1.35;">${ins.headline}</div>
+    <div style="font-size:12px;color:var(--text2);margin-top:4px;line-height:1.55;">${ins.detail}</div>
+    ${statsHtml}
+  </div>`;
+}
+
+// ── Historical rollup — compact per-completed-macrocycle summary ──────────
+// Stored in state.insightsRollup: { completedCycles: Array<CycleRollup> }
+// Each entry is computed once when a cycle is detected as completed and the
+// Progress page renders — frozen thereafter (no recomputation on subsequent
+// renders). Capped at the last 10 completed cycles.
+//
+// CycleRollup shape:
+//   { id, name, goalType, start, end, weeks,
+//     startBw, endBw, targetBw,
+//     startWaist, endWaist, startHip, endHip,
+//     avgKcal, avgProtein, avgCarbs,
+//     plateauWeeksDetected, signals[] }
+function updateInsightsRollup() {
+  if (!state.insightsRollup) state.insightsRollup = { completedCycles: [] };
+  const rollup = state.insightsRollup;
+  const today = getLocalToday();
+
+  // Find completed macrocycles not yet in the rollup
+  const archivedIds = new Set((rollup.completedCycles || []).map(r => r.id));
+  const newlyCompleted = (state.macrocycles || []).filter(m => {
+    if (archivedIds.has(m.id)) return false;
+    const end = getMacroEndDate(m);
+    return end && toLocalDateStr(end) < today;
+  });
+
+  if (!newlyCompleted.length) return; // nothing new to archive
+
+  const dayMap = buildDayMap();
+
+  for (const m of newlyCompleted) {
+    const endStr   = toLocalDateStr(getMacroEndDate(m));
+    const startStr = m.start || '';
+
+    // Body weight at cycle start and end
+    const bwLogs = (state.bodyLogs || [])
+      .filter(l => l.weight && l.date >= startStr && l.date <= endStr)
+      .sort((a,b) => a.date.localeCompare(b.date));
+    const startBw = bwLogs.length ? parseFloat(bwLogs[0].weight) : null;
+    const endBw   = bwLogs.length ? parseFloat(bwLogs[bwLogs.length - 1].weight) : null;
+
+    // Average kcal, protein, carbs across the cycle
+    const allDates = Object.keys(dayMap).filter(d => d >= startStr && d <= endStr);
+    const nutrDates = allDates.filter(d => dayMap[d].hasNutr);
+    const avgKcal    = nutrDates.length ? Math.round(nutrDates.reduce((s,d) => s + dayMap[d].kcal, 0)    / nutrDates.length) : null;
+    const avgProtein = nutrDates.length ? Math.round(nutrDates.reduce((s,d) => s + (dayMap[d].protein||0), 0) / nutrDates.length) : null;
+    const avgCarbs   = nutrDates.length ? Math.round(nutrDates.reduce((s,d) => s + (dayMap[d].carbs||0),   0) / nutrDates.length) : null;
+
+    // Waist and hip: first and last logged values within the cycle.
+    // Stored in inches (always, regardless of entry unit — see §13).
+    // Useful LLM context: waist/hip change shows body composition shift
+    // independent of scale weight (e.g. recomping, water weight masking fat loss).
+    const measLogs = (state.bodyLogs || [])
+      .filter(l => l.date >= startStr && l.date <= endStr && (l.waist || l.hip))
+      .sort((a,b) => a.date.localeCompare(b.date));
+    const startWaist = measLogs.length ? (measLogs[0].waist || null) : null;
+    const endWaist   = measLogs.length ? (measLogs[measLogs.length - 1].waist || null) : null;
+    const startHip   = measLogs.length ? (measLogs[0].hip || null) : null;
+    const endHip     = measLogs.length ? (measLogs[measLogs.length - 1].hip || null) : null;
+
+    // Detect signals via computeWeeklyInsights
+    const ins = computeWeeklyInsights(m);
+    const signals = [];
+    if (ins && !ins.insufficientData) {
+      if (ins.plateauWeeks >= 2) signals.push(`plateau-${ins.plateauWeeks}wk`);
+      if (ins.signal && ins.signal !== 'on-track') signals.push(ins.signal);
+    }
+
+    rollup.completedCycles.push({
+      id: m.id, name: m.name, goalType: m.goalType || 'loss',
+      start: startStr, end: endStr, weeks: m.weeks,
+      startBw, endBw, targetBw: m.targetBw || null,
+      startWaist, endWaist, startHip, endHip,
+      avgKcal, avgProtein, avgCarbs,
+      plateauWeeksDetected: ins ? ins.plateauWeeks : 0,
+      signals,
+    });
+  }
+
+  // Cap to last 10
+  if (rollup.completedCycles.length > 10) {
+    rollup.completedCycles = rollup.completedCycles.slice(-10);
+  }
+
+  save();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 2 — AI advice layer
+// ─────────────────────────────────────────────────────────────────────────────
+
+// API key stored separately from state (localStorage direct) so it is never
+// included in JSON exports/backups. Cleared by saving an empty value.
+function getApiKey() {
+  return localStorage.getItem('bloc_api_key') || null;
+}
+function saveApiKey() {
+  const val = (document.getElementById('settings-api-key-input').value || '').trim();
+  const statusEl = document.getElementById('api-key-status');
+  if (val) {
+    localStorage.setItem('bloc_api_key', val);
+    document.getElementById('settings-api-key-input').value = '';
+    statusEl.textContent = '✓ API key saved';
+    statusEl.style.color = 'var(--accent)';
+  } else {
+    localStorage.removeItem('bloc_api_key');
+    statusEl.textContent = 'API key removed';
+    statusEl.style.color = 'var(--text3)';
+  }
+  setTimeout(() => renderSettings(), 1500);
+}
+
+// ── Date helpers for goal sequence generation ─────────────────────────────────
+
+// Returns the ISO date string of the next upcoming Monday (or today if today
+// is a Monday). Used as the anchor start date for all recommended goal sequences.
+function getNextMonday() {
+  const today = new Date(getLocalToday() + 'T00:00:00');
+  const dow = today.getDay(); // 0=Sun, 1=Mon … 6=Sat
+  const daysUntilMon = dow === 1 ? 0 : dow === 0 ? 1 : 8 - dow;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() + daysUntilMon);
+  return toLocalDateStr(monday);
+}
+
+// Given a start date string and a number of weeks, returns the Sunday end date.
+function getSundayAfterWeeks(startDateStr, weeks) {
+  const d = new Date(startDateStr + 'T00:00:00');
+  d.setDate(d.getDate() + weeks * 7 - 1);
+  return toLocalDateStr(d);
+}
+
+// The Monday after a given Sunday end date.
+function getMondayAfter(sundayStr) {
+  const d = new Date(sundayStr + 'T00:00:00');
+  d.setDate(d.getDate() + 1);
+  return toLocalDateStr(d);
+}
+
+// Materialises startDate/endDate fields in a recommendation path's goal array,
+// anchoring from nextMonday and using each goal's startDate/endDate as provided
+// by the LLM (which has been instructed to produce Mon–Sun aligned dates).
+// Also back-calculates fats from kcal/protein/carbs. Returns a new array.
+function materialiseDates(goals, macro) {
+  const cycleEnd = toLocalDateStr(getMacroEndDate(macro));
+  return goals.map(g => {
+    // Use LLM-provided dates; fall back to sequential Mon–Sun windows if missing
+    const start = g.startDate || getNextMonday();
+    const end   = g.endDate   || getSundayAfterWeeks(start, g.weeks || 2);
+    // Back-calculate fats: remaining kcal after protein (4 kcal/g) + carbs (4 kcal/g) ÷ 9
+    const remainingKcal = Math.max(0, g.kcal - (g.protein * 4) - (g.carbs * 4));
+    const fats = Math.round(remainingKcal / 9);
+    return { ...g, startDate: start, endDate: end, fats };
+  });
+}
+
+// ── Safety floor calculation ─────────────────────────────────────────────────
+// Returns the minimum safe kcal/day for aggressive recommendations.
+// Primary method: log-based BMR (from calcDynamicTDEE()) × 0.80.
+//   The log-based BMR is derived from actual weight-change + calorie data,
+//   making it more accurate than Mifflin-St Jeor for someone actively tracking.
+// Fallback (no log-based TDEE): best single week with ≥1 lb loss, avgKcal − 175.
+// Hard minimum: 1,400 kcal if no loss weeks exist yet.
+function computeSafetyFloor(macro) {
+  // Primary: log-based BMR × 0.80
+  const dynResult = calcDynamicTDEE();
+  if (dynResult && dynResult.bmr && dynResult.bmr > 800) {
+    return Math.round(dynResult.bmr * 0.80);
+  }
+  // Fallback: best single loss week avgKcal − 175
+  const ins = computeWeeklyInsights(macro);
+  if (ins && !ins.insufficientData && ins.weekBuckets) {
+    const bestLossWeek = ins.weekBuckets
+      .filter(b => b.delta !== null && b.delta <= -1.0 && b.avgKcal)
+      .sort((a, b) => a.delta - b.delta)[0];
+    if (bestLossWeek) return Math.max(1400, bestLossWeek.avgKcal - 175);
+  }
+  return 1400;
+}
+
+// ── In-flight flag ────────────────────────────────────────────────────────────
+// Set to true while the API call is in progress. buildAiAdviceCardHTML reads
+// this to render the loading state. Never stored in state — resets on reload.
+let _blocAdviceLoading = false;
+
+// ── Prompt builder ────────────────────────────────────────────────────────────
+// Constructs the system prompt and user message for the Anthropic API call.
+// All constraints (safety floor, protein minimum) are computed here client-side
+// and injected as hard rules so the LLM cannot produce unsafe values.
+function buildBlocAdvicePrompt(macro) {
+  const ins        = computeWeeklyInsights(macro);
+  const dynResult  = calcDynamicTDEE();
+  const safetyFloor = computeSafetyFloor(macro);
+
+  // Protein floor: 1g per lb of most recent bodyweight, rounded up
+  const latestLog = [...(state.bodyLogs || [])]
+    .filter(l => l.weight)
+    .sort((a, b) => b.date.localeCompare(a.date))[0];
+  const latestBw = latestLog ? parseFloat(latestLog.weight) : null;
+  const proteinFloor = latestBw ? Math.ceil(latestBw) : 150;
+
+  const nextMonday  = getNextMonday();
+  const cycleEnd    = toLocalDateStr(getMacroEndDate(macro));
+
+  // ── System prompt ──
+  const systemPrompt = `You are BLOC, a personal training and nutrition coach embedded in a fitness tracking app. You analyse the user's real logged data and give direct, specific, evidence-based advice. Speak in second person. Never be vague. Reference actual numbers from the data.
+
+HARD CONSTRAINTS — never violate these:
+- No recommended kcal value may fall below ${safetyFloor} kcal/day
+- Protein must never be recommended below ${proteinFloor}g per day
+- All goal startDates must be Mondays, all endDates must be Sundays
+- Steps targets must always be multiples of 2000
+- Maximum 4 goals per recommendation path
+- Do NOT include a fats field — fats are calculated client-side
+- Respond ONLY with valid JSON matching the schema below — no preamble, no markdown, no text outside the JSON
+
+JSON SCHEMA:
+{
+  "signal": "one of: plateau-creep | plateau-adaptation | drift-warning | gain-deficit | gain-undereating | gain-excess | maint-stable | maint-unstable | on-track",
+  "headline": "max 12 words",
+  "narrative": "2-4 paragraphs referencing actual numbers from the data",
+  "primaryAction": "single most important action this week, one sentence",
+  "secondaryAction": "optional secondary action or null",
+  "recommendations": {
+    "sustainable": {
+      "label": "Sustainable",
+      "rationale": "one sentence explaining the logic of this path",
+      "summary": "plain English description of the full sequence",
+      "goals": [
+        {
+          "label": "short step name",
+          "startDate": "YYYY-MM-DD (must be a Monday)",
+          "endDate": "YYYY-MM-DD (must be the Sunday after startDate + weeks)",
+          "kcal": number,
+          "steps": number (multiple of 2000),
+          "protein": number (grams, must be >= ${proteinFloor}),
+          "carbs": number (grams)
+        }
+      ]
+    },
+    "aggressive": {
+      "label": "Aggressive",
+      "rationale": "one sentence",
+      "summary": "plain English description",
+      "goals": [ ... same shape ... ]
+    }
+  }
+}`;
+
+  // ── Weekly data table ──
+  const today = getLocalToday();
+  const weekRows = (ins && ins.weekBuckets || []).map(b => {
+    const deltaStr = b.delta !== null ? (b.delta > 0 ? '+' : '') + b.delta.toFixed(2) + ' lbs' : 'n/a (first week)';
+    const isBaseline = b.label === (ins.baselineWeekLabel || 'W1') ? ' [BASELINE]' : '';
+    // Flag any week whose end date is today or in the future as still in progress.
+    // The model must not treat a partial week as a settled data point.
+    const isPartial = b.bEnd >= today;
+    const partialNote = isPartial ? ` [IN PROGRESS — ${b.nutrDayCount} of 7 days logged so far, averages are provisional]` : '';
+    return `${b.label} (${b.bStart}–${b.bEnd}): avg weight ${b.avgWeight ? b.avgWeight.toFixed(1) + ' lbs' : 'n/a'} | delta ${deltaStr} | avg ${b.avgKcal ? b.avgKcal.toLocaleString() : '?'} kcal | ${b.avgProtein || '?'}g protein | ${b.avgCarbs || '?'}g carbs | ${b.nutrDayCount} logged days${isBaseline}${partialNote}`;
+  }).join('\n');
+
+  // ── Prior advice summary ──
+  let priorAdviceStr = 'None — this is the first advice call for this cycle.';
+  if (state.blocAdvice && state.blocAdvice.macroId === macro.id && state.blocAdvice.response) {
+    const pr = state.blocAdvice.response;
+    const prDate = state.blocAdvice.storedAt;
+    const prGoalsSust = (pr.recommendations?.sustainable?.goals || [])
+      .map(g => `${g.label}: ${g.kcal} kcal, ${g.steps} steps, ${g.protein}g protein, ${g.startDate}–${g.endDate}`).join('; ');
+    const prGoalsAgg = (pr.recommendations?.aggressive?.goals || [])
+      .map(g => `${g.label}: ${g.kcal} kcal, ${g.steps} steps, ${g.protein}g protein, ${g.startDate}–${g.endDate}`).join('; ');
+    const chosen = state.blocAdvice.chosenPath || 'none chosen';
+    priorAdviceStr = `Date: ${prDate} | Signal: ${pr.signal} | Headline: ${pr.headline}
+Primary action given: ${pr.primaryAction}
+Sustainable plan: ${prGoalsSust || 'none'}
+Aggressive plan: ${prGoalsAgg || 'none'}
+Plan chosen by user: ${chosen}`;
+  }
+
+  // ── Completed cycle history ──
+  const cycles = (state.insightsRollup?.completedCycles || []);
+  const cycleHistoryStr = cycles.length
+    ? cycles.map(c =>
+        `${c.name} (${c.goalType}): ${c.start}–${c.end}, ${c.weeks}w | start ${c.startBw ? c.startBw.toFixed(1) : '?'} lbs → end ${c.endBw ? c.endBw.toFixed(1) : '?'} lbs (target ${c.targetBw || '?'}) | avg ${c.avgKcal || '?'} kcal, ${c.avgProtein || '?'}g protein, ${c.avgCarbs || '?'}g carbs | plateau ${c.plateauWeeksDetected}w detected | signals: ${c.signals?.join(', ') || 'none'}`
+      ).join('\n')
+    : 'No completed cycles yet — this is the first macrocycle.';
+
+  // ── User message ──
+  const userMessage =
+`CURRENT CYCLE: ${macro.name}
+Goal type: ${macro.goalType} | Start: ${macro.start} | End: ${cycleEnd} | Duration: ${macro.weeks} weeks
+Current weight: ${latestBw ? latestBw.toFixed(1) + ' lbs' : 'unknown'} | Target: ${macro.targetBw ? macro.targetBw + ' lbs' : 'not set'}
+Remaining: ${latestBw && macro.targetBw ? Math.abs(latestBw - macro.targetBw).toFixed(1) + ' lbs to target' : 'unknown'}
+
+WEEKLY DATA (7-day average weight from daily weigh-ins):
+${weekRows || 'No weekly data available.'}
+
+KEY METRICS:
+- Baseline avg intake (${ins?.baselineWeekLabel || 'W1'}): ${ins?.avgKcalBaseline ? ins.avgKcalBaseline.toLocaleString() + ' kcal/day' : 'unknown'}
+- Recent avg intake (last 2 weeks): ${ins?.avgKcalRecent ? ins.avgKcalRecent.toLocaleString() + ' kcal/day' : 'unknown'}
+- Caloric drift from baseline: ${ins?.caloricDrift != null ? (ins.caloricDrift > 0 ? '+' : '') + ins.caloricDrift + ' kcal/day' : 'unknown'}
+- Estimated TDEE: ${dynResult ? '~' + dynResult.tdee.toLocaleString() + ' kcal/day (log-based, ' + dynResult.dataPoints + ' data points)' : 'insufficient data'}
+- Log-based BMR: ${dynResult ? '~' + dynResult.bmr.toLocaleString() + ' kcal/day' : 'unknown'}
+- Current deficit/surplus vs TDEE: ${ins?.deficitOrSurplus != null ? (ins.deficitOrSurplus > 0 ? '+' : '') + ins.deficitOrSurplus + ' kcal/day' : 'unknown'}
+- Plateau weeks detected: ${ins?.plateauWeeks || 0} consecutive weeks ≤ 0.5 lbs/week change
+- Current signal: ${ins?.signal || 'unknown'}
+
+CONSTRAINTS FOR YOUR RECOMMENDATIONS:
+- Minimum safe kcal floor: ${safetyFloor} kcal/day (log-based BMR × 0.80)
+- Minimum protein: ${proteinFloor}g/day (1g per lb current bodyweight)
+- First goal must start: ${nextMonday} (next Monday)
+- Cycle end date: ${cycleEnd} — note in narrative if plan extends beyond this
+
+PRIOR ADVICE THIS CYCLE:
+${priorAdviceStr}
+
+COMPLETED CYCLE HISTORY:
+${cycleHistoryStr}`;
+
+  return { systemPrompt, userMessage };
+}
+
+// ── Ask BLOC for advice ───────────────────────────────────────────────────────
+// Makes a real POST request to the Anthropic Messages API using the key stored
+// in localStorage. Validates the JSON response before storing. On error,
+// restores the button without touching any stored advice or cooldown dates.
+async function askBlocForAdvice() {
+  const macro = resolveProgressMacro();
+  if (!macro || _blocAdviceLoading) return;
+
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    alert('No API key saved. Go to Settings → AI Advice to add your Anthropic API key.');
+    return;
+  }
+
+  _blocAdviceLoading = true;
+  renderProgress(); // renders the "BLOC is thinking…" loading state
+
+  let systemPrompt, userMessage;
+  try {
+    const prompt = buildBlocAdvicePrompt(macro);
+    systemPrompt = prompt.systemPrompt;
+    userMessage  = prompt.userMessage;
+    console.log('[BLOC] Prompt built. User message length:', userMessage.length);
+  } catch (promptErr) {
+    console.error('[BLOC] Prompt build failed:', promptErr);
+    _blocAdviceLoading = false;
+    renderProgress();
+    setTimeout(() => {
+      const errEl = document.getElementById('bloc-advice-error');
+      const msg = `Failed to build prompt: ${promptErr.message}`;
+      if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; setTimeout(() => { if(errEl) errEl.style.display='none'; }, 6000); }
+      else alert(msg);
+    }, 50);
+    return;
+  }
+
+  console.log('[BLOC] Sending API request…');
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 8000,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userMessage }],
+      }),
+    });
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      console.error('[BLOC] API error response:', res.status, errBody);
+      throw new Error(errBody?.error?.message || `API error ${res.status}`);
+    }
+
+    console.log('[BLOC] Response received, parsing…');
+
+    const data = await res.json();
+    const rawText = (data.content || [])
+      .filter(b => b.type === 'text')
+      .map(b => b.text)
+      .join('');
+
+    console.log('[BLOC] Raw length:', rawText.length, '| stop_reason:', data.stop_reason);
+    console.log('[BLOC] Last 100 chars:', rawText.slice(-100));
+
+    // Strip any accidental markdown fences
+    const cleaned = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+    const response = JSON.parse(cleaned);
+
+    // Validate required fields
+    if (!response.signal || !response.headline || !response.narrative
+        || !response.recommendations?.sustainable?.goals
+        || !response.recommendations?.aggressive?.goals) {
+      throw new Error('Response missing required fields');
+    }
+
+    // Materialise dates and back-calculate fats for both paths
+    const cycleEnd = toLocalDateStr(getMacroEndDate(macro));
+    response.recommendations.sustainable.goals =
+      materialiseDates(response.recommendations.sustainable.goals, macro);
+    response.recommendations.aggressive.goals =
+      materialiseDates(response.recommendations.aggressive.goals, macro);
+
+    // nextCheckIn = 2 weeks from today (the call date), always.
+    // Reasoning: regardless of how long the plan runs, if progress hasn't
+    // improved after 2 weeks you need new advice — waiting for the plan to
+    // finish before allowing a check-in defeats the purpose of the feature.
+    // Both paths share the same cooldown since the 2-week window is about
+    // detecting whether the intervention is working, not about plan length.
+    const twoWeeksOut = getMondayAfter(getSundayAfterWeeks(today, 2));
+    response.nextCheckIn = {
+      sustainable: twoWeeksOut,
+      aggressive:  twoWeeksOut,
+    };
+
+    // Cycle-exceed flags
+    const lastSust = response.recommendations.sustainable.goals.slice(-1)[0]?.endDate;
+    const lastAgg  = response.recommendations.aggressive.goals.slice(-1)[0]?.endDate;
+    response._cycleEnd = cycleEnd;
+    response._sustainableExceedsCycle = lastSust && lastSust > cycleEnd;
+    response._aggressiveExceedsCycle  = lastAgg  && lastAgg  > cycleEnd;
+
+    // Store — only now do we update storedAt (cooldown clock starts here)
+    state.blocAdvice = {
+      response,
+      storedAt:    today,
+      macroId:     macro.id,
+      chosenPath:  null,
+    };
+    save();
+
+  } catch (err) {
+    // Show error inline — does NOT touch state.blocAdvice or cooldown.
+    // Reset loading flag and re-render first so the card (and its error div) exists,
+    // then populate the error element. Falls back to alert if element not found.
+    console.error('[BLOC advice error]', err);
+    _blocAdviceLoading = false;
+    renderProgress();
+    // Small delay so the DOM is fully updated before querying the error element
+    setTimeout(() => {
+      const errEl = document.getElementById('bloc-advice-error');
+      const msg = `Could not get advice: ${err.message}. Check your API key in Settings or try again.`;
+      if (errEl) {
+        errEl.textContent = msg;
+        errEl.style.display = 'block';
+        setTimeout(() => { if (errEl) errEl.style.display = 'none'; }, 6000);
+      } else {
+        alert(msg);
+      }
+    }, 50);
+    return;
+  }
+
+  _blocAdviceLoading = false;
+  renderProgress();
+}
+
+// ── Build AI advice card HTML ─────────────────────────────────────────────────
+function buildAiAdviceCardHTML() {
+  const macro = resolveProgressMacro();
+  if (!macro) return '';
+
+  const ins   = computeWeeklyInsights(macro);
+  const today = getLocalToday();
+  const hasKey = !!getApiKey();
+
+  // Signals that warrant intervention (confirmed plateau or sustained imbalance).
+  // drift-warning alone is informational only — not enough for an API call.
+  const INTERVENTION_SIGNALS = new Set([
+    'plateau-creep', 'plateau-adaptation',
+    'gain-deficit', 'gain-undereating', 'gain-excess',
+    'maint-unstable',
+  ]);
+
+  const hasEnoughData  = ins && !ins.insufficientData;
+  const signalWarrants = ins && INTERVENTION_SIGNALS.has(ins.signal);
+  const eligible       = hasEnoughData && signalWarrants;
+
+  // Stored advice for this cycle
+  const stored         = state.blocAdvice;
+  const hasStoredAdvice = stored && stored.macroId === macro.id && stored.response;
+
+  // ── Cooldown check ────────────────────────────────────────────────────────
+  // nextCheckIn is per-path; if no plan chosen, use the earlier of the two.
+  // Guard: if nextCheckIn is more than 16 days after storedAt, it was computed
+  // with the old end-of-plan logic — cap it at storedAt + 14 days instead.
+  let inCooldown = false;
+  let cooldownUntil = null;
+  if (hasStoredAdvice && stored.response.nextCheckIn) {
+    const nc = stored.response.nextCheckIn;
+    const chosen = stored.chosenPath;
+    let rawDate = chosen && nc[chosen] ? nc[chosen] : ([nc.sustainable, nc.aggressive].filter(Boolean).sort()[0] || null);
+    // Cap stale dates: if more than 16 days from call date, use 14-day fallback
+    if (rawDate && stored.storedAt) {
+      const storedMs  = new Date(stored.storedAt + 'T00:00:00').getTime();
+      const checkMs   = new Date(rawDate + 'T00:00:00').getTime();
+      const maxMs     = storedMs + 16 * 86400000;
+      if (checkMs > maxMs) {
+        rawDate = getMondayAfter(getSundayAfterWeeks(stored.storedAt, 2));
+      }
+    }
+    cooldownUntil = rawDate;
+    if (cooldownUntil && today < cooldownUntil) inCooldown = true;
+  }
+
+  // ── Button area HTML ──────────────────────────────────────────────────────
+  const safetyFloor = computeSafetyFloor(macro);
+  let buttonHtml = '';
+
+  if (_blocAdviceLoading) {
+    // In-flight state
+    buttonHtml = `<div style="margin-top:${hasStoredAdvice ? '0' : '4px'};">
+      <div style="padding:11px 14px;border-radius:10px;font-size:13px;font-weight:600;
+                  background:rgba(43,199,196,0.08);border:0.5px solid rgba(43,199,196,0.2);
+                  color:var(--accent);text-align:center;font-family:var(--font-display);">
+        ✦ BLOC is thinking…
+      </div>
+      <div id="bloc-advice-error" style="display:none;font-size:11px;color:var(--red);margin-top:6px;"></div>
+    </div>`;
+  } else if (inCooldown && cooldownUntil) {
+    // Cooldown state — show next check-in date
+    const coolFmt = new Date(cooldownUntil + 'T00:00:00')
+      .toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    buttonHtml = `<div style="margin-top:${hasStoredAdvice ? '0' : '4px'};">
+      <div style="padding:10px 14px;border-radius:10px;font-size:12px;font-weight:500;
+                  background:var(--surface2);border:0.5px solid var(--border2);color:var(--text3);
+                  text-align:center;">
+        ✦ Next check-in: ${coolFmt}
+      </div>
+      <div id="bloc-advice-error" style="display:none;font-size:11px;color:var(--red);margin-top:6px;"></div>
+    </div>`;
+  } else if (eligible || hasStoredAdvice) {
+    // Eligible and idle — show the button
+    const noKeyNote = !hasKey
+      ? `<div style="font-size:10px;color:var(--amber);margin-top:5px;">⚠ Add your Anthropic API key in Settings to enable this.</div>`
+      : `<div style="font-size:10px;color:var(--text3);margin-top:5px;">Safety floor: ${safetyFloor.toLocaleString()} kcal/day · Protein min: ${Math.ceil(parseFloat((([...(state.bodyLogs||[])].filter(l=>l.weight).sort((a,b)=>b.date.localeCompare(a.date))[0])||{weight:0}).weight)||0)}g/day</div>`;
+    buttonHtml = `<div style="margin-top:${hasStoredAdvice ? '0' : '4px'};">
+      <button id="bloc-advice-btn"
+        onclick="askBlocForAdvice()"
+        ${!hasKey ? 'disabled' : ''}
+        style="width:100%;padding:11px 14px;border-radius:10px;font-size:13px;font-weight:600;
+               background:${hasKey ? 'rgba(43,199,196,0.12)' : 'var(--surface2)'};
+               border:0.5px solid ${hasKey ? 'rgba(43,199,196,0.35)' : 'var(--border2)'};
+               color:${hasKey ? 'var(--accent)' : 'var(--text3)'};
+               cursor:${hasKey ? 'pointer' : 'default'};font-family:var(--font-display);">
+        ✦ Ask BLOC for advice
+      </button>
+      ${noKeyNote}
+      <div id="bloc-advice-error" style="display:none;font-size:11px;color:var(--red);margin-top:6px;"></div>
+    </div>`;
+  } else if (hasEnoughData && !signalWarrants) {
+    buttonHtml = `<div style="margin-top:4px;padding:10px 12px;border-radius:10px;background:var(--surface2);border:0.5px solid var(--border2);">
+      <div style="font-size:12px;color:var(--text3);">✦ Ask BLOC for advice — available when a plateau or sustained imbalance is detected</div>
+      <div id="bloc-advice-error" style="display:none;font-size:11px;color:var(--red);margin-top:6px;"></div>
+    </div>`;
+  } else {
+    return ''; // Insufficient data — no card at all yet
+  }
+
+  if (!hasStoredAdvice) return buttonHtml;
+
+  // ── Render stored advice card ────────────────────────────────────────────
+  const r = stored.response;
+  const sust = r.recommendations.sustainable;
+  const agg  = r.recommendations.aggressive;
+
+  // Format a goal sequence as a readable summary block
+  function goalSummaryBlock(path, pathKey) {
+    const goals = path.goals;
+    const cycleEndFmt = r._cycleEnd ? new Date(r._cycleEnd + 'T00:00:00').toLocaleDateString('en-GB', {day:'numeric',month:'short'}) : '';
+
+    const stepsHtml = goals.map((g, i) => {
+      // Look up the saved goal by _blocLabel first (reliable), then fall back
+      // to date proximity (for goals saved before label tracking was added).
+      const liveGoal = (state.goals || []).find(sg => sg._blocLabel && sg._blocLabel === g.label)
+        || (state.goals || []).find(sg =>
+            sg.startDate <= g.endDate && sg.endDate >= g.startDate &&
+            Math.abs(new Date(sg.startDate) - new Date(g.startDate)) < 14 * 86400000
+          );
+      const displayStart = liveGoal ? liveGoal.startDate : g.startDate;
+      const displayEnd   = liveGoal ? liveGoal.endDate   : g.endDate;
+
+      const startFmt = new Date(displayStart + 'T00:00:00').toLocaleDateString('en-GB', {day:'numeric',month:'short'});
+      const endFmt   = new Date(displayEnd   + 'T00:00:00').toLocaleDateString('en-GB', {day:'numeric',month:'short'});
+
+      // Compute weeks from actual dates rather than stored g.weeks (which may be null)
+      const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+      const startMs = new Date(displayStart + 'T00:00:00').getTime();
+      const endMs   = new Date(displayEnd   + 'T00:00:00').getTime();
+      const weeksNum = Math.round((endMs - startMs + msPerWeek) / msPerWeek);
+      const weeksLabel = weeksNum > 0 ? weeksNum + 'w' : '—';
+
+      return `<div style="padding:8px 10px;background:var(--surface2);border-radius:7px;margin-bottom:5px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;">
+          <span style="font-size:11px;font-weight:600;color:var(--text);">${goals.length > 1 ? `Step ${i+1}: ` : ''}${g.label}</span>
+          <span style="font-size:10px;color:var(--text3);">${weeksLabel} · ${startFmt}–${endFmt}</span>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:4px;flex-wrap:wrap;">
+          <span style="font-size:11px;color:var(--text2);">🔥 ${g.kcal.toLocaleString()} kcal</span>
+          <span style="font-size:11px;color:var(--text2);">👟 ${g.steps.toLocaleString()} steps</span>
+          <span style="font-size:11px;color:var(--text2);">💪 ${g.protein}g protein</span>
+          <span style="font-size:11px;color:var(--text2);">🌾 ${g.carbs}g carbs</span>
+          ${g.fats ? `<span style="font-size:11px;color:var(--text3);">${g.fats}g fats</span>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+
+    // Recompute the exceed flag dynamically using the same label-first lookup
+    const lastDisplayEnd = goals.reduce((latest, g) => {
+      const liveGoal = (state.goals || []).find(sg => sg._blocLabel && sg._blocLabel === g.label)
+        || (state.goals || []).find(sg =>
+            sg.startDate <= g.endDate && sg.endDate >= g.startDate &&
+            Math.abs(new Date(sg.startDate) - new Date(g.startDate)) < 14 * 86400000
+          );
+      const end = liveGoal ? liveGoal.endDate : g.endDate;
+      return end > latest ? end : latest;
+    }, '');
+    const exceedsDynamically = r._cycleEnd && lastDisplayEnd > r._cycleEnd;
+
+    const exceedNote = exceedsDynamically
+      ? `<div style="font-size:10px;color:var(--amber);margin-top:4px;">⚠ This plan extends past your cycle end (${cycleEndFmt}) — you'll need to extend or start a new cycle.</div>`
+      : '';
+
+    return `<div style="font-size:11px;color:var(--text3);margin-bottom:6px;">${path.rationale}</div>
+      ${stepsHtml}${exceedNote}`;
+  }
+
+  const storedFmt = new Date(stored.storedAt + 'T00:00:00').toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'});
+  const chosenPath   = stored.chosenPath; // null | 'sustainable' | 'aggressive'
+  const narrativeOpen = stored.narrativeOpen !== false; // default open
+  const altOpen       = stored.altOpen === true;        // default closed
+
+  // Toggle helpers — flip a flag on state.blocAdvice and re-render
+  // (defined as inline onclick strings so they work in the innerHTML context)
+  const togNarr = `state.blocAdvice.narrativeOpen=!state.blocAdvice.narrativeOpen;save();renderProgress();`;
+  const togAlt  = `state.blocAdvice.altOpen=!state.blocAdvice.altOpen;save();renderProgress();`;
+
+  // ── Narrative section ─────────────────────────────────────────────────────
+  const narrativeBody = `
+    <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:8px;">${r.narrative.split('\n\n')[0]}</div>
+    ${r.narrative.split('\n\n').slice(1).map(p =>
+      `<div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:8px;">${p}</div>`
+    ).join('')}
+    ${r.primaryAction ? `<div style="font-size:12px;color:var(--accent);font-weight:500;padding:8px 10px;background:rgba(43,199,196,0.08);border-radius:7px;margin-bottom:4px;">→ ${r.primaryAction}</div>` : ''}
+    ${r.secondaryAction ? `<div style="font-size:12px;color:var(--text2);padding:8px 10px;background:var(--surface2);border-radius:7px;margin-top:4px;">→ ${r.secondaryAction}</div>` : ''}`;
+
+  // ── Plan section — branches on whether a plan has been chosen ─────────────
+  let planSection = '';
+  if (!chosenPath) {
+    // Pre-choice: show both plans side by side with choose buttons
+    planSection = `
+    <div style="border-top:0.5px solid var(--border);margin:12px 0 10px;"></div>
+    <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;">
+      🌱 ${sust.label} plan
+      <span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:6px;">${sust.summary}</span>
+    </div>
+    ${goalSummaryBlock(sust, 'sustainable')}
+    <button onclick="startGoalQueue('sustainable')"
+      style="width:100%;padding:11px;border-radius:10px;font-size:13px;font-weight:600;
+             background:var(--accent);color:#06281f;border:none;cursor:pointer;margin-bottom:14px;margin-top:4px;
+             font-family:var(--font-display);">
+      Use ${sust.label} plan →
+    </button>
+    <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;">
+      ⚡ ${agg.label} plan
+      <span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:6px;">${agg.summary}</span>
+    </div>
+    ${goalSummaryBlock(agg, 'aggressive')}
+    <button onclick="startGoalQueue('aggressive')"
+      style="width:100%;padding:11px;border-radius:10px;font-size:13px;font-weight:600;
+             background:var(--surface2);color:var(--text);border:0.5px solid var(--border2);cursor:pointer;margin-top:4px;
+             font-family:var(--font-display);">
+      Use ${agg.label} plan →
+    </button>`;
+  } else {
+    // Post-choice: chosen plan visible, unchosen plan collapsible
+    const chosenPath_obj  = chosenPath === 'sustainable' ? sust : agg;
+    const chosenEmoji     = chosenPath === 'sustainable' ? '🌱' : '⚡';
+    const altPath_obj     = chosenPath === 'sustainable' ? agg  : sust;
+    const altEmoji        = chosenPath === 'sustainable' ? '⚡' : '🌱';
+    const altPathKey      = chosenPath === 'sustainable' ? 'aggressive' : 'sustainable';
+
+    planSection = `
+    <div style="border-top:0.5px solid var(--border);margin:12px 0 10px;"></div>
+    <div style="font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Selected plan</div>
+    <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;">
+      ${chosenEmoji} ${chosenPath_obj.label} plan
+      <span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:6px;">${chosenPath_obj.summary}</span>
+    </div>
+    ${goalSummaryBlock(chosenPath_obj, chosenPath)}
+    <div style="border-top:0.5px solid var(--border);margin:10px 0 8px;"></div>
+    <div onclick="${togAlt}"
+         style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:4px 0;">
+      <span style="font-size:11px;color:var(--text3);">${altEmoji} View alternative plan (${altPath_obj.label})</span>
+      <span style="font-size:12px;color:var(--text3);">${altOpen ? '▲' : '▼'}</span>
+    </div>
+    ${altOpen ? `
+    <div style="margin-top:8px;">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:6px;">${altPath_obj.rationale}</div>
+      ${goalSummaryBlock(altPath_obj, altPathKey)}
+      <button onclick="startGoalQueue('${altPathKey}')"
+        style="width:100%;padding:10px;border-radius:10px;font-size:12px;font-weight:600;
+               background:var(--surface2);color:var(--text);border:0.5px solid var(--border2);
+               cursor:pointer;margin-top:4px;font-family:var(--font-display);">
+        Switch to ${altPath_obj.label} plan →
+      </button>
+    </div>` : ''}`;
+  }
+
+  return `<div class="card" style="margin-top:4px;border:0.5px solid rgba(43,199,196,0.2);">
+    <!-- Header row -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;
+                  font-size:10px;font-weight:600;background:rgba(43,199,196,0.12);color:var(--accent);">
+        ✦ BLOC advice
+      </div>
+      <div style="font-size:10px;color:var(--text3);">${storedFmt}</div>
+    </div>
+
+    <!-- Headline + collapse toggle -->
+    <div onclick="${togNarr}"
+         style="display:flex;align-items:flex-start;justify-content:space-between;cursor:pointer;gap:8px;margin-bottom:${narrativeOpen ? '8px' : '0'};">
+      <div style="font-size:13px;font-weight:600;color:var(--text);flex:1;">${r.headline}</div>
+      <span style="font-size:12px;color:var(--text3);flex-shrink:0;margin-top:2px;">${narrativeOpen ? '▲' : '▼'}</span>
+    </div>
+
+    <!-- Narrative body (collapsible) -->
+    ${narrativeOpen ? narrativeBody : ''}
+
+    <!-- Plan section -->
+    ${planSection}
+
+    <div style="border-top:0.5px solid var(--border);margin:12px 0 8px;"></div>
+    ${buttonHtml}
+  </div>`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 3 — Goal queue flow
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Queue state — lives in memory only, not persisted. Cleared on queue
+// completion, cancellation, or any page navigation away from the goal modal.
+let _goalQueue = null;        // { goals: [], currentIdx: int, macroId: string }
+let _goalQueueAdvancing = false; // true only during the brief close-then-reopen between steps
+
+// Kicks off the sequential goal modal flow for a chosen recommendation path.
+// Checks for overlapping existing goals and warns before proceeding.
+// Returns the Sunday on or after the given date string (inclusive — if today
+// is Sunday, returns today). Used to find the end of the current week so the
+// active goal closes cleanly before a new plan begins on Monday.
+function getNextSundayInclusive(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const dow = d.getDay(); // 0=Sun … 6=Sat
+  if (dow === 0) return dateStr; // already Sunday
+  d.setDate(d.getDate() + (7 - dow));
+  return toLocalDateStr(d);
+}
+
+function startGoalQueue(pathKey) {
+  const stored = state.blocAdvice;
+  const macro  = resolveProgressMacro();
+  if (!stored || !macro) return;
+
+  // Record which path the user chose — drives the cooldown date
+  if (stored.macroId === macro.id) {
+    stored.chosenPath = pathKey;
+    save();
+  }
+
+  const path = stored.response.recommendations[pathKey];
+  if (!path || !path.goals || !path.goals.length) return;
+
+  const today = getLocalToday();
+
+  // ── Step 1: active goal end-date adjustment (edit in place) ─────────────
+  // Find the active goal. If it exists, we will open it in edit mode with
+  // only the end date moved to this Sunday (so the new plan starts Monday).
+  // All other fields are untouched — the modal just behaves like openEditGoal.
+  const activeGoalIdx = (state.goals || []).findIndex(
+    g => g.startDate <= today && g.endDate >= today
+  );
+  const activeGoal = activeGoalIdx >= 0 ? state.goals[activeGoalIdx] : null;
+  const thisOrNextSunday = getNextSundayInclusive(today);
+
+  // ── Upcoming goals: delete all for this macrocycle ───────────────────────
+  // Simpler and safer than trying to selectively overwrite: any upcoming goal
+  // linked to the current macro that starts after today is removed before the
+  // queue begins. The LLM goals replace them cleanly with no index confusion.
+  state.goals = (state.goals || []).filter(
+    g => !(g.startDate > today && g.macroId === macro.id)
+  );
+  // Re-derive activeGoalIdx after the filter (upcoming goals may have shifted indices)
+  const freshActiveIdx = (state.goals || []).findIndex(
+    g => g.startDate <= today && g.endDate >= today
+  );
+  save();
+
+  // Build queue steps
+  const queueSteps = [];
+
+  if (activeGoal) {
+    // Edit step: open the active goal in edit mode with adjusted end date.
+    // We store the goal's data in the step so _openQueueStep can pre-fill
+    // all fields correctly, and set _editIdx = freshActiveIdx so openModal
+    // treats this as an edit (not a blank new goal).
+    const src = freshActiveIdx >= 0 ? state.goals[freshActiveIdx] : activeGoal;
+    queueSteps.push({
+      _editIdx: freshActiveIdx,
+      _isTruncationStep: true,
+      startDate: src.startDate,
+      endDate: thisOrNextSunday,   // only field that changes
+      kcal: src.kcal,
+      steps: src.steps,
+      protein: src.protein,
+      carbs: src.carbs,
+      fats: src.fats,
+    });
+  }
+
+  // LLM goals follow as new goal creates (no _editIdx — always push)
+  path.goals.forEach(g => queueSteps.push({ ...g }));
+
+  if (!queueSteps.length) return;
+  _launchGoalQueue(queueSteps, macro.id);
+}
+
+function _launchGoalQueue(steps, macroId) {
+  _goalQueue = { goals: steps, currentIdx: 0, macroId, total: steps.length };
+  _openQueueStep(0);
+}
+
+// Opens the goal modal pre-filled for queue step `idx`.
+// KEY RULE: for a truncation step (_editIdx is set), we set modal._editIdx
+// BEFORE calling openModal so the openModal handler treats it as an edit
+// and does NOT reset the fields. For new LLM goal steps, we let openModal
+// run its normal "new goal" reset, then override the fields afterwards.
+function _openQueueStep(idx) {
+  if (!_goalQueue) return;
+  const g = _goalQueue.goals[idx];
+  const total = _goalQueue.total;
+  const macro = state.macrocycles.find(m => m.id === _goalQueue.macroId);
+  if (!g || !macro) return;
+
+  const isTruncation = !!g._isTruncationStep;
+  const editIdx      = g._editIdx !== undefined && g._editIdx !== null ? g._editIdx : -1;
+  const modal        = document.getElementById('modal-add-goal');
+
+  if (isTruncation && editIdx >= 0) {
+    // ── Edit mode: set _editIdx FIRST so openModal skips the blank-field reset ──
+    modal._editIdx = editIdx;
+    openModal('modal-add-goal');
+    // Explicitly set every field from the step data — openModal does NOT fill
+    // date/kcal/steps in edit mode, it only calls initGoalMacroSliders. Whatever
+    // was last in the DOM would otherwise bleed through.
+    document.getElementById('goal-start-input').value = g.startDate;
+    document.getElementById('goal-end-input').value   = g.endDate;
+    document.getElementById('goal-kcal-input').value  = g.kcal;
+    document.getElementById('goal-steps-input').value = g.steps;
+    // Sliders: initGoalMacroSliders was already called by openModal with the real
+    // saved goal, so macros are correct. Just make sure userTouched stays false.
+    requestAnimationFrame(() => { goalMacroSliderState.userTouched = false; });
+  } else {
+    // ── New goal mode: let openModal reset fields, then fill from LLM step ──
+    modal._editIdx = undefined;
+    openModal('modal-add-goal');
+    // Override all fields with the LLM values
+    document.getElementById('goal-start-input').value = g.startDate;
+    document.getElementById('goal-end-input').value   = g.endDate;
+    document.getElementById('goal-kcal-input').value  = g.kcal;
+    document.getElementById('goal-steps-input').value = g.steps;
+    // Init sliders from the LLM's recommended macro values
+    requestAnimationFrame(() => {
+      initGoalMacroSliders({ kcal: g.kcal, protein: g.protein, carbs: g.carbs, fats: g.fats });
+      goalMacroSliderState.userTouched = false;
+    });
+  }
+
+  // ── Queue indicator (applies to all steps) ──
+  const queueInd  = document.getElementById('goal-queue-indicator');
+  const stepLabel = document.getElementById('goal-queue-step-label');
+  const stepDesc  = document.getElementById('goal-queue-desc');
+  if (queueInd)  queueInd.style.display = '';
+  if (stepLabel) stepLabel.textContent = `Step ${idx + 1} of ${total}`;
+  if (stepDesc)  stepDesc.textContent  = isTruncation
+    ? 'Closing your current goal on this Sunday so the new plan starts Monday. Only the end date has changed — save to confirm.'
+    : (total > 1
+        ? `New goal period — step ${idx + 1} of ${total}. Save to continue. Cancel at any time to abort the plan.`
+        : 'New goal period from the recommended plan. Review and save.');
+
+  document.getElementById('goal-modal-title').textContent = isTruncation
+    ? 'Close current goal period'
+    : total > 1 ? `Recommended plan — step ${idx + 1} of ${total}` : 'Recommended goal';
+
+  const saveBtn = document.getElementById('goal-save-btn');
+  if (saveBtn) {
+    saveBtn.textContent = idx + 1 < total
+      ? `Save & continue (${idx + 1}/${total}) →`
+      : 'Save & finish →';
+  }
+}
+
+// Called by the save button — saves the current goal then advances or finishes.
+function saveGoalAndAdvanceQueue() {
+  if (!_goalQueue) {
+    // Normal (non-queue) save
+    saveGoal();
+    return;
+  }
+
+  // Run normal save validation (kcal/steps required, no overlap)
+  // We need the full saveGoal() logic but intercept the close+render step
+  if (!state.goals) state.goals = [];
+  const modal = document.getElementById('modal-add-goal');
+  const startDate = document.getElementById('goal-start-input').value;
+  const endDate   = document.getElementById('goal-end-input').value;
+  if (!startDate || !endDate) return;
+
+  const kcalEl  = document.getElementById('goal-kcal-input');
+  const stepsEl = document.getElementById('goal-steps-input');
+  const hasKcal  = kcalEl.value  && String(kcalEl.value).trim()  !== '';
+  const hasSteps = stepsEl.value && String(stepsEl.value).trim() !== '';
+  if (!hasKcal || !hasSteps) {
+    kcalEl.style.borderColor  = hasKcal  ? '' : 'var(--red)';
+    stepsEl.style.borderColor = hasSteps ? '' : 'var(--red)';
+    setTimeout(() => { kcalEl.style.borderColor = ''; stepsEl.style.borderColor = ''; }, 1500);
+    return;
+  }
+
+  // Overlap check. For the truncation step, modal._editIdx is set so
+  // findOverlappingGoal correctly excludes the goal being edited.
+  const modal2 = document.getElementById('modal-add-goal');
+  const editIdxForOverlap = (modal2._editIdx !== undefined && modal2._editIdx !== null)
+    ? modal2._editIdx : -1;
+  const overlap = findOverlappingGoal(startDate, endDate, editIdxForOverlap);
+  const errEl = document.getElementById('goal-overlap-error');
+  if (overlap) {
+    if (errEl) {
+      errEl.textContent = `Overlaps an existing goal (${formatDate(overlap.startDate)} – ${formatDate(overlap.endDate)}). Adjust the dates or cancel the plan.`;
+      errEl.style.display = 'block';
+    }
+    return;
+  }
+  if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+
+  // Build the goal object from the modal fields and sliders
+  const macros = computeGoalMacroGrams();
+  const currentStep = _goalQueue.goals[_goalQueue.currentIdx];
+  // For the truncation step, macros were initialised from the saved goal and
+  // userTouched is false unless the user explicitly dragged a slider — in that
+  // case we use slider-computed values; otherwise we preserve the stored macros.
+  let protein = macros.proteinG, carbs = macros.carbG, fats = macros.fatG;
+  if (currentStep._isTruncationStep && !goalMacroSliderState.userTouched
+      && editIdxForOverlap >= 0 && state.goals[editIdxForOverlap]) {
+    const orig = state.goals[editIdxForOverlap];
+    protein = orig.protein; carbs = orig.carbs; fats = orig.fats;
+  }
+
+  // Include the step label from the queue so the advice card can match
+  // saved goals back to LLM steps by label (more reliable than date proximity)
+  const stepLabel = _goalQueue && _goalQueue.goals[_goalQueue.currentIdx]
+    ? _goalQueue.goals[_goalQueue.currentIdx].label : undefined;
+  const g = {
+    macroId:   document.getElementById('goal-macro-select').value,
+    startDate, endDate,
+    kcal:    parseInt(kcalEl.value) || 0,
+    steps:   parseInt(stepsEl.value) || 0,
+    protein, carbs, fats,
+    ...(stepLabel ? { _blocLabel: stepLabel } : {}),
+  };
+
+  // Truncation step: update in place. New LLM steps: push.
+  if (editIdxForOverlap >= 0) {
+    state.goals[editIdxForOverlap] = g;
+  } else {
+    state.goals.push(g);
+  }
+  // Clear _editIdx so subsequent steps open as new goals
+  modal2._editIdx = undefined;
+  save();
+
+  // Advance queue
+  const nextIdx = _goalQueue.currentIdx + 1;
+  if (nextIdx < _goalQueue.total) {
+    _goalQueue.currentIdx = nextIdx;
+    // Set the advancing flag BEFORE closeModal so the closeModal handler
+    // knows this is a programmatic inter-step close, not a user abort.
+    _goalQueueAdvancing = true;
+    closeModal('modal-add-goal');
+    setTimeout(() => {
+      _goalQueueAdvancing = false;
+      _openQueueStep(nextIdx);
+    }, 350);
+  } else {
+    // Queue complete — null the queue before closing so closeModal's guard
+    // sees no active queue and skips the abort path cleanly.
+    _goalQueue = null;
+    closeModal('modal-add-goal');
+    _resetGoalModal();
+    renderGoals();
+    renderProgress();
+    showConfirm(
+      'Plan saved ✓',
+      'All goal periods from this plan have been saved. You can edit them individually from the Goals page.',
+      'Great',
+      () => {}
+    );
+  }
+}
+
+// Aborts the queue mid-flow — called by the "✕ Cancel plan" button.
+// Closes the modal without saving the current step.
+function cancelGoalQueue() {
+  _goalQueue = null;
+  _goalQueueAdvancing = false;
+  closeModal('modal-add-goal');
+  _resetGoalModal();
+}
+
+// Resets the goal modal back to its default "New Goal Period" state after a
+// queue completes or is cancelled — title, save button, queue indicator.
+function _resetGoalModal() {
+  const queueInd = document.getElementById('goal-queue-indicator');
+  if (queueInd) queueInd.style.display = 'none';
+  const saveBtn = document.getElementById('goal-save-btn');
+  if (saveBtn) saveBtn.textContent = 'Save Goal Period →';
+  const titleEl = document.getElementById('goal-modal-title');
+  if (titleEl) titleEl.textContent = 'New Goal Period';
+  const errEl = document.getElementById('goal-overlap-error');
+  if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
 }
 
 // ── Progress table swipe deck (2 cards: Weekly summary / Measurements) ──
@@ -6400,6 +7869,8 @@ function openEditMacro(id) {
   document.getElementById('edit-macro-sessions-preview').textContent = (macro.days ? macro.days.length : macro.sessionsPerWeek) || 3;
   document.getElementById('modal-edit-macro')._editId = id;
   openModal('modal-edit-macro');
+  // Sync weight-increment row visibility and pace warning for current values
+  onMacroGoalTypeChange('edit-macro');
 }
 
 // Saves changes to an existing macrocycle from the edit modal.
@@ -6421,6 +7892,53 @@ function saveEditMacro() {
   save();
   closeModal('modal-edit-macro');
   renderPlan();
+}
+
+// Toggles the weight-increment row visibility when goalType changes in either
+// the new-macro or edit-macro modal, and re-validates the pace warning.
+function onMacroGoalTypeChange(prefix) {
+  const gt = (document.getElementById(prefix + '-goal-type-input') || {}).value || 'loss';
+  const incRow = document.getElementById(prefix === 'macro' ? 'weight-increment-row' : 'edit-weight-increment-row');
+  if (incRow) incRow.style.display = gt === 'maintenance' ? 'none' : '';
+  validateMacroPace(prefix);
+}
+
+// Shows an inline red warning under the target BW field when the implied
+// weekly weight change is physiologically unrealistic for the chosen goal
+// type. Only fires when both targetBw and weeks are filled in.
+// Safe ceilings (bodyweight-relative, not fixed):
+//   Loss = 1% of current bodyweight per week
+//   Gain = 0.5% of current bodyweight per week (lean gain)
+// These scale correctly across body sizes — 1% of 230 lbs = 2.3 lbs/week,
+// which is a realistic upper bound for a heavier person where a flat
+// 1 lb/week ceiling would fire as a false warning unnecessarily.
+// Warning fires when implied rate > ceiling * 1.5 (50% over the safe rate).
+// Falls back gracefully when no body logs exist (warning suppressed).
+// Maintenance cycles: suppressed — target BW is a stability reference only.
+function validateMacroPace(prefix) {
+  const warn = document.getElementById(prefix + '-pace-warning');
+  if (!warn) return;
+  const gt  = (document.getElementById(prefix + '-goal-type-input') || {}).value || 'loss';
+  if (gt === 'maintenance') { warn.style.display = 'none'; return; }
+  const targetBw = parseFloat((document.getElementById(prefix + '-target-bw-input') || {}).value);
+  const weeks    = parseInt((document.getElementById(prefix + '-weeks-input') || {}).value);
+  if (!targetBw || !weeks || weeks < 1) { warn.style.display = 'none'; return; }
+  // Use most recent body log as the start-BW estimate — no logs = no warning
+  const latestLog = [...(state.bodyLogs || [])].filter(l => l.weight).sort((a,b) => b.date.localeCompare(a.date))[0];
+  const startBw = latestLog ? parseFloat(latestLog.weight) : null;
+  if (!startBw) { warn.style.display = 'none'; return; }
+  const totalChange = Math.abs(targetBw - startBw);
+  const impliedPerWeek = totalChange / weeks;
+  // Ceiling is bodyweight-relative: 1% for loss, 0.5% for gain
+  const ceilingPct = gt === 'gain' ? 0.005 : 0.01;
+  const ceiling = parseFloat((startBw * ceilingPct).toFixed(1));
+  if (impliedPerWeek > ceiling * 1.5) {
+    const direction = gt === 'gain' ? 'gain' : 'loss';
+    warn.textContent = `⚠ This implies ~${impliedPerWeek.toFixed(1)} lbs/week of ${direction} — faster than what's typically sustainable at your current weight (~${ceiling} lbs/week). The schedule tracker may show you as falling behind even on healthy progress. You can still save this cycle.`;
+    warn.style.display = 'block';
+  } else {
+    warn.style.display = 'none';
+  }
 }
 
 // Unified cycle selection — syncs Progress, Plan, and Train
@@ -6813,12 +8331,17 @@ function renderTrainDay(macro) {
     const exId      = ex.id;
     const isPauseSet= ex.type === 'pause';
     const isDropSet = ex.type === 'dropset';
-    const isGain    = macro.goalType === 'gain';
+    const isGain        = macro.goalType === 'gain';
+    const isMaintenance = macro.goalType === 'maintenance';
+    // Maintenance cycles carry forward last week's values exactly — no load
+    // progression is suggested. The progression selector is also hidden for
+    // maintenance cycles (see renderTrainDay). weightJump = 0 here ensures
+    // the fill-suggested / quick-complete buttons use the previous weight.
     // weightIncrement is user-configurable and applies to light exercises
     // regardless of cycle type; heavy-leg jumps stay fixed (5kg loss /
     // 10kg gain) and are never affected by the user's setting.
-    const lightJump = parseFloat(macro.weightIncrement || '2.5');
-    const heavyJump = isGain ? 10 : 5;
+    const lightJump = isMaintenance ? 0 : parseFloat(macro.weightIncrement || '2.5');
+    const heavyJump = isMaintenance ? 0 : (isGain ? 10 : 5);
     const weightJump= ex.isHeavyLeg ? heavyJump : lightJump;
     const sets      = getWeekSets(ex, state.currentWeek, macro.weeks);
     const pk        = getProgKey(macro.id, state.currentWeek, state.currentDay, exId);
@@ -7073,6 +8596,10 @@ function renderTrainDay(macro) {
              recommendedDropWeight, recommendedDropReps, dropWeightPlaceholder, dropRepsPlaceholder };
   }
 
+  // Hoisted here so it's in scope for both the card header (lastWkBadge)
+  // and the expanded section (showProgSelector) without declaring twice.
+  const isMaintCycle = macro && (macro.goalType === 'maintenance');
+
   trainSlots.forEach(slot => {
     if (slot.type === 'solo') {
       const ex   = slot.ex;
@@ -7129,11 +8656,13 @@ function renderTrainDay(macro) {
         ? `${sets} sets · ${stripReps(summaryReps)} reps`
         : (isDeloadSession || isPostDeloadSession) ? `${sets} sets · ${stripReps(repsPlaceholder)} reps`
         : isPauseSet ? `${sets} sets · ${stripReps(ex.reps)} reps`
+        : isMaintCycle ? `${sets} sets · ${stripReps(recommendedReps)} reps`
         : lastReps !== null ? `${sets} sets · ${stripReps(lastReps)}/${stripReps(recommendedReps)} reps`
         : `${sets} sets · ${stripReps(recommendedReps)} reps`;
       const weightRefText = allDone
         ? `${summaryWeight} logged`
         : (isDeloadSession || isPostDeloadSession) ? `${weightPlaceholder} kg`
+        : isMaintCycle ? `${weightPlaceholder} kg`
         : lastWeight !== null ? `${lastWeight} / ${recommendedWeight.toFixed(1)} kg`
         : `${weightPlaceholder} kg`;
       const trackingLabel = ex.trackingMode === 'perSide'
@@ -7144,6 +8673,8 @@ function renderTrainDay(macro) {
       // during deload/post-deload since there's no progression path to show.
       const lastWkBadge = isDeloadSession
         ? ` <span class="badge badge-amber" style="margin-left:8px;font-size:10px;vertical-align:middle;">deload</span>`
+        : isMaintCycle
+        ? '' // no progression badge on maintenance cycles
         : (prevWeek2 >= 1 && prevProgType && !isPostDeloadSession)
         ? ` <span style="font-size:10px;font-weight:400;color:var(--text3);">· Last wk: <span style="color:var(--text2);">${prevProgType === 'weight' ? '↑ weight' : '↑ reps'}</span></span>`
         : (prevWeek2 >= 1 && prevNoProgression && !isPostDeloadSession)
@@ -7191,7 +8722,7 @@ function renderTrainDay(macro) {
 
       if (isExpanded) {
         let weightRec = '', repsRec = '';
-        const showProgSelector = state.currentWeek > 1 && !isDeloadSession && !isPostDeloadSession;
+        const showProgSelector = state.currentWeek > 1 && !isDeloadSession && !isPostDeloadSession && !isMaintCycle;
         if (showProgSelector) {
           const prevWLabel = prevActualWeight !== null ? prevActualWeight.toFixed(1) : getWeekWeight(ex, prevWeek2, 'weight', macro.goalType, macro.weightIncrement).toFixed(1);
           weightRec = `${prevWLabel} kg → ${recommendedWeight.toFixed(1)} kg (+${weightJump} kg)`;
@@ -7388,12 +8919,16 @@ function renderTrainDay(macro) {
             ? mSets + ' sets · ' + ssStrip(md.repsPlaceholder) + ' reps'
           : md.isPauseSet
             ? mSets + ' sets · ' + ssStrip(m.reps) + ' reps'
+            : isMaintCycle
+              ? mSets + ' sets · ' + ssStrip(md.recommendedReps) + ' reps'
             : mLastReps !== null
               ? mSets + ' sets · ' + ssStrip(mLastReps) + '/' + ssStrip(md.recommendedReps) + ' reps'
               : mSets + ' sets · ' + ssStrip(md.recommendedReps) + ' reps';
         const mWeightRefText = mAllDone
           ? mSummaryW + ' logged'
           : (md.isDeloadSession || md.isPostDeloadSession)
+            ? md.weightPlaceholder + ' kg'
+          : isMaintCycle
             ? md.weightPlaceholder + ' kg'
           : mLastWeight !== null
             ? mLastWeight + ' / ' + md.recommendedWeight.toFixed(1) + ' kg'
@@ -7420,6 +8955,8 @@ function renderTrainDay(macro) {
         // exercises) since each superset member only gets one compact line.
         const mLastWkBadge = md.isDeloadSession
           ? ' <span class="badge badge-amber" style="font-size:9px;">deload</span>'
+          : isMaintCycle
+          ? ''
           : (md.prevWeek2 >= 1 && md.prevProgType && !md.isPostDeloadSession)
           ? ' <span style="color:var(--text3);">· Last wk: <span style="color:var(--text2);">' + (md.prevProgType === 'weight' ? '↑ weight' : '↑ reps') + '</span></span>'
           : (md.prevWeek2 >= 1 && md.prevNoProgression && !md.isPostDeloadSession)
@@ -8184,6 +9721,43 @@ function renderBody() {
         <button class="btn btn-accent" onclick="saveInlineBodyLog()" style="padding:10px 16px;">Save</button>
       </div>
     </div>`;
+  }
+
+  // ── Measurement reminder pill ─────────────────────
+  // Appears below the weight chart once 6 days have passed since the last
+  // logged waist or hip measurement. Tapping it opens the body log modal
+  // so the user can log measurements alongside weight. Hidden when a
+  // measurement was logged within the last 6 days, or if none have ever
+  // been logged (no nag before the feature is even in use).
+  const measReminderEl = document.getElementById('body-meas-reminder');
+  if (measReminderEl) {
+    const measLogs = (state.bodyLogs || [])
+      .filter(l => l.waist || l.hip)
+      .sort((a,b) => b.date.localeCompare(a.date));
+    if (measLogs.length) {
+      const lastMeasDate = new Date(measLogs[0].date + 'T00:00:00');
+      const todayMs = new Date(todayStr + 'T00:00:00').getTime();
+      const daysSince = Math.floor((todayMs - lastMeasDate.getTime()) / 86400000);
+      if (daysSince >= 6) {
+        measReminderEl.innerHTML = `<div onclick="openModal('modal-body-log')"
+          style="display:flex;align-items:center;gap:8px;margin-top:6px;padding:10px 14px;
+                 border-radius:10px;background:rgba(239,159,39,0.12);
+                 border:0.5px solid rgba(239,159,39,0.3);cursor:pointer;">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--amber)"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <span style="font-size:12px;color:var(--amber);font-weight:500;">
+            ${daysSince === 6 ? 'Measurements due' : `${daysSince} days since last measurements`} — tap to log
+          </span>
+        </div>`;
+      } else {
+        measReminderEl.innerHTML = '';
+      }
+    } else {
+      measReminderEl.innerHTML = '';
+    }
   }
 
   const el = document.getElementById('body-log-list');
@@ -10951,6 +12525,21 @@ function renderSettings() {
   const bodyLogs = state.bodyLogs.length;
   const nutrLogs = state.nutritionLogs.length;
   el.innerHTML = `${macros} macrocycle${macros!==1?'s':''} &nbsp;·&nbsp; ${logs} set logs<br>${bodyLogs} body entries &nbsp;·&nbsp; ${nutrLogs} nutrition entries<br><span style="color:var(--text3);">~${kb} KB stored in Safari localStorage</span>`;
+
+  // Show whether an API key is currently saved
+  const keyEl = document.getElementById('settings-api-key-input');
+  const statusEl = document.getElementById('api-key-status');
+  if (keyEl && statusEl) {
+    const existing = getApiKey();
+    if (existing) {
+      keyEl.placeholder = '••••••••••••••••••••••••••••••••';
+      statusEl.textContent = '✓ API key saved — clear the field and save to remove it';
+      statusEl.style.color = 'var(--accent)';
+    } else {
+      keyEl.placeholder = 'sk-ant-…';
+      statusEl.textContent = '';
+    }
+  }
 }
 
 // Downloads the entire state object as a single JSON backup file.
@@ -11032,6 +12621,8 @@ function clearAllData() {
             goals: [], customLibrary: [], nutritionMeals: {}, nutritionQuickLog: {}, foodLibrary: [],
             recipes: [], supersets: {}, profile: {}, deloads: {},
             exerciseHistory: {}, exerciseTrackingMode: {},
+            insightsRollup: { completedCycles: [] },
+            blocAdvice: null,
             theme: keepTheme || 'multi', mode: keepMode || 'dark',
             currentMacroId: null, currentWeek: 1,
             currentDay: 'push', currentEditContext: null,

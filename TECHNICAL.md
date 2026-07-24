@@ -27,6 +27,8 @@
 23. [Function Reference](#23-function-reference)
 24. [Key Algorithms](#24-key-algorithms)
 25. [Known Limitations & Future Considerations](#25-known-limitations--future-considerations)
+26. [Module: AI Advice (Phase 1 + Phase 2)](#26-module-ai-advice-phase-1--phase-2)
+27. [Goal Queue Flow](#27-goal-queue-flow)
 
 ---
 
@@ -174,7 +176,10 @@ let state = {
   trainLogs:         {},   // Record<string, SetLog> — see key formats below
   bodyLogs:          [],   // Array<BodyLog>  {date, weight, steps, waist?, hip?} — waist/hip always stored in inches regardless of input unit (v6.12)
   nutritionLogs:     [],   // Array<NutritionLog>  (per-day summary — kept in sync by syncNutrLegacyLog() after every log change, for home screen/goals/weekly-view reads that predate nutritionMeals; not the primary source of truth but not dead either)
-  goals:             [],   // Array<Goal>  {macroId, startDate, endDate, kcal, steps, protein, carbs, fats}
+  goals:             [],   // Array<Goal>  {macroId, startDate, endDate, kcal, steps, protein, carbs, fats, _blocLabel?}
+                           //   _blocLabel (v7.00): step label from the LLM recommendation that created this goal,
+                           //   used by the advice card to reliably match saved goals back to plan steps for
+                           //   live date display. Only present on goals created via the AI goal queue flow.
   customLibrary:     [],   // Array<{name, bodyPart}> — user-added exercise library entries
   nutritionMeals:    {},   // Record<date, {Breakfast:[], Lunch:[], Dinner:[], Snacks:[]}>
   nutritionQuickLog: {},   // Record<date, {kcal, protein, carbs, fats}> — overrides meal totals for that day when present
@@ -220,6 +225,8 @@ function load() {
   if (!state.exerciseTrackingMode) state.exerciseTrackingMode = {};
   if (!state.profile)           state.profile = {};
   if (!state.profile.measureUnit) state.profile.measureUnit = 'in';
+  if (!state.insightsRollup)    state.insightsRollup = { completedCycles: [] };   // v7.00
+  if (state.blocAdvice === undefined) state.blocAdvice = null;                     // v7.00
   if (!state.theme)             state.theme = 'multi';
   document.body.setAttribute('data-theme', state.theme);
   if (!state.mode)              state.mode = 'dark';
@@ -648,6 +655,12 @@ All charts (sparkline, line charts, bar charts, pies) are generated as inline SV
 
 Between the hero and the weekly table stack sits a separate 3-card swipeable "Insights" deck (Progress/Metabolism/Next cycle — `#progress-body` / `#progress-body-dots`, driven by `insightsAnimateTo()`/`insightsSnapBack()`/`initInsightsSwipe()`), pre-dating this section's v6.12 additions. The weekly table stack below reuses its exact swipe-gesture pattern.
 
+Below the Insights deck, `renderProgress()` also injects two additional cards into dedicated DOM anchors (v7.00):
+- `#progress-trend-insights` — the Phase 1 deterministic insights card (`buildInsightsCardHTML()`)
+- `#progress-ai-advice` — the Phase 2 AI advice card (`buildAiAdviceCardHTML()`); only visible when the signal warrants intervention and/or a stored response exists
+
+`updateInsightsRollup()` is also called on every Progress render to archive any newly-completed macrocycles to `state.insightsRollup.completedCycles`.
+
 ### Weekly table swipe stack (v6.12)
 
 Below the "Insights" card deck sits a second, separate swipeable stack — same visual mechanics (touch/mouse swipe, dot pagination) as the hero and insights decks, but with two cards and no text label under the dots:
@@ -671,6 +684,8 @@ Rendered by `renderPlan()`.
 
 ### Macrocycle CRUD
 - `saveMacro()` — creates or updates a macrocycle from the modal inputs. `sessionsPerWeek` is calculated, not read from an input — always `days.length` at creation time (`updateSessionsPerWeekPreview()` shows a live read-only preview in the modal as the split is built; the edit modal shows the same value as a read-only display, since the split itself can't be changed there). `weightIncrement` (default `'2.5'`) is user-editable for any goal type via the modal, superseding the old loss-only `lossIncrement` field (§20).
+- **Goal type options (v7.00):** the modal now offers three goal types — Weight Loss, Weight/Strength Gain, and Maintenance. Selecting Maintenance hides the weight increment row (irrelevant when no progression is suggested) via `onMacroGoalTypeChange(prefix)`, which also re-validates the pace warning. The edit modal triggers `onMacroGoalTypeChange('edit-macro')` on open to sync these states for the existing cycle's goal type.
+- **Pace validation (v7.00):** `validateMacroPace(prefix)` runs on every keystroke in the target BW and weeks fields. It computes the implied weekly rate of change from the most recent body log and compares it against a bodyweight-relative ceiling — 1% of current bodyweight per week for loss, 0.5% for gain. If the implied rate exceeds 150% of the ceiling, a red inline warning appears below the target BW field: "⚠ This implies ~N lbs/week — faster than what's typically sustainable at your current weight (~N lbs/week). The schedule tracker may show you as falling behind even on healthy progress." Warning is suppressed for maintenance cycles (no directional target) and when no body logs exist. Never blocks saving.
 - `deleteMacrocycle(id)` / `copyMacrocycle(id)` — delete, or deep-clone with a new id and start date
 - `getMacroSessionDayKeys(macro)` — returns every session's `day(+microKey)` combination for a macro, the shared building block for anything that needs to iterate "every session in this cycle" (progression preview, body-part volume table, deload weeks-since counter, etc.)
 
@@ -732,6 +747,18 @@ Shown as "Last wk: ↑ weight" / "↑ reps" / "no progression" in the exercise h
 Day tabs (Push/Pull/Legs or custom sessions, per microcycle) are grouped into one row per **real calendar week**, not simply one row per microcycle. A microcycle only represents a distinct calendar week when the mesocycle actually spans more than one real week (`weeksPerMeso === 2`) — M1 gets its own row, M2 gets its own row. If `weeksPerMeso` is 1 (including the edge case of a macro that enables microcycles but keeps a 1-week mesocycle), all microcycles fall inside the same single calendar week and stay merged into one row, matching the layout for a macro with no microcycles at all.
 
 The subtitle and hero label both use `M1`/`M2` for the microcycle suffix — this was previously `MC1`/`MC2` in two separate spots, a genuine inconsistency (not intentional) that collided with "MC" already meaning *mesocycle* elsewhere in the UI ("MC 4 / 8"). Fixed to match the day-tab pills, which always used `M1`/`M2`.
+
+### Maintenance goalType (v7.00)
+
+Maintenance is a third macrocycle goal type alongside loss and gain. It affects the Train page as follows:
+
+- **No load or reps progression is suggested.** `weightJump` is set to `0` for maintenance cycles in `exProgData()` — both the standard `lightJump` and the `heavyJump` for heavy leg exercises. This means `recommendedWeight` is always the same as last week's actual weight, with no increment added.
+- **The progression selector is suppressed.** The "↑ Weight / ↑ Reps" toggle does not render (`showProgSelector = false`) when the active macrocycle has `goalType === 'maintenance'`.
+- **The last-week progression badge is suppressed.** The "↑ weight / ↑ reps / no progression" annotation is hidden in both solo cards and superset member rows. A plain suggested weight still appears (carry-forward from last week), so the fill-suggested and quick-fill-complete buttons continue to work correctly.
+- **Set-count spacing is unaffected.** The even-spacing between `startSets` and `endSets` (which determines when new sets are added across a mesocycle) continues to run identically to loss and gain cycles — a mild volume progression is considered appropriate even during maintenance, and was deliberately not changed.
+- **Deload weeks are fully supported.** The deload mechanism operates on recovery within a training block, not on the goal direction — it applies identically across all three goal types.
+
+`isMaintCycle` is hoisted to the top of the `trainSlots.forEach` loop so it is in scope for both the collapsed card header (lastWkBadge) and the expanded section (showProgSelector) without being declared twice.
 
 ### Deload Logic
 A deload marks a whole **calendar-week unit** — for macros using microcycles, that's `(week, microcycle)`; for macros without, it's just `(week)`. Marking a unit deload applies to every day type within it (the flag isn't day-specific), toggled via a pill on the Train hero (`toggleDeloadWeek(macroId, week, dayKey)`) scoped to whichever week+microcycle is currently selected — never the sibling microcycle in a 2-week mesocycle.
@@ -886,6 +913,12 @@ The page is organised into: About, Appearance (unchanged), **Libraries** (new co
 **Two-tier button hierarchy (`.lib-primary-btn` / `.lib-secondary-btn` / `.accent-tint`):** every library card now follows the same shape — one or two bold "primary" tiles for the most-used action(s) at the top, then a quieter row of small "secondary" utility buttons underneath for less-used actions (export/import). Exercise library gets a single full-width primary tile (View / edit library); Food library gets two side by side (View / edit, and My recipes — the latter styled with the `.accent-tint` modifier since it's the single most-used action in that card, mirroring how the app tints other high-frequency UI elements with the active theme colour via `color-mix(in srgb, var(--accent) N%, ...)` rather than a hardcoded hex, so it stays correct under any of the nine themes). This replaces the previous flat, undifferentiated row-of-equal-weight-buttons layout.
 
 **Danger Zone styling is now differentiated by actual severity**, not a blanket "everything red" treatment: "Clear all data" is irreversible, so its button (`.btn-danger-fill`) gets a **solid** red fill with white text — the same visual weight as the accent-filled Export JSON button above it, since it's the app's other truly one-way action. "Restore from backup" is destructive but recoverable (you can always re-import your last export), so its button uses the app's normal neutral button border with just red **text** — no red border — so the two don't visually compete for "most alarming button on the page."
+
+### AI Advice API key (new in v7.00)
+
+An optional Anthropic API key can be entered in Settings → AI Advice. The key is stored in `localStorage` directly under the key `'bloc_api_key'`, **not** in `state` — this means it is never included in JSON exports or backups, intentionally. It is read by `getApiKey()` (returns the string or `null`) and written/cleared by `saveApiKey()`.
+
+`renderSettings()` checks `getApiKey()` on every render — if a key is present, the input shows a masked placeholder and a "✓ API key saved" status line; if absent, the placeholder resets to `"sk-ant-…"`. Saving an empty field removes the key.
 
 ### Exercise Library Editor (new in v6.10)
 
@@ -1069,6 +1102,24 @@ Not exhaustive — covers the functions most useful to know when working on the 
 | `buildWeeklySummaryCardHTML()` | Weekly summary table (weight delta, swing, avg kcal/steps/protein) as an HTML string; weight delta is this-week-average vs last-week-average (v6.12, was single-day-to-single-day before) |
 | `buildMeasurementsCardHTML()` | Weekly waist/hip table as an HTML string, only including weeks with a measurement logged (v6.12) |
 | `renderProgressTables()` / `progressTablesAnimateTo(idx)` / `initProgressTablesSwipe()` | Swipe deck holding the two table cards above (v6.12) |
+| `computeWeeklyInsights(macro)` | Deterministic insights engine — per-week stats, baseline anchor, plateau detection, drift, goalType-branched signal/headline/detail (v7.00) |
+| `buildInsightsCardHTML()` | Phase 1 deterministic card HTML — signal pill, narrative, stat tiles, drift visualisation (v7.00) |
+| `updateInsightsRollup()` | Archives newly-completed macrocycles to `state.insightsRollup.completedCycles`; called on every Progress render (v7.00) |
+| `computeSafetyFloor(macro)` | Minimum safe kcal for aggressive AI recommendations — log-based BMR × 0.80, fallback to best-loss-week − 175 (v7.00) |
+| `buildBlocAdvicePrompt(macro)` | Builds `{ systemPrompt, userMessage }` for the Anthropic API — injects safety floor, protein minimum, weekly bucket table with partial-week flags, prior advice, rollup history (v7.00) |
+| `askBlocForAdvice()` | Async — makes the Anthropic API POST, validates response, materialises dates, computes `nextCheckIn`, stores to `state.blocAdvice` (v7.00) |
+| `buildAiAdviceCardHTML()` | Phase 2 AI advice card — loading/cooldown/idle button states, stored advice with collapsible narrative and pre/post-choice plan layout (v7.00) |
+| `getNextMonday()` | ISO date string of next Monday (or today if Monday) — used as goal start anchor |
+| `getSundayAfterWeeks(startDateStr, weeks)` | Sunday end date N weeks after a given start date |
+| `getMondayAfter(sundayStr)` | Monday immediately after a given Sunday |
+| `getNextSundayInclusive(dateStr)` | Sunday on or after a given date (if today is Sunday, returns today) |
+| `getPrecedingSunday(dateStr)` | Most recent Sunday on or before a given date |
+| `materialiseDates(goals, macro)` | Resolves LLM goal start/end dates (uses provided dates, falls back to sequential Mon–Sun), back-calculates fats |
+| `startGoalQueue(pathKey)` | Launches goal queue — records chosenPath, deletes upcoming cycle goals, builds truncation + LLM steps, calls `_launchGoalQueue` |
+| `_openQueueStep(idx)` | Opens goal modal for queue step — truncation uses edit mode (`_editIdx` set before `openModal`), new goals use reset mode with field override after |
+| `saveGoalAndAdvanceQueue()` | Saves current queue step (with macro preservation for truncation), advances to next step or completes |
+| `cancelGoalQueue()` | Aborts queue, resets all queue state and modal chrome |
+| `_resetGoalModal()` | Restores goal modal to default "New Goal Period" state |
 
 ### Macrocycle / Plan
 | Function | Description |
@@ -1125,6 +1176,7 @@ Not exhaustive — covers the functions most useful to know when working on the 
 | `calcAge()` / `getActivityMultiplier()` / `calcMifflinBMR()` / `calcDynamicTDEE()` | BMR/TDEE calculation chain |
 | `toggleBodyMonth(monthKey)` | Expands/collapses a month group in Recent Entries (new in v6.11) |
 | `setMeasUnit(unit)` | Toggles the body log modal's waist/hip input between inches and cm; persists to `state.profile.measureUnit` (v6.12) |
+| *(measurement reminder, v7.00)* | Inline logic in `renderBody()` — finds the most recent body log with `waist` or `hip` set; if ≥6 days have elapsed since that log and any measurements have ever been recorded, renders an amber pill into `#body-meas-reminder` ("X days since last measurements — tap to log") that opens `modal-body-log` on tap. Never appears if measurements have never been logged. |
 | `setFrac(field, val)` | Sets the active quarter-inch fraction (0/¼/½/¾) for `waist` or `hip` in the inches input picker (v6.12) |
 | `cmToIn(cm)` / `fmtInch(val)` | Cm→inch conversion for storage; smart decimal-trimmed display formatting (v6.12) |
 
@@ -1177,8 +1229,15 @@ Not exhaustive — covers the functions most useful to know when working on the 
 | `getGoalForDate(dateStr, macroId)` | Goal covering a date, scoped to one macro (Progress) |
 | `findOverlappingGoal(startDate, endDate, excludeIdx)` | First existing goal whose range overlaps the given one |
 | `saveGoal()` | Validates required fields + overlap, applies the macro-drift lock, upserts |
+| `saveGoalAndAdvanceQueue()` | Queue-aware save — updates/pushes based on step type, advances or completes queue (v7.00) |
 | `initGoalMacroSliders(existingGoal)` | Sets initial slider positions; resets `userTouched` |
 | `computeGoalMacroGrams()` | Reads current slider positions, returns `{proteinG, carbG, fatG}` |
+
+### Plan / Macrocycle
+| Function | Description |
+|---|---|
+| `onMacroGoalTypeChange(prefix)` | Fires on goalType select change — toggles weight-increment row visibility, re-validates pace warning (v7.00) |
+| `validateMacroPace(prefix)` | Shows/hides inline pace warning below target BW field based on bodyweight-relative ceiling (v7.00) |
 
 ### Settings
 | Function | Description |
@@ -1186,6 +1245,8 @@ Not exhaustive — covers the functions most useful to know when working on the 
 | `setTheme(name)` | Updates `state.theme`, sets `data-theme` on `<body>`, saves |
 | `setMode(mode)` | Updates `state.mode`, sets `data-mode` on `<body>`, saves |
 | `exportData()` | Downloads full state as JSON |
+| `getApiKey()` | Returns stored Anthropic API key from `localStorage` (`'bloc_api_key'`) or null (v7.00) |
+| `saveApiKey()` | Writes or clears the API key from `localStorage`; never touches `state` (v7.00) |
 | `importData(event)` | Restores state from a JSON file |
 | `clearAllData()` | Resets tracked data to empty defaults; preserves theme/mode |
 | `exportLibrary()` | Downloads merged exercise library |
@@ -1362,6 +1423,143 @@ Applied identically to `weightPlaceholders`/`repsPlaceholders` (main) and `dropW
 
 ---
 
+## 26. Module: AI Advice (Phase 1 + Phase 2)
+
+Added in v7.00. The Progress page now includes two additional cards below the existing Insights swipe deck, rendered into dedicated DOM anchors `#progress-trend-insights` and `#progress-ai-advice`.
+
+### Phase 1 — Deterministic insights layer
+
+**`buildDayMap()`** was extended to include a `carbs` field alongside `kcal` and `protein`, populated from both `nutritionLogs` and `nutritionMeals`. This feeds the insights engine and the historical rollup.
+
+**`computeWeeklyInsights(macro)`** — the core deterministic engine. Pure computation, no DOM writes. Reuses `buildDayMap()` and `calcDynamicTDEE()`. Returns per-week stats (avgWeight, delta, avgKcal, avgProtein, avgCarbs, nutrDayCount, bStart, bEnd) plus derived signals:
+
+- **Baseline anchor (loss cycles only):** weeks 1–2 of a cut often show inflated drops (glycogen/digestive clearance). If a week's weight delta is below −2% of bodyweight per week it is considered anomalously fast, and the baseline slides forward (capped at weeks 3–4). On gain and maintenance cycles, the baseline is always week 1.
+- **Valid week threshold:** ≥4 days with nutrition logged.
+- **Plateau detection (loss only):** ≤0.5 lbs/week average delta for 2+ consecutive buckets. Threshold is 0.5 (not 0.3) — a tighter value would break real plateau detection when a single week comes in at e.g. −0.34 lbs.
+- **Caloric drift:** recent 2-week avg kcal minus baseline 2-week avg kcal.
+- **Signal (goalType-branched):** one of `plateau-creep`, `plateau-adaptation`, `drift-warning`, `on-track` (loss); `gain-deficit`, `gain-undereating`, `gain-excess`, `on-track` (gain); `maint-stable`, `maint-unstable`, `maint-nodata` (maintenance). The signal drives both the Phase 1 card's pill colour/headline and the Phase 2 button's eligibility.
+
+**`buildInsightsCardHTML()`** renders the signal pill, headline, detail narrative, goalType-specific stat tiles, and (for loss cycles with meaningful drift) a three-column drift visualisation showing baseline avg, delta arrow, and recent avg. Shows a "available in ~N more weeks" empty state when `insufficientData` is true.
+
+**Schedule-status pill (Phase 0 audit, v7.00):** `buildActiveCycleHeroSlideHtml` was audited for direction-awareness across all three goal types. The pill now has a dedicated maintenance branch: success = staying within ±2 lbs of target (green), 2–5 lbs off (amber), >5 lbs off (red). Loss and gain cycle pill logic is unchanged. The unrealistic-pace flag (`validateMacroPace`) guards against the pill showing permanently red for a cycle whose target implies a physiologically implausible rate.
+
+### Historical rollup
+
+**`state.insightsRollup`** — stored in state, loaded with a `{ completedCycles: [] }` default.
+
+**`updateInsightsRollup()`** — called on every Progress render. Detects macrocycles whose end date is past and archives any not yet recorded. Each `CycleRollup` entry:
+
+```js
+{
+  id, name, goalType, start, end, weeks,
+  startBw, endBw, targetBw,
+  startWaist, endWaist, startHip, endHip,   // first/last logged measurements within the cycle
+  avgKcal, avgProtein, avgCarbs,
+  plateauWeeksDetected,
+  signals,    // array of signal strings detected during the cycle
+}
+```
+
+Capped at the last 10 completed cycles. Entries are written once and frozen — no recomputation on subsequent renders. Serves as the LLM's long-run context in Phase 2 API calls.
+
+### Phase 2 — AI advice layer
+
+**Eligibility signals:** only intervention-warranting signals show the button — `plateau-creep`, `plateau-adaptation`, `gain-deficit`, `gain-undereating`, `gain-excess`, `maint-unstable`. `drift-warning` is informational only and does not trigger the button.
+
+**`computeSafetyFloor(macro)`** — computes the minimum safe kcal for aggressive recommendations:
+- Primary: `calcDynamicTDEE().bmr × 0.80` (log-based BMR, not Mifflin-St Jeor — more accurate for someone actively tracking).
+- Fallback (no log-based TDEE available): best single week with ≥1 lb loss, `avgKcal − 175`. Hard minimum 1,400 kcal.
+
+**`buildBlocAdvicePrompt(macro)`** — constructs the system prompt and user message sent to the API. All constraints are computed client-side and injected as hard rules:
+- Safety floor kcal (from `computeSafetyFloor`)
+- Protein minimum: `Math.ceil(latestBw)` — 1g per lb of current bodyweight, rounded up
+- Next Monday date (goal start anchor)
+- Cycle end date (LLM warned to note if plan extends past it)
+- Full weekly bucket table with partial-week flag: any bucket whose `bEnd` is ≥ today is marked `[IN PROGRESS — N of 7 days logged so far, averages are provisional]`
+- Prior advice this cycle (signal, plans, which was chosen)
+- Completed cycle history from `state.insightsRollup`
+
+**`askBlocForAdvice()`** — async, makes a real POST to `https://api.anthropic.com/v1/messages` using the stored API key. Requires the `anthropic-dangerous-direct-browser-access: true` header for CORS (the API is designed for server-to-server use; this header opts into direct browser access for user-supplied-key scenarios). Model: `claude-sonnet-4-6`. Max tokens: 8,000.
+
+On success:
+1. Parses and validates the JSON response (required fields: `signal`, `headline`, `narrative`, `recommendations.sustainable.goals`, `recommendations.aggressive.goals`)
+2. Runs `materialiseDates()` on both goal paths (resolves any missing startDate/endDate, back-calculates fats as `round((kcal - protein×4 - carbs×4) / 9)`)
+3. Computes `nextCheckIn` client-side: always 2 weeks from today (not end-of-plan), rounded to the next Monday. A 16-day guard in `buildAiAdviceCardHTML` catches any stale `nextCheckIn` values stored before this change and caps them at `storedAt + 14 days`.
+4. Stores to `state.blocAdvice = { response, storedAt, macroId, chosenPath: null }`
+
+On error: resets `_blocAdviceLoading`, re-renders (so the button restores), shows a 6-second inline error message. **Does not touch `state.blocAdvice` or the cooldown** — a failed call never starts a cooldown.
+
+**`_blocAdviceLoading`** — module-level boolean, not in state. True during the in-flight API call. `buildAiAdviceCardHTML()` reads this to render "✦ BLOC is thinking…" instead of the button.
+
+**`state.blocAdvice`** shape:
+```js
+{
+  response: {
+    signal, headline, narrative, primaryAction, secondaryAction,
+    recommendations: {
+      sustainable: { label, rationale, summary, goals: [...] },
+      aggressive:  { label, rationale, summary, goals: [...] },
+    },
+    nextCheckIn: { sustainable: 'YYYY-MM-DD', aggressive: 'YYYY-MM-DD' },
+    _cycleEnd, _sustainableExceedsCycle, _aggressiveExceedsCycle,
+  },
+  storedAt:   'YYYY-MM-DD',
+  macroId:    string,
+  chosenPath: null | 'sustainable' | 'aggressive',
+  narrativeOpen: boolean,   // collapse state, persisted
+  altOpen:       boolean,   // collapse state for unchosen plan, persisted
+}
+```
+
+**`buildAiAdviceCardHTML()`** — renders three distinct states:
+
+1. **No stored advice / not enough data:** returns `''` (no card)
+2. **Eligible, idle:** "✦ Ask BLOC for advice" button. Disabled with amber note if no API key. Shows safety floor and protein minimum below.
+3. **In-flight:** "✦ BLOC is thinking…" non-interactive tile.
+4. **Cooldown:** "✦ Next check-in: [date]" non-interactive tile. Date from `nextCheckIn[chosenPath]`; if no plan chosen, uses the earlier of the two dates. Stale values (>16 days from `storedAt`) are capped at `storedAt + 14 days`.
+5. **Stored advice rendered:** headline (collapsible via ▲/▼ toggle on the headline row), full narrative paragraphs, primary/secondary action pills, plan section.
+
+**Plan section layout:**
+- **Pre-choice:** both Sustainable (🌱) and Aggressive (⚡) plans shown with their goal breakdowns and "Use [X] plan →" buttons.
+- **Post-choice:** selected plan shown under a "Selected plan" label. Unchosen plan collapsed behind "View alternative plan" toggle (default closed). A "Switch to [X] plan" button in the unchosen plan section lets the user change their choice.
+
+**`goalSummaryBlock(path, pathKey)`** — inner function that renders each plan's goal steps. Cross-references `state.goals` by `_blocLabel` first (reliable direct key match) then falls back to date proximity (for goals saved before label tracking). Weeks are computed from actual `startDate`/`endDate` rather than any stored `weeks` field (which may be null for LLM-generated goals). The exceed-cycle warning is recomputed dynamically each render from actual displayed dates — disappears automatically once goals are edited to fit within the cycle.
+
+---
+
+## 27. Goal Queue Flow
+
+Added in v7.00. When the user taps "Use [Sustainable/Aggressive] plan →", `startGoalQueue(pathKey)` launches a sequential modal flow.
+
+**`startGoalQueue(pathKey)`:**
+1. Records `chosenPath` on `state.blocAdvice` (drives cooldown date and plan section layout).
+2. Finds the currently active goal (covers today). Computes `getNextSundayInclusive(today)` as the new end date.
+3. Deletes all upcoming goals for the current macrocycle (`startDate > today && macroId === macro.id`) — cleaner than selective overwrite, removes any leftover goals from a previous advice round.
+4. Builds queue steps: optional truncation step first (if active goal exists and its end date is after the current Sunday), then all LLM goals in sequence.
+
+**Truncation step** (`_isTruncationStep: true`, `_editIdx: activeGoalIdx`): opens the active goal in edit mode (sets `modal._editIdx` before calling `openModal` so the modal handler treats it as an edit, not a blank new goal). All four fields (startDate, endDate, kcal, steps) are set explicitly after `openModal` — the modal handler does not set date/numeric inputs in edit mode, only calls `initGoalMacroSliders`. Description reads "Closing your current goal on this Sunday — only the end date has changed — save to confirm."
+
+**LLM goal steps** (no `_editIdx`): `openModal` runs its normal new-goal reset, then all fields are overridden from the step data. Sliders are reinitialised from the LLM's recommended `kcal/protein/carbs`.
+
+**`_goalQueueAdvancing`** — module-level boolean. Set to `true` immediately before `closeModal('modal-add-goal')` between steps. The `closeModal` handler guards `if (_goalQueue && !_goalQueueAdvancing)` before aborting the queue — this distinguishes a programmatic inter-step close from a user-initiated swipe/backdrop dismissal.
+
+**`saveGoalAndAdvanceQueue()`:**
+- Validates required fields (kcal, steps) with red-border flash on failure.
+- Runs overlap check excluding the goal being edited/replaced (`editIdxForOverlap` from `modal2._editIdx`).
+- For the truncation step: if `goalMacroSliderState.userTouched` is false, preserves the original goal's macros exactly (protein/carbs/fats carried forward unchanged); if true, uses the slider-computed values. Truncation never silently recomputes macros from current bodyweight.
+- Saves via `state.goals[editIdx] = g` (truncation) or `state.goals.push(g)` (new goal).
+- Writes `_blocLabel: g.label` onto every saved goal object — the step label from the LLM recommendation, used for reliable date cross-referencing in `goalSummaryBlock`.
+- Clears `modal2._editIdx` so subsequent steps open as new goals.
+- Sets `_goalQueueAdvancing = true`, calls `closeModal`, then `setTimeout(350)` before calling `_openQueueStep(nextIdx)` and resetting the flag.
+
+**`cancelGoalQueue()`:** resets `_goalQueue`, `_goalQueueAdvancing`, closes the modal, calls `_resetGoalModal()`.
+
+**`_resetGoalModal()`:** restores the modal title, save button label, and queue indicator to their default "New Goal Period" state.
+
+**Goal modal queue indicator:** `#goal-queue-indicator` div (hidden by default) shows "Step N of M" label and a "✕ Cancel plan" button. Step description text explains what the current step does. Save button label changes to "Save & continue (N/M) →" or "Save & finish →".
+
+---
+
 ## 25. Known Limitations & Future Considerations
 
 ### Current Limitations
@@ -1377,6 +1575,8 @@ Applied identically to `weightPlaceholders`/`repsPlaceholders` (main) and `dropW
 | **Undo** | No undo mechanism. Deletes are confirmed but irreversible. |
 | **Body weight units** | Body weight is lbs-only (training weight elsewhere is kg-only); no unit toggle exists for either, unlike height which has one. Confirmed intentional, not planned to change. Waist/hip measurements (v6.12) are the exception — they do have an inches/cm input toggle, though storage is always inches regardless of which unit was used to enter a given value. |
 | **Legacy nutrition log** | `state.nutritionLogs` (per-day summary format) predates `nutritionMeals`/`nutritionQuickLog` and isn't the primary source of truth — but it's still actively kept in sync by `syncNutrLegacyLog()` after every log change (add, edit, delete), for whichever reads still go through it. An earlier version of this document incorrectly described it as read-only/dead; it was corrected after adding inline code comments surfaced the live call sites. |
+| **AI advice emoji icons** | The goal summary blocks in the AI advice card use emoji (🔥 kcal, 👟 steps, 💪 protein, 🌾 carbs) rather than the app's SVG iconography. A dedicated icon audit pass is planned to replace these with inline SVG icons using `currentColor`, consistent with the rest of the app's visual language. |
+| **AI goal label matching** | `_blocLabel` is only written to goals created via the AI queue flow (v7.00 onward). Goals saved before this version, or edited outside the queue, fall back to date-proximity matching in `goalSummaryBlock`. If a user manually edits goal dates such that they no longer overlap the LLM's original dates, the card may not reflect the edited dates until a new advice call is made. |
 | **Drop-set theoretical volume (partially resolved in v6.09)** | The Plan page's *theoretical* (pre-logged) volume projections — the Week-1 session summary and the body-part volume table — now include a drop-set exercise's main-set contribution, since `ex.reps` holds a real target for it as of v6.09 (previously always `''`, contributing 0). The **drop portion** still contributes 0 to these projections, correctly — it never has a plan-time target, only ever discovered live, so there's nothing to project. Real logged volume (`getSessionVolume()`, used everywhere in Train/Progress) was never affected either way and correctly includes both portions. |
 
 ### Resolved (previously listed as open questions)
