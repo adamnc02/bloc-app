@@ -6336,6 +6336,8 @@ async function askBlocForAdvice() {
     return;
   }
 
+  const today = getLocalToday(); // used for nextCheckIn and storedAt below
+
   _blocAdviceLoading = true;
   renderProgress(); // renders the "BLOC is thinking…" loading state
 
