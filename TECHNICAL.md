@@ -26,9 +26,10 @@
 22. [External APIs](#22-external-apis)
 23. [Function Reference](#23-function-reference)
 24. [Key Algorithms](#24-key-algorithms)
-25. [Known Limitations & Future Considerations](#25-known-limitations--future-considerations)
-26. [Module: AI Advice (Phase 1 + Phase 2)](#26-module-ai-advice-phase-1--phase-2)
-27. [Goal Queue Flow](#27-goal-queue-flow)
+25. [Module: AI Advice (Phase 1 + Phase 2)](#25-module-ai-advice-phase-1--phase-2)
+26. [Goal Queue Flow](#26-goal-queue-flow)
+27. [Next Cycle Recommendation Engine (Phases 1–4)](#27-next-cycle-recommendation-engine-phases-14)
+28. [Known Limitations & Future Considerations](#28-known-limitations--future-considerations)
 
 ---
 
@@ -227,6 +228,7 @@ function load() {
   if (!state.profile.measureUnit) state.profile.measureUnit = 'in';
   if (!state.insightsRollup)    state.insightsRollup = { completedCycles: [] };   // v7.00
   if (state.blocAdvice === undefined) state.blocAdvice = null;                     // v7.00
+  if (state.nextCycleAdvice === undefined) state.nextCycleAdvice = null;           // v7.19 — Phase 4 LLM second opinion, separate slot from blocAdvice (§27)
   if (!state.theme)             state.theme = 'multi';
   document.body.setAttribute('data-theme', state.theme);
   if (!state.mode)              state.mode = 'dark';
@@ -653,7 +655,11 @@ Key sub-functions:
 
 All charts (sparkline, line charts, bar charts, pies) are generated as inline SVG strings — there is no charting library.
 
-Between the hero and the weekly table stack sits a separate 3-card swipeable "Insights" deck (Progress/Metabolism/Next cycle — `#progress-body` / `#progress-body-dots`, driven by `insightsAnimateTo()`/`insightsSnapBack()`/`initInsightsSwipe()`), pre-dating this section's v6.12 additions. The weekly table stack below reuses its exact swipe-gesture pattern.
+Between the hero and the weekly table stack sits a separate 3-card swipeable "Insights" deck (`#progress-body` / `#progress-body-dots`, driven by `insightsAnimateTo()`/`insightsSnapBack()`/`initInsightsSwipe()`), pre-dating this section's v6.12 additions. The weekly table stack below reuses its exact swipe-gesture pattern. All three cards are built fresh on every `renderProgress()` call and selected by `insightsIndex`; only the current card's markup is ever in the DOM (`cards[insightsIndex]`), not all three docked side by side.
+
+- **Card 1 — Progress**: latest logged weight, 7-day average, weekly change (colour-coded), this week's log count, peak-loss/gain window callout.
+- **Card 2 — Metabolism**: Mifflin-St Jeor BMR/TDEE, log-based TDEE (`calcDynamicTDEE()`), a calorie target for the active goal type, and a goal-weight ETA derived from the cycle-scoped body-log rate.
+- **Card 3 — Next cycle**: the Next Cycle Recommendation Engine — see **§27** for the full write-up (deterministic duration×depth matrix, continuation exceptions and their computed alternative, target-weight/deadline override, maintenance TDEE-discrepancy recalibration, and the Phase 4 LLM second-opinion layer). Computed once per render via `recommendNextCycle(_previewMacro || macro, _nextCycleOverride)`, stored locally as `rec`/`nextCycleRec`.
 
 Below the Insights deck, `renderProgress()` also injects two additional cards into dedicated DOM anchors (v7.00):
 - `#progress-trend-insights` — the Phase 1 deterministic insights card (`buildInsightsCardHTML()`)
@@ -781,7 +787,7 @@ A drop-set exercise (`ex.type === 'dropset'`) plans its **main set** exactly lik
 - **Progression**: follows the same weight/reps progression choice as every other type, applied identically to the main pair and (once there's prior drop data logged) the drop pair — computed via the parallel `recommendedDropWeight`/`recommendedDropReps` fields in `exProgData()`, and the per-set `dropWeightPlaceholders`/`dropRepsPlaceholders` arrays (v6.09, see Progression data above). Drop weight/reps have no plan-time fallback target (unlike main weight/reps, which fall back to `ex.startWeight`/`ex.reps`) — blank means "nothing to suggest yet, log it live."
 - **Collapsed card**: shows the real reps target (or "to failure + drop" if nothing's been logged yet at all) instead of always being blank; a red `badge-red` "drop set" badge. As of **v6.10**, a `quickFillCompleteDropset()` shortcut is shown here too (previously no quick-fill-complete existed for drop sets at all, since reps-to-failure couldn't be sanely auto-filled when there was no main-set reps target to suggest in the first place — now that there is one, the shortcut fills weight/reps/drop-weight/drop-reps and marks every set done, same as every other exercise type's shortcut).
 - **Superset restriction**: drop sets can't be superset members. The type option is disabled in the modal (`setDropsetOptionEnabled(false)`) when adding into or editing within a superset, `saveExercise()` has a belt-and-braces fallback to `standard` if one somehow gets submitted anyway, and `openLinkModal()` excludes drop-set exercises from the selectable list entirely (and refuses to open at all if the origin exercise is itself a drop set).
-- **Volume**: `getSessionVolume()` adds the drop portion (drop weight × drop reps) alongside the main portion for drop-set exercises. As a side effect of the v6.09 reps-target change, the Plan page's *theoretical* volume projections (Week-1 session summary, body-part volume table) now also include a drop-set exercise's main-set contribution — previously both relied on `ex.reps`, which was always `''` for drop sets, so they contributed nothing at all (see §25, since this resolves a previously-listed limitation). The drop portion still contributes nothing to these theoretical projections, correctly, since it never has a plan-time target to project from.
+- **Volume**: `getSessionVolume()` adds the drop portion (drop weight × drop reps) alongside the main portion for drop-set exercises. As a side effect of the v6.09 reps-target change, the Plan page's *theoretical* volume projections (Week-1 session summary, body-part volume table) now also include a drop-set exercise's main-set contribution — previously both relied on `ex.reps`, which was always `''` for drop sets, so they contributed nothing at all (see §28, since this resolves a previously-listed limitation). The drop portion still contributes nothing to these theoretical projections, correctly, since it never has a plan-time target to project from.
 
 ### Exercise History
 `state.exerciseHistory` and `state.exerciseTrackingMode` (§3) snapshot the most recent real performance per exercise name (+ set type, for history), refreshed by `recordExerciseHistory(macro, week, dayKey, ex)` every time a set is completed via `toggleSetDone()` or a quick-fill-complete button — never for deload sessions. This replaced an earlier, more expensive approach (searching the single "last completed macrocycle" by end date each time the Add Exercise modal opened) — the running-snapshot approach is O(1) to read, always reflects the true most recent log regardless of which macro it came from, and doesn't require special-casing macros with no logged history yet.
@@ -1423,7 +1429,7 @@ Applied identically to `weightPlaceholders`/`repsPlaceholders` (main) and `dropW
 
 ---
 
-## 26. Module: AI Advice (Phase 1 + Phase 2)
+## 25. Module: AI Advice (Phase 1 + Phase 2)
 
 Added in v7.00. The Progress page now includes two additional cards below the existing Insights swipe deck, rendered into dedicated DOM anchors `#progress-trend-insights` and `#progress-ai-advice`.
 
@@ -1506,10 +1512,10 @@ On error: resets `_blocAdviceLoading`, re-renders (so the button restores), show
   storedAt:   'YYYY-MM-DD',
   macroId:    string,
   chosenPath: null | 'sustainable' | 'aggressive',
-  narrativeOpen: boolean,   // collapse state, persisted
-  altOpen:       boolean,   // collapse state for unchosen plan, persisted
 }
 ```
+
+**Collapse state (reworked in v7.15):** the narrative, selected-plan, and unchosen-plan sections were originally three independently-collapsible blocks, with `narrativeOpen`/`altOpen` persisted onto `state.blocAdvice` itself. As of v7.15 all three (narrative/selected/alt) collapse via a single module-level `_blocAdviceSectionsOpen = { narrative: false, selected: false, alt: false }`, deliberately **not** persisted — every fresh page load resets to collapsed, rather than the old behaviour of remembering whatever was open last session. The previously-always-visible "Selected plan" section became collapsible at the same time, defaulting closed like the other two.
 
 **`buildAiAdviceCardHTML()`** — renders three distinct states:
 
@@ -1527,7 +1533,7 @@ On error: resets `_blocAdviceLoading`, re-renders (so the button restores), show
 
 ---
 
-## 27. Goal Queue Flow
+## 26. Goal Queue Flow
 
 Added in v7.00. When the user taps "Use [Sustainable/Aggressive] plan →", `startGoalQueue(pathKey)` launches a sequential modal flow.
 
@@ -1560,7 +1566,128 @@ Added in v7.00. When the user taps "Use [Sustainable/Aggressive] plan →", `sta
 
 ---
 
-## 25. Known Limitations & Future Considerations
+## 27. Next Cycle Recommendation Engine (Phases 1–4)
+
+Card 3 of the Progress page's "Insights" swipe deck (§10). Built across four phases (v7.05–v7.21): a fully deterministic recommendation engine (Phases 1–3), then an optional LLM second-opinion layer on top of it (Phase 4). Distinct from the mid-cycle "Ask BLOC for advice" feature (§25) — this is specifically about what to do once the *active* cycle ends, not mid-cycle correction — and the two never share state, a cooldown clock, or a stored-response slot.
+
+### Phase 1 — Deterministic engine
+
+**`recommendNextCycle(macro, override)`** is the core function, called once per Progress render (`nextCycleRec`) and again wherever a fresh recommendation is needed (`openNextCycleMacroModal`, `chooseNextCyclePlan`, `askBlocForNextCycleAdvice`). Pure computation, no DOM writes. Returns:
+
+```js
+{
+  goalType, isContinuation, rationale, bridge, placeholderWeeks, taper,
+  overrideConflict, directionRamp, needsDirectionChoice, directionWasForced,
+  continuationAlternative,          // v7.21 — see below
+  newMacroStart, newMacroEnd,
+  cycleDurationWeeks, dynResult, trendResult, sustainableRange,
+  latestBw, recentKcal, rampStartKcal,
+}
+```
+
+**Direction logic**, branched on the *current* macro's `goalType`:
+
+- **`loss` (cut)** — classifies the cut by `durationBand` (`short` <8wk, `medium` 8–16wk, `long` >16wk) and `depthBand` (`aggressive` if the deficit is >700 kcal/day or >25% of TDEE, `moderate` if >500 kcal/day or >15%, else `mild`), then looks up a minimum bridge length from a fixed matrix:
+
+  | Duration ↓ / Depth → | mild | moderate | aggressive |
+  |---|---|---|---|
+  | short | 2 | 3 | 4 |
+  | medium | 3 | 4 | 6 |
+  | long | 4 | 6 | 8 |
+
+  A **short + mild** cut instead recommends **continuing the cut** (`isContinuation: true`, narrative-only — "Build this plan next" doesn't apply, the user extends the active macrocycle themselves). Every other combination recommends a **maintenance bridge**, sized by `computeMaintenanceBridgeFromCut()` (see below).
+
+- **`gain` (bulk)** — a bulk-to-cut transition needs no mandatory bridge (a surplus doesn't cause the same adaptive suppression a deficit does, so there's nothing to recover from). A **short bulk (<10wk) with a non-excessive surplus (≤500 kcal/day)**, or **any bulk with a mild gain rate (≤0.35 lbs/week)**, instead recommends **continuing the bulk** (`isContinuation: true`). Otherwise recommends a **cut**, sized by `computeCutFromBulk()` (see below) — with an optional note if the bulk ran >12 weeks, suggesting a short maintenance step first for a cleaner TDEE reading (not physiologically required, just offered).
+
+- **`maintenance`** — never recommends another maintenance cycle. Direction is taken from the cycle *before* this one (`state.insightsRollup.completedCycles`, one hop back): a prior cut recommends a bulk next, a prior bulk recommends a cut next, sized the same way as the gain/loss branches above via `applyPlaceholderOrOverride()`. If there's no prior cycle, or the prior cycle wasn't itself a cut/bulk, `needsDirectionChoice: true` — Card 3 offers two buttons ("Plan a cut" / "Plan a bulk") that set `override.forcedDirection` and re-run the whole function, landing in the auto-determined branch (`directionWasForced: true`, with a back button to return to the choice).
+
+**Continuation alternative (v7.21):** whenever `isContinuation` is set (either the loss or gain branch above), the engine *also* computes the "normal logic" alternative it would have recommended had the cycle not qualified for continuation — the maintenance bridge (for a continuing cut) or the cut (for a continuing bulk) — attached as `continuationAlternative`. This is a full substitute rec object (`goalType`, `rationale`, `bridge`/`directionRamp`, `newMacroEnd`, `overrideConflict`, sharing the primary rec's `newMacroStart`/`dynResult`/`sustainableRange`/etc.), so it can be fed to `fillNextCycleMacroModal()`/`buildNextCycleGoalSteps()` exactly like a primary recommendation. Computed via two pure closures shared with the primary (non-continuation) path, so the two can never disagree about what "normal logic" actually means for the same data:
+
+- **`computeMaintenanceBridgeFromCut()`** — the reverse-diet ramp + flat-hold bridge (used by both the loss branch's primary maintenance recommendation and its continuation alternative).
+- **`computeCutFromBulk(useOverride)`** — the cut sizing logic (used by both the gain branch's primary cut recommendation and its continuation alternative; wraps `applyPlaceholderOrOverride('loss', useOverride)`).
+
+`useOverride` is `override` for the primary call, `null` for the alternative — a target-weight/deadline typed against "continue the bulk" has no meaning for a cut, and vice versa.
+
+Card 3 renders the alternative as a small secondary box ("Alternative — [Cut/Bulk/Maintenance]", one line of rationale, "Build the [X] option instead →") right below the continuation recommendation. The button calls `openNextCycleMacroModal(true)`, which builds `rec.continuationAlternative` directly instead of recomputing.
+
+**Weekly kcal ramps** — two distinct shapes depending on the case:
+
+- **`buildReverseDietRows(recentKcal, tdee, weeklyIncrement)`** — the bridge case (cut → maintenance). Steps from the ramp's start point toward TDEE in fixed `weeklyIncrement` steps (75 kcal for an aggressive cut, 125 otherwise), guaranteed to land exactly on TDEE in its final week. `computeMaintenanceBridgeFromCut()` then pads with flat hold weeks (or uses the climb's natural length as-is if it already exceeds the matrix minimum) to reach the bridge's total minimum duration — the final climb week counts as the first hold week, not an addition to it.
+- **`buildDirectionSteppedRamp(startKcal, finalTargetKcal, tdee, totalWeeks, goalTypeRec, safetyFloor)`** — the cut/bulk-direction case. A step-and-hold table (not a continuous curve): holds each kcal level for 3 weeks before stepping again. Step size is **asymmetric for cuts only** — 250 kcal while still on the easy side of TDEE (still in surplus, coming off a bulk), 125 kcal once past TDEE into genuinely restrictive territory. **Bulks always use the smaller 125 kcal step throughout** — there's no equivalent "fast phase" that's safe for a bulk, since even a mild surplus held too long still risks unnecessary fat gain. Clamps any level from going below `safetyFloor` (cuts only), flagging clamped steps. Returns pre-merged `{startWeek, endWeek, kcal, clamped}` rows.
+
+Both ramps start from **`rampStartKcal`** — the current cycle's *last planned goal's* kcal, not `recentKcal` (a 14-day actual-intake average, which reflects adherence noise in either direction) — since a ramp's job is to continue from wherever the plan actually left off, not to react to recent eating.
+
+**`getSustainableWeightRange()`** — floor (cuts) and ceiling (bulks) derived from completed maintenance cycles in the rollup that held stable (≤0.5 lbs/week) for ≥3 weeks: floor = 5% below the lowest confirmed sustainable weight, ceiling = 5% above the highest. Cold-start fallback (no qualifying cycle yet): 10% below/above the most recent logged weight.
+
+**`computeTaperCurve(startWeight, weeks)`** — the safe rate-of-change ceiling for a cut/bulk of a given length: 1.5% of *running* bodyweight in week 1, tapering linearly to 1% (cuts/bulks ≤10 weeks) or 0.5% (>10 weeks) by the final week. Recalculated against running weight each week, not the starting weight. Returns `{ weeklyRates, totalSafeChange }`.
+
+### Phase 2 — Target weight / deadline override
+
+**`recommendNextCycle(macro, override)`**'s second parameter, `override = { targetWeight, deadline, forcedDirection }`, only ever meaningful for `goalType === 'loss' | 'gain'` (never read for `maintenance` — its length is dictated by the matrix/ramp math, not a user choice, so maintenance never gets these input fields at all).
+
+**`applyPlaceholderOrOverride(recGoalType, useOverride)`** — a pure closure (refactored in v7.21 to return its results rather than mutate outer scope, so it can safely run twice in one `recommendNextCycle()` call — once for the primary recommendation, once for a continuation's alternative). Applies a 12-week default duration, or a resolved override if one clears both safety checks below. Also builds the direction ramp once the duration is settled, defaulting to the taper curve's own maximum safe change when no target weight was given (i.e. "assume the safest fastest pace," the same philosophy the bridge case uses without needing input).
+
+**`resolveNextCycleOverride(latestBw, goalTypeRec, sustainableRange, newMacroStart, override)`** — two independent checks:
+1. **Floor/ceiling** (hard safety boundary) — a requested target beyond it is always flagged, never offered as a one-tap alternative.
+2. **Taper curve** (pace boundary) — a request that's safe on floor/ceiling grounds but implies too fast a rate for the stated timeframe offers **both** one-tap alternatives: nearest safe date for the stated weight, or nearest safe weight for the stated date.
+
+Returns `{ weeks, endDate, conflict }` — `conflict` is `null` when safe, otherwise `{ type: 'boundary'|'pace', message, altDate, altWeight }`.
+
+### Phase 3 — Maintenance TDEE-discrepancy recalibration
+
+**`computeMaintenanceRecalibration(macro, ins)`** — only fires for the *currently active* maintenance macro (never a past cycle's finished goals). Distinct from the whole-history `calcTrendBasedTDEE()`/`calcDynamicTDEE()`, which is deliberately slow-moving — this is a locally-scoped check for "the body is doing something different right now, mid-bridge."
+
+Trigger requires **both**: a genuine directional trend over the last 3 qualifying weeks (avg weekly delta >0.5 lbs in either direction, same stability threshold used elsewhere — not just noise), **and** the resulting locally-implied TDEE (from just the two most recent qualifying weeks, via the same 3,500-kcal-per-lb rule) disagreeing with the current/future goals' actual kcal target by >150 kcal or >7%.
+
+Surfaces as a "Start recalibration →" button on the existing Phase 1 trend-insights card (`buildInsightsCardHTML()`), not a new card. Opens `modal-maint-recalibration`, previewing the new kcal/macros and every affected goal (today's + not-yet-started) with old→new shown. **Steps are never touched** — maintenance goals are always 8,000 flat, a rule enforced globally in `buildNextCycleGoalSteps()` regardless of what the current active goal happens to be.
+
+**`acceptMaintenanceRecalibration()`** batch-updates every affected goal, matched by `macroId` + `startDate` (goal objects have no `id` field — matching by `g.id` would silently update zero goals).
+
+### Phase 4 — LLM second-opinion layer
+
+Separate from the mid-cycle advice feature end to end: its own prompt builder, its own API call, its own storage slot (`state.nextCycleAdvice`), its own eligibility gate. Gated to within **3 weeks of the active cycle's end date** — this gate applies only to the LLM call; the deterministic recommendation itself is never gated by cycle timing.
+
+**`isNextCycleAdviceEligible(macro, rec)`** — returns `{ eligible, reason }`. Ineligible when: no recommendation at all; a continuation with no computed alternative; a maintenance bridge with no determinable direction (`needsDirectionChoice`); previewing a different macro than the real active one (§ preview dropdown, testing aid); or more than 21 days from cycle end.
+
+**`nextCycleAdvicePlanMode(rec)`** — the shared resolver both the prompt builder and the response validator call, so the two can never disagree about what shape of response was actually asked for. First resolves **`planRec`** — the rec actually being planned for. Normally that's `rec` itself, but when the deterministic engine recommends a continuation, `planRec` becomes `rec.continuationAlternative` instead: a plain extension isn't something this feature builds via the goal queue either way, so `plans[]` always targets a genuinely-new-cycle direction. From `planRec`, derives one of three modes:
+
+- **`conflictTwoPlans`** — the user gave both a target weight and a deadline, and the deterministic engine flagged it unsafe. Exactly 2 plans, keyed `"preserve-weight"` / `"preserve-date"`, each resolving the conflict differently (concrete alt-date/alt-weight numbers from `resolveNextCycleOverride` are handed to the model directly, not re-derived).
+- **`directionTwoPlans`** — a cut/bulk-direction cycle with no deadline given. Exactly 2 plans, keyed `"sustainable"` (long/steady, typically 12–20 weeks) and `"aggressive"` — for a **cut**, may run shorter (typically 6–10 weeks) with a faster deficit; for a **bulk**, must run **just as long** as sustainable, never shorter (a bulk is never shortened to make it "aggressive" — only the surplus is pushed modestly harder). Each plan self-declares its own `weeks` field.
+- **otherwise** — exactly 1 plan, filling to `planRec.newMacroEnd` exactly (maintenance bridges, or a cut/bulk where the user already gave a deadline that resolved cleanly).
+
+**`buildNextCycleAdvicePrompt(macro, rec)`** — reuses the mid-cycle prompt's weekly-data/cycle-history context, plus: the engine's own floor/ceiling and a **forward-looking** taper curve sized to the *next* cycle's own duration (distinct from `rec.taper`, a look-back check on the cut just finished); the maintenance TDEE-discrepancy flag when the current cycle is itself a maintenance bridge; any user-supplied target/deadline; and — when `rec.isContinuation` — a **CONTINUATION CONTEXT** block giving the model both the engine's own "extend" reasoning and the alternative's "switch" reasoning, explicitly asking it to weigh in on which is actually better in its narrative while still returning buildable plans for the switch option.
+
+**Steps handling:** BLOC only ever uses daily step count as a lever during a **cut**. The `"steps"` schema field is included only when `planRec.goalType === 'loss'`; for gain/maintenance it's omitted from the schema entirely (never even requested), and forced to 8,000 client-side after parsing regardless of what — if anything — the model returned for that field.
+
+**Fill-to-length guard:** every plan must exactly fill its own intended cycle length, computed from `planRec.newMacroStart` and either the plan's own `weeks` field (directionTwoPlans mode) or `planRec.newMacroEnd`. A mismatch between the last goal's `endDate` and the expected end is a **hard validation failure** (the response is rejected, not silently accepted) — this is what actually forces the model to fill the cycle it was asked to plan for, not just a prompt instruction.
+
+**Bulk-never-shortened guard:** in `directionTwoPlans` mode for a `gain`-type `planRec`, rejects the response if the `"aggressive"` plan's `weeks` is less than `"sustainable"`'s.
+
+**`askBlocForNextCycleAdvice()`** — same fetch/parse/validate/error pattern as `askBlocForAdvice()` (§25), POSTing to `https://api.anthropic.com/v1/messages` with `claude-sonnet-4-6`, max 8,000 tokens. Validates required top-level fields, per-plan shape (`key`, `label`, ≥2 goals), then runs the fill-to-length and bulk-never-shortened guards above before materialising fats and enforcing the steps rule. Stores to:
+
+```js
+state.nextCycleAdvice = {
+  response: { signal, headline, narrative, plans: [{ key, label, rationale, summary, weeks?, goals: [...] }] },
+  storedAt:      'YYYY-MM-DD',
+  macroId:       string,
+  chosenPlanKey: null | string,
+}
+```
+
+**`_nextCycleAdviceLoading`** / **`_nextCycleAdviceSectionsOpen`** — module-level, not persisted, mirroring `_blocAdviceLoading`/`_blocAdviceSectionsOpen` from the mid-cycle feature.
+
+**`buildNextCycleAdviceSectionHTML(macro, rec)`** — rendered directly inside Card 3's template (not a separate DOM anchor, since it should only ever appear while the Next Cycle card is actually showing), right below "Build this plan next." Handles loading, gated-by-timing (only the 3-week case gets an explanatory hint — every other ineligibility reason stays silent, matching "Build this plan next" itself being absent), ready-to-ask, and stored-advice states. The stored-advice state is generic over however many plans came back — pre-choice shows every plan with its own CTA; post-choice shows the chosen plan expanded with any other plan(s) tucked under a single "View alternative(s)" toggle.
+
+**`chooseNextCyclePlan(planKey)`** — resolves `planRec` via `nextCycleAdvicePlanMode(rec).planRec` (not raw `rec.goalType`, which during a continuation would be the wrong direction), records the choice, and builds `_pendingNextCyclePlan = { goalType, newMacroStart, newMacroEnd: <last goal's endDate>, _llmGoals: plan.goals }`, then calls the same `fillNextCycleMacroModal()` helper the deterministic path uses.
+
+**`fillNextCycleMacroModal(goalType, totalWeeks)`** — shared modal-prefill helper, extracted from `openNextCycleMacroModal()` so both the deterministic path and the LLM path fill the New Macrocycle modal identically.
+
+**`buildNextCycleGoalSteps(rec)`** — unchanged for the deterministic path (groups consecutive same-kcal weeks into one goal); gained a short-circuit at the top (`if (rec._llmGoals && rec._llmGoals.length) return rec._llmGoals;`) so an accepted LLM plan's already-materialised goals are used directly. Everything downstream — `createMacrocycle()`'s pending-plan hook, `_launchGoalQueue`, `_openQueueStep` (§26) — needs zero changes to support either source.
+
+
+---
+
+## 28. Known Limitations & Future Considerations
 
 ### Current Limitations
 
@@ -1578,6 +1705,7 @@ Added in v7.00. When the user taps "Use [Sustainable/Aggressive] plan →", `sta
 | **AI advice emoji icons** | The goal summary blocks in the AI advice card use emoji (🔥 kcal, 👟 steps, 💪 protein, 🌾 carbs) rather than the app's SVG iconography. A dedicated icon audit pass is planned to replace these with inline SVG icons using `currentColor`, consistent with the rest of the app's visual language. |
 | **AI goal label matching** | `_blocLabel` is only written to goals created via the AI queue flow (v7.00 onward). Goals saved before this version, or edited outside the queue, fall back to date-proximity matching in `goalSummaryBlock`. If a user manually edits goal dates such that they no longer overlap the LLM's original dates, the card may not reflect the edited dates until a new advice call is made. |
 | **Drop-set theoretical volume (partially resolved in v6.09)** | The Plan page's *theoretical* (pre-logged) volume projections — the Week-1 session summary and the body-part volume table — now include a drop-set exercise's main-set contribution, since `ex.reps` holds a real target for it as of v6.09 (previously always `''`, contributing 0). The **drop portion** still contributes 0 to these projections, correctly — it never has a plan-time target, only ever discovered live, so there's nothing to project. Real logged volume (`getSessionVolume()`, used everywhere in Train/Progress) was never affected either way and correctly includes both portions. |
+| **Maintenance recalibration flag (Phase 3, §27) — not yet click-tested live** | `computeMaintenanceRecalibration()` is logic-tested against synthetic scenarios matching real data and verified against the actual live functions, but hasn't been exercised in the live app yet, since it only fires during an active maintenance bridge and testing so far has happened outside of one. Treated as working; flag if anything looks off once genuinely tested against a live maintenance cycle. |
 
 ### Resolved (previously listed as open questions)
 

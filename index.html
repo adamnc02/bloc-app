@@ -1620,7 +1620,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v7.01</span>
+          <span class="badge badge-green">v7.21</span>
         </div>
       </div>
 
@@ -1948,6 +1948,16 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     </div>
     <div class="modal-title">Cycle history</div>
     <div id="cycle-history-list"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-maint-recalibration">
+  <div class="modal-sheet" data-modal="modal-maint-recalibration">
+    <div class="modal-handle-row"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-maint-recalibration')">✕</button>
+    </div>
+    <div class="modal-title">Recalibrate maintenance kcal</div>
+    <div id="maint-recalibration-content"></div>
   </div>
 </div>
 
@@ -2708,6 +2718,7 @@ function load() {
   if (!state.profile) state.profile = {};
   if (!state.insightsRollup) state.insightsRollup = { completedCycles: [] };
   if (state.blocAdvice === undefined) state.blocAdvice = null;
+  if (state.nextCycleAdvice === undefined) state.nextCycleAdvice = null;
   if (!state.profile.measureUnit) state.profile.measureUnit = 'in';
   if (!state.theme) state.theme = 'multi';
   document.body.setAttribute('data-theme', state.theme);
@@ -3173,6 +3184,23 @@ function createMacrocycle() {
   state.currentMacroId = id;
   state.currentDay = useMicrocycles ? (days[0] + 'm1') : days[0];
   save();
+
+  // ── Next Cycle queue hook (v7.02) ──
+  // If this macro was created via "Build this plan next", launch the goal
+  // queue with the pending plan's steps instead of just closing back to Plan.
+  if (_pendingNextCyclePlan) {
+    const plan = _pendingNextCyclePlan;
+    _pendingNextCyclePlan = null;
+    closeModal('modal-macro');
+    const steps = buildNextCycleGoalSteps(plan);
+    if (steps.length) {
+      _launchGoalQueue(steps, id);
+      return;
+    }
+    renderPlan();
+    return;
+  }
+
   closeModal('modal-macro');
   renderPlan();
 }
@@ -4245,6 +4273,89 @@ function renameDaySessionStart(macroId, day, spanId, currentLabel) {
 // on the hero itself, so the person can review past cycles without
 // leaving the Progress page or editing anything (tap-to-edit still lives
 // on the Plan page hero, untouched).
+// ── Maintenance recalibration modal (Phase 3) ──────────────────────────────
+// Pending batch update, stashed here between opening the preview and the
+// single Accept button — same ephemeral, non-persisted pattern already
+// used for _pendingNextCyclePlan.
+let _pendingMaintRecalibration = null;
+
+function openMaintenanceRecalibrationModal() {
+  const macro = resolveProgressMacro();
+  if (!macro) return;
+  const ins = computeWeeklyInsights(macro);
+  const recal = computeMaintenanceRecalibration(macro, ins);
+  if (!recal) return;
+
+  const latestLog = [...(state.bodyLogs || [])].filter(l => l.weight).sort((a, b) => b.date.localeCompare(a.date))[0];
+  const bwRounded = latestLog ? Math.round(parseFloat(latestLog.weight)) : 150;
+  const proteinG  = Math.max(1, Math.ceil(bwRounded));
+  const newKcal   = recal.localImpliedTDEE;
+  const remaining = Math.max(0, newKcal - proteinG * 4);
+  const newCarbs  = Math.round(remaining * 0.5 / 4);
+  const newFats   = Math.round(remaining * 0.5 / 9);
+
+  _pendingMaintRecalibration = {
+    newKcal, newProtein: proteinG, newCarbs, newFats,
+    macroId: macro.id,
+    goalStartDates: recal.affectedGoals.map(g => g.startDate),
+  };
+
+  const directionText = recal.direction === 'gaining'
+    ? `Your weight has been climbing over the last few weeks while eating at what was set as your maintenance target — that means your real TDEE is likely lower than ${recal.currentTargetKcal.toLocaleString()} kcal.`
+    : `You're still losing weight over the last few weeks despite eating at what was set as your maintenance target — that means your real TDEE is likely higher than ${recal.currentTargetKcal.toLocaleString()} kcal.`;
+
+  const rows = recal.affectedGoals.map(g => {
+    const oldKcal = parseInt(g.kcal) || 0;
+    return `<tr>
+      <td style="padding:8px;font-size:11px;color:var(--text3);">${g.startDate} – ${g.endDate}</td>
+      <td style="padding:8px;font-size:12px;">
+        <span style="color:var(--text3);text-decoration:line-through;">${oldKcal.toLocaleString()}</span>
+        <span style="color:var(--accent);font-weight:600;"> → ${newKcal.toLocaleString()} kcal</span>
+      </td>
+    </tr>`;
+  }).join('');
+
+  const el = document.getElementById('maint-recalibration-content');
+  if (!el) return;
+  el.innerHTML = `
+    <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:12px;">${directionText}</div>
+    <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">New macros for every affected goal</div>
+    <div style="font-size:13px;color:var(--text);font-weight:600;margin-bottom:14px;">
+      ${newKcal.toLocaleString()} kcal · P ${proteinG}g · C ${newCarbs}g · F ${newFats}g
+    </div>
+    <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Affected goals (${recal.affectedGoals.length}) — steps stay at 8,000, unchanged</div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">${rows}</table>
+    <button onclick="acceptMaintenanceRecalibration()"
+      style="width:100%;padding:12px;border-radius:10px;font-size:14px;font-weight:600;
+             background:var(--accent);color:#06281f;border:none;cursor:pointer;
+             font-family:var(--font-display);">
+      Accept — update ${recal.affectedGoals.length} goal${recal.affectedGoals.length !== 1 ? 's' : ''}
+    </button>`;
+
+  openModal('modal-maint-recalibration');
+}
+
+// Batch-applies the previewed recalibration to every affected goal in one
+// shot. Steps are never touched — maintenance goals are always 8,000 flat,
+// enforced separately (see buildNextCycleGoalSteps' stepsTarget logic).
+function acceptMaintenanceRecalibration() {
+  if (!_pendingMaintRecalibration) return;
+  const { newKcal, newProtein, newCarbs, newFats, macroId, goalStartDates } = _pendingMaintRecalibration;
+  (state.goals || []).forEach(g => {
+    if (g.macroId === macroId && goalStartDates.includes(g.startDate)) {
+      g.kcal = newKcal;
+      g.protein = newProtein;
+      g.carbs = newCarbs;
+      g.fats = newFats;
+      // g.steps intentionally untouched — always 8,000 for maintenance
+    }
+  });
+  _pendingMaintRecalibration = null;
+  save();
+  closeModal('modal-maint-recalibration');
+  renderProgress();
+}
+
 function openCycleHistory() {
   const el = document.getElementById('cycle-history-list');
   if (!el) return;
@@ -4886,6 +4997,677 @@ const INSIGHTS_CARD_COUNT = 3;
 // secondary swipeable deck (#progress-body — the 3-card 'insights' strip
 // below the hero: weight sparkline / macro pie / steps+kcal), used by that
 // deck's own swipe-gesture handlers.
+// ─────────────────────────────────────────────────────────────────────────────
+// NEXT CYCLE RECOMMENDATION ENGINE (v7.02, Phase 1)
+// ─────────────────────────────────────────────────────────────────────────────
+// Deterministic, local, no API cost. Replaces the old manual "Next cycle"
+// dropdown with a real computed recommendation. See design spec (session doc)
+// for the full rationale behind every rule below — kept intentionally verbose
+// here since Card 3 currently renders every one of these numbers for
+// validation against real data before it's trusted anywhere else in the app.
+
+// ── Trend-based TDEE estimate (the fix for the raw log-pair noise problem) ──
+// Compares TRAILING 7-DAY AVERAGE weight at calendar-week boundaries, not raw
+// individual weigh-ins — averaging cancels a single high/low water day the
+// way a longer gap between two raw points never can. Global (not scoped to
+// any macrocycle), same convention as calcDynamicTDEE(). Returns
+// { tdee, bmr, dataPoints, pairs: [...] } or null. `pairs` is surfaced
+// directly in Card 3's diagnostic table.
+function calcTrendBasedTDEE() {
+  const dayMap = buildDayMap();
+  const allDates = Object.keys(dayMap).sort();
+  if (allDates.length < 8) return null;
+
+  // Anchor the weekly grid to the Monday on/before the earliest logged date
+  const first = new Date(allDates[0] + 'T00:00:00');
+  const dow = first.getDay(); // 0=Sun..6=Sat
+  first.setDate(first.getDate() - (dow === 0 ? 6 : dow - 1));
+
+  const today = getLocalToday();
+  const buckets = [];
+  let cur = new Date(first);
+  while (toLocalDateStr(cur) <= today) {
+    const bStart = toLocalDateStr(cur);
+    // DST-safe: setDate() on the calendar day, not raw ms arithmetic — a
+    // span crossing a DST transition is not exactly N*24h of real time.
+    const bEndDate = new Date(cur); bEndDate.setDate(bEndDate.getDate() + 6);
+    const bEnd = toLocalDateStr(bEndDate);
+    const bDates = allDates.filter(d => d >= bStart && d <= bEnd);
+    const wD = bDates.filter(d => dayMap[d].weight !== null);
+    const nD = bDates.filter(d => dayMap[d].hasNutr);
+    const avgWeight = wD.length ? wD.reduce((s, d) => s + dayMap[d].weight, 0) / wD.length : null;
+    const avgKcal   = nD.length ? Math.round(nD.reduce((s, d) => s + dayMap[d].kcal, 0) / nD.length) : null;
+    buckets.push({ bStart, bEnd, avgWeight, avgKcal, weightDayCount: wD.length, nutrDayCount: nD.length });
+    cur = new Date(cur); cur.setDate(cur.getDate() + 7);
+  }
+
+  const pairs = [];
+  for (let i = 0; i < buckets.length - 1; i++) {
+    const a = buckets[i], b = buckets[i + 1];
+    if (a.avgWeight === null || b.avgWeight === null) continue;
+    // Each side needs >1 weigh-in to actually be a smoothed trend value,
+    // not just a single raw reading wearing a trend label.
+    if (a.weightDayCount < 2 || b.weightDayCount < 2) continue;
+    if (!b.avgKcal || b.nutrDayCount < 4) continue;
+    const weightChangeLbs = b.avgWeight - a.avgWeight;
+    const impliedTDEE = b.avgKcal - (weightChangeLbs * 3500) / 7;
+    pairs.push({
+      weekStart: a.bStart, weekEnd: b.bEnd,
+      trendWeightStart: parseFloat(a.avgWeight.toFixed(1)),
+      trendWeightEnd:   parseFloat(b.avgWeight.toFixed(1)),
+      avgKcal: b.avgKcal,
+      impliedTDEE: Math.round(impliedTDEE),
+    });
+  }
+  if (!pairs.length) return null;
+
+  const sorted = pairs.map(p => p.impliedTDEE).sort((x, y) => x - y);
+  const mid = Math.floor(sorted.length / 2);
+  const median = sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  if (median < 800 || median > 6000) return null;
+
+  const roundedTdee = Math.round(median);
+  const { multiplier } = getActivityMultiplier();
+  return { tdee: roundedTdee, bmr: Math.round(roundedTdee / multiplier), dataPoints: pairs.length, pairs };
+}
+
+// ── Sustainable weight floor/ceiling ──
+// Source of truth: completed maintenance cycles in the rollup that held
+// stable (≤0.5 lbs/week, the same threshold plateauWeeksDetected already
+// uses) for at least 3 weeks. Mid-cut/mid-bulk stability windows are
+// deliberately NOT counted here — see design spec §2.2a for why (adaptation
+// risk). Falls back to a 10%-below-most-recent-stable-weight cap when no
+// qualifying maintenance cycle exists yet.
+function getSustainableWeightRange() {
+  const rollup = state.insightsRollup || { completedCycles: [] };
+  const qualifying = (rollup.completedCycles || []).filter(c =>
+    c.goalType === 'maintenance' && (c.plateauWeeksDetected || 0) >= 3 &&
+    c.startBw != null && c.endBw != null
+  );
+
+  if (!qualifying.length) {
+    const latestLog = [...(state.bodyLogs || [])].filter(l => l.weight).sort((a, b) => b.date.localeCompare(a.date))[0];
+    const recentStable = latestLog ? parseFloat(latestLog.weight) : null;
+    return {
+      floor: recentStable ? parseFloat((recentStable * 0.90).toFixed(1)) : null,
+      ceiling: recentStable ? parseFloat((recentStable * 1.10).toFixed(1)) : null,
+      source: 'cold-start-fallback',
+      qualifyingCycles: [],
+    };
+  }
+
+  const weights = qualifying.map(c => (c.startBw + c.endBw) / 2);
+  const lowest = Math.min(...weights);
+  const highest = Math.max(...weights);
+  return {
+    floor: parseFloat((lowest * 0.95).toFixed(1)),
+    ceiling: parseFloat((highest * 1.05).toFixed(1)),
+    source: 'confirmed',
+    qualifyingCycles: qualifying.map(c => ({ name: c.name, start: c.start, end: c.end, weight: parseFloat(((c.startBw + c.endBw) / 2).toFixed(1)), avgKcal: c.avgKcal, weeksStable: c.plateauWeeksDetected })),
+  };
+}
+
+// ── 1.5% → 1%/0.5% taper curve ──
+// Max safe weekly loss/gain rate, tapering linearly from 1.5% of current
+// (running) bodyweight in week 1 down to a bottom bound that depends on
+// cycle length: 1% for cuts ≤10 weeks, 0.5% for anything longer (keeps the
+// back half of a long cut realistic rather than still implying 1%/week
+// deep into the cycle). Recalculated against running weight each week, not
+// the starting weight. Returns { weeklyRates: [...], totalSafeChange } for
+// a cut/bulk of `weeks` length starting at `startWeight`.
+function computeTaperCurve(startWeight, weeks) {
+  if (!startWeight || !weeks || weeks < 1) return null;
+  const topPct = 0.015;
+  const bottomPct = weeks <= 10 ? 0.01 : 0.005;
+  const weeklyRates = [];
+  let w = startWeight;
+  let totalSafeChange = 0;
+  for (let i = 0; i < weeks; i++) {
+    const pct = weeks > 1 ? topPct - ((topPct - bottomPct) * i / (weeks - 1)) : topPct;
+    const maxChange = parseFloat((w * pct).toFixed(2));
+    weeklyRates.push({ week: i + 1, maxChangeLbs: maxChange, atWeight: parseFloat(w.toFixed(1)) });
+    totalSafeChange += maxChange;
+    w -= maxChange; // taper is direction-agnostic; caller applies sign for cut vs bulk
+  }
+  return { weeklyRates, totalSafeChange: parseFloat(totalSafeChange.toFixed(1)) };
+}
+
+// ── Target weight / deadline override resolver (Phase 2) ──────────────────
+// Only ever called for cut/bulk-direction recommendations (goalTypeRec ===
+// 'loss' | 'gain', non-continuation) — maintenance never gets a target
+// weight or deadline input at all, per design spec §4.3.
+//
+// Two independent checks, deliberately asymmetric in how they're treated:
+// 1. Floor/ceiling (getSustainableWeightRange) is a HARD safety boundary —
+//    a requested target beyond it is always flagged, no matter the pace.
+// 2. The taper curve (computeTaperCurve) is a PACE check — a request that's
+//    fine on safety grounds but too fast for the stated timeframe offers
+//    alternatives rather than a flat refusal.
+// Returns null if no override was actually given. Otherwise returns
+// { weeks, endDate, conflict } — conflict is null when the request is safe.
+function resolveNextCycleOverride(latestBw, goalTypeRec, sustainableRange, newMacroStart, override) {
+  if (!override || (!override.targetWeight && !override.deadline) || !latestBw) return null;
+
+  const boundary = goalTypeRec === 'loss' ? sustainableRange.floor : sustainableRange.ceiling;
+  const targetWeight = override.targetWeight || null;
+  let deadline = override.deadline || null;
+
+  // Snap to the next Sunday on or after whatever date was picked
+  if (deadline) {
+    const d = new Date(deadline + 'T00:00:00');
+    const dow = d.getDay(); // 0 = Sunday
+    if (dow !== 0) d.setDate(d.getDate() + (7 - dow));
+    deadline = toLocalDateStr(d);
+  }
+
+  // Hard safety cap — checked first, independent of pace
+  if (targetWeight !== null && boundary !== null) {
+    const beyond = goalTypeRec === 'loss' ? targetWeight < boundary : targetWeight > boundary;
+    if (beyond) {
+      return {
+        weeks: null, endDate: null,
+        conflict: {
+          type: 'boundary',
+          message: `${targetWeight} lbs is beyond the ${goalTypeRec === 'loss' ? 'safety floor' : 'safety ceiling'} of ${boundary} lbs from your confirmed sustainable weight range (${sustainableRange.source === 'confirmed' ? 'based on past maintenance cycles' : 'cold-start fallback — no confirmed maintenance cycle yet'}). This isn't a pace suggestion — it's a hard boundary and isn't offered as a one-tap alternative.`,
+          altDate: null, altWeight: null,
+        },
+      };
+    }
+  }
+
+  const start = new Date(newMacroStart + 'T00:00:00');
+  const findMinSafeWeeks = (requestedChange) => {
+    let weeks = 1;
+    while (weeks <= 104) {
+      const t = computeTaperCurve(latestBw, weeks);
+      if (t && t.totalSafeChange >= requestedChange) return weeks;
+      weeks++;
+    }
+    return 104;
+  };
+  const endDateForWeeks = (weeks) => { const d = new Date(start); d.setDate(d.getDate() + weeks * 7 - 1); return toLocalDateStr(d); };
+
+  // Only a target weight given — find the minimum safe duration for it
+  if (targetWeight !== null && !deadline) {
+    const requestedChange = Math.abs(targetWeight - latestBw);
+    const weeks = findMinSafeWeeks(requestedChange);
+    return { weeks, endDate: endDateForWeeks(weeks), conflict: null };
+  }
+
+  // Only a deadline given — nothing to pace-check without a weight target
+  if (deadline && targetWeight === null) {
+    const weeks = Math.max(1, Math.round((new Date(deadline + 'T00:00:00') - start) / 86400000 / 7));
+    return { weeks, endDate: endDateForWeeks(weeks), conflict: null };
+  }
+
+  // Both given — pace-check the combination against the taper curve
+  const requestedWeeks = Math.max(1, Math.round((new Date(deadline + 'T00:00:00') - start) / 86400000 / 7));
+  const requestedChange = Math.abs(targetWeight - latestBw);
+  const taper = computeTaperCurve(latestBw, requestedWeeks);
+
+  if (taper && requestedChange > taper.totalSafeChange) {
+    const safeWeeks = findMinSafeWeeks(requestedChange);
+    const altWeightRaw = goalTypeRec === 'loss' ? latestBw - taper.totalSafeChange : latestBw + taper.totalSafeChange;
+    return {
+      weeks: null, endDate: null,
+      conflict: {
+        type: 'pace',
+        message: `That combination averages ~${(requestedChange / requestedWeeks).toFixed(1)} lbs/week over ${requestedWeeks} weeks — above the safe taper ceiling of ~${taper.totalSafeChange} lbs total for a cycle this length.`,
+        altDate: endDateForWeeks(safeWeeks),
+        altWeight: parseFloat(altWeightRaw.toFixed(1)),
+      },
+    };
+  }
+
+  return { weeks: requestedWeeks, endDate: endDateForWeeks(requestedWeeks), conflict: null };
+}
+
+// ── Reverse-diet weekly kcal table ──
+// Extracted from the old Card 3 so both the diagnostic view and the goal
+// queue builder can share one source of truth. Guarantees the final week
+// always lands exactly on `tdee` (v7.01 fix retained).
+function buildReverseDietRows(recentKcal, tdee, weeklyIncrement) {
+  if (!tdee || !recentKcal) return [];
+  const maintenance = Math.round(tdee);
+  const rows = [];
+  let kcal = recentKcal;
+  let week = 1;
+  while (kcal < maintenance - weeklyIncrement / 2 && week <= 60) {
+    kcal = Math.min(kcal + weeklyIncrement, maintenance);
+    rows.push({ week, kcal: Math.round(kcal) });
+    week++;
+  }
+  if (rows.length && rows[rows.length - 1].kcal !== maintenance) {
+    rows[rows.length - 1] = { week: rows[rows.length - 1].week, kcal: maintenance };
+  }
+  return rows;
+}
+
+// ── Cut/bulk-direction weekly kcal ramp ──────────────────────────────────
+// Step-and-hold, not a continuous weekly taper — matches how a cut or bulk
+// actually gets run in practice: pick a level, hold it a few weeks to
+// judge the real trend, then step again. Design choices worth being
+// explicit about:
+// 1. Starts at `startKcal` (the previous cycle's last planned goal, same
+//    "continue from wherever the plan left off" principle as the bridge's
+//    rampStartKcal) rather than jumping straight to some computed ideal —
+//    coming off a bulk, there's no need to drop below TDEE immediately.
+// 2. Step size is asymmetric around TDEE, but ONLY for cuts: bigger while
+//    still on the "easy" side (still in surplus, coming off a bulk) where
+//    there's no adaptation risk yet, smaller once past TDEE into genuinely
+//    restrictive territory where caution actually matters. Bulks do NOT
+//    get this asymmetry — a bulk's entire point is minimizing fat gain, so
+//    there's no "fast phase" that's safe the way there is coming off a
+//    bulk into a cut; bulks always use the smaller, careful step size
+//    throughout, regardless of where they sit relative to TDEE.
+// These are deliberately rough, round numbers rather than a precisely
+// derived curve — the plateau/danger detection in the existing AI advice
+// flow is the real safety net for adjusting mid-cycle; this just needs to
+// be a sane starting estimate, not a precise prescription.
+// `goalTypeRec` is 'loss' (deficit, stepping down toward finalTargetKcal)
+// or 'gain' (surplus, stepping up). `safetyFloor` clamps any level from
+// going below it (cuts only). Returns pre-grouped {startWeek, endWeek,
+// kcal, clamped} rows — already merges consecutive holds at the same
+// level, so callers don't need a separate grouping pass.
+function buildDirectionSteppedRamp(startKcal, finalTargetKcal, tdee, totalWeeks, goalTypeRec, safetyFloor) {
+  if (!startKcal || !finalTargetKcal || !tdee || !totalWeeks) return [];
+  const holdWeeks = 3;   // weeks per step — long enough to judge a real trend
+  const bigStep = 250;   // kcal per step — cuts only, and only on the easy side of TDEE
+  const smallStep = 125; // kcal per step past TDEE (cuts) — and always, throughout, for bulks
+  const isCut = goalTypeRec === 'loss';
+  const pastTDEE = (k) => isCut ? k <= tdee : k >= tdee;
+
+  const rows = [];
+  let kcal = startKcal;
+  let weeksUsed = 0;
+
+  while (weeksUsed < totalWeeks) {
+    let displayKcal = kcal;
+    let clamped = false;
+    if (isCut) {
+      displayKcal = Math.max(displayKcal, finalTargetKcal); // never go past the final target
+      clamped = !!(safetyFloor && displayKcal < safetyFloor);
+      if (clamped) displayKcal = safetyFloor;
+    } else {
+      displayKcal = Math.min(displayKcal, finalTargetKcal); // safety floor only meaningfully applies to cuts
+    }
+    displayKcal = Math.round(displayKcal);
+
+    const weeksThisStep = Math.min(holdWeeks, totalWeeks - weeksUsed);
+    const last = rows[rows.length - 1];
+    if (last && last.kcal === displayKcal) {
+      last.endWeek += weeksThisStep;
+      last.clamped = last.clamped || clamped;
+    } else {
+      rows.push({ startWeek: weeksUsed + 1, endWeek: weeksUsed + weeksThisStep, kcal: displayKcal, clamped });
+    }
+    weeksUsed += weeksThisStep;
+
+    if (kcal !== finalTargetKcal) {
+      const stepSize = isCut ? (pastTDEE(kcal) ? smallStep : bigStep) : smallStep;
+      kcal = isCut ? Math.max(finalTargetKcal, kcal - stepSize) : Math.min(finalTargetKcal, kcal + stepSize);
+    }
+  }
+  return rows;
+}
+
+// ── The core recommendation engine ──
+// Implements the duration×depth matrix (loss→maintenance), the gain→cut
+// default, the loss→loss / gain→gain continuation exceptions (narrative
+// only, no queue), and the maintenance→direction lookback. Returns a single
+// object Card 3 renders directly — see design spec for the full rule set.
+function recommendNextCycle(macro, override) {
+  if (!macro) return null;
+  const goalType = macro.goalType || 'loss';
+  const rollup = state.insightsRollup || { completedCycles: [] };
+  const prevCycle = rollup.completedCycles.length ? rollup.completedCycles[rollup.completedCycles.length - 1] : null;
+
+  const dynResult   = calcDynamicTDEE();
+  const trendResult = calcTrendBasedTDEE();
+  const sustainableRange = getSustainableWeightRange();
+  const safetyFloorKcal = computeSafetyFloor(macro); // existing app function — 80% of log-based BMR, min 1400
+
+  const today = getLocalToday();
+  const macroStart = macro.start || today;
+  const macroEndDate = getMacroEndDate(macro);
+  const macroEnd = toLocalDateStr(macroEndDate);
+  const cycleDurationWeeks = Math.max(1, Math.round((macroEndDate - new Date(macroStart + 'T00:00:00')) / 86400000 / 7));
+
+  const latestLog = [...(state.bodyLogs || [])].filter(l => l.weight).sort((a, b) => b.date.localeCompare(a.date))[0];
+  const latestBw = latestLog ? parseFloat(latestLog.weight) : null;
+
+  const recentKcal = (() => {
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 14);
+    const cutoffStr = toLocalDateStr(cutoff);
+    const logs = (state.nutritionLogs || []).filter(l => l.date >= cutoffStr && parseInt(l.kcal) > 0);
+    if (!logs.length) return null;
+    return Math.round(logs.reduce((a, b) => a + parseInt(b.kcal), 0) / logs.length);
+  })();
+
+  // The reverse-diet ramp (and, as of this build, the cut/bulk-direction
+  // ramp too) should start from the CURRENT CYCLE'S PLAN, not from recent
+  // actual eating — recentKcal (above) reflects adherence noise in either
+  // direction and stays in use for depth classification / TDEE work, where
+  // actual behavior is exactly what's needed. But a ramp's job is to
+  // continue from wherever the current plan actually left off, so it
+  // should begin at whatever the current macro's LAST (most recent by end
+  // date) goal actually targets — falling back to recentKcal only if the
+  // current cycle has no goals logged yet. Synthetic test scenarios carry
+  // a fixed startKcal directly, for the same contamination reasons as the
+  // gain branch's totalGain/gainRatePerWeek/surplus overrides.
+  const currentCycleGoals = (state.goals || []).filter(g => g.macroId === macro.id);
+  const lastGoalInCycle = currentCycleGoals.length
+    ? currentCycleGoals.reduce((latest, g) => (!latest || g.endDate > latest.endDate) ? g : latest, null)
+    : null;
+  const rampStartKcal = macro._synthetic && macro._synthetic.startKcal
+    ? macro._synthetic.startKcal
+    : ((lastGoalInCycle && lastGoalInCycle.kcal) ? parseInt(lastGoalInCycle.kcal) : recentKcal);
+
+  const rationale = [];
+  let goalTypeRec = null;
+  let isContinuation = false;
+  let bridge = null;       // { climbWeeks, minBridgeWeeks, totalWeeks, fillWeeks, weeklyIncrement, rows }
+  let placeholderWeeks = null; // used for gain→cut / maintenance→direction (no formula-derived length yet)
+  let taper = null; // 1.5%→1%/0.5% safe-rate curve, informational only in Phase 1 (no deadline input yet)
+  let overrideConflict = null; // set when a Phase 2 target-weight/deadline override can't be safely honored
+  let directionRamp = []; // weekly kcal table for cut/bulk-direction recommendations (§ buildDirectionSteppedRamp)
+  let needsDirectionChoice = false; // maintenance with no determinable direction — Card 3 offers both routes
+  let directionWasForced = false; // direction came from override.forcedDirection, not history — Card 3 offers a back button
+  // Set only for the loss→loss / gain→gain continuation exceptions — the
+  // "normal logic" alternative that would have been recommended had this
+  // NOT qualified as short+mild/short-and-not-excessive. Structurally a
+  // full substitute rec (goalType/rationale/bridge/directionRamp/newMacroEnd
+  // etc., sharing this rec's newMacroStart/dynResult/sustainableRange/etc.)
+  // so it can be fed to fillNextCycleMacroModal()/buildNextCycleGoalSteps()
+  // exactly like a primary recommendation, and so the Phase 4 prompt can
+  // treat it as the thing actually being planned for. Never set for
+  // maintenance — maintenance has no continuation exception to begin with.
+  let continuationAlternative = null;
+
+  // Applies a 12-week default, or — for cut/bulk-direction cases only, per
+  // §4.3 — a resolved target-weight/deadline override if one was given and
+  // it clears both the floor/ceiling safety check and the taper pace check.
+  // Shared by the gain→cut and maintenance→direction branches below (and,
+  // for the continuation-alternative case, called a second time to compute
+  // the "normal logic" alternative) — all otherwise identical in how they
+  // size their placeholder duration. Also builds the weekly kcal ramp once
+  // the duration is settled — using the requested target weight if one was
+  // given, otherwise defaulting to the taper curve's own maximum safe
+  // change for that duration (i.e. "assume the safest fastest pace" as the
+  // default, the same philosophy the bridge already uses without needing
+  // any user input).
+  //
+  // Pure w.r.t. the outer scope — returns its results rather than mutating
+  // rationale/overrideConflict/directionRamp/newMacroEnd/placeholderWeeks
+  // directly, so it can safely run twice in the same recommendNextCycle()
+  // call (once for the primary recommendation, once for a continuation's
+  // alternative) without the two calls clobbering each other. `useOverride`
+  // is `override` for the primary call, or `null` when computing an
+  // alternative — a target-weight/deadline typed against the PRIMARY
+  // direction has no meaning for a different direction.
+  const applyPlaceholderOrOverride = (recGoalType, useOverride) => {
+    const out = { rationale: [], overrideConflict: null, directionRamp: [], newMacroEnd: null, placeholderWeeks: null };
+    const resolved = resolveNextCycleOverride(latestBw, recGoalType, sustainableRange, newMacroStart, useOverride);
+    let finalWeeks;
+    if (resolved && resolved.conflict) {
+      out.overrideConflict = resolved.conflict;
+      out.rationale.push(`Requested target couldn't be safely applied: ${resolved.conflict.message}`);
+      return out; // no ramp, no dates — Card 3 shows the conflict UI instead
+    } else if (resolved) {
+      out.placeholderWeeks = null; // no longer a default — this is a user-set duration
+      out.newMacroEnd = resolved.endDate;
+      finalWeeks = resolved.weeks;
+      out.rationale.push(`Using your requested target: cycle ends ${resolved.endDate} (${resolved.weeks} weeks).`);
+    } else {
+      out.placeholderWeeks = 12;
+      const d = new Date(newMacroStart + 'T00:00:00');
+      d.setDate(d.getDate() + out.placeholderWeeks * 7 - 1);
+      out.newMacroEnd = toLocalDateStr(d);
+      finalWeeks = out.placeholderWeeks;
+    }
+
+    if (latestBw && dynResult) {
+      let rampTargetWeight = (useOverride && useOverride.targetWeight) ? useOverride.targetWeight : null;
+      if (rampTargetWeight === null) {
+        const t = computeTaperCurve(latestBw, finalWeeks);
+        if (t) rampTargetWeight = parseFloat((recGoalType === 'loss' ? latestBw - t.totalSafeChange : latestBw + t.totalSafeChange).toFixed(1));
+      }
+      if (rampTargetWeight !== null) {
+        const requestedChange = Math.abs(rampTargetWeight - latestBw);
+        const avgDailyDelta = Math.round((requestedChange * 3500) / (finalWeeks * 7));
+        const finalTargetKcal = recGoalType === 'loss' ? Math.round(dynResult.tdee) - avgDailyDelta : Math.round(dynResult.tdee) + avgDailyDelta;
+        out.directionRamp = buildDirectionSteppedRamp(rampStartKcal, finalTargetKcal, dynResult.tdee, finalWeeks, recGoalType, safetyFloorKcal);
+        out.rationale.push(`Weekly kcal steps built from ${rampStartKcal ? rampStartKcal.toLocaleString() : '?'} kcal (current cycle's last goal) toward a ${finalTargetKcal.toLocaleString()} kcal steady state over ${finalWeeks} weeks, aiming for a ${rampTargetWeight} lbs target${(useOverride && useOverride.targetWeight) ? '' : ' (taper curve default — no target weight set)'}. Bigger steps while still on the easy side of TDEE, smaller steps once past it, held a few weeks at a time — a rough estimate, not a precise prescription, given the AI advice flow can catch a real plateau mid-cycle.`);
+        const clampedSteps = out.directionRamp.filter(r => r.clamped).length;
+        if (clampedSteps > 0) {
+          out.rationale.push(`${clampedSteps} step${clampedSteps !== 1 ? 's' : ''} capped at the ${safetyFloorKcal.toLocaleString()} kcal safety floor — the resulting pace will be slower than the raw target implies.`);
+        }
+        const lastStepKcal = out.directionRamp.length ? out.directionRamp[out.directionRamp.length - 1].kcal : null;
+        if (lastStepKcal !== null && lastStepKcal !== finalTargetKcal) {
+          out.rationale.push(`This cycle's length doesn't fit enough steps to fully reach the ${finalTargetKcal.toLocaleString()} kcal steady state (ends at ${lastStepKcal.toLocaleString()} instead) — the fixed step sizes deliberately don't force an oversized final jump just to land exactly on target. Extend the cycle or reassess near its end if you want to close the gap.`);
+        }
+      }
+    }
+    return out;
+  };
+  let newMacroStart = getNextMacroStart();
+  let newMacroEnd = null; // computed once duration is known
+
+  if (goalType === 'loss') {
+    const cutDepth = (dynResult && recentKcal) ? dynResult.tdee - recentKcal : null;
+    const pctOfTDEE = (dynResult && cutDepth !== null) ? cutDepth / dynResult.tdee : null;
+
+    let depthBand = 'mild';
+    if (cutDepth !== null && (cutDepth > 700 || (pctOfTDEE !== null && pctOfTDEE > 0.25))) depthBand = 'aggressive';
+    else if (cutDepth !== null && (cutDepth > 500 || (pctOfTDEE !== null && pctOfTDEE > 0.15))) depthBand = 'moderate';
+    // Synthetic test scenarios (Card 3 preview dropdown) carry a fixed
+    // depth band directly, since faking dynResult/recentKcal to derive one
+    // isn't worth the complexity — see SYNTHETIC_NEXT_CYCLE_SCENARIOS.
+    if (macro._synthetic && macro._synthetic.depthBandOverride) depthBand = macro._synthetic.depthBandOverride;
+
+    let durationBand = 'short';
+    if (cycleDurationWeeks > 16) durationBand = 'long';
+    else if (cycleDurationWeeks >= 8) durationBand = 'medium';
+
+    const matrix = {
+      short:  { mild: 2, moderate: 3, aggressive: 4 },
+      medium: { mild: 3, moderate: 4, aggressive: 6 },
+      long:   { mild: 4, moderate: 6, aggressive: 8 },
+    };
+    const bridgeWeeksMin = matrix[durationBand][depthBand];
+
+    // Taper curve — informational only in Phase 1 (no deadline/target-weight
+    // input exists yet to actually constrain against it). Sized against the
+    // cut just completed, so this is a look-back sanity check for now: was
+    // the pace that was actually run within the 1.5%→1%/0.5% safe band?
+    if (latestBw) {
+      taper = computeTaperCurve(latestBw, cycleDurationWeeks);
+    }
+
+    rationale.push(`Current cut ran ${cycleDurationWeeks} weeks (${durationBand}) at a ${depthBand} deficit${cutDepth !== null ? ` (~${Math.abs(Math.round(cutDepth))} kcal/day below TDEE)` : ' (not enough data to size the deficit)'}.`);
+
+    // Computes the maintenance bridge that follows this cut — used as the
+    // PRIMARY recommendation whenever this cut doesn't qualify for
+    // continuation, and as the "normal logic" alternative when it does.
+    // Pure w.r.t. outer scope, same reasoning as applyPlaceholderOrOverride.
+    const computeMaintenanceBridgeFromCut = () => {
+      const out = { rationale: [], bridge: null, newMacroEnd: null };
+      // Derived from depthBand directly, not recomputed from raw cutDepth —
+      // depthBand's 'aggressive' threshold also considers % of TDEE, not
+      // just raw kcal, so recomputing here independently could disagree
+      // with what the rationale text just said. Also correctly picks up
+      // the synthetic depthBandOverride when previewing a test scenario.
+      const isAggressiveCut = depthBand === 'aggressive';
+      const weeklyIncrement = isAggressiveCut ? 75 : 125;
+      const rows = buildReverseDietRows(rampStartKcal, dynResult ? dynResult.tdee : null, weeklyIncrement);
+      const climbWeeks = rows.length;
+      // bridgeWeeksMin is time spent AT (or effectively at) TDEE-level intake,
+      // not the total bridge length. The final climb week already lands
+      // exactly on TDEE (guaranteed by buildReverseDietRows), so it counts
+      // as the first hold week — only bridgeWeeksMin-1 additional flat weeks
+      // are needed after any climb. If there's no climb at all (already at
+      // TDEE), the full bridgeWeeksMin becomes flat hold weeks.
+      const fillWeeks = climbWeeks > 0 ? Math.max(0, bridgeWeeksMin - 1) : bridgeWeeksMin;
+      const totalWeeks = climbWeeks + fillWeeks;
+      // Canonical full week-by-week table (climb + flat fill weeks) — shared
+      // by the diagnostic table and the goal queue builder, so both always
+      // agree on what a "7-week bridge" actually contains.
+      const maintenanceKcal = dynResult ? Math.round(dynResult.tdee) : (rows.length ? rows[rows.length - 1].kcal : null);
+      const fullRows = rows.slice();
+      for (let fw = 1; fw <= fillWeeks; fw++) {
+        fullRows.push({ week: climbWeeks + fw, kcal: maintenanceKcal, isHoldWeek: true });
+      }
+      out.bridge = { climbWeeks, minBridgeWeeks: bridgeWeeksMin, totalWeeks, fillWeeks, weeklyIncrement, rows, fullRows, depthBand, durationBand, rampStartKcal };
+      out.rationale.push(rampStartKcal !== recentKcal
+        ? `Ramp starts at ${rampStartKcal.toLocaleString()} kcal — the current cycle's last planned goal, not the ${recentKcal ? recentKcal.toLocaleString() + ' kcal 14-day actual average' : 'unavailable 14-day actual average'}. Starting from the plan (not adherence noise) errs toward a longer, more conservative climb.`
+        : `Ramp starts at ${rampStartKcal ? rampStartKcal.toLocaleString() : '?'} kcal (plan and recent actual eating currently agree).`);
+      out.rationale.push(`Recommended time at maintenance-level intake: minimum ${bridgeWeeksMin} weeks (matrix: ${durationBand} × ${depthBand}).`);
+      if (climbWeeks) {
+        out.rationale.push(fillWeeks > 0
+          ? `The reverse-diet ramp to TDEE takes ${climbWeeks} week${climbWeeks !== 1 ? 's' : ''} at +${weeklyIncrement} kcal/week — its final week already lands exactly on TDEE and counts as the first maintenance week, so ${fillWeeks} more flat week${fillWeeks !== 1 ? 's' : ''} at TDEE complete the ${bridgeWeeksMin}-week minimum (total: ${totalWeeks} weeks).`
+          : `The reverse-diet ramp to TDEE takes ${climbWeeks} weeks at +${weeklyIncrement} kcal/week, and its final week alone already satisfies the ${bridgeWeeksMin}-week minimum — no extra flat weeks needed.`);
+      } else {
+        out.rationale.push(`Not enough recent kcal/weight data yet to compute the reverse-diet ramp — recommending ${bridgeWeeksMin} flat weeks at TDEE until more data is available.`);
+      }
+      const d = new Date(newMacroStart + 'T00:00:00');
+      d.setDate(d.getDate() + totalWeeks * 7 - 1);
+      out.newMacroEnd = toLocalDateStr(d);
+      return out;
+    };
+
+    if (durationBand === 'short' && depthBand === 'mild') {
+      goalTypeRec = 'loss';
+      isContinuation = true;
+      rationale.push('Short and mild — reasonable to continue cutting without a maintenance bridge. Consider extending this cut by roughly 2–4 weeks yourself, then reassess against these same rules.');
+      // "Normal logic" alternative — what would have been recommended had
+      // this NOT qualified as short+mild. Computed alongside the
+      // continuation, never in place of it — Card 3 and the Phase 4
+      // prompt both surface it.
+      const alt = computeMaintenanceBridgeFromCut();
+      continuationAlternative = {
+        goalType: 'maintenance', isContinuation: false, rationale: alt.rationale,
+        bridge: alt.bridge, directionRamp: [], overrideConflict: null,
+        newMacroStart, newMacroEnd: alt.newMacroEnd, placeholderWeeks: null,
+        cycleDurationWeeks, dynResult, trendResult, sustainableRange,
+        latestBw, recentKcal, rampStartKcal,
+      };
+    } else {
+      goalTypeRec = 'maintenance';
+      const primary = computeMaintenanceBridgeFromCut();
+      rationale.push(...primary.rationale);
+      bridge = primary.bridge;
+      newMacroEnd = primary.newMacroEnd;
+    }
+  } else if (goalType === 'gain') {
+    // Synthetic test scenarios provide these directly (§ preview dropdown)
+    // rather than deriving from state.bodyLogs — a fake macro's start date
+    // would otherwise pull in real logged data from that period (e.g. the
+    // person's actual cut), which has nothing to do with the fake bulk
+    // being tested and would produce a nonsensical rate/surplus figure.
+    const synth = macro._synthetic;
+    const cycleLogs = synth ? [] : [...(state.bodyLogs || [])].filter(l => l.weight && l.date >= macroStart).sort((a, b) => a.date.localeCompare(b.date));
+    const startBw = cycleLogs.length ? parseFloat(cycleLogs[0].weight) : null;
+    const totalGain = synth ? synth.totalGain : ((startBw !== null && latestBw !== null) ? latestBw - startBw : null);
+    const gainRatePerWeek = synth ? synth.gainRatePerWeek : ((totalGain !== null && cycleDurationWeeks > 0) ? totalGain / cycleDurationWeeks : null);
+    const surplus = synth ? synth.surplus : ((dynResult && recentKcal) ? recentKcal - dynResult.tdee : null);
+    const excessiveSurplus = surplus !== null && surplus > 500;
+    const isShortBulk = cycleDurationWeeks < 10;
+    const isMildRate = gainRatePerWeek !== null && gainRatePerWeek <= 0.35;
+
+    rationale.push(`Current bulk ran ${cycleDurationWeeks} weeks${totalGain !== null ? `, gaining ~${totalGain.toFixed(1)} lbs (~${gainRatePerWeek.toFixed(2)} lbs/week)` : ''}${surplus !== null ? `, averaging ~${Math.round(surplus)} kcal/day above TDEE` : ''}.`);
+
+    // Computes the cut that follows this bulk — used as the PRIMARY
+    // recommendation whenever this bulk doesn't qualify for continuation,
+    // and as the "normal logic" alternative when it does. `useOverride` is
+    // `override` for the primary call, `null` for the alternative (a
+    // target/deadline typed against "continue bulk" has no meaning for a
+    // cut). Pure w.r.t. outer scope, wraps applyPlaceholderOrOverride.
+    const computeCutFromBulk = (useOverride) => {
+      const rat = [];
+      rat.push('A bulk-to-cut transition doesn\'t need a mandatory bridge — surplus doesn\'t cause the same adaptive suppression a deficit does.');
+      if (cycleDurationWeeks > 12) {
+        rat.push('This bulk ran long enough (>12 weeks) that a short 1–2 week maintenance step first would give a cleaner TDEE reading at your new weight before setting cut targets — optional, not physiologically required.');
+      }
+      const res = applyPlaceholderOrOverride('loss', useOverride);
+      return { goalType: 'loss', rationale: rat.concat(res.rationale), bridge: null, directionRamp: res.directionRamp, newMacroEnd: res.newMacroEnd, placeholderWeeks: res.placeholderWeeks, overrideConflict: res.overrideConflict };
+    };
+
+    if ((isShortBulk && !excessiveSurplus) || isMildRate) {
+      goalTypeRec = 'gain';
+      isContinuation = true;
+      rationale.push(isMildRate
+        ? `Gain rate has been mild (≤0.35 lbs/week) — comfortable to extend even though the cycle itself may read as long. Consider extending by roughly 2–4 weeks, then reassess.`
+        : `Bulk is still short and the surplus isn't excessive — reasonable to extend by roughly 2–4 weeks, then reassess.`);
+      // "Normal logic" alternative — the cut this bulk would transition
+      // into if it weren't continuing. Card 3 and the Phase 4 prompt both
+      // surface it.
+      const alt = computeCutFromBulk(null);
+      continuationAlternative = {
+        goalType: alt.goalType, isContinuation: false, rationale: alt.rationale,
+        bridge: alt.bridge, directionRamp: alt.directionRamp, overrideConflict: alt.overrideConflict,
+        newMacroStart, newMacroEnd: alt.newMacroEnd, placeholderWeeks: alt.placeholderWeeks,
+        cycleDurationWeeks, dynResult, trendResult, sustainableRange,
+        latestBw, recentKcal, rampStartKcal,
+      };
+    } else {
+      const primary = computeCutFromBulk(override);
+      goalTypeRec = primary.goalType;
+      rationale.push(...primary.rationale);
+      directionRamp = primary.directionRamp;
+      newMacroEnd = primary.newMacroEnd;
+      placeholderWeeks = primary.placeholderWeeks;
+      overrideConflict = primary.overrideConflict;
+    }
+  } else {
+    // maintenance
+    let autoDirection = null;
+    if (prevCycle) {
+      autoDirection = prevCycle.goalType === 'gain' ? 'loss' : (prevCycle.goalType === 'loss' ? 'gain' : null);
+    }
+
+    if (autoDirection) {
+      goalTypeRec = autoDirection;
+      rationale.push(`This maintenance bridge followed a ${prevCycle.goalType === 'gain' ? 'bulk' : 'cut'} (${prevCycle.name}) — direction continues ${goalTypeRec === 'gain' ? 'into a bulk' : 'into a cut'}.`);
+      const res = applyPlaceholderOrOverride(goalTypeRec, override);
+      rationale.push(...res.rationale);
+      overrideConflict = res.overrideConflict;
+      directionRamp = res.directionRamp;
+      newMacroEnd = res.newMacroEnd;
+      placeholderWeeks = res.placeholderWeeks;
+    } else if (override && override.forcedDirection) {
+      // No history to determine direction automatically, but the user
+      // picked one via Card 3's cut/bulk choice buttons — proceed exactly
+      // as if it had been auto-determined. directionWasForced flags this
+      // so Card 3 can offer a way back to the choice screen.
+      goalTypeRec = override.forcedDirection;
+      directionWasForced = true;
+      rationale.push(`No completed cycle history to determine a direction automatically — you chose to plan a ${goalTypeRec === 'gain' ? 'bulk' : 'cut'}.`);
+      const res = applyPlaceholderOrOverride(goalTypeRec, override);
+      rationale.push(...res.rationale);
+      overrideConflict = res.overrideConflict;
+      directionRamp = res.directionRamp;
+      newMacroEnd = res.newMacroEnd;
+      placeholderWeeks = res.placeholderWeeks;
+    } else {
+      // Genuinely ambiguous — offer both routes rather than a dead end.
+      // Card 3 renders two buttons; picking one sets override.forcedDirection
+      // and this whole function re-runs, landing in the branch above.
+      needsDirectionChoice = true;
+      rationale.push(prevCycle
+        ? `The cycle before this maintenance bridge (${prevCycle.name}) wasn't a cut or bulk — not enough history to determine a direction automatically. Choose one below.`
+        : 'No completed cycle history yet to determine which direction to continue in. Choose one below.');
+    }
+  }
+
+  return {
+    goalType: goalTypeRec, isContinuation, rationale, bridge, placeholderWeeks, taper, overrideConflict, directionRamp, needsDirectionChoice, directionWasForced,
+    continuationAlternative,
+    newMacroStart, newMacroEnd,
+    cycleDurationWeeks, dynResult, trendResult, sustainableRange,
+    latestBw, recentKcal, rampStartKcal,
+  };
+}
+
 function getInsightsCard() {
   const wrap = document.getElementById('progress-body');
   return wrap ? wrap.querySelector('.card') : null;
@@ -5204,47 +5986,12 @@ function renderProgress() {
     return { weeks: (daysToGoal / 7).toFixed(1), date: etaDate.toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}), ratePerWeek: Math.abs(ratePerDay * 7).toFixed(2) };
   })();
 
-  // ── Reverse-diet / next-cycle projection ─────────────────────────────────
-  // Read next-cycle goal from DOM (if card 3 rendered), else default to
-  // the opposite of current goal.
-  const nextGoalEl = document.getElementById('insights-next-goal');
-  const nextGoal   = nextGoalEl ? nextGoalEl.value : (isGainCycle ? 'loss' : 'maintenance');
+  // ── Next cycle recommendation (deterministic engine, computed once for card3) ──
+  const _previewMacro = _nextCyclePreviewMacroId
+    ? (state.macrocycles || []).find(m => m.id === _nextCyclePreviewMacroId)
+    : null;
+  const nextCycleRec = recommendNextCycle(_previewMacro || macro, _nextCycleOverride);
 
-  // Current average kcal intake: last 14 days of nutritionLogs
-  const recentKcal = (() => {
-    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 14);
-    const cutoffStr = toLocalDateStr(cutoff);
-    const logs = (state.nutritionLogs||[]).filter(l => l.date >= cutoffStr && parseInt(l.kcal) > 0);
-    if (!logs.length) return null;
-    return Math.round(logs.reduce((a,b) => a + parseInt(b.kcal), 0) / logs.length);
-  })();
-
-  // Aggressive cut = deficit > 700 kcal/day vs TDEE
-  const isAggressiveCut = dynResult !== null && recentKcal !== null && (dynResult.tdee - recentKcal) > 700;
-  const weeklyIncrement  = isAggressiveCut ? 75 : 125; // kcal added per week during reverse diet
-
-  // Generate reverse-diet weekly projections up to maintenance
-  const reverseDietRows = (() => {
-    if (!dynResult || !recentKcal) return [];
-    const maintenance = Math.round(dynResult.tdee);
-    const rows = [];
-    let kcal = recentKcal;
-    let week = 1;
-    // 60-week safety cap — generous enough that the Math.min clamp below
-    // always resolves the ramp naturally before it's ever hit.
-    while (kcal < maintenance - weeklyIncrement/2 && week <= 60) {
-      kcal = Math.min(kcal + weeklyIncrement, maintenance);
-      rows.push({ week, kcal: Math.round(kcal) });
-      week++;
-    }
-    // Safety net: guarantee the final week always lands exactly on TDEE
-    // (the intended "sit at maintenance" endpoint), even in an edge case
-    // where the cap above is reached before the ramp naturally arrives.
-    if (rows.length && rows[rows.length - 1].kcal !== maintenance) {
-      rows[rows.length - 1] = { week: rows[rows.length - 1].week, kcal: maintenance };
-    }
-    return rows;
-  })();
 
   // ──────────────────────────────────────────────────────────────────────────
   // Build the 3 insight cards
@@ -5294,66 +6041,218 @@ function renderProgress() {
     ${etaHtml}
   </div>`;
 
-  // ─── Card 3: Next cycle tips ──────────────────────────────────────────────
-  const nextGoalOptions = [
-    { value: 'cut',         label: 'Cut (weight loss)' },
-    { value: 'maintenance', label: 'Maintenance' },
-    { value: 'bulk',        label: 'Bulk (muscle gain)' },
-  ];
-  const nextGoalDropdown = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-    <span style="font-size:11px;color:var(--text3);white-space:nowrap;">Next cycle goal:</span>
-    <select id="insights-next-goal" onchange="renderProgress()"
-      style="flex:1;font-size:12px;padding:5px 8px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
-      ${nextGoalOptions.map(o => `<option value="${o.value}"${nextGoal===o.value?' selected':''}>${o.label}</option>`).join('')}
-    </select>
-  </div>`;
+  // ─── Card 3: Next cycle — simplified to weekly kcal projections only ─────
+  // Stripped down from the Phase 1 diagnostic view to just the ramp table +
+  // button, specifically to validate the rampStartKcal change in isolation.
+  // The underlying computations (sustainableRange, taper, trendResult) are
+  // still returned by recommendNextCycle() untouched — just not rendered
+  // here right now. New targeted validation views (including the full LLM
+  // request payload once that's built) get added back in as each piece of
+  // Phase 2+ actually needs validating, rather than showing everything.
+  const rec = nextCycleRec;
+  const goalTypeLabel = { loss: 'Cut', gain: 'Bulk', maintenance: 'Maintenance' };
 
-  // Current state summary
-  const cutDepth = dynResult && recentKcal ? dynResult.tdee - recentKcal : null;
-  const summaryLines = [];
-  if (recentKcal) summaryLines.push(`You're eating <strong>~${recentKcal.toLocaleString()} kcal/day</strong> (14-day avg)`);
-  if (cutDepth !== null) summaryLines.push(`${isGainCycle ? 'Surplus' : 'Deficit'}: ~<strong>${Math.abs(Math.round(cutDepth)).toLocaleString()} kcal/day</strong> — ${Math.abs(cutDepth) > 700 ? '<strong>aggressive</strong>' : 'moderate'}`);
-  if (goalWeightETA) summaryLines.push(`On track for <strong>${macro.targetBw} lbs</strong> by ~<strong>${goalWeightETA.date}</strong>`);
+  // Preview-macro dropdown (testing aid) — always shows *something* now,
+  // even when there's nothing to preview, since silently rendering nothing
+  // gave zero feedback about why the dropdown wasn't there.
+  const previewOptions = (state.macrocycles || []).filter(m => m.id !== macro.id);
+  const previewDropdownHtml = previewOptions.length
+    ? `<div style="margin-bottom:10px;">
+        <div style="font-size:10px;color:var(--text3);margin-bottom:3px;">Preview recommendation for (testing only — doesn't affect "Build this plan next"):</div>
+        <select onchange="updateNextCyclePreviewMacro(this.value)"
+          style="width:100%;font-size:12px;padding:6px 8px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+          <option value="">${macro.name} (active)</option>
+          ${previewOptions.map(m => `<option value="${m.id}"${_nextCyclePreviewMacroId === m.id ? ' selected' : ''}>${m.name}</option>`).join('')}
+        </select>
+      </div>`
+    : '';
 
-  // Build tip text based on next goal
-  let tipText = '';
-  if (nextGoal === 'cut') {
-    tipText = cutDepth && cutDepth > 700
-      ? 'Your current cut is aggressive. Before starting a new cut cycle, consider a 4–8 week maintenance phase to allow your metabolism to recover.'
-      : 'Your current deficit is sustainable. You can transition straight into another cut cycle, or take a short maintenance break first.';
-  } else if (nextGoal === 'maintenance') {
-    tipText = dynResult
-      ? `Aim to eat at your TDEE of <strong>${dynResult.tdee.toLocaleString()} kcal/day</strong>. A 4–8 week maintenance phase lets your metabolism recover and makes the next phase more effective.`
-      : 'Log more weight + calorie data to get a personalised maintenance target.';
-    if (isAggressiveCut && reverseDietRows.length) {
-      tipText += ` Since you're in an aggressive deficit, a gradual reverse diet is recommended rather than jumping straight to maintenance.`;
-    }
-  } else if (nextGoal === 'bulk') {
-    const bulkTarget = dynResult ? dynResult.tdee + 250 : null;
-    tipText = bulkTarget
-      ? `For a lean bulk, aim for <strong>${bulkTarget.toLocaleString()} kcal/day</strong> (~250 kcal surplus). After an aggressive cut, build back to maintenance first to preserve muscle.`
-      : 'Log more data to get a personalised bulk target.';
-  }
+  const headerHtml = rec
+    ? `<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">
+        ${rec.goalType ? `Recommended: ${goalTypeLabel[rec.goalType] || rec.goalType}${rec.isContinuation ? ' (extend current cycle)' : ''}` : (rec.needsDirectionChoice ? 'Choose a direction' : 'No recommendation yet')}
+      </div>${rec.isContinuation && rec.rationale.length ? `<div style="font-size:12px;color:var(--text2);margin-bottom:10px;">${rec.rationale[rec.rationale.length - 1]}</div>` : ''}`
+    : '';
 
-  // Reverse diet table (shown for maintenance or bulk when coming from a cut)
-  let reverseDietTable = '';
-  if (!isGainCycle && reverseDietRows.length && (nextGoal === 'maintenance' || nextGoal === 'bulk')) {
-    const rows = reverseDietRows.map(r =>
-      `<tr><td style="padding:3px 8px;color:var(--text3);">Wk ${r.week}</td><td style="padding:3px 8px;color:var(--text);font-weight:500;">${r.kcal.toLocaleString()} kcal</td></tr>`
+  // "Normal logic" alternative — whenever the deterministic engine's
+  // default is to extend the current cycle instead, it also computes what
+  // it would have recommended had that not been the case (continues into
+  // a maintenance bridge, or a bulk into a cut). Shown as its own small
+  // option here, with a button that builds it directly — bypassing the
+  // extend-yourself default without needing to wait out the extension
+  // first. Never shown for a genuinely new-cycle recommendation, since
+  // there's nothing to be an alternative TO in that case.
+  const continuationAlternativeHtml = (rec && rec.isContinuation && rec.continuationAlternative && rec.continuationAlternative.goalType)
+    ? (() => {
+        const alt = rec.continuationAlternative;
+        const altLabel = goalTypeLabel[alt.goalType] || alt.goalType;
+        const altSummaryLine = (alt.rationale && alt.rationale.length) ? alt.rationale[alt.rationale.length - 1] : '';
+        return `<div style="margin-bottom:10px;padding:10px;border-radius:var(--r-sm);background:var(--surface2);border:0.5px solid var(--border2);">
+          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Alternative — ${altLabel}</div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">${altSummaryLine}</div>
+          ${alt.overrideConflict ? '' : `<button onclick="openNextCycleMacroModal(true)"
+            style="width:100%;padding:9px;border-radius:8px;font-size:12px;font-weight:600;background:var(--surface);color:var(--text);border:0.5px solid var(--border2);cursor:pointer;">
+            Build the ${altLabel} option instead →
+          </button>`}
+        </div>`;
+      })()
+    : '';
+
+  // Direction choice (bulk vs cut) — shown when a maintenance bridge has no
+  // determinable direction (no prior cycle, or the prior cycle also wasn't
+  // a cut or bulk) rather than leaving a dead end. Picking one sets
+  // override.forcedDirection and recommendNextCycle() re-runs, landing
+  // exactly where the auto-determined case would have.
+  const directionChoiceHtml = (rec && rec.needsDirectionChoice)
+    ? `<div style="font-size:12px;color:var(--text2);line-height:1.6;padding:10px;background:var(--surface2);border-radius:var(--r-sm);margin-bottom:10px;">
+        ${rec.rationale[rec.rationale.length - 1] || 'Choose a direction for the next cycle:'}
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button onclick="applyNextCycleOverrideValue('forcedDirection', 'loss')"
+            style="flex:1;padding:9px;border-radius:8px;font-size:12px;font-weight:600;background:var(--surface);color:var(--text);border:0.5px solid var(--border2);cursor:pointer;">
+            Plan a cut
+          </button>
+          <button onclick="applyNextCycleOverrideValue('forcedDirection', 'gain')"
+            style="flex:1;padding:9px;border-radius:8px;font-size:12px;font-weight:600;background:var(--surface);color:var(--text);border:0.5px solid var(--border2);cursor:pointer;">
+            Plan a bulk
+          </button>
+        </div>
+      </div>` : '';
+
+  // Maintenance-specific informational text (§2.4) — maintenance goals get
+  // no target-weight input at all (Phase 2, §4.3): the actual goal is
+  // behavioral stability at TDEE, not a number on the scale, so this
+  // replaces a weight field entirely rather than sitting alongside one.
+  const maintenanceInfoHtml = (rec && rec.goalType === 'maintenance' && !rec.isContinuation)
+    ? `<div style="font-size:12px;color:var(--text2);line-height:1.6;padding:10px;background:var(--surface2);border-radius:var(--r-sm);margin-bottom:10px;">
+        Expect the scale to rise 2–6 lbs during this bridge — mostly water and glycogen refilling, not fat. True fat regain during a properly executed reverse diet is typically under 1–2 lbs over 8–12 weeks. This phase ends when your weekly average has been stable for 2–3 weeks — that's the real signal, not a specific weight.
+      </div>` : '';
+
+  // Target weight / deadline input (Phase 2, §4) — cut/bulk-direction
+  // recommendations only, never maintenance (per §4.3, resolved this phase:
+  // maintenance gets no target-weight/end-date inputs at all).
+  const isDirectionCase = rec && rec.goalType && rec.goalType !== 'maintenance' && !rec.isContinuation;
+  const targetInputHtml = isDirectionCase
+    ? `<div style="margin-bottom:10px;">
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <div style="flex:1;">
+            <div style="font-size:10px;color:var(--text3);margin-bottom:3px;">Target weight (optional)</div>
+            <input type="number" step="0.1" placeholder="${rec.latestBw || '—'} lbs"
+              value="${_nextCycleOverride.targetWeight !== null ? _nextCycleOverride.targetWeight : ''}"
+              onchange="updateNextCycleOverride('targetWeight', this.value)"
+              style="width:100%;font-size:13px;padding:7px 8px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:10px;color:var(--text3);margin-bottom:3px;">Deadline (optional, snaps to Sunday)</div>
+            <input type="date"
+              value="${_nextCycleOverride.deadline || ''}"
+              onchange="updateNextCycleOverride('deadline', this.value)"
+              style="width:100%;font-size:13px;padding:7px 8px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+          </div>
+        </div>
+        ${rec.overrideConflict ? `
+          <div style="font-size:12px;color:var(--text2);line-height:1.6;padding:10px;background:var(--surface2);border-left:2px solid var(--amber, #d99a3a);border-radius:var(--r-sm);margin-bottom:8px;">
+            ${rec.overrideConflict.message}
+          </div>
+          <div style="display:flex;gap:8px;">
+            ${rec.overrideConflict.altDate ? `<button onclick="applyNextCycleOverrideValue('deadline', '${rec.overrideConflict.altDate}')"
+                style="flex:1;padding:8px;border-radius:8px;font-size:11px;font-weight:600;background:var(--surface2);color:var(--text);border:0.5px solid var(--border2);cursor:pointer;">
+                Use ${rec.overrideConflict.altDate} instead
+              </button>` : ''}
+            ${rec.overrideConflict.altWeight !== null && rec.overrideConflict.altWeight !== undefined ? `<button onclick="applyNextCycleOverrideValue('targetWeight', ${rec.overrideConflict.altWeight})"
+                style="flex:1;padding:8px;border-radius:8px;font-size:11px;font-weight:600;background:var(--surface2);color:var(--text);border:0.5px solid var(--border2);cursor:pointer;">
+                Use ${rec.overrideConflict.altWeight} lbs instead
+              </button>` : ''}
+          </div>
+        ` : (_nextCycleOverride.targetWeight || _nextCycleOverride.deadline)
+          ? `<div style="font-size:11px;color:var(--text3);">Applied — new cycle now ${rec.newMacroStart} – ${rec.newMacroEnd} (${rec.placeholderWeeks === null ? 'from your target' : rec.placeholderWeeks + 'wk default'}).</div>`
+          : `<div style="font-size:11px;color:var(--text3);">No target set — using the ${rec.placeholderWeeks}wk default (${rec.newMacroStart} – ${rec.newMacroEnd}).</div>`
+        }
+      </div>` : '';
+
+  // Reused weekly kcal table (loss→maintenance bridge case only) — shows
+  // the full bridge: climb weeks + flat hold weeks, matching what the goal
+  // queue will actually build. This is the one thing being actively
+  // validated right now (rampStartKcal sourced from the current cycle's
+  // last goal, not recent actual eating).
+  const bridgeTableHtml = (rec && rec.bridge && rec.bridge.fullRows.length) ? (() => {
+    const rows = rec.bridge.fullRows.map(r =>
+      `<tr><td style="padding:3px 8px;color:var(--text3);">Wk ${r.week}${r.isHoldWeek ? ' (hold)' : ''}</td><td style="padding:3px 8px;color:var(--text);font-weight:500;">${r.kcal.toLocaleString()} kcal</td></tr>`
     ).join('');
-    reverseDietTable = `<div style="margin-top:10px;">
-      <div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.06em;">Reverse diet projection (+${weeklyIncrement} kcal/week)</div>
+    return `<div style="margin-top:4px;margin-bottom:10px;">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.06em;">Full bridge (+${rec.bridge.weeklyIncrement} kcal/week climb, then hold) — ${rec.bridge.totalWeeks} weeks total</div>
       <table style="width:100%;border-collapse:collapse;">${rows}</table>
-      ${dynResult ? `<div style="font-size:11px;color:var(--text3);margin-top:4px;">Target maintenance: ${dynResult.tdee.toLocaleString()} kcal/day</div>` : ''}
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;">Ramp start: ${rec.bridge.rampStartKcal ? rec.bridge.rampStartKcal.toLocaleString() : '?'} kcal (current cycle's last goal)${rec.dynResult ? ` · Target maintenance: ${rec.dynResult.tdee.toLocaleString()} kcal/day` : ''}</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;">New cycle: ${rec.newMacroStart} – ${rec.newMacroEnd}</div>
     </div>`;
-  }
+  })() : '';
+
+  // Cut/bulk-direction weekly kcal ramp — mirrors bridgeTableHtml's shape
+  // but for the gain→cut / maintenance→direction cases. Front-loaded,
+  // tapering toward the end, scaled to the target weight (set or implied).
+  const directionRampTableHtml = (rec && rec.directionRamp && rec.directionRamp.length && !rec.overrideConflict) ? (() => {
+    const rows = rec.directionRamp.map(r => {
+      const wkLabel = r.startWeek === r.endWeek ? `Wk ${r.startWeek}` : `Wk ${r.startWeek}-${r.endWeek}`;
+      return `<tr><td style="padding:3px 8px;color:var(--text3);">${wkLabel}</td><td style="padding:3px 8px;color:${r.clamped ? 'var(--amber, #d99a3a)' : 'var(--text)'};font-weight:500;">${r.kcal.toLocaleString()} kcal${r.clamped ? ' (floor)' : ''}</td></tr>`;
+    }).join('');
+    return `<div style="margin-top:4px;margin-bottom:10px;">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.06em;">Kcal steps (${rec.goalType === 'gain' ? 'building toward' : 'stepping down to'} steady state) — TDEE ${rec.dynResult ? rec.dynResult.tdee.toLocaleString() : '?'} kcal/day</div>
+      <table style="width:100%;border-collapse:collapse;">${rows}</table>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;">New cycle: ${rec.newMacroStart} – ${rec.newMacroEnd}</div>
+    </div>`;
+  })() : '';
+
+  // "Build this plan next" button — only for genuinely new-cycle recommendations,
+  // never for continuation exceptions (narrative-only, per design spec §2.1),
+  // never while a target-weight/deadline conflict is unresolved (Phase 2)
+  // — otherwise clicking through would silently fall back to the 12-week
+  // default rather than reflect what was actually typed — and never while
+  // previewing a different macro, since the button always builds against
+  // the real active cycle regardless of what's currently being previewed.
+  const directionBackButtonHtml = (rec && rec.directionWasForced)
+    ? `<button onclick="backToNextCycleDirectionChoice()"
+        style="flex:0 0 44px;width:44px;height:44px;padding:0;display:flex;align-items:center;justify-content:center;
+               border-radius:10px;font-size:16px;font-weight:600;
+               background:var(--surface2);color:var(--text2);border:0.5px solid var(--border2);cursor:pointer;margin-top:4px;
+               font-family:var(--font-display);">
+        ←
+      </button>` : '';
+  const mainCtaHtml = _nextCyclePreviewMacroId
+    ? `<div style="font-size:11px;color:var(--text3);text-align:center;padding:8px;flex:1;">Previewing "${(_previewMacro && _previewMacro.name) || 'a different cycle'}" — clear the preview above to build for your actual active cycle.</div>`
+    : (rec && rec.goalType && !rec.isContinuation && !rec.overrideConflict)
+      ? `<button onclick="openNextCycleMacroModal()"
+          style="flex:1;height:44px;padding:0 11px;border-radius:10px;font-size:13px;font-weight:600;
+                 background:var(--accent);color:#06281f;border:none;cursor:pointer;margin-top:4px;
+                 font-family:var(--font-display);">
+          Build this plan next →
+        </button>`
+      : (rec && rec.goalType && !rec.isContinuation && rec.overrideConflict)
+        ? `<div style="font-size:11px;color:var(--text3);text-align:center;padding:8px;flex:1;">Resolve the target above before building — pick an alternative or clear the fields.</div>`
+        : '';
+  // Always the same flex wrapper, back button or not — a lone flex:1 child
+  // still correctly fills the full row width, unlike rendering mainCtaHtml
+  // bare outside any flex container (where flex:1 has no effect at all).
+  const buildButtonHtml = (mainCtaHtml || directionBackButtonHtml)
+    ? `<div style="display:flex;gap:8px;align-items:stretch;">${directionBackButtonHtml}${mainCtaHtml}</div>`
+    : '';
+
+  // ── Phase 4 — LLM second-opinion section, rendered directly below the
+  // "Build this plan next" button. Never shown while previewing a different
+  // macro (mirrors the guard on the button itself); real gating (3-week
+  // window, continuation, direction-not-chosen) happens inside
+  // isNextCycleAdviceEligible(), consulted from within the builder.
+  const nextCycleAdviceHtml = _nextCyclePreviewMacroId ? '' : buildNextCycleAdviceSectionHTML(macro, rec);
 
   const card3 = `<div>
-    <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Next cycle planner</div>
-    ${nextGoalDropdown}
-    ${summaryLines.length ? `<div style="font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:8px;">${summaryLines.join('<br>')}</div>` : ''}
-    ${tipText ? `<div style="font-size:12px;color:var(--text2);line-height:1.6;padding:10px;background:var(--surface2);border-radius:var(--r-sm);">${tipText}</div>` : ''}
-    ${reverseDietTable}
+    <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Next cycle — weekly kcal projections</div>
+    ${previewDropdownHtml}
+    ${headerHtml}
+    ${continuationAlternativeHtml}
+    ${directionChoiceHtml}
+    ${maintenanceInfoHtml}
+    ${targetInputHtml}
+    ${bridgeTableHtml}
+    ${directionRampTableHtml}
+    ${buildButtonHtml}
+    ${nextCycleAdviceHtml}
   </div>`;
 
   // ── Assemble swipeable stack ──────────────────────────────────────────────
@@ -5439,7 +6338,10 @@ function buildWeeklySummaryCardHTML() {
     let prevAvgWeight = null; // carry avg weight from the most recent week that had any
     while (cur2.getTime() <= rangeEndMs) {
       const bStart = toLocalDateStr(cur2);
-      const bEnd   = toLocalDateStr(new Date(cur2.getTime() + 6 * 86400000));
+      // DST-safe: setDate() on the calendar day, not raw ms arithmetic — a
+      // span crossing a DST transition is not exactly N*24h of real time.
+      const bEndDate = new Date(cur2); bEndDate.setDate(bEndDate.getDate() + 6);
+      const bEnd = toLocalDateStr(bEndDate);
       const bDates = allDates.filter(d => d >= bStart && d <= bEnd);
       if (bDates.length > 0) {
         const wD = bDates.filter(d => dayMap[d].weight !== null);
@@ -5485,7 +6387,7 @@ function buildWeeklySummaryCardHTML() {
           protein: nD.length ? Math.round(nD.reduce((s,d) => s + dayMap[d].protein, 0) / nD.length) : null,
         });
       }
-      cur2 = new Date(cur2.getTime() + 7 * 86400000);
+      cur2 = new Date(cur2); cur2.setDate(cur2.getDate() + 7);
     }
     return b;
   })();
@@ -5594,7 +6496,7 @@ function buildMeasurementsCardHTML() {
     let prevWaist = null, prevHip = null; // carry last value from previous week
     while (cur2.getTime() <= rangeEndMs) {
       const bStart = toLocalDateStr(cur2);
-      const bEnd   = toLocalDateStr(new Date(cur2.getTime() + 6 * 86400000));
+      const bEndDate = new Date(cur2); bEndDate.setDate(bEndDate.getDate() + 6); const bEnd = toLocalDateStr(bEndDate);
       const inRange = measLogs.filter(l => l.date >= bStart && l.date <= bEnd);
       if (inRange.length > 0) {
         const wD = inRange.filter(l => l.waist !== null && l.waist !== undefined);
@@ -5609,7 +6511,7 @@ function buildMeasurementsCardHTML() {
       } else {
         wn++;
       }
-      cur2 = new Date(cur2.getTime() + 7 * 86400000);
+      cur2 = new Date(cur2); cur2.setDate(cur2.getDate() + 7);
     }
     return b;
   })();
@@ -5696,7 +6598,7 @@ function computeWeeklyInsights(macro) {
   let prevAvgWeight = null;
   while (cur.getTime() <= rangeEndMs) {
     const bStart = toLocalDateStr(cur);
-    const bEnd   = toLocalDateStr(new Date(cur.getTime() + 6 * 86400000));
+    const bEndDate = new Date(cur); bEndDate.setDate(bEndDate.getDate() + 6); const bEnd = toLocalDateStr(bEndDate);
     const bDates = allDates.filter(d => d >= bStart && d <= bEnd);
     if (bDates.length > 0) {
       const wD = bDates.filter(d => dayMap[d].weight !== null);
@@ -5715,7 +6617,7 @@ function computeWeeklyInsights(macro) {
         nutrDayCount: nD.length, weightDayCount: wD.length,
       });
     }
-    cur = new Date(cur.getTime() + 7 * 86400000);
+    cur = new Date(cur); cur.setDate(cur.getDate() + 7);
     wn++;
   }
   if (weekBuckets.length < 2) return null;
@@ -6002,6 +6904,18 @@ function buildInsightsCardHTML() {
     </div>`;
   }
 
+  // Phase 3: recalibration button — only ever appears for the active
+  // maintenance macro, only when a genuine directional trend implies the
+  // current/future goals are meaningfully off from what's actually happening.
+  const recal = (goalType === 'maintenance') ? computeMaintenanceRecalibration(macro, ins) : null;
+  const recalButtonHtml = recal
+    ? `<button onclick="openMaintenanceRecalibrationModal()"
+        style="width:100%;padding:11px;border-radius:10px;font-size:13px;font-weight:600;
+               background:var(--accent);color:#06281f;border:none;cursor:pointer;margin-top:10px;
+               font-family:var(--font-display);">
+        Start recalibration →
+      </button>` : '';
+
   return `<div class="card" style="margin-top:4px;">
     <div style="display:flex;align-items:center;justify-content:space-between;">
       <div style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:600;background:${pill.bg};color:${pill.color};">${pill.label}</div>
@@ -6009,6 +6923,7 @@ function buildInsightsCardHTML() {
     <div style="font-size:13px;font-weight:600;color:var(--text);margin-top:8px;line-height:1.35;">${ins.headline}</div>
     <div style="font-size:12px;color:var(--text2);margin-top:4px;line-height:1.55;">${ins.detail}</div>
     ${statsHtml}
+    ${recalButtonHtml}
   </div>`;
 }
 
@@ -6191,10 +7106,77 @@ function computeSafetyFloor(macro) {
   return 1400;
 }
 
+// ── Maintenance TDEE-discrepancy recalibration (Phase 3) ───────────────────
+// Distinct from calcTrendBasedTDEE()'s whole-history median, which is
+// deliberately slow-moving — this is a locally-scoped check specifically
+// for "my body is doing something different RIGHT NOW, mid-bridge," which
+// the global figure won't catch quickly by design. Only fires for the
+// CURRENTLY ACTIVE maintenance macro — recalibrating a past cycle's
+// already-finished goals wouldn't mean anything.
+//
+// Trigger: a genuine directional weight trend over the last 3 qualifying
+// weeks (not just variance/noise — same ±0.5 lb/week stability threshold
+// used elsewhere), AND the resulting locally-implied TDEE meaningfully
+// disagrees (>150 kcal or >7%) with what the current/future goals are
+// actually set to.
+//
+// Returns null if recalibration isn't warranted, otherwise
+// { localImpliedTDEE, currentTargetKcal, discrepancy, direction, affectedGoals }
+// — affectedGoals is every goal in this macro with endDate >= today (today's
+// goal plus all not-yet-started future ones), the exact set Card 3's modal
+// will preview and batch-update.
+function computeMaintenanceRecalibration(macro, ins) {
+  if (!macro || macro.goalType !== 'maintenance') return null;
+  const today = getLocalToday();
+  const macroEnd = toLocalDateStr(getMacroEndDate(macro));
+  if (today < (macro.start || today) || today > macroEnd) return null; // active cycle only
+
+  const qualifying = (ins.weekBuckets || []).filter(b => b.avgWeight !== null && b.nutrDayCount >= 4);
+  if (qualifying.length < 3) return null; // need a real trend, not one or two noisy points
+
+  const recent = qualifying.slice(-3);
+  const deltas = recent.slice(1).map((b, i) => b.avgWeight - recent[i].avgWeight);
+  const avgWeeklyDelta = deltas.reduce((a, b) => a + b, 0) / deltas.length;
+  if (Math.abs(avgWeeklyDelta) <= 0.5) return null; // stable — this is what maintenance should look like, no action needed
+
+  // Locally-implied TDEE from just the two most recent qualifying weeks —
+  // deliberately NOT the whole-history calcDynamicTDEE(), since the whole
+  // point is catching a shift that figure won't reflect for a long time.
+  const w1 = recent[recent.length - 2], w2 = recent[recent.length - 1];
+  const weightChangeLbs = w2.avgWeight - w1.avgWeight;
+  const localImpliedTDEE = Math.round(w2.avgKcal - (weightChangeLbs * 3500) / 7);
+  if (localImpliedTDEE < 800 || localImpliedTDEE > 6000) return null; // sanity guard, same bounds as calcDynamicTDEE
+
+  const affectedGoals = (state.goals || [])
+    .filter(g => g.macroId === macro.id && g.endDate >= today)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate));
+  if (!affectedGoals.length) return null;
+
+  const currentTargetKcal = parseInt(affectedGoals[0].kcal) || null;
+  if (!currentTargetKcal) return null;
+
+  const discrepancy = localImpliedTDEE - currentTargetKcal;
+  if (Math.abs(discrepancy) < 150 && Math.abs(discrepancy / currentTargetKcal) < 0.07) return null; // not meaningful
+
+  return {
+    localImpliedTDEE, currentTargetKcal, discrepancy,
+    direction: avgWeeklyDelta > 0 ? 'gaining' : 'losing',
+    affectedGoals,
+  };
+}
+
 // ── In-flight flag ────────────────────────────────────────────────────────────
 // Set to true while the API call is in progress. buildAiAdviceCardHTML reads
 // this to render the loading state. Never stored in state — resets on reload.
 let _blocAdviceLoading = false;
+
+// ── Card section collapse state ─────────────────────────────────────────
+// All three sections (narrative, selected plan, alternative plan) default
+// to collapsed, and reset to collapsed on every fresh page load — this is
+// deliberately NOT persisted to state.blocAdvice/save(), unlike the old
+// narrativeOpen/altOpen fields it replaces, specifically so the collapsed
+// state doesn't carry over between sessions.
+let _blocAdviceSectionsOpen = { narrative: false, selected: false, alt: false };
 
 // ── Prompt builder ────────────────────────────────────────────────────────────
 // Constructs the system prompt and user message for the Anthropic API call.
@@ -6678,13 +7660,16 @@ function buildAiAdviceCardHTML() {
 
   const storedFmt = new Date(stored.storedAt + 'T00:00:00').toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'});
   const chosenPath   = stored.chosenPath; // null | 'sustainable' | 'aggressive'
-  const narrativeOpen = stored.narrativeOpen !== false; // default open
-  const altOpen       = stored.altOpen === true;        // default closed
+  const narrativeOpen = _blocAdviceSectionsOpen.narrative;
+  const altOpen       = _blocAdviceSectionsOpen.alt;
+  const selectedOpen  = _blocAdviceSectionsOpen.selected;
 
-  // Toggle helpers — flip a flag on state.blocAdvice and re-render
-  // (defined as inline onclick strings so they work in the innerHTML context)
-  const togNarr = `state.blocAdvice.narrativeOpen=!state.blocAdvice.narrativeOpen;save();renderProgress();`;
-  const togAlt  = `state.blocAdvice.altOpen=!state.blocAdvice.altOpen;save();renderProgress();`;
+  // Toggle helpers — flip a flag on the session-only collapse state and
+  // re-render (defined as inline onclick strings so they work in the
+  // innerHTML context). Deliberately no save() — these reset every reload.
+  const togNarr    = `_blocAdviceSectionsOpen.narrative=!_blocAdviceSectionsOpen.narrative;renderProgress();`;
+  const togAlt     = `_blocAdviceSectionsOpen.alt=!_blocAdviceSectionsOpen.alt;renderProgress();`;
+  const togSelected = `_blocAdviceSectionsOpen.selected=!_blocAdviceSectionsOpen.selected;renderProgress();`;
 
   // ── Narrative section ─────────────────────────────────────────────────────
   const narrativeBody = `
@@ -6719,7 +7704,7 @@ function buildAiAdviceCardHTML() {
     ${goalSummaryBlock(agg, 'aggressive')}
     <button onclick="startGoalQueue('aggressive')"
       style="width:100%;padding:11px;border-radius:10px;font-size:13px;font-weight:600;
-             background:var(--surface2);color:var(--text);border:0.5px solid var(--border2);cursor:pointer;margin-top:4px;
+             background:var(--red);color:#fff;border:1px solid var(--red);cursor:pointer;margin-top:4px;
              font-family:var(--font-display);">
       Use ${agg.label} plan →
     </button>`;
@@ -6733,12 +7718,17 @@ function buildAiAdviceCardHTML() {
 
     planSection = `
     <div style="border-top:0.5px solid var(--border);margin:12px 0 10px;"></div>
-    <div style="font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Selected plan</div>
+    <div onclick="${togSelected}"
+         style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:4px 0;margin-bottom:${selectedOpen ? '6px' : '0'};">
+      <span style="font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:0.06em;">${chosenEmoji} Selected plan — ${chosenPath_obj.label}</span>
+      <span style="font-size:12px;color:var(--text3);">${selectedOpen ? '▲' : '▼'}</span>
+    </div>
+    ${selectedOpen ? `
     <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;">
       ${chosenEmoji} ${chosenPath_obj.label} plan
       <span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:6px;">${chosenPath_obj.summary}</span>
     </div>
-    ${goalSummaryBlock(chosenPath_obj, chosenPath)}
+    ${goalSummaryBlock(chosenPath_obj, chosenPath)}` : ''}
     <div style="border-top:0.5px solid var(--border);margin:10px 0 8px;"></div>
     <div onclick="${togAlt}"
          style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:4px 0;">
@@ -6750,7 +7740,7 @@ function buildAiAdviceCardHTML() {
       ${goalSummaryBlock(altPath_obj, altPathKey)}
       <button onclick="startGoalQueue('${altPathKey}')"
         style="width:100%;padding:10px;border-radius:10px;font-size:12px;font-weight:600;
-               background:var(--surface2);color:var(--text);border:0.5px solid var(--border2);
+               ${altPathKey === 'aggressive' ? 'background:var(--red);color:#fff;border:1px solid var(--red);' : 'background:var(--surface2);color:var(--text);border:0.5px solid var(--border2);'}
                cursor:pointer;margin-top:4px;font-family:var(--font-display);">
         Switch to ${altPath_obj.label} plan →
       </button>
@@ -6793,6 +7783,909 @@ function buildAiAdviceCardHTML() {
 // completion, cancellation, or any page navigation away from the goal modal.
 let _goalQueue = null;        // { goals: [], currentIdx: int, macroId: string }
 let _goalQueueAdvancing = false; // true only during the brief close-then-reopen between steps
+
+// ── "Build this plan next" — deterministic-only, Phase 1 (v7.02) ──────────
+// Prepends a macrocycle-creation step to the existing goal-queue flow. The
+// freshly-computed recommendation is stashed here; createMacrocycle() checks
+// for it right after saving and launches the goal queue with the new macro's
+// id instead of just closing back to Plan — see the hook there.
+let _pendingNextCyclePlan = null;
+
+// ── Target weight / deadline override input (Phase 2) ──────────────────
+// Ephemeral, not persisted — only meaningful while planning a not-yet-
+// created cycle. Only ever applied for cut/bulk-direction recommendations;
+// never read for maintenance (§4.3). Deliberately module-level rather than
+// stored on state, matching the pattern _pendingNextCyclePlan already uses.
+let _nextCycleOverride = { targetWeight: null, deadline: null, forcedDirection: null };
+
+function updateNextCycleOverride(field, rawValue) {
+  _nextCycleOverride[field] = rawValue ? (field === 'targetWeight' ? parseFloat(rawValue) : rawValue) : null;
+  renderProgress();
+}
+
+function applyNextCycleOverrideValue(field, value) {
+  _nextCycleOverride[field] = value;
+  renderProgress();
+}
+
+// Returns to the cut/bulk choice screen from a forced-direction recommendation.
+// Clears targetWeight/deadline too, not just forcedDirection — a target set
+// for a cut doesn't carry any meaning for a bulk, and vice versa.
+function backToNextCycleDirectionChoice() {
+  _nextCycleOverride = { targetWeight: null, deadline: null, forcedDirection: null };
+  renderProgress();
+}
+
+// ── Preview a different macrocycle's recommendation (testing aid) ─────────
+// The active cycle's recommendation is whatever it is — often maintenance,
+// which has no target-weight/deadline inputs to test against by design.
+// This lets you point the SAME real recommendation engine at any past
+// macrocycle (e.g. an old bulk) to genuinely exercise the cut/bulk-
+// direction UI against real historical data, without waiting for the
+// active cycle to actually reach that state. Deliberately does NOT affect
+// "Build this plan next" — that always stays tied to the real active
+// macro, guarded below, so previewing something else can never accidentally
+// create a plan for the wrong cycle.
+let _nextCyclePreviewMacroId = null;
+
+function updateNextCyclePreviewMacro(id) {
+  _nextCyclePreviewMacroId = id || null;
+  _nextCycleOverride = { targetWeight: null, deadline: null, forcedDirection: null }; // clear stale inputs from a previous preview
+  renderProgress();
+}
+
+// Shared modal-prefill helper — fills the New Macrocycle modal for a Next
+// Cycle plan, regardless of whether it came from the deterministic engine
+// or an accepted LLM plan (Phase 4). Doesn't compute anything itself, just
+// applies values the caller already decided.
+function fillNextCycleMacroModal(goalType, totalWeeks) {
+  openModal('modal-macro'); // resets fields to normal defaults first
+  const year = new Date().getFullYear();
+  const label = { loss: 'Cut', gain: 'Bulk', maintenance: 'Maintenance' }[goalType] || 'Cycle';
+  document.getElementById('macro-name-input').value = `${label} ${year}`;
+  if (document.getElementById('macro-goal-type-input')) document.getElementById('macro-goal-type-input').value = goalType;
+  // Start date: openModal already defaulted this to getNextMacroStart(), which
+  // matches rec.newMacroStart in the real (non-preview) case — left as-is
+  // rather than overwritten.
+  document.getElementById('macro-weeks-input').value = totalWeeks;
+  // weeks-per-meso already defaults to '1' via openModal — matches the
+  // "mesoweek = calendar week" default requested for this flow.
+  onMacroGoalTypeChange('macro');
+}
+
+// Opens the New Macrocycle modal pre-filled from the current Next Cycle
+// recommendation. `useAlternative` builds the continuation's "normal logic"
+// alternative instead (rec.continuationAlternative) — Card 3's "Build the
+// [X] option instead" button, shown only when a continuation was
+// recommended. Otherwise only ever called for genuinely new-cycle
+// recommendations (never the continuation itself — the primary button is
+// hidden for those).
+function openNextCycleMacroModal(useAlternative) {
+  const macro = resolveProgressMacro();
+  const rec = recommendNextCycle(macro, _nextCycleOverride);
+  const target = useAlternative ? (rec && rec.continuationAlternative) : rec;
+  if (!target || !target.goalType || target.isContinuation || target.overrideConflict) return;
+
+  _pendingNextCyclePlan = target;
+  // Derived from newMacroStart/newMacroEnd directly rather than
+  // target.placeholderWeeks — that's null once a target-weight/deadline
+  // override has been successfully applied (§4), so falling back to a
+  // fixed default there would silently ignore the resolved override.
+  const totalWeeks = target.bridge
+    ? target.bridge.totalWeeks
+    : Math.round(((new Date(target.newMacroEnd + 'T00:00:00') - new Date(target.newMacroStart + 'T00:00:00')) / 86400000 + 1) / 7);
+  fillNextCycleMacroModal(target.goalType, totalWeeks);
+}
+
+// ── Phase 4 — accept an LLM plan ─────────────────────────────────────────
+// Routes an accepted plan through the EXACT same macro-creation + goal-queue
+// pipeline "Build this plan next" uses. The only difference: _pendingNextCyclePlan
+// carries the LLM's own goals[] via _llmGoals instead of rec.bridge/
+// rec.directionRamp, and buildNextCycleGoalSteps() checks for that first —
+// everything downstream (createMacrocycle()'s hook, _launchGoalQueue,
+// _openQueueStep) needs zero changes.
+function chooseNextCyclePlan(planKey) {
+  const stored = state.nextCycleAdvice;
+  const macro  = resolveProgressMacro();
+  if (!stored || !macro || stored.macroId !== macro.id) return;
+
+  const plan = (stored.response.plans || []).find(p => p.key === planKey);
+  if (!plan || !plan.goals || !plan.goals.length) return;
+
+  const rec = recommendNextCycle(macro, _nextCycleOverride);
+  if (!rec || !rec.goalType) return;
+  // planRec is the rec plans[] was actually generated for — the alternative
+  // when the deterministic engine's own default is to extend (continuation),
+  // otherwise rec itself. See nextCycleAdvicePlanMode()'s header comment.
+  const planRec = nextCycleAdvicePlanMode(rec).planRec;
+  if (!planRec || !planRec.goalType) return;
+
+  // Record the choice — mirrors startGoalQueue()'s chosenPath tracking for
+  // the mid-cycle feature.
+  stored.chosenPlanKey = planKey;
+  save();
+
+  const lastGoal = plan.goals[plan.goals.length - 1];
+  _pendingNextCyclePlan = {
+    goalType:      planRec.goalType,
+    newMacroStart: planRec.newMacroStart,
+    newMacroEnd:   lastGoal.endDate,
+    _llmGoals:     plan.goals,
+  };
+
+  const totalWeeks = Math.round(
+    ((new Date(lastGoal.endDate + 'T00:00:00') - new Date(planRec.newMacroStart + 'T00:00:00')) / 86400000 + 1) / 7
+  );
+  fillNextCycleMacroModal(planRec.goalType, totalWeeks);
+}
+
+// Converts a recommendNextCycle() result into full goal objects ready for
+// the existing goal-queue infrastructure (_launchGoalQueue/_openQueueStep).
+// Protein floor at 1g/lb bodyweight, 50/50 carb/fat split on the remainder
+// — the same defaults initGoalMacroSliders() falls back to for a new goal.
+// Daily step target is carried forward from whatever goal is currently
+// active, since the deterministic engine has no basis to recommend one.
+function buildNextCycleGoalSteps(rec) {
+  // Phase 4 — an accepted LLM plan already carries fully-formed goal objects
+  // (materialised in askBlocForNextCycleAdvice: dates, kcal, protein, carbs,
+  // fats, and steps already resolved per the cut-only-lever rule). Use them
+  // directly rather than re-deriving from rec.bridge/rec.directionRamp.
+  if (rec._llmGoals && rec._llmGoals.length) return rec._llmGoals;
+
+  const bwRounded = rec.latestBw ? Math.round(rec.latestBw) : 150;
+  const proteinG = Math.max(1, Math.ceil(bwRounded));
+  const macrosFor = (kcal) => {
+    const remaining = Math.max(0, kcal - proteinG * 4);
+    return { protein: proteinG, carbs: Math.round(remaining * 0.5 / 4), fats: Math.round(remaining * 0.5 / 9) };
+  };
+  const today = getLocalToday();
+  const currentActiveGoal = (state.goals || []).find(g => g.startDate <= today && g.endDate >= today);
+  // Maintenance goals are always 8,000 steps flat — never carried forward
+  // from whatever the current active goal happens to be, and never varied.
+  // Cut/bulk-direction goals still carry forward the current goal's steps,
+  // since that rule is maintenance-specific.
+  const stepsTarget = rec.goalType === 'maintenance' ? 8000 : (currentActiveGoal ? currentActiveGoal.steps : 8000);
+
+  const steps = [];
+  // DST-safe date-add helper — setDate() operates on the calendar day
+  // component directly, unlike raw millisecond arithmetic (getTime() + N *
+  // 86400000), which silently drifts a day when a span crosses a DST
+  // transition (a "spring forward"/"fall back" day is not exactly 24h of
+  // real time). Matches the pattern getMacroEndDate() already uses.
+  const addDays = (d, n) => { const nd = new Date(d); nd.setDate(nd.getDate() + n); return nd; };
+  let cursor = new Date(rec.newMacroStart + 'T00:00:00');
+
+  if (rec.bridge && rec.bridge.fullRows.length) {
+    // Group consecutive weeks holding the SAME kcal level into one goal
+    // spanning the full held range — one goal per distinct kcal level, not
+    // one per calendar week. Ramp weeks (kcal changes every week) naturally
+    // stay as individual one-week goals; the flat hold weeks (including the
+    // final ramp week, which already lands on TDEE) collapse into a single
+    // multi-week goal. Same principle as the LLM path's variable-cadence
+    // goal granularity — just applied to the deterministic table too.
+    const groups = [];
+    rec.bridge.fullRows.forEach(r => {
+      const last = groups[groups.length - 1];
+      if (last && last.kcal === r.kcal) {
+        last.endWeek = r.week;
+        last.isHoldWeek = last.isHoldWeek || r.isHoldWeek;
+      } else {
+        groups.push({ startWeek: r.week, endWeek: r.week, kcal: r.kcal, isHoldWeek: r.isHoldWeek });
+      }
+    });
+    groups.forEach(gr => {
+      const weeksSpanned = gr.endWeek - gr.startWeek + 1;
+      const startDate = toLocalDateStr(cursor);
+      const endDate   = toLocalDateStr(addDays(cursor, weeksSpanned * 7 - 1));
+      const label = gr.startWeek === gr.endWeek
+        ? `Wk ${gr.startWeek}${gr.isHoldWeek ? ' (hold)' : ''}`
+        : `Wk ${gr.startWeek}-${gr.endWeek}${gr.isHoldWeek ? ' (hold)' : ''}`;
+      steps.push({ label, startDate, endDate, kcal: gr.kcal, steps: stepsTarget, ...macrosFor(gr.kcal) });
+      cursor = addDays(cursor, weeksSpanned * 7);
+    });
+  } else if (rec.directionRamp && rec.directionRamp.length) {
+    // Cut/bulk-direction ramp — buildDirectionSteppedRamp() already outputs
+    // pre-grouped {startWeek, endWeek, kcal} steps (it merges consecutive
+    // holds at the same level internally), so this just walks them
+    // directly rather than needing its own grouping pass.
+    rec.directionRamp.forEach(gr => {
+      const weeksSpanned = gr.endWeek - gr.startWeek + 1;
+      const startDate = toLocalDateStr(cursor);
+      const endDate   = toLocalDateStr(addDays(cursor, weeksSpanned * 7 - 1));
+      const label = gr.startWeek === gr.endWeek ? `Wk ${gr.startWeek}` : `Wk ${gr.startWeek}-${gr.endWeek}`;
+      steps.push({ label, startDate, endDate, kcal: gr.kcal, steps: stepsTarget, ...macrosFor(gr.kcal) });
+      cursor = addDays(cursor, weeksSpanned * 7);
+    });
+  } else {
+    // Last-resort fallback — flat single-step goal, only reached if the
+    // ramp genuinely couldn't be computed (e.g. no TDEE data at all yet).
+    const target = rec.dynResult
+      ? (rec.goalType === 'gain' ? rec.dynResult.tdee + 250 : rec.dynResult.tdee - 500)
+      : (rec.recentKcal || 2000);
+    const endDate = rec.newMacroEnd || toLocalDateStr(addDays(cursor, (rec.placeholderWeeks || 8) * 7 - 1));
+    steps.push({ label: 'Starting target', startDate: toLocalDateStr(cursor), endDate, kcal: Math.round(target), steps: stepsTarget, ...macrosFor(Math.round(target)) });
+  }
+  return steps;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 4 — LLM second-opinion layer (A & B: prompt builder + API call only —
+// no card UI/selection flow yet, that's part C+D)
+// ─────────────────────────────────────────────────────────────────────────────
+// Distinct from the mid-cycle "Ask BLOC for advice" flow (buildBlocAdvicePrompt/
+// askBlocForAdvice) — this is a separate call, specific to next-cycle planning.
+// Stored in its own state.nextCycleAdvice slot so it never shares a cooldown
+// clock or collides with state.blocAdvice (mid-cycle) or _pendingNextCyclePlan
+// (the deterministic "Build this plan next" hookup).
+
+let _nextCycleAdviceLoading = false; // in-flight flag, never persisted — mirrors _blocAdviceLoading
+
+// Collapse state for the rendered advice section (narrative / selected plan /
+// alternative plan(s)) — session-only, never persisted, same reasoning as
+// _blocAdviceSectionsOpen for the mid-cycle feature.
+let _nextCycleAdviceSectionsOpen = { narrative: false, selected: false, alt: false };
+
+// Usage-discipline gate for the LLM CALL ONLY — per design spec §3, the
+// deterministic recommendation itself is never gated by cycle timing, just
+// this API call. Returns { eligible, reason } (rather than a bare bool) so
+// the future render pass can explain *why* it's unavailable, not just hide it.
+function isNextCycleAdviceEligible(macro, rec) {
+  if (!macro || !rec || !rec.goalType)  return { eligible: false, reason: 'no-recommendation' };
+  // A continuation is only eligible when a "normal logic" alternative was
+  // actually computed — the LLM plans for/reasons about that alternative
+  // (see nextCycleAdvicePlanMode's planRec resolution), so without one
+  // there's nothing concrete to ask about.
+  if (rec.isContinuation && (!rec.continuationAlternative || !rec.continuationAlternative.goalType)) {
+    return { eligible: false, reason: 'continuation-no-alternative' };
+  }
+  if (rec.needsDirectionChoice)         return { eligible: false, reason: 'direction-not-chosen' };
+  // Always plans for the real active cycle, never a previewed one — same
+  // guard "Build this plan next" already applies, for the same reason.
+  if (_nextCyclePreviewMacroId && _nextCyclePreviewMacroId !== macro.id) {
+    return { eligible: false, reason: 'previewing-different-cycle' };
+  }
+  const macroEndDate = getMacroEndDate(macro);
+  const today = new Date(getLocalToday() + 'T00:00:00');
+  const daysToEnd = Math.round((macroEndDate - today) / 86400000);
+  if (daysToEnd > 21) return { eligible: false, reason: 'outside-3-week-window' };
+  return { eligible: true, reason: null };
+}
+
+// ── Plan-mode decision, shared by the prompt builder AND the response
+//    validator so the two can never silently disagree on what shape of
+//    response was actually asked for.
+//
+// First resolves `planRec` — the rec actually being planned for. Normally
+// that's just `rec` itself, but when the deterministic engine recommends a
+// continuation (extend the current cycle), the thing worth asking the LLM
+// to build/refine a plan for is the "normal logic" alternative
+// (rec.continuationAlternative) instead — a plain extension isn't
+// something this feature builds via the goal queue either way, so plans[]
+// always targets a genuinely-new-cycle direction.
+//
+// Then, based on planRec, one of three modes:
+//    - conflictTwoPlans:  user gave both a target weight AND a deadline, and
+//                         the deterministic engine flagged it unsafe (§4.3) —
+//                         2 plans, each resolving the conflict a different way.
+//    - directionTwoPlans: cut/bulk-direction cycle, no deadline given by the
+//                         user — 2 plans, "sustainable" (long/steady) vs
+//                         "aggressive" (shorter+harder for a cut; same length,
+//                         modestly harder surplus for a bulk — a bulk is
+//                         NEVER shortened to be "aggressive").
+//    - otherwise:         exactly 1 plan, filling to planRec.newMacroEnd
+//                         exactly (maintenance bridges, or a cut/bulk where
+//                         the user already gave a deadline that resolved
+//                         cleanly).
+function nextCycleAdvicePlanMode(rec) {
+  const planRec = (rec && rec.isContinuation && rec.continuationAlternative) ? rec.continuationAlternative : rec;
+  const override         = _nextCycleOverride || {};
+  const hasDeadline      = !!override.deadline;
+  const conflictTwoPlans = !!(planRec && planRec.overrideConflict);
+  const directionTwoPlans = !!(planRec && planRec.goalType && planRec.goalType !== 'maintenance' && !hasDeadline && !conflictTwoPlans);
+  return { hasDeadline, conflictTwoPlans, directionTwoPlans, returnTwoPlans: conflictTwoPlans || directionTwoPlans, planRec };
+}
+
+
+// ── Prompt builder ───────────────────────────────────────────────────────────
+// Reuses the same weekly-data/cycle-history context buildBlocAdvicePrompt()
+// already assembles, plus the Next Cycle engine's own outputs: floor/ceiling,
+// a forward-looking taper curve sized to the NEXT cycle's own duration (NOT
+// the look-back one on rec.taper, which is scoped to the cut/bulk just
+// finished), the maintenance TDEE-discrepancy flag when relevant, and any
+// user-supplied target weight/deadline override.
+//
+// Steps handling (per your instruction): BLOC only ever uses daily step
+// count as a lever during a CUT. Bulk and maintenance goals are always fixed
+// at 8,000 steps/day, applied client-side after parsing — the schema and
+// constraints below simply omit the "steps" field entirely unless
+// rec.goalType === 'loss', so the model is never even asked for it.
+function buildNextCycleAdvicePrompt(macro, rec) {
+  const ins             = computeWeeklyInsights(macro);
+  const dynResult       = rec.dynResult || calcDynamicTDEE();
+  const safetyFloorKcal = computeSafetyFloor(macro);
+  const proteinFloor    = rec.latestBw ? Math.ceil(rec.latestBw) : 150;
+
+  // planRec is the rec actually being planned for — see nextCycleAdvicePlanMode()'s
+  // header comment. Resolved once, up front, so every direction-specific
+  // field below (goalType, newMacroStart/End, overrideConflict, rationale)
+  // consistently comes from the same source.
+  const mode              = nextCycleAdvicePlanMode(rec);
+  const planRec           = mode.planRec;
+  const isContinuationCase = !!(rec.isContinuation && rec.continuationAlternative);
+
+  const goalType        = planRec.goalType; // 'loss' | 'gain' | 'maintenance'
+  const isCut           = goalType === 'loss';
+  const today           = getLocalToday();
+  const directionLabel  = ({ loss: 'cut', gain: 'bulk', maintenance: 'maintenance bridge' })[goalType] || goalType;
+
+  // ── Forward taper curve, sized to the NEXT cycle (cut/bulk only) ──
+  // Distinct from rec.taper (a look-back check on the cut just completed) —
+  // this is the same forward-looking boundary applyPlaceholderOrOverride()
+  // uses internally to size the deterministic ramp, recomputed here so the
+  // LLM gets the identical hard boundary rather than a re-derived guess.
+  let forwardTaperStr = 'n/a — this is a maintenance bridge, not a cut/bulk.';
+  if (goalType !== 'maintenance' && planRec.newMacroStart && planRec.newMacroEnd && rec.latestBw) {
+    const totalWeeksGuess = Math.round(
+      ((new Date(planRec.newMacroEnd + 'T00:00:00') - new Date(planRec.newMacroStart + 'T00:00:00')) / 86400000 + 1) / 7
+    );
+    const fwdTaper = computeTaperCurve(rec.latestBw, totalWeeksGuess);
+    if (fwdTaper) {
+      const bottomPctLabel = totalWeeksGuess <= 10 ? '1%' : '0.5%';
+      forwardTaperStr = `Over ${totalWeeksGuess} weeks from ${rec.latestBw} lbs, the safe taper curve (1.5% week-1 tapering to ${bottomPctLabel}/week) allows a maximum total ${isCut ? 'loss' : 'gain'} of ~${fwdTaper.totalSafeChange} lbs across the cycle. This is a hard boundary — do not exceed it.`;
+    }
+  }
+
+  // ── Floor/ceiling ──
+  const range = rec.sustainableRange;
+  const rangeStr = (range && range.floor != null)
+    ? `Floor ${range.floor} lbs / Ceiling ${range.ceiling} lbs (${range.source === 'confirmed' ? 'confirmed from past maintenance cycles' : 'cold-start fallback — no confirmed maintenance cycle yet'}). A requested target beyond this boundary must never be honoured, regardless of pace.`
+    : 'Not yet established (insufficient history).';
+
+  // ── Maintenance TDEE-discrepancy flag — only meaningful if the CURRENT
+  //    cycle (the one ending) is itself an active maintenance bridge. ──
+  let recalStr = 'n/a — current cycle is not a maintenance bridge.';
+  if (macro.goalType === 'maintenance') {
+    const recal = computeMaintenanceRecalibration(macro, ins);
+    recalStr = recal
+      ? `Flagged — locally-implied TDEE (${recal.localImpliedTDEE} kcal) disagrees with the current target (${recal.currentTargetKcal} kcal) by ${recal.discrepancy > 0 ? '+' : ''}${recal.discrepancy} kcal. Factor this into how you size the next cycle's starting point.`
+      : 'Not flagged — no meaningful discrepancy detected.';
+  }
+
+  // ── User-supplied override / conflict context ──
+  const override = _nextCycleOverride || {};
+  const hasOverrideInput = !!(override.targetWeight || override.deadline);
+  const overrideStr = hasOverrideInput
+    ? `Target weight: ${override.targetWeight || 'not given'} | Deadline: ${override.deadline || 'not given'}.`
+    : 'None given.';
+
+  // ── Continuation context — the deterministic engine's own default here is
+  //    actually to EXTEND the current cycle, not start a new one. Surfaced
+  //    so the model can explicitly weigh extending vs the alternative
+  //    direction it's being asked to plan for below, per your instruction
+  //    that this get "baked into the deterministic layer first" and then
+  //    "shipped to the LLM so it can reason all options." ──
+  const continuationContextStr = isContinuationCase
+    ? `The deterministic engine's own default here is actually to EXTEND the current cycle rather than start a new one — NOT to switch to ${directionLabel === 'maintenance bridge' ? 'a maintenance bridge' : `a ${directionLabel}`}.
+Reasoning to extend: ${(rec.rationale || []).join(' ') || 'none given'}
+The alternative you're being asked to plan for below (switching direction instead of extending) — deterministic reasoning: ${(planRec.rationale || []).join(' ') || 'none given'}`
+    : 'n/a — this is a genuinely new cycle, not a continuation.';
+
+  // ── Conflict context — now names each alternative's concrete numbers
+  //    (already computed by resolveNextCycleOverride) so the model has real
+  //    anchors instead of re-deriving its own guesses at the same math. ──
+  let conflictStr = 'None.';
+  if (mode.conflictTwoPlans) {
+    const c = planRec.overrideConflict;
+    conflictStr = `The deterministic engine flagged this request as unsafe: "${c.message}" Return exactly 2 plans, using EXACTLY these two keys:
+- "preserve-weight": keep the requested target weight (${override.targetWeight} lbs), but push the deadline out to the nearest safe date — ${c.altDate || 'compute the nearest safe Sunday'}.
+- "preserve-date": keep the requested deadline (${override.deadline}), but adjust the target weight to the nearest safe figure — ${c.altWeight || 'compute the nearest safe weight'} lbs.
+Each plan's goals[] must fill exactly from ${planRec.newMacroStart} to that plan's own end date above, with zero gaps.`;
+  }
+
+  // ── Steps schema/constraint — omitted entirely unless this is a cut ──
+  const stepsSchemaField = isCut ? `,\n          "steps": number (multiple of 2000)` : '';
+  const stepsConstraintLine = isCut
+    ? `- Steps targets must always be multiples of 2000. You may vary steps between goal phases as an increasing lever during this cut — that's the only time BLOC ever uses steps as a lever.`
+    : `- Do NOT include a "steps" field on any goal at all — ${goalType === 'gain' ? 'bulk' : 'maintenance'} goals are always fixed at 8,000 steps/day and applied client-side, not something you recommend.`;
+
+  // ── Plan count + length guidance — depends on which of the 3 modes we're in ──
+  let planCountLine, weeksSchemaField = '', planLengthGuidanceBlock = '', fillConstraintLine;
+  if (mode.conflictTwoPlans) {
+    planCountLine = '- Return EXACTLY 2 plans in the "plans" array, keyed "preserve-weight" and "preserve-date" (see CONFLICT below for what each must do).';
+    fillConstraintLine = `- Every plan's goals[] must fully and exactly fill that plan's own end date given in CONFLICT below, from ${planRec.newMacroStart}, with zero gaps — no stopping early, no extending past it.`;
+  } else if (mode.directionTwoPlans) {
+    planCountLine = `- Return EXACTLY 2 plans in the "plans" array, keyed EXACTLY "sustainable" and "aggressive".`;
+    weeksSchemaField = `,\n      "weeks": number (this plan's own total duration in weeks — see PLAN LENGTH GUIDANCE below)`;
+    planLengthGuidanceBlock = `
+PLAN LENGTH GUIDANCE — no deadline was given, so you choose each plan's own length:
+- "sustainable": the safer, longer pace — typically 12-20 weeks.
+- "aggressive": ${isCut
+      ? 'may run SHORTER than "sustainable" — typically 6-10 weeks — paired with a faster (but still safety-floor-respecting) kcal deficit.'
+      : 'must run JUST AS LONG as "sustainable", never shorter — a bulk is never shortened to make it "aggressive" (minimizing fat gain requires patience regardless of pace). Only push the surplus modestly harder than "sustainable", never the timeline.'}
+- Each plan states its own duration via the required "weeks" field on the plan object.`;
+    fillConstraintLine = `- Each plan's goals[] must collectively span EXACTLY its own stated "weeks" field starting from ${planRec.newMacroStart}, with zero gaps — the final goal's endDate must be the Sunday exactly (weeks × 7 − 1) days after ${planRec.newMacroStart}. Never stop before or extend past your own stated duration.`;
+  } else {
+    planCountLine = '- Return EXACTLY 1 plan in the "plans" array unless you have a genuinely compelling reason to offer an alternative.';
+    fillConstraintLine = `- Your goals[] must fill exactly from ${planRec.newMacroStart} to ${planRec.newMacroEnd || 'the proposed end date above'}, with zero gaps and no early stop.`;
+  }
+  const maxGoalsPerPlan = mode.directionTwoPlans ? 6 : 5;
+
+
+  const systemPrompt = `You are BLOC, a personal training and nutrition coach embedded in a fitness tracking app. You are being asked for a second opinion on the NEXT training cycle — the user's current cycle (${macro.goalType}) is ending soon, and a deterministic engine has already produced a recommendation. Your job is to review the same data and either confirm it or propose a better-reasoned plan. Speak in second person. Never be vague. Reference actual numbers from the data.
+
+${isContinuationCase
+    ? `The deterministic engine's own default here is to EXTEND the current cycle rather than switch direction — but you are specifically being asked to plan for the ALTERNATIVE instead, in case switching now is actually the better call: ${goalType.toUpperCase()} (a ${directionLabel}). See CONTINUATION CONTEXT below for both sides of this and explicitly weigh in on which is actually better in your narrative — but your plans[] must still represent the alternative (switching), since a plain extension isn't something this feature builds automatically.`
+    : `This next cycle's direction has already been decided: ${goalType.toUpperCase()} (a ${directionLabel}). Do not change the direction — only the pacing, kcal levels, and phase structure.`}
+
+HARD CONSTRAINTS — never violate these:
+- No recommended kcal value may fall below ${safetyFloorKcal} kcal/day
+- Protein must never be recommended below ${proteinFloor}g per day
+- All goal startDates must be Mondays, all endDates must be Sundays
+- The very first goal must start on ${planRec.newMacroStart} (the day after the current cycle ends)
+${stepsConstraintLine}
+- Minimum 2 goal phases per plan (a starting phase and at least one further phase — never a single flat block), maximum ${maxGoalsPerPlan}
+- Do NOT include a fats field — fats are calculated client-side
+- Every goal step must represent a single flat kcal/protein/carbs target sustained across its full date range. Do not describe or reference intra-week structure anywhere. Goal step granularity is NOT locked to one-week increments — if a bi-weekly or longer hold makes more sense, make one goal span that full range rather than repeating identical weekly goals.
+${planCountLine}
+${fillConstraintLine}
+- Respond ONLY with valid JSON matching the schema below — no preamble, no markdown, no text outside the JSON
+${planLengthGuidanceBlock}
+JSON SCHEMA:
+{
+  "signal": "one of: on-track-continue | pace-too-fast | pace-too-slow | needs-longer-bridge | needs-shorter-bridge | conflict-resolution | extend-not-switch | switch-not-extend",
+  "headline": "max 12 words",
+  "narrative": "2-4 paragraphs referencing actual numbers from the data, and explicitly agreeing or disagreeing with the deterministic recommendation's own reasoning (given below) and why${isContinuationCase ? ' — including which of extending vs switching you\'d actually recommend, and why' : ''}",
+  "plans": [
+    {
+      "key": "short machine-safe id — see plan-count rule above for exact required keys when 2 plans are requested",
+      "label": "short human label, e.g. 'Recommended' or 'Sustainable'",
+      "rationale": "one sentence explaining the logic of this plan",
+      "summary": "plain English description of the full sequence",${weeksSchemaField}
+      "goals": [
+        {
+          "label": "short step name",
+          "startDate": "YYYY-MM-DD (must be a Monday)",
+          "endDate": "YYYY-MM-DD (must be the Sunday after startDate + weeks)",
+          "kcal": number,
+          "protein": number (grams, must be >= ${proteinFloor}),
+          "carbs": number (grams)${stepsSchemaField}
+        }
+      ]
+    }
+  ]
+}`;
+
+  // ── Weekly data table (same source/shape as the mid-cycle prompt) ──
+  const weekRows = (ins && ins.weekBuckets || []).map(b => {
+    const deltaStr = b.delta !== null ? (b.delta > 0 ? '+' : '') + b.delta.toFixed(2) + ' lbs' : 'n/a (first week)';
+    const isBaseline = b.label === (ins.baselineWeekLabel || 'W1') ? ' [BASELINE]' : '';
+    const isPartial = b.bEnd >= today;
+    const partialNote = isPartial ? ` [IN PROGRESS — ${b.nutrDayCount} of 7 days logged so far, averages are provisional]` : '';
+    return `${b.label} (${b.bStart}–${b.bEnd}): avg weight ${b.avgWeight ? b.avgWeight.toFixed(1) + ' lbs' : 'n/a'} | delta ${deltaStr} | avg ${b.avgKcal ? b.avgKcal.toLocaleString() : '?'} kcal | ${b.avgProtein || '?'}g protein | ${b.avgCarbs || '?'}g carbs | ${b.nutrDayCount} logged days${isBaseline}${partialNote}`;
+  }).join('\n');
+
+  // ── Completed cycle history (identical source to the mid-cycle prompt) ──
+  const cycles = (state.insightsRollup?.completedCycles || []);
+  const cycleHistoryStr = cycles.length
+    ? cycles.map(c => {
+        const waistPart = (c.startWaist != null && c.endWaist != null) ? ` | waist ${c.startWaist}"→${c.endWaist}"` : '';
+        const hipPart   = (c.startHip   != null && c.endHip   != null) ? ` | hip ${c.startHip}"→${c.endHip}"` : '';
+        return `${c.name} (${c.goalType}): ${c.start}–${c.end}, ${c.weeks}w | start ${c.startBw ? c.startBw.toFixed(1) : '?'} lbs → end ${c.endBw ? c.endBw.toFixed(1) : '?'} lbs (target ${c.targetBw || '?'})${waistPart}${hipPart} | avg ${c.avgKcal || '?'} kcal, ${c.avgProtein || '?'}g protein, ${c.avgCarbs || '?'}g carbs | plateau ${c.plateauWeeksDetected}w detected | signals: ${c.signals?.join(', ') || 'none'}`;
+      }).join('\n')
+    : 'No completed cycles yet — this is the first macrocycle.';
+
+  const userMessage =
+`CURRENT CYCLE ENDING: ${macro.name} (${macro.goalType})
+Start: ${macro.start} | End: ${toLocalDateStr(getMacroEndDate(macro))} | Duration: ${macro.weeks} weeks
+Current weight: ${rec.latestBw ? rec.latestBw.toFixed(1) + ' lbs' : 'unknown'}
+
+WEEKLY DATA (7-day average weight from daily weigh-ins):
+${weekRows || 'No weekly data available.'}
+
+CONTINUATION CONTEXT: ${continuationContextStr}
+
+DETERMINISTIC ENGINE'S OWN RECOMMENDATION FOR THE PLAN BELOW (already computed — agree, refine, or override with reasoning):
+Direction${isContinuationCase ? ' being planned for (the alternative, not the engine\'s own default of extending)' : ' decided'}: ${goalType}
+Reasoning: ${(planRec.rationale || []).join(' ') || 'none given'}
+Ramp start point: ${rec.rampStartKcal ? rec.rampStartKcal.toLocaleString() + " kcal (current cycle's last goal)" : 'unknown'}
+Proposed next cycle window: ${planRec.newMacroStart} → ${planRec.newMacroEnd || 'not yet resolved'}
+
+KEY METRICS:
+- Estimated TDEE: ${dynResult ? '~' + dynResult.tdee.toLocaleString() + ' kcal/day (log-based, ' + dynResult.dataPoints + ' data points)' : 'insufficient data'}
+- Log-based BMR: ${dynResult ? '~' + dynResult.bmr.toLocaleString() + ' kcal/day' : 'unknown'}
+- Plateau weeks detected (current cycle): ${ins?.plateauWeeks || 0}
+- Current signal (current cycle): ${ins?.signal || 'unknown'}
+
+SAFE BOUNDARIES FOR THE NEXT CYCLE:
+- Minimum safe kcal floor: ${safetyFloorKcal} kcal/day
+- Minimum protein: ${proteinFloor}g/day
+- Sustainable weight floor/ceiling: ${rangeStr}
+- Forward taper limit for this cycle's likely length: ${forwardTaperStr}
+
+MAINTENANCE TDEE-DISCREPANCY FLAG (current cycle, if applicable): ${recalStr}
+
+USER-SUPPLIED TARGET/DEADLINE: ${overrideStr}
+CONFLICT: ${conflictStr}
+
+COMPLETED CYCLE HISTORY:
+${cycleHistoryStr}`;
+
+  return { systemPrompt, userMessage };
+}
+
+// ── Ask BLOC for a next-cycle second opinion ─────────────────────────────────
+// Mirrors askBlocForAdvice()'s fetch/parse/validate/error pattern exactly.
+// Stores into state.nextCycleAdvice — a separate slot from state.blocAdvice
+// (mid-cycle advice) so the two features never share a cooldown clock or
+// collide on the same macro's stored response.
+async function askBlocForNextCycleAdvice() {
+  const macro = resolveProgressMacro();
+  if (!macro || _nextCycleAdviceLoading) return;
+
+  if (_nextCyclePreviewMacroId && _nextCyclePreviewMacroId !== macro.id) {
+    alert('Clear the preview above before asking for a next-cycle second opinion — this always plans for your real active cycle, never the one being previewed.');
+    return;
+  }
+
+  const rec = recommendNextCycle(macro, _nextCycleOverride);
+  const gate = isNextCycleAdviceEligible(macro, rec);
+  if (!gate.eligible) {
+    console.warn('[BLOC next-cycle advice] Not eligible:', gate.reason);
+    return;
+  }
+
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    alert('No API key saved. Go to Settings → AI Advice to add your Anthropic API key.');
+    return;
+  }
+
+  const today = getLocalToday(); // storedAt below
+
+  _nextCycleAdviceLoading = true;
+  renderProgress(); // buildNextCycleAdviceSectionHTML() reads this flag for the "thinking" state
+
+  let systemPrompt, userMessage;
+  try {
+    const prompt = buildNextCycleAdvicePrompt(macro, rec);
+    systemPrompt = prompt.systemPrompt;
+    userMessage  = prompt.userMessage;
+    console.log('[BLOC next-cycle advice] Prompt built. User message length:', userMessage.length);
+  } catch (promptErr) {
+    console.error('[BLOC next-cycle advice] Prompt build failed:', promptErr);
+    _nextCycleAdviceLoading = false;
+    renderProgress();
+    setTimeout(() => {
+      const errEl = document.getElementById('next-cycle-advice-error');
+      const msg = `Failed to build prompt: ${promptErr.message}`;
+      if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; setTimeout(() => { if (errEl) errEl.style.display = 'none'; }, 6000); }
+      else alert(msg);
+    }, 50);
+    return;
+  }
+
+  console.log('[BLOC next-cycle advice] Sending API request…');
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 8000,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userMessage }],
+      }),
+    });
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      console.error('[BLOC next-cycle advice] API error response:', res.status, errBody);
+      throw new Error(errBody?.error?.message || `API error ${res.status}`);
+    }
+
+    const data = await res.json();
+    const rawText = (data.content || [])
+      .filter(b => b.type === 'text')
+      .map(b => b.text)
+      .join('');
+
+    console.log('[BLOC next-cycle advice] Raw length:', rawText.length, '| stop_reason:', data.stop_reason);
+
+    // Strip any accidental markdown fences
+    const cleaned = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+    const response = JSON.parse(cleaned);
+
+    // Validate required top-level fields and per-plan shape (>=2 goals per
+    // plan, per the spec's "at least 2 goal phases" requirement).
+    if (!response.signal || !response.headline || !response.narrative
+        || !Array.isArray(response.plans) || !response.plans.length) {
+      throw new Error('Response missing required fields');
+    }
+    const mode = nextCycleAdvicePlanMode(rec);
+    const planRec = mode.planRec;
+    response.plans.forEach((p, i) => {
+      if (!p.key || !p.label || !Array.isArray(p.goals) || p.goals.length < 2) {
+        throw new Error(`Plan ${i + 1} is missing required fields or has fewer than 2 goal phases`);
+      }
+      // ── Fill-to-length guard ──────────────────────────────────────────
+      // Forces the model to actually fill the cycle it was asked to plan
+      // for, rather than silently stopping short (or running long): in
+      // directionTwoPlans mode each plan states its own duration via the
+      // required "weeks" field; otherwise the length is already fixed
+      // (planRec.newMacroEnd). Either way, the last goal's endDate must
+      // land exactly on the implied end date — a mismatch is a hard
+      // failure, not a warning, since a plan that doesn't fill its cycle
+      // needs a new attempt rather than silent acceptance.
+      let expectedEnd = null;
+      if (mode.directionTwoPlans) {
+        if (typeof p.weeks !== 'number' || p.weeks < 1) {
+          throw new Error(`Plan ${i + 1} ("${p.label}") is missing its required "weeks" field`);
+        }
+        expectedEnd = getSundayAfterWeeks(planRec.newMacroStart, p.weeks);
+      } else if (planRec.newMacroEnd) {
+        expectedEnd = planRec.newMacroEnd;
+      }
+      if (expectedEnd) {
+        const lastGoalEnd = p.goals[p.goals.length - 1].endDate;
+        if (lastGoalEnd !== expectedEnd) {
+          throw new Error(`Plan ${i + 1} ("${p.label}") doesn't fill its cycle — goals end ${lastGoalEnd}, expected ${expectedEnd}`);
+        }
+      }
+    });
+    // ── Bulk-never-shortened guard ───────────────────────────────────────
+    // Per your instruction: a bulk's "aggressive" variant may push kcal
+    // harder, but must NEVER run shorter than "sustainable" — patience is
+    // the whole point of minimising fat gain, regardless of pace. Only
+    // meaningful in directionTwoPlans mode for a gain-type cycle (uses
+    // planRec, since a gain-continuation's alternative can itself be a
+    // 'loss', in which case this guard correctly doesn't apply).
+    if (mode.directionTwoPlans && planRec.goalType === 'gain') {
+      const sust = response.plans.find(p => p.key === 'sustainable');
+      const agg  = response.plans.find(p => p.key === 'aggressive');
+      if (sust && agg && typeof sust.weeks === 'number' && typeof agg.weeks === 'number' && agg.weeks < sust.weeks) {
+        throw new Error(`"aggressive" bulk plan (${agg.weeks}w) is shorter than "sustainable" (${sust.weeks}w) — bulks must never be shortened to be "aggressive"`);
+      }
+    }
+
+    // Materialise fats and enforce the client-side steps rule: 8,000 flat
+    // for every bulk/maintenance goal regardless of what (if anything) came
+    // back for that field; only a cut's goals ever carry a real steps value
+    // from the model. Uses planRec.goalType, not rec.goalType — for a
+    // continuation, plans[] represents the alternative direction, which may
+    // differ from the current cycle's own (continuing) direction.
+    response.plans.forEach(p => {
+      p.goals = p.goals.map(g => {
+        const remainingKcal = Math.max(0, g.kcal - (g.protein * 4) - (g.carbs * 4));
+        const fats = Math.round(remainingKcal / 9);
+        const steps = planRec.goalType === 'loss' ? (parseInt(g.steps) || 8000) : 8000;
+        return { ...g, fats, steps };
+      });
+    });
+
+    response._cycleEnd = toLocalDateStr(getMacroEndDate(macro));
+
+    // Store — only now do we update storedAt.
+    state.nextCycleAdvice = {
+      response,
+      storedAt:      today,
+      macroId:       macro.id,
+      chosenPlanKey: null,
+    };
+    save();
+
+  } catch (err) {
+    console.error('[BLOC next-cycle advice error]', err);
+    _nextCycleAdviceLoading = false;
+    renderProgress();
+    setTimeout(() => {
+      const errEl = document.getElementById('next-cycle-advice-error');
+      const msg = `Could not get a next-cycle second opinion: ${err.message}. Check your API key in Settings or try again.`;
+      if (errEl) {
+        errEl.textContent = msg;
+        errEl.style.display = 'block';
+        setTimeout(() => { if (errEl) errEl.style.display = 'none'; }, 6000);
+      } else {
+        alert(msg);
+      }
+    }, 50);
+    return;
+  }
+
+  _nextCycleAdviceLoading = false;
+  renderProgress();
+}
+
+// ── Render the Phase 4 advice section ────────────────────────────────────
+// Sits directly below "Build this plan next" in Card 3. Handles all states:
+// loading, not-yet-eligible (3-week gate), eligible-but-no-call-made-yet,
+// and stored-advice (pre-choice plan selection / post-choice collapse).
+// Genericized over an N-plan array — the plan count/keys vary by mode
+// (nextCycleAdvicePlanMode()): 1 plan normally, 2 keyed "sustainable"/
+// "aggressive" when no deadline was given for a cut/bulk, or 2 keyed
+// "preserve-weight"/"preserve-date" when there's an unresolved conflict.
+function buildNextCycleAdviceSectionHTML(macro, rec) {
+  if (_nextCycleAdviceLoading) {
+    return `<div style="margin-top:10px;">
+      <div style="padding:11px 14px;border-radius:10px;font-size:13px;font-weight:600;
+                  background:rgba(43,199,196,0.08);border:0.5px solid rgba(43,199,196,0.2);
+                  color:var(--accent);text-align:center;font-family:var(--font-display);">
+        ✦ BLOC is thinking…
+      </div>
+      <div id="next-cycle-advice-error" style="display:none;font-size:11px;color:var(--red);margin-top:6px;"></div>
+    </div>`;
+  }
+
+  const stored = state.nextCycleAdvice;
+  const hasStoredAdvice = stored && stored.macroId === macro.id && stored.response;
+
+  if (!hasStoredAdvice) {
+    const gate = isNextCycleAdviceEligible(macro, rec);
+    if (!gate.eligible) {
+      // Only the timing gate gets an explanatory hint — everything else
+      // (continuation, direction not yet chosen) stays silent, same as
+      // "Build this plan next" being absent in those same cases.
+      if (gate.reason === 'outside-3-week-window') {
+        return `<div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--surface2);border:0.5px solid var(--border2);">
+          <div style="font-size:12px;color:var(--text3);">✦ Ask BLOC for a second opinion — available within 3 weeks of your cycle ending</div>
+        </div>`;
+      }
+      return '';
+    }
+    const hasKey = !!getApiKey();
+    const noKeyNote = !hasKey
+      ? `<div style="font-size:10px;color:var(--amber);margin-top:5px;">⚠ Add your Anthropic API key in Settings to enable this.</div>`
+      : '';
+    return `<div style="margin-top:10px;">
+      <button id="next-cycle-advice-btn"
+        onclick="askBlocForNextCycleAdvice()"
+        ${!hasKey ? 'disabled' : ''}
+        style="width:100%;padding:11px 14px;border-radius:10px;font-size:13px;font-weight:600;
+               background:${hasKey ? 'rgba(43,199,196,0.12)' : 'var(--surface2)'};
+               border:0.5px solid ${hasKey ? 'rgba(43,199,196,0.35)' : 'var(--border2)'};
+               color:${hasKey ? 'var(--accent)' : 'var(--text3)'};
+               cursor:${hasKey ? 'pointer' : 'default'};font-family:var(--font-display);">
+        ✦ Ask BLOC for a second opinion
+      </button>
+      ${noKeyNote}
+      <div id="next-cycle-advice-error" style="display:none;font-size:11px;color:var(--red);margin-top:6px;"></div>
+    </div>`;
+  }
+
+  // ── Stored advice — narrative + plan selection ──────────────────────────
+  const r = stored.response;
+  const plans = r.plans || [];
+  const chosenKey = stored.chosenPlanKey; // null | plan.key
+
+  const narrativeOpen = _nextCycleAdviceSectionsOpen.narrative;
+  const selectedOpen  = _nextCycleAdviceSectionsOpen.selected;
+  const altOpen       = _nextCycleAdviceSectionsOpen.alt;
+  const togNarr     = `_nextCycleAdviceSectionsOpen.narrative=!_nextCycleAdviceSectionsOpen.narrative;renderProgress();`;
+  const togSelected = `_nextCycleAdviceSectionsOpen.selected=!_nextCycleAdviceSectionsOpen.selected;renderProgress();`;
+  const togAlt      = `_nextCycleAdviceSectionsOpen.alt=!_nextCycleAdviceSectionsOpen.alt;renderProgress();`;
+
+  const narrativeBody = `
+    <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:8px;">${r.narrative.split('\n\n')[0]}</div>
+    ${r.narrative.split('\n\n').slice(1).map(p =>
+      `<div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:8px;">${p}</div>`
+    ).join('')}`;
+
+  // Same visual language as the mid-cycle feature's goalSummaryBlock(),
+  // generalized over whichever plan this is (not a fixed sustainable/
+  // aggressive pair) — includes weeks when the plan carries one (Phase 4's
+  // self-declared duration for the sustainable/aggressive no-deadline mode).
+  function planStepsBlock(plan) {
+    const stepsHtml = plan.goals.map((g, i) => {
+      const startFmt = new Date(g.startDate + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+      const endFmt   = new Date(g.endDate   + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+      const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+      const weeksNum = Math.round((new Date(g.endDate + 'T00:00:00') - new Date(g.startDate + 'T00:00:00') + 86400000) / msPerWeek);
+      return `<div style="padding:8px 10px;background:var(--surface2);border-radius:7px;margin-bottom:5px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;">
+          <span style="font-size:11px;font-weight:600;color:var(--text);">${plan.goals.length > 1 ? `Step ${i + 1}: ` : ''}${g.label}</span>
+          <span style="font-size:10px;color:var(--text3);">${weeksNum > 0 ? weeksNum + 'w' : '—'} · ${startFmt}–${endFmt}</span>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:4px;flex-wrap:wrap;">
+          <span style="font-size:11px;color:var(--text2);">🔥 ${g.kcal.toLocaleString()} kcal</span>
+          <span style="font-size:11px;color:var(--text2);">👟 ${g.steps.toLocaleString()} steps</span>
+          <span style="font-size:11px;color:var(--text2);">💪 ${g.protein}g protein</span>
+          <span style="font-size:11px;color:var(--text2);">🌾 ${g.carbs}g carbs</span>
+          ${g.fats ? `<span style="font-size:11px;color:var(--text3);">${g.fats}g fats</span>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+    return `<div style="font-size:11px;color:var(--text3);margin-bottom:6px;">${plan.rationale}</div>${stepsHtml}`;
+  }
+
+  let planSection = '';
+  if (!chosenKey) {
+    // Pre-choice: every plan visible, in order, each with its own CTA.
+    // First plan gets the accent/teal treatment (mirrors "sustainable"'s
+    // styling in the mid-cycle feature), any further plan uses the red
+    // "aggressive"-style treatment — reasonable given every current mode
+    // (sustainable/aggressive, preserve-weight/preserve-date, or a lone
+    // single plan) puts the safer/primary option first.
+    planSection = plans.map((plan, i) => `
+      <div style="border-top:0.5px solid var(--border);margin:12px 0 10px;"></div>
+      <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;">
+        ${i === 0 ? '🌱' : '⚡'} ${plan.label}
+        <span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:6px;">${plan.summary}</span>
+      </div>
+      ${planStepsBlock(plan)}
+      <button onclick="chooseNextCyclePlan('${plan.key}')"
+        style="width:100%;padding:11px;border-radius:10px;font-size:13px;font-weight:600;
+               background:${i === 0 ? 'var(--accent)' : 'var(--red)'};color:${i === 0 ? '#06281f' : '#fff'};
+               border:${i === 0 ? 'none' : '1px solid var(--red)'};cursor:pointer;margin-top:4px;
+               font-family:var(--font-display);">
+        Use ${plan.label} →
+      </button>`).join('');
+  } else {
+    // Post-choice: chosen plan collapsible-open, any other plan(s) tucked
+    // under a single "view alternative(s)" toggle — same pattern as the
+    // mid-cycle feature, generalized over however many other plans exist.
+    const chosenPlan = plans.find(p => p.key === chosenKey);
+    const altPlans    = plans.filter(p => p.key !== chosenKey);
+    planSection = `
+    <div style="border-top:0.5px solid var(--border);margin:12px 0 10px;"></div>
+    <div onclick="${togSelected}"
+         style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:4px 0;margin-bottom:${selectedOpen ? '6px' : '0'};">
+      <span style="font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:0.06em;">🌱 Selected plan${chosenPlan ? ' — ' + chosenPlan.label : ''}</span>
+      <span style="font-size:12px;color:var(--text3);">${selectedOpen ? '▲' : '▼'}</span>
+    </div>
+    ${selectedOpen && chosenPlan ? `
+    <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;">
+      ${chosenPlan.label}
+      <span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:6px;">${chosenPlan.summary}</span>
+    </div>
+    ${planStepsBlock(chosenPlan)}` : ''}
+    ${altPlans.length ? `
+    <div style="border-top:0.5px solid var(--border);margin:10px 0 8px;"></div>
+    <div onclick="${togAlt}"
+         style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:4px 0;">
+      <span style="font-size:11px;color:var(--text3);">⚡ View alternative plan${altPlans.length > 1 ? 's' : ''}</span>
+      <span style="font-size:12px;color:var(--text3);">${altOpen ? '▲' : '▼'}</span>
+    </div>
+    ${altOpen ? altPlans.map(p => `
+    <div style="margin-top:8px;">
+      <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;">
+        ${p.label}
+        <span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:6px;">${p.summary}</span>
+      </div>
+      ${planStepsBlock(p)}
+      <button onclick="chooseNextCyclePlan('${p.key}')"
+        style="width:100%;padding:10px;border-radius:10px;font-size:12px;font-weight:600;
+               background:var(--surface2);color:var(--text);border:0.5px solid var(--border2);
+               cursor:pointer;margin-top:4px;font-family:var(--font-display);">
+        Switch to ${p.label} plan →
+      </button>
+    </div>`).join('') : ''}` : ''}`;
+  }
+
+  const storedFmt = new Date(stored.storedAt + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  return `<div style="margin-top:10px;border-top:0.5px solid var(--border);padding-top:10px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;
+                  font-size:10px;font-weight:600;background:rgba(43,199,196,0.12);color:var(--accent);">
+        ✦ BLOC second opinion
+      </div>
+      <div style="font-size:10px;color:var(--text3);">${storedFmt}</div>
+    </div>
+    <div onclick="${togNarr}"
+         style="display:flex;align-items:flex-start;justify-content:space-between;cursor:pointer;gap:8px;margin-bottom:${narrativeOpen ? '8px' : '0'};">
+      <div style="font-size:13px;font-weight:600;color:var(--text);flex:1;">${r.headline}</div>
+      <span style="font-size:12px;color:var(--text3);flex-shrink:0;margin-top:2px;">${narrativeOpen ? '▲' : '▼'}</span>
+    </div>
+    ${narrativeOpen ? narrativeBody : ''}
+    ${planSection}
+    <div id="next-cycle-advice-error" style="display:none;font-size:11px;color:var(--red);margin-top:6px;"></div>
+  </div>`;
+}
+
 
 // Kicks off the sequential goal modal flow for a chosen recommendation path.
 // Checks for overlapping existing goals and warns before proceeding.
@@ -6925,6 +8818,16 @@ function _openQueueStep(idx) {
       goalMacroSliderState.userTouched = false;
     });
   }
+
+  // ── Explicitly select the target macrocycle ──
+  // openModal('modal-add-goal') rebuilds the <select> options list but never
+  // sets which one is chosen, so the browser silently defaults to whichever
+  // macrocycle happens to be first in state.macrocycles — not necessarily
+  // (and often not) the one this queue is actually building goals for. Set
+  // it explicitly every step, since saveGoalAndAdvanceQueue() reads the
+  // macroId straight off this dropdown when it saves.
+  const macroSelect = document.getElementById('goal-macro-select');
+  if (macroSelect) macroSelect.value = macro.id;
 
   // ── Queue indicator (applies to all steps) ──
   const queueInd  = document.getElementById('goal-queue-indicator');
@@ -10067,7 +11970,25 @@ function calcMifflinBMR() {
  * Uses the 3,500 kcal ≈ 1 lb fat rule across all consecutive weight-log pairs.
  * Returns { tdee, bmr, dataPoints } or null.
  */
+// calcDynamicTDEE() — thin wrapper, this is the "swap" step from the design
+// spec: the trend-based method (calcTrendBasedTDEE, 7-day rolling-average
+// endpoints) was built and validated alongside this one before being
+// trusted; now that it's confirmed, every existing caller of
+// calcDynamicTDEE() — the BMR line on Progress, calorie targets, ETA
+// calcs, computeSafetyFloor(), the Next Cycle direction ramp's start/target
+// kcal, etc. — picks up the improved figure automatically in this one
+// place, with no other call sites needing to change. Falls back to the raw
+// log-pair method only when the trend method doesn't have enough data yet
+// (it needs multiple calendar weeks with 2+ weigh-ins each, a higher bar
+// than the raw method's "any 2 adjacent readings") — better to give a
+// noisier answer than none at all for someone just starting to log.
 function calcDynamicTDEE() {
+  const trend = calcTrendBasedTDEE();
+  if (trend) return trend;
+  return calcDynamicTDEE_rawLogPair();
+}
+
+function calcDynamicTDEE_rawLogPair() {
   // Consecutive-pairs method, using median for robustness.
   // Every adjacent pair of weight logs is evaluated. Daily weight fluctuation
   // (water retention, food mass, glycogen) skews individual estimates but the
@@ -12663,6 +14584,7 @@ function clearAllData() {
             exerciseHistory: {}, exerciseTrackingMode: {},
             insightsRollup: { completedCycles: [] },
             blocAdvice: null,
+            nextCycleAdvice: null,
             theme: keepTheme || 'multi', mode: keepMode || 'dark',
             currentMacroId: null, currentWeek: 1,
             currentDay: 'push', currentEditContext: null,
