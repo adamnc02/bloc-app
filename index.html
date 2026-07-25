@@ -741,6 +741,10 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
    use over the plain Nutrition page — bump both above the default 200 so
    neither is hidden behind whichever modal is already open underneath. */
 #modal-nutr-add, #modal-nutr-serving { z-index: 300; }
+/* modal-nutr-barcode (the camera scanner) is opened from within
+   modal-nutr-add, so it needs to sit above it or the food library
+   list stays visible on top of the camera. */
+#modal-nutr-barcode { z-index: 310; }
 .modal-sheet {
   width: 100%;
   background: var(--surface);
@@ -1616,7 +1620,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v7.00</span>
+          <span class="badge badge-green">v7.01</span>
         </div>
       </div>
 
@@ -5222,14 +5226,22 @@ function renderProgress() {
   // Generate reverse-diet weekly projections up to maintenance
   const reverseDietRows = (() => {
     if (!dynResult || !recentKcal) return [];
-    const maintenance = dynResult.tdee;
+    const maintenance = Math.round(dynResult.tdee);
     const rows = [];
     let kcal = recentKcal;
     let week = 1;
-    while (kcal < maintenance - weeklyIncrement/2 && week <= 20) {
+    // 60-week safety cap — generous enough that the Math.min clamp below
+    // always resolves the ramp naturally before it's ever hit.
+    while (kcal < maintenance - weeklyIncrement/2 && week <= 60) {
       kcal = Math.min(kcal + weeklyIncrement, maintenance);
       rows.push({ week, kcal: Math.round(kcal) });
       week++;
+    }
+    // Safety net: guarantee the final week always lands exactly on TDEE
+    // (the intended "sit at maintenance" endpoint), even in an edge case
+    // where the cap above is reached before the ramp naturally arrives.
+    if (rows.length && rows[rows.length - 1].kcal !== maintenance) {
+      rows[rows.length - 1] = { week: rows[rows.length - 1].week, kcal: maintenance };
     }
     return rows;
   })();
@@ -5969,7 +5981,6 @@ function buildInsightsCardHTML() {
         <div style="height:4px;background:var(--border);border-radius:2px;margin-top:8px;">
           <div style="height:4px;width:${fillPct.toFixed(1)}%;border-radius:2px;background:${fillGradient};"></div>
         </div>
-        ${ins.estimatedTDEE ? `<div style="font-size:10px;color:var(--text3);margin-top:4px;">Est. TDEE ${ins.estimatedTDEE.toLocaleString()} kcal · current deficit ${ins.deficitOrSurplus !== null ? Math.abs(ins.deficitOrSurplus) + ' kcal' : '—'}</div>` : ''}
       </div>`;
     }
   } else if (goalType === 'gain') {
@@ -5994,7 +6005,6 @@ function buildInsightsCardHTML() {
   return `<div class="card" style="margin-top:4px;">
     <div style="display:flex;align-items:center;justify-content:space-between;">
       <div style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:600;background:${pill.bg};color:${pill.color};">${pill.label}</div>
-      ${ins.estimatedTDEE ? `<div style="font-size:10px;color:var(--text3);">TDEE ~${ins.estimatedTDEE.toLocaleString()} kcal</div>` : ''}
     </div>
     <div style="font-size:13px;font-weight:600;color:var(--text);margin-top:8px;line-height:1.35;">${ins.headline}</div>
     <div style="font-size:12px;color:var(--text2);margin-top:4px;line-height:1.55;">${ins.detail}</div>
@@ -6205,6 +6215,30 @@ function buildBlocAdvicePrompt(macro) {
   const nextMonday  = getNextMonday();
   const cycleEnd    = toLocalDateStr(getMacroEndDate(macro));
 
+  // ── Waist/hip measurement trend (cycle-scoped) ──
+  // Waist/hip change is valuable context for the LLM — it helps distinguish
+  // genuine fat loss from a water-weight plateau. Gracefully falls back to
+  // 'not logged this cycle' / 'too sparse for a trend' when data is missing,
+  // matching the pattern used elsewhere in this prompt for optional fields.
+  const measLogsThisCycle = [...(state.bodyLogs || [])]
+    .filter(l => l.date >= (macro.start || '') && l.date <= today &&
+      ((l.waist !== null && l.waist !== undefined) || (l.hip !== null && l.hip !== undefined)))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const waistLogsThisCycle = measLogsThisCycle.filter(l => l.waist !== null && l.waist !== undefined);
+  const hipLogsThisCycle   = measLogsThisCycle.filter(l => l.hip   !== null && l.hip   !== undefined);
+
+  const measTrendStr = (logs, unit) => {
+    if (logs.length >= 2) {
+      const first = logs[0], lastLog = logs[logs.length - 1];
+      const delta = (lastLog[unit] - first[unit]).toFixed(2);
+      return `${first[unit]}" (${first.date}) → ${lastLog[unit]}" (${lastLog.date}), Δ ${delta > 0 ? '+' : ''}${delta}"`;
+    }
+    if (logs.length === 1) return `only one reading so far — ${logs[0][unit]}" (${logs[0].date}), too sparse for a trend`;
+    return 'not logged this cycle';
+  };
+  const waistTrendStr = measTrendStr(waistLogsThisCycle, 'waist');
+  const hipTrendStr   = measTrendStr(hipLogsThisCycle, 'hip');
+
   // ── System prompt ──
   const systemPrompt = `You are BLOC, a personal training and nutrition coach embedded in a fitness tracking app. You analyse the user's real logged data and give direct, specific, evidence-based advice. Speak in second person. Never be vague. Reference actual numbers from the data.
 
@@ -6215,6 +6249,7 @@ HARD CONSTRAINTS — never violate these:
 - Steps targets must always be multiples of 2000
 - Maximum 4 goals per recommendation path
 - Do NOT include a fats field — fats are calculated client-side
+- Every goal step must represent a single flat kcal/protein/carbs/steps target sustained across the full 7-day Monday–Sunday week. Do not describe or reference intra-week structure (e.g. specific higher-calorie days followed by lower-calorie days) anywhere — not in the goals array, and not in the narrative, rationale, or summary text. If a refeed or diet break is part of the recommendation, represent it as its own full-week goal step at the refeed's target kcal, not as a partial-week structure averaged into a different step.
 - Respond ONLY with valid JSON matching the schema below — no preamble, no markdown, no text outside the JSON
 
 JSON SCHEMA:
@@ -6282,9 +6317,11 @@ Plan chosen by user: ${chosen}`;
   // ── Completed cycle history ──
   const cycles = (state.insightsRollup?.completedCycles || []);
   const cycleHistoryStr = cycles.length
-    ? cycles.map(c =>
-        `${c.name} (${c.goalType}): ${c.start}–${c.end}, ${c.weeks}w | start ${c.startBw ? c.startBw.toFixed(1) : '?'} lbs → end ${c.endBw ? c.endBw.toFixed(1) : '?'} lbs (target ${c.targetBw || '?'}) | avg ${c.avgKcal || '?'} kcal, ${c.avgProtein || '?'}g protein, ${c.avgCarbs || '?'}g carbs | plateau ${c.plateauWeeksDetected}w detected | signals: ${c.signals?.join(', ') || 'none'}`
-      ).join('\n')
+    ? cycles.map(c => {
+        const waistPart = (c.startWaist != null && c.endWaist != null) ? ` | waist ${c.startWaist}"→${c.endWaist}"` : '';
+        const hipPart   = (c.startHip   != null && c.endHip   != null) ? ` | hip ${c.startHip}"→${c.endHip}"` : '';
+        return `${c.name} (${c.goalType}): ${c.start}–${c.end}, ${c.weeks}w | start ${c.startBw ? c.startBw.toFixed(1) : '?'} lbs → end ${c.endBw ? c.endBw.toFixed(1) : '?'} lbs (target ${c.targetBw || '?'})${waistPart}${hipPart} | avg ${c.avgKcal || '?'} kcal, ${c.avgProtein || '?'}g protein, ${c.avgCarbs || '?'}g carbs | plateau ${c.plateauWeeksDetected}w detected | signals: ${c.signals?.join(', ') || 'none'}`;
+      }).join('\n')
     : 'No completed cycles yet — this is the first macrocycle.';
 
   // ── User message ──
@@ -6306,6 +6343,8 @@ KEY METRICS:
 - Current deficit/surplus vs TDEE: ${ins?.deficitOrSurplus != null ? (ins.deficitOrSurplus > 0 ? '+' : '') + ins.deficitOrSurplus + ' kcal/day' : 'unknown'}
 - Plateau weeks detected: ${ins?.plateauWeeks || 0} consecutive weeks ≤ 0.5 lbs/week change
 - Current signal: ${ins?.signal || 'unknown'}
+- Waist trend this cycle: ${waistTrendStr}
+- Hip trend this cycle: ${hipTrendStr}
 
 CONSTRAINTS FOR YOUR RECOMMENDATIONS:
 - Minimum safe kcal floor: ${safetyFloor} kcal/day (log-based BMR × 0.80)
@@ -6599,7 +6638,7 @@ function buildAiAdviceCardHTML() {
       const msPerWeek = 7 * 24 * 60 * 60 * 1000;
       const startMs = new Date(displayStart + 'T00:00:00').getTime();
       const endMs   = new Date(displayEnd   + 'T00:00:00').getTime();
-      const weeksNum = Math.round((endMs - startMs + msPerWeek) / msPerWeek);
+      const weeksNum = Math.round((endMs - startMs + 86400000) / msPerWeek);
       const weeksLabel = weeksNum > 0 ? weeksNum + 'w' : '—';
 
       return `<div style="padding:8px 10px;background:var(--surface2);border-radius:7px;margin-bottom:5px;">
@@ -6708,7 +6747,6 @@ function buildAiAdviceCardHTML() {
     </div>
     ${altOpen ? `
     <div style="margin-top:8px;">
-      <div style="font-size:11px;color:var(--text3);margin-bottom:6px;">${altPath_obj.rationale}</div>
       ${goalSummaryBlock(altPath_obj, altPathKey)}
       <button onclick="startGoalQueue('${altPathKey}')"
         style="width:100%;padding:10px;border-radius:10px;font-size:12px;font-weight:600;
