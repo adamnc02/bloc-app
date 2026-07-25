@@ -7186,6 +7186,7 @@ function buildBlocAdvicePrompt(macro) {
   const ins        = computeWeeklyInsights(macro);
   const dynResult  = calcDynamicTDEE();
   const safetyFloor = computeSafetyFloor(macro);
+  const today      = getLocalToday(); // used below for the waist/hip cycle-scope filter and the weekly data table's partial-week flag
 
   // Protein floor: 1g per lb of most recent bodyweight, rounded up
   const latestLog = [...(state.bodyLogs || [])]
@@ -7268,7 +7269,6 @@ JSON SCHEMA:
 }`;
 
   // ── Weekly data table ──
-  const today = getLocalToday();
   const weekRows = (ins && ins.weekBuckets || []).map(b => {
     const deltaStr = b.delta !== null ? (b.delta > 0 ? '+' : '') + b.delta.toFixed(2) + ' lbs' : 'n/a (first week)';
     const isBaseline = b.label === (ins.baselineWeekLabel || 'W1') ? ' [BASELINE]' : '';
