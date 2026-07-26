@@ -1620,7 +1620,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v7.23</span>
+          <span class="badge badge-green">v7.26</span>
         </div>
       </div>
 
@@ -2040,7 +2040,11 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     </div>
     <div class="form-group">
       <div class="label">Macrocycle</div>
-      <select id="goal-macro-select"></select>
+      <select id="goal-macro-select" onchange="onGoalMacroSelectChange()"></select>
+    </div>
+    <div class="form-group">
+      <div class="label">Goal Name <span style="color:var(--text3);font-size:11px;">— optional</span></div>
+      <input type="text" id="goal-label-input" placeholder="e.g. Step 1 - Hard Cut Start">
     </div>
     <div class="input-row">
       <div>
@@ -2886,6 +2890,7 @@ function openModal(id) {
       document.getElementById('goal-steps-input').value = '';
       document.getElementById('goal-modal-title').textContent = 'New Goal Period';
       modal._editIdx = undefined;
+      prefillGoalLabelForSelectedMacro();
     }
     requestAnimationFrame(() => initGoalMacroSliders(isEditing ? state.goals[modal._editIdx] : null));
   }
@@ -7585,6 +7590,7 @@ The user is challenging your most recent recommendation, shown to you as your pr
 Respond ONLY with valid JSON matching this EXTENDED schema — no preamble, no markdown, no text outside the JSON:
 {
   "acknowledgment": "1-2 sentences: either admit a mistake and explain what was wrong, or explain why you stand by the original advice — respond directly to what the user raised",
+  "isSignificantRevision": "true or false (as a JSON boolean, not a string) — true if this revision changes your fundamental read of the situation or overall strategy (e.g. switching from a refeed/diet-break recommendation to a steeper cut, or reversing which direction the plan should move); false if it's a minor correction within the same overall approach (e.g. adjusting one field like steps or protein on one step, tightening a number, fixing a data error) while your underlying reasoning stands. When false, the ORIGINAL headline/narrative stay visible in the UI and only your plans change — so only mark this true when the original narrative would now be actively misleading if left displayed alongside the new plans",
   "headline": "max 12 words",
   "narrative": "2-4 paragraphs referencing actual numbers from the data — do NOT include the acknowledgment text here, this is the normal reasoning only",
   "primaryAction": "single most important action this week, one sentence",
@@ -7686,6 +7692,7 @@ async function askBlocForChallenge(challengeText) {
     const revision = JSON.parse(cleaned);
 
     if (!revision.acknowledgment || !revision.headline || !revision.narrative
+        || typeof revision.isSignificantRevision !== 'boolean'
         || !revision.recommendations?.sustainable?.goals
         || !revision.recommendations?.aggressive?.goals) {
       throw new Error('Response missing required fields');
@@ -7791,6 +7798,9 @@ function buildBlocChallengePreviewHTML() {
 
   return `<div style="border-top:0.5px dashed rgba(43,199,196,0.35);margin:12px 0 10px;padding-top:10px;">
     <div style="font-size:10px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">✦ Challenge response</div>
+    ${revision.isSignificantRevision
+      ? `<div style="display:inline-block;font-size:11px;font-weight:600;color:var(--amber);background:rgba(239,159,39,0.12);border:0.5px solid rgba(239,159,39,0.35);border-radius:6px;padding:3px 8px;margin-bottom:8px;">⚠ Significant change</div>`
+      : `<div style="display:inline-block;font-size:11px;font-weight:600;color:var(--text3);background:var(--surface2);border:0.5px solid var(--border2);border-radius:6px;padding:3px 8px;margin-bottom:8px;">Minor correction</div>`}
     <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:10px;font-style:italic;">${revision.acknowledgment}</div>
     <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:10px;">${revision.narrative.split('\n\n')[0]}</div>
     ${sustDiff}
@@ -7822,20 +7832,44 @@ function acceptBlocChallenge() {
 
   const originalSummary = condenseBlocAdvicePlans(stored.response);
   const acknowledgment = revision.acknowledgment;
+  const significant = !!revision.isSignificantRevision;
 
-  const newResponse = {
-    ...stored.response,
-    recommendations: revision.recommendations,
-    nextCheckIn: revision.nextCheckIn,
-    _cycleEnd: revision._cycleEnd,
-    _sustainableExceedsCycle: revision._sustainableExceedsCycle,
-    _aggressiveExceedsCycle: revision._aggressiveExceedsCycle,
-    _revisionNote: acknowledgment,
-  };
+  const newResponse = significant
+    // Significant: the LLM changed its fundamental read of the situation —
+    // the old narrative would now be actively misleading next to the new
+    // plans, so swap headline/narrative/actions in wholesale.
+    ? {
+        ...stored.response,
+        headline: revision.headline,
+        narrative: revision.narrative,
+        primaryAction: revision.primaryAction,
+        secondaryAction: revision.secondaryAction,
+        recommendations: revision.recommendations,
+        nextCheckIn: revision.nextCheckIn,
+        _cycleEnd: revision._cycleEnd,
+        _sustainableExceedsCycle: revision._sustainableExceedsCycle,
+        _aggressiveExceedsCycle: revision._aggressiveExceedsCycle,
+        _revisionNote: null,
+      }
+    // Minor: keep the original headline/narrative/actions — still the real
+    // reason advice was first requested — and surface the acknowledgment as
+    // a small italic subtitle instead of replacing anything.
+    : {
+        ...stored.response,
+        recommendations: revision.recommendations,
+        nextCheckIn: revision.nextCheckIn,
+        _cycleEnd: revision._cycleEnd,
+        _sustainableExceedsCycle: revision._sustainableExceedsCycle,
+        _aggressiveExceedsCycle: revision._aggressiveExceedsCycle,
+        _revisionNote: acknowledgment,
+      };
 
   stored.response = newResponse;
   stored.chosenPath = null;
   stored.chosenAt = null;
+  // revisionInfo is captured either way — the next check-in's condensed
+  // history should always show both the original and revised numbers,
+  // regardless of how significant the change was to the UI narrative.
   stored.revisionInfo = { originalSummary, acknowledgment };
   stored.conversation.pendingRevision = null; // consumed — replyUsed stays true, already spent
   save();
@@ -7967,13 +8001,10 @@ function buildAiAdviceCardHTML() {
     const cycleEndFmt = r._cycleEnd ? new Date(r._cycleEnd + 'T00:00:00').toLocaleDateString('en-GB', {day:'numeric',month:'short'}) : '';
 
     const stepsHtml = goals.map((g, i) => {
-      // Look up the saved goal by _blocLabel first (reliable), then fall back
-      // to date proximity (for goals saved before label tracking was added).
-      const liveGoal = (state.goals || []).find(sg => sg._blocLabel && sg._blocLabel === g.label)
-        || (state.goals || []).find(sg =>
-            sg.startDate <= g.endDate && sg.endDate >= g.startDate &&
-            Math.abs(new Date(sg.startDate) - new Date(g.startDate)) < 14 * 86400000
-          );
+      // Look up the saved goal by its stamped macroGoalID — set the moment
+      // this step was actually saved via the goal queue (see
+      // saveGoalAndAdvanceQueue). No date/label fallback needed.
+      const liveGoal = (state.goals || []).find(sg => sg.macroGoalID && sg.macroGoalID === g._savedMacroGoalID);
       const displayStart = liveGoal ? liveGoal.startDate : g.startDate;
       const displayEnd   = liveGoal ? liveGoal.endDate   : g.endDate;
 
@@ -8002,13 +8033,9 @@ function buildAiAdviceCardHTML() {
       </div>`;
     }).join('');
 
-    // Recompute the exceed flag dynamically using the same label-first lookup
+    // Recompute the exceed flag dynamically using the same ID-based lookup
     const lastDisplayEnd = goals.reduce((latest, g) => {
-      const liveGoal = (state.goals || []).find(sg => sg._blocLabel && sg._blocLabel === g.label)
-        || (state.goals || []).find(sg =>
-            sg.startDate <= g.endDate && sg.endDate >= g.startDate &&
-            Math.abs(new Date(sg.startDate) - new Date(g.startDate)) < 14 * 86400000
-          );
+      const liveGoal = (state.goals || []).find(sg => sg.macroGoalID && sg.macroGoalID === g._savedMacroGoalID);
       const end = liveGoal ? liveGoal.endDate : g.endDate;
       return end > latest ? end : latest;
     }, '');
@@ -9174,11 +9201,16 @@ function startGoalQueue(pathKey) {
       protein: src.protein,
       carbs: src.carbs,
       fats: src.fats,
+      _blocLabel: src._blocLabel,
+      macroGoalID: src.macroGoalID,
     });
   }
 
-  // LLM goals follow as new goal creates (no _editIdx — always push)
-  path.goals.forEach(g => queueSteps.push({ ...g }));
+  // LLM goals follow as new goal creates (no _editIdx — always push).
+  // _llmGoalIndex records each one's position in path.goals so that once it's
+  // actually saved, we can stamp the resulting macroGoalID back onto that
+  // exact stored-advice goal entry (for _savedMacroGoalID lookups later).
+  path.goals.forEach((g, i) => queueSteps.push({ ...g, _llmGoalIndex: i }));
 
   if (!queueSteps.length) return;
   _launchGoalQueue(queueSteps, macro.id);
@@ -9216,6 +9248,7 @@ function _openQueueStep(idx) {
     document.getElementById('goal-end-input').value   = g.endDate;
     document.getElementById('goal-kcal-input').value  = g.kcal;
     document.getElementById('goal-steps-input').value = g.steps;
+    document.getElementById('goal-label-input').value = g._blocLabel || '';
     // Sliders: initGoalMacroSliders was already called by openModal with the real
     // saved goal, so macros are correct. Just make sure userTouched stays false.
     requestAnimationFrame(() => { goalMacroSliderState.userTouched = false; });
@@ -9228,6 +9261,13 @@ function _openQueueStep(idx) {
     document.getElementById('goal-end-input').value   = g.endDate;
     document.getElementById('goal-kcal-input').value  = g.kcal;
     document.getElementById('goal-steps-input').value = g.steps;
+    // Note: this is deliberately just the AI's raw short step name (e.g.
+    // "Hard Cut Start"), with no "Step N -" prefix — the AI numbers its own
+    // steps from 1 within its plan, which may not match this app's actual
+    // step count for the macrocycle. renumberMacroGoalSteps() adds the real
+    // prefix once this goal is actually saved, so we don't show a number here
+    // that could be wrong.
+    document.getElementById('goal-label-input').value = g.label || '';
     // Init sliders from the LLM's recommended macro values
     requestAnimationFrame(() => {
       initGoalMacroSliders({ kcal: g.kcal, protein: g.protein, carbs: g.carbs, fats: g.fats });
@@ -9325,17 +9365,22 @@ function saveGoalAndAdvanceQueue() {
     protein = orig.protein; carbs = orig.carbs; fats = orig.fats;
   }
 
-  // Include the step label from the queue so the advice card can match
-  // saved goals back to LLM steps by label (more reliable than date proximity)
-  const stepLabel = _goalQueue && _goalQueue.goals[_goalQueue.currentIdx]
-    ? _goalQueue.goals[_goalQueue.currentIdx].label : undefined;
+  const macroId = document.getElementById('goal-macro-select').value;
+  const labelVal = (document.getElementById('goal-label-input').value || '').trim();
+  // macroGoalID is permanent — the truncation step carries the active goal's
+  // existing ID forward; a brand-new LLM step gets a fresh one.
+  const macroGoalID = editIdxForOverlap >= 0
+    ? (state.goals[editIdxForOverlap].macroGoalID || currentStep.macroGoalID || generateMacroGoalID(macroId))
+    : generateMacroGoalID(macroId);
+
   const g = {
-    macroId:   document.getElementById('goal-macro-select').value,
+    macroId,
     startDate, endDate,
     kcal:    parseInt(kcalEl.value) || 0,
     steps:   parseInt(stepsEl.value) || 0,
     protein, carbs, fats,
-    ...(stepLabel ? { _blocLabel: stepLabel } : {}),
+    macroGoalID,
+    _blocLabel: labelVal,
   };
 
   // Truncation step: update in place. New LLM steps: push.
@@ -9346,6 +9391,19 @@ function saveGoalAndAdvanceQueue() {
   }
   // Clear _editIdx so subsequent steps open as new goals
   modal2._editIdx = undefined;
+  renumberMacroGoalSteps(macroId);
+
+  // For an actual LLM step (not the truncation step), stamp this goal's new
+  // macroGoalID back onto the corresponding entry in the stored advice's own
+  // goals[] — this is what lets the "second opinion" advice card look up the
+  // live saved goal later via a direct ID match, with no label/date guessing.
+  if (currentStep._llmGoalIndex !== undefined && state.blocAdvice && state.blocAdvice.chosenPath) {
+    const storedPath = state.blocAdvice.response.recommendations[state.blocAdvice.chosenPath];
+    if (storedPath && storedPath.goals && storedPath.goals[currentStep._llmGoalIndex]) {
+      storedPath.goals[currentStep._llmGoalIndex]._savedMacroGoalID = macroGoalID;
+    }
+  }
+
   save();
 
   // Advance queue
@@ -15205,12 +15263,13 @@ function renderGoals() {
       g.fats    ? { lbl: 'Fats',    val: g.fats + 'g' } : null,
       g.steps   ? { lbl: 'Steps',   val: parseInt(g.steps).toLocaleString() } : null,
     ].filter(Boolean);
-    html += `<div class="hero-card hero-tappable" data-page="goals" onclick="openEditGoal(${activeIdx})">
+    html += `<div class="hero-card hero-tappable" data-page="goals" onclick="openEditGoal('${g.macroGoalID}')">
       <div class="hero-nav-arrows" style="top:18px;right:18px;" onclick="event.stopPropagation();">
         <button onclick="openModal('modal-add-goal')" aria-label="New goal" style="width:auto;height:26px;padding:0 10px;border-radius:13px;font-size:11px;font-weight:500;white-space:nowrap;">+ New</button>
       </div>
       <div class="hero-label">Active goal</div>
       <div class="hero-value" style="font-size:22px;">${macro ? macro.name : 'Unknown cycle'}</div>
+      ${g._blocLabel ? `<div class="hero-sub" style="margin-top:-4px;">${g._blocLabel}</div>` : ''}
       <div class="hero-sub">${formatDate(g.startDate)} – ${formatDate(g.endDate)}</div>
       <div class="hero-callouts" style="grid-template-columns:repeat(${Math.min(callouts.length,3)},1fr);">
         ${callouts.map(c => `<div class="hero-callout"><div class="hero-callout-lbl">${c.lbl}</div><div class="hero-callout-val">${c.val}</div></div>`).join('')}
@@ -15249,13 +15308,15 @@ function renderGoals() {
       const count = groupGoals.length;
 
       const itemsHtml = groupGoals.map(g => {
-        const i = state.goals.indexOf(g);
         const isFuture = g.startDate > today;
         return `<div class="swipe-row-wrap" style="border-radius:var(--r);margin-bottom:10px;">
           <div class="swipe-row-content">
-            <div class="card" style="width:100%;box-sizing:border-box;cursor:pointer;opacity:0.85;background:var(--surface2);" onclick="openEditGoal(${i})">
+            <div class="card" style="width:100%;box-sizing:border-box;cursor:pointer;opacity:0.85;background:var(--surface2);" onclick="openEditGoal('${g.macroGoalID}')">
               <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-                <div style="font-size:11px;color:var(--text3);">${formatDate(g.startDate)} – ${formatDate(g.endDate)}</div>
+                <div>
+                  ${g._blocLabel ? `<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:2px;">${g._blocLabel}</div>` : ''}
+                  <div style="font-size:11px;color:var(--text3);">${formatDate(g.startDate)} – ${formatDate(g.endDate)}</div>
+                </div>
                 ${isFuture ? '<span class="badge" style="background:var(--surface3);color:var(--text2);">Upcoming</span>' : ''}
               </div>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
@@ -15269,7 +15330,7 @@ function renderGoals() {
             </div>
           </div>
           <div class="swipe-actions">
-            <button class="swipe-btn swipe-btn-danger" onclick="event.stopPropagation();deleteGoal(${i})" title="Delete">
+            <button class="swipe-btn swipe-btn-danger" onclick="event.stopPropagation();deleteGoal('${g.macroGoalID}')" title="Delete">
               <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
             </button>
           </div>
@@ -15310,8 +15371,56 @@ function getGoalForDay(dateStr) {
   return state.goals.find(g => g.startDate <= dateStr && g.endDate >= dateStr) || null;
 }
 
+// Recomputes the "Step N - " prefix on every goal belonging to a macrocycle,
+// based purely on chronological startDate order — macroGoalID itself never
+// changes, only this display prefix. Any free text the user typed after an
+// existing "Step N - " prefix (or a bare custom label with no prefix at all)
+// is preserved; only the leading "Step N" segment is stripped and reapplied.
+// Call this after any add/edit/delete that could change a macrocycle's goal
+// order or membership.
+function renumberMacroGoalSteps(macroId) {
+  if (!state.goals || !macroId) return;
+  const macroGoals = state.goals.filter(g => g.macroId === macroId);
+  macroGoals.sort((a, b) => a.startDate.localeCompare(b.startDate));
+  macroGoals.forEach((g, i) => {
+    const n = i + 1;
+    const suffix = String(g._blocLabel || '').replace(/^Step\s*\d+\s*-?\s*/i, '').trim();
+    g._blocLabel = suffix ? `Step ${n} - ${suffix}` : `Step ${n}`;
+  });
+}
+
+// Generates a brand-new, permanent macroGoalID for a goal at creation time.
+// Never regenerated afterwards — edits and renumbering both preserve it.
+function generateMacroGoalID(macroId) {
+  return `${macroId}_g${Date.now()}`;
+}
+
+// Pre-fills the goal-name field with "Step N - " for a brand-new goal, where
+// N is one past however many goals already exist for the currently-selected
+// macrocycle. Purely a starting suggestion — the person can edit or clear it,
+// and renumberMacroGoalSteps() will correct the number on save regardless.
+function prefillGoalLabelForSelectedMacro() {
+  const sel = document.getElementById('goal-macro-select');
+  const labelEl = document.getElementById('goal-label-input');
+  if (!sel || !labelEl) return;
+  const macroId = sel.value;
+  const count = (state.goals || []).filter(g => g.macroId === macroId).length;
+  labelEl.value = `Step ${count + 1} - `;
+}
+
+// Re-runs the Step N prefill when the person changes which macrocycle a
+// brand-new goal belongs to. No-op while editing an existing goal.
+function onGoalMacroSelectChange() {
+  const modal = document.getElementById('modal-add-goal');
+  const isEditing = modal._editIdx !== undefined && modal._editIdx !== null;
+  if (!isEditing) prefillGoalLabelForSelectedMacro();
+}
+
 // Opens the goal modal pre-filled for editing an existing goal period.
-function openEditGoal(idx) {
+// Looks the goal up by its permanent macroGoalID rather than an array index,
+// so this stays correct even if state.goals gets re-sorted/filtered elsewhere.
+function openEditGoal(macroGoalID) {
+  const idx = state.goals.findIndex(g => g.macroGoalID === macroGoalID);
   const g = state.goals[idx];
   if (!g) return;
   document.getElementById('goal-modal-title').textContent = 'Edit Goal Period';
@@ -15321,13 +15430,20 @@ function openEditGoal(idx) {
   document.getElementById('goal-end-input').value = g.endDate;
   document.getElementById('goal-kcal-input').value = g.kcal || '';
   document.getElementById('goal-steps-input').value = g.steps || '';
+  document.getElementById('goal-label-input').value = g._blocLabel || '';
   document.getElementById('modal-add-goal')._editIdx = idx;
   openModal('modal-add-goal');
 }
 
-// Removes a goal period by index, after confirmation.
-function deleteGoal(idx) {
+// Removes a goal period by its macroGoalID, after confirmation, then
+// renumbers whatever's left in that macrocycle (so a deleted "Step 2"
+// causes the old "Step 3" to become "Step 2", etc).
+function deleteGoal(macroGoalID) {
+  const idx = state.goals.findIndex(g => g.macroGoalID === macroGoalID);
+  if (idx < 0) return;
+  const macroId = state.goals[idx].macroId;
   state.goals.splice(idx, 1);
+  renumberMacroGoalSteps(macroId);
   save(); renderGoals();
 }
 
@@ -15392,18 +15508,27 @@ function saveGoal() {
   const isLockedGoal = editIdx >= 0 && state.goals[editIdx].startDate <= today;
   const useComputedMacros = !isLockedGoal || goalMacroSliderState.userTouched;
 
+  const macroId = document.getElementById('goal-macro-select').value;
+  const labelVal = (document.getElementById('goal-label-input').value || '').trim();
+  // macroGoalID is permanent — reuse the existing one on edit, generate a
+  // fresh one only for a brand-new goal.
+  const macroGoalID = editIdx >= 0 ? state.goals[editIdx].macroGoalID : generateMacroGoalID(macroId);
+
   const g = {
-    macroId: document.getElementById('goal-macro-select').value,
+    macroId,
     startDate, endDate,
     kcal: parseInt(document.getElementById('goal-kcal-input').value) || 0,
     steps: parseInt(document.getElementById('goal-steps-input').value) || 0,
     protein: useComputedMacros ? macros.proteinG : state.goals[editIdx].protein,
     carbs:   useComputedMacros ? macros.carbG    : state.goals[editIdx].carbs,
     fats:    useComputedMacros ? macros.fatG     : state.goals[editIdx].fats,
+    macroGoalID,
+    _blocLabel: labelVal,
   };
   if (editIdx >= 0) state.goals[editIdx] = g;
   else state.goals.push(g);
   modal._editIdx = undefined;
+  renumberMacroGoalSteps(macroId);
   save(); closeModal('modal-add-goal'); renderGoals();
 }
 
