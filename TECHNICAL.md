@@ -26,7 +26,7 @@
 22. [External APIs](#22-external-apis)
 23. [Function Reference](#23-function-reference)
 24. [Key Algorithms](#24-key-algorithms)
-25. [Module: AI Advice (Phase 1 + Phase 2)](#25-module-ai-advice-phase-1--phase-2)
+25. [Module: AI Advice (Phase 1–3)](#25-module-ai-advice-phase-13)
 26. [Goal Queue Flow](#26-goal-queue-flow)
 27. [Next Cycle Recommendation Engine (Phases 1–4)](#27-next-cycle-recommendation-engine-phases-14)
 28. [Known Limitations & Future Considerations](#28-known-limitations--future-considerations)
@@ -227,7 +227,7 @@ function load() {
   if (!state.profile)           state.profile = {};
   if (!state.profile.measureUnit) state.profile.measureUnit = 'in';
   if (!state.insightsRollup)    state.insightsRollup = { completedCycles: [] };   // v7.00
-  if (state.blocAdvice === undefined) state.blocAdvice = null;                     // v7.00
+  if (state.blocAdvice === undefined) state.blocAdvice = null;                     // v7.00 — shape extended in v7.22–v7.24 for the challenge feature (§25)
   if (state.nextCycleAdvice === undefined) state.nextCycleAdvice = null;           // v7.19 — Phase 4 LLM second opinion, separate slot from blocAdvice (§27)
   if (!state.theme)             state.theme = 'multi';
   document.body.setAttribute('data-theme', state.theme);
@@ -1115,6 +1115,14 @@ Not exhaustive — covers the functions most useful to know when working on the 
 | `buildBlocAdvicePrompt(macro)` | Builds `{ systemPrompt, userMessage }` for the Anthropic API — injects safety floor, protein minimum, weekly bucket table with partial-week flags, prior advice, rollup history (v7.00) |
 | `askBlocForAdvice()` | Async — makes the Anthropic API POST, validates response, materialises dates, computes `nextCheckIn`, stores to `state.blocAdvice` (v7.00) |
 | `buildAiAdviceCardHTML()` | Phase 2 AI advice card — loading/cooldown/idle button states, stored advice with collapsible narrative and pre/post-choice plan layout (v7.00) |
+| `condenseBlocAdvicePlans(response)` | Compact kcal/protein/carbs-per-step progression string for each path — building block for both the prior-advice prompt context and the Accept-a-challenge "originally recommended" note (v7.22) |
+| `condenseBlocAdviceEntry(stored)` | Condenses a full `state.blocAdvice`-shaped object into one prior-check-in history entry, folding in `revisionInfo` (original-vs-revised + acknowledgment) when present (v7.22) |
+| `formatPriorAdviceEntry(entry, idx)` | Renders one condensed history entry as a prompt-ready line (v7.22) |
+| `buildBlocChallengePrompt(macro, challengeText)` | Rebuilds the base prompt fresh, appends the extended challenge schema (`acknowledgment` + `isSignificantRevision`), returns `{ systemPrompt, messages }` for a 3-turn call (v7.22) |
+| `askBlocForChallenge(challengeText)` | Async — sends the one-shot challenge; `conversation.replyUsed` is set before the fetch starts; stores the validated result into `conversation.pendingRevision`, not `response` (v7.22) |
+| `goalStepDiffRowHTML(origGoal, revGoal, idx)` / `buildPlanDiffHTML(origPath, revPath, emoji)` | Diff-view rendering for the challenge preview — paired/removed/new step treatment (v7.22) |
+| `buildBlocChallengePreviewHTML()` | Renders the challenge preview block — significance badge, acknowledgment, diffed plans, Accept/Decline pair (v7.22) |
+| `acceptBlocChallenge()` / `declineBlocChallenge()` | Resolve a pending challenge — Accept branches on `isSignificantRevision` (headline/narrative kept + subtitle note, vs. swapped wholesale); Decline purges the revision untouched (v7.22–v7.24) |
 | `getNextMonday()` | ISO date string of next Monday (or today if Monday) — used as goal start anchor |
 | `getSundayAfterWeeks(startDateStr, weeks)` | Sunday end date N weeks after a given start date |
 | `getMondayAfter(sundayStr)` | Monday immediately after a given Sunday |
@@ -1429,9 +1437,9 @@ Applied identically to `weightPlaceholders`/`repsPlaceholders` (main) and `dropW
 
 ---
 
-## 25. Module: AI Advice (Phase 1 + Phase 2)
+## 25. Module: AI Advice (Phase 1–3)
 
-Added in v7.00. The Progress page now includes two additional cards below the existing Insights swipe deck, rendered into dedicated DOM anchors `#progress-trend-insights` and `#progress-ai-advice`.
+Added in v7.00. The Progress page now includes two additional cards below the existing Insights swipe deck, rendered into dedicated DOM anchors `#progress-trend-insights` and `#progress-ai-advice`. Phase 3 (challenge/revise the advice mid-conversation) added in v7.22–v7.24.
 
 ### Phase 1 — Deterministic insights layer
 
@@ -1508,10 +1516,16 @@ On error: resets `_blocAdviceLoading`, re-renders (so the button restores), show
     },
     nextCheckIn: { sustainable: 'YYYY-MM-DD', aggressive: 'YYYY-MM-DD' },
     _cycleEnd, _sustainableExceedsCycle, _aggressiveExceedsCycle,
+    _revisionNote,   // v7.22+ — set only after an accepted MINOR challenge revision; the
+                     // acknowledgment text, rendered as an italic subtitle. null otherwise.
   },
-  storedAt:   'YYYY-MM-DD',
-  macroId:    string,
-  chosenPath: null | 'sustainable' | 'aggressive',
+  storedAt:    'YYYY-MM-DD',
+  macroId:     string,
+  chosenPath:  null | 'sustainable' | 'aggressive',
+  chosenAt:    'YYYY-MM-DD' | null,               // v7.22+ — when chosenPath was set, for prior-advice history
+  conversation: { replyUsed: boolean, pendingRevision: object | null },  // v7.22+ — see Phase 3 below
+  priorAdviceThisCycle: [ /* condensed check-in entries, same macro only */ ],  // v7.22+
+  revisionInfo: { originalSummary, acknowledgment } | null,  // v7.22+ — set on Accept, read by the next check-in's history
 }
 ```
 
@@ -1530,6 +1544,34 @@ On error: resets `_blocAdviceLoading`, re-renders (so the button restores), show
 - **Post-choice:** selected plan shown under a "Selected plan" label. Unchosen plan collapsed behind "View alternative plan" toggle (default closed). A "Switch to [X] plan" button in the unchosen plan section lets the user change their choice.
 
 **`goalSummaryBlock(path, pathKey)`** — inner function that renders each plan's goal steps. Cross-references `state.goals` by `_blocLabel` first (reliable direct key match) then falls back to date proximity (for goals saved before label tracking). Weeks are computed from actual `startDate`/`endDate` rather than any stored `weeks` field (which may be null for LLM-generated goals). The exceed-cycle warning is recomputed dynamically each render from actual displayed dates — disappears automatically once goals are edited to fit within the cycle.
+
+### Phase 3 — Challenge this advice (v7.22–v7.24)
+
+A single-reply, single-shot follow-up on the mid-cycle advice feature only (`state.nextCycleAdvice`'s Phase 4 second opinion is untouched — see §27). No cross-cycle history: everything below is scoped to the active macro and wiped the moment `state.blocAdvice.macroId` no longer matches it.
+
+**`conversation`** on `state.blocAdvice`: `{ replyUsed, pendingRevision }`. `replyUsed` flips to `true` the instant a challenge is sent — win, lose, or API error — and never resets except on a brand-new ask for the same or a different macro. `pendingRevision` holds the parsed, validated candidate response while awaiting Accept/Decline; `null` otherwise.
+
+**`buildBlocChallengePrompt(macro, challengeText)`** — does **not** store the original prompt anywhere; rebuilds it fresh via `buildBlocAdvicePrompt(macro)` every time (cheap, deterministic, guarantees the challenge sees current logged data). Appends an extended-schema instruction to the base system prompt and sends a 3-message array: the original user prompt, the current stored response (as a fabricated assistant turn, minus internal fields like `_cycleEnd`), then the challenge text as a new user turn.
+
+**Extended schema** — same `recommendations.sustainable`/`.aggressive` shape as the normal advice response (both paths always fully present, regardless of whether a path was already chosen), plus two new top-level fields:
+- **`acknowledgment`** — 1-2 sentences, either admitting a mistake or defending the original call. Deliberately its own field (not prepended into `narrative`) so it can be stripped/displayed independently without string-parsing.
+- **`isSignificantRevision`** (boolean, **required** — validated with `typeof === 'boolean'`, same strictness as the other required fields) — the model's own judgment on whether this revision changes its fundamental read of the situation (e.g. refeed recommendation → steeper cut) versus a minor correction within the same overall approach (one field tightened, a data error fixed). The prompt explicitly ties this to what the UI will do with it: **false → the original headline/narrative stay visible**, so the model is told to only mark `true` when leaving the old narrative up would be actively misleading next to the new plans.
+
+**`askBlocForChallenge(challengeText)`** — mirrors `askBlocForAdvice()`'s fetch/parse/validate/error pattern. Sets `conversation.replyUsed = true` and closes the input **before** the fetch even starts — the one-shot is spent the moment it's sent, regardless of outcome. On success, materialises dates and computes `nextCheckIn`/cycle-exceed flags exactly like a normal response (so an accepted revision is indistinguishable to `startGoalQueue()` from a first-time response), then stores into `conversation.pendingRevision` — **not** into `response`, which stays untouched until Accept.
+
+**Diff rendering** — `buildPlanDiffHTML(origPath, revPath, emoji)` walks both goal arrays index-by-index via `goalStepDiffRowHTML(origGoal, revGoal, idx)`: paired steps render the original normally, then the revised step directly below it (accent background, left border, down-arrow, including 👟 steps alongside kcal/protein/carbs). Uneven lengths: extra original steps get a "✕ Step removed" marker; extra revised steps get a "＋ New step" treatment with the same styling, just nothing paired above them. Applies to both plans always.
+
+**`buildBlocChallengePreviewHTML()`** — renders the preview shown *in addition to* (not replacing) the current stored advice: a "⚠ Significant change" / "Minor correction" badge (read straight from `isSignificantRevision`, before any Accept decision), the acknowledgment, the first narrative paragraph, both diffed plans, then the single Accept/Decline pair — positioned before the "Use plan" buttons in the card template, not per-plan.
+
+**`declineBlocChallenge()`** — sets `conversation.pendingRevision = null`. The original response is untouched; the challenge affordance does not reappear (`replyUsed` stays `true`).
+
+**`acceptBlocChallenge()`** — branches on `isSignificantRevision`:
+- **Minor (`false`)** — keeps `response.headline`/`narrative`/`primaryAction`/`secondaryAction` exactly as they were (still the real reason advice was first requested); only `recommendations`/`nextCheckIn`/cycle-exceed flags come from the revision. The acknowledgment is written to `response._revisionNote` and rendered as a small italic subtitle beneath the (unchanged) narrative.
+- **Significant (`true`)** — `headline`/`narrative`/`primaryAction`/`secondaryAction` are swapped in wholesale from the revision; `_revisionNote` is set to `null` since the new narrative already carries the reasoning.
+
+Either way: `chosenPath`/`chosenAt` reset to `null` (a revised plan invalidates a prior pick against the old one — the card falls through to the same "Use plan" buttons shown on a first-time response, no special-casing needed in `startGoalQueue()`), and `revisionInfo = { originalSummary, acknowledgment }` is written — `originalSummary` is `condenseBlocAdvicePlans(response)` captured **before** it's overwritten, so the pre-revision numbers survive even after `response` is replaced.
+
+**Cross-check-in history — `priorAdviceThisCycle`:** every fresh (non-challenge) ask beyond the first pushes a condensed entry for the response it's about to supersede, via `condenseBlocAdviceEntry(stored)`: a compact kcal/protein/carbs-per-step progression per path (`condenseBlocAdvicePlans()`), a one-line "why" (from `primaryAction`/`headline`), and which path was chosen and when. If `stored.revisionInfo` is set (an accepted challenge stood at the time this check-in was superseded), the entry also folds in the pre-revision numbers and the acknowledgment — rendered by `formatPriorAdviceEntry()` as *"Originally recommended X... After a user challenge, revised to Y (reason: Z)."* A **declined** challenge leaves no trace here at all — `revisionInfo` is only ever written by `acceptBlocChallenge()`, so a decline is indistinguishable from never having challenged. `buildBlocAdvicePrompt()`'s "PRIOR ADVICE THIS CYCLE" section renders the full `priorAdviceThisCycle` array plus the still-current (not-yet-superseded) response condensed the same way — giving the next call complete chronological context without ever reaching across a cycle boundary.
 
 ---
 
@@ -1647,7 +1689,7 @@ Surfaces as a "Start recalibration →" button on the existing Phase 1 trend-ins
 
 Separate from the mid-cycle advice feature end to end: its own prompt builder, its own API call, its own storage slot (`state.nextCycleAdvice`), its own eligibility gate. Gated to within **3 weeks of the active cycle's end date** — this gate applies only to the LLM call; the deterministic recommendation itself is never gated by cycle timing.
 
-**`isNextCycleAdviceEligible(macro, rec)`** — returns `{ eligible, reason }`. Ineligible when: no recommendation at all; a continuation with no computed alternative; a maintenance bridge with no determinable direction (`needsDirectionChoice`); previewing a different macro than the real active one (§ preview dropdown, testing aid); or more than 21 days from cycle end.
+**`isNextCycleAdviceEligible(macro, rec)`** — returns `{ eligible, reason, daysToEnd }`. Ineligible when: no recommendation at all; a continuation with no computed alternative; a maintenance bridge with no determinable direction (`needsDirectionChoice`); previewing a different macro than the real active one (§ preview dropdown, testing aid); or more than 21 days from cycle end. `daysToEnd` (added v7.22, bundled alongside the challenge feature though otherwise unrelated to it — see §0 of the original spec) is exposed on the return value purely so the render layer can compute `daysUntilEligible = daysToEnd - 21` without recomputing the date math a second time.
 
 **`nextCycleAdvicePlanMode(rec)`** — the shared resolver both the prompt builder and the response validator call, so the two can never disagree about what shape of response was actually asked for. First resolves **`planRec`** — the rec actually being planned for. Normally that's `rec` itself, but when the deterministic engine recommends a continuation, `planRec` becomes `rec.continuationAlternative` instead: a plain extension isn't something this feature builds via the goal queue either way, so `plans[]` always targets a genuinely-new-cycle direction. From `planRec`, derives one of three modes:
 
@@ -1676,7 +1718,7 @@ state.nextCycleAdvice = {
 
 **`_nextCycleAdviceLoading`** / **`_nextCycleAdviceSectionsOpen`** — module-level, not persisted, mirroring `_blocAdviceLoading`/`_blocAdviceSectionsOpen` from the mid-cycle feature.
 
-**`buildNextCycleAdviceSectionHTML(macro, rec)`** — rendered directly inside Card 3's template (not a separate DOM anchor, since it should only ever appear while the Next Cycle card is actually showing), right below "Build this plan next." Handles loading, gated-by-timing (only the 3-week case gets an explanatory hint — every other ineligibility reason stays silent, matching "Build this plan next" itself being absent), ready-to-ask, and stored-advice states. The stored-advice state is generic over however many plans came back — pre-choice shows every plan with its own CTA; post-choice shows the chosen plan expanded with any other plan(s) tucked under a single "View alternative(s)" toggle.
+**`buildNextCycleAdviceSectionHTML(macro, rec)`** — rendered directly inside Card 3's template (not a separate DOM anchor, since it should only ever appear while the Next Cycle card is actually showing), right below "Build this plan next." Handles loading, gated-by-timing, ready-to-ask, and stored-advice states. The gated-by-timing case (only this one gets an explanatory hint — every other ineligibility reason stays silent, matching "Build this plan next" itself being absent) shows a **live countdown to eligibility** (v7.22) rather than a static message: `Math.ceil(daysUntilEligible / 7)` weeks while more than 13 days out, switching to a daily count (`available in N days`) inside that window. The countdown is measured to the 21-day eligibility mark itself, not to the cycle's actual end date — the 21-day gate in `isNextCycleAdviceEligible` didn't need to change at all. The stored-advice state is generic over however many plans came back — pre-choice shows every plan with its own CTA; post-choice shows the chosen plan expanded with any other plan(s) tucked under a single "View alternative(s)" toggle.
 
 **`chooseNextCyclePlan(planKey)`** — resolves `planRec` via `nextCycleAdvicePlanMode(rec).planRec` (not raw `rec.goalType`, which during a continuation would be the wrong direction), records the choice, and builds `_pendingNextCyclePlan = { goalType, newMacroStart, newMacroEnd: <last goal's endDate>, _llmGoals: plan.goals }`, then calls the same `fillNextCycleMacroModal()` helper the deterministic path uses.
 
