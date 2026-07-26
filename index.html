@@ -1534,8 +1534,9 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div id="progress-body" style="margin-bottom:2px;"></div>
       <div id="progress-body-dots" style="display:flex;justify-content:center;gap:6px;margin-bottom:6px;min-height:18px;"></div>
 
-      <!-- Phase 1 trend insights card (goalType-branched deterministic narrative) -->
-      <div id="progress-trend-insights"></div>
+      <!-- Phase 1 trend insights (goalType-branched deterministic narrative,
+           incl. plateau detection) now render inside card 1 of the swipe
+           deck above (#progress-body) — see buildInsightsCardHTML(). -->
 
       <!-- Phase 2 AI advice card (rendered after "Ask BLOC for advice" call) -->
       <div id="progress-ai-advice"></div>
@@ -1554,6 +1555,10 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
         </div>
       </div>
       <div id="progress-nutrition" style="margin-bottom:4px;"></div>
+
+      <!-- Small row summaries of every goal period belonging to the
+           selected cycle, ordered by start date — see renderProgressCycleGoals() -->
+      <div id="progress-cycle-goals"></div>
 
       <!-- Weekly macro split (moved here from the Nutrition tab) -->
       <div class="section-title" style="margin-top:16px;">Weekly Macro Split</div>
@@ -1620,8 +1625,18 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v7.26</span>
+          <span class="badge badge-green">v7.30</span>
         </div>
+      </div>
+
+      <div class="section-title">Profile</div>
+      <div class="card" style="margin-bottom:10px;">
+        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Profile</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Extra data views that don't need a spot in the main nav bar.</div>
+        <button class="lib-primary-btn" style="width:100%;" onclick="openProfilePage()">
+          <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0 1 16 0v1"/></svg>
+          Profile →
+        </button>
       </div>
 
       <div class="section-title">Appearance</div>
@@ -1764,6 +1779,9 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <!-- Hero: kcal + macros, swipeable left/right between days -->
       <div id="nutr-hero-wrap"><div id="nutr-hero-card"></div></div>
 
+      <!-- Save-day badge / saved pill — see renderNutrSaveBadge() -->
+      <div id="nutr-save-badge-wrap"></div>
+
       <!-- Diary -->
       <div id="nutr-diary"></div>
     </div>
@@ -1836,6 +1854,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
         <input type="date" id="macro-start-input">
       </div>
     </div>
+    <div id="macro-start-error" style="display:none;font-size:12px;color:var(--red);margin:-6px 0 12px;">Macrocycles can only start on a Monday.</div>
     <div class="input-row">
       <div>
         <div class="label">Weeks per mesocycle</div>
@@ -1981,6 +2000,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
         <input type="date" id="edit-macro-start-input">
       </div>
     </div>
+    <div id="edit-macro-start-error" style="display:none;font-size:12px;color:var(--red);margin:-6px 0 12px;">Macrocycles can only start on a Monday.</div>
     <div class="input-row">
       <div>
         <div class="label">Weeks per mesocycle</div>
@@ -2571,6 +2591,57 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   </div>
 </div>
 
+<!-- Fill Day — pick a saved sample day for the current goal -->
+<div class="modal-overlay" id="modal-fill-day">
+  <div class="modal-sheet" data-modal="modal-fill-day">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-fill-day')">✕</button></div>
+    <div class="modal-title">Fill day</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6;">Pick a saved day to copy every meal from into today. This will overwrite anything already logged.</div>
+    <div id="fill-day-list"></div>
+  </div>
+</div>
+
+<!-- Profile (hidden page — no nav bar entry) -->
+<div class="modal-overlay" id="modal-profile">
+  <div class="modal-sheet" data-modal="modal-profile">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-profile')">✕</button></div>
+    <div class="modal-title">Profile</div>
+    <div class="section-title" style="margin-top:0;">Nutrition</div>
+    <button class="lib-primary-btn" style="width:100%;" onclick="openProfileNutrition()">
+      <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      Sample day libraries
+    </button>
+  </div>
+</div>
+
+<!-- Profile → Nutrition libraries list -->
+<div class="modal-overlay" id="modal-profile-nutrition">
+  <div class="modal-sheet" data-modal="modal-profile-nutrition">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-profile-nutrition')">✕</button></div>
+    <div class="modal-title">Nutrition Libraries</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6;">Saved qualifying nutrition days, grouped by linked goal. Tap a day to edit its label, swipe to delete.</div>
+    <div id="profile-nutrition-list"></div>
+  </div>
+</div>
+
+<!-- Sample day editor -->
+<div class="modal-overlay" id="modal-sample-day-edit">
+  <div class="modal-sheet" data-modal="modal-sample-day-edit">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-sample-day-edit')">✕</button></div>
+    <div class="modal-title">Saved Day</div>
+    <input type="hidden" id="sde-group-id" value="">
+    <input type="hidden" id="sde-date" value="">
+    <div style="font-size:12px;color:var(--text3);margin-bottom:10px;" id="sde-date-label"></div>
+    <div class="form-group">
+      <div class="label">Dinner label</div>
+      <input type="text" id="sde-name-input" placeholder="Dinner name">
+    </div>
+    <div id="sde-meals-list" style="margin:14px 0;"></div>
+    <button class="btn btn-accent btn-block" style="margin-bottom:8px;" onclick="saveSampleDayEdit()">Save changes</button>
+    <button class="btn btn-danger btn-block" onclick="deleteSampleDayFromEditor()">Delete this saved day</button>
+  </div>
+</div>
+
 <!-- old nutrition log modal kept for back-compat -->
 
 <script>
@@ -2656,6 +2727,13 @@ let state = {
   nutritionQuickLog: {}, // {date: {kcal, protein, carbs, fats}} — overrides meal totals when present
   foodLibrary: [], // [{id, name, brand, per100kcal, per100p, per100c, per100f, defaultServing, source}]
   recipes: [],      // [{id, name, servings, ingredients, per_serving_kcal, per_serving_p, per_serving_c, per_serving_f}]
+  // Library of qualifying nutrition days, grouped by linked goal(s). Each
+  // group: { id, linkedGoalIds:[macroGoalID], originGoalMacros:{kcal,protein,
+  // carbs,fats}, range:{kcalMin,kcalMax,proteinMin,proteinMax,carbsMin,
+  // carbsMax,fatsMin,fatsMax}, days:[{date, dinnerName, meals, totals}] }.
+  // See SIMILAR_GOAL_TOLERANCE / SAVE_DAY_TOLERANCE below for the tolerance
+  // bands used when creating/linking groups vs. surfacing the save badge.
+  sampleDays: [],
   supersets: {},    // key: supersetId -> { name: string|null } — membership lives on the exercises, not here
   // Keyed by getDeloadUnitKey(macro, week, dayKey) — `${macroId}_${week}` for
   // macros without microcycles, or `${macroId}_${week}_m${1|2}` for macros
@@ -2715,6 +2793,16 @@ function load() {
   if (!state.nutritionQuickLog) state.nutritionQuickLog = {};
   if (!state.foodLibrary) state.foodLibrary = [];
   if (!state.recipes) state.recipes = [];
+  if (!state.sampleDays) state.sampleDays = [];
+  // One-time repair: Infinity (used for "no upper bound on protein") does
+  // not survive JSON.stringify — it silently becomes null — so any group
+  // saved before this was fixed has a corrupted proteinMax that made
+  // every match check fail. Restore it to the current JSON-safe sentinel.
+  state.sampleDays.forEach(g => {
+    if (g.range && (g.range.proteinMax === null || g.range.proteinMax === undefined)) {
+      g.range.proteinMax = Number.MAX_SAFE_INTEGER;
+    }
+  });
   if (!state.supersets) state.supersets = {};
   if (!state.deloads) state.deloads = {};
   if (!state.exerciseHistory) state.exerciseHistory = {};
@@ -2897,6 +2985,8 @@ function openModal(id) {
   if (id === 'modal-macro') {
     const nextStart = getNextMacroStart();
     document.getElementById('macro-start-input').value = nextStart;
+    document.getElementById('macro-start-input').style.borderColor = '';
+    const _startErr = document.getElementById('macro-start-error'); if (_startErr) _startErr.style.display = 'none';
     document.getElementById('macro-target-bw-input').value = '';
     if (document.getElementById('macro-goal-type-input')) document.getElementById('macro-goal-type-input').value = 'loss';
     if (document.getElementById('macro-weeks-per-meso-input')) document.getElementById('macro-weeks-per-meso-input').value = '1';
@@ -3042,12 +3132,32 @@ function getMacroEndDate(macro) {
   return endDate;
 }
 
+// Macrocycles must always start on a Monday — enforced on both creation
+// and edits, since the mesocycle/microcycle calendar-week math throughout
+// the app (deloads, Train hero week dates, volume-series approximation,
+// etc.) all assumes a Monday anchor for week 1 of mesocycle 1.
+function isMondayDateStr(dateStr) {
+  return !!dateStr && new Date(dateStr + 'T00:00:00').getDay() === 1;
+}
+
+// Rolls a date string forward to the next Monday (or returns it unchanged
+// if it's already a Monday).
+function snapToNextMonday(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const dow = d.getDay(); // 0=Sun..6=Sat
+  const add = dow === 1 ? 0 : dow === 0 ? 1 : (8 - dow);
+  d.setDate(d.getDate() + add);
+  return toLocalDateStr(d);
+}
+
 // Suggests a sensible default start date for a brand new macrocycle: the day
 // after the most recently-ending existing macrocycle, or today if none exist
 // yet. Mirrors the same 'don't overlap the last one' pattern used for Goals.
+// Always snapped forward to a Monday — every macrocycle starts on one, so
+// the suggested default should never itself need correcting.
 function getNextMacroStart() {
   // Find the latest end date across all macrocycles, return the day after
-  if (!state.macrocycles.length) return getLocalToday();
+  if (!state.macrocycles.length) return snapToNextMonday(getLocalToday());
   let latest = null;
   state.macrocycles.forEach(m => {
     const end = getMacroEndDate(m);
@@ -3055,7 +3165,7 @@ function getNextMacroStart() {
   });
   const next = new Date(latest);
   next.setDate(next.getDate() + 1);
-  return toLocalDateStr(next);
+  return snapToNextMonday(toLocalDateStr(next));
 }
 
 // Formats one exerciseHistory entry into a display line, e.g.
@@ -3157,6 +3267,19 @@ function createMacrocycle() {
   const weeks = parseInt(document.getElementById('macro-weeks-input').value) || 8;
   const weeksPerMeso = parseInt(document.getElementById('macro-weeks-per-meso-input').value) || 1;
   const start = document.getElementById('macro-start-input').value;
+
+  // Macrocycles can only start on a Monday (see isMondayDateStr()) —
+  // block the save and flash the field rather than silently accepting it.
+  const startEl = document.getElementById('macro-start-input');
+  const startErrEl = document.getElementById('macro-start-error');
+  if (!isMondayDateStr(start)) {
+    if (startErrEl) startErrEl.style.display = 'block';
+    startEl.style.borderColor = 'var(--red)';
+    setTimeout(() => { startEl.style.borderColor = ''; }, 1500);
+    return;
+  }
+  if (startErrEl) startErrEl.style.display = 'none';
+
   const goal = document.getElementById('macro-goal-input').value.trim();
   const targetBw = parseFloat(document.getElementById('macro-target-bw-input').value) || null;
   const goalType = document.getElementById('macro-goal-type-input') ? document.getElementById('macro-goal-type-input').value : 'loss';
@@ -6001,7 +6124,12 @@ function renderProgress() {
   // ──────────────────────────────────────────────────────────────────────────
   // Build the 3 insight cards
   // ──────────────────────────────────────────────────────────────────────────
-  // ─── Card 1: Weight progress + peak window ────────────────────────────────
+  // ─── Card 1: Weight progress + plateau/trend narrative + peak window ─────
+  // Deterministic trend narrative (incl. plateau detection) now lives here,
+  // directly below the weight header — it used to be its own standalone
+  // card underneath the whole swipe deck. Existing peak-window content is
+  // pushed below it, but stays in this same swipeable card.
+  const trendInsightsHtml = buildInsightsCardHTML();
   const card1 = `<div>
     <div style="display:flex;align-items:center;justify-content:space-between;">
       <div>
@@ -6013,6 +6141,7 @@ function renderProgress() {
         <div style="font-size:11px;color:var(--text3);margin-top:3px;">${bodyLogsThisWeekCount} ${bodyLogsThisWeekCount === 1 ? 'log' : 'logs'} this week</div>
       </div>
     </div>
+    ${trendInsightsHtml}
     ${peakHtml}
   </div>`;
 
@@ -6281,9 +6410,8 @@ function renderProgress() {
   // Attach swipe gestures (re-attach each render since innerHTML was replaced)
   initInsightsSwipe();
 
-  // ── Phase 1 trend insights card ──────────────────────
-  const trendEl = document.getElementById('progress-trend-insights');
-  if (trendEl) trendEl.innerHTML = buildInsightsCardHTML();
+  // Phase 1 trend insights are now built directly into card1 above
+  // (trendInsightsHtml), rather than rendered separately here.
 
   // ── Phase 2 AI advice card ────────────────────────────
   const aiEl = document.getElementById('progress-ai-advice');
@@ -6292,11 +6420,14 @@ function renderProgress() {
   // ── Historical rollup (archive completed cycles) ──────
   updateInsightsRollup();
 
-  // ── Weekly tables (swipeable: summary / measurements) ──
+  // ── Weekly tables (swipeable: summary / swings / measurements) ──
   renderProgressTables();
 
   // ── Steps & Nutrition (merged into one card) ──
   renderProgressNutr();
+
+  // ── Goal periods belonging to the selected cycle ──
+  renderProgressCycleGoals();
 
   // ── Weekly macro split pies ───────────────────
   renderProgressNutrPies();
@@ -6311,8 +6442,7 @@ function renderProgress() {
 function buildWeeklySummaryCardHTML() {
   const dayMap = buildDayMap();
   const macro  = resolveProgressMacro();
-  const goalType = macro ? (macro.goalType || 'loss') : 'loss';
-  const isLoss = goalType === 'loss';
+  const isLoss = macro ? (macro.goalType || 'loss') === 'loss' : true;
   const allDates = Object.keys(dayMap).sort();
 
   const emptyCard = `<div class="card" style="margin-top:8px;">
@@ -6367,26 +6497,9 @@ function buildWeeklySummaryCardHTML() {
           : null;
         if (avgWeight !== null) prevAvgWeight = avgWeight;
 
-        // Swing: smallest and largest consecutive day-to-day change within
-        // this week (chronological weigh-ins only, not every calendar
-        // day — gaps between logs aren't treated as a "swing"). Surfaces
-        // day-to-day volatility (e.g. water retention after a big activity
-        // day) separately from the smoothed weekly trend above.
-        let swingMin = null, swingMax = null;
-        if (wD.length >= 2) {
-          const diffs = [];
-          for (let i = 0; i < wD.length - 1; i++) {
-            diffs.push(dayMap[wD[i+1]].weight - dayMap[wD[i]].weight);
-          }
-          swingMin = parseFloat(Math.min(...diffs).toFixed(1));
-          swingMax = parseFloat(Math.max(...diffs).toFixed(1));
-        }
-
         b.push({
           label:   'W' + wn++,
           delta,
-          swingMin,
-          swingMax,
           steps:   sD.length ? Math.round(sD.reduce((s,d) => s + dayMap[d].steps,   0) / sD.length) : null,
           kcal:    nD.length ? Math.round(nD.reduce((s,d) => s + dayMap[d].kcal,    0) / nD.length) : null,
           protein: nD.length ? Math.round(nD.reduce((s,d) => s + dayMap[d].protein, 0) / nD.length) : null,
@@ -6419,19 +6532,6 @@ function buildWeeklySummaryCardHTML() {
     return `<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${colour};margin-right:4px;flex-shrink:0;vertical-align:middle;"></span>`;
   }
 
-  // Formats a single swing value with sign, matching the app's convention
-  // of using a true minus glyph (−) rather than a plain hyphen for negatives.
-  function swingVal(v) {
-    return (v < 0 ? '−' : '+') + Math.abs(v).toFixed(1) + 'lbs';
-  }
-  function swingStr(b) {
-    if (b.swingMin === null || b.swingMax === null) return '—';
-    // Only one day-to-day change this week — min and max are the same
-    // number, so show it once rather than repeating it either side of a slash.
-    if (b.swingMin === b.swingMax) return swingVal(b.swingMin);
-    return swingVal(b.swingMin) + '/' + swingVal(b.swingMax);
-  }
-
   const tableRows = weekBuckets.map(b => {
     const deltaStr = b.delta === null ? '—'
       : (b.delta >= 0 ? '+' : '') + b.delta.toFixed(1) + ' lbs';
@@ -6442,7 +6542,6 @@ function buildWeeklySummaryCardHTML() {
     return `<tr>
       <td style="font-family:var(--font-mono);font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);">${b.label}</td>
       <td style="font-size:11px;color:${deltaCol};padding:5px 4px;border-bottom:0.5px solid var(--border);font-weight:500;">${deltaStr}</td>
-      <td style="font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);white-space:nowrap;">${swingStr(b)}</td>
       <td style="font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);">${sq(kcalHeat)}${b.kcal !== null ? b.kcal.toLocaleString() : '—'}</td>
       <td style="font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);">${sq(stepsHeat)}${b.steps !== null ? b.steps.toLocaleString() : '—'}</td>
       <td style="font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);">${sq(proteinHeat)}${b.protein !== null ? b.protein + 'g' : '—'}</td>
@@ -6456,10 +6555,114 @@ function buildWeeklySummaryCardHTML() {
           <tr>
             <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Week</th>
             <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Δ weight</th>
-            <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Swing</th>
             <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Avg kcal</th>
             <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Avg steps</th>
             <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Avg prot</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+// Builds the weekly swing table card (weight / kcal / steps / protein) as
+// an HTML string for the Progress page's swipeable table stack — the
+// second slide, between the weekly summary and the measurements table.
+// A "swing" is the smallest and largest consecutive day-to-day change for
+// a metric within that calendar week (chronological logged entries only,
+// gaps between logs aren't treated as a swing), surfacing day-to-day
+// volatility separately from the smoothed weekly averages/deltas shown on
+// the weekly summary slide.
+function buildWeeklySwingsCardHTML() {
+  const dayMap = buildDayMap();
+  const macro  = resolveProgressMacro();
+  const allDates = Object.keys(dayMap).sort();
+
+  const emptyCard = `<div class="card" style="margin-top:8px;">
+    <div style="font-size:12px;color:var(--text3);text-align:center;padding:8px 0;">Log a few days to see weekly swings.</div>
+  </div>`;
+
+  if (allDates.length < 2) return emptyCard;
+
+  const todayStr = getLocalToday();
+  const macroEndStr = macro ? toLocalDateStr(getMacroEndDate(macro)) : null;
+  const anchor = (macro && macro.start) ? macro.start : allDates[0];
+  const anchorMs = new Date(anchor + 'T00:00:00').getTime();
+  const rangeEndStr = macro ? (macroEndStr < todayStr ? macroEndStr : todayStr) : todayStr;
+  const rangeEndMs = new Date(rangeEndStr + 'T00:00:00').getTime();
+
+  // Smallest/largest consecutive change across a chronological list of
+  // {date, value} entries — null if fewer than 2 data points this week.
+  function swingOf(entries) {
+    if (entries.length < 2) return { min: null, max: null };
+    const diffs = [];
+    for (let i = 0; i < entries.length - 1; i++) diffs.push(entries[i+1] - entries[i]);
+    return { min: Math.min(...diffs), max: Math.max(...diffs) };
+  }
+
+  const weekBuckets = (() => {
+    const b = [];
+    let cur2 = new Date(anchorMs);
+    let wn = 1;
+    while (cur2.getTime() <= rangeEndMs) {
+      const bStart = toLocalDateStr(cur2);
+      const bEndDate = new Date(cur2); bEndDate.setDate(bEndDate.getDate() + 6);
+      const bEnd = toLocalDateStr(bEndDate);
+      const bDates = allDates.filter(d => d >= bStart && d <= bEnd);
+      if (bDates.length > 0) {
+        const wD = bDates.filter(d => dayMap[d].weight  !== null);
+        const sD = bDates.filter(d => dayMap[d].steps   !== null);
+        const nD = bDates.filter(d => dayMap[d].hasNutr);
+
+        b.push({
+          label: 'W' + wn++,
+          weight:  swingOf(wD.map(d => dayMap[d].weight)),
+          kcal:    swingOf(nD.map(d => dayMap[d].kcal)),
+          steps:   swingOf(sD.map(d => dayMap[d].steps)),
+          protein: swingOf(nD.map(d => dayMap[d].protein)),
+        });
+      }
+      cur2 = new Date(cur2); cur2.setDate(cur2.getDate() + 7);
+    }
+    return b;
+  })();
+
+  if (!weekBuckets.length) return emptyCard;
+
+  // Formats a swing {min,max} pair with sign, matching the app's convention
+  // of using a true minus glyph (−) rather than a plain hyphen for negatives.
+  function fmtSigned(v, decimals, suffix) {
+    const formatted = Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    return (v < 0 ? '−' : '+') + formatted + suffix;
+  }
+  function swingStr(swing, decimals, suffix) {
+    if (swing.min === null || swing.max === null) return '—';
+    // Only one day-to-day change this week — min and max are the same
+    // number, so show it once rather than repeating it either side of a slash.
+    if (swing.min === swing.max) return fmtSigned(swing.min, decimals, suffix);
+    return fmtSigned(swing.min, decimals, suffix) + '/' + fmtSigned(swing.max, decimals, suffix);
+  }
+
+  const tableRows = weekBuckets.map(b => `<tr>
+    <td style="font-family:var(--font-mono);font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);">${b.label}</td>
+    <td style="font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);white-space:nowrap;">${swingStr(b.weight, 1, 'lbs')}</td>
+    <td style="font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);white-space:nowrap;">${swingStr(b.kcal, 0, '')}</td>
+    <td style="font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);white-space:nowrap;">${swingStr(b.steps, 0, '')}</td>
+    <td style="font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);white-space:nowrap;">${swingStr(b.protein, 0, 'g')}</td>
+  </tr>`).join('');
+
+  return `<div class="card" style="margin-top:8px;">
+    <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">Smallest/largest day-to-day change logged within each week.</div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Week</th>
+            <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Weight</th>
+            <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Kcal</th>
+            <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Steps</th>
+            <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Protein</th>
           </tr>
         </thead>
         <tbody>${tableRows}</tbody>
@@ -6556,6 +6759,73 @@ function buildMeasurementsCardHTML() {
       </table>
     </div>
   </div>`;
+}
+
+// Renders small row summaries of every goal period belonging to the
+// selected/browsed cycle (resolveProgressMacro()), ordered by start date.
+// The goal covering today gets a green left accent; the next upcoming goal
+// (earliest start date after today) gets a red left accent — everything
+// else is unaccented. Each row shows the "Step N - label" name, its date
+// range, and its non-zero targets (kcal/protein/carbs/fats/steps). The
+// next-upcoming row also gets a "Next up" subtitle: a day countdown while
+// it's still more than a week out, switching to "starting <weekday>" from
+// the day 6 days before its start date onward (e.g. the Tuesday before a
+// Monday start) — a specific date, not just a countdown, once it's close.
+function renderProgressCycleGoals() {
+  const el = document.getElementById('progress-cycle-goals');
+  if (!el) return;
+  const macro = resolveProgressMacro();
+  if (!macro) { el.innerHTML = ''; return; }
+
+  const goals = (state.goals || [])
+    .filter(g => g.macroId === macro.id)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate));
+  if (!goals.length) { el.innerHTML = ''; return; }
+
+  const today = getLocalToday();
+  const activeIdx = goals.findIndex(g => g.startDate <= today && g.endDate >= today);
+  const nextUpcoming = goals.filter(g => g.startDate > today).sort((a, b) => a.startDate.localeCompare(b.startDate))[0] || null;
+
+  // "Next up" subtitle for whichever goal is next upcoming.
+  let nextUpSubtitle = '';
+  if (nextUpcoming) {
+    const todayDate = new Date(today + 'T00:00:00');
+    const startDateObj = new Date(nextUpcoming.startDate + 'T00:00:00');
+    const daysUntil = Math.round((startDateObj - todayDate) / 86400000);
+    // The day the display switches from a countdown to a fixed weekday —
+    // 6 days before start (the Tuesday before, for a Monday start).
+    const switchDate = new Date(startDateObj); switchDate.setDate(switchDate.getDate() - 6);
+    if (today < toLocalDateStr(switchDate)) {
+      nextUpSubtitle = `Next up: starting in ${daysUntil} day${daysUntil !== 1 ? 's' : ''}`;
+    } else {
+      const weekdayName = startDateObj.toLocaleDateString('en-GB', { weekday: 'long' });
+      nextUpSubtitle = `Next up: starting ${weekdayName}`;
+    }
+  }
+
+  const rows = goals.map((g, idx) => {
+    const isActive = idx === activeIdx;
+    const isNextUpcoming = nextUpcoming && g.macroGoalID === nextUpcoming.macroGoalID;
+    const accent = isActive ? 'var(--accent)' : isNextUpcoming ? 'var(--red)' : 'transparent';
+    const label = g._blocLabel || 'Goal';
+    const targets = [
+      g.kcal    ? `${g.kcal.toLocaleString()} kcal` : null,
+      g.protein ? `${g.protein}g protein` : null,
+      g.carbs   ? `${g.carbs}g carbs` : null,
+      g.fats    ? `${g.fats}g fats` : null,
+      g.steps   ? `${parseInt(g.steps).toLocaleString()} steps` : null,
+    ].filter(Boolean).join(' · ');
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-left:3px solid ${accent};background:var(--surface2);border-radius:6px;margin-bottom:6px;cursor:pointer;" onclick="openEditGoal('${g.macroGoalID}')">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${label}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:1px;">${formatDate(g.startDate)} – ${formatDate(g.endDate)}</div>
+        ${isNextUpcoming && nextUpSubtitle ? `<div style="font-size:10px;color:var(--red);margin-top:2px;font-weight:600;">${nextUpSubtitle}</div>` : ''}
+      </div>
+      <div style="font-size:11px;color:var(--text2);text-align:right;flex-shrink:0;max-width:58%;">${targets || '—'}</div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `<div class="section-title" style="margin-top:16px;">Goal periods this cycle</div>${rows}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -6826,7 +7096,7 @@ function buildInsightsCardHTML() {
     const weeksLogged = ins ? ins.weekBuckets.length : 0;
     const weeksNeeded = goalType === 'loss' ? 4 : 3; // loss needs baseline+2 comparison weeks
     const weeksLeft   = Math.max(0, weeksNeeded - weeksLogged);
-    return `<div class="card" style="margin-top:4px;">
+    return `<div style="margin-top:10px;padding-top:10px;border-top:0.5px solid var(--border);">
       <div style="font-size:12px;color:var(--text3);line-height:1.5;">
         ${weeksLeft > 0
           ? `Trend insights will be available in ~${weeksLeft} more week${weeksLeft !== 1 ? 's' : ''} — needs a valid baseline period and comparison window.`
@@ -6921,7 +7191,7 @@ function buildInsightsCardHTML() {
         Start recalibration →
       </button>` : '';
 
-  return `<div class="card" style="margin-top:4px;">
+  return `<div style="margin-top:10px;padding-top:10px;border-top:0.5px solid var(--border);">
     <div style="display:flex;align-items:center;justify-content:space-between;">
       <div style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:600;background:${pill.bg};color:${pill.color};">${pill.label}</div>
     </div>
@@ -9457,11 +9727,11 @@ function _resetGoalModal() {
   if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
 }
 
-// ── Progress table swipe deck (2 cards: Weekly summary / Measurements) ──
+// ── Progress table swipe deck (3 cards: Weekly summary / Swings / Measurements) ──
 let progressTablesIndex        = 0;
 let _progressTablesBusy        = false;
 let _progressTablesGestureId   = 0;
-const PROGRESS_TABLES_COUNT = 2;
+const PROGRESS_TABLES_COUNT = 3;
 
 // Renders the currently-selected table card into #progress-tables-wrap and
 // the dot pagination into #progress-tables-dots (no text labels — dots
@@ -9469,7 +9739,7 @@ const PROGRESS_TABLES_COUNT = 2;
 function renderProgressTables() {
   const wrap = document.getElementById('progress-tables-wrap');
   if (!wrap) return;
-  const cards = [buildWeeklySummaryCardHTML(), buildMeasurementsCardHTML()];
+  const cards = [buildWeeklySummaryCardHTML(), buildWeeklySwingsCardHTML(), buildMeasurementsCardHTML()];
   wrap.innerHTML = cards[progressTablesIndex];
 
   const dotsEl = document.getElementById('progress-tables-dots');
@@ -10278,6 +10548,8 @@ function openEditMacro(id) {
   document.getElementById('edit-macro-name-input').value = macro.name || '';
   document.getElementById('edit-macro-weeks-input').value = macro.weeks || 8;
   document.getElementById('edit-macro-start-input').value = macro.start || '';
+  document.getElementById('edit-macro-start-input').style.borderColor = '';
+  const _editStartErr = document.getElementById('edit-macro-start-error'); if (_editStartErr) _editStartErr.style.display = 'none';
   document.getElementById('edit-macro-goal-input').value = macro.goal || '';
   document.getElementById('edit-macro-target-bw-input').value = macro.targetBw || '';
   document.getElementById('edit-macro-goal-type-input').value = macro.goalType || 'loss';
@@ -10295,9 +10567,23 @@ function saveEditMacro() {
   const id = document.getElementById('modal-edit-macro')._editId;
   const macro = state.macrocycles.find(m => m.id === id);
   if (!macro) return;
+
+  const startVal = document.getElementById('edit-macro-start-input').value || macro.start;
+  // Macrocycles can only start on a Monday (see isMondayDateStr()) —
+  // block the save and flash the field rather than silently accepting it.
+  const startEl = document.getElementById('edit-macro-start-input');
+  const startErrEl = document.getElementById('edit-macro-start-error');
+  if (!isMondayDateStr(startVal)) {
+    if (startErrEl) startErrEl.style.display = 'block';
+    startEl.style.borderColor = 'var(--red)';
+    setTimeout(() => { startEl.style.borderColor = ''; }, 1500);
+    return;
+  }
+  if (startErrEl) startErrEl.style.display = 'none';
+
   macro.name = document.getElementById('edit-macro-name-input').value.trim() || macro.name;
   macro.weeks = parseInt(document.getElementById('edit-macro-weeks-input').value) || macro.weeks;
-  macro.start = document.getElementById('edit-macro-start-input').value || macro.start;
+  macro.start = startVal;
   macro.goal = document.getElementById('edit-macro-goal-input').value.trim();
   macro.targetBw = parseFloat(document.getElementById('edit-macro-target-bw-input').value) || null;
   macro.goalType = document.getElementById('edit-macro-goal-type-input').value;
@@ -10620,6 +10906,31 @@ function toggleExercise(expandKey) {
 // Train hero card: session overview (exercises, sets done, volume, progress).
 // Standalone so it can be refreshed both from renderTrain() and from
 // renderTrainDay() (called whenever a set is logged/toggled/cleared).
+// Computes the real calendar week (start/end dates) that the currently
+// selected mesocycle + microcycle pill corresponds to on the Train page —
+// for forward-planning deload weeks against upcoming goal periods. Uses
+// the same mesocycle-span math as getMacroVolumeSeries() elsewhere: each
+// mesocycle spans weeksPerMeso real calendar weeks (2, when microcycles
+// represent each real week), fanned out from the macro's start date.
+// Returns null if the macro has no start date set.
+function getSelectedTrainWeekDates(macro) {
+  if (!macro || !macro.start) return null;
+  const mesoSpanDays = (macro.weeksPerMeso || 1) * 7;
+  const useMicro = macro.useMicrocycles !== false;
+  // A mesocycle only represents two distinct real calendar weeks when it
+  // actually spans 2 weeks via microcycles — otherwise M1/M2 (if used at
+  // all) share the same single calendar week, mirroring the exact
+  // distinction the Train page's own day-tab grouping already makes.
+  const usesTwoRealWeeks = useMicro && (macro.weeksPerMeso || 1) === 2;
+  let offsetDays = (state.currentWeek - 1) * mesoSpanDays;
+  if (usesTwoRealWeeks && String(state.currentDay).endsWith('m2')) offsetDays += 7;
+  const start = new Date(macro.start + 'T00:00:00');
+  start.setDate(start.getDate() + offsetDays);
+  const end = new Date(start);
+  end.setDate(end.getDate() + (usesTwoRealWeeks ? 6 : mesoSpanDays - 1));
+  return { start: toLocalDateStr(start), end: toLocalDateStr(end) };
+}
+
 function renderTrainHero(macro) {
   const heroEl = document.getElementById('train-hero');
   if (!heroEl || !macro) return;
@@ -10677,6 +10988,10 @@ function renderTrainHero(macro) {
   if (sessionExercises.length === 0) {
     heroEl.innerHTML = '';
   } else {
+    const weekDates = getSelectedTrainWeekDates(macro);
+    const weekDatesHtml = weekDates
+      ? `<div class="hero-sub" style="margin-top:-4px;">${formatDate(weekDates.start)} – ${formatDate(weekDates.end)}</div>`
+      : '';
     heroEl.innerHTML = `<div class="hero-card" data-page="train">
       <div class="hero-nav-arrows" style="top:18px;right:18px;">
         <button id="timer-open-btn" onclick="openTimerModal()" aria-label="Rest timer">
@@ -10686,6 +11001,7 @@ function renderTrainHero(macro) {
         </button>
       </div>
       <div class="hero-label">${dayDisplay}${microSuffix} · MC ${state.currentWeek} / ${macro.weeks}</div>
+      ${weekDatesHtml}
       <div class="hero-value" style="font-size:24px;">${macro.name}</div>
       ${deloadToggleHtml}
       <div class="hero-callouts">
@@ -12863,6 +13179,7 @@ function renderNutrDaily() {
 
   renderNutrHero();
   renderNutrDiary();
+  renderNutrSaveBadge();
   requestAnimationFrame(initYesterdaySwipes);
   requestAnimationFrame(initNutrHeroSwipe);
 }
@@ -12892,6 +13209,417 @@ function getDayTotals(date) {
     f: items.reduce((a,b)=>a+(b.fats||0),0),
     isQuick: false,
   };
+}
+
+// ── Sample Day Library (qualifying nutrition days) ─────────────────────────
+// A "sample day" is a full day of logging worth reusing later — captured
+// once its Dinner includes a saved recipe and the day's totals land close
+// enough to that day's own goal. Sample days are grouped: a group starts
+// out scoped to whichever goal first saved into it, then grows to include
+// any other goal (now or found later) whose own target macros are close
+// enough to be considered "the same kind of day" (SIMILAR_GOAL_TOLERANCE).
+// The two tolerance bands serve different jobs:
+//   - SAVE_DAY_TOLERANCE gates whether *this logged day* is close enough to
+//     *its own goal* to be worth saving at all (the badge on Nutrition).
+//   - SIMILAR_GOAL_TOLERANCE defines the min/max band stored on a group
+//     (derived from the goal that originated it) — later logged days are
+//     matched against that stored band by their actual totals to decide
+//     whether they belong in the same group or need a new one.
+const SAVE_DAY_TOLERANCE = { kcal: 50, proteinLow: 10, carbs: 15, fats: 10 };
+const SIMILAR_GOAL_TOLERANCE = { kcal: 100, proteinLow: 15, carbs: 25, fats: 15 };
+
+// Whether a day's logged totals are close enough to ITS OWN goal's targets
+// to be offered for saving. Protein only has a floor (extra protein never
+// disqualifies a day) — everything else is a symmetric band.
+function dayWithinSaveTolerance(totals, goal) {
+  if (!goal || !goal.kcal) return false;
+  return totals.kcal >= goal.kcal - SAVE_DAY_TOLERANCE.kcal && totals.kcal <= goal.kcal + SAVE_DAY_TOLERANCE.kcal &&
+    totals.p >= goal.protein - SAVE_DAY_TOLERANCE.proteinLow &&
+    totals.c >= goal.carbs - SAVE_DAY_TOLERANCE.carbs && totals.c <= goal.carbs + SAVE_DAY_TOLERANCE.carbs &&
+    totals.f >= goal.fats - SAVE_DAY_TOLERANCE.fats && totals.f <= goal.fats + SAVE_DAY_TOLERANCE.fats;
+}
+
+// Builds the min/max band stored on a new group, centred on the goal that
+// originated it. Protein has no ceiling — a goal with even more protein
+// than this one is still considered "the same kind of day".
+function computeSimilarGoalRange(goal) {
+  return {
+    kcalMin: goal.kcal - SIMILAR_GOAL_TOLERANCE.kcal, kcalMax: goal.kcal + SIMILAR_GOAL_TOLERANCE.kcal,
+    // Infinity doesn't survive JSON.stringify (localStorage persistence
+    // turns it into null), so a real, JSON-safe sentinel is used instead
+    // for "no upper bound on protein".
+    proteinMin: goal.protein - SIMILAR_GOAL_TOLERANCE.proteinLow, proteinMax: Number.MAX_SAFE_INTEGER,
+    carbsMin: goal.carbs - SIMILAR_GOAL_TOLERANCE.carbs, carbsMax: goal.carbs + SIMILAR_GOAL_TOLERANCE.carbs,
+    fatsMin: goal.fats - SIMILAR_GOAL_TOLERANCE.fats, fatsMax: goal.fats + SIMILAR_GOAL_TOLERANCE.fats,
+  };
+}
+
+// Reads a range's upper bound, treating a missing/null value (e.g. from
+// data saved before proteinMax used a JSON-safe sentinel, where it was
+// stored as Infinity and silently corrupted to null on save/reload) as
+// "no upper bound" rather than letting a bare `<= null` comparison
+// silently coerce to `<= 0` and reject every real value.
+function rangeMax(value) {
+  return (value === null || value === undefined) ? Number.MAX_SAFE_INTEGER : value;
+}
+
+// Whether a day's logged totals fall inside a group's stored min/max band.
+function totalsWithinRange(totals, range) {
+  return totals.kcal >= range.kcalMin && totals.kcal <= rangeMax(range.kcalMax) &&
+    totals.p >= range.proteinMin && totals.p <= rangeMax(range.proteinMax) &&
+    totals.c >= range.carbsMin && totals.c <= rangeMax(range.carbsMax) &&
+    totals.f >= range.fatsMin && totals.f <= rangeMax(range.fatsMax);
+}
+
+function findSampleGroupForGoal(macroGoalID) {
+  return (state.sampleDays || []).find(g => (g.linkedGoalIds || []).includes(macroGoalID)) || null;
+}
+
+// Resolves a human-readable "Macrocycle - Goal label" string for a
+// macroGoalID, for display in the sample-day library list. Falls back
+// gracefully if the goal or its macrocycle has since been deleted.
+function getGoalDisplayLabel(macroGoalID) {
+  const goal = (state.goals || []).find(g => g.macroGoalID === macroGoalID);
+  if (!goal) return null;
+  const macro = (state.macrocycles || []).find(m => m.id === goal.macroId);
+  const goalLabel = goal._blocLabel || 'Goal';
+  return macro ? `${macro.name} - ${goalLabel}` : goalLabel;
+}
+
+// Finds whichever existing group a set of logged totals belongs in, by
+// matching against each group's stored band — this is how a brand-new
+// goal's qualifying day gets linked into an older, unrelated goal's group
+// without the two goals ever needing to be compared directly.
+function findSampleGroupForTotals(totals) {
+  return (state.sampleDays || []).find(g => totalsWithinRange(totals, g.range)) || null;
+}
+
+// Whether a GOAL's own target macros (kcal/protein/carbs/fats — not a
+// logged day's totals) fall within a group's stored band. Used to
+// proactively surface a goal as "linked" — for the library's pill list and
+// for Fill Day — the moment it's created, without needing anyone to have
+// actually logged (let alone saved) a qualifying day under it yet.
+function goalTargetsWithinRange(goal, range) {
+  if (!goal) return false;
+  return goal.kcal >= range.kcalMin && goal.kcal <= rangeMax(range.kcalMax) &&
+    goal.protein >= range.proteinMin && goal.protein <= rangeMax(range.proteinMax) &&
+    goal.carbs >= range.carbsMin && goal.carbs <= rangeMax(range.carbsMax) &&
+    goal.fats >= range.fatsMin && goal.fats <= rangeMax(range.fatsMax);
+}
+
+// Every goal effectively linked to a group: the goals that have actually
+// contributed a saved day (group.linkedGoalIds — permanent, only grows),
+// plus any other currently-existing goal whose own targets happen to fall
+// within the group's band right now (computed live, so it can include a
+// goal that was only just created and appears/disappears as goals are
+// edited). The first entry is always the group's original goal.
+function getEffectiveLinkedGoalIds(group) {
+  const ids = (group.linkedGoalIds || []).slice();
+  (state.goals || []).forEach(g => {
+    if (!ids.includes(g.macroGoalID) && goalTargetsWithinRange(g, group.range)) ids.push(g.macroGoalID);
+  });
+  return ids;
+}
+
+// Finds a group usable for Fill Day against a given goal: the group it's
+// formally linked to (a day was saved under it), or — failing that —
+// whichever group's band its own targets currently fall within, so a
+// brand-new similar goal can immediately pull from an existing library
+// before anyone has saved a day under it specifically.
+function findSampleGroupForFillDay(goal) {
+  return findSampleGroupForGoal(goal.macroGoalID)
+    || (state.sampleDays || []).find(g => goalTargetsWithinRange(goal, g.range))
+    || null;
+}
+
+// Returns the first logged Dinner item that's a saved recipe, or null.
+// Other items alongside it in Dinner are fine — the recipe is just used
+// as the day's identifying label.
+function getDinnerRecipeItem(date) {
+  const items = getNutrDayMeals(date).Dinner || [];
+  return items.find(i => i.source === 'recipe') || null;
+}
+
+// Whether a date has already been saved into any sample group.
+function isDateSavedInLibrary(date) {
+  return (state.sampleDays || []).some(g => (g.days || []).some(d => d.date === date));
+}
+
+// Resolves (or creates) the group a newly-qualifying day should be saved
+// into: reuse the group already linked to this goal if one exists,
+// otherwise match by totals against every other group's band and link this
+// goal onto it, otherwise start a brand-new group scoped to this goal.
+function getOrCreateSampleGroup(goal, totals) {
+  if (!state.sampleDays) state.sampleDays = [];
+  let group = findSampleGroupForGoal(goal.macroGoalID);
+  if (group) return group;
+  group = findSampleGroupForTotals(totals);
+  if (group) {
+    if (!group.linkedGoalIds.includes(goal.macroGoalID)) group.linkedGoalIds.push(goal.macroGoalID);
+    return group;
+  }
+  group = {
+    id: 'sg_' + Date.now(),
+    linkedGoalIds: [goal.macroGoalID],
+    originGoalMacros: { kcal: goal.kcal, protein: goal.protein, carbs: goal.carbs, fats: goal.fats },
+    range: computeSimilarGoalRange(goal),
+    days: [],
+  };
+  state.sampleDays.push(group);
+  return group;
+}
+
+// Renders the save-day badge / "already saved" pill beneath the Nutrition
+// hero card. Hidden entirely unless: there's a goal for this date, the
+// day's totals are within SAVE_DAY_TOLERANCE of it, Dinner has a saved
+// recipe, and that recipe isn't already stored in the applicable group.
+function renderNutrSaveBadge() {
+  const el = document.getElementById('nutr-save-badge-wrap');
+  if (!el) return;
+  const goal = getGoalForDay(nutrSelectedDate);
+  if (!goal) { el.innerHTML = ''; return; }
+
+  // Once a day is saved, the "Saved to library" pill lives inside the hero
+  // card itself (see renderNutrHero) — nothing to show down here.
+  if (isDateSavedInLibrary(nutrSelectedDate)) { el.innerHTML = ''; return; }
+
+  const totals = getDayTotals(nutrSelectedDate);
+  // Quick-logged days have no discrete meal items, so there's no dinner
+  // recipe to identify the day by — they can never qualify.
+  if (totals.isQuick || !dayWithinSaveTolerance(totals, goal)) { el.innerHTML = ''; return; }
+
+  const dinnerItem = getDinnerRecipeItem(nutrSelectedDate);
+  if (!dinnerItem) { el.innerHTML = ''; return; }
+
+  const group = findSampleGroupForGoal(goal.macroGoalID) || findSampleGroupForTotals(totals);
+  const alreadyStored = group && group.days.some(d => d.dinnerName.toLowerCase() === dinnerItem.name.toLowerCase());
+  if (alreadyStored) { el.innerHTML = ''; return; }
+
+  el.innerHTML = `<button class="btn btn-block" style="margin-bottom:8px;background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600;" onclick="saveDayToLibrary()">
+    On target for your goal — save this day to pre-fill later?
+  </button>`;
+}
+
+// Saves nutrSelectedDate into the sample library — the whole day's meals,
+// keyed by whichever recipe is logged for Dinner.
+function saveDayToLibrary() {
+  const goal = getGoalForDay(nutrSelectedDate);
+  if (!goal) return;
+  const dinnerItem = getDinnerRecipeItem(nutrSelectedDate);
+  if (!dinnerItem) return;
+  const totals = getDayTotals(nutrSelectedDate);
+  const group = getOrCreateSampleGroup(goal, totals);
+
+  // Guard against a duplicate dinner name slipping in between render and
+  // click (e.g. two qualifying days logged in quick succession).
+  if (group.days.some(d => d.dinnerName.toLowerCase() === dinnerItem.name.toLowerCase())) {
+    save(); renderNutrSaveBadge(); return;
+  }
+
+  group.days.push({
+    date: nutrSelectedDate,
+    dinnerName: dinnerItem.name,
+    meals: JSON.parse(JSON.stringify(getNutrDayMeals(nutrSelectedDate))),
+    totals: { kcal: totals.kcal, protein: totals.p, carbs: totals.c, fats: totals.f },
+  });
+  save();
+  renderNutrHero();
+  renderNutrSaveBadge();
+}
+
+// ── Fill Day (loading a saved sample day into the current date) ────────────
+
+// Opens the Fill Day modal, listing saved dinners linked to the current
+// date's goal (its own group, if any).
+function openFillDayModal() {
+  const listEl = document.getElementById('fill-day-list');
+  const goal = getGoalForDay(nutrSelectedDate);
+  if (!goal) {
+    listEl.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:20px 0;">No goal set for this date.</div>';
+    openModal('modal-fill-day');
+    return;
+  }
+  const group = findSampleGroupForFillDay(goal);
+  const days = group ? group.days.slice().sort((a, b) => b.date.localeCompare(a.date)) : [];
+  if (!days.length) {
+    listEl.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:20px 0;">No saved days yet for this goal.</div>';
+  } else {
+    listEl.innerHTML = days.map(d => `
+      <div class="card" style="margin-bottom:8px;cursor:pointer;" onclick="confirmFillDay('${group.id}','${d.date}')">
+        <div style="font-size:13px;font-weight:600;">${d.dinnerName}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px;">${formatDate(d.date)} · ${Math.round(d.totals.kcal).toLocaleString()} kcal · P:${Math.round(d.totals.protein)}g C:${Math.round(d.totals.carbs)}g F:${Math.round(d.totals.fats)}g</div>
+      </div>`).join('');
+  }
+  openModal('modal-fill-day');
+}
+
+// Warns before overwriting if the target date already has any logs
+// (meal items or a quick-log), then fills.
+function confirmFillDay(groupId, sourceDate) {
+  const hasMealLogs = !!(state.nutritionMeals && state.nutritionMeals[nutrSelectedDate] &&
+    Object.values(state.nutritionMeals[nutrSelectedDate]).some(a => a.length));
+  const hasQuickLog = !!(state.nutritionQuickLog && state.nutritionQuickLog[nutrSelectedDate]);
+  closeModal('modal-fill-day');
+  if (hasMealLogs || hasQuickLog) {
+    showConfirm(
+      "Overwrite today's log?",
+      "This will clear everything currently logged for this date and replace it with the saved day. This can't be undone.",
+      'Overwrite',
+      () => fillDayFromSample(groupId, sourceDate)
+    );
+  } else {
+    fillDayFromSample(groupId, sourceDate);
+  }
+}
+
+// Clears nutrSelectedDate and copies every meal from the stored sample day
+// across in its place.
+function fillDayFromSample(groupId, sourceDate) {
+  const group = (state.sampleDays || []).find(g => g.id === groupId);
+  const day = group && group.days.find(d => d.date === sourceDate);
+  if (!day) return;
+  if (!state.nutritionMeals) state.nutritionMeals = {};
+  state.nutritionMeals[nutrSelectedDate] = JSON.parse(JSON.stringify(day.meals));
+  if (state.nutritionQuickLog) delete state.nutritionQuickLog[nutrSelectedDate];
+  syncNutrLegacyLog(nutrSelectedDate);
+  save();
+  renderNutrDaily();
+}
+
+// ── Profile → Nutrition libraries (Settings) ────────────────────────────────
+
+function openProfilePage() {
+  openModal('modal-profile');
+}
+
+function openProfileNutrition() {
+  closeModal('modal-profile');
+  renderProfileNutritionLibraries();
+  openModal('modal-profile-nutrition');
+}
+
+// Renders every sample-day group as a card, each saved day inside it as a
+// swipeable row (tap to edit, swipe to delete).
+function renderProfileNutritionLibraries() {
+  const el = document.getElementById('profile-nutrition-list');
+  if (!el) return;
+  const groups = (state.sampleDays || []).slice().sort((a, b) => {
+    const aLatest = a.days.reduce((m, d) => d.date > m ? d.date : m, '');
+    const bLatest = b.days.reduce((m, d) => d.date > m ? d.date : m, '');
+    return bLatest.localeCompare(aLatest);
+  });
+
+  if (!groups.length) {
+    el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:30px 0;">No saved days yet. Qualifying nutrition days can be saved from the Nutrition page.</div>';
+    return;
+  }
+
+  el.innerHTML = groups.map(g => {
+    const rows = g.days.slice().sort((a, b) => b.date.localeCompare(a.date)).map(d => `
+      <div class="swipe-row-wrap" style="border-top:0.5px solid var(--border);">
+        <div class="swipe-row-content" style="padding:10px 0;display:flex;justify-content:space-between;align-items:center;cursor:pointer;background:var(--surface);"
+          onclick="openSampleDayEditor('${g.id}','${d.date}')">
+          <div style="min-width:0;">
+            <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${d.dinnerName}</div>
+            <div style="font-size:11px;color:var(--text2);margin-top:2px;">${formatDate(d.date)} · ${Math.round(d.totals.kcal).toLocaleString()} kcal</div>
+          </div>
+        </div>
+        <div class="swipe-actions">
+          <button class="swipe-btn swipe-btn-danger" onclick="event.stopPropagation();deleteSampleDay('${g.id}','${d.date}')" title="Delete">
+            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+          </button>
+        </div>
+      </div>`).join('');
+    const effectiveIds = getEffectiveLinkedGoalIds(g);
+    const originId = (g.linkedGoalIds || [])[0];
+    const originLabel = originId ? getGoalDisplayLabel(originId) : null;
+    const otherPillsHtml = effectiveIds
+      .filter(id => id !== originId)
+      .map(getGoalDisplayLabel)
+      .filter(Boolean)
+      .map(label => `<span style="font-size:10px;font-weight:600;color:var(--text2);background:var(--surface3);border:0.5px solid var(--border2);border-radius:99px;padding:3px 9px;">${label}</span>`)
+      .join('');
+    const originPillHtml = originLabel
+      ? `<span style="font-size:10px;font-weight:600;color:var(--accent);background:rgba(200,240,96,0.1);border:0.5px solid rgba(200,240,96,0.25);border-radius:99px;padding:3px 9px;">${originLabel}</span>`
+      : '';
+    return `<div class="card" style="margin-bottom:10px;padding:0 14px;">
+      <div style="padding:12px 0;border-bottom:0.5px solid var(--border);">
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+          ${originPillHtml}${otherPillsHtml}
+        </div>
+        <div style="font-weight:700;font-size:13px;">${g.originGoalMacros.kcal.toLocaleString()} kcal target${effectiveIds.length > 1 ? ` · ${effectiveIds.length} linked goals` : ''}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px;">${g.days.length} saved day${g.days.length !== 1 ? 's' : ''} · P:${Math.round(g.originGoalMacros.protein)}g C:${Math.round(g.originGoalMacros.carbs)}g F:${Math.round(g.originGoalMacros.fats)}g</div>
+      </div>
+      ${rows}
+    </div>`;
+  }).join('');
+  requestAnimationFrame(() => initSwipeRows(el));
+}
+
+// Opens the edit sheet for a single saved day — shows every logged meal
+// item read-only, with an editable dinner label and a delete action.
+function openSampleDayEditor(groupId, date) {
+  const group = (state.sampleDays || []).find(g => g.id === groupId);
+  const day = group && group.days.find(d => d.date === date);
+  if (!day) return;
+  document.getElementById('sde-group-id').value = groupId;
+  document.getElementById('sde-date').value = date;
+  document.getElementById('sde-name-input').value = day.dinnerName;
+  document.getElementById('sde-date-label').textContent = formatDate(date);
+
+  const mealsEl = document.getElementById('sde-meals-list');
+  const mealNames = ['Breakfast', 'Lunch', 'Dinner', 'Snacks'];
+  mealsEl.innerHTML = mealNames.map(m => {
+    const items = day.meals[m] || [];
+    if (!items.length) return '';
+    return `<div style="margin-bottom:12px;">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">${m}</div>
+      ${items.map(i => `<div style="font-size:12px;color:var(--text2);padding:3px 0;display:flex;justify-content:space-between;"><span>${i.name}</span><span style="color:var(--text3);">${(i.kcal || 0).toLocaleString()} kcal</span></div>`).join('')}
+    </div>`;
+  }).join('') || '<div style="font-size:12px;color:var(--text3);">No items.</div>';
+
+  openModal('modal-sample-day-edit');
+}
+
+function saveSampleDayEdit() {
+  const groupId = document.getElementById('sde-group-id').value;
+  const date = document.getElementById('sde-date').value;
+  const name = (document.getElementById('sde-name-input').value || '').trim();
+  if (!name) return;
+  const group = (state.sampleDays || []).find(g => g.id === groupId);
+  const day = group && group.days.find(d => d.date === date);
+  if (!day) return;
+  day.dinnerName = name;
+  save();
+  closeModal('modal-sample-day-edit');
+  renderProfileNutritionLibraries();
+}
+
+function deleteSampleDayFromEditor() {
+  const groupId = document.getElementById('sde-group-id').value;
+  const date = document.getElementById('sde-date').value;
+  closeModal('modal-sample-day-edit');
+  deleteSampleDay(groupId, date);
+}
+
+// Removes a saved day from its group, after confirmation — and cleans up
+// the whole group if that was the last day in it.
+function deleteSampleDay(groupId, date) {
+  const group = (state.sampleDays || []).find(g => g.id === groupId);
+  if (!group) return;
+  const day = group.days.find(d => d.date === date);
+  showConfirm(
+    'Delete saved day?',
+    `"${day ? day.dinnerName : 'This day'}" will be removed from the library.`,
+    'Delete',
+    () => {
+      group.days = group.days.filter(d => d.date !== date);
+      if (!group.days.length) state.sampleDays = (state.sampleDays || []).filter(g => g.id !== groupId);
+      save();
+      renderProfileNutritionLibraries();
+      renderNutrSaveBadge();
+    }
+  );
 }
 
 // Opens the quick-add modal — logging a day's totals directly as a single
@@ -12972,7 +13700,8 @@ function renderNutrHero() {
   }).join('');
 
   el.innerHTML = `<div class="hero-card hero-tappable" data-page="nutrition" onclick="openNutrDatePicker()">
-    <div class="hero-nav-arrows" style="top:18px;right:18px;" onclick="event.stopPropagation();">
+    <div class="hero-nav-arrows" style="top:18px;right:18px;display:flex;gap:6px;" onclick="event.stopPropagation();">
+      <button onclick="openFillDayModal()" aria-label="Fill day" style="width:auto;height:26px;padding:0 10px;border-radius:13px;font-size:11px;font-weight:500;white-space:nowrap;">📋 Fill day</button>
       <button onclick="openNutrQuickAdd()" aria-label="Quick add" style="width:auto;height:26px;padding:0 10px;border-radius:13px;font-size:11px;font-weight:500;white-space:nowrap;">⚡ Quick add</button>
     </div>
     <div class="hero-label">${dateLabel}</div>
@@ -12981,6 +13710,9 @@ function renderNutrHero() {
     <div class="hero-callouts">${macroCallouts}</div>
     ${kcalGoal ? `<div class="hero-progress-row"><span>Goal ${kcalGoal.toLocaleString()} kcal</span><span>${left >= 0 ? left.toLocaleString() + ' left' : Math.abs(left).toLocaleString() + ' over'}</span></div>
     <div class="hero-progress-track"><div class="hero-progress-fill" style="width:${pct}%"></div></div>` : ''}
+    ${isDateSavedInLibrary(nutrSelectedDate) ? `<div style="margin-top:10px;display:flex;justify-content:center;">
+      <span style="display:inline-flex;align-items:center;gap:6px;background:rgba(200,240,96,0.12);border:1px solid rgba(200,240,96,0.3);color:var(--accent);font-size:11px;font-weight:600;padding:5px 12px;border-radius:99px;">✓ Saved to library</span>
+    </div>` : ''}
   </div>`;
 }
 
