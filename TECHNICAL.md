@@ -29,7 +29,8 @@
 25. [Module: AI Advice (Phase 1–3)](#25-module-ai-advice-phase-13)
 26. [Goal Queue Flow](#26-goal-queue-flow)
 27. [Next Cycle Recommendation Engine (Phases 1–4)](#27-next-cycle-recommendation-engine-phases-14)
-28. [Known Limitations & Future Considerations](#28-known-limitations--future-considerations)
+28. [Module: Sample Day Library](#28-module-sample-day-library)
+29. [Known Limitations & Future Considerations](#29-known-limitations--future-considerations)
 
 ---
 
@@ -132,6 +133,10 @@ The file is organised into clearly commented sections in this order:
     modal-recipe-list        — My Recipes list with Create new, Edit, Delete
     modal-nutr-copy-entry    — copy or move a food entry or entire meal to another date/meal
     modal-confirm            — custom confirm dialog (centre-aligned; also used as a plain alert)
+    modal-fill-day           — Sample Day Library: pick a saved day to copy into the current date (v7.25)
+    modal-profile            — hidden Profile page, reached only via Settings — no nav-bar entry (v7.25)
+    modal-profile-nutrition  — Profile → Nutrition Libraries list (v7.25)
+    modal-sample-day-edit    — edit a single saved sample day's dinner label, or delete it (v7.25)
 
 <script> (early, small)
   Pre-boot iOS viewport measurement so --app-height is correct before first paint
@@ -150,9 +155,11 @@ The file is organised into clearly commented sections in this order:
   Render: Train (renderTrain, set logging, rest timer)
   Render: Body (renderBody, BMR/TDEE calc)
   Render: Nutrition (full module — largest single module in the file)
+  Sample Day Library (save/fill qualifying nutrition days, goal linking — v7.25)
   Barcode scanner engine (startScannerCamera, stopScannerCamera, _onScannerDetected)
   Food library (addToFoodLibrary, share/export/import)
   Render: Settings (setTheme, setMode, clearAllData)
+  Render: Profile (hidden page reached from Settings — v7.25)
   Data export/import
   Exercise library
   Render: Goals (renderGoals, overlap validation, macro sliders)
@@ -187,6 +194,7 @@ let state = {
   foodLibrary:       [],   // Array<FoodItem>  {id, name, brand, per100kcal, per100p, per100c, per100f, defaultServing, source}
   recipes:           [],   // Array<Recipe>
   supersets:         {},   // Record<supersetId, {name: string|null}> — custom display name only; membership lives on the exercises themselves
+  sampleDays:        [],   // Array<SampleDayGroup> — see below (v7.25)
   deloads:           {},   // Record<deloadUnitKey, true> — see §12 Deload Logic. Key = `${macroId}_${week}` (no microcycles) or `${macroId}_${week}_m${1|2}` (microcycles)
   exerciseHistory:   {},   // Record<nameNorm, Record<setType, HistoryEntry>> — see §12 Exercise History. HistoryEntry = {sets, reps, weight, dropWeight, dropReps, date}
   exerciseTrackingMode: {}, // Record<nameNorm, 'total'|'perSide'> — remembered tracking mode per exercise name, updated alongside exerciseHistory
@@ -221,6 +229,17 @@ function load() {
   if (!state.foodLibrary)       state.foodLibrary = [];
   if (!state.recipes)           state.recipes = [];
   if (!state.supersets)         state.supersets = {};
+  if (!state.sampleDays)        state.sampleDays = [];
+  // One-time repair (v7.30): a group's range.proteinMax was originally
+  // stored as Infinity (no upper bound on protein) — JSON.stringify()
+  // silently turns Infinity into null, so any group saved before this fix
+  // shipped had already-corrupted data by the very next reload. Restore it
+  // to the current JSON-safe sentinel every time state loads.
+  state.sampleDays.forEach(g => {
+    if (g.range && (g.range.proteinMax === null || g.range.proteinMax === undefined)) {
+      g.range.proteinMax = Number.MAX_SAFE_INTEGER;
+    }
+  });
   if (!state.deloads)           state.deloads = {};
   if (!state.exerciseHistory)   state.exerciseHistory = {};
   if (!state.exerciseTrackingMode) state.exerciseTrackingMode = {};
@@ -244,6 +263,27 @@ There is no longer a migration pass for old `mesocycles`/`currentMesoId` key nam
 
 `Exercise.type` is one of `'standard'`, `'giant'`, `'pause'`, or `'dropset'`. `'giant'` and `'pause'` were `'myorep'` and `'myomatch'` prior to v6.06 — this was a full data-level rename (not just display labels), so existing backups need every exercise's `type` field remapped (`myorep`→`giant`, `myomatch`→`pause`) alongside every function/variable that keyed off the old strings (`getMyorepProgression`→`getGiantSetProgression`, `isMyomatch`→`isPauseSet`, etc.). `'dropset'` is new in v6.05 — see §12 Drop Sets. As of **v6.09**, a drop-set exercise's `reps` field holds a real plan-time target for its **main set**, same as any other type — prior to v6.09 this was always forced to `''` since drop sets had no rep target at all. The drop *portion* still has no plan-time target and is discovered live every week (unchanged).
 
+**`SampleDayGroup`** (v7.25, `state.sampleDays[]`) — the Sample Day Library's storage shape:
+
+```js
+{
+  id: 'sg_1785095901248',
+  linkedGoalIds: ['macro_..._g20260713'],       // permanent — only ever grows, via a saved day
+  originGoalMacros: { kcal, protein, carbs, fats }, // the goal that first created this group
+  range: {                                       // min/max band used for both linking paths (§28)
+    kcalMin, kcalMax,
+    proteinMin, proteinMax,   // "no upper bound" — see the Infinity/JSON gotcha below
+    carbsMin, carbsMax,
+    fatsMin, fatsMax,
+  },
+  days: [
+    { date, dinnerName, meals: {Breakfast:[], Lunch:[], Dinner:[], Snacks:[]}, totals: {kcal, protein, carbs, fats} },
+  ],
+}
+```
+
+> **Gotcha — `Infinity` does not survive `JSON.stringify()` (found and fixed in v7.30).** `range.proteinMax` was originally set to the real JS value `Infinity` (protein has no upper bound — more is never disqualifying). Since `save()` round-trips the entire state through `JSON.stringify()`/`JSON.parse()` on every save and reload, `Infinity` silently became `null` almost immediately after being written — and `someValue <= null` coerces to `someValue <= 0` in JS, which is false for any real protein target. This silently broke every range comparison that depended on the "no upper bound" bound, with no thrown error to surface it. Fixed by (a) storing `Number.MAX_SAFE_INTEGER` instead of `Infinity` going forward (a real, JSON-safe number), (b) a `rangeMax(value)` helper that treats a `null`/`undefined` bound as unbounded at every comparison site regardless of what's actually stored, and (c) the one-time `load()` migration above that repairs any already-corrupted stored data. **Any future field meant to represent "no upper bound" must use a real finite sentinel, never `Infinity`/`-Infinity`/`NaN` — none of the three survive a `JSON.stringify()`/`JSON.parse()` round trip.**
+
 ### Key formats
 
 - **`state.exercises`** keys: `` `${macroId}_1_${day}${microKey}` `` — always stored against week 1 (the template); every other week's exercise list is derived from it via the progression functions, never stored separately. `microKey` is `''`, `'m1'`, or `'m2'`.
@@ -251,6 +291,7 @@ There is no longer a migration pass for old `mesocycles`/`currentMesoId` key nam
 - Both formats key on the exercise's stable `id`, not a positional array index — this is deliberate, since reordering, superset regrouping, or mid-cycle exercise edits must never silently remap old logs to the wrong exercise.
 - **`state.deloads`** keys: `` `${macroId}_${week}` `` when the macro doesn't use microcycles, or `` `${macroId}_${week}_m${1|2}` `` when it does — always at the week/microcycle level, never per day, since a deload applies to every session within that calendar-week unit (§12).
 - **`state.exerciseHistory`** keys: exercise name lowercased/trimmed, then set type — `state.exerciseHistory['bench press']['standard']`. Independent of `state.exercises`/`DEFAULT_LIBRARY`, so it persists across macrocycles and works for built-in and custom exercises alike.
+- **`state.sampleDays[].id`**: `` `sg_${Date.now()}` ``. Not a compound key — no other part of state references it except `linkedGoalIds` pointing the other direction, from goal to group (§28).
 
 ---
 
@@ -657,28 +698,37 @@ All charts (sparkline, line charts, bar charts, pies) are generated as inline SV
 
 Between the hero and the weekly table stack sits a separate 3-card swipeable "Insights" deck (`#progress-body` / `#progress-body-dots`, driven by `insightsAnimateTo()`/`insightsSnapBack()`/`initInsightsSwipe()`), pre-dating this section's v6.12 additions. The weekly table stack below reuses its exact swipe-gesture pattern. All three cards are built fresh on every `renderProgress()` call and selected by `insightsIndex`; only the current card's markup is ever in the DOM (`cards[insightsIndex]`), not all three docked side by side.
 
-- **Card 1 — Progress**: latest logged weight, 7-day average, weekly change (colour-coded), this week's log count, peak-loss/gain window callout.
+- **Card 1 — Progress**: latest logged weight, 7-day average, weekly change (colour-coded), this week's log count — then (v7.28) the **Phase 1 deterministic trend/plateau narrative** (`buildInsightsCardHTML()`, see §25) inline, directly below that header — then the peak-loss/gain window callout below that. Prior to v7.28 the trend narrative rendered as its own separate, non-swipeable card underneath the whole Insights deck (`#progress-trend-insights`); it was moved inside card 1 so the plateau signal sits with the rest of the at-a-glance weight summary rather than requiring a scroll past two other cards to reach. `buildInsightsCardHTML()` no longer wraps its own return value in a `.card` div (both the insufficient-data branch and the normal branch) — it returns a bordered inner fragment instead, since it's now nested inside card 1's own `.card` wrapper rather than being a standalone card itself.
 - **Card 2 — Metabolism**: Mifflin-St Jeor BMR/TDEE, log-based TDEE (`calcDynamicTDEE()`), a calorie target for the active goal type, and a goal-weight ETA derived from the cycle-scoped body-log rate.
 - **Card 3 — Next cycle**: the Next Cycle Recommendation Engine — see **§27** for the full write-up (deterministic duration×depth matrix, continuation exceptions and their computed alternative, target-weight/deadline override, maintenance TDEE-discrepancy recalibration, and the Phase 4 LLM second-opinion layer). Computed once per render via `recommendNextCycle(_previewMacro || macro, _nextCycleOverride)`, stored locally as `rec`/`nextCycleRec`.
 
-Below the Insights deck, `renderProgress()` also injects two additional cards into dedicated DOM anchors (v7.00):
-- `#progress-trend-insights` — the Phase 1 deterministic insights card (`buildInsightsCardHTML()`)
+`renderProgress()` also injects one additional card into a dedicated DOM anchor:
 - `#progress-ai-advice` — the Phase 2 AI advice card (`buildAiAdviceCardHTML()`); only visible when the signal warrants intervention and/or a stored response exists
 
 `updateInsightsRollup()` is also called on every Progress render to archive any newly-completed macrocycles to `state.insightsRollup.completedCycles`.
 
-### Weekly table swipe stack (v6.12)
+### Goal period summary rows (new in v7.28)
 
-Below the "Insights" card deck sits a second, separate swipeable stack — same visual mechanics (touch/mouse swipe, dot pagination) as the hero and insights decks, but with two cards and no text label under the dots:
+Below the Statistics section (`#progress-nutrition`) and above Weekly Macro Split sits `#progress-cycle-goals`, rendered by `renderProgressCycleGoals()` on every `renderProgress()` call. Shows a compact row per goal period belonging to the resolved/browsed cycle (`resolveProgressMacro()`), ordered by `startDate` ascending:
 
-- `buildWeeklySummaryCardHTML()` — returns the weekly summary table (weight delta / swing / avg kcal / avg steps / avg protein) as an HTML string rather than writing directly to the DOM, so it can be selected between by `renderProgressTables()`. Returns a short empty-state card instead of `''` when there isn't enough data yet, since the stack always needs something to show on this slide.
-- `buildMeasurementsCardHTML()` — same week-bucket shape, for waist/hip. Same empty-state pattern.
-- `renderProgressTables()` — picks `[buildWeeklySummaryCardHTML(), buildMeasurementsCardHTML()][progressTablesIndex]`, writes it into `#progress-tables-wrap`, and renders the dots into `#progress-tables-dots`
-- `progressTablesAnimateTo(rawIndex)` / `progressTablesSnapBack()` / `initProgressTablesSwipe()` — swipe-gesture handling, directly mirroring `insightsAnimateTo`/`insightsSnapBack`/`initInsightsSwipe` (§ below), except it only re-renders the table stack itself rather than the whole Progress page, since neither table depends on other page state
+- Each row shows the goal's `_blocLabel` ("Step N - label" format) as its title, its date range, and its non-zero targets (kcal/protein/carbs/fats/steps) joined with ` · `. Tapping a row opens `openEditGoal(macroGoalID)`.
+- The goal covering today gets a green left accent (`border-left`); the **next upcoming** goal (earliest `startDate` after today, among this cycle's own goals) gets a red left accent; every other goal is unaccented.
+- **"Next up" subtitle** — the next-upcoming row additionally shows a countdown subtitle: `Next up: starting in N days` while more than a week out, switching to `Next up: starting <Weekday>` (the goal's actual start weekday, computed live — not hardcoded to "Monday", though that's what it'll show in practice once §11's Monday-only rule is universally true) from 6 days before the goal's start date onward (the Tuesday before, for a Monday start). The switch point is computed as an actual date (`startDate - 6 days`), not a fixed day-count threshold, so it lines up correctly regardless of which weekday the goal happens to start on.
+- Renders nothing (`el.innerHTML = ''`) if the resolved cycle has no goals, or no cycle is resolved at all.
+
+### Weekly table swipe stack (v6.12; expanded to 3 cards in v7.28)
+
+Below the "Insights" card deck sits a second, separate swipeable stack — same visual mechanics (touch/mouse swipe, dot pagination) as the hero and insights decks, but with no text label under the dots:
+
+- `buildWeeklySummaryCardHTML()` — the weekly summary table (weight delta / avg kcal / avg steps / avg protein) as an HTML string rather than writing directly to the DOM, so it can be selected between by `renderProgressTables()`. Returns a short empty-state card instead of `''` when there isn't enough data yet, since the stack always needs something to show on this slide. **As of v7.28, this card no longer includes the Swing column** — swing moved to its own dedicated card (below), since cramming four metrics' worth of swing data plus the averages into one table was cluttered.
+- `buildWeeklySwingsCardHTML()` (**new in v7.28**) — the second slide: smallest/largest consecutive day-to-day change within each calendar week, one column each for weight, kcal, steps, and protein (previously weight-only, embedded in the summary table). Values are formatted with locale thousand-separators (`fmtSigned()`'s `toLocaleString()` call) so a large steps swing reads `+2,450` rather than `+2450`. Same empty-state pattern as the summary card.
+- `buildMeasurementsCardHTML()` — same week-bucket shape, for waist/hip. Same empty-state pattern. Now the third slide (was the second, prior to v7.28's swings card insertion).
+- `renderProgressTables()` — picks `[buildWeeklySummaryCardHTML(), buildWeeklySwingsCardHTML(), buildMeasurementsCardHTML()][progressTablesIndex]`, writes it into `#progress-tables-wrap`, and renders the dots into `#progress-tables-dots`. `PROGRESS_TABLES_COUNT` is `3` (was `2`).
+- `progressTablesAnimateTo(rawIndex)` / `progressTablesSnapBack()` / `initProgressTablesSwipe()` — swipe-gesture handling, directly mirroring `insightsAnimateTo`/`insightsSnapBack`/`initInsightsSwipe` (§ below), except it only re-renders the table stack itself rather than the whole Progress page, since neither table depends on other page state. Unchanged by the 3-card expansion — the modulo-based index math already generalised to any `PROGRESS_TABLES_COUNT`.
 
 **Weight delta (reworked in v6.12):** previously compared a single day's weight against another single day's weight (either first-vs-last within the week, or this-week's-only-entry vs last-week's-last-entry) — noisy enough that a genuine plateau could still show as a steady multi-week loss. Now calculated as **this week's average logged weight minus the most recent prior week (with any data)'s average weight**, carried forward across empty weeks the same way the measurements table already worked. Each week's average is always its own strict 7-day calendar bucket — never a trailing/rolling window spanning into other weeks.
 
-**Swing column (new in v6.12):** the smallest and largest **consecutive day-to-day** change within that week (only between chronological weigh-ins that actually happened — a gap between logs isn't treated as a swing), formatted `−1.5lbs/+2.4lbs`. Shows a single value (no slash) if there's only one day-to-day change that week, and `—` if there are fewer than two weigh-ins. Intended to make water-retention-style daily volatility visible without it being mistaken for the trend itself.
+**Swing card (v6.12, split into its own card in v7.28):** the smallest and largest **consecutive day-to-day** change within that week, per metric (weight/kcal/steps/protein) — only between chronological entries that actually happened for that metric that week (a gap between logs isn't treated as a swing), formatted e.g. `−1.5lbs/+2.4lbs`. Shows a single value (no slash) if there's only one day-to-day change that week for that metric, and `—` if there are fewer than two data points. Intended to make water-retention-style/day-to-day volatility visible without it being mistaken for the trend itself.
 
 **Measurements card:** values are the most recently logged waist/hip measurement within that calendar week; deltas compare against the last known value from the most recent prior week with data — never a same-week first-vs-last comparison, since measurements are typically logged at most once a week.
 
@@ -692,6 +742,7 @@ Rendered by `renderPlan()`.
 - `saveMacro()` — creates or updates a macrocycle from the modal inputs. `sessionsPerWeek` is calculated, not read from an input — always `days.length` at creation time (`updateSessionsPerWeekPreview()` shows a live read-only preview in the modal as the split is built; the edit modal shows the same value as a read-only display, since the split itself can't be changed there). `weightIncrement` (default `'2.5'`) is user-editable for any goal type via the modal, superseding the old loss-only `lossIncrement` field (§20).
 - **Goal type options (v7.00):** the modal now offers three goal types — Weight Loss, Weight/Strength Gain, and Maintenance. Selecting Maintenance hides the weight increment row (irrelevant when no progression is suggested) via `onMacroGoalTypeChange(prefix)`, which also re-validates the pace warning. The edit modal triggers `onMacroGoalTypeChange('edit-macro')` on open to sync these states for the existing cycle's goal type.
 - **Pace validation (v7.00):** `validateMacroPace(prefix)` runs on every keystroke in the target BW and weeks fields. It computes the implied weekly rate of change from the most recent body log and compares it against a bodyweight-relative ceiling — 1% of current bodyweight per week for loss, 0.5% for gain. If the implied rate exceeds 150% of the ceiling, a red inline warning appears below the target BW field: "⚠ This implies ~N lbs/week — faster than what's typically sustainable at your current weight (~N lbs/week). The schedule tracker may show you as falling behind even on healthy progress." Warning is suppressed for maintenance cycles (no directional target) and when no body logs exist. Never blocks saving.
+- **Monday-only start date (new in v7.28):** macrocycles can only start on a Monday — enforced (blocking, not just a warning) in both `createMacrocycle()` and `saveEditMacro()` via `isMondayDateStr(dateStr)`. On a non-Monday date, the save is aborted, the start-date field's border flashes red for 1.5s (same pattern as the goal kcal/steps required-field flash, §15), and a static inline error (`#macro-start-error` / `#edit-macro-start-error`) is shown/hidden. Reset on every fresh modal open so a stale error never lingers between attempts. This exists because the mesocycle/microcycle calendar-week math used throughout the app — deload weeks, the Train hero's calendar week dates (§12), `getMacroVolumeSeries()`'s date-fanning — all assume week 1 of mesocycle 1 starts on a Monday; a non-Monday start would silently misalign every one of them. `getNextMacroStart()`'s suggested default is snapped forward to the next Monday via `snapToNextMonday(dateStr)`, so a brand-new macrocycle is never even prompted with an invalid date to begin with.
 - `deleteMacrocycle(id)` / `copyMacrocycle(id)` — delete, or deep-clone with a new id and start date
 - `getMacroSessionDayKeys(macro)` — returns every session's `day(+microKey)` combination for a macro, the shared building block for anything that needs to iterate "every session in this cycle" (progression preview, body-part volume table, deload weeks-since counter, etc.)
 
@@ -754,6 +805,14 @@ Day tabs (Push/Pull/Legs or custom sessions, per microcycle) are grouped into on
 
 The subtitle and hero label both use `M1`/`M2` for the microcycle suffix — this was previously `MC1`/`MC2` in two separate spots, a genuine inconsistency (not intentional) that collided with "MC" already meaning *mesocycle* elsewhere in the UI ("MC 4 / 8"). Fixed to match the day-tab pills, which always used `M1`/`M2`.
 
+### Calendar week dates on the hero (new in v7.28)
+
+The Train hero card shows the real calendar date range (`formatDate(start)` – `formatDate(end)`) that the currently-selected mesocycle + microcycle pill corresponds to, directly below the `MC N / total` label — a forward-planning aid for deciding deload weeks against upcoming goal periods, without needing to count weeks by hand.
+
+- `getSelectedTrainWeekDates(macro)` resolves the range from `macro.start` plus an offset, using the same mesocycle-span math as `getMacroVolumeSeries()` (§ Body part volume table, §24) — `mesoSpanDays = (macro.weeksPerMeso || 1) * 7`, offset `= (state.currentWeek - 1) * mesoSpanDays`, plus another 7 days if the currently-viewed microcycle is M2 **and** the mesocycle genuinely spans two real weeks (`weeksPerMeso === 2` with microcycles on) — the same `usesTwoRealWeeks` distinction the day-tab grouping above already makes. Returns `null` (renders nothing) if the macro has no start date.
+- The range is **not** snapped to Monday–Sunday boundaries independently of `macro.start` — it's computed directly from whatever date the macrocycle actually started on. Since v7.28 also enforces macrocycles-must-start-on-Monday (§11), this range is a genuine Monday–Sunday week in practice, but the calculation itself doesn't hard-code that assumption — it just fans out from `macro.start`, same as every other date-approximation in the app.
+- Rendered inside `renderTrainHero()`, immediately after the existing `hero-label` div; hidden along with the rest of the hero when the selected session has no exercises defined (unchanged pre-existing behaviour for that case).
+
 ### Maintenance goalType (v7.00)
 
 Maintenance is a third macrocycle goal type alongside loss and gain. It affects the Train page as follows:
@@ -787,7 +846,7 @@ A drop-set exercise (`ex.type === 'dropset'`) plans its **main set** exactly lik
 - **Progression**: follows the same weight/reps progression choice as every other type, applied identically to the main pair and (once there's prior drop data logged) the drop pair — computed via the parallel `recommendedDropWeight`/`recommendedDropReps` fields in `exProgData()`, and the per-set `dropWeightPlaceholders`/`dropRepsPlaceholders` arrays (v6.09, see Progression data above). Drop weight/reps have no plan-time fallback target (unlike main weight/reps, which fall back to `ex.startWeight`/`ex.reps`) — blank means "nothing to suggest yet, log it live."
 - **Collapsed card**: shows the real reps target (or "to failure + drop" if nothing's been logged yet at all) instead of always being blank; a red `badge-red` "drop set" badge. As of **v6.10**, a `quickFillCompleteDropset()` shortcut is shown here too (previously no quick-fill-complete existed for drop sets at all, since reps-to-failure couldn't be sanely auto-filled when there was no main-set reps target to suggest in the first place — now that there is one, the shortcut fills weight/reps/drop-weight/drop-reps and marks every set done, same as every other exercise type's shortcut).
 - **Superset restriction**: drop sets can't be superset members. The type option is disabled in the modal (`setDropsetOptionEnabled(false)`) when adding into or editing within a superset, `saveExercise()` has a belt-and-braces fallback to `standard` if one somehow gets submitted anyway, and `openLinkModal()` excludes drop-set exercises from the selectable list entirely (and refuses to open at all if the origin exercise is itself a drop set).
-- **Volume**: `getSessionVolume()` adds the drop portion (drop weight × drop reps) alongside the main portion for drop-set exercises. As a side effect of the v6.09 reps-target change, the Plan page's *theoretical* volume projections (Week-1 session summary, body-part volume table) now also include a drop-set exercise's main-set contribution — previously both relied on `ex.reps`, which was always `''` for drop sets, so they contributed nothing at all (see §28, since this resolves a previously-listed limitation). The drop portion still contributes nothing to these theoretical projections, correctly, since it never has a plan-time target to project from.
+- **Volume**: `getSessionVolume()` adds the drop portion (drop weight × drop reps) alongside the main portion for drop-set exercises. As a side effect of the v6.09 reps-target change, the Plan page's *theoretical* volume projections (Week-1 session summary, body-part volume table) now also include a drop-set exercise's main-set contribution — previously both relied on `ex.reps`, which was always `''` for drop sets, so they contributed nothing at all (see §29, since this resolves a previously-listed limitation). The drop portion still contributes nothing to these theoretical projections, correctly, since it never has a plan-time target to project from.
 
 ### Exercise History
 `state.exerciseHistory` and `state.exerciseTrackingMode` (§3) snapshot the most recent real performance per exercise name (+ set type, for history), refreshed by `recordExerciseHistory(macro, week, dayKey, ex)` every time a set is completed via `toggleSetDone()` or a quick-fill-complete button — never for deload sessions. This replaced an earlier, more expensive approach (searching the single "last completed macrocycle" by end date each time the Add Exercise modal opened) — the running-snapshot approach is O(1) to read, always reflects the true most recent log regardless of which macro it came from, and doesn't require special-casing macros with no logged history yet.
@@ -888,6 +947,10 @@ The recipe builder's "Add ingredients" screen (`modal-recipe-ingredients`) gaine
 - `addToFoodLibrary()`, `exportFoodLibrary()`/`importFoodLibrary()`, `shareFoodLibItem(idx)`/`shareFoodLibItemByIdx(idx)` (two active entry points — list-index-based, used from the two different list contexts they each render in), `importSharedFoodItem(file)`
 - Recipe builder: `openRecipeBuilder(editId?)` → `recipeGoToIngredients()` → `renderRecipeIngredients()` → `confirmRecipeIngredient()`/`confirmRecipeManual()`/`openRecipeIngredientSearch()` → `saveRecipe()`
 
+### Sample Day Library (new in v7.25 — full write-up in §28)
+
+Below the hero card, `#nutr-save-badge-wrap` shows a save prompt on any day that's close enough to its own goal's targets and has a recipe logged for Dinner ("On target for your goal — save this day to pre-fill later?"); tapping it stores the whole day into a library grouped by goal. Next to Quick Add in the hero's corner, a **Fill Day** button opens a picker of previously saved days (for this goal or any goal with similar-enough targets) and copies every meal from the chosen day onto the current date, with a confirm-to-overwrite guard if the date already has logs. See §28 for the full linking model, the two different tolerance bands, and a documented data-corruption bug (fixed in v7.30) worth reading before touching this code.
+
 ---
 
 ## 15. Module: Goals
@@ -909,8 +972,12 @@ Rendered by `renderSettings()`.
 
 - `setTheme(name)` / `setMode(mode)` — update state, set the `data-theme`/`data-mode` attribute, save, re-render the active screen
 - `exportData()` / `importData(event)` — full-state JSON backup/restore, with a structural sanity check on import (`parsed.macrocycles && parsed.exercises && parsed.trainLogs` must all be present)
-- `clearAllData()` — resets macrocycles/exercises/logs/goals/nutrition/foodLibrary/recipes/supersets/profile to empty, but **preserves** `theme`/`mode` (carried forward from the pre-clear state and re-applied to `<body>` immediately) since the confirm dialog only ever promises to delete tracked data, not appearance preferences. The reset object's shape is kept in exact sync with everything `load()`'s defensive defaults expect — an earlier version of this function omitted `recipes`/`supersets`/`profile` entirely, which left `state.supersets` undefined and threw on the very next superset action, since several reads of it aren't null-guarded (e.g. `state.supersets[ssId]`).
+- `clearAllData()` — resets macrocycles/exercises/logs/goals/nutrition/foodLibrary/recipes/supersets/profile/sampleDays to empty, but **preserves** `theme`/`mode` (carried forward from the pre-clear state and re-applied to `<body>` immediately) since the confirm dialog only ever promises to delete tracked data, not appearance preferences. The reset object's shape is kept in exact sync with everything `load()`'s defensive defaults expect — an earlier version of this function omitted `recipes`/`supersets`/`profile` entirely, which left `state.supersets` undefined and threw on the very next superset action, since several reads of it aren't null-guarded (e.g. `state.supersets[ssId]`). **`sampleDays` (§28) was similarly missing until v7.31** — didn't crash anything (`load()`'s defensive default caught it on next boot), but meant a "Clear all data" left the Sample Day Library quietly intact, which the confirm dialog's wording doesn't promise.
 - `exportLibrary()` / `importExerciseLibrary(file)` — exercise library backup/restore (merge-by-name)
+
+### Profile (hidden page, new in v7.25)
+
+A "Profile →" button in Settings opens `modal-profile` — a page reached only from here, with no corresponding nav-bar entry — via `openProfilePage()`. Currently holds one entry, "Sample day libraries" (`openProfileNutrition()`, §28), styled and behaving like any other Settings sub-screen rather than a special standalone page: closing it returns to Settings underneath, same as every other modal.
 
 ### Layout (redesigned in v6.10)
 
@@ -1105,11 +1172,13 @@ Not exhaustive — covers the functions most useful to know when working on the 
 |---|---|
 | `renderProgressHero()` / `renderProgressHeroDots()` / `initProgressHeroSwipe()` | The 5-slide hero swipe deck |
 | `insightsAnimateTo(idx)` / `initInsightsSwipe()` | 3-card "Insights" swipe deck (Progress/Metabolism/Next cycle), pre-dates v6.12 |
-| `buildWeeklySummaryCardHTML()` | Weekly summary table (weight delta, swing, avg kcal/steps/protein) as an HTML string; weight delta is this-week-average vs last-week-average (v6.12, was single-day-to-single-day before) |
+| `buildWeeklySummaryCardHTML()` | Weekly summary table (weight delta, avg kcal/steps/protein) as an HTML string; weight delta is this-week-average vs last-week-average (v6.12, was single-day-to-single-day before). Swing column removed in v7.28 — moved to `buildWeeklySwingsCardHTML()` |
+| `buildWeeklySwingsCardHTML()` | Weekly swing table (smallest/largest day-to-day change) as an HTML string, one column each for weight/kcal/steps/protein — its own card as of v7.28 (previously weight-only, embedded in the summary table); values use locale thousand-separators |
 | `buildMeasurementsCardHTML()` | Weekly waist/hip table as an HTML string, only including weeks with a measurement logged (v6.12) |
-| `renderProgressTables()` / `progressTablesAnimateTo(idx)` / `initProgressTablesSwipe()` | Swipe deck holding the two table cards above (v6.12) |
+| `renderProgressTables()` / `progressTablesAnimateTo(idx)` / `initProgressTablesSwipe()` | Swipe deck holding the three table cards above (v6.12; expanded from 2 to 3 cards in v7.28) |
+| `renderProgressCycleGoals()` | Small row summaries of every goal period belonging to the resolved cycle, ordered by start date; green accent for the active goal, red accent + "Next up: starting in N days"/"starting `<Weekday>`" subtitle for the next upcoming one (v7.28) |
 | `computeWeeklyInsights(macro)` | Deterministic insights engine — per-week stats, baseline anchor, plateau detection, drift, goalType-branched signal/headline/detail (v7.00) |
-| `buildInsightsCardHTML()` | Phase 1 deterministic card HTML — signal pill, narrative, stat tiles, drift visualisation (v7.00) |
+| `buildInsightsCardHTML()` | Phase 1 deterministic card HTML — signal pill, narrative, stat tiles, drift visualisation (v7.00). As of v7.28, nests inside Insights-deck card 1 (below the weight header, above the peak-window callout) rather than rendering as its own standalone card below the deck — returns a bordered inner fragment, not a `.card`-wrapped one |
 | `updateInsightsRollup()` | Archives newly-completed macrocycles to `state.insightsRollup.completedCycles`; called on every Progress render (v7.00) |
 | `computeSafetyFloor(macro)` | Minimum safe kcal for aggressive AI recommendations — log-based BMR × 0.80, fallback to best-loss-week − 175 (v7.00) |
 | `buildBlocAdvicePrompt(macro)` | Builds `{ systemPrompt, userMessage }` for the Anthropic API — injects safety floor, protein minimum, weekly bucket table with partial-week flags, prior advice, rollup history (v7.00) |
@@ -1181,6 +1250,7 @@ Not exhaustive — covers the functions most useful to know when working on the 
 | `getWeeksSinceLastDeload(macro, week, dayKey)` | Real elapsed calendar weeks since the last deload, for the hero callout |
 | `recordExerciseHistory(macro, week, dayKey, ex)` | Snapshots weight/reps/sets/tracking-mode into `state.exerciseHistory`/`state.exerciseTrackingMode`; no-ops for deload sessions; always reads set index 0 regardless of which set was actually interacted with |
 | `formatLastLoggedLine(type, entry)` | Formats one history entry into the modal's display line |
+| `getSelectedTrainWeekDates(macro)` | Real calendar `{start, end}` for the currently-selected mesocycle+microcycle, fanned out from `macro.start` via the same `mesoSpanDays` math as `getMacroVolumeSeries()`; returns `null` if the macro has no start date (v7.28) |
 
 ### Body
 | Function | Description |
@@ -1212,6 +1282,29 @@ Not exhaustive — covers the functions most useful to know when working on the 
 | `fitListToKeyboard(wrapId)` | Shrinks a modal's scrollable list to stay above the keyboard |
 | `openRecipeIngredientSearch(isReopen)` | Opens `modal-nutr-add` in recipe-ingredient mode (v6.12) — sets `nutrAddContext = 'recipe'`, hides the Recipes/Manual/Scan Barcode row |
 | `quickAddFromList(idx)` | Quick-add from the search list at last-logged amount; branches on `nutrAddContext` since v6.12 (meal log vs recipe ingredient) |
+
+### Sample Day Library (new in v7.25 — see §28)
+| Function | Description |
+|---|---|
+| `dayWithinSaveTolerance(totals, goal)` | Whether today's logged totals are within `SAVE_DAY_TOLERANCE` of its own goal's targets — gates the save badge |
+| `computeSimilarGoalRange(goal)` | Builds a group's stored min/max band from the originating goal ± `SIMILAR_GOAL_TOLERANCE`; `proteinMax` uses `Number.MAX_SAFE_INTEGER`, not `Infinity` (v7.30 fix, §3) |
+| `rangeMax(value)` | Treats a `null`/`undefined` upper bound as unbounded at every range-comparison call site (v7.30) |
+| `totalsWithinRange(totals, range)` | Whether a day's logged totals fall inside a group's band — used only at save time |
+| `goalTargetsWithinRange(goal, range)` | Whether a goal's own targets (not a logged day) fall inside a group's band — used only for Fill Day discovery and the pill list, never for saving (v7.29) |
+| `findSampleGroupForGoal(macroGoalID)` | The group formally linked to a goal (`linkedGoalIds.includes(...)`), or `null` |
+| `findSampleGroupForTotals(totals)` | The first group whose band a day's totals fall inside — save-time linking |
+| `findSampleGroupForFillDay(goal)` | Fill Day's group resolution: formally-linked first, else any group the goal's own targets currently match (v7.29) |
+| `getEffectiveLinkedGoalIds(group)` | `linkedGoalIds` unioned with every currently-existing goal whose targets satisfy `goalTargetsWithinRange` right now — recomputed live, drives the pill list (v7.29) |
+| `getOrCreateSampleGroup(goal, totals)` | Resolves or creates the group a newly-qualifying day should save into (totals-based) |
+| `getDinnerRecipeItem(date)` | First `source === 'recipe'` item in that date's Dinner, or `null` |
+| `isDateSavedInLibrary(date)` | Whether a date already exists in any group's `days[]` |
+| `saveDayToLibrary()` | Saves the current date into its resolved/created group, guarding against a duplicate dinner name |
+| `renderNutrSaveBadge()` | Renders the save button / nothing into `#nutr-save-badge-wrap` below the Nutrition hero (the "saved" pill itself lives inside the hero card, not here) |
+| `openFillDayModal()` / `confirmFillDay(groupId, date)` / `fillDayFromSample(groupId, date)` | Fill Day flow — list saved days, confirm-overwrite if the target date has logs, then deep-clone the stored meals across |
+| `getGoalDisplayLabel(macroGoalID)` | `"<Macrocycle name> - <_blocLabel>"` for a goal, or `null` if it's since been deleted |
+| `openProfilePage()` / `openProfileNutrition()` | Opens the hidden Profile page from Settings, then its Nutrition Libraries list |
+| `renderProfileNutritionLibraries()` | Renders every group as a card — origin pill (bold/green) + effective-linked pills (subtle), saved days as swipeable rows |
+| `openSampleDayEditor(groupId, date)` / `saveSampleDayEdit()` / `deleteSampleDayFromEditor()` / `deleteSampleDay(groupId, date)` | Edit a saved day's dinner label, view its logged meals read-only, or delete it (removes the whole group if it was the last day) |
 
 ### Barcode Scanner
 | Function | Description |
@@ -1252,6 +1345,8 @@ Not exhaustive — covers the functions most useful to know when working on the 
 |---|---|
 | `onMacroGoalTypeChange(prefix)` | Fires on goalType select change — toggles weight-increment row visibility, re-validates pace warning (v7.00) |
 | `validateMacroPace(prefix)` | Shows/hides inline pace warning below target BW field based on bodyweight-relative ceiling (v7.00) |
+| `isMondayDateStr(dateStr)` | Whether a date string falls on a Monday — blocks `createMacrocycle()`/`saveEditMacro()` from saving otherwise (v7.28) |
+| `snapToNextMonday(dateStr)` | Rolls a date forward to the next Monday (or returns it unchanged if already one) — used for `getNextMacroStart()`'s suggested default (v7.28) |
 
 ### Settings
 | Function | Description |
@@ -1262,11 +1357,12 @@ Not exhaustive — covers the functions most useful to know when working on the 
 | `getApiKey()` | Returns stored Anthropic API key from `localStorage` (`'bloc_api_key'`) or null (v7.00) |
 | `saveApiKey()` | Writes or clears the API key from `localStorage`; never touches `state` (v7.00) |
 | `importData(event)` | Restores state from a JSON file |
-| `clearAllData()` | Resets tracked data to empty defaults; preserves theme/mode |
+| `clearAllData()` | Resets tracked data to empty defaults (incl. `sampleDays` as of v7.31); preserves theme/mode |
 | `exportLibrary()` | Downloads merged exercise library |
 | `importExerciseLibrary(file)` | Merges exercise library from JSON |
 | `openExerciseLibraryEditor()` / `renderExerciseLibEditor()` | Browsable exercise library modal (new in v6.10) — mirrors the food library editor |
 | `openExerciseLibEntry(idx)` / `saveExerciseLibEntry()` / `deleteExerciseLibEntry(idx)` | Custom exercise library entry edit CRUD; no-ops for built-in (default) entries |
+| `openProfilePage()` | Opens the hidden Profile page (no nav-bar entry) — new in v7.25, see §28 |
 
 ### Rest Timer
 | Function | Description |
@@ -1399,6 +1495,37 @@ function findOverlappingGoal(startDate, endDate, excludeIdx) {
 ```
 
 Standard interval-overlap test (`aStart <= bEnd && aEnd >= bStart`), applied across every goal regardless of macrocycle. `excludeIdx` skips the goal currently being edited so saving without changing its dates doesn't flag itself.
+
+### Macrocycle Monday-Start Snap/Validate (v7.28)
+
+```js
+function isMondayDateStr(dateStr) {
+  return !!dateStr && new Date(dateStr + 'T00:00:00').getDay() === 1;
+}
+function snapToNextMonday(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const dow = d.getDay(); // 0=Sun..6=Sat
+  const add = dow === 1 ? 0 : dow === 0 ? 1 : (8 - dow);
+  d.setDate(d.getDate() + add);
+  return toLocalDateStr(d);
+}
+```
+
+`snapToNextMonday`'s offset table: Monday stays put (`+0`); Sunday rolls forward one day (`+1`); every other weekday rolls forward `8 - dow` days (Tuesday `+6` … Saturday `+2`) — i.e. always the *next* Monday, never the same-week one behind it. Verified against a full week of inputs before shipping. `isMondayDateStr` is the blocking check in `createMacrocycle()`/`saveEditMacro()`; `snapToNextMonday` only shapes the *suggested* default in `getNextMacroStart()`, so it never silently overrides what someone actually typed.
+
+### "Next Up" Goal Countdown Switch Point (Progress, v7.28)
+
+```js
+const daysUntil = Math.round((startDateObj - todayDate) / 86400000);
+const switchDate = new Date(startDateObj); switchDate.setDate(switchDate.getDate() - 6);
+if (today < toLocalDateStr(switchDate)) {
+  // "Next up: starting in N days"
+} else {
+  // "Next up: starting <Weekday>" — startDateObj's actual weekday, computed live
+}
+```
+
+The switch point is a real *date* (`start − 6 days`), not a day-count threshold compared directly — this matters at the boundary: a goal starting Monday shows the plain day-count through the Monday one week prior (`daysUntil === 7`), then switches to the fixed weekday from the Tuesday immediately after that (`daysUntil === 6`) onward. Deriving it from a subtracted date rather than `daysUntil <= 6` produces the identical result but was chosen because it reads directly as "the Tuesday before start" — the exact framing the feature was specified against — rather than a day-count that happens to be equivalent.
 
 ### "Last Week" Progression Inference (Train)
 
@@ -1729,7 +1856,57 @@ state.nextCycleAdvice = {
 
 ---
 
-## 28. Known Limitations & Future Considerations
+## 28. Module: Sample Day Library
+
+A library of past qualifying nutrition days that can be replayed onto a new date via **Fill Day** — introduced v7.25, with a data-corruption bug fixed in v7.30 (see the `Infinity`/JSON callout in §3). Entirely a Nutrition-page + Settings-page feature; state lives in `state.sampleDays` (§3 for the `SampleDayGroup` shape).
+
+### Two tolerance bands, two different jobs
+
+- **`SAVE_DAY_TOLERANCE`** (`{ kcal: 50, proteinLow: 10, carbs: 15, fats: 10 }`) — gates whether *today's logged day* is close enough to *its own goal's targets* to be worth offering the Save badge for at all.
+- **`SIMILAR_GOAL_TOLERANCE`** (`{ kcal: 100, proteinLow: 15, carbs: 25, fats: 15 }`) — the wider band used to build a group's stored `range` (centred on whichever goal originated it) and to decide whether a *different* goal counts as "similar enough" to share that group's library.
+
+Both bands treat protein as floor-only — extra protein never disqualifies a match, only a shortfall does — everything else (kcal/carbs/fats) is a symmetric ± band.
+
+### Saving a day
+
+- `dayWithinSaveTolerance(totals, goal)` — is today's logged day within `SAVE_DAY_TOLERANCE` of **its own** goal's targets?
+- `getDinnerRecipeItem(date)` — the first `Dinner` item with `source === 'recipe'`, or `null`. Other items alongside it in `Dinner` are fine; the recipe is only used as the day's identifying label. A day with no recipe in `Dinner` can never be saved.
+- `isDateSavedInLibrary(date)` — whether a date already exists in any group's `days[]`.
+- `renderNutrSaveBadge()` — renders into `#nutr-save-badge-wrap`, directly below the Nutrition hero card. Three states: nothing (no goal / out of tolerance / no dinner recipe / already stored under this exact recipe name), the save button ("On target for your goal — save this day to pre-fill later?", solid blue fill, `onclick="saveDayToLibrary()"`), or — once saved — nothing here at all, since the "Saved to library" pill lives **inside** the hero card itself (`renderNutrHero()`, appended below the progress bar) rather than in this separate wrap, so it survives even though the badge wrap goes empty.
+- `saveDayToLibrary()` — resolves/creates the target group via `getOrCreateSampleGroup()`, guards against a duplicate dinner name (re-render only, no throw), then pushes `{date, dinnerName, meals: deep-cloned getNutrDayMeals(date), totals}` onto `group.days`.
+- `getOrCreateSampleGroup(goal, totals)` — the linking decision for a **save**, based on the day's **logged totals**, not the goal's targets: reuse the group already linked to this goal (`findSampleGroupForGoal`) if one exists; else find any existing group whose `range` the day's totals fall inside (`findSampleGroupForTotals`) and push this goal's id onto that group's `linkedGoalIds`; else create a brand-new group scoped to this goal, with `range = computeSimilarGoalRange(goal)`. This totals-based (not goal-target-based) matching at save time was a deliberate design choice — matching on what was actually logged, not what was merely planned, catches a goal whose plan *looks* different on paper but produced a day that behaved the same in practice.
+
+### Fill Day
+
+- `openFillDayModal()` — resolves a group via `findSampleGroupForFillDay(goal)`: the formally-linked group (`findSampleGroupForGoal`) if one exists, else — **new in v7.29** — any group whose `range` the *current goal's own targets* fall within (`goalTargetsWithinRange`), so a brand-new similar goal can pull from an existing library immediately, before anyone has logged (let alone saved) a single qualifying day under it specifically. Lists every saved day in the resolved group, newest first.
+- `confirmFillDay(groupId, sourceDate)` — warns (`showConfirm`) before overwriting if the target date already has any meal logs or a quick-log; `fillDayFromSample()` otherwise runs directly.
+- `fillDayFromSample(groupId, sourceDate)` — deep-clones the stored day's `meals` onto `nutrSelectedDate`, clears any quick-log override for that date, and calls `syncNutrLegacyLog()`.
+
+### Proactive linking for display + discovery (v7.29)
+
+Two matching bases exist side by side and are **not** interchangeable:
+- **Totals-based** (`findSampleGroupForTotals`, `totalsWithinRange`) — what a logged day's actual numbers matched against, used only at save time (above).
+- **Goal-target-based** (`goalTargetsWithinRange`) — whether a *goal's own targets* (not a logged day) fall inside a group's `range`. Used only for two read-only, non-mutating purposes:
+  - `findSampleGroupForFillDay(goal)` — Fill Day discovery (above).
+  - `getEffectiveLinkedGoalIds(group)` — the Nutrition Libraries pill list (below): unions the group's permanent `linkedGoalIds` with every *currently existing* goal whose targets happen to satisfy `goalTargetsWithinRange` right now, recomputed fresh on every render. This is why a goal can appear as a linked pill without ever having contributed a saved day — the group's stored `linkedGoalIds` array itself is untouched by this; it only grows via an actual save (`getOrCreateSampleGroup`), same as before v7.29.
+
+### Settings → Profile → Nutrition Libraries
+
+- `openProfilePage()` — opens `modal-profile`, a hidden page reached only from Settings (no nav-bar entry), following the same "just another modal, no back-stack" pattern as every other modal-to-modal transition in the app (e.g. §14's recipe-ingredient-search hand-off) rather than a custom back button.
+- `openProfileNutrition()` — closes `modal-profile`, calls `renderProfileNutritionLibraries()`, opens `modal-profile-nutrition`.
+- `renderProfileNutritionLibraries()` — one card per `SampleDayGroup`, sorted by each group's most recent saved day. Inside each card:
+  - A row of pills at the top: the group's **origin goal** (`linkedGoalIds[0]`, via `getGoalDisplayLabel()`) rendered bold/green; every other id from `getEffectiveLinkedGoalIds()` rendered as a subtler grey pill — this is what surfaces a goal as "linked" purely because its targets match, even with zero saved days of its own.
+  - `getGoalDisplayLabel(macroGoalID)` — `` `${macro.name} - ${goal._blocLabel}` `` (falls back gracefully to just the label, or `null`, if the goal/macro has since been deleted — filtered out of the pill list via `.filter(Boolean)`).
+  - Below the pills: the group's origin target macros, saved-day count, and effective-linked-goal count.
+  - Each saved day is a swipeable row (`initSwipeRows`) — tap to open `openSampleDayEditor(groupId, date)` (edit the dinner label, view every logged meal item read-only, or delete), swipe to `deleteSampleDay(groupId, date)` directly. Deleting a group's last day removes the whole group.
+
+### The `Infinity`/JSON bug (found and fixed in v7.30)
+
+See §3's callout for the full story — `range.proteinMax` was stored as the real JS value `Infinity`, which `JSON.stringify()` silently turns into `null` on every `save()`, and `x <= null` coerces to `x <= 0` in JS. This broke `goalTargetsWithinRange`, `totalsWithinRange`, and therefore every downstream consumer of both (Fill Day discovery, the pill list, and even fresh saves) for **any state that had gone through at least one save/reload cycle** — which in practice was immediately, since `save()` runs after every mutation. Fixed via a real finite sentinel (`Number.MAX_SAFE_INTEGER`) going forward, a `rangeMax(value)` helper that treats `null`/`undefined` as unbounded at every comparison site regardless of what's actually stored, and a one-time `load()` migration that repairs any already-corrupted stored `range.proteinMax` back to the sentinel. Diagnosed by replaying the person's actual exported JSON backup through both the old and fixed comparison logic side by side and confirming the old logic returned `false` (matching the reported symptom) while the fixed logic returned `true` — not just tested against synthetic/rounded numbers.
+
+---
+
+## 29. Known Limitations & Future Considerations
 
 ### Current Limitations
 
@@ -1748,12 +1925,17 @@ state.nextCycleAdvice = {
 | **AI goal label matching** | `_blocLabel` is only written to goals created via the AI queue flow (v7.00 onward). Goals saved before this version, or edited outside the queue, fall back to date-proximity matching in `goalSummaryBlock`. If a user manually edits goal dates such that they no longer overlap the LLM's original dates, the card may not reflect the edited dates until a new advice call is made. |
 | **Drop-set theoretical volume (partially resolved in v6.09)** | The Plan page's *theoretical* (pre-logged) volume projections — the Week-1 session summary and the body-part volume table — now include a drop-set exercise's main-set contribution, since `ex.reps` holds a real target for it as of v6.09 (previously always `''`, contributing 0). The **drop portion** still contributes 0 to these projections, correctly — it never has a plan-time target, only ever discovered live, so there's nothing to project. Real logged volume (`getSessionVolume()`, used everywhere in Train/Progress) was never affected either way and correctly includes both portions. |
 | **Maintenance recalibration flag (Phase 3, §27) — not yet click-tested live** | `computeMaintenanceRecalibration()` is logic-tested against synthetic scenarios matching real data and verified against the actual live functions, but hasn't been exercised in the live app yet, since it only fires during an active maintenance bridge and testing so far has happened outside of one. Treated as working; flag if anything looks off once genuinely tested against a live maintenance cycle. |
+| **Sample Day Library — formal links never expire (§28)** | `group.linkedGoalIds` only ever grows (a goal is added the moment a day is saved under it) — there's no path that removes an id from it, even if that goal's targets are later edited to fall well outside the group's `range`. In practice this is rarely visible, since `getEffectiveLinkedGoalIds()` still shows it as a linked pill either way (formally-linked ids are unconditionally included), but it means a formal link is permanent even after the underlying similarity that justified it is gone. |
 
 ### Resolved (previously listed as open questions)
 
 **Macrocycle/Mesocycle terminology** — an earlier version of this document flagged the internal variable names (`macro`/`meso`) as being inverted relative to strength-and-conditioning periodisation theory. A full audit specifically checked for this and found no such inversion anywhere in the current codebase or UI — the terminology throughout is consistent and correct. This note is retained here only so the concern isn't re-investigated from scratch in future.
 
 **Dead code from earlier redesigns** — a page-by-page audit (Plan → Train → Body → Nutrition → Goals → Settings) worked through every screen looking specifically for functions, variables, and DOM targets left behind by earlier UI changes. Confirmed and removed: an old Nutrition day-badge strip and its handler, an unused nutrition macro-view toggle, a superseded recipe-builder entry point (and a dead branch it left behind in `saveRecipe()`), a superseded food-share function, and the old mesocycle-key/positional-exercise-id migration code in `load()` (confirmed the live data no longer needed it). No further known instances remain from this pass, though any future redesign should expect to leave similar residue and budget an audit pass accordingly.
+
+**Sample Day Library — `Infinity`/JSON corruption (§28, fixed v7.30)** — `range.proteinMax` was stored as the real JS value `Infinity` to mean "no upper bound"; `JSON.stringify()` silently turns `Infinity` into `null`, and since `save()` round-trips the entire state through JSON on every mutation, the corruption happened almost immediately after the feature shipped, breaking every downstream match check with no thrown error to surface it. Diagnosed against a real exported backup (not synthetic data) before shipping the fix, which combines a JSON-safe sentinel (`Number.MAX_SAFE_INTEGER`) going forward, defensive `rangeMax()` guards at every comparison site, and a one-time `load()` migration repairing already-corrupted stored data. Retained here as a general warning: no field anywhere in `state` should ever be assigned `Infinity`, `-Infinity`, or `NaN` — none of the three survive a `JSON.stringify()`/`JSON.parse()` round trip, and `localStorage` persistence means every field in `state` takes that round trip constantly.
+
+**Sample Day Library — `clearAllData()` omitted `sampleDays` (§28, fixed v7.31)** — the exact same class of oversight as the historical `supersets`/`profile` omission above, caught while writing this document rather than by a bug report. Didn't crash anything (`load()`'s defensive default silently backfilled an empty array on next boot), but meant "Clear all data" left the Sample Day Library fully intact — inconsistent with what the confirm dialog promises. Fixed by adding `sampleDays: []` to the reset object.
 
 ### Architecture Considerations for Future Development
 
