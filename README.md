@@ -2,7 +2,7 @@
 
 > A personal, offline-first Progressive Web App for structured weight training and nutrition tracking. Single HTML file. No backend. No dependencies.
 
-![Version](https://img.shields.io/badge/version-v7.30-brightgreen) ![PWA](https://img.shields.io/badge/PWA-ready-blue) ![License](https://img.shields.io/badge/license-MIT-lightgrey)
+![Version](https://img.shields.io/badge/version-v7.54-brightgreen) ![PWA](https://img.shields.io/badge/PWA-ready-blue) ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ---
 
@@ -29,7 +29,7 @@ Nine colour themes are available, each setting a two-stop gradient (`--hero-1` /
 
 | Theme | Hero colour |
 |---|---|
-| **Multi** (default) | Each page gets a distinct colour — Progress=turquoise, Plan=blue, Train=yellow, Body=teal, Nutrition=amber, Goals=red |
+| **Multi** (default) | Each page gets a distinct colour — Home=purple, Progress=turquoise, Plan=blue, Train=yellow, Nutrition=amber |
 | **Teal** | Teal (`#1D9E75`) |
 | **Blue** | Blue (`#378ADD`) |
 | **Amber** | Amber (`#EF9F27`) |
@@ -47,9 +47,9 @@ Every page has a gradient hero card at the top (`linear-gradient(150deg, var(--h
 A small **Active Cycle status pill** appears in the corner of the hero card on applicable pages, showing the current cycle's schedule status with a solid heat-map colour.
 
 ### Nav Bar
-The navigation bar is a **floating pill** anchored to the bottom of the app shell. It contains seven buttons: Progress, Plan, Train, Body, Nutrition, Goals, Settings.
+The navigation bar is a **floating pill** anchored to the bottom of the app shell. It contains six buttons: Home, Progress, Plan, Train, Nutrition, Settings. (Body and Goals were folded into Settings and Plan respectively in v7.40–v7.52 — see below — and no longer have their own nav entries.)
 
-Navigation icons are custom SVGs: Progress=bar chart, Plan=four squares, Train=barbell, Body=person silhouette, Nutrition=fork and knife, Goals=bullseye target, Settings=cog.
+Navigation icons are custom SVGs: Home=roof/house, Progress=bar chart, Plan=four squares, Train=barbell, Nutrition=fork and knife, Settings=cog.
 
 A single `#nav-pill` highlight element is positioned and sized by `positionNavPill()` using `requestAnimationFrame`. It slides and morphs between buttons with a spring-curve CSS transition, producing a liquid bubble animation on every screen change. The pill colour is read from the active page's hero gradient via a temporary DOM probe, so the pill always matches the hero card exactly regardless of theme.
 
@@ -61,6 +61,18 @@ Gradient strips are pinned to the top and bottom of the app shell (matching `--a
 ---
 
 ## Screens
+
+### Home (new in v7.31–v7.34; log boxes reworked in v7.53)
+The default landing screen — a single-glance summary of the week plus inline log boxes, replacing Progress as the first tab.
+- **Weekly hero card** — this week's (Mon–Sun) average kcal/protein/carbs/steps vs. the active goal's targets, each with an On track / Falling behind / Exceeding badge. Badge colour follows metric-specific polarity rather than a single rule: kcal is bad in both directions (under *or* over tolerance); protein and steps are only bad when under (exceeding is fine — more isn't penalised); carbs (and, by the same convention, fats elsewhere in the app) are only bad when over. A sublabel appears **only when an adjustment is actually needed** — "Adjust your daily avg by ±X for the rest of the week to hit target" on any day but the week's last, collapsing automatically (no special-cased branch) into an exact "Hit X today" figure on the final day, since the same remaining-budget formula degenerates to a single-day answer when only one day of the week is left
+- **Upcoming goal banner** — appears only when the *next genuinely different* goal (compared by target values, not just the next chronologically-scheduled entry — a macrocycle's future weeks are often pre-scheduled as identical continuations that shouldn't count as "a new goal") starts within 6 days. Shows what's changing vs. the currently active goal (only the fields that actually differ), tapping through to Plan and briefly flashing that goal's row there
+- **Inline log boxes (reworked in v7.53)** — reinstates the original Body-page "disappearing input" pattern rather than the icon-triggered mini-modals used briefly in v7.31–v7.52:
+  - **Weight** and **steps** each show a plain input box every day; the box disappears the moment that field is logged for today, and reappears the next day
+  - **Measurements** works on its own cycle rather than a daily one — the waist/hip form only appears once **4 days** have passed since the last logged measurement (or immediately, if none have ever been logged), accompanied by a warning banner ("It has been 4 days since you last recorded your measurements."), and stays visible — not just for "today" — until a fresh measurement is logged, at which point the 4-day countdown restarts from that new date. The form itself (unit toggle between inches/cm, quarter-inch picker) is the same one previously behind a modal, now inlined directly into the screen
+  - Boxes stack vertically rather than sitting side by side as icons, and only take up space when there's actually something to log
+- **"Edit today's logs"** link below the log boxes, routing to Settings → Profile → Body logs → today's own entry (see the Settings section below)
+- **Planned food today** — today's planned recipes (by serving count) and non-recipe items (by grams), ordered by first meal appearance (Breakfast → Lunch → Dinner → Snacks), tapping through to Nutrition
+- **Next session** — a single-row-per-exercise preview (name, sets × reps, suggested weight) of the next incomplete training session, titled with the actual session name, tapping through to Train
 
 ### Progress
 - Displays data for the active macrocycle, with left/right arrows to cycle through past macrocycles
@@ -99,6 +111,7 @@ Gradient strips are pinned to the top and bottom of the app shell (matching `--a
   - Optional target body weight, a configurable weight increment per mesocycle (available for any goal type, not just weight-loss cycles)
   - **Sessions per week is calculated automatically** from whichever split you build below it, live-updating as you add/remove sessions — not a separate number to keep in sync yourself
 - Sessions (Push/Pull/Legs/custom) are shown as individually **collapsible, renameable cards** — tap the header to expand/collapse, tap the name to rename in place. The header always shows a live summary: exercise count, total sets, and total week-1 volume across every exercise in that session (including supersets)
+  - **Auto-collapse (v7.40)** — a session with at least one exercise defined starts collapsed each time you arrive at the Plan tab; an empty session stays expanded (nothing to hide yet). Manually toggling a session, or opening its add/edit-exercise modal, overrides the default until you next navigate away from Plan and back, at which point the override resets and the default rule reapplies
 - Per-exercise configuration: name, sets, reps, starting weight, exercise type (**Standard**, **Giant Set**, **Pause Set**, **Drop Set**), heavy leg flag, per-side vs total-on-bar tracking, minimum weight increment
   - **Drop Set** exercises plan a starting weight *and* (as of v6.09) a reps target for the main set, same as any other type — only the drop portion has no target and is logged to failure live, starting in week 1
   - **Last logged reference** — when adding or editing an exercise, a note below the exercise name shows what you actually logged last time for that exercise (per set type, if you've trained it more than one way — e.g. separate lines for a standard-set history and a giant-set history), and new exercises prefill their reps/weight/tracking-mode defaults from it automatically. Purely a planning aid — never affects any calculation, and always overridable
@@ -109,6 +122,15 @@ Gradient strips are pinned to the top and bottom of the app shell (matching `--a
 - **Weeks 2+ progression preview** — collapsible, grouped by session (not by week): expanding a session shows every exercise's sets/reps/weight target broken down week-by-week across the whole cycle
 - **Body part volume table** — below the progression preview, one row per body part (resolved by looking up each exercise's name against the exercise library), showing the cycle's total minimum and maximum training volume for that body part, sorted by minimum descending. Min/max reflects whichever theoretical progression path (all-weight vs all-reps) produces less/more total volume; pause sets are weight-only either way, so their min and max are identical. Drop sets contribute their main set's projected volume like any other exercise; only the drop portion doesn't contribute, since it has no plan-time target to project from
 - Schedule-status pills with solid heat-map colours indicating where each session falls in the cycle
+
+### Goals (moved into Plan in v7.40 — no longer its own screen)
+- Below the macrocycle hero card, a **Goals section** lists every goal period belonging to the current macro, in the same row style Progress's cycle-goals list uses — a "+ Build goals" button opens the same goal modal that used to live on the standalone Goals screen. The section is collapsible (expanded by default), each row taps to edit and swipes to delete
+- **Dismissible create-goal prompt** — saving or editing a macrocycle with no goal linked yet offers to add one via a Cancel/Add-goal confirm dialog; declining is a no-op, not a blocker
+- **Delete button** added directly to the goal modal itself (previously deletion was swipe-only from the Goals list)
+- Set daily targets per macrocycle: steps, kcal, protein, carbs, fats. Kcal and steps are required — the input border flashes red if you try to save without them
+- Goal periods **cannot overlap** — a new goal defaults to starting the day after the latest existing goal ends (across every macrocycle), and saving is blocked with an inline error if the dates collide with any existing goal
+- Macro sliders (protein g/lb multiplier, carb/fat split) back-derive their starting position from an existing goal's saved grams when editing. For a goal that's already **active or past**, saving preserves the exact macros already stored unless you explicitly drag a slider — it won't silently drift just because your bodyweight has changed since the goal was created. New/upcoming goals always compute live from current bodyweight
+- Progress's own goal-period summary rows (see below) are now restricted to active + upcoming only — full history, including past goals, lives here on Plan
 
 ### Train
 - Week and day selector to navigate the macrocycle — day-tab pills are grouped **one row per real calendar week**, so a 2-week mesocycle shows a separate row for each microcycle, while a 1-week mesocycle (even one that still uses microcycles) stays on a single row
@@ -130,13 +152,12 @@ Gradient strips are pinned to the top and bottom of the app shell (matching `--a
   - Closing the modal cancels and resets all timers
   - Clock icon turns accent green while a timer is running
 
-### Body
-- Tap to select gender, which drives which BMR formula inputs are shown
-- Log body weight (lbs) and steps per day
-- **Waist/hip measurements (v6.12)** — optional weekly-style entries logged alongside weight/steps in the same modal. Input unit toggles between inches (whole number + a quarter-inch picker — 0/¼/½/¾) and centimetres (single decimal field); everything is stored internally in inches, so switching units later never corrupts historical entries. Displayed to the minimum decimals needed (`33`, `33.5`, `33.25`). The hero card shows a second callout row — current value and change since your first log for waist and hip — which only appears once you've logged at least one measurement, and hides the "since first log" delta entirely (rather than showing a false "no change") until you have two or more logs
-- Weekly change, "left to go" toward the cycle's target weight, and entry count — both use the same ≤0.05 lbs tolerance for "no meaningful change" / "at goal"
+### Body (folded into Settings in v7.51 — no longer its own screen)
+Reached via Settings → Profile card → **Body logs**, which opens a modal containing just the grouped log list described below (the weight chart, inline "log weigh-in" card, and measurement reminder that used to sit above it were all removed in v7.51 along with the computation that fed them — that data is now only ever entered via the log-entry modal itself, not a standing form). Home's "Edit today's logs" shortcut deep-links straight through Settings into **today's own entry** in this modal — an existing entry opens for editing, or a blank one defaulting to today if nothing's logged yet.
+- Log body weight (lbs) and steps per day, tap an entry to edit, swipe left to reveal delete
+- **Waist/hip measurements (v6.12)** — optional entries logged alongside weight/steps in the same edit modal. Input unit toggles between inches (whole number + a quarter-inch picker — 0/¼/½/¾) and centimetres (single decimal field); everything is stored internally in inches, so switching units later never corrupts historical entries
+- Gender/height/birthday (driving the BMR formula) now live in their own **About me** modal, opened directly from Settings → Profile, separate from the log list
 - BMR/TDEE (Mifflin-St Jeor) calculated from profile + activity level, with activity level derived from your all-time average logged steps (intentionally unscoped — more historical data makes the estimate more accurate, not less)
-- Full log of all entries — tap to edit; swipe left to reveal delete button
 - **Monthly grouping (v6.11)** — any month collapses into a single tappable "Mmm YYYY" group once its entries have both weight and steps filled in, showing entry count and average weight; tap to expand. Entries missing either field always stay visible individually, regardless of month — so if your steps take a day to sync, that entry won't get buried inside a collapsed group right when you're most likely to want to finish filling it in. Groups sort newest month first
 
 ### Nutrition
@@ -158,30 +179,23 @@ Gradient strips are pinned to the top and bottom of the app shell (matching `--a
 - **Sample Day Library (new in v7.25)** — save a whole day of logging for reuse later, and pull it back onto a new date in one tap:
   - **Save prompt** — appears below the hero on any day whose totals land close to that day's own goal targets and has a recipe logged for Dinner: "On target for your goal — save this day to pre-fill later?" Tapping it stores every meal from that day into a library, grouped by goal. Once saved, the prompt is replaced by a "✓ Saved to library" pill inside the hero card itself
   - **Fill Day** — next to Quick Add in the hero's corner, opens a picker of previously saved days for the current goal (or any goal with sufficiently similar targets, even one that's never had a day saved under it) and copies every meal from the chosen day onto the current date, with a confirm-to-overwrite warning if the date already has logs
+  - **Dinner-entry prompt (new in v7.53)** — logging anything into Dinner, on any date whose goal already has a matching saved library, triggers a "There is an approved day already saved for this meal and this goal — want to fill the whole day?" prompt. Accepting fills the entire day from the most recently saved match — the same mechanism Fill Day itself uses, so it overwrites everything logged for that date, including the item just added. Declining just closes the prompt and leaves the entry as logged. This checks on every item added to Dinner, not just the first
   - **Goal linking** — a saved day's library is scoped to whichever goal created it, then automatically grows to include any other goal (now, or discovered later) whose kcal/protein/carbs/fats land close enough to count as "the same kind of day" — so a similar goal weeks later can immediately draw on an older goal's saved library
-  - **Settings → Profile → Nutrition Libraries** — a hidden page (no nav-bar entry, reached only from Settings) listing every saved library: a bold pill for the goal that originated it, subtler pills for every other goal currently linked to it, and its saved days as swipeable rows (tap to relabel, swipe to delete)
+  - **Settings → Nutrition → Sample libraries** — a screen (reached only from Settings) listing every saved library: a bold pill for the goal that originated it, subtler pills for every other goal currently linked to it, and its saved days as swipeable rows (tap to relabel, swipe to delete)
 
 ### Goals
-- Set daily targets per macrocycle: steps, kcal, protein, carbs, fats. Kcal and steps are required — the input border flashes red if you try to save without them
-- Goal periods **cannot overlap** — a new goal defaults to starting the day after the latest existing goal ends (across every macrocycle), and saving is blocked with an inline error if the dates collide with any existing goal
-- Macro sliders (protein g/lb multiplier, carb/fat split) back-derive their starting position from an existing goal's saved grams when editing. For a goal that's already **active or past**, saving preserves the exact macros already stored unless you explicitly drag a slider — it won't silently drift just because your bodyweight has changed since the goal was created. New/upcoming goals always compute live from current bodyweight
-- Today vs. goal progress bars with left-to-go or over-target indicators
-- Weekly average comparison across all tracked metrics
-- Projected pacing — if you're behind on a weekly goal, BLOC calculates what you need per remaining day
-- Tap a goal card to edit; swipe left to reveal delete button
+See **Goals**, now under the **Plan** section above — Goals was folded into Plan in v7.40 and is no longer its own screen or nav-bar entry.
 
-### Settings
-- Export full app data as a JSON backup
-- **Profile (new in v7.25)** — a "Profile →" button opens a hidden page with no nav-bar entry of its own; currently holds one entry, **Nutrition Libraries** (the Sample Day Library management screen described above), with room for more standalone data views to live here later without needing a seventh nav-bar button
-- **Theme selector** — nine colour swatches; selecting one updates the `data-theme` attribute on `<body>` immediately
-- **Dark / Light mode** toggle — updates the `data-mode` attribute on `<body>` immediately
-- **Libraries** (redesigned in v6.10) — Exercise library and Food library each get a consistent layout: a bold primary action (or two) up top, quieter export/import buttons below
-  - **Exercise library** — **View / edit library** (new in v6.10 — the first in-app way to browse and edit it; previously export/import were the only options). Tap a row to edit name/body part; built-in exercises show a "default" badge and can't be edited or deleted, but your own custom exercises can be (with a confirm on delete). Renaming or deleting only affects the picker going forward — exercises already in a plan keep their existing name. Export / Import (merges by name; default exercises still can't be overwritten)
-  - **Food library** — **View / edit** and **My recipes** side by side up top (My recipes gets a subtle accent tint, since it's the most-used action here). View / edit: tap a row to edit, swipe left to reveal share and delete. Export / Import (whole library JSON) / Import recipe (single shared item, including ingredients) below
-- **Danger zone** (reorganised in v6.10) — now holds both restore-from-backup and full data wipe together, since both are destructive:
-  - **Restore from backup** — replaces all current data with a previously exported JSON file (moved here from its own separate card, since it belongs alongside the other irreversible action)
-  - **Clear all data** — wipes macrocycles, exercises, logs, and nutrition data, but preserves your theme/mode preference, since the confirmation dialog only ever promised to delete tracked data. Styled with a solid red fill, matching the visual weight of the green Export button, since it's the one truly irreversible action on the page — restoring from backup, by contrast, just uses red text on the app's normal button style, since you can always undo it by re-importing your last export
-- Storage usage indicator
+### Settings (redesigned across v7.50–v7.52)
+A list of collapsible cards, each expanded by default except Danger Zone:
+- **About this app** — tappable row (name + version badge); opens a modal showing storage usage
+- **Profile** card — App preferences (Dark/Light mode + the nine theme swatches, moved here from their own top-level section), About me (gender/height/birthday for the BMR formula), Body logs (the grouped log list described above), Linked services → API Key (the optional Anthropic key that powers "Ask BLOC for advice" — moved here from an old standalone "AI Advice" section; still stored separately in `localStorage`, still never included in JSON exports)
+- **Nutrition** card — My Recipes (accent-tinted, first), Sample libraries (the Sample Day Library management screen described above), View/edit food library, Export food library, Import food library, Import recipe
+- **Exercise** card — View/edit library, Export, Import
+- **Backup** — Export JSON backup, always visible, not behind a button
+- **Danger Zone** card — **collapsed by default**, unlike every other card on the page, since these are the two genuinely destructive actions: Import JSON backup (replaces all current data) and Clear all data (wipes everything but preserves theme/mode, since the confirm dialog only ever promises to delete tracked data). Clear all data keeps its solid red fill; restore-from-backup keeps red text on the app's normal button style, since it's recoverable by re-importing your last export
+- Every card's buttons are visually identical (icon + label, no descriptive text, no nested cards) — the two-tier primary/secondary button hierarchy from v6.10 was dropped in this redesign in favour of one consistent button style throughout
+- **Modal stacking** — buttons that open their own modal (App preferences, About me, Body logs, Linked services → API key, Sample libraries → a saved day's editor) stack on top of whatever's already open rather than closing it, so backing out returns you to exactly where you were. The three buttons that lead into the pre-existing Food Library, My Recipes, and Exercise Library editors are the deliberate exception — those have their own substantial modal chains built around a fixed stacking order, so those three still close the Settings screen's card view first rather than layering on top of it
 
 ---
 
@@ -233,6 +247,7 @@ This same weight-jump formula is shared by the Plan page's progression preview a
 | Audio | Web Audio API — sine wave oscillators, no audio files |
 | PWA | `apple-mobile-web-app-capable`, `viewport-fit=cover` meta tags; add to home screen via Safari/Chrome share sheet |
 | iOS viewport | `measureEnv()` DOM probe reads actual safe-area inset values; `--app-height` CSS var set via `window.visualViewport.height`; `#nav` positioned as `absolute` inside `#app` rather than `position: fixed` |
+| Keyboard type per field (v7.54) | `inputmode="numeric"` (whole numbers: steps, reps, waist/hip whole-inch pickers, barcode entry, height ft/in, mesocycle count) or `inputmode="decimal"` (weight, kcal/macros, grams/servings, cm measurements) set field-by-field after a full audit of every input in the app — independent of each field's `type` attribute, so existing validation is untouched |
 
 No service worker is registered, meaning the app requires an internet connection on first load for fonts. All app logic and data is fully offline after that.
 
@@ -255,7 +270,7 @@ All data lives in your browser's `localStorage`. It is not synced to any server.
 
 **It is strongly recommended to export a JSON backup regularly** via Settings → Export JSON backup, and store it in a safe location (e.g. iCloud Files, Google Drive).
 
-To restore: Settings → Restore from backup → select your `.json` file.
+To restore: Settings → Danger Zone → Import JSON backup → select your `.json` file.
 
 ---
 
@@ -277,6 +292,11 @@ Recent versions (v5.26 onward) reflect a page-by-page legacy audit pass — remo
 
 | Version | Notes |
 |---|---|
+| v7.54 | **Numeric keyboard pass** — `inputmode` set on every relevant field across the app (66 fields) so the right keypad shows instead of the full qwerty keyboard: whole-number keypad for steps, reps, waist/hip whole-inch entry, barcode manual entry, height ft/in, and mesocycle count; decimal keypad for weight, kcal/macros, grams/servings, and cm measurements. Driven by a full field-by-field audit rather than a blanket rule, since a few fields (Train's reps field, notably) are `type="text"` rather than `type="number"` to allow non-numeric entries, and needed the same treatment without changing their underlying validation |
+| v7.53 | **Home log boxes reinstated as inline "disappearing input" cards**, replacing the icon-triggered mini-modals from v7.31–v7.52 — weight/steps show a plain input daily until logged; measurements now runs on its own 4-day cycle (not daily) with a warning banner, staying visible until a fresh measurement resets the countdown. The three modals this replaced were removed. **Nutrition**: logging anything into Dinner now checks for a matching Sample Day Library entry and offers to fill the whole day from it (same mechanism as the Fill Day button), checked on every Dinner addition |
+| v7.50–v7.52 | **Settings — full redesign, iterated live across three passes.** Body and Goals nav tabs removed entirely (folded into Settings and Plan respectively — see below). Final structure: a list of collapsible cards (Profile, Nutrition, Exercise, expanded by default; Danger Zone, collapsed by default) each showing their buttons directly inline, no nested cards or description text. Profile card: App preferences (Mode/Theme, moved out of their own top-level section), About me, Body logs (the old standalone Body screen, trimmed down to just its grouped log list — the weight chart, inline log-form, and measurement reminder were removed along with ~200 lines of now-dead computation that fed only them), Linked services → API Key (moved from the old "AI Advice" section). Nutrition card: My Recipes, Sample libraries, View/edit/export/import food library, Import recipe. Exercise card: view/edit/export/import. Modals opened from these cards stack rather than closing their parent (own z-index tier), except the three that lead into the pre-existing Food Library/Recipes/Exercise Library modal chains, which still close their parent first to avoid rendering behind their own children. Home's "Edit today's logs" now opens Settings → Body logs → today's specific entry directly, via a new `openTodaysBodyLogModal()` |
+| v7.40–v7.41 | **Goals folded into Plan — no longer its own screen.** Plan gained a collapsible Goals section (same row styling as Progress's cycle-goals list) with its own "+ Build goals" button, swipe-to-delete, and a dismissible "add a goal?" nudge on saving a macrocycle with none linked. Delete button added to the goal modal itself. Progress's own goal list restricted to active + upcoming only (full history now lives on Plan). Session cards on Plan's Week-1 template now auto-collapse once they have at least one exercise (previously always expanded by default), resetting to that default each fresh visit to the tab; manually toggling, or opening add/edit-exercise for a session, overrides the default until the next visit |
+| v7.31–v7.34 | **New Home screen — the app's default landing tab**, ahead of Progress. Weekly hero card (kcal/protein/carbs/steps vs. active goal, metric-specific badge polarity, adjustment sublabel that only shows when needed); upcoming-goal banner (fires only on a genuine target change within 6 days, comparing old vs. new); three quick-log icon tiles (weight/measure/steps) that disappear once logged; planned-food-today and next-session previews. Nav bar reordered to Home/Progress/Plan/Train/Nutrition/Settings |
 | v7.30 | Settings: `clearAllData()` now also resets `state.sampleDays` — previously omitted, the same class of oversight as the historical `supersets`/`profile` gap (never crashed anything, since `load()`'s defensive default silently backfilled it, but "Clear all data" left the Sample Day Library quietly intact) |
 | v7.30 | **Critical Sample Day Library fix.** `range.proteinMax` was stored as the real JS value `Infinity` ("no upper bound on protein") — `JSON.stringify()` silently turns `Infinity` into `null`, and since every save round-trips state through JSON, this corrupted almost immediately after the feature shipped, silently breaking every match check that depended on it (both the linked-goal pill display and Fill Day discovery). Diagnosed against a real exported backup rather than synthetic numbers. Fixed with a JSON-safe sentinel (`Number.MAX_SAFE_INTEGER`) going forward, defensive `null`/`undefined`-tolerant comparisons everywhere a range is checked, and a one-time migration on load that repairs any already-corrupted saved library |
 | v7.29 | Sample Day Library: a goal can now show as "linked" — and be used for Fill Day — purely because its own targets fall within an existing library's tolerance band, even before anyone has saved a single day under it specifically. Previously, linking only ever happened retroactively, at the moment a day was actually saved under a new goal |

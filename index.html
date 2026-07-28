@@ -87,12 +87,11 @@
 [data-theme="mono"]         { --hero-1: #4a4a48; --hero-2: #232321; }
 
 /* ── Multi theme: distinct hero colour per page, matching mockup ── */
+[data-theme="multi"] [data-page="home"]      { --hero-1: #7F77DD; --hero-2: #3C3489; }
 [data-theme="multi"] [data-page="progress"]      { --hero-1: #2BC7C4; --hero-2: #0B4F4E; }
 [data-theme="multi"] [data-page="plan"]      { --hero-1: #378ADD; --hero-2: #0C447C; }
 [data-theme="multi"] [data-page="train"]     { --hero-1: #E8D44D; --hero-2: #6B5A0A; }
-[data-theme="multi"] [data-page="body"]      { --hero-1: #1D9E75; --hero-2: #085041; }
 [data-theme="multi"] [data-page="nutrition"] { --hero-1: #EF9F27; --hero-2: #633806; }
-[data-theme="multi"] [data-page="goals"]     { --hero-1: #E24B4A; --hero-2: #6B1414; }
 
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
@@ -688,6 +687,25 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 .badge-green { background: #E1F5EE; color: #085041; }
 .badge-amber { background: #FAEEDA; color: #412402; }
 .badge-red { background: #FCEBEB; color: #501313; }
+
+/* ── Home page ─────────────────────────────────────────────── */
+.home-target-row { display: flex; align-items: center; justify-content: space-between; padding: 9px 0; border-top: 0.5px solid rgba(255,255,255,0.15); gap: 8px; }
+.home-target-row:first-of-type { border-top: none; }
+.home-target-name { font-size: 13px; font-weight: 600; min-width: 54px; flex-shrink: 0; }
+.home-target-vals { font-size: 11px; opacity: 0.8; flex: 1; }
+.home-sublabel { font-size: 10px; opacity: 0.8; margin-top: 8px; }
+.home-goal-banner { margin-top: 12px; background: var(--surface2); border: 0.5px solid var(--border2); border-radius: var(--r-lg); padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+.home-goal-banner-text { font-size: 13px; color: var(--text); font-weight: 600; }
+.home-goal-banner-sub { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.home-edit-logs-link { text-align: right; margin-top: 8px; margin-bottom: 14px; }
+.home-edit-logs-link span { font-size: 11px; color: var(--text3); text-decoration: underline; cursor: pointer; }
+.home-food-row, .home-ex-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--text); padding: 7px 0; border-top: 0.5px solid var(--border); gap: 8px; }
+.home-food-row:first-of-type, .home-ex-row:first-of-type { border-top: none; }
+.home-row-sub { color: var(--text2); font-size: 11px; flex-shrink: 0; text-align: right; }
+.home-card-link { font-size: 11px; color: var(--accent); font-weight: 600; cursor: pointer; }
+
+@keyframes goalFlash { 0%, 100% { box-shadow: none; } 25%, 75% { box-shadow: 0 0 0 2px var(--red); } }
+.goal-flash { animation: goalFlash 1.4s ease; }
 .badge-blue { background: #E6F1FB; color: #042C53; }
 .badge-purple { background: #EEEDFE; color: #26215C; }
 
@@ -745,6 +763,20 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
    modal-nutr-add, so it needs to sit above it or the food library
    list stays visible on top of the camera. */
 #modal-nutr-barcode { z-index: 310; }
+/* ── Settings modal stacking ────────────────────────────────────────────
+   Profile, Nutrition, Exercise, and Danger Zone are now inline collapsible
+   cards on the Settings screen itself (not modals), so modals opened from
+   their buttons (App preferences, About me, Body logs, Linked services,
+   Sample libraries, food/exercise library editors) sit directly over the
+   plain screen at the default z-index — no boost needed.
+   Only one nesting tier remains: modals opened from WITHIN one of those
+   (API key from Linked services, a specific day's entry from Body logs,
+   a saved day from Sample libraries) need to render above their parent
+   modal while both stay open. Deliberately NOT applied to
+   modal-food-lib-editor / modal-recipe-list / modal-exercise-lib-editor's
+   own children — those lead into their own pre-existing deep modal chains
+   built around the default z-index already. */
+#modal-api-key, #modal-body-log, #modal-sample-day-edit { z-index: 210; }
 .modal-sheet {
   width: 100%;
   background: var(--surface);
@@ -1519,6 +1551,18 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   <div id="content">
 
     <!-- ════════════════════════════════════════
+         SCREEN: HOME
+    ═══════════════════════════════════════════ -->
+    <div class="screen" id="screen-home">
+      <div id="home-hero-wrap"><div id="home-hero-card"></div></div>
+      <div id="home-goal-banner"></div>
+      <div id="home-log-boxes"></div>
+      <div id="home-edit-logs-link"></div>
+      <div id="home-food-preview"></div>
+      <div id="home-train-preview"></div>
+    </div>
+
+    <!-- ════════════════════════════════════════
          SCREEN 0: PROGRESS
     ═══════════════════════════════════════════ -->
     <div class="screen" id="screen-progress">
@@ -1570,6 +1614,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     ═══════════════════════════════════════════ -->
     <div class="screen" id="screen-plan">
       <div id="macro-overview"></div>
+      <div id="plan-goals-section"></div>
       <div id="plan-content"></div>
     </div>
 
@@ -1594,139 +1639,103 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <!-- ════════════════════════════════════════
          SCREEN 3: BODY
     ═══════════════════════════════════════════ -->
-    <div class="screen" id="screen-body">
-      <div id="body-hero"></div>
-      <div id="body-history-card"></div>
-      <div id="body-logform-card"></div>
-      <div id="body-meas-reminder"></div>
-
-      <div class="section-title">Recent Entries</div>
-      <div id="body-log-list"></div>
-    </div>
-
-    <!-- ════════════════════════════════════════
-         SCREEN: GOALS
-    ═══════════════════════════════════════════ -->
-    <div class="screen" id="screen-goals">
-      <div id="goals-toprow" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-        <div class="section-title" style="margin:0;">Goals</div>
-        <button class="btn btn-accent btn-sm" onclick="openModal('modal-add-goal')">+ Goal</button>
-      </div>
-      <div id="goals-content"></div>
-    </div>
 
     <!-- ════════════════════════════════════════
          SCREEN 5: SETTINGS
     ═══════════════════════════════════════════ -->
     <div class="screen" id="screen-settings">
-      <div class="section-title" style="margin-top:0;">Settings · Data &amp; Backup</div>
+      <div class="section-title" style="margin-top:0;">Settings</div>
 
-      <div class="section-title">About</div>
-      <div class="card" style="margin-bottom:10px;">
+      <div class="card" style="margin-bottom:10px;cursor:pointer;" onclick="openModal('modal-settings-about')">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v7.30</span>
+          <span class="badge badge-green">v7.54</span>
         </div>
       </div>
 
-      <div class="section-title">Profile</div>
-      <div class="card" style="margin-bottom:10px;">
-        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Profile</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Extra data views that don't need a spot in the main nav bar.</div>
-        <button class="lib-primary-btn" style="width:100%;" onclick="openProfilePage()">
-          <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0 1 16 0v1"/></svg>
-          Profile →
-        </button>
-      </div>
-
-      <div class="section-title">Appearance</div>
-      <div class="card" style="margin-bottom:10px;">
-        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Mode</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Dark is the default. Light reverses the app into a blue-tinted light scheme.</div>
-        <div class="toggle-row" id="mode-toggle-row" style="margin-bottom:0;">
-          <button class="toggle-btn active" data-mode="dark" onclick="setMode('dark')">Dark</button>
-          <button class="toggle-btn" data-mode="light" onclick="setMode('light')">Light</button>
+      <!-- ── Profile card ── -->
+      <div class="card" style="margin-bottom:10px;padding:0;">
+        <div onclick="toggleSettingsCard('profile')" style="padding:14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+          <div class="section-title" style="margin:0;">Profile</div>
+          <svg id="settings-card-chevron-profile" viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(180deg)"><polyline points="6 9 12 15 18 9"/></svg>
         </div>
-      </div>
-
-      <div class="card" style="margin-bottom:10px;">
-        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Theme</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Choose a single accent colour for every page, or let each page have its own colour.</div>
-        <div id="theme-swatch-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;"></div>
-      </div>
-
-      <!-- ── Libraries ──────────────────────────────────────────────
-           v6.10: consolidated exercise + food library management into
-           one section with a consistent two-tier button layout — a
-           bolder primary tile (.lib-primary-btn) for the most-used
-           action(s) up top, and a quieter row of secondary utility
-           buttons (.lib-secondary-btn) for export/import underneath.
-           Exercise library gains its first in-app view/edit screen here
-           (openExerciseLibraryEditor), mirroring the existing food
-           library editor. All prior export/import functionality is
-           unchanged — only the layout and the new exercise editor are new. -->
-      <div class="section-title">Libraries</div>
-      <div class="card" style="margin-bottom:10px;">
-        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:2px;">Exercise library</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Every exercise you've used across all plans.</div>
-        <button class="lib-primary-btn" style="width:100%;margin-bottom:8px;" onclick="openExerciseLibraryEditor()">
-          <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          View / edit library
-        </button>
-        <div style="display:flex;gap:6px;">
-          <button class="lib-secondary-btn" style="flex:1;" onclick="exportLibrary()">
-            <svg viewBox="0 0 24 24" width="14" height="14" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Export
+        <div id="settings-card-body-profile" style="padding:0 14px 14px;">
+          <button class="lib-primary-btn" style="width:100%;margin-bottom:8px;" onclick="openModal('modal-app-preferences')">
+            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            App preferences
           </button>
-          <label class="lib-secondary-btn" style="flex:1;cursor:pointer;">
-            <svg viewBox="0 0 24 24" width="14" height="14" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            Import
-            <input type="file" accept=".json,application/json" style="display:none;" onchange="importExerciseLibrary(this.files[0]);this.value='';">
-          </label>
+          <button class="lib-primary-btn" style="width:100%;margin-bottom:8px;" onclick="openBodyProfile()">
+            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0 1 16 0v1"/></svg>
+            About me
+          </button>
+          <button class="lib-primary-btn" style="width:100%;margin-bottom:8px;" onclick="openSettingsBodyLogs()">
+            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><circle cx="12" cy="7" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>
+            Body logs
+          </button>
+          <button class="lib-primary-btn" style="width:100%;" onclick="openModal('modal-linked-services')">
+            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            Linked services
+          </button>
         </div>
       </div>
 
-      <div class="card" style="margin-bottom:10px;">
-        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:2px;">Food library</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Scanned and manual foods, plus your saved recipes.</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-          <button class="lib-primary-btn" onclick="openFoodLibraryEditor()">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            View / edit
-          </button>
-          <button class="lib-primary-btn accent-tint" onclick="openRecipeList()">
+      <!-- ── Nutrition card ── -->
+      <div class="card" style="margin-bottom:10px;padding:0;">
+        <div onclick="toggleSettingsCard('nutrition')" style="padding:14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+          <div class="section-title" style="margin:0;">Nutrition</div>
+          <svg id="settings-card-chevron-nutrition" viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(180deg)"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div id="settings-card-body-nutrition" style="padding:0 14px 14px;">
+          <button class="lib-primary-btn accent-tint" style="width:100%;margin-bottom:8px;" onclick="openRecipeList()">
             <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-            My recipes
+            My Recipes
           </button>
-        </div>
-        <div style="display:flex;gap:6px;">
-          <button class="lib-secondary-btn" style="flex:1;" onclick="exportFoodLibrary()">
-            <svg viewBox="0 0 24 24" width="14" height="14" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Export
+          <button class="lib-primary-btn" style="width:100%;margin-bottom:8px;" onclick="openProfileNutrition()">
+            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            Sample libraries
           </button>
-          <label class="lib-secondary-btn" style="flex:1;cursor:pointer;">
-            <svg viewBox="0 0 24 24" width="14" height="14" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            Import
+          <button class="lib-primary-btn" style="width:100%;margin-bottom:8px;" onclick="openFoodLibraryEditor()">
+            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            View / edit library
+          </button>
+          <button class="lib-primary-btn" style="width:100%;margin-bottom:8px;" onclick="exportFoodLibrary()">
+            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export food library
+          </button>
+          <label class="lib-primary-btn" style="width:100%;margin-bottom:8px;cursor:pointer;">
+            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Import food library
             <input type="file" accept=".json,application/json" style="display:none;" onchange="importFoodLibrary(this.files[0]);this.value='';">
           </label>
-          <label class="lib-secondary-btn" style="flex:1;cursor:pointer;">
-            <svg viewBox="0 0 24 24" width="14" height="14" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <label class="lib-primary-btn" style="width:100%;cursor:pointer;">
+            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             Import recipe
             <input type="file" accept=".json,application/json" style="display:none;" onchange="importSharedFoodItem(this.files[0]);this.value='';">
           </label>
         </div>
       </div>
 
-      <div class="section-title">AI Advice</div>
-      <div class="card" style="margin-bottom:10px;">
-        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:4px;">Anthropic API key</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.5;">Optional. Enables the "Ask BLOC for advice" feature on the Progress page. Stored only on this device. Get a key at <span style="color:var(--accent);">console.anthropic.com</span> — billed separately from Claude Pro, but each call costs under $0.01.</div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <input type="password" id="settings-api-key-input" placeholder="sk-ant-…"
-            style="flex:1;font-size:13px;padding:9px 11px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);font-family:var(--font-mono);">
-          <button onclick="saveApiKey()" class="btn btn-accent" style="padding:9px 14px;white-space:nowrap;">Save</button>
+      <!-- ── Exercise card ── -->
+      <div class="card" style="margin-bottom:10px;padding:0;">
+        <div onclick="toggleSettingsCard('exercise')" style="padding:14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+          <div class="section-title" style="margin:0;">Exercise</div>
+          <svg id="settings-card-chevron-exercise" viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(180deg)"><polyline points="6 9 12 15 18 9"/></svg>
         </div>
-        <div id="api-key-status" style="font-size:11px;margin-top:6px;color:var(--text3);"></div>
+        <div id="settings-card-body-exercise" style="padding:0 14px 14px;">
+          <button class="lib-primary-btn" style="width:100%;margin-bottom:8px;" onclick="openExerciseLibraryEditor()">
+            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            View / edit library
+          </button>
+          <button class="lib-primary-btn" style="width:100%;margin-bottom:8px;" onclick="exportLibrary()">
+            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export
+          </button>
+          <label class="lib-primary-btn" style="width:100%;cursor:pointer;">
+            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Import
+            <input type="file" accept=".json,application/json" style="display:none;" onchange="importExerciseLibrary(this.files[0]);this.value='';">
+          </label>
+        </div>
       </div>
 
       <div class="section-title">Backup</div>
@@ -1739,38 +1748,24 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
         </button>
       </div>
 
-      <div class="section-title">Storage</div>
-      <div class="card" style="margin-bottom:10px;">
-        <div id="storage-info" style="font-size:13px;color:var(--text2);line-height:1.8;"></div>
-      </div>
-
-      <!-- ── Danger Zone ────────────────────────────────────────────
-           v6.10: Restore-from-backup moved here from Backup, since it
-           erases existing data just like Clear-all-data. The two are
-           deliberately styled differently by severity: restoring is
-           destructive but recoverable (you can re-import your last
-           export), so its button just uses red TEXT on the app's normal
-           neutral button border — no red border, so it doesn't compete
-           visually with Clear-all-data below, which is irreversible and
-           gets the solid red fill (btn-danger-fill), matching the visual
-           weight of the accent-filled Export JSON button above. -->
-      <div class="section-title">Danger Zone</div>
-      <div class="card" style="margin-bottom:10px;">
-        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Restore from backup</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Select a previously exported JSON file. This will <span style="color:var(--red);">replace all current data</span> — export first if needed.</div>
-        <label class="btn btn-block" style="cursor:pointer;justify-content:center;color:var(--red);">
-          <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          Import JSON backup
-          <input type="file" accept=".json,application/json" style="display:none;" onchange="importData(event)">
-        </label>
-        <div id="import-status" style="font-size:12px;margin-top:10px;text-align:center;"></div>
-      </div>
-      <div class="card">
-        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Clear all data</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Permanently delete all data from this device. Cannot be undone.</div>
-        <button class="btn btn-danger-fill btn-block" onclick="clearAllData()">Clear all data</button>
+      <!-- ── Danger Zone card — collapsed by default ── -->
+      <div class="card" style="padding:0;">
+        <div onclick="toggleSettingsCard('dangerZone')" style="padding:14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+          <div class="section-title" style="margin:0;color:var(--red);">Danger Zone</div>
+          <svg id="settings-card-chevron-dangerZone" viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(0deg)"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div id="settings-card-body-dangerZone" style="padding:0 14px 14px;display:none;">
+          <label class="btn btn-block" style="cursor:pointer;justify-content:center;color:var(--red);margin-bottom:8px;">
+            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Import JSON backup
+            <input type="file" accept=".json,application/json" style="display:none;" onchange="importData(event)">
+          </label>
+          <div id="import-status" style="font-size:12px;margin-bottom:8px;text-align:center;"></div>
+          <button class="btn btn-danger-fill btn-block" onclick="clearAllData()">Clear all data</button>
+        </div>
       </div>
     </div>
+
 
     <!-- ════════════════════════════════════════
          SCREEN 4: NUTRITION
@@ -1798,7 +1793,11 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   ═══════════════════════════════════════════ -->
   <nav id="nav">
     <div id="nav-pill"></div>
-    <button class="nav-btn active" id="nav-progress" onclick="showScreen('progress')">
+    <button class="nav-btn active" id="nav-home" onclick="showScreen('home')">
+      <svg class="nav-icon" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V10"/></svg>
+      <span class="nav-label">Home</span>
+    </button>
+    <button class="nav-btn" id="nav-progress" onclick="showScreen('progress')">
       <svg class="nav-icon" viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="9" rx="0.5"/><rect x="10" y="7" width="4" height="14" rx="0.5"/><rect x="17" y="3" width="4" height="18" rx="0.5"/></svg>
       <span class="nav-label">Progress</span>
     </button>
@@ -1810,17 +1809,9 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <svg class="nav-icon" viewBox="0 0 24 24"><path d="M5 12h14"/><rect x="2" y="9" width="2" height="6" rx="0.5"/><rect x="20" y="9" width="2" height="6" rx="0.5"/><rect x="5" y="7" width="2" height="10" rx="0.5"/><rect x="17" y="7" width="2" height="10" rx="0.5"/></svg>
       <span class="nav-label">Train</span>
     </button>
-    <button class="nav-btn" id="nav-body" onclick="showScreen('body')">
-      <svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>
-      <span class="nav-label">Body</span>
-    </button>
     <button class="nav-btn" id="nav-nutrition" onclick="showScreen('nutrition')">
       <svg class="nav-icon" viewBox="0 0 24 24"><path d="M5 3v6a2 2 0 0 0 4 0V3M7 3v18"/><path d="M17 3c-2 0-3 2-3 5s1 4 3 4v9"/></svg>
       <span class="nav-label">Nutrition</span>
-    </button>
-    <button class="nav-btn" id="nav-goals" onclick="showScreen('goals')">
-      <svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" style="fill:currentColor"/></svg>
-      <span class="nav-label">Goals</span>
     </button>
     <button class="nav-btn" id="nav-settings" onclick="showScreen('settings')">
       <svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -1847,7 +1838,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div class="input-row">
       <div>
         <div class="label">Mesocycles</div>
-        <input type="number" id="macro-weeks-input" value="8" min="2" max="52" oninput="validateMacroPace('macro')">
+        <input type="number" inputmode="numeric" id="macro-weeks-input" value="8" min="2" max="52" oninput="validateMacroPace('macro')">
       </div>
       <div>
         <div class="label">Start Date</div>
@@ -1882,7 +1873,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div class="form-group" id="weight-increment-row">
       <div class="label">Weight increment per session</div>
       <div style="display:flex;align-items:center;gap:10px;">
-        <input type="number" id="macro-weight-increment-input" min="0.25" max="10" step="0.25" value="2.5"
+        <input type="number" inputmode="decimal" id="macro-weight-increment-input" min="0.25" max="10" step="0.25" value="2.5"
           style="width:70px;font-size:15px;padding:8px 10px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
         <span style="font-size:12px;color:var(--text3);">kg · light exercises. Heavy leg is fixed (+5 kg loss / +10 kg gain), unaffected by this setting.</span>
       </div>
@@ -1894,7 +1885,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     </div>
     <div class="form-group">
       <div class="label">Target body weight (lbs) <span style="color:var(--text3);font-size:11px;">— optional</span></div>
-      <input type="number" id="macro-target-bw-input" placeholder="e.g. 180" step="0.1" oninput="validateMacroPace('macro')">
+      <input type="number" inputmode="decimal" id="macro-target-bw-input" placeholder="e.g. 180" step="0.1" oninput="validateMacroPace('macro')">
       <div id="macro-pace-warning" style="display:none;margin-top:5px;font-size:11px;color:var(--red);line-height:1.4;"></div>
     </div>
 
@@ -1993,7 +1984,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div class="input-row">
       <div>
         <div class="label">Mesocycles</div>
-        <input type="number" id="edit-macro-weeks-input" min="2" max="52" oninput="validateMacroPace('edit-macro')">
+        <input type="number" inputmode="numeric" id="edit-macro-weeks-input" min="2" max="52" oninput="validateMacroPace('edit-macro')">
       </div>
       <div>
         <div class="label">Start Date</div>
@@ -2021,7 +2012,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     </div>
     <div class="form-group">
       <div class="label">Target body weight (lbs) <span style="color:var(--text3);font-size:11px;">— optional</span></div>
-      <input type="number" id="edit-macro-target-bw-input" placeholder="e.g. 180" step="0.1" oninput="validateMacroPace('edit-macro')">
+      <input type="number" inputmode="decimal" id="edit-macro-target-bw-input" placeholder="e.g. 180" step="0.1" oninput="validateMacroPace('edit-macro')">
       <div id="edit-macro-pace-warning" style="display:none;margin-top:5px;font-size:11px;color:var(--red);line-height:1.4;"></div>
     </div>
     <div class="form-group">
@@ -2035,7 +2026,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div class="form-group" id="edit-weight-increment-row">
       <div class="label">Weight increment per session</div>
       <div style="display:flex;align-items:center;gap:10px;">
-        <input type="number" id="edit-macro-weight-increment-input" min="0.25" max="10" step="0.25" value="2.5"
+        <input type="number" inputmode="decimal" id="edit-macro-weight-increment-input" min="0.25" max="10" step="0.25" value="2.5"
           style="width:70px;font-size:15px;padding:8px 10px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
         <span style="font-size:12px;color:var(--text3);">kg · light exercises. Heavy leg is fixed, unaffected by this setting.</span>
       </div>
@@ -2080,11 +2071,11 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div class="input-row">
       <div>
         <div class="label">Daily kcal</div>
-        <input type="number" id="goal-kcal-input" placeholder="2000" oninput="renderGoalMacros()">
+        <input type="number" inputmode="decimal" id="goal-kcal-input" placeholder="2000" oninput="renderGoalMacros()">
       </div>
       <div>
         <div class="label">Daily steps</div>
-        <input type="number" id="goal-steps-input" placeholder="10000">
+        <input type="number" inputmode="numeric" id="goal-steps-input" placeholder="10000">
       </div>
     </div>
 
@@ -2132,6 +2123,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     </div>
 
     <button class="btn btn-accent btn-block" style="margin-top:16px;" id="goal-save-btn" onclick="saveGoalAndAdvanceQueue()">Save Goal Period →</button>
+    <button class="btn btn-danger btn-block" style="margin-top:8px;display:none;" id="goal-delete-btn" onclick="deleteGoalFromModal()">Delete Goal Period</button>
   </div>
 </div>
 
@@ -2219,7 +2211,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       </div>
       <div>
         <div class="label">Starting Weight (kg)</div>
-        <input type="number" id="ex-weight-input" placeholder="60" step="0.5">
+        <input type="number" inputmode="decimal" id="ex-weight-input" placeholder="60" step="0.5">
       </div>
     </div>
     <div id="ex-dropset-note" style="display:none;font-size:11px;color:var(--text3);margin:-8px 0 12px;">Reps above target the main set only — the drop is a reduction in weight and is always logged to failure, starting in week 1.</div>
@@ -2298,16 +2290,16 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       </div>
       <div id="profile-height-ftin" style="display:flex;gap:8px;">
         <div style="flex:1;">
-          <input type="number" id="profile-feet" min="3" max="8" placeholder="5" style="width:100%;box-sizing:border-box;font-size:15px;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+          <input type="number" inputmode="numeric" id="profile-feet" min="3" max="8" placeholder="5" style="width:100%;box-sizing:border-box;font-size:15px;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
           <div style="font-size:11px;color:var(--text3);text-align:center;margin-top:3px;">feet</div>
         </div>
         <div style="flex:1;">
-          <input type="number" id="profile-inches" min="0" max="11" placeholder="10" style="width:100%;box-sizing:border-box;font-size:15px;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+          <input type="number" inputmode="numeric" id="profile-inches" min="0" max="11" placeholder="10" style="width:100%;box-sizing:border-box;font-size:15px;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
           <div style="font-size:11px;color:var(--text3);text-align:center;margin-top:3px;">inches</div>
         </div>
       </div>
       <div id="profile-height-cm" style="display:none;">
-        <input type="number" id="profile-cm" min="100" max="250" placeholder="178" style="width:100%;box-sizing:border-box;font-size:15px;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+        <input type="number" inputmode="decimal" id="profile-cm" min="100" max="250" placeholder="178" style="width:100%;box-sizing:border-box;font-size:15px;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
         <div style="font-size:11px;color:var(--text3);margin-top:3px;">cm</div>
       </div>
     </div>
@@ -2336,11 +2328,11 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div class="input-row">
       <div>
         <div class="label">Weight (lbs)</div>
-        <input type="number" id="body-weight-input" step="0.1" placeholder="183.5">
+        <input type="number" inputmode="decimal" id="body-weight-input" step="0.1" placeholder="183.5">
       </div>
       <div>
         <div class="label">Steps</div>
-        <input type="number" id="body-steps-input" placeholder="8500">
+        <input type="number" inputmode="numeric" id="body-steps-input" placeholder="8500">
       </div>
     </div>
     <div style="border-top:0.5px solid var(--border);margin:14px 0 12px;"></div>
@@ -2353,7 +2345,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div style="margin-bottom:12px;">
         <div class="label">Waist (in)</div>
         <div style="display:flex;gap:6px;align-items:center;">
-          <input type="number" id="body-waist-whole" min="0" max="99" placeholder="33" style="width:58px;flex-shrink:0;text-align:center;">
+          <input type="number" inputmode="numeric" id="body-waist-whole" min="0" max="99" placeholder="33" style="width:58px;flex-shrink:0;text-align:center;">
           <div class="toggle-row" style="margin:0;flex:1;display:inline-flex;">
             <button class="toggle-btn active" onclick="setFrac('waist',0)" id="waist-frac-0" style="flex:1;padding:9px 2px;font-size:13px;">0</button>
             <button class="toggle-btn" onclick="setFrac('waist',0.25)" id="waist-frac-25" style="flex:1;padding:9px 2px;font-size:13px;">¼</button>
@@ -2365,7 +2357,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div style="margin-bottom:10px;">
         <div class="label">Hip (in)</div>
         <div style="display:flex;gap:6px;align-items:center;">
-          <input type="number" id="body-hip-whole" min="0" max="99" placeholder="38" style="width:58px;flex-shrink:0;text-align:center;">
+          <input type="number" inputmode="numeric" id="body-hip-whole" min="0" max="99" placeholder="38" style="width:58px;flex-shrink:0;text-align:center;">
           <div class="toggle-row" style="margin:0;flex:1;display:inline-flex;">
             <button class="toggle-btn active" onclick="setFrac('hip',0)" id="hip-frac-0" style="flex:1;padding:9px 2px;font-size:13px;">0</button>
             <button class="toggle-btn" onclick="setFrac('hip',0.25)" id="hip-frac-25" style="flex:1;padding:9px 2px;font-size:13px;">¼</button>
@@ -2378,11 +2370,11 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div id="meas-fields-cm" style="display:none;">
       <div style="margin-bottom:12px;">
         <div class="label">Waist (cm)</div>
-        <input type="number" id="body-waist-cm" step="0.1" placeholder="84.5">
+        <input type="number" inputmode="decimal" id="body-waist-cm" step="0.1" placeholder="84.5">
       </div>
       <div style="margin-bottom:10px;">
         <div class="label">Hip (cm)</div>
-        <input type="number" id="body-hip-cm" step="0.1" placeholder="97">
+        <input type="number" inputmode="decimal" id="body-hip-cm" step="0.1" placeholder="97">
       </div>
     </div>
     <button class="btn btn-accent btn-block" onclick="saveBodyLog()">Save →</button>
@@ -2468,11 +2460,11 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="input-row" style="margin-bottom:14px;">
         <div>
           <div class="label">Amount (g)</div>
-          <input type="number" id="nutr-serving-grams" min="1" placeholder="100" oninput="updateServingPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
+          <input type="number" inputmode="decimal" id="nutr-serving-grams" min="1" placeholder="100" oninput="updateServingPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
         </div>
         <div>
           <div class="label">Servings</div>
-          <input type="number" id="nutr-serving-servings" min="0.5" step="0.5" value="1" oninput="updateServingPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
+          <input type="number" inputmode="decimal" id="nutr-serving-servings" min="0.5" step="0.5" value="1" oninput="updateServingPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
         </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;">
@@ -2515,12 +2507,12 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div class="modal-title" id="nutr-manual-title">Quick Add</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">Enter total macros to add directly to this meal</div>
     <div class="input-row">
-      <div><div class="label">kcal</div><input type="number" id="nutr-manual-kcal" placeholder="320" oninput="updateManualPreview()"></div>
-      <div><div class="label">Protein (g)</div><input type="number" id="nutr-manual-protein" placeholder="30" oninput="updateManualPreview()"></div>
+      <div><div class="label">kcal</div><input type="number" inputmode="decimal" id="nutr-manual-kcal" placeholder="320" oninput="updateManualPreview()"></div>
+      <div><div class="label">Protein (g)</div><input type="number" inputmode="decimal" id="nutr-manual-protein" placeholder="30" oninput="updateManualPreview()"></div>
     </div>
     <div class="input-row">
-      <div><div class="label">Carbs (g)</div><input type="number" id="nutr-manual-carbs" placeholder="20" oninput="updateManualPreview()"></div>
-      <div><div class="label">Fats (g)</div><input type="number" id="nutr-manual-fats" placeholder="10" oninput="updateManualPreview()"></div>
+      <div><div class="label">Carbs (g)</div><input type="number" inputmode="decimal" id="nutr-manual-carbs" placeholder="20" oninput="updateManualPreview()"></div>
+      <div><div class="label">Fats (g)</div><input type="number" inputmode="decimal" id="nutr-manual-fats" placeholder="10" oninput="updateManualPreview()"></div>
     </div>
     <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px;margin-bottom:14px;font-size:12px;color:var(--text2);" id="nutr-manual-preview">Total: — kcal · P:—g C:—g F:—g</div>
     <button class="btn btn-accent btn-block" onclick="saveManualEntry()">Add to meal →</button>
@@ -2545,22 +2537,22 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div id="nutr-edit-grams-row" class="input-row">
       <div>
         <div class="label">Amount (g)</div>
-        <input type="number" id="nutr-edit-grams" min="1" oninput="updateEditPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
+        <input type="number" inputmode="decimal" id="nutr-edit-grams" min="1" oninput="updateEditPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
       </div>
       <div>
         <div class="label">Servings</div>
-        <input type="number" id="nutr-edit-servings" min="0.5" step="0.5" value="1" oninput="updateEditPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
+        <input type="number" inputmode="decimal" id="nutr-edit-servings" min="0.5" step="0.5" value="1" oninput="updateEditPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
       </div>
     </div>
     <!-- Manual mode: direct macro inputs -->
     <div id="nutr-edit-manual-row" style="display:none;">
       <div class="input-row" style="margin-bottom:8px;">
-        <div><div class="label">kcal</div><input type="number" id="nutr-edit-manual-kcal" min="0" oninput="updateEditPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;"></div>
-        <div><div class="label">Protein (g)</div><input type="number" id="nutr-edit-manual-protein" min="0" step="0.1" oninput="updateEditPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;"></div>
+        <div><div class="label">kcal</div><input type="number" inputmode="decimal" id="nutr-edit-manual-kcal" min="0" oninput="updateEditPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;"></div>
+        <div><div class="label">Protein (g)</div><input type="number" inputmode="decimal" id="nutr-edit-manual-protein" min="0" step="0.1" oninput="updateEditPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;"></div>
       </div>
       <div class="input-row" style="margin-bottom:14px;">
-        <div><div class="label">Carbs (g)</div><input type="number" id="nutr-edit-manual-carbs" min="0" step="0.1" oninput="updateEditPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;"></div>
-        <div><div class="label">Fats (g)</div><input type="number" id="nutr-edit-manual-fats" min="0" step="0.1" oninput="updateEditPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;"></div>
+        <div><div class="label">Carbs (g)</div><input type="number" inputmode="decimal" id="nutr-edit-manual-carbs" min="0" step="0.1" oninput="updateEditPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;"></div>
+        <div><div class="label">Fats (g)</div><input type="number" inputmode="decimal" id="nutr-edit-manual-fats" min="0" step="0.1" oninput="updateEditPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;"></div>
       </div>
     </div>
     <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px;margin-bottom:14px;font-size:12px;color:var(--text2);" id="nutr-edit-preview">—</div>
@@ -2580,12 +2572,12 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div class="modal-title">Quick Add</div>
     <div style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6;">Log today's totals directly. When a quick log exists for a day, it overrides any meal entries for that day's summary.</div>
     <div class="input-row">
-      <div><div class="label">kcal</div><input type="number" id="qa-kcal" placeholder="1830"></div>
-      <div><div class="label">Protein (g)</div><input type="number" id="qa-protein" placeholder="290"></div>
+      <div><div class="label">kcal</div><input type="number" inputmode="decimal" id="qa-kcal" placeholder="1830"></div>
+      <div><div class="label">Protein (g)</div><input type="number" inputmode="decimal" id="qa-protein" placeholder="290"></div>
     </div>
     <div class="input-row">
-      <div><div class="label">Carbs (g)</div><input type="number" id="qa-carbs" placeholder="100"></div>
-      <div><div class="label">Fats (g)</div><input type="number" id="qa-fats" placeholder="30"></div>
+      <div><div class="label">Carbs (g)</div><input type="number" inputmode="decimal" id="qa-carbs" placeholder="100"></div>
+      <div><div class="label">Fats (g)</div><input type="number" inputmode="decimal" id="qa-fats" placeholder="30"></div>
     </div>
     <button class="btn btn-accent btn-block" onclick="saveNutrQuickAdd()">Save daily totals →</button>
   </div>
@@ -2602,18 +2594,84 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 </div>
 
 <!-- Profile (hidden page — no nav bar entry) -->
-<div class="modal-overlay" id="modal-profile">
-  <div class="modal-sheet" data-modal="modal-profile">
-    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-profile')">✕</button></div>
-    <div class="modal-title">Profile</div>
-    <div class="section-title" style="margin-top:0;">Nutrition</div>
-    <button class="lib-primary-btn" style="width:100%;" onclick="openProfileNutrition()">
-      <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-      Sample day libraries
+<!-- Profile → App preferences (Mode + Theme, moved from the old top-level Appearance section) -->
+<div class="modal-overlay" id="modal-app-preferences">
+  <div class="modal-sheet" data-modal="modal-app-preferences">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-app-preferences')">✕</button></div>
+    <div class="modal-title">App Preferences</div>
+
+    <div class="card" style="margin-bottom:10px;">
+      <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Mode</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Dark is the default. Light reverses the app into a blue-tinted light scheme.</div>
+      <div class="toggle-row" id="mode-toggle-row" style="margin-bottom:0;">
+        <button class="toggle-btn active" data-mode="dark" onclick="setMode('dark')">Dark</button>
+        <button class="toggle-btn" data-mode="light" onclick="setMode('light')">Light</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Theme</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Choose a single accent colour for every page, or let each page have its own colour.</div>
+      <div id="theme-swatch-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Profile → Linked Services -->
+<div class="modal-overlay" id="modal-linked-services">
+  <div class="modal-sheet" data-modal="modal-linked-services">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-linked-services')">✕</button></div>
+    <div class="modal-title">Linked Services</div>
+    <button class="lib-primary-btn" style="width:100%;" onclick="openModal('modal-api-key')">
+      <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      API Key
     </button>
   </div>
 </div>
 
+<!-- Linked Services → Anthropic API key (moved from the old top-level AI Advice section) -->
+<div class="modal-overlay" id="modal-api-key">
+  <div class="modal-sheet" data-modal="modal-api-key">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-api-key')">✕</button></div>
+    <div class="modal-title">Anthropic API Key</div>
+    <div class="card">
+      <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:4px;">Anthropic API key</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.5;">Optional. Enables the "Ask BLOC for advice" feature on the Progress page. Stored only on this device. Get a key at <span style="color:var(--accent);">console.anthropic.com</span> — billed separately from Claude Pro, but each call costs under $0.01.</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="password" id="settings-api-key-input" placeholder="sk-ant-…"
+          style="flex:1;font-size:13px;padding:9px 11px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);font-family:var(--font-mono);">
+        <button onclick="saveApiKey()" class="btn btn-accent" style="padding:9px 14px;white-space:nowrap;">Save</button>
+      </div>
+      <div id="api-key-status" style="font-size:11px;margin-top:6px;color:var(--text3);"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Profile → Danger Zone (moved as-is from the old top-level Danger Zone section) -->
+<!-- Settings → Body Logs (relocated wholesale from the old standalone Body screen —
+     same content, same element IDs, same renderBody() logic; only the container
+     changed from a screen to a modal. Recent Entries was already grouped by
+     month/year before this move. -->
+<div class="modal-overlay" id="modal-settings-body-logs">
+  <div class="modal-sheet" data-modal="modal-settings-body-logs">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-settings-body-logs')">✕</button></div>
+    <div class="modal-title">Body Logs</div>
+    <div id="body-log-list"></div>
+  </div>
+</div>
+
+<!-- Settings → About this app (storage card moved here from the old top-level Storage section) -->
+<div class="modal-overlay" id="modal-settings-about">
+  <div class="modal-sheet" data-modal="modal-settings-about">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-settings-about')">✕</button></div>
+    <div class="modal-title">About This App</div>
+    <div class="card">
+      <div id="storage-info" style="font-size:13px;color:var(--text2);line-height:1.8;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Settings → Nutrition hub -->
 <!-- Profile → Nutrition libraries list -->
 <div class="modal-overlay" id="modal-profile-nutrition">
   <div class="modal-sheet" data-modal="modal-profile-nutrition">
@@ -2843,13 +2901,12 @@ function showScreen(name) {
   document.getElementById('nav-' + name).classList.add('active');
   animateNavPill();
   updateNavPillColor(name);
+  if (name === 'home') renderHome();
   if (name === 'progress') renderProgress();
-  if (name === 'plan') renderPlan();
+  if (name === 'plan') { planDayCollapsed = {}; renderPlan(); }
   if (name === 'train') renderTrain();
-  if (name === 'body') renderBody();
-  if (name === 'nutrition') renderNutrition();
+  if (name === 'nutrition') { nutrSelectedDate = getLocalToday(); renderNutrition(); }
   if (name === 'settings') renderSettings();
-  if (name === 'goals') renderGoals();
 }
 
 // Reads the --hero-1/--hero-2 a given page's hero card would actually use,
@@ -2978,6 +3035,8 @@ function openModal(id) {
       document.getElementById('goal-steps-input').value = '';
       document.getElementById('goal-modal-title').textContent = 'New Goal Period';
       modal._editIdx = undefined;
+      const delBtn = document.getElementById('goal-delete-btn');
+      if (delBtn) delBtn.style.display = 'none';
       prefillGoalLabelForSelectedMacro();
     }
     requestAnimationFrame(() => initGoalMacroSliders(isEditing ? state.goals[modal._editIdx] : null));
@@ -3331,6 +3390,25 @@ function createMacrocycle() {
 
   closeModal('modal-macro');
   renderPlan();
+  maybePromptCreateGoal(id);
+}
+
+// Dismissible nudge shown after saving a macrocycle that has no goal period
+// linked yet — "Not now" just closes it, no forced action. Confirming opens
+// the goal modal pre-selected to this macrocycle.
+function maybePromptCreateGoal(macroId) {
+  const hasGoal = (state.goals || []).some(g => g.macroId === macroId);
+  if (hasGoal) return;
+  showConfirm(
+    'Add a goal?',
+    'This macrocycle has no goal period linked yet. Add one now to set its daily nutrition targets.',
+    'Add goal',
+    () => {
+      openModal('modal-add-goal');
+      const sel = document.getElementById('goal-macro-select');
+      if (sel) { sel.value = macroId; onGoalMacroSelectChange(); }
+    }
+  );
 }
 
 // Adds a new freely-named session (day) to a Custom-split macrocycle being
@@ -3501,6 +3579,7 @@ function setDropsetOptionEnabled(enabled) {
 }
 
 function openAddExercise(week, day) {
+  planDayCollapsed[state.currentMacroId + '_' + day] = false;
   state.currentEditContext = { week, day, editIdx: null };
   document.getElementById('modal-ex-title').textContent = 'Add Exercise';
   populateExerciseSelect(null);
@@ -3521,6 +3600,7 @@ function openAddExercise(week, day) {
 
 // Opens the add-exercise modal pre-configured to join an existing superset on save
 function openAddExerciseToSuperset(day, ssId) {
+  planDayCollapsed[state.currentMacroId + '_' + day] = false;
   state.currentEditContext = { week: 1, day, editIdx: null, pendingSupersetId: ssId };
   document.getElementById('modal-ex-title').textContent = 'Add to superset';
   populateExerciseSelect(null);
@@ -3543,6 +3623,7 @@ function openAddExerciseToSuperset(day, ssId) {
 // Disables the sets/reps inputs for non-leader superset members, since their
 // values are intentionally locked to follow the group leader.
 function openEditExercise(week, day, idx) {
+  planDayCollapsed[state.currentMacroId + '_' + day] = false;
   const key = state.currentMacroId + '_' + week + '_' + day;
   const sorted = (state.exercises[key] || []).slice().sort((a,b) => (a.order||0)-(b.order||0));
   const ex = sorted[idx];
@@ -4348,9 +4429,12 @@ function togglePlanSession(macroId, sessionKey) {
   renderPlan();
 }
 
-// Collapse state for the editable Week 1 day-session cards, keyed by
-// `${macroId}_${day}${microKey}`. Expanded by default (unlike the read-only
-// Weeks 2+ preview above) since this is the primary exercise-editing surface.
+// Collapse override for the editable Week 1 day-session cards, keyed by
+// `${macroId}_${day}${microKey}`. Undefined = use the default rule (expanded
+// while empty, collapsed once at least one exercise exists); an explicit
+// true/false here is a user override (manual toggle, or auto-set while
+// actively adding/editing an exercise in that session) that wins over the
+// default until this map is reset fresh on the next visit to the Plan tab.
 // Collapsing only hides the exercise rows/drag targets for that one day —
 // drag-to-reorder is already scoped per-day, so a collapsed day simply has
 // no rows in the DOM to drag until it's expanded again.
@@ -4362,7 +4446,9 @@ let planDayCollapsed = {};
 // draggable in it until it's reopened.
 function togglePlanDaySession(macroId, dayKey) {
   const key = macroId + '_' + dayKey;
-  planDayCollapsed[key] = !planDayCollapsed[key];
+  const exercises = state.exercises[macroId + '_1_' + dayKey] || [];
+  const currentlyCollapsed = planDayCollapsed[key] !== undefined ? planDayCollapsed[key] : exercises.length > 0;
+  planDayCollapsed[key] = !currentlyCollapsed;
   renderPlan();
 }
 
@@ -6269,7 +6355,7 @@ function renderProgress() {
         <div style="display:flex;gap:8px;margin-bottom:8px;">
           <div style="flex:1;">
             <div style="font-size:10px;color:var(--text3);margin-bottom:3px;">Target weight (optional)</div>
-            <input type="number" step="0.1" placeholder="${rec.latestBw || '—'} lbs"
+            <input type="number" step="0.1" inputmode="decimal" placeholder="${rec.latestBw || '—'} lbs"
               value="${_nextCycleOverride.targetWeight !== null ? _nextCycleOverride.targetWeight : ''}"
               onchange="updateNextCycleOverride('targetWeight', this.value)"
               style="width:100%;font-size:13px;padding:7px 8px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
@@ -6777,12 +6863,15 @@ function renderProgressCycleGoals() {
   const macro = resolveProgressMacro();
   if (!macro) { el.innerHTML = ''; return; }
 
+  const today = getLocalToday();
+  // Restricted to active + upcoming — past goal periods for this cycle are
+  // no longer shown here (full history, past included, still lives on the
+  // Plan page's goals section).
   const goals = (state.goals || [])
-    .filter(g => g.macroId === macro.id)
+    .filter(g => g.macroId === macro.id && g.endDate >= today)
     .sort((a, b) => a.startDate.localeCompare(b.startDate));
   if (!goals.length) { el.innerHTML = ''; return; }
 
-  const today = getLocalToday();
   const activeIdx = goals.findIndex(g => g.startDate <= today && g.endDate >= today);
   const nextUpcoming = goals.filter(g => g.startDate > today).sort((a, b) => a.startDate.localeCompare(b.startDate))[0] || null;
 
@@ -9694,11 +9783,11 @@ function saveGoalAndAdvanceQueue() {
     _goalQueue = null;
     closeModal('modal-add-goal');
     _resetGoalModal();
-    renderGoals();
+    renderPlanGoalsSection();
     renderProgress();
     showConfirm(
       'Plan saved ✓',
-      'All goal periods from this plan have been saved. You can edit them individually from the Goals page.',
+      'All goal periods from this plan have been saved. You can edit them individually from the Plan tab.',
       'Great',
       () => {}
     );
@@ -10158,6 +10247,7 @@ function renderPlan() {
 
   if (!macro) {
     overviewEl.innerHTML = '';
+    document.getElementById('plan-goals-section').innerHTML = '';
     contentEl.innerHTML = `<div class="empty-state" onclick="openModal('modal-macro')" style="cursor:pointer;">
       <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
       <p>Tap here to start building your 8-week plan.</p>
@@ -10294,6 +10384,98 @@ function renderPlan() {
   contentEl.innerHTML = html;
   requestAnimationFrame(() => initSwipeRows(document.getElementById('plan-content')));
   initSwipeRows(document.getElementById('macro-overview'));
+  renderPlanGoalsSection(macro);
+}
+
+// ── Plan page: goals section ─────────────────────────────────────────────
+// Below the macrocycle hero card — a "+ Build goals" button (opens the same
+// goal modal the old Goals tab used) plus every goal period belonging to
+// THIS macro, in the same row layout Progress's cycle-goals list uses.
+// Expanded by default; collapsible; each row taps to edit and swipes to
+// delete. Collapse state (unlike the per-session ones above) is a simple
+// persistent toggle, not reset on nav.
+let planGoalsSectionCollapsed = false;
+
+function togglePlanGoalsSection() {
+  planGoalsSectionCollapsed = !planGoalsSectionCollapsed;
+  renderPlanGoalsSection();
+}
+
+function renderPlanGoalsSection() {
+  const el = document.getElementById('plan-goals-section');
+  if (!el) return;
+  const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
+  if (!macro) { el.innerHTML = ''; return; }
+
+  const goals = (state.goals || [])
+    .filter(g => g.macroId === macro.id)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate));
+
+  const today = getLocalToday();
+  const activeIdx = goals.findIndex(g => g.startDate <= today && g.endDate >= today);
+  const nextUpcoming = goals.filter(g => g.startDate > today).sort((a, b) => a.startDate.localeCompare(b.startDate))[0] || null;
+
+  // "Next up" subtitle for whichever goal is next upcoming — identical logic
+  // to renderProgressCycleGoals(), so the two stay in lockstep.
+  let nextUpSubtitle = '';
+  if (nextUpcoming) {
+    const todayDate = new Date(today + 'T00:00:00');
+    const startDateObj = new Date(nextUpcoming.startDate + 'T00:00:00');
+    const daysUntil = Math.round((startDateObj - todayDate) / 86400000);
+    const switchDate = new Date(startDateObj); switchDate.setDate(switchDate.getDate() - 6);
+    if (today < toLocalDateStr(switchDate)) {
+      nextUpSubtitle = `Next up: starting in ${daysUntil} day${daysUntil !== 1 ? 's' : ''}`;
+    } else {
+      const weekdayName = startDateObj.toLocaleDateString('en-GB', { weekday: 'long' });
+      nextUpSubtitle = `Next up: starting ${weekdayName}`;
+    }
+  }
+
+  const rows = goals.map((g, idx) => {
+    const isActive = idx === activeIdx;
+    const isNextUpcoming = nextUpcoming && g.macroGoalID === nextUpcoming.macroGoalID;
+    const accent = isActive ? 'var(--accent)' : isNextUpcoming ? 'var(--red)' : 'transparent';
+    const label = g._blocLabel || g.label || 'Goal';
+    const targets = [
+      g.kcal    ? `${g.kcal.toLocaleString()} kcal` : null,
+      g.protein ? `${g.protein}g protein` : null,
+      g.carbs   ? `${g.carbs}g carbs` : null,
+      g.fats    ? `${g.fats}g fats` : null,
+      g.steps   ? `${parseInt(g.steps).toLocaleString()} steps` : null,
+    ].filter(Boolean).join(' · ');
+    return `<div class="swipe-row-wrap" data-goal-id="${g.macroGoalID}" style="border-radius:6px;margin-bottom:6px;">
+      <div class="swipe-row-content" style="padding:0;">
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-left:3px solid ${accent};background:var(--surface2);border-radius:6px;cursor:pointer;width:100%;box-sizing:border-box;" onclick="openEditGoal('${g.macroGoalID}')">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${label}</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:1px;">${formatDate(g.startDate)} – ${formatDate(g.endDate)}</div>
+            ${isNextUpcoming && nextUpSubtitle ? `<div style="font-size:10px;color:var(--red);margin-top:2px;font-weight:600;">${nextUpSubtitle}</div>` : ''}
+          </div>
+          <div style="font-size:11px;color:var(--text2);text-align:right;flex-shrink:0;max-width:58%;">${targets || '—'}</div>
+        </div>
+      </div>
+      <div class="swipe-actions">
+        <button class="swipe-btn swipe-btn-danger" onclick="event.stopPropagation();deleteGoal('${g.macroGoalID}')" title="Delete">
+          <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `<div class="card" style="margin-bottom:14px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${goals.length ? '10px' : '0'};">
+      <div class="section-title" style="margin:0;">Goals</div>
+      <button class="btn btn-sm" onclick="openModal('modal-add-goal');document.getElementById('goal-macro-select').value='${macro.id}';onGoalMacroSelectChange();">+ Build goals</button>
+    </div>
+    ${goals.length ? `
+      <div onclick="togglePlanGoalsSection()" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent;margin-bottom:${planGoalsSectionCollapsed?'0':'8px'};">
+        <div style="font-size:11px;color:var(--text3);">${goals.length} goal period${goals.length !== 1 ? 's' : ''}</div>
+        <svg viewBox="0 0 24 24" width="14" height="14" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${planGoalsSectionCollapsed?'0':'180'}deg)"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      ${planGoalsSectionCollapsed ? '' : rows}
+    ` : `<div style="font-size:12px;color:var(--text3);">No goal periods yet for this macrocycle.</div>`}
+  </div>`;
+  requestAnimationFrame(() => initSwipeRows(el));
 }
 
 // Cycle-wide MIN/MAX training volume per body part, assuming a single
@@ -10395,7 +10577,14 @@ function renderMicroBlock(macro, week, micro, days, dayLabels) {
     const exercises = (state.exercises[templateKey] || []).slice().sort((a,b) => (a.order||0)-(b.order||0));
     const dayKey = day + microKey;
     const dayCollapseKey = macro.id + '_' + dayKey;
-    const isCollapsed = !!planDayCollapsed[dayCollapseKey];
+    // No explicit override yet this Plan visit → default to collapsed once
+    // the session has at least one exercise (nothing to hide before that).
+    // An explicit override (from a manual toggle, or from opening the
+    // add/edit-exercise modal for this day) always wins over the default,
+    // and lasts until the next time this tab is navigated to fresh.
+    const isCollapsed = planDayCollapsed[dayCollapseKey] !== undefined
+      ? planDayCollapsed[dayCollapseKey]
+      : exercises.length > 0;
     const dayLabelSpanId = 'day-label-' + macro.id + '-' + dayKey;
 
     // Week-1 totals shown in the header — sets and volume are summed across
@@ -10595,6 +10784,7 @@ function saveEditMacro() {
   save();
   closeModal('modal-edit-macro');
   renderPlan();
+  maybePromptCreateGoal(id);
 }
 
 // Toggles the weight-increment row visibility when goalType changes in either
@@ -10714,6 +10904,586 @@ function deleteMacrocycle(id) {
 }
 
 // ════════════════════════════════════════════════
+// RENDER: HOME
+// ════════════════════════════════════════════════
+// Home is the app's default landing screen — a single-glance summary of
+// this week's nutrition pace, an upcoming-goal heads up, quick-log
+// shortcuts, and previews of today's planned food and next training
+// session. It deliberately does no data-entry itself beyond the three
+// quick-log modals below; everything else is a jumping-off point to the
+// page that actually owns that data.
+//
+// NOTE (temporary, until Job 2/Job 3 ship): the goal-banner tap-through
+// currently lands on the Goals page, and the "Edit today's logs" link
+// currently lands on the Body page, since neither Job 2 (goals folded
+// into Plan) nor Job 3 (Body folded into Settings) exists yet. Both are
+// marked below and should be repointed once those land.
+
+const HOME_STEPS_TOLERANCE = 500;
+
+// Polarity of each metric — whether being ABOVE or BELOW the weekly target
+// is the "bad" direction for badge colouring. 'both' = bad either way
+// (kcal). 'underBad' = only bad if short (protein, steps — exceeding is
+// fine/good). 'overBad' = only bad if over (carbs — under is fine).
+const HOME_METRIC_POLARITY = { kcal: 'both', protein: 'underBad', carbs: 'overBad', steps: 'underBad' };
+
+// Tolerance band width per metric, reusing the exact same bands the
+// qualifying-nutrition-day logic uses (see SAVE_DAY_TOLERANCE), plus a
+// steps-specific band since SAVE_DAY_TOLERANCE has no steps entry.
+function getHomeMetricTolerance(field) {
+  if (field === 'kcal') return SAVE_DAY_TOLERANCE.kcal;
+  if (field === 'protein') return SAVE_DAY_TOLERANCE.proteinLow;
+  if (field === 'carbs') return SAVE_DAY_TOLERANCE.carbs;
+  if (field === 'steps') return HOME_STEPS_TOLERANCE;
+  return 0;
+}
+
+// The Monday that starts the calendar week containing dateStr, as a date
+// string. Built the same DST-safe way the rest of the app computes dates —
+// construct from a local midnight Date, then use setDate() (never raw ms
+// arithmetic), and read back through toLocalDateStr().
+function getHomeWeekStart(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const dow = d.getDay(); // 0 = Sunday .. 6 = Saturday
+  const diffToMonday = dow === 0 ? 6 : dow - 1;
+  d.setDate(d.getDate() - diffToMonday);
+  return toLocalDateStr(d);
+}
+
+// ISO day-of-week for a date string: Monday = 1 .. Sunday = 7.
+function getHomeIsoDow(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const dow = d.getDay();
+  return dow === 0 ? 7 : dow;
+}
+
+// Badge label + colour class for one metric this week, given the qualifying-
+// days average and the goal's target. avg may be null (nothing logged yet
+// this week) — shown as a neutral "No data" badge rather than guessing.
+function getHomeMetricBadge(field, avg, target) {
+  if (avg === null || target === null || target === undefined) {
+    return { label: 'No data', cls: '' , bg: 'rgba(255,255,255,0.12)', color: '#eef3f8' };
+  }
+  const tol = getHomeMetricTolerance(field);
+  const polarity = HOME_METRIC_POLARITY[field] || 'both';
+  const under = avg < target - tol;
+  const over  = avg > target + tol;
+  let label, isBad;
+  if (under)      { label = 'Falling behind'; isBad = polarity !== 'overBad'; }
+  else if (over)  { label = 'Exceeding';      isBad = polarity !== 'underBad'; }
+  else            { label = 'On track';       isBad = false; }
+  return isBad
+    ? { label, bg: '#FCEBEB', color: '#501313' }
+    : { label, bg: '#E1F5EE', color: '#085041' };
+}
+
+// Builds the "adjust your daily avg by X for the rest of the week" (or, on
+// the week's final day, the exact "hit X today") sublabel for one metric.
+// See the code comment inline below for why the Sunday case needs no
+// special branch — the general formula collapses to it naturally.
+function getHomeMetricSublabel(field, dayMap, weekStart, today, target, unit) {
+  if (target === null || target === undefined) return '';
+  const dow = getHomeIsoDow(today); // Monday=1 .. Sunday=7
+  const daysRemaining = 8 - dow;    // today + whatever's left in the week
+  // Sum actual logged totals for every day strictly BEFORE today in this
+  // week (days with no log contribute nothing — they haven't happened yet
+  // from a "budget used so far" point of view).
+  const yesterday = (() => {
+    const d = new Date(today + 'T00:00:00');
+    d.setDate(d.getDate() - 1);
+    return toLocalDateStr(d);
+  })();
+  let loggedSoFar = 0;
+  Object.keys(dayMap).forEach(d => {
+    if (d >= weekStart && d <= yesterday) {
+      const day = dayMap[d];
+      const hasField = field === 'steps' ? day.steps !== null : day.hasNutr;
+      if (hasField) loggedSoFar += (day[field] || 0);
+    }
+  });
+  const neededTotal = target * 7;
+  const remainingBudget = neededTotal - loggedSoFar;
+  const requiredDaily = daysRemaining > 0 ? remainingBudget / daysRemaining : 0;
+  const rounded = Math.round(requiredDaily);
+  if (daysRemaining <= 1) {
+    return `Hit ${rounded.toLocaleString()}${unit} today to bring the week to target`;
+  }
+  const delta = rounded - target;
+  if (Math.abs(delta) < 1) return 'On pace for the week';
+  const sign = delta > 0 ? '+' : '';
+  return `Adjust your daily avg by ${sign}${delta.toLocaleString()}${unit} for the rest of the week to hit target`;
+}
+
+// Top-level render for the Home screen — calls each section renderer.
+function renderHome() {
+  renderHomeHero();
+  renderHomeGoalBanner();
+  renderHomeLogBoxes();
+  renderHomeEditLogsLink();
+  renderHomeFoodPreview();
+  renderHomeTrainPreview();
+}
+
+function renderHomeHero() {
+  const el = document.getElementById('home-hero-card');
+  if (!el) return;
+  const today = getLocalToday();
+  const weekStart = getHomeWeekStart(today);
+  const goal = getActiveGoal();
+  const dayMap = buildDayMap();
+
+  const metrics = [
+    { field: 'kcal',    name: 'Kcal',    unit: '',  fmt: v => v.toLocaleString() },
+    { field: 'protein', name: 'Protein', unit: 'g', fmt: v => v.toLocaleString() },
+    { field: 'carbs',   name: 'Carbs',   unit: 'g', fmt: v => v.toLocaleString() },
+    { field: 'steps',   name: 'Steps',   unit: '',  fmt: v => v.toLocaleString() },
+  ];
+
+  const rowsHtml = metrics.map(m => {
+    const avg = avgDayMapField(dayMap, m.field, weekStart, today);
+    const target = goal ? goal[m.field] : null;
+    const badge = getHomeMetricBadge(m.field, avg, target);
+    const valsStr = target !== null && target !== undefined
+      ? `${avg !== null ? m.fmt(avg) : '—'}${m.unit} avg / ${m.fmt(target)}${m.unit} target`
+      : `${avg !== null ? m.fmt(avg) : '—'}${m.unit} avg / no active goal`;
+    const sublabel = (goal && avg !== null && badge.label !== 'On track')
+      ? getHomeMetricSublabel(m.field, dayMap, weekStart, today, target, m.unit)
+      : '';
+    return `<div class="home-target-row">
+      <div class="home-target-name">${m.name}</div>
+      <div class="home-target-vals">${valsStr}</div>
+      <div class="badge" style="background:${badge.bg};color:${badge.color};flex-shrink:0;">${badge.label}</div>
+    </div>${sublabel ? `<div class="home-sublabel">${sublabel}</div>` : ''}`;
+  }).join('');
+
+  el.innerHTML = `<div class="hero-card" data-page="home">
+    <div class="hero-label">This week</div>
+    ${rowsHtml}
+  </div>`;
+}
+
+// Shows an upcoming-goal heads-up only when the NEXT genuinely different
+// goal (i.e. one whose targets actually change from what's active today)
+// starts within the next 6 days (so it first appears the Tuesday before a
+// Monday start, not the Monday itself). A macrocycle's future weeks are
+// often already scheduled in state.goals as separate entries — most of
+// those are just the current goal continuing unchanged, and shouldn't be
+// announced as "a new goal starting soon". Since every goal is Monday-
+// aligned, this only ever fires with a start date that's either "tomorrow"
+// (only possible if today is Sunday) or "next Monday" some other day.
+function renderHomeGoalBanner() {
+  const el = document.getElementById('home-goal-banner');
+  if (!el) return;
+  const today = getLocalToday();
+  const active = getActiveGoal();
+  const future = (state.goals || [])
+    .filter(g => g.startDate > today)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate));
+
+  const targetsMatch = (a, b) => a.kcal === b.kcal && a.protein === b.protein && a.carbs === b.carbs && a.fats === b.fats && a.steps === b.steps;
+  const upcoming = active ? future.find(g => !targetsMatch(g, active)) : future[0];
+
+  if (!upcoming) { el.innerHTML = ''; return; }
+
+  const daysAway = Math.round((new Date(upcoming.startDate + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000);
+  if (daysAway > 6) { el.innerHTML = ''; return; }
+
+  const isTomorrow = daysAway === 1; // only possible when today is Sunday
+  const headline = isTomorrow ? "Your new goal starts tomorrow!" : "Your new goal starts on Monday";
+
+  // Resolve a display label the same way the Goals list does: the goal's
+  // own label (manual goals) falling back to its BLOC-generated label
+  // (goals created via the advice flow), prefixed with its step number
+  // within its macro's goal sequence — only when that macro has more than
+  // one step AND the stored label doesn't already carry its own "Step N"
+  // prefix (BLOC-generated labels for multi-step plans often already do,
+  // and double-prefixing reads as "Step 4: Step 4 - Hard Cut...").
+  const macroGoals = (state.goals || []).filter(g => g.macroId === upcoming.macroId).sort((a,b) => a.startDate.localeCompare(b.startDate));
+  const stepIdx = macroGoals.findIndex(g => g === upcoming);
+  const labelText = upcoming.label || upcoming._blocLabel || 'Goal';
+  const labelAlreadyHasStep = /^step\s*\d+/i.test(labelText.trim());
+  const stepPrefix = (macroGoals.length > 1 && !labelAlreadyHasStep) ? `Step ${stepIdx + 1}: ` : '';
+
+  // Compare against the currently active goal and show only what's
+  // actually changing, rather than the new goal's full breakdown —
+  // unchanged fields add nothing worth reading in a heads-up banner.
+  const fieldsMeta = [
+    { key: 'kcal',    unit: ' kcal',    fmt: v => v.toLocaleString() },
+    { key: 'protein', unit: 'g protein', fmt: v => v },
+    { key: 'carbs',   unit: 'g carbs',   fmt: v => v },
+    { key: 'fats',    unit: 'g fats',    fmt: v => v },
+    { key: 'steps',   unit: ' steps',   fmt: v => v.toLocaleString() },
+  ];
+  let changesStr;
+  if (active) {
+    const changes = fieldsMeta
+      .filter(f => active[f.key] !== upcoming[f.key])
+      .map(f => `${f.fmt(active[f.key])}${f.unit} → ${f.fmt(upcoming[f.key])}${f.unit}`);
+    changesStr = changes.length ? changes.join(' · ') : 'No changes to targets';
+  } else {
+    changesStr = fieldsMeta.map(f => `${f.fmt(upcoming[f.key])}${f.unit}`).join(' · ');
+  }
+  const preview = `${stepPrefix}${labelText} · ${changesStr}`;
+
+  // Routes to the Plan page (now that Job 2 folds goal display into it),
+  // switching to this goal's own macrocycle first so its row is guaranteed
+  // to be visible, then briefly flashing that row's border.
+  el.innerHTML = `<div class="home-goal-banner" onclick="goToPlanAndFlashGoal('${upcoming.macroGoalID}')">
+    <div>
+      <div class="home-goal-banner-text">${headline}</div>
+      <div class="home-goal-banner-sub">${preview}</div>
+    </div>
+    <div style="font-size:16px;color:var(--text3);flex-shrink:0;">→</div>
+  </div>`;
+}
+
+// Switches to the given goal's own macrocycle (so its row is guaranteed to
+// render even if a different cycle was last shown on Plan), ensures the
+// goals section is expanded, navigates to Plan, then briefly flashes that
+// goal's row border once it's painted.
+function goToPlanAndFlashGoal(macroGoalID) {
+  const g = (state.goals || []).find(x => x.macroGoalID === macroGoalID);
+  if (g) state.currentMacroId = g.macroId;
+  planGoalsSectionCollapsed = false;
+  showScreen('plan');
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const row = document.querySelector(`[data-goal-id="${macroGoalID}"]`);
+    if (!row) return;
+    row.classList.add('goal-flash');
+    setTimeout(() => row.classList.remove('goal-flash'), 1500);
+  }));
+}
+
+// Three quick-log icons (weight / measurements / steps). Each disappears
+// once today's log for that field is already present — flexbox handles the
+// width redistribution automatically since we simply don't render the icon,
+// no manual width math needed.
+// Three inline log boxes, reinstating the old Body-page "disappears once
+// logged" pattern (see saveInlineBodyLog(), historically) — weight and
+// steps each show a simple input box every day until that field is logged
+// for today, then hide. Measurements works differently: it's a periodic
+// nag rather than a daily one, showing only once at least 4 days have
+// passed since the last waist/hip log (or none have ever been logged),
+// and persisting — not just for "today" — until a fresh measurement is
+// logged, at which point the 4-day countdown restarts from that date.
+function renderHomeLogBoxes() {
+  const el = document.getElementById('home-log-boxes');
+  if (!el) return;
+  const today = getLocalToday();
+  const todayLog = (state.bodyLogs || []).find(l => l.date === today);
+  const hasWeight = !!(todayLog && todayLog.weight !== null && todayLog.weight !== undefined);
+  const dayMap = buildDayMap();
+  const hasSteps = !!(dayMap[today] && dayMap[today].steps !== null);
+
+  const measLogs = (state.bodyLogs || [])
+    .filter(l => l.waist || l.hip)
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const daysSinceMeas = measLogs.length
+    ? Math.floor((new Date(today + 'T00:00:00') - new Date(measLogs[0].date + 'T00:00:00')) / 86400000)
+    : Infinity; // never logged — show immediately rather than waiting on an undefined "since"
+  const showMeasurements = daysSinceMeas >= 4;
+
+  let html = '';
+
+  if (!hasWeight) {
+    html += `<div class="card" style="margin-bottom:10px;">
+      <h3 style="margin-bottom:10px;">Log weigh-in</h3>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="number" inputmode="decimal" step="0.1" id="home-weight-input" placeholder="e.g. 182.4" style="flex:1;font-size:15px;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+        <span style="font-size:13px;color:var(--text2);">lbs</span>
+        <button class="btn btn-accent" onclick="saveHomeWeight()" style="padding:10px 16px;">Save</button>
+      </div>
+    </div>`;
+  }
+
+  if (!hasSteps) {
+    html += `<div class="card" style="margin-bottom:10px;">
+      <h3 style="margin-bottom:10px;">Log steps</h3>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="number" inputmode="numeric" id="home-steps-input" placeholder="e.g. 8500" style="flex:1;font-size:15px;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+        <button class="btn btn-accent" onclick="saveHomeSteps()" style="padding:10px 16px;">Save</button>
+      </div>
+    </div>`;
+  }
+
+  if (showMeasurements) {
+    // Exactly the same fields/ids as the old modal-home-log-measurements
+    // (now removed) — just inlined directly into the screen rather than
+    // behind a tap.
+    html += `<div class="card" style="margin-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span style="font-size:12px;color:var(--amber);font-weight:500;">It has been 4 days since you last recorded your measurements.</span>
+      </div>
+      <div class="toggle-row" style="margin-bottom:12px;width:auto;display:inline-flex;">
+        <button class="toggle-btn active" id="home-meas-unit-in" onclick="setHomeMeasUnit('in')" style="padding:5px 14px;font-size:12px;">in</button>
+        <button class="toggle-btn" id="home-meas-unit-cm" onclick="setHomeMeasUnit('cm')" style="padding:5px 14px;font-size:12px;">cm</button>
+      </div>
+      <div id="home-meas-fields-in">
+        <div style="margin-bottom:12px;">
+          <div class="label">Waist (in)</div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input type="number" inputmode="numeric" id="home-body-waist-whole" min="0" max="99" placeholder="33" style="width:58px;flex-shrink:0;text-align:center;">
+            <div class="toggle-row" style="margin:0;flex:1;display:inline-flex;">
+              <button class="toggle-btn active" onclick="setHomeFrac('waist',0)" id="home-waist-frac-0" style="flex:1;padding:9px 2px;font-size:13px;">0</button>
+              <button class="toggle-btn" onclick="setHomeFrac('waist',0.25)" id="home-waist-frac-25" style="flex:1;padding:9px 2px;font-size:13px;">¼</button>
+              <button class="toggle-btn" onclick="setHomeFrac('waist',0.5)" id="home-waist-frac-50" style="flex:1;padding:9px 2px;font-size:13px;">½</button>
+              <button class="toggle-btn" onclick="setHomeFrac('waist',0.75)" id="home-waist-frac-75" style="flex:1;padding:9px 2px;font-size:13px;">¾</button>
+            </div>
+          </div>
+        </div>
+        <div style="margin-bottom:10px;">
+          <div class="label">Hip (in)</div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input type="number" inputmode="numeric" id="home-body-hip-whole" min="0" max="99" placeholder="38" style="width:58px;flex-shrink:0;text-align:center;">
+            <div class="toggle-row" style="margin:0;flex:1;display:inline-flex;">
+              <button class="toggle-btn active" onclick="setHomeFrac('hip',0)" id="home-hip-frac-0" style="flex:1;padding:9px 2px;font-size:13px;">0</button>
+              <button class="toggle-btn" onclick="setHomeFrac('hip',0.25)" id="home-hip-frac-25" style="flex:1;padding:9px 2px;font-size:13px;">¼</button>
+              <button class="toggle-btn" onclick="setHomeFrac('hip',0.5)" id="home-hip-frac-50" style="flex:1;padding:9px 2px;font-size:13px;">½</button>
+              <button class="toggle-btn" onclick="setHomeFrac('hip',0.75)" id="home-hip-frac-75" style="flex:1;padding:9px 2px;font-size:13px;">¾</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="home-meas-fields-cm" style="display:none;">
+        <div style="margin-bottom:12px;">
+          <div class="label">Waist (cm)</div>
+          <input type="number" inputmode="decimal" id="home-body-waist-cm" step="0.1" placeholder="84.5">
+        </div>
+        <div style="margin-bottom:10px;">
+          <div class="label">Hip (cm)</div>
+          <input type="number" inputmode="decimal" id="home-body-hip-cm" step="0.1" placeholder="97">
+        </div>
+      </div>
+      <button class="btn btn-accent btn-block" onclick="saveHomeMeasurements()">Save →</button>
+    </div>`;
+  }
+
+  el.innerHTML = html;
+  if (showMeasurements) initHomeMeasBox();
+}
+
+// Sets the measurements box's unit toggle to the person's last-used unit
+// (defaulting to inches) and resets the fraction pickers to 0 — mirrors
+// what the old modal's open handler used to do, just run inline after
+// every render instead of on a modal-open event.
+function initHomeMeasBox() {
+  const unit = (state.profile && state.profile.measureUnit) || 'in';
+  setHomeMeasUnit(unit);
+  setHomeFrac('waist', 0);
+  setHomeFrac('hip', 0);
+}
+
+// Deep-links to Settings' Body Logs modal, then straight into today's own
+// entry (see openTodaysBodyLogModal) — the Body screen itself no longer
+// exists as a nav destination.
+function renderHomeEditLogsLink() {
+  const el = document.getElementById('home-edit-logs-link');
+  if (!el) return;
+  el.innerHTML = `<div class="home-edit-logs-link" onclick="showScreen('settings');openTodaysBodyLogModal();"><span>Edit today's logs →</span></div>`;
+}
+
+// Groups today's planned food into recipes (summed servings) and
+// non-recipe items (summed grams) — no meal grouping, no calorie info,
+// per the spec. Rows are ordered by each item's earliest meal appearance
+// (Breakfast → Lunch → Dinner → Snacks), so an item spanning two meals
+// sorts ahead of anything only appearing in the later of those two meals.
+// Always renders the card, with an explicit empty state.
+function renderHomeFoodPreview() {
+  const el = document.getElementById('home-food-preview');
+  if (!el) return;
+  const today = getLocalToday();
+  const meals = getNutrDayMeals(today);
+  const mealOrder = ['Breakfast', 'Lunch', 'Dinner', 'Snacks'];
+
+  const recipeTotals = {};
+  const foodTotals = {};
+  const firstMealIndex = {};
+  mealOrder.forEach((mealName, mealIdx) => {
+    (meals[mealName] || []).forEach(item => {
+      const isRecipe = item.source === 'recipe' || item.isRecipe;
+      const name = item.name || 'Unnamed item';
+      const key = (isRecipe ? 'r:' : 'f:') + name;
+      if (firstMealIndex[key] === undefined) firstMealIndex[key] = mealIdx;
+      if (isRecipe) {
+        recipeTotals[name] = (recipeTotals[name] || 0) + (item.servings || 1);
+      } else {
+        const grams = item.grams || item.serving || 0;
+        foodTotals[name] = (foodTotals[name] || 0) + grams * (item.servings || 1);
+      }
+    });
+  });
+
+  const combined = [
+    ...Object.entries(recipeTotals).map(([name, servings]) => ({
+      name, mealIdx: firstMealIndex['r:' + name],
+      html: `<div class="home-food-row"><span>${name}</span><span class="home-row-sub">${servings} serving${servings !== 1 ? 's' : ''}</span></div>`,
+    })),
+    ...Object.entries(foodTotals).map(([name, grams]) => ({
+      name, mealIdx: firstMealIndex['f:' + name],
+      html: `<div class="home-food-row"><span>${name}</span><span class="home-row-sub">${Math.round(grams)}g</span></div>`,
+    })),
+  ].sort((a, b) => a.mealIdx - b.mealIdx);
+
+  const rows = combined.map(r => r.html).join('');
+
+  el.innerHTML = `<div class="card" style="cursor:pointer;" onclick="showScreen('nutrition')">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div class="section-title" style="margin:0;">Planned food today</div>
+      <div class="home-card-link" onclick="showScreen('nutrition')">Open →</div>
+    </div>
+    ${rows || `<div style="font-size:12px;color:var(--text3);">Nothing planned for today.</div>`}
+  </div>`;
+}
+
+// Single-row-per-exercise preview of the next incomplete training session —
+// name and expected sets × reps only, no set type, no last-progression data.
+function renderHomeTrainPreview() {
+  const el = document.getElementById('home-train-preview');
+  if (!el) return;
+  const macro = (state.macrocycles || []).find(m => m.id === state.currentMacroId);
+
+  if (!macro) {
+    el.innerHTML = `<div class="card" style="cursor:pointer;" onclick="showScreen('plan')">
+      <div class="section-title" style="margin:0 0 8px;">Next session</div>
+      <div style="font-size:12px;color:var(--text3);">Create a macrocycle in the Plan tab first.</div>
+    </div>`;
+    return;
+  }
+
+  const next = getNextIncompleteSession(macro);
+  if (!next) {
+    el.innerHTML = `<div class="card" style="cursor:pointer;" onclick="trainManualSelect=false;showScreen('train')">
+      <div class="section-title" style="margin:0 0 8px;">Next session</div>
+      <div style="font-size:12px;color:var(--text3);">All sessions complete for this cycle.</div>
+    </div>`;
+    return;
+  }
+
+  const templateKey = macro.id + '_1_' + next.dayKey;
+  const exercises = (state.exercises[templateKey] || []).slice().sort((a,b) => (a.order||0)-(b.order||0));
+  const rows = exercises.map(ex => {
+    const sets = getWeekSets(ex, next.week, macro.weeks);
+    const weight = getWeekWeight(ex, next.week, 'weight', macro.goalType, macro.weightIncrement);
+    return `<div class="home-ex-row"><span>${ex.name}</span><span class="home-row-sub">${sets} × ${ex.reps} @ ${weight.toFixed(1)}kg</span></div>`;
+  }).join('');
+
+  const useMicro = macro.useMicrocycles !== false;
+  const dayLabels = macro.dayLabels || { push:'Push', pull:'Pull', legs:'Legs' };
+  const dayId = useMicro ? next.dayKey.replace(/m[12]$/, '') : next.dayKey;
+  const microSuffix = useMicro ? (' ' + (next.dayKey.endsWith('m1') ? 'M1' : 'M2')) : '';
+  const sessionName = (dayLabels[dayId] || dayId) + microSuffix;
+
+  el.innerHTML = `<div class="card" style="cursor:pointer;" onclick="trainManualSelect=false;showScreen('train')">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div class="section-title" style="margin:0;">Next session – ${sessionName}</div>
+      <div class="home-card-link" onclick="trainManualSelect=false;showScreen('train')">Open →</div>
+    </div>
+    ${rows || `<div style="font-size:12px;color:var(--text3);">No exercises defined for this session yet.</div>`}
+  </div>`;
+}
+
+// ── Inline log boxes (Home) ─────────────────────────────────────────────
+// Deliberately separate from the full modal-body-log editor (which still
+// covers date, weight, steps, and measurements together) — each of these
+// touches only the one field it's named for, and always preserves whatever
+// else is already logged for today rather than clobbering it. No open*
+// functions here any more (v7.53) — these render inline on Home itself
+// rather than behind a modal; see renderHomeLogBoxes().
+
+function saveHomeWeight() {
+  const today = getLocalToday();
+  const val = document.getElementById('home-weight-input').value;
+  if (!val) return;
+  const idx = (state.bodyLogs || []).findIndex(l => l.date === today);
+  const existing = idx >= 0 ? state.bodyLogs[idx] : null;
+  const entry = {
+    date: today,
+    weight: parseFloat(val) || null,
+    steps: existing ? existing.steps : null,
+    waist: existing ? existing.waist : null,
+    hip:   existing ? existing.hip   : null,
+  };
+  if (idx >= 0) state.bodyLogs[idx] = entry; else state.bodyLogs.push(entry);
+  save();
+  renderHome();
+}
+
+function saveHomeSteps() {
+  const today = getLocalToday();
+  const val = document.getElementById('home-steps-input').value;
+  if (!val) return;
+  const idx = (state.bodyLogs || []).findIndex(l => l.date === today);
+  const existing = idx >= 0 ? state.bodyLogs[idx] : null;
+  const entry = {
+    date: today,
+    weight: existing ? existing.weight : null,
+    steps: parseInt(val) || null,
+    waist: existing ? existing.waist : null,
+    hip:   existing ? existing.hip   : null,
+  };
+  if (idx >= 0) state.bodyLogs[idx] = entry; else state.bodyLogs.push(entry);
+  save();
+  renderHome();
+}
+
+// Measurements box keeps its own unit toggle + quarter-inch fraction
+// state, separate from the full body-log modal's (fracState/setMeasUnit),
+// since both sets of inputs can exist in the DOM under different IDs at
+// once (this box and modal-body-log's own measurement fields).
+const homeFracState = { waist: 0, hip: 0 };
+
+function setHomeMeasUnit(unit) {
+  state.profile = state.profile || {};
+  state.profile.measureUnit = unit;
+  save();
+  document.getElementById('home-meas-unit-in').classList.toggle('active', unit === 'in');
+  document.getElementById('home-meas-unit-cm').classList.toggle('active', unit === 'cm');
+  document.getElementById('home-meas-fields-in').style.display = unit === 'in' ? '' : 'none';
+  document.getElementById('home-meas-fields-cm').style.display = unit === 'cm' ? '' : 'none';
+}
+
+function setHomeFrac(field, val) {
+  homeFracState[field] = val;
+  const map = { 0: '0', 0.25: '25', 0.5: '50', 0.75: '75' };
+  ['0','25','50','75'].forEach(k => {
+    const btn = document.getElementById(`home-${field}-frac-${k}`);
+    if (btn) btn.classList.toggle('active', map[val] === k);
+  });
+}
+
+function saveHomeMeasurements() {
+  const today = getLocalToday();
+  const measUnit = (state.profile && state.profile.measureUnit) || 'in';
+  let waistIn = null, hipIn = null;
+  if (measUnit === 'in') {
+    const wWhole = document.getElementById('home-body-waist-whole').value;
+    const hWhole = document.getElementById('home-body-hip-whole').value;
+    if (wWhole !== '') waistIn = Math.round((parseFloat(wWhole) + (homeFracState.waist || 0)) * 100) / 100;
+    if (hWhole !== '') hipIn   = Math.round((parseFloat(hWhole) + (homeFracState.hip   || 0)) * 100) / 100;
+  } else {
+    const wCm = document.getElementById('home-body-waist-cm').value;
+    const hCm = document.getElementById('home-body-hip-cm').value;
+    if (wCm !== '') waistIn = cmToIn(wCm);
+    if (hCm !== '') hipIn   = cmToIn(hCm);
+  }
+  // Measurements logs to TODAY's date regardless of when the last one was
+  // — the 4-day gate controls whether the box shows, not what date it
+  // writes to — preserving whatever weight/steps are already logged today.
+  const idx = (state.bodyLogs || []).findIndex(l => l.date === today);
+  const existing = idx >= 0 ? state.bodyLogs[idx] : null;
+  const entry = {
+    date: today,
+    weight: existing ? existing.weight : null,
+    steps:  existing ? existing.steps  : null,
+    waist:  waistIn,
+    hip:    hipIn,
+  };
+  if (idx >= 0) state.bodyLogs[idx] = entry; else state.bodyLogs.push(entry);
+  save();
+  renderHome();
+}
+
 // RENDER: TRAIN
 // ════════════════════════════════════════════════
 // Top-level render function for the Train screen. Renders the week/day
@@ -10735,30 +11505,10 @@ function renderTrain() {
   const useMicro = macro.useMicrocycles !== false;
   const micros = useMicro ? [1,2] : [0];
 
-  // ── Compute completion for every session in the macro, in order ────────
-  // Each session = one (week, dayKey) pair. "Complete" means every set in
-  // every exercise of that session is logged done. Sessions with zero
-  // exercises defined are skipped entirely (not counted as incomplete).
-  const allSessions = [];
-  for (let w = 1; w <= macro.weeks; w++) {
-    micros.forEach(mc => {
-      days.forEach(d => {
-        const dayKey = mc === 0 ? d : d + 'm' + mc;
-        const templateKey = macro.id + '_1_' + dayKey;
-        const exercises = (state.exercises[templateKey] || []).slice().sort((a,b) => (a.order||0)-(b.order||0));
-        if (exercises.length === 0) return;
-        let allDone = true;
-        exercises.forEach(ex => {
-          const sets = getWeekSets(ex, w, macro.weeks);
-          for (let s = 0; s < sets; s++) {
-            const lk = macro.id + '_' + w + '_' + dayKey + '_' + ex.id + '_' + s;
-            if (!state.trainLogs[lk] || !state.trainLogs[lk].done) allDone = false;
-          }
-        });
-        allSessions.push({ week: w, dayKey, done: allDone });
-      });
-    });
-  }
+  // Compute completion for every session in the macro, in order — see
+  // getAllMacroSessions() for details (extracted so the Home page's
+  // next-session preview can use the exact same logic without duplicating it).
+  const allSessions = getAllMacroSessions(macro);
 
   // ── Auto-select the next incomplete session, unless the person has
   // manually picked one this app-load (manual choice always wins until
@@ -11013,6 +11763,49 @@ function renderTrainHero(macro) {
       <div class="hero-progress-track"><div class="hero-progress-fill" style="width:${sessionPct}%"></div></div>
     </div>`;
   }
+}
+
+// Computes every (week, dayKey) session in a macrocycle in order, and
+// whether each is fully logged done. Sessions with zero exercises defined
+// are skipped entirely (not counted as incomplete). Shared by renderTrain()
+// (which auto-selects the next incomplete one) and the Home page's next-
+// session preview, so both always agree on what "next" means.
+function getAllMacroSessions(macro) {
+  const days = macro.days || ['push','pull','legs'];
+  const useMicro = macro.useMicrocycles !== false;
+  const micros = useMicro ? [1,2] : [0];
+  const allSessions = [];
+  for (let w = 1; w <= macro.weeks; w++) {
+    micros.forEach(mc => {
+      days.forEach(d => {
+        const dayKey = mc === 0 ? d : d + 'm' + mc;
+        const templateKey = macro.id + '_1_' + dayKey;
+        const exercises = (state.exercises[templateKey] || []).slice().sort((a,b) => (a.order||0)-(b.order||0));
+        if (exercises.length === 0) return;
+        let allDone = true;
+        exercises.forEach(ex => {
+          const sets = getWeekSets(ex, w, macro.weeks);
+          for (let s = 0; s < sets; s++) {
+            const lk = macro.id + '_' + w + '_' + dayKey + '_' + ex.id + '_' + s;
+            if (!state.trainLogs[lk] || !state.trainLogs[lk].done) allDone = false;
+          }
+        });
+        allSessions.push({ week: w, dayKey, done: allDone });
+      });
+    });
+  }
+  return allSessions;
+}
+
+// Returns the next incomplete { week, dayKey } session for a macro, or null
+// if every defined session is done (or the macro has no exercises at all).
+// Deliberately does NOT fall back to the last session the way renderTrain's
+// picker does — callers like the Home preview want to know unambiguously
+// whether there's anything left to do today.
+function getNextIncompleteSession(macro) {
+  const allSessions = getAllMacroSessions(macro);
+  const next = allSessions.find(s => !s.done);
+  return next || null;
 }
 
 // Renders every exercise/superset card for the currently selected week+day —
@@ -11532,10 +12325,10 @@ function renderTrainDay(macro) {
               <div class="set-row" style="border-bottom:none;padding:3px 0;">
                 <span class="set-num">Main</span>
                 <span class="set-suggested">${lastWkMainCell}</span>
-                <input class="set-input" type="number" step="0.5" placeholder="${setWeightPh}" value="${log.weight || ''}"
+                <input class="set-input" type="number" inputmode="decimal" step="0.5" placeholder="${setWeightPh}" value="${log.weight || ''}"
                   oninput="logSet('${logKey}','weight',this.value)" id="inp-w-${logKey}"
                   onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('inp-r-${logKey}')?.focus();}">
-                <input class="set-input" type="text" placeholder="${repsHint}" value="${log.reps || ''}"
+                <input class="set-input" type="text" inputmode="numeric" placeholder="${repsHint}" value="${log.reps || ''}"
                   oninput="logSet('${logKey}','reps',this.value)" id="inp-r-${logKey}"
                   onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('inp-dw-${logKey}')?.focus();}">
                 <div class="${log.done ? 'check-done' : 'check-empty'}" onclick="toggleSetDone('${logKey}')" title="Both main and drop must be logged">
@@ -11545,10 +12338,10 @@ function renderTrainDay(macro) {
               <div class="set-row" style="border-bottom:none;padding:3px 0;">
                 <span class="set-num">Drop</span>
                 <span class="set-suggested">${lastWkDropCell}</span>
-                <input class="set-input" type="number" step="0.5" placeholder="${dropWeightHint}" value="${log.dropWeight || ''}"
+                <input class="set-input" type="number" inputmode="decimal" step="0.5" placeholder="${dropWeightHint}" value="${log.dropWeight || ''}"
                   oninput="logSet('${logKey}','dropWeight',this.value)" id="inp-dw-${logKey}"
                   onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('inp-dr-${logKey}')?.focus();}">
-                <input class="set-input" type="text" placeholder="${dropRepsHint}" value="${log.dropReps || ''}"
+                <input class="set-input" type="text" inputmode="numeric" placeholder="${dropRepsHint}" value="${log.dropReps || ''}"
                   oninput="logSet('${logKey}','dropReps',this.value)" id="inp-dr-${logKey}"
                   onkeydown="if(event.key==='Enter'){event.preventDefault();${nextSetWKey ? `document.getElementById('${nextSetWKey}')?.focus();` : 'this.blur();'}}">
                 <span></span>
@@ -11572,10 +12365,10 @@ function renderTrainDay(macro) {
           setRows += `<div class="set-row">
             <span class="set-num">${s + 1}</span>
             <span class="set-suggested">${lastWkCell}</span>
-            <input class="set-input" type="number" step="0.5" placeholder="${setWeightPh}" value="${log.weight || ''}"
+            <input class="set-input" type="number" inputmode="decimal" step="0.5" placeholder="${setWeightPh}" value="${log.weight || ''}"
               oninput="logSet('${logKey}','weight',this.value)" id="inp-w-${logKey}"
               onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('inp-r-${logKey}')?.focus();}">
-            <input class="set-input" type="text" placeholder="${setRepsPh}" value="${log.reps || ''}"
+            <input class="set-input" type="text" inputmode="numeric" placeholder="${setRepsPh}" value="${log.reps || ''}"
               oninput="logSet('${logKey}','reps',this.value)" id="inp-r-${logKey}"
               onkeydown="if(event.key==='Enter'){event.preventDefault();${nextWKey ? `document.getElementById('${nextWKey}')?.focus();` : 'this.blur();'}}">
             <div class="${log.done ? 'check-done' : 'check-empty'}" onclick="toggleSetDone('${logKey}')">
@@ -11805,10 +12598,10 @@ function renderTrainDay(macro) {
             const mSetRepsPh   = md.repsPlaceholders[s] !== undefined ? md.repsPlaceholders[s] : md.repsPlaceholder;
             exRows += `<div class="ss-set-ex-row">
               <span class="ss-set-ex-name">${m.name}</span>
-              <input class="ss-set-inp" type="number" step="0.5" placeholder="${mSetWeightPh}" value="${log.weight || ''}"
+              <input class="ss-set-inp" type="number" inputmode="decimal" step="0.5" placeholder="${mSetWeightPh}" value="${log.weight || ''}"
                 oninput="logSet('${logKey}','weight',this.value)" id="inp-w-${logKey}" style="margin-left:auto;">
               <span class="ss-set-x">×</span>
-              <input class="ss-set-inp" type="text" placeholder="${mSetRepsPh}" value="${log.reps || ''}"
+              <input class="ss-set-inp" type="text" inputmode="numeric" placeholder="${mSetRepsPh}" value="${log.reps || ''}"
                 oninput="logSet('${logKey}','reps',this.value)" id="inp-r-${logKey}">
               <div class="${log.done ? 'check-done ss-set-check done' : 'check-empty ss-set-check'}" onclick="toggleSetDone('${logKey}')" style="margin:0;">
                 <svg viewBox="0 0 14 14"><polyline points="2,7 5.5,10.5 12,3"/></svg>
@@ -12175,7 +12968,7 @@ function setBodyHistoryPeriod(p) { bodyHistoryPeriod = p; renderBody(); }
 
 // Which historic month groups are expanded in Recent Entries (v6.11) —
 // keyed by 'YYYY-MM', collapsed by default. Not persisted, purely a
-// render-time UI toggle, same pattern as goalsExpandedMacros.
+// render-time UI toggle, same pattern as planGoalsSectionCollapsed.
 let bodyExpandedMonths = {};
 function toggleBodyMonth(monthKey) {
   bodyExpandedMonths[monthKey] = !bodyExpandedMonths[monthKey];
@@ -12290,208 +13083,6 @@ function buildWeightCompareChart(domainStart, domainDays, primaryPoints, compare
 // history chart, and the full log list.
 function renderBody() {
   const logs = [...state.bodyLogs].sort((a,b) => b.date.localeCompare(a.date));
-  const ascLogs = [...state.bodyLogs].filter(l => l.weight).sort((a,b) => a.date.localeCompare(b.date));
-
-  // Stats
-  // "This week" = change from Monday's log to latest log this week (Mon–Sun calendar week).
-  // On Monday with only one log it shows 0; no data shows —.
-  const todayForBody = getLocalToday();
-  const todayDateObj = new Date(todayForBody + 'T00:00:00');
-  const dow = todayDateObj.getDay(); // 0=Sun,1=Mon…6=Sat
-  const daysFromMon = dow === 0 ? 6 : dow - 1; // Mon=0,Tue=1,…,Sun=6
-  const mondayDateObj = new Date(todayDateObj);
-  mondayDateObj.setDate(todayDateObj.getDate() - daysFromMon);
-  const mondayStr = toLocalDateStr(mondayDateObj);
-  const sundayDateObj = new Date(mondayDateObj);
-  sundayDateObj.setDate(mondayDateObj.getDate() + 6);
-  const sundayStr = toLocalDateStr(sundayDateObj);
-
-  // Logs within this calendar week (Mon–Sun)
-  const thisWeekLogs = ascLogs.filter(l => l.date >= mondayStr && l.date <= sundayStr);
-  // Monday's log (first log on or after Monday up to today)
-  const mondayLog = thisWeekLogs.find(l => l.date === mondayStr);
-  // Latest log this week (could be today)
-  const latestThisWeek = thisWeekLogs.length ? thisWeekLogs[thisWeekLogs.length - 1] : null;
-
-  let change = null;
-  if (thisWeekLogs.length === 1) {
-    // Only one log this week — change is 0 (no movement yet)
-    change = 0;
-  } else if (mondayLog && latestThisWeek && latestThisWeek.date !== mondayStr) {
-    // Monday log + a later log this week
-    change = parseFloat(latestThisWeek.weight) - parseFloat(mondayLog.weight);
-  } else if (thisWeekLogs.length >= 2) {
-    // No Monday log, but multiple logs — use first vs last
-    change = parseFloat(thisWeekLogs[thisWeekLogs.length - 1].weight) - parseFloat(thisWeekLogs[0].weight);
-  }
-
-  // 7-day rolling average for the sub-label
-  const last7 = logs.filter(l => {
-    const d = new Date(l.date + 'T00:00:00');
-    const cutoff = new Date(todayDateObj); cutoff.setDate(todayDateObj.getDate() - 7);
-    return d >= cutoff;
-  });
-  const avg7w = last7.filter(l=>l.weight).reduce((a,b)=>a+(parseFloat(b.weight)||0),0) / (last7.filter(l=>l.weight).length||1);
-
-  const latest = ascLogs.length ? ascLogs[ascLogs.length - 1] : null;
-  const latestVal = latest ? parseFloat(latest.weight) : null;
-
-  // ── Target / left-to-go (from active macrocycle, if any) ──
-  const activeMacro = state.macrocycles.find(m => m.id === state.currentMacroId);
-  const target = activeMacro ? activeMacro.targetBw : null;
-  const leftToGo = (target && latestVal !== null) ? (latestVal - target) : null;
-  const leftToGoStr = leftToGo === null ? '—'
-    : Math.abs(leftToGo) <= 0.05 ? 'At goal'
-    : Math.abs(leftToGo).toFixed(1) + ' lbs';
-
-  // ── Current cycle weight change (start of active macro → latest) ──
-  let cycleChangeStr = '—';
-  if (activeMacro && activeMacro.start) {
-    const cycleLogs = ascLogs.filter(l => l.date >= activeMacro.start);
-    if (cycleLogs.length >= 1 && latestVal !== null) {
-      const cycleStartVal = parseFloat(cycleLogs[0].weight);
-      const cycleDelta = latestVal - cycleStartVal;
-      cycleChangeStr = Math.abs(cycleDelta) <= 0.05 ? 'No change'
-        : (cycleDelta < 0 ? '−' : '+') + Math.abs(cycleDelta).toFixed(1) + ' lbs';
-    }
-  }
-
-  // ── Measurements callout row (waist/hip) ────────
-  // Only shown once at least one measurement has ever been logged — the
-  // hero stays uncluttered for anyone not tracking these yet.
-  const waistLogs = [...state.bodyLogs].filter(l => l.waist !== null && l.waist !== undefined).sort((a,b) => a.date.localeCompare(b.date));
-  const hipLogs   = [...state.bodyLogs].filter(l => l.hip   !== null && l.hip   !== undefined).sort((a,b) => a.date.localeCompare(b.date));
-  const latestWaist = waistLogs.length ? waistLogs[waistLogs.length - 1].waist : null;
-  const firstWaist  = waistLogs.length ? waistLogs[0].waist : null;
-  const waistDelta  = (waistLogs.length >= 2 && latestWaist !== null && firstWaist !== null) ? latestWaist - firstWaist : null;
-  const latestHip   = hipLogs.length ? hipLogs[hipLogs.length - 1].hip : null;
-  const firstHip    = hipLogs.length ? hipLogs[0].hip : null;
-  const hipDelta     = (hipLogs.length >= 2 && latestHip !== null && firstHip !== null) ? latestHip - firstHip : null;
-  const hasMeasurements = latestWaist !== null || latestHip !== null;
-
-  function measDeltaStr(delta) {
-    if (delta === null) return '—';
-    if (Math.abs(delta) < 0.01) return '0"';
-    return (delta < 0 ? '−' : '+') + fmtInch(Math.abs(delta)) + '"';
-  }
-  const measCalloutRow = hasMeasurements ? `
-    <div class="hero-callouts" style="grid-template-columns:repeat(4,1fr);border-top:0.5px solid rgba(255,255,255,0.15);padding-top:10px;margin-top:10px;">
-      <div class="hero-callout"><div class="hero-callout-lbl" style="opacity:0.55;font-size:9px;margin-bottom:1px;">WAIST</div><div class="hero-callout-lbl">Current</div><div class="hero-callout-val">${latestWaist !== null ? fmtInch(latestWaist)+'"' : '—'}</div></div>
-      <div class="hero-callout"><div class="hero-callout-lbl" style="opacity:0.55;font-size:9px;margin-bottom:1px;">WAIST</div><div class="hero-callout-lbl">Since first log</div><div class="hero-callout-val">${measDeltaStr(waistDelta)}</div></div>
-      <div class="hero-callout"><div class="hero-callout-lbl" style="opacity:0.55;font-size:9px;margin-bottom:1px;">HIP</div><div class="hero-callout-lbl">Current</div><div class="hero-callout-val">${latestHip !== null ? fmtInch(latestHip)+'"' : '—'}</div></div>
-      <div class="hero-callout"><div class="hero-callout-lbl" style="opacity:0.55;font-size:9px;margin-bottom:1px;">HIP</div><div class="hero-callout-lbl">Since first log</div><div class="hero-callout-val">${measDeltaStr(hipDelta)}</div></div>
-    </div>` : '';
-
-  // ── Hero card ──────────────────────────────────
-  const heroEl = document.getElementById('body-hero');
-  // ── Profile badge (gender + height shown in hero top-right) ──
-  const prof = state.profile || {};
-  const genderSymbol = prof.gender === 'male' ? '♂' : prof.gender === 'female' ? '♀' : null;
-  const heightDisplay = prof.heightCm ? Math.round(prof.heightCm) + ' cm' : null;
-  const profileBadge = (genderSymbol || heightDisplay)
-    ? `<div style="position:absolute;top:12px;right:12px;text-align:right;line-height:1.3;cursor:pointer;" onclick="openBodyProfile()">
-        ${genderSymbol ? `<div style="font-size:14px;color:var(--text2);">${genderSymbol}</div>` : ''}
-        ${heightDisplay ? `<div style="font-size:11px;color:var(--text3);">${heightDisplay}</div>` : ''}
-       </div>`
-    : `<div style="position:absolute;top:12px;right:12px;cursor:pointer;" onclick="openBodyProfile()">
-        <div style="font-size:10px;color:var(--text3);opacity:0.6;">+ profile</div>
-       </div>`;
-
-  heroEl.innerHTML = `<div class="hero-card" data-page="body" style="position:relative;cursor:pointer;" onclick="openBodyProfile()">
-    ${profileBadge}
-    <div class="hero-label">Current weight</div>
-    <div class="hero-value">${latestVal !== null ? latestVal.toFixed(1) : '—'}<span class="unit">lbs</span></div>
-    <div class="hero-sub">${last7.filter(l=>l.weight).length ? '7-day avg ' + avg7w.toFixed(1) + ' lbs' : 'No entries this week'}</div>
-    <div class="hero-callouts" style="grid-template-columns:repeat(4,1fr);">
-      <div class="hero-callout"><div class="hero-callout-lbl">This week</div><div class="hero-callout-val">${change !== null ? (change===0 ? '0 lbs' : (change>=0?'+':'')+change.toFixed(1)+' lbs') : '—'}</div></div>
-      <div class="hero-callout"><div class="hero-callout-lbl">Cycle change</div><div class="hero-callout-val">${cycleChangeStr}</div></div>
-      <div class="hero-callout"><div class="hero-callout-lbl">Target</div><div class="hero-callout-val">${target ? target+' lbs' : '—'}</div></div>
-      <div class="hero-callout"><div class="hero-callout-lbl">Left to go</div><div class="hero-callout-val">${leftToGoStr}</div></div>
-    </div>
-    ${measCalloutRow}
-  </div>`;
-
-  // ── Weight history chart ──────────────────────
-  const histEl = document.getElementById('body-history-card');
-  let chartLogs = ascLogs;
-  if (bodyHistoryPeriod !== 'all') {
-    const weeks = bodyHistoryPeriod === '4w' ? 4 : 8;
-    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - weeks * 7);
-    chartLogs = ascLogs.filter(l => new Date(l.date + 'T00:00:00') >= cutoff);
-  }
-  const chartPoints = chartLogs.map(l => ({
-    label: l.date.slice(5).split('-').reverse().join('-'),
-    y: parseFloat(l.weight)
-  }));
-  histEl.innerHTML = `<div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <h3>Weight history</h3>
-      <div class="toggle-row" style="margin-bottom:0;width:auto;display:inline-flex;">
-        <button class="toggle-btn ${bodyHistoryPeriod==='4w'?'active':''}" onclick="setBodyHistoryPeriod('4w')" style="padding:6px 12px;">4w</button>
-        <button class="toggle-btn ${bodyHistoryPeriod==='8w'?'active':''}" onclick="setBodyHistoryPeriod('8w')" style="padding:6px 12px;">8w</button>
-        <button class="toggle-btn ${bodyHistoryPeriod==='all'?'active':''}" onclick="setBodyHistoryPeriod('all')" style="padding:6px 12px;">All</button>
-      </div>
-    </div>
-    ${buildAreaLineChart(chartPoints, 'var(--accent)')}
-  </div>`;
-
-  // ── Inline "Log weigh-in" card ──────────────────
-  // Shows below the weight-history chart only when today has no entry
-  // yet; once today is logged, this hides and the entry appears in
-  // Recent Entries below (where it can be tap-to-edited via the existing
-  // flow). Weight-only — date is always today, set on save.
-  const logFormEl = document.getElementById('body-logform-card');
-  const todayStr = getLocalToday();
-  const todayLog = state.bodyLogs.find(l => l.date === todayStr);
-  if (todayLog) {
-    logFormEl.innerHTML = '';
-  } else {
-    logFormEl.innerHTML = `<div class="card">
-      <h3 style="margin-bottom:10px;">Log weigh-in</h3>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <input type="number" step="0.1" id="inline-bw-weight" placeholder="e.g. 182.4" style="flex:1;font-size:15px;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
-        <span style="font-size:13px;color:var(--text2);">lbs</span>
-        <button class="btn btn-accent" onclick="saveInlineBodyLog()" style="padding:10px 16px;">Save</button>
-      </div>
-    </div>`;
-  }
-
-  // ── Measurement reminder pill ─────────────────────
-  // Appears below the weight chart once 6 days have passed since the last
-  // logged waist or hip measurement. Tapping it opens the body log modal
-  // so the user can log measurements alongside weight. Hidden when a
-  // measurement was logged within the last 6 days, or if none have ever
-  // been logged (no nag before the feature is even in use).
-  const measReminderEl = document.getElementById('body-meas-reminder');
-  if (measReminderEl) {
-    const measLogs = (state.bodyLogs || [])
-      .filter(l => l.waist || l.hip)
-      .sort((a,b) => b.date.localeCompare(a.date));
-    if (measLogs.length) {
-      const lastMeasDate = new Date(measLogs[0].date + 'T00:00:00');
-      const todayMs = new Date(todayStr + 'T00:00:00').getTime();
-      const daysSince = Math.floor((todayMs - lastMeasDate.getTime()) / 86400000);
-      if (daysSince >= 6) {
-        measReminderEl.innerHTML = `<div onclick="openModal('modal-body-log')"
-          style="display:flex;align-items:center;gap:8px;margin-top:6px;padding:10px 14px;
-                 border-radius:10px;background:rgba(239,159,39,0.12);
-                 border:0.5px solid rgba(239,159,39,0.3);cursor:pointer;">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--amber)"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
-            <line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-          <span style="font-size:12px;color:var(--amber);font-weight:500;">
-            ${daysSince === 6 ? 'Measurements due' : `${daysSince} days since last measurements`} — tap to log
-          </span>
-        </div>`;
-      } else {
-        measReminderEl.innerHTML = '';
-      }
-    } else {
-      measReminderEl.innerHTML = '';
-    }
-  }
 
   const el = document.getElementById('body-log-list');
   if (!logs.length) {
@@ -13486,14 +14077,43 @@ function fillDayFromSample(groupId, sourceDate) {
   renderNutrDaily();
 }
 
-// ── Profile → Nutrition libraries (Settings) ────────────────────────────────
+// ── Settings page collapsible cards (Profile / Nutrition / Exercise /
+// Danger Zone) — expanded by default except Danger Zone, which starts
+// collapsed. Purely a display toggle on static markup; no re-render needed
+// since none of these cards show dynamic data.
+function toggleSettingsCard(key) {
+  const body = document.getElementById('settings-card-body-' + key);
+  const chevron = document.getElementById('settings-card-chevron-' + key);
+  if (!body) return;
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : '';
+  if (chevron) chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+}
 
-function openProfilePage() {
-  openModal('modal-profile');
+// Opens the relocated Body Logs modal (same content/IDs as the old standalone
+// Body screen, now trimmed to just the grouped Recent Entries list) —
+// refreshes it first since renderBody() is no longer called automatically
+// via a nav tab. Stacks on top of whatever's open (e.g. modal-profile)
+// rather than closing it. Also used directly by the Home page's
+// "Edit today's logs" shortcut.
+function openSettingsBodyLogs() {
+  renderBody();
+  openModal('modal-settings-body-logs');
+}
+
+// Opens the Body Logs modal and, on top of it, today's own log entry for
+// editing (or a blank entry defaulting to today if nothing's logged yet) —
+// used by the Home page's "Edit today's logs" shortcut so it lands
+// straight on today's entry rather than just the list.
+function openTodaysBodyLogModal() {
+  openSettingsBodyLogs();
+  const today = getLocalToday();
+  const hasLog = (state.bodyLogs || []).some(l => l.date === today);
+  if (hasLog) openEditBodyLog(today);
+  else openModal('modal-body-log');
 }
 
 function openProfileNutrition() {
-  closeModal('modal-profile');
   renderProfileNutritionLibraries();
   openModal('modal-profile-nutrition');
 }
@@ -15282,6 +15902,32 @@ function addFoodEntry(entry) {
   syncNutrLegacyLog(nutrSelectedDate);
   save();
   renderNutrDaily();
+  if (nutrActiveMeal === 'Dinner') maybePromptFillDinnerDay();
+}
+
+// Checked on every item logged into Dinner (addFoodEntry is the single
+// choke point every meal-logging path funnels through, so this only needs
+// hooking once here) — if there's already a Sample Day Library match for
+// today's goal (same lookup Fill Day itself uses), offers to fill the
+// whole day from it. Accepting overwrites everything logged for the date,
+// including whatever was just added, via the same fillDayFromSample() the
+// Fill Day button calls — no separate overwrite-confirmation step, since
+// this prompt already serves that purpose. Declining just closes the
+// prompt; the entry that was just logged is left exactly as it is.
+function maybePromptFillDinnerDay() {
+  const goal = getGoalForDay(nutrSelectedDate);
+  if (!goal) return;
+  const group = findSampleGroupForFillDay(goal);
+  if (!group || !group.days || !group.days.length) return;
+  const day = group.days.slice().sort((a, b) => b.date.localeCompare(a.date))[0];
+  const groupId = group.id;
+  const sourceDate = day.date;
+  showConfirm(
+    'Fill the whole day?',
+    'There is an approved day already saved for this meal and this goal — want to fill the whole day?',
+    'Fill day',
+    () => fillDayFromSample(groupId, sourceDate)
+  );
 }
 
 // Keeps the legacy state.nutritionLogs array in sync with the real
@@ -15946,147 +16592,6 @@ function importExerciseLibrary(file) {
   reader.readAsText(file);
 }
 
-// ════════════════════════════════════════════════
-// GOALS
-// ════════════════════════════════════════════════
-// Past/upcoming goal periods are grouped by macrocycle into collapsible
-// cards (collapsed by default) — mirrors the Plan page's per-week
-// collapse pattern. Keyed by macroId, not persisted.
-let goalsExpandedMacros = {};
-// Expands/collapses a macrocycle's group of goal periods on the Goals list.
-function toggleGoalsMacro(macroId) {
-  goalsExpandedMacros[macroId] = !goalsExpandedMacros[macroId];
-  renderGoals();
-}
-
-// Top-level render function for the Goals screen — the list of goal periods
-// grouped by macrocycle, with the currently-active one highlighted.
-function renderGoals() {
-  if (!state.goals) state.goals = [];
-  const el = document.getElementById('goals-content');
-  const macros = state.macrocycles;
-
-  // Populate macro select in modal
-  const sel = document.getElementById('goal-macro-select');
-  if (sel) {
-    sel.innerHTML = macros.map(m => '<option value="' + m.id + '">' + m.name + '</option>').join('') ||
-      '<option value="">No macrocycles yet</option>';
-  }
-
-  if (!state.goals.length) {
-    el.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" style="fill:currentColor"/></svg><p>No goal periods yet. Tap + Goal to set daily targets for a macrocycle.</p></div>';
-    return;
-  }
-
-  const today = getLocalToday();
-  const sortedGoals = state.goals.slice().sort((a,b)=>b.startDate.localeCompare(a.startDate));
-  const activeIdx = state.goals.findIndex(g => g.startDate <= today && g.endDate >= today);
-
-  let html = '';
-
-  // ── Active goal: red hero card with callout chips ──────────────────
-  if (activeIdx >= 0) {
-    const g = state.goals[activeIdx];
-    const macro = macros.find(m => m.id === g.macroId);
-    const callouts = [
-      g.kcal    ? { lbl: 'Kcal',    val: g.kcal.toLocaleString() } : null,
-      g.protein ? { lbl: 'Protein', val: g.protein + 'g' } : null,
-      g.carbs   ? { lbl: 'Carbs',   val: g.carbs + 'g' } : null,
-      g.fats    ? { lbl: 'Fats',    val: g.fats + 'g' } : null,
-      g.steps   ? { lbl: 'Steps',   val: parseInt(g.steps).toLocaleString() } : null,
-    ].filter(Boolean);
-    html += `<div class="hero-card hero-tappable" data-page="goals" onclick="openEditGoal('${g.macroGoalID}')">
-      <div class="hero-nav-arrows" style="top:18px;right:18px;" onclick="event.stopPropagation();">
-        <button onclick="openModal('modal-add-goal')" aria-label="New goal" style="width:auto;height:26px;padding:0 10px;border-radius:13px;font-size:11px;font-weight:500;white-space:nowrap;">+ New</button>
-      </div>
-      <div class="hero-label">Active goal</div>
-      <div class="hero-value" style="font-size:22px;">${macro ? macro.name : 'Unknown cycle'}</div>
-      ${g._blocLabel ? `<div class="hero-sub" style="margin-top:-4px;">${g._blocLabel}</div>` : ''}
-      <div class="hero-sub">${formatDate(g.startDate)} – ${formatDate(g.endDate)}</div>
-      <div class="hero-callouts" style="grid-template-columns:repeat(${Math.min(callouts.length,3)},1fr);">
-        ${callouts.map(c => `<div class="hero-callout"><div class="hero-callout-lbl">${c.lbl}</div><div class="hero-callout-val">${c.val}</div></div>`).join('')}
-      </div>
-      <div style="font-size:10px;color:rgba(255,255,255,0.55);margin-top:12px;text-align:right;">tap to edit</div>
-    </div>`;
-  }
-
-  // Show the persistent top-row "+ Goal" button only when there's no
-  // active-goal hero to embed it in (no goals, or none covering today).
-  const toprow = document.getElementById('goals-toprow');
-  if (toprow) toprow.style.display = activeIdx >= 0 ? 'none' : 'flex';
-
-  // ── Past / upcoming goals: grouped by macrocycle, collapsible ───────
-  const otherGoals = sortedGoals.filter(g => state.goals.indexOf(g) !== activeIdx);
-  if (otherGoals.length) {
-    html += `<div class="section-title" style="margin-top:${activeIdx>=0?'18px':'0'};">${activeIdx>=0?'Past & upcoming':'All goals'}</div>`;
-
-    // Group by macrocycle. otherGoals is already sorted by startDate
-    // descending (from sortedGoals), so each group's goals come out
-    // pre-sorted too — no extra sort needed inside a group.
-    const groupMap = {};
-    otherGoals.forEach(g => {
-      const key = g.macroId || '__none__';
-      (groupMap[key] = groupMap[key] || []).push(g);
-    });
-    // Groups themselves are ordered by their most recent goal's start
-    // date, so whichever macrocycle was most recently relevant sits on top.
-    const groupKeys = Object.keys(groupMap).sort((a, b) => groupMap[b][0].startDate.localeCompare(groupMap[a][0].startDate));
-
-    groupKeys.forEach(key => {
-      const groupGoals = groupMap[key];
-      const macro = macros.find(m => m.id === key);
-      const macroName = macro ? macro.name : 'Unknown cycle';
-      const isOpen = !!goalsExpandedMacros[key];
-      const count = groupGoals.length;
-
-      const itemsHtml = groupGoals.map(g => {
-        const isFuture = g.startDate > today;
-        return `<div class="swipe-row-wrap" style="border-radius:var(--r);margin-bottom:10px;">
-          <div class="swipe-row-content">
-            <div class="card" style="width:100%;box-sizing:border-box;cursor:pointer;opacity:0.85;background:var(--surface2);" onclick="openEditGoal('${g.macroGoalID}')">
-              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-                <div>
-                  ${g._blocLabel ? `<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:2px;">${g._blocLabel}</div>` : ''}
-                  <div style="font-size:11px;color:var(--text3);">${formatDate(g.startDate)} – ${formatDate(g.endDate)}</div>
-                </div>
-                ${isFuture ? '<span class="badge" style="background:var(--surface3);color:var(--text2);">Upcoming</span>' : ''}
-              </div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-                ${g.kcal    ? `<div style="font-size:12px;color:var(--text2);"><span style="color:var(--text3);">kcal </span>${g.kcal.toLocaleString()}</div>` : ''}
-                ${g.steps   ? `<div style="font-size:12px;color:var(--text2);"><span style="color:var(--text3);">steps </span>${parseInt(g.steps).toLocaleString()}</div>` : ''}
-                ${g.protein ? `<div style="font-size:12px;color:var(--text2);"><span style="color:var(--text3);">protein </span>${g.protein}g</div>` : ''}
-                ${g.carbs   ? `<div style="font-size:12px;color:var(--text2);"><span style="color:var(--text3);">carbs </span>${g.carbs}g</div>` : ''}
-                ${g.fats    ? `<div style="font-size:12px;color:var(--text2);"><span style="color:var(--text3);">fats </span>${g.fats}g</div>` : ''}
-              </div>
-              <div style="font-size:10px;color:var(--text3);margin-top:10px;text-align:right;">swipe ← to delete</div>
-            </div>
-          </div>
-          <div class="swipe-actions">
-            <button class="swipe-btn swipe-btn-danger" onclick="event.stopPropagation();deleteGoal('${g.macroGoalID}')" title="Delete">
-              <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-            </button>
-          </div>
-        </div>`;
-      }).join('');
-
-      html += `<div class="card" style="margin-bottom:10px;padding:0;">
-        <div onclick="toggleGoalsMacro('${key}')"
-          style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent;">
-          <div>
-            <div style="font-family:var(--font-display);font-weight:600;font-size:14px;color:var(--text);">${macroName}</div>
-            <div style="font-size:11px;color:var(--text3);margin-top:2px;">${count} goal period${count === 1 ? '' : 's'}</div>
-          </div>
-          <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${isOpen?'180':'0'}deg)"><polyline points="6 9 12 15 18 9"/></svg>
-        </div>
-        ${isOpen ? `<div style="padding:0 14px 14px;">${itemsHtml}</div>` : ''}
-      </div>`;
-    });
-  }
-
-  el.innerHTML = html;
-  requestAnimationFrame(() => initSwipeRows(el));
-}
-
 // Returns whichever goal period covers today's date, regardless of macrocycle.
 function getActiveGoal() {
   if (!state.goals) return null;
@@ -16164,7 +16669,27 @@ function openEditGoal(macroGoalID) {
   document.getElementById('goal-steps-input').value = g.steps || '';
   document.getElementById('goal-label-input').value = g._blocLabel || '';
   document.getElementById('modal-add-goal')._editIdx = idx;
+  const delBtn = document.getElementById('goal-delete-btn');
+  if (delBtn) { delBtn.style.display = ''; delBtn.dataset.macroGoalId = macroGoalID; }
   openModal('modal-add-goal');
+}
+
+// Confirms, then deletes the goal currently open in the goal modal and
+// closes it — the delete button only shows up when editing (see
+// openEditGoal), never on a fresh "+ Build goals" open.
+function deleteGoalFromModal() {
+  const delBtn = document.getElementById('goal-delete-btn');
+  const macroGoalID = delBtn && delBtn.dataset.macroGoalId;
+  if (!macroGoalID) return;
+  showConfirm(
+    'Delete this goal period?',
+    'This removes it permanently and renumbers any remaining goal steps in this macrocycle.',
+    'Delete',
+    () => {
+      deleteGoal(macroGoalID);
+      closeModal('modal-add-goal');
+    }
+  );
 }
 
 // Removes a goal period by its macroGoalID, after confirmation, then
@@ -16176,7 +16701,7 @@ function deleteGoal(macroGoalID) {
   const macroId = state.goals[idx].macroId;
   state.goals.splice(idx, 1);
   renumberMacroGoalSteps(macroId);
-  save(); renderGoals();
+  save(); renderPlanGoalsSection(); renderProgressCycleGoals();
 }
 
 // Finds an existing goal whose date range overlaps [startDate, endDate],
@@ -16261,7 +16786,7 @@ function saveGoal() {
   else state.goals.push(g);
   modal._editIdx = undefined;
   renumberMacroGoalSteps(macroId);
-  save(); closeModal('modal-add-goal'); renderGoals();
+  save(); closeModal('modal-add-goal'); renderPlanGoalsSection(); renderProgressCycleGoals();
 }
 
 
@@ -16502,7 +17027,7 @@ window.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.modal-overlay').forEach(el => {
     if (el.id !== 'modal-timer') initModal(el); // timer has its own close handler
   });
-  showScreen('progress');
+  showScreen('home');
 });
 
 // ── Custom confirm (replaces window.confirm for PWA compatibility) ──────────
@@ -17591,16 +18116,16 @@ function deleteRecipe(id) {
     </div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Values per 100g</div>
     <div class="input-row">
-      <div><div class="label">kcal / 100g</div><input type="number" id="fle-kcal" oninput="updateFlePreview()"></div>
-      <div><div class="label">Protein (g)</div><input type="number" id="fle-protein" oninput="updateFlePreview()"></div>
+      <div><div class="label">kcal / 100g</div><input type="number" inputmode="decimal" id="fle-kcal" oninput="updateFlePreview()"></div>
+      <div><div class="label">Protein (g)</div><input type="number" inputmode="decimal" id="fle-protein" oninput="updateFlePreview()"></div>
     </div>
     <div class="input-row">
-      <div><div class="label">Carbs (g)</div><input type="number" id="fle-carbs" oninput="updateFlePreview()"></div>
-      <div><div class="label">Fats (g)</div><input type="number" id="fle-fats" oninput="updateFlePreview()"></div>
+      <div><div class="label">Carbs (g)</div><input type="number" inputmode="decimal" id="fle-carbs" oninput="updateFlePreview()"></div>
+      <div><div class="label">Fats (g)</div><input type="number" inputmode="decimal" id="fle-fats" oninput="updateFlePreview()"></div>
     </div>
     <div class="form-group">
       <div class="label">RSS (g) <span style="color:var(--text3);font-size:10px;">Recommended serving size — optional</span></div>
-      <input type="number" id="fle-rss" placeholder="e.g. 250" oninput="updateFlePreview()">
+      <input type="number" inputmode="decimal" id="fle-rss" placeholder="e.g. 250" oninput="updateFlePreview()">
     </div>
     <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px;margin-bottom:14px;font-size:12px;color:var(--text2);" id="fle-preview">—</div>
     <button class="btn btn-accent btn-block" onclick="saveFoodLibEntry()" style="margin-bottom:8px;">Save →</button>
@@ -17619,7 +18144,7 @@ function deleteRecipe(id) {
     </div>
     <div class="form-group">
       <div class="label">No. servings this recipe makes</div>
-      <input type="number" id="recipe-servings-input" value="1" min="1" step="0.5" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
+      <input type="number" inputmode="decimal" id="recipe-servings-input" value="1" min="1" step="0.5" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
     </div>
     <button class="btn btn-accent btn-block" onclick="recipeGoToIngredients()">Next: Add ingredients →</button>
   </div>
@@ -17695,7 +18220,7 @@ function deleteRecipe(id) {
     </div>
     <div class="form-group">
       <div class="label">Amount (g)</div>
-      <input type="number" id="recipe-serving-grams" min="1" oninput="updateRecipeServingPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
+      <input type="number" inputmode="decimal" id="recipe-serving-grams" min="1" oninput="updateRecipeServingPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
     </div>
     <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px;margin-bottom:14px;font-size:12px;color:var(--text2);" id="recipe-serving-preview">—</div>
     <button class="btn btn-accent btn-block" onclick="confirmRecipeIngredient()">Add ingredient →</button>
@@ -17713,16 +18238,16 @@ function deleteRecipe(id) {
     </div>
     <div class="form-group">
       <div class="label">No. servings</div>
-      <input type="number" id="recipe-manual-servings" value="1" min="0.5" step="0.5" oninput="updateRecipeManualPreview()">
+      <input type="number" inputmode="decimal" id="recipe-manual-servings" value="1" min="0.5" step="0.5" oninput="updateRecipeManualPreview()">
     </div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Values per 1 serving (serving size = 1)</div>
     <div class="input-row">
-      <div><div class="label">kcal</div><input type="number" id="recipe-manual-kcal" placeholder="0" oninput="updateRecipeManualPreview()"></div>
-      <div><div class="label">Protein (g)</div><input type="number" id="recipe-manual-protein" placeholder="0" oninput="updateRecipeManualPreview()"></div>
+      <div><div class="label">kcal</div><input type="number" inputmode="decimal" id="recipe-manual-kcal" placeholder="0" oninput="updateRecipeManualPreview()"></div>
+      <div><div class="label">Protein (g)</div><input type="number" inputmode="decimal" id="recipe-manual-protein" placeholder="0" oninput="updateRecipeManualPreview()"></div>
     </div>
     <div class="input-row">
-      <div><div class="label">Carbs (g)</div><input type="number" id="recipe-manual-carbs" placeholder="0" oninput="updateRecipeManualPreview()"></div>
-      <div><div class="label">Fats (g)</div><input type="number" id="recipe-manual-fats" placeholder="0" oninput="updateRecipeManualPreview()"></div>
+      <div><div class="label">Carbs (g)</div><input type="number" inputmode="decimal" id="recipe-manual-carbs" placeholder="0" oninput="updateRecipeManualPreview()"></div>
+      <div><div class="label">Fats (g)</div><input type="number" inputmode="decimal" id="recipe-manual-fats" placeholder="0" oninput="updateRecipeManualPreview()"></div>
     </div>
     <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px;margin-bottom:14px;font-size:12px;color:var(--text2);" id="recipe-manual-preview">Total: — kcal</div>
     <button class="btn btn-accent btn-block" onclick="confirmRecipeManual()">Add ingredient →</button>
@@ -17745,7 +18270,7 @@ function deleteRecipe(id) {
     <div id="recipe-edit-ing-grams-row">
       <div class="form-group">
         <div class="label">Amount (g)</div>
-        <input type="number" id="recipe-edit-ing-grams" min="1"
+        <input type="number" inputmode="decimal" id="recipe-edit-ing-grams" min="1"
           style="font-size:18px;font-family:var(--font-display);font-weight:700;"
           oninput="updateRecipeIngredientEditPreview()">
       </div>
@@ -17756,17 +18281,17 @@ function deleteRecipe(id) {
     <div id="recipe-edit-ing-manual-row" style="display:none;">
       <div class="form-group">
         <div class="label">Servings</div>
-        <input type="number" id="recipe-edit-ing-servings" value="1" min="0.5" step="0.5"
+        <input type="number" inputmode="decimal" id="recipe-edit-ing-servings" value="1" min="0.5" step="0.5"
           oninput="updateRecipeIngredientEditPreview()">
       </div>
       <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Values per 1 serving</div>
       <div class="input-row">
-        <div><div class="label">kcal</div><input type="number" id="recipe-edit-ing-kcal" oninput="updateRecipeIngredientEditPreview()"></div>
-        <div><div class="label">Protein (g)</div><input type="number" id="recipe-edit-ing-protein" oninput="updateRecipeIngredientEditPreview()"></div>
+        <div><div class="label">kcal</div><input type="number" inputmode="decimal" id="recipe-edit-ing-kcal" oninput="updateRecipeIngredientEditPreview()"></div>
+        <div><div class="label">Protein (g)</div><input type="number" inputmode="decimal" id="recipe-edit-ing-protein" oninput="updateRecipeIngredientEditPreview()"></div>
       </div>
       <div class="input-row">
-        <div><div class="label">Carbs (g)</div><input type="number" id="recipe-edit-ing-carbs" oninput="updateRecipeIngredientEditPreview()"></div>
-        <div><div class="label">Fats (g)</div><input type="number" id="recipe-edit-ing-fats" oninput="updateRecipeIngredientEditPreview()"></div>
+        <div><div class="label">Carbs (g)</div><input type="number" inputmode="decimal" id="recipe-edit-ing-carbs" oninput="updateRecipeIngredientEditPreview()"></div>
+        <div><div class="label">Fats (g)</div><input type="number" inputmode="decimal" id="recipe-edit-ing-fats" oninput="updateRecipeIngredientEditPreview()"></div>
       </div>
     </div>
 
