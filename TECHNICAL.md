@@ -31,6 +31,8 @@
 27. [Next Cycle Recommendation Engine (Phases 1–4)](#27-next-cycle-recommendation-engine-phases-14)
 28. [Module: Sample Day Library](#28-module-sample-day-library)
 29. [Known Limitations & Future Considerations](#29-known-limitations--future-considerations)
+30. [Module: Home](#30-module-home)
+31. [Input Modes (Numeric Keyboards)](#31-input-modes-numeric-keyboards)
 
 ---
 
@@ -98,8 +100,9 @@ The file is organised into clearly commented sections in this order:
   .edge-fade-top / .edge-fade-bottom
   #app
     #content
-      Screens: progress, plan, train, body, nutrition, goals, settings
-    #nav (floating pill bottom nav with #nav-pill highlight and 7 .nav-btn buttons)
+      Screens: home, progress, plan, train, nutrition, settings
+      (body and goals were removed as their own screens in v7.40–v7.51 — see §11 and §13)
+    #nav (floating pill bottom nav with #nav-pill highlight and 6 .nav-btn buttons)
 
   Modals (appended after #app):
     modal-macro              — new macrocycle
@@ -134,9 +137,21 @@ The file is organised into clearly commented sections in this order:
     modal-nutr-copy-entry    — copy or move a food entry or entire meal to another date/meal
     modal-confirm            — custom confirm dialog (centre-aligned; also used as a plain alert)
     modal-fill-day           — Sample Day Library: pick a saved day to copy into the current date (v7.25)
-    modal-profile            — hidden Profile page, reached only via Settings — no nav-bar entry (v7.25)
-    modal-profile-nutrition  — Profile → Nutrition Libraries list (v7.25)
+    modal-profile-nutrition  — Settings → Nutrition → Sample libraries list (moved out of the old hidden Profile page in v7.52; same modal id retained)
     modal-sample-day-edit    — edit a single saved sample day's dinner label, or delete it (v7.25)
+    <!-- modal-home-log-weight / modal-home-log-steps / modal-home-log-measurements
+         (v7.31) were removed in v7.53 — Home's weight/steps/measurement logging
+         moved from icon-triggered mini-modals to inline boxes. See §30. -->
+    modal-app-preferences    — Settings → Profile card → App preferences: Mode + Theme (v7.50)
+    modal-linked-services    — Settings → Profile card → Linked services (v7.50)
+    modal-api-key            — Settings → Linked services → API Key, the Anthropic key entry (v7.50; formerly a top-level "AI Advice" section, see §16)
+    modal-settings-body-logs — Settings → Profile card → Body logs — the old standalone Body screen's grouped log list only; hero/chart/log-form/measurement-reminder were removed in v7.51 (§13)
+    modal-settings-about     — Settings → About this app → storage usage card (v7.50)
+
+    <!-- Removed in the Settings redesign (v7.50–v7.52), each folded into an
+         inline collapsible card on the Settings screen instead:
+         modal-profile, modal-settings-nutrition, modal-settings-exercise,
+         modal-danger-zone. See §16. -->
 
 <script> (early, small)
   Pre-boot iOS viewport measurement so --app-height is correct before first paint
@@ -150,19 +165,18 @@ The file is organised into clearly commented sections in this order:
   Macrocycle helpers & CRUD, superset helpers
   Exercise CRUD
   Progression logic (exProgData, getWeekWeight, getWeekReps, getGiantSetProgression)
+  Render: Home (renderHome, weekly hero, goal banner, quick-log icons, food/session previews — v7.31)
   Render: Progress (renderProgress, hero swipe deck, chart builders)
-  Render: Plan (renderPlan, session cards, superset UI, body-part volume table)
+  Render: Plan (renderPlan, session cards, superset UI, body-part volume table, renderPlanGoalsSection — v7.40)
   Render: Train (renderTrain, set logging, rest timer)
-  Render: Body (renderBody, BMR/TDEE calc)
+  Render: Body (renderBody, now just the grouped log list — hero/chart/log-form removed v7.51, §13)
   Render: Nutrition (full module — largest single module in the file)
   Sample Day Library (save/fill qualifying nutrition days, goal linking — v7.25)
   Barcode scanner engine (startScannerCamera, stopScannerCamera, _onScannerDetected)
   Food library (addToFoodLibrary, share/export/import)
-  Render: Settings (setTheme, setMode, clearAllData)
-  Render: Profile (hidden page reached from Settings — v7.25)
+  Render: Settings (setTheme, setMode, clearAllData, toggleSettingsCard — v7.52)
   Data export/import
   Exercise library
-  Render: Goals (renderGoals, overlap validation, macro sliders)
   Utilities (toLocalDateStr, getLocalToday, fmtK, showConfirm, etc.)
   Rest timer (playBeep, buildPicker, countdown, stopwatch)
   Food library editor
@@ -482,7 +496,7 @@ function showScreen(name) {
 }
 ```
 
-Screen internal IDs match their nav labels exactly: `progress`, `plan`, `train`, `body`, `nutrition`, `goals`, `settings`. (Earlier versions used the internal id `home` for the Progress screen; this was renamed for clarity and no longer appears anywhere in the codebase.)
+Screen internal IDs match their nav labels exactly: `home`, `progress`, `plan`, `train`, `nutrition`, `settings`. `body` and `goals` were removed as their own screens in v7.40–v7.51 — Goals now renders inline on Plan (§11), and Body now renders inside a Settings modal (§13); neither has a nav-bar entry or a `showScreen()` dispatch case any more.
 
 ### Nav Pill Animation
 
@@ -645,6 +659,8 @@ All modals are `.modal-overlay` divs appended after `#app`. Each wraps a `.modal
 
 **Stacked modals and z-index (v6.12):** all `.modal-overlay` elements share `z-index: 200` by default (`#modal-custom-exercise` is the one pre-existing exception, at `300`, for the same reason below), and same-z-index elements stack by DOM/source order — later in the HTML wins. This was invisible until `modal-nutr-add` and `modal-nutr-serving` (both defined early in the file) needed to be openable **on top of** `modal-recipe-ingredients` (defined much later), for the recipe-ingredient food-library search flow (§14). Since `modal-recipe-ingredients` deliberately stays open underneath rather than being closed first, it was rendering over both of them. Fixed by bumping `#modal-nutr-add, #modal-nutr-serving` to `z-index: 300` as well — matching the existing pattern for `#modal-custom-exercise`, which has the same "must layer over another open modal" requirement.
 
+**Settings modal-on-modal (v7.50):** a second, independent tier exists for the Settings screen's own nested modals — `#modal-api-key`, `#modal-body-log`, `#modal-sample-day-edit` sit at `z-index: 210`, one above the default, since each opens on top of a parent modal (Linked services, Body logs, Sample libraries respectively) that deliberately stays open underneath rather than closing. This is a shallower version of the same problem the `modal-nutr-add`/`modal-recipe-ingredients` case solved above — only one nesting level deep here, since Profile/Nutrition/Exercise/Danger Zone are inline Settings-screen cards rather than modals themselves (§16), so their own buttons open directly over the plain screen at the default z-index with nothing to stack above. Deliberately **not** applied to `modal-food-lib-editor` / `modal-recipe-list` / `modal-exercise-lib-editor` — those lead into their own substantial pre-existing modal chains built around the default z-index, so the Settings buttons that open them close the Settings screen's card view first instead of stacking, to avoid pushing those chains' own children behind them.
+
 **Recipe-context auto-return (v6.12):** `closeModal(id)` also special-cases `modal-nutr-add`: if it's being dismissed outright while `nutrAddContext === 'recipe'` (see §14) — via any of the three dismissal paths (✕ button, backdrop tap, swipe-down, all of which already funnel through this one function) — it reopens `modal-recipe-ingredients` underneath. This is guarded by `_nutrAddTransitioning`, a flag set immediately before `selectFromAddList()` deliberately closes `modal-nutr-add` on its way to `modal-nutr-serving`, so that intentional hand-off isn't misread as the person backing out of the whole flow.
 
 `showConfirm(title, message, okLabel, callback)` builds a generic two-button (Cancel / OK) confirmation using `modal-confirm`; it's also reused anywhere a simple one-off alert is needed by passing a no-op callback.
@@ -748,7 +764,7 @@ Rendered by `renderPlan()`.
 
 ### Session cards (Week 1 template)
 Each day (Push/Pull/Legs, or custom-named sessions) renders as its own collapsible card:
-- `togglePlanDaySession(macroId, dayKey)` — expand/collapse; collapsed state is per-session (`planDayCollapsed`, keyed `${macroId}_${dayKey}`), defaults expanded. Collapsing only removes the exercise rows (and their drag handlers) from the DOM — drag-to-reorder is already scoped to a single day, so a collapsed card simply has nothing draggable in it until reopened.
+- `togglePlanDaySession(macroId, dayKey)` — expand/collapse. Collapse state (`planDayCollapsed`, keyed `${macroId}_${dayKey}`) is an **override on top of a default rule** (v7.40): a session with at least one exercise defaults to collapsed, an empty one defaults expanded — `planDayCollapsed[key] !== undefined ? planDayCollapsed[key] : exercises.length > 0`. The toggle function itself computes that same effective (default-resolved) state before flipping it, rather than blindly negating a possibly-`undefined` override — negating `undefined` directly would always land on `true`, meaning a click on an already-collapsed-by-default session could re-collapse it instead of opening it. `showScreen('plan')` resets `planDayCollapsed = {}` on every fresh navigation to the tab, so the override never outlives a single visit; opening `openAddExercise`/`openAddExerciseToSuperset`/`openEditExercise` for a day explicitly sets its override to expanded first, so actively editing a session never gets collapsed out from under you mid-edit. Collapsing only removes the exercise rows (and their drag handlers) from the DOM — drag-to-reorder is already scoped to a single day, so a collapsed card simply has nothing draggable in it until reopened.
 - `renameDaySessionStart(macroId, day, spanId, currentLabel)` — tap-to-rename, following the same inline-`<input>`-swap pattern as superset renaming (`renameSupersetStart`). Writes to `macro.dayLabels[day]`, which only affects the display label — the day's position in `macro.days`, its exercises, and its logged history are all keyed by the stable day id (`push`/`pull`/`legs`/`session0`/...), never by this label.
 - The header's summary line (`N exercises · N sets · Nkg volume`) sums `getWeekSets()` and volume across every exercise in the session, including every superset member individually, always using week-1 values. Drop-set exercises contribute 0 to this theoretical volume figure, since they have no planned rep target to project from (§12) — their real volume only appears once logged, in `getSessionVolume()`.
 
@@ -775,11 +791,25 @@ Grouped by **session first, then by week within** — the reverse of the origina
 - `computeBodyPartVolumeRange(macro)` — for every exercise across every session in the cycle, resolves its body part by looking name up against `getLibrary()` (built-in + custom; nothing is stored on the exercise itself), then computes two whole-cycle volume totals per body part: an all-weight-progression scenario and an all-reps-progression scenario (reusing `getWeekSets`/`getWeekWeight`/`getWeekReps`/`getGiantSetProgression`/`parseRepsForVolume` — the same building blocks the progression preview and Train page use). Min/max per body part is the smaller/larger of those two totals; pause sets collapse to the same value in both scenarios since they have no reps-progression path. As of **v6.09**, drop sets contribute their main set's projected volume like any other exercise (`ex.reps` now holds a real target — see §12 Drop Sets); the drop portion itself still contributes 0, since it never has a plan-time target to project from.
 - `renderBodyPartVolumeTable(macro)` — renders the result sorted by minimum volume descending. Returns an empty string (renders nothing) if the cycle has no exercises yet.
 
+### Goals (moved here from its own screen in v7.40)
+
+Goals no longer has a standalone screen or nav-bar entry — `renderGoals()` was retired and replaced by `renderPlanGoalsSection()`, rendered below the macrocycle hero on Plan. The underlying goal CRUD, overlap validation, and macro-slider drift-lock logic described in §15 is unchanged; only where it renders and a few additions changed:
+
+- `renderPlanGoalsSection()` — lists every goal belonging to `state.currentMacroId`'s macro, sorted by `startDate`, in the same row style `renderProgressCycleGoals()` (§10) uses: a left accent border (`var(--accent)` for the goal covering today, `var(--red)` for the next genuinely-different upcoming one — computed with the identical "does this goal's targets actually differ from the active one" check `renderHomeGoalBanner()` uses, §30 — `transparent` otherwise), label, date range, and a condensed target summary. Each row is a `.swipe-row-wrap` (tap → `openEditGoal`, swipe → `deleteGoal`, §18).
+- `planGoalsSectionCollapsed` (module-level boolean, default `false`) / `togglePlanGoalsSection()` — the section's own collapse state, expanded by default. Unlike `planDayCollapsed` above, this is a plain persistent toggle, not reset on every Plan visit.
+- A "+ Build goals" button opens the existing `modal-add-goal`, pre-selecting the current macro (`goal-macro-select`) and re-triggering `onGoalMacroSelectChange()` so the label prefill matches, since `openModal()`'s own default-selection logic picks whichever macro is first in the rebuilt `<option>` list, not necessarily the current one.
+- **Dismissible create-goal prompt** — `maybePromptCreateGoal(macroId)`, called at the end of both `createMacrocycle()` (only its plain-save path — not the `_pendingNextCyclePlan` goal-queue branch, which already creates goals of its own) and `saveEditMacro()`. Checks whether any goal already has this `macroId`; if not, uses `showConfirm()` (§9) with a "Not now" Cancel that's a true no-op and an "Add goal" OK that opens the modal pre-selected the same way the button above does.
+- **Delete button in the goal modal** — `#goal-delete-btn` in `modal-add-goal`, hidden by default and shown only by `openEditGoal()` (which also stashes the `macroGoalID` being edited on the button's `dataset`); `openModal()`'s fresh-open branch for `modal-add-goal` explicitly hides it again so a fresh "+ Build goals" open never shows a stale delete option left over from the last edit. `deleteGoalFromModal()` reads the stashed id, confirms, then calls the existing `deleteGoal()` and closes the modal.
+- `deleteGoal()` and `saveGoal()` both now call `renderPlanGoalsSection()` (and `renderProgressCycleGoals()`, §10) to refresh instead of the retired `renderGoals()`.
+- **Progress's own list restricted (v7.41)** — `renderProgressCycleGoals()` (§10) now filters to `g.endDate >= today` (active + upcoming only); the full history including past goals is Plan-only.
+
 ---
 
 ## 12. Module: Train
 
 Rendered by `renderTrain()` → `renderTrainHero(macro)` (session summary + volume + deload toggle) → `renderTrainDay(macro)` (the exercise cards).
+
+**Auto-selecting the next session (extracted in v7.40):** `getAllMacroSessions(macro)` computes every `{week, dayKey}` session in the macro in order along with whether it's fully logged done (skipping sessions with zero exercises defined); `getNextIncompleteSession(macro)` returns the first incomplete one, or `null` if everything's done. Both used to be inlined directly in `renderTrain()`; they were pulled out into standalone functions specifically so Home's next-session preview (§30) reads from the exact same logic rather than a parallel reimplementation that could silently drift out of sync. `renderTrain()` itself still has its own fallback `getAllMacroSessions()`-based selection (`trainManualSelect`, a module-level boolean — `false` means auto-select the next incomplete session on every render; set `true` by any manual day-tab tap, and falls back to the *last* session in the plan if everything's complete, which `getNextIncompleteSession()` deliberately does not do, since Home wants an unambiguous "nothing left" answer rather than a fallback session).
 
 ### Progression data
 `exProgData(ex)` is the single source of truth per exercise for a given week — computed once per exercise per render and either used directly (solo exercises) or mapped across `members.map(m => exProgData(m))` (supersets, as `memberData`). It returns sets, chosen `progType`, previous week's actual weight/reps, `recommendedWeight`/`recommendedReps`, `weightJump`, progression-inference fields (below), deload flags (`isDeloadSession`/`isPostDeloadSession`), and — for drop sets only — the parallel `dropWeightPlaceholder`/`dropRepsPlaceholder`/`recommendedDropWeight`/`recommendedDropReps`/`prevActualDropWeight`/`prevActualDropReps` fields. Solo-exercise rendering destructures the fields it needs by name; superset rendering reads them off `memberData[i]` directly — this is why a field can be genuinely used by one path and dead in the other if not double-checked.
@@ -862,23 +892,25 @@ See §17 — opened via the clock icon in the Train header.
 
 ## 13. Module: Body
 
-Rendered by `renderBody()`.
+Body is no longer its own screen or nav-bar entry (removed in v7.51, folded into Settings). `renderBody()` is now a much smaller function, populating only `#body-log-list` inside `modal-settings-body-logs` — everything else it used to build (the hero card, weight-history chart, inline "log weigh-in" card, and measurement reminder pill) was removed along with roughly 200 lines of computation that fed only those sections (weekly/cycle change, `avg7w`, `leftToGoStr`, the profile badge, the measurement-delta callout row) once their target `<div>`s no longer existed anywhere in the markup — deleted outright rather than left as dead-but-guarded code, since none of it was reachable from any UI path any more. The now-unused `ascLogs` variable was removed for the same reason.
 
-- `openBodyProfile()` / `saveBodyProfile()` — gender, height (cm or ft/in via `switchHeightUnit`), birthday, stored in `state.profile`. Height unit resets to ft/in on every open regardless of last-used unit (a known minor friction point, not a bug — confirmed as acceptable).
-- `calcAge()`, `getActivityMultiplier()`, `calcMifflinBMR()`, `calcDynamicTDEE()` — BMR/TDEE calculation. Body weight is stored and displayed in **lbs** throughout (confirmed intentional — training weight elsewhere in the app is in kg; there is deliberately no unit toggle for body weight). `getActivityMultiplier()` averages steps across the person's *entire* logged history with no recency window — also intentional, since this multiplier only feeds the BMR/TDEE estimate and more historical data makes it more accurate, not less.
-- `openEditBodyLog(idx)` / `saveInlineBodyLog()` / `saveBodyLog()` / `deleteBodyLog(date)` — body weight + steps log CRUD. The "at goal" / "no meaningful change" tolerance is standardised at ≤0.05 lbs across both the weekly-change and left-to-go hero callouts.
+- `openSettingsBodyLogs()` — refreshes `renderBody()` then opens `modal-settings-body-logs`. Called from Settings → Profile card → "Body logs", and internally by `openTodaysBodyLogModal()` below. Does not close any parent modal (Profile is now an inline Settings card, not a modal, §16).
+- `openTodaysBodyLogModal()` — opens the Body logs modal, then, stacked on top of it, either today's existing entry via `openEditBodyLog(today)` or a blank entry (`openModal('modal-body-log')`, which defaults its date field to today) if nothing's logged yet. This is what Home's "Edit today's logs" link calls (§30) — it used to just open the Body screen; now it lands directly on today's own entry.
+- `openBodyProfile()` / `saveBodyProfile()` — gender, height (cm or ft/in via `switchHeightUnit`), birthday, stored in `state.profile`. Previously reachable by tapping the Body page's hero card; now opened directly from Settings → Profile card → "About me" (`modal-body-profile` itself is unchanged). Height unit resets to ft/in on every open regardless of last-used unit (a known minor friction point, not a bug — confirmed as acceptable).
+- `calcAge()`, `getActivityMultiplier()`, `calcMifflinBMR()`, `calcDynamicTDEE()` — BMR/TDEE calculation, still used by the Progress page's Metabolism insight card (§10) even though Body itself no longer surfaces them directly. Body weight is stored and displayed in **lbs** throughout (confirmed intentional — training weight elsewhere in the app is in kg; there is deliberately no unit toggle for body weight). `getActivityMultiplier()` averages steps across the person's *entire* logged history with no recency window — also intentional, since this multiplier only feeds the BMR/TDEE estimate and more historical data makes it more accurate, not less.
+- `openEditBodyLog(idx)` / `saveInlineBodyLog()` / `saveBodyLog()` / `deleteBodyLog(date)` — body weight + steps log CRUD, unchanged. `saveInlineBodyLog()`'s own inline card no longer exists in the UI (removed with the rest of the hero section), but the function itself is retained since nothing else needed touching to remove just its container.
 
 ### Waist/hip measurements (new in v6.12)
 
-Optional waist and hip fields on `state.bodyLogs`, entered in the same modal as weight/steps but always stored as inches (never the input unit) so a later unit switch can't corrupt historical data.
+Optional waist and hip fields on `state.bodyLogs`, entered via `modal-body-log` (or, since v7.31, Home's own inline measurements box — §30, reworked from a mini-modal to an inline box in v7.53 — which keeps a parallel `homeFracState`/`setHomeMeasUnit`/`setHomeFrac` rather than sharing the ids below, since both sets of inputs can coexist in the DOM) but always stored as inches (never the input unit) so a later unit switch can't corrupt historical data.
 
 - `setMeasUnit(unit)` — toggles the modal between inches and cm input modes, persists the choice to `state.profile.measureUnit`, and swaps which of `#meas-fields-in`/`#meas-fields-cm` is visible.
 - `setFrac(field, val)` — sets the active quarter-inch button (0/¼/½/¾) for `waist` or `hip` in inches mode; tracked in the module-level `fracState` object, not on the input elements themselves, since the whole-number field and the fraction picker are separate controls that together make one value.
 - `cmToIn(cm)` — converts a cm entry to inches, rounded to 2dp, for storage.
 - `fmtInch(val)` — smart display formatting: trims to the minimum decimals needed (`33` / `33.5` / `33.25`) rather than a fixed decimal count.
 - `saveBodyLog()` reads whichever unit mode is active (inches: whole-number field + `fracState`; cm: direct field via `cmToIn()`) and writes the resolved-to-inches `waist`/`hip` values onto the entry alongside weight/steps. `openEditBodyLog()` reverses this to populate both unit modes' fields when editing an existing entry, so switching the toggle mid-edit shows consistent values either way.
-- `saveInlineBodyLog()` (the quick weigh-in card) and `saveBodyLog()`'s date-change path both preserve any existing `waist`/`hip` already logged for that date rather than clobbering them with `null` — same pattern already used for `steps`.
-- Hero card second callout row (waist/hip current value + delta since first log) is built inline in `renderBody()` rather than a separate function — only rendered once at least one measurement has ever been logged (`hasMeasurements`), and each metric's "since first log" delta is `null` (renders as `—`) unless that metric has **two or more** logs, so a single early measurement never gets misread as "no change" when it's really just the only data point so far. A genuine zero change (2+ logs, same value) renders as `0"`, distinct from the `—` shown for insufficient data.
+- `saveInlineBodyLog()` and `saveBodyLog()`'s date-change path both preserve any existing `waist`/`hip` already logged for that date rather than clobbering them with `null` — same pattern already used for `steps`.
+- The hero-card measurement callout row (current value + delta since first log) described in earlier versions of this document no longer exists — it was part of the section removed in v7.51. Waist/hip history is still fully preserved and still editable; there's just no longer a dedicated summary callout for it outside the log rows themselves.
 
 ### Recent Entries — month grouping (new in v6.11)
 
@@ -899,10 +931,10 @@ Because `logs` is already sorted newest-first, the first (i.e. most recent) log 
 
 **Why incomplete entries are excluded, concretely:** if you log weight from a scale immediately but your phone's steps take until the next day to sync, that entry is genuinely incomplete for a day or two — grouping it anyway would bury it inside a collapsed group you'd have to think to expand, right when you're most likely to want to see it (to finish filling it in). Once you add the steps later — no explicit action needed, it's just a normal edit via `saveBodyLog()` — the next render naturally reclassifies it into whichever month group it belongs to.
 
-- `bodyExpandedMonths` (plain module-level object, not persisted — same pattern as `goalsExpandedMacros`, §15) — keyed by `'YYYY-MM'`, tracks which group(s) are currently expanded.
+- `bodyExpandedMonths` (plain module-level object, not persisted — same pattern as `planGoalsSectionCollapsed`, §11) — keyed by `'YYYY-MM'`, tracks which group(s) are currently expanded.
 - `toggleBodyMonth(monthKey)` — flips a group's expanded state and re-renders.
 - Each collapsed group header shows entry count and average weight for that month; expanding it renders the exact same row template (tap to edit, swipe to delete) used for standalone rows, just nested inside the group's card.
-- The previous hard cap of showing only the most recent 30 entries was removed — grouping keeps the list compact on its own without needing to truncate, and truncating would have arbitrarily cut a month's entries mid-group.
+- The previous hard cap of showing only the most recent 30 entries was removed — grouping keeps the list compact on its own without needing to truncate, and truncating would have arbitrarily cut a month's entries mid-group. This predates, and is unaffected by, the v7.51 modal move.
 
 ---
 
@@ -924,6 +956,7 @@ Rendered by `renderNutrDaily()`. This is the largest module in the file.
 - `saveMealAsRecipe()` builds `recipeIngredients` from the meal's current items and opens the recipe builder directly — it does **not** auto-log the resulting recipe anywhere; saving it lands on the Recipe List, by design. (An earlier, unused entry point — `openNutrRecipeBuilder()` — used to set a flag that made `saveRecipe()` jump straight back into the serving modal to auto-log; that flag and the dead branch reading it were removed once confirmed nothing set it anymore. Settings → My Recipes uses the unrelated `openRecipeBuilder()` directly and was never affected.)
 - Per-item: `openCopyFoodEntry`/`confirmCopyFoodEntry` (single item), `deleteFoodEntry`, `openEditFoodEntry`/`updateEditPreview`/`saveEditFoodEntry`
 - `syncNutrLegacyLog(date)` — recomputes `getDayTotals(date)` and upserts the result into `state.nutritionLogs`. Called after every logging change (add, edit, delete, quick-add). Not dead code — see §3's note on `nutritionLogs`.
+- `addFoodEntry(entry)` — the single function every meal-logging path (barcode, manual, library, quick-add) funnels through to actually push an item into `state.nutritionMeals`. As of v7.53, also the hook point for the Sample Day Library's Dinner-entry prompt — see §28.
 
 ### Logging flow
 - `openNutrAdd(meal, isReopen)` → `renderNutrAddList()` (search results, sourced from `getLibrary()` + food library, most-recently-logged first via `getLastNutrEntryForFood`)
@@ -955,11 +988,12 @@ Below the hero card, `#nutr-save-badge-wrap` shows a save prompt on any day that
 
 ## 15. Module: Goals
 
-Rendered by `renderGoals()`.
+**As of v7.40, Goals is no longer a standalone screen** — its rendering moved to Plan (§11: `renderPlanGoalsSection()`, the "+ Build goals" flow, the dismissible create-goal prompt, the in-modal delete button). This section number is kept stable for cross-reference purposes and documents the underlying CRUD/validation functions, which are unchanged in behaviour regardless of where they're called from.
 
 - `getActiveGoal()` — the goal covering today's date, regardless of macro
 - `getGoalForDay(dateStr)` vs `getGoalForDate(dateStr, macroId)` — two similar-looking lookups that are both intentionally kept: the Nutrition page isn't tied to a specific macrocycle so it uses the date-only version; the Progress page's per-macro chart needs the macro-scoped version so a chart for macro A never picks up a goal that technically belongs to macro B
-- `saveGoal()` — validates required fields (kcal, steps — red-border flash via the same pattern as Train's set validation if either is empty), checks `findOverlappingGoal(startDate, endDate, excludeIdx)` and blocks the save with an inline error if the new/edited range overlaps any other goal, then upserts
+- `saveGoal()` — validates required fields (kcal, steps — red-border flash via the same pattern as Train's set validation if either is empty), checks `findOverlappingGoal(startDate, endDate, excludeIdx)` and blocks the save with an inline error if the new/edited range overlaps any other goal, then upserts. Now refreshes `renderPlanGoalsSection()` and `renderProgressCycleGoals()` on completion (§11) rather than the retired `renderGoals()`.
+- `deleteGoal(macroGoalID)` — removes the goal, renumbers whatever's left in that macrocycle via `renumberMacroGoalSteps()` (see §11's note on this producing the "Step N -" label prefix), then refreshes the same two render targets as `saveGoal()`. Callable from a swipe-to-delete row (Plan) or from the goal modal's own delete button (§11).
 - **Overlap prevention**: goal periods can never overlap, across any macrocycle. A new goal's start date defaults to the day after the latest existing goal's end date (any macro); saving is blocked (not just warned) if the chosen range collides with an existing goal
 - **Macro-drift lock**: `initGoalMacroSliders(existingGoal)` back-derives the protein-multiplier and carb/fat-split slider positions from an existing goal's saved grams (using today's latest bodyweight log as the divisor). `goalMacroSliderState.userTouched` tracks whether the person actually dragged a slider this session (set only by the sliders' real `oninput` handlers, never by the programmatic `.value =` set during init, since that doesn't fire `input`). On save, if the goal being edited is **active or past** (`startDate <= today`) and no slider was touched, its exact stored `protein`/`carbs`/`fats` are kept as-is rather than recomputed — otherwise editing an old goal's kcal target, weeks after your bodyweight changed, would silently drift its macros. New/upcoming goals (or any goal where a slider actually moved) always use the live computed values.
 - `computeGoalMacroGrams()` — reads current slider positions and returns `{proteinG, carbG, fatG}`
@@ -968,28 +1002,46 @@ Rendered by `renderGoals()`.
 
 ## 16. Module: Settings
 
-Rendered by `renderSettings()`.
+Rendered by `renderSettings()`, which still just handles theme swatches, the mode toggle, storage info, and the API key status line — all now living inside modals rather than directly on the screen (see Layout below), but populated the same way regardless of which container they're in, since `document.getElementById()` doesn't care whether its target is currently visible.
 
 - `setTheme(name)` / `setMode(mode)` — update state, set the `data-theme`/`data-mode` attribute, save, re-render the active screen
 - `exportData()` / `importData(event)` — full-state JSON backup/restore, with a structural sanity check on import (`parsed.macrocycles && parsed.exercises && parsed.trainLogs` must all be present)
 - `clearAllData()` — resets macrocycles/exercises/logs/goals/nutrition/foodLibrary/recipes/supersets/profile/sampleDays to empty, but **preserves** `theme`/`mode` (carried forward from the pre-clear state and re-applied to `<body>` immediately) since the confirm dialog only ever promises to delete tracked data, not appearance preferences. The reset object's shape is kept in exact sync with everything `load()`'s defensive defaults expect — an earlier version of this function omitted `recipes`/`supersets`/`profile` entirely, which left `state.supersets` undefined and threw on the very next superset action, since several reads of it aren't null-guarded (e.g. `state.supersets[ssId]`). **`sampleDays` (§28) was similarly missing until v7.31** — didn't crash anything (`load()`'s defensive default caught it on next boot), but meant a "Clear all data" left the Sample Day Library quietly intact, which the confirm dialog's wording doesn't promise.
 - `exportLibrary()` / `importExerciseLibrary(file)` — exercise library backup/restore (merge-by-name)
 
-### Profile (hidden page, new in v7.25)
+### Layout (redesigned three times in v7.50–v7.52; this describes the final v7.52 shape)
 
-A "Profile →" button in Settings opens `modal-profile` — a page reached only from here, with no corresponding nav-bar entry — via `openProfilePage()`. Currently holds one entry, "Sample day libraries" (`openProfileNutrition()`, §28), styled and behaving like any other Settings sub-screen rather than a special standalone page: closing it returns to Settings underneath, same as every other modal.
+The Settings screen is a list of collapsible cards, plus one always-visible Export button:
 
-### Layout (redesigned in v6.10)
+```
+About this app          — tappable row → modal-settings-about (storage usage)
+Profile card            — expanded by default
+  App preferences        → modal-app-preferences (Mode + Theme)
+  About me                → modal-body-profile (§13)
+  Body logs               → modal-settings-body-logs (§13)
+  Linked services         → modal-linked-services → modal-api-key
+Nutrition card           — expanded by default
+  My Recipes, Sample libraries, View/edit/export/import food library, Import recipe
+Exercise card            — expanded by default
+  View/edit library, Export, Import
+Backup                   — Export JSON backup, always visible, not behind a card
+Danger Zone card         — collapsed by default (the one exception)
+  Import JSON backup, Clear all data
+```
 
-The page is organised into: About, Appearance (unchanged), **Libraries** (new consolidated section, below), Backup (now just Export JSON), and **Danger Zone** (now holds both Restore-from-backup and Clear-all-data — previously Restore-from-backup sat up in Backup, separate from Clear-all-data at the bottom, even though both are destructive).
+`toggleSettingsCard(key)` is a plain display-toggle against static markup (`#settings-card-body-{key}` / `#settings-card-chevron-{key}`) — none of these four cards show dynamic data, so there's no re-render involved, just a `style.display` flip and a chevron rotation. Card headers use the existing `.section-title` CSS, which already sets `text-transform: uppercase`, so no separate "all-caps" styling was needed.
 
-**Two-tier button hierarchy (`.lib-primary-btn` / `.lib-secondary-btn` / `.accent-tint`):** every library card now follows the same shape — one or two bold "primary" tiles for the most-used action(s) at the top, then a quieter row of small "secondary" utility buttons underneath for less-used actions (export/import). Exercise library gets a single full-width primary tile (View / edit library); Food library gets two side by side (View / edit, and My recipes — the latter styled with the `.accent-tint` modifier since it's the single most-used action in that card, mirroring how the app tints other high-frequency UI elements with the active theme colour via `color-mix(in srgb, var(--accent) N%, ...)` rather than a hardcoded hex, so it stays correct under any of the nine themes). This replaces the previous flat, undifferentiated row-of-equal-weight-buttons layout.
+**Every button within a card is visually identical** (`.lib-primary-btn`, icon + label, full width) — the v6.10 two-tier primary/secondary hierarchy described below no longer applies to these Settings cards themselves (only "My Recipes" keeps the `.accent-tint` modifier, since it's still the single most-used action in the Nutrition card). The two-tier layout is retained one level deeper, inside the Exercise/Food Library Editor screens those buttons open — see below.
 
-**Danger Zone styling is now differentiated by actual severity**, not a blanket "everything red" treatment: "Clear all data" is irreversible, so its button (`.btn-danger-fill`) gets a **solid** red fill with white text — the same visual weight as the accent-filled Export JSON button above it, since it's the app's other truly one-way action. "Restore from backup" is destructive but recoverable (you can always re-import your last export), so its button uses the app's normal neutral button border with just red **text** — no red border — so the two don't visually compete for "most alarming button on the page."
+**Danger Zone severity styling is unchanged from v6.10**: "Clear all data" (`.btn-danger-fill`) gets a solid red fill with white text, matching the visual weight of the accent-filled Export button, since it's the app's other truly one-way action; "Restore from backup" (now "Import JSON backup") uses the app's normal neutral button border with just red text, since it's recoverable via re-import.
 
-### AI Advice API key (new in v7.00)
+**Modal-on-modal stacking (v7.50, §9):** buttons that open App preferences, About me, Body logs, Linked services → API key, or Sample libraries → a saved day's editor stack their target modal on top of whatever's already open rather than closing it first — so backing out of a nested modal returns to exactly where you were, not all the way to the Settings screen. The three buttons that open Food library editor / My Recipes / Exercise library editor are the deliberate exception: those lead into substantial pre-existing modal chains built around the default z-index, so bumping their own z-index to stack would have pushed their own children behind them — those three close the Settings screen's card view (nothing to close, since Settings itself isn't a modal — this really just means "don't stack," they simply open directly) rather than layering.
 
-An optional Anthropic API key can be entered in Settings → AI Advice. The key is stored in `localStorage` directly under the key `'bloc_api_key'`, **not** in `state` — this means it is never included in JSON exports or backups, intentionally. It is read by `getApiKey()` (returns the string or `null`) and written/cleared by `saveApiKey()`.
+**What moved out of here:** the old flat "About / Appearance / Libraries / Backup / Danger Zone" single-column layout (v6.10–v7.49), and before that a hidden "Profile →" page (`modal-profile`, v7.25) holding only "Sample day libraries" — both are gone. `modal-profile`, `modal-settings-nutrition`, `modal-settings-exercise`, and `modal-danger-zone` (three short-lived intermediate modals from the first pass of this redesign, v7.50–v7.51) were all deleted once their contents became inline cards; `openProfilePage()` and `openSettingsNutritionModal()` were deleted as dead code alongside them. `modal-profile-nutrition` (Sample Day Library management, §28) kept its original element id throughout despite moving from the old hidden Profile page to the new Nutrition card, since nothing about the modal itself changed — only what opens it.
+
+### Linked services → API key (new in v7.00; relocated in v7.50)
+
+An optional Anthropic API key can be entered via Settings → Profile → Linked services → API Key. The key is stored in `localStorage` directly under the key `'bloc_api_key'`, **not** in `state` — this means it is never included in JSON exports or backups, intentionally. It is read by `getApiKey()` (returns the string or `null`) and written/cleared by `saveApiKey()`. This used to be a top-level "AI Advice" section directly on the Settings screen; the storage mechanism and functions are unchanged, only the modal it lives in and the path to reach it moved.
 
 `renderSettings()` checks `getApiKey()` on every render — if a key is present, the input shows a masked placeholder and a "✓ API key saved" status line; if absent, the placeholder resets to `"sk-ant-…"`. Saving an empty field removes the key.
 
@@ -1167,6 +1219,24 @@ Not exhaustive — covers the functions most useful to know when working on the 
 | `initModal(overlayEl)` | Attaches swipe-down-to-close and tap-outside-to-close to a modal overlay |
 | `showConfirm(title, msg, okLabel, callback)` | Generic two-button confirm dialog; also reused as a plain alert |
 
+### Home (new in v7.31 — see §30)
+| Function | Description |
+|---|---|
+| `renderHome()` | Top-level render — calls each section renderer below |
+| `renderHomeHero()` | Weekly kcal/protein/carbs/steps vs. target, with badges and conditional sublabels |
+| `getHomeWeekStart(dateStr)` / `getHomeIsoDow(dateStr)` | DST-safe Monday-of-week / ISO day-of-week helpers |
+| `getHomeMetricTolerance(field)` / `getHomeMetricBadge(field, avg, target)` / `getHomeMetricSublabel(...)` | Badge polarity + adjustment-needed sublabel logic |
+| `renderHomeGoalBanner()` | Upcoming-goal heads-up, gated on a genuine target change within 6 days |
+| `goToPlanAndFlashGoal(macroGoalID)` | Switches to the goal's macro, navigates to Plan, flashes its row |
+| `renderHomeLogBoxes()` | Inline weight/steps/measurements boxes — weight/steps daily, measurements on a 4-day cycle (v7.53) |
+| `saveHomeWeight()` / `saveHomeSteps()` | Save today's weight/steps from their inline boxes; no modal to close as of v7.53 |
+| `saveHomeMeasurements()` / `setHomeMeasUnit(unit)` / `setHomeFrac(field, val)` | Inline waist/hip box's save + unit/fraction toggles, own state separate from §13's |
+| `initHomeMeasBox()` | Sets the measurements box's unit toggle and resets fraction pickers after each render (v7.53) |
+| `renderHomeFoodPreview()` | Today's planned food, ordered by first meal appearance |
+| `renderHomeTrainPreview()` | Next incomplete session preview, name + sets × reps × suggested weight |
+| `renderHomeEditLogsLink()` / `openTodaysBodyLogModal()` | "Edit today's logs" → Settings → Body logs → today's entry |
+| `getAllMacroSessions(macro)` / `getNextIncompleteSession(macro)` | Shared with Train (§12) — the single source of truth for "what's next" |
+
 ### Progress
 | Function | Description |
 |---|---|
@@ -1301,8 +1371,9 @@ Not exhaustive — covers the functions most useful to know when working on the 
 | `saveDayToLibrary()` | Saves the current date into its resolved/created group, guarding against a duplicate dinner name |
 | `renderNutrSaveBadge()` | Renders the save button / nothing into `#nutr-save-badge-wrap` below the Nutrition hero (the "saved" pill itself lives inside the hero card, not here) |
 | `openFillDayModal()` / `confirmFillDay(groupId, date)` / `fillDayFromSample(groupId, date)` | Fill Day flow — list saved days, confirm-overwrite if the target date has logs, then deep-clone the stored meals across |
+| `maybePromptFillDinnerDay()` | Proactive Fill Day prompt on every Dinner entry when a match exists — fills from the most recent saved day on accept (v7.53) |
 | `getGoalDisplayLabel(macroGoalID)` | `"<Macrocycle name> - <_blocLabel>"` for a goal, or `null` if it's since been deleted |
-| `openProfilePage()` / `openProfileNutrition()` | Opens the hidden Profile page from Settings, then its Nutrition Libraries list |
+| `openProfileNutrition()` | Opens Settings → Nutrition → Sample libraries (`modal-profile-nutrition`) directly — `openProfilePage()` was removed in v7.52 along with the hidden Profile page it used to open |
 | `renderProfileNutritionLibraries()` | Renders every group as a card — origin pill (bold/green) + effective-linked pills (subtle), saved days as swipeable rows |
 | `openSampleDayEditor(groupId, date)` / `saveSampleDayEdit()` / `deleteSampleDayFromEditor()` / `deleteSampleDay(groupId, date)` | Edit a saved day's dinner label, view its logged meals read-only, or delete it (removes the whole group if it was the last day) |
 
@@ -1328,7 +1399,7 @@ Not exhaustive — covers the functions most useful to know when working on the 
 | `saveRecipe()` | Saves recipe to state; upserts food library; lands on Recipe List |
 | `deleteRecipe(id)` | Removes from `state.recipes` and `state.foodLibrary` |
 
-### Goals
+### Goals (renders on Plan as of v7.40 — see §11/§15)
 | Function | Description |
 |---|---|
 | `getActiveGoal()` | Goal covering today's date, any macro |
@@ -1337,8 +1408,13 @@ Not exhaustive — covers the functions most useful to know when working on the 
 | `findOverlappingGoal(startDate, endDate, excludeIdx)` | First existing goal whose range overlaps the given one |
 | `saveGoal()` | Validates required fields + overlap, applies the macro-drift lock, upserts |
 | `saveGoalAndAdvanceQueue()` | Queue-aware save — updates/pushes based on step type, advances or completes queue (v7.00) |
+| `deleteGoal(macroGoalID)` | Removes a goal, renumbers remaining steps in its macro, refreshes Plan + Progress |
+| `deleteGoalFromModal()` | Reads the goal id stashed on the goal modal's delete button, confirms, calls `deleteGoal()` |
 | `initGoalMacroSliders(existingGoal)` | Sets initial slider positions; resets `userTouched` |
 | `computeGoalMacroGrams()` | Reads current slider positions, returns `{proteinG, carbG, fatG}` |
+| `renderPlanGoalsSection()` | Renders the current macro's goal list on Plan, replacing the retired `renderGoals()` (v7.40) |
+| `togglePlanGoalsSection()` | Expands/collapses the Plan goals section |
+| `maybePromptCreateGoal(macroId)` | Dismissible nudge to add a goal after saving a macrocycle with none linked (v7.40) |
 
 ### Plan / Macrocycle
 | Function | Description |
@@ -1362,7 +1438,7 @@ Not exhaustive — covers the functions most useful to know when working on the 
 | `importExerciseLibrary(file)` | Merges exercise library from JSON |
 | `openExerciseLibraryEditor()` / `renderExerciseLibEditor()` | Browsable exercise library modal (new in v6.10) — mirrors the food library editor |
 | `openExerciseLibEntry(idx)` / `saveExerciseLibEntry()` / `deleteExerciseLibEntry(idx)` | Custom exercise library entry edit CRUD; no-ops for built-in (default) entries |
-| `openProfilePage()` | Opens the hidden Profile page (no nav-bar entry) — new in v7.25, see §28 |
+| `toggleSettingsCard(key)` | Expands/collapses one of the Settings screen's Profile/Nutrition/Exercise/Danger Zone cards (v7.52) |
 
 ### Rest Timer
 | Function | Description |
@@ -1882,6 +1958,16 @@ Both bands treat protein as floor-only — extra protein never disqualifies a ma
 - `confirmFillDay(groupId, sourceDate)` — warns (`showConfirm`) before overwriting if the target date already has any meal logs or a quick-log; `fillDayFromSample()` otherwise runs directly.
 - `fillDayFromSample(groupId, sourceDate)` — deep-clones the stored day's `meals` onto `nutrSelectedDate`, clears any quick-log override for that date, and calls `syncNutrLegacyLog()`.
 
+### Dinner-entry prompt (new in v7.53)
+
+A second, proactive entry point into Fill Day, distinct from the button — `maybePromptFillDinnerDay()`, called from `addFoodEntry()` (§14) whenever `nutrActiveMeal === 'Dinner'`. Since `addFoodEntry()` is the single function every meal-logging path (barcode confirm, manual entry, library/recipe select, quick-add-from-list) already funnels through, this only needed hooking once, at the one true choke point, rather than duplicated across each entry path.
+
+- Resolves a match with `findSampleGroupForFillDay(goal)` — the exact same lookup Fill Day's own picker uses (§28 above): the goal's formally-linked group if one exists, else any group whose range the goal's own targets fall within.
+- If found, picks that group's **most recently saved day** (`days` sorted by date descending, `[0]`) — the prompt only ever offers one specific day, unlike the Fill Day button's full picker list.
+- `showConfirm()` (§9) with the message "There is an approved day already saved for this meal and this goal — want to fill the whole day?". Accepting calls `fillDayFromSample(groupId, sourceDate)` **directly** — no separate overwrite warning the way `confirmFillDay()` shows, since the prompt itself already serves that purpose and the whole point is to overwrite, including the item that was just logged. Declining is a no-op; the just-logged entry is left exactly as it is (`showConfirm`'s Cancel button never runs a callback — see §9).
+- Fires on **every** item logged into Dinner, not just the first for that date — adding three separate items to Dinner in the same session shows the prompt three times if a match still exists after each one. No suppression/dismissal state is tracked across entries; this was a deliberate simplicity choice rather than an oversight, matching the spec this was built against.
+- Because `fillDayFromSample()` writes directly to `state.nutritionMeals[nutrSelectedDate]` rather than calling `addFoodEntry()`, accepting the prompt cannot re-trigger itself — no recursion guard was needed.
+
 ### Proactive linking for display + discovery (v7.29)
 
 Two matching bases exist side by side and are **not** interchangeable:
@@ -1890,10 +1976,9 @@ Two matching bases exist side by side and are **not** interchangeable:
   - `findSampleGroupForFillDay(goal)` — Fill Day discovery (above).
   - `getEffectiveLinkedGoalIds(group)` — the Nutrition Libraries pill list (below): unions the group's permanent `linkedGoalIds` with every *currently existing* goal whose targets happen to satisfy `goalTargetsWithinRange` right now, recomputed fresh on every render. This is why a goal can appear as a linked pill without ever having contributed a saved day — the group's stored `linkedGoalIds` array itself is untouched by this; it only grows via an actual save (`getOrCreateSampleGroup`), same as before v7.29.
 
-### Settings → Profile → Nutrition Libraries
+### Settings → Nutrition → Sample libraries
 
-- `openProfilePage()` — opens `modal-profile`, a hidden page reached only from Settings (no nav-bar entry), following the same "just another modal, no back-stack" pattern as every other modal-to-modal transition in the app (e.g. §14's recipe-ingredient-search hand-off) rather than a custom back button.
-- `openProfileNutrition()` — closes `modal-profile`, calls `renderProfileNutritionLibraries()`, opens `modal-profile-nutrition`.
+- `openProfileNutrition()` — calls `renderProfileNutritionLibraries()`, opens `modal-profile-nutrition` directly (no longer routes through a hidden Profile page — `openProfilePage()` and `modal-profile` were both removed in the v7.52 Settings redesign, §16). Stacks on top of the Settings screen's Nutrition card rather than closing anything, following the same "just another modal, no back-stack" pattern as every other modal-to-modal transition in the app (e.g. §14's recipe-ingredient-search hand-off) rather than a custom back button.
 - `renderProfileNutritionLibraries()` — one card per `SampleDayGroup`, sorted by each group's most recent saved day. Inside each card:
   - A row of pills at the top: the group's **origin goal** (`linkedGoalIds[0]`, via `getGoalDisplayLabel()`) rendered bold/green; every other id from `getEffectiveLinkedGoalIds()` rendered as a subtler grey pill — this is what surfaces a goal as "linked" purely because its targets match, even with zero saved days of its own.
   - `getGoalDisplayLabel(macroGoalID)` — `` `${macro.name} - ${goal._blocLabel}` `` (falls back gracefully to just the label, or `null`, if the goal/macro has since been deleted — filtered out of the pill list via `.filter(Boolean)`).
@@ -1953,3 +2038,80 @@ The dual nutrition log format (`nutritionLogs` legacy + `nutritionMeals`/`nutrit
 
 **Body Part Granularity**
 The exercise library's body-part taxonomy is currently coarse (7 groups, "Legs" lumping quads/hamstrings/glutes together). The Plan page's body-part volume table would benefit from a more granular taxonomy if that table's usefulness grows — this would only require editing `DEFAULT_LIBRARY`/custom entries, since body part is resolved by lookup rather than stored per-exercise.
+
+---
+
+## 30. Module: Home
+
+New in v7.31, iterated through v7.34. Rendered by `renderHome()`, the default screen on load (`showScreen('home')` at the end of the `DOMContentLoaded` handler) and the first nav-bar button. Appended here as §30 rather than renumbered into sequence near §10 (Progress) to avoid touching the many `§N` cross-references elsewhere in this document — see §6 for the screen-id note.
+
+### Weekly hero card
+
+- `getHomeWeekStart(dateStr)` — the Monday starting the calendar week containing `dateStr`, built the same DST-safe way the rest of the app computes dates: construct a local-midnight `Date`, then `setDate()` (never raw millisecond arithmetic), read back through `toLocalDateStr()`.
+- `getHomeIsoDow(dateStr)` — ISO day-of-week, Monday=1..Sunday=7.
+- `HOME_METRIC_POLARITY` — `{ kcal: 'both', protein: 'underBad', carbs: 'overBad', steps: 'underBad' }`. Badge colour depends on which direction is "bad" for that metric, not a single blanket rule: kcal is bad both under *and* over tolerance; protein/steps are only bad when under (exceeding is fine, never penalised); carbs is only bad when over (matches the equivalent, unimplemented-here, convention for fats elsewhere in the app).
+- `getHomeMetricTolerance(field)` — reuses `SAVE_DAY_TOLERANCE` (the same tolerance band the "does this day qualify to be saved as a Sample Day" check uses, §28) for kcal/protein/carbs; steps gets its own `HOME_STEPS_TOLERANCE = 500`, since `SAVE_DAY_TOLERANCE` has no steps entry.
+- `getHomeMetricBadge(field, avg, target)` — under tolerance → "Falling behind"; over → "Exceeding"; within → "On track". Colour (`bg`/`color`, reusing the existing `.badge-green`/`.badge-red` colour values directly rather than the CSS classes, since the badge needs to pick from either based on computed polarity rather than a fixed class) is red for the "bad" direction per `HOME_METRIC_POLARITY`, green otherwise; "On track" is always green. Returns a neutral grey "No data" badge if nothing's logged yet this week or there's no active goal.
+- `getHomeMetricSublabel(field, dayMap, weekStart, today, target, unit)` — only called (and only rendered) when the badge isn't "On track" (v7.32 — originally always computed/shown, changed so an on-pace metric doesn't clutter the card with a redundant line). Computes `daysRemaining = 8 - isoDow(today)` (today plus whatever's left in the week) and `loggedSoFar` = the sum of actual logged values for every day strictly before today this week (days with no log contribute nothing). `requiredDaily = (target*7 - loggedSoFar) / daysRemaining`. On the week's last day (`daysRemaining === 1`) this naturally reduces to "hit exactly `requiredDaily` today" with no special-cased branch — the general remaining-budget formula degenerates to the single-day case on its own, since dividing by 1 changes nothing. Otherwise renders as "Adjust your daily avg by ±delta {unit} for the rest of the week to hit target", or "On pace for the week" if `delta` rounds to 0.
+- `renderHomeHero()` — kcal/protein/carbs/steps rows in that fixed order, each showing avg vs. target, the badge, and (conditionally) the sublabel. Uses `getActiveGoal()` (§15) and `buildDayMap()`/`avgDayMapField()` (existing helpers, §24) — `avgDayMapField` already excludes days with no data from the average, which is what makes "This week's avg" only count days actually logged so far.
+
+### Upcoming goal banner
+
+`renderHomeGoalBanner()` — deliberately does **not** just take the chronologically-next goal in `state.goals`. A macrocycle's future weeks are frequently already pre-scheduled as separate goal entries (continuations of the same targets), and surfacing every one of those as "a new goal starting soon" would be near-constant noise. Instead:
+
+- Compares each future goal (`startDate > today`, sorted ascending) against `getActiveGoal()` field-by-field (`kcal`/`protein`/`carbs`/`fats`/`steps`) and picks the first one whose targets actually differ.
+- Only shows if that goal starts within **6 days** (so it first appears the Tuesday before a Monday start, not the Monday itself — `daysAway > 6` hides it).
+- Headline: "Your new goal starts tomorrow!" only when `daysAway === 1` (only possible if today is Sunday, since goals are Monday-aligned); otherwise "Your new goal starts on Monday" (no trailing period — the Sunday variant keeps its "!" since that was a separate, later correction).
+- Label resolution mirrors the Plan goals list (§11): `upcoming.label || upcoming._blocLabel`, with a "Step N: " prefix added only if the macro has more than one goal step **and** the label doesn't already start with its own "Step N" text — `_blocLabel`s generated by the AI advice flow (§25) often already carry that prefix baked in, and double-prefixing read as "Step 4: Step 4 - Hard Cut...".
+- Shows a diff against the active goal — only the fields that actually changed (`"1,800 kcal → 1,500 kcal"` etc.), "No changes to targets" as a fallback, or the full breakdown if there's no active goal to diff against.
+- `goToPlanAndFlashGoal(macroGoalID)` (tap target) — switches `state.currentMacroId` to the goal's own macro first (so its row is guaranteed to exist regardless of which cycle Plan last showed), forces `planGoalsSectionCollapsed = false` (§11), navigates to Plan, then adds a `.goal-flash` class (a `box-shadow` keyframe animation, 1.4s) to the row matching `[data-goal-id="${macroGoalID}"]` once it's painted, removing the class after the animation completes. Fires on every visit via that route, not just the first.
+
+### Log boxes (icon tiles replaced with inline boxes in v7.53)
+
+`renderHomeLogBoxes()` — reinstates the pre-v7.31 Body-page pattern (a plain input box that disappears once today's value is logged) rather than the icon-triggered mini-modals used briefly through v7.31–v7.52. Renders into `#home-log-boxes`, called from `renderHome()`.
+
+- **Weight and steps** — each shows a `.card` with a single input + Save button, rendered only if that field isn't already logged for today (`state.bodyLogs` for weight, `buildDayMap()[today].steps` for steps). `saveHomeWeight()` / `saveHomeSteps()` write the one field they own, explicitly carrying forward whatever else is already logged for today (weight preserves steps/waist/hip and vice versa) rather than defaulting them to `null` — the same "preserve, don't clobber" pattern `saveInlineBodyLog()` (§13) established. Both call `renderHome()` directly on save now (no modal to close).
+- **Measurements** — gated on a **4-day cycle rather than daily**: `daysSinceMeas` is computed from the most recent `bodyLogs` entry with a `waist` or `hip` value (`Infinity` if none exist yet, so the box shows immediately for a first-time user rather than waiting on an undefined "since"), and the box only renders when `daysSinceMeas >= 4`. Once shown, it's the full waist/hip form — unit toggle, quarter-inch picker — not just a tap-to-open prompt; this is the same markup and ids the now-removed `modal-home-log-measurements` used (`homeFracState`, `setHomeMeasUnit()`, `setHomeFrac()`, all retained), just inlined directly into the screen rather than behind a modal. A fixed warning line ("It has been 4 days since you last recorded your measurements.") sits above the form regardless of the actual elapsed count. `initHomeMeasBox()` runs right after the box is inserted into the DOM to set the unit toggle to `state.profile.measureUnit` and reset the fraction pickers — the inline equivalent of what the old modal's open-handler used to do. `saveHomeMeasurements()` always writes to **today's** date (the 4-day gate controls whether the box shows, not what date it logs to) and, like the other two boxes, preserves whatever weight/steps are already logged today. The countdown "restarting" needs no special-case code — it falls out naturally from `daysSinceMeas` being recomputed fresh on every render against whatever the most recent `bodyLogs` measurement entry now is.
+- **Removed in this rework**: `modal-home-log-weight`, `modal-home-log-steps`, `modal-home-log-measurements`, and their three `openHomeLog*()` opener functions — there's nothing left to open, since these are inline now. `saveHomeWeight()`/`saveHomeSteps()`/`saveHomeMeasurements()` themselves were kept (their state-writing logic didn't change) but had their `closeModal(...)` calls dropped.
+
+The scale-shaped icon and the steps footprint icon from the old tile design are gone along with the tiles themselves — the boxes use plain text labels, no icon artwork.
+
+### Previews
+
+- `renderHomeFoodPreview()` — groups today's planned items (via the existing `getNutrDayMeals()`, §14) into recipes (summed servings) and non-recipe items (summed grams), **ordered by first meal appearance** (Breakfast → Lunch → Dinner → Snacks) rather than alphabetically or by aggregate order — an item logged in both Breakfast and Lunch sorts ahead of one only in Lunch, tracked via a `firstMealIndex` map built while iterating meals in that fixed order. Card title reads "Planned food today"; renders an explicit "Nothing planned for today" empty state rather than omitting the card. Tapping anywhere on the card (not just its "Open →" link) navigates to Nutrition.
+- `renderHomeTrainPreview()` — uses `getNextIncompleteSession(macro)`, extracted from `renderTrain()`'s own auto-select logic into a shared `getAllMacroSessions(macro)` / `getNextIncompleteSession(macro)` pair (§12) specifically so Home and Train can never disagree about what "next" means. Row per exercise: name, `getWeekSets()` × `ex.reps`, and — added after an initial pass omitted it — `getWeekWeight(ex, week, 'weight', macro.goalType, macro.weightIncrement)` for a suggested weight, deliberately not the exercise's set-type or its last-mesocycle progression (kept intentionally simple per spec). Title reads "Next session – {session name}", where the session name resolves `macro.dayLabels[dayId] + microSuffix` the same way Train's own hero does. Whole card is tappable (forces `trainManualSelect = false` first, so it always lands on the true next-incomplete session even if Train had a manual selection left over from a previous visit).
+- **"Edit today's logs" link** — `openTodaysBodyLogModal()` (§13): opens the Body logs modal, then stacks either today's existing entry (`openEditBodyLog`) or a blank one defaulting to today on top of it.
+
+---
+
+## 31. Input Modes (Numeric Keyboards)
+
+New in v7.54. `inputmode` was set field-by-field across every relevant input in the app so mobile keyboards show the right keypad (numeric or decimal) instead of the full qwerty keyboard — chosen deliberately over a blanket rule based on `type="number"`, since `inputmode` and `type` are independent: `inputmode` controls which on-screen keyboard appears, `type` controls validation/semantics, and a handful of fields in this app intentionally use `type="text"` for reasons unrelated to keyboard choice (see below).
+
+### Process
+
+A full audit was run first (not assumed from memory) — every `<input>` in the file was located, including ones only ever generated inside JS template strings rather than static HTML (Train's set-logging inputs, Home's log boxes, Progress's inline target-weight field, Plan's custom-session-name field), by combining static-HTML section boundaries with a nearest-preceding-`function` lookup for anything inside `<script>`. This caught fields a simple `grep` for `<input` would have missed, since several of them span multiple lines with `${...}` interpolation between the tag's attributes. The resulting audit (~95 assignable fields, plus selects/hidden/file inputs listed for completeness but excluded from scope) was reviewed field-by-field rather than applied by a general rule.
+
+### Rules applied
+
+| Category | `inputmode` | Fields |
+|---|---|---|
+| Steps | `numeric` | `home-steps-input`, `body-steps-input`, `goal-steps-input` |
+| Reps | `numeric` | `inp-r-{logKey}`, `inp-dr-{logKey}` (drop reps) — both are `type="text"`, not `type="number"` (§12), specifically so non-numeric entries stay possible; `inputmode` alone controls the keypad here without touching that |
+| Sets | *(no input field — sets are `<select>` dropdowns, `ex-sets-start-input`/`ex-sets-end-input`; nothing to change)* |
+| Waist/hip whole-number entry | `numeric` | `home-body-waist-whole`, `home-body-hip-whole`, `body-waist-whole`, `body-hip-whole` — the *display* value is decimal (a whole-inch field combined with a quarter-inch picker, §13), but the input field itself only ever takes a whole number, so it gets the whole-number keypad |
+| Training weight & body weight | `decimal` | `ex-weight-input`, `inp-w-{logKey}`, `inp-dw-{logKey}`, `home-weight-input`, `body-weight-input` |
+| Waist/hip cm entry | `decimal` | `home-body-waist-cm`, `home-body-hip-cm`, `body-waist-cm`, `body-hip-cm` — cm entry is a single decimal field, unlike the whole-number-plus-fraction inches entry above |
+| Kcal/macros | `decimal` | `goal-kcal-input`, every `*-kcal`/`*-protein`/`*-carbs`/`*-fats` field across Quick Add, Manual Entry, Edit Entry, Recipe Builder, and the Food Library editor |
+| Food grams & servings | `decimal` | Every `*-grams`/`*-servings` field across the same set of modals, plus `fle-rss` (reference serving size) |
+| Barcode manual entry | `numeric` | `nutr-barcode-input`, `recipe-barcode-input` |
+| Height | `numeric` (ft/in) / `decimal` (cm) | `profile-feet`, `profile-inches` → numeric; `profile-cm` → decimal |
+| Mesocycle count | `numeric` | `macro-weeks-input`, `edit-macro-weeks-input` — stays a plain number input (not converted to a dropdown), whole-number keypad |
+| Macro weight increment & target bodyweight | `decimal` | `macro-weight-increment-input`/`edit-macro-weight-increment-input` (a weight value), `macro-target-bw-input`/`edit-macro-target-bw-input`, and Progress's Next Cycle target-weight field (no `id` — matched and edited directly rather than via the id-based batch pass) |
+| Names, labels, search boxes | *(unchanged)* | Every free-text field (macro/goal/exercise/food/recipe names, brand, session name, dinner label, all search boxes) intentionally keeps the default qwerty keyboard |
+| Dates | *(unchanged)* | `type="date"` fields already show the native date picker regardless of `inputmode` |
+| API key | *(unchanged)* | `settings-api-key-input` is alphanumeric, `type="password"` |
+
+### Implementation
+
+Applied via a single script pass rather than 66 individual manual edits: a multi-line-safe regex matched each target `<input>` tag by its `id` (including the literal `${logKey}` template-string ids, which appear verbatim in the source before runtime interpolation and can be matched directly), then inserted the `inputmode` attribute immediately after that tag's `type="..."` attribute if not already present. Verified exhaustively afterward — every one of the ~66 target ids was individually re-checked to confirm the attribute actually landed, rather than trusting the batch-replace count alone, since a silent miss here would be easy to overlook in a change this size.
