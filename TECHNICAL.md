@@ -210,6 +210,8 @@ let state = {
   supersets:         {},   // Record<supersetId, {name: string|null}> — custom display name only; membership lives on the exercises themselves
   sampleDays:        [],   // Array<SampleDayGroup> — see below (v7.25)
   deloads:           {},   // Record<deloadUnitKey, true> — see §12 Deload Logic. Key = `${macroId}_${week}` (no microcycles) or `${macroId}_${week}_m${1|2}` (microcycles)
+  progressionLocks:  {},   // Record<lockKey, LockEntry> — see §12 Progression Compliance Guard (v7.55). LockEntry = {weightTargets, repsTargets, sets, lockedAtWeek}
+  progressionTargets: {},  // Record<lockKey + '_w' + week, {weightTargets, repsTargets}> — per-week target cache backing the guard's idempotency (v7.57), see §12
   exerciseHistory:   {},   // Record<nameNorm, Record<setType, HistoryEntry>> — see §12 Exercise History. HistoryEntry = {sets, reps, weight, dropWeight, dropReps, date}
   exerciseTrackingMode: {}, // Record<nameNorm, 'total'|'perSide'> — remembered tracking mode per exercise name, updated alongside exerciseHistory
   profile:           {},   // {gender, heightCm, birthday, measureUnit} — used for BMR/TDEE calc on the Body screen; measureUnit ('in'|'cm', default 'in') governs the waist/hip input mode only — storage is always inches regardless (v6.12)
@@ -255,6 +257,8 @@ function load() {
     }
   });
   if (!state.deloads)           state.deloads = {};
+  if (!state.progressionLocks)  state.progressionLocks = {};   // v7.55 — see §12 Progression Compliance Guard
+  if (!state.progressionTargets) state.progressionTargets = {}; // v7.57 — per-week target cache, see §12
   if (!state.exerciseHistory)   state.exerciseHistory = {};
   if (!state.exerciseTrackingMode) state.exerciseTrackingMode = {};
   if (!state.profile)           state.profile = {};
@@ -304,6 +308,8 @@ There is no longer a migration pass for old `mesocycles`/`currentMesoId` key nam
 - **`state.trainLogs`** keys, per logged set: `` `${macroId}_${week}_${day}${microKey}_${exerciseId}_${setIndex}` ``. Progression-choice keys (which of weight/reps was chosen for a given exercise/week) use a separate key shape from `getProgKey()`. A drop-set's log entry additionally carries `dropWeight`/`dropReps` fields alongside the normal `weight`/`reps`/`done` — same key, no extra set index (§12).
 - Both formats key on the exercise's stable `id`, not a positional array index — this is deliberate, since reordering, superset regrouping, or mid-cycle exercise edits must never silently remap old logs to the wrong exercise.
 - **`state.deloads`** keys: `` `${macroId}_${week}` `` when the macro doesn't use microcycles, or `` `${macroId}_${week}_m${1|2}` `` when it does — always at the week/microcycle level, never per day, since a deload applies to every session within that calendar-week unit (§12).
+- **`state.progressionLocks`** keys (`getProgressionLockKey()`): `` `${macroId}_${dayKey}_${exerciseId}` `` — one per exercise per track, independent of week, since the whole point is that a lock persists across however many weeks it takes to clear (§12).
+- **`state.progressionTargets`** keys: the same lock key with `_w${week}` appended — caches the exact target a given week was judged against the first time it's evaluated, so a later re-evaluation (the render-time catch-up sweep, or a genuine post-hoc edit) always compares against the same numbers rather than silently recomputing a different one (§12).
 - **`state.exerciseHistory`** keys: exercise name lowercased/trimmed, then set type — `state.exerciseHistory['bench press']['standard']`. Independent of `state.exercises`/`DEFAULT_LIBRARY`, so it persists across macrocycles and works for built-in and custom exercises alike.
 - **`state.sampleDays[].id`**: `` `sg_${Date.now()}` ``. Not a compound key — no other part of state references it except `linkedGoalIds` pointing the other direction, from goal to group (§28).
 
@@ -885,6 +891,37 @@ A drop-set exercise (`ex.type === 'dropset'`) plans its **main set** exactly lik
 - `formatLastLoggedLine(type, entry)` — builds the modal's display line, e.g. "Last logged: 5 sets · 10 reps @ 50kg (12 Jul)", with a type qualifier when it isn't a plain standard set. Strips a trailing `' reps'` from stored rep values before appending its own, since giant-set reps is a free-text field and real logged data can already contain the word (e.g. someone typed "60 reps").
 - `updateLastLoggedPreview()` / `applyExerciseHistoryDefaults()` — see §11 Plan for how these drive the exercise modal.
 
+### Progression Compliance Guard (v7.55–v7.57)
+If weight (or reps) progression is selected for an exercise but the suggested number isn't actually hit on every set, the following week's suggestion freezes at that same missed target — rather than continuing to climb — until a session matches it exactly, at which point normal progression resumes from there. This is deliberately **whole-exercise, not per-set**: if any one set misses, the whole exercise locks (a simplification, not an oversight — see §29).
+
+- **Storage**: `state.progressionLocks[lockKey]` where `lockKey = getProgressionLockKey(macro.id, dayKey, exId)` — one entry per exercise per track, independent of week. Presence means locked; entry shape is `{weightTargets, repsTargets, sets, lockedAtWeek}`, both target arrays frozen at whatever they were computed as the week the lock was created.
+- **What's checked**: main set weight and reps only, compared per-set against whichever target applies that week (the frozen lock target if already locked, otherwise the normal computed suggestion). Drop-set drop portions are entirely exempt — they're never a fixed plan target, always "to failure," discovered live. Giant/pause sets are checked the same way as any other exercise, against whichever route (weight or reps) was actually selected.
+- **Deload override**: `evaluateProgressionLock()` returns immediately for a deload or the single post-deload session (checked via `isDeloadUnit()`/`isFirstUnitAfterDeload()`, above) — a lock already in storage simply isn't touched, so it rides through both untouched and resumes control the moment normal progression weeks return. The overhead quick-fill-complete button also reappears normally on deload/post-deload even if the exercise is otherwise locked, matching deload's "overrules everything" rule elsewhere.
+
+**Evaluation — `evaluateProgressionLock(macro, week, dayKey, ex)`:**
+Runs whenever a set is marked done (`toggleSetDone()`, `quickFillComplete()`/`quickFillCompleteDropset()`/`quickFillCompleteSuperset()`) or an already-done set's weight/reps is edited afterward (`recheckProgressionLockForKey()`, wired to `onblur` — deliberately **not** `oninput`, since evaluating on every keystroke risks freezing a lock target on a half-typed value). Only evaluates once every set for that exercise/week is logged **and** done; a partially-logged session is left for next time.
+
+**Retroactive catch-up sweep**: `exProgData(ex)` (above) sweeps `evaluateProgressionLock()` across every week from 2 up to (but not including) the currently-viewed one, on every render. This exists because the reactive triggers above only ever fire on the exact interaction that changes something — a week logged before this guard existed, or one whose fields were never touched again after the fact, would otherwise sit un-evaluated forever, even if genuinely non-compliant. The sweep is idempotent (an already-resolved week is a harmless no-op), so simply viewing a later week is enough to catch it up.
+
+**Target caching (v7.57) — why re-evaluation needed to stop recomputing.** The sweep above calls `evaluateProgressionLock()` repeatedly and idempotently for the same past weeks on every render. Without caching, a week that already cleared its lock could get silently re-judged next time against a *freshly recomputed* — and typically higher — "normal" target (since `computeRawSuggestedTargets()` always derives from the previous week's actual + increment), wrongly re-locking a week that was already correctly resolved. Fixed by `state.progressionTargets`: the exact target a given week is judged against is cached the first time it's evaluated (`_w${week}` suffix on the lock key) and always reused afterward, regardless of how many times or when it's re-checked.
+
+**Display timing — `isLocked` in `exProgData()` only reflects locks from a strictly earlier week:**
+```js
+const isLocked = !!progLock && (progLock.lockedAtWeek || 0) < state.currentWeek;
+```
+This matters because the sweep above, plus a trailing `evaluateProgressionLock(macro, state.currentWeek, ...)` call at the end of `exProgData()` (kept *after* `isLocked` is captured, so it can only ever affect what next week sees), mean a lock can genuinely be created or cleared *during* the current week's own render pass. Per spec: logging a new miss must not hide this week's own chips (only the *following* week shows the locked state), and completing the frozen target must not reveal the chips again mid-week (the week that clears a lock still shows the banner throughout, since it came into that week already locked — chips only return the week after). Comparing `lockedAtWeek` against the currently-viewed week, rather than simply checking whether a lock object exists, is what makes both hold regardless of render order or how many times the same week re-renders.
+
+**`prevWasLocked`** — a snapshot taken immediately before the sweep evaluates the single week right before the current one, used to suppress the "Last wk: ↑ weight/reps" badge (above) the week after a lock clears. If last week started out locked, it must — by elimination — have been the week that successfully cleared it (otherwise this week would itself still be locked), so showing an inferred progression route there would be misleading; the badge shows nothing instead.
+
+**UI behaviour while locked** (solo and superset both, `exProgData()`'s `isLocked` field driving both):
+- Weight/reps progression chips ("This week — choose progression") replaced with a "Progression on hold" note (or, for a locked superset member, an inline note in place of its chip row) showing the frozen weight/reps.
+- Collapsed card shows a single frozen figure instead of the usual "last / next" pair.
+- Header badge shows `· ⚠ locked` as plain text (same visual weight as `· Last wk: ↑ weight`, not a coloured pill) instead of the last-week progression route.
+- The one-tap quick-fill-complete button is hidden entirely (solo), or the whole combined button is hidden if *any* superset member is locked — forcing a genuine manual log rather than one-tap auto-completing a target that may not be achievable.
+- A session that's fully done but didn't match its target (`missedTarget`, computed the same way as the guard's own check but purely for display) shows `✓ done · ⚠ missed target` instead of a plain `✓ done`.
+
+**Reps sanitisation (v7.57, bundled fix)**: the guard's strict per-set comparison surfaced a pre-existing data quirk — the reps field is free text, and a literal `"60 reps"` (instead of `"60"`) could be typed straight into storage (the same quirk `formatLastLoggedLine()`, above, already had to strip for display). A computed target is always a bare number/range, so this silently failed the compliance check even when the actual rep count matched. Fixed at the source rather than in the comparison: `sanitizeReps(v)` strips a trailing `reps`/`rep` word, applied in `logSet()` (manual entry) and at every quick-fill/complete function's reps assignment, so the word can never re-enter storage from any write path.
+
 ### Rest Timer
 See §17 — opened via the clock icon in the Train header.
 
@@ -1154,6 +1191,9 @@ function roundToIncrement(weight, increment) {
 ```
 Used specifically for deload weeks: `roundToIncrement(lastLoggedWeight * 0.6, weightJump)` — 60% of whatever was actually logged last time, rounded to the exercise's own applicable increment (the same value normal progression would add). See §12 Deload Logic for the full session-level behaviour.
 
+### Progression Compliance Guard (v7.55–v7.57)
+Layered on top of the three functions above, not a replacement for them: if a chosen progression route isn't actually achieved on every set, the following week's suggestion freezes at the missed target instead of continuing to climb, via `state.progressionLocks`. See §12 Module: Train for the full mechanism (evaluation, retroactive catch-up, target caching, display timing, and UI behaviour).
+
 ---
 
 ## 21. Barcode Scanner
@@ -1321,6 +1361,11 @@ Not exhaustive — covers the functions most useful to know when working on the 
 | `recordExerciseHistory(macro, week, dayKey, ex)` | Snapshots weight/reps/sets/tracking-mode into `state.exerciseHistory`/`state.exerciseTrackingMode`; no-ops for deload sessions; always reads set index 0 regardless of which set was actually interacted with |
 | `formatLastLoggedLine(type, entry)` | Formats one history entry into the modal's display line |
 | `getSelectedTrainWeekDates(macro)` | Real calendar `{start, end}` for the currently-selected mesocycle+microcycle, fanned out from `macro.start` via the same `mesoSpanDays` math as `getMacroVolumeSeries()`; returns `null` if the macro has no start date (v7.28) |
+| `getProgressionLockKey(macroId, dayKey, exId)` | Storage key for a progression compliance lock — one per exercise per track, independent of week (v7.55, §12) |
+| `computeRawSuggestedTargets(macro, week, dayKey, ex)` | Recomputes what a week's per-set weight/reps target would be under normal progression rules, no lock applied — the "what should have been hit" side of the compliance check (v7.55, §12) |
+| `evaluateProgressionLock(macro, week, dayKey, ex)` | Creates, updates, or clears a progression lock by comparing a fully-logged week's actual sets against the applicable target; caches the target used per-week so re-evaluation can never drift (v7.55–v7.57, §12) |
+| `recheckProgressionLockForKey(logKey)` | `onblur` handler re-running the compliance check when an already-done set's weight/reps is edited afterward — deliberately not on every keystroke (v7.56, §12) |
+| `sanitizeReps(v)` | Strips a trailing `reps`/`rep` word from a reps value before it's stored — the compliance guard's fix for a pre-existing free-text-field data quirk (v7.57, §12) |
 
 ### Body
 | Function | Description |
@@ -2011,6 +2056,7 @@ See §3's callout for the full story — `range.proteinMax` was stored as the re
 | **Drop-set theoretical volume (partially resolved in v6.09)** | The Plan page's *theoretical* (pre-logged) volume projections — the Week-1 session summary and the body-part volume table — now include a drop-set exercise's main-set contribution, since `ex.reps` holds a real target for it as of v6.09 (previously always `''`, contributing 0). The **drop portion** still contributes 0 to these projections, correctly — it never has a plan-time target, only ever discovered live, so there's nothing to project. Real logged volume (`getSessionVolume()`, used everywhere in Train/Progress) was never affected either way and correctly includes both portions. |
 | **Maintenance recalibration flag (Phase 3, §27) — not yet click-tested live** | `computeMaintenanceRecalibration()` is logic-tested against synthetic scenarios matching real data and verified against the actual live functions, but hasn't been exercised in the live app yet, since it only fires during an active maintenance bridge and testing so far has happened outside of one. Treated as working; flag if anything looks off once genuinely tested against a live maintenance cycle. |
 | **Sample Day Library — formal links never expire (§28)** | `group.linkedGoalIds` only ever grows (a goal is added the moment a day is saved under it) — there's no path that removes an id from it, even if that goal's targets are later edited to fall well outside the group's `range`. In practice this is rarely visible, since `getEffectiveLinkedGoalIds()` still shows it as a linked pill either way (formally-linked ids are unconditionally included), but it means a formal link is permanent even after the underlying similarity that justified it is gone. |
+| **Progression Compliance Guard — whole-exercise, not per-set lock granularity (§12)** | If 3 of 4 sets hit the target but one didn't, the entire exercise locks, not just the offending set — a deliberate simplification agreed during design rather than tracking per-set lock state, which would add real complexity for a corner case (per-set targets already vary week to week via the v6.09 per-set carry-forward). Revisit only if per-set locking is explicitly requested. |
 
 ### Resolved (previously listed as open questions)
 

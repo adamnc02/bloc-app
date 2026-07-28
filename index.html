@@ -694,7 +694,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 .home-target-name { font-size: 13px; font-weight: 600; min-width: 54px; flex-shrink: 0; }
 .home-target-vals { font-size: 11px; opacity: 0.8; flex: 1; }
 .home-sublabel { font-size: 10px; opacity: 0.8; margin-top: 8px; }
-.home-goal-banner { margin-top: 12px; background: var(--surface2); border: 0.5px solid var(--border2); border-radius: var(--r-lg); padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+.home-goal-banner { margin-top: 12px; margin-bottom: 10px; background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r); padding: 16px 18px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
 .home-goal-banner-text { font-size: 13px; color: var(--text); font-weight: 600; }
 .home-goal-banner-sub { font-size: 11px; color: var(--text2); margin-top: 2px; }
 .home-edit-logs-link { text-align: right; margin-top: 8px; margin-bottom: 14px; }
@@ -1649,7 +1649,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="card" style="margin-bottom:10px;cursor:pointer;" onclick="openModal('modal-settings-about')">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-          <span class="badge badge-green">v7.54</span>
+          <span class="badge badge-green">v7.57</span>
         </div>
       </div>
 
@@ -2863,6 +2863,16 @@ function load() {
   });
   if (!state.supersets) state.supersets = {};
   if (!state.deloads) state.deloads = {};
+  // Keyed by getProgressionLockKey(macroId, dayKey, exId). Presence marks
+  // that exercise/track as locked — see the PROGRESSION COMPLIANCE GUARD
+  // section for how this is created, checked, and cleared.
+  if (!state.progressionLocks) state.progressionLocks = {};
+  // Keyed by getProgressionLockKey(...) + '_w' + week. Caches the target a
+  // given week was judged against the first time it's evaluated, so a
+  // later re-evaluation (idempotent sweep, or a genuine post-hoc edit)
+  // always compares against the same numbers rather than silently
+  // recomputing a different (and usually wrong) target.
+  if (!state.progressionTargets) state.progressionTargets = {};
   if (!state.exerciseHistory) state.exerciseHistory = {};
   if (!state.exerciseTrackingMode) state.exerciseTrackingMode = {};
   if (!state.profile) state.profile = {};
@@ -4182,6 +4192,186 @@ function getGiantSetProgression(ex, week) {
   const add = 10; // giant set: +10 per week (mesoweek fallback, e.g. week 2 with no prior log)
   const base = parseInt(ex.reps.match(/\d+/)?.[0]) || 20;
   return String(base + add * (week - 1));
+}
+
+// ════════════════════════════════════════════════
+// PROGRESSION COMPLIANCE GUARD (v7.55–v7.57)
+// ════════════════════════════════════════════════
+// If the user selects to progress weight (or reps) for an exercise but
+// can't actually hit the suggested numbers on every main set that week,
+// progression locks: the following week's suggestion freezes at that same
+// missed target (not what was actually logged) rather than continuing to
+// climb, and stays frozen — across as many weeks as it takes — until a
+// session matches the frozen target exactly on every set. Only then does
+// normal week-over-week progression resume, picking up from that value.
+//
+// Deliberately whole-exercise, not per-set: if any set misses, the whole
+// exercise locks. Drop-set drop portions are exempt from the compliance
+// check entirely (they're never a fixed plan target, always "to failure",
+// discovered live) — only the main working weight/reps are checked.
+// Giant/pause sets are checked the same way as any other exercise, against
+// whichever route (weight or reps) was actually selected that week.
+//
+// Deload and the single post-deload session never evaluate or touch a
+// lock — they already override progression entirely via their own logic
+// (see DELOAD LOGIC above), so a lock simply rides through them untouched
+// and resumes control the moment normal progression weeks return.
+
+// Storage key for a progression lock — one per exercise, per track (day +
+// microcycle), independent of week, since the whole point is that it
+// persists across however many weeks it takes to clear.
+function getProgressionLockKey(macroId, dayKey, exId) {
+  return macroId + '_' + dayKey + '_' + exId;
+}
+
+// Recomputes the per-set weight/reps target this week WOULD suggest under
+// normal progression rules — no lock applied. Used by the compliance check
+// to know what should have been hit when no lock currently exists yet.
+// Mirrors the per-set math in renderTrainDay's exProgData() exactly; kept
+// as a standalone, non-render-scoped function (rather than reusing
+// exProgData directly) because exProgData is a closure over whichever
+// week/day is currently being VIEWED, while this must also be callable
+// right after a log write for the week/day actually being LOGGED (in
+// practice always the same, but this keeps the two concerns decoupled).
+function computeRawSuggestedTargets(macro, week, dayKey, ex) {
+  const isGain = macro.goalType === 'gain';
+  const isMaintenance = macro.goalType === 'maintenance';
+  const lightJump = isMaintenance ? 0 : parseFloat(macro.weightIncrement || '2.5');
+  const heavyJump = isMaintenance ? 0 : (isGain ? 10 : 5);
+  const weightJump = ex.isHeavyLeg ? heavyJump : lightJump;
+  const sets = getWeekSets(ex, week, macro.weeks);
+  const pk = getProgKey(macro.id, week, dayKey, ex.id);
+  const progLog = state.trainLogs[pk] || {};
+  const progType = progLog.progType || 'weight';
+  const isPauseSet = ex.type === 'pause';
+  const prevWeek = week - 1;
+  const prevKey = macro.id + '_' + prevWeek + '_' + dayKey;
+  let prevLoggedSets = [];
+  if (prevWeek >= 1) {
+    const prevSetsCount = getWeekSets(ex, prevWeek, macro.weeks);
+    for (let s = 0; s < prevSetsCount; s++) {
+      prevLoggedSets.push(state.trainLogs[prevKey + '_' + ex.id + '_' + s] || null);
+    }
+  }
+  const weightTargets = [], repsTargets = [];
+  for (let s = 0; s < sets; s++) {
+    const srcSet = s < prevLoggedSets.length
+      ? prevLoggedSets[s]
+      : (prevLoggedSets.length > 0 ? prevLoggedSets[prevLoggedSets.length - 1] : null);
+    const setActualWeight = srcSet && srcSet.weight ? parseFloat(srcSet.weight) : null;
+    const setActualReps   = srcSet && srcSet.reps   ? srcSet.reps : null;
+    const setRecWeight = setActualWeight !== null
+      ? setActualWeight + weightJump
+      : getWeekWeight(ex, week, 'weight', macro.goalType, macro.weightIncrement);
+    const setRecReps = (() => {
+      if (isPauseSet) return getGiantSetProgression(ex, week);
+      if (ex.type === 'giant') {
+        if (setActualReps !== null) {
+          const baseNum = parseInt(String(setActualReps).match(/(\d+)/)?.[0]) || 0;
+          return String(baseNum + 10);
+        }
+        return getGiantSetProgression(ex, week);
+      }
+      if (setActualReps !== null) {
+        const m = String(setActualReps).match(/^(\d+)(?:–(\d+))?$/);
+        if (m) { const lo = parseInt(m[1]) + 1; return m[2] ? lo + '–' + (parseInt(m[2]) + 1) : String(lo); }
+      }
+      return getWeekReps(ex, week, 'reps');
+    })();
+    weightTargets.push(progType === 'weight'
+      ? setRecWeight.toFixed(1)
+      : (setActualWeight !== null ? setActualWeight.toFixed(1) : ex.startWeight.toFixed(1)));
+    repsTargets.push(progType === 'reps'
+      ? setRecReps
+      : (setActualReps !== null ? setActualReps : ex.reps));
+  }
+  return { sets, weightTargets, repsTargets, progType };
+}
+
+// Compares every logged set for (macro, week, dayKey, ex) against the
+// applicable target — the active lock's frozen target if one already
+// exists, otherwise this week's freshly computed suggestion — and
+// creates, leaves untouched, or clears state.progressionLocks accordingly.
+// Only runs once every set for this exercise is logged AND marked done;
+// a partially-logged session is left unevaluated (called again next time
+// a set is toggled). Skipped entirely for maintenance cycles, week 1
+// (nothing to compare against yet), and deload/post-deload sessions.
+function evaluateProgressionLock(macro, week, dayKey, ex) {
+  if (!macro || !ex) return;
+  if (macro.goalType === 'maintenance') return;
+  if (week <= 1) return;
+  if (isDeloadUnit(macro, week, dayKey)) return;
+  if (isFirstUnitAfterDeload(macro, week, dayKey)) return;
+
+  const lockKey = getProgressionLockKey(macro.id, dayKey, ex.id);
+  const existingLock = state.progressionLocks && state.progressionLocks[lockKey];
+  const sets = getWeekSets(ex, week, macro.weeks);
+  const key2 = macro.id + '_' + week + '_' + dayKey;
+
+  const logs = [];
+  for (let s = 0; s < sets; s++) {
+    const log = state.trainLogs[key2 + '_' + ex.id + '_' + s];
+    if (!log || !log.done) return; // session not fully logged yet — wait
+    logs.push(log);
+  }
+  if (sets === 0) return;
+
+  // A given week's compliance target, once determined, must never change
+  // on a later re-evaluation (e.g. the render-time catch-up sweep runs
+  // repeatedly and idempotently touches every past week on every render;
+  // a genuine edit after the fact also re-triggers this). Without caching
+  // it, a week that already cleared its lock could get silently
+  // re-evaluated against a freshly recomputed (and different, typically
+  // higher) "normal" target the next time it's touched, wrongly
+  // re-locking a week that was already correctly resolved. Cache it once,
+  // keyed per exercise+week, and always reuse it afterward.
+  if (!state.progressionTargets) state.progressionTargets = {};
+  const targetKey = lockKey + '_w' + week;
+  const cachedTarget = state.progressionTargets[targetKey];
+  let weightTargets, repsTargets, changed = false;
+  if (cachedTarget) {
+    weightTargets = cachedTarget.weightTargets;
+    repsTargets = cachedTarget.repsTargets;
+  } else if (existingLock) {
+    weightTargets = existingLock.weightTargets;
+    repsTargets = existingLock.repsTargets;
+  } else {
+    const raw = computeRawSuggestedTargets(macro, week, dayKey, ex);
+    weightTargets = raw.weightTargets;
+    repsTargets = raw.repsTargets;
+  }
+  if (!cachedTarget) {
+    state.progressionTargets[targetKey] = { weightTargets: weightTargets.slice(), repsTargets: repsTargets.slice() };
+    changed = true;
+  }
+
+  let compliant = true;
+  for (let s = 0; s < sets; s++) {
+    const targetW = weightTargets[s] !== undefined ? weightTargets[s] : weightTargets[weightTargets.length - 1];
+    const targetR = repsTargets[s] !== undefined ? repsTargets[s] : repsTargets[repsTargets.length - 1];
+    const actualW = logs[s].weight ? parseFloat(logs[s].weight) : null;
+    const actualR = logs[s].reps !== undefined && logs[s].reps !== null ? String(logs[s].reps).trim() : '';
+    const wOk = actualW !== null && targetW !== undefined && Math.abs(actualW - parseFloat(targetW)) < 0.01;
+    const rOk = targetR !== undefined && actualR === String(targetR).trim();
+    if (!wOk || !rOk) { compliant = false; break; }
+  }
+
+  if (!state.progressionLocks) state.progressionLocks = {};
+  if (!compliant) {
+    if (!existingLock) {
+      state.progressionLocks[lockKey] = {
+        weightTargets: weightTargets.slice(),
+        repsTargets: repsTargets.slice(),
+        sets, lockedAtWeek: week,
+      };
+      changed = true;
+    }
+    // Already locked — target stays frozen exactly as first set; nothing to update.
+  } else if (existingLock) {
+    delete state.progressionLocks[lockKey];
+    changed = true;
+  }
+  if (changed) save();
 }
 
 // Build per-day stats map from all logs
@@ -11855,6 +12045,30 @@ function renderTrainDay(macro) {
   // Helper: compute per-exercise progression data (same logic as before, extracted for reuse)
   function exProgData(ex) {
     const exId      = ex.id;
+    const progLockKey = getProgressionLockKey(macro.id, state.currentDay, exId);
+    // ── Retroactive compliance catch-up ──────────────────────────────
+    // Sweeps every PRIOR week (deliberately NOT including this one) so
+    // the lock status read below reflects "coming into this week", never
+    // "resulting from what's been logged in it so far". That distinction
+    // matters: ticking the final compliant set must not reveal the chips
+    // again mid-week, and logging a deviation must not hide them either —
+    // per spec, the locked/unlocked state only ever changes starting the
+    // FOLLOWING week you view, regardless of what happens within this one.
+    // Idempotent — a week already resolved one way or the other is a
+    // harmless no-op — so this safely re-runs on every render.
+    //
+    // prevWasLocked snapshots lock status immediately before evaluating
+    // the single week right before this one — used further down to detect
+    // "last week was actually the compliance week that cleared a lock"
+    // (not a genuine new progression choice), so the "Last wk: ↑ weight"
+    // badge can be suppressed there instead of showing a misleading route.
+    let prevWasLocked = false;
+    for (let w = 2; w < state.currentWeek; w++) {
+      if (w === state.currentWeek - 1) {
+        prevWasLocked = !!(state.progressionLocks && state.progressionLocks[progLockKey]);
+      }
+      evaluateProgressionLock(macro, w, state.currentDay, ex);
+    }
     const isPauseSet= ex.type === 'pause';
     const isDropSet = ex.type === 'dropset';
     const isGain        = macro.goalType === 'gain';
@@ -11877,6 +12091,23 @@ function renderTrainDay(macro) {
     const prevPk    = getProgKey(macro.id, prevWeek2, state.currentDay, exId);
     const prevProgLog = state.trainLogs[prevPk] || {};
     const prevKey2  = macro.id + '_' + prevWeek2 + '_' + state.currentDay;
+
+    // ── Progression compliance lock ──────────────────────────────────
+    // See PROGRESSION COMPLIANCE GUARD section for how this is created/
+    // cleared. Read AFTER the catch-up sweep above (which stops short of
+    // this week), so isLocked reflects the state coming into this week —
+    // stable for the whole time you're viewing/logging it.
+    const progLock = state.progressionLocks && state.progressionLocks[progLockKey];
+    // Deliberately excludes a lock whose lockedAtWeek equals THIS week —
+    // that means this week's own evaluation is what just created it (e.g.
+    // via the trailing evaluate below, or a toggle mid-session), which
+    // must not hide this week's own chips/button. Only a lock inherited
+    // from a strictly earlier week should affect what's shown right now.
+    const isLocked = !!progLock && (progLock.lockedAtWeek || 0) < state.currentWeek;
+    // Evaluate THIS week's own compliance too — but only AFTER isLocked
+    // above has already been captured, so it can only ever affect what
+    // NEXT week sees, never this render.
+    evaluateProgressionLock(macro, state.currentWeek, state.currentDay, ex);
 
     let prevLoggedSets = [];
     if (prevWeek2 >= 1) {
@@ -11903,7 +12134,14 @@ function renderTrainDay(macro) {
     // if neither increased, there's no detectable progression to report.
     let prevProgType = prevProgLog.progType || null;
     let prevNoProgression = false;
-    if (!prevProgType && prevActualWeight !== null) {
+    // If last week started off locked, we already know (by elimination —
+    // otherwise this week would itself still be locked) that it must have
+    // been the week that successfully cleared the lock, not a genuine new
+    // progression decision. Skip the inference below entirely so the
+    // header shows nothing rather than a misleading "↑ weight/reps".
+    if (prevWasLocked) {
+      prevProgType = null;
+    } else if (!prevProgType && prevActualWeight !== null) {
       const priorWeek = prevWeek2 - 1;
       let priorWeight, priorReps;
       if (priorWeek < 1) {
@@ -12003,12 +12241,22 @@ function renderTrainDay(macro) {
         deloadDropRepsPlaceholder = refDropReps !== null ? refDropReps : (prevActualDropReps !== null ? prevActualDropReps : '');
       }
     }
+    // Locked single-value fallbacks (exercise-wide — set 1's frozen target),
+    // used only when deload doesn't already override (deload always wins).
+    const lockWeightPlaceholder = isLocked
+      ? (progLock.weightTargets[0] !== undefined ? progLock.weightTargets[0] : progLock.weightTargets[progLock.weightTargets.length - 1])
+      : null;
+    const lockRepsPlaceholder = isLocked
+      ? (progLock.repsTargets[0] !== undefined ? progLock.repsTargets[0] : progLock.repsTargets[progLock.repsTargets.length - 1])
+      : null;
     const weightPlaceholder = deloadWeightPlaceholder !== null ? deloadWeightPlaceholder
+      : lockWeightPlaceholder !== null ? lockWeightPlaceholder
       : state.currentWeek === 1
       ? ex.startWeight.toFixed(1)
       : progType === 'weight' ? recommendedWeight.toFixed(1)
         : (prevActualWeight !== null ? prevActualWeight.toFixed(1) : ex.startWeight.toFixed(1));
     const repsPlaceholder = deloadRepsPlaceholder !== null ? deloadRepsPlaceholder
+      : lockRepsPlaceholder !== null ? lockRepsPlaceholder
       : state.currentWeek === 1
       ? ex.reps
       : progType === 'reps' ? recommendedReps
@@ -12091,12 +12339,24 @@ function renderTrainDay(macro) {
         return '';
       })();
 
-      weightPlaceholders.push(progType === 'weight'
-        ? setRecWeight.toFixed(1)
-        : (setActualWeight !== null ? setActualWeight.toFixed(1) : ex.startWeight.toFixed(1)));
-      repsPlaceholders.push(progType === 'reps'
-        ? setRecReps
-        : (setActualReps !== null ? setActualReps : ex.reps));
+      // Locked exercise: main weight/reps freeze at the lock's original
+      // missed target (same value every week until compliance is met) —
+      // completely overriding progType/normal math for the main set. The
+      // drop portion below is never part of the guard, so it keeps
+      // following its own normal formula regardless of lock state.
+      if (isLocked) {
+        const lockW = progLock.weightTargets[s] !== undefined ? progLock.weightTargets[s] : progLock.weightTargets[progLock.weightTargets.length - 1];
+        const lockR = progLock.repsTargets[s] !== undefined ? progLock.repsTargets[s] : progLock.repsTargets[progLock.repsTargets.length - 1];
+        weightPlaceholders.push(lockW);
+        repsPlaceholders.push(lockR);
+      } else {
+        weightPlaceholders.push(progType === 'weight'
+          ? setRecWeight.toFixed(1)
+          : (setActualWeight !== null ? setActualWeight.toFixed(1) : ex.startWeight.toFixed(1)));
+        repsPlaceholders.push(progType === 'reps'
+          ? setRecReps
+          : (setActualReps !== null ? setActualReps : ex.reps));
+      }
       dropWeightPlaceholders.push(!isDropSet ? '' : (progType === 'weight'
         ? (setRecDropWeight !== null ? setRecDropWeight.toFixed(1) : '')
         : (setActualDropWeight !== null ? setActualDropWeight.toFixed(1) : '')));
@@ -12113,11 +12373,30 @@ function renderTrainDay(macro) {
     }
     const allDone = doneSets === sets && sets > 0;
 
+    // Whether a fully-completed session actually matched its own target
+    // (main set only — drop-set drop portions are never part of this,
+    // same exemption as the compliance guard itself). Only meaningful on
+    // a genuine progression week; deload/post-deload/maintenance/week-1
+    // sessions don't have a "target" to miss in this sense.
+    let missedTarget = false;
+    if (allDone && !isDeloadSession && !isPostDeloadSession && !isMaintenance && state.currentWeek > 1) {
+      for (let s = 0; s < sets; s++) {
+        const lg = state.trainLogs[key2 + '_' + exId + '_' + s] || {};
+        const targetW = weightPlaceholders[s] !== undefined ? weightPlaceholders[s] : weightPlaceholders[weightPlaceholders.length - 1];
+        const targetR = repsPlaceholders[s] !== undefined ? repsPlaceholders[s] : repsPlaceholders[repsPlaceholders.length - 1];
+        const actualW = lg.weight ? parseFloat(lg.weight) : null;
+        const actualR = lg.reps !== undefined && lg.reps !== null ? String(lg.reps).trim() : '';
+        const wOk = actualW !== null && targetW !== undefined && Math.abs(actualW - parseFloat(targetW)) < 0.01;
+        const rOk = targetR !== undefined && actualR === String(targetR).trim();
+        if (!wOk || !rOk) { missedTarget = true; break; }
+      }
+    }
+
     return { exId, sets, progType, prevProgType, prevLoggedSets, prevActualWeight, prevActualReps,
              recommendedWeight, recommendedReps, weightPlaceholder, repsPlaceholder,
              weightPlaceholders, repsPlaceholders, dropWeightPlaceholders, dropRepsPlaceholders,
-             weightJump, isPauseSet, doneSets, allDone, prevWeek2, prevNoProgression,
-             isDeloadSession, isPostDeloadSession,
+             weightJump, isPauseSet, doneSets, allDone, missedTarget, prevWeek2, prevNoProgression,
+             isDeloadSession, isPostDeloadSession, isLocked, prevWasLocked,
              isDropSet, prevActualDropWeight, prevActualDropReps,
              recommendedDropWeight, recommendedDropReps, dropWeightPlaceholder, dropRepsPlaceholder };
   }
@@ -12136,8 +12415,8 @@ function renderTrainDay(macro) {
       const { sets, progType, prevProgType, prevLoggedSets, prevActualWeight, prevActualReps,
               recommendedWeight, recommendedReps, weightPlaceholder, repsPlaceholder,
               weightPlaceholders, repsPlaceholders, dropWeightPlaceholders, dropRepsPlaceholders,
-              weightJump, isPauseSet, doneSets, allDone, prevWeek2, prevNoProgression,
-              isDeloadSession, isPostDeloadSession,
+              weightJump, isPauseSet, doneSets, allDone, missedTarget, prevWeek2, prevNoProgression,
+              isDeloadSession, isPostDeloadSession, isLocked, prevWasLocked,
               isDropSet, prevActualDropWeight, prevActualDropReps,
               recommendedDropWeight, recommendedDropReps, dropWeightPlaceholder, dropRepsPlaceholder } = d;
       const key2 = macro.id + '_' + state.currentWeek + '_' + state.currentDay;
@@ -12181,6 +12460,7 @@ function renderTrainDay(macro) {
         : allDone
         ? `${sets} sets · ${stripReps(summaryReps)} reps`
         : (isDeloadSession || isPostDeloadSession) ? `${sets} sets · ${stripReps(repsPlaceholder)} reps`
+        : isLocked ? `${sets} sets · ${stripReps(repsPlaceholder)} reps`
         : isPauseSet ? `${sets} sets · ${stripReps(ex.reps)} reps`
         : isMaintCycle ? `${sets} sets · ${stripReps(recommendedReps)} reps`
         : lastReps !== null ? `${sets} sets · ${stripReps(lastReps)}/${stripReps(recommendedReps)} reps`
@@ -12188,6 +12468,7 @@ function renderTrainDay(macro) {
       const weightRefText = allDone
         ? `${summaryWeight} logged`
         : (isDeloadSession || isPostDeloadSession) ? `${weightPlaceholder} kg`
+        : isLocked ? `${weightPlaceholder} kg`
         : isMaintCycle ? `${weightPlaceholder} kg`
         : lastWeight !== null ? `${lastWeight} / ${recommendedWeight.toFixed(1)} kg`
         : `${weightPlaceholder} kg`;
@@ -12201,6 +12482,8 @@ function renderTrainDay(macro) {
         ? ` <span class="badge badge-amber" style="margin-left:8px;font-size:10px;vertical-align:middle;">deload</span>`
         : isMaintCycle
         ? '' // no progression badge on maintenance cycles
+        : isLocked
+        ? ` <span style="font-size:10px;font-weight:400;color:var(--text3);" title="Suggested weight/reps weren't hit last time — progression is on hold at this target until they are">· <span style="color:var(--red);">⚠ locked</span></span>`
         : (prevWeek2 >= 1 && prevProgType && !isPostDeloadSession)
         ? ` <span style="font-size:10px;font-weight:400;color:var(--text3);">· Last wk: <span style="color:var(--text2);">${prevProgType === 'weight' ? '↑ weight' : '↑ reps'}</span></span>`
         : (prevWeek2 >= 1 && prevNoProgression && !isPostDeloadSession)
@@ -12218,7 +12501,11 @@ function renderTrainDay(macro) {
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
               ${allDone
-                ? `<span style="font-size:11px;color:var(--accent);font-weight:500;white-space:nowrap;">✓ done</span>`
+                ? (missedTarget
+                    ? `<span style="font-size:11px;white-space:nowrap;"><span style="color:var(--accent);font-weight:500;">✓ done</span> <span style="color:var(--text3);">·</span> <span style="color:var(--red);font-weight:500;">⚠ missed target</span></span>`
+                    : `<span style="font-size:11px;color:var(--accent);font-weight:500;white-space:nowrap;">✓ done</span>`)
+                : (isLocked && !isDeloadSession && !isPostDeloadSession)
+                ? `${doneSets > 0 ? `<span style="font-size:11px;color:var(--text3);white-space:nowrap;">${doneSets}/${sets}</span>` : ''}`
                 : isDropSet
                 ? `<div style="display:flex;align-items:center;gap:6px;">
                      <button onclick="quickFillCompleteDropset(event,'${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholders.join('|')}','${repsPlaceholders.join('|')}','${dropWeightPlaceholders.join('|')}','${dropRepsPlaceholders.join('|')}')"
@@ -12248,7 +12535,7 @@ function renderTrainDay(macro) {
 
       if (isExpanded) {
         let weightRec = '', repsRec = '';
-        const showProgSelector = state.currentWeek > 1 && !isDeloadSession && !isPostDeloadSession && !isMaintCycle;
+        const showProgSelector = state.currentWeek > 1 && !isDeloadSession && !isPostDeloadSession && !isMaintCycle && !isLocked;
         if (showProgSelector) {
           const prevWLabel = prevActualWeight !== null ? prevActualWeight.toFixed(1) : getWeekWeight(ex, prevWeek2, 'weight', macro.goalType, macro.weightIncrement).toFixed(1);
           weightRec = `${prevWLabel} kg → ${recommendedWeight.toFixed(1)} kg (+${weightJump} kg)`;
@@ -12260,7 +12547,11 @@ function renderTrainDay(macro) {
             repsRec = `${prevRLabel} → ${recommendedReps} (+1 rep)`;
           }
         }
-        const progSelector = !showProgSelector ? '' : `<div style="margin-bottom:12px;">
+        const lockedNotice = (isLocked && !isDeloadSession && !isPostDeloadSession) ? `<div style="margin-bottom:12px;padding:10px 12px;border-radius:var(--r-sm);background:var(--surface2);border:1px solid var(--border2);">
+          <div style="font-size:12px;font-weight:600;color:var(--red);">⚠ Progression on hold</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px;">The suggested weight/reps weren't hit last time, so they're staying put at ${weightPlaceholder} kg · ${stripReps(repsPlaceholder)} reps until you complete every set exactly as suggested.</div>
+        </div>` : '';
+        const progSelector = !showProgSelector ? lockedNotice : `<div style="margin-bottom:12px;">
           <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">This week — choose progression</div>
           <div style="display:flex;gap:8px;">
             <div onclick="selectProgType('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}','weight')"
@@ -12327,9 +12618,11 @@ function renderTrainDay(macro) {
                 <span class="set-suggested">${lastWkMainCell}</span>
                 <input class="set-input" type="number" inputmode="decimal" step="0.5" placeholder="${setWeightPh}" value="${log.weight || ''}"
                   oninput="logSet('${logKey}','weight',this.value)" id="inp-w-${logKey}"
+                  onblur="recheckProgressionLockForKey('${logKey}')"
                   onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('inp-r-${logKey}')?.focus();}">
                 <input class="set-input" type="text" inputmode="numeric" placeholder="${repsHint}" value="${log.reps || ''}"
                   oninput="logSet('${logKey}','reps',this.value)" id="inp-r-${logKey}"
+                  onblur="recheckProgressionLockForKey('${logKey}')"
                   onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('inp-dw-${logKey}')?.focus();}">
                 <div class="${log.done ? 'check-done' : 'check-empty'}" onclick="toggleSetDone('${logKey}')" title="Both main and drop must be logged">
                   <svg viewBox="0 0 14 14"><polyline points="2,7 5.5,10.5 12,3"/></svg>
@@ -12367,9 +12660,11 @@ function renderTrainDay(macro) {
             <span class="set-suggested">${lastWkCell}</span>
             <input class="set-input" type="number" inputmode="decimal" step="0.5" placeholder="${setWeightPh}" value="${log.weight || ''}"
               oninput="logSet('${logKey}','weight',this.value)" id="inp-w-${logKey}"
+              onblur="recheckProgressionLockForKey('${logKey}')"
               onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('inp-r-${logKey}')?.focus();}">
             <input class="set-input" type="text" inputmode="numeric" placeholder="${setRepsPh}" value="${log.reps || ''}"
               oninput="logSet('${logKey}','reps',this.value)" id="inp-r-${logKey}"
+              onblur="recheckProgressionLockForKey('${logKey}')"
               onkeydown="if(event.key==='Enter'){event.preventDefault();${nextWKey ? `document.getElementById('${nextWKey}')?.focus();` : 'this.blur();'}}">
             <div class="${log.done ? 'check-done' : 'check-empty'}" onclick="toggleSetDone('${logKey}')">
               <svg viewBox="0 0 14 14"><polyline points="2,7 5.5,10.5 12,3"/></svg>
@@ -12407,6 +12702,17 @@ function renderTrainDay(macro) {
         totalSets += md.sets;
       });
       const allSSDone = totalDone === totalSets && totalSets > 0;
+      // Whether any member's own session missed its target once fully
+      // done — mirrors solo exercises' missedTarget, shown next to the
+      // combined done badge below.
+      const anySSMissedTarget = memberData.some(md => md.missedTarget);
+      // If any member is under a progression lock, hide the combined
+      // overhead quick-fill+complete button — same rationale as solo
+      // exercises: force a genuine manual log rather than a one-tap
+      // auto-complete of a target that may not actually be achievable yet.
+      // Deload/post-deload always override the lock entirely (same as
+      // solo exercises), so the button reappears normally on those weeks.
+      const anySSLocked = !isDeloadSession && !isPostDeloadSession && memberData.some(md => md.isLocked);
 
       // Collapsed preview rows — mirror normal exercise layout:
       // Left: name, then sets·reps on next line, then progress badge below (session 2+)
@@ -12443,6 +12749,8 @@ function renderTrainDay(macro) {
           ? mSets + ' sets · ' + ssStrip(mSummaryR) + ' reps'
           : (md.isDeloadSession || md.isPostDeloadSession)
             ? mSets + ' sets · ' + ssStrip(md.repsPlaceholder) + ' reps'
+          : md.isLocked
+            ? mSets + ' sets · ' + ssStrip(md.repsPlaceholder) + ' reps'
           : md.isPauseSet
             ? mSets + ' sets · ' + ssStrip(m.reps) + ' reps'
             : isMaintCycle
@@ -12453,6 +12761,8 @@ function renderTrainDay(macro) {
         const mWeightRefText = mAllDone
           ? mSummaryW + ' logged'
           : (md.isDeloadSession || md.isPostDeloadSession)
+            ? md.weightPlaceholder + ' kg'
+          : md.isLocked
             ? md.weightPlaceholder + ' kg'
           : isMaintCycle
             ? md.weightPlaceholder + ' kg'
@@ -12483,6 +12793,8 @@ function renderTrainDay(macro) {
           ? ' <span class="badge badge-amber" style="font-size:9px;">deload</span>'
           : isMaintCycle
           ? ''
+          : md.isLocked
+          ? ' <span style="color:var(--text3);" title="Suggested weight/reps weren\'t hit last time — on hold until they are">· <span style="color:var(--red);">⚠ locked</span></span>'
           : (md.prevWeek2 >= 1 && md.prevProgType && !md.isPostDeloadSession)
           ? ' <span style="color:var(--text3);">· Last wk: <span style="color:var(--text2);">' + (md.prevProgType === 'weight' ? '↑ weight' : '↑ reps') + '</span></span>'
           : (md.prevWeek2 >= 1 && md.prevNoProgression && !md.isPostDeloadSession)
@@ -12514,7 +12826,11 @@ function renderTrainDay(macro) {
           </div>
           <div class="ss-train-btns" onclick="event.stopPropagation()">
             ${allSSDone
-              ? `<span style="font-size:11px;color:var(--accent);font-weight:500;white-space:nowrap;">✓ done</span>`
+              ? (anySSMissedTarget
+                  ? `<span style="font-size:11px;white-space:nowrap;"><span style="color:var(--accent);font-weight:500;">✓ done</span> <span style="color:var(--text3);">·</span> <span style="color:var(--red);font-weight:500;">⚠ missed target</span></span>`
+                  : `<span style="font-size:11px;color:var(--accent);font-weight:500;white-space:nowrap;">✓ done</span>`)
+              : anySSLocked
+              ? (totalDone > 0 ? `<span style="font-size:11px;color:var(--text3);white-space:nowrap;">${totalDone}/${totalSets}</span>` : '')
               : `<button onclick="quickFillCompleteSuperset(event,'${macro.id}',${state.currentWeek},'${state.currentDay}','${fillArgs}')"
                   title="Fill all suggested and mark complete"
                   style="width:26px;height:26px;border-radius:50%;border:1.5px solid var(--border2);background:transparent;color:var(--text2);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;">
@@ -12532,6 +12848,15 @@ function renderTrainDay(macro) {
           progToggles = '<div class="ss-prog-toggles"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">This week — choose progression</div>';
           members.forEach((m, mi) => {
             const md = memberData[mi];
+            if (md.isLocked) {
+              progToggles += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:10px 12px;border-radius:var(--r-sm);background:var(--surface2);border:1px solid var(--border2);">' +
+                '<div style="flex:1;min-width:0;">' +
+                  '<div style="font-size:12px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + m.name + ' <span style="color:var(--red);font-size:11px;">· ⚠ locked</span></div>' +
+                  '<div style="font-size:10px;color:var(--text3);margin-top:2px;">On hold at ' + md.weightPlaceholder + ' kg · ' + md.repsPlaceholder + ' reps until fully hit</div>' +
+                '</div>' +
+              '</div>';
+              return;
+            }
             const pt = md.progType;
             const isPauseSet = m.type === 'pause';
             const prevWLabel = md.prevActualWeight !== null ? md.prevActualWeight.toFixed(1) : getWeekWeight(m, md.prevWeek2, 'weight', macro.goalType, macro.weightIncrement).toFixed(1);
@@ -12599,10 +12924,10 @@ function renderTrainDay(macro) {
             exRows += `<div class="ss-set-ex-row">
               <span class="ss-set-ex-name">${m.name}</span>
               <input class="ss-set-inp" type="number" inputmode="decimal" step="0.5" placeholder="${mSetWeightPh}" value="${log.weight || ''}"
-                oninput="logSet('${logKey}','weight',this.value)" id="inp-w-${logKey}" style="margin-left:auto;">
+                oninput="logSet('${logKey}','weight',this.value)" id="inp-w-${logKey}" onblur="recheckProgressionLockForKey('${logKey}')" style="margin-left:auto;">
               <span class="ss-set-x">×</span>
               <input class="ss-set-inp" type="text" inputmode="numeric" placeholder="${mSetRepsPh}" value="${log.reps || ''}"
-                oninput="logSet('${logKey}','reps',this.value)" id="inp-r-${logKey}">
+                oninput="logSet('${logKey}','reps',this.value)" id="inp-r-${logKey}" onblur="recheckProgressionLockForKey('${logKey}')">
               <div class="${log.done ? 'check-done ss-set-check done' : 'check-empty ss-set-check'}" onclick="toggleSetDone('${logKey}')" style="margin:0;">
                 <svg viewBox="0 0 14 14"><polyline points="2,7 5.5,10.5 12,3"/></svg>
               </div>
@@ -12656,12 +12981,49 @@ function renderTrainDay(macro) {
   renderTrainHero(macro);
 }
 
+// Reps are always a whole number, or a range like "8–10" — never the word
+// "reps" itself, which is purely a UI display label added elsewhere (see
+// stripReps()). Shared by logSet() and every quick-fill/complete function
+// below that writes reps directly rather than through logSet.
+function sanitizeReps(v) {
+  return String(v).replace(/\s*reps?\s*/gi, '').trim();
+}
+
 // Writes a single field (weight or reps) of one logged set into
 // state.trainLogs, creating the entry if it doesn't exist yet.
 function logSet(key, field, value) {
   if (!state.trainLogs[key]) state.trainLogs[key] = {};
-  state.trainLogs[key][field] = value;
+  let v = value;
+  if (field === 'reps' || field === 'dropReps') {
+    v = sanitizeReps(v);
+  }
+  state.trainLogs[key][field] = v;
   save();
+}
+
+// Re-runs the progression compliance check for the exercise a given set
+// belongs to — called on blur (not oninput/every keystroke, unlike logSet)
+// so a lock is never evaluated against a half-typed value. Needed because
+// editing an already-done set's weight/reps (e.g. dropping the weight you
+// actually managed, after having ticked it done at the suggested number
+// first) must still be caught — otherwise a lock only ever reflects
+// whatever was logged at the moment done was last toggled, not the final
+// numbers left on the page. Drop-set drop fields intentionally don't call
+// this (never part of the compliance check).
+function recheckProgressionLockForKey(key) {
+  const log = state.trainLogs[key];
+  if (!log || !log.done) return; // only matters for sets already marked done
+  const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
+  if (!macro) return;
+  const prefix = macro.id + '_' + state.currentWeek + '_' + state.currentDay + '_';
+  if (!key.startsWith(prefix)) return;
+  const rest = key.slice(prefix.length); // "${exId}_${setIdx}"
+  const exId = rest.slice(0, rest.lastIndexOf('_'));
+  const templateKey = macro.id + '_1_' + state.currentDay;
+  const ex = (state.exercises[templateKey] || []).find(e => e.id === exId);
+  if (!ex) return;
+  evaluateProgressionLock(macro, state.currentWeek, state.currentDay, ex);
+  renderTrainDay(macro); // reflect any new/cleared lock immediately
 }
 
 // Fills every set input for an exercise with the current week's suggested
@@ -12676,7 +13038,7 @@ function fillSuggested(macroId, week, day, exId, sets, weight, reps) {
   for (let s = 0; s < sets; s++) {
     const logKey = baseKey + '_' + exId + '_' + s;
     const wVal = weightList[s] !== undefined ? weightList[s] : weightList[weightList.length - 1];
-    const rVal = repsList[s] !== undefined ? repsList[s] : repsList[repsList.length - 1];
+    const rVal = sanitizeReps(repsList[s] !== undefined ? repsList[s] : repsList[repsList.length - 1]);
     if (!state.trainLogs[logKey]) state.trainLogs[logKey] = {};
     state.trainLogs[logKey].weight = wVal;
     state.trainLogs[logKey].reps   = rVal;
@@ -12729,7 +13091,7 @@ function fillSuggestedDropset(macroId, week, day, exId, sets, weight, reps, drop
   for (let s = 0; s < sets; s++) {
     const logKey = baseKey + '_' + exId + '_' + s;
     const wVal  = weightList[s] !== undefined ? weightList[s] : weightList[weightList.length - 1];
-    const rVal  = repsList[s] !== undefined ? repsList[s] : repsList[repsList.length - 1];
+    const rVal  = sanitizeReps(repsList[s] !== undefined ? repsList[s] : repsList[repsList.length - 1]);
     const dwVal = dropWeightList[s] !== undefined ? dropWeightList[s] : dropWeightList[dropWeightList.length - 1];
     if (!state.trainLogs[logKey]) state.trainLogs[logKey] = {};
     state.trainLogs[logKey].weight = wVal;
@@ -12811,7 +13173,7 @@ function quickFillComplete(event, macroId, week, day, exId, sets, weight, reps) 
   for (let s = 0; s < sets; s++) {
     const logKey = baseKey + '_' + exId + '_' + s;
     const wVal = weightList[s] !== undefined ? weightList[s] : weightList[weightList.length - 1];
-    const rVal = repsList[s] !== undefined ? repsList[s] : repsList[repsList.length - 1];
+    const rVal = sanitizeReps(repsList[s] !== undefined ? repsList[s] : repsList[repsList.length - 1]);
     if (!state.trainLogs[logKey]) state.trainLogs[logKey] = {};
     state.trainLogs[logKey].weight = wVal;
     state.trainLogs[logKey].reps   = rVal;
@@ -12820,7 +13182,10 @@ function quickFillComplete(event, macroId, week, day, exId, sets, weight, reps) 
   const macro = state.macrocycles.find(m => m.id === macroId);
   if (macro) {
     const ex = (state.exercises[macro.id + '_1_' + day] || []).find(e => e.id === exId);
-    if (ex) recordExerciseHistory(macro, week, day, ex);
+    if (ex) {
+      recordExerciseHistory(macro, week, day, ex);
+      evaluateProgressionLock(macro, week, day, ex);
+    }
   }
   save();
   if (macro) renderTrainDay(macro);
@@ -12848,9 +13213,9 @@ function quickFillCompleteDropset(event, macroId, week, day, exId, sets, weight,
   for (let s = 0; s < sets; s++) {
     const logKey = baseKey + '_' + exId + '_' + s;
     const wVal  = weightList[s] !== undefined ? weightList[s] : weightList[weightList.length - 1];
-    const rVal  = repsList[s] !== undefined ? repsList[s] : repsList[repsList.length - 1];
+    const rVal  = sanitizeReps(repsList[s] !== undefined ? repsList[s] : repsList[repsList.length - 1]);
     const dwVal = dropWeightList[s] !== undefined ? dropWeightList[s] : dropWeightList[dropWeightList.length - 1];
-    const drVal = dropRepsList[s] !== undefined ? dropRepsList[s] : dropRepsList[dropRepsList.length - 1];
+    const drVal = sanitizeReps(dropRepsList[s] !== undefined ? dropRepsList[s] : dropRepsList[dropRepsList.length - 1]);
     if (!state.trainLogs[logKey]) state.trainLogs[logKey] = {};
     state.trainLogs[logKey].weight = wVal;
     if (rVal) state.trainLogs[logKey].reps = rVal;
@@ -12861,7 +13226,10 @@ function quickFillCompleteDropset(event, macroId, week, day, exId, sets, weight,
   const macro = state.macrocycles.find(m => m.id === macroId);
   if (macro) {
     const ex = (state.exercises[macro.id + '_1_' + day] || []).find(e => e.id === exId);
-    if (ex) recordExerciseHistory(macro, week, day, ex);
+    if (ex) {
+      recordExerciseHistory(macro, week, day, ex);
+      evaluateProgressionLock(macro, week, day, ex);
+    }
   }
   save();
   if (macro) renderTrainDay(macro);
@@ -12881,7 +13249,7 @@ function quickFillCompleteSuperset(event, macroId, week, day, fillArgsJson) {
     for (let s = 0; s < sets; s++) {
       const logKey = baseKey + '_' + exId + '_' + s;
       const wVal = weightList[s] !== undefined ? weightList[s] : weightList[weightList.length - 1];
-      const rVal = repsList[s] !== undefined ? repsList[s] : repsList[repsList.length - 1];
+      const rVal = sanitizeReps(repsList[s] !== undefined ? repsList[s] : repsList[repsList.length - 1]);
       if (!state.trainLogs[logKey]) state.trainLogs[logKey] = {};
       state.trainLogs[logKey].weight = wVal;
       state.trainLogs[logKey].reps   = rVal;
@@ -12889,7 +13257,10 @@ function quickFillCompleteSuperset(event, macroId, week, day, fillArgsJson) {
     }
     if (macro) {
       const ex = templateExercises.find(e => e.id === exId);
-      if (ex) recordExerciseHistory(macro, week, day, ex);
+      if (ex) {
+        recordExerciseHistory(macro, week, day, ex);
+        evaluateProgressionLock(macro, week, day, ex);
+      }
     }
   });
   save();
@@ -12953,6 +13324,7 @@ function toggleSetDone(key) {
   state.trainLogs[key].done = !state.trainLogs[key].done;
   if (state.trainLogs[key].done && macro && ex) {
     recordExerciseHistory(macro, state.currentWeek, state.currentDay, ex);
+    evaluateProgressionLock(macro, state.currentWeek, state.currentDay, ex);
   }
   save();
   if (macro) renderTrainDay(macro);
@@ -16433,6 +16805,8 @@ function clearAllData() {
             bodyLogs: [], nutritionLogs: [],
             goals: [], customLibrary: [], nutritionMeals: {}, nutritionQuickLog: {}, foodLibrary: [],
             recipes: [], supersets: {}, profile: {}, deloads: {},
+            progressionLocks: {},
+            progressionTargets: {},
             exerciseHistory: {}, exerciseTrackingMode: {},
             insightsRollup: { completedCycles: [] },
             blocAdvice: null,
