@@ -6987,8 +6987,16 @@ function buildMeasurementsCardHTML() {
         const hD = inRange.filter(l => l.hip   !== null && l.hip   !== undefined);
         const lastWaist = wD.length ? wD[wD.length-1].waist : null;
         const lastHip   = hD.length ? hD[hD.length-1].hip   : null;
-        const waistDelta = (lastWaist !== null && prevWaist !== null) ? parseFloat((lastWaist - prevWaist).toFixed(2)) : null;
-        const hipDelta   = (lastHip   !== null && prevHip   !== null) ? parseFloat((lastHip   - prevHip).toFixed(2))   : null;
+        // Baseline is normally the previous week's last value. But if this is the
+        // first week that has ever had data (prevWaist/prevHip still null) and
+        // multiple logs fall inside this same week, fall back to this week's own
+        // first log as the baseline — otherwise an intra-week change made before
+        // any prior week existed would silently vanish (never shown as a delta
+        // anywhere, including in the following week).
+        const waistBaseline = (prevWaist !== null) ? prevWaist : (wD.length > 1 ? wD[0].waist : null);
+        const hipBaseline   = (prevHip   !== null) ? prevHip   : (hD.length > 1 ? hD[0].hip   : null);
+        const waistDelta = (lastWaist !== null && waistBaseline !== null) ? parseFloat((lastWaist - waistBaseline).toFixed(2)) : null;
+        const hipDelta   = (lastHip   !== null && hipBaseline   !== null) ? parseFloat((lastHip   - hipBaseline).toFixed(2))   : null;
         if (lastWaist !== null) prevWaist = lastWaist;
         if (lastHip   !== null) prevHip   = lastHip;
         b.push({ label: 'W' + wn++, waist: lastWaist, waistDelta, hip: lastHip, hipDelta });
