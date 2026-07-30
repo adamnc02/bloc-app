@@ -684,6 +684,11 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
 @keyframes goalFlash { 0%, 100% { box-shadow: none; } 25%, 75% { box-shadow: 0 0 0 2px var(--red); } }
 .goal-flash { animation: goalFlash 1.4s ease; }
+@keyframes logSaveSwipe { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes logSaveFlashIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+.log-save-overlay { position: absolute; inset: 0; background: var(--surface3); transform-origin: right center; animation: logSaveSwipe 0.6s ease-out forwards; z-index: 3; }
+.log-save-flash { position: absolute; inset: 0; background: var(--surface3); z-index: 4; display: flex; align-items: center; gap: 14px; padding-left: 12px; font-size: 13px; color: var(--text); animation: logSaveFlashIn 0.35s ease-out forwards; }
+.log-save-flash-line span:first-child { color: var(--text3); }
 .badge-blue { background: color-mix(in srgb, var(--blue) 16%, transparent); color: var(--blue); }
 .badge-purple { background: color-mix(in srgb, var(--purple) 16%, transparent); color: var(--purple); }
 
@@ -761,6 +766,13 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
    own children — those lead into their own pre-existing deep modal chains
    built around the default z-index already. */
 #modal-api-key, #modal-body-log, #modal-sample-day-edit { z-index: 210; }
+/* modal-confirm is the generic confirmation/alert dialog and can be
+   triggered while another modal is already open (e.g. the dinner
+   fill-day prompt, fired while the food library add modal is still open
+   so the person can keep logging). It must always render above every
+   other modal, including the highest existing tier (modal-nutr-barcode
+   at 310), so it's never hidden behind whatever's already on screen. */
+#modal-confirm { z-index: 320; }
 .modal-sheet {
   width: 100%;
   background: var(--surface);
@@ -1604,7 +1616,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
       <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 2px;border-bottom:1px solid var(--border);margin-bottom:16px;cursor:pointer;" onclick="openModal('modal-settings-about')">
         <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-        <span class="tag tag-outline">v7.60</span>
+        <span class="tag tag-outline">v7.64</span>
       </div>
 
       <!-- ── Profile section ── -->
@@ -11453,10 +11465,12 @@ function renderHomeLogBoxes() {
   if (!hasWeight) {
     html += `<div style="padding:14px 2px;">
       <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text3);margin-bottom:10px;">Log weigh-in</div>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <input type="number" inputmode="decimal" step="0.1" id="home-weight-input" placeholder="e.g. 182.4" style="flex:1;font-size:15px;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
-        <span style="font-size:13px;color:var(--text2);">lbs</span>
-        <button class="btn btn-accent" onclick="saveHomeWeight()" style="padding:10px 16px;">Save</button>
+      <div id="home-weight-row" style="position:relative;overflow:hidden;border-radius:var(--r-sm);">
+        <div style="display:flex;gap:8px;align-items:center;position:relative;">
+          <input type="number" inputmode="decimal" step="0.1" id="home-weight-input" placeholder="e.g. 182.4" style="flex:1;font-size:15px;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+          <span style="font-size:13px;color:var(--text2);">lbs</span>
+          <button class="btn btn-accent" onclick="saveHomeWeight()" style="padding:10px 16px;">Save</button>
+        </div>
       </div>
     </div>`;
   }
@@ -11476,6 +11490,7 @@ function renderHomeLogBoxes() {
     // (now removed) — just inlined directly into the screen rather than
     // behind a tap.
     html += `<div style="padding:14px 2px;">
+      <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text3);margin-bottom:10px;">Log measurements</div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         <span style="font-size:12px;color:var(--amber);font-weight:500;">It has been 4 days since you last recorded your measurements.</span>
@@ -11484,6 +11499,7 @@ function renderHomeLogBoxes() {
         <button class="toggle-btn active" id="home-meas-unit-in" onclick="setHomeMeasUnit('in')" style="padding:5px 14px;font-size:12px;">in</button>
         <button class="toggle-btn" id="home-meas-unit-cm" onclick="setHomeMeasUnit('cm')" style="padding:5px 14px;font-size:12px;">cm</button>
       </div>
+      <div id="home-meas-anim-wrap" style="position:relative;overflow:hidden;border-radius:var(--r-sm);">
       <div id="home-meas-fields-in">
         <div style="margin-bottom:12px;">
           <div class="label">Waist (in)</div>
@@ -11520,7 +11536,9 @@ function renderHomeLogBoxes() {
           <input type="number" inputmode="decimal" id="home-body-hip-cm" step="0.1" placeholder="97">
         </div>
       </div>
+      </div>
       <button class="btn btn-accent btn-block" onclick="saveHomeMeasurements()">Save →</button>
+      </div>
     </div>`;
   }
 
@@ -11658,22 +11676,83 @@ function renderHomeTrainPreview() {
 // functions here any more (v7.53) — these render inline on Home itself
 // rather than behind a modal; see renderHomeLogBoxes().
 
+// Formats a prior log's date relative to today for the post-save result
+// flash: "Today"/"Yesterday" for the two closest days, else a short date.
+function lastLogRelativeLabel(dateStr, todayStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const t = new Date(todayStr + 'T00:00:00');
+  const diffDays = Math.round((t - d) / 86400000);
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+// Plays the save-confirmation animation over an inline log row: a lighter
+// panel swipes in from the right covering the inputs/button, then (once it
+// reaches the left) a one-line-per-metric result flashes up showing the
+// prior log and the delta against it. Stays up ~3s, then onDone() runs —
+// which is just renderHome(), so the box hides itself exactly the way it
+// already does once today's field is filled in (see renderHomeLogBoxes).
+function playLogSaveAnimation(rowId, buildLines, onDone) {
+  const row = document.getElementById(rowId);
+  if (!row) { onDone(); return; }
+  row.querySelectorAll('.log-save-overlay, .log-save-flash').forEach(n => n.remove());
+
+  const overlay = document.createElement('div');
+  overlay.className = 'log-save-overlay';
+  row.appendChild(overlay);
+
+  setTimeout(() => {
+    const lines = buildLines() || [];
+    const flash = document.createElement('div');
+    flash.className = 'log-save-flash';
+    flash.style.flexDirection = 'column';
+    flash.style.alignItems = 'flex-start';
+    flash.style.justifyContent = 'center';
+    flash.style.gap = '6px';
+    flash.innerHTML = lines.length
+      ? lines.map(l => `<div class="log-save-flash-line"><span>${l.label}: </span><span>${l.valueText}</span><span style="color:${l.deltaColor};font-weight:600;margin-left:8px;">${l.deltaText}</span></div>`).join('')
+      : `<div class="log-save-flash-line"><span>Saved — first logged entry</span></div>`;
+    row.appendChild(flash);
+  }, 600);
+
+  setTimeout(onDone, 3600);
+}
+
 function saveHomeWeight() {
   const today = getLocalToday();
   const val = document.getElementById('home-weight-input').value;
   if (!val) return;
+  const newWeight = parseFloat(val);
+  if (isNaN(newWeight)) return;
+
+  const priorLogs = (state.bodyLogs || [])
+    .filter(l => l.date < today && l.weight !== null && l.weight !== undefined)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const lastLog = priorLogs.length ? priorLogs[priorLogs.length - 1] : null;
+
   const idx = (state.bodyLogs || []).findIndex(l => l.date === today);
   const existing = idx >= 0 ? state.bodyLogs[idx] : null;
   const entry = {
     date: today,
-    weight: parseFloat(val) || null,
+    weight: newWeight,
     steps: existing ? existing.steps : null,
     waist: existing ? existing.waist : null,
     hip:   existing ? existing.hip   : null,
   };
   if (idx >= 0) state.bodyLogs[idx] = entry; else state.bodyLogs.push(entry);
   save();
-  renderHome();
+
+  playLogSaveAnimation('home-weight-row', () => {
+    if (!lastLog) return null;
+    const delta = Math.round((newWeight - lastLog.weight) * 10) / 10;
+    return [{
+      label: lastLogRelativeLabel(lastLog.date, today),
+      valueText: `${lastLog.weight} lbs`,
+      deltaText: (delta > 0 ? '+' : delta < 0 ? '−' : '') + Math.abs(delta).toFixed(1) + ' lbs',
+      deltaColor: delta < 0 ? 'var(--accent)' : delta > 0 ? 'var(--red)' : 'var(--text2)',
+    }];
+  }, () => renderHome());
 }
 
 function saveHomeSteps() {
@@ -11734,6 +11813,11 @@ function saveHomeMeasurements() {
     if (wCm !== '') waistIn = cmToIn(wCm);
     if (hCm !== '') hipIn   = cmToIn(hCm);
   }
+
+  const priorLogs = (state.bodyLogs || []).filter(l => l.date < today).sort((a, b) => a.date.localeCompare(b.date));
+  const lastWaistLog = [...priorLogs].reverse().find(l => l.waist !== null && l.waist !== undefined);
+  const lastHipLog   = [...priorLogs].reverse().find(l => l.hip   !== null && l.hip   !== undefined);
+
   // Measurements logs to TODAY's date regardless of when the last one was
   // — the 4-day gate controls whether the box shows, not what date it
   // writes to — preserving whatever weight/steps are already logged today.
@@ -11748,7 +11832,29 @@ function saveHomeMeasurements() {
   };
   if (idx >= 0) state.bodyLogs[idx] = entry; else state.bodyLogs.push(entry);
   save();
-  renderHome();
+
+  playLogSaveAnimation('home-meas-anim-wrap', () => {
+    const lines = [];
+    if (waistIn !== null && lastWaistLog) {
+      const delta = Math.round((waistIn - lastWaistLog.waist) * 100) / 100;
+      lines.push({
+        label: `Waist \u2014 ${lastLogRelativeLabel(lastWaistLog.date, today)}`,
+        valueText: `${fmtInch(lastWaistLog.waist)} in`,
+        deltaText: (delta > 0 ? '+' : delta < 0 ? '\u2212' : '') + fmtInch(Math.abs(delta)) + ' in',
+        deltaColor: delta < 0 ? 'var(--accent)' : delta > 0 ? 'var(--red)' : 'var(--text2)',
+      });
+    }
+    if (hipIn !== null && lastHipLog) {
+      const delta = Math.round((hipIn - lastHipLog.hip) * 100) / 100;
+      lines.push({
+        label: `Hip \u2014 ${lastLogRelativeLabel(lastHipLog.date, today)}`,
+        valueText: `${fmtInch(lastHipLog.hip)} in`,
+        deltaText: (delta > 0 ? '+' : delta < 0 ? '\u2212' : '') + fmtInch(Math.abs(delta)) + ' in',
+        deltaColor: delta < 0 ? 'var(--accent)' : delta > 0 ? 'var(--red)' : 'var(--text2)',
+      });
+    }
+    return lines;
+  }, () => renderHome());
 }
 
 // RENDER: TRAIN
@@ -16348,31 +16454,43 @@ function addFoodEntry(entry) {
   syncNutrLegacyLog(nutrSelectedDate);
   save();
   renderNutrDaily();
-  if (nutrActiveMeal === 'Dinner') maybePromptFillDinnerDay();
+  if (nutrActiveMeal === 'Dinner') maybePromptFillDinnerDay(entry);
 }
 
 // Checked on every item logged into Dinner (addFoodEntry is the single
 // choke point every meal-logging path funnels through, so this only needs
-// hooking once here) — if there's already a Sample Day Library match for
-// today's goal (same lookup Fill Day itself uses), offers to fill the
-// whole day from it. Accepting overwrites everything logged for the date,
+// hooking once here) — but it should only ever fire for the specific item
+// that qualifies a day for reuse: a saved recipe whose name matches a
+// dinner already stored in the library group linked to today's goal (the
+// same lookup Fill Day itself uses). Any other item logged into Dinner
+// (a non-recipe food, or a recipe that doesn't match a saved dinner) is
+// not a qualifying match and must not trigger the prompt. This can fire
+// while the food library add modal is still open (quick-add keeps it open
+// deliberately so multiple items can be logged in a row) — modal-confirm
+// is styled to always render above it, so the prompt is never hidden
+// behind it. Accepting overwrites everything logged for the date,
 // including whatever was just added, via the same fillDayFromSample() the
 // Fill Day button calls — no separate overwrite-confirmation step, since
-// this prompt already serves that purpose. Declining just closes the
-// prompt; the entry that was just logged is left exactly as it is.
-function maybePromptFillDinnerDay() {
+// this prompt already serves that purpose — and also closes the food
+// library add modal, since filling the day supersedes whatever else was
+// being logged there. Declining just closes the prompt itself; the food
+// library modal (if open) and the entry that was just logged are both
+// left exactly as they are.
+function maybePromptFillDinnerDay(entry) {
+  if (!entry || entry.source !== 'recipe') return;
   const goal = getGoalForDay(nutrSelectedDate);
   if (!goal) return;
   const group = findSampleGroupForFillDay(goal);
   if (!group || !group.days || !group.days.length) return;
-  const day = group.days.slice().sort((a, b) => b.date.localeCompare(a.date))[0];
+  const match = group.days.find(d => d.dinnerName.toLowerCase() === entry.name.toLowerCase());
+  if (!match) return;
   const groupId = group.id;
-  const sourceDate = day.date;
+  const sourceDate = match.date;
   showConfirm(
     'Fill the whole day?',
     'There is an approved day already saved for this meal and this goal — want to fill the whole day?',
     'Fill day',
-    () => fillDayFromSample(groupId, sourceDate)
+    () => { closeModal('modal-nutr-add'); fillDayFromSample(groupId, sourceDate); }
   );
 }
 

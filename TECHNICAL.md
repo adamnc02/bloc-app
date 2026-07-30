@@ -533,36 +533,49 @@ This ensures the pill gradient always matches the hero card exactly, picking up 
 
 ### CSS Custom Properties
 
-All design tokens are defined in `:root`:
+As of v7.58 (full cosmetic redesign — see README Version History), design tokens use a flatter "Signal" palette: a near-black ground, quiet surfaces, and a single muted-purple accent used as a line/glow rather than a flood. All are defined in `:root`:
 
 ```css
 :root {
-  --bg: #0f1620;
-  --bg-rgb: 15, 22, 32;    /* for rgba() gradients */
-  --surface: #161f2c;
-  --surface2: #1d2837;
-  --surface3: #253142;
-  --border: rgba(150,180,210,0.10);
-  --border2: rgba(150,180,210,0.18);
-  --text: #eef3f8;
-  --text2: #9fb0c0;
-  --text3: #6c7e90;
-  --nav-inactive: #d8e2ec;
-  --accent: #1D9E75;
+  --bg: #161826;
+  --bg-rgb: 22, 24, 38;
+  --surface: #1c1e2e;
+  --surface-rgb: 28, 30, 46;
+  --surface2: #232532;
+  --surface3: #2b2d3d;
+  --border: rgba(233,233,237,0.08);
+  --border2: rgba(233,233,237,0.16);
+  --text: #e9e9ed;
+  --text2: rgba(233,233,237,0.65);
+  --text3: rgba(233,233,237,0.45);
+  --nav-inactive: rgba(233,233,237,0.5);
+  --accent: #9184d9;
+  --accent2: #b5abfc;
   --red: #E24B4A;
-  --amber: #EF9F27;
-  --blue: #378ADD;
-  --purple: #7F77DD;
-  --ice-blue: #8FE3F0;
+  --warn: #e0a08f;
+  --amber: #d9c48f;
+  --blue: #8fb3d9;
+  --purple: #b5abfc;
+  --ice-blue: #9fd9d9;
   --font-display: 'Inter', ...;
   --font-mono: 'Inter', ...;  /* kept for legacy call sites; resolves to Inter */
-  --r: 12px; --r-sm: 8px; --r-lg: 20px;
+  --r: 8px; --r-sm: 4px; --r-lg: 14px;
   --nav-h: 54px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
-  --hero-1: #1D9E75;
-  --hero-2: #085041;
 }
+```
+
+`--red` and `--warn` were split in v7.59–v7.60 after `--red` was found to have been silently overwritten to a muted rose during the initial v7.58 pass. `--red` (`#E24B4A`) is reserved for danger/destructive states only; `--warn` (`#e0a08f`) is used for warning/drift visuals that want a softer tone.
+
+### Dividers
+
+Also new in v7.58: pages no longer wrap sections in `.card` containers — a three-tier divider system replaces card wrappers:
+
+```css
+.divider-hero { height: 2px; background: var(--border2); margin: 20px 0; border: none; }  /* heavy — under a hero card/section */
+.divider      { height: 1px; background: var(--border2); margin: 20px 0; }                /* medium — standard page-section divider */
+.divider-sm   { height: 0.5px; background: var(--border); margin: 12px 0; }                /* light — inter-row, e.g. table rows */
 ```
 
 ### Light Mode
@@ -587,26 +600,9 @@ The `#nav` bar intentionally does NOT override `--nav-inactive` in light mode; t
 
 ### Themes
 
-Single-colour themes set `--hero-1` and `--hero-2` globally:
+As of v7.58's redesign, the selectable multi-theme system (formerly nine colour themes, each setting `--hero-1`/`--hero-2`, with a Multi theme overriding per page via `[data-page]`) has been removed. The app now uses a single fixed palette (the `:root` tokens above) for every page — there is no `data-theme` attribute, no `setTheme()` function, and no theme picker in Settings.
 
-```css
-[data-theme="turquoise"] { --hero-1: #2BC7C4; --hero-2: #0B4F4E; }
-[data-theme="blue"]      { --hero-1: #378ADD; --hero-2: #0C447C; }
-/* ... */
-```
-
-The Multi theme overrides per page using a `[data-page]` attribute set on each `.screen`:
-
-```css
-[data-theme="multi"] [data-page="progress"]  { --hero-1: #2BC7C4; --hero-2: #0B4F4E; }
-[data-theme="multi"] [data-page="plan"]      { --hero-1: #378ADD; --hero-2: #0C447C; }
-[data-theme="multi"] [data-page="train"]     { --hero-1: #E8D44D; --hero-2: #6B5A0A; }
-[data-theme="multi"] [data-page="body"]      { --hero-1: #1D9E75; --hero-2: #085041; }
-[data-theme="multi"] [data-page="nutrition"] { --hero-1: #EF9F27; --hero-2: #633806; }
-[data-theme="multi"] [data-page="goals"]     { --hero-1: #E24B4A; --hero-2: #6B1414; }
-```
-
-`setTheme(name)` and `setMode(mode)` update `state.theme` / `state.mode`, call `save()`, set `data-theme`/`data-mode` on `<body>`, then re-render whichever screen is currently active (so its hero picks up the new colours immediately rather than waiting for the next nav tap).
+`setMode(mode)` updates `state.mode`, calls `save()`, sets `data-mode` on `<body>`, then re-renders whichever screen is currently active.
 
 ---
 
@@ -626,32 +622,20 @@ The Multi theme overrides per page using a `[data-page]` attribute set on each `
 .hero-card::after  { /* noise texture overlay */ }
 ```
 
-Every screen's hero card container sets `data-page` on the parent `.screen` element so the Multi-theme cascade resolves the correct `--hero-1`/`--hero-2` pair automatically.
+Every screen's hero card container sets `data-page` on the parent `.screen` element. This was originally used to resolve the correct `--hero-1`/`--hero-2` pair under the old Multi theme; since that theme system was removed in v7.58 (see §7), the attribute remains in the markup but no longer drives any CSS override — the app now uses one fixed palette everywhere.
 
-### Progress Hero Swipe Deck
+### Progress Hero Card
 
-The Progress screen renders a 5-slide swipeable deck inside `#progress-hero-wrap > #progress-hero-card`. All slides are fixed to the height of slide 0 via `--hero-fixed-h` (a JS-set CSS variable, re-measured fresh every time slide 0 renders — cleared via `removeProperty` first rather than trusting the previous value). Slides with less content centre-align vertically.
+As of v7.59–v7.60, this is no longer a swipeable multi-slide deck — it's down to a single view, the Active Cycle card, rendered by `buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort)` into `#progress-hero-card`. The weight-over-time, volume-over-time, and steps/kcal-vs-goal slides that used to live here as separate swipeable cards have been folded elsewhere:
+- Weight trend is now a collapsible sparkline (`buildWeightSparklineHtml(cycleLogs)`) behind an expand chevron on the Active Cycle card itself, gated on `progressWeightSparkOpen`
+- The steps/kcal bar-chart visual now powers the Statistics card's 7-Day/All toggle instead (see §10)
+- The volume line chart was dropped entirely rather than relocated
 
-```css
-#progress-hero-wrap .hero-card {
-  min-height: var(--hero-fixed-h, auto);
-}
-```
+`#progress-hero-wrap .hero-card` still sets `display: flex; flex-direction: column; min-height: var(--hero-fixed-h, auto)` so the card doesn't jump size as its content (sparkline open/closed) changes; `.hero-chart-fill` handles vertical centering for shorter content within that reserved height.
 
-Slides (`renderProgressHero()`'s `switch (progressHeroIndex)`):
-- 0 (`buildActiveCycleHeroSlideHtml`): Active cycle overview — name, goal, split badge, weeks remaining, progress bar
-- 1 (`buildWeightHeroChart`): Body weight — anchored to the live active cycle's own timeline, with a day-index-aligned overlay comparing against past cycles at the same relative point (day 5 of this cycle vs. day 5 of a past cycle, not calendar-date aligned)
-- 2 (`buildVolumeHeroChart`): Weekly training volume line chart
-- 3 (`buildGoalColumnHeroChart(macro, 'steps')`): Steps vs goal — bar chart for current week
-- 4 (`buildGoalColumnHeroChart(macro, 'kcal')`): Kcal vs goal — bar chart for current week
+The old swipe-gesture infrastructure (`initProgressHeroSwipe()`, `progressHeroIndex`, `renderProgressHeroDots()`, `_progressHeroBusy`/`_progressHeroGestureId`) and the per-slide builders `buildWeightHeroChart`/`buildVolumeHeroChart`/`buildGoalColumnHeroChart` described in earlier revisions of this document no longer apply — check the current `renderProgressHero()` implementation directly if any of that machinery still exists before relying on it.
 
-Slides 3/4 additionally measure their own rendered height post-paint and set `--goal-chart-h` to ~85% of it, so the bars genuinely fill the available card space rather than sitting in a small guessed box.
-
-`renderProgressHero()` renders the current slide into `#progress-hero-card`. `renderProgressHeroDots()` updates the dot indicator below the card.
-
-`initProgressHeroSwipe()` attaches `touchstart`/`touchmove`/`touchend` (and mouse equivalents) to `#progress-hero-wrap`. A swipe of more than 30% of the card width triggers `progressHeroIndex` to advance or retreat and calls `renderProgressHero()`. The deck is guarded against concurrent gesture handling via `_progressHeroBusy` and a `_progressHeroGestureId` counter.
-
-`cycleProgressMacro(dir)` and `resolveProgressMacro()` handle navigating between macrocycles when the user taps the left/right arrows on the hero.
+`cycleProgressMacro(dir)` and `resolveProgressMacro()` still handle navigating between macrocycles when the user taps the left/right arrows on the hero.
 
 ---
 
@@ -670,6 +654,8 @@ All modals are `.modal-overlay` divs appended after `#app`. Each wraps a `.modal
 **Recipe-context auto-return (v6.12):** `closeModal(id)` also special-cases `modal-nutr-add`: if it's being dismissed outright while `nutrAddContext === 'recipe'` (see §14) — via any of the three dismissal paths (✕ button, backdrop tap, swipe-down, all of which already funnel through this one function) — it reopens `modal-recipe-ingredients` underneath. This is guarded by `_nutrAddTransitioning`, a flag set immediately before `selectFromAddList()` deliberately closes `modal-nutr-add` on its way to `modal-nutr-serving`, so that intentional hand-off isn't misread as the person backing out of the whole flow.
 
 `showConfirm(title, message, okLabel, callback)` builds a generic two-button (Cancel / OK) confirmation using `modal-confirm`; it's also reused anywhere a simple one-off alert is needed by passing a no-op callback.
+
+**`#modal-confirm` top-tier z-index (v7.63):** `#modal-confirm` sits at `z-index: 320` — above every other modal tier described above, including the previous highest (`#modal-nutr-barcode` at `310`). This is because `showConfirm()` can be triggered while another modal is already open and deliberately left that way (e.g. the Nutrition dinner fill-day prompt, §28, which fires while the food library add modal — `modal-nutr-add` — is still open so the person can keep quick-adding). Since a confirm dialog must always be actionable, it's pinned above every other tier rather than needing a case-by-case z-index bump each time a new call site introduces a deeper stack.
 
 ### Modal sheets and the on-screen keyboard
 
@@ -2003,14 +1989,16 @@ Both bands treat protein as floor-only — extra protein never disqualifies a ma
 - `confirmFillDay(groupId, sourceDate)` — warns (`showConfirm`) before overwriting if the target date already has any meal logs or a quick-log; `fillDayFromSample()` otherwise runs directly.
 - `fillDayFromSample(groupId, sourceDate)` — deep-clones the stored day's `meals` onto `nutrSelectedDate`, clears any quick-log override for that date, and calls `syncNutrLegacyLog()`.
 
-### Dinner-entry prompt (new in v7.53)
+### Dinner-entry prompt (new in v7.53; matching logic fixed v7.62; modal stacking fixed v7.63)
 
-A second, proactive entry point into Fill Day, distinct from the button — `maybePromptFillDinnerDay()`, called from `addFoodEntry()` (§14) whenever `nutrActiveMeal === 'Dinner'`. Since `addFoodEntry()` is the single function every meal-logging path (barcode confirm, manual entry, library/recipe select, quick-add-from-list) already funnels through, this only needed hooking once, at the one true choke point, rather than duplicated across each entry path.
+A second, proactive entry point into Fill Day, distinct from the button — `maybePromptFillDinnerDay(entry)`, called from `addFoodEntry(entry)` (§14) whenever `nutrActiveMeal === 'Dinner'`, passing through the just-logged entry. Since `addFoodEntry()` is the single function every meal-logging path (barcode confirm, manual entry, library/recipe select, quick-add-from-list) already funnels through, this only needed hooking once, at the one true choke point, rather than duplicated across each entry path.
 
-- Resolves a match with `findSampleGroupForFillDay(goal)` — the exact same lookup Fill Day's own picker uses (§28 above): the goal's formally-linked group if one exists, else any group whose range the goal's own targets fall within.
-- If found, picks that group's **most recently saved day** (`days` sorted by date descending, `[0]`) — the prompt only ever offers one specific day, unlike the Fill Day button's full picker list.
-- `showConfirm()` (§9) with the message "There is an approved day already saved for this meal and this goal — want to fill the whole day?". Accepting calls `fillDayFromSample(groupId, sourceDate)` **directly** — no separate overwrite warning the way `confirmFillDay()` shows, since the prompt itself already serves that purpose and the whole point is to overwrite, including the item that was just logged. Declining is a no-op; the just-logged entry is left exactly as it is (`showConfirm`'s Cancel button never runs a callback — see §9).
-- Fires on **every** item logged into Dinner, not just the first for that date — adding three separate items to Dinner in the same session shows the prompt three times if a match still exists after each one. No suppression/dismissal state is tracked across entries; this was a deliberate simplicity choice rather than an oversight, matching the spec this was built against.
+- **Bails immediately unless `entry.source === 'recipe'`** — only a saved recipe carries the identifying dinner name a saved day is keyed by (same restriction `getDinnerRecipeItem()` applies). A manual entry, library food, or barcode item logged into Dinner is never a qualifying match and must not trigger the prompt.
+- Resolves the linked group with `findSampleGroupForFillDay(goal)` — the exact same lookup Fill Day's own picker uses (§28 above): the goal's formally-linked group if one exists, else any group whose range the goal's own targets fall within.
+- **Matches the specific logged item**, not just "any group exists": searches `group.days` for a day whose `dinnerName` (case-insensitive) equals the just-logged recipe's name, and only proceeds if one is found. Before v7.62 this step didn't exist at all — the prompt fired for every item logged into Dinner as long as *any* linked group existed, regardless of what was actually logged or whether it matched anything saved.
+- `showConfirm()` (§9) with the message "There is an approved day already saved for this meal and this goal — want to fill the whole day?". Accepting closes `modal-nutr-add` (the food library add modal, which — per the quick-add comment in §14 — deliberately stays open through repeated logging and can therefore still be open when this prompt fires) and then calls `fillDayFromSample(groupId, sourceDate)`, `sourceDate` being the **matched** day rather than always the group's most recent one. No separate overwrite warning the way `confirmFillDay()` shows, since the prompt itself already serves that purpose and the whole point is to overwrite, including the item that was just logged. Declining is a no-op beyond closing the prompt itself — the food library modal (if open) and the just-logged entry are both left exactly as they are (`showConfirm`'s Cancel button never runs a callback — see §9).
+- `#modal-confirm` renders at `z-index: 320` (§9), above `modal-nutr-add`'s `300`, so the prompt is never hidden behind the still-open food library modal — this was the actual bug fixed in v7.63 (the confirm dialog was rendering at the ambient default z-index and getting buried).
+- Can still fire more than once per session if a person logs several different qualifying recipes into Dinner — each is evaluated independently against the group's saved days. No suppression/dismissal state is tracked across entries.
 - Because `fillDayFromSample()` writes directly to `state.nutritionMeals[nutrSelectedDate]` rather than calling `addFoodEntry()`, accepting the prompt cannot re-trigger itself — no recursion guard was needed.
 
 ### Proactive linking for display + discovery (v7.29)
@@ -2119,6 +2107,14 @@ New in v7.31, iterated through v7.34. Rendered by `renderHome()`, the default sc
 - **Weight and steps** — each shows a `.card` with a single input + Save button, rendered only if that field isn't already logged for today (`state.bodyLogs` for weight, `buildDayMap()[today].steps` for steps). `saveHomeWeight()` / `saveHomeSteps()` write the one field they own, explicitly carrying forward whatever else is already logged for today (weight preserves steps/waist/hip and vice versa) rather than defaulting them to `null` — the same "preserve, don't clobber" pattern `saveInlineBodyLog()` (§13) established. Both call `renderHome()` directly on save now (no modal to close).
 - **Measurements** — gated on a **4-day cycle rather than daily**: `daysSinceMeas` is computed from the most recent `bodyLogs` entry with a `waist` or `hip` value (`Infinity` if none exist yet, so the box shows immediately for a first-time user rather than waiting on an undefined "since"), and the box only renders when `daysSinceMeas >= 4`. Once shown, it's the full waist/hip form — unit toggle, quarter-inch picker — not just a tap-to-open prompt; this is the same markup and ids the now-removed `modal-home-log-measurements` used (`homeFracState`, `setHomeMeasUnit()`, `setHomeFrac()`, all retained), just inlined directly into the screen rather than behind a modal. A fixed warning line ("It has been 4 days since you last recorded your measurements.") sits above the form regardless of the actual elapsed count. `initHomeMeasBox()` runs right after the box is inserted into the DOM to set the unit toggle to `state.profile.measureUnit` and reset the fraction pickers — the inline equivalent of what the old modal's open-handler used to do. `saveHomeMeasurements()` always writes to **today's** date (the 4-day gate controls whether the box shows, not what date it logs to) and, like the other two boxes, preserves whatever weight/steps are already logged today. The countdown "restarting" needs no special-case code — it falls out naturally from `daysSinceMeas` being recomputed fresh on every render against whatever the most recent `bodyLogs` measurement entry now is.
 - **Removed in this rework**: `modal-home-log-weight`, `modal-home-log-steps`, `modal-home-log-measurements`, and their three `openHomeLog*()` opener functions — there's nothing left to open, since these are inline now. `saveHomeWeight()`/`saveHomeSteps()`/`saveHomeMeasurements()` themselves were kept (their state-writing logic didn't change) but had their `closeModal(...)` calls dropped.
+- **Measurements header (fixed v7.62)**: the weigh-in and steps boxes each render a "Log weigh-in"/"Log steps" eyebrow header above their input; the measurements box was missing the equivalent "Log measurements" header entirely — it went straight from the box's top padding into the 4-day warning line. Added so all three boxes are visually consistent.
+- **No cross-box dividers**: the three boxes render back-to-back inside `#home-log-boxes` with no divider between them — a single `.divider` is appended once, after whichever box renders last, right before the "Edit today's logs" link / food preview that follows.
+
+### Save-confirmation animation (`playLogSaveAnimation()`, new in v7.61)
+
+Plays over the weigh-in and measurements inline log boxes (not steps) after `saveHomeWeight()`/`saveHomeMeasurements()` write the new value: a `.log-save-overlay` panel swipes in from the right covering the inputs/button (600ms), then a `.log-save-flash` result — one line per metric, showing the prior logged value and the delta against it (or "Saved — first logged entry" if there was no prior log) — fades in over the same row. After a hold, `onDone()` runs (just `renderHome()`, so the box hides itself the normal way once today's field reads as logged).
+
+The hold time has moved twice since launch: 5s at launch (v7.61) → briefly 2s (v7.63) → settled at 3s (v7.64). The constant lives as the second argument to the trailing `setTimeout(onDone, …)` call inside `playLogSaveAnimation()` — 600ms swipe-in plus the hold, so 3600ms total for the current 3s value.
 
 The scale-shaped icon and the steps footprint icon from the old tile design are gone along with the tiles themselves — the boxes use plain text labels, no icon artwork.
 
