@@ -33,6 +33,7 @@
   --blue: #8fb3d9;
   --purple: #b5abfc;
   --ice-blue: #9fd9d9;
+  --green: #8fbf9a;
   --font-display: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   /* DM Mono retired app-wide — Inter is now the only typeface in the app.
      --font-mono is kept (rather than removed) so every existing call site
@@ -46,14 +47,31 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
 
+  /* ── Fixed (non-themed) tokens ──────────────────────────────
+     --bg / --bg-rgb are THEMED — they flip light in [data-mode="light"].
+     A few places (floating nav bar, icons/text sitting on fixed
+     accent-family chips) were relying on --bg/--bg-rgb always being dark
+     as a stand-in for "guaranteed contrast", which broke the moment
+     light mode redefined it. These two are intentionally NOT overridden
+     in the light-mode block below — they always resolve to the dark
+     values so that contrast-on-fixed-accent stays correct in both modes. */
+  --nav-bg-rgb: 22, 24, 38;
+  --on-accent: #161826;
 }
 
 /* ── Light mode ───────────────────────────────────────────────
    Toggled via [data-mode="light"] on <body> (default is dark —
    the original palette above is untouched). Neutral surface/text/
-   border tokens are reversed into a blue-tinted light scheme;
-   accent/hero colours are intentionally left unchanged so each
-   page's identity colour stays consistent across modes. */
+   border tokens are reversed into a blue-tinted light scheme.
+   --amber/--blue/--purple/--accent2/--green ARE overridden here, unlike
+   the rest of the accent family: those are pastel tones tuned for
+   contrast against the dark palette (badge text, exercise-type/deload
+   badges, "Mark as deload" and other accent2 links, the kcal-avg/Active
+   badges) and read poorly against the light surfaces below, so each
+   gets a deeper, more saturated light-mode variant. --accent/--red are
+   intentionally left unchanged — those are used as solid fills/borders
+   (not thin pastel text) and --red already carries a specific meaning
+   (concern) that shouldn't be reassigned. */
 [data-mode="light"] {
   --bg: #e7edf4;
   --bg-rgb: 231, 237, 244;
@@ -66,6 +84,11 @@
   --text: #16222e;
   --text2: #51606e;
   --text3: #7c8a98;
+  --amber: #8a6a17;
+  --blue: #3f6fa6;
+  --purple: #6f5cc4;
+  --accent2: #6f5cc4;
+  --green: #3f7d52;
   /* --nav-inactive intentionally NOT overridden here — the floating nav
      bar keeps its dark background in both modes, so the near-white icon
      colour from :root stays correct either way. */
@@ -141,7 +164,7 @@ body {
   align-items: center;
   gap: 2px;
   max-width: calc(100% - 24px);
-  background: rgba(var(--bg-rgb),0.92);
+  background: rgba(var(--nav-bg-rgb),0.92);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 0.5px solid var(--border2);
@@ -223,7 +246,7 @@ body {
   margin-left: 0;
   transition: max-width 0.38s cubic-bezier(.34,1.56,.64,1), opacity 0.22s ease, margin-left 0.38s cubic-bezier(.34,1.56,.64,1);
 }
-.nav-btn.active { color: var(--bg); }
+.nav-btn.active { color: var(--on-accent); }
 .nav-btn.active .nav-label {
   max-width: 90px;
   opacity: 1;
@@ -666,7 +689,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   font-weight: 500;
   white-space: nowrap;
 }
-.badge-green { background: color-mix(in srgb, #8fbf9a 16%, transparent); color: #8fbf9a; }
+.badge-green { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); }
 .badge-amber { background: color-mix(in srgb, var(--amber) 16%, transparent); color: var(--amber); }
 .badge-red { background: color-mix(in srgb, var(--red) 16%, transparent); color: var(--red); }
 
@@ -891,7 +914,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   cursor: pointer; flex-shrink: 0; margin: 0 auto; border: none; transition: all 0.15s;
 }
 .check-done { background: var(--accent); }
-.check-done svg { stroke: var(--bg); }
+.check-done svg { stroke: var(--on-accent); }
 .check-empty { background: var(--surface2); border: 0.5px solid var(--border2); }
 .check-empty svg { stroke: transparent; }
 .check-done svg, .check-empty svg { width: 13px; height: 13px; fill: none; stroke-width: 2.5; }
@@ -1561,6 +1584,8 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div id="progress-tables-wrap" style="margin-top:6px;"></div>
       <div id="progress-tables-dots" style="display:flex;justify-content:center;gap:6px;margin-bottom:6px;min-height:18px;"></div>
 
+      <div class="divider" style="margin:20px 0 0;"></div>
+
       <!-- Steps + Nutrition, merged into one statistics card with a single toggle -->
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;margin-bottom:6px;">
         <div class="section-title" style="margin:0;">Statistics</div>
@@ -1715,7 +1740,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       </div>
 
       <!-- ── Danger Zone — collapsed by default, kept as a real bordered alert box ── -->
-      <div style="border:1px solid color-mix(in srgb, var(--red) 35%, transparent);border-radius:var(--r-lg);padding:14px;">
+      <div style="border:1px solid color-mix(in srgb, var(--red) 35%, transparent);border-radius:var(--r-sm);padding:14px;">
         <div onclick="toggleSettingsCard('dangerZone')" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent;">
           <div class="section-title" style="margin:0;color:var(--red);">Danger Zone</div>
           <svg id="settings-card-chevron-dangerZone" viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(0deg)"><polyline points="6 9 12 15 18 9"/></svg>
@@ -4950,15 +4975,15 @@ function buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort) {
       <svg onclick="toggleProgressWeightSpark()" viewBox="0 0 24 24" width="16" height="16" style="cursor:pointer;stroke:var(--text3);fill:none;stroke-width:2.5;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${progressWeightSparkOpen ? '180deg' : '0deg'});"><polyline points="6 9 12 15 18 9"/></svg>
     </div>
     ${progressWeightSparkOpen ? buildWeightSparklineHtml(cycleStartLogs) : ''}
-    ${statusHtml ? `<div class="divider" style="margin:16px 0;"></div>${statusHtml}` : ''}
-    <div class="divider" style="margin:16px 0;"></div>
+    ${statusHtml ? `<div class="divider" style="margin:22px 0;"></div>${statusHtml}` : ''}
+    <div class="divider" style="margin:22px 0;"></div>
 
     <div class="hero-callouts">
       <div class="hero-callout"><div class="hero-callout-lbl">Volume</div><div class="hero-callout-val">${Math.round(totalVolume).toLocaleString()} kg</div></div>
       <div class="hero-callout"><div class="hero-callout-lbl">Steps</div><div class="hero-callout-val">${avgSteps !== null ? avgSteps.toLocaleString() : '—'}</div></div>
       <div class="hero-callout"><div class="hero-callout-lbl">Kcal</div><div class="hero-callout-val">${avgKcal !== null ? avgKcal.toLocaleString() : '—'}</div></div>
     </div>
-    <div class="divider" style="margin:16px 0 0;"></div>
+    <div class="divider" style="margin:22px 0 0;"></div>
   </div>`;
 }
 
@@ -7007,7 +7032,7 @@ function renderProgressCycleGoals() {
     </div>`;
   }).join('');
 
-  el.innerHTML = `<div class="section-title" style="margin-top:16px;">Goal periods this cycle</div>${rows}`;
+  el.innerHTML = `<div class="section-title" style="margin-top:16px;">Goal periods this cycle</div>${rows}<div class="divider" style="margin:20px 0 0;"></div>`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -10261,14 +10286,15 @@ function renderProgressNutr() {
     { key:'fats',    label:'fats',    color:'var(--red)',    goal:goal?.fats,    fmt:v=>v+'g', fmtFull:v=>v+'g', overColor:'var(--red)',   warnOver:true  },
   ];
 
-  const rows = metrics.map(m => {
+  const rows = metrics.map((m, mIdx) => {
+    const isLastMetric = mIdx === metrics.length - 1;
     const todayVal = todayLog ? Math.round(todayLog[m.key]||0) : null;
     const avgVal = validLogs.length ? Math.round(validLogs.reduce((a,b)=>a+(b[m.key]||0),0)/validLogs.length) : null;
     const displayVal = isToday ? todayVal : avgVal;
     const vals7 = days.map(d => { const l = getLog(d.date); return l ? Math.round(l[m.key]||0) : null; });
 
     if (isAll) {
-      return '<div style="padding-bottom:14px;border-bottom:0.5px solid var(--border);margin-bottom:10px;">'
+      return `<div style="padding-bottom:14px;${isLastMetric ? '' : 'border-bottom:0.5px solid var(--border);'}margin-bottom:10px;">`
         + '<div style="font-size:10px;color:'+m.color+';text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">'+m.label+'</div>'
         + buildStatRowAllTimeChart(cycleDays,
             date => { const l = getLog(date); return l ? Math.round(l[m.key]||0) : null; },
@@ -10293,7 +10319,7 @@ function renderProgressNutr() {
       ? (m.goal ? buildProgressStatBar(displayVal||0, m.goal, m.color, m.overColor) : '')
       : buildProgressBarChart(days, vals7, m.color, m.fmt, today);
 
-    return '<div style="display:flex;align-items:flex-start;gap:12px;padding-bottom:10px;border-bottom:0.5px solid var(--border);margin-bottom:10px;">'
+    return `<div style="display:flex;align-items:flex-start;gap:12px;padding-bottom:10px;${isLastMetric ? '' : 'border-bottom:0.5px solid var(--border);'}margin-bottom:10px;">`
       + '<div style="flex:1;min-width:0;">'
       + '<div style="font-size:10px;color:'+m.color+';text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px;">'+m.label+'</div>'
       + '<div style="font-family:var(--font-display);font-size:20px;font-weight:800;line-height:1;">'+(displayVal!==null?m.fmtFull(displayVal):'—')+'</div>'
@@ -10305,9 +10331,10 @@ function renderProgressNutr() {
       + '</div>';
   });
 
-  el.innerHTML = isAll
+  el.innerHTML = (isAll
     ? stepsRow + rows.join('')
-    : '<div style="cursor:pointer;" onclick="showScreen(\'nutrition\')">' + stepsRow + rows.join('') + '</div>';
+    : '<div style="cursor:pointer;" onclick="showScreen(\'nutrition\')">' + stepsRow + rows.join('') + '</div>')
+    + '<div class="divider" style="margin:20px 0 20px;"></div>';
 
   if (isAll) {
     requestAnimationFrame(() => {
@@ -10502,6 +10529,7 @@ function renderPlan() {
     <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Sets scale from your starting sets to peak sets. Targets shown use weight progression — you choose per-exercise each session.</div>`;
 
     const microKeys = useMicro ? ['m1', 'm2'] : [''];
+    const sessionBlocks = [];
     microKeys.forEach(mk => {
       days.forEach(day => {
         const templateKey = macro.id + '_1_' + day + mk;
@@ -10532,15 +10560,22 @@ function renderPlan() {
           body += `</div>`;
         });
 
-        html += `<div style="margin-bottom:2px;border-bottom:1px solid var(--border);padding-bottom:2px;">
-          <div onclick="togglePlanSession('${macro.id}','${sessionKey}')"
+        sessionBlocks.push(`<div onclick="togglePlanSession('${macro.id}','${sessionKey}')"
             style="padding:12px 2px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent;">
             <span style="font-family:var(--font-display);font-weight:600;font-size:13px;color:var(--text);">${sessionLabel}</span>
             <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${isOpen?'180':'0'}deg)"><polyline points="6 9 12 15 18 9"/></svg>
           </div>
-          ${isOpen ? `<div style="padding:0 2px 14px;">${body}</div>` : ''}
-        </div>`;
+          ${isOpen ? `<div style="padding:0 2px 14px;">${body}</div>` : ''}`);
       });
+    });
+
+    // Each block gets its own bottom-border row divider EXCEPT the very
+    // last one — that one now sits directly above renderBodyPartVolumeTable's
+    // new section divider, and having both there read as two stacked
+    // dividers back to back.
+    sessionBlocks.forEach((block, idx) => {
+      const isLast = idx === sessionBlocks.length - 1;
+      html += `<div style="margin-bottom:2px;${isLast ? '' : 'border-bottom:1px solid var(--border);'}padding-bottom:2px;">${block}</div>`;
     });
   }
 
@@ -10634,7 +10669,7 @@ function renderPlanGoalsSection() {
   }).join('');
 
   el.innerHTML = `<div style="margin-bottom:14px;">
-    <div class="divider" style="margin:0 0 18px;"></div>
+    <div class="divider" style="margin:20px 0 20px;"></div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${goals.length ? '10px' : '0'};padding-bottom:10px;border-bottom:1px solid var(--border);">
       <div class="section-title" style="margin:0;">Goals</div>
       <button class="btn btn-sm" onclick="openModal('modal-add-goal');document.getElementById('goal-macro-select').value='${macro.id}';onGoalMacroSelectChange();">+ Build goals</button>
@@ -10730,7 +10765,8 @@ function renderBodyPartVolumeTable(macro) {
       <span style="font-size:12px;color:var(--text3);">${Math.round(r.min).toLocaleString()}–${Math.round(r.max).toLocaleString()}kg</span>
     </div>`).join('');
 
-  return `<div class="section-title" style="margin-top:0;">Body part volume — cycle total</div>
+  return `<div class="divider" style="margin:20px 0 20px;"></div>
+    <div class="section-title" style="margin-top:0;">Body part volume — cycle total</div>
     <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Min–max total volume across the whole cycle, assuming either weight-only or reps-only progression throughout (pause sets are weight-only either way, so their min and max match). Sorted by minimum volume, highest first.</div>
     <div style="margin-bottom:24px;">${rowsHtml}</div>`;
 }
@@ -11323,8 +11359,8 @@ function buildHomeConsolidatedMessage(badges, dayMap, weekStart, today) {
     return sub ? `<div style="margin-top:8px;font-size:11.5px;color:var(--text2);line-height:1.5;"><strong style="color:var(--text);">${b.m.name}:</strong> ${sub}</div>` : '';
   }).join('') : '';
 
-  return `<div style="border-top:1px solid var(--border2);border-bottom:1px solid var(--border2);">
-    <div style="display:flex;align-items:center;gap:8px;padding:11px 4px;color:${color};font-size:12.5px;${canExpand ? 'cursor:pointer;' : ''}" ${canExpand ? 'onclick="toggleHomeAdvice()"' : ''}>
+  return `<div style="margin-top:10px;border-top:1px solid var(--border2);border-bottom:1px solid var(--border2);">
+    <div style="display:flex;align-items:center;gap:8px;padding:16px 4px;color:${color};font-size:12.5px;${canExpand ? 'cursor:pointer;' : ''}" ${canExpand ? 'onclick="toggleHomeAdvice()"' : ''}>
       <svg viewBox="0 0 24 24" width="15" height="15" style="flex-shrink:0;">
         ${icon === 'ph-check-circle'
           ? '<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 12l2.5 2.5L16 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
@@ -11542,7 +11578,7 @@ function renderHomeLogBoxes() {
     </div>`;
   }
 
-  if (html) html += `<div class="divider" style="margin:0 0 4px;"></div>`;
+  if (html) html += `<div class="divider" style="margin:18px 0 18px;"></div>`;
 
   el.innerHTML = html;
   if (showMeasurements) initHomeMeasBox();
@@ -11629,7 +11665,7 @@ function renderHomeTrainPreview() {
   const macro = (state.macrocycles || []).find(m => m.id === state.currentMacroId);
 
   if (!macro) {
-    el.innerHTML = `<div style="padding:16px 2px 4px;border-top:1px solid var(--border2);cursor:pointer;" onclick="showScreen('plan')">
+    el.innerHTML = `<div style="padding:22px 2px 4px;margin-top:14px;border-top:1px solid var(--border2);cursor:pointer;" onclick="showScreen('plan')">
       <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text3);margin-bottom:6px;">Next session</div>
       <div style="font-size:12px;color:var(--text3);">Create a macrocycle in the Plan tab first.</div>
     </div>`;
@@ -11638,7 +11674,7 @@ function renderHomeTrainPreview() {
 
   const next = getNextIncompleteSession(macro);
   if (!next) {
-    el.innerHTML = `<div style="padding:16px 2px 4px;border-top:1px solid var(--border2);cursor:pointer;" onclick="trainManualSelect=false;showScreen('train')">
+    el.innerHTML = `<div style="padding:22px 2px 4px;margin-top:14px;border-top:1px solid var(--border2);cursor:pointer;" onclick="trainManualSelect=false;showScreen('train')">
       <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text3);margin-bottom:6px;">Next session</div>
       <div style="font-size:12px;color:var(--text3);">All sessions complete for this cycle.</div>
     </div>`;
@@ -11659,7 +11695,7 @@ function renderHomeTrainPreview() {
   const microSuffix = useMicro ? (' ' + (next.dayKey.endsWith('m1') ? 'M1' : 'M2')) : '';
   const sessionName = (dayLabels[dayId] || dayId) + microSuffix;
 
-  el.innerHTML = `<div style="padding:16px 2px 4px;border-top:1px solid var(--border2);cursor:pointer;" onclick="trainManualSelect=false;showScreen('train')">
+  el.innerHTML = `<div style="padding:22px 2px 4px;margin-top:14px;border-top:1px solid var(--border2);cursor:pointer;" onclick="trainManualSelect=false;showScreen('train')">
     <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
       <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text3);">Next session – ${sessionName}</div>
       <div class="home-card-link" style="color:var(--accent2);font-size:12px;" onclick="event.stopPropagation();trainManualSelect=false;showScreen('train')">Open →</div>
@@ -15456,8 +15492,8 @@ function updateNutrRecipeFilterBtn() {
   if (nutrShowRecipesOnly) {
     btn.style.background = 'var(--blue)';
     btn.style.borderColor = 'var(--blue)';
-    btn.style.color = 'var(--bg)';
-    btn.querySelector('svg').setAttribute('stroke', 'var(--bg)');
+    btn.style.color = 'var(--on-accent)';
+    btn.querySelector('svg').setAttribute('stroke', 'var(--on-accent)');
   } else {
     btn.style.background = 'var(--surface2)';
     btn.style.borderColor = 'var(--border2)';
@@ -16562,7 +16598,7 @@ function openEditFoodEntry(date, meal, idx) {
       document.getElementById('nutr-edit-grams').value = 1;
     } else {
       gramsRow.children[0].style.display = '';
-      document.getElementById('nutr-edit-grams').value = libEntry?.defaultServing || item.grams || item.serving || 100;
+      document.getElementById('nutr-edit-grams').value = item.grams || item.serving || libEntry?.defaultServing || 100;
     }
     document.getElementById('nutr-edit-servings').value = item.servings || 1;
     document.getElementById('nutr-edit-kcal').value    = libEntry ? libEntry.per100kcal : (item.serving ? Math.round(item.kcal    / item.serving * 100) : 0);
