@@ -1641,7 +1641,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
       <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 2px;border-bottom:1px solid var(--border);margin-bottom:16px;cursor:pointer;" onclick="openModal('modal-settings-about')">
         <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-        <span class="tag tag-outline">v7.64</span>
+        <span class="tag tag-outline">v7.65</span>
       </div>
 
       <!-- ── Profile section ── -->
@@ -2496,7 +2496,19 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   <div class="modal-sheet" data-modal="modal-nutr-manual">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-manual')">✕</button></div>
     <div class="modal-title" id="nutr-manual-title">Quick Add</div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">Enter total macros to add directly to this meal</div>
+    <div class="toggle-row" style="margin-bottom:14px;">
+      <button class="toggle-btn active" id="nutr-manual-mode-item" onclick="setNutrManualMode('item')">Per item</button>
+      <button class="toggle-btn" id="nutr-manual-mode-gram" onclick="setNutrManualMode('gram')">Per gram</button>
+    </div>
+    <div class="form-group">
+      <div class="label">Name (optional)</div>
+      <input type="text" id="nutr-manual-name" placeholder="e.g. Lamb mince">
+    </div>
+    <div class="form-group" id="nutr-manual-grams-row" style="display:none;">
+      <div class="label">Amount (g)</div>
+      <input type="number" inputmode="decimal" id="nutr-manual-grams" placeholder="e.g. 250" oninput="updateManualPreview()">
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:12px;" id="nutr-manual-macro-label">Enter total macros to add directly to this meal</div>
     <div class="input-row">
       <div><div class="label">kcal</div><input type="number" inputmode="decimal" id="nutr-manual-kcal" placeholder="320" oninput="updateManualPreview()"></div>
       <div><div class="label">Protein (g)</div><input type="number" inputmode="decimal" id="nutr-manual-protein" placeholder="30" oninput="updateManualPreview()"></div>
@@ -2894,11 +2906,11 @@ function showScreen(name) {
   document.getElementById('nav-' + name).classList.add('active');
   animateNavPill();
   updateNavPillColor(name);
-  if (name === 'home') renderHome();
-  if (name === 'progress') renderProgress();
+  if (name === 'home') renderHome(true);
+  if (name === 'progress') renderProgress(true);
   if (name === 'plan') { planDayCollapsed = {}; renderPlan(); }
-  if (name === 'train') renderTrain();
-  if (name === 'nutrition') { nutrSelectedDate = getLocalToday(); renderNutrition(); }
+  if (name === 'train') renderTrain(true);
+  if (name === 'nutrition') { nutrSelectedDate = getLocalToday(); renderNutrition(true); }
   if (name === 'settings') renderSettings();
 }
 
@@ -4337,7 +4349,7 @@ function evaluateProgressionLock(macro, week, dayKey, ex) {
 // Build per-day stats map from all logs
 function buildDayMap() {
   const days = {};
-  const ensure = d => { if (!days[d]) days[d] = { weight: null, steps: null, kcal: 0, protein: 0, carbs: 0, hasNutr: false }; };
+  const ensure = d => { if (!days[d]) days[d] = { weight: null, steps: null, kcal: 0, protein: 0, carbs: 0, fats: 0, hasNutr: false }; };
   (state.bodyLogs || []).forEach(l => {
     ensure(l.date);
     if (l.weight) days[l.date].weight  = parseFloat(l.weight);
@@ -4349,22 +4361,25 @@ function buildDayMap() {
       days[l.date].kcal    = parseInt(l.kcal)    || 0;
       days[l.date].protein = parseFloat(l.protein) || 0;
       days[l.date].carbs   = parseFloat(l.carbs)   || 0;
+      days[l.date].fats    = parseFloat(l.fats)    || 0;
       days[l.date].hasNutr = true;
     }
   });
   // Also sum from nutritionMeals if available
   Object.entries(state.nutritionMeals || {}).forEach(([date, meals]) => {
     ensure(date);
-    let kcal = 0, protein = 0, carbs = 0;
+    let kcal = 0, protein = 0, carbs = 0, fats = 0;
     Object.values(meals).forEach(items => (items || []).forEach(item => {
       kcal    += item.kcal    || 0;
       protein += item.protein || 0;
       carbs   += item.carbs   || 0;
+      fats    += item.fats    || 0;
     }));
     if (kcal > 0 || protein > 0) {
       days[date].kcal    = kcal;
       days[date].protein = Math.round(protein);
       days[date].carbs   = Math.round(carbs);
+      days[date].fats    = Math.round(fats);
       days[date].hasNutr = true;
     }
   });
@@ -4824,7 +4839,7 @@ function buildWeightSparklineHtml(cycleLogs) {
   return `<div style="margin-top:8px;">${buildAreaLineChart(points, 'var(--accent)')}</div>`;
 }
 
-function buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort) {
+function buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort, animate = false) {
   if (!macro) {
     return `<div style="cursor:pointer;padding:16px 2px;border-bottom:1px solid var(--border);" onclick="showScreen('plan')">
       <div style="display:flex;align-items:center;justify-content:space-between;">
@@ -4928,14 +4943,19 @@ function buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort) {
   // even if the actual trend is negative (shown as a negative figure),
   // rather than flipping to "lost" based on what actually happened.
   const weightChangeLabel = (isGainGoal ? 'Weight gained' : 'Weight lost') + ' so far';
-  let heroVal = '—';
+  let heroValFinal = '—';
+  let heroValMagnitude = null; // numeric magnitude to count up from 0 (sign/decimal handled separately)
+  let heroValSign = '';
   if (cycleDelta !== null) {
     let displayVal, sign;
     if (isGainGoal) { displayVal = cycleDelta; sign = ''; }
     else if (cycleDelta > 0) { displayVal = cycleDelta; sign = '+'; }
     else { displayVal = -cycleDelta; sign = ''; }
-    heroVal = `${sign}${displayVal.toFixed(1)}`;
+    heroValMagnitude = displayVal;
+    heroValSign = sign;
+    heroValFinal = `${sign}${displayVal.toFixed(1)}`;
   }
+  const heroValDisplay = animate ? (heroValMagnitude !== null ? `${heroValSign}0.0` : '—') : heroValFinal;
 
   const navArrowButtons = canCycle ? `<div style="display:flex;gap:6px;">
       <button onclick="cycleProgressMacro(-1)" aria-label="Previous cycle"><svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -4949,7 +4969,7 @@ function buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort) {
   const cycleStatusLabel = isFuture ? 'Upcoming' : isPast ? 'Past' : 'Active';
   const cycleStatusPill = `<span style="display:inline-block;padding:3px 9px;border-radius:var(--r-sm);font-size:10px;font-weight:600;letter-spacing:0.04em;white-space:nowrap;border:1px solid ${isActiveCycle ? 'var(--accent)' : 'var(--border2)'};color:${isActiveCycle ? 'var(--accent2)' : 'var(--text3)'};">${cycleStatusLabel.toUpperCase()}</span>`;
 
-  return `<div class="hero-card" data-page="progress">
+  const html = `<div class="hero-card" data-page="progress">
     <div class="hero-nav-arrows" style="flex-direction:column;align-items:flex-end;gap:6px;" onclick="event.stopPropagation();">
       ${cycleStatusPill}
       ${navArrowButtons}
@@ -4965,12 +4985,12 @@ function buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort) {
 
     <div style="text-align:center;padding:20px 0 4px;">
       <div style="font-size:12px;color:var(--text3);margin-bottom:6px;">${weightChangeLabel}</div>
-      <div class="hero-value" style="font-size:56px;">${heroVal}<span class="unit"> lbs</span></div>
+      <div class="hero-value" style="font-size:56px;"><span id="progress-hero-weight-val">${heroValDisplay}</span><span class="unit"> lbs</span></div>
       ${heroSub ? `<div style="font-size:12px;color:var(--text3);margin-top:8px;">${heroSub}</div>` : ''}
     </div>
 
-    <div class="hero-progress-track" style="margin-top:18px;"><div class="hero-progress-fill" style="width:${cyclePct}%"></div></div>
-    <div class="hero-progress-row" style="margin-top:6px;"><span>${weekLabel}</span><span>${cyclePct}%</span></div>
+    <div class="hero-progress-track" style="margin-top:18px;"><div class="hero-progress-fill" id="progress-hero-cyclebar" style="width:${animate ? 0 : cyclePct}%;transition:none;"></div></div>
+    <div class="hero-progress-row" style="margin-top:6px;"><span>${weekLabel}</span><span id="progress-hero-cyclepct">${animate ? 0 : cyclePct}%</span></div>
     <div style="text-align:center;margin-top:2px;">
       <svg onclick="toggleProgressWeightSpark()" viewBox="0 0 24 24" width="16" height="16" style="cursor:pointer;stroke:var(--text3);fill:none;stroke-width:2.5;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${progressWeightSparkOpen ? '180deg' : '0deg'});"><polyline points="6 9 12 15 18 9"/></svg>
     </div>
@@ -4979,12 +4999,63 @@ function buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort) {
     <div class="divider" style="margin:22px 0;"></div>
 
     <div class="hero-callouts">
-      <div class="hero-callout"><div class="hero-callout-lbl">Volume</div><div class="hero-callout-val">${Math.round(totalVolume).toLocaleString()} kg</div></div>
-      <div class="hero-callout"><div class="hero-callout-lbl">Steps</div><div class="hero-callout-val">${avgSteps !== null ? avgSteps.toLocaleString() : '—'}</div></div>
-      <div class="hero-callout"><div class="hero-callout-lbl">Kcal</div><div class="hero-callout-val">${avgKcal !== null ? avgKcal.toLocaleString() : '—'}</div></div>
+      <div class="hero-callout"><div class="hero-callout-lbl">Volume</div><div class="hero-callout-val"><span id="progress-hero-volume">${(animate ? 0 : Math.round(totalVolume)).toLocaleString()}</span> kg</div></div>
+      <div class="hero-callout"><div class="hero-callout-lbl">Steps</div><div class="hero-callout-val" id="progress-hero-steps">${avgSteps !== null ? (animate ? 0 : avgSteps).toLocaleString() : '—'}</div></div>
+      <div class="hero-callout"><div class="hero-callout-lbl">Kcal</div><div class="hero-callout-val" id="progress-hero-kcal">${avgKcal !== null ? (animate ? 0 : avgKcal).toLocaleString() : '—'}</div></div>
     </div>
     <div class="divider" style="margin:22px 0 0;"></div>
   </div>`;
+
+  if (animate) {
+    animateProgressHeroValues({
+      heroValMagnitude, heroValSign, cyclePct,
+      totalVolume: Math.round(totalVolume), avgSteps, avgKcal,
+    });
+  }
+
+  return html;
+}
+
+// Counts the Progress hero's weight-so-far figure, the calendar-time bar
+// (+ its % label), and the Volume/Steps/Kcal callouts up from 0 together,
+// on one shared eased timeline — mirrors animateHomeHeroValues. Called only
+// on an actual Progress page load (see renderProgressHero), never on
+// in-card actions like cycling between macrocycles or toggling the weight
+// sparkline, which re-render statically.
+function animateProgressHeroValues(data) {
+  const duration = 1000;
+  const start = performance.now();
+  const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+
+  function step(now) {
+    const t = Math.min(1, (now - start) / duration);
+    const e = easeOutCubic(t);
+
+    if (data.heroValMagnitude !== null) {
+      const el = document.getElementById('progress-hero-weight-val');
+      if (el) el.textContent = `${data.heroValSign}${(data.heroValMagnitude * e).toFixed(1)}`;
+    }
+    const barEl = document.getElementById('progress-hero-cyclebar');
+    const pctEl = document.getElementById('progress-hero-cyclepct');
+    const curPct = Math.round(data.cyclePct * e);
+    if (barEl) barEl.style.width = (data.cyclePct * e) + '%';
+    if (pctEl) pctEl.textContent = curPct + '%';
+
+    const volEl = document.getElementById('progress-hero-volume');
+    if (volEl) volEl.textContent = Math.round(data.totalVolume * e).toLocaleString();
+
+    if (data.avgSteps !== null) {
+      const stepsEl = document.getElementById('progress-hero-steps');
+      if (stepsEl) stepsEl.textContent = Math.round(data.avgSteps * e).toLocaleString();
+    }
+    if (data.avgKcal !== null) {
+      const kcalEl = document.getElementById('progress-hero-kcal');
+      if (kcalEl) kcalEl.textContent = Math.round(data.avgKcal * e).toLocaleString();
+    }
+
+    if (t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
 }
 
 // Slide 1 — body weight over time, as a white area line chart on the
@@ -5221,7 +5292,7 @@ function buildGoalColumnHeroChart(macro, metric) {
 // and the steps/kcal bar-chart visual now powers the Statistics card's
 // "All" toggle (see buildStatRowAllTimeChart). Volume-over-time wasn't
 // carried forward — not needed as a standalone view.
-function renderProgressHero() {
+function renderProgressHero(animate = false) {
   const el = document.getElementById('progress-hero-card');
   if (!el) return;
   const todayStrShort = new Date().toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
@@ -5229,7 +5300,7 @@ function renderProgressHero() {
   const macroList = state.macrocycles.slice().sort((a,b) => (a.start||'').localeCompare(b.start||''));
   const canCycle = macroList.length > 1;
 
-  el.innerHTML = buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort);
+  el.innerHTML = buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort, animate);
 }
 
 // Dot pagination below the hero deck — kept as a no-op stub (renders
@@ -6169,14 +6240,14 @@ function initProgressHeroSwipe() {
 
 // Top-level render function for the Progress screen. Renders the hero deck,
 // the secondary insights card deck, and wires up both sets of swipe handlers.
-function renderProgress() {
+function renderProgress(animate = false) {
   const todayStr = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' });
   document.getElementById('progress-date').textContent = todayStr;
 
   const macro = resolveProgressMacro();
 
   // ── Active cycle hero + swipeable chart deck ──
-  renderProgressHero();
+  renderProgressHero(animate);
 
   // ── Body weight card ──────────────────────────
   const bodyEl = document.getElementById('progress-body');
@@ -11230,15 +11301,19 @@ function getHomeMetricBadge(field, avg, target, dayMap, weekStart, today) {
 // the week's final day, the exact "hit X today") sublabel for one metric.
 // See the code comment inline below for why the Sunday case needs no
 // special branch — the general formula collapses to it naturally.
-function getHomeMetricSublabel(field, dayMap, weekStart, today, target, unit) {
-  if (target === null || target === undefined) return '';
+// The flat daily rate still needed for the rest of the week (today onward)
+// to land the weekly total on `target`, based on logged totals for every
+// day strictly BEFORE today in this week — days with no log at all are
+// excluded entirely (both from the sum and from the "needed total" it's
+// compared against), so a day you simply didn't log doesn't silently count
+// as zero progress and inflate the catch-up rate for the days that remain.
+// Shared by getHomeMetricBadge's pace check, getHomeMetricSublabel's advice
+// text, and getReconciledMacroAdvice (which runs this same calc for kcal/
+// protein/carbs/fats before reconciling them against each other).
+function getWeeklyRequiredDaily(field, dayMap, weekStart, today, target) {
+  if (target === null || target === undefined) return null;
   const dow = getHomeIsoDow(today); // Monday=1 .. Sunday=7
   const daysRemaining = 8 - dow;    // today + whatever's left in the week
-  // Sum actual logged totals for every day strictly BEFORE today in this
-  // week. Days with no log at all are excluded entirely — both from the
-  // sum AND from the "needed total" it's compared against — so a day you
-  // simply didn't log doesn't silently count as zero progress and inflate
-  // the catch-up rate for the days that remain.
   const yesterday = (() => {
     const d = new Date(today + 'T00:00:00');
     d.setDate(d.getDate() - 1);
@@ -11253,22 +11328,135 @@ function getHomeMetricSublabel(field, dayMap, weekStart, today, target, unit) {
       if (hasField) { loggedSoFar += (day[field] || 0); daysTrackedSoFar++; }
     }
   });
+  if (daysRemaining <= 0) return { requiredDaily: target, loggedSoFar, daysTrackedSoFar, daysRemaining };
   const neededTotal = target * (daysTrackedSoFar + daysRemaining);
   const remainingBudget = neededTotal - loggedSoFar;
-  const requiredDaily = daysRemaining > 0 ? remainingBudget / daysRemaining : 0;
+  return { requiredDaily: remainingBudget / daysRemaining, loggedSoFar, daysTrackedSoFar, daysRemaining };
+}
+
+// The full-week average that would result if `dailyGoingForward` were hit
+// on every remaining day (today onward), given what's already logged —
+// i.e. what "New target" (see buildAdviceLineHtml) actually nets out to
+// across the whole week, not just the days left. For an unreconciled
+// figure this always comes out equal to the metric's own goal (that's what
+// requiredDaily solves for by construction); the interesting case is a
+// reconciled figure, where it may land away from goal on purpose.
+function projectedWeeklyAverage(dailyGoingForward, info) {
+  const totalDays = info.daysTrackedSoFar + info.daysRemaining;
+  if (totalDays <= 0) return dailyGoingForward;
+  return (info.loggedSoFar + dailyGoingForward * info.daysRemaining) / totalDays;
+}
+
+// Turns a requiredDaily figure into the same "adjust by X" / "hit X today"
+// wording getHomeMetricSublabel has always used — shared so reconciled
+// figures (see getReconciledMacroAdvice) read identically to unreconciled
+// ones.
+function formatAdviceSublabel(requiredDaily, target, unit, today) {
+  const dow = getHomeIsoDow(today);
+  const daysRemaining = 8 - dow;
   const rounded = Math.round(requiredDaily);
   if (daysRemaining <= 1) {
     return `Hit ${rounded.toLocaleString()}${unit} today to bring the week to target`;
   }
-  const delta = rounded - target;
+  const delta = rounded - Math.round(target);
   if (Math.abs(delta) < 1) return 'On pace for the week';
   const sign = delta > 0 ? '+' : '';
   return `Adjust your daily avg by ${sign}${delta.toLocaleString()}${unit} for the rest of the week to hit target`;
 }
 
+// Builds the "adjust your daily avg by X" (or, on the week's final day, the
+// exact "hit X today") sublabel for one metric's OWN independent catch-up
+// rate — unreconciled against any other metric. Used as-is for steps, and
+// for kcal/protein/carbs whenever getReconciledMacroAdvice isn't in play
+// (see buildHomeConsolidatedMessage).
+function getHomeMetricSublabel(field, dayMap, weekStart, today, target, unit) {
+  const info = getWeeklyRequiredDaily(field, dayMap, weekStart, today, target);
+  if (info === null) return '';
+  return formatAdviceSublabel(info.requiredDaily, target, unit, today);
+}
+
+// ── Weekly macro advice reconciliation ──────────────────────────────────
+// kcal, protein, carbs, and fats each have their own independent weekly
+// catch-up rate (getWeeklyRequiredDaily), but those numbers can be mutually
+// impossible on their own — e.g. "reduce kcal by 760/day" alongside
+// "increase protein by 37g/day" ignores that the extra protein alone would
+// cost more calories than the reduced kcal budget allows. This reconciles
+// kcal/protein/carbs/fats into one mutually-achievable set of numbers:
+//   1. If protein's own catch-up rate fits inside the kcal catch-up rate,
+//      alongside carbs and fats at their floors (50g/15g), protein and kcal
+//      both keep their own independent numbers, and carbs/fats fill
+//      whatever's left of the kcal budget (fats trimmed toward its floor
+//      first, then carbs, only if their own independent rates don't fit).
+//   2. If not, protein's rate is capped at 15g/day below its own flat daily
+//      goal (never lower), carbs/fats drop to their floors, and kcal is
+//      recalculated as whatever that combination actually costs — kcal
+//      will land above its own "ideal" catch-up rate this week as a result.
+// Only ever called for a metric that's already flagged concerning (see
+// buildHomeConsolidatedMessage) — this changes the ADVICE text only, never
+// which metrics get flagged or their badge colour.
+const RECONCILE_CARBS_FLOOR = 50; // g/day
+const RECONCILE_FATS_FLOOR  = 15; // g/day
+const RECONCILE_PROTEIN_MAX_DROP = 15; // g/day below protein's flat goal
+
+function getReconciledMacroAdvice(dayMap, weekStart, today, goal) {
+  if (!goal || goal.kcal === null || goal.kcal === undefined || goal.protein === null || goal.protein === undefined) return null;
+  const kcalInfo    = getWeeklyRequiredDaily('kcal',    dayMap, weekStart, today, goal.kcal);
+  const proteinInfo = getWeeklyRequiredDaily('protein', dayMap, weekStart, today, goal.protein);
+  const carbsInfo   = getWeeklyRequiredDaily('carbs',   dayMap, weekStart, today, goal.carbs);
+  const fatsInfo    = getWeeklyRequiredDaily('fats',    dayMap, weekStart, today, goal.fats);
+  if (kcalInfo === null || proteinInfo === null) return null;
+  const kcalRaw    = kcalInfo.requiredDaily;
+  const proteinRaw = proteinInfo.requiredDaily;
+  const carbsRaw    = carbsInfo ? carbsInfo.requiredDaily : null;
+  const fatsRaw     = fatsInfo  ? fatsInfo.requiredDaily  : null;
+
+  const floorKcalCost = (proteinRaw * 4) + (RECONCILE_CARBS_FLOOR * 4) + (RECONCILE_FATS_FLOOR * 9);
+  const feasible = floorKcalCost <= kcalRaw;
+
+  if (feasible) {
+    let carbsAdvice = carbsRaw !== null ? carbsRaw : RECONCILE_CARBS_FLOOR;
+    let fatsAdvice  = fatsRaw  !== null ? fatsRaw  : RECONCILE_FATS_FLOOR;
+    const budgetForCarbsAndFats = kcalRaw - (proteinRaw * 4);
+    let cost = (carbsAdvice * 4) + (fatsAdvice * 9);
+    if (cost > budgetForCarbsAndFats) {
+      // Trim fats toward its floor first — it has no visible counter of
+      // its own, so this is the lowest-cost place to make room.
+      const maxFatsKcal = budgetForCarbsAndFats - (carbsAdvice * 4);
+      fatsAdvice = Math.max(RECONCILE_FATS_FLOOR, maxFatsKcal / 9);
+      cost = (carbsAdvice * 4) + (fatsAdvice * 9);
+      if (cost > budgetForCarbsAndFats) {
+        // Still doesn't fit even with fats at its floor — trim carbs too.
+        const maxCarbsKcal = budgetForCarbsAndFats - (fatsAdvice * 9);
+        carbsAdvice = Math.max(RECONCILE_CARBS_FLOOR, maxCarbsKcal / 4);
+      }
+    }
+    const fatsChanged = fatsRaw !== null && Math.round(fatsAdvice) !== Math.round(fatsRaw);
+    return {
+      feasible: true,
+      kcal: kcalRaw, protein: proteinRaw, carbs: carbsAdvice,
+      fats: fatsAdvice, fatsChanged,
+    };
+  }
+
+  // Not feasible: cap protein's shortfall at 15g below its own flat daily
+  // goal, drop carbs/fats to their floors, and let kcal absorb the cost.
+  const proteinAdvice = goal.protein - RECONCILE_PROTEIN_MAX_DROP;
+  const kcalAdvice = (proteinAdvice * 4) + (RECONCILE_CARBS_FLOOR * 4) + (RECONCILE_FATS_FLOOR * 9);
+  return {
+    feasible: false,
+    kcal: kcalAdvice, protein: proteinAdvice, carbs: RECONCILE_CARBS_FLOOR,
+    fats: RECONCILE_FATS_FLOOR, fatsChanged: true,
+  };
+}
+
 // Top-level render for the Home screen — calls each section renderer.
-function renderHome() {
-  renderHomeHero();
+// animateHero controls whether the hero's kcal/macros/steps numbers and
+// progress bars count up from 0 (see renderHomeHero) — true only on an
+// actual Home page load (showScreen('home')), never on the in-page
+// re-renders that follow a quick-log save, so saving steps/weight doesn't
+// restart the count-up.
+function renderHome(animateHero = false) {
+  renderHomeHero(animateHero);
   renderHomeGoalBanner();
   renderHomeLogBoxes();
   renderHomeEditLogsLink();
@@ -11276,7 +11464,7 @@ function renderHome() {
   renderHomeTrainPreview();
 }
 
-function renderHomeHero() {
+function renderHomeHero(animate = false) {
   const el = document.getElementById('home-hero-card');
   if (!el) return;
   const today = getLocalToday();
@@ -11294,20 +11482,22 @@ function renderHomeHero() {
   const badges = metrics.map(m => {
     const avg = avgDayMapField(dayMap, m.field, weekStart, today);
     const target = goal ? goal[m.field] : null;
-    return { m, avg, target, badge: getHomeMetricBadge(m.field, avg, target, dayMap, weekStart, today) };
+    const pct = (target && avg !== null) ? Math.max(0, Math.min(100, Math.round((avg / target) * 100))) : 0;
+    return { m, avg, target, pct, badge: getHomeMetricBadge(m.field, avg, target, dayMap, weekStart, today) };
   });
 
-  const rowsHtml = badges.map(({ m, avg, target }) => {
-    const valsStr = target !== null && target !== undefined
-      ? `${avg !== null ? m.fmt(avg) : '—'}${m.unit} avg / ${m.fmt(target)}${m.unit} target`
-      : `${avg !== null ? m.fmt(avg) : '—'}${m.unit} avg / no active goal`;
-    const pct = (target && avg !== null) ? Math.max(0, Math.min(100, Math.round((avg / target) * 100))) : 0;
+  const rowsHtml = badges.map(({ m, avg, target, pct }) => {
+    const avgDisplay = avg !== null ? m.fmt(animate ? 0 : avg) : '—';
+    const targetStr = target !== null && target !== undefined
+      ? `${m.unit} avg / ${m.fmt(target)}${m.unit} target`
+      : `${m.unit} avg / no active goal`;
+    const fillWidth = animate ? 0 : pct;
     return `<div style="margin:0 0 14px;">
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px;">
         <span style="font-weight:500;">${m.name}</span>
-        <span style="color:var(--text3);">${valsStr}</span>
+        <span style="color:var(--text3);"><span id="hero-avg-${m.field}">${avgDisplay}</span>${targetStr}</span>
       </div>
-      <div class="hero-progress-track"><div class="hero-progress-fill" style="width:${pct}%"></div></div>
+      <div class="hero-progress-track"><div class="hero-progress-fill" id="hero-fill-${m.field}" style="width:${fillWidth}%;transition:none;"></div></div>
     </div>`;
   }).join('');
 
@@ -11315,8 +11505,35 @@ function renderHomeHero() {
     <div class="hero-label">This week</div>
     <h2 style="margin:0 0 16px;font-size:22px;">Averages vs target</h2>
     ${rowsHtml}
-    ${buildHomeConsolidatedMessage(badges, dayMap, weekStart, today)}
+    ${buildHomeConsolidatedMessage(badges, dayMap, weekStart, today, goal)}
   </div>`;
+
+  if (animate) animateHomeHeroValues(badges);
+}
+
+// Counts the hero's avg numbers and progress bar widths up from 0 to their
+// real values in lockstep, over one shared eased timeline — called only on
+// an actual Home page load (see renderHome). Metrics with no data yet
+// (avg === null) are left showing "—" / 0% and are skipped, since there's
+// nothing to count up to.
+function animateHomeHeroValues(badges) {
+  const duration = 1000;
+  const start = performance.now();
+  const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+
+  function step(now) {
+    const t = Math.min(1, (now - start) / duration);
+    const e = easeOutCubic(t);
+    badges.forEach(({ m, avg, pct }) => {
+      if (avg === null || avg === undefined) return;
+      const numEl = document.getElementById(`hero-avg-${m.field}`);
+      const fillEl = document.getElementById(`hero-fill-${m.field}`);
+      if (numEl) numEl.textContent = m.fmt(Math.round(avg * e));
+      if (fillEl) fillEl.style.width = (pct * e) + '%';
+    });
+    if (t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
 }
 
 // Whether the per-metric advice detail is expanded behind the Home page's
@@ -11334,7 +11551,30 @@ function toggleHomeAdvice() {
 // (i.e. genuinely a concern, per getHomeMetricBadge's polarity logic) pull
 // the message negative — "Exceeding" on a metric where that's actually fine
 // (e.g. steps) never counts against it.
-function buildHomeConsolidatedMessage(badges, dayMap, weekStart, today) {
+// Builds one metric's advice block for the expanded Home warning panel: the
+// existing "adjust by X" sublabel, plus two new bullets — the resulting
+// flat daily target ("New target"), and what the FULL week (already-logged
+// days + this target for the rest) would average out to if it's hit every
+// remaining day. For an unreconciled figure the projected average always
+// equals the metric's own goal by construction; it's only interesting once
+// a reconciled figure is passed in (see getReconciledMacroAdvice), where it
+// may land deliberately away from goal (e.g. protein capped 15g under).
+function buildAdviceLineHtml(name, field, dayMap, weekStart, today, target, unit, reconciledValue, warningPrefix) {
+  const info = getWeeklyRequiredDaily(field, dayMap, weekStart, today, target);
+  if (!info) return '';
+  const displayValue = (reconciledValue !== null && reconciledValue !== undefined) ? reconciledValue : info.requiredDaily;
+  let sub = formatAdviceSublabel(displayValue, target, unit, today);
+  if (warningPrefix) sub = `${warningPrefix} — ${sub.charAt(0).toLowerCase()}${sub.slice(1)}`;
+  const newTarget = Math.round(displayValue);
+  const projectedAvg = Math.round(projectedWeeklyAverage(displayValue, info));
+  return `<div style="margin-top:8px;font-size:11.5px;color:var(--text2);line-height:1.5;">
+    <strong style="color:var(--text);">${name}:</strong> ${sub}
+    <div style="margin:4px 0 0 12px;font-size:10.5px;color:var(--text3);">• New target: ${newTarget.toLocaleString()}${unit}/day</div>
+    <div style="margin:2px 0 0 12px;font-size:10.5px;color:var(--text3);">• Projected weekly avg if met: ${projectedAvg.toLocaleString()}${unit}</div>
+  </div>`;
+}
+
+function buildHomeConsolidatedMessage(badges, dayMap, weekStart, today, goal) {
   const withData = badges.filter(b => b.badge.label !== 'No data');
   const concerning = withData.filter(b => b.badge.color === 'var(--red)');
 
@@ -11353,11 +11593,33 @@ function buildHomeConsolidatedMessage(badges, dayMap, weekStart, today) {
     text = `${names} off target this week`;
   }
 
+  // Reconciled kcal/protein/carbs advice only kicks in once kcal or protein
+  // is actually flagged concerning — carbs/steps being off on their own
+  // isn't a kcal-vs-protein conflict, so their independent sublabel stands
+  // as before. See getReconciledMacroAdvice for the full reconciliation
+  // rules. This only changes advice TEXT, never badge colours or which
+  // metrics get flagged.
+  const concerningFields = new Set(concerning.map(b => b.m.field));
+  const needsReconciliation = concerningFields.has('kcal') || concerningFields.has('protein');
+  const reconciled = needsReconciliation ? getReconciledMacroAdvice(dayMap, weekStart, today, goal) : null;
+
   const canExpand = concerning.length > 0;
   const adviceLines = canExpand ? concerning.map(b => {
-    const sub = getHomeMetricSublabel(b.m.field, dayMap, weekStart, today, b.target, b.m.unit);
-    return sub ? `<div style="margin-top:8px;font-size:11.5px;color:var(--text2);line-height:1.5;"><strong style="color:var(--text);">${b.m.name}:</strong> ${sub}</div>` : '';
+    const reconciledValue = (reconciled && (b.m.field === 'kcal' || b.m.field === 'protein' || b.m.field === 'carbs')) ? reconciled[b.m.field] : null;
+    const warningPrefix = (reconciled && !reconciled.feasible && b.m.field === 'kcal') ? "Can't meet kcal target this week without cutting protein further" : null;
+    return buildAdviceLineHtml(b.m.name, b.m.field, dayMap, weekStart, today, b.target, b.m.unit, reconciledValue, warningPrefix);
   }).join('') : '';
+
+  // Fats has no hero row/badge of its own, so it only ever shows up here —
+  // and only when reconciliation actually had to move it off its own
+  // independent number to make room for kcal/protein.
+  const fatsLine = (reconciled && reconciled.fatsChanged)
+    ? buildAdviceLineHtml('Fats', 'fats', dayMap, weekStart, today, goal && goal.fats, 'g', reconciled.fats, null)
+    : '';
+
+  const footnote = canExpand
+    ? `<div style="margin-top:4px;font-size:10.5px;color:var(--text3);font-style:italic;">Adjustments shown here don't include what you've already logged today.</div>`
+    : '';
 
   return `<div style="margin-top:10px;border-top:1px solid var(--border2);border-bottom:1px solid var(--border2);">
     <div style="display:flex;align-items:center;gap:8px;padding:16px 4px;color:${color};font-size:12.5px;${canExpand ? 'cursor:pointer;' : ''}" ${canExpand ? 'onclick="toggleHomeAdvice()"' : ''}>
@@ -11371,7 +11633,7 @@ function buildHomeConsolidatedMessage(badges, dayMap, weekStart, today) {
       <span style="flex:1;">${text}</span>
       ${canExpand ? `<svg viewBox="0 0 24 24" width="13" height="13" style="flex-shrink:0;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${homeAdviceExpanded ? '180deg' : '0deg'});"><polyline points="6 9 12 15 18 9"/></svg>` : ''}
     </div>
-    ${canExpand && homeAdviceExpanded ? `<div style="padding:0 4px 12px;">${adviceLines}</div>` : ''}
+    ${canExpand && homeAdviceExpanded ? `<div style="padding:0 4px 12px;">${footnote}${adviceLines}${fatsLine}</div>` : ''}
   </div>`;
 }
 
@@ -11514,9 +11776,11 @@ function renderHomeLogBoxes() {
   if (!hasSteps) {
     html += `<div style="padding:14px 2px;">
       <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text3);margin-bottom:10px;">Log steps</div>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <input type="number" inputmode="numeric" id="home-steps-input" placeholder="e.g. 8500" style="flex:1;font-size:15px;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
-        <button class="btn btn-accent" onclick="saveHomeSteps()" style="padding:10px 16px;">Save</button>
+      <div id="home-steps-row" style="position:relative;overflow:hidden;border-radius:var(--r-sm);">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="number" inputmode="numeric" id="home-steps-input" placeholder="e.g. 8500" style="flex:1;font-size:15px;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+          <button class="btn btn-accent" onclick="saveHomeSteps()" style="padding:10px 16px;">Save</button>
+        </div>
       </div>
     </div>`;
   }
@@ -11729,7 +11993,10 @@ function lastLogRelativeLabel(dateStr, todayStr) {
 // prior log and the delta against it. Stays up ~3s, then onDone() runs —
 // which is just renderHome(), so the box hides itself exactly the way it
 // already does once today's field is filled in (see renderHomeLogBoxes).
-function playLogSaveAnimation(rowId, buildLines, onDone) {
+// opts.noReveal skips the flash/delta text and the ~3s pause entirely —
+// just the swipe covers the box, then onDone() runs as soon as the swipe
+// finishes (600ms), so the box vanishes right after (see saveHomeSteps).
+function playLogSaveAnimation(rowId, buildLines, onDone, opts = {}) {
   const row = document.getElementById(rowId);
   if (!row) { onDone(); return; }
   row.querySelectorAll('.log-save-overlay, .log-save-flash').forEach(n => n.remove());
@@ -11737,6 +12004,11 @@ function playLogSaveAnimation(rowId, buildLines, onDone) {
   const overlay = document.createElement('div');
   overlay.className = 'log-save-overlay';
   row.appendChild(overlay);
+
+  if (opts.noReveal) {
+    setTimeout(onDone, 600);
+    return;
+  }
 
   setTimeout(() => {
     const lines = buildLines() || [];
@@ -11806,7 +12078,7 @@ function saveHomeSteps() {
   };
   if (idx >= 0) state.bodyLogs[idx] = entry; else state.bodyLogs.push(entry);
   save();
-  renderHome();
+  playLogSaveAnimation('home-steps-row', null, () => renderHome(), { noReveal: true });
 }
 
 // Measurements box keeps its own unit toggle + quarter-inch fraction
@@ -11898,7 +12170,7 @@ function saveHomeMeasurements() {
 // Top-level render function for the Train screen. Renders the week/day
 // picker, then delegates the actual session content to renderTrainHero()
 // (summary + volume) and renderTrainDay() (the exercise/superset cards).
-function renderTrain() {
+function renderTrain(animate = false) {
   const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
   const pickerEl = document.getElementById('train-session-picker');
   const subEl = document.getElementById('train-sub');
@@ -12008,7 +12280,7 @@ function renderTrain() {
   pickerHtml += `</div>`;
   pickerEl.innerHTML = pickerHtml;
 
-  renderTrainHero(macro);
+  renderTrainHero(macro, animate);
 
   renderTrainDay(macro);
 }
@@ -12090,7 +12362,7 @@ function getSelectedTrainWeekDates(macro) {
   return { start: toLocalDateStr(start), end: toLocalDateStr(end) };
 }
 
-function renderTrainHero(macro) {
+function renderTrainHero(macro, animate = false) {
   const heroEl = document.getElementById('train-hero');
   if (!heroEl || !macro) return;
   const dayKey = state.currentDay;
@@ -12159,9 +12431,9 @@ function renderTrainHero(macro) {
 
       <div style="text-align:center;padding:20px 0 4px;">
         <div style="font-size:12px;color:var(--text3);margin-bottom:6px;">Session progress</div>
-        <div class="hero-value" style="font-size:56px;">${sessionPct}<span class="unit">%</span></div>
+        <div class="hero-value" style="font-size:56px;"><span id="train-hero-pct">${animate ? 0 : sessionPct}</span><span class="unit">%</span></div>
       </div>
-      <div class="hero-progress-track" style="margin-top:16px;"><div class="hero-progress-fill" style="width:${sessionPct}%"></div></div>
+      <div class="hero-progress-track" style="margin-top:16px;"><div class="hero-progress-fill" id="train-hero-bar" style="width:${animate ? 0 : sessionPct}%;transition:none;"></div></div>
 
       <div class="hero-callouts" style="margin-top:16px;">
         <div class="hero-callout"><div class="hero-callout-lbl">Exercises</div><div class="hero-callout-val">${sessionExercises.length}</div></div>
@@ -12175,7 +12447,30 @@ function renderTrainHero(macro) {
       ${statusPillHtml}
       <div class="divider" style="margin:16px 0 0;"></div>
     </div>`;
+    if (animate) animateTrainHeroValue(sessionPct);
   }
+}
+
+// Counts the Train hero's session-progress % and its bar up from 0 together,
+// on the same eased 1000ms timeline as Home/Progress — called only on an
+// actual Train page load (see renderTrain), never on the re-renders that
+// follow logging/toggling/clearing a set (see renderTrainDay), so saving a
+// set doesn't restart the count-up.
+function animateTrainHeroValue(sessionPct) {
+  const duration = 1000;
+  const start = performance.now();
+  const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+
+  function step(now) {
+    const t = Math.min(1, (now - start) / duration);
+    const e = easeOutCubic(t);
+    const pctEl = document.getElementById('train-hero-pct');
+    const barEl = document.getElementById('train-hero-bar');
+    if (pctEl) pctEl.textContent = Math.round(sessionPct * e);
+    if (barEl) barEl.style.width = (sessionPct * e) + '%';
+    if (t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
 }
 
 // Computes every (week, dayKey) session in a macrocycle in order, and
@@ -14354,7 +14649,7 @@ function getLocalToday() {
 // Top-level render function for the Nutrition screen — renders the hero and
 // the per-meal diary for nutrSelectedDate, and (re)initialises the hero's
 // swipe gesture and the yesterday-copy-strip swipe gestures.
-function renderNutrDaily() {
+function renderNutrDaily(animate = false) {
   const el = document.getElementById('nutr-diary');
   if (!el) return;
   const today = getLocalToday();
@@ -14363,7 +14658,7 @@ function renderNutrDaily() {
   const picker = document.getElementById('nutr-day-picker');
   if (picker) picker.value = nutrSelectedDate;
 
-  renderNutrHero();
+  renderNutrHero(animate);
   renderNutrDiary();
   renderNutrSaveBadge();
   requestAnimationFrame(initYesterdaySwipes);
@@ -14886,7 +15181,7 @@ function clearNutrQuickAdd() {
 
 // Renders the Nutrition hero card — kcal/macro summary for nutrSelectedDate
 // against the active goal (getGoalForDay).
-function renderNutrHero() {
+function renderNutrHero(animate = false) {
   const el = document.getElementById('nutr-hero-card');
   if (!el) return;
   const goal = getGoalForDay(nutrSelectedDate);
@@ -14900,14 +15195,14 @@ function renderNutrHero() {
   const dateLabel = nutrSelectedDate === today ? "Today's calories" : dateObj.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
 
   const macros = [
-    { label:'Protein', logged:Math.round(totals.p), target: goal?Math.round(goal.protein):0 },
-    { label:'Carbs',   logged:Math.round(totals.c), target: goal?Math.round(goal.carbs):0 },
-    { label:'Fats',    logged:Math.round(totals.f), target: goal?Math.round(goal.fats):0 },
+    { field:'protein', label:'Protein', logged:Math.round(totals.p), target: goal?Math.round(goal.protein):0 },
+    { field:'carbs',   label:'Carbs',   logged:Math.round(totals.c), target: goal?Math.round(goal.carbs):0 },
+    { field:'fats',    label:'Fats',    logged:Math.round(totals.f), target: goal?Math.round(goal.fats):0 },
   ];
   const macroCallouts = macros.map(m => {
     return `<div class="hero-callout">
       <div class="hero-callout-lbl">${m.label}</div>
-      <div class="hero-callout-val">${m.logged}${m.target ? ` / ${m.target}g` : 'g'}</div>
+      <div class="hero-callout-val"><span id="nutr-hero-${m.field}">${animate ? 0 : m.logged}</span>${m.target ? ` / ${m.target}g` : 'g'}</div>
     </div>`;
   }).join('');
 
@@ -14918,15 +15213,48 @@ function renderNutrHero() {
     </div>
     <div style="text-align:center;padding:20px 0 4px;">
       <div class="hero-label" style="text-align:center;">${dateLabel}</div>
-      <div class="hero-value" style="font-size:56px;">${totals.kcal.toLocaleString()}<span class="unit"> kcal</span></div>
+      <div class="hero-value" style="font-size:56px;"><span id="nutr-hero-kcal">${(animate ? 0 : totals.kcal).toLocaleString()}</span><span class="unit"> kcal</span></div>
       <div class="hero-sub" style="text-align:center;margin-top:8px;">${kcalGoal ? `${kcalGoal.toLocaleString()} goal · ${left >= 0 ? left.toLocaleString() + ' remaining' : Math.abs(left).toLocaleString() + ' over'}` : 'No goal set'}</div>
     </div>
-    ${kcalGoal ? `<div class="hero-progress-track" style="margin-top:14px;"><div class="hero-progress-fill" style="width:${pct}%"></div></div>` : ''}
+    ${kcalGoal ? `<div class="hero-progress-track" style="margin-top:14px;"><div class="hero-progress-fill" id="nutr-hero-bar" style="width:${animate ? 0 : pct}%;transition:none;"></div></div>` : ''}
     <div class="hero-callouts" style="margin-top:20px;">${macroCallouts}</div>
     <div class="divider" style="margin:16px 0 0;"></div>
     ${isDateSavedInLibrary(nutrSelectedDate) ? `<div style="display:flex;align-items:center;gap:6px;color:#8fbf9a;font-size:12.5px;font-weight:500;padding:12px 0 0;">✓ Saved to library</div>
     <div class="divider" style="margin:12px 0 0;"></div>` : ''}
   </div>`;
+
+  if (animate) animateNutrHeroValues({ kcal: totals.kcal, pct, macros });
+}
+
+// Counts the Nutrition hero's kcal figure and its bar up together, plus the
+// Protein/Carbs/Fats callouts alongside them, on the same eased 1000ms
+// timeline as Home/Progress/Train — called only on an actual Nutrition page
+// load (see renderNutrition), never on the re-renders that follow logging
+// food, quick-adding, or switching the selected date (see renderNutrDaily's
+// many other call sites), so those actions don't restart the count-up.
+function animateNutrHeroValues(data) {
+  const duration = 1000;
+  const start = performance.now();
+  const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+
+  function step(now) {
+    const t = Math.min(1, (now - start) / duration);
+    const e = easeOutCubic(t);
+
+    const kcalEl = document.getElementById('nutr-hero-kcal');
+    if (kcalEl) kcalEl.textContent = Math.round(data.kcal * e).toLocaleString();
+
+    const barEl = document.getElementById('nutr-hero-bar');
+    if (barEl) barEl.style.width = (data.pct * e) + '%';
+
+    data.macros.forEach(m => {
+      const mEl = document.getElementById(`nutr-hero-${m.field}`);
+      if (mEl) mEl.textContent = Math.round(m.logged * e);
+    });
+
+    if (t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
 }
 
 // Per-meal dot colour for diary item rows, matching the mockup's pattern
@@ -15634,15 +15962,32 @@ function quickAddFromList(idx) {
   }
 
   if (nutrAddContext === 'recipe') {
-    // Add straight to the recipe builder's in-memory ingredient list as a
-    // resolved-total ingredient — grams/servings scaling for recipe-vs-food
-    // items has already been applied above, so the totals here are final.
-    recipeIngredients.push({
-      name: item.name,
-      grams: 1,
-      kcal, protein, carbs, fats,
-      source: isRecipe ? 'recipe' : 'library',
-    });
+    // Nested recipe-as-ingredient has no real weight — grams:1 there means
+    // "1 serving of that recipe", same convention as a manual entry. A real
+    // library food DOES have a genuine per-gram rate (per100kcal etc. on
+    // `item`) — preserve the real grams and that rate instead of collapsing
+    // to a fixed total, so it stays editable by weight afterwards exactly
+    // like a barcode-added ingredient (see editRecipeIngredient).
+    if (isRecipe) {
+      recipeIngredients.push({
+        name: item.name,
+        grams: 1,
+        kcal, protein, carbs, fats,
+        source: 'recipe',
+      });
+    } else {
+      recipeIngredients.push({
+        name: item.name,
+        brand: item.brand || '',
+        grams,
+        kcal, protein, carbs, fats,
+        per1kcal: item.per100kcal / 100,
+        per1p:    item.per100p    / 100,
+        per1c:    item.per100c    / 100,
+        per1f:    item.per100f    / 100,
+        source: 'library',
+      });
+    }
     renderRecipeIngredients();
   } else {
     addFoodEntry({
@@ -16372,16 +16717,31 @@ function confirmServing() {
   const fats    = Math.round(fPer1    * total);
 
   if (nutrAddContext === 'recipe') {
-    // Add straight to the recipe builder's in-memory ingredient list —
-    // stored as a resolved-total ingredient (like a manual entry) since the
-    // recipe-vs-food scaling above has already been applied. Doesn't touch
-    // today's meal log or the food library.
-    recipeIngredients.push({
-      name: nutrPendingProduct.name,
-      grams: 1,
-      kcal, protein, carbs, fats,
-      source: nutrPendingProduct.source === 'recipe' ? 'recipe' : 'library',
-    });
+    // Nested recipe-as-ingredient has no real weight — grams:1 there means
+    // "1 serving of that recipe", same convention as a manual entry. A real
+    // scanned/library product DOES have a genuine per-gram rate — preserve
+    // it (folding the servings multiplier into one combined gram figure,
+    // since recipe ingredients only ever scale by grams, never a separate
+    // servings count — see confirmRecipeIngredient) so it stays editable by
+    // weight afterwards instead of freezing into a fixed total.
+    const isNestedRecipe = nutrPendingProduct.source === 'recipe';
+    if (isNestedRecipe) {
+      recipeIngredients.push({
+        name: nutrPendingProduct.name,
+        grams: 1,
+        kcal, protein, carbs, fats,
+        source: 'recipe',
+      });
+    } else {
+      recipeIngredients.push({
+        name: nutrPendingProduct.name,
+        brand: nutrPendingProduct.brand || '',
+        grams: total,
+        kcal, protein, carbs, fats,
+        per1kcal: kcalPer1, per1p: pPer1, per1c: cPer1, per1f: fPer1,
+        source: 'library',
+      });
+    }
     renderRecipeIngredients();
     nutrPendingProduct = null;
     closeModal('modal-nutr-serving');
@@ -16426,15 +16786,34 @@ function confirmServing() {
 
 // Opens the manual food entry modal (name + direct per-serving macros,
 // rather than a per-100g lookup).
+let nutrManualMode = 'item'; // 'item' | 'gram' — see setNutrManualMode
+
 function openNutrManual() {
   closeModal('modal-nutr-add');
   document.getElementById('nutr-manual-title').textContent = 'Quick Add to ' + nutrActiveMeal;
+  document.getElementById('nutr-manual-name').value = '';
+  document.getElementById('nutr-manual-grams').value = '';
   document.getElementById('nutr-manual-kcal').value = '';
   document.getElementById('nutr-manual-protein').value = '';
   document.getElementById('nutr-manual-carbs').value = '';
   document.getElementById('nutr-manual-fats').value = '';
-  document.getElementById('nutr-manual-preview').textContent = 'Total: — kcal · P:—g C:—g F:—g';
+  setNutrManualMode('item');
   requestAnimationFrame(() => openModal('modal-nutr-manual'));
+}
+
+// Toggles the Nutrition diary's Quick Add form between "Per item" (today's
+// behaviour — a one-off total logged directly to the meal) and "Per gram"
+// (a real weight, e.g. "250g lamb mince" the scanner couldn't find) — see
+// saveManualEntry for how each mode is stored.
+function setNutrManualMode(mode) {
+  nutrManualMode = mode;
+  document.getElementById('nutr-manual-mode-item').classList.toggle('active', mode === 'item');
+  document.getElementById('nutr-manual-mode-gram').classList.toggle('active', mode === 'gram');
+  document.getElementById('nutr-manual-grams-row').style.display = mode === 'gram' ? '' : 'none';
+  document.getElementById('nutr-manual-macro-label').textContent = mode === 'gram'
+    ? 'Totals for the amount above — saved as a per-gram rate you can adjust later'
+    : 'Enter total macros to add directly to this meal';
+  updateManualPreview();
 }
 
 // Recomputes the live macro preview in the manual entry modal.
@@ -16443,19 +16822,49 @@ function updateManualPreview() {
   const p    = Math.round(parseFloat(document.getElementById('nutr-manual-protein').value)||0);
   const c    = Math.round(parseFloat(document.getElementById('nutr-manual-carbs').value)||0);
   const f    = Math.round(parseFloat(document.getElementById('nutr-manual-fats').value)||0);
-  document.getElementById('nutr-manual-preview').textContent = 'Total: ' + kcal.toLocaleString() + ' kcal · P:' + p + 'g C:' + c + 'g F:' + f + 'g';
+  let suffix = '';
+  if (nutrManualMode === 'gram') {
+    const grams = parseFloat(document.getElementById('nutr-manual-grams').value) || 0;
+    if (grams > 0 && kcal > 0) suffix = ` (≈ ${Math.round(kcal / grams * 100).toLocaleString()} kcal/100g)`;
+  }
+  document.getElementById('nutr-manual-preview').textContent = 'Total: ' + kcal.toLocaleString() + ' kcal · P:' + p + 'g C:' + c + 'g F:' + f + 'g' + suffix;
 }
 
-// Saves a manual food entry into the current meal, converting the entered
-// per-serving macros to per-100g for food library storage consistency with
-// every other source.
+// Saves a manual food entry into the current meal. Per item: unchanged —
+// a one-off total, not saved to the food library. Per gram: stores a real
+// per1kcal rate (totals ÷ grams) so it's editable by weight afterwards
+// through the normal grams/servings edit path (see openEditFoodEntry,
+// which already branches on anything other than source==='manual'), and
+// saves to the food library so it's reusable next time.
 function saveManualEntry() {
+  const name    = document.getElementById('nutr-manual-name').value.trim() || 'Manual entry';
   const kcal    = Math.round(parseFloat(document.getElementById('nutr-manual-kcal').value)||0);
   const protein = Math.round(parseFloat(document.getElementById('nutr-manual-protein').value)||0);
   const carbs   = Math.round(parseFloat(document.getElementById('nutr-manual-carbs').value)||0);
   const fats    = Math.round(parseFloat(document.getElementById('nutr-manual-fats').value)||0);
   if (!kcal && !protein && !carbs && !fats) return;
-  addFoodEntry({ name: 'Manual entry', kcal, protein, carbs, fats, serving: 1, source: 'manual' });
+
+  if (nutrManualMode === 'gram') {
+    const grams = parseFloat(document.getElementById('nutr-manual-grams').value) || 0;
+    if (!grams) { document.getElementById('nutr-manual-grams').focus(); return; }
+    const per1kcal = kcal / grams, per1p = protein / grams, per1c = carbs / grams, per1f = fats / grams;
+    addFoodEntry({
+      name, grams, servings: 1, serving: Math.round(grams),
+      kcal, protein, carbs, fats,
+      source: 'manual-weight',
+    });
+    addToFoodLibrary({
+      name, brand: '', barcode: null,
+      per100kcal: Math.round(per1kcal * 100),
+      per100p:    Math.round(per1p    * 100 * 10) / 10,
+      per100c:    Math.round(per1c    * 100 * 10) / 10,
+      per100f:    Math.round(per1f    * 100 * 10) / 10,
+      defaultServing: grams,
+      source: 'manual-weight',
+    });
+  } else {
+    addFoodEntry({ name, kcal, protein, carbs, fats, serving: 1, source: 'manual' });
+  }
   closeModal('modal-nutr-manual');
 }
 
@@ -16702,9 +17111,9 @@ function saveEditFoodEntry() {
 
 // Legacy top-level entry point retained for any older call sites — delegates
 // to renderNutrDaily(), which is the real current render function for this screen.
-function renderNutrition() {
+function renderNutrition(animate = false) {
   if (!nutrSelectedDate) nutrSelectedDate = getLocalToday();
-  renderNutrDaily();
+  renderNutrDaily(animate);
 }
 
 // ── Legacy renderNutrDaily (replaced above) ────────────────────────────────
@@ -18192,28 +18601,58 @@ function removeRecipeIngredient(idx) {
 }
 
 // Opens the edit modal for an existing ingredient within the recipe builder.
+// Whether a recipe ingredient should be edited by weight (grams × a
+// per-gram rate) rather than by a servings count. True for anything with an
+// explicit per-gram rate (barcode, library, manual "Per gram" entries), and
+// for any other/legacy ingredient that has a real grams figure to derive
+// one from (kcal ÷ grams) — this is what makes ingredients added before
+// per1kcal existed on the schema properly editable again. Explicitly false
+// for 'manual' (Per item — the grams field holds a servings count, not a
+// weight) and 'recipe' (a nested recipe used as an ingredient — likewise
+// servings-based, no real weight to derive a rate from).
+function isWeightEditableIngredient(ing) {
+  if (!ing) return false;
+  if (ing.per1kcal != null) return true;
+  if (ing.source === 'manual' || ing.source === 'recipe') return false;
+  return !!(ing.grams && ing.grams > 0);
+}
+
+// Returns { per1kcal, per1p, per1c, per1f } for a weight-editable
+// ingredient — the stored rate if present, otherwise derived on the fly
+// from its existing totals ÷ grams (safe: that's exactly the math that
+// produced those totals in the first place, for legacy ingredients that
+// predate the per1kcal fields).
+function getIngredientRate(ing) {
+  if (ing.per1kcal != null) {
+    return { per1kcal: ing.per1kcal, per1p: ing.per1p, per1c: ing.per1c, per1f: ing.per1f };
+  }
+  const g = ing.grams || 1;
+  return { per1kcal: ing.kcal / g, per1p: ing.protein / g, per1c: ing.carbs / g, per1f: ing.fats / g };
+}
+
 function editRecipeIngredient(idx) {
   const ing = recipeIngredients[idx];
   if (!ing) return;
-  const isBarcode = ing.source === 'barcode' && ing.per1kcal != null;
+  const isWeightBased = isWeightEditableIngredient(ing);
   document.getElementById('recipe-edit-ing-idx').value = idx;
   document.getElementById('recipe-edit-ing-name').value = ing.name;
   document.getElementById('recipe-edit-ing-source').value = ing.source || 'manual';
 
-  if (isBarcode) {
+  if (isWeightBased) {
+    const rate = getIngredientRate(ing);
     document.getElementById('recipe-edit-ing-grams-row').style.display = '';
     document.getElementById('recipe-edit-ing-manual-row').style.display = 'none';
     document.getElementById('recipe-edit-ing-grams').value = ing.grams;
-    const per100kcal = Math.round(ing.per1kcal * 100);
-    const per100p    = Math.round(ing.per1p    * 100 * 10) / 10;
-    const per100c    = Math.round(ing.per1c    * 100 * 10) / 10;
-    const per100f    = Math.round(ing.per1f    * 100 * 10) / 10;
+    const per100kcal = Math.round(rate.per1kcal * 100);
+    const per100p    = Math.round(rate.per1p    * 100 * 10) / 10;
+    const per100c    = Math.round(rate.per1c    * 100 * 10) / 10;
+    const per100f    = Math.round(rate.per1f    * 100 * 10) / 10;
     document.getElementById('recipe-edit-ing-per100-info').textContent =
       `Per 100g: ${per100kcal.toLocaleString()} kcal · P:${per100p}g C:${per100c}g F:${per100f}g`;
   } else {
     document.getElementById('recipe-edit-ing-grams-row').style.display = 'none';
     document.getElementById('recipe-edit-ing-manual-row').style.display = '';
-    // For manual: grams field = servings, kcal/macros stored as totals — back-calculate per-serving
+    // For manual/recipe: grams field = servings, kcal/macros stored as totals — back-calculate per-serving
     const servings = ing.grams || 1;
     document.getElementById('recipe-edit-ing-servings').value = servings;
     document.getElementById('recipe-edit-ing-kcal').value     = servings > 0 ? Math.round(ing.kcal    / servings) : ing.kcal;
@@ -18228,16 +18667,16 @@ function editRecipeIngredient(idx) {
 // Recomputes the live macro preview while editing a recipe ingredient.
 function updateRecipeIngredientEditPreview() {
   const idx = parseInt(document.getElementById('recipe-edit-ing-idx').value);
-  const source = document.getElementById('recipe-edit-ing-source').value;
-  const isBarcode = source === 'barcode' && !isNaN(idx) && recipeIngredients[idx]?.per1kcal != null;
+  const ing = !isNaN(idx) ? recipeIngredients[idx] : null;
+  const isWeightBased = isWeightEditableIngredient(ing);
   let kcal, p, c, f;
-  if (isBarcode) {
-    const ing = recipeIngredients[idx];
+  if (isWeightBased) {
+    const rate = getIngredientRate(ing);
     const grams = parseFloat(document.getElementById('recipe-edit-ing-grams').value) || 0;
-    kcal = Math.round(ing.per1kcal * grams);
-    p    = Math.round(ing.per1p    * grams);
-    c    = Math.round(ing.per1c    * grams);
-    f    = Math.round(ing.per1f    * grams);
+    kcal = Math.round(rate.per1kcal * grams);
+    p    = Math.round(rate.per1p    * grams);
+    c    = Math.round(rate.per1c    * grams);
+    f    = Math.round(rate.per1f    * grams);
   } else {
     const servings = parseFloat(document.getElementById('recipe-edit-ing-servings').value) || 1;
     kcal = Math.round((parseFloat(document.getElementById('recipe-edit-ing-kcal').value)    || 0) * servings);
@@ -18254,18 +18693,19 @@ function saveRecipeIngredientEdit() {
   const idx = parseInt(document.getElementById('recipe-edit-ing-idx').value);
   if (isNaN(idx) || idx < 0 || idx >= recipeIngredients.length) return;
   const ing = recipeIngredients[idx];
-  const source = document.getElementById('recipe-edit-ing-source').value;
-  const isBarcode = source === 'barcode' && ing.per1kcal != null;
+  const isWeightBased = isWeightEditableIngredient(ing);
   const name = document.getElementById('recipe-edit-ing-name').value.trim() || ing.name;
 
-  if (isBarcode) {
+  if (isWeightBased) {
+    const rate = getIngredientRate(ing);
     const grams = parseFloat(document.getElementById('recipe-edit-ing-grams').value) || ing.grams;
     recipeIngredients[idx] = {
       ...ing, name, grams,
-      kcal:    Math.round(ing.per1kcal * grams),
-      protein: Math.round(ing.per1p    * grams),
-      carbs:   Math.round(ing.per1c    * grams),
-      fats:    Math.round(ing.per1f    * grams),
+      per1kcal: rate.per1kcal, per1p: rate.per1p, per1c: rate.per1c, per1f: rate.per1f,
+      kcal:    Math.round(rate.per1kcal * grams),
+      protein: Math.round(rate.per1p    * grams),
+      carbs:   Math.round(rate.per1c    * grams),
+      fats:    Math.round(rate.per1f    * grams),
     };
   } else {
     const servings   = parseFloat(document.getElementById('recipe-edit-ing-servings').value) || (ing.grams || 1);
@@ -18380,38 +18820,98 @@ function confirmRecipeIngredient() {
 }
 
 // ── Manual ingredient flow ────────────────────────────────────────────────────
+let recipeManualMode = 'item'; // 'item' | 'gram' — see setRecipeManualMode
+
 function openRecipeManual() {
   document.getElementById('recipe-manual-name').value = '';
   document.getElementById('recipe-manual-servings').value = '1';
+  document.getElementById('recipe-manual-grams').value = '';
   document.getElementById('recipe-manual-kcal').value = '';
   document.getElementById('recipe-manual-protein').value = '';
   document.getElementById('recipe-manual-carbs').value = '';
   document.getElementById('recipe-manual-fats').value = '';
-  document.getElementById('recipe-manual-preview').textContent = 'Total: — kcal';
+  setRecipeManualMode('item');
   openModal('modal-recipe-manual');
+}
+
+// Toggles the Recipe Builder's manual-add form between "Per item" (a
+// servings count × totals-per-serving, e.g. "2 sausages") and "Per gram"
+// (a real weight, e.g. "250g lamb mince") — see confirmRecipeManual for how
+// each mode is stored.
+function setRecipeManualMode(mode) {
+  recipeManualMode = mode;
+  document.getElementById('recipe-manual-mode-item').classList.toggle('active', mode === 'item');
+  document.getElementById('recipe-manual-mode-gram').classList.toggle('active', mode === 'gram');
+  document.getElementById('recipe-manual-servings-row').style.display = mode === 'item' ? '' : 'none';
+  document.getElementById('recipe-manual-grams-row').style.display    = mode === 'gram' ? '' : 'none';
+  document.getElementById('recipe-manual-macro-label').textContent = mode === 'gram'
+    ? 'Totals for the amount above — saved as a per-gram rate you can adjust later'
+    : 'Values per 1 serving (serving size = 1)';
+  updateRecipeManualPreview();
 }
 
 // Recomputes the live macro preview when adding a manually-entered
 // ingredient to a recipe.
 function updateRecipeManualPreview() {
-  const servings = parseFloat(document.getElementById('recipe-manual-servings').value) || 1;
-  const kcal = Math.round((parseFloat(document.getElementById('recipe-manual-kcal').value)||0) * servings);
-  const p    = Math.round((parseFloat(document.getElementById('recipe-manual-protein').value)||0) * servings);
-  const c    = Math.round((parseFloat(document.getElementById('recipe-manual-carbs').value)||0) * servings);
-  const f    = Math.round((parseFloat(document.getElementById('recipe-manual-fats').value)||0) * servings);
+  let kcal, p, c, f;
+  if (recipeManualMode === 'gram') {
+    // Per gram: the entered macros ARE the total for the stated grams —
+    // no multiplication here, just echo them back (see confirmRecipeManual
+    // for where the per-gram rate actually gets derived and stored).
+    kcal = Math.round(parseFloat(document.getElementById('recipe-manual-kcal').value)||0);
+    p    = Math.round(parseFloat(document.getElementById('recipe-manual-protein').value)||0);
+    c    = Math.round(parseFloat(document.getElementById('recipe-manual-carbs').value)||0);
+    f    = Math.round(parseFloat(document.getElementById('recipe-manual-fats').value)||0);
+  } else {
+    const servings = parseFloat(document.getElementById('recipe-manual-servings').value) || 1;
+    kcal = Math.round((parseFloat(document.getElementById('recipe-manual-kcal').value)||0) * servings);
+    p    = Math.round((parseFloat(document.getElementById('recipe-manual-protein').value)||0) * servings);
+    c    = Math.round((parseFloat(document.getElementById('recipe-manual-carbs').value)||0) * servings);
+    f    = Math.round((parseFloat(document.getElementById('recipe-manual-fats').value)||0) * servings);
+  }
   document.getElementById('recipe-manual-preview').textContent = 'Total: ' + kcal.toLocaleString() + ' kcal · P:' + p + 'g C:' + c + 'g F:' + f + 'g';
 }
 
 // Adds a manually-entered ingredient to the recipe currently being built.
+// Per item: stored exactly as before (grams field holds the servings
+// count, totals only — see isWeightEditableIngredient). Per gram: stores a
+// real per1kcal rate (totals ÷ grams) so it's weight-editable afterwards
+// exactly like a barcode ingredient, and saves to the food library so it's
+// reusable next time, since it now behaves like a real product.
 function confirmRecipeManual() {
   const name = document.getElementById('recipe-manual-name').value.trim();
   if (!name) { document.getElementById('recipe-manual-name').focus(); return; }
-  const servings = parseFloat(document.getElementById('recipe-manual-servings').value) || 1;
-  const kcal    = Math.round((parseFloat(document.getElementById('recipe-manual-kcal').value)||0) * servings);
-  const protein = Math.round((parseFloat(document.getElementById('recipe-manual-protein').value)||0) * servings);
-  const carbs   = Math.round((parseFloat(document.getElementById('recipe-manual-carbs').value)||0) * servings);
-  const fats    = Math.round((parseFloat(document.getElementById('recipe-manual-fats').value)||0) * servings);
-  recipeIngredients.push({ name, grams: servings, kcal, protein, carbs, fats, source: 'manual' });
+
+  if (recipeManualMode === 'gram') {
+    const grams = parseFloat(document.getElementById('recipe-manual-grams').value) || 0;
+    if (!grams) { document.getElementById('recipe-manual-grams').focus(); return; }
+    const kcal    = Math.round(parseFloat(document.getElementById('recipe-manual-kcal').value)||0);
+    const protein = Math.round((parseFloat(document.getElementById('recipe-manual-protein').value)||0) * 10) / 10;
+    const carbs   = Math.round((parseFloat(document.getElementById('recipe-manual-carbs').value)||0) * 10) / 10;
+    const fats    = Math.round((parseFloat(document.getElementById('recipe-manual-fats').value)||0) * 10) / 10;
+    const per1kcal = kcal / grams, per1p = protein / grams, per1c = carbs / grams, per1f = fats / grams;
+    recipeIngredients.push({
+      name, grams, kcal, protein, carbs, fats,
+      per1kcal, per1p, per1c, per1f,
+      source: 'manual-weight',
+    });
+    addToFoodLibrary({
+      name, brand: '', barcode: null,
+      per100kcal: Math.round(per1kcal * 100),
+      per100p:    Math.round(per1p    * 100 * 10) / 10,
+      per100c:    Math.round(per1c    * 100 * 10) / 10,
+      per100f:    Math.round(per1f    * 100 * 10) / 10,
+      defaultServing: grams,
+      source: 'manual-weight',
+    });
+  } else {
+    const servings = parseFloat(document.getElementById('recipe-manual-servings').value) || 1;
+    const kcal    = Math.round((parseFloat(document.getElementById('recipe-manual-kcal').value)||0) * servings);
+    const protein = Math.round((parseFloat(document.getElementById('recipe-manual-protein').value)||0) * servings);
+    const carbs   = Math.round((parseFloat(document.getElementById('recipe-manual-carbs').value)||0) * servings);
+    const fats    = Math.round((parseFloat(document.getElementById('recipe-manual-fats').value)||0) * servings);
+    recipeIngredients.push({ name, grams: servings, kcal, protein, carbs, fats, source: 'manual' });
+  }
   closeModal('modal-recipe-manual');
   renderRecipeIngredients();
 }
@@ -18781,15 +19281,23 @@ function deleteRecipe(id) {
   <div class="modal-sheet" data-modal="modal-recipe-manual">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-manual')">✕</button></div>
     <div class="modal-title">Add Ingredient — Manual</div>
+    <div class="toggle-row" style="margin-bottom:14px;">
+      <button class="toggle-btn active" id="recipe-manual-mode-item" onclick="setRecipeManualMode('item')">Per item</button>
+      <button class="toggle-btn" id="recipe-manual-mode-gram" onclick="setRecipeManualMode('gram')">Per gram</button>
+    </div>
     <div class="form-group">
       <div class="label">Ingredient name</div>
       <input type="text" id="recipe-manual-name" placeholder="e.g. Olive oil">
     </div>
-    <div class="form-group">
+    <div class="form-group" id="recipe-manual-servings-row">
       <div class="label">No. servings</div>
       <input type="number" inputmode="decimal" id="recipe-manual-servings" value="1" min="0.5" step="0.5" oninput="updateRecipeManualPreview()">
     </div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Values per 1 serving (serving size = 1)</div>
+    <div class="form-group" id="recipe-manual-grams-row" style="display:none;">
+      <div class="label">Amount (g)</div>
+      <input type="number" inputmode="decimal" id="recipe-manual-grams" placeholder="e.g. 250" oninput="updateRecipeManualPreview()">
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:8px;" id="recipe-manual-macro-label">Values per 1 serving (serving size = 1)</div>
     <div class="input-row">
       <div><div class="label">kcal</div><input type="number" inputmode="decimal" id="recipe-manual-kcal" placeholder="0" oninput="updateRecipeManualPreview()"></div>
       <div><div class="label">Protein (g)</div><input type="number" inputmode="decimal" id="recipe-manual-protein" placeholder="0" oninput="updateRecipeManualPreview()"></div>

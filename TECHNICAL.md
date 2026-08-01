@@ -695,7 +695,7 @@ The fix is structural — the sheet is kept compact by giving the list a fixed `
 Rendered by `renderProgress()`.
 
 Key sub-functions:
-- `renderProgressHero()` / `renderProgressHeroDots()` / `initProgressHeroSwipe()` — the 5-slide hero swipe deck (see §8)
+- `renderProgressHero(animate = false)` / `renderProgressHeroDots()` / `initProgressHeroSwipe()` — the hero card (see §8)
 - `cycleProgressMacro(dir)` / `resolveProgressMacro()` — navigate between macrocycles
 - `renderProgressCharts()` — body weight sparkline, macro pie, weekly steps/kcal bars below the hero
 - `setProgressNutrToggle(val)` — today/7-day toggle for the weekly bar charts
@@ -739,6 +739,14 @@ Below the "Insights" card deck sits a second, separate swipeable stack — same 
 **Swing card (v6.12, split into its own card in v7.28):** the smallest and largest **consecutive day-to-day** change within that week, per metric (weight/kcal/steps/protein) — only between chronological entries that actually happened for that metric that week (a gap between logs isn't treated as a swing), formatted e.g. `−1.5lbs/+2.4lbs`. Shows a single value (no slash) if there's only one day-to-day change that week for that metric, and `—` if there are fewer than two data points. Intended to make water-retention-style/day-to-day volatility visible without it being mistaken for the trend itself.
 
 **Measurements card:** values are the most recently logged waist/hip measurement within that calendar week; deltas compare against the last known value from the most recent prior week with data — never a same-week first-vs-last comparison, since measurements are typically logged at most once a week.
+
+### Hero count-up animation (new v7.65)
+
+`buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort, animate = false)` — `animate` is only ever `true` when called from `renderProgressHero(true)`, itself only called from `renderProgress(true)`, itself only ever called from `showScreen('progress')` — i.e. an actual page load. Every other `renderProgressHero()` call site (`cycleProgressMacro()`, `toggleProgressWeightSpark()`, `progressHeroAnimateTo()`) omits the argument and defaults to `false`, so browsing between cycles or expanding the weight sparkline re-renders statically without replaying the animation.
+
+When `animate` is true, the hero renders at 0 (the "Weight lost/gained so far" figure, the calendar-time progress bar + its `%` label, and the Volume/Steps/Kcal callouts), then `animateProgressHeroValues(data)` counts everything up together over a shared 1000ms `easeOutCubic` timeline — mirroring `animateHomeHeroValues()` (§30). Two things worth noting:
+- The weight figure and the calendar-time bar are **not the same metric** — the bar tracks % of the cycle's calendar time elapsed, unrelated to how much weight has actually moved — but both animate on the same shared timeline purely for visual consistency (confirmed as the desired behaviour rather than assumed).
+- The bar's `id="progress-hero-cyclebar"` gets an inline `transition:none`, same reason as every other JS-animated bar in this pass — the pre-existing CSS `transition: width 0.4s ease` on `.hero-progress-fill` was re-triggering itself on every per-frame JS width update, producing a visible stall-then-snap right at the end of the animation instead of a smooth finish.
 
 ---
 
@@ -799,7 +807,7 @@ Goals no longer has a standalone screen or nav-bar entry — `renderGoals()` was
 
 ## 12. Module: Train
 
-Rendered by `renderTrain()` → `renderTrainHero(macro)` (session summary + volume + deload toggle) → `renderTrainDay(macro)` (the exercise cards).
+Rendered by `renderTrain(animate = false)` → `renderTrainHero(macro, animate)` (session summary + volume + deload toggle) → `renderTrainDay(macro)` (the exercise cards).
 
 **Auto-selecting the next session (extracted in v7.40):** `getAllMacroSessions(macro)` computes every `{week, dayKey}` session in the macro in order along with whether it's fully logged done (skipping sessions with zero exercises defined); `getNextIncompleteSession(macro)` returns the first incomplete one, or `null` if everything's done. Both used to be inlined directly in `renderTrain()`; they were pulled out into standalone functions specifically so Home's next-session preview (§30) reads from the exact same logic rather than a parallel reimplementation that could silently drift out of sync. `renderTrain()` itself still has its own fallback `getAllMacroSessions()`-based selection (`trainManualSelect`, a module-level boolean — `false` means auto-select the next incomplete session on every render; set `true` by any manual day-tab tap, and falls back to the *last* session in the plan if everything's complete, which `getNextIncompleteSession()` deliberately does not do, since Home wants an unambiguous "nothing left" answer rather than a fallback session).
 
@@ -821,6 +829,10 @@ Shown as "Last wk: ↑ weight" / "↑ reps" / "no progression" in the exercise h
 
 ### Session volume
 `renderTrainHero()` calls the shared `getSessionVolume(macro, week, dayKey)` rather than computing volume inline — this matters because that shared function correctly doubles weight for `trackingMode === 'perSide'` exercises, and an earlier inline duplicate here did not. Drop-set exercises contribute both halves (main weight × reps, plus drop weight × drop reps).
+
+### Session progress count-up animation (new v7.65)
+
+`renderTrainHero(macro, animate = false)` — `animate` is `true` only when called from `renderTrain(true)`, itself only ever called from `showScreen('train')` — an actual Train page load. The second `renderTrainHero(macro)` call site, inside `renderTrainDay()` (fires on every set logged/toggled/cleared, since `renderTrainDay()` re-renders the exercise cards after any of those actions and calls `renderTrainHero()` again at its end to keep the session-% figure in sync), omits the argument and defaults to `false` — so logging a set doesn't restart the animation on a number that was already sitting there. When `animate` is true, `Session progress`'s `%` figure and its bar render at 0 and `animateTrainHeroValue(sessionPct)` counts both up together over the same shared 1000ms eased timeline as Home/Progress (§30/§10), with the same `transition:none` fix on the bar (`id="train-hero-bar"`) to stop the pre-existing CSS transition fighting the per-frame JS updates.
 
 ### Day-tab pills, grouped by calendar week
 Day tabs (Push/Pull/Legs or custom sessions, per microcycle) are grouped into one row per **real calendar week**, not simply one row per microcycle. A microcycle only represents a distinct calendar week when the mesocycle actually spans more than one real week (`weeksPerMeso === 2`) — M1 gets its own row, M2 gets its own row. If `weeksPerMeso` is 1 (including the edge case of a macro that enables microcycles but keeps a 1-week mesocycle), all microcycles fall inside the same single calendar week and stay merged into one row, matching the layout for a macro with no microcycles at all.
@@ -993,15 +1005,50 @@ Rendered by `renderNutrDaily()`. This is the largest module in the file.
 The recipe builder's "Add ingredients" screen (`modal-recipe-ingredients`) gained a third action button, "Food Library", alongside Scan Barcode and Manual — `openRecipeIngredientSearch(isReopen)` opens **the same `modal-nutr-add` modal** used for meal logging, rather than a separate search UI, configured for this different purpose:
 
 - `nutrAddContext` (module-level, `'meal'` | `'recipe'`, default `'meal'`) governs what a committed selection actually does. `openNutrAdd()` resets it to `'meal'` on every open (so the modal self-heals back to its original behaviour); `openRecipeIngredientSearch()` sets it to `'recipe'` and hides the Recipes/Manual/Scan Barcode row (`#nutr-add-actions-row`, given an id specifically so it can be toggled) — none of those three apply when the point of opening the modal was already to search the library.
-- `quickAddFromList(idx)` and `confirmServing()` both branch on `nutrAddContext`: in `'recipe'` mode they `recipeIngredients.push(...)` a resolved-total ingredient (`{name, grams: 1, kcal, protein, carbs, fats, source: 'library'|'recipe'}` — deliberately shaped like a manual-entry ingredient, since the totals are already fully resolved and there's no per-gram value to preserve for later gram-based re-editing) and call `renderRecipeIngredients()`, instead of `addFoodEntry(...)`. The isRecipe-vs-regular-food scaling logic (recipe library items store *per-serving* values in their `per100kcal` field, by convention — see the existing per-item branching already in both functions) is unchanged; only the destination of the final totals differs.
-- Because `editRecipeIngredient()`/`saveRecipeIngredientEdit()` gate their gram-based editing path on `ing.source === 'barcode' && ing.per1kcal != null`, these new library-sourced ingredients (no `per1kcal`) automatically fall into the existing manual-style edit path (servings count + per-serving macro fields) with no additional code needed there.
+- `quickAddFromList(idx)` and `confirmServing()` both branch on `nutrAddContext`: in `'recipe'` mode they `recipeIngredients.push(...)` and call `renderRecipeIngredients()` instead of `addFoodEntry(...)`. **Fixed in v7.65** — see "Recipe ingredient gram editing" below; this used to hardcode `grams: 1` and drop the per-gram rate entirely for real library foods, which is what §14's ingredient-editing bug traced back to.
 - **Returning to the parent modal:** all three ways of dismissing `modal-nutr-add` (✕ button, backdrop tap, swipe-down) funnel through the shared `closeModal(id)` function, so the recipe-context "return to `modal-recipe-ingredients`" logic lives there rather than being duplicated per dismissal path — see §9.
 - **Keeping the search open after each addition:** exactly mirrors the existing meal-logging behaviour via the pre-existing `_nutrReturnToAddList` flag — `cancelNutrServing()` and `confirmServing()` both reopen the food search (branching between `openNutrAdd(nutrActiveMeal, true)` and `openRecipeIngredientSearch(true)` by context) after the servings modal closes, so several ingredients can be added in a row without the modal fully closing between each one.
 - `_nutrAddTransitioning` (module-level boolean) suppresses the recipe-context auto-return in `closeModal()` specifically during the brief hand-off when `selectFromAddList()` closes `modal-nutr-add` on its way to opening `modal-nutr-serving` — without this guard, that deliberate transition would be misread as the person dismissing the whole flow, bouncing them back to `modal-recipe-ingredients` mid-flow instead of into the servings editor.
 
+### Recipe ingredient gram editing (fixed v7.65)
+
+Two bugs, found together via an audit prompted by a real backup file (`bloc-backup-2026-08-01.json`), both stemming from the same root cause: `ing.grams` is an overloaded field. For a genuinely weighable ingredient it's a real gram figure paired with a per-gram rate (`per1kcal`/`per1p`/`per1c`/`per1f`); for a "Per item" manual entry (`source: 'manual'`) or a nested recipe used as an ingredient (`source: 'recipe'`) it's actually a **servings count** — `editRecipeIngredient()`'s manual-mode branch explicitly does `const servings = ing.grams || 1`. The ingredient list (`renderRecipeIngredients()`) always labels it "g" regardless of which meaning applies.
+
+- **Data loss on add** — `quickAddFromList(idx)` and `confirmServing()`'s recipe-context branches both computed a real gram amount and per-gram rate from the library item a few lines earlier, then discarded both and hardcoded `grams: 1` on the pushed ingredient, with no `per1kcal` stored at all. A real, weighable food (confirmed against the backup: `"British Chicken Breast Fillets 650g (RSS - 100g)"`, `source: 'library'`) ended up indistinguishable from a true 1-serving manual entry. Fixed by preserving the real `grams` and deriving `per1kcal`/`p`/`c`/`f` from the source item's `per100*` fields (`confirmServing()` additionally folds its `servings` multiplier into one combined gram figure first — `total = grams * servings` — since recipe ingredients only ever scale by grams, never a separate per-ingredient servings count, matching `confirmRecipeIngredient()`'s existing convention). Nested recipe-as-ingredient (`source: 'recipe'`) is unaffected — `grams: 1` there is correct, since a nested recipe has no real weight, only a servings-of-that-recipe count.
+- **Edit-modal misread of legacy data** — `editRecipeIngredient()`/`updateRecipeIngredientEditPreview()`/`saveRecipeIngredientEdit()` used to gate the weight-based edit path on `ing.source === 'barcode' && ing.per1kcal != null`. Any ingredient predating the `per1kcal`/`source` schema fields (14 such ingredients found across the sample backup's 24 recipes, all with the `"(RSS - Xg)"` naming pattern that confirms they were originally barcode-scanned, just before those fields existed) fell through to the manual/servings branch — its real `grams` (e.g. 95, 200, 140) got read as a servings count, producing a broken edit view (e.g. "95 servings, 3 kcal each, 0.1g protein" for a 270kcal/95g focaccia).
+
+**The fix** — two new shared helpers replace the `source === 'barcode'` check everywhere it was used:
+```js
+function isWeightEditableIngredient(ing) {
+  if (!ing) return false;
+  if (ing.per1kcal != null) return true;                        // explicit rate — always weight-based
+  if (ing.source === 'manual' || ing.source === 'recipe') return false; // genuinely servings-based
+  return !!(ing.grams && ing.grams > 0);                          // legacy, no rate — derive one
+}
+function getIngredientRate(ing) {
+  if (ing.per1kcal != null) return { per1kcal: ing.per1kcal, per1p: ing.per1p, per1c: ing.per1c, per1f: ing.per1f };
+  const g = ing.grams || 1;
+  return { per1kcal: ing.kcal / g, per1p: ing.protein / g, per1c: ing.carbs / g, per1f: ing.fats / g }; // safe: this is exactly the math that produced the stored totals
+}
+```
+Any ingredient without an explicit rate, that isn't `manual`/`recipe`, is now treated as weight-editable with its rate derived on the fly from `kcal ÷ grams` — which is safe precisely because that's the same arithmetic that originally produced the stored totals. `saveRecipeIngredientEdit()` persists the derived rate back onto the ingredient the first time it's edited, so subsequent edits read a stored rate rather than re-deriving. No migration script, no data touched until the person actually opens that ingredient's edit modal — verified against the real backup's Chicken Sandwich recipe (Focaccia/Chicken/Fries) and against a simulated per-gram lifecycle (add at 250g → edit to 500g → macros exactly double).
+
+### "Per gram" manual entry mode (new v7.65)
+
+Both manual-add modals — the Nutrition diary's Quick Add (`modal-nutr-manual`) and the Recipe Builder's manual ingredient add (`modal-recipe-manual`) — gained a **Per item / Per gram** toggle (`.toggle-row`/`.toggle-btn`, same pattern as the in/cm measurement toggle). `nutrManualMode` / `recipeManualMode` (module-level, `'item'` | `'gram'`, default `'item'`) drive which fields show and how `saveManualEntry()` / `confirmRecipeManual()` store the result:
+
+- **Per item** — unchanged from before v7.65: a name (Nutrition diary's Quick Add didn't previously have a name field at all — added, optional, defaults to `'Manual entry'`) or a servings count (Recipe Builder), times flat per-serving macros. `source: 'manual'`, never saved to the food library, `grams` field holds the servings count (see above).
+- **Per gram** — you enter the **totals for however much you're using** (not a per-100g rate — reading straight off however the packaging states it, at whatever weight you're actually using), plus the grams that total represents. The app divides once: `per1kcal = kcal / grams` (and the same for protein/carbs/fats), storing both the totals and the derived rate. `source: 'manual-weight'`. Saved to `state.foodLibrary` via `addToFoodLibrary()` with `per100kcal = per1kcal * 100` etc., so it's searchable/reusable next time exactly like a scanned product.
+- The Nutrition diary side needed **no changes** to `openEditFoodEntry()`/`updateEditPreview()`/`saveEditFoodEntry()` — those already branch purely on `item.source === 'manual'`, so a `'manual-weight'` entry automatically falls into the existing grams/servings-editable path and finds its rate via the food-library name lookup those functions already do for barcode items.
+- Multiplication conventions are kept strictly separate per an explicit product requirement: logged diary entries use `per1kcal × grams × servings` (two independent multipliers — `confirmServing()`, `saveEditFoodEntry()`); recipe ingredients only ever use `per1kcal × grams` (one multiplier — `confirmRecipeIngredient()`, and now the Per gram manual path too). Recipe `servings` is a separate, recipe-level concept (how many servings the whole finished recipe makes) used only once, dividing the recipe's totals for the "per serving" line under the ingredient list — never blended into per-ingredient math.
+
 ### Food library & recipes
 - `addToFoodLibrary()`, `exportFoodLibrary()`/`importFoodLibrary()`, `shareFoodLibItem(idx)`/`shareFoodLibItemByIdx(idx)` (two active entry points — list-index-based, used from the two different list contexts they each render in), `importSharedFoodItem(file)`
 - Recipe builder: `openRecipeBuilder(editId?)` → `recipeGoToIngredients()` → `renderRecipeIngredients()` → `confirmRecipeIngredient()`/`confirmRecipeManual()`/`openRecipeIngredientSearch()` → `saveRecipe()`
+
+### Hero count-up animation (new v7.65)
+
+`renderNutrHero(animate = false)` — when `animate` is true (only from `renderNutrition(true)`, itself only called from `showScreen('nutrition')`, i.e. an actual page load — every other call site, including every food-log/quick-add/date-change action, stays at the default `false`), the kcal figure and its progress bar plus the Protein/Carbs/Fats callouts render at 0 and are counted up to their real values together by `animateNutrHeroValues(data)` over a shared 1000ms eased (`easeOutCubic`) timeline, same pattern as Home/Progress/Train (§30/§10/§12). The bar's `id="nutr-hero-bar"` gets an inline `transition:none` so the CSS `transition: width` on `.hero-progress-fill` doesn't fight the per-frame JS updates — omitting this produced a visible stall-then-snap artifact where the bar looked like it paused near the end then jumped to its true final width, since each JS-driven width change was itself re-triggering its own separate 400ms CSS transition.
 
 ### Sample Day Library (new in v7.25 — full write-up in §28)
 
@@ -1248,14 +1295,22 @@ Not exhaustive — covers the functions most useful to know when working on the 
 ### Home (new in v7.31 — see §30)
 | Function | Description |
 |---|---|
-| `renderHome()` | Top-level render — calls each section renderer below |
-| `renderHomeHero()` | Weekly kcal/protein/carbs/steps vs. target, with badges and conditional sublabels |
+| `renderHome(animateHero = false)` | Top-level render — calls each section renderer below; `animateHero` true only on an actual page load (v7.65) |
+| `renderHomeHero(animate = false)` | Weekly kcal/protein/carbs/steps vs. target, with badges and conditional sublabels; counts up from 0 when `animate` (v7.65) |
+| `animateHomeHeroValues(badges)` | Counts the hero's avg numbers + bars up together over a shared 1000ms eased timeline (v7.65) |
 | `getHomeWeekStart(dateStr)` / `getHomeIsoDow(dateStr)` | DST-safe Monday-of-week / ISO day-of-week helpers |
-| `getHomeMetricTolerance(field)` / `getHomeMetricBadge(field, avg, target)` / `getHomeMetricSublabel(...)` | Badge polarity + adjustment-needed sublabel logic |
+| `getHomeMetricTolerance(field)` / `getHomeMetricBadge(field, avg, target, dayMap, weekStart, today)` | Badge polarity + pace-aware colour logic — untouched by v7.65's advice changes |
+| `getWeeklyRequiredDaily(field, dayMap, weekStart, today, target)` | Shared catch-up-rate calc — returns `{requiredDaily, loggedSoFar, daysTrackedSoFar, daysRemaining}` (v7.65) |
+| `formatAdviceSublabel(requiredDaily, target, unit, today)` / `getHomeMetricSublabel(...)` | "Adjust by X" / "Hit X today" wording, and the per-metric wrapper around it (v7.65) |
+| `projectedWeeklyAverage(dailyGoingForward, info)` | What the whole week nets out to if a given daily figure is hit for the rest of it (v7.65) |
+| `getReconciledMacroAdvice(dayMap, weekStart, today, goal)` | Reconciles kcal/protein/carbs/fats advice against each other so they're never mutually impossible (v7.65) |
+| `buildAdviceLineHtml(...)` | Shared per-metric advice-line renderer — sublabel + "New target" + "Projected weekly avg" bullets (v7.65) |
+| `buildHomeConsolidatedMessage(badges, dayMap, weekStart, today, goal)` | The expandable warning panel — now runs reconciliation when kcal/protein is flagged (v7.65) |
 | `renderHomeGoalBanner()` | Upcoming-goal heads-up, gated on a genuine target change within 6 days |
 | `goToPlanAndFlashGoal(macroGoalID)` | Switches to the goal's macro, navigates to Plan, flashes its row |
 | `renderHomeLogBoxes()` | Inline weight/steps/measurements boxes — weight/steps daily, measurements on a 4-day cycle (v7.53) |
-| `saveHomeWeight()` / `saveHomeSteps()` | Save today's weight/steps from their inline boxes; no modal to close as of v7.53 |
+| `saveHomeWeight()` / `saveHomeSteps()` | Save today's weight/steps from their inline boxes; steps plays a no-reveal swipe animation as of v7.65 |
+| `playLogSaveAnimation(rowId, buildLines, onDone, opts = {})` | Swipe-cover + optional result-flash save confirmation; `opts.noReveal` skips the flash and shortens to just the swipe (v7.65) |
 | `saveHomeMeasurements()` / `setHomeMeasUnit(unit)` / `setHomeFrac(field, val)` | Inline waist/hip box's save + unit/fraction toggles, own state separate from §13's |
 | `initHomeMeasBox()` | Sets the measurements box's unit toggle and resets fraction pickers after each render (v7.53) |
 | `renderHomeFoodPreview()` | Today's planned food, ordered by first meal appearance |
@@ -1266,7 +1321,8 @@ Not exhaustive — covers the functions most useful to know when working on the 
 ### Progress
 | Function | Description |
 |---|---|
-| `renderProgressHero()` / `renderProgressHeroDots()` / `initProgressHeroSwipe()` | The 5-slide hero swipe deck |
+| `renderProgressHero(animate = false)` / `renderProgressHeroDots()` / `initProgressHeroSwipe()` | The hero card; counts up from 0 on an actual page load when `animate` (v7.65) |
+| `animateProgressHeroValues(data)` | Counts the weight figure, calendar-time bar, and Volume/Steps/Kcal callouts up together (v7.65) |
 | `insightsAnimateTo(idx)` / `initInsightsSwipe()` | 3-card "Insights" swipe deck (Progress/Metabolism/Next cycle), pre-dates v6.12 |
 | `buildWeeklySummaryCardHTML()` | Weekly summary table (weight delta, avg kcal/steps/protein) as an HTML string; weight delta is this-week-average vs last-week-average (v6.12, was single-day-to-single-day before). Swing column removed in v7.28 — moved to `buildWeeklySwingsCardHTML()` |
 | `buildWeeklySwingsCardHTML()` | Weekly swing table (smallest/largest day-to-day change) as an HTML string, one column each for weight/kcal/steps/protein — its own card as of v7.28 (previously weight-only, embedded in the summary table); values use locale thousand-separators |
@@ -1368,21 +1424,25 @@ Not exhaustive — covers the functions most useful to know when working on the 
 ### Nutrition
 | Function | Description |
 |---|---|
+| `renderNutrHero(animate = false)` | Kcal/macro summary hero; counts up from 0 on an actual page load when `animate` (v7.65) |
+| `animateNutrHeroValues(data)` | Counts the kcal figure, its bar, and Protein/Carbs/Fats up together (v7.65) |
 | `getDayTotals(date)` | Aggregates kcal/protein/carbs/fats for a date (meals, or quick-log override if present) |
 | `nutrPickDate(dateStr)` / `nutrShiftDate(delta)` | Set current date via picker, or shift by swipe |
 | `renderNutrDiary()` | Renders per-meal food log cards |
 | `openMealMenu(meal)` / `saveMealAsRecipe()` | The `···` action sheet; save-as-recipe does not auto-log |
-| `openNutrServingModal()` / `updateServingPreview()` / `confirmServing()` | Serving confirm modal flow; `confirmServing()` branches on `nutrAddContext` since v6.12 to add a recipe ingredient instead of a meal log entry when opened via the recipe builder's food library search |
-| `saveManualEntry()` | Saves manual food entry; converts to per-100g for the library |
+| `openNutrServingModal()` / `updateServingPreview()` / `confirmServing()` | Serving confirm modal flow; `confirmServing()` branches on `nutrAddContext` since v6.12 to add a recipe ingredient instead of a meal log entry when opened via the recipe builder's food library search — as of v7.65 the recipe branch preserves the real gram amount and per-gram rate rather than discarding them (see §14) |
+| `setNutrManualMode(mode)` / `saveManualEntry()` | Per item/Per gram toggle and save for the Nutrition Quick Add manual modal (v7.65) — Per gram derives and stores a real per-1g rate, saves to the food library |
 | `confirmCopyFoodEntry()` | Executes copy or move; handles both single-item and whole-meal |
 | `copyMealFromYesterday(meal)` | Copies previous day's meal entries into current date |
 | `deleteFoodEntry(date, meal, idx)` | Removes a food entry |
 | `syncNutrLegacyLog(date)` | Recomputes and upserts `state.nutritionLogs` for a date — still actively called, not dead |
-| `saveEditFoodEntry()` | Saves edit; direct macros for manual, per-100g calc for barcode |
+| `saveEditFoodEntry()` | Saves edit; direct macros for manual, per-100g calc for barcode/library/manual-weight (any `source !== 'manual'`) |
 | `makePie(p, c, f)` | Generates inline SVG macro pie chart |
 | `fitListToKeyboard(wrapId)` | Shrinks a modal's scrollable list to stay above the keyboard |
 | `openRecipeIngredientSearch(isReopen)` | Opens `modal-nutr-add` in recipe-ingredient mode (v6.12) — sets `nutrAddContext = 'recipe'`, hides the Recipes/Manual/Scan Barcode row |
-| `quickAddFromList(idx)` | Quick-add from the search list at last-logged amount; branches on `nutrAddContext` since v6.12 (meal log vs recipe ingredient) |
+| `quickAddFromList(idx)` | Quick-add from the search list at last-logged amount; branches on `nutrAddContext` since v6.12 (meal log vs recipe ingredient) — as of v7.65 the recipe branch preserves real grams/rate for library foods, same fix as `confirmServing()` |
+| `isWeightEditableIngredient(ing)` / `getIngredientRate(ing)` | Whether a recipe ingredient is weight-editable (rate present, or derivable from a legacy `kcal ÷ grams`, excluding `manual`/`recipe` sources); its `{per1kcal,per1p,per1c,per1f}` rate, stored or derived (v7.65) |
+| `setRecipeManualMode(mode)` / `confirmRecipeManual()` | Per item/Per gram toggle and save for the Recipe Builder's manual ingredient modal (v7.65) — Per gram stores a real rate and saves to the food library |
 
 ### Sample Day Library (new in v7.25 — see §28)
 | Function | Description |
@@ -2077,7 +2137,7 @@ The exercise library's body-part taxonomy is currently coarse (7 groups, "Legs" 
 
 ## 30. Module: Home
 
-New in v7.31, iterated through v7.34. Rendered by `renderHome()`, the default screen on load (`showScreen('home')` at the end of the `DOMContentLoaded` handler) and the first nav-bar button. Appended here as §30 rather than renumbered into sequence near §10 (Progress) to avoid touching the many `§N` cross-references elsewhere in this document — see §6 for the screen-id note.
+New in v7.31, iterated through v7.34 (and again in v7.65 — count-up animation, reconciled advice, steps save animation). Rendered by `renderHome(animateHero = false)`, the default screen on load (`showScreen('home')` at the end of the `DOMContentLoaded` handler) and the first nav-bar button. Appended here as §30 rather than renumbered into sequence near §10 (Progress) to avoid touching the many `§N` cross-references elsewhere in this document — see §6 for the screen-id note.
 
 ### Weekly hero card
 
@@ -2085,9 +2145,48 @@ New in v7.31, iterated through v7.34. Rendered by `renderHome()`, the default sc
 - `getHomeIsoDow(dateStr)` — ISO day-of-week, Monday=1..Sunday=7.
 - `HOME_METRIC_POLARITY` — `{ kcal: 'both', protein: 'underBad', carbs: 'overBad', steps: 'underBad' }`. Badge colour depends on which direction is "bad" for that metric, not a single blanket rule: kcal is bad both under *and* over tolerance; protein/steps are only bad when under (exceeding is fine, never penalised); carbs is only bad when over (matches the equivalent, unimplemented-here, convention for fats elsewhere in the app).
 - `getHomeMetricTolerance(field)` — reuses `SAVE_DAY_TOLERANCE` (the same tolerance band the "does this day qualify to be saved as a Sample Day" check uses, §28) for kcal/protein/carbs; steps gets its own `HOME_STEPS_TOLERANCE = 500`, since `SAVE_DAY_TOLERANCE` has no steps entry.
-- `getHomeMetricBadge(field, avg, target)` — under tolerance → "Falling behind"; over → "Exceeding"; within → "On track". Colour (`bg`/`color`, reusing the existing `.badge-green`/`.badge-red` colour values directly rather than the CSS classes, since the badge needs to pick from either based on computed polarity rather than a fixed class) is red for the "bad" direction per `HOME_METRIC_POLARITY`, green otherwise; "On track" is always green. Returns a neutral grey "No data" badge if nothing's logged yet this week or there's no active goal.
-- `getHomeMetricSublabel(field, dayMap, weekStart, today, target, unit)` — only called (and only rendered) when the badge isn't "On track" (v7.32 — originally always computed/shown, changed so an on-pace metric doesn't clutter the card with a redundant line). Computes `daysRemaining = 8 - isoDow(today)` (today plus whatever's left in the week) and `loggedSoFar` = the sum of actual logged values for every day strictly before today this week (days with no log contribute nothing). `requiredDaily = (target*7 - loggedSoFar) / daysRemaining`. On the week's last day (`daysRemaining === 1`) this naturally reduces to "hit exactly `requiredDaily` today" with no special-cased branch — the general remaining-budget formula degenerates to the single-day case on its own, since dividing by 1 changes nothing. Otherwise renders as "Adjust your daily avg by ±delta {unit} for the rest of the week to hit target", or "On pace for the week" if `delta` rounds to 0.
-- `renderHomeHero()` — kcal/protein/carbs/steps rows in that fixed order, each showing avg vs. target, the badge, and (conditionally) the sublabel. Uses `getActiveGoal()` (§15) and `buildDayMap()`/`avgDayMapField()` (existing helpers, §24) — `avgDayMapField` already excludes days with no data from the average, which is what makes "This week's avg" only count days actually logged so far.
+- `getHomeMetricBadge(field, avg, target, dayMap, weekStart, today)` — under tolerance → "Falling behind"; over → "Exceeding"; within → "On track". Colour (`bg`/`color`, reusing the existing `.badge-green`/`.badge-red` colour values directly rather than the CSS classes, since the badge needs to pick from either based on computed polarity rather than a fixed class) is red for the "bad" direction per `HOME_METRIC_POLARITY`, green otherwise; "On track" is always green. Returns a neutral grey "No data" badge if nothing's logged yet this week or there's no active goal. Runs its own **pace-aware** check (not a plain avg-vs-target comparison) using the same "remaining budget ÷ days left" math as `getWeeklyRequiredDaily` below, kept as its own inline calculation deliberately — badge colour is intentionally untouched by the v7.65 advice-reconciliation work (see below), so it was left alone rather than refactored to share code with the parts that did change.
+- `getWeeklyRequiredDaily(field, dayMap, weekStart, today, target)` **(v7.65, extracted from the body of the old `getHomeMetricSublabel`)** — returns `{ requiredDaily, loggedSoFar, daysTrackedSoFar, daysRemaining }` rather than a bare number, since the projected-weekly-average bullets (below) need the logged-so-far totals alongside the daily figure. `daysRemaining = 8 - isoDow(today)` (today plus whatever's left in the week); `loggedSoFar`/`daysTrackedSoFar` sum actual logged values for every day strictly before today this week (a day with no log contributes nothing to either, so it can't silently count as zero progress and inflate the catch-up rate). `requiredDaily = (target × (daysTrackedSoFar + daysRemaining) − loggedSoFar) ÷ daysRemaining`.
+- `formatAdviceSublabel(requiredDaily, target, unit, today)` **(v7.65)** — the display-text half of what used to be inlined in `getHomeMetricSublabel`: "Hit X today to bring the week to target" on the week's last day (`daysRemaining <= 1`, degenerating naturally from the same formula, no special-cased branch), else "Adjust your daily avg by ±delta {unit} for the rest of the week to hit target", or "On pace for the week" if `delta` rounds to 0. Takes a `requiredDaily` value directly rather than computing one itself, so a **reconciled** figure (see below) reads with identical wording to an unreconciled one.
+- `getHomeMetricSublabel(field, dayMap, weekStart, today, target, unit)` — now a thin wrapper: `getWeeklyRequiredDaily(...).requiredDaily` piped into `formatAdviceSublabel(...)`. Used as-is for steps, and for kcal/protein/carbs whenever reconciliation isn't in play (see `buildHomeConsolidatedMessage` below). Only called (and only rendered) when the badge isn't "On track" (v7.32).
+- `renderHomeHero(animate = false)` — kcal/protein/carbs/steps rows in that fixed order, each showing avg vs. target, the badge, and (conditionally) the sublabel. Uses `getActiveGoal()` (§15) and `buildDayMap()`/`avgDayMapField()` (existing helpers, §24) — `avgDayMapField` already excludes days with no data from the average, which is what makes "This week's avg" only count days actually logged so far. See "Count-up animation" below for the `animate` param.
+
+### Weekly advice reconciliation (new v7.65)
+
+`getHomeMetricSublabel`'s catch-up math was originally four completely independent calculations — kcal, protein, and carbs each computed their own "adjust by X" figure with zero awareness of the other two. This is mathematically fine in isolation but can produce **mutually impossible** advice: e.g. "reduce kcal by 760/day" alongside "increase protein by 37g/day" — the extra 37g of protein alone costs 148kcal, which the reduced budget has no room for once carbs and fats are accounted for at all. Diagnosed and specified against a real example (1500 kcal / 224g protein / 100g carbs / 23g fats goal); the fix lives in `getReconciledMacroAdvice()`, called from `buildHomeConsolidatedMessage()` only once kcal or protein is actually flagged "concerning" (red badge) — carbs/steps being off on their own isn't a kcal-vs-protein conflict, so their sublabel stays fully independent either way. **This only ever changes the advice TEXT — never badge colour, never which metrics get flagged.**
+
+```js
+const RECONCILE_CARBS_FLOOR = 50;         // g/day
+const RECONCILE_FATS_FLOOR  = 15;         // g/day
+const RECONCILE_PROTEIN_MAX_DROP = 15;    // g/day below protein's flat goal
+```
+
+`getReconciledMacroAdvice(dayMap, weekStart, today, goal)`:
+1. Computes each metric's own independent `requiredDaily` (kcal, protein, carbs, **and fats** — fats has no hero row/badge of its own, but its catch-up rate is still needed here) via `getWeeklyRequiredDaily`.
+2. **Feasibility check** — does protein's own catch-up rate, converted to kcal, fit inside the kcal catch-up rate alongside carbs and fats sitting at their floors? `floorKcalCost = (proteinRaw × 4) + (50 × 4) + (15 × 9); feasible = floorKcalCost <= kcalRaw`.
+3. **Feasible branch** — kcal and protein both keep their own independent numbers unchanged. Carbs and fats each try to keep their own independent numbers too; only if that combined cost overshoots the kcal left over after protein does either get trimmed toward its floor — fats first (no visible counter of its own, lowest UX cost), carbs only if fats-at-floor still isn't enough.
+4. **Infeasible branch** — protein's advice is capped at `goal.protein − 15` (a hard floor **below the flat daily goal**, not below the inflated catch-up number — confirmed explicitly, since "reduce by no more than 15g" was initially misread as relative to the catch-up figure during spec discussion). Carbs and fats both drop to their floors. Kcal is then *recalculated* as whatever that combination actually costs (`proteinAdvice×4 + 50×4 + 15×9`) — landing above kcal's own "ideal" catch-up rate for the week, which is the whole point: kcal absorbs the hit so protein doesn't have to drop further than the 15g cap allows.
+5. Returns `{ feasible, kcal, protein, carbs, fats, fatsChanged }` — `fatsChanged` is `true` whenever fats ended up somewhere other than its own independent number, which is the only signal `buildHomeConsolidatedMessage()` uses to decide whether to show a fats line at all.
+
+Verified against the worked example: infeasible branch correctly returns `protein: 209` (224 − 15), `kcal: 1171` (209×4 + 200 + 135), `carbs: 50`, `fats: 15`. A second, milder scenario (small overshoot, not an outright conflict) correctly lands in the feasible branch with fats/carbs trimmed only slightly off their own independent numbers.
+
+`buildAdviceLineHtml(name, field, dayMap, weekStart, today, target, unit, reconciledValue, warningPrefix)` — the shared per-metric line renderer for the expanded warning panel. Calls `getWeeklyRequiredDaily` for the `{ loggedSoFar, daysTrackedSoFar, daysRemaining }` info bundle regardless of whether a reconciled value was passed in, then:
+- `displayValue` = `reconciledValue` if given, else the metric's own `requiredDaily`.
+- The existing `formatAdviceSublabel` sentence, optionally prefixed (kcal's infeasible-branch line gets `"Can't meet kcal target this week without cutting protein further — "`).
+- **"New target: X{unit}/day"** — `Math.round(displayValue)`.
+- **"Projected weekly avg if met: X{unit}"** — `projectedWeeklyAverage(displayValue, info)`, i.e. what the *whole* week (already-logged days plus `displayValue` for every remaining day) would actually average out to. For an unreconciled figure this is always ≈ the metric's own goal by construction (that's what `requiredDaily` solves for); the bullet only gets interesting for a reconciled figure, where it deliberately lands away from goal — e.g. protein's projected average in the worked example comes out to 194g (below the 224g goal, reflecting the accepted shortfall), while kcal's comes out to 1746 (above the 1500 goal, since the week already ran high and can only partially recover).
+
+`buildHomeConsolidatedMessage(badges, dayMap, weekStart, today, goal)` — the `goal` parameter is new in v7.65 (needed to run reconciliation). Builds `concerningFields` from the flagged badges; `needsReconciliation = concerningFields.has('kcal') || concerningFields.has('protein')`; if true, calls `getReconciledMacroAdvice` once and threads the result into `buildAdviceLineHtml` for whichever of kcal/protein/carbs are actually being shown. A separate fats-only line is appended via the same helper when `reconciled.fatsChanged`. A footnote — "Adjustments shown here don't include what you've already logged today" — sits directly under the warning header (above the per-metric lines, not after them — moved there on request after initially being placed last), visible whenever the panel is expanded, independent of whether reconciliation actually triggered (the today-exclusion is true of the underlying catch-up math generally, not just the reconciled path).
+
+### Hero count-up animation (new v7.65)
+
+`renderHome(animateHero = false)` → `renderHomeHero(animate)`. `animate` is `true` only from `showScreen('home')` (an actual page load, including app boot) — every other call site (`saveHomeWeight()`, `saveHomeSteps()`, `saveHomeMeasurements()`, `toggleHomeAdvice()`) calls `renderHome()`/`renderHomeHero()` with no argument, defaulting to `false`, so a quick-log save re-renders the hero statically without restarting the count-up on numbers the person was already looking at.
+
+When `animate` is true, each metric's avg number and progress-bar width render at 0, then `animateHomeHeroValues(badges)` counts all four up together over a shared 1000ms `easeOutCubic` timeline (`requestAnimationFrame` loop, single shared `start` timestamp so every number/bar stays in lockstep). Metrics with no data (`avg === null`) are skipped — nothing to count up to, they just show "—" throughout.
+
+**CSS-transition/JS-animation conflict (found and fixed same session):** `.hero-progress-fill` has a pre-existing `transition: width 0.4s ease` (used elsewhere for bars that jump between two states across separate renders). Setting `style.width` every animation frame was itself re-triggering that transition on every single frame, so the browser was chasing a moving target on its own separate easing curve — visible as the bar appearing to stall near the end of the JS animation, then snapping to its true final width once the last CSS transition finally caught up. Fixed with an inline `transition:none` on each animated bar (`id="hero-fill-${field}"` here; the same fix was applied to the equivalent bars in Progress/Train/Nutrition below), since the JS loop already provides all the easing needed.
+
+This same pattern — `animate` param threaded only through the real page-load call path, disabled CSS transition on the JS-driven bar, shared `easeOutCubic`/1000ms timeline — was replicated for Progress (§10), Train (§12), and Nutrition (§14) hero cards in the same session, after this one was built and tested first.
 
 ### Upcoming goal banner
 
@@ -2110,11 +2209,13 @@ New in v7.31, iterated through v7.34. Rendered by `renderHome()`, the default sc
 - **Measurements header (fixed v7.62)**: the weigh-in and steps boxes each render a "Log weigh-in"/"Log steps" eyebrow header above their input; the measurements box was missing the equivalent "Log measurements" header entirely — it went straight from the box's top padding into the 4-day warning line. Added so all three boxes are visually consistent.
 - **No cross-box dividers**: the three boxes render back-to-back inside `#home-log-boxes` with no divider between them — a single `.divider` is appended once, after whichever box renders last, right before the "Edit today's logs" link / food preview that follows.
 
-### Save-confirmation animation (`playLogSaveAnimation()`, new in v7.61)
+### Save-confirmation animation (`playLogSaveAnimation()`, new in v7.61; extended to steps in v7.65)
 
-Plays over the weigh-in and measurements inline log boxes (not steps) after `saveHomeWeight()`/`saveHomeMeasurements()` write the new value: a `.log-save-overlay` panel swipes in from the right covering the inputs/button (600ms), then a `.log-save-flash` result — one line per metric, showing the prior logged value and the delta against it (or "Saved — first logged entry" if there was no prior log) — fades in over the same row. After a hold, `onDone()` runs (just `renderHome()`, so the box hides itself the normal way once today's field reads as logged).
+Plays over the weigh-in, measurements, and (as of v7.65) steps inline log boxes after `saveHomeWeight()`/`saveHomeMeasurements()`/`saveHomeSteps()` write the new value: a `.log-save-overlay` panel swipes in from the right covering the inputs/button (600ms), then — for weight/measurements — a `.log-save-flash` result fades in over the same row (one line per metric, showing the prior logged value and the delta against it, or "Saved — first logged entry" if there was no prior log). After a hold, `onDone()` runs (just `renderHome()`, so the box hides itself the normal way once today's field reads as logged).
 
-The hold time has moved twice since launch: 5s at launch (v7.61) → briefly 2s (v7.63) → settled at 3s (v7.64). The constant lives as the second argument to the trailing `setTimeout(onDone, …)` call inside `playLogSaveAnimation()` — 600ms swipe-in plus the hold, so 3600ms total for the current 3s value.
+**Steps — `opts.noReveal` (new v7.65):** `playLogSaveAnimation(rowId, buildLines, onDone, opts = {})` — when `opts.noReveal` is set, the flash step is skipped entirely and `onDone` fires at 600ms (right when the swipe finishes covering the box) instead of waiting through the full hold — just the swipe, then the box vanishes. `saveHomeSteps()` calls it as `playLogSaveAnimation('home-steps-row', null, () => renderHome(), { noReveal: true })`; the `home-steps-row` wrapper div (`position:relative;overflow:hidden`) didn't previously exist on the steps box and was added specifically so the overlay has something to animate over, matching the wrapper the weight/measurements boxes already had.
+
+The hold time (weight/measurements only) has moved twice since launch: 5s at launch (v7.61) → briefly 2s (v7.63) → settled at 3s (v7.64). The constant lives as the second argument to the trailing `setTimeout(onDone, …)` call inside `playLogSaveAnimation()` — 600ms swipe-in plus the hold, so 3600ms total for the current 3s value.
 
 The scale-shaped icon and the steps footprint icon from the old tile design are gone along with the tiles themselves — the boxes use plain text labels, no icon artwork.
 
