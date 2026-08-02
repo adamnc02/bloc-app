@@ -163,6 +163,7 @@ body {
   display: flex;
   align-items: center;
   gap: 2px;
+  width: calc(100% - 24px);
   max-width: calc(100% - 24px);
   background: rgba(var(--nav-bg-rgb),0.92);
   backdrop-filter: blur(20px);
@@ -218,7 +219,7 @@ body {
 .nav-btn {
   position: relative;
   z-index: 1;
-  flex-shrink: 0;
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -240,18 +241,12 @@ body {
 .nav-btn svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; transition: transform 0.2s ease; }
 .nav-btn .nav-label {
   display: inline-block;
-  max-width: 0;
-  opacity: 0;
-  overflow: hidden;
-  margin-left: 0;
-  transition: max-width 0.38s cubic-bezier(.34,1.56,.64,1), opacity 0.22s ease, margin-left 0.38s cubic-bezier(.34,1.56,.64,1);
-}
-.nav-btn.active { color: var(--on-accent); }
-.nav-btn.active .nav-label {
   max-width: 90px;
   opacity: 1;
+  overflow: hidden;
   margin-left: 6px;
 }
+.nav-btn.active { color: var(--on-accent); }
 
 /* ── TYPOGRAPHY ──────────────────────────── */
 .page-header {
@@ -897,6 +892,12 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 .set-row:last-child { border-bottom: none; }
 .set-num { font-size: 11px; color: var(--text3); text-align: center; }
 .set-suggested { font-size: 11px; color: var(--text2); }
+/* Cardio set rows (v7.68): grid-template-columns is set inline per exercise
+   (varies with metric type and which levels are configured), but every row
+   for a given exercise — header included — uses the identical string, so
+   columns always line up exactly like .set-row does for weight exercises. */
+.cardio-set-row { display: grid; gap: 6px; align-items: center; padding: 7px 0; border-bottom: 0.5px solid var(--border); }
+.cardio-set-row:last-child { border-bottom: none; }
 .set-input {
   background: var(--surface2);
   border: 0.5px solid var(--border2);
@@ -1641,7 +1642,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
       <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 2px;border-bottom:1px solid var(--border);margin-bottom:16px;cursor:pointer;" onclick="openModal('modal-settings-about')">
         <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-        <span class="tag tag-outline">v7.65</span>
+        <span class="tag tag-outline">v7.66</span>
       </div>
 
       <!-- ── Profile section ── -->
@@ -2125,7 +2126,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <button class="modal-close-btn" onclick="closeModal('modal-custom-exercise')">✕</button>
     </div>
     <div class="modal-title">Custom Exercise</div>
-    <div class="form-group">
+    <div class="form-group" id="custom-ex-bodypart-group">
       <div class="label">Body Part</div>
       <select id="custom-ex-bodypart">
         <option value="Back">Back</option>
@@ -2168,13 +2169,22 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div class="modal-title" id="modal-ex-title">Add Exercise</div>
 
     <div class="form-group">
+      <div class="label">Category</div>
+      <div class="toggle-row" id="ex-category-toggle">
+        <button type="button" class="toggle-btn active" data-cat="weight" onclick="selectExCategory('weight')">Weight</button>
+        <button type="button" class="toggle-btn" data-cat="cardio" onclick="selectExCategory('cardio')">Cardio</button>
+      </div>
+    </div>
+
+    <div class="form-group">
       <div class="label">Exercise</div>
       <select id="ex-name-input" onchange="onExNameChange(this);updateLastLoggedPreview();applyExerciseHistoryDefaults();">
       </select>
       <div id="ex-last-logged-note" style="display:none;font-size:11px;color:var(--text3);margin-top:6px;line-height:1.5;"></div>
     </div>
 
-    <div class="form-group">
+    <!-- Weight-only fields -->
+    <div class="form-group" id="ex-weight-type-group">
       <div class="label">Set Type</div>
       <select id="ex-type-select" onchange="onExTypeChange()">
         <option value="standard">Standard</option>
@@ -2184,7 +2194,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       </select>
     </div>
 
-    <div class="input-row">
+    <div class="input-row" id="ex-weight-reps-row">
       <div id="ex-reps-row">
         <div class="label">Reps (target)</div>
         <select id="ex-reps-input">
@@ -2207,24 +2217,79 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     </div>
     <div id="ex-dropset-note" style="display:none;font-size:11px;color:var(--text3);margin:-8px 0 12px;">Reps above target the main set only — the drop is a reduction in weight and is always logged to failure, starting in week 1.</div>
 
+    <!-- Cardio-only fields -->
+    <div class="form-group" id="ex-cardio-metric-group" style="display:none;">
+      <div class="label">Set target using</div>
+      <div class="toggle-row" id="ex-metric-toggle">
+        <button type="button" class="toggle-btn active" data-metric="time" onclick="selectExMetric('time')">Time</button>
+        <button type="button" class="toggle-btn" data-metric="distance" onclick="selectExMetric('distance')">Distance</button>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;">You'll log the other value (time or distance) each set on the Train page.</div>
+    </div>
+
+    <div class="input-row" id="ex-cardio-time-row" style="display:none;">
+      <div>
+        <div class="label">Time target — min</div>
+        <input type="number" inputmode="numeric" id="ex-time-min-input" placeholder="0" min="0" step="1">
+      </div>
+      <div>
+        <div class="label">sec</div>
+        <input type="number" inputmode="numeric" id="ex-time-sec-input" placeholder="30" min="0" max="59" step="1">
+      </div>
+    </div>
+
+    <div class="form-group" id="ex-cardio-distance-row" style="display:none;">
+      <div class="label" id="ex-distance-target-label">Distance target</div>
+      <input type="number" inputmode="decimal" id="ex-distance-input" placeholder="1" step="0.01">
+    </div>
+
+    <!-- Distance unit picker — shown for any cardio exercise when the global
+         preference is Km (offers km/m). Applies whether distance is the set
+         target or just the logged value, since it's the unit either way. -->
+    <div class="form-group" id="ex-cardio-unit-group" style="display:none;">
+      <div class="label">Track distance in</div>
+      <select id="ex-distance-unit-select">
+        <option value="km">Kilometres (km)</option>
+        <option value="m">Metres (m)</option>
+      </select>
+    </div>
+
     <div class="input-row" id="ex-sets-row">
       <div>
         <div class="label">Starting Sets</div>
         <select id="ex-sets-start-input">
-          <option value="2" selected>2</option><option value="3">3</option><option value="4">4</option>
-          <option value="5">5</option><option value="6">6</option><option value="7">7</option>
+          <option value="1">1</option><option value="2" selected>2</option><option value="3">3</option>
+          <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+          <option value="7">7</option><option value="8">8</option><option value="9">9</option>
+          <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+          <option value="13">13</option><option value="14">14</option><option value="15">15</option>
         </select>
       </div>
       <div>
         <div class="label">Peak Sets</div>
         <select id="ex-sets-end-input">
-          <option value="2">2</option><option value="3">3</option><option value="4">4</option>
-          <option value="5" selected>5</option><option value="6">6</option><option value="7">7</option>
+          <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+          <option value="4">4</option><option value="5" selected>5</option><option value="6">6</option>
+          <option value="7">7</option><option value="8">8</option><option value="9">9</option>
+          <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+          <option value="13">13</option><option value="14">14</option><option value="15">15</option>
         </select>
       </div>
     </div>
 
-    <div class="form-group">
+    <div class="input-row" id="ex-cardio-levels-row" style="display:none;">
+      <div>
+        <div class="label">Speed level <span style="color:var(--text3);font-weight:400;">(optional)</span></div>
+        <input type="number" inputmode="decimal" id="ex-speed-level-input" placeholder="e.g. 12" step="0.1">
+      </div>
+      <div>
+        <div class="label">Resistance level <span style="color:var(--text3);font-weight:400;">(optional)</span></div>
+        <input type="number" inputmode="decimal" id="ex-resistance-level-input" placeholder="e.g. 8" step="0.1">
+      </div>
+    </div>
+
+    <!-- Weight-only fields (continued) -->
+    <div class="form-group" id="ex-weight-leg-group">
       <div class="label">Is this a heavy leg exercise?</div>
       <select id="ex-leg-select">
         <option value="0">No — light exercise</option>
@@ -2232,7 +2297,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       </select>
     </div>
 
-    <div class="form-group">
+    <div class="form-group" id="ex-weight-tracking-group">
       <div class="label">How do you track the weight?</div>
       <select id="ex-tracking-select">
         <option value="total">Total weight on the bar / machine</option>
@@ -2609,6 +2674,15 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div class="toggle-row" id="mode-toggle-row" style="margin-bottom:0;">
         <button class="toggle-btn active" data-mode="dark" onclick="setMode('dark')">Dark</button>
         <button class="toggle-btn" data-mode="light" onclick="setMode('light')">Light</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:10px;">
+      <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Distance Units</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Used for cardio exercises (run, bike, row, etc). Miles gives a single unit; Km also lets you choose Metres per exercise for shorter distances.</div>
+      <div class="toggle-row" id="distance-unit-toggle-row" style="margin-bottom:0;">
+        <button class="toggle-btn active" data-unit="km" onclick="setDistanceUnitPref('km')">Km / Metres</button>
+        <button class="toggle-btn" data-unit="mi" onclick="setDistanceUnitPref('mi')">Miles</button>
       </div>
     </div>
   </div>
@@ -3454,6 +3528,89 @@ function onExTypeChange() {
   applyExerciseHistoryDefaults();
 }
 
+// ── Cardio exercise fields (v7.66) ──────────────────────────────────────
+// Reads the app-wide distance unit preference — 'mi' (imperial, no
+// per-exercise choice since there's only one option) or 'km' (metric,
+// offers a per-exercise km/m choice). Defaults to 'km' since the rest of
+// the app (bodyweight, plate math) is already metric.
+function getDistanceUnitPref() {
+  return (state.profile && state.profile.distanceUnitPref) || 'km';
+}
+
+// Applies field-group visibility for a given category without touching the
+// exercise-name select — used by openEditExercise(), which needs to select
+// a specific exercise by name in the filtered list rather than resetting it
+// (see selectExCategory() below for the version that does reset the list,
+// used for manual toggle clicks and the Add-exercise entry points).
+function applyExCategoryVisibility(cat) {
+  document.querySelectorAll('#ex-category-toggle .toggle-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.cat === cat);
+  });
+  const isCardio = cat === 'cardio';
+  document.getElementById('ex-weight-type-group').style.display   = isCardio ? 'none' : '';
+  document.getElementById('ex-weight-reps-row').style.display     = isCardio ? 'none' : '';
+  document.getElementById('ex-weight-leg-group').style.display    = isCardio ? 'none' : '';
+  document.getElementById('ex-weight-tracking-group').style.display = isCardio ? 'none' : '';
+  document.getElementById('ex-cardio-metric-group').style.display = isCardio ? '' : 'none';
+  document.getElementById('ex-cardio-levels-row').style.display   = isCardio ? '' : 'none';
+  if (isCardio) {
+    document.getElementById('ex-type-select').value = 'standard';
+    const dropNote = document.getElementById('ex-dropset-note');
+    if (dropNote) dropNote.style.display = 'none';
+    const metricActive = document.querySelector('#ex-metric-toggle .toggle-btn.active');
+    selectExMetric(metricActive ? metricActive.dataset.metric : 'time');
+  } else {
+    document.getElementById('ex-cardio-time-row').style.display = 'none';
+    document.getElementById('ex-cardio-distance-row').style.display = 'none';
+    document.getElementById('ex-cardio-unit-group').style.display = 'none';
+    onExTypeChange();
+  }
+}
+
+// Toggles the exercise modal between Weight and Cardio mode: applies field
+// visibility, then re-filters the exercise-name select to only that
+// category's exercises (weight and cardio lists are mutually exclusive,
+// custom exercises included in both per their own category) and resets the
+// selection, since whatever was picked under the old category won't be in
+// the new filtered list anyway. Used for manual toggle clicks and both
+// Add-exercise entry points; openEditExercise() uses
+// applyExCategoryVisibility() + an explicit populateExerciseSelect(ex.name)
+// instead, so it can preserve the specific exercise being edited.
+function selectExCategory(cat) {
+  applyExCategoryVisibility(cat);
+  populateExerciseSelect(null);
+}
+
+// Toggles which value (time or distance) is the plan-time SET TARGET for a
+// cardio exercise — the other value is left to be logged live on the Train
+// page each set. Independent of the distance-unit picker, which shows
+// whenever distance appears anywhere (target or logged), so it stays
+// visible under both metric choices.
+function selectExMetric(metric) {
+  document.querySelectorAll('#ex-metric-toggle .toggle-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.metric === metric);
+  });
+  document.getElementById('ex-cardio-time-row').style.display     = metric === 'time' ? '' : 'none';
+  document.getElementById('ex-cardio-distance-row').style.display = metric === 'distance' ? '' : 'none';
+  updateExDistanceUnitVisibility();
+}
+
+// Shows the per-exercise km/m picker only when the global preference is Km
+// — if the global preference is Miles there's nothing to choose, so the
+// picker is hidden entirely (per spec: only offer options within the
+// globally selected system).
+function updateExDistanceUnitVisibility() {
+  const isCardio = document.querySelector('#ex-category-toggle .toggle-btn[data-cat="cardio"]').classList.contains('active');
+  const show = isCardio && getDistanceUnitPref() === 'km';
+  document.getElementById('ex-cardio-unit-group').style.display = show ? '' : 'none';
+}
+
+// Standalone (no-sets) cardio exercises are stored as an ordinary exercise
+// with setsStart/setsEnd forced to 1 in saveExercise() — same storage shape
+// as a giant set, which is likewise hardcoded to 1 there rather than read
+// from the select (the sets-start/end selects only offer 2–7 as options,
+// same reason giant sets don't rely on the select's actual value either).
+// This just dims the (now-irrelevant) sets row for visual clarity.
 // Small helper to set a <select>'s value, trying an exact string match first
 // and falling back to the closest available option. Used when pre-filling
 // form selects from stored data that might not exactly match today's option
@@ -3560,22 +3717,51 @@ function setDropsetOptionEnabled(enabled) {
   opt.textContent = enabled ? 'Drop Set' : 'Drop Set (not available in supersets)';
 }
 
+// Resets the cardio-only fields to blank defaults — shared by both add
+// entry points, and by edit when the stored exercise predates this feature
+// (category undefined, so nothing cardio-specific to restore).
+// PLACEHOLDER_REPS / PLACEHOLDER_WEIGHT: cardio exercises store their real
+// data in targetSeconds/targetDistance/speedLevel/resistanceLevel, but keep
+// a harmless reps:''/startWeight:0 pair too — a huge amount of existing
+// weight-only code (renderMicroBlock, exProgData's non-cardio callers,
+// getSessionVolume, etc.) reads ex.reps/ex.startWeight unconditionally, and
+// these two placeholders are cheap insurance against a null/undefined
+// reaching a .match() or arithmetic call somewhere that hasn't been made
+// cardio-aware yet (Plan/Train's dedicated cardio card UI is a follow-up
+// stage — see the CARDIO EXERCISES section).
+const PLACEHOLDER_REPS = '';
+const PLACEHOLDER_WEIGHT = 0;
+
+function resetExCardioFields() {
+  document.getElementById('ex-time-min-input').value = '';
+  document.getElementById('ex-time-sec-input').value = '';
+  document.getElementById('ex-distance-input').value = '';
+  document.getElementById('ex-speed-level-input').value = '';
+  document.getElementById('ex-resistance-level-input').value = '';
+  setSelectValue('ex-distance-unit-select', getDistanceUnitPref() === 'mi' ? 'km' : getDistanceUnitPref());
+}
+
 function openAddExercise(week, day) {
   planDayCollapsed[state.currentMacroId + '_' + day] = false;
   state.currentEditContext = { week, day, editIdx: null };
   document.getElementById('modal-ex-title').textContent = 'Add Exercise';
-  populateExerciseSelect(null);
-  updateLastLoggedPreview();
   setSelectValue('ex-reps-input', '10');
   setSelectValue('ex-sets-start-input', '2');
   setSelectValue('ex-sets-end-input', '5');
+  // Always re-enable — a prior openEditExercise() call (on a non-leader
+  // superset member) may have left these disabled, and nothing else resets
+  // that for a fresh Add.
+  document.getElementById('ex-sets-start-input').disabled = false;
+  document.getElementById('ex-sets-end-input').disabled = false;
   document.getElementById('ex-weight-input').value = '';
   document.getElementById('ex-type-select').value = 'standard';
   document.getElementById('ex-leg-select').value = '0';
   document.getElementById('ex-tracking-select').value = 'total';
   setDropsetOptionEnabled(true);
+  resetExCardioFields();
+  selectExCategory('weight'); // also (re)populates the filtered exercise list
+  updateLastLoggedPreview();
   applyExerciseHistoryDefaults();
-  onExTypeChange();
   updateLegSelectLabels();
   openModal('modal-exercise');
 }
@@ -3585,18 +3771,21 @@ function openAddExerciseToSuperset(day, ssId) {
   planDayCollapsed[state.currentMacroId + '_' + day] = false;
   state.currentEditContext = { week: 1, day, editIdx: null, pendingSupersetId: ssId };
   document.getElementById('modal-ex-title').textContent = 'Add to superset';
-  populateExerciseSelect(null);
-  updateLastLoggedPreview();
   setSelectValue('ex-reps-input', '10');
   setSelectValue('ex-sets-start-input', '2');
   setSelectValue('ex-sets-end-input', '5');
+  // See openAddExercise() above for why this reset is needed.
+  document.getElementById('ex-sets-start-input').disabled = false;
+  document.getElementById('ex-sets-end-input').disabled = false;
   document.getElementById('ex-weight-input').value = '';
   document.getElementById('ex-type-select').value = 'standard';
   document.getElementById('ex-leg-select').value = '0';
   document.getElementById('ex-tracking-select').value = 'total';
   setDropsetOptionEnabled(false);
+  resetExCardioFields();
+  selectExCategory('weight'); // also (re)populates the filtered exercise list
+  updateLastLoggedPreview();
   applyExerciseHistoryDefaults();
-  onExTypeChange();
   updateLegSelectLabels();
   openModal('modal-exercise');
 }
@@ -3614,6 +3803,12 @@ function openEditExercise(week, day, idx) {
   const realIdx = (state.exercises[key] || []).findIndex(e => e.id === ex.id);
   state.currentEditContext = { week, day, editIdx: realIdx };
   document.getElementById('modal-ex-title').textContent = 'Edit Exercise';
+  const exCategory = ex.category === 'cardio' ? 'cardio' : 'weight';
+  // Apply category visibility BEFORE populating the select, so the list is
+  // already filtered to this exercise's own category when we select it by
+  // name — then populate explicitly (not via selectExCategory(), which
+  // would reset the selection to blank).
+  applyExCategoryVisibility(exCategory);
   populateExerciseSelect(ex.name);
   updateLastLoggedPreview();
   setSelectValue('ex-reps-input', ex.reps);
@@ -3624,6 +3819,21 @@ function openEditExercise(week, day, idx) {
   document.getElementById('ex-leg-select').value = ex.isHeavyLeg ? '1' : '0';
   document.getElementById('ex-tracking-select').value = ex.trackingMode || 'total';
   setDropsetOptionEnabled(!ex.supersetId);
+
+  // Cardio fields — populate from the stored exercise, or leave blank for a
+  // legacy (pre-cardio) entry.
+  resetExCardioFields();
+  if (exCategory === 'cardio') {
+    if (ex.targetSeconds) {
+      document.getElementById('ex-time-min-input').value = Math.floor(ex.targetSeconds / 60);
+      document.getElementById('ex-time-sec-input').value = ex.targetSeconds % 60;
+    }
+    if (ex.targetDistance != null) document.getElementById('ex-distance-input').value = ex.targetDistance;
+    if (ex.speedLevel != null) document.getElementById('ex-speed-level-input').value = ex.speedLevel;
+    if (ex.resistanceLevel != null) document.getElementById('ex-resistance-level-input').value = ex.resistanceLevel;
+    if (ex.distanceUnit) setSelectValue('ex-distance-unit-select', ex.distanceUnit);
+    selectExMetric(ex.metricType === 'distance' ? 'distance' : 'time');
+  }
 
   // If this exercise is in a superset but is not the sets leader (supersetOrder > 0),
   // disable the sets inputs — sets are controlled by the leader
@@ -3653,6 +3863,8 @@ function saveExercise() {
   if (!ctx || !state.currentMacroId) return;
   const key = state.currentMacroId + '_' + ctx.week + '_' + ctx.day;
   if (!state.exercises[key]) state.exercises[key] = [];
+  const category = document.querySelector('#ex-category-toggle .toggle-btn.active').dataset.cat;
+  const isCardio = category === 'cardio';
   const type = document.getElementById('ex-type-select').value;
   // Safety net: drop sets can't be superset members — the option is
   // disabled in the UI for that case, but fall back to standard rather
@@ -3661,19 +3873,53 @@ function saveExercise() {
   const willBeInSuperset = !!ctx.pendingSupersetId || !!(existingForEdit && existingForEdit.supersetId);
   const finalType = (type === 'dropset' && willBeInSuperset) ? 'standard' : type;
   const isGiantSet = finalType === 'giant';
-  const ex = {
-    name: document.getElementById('ex-name-input').value.trim() || 'Exercise',
-    // v6.09: drop sets now DO take a plan-time rep target, same as any
-    // other exercise — it applies to the main set only. The drop portion
-    // has no rep target of its own and is always logged to failure live.
-    reps: document.getElementById('ex-reps-input').value,
-    setsStart: isGiantSet ? 1 : parseInt(document.getElementById('ex-sets-start-input').value),
-    setsEnd:   isGiantSet ? 1 : parseInt(document.getElementById('ex-sets-end-input').value),
-    startWeight: parseFloat(document.getElementById('ex-weight-input').value) || 0,
-    type: finalType,
-    isHeavyLeg: document.getElementById('ex-leg-select').value === '1',
-    trackingMode: document.getElementById('ex-tracking-select').value || 'total',
-  };
+
+  let ex;
+  if (isCardio) {
+    const metricType = document.querySelector('#ex-metric-toggle .toggle-btn.active').dataset.metric;
+    const min = parseInt(document.getElementById('ex-time-min-input').value) || 0;
+    const sec = parseInt(document.getElementById('ex-time-sec-input').value) || 0;
+    const speedLevelRaw = document.getElementById('ex-speed-level-input').value;
+    const resistanceLevelRaw = document.getElementById('ex-resistance-level-input').value;
+    const globalUnit = getDistanceUnitPref();
+    ex = {
+      name: document.getElementById('ex-name-input').value.trim() || 'Exercise',
+      category: 'cardio',
+      metricType, // 'time' | 'distance' — which one is the plan-time SET TARGET
+      targetSeconds: metricType === 'time' ? (min * 60 + sec) : null,
+      targetDistance: metricType === 'distance' ? (parseFloat(document.getElementById('ex-distance-input').value) || 0) : null,
+      // Per-exercise unit only meaningful when the global pref is 'km'
+      // (offers km/m); under 'mi' there's only one option, so store 'mi'
+      // directly rather than trusting a hidden select's stale value.
+      distanceUnit: globalUnit === 'mi' ? 'mi' : document.getElementById('ex-distance-unit-select').value,
+      speedLevel: speedLevelRaw !== '' ? parseFloat(speedLevelRaw) : null,
+      resistanceLevel: resistanceLevelRaw !== '' ? parseFloat(resistanceLevelRaw) : null,
+      // A single-set (standalone) cardio session is just setsStart=setsEnd=1
+      // via the normal sets selects — no separate flag needed.
+      setsStart: parseInt(document.getElementById('ex-sets-start-input').value),
+      setsEnd:   parseInt(document.getElementById('ex-sets-end-input').value),
+      type: 'standard',
+      reps: PLACEHOLDER_REPS,
+      startWeight: PLACEHOLDER_WEIGHT,
+      isHeavyLeg: false,
+      trackingMode: 'total',
+    };
+  } else {
+    ex = {
+      name: document.getElementById('ex-name-input').value.trim() || 'Exercise',
+      category: 'weight',
+      // v6.09: drop sets now DO take a plan-time rep target, same as any
+      // other exercise — it applies to the main set only. The drop portion
+      // has no rep target of its own and is always logged to failure live.
+      reps: document.getElementById('ex-reps-input').value,
+      setsStart: isGiantSet ? 1 : parseInt(document.getElementById('ex-sets-start-input').value),
+      setsEnd:   isGiantSet ? 1 : parseInt(document.getElementById('ex-sets-end-input').value),
+      startWeight: parseFloat(document.getElementById('ex-weight-input').value) || 0,
+      type: finalType,
+      isHeavyLeg: document.getElementById('ex-leg-select').value === '1',
+      trackingMode: document.getElementById('ex-tracking-select').value || 'total',
+    };
+  }
   if (ctx.editIdx !== null && state.exercises[key][ctx.editIdx]) {
     // Preserve existing id, order, and superset membership when editing
     const existing = state.exercises[key][ctx.editIdx];
@@ -6766,6 +7012,7 @@ function buildWeeklySummaryCardHTML() {
 
         b.push({
           label:   'W' + wn++,
+          avgWeight,
           delta,
           steps:   sD.length ? Math.round(sD.reduce((s,d) => s + dayMap[d].steps,   0) / sD.length) : null,
           kcal:    nD.length ? Math.round(nD.reduce((s,d) => s + dayMap[d].kcal,    0) / nD.length) : null,
@@ -6803,11 +7050,13 @@ function buildWeeklySummaryCardHTML() {
     const deltaStr = b.delta === null ? '—'
       : (b.delta >= 0 ? '+' : '') + b.delta.toFixed(1) + ' lbs';
     const deltaCol = b.delta === null ? 'var(--text3)' : b.delta < 0 ? 'var(--accent)' : b.delta > 0 ? 'var(--red)' : 'var(--text2)';
+    const avgWeightStr = b.avgWeight === null ? '—' : b.avgWeight.toFixed(1) + ' lbs';
     const stepsHeat   = heatColour(b.steps,   allSteps,   false); // high steps = good
     const kcalHeat    = heatColour(b.kcal,    allKcal,    kcalLowGood);
     const proteinHeat = heatColour(b.protein, allProtein, false); // high protein = good
     return `<tr>
       <td style="font-family:var(--font-mono);font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);">${b.label}</td>
+      <td style="font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);">${avgWeightStr}</td>
       <td style="font-size:11px;color:${deltaCol};padding:5px 4px;border-bottom:0.5px solid var(--border);font-weight:500;">${deltaStr}</td>
       <td style="font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);">${sq(kcalHeat)}${b.kcal !== null ? b.kcal.toLocaleString() : '—'}</td>
       <td style="font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);">${sq(stepsHeat)}${b.steps !== null ? b.steps.toLocaleString() : '—'}</td>
@@ -6821,6 +7070,7 @@ function buildWeeklySummaryCardHTML() {
         <thead>
           <tr>
             <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Week</th>
+            <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Avg weight</th>
             <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Δ weight</th>
             <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Avg kcal</th>
             <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Avg steps</th>
@@ -10845,6 +11095,56 @@ function renderBodyPartVolumeTable(macro) {
 // template (the exercise-adding/editing UI, as opposed to the read-only
 // Weeks-2+ progression preview built separately). Called once per
 // microcycle when the macro uses them, or once for the whole week otherwise.
+// Builds a short human-readable summary line for a cardio exercise's plan
+// target — e.g. "5 sets · 30s target" or "20 min · level 8" for a
+// standalone session. Used by both the Plan list and (later) the Train
+// card. Distance values are shown in whatever unit the exercise itself was
+// saved with (ex.distanceUnit), not the current global preference, since
+// changing the global preference doesn't retroactively convert existing
+// exercises — see setDistanceUnitPref().
+// Formats a duration in seconds as a short label: "1m 35s", "45s", "2m".
+// Shared by the Plan summary line and Train's set targets/deltas.
+function formatCardioSeconds(s) {
+  s = s || 0;
+  const m = Math.floor(s / 60), r = s % 60;
+  // 'min' rather than 'm' — 'm' is ambiguous with metres right next to a
+  // distance value (this was genuinely confusing in testing: "10m target"
+  // could mean 10 minutes or 10 metres).
+  return m > 0 ? (r > 0 ? `${m}min ${r}s` : `${m}min`) : `${r}s`;
+}
+
+// Formats a distance value with its unit, e.g. "1.5 km", "800 m".
+function formatCardioDistance(d, unit) {
+  return (d || 0) + ' ' + (unit || 'km');
+}
+
+// Builds the "target · level, level" portion shared by the Plan summary
+// line and Train's card subtitle — everything except the sets count, which
+// each caller handles separately (Plan shows the exercise's own
+// setsStart–setsEnd range or 'follows leader'; Train shows this week's
+// actual scaled set count).
+function buildCardioTargetLevelsText(ex) {
+  const isTimeTarget = ex.metricType !== 'distance';
+  const targetPart = isTimeTarget
+    ? formatCardioSeconds(ex.targetSeconds) + ' target'
+    : formatCardioDistance(ex.targetDistance, ex.distanceUnit) + ' target';
+  const levelParts = [];
+  if (ex.speedLevel != null) levelParts.push('speed ' + ex.speedLevel);
+  if (ex.resistanceLevel != null) levelParts.push('resistance ' + ex.resistanceLevel);
+  return targetPart + (levelParts.length ? ' · ' + levelParts.join(', ') : '');
+}
+
+// setsOverrideLabel: when this exercise is a non-leader superset member,
+// its own setsStart/setsEnd are irrelevant — the whole group always uses
+// the leader's sets count (see getWeekSets(leader, ...) in both the Train
+// renderer and the Plan superset display for weight members) — so pass
+// e.g. 'follows leader' here instead of letting the member's own sets
+// values be shown as if they meant something.
+function buildCardioSummaryLine(ex, setsOverrideLabel) {
+  const setsPart = setsOverrideLabel || ((ex.setsStart === 1 && ex.setsEnd === 1) ? '1 set' : `${ex.setsStart}\u2013${ex.setsEnd} sets`);
+  return setsPart + ' · ' + buildCardioTargetLevelsText(ex);
+}
+
 function renderMicroBlock(macro, week, micro, days, dayLabels) {
   const microKey = micro === 0 ? '' : `m${micro}`;
   const sectionTitle = micro === 0 ? '' : `<div class="section-title" style="font-size:10px;">Microcycle ${micro}</div>`;
@@ -10913,12 +11213,15 @@ function renderMicroBlock(macro, week, micro, days, dayLabels) {
         if (slot.type === 'solo') {
           const ex  = slot.ex;
           const idx = slot.idx;
+          const isCardioEx = ex.category === 'cardio';
           const sets = getWeekSets(ex, 1, macro.weeks);
           const isDropSetEx = ex.type === 'dropset';
           const typeLabel = ex.type === 'standard' ? 'std' : ex.type === 'giant' ? 'giant set' : ex.type === 'pause' ? 'pause set' : 'drop set';
-          const summaryLine = isDropSetEx
-            ? `${sets} sets · ${ex.reps} reps + drop to failure · ${ex.startWeight} kg start`
-            : `${sets} sets · ${ex.reps} reps · ${ex.startWeight} kg start`;
+          const summaryLine = isCardioEx
+            ? buildCardioSummaryLine(ex)
+            : isDropSetEx
+              ? `${sets} sets · ${ex.reps} reps + drop to failure · ${ex.startWeight} kg start`
+              : `${sets} sets · ${ex.reps} reps · ${ex.startWeight} kg start`;
           html += `<div class="swipe-row-wrap" style="border-top:0.5px solid var(--border);"
             draggable="true"
             ondragstart="event.dataTransfer.setData('text/plain','${slotIdx}|${dayKey}')"
@@ -10932,8 +11235,10 @@ function renderMicroBlock(macro, week, micro, days, dayLabels) {
                   <div style="font-weight:500;font-size:13px;color:var(--text);">${ex.name}</div>
                   <div style="font-size:12px;color:var(--text2);margin-top:3px;">${summaryLine}</div>
                   <div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap;">
-                    <span class="badge ${ex.type==='standard'?'badge-blue':ex.type==='giant'?'badge-purple':ex.type==='pause'?'badge-amber':'badge-red'}">${typeLabel}</span>
-                    ${ex.isHeavyLeg ? '<span class="badge badge-amber">heavy leg</span>' : ''}
+                    ${isCardioEx
+                      ? '<span class="badge badge-blue">cardio</span>'
+                      : `<span class="badge ${ex.type==='standard'?'badge-blue':ex.type==='giant'?'badge-purple':ex.type==='pause'?'badge-amber':'badge-red'}">${typeLabel}</span>
+                    ${ex.isHeavyLeg ? '<span class="badge badge-amber">heavy leg</span>' : ''}`}
                   </div>
                 </div>
                 ${isDropSetEx ? '' : `<button class="ss-unlink-btn" onclick="event.stopPropagation();openLinkModal('${dayKey}','${ex.id}')" title="Link into superset" aria-label="Link into superset"><svg viewBox="0 0 24 24" width="17" height="17" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button>`}
@@ -10967,7 +11272,7 @@ function renderMicroBlock(macro, week, micro, days, dayLabels) {
               <div style="color:var(--text3);cursor:grab;padding:0 4px;flex-shrink:0;touch-action:none;">⠿</div>
               <div class="ss-inner-row-content" onclick="openEditExercise(1,'${dayKey}',${fullIdx})">
                 <div style="font-weight:500;font-size:13px;color:var(--text);">${mem.name}${isLeader ? ' <span style="font-size:10px;color:var(--accent);font-weight:400;">sets leader</span>' : ''}</div>
-                <div style="font-size:11px;color:var(--text2);margin-top:2px;">${isLeader ? leaderSets + ' sets' : 'follows leader'} · ${mem.reps} reps · ${mem.startWeight} kg</div>
+                <div style="font-size:11px;color:var(--text2);margin-top:2px;">${mem.category === 'cardio' ? buildCardioSummaryLine(mem, isLeader ? null : 'follows leader') : (isLeader ? leaderSets + ' sets' : 'follows leader') + ' · ' + mem.reps + ' reps · ' + mem.startWeight + ' kg'}</div>
               </div>
               <button class="ss-unlink-btn" onclick="event.stopPropagation();unlinkExercise('${dayKey}','${mem.id}')" title="Remove from superset" aria-label="Remove from superset"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 0 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="2" y1="2" x2="22" y2="22"/></svg></button>
             </div>`;
@@ -12562,7 +12867,33 @@ function renderTrainDay(macro) {
 
   // Helper: compute per-exercise progression data (same logic as before, extracted for reuse)
   function exProgData(ex) {
-    const exId      = ex.id;
+    const exId = ex.id;
+    // Cardio exercises never participate in progression/compliance — see
+    // CARDIO EXERCISES section. Short-circuit with safe zeroed values so
+    // this can never throw, however it's reached (e.g. as a superset
+    // member) — but doneSets/allDone are computed for real, since the
+    // superset card's combined "done" badge sums doneSets across every
+    // member regardless of category.
+    if (ex.category === 'cardio') {
+      const sets = getWeekSets(ex, state.currentWeek, macro.weeks);
+      const key2c = macro.id + '_' + state.currentWeek + '_' + state.currentDay;
+      let doneSetsC = 0;
+      for (let s = 0; s < sets; s++) {
+        if ((state.trainLogs[key2c + '_' + exId + '_' + s] || {}).done) doneSetsC++;
+      }
+      return {
+        exId, sets, progType: 'weight', prevProgType: null, prevLoggedSets: [],
+        prevActualWeight: null, prevActualReps: null, recommendedWeight: 0, recommendedReps: '0',
+        weightPlaceholder: '0.0', repsPlaceholder: '0',
+        weightPlaceholders: Array(sets).fill('0.0'), repsPlaceholders: Array(sets).fill('0'),
+        dropWeightPlaceholders: [], dropRepsPlaceholders: [],
+        weightJump: 0, isPauseSet: false, doneSets: doneSetsC, allDone: doneSetsC === sets && sets > 0, missedTarget: false,
+        prevWeek2: state.currentWeek - 1, prevNoProgression: false,
+        isDeloadSession, isPostDeloadSession, isLocked: false, prevWasLocked: false,
+        isDropSet: false, prevActualDropWeight: null, prevActualDropReps: null,
+        recommendedDropWeight: 0, recommendedDropReps: '0', dropWeightPlaceholder: '0.0', dropRepsPlaceholder: '0',
+      };
+    }
     const progLockKey = getProgressionLockKey(macro.id, state.currentDay, exId);
     // ── Retroactive compliance catch-up ──────────────────────────────
     // Sweeps every PRIOR week (deliberately NOT including this one) so
@@ -12929,6 +13260,13 @@ function renderTrainDay(macro) {
       const exId = ex.id;
       const expandKey = macro.id + '_' + state.currentWeek + '_' + state.currentDay + '_' + exId;
       const isExpanded = !!expandedExercises[expandKey];
+      // Cardio exercises get their own dedicated card (buildCardioTrainCard)
+      // — no progression, no compliance lock, unaffected by deload; see the
+      // CARDIO EXERCISES — TRAIN LOGGING section below renderTrainDay.
+      if (ex.category === 'cardio') {
+        html += buildCardioTrainCard(macro, ex, expandKey, isExpanded);
+        return;
+      }
       const d = exProgData(ex);
       const { sets, progType, prevProgType, prevLoggedSets, prevActualWeight, prevActualReps,
               recommendedWeight, recommendedReps, weightPlaceholder, repsPlaceholder,
@@ -13238,6 +13576,25 @@ function renderTrainDay(macro) {
       const ssStrip = v => (typeof v === 'string' && v.endsWith(' reps')) ? v.slice(0, -5) : String(v);
       const previewRows = members.map((m, mi) => {
         const md = memberData[mi];
+        const isLeaderM = mi === 0;
+        // Cardio members use the leader's sets count (leader var above,
+        // sets = getWeekSets(leader, ...)) since the whole group shares one
+        // sets count — same rule weight members follow. Bypasses all the
+        // weight-specific badge/progression text entirely.
+        if (m.category === 'cardio') {
+          let doneCount = 0;
+          for (let s = 0; s < sets; s++) {
+            if ((state.trainLogs[key2 + '_' + m.id + '_' + s] || {}).done) doneCount++;
+          }
+          const mDeltaBadge = buildCardioDeltaBadge(macro, m);
+          return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:3px;">' +
+            '<span style="font-size:12px;color:var(--text2);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' +
+              m.name + ' <span class="badge badge-blue" style="font-size:8px;vertical-align:middle;">cardio</span> ' +
+              '<span style="font-size:11px;color:var(--text3);">' + sets + ' sets · ' + buildCardioTrainSubtitlePart(macro, m) + mDeltaBadge + '</span>' +
+            '</span>' +
+            '<span style="font-size:11px;color:' + (doneCount === sets && sets > 0 ? 'var(--accent)' : 'var(--text3)') + ';white-space:nowrap;flex-shrink:0;">' + doneCount + '/' + sets + '</span>' +
+          '</div>';
+        }
         const mSets = getWeekSets(m, state.currentWeek, macro.weeks);
         const mTracking = m.trackingMode === 'perSide' ? ' · per side' : '';
 
@@ -13329,8 +13686,11 @@ function renderTrainDay(macro) {
       // quickFillComplete for supersets: fill all members' sets then re-render
       // We pass a JSON-encoded array of [exId, sets, weightList, repsList]
       // tuples — weightList/repsList are '|'-delimited per-set suggestions
-      // (v6.09), not a single flat value.
-      const fillArgs = JSON.stringify(members.map((m, mi) => {
+      // (v6.09), not a single flat value. Cardio members are excluded (see
+      // CARDIO EXERCISES section) — there's no suggested value to quick-fill,
+      // so they're always logged manually, one set at a time.
+      const fillArgs = JSON.stringify(members.filter(m => m.category !== 'cardio').map((m) => {
+        const mi = members.indexOf(m);
         const md = memberData[mi];
         return [m.id, md.sets, md.weightPlaceholders.join('|'), md.repsPlaceholders.join('|')];
       })).replace(/"/g, '&quot;');
@@ -13362,9 +13722,12 @@ function renderTrainDay(macro) {
       if (isExpanded) {
         // Progression toggles — per exercise, full-width cards matching normal exercise style
         let progToggles = '';
-        if (state.currentWeek > 1 && !isDeloadSession && !isPostDeloadSession) {
+        if (state.currentWeek > 1 && !isDeloadSession && !isPostDeloadSession && members.some(m => m.category !== 'cardio')) {
           progToggles = '<div class="ss-prog-toggles"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">This week — choose progression</div>';
           members.forEach((m, mi) => {
+            // Cardio members never get a progression-type toggle — there's
+            // nothing to choose between (see exProgData's cardio guard).
+            if (m.category === 'cardio') return;
             const md = memberData[mi];
             if (md.isLocked) {
               progToggles += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:10px 12px;border-radius:var(--r-sm);background:var(--surface2);border:1px solid var(--border2);">' +
@@ -13434,6 +13797,64 @@ function renderTrainDay(macro) {
 
           let exRows = '';
           members.forEach((m, mi) => {
+            if (m.category === 'cardio') {
+              // No shared header row across members — a superset can mix a
+              // time-target Row with a distance-target Bike, so each
+              // member gets its OWN tiny column labels right above its own
+              // inputs instead (per spec: "per row rather than per set").
+              const mLog = state.trainLogs[key2 + '_' + m.id + '_' + s] || {};
+              const mPrevLog = state.currentWeek > 1
+                ? state.trainLogs[macro.id + '_' + (state.currentWeek - 1) + '_' + state.currentDay + '_' + m.id + '_' + s]
+                : null;
+              const mIsTimeTarget = m.metricType !== 'distance';
+              const mTargetLabel = mIsTimeTarget
+                ? formatCardioSeconds(m.targetSeconds)
+                : formatCardioDistance(m.targetDistance, m.distanceUnit);
+              const mLogKey = key2 + '_' + m.id + '_' + s;
+              const miniLabel = (label, inputHtml) => `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+                <span style="font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:0.03em;">${label}</span>
+                <div style="display:flex;align-items:center;gap:3px;">${inputHtml}</div>
+              </div>`;
+
+              let mLoggedGroup;
+              if (mIsTimeTarget) {
+                const ph = mPrevLog && mPrevLog.loggedDistance !== undefined ? mPrevLog.loggedDistance : '';
+                mLoggedGroup = miniLabel('dist', `<input class="ss-set-inp" type="number" inputmode="decimal" step="0.01" placeholder="${ph}" value="${mLog.loggedDistance !== undefined ? mLog.loggedDistance : ''}"
+                  oninput="logCardioField('${mLogKey}','loggedDistance',this.value)" id="inp-cd-${mLogKey}" style="width:52px;">
+                  <span style="font-size:10px;color:var(--text3);">${m.distanceUnit || 'km'}</span>`);
+              } else {
+                const phMin = mPrevLog && mPrevLog.loggedTimeMin !== undefined ? mPrevLog.loggedTimeMin : '';
+                const phSec = mPrevLog && mPrevLog.loggedTimeSec !== undefined ? mPrevLog.loggedTimeSec : '';
+                mLoggedGroup = miniLabel('time', `<input class="ss-set-inp" type="number" inputmode="numeric" step="1" min="0" placeholder="${phMin}" value="${mLog.loggedTimeMin !== undefined ? mLog.loggedTimeMin : ''}"
+                    oninput="logCardioField('${mLogKey}','loggedTimeMin',this.value)" id="inp-cmin-${mLogKey}" style="width:32px;">
+                  <span style="font-size:10px;color:var(--text3);">min</span>
+                  <input class="ss-set-inp" type="number" inputmode="numeric" step="1" min="0" max="59" placeholder="${phSec}" value="${mLog.loggedTimeSec !== undefined ? mLog.loggedTimeSec : ''}"
+                    oninput="logCardioField('${mLogKey}','loggedTimeSec',this.value)" id="inp-csec-${mLogKey}" style="width:32px;">
+                  <span style="font-size:10px;color:var(--text3);">s</span>`);
+              }
+              let mLevelGroups = '';
+              if (m.speedLevel != null) {
+                const ph = mPrevLog && mPrevLog.speedLevel !== undefined ? mPrevLog.speedLevel : m.speedLevel;
+                mLevelGroups += miniLabel('speed', `<input class="ss-set-inp" type="number" inputmode="decimal" step="0.1" placeholder="${ph}" value="${mLog.speedLevel !== undefined ? mLog.speedLevel : ''}"
+                  oninput="logCardioField('${mLogKey}','speedLevel',this.value)" style="width:36px;">`);
+              }
+              if (m.resistanceLevel != null) {
+                const ph = mPrevLog && mPrevLog.resistanceLevel !== undefined ? mPrevLog.resistanceLevel : m.resistanceLevel;
+                mLevelGroups += miniLabel('resist', `<input class="ss-set-inp" type="number" inputmode="decimal" step="0.1" placeholder="${ph}" value="${mLog.resistanceLevel !== undefined ? mLog.resistanceLevel : ''}"
+                  oninput="logCardioField('${mLogKey}','resistanceLevel',this.value)" style="width:36px;">`);
+              }
+              exRows += `<div class="ss-set-ex-row" style="align-items:flex-end;">
+                <span class="ss-set-ex-name">${m.name} <span style="color:var(--text3);">(${mTargetLabel} target)</span></span>
+                <div style="display:flex;align-items:flex-end;gap:10px;margin-left:auto;">
+                  ${mLoggedGroup}
+                  ${mLevelGroups}
+                  <div class="${mLog.done ? 'check-done ss-set-check done' : 'check-empty ss-set-check'}" onclick="toggleCardioSetDone('${mLogKey}')" style="margin:0;">
+                    <svg viewBox="0 0 14 14"><polyline points="2,7 5.5,10.5 12,3"/></svg>
+                  </div>
+                </div>
+              </div>`;
+              return;
+            }
             const md     = memberData[mi];
             const logKey = key2 + '_' + m.id + '_' + s;
             const log    = state.trainLogs[logKey] || {};
@@ -13461,8 +13882,12 @@ function renderTrainDay(macro) {
           </div>`;
         }
 
-        // Fill suggested / Clear: pre-build onclick strings to avoid nested template literal escaping
-        const ssFillOnclick  = members.map((m, mi) => {
+        // Fill suggested / Clear: pre-build onclick strings to avoid nested template literal escaping.
+        // Cardio members are skipped in "Fill suggested" — there's no
+        // suggested/recommended value for them to fill (see the CARDIO
+        // EXERCISES section); Clear still applies to every member.
+        const ssFillOnclick  = members.filter(m => m.category !== 'cardio').map((m) => {
+          const mi = members.indexOf(m);
           const md = memberData[mi];
           return "fillSuggested('" + macro.id + "'," + state.currentWeek + ",'" + state.currentDay + "','" + m.id + "'," + md.sets + ",'" + md.weightPlaceholders.join('|') + "','" + md.repsPlaceholders.join('|') + "')";
         }).join(';');
@@ -13497,6 +13922,336 @@ function renderTrainDay(macro) {
 
   el.innerHTML = html;
   renderTrainHero(macro);
+}
+
+// ════════════════════════════════════════════════
+// CARDIO EXERCISES — TRAIN LOGGING (v7.67)
+// ════════════════════════════════════════════════
+// Cardio exercises have no progression suggestions, no compliance lock, and
+// are unaffected by deload — see the guard at the top of exProgData() in
+// renderTrainDay(). This section is Train's dedicated logging path for
+// them instead: unlike a weight set (weight + reps, both suggested and
+// both writable), a cardio set logs whichever ONE metric (time or
+// distance) ISN'T the plan-time target, plus optional speed/resistance
+// level actually used. The suggested/placeholder value shown is always
+// simply last week's logged value at the same set index — there's no
+// computed recommendation to jump to, by design.
+
+// Total logged seconds for a cardio log entry, from its split min/sec
+// fields — returns null if neither field has ever been touched (as opposed
+// to 0, which means "0 seconds" was actually logged).
+function getCardioLoggedSeconds(log) {
+  if (!log || (log.loggedTimeMin === undefined && log.loggedTimeSec === undefined)) return null;
+  return (parseInt(log.loggedTimeMin) || 0) * 60 + (parseInt(log.loggedTimeSec) || 0);
+}
+
+// Writes one field of a cardio log entry (loggedTimeMin / loggedTimeSec /
+// loggedDistance / speedLevel / resistanceLevel) — mirrors logSet() but
+// without reps-specific sanitization, since every cardio field is numeric.
+function logCardioField(key, field, value) {
+  if (!state.trainLogs[key]) state.trainLogs[key] = {};
+  state.trainLogs[key][field] = value;
+  save();
+}
+
+// Builds one set's logging row: the fixed (non-progressing) target on the
+// left, the one loggable metric + optional level inputs on the right
+// (pre-filled with last week's same-set values as placeholders, per spec),
+// and a done toggle. Shared by both the solo card and superset member rows
+// (via the `compact` option, which shrinks input widths for the tighter
+// superset layout).
+// Grid-template-columns string for a cardio exercise's set rows — shared
+// verbatim between the header row and every data row (built via this same
+// function each time) so columns always line up exactly, the same way
+// .set-row's fixed pixel columns do for weight exercises. Column count
+// varies per exercise (speed/resistance columns only appear when that
+// exercise actually has them configured), but is identical across all of
+// one exercise's own rows.
+function getCardioGridTemplate(ex, compact) {
+  const isTimeTarget = ex.metricType !== 'distance';
+  const loggedW = isTimeTarget ? (compact ? '60px' : '70px') : (compact ? '96px' : '112px');
+  const cols = [compact ? '34px' : '40px', '1fr', loggedW];
+  if (ex.speedLevel != null) cols.push(compact ? '42px' : '48px');
+  if (ex.resistanceLevel != null) cols.push(compact ? '42px' : '48px');
+  cols.push(compact ? '22px' : '28px');
+  return cols.join(' ');
+}
+
+function buildCardioSetRowHtml(macro, ex, s, compact) {
+  const key2 = macro.id + '_' + state.currentWeek + '_' + state.currentDay;
+  const logKey = key2 + '_' + ex.id + '_' + s;
+  const log = state.trainLogs[logKey] || {};
+  const prevWeek = state.currentWeek - 1;
+  const prevLog = prevWeek >= 1 ? state.trainLogs[macro.id + '_' + prevWeek + '_' + state.currentDay + '_' + ex.id + '_' + s] : null;
+  const isTimeTarget = ex.metricType !== 'distance';
+  const targetLabel = isTimeTarget
+    ? formatCardioSeconds(ex.targetSeconds)
+    : formatCardioDistance(ex.targetDistance, ex.distanceUnit);
+  const inpW = compact ? '30px' : '34px';
+
+  let loggedInputHtml;
+  if (isTimeTarget) {
+    // Target is time; the loggable metric is distance.
+    const ph = prevLog && prevLog.loggedDistance !== undefined ? prevLog.loggedDistance : '';
+    loggedInputHtml = `<div style="display:flex;align-items:center;justify-content:center;gap:4px;">
+      <input class="set-input" type="number" inputmode="decimal" step="0.01" placeholder="${ph}"
+        value="${log.loggedDistance !== undefined ? log.loggedDistance : ''}"
+        oninput="logCardioField('${logKey}','loggedDistance',this.value)" id="inp-cd-${logKey}" style="width:${compact ? '48px' : '56px'};">
+      <span style="font-size:10px;color:var(--text3);">${ex.distanceUnit || 'km'}</span>
+    </div>`;
+  } else {
+    // Target is distance; the loggable metric is time.
+    const phMin = prevLog && prevLog.loggedTimeMin !== undefined ? prevLog.loggedTimeMin : '';
+    const phSec = prevLog && prevLog.loggedTimeSec !== undefined ? prevLog.loggedTimeSec : '';
+    loggedInputHtml = `<div style="display:flex;align-items:center;justify-content:center;gap:4px;">
+      <input class="set-input" type="number" inputmode="numeric" step="1" min="0" placeholder="${phMin}"
+        value="${log.loggedTimeMin !== undefined ? log.loggedTimeMin : ''}"
+        oninput="logCardioField('${logKey}','loggedTimeMin',this.value)" id="inp-cmin-${logKey}" style="width:${inpW};">
+      <span style="font-size:10px;color:var(--text3);">min</span>
+      <input class="set-input" type="number" inputmode="numeric" step="1" min="0" max="59" placeholder="${phSec}"
+        value="${log.loggedTimeSec !== undefined ? log.loggedTimeSec : ''}"
+        oninput="logCardioField('${logKey}','loggedTimeSec',this.value)" id="inp-csec-${logKey}" style="width:${inpW};">
+      <span style="font-size:10px;color:var(--text3);">s</span>
+    </div>`;
+  }
+
+  let speedInputHtml = '';
+  if (ex.speedLevel != null) {
+    const ph = prevLog && prevLog.speedLevel !== undefined ? prevLog.speedLevel : ex.speedLevel;
+    speedInputHtml = `<input class="set-input" type="number" inputmode="decimal" step="0.1" placeholder="${ph}"
+      value="${log.speedLevel !== undefined ? log.speedLevel : ''}"
+      oninput="logCardioField('${logKey}','speedLevel',this.value)" title="Speed level" style="width:100%;text-align:center;">`;
+  }
+  let resistInputHtml = '';
+  if (ex.resistanceLevel != null) {
+    const ph = prevLog && prevLog.resistanceLevel !== undefined ? prevLog.resistanceLevel : ex.resistanceLevel;
+    resistInputHtml = `<input class="set-input" type="number" inputmode="decimal" step="0.1" placeholder="${ph}"
+      value="${log.resistanceLevel !== undefined ? log.resistanceLevel : ''}"
+      oninput="logCardioField('${logKey}','resistanceLevel',this.value)" title="Resistance level" style="width:100%;text-align:center;">`;
+  }
+
+  return `<div class="cardio-set-row" style="grid-template-columns:${getCardioGridTemplate(ex, compact)};">
+    <span style="font-size:${compact ? '10px' : '11px'};color:var(--text3);">Set ${s + 1}</span>
+    <span style="font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${targetLabel} target</span>
+    ${loggedInputHtml}
+    ${speedInputHtml}
+    ${resistInputHtml}
+    <div class="${log.done ? 'check-done' : 'check-empty'}" onclick="toggleCardioSetDone('${logKey}')" style="margin:0;justify-self:center;">
+      <svg viewBox="0 0 14 14"><polyline points="2,7 5.5,10.5 12,3"/></svg>
+    </div>
+  </div>`;
+}
+
+// Toggles a cardio set's done state. Requires the one loggable metric
+// (whichever isn't the plan-time target) to be filled before allowing
+// done — level fields stay optional, same as they're optional at plan
+// time. No compliance lock, no history recording, no deload interaction —
+// cardio exercises simply aren't part of any of that (see the exProgData
+// guard above).
+function toggleCardioSetDone(key) {
+  const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
+  let ex = null;
+  if (macro) {
+    const prefix = macro.id + '_' + state.currentWeek + '_' + state.currentDay + '_';
+    if (key.startsWith(prefix)) {
+      const rest = key.slice(prefix.length); // "${exId}_${setIdx}"
+      const exId = rest.slice(0, rest.lastIndexOf('_'));
+      const templateKey = macro.id + '_1_' + state.currentDay;
+      ex = (state.exercises[templateKey] || []).find(e => e.id === exId) || null;
+    }
+  }
+  const log = state.trainLogs[key] || {};
+  if (!log.done) {
+    const isTimeTarget = !ex || ex.metricType !== 'distance';
+    const loggedOk = isTimeTarget
+      ? (log.loggedDistance !== undefined && String(log.loggedDistance).trim() !== '')
+      : ((parseInt(log.loggedTimeMin) || 0) > 0 || (parseInt(log.loggedTimeSec) || 0) > 0);
+    if (!loggedOk) {
+      const el = document.getElementById(isTimeTarget ? 'inp-cd-' + key : 'inp-cmin-' + key);
+      if (el) {
+        el.style.borderColor = 'var(--red)';
+        setTimeout(() => { el.style.borderColor = ''; }, 1500);
+      }
+      return;
+    }
+  }
+  if (!state.trainLogs[key]) state.trainLogs[key] = {};
+  state.trainLogs[key].done = !state.trainLogs[key].done;
+  save();
+  if (macro) renderTrainDay(macro);
+}
+
+// Small "Last wk: +500m" / "Last wk: -30s" delta badge for a cardio
+// exercise's Train card header — compares set-1's logged value this week
+// against set-1's logged value last week (same convention solo weight
+// exercises use for their own "Last wk" badge). Returns '' whenever
+// there's nothing to compare yet (week 1, or either week missing a log).
+function buildCardioDeltaBadge(macro, ex) {
+  if (state.currentWeek <= 1) return '';
+  const key2 = macro.id + '_' + state.currentWeek + '_' + state.currentDay;
+  const prevKey2 = macro.id + '_' + (state.currentWeek - 1) + '_' + state.currentDay;
+  const curLog  = state.trainLogs[key2 + '_' + ex.id + '_0'];
+  const prevLog = state.trainLogs[prevKey2 + '_' + ex.id + '_0'];
+  if (!curLog || !prevLog) return '';
+  const isTimeTarget = ex.metricType !== 'distance';
+  if (isTimeTarget) {
+    const curD  = curLog.loggedDistance  !== undefined && curLog.loggedDistance  !== '' ? parseFloat(curLog.loggedDistance)  : null;
+    const prevD = prevLog.loggedDistance !== undefined && prevLog.loggedDistance !== '' ? parseFloat(prevLog.loggedDistance) : null;
+    if (curD === null || prevD === null) return '';
+    const diff = curD - prevD;
+    if (diff === 0) return '';
+    const col = diff > 0 ? 'var(--accent)' : 'var(--red)'; // further is "better" when time is fixed
+    return ` <span style="color:var(--text3);">· Last wk: <span style="color:${col};">${diff > 0 ? '+' : ''}${diff.toFixed(2)} ${ex.distanceUnit || 'km'}</span></span>`;
+  } else {
+    const curS = getCardioLoggedSeconds(curLog), prevS = getCardioLoggedSeconds(prevLog);
+    if (curS === null || prevS === null) return '';
+    const diff = curS - prevS;
+    if (diff === 0) return '';
+    const col = diff < 0 ? 'var(--accent)' : 'var(--red)'; // less time is "better" when distance is fixed
+    return ` <span style="color:var(--text3);">· Last wk: <span style="color:${col};">${diff > 0 ? '+' : ''}${diff}s</span></span>`;
+  }
+}
+
+// "target · last-logged levels" text (no sets count) — shared by the solo
+// Train card subtitle and the superset member preview row, so both reflect
+// last logged levels consistently (see getCardioSuggestedLevels()).
+function buildCardioTrainSubtitlePart(macro, ex) {
+  const isTimeTarget = ex.metricType !== 'distance';
+  const targetPart = isTimeTarget
+    ? formatCardioSeconds(ex.targetSeconds) + ' target'
+    : formatCardioDistance(ex.targetDistance, ex.distanceUnit) + ' target';
+  const levelsText = buildCardioTrainLevelsText(macro, ex);
+  return targetPart + (levelsText ? ' · ' + levelsText : '');
+}
+
+// Suggested speed/resistance levels for a cardio exercise: whatever was
+// actually logged most recently (this week's set 1 if already filled in,
+// else last week's set 1), falling back to the plan-time default only when
+// nothing's ever been logged. Raw numeric values (or null) — used both for
+// the header subtitle (formatted) and "Fill suggested" (written directly).
+function getCardioSuggestedLevels(macro, ex) {
+  const key2 = macro.id + '_' + state.currentWeek + '_' + state.currentDay;
+  const curLog = state.trainLogs[key2 + '_' + ex.id + '_0'] || {};
+  const prevWeek = state.currentWeek - 1;
+  const prevLog = prevWeek >= 1 ? (state.trainLogs[macro.id + '_' + prevWeek + '_' + state.currentDay + '_' + ex.id + '_0'] || {}) : {};
+  const pick = (curV, prevV, planV) =>
+    (curV !== undefined && curV !== '') ? curV
+    : (prevV !== undefined && prevV !== '') ? prevV
+    : (planV != null ? planV : null);
+  return {
+    speed: ex.speedLevel != null ? pick(curLog.speedLevel, prevLog.speedLevel, ex.speedLevel) : null,
+    resistance: ex.resistanceLevel != null ? pick(curLog.resistanceLevel, prevLog.resistanceLevel, ex.resistanceLevel) : null,
+  };
+}
+
+// Formatted "speed X, resistance Y" text for the header subtitle, per
+// getCardioSuggestedLevels() — i.e. reflecting last logged, not just the
+// plan default (see buildCardioTargetLevelsText() for the Plan-page
+// equivalent, which only ever shows the plan default since there's no
+// "logged" concept there).
+function buildCardioTrainLevelsText(macro, ex) {
+  const levels = getCardioSuggestedLevels(macro, ex);
+  const parts = [];
+  if (levels.speed != null) parts.push('speed ' + levels.speed);
+  if (levels.resistance != null) parts.push('resistance ' + levels.resistance);
+  return parts.join(', ');
+}
+
+// "Fill suggested" for a cardio exercise: fills every set's speed/
+// resistance level inputs with the suggested (last logged, or plan
+// default) values — deliberately does NOT touch the logged time/distance
+// value or mark anything done, since there's no suggested time/distance to
+// fill (no progression exists for cardio) and no "overhead complete" is
+// wanted here, per spec.
+function fillCardioLevels(macroId, week, day, exId, sets) {
+  const macro = state.macrocycles.find(m => m.id === macroId);
+  if (!macro) return;
+  const templateKey = macroId + '_1_' + day;
+  const ex = (state.exercises[templateKey] || []).find(e => e.id === exId);
+  if (!ex) return;
+  const levels = getCardioSuggestedLevels(macro, ex);
+  const baseKey = macroId + '_' + week + '_' + day;
+  for (let s = 0; s < sets; s++) {
+    const logKey = baseKey + '_' + exId + '_' + s;
+    if (!state.trainLogs[logKey]) state.trainLogs[logKey] = {};
+    if (levels.speed != null) state.trainLogs[logKey].speedLevel = levels.speed;
+    if (levels.resistance != null) state.trainLogs[logKey].resistanceLevel = levels.resistance;
+  }
+  save();
+  renderTrainDay(macro);
+}
+
+// Full Train card for a solo cardio exercise — header (name, sets · target
+// · levels, delta badge, done count) plus one logging row per set.
+// Full Train card for a solo cardio exercise — header (name, sets · target
+// · last-logged levels, delta badge, done count, click to expand/collapse)
+// plus, when expanded: Fill-suggested/Clear controls (levels only — see
+// fillCardioLevels()), a column header row, and one logging row per set.
+function buildCardioTrainCard(macro, ex, expandKey, isExpanded) {
+  const sets = getWeekSets(ex, state.currentWeek, macro.weeks);
+  const key2 = macro.id + '_' + state.currentWeek + '_' + state.currentDay;
+  let doneCount = 0;
+  for (let s = 0; s < sets; s++) {
+    if ((state.trainLogs[key2 + '_' + ex.id + '_' + s] || {}).done) doneCount++;
+  }
+  const allDone = doneCount === sets && sets > 0;
+  const deltaBadge = buildCardioDeltaBadge(macro, ex);
+  const isTimeTarget = ex.metricType !== 'distance';
+  const targetPart = isTimeTarget
+    ? formatCardioSeconds(ex.targetSeconds) + ' target'
+    : formatCardioDistance(ex.targetDistance, ex.distanceUnit) + ' target';
+  const levelsText = buildCardioTrainLevelsText(macro, ex);
+  const subtitle = `${sets} sets · ${targetPart}` + (levelsText ? ' · ' + levelsText : '') + deltaBadge;
+
+  let expandedBody = '';
+  if (isExpanded) {
+    const loggedColLabel = isTimeTarget ? (ex.distanceUnit || 'km') : 'time';
+    let setRows = '';
+    for (let s = 0; s < sets; s++) setRows += buildCardioSetRowHtml(macro, ex, s, false);
+    expandedBody = `<div style="padding:0 14px 14px;border-top:0.5px solid var(--border);">
+      <div style="height:10px;"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;">Log sets</div>
+        <div style="display:flex;gap:6px;">
+          <button onclick="event.stopPropagation();fillCardioLevels('${macro.id}',${state.currentWeek},'${state.currentDay}','${ex.id}',${sets})"
+            title="Fill suggested speed/resistance levels for every set"
+            style="font-size:11px;padding:5px 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;color:var(--text2);font-family:var(--font-display);cursor:pointer;">
+            ↓ Fill suggested
+          </button>
+          <button onclick="event.stopPropagation();clearExerciseLogs('${macro.id}',${state.currentWeek},'${state.currentDay}','${ex.id}',${sets})"
+            style="font-size:11px;padding:5px 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;color:var(--red);font-family:var(--font-display);cursor:pointer;">
+            Clear
+          </button>
+        </div>
+      </div>
+      <div class="cardio-set-row" style="grid-template-columns:${getCardioGridTemplate(ex, false)};padding-top:0;">
+        <span style="font-size:10px;color:var(--text3);">Set</span>
+        <span style="font-size:10px;color:var(--text3);">Target (${isTimeTarget ? 'time' : 'distance'})</span>
+        <span style="font-size:10px;color:var(--text3);text-align:center;">${loggedColLabel}</span>
+        ${ex.speedLevel != null ? '<span style="font-size:10px;color:var(--text3);text-align:center;">speed</span>' : ''}
+        ${ex.resistanceLevel != null ? '<span style="font-size:10px;color:var(--text3);text-align:center;">resist</span>' : ''}
+        <span style="font-size:10px;color:var(--text3);text-align:center;">✓</span>
+      </div>
+      ${setRows}
+    </div>`;
+  }
+
+  return `<div style="margin-bottom:2px;border-bottom:1px solid var(--border);">
+    <div onclick="toggleExercise('${expandKey}')"
+      style="width:100%;background:none;border:none;padding:14px 2px;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-family:var(--font-display);font-size:15px;font-weight:600;color:var(--text);">${ex.name} <span class="badge badge-blue" style="font-size:10px;vertical-align:middle;">cardio</span></div>
+          <div style="font-size:12px;color:var(--text2);margin-top:5px;">${subtitle}</div>
+        </div>
+        <span style="font-size:11px;color:${allDone ? 'var(--accent)' : 'var(--text3)'};flex-shrink:0;white-space:nowrap;">${allDone ? '✓ done' : `${doneCount}/${sets}`}</span>
+      </div>
+      <div onclick="event.stopPropagation();toggleExercise('${expandKey}')" style="display:flex;justify-content:flex-end;margin-top:4px;padding:4px 0 4px 20px;margin-right:-4px;">
+        <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${isExpanded ? '180' : '0'}deg)"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+    </div>
+    ${expandedBody}
+  </div>`;
 }
 
 // Reps are always a whole number, or a range like "8–10" — never the word
@@ -17284,10 +18039,35 @@ function renderModeToggle() {
   });
 }
 
+// Global cardio distance-unit preference (v7.66) — 'km' (default) offers a
+// per-exercise km/m choice in the exercise modal, 'mi' is a single fixed
+// unit with no per-exercise choice (see getDistanceUnitPref()). Changing
+// this does NOT retroactively convert any already-saved targets/logs —
+// existing cardio exercises keep whatever unit they were set up with; only
+// new/edited exercises pick up the new preference by default.
+function setDistanceUnitPref(unit) {
+  if (!state.profile) state.profile = {};
+  state.profile.distanceUnitPref = unit;
+  save();
+  renderDistanceUnitToggle();
+}
+
+// Syncs the Settings page's Km/Miles toggle buttons to reflect
+// state.profile.distanceUnitPref.
+function renderDistanceUnitToggle() {
+  const el = document.getElementById('distance-unit-toggle-row');
+  if (!el) return;
+  const unit = getDistanceUnitPref();
+  el.querySelectorAll('.toggle-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.unit === unit);
+  });
+}
+
 // Top-level render function for the Settings screen — mode control
 // and the storage-usage summary.
 function renderSettings() {
   renderModeToggle();
+  renderDistanceUnitToggle();
   const raw = localStorage.getItem('bloc_state') || '';
   const kb = (new Blob([raw]).size / 1024).toFixed(1);
   const el = document.getElementById('storage-info');
@@ -17440,7 +18220,23 @@ const DEFAULT_LIBRARY = [
   {name:'Reverse Grip Extensions',bodyPart:'Triceps'},
   {name:'Rope Extensions',bodyPart:'Triceps'},
   {name:'Skull Crushers',bodyPart:'Triceps'},
+  // Cardio defaults (v7.66) — every other entry above is implicitly
+  // category:'weight' via the fallback in getLibraryCategory(); these three
+  // are explicitly 'cardio' so the exercise picker and modal auto-select
+  // Cardio mode when one of them is chosen.
+  {name:'Run',bodyPart:'Cardio',category:'cardio'},
+  {name:'Bike',bodyPart:'Cardio',category:'cardio'},
+  {name:'Row',bodyPart:'Cardio',category:'cardio'},
 ];
+
+// Every library entry (built-in or custom) that predates the cardio feature
+// has no category field at all — this is deliberately NOT backfilled via
+// migration, since 'weight' is simply the correct default for every legacy
+// entry. Always read an entry's category through this helper rather than
+// entry.category directly.
+function getLibraryCategory(entry) {
+  return (entry && entry.category) || 'weight';
+}
 
 // Returns the merged exercise library — built-in DEFAULT_LIBRARY entries
 // plus state.customLibrary — used to populate the exercise picker and to
@@ -17452,11 +18248,17 @@ function getLibrary() {
 }
 
 // Fills the exercise-name <select> in the add/edit exercise modal from
-// getLibrary(), grouped into optgroups by body part.
+// getLibrary(), grouped into optgroups by body part — filtered to only the
+// category currently active in the modal's Weight/Cardio toggle, so the two
+// lists never mix (a weight exercise never appears while in Cardio mode,
+// and vice versa). Custom exercises appear in whichever list matches their
+// own saved category.
 function populateExerciseSelect(selectedName) {
   const sel = document.getElementById('ex-name-input');
   if (!sel) return;
-  const lib = getLibrary();
+  const categoryBtn = document.querySelector('#ex-category-toggle .toggle-btn.active');
+  const category = categoryBtn && categoryBtn.dataset.cat === 'cardio' ? 'cardio' : 'weight';
+  const lib = getLibrary().filter(e => getLibraryCategory(e) === category);
   const bodyParts = [...new Set(lib.map(e => e.bodyPart))];
   sel.innerHTML = '';
   bodyParts.forEach(bp => {
@@ -17480,13 +18282,23 @@ function populateExerciseSelect(selectedName) {
 }
 
 // Handles picking '__custom__' from the exercise name select — opens the
-// custom exercise modal instead of accepting that literal value.
+// custom exercise modal instead of accepting that literal value. Any other
+// selection is already guaranteed to match the active category, since
+// populateExerciseSelect() only ever lists exercises from that category —
+// nothing further to sync here.
 function onExNameChange(sel) {
   if (sel.value === '__custom__') {
     sel.selectedIndex = 0;
     // Use requestAnimationFrame to let the current event cycle finish before opening
     requestAnimationFrame(() => {
       document.getElementById('custom-ex-name-input').value = '';
+      // Cardio custom exercises always get bodyPart 'Cardio' (see
+      // saveCustomExercise()) — the picker is pointless and confusing for
+      // them, since 'Cardio' isn't even one of its options, so hide it
+      // entirely rather than offer a choice that's silently overridden.
+      const categoryBtn = document.querySelector('#ex-category-toggle .toggle-btn.active');
+      const isCardio = categoryBtn && categoryBtn.dataset.cat === 'cardio';
+      document.getElementById('custom-ex-bodypart-group').style.display = isCardio ? 'none' : '';
       document.getElementById('modal-custom-exercise').classList.add('open');
     });
   }
@@ -17494,16 +18306,26 @@ function onExNameChange(sel) {
 
 // Saves a new custom exercise (name + required body part) into
 // state.customLibrary, then re-selects it in the picker it was opened from.
+// Tagged with whatever category is currently active in the parent exercise
+// modal's Weight/Cardio toggle — the custom-exercise modal doesn't ask
+// again since the user already told us via that toggle before opening it.
 function saveCustomExercise() {
   const name = document.getElementById('custom-ex-name-input').value.trim();
-  const bodyPart = document.getElementById('custom-ex-bodypart').value;
+  const bodyPartRaw = document.getElementById('custom-ex-bodypart').value;
   if (!name) return;
+  const categoryBtn = document.querySelector('#ex-category-toggle .toggle-btn.active');
+  const category = categoryBtn && categoryBtn.dataset.cat === 'cardio' ? 'cardio' : 'weight';
+  const bodyPart = category === 'cardio' ? 'Cardio' : bodyPartRaw;
   if (!state.customLibrary) state.customLibrary = [];
   if (!state.customLibrary.find(e => e.name === name)) {
-    state.customLibrary.push({name, bodyPart});
+    state.customLibrary.push(category === 'cardio' ? {name, bodyPart, category} : {name, bodyPart});
     save();
   }
   closeModal('modal-custom-exercise');
+  // category is already the modal's active toggle (that's where we read it
+  // from above), so just refresh the filtered list with the new entry
+  // selected — no need to re-apply category visibility, and doing so via
+  // selectExCategory() would repopulate with a blank selection instead.
   populateExerciseSelect(name);
   updateLastLoggedPreview();
 }
