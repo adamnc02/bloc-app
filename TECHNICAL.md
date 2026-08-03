@@ -202,7 +202,7 @@ let state = {
                            //   _blocLabel (v7.00): step label from the LLM recommendation that created this goal,
                            //   used by the advice card to reliably match saved goals back to plan steps for
                            //   live date display. Only present on goals created via the AI goal queue flow.
-  customLibrary:     [],   // Array<{name, bodyPart}> — user-added exercise library entries
+  customLibrary:     [],   // Array<{name, bodyPart, category?}> — user-added exercise library entries; category ('weight'|'cardio', new ~v7.60–v7.68) defaults to 'weight' via getLibraryCategory() when absent, and bodyPart is meaningless (and hidden in the Add Custom modal) for cardio entries
   nutritionMeals:    {},   // Record<date, {Breakfast:[], Lunch:[], Dinner:[], Snacks:[]}>
   nutritionQuickLog: {},   // Record<date, {kcal, protein, carbs, fats}> — overrides meal totals for that day when present
   foodLibrary:       [],   // Array<FoodItem>  {id, name, brand, per100kcal, per100p, per100c, per100f, defaultServing, source}
@@ -214,7 +214,7 @@ let state = {
   progressionTargets: {},  // Record<lockKey + '_w' + week, {weightTargets, repsTargets}> — per-week target cache backing the guard's idempotency (v7.57), see §12
   exerciseHistory:   {},   // Record<nameNorm, Record<setType, HistoryEntry>> — see §12 Exercise History. HistoryEntry = {sets, reps, weight, dropWeight, dropReps, date}
   exerciseTrackingMode: {}, // Record<nameNorm, 'total'|'perSide'> — remembered tracking mode per exercise name, updated alongside exerciseHistory
-  profile:           {},   // {gender, heightCm, birthday, measureUnit} — used for BMR/TDEE calc on the Body screen; measureUnit ('in'|'cm', default 'in') governs the waist/hip input mode only — storage is always inches regardless (v6.12)
+  profile:           {},   // {gender, heightCm, birthday, measureUnit, distanceUnit} — used for BMR/TDEE calc on the Body screen; measureUnit ('in'|'cm', default 'in') governs the waist/hip input mode only — storage is always inches regardless (v6.12). distanceUnit ('km'|'mi', new ~v7.60–v7.68) is the global Distance Units Settings preference — only shown as a per-exercise km/m picker in Plan's cardio exercise modal when set to 'km' (a 'mi' preference has no further per-exercise sub-choice)
   currentMacroId:    null, // string | null
   currentWeek:       1,
   currentDay:        'push',
@@ -280,6 +280,26 @@ There is no longer a migration pass for old `mesocycles`/`currentMesoId` key nam
 `Macrocycle.sessionsPerWeek` is calculated, not user-entered, since v6.04 — always `days.length` at creation time (§11). It's still stored on the macrocycle (used by the Plan summary label and `getActivityMultiplier()`'s TDEE estimate), just no longer editable independently of the actual split.
 
 `Exercise.type` is one of `'standard'`, `'giant'`, `'pause'`, or `'dropset'`. `'giant'` and `'pause'` were `'myorep'` and `'myomatch'` prior to v6.06 — this was a full data-level rename (not just display labels), so existing backups need every exercise's `type` field remapped (`myorep`→`giant`, `myomatch`→`pause`) alongside every function/variable that keyed off the old strings (`getMyorepProgression`→`getGiantSetProgression`, `isMyomatch`→`isPauseSet`, etc.). `'dropset'` is new in v6.05 — see §12 Drop Sets. As of **v6.09**, a drop-set exercise's `reps` field holds a real plan-time target for its **main set**, same as any other type — prior to v6.09 this was always forced to `''` since drop sets had no rep target at all. The drop *portion* still has no plan-time target and is discovered live every week (unchanged).
+
+**`Exercise.category`** (new in the cardio session, ~v7.60–v7.68): `'weight' | 'cardio'`. Legacy exercises and `customLibrary` entries with no stored `category` are treated as `'weight'` via `getLibraryCategory()` at every read site — a pure function, not a `load()` migration, since there was nothing to actually write back. A cardio exercise carries an entirely different set of plan-time fields instead of `type`/`reps`/`weight`:
+
+```js
+{
+  id, name, order, category: 'cardio',
+  setsStart, setsEnd,        // same shared range field as weight exercises (now 1–15, was 2–7)
+  metricType:    'time' | 'distance',  // which one is the fixed plan-time target
+  targetSeconds: 90,          // present when metricType === 'time'
+  targetDistance: 2.5,        // present when metricType === 'distance'
+  distanceUnit:  'km' | 'm' | 'mi',
+  speedLevel:    8,            // optional
+  resistanceLevel: 6,          // optional
+  supersetId, supersetOrder,   // same superset fields as weight exercises — cardio can be a member
+}
+```
+
+The Train-side log entry for a cardio set stores whichever of time/distance *isn't* the fixed target (the complementary metric), plus `speedLevel`/`resistanceLevel` if logged that week — same `state.trainLogs` key shape as any other exercise (§ Key formats below), no separate key format needed.
+
+The "standalone" boolean that used to exist purely to force a 1-set session was removed in the same session — `setsStart`/`setsEnd` can now both independently range 1–15, so a single-set session is simply `setsStart === setsEnd === 1`.
 
 **`SampleDayGroup`** (v7.25, `state.sampleDays[]`) — the Sample Day Library's storage shape:
 
@@ -506,6 +526,8 @@ Screen internal IDs match their nav labels exactly: `home`, `progress`, `plan`, 
 
 ### Nav Pill Animation
 
+**Full-width nav bar (new in the cardio session, ~v7.60–v7.68)**: `#nav` changed from a floating auto-width pill anchored to the bottom of the app shell to a bar spanning the app's **full width**, and every `.nav-btn`'s text label is now permanently visible — the `max-width`/`opacity` transition that previously revealed a label only on the active tab was removed, so all six labels show unconditionally regardless of which screen is active. `positionNavPill()`'s underlying rect-based positioning logic is unchanged; only the outer bar's own width and the label-visibility CSS changed.
+
 `positionNavPill()` reads the bounding rect of the currently active `.nav-btn`, then sets `#nav-pill`'s `left` and `width` via inline style. The CSS `transition` on `#nav-pill` (`transform`, `width`) produces the morphing spring animation between nav items.
 
 The pill colour is derived at runtime by `getPageHeroColors(screenName)`:
@@ -728,7 +750,7 @@ Below the Statistics section (`#progress-nutrition`) and above Weekly Macro Spli
 
 Below the "Insights" card deck sits a second, separate swipeable stack — same visual mechanics (touch/mouse swipe, dot pagination) as the hero and insights decks, but with no text label under the dots:
 
-- `buildWeeklySummaryCardHTML()` — the weekly summary table (weight delta / avg kcal / avg steps / avg protein) as an HTML string rather than writing directly to the DOM, so it can be selected between by `renderProgressTables()`. Returns a short empty-state card instead of `''` when there isn't enough data yet, since the stack always needs something to show on this slide. **As of v7.28, this card no longer includes the Swing column** — swing moved to its own dedicated card (below), since cramming four metrics' worth of swing data plus the averages into one table was cluttered.
+- `buildWeeklySummaryCardHTML()` — the weekly summary table (**avg weight** — new in the cardio session, ~v7.60–v7.68, sitting immediately left of the weight delta column — / weight delta / avg kcal / avg steps / avg protein) as an HTML string rather than writing directly to the DOM, so it can be selected between by `renderProgressTables()`. Returns a short empty-state card instead of `''` when there isn't enough data yet, since the stack always needs something to show on this slide. **As of v7.28, this card no longer includes the Swing column** — swing moved to its own dedicated card (below), since cramming four metrics' worth of swing data plus the averages into one table was cluttered.
 - `buildWeeklySwingsCardHTML()` (**new in v7.28**) — the second slide: smallest/largest consecutive day-to-day change within each calendar week, one column each for weight, kcal, steps, and protein (previously weight-only, embedded in the summary table). Values are formatted with locale thousand-separators (`fmtSigned()`'s `toLocaleString()` call) so a large steps swing reads `+2,450` rather than `+2450`. Same empty-state pattern as the summary card.
 - `buildMeasurementsCardHTML()` — same week-bucket shape, for waist/hip. Same empty-state pattern. Now the third slide (was the second, prior to v7.28's swings card insertion).
 - `renderProgressTables()` — picks `[buildWeeklySummaryCardHTML(), buildWeeklySwingsCardHTML(), buildMeasurementsCardHTML()][progressTablesIndex]`, writes it into `#progress-tables-wrap`, and renders the dots into `#progress-tables-dots`. `PROGRESS_TABLES_COUNT` is `3` (was `2`).
@@ -769,10 +791,23 @@ Each day (Push/Pull/Legs, or custom-named sessions) renders as its own collapsib
 - The header's summary line (`N exercises · N sets · Nkg volume`) sums `getWeekSets()` and volume across every exercise in the session, including every superset member individually, always using week-1 values. Drop-set exercises contribute 0 to this theoretical volume figure, since they have no planned rep target to project from (§12) — their real volume only appears once logged, in `getSessionVolume()`.
 
 ### Exercise modal
-- Exercise type: **Standard**, **Giant Set**, **Pause Set**, or **Drop Set** (`ex-type-select`, values `standard`/`giant`/`pause`/`dropset`). Giant Set locks sets to 1 (`onExTypeChange()`). As of **v6.09**, Drop Set keeps the reps-target field visible rather than hiding it — it sets the **main set's** rep target, same as any other type; the inline note below the field is swapped to clarify that only the main set has a target and the drop is always a reduction in weight taken to failure (prior to v6.09 the field was hidden entirely and `ex.reps` was forced to `''`, since drop sets had no rep target at all). Drop Set is disabled in the type dropdown (`setDropsetOptionEnabled(false)`) whenever the modal is adding into or editing a superset member, since drop sets can't be superset members.
+- **Weight / Cardio category toggle (new in the cardio session, ~v7.60–v7.68)**, `ex-category-select` (or equivalent toggle), values `'weight'`/`'cardio'` — reconfigures which fields the rest of the modal shows via `onExCategoryChange()`. Switching to Cardio hides the weight-specific type/reps/weight fields and shows: a Time-vs-Distance target toggle, the corresponding time (min/sec) or distance input, a per-exercise km/m unit picker (only rendered when the global `state.profile.distanceUnit` preference is `'km'`), and optional speed/resistance level inputs. See "Cardio Exercises" below for the full field list and Train-side behaviour.
+- **Sets range widened to 1–15 (was 2–7)**, applying to both weight and cardio exercises, dropping the separate `standalone` boolean that previously existed purely so a session could be forced to a single set — a 1-set session is now simply `setsStart === setsEnd === 1`, same field, no special-casing.
+- **Exercise picker filters to the active category** — `getLibrary()`/the picker's underlying list is filtered by whichever category tab is selected (Weight vs Cardio), so the two lists never mix regardless of built-in or custom origin. `saveCustomExercise()` writes whichever category was active when "Add Custom" was opened, and the Add Custom modal conditionally hides its Body Part field (`ex-custom-bodypart-row` or equivalent) when the active category is Cardio, since body part has no meaning for a cardio exercise.
+- Exercise type: **Standard**, **Giant Set**, **Pause Set**, or **Drop Set** (`ex-type-select`, values `standard`/`giant`/`pause`/`dropset`) — only shown when the category is Weight. Giant Set locks sets to 1 (`onExTypeChange()`). As of **v6.09**, Drop Set keeps the reps-target field visible rather than hiding it — it sets the **main set's** rep target, same as any other type; the inline note below the field is swapped to clarify that only the main set has a target and the drop is always a reduction in weight taken to failure (prior to v6.09 the field was hidden entirely and `ex.reps` was forced to `''`, since drop sets had no rep target at all). Drop Set is disabled in the type dropdown (`setDropsetOptionEnabled(false)`) whenever the modal is adding into or editing a superset member, since drop sets can't be superset members.
 - **Last logged reference** (`ex-last-logged-note`) — below the exercise name, shows one line per set type this exercise name has history for (e.g. a standard-set line and a separate giant-set line for the same exercise, if you've trained it both ways), pulled from `state.exerciseHistory`. Reference-only — never affects any calculation. Updated by `updateLastLoggedPreview()` whenever the name changes.
-- **History-based defaults** — when adding a new exercise (never when editing an existing one), reps and starting weight prefill from `state.exerciseHistory[name][selectedType]`, and tracking mode prefills from `state.exerciseTrackingMode[name]`, via `applyExerciseHistoryDefaults()`. Switching set type re-applies against that type's own remembered numbers. Sets always stay at the fixed default (2–5), never pulled from history. Everything remains fully editable.
+- **History-based defaults** — when adding a new exercise (never when editing an existing one), reps and starting weight prefill from `state.exerciseHistory[name][selectedType]`, and tracking mode prefills from `state.exerciseTrackingMode[name]`, via `applyExerciseHistoryDefaults()`. Switching set type re-applies against that type's own remembered numbers. Everything remains fully editable.
 - `saveCustomExercise()` also refreshes the last-logged preview after re-selecting the newly created exercise.
+
+### Cardio Exercises (new in the cardio session, ~v7.60–v7.68)
+
+Cardio is a `category`, not an `Exercise.type` — it sits alongside weight exercises in the same session/superset structures, but plans an entirely different field set (see §3 State Model for the shape).
+
+- **Plan card summary** — `getCardioSummaryLine(ex)` (or equivalent) builds a compact readable string like "3–5 sets · 30s target · resistance 8" from `setsStart`/`setsEnd`, the fixed `metricType` target, and whichever level fields are set, alongside a distinct cardio badge instead of the usual weight/reps summary.
+- **Superset membership** — a cardio exercise can be linked into a superset alongside weight exercises via the normal `openLinkModal()`/superset flow (§ Supersets above); a cardio member's Plan-card row shows "follows leader" in place of its own sets range, matching how non-leader weight members already display, since a superset's set count is always driven by its leader.
+- **Bug fix — sets dropdown stuck disabled**: editing a non-leader superset member could leave its sets dropdown permanently disabled afterward, because the enable/reset step that normally runs on a fresh "Add exercise" open was missing on the edit path for non-leader members. Fixed by running the same reset unconditionally on modal open, regardless of add vs. edit or leader vs. non-leader.
+- **Bug fix — superset done-count badge**: the combined "N/M sets done" badge shown on a superset card was always counting a cardio member's sets as 0 done, since the done-count logic only ever checked weight-style set-log fields. Fixed by branching the per-member done check on `ex.category`.
+- **"min" vs "m" label fix**: the time-target label (minutes, `min`) and the distance-target unit (metres, `m`) read too similarly at a glance next to each other — relabelled for clarity.
 
 ### Supersets
 - `openAddExerciseToSuperset(day, ssId)` — add an exercise into an existing group
@@ -882,7 +917,22 @@ A drop-set exercise (`ex.type === 'dropset'`) plans its **main set** exactly lik
 - **Superset restriction**: drop sets can't be superset members. The type option is disabled in the modal (`setDropsetOptionEnabled(false)`) when adding into or editing within a superset, `saveExercise()` has a belt-and-braces fallback to `standard` if one somehow gets submitted anyway, and `openLinkModal()` excludes drop-set exercises from the selectable list entirely (and refuses to open at all if the origin exercise is itself a drop set).
 - **Volume**: `getSessionVolume()` adds the drop portion (drop weight × drop reps) alongside the main portion for drop-set exercises. As a side effect of the v6.09 reps-target change, the Plan page's *theoretical* volume projections (Week-1 session summary, body-part volume table) now also include a drop-set exercise's main-set contribution — previously both relied on `ex.reps`, which was always `''` for drop sets, so they contributed nothing at all (see §29, since this resolves a previously-listed limitation). The drop portion still contributes nothing to these theoretical projections, correctly, since it never has a plan-time target to project from.
 
-### Exercise History
+### Cardio Exercises (Train-side; new in the cardio session, ~v7.60–v7.68)
+
+A cardio exercise (`ex.category === 'cardio'`) renders a dedicated logging card, structurally separate from the per-row grid every weight exercise type uses:
+
+- **Layout** — expand/collapse like any other exercise card; column headers (Set / Target / logged unit / speed / resist / ✓) are laid out with CSS grid rather than flex/table, matching the technique weight exercises already used elsewhere in Train. This was a deliberate fix: an earlier flex-based attempt left the header cells misaligned against their data rows whenever a level column was hidden (not every cardio exercise sets speed/resistance), since flex doesn't guarantee column-width parity across independently-rendered rows the way a shared grid template does.
+- **One row per set** — logs whichever of time/distance *isn't* `ex.metricType` (the fixed plan-time target), plus optional speed/resistance inputs and a done toggle. There is no weight/reps pair at all for a cardio row.
+- **Placeholders** — every input's placeholder is last week's logged value at that same set index, sourced the same way weight exercises pull a "last week" reference, but with **no computed suggestion layered on top** — cardio has no progression model, so there's nothing to suggest beyond "here's what you did last time."
+- **Header info** — shows the last **logged** speed/resistance (not the plan-time default, which may never have been hit or updated) plus a delta badge in the same "Last wk: +500m/−30s" style as the weight-exercise "Last wk: ↑ weight" badge, built from comparing this week's fixed-target complementary metric against last week's.
+- **Fill Suggested** — for cardio, only fills the speed/resistance level fields (there's no weight/reps to fill); **Clear** behaves identically to every other exercise type, wiping the exercise's logs for the current session.
+- **Exemptions** — cardio exercises are fully bypassed by:
+  - Progression suggestions (`exProgData()`'s weight/reps computation never runs for a cardio exercise)
+  - The Progression Compliance Guard (§ above) — no lock can ever be created against a cardio exercise, since there's no weight/reps target to miss
+  - Deload weight reduction — deload only ever scales weight-exercise logged values by 60%; a cardio exercise's targets and logs are untouched during a deload week
+- **Superset membership** — a cardio exercise can be a superset member alongside weight exercises, following the leader's set count (§11 Plan). Since different members can have entirely different metric/level configurations, each member renders its own per-row mini labels rather than sharing one label row across the group.
+
+
 `state.exerciseHistory` and `state.exerciseTrackingMode` (§3) snapshot the most recent real performance per exercise name (+ set type, for history), refreshed by `recordExerciseHistory(macro, week, dayKey, ex)` every time a set is completed via `toggleSetDone()` or a quick-fill-complete button — never for deload sessions. This replaced an earlier, more expensive approach (searching the single "last completed macrocycle" by end date each time the Add Exercise modal opened) — the running-snapshot approach is O(1) to read, always reflects the true most recent log regardless of which macro it came from, and doesn't require special-casing macros with no logged history yet.
 
 - Recorded fields per (name, type): `sets` (count of sets with a logged weight that week, falling back to the planned count), `reps`, `weight`, `dropWeight`, `dropReps` (drop-set only), `date` (`getLocalToday()`).
@@ -929,8 +979,7 @@ See §17 — opened via the clock icon in the Train header.
 
 Body is no longer its own screen or nav-bar entry (removed in v7.51, folded into Settings). `renderBody()` is now a much smaller function, populating only `#body-log-list` inside `modal-settings-body-logs` — everything else it used to build (the hero card, weight-history chart, inline "log weigh-in" card, and measurement reminder pill) was removed along with roughly 200 lines of computation that fed only those sections (weekly/cycle change, `avg7w`, `leftToGoStr`, the profile badge, the measurement-delta callout row) once their target `<div>`s no longer existed anywhere in the markup — deleted outright rather than left as dead-but-guarded code, since none of it was reachable from any UI path any more. The now-unused `ascLogs` variable was removed for the same reason.
 
-- `openSettingsBodyLogs()` — refreshes `renderBody()` then opens `modal-settings-body-logs`. Called from Settings → Profile card → "Body logs", and internally by `openTodaysBodyLogModal()` below. Does not close any parent modal (Profile is now an inline Settings card, not a modal, §16).
-- `openTodaysBodyLogModal()` — opens the Body logs modal, then, stacked on top of it, either today's existing entry via `openEditBodyLog(today)` or a blank entry (`openModal('modal-body-log')`, which defaults its date field to today) if nothing's logged yet. This is what Home's "Edit today's logs" link calls (§30) — it used to just open the Body screen; now it lands directly on today's own entry.
+- `openSettingsBodyLogs()` — refreshes `renderBody()` then opens `modal-settings-body-logs`. Called from Settings → Profile card → "Body logs", and from Home's steps card "View logs" button (§30, v7.72). Does not close any parent modal (Profile is now an inline Settings card, not a modal, §16).
 - `openBodyProfile()` / `saveBodyProfile()` — gender, height (cm or ft/in via `switchHeightUnit`), birthday, stored in `state.profile`. Previously reachable by tapping the Body page's hero card; now opened directly from Settings → Profile card → "About me" (`modal-body-profile` itself is unchanged). Height unit resets to ft/in on every open regardless of last-used unit (a known minor friction point, not a bug — confirmed as acceptable).
 - `calcAge()`, `getActivityMultiplier()`, `calcMifflinBMR()`, `calcDynamicTDEE()` — BMR/TDEE calculation, still used by the Progress page's Metabolism insight card (§10) even though Body itself no longer surfaces them directly. Body weight is stored and displayed in **lbs** throughout (confirmed intentional — training weight elsewhere in the app is in kg; there is deliberately no unit toggle for body weight). `getActivityMultiplier()` averages steps across the person's *entire* logged history with no recency window — also intentional, since this multiplier only feeds the BMR/TDEE estimate and more historical data makes it more accurate, not less.
 - `openEditBodyLog(idx)` / `saveInlineBodyLog()` / `saveBodyLog()` / `deleteBodyLog(date)` — body weight + steps log CRUD, unchanged. `saveInlineBodyLog()`'s own inline card no longer exists in the UI (removed with the rest of the hero section), but the function itself is retained since nothing else needed touching to remove just its container.
@@ -1075,6 +1124,7 @@ Below the hero card, `#nutr-save-badge-wrap` shows a save prompt on any day that
 Rendered by `renderSettings()`, which still just handles theme swatches, the mode toggle, storage info, and the API key status line — all now living inside modals rather than directly on the screen (see Layout below), but populated the same way regardless of which container they're in, since `document.getElementById()` doesn't care whether its target is currently visible.
 
 - `setTheme(name)` / `setMode(mode)` — update state, set the `data-theme`/`data-mode` attribute, save, re-render the active screen
+- `setDistanceUnit(unit)` (new in the cardio session, ~v7.60–v7.68) — writes `state.profile.distanceUnit` (`'km'`/`'mi'`), save, re-render. Read by Plan's cardio exercise modal to decide whether the per-exercise km/m sub-picker shows at all (only when the global preference is `'km'` — a `'mi'` preference has no further per-exercise choice to make).
 - `exportData()` / `importData(event)` — full-state JSON backup/restore, with a structural sanity check on import (`parsed.macrocycles && parsed.exercises && parsed.trainLogs` must all be present)
 - `clearAllData()` — resets macrocycles/exercises/logs/goals/nutrition/foodLibrary/recipes/supersets/profile/sampleDays to empty, but **preserves** `theme`/`mode` (carried forward from the pre-clear state and re-applied to `<body>` immediately) since the confirm dialog only ever promises to delete tracked data, not appearance preferences. The reset object's shape is kept in exact sync with everything `load()`'s defensive defaults expect — an earlier version of this function omitted `recipes`/`supersets`/`profile` entirely, which left `state.supersets` undefined and threw on the very next superset action, since several reads of it aren't null-guarded (e.g. `state.supersets[ssId]`). **`sampleDays` (§28) was similarly missing until v7.31** — didn't crash anything (`load()`'s defensive default caught it on next boot), but meant a "Clear all data" left the Sample Day Library quietly intact, which the confirm dialog's wording doesn't promise.
 - `exportLibrary()` / `importExerciseLibrary(file)` — exercise library backup/restore (merge-by-name)
@@ -1086,7 +1136,7 @@ The Settings screen is a list of collapsible cards, plus one always-visible Expo
 ```
 About this app          — tappable row → modal-settings-about (storage usage)
 Profile card            — expanded by default
-  App preferences        → modal-app-preferences (Mode + Theme)
+  App preferences        → modal-app-preferences (Mode + Theme + Distance Units)
   About me                → modal-body-profile (§13)
   Body logs               → modal-settings-body-logs (§13)
   Linked services         → modal-linked-services → modal-api-key
@@ -1213,6 +1263,7 @@ function getGiantSetProgression(ex, week) {
 - **Giant Set** (was "Myorep Giant Set") — weight or rep progression (giant-set reps add +10/week when reps is chosen)
 - **Pause Set** (was "Myorep Matching") — fixed reps, weight progression only
 - **Drop Set** (new in v6.05; main-set reps target added in v6.09) — main set is planned exactly like Standard (starting weight, and since v6.09 a reps target too); only the drop portion (drop weight, drop reps) is discovered live each week starting in week 1. Progression, once there's a prior week to compare against, applies identically to both the main and drop pairs — and, since v6.09, suggestions are computed **per set** rather than uniformly from set 1 (see §12 Progression data). See §12 for the full data model and UI.
+- **Cardio** (new in the cardio session, ~v7.60–v7.68; a `category`, not an `Exercise.type` — see §3) — none of the three progression functions above ever run against a cardio exercise. There is no weight/reps jump to compute, no Progression Compliance Guard lock possible, and no deload weight reduction applied; Train placeholders are purely last-week's logged value, with no suggestion layered on top. See §12 Cardio Exercises for the full behaviour.
 
 This same weight-jump formula is shared by the Plan page's progression preview and the Train page's live recommendations, so both always agree.
 
@@ -1315,7 +1366,7 @@ Not exhaustive — covers the functions most useful to know when working on the 
 | `initHomeMeasBox()` | Sets the measurements box's unit toggle and resets fraction pickers after each render (v7.53) |
 | `renderHomeFoodPreview()` | Today's planned food, ordered by first meal appearance |
 | `renderHomeTrainPreview()` | Next incomplete session preview, name + sets × reps × suggested weight |
-| `renderHomeEditLogsLink()` / `openTodaysBodyLogModal()` | "Edit today's logs" → Settings → Body logs → today's entry |
+| `openSettingsBodyLogs()` | Settings → Body logs, and Home's steps card "View logs" button (v7.72) |
 | `getAllMacroSessions(macro)` / `getNextIncompleteSession(macro)` | Shared with Train (§12) — the single source of truth for "what's next" |
 
 ### Progress
@@ -1324,7 +1375,7 @@ Not exhaustive — covers the functions most useful to know when working on the 
 | `renderProgressHero(animate = false)` / `renderProgressHeroDots()` / `initProgressHeroSwipe()` | The hero card; counts up from 0 on an actual page load when `animate` (v7.65) |
 | `animateProgressHeroValues(data)` | Counts the weight figure, calendar-time bar, and Volume/Steps/Kcal callouts up together (v7.65) |
 | `insightsAnimateTo(idx)` / `initInsightsSwipe()` | 3-card "Insights" swipe deck (Progress/Metabolism/Next cycle), pre-dates v6.12 |
-| `buildWeeklySummaryCardHTML()` | Weekly summary table (weight delta, avg kcal/steps/protein) as an HTML string; weight delta is this-week-average vs last-week-average (v6.12, was single-day-to-single-day before). Swing column removed in v7.28 — moved to `buildWeeklySwingsCardHTML()` |
+| `buildWeeklySummaryCardHTML()` | Weekly summary table (avg weight — new ~v7.60–v7.68 — weight delta, avg kcal/steps/protein) as an HTML string; weight delta is this-week-average vs last-week-average (v6.12, was single-day-to-single-day before). Swing column removed in v7.28 — moved to `buildWeeklySwingsCardHTML()` |
 | `buildWeeklySwingsCardHTML()` | Weekly swing table (smallest/largest day-to-day change) as an HTML string, one column each for weight/kcal/steps/protein — its own card as of v7.28 (previously weight-only, embedded in the summary table); values use locale thousand-separators |
 | `buildMeasurementsCardHTML()` | Weekly waist/hip table as an HTML string, only including weeks with a measurement logged (v6.12) |
 | `renderProgressTables()` / `progressTablesAnimateTo(idx)` / `initProgressTablesSwipe()` | Swipe deck holding the three table cards above (v6.12; expanded from 2 to 3 cards in v7.28) |
@@ -1376,6 +1427,9 @@ Not exhaustive — covers the functions most useful to know when working on the 
 | `updateLastLoggedPreview()` | Refreshes the exercise modal's "Last logged" reference note from `state.exerciseHistory` |
 | `applyExerciseHistoryDefaults()` | Prefills reps/weight/tracking-mode defaults from history when adding a new exercise (never when editing) |
 | `setDropsetOptionEnabled(enabled)` | Enables/disables the Drop Set option in the type dropdown (disabled in superset contexts) |
+| `getLibraryCategory(entry)` | Returns `entry.category` if present, else `'weight'` — the default-resolution helper for legacy exercises/library entries with no stored category (new ~v7.60–v7.68) |
+| `onExCategoryChange()` | Reconfigures the exercise modal's visible fields when the Weight/Cardio toggle changes (new ~v7.60–v7.68) |
+| `getCardioSummaryLine(ex)` | Builds the Plan-card cardio summary string (e.g. "3–5 sets · 30s target · resistance 8") from sets range, fixed metric target, and level fields (new ~v7.60–v7.68) |
 
 ### Training
 | Function | Description |
@@ -1408,6 +1462,9 @@ Not exhaustive — covers the functions most useful to know when working on the 
 | `evaluateProgressionLock(macro, week, dayKey, ex)` | Creates, updates, or clears a progression lock by comparing a fully-logged week's actual sets against the applicable target; caches the target used per-week so re-evaluation can never drift (v7.55–v7.57, §12) |
 | `recheckProgressionLockForKey(logKey)` | `onblur` handler re-running the compliance check when an already-done set's weight/reps is edited afterward — deliberately not on every keystroke (v7.56, §12) |
 | `sanitizeReps(v)` | Strips a trailing `reps`/`rep` word from a reps value before it's stored — the compliance guard's fix for a pre-existing free-text-field data quirk (v7.57, §12) |
+| `renderCardioExerciseCard(...)` | Full logging card for a cardio exercise — grid-aligned headers, one row per set logging the non-fixed metric, level inputs, done toggle (new ~v7.60–v7.68) |
+| `fillSuggestedCardio(...)` | Fills only the speed/resistance level fields for a cardio exercise's sets — there's no weight/reps to fill (new ~v7.60–v7.68) |
+| `getCardioLastLoggedDelta(ex, week, dayKey)` | Builds the "Last wk: +500m/−30s"-style header delta badge by comparing this week's logged complementary metric against last week's (new ~v7.60–v7.68) |
 
 ### Body
 | Function | Description |
@@ -1520,6 +1577,7 @@ Not exhaustive — covers the functions most useful to know when working on the 
 |---|---|
 | `setTheme(name)` | Updates `state.theme`, sets `data-theme` on `<body>`, saves |
 | `setMode(mode)` | Updates `state.mode`, sets `data-mode` on `<body>`, saves |
+| `setDistanceUnit(unit)` | Updates `state.profile.distanceUnit` (`'km'`/`'mi'`), saves, re-renders — governs whether Plan's cardio exercise modal shows its per-exercise km/m sub-picker (new ~v7.60–v7.68) |
 | `exportData()` | Downloads full state as JSON |
 | `getApiKey()` | Returns stored Anthropic API key from `localStorage` (`'bloc_api_key'`) or null (v7.00) |
 | `saveApiKey()` | Writes or clears the API key from `localStorage`; never touches `state` (v7.00) |
@@ -2105,6 +2163,8 @@ See §3's callout for the full story — `range.proteinMax` was stored as the re
 | **Maintenance recalibration flag (Phase 3, §27) — not yet click-tested live** | `computeMaintenanceRecalibration()` is logic-tested against synthetic scenarios matching real data and verified against the actual live functions, but hasn't been exercised in the live app yet, since it only fires during an active maintenance bridge and testing so far has happened outside of one. Treated as working; flag if anything looks off once genuinely tested against a live maintenance cycle. |
 | **Sample Day Library — formal links never expire (§28)** | `group.linkedGoalIds` only ever grows (a goal is added the moment a day is saved under it) — there's no path that removes an id from it, even if that goal's targets are later edited to fall well outside the group's `range`. In practice this is rarely visible, since `getEffectiveLinkedGoalIds()` still shows it as a linked pill either way (formally-linked ids are unconditionally included), but it means a formal link is permanent even after the underlying similarity that justified it is gone. |
 | **Progression Compliance Guard — whole-exercise, not per-set lock granularity (§12)** | If 3 of 4 sets hit the target but one didn't, the entire exercise locks, not just the offending set — a deliberate simplification agreed during design rather than tracking per-set lock state, which would add real complexity for a corner case (per-set targets already vary week to week via the v6.09 per-set carry-forward). Revisit only if per-set locking is explicitly requested. |
+| **Cardio has no progression model at all (§12, new ~v7.60–v7.68)** | Deliberate, not a gap — cardio exercises never get a computed suggestion, only last week's logged value as a placeholder. There is no plan for a "suggested pace/distance" feature; cardio is intentionally treated as free-form conditioning work rather than a progressively-overloaded lift. |
+| **`Exercise.category` default has no `load()` migration (§3, new ~v7.60–v7.68)** | Unlike most schema additions in this app (which get a defensive default written back in `load()`), a missing `category` is resolved purely at read time via `getLibraryCategory()`, returning `'weight'` without ever writing the field back onto the stored exercise/library entry. This is intentional — there's nothing to repair, since every read site already calls the same helper — but means `state.exercises`/`state.customLibrary` entries predating the cardio session will never actually gain a `category` field in storage, only ever resolve to one on read. Worth knowing before writing any future code that reads `ex.category` directly instead of through `getLibraryCategory()`. |
 
 ### Resolved (previously listed as open questions)
 
@@ -2207,7 +2267,7 @@ This same pattern — `animate` param threaded only through the real page-load c
 - **Measurements** — gated on a **4-day cycle rather than daily**: `daysSinceMeas` is computed from the most recent `bodyLogs` entry with a `waist` or `hip` value (`Infinity` if none exist yet, so the box shows immediately for a first-time user rather than waiting on an undefined "since"), and the box only renders when `daysSinceMeas >= 4`. Once shown, it's the full waist/hip form — unit toggle, quarter-inch picker — not just a tap-to-open prompt; this is the same markup and ids the now-removed `modal-home-log-measurements` used (`homeFracState`, `setHomeMeasUnit()`, `setHomeFrac()`, all retained), just inlined directly into the screen rather than behind a modal. A fixed warning line ("It has been 4 days since you last recorded your measurements.") sits above the form regardless of the actual elapsed count. `initHomeMeasBox()` runs right after the box is inserted into the DOM to set the unit toggle to `state.profile.measureUnit` and reset the fraction pickers — the inline equivalent of what the old modal's open-handler used to do. `saveHomeMeasurements()` always writes to **today's** date (the 4-day gate controls whether the box shows, not what date it logs to) and, like the other two boxes, preserves whatever weight/steps are already logged today. The countdown "restarting" needs no special-case code — it falls out naturally from `daysSinceMeas` being recomputed fresh on every render against whatever the most recent `bodyLogs` measurement entry now is.
 - **Removed in this rework**: `modal-home-log-weight`, `modal-home-log-steps`, `modal-home-log-measurements`, and their three `openHomeLog*()` opener functions — there's nothing left to open, since these are inline now. `saveHomeWeight()`/`saveHomeSteps()`/`saveHomeMeasurements()` themselves were kept (their state-writing logic didn't change) but had their `closeModal(...)` calls dropped.
 - **Measurements header (fixed v7.62)**: the weigh-in and steps boxes each render a "Log weigh-in"/"Log steps" eyebrow header above their input; the measurements box was missing the equivalent "Log measurements" header entirely — it went straight from the box's top padding into the 4-day warning line. Added so all three boxes are visually consistent.
-- **No cross-box dividers**: the three boxes render back-to-back inside `#home-log-boxes` with no divider between them — a single `.divider` is appended once, after whichever box renders last, right before the "Edit today's logs" link / food preview that follows.
+- **No cross-box dividers**: the three boxes render back-to-back inside `#home-log-boxes` with no divider between them — a single `.divider` is appended once, after whichever box renders last, right before the food preview that follows.
 
 ### Save-confirmation animation (`playLogSaveAnimation()`, new in v7.61; extended to steps in v7.65)
 
@@ -2223,7 +2283,7 @@ The scale-shaped icon and the steps footprint icon from the old tile design are 
 
 - `renderHomeFoodPreview()` — groups today's planned items (via the existing `getNutrDayMeals()`, §14) into recipes (summed servings) and non-recipe items (summed grams), **ordered by first meal appearance** (Breakfast → Lunch → Dinner → Snacks) rather than alphabetically or by aggregate order — an item logged in both Breakfast and Lunch sorts ahead of one only in Lunch, tracked via a `firstMealIndex` map built while iterating meals in that fixed order. Card title reads "Planned food today"; renders an explicit "Nothing planned for today" empty state rather than omitting the card. Tapping anywhere on the card (not just its "Open →" link) navigates to Nutrition.
 - `renderHomeTrainPreview()` — uses `getNextIncompleteSession(macro)`, extracted from `renderTrain()`'s own auto-select logic into a shared `getAllMacroSessions(macro)` / `getNextIncompleteSession(macro)` pair (§12) specifically so Home and Train can never disagree about what "next" means. Row per exercise: name, `getWeekSets()` × `ex.reps`, and — added after an initial pass omitted it — `getWeekWeight(ex, week, 'weight', macro.goalType, macro.weightIncrement)` for a suggested weight, deliberately not the exercise's set-type or its last-mesocycle progression (kept intentionally simple per spec). Title reads "Next session – {session name}", where the session name resolves `macro.dayLabels[dayId] + microSuffix` the same way Train's own hero does. Whole card is tappable (forces `trainManualSelect = false` first, so it always lands on the true next-incomplete session even if Train had a manual selection left over from a previous visit).
-- **"Edit today's logs" link** — `openTodaysBodyLogModal()` (§13): opens the Body logs modal, then stacks either today's existing entry (`openEditBodyLog`) or a blank one defaulting to today on top of it.
+- **Steps card "View logs" button (v7.72, replacing the old "Edit today's logs" link)** — within `renderHomeHero()`'s per-metric row builder, the `ctaStr` for the steps row (`m.field === 'steps'`) renders a permanent "View logs" button (`onclick="showScreen('settings');openSettingsBodyLogs();"`), regardless of whether steps are tracked yet this week. **Bug fixed in the same pass**: `ctaStr` was originally gated on `!tracked` (steps untracked this week) rather than on which metric the row was — so a brand-new account with no data at all rendered the button on *every* row (kcal/protein/carbs too), not just steps. Fixed by keying `ctaStr` to `m.field === 'steps'` directly, independent of `tracked`. The old "Edit today's logs" link (its render function `renderHomeEditLogsLink()`, its `#home-edit-logs-link` placeholder div, its CSS, and its dedicated `openTodaysBodyLogModal()` opener) was removed entirely rather than left dormant, since `openSettingsBodyLogs()` alone (§13) already covers what the button needs to do.
 
 ---
 

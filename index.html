@@ -43,7 +43,7 @@
   --r: 8px;
   --r-sm: 4px;
   --r-lg: 14px;
-  --nav-h: 54px;
+  --nav-h: 64px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
 
@@ -207,7 +207,7 @@ body {
   position: absolute;
   top: 5px;
   left: 0;
-  height: 44px;
+  height: 54px;
   width: 0;
   border-radius: 999px;
   background: var(--accent);
@@ -221,16 +221,18 @@ body {
   z-index: 1;
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 44px;
-  padding: 0 9px;
+  gap: 3px;
+  height: 54px;
+  padding: 0 6px;
   border-radius: 999px;
   background: none;
   border: none;
   color: var(--nav-inactive);
   font-family: var(--font-display);
-  font-size: 12.5px;
+  font-size: 10.5px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
@@ -244,7 +246,7 @@ body {
   max-width: 90px;
   opacity: 1;
   overflow: hidden;
-  margin-left: 6px;
+  margin-left: 0;
 }
 .nav-btn.active { color: var(--on-accent); }
 
@@ -693,8 +695,6 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 .home-goal-banner { margin-top: 0; margin-bottom: 6px; background: transparent; border: none; border-bottom: 1px solid var(--border2); border-radius: 0; padding: 14px 2px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
 .home-goal-banner-text { font-size: 13px; color: var(--text); font-weight: 600; }
 .home-goal-banner-sub { font-size: 11px; color: var(--text2); margin-top: 2px; }
-.home-edit-logs-link { text-align: right; margin-top: 8px; margin-bottom: 14px; }
-.home-edit-logs-link span { font-size: 11px; color: var(--text3); text-decoration: underline; cursor: pointer; }
 .home-food-row, .home-ex-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--text); padding: 7px 0; gap: 8px; }
 .home-food-row + .home-food-row, .home-ex-row + .home-ex-row { border-top: 0.5px solid var(--border); }
 .home-row-sub { color: var(--text2); font-size: 11px; flex-shrink: 0; text-align: right; }
@@ -1554,7 +1554,6 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <div id="home-hero-wrap"><div id="home-hero-card"></div></div>
       <div id="home-goal-banner"></div>
       <div id="home-log-boxes"></div>
-      <div id="home-edit-logs-link"></div>
       <div id="home-food-preview"></div>
       <div id="home-train-preview"></div>
     </div>
@@ -1642,7 +1641,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
       <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 2px;border-bottom:1px solid var(--border);margin-bottom:16px;cursor:pointer;" onclick="openModal('modal-settings-about')">
         <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-        <span class="tag tag-outline">v7.66</span>
+        <span class="tag tag-outline">v7.72</span>
       </div>
 
       <!-- ── Profile section ── -->
@@ -4569,8 +4568,14 @@ function evaluateProgressionLock(macro, week, dayKey, ex) {
     const targetR = repsTargets[s] !== undefined ? repsTargets[s] : repsTargets[repsTargets.length - 1];
     const actualW = logs[s].weight ? parseFloat(logs[s].weight) : null;
     const actualR = logs[s].reps !== undefined && logs[s].reps !== null ? String(logs[s].reps).trim() : '';
-    const wOk = actualW !== null && targetW !== undefined && Math.abs(actualW - parseFloat(targetW)) < 0.01;
-    const rOk = targetR !== undefined && actualR === String(targetR).trim();
+    // Meeting OR exceeding the suggested number is compliant — only
+    // falling short is a miss. A machine that only lets you jump by 5kg
+    // when the plan called for 2.5kg, or an extra couple of reps past the
+    // target, isn't a compliance failure; it's still progression, just by
+    // more than planned. Reps compare via parseRepsForVolume's lower-bound
+    // extraction so ranges (e.g. "8–10") compare sensibly too.
+    const wOk = actualW !== null && targetW !== undefined && (actualW - parseFloat(targetW) > -0.01);
+    const rOk = targetR !== undefined && parseRepsForVolume(actualR) >= parseRepsForVolume(targetR);
     if (!wOk || !rOk) { compliant = false; break; }
   }
 
@@ -11496,12 +11501,6 @@ function deleteMacrocycle(id) {
 // session. It deliberately does no data-entry itself beyond the three
 // quick-log modals below; everything else is a jumping-off point to the
 // page that actually owns that data.
-//
-// NOTE (temporary, until Job 2/Job 3 ship): the goal-banner tap-through
-// currently lands on the Goals page, and the "Edit today's logs" link
-// currently lands on the Body page, since neither Job 2 (goals folded
-// into Plan) nor Job 3 (Body folded into Settings) exists yet. Both are
-// marked below and should be repointed once those land.
 
 const HOME_STEPS_TOLERANCE = 500;
 
@@ -11559,27 +11558,8 @@ function getHomeMetricBadge(field, avg, target, dayMap, weekStart, today) {
   // two can never disagree with each other.
   let paceValue = avg;
   if (dayMap && weekStart && today) {
-    const dow = getHomeIsoDow(today);
-    const daysRemaining = 8 - dow; // today + whatever's left in the week
-    if (daysRemaining > 0) {
-      const yesterday = (() => {
-        const d = new Date(today + 'T00:00:00');
-        d.setDate(d.getDate() - 1);
-        return toLocalDateStr(d);
-      })();
-      let loggedSoFar = 0;
-      let daysTrackedSoFar = 0;
-      Object.keys(dayMap).forEach(d => {
-        if (d >= weekStart && d <= yesterday) {
-          const day = dayMap[d];
-          const hasField = field === 'steps' ? day.steps !== null : day.hasNutr;
-          if (hasField) { loggedSoFar += (day[field] || 0); daysTrackedSoFar++; }
-        }
-      });
-      const neededTotal = target * (daysTrackedSoFar + daysRemaining);
-      const remainingBudget = neededTotal - loggedSoFar;
-      paceValue = remainingBudget / daysRemaining;
-    }
+    const info = getWeeklyRequiredDaily(field, dayMap, weekStart, today, target);
+    if (info && info.daysRemaining > 0) paceValue = info.requiredDaily;
   }
 
   // Needing MORE than target for the rest of the week (paceValue above
@@ -11618,22 +11598,33 @@ function getHomeMetricBadge(field, avg, target, dayMap, weekStart, today) {
 function getWeeklyRequiredDaily(field, dayMap, weekStart, today, target) {
   if (target === null || target === undefined) return null;
   const dow = getHomeIsoDow(today); // Monday=1 .. Sunday=7
-  const daysRemaining = 8 - dow;    // today + whatever's left in the week
-  const yesterday = (() => {
+  // A day only stays "open" (still recoverable budget) until it actually
+  // has a logged value — once today has one, it's settled just like any
+  // earlier day, and must count in the sum below rather than being
+  // silently skipped. Without this, day 1 of a week always has zero prior
+  // days AND excludes today, so the pace calc trivially equals target no
+  // matter what today's real number is.
+  const todayEntry = dayMap[today];
+  const todayHasField = !!todayEntry && (field === 'steps' ? todayEntry.steps !== null : todayEntry.hasNutr);
+  const cutoff = todayHasField ? today : (() => {
     const d = new Date(today + 'T00:00:00');
     d.setDate(d.getDate() - 1);
     return toLocalDateStr(d);
   })();
+  const daysRemaining = todayHasField ? (7 - dow) : (8 - dow); // days still open
   let loggedSoFar = 0;
   let daysTrackedSoFar = 0;
   Object.keys(dayMap).forEach(d => {
-    if (d >= weekStart && d <= yesterday) {
+    if (d >= weekStart && d <= cutoff) {
       const day = dayMap[d];
       const hasField = field === 'steps' ? day.steps !== null : day.hasNutr;
       if (hasField) { loggedSoFar += (day[field] || 0); daysTrackedSoFar++; }
     }
   });
-  if (daysRemaining <= 0) return { requiredDaily: target, loggedSoFar, daysTrackedSoFar, daysRemaining };
+  if (daysRemaining <= 0) {
+    const requiredDaily = daysTrackedSoFar > 0 ? (loggedSoFar / daysTrackedSoFar) : target;
+    return { requiredDaily, loggedSoFar, daysTrackedSoFar, daysRemaining };
+  }
   const neededTotal = target * (daysTrackedSoFar + daysRemaining);
   const remainingBudget = neededTotal - loggedSoFar;
   return { requiredDaily: remainingBudget / daysRemaining, loggedSoFar, daysTrackedSoFar, daysRemaining };
@@ -11656,9 +11647,8 @@ function projectedWeeklyAverage(dailyGoingForward, info) {
 // wording getHomeMetricSublabel has always used — shared so reconciled
 // figures (see getReconciledMacroAdvice) read identically to unreconciled
 // ones.
-function formatAdviceSublabel(requiredDaily, target, unit, today) {
-  const dow = getHomeIsoDow(today);
-  const daysRemaining = 8 - dow;
+function formatAdviceSublabel(requiredDaily, target, unit, today, daysRemaining) {
+  if (daysRemaining === undefined) daysRemaining = 8 - getHomeIsoDow(today);
   const rounded = Math.round(requiredDaily);
   if (daysRemaining <= 1) {
     return `Hit ${rounded.toLocaleString()}${unit} today to bring the week to target`;
@@ -11677,7 +11667,7 @@ function formatAdviceSublabel(requiredDaily, target, unit, today) {
 function getHomeMetricSublabel(field, dayMap, weekStart, today, target, unit) {
   const info = getWeeklyRequiredDaily(field, dayMap, weekStart, today, target);
   if (info === null) return '';
-  return formatAdviceSublabel(info.requiredDaily, target, unit, today);
+  return formatAdviceSublabel(info.requiredDaily, target, unit, today, info.daysRemaining);
 }
 
 // ── Weekly macro advice reconciliation ──────────────────────────────────
@@ -11764,9 +11754,74 @@ function renderHome(animateHero = false) {
   renderHomeHero(animateHero);
   renderHomeGoalBanner();
   renderHomeLogBoxes();
-  renderHomeEditLogsLink();
   renderHomeFoodPreview();
   renderHomeTrainPreview();
+}
+
+// The 7 calendar-date strings (Monday..Sunday) making up the week that
+// starts on weekStart.
+function getWeekDates(weekStart) {
+  const dates = [];
+  const d = new Date(weekStart + 'T00:00:00');
+  for (let i = 0; i < 7; i++) {
+    dates.push(toLocalDateStr(d));
+    d.setDate(d.getDate() + 1);
+  }
+  return dates;
+}
+
+// A kcal/protein/carbs day only counts as a genuinely "logged" day (as
+// opposed to a day that was simply never filled in) if its kcal comes
+// within 300kcal of the kcal target — close enough to be real intake, not
+// noise from an empty or near-empty log.
+function isCompleteNutritionDay(day, kcalTarget) {
+  if (!day || !day.hasNutr) return false;
+  if (kcalTarget === null || kcalTarget === undefined) return true;
+  return day.kcal >= (kcalTarget - 300);
+}
+
+// Projects what this week's average WOULD be if the plan is followed
+// exactly for any day not yet locked in: today-or-earlier days use what's
+// actually logged (steps falls back to the goal if today has no steps
+// yet, or if some other past day is simply missing one), and every day
+// after today uses the goal value outright, since it hasn't happened yet.
+// For kcal/protein/carbs specifically, a today-or-earlier day only
+// contributes if it's a "complete" day (see isCompleteNutritionDay) —
+// days that don't qualify are skipped entirely (not counted as zero),
+// so the average is only ever over days that actually have real numbers
+// behind them, plus the assumed-on-plan future days.
+function computeWeekPlannedAvg(field, dayMap, weekStart, today, goal) {
+  if (!goal) return null;
+  const target = goal[field];
+  if (target === null || target === undefined) return null;
+  const dates = getWeekDates(weekStart);
+
+  if (field === 'steps') {
+    let sum = 0;
+    dates.forEach(d => {
+      const day = dayMap[d];
+      const hasActual = d <= today && day && day.steps !== null && day.steps !== undefined;
+      sum += hasActual ? day.steps : target;
+    });
+    return Math.round(sum / dates.length);
+  }
+
+  const kcalTarget = goal.kcal;
+  let sum = 0, count = 0;
+  dates.forEach(d => {
+    if (d > today) {
+      sum += target;
+      count++;
+      return;
+    }
+    const day = dayMap[d];
+    if (isCompleteNutritionDay(day, kcalTarget)) {
+      sum += (day[field] || 0);
+      count++;
+    }
+  });
+  if (count === 0) return null;
+  return Math.round(sum / count);
 }
 
 function renderHomeHero(animate = false) {
@@ -11788,32 +11843,68 @@ function renderHomeHero(animate = false) {
     const avg = avgDayMapField(dayMap, m.field, weekStart, today);
     const target = goal ? goal[m.field] : null;
     const pct = (target && avg !== null) ? Math.max(0, Math.min(100, Math.round((avg / target) * 100))) : 0;
-    return { m, avg, target, pct, badge: getHomeMetricBadge(m.field, avg, target, dayMap, weekStart, today) };
+    const weekPlannedAvg = computeWeekPlannedAvg(m.field, dayMap, weekStart, today, goal);
+    return { m, avg, target, pct, weekPlannedAvg, badge: getHomeMetricBadge(m.field, avg, target, dayMap, weekStart, today) };
   });
 
-  const rowsHtml = badges.map(({ m, avg, target, pct }) => {
-    const avgDisplay = avg !== null ? m.fmt(animate ? 0 : avg) : '—';
+  const withData = badges.filter(b => b.badge.label !== 'No data');
+  const trackedCount = withData.length;
+  const ringPct = Math.round((trackedCount / badges.length) * 100);
+  const ringR = 26, ringC = 2 * Math.PI * ringR;
+  const ringShown = animate ? 0 : ringPct;
+  const ringOffset = ringC - (ringC * ringShown) / 100;
+  const ringFraction = `${trackedCount}/${badges.length}`;
+
+  const concerning = withData.filter(b => b.badge.color === 'var(--red)');
+  let subline;
+  if (withData.length === 0) {
+    subline = "Log today's numbers to see how this week is tracking.";
+  } else if (concerning.length === 0) {
+    subline = withData.length === badges.length
+      ? `All ${badges.length} metrics on track this week.`
+      : `${trackedCount} of ${badges.length} tracked so far \u2014 all on track this week.`;
+  } else {
+    const names = concerning.map(b => b.m.name).join(' & ');
+    subline = `${names} off target this week \u2014 see the cards below for details.`;
+  }
+
+  const rowsHtml = badges.map(({ m, avg, target, pct, weekPlannedAvg }) => {
+    const tracked = avg !== null;
+    const avgDisplay = tracked ? m.fmt(animate ? 0 : avg) : '—';
     const targetStr = target !== null && target !== undefined
-      ? `${m.unit} avg / ${m.fmt(target)}${m.unit} target`
-      : `${m.unit} avg / no active goal`;
+      ? `${m.fmt(target)}${m.unit} target`
+      : 'no active goal';
     const fillWidth = animate ? 0 : pct;
-    return `<div style="margin:0 0 14px;">
-      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px;">
-        <span style="font-weight:500;">${m.name}</span>
-        <span style="color:var(--text3);"><span id="hero-avg-${m.field}">${avgDisplay}</span>${targetStr}</span>
-      </div>
+    const plannedStr = weekPlannedAvg !== null
+      ? `<div style="font-size:11px;color:var(--text3);margin-top:2px;">Total this week avg: ${m.fmt(weekPlannedAvg)}${m.unit}</div>`
+      : '';
+    const ctaStr = m.field === 'steps'
+      ? `<button class="btn btn-accent btn-sm" style="align-self:flex-start;margin-top:2px;" onclick="showScreen('settings');openSettingsBodyLogs();">View logs<svg width="12" height="12" viewBox="0 0 256 256" fill="currentColor"><path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"/></svg></button>`
+      : '';
+    return `<div class="card" style="padding:14px 16px;margin-bottom:0;display:flex;flex-direction:column;gap:8px;">
+      <div style="font-size:14px;font-weight:600;">${m.name}</div>
+      <div style="font-size:12px;color:var(--text3);"><span id="hero-avg-${m.field}">${avgDisplay}</span>${m.unit} / ${targetStr}</div>
       <div class="hero-progress-track"><div class="hero-progress-fill" id="hero-fill-${m.field}" style="width:${fillWidth}%;transition:none;"></div></div>
+      ${plannedStr}
+      ${ctaStr}
     </div>`;
   }).join('');
 
   el.innerHTML = `<div style="padding:4px 0 8px;">
     <div class="hero-label">This week</div>
-    <h2 style="margin:0 0 16px;font-size:22px;">Averages vs target</h2>
-    ${rowsHtml}
-    ${buildHomeConsolidatedMessage(badges, dayMap, weekStart, today, goal)}
+    <h2 style="margin:0 0 16px;font-size:22px;">Welcome back</h2>
+    <div style="display:flex;align-items:center;gap:16px;padding:0 0 4px;">
+      <svg width="64" height="64" style="flex-shrink:0;">
+        <circle cx="32" cy="32" r="${ringR}" fill="none" stroke="var(--surface3)" stroke-width="6"></circle>
+        <circle cx="32" cy="32" r="${ringR}" fill="none" stroke="var(--accent)" stroke-width="6" stroke-linecap="round" transform="rotate(-90 32 32)" id="hero-ring-fill" style="stroke-dasharray:${ringC};stroke-dashoffset:${ringOffset};transition:none;"></circle>
+        <text x="32" y="37" text-anchor="middle" fill="var(--text)" font-size="14" font-weight="600" id="hero-ring-pct">${ringFraction}</text>
+      </svg>
+      <p style="margin:0;font-size:13px;color:var(--text2);flex:1;">${subline}</p>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;">${rowsHtml}</div>
   </div>`;
 
-  if (animate) animateHomeHeroValues(badges);
+  if (animate) animateHomeHeroValues(badges, ringPct, ringC);
 }
 
 // Counts the hero's avg numbers and progress bar widths up from 0 to their
@@ -11821,10 +11912,11 @@ function renderHomeHero(animate = false) {
 // an actual Home page load (see renderHome). Metrics with no data yet
 // (avg === null) are left showing "—" / 0% and are skipped, since there's
 // nothing to count up to.
-function animateHomeHeroValues(badges) {
+function animateHomeHeroValues(badges, ringPct, ringC) {
   const duration = 1000;
   const start = performance.now();
   const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+  const ringFillEl = document.getElementById('hero-ring-fill');
 
   function step(now) {
     const t = Math.min(1, (now - start) / duration);
@@ -11836,6 +11928,7 @@ function animateHomeHeroValues(badges) {
       if (numEl) numEl.textContent = m.fmt(Math.round(avg * e));
       if (fillEl) fillEl.style.width = (pct * e) + '%';
     });
+    if (ringFillEl) ringFillEl.style.strokeDashoffset = ringC - (ringC * ringPct * e) / 100;
     if (t < 1) requestAnimationFrame(step);
   }
   requestAnimationFrame(step);
@@ -11868,7 +11961,7 @@ function buildAdviceLineHtml(name, field, dayMap, weekStart, today, target, unit
   const info = getWeeklyRequiredDaily(field, dayMap, weekStart, today, target);
   if (!info) return '';
   const displayValue = (reconciledValue !== null && reconciledValue !== undefined) ? reconciledValue : info.requiredDaily;
-  let sub = formatAdviceSublabel(displayValue, target, unit, today);
+  let sub = formatAdviceSublabel(displayValue, target, unit, today, info.daysRemaining);
   if (warningPrefix) sub = `${warningPrefix} — ${sub.charAt(0).toLowerCase()}${sub.slice(1)}`;
   const newTarget = Math.round(displayValue);
   const projectedAvg = Math.round(projectedWeeklyAverage(displayValue, info));
@@ -12162,15 +12255,6 @@ function initHomeMeasBox() {
   setHomeMeasUnit(unit);
   setHomeFrac('waist', 0);
   setHomeFrac('hip', 0);
-}
-
-// Deep-links to Settings' Body Logs modal, then straight into today's own
-// entry (see openTodaysBodyLogModal) — the Body screen itself no longer
-// exists as a nav destination.
-function renderHomeEditLogsLink() {
-  const el = document.getElementById('home-edit-logs-link');
-  if (!el) return;
-  el.innerHTML = `<div class="home-edit-logs-link" onclick="showScreen('settings');openTodaysBodyLogModal();"><span>Edit today's logs →</span></div>`;
 }
 
 // Groups today's planned food into recipes (summed servings) and
@@ -14425,6 +14509,13 @@ function clearExerciseLogs(macroId, week, day, exId, sets) {
   // Also clear prog key
   const pk = macroId + '_prog_' + week + '_' + day + '_' + exId;
   delete state.trainLogs[pk];
+  // A progression lock (and its frozen target) is a judgment about logged
+  // sets that no longer exist once cleared — without this, the exercise
+  // kept showing as locked against stale numbers even after every set was
+  // wiped, since nothing else here touched progressionLocks.
+  const lockKey = getProgressionLockKey(macroId, day, exId);
+  if (state.progressionLocks) delete state.progressionLocks[lockKey];
+  if (state.progressionTargets) delete state.progressionTargets[lockKey + '_w' + week];
   save();
   const macro = state.macrocycles.find(m => m.id === macroId);
   if (macro) renderTrainDay(macro);
@@ -15740,22 +15831,10 @@ function toggleSettingsCard(key) {
 // refreshes it first since renderBody() is no longer called automatically
 // via a nav tab. Stacks on top of whatever's open (e.g. modal-profile)
 // rather than closing it. Also used directly by the Home page's
-// "Edit today's logs" shortcut.
+// "View logs" button on the steps progress card.
 function openSettingsBodyLogs() {
   renderBody();
   openModal('modal-settings-body-logs');
-}
-
-// Opens the Body Logs modal and, on top of it, today's own log entry for
-// editing (or a blank entry defaulting to today if nothing's logged yet) —
-// used by the Home page's "Edit today's logs" shortcut so it lands
-// straight on today's entry rather than just the list.
-function openTodaysBodyLogModal() {
-  openSettingsBodyLogs();
-  const today = getLocalToday();
-  const hasLog = (state.bodyLogs || []).some(l => l.date === today);
-  if (hasLog) openEditBodyLog(today);
-  else openModal('modal-body-log');
 }
 
 function openProfileNutrition() {
