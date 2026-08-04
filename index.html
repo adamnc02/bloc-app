@@ -13319,8 +13319,18 @@ function renderTrainDay(macro) {
         const targetR = repsPlaceholders[s] !== undefined ? repsPlaceholders[s] : repsPlaceholders[repsPlaceholders.length - 1];
         const actualW = lg.weight ? parseFloat(lg.weight) : null;
         const actualR = lg.reps !== undefined && lg.reps !== null ? String(lg.reps).trim() : '';
-        const wOk = actualW !== null && targetW !== undefined && Math.abs(actualW - parseFloat(targetW)) < 0.01;
-        const rOk = targetR !== undefined && actualR === String(targetR).trim();
+        // Meeting OR exceeding the target is compliant — only falling short
+        // is a genuine miss. This mirrors evaluateProgressionLock()'s own
+        // compliance check exactly (same >-0.01 weight tolerance, same
+        // parseRepsForVolume lower-bound reps comparison) — this badge is
+        // purely a display of that same compliance decision, so it must
+        // never disagree with the logic that actually freezes/clears the
+        // lock. Previously this used an exact-match comparison instead,
+        // which flagged "missed target" any time a set exceeded its
+        // suggestion (e.g. logging 80kg against a 77.5kg target) even
+        // though the lock itself correctly treated that as compliant.
+        const wOk = actualW !== null && targetW !== undefined && (actualW - parseFloat(targetW) > -0.01);
+        const rOk = targetR !== undefined && parseRepsForVolume(actualR) >= parseRepsForVolume(targetR);
         if (!wOk || !rOk) { missedTarget = true; break; }
       }
     }
