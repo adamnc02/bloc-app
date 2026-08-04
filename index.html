@@ -1641,7 +1641,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
       <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 2px;border-bottom:1px solid var(--border);margin-bottom:16px;cursor:pointer;" onclick="openModal('modal-settings-about')">
         <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-        <span class="tag tag-outline">v7.72</span>
+        <span class="tag tag-outline">v7.73</span>
       </div>
 
       <!-- ── Profile section ── -->
@@ -4463,11 +4463,19 @@ function computeRawSuggestedTargets(macro, week, dayKey, ex) {
   const isPauseSet = ex.type === 'pause';
   const prevWeek = week - 1;
   const prevKey = macro.id + '_' + prevWeek + '_' + dayKey;
+  // Only a set actually marked done counts as a real progression source —
+  // an in-progress, not-yet-confirmed entry (typed but not checked off) must
+  // never seed a target that then gets cached and frozen forever (see the
+  // caching note on evaluateProgressionLock below). Without this guard, a
+  // stray draft value present in trainLogs at the moment this first gets
+  // evaluated could compute a target that's silently wrong for good, even
+  // after the real number is logged and confirmed moments later.
   let prevLoggedSets = [];
   if (prevWeek >= 1) {
     const prevSetsCount = getWeekSets(ex, prevWeek, macro.weeks);
     for (let s = 0; s < prevSetsCount; s++) {
-      prevLoggedSets.push(state.trainLogs[prevKey + '_' + ex.id + '_' + s] || null);
+      const prevLog = state.trainLogs[prevKey + '_' + ex.id + '_' + s];
+      prevLoggedSets.push(prevLog && prevLog.done ? prevLog : null);
     }
   }
   const weightTargets = [], repsTargets = [];
@@ -13042,12 +13050,16 @@ function renderTrainDay(macro) {
     // NEXT week sees, never this render.
     evaluateProgressionLock(macro, state.currentWeek, state.currentDay, ex);
 
+    // Same done-check as computeRawSuggestedTargets() above — a set that's
+    // been typed but not yet confirmed must never seed a target, here or
+    // there, so the two implementations can't quietly drift apart again.
     let prevLoggedSets = [];
     if (prevWeek2 >= 1) {
       const prevSetsCount = getWeekSets(ex, prevWeek2, macro.weeks);
       for (let s = 0; s < prevSetsCount; s++) {
         const lk = prevKey2 + '_' + exId + '_' + s;
-        prevLoggedSets.push(state.trainLogs[lk] || null);
+        const prevLog = state.trainLogs[lk];
+        prevLoggedSets.push(prevLog && prevLog.done ? prevLog : null);
       }
     }
     const prevSet1          = prevLoggedSets[0];
