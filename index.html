@@ -791,6 +791,109 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
    other modal, including the highest existing tier (modal-nutr-barcode
    at 310), so it's never hidden behind whatever's already on screen. */
 #modal-confirm { z-index: 320; }
+/* Profile-entry gate (Build Order step 6) — while active, the ✕ close
+   button is hidden entirely rather than left visible-but-inert, since
+   closeModal() already refuses to dismiss this modal in that state (see
+   the PROFILE ENTRY GATE section). Hiding it avoids a dead-looking tap
+   target that does nothing. */
+#modal-body-profile.gate-active .modal-close-btn { display: none; }
+
+/* ── ONBOARDING TOUR (spotlight + tooltip) ──────────────────────────────
+   Shared by the Demo Tour, Macrocycle Creation Tour, and all five
+   Mini-Tours (see TECHNICAL.md §33). Sits at z-index 400 — above every
+   modal tier, including modal-confirm at 320 — since the Macrocycle
+   Creation Tour spotlights elements inside the New Macrocycle modal
+   while it's open, and nothing should be able to render on top of an
+   active tour step.
+
+   Masking approach: four fixed divs (top/bottom/left/right) frame the
+   target element's rect rather than one full-screen div with a CSS
+   clip-path hole. clip-path polygons can't express a rectangular cutout
+   without an SVG path, and more importantly a single div can only have
+   ONE pointer-events value — it can't be "blocking" everywhere except a
+   literal hole. Four separate divs solve both problems at once: each
+   one is real backdrop that blocks taps, and the untouched gap between
+   them (exactly the target's rect) has no element there at all, so a
+   tap on the real target element underneath fires completely natively
+   — no synthetic re-dispatch needed for action-required steps (§33). */
+.tour-mask {
+  position: fixed;
+  background: rgba(0,0,0,0.72);
+  z-index: 400;
+  pointer-events: auto;
+  transition: all 0.25s ease;
+}
+.tour-ring {
+  position: fixed;
+  z-index: 401;
+  border-radius: var(--r-sm);
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 4px rgba(145,132,217,0.22), 0 0 18px rgba(145,132,217,0.35);
+  pointer-events: none;
+  transition: all 0.25s ease;
+}
+/* Pulses gently so an action-required step (e.g. "tap this to continue")
+   reads as interactive rather than just decorative. */
+.tour-ring.tour-ring-pulse { animation: tourPulse 1.6s ease-in-out infinite; }
+@keyframes tourPulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(145,132,217,0.22), 0 0 18px rgba(145,132,217,0.35); }
+  50% { box-shadow: 0 0 0 8px rgba(145,132,217,0.12), 0 0 26px rgba(145,132,217,0.5); }
+}
+.tour-tooltip {
+  position: fixed;
+  z-index: 402;
+  width: min(320px, calc(100vw - 32px));
+  background: var(--surface);
+  border: 0.5px solid var(--border2);
+  border-radius: var(--r-lg);
+  padding: 16px;
+  box-shadow: 0 14px 32px rgba(0,0,0,0.38), 0 2px 10px rgba(0,0,0,0.22);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.2s ease, transform 0.2s ease, top 0.25s ease, left 0.25s ease;
+}
+.tour-tooltip.tour-tooltip-visible { opacity: 1; transform: translateY(0); }
+.tour-tooltip-title { font-size: 14px; font-weight: 700; color: var(--text); font-family: var(--font-display); }
+.tour-tooltip-body { font-size: 12.5px; color: var(--text2); line-height: 1.5; margin-top: 6px; }
+.tour-tooltip-hint { font-size: 10.5px; color: var(--accent2); margin-top: 8px; font-weight: 500; }
+.tour-tooltip-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; gap: 10px; }
+.tour-progress-dots { display: flex; gap: 4px; }
+.tour-progress-dot { width: 5px; height: 5px; border-radius: 999px; background: var(--border2); transition: background 0.2s; }
+.tour-progress-dot.tour-progress-dot-active { background: var(--accent); }
+.tour-tooltip-arrow {
+  position: fixed;
+  z-index: 402;
+  width: 12px; height: 12px;
+  background: var(--surface);
+  border: 0.5px solid var(--border2);
+  transform: rotate(45deg);
+}
+/* Arrow shares only two of its four borders with the tooltip edge it sits
+   against, so the other two would double up as a visible diagonal seam —
+   hidden per placement rather than fighting border-image shorthand. */
+.tour-tooltip-arrow.tour-arrow-top { border-right: none; border-bottom: none; }
+.tour-tooltip-arrow.tour-arrow-bottom { border-left: none; border-top: none; }
+/* Skip-tour confirmation — sits above everything else in the tour stack
+   (mask 400 / ring 401 / tooltip+arrow 402) so it's never itself covered
+   by the mask it's interrupting. Deliberately its own small overlay
+   rather than the app's generic modal-confirm (z-index 320) — that tier
+   sits BELOW the tour's mask, so it would render invisibly behind it. */
+.tour-confirm-overlay {
+  position: fixed; inset: 0; z-index: 410;
+  background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.tour-confirm-card {
+  width: 100%; max-width: 300px;
+  background: var(--surface);
+  border: 0.5px solid var(--border2);
+  border-radius: var(--r-lg);
+  padding: 18px;
+  box-shadow: 0 14px 32px rgba(0,0,0,0.38), 0 2px 10px rgba(0,0,0,0.22);
+  text-align: center;
+}
+
 .modal-sheet {
   width: 100%;
   background: var(--surface);
@@ -1637,11 +1740,17 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
          SCREEN 5: SETTINGS
     ═══════════════════════════════════════════ -->
     <div class="screen" id="screen-settings">
-      <div class="section-title" style="margin-top:0;">Settings</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="section-title" style="margin-top:0;">Settings</div>
+        <button id="settings-help-btn" onclick="openTourHelpModal()" aria-label="Help"
+          style="width:30px;height:30px;border-radius:50%;border:1px solid var(--border2);background:transparent;color:var(--text2);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;flex-shrink:0;">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </button>
+      </div>
 
       <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 2px;border-bottom:1px solid var(--border);margin-bottom:16px;cursor:pointer;" onclick="openModal('modal-settings-about')">
         <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-        <span class="tag tag-outline">v7.73</span>
+        <span class="tag tag-outline">v7.87</span>
       </div>
 
       <!-- ── Profile section ── -->
@@ -1919,7 +2028,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       </div>
     </div>
 
-    <button class="btn btn-accent btn-block" onclick="createMacrocycle()">Create Macrocycle →</button>
+    <button id="macro-create-btn" class="btn btn-accent btn-block" onclick="createMacrocycle()">Create Macrocycle →</button>
   </div>
 </div>
 
@@ -1937,7 +2046,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     </div>
     <div style="display:flex;gap:8px;margin-top:4px;">
       <button class="btn btn-block" style="flex:1;" onclick="nutrPickDate(getLocalToday());closeModal('modal-nutr-date');">Today</button>
-      <button class="btn btn-block" style="flex:1;" onclick="(function(){const d=new Date();d.setDate(d.getDate()-1);nutrPickDate(toLocalDateStr(d));closeModal('modal-nutr-date');})();">Yesterday</button>
+      <button class="btn btn-block" style="flex:1;" onclick="(function(){const d=now();d.setDate(d.getDate()-1);nutrPickDate(toLocalDateStr(d));closeModal('modal-nutr-date');})();">Yesterday</button>
     </div>
   </div>
 </div>
@@ -2316,6 +2425,13 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <button class="modal-close-btn" onclick="closeModal('modal-body-profile')">✕</button>
     </div>
     <div class="modal-title">Body Profile</div>
+    <!-- Shown only while the profile-entry gate (Build Order step 6) is
+         active — hidden the rest of the time, when this is just the
+         ordinary Settings → About me editor. Copy from
+         bloc-onboarding-tour-scope-v2.md §10.1. -->
+    <div id="profile-gate-explainer" style="display:none;font-size:12px;color:var(--text2);line-height:1.5;margin:-8px 0 16px;">
+      Your gender, height, and date of birth power BLOC's calorie and macro calculations throughout the app. These stay on your device even if you clear your data later.
+    </div>
 
     <!-- Gender -->
     <div class="form-group">
@@ -2366,6 +2482,45 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     </div>
 
     <button class="btn btn-accent btn-block" onclick="saveBodyProfile()">Save Profile →</button>
+    <div id="profile-gate-error" style="display:none;font-size:11px;color:var(--red);margin-top:8px;text-align:center;">Please fill in all three fields to continue.</div>
+  </div>
+</div>
+
+<!-- Demo Tour welcome screen — shown once demoData has loaded and before
+     the spotlight sequence begins. See startDemoTour()/beginDemoTourSteps(). -->
+<div class="modal-overlay" id="modal-tour-welcome">
+  <div class="modal-sheet" data-modal="modal-tour-welcome">
+    <div class="modal-handle-row"><div class="modal-handle"></div></div>
+    <div style="text-align:center;padding:8px 4px 4px;">
+      <div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--text);margin-bottom:10px;">Welcome to BLOC</div>
+      <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:22px;">
+        We've loaded a few weeks of sample training and nutrition data so you can see exactly how BLOC works before setting up your own. Take a quick tour — it only takes a minute.
+      </div>
+      <button class="btn btn-accent btn-block" onclick="closeModal('modal-tour-welcome');beginDemoTourSteps();">Let's go →</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tours / Help (Build Order step 8) -->
+<div class="modal-overlay" id="modal-tour-help">
+  <div class="modal-sheet" data-modal="modal-tour-help">
+    <div class="modal-handle-row"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-tour-help')">✕</button>
+    </div>
+    <div class="modal-title">Help</div>
+    <!-- Built with a future Tours-vs-FAQs segmented control in mind
+         (bloc-onboarding-tour-scope-v2.md §8.4) — only Tours ships now,
+         but this uppercase label row is exactly where a two-tab switcher
+         would slot in later without needing to restructure anything
+         below it. -->
+    <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text3);margin-bottom:10px;">Tours</div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <button class="btn btn-block" style="justify-content:space-between;" onclick="startHomeMiniTour()">Home <span style="color:var(--text3);">→</span></button>
+      <button class="btn btn-block" style="justify-content:space-between;" onclick="startProgressMiniTour()">Progress <span style="color:var(--text3);">→</span></button>
+      <button class="btn btn-block" style="justify-content:space-between;" onclick="startPlanMiniTour()">Plan <span style="color:var(--text3);">→</span></button>
+      <button class="btn btn-block" style="justify-content:space-between;" onclick="startTrainMiniTour()">Train <span style="color:var(--text3);">→</span></button>
+      <button class="btn btn-block" style="justify-content:space-between;" onclick="startNutritionMiniTour()">Nutrition <span style="color:var(--text3);">→</span></button>
+    </div>
   </div>
 </div>
 
@@ -2791,6 +2946,33 @@ function toLocalDateStr(d) {
   return `${y}-${m}-${day}`;
 }
 
+// ── Tour "today" anchor ─────────────────────────────────────────────────
+// While the Demo Tour is showing its engineered dataset, every date-aware
+// calculation in the app needs to treat a FIXED calendar date — Sunday
+// 2 Aug 2026, per bloc-demo-data.json's own spec (TECHNICAL.md §35) — as
+// "today", not whatever the device's real clock says. The dataset's
+// plateau signal, its measurement-reminder banner, its weekly kcal
+// averages, and its AI-advice numbers were all engineered against that
+// exact date; computing any of them against the real device date instead
+// would silently drift every one of those carefully-matched figures out
+// of sync with the advice text sitting right next to them.
+//
+// now() is the ONE function every "what is today" call site in the app
+// goes through — including getLocalToday() itself, which is just
+// `toLocalDateStr(now())`. Setting `_tourAnchorDate` makes every one of
+// them see the anchor with zero special-casing anywhere else; clearing it
+// (setTourAnchorDate(null), called by the Demo Tour's wipe-and-handoff)
+// makes the very next call fall straight back to the real device date.
+// Deliberately does NOT touch Date.now() (epoch-ms uniqueness tokens like
+// `'sg_' + Date.now()`) — those aren't "what day is it" and anchoring
+// them would risk id collisions across a pinned-date session instead of
+// preventing them.
+let _tourAnchorDate = null; // 'YYYY-MM-DD' while the Demo Tour is active, else null
+function setTourAnchorDate(dateStr) { _tourAnchorDate = dateStr; }
+function now() {
+  return _tourAnchorDate ? new Date(_tourAnchorDate + 'T00:00:00') : new Date();
+}
+
 // ════════════════════════════════════════════════
 // STATE
 // ════════════════════════════════════════════════
@@ -2954,7 +3136,545 @@ function load() {
   document.body.setAttribute('data-mode', state.mode);
 }
 
+// ════════════════════════════════════════════════
+// DEMO DATA (Onboarding Tour)
+// ════════════════════════════════════════════════
+// bloc-demo-data.json ships as a second static file alongside index.html
+// (see TECHNICAL.md §34) — this is the app's first-ever network
+// dependency of any kind. BLOC is otherwise fully offline-first
+// (everything else reads/writes localStorage only), so this fetch is
+// written to fail completely silently: a slow connection, an ad-blocker,
+// or a stale GitHub Pages cache must never block or break first load for
+// a brand-new person. If it fails, `demoData` simply stays null and no
+// tour starts — the person lands on the exact same empty-state
+// onboarding the app has always had before this feature existed.
+//
+// "New user" is detected the cheap, reliable way: no `bloc_state` key in
+// localStorage at all, checked BEFORE load() runs (load() only reads
+// localStorage — it never writes it, so the key's absence really does
+// mean "this device has never saved anything," not just "state is
+// currently empty"). This also means the fetch naturally never fires
+// again after the very first successful boot: the moment ANY save()
+// happens — including the Demo Tour's own wipe-and-handoff at the end of
+// itself (§5 of the scope doc) — `bloc_state` exists from then on, so a
+// half-seen-then-abandoned demo is the only case that ever re-fetches,
+// which is exactly the behaviour we want (never leaves someone stuck
+// mid-demo with no way back in).
+let demoData = null; // parsed bloc-demo-data.json, once successfully fetched
+
+function fetchDemoDataIfNewUser(isNewUser) {
+  if (!isNewUser) return;
+  fetch('bloc-demo-data.json')
+    .then(res => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
+    .then(data => {
+      demoData = data;
+      startDemoTour();
+    })
+    .catch(err => {
+      // Deliberately just a console warning, never a user-facing error —
+      // see the module comment above for why this must degrade silently.
+      console.warn('[demo] bloc-demo-data.json fetch failed — Demo Tour will not start this session:', err.message);
+    });
+}
+
+// ════════════════════════════════════════════════
+// DEMO TOUR (Build Order step 5)
+// ════════════════════════════════════════════════
+// The walkthrough itself, built on top of the tour engine (§33) and the
+// "today" anchor (§35). Three pieces: enterDemoMode() swaps `state` for
+// the fetched dataset and pins the anchor date; buildDemoTourSteps()
+// builds the actual step list, reading macro/exercise ids directly off
+// `demoData` rather than hardcoding them (see the function's own comment
+// for exactly which assumptions ARE dataset-specific); exitDemoMode()
+// wipes back to a genuinely empty state and clears the anchor. No Skip
+// link on this tour (only Next / Get Started), per scope §1/§4 — that's
+// deliberately reserved for the Macrocycle Creation Tour.
+//
+// Loading demoData into `state` is memory-only — never save()'d — so a
+// page reload mid-demo can't accidentally persist the fake dataset as if
+// it were the person's real data. The only save() in this whole flow is
+// the wipe at the very end of exitDemoMode().
+function enterDemoMode() {
+  if (!demoData) return;
+  // Deep copy: expandedExercises / _blocAdviceSectionsOpen toggles below
+  // mutate `state` freely during the tour, and this must never leak back
+  // into the cached `demoData` object itself.
+  state = JSON.parse(JSON.stringify(demoData));
+  setTourAnchorDate('2026-08-02'); // Sunday — the dataset's anchor date, TECHNICAL.md §35
+  showScreen('home');
+}
+
+function startDemoTour() {
+  enterDemoMode();
+  // A brief pause after the state swap/re-render lets Home's count-up
+  // animation and first paint settle before the welcome modal appears —
+  // matching the same pragmatic delay used for scrollIntoView settling
+  // elsewhere in the tour engine (§33).
+  requestAnimationFrame(() => setTimeout(() => {
+    openModal('modal-tour-welcome');
+  }, 400));
+}
+
+// Called by the welcome modal's "Let's go →" button — the actual
+// spotlight sequence starts here, once the person has acknowledged the
+// welcome screen rather than immediately on state-load.
+function beginDemoTourSteps() {
+  startTour(buildDemoTourSteps(), {
+    allowSkip: false,
+    finalLabel: 'Get Started',
+    onComplete: exitDemoMode,
+  });
+}
+
+// Builds the ordered Demo Tour step list. Copy is the first-pass draft
+// from bloc-onboarding-tour-scope-v2.md §10.2, plus the Train additions
+// from v3 §10.4. Macro/exercise ids are read off `demoData` itself so
+// the tour keeps working if the dataset is ever regenerated with new
+// ids — but the WEEK/DAY and exercise-NAME assumptions below (Pull day
+// at week 5 showing a normal, a locked, and a missed-target exercise
+// side by side) are genuinely dataset-specific, per v3 §10.4's "no
+// forced navigation needed" resolution: the default Train landing
+// already has everything both Train steps need.
+function buildDemoTourSteps() {
+  const macroId = demoData.currentMacroId;
+  const week = demoData.currentWeek;
+  const day = demoData.currentDay;
+  const exList = (demoData.exercises && demoData.exercises[`${macroId}_1_${day}`]) || [];
+  // Expands every exercise on the tour's Train landing day at once, rather
+  // than targeting one exercise by name. Progression lock status is
+  // re-evaluated live from logged sets against targets (not just read
+  // verbatim from the stored progressionLocks blob) — so which exercise
+  // actually renders locked vs normal can end up differing from what a
+  // dataset's own authors expected when they picked names for the scope
+  // doc's tooltip copy. Expanding all of them and then finding whichever
+  // one genuinely has a prog-selector/locked-notice element in the DOM
+  // (below) is correct regardless of that, and never goes stale if the
+  // dataset or the lock logic changes later.
+  const expandAllExercisesForDay = () => {
+    const macro = state.macrocycles.find(m => m.id === macroId);
+    if (!macro) return;
+    exList.forEach(ex => { expandedExercises[`${macroId}_${week}_${day}_${ex.id}`] = true; });
+    renderTrainDay(macro);
+  };
+
+  return [
+    // ── Home ──────────────────────────────────────────────────────────
+    { targetId: 'home-goal-banner', screen: 'home',
+      title: 'Goals change automatically',
+      body: 'When your next goal is close, BLOC shows what\u2019s changing here \u2014 so you\u2019re never caught off guard by a shift in your targets.' },
+    { targetId: 'home-hero-wrap', screen: 'home',
+      title: 'BLOC does the math for you',
+      body: 'If you\u2019re off pace for the week, this tells you exactly how to adjust your daily average for the rest of the week \u2014 no spreadsheet required.' },
+    { targetId: 'home-log-boxes', screen: 'home',
+      title: 'A gentle nudge, not a nag',
+      body: 'Waist/hip measurements aren\u2019t daily \u2014 BLOC reminds you every 4 days, and the reminder stays until you log a fresh one.' },
+    { targetId: 'home-steps-view-logs-btn', screen: 'home',
+      title: 'Quick access',
+      body: 'Tap here any time to jump straight to your full body-log history.' },
+    // ── Progress ──────────────────────────────────────────────────────
+    { targetId: 'progress-body', screen: 'progress',
+      title: 'BLOC watches your trend, not just today',
+      body: 'This card flags plateaus, calorie drift, undereating on a bulk, or weight instability on maintenance \u2014 whatever\u2019s relevant to your current goal. Right now, it\u2019s showing a plateau it\u2019s detected in this data.',
+      // Collapses the AI-advice section and re-renders — needed for Back,
+      // not just the initial forward entry. Without this, arriving here
+      // via Back from the narrative step left the card exactly as the
+      // narrative step's onEnter set it up (expanded, no re-render), so
+      // the ring stayed sized to the expanded card instead of shrinking
+      // back down to this step's collapsed one.
+      onEnter: () => {
+        insightsIndex = 0;
+        _aiAdviceBodyOpen = false;
+        renderProgress();
+      } },
+    { targetId: 'progress-body', screen: 'progress',
+      title: 'BLOC explains its reasoning, not just the numbers',
+      body: 'Tap to expand the full narrative \u2014 BLOC walks through exactly why it thinks this is happening before recommending anything.',
+      // _blocAdviceSectionsOpen.narrative only controls the narrative
+      // sub-section WITHIN the advice card — it's nested behind a
+      // separate outer collapse (_aiAdviceBodyOpen, the "View BLOC AI
+      // advice" toggle) that has to be opened too, or the whole card body
+      // stays hidden regardless of the inner flag. Found by testing: the
+      // narrative visibly failed to expand until both were set together.
+      onEnter: () => {
+        insightsIndex = 0; // defensive — Back can land here directly from
+                            // the Next Cycle step further along the deck
+        _aiAdviceBodyOpen = true;
+        _blocAdviceSectionsOpen.narrative = true;
+        _blocAdviceSectionsOpen.selected = false;
+        _blocAdviceSectionsOpen.alt = false;
+        renderProgress();
+      } },
+    { targetId: 'progress-body', screen: 'progress',
+      title: 'The Sustainable plan',
+      body: 'BLOC always lays out both options side by side \u2014 this is the gentler, slower-paced route toward your goal.',
+      // Which flag shows "Sustainable" depends on which path was actually
+      // chosen (post-choice UI shows the CHOSEN plan under .selected and
+      // the other one under .alt, never a fixed pairing) — read
+      // chosenPath at render time rather than assuming Sustainable is
+      // always the alternate, so this is correct however the advice was
+      // chosen. If no plan has been chosen yet, the card shows both
+      // plans side by side unconditionally and these flags don't apply —
+      // harmless, not wrong, just redundant with the next step in that case.
+      onEnter: () => {
+        insightsIndex = 0; // defensive, same reasoning as the narrative step above
+        _aiAdviceBodyOpen = true;
+        _blocAdviceSectionsOpen.narrative = false;
+        const chosenPath = state.blocAdvice && state.blocAdvice.chosenPath;
+        _blocAdviceSectionsOpen.selected = chosenPath === 'sustainable';
+        _blocAdviceSectionsOpen.alt = chosenPath !== 'sustainable';
+        renderProgress();
+      } },
+    { targetId: 'progress-body', screen: 'progress',
+      title: 'The Aggressive plan \u2014 and a way to push back',
+      body: 'This is the faster, more demanding route. Whichever plan you\u2019re actually on, if the numbers don\u2019t sit right, tap \u2018Challenge this\u2019 above \u2014 BLOC will respond with a revised plan, not just an explanation.',
+      // insightsIndex reset to 0 is the fix for Back from the Next Cycle
+      // step: that step's onEnter jumps the swipe deck to insightsIndex 2,
+      // and without resetting it here, coming back landed the tooltip on
+      // THIS step's ring/content while the deck itself was still showing
+      // the Next Cycle card underneath — spotlight and card visibly out
+      // of sync.
+      onEnter: () => {
+        insightsIndex = 0;
+        _aiAdviceBodyOpen = true;
+        const chosenPath = state.blocAdvice && state.blocAdvice.chosenPath;
+        _blocAdviceSectionsOpen.selected = chosenPath === 'aggressive';
+        _blocAdviceSectionsOpen.alt = chosenPath !== 'aggressive';
+        renderProgress();
+      } },
+    // Card 3 of the same progress-body swipe deck — previously missing
+    // from the tour entirely despite being where the Next Cycle
+    // Recommendation Engine (and its own "ask BLOC to confirm this is a
+    // good fit" second-opinion feature) actually lives.
+    { targetId: 'progress-body', screen: 'progress',
+      title: 'BLOC plans your next cycle too',
+      body: 'As your macrocycle nears its end, this card works out what comes next \u2014 a bridge, a cut, or a bulk \u2014 from your real trend data. Once you\u2019re in the final few weeks, you can ask BLOC for a second opinion here too, the same way you just did on your current plan.',
+      onEnter: () => { insightsIndex = 2; renderProgress(); } },
+    { targetId: 'progress-tables-wrap', screen: 'progress',
+      title: 'There\u2019s more than one screen here',
+      // Hero card used to be a swipe deck too — it isn't any more since
+      // the flat-design redesign, so this step now points at the two
+      // decks that actually are swipeable: this weekly-summary card, and
+      // the insights card (trend/AI-advice/next-cycle) a few steps back
+      // above it. Resets insightsIndex back to 0 first — otherwise the
+      // person would leave the tour with that deck sitting on the Next
+      // Cycle card rather than back at a sensible default.
+      body: 'Swipe left and right on both this card and the insights card you just saw above \u2014 each has several views tucked behind the dots.',
+      onEnter: () => { insightsIndex = 0; renderProgress(); } },
+    // ── Plan ──────────────────────────────────────────────────────────
+    { targetId: 'plan-content', screen: 'plan',
+      title: 'Your macrocycles live here',
+      body: 'This is where you build and manage training blocks. We\u2019ll walk through creating your first one in detail right after this.' },
+    // ── Train ─────────────────────────────────────────────────────────
+    { targetId: `deload-toggle-${macroId}`, screen: 'train',
+      title: 'Deload weeks, one tap',
+      body: 'Mark a week as deload here and every weight drops to 60% automatically \u2014 your next session reverts to normal on its own.' },
+    { targetId: 'train-hero', screen: 'train', // overwritten in onEnter once the real element is known — see comment above
+      title: 'You choose how to progress',
+      body: 'Once you\u2019ve got a full week logged, BLOC gives you two ways forward: add weight, or add reps. Pick whichever fits your session that day.',
+      onEnter: (step) => {
+        expandAllExercisesForDay();
+        const found = document.querySelector(`[id^="prog-selector-${macroId}-"]`);
+        if (found) step.targetId = found.id;
+      } },
+    { targetId: 'train-hero', screen: 'train', // overwritten in onEnter once the real element is known — see comment above
+      title: 'Miss a target and BLOC notices',
+      body: 'If you don\u2019t hit last week\u2019s suggestion, BLOC freezes next week\u2019s numbers at the same target instead of pushing you further \u2014 so you\u2019re never asked to progress on top of a target you haven\u2019t hit yet.',
+      onEnter: (step) => {
+        expandAllExercisesForDay();
+        const found = document.querySelector(`[id^="locked-notice-${macroId}-"]`);
+        if (found) step.targetId = found.id;
+      } },
+    // ── Nutrition ─────────────────────────────────────────────────────
+    { targetId: 'nutr-save-badge-wrap', screen: 'nutrition',
+      title: 'Save a day that\u2019s working',
+      body: 'When a day lands close to your targets, BLOC offers to save it \u2014 so you can reuse it instantly on a future date with Fill Day.' },
+    { targetId: 'meal-menu-btn-Dinner', screen: 'nutrition',
+      title: 'More options on any meal',
+      body: 'Tap the \u22ef on any meal to copy it, move it to another meal, or save it as a recipe.',
+      // Closes the next step's Quick Add modal — needed for Back. The
+      // next step opens modal-nutr-manual in its own onEnter but never
+      // closes it on the way back out, so arriving here via Back left
+      // that modal sitting open on top of (and blocking) this step's
+      // spotlighted ellipsis button. closeModal() is a no-op if the
+      // modal isn't already open, so this is safe on the forward pass too.
+      onEnter: () => closeModal('modal-nutr-manual') },
+    { targetId: 'nutr-manual-mode-item', screen: 'nutrition',
+      title: 'Pick the right entry type',
+      body: 'Per item logs a one-off total. Per gram is for something you\u2019ve weighed yourself \u2014 it saves a reusable per-gram rate to your food library.',
+      onEnter: () => openModal('modal-nutr-manual') },
+  ];
+}
+
+// Ends the Demo Tour: wipes the demo dataset back out to a genuinely
+// empty state (matching clearAllData()'s rebuild shape exactly, so the
+// two never drift apart) and clears the tour's date anchor, so the very
+// next getLocalToday() call reverts to the real device date. Per the
+// scope doc's §5, this then hands off into forced profile entry —
+// openProfileGate(), Build Order step 6 (§37).
+function exitDemoMode() {
+  setTourAnchorDate(null);
+  // The Demo Tour's final step (Nutrition — Per item/Per gram) opens
+  // modal-nutr-manual via onEnter and never closes it — by design, the
+  // tour ends ON that step rather than adding a step just to dismiss it.
+  // Brute-force closing every open modal here (rather than calling
+  // closeModal() per-id) is deliberate: state is about to be wiped
+  // entirely anyway, so none of closeModal()'s side effects (camera
+  // stream teardown, keyboard blur, etc.) apply or matter, and this
+  // stays correct even if a future edit adds another step that leaves a
+  // different modal open.
+  document.querySelectorAll('.modal-overlay.open').forEach(el => el.classList.remove('open'));
+  const keepMode = state.mode;
+  state = {
+    macrocycles: [], exercises: {}, trainLogs: {},
+    bodyLogs: [], nutritionLogs: [],
+    goals: [], customLibrary: [], nutritionMeals: {}, nutritionQuickLog: {}, foodLibrary: [],
+    recipes: [], supersets: {}, profile: {}, deloads: {},
+    progressionLocks: {},
+    progressionTargets: {},
+    exerciseHistory: {}, exerciseTrackingMode: {},
+    insightsRollup: { completedCycles: [] },
+    blocAdvice: null,
+    nextCycleAdvice: null,
+    mode: keepMode || 'dark',
+    currentMacroId: null, currentWeek: 1,
+    currentDay: 'push', currentEditContext: null,
+  };
+  document.body.setAttribute('data-mode', state.mode);
+  save();
+  openProfileGate();
+}
+
+// ════════════════════════════════════════════════
+// MINI-TOURS (Build Order step 8)
+// ════════════════════════════════════════════════
+// Fully manual, Settings-triggered, on-demand — never auto-triggered,
+// never re-shown automatically. Reuses the same per-page tooltip copy as
+// the Demo Tour's corresponding steps (§36), but points at whatever the
+// person's REAL current data actually is, not `demoData`. No date
+// anchor (§35) — Mini-Tours always run against the real device date,
+// since there's no engineered dataset to keep in sync with a fixed
+// anchor. `allowSkip: true` throughout, since unlike the Demo Tour and
+// the Macrocycle Creation Tour these are entirely optional exploration
+// the person opted into — they should always have an easy way out.
+//
+// Because real data varies per person (no macrocycle yet, no meals
+// logged today, no AI advice ever requested, etc.), several steps below
+// target elements that may not currently hold anything interesting, or
+// may not exist in the DOM at all for a genuinely empty account. Both
+// are fine: the tour engine's target-not-found handling (§33) already
+// skips a step cleanly if its element isn't there, and a step whose
+// target exists but is currently empty just explains the feature for
+// next time — the same tradeoff any "explore the app" tour anywhere
+// makes.
+function openTourHelpModal() { openModal('modal-tour-help'); }
+
+function startHomeMiniTour() {
+  closeModal('modal-tour-help');
+  showScreen('home');
+  requestAnimationFrame(() => setTimeout(() => {
+    startTour([
+      { targetId: 'home-goal-banner', screen: 'home',
+        title: 'Goals change automatically',
+        body: 'When your next goal is close, BLOC shows what\u2019s changing here \u2014 so you\u2019re never caught off guard by a shift in your targets.' },
+      { targetId: 'home-hero-wrap', screen: 'home',
+        title: 'BLOC does the math for you',
+        body: 'If you\u2019re off pace for the week, this tells you exactly how to adjust your daily average for the rest of the week \u2014 no spreadsheet required.' },
+      { targetId: 'home-log-boxes', screen: 'home',
+        title: 'A gentle nudge, not a nag',
+        body: 'Waist/hip measurements aren\u2019t daily \u2014 BLOC reminds you every 4 days, and the reminder stays until you log a fresh one.' },
+      { targetId: 'home-steps-view-logs-btn', screen: 'home',
+        title: 'Quick access',
+        body: 'Tap here any time to jump straight to your full body-log history.' },
+    ], { allowSkip: true, finalLabel: 'Done' });
+  }, 300));
+}
+
+function startProgressMiniTour() {
+  closeModal('modal-tour-help');
+  showScreen('progress');
+  requestAnimationFrame(() => setTimeout(() => {
+    insightsIndex = 0;
+    startTour([
+      { targetId: 'progress-body', screen: 'progress',
+        title: 'BLOC watches your trend, not just today',
+        // Demo Tour's version of this line asserted a plateau was
+        // currently showing, since the engineered dataset guaranteed
+        // one — dropped here since a Mini-Tour has no such guarantee.
+        body: 'This card flags plateaus, calorie drift, undereating on a bulk, or weight instability on maintenance \u2014 whatever\u2019s relevant to your current goal.',
+        // Collapses the AI-advice section and re-renders — needed for
+        // Back, not just the initial forward entry. Without this,
+        // arriving here via Back from the narrative step left the card
+        // exactly as the narrative step's onEnter set it up (expanded,
+        // no re-render), so the ring stayed sized to the expanded card
+        // instead of shrinking back down to this step's collapsed one.
+        onEnter: () => {
+          insightsIndex = 0;
+          _aiAdviceBodyOpen = false;
+          renderProgress();
+        } },
+      { targetId: 'progress-body', screen: 'progress',
+        title: 'BLOC explains its reasoning, not just the numbers',
+        body: 'Tap to expand the full narrative \u2014 BLOC walks through exactly why it thinks this is happening before recommending anything.',
+        onEnter: () => {
+          insightsIndex = 0; // defensive — Back can land here directly from
+                              // the Next Cycle step further along the deck
+          _aiAdviceBodyOpen = true;
+          _blocAdviceSectionsOpen.narrative = true;
+          _blocAdviceSectionsOpen.selected = false;
+          _blocAdviceSectionsOpen.alt = false;
+          renderProgress();
+        } },
+      { targetId: 'progress-body', screen: 'progress',
+        title: 'The Sustainable plan',
+        body: 'BLOC always lays out both options side by side \u2014 this is the gentler, slower-paced route toward your goal.',
+        onEnter: () => {
+          insightsIndex = 0; // defensive, same reasoning as the narrative step above
+          _aiAdviceBodyOpen = true;
+          _blocAdviceSectionsOpen.narrative = false;
+          const chosenPath = state.blocAdvice && state.blocAdvice.chosenPath;
+          _blocAdviceSectionsOpen.selected = chosenPath === 'sustainable';
+          _blocAdviceSectionsOpen.alt = chosenPath !== 'sustainable';
+          renderProgress();
+        } },
+      { targetId: 'progress-body', screen: 'progress',
+        title: 'The Aggressive plan \u2014 and a way to push back',
+        body: 'This is the faster, more demanding route. Whichever plan you\u2019re actually on, if the numbers don\u2019t sit right, tap \u2018Challenge this\u2019 above \u2014 BLOC will respond with a revised plan, not just an explanation.',
+        // insightsIndex reset to 0 is the fix for Back from the Next Cycle
+        // step: that step's onEnter jumps the swipe deck to insightsIndex
+        // 2, and without resetting it here, coming back left the deck
+        // showing the Next Cycle card underneath this step's tooltip —
+        // spotlight and card visibly out of sync.
+        onEnter: () => {
+          insightsIndex = 0;
+          _aiAdviceBodyOpen = true;
+          const chosenPath = state.blocAdvice && state.blocAdvice.chosenPath;
+          _blocAdviceSectionsOpen.selected = chosenPath === 'aggressive';
+          _blocAdviceSectionsOpen.alt = chosenPath !== 'aggressive';
+          renderProgress();
+        } },
+      { targetId: 'progress-body', screen: 'progress',
+        title: 'BLOC plans your next cycle too',
+        body: 'As your macrocycle nears its end, this card works out what comes next \u2014 a bridge, a cut, or a bulk \u2014 from your real trend data. Once you\u2019re in the final few weeks, you can ask BLOC for a second opinion here too, the same way you just did on your current plan.',
+        onEnter: () => { insightsIndex = 2; renderProgress(); } },
+      { targetId: 'progress-tables-wrap', screen: 'progress',
+        title: 'There\u2019s more than one screen here',
+        body: 'Swipe left and right on both this card and the insights card you just saw above \u2014 each has several views tucked behind the dots.',
+        onEnter: () => { insightsIndex = 0; renderProgress(); } },
+    ], { allowSkip: true, finalLabel: 'Done' });
+  }, 300));
+}
+
+function startPlanMiniTour() {
+  closeModal('modal-tour-help');
+  showScreen('plan');
+  requestAnimationFrame(() => setTimeout(() => {
+    startTour([
+      { targetId: 'plan-content', screen: 'plan',
+        title: 'Your macrocycles live here',
+        body: 'This is where you build and manage training blocks \u2014 tap any macrocycle to see its full schedule, or the + button to start a new one.' },
+    ], { allowSkip: true, finalLabel: 'Done' });
+  }, 300));
+}
+
+function startTrainMiniTour() {
+  closeModal('modal-tour-help');
+  showScreen('train');
+  requestAnimationFrame(() => setTimeout(() => {
+    // Same dynamic-lookup approach as the Demo Tour's Train steps (§36),
+    // generalized off the CURRENTLY ACTIVE real macro/week/day rather
+    // than a fixed demo one — expands every exercise on today's session
+    // at once, then finds whichever one actually renders a progression
+    // selector vs a locked notice, since a real account might have
+    // neither (nothing logged yet) or only one of the two.
+    const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
+    const macroId = state.currentMacroId;
+    const week = state.currentWeek;
+    const day = state.currentDay;
+    const exList = (macro && state.exercises[`${macroId}_1_${day}`]) || [];
+    const expandAllExercisesForDay = () => {
+      if (!macro) return;
+      exList.forEach(ex => { expandedExercises[`${macroId}_${week}_${day}_${ex.id}`] = true; });
+      renderTrainDay(macro);
+    };
+    startTour([
+      { targetId: `deload-toggle-${macroId}`, screen: 'train',
+        title: 'Deload weeks, one tap',
+        body: 'Mark a week as deload here and every weight drops to 60% automatically \u2014 your next session reverts to normal on its own.' },
+      { targetId: 'train-hero', screen: 'train',
+        title: 'You choose how to progress',
+        body: 'Once you\u2019ve got a full week logged, BLOC gives you two ways forward: add weight, or add reps. Pick whichever fits your session that day.',
+        onEnter: (step) => {
+          expandAllExercisesForDay();
+          const found = document.querySelector(`[id^="prog-selector-${macroId}-"]`);
+          if (found) step.targetId = found.id;
+        } },
+      { targetId: 'train-hero', screen: 'train',
+        title: 'Miss a target and BLOC notices',
+        body: 'If you don\u2019t hit last week\u2019s suggestion, BLOC freezes next week\u2019s numbers at the same target instead of pushing you further \u2014 so you\u2019re never asked to progress on top of a target you haven\u2019t hit yet.',
+        onEnter: (step) => {
+          expandAllExercisesForDay();
+          const found = document.querySelector(`[id^="locked-notice-${macroId}-"]`);
+          if (found) step.targetId = found.id;
+        } },
+    ], { allowSkip: true, finalLabel: 'Done' });
+  }, 300));
+}
+
+function startNutritionMiniTour() {
+  closeModal('modal-tour-help');
+  showScreen('nutrition');
+  requestAnimationFrame(() => setTimeout(() => {
+    startTour([
+      { targetId: 'nutr-save-badge-wrap', screen: 'nutrition',
+        title: 'Save a day that\u2019s working',
+        body: 'When a day lands close to your targets, BLOC offers to save it \u2014 so you can reuse it instantly on a future date with Fill Day.' },
+      { targetId: 'meal-menu-btn-Dinner', screen: 'nutrition',
+        title: 'More options on any meal',
+        body: 'Tap the \u22ef on any meal to copy it, move it to another meal, or save it as a recipe.',
+        // Closes the next step's Quick Add modal — needed for Back. The
+        // next step opens modal-nutr-manual in its own onEnter but never
+        // closes it on the way back out, so arriving here via Back left
+        // that modal sitting open on top of (and blocking) this step's
+        // spotlighted ellipsis button. closeModal() is a no-op if the
+        // modal isn't already open, so this is safe on the forward pass too.
+        onEnter: () => closeModal('modal-nutr-manual') },
+      { targetId: 'nutr-manual-mode-item', screen: 'nutrition',
+        title: 'Pick the right entry type',
+        body: 'Per item logs a one-off total. Per gram is for something you\u2019ve weighed yourself \u2014 it saves a reusable per-gram rate to your food library.',
+        onEnter: () => openModal('modal-nutr-manual') },
+    ], {
+      allowSkip: true,
+      finalLabel: 'Done',
+      // The last step's own onEnter opens modal-nutr-manual and nothing
+      // else in this tour ever closes it — unlike the Demo Tour, a
+      // Mini-Tour has no wipe-and-handoff to sweep it up afterward, so
+      // it has to be closed explicitly here on both exit paths. Safe to
+      // call even if the person skipped before this step ever opened it
+      // — closeModal() on an already-closed modal is a harmless no-op.
+      onComplete: () => closeModal('modal-nutr-manual'),
+      onSkip: () => closeModal('modal-nutr-manual'),
+    });
+  }, 300));
+}
+
+const _isNewUserOnBoot = !localStorage.getItem('bloc_state');
 load();
+fetchDemoDataIfNewUser(_isNewUserOnBoot);
+// A genuinely new user is handled entirely by the fetch above (Demo Tour
+// on success, openProfileGate() from its own .catch() on failure) — both
+// async, so checking here too would race the fetch and could pop the
+// gate open before the Demo Tour even starts. This branch only covers a
+// RETURNING device (bloc_state already exists) that somehow still has 0
+// macrocycles and an incomplete profile — an abandoned/pre-this-feature
+// account — which has no async fetch racing it, so it's safe to check
+// immediately.
+// Deferred via setTimeout(0) rather than called inline — this runs before
+// the tour engine's `let _tourState` declaration further down the file
+// has executed, and referencing it early would throw. Pushing to a
+// macrotask lets the rest of the script finish first, same as the rest
+// of boot already does for paint-dependent work (see positionNavPill's
+// double-rAF a few lines below).
+if (!_isNewUserOnBoot) setTimeout(maybeOpenProfileGate, 0);
 // Nav pill has no size/position until the DOM has painted at least once —
 // double rAF waits for that first paint before measuring, otherwise the
 // pill would start at 0x0 and only snap to the right place on the next
@@ -3127,6 +3847,13 @@ function openModal(id) {
 // (modal-nutr-barcode / modal-recipe-barcode) — otherwise the camera would
 // keep running in the background after the sheet is dismissed.
 function closeModal(id) {
+  // Profile-entry gate (Build Order step 6) — while a genuinely new
+  // account's gender/height/DOB are still incomplete, this modal must
+  // not be dismissable by any route. Every dismiss path (backdrop tap,
+  // swipe-down on the handle, and the ✕ button — see initModal()) funnels
+  // through this one function, so blocking it here blocks all three at
+  // once rather than needing three separate guards.
+  if (id === 'modal-body-profile' && _profileGateActive) return;
   const overlay = document.getElementById(id);
   // Dismiss the keyboard if focus is inside this modal — covers the ✕
   // button, tap-outside, and the swipe-down gesture alike, since they all
@@ -3163,6 +3890,384 @@ function closeModal(id) {
     // first so we know not to kill the queue here.
     if (_goalQueue && !_goalQueueAdvancing) { _goalQueue = null; _resetGoalModal(); }
   }
+}
+
+// ════════════════════════════════════════════════
+// TOUR ENGINE (spotlight + tooltip)
+// ════════════════════════════════════════════════
+// Shared engine behind the Demo Tour, Macrocycle Creation Tour, and all
+// five Mini-Tours (see TECHNICAL.md §33 for the full design writeup and
+// the reasoning behind each decision below). Nothing in this section
+// knows about tour *content* — step arrays are handed in by whichever
+// caller starts a tour; this file only knows how to walk a step list,
+// mask the screen, point at an element, and get out of the way cleanly.
+//
+// Step shape:
+//   {
+//     targetId: 'bloc-advice-btn',   // required — id of the element to spotlight
+//     title: 'Ask BLOC for advice',  // required
+//     body: 'When a plateau...',     // required
+//     waitForAction: false,          // optional — if true, the step advances
+//                                    // when the target itself is tapped,
+//                                    // not via the Next button (§33)
+//     onEnter: (step) => {},         // optional — fires right before this
+//                                    // step is shown (e.g. to expand a
+//                                    // collapsed card so its target exists)
+//     onAdvance: (step) => {},       // optional — fires right after this
+//                                    // step advances, before the next one renders
+//   }
+// (Placement above/below the target is decided automatically each render
+// based on available room — see _positionTourStep in TECHNICAL.md §33 —
+// so there's no per-step override for it.)
+let _tourState = null; // { steps, index, opts } while a tour is active, else null
+
+// Starts a tour. `opts`:
+//   allowSkip   — shows a "Skip tour" link (Macrocycle Creation Tour only,
+//                 per scope §1/§4 — the Demo Tour has no skip)
+//   onComplete  — called once, after the last step advances or Skip is used
+//   onSkip      — called instead of onComplete if the person used Skip
+//                 (kept separate from onComplete so callers don't have to
+//                 inspect *how* the tour ended just to tell them apart)
+function startTour(steps, opts = {}) {
+  if (!steps || !steps.length) return;
+  if (_tourState) endTour(); // defensive — a tour should never stack on another
+  _tourState = { steps, index: 0, opts };
+  _buildTourDom();
+  _renderTourStep();
+  window.addEventListener('resize', _repositionTourStep);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', _repositionTourStep);
+}
+
+// Advances to the next step, or ends the tour if that was the last one.
+// Exposed on window (not just called internally) since tooltip buttons
+// and waitForAction listeners are wired via onclick/addEventListener
+// referencing it directly.
+function tourNext() {
+  if (!_tourState) return;
+  const step = _tourState.steps[_tourState.index];
+  if (step && step.onAdvance) step.onAdvance(step);
+  _tourState.index++;
+  if (_tourState.index >= _tourState.steps.length) {
+    _completeTour();
+  } else {
+    _renderTourStep();
+  }
+}
+
+function tourBack() {
+  if (!_tourState || _tourState.index === 0) return;
+  _tourState.index--;
+  _renderTourStep();
+}
+
+// Skip now asks for confirmation first rather than ending the tour
+// immediately — a small dedicated overlay (§ CSS above) rather than the
+// app's generic showConfirm()/modal-confirm, since that sits at z-index
+// 320, below the tour's own mask (400) and would be invisible behind it.
+function tourSkip() {
+  if (!_tourState) return;
+  _showTourSkipConfirm();
+}
+
+function _showTourSkipConfirm() {
+  if (document.getElementById('tour-skip-confirm')) return; // already showing
+  const overlay = document.createElement('div');
+  overlay.id = 'tour-skip-confirm';
+  overlay.className = 'tour-confirm-overlay';
+  overlay.innerHTML = `
+    <div class="tour-confirm-card">
+      <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px;">Skip this tour?</div>
+      <div style="font-size:12.5px;color:var(--text2);line-height:1.5;margin-bottom:16px;">You can pick it up again later, starting from the beginning.</div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-block" onclick="_cancelTourSkip()">Cancel</button>
+        <button class="btn btn-danger-fill btn-block" onclick="_confirmTourSkip()">Yes, skip</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+// Cancel just removes the confirmation overlay — the tour underneath was
+// never touched, so there's nothing else to restore.
+function _cancelTourSkip() {
+  const el = document.getElementById('tour-skip-confirm');
+  if (el) el.remove();
+}
+
+// The actual skip logic — what tourSkip() used to do directly before the
+// confirmation step was added. Ends the tour via the Skip path, distinct
+// from a natural finish so callers can tell (via opts.onSkip vs
+// opts.onComplete) whether the person actually reached the end or bailed
+// early.
+function _confirmTourSkip() {
+  _cancelTourSkip();
+  if (!_tourState) return;
+  const opts = _tourState.opts;
+  endTour();
+  if (opts.onSkip) opts.onSkip();
+}
+
+function _completeTour() {
+  const opts = _tourState.opts;
+  endTour();
+  if (opts.onComplete) opts.onComplete();
+}
+
+// Tears down all tour DOM/listeners. Safe to call even if no tour is
+// active (startTour calls this defensively before starting a new one).
+function endTour() {
+  window.removeEventListener('resize', _repositionTourStep);
+  if (window.visualViewport) window.visualViewport.removeEventListener('resize', _repositionTourStep);
+  if (_tourActionTarget && _tourActionListener) {
+    _tourActionTarget.removeEventListener('click', _tourActionListener);
+  }
+  _tourActionTarget = null;
+  _tourActionListener = null;
+  ['tour-mask-top','tour-mask-bottom','tour-mask-left','tour-mask-right','tour-ring','tour-tooltip','tour-tooltip-arrow','tour-skip-confirm']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.remove(); });
+  _tourState = null;
+}
+
+// Builds the (initially zero-sized, positioned off-screen) DOM nodes once
+// per tour rather than recreating them every step — only their position/
+// size and tooltip contents change between steps, via _renderTourStep.
+function _buildTourDom() {
+  const frag = document.createDocumentFragment();
+  ['top','bottom','left','right'].forEach(side => {
+    const d = document.createElement('div');
+    d.id = 'tour-mask-' + side;
+    d.className = 'tour-mask';
+    frag.appendChild(d);
+  });
+  const ring = document.createElement('div');
+  ring.id = 'tour-ring';
+  ring.className = 'tour-ring';
+  frag.appendChild(ring);
+  const arrow = document.createElement('div');
+  arrow.id = 'tour-tooltip-arrow';
+  arrow.className = 'tour-tooltip-arrow';
+  frag.appendChild(arrow);
+  const tip = document.createElement('div');
+  tip.id = 'tour-tooltip';
+  tip.className = 'tour-tooltip';
+  frag.appendChild(tip);
+  document.body.appendChild(frag);
+}
+
+let _tourActionTarget = null;
+let _tourActionListener = null;
+
+// Ensures the step's declared screen is active before onEnter and
+// measurement run. Centralizing this here — rather than each step's own
+// onEnter calling showScreen(), which only the FIRST step of each page
+// segment ever did, on the assumption steps could only be reached by
+// advancing forward from there — is what makes Back navigation work
+// correctly. Back can land directly on a step deep inside a page segment
+// from a completely different page's step; without this check, the
+// target lookup below would silently resolve against a hidden
+// (inactive, effectively display:none) screen, returning a zero-size
+// rect pinned at (0,0) — exactly why Back used to spotlight the
+// top-left corner of the screen instead of the real target, and why it
+// only ever worked by coincidence when both steps happened to share a
+// screen already.
+function _ensureTourScreen(step) {
+  if (!step.screen) return;
+  const activeEl = document.querySelector('.screen.active');
+  const activeName = activeEl ? activeEl.id.replace('screen-', '') : null;
+  if (activeName !== step.screen) showScreen(step.screen);
+}
+
+// Renders the current step: makes sure the right screen is active, scrolls
+// the target into view if needed, waits a frame for that scroll (and any
+// onEnter-triggered layout change, e.g. expanding a collapsed card) to
+// settle, then measures the target's real rect and positions everything
+// against it.
+function _renderTourStep() {
+  const step = _tourState.steps[_tourState.index];
+  // #content is the app's only real scrollable element — html/body never
+  // scroll (see the CSS comment above #content). Reset it to 0 on every
+  // single step render (Next AND Back) before anything measures against
+  // it, so a scroll position left over from the person manually scrolling
+  // to read a tooltip (or from a previous step) can never carry over and
+  // throw the offset math below off.
+  const _tourScrollEl = document.getElementById('content') || document.scrollingElement;
+  if (_tourScrollEl) _tourScrollEl.scrollTop = 0;
+  _ensureTourScreen(step);
+  if (step.onEnter) step.onEnter(step);
+
+  const target = document.getElementById(step.targetId);
+  if (!target) {
+    // Target genuinely isn't on the page (wrong screen, conditional
+    // element not currently rendered, etc). Rather than soft-lock the
+    // tour on an invisible step, skip it — this is a content/sequencing
+    // bug to fix in the step list, not something the person should ever
+    // get stuck on.
+    console.warn('[tour] target not found, skipping step:', step.targetId);
+    tourNext();
+    return;
+  }
+  // Instant, not smooth — found live: for a large scroll distance, a
+  // smooth scroll animation can still be mid-flight when the 220ms
+  // settle timeout below fires, so the tooltip gets positioned against a
+  // mid-scroll rect instead of the settled one. Instant scroll removes
+  // the whole category of "did the animation finish in time" timing race.
+  //
+  // block: 'start' rather than 'center' when the target is itself taller
+  // than most of the viewport (e.g. the AI-advice card once its
+  // narrative/plan section is expanded) — centering a target taller than
+  // the viewport leaves BOTH the top and bottom mask pieces clamped to
+  // zero height (nothing above or below the target's visible portion to
+  // darken), which looks exactly like the whole page is spotlighted
+  // rather than just the card. An explicit scroll offset (rather than any
+  // scrollIntoView block mode) guarantees a real, deliberate margin above
+  // the target regardless of the browser's own alignment behavior.
+  const preScrollRect = target.getBoundingClientRect();
+  const vhEstimate = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+  const tooTallToCenter = preScrollRect.height > vhEstimate * 0.85;
+  if (tooTallToCenter) {
+    const TOUR_TOP_MARGIN = 70; // leaves a visible mask border and clears the nav-adjacent chrome
+    // scrollTop was just reset to 0 above, so this rect's `top` IS the
+    // absolute offset already — no window.scrollY needed (html/body
+    // never scroll in this app shell; #content is the real scroller).
+    const absoluteTop = preScrollRect.top;
+    if (_tourScrollEl) _tourScrollEl.scrollTop = Math.max(0, absoluteTop - TOUR_TOP_MARGIN);
+  } else {
+    target.scrollIntoView({ block: 'center', behavior: 'auto' });
+  }
+  // rAF alone isn't reliably enough time for scrollIntoView's layout to
+  // settle on iOS Safari (matches the existing WebKit stale-hit-region
+  // pattern noted elsewhere in TECHNICAL.md) even with instant behavior —
+  // a short timeout after the frame is the same pragmatic fix used there.
+  requestAnimationFrame(() => setTimeout(() => _positionTourStep(step, target), 220));
+}
+
+// Re-measures and repositions the CURRENT step's DOM against its target,
+// without re-running onEnter or re-scrolling — used on resize/
+// visualViewport changes (keyboard show/hide, rotation) so an in-progress
+// step doesn't visually detach from its target, matching the app's
+// existing keyboard-aware repositioning pattern for modals/nav.
+function _repositionTourStep() {
+  if (!_tourState) return;
+  const step = _tourState.steps[_tourState.index];
+  const target = document.getElementById(step.targetId);
+  if (target) _positionTourStep(step, target, /* skipTooltipContent */ true);
+}
+
+function _positionTourStep(step, target, skipTooltipContent) {
+  const r = target.getBoundingClientRect();
+  const pad = 6;
+  const top = r.top - pad, left = r.left - pad, right = r.right + pad, bottom = r.bottom + pad;
+  const vw = window.innerWidth;
+  const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+
+  // Mask/ring simply clip to whatever of the target's rect is currently
+  // within the viewport — no special-casing for a target taller than the
+  // screen, or one still running off the bottom after scrolling. It shows
+  // whatever's visible, same as any other content the person can scroll to see more of.
+  const maskTop = document.getElementById('tour-mask-top');
+  const maskBottom = document.getElementById('tour-mask-bottom');
+  const maskLeft = document.getElementById('tour-mask-left');
+  const maskRight = document.getElementById('tour-mask-right');
+  maskTop.style.cssText = `top:0; left:0; width:${vw}px; height:${Math.max(0, top)}px;`;
+  maskBottom.style.cssText = `top:${bottom}px; left:0; width:${vw}px; height:${Math.max(0, vh - bottom)}px;`;
+  maskLeft.style.cssText = `top:${top}px; left:0; width:${Math.max(0, left)}px; height:${bottom - top}px;`;
+  maskRight.style.cssText = `top:${top}px; left:${right}px; width:${Math.max(0, vw - right)}px; height:${bottom - top}px;`;
+
+  const ring = document.getElementById('tour-ring');
+  ring.style.cssText = `top:${top}px; left:${left}px; width:${right - left}px; height:${bottom - top}px;`;
+  ring.classList.toggle('tour-ring-pulse', !!step.waitForAction);
+
+  const tip = document.getElementById('tour-tooltip');
+  if (!skipTooltipContent) _renderTourTooltipContent(step, tip);
+
+  // Placement is dynamic again (v7.87) — whichever side of the target has
+  // more room gets the tooltip, same idea as the original design, EXCEPT
+  // the 'top' placement is now hard-clamped so it can never render above
+  // the safe area (env(safe-area-inset-top)) no matter how little room
+  // there actually is above the target. That clamp — missing entirely
+  // before v7.86 — was the actual root cause of the tooltip rendering
+  // underneath the status bar / dynamic island; v7.86 had worked around
+  // it by removing the flip altogether, but that gave up dynamic
+  // placement rather than fixing the clamp. See the addendum in
+  // TECHNICAL.md §33.
+  const safeTopPx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--safe-top')) || 0;
+  const tipHeight = tip.offsetHeight || 160; // real height once content is set above
+  const roomAbove = top - safeTopPx;
+  const roomBelow = vh - bottom - 90; // keep clear of the floating nav bar
+  const placement = roomBelow >= roomAbove ? 'bottom' : 'top';
+
+  const tipWidth = tip.offsetWidth || 320;
+  let tipLeft = Math.min(Math.max(16, r.left + (r.width - tipWidth) / 2), vw - tipWidth - 16);
+  let tipTop, arrowTop, arrowRotate;
+  if (placement === 'bottom') {
+    tipTop = bottom + 14;
+    arrowTop = bottom + 4;
+    arrowRotate = 'tour-arrow-top';
+  } else {
+    // The actual fix: clamp to the safe area first, THEN try to fit
+    // above the target — never the other way around. If there genuinely
+    // isn't room for the full tooltip height above the target, this lets
+    // the tooltip sit slightly over the top of the target rather than
+    // ever creeping above the safe area; the target itself stays fully
+    // spotlighted underneath regardless.
+    tipTop = Math.max(safeTopPx + 16, top - tipHeight - 14);
+    arrowTop = top - 12;
+    arrowRotate = 'tour-arrow-bottom';
+  }
+  tip.style.top = tipTop + 'px';
+  tip.style.left = tipLeft + 'px';
+  tip.classList.add('tour-tooltip-visible');
+
+  const arrow = document.getElementById('tour-tooltip-arrow');
+  arrow.className = 'tour-tooltip-arrow ' + arrowRotate;
+  arrow.style.top = arrowTop + 'px';
+  arrow.style.left = Math.min(Math.max(tipLeft + 20, r.left + r.width / 2 - 6), tipLeft + tipWidth - 20) + 'px';
+
+  // waitForAction steps advance from a real tap on the target itself
+  // (which fires natively, since the mask has no coverage over the
+  // target rect — see the CSS comment above .tour-mask) rather than a
+  // Next button, so the person's actual interaction with the app is
+  // what drives the tour forward on these steps.
+  if (_tourActionTarget && _tourActionListener) {
+    _tourActionTarget.removeEventListener('click', _tourActionListener);
+  }
+  if (step.waitForAction) {
+    _tourActionTarget = target;
+    _tourActionListener = () => tourNext();
+    target.addEventListener('click', _tourActionListener, { once: true });
+  } else {
+    _tourActionTarget = null;
+    _tourActionListener = null;
+  }
+}
+
+function _renderTourTooltipContent(step, tip) {
+  const idx = _tourState.index, total = _tourState.steps.length, opts = _tourState.opts;
+  const isLast = idx === total - 1;
+  const dots = _tourState.steps.map((s, i) =>
+    `<span class="tour-progress-dot${i === idx ? ' tour-progress-dot-active' : ''}"></span>`
+  ).join('');
+  const nextLabel = step.waitForAction ? null : (isLast ? (opts.finalLabel || 'Get Started') : 'Next');
+  // Back re-runs the previous step's onEnter fresh (same as any other
+  // step render) — best-effort, not a true undo: an onEnter with a real
+  // side effect (e.g. the Macrocycle Creation Tour's waitForAction step,
+  // which actually creates a macrocycle) doesn't get reversed by going
+  // back past it, only re-shown. Acceptable for a tour whose steps are
+  // mostly idempotent (expand a card, open a modal, toggle a section);
+  // flagged here since it's the one case where "back" doesn't mean
+  // "undo."
+  const backBtn = idx > 0 ? '<button class="btn btn-ghost btn-sm" onclick="tourBack()">Back</button>' : '';
+  tip.innerHTML = `
+    <div class="tour-tooltip-title">${step.title}</div>
+    <div class="tour-tooltip-body">${step.body}</div>
+    ${step.waitForAction ? '<div class="tour-tooltip-hint">Tap the highlighted element to continue</div>' : ''}
+    <div class="tour-tooltip-footer">
+      <div class="tour-progress-dots">${dots}</div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        ${opts.allowSkip ? '<span onclick="tourSkip()" style="font-size:11.5px; color:var(--text3); cursor:pointer;">Skip tour</span>' : ''}
+        ${backBtn}
+        ${nextLabel ? `<button class="btn btn-accent btn-sm" onclick="tourNext()">${nextLabel}</button>` : ''}
+      </div>
+    </div>`;
 }
 
 // Handles the segmented-control-style options in the New/Edit Macrocycle
@@ -3239,7 +4344,7 @@ function getMacroDurationWeeks(macro) {
 // needs to be compared or displayed (schedule pills, Progress cycle list).
 function getMacroEndDate(macro) {
   // End on the Sunday of the last week: start + (weeks*7) - 1 day
-  const startDate = macro.start ? new Date(macro.start + 'T00:00:00') : new Date();
+  const startDate = macro.start ? new Date(macro.start + 'T00:00:00') : now();
   const totalCalWks = getMacroDurationWeeks(macro);
   const endDate = new Date(startDate);
   endDate.setDate(endDate.getDate() + totalCalWks * 7 - 1);
@@ -4754,7 +5859,7 @@ function getMacroTotalVolume(macro) {
 // the same single 7-day window.
 function getMacroVolumeSeries(macro) {
   const dayKeys = getMacroSessionDayKeys(macro);
-  const startDate = macro.start ? new Date(macro.start + 'T00:00:00') : new Date();
+  const startDate = macro.start ? new Date(macro.start + 'T00:00:00') : now();
   const sessionsPerWeek = dayKeys.length;
   const mesoSpanDays = (macro.weeksPerMeso || 1) * 7;
   const points = [];
@@ -5003,10 +6108,10 @@ function openCycleHistory() {
     openModal('modal-cycle-history');
     return;
   }
-  const today = new Date(); today.setHours(0,0,0,0);
+  const today = now(); today.setHours(0,0,0,0);
   const dayMapForHistory = buildDayMap();
   el.innerHTML = list.map(macro => {
-    const startDate = macro.start ? new Date(macro.start + 'T00:00:00') : new Date();
+    const startDate = macro.start ? new Date(macro.start + 'T00:00:00') : now();
     const endDate = getMacroEndDate(macro);
     const isPast = today > endDate;
     const isFuture = today < startDate;
@@ -5107,10 +6212,10 @@ function buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort, animate =
       </div></div>`;
   }
 
-  const startDate = macro.start ? new Date(macro.start + 'T00:00:00') : new Date();
+  const startDate = macro.start ? new Date(macro.start + 'T00:00:00') : now();
   const totalCalWks = getMacroDurationWeeks(macro);
   const endDate = getMacroEndDate(macro);
-  const today = new Date(); today.setHours(0,0,0,0); startDate.setHours(0,0,0,0);
+  const today = now(); today.setHours(0,0,0,0); startDate.setHours(0,0,0,0);
   const totalDays = totalCalWks * 7 - 1; // inclusive day count, matches getMacroEndDate's start+days-1
   const elapsedDays = Math.max(0, Math.min(today - startDate, endDate - startDate)) / (1000*60*60*24);
   const cyclePct = Math.min(100, Math.round((elapsedDays / totalDays) * 100));
@@ -5335,7 +6440,7 @@ function buildWeightHeroChart(macro) {
   const activeMacro = state.macrocycles.find(m => m.id === state.currentMacroId);
   if (!activeMacro || !activeMacro.start) return emptyShell('No active cycle yet');
 
-  const today = new Date(); today.setHours(0,0,0,0);
+  const today = now(); today.setHours(0,0,0,0);
   const activeEndDate = getMacroEndDate(activeMacro);
   const activeIsPast  = today > activeEndDate;
   const domainStart    = new Date(activeMacro.start + 'T00:00:00');
@@ -5554,7 +6659,7 @@ function buildGoalColumnHeroChart(macro, metric) {
 function renderProgressHero(animate = false) {
   const el = document.getElementById('progress-hero-card');
   if (!el) return;
-  const todayStrShort = new Date().toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+  const todayStrShort = now().toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
   const macro = resolveProgressMacro();
   const macroList = state.macrocycles.slice().sort((a,b) => (a.start||'').localeCompare(b.start||''));
   const canCycle = macroList.length > 1;
@@ -5992,7 +7097,7 @@ function recommendNextCycle(macro, override) {
   const latestBw = latestLog ? parseFloat(latestLog.weight) : null;
 
   const recentKcal = (() => {
-    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 14);
+    const cutoff = now(); cutoff.setDate(cutoff.getDate() - 14);
     const cutoffStr = toLocalDateStr(cutoff);
     const logs = (state.nutritionLogs || []).filter(l => l.date >= cutoffStr && parseInt(l.kcal) > 0);
     if (!logs.length) return null;
@@ -6500,7 +7605,7 @@ function initProgressHeroSwipe() {
 // Top-level render function for the Progress screen. Renders the hero deck,
 // the secondary insights card deck, and wires up both sets of swipe handlers.
 function renderProgress(animate = false) {
-  const todayStr = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' });
+  const todayStr = now().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' });
   document.getElementById('progress-date').textContent = todayStr;
 
   const macro = resolveProgressMacro();
@@ -6562,7 +7667,7 @@ function renderProgress(animate = false) {
     const activeGoal = getActiveGoal ? getActiveGoal() : null;
     if (activeGoal) {
       // Week runs Mon–Sun. dayOfWeek: 0=Sun,1=Mon...6=Sat
-      const dow = new Date().getDay();
+      const dow = now().getDay();
       // Days elapsed this week (Mon=1 through today). Sunday counts as 7th day.
       const daysElapsed = dow === 0 ? 7 : dow; // Mon=1 ... Sat=6 ... Sun=7
       const daysLeft    = 7 - daysElapsed;      // remaining days including today? No — remaining AFTER today
@@ -6637,7 +7742,7 @@ function renderProgress(animate = false) {
     const ratePerDay = (parseFloat(last2.weight) - parseFloat(first.weight)) / nDays; // lbs/day
     if (isGainCycle ? ratePerDay <= 0 : ratePerDay >= 0) return null; // wrong direction
     const daysToGoal = Math.abs((current - target) / ratePerDay);
-    const etaDate = new Date(); etaDate.setDate(etaDate.getDate() + Math.round(daysToGoal));
+    const etaDate = now(); etaDate.setDate(etaDate.getDate() + Math.round(daysToGoal));
     return { weeks: (daysToGoal / 7).toFixed(1), date: etaDate.toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}), ratePerWeek: Math.abs(ratePerDay * 7).toFixed(2) };
   })();
 
@@ -10381,7 +11486,7 @@ const progressToggle = { nutr: 'avg' };
 function getLocal7Days() {
   const days = [];
   for (let i = 6; i >= 0; i--) {
-    const d = new Date();
+    const d = now();
     d.setDate(d.getDate() - i);
     const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), dy = String(d.getDate()).padStart(2,'0');
     days.push({ date: y+'-'+m+'-'+dy, letter: 'SMTWTFS'[d.getDay()] });
@@ -10779,9 +11884,9 @@ function renderPlan() {
   // No pill switcher — cycle selection via name tap (openCycleHistory)
 
   const totalCalendarWeeks = getMacroDurationWeeks(macro);
-  const startDate = macro.start ? new Date(macro.start + 'T00:00:00') : new Date();
+  const startDate = macro.start ? new Date(macro.start + 'T00:00:00') : now();
   const endDate = getMacroEndDate(macro);
-  const today = new Date();
+  const today = now();
   today.setHours(0,0,0,0);
   startDate.setHours(0,0,0,0);
   const totalDays = totalCalendarWeeks * 7;
@@ -11887,7 +12992,7 @@ function renderHomeHero(animate = false) {
       ? `<div style="font-size:11px;color:var(--text3);margin-top:2px;">Total this week avg: ${m.fmt(weekPlannedAvg)}${m.unit}</div>`
       : '';
     const ctaStr = m.field === 'steps'
-      ? `<button class="btn btn-accent btn-sm" style="align-self:flex-start;margin-top:2px;" onclick="showScreen('settings');openSettingsBodyLogs();">View logs<svg width="12" height="12" viewBox="0 0 256 256" fill="currentColor"><path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"/></svg></button>`
+      ? `<button id="home-steps-view-logs-btn" class="btn btn-accent btn-sm" style="align-self:flex-start;margin-top:2px;" onclick="showScreen('settings');openSettingsBodyLogs();">View logs<svg width="12" height="12" viewBox="0 0 256 256" fill="currentColor"><path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"/></svg></button>`
       : '';
     return `<div class="card" style="padding:14px 16px;margin-bottom:0;display:flex;flex-direction:column;gap:8px;">
       <div style="font-size:14px;font-weight:600;">${m.name}</div>
@@ -12806,7 +13911,7 @@ function renderTrainHero(macro, animate = false) {
   // state.currentDay (which carries the m1/m2 suffix), NOT the whole
   // mesoweek — so on a 2-week mesocycle, toggling here only affects the
   // calendar week you're actually viewing, never its sibling microcycle.
-  const deloadLinkHtml = `<span onclick="toggleDeloadWeek('${macro.id}',${state.currentWeek},'${dayKey}')"
+  const deloadLinkHtml = `<span id="deload-toggle-${macro.id}" onclick="toggleDeloadWeek('${macro.id}',${state.currentWeek},'${dayKey}')"
       style="font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap;color:${heroIsDeload ? 'var(--red)' : 'var(--accent2)'};">
       ${heroIsDeload ? '✓ Deload' : 'Mark as deload'}
     </span>`;
@@ -13509,11 +14614,11 @@ function renderTrainDay(macro) {
             repsRec = `${prevRLabel} → ${recommendedReps} (+1 rep)`;
           }
         }
-        const lockedNotice = (isLocked && !isDeloadSession && !isPostDeloadSession) ? `<div style="margin-bottom:12px;padding:10px 12px;border-radius:var(--r-sm);background:var(--surface2);border:1px solid var(--border2);">
+        const lockedNotice = (isLocked && !isDeloadSession && !isPostDeloadSession) ? `<div id="locked-notice-${macro.id}-${exId}" style="margin-bottom:12px;padding:10px 12px;border-radius:var(--r-sm);background:var(--surface2);border:1px solid var(--border2);">
           <div style="font-size:12px;font-weight:600;color:var(--red);">⚠ Progression on hold</div>
           <div style="font-size:11px;color:var(--text2);margin-top:2px;">The suggested weight/reps weren't hit last time, so they're staying put at ${weightPlaceholder} kg · ${stripReps(repsPlaceholder)} reps until you complete every set exactly as suggested.</div>
         </div>` : '';
-        const progSelector = !showProgSelector ? lockedNotice : `<div style="margin-bottom:12px;">
+        const progSelector = !showProgSelector ? lockedNotice : `<div id="prog-selector-${macro.id}-${exId}" style="margin-bottom:12px;">
           <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">This week — choose progression</div>
           <div style="display:flex;gap:8px;">
             <div onclick="selectProgType('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}','weight')"
@@ -14927,6 +16032,46 @@ function renderBody() {
 // BODY PROFILE (gender / height / birthday)
 // ════════════════════════════════════════════════
 
+// ════════════════════════════════════════════════
+// PROFILE ENTRY GATE (Build Order step 6)
+// ════════════════════════════════════════════════
+// Per bloc-onboarding-tour-scope-v2.md §1/§10.1: gender, height, and date
+// of birth become mandatory for a brand-new account, hard-blocking the
+// rest of the app until all three are filled in. Reuses the existing
+// modal-body-profile UI (Settings → About me) rather than building a
+// separate screen — only its dismissability and copy change; see
+// closeModal() and saveBodyProfile() above for the other two pieces of
+// this (the block on dismissal, and the mandatory-fields validation).
+let _profileGateActive = false;
+
+function isProfileComplete() {
+  const p = state.profile || {};
+  return !!(p.gender && p.heightCm && p.birthday);
+}
+
+// Only ever gates a genuinely empty account (no macrocycles yet) — never
+// retroactively locks an existing real account out just because it
+// predates this requirement. Deliberately does NOT fire while a tour is
+// already running: the Demo Tour's own exitDemoMode() (§36) calls
+// openProfileGate() directly once it's finished, rather than racing this
+// generic check against an in-progress tour.
+function maybeOpenProfileGate() {
+  if (_tourState) return;
+  if (!state.macrocycles || state.macrocycles.length > 0) return;
+  if (isProfileComplete()) return;
+  openProfileGate();
+}
+
+function openProfileGate() {
+  _profileGateActive = true;
+  showScreen('plan');
+  openBodyProfile();
+  const overlay = document.getElementById('modal-body-profile');
+  if (overlay) overlay.classList.add('gate-active');
+  const explainer = document.getElementById('profile-gate-explainer');
+  if (explainer) explainer.style.display = 'block';
+}
+
 let _profileHeightUnit = 'ftin'; // 'ftin' or 'cm'
 
 // Opens the profile modal (gender, height, birthday) used for the BMR/TDEE
@@ -14935,6 +16080,8 @@ let _profileHeightUnit = 'ftin'; // 'ftin' or 'cm'
 function openBodyProfile() {
   const prof = state.profile || {};
   _profileHeightUnit = 'ftin';
+  const errEl = document.getElementById('profile-gate-error');
+  if (errEl) errEl.style.display = 'none';
 
   // Pre-fill gender buttons
   updateProfileGenderUI(prof.gender || null);
@@ -15025,10 +16172,12 @@ function switchHeightUnit(unit) {
 
 // Saves the profile modal's fields into state.profile. Fields left blank are
 // not overwritten — so leaving height blank on an edit doesn't erase a
-// previously-saved value.
+// previously-saved value. While the profile-entry gate (Build Order step
+// 6) is active, all three fields become mandatory — see the validation
+// block below, and PROFILE ENTRY GATE for how the gate itself works.
 function saveBodyProfile() {
   if (!state.profile) state.profile = {};
-  state.profile.gender = _selectedProfileGender || state.profile.gender || null;
+  const gender = _selectedProfileGender || state.profile.gender || null;
 
   // Height → always store as cm
   let heightCm = null;
@@ -15040,15 +16189,119 @@ function saveBodyProfile() {
     const cm = parseFloat(document.getElementById('profile-cm').value);
     if (cm > 0) heightCm = cm;
   }
-  if (heightCm !== null) state.profile.heightCm = heightCm;
+  const finalHeightCm = heightCm !== null ? heightCm : (state.profile.heightCm || null);
+  const bday = document.getElementById('profile-birthday').value || state.profile.birthday || null;
 
-  const bday = document.getElementById('profile-birthday').value;
+  if (_profileGateActive && !(gender && finalHeightCm && bday)) {
+    const errEl = document.getElementById('profile-gate-error');
+    if (errEl) errEl.style.display = 'block';
+    return;
+  }
+
+  state.profile.gender = gender;
+  if (finalHeightCm !== null) state.profile.heightCm = finalHeightCm;
   if (bday) state.profile.birthday = bday;
 
   save();
+
+  if (_profileGateActive) {
+    _profileGateActive = false;
+    const overlay = document.getElementById('modal-body-profile');
+    if (overlay) overlay.classList.remove('gate-active');
+    const explainer = document.getElementById('profile-gate-explainer');
+    if (explainer) explainer.style.display = 'none';
+    const errEl = document.getElementById('profile-gate-error');
+    if (errEl) errEl.style.display = 'none';
+  }
+
   closeModal('modal-body-profile');
   renderBody();
   renderProgress(); // refresh BMR sentences on progress page
+
+  // A freshly-gated account has nothing else set up yet — the
+  // Macrocycle Creation Tour (Build Order step 7, below) walks them
+  // straight into building their first one. Doesn't fire for an
+  // ordinary Settings → About me edit on an existing account.
+  if (!state.macrocycles.length) startMacrocycleCreationTour();
+}
+
+// ════════════════════════════════════════════════
+// MACROCYCLE CREATION TOUR (Build Order step 7)
+// ════════════════════════════════════════════════
+// Forced (unlike the Demo Tour, this one DOES have a Skip Tour exit —
+// bloc-onboarding-tour-scope-v2.md §1/§4), walking a brand-new account
+// through creating its first real macrocycle. Triggered only from
+// saveBodyProfile()'s gated-completion path above — never interrupts an
+// existing account creating a second or later macrocycle via Plan's own
+// "+ New" button.
+//
+// Unlike the Demo Tour, every step here points at REAL form elements the
+// person is actually filling in — nothing is faked or pre-loaded. That
+// means the tour has to genuinely wait at two points for the person to
+// take a real action before it can continue: creating the macrocycle
+// (modal-macro's fields are whatever THEY typed, the tour can't fill
+// them in) and, further down, an "Add a goal?" confirmation dialog that
+// createMacrocycle() itself pops up — handled below rather than left to
+// collide with the tour's own overlay.
+function startMacrocycleCreationTour() {
+  showScreen('plan');
+  requestAnimationFrame(() => setTimeout(() => {
+    startTour(buildMacrocycleCreationTourSteps(), { allowSkip: true, finalLabel: 'Get Started' });
+  }, 300));
+}
+
+function buildMacrocycleCreationTourSteps() {
+  return [
+    { targetId: 'macro-goal-type-input', screen: 'plan',
+      title: 'Start with your goal',
+      body: 'Weight Loss, Strength Gain, or Maintenance \u2014 this shapes every default that follows.',
+      onEnter: () => openModal('modal-macro') },
+    { targetId: 'macro-start-input', screen: 'plan',
+      title: 'Mondays only',
+      // Scope v2 §10.3's original copy said BLOC "snaps your start date
+      // forward automatically" — that's not what the app actually does
+      // (createMacrocycle() blocks the save and flashes the field red
+      // instead, per the v7.29 changelog: "blocked, not just warned").
+      // Rewritten to match real behavior rather than ship copy that
+      // contradicts what the person is about to see happen.
+      body: 'Every calculation in BLOC \u2014 deload weeks, calendar weeks, mesocycles \u2014 assumes week 1 starts on a Monday, so BLOC blocks any other date until you pick one that lines up.' },
+    { targetId: 'split-options', screen: 'plan',
+      title: 'Build your split',
+      body: 'Choose PPL, Full Body, or build a fully custom split. Microcycles (below) let a mesocycle alternate between two different weeks (A/B) instead of repeating the same one.' },
+    // Not one of the scope doc's named steps — a necessary bridge the
+    // doc didn't need to specify, since it only ever described WHAT to
+    // explain, not how the tour hands off between two real, separately-
+    // triggered creation flows (this modal, then the exercise editor
+    // below). The person fills in the rest of the form for real and
+    // taps Create when ready; the tour picks back up from there.
+    { targetId: 'macro-create-btn', screen: 'plan',
+      title: 'When you\u2019re ready',
+      body: 'Finish filling in the rest of the form, then tap here to create your macrocycle \u2014 we\u2019ll pick up right where you left off.',
+      waitForAction: true },
+    { targetId: 'ex-category-toggle', screen: 'plan',
+      title: 'Two exercise types, two forms',
+      body: 'Toggle here first \u2014 it changes what the rest of the form asks for. Weight exercises track sets/reps/weight; cardio tracks time or distance instead.',
+      onEnter: () => {
+        // createMacrocycle() may have just opened an "Add a goal?"
+        // confirmation (maybePromptCreateGoal()) — dismiss it the same
+        // way tapping "Not now" would, rather than leaving it stacked
+        // underneath this step's spotlight where it can't be reached.
+        // Goal creation isn't part of this tour; the person can still
+        // add one later the normal way.
+        const cancelBtn = document.getElementById('confirm-cancel-btn');
+        const confirmOverlay = document.getElementById('modal-confirm');
+        if (confirmOverlay && confirmOverlay.classList.contains('open') && cancelBtn) cancelBtn.click();
+        const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
+        if (macro) openAddExercise(1, macro.days[0]);
+      } },
+    { targetId: 'ex-type-select', screen: 'plan',
+      title: 'Standard, Giant Set, Pause Set, Drop Set',
+      body: 'Standard is your default. Drop Set is different from the others \u2014 the drop portion has no fixed target, it\u2019s logged to failure live, every time.' },
+    { targetId: 'plan-content', screen: 'plan',
+      title: 'Link exercises together',
+      body: 'Drag two or more exercises into a group to superset them. They\u2019ll share a badge and can be reordered together or unlinked anytime.',
+      onEnter: () => { closeModal('modal-exercise'); } },
+  ];
 }
 
 // ════════════════════════════════════════════════
@@ -15059,7 +16312,7 @@ function saveBodyProfile() {
 // this year's birthday has occurred yet.
 function calcAge(birthdayStr) {
   if (!birthdayStr) return null;
-  const today = new Date();
+  const today = now();
   const bday  = new Date(birthdayStr + 'T00:00:00');
   let age = today.getFullYear() - bday.getFullYear();
   const m = today.getMonth() - bday.getMonth();
@@ -15511,7 +16764,7 @@ function deleteBodyLog(date) {
 // Used everywhere instead of Date#toISOString(), which returns UTC and used
 // to silently show the wrong day for UK users during BST.
 function getLocalToday() {
-  return toLocalDateStr(new Date());
+  return toLocalDateStr(now());
 }
 
 // Top-level render function for the Nutrition screen — renders the hero and
@@ -16064,7 +17317,7 @@ function renderNutrHero(animate = false) {
 
   el.innerHTML = `<div class="hero-card hero-tappable" data-page="nutrition" onclick="openNutrDatePicker()">
     <div class="hero-nav-arrows" style="display:flex;gap:6px;" onclick="event.stopPropagation();">
-      <button onclick="openFillDayModal()" aria-label="Fill day" style="width:auto;height:26px;padding:0 10px;border-radius:var(--r-sm);font-size:11px;font-weight:500;white-space:nowrap;">Fill day</button>
+      <button id="fill-day-btn" onclick="openFillDayModal()" aria-label="Fill day" style="width:auto;height:26px;padding:0 10px;border-radius:var(--r-sm);font-size:11px;font-weight:500;white-space:nowrap;">Fill day</button>
       <button onclick="openNutrQuickAdd()" aria-label="Quick add" style="width:auto;height:26px;padding:0 10px;border-radius:var(--r-sm);font-size:11px;font-weight:500;white-space:nowrap;border-color:var(--accent);color:var(--accent);">Quick add</button>
     </div>
     <div style="text-align:center;padding:20px 0 4px;">
@@ -16228,7 +17481,7 @@ function renderNutrDiary() {
             </div>
           </div>
           <div style="display:flex;gap:10px;align-items:center;">
-            <button onclick="openMealMenu('${meal}')" style="background:none;border:0.5px solid var(--border2);border-radius:var(--r-sm);color:var(--text3);padding:4px 8px;cursor:pointer;font-size:16px;line-height:1;" title="Meal options">···</button>
+            <button id="meal-menu-btn-${meal}" onclick="openMealMenu('${meal}')" style="background:none;border:0.5px solid var(--border2);border-radius:var(--r-sm);color:var(--text3);padding:4px 8px;cursor:pointer;font-size:16px;line-height:1;" title="Meal options">···</button>
             <span onclick="openNutrAdd('${meal}')" style="font-size:12px;font-weight:600;color:var(--accent2);cursor:pointer;white-space:nowrap;">+ Log</span>
           </div>
         </div>
@@ -18242,12 +19495,13 @@ function importData(event) {
 }
 
 // Wipes all tracked data (macrocycles, exercises, logs, goals, nutrition,
-// food library, recipes, supersets, profile) after a two-step confirmation.
-// Deliberately preserves theme/mode, since the confirmation dialog only ever
-// promises to delete tracked data — and rebuilds the exact same shape
-// load()'s defensive defaults expect, since an earlier version of this
-// function omitted a few fields and left state.supersets undefined, which
-// crashed the next superset action.
+// food library, recipes, supersets) after a two-step confirmation.
+// Deliberately preserves theme/mode and profile (gender/height/DOB — see
+// the profile-entry gate, Build Order step 6), since the confirmation
+// dialog only ever promises to delete tracked training/nutrition data —
+// and rebuilds the exact same shape load()'s defensive defaults expect,
+// since an earlier version of this function omitted a few fields and
+// left state.supersets undefined, which crashed the next superset action.
 function clearAllData() {
   showConfirm(
     'Clear all data?',
@@ -18265,12 +19519,18 @@ function clearAllData() {
           // (recipes/supersets/profile were previously dropped here, which
           // left state.supersets undefined and crashed the next superset
           // action since several reads there aren't null-guarded).
-          const keepMode  = state.mode;
+          // Profile (gender/height/DOB) is ALSO now preserved rather than
+          // wiped — per the profile-entry gate (Build Order step 6), these
+          // are meant to survive Clear All Data specifically so a person
+          // who's already done that one-time setup never has to repeat it
+          // just because they wiped their training/nutrition history.
+          const keepMode = state.mode;
+          const keepProfile = state.profile || {};
           state = {
             macrocycles: [], exercises: {}, trainLogs: {},
             bodyLogs: [], nutritionLogs: [],
             goals: [], customLibrary: [], nutritionMeals: {}, nutritionQuickLog: {}, foodLibrary: [],
-            recipes: [], supersets: {}, profile: {}, deloads: {},
+            recipes: [], supersets: {}, profile: keepProfile, deloads: {},
             progressionLocks: {},
             progressionTargets: {},
             exerciseHistory: {}, exerciseTrackingMode: {},
@@ -18285,6 +19545,11 @@ function clearAllData() {
           save();
           renderSettings();
           showScreen('progress');
+          // A wipe can leave a genuinely empty account (0 macrocycles)
+          // with an incomplete profile if it was never filled in before
+          // this feature existed — gate it the same as any other empty
+          // account rather than special-casing "wiped" vs "never set up".
+          maybeOpenProfileGate();
         }
       );
     }
