@@ -2165,6 +2165,8 @@ See §3's callout for the full story — `range.proteinMax` was stored as the re
 | **Progression Compliance Guard — whole-exercise, not per-set lock granularity (§12)** | If 3 of 4 sets hit the target but one didn't, the entire exercise locks, not just the offending set — a deliberate simplification agreed during design rather than tracking per-set lock state, which would add real complexity for a corner case (per-set targets already vary week to week via the v6.09 per-set carry-forward). Revisit only if per-set locking is explicitly requested. |
 | **Cardio has no progression model at all (§12, new ~v7.60–v7.68)** | Deliberate, not a gap — cardio exercises never get a computed suggestion, only last week's logged value as a placeholder. There is no plan for a "suggested pace/distance" feature; cardio is intentionally treated as free-form conditioning work rather than a progressively-overloaded lift. |
 | **`Exercise.category` default has no `load()` migration (§3, new ~v7.60–v7.68)** | Unlike most schema additions in this app (which get a defensive default written back in `load()`), a missing `category` is resolved purely at read time via `getLibraryCategory()`, returning `'weight'` without ever writing the field back onto the stored exercise/library entry. This is intentional — there's nothing to repair, since every read site already calls the same helper — but means `state.exercises`/`state.customLibrary` entries predating the cardio session will never actually gain a `category` field in storage, only ever resolve to one on read. Worth knowing before writing any future code that reads `ex.category` directly instead of through `getLibraryCategory()`. |
+| **API-key-missing redirect on "Ask BLOC for advice" (Build Order step 9, backlog — not built)** | Per `bloc-onboarding-tour-scope-v2.md` §1/§9, this was explicitly scoped as *out* of the tour system proper and logged here as a follow-up rather than implemented: when a person without an Anthropic API key taps "Ask BLOC for advice" (or reaches the equivalent point in a Mini-Tour, §39), there's currently no redirect into Settings → Linked services to add one — the button is simply `disabled` with a small inline note (`⚠ Add your Anthropic API key in Settings to enable this.`, see the AI ADVICE module) rather than an active tap-through. Worth a small standalone pass: on tap, route to `modal-api-key` directly instead of leaving the disabled state as the only signal. |
+| **`renderProgress()` crashes on a macrocycle with a goal type but no body logs at all (found while testing §39, pre-existing, not caused by the tour system)** | `showScreen('progress')` throws `Cannot read properties of null (reading 'toLocaleString')` inside the Next Cycle bridge-table renderer (~line 7648, `r.kcal.toLocaleString()` where `r.kcal` is `null`) for a macrocycle that has a `goalType` but zero `bodyLogs` entries — reproduces with plain navigation, no tour or Mini-Tour involved; confirmed by calling `showScreen('progress')` directly against a synthetic account with no tour code in the call stack. Adding `targetBw`/`goal` to the macro didn't avoid it, so the actual missing precondition is still unidentified. A brand-new real account behaves fine in practice since it has no macrocycle at all yet at that point (the Plan/Progress screens don't attempt this calculation with nothing to calculate from) — this only bites an account with a macrocycle already created but no weight ever logged against it, which is a real but narrow window. Worth a dedicated look at `recommendNextCycle()`'s bridge-row computation before the Progress Mini-Tour (§39) is considered fully hardened. |
 
 ### Resolved (previously listed as open questions)
 
@@ -2318,3 +2320,530 @@ A full audit was run first (not assumed from memory) — every `<input>` in the 
 ### Implementation
 
 Applied via a single script pass rather than 66 individual manual edits: a multi-line-safe regex matched each target `<input>` tag by its `id` (including the literal `${logKey}` template-string ids, which appear verbatim in the source before runtime interpolation and can be matched directly), then inserted the `inputmode` attribute immediately after that tag's `type="..."` attribute if not already present. Verified exhaustively afterward — every one of the ~66 target ids was individually re-checked to confirm the attribute actually landed, rather than trusting the batch-replace count alone, since a silent miss here would be easy to overlook in a change this size.
+
+## 32. Module: Onboarding Tour System (groundwork, v7.74)
+
+The full tour system (Demo Tour, Macrocycle Creation Tour, Mini-Tours, spotlight/tooltip component) is scoped but not yet built as of v7.74. This section documents only the completed prep pass — stable `id` anchors for every spotlight target the tour will need — reconciled against the two scope docs (`bloc-onboarding-tour-scope-v2.md`, `-v3.md`) that define the full feature.
+
+### Spotlight-target ID audit
+
+Of the ~9 elements flagged across both scope docs as needing IDs before tour work could begin, four had already gained stable IDs incidentally during other v7.72–v7.73 work and needed no change:
+- `bloc-advice-btn` — the "Ask BLOC for advice" button (§ AI Advice)
+- `nutr-save-badge-wrap` — Nutrition's sample-day save-prompt banner (the button renders directly inside this wrapper, so the wrapper id is a sufficient spotlight target)
+- `nutr-manual-mode-item` / `nutr-manual-mode-gram` — the Per item/Per gram toggle in the Nutrition manual-entry modal
+- `swipe-yesterday-{meal}` — the swipe-to-copy-from-yesterday strip, already keyed per meal
+
+Five needed new IDs, added in this pass (all purely additive, no logic touched):
+- `prog-selector-{macroId}-{exId}` — Train's per-exercise progression selector (Weight/Reps choice), inside the expanded exercise-card view
+- `locked-notice-{macroId}-{exId}` — the "Progression on hold" notice shown in place of the selector when an exercise is under an active compliance lock
+- `deload-toggle-{macroId}` — the "Mark as deload" / "✓ Deload" span in the Train hero card
+- `fill-day-btn` — Nutrition's "Fill day" button
+- `meal-menu-btn-{meal}` — the per-meal `···` options button, keyed per meal to match the existing swipe-strip id pattern
+
+All five follow the app's existing per-item id convention (`{prefix}-{macroId}` / `{prefix}-{macroId}-{exId}` / `{prefix}-{meal}`) rather than a bare static id, since each renders once per exercise/macro/meal and a collision-prone static id would only ever correctly target the first instance on the page.
+
+### Still outstanding (not yet built as of v7.74, before this section's step 3 work)
+Per the v3 scope doc's Build Order: the spotlight/tooltip component itself (step 3), `bloc-demo-data.json` fetch wiring (step 4), the Demo Tour sequence (step 5), the profile-entry hard gate (step 6), the Macrocycle Creation Tour (step 7), the Settings Help-icon → Mini-Tours modal (step 8), and the API-key redirect (step 9, logged separately).
+
+## 33. Module: Onboarding Tour Engine (spotlight + tooltip, v7.75)
+
+Build Order step 3. This is the reusable engine — `startTour()` and its supporting functions — that every actual tour (Demo, Macrocycle Creation, all five Mini-Tours) will call into with its own step list. Nothing in this module knows about tour *content*; it only knows how to walk a step array, mask the screen, point at an element, and clean up afterward. No tour currently starts from anywhere in the app — that's steps 5–8, still to come.
+
+### Step shape
+
+```js
+{
+  targetId: 'bloc-advice-btn',   // required — id of the element to spotlight
+  title: 'Ask BLOC for advice',  // required
+  body: 'When a plateau...',     // required
+  placement: 'auto'|'top'|'bottom', // optional, default 'auto'
+  waitForAction: false,          // optional — advance via a real tap on the
+                                  // target instead of the Next button
+  onEnter: (step) => {},         // optional — fires before this step renders
+                                  // (e.g. expand a collapsed card so its
+                                  // target exists in the DOM)
+  onAdvance: (step) => {},       // optional — fires right after this step
+                                  // advances, before the next one renders
+}
+```
+
+`startTour(steps, opts)` — `opts.allowSkip` shows a Skip-tour link (Macrocycle Creation Tour only, per scope §1/§4 — the Demo Tour has no skip); `opts.onComplete` fires once after the last step advances naturally; `opts.onSkip` fires instead if Skip was used, kept as a separate callback so a caller doesn't have to inspect *how* the tour ended just to branch on it. `opts.finalLabel` overrides the last step's button text (defaults to "Get Started").
+
+### Masking: four divs, not a clip-path hole
+
+The overlay is four separate fixed `div`s (`tour-mask-top/bottom/left/right`) framing the target's rect, rather than one full-screen div with a CSS `clip-path` cutout. Two reasons:
+1. A rectangular hole in a single element needs an SVG `path()` clip — plain `polygon()` can't express a subtracted region.
+2. More importantly, one element can only have one `pointer-events` value. The tour needs the backdrop to **block** taps everywhere except the target, and for `waitForAction` steps the target itself needs to receive a **completely native** tap — no synthetic re-dispatch, no `pointer-events: none` trick that would also let taps fall through everywhere else. Four real divs solve both at once: each one *is* opaque backdrop that blocks taps, and the untouched gap between them (exactly the target's rect, ±6px padding) simply has no element sitting over it, so a tap there reaches the real DOM node underneath exactly as if no tour were running.
+
+A separate `#tour-ring` div (pointer-events: none) draws the accent border/glow around that same rect purely for visual highlight, and pulses (`.tour-ring-pulse`) on `waitForAction` steps so they read as interactive rather than just decorative.
+
+### Positioning & the iOS scroll settle
+
+`_renderTourStep()` calls `target.scrollIntoView({ block: 'center', behavior: 'smooth' })`, then waits a `requestAnimationFrame` *plus* a 220ms `setTimeout` before measuring `getBoundingClientRect()` and positioning the mask/ring/tooltip. A bare rAF isn't reliably enough time for a smooth `scrollIntoView` to actually finish on iOS Safari — the same category of timing gap as the existing WebKit stale-hit-region issue documented elsewhere in this file, and fixed the same pragmatic way (a short timeout after the frame, not relying on a scroll-end event that iOS doesn't reliably fire).
+
+Placement defaults to below the target, flipping above if there isn't ~90px of clearance before the floating nav bar (`roomBelow = vh - bottom - 90`, using `window.visualViewport.height` when available so an open keyboard is accounted for the same way the rest of the app already handles it — see the `measureEnv()`/`visualViewport` pattern in the input-mode and safe-area sections above). Steps can force `placement: 'top'|'bottom'` explicitly for cases where the natural auto-choice would be wrong.
+
+### Resize/keyboard tracking
+
+`_repositionTourStep()` (bound to both `window.resize` and `window.visualViewport.resize` for the duration of a tour) re-measures and repositions the *current* step's DOM without re-running `onEnter` or `scrollIntoView` — so an in-progress step doesn't visually detach from its target on rotation or when the keyboard opens/closes, mirroring how modals and the nav bar already stay glued to `visualViewport` elsewhere in the app.
+
+### `waitForAction` steps
+
+Instead of rendering a Next button, the step attaches a one-time `click` listener directly to the real target element and calls `tourNext()` from it. Because the mask has no coverage over the target's rect (see above), the person's tap is a completely ordinary interaction with the app — it does whatever the target's own `onclick` does *and* advances the tour, with no coordination needed between the two. This is what the v3 scope's two-step AI-advice sequence (§10.4 — narrative expand, then plan expand) and the Train progression-selector steps need: the tour has to wait for a genuine tap on the real UI, not just simulate one.
+
+### Cleanup
+
+`endTour()` removes every tour DOM node by id, detaches the resize/visualViewport listeners, removes any pending `waitForAction` click listener, and nulls `_tourState`. `startTour()` calls it defensively before starting, so a tour can never stack on top of another one left dangling by a bug elsewhere.
+
+### Verification
+
+Checked with a Playwright smoke test against a local copy of the file (not committed — throwaway, screenshot + DOM assertions only): mask rect math and z-index tier, tooltip top/bottom flip near the nav bar, progress dots and final-step label text, `waitForAction` firing from a real target click with no Next button rendered, `Skip tour` invoking `onSkip` rather than `onComplete`, and full DOM teardown after both a natural completion and a skip. Real on-device iOS PWA verification (the actual point of the scroll-settle timeout and `visualViewport` tracking above) is still outstanding — the emulated viewport testing here confirms the logic, not the on-device keyboard/safe-area behavior itself.
+
+### Addendum (v7.82): Back button, and a real smooth-scroll timing bug
+
+**Back button.** `tourBack()` existed in the engine from the start but was never exposed anywhere in the tooltip UI — `_renderTourTooltipContent()` now renders a `Back` button (hidden on step 0) alongside Skip/Next. It's a re-render of the previous step, not a true undo: an `onEnter` with a genuine side effect (the Macrocycle Creation Tour's `waitForAction` step, which actually creates a macrocycle) isn't reversed by going back past it, only re-shown. Fine for steps that just expand a card or open a modal, worth knowing for anything that mutates real data.
+
+**A genuine `scrollIntoView` timing bug, found live.** `target.scrollIntoView({ block: 'center', behavior: 'smooth' })`, followed by a 220ms settle timeout before measuring the target's rect, worked for every step tested through v7.81 — all of them were short scroll distances. The first step requiring a much larger jump (Progress's hero card down to the weekly-summary deck, added in v7.82 — see §36's addendum) reproduced a real failure: the smooth-scroll animation was still mid-flight when the 220ms timeout fired, so `_positionTourStep()` measured a mid-scroll rect instead of the settled one, and the tooltip rendered roughly 150px below the actual viewport — its own Next button literally unreachable. Fixed by switching to `behavior: 'auto'` (instant scroll), which removes the entire category of "did the animation finish in time" races rather than just tuning the timeout longer for one step. The tradeoff is losing the smooth visual scroll transition between steps; worth it for a tour that has to work reliably regardless of how far any future step's target sits from the previous one. Re-verified: a full 15-step Demo Tour walk-through with Playwright now completes with zero skips or timeouts, including the step that originally broke.
+
+### Addendum (v7.83): Skip Tour now confirms first
+
+`tourSkip()` no longer ends the tour immediately — it opens a small confirmation overlay (`_showTourSkipConfirm()`) with Cancel (`_cancelTourSkip()`, just removes the overlay, tour continues exactly as it was) and "Yes, skip" (`_confirmTourSkip()`, the real skip logic — what `tourSkip()` used to do directly). Deliberately its own dedicated overlay (`.tour-confirm-overlay`, z-index 410) rather than the app's existing `showConfirm()`/`modal-confirm` — that generic confirm dialog sits at z-index 320, which is *below* the tour's own mask (400), so it would render completely invisibly behind it if reused here. `endTour()`'s cleanup list now also removes `tour-skip-confirm` defensively, in case a tour ever ends by some other path while the confirmation is still open. Verified with Playwright: Cancel leaves `_tourState` intact and removes only the confirmation overlay; confirming actually ends the tour via the normal Skip path (`opts.onSkip` fires, not `opts.onComplete`) and — tested against the Macrocycle Creation Tour specifically — correctly leaves `modal-macro` open afterward, same as Skip always has.
+
+### Addendum (v7.84): Back navigation across screens, and a mask that could collapse to show the whole page
+
+Both bugs here were reported after the tour had otherwise been working well for a while — genuinely edge-case-shaped, in that neither showed up until a specific combination (Back across a screen boundary; a spotlighted card tall enough to exceed the viewport) actually occurred.
+
+**Back navigation landing on the wrong screen.** Every tour step that needed a specific screen active called `showScreen(...)` from inside its own `onEnter` — but only the FIRST step of each page segment ever did this, on the implicit assumption that a step could only ever be reached by advancing forward from that segment's start. True for `tourNext()`, false for `tourBack()`: going back from, say, the first Progress step to the last Home step lands directly on a step that never itself called `showScreen('home')`, because forward navigation never needed it to. Home stayed hidden (inactive `.screen`, not literally removed from the DOM), so `document.getElementById(step.targetId)` still found the element — inside a hidden screen, `getBoundingClientRect()` returns an all-zero rect pinned at `(0, 0, 0, 0)` — which is exactly the reported symptom: the spotlight resolving to the top-left corner of the screen. Matches the reporter's own observation precisely: it "worked" whenever the two adjacent steps happened to share a screen already (no navigation needed either way) and broke specifically when they didn't.
+
+Fixed by centralizing screen management rather than continuing to handle it ad hoc per step:
+
+```js
+function _ensureTourScreen(step) {
+  if (!step.screen) return;
+  const activeEl = document.querySelector('.screen.active');
+  const activeName = activeEl ? activeEl.id.replace('screen-', '') : null;
+  if (activeName !== step.screen) showScreen(step.screen);
+}
+```
+
+Called at the top of `_renderTourStep()`, before `onEnter` — every step across all tours (Demo Tour, Macrocycle Creation Tour, all 5 Mini-Tours) now declares an explicit `screen` property, and every `showScreen(...)` call that used to live inside an individual `onEnter` was removed as redundant. This makes Back (and, as a side effect, any future non-linear navigation) correct by construction rather than by the ordering happening to work out — a step's own declared `screen` is checked and corrected every single time it renders, regardless of which step was active immediately before it. Worth noting the Mini-Tours were never actually vulnerable to this specific bug (each one only ever targets a single screen, so Back within one never crosses a boundary) — the `screen` property was added there anyway for consistency with the new pattern, not because a bug reproduced.
+
+**A spotlight that could cover the whole page.** The AI-advice narrative step's card, once expanded, can be genuinely taller than the viewport — measured live at 1497px on an 844px-tall screen. `_positionTourStep()`'s mask math was already defensively clamped (`Math.max(0, top)` for the top mask's height, `Math.max(0, vh - bottom)` for the bottom one), but that clamping is mathematically correct in a way that produces a bad *visual* result for an oversized target: if the target is centered via `scrollIntoView({block:'center'})` and is taller than the viewport, both `top` (negative) and `vh - bottom` (also negative) clamp to zero, leaving literally nothing to darken above or below — indistinguishable, visually, from no spotlight being applied at all. Reported as "spotlights the whole progress page," which is accurate: with both masks at zero height, the "hole" really does span the entire visible screen.
+
+First fix attempt used `scrollIntoView({block:'start'})` for any target over 85% of the viewport height, on the theory that top-aligning would at least guarantee some margin above the target. It didn't — `block:'start'` aligns the target flush with the viewport's top edge, zero margin included, so the top mask was *still* zero height, just anchored to a different scroll position. Caught by re-measuring rather than assuming the first fix worked: a follow-up test showed `maskTopHeight: 0` again after the "fix."
+
+The actual fix replaces any `scrollIntoView` block-mode reliance with an explicit scroll offset for oversized targets:
+
+```js
+const preScrollRect = target.getBoundingClientRect();
+const tooTallToCenter = preScrollRect.height > vhEstimate * 0.85;
+if (tooTallToCenter) {
+  const TOUR_TOP_MARGIN = 70;
+  const absoluteTop = preScrollRect.top + window.scrollY;
+  window.scrollTo({ top: Math.max(0, absoluteTop - TOUR_TOP_MARGIN), left: 0, behavior: 'auto' });
+} else {
+  target.scrollIntoView({ block: 'center', behavior: 'auto' });
+}
+```
+
+Normal-sized targets keep the existing centered behavior unchanged. Re-verified live: the top mask now measures a real, substantial height (259px in the reproduction case — more than the requested 70px margin, likely because the target's on-page position combined with the deliberate offset works out differently than a flat pixel count suggests, but unambiguously a real, visible dark region rather than zero) with a clearly visible ring border around the spotlighted card. The bottom mask still clamps to zero for a target this tall — expected and fine, since the card genuinely does run off the bottom of the screen; the fix's job was only to guarantee at least one clear visual boundary, not to make an oversized target somehow fit.
+
+### Verification (v7.84)
+
+Checked with Playwright across two comprehensive runs rather than spot checks: a full 17-step forward walk through the Demo Tour, and a full 16-step backward walk from the end back to step 0 — the latter crossing every single page boundary in the tour (Nutrition → Train → Plan → Progress → Home) via `tourBack()`, checking that every step's target resolves to a real, non-zero, non-`(0,0)` rect both times. Both runs came back clean except for one already-known, already-flagged issue (`nutr-save-badge-wrap` — the Dinner-recipe data problem reported separately and still pending its own fix), confirming neither engine bug has any other instance lurking elsewhere in the current step lists.
+
+### Addendum (v7.85): manual-scroll drift, and three onEnter resets Back was missing
+
+**`window.scrollTo`/`window.scrollY` were always dead code.** `html`/`body` never scroll in this app shell — `#content` is the only real scrollable element (flex child of `#app`, `overflow-y: auto`). The v7.84 tall-target fix above scrolled via `window.scrollTo` and read the current offset via `window.scrollY`, both of which only ever affect/read `window`'s own scroll position — permanently `0` here, since nothing about the layout lets `window` scroll at all. In practice this meant the tall-target branch was a no-op: calling it never actually moved anything, so whatever scroll position `#content` happened to be sitting at (including one left over from the person manually scrolling to read a tooltip, since the mask doesn't block scroll gestures) stayed exactly where it was, and the tooltip/mask got positioned against that stale rect — reported as the tooltip rendering out of frame after scrolling mid-tour.
+
+Fixed two ways together, since either alone leaves a gap:
+
+1. **Scroll `#content`, not `window`**, in the tall-target branch:
+```js
+const absoluteTop = preScrollRect.top; // scrollTop was just reset to 0 (below), so this
+                                        // viewport-relative top IS the absolute offset
+if (_tourScrollEl) _tourScrollEl.scrollTop = Math.max(0, absoluteTop - TOUR_TOP_MARGIN);
+```
+2. **Reset `#content.scrollTop` to `0` at the very top of `_renderTourStep()`**, before anything measures against it — on every single step render, Next and Back alike, not just the tall-target case:
+```js
+const _tourScrollEl = document.getElementById('content') || document.scrollingElement;
+if (_tourScrollEl) _tourScrollEl.scrollTop = 0;
+```
+This gives every step a known, consistent starting scroll position regardless of what the person did with the previous tooltip on screen, rather than only patching the one branch that happened to be visibly broken. The normal-size-target branch (`scrollIntoView({block:'center'})`) already self-corrected against manual scroll drift on its own, but resetting first keeps both branches working from the same baseline and is cheap enough to apply unconditionally.
+
+**Three Back-specific respotlight bugs, all the same shape: an `onEnter` written for the forward path only.** Each of these steps' `onEnter` set up exactly what forward navigation needed and assumed nothing else would ever change the relevant state before landing there — true when the tour only ever moves forward through a segment, false the moment Back can land on the same step after a *later* step's `onEnter` has already mutated shared state.
+
+1. **Progress's first insights-card step** (`onEnter: () => { insightsIndex = 0; }`) never touched `_aiAdviceBodyOpen` and never called `renderProgress()`. Forward, this didn't matter — the card was already collapsed on first arrival. Back from the narrative step (which sets `_aiAdviceBodyOpen = true` and re-renders) landed back on this step with the advice section still expanded and no re-render to fix it, so the ring stayed sized to the larger, expanded card instead of shrinking back to this step's actual (collapsed) content — reported as "the spotlight doesn't reduce to its position before clicking next." Fixed by having this step's `onEnter` also reset `_aiAdviceBodyOpen = false` and call `renderProgress()`, same pattern the other insights-card steps already used.
+
+2. **The Aggressive-plan step** never reset `insightsIndex`. Forward, it didn't need to — `insightsIndex` was already `0` from the first step and nothing in between changes it. Back from the Next Cycle step (whose `onEnter` sets `insightsIndex = 2` to jump the swipe deck to a different card) landed back on the Aggressive-plan step with `insightsIndex` still `2`, so the deck kept showing the Next Cycle card underneath a tooltip/ring meant for the Aggressive plan — reported as "the swipe deck doesn't revert back to the insights card with the aggressive plan expanded and spotlighted." Fixed by adding `insightsIndex = 0` to this step's `onEnter` (and, defensively, to the narrative and Sustainable-plan steps' `onEnter` too, since Back can in principle land directly on any of them).
+
+3. **The Nutrition ellipsis-menu step** (`meal-menu-btn-Dinner`) never closed `modal-nutr-manual`. The following step opens that modal in its own `onEnter` and only ever closes it via the tour's `onComplete`/`onSkip` handlers — there was no path that closed it on a plain Back. Back from the Quick Add step therefore left the modal sitting open on top of (and blocking interaction with) this step's spotlighted `···` button — reported as "the quick add modal stays open." Fixed by adding `onEnter: () => closeModal('modal-nutr-manual')` to the ellipsis-menu step; `closeModal()` is already a no-op against an already-closed modal, so this is harmless on the forward pass too.
+
+All three fixed identically in both the Demo Tour's step list and the corresponding Mini-Tour's own copy (Progress Mini-Tour, Nutrition Mini-Tour) — the two lists are separate literal arrays, not shared, so each needed the same edit applied twice.
+
+### Addendum (v7.86): tooltip pinned below the safe area instead of flipping placement
+
+Reported live via screenshot: the AI-advice narrative step's tooltip rendered with its title and part of its body underneath the status bar / dynamic island, its progress dots and Back/Next buttons pushed up into (or past) that same unsafe area — on that particular device, functionally unreachable.
+
+**Root cause.** The v7.84-era placement logic preferred putting the tooltip below the target, flipping it above only if there wasn't enough room before the floating nav bar (`roomBelow >= tipHeight ? 'bottom' : 'top'`). The 'top' branch clamped the tooltip's vertical position with `Math.max(16, top - tipHeight - 14)` — a flat 16px screen-edge margin that has no idea where the safe area actually starts. On a target positioned far enough down the page that flipping to 'top' was the natural choice (exactly the AI-advice narrative card in the reproduction — same target as the v7.84 oversized-card fix, tall enough that `top - tipHeight - 14` landed above the safe area), the tooltip rendered flush with the literal top of the viewport, safe-area-inset be damned.
+
+**The fix drops the flip entirely** rather than patching the clamp, per an explicit design call: the tooltip is now *always* pinned at `safeTop + 12px` from the top of the viewport, for every step, with no placement decision to get wrong in the first place.
+
+```js
+const safeTopPx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--safe-top')) || 0;
+const tipTop = safeTopPx + TOUR_TOOLTIP_TOP_GAP; // TOUR_TOOLTIP_TOP_GAP = 12
+```
+
+Since the tooltip no longer moves to accommodate the target, the target now has to move to accommodate the tooltip. `_renderTourStep()` renders the tooltip's content first — purely to get its real `offsetHeight`, since title/body length varies step to step — then scrolls `#content` so the target's top lands just below the tooltip and its arrow:
+
+```js
+const contentStartY = tipTop + tipHeight + TOUR_TARGET_GAP; // TOUR_TARGET_GAP = 24
+const preScrollRect = target.getBoundingClientRect(); // scrollTop was reset to 0 just above
+_tourScrollEl.scrollTop = Math.max(0, preScrollRect.top - contentStartY);
+```
+
+This is deliberately the *same* calculation for every target regardless of size — it replaces both the old normal-target `scrollIntoView({block:'center'})` path and the v7.84 oversized-target explicit-offset path with one path. The v7.84 "spotlight covers the whole page" bug (both mask pieces clamping to zero height for a target taller than the viewport) can no longer occur by construction: the target's top is always pinned to a known line below the tooltip, so the top mask always has real height between the top of the screen and that line, and the ring/bottom-mask simply clip to whatever of the target happens to be visible below it — accepted as correct rather than special-cased, per the same "spotlight shows whatever is visible" call. A target that's taller than the remaining viewport, or one that still runs off the bottom after this scroll, is no different from any other content the person can scroll further to see; the mask no longer tries to guarantee the whole thing fits.
+
+**Known tradeoff, accepted rather than engineered around.** A target sitting very close to the natural top of its screen (nothing above it to scroll away) can't be pushed down past `contentStartY` if that line falls below the target's unscrolled position — `scrollTop` is already clamped to its minimum of `0` in that case. In practice this only affects a small number of first-in-segment targets (e.g. `home-goal-banner`, the very first element on Home); the tooltip may sit slightly over the top of such a target rather than cleanly above it. Not fixed here deliberately — doing so would mean re-introducing per-target special-casing (extra scroll padding, a shrink-to-fit tooltip, etc.) for a purely cosmetic edge case, working against the same simplification this whole addendum is about. Back/Next remain fully reachable regardless, since the tooltip itself is never displaced from its fixed safe-area-anchored position — the one property this fix actually exists to guarantee.
+
+Also removed as dead weight: the `placement: 'auto'|'top'|'bottom'` step-shape option (documented but never actually used by any step in any tour) and the `roomBelow`/nav-bar-clearance calculation that used to decide the flip.
+
+### Addendum (v7.87): dynamic placement restored — the safe area needed a clamp, not a lockdown
+
+v7.86 removed the tooltip's above/below flip entirely in response to the dynamic-island screenshot, on the reasoning that a fixed position could never again render in the unsafe area. Correct, but broader than what was actually asked for: the follow-up request clarified the tooltip should still be able to go either above or below the target — whichever side has more room — it just must never be allowed to cross into the safe area. v7.86 had fixed the symptom by removing the mechanism it belonged to.
+
+**Reverted:** the placement decision goes back to comparing actual room on each side of the target:
+```js
+const roomAbove = top - safeTopPx;
+const roomBelow = vh - bottom - 90; // keep clear of the floating nav bar
+const placement = roomBelow >= roomAbove ? 'bottom' : 'top';
+```
+This differs slightly from the pre-v7.86 (v7.84) version, which was `roomBelow >= tipHeight ? 'bottom' : 'top'` — "prefer below unless it doesn't fit." The new version picks whichever side has strictly more space, per the explicit "go wherever has more space" instruction, rather than defaulting to below whenever it's merely adequate.
+
+Also reverted: the v7.84 scroll behavior (`scrollIntoView({block:'center'})` for normal-sized targets, an explicit `TOUR_TOP_MARGIN` offset scroll for targets taller than 85% of the viewport). This had to come back too — v7.86's "scroll the target below a fixed tooltip position" approach only made sense when the tooltip's position was fixed; with placement dynamic again, the tooltip needs the target's settled position to decide which side to render on, not the other way around.
+
+**What actually stayed fixed, and is the real point of this addendum:** the 'top' placement's clamp.
+```js
+// v7.84 / broken:
+tipTop = Math.max(16, top - tipHeight - 14);
+// v7.87 / fixed:
+tipTop = Math.max(safeTopPx + 16, top - tipHeight - 14);
+```
+This one-line change is the actual root-cause fix for the original screenshot — a flat `16px` screen-edge margin has no idea where the safe area ends, so a 'top' placement could render flush with the literal top of the viewport, underneath the status bar / dynamic island. Clamping against `safeTopPx + 16` instead means 'top' placement can now legitimately be chosen (whenever there's more room above the target than below), and the tooltip will still never cross into the unsafe area — worst case, if the target sits too close to the top of the screen for the full tooltip height to fit above it, the tooltip simply overlaps the top of the target slightly rather than ever creeping upward past the safe line. Given the target is still fully spotlighted underneath regardless, this is a minor cosmetic compromise in a genuinely rare case, not a functional one — Back/Next remain reachable either way, which was the actual complaint.
+
+Mask/ring behavior — clipping to whatever portion of the target is visible, no special-casing for an oversized target — is unchanged from v7.86; that part of the redesign wasn't in question this round, only the tooltip's own placement mechanism.
+
+## 34. Module: Demo Data Fetch (v7.76)
+
+Build Order step 4. `bloc-demo-data.json` ships as a second static file, deployed alongside `index.html` in the same GitHub Pages directory. This is a genuinely new thing for the app: BLOC has been fully offline-first since v1 — every read and write goes through `localStorage` only — and this is its first network dependency of any kind. It's same-origin and static (not a third-party call), but the fetch still has to assume it might fail, since nothing about offline-first behavior should regress for it.
+
+### New-user detection
+
+```js
+const _isNewUserOnBoot = !localStorage.getItem('bloc_state');
+load();
+fetchDemoDataIfNewUser(_isNewUserOnBoot);
+```
+
+The check happens **before** `load()` runs, not after. `load()` only ever reads `localStorage` — populating the in-memory `state` object with defaults if nothing's there — it never calls `save()` itself. So checking `bloc_state`'s presence beforehand is the one accurate way to know "has this device ever actually saved anything," as opposed to "is `state` currently empty," which would also be true for other cases (mid-way through a manual Clear All Data, for instance).
+
+This also means the fetch naturally never re-fires after a device's first successful save — no separate `bloc_demo_seen` flag needed. The Demo Tour's own wipe-and-handoff (§5 of the scope doc, not yet built) ends by writing a fresh real `state` via `save()`, which is itself what permanently closes the window for this fetch to run again on that device. The one edge case — someone opens the app, the Demo Tour begins, and they leave before it finishes without anything ever being saved — correctly re-triggers the fetch (and the tour) on their next visit, which is the right behavior: nobody should get stuck mid-demo with no way back in.
+
+### Fetch + failure handling
+
+```js
+let demoData = null; // parsed bloc-demo-data.json, once successfully fetched
+
+function fetchDemoDataIfNewUser(isNewUser) {
+  if (!isNewUser) return;
+  fetch('bloc-demo-data.json')
+    .then(res => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
+    .then(data => { demoData = data; })
+    .catch(err => { console.warn('[demo] bloc-demo-data.json fetch failed...', err.message); });
+}
+```
+
+Every failure path — network error, 404, malformed JSON, an ad-blocker, a stale Pages cache — collapses to the same outcome: `demoData` stays `null`, nothing throws, nothing blocks the rest of boot, and the person lands on the ordinary empty-state onboarding the app has always had. The only trace is a `console.warn`, deliberately not surfaced to the person — a missing demo file is a deploy problem for later, not something a new user should ever see an error about.
+
+Nothing reads `demoData` yet as of v7.76. Build Order step 5 (the Demo Tour sequence itself) is what will actually apply it into `state`, pin the app's "today" to the dataset's anchor date (2 Aug 2026, per the scope doc's §3.2), and drive `startTour()` (§33) through it.
+
+### Verification
+
+Checked with Playwright against a local static file server (`python -m http.server`, not a `file://` load — `fetch()` of a relative same-origin JSON path needs real HTTP semantics to behave like production GitHub Pages will) covering three cases: a genuinely new user (empty localStorage) triggers the request and `demoData` populates with the real dataset; a returning user (pre-seeded `bloc_state`) makes zero request for the file at all, confirmed via a Playwright route interceptor rather than just checking the outcome; and a deliberately aborted/blocked request leaves `demoData` null with no uncaught error and the Home screen rendering normally, confirming the offline-first guarantee holds even with this new dependency in place.
+
+## 35. Module: Tour "Today" Anchor (v7.77)
+
+Part of Build Order step 5 (the Demo Tour sequence), split out on its own since it turned out to be a genuinely separate piece of work worth getting right in isolation before wiring it into an actual tour flow.
+
+### The problem
+
+The demo dataset's anchor date is Sunday 2 Aug 2026 (`bloc-onboarding-tour-scope-v3.md` §3.2) — every engineered number in it (the plateau signal, the 14-day kcal trend, the measurement-reminder banner's 4-day window, the AI advice narrative) was computed against that exact date being "today." If the app used the device's *real* current date instead while showing that data, every one of those carefully-matched figures would silently disagree with the advice text sitting right next to it — worse the further the real calendar drifts from Aug 2026.
+
+`getLocalToday()` looked like the obvious single choke point to override — its own doc comment says it's "used everywhere instead of `Date#toISOString()`" — but an audit turned up **17 other call sites** independently constructing `new Date()` for the exact same "what is today" purpose, entirely bypassing it: Progress's date header, the weekly-average window, plateau detection's cutoff, the Home page's day-of-week elapsed-week calc, `calcAge()` (which feeds the BMR/TDEE numbers the demo's protein/kcal figures are built on), several cycle active/past comparisons, an ETA projection, and the Nutrition date-picker's "Yesterday" button. None of these were bugs before this feature existed — the real device date and "today" were always the same thing — but every one of them needed fixing for an anchor override to actually work end-to-end rather than half-work in a way that would be confusing to debug later.
+
+### The fix
+
+```js
+let _tourAnchorDate = null; // 'YYYY-MM-DD' while the Demo Tour is active, else null
+function setTourAnchorDate(dateStr) { _tourAnchorDate = dateStr; }
+function now() {
+  return _tourAnchorDate ? new Date(_tourAnchorDate + 'T00:00:00') : new Date();
+}
+```
+
+`now()` (DATE HELPERS section, next to `toLocalDateStr()`) is the one function every "what is today" call in the app goes through. `getLocalToday()` is now just `toLocalDateStr(now())`. All 17 other identified call sites were converted from `new Date()` to `now()` in place — same behavior, same return type, zero logic changes beyond the source of "today" itself.
+
+**Two deliberate exceptions, not converted:**
+- A new macrocycle's default name (`` `${label} ${year}` ``, in `fillNextCycleMacroModal()`) still uses a real `new Date().getFullYear()`. This only matters for the Macrocycle Creation Tour and general macro creation — both real, non-demo flows — where the actual current year is exactly what should be suggested, anchor or not.
+- `now()`'s own internal `new Date()` fallback, for the obvious reason.
+
+`Date.now()` (epoch-millisecond uniqueness tokens, e.g. `'sg_' + Date.now()` for sample-day group ids) is untouched by design — these aren't calendar-date semantics at all, and anchoring them would risk id collisions across a pinned-date session rather than prevent anything.
+
+### Verification
+
+Checked with Playwright: `getLocalToday()` returns the real device date with no anchor set; setting `setTourAnchorDate('2026-08-02')` makes it return that exact string, `now().getDay()` correctly reports `0` (Sunday, matching the scope doc's own description of the anchor date), and `calcAge()` computes against the anchored date; clearing the anchor (`setTourAnchorDate(null)`) reverts `getLocalToday()` to the real device date on the very next call; and a direct `new Date().getFullYear()` check (simulating the macro-name-year exception) confirmed it stays on the real year throughout, unaffected by the anchor being set.
+
+### Still outstanding (as of v7.77)
+
+Nothing in the app calls `setTourAnchorDate()` yet, and `demoData` (§34) still isn't applied into `state` anywhere. §36 (below) is where both of those get wired together.
+
+## 36. Module: Demo Tour Sequence (v7.78)
+
+Build Order step 5, and the point where the tour engine (§33), the demo-data fetch (§34), and the "today" anchor (§35) all get wired together into something that actually runs. As of this version, a genuinely new user (empty `bloc_state`) sees the full Demo Tour automatically on first load, with no manual trigger anywhere.
+
+### Enter / exit
+
+```js
+function enterDemoMode() {
+  if (!demoData) return;
+  state = JSON.parse(JSON.stringify(demoData)); // deep copy, never mutates the cached fetch
+  setTourAnchorDate('2026-08-02');
+  showScreen('home');
+}
+
+function startDemoTour() {
+  enterDemoMode();
+  requestAnimationFrame(() => setTimeout(() => {
+    startTour(buildDemoTourSteps(), {
+      allowSkip: false,
+      finalLabel: 'Get Started',
+      onComplete: exitDemoMode,
+    });
+  }, 400));
+}
+```
+
+`enterDemoMode()` deep-copies `demoData` into `state` rather than assigning the reference directly — the tour's own `onEnter` hooks (expanding exercise cards, opening the AI-advice narrative/plan sections, opening the Nutrition manual-entry modal) mutate `state` and other module state freely as the person moves through it, and none of that should ever leak back into the object `fetchDemoDataIfNewUser()` cached. `startDemoTour()` is called directly from that fetch's success path (§34) — the 400ms delay after the state swap and re-render gives Home's count-up animation and first paint room to settle before the mask/tooltip in `startTour()` measures anything, the same pragmatic pattern the tour engine already uses for `scrollIntoView` (§33).
+
+`exitDemoMode()` is the wipe-and-handoff described in the scope doc's §5: it clears the anchor (`setTourAnchorDate(null)`, so the very next `getLocalToday()` call reverts to the real device date), then rebuilds `state` to the exact same empty shape `clearAllData()` uses — deliberately the same object literal, so the two never drift apart — and this is the one `save()` call in the whole flow. Per the scope doc, this should route into forced profile entry next; that gate is Build Order step 6 and doesn't exist yet, so it currently lands on a plain empty Home screen instead, marked with a `TODO` at the call site.
+
+### Step list
+
+`buildDemoTourSteps()` returns the 15-step array `startTour()` walks — copy is the first-pass draft from `bloc-onboarding-tour-scope-v2.md` §10.2, plus the Progress AI-advice two-step split and the two Train additions from `-v3.md` §10.4. Target ids are the ones added in the ID prep pass (§32) and the tour engine's own build (§33); several steps carry an `onEnter` that navigates screens (`showScreen(...)`) or expands/opens something that's collapsed or modal by default before the spotlight measures its target — the AI-advice narrative and selected-plan sections (`_blocAdviceSectionsOpen.narrative`/`.selected`), and the Nutrition manual-entry modal (`openModal('modal-nutr-manual')`).
+
+### The Train-steps bug, and why the fix is a dynamic lookup rather than a name
+
+The two Train steps (progression choice, missed-target lock) were originally going to target one specific exercise each by name, matching the scope doc's own description: Lat Pull Machine as the clean "choose your progression" example, Lat Pulldown as the locked one. Testing surfaced a real disagreement — the app's live progression-lock evaluation (re-derived from logged sets against targets on every render, not just read back verbatim from the dataset's stored `progressionLocks` blob) locked a *different* exercise than the dataset's own `progressionLocks` keys implied it should. Rather than patch the dataset or hardcode around one specific observed mismatch, both steps now expand every exercise on the tour's Train landing day at once and dynamically find whichever one the DOM actually shows as locked vs. normal:
+
+```js
+const expandAllExercisesForDay = () => {
+  const macro = state.macrocycles.find(m => m.id === macroId);
+  if (!macro) return;
+  exList.forEach(ex => { expandedExercises[`${macroId}_${week}_${day}_${ex.id}`] = true; });
+  renderTrainDay(macro);
+};
+// ...
+onEnter: (step) => {
+  expandAllExercisesForDay();
+  const found = document.querySelector(`[id^="prog-selector-${macroId}-"]`);
+  if (found) step.targetId = found.id;
+}
+```
+
+Each step's `targetId` starts as a harmless placeholder (`'train-hero'`) and is overwritten inside `onEnter` once the real element is known — the tour engine (§33) calls `onEnter` before it reads `step.targetId` for that render, so mutating the step object in place is exactly the intended extension point, not a workaround. This makes both steps correct regardless of which specific exercise the live logic locks, and immune to ever going stale if the dataset or the progression logic changes later — a meaningfully more robust fix than hardcoding around the one mismatch this session happened to find.
+
+### Verification
+
+Checked end-to-end with Playwright against a local static server: on a fresh page load with empty `localStorage`, the tour starts automatically, `state.macrocycles` holds the demo macro, and `getLocalToday()` correctly reports the anchor date (`2026-08-02`) while the tour is active. Clicking through all 15 steps via the tooltip's Next/Get Started button advances the tour index by exactly one every time with zero auto-skips (the tour engine's target-not-found safety net, §33, never fires) — confirming every one of the 15 target ids resolves correctly at the point its step renders, including the two dynamically-resolved Train ids. Screenshots at the Train progression-selector step and the Nutrition Per-item/Per-gram modal step both confirmed correct visual positioning and real demo data on screen (the engineered Dinner meal breakdown, the locked/normal exercise split). On completion, `state.macrocycles.length` is back to `0` and `getLocalToday()` reverts to the real device date, confirming the wipe-and-handoff and anchor-clear both fire correctly.
+
+### Still outstanding
+
+The profile-entry hard-block gate (§37, below) and the Macrocycle Creation Tour (§38) are what §36 originally left outstanding — both are now built. The Settings Help-icon → Mini-Tours modal (Build Order step 8) and the API-key redirect (step 9) remain unbuilt. Real on-device iOS PWA verification of the full tour system (as opposed to the emulated-viewport Playwright testing done throughout §33–§38) is still outstanding.
+
+### Addendum (v7.82): welcome screen, an `_aiAdviceBodyOpen` bug, and two copy/targeting fixes
+
+**Welcome screen.** `startDemoTour()` no longer goes straight from `enterDemoMode()` into the spotlight sequence — it now opens `modal-tour-welcome` first (brief "Welcome to BLOC" intro + a "Let's go →" button), and the actual sequence only starts once that button is tapped, via the new `beginDemoTourSteps()`. Ordinary `.modal-overlay` — dismissable the normal way (backdrop tap, swipe-down) same as any other modal, not hard-blocked like the profile gate. Caught a self-inflicted bug while building it: the markup used JS-style `\u2192`/`\u2014` escape sequences inside static HTML rather than inside a `<script>` string, where they don't get interpreted at all and render as the literal six-character text `\u2192` — confirmed via screenshot, fixed by using the real → and — characters directly.
+
+**A real bug in the AI-advice steps, found by testing (not by reading code).** The narrative/selected-plan steps set `_blocAdviceSectionsOpen.narrative`/`.selected`, matching the toggle names used inside `buildAiAdviceCardHTML()`. What wasn't obvious from that function alone: `buildInsightsCardHTML()`, the caller that actually wraps the advice card into the page, gates the ENTIRE `aiAdvice.body` (headline, narrative, both plan sections — everything `_blocAdviceSectionsOpen` controls) behind a separate, outer flag, `_aiAdviceBodyOpen` (the "View BLOC AI advice" collapse toggle), which the tour never touched. Setting the inner flags true had no visible effect because the whole section they lived inside was still collapsed. Diagnosed by live-testing rather than re-reading the render functions harder: called `buildAiAdviceCardHTML()` directly in a Playwright `page.evaluate()` and confirmed it returned real content (`body.length` in the thousands), which ruled out the data/eligibility logic — then traced forward from there to find where that returned `body` actually gets used, landing on the `_aiAdviceBodyOpen ? aiAdvice.body : ''` gate. Fixed by setting both flags together in both onEnter handlers (Demo Tour and Progress Mini-Tour, §39 — same bug, same fix, both had it since they share near-identical step definitions):
+
+```js
+onEnter: () => { _aiAdviceBodyOpen = true; _blocAdviceSectionsOpen.narrative = true; renderProgress(); }
+```
+
+Confirmed live afterward: the advice headline text and "Challenge this" section both now genuinely appear in `progress-body`'s rendered HTML.
+
+**Nutrition copy.** The "Two shortcuts worth knowing" step referenced a swipe-to-copy-from-yesterday gesture that's no longer part of the intended demo narrative — trimmed to a single step about the `···` meal-options menu only (title/copy changed in both the Demo Tour and the Nutrition Mini-Tour).
+
+**Progress "swipeable decks" step retargeted.** The hero card stopped being a swipe deck at some point in the app's own redesign history, making the original copy ("swipe left and right on both this card and the one below") describe a UI that no longer exists. Retargeted from `progress-hero-wrap` to `progress-tables-wrap` (the weekly-summary/swings/measurements deck, confirmed still genuinely swipeable), with copy now referencing the insights card (`progress-body`) seen a few steps earlier instead of a "card below" that isn't swipeable. This step is what surfaced the `scrollIntoView` timing bug documented in §33's addendum — it's a much larger scroll distance than any earlier step needed.
+
+### Addendum (v7.83): AI-advice steps split into three, and a missing Next Cycle spotlight
+
+**Narrative / Sustainable / Aggressive, not narrative / "chosen plan."** The single "Your chosen plan" step became two — one for the Sustainable plan, one for the Aggressive plan, the latter explicitly calling out the "Challenge this" feature. The underlying UI doesn't have a fixed Sustainable/Aggressive pairing to `_blocAdviceSectionsOpen`'s `.selected`/`.alt` flags — `.selected` always shows whichever plan was actually *chosen*, `.alt` always shows the other one, regardless of which one that happens to be. Naming a step "The Sustainable plan" and just setting `.alt = true` would be correct for this dataset (`chosenPath: 'aggressive'`, so Sustainable is genuinely the alt) but wrong for any dataset or real Mini-Tour user whose chosen path is Sustainable instead. Fixed by reading `state.blocAdvice.chosenPath` at each step's `onEnter` and deriving which flag corresponds to which named plan on the fly:
+
+```js
+const chosenPath = state.blocAdvice && state.blocAdvice.chosenPath;
+_blocAdviceSectionsOpen.selected = chosenPath === 'sustainable';
+_blocAdviceSectionsOpen.alt = chosenPath !== 'sustainable';
+```
+
+— and the mirror-image check for the Aggressive step. Correct regardless of which plan a real Mini-Tour user actually picked. One case this doesn't specifically handle: an advice instance with no plan chosen yet (`chosenPath` is `null`) renders a different, pre-choice layout — both plans shown side by side unconditionally, with `.selected`/`.alt` not applying to that branch at all. Harmless (the Sustainable and Aggressive steps just show the same already-visible content twice rather than anything wrong), not specifically handled since it's a real-data-only edge case the Demo Tour's dataset never hits (`chosenPath` is always set there).
+
+**A previously-missing spotlight.** The Progress insights deck (`progress-body`) is a 3-card swipe deck — weight/trend/AI-advice (card 1, `insightsIndex = 0`), BMR/TDEE/ETA (card 2), and the Next Cycle Recommendation Engine with its own "ask BLOC for a second opinion" feature (card 3, `insightsIndex = 2`). Every prior version of both the Demo Tour and the Progress Mini-Tour only ever showed card 1 — card 3 was never spotlighted at all, despite being one of the deck's three cards and the app's largest genuinely separate AI-advice feature (`askBlocForNextCycleAdvice()`, `TECHNICAL.md`'s own Next Cycle Recommendation Engine module). Added a new step that sets `insightsIndex = 2` before re-rendering, spotlighting the same `progress-body` container now showing that card's real content. Copy deliberately doesn't assert the second-opinion button is tappable *right now* — its own 3-week-from-cycle-end eligibility gate (checked against the demo dataset's macro: starts 2026-06-08, ends mid-September, well outside the window at the 2 Aug anchor date) means it's realistically showing its countdown state rather than an active button during the demo, and real Mini-Tour users will be at all different points in their own cycles. The final "swipeable decks" step now resets `insightsIndex = 0` in its own `onEnter`, so the person doesn't leave the tour with that deck sitting on the Next Cycle card by default.
+
+## 37. Module: Profile Entry Gate (v7.79)
+
+Build Order step 6. Per `bloc-onboarding-tour-scope-v2.md` §1/§10.1: gender, height, and date of birth become mandatory for a brand-new account, hard-blocking the rest of the app until all three are filled in. Rather than build a separate gate screen, this reuses the existing Settings → About me profile modal (`modal-body-profile`) — only its dismissability and copy change while the gate is active.
+
+### The three pieces
+
+```js
+let _profileGateActive = false;
+
+function isProfileComplete() {
+  const p = state.profile || {};
+  return !!(p.gender && p.heightCm && p.birthday);
+}
+```
+
+**Blocking dismissal.** Every way a modal in this app can be dismissed — backdrop tap, swipe-down on the handle, the ✕ button (see `initModal()`, §32-adjacent MODALS section) — already funnels through `closeModal(id)`. Blocking it there blocks all three at once:
+
+```js
+function closeModal(id) {
+  if (id === 'modal-body-profile' && _profileGateActive) return;
+  // ...
+}
+```
+
+The ✕ button is additionally hidden via CSS (`#modal-body-profile.gate-active .modal-close-btn { display: none; }`) rather than left visible-but-inert, so there's nothing on screen that looks tappable but silently does nothing.
+
+**Mandatory validation.** `saveBodyProfile()` normally allows a partial save (leaving a field blank on an edit doesn't erase a previously-saved value — that behavior is unchanged for ordinary Settings use). While gated, it now refuses to proceed unless gender, height, and birthday are all genuinely present, showing an inline `profile-gate-error` message instead of silently accepting an incomplete save:
+
+```js
+if (_profileGateActive && !(gender && finalHeightCm && bday)) {
+  const errEl = document.getElementById('profile-gate-error');
+  if (errEl) errEl.style.display = 'block';
+  return;
+}
+```
+
+On a successful gated save, it clears `_profileGateActive`, removes the `gate-active` class and explainer text, closes the modal, and — since a freshly-gated account has nothing else set up — hands off into `startMacrocycleCreationTour()` (§38).
+
+**Who gets gated.** `maybeOpenProfileGate()` only ever gates a genuinely empty account:
+
+```js
+function maybeOpenProfileGate() {
+  if (_tourState) return;
+  if (!state.macrocycles || state.macrocycles.length > 0) return;
+  if (isProfileComplete()) return;
+  openProfileGate();
+}
+```
+
+This is deliberately conservative — an existing real account with macrocycles is never retroactively locked out just because it predates this requirement, even if its profile happens to be incomplete. The `_tourState` check avoids fighting an already-running tour (the Demo Tour's own `exitDemoMode()` calls `openProfileGate()` directly once it's finished, rather than racing this generic check against it). Three call sites: `exitDemoMode()` (direct call, always gates since state was just wiped), `fetchDemoDataIfNewUser()`'s `.catch()` (a new user whose demo fetch failed still needs gating), and boot itself, for a returning device that's somehow still empty.
+
+**A boot-time ordering bug.** The boot-time call originally ran synchronously, immediately after `load()`. `maybeOpenProfileGate()` references `_tourState`, which is a `let` declared later in the same script (inside the tour engine, §33) — and `let` bindings are in the temporal dead zone until their own declaration line actually executes. Calling a function that touches `_tourState` before that line runs throws `ReferenceError: Cannot access '_tourState' before initialization`. Fixed by deferring with `setTimeout(maybeOpenProfileGate, 0)`, which pushes the call to a macrotask after the rest of the script — including `_tourState`'s declaration — has finished executing, the same category of fix already used elsewhere in boot for paint-dependent work (`positionNavPill`'s double-rAF).
+
+### `clearAllData()` now preserves profile
+
+The scope doc requires profile to survive Clear All Data — previously it didn't; `clearAllData()`'s state rebuild explicitly reset `profile: {}` along with everything else. Fixed the same way `keepMode` already worked:
+
+```js
+const keepMode = state.mode;
+const keepProfile = state.profile || {};
+state = { /* ... */ profile: keepProfile, /* ... */ mode: keepMode || 'dark', /* ... */ };
+```
+
+A wipe can still leave a 0-macrocycle account with an incomplete profile, if that profile was never filled in before this feature existed — `clearAllData()` now calls `maybeOpenProfileGate()` at the end, treating that case identically to any other empty account rather than special-casing "wiped" vs "never set up."
+
+### Verification
+
+Checked with Playwright across four scenarios: completing the Demo Tour opens the gate automatically, `closeModal()` genuinely refuses to dismiss it, an empty save is rejected with the validation message shown, and a valid save clears the gate, saves the profile, and routes onward; a returning device (pre-seeded `bloc_state`) with 0 macrocycles and an incomplete profile is gated on boot; an existing real account with macrocycles and an incomplete profile is never gated; and Clear All Data on an account with an already-complete profile preserves it exactly and correctly does not re-trigger the gate.
+
+## 38. Module: Macrocycle Creation Tour (v7.80)
+
+Build Order step 7 — the last piece of the core onboarding sequence (Demo Tour → profile gate → this). Triggered only from `saveBodyProfile()`'s gated-completion path; never interrupts an existing account creating a second or later macrocycle through Plan's own "+ New" button.
+
+### Why this tour is structurally different from the Demo Tour
+
+Every Demo Tour step (§36) points at data the tour itself controls — `demoData`, loaded wholesale into `state` before the tour starts. This tour points at a **real macrocycle the person is actually creating**, filled in with whatever they type. That difference forces two things the Demo Tour never needed:
+
+1. A genuine pause for real user input. The tour can't fill in the macrocycle name, weeks, or start date on the person's behalf — it has to wait for them to do that for real and tap Create. This is exactly what `waitForAction` (§33) was built for: the step targets `macro-create-btn` directly, shows no Next button, and advances only when the real button is genuinely clicked, running the real `createMacrocycle()` handler as a side effect of that same click — not simulated in any way.
+2. Handling a real side effect of that real action. `createMacrocycle()` calls `maybePromptCreateGoal()`, which can pop a `showConfirm()` "Add a goal?" dialog. Left alone, that dialog would sit underneath the tour's z-index-400 mask, unreachable. The next step's `onEnter` dismisses it programmatically — `document.getElementById('confirm-cancel-btn').click()` — the same action tapping "Not now" would take. Goal creation isn't part of this tour's scope; the person can still add one later through the normal flow.
+
+### The bridge step
+
+Six steps are named in `bloc-onboarding-tour-scope-v2.md` §10.3 (goal type, start date, split & microcycles, weight vs cardio, exercise type, supersets). A seventh — the `waitForAction` step targeting `macro-create-btn` — isn't one of them; the doc only ever specified *what* to explain, not the mechanics of handing off between two separately-triggered real creation flows (the macrocycle modal, then the exercise editor). Documented in-code as a deliberate addition rather than left unexplained.
+
+### A copy correction
+
+The scope doc's original Monday-rule tooltip read: *"BLOC will snap your start date forward automatically."* That's not what the app does — `createMacrocycle()` blocks the save and flashes the start-date field red instead (`isMondayDateStr()` check, matching the README's v7.29 entry: "blocked, not just warned"). Shipping the original copy would have described behavior the person was about to watch *not* happen. Rewritten to match reality:
+
+> Every calculation in BLOC — deload weeks, calendar weeks, mesocycles — assumes week 1 starts on a Monday, so BLOC blocks any other date until you pick one that lines up.
+
+### A second modal-leak bug, same category as before
+
+Testing this tour surfaced a second instance of the same problem class the Train-steps bug (§36) belonged to: leftover state from an earlier part of the flow silently breaking a later part. The Demo Tour's final step opens `modal-nutr-manual` via `onEnter` and, by design, ends on that step — nothing ever closes it. `exitDemoMode()` wipes `state` but was never touching the DOM's `.open` classes, so that modal stayed visually open (z-index 300) sitting in front of `modal-macro` (default z-index 200) once the Macrocycle Creation Tour tried to open it, silently absorbing every click meant for the Create button. Fixed by sweep-closing every open modal at the top of `exitDemoMode()`:
+
+```js
+document.querySelectorAll('.modal-overlay.open').forEach(el => el.classList.remove('open'));
+```
+
+Brute-force rather than calling `closeModal()` per id, deliberately: `state` is about to be wiped entirely regardless, so none of `closeModal()`'s side effects (camera-stream teardown, keyboard blur) apply or matter here, and this version stays correct even if a future step change leaves some other modal open.
+
+### Verification
+
+Checked end-to-end with Playwright: a full run from Demo Tour completion, through profile entry, through steps 1–3 (Next-button driven), through the real `waitForAction` pause — filling in an actual macro name and a real Monday start date, then clicking `#macro-create-btn` directly rather than simulating the tour's own advance — confirmed a real macrocycle appears in `state.macrocycles` (not faked), the "Add a goal?" confirm dialog is correctly auto-dismissed, and the Add Exercise modal opens automatically for the new macro's first session; the remaining two steps and completion land correctly on Plan with the macrocycle intact. A separate run confirmed Skip Tour ends the tour while leaving `modal-macro` open exactly as the person left it, so an in-progress but unfinished macro-creation form is never lost to a skip.
+
+### Still outstanding
+
+Real on-device iOS PWA verification of the full tour system (as opposed to emulated-viewport Playwright testing throughout §33–§39) is still outstanding. Everything else in the Build Order is now built — see §39.
+
+## 39. Module: Mini-Tours + API-Key Redirect Logging (v7.81)
+
+Build Order steps 8 and 9 — the last two items, completing the core onboarding tour system end to end.
+
+### Mini-Tours
+
+Per `bloc-onboarding-tour-scope-v2.md` §1 (recap) and §8.4: fully manual, Settings-triggered, on-demand, never auto-shown or auto-retriggered. A new Help icon (`settings-help-btn`, a circled "?") sits at the top of the Settings screen, opening `modal-tour-help` — a modal listing five buttons, one per page (Home/Progress/Plan/Train/Nutrition), each launching that page's Mini-Tour.
+
+**Structured for a future FAQ tab.** §8.4 specifically asks for the modal to anticipate a Tours-vs-FAQs segmented control without needing a rebuild once only Tours exists. The modal body is a single uppercase label row ("Tours") followed by the five buttons — exactly where a two-tab switcher would slot in later, without restructuring anything below it.
+
+**Real data, not `demoData`.** Every Mini-Tour reuses the same per-page tooltip copy as the corresponding Demo Tour steps (§36), but points at whatever the person's actual current state is — no anchor date (§35), no `enterDemoMode()`. This is a deliberately different contract than the Demo Tour's: real data varies enormously per person (no macrocycle yet, nothing logged today, no AI advice ever requested), so several steps target elements that may not currently hold anything interesting, or may not exist in the DOM at all. Both are fine — the tour engine's target-not-found handling (§33) already skips a step cleanly if its element isn't there, which is exactly the graceful-degradation behavior an "explore the app" tour needs.
+
+**Train Mini-Tour reuses the dynamic-lookup trick.** Same approach as the Demo Tour's Train steps and the Macrocycle Creation Tour's exercise steps: expand every exercise on the *currently active* session (`state.currentMacroId`/`currentWeek`/`currentDay`, not a fixed demo day), then find whichever one actually renders a `prog-selector-`/`locked-notice-` element. A real account might have neither (nothing logged yet) or only one of the two — the dynamic lookup handles all three cases identically, falling back to the `train-hero` placeholder if nothing matches.
+
+**A third instance of the modal-leak bug.** The Nutrition Mini-Tour's last step opens `modal-nutr-manual`, same as the Demo Tour's — and same problem: nothing closed it. Unlike the Demo Tour, a Mini-Tour has no wipe-and-handoff to sweep everything closed at the end, so the fix here is narrower and more explicit — `onComplete`/`onSkip` handlers on `startTour()` that close that specific modal on either exit path:
+
+```js
+startTour([...], {
+  allowSkip: true,
+  finalLabel: 'Done',
+  onComplete: () => closeModal('modal-nutr-manual'),
+  onSkip: () => closeModal('modal-nutr-manual'),
+});
+```
+
+Safe to call on both paths even when the modal was never opened (e.g. the person skipped before reaching that step) — `closeModal()` on an already-closed modal is a no-op. This is now the third time this exact category of bug has appeared (Train exercise-name assumption, §36; the Demo-Tour-to-Macrocycle-Tour modal leak, §38; this one) — worth treating "does this step's `onEnter` open something that nothing else closes?" as a standing checklist item for any future tour step, rather than continuing to catch each instance only via testing.
+
+### API-key redirect — logged, not built
+
+Build Order step 9 reads "Log the API-key redirect as a separate small task" — per the scope doc's own §1/§9, this was explicitly scoped *outside* the tour system rather than as something to implement here. Logged in §29's Known Limitations table instead: tapping "Ask BLOC for advice" without a saved key currently shows a disabled button with an inline warning rather than an active redirect into Settings → Linked services (`modal-api-key`). Left as a backlog item per the doc's own instruction, not built as part of this pass.
+
+### A found-but-unrelated bug
+
+Building synthetic-account test fixtures for the Mini-Tours (real data, not `demoData`, needed sparser hand-built state objects than any prior testing in this feature) surfaced a genuine pre-existing crash in `renderProgress()`, confirmed unrelated to anything in the tour system — it reproduces from plain `showScreen('progress')` navigation with no tour code anywhere in the call stack. Logged in §29 rather than fixed here, since chasing it further was out of scope for this pass; see that entry for the reproduction details.
+
+### Verification
+
+Checked with Playwright against hand-built synthetic accounts (not `demoData`) covering two shapes: a real account with a macrocycle and real (non-demo) exercises, and a genuinely empty account with no macrocycle at all. The Help icon opens the modal; the Train Mini-Tour completes without error against exercises with no progression lock or logged history yet (confirming the dynamic-lookup fallback works, not just the happy path already proven in §36/§38); the Nutrition Mini-Tour completes without leaving `modal-nutr-manual` open; the Home and Train Mini-Tours both complete without error against the fully-empty account; and Skip Tour ends a Mini-Tour cleanly. The Progress Mini-Tour's own logic wasn't independently re-verified end-to-end in this pass — it hit the pre-existing `renderProgress()` bug above on every synthetic fixture tried — but it uses the identical mechanism (target `progress-body`, toggle `_blocAdviceSectionsOpen`, call `renderProgress()`) already verified working against real rendering in the Demo Tour's Progress steps (§36), so it's judged correct by that equivalence rather than independently re-tested here.
+

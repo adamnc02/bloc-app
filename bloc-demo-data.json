@@ -1,0 +1,6762 @@
+{
+  "macrocycles": [
+    {
+      "id": "macro_1780859905961",
+      "name": "Weight Loss 2026",
+      "weeks": 7,
+      "weeksPerMeso": 2,
+      "sessionsPerWeek": 4,
+      "start": "2026-06-08",
+      "goal": "Cut to 200lbs",
+      "targetBw": 200,
+      "goalType": "loss",
+      "splitType": "custom",
+      "days": [
+        "session0",
+        "session1",
+        "session2",
+        "session3"
+      ],
+      "dayLabels": {
+        "session0": "Pull",
+        "session1": "Legs",
+        "session2": "Push",
+        "session3": "Arms"
+      },
+      "useMicrocycles": true,
+      "weightIncrement": "2.5"
+    }
+  ],
+  "exercises": {
+    "macro_1780859905961_1_session0m1": [
+      {
+        "name": "Lat Pull Machine",
+        "reps": "8",
+        "setsStart": 3,
+        "setsEnd": 6,
+        "startWeight": 40,
+        "type": "standard",
+        "isHeavyLeg": false,
+        "trackingMode": "perSide",
+        "id": "ex_macro_1780859905961_1_session0m1_0",
+        "order": 0,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Lat Pulldown",
+        "reps": "10",
+        "setsStart": 2,
+        "setsEnd": 6,
+        "startWeight": 60,
+        "type": "standard",
+        "isHeavyLeg": false,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session0m1_1",
+        "order": 10,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Machine Row",
+        "reps": "12",
+        "setsStart": 2,
+        "setsEnd": 5,
+        "startWeight": 40,
+        "type": "standard",
+        "isHeavyLeg": false,
+        "trackingMode": "perSide",
+        "id": "ex_macro_1780859905961_1_session0m1_2",
+        "order": 20,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Lateral Raise",
+        "reps": "15",
+        "setsStart": 3,
+        "setsEnd": 5,
+        "startWeight": 5,
+        "type": "pause",
+        "isHeavyLeg": false,
+        "trackingMode": "perSide",
+        "id": "ex_macro_1780859905961_1_session0m1_3",
+        "order": 30,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Cable Curls",
+        "reps": "60",
+        "setsStart": 1,
+        "setsEnd": 1,
+        "startWeight": 10,
+        "type": "giant",
+        "isHeavyLeg": false,
+        "trackingMode": "perSide",
+        "id": "ex_macro_1780859905961_1_session0m1_4",
+        "order": 40,
+        "supersetId": null,
+        "supersetOrder": null
+      }
+    ],
+    "macro_1780859905961_1_session1m1": [
+      {
+        "name": "Hamstring Curl",
+        "reps": "12",
+        "setsStart": 3,
+        "setsEnd": 6,
+        "startWeight": 15,
+        "type": "standard",
+        "isHeavyLeg": false,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session1m1_0",
+        "order": 10,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Walking Lunge",
+        "reps": "10",
+        "setsStart": 3,
+        "setsEnd": 5,
+        "startWeight": 10,
+        "type": "standard",
+        "isHeavyLeg": false,
+        "trackingMode": "perSide",
+        "id": "ex_macro_1780859905961_1_session1m1_1",
+        "order": 20,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Leg Press",
+        "reps": "8",
+        "setsStart": 2,
+        "setsEnd": 6,
+        "startWeight": 60,
+        "type": "standard",
+        "isHeavyLeg": true,
+        "trackingMode": "perSide",
+        "id": "ex_macro_1780859905961_1_session1m1_2",
+        "order": 30,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Calf Raises",
+        "reps": "60",
+        "setsStart": 1,
+        "setsEnd": 1,
+        "startWeight": 50,
+        "type": "giant",
+        "isHeavyLeg": false,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session1m1_3",
+        "order": 0,
+        "supersetId": null,
+        "supersetOrder": null
+      }
+    ],
+    "macro_1780859905961_1_session2m1": [
+      {
+        "name": "Decline Press",
+        "reps": "10",
+        "setsStart": 3,
+        "setsEnd": 5,
+        "startWeight": 60,
+        "type": "standard",
+        "isHeavyLeg": false,
+        "trackingMode": "perSide",
+        "id": "ex_macro_1780859905961_1_session2m1_0",
+        "order": 0,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Cross Incline Press",
+        "reps": "12",
+        "setsStart": 3,
+        "setsEnd": 5,
+        "startWeight": 15,
+        "type": "standard",
+        "isHeavyLeg": false,
+        "trackingMode": "perSide",
+        "id": "ex_macro_1780859905961_1_session2m1_1",
+        "order": 10,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Rope Extensions",
+        "reps": "20",
+        "setsStart": 4,
+        "setsEnd": 6,
+        "startWeight": 30,
+        "type": "pause",
+        "isHeavyLeg": false,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session2m1_2",
+        "order": 20,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Skull Crushers",
+        "reps": "15",
+        "setsStart": 3,
+        "setsEnd": 6,
+        "startWeight": 45,
+        "type": "pause",
+        "isHeavyLeg": false,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session2m1_3",
+        "order": 30,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Cable Curls",
+        "reps": "20",
+        "setsStart": 3,
+        "setsEnd": 6,
+        "startWeight": 10,
+        "type": "pause",
+        "isHeavyLeg": false,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session2m1_4",
+        "order": 40,
+        "supersetId": null,
+        "supersetOrder": null
+      }
+    ],
+    "macro_1780859905961_1_session3m1": [
+      {
+        "name": "Leg Extension",
+        "reps": "15",
+        "setsStart": 4,
+        "setsEnd": 6,
+        "startWeight": 20,
+        "type": "pause",
+        "isHeavyLeg": false,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session3m1_0",
+        "order": 10,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Split Squat",
+        "reps": "8",
+        "setsStart": 2,
+        "setsEnd": 5,
+        "startWeight": 10,
+        "type": "standard",
+        "isHeavyLeg": false,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session3m1_1",
+        "order": 20,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Push Downs",
+        "reps": "20",
+        "setsStart": 3,
+        "setsEnd": 6,
+        "startWeight": 52.5,
+        "type": "pause",
+        "isHeavyLeg": false,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session3m1_2",
+        "order": 30,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Reverse Grip Extensions",
+        "reps": "15",
+        "setsStart": 3,
+        "setsEnd": 6,
+        "startWeight": 20,
+        "type": "pause",
+        "isHeavyLeg": false,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session3m1_3",
+        "order": 40,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Rope Curls",
+        "reps": "15",
+        "setsStart": 4,
+        "setsEnd": 6,
+        "startWeight": 52.5,
+        "type": "pause",
+        "isHeavyLeg": false,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session3m1_4",
+        "order": 50,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Reverse Grip Curls",
+        "reps": "20",
+        "setsStart": 3,
+        "setsEnd": 5,
+        "startWeight": 20,
+        "type": "pause",
+        "isHeavyLeg": false,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session3m1_5",
+        "order": 60,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Calf Raises",
+        "reps": "15",
+        "setsStart": 3,
+        "setsEnd": 6,
+        "startWeight": 70,
+        "type": "standard",
+        "isHeavyLeg": false,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session3m1_6",
+        "order": 0,
+        "supersetId": null,
+        "supersetOrder": null
+      }
+    ],
+    "macro_1780859905961_1_session0m2": [
+      {
+        "name": "Low Row",
+        "reps": "8",
+        "setsStart": 3,
+        "setsEnd": 6,
+        "startWeight": 30,
+        "type": "standard",
+        "isHeavyLeg": false,
+        "trackingMode": "perSide",
+        "id": "ex_macro_1780859905961_1_session0m2_0",
+        "order": 0,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Lat Pulldown",
+        "reps": "12",
+        "setsStart": 3,
+        "setsEnd": 5,
+        "startWeight": 60,
+        "type": "standard",
+        "isHeavyLeg": false,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session0m2_1",
+        "order": 10,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "T-Bar Row",
+        "reps": "10",
+        "setsStart": 3,
+        "setsEnd": 5,
+        "startWeight": 45,
+        "type": "standard",
+        "isHeavyLeg": false,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session0m2_2",
+        "order": 20,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Lateral Raise",
+        "reps": "15",
+        "setsStart": 4,
+        "setsEnd": 6,
+        "startWeight": 5,
+        "type": "pause",
+        "isHeavyLeg": false,
+        "trackingMode": "perSide",
+        "id": "ex_macro_1780859905961_1_session0m2_3",
+        "order": 30,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Cable Curls",
+        "reps": "50",
+        "setsStart": 1,
+        "setsEnd": 1,
+        "startWeight": 10,
+        "type": "giant",
+        "isHeavyLeg": false,
+        "trackingMode": "perSide",
+        "id": "ex_macro_1780859905961_1_session0m2_4",
+        "order": 40,
+        "supersetId": null,
+        "supersetOrder": null
+      }
+    ],
+    "macro_1780859905961_1_session1m2": [
+      {
+        "name": "RDL",
+        "reps": "10",
+        "setsStart": 3,
+        "setsEnd": 5,
+        "startWeight": 60,
+        "type": "standard",
+        "isHeavyLeg": true,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session1m2_0",
+        "order": 10,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Leg Extension",
+        "reps": "12",
+        "setsStart": 3,
+        "setsEnd": 6,
+        "startWeight": 25,
+        "type": "standard",
+        "isHeavyLeg": false,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session1m2_1",
+        "order": 20,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Hack Squat",
+        "reps": "12",
+        "setsStart": 3,
+        "setsEnd": 5,
+        "startWeight": 80,
+        "type": "standard",
+        "isHeavyLeg": true,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session1m2_2",
+        "order": 30,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Calf Raises",
+        "reps": "12",
+        "setsStart": 3,
+        "setsEnd": 5,
+        "startWeight": 70,
+        "type": "standard",
+        "isHeavyLeg": false,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session1m2_3",
+        "order": 0,
+        "supersetId": null,
+        "supersetOrder": null
+      }
+    ],
+    "macro_1780859905961_1_session2m2": [
+      {
+        "name": "Incline Press",
+        "reps": "8",
+        "setsStart": 3,
+        "setsEnd": 5,
+        "startWeight": 35,
+        "type": "standard",
+        "isHeavyLeg": false,
+        "trackingMode": "perSide",
+        "id": "ex_macro_1780859905961_1_session2m2_0",
+        "order": 10,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Flat Press",
+        "reps": "8",
+        "setsStart": 2,
+        "setsEnd": 5,
+        "startWeight": 20,
+        "type": "standard",
+        "isHeavyLeg": false,
+        "trackingMode": "perSide",
+        "id": "ex_macro_1780859905961_1_session2m2_1",
+        "order": 20,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Cross Cable Extensions",
+        "reps": "20",
+        "setsStart": 3,
+        "setsEnd": 6,
+        "startWeight": 15,
+        "type": "pause",
+        "isHeavyLeg": false,
+        "trackingMode": "perSide",
+        "id": "ex_macro_1780859905961_1_session2m2_2",
+        "order": 30,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Cable Curls",
+        "reps": "20",
+        "setsStart": 3,
+        "setsEnd": 5,
+        "startWeight": 15,
+        "type": "pause",
+        "isHeavyLeg": false,
+        "trackingMode": "perSide",
+        "id": "ex_macro_1780859905961_1_session2m2_3",
+        "order": 40,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Lateral Raise",
+        "reps": "50",
+        "setsStart": 1,
+        "setsEnd": 1,
+        "startWeight": 5,
+        "type": "giant",
+        "isHeavyLeg": false,
+        "trackingMode": "perSide",
+        "id": "ex_macro_1780859905961_1_session2m2_4",
+        "order": 50,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Cable Flyes",
+        "reps": "20",
+        "setsStart": 2,
+        "setsEnd": 5,
+        "startWeight": 25,
+        "type": "standard",
+        "isHeavyLeg": false,
+        "trackingMode": "perSide",
+        "id": "ex_macro_1780859905961_1_session2m2_5",
+        "order": 0,
+        "supersetId": null,
+        "supersetOrder": null
+      }
+    ],
+    "macro_1780859905961_1_session3m2": [
+      {
+        "name": "Leg Extension",
+        "reps": "20",
+        "setsStart": 2,
+        "setsEnd": 5,
+        "startWeight": 20,
+        "type": "pause",
+        "isHeavyLeg": false,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session3m2_0",
+        "order": 20,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Split Squat",
+        "reps": "8",
+        "setsStart": 2,
+        "setsEnd": 5,
+        "startWeight": 20,
+        "type": "standard",
+        "isHeavyLeg": false,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session3m2_1",
+        "order": 30,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Push Downs",
+        "reps": "20",
+        "setsStart": 3,
+        "setsEnd": 6,
+        "startWeight": 45,
+        "type": "pause",
+        "isHeavyLeg": false,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session3m2_2",
+        "order": 40,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Reverse Grip Extensions",
+        "reps": "20",
+        "setsStart": 3,
+        "setsEnd": 5,
+        "startWeight": 20,
+        "type": "pause",
+        "isHeavyLeg": false,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session3m2_3",
+        "order": 50,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Rope Curls",
+        "reps": "25",
+        "setsStart": 2,
+        "setsEnd": 5,
+        "startWeight": 45,
+        "type": "pause",
+        "isHeavyLeg": false,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session3m2_4",
+        "order": 60,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Reverse Grip Curls",
+        "reps": "20",
+        "setsStart": 3,
+        "setsEnd": 5,
+        "startWeight": 20,
+        "type": "pause",
+        "isHeavyLeg": false,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session3m2_5",
+        "order": 70,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Calf Raises",
+        "reps": "10",
+        "setsStart": 3,
+        "setsEnd": 5,
+        "startWeight": 80,
+        "type": "standard",
+        "isHeavyLeg": false,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session3m2_6",
+        "order": 0,
+        "supersetId": null,
+        "supersetOrder": null
+      },
+      {
+        "name": "Calf Raises",
+        "reps": "50",
+        "setsStart": 1,
+        "setsEnd": 1,
+        "startWeight": 55,
+        "type": "giant",
+        "isHeavyLeg": false,
+        "trackingMode": "total",
+        "id": "ex_macro_1780859905961_1_session3m2_1781868928797",
+        "order": 10,
+        "supersetId": null,
+        "supersetOrder": null
+      }
+    ]
+  },
+  "trainLogs": {
+    "macro_1780859905961_1_session0m1_5_0": {
+      "done": true,
+      "weight": "50.0",
+      "reps": "60"
+    },
+    "macro_1780859905961_1_session0m1_ex_macro_1780859905961_1_session0m1_0_0": {
+      "weight": "40.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m1_ex_macro_1780859905961_1_session0m1_0_1": {
+      "weight": "40.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m1_ex_macro_1780859905961_1_session0m1_0_2": {
+      "weight": "40.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m1_ex_macro_1780859905961_1_session0m1_1_0": {
+      "weight": "60.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m1_ex_macro_1780859905961_1_session0m1_1_1": {
+      "weight": "60.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m1_ex_macro_1780859905961_1_session0m1_2_0": {
+      "weight": "40.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m1_ex_macro_1780859905961_1_session0m1_2_1": {
+      "weight": "40.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m1_ex_macro_1780859905961_1_session0m1_3_0": {
+      "weight": "5.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m1_ex_macro_1780859905961_1_session0m1_3_1": {
+      "weight": "5.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m1_ex_macro_1780859905961_1_session0m1_3_2": {
+      "weight": "5.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m1_ex_macro_1780859905961_1_session0m1_4_0": {
+      "weight": "10.0",
+      "reps": "60",
+      "done": true
+    },
+    "macro_1780859905961_1_session1m1_ex_macro_1780859905961_1_session1m1_0_0": {
+      "weight": "15.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_1_session1m1_ex_macro_1780859905961_1_session1m1_0_1": {
+      "weight": "15.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_1_session1m1_ex_macro_1780859905961_1_session1m1_0_2": {
+      "weight": "15.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_1_session1m1_ex_macro_1780859905961_1_session1m1_1_0": {
+      "weight": "10.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_1_session1m1_ex_macro_1780859905961_1_session1m1_1_1": {
+      "weight": "10.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_1_session1m1_ex_macro_1780859905961_1_session1m1_1_2": {
+      "weight": "10.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_1_session1m1_ex_macro_1780859905961_1_session1m1_2_0": {
+      "weight": "60.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_1_session1m1_ex_macro_1780859905961_1_session1m1_2_1": {
+      "weight": "60.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m1_ex_macro_1780859905961_1_session2m1_1_0": {
+      "weight": "15",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m1_ex_macro_1780859905961_1_session2m1_1_1": {
+      "weight": "15",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m1_ex_macro_1780859905961_1_session2m1_1_2": {
+      "weight": "15",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m1_ex_macro_1780859905961_1_session2m1_2_0": {
+      "weight": "30.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m1_ex_macro_1780859905961_1_session2m1_2_1": {
+      "weight": "30.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m1_ex_macro_1780859905961_1_session2m1_2_2": {
+      "weight": "30.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m1_ex_macro_1780859905961_1_session2m1_3_3": {
+      "weight": "30.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m1_6_0": {
+      "weight": "5.0",
+      "reps": "50",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m1_ex_macro_1780859905961_1_session3m1_0_0": {
+      "weight": "20.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m1_ex_macro_1780859905961_1_session3m1_0_1": {
+      "weight": "20.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m1_ex_macro_1780859905961_1_session3m1_0_2": {
+      "weight": "20.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m1_ex_macro_1780859905961_1_session3m1_0_3": {
+      "weight": "20.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m1_ex_macro_1780859905961_1_session3m1_1_0": {
+      "weight": "10.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m1_ex_macro_1780859905961_1_session3m1_1_1": {
+      "weight": "10.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m1_ex_macro_1780859905961_1_session3m1_2_0": {
+      "weight": "52.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m1_ex_macro_1780859905961_1_session3m1_2_1": {
+      "weight": "52.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m1_ex_macro_1780859905961_1_session3m1_2_2": {
+      "weight": "52.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m1_ex_macro_1780859905961_1_session3m1_3_0": {
+      "weight": "20.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m1_ex_macro_1780859905961_1_session3m1_3_1": {
+      "weight": "20.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m1_ex_macro_1780859905961_1_session3m1_3_2": {
+      "weight": "20.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m1_ex_macro_1780859905961_1_session3m1_4_0": {
+      "weight": "52.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m1_ex_macro_1780859905961_1_session3m1_4_1": {
+      "weight": "52.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m1_ex_macro_1780859905961_1_session3m1_4_2": {
+      "weight": "52.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m1_ex_macro_1780859905961_1_session3m1_4_3": {
+      "weight": "52.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m1_ex_macro_1780859905961_1_session3m1_5_0": {
+      "weight": "20.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m1_ex_macro_1780859905961_1_session3m1_5_1": {
+      "weight": "20.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m1_ex_macro_1780859905961_1_session3m1_5_2": {
+      "weight": "20.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m2_ex_macro_1780859905961_1_session0m2_0_0": {
+      "weight": "30.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m2_ex_macro_1780859905961_1_session0m2_0_1": {
+      "weight": "30.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m2_ex_macro_1780859905961_1_session0m2_0_2": {
+      "weight": "30.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m2_ex_macro_1780859905961_1_session0m2_1_0": {
+      "weight": "60.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m2_ex_macro_1780859905961_1_session0m2_1_1": {
+      "weight": "60.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m2_ex_macro_1780859905961_1_session0m2_1_2": {
+      "weight": "60.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m2_ex_macro_1780859905961_1_session0m2_3_0": {
+      "weight": "5.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m2_ex_macro_1780859905961_1_session0m2_3_1": {
+      "weight": "5.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m2_ex_macro_1780859905961_1_session0m2_3_2": {
+      "weight": "5.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m2_ex_macro_1780859905961_1_session0m2_3_3": {
+      "weight": "5.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m2_5_0": {
+      "weight": "70.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m2_5_1": {
+      "weight": "70.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m2_5_2": {
+      "weight": "70.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_1_session1m2_ex_macro_1780859905961_1_session1m2_0_0": {
+      "weight": "60.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_1_session1m2_ex_macro_1780859905961_1_session1m2_0_1": {
+      "weight": "60.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_1_session1m2_ex_macro_1780859905961_1_session1m2_0_2": {
+      "weight": "60.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_1_session1m2_ex_macro_1780859905961_1_session1m2_1_0": {
+      "weight": "25.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_1_session1m2_ex_macro_1780859905961_1_session1m2_1_1": {
+      "weight": "25.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_1_session1m2_ex_macro_1780859905961_1_session1m2_1_2": {
+      "weight": "25.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_prog_2_session0m1_ex_macro_1780859905961_1_session0m1_0": {
+      "progType": "weight"
+    },
+    "macro_1780859905961_1_session1m1_ex_macro_1780859905961_1_session1m1_3_0": {
+      "weight": "50.0",
+      "reps": "60",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m1_ex_macro_1780859905961_1_session3m1_6_0": {
+      "weight": "70.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m1_ex_macro_1780859905961_1_session3m1_6_1": {
+      "weight": "70.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m1_ex_macro_1780859905961_1_session3m1_6_2": {
+      "weight": "70.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_1_session1m2_ex_macro_1780859905961_1_session1m2_3_0": {
+      "weight": "70.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_1_session1m2_ex_macro_1780859905961_1_session1m2_3_1": {
+      "weight": "70.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_1_session1m2_ex_macro_1780859905961_1_session1m2_3_2": {
+      "weight": "70.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m2_ex_macro_1780859905961_1_session2m2_5_0": {
+      "weight": "25.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m2_ex_macro_1780859905961_1_session2m2_5_1": {
+      "weight": "25.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m2_ex_macro_1780859905961_1_session2m2_0_0": {
+      "weight": "35.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m2_ex_macro_1780859905961_1_session2m2_0_1": {
+      "weight": "35.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m2_ex_macro_1780859905961_1_session2m2_0_2": {
+      "weight": "35.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m2_ex_macro_1780859905961_1_session2m2_2_0": {
+      "weight": "15.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m2_ex_macro_1780859905961_1_session2m2_2_1": {
+      "weight": "15.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m2_ex_macro_1780859905961_1_session2m2_2_2": {
+      "weight": "15.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m2_ex_macro_1780859905961_1_session2m2_1_0": {
+      "weight": "20.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m2_ex_macro_1780859905961_1_session2m2_1_1": {
+      "weight": "20.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m2_ex_macro_1780859905961_1_session2m2_3_0": {
+      "weight": "15.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m2_ex_macro_1780859905961_1_session2m2_3_1": {
+      "weight": "15.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m2_ex_macro_1780859905961_1_session2m2_3_2": {
+      "weight": "15.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m2_ex_macro_1780859905961_1_session2m2_4_0": {
+      "weight": "5.0",
+      "reps": "50",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m2_ex_macro_1780859905961_1_session3m2_6_0": {
+      "weight": "80.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m2_ex_macro_1780859905961_1_session3m2_6_1": {
+      "weight": "80.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m2_ex_macro_1780859905961_1_session3m2_6_2": {
+      "weight": "80.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m2_ex_macro_1780859905961_1_session3m2_1781868928797_0": {
+      "weight": "55.0",
+      "reps": "50",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m2_ex_macro_1780859905961_1_session3m2_0_0": {
+      "weight": "20.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m2_ex_macro_1780859905961_1_session3m2_0_1": {
+      "weight": "20.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m2_ex_macro_1780859905961_1_session3m2_1_0": {
+      "weight": "20.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m2_ex_macro_1780859905961_1_session3m2_1_1": {
+      "weight": "20.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m2_ex_macro_1780859905961_1_session3m2_2_0": {
+      "weight": "45.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m2_ex_macro_1780859905961_1_session3m2_2_1": {
+      "weight": "45.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m2_ex_macro_1780859905961_1_session3m2_2_2": {
+      "weight": "45.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m2_ex_macro_1780859905961_1_session3m2_3_0": {
+      "weight": "20.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m2_ex_macro_1780859905961_1_session3m2_3_1": {
+      "weight": "20.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m2_ex_macro_1780859905961_1_session3m2_3_2": {
+      "weight": "20.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m2_ex_macro_1780859905961_1_session3m2_4_0": {
+      "weight": "45.0",
+      "reps": "25",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m2_ex_macro_1780859905961_1_session3m2_4_1": {
+      "weight": "45.0",
+      "reps": "25",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m1_ex_macro_1780859905961_1_session2m1_2_3": {
+      "weight": "30.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m2_ex_macro_1780859905961_1_session3m2_5_0": {
+      "weight": "20.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m2_ex_macro_1780859905961_1_session3m2_5_1": {
+      "weight": "20.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session3m2_ex_macro_1780859905961_1_session3m2_5_2": {
+      "weight": "20.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m1_ex_macro_1780859905961_1_session0m1_0_0": {
+      "weight": "42.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m1_ex_macro_1780859905961_1_session0m1_0_1": {
+      "weight": "42.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m1_ex_macro_1780859905961_1_session0m1_0_2": {
+      "weight": "42.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m1_ex_macro_1780859905961_1_session0m1_0_3": {
+      "weight": "42.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_prog_2_session0m1_ex_macro_1780859905961_1_session0m1_1": {
+      "progType": "reps"
+    },
+    "macro_1780859905961_2_session0m1_ex_macro_1780859905961_1_session0m1_1_0": {
+      "weight": "60.0",
+      "reps": "11",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m1_ex_macro_1780859905961_1_session0m1_1_1": {
+      "weight": "60.0",
+      "reps": "11",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m1_ex_macro_1780859905961_1_session0m1_1_2": {
+      "weight": "60.0",
+      "reps": "11",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m1_ex_macro_1780859905961_1_session0m1_2_0": {
+      "weight": "42.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m1_ex_macro_1780859905961_1_session0m1_2_1": {
+      "weight": "42.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m1_ex_macro_1780859905961_1_session0m1_2_2": {
+      "weight": "42.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_2_session1m1_ex_macro_1780859905961_1_session1m1_3_0": {
+      "weight": "55",
+      "reps": "60",
+      "done": true
+    },
+    "macro_1780859905961_prog_2_session1m1_ex_macro_1780859905961_1_session1m1_0": {
+      "progType": "reps"
+    },
+    "macro_1780859905961_2_session1m1_ex_macro_1780859905961_1_session1m1_0_0": {
+      "weight": "15.0",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_2_session1m1_ex_macro_1780859905961_1_session1m1_0_1": {
+      "weight": "15.0",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_2_session1m1_ex_macro_1780859905961_1_session1m1_0_2": {
+      "weight": "15.0",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_2_session1m1_ex_macro_1780859905961_1_session1m1_0_3": {
+      "weight": "15.0",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_prog_2_session1m1_ex_macro_1780859905961_1_session1m1_1": {
+      "progType": "reps"
+    },
+    "macro_1780859905961_2_session1m1_ex_macro_1780859905961_1_session1m1_1_0": {
+      "weight": "10.0",
+      "reps": "11",
+      "done": true
+    },
+    "macro_1780859905961_2_session1m1_ex_macro_1780859905961_1_session1m1_1_1": {
+      "weight": "10.0",
+      "reps": "11",
+      "done": true
+    },
+    "macro_1780859905961_2_session1m1_ex_macro_1780859905961_1_session1m1_1_2": {
+      "weight": "10.0",
+      "reps": "11",
+      "done": true
+    },
+    "macro_1780859905961_2_session1m1_ex_macro_1780859905961_1_session1m1_2_0": {
+      "weight": "62.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_2_session1m1_ex_macro_1780859905961_1_session1m1_2_1": {
+      "weight": "62.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_2_session1m1_ex_macro_1780859905961_1_session1m1_2_2": {
+      "weight": "62.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m1_ex_macro_1780859905961_1_session2m1_3_0": {
+      "weight": "45.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m1_ex_macro_1780859905961_1_session2m1_3_1": {
+      "weight": "45.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m1_ex_macro_1780859905961_1_session2m1_3_2": {
+      "weight": "45.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m1_ex_macro_1780859905961_1_session2m1_4_0": {
+      "weight": "10.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m1_ex_macro_1780859905961_1_session2m1_4_1": {
+      "weight": "10.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m1_ex_macro_1780859905961_1_session2m1_4_2": {
+      "weight": "10.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m1_ex_macro_1780859905961_1_session2m1_0_0": {
+      "weight": "60.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m1_ex_macro_1780859905961_1_session2m1_0_1": {
+      "weight": "60.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_1_session2m1_ex_macro_1780859905961_1_session2m1_0_2": {
+      "weight": "60.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m1_ex_macro_1780859905961_1_session2m1_0_0": {
+      "weight": "62.5",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m1_ex_macro_1780859905961_1_session2m1_0_1": {
+      "weight": "62.5",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m1_ex_macro_1780859905961_1_session2m1_0_2": {
+      "weight": "62.5",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m1_ex_macro_1780859905961_1_session2m1_1_0": {
+      "weight": "17.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m1_ex_macro_1780859905961_1_session2m1_1_1": {
+      "weight": "17.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m1_ex_macro_1780859905961_1_session2m1_1_2": {
+      "weight": "17.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m1_ex_macro_1780859905961_1_session2m1_2_0": {
+      "weight": "32.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m1_ex_macro_1780859905961_1_session2m1_2_1": {
+      "weight": "32.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m1_ex_macro_1780859905961_1_session2m1_2_2": {
+      "weight": "32.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m1_ex_macro_1780859905961_1_session2m1_2_3": {
+      "weight": "32.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m1_ex_macro_1780859905961_1_session2m1_3_0": {
+      "weight": "47.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m1_ex_macro_1780859905961_1_session2m1_3_1": {
+      "weight": "47.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m1_ex_macro_1780859905961_1_session2m1_3_2": {
+      "weight": "47.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m1_ex_macro_1780859905961_1_session2m1_3_3": {
+      "weight": "47.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m1_ex_macro_1780859905961_1_session2m1_4_0": {
+      "weight": "12.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m1_ex_macro_1780859905961_1_session2m1_4_1": {
+      "weight": "12.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m1_ex_macro_1780859905961_1_session2m1_4_2": {
+      "weight": "12.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m1_ex_macro_1780859905961_1_session2m1_4_3": {
+      "weight": "12.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_prog_2_session3m1_ex_macro_1780859905961_1_session3m1_6": {
+      "progType": "reps"
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_6_0": {
+      "weight": "70.0",
+      "reps": "16",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_6_1": {
+      "weight": "70.0",
+      "reps": "16",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_6_2": {
+      "weight": "70.0",
+      "reps": "16",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_6_3": {
+      "weight": "70.0",
+      "reps": "16",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_0_0": {
+      "weight": "25",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_0_1": {
+      "weight": "25",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_0_2": {
+      "weight": "25",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_0_3": {
+      "weight": "25",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_1_0": {
+      "weight": "12.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_1_1": {
+      "weight": "12.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_1_2": {
+      "weight": "12.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_2_0": {
+      "weight": "55.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_2_1": {
+      "weight": "55.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_2_2": {
+      "weight": "55.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_2_3": {
+      "weight": "55.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_3_0": {
+      "weight": "22.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_3_1": {
+      "weight": "22.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_3_2": {
+      "weight": "22.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_3_3": {
+      "weight": "22.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_4_0": {
+      "weight": "55.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_4_1": {
+      "weight": "55.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_4_2": {
+      "weight": "55.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_4_3": {
+      "weight": "55.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_5_0": {
+      "weight": "22.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_5_1": {
+      "weight": "22.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m1_ex_macro_1780859905961_1_session3m1_5_2": {
+      "weight": "22.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m2_ex_macro_1780859905961_1_session0m2_0_0": {
+      "weight": "32.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m2_ex_macro_1780859905961_1_session0m2_0_1": {
+      "weight": "32.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m2_ex_macro_1780859905961_1_session0m2_0_2": {
+      "weight": "32.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m2_ex_macro_1780859905961_1_session0m2_0_3": {
+      "weight": "32.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m2_ex_macro_1780859905961_1_session0m2_1_0": {
+      "weight": "65",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m2_ex_macro_1780859905961_1_session0m2_1_1": {
+      "weight": "65",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m2_ex_macro_1780859905961_1_session0m2_1_2": {
+      "weight": "65",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m2_ex_macro_1780859905961_1_session0m2_1_3": {
+      "weight": "65",
+      "reps": "12",
+      "done": false
+    },
+    "macro_1780859905961_1_session0m2_ex_macro_1780859905961_1_session0m2_2_0": {
+      "weight": "45.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m2_ex_macro_1780859905961_1_session0m2_2_1": {
+      "weight": "45.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m2_ex_macro_1780859905961_1_session0m2_2_2": {
+      "weight": "45.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_prog_2_session0m2_ex_macro_1780859905961_1_session0m2_2": {
+      "progType": "reps"
+    },
+    "macro_1780859905961_2_session0m2_ex_macro_1780859905961_1_session0m2_2_0": {
+      "weight": "45.0",
+      "reps": "11",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m2_ex_macro_1780859905961_1_session0m2_2_1": {
+      "weight": "45.0",
+      "reps": "11",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m2_ex_macro_1780859905961_1_session0m2_2_2": {
+      "weight": "45.0",
+      "reps": "11",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m2_ex_macro_1780859905961_1_session0m2_3_0": {
+      "weight": "7.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m2_ex_macro_1780859905961_1_session0m2_3_1": {
+      "weight": "7.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m2_ex_macro_1780859905961_1_session0m2_3_2": {
+      "weight": "7.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m2_ex_macro_1780859905961_1_session0m2_3_3": {
+      "weight": "7.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_1_session0m2_ex_macro_1780859905961_1_session0m2_4_0": {
+      "weight": "10.0",
+      "reps": "50",
+      "done": true
+    },
+    "macro_1780859905961_1_session1m2_ex_macro_1780859905961_1_session1m2_2_0": {
+      "weight": "80.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_1_session1m2_ex_macro_1780859905961_1_session1m2_2_1": {
+      "weight": "80.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_1_session1m2_ex_macro_1780859905961_1_session1m2_2_2": {
+      "weight": "80.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_prog_2_session0m2_ex_macro_1780859905961_1_session0m2_4": {
+      "progType": "reps"
+    },
+    "macro_1780859905961_2_session0m2_ex_macro_1780859905961_1_session0m2_4_0": {
+      "weight": "10.0",
+      "reps": "60",
+      "done": true
+    },
+    "macro_1780859905961_2_session1m2_ex_macro_1780859905961_1_session1m2_3_0": {
+      "weight": "75",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_2_session1m2_ex_macro_1780859905961_1_session1m2_3_1": {
+      "weight": "75",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_2_session1m2_ex_macro_1780859905961_1_session1m2_3_2": {
+      "weight": "75",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_2_session1m2_ex_macro_1780859905961_1_session1m2_0_0": {
+      "weight": "65.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_2_session1m2_ex_macro_1780859905961_1_session1m2_0_1": {
+      "weight": "65.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_2_session1m2_ex_macro_1780859905961_1_session1m2_0_2": {
+      "weight": "65.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_prog_2_session1m2_ex_macro_1780859905961_1_session1m2_1": {
+      "progType": "reps"
+    },
+    "macro_1780859905961_2_session1m2_ex_macro_1780859905961_1_session1m2_1_0": {
+      "weight": "25.0",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_2_session1m2_ex_macro_1780859905961_1_session1m2_1_1": {
+      "weight": "25.0",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_2_session1m2_ex_macro_1780859905961_1_session1m2_1_2": {
+      "weight": "25.0",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_2_session1m2_ex_macro_1780859905961_1_session1m2_1_3": {
+      "weight": "25.0",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_2_session1m2_ex_macro_1780859905961_1_session1m2_2_0": {
+      "weight": "85.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_2_session1m2_ex_macro_1780859905961_1_session1m2_2_1": {
+      "weight": "85.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_2_session1m2_ex_macro_1780859905961_1_session1m2_2_2": {
+      "weight": "85.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_2_session1m2_ex_macro_1780859905961_1_session1m2_2_3": {
+      "weight": "85.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m2_ex_macro_1780859905961_1_session2m2_5_0": {
+      "weight": "27.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m2_ex_macro_1780859905961_1_session2m2_5_1": {
+      "weight": "27.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m2_ex_macro_1780859905961_1_session2m2_5_2": {
+      "weight": "27.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m2_ex_macro_1780859905961_1_session2m2_0_0": {
+      "weight": "37.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m2_ex_macro_1780859905961_1_session2m2_0_1": {
+      "weight": "37.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m2_ex_macro_1780859905961_1_session2m2_0_2": {
+      "weight": "37.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m2_ex_macro_1780859905961_1_session2m2_1_0": {
+      "weight": "22.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m2_ex_macro_1780859905961_1_session2m2_1_1": {
+      "weight": "22.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m2_ex_macro_1780859905961_1_session2m2_1_2": {
+      "weight": "22.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m2_ex_macro_1780859905961_1_session2m2_2_0": {
+      "weight": "17.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m2_ex_macro_1780859905961_1_session2m2_2_1": {
+      "weight": "17.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m2_ex_macro_1780859905961_1_session2m2_2_2": {
+      "weight": "17.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m2_ex_macro_1780859905961_1_session2m2_2_3": {
+      "weight": "17.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m2_ex_macro_1780859905961_1_session2m2_3_0": {
+      "weight": "17.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m2_ex_macro_1780859905961_1_session2m2_3_1": {
+      "weight": "17.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session2m2_ex_macro_1780859905961_1_session2m2_3_2": {
+      "weight": "17.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_prog_2_session2m2_ex_macro_1780859905961_1_session2m2_4": {
+      "progType": "reps"
+    },
+    "macro_1780859905961_2_session2m2_ex_macro_1780859905961_1_session2m2_4_0": {
+      "weight": "5.0",
+      "reps": "60",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m2_ex_macro_1780859905961_1_session3m2_6_0": {
+      "weight": "82.5",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m2_ex_macro_1780859905961_1_session3m2_6_1": {
+      "weight": "82.5",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m2_ex_macro_1780859905961_1_session3m2_6_2": {
+      "weight": "82.5",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m2_ex_macro_1780859905961_1_session3m2_1781868928797_0": {
+      "weight": "57.5",
+      "reps": "50",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m2_ex_macro_1780859905961_1_session3m2_0_0": {
+      "weight": "22.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m2_ex_macro_1780859905961_1_session3m2_0_1": {
+      "weight": "22.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m2_ex_macro_1780859905961_1_session3m2_0_2": {
+      "weight": "22.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m2_ex_macro_1780859905961_1_session3m2_1_0": {
+      "weight": "22.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m2_ex_macro_1780859905961_1_session3m2_1_1": {
+      "weight": "22.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m2_ex_macro_1780859905961_1_session3m2_1_2": {
+      "weight": "22.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m2_ex_macro_1780859905961_1_session3m2_2_0": {
+      "weight": "47.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m2_ex_macro_1780859905961_1_session3m2_2_1": {
+      "weight": "47.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m2_ex_macro_1780859905961_1_session3m2_2_2": {
+      "weight": "47.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m2_ex_macro_1780859905961_1_session3m2_2_3": {
+      "weight": "47.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m2_ex_macro_1780859905961_1_session3m2_3_0": {
+      "weight": "22.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m2_ex_macro_1780859905961_1_session3m2_3_1": {
+      "weight": "22.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m2_ex_macro_1780859905961_1_session3m2_3_2": {
+      "weight": "22.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m2_ex_macro_1780859905961_1_session3m2_4_0": {
+      "weight": "47.5",
+      "reps": "25",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m2_ex_macro_1780859905961_1_session3m2_4_1": {
+      "weight": "47.5",
+      "reps": "25",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m2_ex_macro_1780859905961_1_session3m2_4_2": {
+      "weight": "47.5",
+      "reps": "25",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m2_ex_macro_1780859905961_1_session3m2_5_0": {
+      "weight": "22.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m2_ex_macro_1780859905961_1_session3m2_5_1": {
+      "weight": "22.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_2_session3m2_ex_macro_1780859905961_1_session3m2_5_2": {
+      "weight": "22.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m1_ex_macro_1780859905961_1_session0m1_0_0": {
+      "weight": "45.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m1_ex_macro_1780859905961_1_session0m1_0_1": {
+      "weight": "45.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m1_ex_macro_1780859905961_1_session0m1_0_2": {
+      "weight": "45.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m1_ex_macro_1780859905961_1_session0m1_0_3": {
+      "weight": "45.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_prog_3_session0m1_ex_macro_1780859905961_1_session0m1_1": {
+      "progType": "reps"
+    },
+    "macro_1780859905961_3_session0m1_ex_macro_1780859905961_1_session0m1_1_0": {
+      "weight": "60.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m1_ex_macro_1780859905961_1_session0m1_1_1": {
+      "weight": "60.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m1_ex_macro_1780859905961_1_session0m1_1_2": {
+      "weight": "60.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m1_ex_macro_1780859905961_1_session0m1_2_0": {
+      "weight": "45.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m1_ex_macro_1780859905961_1_session0m1_2_1": {
+      "weight": "45.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m1_ex_macro_1780859905961_1_session0m1_2_2": {
+      "weight": "45.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m1_ex_macro_1780859905961_1_session0m1_3_0": {
+      "weight": "10",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m1_ex_macro_1780859905961_1_session0m1_3_1": {
+      "weight": "10",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m1_ex_macro_1780859905961_1_session0m1_3_2": {
+      "weight": "10",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m1_ex_macro_1780859905961_1_session0m1_3_3": {
+      "weight": "10",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m1_ex_macro_1780859905961_1_session1m1_0_0": {
+      "weight": "17.5",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m1_ex_macro_1780859905961_1_session1m1_0_1": {
+      "weight": "17.5",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m1_ex_macro_1780859905961_1_session1m1_0_2": {
+      "weight": "17.5",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m1_ex_macro_1780859905961_1_session1m1_0_3": {
+      "weight": "17.5",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m1_ex_macro_1780859905961_1_session1m1_3_0": {
+      "weight": "57.5",
+      "reps": "60",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m1_ex_macro_1780859905961_1_session1m1_1_0": {
+      "weight": "15",
+      "reps": "11",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m1_ex_macro_1780859905961_1_session1m1_1_1": {
+      "weight": "15",
+      "reps": "11",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m1_ex_macro_1780859905961_1_session1m1_1_2": {
+      "weight": "15",
+      "reps": "11",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m1_ex_macro_1780859905961_1_session1m1_1_3": {
+      "weight": "15",
+      "reps": "11",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m1_ex_macro_1780859905961_1_session1m1_2_0": {
+      "weight": "67.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m1_ex_macro_1780859905961_1_session1m1_2_1": {
+      "weight": "67.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m1_ex_macro_1780859905961_1_session1m1_2_2": {
+      "weight": "67.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m1_ex_macro_1780859905961_1_session2m1_0_0": {
+      "weight": "65.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m1_ex_macro_1780859905961_1_session2m1_0_1": {
+      "weight": "65.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m1_ex_macro_1780859905961_1_session2m1_0_2": {
+      "weight": "65.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m1_ex_macro_1780859905961_1_session2m1_0_3": {
+      "weight": "65.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m1_ex_macro_1780859905961_1_session2m1_1_0": {
+      "weight": "20.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m1_ex_macro_1780859905961_1_session2m1_1_1": {
+      "weight": "20.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m1_ex_macro_1780859905961_1_session2m1_1_2": {
+      "weight": "20.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m1_ex_macro_1780859905961_1_session2m1_1_3": {
+      "weight": "20.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m1_ex_macro_1780859905961_1_session2m1_2_0": {
+      "weight": "35.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m1_ex_macro_1780859905961_1_session2m1_2_1": {
+      "weight": "35.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m1_ex_macro_1780859905961_1_session2m1_2_2": {
+      "weight": "35.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m1_ex_macro_1780859905961_1_session2m1_2_3": {
+      "weight": "35.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m1_ex_macro_1780859905961_1_session2m1_2_4": {
+      "weight": "35.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m1_ex_macro_1780859905961_1_session2m1_3_0": {
+      "weight": "50.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m1_ex_macro_1780859905961_1_session2m1_3_1": {
+      "weight": "50.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m1_ex_macro_1780859905961_1_session2m1_3_2": {
+      "weight": "50.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m1_ex_macro_1780859905961_1_session2m1_3_3": {
+      "weight": "50.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m1_ex_macro_1780859905961_1_session2m1_4_0": {
+      "weight": "15.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m1_ex_macro_1780859905961_1_session2m1_4_1": {
+      "weight": "15.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m1_ex_macro_1780859905961_1_session2m1_4_2": {
+      "weight": "15.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m1_ex_macro_1780859905961_1_session2m1_4_3": {
+      "weight": "15.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_6_0": {
+      "weight": "72.5",
+      "reps": "16",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_6_1": {
+      "weight": "72.5",
+      "reps": "16",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_6_2": {
+      "weight": "72.5",
+      "reps": "16",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_6_3": {
+      "weight": "72.5",
+      "reps": "16",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_0_0": {
+      "weight": "27.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_0_1": {
+      "weight": "27.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_0_2": {
+      "weight": "27.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_0_3": {
+      "weight": "27.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_0_4": {
+      "weight": "27.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_1_0": {
+      "weight": "15.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_1_1": {
+      "weight": "15.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_1_2": {
+      "weight": "15.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_2_0": {
+      "weight": "57.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_2_1": {
+      "weight": "57.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_2_2": {
+      "weight": "57.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_2_3": {
+      "weight": "57.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_3_0": {
+      "weight": "25.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_3_1": {
+      "weight": "25.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_3_2": {
+      "weight": "25.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_3_3": {
+      "weight": "25.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_4_0": {
+      "weight": "57.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_4_1": {
+      "weight": "57.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_4_2": {
+      "weight": "57.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_4_3": {
+      "weight": "57.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_4_4": {
+      "weight": "57.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_5_0": {
+      "weight": "25.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_5_1": {
+      "weight": "25.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_5_2": {
+      "weight": "25.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m1_ex_macro_1780859905961_1_session3m1_5_3": {
+      "weight": "25.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m2_ex_macro_1780859905961_1_session0m2_0_0": {
+      "weight": "35.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m2_ex_macro_1780859905961_1_session0m2_0_1": {
+      "weight": "35.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m2_ex_macro_1780859905961_1_session0m2_0_2": {
+      "weight": "35.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m2_ex_macro_1780859905961_1_session0m2_0_3": {
+      "weight": "35.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m2_ex_macro_1780859905961_1_session0m2_1_0": {
+      "weight": "67.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m2_ex_macro_1780859905961_1_session0m2_1_1": {
+      "weight": "67.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m2_ex_macro_1780859905961_1_session0m2_1_2": {
+      "weight": "67.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m2_ex_macro_1780859905961_1_session0m2_1_3": {
+      "weight": "67.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m2_ex_macro_1780859905961_1_session0m2_2_0": {
+      "weight": "47.5",
+      "reps": "11",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m2_ex_macro_1780859905961_1_session0m2_2_1": {
+      "weight": "47.5",
+      "reps": "11",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m2_ex_macro_1780859905961_1_session0m2_2_2": {
+      "weight": "47.5",
+      "reps": "11",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m2_ex_macro_1780859905961_1_session0m2_2_3": {
+      "weight": "47.5",
+      "reps": "11",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m2_ex_macro_1780859905961_1_session0m2_3_0": {
+      "weight": "10.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m2_ex_macro_1780859905961_1_session0m2_3_1": {
+      "weight": "10.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m2_ex_macro_1780859905961_1_session0m2_3_2": {
+      "weight": "10.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m2_ex_macro_1780859905961_1_session0m2_3_3": {
+      "weight": "10.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m2_ex_macro_1780859905961_1_session0m2_3_4": {
+      "weight": "10.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_3_session0m2_ex_macro_1780859905961_1_session0m2_4_0": {
+      "weight": "12.5",
+      "reps": "60",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m2_ex_macro_1780859905961_1_session1m2_1_0": {
+      "weight": "27.5",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m2_ex_macro_1780859905961_1_session1m2_1_1": {
+      "weight": "27.5",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m2_ex_macro_1780859905961_1_session1m2_1_2": {
+      "weight": "27.5",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m2_ex_macro_1780859905961_1_session1m2_1_3": {
+      "weight": "27.5",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m2_ex_macro_1780859905961_1_session1m2_0_0": {
+      "weight": "70.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m2_ex_macro_1780859905961_1_session1m2_0_1": {
+      "weight": "70.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m2_ex_macro_1780859905961_1_session1m2_0_2": {
+      "weight": "70.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m2_ex_macro_1780859905961_1_session1m2_0_3": {
+      "weight": "70.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m2_ex_macro_1780859905961_1_session1m2_2_0": {
+      "weight": "90.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m2_ex_macro_1780859905961_1_session1m2_2_1": {
+      "weight": "90.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m2_ex_macro_1780859905961_1_session1m2_2_2": {
+      "weight": "90.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m2_ex_macro_1780859905961_1_session1m2_2_3": {
+      "weight": "90.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m2_ex_macro_1780859905961_1_session1m2_3_0": {
+      "weight": "77.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m2_ex_macro_1780859905961_1_session1m2_3_1": {
+      "weight": "77.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m2_ex_macro_1780859905961_1_session1m2_3_2": {
+      "weight": "77.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_3_session1m2_ex_macro_1780859905961_1_session1m2_3_3": {
+      "weight": "77.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m2_ex_macro_1780859905961_1_session2m2_5_0": {
+      "weight": "30.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m2_ex_macro_1780859905961_1_session2m2_5_1": {
+      "weight": "30.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m2_ex_macro_1780859905961_1_session2m2_5_2": {
+      "weight": "30.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m2_ex_macro_1780859905961_1_session2m2_0_0": {
+      "weight": "40.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m2_ex_macro_1780859905961_1_session2m2_0_1": {
+      "weight": "40.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m2_ex_macro_1780859905961_1_session2m2_0_2": {
+      "weight": "40.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m2_ex_macro_1780859905961_1_session2m2_0_3": {
+      "weight": "40.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m2_ex_macro_1780859905961_1_session2m2_1_0": {
+      "weight": "25.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m2_ex_macro_1780859905961_1_session2m2_1_1": {
+      "weight": "25.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m2_ex_macro_1780859905961_1_session2m2_1_2": {
+      "weight": "25.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m2_ex_macro_1780859905961_1_session2m2_2_0": {
+      "weight": "20.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m2_ex_macro_1780859905961_1_session2m2_2_1": {
+      "weight": "20.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m2_ex_macro_1780859905961_1_session2m2_2_2": {
+      "weight": "20.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m2_ex_macro_1780859905961_1_session2m2_2_3": {
+      "weight": "20.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m2_ex_macro_1780859905961_1_session2m2_3_0": {
+      "weight": "20.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m2_ex_macro_1780859905961_1_session2m2_3_1": {
+      "weight": "20.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m2_ex_macro_1780859905961_1_session2m2_3_2": {
+      "weight": "20.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m2_ex_macro_1780859905961_1_session2m2_3_3": {
+      "weight": "20.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session2m2_ex_macro_1780859905961_1_session2m2_4_0": {
+      "weight": "7.5",
+      "reps": "60",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_6_0": {
+      "weight": "85.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_6_1": {
+      "weight": "85.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_6_2": {
+      "weight": "85.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_6_3": {
+      "weight": "85.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_1781868928797_0": {
+      "weight": "60.0",
+      "reps": "50",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_0_0": {
+      "weight": "25.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_0_1": {
+      "weight": "25.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_0_2": {
+      "weight": "25.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_1_0": {
+      "weight": "25.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_1_1": {
+      "weight": "25.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_1_2": {
+      "weight": "25.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_2_0": {
+      "weight": "50.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_2_1": {
+      "weight": "50.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_2_2": {
+      "weight": "50.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_2_3": {
+      "weight": "50.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_3_0": {
+      "weight": "25.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_3_1": {
+      "weight": "25.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_3_2": {
+      "weight": "25.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_3_3": {
+      "weight": "25.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_4_0": {
+      "weight": "50.0",
+      "reps": "25",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_4_1": {
+      "weight": "50.0",
+      "reps": "25",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_4_2": {
+      "weight": "50.0",
+      "reps": "25",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_5_0": {
+      "weight": "25.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_5_1": {
+      "weight": "25.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_5_2": {
+      "weight": "25.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_3_session3m2_ex_macro_1780859905961_1_session3m2_5_3": {
+      "weight": "25.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m1_ex_macro_1780859905961_1_session0m1_1_0": {
+      "weight": "62.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m1_ex_macro_1780859905961_1_session0m1_1_1": {
+      "weight": "62.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m1_ex_macro_1780859905961_1_session0m1_1_2": {
+      "weight": "62.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m1_ex_macro_1780859905961_1_session0m1_1_3": {
+      "weight": "62.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m1_ex_macro_1780859905961_1_session0m1_2_0": {
+      "weight": "47.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m1_ex_macro_1780859905961_1_session0m1_2_1": {
+      "weight": "47.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m1_ex_macro_1780859905961_1_session0m1_2_2": {
+      "weight": "47.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m1_ex_macro_1780859905961_1_session0m1_2_3": {
+      "weight": "47.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m1_ex_macro_1780859905961_1_session0m1_0_0": {
+      "weight": "47.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m1_ex_macro_1780859905961_1_session0m1_0_1": {
+      "weight": "47.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m1_ex_macro_1780859905961_1_session0m1_0_2": {
+      "weight": "40",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m1_ex_macro_1780859905961_1_session0m1_0_3": {
+      "weight": "40",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m1_ex_macro_1780859905961_1_session0m1_0_4": {
+      "weight": "40",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m1_ex_macro_1780859905961_1_session0m1_3_0": {
+      "weight": "10",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m1_ex_macro_1780859905961_1_session0m1_3_1": {
+      "weight": "10",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m1_ex_macro_1780859905961_1_session0m1_3_2": {
+      "weight": "10",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m1_ex_macro_1780859905961_1_session0m1_3_3": {
+      "weight": "10",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m1_ex_macro_1780859905961_1_session1m1_3_0": {
+      "weight": "60.0",
+      "reps": "60",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m1_ex_macro_1780859905961_1_session1m1_0_0": {
+      "weight": "20.0",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m1_ex_macro_1780859905961_1_session1m1_0_1": {
+      "weight": "20.0",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m1_ex_macro_1780859905961_1_session1m1_0_2": {
+      "weight": "20.0",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m1_ex_macro_1780859905961_1_session1m1_0_3": {
+      "weight": "20.0",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m1_ex_macro_1780859905961_1_session1m1_0_4": {
+      "weight": "20.0",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m1_ex_macro_1780859905961_1_session1m1_1_0": {
+      "weight": "17.5",
+      "reps": "11",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m1_ex_macro_1780859905961_1_session1m1_1_1": {
+      "weight": "17.5",
+      "reps": "11",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m1_ex_macro_1780859905961_1_session1m1_1_2": {
+      "weight": "17.5",
+      "reps": "11",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m1_ex_macro_1780859905961_1_session1m1_1_3": {
+      "weight": "17.5",
+      "reps": "11",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m1_ex_macro_1780859905961_1_session1m1_2_0": {
+      "weight": "72.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m1_ex_macro_1780859905961_1_session1m1_2_1": {
+      "weight": "72.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m1_ex_macro_1780859905961_1_session1m1_2_2": {
+      "weight": "72.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m1_ex_macro_1780859905961_1_session1m1_2_3": {
+      "weight": "72.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m1_ex_macro_1780859905961_1_session2m1_0_0": {
+      "weight": "67.5",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m1_ex_macro_1780859905961_1_session2m1_0_1": {
+      "weight": "67.5",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m1_ex_macro_1780859905961_1_session2m1_0_2": {
+      "weight": "67.5",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m1_ex_macro_1780859905961_1_session2m1_0_3": {
+      "weight": "67.5",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m1_ex_macro_1780859905961_1_session2m1_1_0": {
+      "weight": "22.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m1_ex_macro_1780859905961_1_session2m1_1_1": {
+      "weight": "22.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m1_ex_macro_1780859905961_1_session2m1_1_2": {
+      "weight": "22.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m1_ex_macro_1780859905961_1_session2m1_1_3": {
+      "weight": "22.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m1_ex_macro_1780859905961_1_session2m1_2_0": {
+      "weight": "37.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m1_ex_macro_1780859905961_1_session2m1_2_1": {
+      "weight": "37.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m1_ex_macro_1780859905961_1_session2m1_2_2": {
+      "weight": "37.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m1_ex_macro_1780859905961_1_session2m1_2_3": {
+      "weight": "37.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m1_ex_macro_1780859905961_1_session2m1_2_4": {
+      "weight": "37.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m1_ex_macro_1780859905961_1_session2m1_3_0": {
+      "weight": "52.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m1_ex_macro_1780859905961_1_session2m1_3_1": {
+      "weight": "52.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m1_ex_macro_1780859905961_1_session2m1_3_2": {
+      "weight": "52.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m1_ex_macro_1780859905961_1_session2m1_3_3": {
+      "weight": "52.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m1_ex_macro_1780859905961_1_session2m1_3_4": {
+      "weight": "52.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m1_ex_macro_1780859905961_1_session2m1_4_0": {
+      "weight": "17.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m1_ex_macro_1780859905961_1_session2m1_4_1": {
+      "weight": "17.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m1_ex_macro_1780859905961_1_session2m1_4_2": {
+      "weight": "17.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m1_ex_macro_1780859905961_1_session2m1_4_3": {
+      "weight": "17.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m1_ex_macro_1780859905961_1_session2m1_4_4": {
+      "weight": "17.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_0_0": {
+      "weight": "30.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_0_1": {
+      "weight": "30.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_0_2": {
+      "weight": "30.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_0_3": {
+      "weight": "30.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_0_4": {
+      "weight": "30.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_6_0": {
+      "weight": "75.0",
+      "reps": "16",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_6_1": {
+      "weight": "75.0",
+      "reps": "16",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_6_2": {
+      "weight": "75.0",
+      "reps": "16",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_6_3": {
+      "weight": "75.0",
+      "reps": "16",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_6_4": {
+      "weight": "75.0",
+      "reps": "16",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_1_0": {
+      "weight": "17.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_1_1": {
+      "weight": "17.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_1_2": {
+      "weight": "17.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_1_3": {
+      "weight": "17.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_2_0": {
+      "weight": "60.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_2_1": {
+      "weight": "60.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_2_2": {
+      "weight": "60.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_2_3": {
+      "weight": "60.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_2_4": {
+      "weight": "60.0",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_4_0": {
+      "weight": "60.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_4_1": {
+      "weight": "60.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_4_2": {
+      "weight": "60.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_4_3": {
+      "weight": "60.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_4_4": {
+      "weight": "60.0",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_3_0": {
+      "weight": "27.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_3_1": {
+      "weight": "27.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_3_2": {
+      "weight": "27.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_3_3": {
+      "weight": "27.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_3_4": {
+      "weight": "27.5",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_5_0": {
+      "weight": "27.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_5_1": {
+      "weight": "27.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_5_2": {
+      "weight": "27.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m1_ex_macro_1780859905961_1_session3m1_5_3": {
+      "weight": "27.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m2_ex_macro_1780859905961_1_session0m2_0_0": {
+      "weight": "37.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m2_ex_macro_1780859905961_1_session0m2_0_1": {
+      "weight": "37.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m2_ex_macro_1780859905961_1_session0m2_0_2": {
+      "weight": "37.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m2_ex_macro_1780859905961_1_session0m2_0_3": {
+      "weight": "37.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m2_ex_macro_1780859905961_1_session0m2_0_4": {
+      "weight": "37.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m2_ex_macro_1780859905961_1_session0m2_1_0": {
+      "weight": "70.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m2_ex_macro_1780859905961_1_session0m2_1_1": {
+      "weight": "70.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m2_ex_macro_1780859905961_1_session0m2_1_2": {
+      "weight": "70.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m2_ex_macro_1780859905961_1_session0m2_1_3": {
+      "weight": "70.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m2_ex_macro_1780859905961_1_session0m2_2_0": {
+      "weight": "50.0",
+      "reps": "11",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m2_ex_macro_1780859905961_1_session0m2_2_1": {
+      "weight": "50.0",
+      "reps": "11",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m2_ex_macro_1780859905961_1_session0m2_2_2": {
+      "weight": "50.0",
+      "reps": "11",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m2_ex_macro_1780859905961_1_session0m2_2_3": {
+      "weight": "50.0",
+      "reps": "11",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m2_ex_macro_1780859905961_1_session0m2_3_0": {
+      "weight": "10",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m2_ex_macro_1780859905961_1_session0m2_3_1": {
+      "weight": "10",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m2_ex_macro_1780859905961_1_session0m2_3_2": {
+      "weight": "10",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m2_ex_macro_1780859905961_1_session0m2_3_3": {
+      "weight": "10",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m2_ex_macro_1780859905961_1_session0m2_3_4": {
+      "weight": "10",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m2_ex_macro_1780859905961_1_session0m2_4_0": {
+      "weight": "15.0",
+      "reps": "60",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m2_ex_macro_1780859905961_1_session1m2_0_0": {
+      "weight": "75.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m2_ex_macro_1780859905961_1_session1m2_0_1": {
+      "weight": "75.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m2_ex_macro_1780859905961_1_session1m2_0_2": {
+      "weight": "75.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m2_ex_macro_1780859905961_1_session1m2_0_3": {
+      "weight": "75.0",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m2_ex_macro_1780859905961_1_session1m2_3_0": {
+      "weight": "80.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m2_ex_macro_1780859905961_1_session1m2_3_1": {
+      "weight": "80.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m2_ex_macro_1780859905961_1_session1m2_3_2": {
+      "weight": "80.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m2_ex_macro_1780859905961_1_session1m2_3_3": {
+      "weight": "80.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m2_ex_macro_1780859905961_1_session1m2_1_0": {
+      "weight": "30.0",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m2_ex_macro_1780859905961_1_session1m2_1_1": {
+      "weight": "30.0",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m2_ex_macro_1780859905961_1_session1m2_1_2": {
+      "weight": "30.0",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m2_ex_macro_1780859905961_1_session1m2_1_3": {
+      "weight": "30.0",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m2_ex_macro_1780859905961_1_session1m2_1_4": {
+      "weight": "30.0",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m2_ex_macro_1780859905961_1_session1m2_2_0": {
+      "weight": "95.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m2_ex_macro_1780859905961_1_session1m2_2_1": {
+      "weight": "95.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m2_ex_macro_1780859905961_1_session1m2_2_2": {
+      "weight": "95.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_4_session1m2_ex_macro_1780859905961_1_session1m2_2_3": {
+      "weight": "95.0",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m2_ex_macro_1780859905961_1_session2m2_5_0": {
+      "weight": "32.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m2_ex_macro_1780859905961_1_session2m2_5_1": {
+      "weight": "32.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m2_ex_macro_1780859905961_1_session2m2_5_2": {
+      "weight": "32.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m2_ex_macro_1780859905961_1_session2m2_5_3": {
+      "weight": "32.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m2_ex_macro_1780859905961_1_session2m2_0_0": {
+      "weight": "42.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m2_ex_macro_1780859905961_1_session2m2_0_1": {
+      "weight": "42.5",
+      "reps": "5",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m2_ex_macro_1780859905961_1_session2m2_0_2": {
+      "weight": "42.5",
+      "reps": "5",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m2_ex_macro_1780859905961_1_session2m2_0_3": {
+      "weight": "42.5",
+      "reps": "5",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m2_ex_macro_1780859905961_1_session2m2_1_0": {
+      "weight": "27.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m2_ex_macro_1780859905961_1_session2m2_1_1": {
+      "weight": "27.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m2_ex_macro_1780859905961_1_session2m2_1_2": {
+      "weight": "27.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m2_ex_macro_1780859905961_1_session2m2_1_3": {
+      "weight": "27.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m2_ex_macro_1780859905961_1_session2m2_2_0": {
+      "weight": "22.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m2_ex_macro_1780859905961_1_session2m2_2_1": {
+      "weight": "22.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m2_ex_macro_1780859905961_1_session2m2_2_2": {
+      "weight": "22.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m2_ex_macro_1780859905961_1_session2m2_2_3": {
+      "weight": "20",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m2_ex_macro_1780859905961_1_session2m2_2_4": {
+      "weight": "20",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m2_ex_macro_1780859905961_1_session2m2_3_0": {
+      "weight": "22.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m2_ex_macro_1780859905961_1_session2m2_3_1": {
+      "weight": "22.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m2_ex_macro_1780859905961_1_session2m2_3_2": {
+      "weight": "20",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m2_ex_macro_1780859905961_1_session2m2_3_3": {
+      "weight": "20",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session2m2_ex_macro_1780859905961_1_session2m2_4_0": {
+      "weight": "10.0",
+      "reps": "60",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_2_0": {
+      "weight": "52.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_2_1": {
+      "weight": "52.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_2_2": {
+      "weight": "52.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_2_3": {
+      "weight": "52.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_2_4": {
+      "weight": "52.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_3_0": {
+      "weight": "27.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_3_1": {
+      "weight": "27.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_3_2": {
+      "weight": "27.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_3_3": {
+      "weight": "27.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_4_0": {
+      "weight": "52.5",
+      "reps": "25",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_4_1": {
+      "weight": "52.5",
+      "reps": "25",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_4_2": {
+      "weight": "52.5",
+      "reps": "25",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_4_3": {
+      "weight": "52.5",
+      "reps": "25",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_5_0": {
+      "weight": "27.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_5_1": {
+      "weight": "27.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_5_2": {
+      "weight": "27.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_5_3": {
+      "weight": "27.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_6_0": {
+      "weight": "87.5",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_6_1": {
+      "weight": "87.5",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_6_2": {
+      "weight": "87.5",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_6_3": {
+      "weight": "87.5",
+      "reps": "10",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_1781868928797_0": {
+      "weight": "62.5",
+      "reps": "50",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_0_0": {
+      "weight": "27.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_0_1": {
+      "weight": "27.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_0_2": {
+      "weight": "27.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_0_3": {
+      "weight": "27.5",
+      "reps": "20",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_1_0": {
+      "weight": "27.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_1_1": {
+      "weight": "27.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_1_2": {
+      "weight": "27.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_4_session3m2_ex_macro_1780859905961_1_session3m2_1_3": {
+      "weight": "27.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m1_ex_macro_1780859905961_1_session0m1_4_0": {
+      "weight": "12.5",
+      "reps": "60",
+      "done": true
+    },
+    "macro_1780859905961_prog_3_session0m1_ex_macro_1780859905961_1_session0m1_4": {
+      "progType": "reps"
+    },
+    "macro_1780859905961_3_session0m1_ex_macro_1780859905961_1_session0m1_4_0": {
+      "weight": "12.5",
+      "reps": "70",
+      "done": true
+    },
+    "macro_1780859905961_4_session0m1_ex_macro_1780859905961_1_session0m1_4_0": {
+      "weight": "15",
+      "reps": "70",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m1_ex_macro_1780859905961_1_session0m1_3_0": {
+      "weight": "10",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m1_ex_macro_1780859905961_1_session0m1_3_1": {
+      "weight": "10",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_2_session0m1_ex_macro_1780859905961_1_session0m1_3_2": {
+      "weight": "10",
+      "reps": "15",
+      "done": true
+    },
+    "macro_1780859905961_5_session0m1_ex_macro_1780859905961_1_session0m1_0_0": {
+      "weight": "50.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_5_session0m1_ex_macro_1780859905961_1_session0m1_0_1": {
+      "weight": "50.0",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_5_session0m1_ex_macro_1780859905961_1_session0m1_0_2": {
+      "weight": "42.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_5_session0m1_ex_macro_1780859905961_1_session0m1_0_3": {
+      "weight": "42.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_5_session0m1_ex_macro_1780859905961_1_session0m1_0_4": {
+      "weight": "42.5",
+      "reps": "8",
+      "done": true
+    },
+    "macro_1780859905961_5_session0m1_ex_macro_1780859905961_1_session0m1_2_0": {
+      "weight": "52.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_5_session0m1_ex_macro_1780859905961_1_session0m1_2_1": {
+      "weight": "52.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_5_session0m1_ex_macro_1780859905961_1_session0m1_2_2": {
+      "weight": "52.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_5_session0m1_ex_macro_1780859905961_1_session0m1_2_3": {
+      "weight": "52.5",
+      "reps": "12",
+      "done": true
+    },
+    "macro_1780859905961_5_session0m1_ex_macro_1780859905961_1_session0m1_3_0": {
+      "weight": "12.5",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_5_session0m1_ex_macro_1780859905961_1_session0m1_3_1": {
+      "weight": "12.5",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_5_session0m1_ex_macro_1780859905961_1_session0m1_3_2": {
+      "weight": "12.5",
+      "reps": "13",
+      "done": true
+    },
+    "macro_1780859905961_5_session0m1_ex_macro_1780859905961_1_session0m1_3_3": {
+      "weight": "12.5",
+      "reps": "13",
+      "done": true
+    }
+  },
+  "bodyLogs": [
+    {
+      "date": "2026-06-08",
+      "weight": 221.7,
+      "steps": 8943
+    },
+    {
+      "date": "2026-06-09",
+      "weight": 221.7,
+      "steps": 9625
+    },
+    {
+      "date": "2026-06-10",
+      "weight": 221.5,
+      "steps": 12093
+    },
+    {
+      "date": "2026-06-11",
+      "weight": 221,
+      "steps": 8334
+    },
+    {
+      "date": "2026-06-12",
+      "weight": 220.6,
+      "steps": 6696
+    },
+    {
+      "date": "2026-06-13",
+      "weight": 219.7,
+      "steps": 10057
+    },
+    {
+      "date": "2026-06-14",
+      "weight": 219.7,
+      "steps": 10260
+    },
+    {
+      "date": "2026-06-15",
+      "weight": 219.2,
+      "steps": 6902
+    },
+    {
+      "date": "2026-06-16",
+      "weight": 218.5,
+      "steps": 10071
+    },
+    {
+      "date": "2026-06-17",
+      "weight": 219.2,
+      "steps": 8126
+    },
+    {
+      "date": "2026-06-18",
+      "weight": 218.9,
+      "steps": 9180
+    },
+    {
+      "date": "2026-06-19",
+      "weight": 217.3,
+      "steps": 7661
+    },
+    {
+      "date": "2026-06-20",
+      "weight": 216.8,
+      "steps": 11488
+    },
+    {
+      "date": "2026-06-21",
+      "weight": 216.3,
+      "steps": 6091
+    },
+    {
+      "date": "2026-06-22",
+      "weight": 217.2,
+      "steps": 10221
+    },
+    {
+      "date": "2026-06-23",
+      "weight": 215.9,
+      "steps": 11388
+    },
+    {
+      "date": "2026-06-24",
+      "weight": 215.7,
+      "steps": 10293
+    },
+    {
+      "date": "2026-06-25",
+      "weight": 214.3,
+      "steps": 8804
+    },
+    {
+      "date": "2026-06-26",
+      "weight": 214.2,
+      "steps": 9649
+    },
+    {
+      "date": "2026-06-27",
+      "weight": 214.7,
+      "steps": 13585
+    },
+    {
+      "date": "2026-06-28",
+      "weight": 215.1,
+      "steps": 12535
+    },
+    {
+      "date": "2026-06-29",
+      "weight": 216.5,
+      "steps": 7617
+    },
+    {
+      "date": "2026-06-30",
+      "weight": 214.1,
+      "steps": 11462
+    },
+    {
+      "date": "2026-07-01",
+      "weight": 214.6,
+      "steps": 10096
+    },
+    {
+      "date": "2026-07-02",
+      "weight": 215.6,
+      "steps": 13526
+    },
+    {
+      "date": "2026-07-03",
+      "weight": 215.5,
+      "steps": 10364
+    },
+    {
+      "date": "2026-07-04",
+      "weight": 216.3,
+      "steps": 11914
+    },
+    {
+      "date": "2026-07-05",
+      "weight": 214.6,
+      "steps": 12131
+    },
+    {
+      "date": "2026-07-06",
+      "weight": 215.7,
+      "steps": 11659
+    },
+    {
+      "date": "2026-07-07",
+      "weight": 215.9,
+      "steps": 10308
+    },
+    {
+      "date": "2026-07-08",
+      "weight": 215.8,
+      "steps": 10717
+    },
+    {
+      "date": "2026-07-09",
+      "weight": 214.3,
+      "steps": 11349
+    },
+    {
+      "date": "2026-07-10",
+      "weight": 215,
+      "steps": 10951
+    },
+    {
+      "date": "2026-07-11",
+      "weight": 214.5,
+      "steps": 10756
+    },
+    {
+      "date": "2026-07-12",
+      "weight": 213.6,
+      "steps": 9977
+    },
+    {
+      "date": "2026-07-13",
+      "weight": 216.1,
+      "steps": 15099
+    },
+    {
+      "date": "2026-07-14",
+      "weight": 216.2,
+      "steps": 12242
+    },
+    {
+      "date": "2026-07-15",
+      "weight": 214.7,
+      "steps": 8215
+    },
+    {
+      "date": "2026-07-16",
+      "weight": 214.2,
+      "steps": 7147
+    },
+    {
+      "date": "2026-07-17",
+      "weight": 215.6,
+      "steps": 9344
+    },
+    {
+      "date": "2026-07-18",
+      "weight": 214.5,
+      "steps": 8728
+    },
+    {
+      "date": "2026-07-19",
+      "weight": 214.5,
+      "steps": 9334
+    },
+    {
+      "date": "2026-07-20",
+      "weight": 213.8,
+      "steps": 8904
+    },
+    {
+      "date": "2026-07-21",
+      "weight": 213.6,
+      "steps": 7430
+    },
+    {
+      "date": "2026-07-22",
+      "weight": 214.3,
+      "steps": 10060,
+      "waist": 35.5,
+      "hip": 37.5
+    },
+    {
+      "date": "2026-07-23",
+      "weight": 213.8,
+      "steps": 12590,
+      "waist": null,
+      "hip": null
+    },
+    {
+      "date": "2026-07-24",
+      "weight": 214.6,
+      "steps": 10561,
+      "waist": null,
+      "hip": null
+    },
+    {
+      "date": "2026-07-25",
+      "weight": 215.1,
+      "steps": 9347,
+      "waist": 35.25,
+      "hip": 37.5
+    },
+    {
+      "date": "2026-07-26",
+      "weight": 213.3,
+      "steps": 9036,
+      "waist": null,
+      "hip": null
+    },
+    {
+      "date": "2026-07-27",
+      "weight": 214.1,
+      "steps": 9942,
+      "waist": 35.25,
+      "hip": 37.25
+    },
+    {
+      "date": "2026-07-28",
+      "weight": 213.9,
+      "steps": 12031,
+      "waist": null,
+      "hip": null
+    },
+    {
+      "date": "2026-07-29",
+      "weight": 215.1,
+      "steps": 12175,
+      "waist": null,
+      "hip": null
+    },
+    {
+      "date": "2026-07-30",
+      "weight": 215.1,
+      "steps": 8274,
+      "waist": null,
+      "hip": null
+    },
+    {
+      "date": "2026-07-31",
+      "weight": 214.8,
+      "steps": 10152,
+      "waist": null,
+      "hip": null
+    },
+    {
+      "date": "2026-08-01",
+      "weight": 214,
+      "steps": 10498,
+      "waist": null,
+      "hip": null
+    },
+    {
+      "date": "2026-08-02",
+      "weight": 212.9,
+      "steps": 8042,
+      "waist": null,
+      "hip": null
+    }
+  ],
+  "nutritionLogs": [
+    {
+      "date": "2026-06-08",
+      "kcal": 1665,
+      "protein": 186,
+      "carbs": 111,
+      "fats": 53
+    },
+    {
+      "date": "2026-06-09",
+      "kcal": 1720,
+      "protein": 181,
+      "carbs": 136,
+      "fats": 50
+    },
+    {
+      "date": "2026-06-10",
+      "kcal": 1650,
+      "protein": 185,
+      "carbs": 106,
+      "fats": 54
+    },
+    {
+      "date": "2026-06-11",
+      "kcal": 1740,
+      "protein": 182,
+      "carbs": 138,
+      "fats": 51
+    },
+    {
+      "date": "2026-06-12",
+      "kcal": 1685,
+      "protein": 187,
+      "carbs": 117,
+      "fats": 52
+    },
+    {
+      "date": "2026-06-13",
+      "kcal": 1725,
+      "protein": 183,
+      "carbs": 129,
+      "fats": 53
+    },
+    {
+      "date": "2026-06-14",
+      "kcal": 1715,
+      "protein": 184,
+      "carbs": 130,
+      "fats": 51
+    },
+    {
+      "date": "2026-06-15",
+      "kcal": 1683,
+      "protein": 184,
+      "carbs": 122,
+      "fats": 51
+    },
+    {
+      "date": "2026-06-16",
+      "kcal": 1738,
+      "protein": 179,
+      "carbs": 148,
+      "fats": 48
+    },
+    {
+      "date": "2026-06-17",
+      "kcal": 1668,
+      "protein": 183,
+      "carbs": 117,
+      "fats": 52
+    },
+    {
+      "date": "2026-06-18",
+      "kcal": 1758,
+      "protein": 180,
+      "carbs": 149,
+      "fats": 49
+    },
+    {
+      "date": "2026-06-19",
+      "kcal": 1703,
+      "protein": 185,
+      "carbs": 128,
+      "fats": 50
+    },
+    {
+      "date": "2026-06-20",
+      "kcal": 1743,
+      "protein": 181,
+      "carbs": 140,
+      "fats": 51
+    },
+    {
+      "date": "2026-06-21",
+      "kcal": 1733,
+      "protein": 182,
+      "carbs": 141,
+      "fats": 49
+    },
+    {
+      "date": "2026-06-22",
+      "kcal": 1845,
+      "protein": 185,
+      "carbs": 144,
+      "fats": 59
+    },
+    {
+      "date": "2026-06-23",
+      "kcal": 1900,
+      "protein": 180,
+      "carbs": 169,
+      "fats": 56
+    },
+    {
+      "date": "2026-06-24",
+      "kcal": 1830,
+      "protein": 184,
+      "carbs": 138,
+      "fats": 60
+    },
+    {
+      "date": "2026-06-25",
+      "kcal": 1920,
+      "protein": 181,
+      "carbs": 171,
+      "fats": 57
+    },
+    {
+      "date": "2026-06-26",
+      "kcal": 1865,
+      "protein": 186,
+      "carbs": 150,
+      "fats": 58
+    },
+    {
+      "date": "2026-06-27",
+      "kcal": 1905,
+      "protein": 182,
+      "carbs": 162,
+      "fats": 59
+    },
+    {
+      "date": "2026-06-28",
+      "kcal": 1895,
+      "protein": 183,
+      "carbs": 162,
+      "fats": 57
+    },
+    {
+      "date": "2026-06-29",
+      "kcal": 1885,
+      "protein": 187,
+      "carbs": 154,
+      "fats": 58
+    },
+    {
+      "date": "2026-06-30",
+      "kcal": 1940,
+      "protein": 182,
+      "carbs": 179,
+      "fats": 55
+    },
+    {
+      "date": "2026-07-01",
+      "kcal": 1870,
+      "protein": 186,
+      "carbs": 149,
+      "fats": 59
+    },
+    {
+      "date": "2026-07-02",
+      "kcal": 1960,
+      "protein": 183,
+      "carbs": 181,
+      "fats": 56
+    },
+    {
+      "date": "2026-07-03",
+      "kcal": 1905,
+      "protein": 188,
+      "carbs": 160,
+      "fats": 57
+    },
+    {
+      "date": "2026-07-04",
+      "kcal": 1945,
+      "protein": 184,
+      "carbs": 172,
+      "fats": 58
+    },
+    {
+      "date": "2026-07-05",
+      "kcal": 1900,
+      "protein": 185,
+      "carbs": 161,
+      "fats": 59
+    },
+    {
+      "date": "2026-07-06",
+      "kcal": 1805,
+      "protein": 182,
+      "carbs": 139,
+      "fats": 58
+    },
+    {
+      "date": "2026-07-07",
+      "kcal": 1860,
+      "protein": 177,
+      "carbs": 164,
+      "fats": 55
+    },
+    {
+      "date": "2026-07-08",
+      "kcal": 1790,
+      "protein": 181,
+      "carbs": 134,
+      "fats": 59
+    },
+    {
+      "date": "2026-07-09",
+      "kcal": 1880,
+      "protein": 178,
+      "carbs": 166,
+      "fats": 56
+    },
+    {
+      "date": "2026-07-10",
+      "kcal": 1825,
+      "protein": 183,
+      "carbs": 145,
+      "fats": 57
+    },
+    {
+      "date": "2026-07-11",
+      "kcal": 1865,
+      "protein": 179,
+      "carbs": 157,
+      "fats": 58
+    },
+    {
+      "date": "2026-07-12",
+      "kcal": 1855,
+      "protein": 180,
+      "carbs": 158,
+      "fats": 56
+    },
+    {
+      "date": "2026-07-13",
+      "kcal": 1765,
+      "protein": 187,
+      "carbs": 130,
+      "fats": 55
+    },
+    {
+      "date": "2026-07-14",
+      "kcal": 1820,
+      "protein": 182,
+      "carbs": 156,
+      "fats": 52
+    },
+    {
+      "date": "2026-07-15",
+      "kcal": 1750,
+      "protein": 186,
+      "carbs": 126,
+      "fats": 56
+    },
+    {
+      "date": "2026-07-16",
+      "kcal": 1840,
+      "protein": 183,
+      "carbs": 158,
+      "fats": 53
+    },
+    {
+      "date": "2026-07-17",
+      "kcal": 1785,
+      "protein": 188,
+      "carbs": 137,
+      "fats": 54
+    },
+    {
+      "date": "2026-07-18",
+      "kcal": 1825,
+      "protein": 184,
+      "carbs": 148,
+      "fats": 55
+    },
+    {
+      "date": "2026-07-19",
+      "kcal": 1815,
+      "protein": 185,
+      "carbs": 150,
+      "fats": 53
+    },
+    {
+      "date": "2026-07-20",
+      "kcal": 1735,
+      "protein": 183,
+      "carbs": 125,
+      "fats": 56
+    },
+    {
+      "date": "2026-07-21",
+      "kcal": 1790,
+      "protein": 178,
+      "carbs": 150,
+      "fats": 53
+    },
+    {
+      "date": "2026-07-22",
+      "kcal": 1720,
+      "protein": 182,
+      "carbs": 120,
+      "fats": 57
+    },
+    {
+      "date": "2026-07-23",
+      "kcal": 1810,
+      "protein": 179,
+      "carbs": 152,
+      "fats": 54
+    },
+    {
+      "date": "2026-07-24",
+      "kcal": 1755,
+      "protein": 184,
+      "carbs": 131,
+      "fats": 55
+    },
+    {
+      "date": "2026-07-25",
+      "kcal": 1795,
+      "protein": 180,
+      "carbs": 143,
+      "fats": 56
+    },
+    {
+      "date": "2026-07-26",
+      "kcal": 1785,
+      "protein": 181,
+      "carbs": 144,
+      "fats": 54
+    },
+    {
+      "date": "2026-07-27",
+      "kcal": 1705,
+      "protein": 185,
+      "carbs": 120,
+      "fats": 54
+    },
+    {
+      "date": "2026-07-28",
+      "kcal": 1760,
+      "protein": 180,
+      "carbs": 145,
+      "fats": 51
+    },
+    {
+      "date": "2026-07-29",
+      "kcal": 1690,
+      "protein": 184,
+      "carbs": 115,
+      "fats": 55
+    },
+    {
+      "date": "2026-07-30",
+      "kcal": 1780,
+      "protein": 181,
+      "carbs": 147,
+      "fats": 52
+    },
+    {
+      "date": "2026-07-31",
+      "kcal": 1725,
+      "protein": 186,
+      "carbs": 126,
+      "fats": 53
+    },
+    {
+      "date": "2026-08-01",
+      "kcal": 1765,
+      "protein": 182,
+      "carbs": 138,
+      "fats": 54
+    },
+    {
+      "date": "2026-08-02",
+      "kcal": 1755,
+      "protein": 250,
+      "carbs": 127,
+      "fats": 59
+    }
+  ],
+  "goals": [
+    {
+      "macroId": "macro_1780859905961",
+      "startDate": "2026-06-08",
+      "endDate": "2026-07-12",
+      "kcal": 1830,
+      "steps": 10000,
+      "protein": 290,
+      "carbs": 100,
+      "fats": 30,
+      "macroGoalID": "macro_1780859905961_g20260608",
+      "_blocLabel": "Step 1"
+    },
+    {
+      "macroId": "macro_1780859905961",
+      "startDate": "2026-07-13",
+      "endDate": "2026-07-26",
+      "kcal": 1700,
+      "steps": 10000,
+      "protein": 213,
+      "carbs": 117,
+      "fats": 42,
+      "macroGoalID": "macro_1780859905961_g20260713",
+      "_blocLabel": "Step 2"
+    },
+    {
+      "macroId": "macro_1780859905961",
+      "startDate": "2026-07-27",
+      "endDate": "2026-08-02",
+      "kcal": 1500,
+      "steps": 10000,
+      "protein": 224,
+      "carbs": 100,
+      "fats": 23,
+      "_blocLabel": "Step 3 - Hard Cut Start",
+      "macroGoalID": "macro_1780859905961_g20260727"
+    },
+    {
+      "macroId": "macro_1780859905961",
+      "startDate": "2026-08-03",
+      "endDate": "2026-08-30",
+      "kcal": 1550,
+      "steps": 12000,
+      "protein": 224,
+      "carbs": 62,
+      "fats": 45,
+      "_blocLabel": "Step 4 - Hard Cut High Steps",
+      "macroGoalID": "macro_1780859905961_g20260803"
+    },
+    {
+      "macroId": "macro_1780859905961",
+      "startDate": "2026-08-31",
+      "endDate": "2026-09-06",
+      "kcal": 1950,
+      "steps": 12000,
+      "protein": 224,
+      "carbs": 162,
+      "fats": 45,
+      "_blocLabel": "Step 5 - Refeed Week",
+      "macroGoalID": "macro_1780859905961_g20260831"
+    },
+    {
+      "macroId": "macro_1780859905961",
+      "startDate": "2026-09-07",
+      "endDate": "2026-09-13",
+      "kcal": 1550,
+      "steps": 14000,
+      "protein": 224,
+      "carbs": 62,
+      "fats": 45,
+      "_blocLabel": "Step 6 - Cycle Sprint",
+      "macroGoalID": "macro_1780859905961_g20260907"
+    }
+  ],
+  "customLibrary": [
+    {
+      "name": "Hack Squat",
+      "bodyPart": "Legs"
+    },
+    {
+      "name": "Cable Flyes",
+      "bodyPart": "Chest"
+    }
+  ],
+  "currentMacroId": "macro_1780859905961",
+  "currentWeek": 5,
+  "currentDay": "session0m1",
+  "currentEditContext": {
+    "week": 1,
+    "day": "session1m2",
+    "editIdx": 2
+  },
+  "_macroForm": {
+    "split": "custom",
+    "micro": "yes"
+  },
+  "_customSessions": [
+    "Day A",
+    "Day B",
+    "Day C"
+  ],
+  "nutritionMeals": {
+    "2026-08-02": {
+      "Breakfast": [
+        {
+          "name": "Scrambled Eggs (2 large)",
+          "brand": "",
+          "grams": 100,
+          "servings": 1,
+          "serving": 100,
+          "kcal": 140,
+          "protein": 12,
+          "carbs": 1,
+          "fats": 9,
+          "source": "manual"
+        },
+        {
+          "name": "Avocado (1/8)",
+          "brand": "",
+          "grams": 25,
+          "servings": 1,
+          "serving": 25,
+          "kcal": 30,
+          "protein": 0.5,
+          "carbs": 1.5,
+          "fats": 3,
+          "source": "manual"
+        }
+      ],
+      "Lunch": [
+        {
+          "name": "Large Tortilla Wrap",
+          "brand": "",
+          "grams": 65,
+          "servings": 1,
+          "serving": 65,
+          "kcal": 180,
+          "protein": 6,
+          "carbs": 30,
+          "fats": 0,
+          "source": "manual"
+        },
+        {
+          "name": "Grilled Chicken Breast (130g)",
+          "brand": "",
+          "grams": 130,
+          "servings": 1,
+          "serving": 130,
+          "kcal": 215,
+          "protein": 40,
+          "carbs": 0,
+          "fats": 1,
+          "source": "manual"
+        },
+        {
+          "name": "Grilled Bacon (1 rasher)",
+          "brand": "",
+          "grams": 20,
+          "servings": 1,
+          "serving": 20,
+          "kcal": 45,
+          "protein": 3,
+          "carbs": 0,
+          "fats": 1,
+          "source": "manual"
+        },
+        {
+          "name": "Light Caesar Dressing & Parmesan",
+          "brand": "",
+          "grams": 25,
+          "servings": 1,
+          "serving": 25,
+          "kcal": 60,
+          "protein": 2,
+          "carbs": 2,
+          "fats": 1,
+          "source": "manual"
+        },
+        {
+          "name": "Romaine Lettuce",
+          "brand": "",
+          "grams": 40,
+          "servings": 1,
+          "serving": 40,
+          "kcal": 10,
+          "protein": 1,
+          "carbs": 2,
+          "fats": 0,
+          "source": "manual"
+        }
+      ],
+      "Snacks": [
+        {
+          "name": "Protein Shake (1 Scoop - Water)",
+          "brand": "My Recipe",
+          "grams": 100,
+          "servings": 1,
+          "serving": 100,
+          "kcal": 120,
+          "protein": 50,
+          "carbs": 3,
+          "fats": 1,
+          "source": "recipe"
+        },
+        {
+          "name": "Protein Shake (1 Scoop - Milk)",
+          "brand": "My Recipe",
+          "grams": 150,
+          "servings": 1,
+          "serving": 150,
+          "kcal": 215,
+          "protein": 53,
+          "carbs": 12,
+          "fats": 2,
+          "source": "recipe"
+        }
+      ],
+      "Dinner": [
+        {
+          "name": "(Dinner) Turkey Lasagne",
+          "brand": "My Recipe",
+          "grams": 100,
+          "servings": 1,
+          "serving": 100,
+          "kcal": 500,
+          "protein": 70,
+          "carbs": 50,
+          "fats": 4,
+          "source": "recipe"
+        }
+      ]
+    }
+  },
+  "foodLibrary": [
+    {
+      "id": "lib_1785875134988",
+      "name": "(Dinner) Turkey Lasagne",
+      "brand": "My Recipe",
+      "barcode": null,
+      "per100kcal": 500,
+      "per100p": 70,
+      "per100c": 50,
+      "per100f": 12,
+      "per1kcal": 5,
+      "per1p": 0.7,
+      "per1c": 0.5,
+      "per1f": 0.12,
+      "defaultServing": null,
+      "source": "recipe"
+    }
+  ],
+  "nutritionQuickLog": {
+    "2026-06-08": {
+      "kcal": 1665,
+      "protein": 186,
+      "carbs": 111,
+      "fats": 53
+    },
+    "2026-06-09": {
+      "kcal": 1720,
+      "protein": 181,
+      "carbs": 136,
+      "fats": 50
+    },
+    "2026-06-10": {
+      "kcal": 1650,
+      "protein": 185,
+      "carbs": 106,
+      "fats": 54
+    },
+    "2026-06-11": {
+      "kcal": 1740,
+      "protein": 182,
+      "carbs": 138,
+      "fats": 51
+    },
+    "2026-06-12": {
+      "kcal": 1685,
+      "protein": 187,
+      "carbs": 117,
+      "fats": 52
+    },
+    "2026-06-13": {
+      "kcal": 1725,
+      "protein": 183,
+      "carbs": 129,
+      "fats": 53
+    },
+    "2026-06-14": {
+      "kcal": 1715,
+      "protein": 184,
+      "carbs": 130,
+      "fats": 51
+    },
+    "2026-06-15": {
+      "kcal": 1683,
+      "protein": 184,
+      "carbs": 122,
+      "fats": 51
+    },
+    "2026-06-16": {
+      "kcal": 1738,
+      "protein": 179,
+      "carbs": 148,
+      "fats": 48
+    },
+    "2026-06-17": {
+      "kcal": 1668,
+      "protein": 183,
+      "carbs": 117,
+      "fats": 52
+    },
+    "2026-06-18": {
+      "kcal": 1758,
+      "protein": 180,
+      "carbs": 149,
+      "fats": 49
+    },
+    "2026-06-19": {
+      "kcal": 1703,
+      "protein": 185,
+      "carbs": 128,
+      "fats": 50
+    },
+    "2026-06-20": {
+      "kcal": 1743,
+      "protein": 181,
+      "carbs": 140,
+      "fats": 51
+    },
+    "2026-06-21": {
+      "kcal": 1733,
+      "protein": 182,
+      "carbs": 141,
+      "fats": 49
+    },
+    "2026-06-22": {
+      "kcal": 1845,
+      "protein": 185,
+      "carbs": 144,
+      "fats": 59
+    },
+    "2026-06-23": {
+      "kcal": 1900,
+      "protein": 180,
+      "carbs": 169,
+      "fats": 56
+    },
+    "2026-06-24": {
+      "kcal": 1830,
+      "protein": 184,
+      "carbs": 138,
+      "fats": 60
+    },
+    "2026-06-25": {
+      "kcal": 1920,
+      "protein": 181,
+      "carbs": 171,
+      "fats": 57
+    },
+    "2026-06-26": {
+      "kcal": 1865,
+      "protein": 186,
+      "carbs": 150,
+      "fats": 58
+    },
+    "2026-06-27": {
+      "kcal": 1905,
+      "protein": 182,
+      "carbs": 162,
+      "fats": 59
+    },
+    "2026-06-28": {
+      "kcal": 1895,
+      "protein": 183,
+      "carbs": 162,
+      "fats": 57
+    },
+    "2026-06-29": {
+      "kcal": 1885,
+      "protein": 187,
+      "carbs": 154,
+      "fats": 58
+    },
+    "2026-06-30": {
+      "kcal": 1940,
+      "protein": 182,
+      "carbs": 179,
+      "fats": 55
+    },
+    "2026-07-01": {
+      "kcal": 1870,
+      "protein": 186,
+      "carbs": 149,
+      "fats": 59
+    },
+    "2026-07-02": {
+      "kcal": 1960,
+      "protein": 183,
+      "carbs": 181,
+      "fats": 56
+    },
+    "2026-07-03": {
+      "kcal": 1905,
+      "protein": 188,
+      "carbs": 160,
+      "fats": 57
+    },
+    "2026-07-04": {
+      "kcal": 1945,
+      "protein": 184,
+      "carbs": 172,
+      "fats": 58
+    },
+    "2026-07-05": {
+      "kcal": 1900,
+      "protein": 185,
+      "carbs": 161,
+      "fats": 59
+    },
+    "2026-07-06": {
+      "kcal": 1805,
+      "protein": 182,
+      "carbs": 139,
+      "fats": 58
+    },
+    "2026-07-07": {
+      "kcal": 1860,
+      "protein": 177,
+      "carbs": 164,
+      "fats": 55
+    },
+    "2026-07-08": {
+      "kcal": 1790,
+      "protein": 181,
+      "carbs": 134,
+      "fats": 59
+    },
+    "2026-07-09": {
+      "kcal": 1880,
+      "protein": 178,
+      "carbs": 166,
+      "fats": 56
+    },
+    "2026-07-10": {
+      "kcal": 1825,
+      "protein": 183,
+      "carbs": 145,
+      "fats": 57
+    },
+    "2026-07-11": {
+      "kcal": 1865,
+      "protein": 179,
+      "carbs": 157,
+      "fats": 58
+    },
+    "2026-07-12": {
+      "kcal": 1855,
+      "protein": 180,
+      "carbs": 158,
+      "fats": 56
+    },
+    "2026-07-13": {
+      "kcal": 1765,
+      "protein": 187,
+      "carbs": 130,
+      "fats": 55
+    },
+    "2026-07-14": {
+      "kcal": 1820,
+      "protein": 182,
+      "carbs": 156,
+      "fats": 52
+    },
+    "2026-07-15": {
+      "kcal": 1750,
+      "protein": 186,
+      "carbs": 126,
+      "fats": 56
+    },
+    "2026-07-16": {
+      "kcal": 1840,
+      "protein": 183,
+      "carbs": 158,
+      "fats": 53
+    },
+    "2026-07-17": {
+      "kcal": 1785,
+      "protein": 188,
+      "carbs": 137,
+      "fats": 54
+    },
+    "2026-07-18": {
+      "kcal": 1825,
+      "protein": 184,
+      "carbs": 148,
+      "fats": 55
+    },
+    "2026-07-19": {
+      "kcal": 1815,
+      "protein": 185,
+      "carbs": 150,
+      "fats": 53
+    },
+    "2026-07-20": {
+      "kcal": 1735,
+      "protein": 183,
+      "carbs": 125,
+      "fats": 56
+    },
+    "2026-07-21": {
+      "kcal": 1790,
+      "protein": 178,
+      "carbs": 150,
+      "fats": 53
+    },
+    "2026-07-22": {
+      "kcal": 1720,
+      "protein": 182,
+      "carbs": 120,
+      "fats": 57
+    },
+    "2026-07-23": {
+      "kcal": 1810,
+      "protein": 179,
+      "carbs": 152,
+      "fats": 54
+    },
+    "2026-07-24": {
+      "kcal": 1755,
+      "protein": 184,
+      "carbs": 131,
+      "fats": 55
+    },
+    "2026-07-25": {
+      "kcal": 1795,
+      "protein": 180,
+      "carbs": 143,
+      "fats": 56
+    },
+    "2026-07-26": {
+      "kcal": 1785,
+      "protein": 181,
+      "carbs": 144,
+      "fats": 54
+    },
+    "2026-07-27": {
+      "kcal": 1705,
+      "protein": 185,
+      "carbs": 120,
+      "fats": 54
+    },
+    "2026-07-28": {
+      "kcal": 1760,
+      "protein": 180,
+      "carbs": 145,
+      "fats": 51
+    },
+    "2026-07-29": {
+      "kcal": 1690,
+      "protein": 184,
+      "carbs": 115,
+      "fats": 55
+    },
+    "2026-07-30": {
+      "kcal": 1780,
+      "protein": 181,
+      "carbs": 147,
+      "fats": 52
+    },
+    "2026-07-31": {
+      "kcal": 1725,
+      "protein": 186,
+      "carbs": 126,
+      "fats": 53
+    },
+    "2026-08-01": {
+      "kcal": 1765,
+      "protein": 182,
+      "carbs": 138,
+      "fats": 54
+    }
+  },
+  "recipes": [
+    {
+      "id": "recipe_1785875134987",
+      "name": "(Dinner) Turkey Lasagne",
+      "servings": 1,
+      "ingredients": [
+        {
+          "name": "Lean Turkey Lasagne (homemade)",
+          "grams": 1,
+          "kcal": 645,
+          "protein": 55,
+          "carbs": 84,
+          "fats": 12
+        }
+      ],
+      "per_serving_kcal": 645,
+      "per_serving_p": 55,
+      "per_serving_c": 84,
+      "per_serving_f": 12,
+      "total_kcal": 645,
+      "total_p": 55,
+      "total_c": 84,
+      "total_f": 12
+    }
+  ],
+  "theme": "multi",
+  "mode": "dark",
+  "profile": {
+    "gender": "male",
+    "heightCm": 180.34,
+    "birthday": "1995-02-09",
+    "measureUnit": "in"
+  },
+  "supersets": {},
+  "deloads": {
+    "macro_1780859905961_6_m2": true
+  },
+  "exerciseHistory": {
+    "lateral raise": {
+      "giant": {
+        "sets": 1,
+        "reps": "60 reps",
+        "weight": "10.0",
+        "dropWeight": "",
+        "dropReps": "",
+        "date": "2026-07-28"
+      }
+    },
+    "cable curls": {
+      "pause": {
+        "sets": 4,
+        "reps": "20",
+        "weight": "22.5",
+        "dropWeight": "",
+        "dropReps": "",
+        "date": "2026-07-28"
+      }
+    },
+    "calf raises": {
+      "standard": {
+        "sets": 4,
+        "reps": "10",
+        "weight": "87.5",
+        "dropWeight": "",
+        "dropReps": "",
+        "date": "2026-08-01"
+      }
+    },
+    "decline press": {
+      "standard": {
+        "sets": 4,
+        "reps": "10",
+        "weight": "67.5",
+        "dropWeight": "",
+        "dropReps": "",
+        "date": "2026-07-22"
+      }
+    },
+    "cross incline press": {
+      "standard": {
+        "sets": 4,
+        "reps": "12",
+        "weight": "22.5",
+        "dropWeight": "",
+        "dropReps": "",
+        "date": "2026-07-22"
+      }
+    },
+    "rope extensions": {
+      "pause": {
+        "sets": 5,
+        "reps": "20",
+        "weight": "37.5",
+        "dropWeight": "",
+        "dropReps": "",
+        "date": "2026-07-22"
+      }
+    },
+    "skull crushers": {
+      "pause": {
+        "sets": 5,
+        "reps": "15",
+        "weight": "52.5",
+        "dropWeight": "",
+        "dropReps": "",
+        "date": "2026-07-22"
+      }
+    },
+    "leg extension": {
+      "pause": {
+        "sets": 4,
+        "reps": "20",
+        "weight": "27.5",
+        "dropWeight": "",
+        "dropReps": "",
+        "date": "2026-08-01"
+      },
+      "standard": {
+        "sets": 5,
+        "reps": "13",
+        "weight": "30.0",
+        "dropWeight": "",
+        "dropReps": "",
+        "date": "2026-07-27"
+      }
+    },
+    "split squat": {
+      "standard": {
+        "sets": 4,
+        "reps": "8",
+        "weight": "27.5",
+        "dropWeight": "",
+        "dropReps": "",
+        "date": "2026-08-01"
+      }
+    },
+    "push downs": {
+      "pause": {
+        "sets": 5,
+        "reps": "20",
+        "weight": "52.5",
+        "dropWeight": "",
+        "dropReps": "",
+        "date": "2026-07-31"
+      }
+    },
+    "reverse grip extensions": {
+      "pause": {
+        "sets": 4,
+        "reps": "20",
+        "weight": "27.5",
+        "dropWeight": "",
+        "dropReps": "",
+        "date": "2026-07-31"
+      }
+    },
+    "rope curls": {
+      "pause": {
+        "sets": 4,
+        "reps": "25",
+        "weight": "52.5",
+        "dropWeight": "",
+        "dropReps": "",
+        "date": "2026-07-31"
+      }
+    },
+    "reverse grip curls": {
+      "pause": {
+        "sets": 4,
+        "reps": "20",
+        "weight": "27.5",
+        "dropWeight": "",
+        "dropReps": "",
+        "date": "2026-07-31"
+      }
+    },
+    "low row": {
+      "standard": {
+        "sets": 5,
+        "reps": "8",
+        "weight": "37.5",
+        "dropWeight": "",
+        "dropReps": "",
+        "date": "2026-07-26"
+      }
+    },
+    "t-bar row": {
+      "standard": {
+        "sets": 4,
+        "reps": "11",
+        "weight": "50.0",
+        "dropWeight": "",
+        "dropReps": "",
+        "date": "2026-07-26"
+      }
+    },
+    "rdl": {
+      "standard": {
+        "sets": 4,
+        "reps": "10",
+        "weight": "75.0",
+        "dropWeight": "",
+        "dropReps": "",
+        "date": "2026-07-27"
+      }
+    },
+    "hack squat": {
+      "standard": {
+        "sets": 4,
+        "reps": "12",
+        "weight": "95.0",
+        "dropWeight": "",
+        "dropReps": "",
+        "date": "2026-07-27"
+      }
+    },
+    "incline press": {
+      "standard": {
+        "sets": 4,
+        "reps": "8",
+        "weight": "42.5",
+        "dropWeight": "",
+        "dropReps": "",
+        "date": "2026-07-28"
+      }
+    },
+    "flat press": {
+      "standard": {
+        "sets": 4,
+        "reps": "8",
+        "weight": "27.5",
+        "dropWeight": "",
+        "dropReps": "",
+        "date": "2026-07-28"
+      }
+    },
+    "cross cable extensions": {
+      "pause": {
+        "sets": 5,
+        "reps": "20",
+        "weight": "22.5",
+        "dropWeight": "",
+        "dropReps": "",
+        "date": "2026-07-28"
+      }
+    },
+    "cable flyes": {
+      "standard": {
+        "sets": 4,
+        "reps": "20",
+        "weight": "32.5",
+        "dropWeight": "",
+        "dropReps": "",
+        "date": "2026-07-28"
+      }
+    }
+  },
+  "exerciseTrackingMode": {
+    "lat pull machine": "perSide",
+    "lat pulldown": "total",
+    "machine row": "perSide",
+    "lateral raise": "perSide",
+    "cable curls": "perSide",
+    "hamstring curl": "total",
+    "walking lunge": "perSide",
+    "leg press": "perSide",
+    "calf raises": "total",
+    "decline press": "perSide",
+    "cross incline press": "perSide",
+    "rope extensions": "total",
+    "skull crushers": "total",
+    "leg extension": "total",
+    "split squat": "total",
+    "push downs": "total",
+    "reverse grip extensions": "total",
+    "rope curls": "total",
+    "reverse grip curls": "total",
+    "low row": "perSide",
+    "t-bar row": "total",
+    "rdl": "total",
+    "hack squat": "total",
+    "incline press": "perSide",
+    "flat press": "perSide",
+    "cross cable extensions": "perSide",
+    "cable flyes": "perSide"
+  },
+  "insightsRollup": {
+    "completedCycles": []
+  },
+  "blocAdvice": {
+    "response": {
+      "signal": "plateau-adaptation",
+      "headline": "Three-Week Plateau Despite a Real 246 kcal Deficit",
+      "narrative": "You lost 5.54 lbs in the first two weeks of this cycle at an average intake of roughly 1,709 kcal/day, which was aggressive and effective. From W4 onward your weekly average weight has barely moved — 215.3, 215.0, and 215.1 lbs — essentially flat for three consecutive weeks. Unlike a typical calorie-creep stall, this one isn't explained by rising intake: your most recent two-week average is 1,766 kcal/day, only 56 kcal above your W1–W2 baseline of 1,709 kcal/day. At your estimated TDEE of 2,011 kcal/day, you're still running a genuine ~246 kcal daily deficit — enough to expect roughly 0.35 lbs of loss per week on paper. The scale disagreeing with a real deficit like this points toward metabolic adaptation or water retention masking fat loss, rather than a logging or intake problem.\n\nProtein is the other piece worth fixing here — you've averaged only 180–185g across every week this cycle, consistently below the ~224g minimum recommended for your current bodyweight of 212.9 lbs (roughly 1g per lb). Low protein during an extended deficit increases the risk of losing lean mass, which would only suppress your BMR further and make this plateau harder to break. Carbs and fats have moved together with total intake in a fairly controlled band (124–165g carbs, 50–58g fats), so protein is the one number that actually needs to move.\n\nThe positive signal here is your waist measurement: a 0.5-inch drop between 2026-07-22 and 2026-07-25 suggests body recomposition is still occurring even while the scale is stuck. You are not in a metabolic crisis — cutting further right now risks chasing a deficit that's already real. The more useful move is holding steady (or a short structured refeed) and giving the plateau time to resolve before tightening intake again.\n\nWith 7 weeks remaining in your cycle ending 2026-09-13, you have enough runway to reach 200 lbs even after a short hold. Both paths below keep you at or below your current baseline while raising protein to 224g minimum — not cutting further into an already-real deficit — with the aggressive path pushing moderately below baseline once the plateau breaks, and the sustainable path holding at baseline and leaning on a steps increase instead of a deeper cut.",
+      "primaryAction": "Hold intake at or just below your baseline (~1,700 kcal) rather than cutting further this week — the deficit is already real, so the priority is ruling out adaptation, not widening the gap.",
+      "secondaryAction": "Bring protein up to 224g minimum and hold it there every day — it's been under target all cycle and matters more right now than cutting calories further.",
+      "recommendations": {
+        "sustainable": {
+          "label": "Sustainable",
+          "rationale": "Holding intake at baseline (~1,700 kcal) while raising protein to 224g minimum protects lean mass during the plateau, with a progressive steps ramp adding activity instead of widening an already-real deficit.",
+          "summary": "Week 1 holds at your existing baseline of 1,700 kcal and 10,000 steps, while protein increases to 224g minimum — no further calorie cut, since the deficit already checks out. Weeks 2–4 continue at the same intake and protein target. Week 5 is a full diet-break week at 2,050 kcal (protein still 224g) to actively rule out adaptive suppression. The final two weeks return to the 1,700 kcal baseline with steps increased to 12,000/day, using activity rather than further restriction to close out the cycle.",
+          "goals": [
+            {
+              "label": "Hold at Baseline",
+              "startDate": "2026-07-27",
+              "endDate": "2026-08-02",
+              "kcal": 1700,
+              "steps": 10000,
+              "protein": 224,
+              "carbs": 89,
+              "fats": 50
+            },
+            {
+              "label": "Steady Hold",
+              "startDate": "2026-08-03",
+              "endDate": "2026-08-23",
+              "kcal": 1700,
+              "steps": 10000,
+              "protein": 224,
+              "carbs": 89,
+              "fats": 50
+            },
+            {
+              "label": "Diet Break",
+              "startDate": "2026-08-24",
+              "endDate": "2026-08-30",
+              "kcal": 2050,
+              "steps": 10000,
+              "protein": 224,
+              "carbs": 176,
+              "fats": 50
+            },
+            {
+              "label": "Final Push High Steps",
+              "startDate": "2026-08-31",
+              "endDate": "2026-09-13",
+              "kcal": 1700,
+              "steps": 12000,
+              "protein": 224,
+              "carbs": 89,
+              "fats": 50
+            }
+          ]
+        },
+        "aggressive": {
+          "label": "Aggressive",
+          "rationale": "A moderate cut to just below baseline (~1,550 kcal, still well short of your old 1,500 kcal low) with protein raised to 224g minimum and a progressive steps ramp to 14,000 gives a realistic shot at 200 lbs by September 13, without stacking an extreme cut or continued low protein on top of a deficit that's already real.",
+          "summary": "Week 1 continues at your current level while data confirms the plateau is adaptation, not creep. Weeks 2–5 move to 1,550 kcal — below baseline, but a moderate step down rather than a shock cut — with protein raised to 224g minimum and steps rising to 12,000/day. Week 6 is a refeed week at 1,950 kcal (protein held at 224g) to manage adaptation risk before the final week, which holds 1,550 kcal and pushes steps to 14,000/day for the cycle finish.",
+          "goals": [
+            {
+              "label": "Hard Cut Start",
+              "startDate": "2026-07-27",
+              "endDate": "2026-08-02",
+              "kcal": 1500,
+              "steps": 10000,
+              "protein": 224,
+              "carbs": 100,
+              "fats": 23,
+              "_savedMacroGoalID": "macro_1780859905961_g20260727"
+            },
+            {
+              "label": "Hard Cut High Steps",
+              "startDate": "2026-08-03",
+              "endDate": "2026-08-30",
+              "kcal": 1550,
+              "steps": 12000,
+              "protein": 224,
+              "carbs": 62,
+              "fats": 45,
+              "_savedMacroGoalID": "macro_1780859905961_g20260803"
+            },
+            {
+              "label": "Refeed Week",
+              "startDate": "2026-08-31",
+              "endDate": "2026-09-06",
+              "kcal": 1950,
+              "steps": 12000,
+              "protein": 224,
+              "carbs": 162,
+              "fats": 45,
+              "_savedMacroGoalID": "macro_1780859905961_g20260831"
+            },
+            {
+              "label": "Cycle Sprint",
+              "startDate": "2026-09-07",
+              "endDate": "2026-09-13",
+              "kcal": 1550,
+              "steps": 14000,
+              "protein": 224,
+              "carbs": 62,
+              "fats": 45,
+              "_savedMacroGoalID": "macro_1780859905961_g20260907"
+            }
+          ]
+        }
+      },
+      "nextCheckIn": {
+        "sustainable": "2026-08-09",
+        "aggressive": "2026-08-09"
+      },
+      "_cycleEnd": "2026-09-13",
+      "_sustainableExceedsCycle": false,
+      "_aggressiveExceedsCycle": false,
+      "_revisionNote": "You're right on both counts — I made an error setting the Week 1 steps target at 8,000 when your logged data shows you've been consistently hitting above that, and I failed to structure a progressive steps increase toward the end of the sustainable path to widen the deficit in the final weeks. I'm revising both paths now to correct this."
+    },
+    "storedAt": "2026-07-25",
+    "macroId": "macro_1780859905961",
+    "chosenPath": "aggressive",
+    "conversation": {
+      "replyUsed": true,
+      "pendingRevision": null
+    },
+    "chosenAt": "2026-07-26",
+    "revisionInfo": {
+      "originalSummary": {
+        "sustainable": "1750kcal/216p/120c (2026-07-27–2026-08-02) → 1750kcal/216p/120c (2026-08-03–2026-08-23) → 2100kcal/220p/200c (2026-08-24–2026-08-30) → 1750kcal/216p/120c (2026-08-31–2026-09-13)",
+        "aggressive": "1500kcal/220p/100c (2026-07-27–2026-08-02) → 1500kcal/220p/100c (2026-08-03–2026-08-30) → 1950kcal/220p/190c (2026-08-31–2026-09-06) → 1500kcal/220p/100c (2026-09-07–2026-09-13)"
+      },
+      "acknowledgment": "You're right on both counts — I made an error setting the Week 1 steps target at 8,000 when your logged data shows you've been consistently hitting above that, and I failed to structure a progressive steps increase toward the end of the sustainable path to widen the deficit in the final weeks. I'm revising both paths now to correct this."
+    }
+  },
+  "nextCycleAdvice": null,
+  "sampleDays": [
+    {
+      "id": "sg_1785101426039",
+      "linkedGoalIds": [
+        "macro_1780859905961_g20260713"
+      ],
+      "originGoalMacros": {
+        "kcal": 1700,
+        "protein": 213,
+        "carbs": 117,
+        "fats": 42
+      },
+      "range": {
+        "kcalMin": 1600,
+        "kcalMax": 1800,
+        "proteinMin": 198,
+        "proteinMax": 9007199254740991,
+        "carbsMin": 92,
+        "carbsMax": 142,
+        "fatsMin": 27,
+        "fatsMax": 57
+      },
+      "days": [
+        {
+          "date": "2026-07-26",
+          "dinnerName": "(Dinner) 2 Cajun Chicken Wraps",
+          "meals": {
+            "Breakfast": [
+              {
+                "name": "Protein Shake (1 Scoop - Water)",
+                "brand": "My Recipe",
+                "grams": 100,
+                "servings": 2,
+                "serving": 200,
+                "kcal": 250,
+                "protein": 50,
+                "carbs": 10,
+                "fats": 2,
+                "source": "recipe",
+                "copiedFrom": "2026-07-25"
+              }
+            ],
+            "Lunch": [
+              {
+                "name": "Clear Protein Shake (1 Scoop - Water)",
+                "brand": "My Recipe",
+                "grams": 1,
+                "servings": 2,
+                "serving": 2,
+                "kcal": 170,
+                "protein": 40,
+                "carbs": 2,
+                "fats": 0,
+                "source": "recipe"
+              }
+            ],
+            "Dinner": [
+              {
+                "name": "(Dinner) 2 Cajun Chicken Wraps",
+                "brand": "My Recipe",
+                "grams": 1,
+                "servings": 1,
+                "serving": 1,
+                "kcal": 854,
+                "protein": 78,
+                "carbs": 61,
+                "fats": 32,
+                "source": "recipe"
+              }
+            ],
+            "Snacks": [
+              {
+                "name": "(Lunch) Chicken Wrap",
+                "brand": "My Recipe",
+                "grams": 100,
+                "servings": 1,
+                "serving": 100,
+                "kcal": 444,
+                "protein": 39,
+                "carbs": 30,
+                "fats": 14,
+                "source": "recipe"
+              }
+            ]
+          },
+          "totals": {
+            "kcal": 1718,
+            "protein": 207,
+            "carbs": 103,
+            "fats": 48
+          }
+        }
+      ]
+    },
+    {
+      "id": "sg_1785101432271",
+      "linkedGoalIds": [
+        "macro_1780859905961_g20260727"
+      ],
+      "originGoalMacros": {
+        "kcal": 1500,
+        "protein": 224,
+        "carbs": 100,
+        "fats": 23
+      },
+      "range": {
+        "kcalMin": 1400,
+        "kcalMax": 1600,
+        "proteinMin": 209,
+        "proteinMax": 9007199254740991,
+        "carbsMin": 75,
+        "carbsMax": 125,
+        "fatsMin": 8,
+        "fatsMax": 38
+      },
+      "days": [
+        {
+          "date": "2026-07-27",
+          "dinnerName": "(Dinner) Chicken Sandwhich",
+          "meals": {
+            "Snacks": [
+              {
+                "name": "Protein Shake (1 Scoop - Water)",
+                "brand": "My Recipe",
+                "grams": 100,
+                "servings": 2,
+                "serving": 200,
+                "kcal": 250,
+                "protein": 50,
+                "carbs": 10,
+                "fats": 2,
+                "source": "recipe"
+              }
+            ],
+            "Dinner": [
+              {
+                "name": "(Dinner) Chicken Sandwhich",
+                "brand": "My Recipe",
+                "grams": 1,
+                "servings": 1,
+                "serving": 1,
+                "kcal": 433,
+                "protein": 44,
+                "carbs": 43,
+                "fats": 9,
+                "source": "recipe"
+              }
+            ],
+            "Breakfast": [
+              {
+                "name": "Protein Shake (1 Scoop - Water)",
+                "brand": "My Recipe",
+                "grams": 100,
+                "servings": 2,
+                "serving": 200,
+                "kcal": 250,
+                "protein": 50,
+                "carbs": 10,
+                "fats": 2,
+                "source": "recipe",
+                "copiedFrom": "2026-07-26"
+              },
+              {
+                "name": "Clear Protein Shake (1 Scoop - Water)",
+                "brand": "My Recipe",
+                "grams": 100,
+                "servings": 2,
+                "serving": 200,
+                "kcal": 170,
+                "protein": 40,
+                "carbs": 2,
+                "fats": 0,
+                "source": "recipe"
+              }
+            ],
+            "Lunch": [
+              {
+                "name": "(Lunch) Chicken Wrap",
+                "brand": "My Recipe",
+                "grams": 1,
+                "servings": 1,
+                "serving": 1,
+                "kcal": 444,
+                "protein": 39,
+                "carbs": 30,
+                "fats": 14,
+                "source": "recipe"
+              }
+            ]
+          },
+          "totals": {
+            "kcal": 1547,
+            "protein": 223,
+            "carbs": 95,
+            "fats": 27
+          }
+        },
+        {
+          "date": "2026-07-28",
+          "dinnerName": "(Dinner) Chicken Burger Single",
+          "meals": {
+            "Dinner": [
+              {
+                "name": "(Dinner) Chicken Burger Single",
+                "brand": "My Recipe",
+                "grams": 1,
+                "servings": 1,
+                "serving": 1,
+                "kcal": 399,
+                "protein": 29,
+                "carbs": 42,
+                "fats": 12,
+                "source": "recipe"
+              },
+              {
+                "name": "British Chicken Breast Fillets 650g (RSS - 100g)",
+                "brand": "Tesco",
+                "grams": 100,
+                "servings": 2,
+                "serving": 200,
+                "kcal": 204,
+                "protein": 46,
+                "carbs": 0,
+                "fats": 2,
+                "source": "barcode"
+              }
+            ],
+            "Breakfast": [
+              {
+                "name": "Clear Protein Shake (1 Scoop - Water)",
+                "brand": "My Recipe",
+                "grams": 1,
+                "servings": 3,
+                "serving": 3,
+                "kcal": 255,
+                "protein": 60,
+                "carbs": 3,
+                "fats": 0,
+                "source": "recipe"
+              }
+            ],
+            "Snacks": [
+              {
+                "name": "Protein Shake (1 Scoop - Water)",
+                "brand": "My Recipe",
+                "grams": 100,
+                "servings": 2,
+                "serving": 200,
+                "kcal": 250,
+                "protein": 50,
+                "carbs": 10,
+                "fats": 2,
+                "source": "recipe",
+                "copiedFrom": "2026-07-27"
+              }
+            ],
+            "Lunch": [
+              {
+                "name": "(Lunch) Chicken Wrap",
+                "brand": "My Recipe",
+                "grams": 100,
+                "servings": 1,
+                "serving": 100,
+                "kcal": 427,
+                "protein": 39,
+                "carbs": 30,
+                "fats": 16,
+                "source": "recipe"
+              }
+            ]
+          },
+          "totals": {
+            "kcal": 1535,
+            "protein": 224,
+            "carbs": 85,
+            "fats": 32
+          }
+        }
+      ]
+    }
+  ],
+  "progressionLocks": {
+    "macro_1780859905961_session2m2_ex_macro_1780859905961_1_session2m2_0": {
+      "weightTargets": [
+        "42.5",
+        "42.5",
+        "42.5",
+        "42.5"
+      ],
+      "repsTargets": [
+        "8",
+        "8",
+        "8",
+        "8"
+      ],
+      "sets": 4,
+      "lockedAtWeek": 4
+    },
+    "macro_1780859905961_session2m2_ex_macro_1780859905961_1_session2m2_2": {
+      "weightTargets": [
+        "22.5",
+        "22.5",
+        "22.5",
+        "22.5",
+        "22.5"
+      ],
+      "repsTargets": [
+        "20",
+        "20",
+        "20",
+        "20",
+        "20"
+      ],
+      "sets": 5,
+      "lockedAtWeek": 4
+    },
+    "macro_1780859905961_session2m2_ex_macro_1780859905961_1_session2m2_3": {
+      "weightTargets": [
+        "22.5",
+        "22.5",
+        "22.5",
+        "22.5"
+      ],
+      "repsTargets": [
+        "20",
+        "20",
+        "20",
+        "20"
+      ],
+      "sets": 4,
+      "lockedAtWeek": 4
+    },
+    "macro_1780859905961_session0m1_ex_macro_1780859905961_1_session0m1_1": {
+      "weightTargets": [
+        "65.0",
+        "65.0",
+        "65.0",
+        "65.0"
+      ],
+      "repsTargets": [
+        "12",
+        "12",
+        "12",
+        "12"
+      ],
+      "sets": 4,
+      "lockedAtWeek": 4
+    }
+  },
+  "progressionTargets": {
+    "macro_1780859905961_session3m2_ex_macro_1780859905961_1_session3m2_6_w2": {
+      "weightTargets": [
+        "82.5",
+        "82.5",
+        "82.5"
+      ],
+      "repsTargets": [
+        "10",
+        "10",
+        "10"
+      ]
+    },
+    "macro_1780859905961_session3m2_ex_macro_1780859905961_1_session3m2_6_w3": {
+      "weightTargets": [
+        "85.0",
+        "85.0",
+        "85.0",
+        "85.0"
+      ],
+      "repsTargets": [
+        "10",
+        "10",
+        "10",
+        "10"
+      ]
+    },
+    "macro_1780859905961_session3m2_ex_macro_1780859905961_1_session3m2_1781868928797_w2": {
+      "weightTargets": [
+        "57.5"
+      ],
+      "repsTargets": [
+        "50"
+      ]
+    },
+    "macro_1780859905961_session3m2_ex_macro_1780859905961_1_session3m2_1781868928797_w3": {
+      "weightTargets": [
+        "60.0"
+      ],
+      "repsTargets": [
+        "50"
+      ]
+    },
+    "macro_1780859905961_session3m2_ex_macro_1780859905961_1_session3m2_0_w2": {
+      "weightTargets": [
+        "22.5",
+        "22.5",
+        "22.5"
+      ],
+      "repsTargets": [
+        "20",
+        "20",
+        "20"
+      ]
+    },
+    "macro_1780859905961_session3m2_ex_macro_1780859905961_1_session3m2_0_w3": {
+      "weightTargets": [
+        "25.0",
+        "25.0",
+        "25.0"
+      ],
+      "repsTargets": [
+        "20",
+        "20",
+        "20"
+      ]
+    },
+    "macro_1780859905961_session3m2_ex_macro_1780859905961_1_session3m2_1_w2": {
+      "weightTargets": [
+        "22.5",
+        "22.5",
+        "22.5"
+      ],
+      "repsTargets": [
+        "8",
+        "8",
+        "8"
+      ]
+    },
+    "macro_1780859905961_session3m2_ex_macro_1780859905961_1_session3m2_1_w3": {
+      "weightTargets": [
+        "25.0",
+        "25.0",
+        "25.0"
+      ],
+      "repsTargets": [
+        "8",
+        "8",
+        "8"
+      ]
+    },
+    "macro_1780859905961_session3m2_ex_macro_1780859905961_1_session3m2_2_w2": {
+      "weightTargets": [
+        "47.5",
+        "47.5",
+        "47.5",
+        "47.5"
+      ],
+      "repsTargets": [
+        "20",
+        "20",
+        "20",
+        "20"
+      ]
+    },
+    "macro_1780859905961_session3m2_ex_macro_1780859905961_1_session3m2_2_w3": {
+      "weightTargets": [
+        "50.0",
+        "50.0",
+        "50.0",
+        "50.0"
+      ],
+      "repsTargets": [
+        "20",
+        "20",
+        "20",
+        "20"
+      ]
+    },
+    "macro_1780859905961_session3m2_ex_macro_1780859905961_1_session3m2_3_w2": {
+      "weightTargets": [
+        "22.5",
+        "22.5",
+        "22.5"
+      ],
+      "repsTargets": [
+        "20",
+        "20",
+        "20"
+      ]
+    },
+    "macro_1780859905961_session3m2_ex_macro_1780859905961_1_session3m2_3_w3": {
+      "weightTargets": [
+        "25.0",
+        "25.0",
+        "25.0",
+        "25.0"
+      ],
+      "repsTargets": [
+        "20",
+        "20",
+        "20",
+        "20"
+      ]
+    },
+    "macro_1780859905961_session3m2_ex_macro_1780859905961_1_session3m2_4_w2": {
+      "weightTargets": [
+        "47.5",
+        "47.5",
+        "47.5"
+      ],
+      "repsTargets": [
+        "25",
+        "25",
+        "25"
+      ]
+    },
+    "macro_1780859905961_session3m2_ex_macro_1780859905961_1_session3m2_4_w3": {
+      "weightTargets": [
+        "50.0",
+        "50.0",
+        "50.0"
+      ],
+      "repsTargets": [
+        "25",
+        "25",
+        "25"
+      ]
+    },
+    "macro_1780859905961_session3m2_ex_macro_1780859905961_1_session3m2_5_w2": {
+      "weightTargets": [
+        "22.5",
+        "22.5",
+        "22.5"
+      ],
+      "repsTargets": [
+        "20",
+        "20",
+        "20"
+      ]
+    },
+    "macro_1780859905961_session3m2_ex_macro_1780859905961_1_session3m2_5_w3": {
+      "weightTargets": [
+        "25.0",
+        "25.0",
+        "25.0",
+        "25.0"
+      ],
+      "repsTargets": [
+        "20",
+        "20",
+        "20",
+        "20"
+      ]
+    },
+    "macro_1780859905961_session2m2_ex_macro_1780859905961_1_session2m2_5_w2": {
+      "weightTargets": [
+        "27.5",
+        "27.5",
+        "27.5"
+      ],
+      "repsTargets": [
+        "20",
+        "20",
+        "20"
+      ]
+    },
+    "macro_1780859905961_session2m2_ex_macro_1780859905961_1_session2m2_5_w3": {
+      "weightTargets": [
+        "30.0",
+        "30.0",
+        "30.0"
+      ],
+      "repsTargets": [
+        "20",
+        "20",
+        "20"
+      ]
+    },
+    "macro_1780859905961_session2m2_ex_macro_1780859905961_1_session2m2_5_w4": {
+      "weightTargets": [
+        "32.5",
+        "32.5",
+        "32.5",
+        "32.5"
+      ],
+      "repsTargets": [
+        "20",
+        "20",
+        "20",
+        "20"
+      ]
+    },
+    "macro_1780859905961_session2m2_ex_macro_1780859905961_1_session2m2_0_w2": {
+      "weightTargets": [
+        "37.5",
+        "37.5",
+        "37.5"
+      ],
+      "repsTargets": [
+        "8",
+        "8",
+        "8"
+      ]
+    },
+    "macro_1780859905961_session2m2_ex_macro_1780859905961_1_session2m2_0_w3": {
+      "weightTargets": [
+        "40.0",
+        "40.0",
+        "40.0",
+        "40.0"
+      ],
+      "repsTargets": [
+        "8",
+        "8",
+        "8",
+        "8"
+      ]
+    },
+    "macro_1780859905961_session2m2_ex_macro_1780859905961_1_session2m2_0_w4": {
+      "weightTargets": [
+        "42.5",
+        "42.5",
+        "42.5",
+        "42.5"
+      ],
+      "repsTargets": [
+        "8",
+        "8",
+        "8",
+        "8"
+      ]
+    },
+    "macro_1780859905961_session2m2_ex_macro_1780859905961_1_session2m2_1_w2": {
+      "weightTargets": [
+        "22.5",
+        "22.5",
+        "22.5"
+      ],
+      "repsTargets": [
+        "8",
+        "8",
+        "8"
+      ]
+    },
+    "macro_1780859905961_session2m2_ex_macro_1780859905961_1_session2m2_1_w3": {
+      "weightTargets": [
+        "25.0",
+        "25.0",
+        "25.0"
+      ],
+      "repsTargets": [
+        "8",
+        "8",
+        "8"
+      ]
+    },
+    "macro_1780859905961_session2m2_ex_macro_1780859905961_1_session2m2_1_w4": {
+      "weightTargets": [
+        "27.5",
+        "27.5",
+        "27.5",
+        "27.5"
+      ],
+      "repsTargets": [
+        "8",
+        "8",
+        "8",
+        "8"
+      ]
+    },
+    "macro_1780859905961_session2m2_ex_macro_1780859905961_1_session2m2_2_w2": {
+      "weightTargets": [
+        "17.5",
+        "17.5",
+        "17.5",
+        "17.5"
+      ],
+      "repsTargets": [
+        "20",
+        "20",
+        "20",
+        "20"
+      ]
+    },
+    "macro_1780859905961_session2m2_ex_macro_1780859905961_1_session2m2_2_w3": {
+      "weightTargets": [
+        "20.0",
+        "20.0",
+        "20.0",
+        "20.0"
+      ],
+      "repsTargets": [
+        "20",
+        "20",
+        "20",
+        "20"
+      ]
+    },
+    "macro_1780859905961_session2m2_ex_macro_1780859905961_1_session2m2_2_w4": {
+      "weightTargets": [
+        "22.5",
+        "22.5",
+        "22.5",
+        "22.5",
+        "22.5"
+      ],
+      "repsTargets": [
+        "20",
+        "20",
+        "20",
+        "20",
+        "20"
+      ]
+    },
+    "macro_1780859905961_session2m2_ex_macro_1780859905961_1_session2m2_3_w2": {
+      "weightTargets": [
+        "17.5",
+        "17.5",
+        "17.5"
+      ],
+      "repsTargets": [
+        "20",
+        "20",
+        "20"
+      ]
+    },
+    "macro_1780859905961_session2m2_ex_macro_1780859905961_1_session2m2_3_w3": {
+      "weightTargets": [
+        "20.0",
+        "20.0",
+        "20.0",
+        "20.0"
+      ],
+      "repsTargets": [
+        "20",
+        "20",
+        "20",
+        "20"
+      ]
+    },
+    "macro_1780859905961_session2m2_ex_macro_1780859905961_1_session2m2_3_w4": {
+      "weightTargets": [
+        "22.5",
+        "22.5",
+        "22.5",
+        "22.5"
+      ],
+      "repsTargets": [
+        "20",
+        "20",
+        "20",
+        "20"
+      ]
+    },
+    "macro_1780859905961_session2m2_ex_macro_1780859905961_1_session2m2_4_w2": {
+      "weightTargets": [
+        "5.0"
+      ],
+      "repsTargets": [
+        "60"
+      ]
+    },
+    "macro_1780859905961_session2m2_ex_macro_1780859905961_1_session2m2_4_w3": {
+      "weightTargets": [
+        "7.5"
+      ],
+      "repsTargets": [
+        "60"
+      ]
+    },
+    "macro_1780859905961_session2m2_ex_macro_1780859905961_1_session2m2_4_w4": {
+      "weightTargets": [
+        "10.0"
+      ],
+      "repsTargets": [
+        "60"
+      ]
+    },
+    "macro_1780859905961_session3m2_ex_macro_1780859905961_1_session3m2_2_w4": {
+      "weightTargets": [
+        "52.5",
+        "52.5",
+        "52.5",
+        "52.5",
+        "52.5"
+      ],
+      "repsTargets": [
+        "20",
+        "20",
+        "20",
+        "20",
+        "20"
+      ]
+    },
+    "macro_1780859905961_session3m2_ex_macro_1780859905961_1_session3m2_3_w4": {
+      "weightTargets": [
+        "27.5",
+        "27.5",
+        "27.5",
+        "27.5"
+      ],
+      "repsTargets": [
+        "20",
+        "20",
+        "20",
+        "20"
+      ]
+    },
+    "macro_1780859905961_session3m2_ex_macro_1780859905961_1_session3m2_4_w4": {
+      "weightTargets": [
+        "52.5",
+        "52.5",
+        "52.5",
+        "52.5"
+      ],
+      "repsTargets": [
+        "25",
+        "25",
+        "25",
+        "25"
+      ]
+    },
+    "macro_1780859905961_session3m2_ex_macro_1780859905961_1_session3m2_5_w4": {
+      "weightTargets": [
+        "27.5",
+        "27.5",
+        "27.5",
+        "27.5"
+      ],
+      "repsTargets": [
+        "20",
+        "20",
+        "20",
+        "20"
+      ]
+    },
+    "macro_1780859905961_session3m2_ex_macro_1780859905961_1_session3m2_6_w4": {
+      "weightTargets": [
+        "87.5",
+        "87.5",
+        "87.5",
+        "87.5"
+      ],
+      "repsTargets": [
+        "10",
+        "10",
+        "10",
+        "10"
+      ]
+    },
+    "macro_1780859905961_session3m2_ex_macro_1780859905961_1_session3m2_1781868928797_w4": {
+      "weightTargets": [
+        "62.5"
+      ],
+      "repsTargets": [
+        "50"
+      ]
+    },
+    "macro_1780859905961_session3m2_ex_macro_1780859905961_1_session3m2_0_w4": {
+      "weightTargets": [
+        "27.5",
+        "27.5",
+        "27.5",
+        "27.5"
+      ],
+      "repsTargets": [
+        "20",
+        "20",
+        "20",
+        "20"
+      ]
+    },
+    "macro_1780859905961_session3m2_ex_macro_1780859905961_1_session3m2_1_w4": {
+      "weightTargets": [
+        "27.5",
+        "27.5",
+        "27.5",
+        "27.5"
+      ],
+      "repsTargets": [
+        "8",
+        "8",
+        "8",
+        "8"
+      ]
+    },
+    "macro_1780859905961_session0m1_ex_macro_1780859905961_1_session0m1_0_w2": {
+      "weightTargets": [
+        "42.5",
+        "42.5",
+        "42.5",
+        "42.5"
+      ],
+      "repsTargets": [
+        "8",
+        "8",
+        "8",
+        "8"
+      ]
+    },
+    "macro_1780859905961_session0m1_ex_macro_1780859905961_1_session0m1_0_w3": {
+      "weightTargets": [
+        "45.0",
+        "45.0",
+        "45.0",
+        "45.0"
+      ],
+      "repsTargets": [
+        "8",
+        "8",
+        "8",
+        "8"
+      ]
+    },
+    "macro_1780859905961_session0m1_ex_macro_1780859905961_1_session0m1_0_w4": {
+      "weightTargets": [
+        "47.5",
+        "47.5",
+        "47.5",
+        "47.5",
+        "47.5"
+      ],
+      "repsTargets": [
+        "8",
+        "8",
+        "8",
+        "8",
+        "8"
+      ]
+    },
+    "macro_1780859905961_session0m1_ex_macro_1780859905961_1_session0m1_1_w2": {
+      "weightTargets": [
+        "60.0",
+        "60.0",
+        "60.0"
+      ],
+      "repsTargets": [
+        "11",
+        "11",
+        "11"
+      ]
+    },
+    "macro_1780859905961_session0m1_ex_macro_1780859905961_1_session0m1_1_w3": {
+      "weightTargets": [
+        "60.0",
+        "60.0",
+        "60.0"
+      ],
+      "repsTargets": [
+        "12",
+        "12",
+        "12"
+      ]
+    },
+    "macro_1780859905961_session0m1_ex_macro_1780859905961_1_session0m1_1_w4": {
+      "weightTargets": [
+        "62.5",
+        "62.5",
+        "62.5",
+        "62.5"
+      ],
+      "repsTargets": [
+        "12",
+        "12",
+        "12",
+        "12"
+      ]
+    },
+    "macro_1780859905961_session0m1_ex_macro_1780859905961_1_session0m1_2_w2": {
+      "weightTargets": [
+        "42.5",
+        "42.5",
+        "42.5"
+      ],
+      "repsTargets": [
+        "12",
+        "12",
+        "12"
+      ]
+    },
+    "macro_1780859905961_session0m1_ex_macro_1780859905961_1_session0m1_2_w3": {
+      "weightTargets": [
+        "45.0",
+        "45.0",
+        "45.0"
+      ],
+      "repsTargets": [
+        "12",
+        "12",
+        "12"
+      ]
+    },
+    "macro_1780859905961_session0m1_ex_macro_1780859905961_1_session0m1_2_w4": {
+      "weightTargets": [
+        "47.5",
+        "47.5",
+        "47.5",
+        "47.5"
+      ],
+      "repsTargets": [
+        "12",
+        "12",
+        "12",
+        "12"
+      ]
+    },
+    "macro_1780859905961_session0m1_ex_macro_1780859905961_1_session0m1_3_w3": {
+      "weightTargets": [
+        "7.5",
+        "7.5",
+        "7.5"
+      ],
+      "repsTargets": [
+        "15",
+        "15",
+        "15"
+      ]
+    },
+    "macro_1780859905961_session0m1_ex_macro_1780859905961_1_session0m1_3_w4": {
+      "weightTargets": [
+        "7.5",
+        "7.5",
+        "7.5"
+      ],
+      "repsTargets": [
+        "15",
+        "15",
+        "15"
+      ]
+    },
+    "macro_1780859905961_session0m1_ex_macro_1780859905961_1_session0m1_4_w2": {
+      "weightTargets": [
+        "12.5"
+      ],
+      "repsTargets": [
+        "60"
+      ]
+    },
+    "macro_1780859905961_session0m1_ex_macro_1780859905961_1_session0m1_4_w3": {
+      "weightTargets": [
+        "12.5"
+      ],
+      "repsTargets": [
+        "60"
+      ]
+    },
+    "macro_1780859905961_session0m1_ex_macro_1780859905961_1_session0m1_4_w4": {
+      "weightTargets": [
+        "12.5"
+      ],
+      "repsTargets": [
+        "60"
+      ]
+    },
+    "macro_1780859905961_session0m1_ex_macro_1780859905961_1_session0m1_1_w5": {
+      "weightTargets": [
+        "65.0",
+        "65.0",
+        "65.0",
+        "65.0",
+        "65.0"
+      ],
+      "repsTargets": [
+        "12",
+        "12",
+        "12",
+        "12",
+        "12"
+      ]
+    },
+    "macro_1780859905961_session0m1_ex_macro_1780859905961_1_session0m1_0_w5": {
+      "weightTargets": [
+        "47.5",
+        "47.5",
+        "47.5",
+        "47.5",
+        "47.5"
+      ],
+      "repsTargets": [
+        "8",
+        "8",
+        "8",
+        "8",
+        "8"
+      ]
+    },
+    "macro_1780859905961_session0m1_ex_macro_1780859905961_1_session0m1_2_w5": {
+      "weightTargets": [
+        "50.0",
+        "50.0",
+        "50.0",
+        "50.0"
+      ],
+      "repsTargets": [
+        "12",
+        "12",
+        "12",
+        "12"
+      ]
+    },
+    "macro_1780859905961_session0m1_ex_macro_1780859905961_1_session0m1_3_w5": {
+      "weightTargets": [
+        "7.5",
+        "7.5",
+        "7.5"
+      ],
+      "repsTargets": [
+        "15",
+        "15",
+        "15"
+      ]
+    },
+    "macro_1780859905961_session1m1_ex_macro_1780859905961_1_session1m1_3_w2": {
+      "weightTargets": [
+        "52.5"
+      ],
+      "repsTargets": [
+        "60"
+      ]
+    },
+    "macro_1780859905961_session1m1_ex_macro_1780859905961_1_session1m1_3_w3": {
+      "weightTargets": [
+        "57.5"
+      ],
+      "repsTargets": [
+        "60"
+      ]
+    },
+    "macro_1780859905961_session1m1_ex_macro_1780859905961_1_session1m1_3_w4": {
+      "weightTargets": [
+        "60.0"
+      ],
+      "repsTargets": [
+        "60"
+      ]
+    },
+    "macro_1780859905961_session1m1_ex_macro_1780859905961_1_session1m1_0_w2": {
+      "weightTargets": [
+        "15.0",
+        "15.0",
+        "15.0",
+        "15.0"
+      ],
+      "repsTargets": [
+        "13",
+        "13",
+        "13",
+        "13"
+      ]
+    },
+    "macro_1780859905961_session1m1_ex_macro_1780859905961_1_session1m1_0_w3": {
+      "weightTargets": [
+        "17.5",
+        "17.5",
+        "17.5",
+        "17.5"
+      ],
+      "repsTargets": [
+        "13",
+        "13",
+        "13",
+        "13"
+      ]
+    },
+    "macro_1780859905961_session1m1_ex_macro_1780859905961_1_session1m1_0_w4": {
+      "weightTargets": [
+        "20.0",
+        "20.0",
+        "20.0",
+        "20.0",
+        "20.0"
+      ],
+      "repsTargets": [
+        "13",
+        "13",
+        "13",
+        "13",
+        "13"
+      ]
+    },
+    "macro_1780859905961_session1m1_ex_macro_1780859905961_1_session1m1_1_w2": {
+      "weightTargets": [
+        "10.0",
+        "10.0",
+        "10.0"
+      ],
+      "repsTargets": [
+        "11",
+        "11",
+        "11"
+      ]
+    },
+    "macro_1780859905961_session1m1_ex_macro_1780859905961_1_session1m1_1_w3": {
+      "weightTargets": [
+        "12.5",
+        "12.5",
+        "12.5",
+        "12.5"
+      ],
+      "repsTargets": [
+        "11",
+        "11",
+        "11",
+        "11"
+      ]
+    },
+    "macro_1780859905961_session1m1_ex_macro_1780859905961_1_session1m1_1_w4": {
+      "weightTargets": [
+        "17.5",
+        "17.5",
+        "17.5",
+        "17.5"
+      ],
+      "repsTargets": [
+        "11",
+        "11",
+        "11",
+        "11"
+      ]
+    },
+    "macro_1780859905961_session1m1_ex_macro_1780859905961_1_session1m1_2_w2": {
+      "weightTargets": [
+        "65.0",
+        "65.0",
+        "65.0"
+      ],
+      "repsTargets": [
+        "8",
+        "8",
+        "8"
+      ]
+    },
+    "macro_1780859905961_session1m1_ex_macro_1780859905961_1_session1m1_2_w3": {
+      "weightTargets": [
+        "65.0",
+        "65.0",
+        "65.0"
+      ],
+      "repsTargets": [
+        "8",
+        "8",
+        "8"
+      ]
+    },
+    "macro_1780859905961_session1m1_ex_macro_1780859905961_1_session1m1_2_w4": {
+      "weightTargets": [
+        "72.5",
+        "72.5",
+        "72.5",
+        "72.5"
+      ],
+      "repsTargets": [
+        "8",
+        "8",
+        "8",
+        "8"
+      ]
+    },
+    "macro_1780859905961_session0m1_ex_macro_1780859905961_1_session0m1_4_w5": {
+      "weightTargets": [
+        "15.0"
+      ],
+      "repsTargets": [
+        "80"
+      ]
+    },
+    "macro_1780859905961_session0m1_ex_macro_1780859905961_1_session0m1_3_w2": {
+      "weightTargets": [
+        "7.5",
+        "7.5",
+        "7.5"
+      ],
+      "repsTargets": [
+        "15",
+        "15",
+        "15"
+      ]
+    },
+    "macro_1780859905961_session1m1_ex_macro_1780859905961_1_session1m1_3_w5": {
+      "weightTargets": [
+        "62.5"
+      ],
+      "repsTargets": [
+        "60"
+      ]
+    },
+    "macro_1780859905961_session1m1_ex_macro_1780859905961_1_session1m1_0_w5": {
+      "weightTargets": [
+        "20.0",
+        "20.0",
+        "20.0",
+        "20.0",
+        "20.0"
+      ],
+      "repsTargets": [
+        "14",
+        "14",
+        "14",
+        "14",
+        "14"
+      ]
+    },
+    "macro_1780859905961_session1m1_ex_macro_1780859905961_1_session1m1_1_w5": {
+      "weightTargets": [
+        "20.0",
+        "20.0",
+        "20.0",
+        "20.0"
+      ],
+      "repsTargets": [
+        "11",
+        "11",
+        "11",
+        "11"
+      ]
+    },
+    "macro_1780859905961_session1m1_ex_macro_1780859905961_1_session1m1_2_w5": {
+      "weightTargets": [
+        "77.5",
+        "77.5",
+        "77.5",
+        "77.5",
+        "77.5"
+      ],
+      "repsTargets": [
+        "8",
+        "8",
+        "8",
+        "8",
+        "8"
+      ]
+    }
+  }
+}
