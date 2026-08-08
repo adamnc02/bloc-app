@@ -2847,3 +2847,79 @@ Building synthetic-account test fixtures for the Mini-Tours (real data, not `dem
 
 Checked with Playwright against hand-built synthetic accounts (not `demoData`) covering two shapes: a real account with a macrocycle and real (non-demo) exercises, and a genuinely empty account with no macrocycle at all. The Help icon opens the modal; the Train Mini-Tour completes without error against exercises with no progression lock or logged history yet (confirming the dynamic-lookup fallback works, not just the happy path already proven in §36/§38); the Nutrition Mini-Tour completes without leaving `modal-nutr-manual` open; the Home and Train Mini-Tours both complete without error against the fully-empty account; and Skip Tour ends a Mini-Tour cleanly. The Progress Mini-Tour's own logic wasn't independently re-verified end-to-end in this pass — it hit the pre-existing `renderProgress()` bug above on every synthetic fixture tried — but it uses the identical mechanism (target `progress-body`, toggle `_blocAdviceSectionsOpen`, call `renderProgress()`) already verified working against real rendering in the Demo Tour's Progress steps (§36), so it's judged correct by that equivalence rather than independently re-tested here.
 
+---
+
+## 40. Module: Splash Screen (v7.88)
+
+A boot-time animated intro — four "pillar" blocks (Train/Fuel/Overcome/Repeat), the real BLOC wordmark image, and a tagline row — that plays before the real app becomes visible. All markup, CSS, and JS live inline as the first content inside `<body>`, ahead of `#app`, wrapped in a single IIFE that runs on `DOMContentLoaded` (or immediately if the document has already finished loading by the time the script executes).
+
+### Sequence
+
+1. **Drop-in** — the four blocks fall in Tetris order (bottom-left → bottom-right → top-right → top-left), staggered `DROP_STAGGER = 380ms` apart. Each falls over `DROP_FALL_MS = 520ms` on a steep gravity-style ease-in (`cubic-bezier(0.76, 0, 0.87, 0)`), landing with a hard-compress "thud" — `scaleY`/`scaleX` squash with no bounce or overshoot past neutral — plus a ground-shadow opacity/scale flash and a small dust puff kicked out either side.
+2. **Flip** — each block's inner card rotates 180° to reveal its pillar icon, at fixed delays (700 / 1250 / 1800 / 2350ms) offset by `ENTRY_OFFSET` (the total drop-in duration, so flips only start once every block has actually landed).
+3. **Lift + reveal** — ~1s after the last flip, the top row lifts 32px and the bottom row lifts 16px (`LIFT_TOP`/`LIFT_BOTTOM` — twice the distance, opening an even gap on both sides of the middle row), and each block's pillar word fades in underneath it. The word's starting position is computed **analytically**, not measured off the live block — see "A measurement bug and how it was avoided" below.
+4. **Scatter** — blocks fly outward to random offsets/rotations and fade out, entirely independent of the wordmark/tagline, which stay untouched at this point.
+5. **Rise + flight** — the wordmark group (BLOC image + tagline, wrapped together so they move as one) rises from below to its resting position, at the same moment each pillar word's own position offset animates back to `(0, 0)` — landing it in its real, permanent slot in the tagline row. Both run on the same `RISE_MS = 900ms` duration so they visibly arrive together.
+6. **Settle** — OVERCOME's word picks up `font-weight: 800` and the accent colour; the three tagline bullets (invisible until now, coloured to match the background) fade in to their normal muted colour.
+7. **Fade-out** — after a short hold, the whole splash overlay fades and `#app` is revealed at the same instant — see "Revealing the app" below.
+
+### Timing constants
+
+```js
+var DROP_STAGGER = 380;   // ms between each block starting its fall
+var DROP_FALL_MS = 520;   // fall duration per block
+var ENTRY_OFFSET = DROP_STAGGER * (dropOrder.length - 1) + DROP_FALL_MS + 400 + 150;
+                           // last drop start + fall + thud settle + breathing room
+var RISE_MS = 900;        // wordmark-group rise / pillar-word landing duration — must
+                           // match the CSS transition durations on both
+var LIFT_TOP = 32;        // px — must match .block.lifted-top translateY(-32px)
+var LIFT_BOTTOM = 16;     // px — must match .block.lifted-bottom translateY(-16px)
+var BLOCK_SIZE = 70;      // px — must match .block width/height
+var REVEAL_GAP = 8;       // px between a lifted block's bottom edge and its word
+```
+
+`pauseUntil` (the lift+reveal trigger), `scatterAt`, and `riseAt` are each derived by adding a fixed offset to the previous stage's start time, all defined inline in `runSequence()`/`boot()` rather than as separate named constants.
+
+### Pillar words: same-element offset, not a floating clone
+
+Each pillar word is a permanent child of the real tagline row — the same DOM element is visible under its block during the reveal step and in the tagline at the end; there's no separate floating clone. It starts displaced via an inline CSS custom-property transform (`transform: translate(var(--fx), var(--fy))`), set once, analytically, at reveal time; "landing" is simply that transform animating back to `(0, 0)`, which is the word's own natural resting position in the tagline's flex row — nothing else to compute.
+
+This replaced an earlier approach (built, then discarded during development) that used a separate `position: fixed` clone, measured via `getBoundingClientRect()` at flight time against a hidden target row. That approach proved unreliable across several iterations — pillar words landing at coordinates unrelated to the actual block or tagline position, in one case ending up entirely off-screen. Root cause: the technique relied on an assumption about exactly when `getBoundingClientRect()` reflects a just-changed, still-transitioning value, and that assumption was applied inconsistently across the surrounding code (in one place accounting for a parent's pending transform offset, in another not). The current technique has no such dependency — nothing is ever measured while something else is mid-transition.
+
+### A measurement bug and how it was avoided
+
+The step-3 reveal position (where each pillar word starts, under its block) is computed from `.block-wrap`'s `getBoundingClientRect()` — not `.block`'s. `.block-wrap` never has a transform applied to it at all; only its child `.block` does (for lift/scatter). Measuring the wrap is therefore always safe regardless of what the block is doing at that instant. The lift amount itself (32px or 16px) is added as plain arithmetic on top of the wrap's static rect, rather than trying to read the block's own live position mid-lift-transition — sidestepping the same class of timing assumption described above entirely, rather than getting it right by luck.
+
+### Revealing the app
+
+```css
+#app { visibility: hidden; }
+#app.bloc-app-ready { visibility: visible; }
+```
+
+`#app`'s hidden state is a plain rule in the app's existing `<head>` stylesheet — not something toggled by JS after the page has started rendering — so it applies before first paint, with no frame in which real app content could be visible before the splash covers it. `.bloc-app-ready` is added to `#app` at the exact same point `.fade-out` is added to `#splash` (end of step 7), so the two happen together: the splash animates its own `opacity`/`visibility` down over 0.5s while the app underneath is already visible, producing a crossfade rather than a hard cut the moment the splash disappears.
+
+### CSS scoping
+
+Every splash colour is declared as a custom property on `#splash` itself — `--splash-bg`, `--splash-surface`, `--splash-accent`, `--splash-ice`, `--splash-text`, `--splash-dark-text` — rather than at `:root`. The app's own `:root` already defines `--bg`, `--text`, and `--surface` with different exact values (`--text: #e9e9ed` app-wide vs. `#F2F2F2` in the splash's original design; `--surface: #1c1e2e` vs. `#1E2030`) — declaring the splash's palette globally would have silently overridden the app's real theming everywhere else, not just within the splash. Every splash class selector is also scoped under `#splash` (`#splash .block`, `#splash .face`, `#splash .tword`, etc.) as a second, independent layer of isolation. Checked against the full existing codebase for naming collisions before merging (class names, element ids, and custom-property names) — none found.
+
+### Frequency gate
+
+```js
+function qualifiesForSplash() {
+  return true;
+}
+```
+
+Currently unconditional — the splash plays on every real fresh load. "Fresh load" specifically means an actual page parse (`DOMContentLoaded`/script execution from scratch): first open, a force-quit and reopen, or the OS evicting the page from memory in the background and the person then reopening it. It does **not** mean every time the person switches back to the app from another app — on both iOS and Android the page is normally suspended in place and resumed, with no reload and no re-execution of this script. Written as its own named function specifically so a different rule (e.g. once per calendar day, via a `localStorage` date check) is a one-line swap without touching anything else in the module — `qualifiesForSplash()` is the only call site any future frequency change needs to touch.
+
+### Verification
+
+Built and refined iteratively across many rounds of visual review against screenshots (device rendering, layout position, and timing feedback), not automated Playwright testing — unlike the onboarding tour modules above (§32–39), there is currently no automated test coverage for this module. The bug described above (pillar words landing in the wrong position) was diagnosed and fixed from a screenshot showing the actual wrong rendered state, not from a logged or reproduced test failure. Worth treating as a candidate for Playwright coverage in a future pass, given the number of sequenced, timing-dependent DOM state changes involved — a deterministic clock/timer mock would make the whole sequence straightforward to assert against.
+
+### Still outstanding
+
+- Timing constants (drop stagger/fall duration, lift/rise distances, pause lengths) were tuned by eye against an isolated single-page demo, not against the real app's actual boot-time performance — state load, `measureAll()`, font loading, and the rest of the app's own boot work all run concurrently with this module in production, and haven't been confirmed not to affect the felt pacing.
+- The horizontal offset (`--fx`) used to position each pillar word under its block is derived from the block's real geometry, but the delta calculation assumes the tagline's flex-row layout doesn't reflow between the moment it's measured and the moment the word lands — true today, but worth re-checking if the tagline's content or styling changes later.
+
+
