@@ -34,7 +34,7 @@
   --blue: #8fb3d9;
   --purple: #b5abfc;
   --ice-blue: #9fd9d9;
-  --green: #8fbf9a;
+  --green: #1b9e75;
   --font-display: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   /* DM Mono retired app-wide — Inter is now the only typeface in the app.
      --font-mono is kept (rather than removed) so every existing call site
@@ -89,7 +89,7 @@
   --blue: #3f6fa6;
   --purple: #6f5cc4;
   --accent2: #6f5cc4;
-  --green: #3f7d52;
+  --green: #137359;
   /* --nav-inactive intentionally NOT overridden here — the floating nav
      bar keeps its dark background in both modes, so the near-white icon
      colour from :root stays correct either way. */
@@ -301,6 +301,11 @@ h3 {
    visual styling of its own, unlike .card, so the flatter redesign look
    isn't reintroduced along with the animation. */
 .insights-swipe-card { }
+/* Same purpose as .insights-swipe-card above, but for the Progress page's
+   Weekly Summary table deck (getProgressTablesCard() / progressTablesAnimateTo())
+   — none of that deck's three table builders wrap their output in .card,
+   so this dedicated hook is what the swipe animation actually targets. */
+.progress-tables-swipe-card { }
 .card-accent {
   border-color: var(--accent);
   border-width: 1px;
@@ -618,9 +623,16 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   border: 4px solid transparent;
   border-bottom-color: var(--surface3);
 }
-.c-protein { --macro-c: var(--blue); }
-.c-carbs { --macro-c: var(--amber); }
-.c-fats { --macro-c: var(--red); }
+/* Fixed hex rather than var(--blue)/var(--amber)/var(--red): these must
+   match MACRO_COLORS in JS exactly (the single source of truth for the
+   Progress page's pie/legend and the goal modal's own pie above these
+   sliders) — the theme tokens are muted UI accents for badges/warnings
+   elsewhere, not this macro-split colour identity, and using them here
+   previously made the sliders a different shade than the pie sitting
+   right next to them. */
+.c-protein { --macro-c: #60a8f0; }
+.c-carbs { --macro-c: #f5a623; }
+.c-fats { --macro-c: #ff5f4e; }
 /* The input's own box stays thumb-height-tall (so the round thumb is
    never clipped); the visible thin bar is drawn on the track
    pseudo-element instead, which is what actually lets us halve the bar's
@@ -6818,7 +6830,7 @@ function buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort, animate =
       : isFarOff
         ? `⚠ ${diff.toFixed(1)} lbs from target`
         : `● ${diff.toFixed(1)} lbs from target`;
-    const statusColor = isStable ? '#8fbf9a' : isFarOff ? 'var(--red)' : 'var(--amber)';
+    const statusColor = isStable ? 'var(--green)' : isFarOff ? 'var(--red)' : 'var(--amber)';
     statusHtml = `<div style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:${statusColor};">${statusLabel}</div>`;
   } else if (isPast && macro.targetBw && latestBw !== null) {
     const diff = latestBw - macro.targetBw; // positive = finished above target, negative = below
@@ -6829,7 +6841,7 @@ function buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort, animate =
     // below target on a gain cycle.
     const isBad = isGainGoal ? diff < -0.1 : diff > 0.1;
     const statusLabel = isOnTarget ? '✓ Finished on target' : `You finished ${Math.abs(diff).toFixed(1)} lbs ${posLabel} target`;
-    const statusColor = isOnTarget ? '#8fbf9a' : (isBad ? 'var(--red)' : '#8fbf9a');
+    const statusColor = isOnTarget ? 'var(--green)' : (isBad ? 'var(--red)' : 'var(--green)');
     statusHtml = `<div style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:${statusColor};">${statusLabel}</div>`;
   } else if (!isPast && macro.targetBw && startBw !== null && latestBw !== null && !isFuture) {
     const totalBwChangeNeeded = macro.targetBw - startBw;
@@ -6841,7 +6853,7 @@ function buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort, animate =
     }
     const gap = bwPct - cyclePct;
     let statusLabel, statusColor;
-    if (gap >= 8) { statusLabel = '↗ Ahead of schedule'; statusColor = '#8fbf9a'; }
+    if (gap >= 8) { statusLabel = '↗ Ahead of schedule'; statusColor = 'var(--green)'; }
     else if (gap <= -8) { statusLabel = '↘ Falling behind'; statusColor = 'var(--accent2)'; }
     else { statusLabel = '● On track'; statusColor = 'var(--amber)'; }
     statusHtml = `<div style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:${statusColor};">${statusLabel} — ${Math.round(bwPct)}% of goal vs ${cyclePct}% of cycle</div>`;
@@ -7157,8 +7169,8 @@ function buildGoalColumnHeroChart(macro, metric) {
   // day's goal — same ratio math as before, just against a dynamic base
   // instead of a fixed 86px one.
   const yMax = Math.max(...allTargets, ...allActuals, 1) / 0.85;
-  const defaultColor = metric === 'steps' ? 'var(--ice-blue)' : '#8fbf9a';
-  const overColor    = metric === 'steps' ? '#8fbf9a'          : 'var(--red)';
+  const defaultColor = metric === 'steps' ? 'var(--ice-blue)' : 'var(--green)';
+  const overColor    = metric === 'steps' ? 'var(--green)'          : 'var(--red)';
 
   // Up to 21 bars (3 weeks) stretch to fill the full card width; beyond
   // that, bars hold a fixed width and the row scrolls horizontally.
@@ -8696,15 +8708,23 @@ function buildWeeklySummaryCardHTML() {
 
   if (!weekBuckets.length) return emptyCard;
 
-  // Heat-map colour for a column of values
+  // Heat-map colour for a column of values. Green/red intentionally use
+  // var(--green)/var(--red) (the app-wide good/bad colours — see :root)
+  // rather than a literal hex, so this heatmap always tracks the single
+  // shared definition of those colours. The amber midpoint is a dedicated
+  // literal rather than var(--amber): the shared --amber token is tuned as
+  // a muted accent for general UI (carbs badges, warnings, etc.), which
+  // reads too pale sitting between a saturated green and red in a
+  // traffic-light heatmap — this amber is scoped to this heatmap only.
+  const HEATMAP_AMBER = '#d9a441';
   function heatColour(val, vals, lowGood) {
     const nonNull = vals.filter(v => v !== null);
     if (nonNull.length < 2 || val === null) return 'var(--text3)';
     const mn = Math.min(...nonNull), mx = Math.max(...nonNull);
-    if (mn === mx) return 'var(--amber)';
+    if (mn === mx) return HEATMAP_AMBER;
     const pct = (val - mn) / (mx - mn); // 0=lowest, 1=highest
     const score = lowGood ? (1 - pct) : pct;
-    return score >= 0.66 ? '#8fbf9a' : score >= 0.33 ? 'var(--amber)' : 'var(--red)';
+    return score >= 0.66 ? 'var(--green)' : score >= 0.33 ? HEATMAP_AMBER : 'var(--red)';
   }
   const allSteps   = weekBuckets.map(b => b.steps);
   const allKcal    = weekBuckets.map(b => b.kcal);
@@ -9281,12 +9301,12 @@ function buildInsightsCardHTML(aiAdvice) {
     'plateau-creep':     { color: 'var(--red)',   label: '⚠ Plateau detected' },
     'plateau-adaptation':{ color: 'var(--amber)', label: '⚠ Plateau — adaptation?' },
     'drift-warning':     { color: 'var(--amber)', label: '↗ Intake drift detected' },
-    'on-track':          { color: '#8fbf9a',      label: '● On track' },
+    'on-track':          { color: 'var(--green)',      label: '● On track' },
     'gain-deficit':      { color: 'var(--red)',   label: '↘ Eating at deficit' },
     'gain-undereating':  { color: 'var(--amber)', label: '↘ Surplus too small' },
     'gain-excess':       { color: 'var(--amber)', label: '↗ Surplus may be large' },
     'maint-unstable':    { color: 'var(--amber)', label: '⚠ Weight varying' },
-    'maint-stable':      { color: '#8fbf9a',      label: '● Stable' },
+    'maint-stable':      { color: 'var(--green)',      label: '● Stable' },
     'maint-nodata':      { color: 'var(--text3)', label: '— Insufficient data' },
   };
 
@@ -11906,7 +11926,7 @@ function renderProgressTables() {
   const wrap = document.getElementById('progress-tables-wrap');
   if (!wrap) return;
   const cards = [buildWeeklySummaryCardHTML(), buildWeeklySwingsCardHTML(), buildMeasurementsCardHTML()];
-  wrap.innerHTML = cards[progressTablesIndex];
+  wrap.innerHTML = `<div class="progress-tables-swipe-card">${cards[progressTablesIndex]}</div>`;
 
   const dotsEl = document.getElementById('progress-tables-dots');
   if (dotsEl) {
@@ -11920,11 +11940,18 @@ function renderProgressTables() {
   initProgressTablesSwipe();
 }
 
-// Returns the currently-rendered .card element inside the Progress page's
-// table swipe deck, used by that deck's own swipe-gesture handlers.
+// Returns the currently-rendered swipe-card element inside the Progress
+// page's table deck, used by that deck's own swipe-gesture handlers. Uses
+// a dedicated .progress-tables-swipe-card wrapper (see renderProgressTables())
+// rather than .card, since none of the three table builders (weekly
+// summary / swings / measurements) wrap their own output in .card — that
+// meant this selector always returned null and the swipe animation/snapback
+// styling below silently no-op'd, even though the swipe gesture itself
+// still advanced the card. Mirrors the same pattern as .insights-swipe-card
+// on the Insights deck.
 function getProgressTablesCard() {
   const wrap = document.getElementById('progress-tables-wrap');
-  return wrap ? wrap.querySelector('.card') : null;
+  return wrap ? wrap.querySelector('.progress-tables-swipe-card') : null;
 }
 
 // Animates the table card back to its resting position after a swipe that
@@ -12166,20 +12193,23 @@ function buildStatRowAllTimeChart(cycleDays, actualFn, targetFn, color, overColo
   </div>`;
 }
 
-// Steps + Nutrition, merged into one card sharing a single Today/cycle-avg
+// Steps + Nutrition, merged into one card sharing a single Today/7-day-avg
 // toggle (progressToggle.nutr). The steps row links through to Body; the rest
-// of the card links through to Nutrition. Averages are scoped to whichever
-// cycle is active/browsed (getCycleDays); the mini bar chart shows only the
-// most recent 7 days of that window so the compact card stays legible even
-// for a long cycle. "Today" mode only shows a value when today actually
-// falls within the selected cycle — browsing a past cycle shows "—" there
-// rather than today's real (out-of-cycle) numbers.
+// of the card links through to Nutrition. In the compact ("7-Day") view,
+// both the callout number and the mini bar chart are scoped to the same
+// rolling 7-day window (`days`, the last 7 days of getCycleDays()) — they
+// previously disagreed: the chart used the 7-day window but the callout
+// number silently averaged over the whole active/browsed cycle instead
+// (sometimes 9+ weeks), which mismatched both the "7-Day" label and the
+// current-week averages shown on Home. "Today" mode only shows a value
+// when today actually falls within the selected cycle — browsing a past
+// cycle shows "—" there rather than today's real (out-of-cycle) numbers.
 //
 // A separate 7-Day/All toggle (progressStatsAllView) switches every row
 // between this compact view and a full-cycle horizontally-scrollable bar
-// chart with no callout numbers (see buildStatRowAllTimeChart) — kept
-// entirely independent of the today/avg toggle above, which the 7-Day
-// state continues to use exactly as before.
+// chart with no callout numbers (see buildStatRowAllTimeChart), which is
+// intentionally still scoped to the whole cycle (cycleDays) — that toggle
+// is the one place a full-cycle view belongs.
 let progressStatsAllView = false;
 function setProgressStatsView(isAll) {
   progressStatsAllView = isAll;
@@ -12208,10 +12238,6 @@ function renderProgressNutr() {
 
   // ── Steps row ──
   const stepsGoal = goal ? (goal.steps||0) : 0;
-  const cycleStepsValues = cycleDays.map(d => {
-    const log = (state.bodyLogs||[]).find(l => l.date === d.date);
-    return log && log.steps ? parseInt(log.steps) : null;
-  });
   const stepsValues = days.map(d => {
     const log = (state.bodyLogs||[]).find(l => l.date === d.date);
     return log && log.steps ? parseInt(log.steps) : null;
@@ -12220,25 +12246,30 @@ function renderProgressNutr() {
     const log = (state.bodyLogs||[]).find(l => l.date === today);
     return log && log.steps ? parseInt(log.steps) : null;
   })() : null;
-  const stepsValid = cycleStepsValues.filter(v => v !== null);
-  const stepsAvgCycle = stepsValid.length ? Math.round(stepsValid.reduce((a,b)=>a+b,0)/stepsValid.length) : null;
-  const stepsDisplay = isToday ? stepsToday : stepsAvgCycle;
+  // The "7-Day" toggle's callout number is scoped to the same 7-day window
+  // (`days`) as the mini bar chart next to it, NOT the whole active/browsed
+  // cycle — it previously averaged over cycleDays (every day since the
+  // cycle started, sometimes 9+ weeks), which silently mismatched the
+  // "7-Day" label and the current-week averages shown on Home.
+  const stepsValid = stepsValues.filter(v => v !== null);
+  const stepsAvg7 = stepsValid.length ? Math.round(stepsValid.reduce((a,b)=>a+b,0)/stepsValid.length) : null;
+  const stepsDisplay = isToday ? stepsToday : stepsAvg7;
 
   let stepsInsight = '';
   if (isToday && stepsDisplay !== null && stepsGoal) {
     const diff = stepsGoal - stepsDisplay;
     stepsInsight = diff > 0 ? fmtK(diff) + ' left to go' : fmtK(Math.abs(diff)) + ' over target';
-  } else if (!isToday && stepsAvgCycle !== null) {
+  } else if (!isToday && stepsAvg7 !== null) {
     if (stepsGoal) {
-      const diff = stepsAvgCycle - stepsGoal;
+      const diff = stepsAvg7 - stepsGoal;
       stepsInsight = diff >= 0 ? 'Avg ' + diff.toLocaleString() + ' above target' : 'Avg ' + Math.abs(diff).toLocaleString() + ' below target';
     } else {
-      stepsInsight = stepsValid.length + ' of ' + cycleDays.length + ' days logged';
+      stepsInsight = stepsValid.length + ' of ' + days.length + ' days logged';
     }
   }
 
   const stepsRight = isToday
-    ? (stepsGoal ? buildProgressStatBar(stepsDisplay||0, stepsGoal, 'var(--purple)', '#8fbf9a') : '')
+    ? (stepsGoal ? buildProgressStatBar(stepsDisplay||0, stepsGoal, 'var(--purple)', 'var(--green)') : '')
     : buildProgressBarChart(days, stepsValues, 'var(--purple)', fmtK, today);
 
   const stepsRow = isAll
@@ -12247,7 +12278,7 @@ function renderProgressNutr() {
       + buildStatRowAllTimeChart(cycleDays,
           date => { const log = (state.bodyLogs||[]).find(l => l.date === date); return log && log.steps ? parseInt(log.steps) : null; },
           date => { const g = getGoalForDate(date, macro ? macro.id : null); return g ? (parseInt(g.steps)||0) : 0; },
-          'var(--purple)', '#8fbf9a')
+          'var(--purple)', 'var(--green)')
       + '</div>'
     : '<div style="display:flex;align-items:flex-start;gap:12px;padding-bottom:10px;border-bottom:0.5px solid var(--border);margin-bottom:10px;cursor:pointer;" onclick="event.stopPropagation();showScreen(\'body\')">'
     + '<div style="flex:1;min-width:0;">'
@@ -12267,12 +12298,10 @@ function renderProgressNutr() {
   };
 
   const todayLog = todayInCycle ? getLog(today) : null;
-  const cycleLogs = cycleDays.map(d => getLog(d.date));
-  const validLogs = cycleLogs.filter(Boolean);
 
   const metrics = [
     { key:'kcal',    label:'kcal',    color:'var(--accent)', goal:goal?.kcal,    fmt:v=>v.toLocaleString(),     fmtFull:v=>Math.round(v).toLocaleString(), overColor:'var(--red)',   warnOver:false },
-    { key:'protein', label:'protein', color:'var(--blue)',   goal:goal?.protein, fmt:v=>v+'g', fmtFull:v=>v+'g', overColor:'#8fbf9a',warnOver:false },
+    { key:'protein', label:'protein', color:'var(--blue)',   goal:goal?.protein, fmt:v=>v+'g', fmtFull:v=>v+'g', overColor:'var(--green)',warnOver:false },
     { key:'carbs',   label:'carbs',   color:'var(--amber)',  goal:goal?.carbs,   fmt:v=>v+'g', fmtFull:v=>v+'g', overColor:'var(--red)', warnOver:true  },
     { key:'fats',    label:'fats',    color:'var(--red)',    goal:goal?.fats,    fmt:v=>v+'g', fmtFull:v=>v+'g', overColor:'var(--red)',   warnOver:true  },
   ];
@@ -12280,9 +12309,13 @@ function renderProgressNutr() {
   const rows = metrics.map((m, mIdx) => {
     const isLastMetric = mIdx === metrics.length - 1;
     const todayVal = todayLog ? Math.round(todayLog[m.key]||0) : null;
-    const avgVal = validLogs.length ? Math.round(validLogs.reduce((a,b)=>a+(b[m.key]||0),0)/validLogs.length) : null;
-    const displayVal = isToday ? todayVal : avgVal;
+    // Same fix as stepsAvg7 above: this is the "7-Day" toggle, so its
+    // callout number and insight text must average the same 7-day window
+    // (`days`) as the mini bar chart next to it — not the whole cycle.
     const vals7 = days.map(d => { const l = getLog(d.date); return l ? Math.round(l[m.key]||0) : null; });
+    const valsValid7 = vals7.filter(v => v !== null);
+    const avgVal = valsValid7.length ? Math.round(valsValid7.reduce((a,b)=>a+b,0)/valsValid7.length) : null;
+    const displayVal = isToday ? todayVal : avgVal;
 
     if (isAll) {
       return `<div style="padding-bottom:14px;${isLastMetric ? '' : 'border-bottom:0.5px solid var(--border);'}margin-bottom:10px;">`
@@ -13244,7 +13277,7 @@ function getHomeMetricBadge(field, avg, target, dayMap, weekStart, today) {
     label = (polarity === 'underBad') ? 'On track' : 'Exceeding';
   }
   else                 { label = 'On track';        isBad = false; }
-  return { label, color: isBad ? 'var(--red)' : '#8fbf9a' };
+  return { label, color: isBad ? 'var(--red)' : 'var(--green)' };
 }
 
 // Builds the "adjust your daily avg by X for the rest of the week" (or, on
@@ -13646,7 +13679,7 @@ function buildHomeConsolidatedMessage(badges, dayMap, weekStart, today, goal) {
     icon = 'ph-info'; color = 'var(--text3)';
     text = 'Log today\'s numbers to see how this week is tracking';
   } else if (concerning.length === 0) {
-    icon = 'ph-check-circle'; color = '#8fbf9a';
+    icon = 'ph-check-circle'; color = 'var(--green)';
     text = withData.length === badges.length
       ? `All ${badges.length} on track this week`
       : `${withData.length} of ${badges.length} tracked so far — all on track`;
@@ -17880,7 +17913,7 @@ function renderNutrHero(animate = false) {
     ${kcalGoal ? `<div class="hero-progress-track" style="margin-top:14px;"><div class="hero-progress-fill" id="nutr-hero-bar" style="width:${animate ? 0 : pct}%;transition:none;"></div></div>` : ''}
     <div class="hero-callouts" style="margin-top:20px;">${macroCallouts}</div>
     <div class="divider" style="margin:16px 0 0;"></div>
-    ${isDateSavedInLibrary(nutrSelectedDate) ? `<div style="display:flex;align-items:center;gap:6px;color:#8fbf9a;font-size:12.5px;font-weight:500;padding:12px 0 0;">✓ Saved to library</div>
+    ${isDateSavedInLibrary(nutrSelectedDate) ? `<div style="display:flex;align-items:center;gap:6px;color:var(--green);font-size:12.5px;font-weight:500;padding:12px 0 0;">✓ Saved to library</div>
     <div class="divider" style="margin:12px 0 0;"></div>` : ''}
   </div>`;
 
@@ -19855,15 +19888,15 @@ function renderProgressNutrPies() {
         <div>${pie}</div>
         <div style="flex:1;">
           <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-            <span style="font-size:12px;color:var(--blue);">● Protein</span>
+            <span style="font-size:12px;color:${MACRO_COLORS.protein};">● Protein</span>
             <span style="font-size:12px;font-weight:500;">${Math.round(avgP)}g · ${pPct}%</span>
           </div>
           <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-            <span style="font-size:12px;color:var(--amber);">● Carbs</span>
+            <span style="font-size:12px;color:${MACRO_COLORS.carbs};">● Carbs</span>
             <span style="font-size:12px;font-weight:500;">${Math.round(avgC)}g · ${cPct}%</span>
           </div>
           <div style="display:flex;justify-content:space-between;">
-            <span style="font-size:12px;color:var(--red);">● Fats</span>
+            <span style="font-size:12px;color:${MACRO_COLORS.fats};">● Fats</span>
             <span style="font-size:12px;font-weight:500;">${Math.round(avgF)}g · ${fPct}%</span>
           </div>
         </div>
@@ -19877,6 +19910,17 @@ function renderProgressNutrPies() {
 
 // Generates an inline SVG macro pie chart (protein/carbs/fats) from gram
 // values — shared by the Nutrition weekly view and the Progress insights deck.
+//
+// MACRO_COLORS is the single source of truth for protein/carbs/fats colour
+// across every macro-split visual in the app — this pie's slices, its own
+// legend text just above (renderProgressNutrPies()), and the goal modal's
+// live macro-split pie (buildMacroPieSVG()) all reference it, so the three
+// can never drift out of sync with each other again. Deliberately fixed
+// hex rather than var(--blue)/var(--amber)/var(--red): those theme tokens
+// are tuned as muted UI accents for badges/warnings elsewhere, not for a
+// pie chart's own colour identity, and swapping them in previously changed
+// the pie's actual appearance (not just fixed a mismatch).
+const MACRO_COLORS = { protein: '#60a8f0', carbs: '#f5a623', fats: '#ff5f4e' };
 function makePie(pPct, cPct, fPct) {
   const cx=40, cy=40, r=34, size=80;
   function slice(start, pct, color) {
@@ -19891,9 +19935,9 @@ function makePie(pPct, cPct, fPct) {
   }
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
     <circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--surface3)"/>
-    ${slice(0, pPct, '#60a8f0')}
-    ${slice(pPct, cPct, '#f5a623')}
-    ${slice(pPct+cPct, fPct, '#ff5f4e')}
+    ${slice(0, pPct, MACRO_COLORS.protein)}
+    ${slice(pPct, cPct, MACRO_COLORS.carbs)}
+    ${slice(pPct+cPct, fPct, MACRO_COLORS.fats)}
     <circle cx="${cx}" cy="${cy}" r="20" fill="var(--surface)"/>
   </svg>`;
 }
@@ -20032,6 +20076,22 @@ function importData(event) {
         return;
       }
       state = parsed;
+      // Defensively clear any Demo Tour leftovers: if the person's very
+      // first launch offered the tour (fresh install — no bloc_state yet)
+      // and they dismissed the "Welcome to BLOC" modal via backdrop/swipe
+      // instead of pressing "Let's go →" or finishing the tour, enterDemoMode()
+      // had already swapped `state` for the sample dataset and pinned
+      // now()/getLocalToday() to the demo's fixed anchor date — and nothing
+      // ever un-pins it in that abandoned-tour path (only exitDemoMode(),
+      // reached solely via the tour's own completion/skip flow, does that).
+      // A real import always fully replaces `state` above regardless, so
+      // this can't affect ordinary imports either way — but without this,
+      // the stale anchor would silently keep pinning "today" to the demo's
+      // date on every screen for the rest of the session, and only a full
+      // app restart (which resets this in-memory variable fresh) would
+      // clear it. endTour() is a safe no-op if no tour is actually active.
+      endTour();
+      setTourAnchorDate(null);
       save();
       statusEl.style.color = 'var(--accent)';
       statusEl.textContent = '✓ Backup restored successfully.';
@@ -20587,12 +20647,14 @@ function repositionAllGoalSliderTooltips() {
 }
 window.addEventListener('resize', repositionAllGoalSliderTooltips);
 
-// Colors match the Progress page's macro chart (protein/carbs/fats).
+// Colors match the Progress page's macro chart (protein/carbs/fats) — see
+// MACRO_COLORS, the single shared definition both pies (and the Progress
+// page's legend text) all reference.
 function buildMacroPieSVG(proteinG, carbG, fatG) {
   const segs = [
-    { cal: proteinG * 4, color: 'var(--blue)',  label: 'Protein' },
-    { cal: carbG * 4,    color: 'var(--amber)', label: 'Carbs' },
-    { cal: fatG * 9,     color: 'var(--red)',   label: 'Fats' },
+    { cal: proteinG * 4, color: MACRO_COLORS.protein, label: 'Protein' },
+    { cal: carbG * 4,    color: MACRO_COLORS.carbs,   label: 'Carbs' },
+    { cal: fatG * 9,     color: MACRO_COLORS.fats,    label: 'Fats' },
   ];
   const total = segs.reduce((s, x) => s + x.cal, 0) || 1;
   const r = 40, circ = 2 * Math.PI * r;
