@@ -7356,7 +7356,11 @@ function calcTrendBasedTDEE() {
     // span crossing a DST transition is not exactly N*24h of real time.
     const bEndDate = new Date(cur); bEndDate.setDate(bEndDate.getDate() + 6);
     const bEnd = toLocalDateStr(bEndDate);
-    const bDates = allDates.filter(d => d >= bStart && d <= bEnd);
+    // Cap to today — same reasoning as computeWeeklyInsights: the bucket
+    // containing today must not average in future-dated entries, or the
+    // TDEE estimate (and everything derived from it) gets skewed by
+    // meals that haven't happened yet.
+    const bDates = allDates.filter(d => d >= bStart && d <= bEnd && d <= today);
     const wD = bDates.filter(d => dayMap[d].weight !== null);
     const nD = bDates.filter(d => dayMap[d].hasNutr);
     const avgWeight = wD.length ? wD.reduce((s, d) => s + dayMap[d].weight, 0) / wD.length : null;
@@ -9092,7 +9096,12 @@ function computeWeeklyInsights(macro) {
   while (cur.getTime() <= rangeEndMs) {
     const bStart = toLocalDateStr(cur);
     const bEndDate = new Date(cur); bEndDate.setDate(bEndDate.getDate() + 6); const bEnd = toLocalDateStr(bEndDate);
-    const bDates = allDates.filter(d => d >= bStart && d <= bEnd);
+    // Cap to today — a bucket spanning the current in-progress week must
+    // never average in future-dated entries (e.g. meals pre-logged later
+    // this week). Without this cap, a partial week's avgKcal/avgProtein
+    // gets diluted by days that haven't happened yet, which then feeds a
+    // distorted "recent intake" figure straight into the AI advice prompt.
+    const bDates = allDates.filter(d => d >= bStart && d <= bEnd && d <= todayStr);
     if (bDates.length > 0) {
       const wD = bDates.filter(d => dayMap[d].weight !== null);
       const nD = bDates.filter(d => dayMap[d].hasNutr);
@@ -9716,6 +9725,12 @@ function buildBlocAdvicePrompt(macro) {
   const latestBw = latestLog ? parseFloat(latestLog.weight) : null;
   const proteinFloor = latestBw ? Math.ceil(latestBw) : 150;
 
+  // Anchor for the AI's first goal start date. This MUST stay in lockstep
+  // with startGoalQueue(), which now truncates the active goal to end the
+  // day before this same getNextMonday() value (immediate cutover if
+  // today is itself a Monday, otherwise this coming Sunday). Using the
+  // identical function here guarantees the AI's first goal never overlaps
+  // the truncated active goal.
   const nextMonday  = getNextMonday();
   const cycleEnd    = toLocalDateStr(getMacroEndDate(macro));
 
@@ -11587,14 +11602,12 @@ function buildNextCycleAdviceSectionHTML(macro, rec) {
 
 // Kicks off the sequential goal modal flow for a chosen recommendation path.
 // Checks for overlapping existing goals and warns before proceeding.
-// Returns the Sunday on or after the given date string (inclusive — if today
-// is Sunday, returns today). Used to find the end of the current week so the
-// active goal closes cleanly before a new plan begins on Monday.
-function getNextSundayInclusive(dateStr) {
+// Returns the ISO date string for the day immediately before the given date.
+// Used to find where the active goal must end so it closes cleanly right up
+// against the new plan's start date, with no gap and no overlap.
+function getDayBefore(dateStr) {
   const d = new Date(dateStr + 'T00:00:00');
-  const dow = d.getDay(); // 0=Sun … 6=Sat
-  if (dow === 0) return dateStr; // already Sunday
-  d.setDate(d.getDate() + (7 - dow));
+  d.setDate(d.getDate() - 1);
   return toLocalDateStr(d);
 }
 
@@ -11617,13 +11630,19 @@ function startGoalQueue(pathKey) {
 
   // ── Step 1: active goal end-date adjustment (edit in place) ─────────────
   // Find the active goal. If it exists, we will open it in edit mode with
-  // only the end date moved to this Sunday (so the new plan starts Monday).
+  // only the end date moved to end the day before the new plan starts.
   // All other fields are untouched — the modal just behaves like openEditGoal.
   const activeGoalIdx = (state.goals || []).findIndex(
     g => g.startDate <= today && g.endDate >= today
   );
   const activeGoal = activeGoalIdx >= 0 ? state.goals[activeGoalIdx] : null;
-  const thisOrNextSunday = getNextSundayInclusive(today);
+  // The new plan always starts on getNextMonday() — the same anchor used to
+  // build the AI prompt (see buildBlocAdvicePrompt) — so the two can never
+  // drift apart. The active goal is truncated to end the day immediately
+  // before that, i.e. today if today is Monday (immediate cutover, no
+  // wasted week), or this coming Sunday otherwise.
+  const nextMonday   = getNextMonday();
+  const truncatedEnd = getDayBefore(nextMonday);
 
   // ── Upcoming goals: delete all for this macrocycle ───────────────────────
   // Simpler and safer than trying to selectively overwrite: any upcoming goal
@@ -11641,7 +11660,18 @@ function startGoalQueue(pathKey) {
   // Build queue steps
   const queueSteps = [];
 
-  if (activeGoal) {
+  // Edge case: if the active goal itself started today (a same-day check-in
+  // right after creating it, or a Monday check-in on a goal that also
+  // started this Monday), truncatedEnd (yesterday) would fall before its
+  // startDate — an invalid, zero-or-negative-length range. There's no real
+  // week to preserve here, so just drop the goal outright instead of
+  // editing it into an invalid state.
+  if (activeGoal && truncatedEnd < activeGoal.startDate) {
+    if (freshActiveIdx >= 0) {
+      state.goals.splice(freshActiveIdx, 1);
+      save();
+    }
+  } else if (activeGoal) {
     // Edit step: open the active goal in edit mode with adjusted end date.
     // We store the goal's data in the step so _openQueueStep can pre-fill
     // all fields correctly, and set _editIdx = freshActiveIdx so openModal
@@ -11651,7 +11681,7 @@ function startGoalQueue(pathKey) {
       _editIdx: freshActiveIdx,
       _isTruncationStep: true,
       startDate: src.startDate,
-      endDate: thisOrNextSunday,   // only field that changes
+      endDate: truncatedEnd,   // only field that changes
       kcal: src.kcal,
       steps: src.steps,
       protein: src.protein,
