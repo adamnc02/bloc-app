@@ -9885,6 +9885,7 @@ HARD CONSTRAINTS — never violate these:
 - Maximum 4 goals per recommendation path
 - Do NOT include a fats field — fats are calculated client-side
 - Every goal step must represent a single flat kcal/protein/carbs/steps target sustained across the full 7-day Monday–Sunday week. Do not describe or reference intra-week structure (e.g. specific higher-calorie days followed by lower-calorie days) anywhere — not in the goals array, and not in the narrative, rationale, or summary text. If a refeed or diet break is part of the recommendation, represent it as its own full-week goal step at the refeed's target kcal, not as a partial-week structure averaged into a different step.
+- When citing a specific week range (e.g. "your weight oscillated between X and Y across W7–W10"), the X/Y values MUST come only from rows literally labeled W7 through W10 in the WEEKLY DATA table below — never pull in a value from an adjacent week (e.g. W6) even if it was just discussed in the same paragraph for a different reason (like the plateau period). Re-check every week-range claim against the table before including it.
 - Respond ONLY with valid JSON matching the schema below — no preamble, no markdown, no text outside the JSON
 
 JSON SCHEMA:
@@ -11266,6 +11267,7 @@ ${stepsConstraintLine}
 - Minimum 2 goal phases per plan (a starting phase and at least one further phase — never a single flat block), maximum ${maxGoalsPerPlan}
 - Do NOT include a fats field — fats are calculated client-side
 - Every goal step must represent a single flat kcal/protein/carbs target sustained across its full date range. Do not describe or reference intra-week structure anywhere. Goal step granularity is NOT locked to one-week increments — if a bi-weekly or longer hold makes more sense, make one goal span that full range rather than repeating identical weekly goals.
+- When citing a specific week range from the WEEKLY DATA table (e.g. "weight oscillated between X and Y across W7–W10"), the X/Y values MUST come only from rows literally labeled within that range — never pull in a value from an adjacent week discussed elsewhere in the same narrative. Re-check every week-range claim against the table before including it.
 ${planCountLine}
 ${fillConstraintLine}
 - Respond ONLY with valid JSON matching the schema below — no preamble, no markdown, no text outside the JSON
