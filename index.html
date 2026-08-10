@@ -9050,6 +9050,80 @@ function renderProgressCycleGoals() {
   el.innerHTML = `<div class="section-title" style="margin-top:16px;">Goal periods this cycle</div>${rows}<div class="divider" style="margin:20px 0 0;"></div>`;
 }
 
+// ── Sticky flat/moving period grouping ──────────────────────────────────────
+// Groups the weeks since baseline into contiguous "flat" (|delta|<=0.5, same
+// threshold as the plateau check) vs "moving" runs, so both computeWeeklyInsights
+// (for the sticky current signal) and the AI prompt (for full period history —
+// how many stalls, how long each, when) can use the same grouping. A period
+// only "confirms" once it reaches 2 consecutive weeks — a lone week either way
+// is noise, not a real regime change.
+function buildSignalPeriods(weekBuckets, baselineIdx) {
+  const seq = weekBuckets.slice(baselineIdx + 1).filter(b => b.delta !== null);
+  const periods = [];
+  let cur = null;
+  for (const b of seq) {
+    const type = Math.abs(b.delta) <= 0.5 ? 'flat' : 'moving';
+    if (cur && cur.type === type) {
+      cur.weeks.push(b);
+    } else {
+      if (cur) periods.push(cur);
+      cur = { type, weeks: [b] };
+    }
+  }
+  if (cur) periods.push(cur);
+
+  periods.forEach(p => {
+    p.length = p.weeks.length;
+    p.startLabel = p.weeks[0].label;
+    p.endLabel = p.weeks[p.weeks.length - 1].label;
+    p.startDate = p.weeks[0].bStart;
+    p.endDate = p.weeks[p.weeks.length - 1].bEnd;
+    p.confirmed = p.length >= 2;
+    const kcalWeeks = p.weeks.filter(w => w.avgKcal !== null);
+    p.avgKcalDuring = kcalWeeks.length
+      ? Math.round(kcalWeeks.reduce((s, w) => s + w.avgKcal, 0) / kcalWeeks.length)
+      : null;
+  });
+
+  // Sticky "active" period: the most recent CONFIRMED (2+ week) period.
+  // A still-forming trailing period (<2 weeks) never overrides the last
+  // confirmed one — this is what makes the flag sticky rather than
+  // flickering on single-week noise.
+  let activePeriod = null;
+  for (const p of periods) {
+    if (p.confirmed) activePeriod = p;
+  }
+
+  return { periods, activePeriod };
+}
+
+// Formats the flat/moving periods from computeWeeklyInsights() into a
+// prompt-ready block: every period with its date range, length, and whether
+// it's confirmed (2+ weeks) — plus an explicit note on which one is the
+// sticky "currently flagged" period and whether it's ongoing or historical.
+// Shared by both the mid-cycle and next-cycle prompts.
+function formatSignalPeriodsForPrompt(ins) {
+  if (!ins || !ins.signalPeriods || !ins.signalPeriods.length) {
+    return 'No confirmed flat/moving periods yet — still gathering data since baseline.';
+  }
+  const lines = ins.signalPeriods.map(p => {
+    const range = p.startLabel === p.endLabel ? p.startLabel : `${p.startLabel}–${p.endLabel}`;
+    const label = p.type === 'flat' ? 'PLATEAU (flat weight)' : 'active movement';
+    const conf = p.confirmed ? '' : ' [not yet confirmed — fewer than 2 weeks, could still turn out to be noise]';
+    const kcalPart = p.avgKcalDuring !== null ? `, avg ${p.avgKcalDuring.toLocaleString()} kcal/day during` : '';
+    return `${range} (${p.length}wk): ${label}${kcalPart}${conf}`;
+  }).join('\n');
+
+  let activeNote = '';
+  if (ins.activePeriod && ins.activePeriod.type === 'flat') {
+    activeNote = ins.activePeriodIsOngoing
+      ? `\nCurrently flagged: PLATEAU, ${ins.activePeriod.startLabel}–${ins.activePeriod.endLabel} (${ins.activePeriod.length} weeks), still ongoing as of the latest logged week.`
+      : `\nCurrently flagged: PLATEAU, ${ins.activePeriod.startLabel}–${ins.activePeriod.endLabel} (${ins.activePeriod.length} weeks). This specific stall has ENDED, but the flag is deliberately sticky and stays up until a NEW confirmed 2+ consecutive-week run of genuine movement is logged — a single good week (or a single flat week breaking up otherwise-moving weeks) is not enough on its own to clear it. Use the weeks logged since this period ended to judge whether a breakthrough looks like it's forming, but don't claim the flag has cleared unless the data above actually shows 2+ confirmed weeks of it.`;
+  }
+
+  return lines + activeNote;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // PHASE 1 — Deterministic trend insights
 // ─────────────────────────────────────────────────────────────────────────────
@@ -9105,18 +9179,20 @@ function computeWeeklyInsights(macro) {
     if (bDates.length > 0) {
       const wD = bDates.filter(d => dayMap[d].weight !== null);
       const nD = bDates.filter(d => dayMap[d].hasNutr);
+      const sD = bDates.filter(d => dayMap[d].steps !== null);
       const avgWeight = wD.length ? wD.reduce((s,d) => s + dayMap[d].weight, 0) / wD.length : null;
       const avgKcal   = nD.length ? Math.round(nD.reduce((s,d) => s + dayMap[d].kcal, 0) / nD.length) : null;
       const avgProtein= nD.length ? Math.round(nD.reduce((s,d) => s + dayMap[d].protein, 0) / nD.length) : null;
       const avgCarbs  = nD.length ? Math.round(nD.reduce((s,d) => s + (dayMap[d].carbs || 0), 0) / nD.length) : null;
+      const avgSteps  = sD.length ? Math.round(sD.reduce((s,d) => s + dayMap[d].steps, 0) / sD.length) : null;
       const delta = (avgWeight !== null && prevAvgWeight !== null)
         ? parseFloat((avgWeight - prevAvgWeight).toFixed(2)) : null;
       if (avgWeight !== null) prevAvgWeight = avgWeight;
       weekBuckets.push({
         weekNum: wn, label: 'W' + wn,
         bStart, bEnd,
-        avgWeight, delta, avgKcal, avgProtein, avgCarbs,
-        nutrDayCount: nD.length, weightDayCount: wD.length,
+        avgWeight, delta, avgKcal, avgProtein, avgCarbs, avgSteps,
+        nutrDayCount: nD.length, weightDayCount: wD.length, stepsDayCount: sD.length,
       });
     }
     cur = new Date(cur); cur.setDate(cur.getDate() + 7);
@@ -9189,6 +9265,13 @@ function computeWeeklyInsights(macro) {
   // 3-week plateau if a single week came in at e.g. -0.34 lbs. Weekly average
   // weight has enough noise (water, glycogen, digestive load) that anything
   // below 0.5 lbs/week should be treated as effectively flat for a loss cycle.
+  // NOTE: this `plateauWeeks` (= the longest flat run anywhere since baseline)
+  // is kept exactly as before because it's still the correct metric for the
+  // completed-cycle rollup and getSustainableWeightRange() — "did this cycle
+  // ever demonstrate a genuine N-week stable stretch" is a whole-cycle
+  // question, not a "what's true right now" one. The UI/LLM "is there
+  // currently a flagged plateau" question uses the separate sticky
+  // activePeriod logic below instead — see buildSignalPeriods().
   let plateauWeeks = 0, maxPlateauRun = 0, curRun = 0;
   for (const b of weekBuckets.slice(baselineIdx + 1)) {
     if (b.delta !== null && Math.abs(b.delta) <= 0.5) {
@@ -9197,7 +9280,27 @@ function computeWeeklyInsights(macro) {
     } else { curRun = 0; }
   }
   plateauWeeks = maxPlateauRun;
-  const hasPlateauSignal = isLoss && plateauWeeks >= 2;
+
+  // ── Sticky flat/moving periods ──────────────────────────────────────────
+  // Groups weeks since baseline into contiguous "flat" (plateau) vs "moving"
+  // runs. The UI/LLM-facing "active" period is STICKY: once a plateau is
+  // confirmed (2+ consecutive flat weeks), it stays the active/flagged
+  // period until a NEW confirmed (2+ consecutive week) run of movement
+  // appears. A single good week — or a single flat week breaking up a run
+  // of otherwise-moving weeks — is not enough to flip the flag on or off;
+  // that's exactly the "3-week stall, then 1 good week, then flat again"
+  // case that shouldn't flicker the badge. See buildSignalPeriods().
+  const { periods: signalPeriods, activePeriod } = buildSignalPeriods(weekBuckets, baselineIdx);
+  const stuckSignal = !!activePeriod && activePeriod.type === 'flat';
+  const activePeriodWeeks = activePeriod ? activePeriod.length : 0;
+  const activePeriodIsOngoing = !!activePeriod && activePeriod === signalPeriods[signalPeriods.length - 1];
+  // Deficit specifically DURING the active flagged period (not blended with
+  // weeks outside it, which is what the old plateauWeeks-based check did) —
+  // this is what actually determines whether that particular stall looked
+  // like real adaptation or was just calorie creep at the time.
+  const avgKcalDuringActive = (activePeriod && activePeriod.avgKcalDuring !== null) ? activePeriod.avgKcalDuring : avgKcalRecent;
+  const deficitDuringActive = estimatedTDEE ? Math.round(avgKcalDuringActive - estimatedTDEE) : deficitOrSurplus;
+  const hasPlateauSignal = isLoss && stuckSignal;
 
   // ── Maintenance: weight stability check ──
   let maintVariance = null;
@@ -9213,22 +9316,31 @@ function computeWeeklyInsights(macro) {
   let signal, headline, detail;
 
   if (isLoss) {
-    if (hasPlateauSignal && deficitOrSurplus !== null && deficitOrSurplus > -200) {
-      // Plateau + deficit has narrowed to near-zero — calorie creep is the cause
+    // "Weeks since the flagged period ended" — 0 if it's still the latest
+    // (ongoing) period, otherwise how many confirmed/unconfirmed weeks have
+    // passed since. Used to make the headline honest about timing instead of
+    // implying "this is happening right now" for a stall that's actually over.
+    const weeksSincePeriodEnded = (!activePeriodIsOngoing && activePeriod)
+      ? signalPeriods.slice(signalPeriods.indexOf(activePeriod) + 1).reduce((s, p) => s + p.length, 0)
+      : 0;
+    const agoNote = activePeriodIsOngoing ? '' : ` (${activePeriod.startLabel}–${activePeriod.endLabel}, ${weeksSincePeriodEnded} week${weeksSincePeriodEnded === 1 ? '' : 's'} ago — no confirmed 2+ week breakthrough since)`;
+
+    if (hasPlateauSignal && deficitDuringActive !== null && deficitDuringActive > -200) {
+      // Plateau + deficit had narrowed to near-zero during that period — calorie creep is the cause
       signal = 'plateau-creep';
       headline = caloricDrift > 100
         ? `Intake has drifted up ~${Math.abs(caloricDrift)} kcal since your baseline`
-        : `Your deficit has narrowed — weight has been flat for ${plateauWeeks} weeks`;
+        : `Your deficit had narrowed — weight was flat for ${activePeriodWeeks} weeks${agoNote}`;
       detail = estimatedTDEE
-        ? `Your estimated TDEE is ~${estimatedTDEE.toLocaleString()} kcal/day. You're currently averaging ${Math.round(avgKcalRecent).toLocaleString()} kcal — only a ~${Math.abs(deficitOrSurplus)} kcal deficit. ${caloricDrift > 100 ? `This compares to ~${Math.round(avgKcalBaseline).toLocaleString()} kcal/day in your baseline weeks.` : ''}`
-        : `You're averaging ${Math.round(avgKcalRecent).toLocaleString()} kcal/day recently vs ~${Math.round(avgKcalBaseline).toLocaleString()} kcal/day at your baseline — a drift of ${caloricDrift > 0 ? '+' : ''}${caloricDrift} kcal.`;
+        ? `Your estimated TDEE is ~${estimatedTDEE.toLocaleString()} kcal/day. During that flat stretch you were averaging ${avgKcalDuringActive.toLocaleString()} kcal — only a ~${Math.abs(deficitDuringActive)} kcal deficit. ${caloricDrift > 100 ? `This compares to ~${Math.round(avgKcalBaseline).toLocaleString()} kcal/day in your baseline weeks.` : ''} Right now you're averaging ${Math.round(avgKcalRecent).toLocaleString()} kcal/day.`
+        : `You averaged ${avgKcalDuringActive.toLocaleString()} kcal/day during that flat stretch vs ~${Math.round(avgKcalBaseline).toLocaleString()} kcal/day at your baseline — a drift of ${caloricDrift > 0 ? '+' : ''}${caloricDrift} kcal.`;
     } else if (hasPlateauSignal) {
-      // Plateau but deficit still looks real — adaptation or logging gap
+      // Plateau but deficit still looked real during that period — adaptation or logging gap
       signal = 'plateau-adaptation';
-      headline = `Weight has been flat for ${plateauWeeks} weeks despite a deficit`;
+      headline = `Weight was flat for ${activePeriodWeeks} weeks despite a deficit${agoNote}`;
       detail = estimatedTDEE
-        ? `You're averaging ${Math.round(avgKcalRecent).toLocaleString()} kcal/day — a ~${Math.abs(deficitOrSurplus).toLocaleString()} kcal deficit vs your estimated TDEE of ${estimatedTDEE.toLocaleString()} kcal. Flat weight despite a real deficit can indicate metabolic adaptation, water retention masking fat loss, or logging gaps.`
-        : `Weight has been flat for ${plateauWeeks} weeks. This can reflect metabolic adaptation, water retention, or calorie logging gaps. Checking your baseline vs recent intake pattern may reveal creep.`;
+        ? `During that flat stretch you were averaging ${avgKcalDuringActive.toLocaleString()} kcal/day — a ~${Math.abs(deficitDuringActive).toLocaleString()} kcal deficit vs your estimated TDEE of ${estimatedTDEE.toLocaleString()} kcal. Flat weight despite a real deficit can indicate metabolic adaptation, water retention masking fat loss, or logging gaps. Right now you're averaging ${Math.round(avgKcalRecent).toLocaleString()} kcal/day — this flag will clear once a new 2+ week run of genuine loss is confirmed.`
+        : `Weight was flat for ${activePeriodWeeks} weeks. This can reflect metabolic adaptation, water retention, or calorie logging gaps.`;
     } else if (caloricDrift > 150) {
       // Drift detected but not yet a confirmed plateau
       signal = 'drift-warning';
@@ -9243,7 +9355,7 @@ function computeWeeklyInsights(macro) {
   } else if (isGain) {
     const surplusOk = deficitOrSurplus !== null && deficitOrSurplus >= 150 && deficitOrSurplus <= 500;
     const weightRising = recentWeeks.some(b => b.delta !== null && b.delta > 0.1);
-    const weightStuck  = plateauWeeks >= 2;
+    const weightStuck  = stuckSignal;
     if (deficitOrSurplus !== null && deficitOrSurplus < 0) {
       signal = 'gain-deficit';
       headline = `You're eating below TDEE on a gain cycle`;
@@ -9251,7 +9363,7 @@ function computeWeeklyInsights(macro) {
     } else if (weightStuck && deficitOrSurplus !== null && deficitOrSurplus < 200) {
       signal = 'gain-undereating';
       headline = `Weight is flat — surplus may be too small`;
-      detail = `Weight has been flat for ${plateauWeeks} weeks. Your avg intake of ${Math.round(avgKcalRecent).toLocaleString()} kcal yields only a ~${deficitOrSurplus} kcal surplus — likely not enough for consistent lean gain. Aim for 200–300 kcal above TDEE.`;
+      detail = `Weight has been flat for ${activePeriodWeeks} weeks${activePeriodIsOngoing ? '' : ' (' + activePeriod.startLabel + '–' + activePeriod.endLabel + ')'}. Your avg intake of ${Math.round(avgKcalRecent).toLocaleString()} kcal yields only a ~${deficitOrSurplus} kcal surplus — likely not enough for consistent lean gain. Aim for 200–300 kcal above TDEE.`;
     } else if (deficitOrSurplus !== null && deficitOrSurplus > 500) {
       signal = 'gain-excess';
       headline = `Surplus may be larger than needed for lean gain`;
@@ -9287,7 +9399,11 @@ function computeWeeklyInsights(macro) {
     avgProteinRecent:Math.round(avgProteinRecent),
     caloricDrift,
     deficitOrSurplus,
-    plateauWeeks,
+    plateauWeeks,          // longest flat run anywhere since baseline (whole-cycle max — used by the rollup/getSustainableWeightRange, NOT the sticky UI signal)
+    signalPeriods,          // full chronological list of flat/moving periods since baseline, for LLM context
+    activePeriod,           // the sticky "currently flagged" period (null if none confirmed yet)
+    activePeriodWeeks,      // length of activePeriod, or 0
+    activePeriodIsOngoing,  // true if activePeriod is also the most recent period (i.e. still happening now)
     baselineWeekLabel: weekBuckets[baselineIdx] ? weekBuckets[baselineIdx].label : 'W1',
     maintVariance,
     signal, headline, detail,
@@ -9662,7 +9778,7 @@ function toggleAiAdviceBody() { _aiAdviceBodyOpen = !_aiAdviceBodyOpen; renderPr
 // future reader) to see what changed.
 function condenseBlocAdvicePlans(response) {
   const condensePath = (path) => (path?.goals || [])
-    .map(g => `${g.kcal}kcal/${g.protein}p/${g.carbs}c (${g.startDate}–${g.endDate})`)
+    .map(g => `${g.kcal}kcal/${g.protein}p/${g.carbs}c/${g.steps || '?'}steps (${g.startDate}–${g.endDate})`)
     .join(' → ');
   return {
     sustainable: condensePath(response?.recommendations?.sustainable),
@@ -9812,8 +9928,17 @@ JSON SCHEMA:
     // The model must not treat a partial week as a settled data point.
     const isPartial = b.bEnd >= today;
     const partialNote = isPartial ? ` [IN PROGRESS — ${b.nutrDayCount} of 7 days logged so far, averages are provisional]` : '';
-    return `${b.label} (${b.bStart}–${b.bEnd}): avg weight ${b.avgWeight ? b.avgWeight.toFixed(1) + ' lbs' : 'n/a'} | delta ${deltaStr} | avg ${b.avgKcal ? b.avgKcal.toLocaleString() : '?'} kcal | ${b.avgProtein || '?'}g protein | ${b.avgCarbs || '?'}g carbs | ${b.nutrDayCount} logged days${isBaseline}${partialNote}`;
+    return `${b.label} (${b.bStart}–${b.bEnd}): avg weight ${b.avgWeight ? b.avgWeight.toFixed(1) + ' lbs' : 'n/a'} | delta ${deltaStr} | avg ${b.avgKcal ? b.avgKcal.toLocaleString() : '?'} kcal | ${b.avgProtein || '?'}g protein | ${b.avgCarbs || '?'}g carbs | avg ${b.avgSteps ? b.avgSteps.toLocaleString() : '?'} steps | ${b.nutrDayCount} logged days${isBaseline}${partialNote}`;
   }).join('\n');
+
+  // ── Flat/moving periods this cycle ──
+  // Gives the model the full period-by-period history (how many stalls, how
+  // long each, exactly when) plus which one is currently the sticky flagged
+  // period — see buildSignalPeriods() / computeWeeklyInsights() for why the
+  // flag doesn't just track the last 1-2 weeks. Without this, the model only
+  // sees "current signal: plateau-adaptation" with no sense of whether that
+  // stall is happening right now or ended weeks ago.
+  const periodsStr = formatSignalPeriodsForPrompt(ins);
 
   // ── Prior advice summary ──
   // Combines all condensed check-ins already pushed to priorAdviceThisCycle
@@ -9848,6 +9973,9 @@ Remaining: ${latestBw && macro.targetBw ? Math.abs(latestBw - macro.targetBw).to
 WEEKLY DATA (7-day average weight from daily weigh-ins):
 ${weekRows || 'No weekly data available.'}
 
+FLAT/MOVING PERIODS THIS CYCLE (grouped, chronological — see note on which is currently flagged):
+${periodsStr}
+
 KEY METRICS:
 - Baseline avg intake (${ins?.baselineWeekLabel || 'W1'}): ${ins?.avgKcalBaseline ? ins.avgKcalBaseline.toLocaleString() + ' kcal/day' : 'unknown'}
 - Recent avg intake (last 2 weeks): ${ins?.avgKcalRecent ? ins.avgKcalRecent.toLocaleString() + ' kcal/day' : 'unknown'}
@@ -9855,7 +9983,8 @@ KEY METRICS:
 - Estimated TDEE: ${dynResult ? '~' + dynResult.tdee.toLocaleString() + ' kcal/day (log-based, ' + dynResult.dataPoints + ' data points)' : 'insufficient data'}
 - Log-based BMR: ${dynResult ? '~' + dynResult.bmr.toLocaleString() + ' kcal/day' : 'unknown'}
 - Current deficit/surplus vs TDEE: ${ins?.deficitOrSurplus != null ? (ins.deficitOrSurplus > 0 ? '+' : '') + ins.deficitOrSurplus + ' kcal/day' : 'unknown'}
-- Plateau weeks detected: ${ins?.plateauWeeks || 0} consecutive weeks ≤ 0.5 lbs/week change
+- Currently flagged plateau: ${ins?.activePeriodWeeks || 0} weeks${ins?.activePeriod ? ' (' + ins.activePeriod.startLabel + '–' + ins.activePeriod.endLabel + (ins.activePeriodIsOngoing ? ', ongoing' : ', ended — see periods above for how long ago') + ')' : ''}
+- Longest flat stretch this cycle (any time, historical max): ${ins?.plateauWeeks || 0} weeks
 - Current signal: ${ins?.signal || 'unknown'}
 - Waist trend this cycle: ${waistTrendStr}
 - Hip trend this cycle: ${hipTrendStr}
@@ -10438,7 +10567,11 @@ function buildAiAdviceCardHTML() {
       <div id="bloc-advice-error" style="display:none;font-size:11px;color:var(--red);margin-top:6px;"></div>
     </div>`;
   } else if (eligible || hasStoredAdvice) {
-    // Eligible and idle — show the button
+    // Eligible and idle — show the button. Label differs for a follow-up
+    // check-in (hasStoredAdvice true — this isn't the first ask this cycle)
+    // vs the very first ask, so the button doesn't imply "starting over"
+    // when it's actually continuing an existing conversation this cycle.
+    const btnLabel = hasStoredAdvice ? '✦ Check in with BLOC' : '✦ Ask BLOC for advice';
     const noKeyNote = !hasKey
       ? `<div style="font-size:10px;color:var(--amber);margin-top:5px;">⚠ Add your Anthropic API key in Settings to enable this.</div>`
       : `<div style="font-size:10px;color:var(--text3);margin-top:5px;">Safety floor: ${safetyFloor.toLocaleString()} kcal/day · Protein min: ${Math.ceil(parseFloat((([...(state.bodyLogs||[])].filter(l=>l.weight).sort((a,b)=>b.date.localeCompare(a.date))[0])||{weight:0}).weight)||0)}g/day</div>`;
@@ -10451,7 +10584,7 @@ function buildAiAdviceCardHTML() {
                border:0.5px solid ${hasKey ? 'rgba(145,132,217,0.35)' : 'var(--border2)'};
                color:${hasKey ? 'var(--accent)' : 'var(--text3)'};
                cursor:${hasKey ? 'pointer' : 'default'};font-family:var(--font-display);">
-        ✦ Ask BLOC for advice
+        ${btnLabel}
       </button>
       ${noKeyNote}
       <div id="bloc-advice-error" style="display:none;font-size:11px;color:var(--red);margin-top:6px;"></div>
@@ -11168,7 +11301,7 @@ JSON SCHEMA:
     const isBaseline = b.label === (ins.baselineWeekLabel || 'W1') ? ' [BASELINE]' : '';
     const isPartial = b.bEnd >= today;
     const partialNote = isPartial ? ` [IN PROGRESS — ${b.nutrDayCount} of 7 days logged so far, averages are provisional]` : '';
-    return `${b.label} (${b.bStart}–${b.bEnd}): avg weight ${b.avgWeight ? b.avgWeight.toFixed(1) + ' lbs' : 'n/a'} | delta ${deltaStr} | avg ${b.avgKcal ? b.avgKcal.toLocaleString() : '?'} kcal | ${b.avgProtein || '?'}g protein | ${b.avgCarbs || '?'}g carbs | ${b.nutrDayCount} logged days${isBaseline}${partialNote}`;
+    return `${b.label} (${b.bStart}–${b.bEnd}): avg weight ${b.avgWeight ? b.avgWeight.toFixed(1) + ' lbs' : 'n/a'} | delta ${deltaStr} | avg ${b.avgKcal ? b.avgKcal.toLocaleString() : '?'} kcal | ${b.avgProtein || '?'}g protein | ${b.avgCarbs || '?'}g carbs | avg ${b.avgSteps ? b.avgSteps.toLocaleString() : '?'} steps | ${b.nutrDayCount} logged days${isBaseline}${partialNote}`;
   }).join('\n');
 
   // ── Completed cycle history (identical source to the mid-cycle prompt) ──
@@ -11200,7 +11333,8 @@ Proposed next cycle window: ${planRec.newMacroStart} → ${planRec.newMacroEnd |
 KEY METRICS:
 - Estimated TDEE: ${dynResult ? '~' + dynResult.tdee.toLocaleString() + ' kcal/day (log-based, ' + dynResult.dataPoints + ' data points)' : 'insufficient data'}
 - Log-based BMR: ${dynResult ? '~' + dynResult.bmr.toLocaleString() + ' kcal/day' : 'unknown'}
-- Plateau weeks detected (current cycle): ${ins?.plateauWeeks || 0}
+- Currently flagged plateau (sticky — see mid-cycle logic): ${ins?.activePeriodWeeks || 0} weeks${ins?.activePeriod && !ins.activePeriodIsOngoing ? ' (ended, not currently ongoing)' : ''}
+- Longest flat stretch this cycle (any time, historical max): ${ins?.plateauWeeks || 0} weeks
 - Current signal (current cycle): ${ins?.signal || 'unknown'}
 
 SAFE BOUNDARIES FOR THE NEXT CYCLE:
