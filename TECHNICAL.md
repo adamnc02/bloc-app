@@ -2923,3 +2923,103 @@ Built and refined iteratively across many rounds of visual review against screen
 - The horizontal offset (`--fx`) used to position each pillar word under its block is derived from the block's real geometry, but the delta calculation assumes the tagline's flex-row layout doesn't reflow between the moment it's measured and the moment the word lands — true today, but worth re-checking if the tagline's content or styling changes later.
 
 
+## 41. Module: Home — On-Track Ring Fix + Per-Card Advice Modal (v7.90)
+
+### The bug
+
+`renderHomeHero()`'s ring and its subline text were answering two different questions from two independent code paths. The ring showed `trackedCount / badges.length` — a count of metrics with *any data logged this week*, regardless of whether they were on or off target. The subline separately checked `concerning` (badges flagged red) and could say e.g. "Kcal off target this week" in the same render where the ring showed "4/4". Both were individually correct for what they measured; they just measured different things while sitting side by side, reading as a contradiction.
+
+Fixed by introducing `onTrackCount = withData.length - concerning.length` and using that for both the ring's fraction and its fill percentage. `trackedCount` (data-presence) is kept as a separate variable, still used for the subline's "X of Y tracked so far" wording, which is a genuinely different (and still correct) thing to say there.
+
+### Per-card redesign
+
+Previously each metric card on Home showed no advice text at all — `buildHomeConsolidatedMessage()` (the reconciliation-aware advice engine, see §30/v7.65) existed in full but was never actually called from anywhere. As of this version:
+
+- A card whose badge is red (`getHomeMetricBadge` returning `var(--red)`) gets its progress-bar fill switched from `--accent` to `--red`, and a red info-icon button appears top-right (`position:absolute`, on a `position:relative` card).
+- Tapping the icon calls `openHomeMetricAdvice(field)`, which opens `modal-home-metric-advice` — a plain centered modal with the metric's advice content and a single Dismiss button (`closeModal('modal-home-metric-advice')`).
+- Nothing else changed about the card layout — this replaces what would otherwise be inline text, per the goal of keeping the grid uncluttered whether a card is on-track or not.
+
+### Data flow
+
+`renderHomeHero()` caches `{ badges, dayMap, weekStart, today, goal }` into a module-level `_homeHeroCache` at the end of every render. `openHomeMetricAdvice` reads from that cache rather than recomputing the whole hero — so the modal always reflects exactly what's currently on screen, and a stale modal can never open against data from a previous render.
+
+See §43 below for how this modal's content was subsequently broadened from "just this field's own line" to the full reconciled kcal/protein/carbs/fats picture.
+
+---
+
+## 42. Module: Extend Macrocycle (v7.91)
+
+### Problem being solved
+
+Adjusting a macrocycle's length was previously only possible by editing `macro.weeks` directly (the mesocycle *count* — see the historical note on `createMacrocycle`). But `getWeekSets()` uses `macro.weeks` as the interpolation denominator for scaling `setsStart`→`setsEnd` across the cycle — `t = (week-1)/(totalWeeks-1)`. Bumping `macro.weeks` on an in-progress cycle silently reflows that interpolation for every week, including ones already completed, retroactively changing what "week 6 of 10" was supposed to mean the moment the cycle became "week 6 of 13".
+
+### Design
+
+Extension is stored as a wholly separate field, `macro.extensionWeeks` (raw calendar weeks — not mesocycles), never folded into `macro.weeks` itself:
+
+```js
+function getMacroDurationWeeks(macro) {
+  return (macro.weeks || 8) * (macro.weeksPerMeso || 1) + (macro.extensionWeeks || 0);
+}
+```
+
+Three new helpers do the rest of the work:
+
+- **`getMacroExtensionInfo(macro)`** — converts `extensionWeeks` into whole extra mesocycles plus, when `weeksPerMeso` doesn't divide evenly into the requested weeks, a flag that the trailing mesocycle is partial (only M1 exists — M2 is dropped). E.g. `weeksPerMeso: 2`, `extensionWeeks: 3` → 1 full extra mesocycle (M1+M2) + 1 partial mesocycle (M1 only) = `extraMesos: 2`, `partialFinalMeso: true`.
+- **`getMacroEffectiveMesoCount(macro)`** — `macro.weeks + extraMesos`. Every iteration bound that used to just loop `1..macro.weeks` (Train's week picker, `getAllMacroSessions`, volume totals, the Plan progression preview, `computeBodyPartVolumeRange`, the two `currentMeso`/`weekLabel` displays) now loops to this instead.
+- **`isMesoMicroValid(macro, week, mc)`** — `false` only for `(totalMesos, 2)` on a macro with a partial trailing mesocycle; `true` for everything else, including every microcycle of every original (non-extension) mesocycle.
+
+Critically, **`getWeekSets`'s `totalWeeks` argument is never changed at any call site** — every one of the ~15 call sites in the codebase still passes `macro.weeks` (the original count) exactly as before. Instead, `getWeekSets` itself was given one new line:
+
+```js
+function getWeekSets(ex, week, totalWeeks) {
+  if (week > totalWeeks) return ex.setsEnd;
+  const t = totalWeeks > 1 ? (week - 1) / (totalWeeks - 1) : 0;
+  return Math.round(ex.setsStart + t * (ex.setsEnd - ex.setsStart));
+}
+```
+
+For any mesocycle number beyond the original count, there's nothing left to interpolate toward — the plan already peaked — so it just holds flat at `setsEnd`. This is effectively "repeat the final mesocycle": since exercises were never stored per-mesocycle to begin with (only ever mesocycle 1's template, reused algorithmically — see the historical note on `createMacrocycle`), holding at peak sets while `getWeekWeight`/`getWeekReps` (which were never a function of total cycle length) keep progressing uninterrupted **is** the repeat, with zero new exercise data to manage.
+
+Verified: `getWeekSets({setsStart:3,setsEnd:6}, w, 7)` for `w` in `[1,4,7]` (no extension) returns `[3,5,6]`, unchanged; for `w` in `[7,8,9]` with the same `totalWeeks:7` (i.e. weeks 8–9 are extension weeks) returns `[6,6,6]`.
+
+### Partial-mesocycle guards
+
+Two spots needed to actively react to a partial trailing mesocycle, not just tolerate it:
+
+- **`selectTrainWeek(w)`** — if the incoming week doesn't have a valid M2 and `state.currentDay` currently points at an `m2` session, it's bumped to the equivalent `m1` key before rendering, so a stale selection from a previous (valid) week can't point at a session that was never generated for this one.
+- **Train's day-tab strip** (`weeksPerMeso === 2` branch) — filters `micros` through `isMesoMicroValid(macro, state.currentWeek, mc)` before building rows, so the M2 row simply doesn't render while viewing the partial week.
+
+Verified with Playwright: `getMacroExtensionInfo` for `weeksPerMeso:2, extensionWeeks:3` on a 7-mesocycle macro returns `{ extraMesos: 2, partialFinalMeso: true, totalMesos: 9 }`; `getAllMacroSessions` for week 9 returns only the four `*m1` sessions (no `*m2`); the Train day-tab strip at week 9 renders `['Pull M1','Legs M1','Push M1','Arms M1']` only.
+
+### UI flow
+
+Three modals: `modal-macro-extend-weeks` (numeric-keypad weeks input), `modal-macro-extend-choice` ("Extend last goal" vs "Add new goal period"), `modal-macro-extend-edit` (edit/remove an existing extension). A module-level `_macroExtendTargetId` carries the macro id across all three, since the flow spans separate modal opens.
+
+- **Extend button** — `hero-nav-arrows`, stacked below "+ New"; only rendered when `!macro.extensionWeeks`.
+- **Extension badge** — new `#macro-extend-badge` div between `#macro-overview` and `#plan-goals-section`, rendered from `renderPlan()`; only shown when `macro.extensionWeeks` is truthy. Tapping opens the edit/remove modal. Exactly one of {Extend button, badge} is ever visible for a given macro.
+- **"Extend last goal"** — reuses the existing `openEditGoal(macroGoalID)` unchanged, then overwrites just the end-date field with `toLocalDateStr(getMacroEndDate(macro))` (now extension-aware automatically via `getMacroDurationWeeks`).
+- **"Add new goal period"** — resets `modal._editIdx` and calls `openModal('modal-add-goal')` for its normal fresh-goal defaulting, then overrides the macro select, start date (day after the old final goal's end), end date (new cycle end), kcal/steps (copied from that goal), and re-runs `prefillGoalLabelForSelectedMacro()` + `initGoalMacroSliders(lastGoal)` so the protein/carb/fat sliders back-derive to match the source goal's macros exactly, adjustable from there.
+- **Edit/remove** — editing rewrites `macro.extensionWeeks` directly (growing adds weeks, shrinking crops them — no explicit data migration; every extension-aware function already bounds itself off `getMacroEffectiveMesoCount`, so a shrink just stops enumerating the cropped weeks, and any `trainLogs` already saved there are orphaned rather than deleted, consistent with how the rest of the app treats shrinking elsewhere). Remove goes through `showConfirm()` before `delete`-ing the field entirely.
+
+### AI advice prompt
+
+Both prompt builders (`buildBlocAdvicePrompt` and the Next Cycle equivalent) already computed their `Duration:` line from `macro.weeks` directly; changed to `getMacroDurationWeeks(macro)` (automatically extension-aware) with an appended note when `macro.extensionWeeks` is set — e.g. `(base plan 14w, extended by 3w — the extension repeats the final mesocycle at peak sets)` — so the model has the real end date without needing a special flag, and understands *why* the duration changed if it references the cycle's history.
+
+---
+
+## 43. Module: Home advice — full reconciled picture + fats floor to 20g (v7.92)
+
+Two changes to the kcal/protein/carbs/fats reconciliation introduced in §30 (v7.65) and re-surfaced via the per-card modal in §41 (v7.90):
+
+### Fats floor raised 15g → 20g
+
+`RECONCILE_FATS_FLOOR` changed from `15` to `20`. No other change to the cascade itself — the existing trim order (fats toward its floor first, carbs only if fats-at-floor still doesn't fit the budget) already matched the requested priority order of kcal > protein > carbs > fats exactly; only the numeric floor moved. Verified: an artificially infeasible scenario (`kcal: 1200, protein: 260` against real logged data) returns `{ feasible: false, kcal: 1360, protein: 245, carbs: 50, fats: 20, fatsChanged: true }` — `protein` capped 15g below its 260g goal, `kcal` recalculated to cover `protein*4 + 50*4 + 20*9`, `fats` sitting exactly at its new 20g floor.
+
+### Every off-target kcal/protein card now shows the full picture
+
+`openHomeMetricAdvice(field)` previously called `buildAdviceLineHtml` once, for just the tapped field (with a reconciled value substituted in for kcal/protein when applicable — see §41). As of this version, whenever `field` is `kcal` or `protein` (the two that trigger `getReconciledMacroAdvice`), the modal renders **all four** reconciled lines — kcal, protein, carbs, and fats — via four separate `buildAdviceLineHtml` calls, plus a footnote stating the priority order and the fats floor. Tapping the Kcal card and tapping the Protein card, when both are flagged concerning in the same week, now show byte-identical content — the same reconciled solution, since it's one shared computation regardless of which card triggered the view. Verified against real backup data (kcal 1500 target, currently 1663 avg trending over; protein 224g target, currently 204g avg trending under): both cards' modals show the same four lines — Kcal "New target: 1,378/day", Protein "New target: 239g/day", Carbs "New target: 60g/day" (down from its own independent ~100g rate), Fats "New target: 20g/day" (pinned to the new floor) — confirming the cascade correctly squeezed both fats to its floor *and* carbs below its own independent number to make room for the protein increase, matching the "fats first, carbs only once fats bottoms out" rule.
+
+Carbs and steps, when *they're* the flagged/tapped metric (kcal and protein both on track), fall back to the single-field branch unchanged — there's nothing to reconcile against when nothing else needs squeezing.
+
+Carbs' badge polarity (`HOME_METRIC_POLARITY.carbs = 'overBad'`, in `getHomeMetricBadge`) was checked and confirmed already correct against the requirement that carbs only ever flags off-track when *over* threshold, never under — this predates this session's changes (see §29/§59-60-era work) and needed no code change: `behindPace` (currently under, needing to eat *more* to reach target) resolves to `isBad = polarity !== 'overBad'` → `false` for carbs; only `aheadPace` (currently over, needing to eat *less*) resolves `isBad = true`. Verified directly: `getHomeMetricBadge('carbs', 60, 100, ...)` (well under target) returns `{ label: 'On track', color: 'var(--green)' }`.
