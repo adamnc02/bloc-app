@@ -2315,7 +2315,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
       <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 2px;border-bottom:1px solid var(--border);margin-bottom:16px;cursor:pointer;" onclick="openModal('modal-settings-about')">
         <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-        <span class="tag tag-outline">v7.92</span>
+        <span class="tag tag-outline">v7.93</span>
       </div>
 
       <!-- ── Profile section ── -->
@@ -13728,11 +13728,11 @@ function getWeeklyRequiredDaily(field, dayMap, weekStart, today, target) {
   });
   if (daysRemaining <= 0) {
     const requiredDaily = daysTrackedSoFar > 0 ? (loggedSoFar / daysTrackedSoFar) : target;
-    return { requiredDaily, loggedSoFar, daysTrackedSoFar, daysRemaining };
+    return { requiredDaily, loggedSoFar, daysTrackedSoFar, daysRemaining, startsToday: !todayHasField };
   }
   const neededTotal = target * (daysTrackedSoFar + daysRemaining);
   const remainingBudget = neededTotal - loggedSoFar;
-  return { requiredDaily: remainingBudget / daysRemaining, loggedSoFar, daysTrackedSoFar, daysRemaining };
+  return { requiredDaily: remainingBudget / daysRemaining, loggedSoFar, daysTrackedSoFar, daysRemaining, startsToday: !todayHasField };
 }
 
 // The full-week average that would result if `dailyGoingForward` were hit
@@ -13751,17 +13751,23 @@ function projectedWeeklyAverage(dailyGoingForward, info) {
 // Turns a requiredDaily figure into the same "adjust by X" / "hit X today"
 // wording getHomeMetricSublabel has always used — shared so reconciled
 // figures (see getReconciledMacroAdvice) read identically to unreconciled
-// ones.
-function formatAdviceSublabel(requiredDaily, target, unit, today, daysRemaining) {
+// ones. startsToday (see getWeeklyRequiredDaily's identically-named return
+// field) disambiguates which day the "for the rest of the week" figure
+// actually starts counting from — once today already has a logged value
+// for this field, the flat rate is spread from TOMORROW onward instead
+// (today's own number is already locked in), which previously wasn't
+// stated anywhere in the text itself.
+function formatAdviceSublabel(requiredDaily, target, unit, today, daysRemaining, startsToday) {
   if (daysRemaining === undefined) daysRemaining = 8 - getHomeIsoDow(today);
   const rounded = Math.round(requiredDaily);
   if (daysRemaining <= 1) {
     return `Hit ${rounded.toLocaleString()}${unit} today to bring the week to target`;
   }
   const delta = rounded - Math.round(target);
+  const fromWord = startsToday === false ? 'starting tomorrow' : 'starting today';
   if (Math.abs(delta) < 1) return 'On pace for the week';
   const sign = delta > 0 ? '+' : '';
-  return `Adjust your daily avg by ${sign}${delta.toLocaleString()}${unit} for the rest of the week to hit target`;
+  return `Adjust your daily avg by ${sign}${delta.toLocaleString()}${unit} for the rest of the week (${fromWord}) to hit target`;
 }
 
 // Builds the "adjust your daily avg by X" (or, on the week's final day, the
@@ -13772,7 +13778,7 @@ function formatAdviceSublabel(requiredDaily, target, unit, today, daysRemaining)
 function getHomeMetricSublabel(field, dayMap, weekStart, today, target, unit) {
   const info = getWeeklyRequiredDaily(field, dayMap, weekStart, today, target);
   if (info === null) return '';
-  return formatAdviceSublabel(info.requiredDaily, target, unit, today, info.daysRemaining);
+  return formatAdviceSublabel(info.requiredDaily, target, unit, today, info.daysRemaining, info.startsToday);
 }
 
 // ── Weekly macro advice reconciliation ──────────────────────────────────
@@ -13849,6 +13855,98 @@ function getReconciledMacroAdvice(dayMap, weekStart, today, goal) {
     kcal: kcalAdvice, protein: proteinAdvice, carbs: RECONCILE_CARBS_FLOOR,
     fats: RECONCILE_FATS_FLOOR, fatsChanged: true,
   };
+}
+
+// ── Nutrition page: per-day planning targets (v7.95) ────────────────────
+// Deliberately separate from getWeeklyRequiredDaily/getReconciledMacroAdvice
+// above — Home's pacing math is untouched by this. This answers a
+// different question: "if I'm looking at THIS specific day (today or a
+// future day later this week), what should ITS full-day total be, given
+// only what's already logged on days strictly BEFORE it?"
+//
+// The key behavioural difference from getWeeklyRequiredDaily: viewDate's
+// OWN logged data is never included in the calculation, no matter how much
+// of viewDate has already been logged — only days before it count. This is
+// what makes day-by-day planning work: adjusting viewDate's own kcal/macros
+// never moves viewDate's own suggested figure, only the days AFTER it (the
+// moment you view viewDate+1, its cutoff includes viewDate, picking up
+// whatever was just planned there). Concretely this means today behaves
+// exactly like any future day being planned ahead — today's own suggested
+// figure is fixed for the whole day, and only tomorrow's figure moves as
+// today's log fills in. (Home's equivalent function switches to excluding
+// today the INSTANT today has any data at all, spreading the remainder
+// across tomorrow onward — a different, deliberately-untouched design
+// serving a different purpose: a single "is this week on pace right now"
+// read, not day-by-day forward planning.)
+function getDayViewRequiredDaily(field, dayMap, weekStart, viewDate, target) {
+  if (target === null || target === undefined) return null;
+  const dow = getHomeIsoDow(viewDate); // Monday=1 .. Sunday=7
+  const cutoff = (() => {
+    const d = new Date(viewDate + 'T00:00:00');
+    d.setDate(d.getDate() - 1);
+    return toLocalDateStr(d);
+  })();
+  const daysRemaining = 8 - dow; // always includes viewDate itself
+  let loggedSoFar = 0;
+  let daysTrackedSoFar = 0;
+  Object.keys(dayMap).forEach(d => {
+    if (d >= weekStart && d <= cutoff) {
+      const day = dayMap[d];
+      const hasField = field === 'steps' ? day.steps !== null : day.hasNutr;
+      if (hasField) { loggedSoFar += (day[field] || 0); daysTrackedSoFar++; }
+    }
+  });
+  if (daysRemaining <= 0) {
+    const requiredDaily = daysTrackedSoFar > 0 ? (loggedSoFar / daysTrackedSoFar) : target;
+    return { requiredDaily, loggedSoFar, daysTrackedSoFar, daysRemaining };
+  }
+  const neededTotal = target * (daysTrackedSoFar + daysRemaining);
+  const remainingBudget = neededTotal - loggedSoFar;
+  return { requiredDaily: remainingBudget / daysRemaining, loggedSoFar, daysTrackedSoFar, daysRemaining };
+}
+
+// Same kcal > protein > carbs > fats priority cascade as
+// getReconciledMacroAdvice — fats floor 20g, carbs floor 50g, protein
+// capped 15g under goal in the infeasible case — just built on
+// getDayViewRequiredDaily's per-day-planning numbers instead of
+// getWeeklyRequiredDaily's today-anchored ones. Kept as a full parallel
+// copy rather than a shared helper so the two can never accidentally
+// couple to each other as either evolves independently later.
+function getNutrDayReconciledAdvice(dayMap, weekStart, viewDate, goal) {
+  if (!goal || goal.kcal === null || goal.kcal === undefined || goal.protein === null || goal.protein === undefined) return null;
+  const kcalInfo    = getDayViewRequiredDaily('kcal',    dayMap, weekStart, viewDate, goal.kcal);
+  const proteinInfo = getDayViewRequiredDaily('protein', dayMap, weekStart, viewDate, goal.protein);
+  const carbsInfo   = getDayViewRequiredDaily('carbs',   dayMap, weekStart, viewDate, goal.carbs);
+  const fatsInfo    = getDayViewRequiredDaily('fats',    dayMap, weekStart, viewDate, goal.fats);
+  if (kcalInfo === null || proteinInfo === null) return null;
+  const kcalRaw    = kcalInfo.requiredDaily;
+  const proteinRaw = proteinInfo.requiredDaily;
+  const carbsRaw    = carbsInfo ? carbsInfo.requiredDaily : null;
+  const fatsRaw     = fatsInfo  ? fatsInfo.requiredDaily  : null;
+
+  const floorKcalCost = (proteinRaw * 4) + (RECONCILE_CARBS_FLOOR * 4) + (RECONCILE_FATS_FLOOR * 9);
+  const feasible = floorKcalCost <= kcalRaw;
+
+  if (feasible) {
+    let carbsAdvice = carbsRaw !== null ? carbsRaw : RECONCILE_CARBS_FLOOR;
+    let fatsAdvice  = fatsRaw  !== null ? fatsRaw  : RECONCILE_FATS_FLOOR;
+    const budgetForCarbsAndFats = kcalRaw - (proteinRaw * 4);
+    let cost = (carbsAdvice * 4) + (fatsAdvice * 9);
+    if (cost > budgetForCarbsAndFats) {
+      const maxFatsKcal = budgetForCarbsAndFats - (carbsAdvice * 4);
+      fatsAdvice = Math.max(RECONCILE_FATS_FLOOR, maxFatsKcal / 9);
+      cost = (carbsAdvice * 4) + (fatsAdvice * 9);
+      if (cost > budgetForCarbsAndFats) {
+        const maxCarbsKcal = budgetForCarbsAndFats - (fatsAdvice * 9);
+        carbsAdvice = Math.max(RECONCILE_CARBS_FLOOR, maxCarbsKcal / 4);
+      }
+    }
+    return { feasible: true, kcal: kcalRaw, protein: proteinRaw, carbs: carbsAdvice, fats: fatsAdvice };
+  }
+
+  const proteinAdvice = goal.protein - RECONCILE_PROTEIN_MAX_DROP;
+  const kcalAdvice = (proteinAdvice * 4) + (RECONCILE_CARBS_FLOOR * 4) + (RECONCILE_FATS_FLOOR * 9);
+  return { feasible: false, kcal: kcalAdvice, protein: proteinAdvice, carbs: RECONCILE_CARBS_FLOOR, fats: RECONCILE_FATS_FLOOR };
 }
 
 // Top-level render for the Home screen — calls each section renderer.
@@ -14143,7 +14241,7 @@ function buildAdviceLineHtml(name, field, dayMap, weekStart, today, target, unit
   const info = getWeeklyRequiredDaily(field, dayMap, weekStart, today, target);
   if (!info) return '';
   const displayValue = (reconciledValue !== null && reconciledValue !== undefined) ? reconciledValue : info.requiredDaily;
-  let sub = formatAdviceSublabel(displayValue, target, unit, today, info.daysRemaining);
+  let sub = formatAdviceSublabel(displayValue, target, unit, today, info.daysRemaining, info.startsToday);
   if (warningPrefix) sub = `${warningPrefix} — ${sub.charAt(0).toLowerCase()}${sub.slice(1)}`;
   const newTarget = Math.round(displayValue);
   const projectedAvg = Math.round(projectedWeeklyAverage(displayValue, info));
@@ -18398,23 +18496,22 @@ function renderNutrHero(animate = false) {
     </div>`;
   }).join('');
 
-  // ── Suggested, to get the week back on track (v7.94) ────────────────────
-  // Reuses the exact same weekly reconciliation engine driving Home's
-  // off-target advice modals (see getReconciledMacroAdvice/openHomeMetricAdvice)
-  // — always today's flat daily rate for the rest of the week, regardless of
-  // which day is currently being browsed. Shown from TODAY through the end
-  // of the current calendar week (Sunday) — browsing forward to Thursday or
-  // Friday this week still shows the same target, but a day that's already
-  // passed doesn't (nothing left to catch up on retroactively for a day
-  // that's over). A date in a past or future week never shows it either,
-  // for the same reason — it drops off entirely the moment the calendar
-  // week rolls over, with no extra bookkeeping needed (weekStart/weekEnd
-  // are always computed fresh off the real "today"). Only shown when kcal
-  // or protein is actually concerning this week (nothing to reconcile
-  // otherwise). Same priority order as Home: kcal, then protein, then
-  // carbs, then fats — fats drops first, carbs only once fats is at floor.
-  // The "logged" side always reflects whichever day is currently selected
-  // — only the suggested target itself is fixed to today's rate.
+  // ── Suggested, to get the week back on track (v7.95) ────────────────────
+  // The suggested TARGET numbers are computed per-day (getNutrDayReconciledAdvice,
+  // getDayViewRequiredDaily) — a fully separate calculation from Home's
+  // week-pace engine, deliberately never touching it. Whether to show the
+  // row at all is still gated on Home's real "is the week currently
+  // concerning" read (today's actual badge status) — that's a single,
+  // real-time fact about the week, independent of which day is being
+  // browsed; the numbers shown once triggered are what's specific per day.
+  // Shown from TODAY through the end of the current calendar week (Sunday)
+  // — a day that's already passed never shows it (nothing left to plan for
+  // a day that's over), and a date in a past or future week doesn't either.
+  // The "logged" side always reflects whichever day is currently selected;
+  // the suggested target is that day's own planning figure — see
+  // getDayViewRequiredDaily's comment for exactly how that's computed and
+  // why adjusting a day's own log never moves its own suggested number,
+  // only the day after it.
   let suggestedHtml = '';
   const weekStart = getHomeWeekStart(today);
   const weekStartDate = new Date(weekStart + 'T00:00:00');
@@ -18422,15 +18519,15 @@ function renderNutrHero(animate = false) {
   weekEndDate.setDate(weekEndDate.getDate() + 6);
   const weekEnd = toLocalDateStr(weekEndDate);
   const todayGoal = getGoalForDay(today);
-  if (nutrSelectedDate >= today && nutrSelectedDate <= weekEnd && todayGoal && todayGoal.kcal !== null && todayGoal.kcal !== undefined && todayGoal.protein !== null && todayGoal.protein !== undefined) {
+  if (nutrSelectedDate >= today && nutrSelectedDate <= weekEnd && goal && goal.kcal !== null && goal.kcal !== undefined && goal.protein !== null && goal.protein !== undefined) {
     const dayMap = buildDayMap();
     const kcalAvg = avgDayMapField(dayMap, 'kcal', weekStart, today);
     const proteinAvg = avgDayMapField(dayMap, 'protein', weekStart, today);
-    const kcalBadge = getHomeMetricBadge('kcal', kcalAvg, todayGoal.kcal, dayMap, weekStart, today);
-    const proteinBadge = getHomeMetricBadge('protein', proteinAvg, todayGoal.protein, dayMap, weekStart, today);
+    const kcalBadge = todayGoal ? getHomeMetricBadge('kcal', kcalAvg, todayGoal.kcal, dayMap, weekStart, today) : { color: null };
+    const proteinBadge = todayGoal ? getHomeMetricBadge('protein', proteinAvg, todayGoal.protein, dayMap, weekStart, today) : { color: null };
     const concerning = kcalBadge.color === 'var(--red)' || proteinBadge.color === 'var(--red)';
     if (concerning) {
-      const reconciled = getReconciledMacroAdvice(dayMap, weekStart, today, todayGoal);
+      const reconciled = getNutrDayReconciledAdvice(dayMap, weekStart, nutrSelectedDate, goal);
       if (reconciled) {
         const suggested = [
           { label:'Kcal',    logged: totals.kcal,          target: Math.round(reconciled.kcal),    unit:'' },

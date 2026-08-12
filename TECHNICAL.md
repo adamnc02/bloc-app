@@ -3023,3 +3023,50 @@ Two changes to the kcal/protein/carbs/fats reconciliation introduced in §30 (v7
 Carbs and steps, when *they're* the flagged/tapped metric (kcal and protein both on track), fall back to the single-field branch unchanged — there's nothing to reconcile against when nothing else needs squeezing.
 
 Carbs' badge polarity (`HOME_METRIC_POLARITY.carbs = 'overBad'`, in `getHomeMetricBadge`) was checked and confirmed already correct against the requirement that carbs only ever flags off-track when *over* threshold, never under — this predates this session's changes (see §29/§59-60-era work) and needed no code change: `behindPace` (currently under, needing to eat *more* to reach target) resolves to `isBad = polarity !== 'overBad'` → `false` for carbs; only `aheadPace` (currently over, needing to eat *less*) resolves `isBad = true`. Verified directly: `getHomeMetricBadge('carbs', 60, 100, ...)` (well under target) returns `{ label: 'On track', color: 'var(--green)' }`.
+
+## 44. Module: Nutrition — Per-Day Planning Row (v7.93)
+
+This module went through several iterations in one working session before landing on its final design — worth recording the journey briefly since the early iterations' reasoning explains why the final one looks the way it does, and because the changelog/version history otherwise makes it look like this shipped in one pass.
+
+### Iteration history (all superseded by the design below)
+
+1. **First cut**: reused Home's `getReconciledMacroAdvice(dayMap, weekStart, today, goal)` directly, gated on `nutrSelectedDate === today`. Simple, but meant the row only ever appeared on today's own page.
+2. **Second cut**: broadened the gate to the whole current calendar week (`weekStart`–`weekEnd`), so it stayed visible while browsing any day this week. Still called Home's engine unchanged — every day showed the *same* number (today's rate), just labelled differently.
+3. **Third cut**: narrowed the gate to `today`–`weekEnd` (dropping already-passed days, since there's nothing left to plan for a day that's over), and simplified the label to "Adjusted to get the week back on track."
+4. **Final design (this section)**: replaced the shared engine with a day-specific one, so each day's suggestion is actually different and reflects only what's logged before it — see below.
+
+### What it is now
+
+A second row of four `.hero-callout` tiles — Kcal, Protein, Carbs, Fats — below the existing goal callouts on `renderNutrHero()`, "logged / suggested" format matching the row above it. Shown only when `nutrSelectedDate` falls between `today` and the end of the current calendar week (Sunday) inclusive, and only when kcal or protein is flagged concerning **right now** (checked via Home's real, today-anchored `getHomeMetricBadge` — a single live fact about whether the week needs correcting at all, independent of which day is being browsed).
+
+### The core design problem this solves
+
+The whole point of this row is to support planning the week one day at a time — today, then tomorrow, then the day after, in order. That requires each day's suggested figure to depend only on days *before* it, and to never move because of that day's own logging. Home's `getWeeklyRequiredDaily` doesn't have this property: the moment "today" (whichever day is passed in) has *any* logged data for a field, it flips from treating that day as still-open (spread the remaining budget across it and every day after) to treating it as settled (exclude it, spread the remainder from tomorrow onward). That's the right behavior for Home's job — a single "is the week on pace right now" read — but wrong for Nutrition's: it would mean the day you're actively looking at silently changes its own suggested target from moment to moment as you add or remove food, and a future day you're planning ahead would incorporate its *own* not-yet-real entries into its *own* suggestion, both of which defeat the point of forward planning.
+
+### `getDayViewRequiredDaily(field, dayMap, weekStart, viewDate, target)`
+
+A parallel function to `getWeeklyRequiredDaily`, deliberately never touching it. The only structural difference: it always takes the "not yet closed" branch, unconditionally — `cutoff` is always `viewDate - 1 day`, `daysRemaining` is always `8 - isoDow(viewDate)` (i.e. always includes `viewDate` itself). `viewDate`'s own entry in `dayMap` is never read. Concretely, for whichever day is being viewed, this always answers "the flat daily rate needed for *this day and every day after it*, based only on what's already logged on strictly earlier days" — exactly the "today behaves like any future day being planned ahead" contract requested.
+
+### `getNutrDayReconciledAdvice(dayMap, weekStart, viewDate, goal)`
+
+A full parallel copy of `getReconciledMacroAdvice` — same kcal > protein > carbs > fats cascade, same 50g/20g floors, same 15g protein-drop cap in the infeasible case — with every `getWeeklyRequiredDaily(field, dayMap, weekStart, today, ...)` call swapped for `getDayViewRequiredDaily(field, dayMap, weekStart, viewDate, ...)`. Kept as a genuine copy rather than a parameterized shared function specifically so the two engines can't accidentally couple to each other as either evolves independently later — Home's math must never change as a side effect of a Nutrition-only tweak, or vice versa.
+
+### Verification
+
+Playwright, against real backup data. Directly confirmed the core property: computed `getNutrDayReconciledAdvice` for today, then simulated adding a 900kcal snack to today's log and recomputed — today's own figures were byte-identical before and after (`kcal: 1420, protein: 227.8, carbs: 82.2, fats: 20` both times). Recomputing *tomorrow's* figures before vs. after that same edit showed the expected shift (`kcal: 1378 → 1216`, flipping from feasible to the infeasible/protein-capped branch) — tomorrow absorbed exactly what today's edit added, today didn't move at all. Also confirmed via screenshot: browsing forward to Sunday with the intervening days left unplanned shows the whole week's remaining budget compressed into that one day, as expected from the cascading design. Gate boundaries reconfirmed: hidden on the two already-passed days this week, visible from today through Sunday, hidden entirely outside the current week.
+
+### Layout
+
+`.hero-callouts` is a fixed 3-column CSS grid (built for the existing Protein/Carbs/Fats row above it). This row overrides `grid-template-columns` inline (`repeat(4, 1fr)`) on just this instance, and drops tile value font-size from the class default 15px to 13px inline, so a 4-digit kcal "logged / suggested" pair (e.g. "1589 / 1378") fits comfortably in a quarter-width column on a ~390px viewport. The label above the tiles is centered (`text-align:center`), matching a follow-up visual fix — it initially inherited left alignment from its container.
+
+## 45. Bug fixes bundled with v7.93
+
+**Duplicated divider below the macrocycle extension badge (Plan page).** The extension badge (§42) drew its own `border-top` *and* `border-bottom`, but `renderPlanGoalsSection()` already draws its own leading `.divider` immediately below wherever the badge sits — two lines stacked with only margin between them once the badge existed. Fixed by dropping the badge's `border-bottom` entirely; the goals section's existing divider now does that job alone, exactly as it did before the badge was introduced.
+
+**Tap-outside-to-close missing on four modals.** `initModal(overlayEl)` — the function that wires up backdrop-tap-to-close for every other modal in the app — requires a `.modal-sheet` child element, and returns immediately (attaching nothing at all, not even the backdrop listener) if it doesn't find one. The four modals introduced in v7.90/v7.91 (`modal-home-metric-advice`, `modal-macro-extend-weeks`, `modal-macro-extend-choice`, `modal-macro-extend-edit`) were all built as plain centered dialogs in the style of `modal-confirm` — which also lacks a `.modal-sheet`, but deliberately: a destructive-action confirmation forcing an explicit Cancel/Confirm choice is a reasonable design to make non-backdrop-dismissible. For these four, the omission was unintentional. Rather than changing `initModal`'s shared behavior (which would also grant `modal-confirm` a backdrop-dismiss it was never meant to have), each of the four overlay elements got an explicit inline handler: `onclick="if(event.target===this) closeModal('...')"`.
+
+## 46. Home advice text — "starting today" vs "starting tomorrow" (v7.93)
+
+Small wording addition to `formatAdviceSublabel`, no math changed anywhere. `getWeeklyRequiredDaily` already internally decided, every time it ran, whether the flat catch-up rate it returned started counting from today (today has no logged data yet for that field, so it's still "open") or from tomorrow (today already has a logged value, so it's settled and excluded) — that decision just wasn't exposed anywhere, so the advice sentence ("Adjust your daily avg by ±X for the rest of the week to hit target") never said which of the two it meant.
+
+`getWeeklyRequiredDaily`'s return object gained one additive field, `startsToday: !todayHasField` (both existing return branches updated identically — no change to `requiredDaily`/`loggedSoFar`/`daysTrackedSoFar`/`daysRemaining`, which every existing caller continues to receive exactly as before). `formatAdviceSublabel` gained a matching `startsToday` parameter, and now renders `for the rest of the week (starting today)` or `for the rest of the week (starting tomorrow)` accordingly. Both call sites (`getHomeMetricSublabel`, `buildAdviceLineHtml`) were updated to pass `info.startsToday` through. This affects Home's advice text only — Nutrition's per-day planning row (§44) never calls `formatAdviceSublabel` and is unaffected.
