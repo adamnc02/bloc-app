@@ -18398,26 +18398,39 @@ function renderNutrHero(animate = false) {
     </div>`;
   }).join('');
 
-  // ── Suggested today, to get the week back on track (v7.93) ─────────────
+  // ── Suggested, to get the week back on track (v7.94) ────────────────────
   // Reuses the exact same weekly reconciliation engine driving Home's
   // off-target advice modals (see getReconciledMacroAdvice/openHomeMetricAdvice)
-  // — these are today's flat daily rate out of that same calculation, so
-  // this only means anything on nutrSelectedDate === today (a browsed past
-  // or future date has no "rest of the week" to catch up on) and only when
-  // kcal or protein is actually concerning this week (nothing to reconcile
+  // — always today's flat daily rate for the rest of the week, regardless of
+  // which day is currently being browsed. Shown from TODAY through the end
+  // of the current calendar week (Sunday) — browsing forward to Thursday or
+  // Friday this week still shows the same target, but a day that's already
+  // passed doesn't (nothing left to catch up on retroactively for a day
+  // that's over). A date in a past or future week never shows it either,
+  // for the same reason — it drops off entirely the moment the calendar
+  // week rolls over, with no extra bookkeeping needed (weekStart/weekEnd
+  // are always computed fresh off the real "today"). Only shown when kcal
+  // or protein is actually concerning this week (nothing to reconcile
   // otherwise). Same priority order as Home: kcal, then protein, then
   // carbs, then fats — fats drops first, carbs only once fats is at floor.
+  // The "logged" side always reflects whichever day is currently selected
+  // — only the suggested target itself is fixed to today's rate.
   let suggestedHtml = '';
-  if (nutrSelectedDate === today && goal && goal.kcal !== null && goal.kcal !== undefined && goal.protein !== null && goal.protein !== undefined) {
+  const weekStart = getHomeWeekStart(today);
+  const weekStartDate = new Date(weekStart + 'T00:00:00');
+  const weekEndDate = new Date(weekStartDate);
+  weekEndDate.setDate(weekEndDate.getDate() + 6);
+  const weekEnd = toLocalDateStr(weekEndDate);
+  const todayGoal = getGoalForDay(today);
+  if (nutrSelectedDate >= today && nutrSelectedDate <= weekEnd && todayGoal && todayGoal.kcal !== null && todayGoal.kcal !== undefined && todayGoal.protein !== null && todayGoal.protein !== undefined) {
     const dayMap = buildDayMap();
-    const weekStart = getHomeWeekStart(today);
     const kcalAvg = avgDayMapField(dayMap, 'kcal', weekStart, today);
     const proteinAvg = avgDayMapField(dayMap, 'protein', weekStart, today);
-    const kcalBadge = getHomeMetricBadge('kcal', kcalAvg, goal.kcal, dayMap, weekStart, today);
-    const proteinBadge = getHomeMetricBadge('protein', proteinAvg, goal.protein, dayMap, weekStart, today);
+    const kcalBadge = getHomeMetricBadge('kcal', kcalAvg, todayGoal.kcal, dayMap, weekStart, today);
+    const proteinBadge = getHomeMetricBadge('protein', proteinAvg, todayGoal.protein, dayMap, weekStart, today);
     const concerning = kcalBadge.color === 'var(--red)' || proteinBadge.color === 'var(--red)';
     if (concerning) {
-      const reconciled = getReconciledMacroAdvice(dayMap, weekStart, today, goal);
+      const reconciled = getReconciledMacroAdvice(dayMap, weekStart, today, todayGoal);
       if (reconciled) {
         const suggested = [
           { label:'Kcal',    logged: totals.kcal,          target: Math.round(reconciled.kcal),    unit:'' },
@@ -18431,7 +18444,7 @@ function renderNutrHero(animate = false) {
         </div>`).join('');
         suggestedHtml = `<div class="divider" style="margin:16px 0 0;"></div>
         <div style="padding:12px 0 0;">
-          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;text-align:center;">Suggested today, to get the week back on track</div>
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;text-align:center;">Adjusted to get the week back on track</div>
           <div class="hero-callouts" style="grid-template-columns:repeat(4, 1fr);margin-top:8px;">${suggCallouts}</div>
         </div>`;
       }
