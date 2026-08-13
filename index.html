@@ -13880,13 +13880,11 @@ function getReconciledMacroAdvice(dayMap, weekStart, today, goal) {
 // read, not day-by-day forward planning.)
 function getDayViewRequiredDaily(field, dayMap, weekStart, viewDate, target) {
   if (target === null || target === undefined) return null;
-  const dow = getHomeIsoDow(viewDate); // Monday=1 .. Sunday=7
   const cutoff = (() => {
     const d = new Date(viewDate + 'T00:00:00');
     d.setDate(d.getDate() - 1);
     return toLocalDateStr(d);
   })();
-  const daysRemaining = 8 - dow; // always includes viewDate itself
   let loggedSoFar = 0;
   let daysTrackedSoFar = 0;
   Object.keys(dayMap).forEach(d => {
@@ -13896,6 +13894,17 @@ function getDayViewRequiredDaily(field, dayMap, weekStart, viewDate, target) {
       if (hasField) { loggedSoFar += (day[field] || 0); daysTrackedSoFar++; }
     }
   });
+  // daysRemaining is derived from daysTrackedSoFar (7 minus however many
+  // days actually have real data), NOT from the calendar distance between
+  // viewDate and Sunday — otherwise a currently-blank gap day sitting
+  // between the last real entry and viewDate (e.g. Saturday left unplanned
+  // while looking ahead to Sunday) would silently shrink the pool it's
+  // divided across, even though nothing has actually been decided for it
+  // yet. This is what makes two still-unplanned days in a row (Sat & Sun,
+  // both blank) show the identical suggested figure until one of them
+  // actually gets logged — they're genuinely sharing one undivided pool,
+  // not two separately-shrinking ones. See TECHNICAL.md §47.
+  const daysRemaining = 7 - daysTrackedSoFar;
   if (daysRemaining <= 0) {
     const requiredDaily = daysTrackedSoFar > 0 ? (loggedSoFar / daysTrackedSoFar) : target;
     return { requiredDaily, loggedSoFar, daysTrackedSoFar, daysRemaining };
