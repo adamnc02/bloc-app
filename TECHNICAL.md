@@ -3070,3 +3070,78 @@ Playwright, against real backup data. Directly confirmed the core property: comp
 Small wording addition to `formatAdviceSublabel`, no math changed anywhere. `getWeeklyRequiredDaily` already internally decided, every time it ran, whether the flat catch-up rate it returned started counting from today (today has no logged data yet for that field, so it's still "open") or from tomorrow (today already has a logged value, so it's settled and excluded) — that decision just wasn't exposed anywhere, so the advice sentence ("Adjust your daily avg by ±X for the rest of the week to hit target") never said which of the two it meant.
 
 `getWeeklyRequiredDaily`'s return object gained one additive field, `startsToday: !todayHasField` (both existing return branches updated identically — no change to `requiredDaily`/`loggedSoFar`/`daysTrackedSoFar`/`daysRemaining`, which every existing caller continues to receive exactly as before). `formatAdviceSublabel` gained a matching `startsToday` parameter, and now renders `for the rest of the week (starting today)` or `for the rest of the week (starting tomorrow)` accordingly. Both call sites (`getHomeMetricSublabel`, `buildAdviceLineHtml`) were updated to pass `info.startsToday` through. This affects Home's advice text only — Nutrition's per-day planning row (§44) never calls `formatAdviceSublabel` and is unaffected.
+
+## 47. Weekly Swings card — kcal/steps/protein switched to per-day target deviation (v7.94)
+
+### The report
+
+Reported against a real backup: W9's steps swing showed −2227/+1915, but the only two days that week below the 12,000 step goal were 428 and 577 short respectively — nowhere near 2227. The card's own doc comment was accurate (it computed the smallest/largest *consecutive day-to-day change*, not deviation from target), and the math checked out exactly against real data: Aug 8→9 dropped from 13,650 to 11,423, a swing of −2227. Confirmed not a bug in the existing definition — but the definition itself wasn't the useful one for three of the four columns.
+
+### The fix
+
+`swingOf(entries)` — smallest/largest change between consecutive chronological entries — is retained as-is and now used for **weight only**, which has no daily target to measure deviation against.
+
+A new sibling, `devSwingOf(dates, field)`, computes smallest/largest `actual − target` across a list of dates for **kcal/steps/protein**:
+
+```js
+function devSwingOf(dates, field) {
+  if (!macro) return { min: null, max: null };
+  const diffs = [];
+  dates.forEach(d => {
+    const g = getGoalForDate(d, macro.id);
+    const target = g ? g[field] : null;
+    const actual = dayMap[d][field];
+    if (target !== null && target !== undefined && actual !== null && actual !== undefined) {
+      diffs.push(actual - target);
+    }
+  });
+  if (diffs.length < 1) return { min: null, max: null };
+  return { min: Math.min(...diffs), max: Math.max(...diffs) };
+}
+```
+
+Resolves each date's own target via `getGoalForDate(date, macro.id)` — the same per-day goal lookup `buildGoalColumnHeroChart` already uses — so a goal change mid-week (e.g. a step target bump partway through) is handled correctly rather than comparing every day in the bucket against a single flat number. Returns `{min: null, max: null}` (rendered as `—` by the existing `swingStr`) when there's no active macro to resolve a target against, or no day in the bucket has both a logged value and a resolvable target.
+
+### Verification
+
+Re-derived W9 by hand against the real backup: steps `11572, 13487, 12442, 12274, 12872, 13650, 11423` against a 12,000 target gives per-day deviations `−428, +1487, +442, +274, +872, +1650, −577` — min/max **−577/+1650**, confirmed live in the rendered card. This now correctly surfaces "worst/best single day this week" rather than "biggest single jump between two consecutive days," which is what the card's use of the word "swing" had been misread as.
+
+### Caption text
+
+The line under the table (`Smallest/largest day-to-day change logged within each week.`) was replaced with one that states both definitions explicitly, since the same card now has two different meanings living side by side across its columns.
+
+## 48. Reconciliation "get back on track" ceiling fix + revised constants (v7.94/v7.95)
+
+### The bug
+
+Reported: before logging today's kcal, both today and tomorrow showed a suggested target of 1,427. After logging 1,503 today (76 over that figure), tomorrow's suggestion dropped all the way to 1,216 — a much larger swing than the 76kcal overage should have produced.
+
+Traced to the infeasible branch of `getReconciledMacroAdvice`/`getNutrDayReconciledAdvice`. Reconstructed against the real backup for the affected day (goal: 1,500kcal/224g protein, Aug 10–15 already logged):
+
+- Pure kcal pacing (`kcalRaw`): **1,350** — a reasonable, expected pullback given the week ran slightly hot.
+- Pure protein catch-up (`proteinRaw`): **285g** — protein had been under-eaten this week, so its own independent rate wants a big correction.
+- `floorKcalCost` = `285×4 + 50×4 + 20×9` = **1,520** — exceeds `kcalRaw` (1,350), so the branch is flagged infeasible.
+- Fallback (pre-fix): `proteinAdvice = goal.protein − 15 = 209`; `kcalAdvice = 209×4 + 50×4 + 20×9` = **1,216** — returned unconditionally, with no relationship to `kcalRaw` at all.
+
+The root problem: feasibility is tested using `proteinRaw` (285g, the full uncapped catch-up rate), but the fallback's actual protein number is the much smaller capped figure (209g in this example). Those two numbers can diverge enough that the capped figure's true cost (1,216) ends up *cheaper* than `kcalRaw` (1,350) — meaning the compromise was actually affordable within the normal pacing budget all along, yet the fallback discarded `kcalRaw` entirely and hands back a number lower than plain pacing already called for. The function's own prior doc comment claimed the opposite would always hold ("kcal will land above its own ideal catch-up rate this week as a result") — true whenever the floor cost happens to exceed `kcalRaw`, but not guaranteed, and this case is the counter-example.
+
+### The fix
+
+```js
+const proteinAdvice = goal.protein - RECONCILE_PROTEIN_MAX_DROP;
+const floorCost = (proteinAdvice * 4) + (RECONCILE_CARBS_FLOOR * 4) + (RECONCILE_FATS_FLOOR * 9);
+const kcalCeiling = goal.kcal + RECONCILE_KCAL_MAX_OVERSHOOT;
+const kcalAdvice = Math.min(kcalCeiling, Math.max(kcalRaw, floorCost));
+```
+
+`kcalAdvice` is now clamped on both sides:
+- **Floor**: never below `kcalRaw` — the fallback can raise kcal above plain pacing to accommodate a reduced-but-still-real protein target, but can never recommend eating *less* than pacing alone already called for.
+- **Ceiling**: never above `goal.kcal + RECONCILE_KCAL_MAX_OVERSHOOT` (75kcal) — a genuinely large protein shortfall can no longer push the kcal figure arbitrarily far past target on a single day; protein may land short of its own capped number if the ceiling binds first, since kcal outranks protein in the priority order.
+
+`RECONCILE_PROTEIN_MAX_DROP` tightened from 15g to 10g below the flat goal, and a new `RECONCILE_KCAL_MAX_OVERSHOOT = 75` constant added, both per direct request. Applied identically to both parallel copies (`getReconciledMacroAdvice` for Home, `getNutrDayReconciledAdvice` for Nutrition's per-day planning row, §44) — they're kept as intentionally separate implementations (see each function's own header comment) so both needed the same edit independently.
+
+A stale hardcoded warning string in `openHomeMetricAdvice` (`"...protein is capped 15g below goal..."`) was still quoting the old constant verbatim after it changed to 10g — fixed to interpolate `RECONCILE_PROTEIN_MAX_DROP`/`RECONCILE_KCAL_MAX_OVERSHOOT` directly rather than hardcoding either number again. A second stale comment reference (`buildAdviceLineHtml`'s header, "e.g. protein capped 15g under") was also corrected.
+
+### Verification
+
+Re-derived the affected day against the real backup with the new constants: `proteinAdvice = 224 − 10 = 214`; `floorCost = 214×4 + 50×4 + 20×9 = 1,236`; `kcalCeiling = 1,500 + 75 = 1,575`; `kcalAdvice = min(1575, max(1350, 1236)) = 1350`. Confirmed live in the Home advice modal against the real backup — the modal now reads "hit 1,350 today to bring the week to target" / "Hit 214g today," in place of the previous 1,216/209.
