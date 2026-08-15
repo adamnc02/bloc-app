@@ -2315,7 +2315,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
       <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 2px;border-bottom:1px solid var(--border);margin-bottom:16px;cursor:pointer;" onclick="openModal('modal-settings-about')">
         <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-        <span class="tag tag-outline">v7.93</span>
+        <span class="tag tag-outline">v7.95</span>
       </div>
 
       <!-- ── Profile section ── -->
@@ -8994,11 +8994,18 @@ function buildWeeklySummaryCardHTML() {
 // Builds the weekly swing table card (weight / kcal / steps / protein) as
 // an HTML string for the Progress page's swipeable table stack — the
 // second slide, between the weekly summary and the measurements table.
-// A "swing" is the smallest and largest consecutive day-to-day change for
-// a metric within that calendar week (chronological logged entries only,
-// gaps between logs aren't treated as a swing), surfacing day-to-day
-// volatility separately from the smoothed weekly averages/deltas shown on
-// the weekly summary slide.
+// Two different meanings of "swing" live in this one card:
+//   - Weight has no daily target, so its swing is the smallest/largest
+//     CONSECUTIVE day-to-day change (chronological logged entries only,
+//     gaps between logs aren't treated as a swing) — day-to-day volatility.
+//   - Kcal/steps/protein each have a daily target (from the goal covering
+//     that date), so their swing is the smallest/largest DEVIATION FROM
+//     TARGET on any single logged day that week (actual − target) — how
+//     far off-target the worst/best day ran, not how much it moved versus
+//     the day before. Requires an active macrocycle to resolve a target;
+//     shows "—" without one.
+// Either way this is a volatility/off-target read, kept separate from the
+// smoothed weekly averages/deltas shown on the weekly summary slide.
 function buildWeeklySwingsCardHTML() {
   const dayMap = buildDayMap();
   const macro  = resolveProgressMacro();
@@ -9019,10 +9026,31 @@ function buildWeeklySwingsCardHTML() {
 
   // Smallest/largest consecutive change across a chronological list of
   // {date, value} entries — null if fewer than 2 data points this week.
+  // Used for weight only (no daily target to measure against).
   function swingOf(entries) {
     if (entries.length < 2) return { min: null, max: null };
     const diffs = [];
     for (let i = 0; i < entries.length - 1; i++) diffs.push(entries[i+1] - entries[i]);
+    return { min: Math.min(...diffs), max: Math.max(...diffs) };
+  }
+
+  // Smallest/largest (actual − target) deviation across a list of dates,
+  // resolving each date's own target via getGoalForDate (so a goal change
+  // mid-week is handled correctly). null if there's no active macro to
+  // resolve a target against, or no days with both a logged value and a
+  // resolvable target. Used for kcal/steps/protein.
+  function devSwingOf(dates, field) {
+    if (!macro) return { min: null, max: null };
+    const diffs = [];
+    dates.forEach(d => {
+      const g = getGoalForDate(d, macro.id);
+      const target = g ? g[field] : null;
+      const actual = dayMap[d][field];
+      if (target !== null && target !== undefined && actual !== null && actual !== undefined) {
+        diffs.push(actual - target);
+      }
+    });
+    if (diffs.length < 1) return { min: null, max: null };
     return { min: Math.min(...diffs), max: Math.max(...diffs) };
   }
 
@@ -9043,9 +9071,9 @@ function buildWeeklySwingsCardHTML() {
         b.push({
           label: 'W' + wn++,
           weight:  swingOf(wD.map(d => dayMap[d].weight)),
-          kcal:    swingOf(nD.map(d => dayMap[d].kcal)),
-          steps:   swingOf(sD.map(d => dayMap[d].steps)),
-          protein: swingOf(nD.map(d => dayMap[d].protein)),
+          kcal:    devSwingOf(nD, 'kcal'),
+          steps:   devSwingOf(sD, 'steps'),
+          protein: devSwingOf(nD, 'protein'),
         });
       }
       cur2 = new Date(cur2); cur2.setDate(cur2.getDate() + 7);
@@ -9063,7 +9091,7 @@ function buildWeeklySwingsCardHTML() {
   }
   function swingStr(swing, decimals, suffix) {
     if (swing.min === null || swing.max === null) return '—';
-    // Only one day-to-day change this week — min and max are the same
+    // Only one qualifying value this week — min and max are the same
     // number, so show it once rather than repeating it either side of a slash.
     if (swing.min === swing.max) return fmtSigned(swing.min, decimals, suffix);
     return fmtSigned(swing.min, decimals, suffix) + '/' + fmtSigned(swing.max, decimals, suffix);
@@ -9078,7 +9106,7 @@ function buildWeeklySwingsCardHTML() {
   </tr>`).join('');
 
   return `<div style="margin-top:8px;">
-    <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">Smallest/largest day-to-day change logged within each week.</div>
+    <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">Weight: smallest/largest day-to-day change. Kcal/steps/protein: smallest/largest deviation from that day's target.</div>
     <div style="overflow-x:auto;">
       <table style="width:100%;border-collapse:collapse;">
         <thead>
@@ -13795,16 +13823,25 @@ function getHomeMetricSublabel(field, dayMap, weekStart, today, target, unit) {
 //      whatever's left of the kcal budget. Fats — the lowest priority —
 //      always takes the drop first; carbs only gets trimmed once fats has
 //      already been cut to its 20g floor and there's still no room.
-//   2. If not, protein's rate is capped at 15g/day below its own flat daily
+//   2. If not, protein's rate is capped at 10g/day below its own flat daily
 //      goal (never lower), carbs/fats drop to their floors, and kcal is
-//      recalculated as whatever that combination actually costs — kcal
-//      will land above its own "ideal" catch-up rate this week as a result.
+//      recalculated as whatever that combination actually costs — but
+//      clamped to a range, never left to float free: floored at kcal's own
+//      raw catch-up rate (this fallback must never suggest eating LESS than
+//      plain kcal pacing already called for — seeing a low-protein day also
+//      shove kcal down further than pacing alone would is the bug this
+//      floor exists to prevent), and ceilinged at 75kcal above the flat
+//      daily kcal goal (never suggest blowing well past target on a single
+//      day just to chase protein). When the ceiling is what binds, protein
+//      may land short of its own 10g-under-goal number — kcal outranks
+//      protein in the priority order, so kcal's ceiling wins.
 // Only ever called for a metric that's already flagged concerning (see
 // openHomeMetricAdvice) — this changes the ADVICE text only, never
 // which metrics get flagged or their badge colour.
 const RECONCILE_CARBS_FLOOR = 50; // g/day
 const RECONCILE_FATS_FLOOR  = 20; // g/day — fats drops first, this is its hard floor
-const RECONCILE_PROTEIN_MAX_DROP = 15; // g/day below protein's flat goal
+const RECONCILE_PROTEIN_MAX_DROP = 10; // g/day below protein's flat goal
+const RECONCILE_KCAL_MAX_OVERSHOOT = 75; // kcal above the flat daily kcal goal — hard ceiling for the infeasible fallback below
 
 function getReconciledMacroAdvice(dayMap, weekStart, today, goal) {
   if (!goal || goal.kcal === null || goal.kcal === undefined || goal.protein === null || goal.protein === undefined) return null;
@@ -13846,10 +13883,14 @@ function getReconciledMacroAdvice(dayMap, weekStart, today, goal) {
     };
   }
 
-  // Not feasible: cap protein's shortfall at 15g below its own flat daily
-  // goal, drop carbs/fats to their floors, and let kcal absorb the cost.
+  // Not feasible: cap protein's shortfall at 10g below its own flat daily
+  // goal, drop carbs/fats to their floors, and let kcal absorb the cost —
+  // clamped between kcalRaw (floor) and goal.kcal + 75 (ceiling). See the
+  // comment above this function for why both bounds exist.
   const proteinAdvice = goal.protein - RECONCILE_PROTEIN_MAX_DROP;
-  const kcalAdvice = (proteinAdvice * 4) + (RECONCILE_CARBS_FLOOR * 4) + (RECONCILE_FATS_FLOOR * 9);
+  const floorCost = (proteinAdvice * 4) + (RECONCILE_CARBS_FLOOR * 4) + (RECONCILE_FATS_FLOOR * 9);
+  const kcalCeiling = goal.kcal + RECONCILE_KCAL_MAX_OVERSHOOT;
+  const kcalAdvice = Math.min(kcalCeiling, Math.max(kcalRaw, floorCost));
   return {
     feasible: false,
     kcal: kcalAdvice, protein: proteinAdvice, carbs: RECONCILE_CARBS_FLOOR,
@@ -13916,7 +13957,8 @@ function getDayViewRequiredDaily(field, dayMap, weekStart, viewDate, target) {
 
 // Same kcal > protein > carbs > fats priority cascade as
 // getReconciledMacroAdvice — fats floor 20g, carbs floor 50g, protein
-// capped 15g under goal in the infeasible case — just built on
+// capped 10g under goal in the infeasible case, kcal clamped between
+// kcalRaw and goal.kcal+75 in that same case — just built on
 // getDayViewRequiredDaily's per-day-planning numbers instead of
 // getWeeklyRequiredDaily's today-anchored ones. Kept as a full parallel
 // copy rather than a shared helper so the two can never accidentally
@@ -13954,7 +13996,9 @@ function getNutrDayReconciledAdvice(dayMap, weekStart, viewDate, goal) {
   }
 
   const proteinAdvice = goal.protein - RECONCILE_PROTEIN_MAX_DROP;
-  const kcalAdvice = (proteinAdvice * 4) + (RECONCILE_CARBS_FLOOR * 4) + (RECONCILE_FATS_FLOOR * 9);
+  const floorCost = (proteinAdvice * 4) + (RECONCILE_CARBS_FLOOR * 4) + (RECONCILE_FATS_FLOOR * 9);
+  const kcalCeiling = goal.kcal + RECONCILE_KCAL_MAX_OVERSHOOT;
+  const kcalAdvice = Math.min(kcalCeiling, Math.max(kcalRaw, floorCost));
   return { feasible: false, kcal: kcalAdvice, protein: proteinAdvice, carbs: RECONCILE_CARBS_FLOOR, fats: RECONCILE_FATS_FLOOR };
 }
 
@@ -14174,7 +14218,7 @@ function openHomeMetricAdvice(field) {
   let content;
   if (reconciled) {
     const warningPrefix = !reconciled.feasible
-      ? "Can't fully hit both this week — protein is capped 15g below goal and kcal absorbs the rest"
+      ? `Can't fully hit both this week — protein is capped ${RECONCILE_PROTEIN_MAX_DROP}g below goal, and kcal is held within ${RECONCILE_KCAL_MAX_OVERSHOOT}kcal of target`
       : null;
     const kcalLine    = buildAdviceLineHtml('Kcal', 'kcal', dayMap, weekStart, today, goal.kcal, '', reconciled.kcal, field === 'kcal' ? warningPrefix : null);
     const proteinLine = buildAdviceLineHtml('Protein', 'protein', dayMap, weekStart, today, goal.protein, 'g', reconciled.protein, field === 'protein' ? warningPrefix : null);
@@ -14245,7 +14289,7 @@ function toggleHomeAdvice() {
 // remaining day. For an unreconciled figure the projected average always
 // equals the metric's own goal by construction; it's only interesting once
 // a reconciled figure is passed in (see getReconciledMacroAdvice), where it
-// may land deliberately away from goal (e.g. protein capped 15g under).
+// may land deliberately away from goal (e.g. protein capped 10g under).
 function buildAdviceLineHtml(name, field, dayMap, weekStart, today, target, unit, reconciledValue, warningPrefix) {
   const info = getWeeklyRequiredDaily(field, dayMap, weekStart, today, target);
   if (!info) return '';
