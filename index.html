@@ -2315,7 +2315,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
       <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 2px;border-bottom:1px solid var(--border);margin-bottom:16px;cursor:pointer;" onclick="openModal('modal-settings-about')">
         <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-        <span class="tag tag-outline">v7.95</span>
+        <span class="tag tag-outline">v7.96</span>
       </div>
 
       <!-- ── Profile section ── -->
@@ -2623,6 +2623,45 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     </div>
     <div class="modal-title">Cycle history</div>
     <div id="cycle-history-list"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-next-cycle-context">
+  <div class="modal-sheet" data-modal="modal-next-cycle-context">
+    <div class="modal-handle-row"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-next-cycle-context')">✕</button>
+    </div>
+    <div class="modal-title">Anything BLOC should know?</div>
+    <div style="font-size:12px;color:var(--text3);line-height:1.5;margin:-8px 0 14px;">
+      Optional — both fields help BLOC reason about pacing, not just confirm the numbers. Skip to continue exactly as before.
+    </div>
+    <div class="label" style="display:flex;justify-content:space-between;">
+      <span>Anything about you or your situation BLOC should factor in?</span>
+      <span id="next-cycle-context-counter" style="color:var(--text3);font-weight:400;">0/300</span>
+    </div>
+    <textarea id="next-cycle-context-input" maxlength="300" oninput="updateNextCycleContextCounter()"
+      placeholder="e.g. I've always found it hard to keep weight off after a cut…"
+      style="width:100%;min-height:70px;padding:9px 11px;border-radius:8px;border:0.5px solid var(--border2);
+             background:var(--surface2);color:var(--text);font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;margin-bottom:14px;"></textarea>
+    <div class="label">What do you intend to do after this cycle?</div>
+    <select id="next-cycle-intended-select" style="margin-bottom:18px;">
+      <option value="">Not sure yet</option>
+      <option value="loss">Cut</option>
+      <option value="gain">Bulk</option>
+      <option value="maintenance">Another maintenance block</option>
+    </select>
+    <div style="display:flex;gap:8px;">
+      <button onclick="submitNextCycleAdviceContext(true)"
+        style="flex:1;padding:11px;border-radius:10px;font-size:13px;font-weight:600;background:rgba(145,132,217,0.12);
+               border:0.5px solid rgba(145,132,217,0.35);color:var(--accent);cursor:pointer;font-family:var(--font-display);">
+        Ask BLOC →
+      </button>
+      <button onclick="submitNextCycleAdviceContext(false)"
+        style="flex:1;padding:11px;border-radius:10px;font-size:13px;font-weight:600;background:var(--surface2);
+               color:var(--text);border:0.5px solid var(--border2);cursor:pointer;font-family:var(--font-display);">
+        Skip
+      </button>
+    </div>
   </div>
 </div>
 
@@ -3696,6 +3735,12 @@ function load() {
   if (!state.insightsRollup) state.insightsRollup = { completedCycles: [] };
   if (state.blocAdvice === undefined) state.blocAdvice = null;
   if (state.nextCycleAdvice === undefined) state.nextCycleAdvice = null;
+  // History of every past "Ask BLOC for a second opinion" call (next-cycle
+  // advice only — separate from state.blocAdvice/mid-cycle). Kept
+  // indefinitely (calls are infrequent — roughly once per cycle) so future
+  // calls can reference what was asked/answered/chosen last time. See
+  // NEXT-CYCLE ADVICE HISTORY section near askBlocForNextCycleAdvice().
+  if (!Array.isArray(state.nextCycleAdviceHistory)) state.nextCycleAdviceHistory = [];
   if (!state.profile.measureUnit) state.profile.measureUnit = 'in';
   if (!state.mode) state.mode = 'dark';
   document.body.setAttribute('data-mode', state.mode);
@@ -4000,6 +4045,7 @@ function exitDemoMode() {
     insightsRollup: { completedCycles: [] },
     blocAdvice: null,
     nextCycleAdvice: null,
+    nextCycleAdviceHistory: [],
     mode: keepMode || 'dark',
     currentMacroId: null, currentWeek: 1,
     currentDay: 'push', currentEditContext: null,
@@ -11184,8 +11230,15 @@ function chooseNextCyclePlan(planKey) {
   if (!planRec || !planRec.goalType) return;
 
   // Record the choice — mirrors startGoalQueue()'s chosenPath tracking for
-  // the mid-cycle feature.
+  // the mid-cycle feature. Also synced onto the matching history entry (via
+  // the shared id set when the advice was first stored) so a future call's
+  // RECENT NEXT-CYCLE ADVICE HISTORY context reflects what was actually
+  // chosen, not just what was offered.
   stored.chosenPlanKey = planKey;
+  if (stored.id) {
+    const histEntry = (state.nextCycleAdviceHistory || []).find(h => h.id === stored.id);
+    if (histEntry) histEntry.chosenPlanKey = planKey;
+  }
   save();
 
   const lastGoal = plan.goals[plan.goals.length - 1];
@@ -11365,7 +11418,16 @@ function nextCycleAdvicePlanMode(rec) {
   const hasDeadline      = !!override.deadline;
   const conflictTwoPlans = !!(planRec && planRec.overrideConflict);
   const directionTwoPlans = !!(planRec && planRec.goalType && planRec.goalType !== 'maintenance' && !hasDeadline && !conflictTwoPlans);
-  return { hasDeadline, conflictTwoPlans, directionTwoPlans, returnTwoPlans: conflictTwoPlans || directionTwoPlans, planRec };
+  // Maintenance bridges have no target-weight/deadline concept, so they can
+  // never hit conflictTwoPlans/directionTwoPlans — but the deterministic
+  // bridge length (climb + minimum hold) is still just this engine's OWN
+  // best guess, same as any other placeholder duration. Gives the LLM room
+  // to propose a genuinely different bridge length (still exactly 1 plan,
+  // not 2 — there's no "sustainable vs aggressive" split for a bridge) when
+  // it has good reason to (see USER CONTEXT / HISTORY in the prompt) rather
+  // than being hard-locked to the engine's own default end date.
+  const maintenanceFlex = !!(planRec && planRec.goalType === 'maintenance' && !hasDeadline);
+  return { hasDeadline, conflictTwoPlans, directionTwoPlans, maintenanceFlex, returnTwoPlans: conflictTwoPlans || directionTwoPlans, planRec };
 }
 
 
@@ -11382,7 +11444,7 @@ function nextCycleAdvicePlanMode(rec) {
 // at 8,000 steps/day, applied client-side after parsing — the schema and
 // constraints below simply omit the "steps" field entirely unless
 // rec.goalType === 'loss', so the model is never even asked for it.
-function buildNextCycleAdvicePrompt(macro, rec) {
+function buildNextCycleAdvicePrompt(macro, rec, userContext) {
   const ins             = computeWeeklyInsights(macro);
   const dynResult       = rec.dynResult || calcDynamicTDEE();
   const safetyFloorKcal = computeSafetyFloor(macro);
@@ -11465,6 +11527,38 @@ The alternative you're being asked to plan for below (switching direction instea
 Each plan's goals[] must fill exactly from ${planRec.newMacroStart} to that plan's own end date above, with zero gaps.`;
   }
 
+  // ── User-supplied free-text context + stated future intention ──
+  // Distinct from `override` above (target weight/deadline, § Phase 2) —
+  // this is the new, optional, freeform context gathered by the modal that
+  // now sits in front of askBlocForNextCycleAdvice(). Both fields are
+  // independently optional; userContext itself is null entirely when the
+  // user chose "Skip" or never opened the modal's fields.
+  const ucFreeText = (userContext && userContext.freeText || '').trim();
+  const ucIntended = (userContext && userContext.intendedNext) || '';
+  const intendedLabel = { loss: 'a cut', gain: 'a bulk', maintenance: 'another maintenance block' }[ucIntended] || null;
+  const userContextStr = (ucFreeText || intendedLabel)
+    ? `Free-text notes from the user: ${ucFreeText ? `"${ucFreeText}"` : 'None given.'}
+User's stated intention for AFTER this next cycle: ${intendedLabel || 'Not stated.'}`
+    : 'None given — user chose to skip this.';
+
+  // ── Recent next-cycle advice history (last 2 calls, oldest first) ──
+  // Gives continuity across cycles: what was asked/answered/chosen last
+  // time, including the user's own free-text context then, so the model
+  // can track the user's journey rather than reasoning from a blank slate
+  // every single cycle. Read from state.nextCycleAdviceHistory — populated
+  // by every past successful call, kept indefinitely (see migration note).
+  const pastAdvice = (state.nextCycleAdviceHistory || []).slice(-2);
+  const historyStr = pastAdvice.length
+    ? pastAdvice.map((h, i) => {
+        const hUc = h.userContext;
+        const hUcStr = (hUc && (hUc.freeText || hUc.intendedNext))
+          ? `User context then: ${hUc.freeText ? `"${hUc.freeText}"` : 'none'}${hUc.intendedNext ? `; stated intention then: ${hUc.intendedNext}` : ''}`
+          : 'No user context given then.';
+        const chosenStr = h.chosenPlanKey ? `user chose plan "${h.chosenPlanKey}"` : 'user has not chosen a plan from this yet (or chose to build the app\'s own recommendation directly instead)';
+        return `${i + 1}. ${h.date} — cycle ending: ${h.macroName} (${h.macroGoalType}), planned for: ${h.nextGoalType || 'unknown'}. ${hUcStr} Your headline then: "${h.headline}" (signal: ${h.signal}). Outcome: ${chosenStr}.`;
+      }).join('\n')
+    : 'No past next-cycle advice calls on record — this is the first one.';
+
   // ── Steps schema/constraint — omitted entirely unless this is a cut ──
   const stepsSchemaField = isCut ? `,\n          "steps": number (multiple of 2000)` : '';
   const stepsConstraintLine = isCut
@@ -11487,6 +11581,14 @@ PLAN LENGTH GUIDANCE — no deadline was given, so you choose each plan's own le
       : 'must run JUST AS LONG as "sustainable", never shorter — a bulk is never shortened to make it "aggressive" (minimizing fat gain requires patience regardless of pace). Only push the surplus modestly harder than "sustainable", never the timeline.'}
 - Each plan states its own duration via the required "weeks" field on the plan object.`;
     fillConstraintLine = `- Each plan's goals[] must collectively span EXACTLY its own stated "weeks" field starting from ${planRec.newMacroStart}, with zero gaps — the final goal's endDate must be the Sunday exactly (weeks × 7 − 1) days after ${planRec.newMacroStart}. Never stop before or extend past your own stated duration.`;
+  } else if (mode.maintenanceFlex) {
+    planCountLine = '- Return EXACTLY 1 plan in the "plans" array.';
+    weeksSchemaField = `,\n      "weeks": number (this plan's own total bridge duration in weeks — see PLAN LENGTH GUIDANCE below)`;
+    const engineWeeks = planRec.bridge ? planRec.bridge.totalWeeks : null;
+    const engineClimbWeeks = planRec.bridge ? planRec.bridge.climbWeeks : null;
+    planLengthGuidanceBlock = `
+PLAN LENGTH GUIDANCE — this is a maintenance bridge. The deterministic engine's own default length is ${engineWeeks ? engineWeeks + ' weeks' : 'shown above'}${engineClimbWeeks ? ` (a ${engineClimbWeeks}-week reverse-diet climb to TDEE, plus its minimum hold)` : ''}. You may match that length, or propose a different one (typically longer, e.g. a slower climb and/or a longer hold) if the WEEKLY DATA, COMPLETED CYCLE HISTORY, or USER CONTEXT below give you good reason to — for example a user who reports repeated difficulty holding weight after past cuts is a real reason to run this bridge longer than the engine's own minimum, not just to hold it exactly. Never propose a bridge shorter than the reverse-diet climb itself needs (${engineClimbWeeks || 'the climb duration above'} weeks) — that climb is a physiological floor, not a preference. State your chosen total via the required "weeks" field on the plan object.`;
+    fillConstraintLine = `- Your goals[] must collectively span EXACTLY your own stated "weeks" field starting from ${planRec.newMacroStart}, with zero gaps — the final goal's endDate must be the Sunday exactly (weeks × 7 − 1) days after ${planRec.newMacroStart}. Never stop before or extend past your own stated duration.`;
   } else {
     planCountLine = '- Return EXACTLY 1 plan in the "plans" array unless you have a genuinely compelling reason to offer an alternative.';
     fillConstraintLine = `- Your goals[] must fill exactly from ${planRec.newMacroStart} to ${planRec.newMacroEnd || 'the proposed end date above'}, with zero gaps and no early stop.`;
@@ -11498,7 +11600,9 @@ PLAN LENGTH GUIDANCE — no deadline was given, so you choose each plan's own le
 
 ${isContinuationCase
     ? `The deterministic engine's own default here is to EXTEND the current cycle rather than switch direction — but you are specifically being asked to plan for the ALTERNATIVE instead, in case switching now is actually the better call: ${goalType.toUpperCase()} (a ${directionLabel}). See CONTINUATION CONTEXT below for both sides of this and explicitly weigh in on which is actually better in your narrative — but your plans[] must still represent the alternative (switching), since a plain extension isn't something this feature builds automatically.`
-    : `This next cycle's direction has already been decided: ${goalType.toUpperCase()} (a ${directionLabel}). Do not change the direction — only the pacing, kcal levels, and phase structure.`}
+    : `This next cycle's direction has already been decided: ${goalType.toUpperCase()} (a ${directionLabel}). Do not change the direction — only the pacing, kcal levels, and phase structure${mode.maintenanceFlex ? ' (and, for this maintenance bridge, its total length — see PLAN LENGTH GUIDANCE below)' : ''}.`}
+
+The user may have supplied free-text context and/or a stated intention for what they think comes AFTER this next cycle — see USER CONTEXT below. That stated future intention is NOT a request to change the direction decided above; it's a hint about where the user thinks they're headed next, useful for judging pacing/length of THIS cycle (e.g. a slower, longer maintenance bridge to prepare for a bulk the user is unsure they can sustain). Weigh in on it explicitly in your narrative, including if you think a different path than what they intend would serve them better — but never let it override the fixed direction above.
 
 HARD CONSTRAINTS — never violate these:
 - No recommended kcal value may fall below ${safetyFloorKcal} kcal/day
@@ -11592,18 +11696,77 @@ MAINTENANCE TDEE-DISCREPANCY FLAG (current cycle, if applicable): ${recalStr}
 USER-SUPPLIED TARGET/DEADLINE: ${overrideStr}
 CONFLICT: ${conflictStr}
 
+USER CONTEXT FOR THIS CYCLE: ${userContextStr}
+
 COMPLETED CYCLE HISTORY:
-${cycleHistoryStr}`;
+${cycleHistoryStr}
+
+RECENT NEXT-CYCLE ADVICE HISTORY (your own past calls, most recent last):
+${historyStr}`;
 
   return { systemPrompt, userMessage };
+}
+
+// ── Context modal — gathers optional free text + stated future intention
+//    before calling askBlocForNextCycleAdvice(). Both fields are optional
+//    and independent; "Skip" bypasses both and calls exactly as before. ──
+// The same eligibility/preview/API-key checks askBlocForNextCycleAdvice()
+// itself still runs (defensively) are run here FIRST, so the modal never
+// opens on a request that's going to be rejected anyway.
+function openNextCycleAdviceContextModal() {
+  const macro = resolveProgressMacro();
+  if (!macro || _nextCycleAdviceLoading) return;
+
+  if (_nextCyclePreviewMacroId && _nextCyclePreviewMacroId !== macro.id) {
+    alert('Clear the preview above before asking for a next-cycle second opinion — this always plans for your real active cycle, never the one being previewed.');
+    return;
+  }
+  if (!getApiKey()) {
+    alert('No API key saved. Go to Settings → AI Advice to add your Anthropic API key.');
+    return;
+  }
+
+  const ta = document.getElementById('next-cycle-context-input');
+  const sel = document.getElementById('next-cycle-intended-select');
+  if (ta) ta.value = '';
+  if (sel) sel.value = '';
+  updateNextCycleContextCounter();
+  openModal('modal-next-cycle-context');
+}
+
+// Live character counter for the 300-char free-text field.
+function updateNextCycleContextCounter() {
+  const ta = document.getElementById('next-cycle-context-input');
+  const counter = document.getElementById('next-cycle-context-counter');
+  if (!ta || !counter) return;
+  counter.textContent = `${ta.value.length}/300`;
+}
+
+// includeContext=false ("Skip") sends exactly nothing, matching the
+// feature's pre-modal behaviour exactly. includeContext=true sends
+// whatever the user filled in — either or both fields may be empty, which
+// buildNextCycleAdvicePrompt() already handles (falls back to "None
+// given"/"Not stated").
+function submitNextCycleAdviceContext(includeContext) {
+  closeModal('modal-next-cycle-context');
+  let userContext = null;
+  if (includeContext) {
+    const freeText = (document.getElementById('next-cycle-context-input')?.value || '').trim().slice(0, 300);
+    const intendedNext = document.getElementById('next-cycle-intended-select')?.value || '';
+    if (freeText || intendedNext) userContext = { freeText, intendedNext };
+  }
+  askBlocForNextCycleAdvice(userContext);
 }
 
 // ── Ask BLOC for a next-cycle second opinion ─────────────────────────────────
 // Mirrors askBlocForAdvice()'s fetch/parse/validate/error pattern exactly.
 // Stores into state.nextCycleAdvice — a separate slot from state.blocAdvice
 // (mid-cycle advice) so the two features never share a cooldown clock or
-// collide on the same macro's stored response.
-async function askBlocForNextCycleAdvice() {
+// collide on the same macro's stored response. userContext (optional) comes
+// from the modal above — see openNextCycleAdviceContextModal()/
+// submitNextCycleAdviceContext(); null/undefined here reproduces the exact
+// pre-existing behaviour for any other caller.
+async function askBlocForNextCycleAdvice(userContext) {
   const macro = resolveProgressMacro();
   if (!macro || _nextCycleAdviceLoading) return;
 
@@ -11632,7 +11795,7 @@ async function askBlocForNextCycleAdvice() {
 
   let systemPrompt, userMessage;
   try {
-    const prompt = buildNextCycleAdvicePrompt(macro, rec);
+    const prompt = buildNextCycleAdvicePrompt(macro, rec, userContext);
     systemPrompt = prompt.systemPrompt;
     userMessage  = prompt.userMessage;
     console.log('[BLOC next-cycle advice] Prompt built. User message length:', userMessage.length);
@@ -11707,9 +11870,16 @@ async function askBlocForNextCycleAdvice() {
       // failure, not a warning, since a plan that doesn't fill its cycle
       // needs a new attempt rather than silent acceptance.
       let expectedEnd = null;
-      if (mode.directionTwoPlans) {
+      if (mode.directionTwoPlans || mode.maintenanceFlex) {
         if (typeof p.weeks !== 'number' || p.weeks < 1) {
           throw new Error(`Plan ${i + 1} ("${p.label}") is missing its required "weeks" field`);
+        }
+        // A maintenance bridge can never be shorter than its own reverse-diet
+        // climb — that's a physiological floor, not a preference (see PLAN
+        // LENGTH GUIDANCE). Only meaningful when the engine actually computed
+        // a climb (planRec.bridge is null for e.g. a cold-start placeholder).
+        if (mode.maintenanceFlex && planRec.bridge && planRec.bridge.climbWeeks && p.weeks < planRec.bridge.climbWeeks) {
+          throw new Error(`Plan ${i + 1} ("${p.label}") is shorter (${p.weeks}w) than the required reverse-diet climb (${planRec.bridge.climbWeeks}w)`);
         }
         expectedEnd = getSundayAfterWeeks(planRec.newMacroStart, p.weeks);
       } else if (planRec.newMacroEnd) {
@@ -11754,13 +11924,36 @@ async function askBlocForNextCycleAdvice() {
 
     response._cycleEnd = toLocalDateStr(getMacroEndDate(macro));
 
+    // Shared id links state.nextCycleAdvice (the current/latest slot, used
+    // for rendering Card 3) to its corresponding entry in
+    // state.nextCycleAdviceHistory (the durable log fed back into future
+    // prompts) — chooseNextCyclePlan() uses it to keep chosenPlanKey in
+    // sync on both without a second lookup.
+    const adviceId = 'nca_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+
     // Store — only now do we update storedAt.
     state.nextCycleAdvice = {
+      id:            adviceId,
       response,
       storedAt:      today,
       macroId:       macro.id,
       chosenPlanKey: null,
+      userContext:   userContext || null,
     };
+    state.nextCycleAdviceHistory.push({
+      id:            adviceId,
+      date:          today,
+      macroId:       macro.id,
+      macroName:     macro.name,
+      macroGoalType: macro.goalType,
+      nextGoalType:  planRec.goalType,
+      userContext:   userContext || null,
+      signal:        response.signal,
+      headline:      response.headline,
+      narrative:     response.narrative,
+      plans:         response.plans.map(p => ({ key: p.key, label: p.label, rationale: p.rationale, summary: p.summary, weeks: (typeof p.weeks === 'number') ? p.weeks : null })),
+      chosenPlanKey: null,
+    });
     save();
 
   } catch (err) {
@@ -11833,7 +12026,7 @@ function buildNextCycleAdviceSectionHTML(macro, rec) {
       : '';
     return `<div style="margin-top:10px;">
       <button id="next-cycle-advice-btn"
-        onclick="askBlocForNextCycleAdvice()"
+        onclick="openNextCycleAdviceContextModal()"
         ${!hasKey ? 'disabled' : ''}
         style="width:100%;padding:11px 14px;border-radius:10px;font-size:13px;font-weight:600;
                background:${hasKey ? 'rgba(145,132,217,0.12)' : 'var(--surface2)'};
@@ -20851,6 +21044,7 @@ function clearAllData() {
             insightsRollup: { completedCycles: [] },
             blocAdvice: null,
             nextCycleAdvice: null,
+            nextCycleAdviceHistory: [],
             mode: keepMode || 'dark',
             currentMacroId: null, currentWeek: 1,
             currentDay: 'push', currentEditContext: null,

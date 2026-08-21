@@ -2047,9 +2047,10 @@ Separate from the mid-cycle advice feature end to end: its own prompt builder, i
 
 - **`conflictTwoPlans`** — the user gave both a target weight and a deadline, and the deterministic engine flagged it unsafe. Exactly 2 plans, keyed `"preserve-weight"` / `"preserve-date"`, each resolving the conflict differently (concrete alt-date/alt-weight numbers from `resolveNextCycleOverride` are handed to the model directly, not re-derived).
 - **`directionTwoPlans`** — a cut/bulk-direction cycle with no deadline given. Exactly 2 plans, keyed `"sustainable"` (long/steady, typically 12–20 weeks) and `"aggressive"` — for a **cut**, may run shorter (typically 6–10 weeks) with a faster deficit; for a **bulk**, must run **just as long** as sustainable, never shorter (a bulk is never shortened to make it "aggressive" — only the surplus is pushed modestly harder). Each plan self-declares its own `weeks` field.
-- **otherwise** — exactly 1 plan, filling to `planRec.newMacroEnd` exactly (maintenance bridges, or a cut/bulk where the user already gave a deadline that resolved cleanly).
+- **`maintenanceFlex`** (v7.96, see §49) — a maintenance bridge with no deadline given. Exactly 1 plan, but — unlike the "otherwise" case below — free to declare its own `weeks` total rather than being locked to `planRec.newMacroEnd`, floored at the reverse-diet climb's own minimum length.
+- **otherwise** — exactly 1 plan, filling to `planRec.newMacroEnd` exactly (a cut/bulk where the user already gave a deadline that resolved cleanly, or a maintenance bridge with an override deadline).
 
-**`buildNextCycleAdvicePrompt(macro, rec)`** — reuses the mid-cycle prompt's weekly-data/cycle-history context, plus: the engine's own floor/ceiling and a **forward-looking** taper curve sized to the *next* cycle's own duration (distinct from `rec.taper`, a look-back check on the cut just finished); the maintenance TDEE-discrepancy flag when the current cycle is itself a maintenance bridge; any user-supplied target/deadline; and — when `rec.isContinuation` — a **CONTINUATION CONTEXT** block giving the model both the engine's own "extend" reasoning and the alternative's "switch" reasoning, explicitly asking it to weigh in on which is actually better in its narrative while still returning buildable plans for the switch option.
+**`buildNextCycleAdvicePrompt(macro, rec, userContext)`** (third param added v7.96, see §49) — reuses the mid-cycle prompt's weekly-data/cycle-history context, plus: the engine's own floor/ceiling and a **forward-looking** taper curve sized to the *next* cycle's own duration (distinct from `rec.taper`, a look-back check on the cut just finished); the maintenance TDEE-discrepancy flag when the current cycle is itself a maintenance bridge; any user-supplied target/deadline; the optional free-text/intended-next-direction context and recent advice history described in §49; and — when `rec.isContinuation` — a **CONTINUATION CONTEXT** block giving the model both the engine's own "extend" reasoning and the alternative's "switch" reasoning, explicitly asking it to weigh in on which is actually better in its narrative while still returning buildable plans for the switch option.
 
 **Steps handling:** BLOC only ever uses daily step count as a lever during a **cut**. The `"steps"` schema field is included only when `planRec.goalType === 'loss'`; for gain/maintenance it's omitted from the schema entirely (never even requested), and forced to 8,000 client-side after parsing regardless of what — if anything — the model returned for that field.
 
@@ -2057,14 +2058,16 @@ Separate from the mid-cycle advice feature end to end: its own prompt builder, i
 
 **Bulk-never-shortened guard:** in `directionTwoPlans` mode for a `gain`-type `planRec`, rejects the response if the `"aggressive"` plan's `weeks` is less than `"sustainable"`'s.
 
-**`askBlocForNextCycleAdvice()`** — same fetch/parse/validate/error pattern as `askBlocForAdvice()` (§25), POSTing to `https://api.anthropic.com/v1/messages` with `claude-sonnet-4-6`, max 8,000 tokens. Validates required top-level fields, per-plan shape (`key`, `label`, ≥2 goals), then runs the fill-to-length and bulk-never-shortened guards above before materialising fats and enforcing the steps rule. Stores to:
+**`askBlocForNextCycleAdvice(userContext)`** (param added v7.96, see §49) — same fetch/parse/validate/error pattern as `askBlocForAdvice()` (§25), POSTing to `https://api.anthropic.com/v1/messages` with `claude-sonnet-4-6`, max 8,000 tokens. Validates required top-level fields, per-plan shape (`key`, `label`, ≥2 goals), then runs the fill-to-length (now also covering `maintenanceFlex`) and bulk-never-shortened guards above before materialising fats and enforcing the steps rule. Stores to:
 
 ```js
 state.nextCycleAdvice = {
+  id:            string,   // v7.96 — links to the matching state.nextCycleAdviceHistory entry
   response: { signal, headline, narrative, plans: [{ key, label, rationale, summary, weeks?, goals: [...] }] },
   storedAt:      'YYYY-MM-DD',
   macroId:       string,
   chosenPlanKey: null | string,
+  userContext:   null | { freeText: string, intendedNext: '' | 'loss' | 'gain' | 'maintenance' },  // v7.96
 }
 ```
 
@@ -3145,3 +3148,62 @@ A stale hardcoded warning string in `openHomeMetricAdvice` (`"...protein is capp
 ### Verification
 
 Re-derived the affected day against the real backup with the new constants: `proteinAdvice = 224 − 10 = 214`; `floorCost = 214×4 + 50×4 + 20×9 = 1,236`; `kcalCeiling = 1,500 + 75 = 1,575`; `kcalAdvice = min(1575, max(1350, 1236)) = 1350`. Confirmed live in the Home advice modal against the real backup — the modal now reads "hit 1,350 today to bring the week to target" / "Hit 214g today," in place of the previous 1,216/209.
+
+---
+
+## 49. Next Cycle advice — optional user context modal, persistent history, flexible maintenance-bridge length (v7.96)
+
+Extends §27 Phase 4. Three changes, all scoped to the LLM second-opinion call only — the deterministic engine (§27 Phases 1–3) is untouched except for one new degree of freedom in how its own maintenance-bridge length is treated (see Change 3).
+
+### Change 1 — Context modal in front of the API call
+
+Previously the "✦ Ask BLOC for a second opinion" button called `askBlocForNextCycleAdvice()` directly. It now calls **`openNextCycleAdviceContextModal()`**, which runs the same preview-mismatch/API-key guard checks the call itself already ran (so the modal never opens on a request that was going to be rejected anyway), resets the modal's two fields, and opens `modal-next-cycle-context`.
+
+The modal (`.modal-overlay`/`.modal-sheet`, same system as every other modal — no special-casing needed in `openModal()`) offers:
+- A free-text `<textarea maxlength="300">` (`next-cycle-context-input`) — live character counter via `updateNextCycleContextCounter()`, bound to `oninput`.
+- A `<select>` (`next-cycle-intended-select`) — "What do you intend to do after this cycle?" — options: empty (Not sure yet), `loss` (Cut), `gain` (Bulk), `maintenance` (Another maintenance block). These are exactly BLOC's 3 macrocycle `goalType` values.
+- Two buttons, both routing through **`submitNextCycleAdviceContext(includeContext)`**: "Ask BLOC →" (`true`) reads both fields (free text trimmed/sliced to 300 chars defensively, dropdown value) and builds `{ freeText, intendedNext }` — `null` if both end up empty even though "Ask BLOC" was tapped, since an empty context is the same as skipping. "Skip" (`false`) passes `userContext = null` straight through, reproducing the pre-v7.96 behaviour byte-for-byte.
+
+Both fields are independently optional — a user can give free text with no stated intention, or vice versa.
+
+### Change 2 — Persistent advice history
+
+New `state.nextCycleAdviceHistory` array (migration default `[]`, also reset alongside `nextCycleAdvice: null` in both `clearAllData()`-style reset blocks). Kept **indefinitely** — these calls are infrequent enough (roughly once per cycle) that unbounded growth was judged an acceptable tradeoff for full continuity, unlike `insightsRollup.completedCycles`, which caps at 10.
+
+Every successful `askBlocForNextCycleAdvice()` call now does two things instead of one: it still overwrites `state.nextCycleAdvice` (the current/latest slot Card 3 renders from — unchanged in purpose), and it also **pushes** a new entry onto `nextCycleAdviceHistory`:
+
+```js
+{
+  id:            string,   // shared with state.nextCycleAdvice.id — see below
+  date:          'YYYY-MM-DD',
+  macroId:       string,
+  macroName:     string,
+  macroGoalType: string,   // the cycle that was ending when this call was made
+  nextGoalType:  string,   // planRec.goalType — the direction planned for
+  userContext:   null | { freeText, intendedNext },
+  signal:        string,
+  headline:      string,
+  narrative:     string,   // full text, not truncated — infrequent enough that prompt cost isn't a concern
+  plans:         [{ key, label, rationale, summary, weeks: number | null }],  // goals[] deliberately omitted — not needed for future-prompt context, and would bloat every subsequent prompt for no benefit
+  chosenPlanKey: null | string,
+}
+```
+
+The two objects share a single generated `id` (`'nca_' + Date.now() + '_' + random suffix`) precisely so `chooseNextCyclePlan()` can update both in one pass: it already set `stored.chosenPlanKey`, and now also looks up `state.nextCycleAdviceHistory.find(h => h.id === stored.id)` and sets `chosenPlanKey` there too — otherwise the history would remember what was *offered* but never what was actually *chosen*, and a later call's history context would misrepresent past outcomes.
+
+`buildNextCycleAdvicePrompt()` reads `(state.nextCycleAdviceHistory || []).slice(-2)` — the 2 most recent entries, oldest first — and renders them into a new **RECENT NEXT-CYCLE ADVICE HISTORY** prompt section, one line per entry: the date, which cycle it was asked for and what direction was planned, the user's free text/stated intention *that time*, the model's own headline/signal *that time*, and the eventual outcome (which plan was chosen, or that none was/the app's own recommendation was built directly instead). This is genuinely the only mechanism giving the model any memory across separate Next Cycle advice calls — each call is otherwise a cold API request with no conversation history, same as the mid-cycle feature (§25) before its own challenge-reply extension (§ Phase 22–24).
+
+### Change 3 — Optional maintenance-bridge length flexibility
+
+Before v7.96, a maintenance-goalType `planRec` always landed in `nextCycleAdvicePlanMode()`'s "otherwise" branch — exactly 1 plan, hard-required to fill precisely to `planRec.newMacroEnd` (the deterministic bridge length computed in §27 Phase 1), with `askBlocForNextCycleAdvice()` throwing outright on any mismatch. This meant a maintenance bridge's *length* was never actually up for the LLM to reconsider — only its internal pacing/kcal shape — even though the user-context free text (Change 1) is explicitly framed around exactly this kind of judgment call (e.g. "I always struggle to keep weight off" as a reason to run a longer bridge).
+
+New `maintenanceFlex` flag on `nextCycleAdvicePlanMode()`'s return value: `true` when `planRec.goalType === 'maintenance' && !hasDeadline` (mirrors `directionTwoPlans`'s own `!hasDeadline` gate — an explicit deadline override, if the UI ever surfaces one for maintenance, still means a fixed length). When set:
+
+- **Prompt**: still exactly 1 plan, but gains the same `"weeks"` schema field `directionTwoPlans` plans use, plus a dedicated **PLAN LENGTH GUIDANCE** block stating the engine's own default (`planRec.bridge.totalWeeks`/`climbWeeks`) and explicitly inviting a different total when the weekly data, cycle history, or user context justify it — with a hard floor at the reverse-diet climb's own length (`planRec.bridge.climbWeeks`), since that portion is a physiological requirement, not a preference.
+- **Validation**: `askBlocForNextCycleAdvice()`'s fill-to-length guard now treats `maintenanceFlex` the same as `directionTwoPlans` — requires a numeric `p.weeks`, computes `expectedEnd` via `getSundayAfterWeeks()` from it rather than from `planRec.newMacroEnd`. A second guard specific to this mode rejects any plan shorter than `planRec.bridge.climbWeeks` outright (only checked when `planRec.bridge` actually exists — a cold-start placeholder recommendation with no bridge computed has nothing to floor against).
+
+**No changes needed anywhere downstream of the LLM response.** `chooseNextCyclePlan()` already derives the accepted macrocycle's end date from `lastGoal.endDate` — the LLM's own final goal, not `planRec.newMacroEnd` — so a longer or shorter accepted bridge already flowed correctly through `_pendingNextCyclePlan` → `fillNextCycleMacroModal()` → `createMacrocycle()`'s pending-plan hook → the goal queue, exactly like the pre-existing `directionTwoPlans` case. The only thing actually blocking a different-length maintenance plan before v7.96 was the validation guard rejecting the response before it ever reached that pipeline.
+
+### What did not change
+
+The direction decided for the cycle being planned (`goalType`/`planRec.goalType`) remains entirely fixed by the deterministic engine — neither the free-text context nor the stated "intend to do after this cycle" dropdown can move it, and the system prompt says so explicitly. The dropdown's selected value is deliberately about the cycle *after* the one being planned; it's context for pacing this one, not a request to change this one.
