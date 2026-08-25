@@ -3207,3 +3207,65 @@ New `maintenanceFlex` flag on `nextCycleAdvicePlanMode()`'s return value: `true`
 ### What did not change
 
 The direction decided for the cycle being planned (`goalType`/`planRec.goalType`) remains entirely fixed by the deterministic engine — neither the free-text context nor the stated "intend to do after this cycle" dropdown can move it, and the system prompt says so explicitly. The dropdown's selected value is deliberately about the cycle *after* the one being planned; it's context for pacing this one, not a request to change this one.
+
+## §50 — Home nutrition qualifying-day gate fixed and unified; steps-card UI reshuffle (v7.97)
+
+### Bug — `computeWeekPlannedAvg` overwrote already-logged future days with the target
+
+The kcal/protein/carbs branch of `computeWeekPlannedAvg()` had a short-circuit:
+
+```js
+dates.forEach(d => {
+  if (d > today) {
+    sum += target;
+    count++;
+    return;
+  }
+  const day = dayMap[d];
+  if (isCompleteNutritionDay(day, kcalTarget)) {
+    sum += (day[field] || 0);
+    count++;
+  }
+});
+```
+
+Any date after `today` was unconditionally assigned the flat target, before ever checking whether that day actually had a real, qualifying log. This is correct for a genuinely future day with no data — the "assume on plan" placeholder is the whole point — but wrong for a day that had already been logged ahead of `today` (a week logged in advance, or simply a stale `today` relative to the data). Confirmed live against a real backup: a week where all 7 days were already logged (goal kcal 1950), with Saturday intentionally 350kcal under target (correctly excluded per the 300kcal rule) — the buggy code reported `((1950×5) + Mon_actual + Tue_actual) / 7 = 1,927`, silently discarding Wed–Sun's real numbers in favor of the flat target. The correct qualifying-day average of the 6 real days is `1,933`.
+
+Fixed by removing the `d > today` short-circuit entirely and checking `isCompleteNutritionDay` first for every day regardless of position:
+
+```js
+dates.forEach(d => {
+  const day = dayMap[d];
+  if (isCompleteNutritionDay(day, kcalTarget)) {
+    sum += (day[field] || 0);
+    count++;
+    return;
+  }
+  if (d > today && !(day && day.hasNutr)) {
+    sum += target;
+    count++;
+  }
+});
+```
+
+A day now falls back to the flat target only when it's in the future **and** has no nutrition log at all yet. A day with a logged-but-non-qualifying entry (too far under target) is excluded from both the sum and the count, on either side of `today` — never silently counted as zero, never silently replaced with the target. Verified with a Node simulation against the literal backup data: returns `1933`, matching the qualifying-day hand-calculation exactly.
+
+### Bug — off-track badge/pace math used a different day qualifier than the "Total this week avg" figure
+
+`getWeeklyRequiredDaily()` — which powers the "Falling behind / On track / Exceeding" badge (via `getHomeMetricBadge`) and every catch-up-rate number shown in advice text (via `buildAdviceLineHtml`, `getReconciledMacroAdvice`) — gated its "does this day count" check on plain `day.hasNutr`, not the 300kcal-below-target completeness rule `isCompleteNutritionDay` already encoded elsewhere. This meant the badge/pace math and the "Total this week avg" figure on the same card could be built from two different sets of qualifying days.
+
+Fixed by threading a `kcalTarget` parameter through the whole call chain — `getWeeklyRequiredDaily` → `getHomeMetricBadge` / `getHomeMetricSublabel` / `buildAdviceLineHtml` → every call site (`renderHomeHero`'s badge map, the Nutrition page's kcal/protein badge reads, `openHomeMetricAdvice`, `buildHomeConsolidatedMessage`, `getReconciledMacroAdvice`'s four internal calls). `kcalTarget` is always `goal.kcal` regardless of which field (`kcal`/`protein`/`carbs`/`fats`) is actually being asked about — matching `isCompleteNutritionDay`'s own design, since day quality is a property of the day's overall kcal proximity to target, not any one macro's own target. Both `todayHasField` (decides whether today counts as "settled" for the pace cutoff) and the day-loop's `hasField` check now call `isCompleteNutritionDay(day, kcalTarget)` for every non-steps field. `getHomeMetricSublabel` — dead code, never called from anywhere in the app — was updated for signature consistency but not otherwise touched or removed, since that's out of scope for this fix.
+
+### UI — steps-card "View logs" button replaced with a page-level icon button; nutrition cards now tappable
+
+Two independent UI requests bundled into the same pass:
+
+**Steps card button relocated.** The steps card's `<button id="home-steps-view-logs-btn">View logs</button>` CTA is removed entirely. In its place, a new icon-only button sits at the **top of the whole Home page** (not on any individual card) — `id="home-body-logs-btn"`, reusing Train's existing `.hero-nav-arrows` CSS pattern (26×26px, `border-radius: var(--r-sm)`, 1px `border2` border) with the same `showScreen('settings');openSettingsBodyLogs();` handler, just swapping Train's clock icon for the person icon already used on the Settings → Body Logs row (`<circle cx="12" cy="7" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/>`). `renderHomeHero`'s outer wrapper gained `position:relative` to support this.
+
+**Kcal/protein/carbs cards are now tappable**, opening a new `modal-home-nutrition-info` modal via `openHomeNutritionInfoModal(field)` — a static explainer (no per-render computation needed, unlike the off-target advice modal) covering: where the top-line "X / target" average comes from (any logged day, unfiltered — real progress so far), where "Total this week avg" comes from (the 300kcal-qualifying gate, explained plainly), and the off-track badge's pace-aware, same-gate logic. Steps intentionally has no such tap target — its calculation has no qualifying-day gate to explain. Each nutrition card's `<div class="card">` gained a stable `id="home-metric-card-${field}"` (also used for tour targeting below) and an `onclick` that opens this modal. The existing off-target red info icon, which already lives inside the same card at `top:10px;right:10px`, gained `event.stopPropagation()` on its own `onclick` so tapping it opens only the catch-up-advice modal (`modal-home-metric-advice`) and never also triggers the new info modal underneath it — verified this ordering is correct via standard DOM event-bubbling semantics (a child's `stopPropagation()` in its own handler always runs before the parent's listener would fire).
+
+**Tour updates.** Both the Demo Tour (`buildDemoTourSteps`) and the Home Mini-Tour (`startHomeMiniTour`) had a step targeting the now-removed `home-steps-view-logs-btn`; both were retargeted to `home-body-logs-btn` with copy unchanged, and both gained one new step spotlighting `home-metric-card-kcal` introducing the tap-to-info modal. Verified with Playwright by driving the tour engine's internal `_tourState`/`tourNext()` directly (rather than clicking through, which is unreliable in headless viewport scrolling) — every step in both tours resolves a real DOM target with zero JS errors, confirmed against a real backup with `demoData` loaded for the Demo Tour path and the Home screen genuinely rendered for the Mini-Tour path.
+
+### Verification
+
+Node syntax check on the full extracted script block passes; no duplicate `function`/`let`/`const` top-level declarations introduced; no duplicate `id` attributes introduced (the two pre-existing duplicate ids in the file — `bloc-advice-error` ×4, `next-cycle-advice-error` ×3 — predate this change and are out of scope). Playwright verification against the real backup: home page renders with correct card layout and the new top-right button; "Total this week avg" for Kcal reads exactly `1,933`; tapping a nutrition card opens the new info modal with correct content; tapping the new top-right button correctly navigates to Settings and opens the Body Logs modal; both tours' full step lists resolve against live DOM state with zero errors.
