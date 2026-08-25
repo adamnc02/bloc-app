@@ -14350,7 +14350,7 @@ function renderHomeHero(animate = false) {
       : 'no active goal';
     const fillWidth = animate ? 0 : pct;
     const plannedStr = weekPlannedAvg !== null
-      ? `<div style="font-size:11px;color:var(--text3);margin-top:2px;">Total this week avg: ${m.fmt(weekPlannedAvg)}${m.unit}</div>`
+      ? `<div style="font-size:11px;color:var(--text3);margin-top:2px;">Planned this week avg: ${m.fmt(weekPlannedAvg)}${m.unit}</div>`
       : '';
     // Off-target cards (red badge) swap the fill bar to red and surface a
     // top-right info icon instead of any inline advice text — tapping it
@@ -14477,8 +14477,8 @@ function openHomeNutritionInfoModal(field) {
   body.innerHTML = `<div style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:2px;">${name}</div>
     <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Where these numbers come from.</div>
     <div style="font-size:12.5px;color:var(--text2);line-height:1.6;">
-      <div style="margin-bottom:10px;"><strong style="color:var(--text);">${name} / target</strong> — the plain average of every day this week that has a nutrition log, whatever it says. This is your real progress so far, unfiltered.</div>
-      <div style="margin-bottom:10px;"><strong style="color:var(--text);">Total this week avg</strong> — a projection of where the week will land if the rest of the week goes to plan. A logged day only counts toward this figure if it's a genuine "on plan" day: its kcal has to come within 300kcal of your kcal target (at or above target minus 300). A day logged well under that — someone who only logged breakfast, for instance — is left out entirely rather than dragging the average down as if it were a real full day. A day that hasn't happened yet is assumed to hit target exactly, unless it's already been logged ahead of time, in which case its real number is used instead.</div>
+      <div style="margin-bottom:10px;"><strong style="color:var(--text);">${name} / target</strong> — the plain average of every day logged so far this week that has a nutrition log. This is your real progress so far, unfiltered.</div>
+      <div style="margin-bottom:10px;"><strong style="color:var(--text);">Planned this week avg</strong> — a projection of where the week will land if the rest of the week goes to plan. A logged day only counts toward this figure if it's a genuine "on plan" day: its kcal has to come within 300kcal of your kcal target (at or above target minus 300). A day logged well under that — someone who only logged breakfast, for instance — is left out entirely rather than dragging the average down as if it were a real full day. A day that hasn't happened yet is assumed to hit target exactly, unless it's already been logged ahead of time, in which case its real number is used instead.</div>
       <div><strong style="color:var(--text);">Falling behind / On track / Exceeding</strong> — uses that same 300kcal-qualifying rule to decide which days count, then compares the daily rate still needed for the rest of the week against your target (with a small tolerance) — not just the raw average, so an early dip that's still fully recoverable doesn't read as a problem.</div>
     </div>`;
   openModal('modal-home-nutrition-info');
