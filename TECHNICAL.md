@@ -3269,3 +3269,90 @@ Two independent UI requests bundled into the same pass:
 ### Verification
 
 Node syntax check on the full extracted script block passes; no duplicate `function`/`let`/`const` top-level declarations introduced; no duplicate `id` attributes introduced (the two pre-existing duplicate ids in the file — `bloc-advice-error` ×4, `next-cycle-advice-error` ×3 — predate this change and are out of scope). Playwright verification against the real backup: home page renders with correct card layout and the new top-right button; "Total this week avg" for Kcal reads exactly `1,933`; tapping a nutrition card opens the new info modal with correct content; tapping the new top-right button correctly navigates to Settings and opens the Body Logs modal; both tours' full step lists resolve against live DOM state with zero errors.
+
+## §51 — Progression lock now outranks the post-deload inference; superset and clear-log bugs of the same shape fixed (v7.98)
+
+### Background
+
+Reported: viewing MC6 Push M2 (Incline Press), the suggested target had drifted to 6 reps instead of the frozen progression-lock target of 8 reps set at MC4, and the exercise showed no "missed target" banner despite MC6's actual performance falling well short. A full audit of the training progression subsystem (deload logic, compliance-lock logic, and `exProgData`'s display orchestration) traced this to a single root cause with three symptoms.
+
+### Bug — `isFirstUnitAfterDeload`'s calendar-sibling check let a same-week M1 deload silently discard an M2 exercise's own progression lock
+
+`isFirstUnitAfterDeload(macro, week, dayKey)` returns true for M2 of a mesocycle whenever M1 of that *same* mesocycle was deloaded (the calendar-adjacency check, via `getPrevCalendarWeek`) — deliberate, documented behaviour meant to stop M2 progressing at full speed immediately after M1 was reduced. The bug: `exProgData()` treated this signal as a full override of the exercise's display state, ahead of any active progression lock. Once a session was flagged post-deload, its target came from `getLastNonDeloadUnit()` — a raw historical set-1 log — rather than the lock's frozen value, and the `missedTarget` check explicitly excluded post-deload sessions outright. A lock is a specific fact about one exercise ("you missed this exact target, stay here until you hit it"); the post-deload flag is an inference about a *different* session that happens to share a calendar week. The two were never meant to compete, but the priority order put the inference ahead of the fact.
+
+Confirmed against `bloc-backup-2026-08-26.json`: MC6 Push M1 was deloaded; Incline Press (Push M2) carried an active lock from MC4 (`42.5kg × 8 reps`). `isFirstUnitAfterDeload(macro, 6, 'session2m2')` returned `true` via the calendar-sibling path (`getPrevCalendarWeek` → `session2m1`, which was the deloaded unit), even though M2's exercises (Incline Press, Flat Press, etc.) are an entirely different workout from M1's (Cross Incline Press, etc.) and M2 was never itself deloaded. `getLastNonDeloadUnit` then walked back to MC5 Push M2's own set-1 log — `42.5kg × 6 reps`, itself a below-target set logged while still under the same lock — and handed that back as the new suggestion. Every locked exercise in that session was affected identically (Cross Cable Extensions, Cable Curls), though only Incline Press's numbers happened to visibly diverge from its lock target.
+
+Fixed in `exProgData(ex)`. The day-level signal computed once per render in `renderTrainDay` was renamed `isPostDeloadDay` (previously `isPostDeloadSession`) to make clear it's a raw, unqualified fact about the calendar. `exProgData` now derives a per-exercise `isPostDeloadSession` immediately after `isLocked` is known:
+
+```js
+const isLocked = !!progLock && (progLock.lockedAtWeek || 0) < state.currentWeek;
+const isPostDeloadSession = isPostDeloadDay && !isLocked;
+```
+
+Every downstream read of `isPostDeloadSession` inside `exProgData` — the deload-override block, the `missedTarget` eligibility check, and the object the function returns (which every summary-text, badge, and fill-button consumer reads) — now sees this corrected value. Consumers outside `exProgData` needed no changes: the solo-exercise render path (`setsRepsText`, `weightRefText`, `lastWkBadge`, `showProgSelector`, `lockedNotice`) all destructure `isPostDeloadSession` from `exProgData`'s return value already, so they inherit the fix automatically. A genuine deload (`isDeloadSession`, an explicit toggle for that exact session) is unaffected and continues to override a lock outright — that's a conscious user action, not an inference, and should win.
+
+### Bug — the same priority inversion existed at the superset aggregation level
+
+Two superset-level checks read the raw day-level flag directly (bypassing per-member resolution entirely) and needed the equivalent fix:
+
+- `anySSLocked` (gates the combined quick-fill-complete button) was `!isDeloadSession && !isPostDeloadSession && memberData.some(md => md.isLocked)` — the blanket `!isPostDeloadSession` zeroed out the whole check on a post-deload day regardless of any individual member's own lock. Changed to `!isDeloadSession && memberData.some(md => md.isLocked)`: a real deload still overrides every member's lock outright; post-deload no longer does, since each member's own `md.isLocked`/`md.isPostDeloadSession` (from `exProgData`, already fixed above) now correctly reflects whether that member's lock survives.
+- The expanded superset view's progression-toggles gate was `state.currentWeek > 1 && !isDeloadSession && !isPostDeloadSession && members.some(...)` — same blanket exclusion, hiding a locked member's "on hold" notice on a post-deload day. Changed to allow entry when *any* member is genuinely locked (`!isPostDeloadDay || memberData.some(md => md.isLocked)`), and added a per-member skip inside the loop (`if (md.isPostDeloadSession) return;`, mirroring solo's `showProgSelector`) so a non-locked member on a genuine post-deload week still shows no toggle even when the gate let the block render for a locked sibling.
+
+### Bug — `clearExerciseLogs` deleted a progression lock regardless of which week created it
+
+```js
+const lockKey = getProgressionLockKey(macroId, day, exId);
+if (state.progressionLocks) delete state.progressionLocks[lockKey];
+```
+
+This ran on every "Clear" tap for any week, unconditionally deleting the exercise's lock — including a lock created several weeks earlier by data the Clear action never touched. Clearing MC6's (unlogged or logged) inputs while a still-valid MC4 lock was active would silently release a compliance requirement that had nothing to do with the week being cleared. Fixed to only delete the lock when it was actually created by the week being cleared:
+
+```js
+const existingLockForClear = state.progressionLocks && state.progressionLocks[lockKey];
+if (existingLockForClear && (existingLockForClear.lockedAtWeek || 0) === week) {
+  delete state.progressionLocks[lockKey];
+}
+```
+
+A lock inherited from an earlier week now survives a Clear on a later week, exactly as it should — its frozen target is a judgment about that earlier week's logs, which remain untouched.
+
+### Verification
+
+Node syntax check on the full extracted script block passes; no duplicate `function` declarations introduced; div-tag balance unchanged from the pre-existing file (a single pre-existing `<div`/`</div>` mismatch, unrelated to this change, confirmed present and identical in both the pre- and post-fix files).
+
+Full regression test run against `bloc-backup-2026-08-27.json` (one day fresher than the report — currentWeek 6, all four session types logged through M2): built a Node harness reproducing both the pre-fix and post-fix `isLocked`/`missedTarget` resolution verbatim from the real functions, replayed chronologically against the actual `trainLogs`/`deloads` data (no synthetic cases), for every non-cardio exercise across all 4 session types × M1/M2 × weeks 2–6 that had at least one logged set — 216 exercise-weeks total. **5 differences found, all confined to MC6 M2 sessions** (Lat Pulldown and Lateral Raise on Pull M2; Incline Press, Cross Cable Extensions, and Cable Curls on Push M2) — exactly the sessions affected by the MC6-M1 deload, and no other week or session anywhere in the macro changed. Each of the 5 was individually checked against its raw logged numbers and confirmed to be a genuine miss against its frozen lock target, not a new false positive (e.g. Lat Pulldown: locked at 70.0kg × 12, logged 70.0kg × 8 on every set).
+
+## §52 — Post-deload redesigned: resets to the last compliant week instead of overriding the lock (v7.99)
+
+### Background
+
+v7.98 fixed the immediate symptom (an active lock being silently discarded during a post-deload week) by making the lock take priority. Working through the follow-up questions this raised — can a post-deload week still show a miss; should a compliant post-deload week actually clear a stale lock; what happens with two deloads and nothing but misses between them — surfaced that v7.98 was a correct but narrow patch on top of an architecture that had accumulated several independent special cases for deload/post-deload/lock interaction. This section replaces that patch with a single coherent model, worked out and confirmed against explicit worked examples (a 1-week and a 2-week mesocycle table, and a standalone chest-press walkthrough) before implementation.
+
+### The model
+
+A post-deload week is not a separate override branch. It's an ordinary progression week whose reference point is the **last week this exercise was genuinely compliant on** — found by walking backward, skipping deload weeks (and any other post-deload weeks encountered along the way, recursively), all the way back to week 1 if nothing else qualifies. That reference week's own target is then carried forward **unchanged** — no weightJump or rep-increment applied on top, since this is a reset, not a continuation. Two consequences fall out of this reframing directly, with no special-casing needed:
+
+- **Lock evaluation no longer exempts post-deload weeks.** They're evaluated exactly like any other week, just against the walked-back target instead of week-1. A miss replaces any stale existing lock outright with a fresh one at the *reset* target (never silently continuing to fight the old, pre-deload number); a hit clears whatever lock existed, exactly like any ordinary compliant week.
+- **The missed-target banner is eligible during post-deload too** — it has a genuine target now, so missing it is exactly as real as missing any other week's.
+
+Only a true deload week (the flat 60%-of-last-actual figure) and the progression-type selector being hidden during post-deload (there's no decision to make when the target is a reset, not a choice) remain special-cased.
+
+### New/changed functions
+
+- **`getLastCompliantWeek(macro, dayKey, ex, beforeWeek)`** — walks backward one track-week at a time, skipping deload weeks, returning the first week where every set met or exceeded its target (or week 1 as the unconditional floor).
+- **`getWeekComplianceResult(macro, week, dayKey, ex)`** — the single compliance comparison, now shared by `evaluateProgressionLock` and `getLastCompliantWeek`'s walk-back. This replaces what was previously two independent (though currently in-sync) implementations of the same wOk/rOk comparison — one in `evaluateProgressionLock`, one in `exProgData`'s missedTarget check.
+- **`getWeekTargets(macro, week, dayKey, ex)`** — resolves and caches what a week's target IS/WAS. For week 1, returns the exercise's configured starting numbers. For a post-deload week, recursively returns `getLastCompliantWeek`'s own target, unchanged (a direct carry-forward — this recursion is what correctly handles two deloads with nothing but misses in between, per the confirmed design: each nested post-deload week's own target is itself a carry-forward, bottoming out at a genuine compliant week or week 1). For an ordinary week, reuses an existing lock's frozen target if one exists, otherwise computes fresh via `computeRawSuggestedTargets` (reverted to its original, simple week-1-relative form — it's now only ever called for genuinely ordinary weeks).
+- **`evaluateProgressionLock`** — no longer skips post-deload weeks. Still skips maintenance, week 1, and true deload weeks only.
+- **`exProgData`** — `isLocked` now also suppresses outright during deload/post-deload (previously only during deload), since a post-deload week's display always shows the fresh reset target regardless of any inherited lock. A new `postDeloadTarget` (resolved once via `getWeekTargets`) feeds both the single-value and per-set placeholder chains, replacing the old raw-history lookup (`getLastNonDeloadUnit`, now dead code and removed) with a genuinely per-set reset target rather than one flat figure repeated across every set.
+- **Superset-level checks** (`anySSLocked`, the progression-toggles gate) simplified back down from v7.98's per-member carve-out — since `isLocked` now uniformly encodes deload/post-deload suppression for every member, no day-level guard is needed at all.
+
+### Verified against Adam's confirmed design tables
+
+Built a synthetic harness reproducing the exact worked examples confirmed during design (a 1-week mesocycle with two deloads and a chain of misses between them; a 2-week mesocycle with independent M1/M2 tracks; the standalone chest-press reset-without-jump example) and ran them through the real functions extracted verbatim from the shipped code — not reimplemented by hand. All three reproduced exactly:
+- 1-week table: MC2 compliant → MC3 miss → MC4 deload → MC5 (post-deload, walks back past MC3's miss to MC2) resets to MC2's exact target, itself misses → locks at MC5's target → MC6–8 stay frozen there → MC9 deload → MC10 (post-deload) walks back through the entire MC5–8/MC4/MC3 chain all the way to MC2 again.
+- 2-week table: same shape, except the post-deload week is hit rather than missed → lock clears → the following ordinary week resumes normal `+jump` progression from there, and misses on its own merits.
+- Chest-press: MC1 compliant at 50kg → MC2 misses at 52.5kg → MC3 deload → MC4 (post-deload) resets to exactly 50kg×10 (MC1's own target) — confirmed with **no** jump applied on top, matching the explicit requirement that this is a reset, not a continuation.
+
+### Full regression against real backup data
+
+Ran the same 216-exercise-week replay used for v7.98's regression (every non-cardio exercise, all 4 session types × M1/M2, weeks 2–6, `bloc-backup-2026-08-27.json`), this time comparing v7.98's output against v7.99's. **5 differences, all the same 5 exercises v7.98 had already flagged** (Lat Pulldown and Lateral Raise on Pull M2; Incline Press, Cross Cable Extensions, and Cable Curls on Push M2) — no new exercise or week outside that set moved at all. For each of the 5, v7.99's reset target is now genuinely lower than v7.98's stale MC4 lock (traced one by hand: Lat Pulldown's last compliant week was MC3 at 67.5kg×12 — confirmed directly against the raw logs — not the 70.0kg×12 the old lock was frozen at). Two of the five (Lateral Raise, Cross Cable Extensions, Cable Curls) flip from a missed-target banner to none at all, because their actual MC6 performance — which fell short of the old inflated lock — genuinely does meet the correct, lower reset target. The other two (Lat Pulldown, Incline Press) still show a miss even against the corrected target, a genuine continued shortfall. `isLocked` is `false` for all 5 under v7.99, matching the confirmed design that a post-deload week never displays "locked" styling regardless of what it inherited.

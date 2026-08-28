@@ -2315,7 +2315,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
       <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 2px;border-bottom:1px solid var(--border);margin-bottom:16px;cursor:pointer;" onclick="openModal('modal-settings-about')">
         <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-        <span class="tag tag-outline">v7.97</span>
+        <span class="tag tag-outline">v7.99</span>
       </div>
 
       <!-- ── Profile section ── -->
@@ -6244,20 +6244,6 @@ function getPrevTrackUnit(macro, week, dayKey) {
   return week > 1 ? { week: week - 1, dayKey } : null;
 }
 
-// Walks backward one mesocycle at a time (same track) skipping over any
-// consecutive deload units, and returns the { week, dayKey } of the first
-// non-deload unit found (or null if the walk runs off the start of the
-// macrocycle). Used to find the "real" pre-deload reference point for the
-// session immediately after a deload, so progression reverts to genuine
-// numbers rather than the deload week's temporarily-reduced ones.
-function getLastNonDeloadUnit(macro, week, dayKey) {
-  let unit = getPrevTrackUnit(macro, week, dayKey);
-  while (unit && isDeloadUnit(macro, unit.week, unit.dayKey)) {
-    unit = getPrevTrackUnit(macro, unit.week, unit.dayKey);
-  }
-  return unit;
-}
-
 // True for the first occurrence of a session that comes right after a
 // deload — used to suppress progression for exactly that one session, then
 // let normal progression resume. This is a union of two adjacency checks,
@@ -6369,6 +6355,25 @@ function getProgressionLockKey(macroId, dayKey, exId) {
   return macroId + '_' + dayKey + '_' + exId;
 }
 
+// Walks backward one track-week at a time from (beforeWeek - 1), skipping
+// deload weeks entirely (they have no real target to be compliant
+// against — and skipping past one keeps walking rather than stopping, so
+// two deloads with nothing but misses between them still correctly reach
+// all the way back), and returns the first week found where every set met
+// or exceeded its own target. Week 1 is always the implicit floor — the
+// exercise's genuine starting point — so the walk stops there
+// unconditionally if nothing else qualifies first.
+function getLastCompliantWeek(macro, dayKey, ex, beforeWeek) {
+  let w = beforeWeek - 1;
+  while (w > 1) {
+    if (isDeloadUnit(macro, w, dayKey)) { w--; continue; }
+    const result = getWeekComplianceResult(macro, w, dayKey, ex);
+    if (result.fullyLogged && result.compliant) return w;
+    w--;
+  }
+  return 1;
+}
+
 // Recomputes the per-set weight/reps target this week WOULD suggest under
 // normal progression rules — no lock applied. Used by the compliance check
 // to know what should have been hit when no lock currently exists yet.
@@ -6378,6 +6383,9 @@ function getProgressionLockKey(macroId, dayKey, exId) {
 // week/day is currently being VIEWED, while this must also be callable
 // right after a log write for the week/day actually being LOGGED (in
 // practice always the same, but this keeps the two concerns decoupled).
+// Only ever called for a genuinely ordinary week (see getWeekTargets) —
+// a post-deload week's target is a direct carry-forward of its reference
+// week's own target instead, never a fresh "+jump" computation here.
 function computeRawSuggestedTargets(macro, week, dayKey, ex) {
   const isGain = macro.goalType === 'gain';
   const isMaintenance = macro.goalType === 'maintenance';
@@ -6441,62 +6449,68 @@ function computeRawSuggestedTargets(macro, week, dayKey, ex) {
   return { sets, weightTargets, repsTargets, progType };
 }
 
-// Compares every logged set for (macro, week, dayKey, ex) against the
-// applicable target — the active lock's frozen target if one already
-// exists, otherwise this week's freshly computed suggestion — and
-// creates, leaves untouched, or clears state.progressionLocks accordingly.
-// Only runs once every set for this exercise is logged AND marked done;
-// a partially-logged session is left unevaluated (called again next time
-// a set is toggled). Skipped entirely for maintenance cycles, week 1
-// (nothing to compare against yet), and deload/post-deload sessions.
-function evaluateProgressionLock(macro, week, dayKey, ex) {
-  if (!macro || !ex) return;
-  if (macro.goalType === 'maintenance') return;
-  if (week <= 1) return;
-  if (isDeloadUnit(macro, week, dayKey)) return;
-  if (isFirstUnitAfterDeload(macro, week, dayKey)) return;
-
+// v7.99: resolves what (macro, week, dayKey, ex) target IS/WAS — the
+// single source of truth used by evaluateProgressionLock,
+// getLastCompliantWeek's walk-back, AND exProgData's own display (see
+// postDeloadTarget there), so there's exactly one answer anywhere in the
+// app to "what did/does this week need to hit". Once a week's target is
+// cached it's never recomputed (see the caching note in
+// evaluateProgressionLock) — with one exception: a post-deload week's
+// target is always a fresh, direct carry-forward of getLastCompliantWeek's
+// own target (recursively — that reference week may itself have been
+// post-deload, in which case its own target is likewise a carry-forward,
+// and so on back to a genuine compliant week or week 1). This is a
+// RESET, not a "continue progressing from" — the reference week's target
+// is copied unchanged, with no weightJump/rep-increment applied on top;
+// normal progression (computeRawSuggestedTargets) only resumes the
+// following week, once this reset week has itself been evaluated.
+function getWeekTargets(macro, week, dayKey, ex) {
   const lockKey = getProgressionLockKey(macro.id, dayKey, ex.id);
-  const existingLock = state.progressionLocks && state.progressionLocks[lockKey];
+  if (!state.progressionTargets) state.progressionTargets = {};
+  const targetKey = lockKey + '_w' + week;
+  const cached = state.progressionTargets[targetKey];
+  if (cached) return cached;
+
+  let raw;
+  if (week === 1) {
+    // Week 1 is the exercise's genuine starting point — not part of the
+    // lock/compliance pipeline at all, so its "target" is simply its own
+    // configured starting numbers, same as exProgData's week-1 display.
+    const sets = getWeekSets(ex, 1, macro.weeks);
+    raw = { weightTargets: Array(sets).fill(ex.startWeight.toFixed(1)), repsTargets: Array(sets).fill(ex.reps) };
+  } else if (isFirstUnitAfterDeload(macro, week, dayKey)) {
+    const refWeek = getLastCompliantWeek(macro, dayKey, ex, week);
+    raw = getWeekTargets(macro, refWeek, dayKey, ex);
+  } else {
+    const existingLock = state.progressionLocks && state.progressionLocks[lockKey];
+    raw = existingLock
+      ? { weightTargets: existingLock.weightTargets, repsTargets: existingLock.repsTargets }
+      : computeRawSuggestedTargets(macro, week, dayKey, ex);
+  }
+  const result = { weightTargets: raw.weightTargets.slice(), repsTargets: raw.repsTargets.slice() };
+  state.progressionTargets[targetKey] = result;
+  return result;
+}
+
+// v7.99: the single compliance comparison — shared by evaluateProgressionLock
+// and getLastCompliantWeek's walk-back (previously duplicated between
+// evaluateProgressionLock and exProgData's missedTarget check; both now
+// call this instead, so there is exactly one comparison implementation in
+// the whole app). Returns fullyLogged: false if the session isn't
+// completely logged and marked done yet — nothing to evaluate; compliant
+// is only meaningful when fullyLogged is true.
+function getWeekComplianceResult(macro, week, dayKey, ex) {
   const sets = getWeekSets(ex, week, macro.weeks);
   const key2 = macro.id + '_' + week + '_' + dayKey;
-
   const logs = [];
   for (let s = 0; s < sets; s++) {
     const log = state.trainLogs[key2 + '_' + ex.id + '_' + s];
-    if (!log || !log.done) return; // session not fully logged yet — wait
+    if (!log || !log.done) return { fullyLogged: false, compliant: false, weightTargets: null, repsTargets: null, sets };
     logs.push(log);
   }
-  if (sets === 0) return;
+  if (sets === 0) return { fullyLogged: false, compliant: false, weightTargets: null, repsTargets: null, sets };
 
-  // A given week's compliance target, once determined, must never change
-  // on a later re-evaluation (e.g. the render-time catch-up sweep runs
-  // repeatedly and idempotently touches every past week on every render;
-  // a genuine edit after the fact also re-triggers this). Without caching
-  // it, a week that already cleared its lock could get silently
-  // re-evaluated against a freshly recomputed (and different, typically
-  // higher) "normal" target the next time it's touched, wrongly
-  // re-locking a week that was already correctly resolved. Cache it once,
-  // keyed per exercise+week, and always reuse it afterward.
-  if (!state.progressionTargets) state.progressionTargets = {};
-  const targetKey = lockKey + '_w' + week;
-  const cachedTarget = state.progressionTargets[targetKey];
-  let weightTargets, repsTargets, changed = false;
-  if (cachedTarget) {
-    weightTargets = cachedTarget.weightTargets;
-    repsTargets = cachedTarget.repsTargets;
-  } else if (existingLock) {
-    weightTargets = existingLock.weightTargets;
-    repsTargets = existingLock.repsTargets;
-  } else {
-    const raw = computeRawSuggestedTargets(macro, week, dayKey, ex);
-    weightTargets = raw.weightTargets;
-    repsTargets = raw.repsTargets;
-  }
-  if (!cachedTarget) {
-    state.progressionTargets[targetKey] = { weightTargets: weightTargets.slice(), repsTargets: repsTargets.slice() };
-    changed = true;
-  }
+  const { weightTargets, repsTargets } = getWeekTargets(macro, week, dayKey, ex);
 
   let compliant = true;
   for (let s = 0; s < sets; s++) {
@@ -6514,18 +6528,47 @@ function evaluateProgressionLock(macro, week, dayKey, ex) {
     const rOk = targetR !== undefined && parseRepsForVolume(actualR) >= parseRepsForVolume(targetR);
     if (!wOk || !rOk) { compliant = false; break; }
   }
+  return { fullyLogged: true, compliant, weightTargets, repsTargets, sets };
+}
+
+// Creates, leaves untouched, or clears state.progressionLocks for
+// (macro, week, dayKey, ex), based on getWeekComplianceResult. Only runs
+// once every set for this exercise is logged AND marked done; a
+// partially-logged session is left unevaluated (called again next time a
+// set is toggled). Skipped for maintenance cycles, week 1 (nothing to
+// compare against yet), and true deload weeks — but NOT post-deload weeks
+// (v7.99): those are now evaluated exactly like any other week, just
+// against a target resolved via getProgressionRefWeek/
+// getLastCompliantWeek instead of week-1. A post-deload week's own miss
+// always replaces any existing (possibly stale) lock outright with a
+// fresh one at the walked-back target — it never silently continues
+// fighting an old frozen number from before the deload.
+function evaluateProgressionLock(macro, week, dayKey, ex) {
+  if (!macro || !ex) return;
+  if (macro.goalType === 'maintenance') return;
+  if (week <= 1) return;
+  if (isDeloadUnit(macro, week, dayKey)) return;
+
+  const lockKey = getProgressionLockKey(macro.id, dayKey, ex.id);
+  const result = getWeekComplianceResult(macro, week, dayKey, ex);
+  if (!result.fullyLogged) return; // session not fully logged yet — wait
 
   if (!state.progressionLocks) state.progressionLocks = {};
-  if (!compliant) {
-    if (!existingLock) {
+  const existingLock = state.progressionLocks[lockKey];
+  const isPostDeload = isFirstUnitAfterDeload(macro, week, dayKey);
+  let changed = false;
+
+  if (!result.compliant) {
+    if (!existingLock || isPostDeload) {
       state.progressionLocks[lockKey] = {
-        weightTargets: weightTargets.slice(),
-        repsTargets: repsTargets.slice(),
-        sets, lockedAtWeek: week,
+        weightTargets: result.weightTargets.slice(),
+        repsTargets: result.repsTargets.slice(),
+        sets: result.sets, lockedAtWeek: week,
       };
       changed = true;
     }
-    // Already locked — target stays frozen exactly as first set; nothing to update.
+    // Already locked on an ordinary week — target stays frozen exactly as
+    // first set; nothing to update.
   } else if (existingLock) {
     delete state.progressionLocks[lockKey];
     changed = true;
@@ -15516,8 +15559,11 @@ function renderTrainDay(macro) {
   const prevKey = macro.id + '_' + prevWeek + '_' + state.currentDay;
 
   // Whether the currently-viewed session is itself a deload, or is the
-  // first session after one — both suppress normal progression, but for
-  // different reasons (see exProgData() below for how each is handled).
+  // first session after one. Both are day-level signals — v7.99: a
+  // post-deload session is really just an ordinary progression week whose
+  // reference point resolves to getLastCompliantWeek() instead of
+  // week-1 (see PROGRESSION COMPLIANCE GUARD), so this stays a single
+  // shared boolean rather than something each exercise re-derives.
   const isDeloadSession   = isDeloadUnit(macro, state.currentWeek, state.currentDay);
   const isPostDeloadSession = isFirstUnitAfterDeload(macro, state.currentWeek, state.currentDay);
 
@@ -15627,11 +15673,22 @@ function renderTrainDay(macro) {
     // via the trailing evaluate below, or a toggle mid-session), which
     // must not hide this week's own chips/button. Only a lock inherited
     // from a strictly earlier week should affect what's shown right now.
-    const isLocked = !!progLock && (progLock.lockedAtWeek || 0) < state.currentWeek;
+    // v7.99: also suppressed outright during deload/post-deload — a
+    // deload week always shows its flat 60% figure, and a post-deload
+    // week always shows a fresh target walked back to the last compliant
+    // week (getLastCompliantWeek) rather than any inherited frozen
+    // number, even if one exists. Either way, this exercise's own
+    // evaluation below (which now runs for post-deload weeks too) is
+    // what decides whether NEXT week sees a lock — never this render.
+    const isLocked = !isDeloadSession && !isPostDeloadSession
+      && !!progLock && (progLock.lockedAtWeek || 0) < state.currentWeek;
     // Evaluate THIS week's own compliance too — but only AFTER isLocked
     // above has already been captured, so it can only ever affect what
     // NEXT week sees, never this render.
     evaluateProgressionLock(macro, state.currentWeek, state.currentDay, ex);
+    const postDeloadTarget = isPostDeloadSession
+      ? getWeekTargets(macro, state.currentWeek, state.currentDay, ex)
+      : null;
 
     // Same done-check as computeRawSuggestedTargets() above — a set that's
     // been typed but not yet confirmed must never seed a target, here or
@@ -15725,14 +15782,16 @@ function renderTrainDay(macro) {
       }
       return '';
     })();
-    // ── Deload overrides ──────────────────────────────────────────────
+    // ── Deload override ──────────────────────────────────────────────
     // A deload session ignores normal progression entirely: weight drops
     // to 60% of whatever was actually logged last time (rounded to this
     // exercise's own increment — weightJump, computed above), reps stay
-    // exactly as last logged. The session immediately after a deload also
-    // skips progression for one week — it reverts to the last genuine
-    // (non-deload) numbers, found by walking back past the deload, so the
-    // deload doesn't permanently reset the progression baseline.
+    // exactly as last logged. A post-deload session needs no override of
+    // its own (v7.99) — it's just an ordinary progression week whose
+    // reference point (prevWeek2/prevKey2 above) already walked back past
+    // the deload to the last genuinely compliant week, so the normal
+    // weightPlaceholder/repsPlaceholder math below produces the correct
+    // reset numbers automatically.
     let deloadWeightPlaceholder = null, deloadRepsPlaceholder = null;
     let deloadDropWeightPlaceholder = null, deloadDropRepsPlaceholder = null;
     if (isDeloadSession) {
@@ -15749,25 +15808,6 @@ function renderTrainDay(macro) {
           : '';
         deloadDropRepsPlaceholder = prevActualDropReps !== null ? prevActualDropReps : '';
       }
-    } else if (isPostDeloadSession) {
-      const refUnit = getLastNonDeloadUnit(macro, state.currentWeek, state.currentDay);
-      let refWeight = null, refReps = null, refDropWeight = null, refDropReps = null;
-      if (refUnit) {
-        const refLog = state.trainLogs[macro.id + '_' + refUnit.week + '_' + refUnit.dayKey + '_' + exId + '_0'];
-        refWeight = refLog && refLog.weight ? parseFloat(refLog.weight) : null;
-        refReps   = refLog && refLog.reps   ? refLog.reps : null;
-        if (isDropSet) {
-          refDropWeight = refLog && refLog.dropWeight ? parseFloat(refLog.dropWeight) : null;
-          refDropReps   = refLog && refLog.dropReps   ? refLog.dropReps : null;
-        }
-      }
-      deloadWeightPlaceholder = (refWeight !== null ? refWeight : (prevActualWeight !== null ? prevActualWeight : ex.startWeight)).toFixed(1);
-      deloadRepsPlaceholder = refReps !== null ? refReps : (prevActualReps !== null ? prevActualReps : ex.reps);
-      if (isDropSet) {
-        const fallbackDropWeight = refDropWeight !== null ? refDropWeight : prevActualDropWeight;
-        deloadDropWeightPlaceholder = fallbackDropWeight !== null ? fallbackDropWeight.toFixed(1) : '';
-        deloadDropRepsPlaceholder = refDropReps !== null ? refDropReps : (prevActualDropReps !== null ? prevActualDropReps : '');
-      }
     }
     // Locked single-value fallbacks (exercise-wide — set 1's frozen target),
     // used only when deload doesn't already override (deload always wins).
@@ -15778,12 +15818,14 @@ function renderTrainDay(macro) {
       ? (progLock.repsTargets[0] !== undefined ? progLock.repsTargets[0] : progLock.repsTargets[progLock.repsTargets.length - 1])
       : null;
     const weightPlaceholder = deloadWeightPlaceholder !== null ? deloadWeightPlaceholder
+      : postDeloadTarget !== null ? postDeloadTarget.weightTargets[0]
       : lockWeightPlaceholder !== null ? lockWeightPlaceholder
       : state.currentWeek === 1
       ? ex.startWeight.toFixed(1)
       : progType === 'weight' ? recommendedWeight.toFixed(1)
         : (prevActualWeight !== null ? prevActualWeight.toFixed(1) : ex.startWeight.toFixed(1));
     const repsPlaceholder = deloadRepsPlaceholder !== null ? deloadRepsPlaceholder
+      : postDeloadTarget !== null ? postDeloadTarget.repsTargets[0]
       : lockRepsPlaceholder !== null ? lockRepsPlaceholder
       : state.currentWeek === 1
       ? ex.reps
@@ -15810,9 +15852,11 @@ function renderTrainDay(macro) {
     // sets still progress from their own last actual numbers. If this
     // week has more sets than last week (a set added partway through a
     // plan), the extra set(s) simply inherit last week's final set's
-    // suggestion. Deload / post-deload / week-1 sessions are unaffected —
-    // they already use a single flat reference for the whole exercise, and
-    // that behaviour is preserved unchanged here.
+    // suggestion. True deload and week-1 sessions are unaffected — they
+    // already use a single flat reference for the whole exercise, and
+    // that behaviour is preserved unchanged here. Post-deload (v7.99) DOES
+    // use per-set targets, same as locked/normal weeks — see
+    // postDeloadTarget below.
     const weightPlaceholders = [], repsPlaceholders = [], dropWeightPlaceholders = [], dropRepsPlaceholders = [];
     for (let s = 0; s < sets; s++) {
       if (deloadWeightPlaceholder !== null) {
@@ -15820,6 +15864,18 @@ function renderTrainDay(macro) {
         repsPlaceholders.push(deloadRepsPlaceholder);
         dropWeightPlaceholders.push(!isDropSet ? '' : (deloadDropWeightPlaceholder !== null ? deloadDropWeightPlaceholder : ''));
         dropRepsPlaceholders.push(!isDropSet ? '' : (deloadDropRepsPlaceholder !== null ? deloadDropRepsPlaceholder : ''));
+        continue;
+      }
+      if (postDeloadTarget !== null) {
+        const pw = postDeloadTarget.weightTargets[s] !== undefined ? postDeloadTarget.weightTargets[s] : postDeloadTarget.weightTargets[postDeloadTarget.weightTargets.length - 1];
+        const pr = postDeloadTarget.repsTargets[s] !== undefined ? postDeloadTarget.repsTargets[s] : postDeloadTarget.repsTargets[postDeloadTarget.repsTargets.length - 1];
+        weightPlaceholders.push(pw);
+        repsPlaceholders.push(pr);
+        // The drop-set portion has no reset target of its own (never part
+        // of the compliance guard, same exemption true deload's drop
+        // handling already has) — falls back to last actual, if any.
+        dropWeightPlaceholders.push(!isDropSet ? '' : (prevActualDropWeight !== null ? prevActualDropWeight.toFixed(1) : ''));
+        dropRepsPlaceholders.push(!isDropSet ? '' : (prevActualDropReps !== null ? prevActualDropReps : ''));
         continue;
       }
       if (state.currentWeek === 1) {
@@ -15904,10 +15960,13 @@ function renderTrainDay(macro) {
     // Whether a fully-completed session actually matched its own target
     // (main set only — drop-set drop portions are never part of this,
     // same exemption as the compliance guard itself). Only meaningful on
-    // a genuine progression week; deload/post-deload/maintenance/week-1
-    // sessions don't have a "target" to miss in this sense.
+    // a genuine progression week; a true deload/maintenance/week-1
+    // session doesn't have a "target" to miss in this sense. A
+    // post-deload session DOES (v7.99) — its target is the walked-back
+    // getLastCompliantWeek reference, and missing it is exactly as real
+    // as missing any other week's.
     let missedTarget = false;
-    if (allDone && !isDeloadSession && !isPostDeloadSession && !isMaintenance && state.currentWeek > 1) {
+    if (allDone && !isDeloadSession && !isMaintenance && state.currentWeek > 1) {
       for (let s = 0; s < sets; s++) {
         const lg = state.trainLogs[key2 + '_' + exId + '_' + s] || {};
         const targetW = weightPlaceholders[s] !== undefined ? weightPlaceholders[s] : weightPlaceholders[weightPlaceholders.length - 1];
@@ -16255,9 +16314,11 @@ function renderTrainDay(macro) {
       // overhead quick-fill+complete button — same rationale as solo
       // exercises: force a genuine manual log rather than a one-tap
       // auto-complete of a target that may not actually be achievable yet.
-      // Deload/post-deload always override the lock entirely (same as
-      // solo exercises), so the button reappears normally on those weeks.
-      const anySSLocked = !isDeloadSession && !isPostDeloadSession && memberData.some(md => md.isLocked);
+      // No day-level deload/post-deload guard needed here (v7.99) — each
+      // member's own md.isLocked (from exProgData) is already forced
+      // false during both, so this is naturally correct with no
+      // conjunctions to keep in sync.
+      const anySSLocked = memberData.some(md => md.isLocked);
 
       // Collapsed preview rows — mirror normal exercise layout:
       // Left: name, then sets·reps on next line, then progress badge below (session 2+)
@@ -17117,9 +17178,17 @@ function clearExerciseLogs(macroId, week, day, exId, sets) {
   // A progression lock (and its frozen target) is a judgment about logged
   // sets that no longer exist once cleared — without this, the exercise
   // kept showing as locked against stale numbers even after every set was
-  // wiped, since nothing else here touched progressionLocks.
+  // wiped, since nothing else here touched progressionLocks. But that only
+  // applies when the lock being shown was actually CREATED by the week
+  // being cleared (lockedAtWeek === week): a lock inherited from an
+  // earlier week is a judgment about THAT week's logs, which are
+  // untouched here, and must survive (v7.98 — previously this deleted any
+  // active lock regardless of which week created it).
   const lockKey = getProgressionLockKey(macroId, day, exId);
-  if (state.progressionLocks) delete state.progressionLocks[lockKey];
+  const existingLockForClear = state.progressionLocks && state.progressionLocks[lockKey];
+  if (existingLockForClear && (existingLockForClear.lockedAtWeek || 0) === week) {
+    delete state.progressionLocks[lockKey];
+  }
   if (state.progressionTargets) delete state.progressionTargets[lockKey + '_w' + week];
   save();
   const macro = state.macrocycles.find(m => m.id === macroId);
