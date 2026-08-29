@@ -3356,3 +3356,221 @@ Built a synthetic harness reproducing the exact worked examples confirmed during
 ### Full regression against real backup data
 
 Ran the same 216-exercise-week replay used for v7.98's regression (every non-cardio exercise, all 4 session types × M1/M2, weeks 2–6, `bloc-backup-2026-08-27.json`), this time comparing v7.98's output against v7.99's. **5 differences, all the same 5 exercises v7.98 had already flagged** (Lat Pulldown and Lateral Raise on Pull M2; Incline Press, Cross Cable Extensions, and Cable Curls on Push M2) — no new exercise or week outside that set moved at all. For each of the 5, v7.99's reset target is now genuinely lower than v7.98's stale MC4 lock (traced one by hand: Lat Pulldown's last compliant week was MC3 at 67.5kg×12 — confirmed directly against the raw logs — not the 70.0kg×12 the old lock was frozen at). Two of the five (Lateral Raise, Cross Cable Extensions, Cable Curls) flip from a missed-target banner to none at all, because their actual MC6 performance — which fell short of the old inflated lock — genuinely does meet the correct, lower reset target. The other two (Lat Pulldown, Incline Press) still show a miss even against the corrected target, a genuine continued shortfall. `isLocked` is `false` for all 5 under v7.99, matching the confirmed design that a post-deload week never displays "locked" styling regardless of what it inherited.
+
+## §53 — Nutrition UX Enhancements: Swap Meal + Save & Log (v8.00)
+
+### Background
+
+First session of the OAuth/Backend/Food-Data/AI development plan (`BLOC-dev-plan-oauth-backend-ai.md`), scoped to Phase 1 only — two small, self-contained additions to the Nutrition page's existing meal ellipsis menu and recipe-creation flow, chosen as a standalone starting point with no backend/auth dependency. Both ship with no schema changes.
+
+### Swap Meal
+
+A fourth option on the meal ellipsis menu (`showMealMenuSheet`), alongside the existing Copy/Move/Save-as-recipe — swaps two whole meals' contents bidirectionally in a single action, rather than requiring two separate Move operations (move A → temp date, move B → A, move temp → B).
+
+- **Entry point:** `openMealCopyMove('swap')` — the existing whole-meal copy/move picker (`modal-nutr-copy-entry`) is reused rather than duplicated, since the date/meal-target UI is identical; only the mode differs. `nce-mode` now takes `'swap'` alongside the existing `'copy'`/`'move'`, with mode-keyed lookup objects (`titles`, `btnLabels`) driving the modal's title and confirm-button text instead of the previous two-way ternary.
+- **Confirm logic:** `confirmCopyFoodEntry()` gains an early `mode === 'swap'` branch, kept structurally separate from the existing copy/move branch below it (surgical scope — copy/move behaviour is untouched). Both meals are guaranteed initialised (`Breakfast/Lunch/Dinner/Snacks` skeleton) before the array references are exchanged directly:
+  ```js
+  const srcItems = state.nutritionMeals[srcDate][srcMeal];
+  const tgtItems = state.nutritionMeals[tgtDate][tgtMeal];
+  state.nutritionMeals[srcDate][srcMeal] = tgtItems;
+  state.nutritionMeals[tgtDate][tgtMeal] = srcItems;
+  ```
+  This works correctly even when `srcDate === tgtDate` (swapping two meals on the same day), since the two meal keys are independent properties on the same date object.
+- **No-op guard (confirmed with Adam):** if the chosen target is the exact same date + meal as the source, the modal closes silently with no state change and no re-render — there's nothing to swap with.
+- **Whole-meal only:** `srcIdx` is always `-1` here (swap is only reachable via the meal-level ellipsis menu, never a single-item row), so no single-item swap path exists or was built.
+- Both meals are re-synced to the legacy log (`syncNutrLegacyLog`) and the daily view re-rendered after a successful swap, matching existing copy/move behaviour.
+
+### Save & Log
+
+A second button in the recipe builder's ingredients step (`modal-recipe-ingredients`), alongside the existing "Save recipe →". Confirmed with Adam that this is offered **only** when the recipe builder was opened from Settings → My Recipes (no pre-existing date/meal context) — **not** when opened via a meal's "Save meal as recipe…" ellipsis action, since that flow's ingredients are already logged individually on the source date/meal, and logging the new recipe immediately afterward would double-count those calories.
+
+- **Eligibility flag:** `_recipeLogEligible` (module-level bool) is set `true` at the top of `openRecipeBuilder()` (both the "+ Create new" and "Edit" paths off My Recipes) and `false` at the top of `saveMealAsRecipe()`. `recipeGoToIngredients()` — the single hand-off point from step 1 to step 2, shared by both entry paths — reads the flag once and toggles `#recipe-savelog-btn`'s visibility (`style.display`) accordingly. No other call site needed to change.
+- **Shared persistence — `_persistRecipe()`:** the validation + save-to-`state.recipes` + `addToFoodLibrary()` body previously inline in `saveRecipe()` was extracted verbatim into a new helper returning the saved recipe object (or `null` on an invalid form — no name / no ingredients). `saveRecipe()` now calls this then does its existing modal/navigation handling (return to My Recipes); `saveRecipeAndLog()` calls the same helper then routes to the new log-target picker instead. Keeping this as one function (rather than the same logic maintained in two places) directly follows the "duplicate logic is a liability" principle.
+- **Log-target picker — `modal-recipe-log-target`:** a small new modal (date select + meal select, defaulting to today + `nutrActiveMeal || 'Breakfast'`) shown after a successful Save & Log. Its own confirm button (`#recipe-log-confirm-btn` → `confirmRecipeLogTarget()`) is deliberately separate from `modal-nutr-copy-entry`'s confirm flow — this isn't a copy/move/swap of existing meal data, just a destination pick for a brand-new recipe about to be logged for the first time.
+- **Hand-off into the standard serving modal:** `confirmRecipeLogTarget()` looks the just-saved recipe up by name in `state.foodLibrary` (`source === 'recipe'`), calls `showScreen('nutrition')` (which resets `nutrSelectedDate` to today as a side effect — immediately overridden with the chosen date afterward), sets `nutrActiveMeal` to the chosen meal, and builds `nutrPendingProduct` in the exact same shape `selectFromAddList()` builds it for any other food-library item, before calling `openNutrServingModal()`. This means a freshly-saved recipe logs through **exactly** the same code path (recipe-ingredient breakdown panel, fixed 100g serving-count field, live macro preview, `confirmServing()`) as picking that same recipe from the ordinary Nutrition → Add Food list — no parallel logging logic was written.
+- **`_recipeListReturnPending` is explicitly cleared** in `saveRecipeAndLog()` before closing the ingredients modal, so the pending "return to My Recipes list" behaviour (set when the builder was opened from that list) doesn't fire and fight the Nutrition-screen hand-off.
+
+### Shared refactor: `populateRelativeDateSelect(selectId)`
+
+The ±6-day rolling date-list population (formatting, ordinal suffixes, today pre-selected) existed identically in `openMealCopyMove()` and `openCopyFoodEntry()` before this session, and Save & Log's new target picker needed the exact same thing a third time. Extracted into one shared function, called from all three sites (`nce-target-date` in both existing call sites, `recipe-log-target-date` in the new one) — per the "duplicate logic is a liability" principle, this was a good opportunity to collapse three identical copies into one rather than add a third.
+
+### Verification
+
+No real backup JSON was uploaded this session (Phase 1 is pure Nutrition-page UI/UX with no interaction with training/progression data, so the usual 216-exercise-week regression harness doesn't apply here). Verified instead via a Playwright script against a minimal synthetic seed (a macrocycle stub to bypass the first-run profile gate, plus Breakfast/Lunch meal entries) driving the real shipped functions in a live browser:
+- Swap Meal: swapped Breakfast (Porridge) ↔ Lunch (Chicken Salad) on the same date via the actual UI flow, confirmed via screenshot and by reading `state.nutritionMeals` back out of `localStorage` that both meals' contents were correctly exchanged. Re-ran with source === target to confirm the no-op guard exits cleanly with no error and no state change.
+- Save & Log: confirmed `#recipe-savelog-btn` is visible when the builder is opened from Settings → My Recipes, and hidden when opened via a meal's "Save meal as recipe…" action. Built a recipe, clicked Save & Log, picked Snacks as the target meal, confirmed the log-target picker handed off into `modal-nutr-serving` correctly titled "Add to Snacks" with the recipe pre-loaded, then completed the log and confirmed the resulting entry landed in `state.nutritionMeals[today].Snacks` with the correct macros, and that the recipe was saved to both `state.recipes` and `state.foodLibrary`.
+- `node --check` on the extracted script block, a duplicate-function-declaration grep across every new/changed function name, and a div-balance check all passed clean.
+
+## §54 — Barcode scanning redesign: confirmation popup, unit-aware serving picker, pack-quantity guards (v8.01)
+
+### Background
+
+Phase 3 of the OAuth/Backend/Food-Data/AI development plan, following Phase 2's food-library migration (which added `servingName`/`unit`/`packQuantityRaw`/`packQuantity` fields to existing library items retroactively — see the dev plan's Phase 2 completion notes). This session made those fields a live, permanent part of *every future* barcode scan rather than a one-off migration artefact: the old `(RSS - Xg)` name-suffix hack is gone, unit (g vs ml) is captured and threaded through instead of assumed, and the logging-time quantity field became a proper serving picker.
+
+Both barcode-scan entry points were in scope (confirmed with Adam) — the Nutrition diary's own scanner and the Recipe Builder's ingredient scanner, which previously ran two separate, near-identical fetch implementations. Text-search fallback for barcodeless items (mentioned in the dev plan's lookup-mechanics section) was explicitly deferred to a follow-up pass, to keep this session's scope to the confirmation flow, unit threading, pack guards, and library editor.
+
+Before writing any code, the OFF v3 API schema was checked live (via `world.openfoodfacts.org/files/redocly/api-v3.redoc-static.html`) to confirm `product_quantity_unit` and `serving_quantity_unit` are real, current fields — the dev plan's assumptions held.
+
+### Shared OFF fetch layer — `fetchOFFProduct(barcode)`
+
+Replaces the two duplicate fetch bodies previously inside `lookupNutrBarcode()` and `lookupRecipeBarcode()`. Returns `{ ok:true, ...fields }` or `{ ok:false, reason }` (`not_found` / `no_kcal` / `network_error`), with unit resolution priority:
+
+1. OFF's own explicit `serving_quantity_unit` / `product_quantity_unit` field, trusted as-is when it's `'g'` or `'ml'`.
+2. Falling back to `parseRawQuantityString()` — a regex over the raw `serving_size`/`quantity` string (`"330 ml"`, `"4 x 100g"`, `"1.5kg"`, `"70cl"`), taking the **last** number+unit pair in the string (the per-unit size for a multipack, not the multipack total — see the pack-guard section below) and normalising kg→g×1000, l→ml×1000, cl→ml×10.
+3. The overall item `unit` prefers the serving unit (what the person will actually log by) over the pack unit, defaulting to `'g'` only as an absolute last resort.
+
+`lookupNutrBarcode()` and `lookupRecipeBarcode()` are now thin wrappers: fetch via the shared function, show the existing status-text error states unchanged on failure, and on success close the barcode modal and call `openScanConfirm(ctx, barcode, result)` instead of populating a pending-product object directly.
+
+### Pack-quantity guards — `resolvePackQuantity()`
+
+An ordered guard-function chain (`PACK_QUANTITY_GUARDS`), matching the codebase's existing "duplicate logic is a liability" / ordered-guard conventions used elsewhere:
+
+```js
+function guardMultipack(raw) {
+  if (!raw) return null;
+  const m = String(raw).match(/(\d+)\s*x\s*([\d.,]+)/i);
+  if (!m) return null;
+  const v = parseFloat(m[2].replace(',', '.'));
+  return (v > 0) ? v : null;
+}
+```
+
+`"4 x 100g"` correctly resolves to `100` (the single-unit size), not `400` (the multipack total) — this was the specific edge case called out in the Phase 3 dev plan and was verified directly (see Verification below) with a mocked `"4 x 50 g"` response resolving to `50`. Falls back to the plain parsed `packQuantity` only when the raw string doesn't itself look like an unparsed multipack; returns `null` (hiding the "1 Pack" option entirely) rather than ever guessing wrong. New packet-format edge cases should be added as new guard functions here, not by rewriting `guardMultipack`.
+
+### Confirm Product popup — `modal-scan-confirm`
+
+Shown after every successful OFF lookup, before anything is written to the food library. Built as a single screen rather than a step wizard — the dev plan's four-branch table (OFF returned a serving? × did the person confirm it's correct?) falls out naturally from whether OFF had a serving size (controls whether the recommended-serving banner and serving-size prefill appear) and whether the person opens the "these nutrition details look wrong →" disclosure (controls whether the macro fields being read at confirm time are OFF's own or corrected ones):
+
+- **`openScanConfirm(ctx, barcode, offResult)`** — `ctx` is `'nutr'` or `'recipe'`, stored in module-level `scanConfirmCtx` so `confirmScanDetails()` knows which pending-product variable and which serving modal to route into afterward. Populates the name/brand card, the recommended-serving banner (hidden entirely when OFF returned no serving size), both per-serving/per-100(unit) preview cards, and pre-fills the (always-empty-until-typed) serving name field, serving size field, and the amend fields (with OFF's own per-100 values, used only if the disclosure is opened).
+- **`setScanConfirmUnit(u)`** — toggles the g/ml buttons and updates every unit-dependent label in the popup (serving-size field label, per-100 card header, amend-fields kcal label) — the popup never hardcodes "g".
+- **`toggleScanConfirmAmend()`** / **`updateScanConfirmPreview()`** — the disclosure and its live preview recompute.
+- **`confirmScanDetails()`** — validates serving name + serving size are both non-empty (inline error, no silent failure), builds the finalized object (`per100kcal/p/c/f`, `defaultServing`, `servingName`, `unit`, `packQuantityRaw`/`packQuantity` carried through unedited from the OFF fetch, `cacheSource: scanConfirmAmending ? 'off_amended' : 'off_verified'`, `source: 'barcode'`), writes it into `nutrPendingProduct` or `recipePendingIngredient`, closes the popup, and opens the appropriate quantity modal.
+- **`cancelScanConfirm()`** — discards `scanConfirmData`/`scanConfirmCtx`, no library write.
+- **Stacking:** `#modal-scan-confirm { z-index: 300; }`, matching `modal-nutr-add`/`modal-nutr-serving` — it needs to render above `modal-recipe-ingredients` when reached via the Recipe Builder context, not just above the plain Nutrition page, for the same reason those two already carry that boost (see the existing z-index comment block).
+
+### Logging-time serving picker — redesigned twice mid-session per Adam's feedback
+
+The first implementation (a row of tappable "chips": Serving Name / 100(unit) / 1 Pack / Custom, shown only when `servingName` was set, otherwise falling back to the pre-existing direct-entry grams field) was replaced, in order, by:
+
+1. A dropdown that swapped for a plain input box when "Custom" was chosen (shown conditionally on `hasServingName || has100gValues || hasPackSize`).
+2. The **shipped design**: `renderServingPicker(prefix, item)` always renders a `<select>` — never reverting to free text — with up to four options: `servingName` (if present), `"1 Pack (Xunit)"` (if `resolvePackQuantity()` returns non-null), `"100(unit)"`, and `"1(unit)"`. The last option doubles as the free-entry mechanism: paired with the pre-existing **Servings** multiplier field (already present in `modal-nutr-serving`, newly added to `modal-recipe-serving` — see below), selecting `"1g"` and typing `137` into Servings expresses exactly `137g` without any text-entry field inside the picker itself. This means the picker never needs a "no qualifying options" fallback either — `100(unit)` and `1(unit)` are unconditionally available for any item with real per-100 macros, which every non-recipe pending product has.
+
+`renderServingPicker()` returns the built option list so callers can choose an initial selection. Both `openNutrServingModal()` and the new `openRecipeServingModal()` follow the same reconstruction logic for a last-logged amount that doesn't match a preset: rather than approximate, they select `"1(unit)"` and set Servings to `lastEntry.grams * (lastEntry.servings || 1)` — the exact historical total, always representable exactly this way.
+
+The underlying `{prefix}-grams` input (`nutr-serving-grams` / `recipe-serving-grams`) stays in the DOM but hidden — it's what the rest of each modal's math (`updateServingPreview`/`confirmServing`, `updateRecipeServingPreview`/`confirmRecipeIngredient`) already reads, so those functions needed no math changes, only a `× servings` term added on the recipe side (see next section). A single shared handler, `_onServingPickerChange(prefix)`, writes the selected option's value into the hidden input and calls whichever preview function belongs to that context.
+
+Saved recipes logged as a whole meal (`isRecipe` in `openNutrServingModal`, unrelated to a recipe-as-ingredient) are unaffected — that branch still shows the plain readonly "Amount (g)" input fixed at 100, with the picker `<select>` hidden, exactly as before this phase.
+
+### Recipe Builder ingredient modal gains a Servings multiplier — and now saves to the library
+
+`modal-recipe-serving` previously had no Servings concept at all — just a single Amount field — and, notably, `confirmRecipeIngredient()` never called `addToFoodLibrary()`, unlike every other ingredient-add path in the Recipe Builder (manual "per gram" entries did; barcode-scanned ones silently didn't). Both gaps are fixed together this session:
+
+- A new `recipe-serving-servings` field mirrors `nutr-serving-servings` (same min/step/default).
+- `updateRecipeServingPreview()` and `confirmRecipeIngredient()` both now compute `total = gramsUnit * servings` before the existing `r = total / 100` macro-scaling math, verified against a worked case (2 × "1 slice" @ 30g/100kcal-per-100g → 60g total → 60kcal, confirmed via Playwright).
+- `confirmRecipeIngredient()` now calls `addToFoodLibrary()` with the full Phase 3 field set (`servingName`, `unit`, `packQuantityRaw`, `packQuantity`, `cacheSource`), so a scanned recipe ingredient is reusable next time exactly like a scanned meal-log item already was.
+- `openRecipeServingModal()` is a new function (population logic was previously inline in `lookupRecipeBarcode()`, which no longer has anywhere to inline it into now that the confirm popup sits in between) — mirrors `openNutrServingModal()` for the recipe context, minus the recipe-ingredient-breakdown panel and the last-logged-amount lookup (recipe ingredients have no such history to match against), so it always opens on the first/best option with Servings at 1.
+
+### `addToFoodLibrary()` — new fields, non-destructive merge
+
+`servingName`, `unit`, `packQuantityRaw`, `packQuantity`, `cacheSource` added to the entry object this function builds. Each falls back to the **existing** library entry's value (not `null`) when the incoming `item` doesn't specify it, rather than the merge-by-name upsert silently wiping a field some other, Phase-3-unaware call site (e.g. a manual "per gram" entry) doesn't know to pass. `unit` specifically defaults to `'g'` only if neither the incoming item nor the existing entry has one.
+
+`selectFromAddList()` (tapping a food-library search result) now carries `servingName`/`unit`/`packQuantityRaw`/`packQuantity`/`cacheSource` forward into `nutrPendingProduct`, so items that already had these fields — either from the Phase 2 migration or a Phase 3 scan since — get the picker in `modal-nutr-serving` too, not just fresh scans.
+
+### Food Library Editor (Settings)
+
+`modal-food-lib-entry` gained a **Serving name** text field and a g/ml toggle (`setFleUnit()`, mirroring `setScanConfirmUnit()`), so every field this redesign introduces is editable by hand afterward, not just at scan time. `renderFoodLibEditor()`'s per-row summary line is now unit-aware (`100${unit}` instead of a hardcoded `100g`) and shows `servingName (Xunit)` in place of the old `RSS Xg` text when a serving name is set.
+
+### Places deliberately left untouched this session
+
+Scoped explicitly with Adam:
+- **Text-search fallback** for barcodeless/unbranded items — deferred to a follow-up pass; only barcode lookups route through `fetchOFFProduct()` this session.
+- **Historical Nutrition diary meal-log row display** — already-logged entries continue to show grams with no unit suffix; `unit` is not retroactively added to `nutritionMeals` entries. Unit-awareness this session is confined to the four places explicitly scoped: the confirmation popup, the logging-time picker, the food library list, and the food library edit modal.
+- The Nutrition Add Food search list (`renderNutrAddList`)'s `"Xg"` amount label is likewise untouched — not one of the four scoped places.
+
+### Verification
+
+Playwright against the real backup (`bloc-backup-final-2026-08-29.json`, post-Phase-2-migration), driving the real shipped functions in a live browser:
+
+- **Existing migrated library item (Kopparberg Summer Punch Cider, `unit: 'ml'`, `servingName: '1 Can'`, `packQuantity: 330`)** — picker built `["1 Can", "1 Pack (330ml)", "100ml", "1ml"]`, defaulted to index 0 with the hidden grams input at `330` and Servings at `1`, live preview correctly showed `172 kcal` (52 kcal/100ml × 3.3).
+- **Library item with no `servingName` (SALAMI NAPOLI, barcode-sourced, `unit: 'g'`)** — no crash; picker correctly omitted the serving-name option and built `["1 Pack (413g)", "100g", "1g"]`.
+- **Mocked OFF response for a `"4 x 50 g"` multipack** — Confirm Product popup correctly used `serving_quantity` (50g) for the recommended-serving banner and prefill, not `product_quantity` (200g total); per-100/per-serving preview cards computed correctly (125 kcal at a 50g serving from a 250 kcal/100g product). After confirming, the resulting picker correctly resolved the pack option to `50g` (via `guardMultipack`), not `200g` — the specific edge case this guard chain exists for.
+- **Nutrition-diary scan → library write** — confirmed the resulting `state.foodLibrary` entry carried every new field correctly, including `cacheSource: 'off_verified'` (amend disclosure never opened) and the raw `packQuantityRaw: '4 x 50 g'` preserved verbatim alongside the guard-resolved display value.
+- **Recipe Builder scan → library write** — confirmed a scanned recipe ingredient is now persisted to `state.foodLibrary` (previously never happened at all), with the same field set.
+- **Recipe ingredient Servings multiplier** — 2 × a 30g/100kcal-per-100g "1 slice" option correctly produced a `60g` / `60 kcal` `recipeIngredients` entry.
+- **Saved-recipe-as-meal logging (`isRecipe` branch)** — confirmed unaffected: input box visible (not the picker `<select>`), readonly, fixed at `100`, label still "Amount (g)".
+- **Food Library Editor round-trip** — opened an entry, set a serving name and switched unit to ml via `setFleUnit()`, saved, and confirmed both fields persisted correctly in the re-rendered list.
+- `node --check` on the extracted script block, a duplicate-function-declaration grep, and a div-balance check (delta unchanged from the pre-session baseline of −1, a pre-existing false positive from a div-like substring elsewhere in the file — not a real imbalance) all passed clean across every edit in this session, including after the mid-session picker redesigns.
+- Zero browser console/page errors from app code during any of the above; the only network errors seen (Google Fonts 403, a missing demo-data 404) were sandbox/test-harness artefacts unrelated to this session's changes.
+
+---
+
+## §55 — AI Meal Photo Logging (v8.02)
+
+### Background
+
+Phase 4 of the OAuth/Backend/Food-Data/AI development plan. No real backup JSON was needed/uploaded this session — like Phase 1, this is a UI/API feature with no training or progression data involved — so verification ran via Playwright driving the real shipped functions against synthetic seed data in a live browser, per the dev plan's own note that Phase 4 doesn't require the 216-exercise-week harness.
+
+Two scope corrections from Adam during the session, both acted on immediately:
+1. Save & Log should be offered on the review screen (matching Phase 1's precedent), not "Save as recipe only" per the spec's literal wording.
+2. That was then superseded by a bigger correction once the entry point was actually built: since Photo is launched from *inside* `modal-nutr-add` — already scoped to a specific date and meal via `nutrSelectedDate`/`nutrActiveMeal` — there's no need for a target-picker or servings-modal detour at all. The review screen **is** the confirmation step; a single **Save** button logs the reviewed amounts straight into the already-known meal and silently persists the same data as a recipe in the background. This is simpler than both Phase 1's Save & Log and the dev plan's literal "auto-saved as a recipe" — no separate log action needed, because the log destination was never ambiguous to begin with.
+
+### Entry point — Add Food actions row becomes a 2x2 grid
+
+`#nutr-add-actions-row` (Recipes / Manual / Scan Barcode) gains a fourth button, **Photo**. The pre-existing single flex row (`flex:1` per button) was verified via screenshot to overflow/wrap badly at a 390px viewport once a 4th option was added — "Scan Barcode" was already wrapping to two lines with three buttons, and a fourth pushed content past the visible edge entirely. Changed to `display:grid;grid-template-columns:repeat(2,1fr)` — same total footprint, each button now gets roughly double the width it had before. This only touches the Nutrition Add Food modal's actions row; the equivalent row inside the Recipe Builder's ingredient-add flow (Scan Barcode / Manual, no Photo/Recipes options there) is untouched.
+
+### Capture + context — `modal-nutr-photo`
+
+`openNutrPhoto()` closes `modal-nutr-add` and resets every field before opening, mirroring `openNutrManual()`'s reset pattern. Fields: a tappable photo tile (`<input type="file" accept="image/*" capture="environment">`, swapped for a preview thumbnail once a file is chosen), Meal Name (required), Restaurant name + a "Home-cooked / not a chain" checkbox that disables and blanks the restaurant field when checked (`toggleHomeCooked()`), and an optional Known total kcal field.
+
+**Client-side image resize — `handlePhotoFileSelect(file)`.** Full-resolution iOS photos are far larger than useful for this; the selected file is read via `FileReader`, drawn to an off-screen `<canvas>` capped at `PHOTO_MAX_DIMENSION = 1024` px on the longest edge, and re-exported as JPEG at `PHOTO_JPEG_QUALITY = 0.82`. The resulting base64 (stripped of the `data:` prefix) and media type are held in module-level `_photoImageBase64`/`_photoImageMediaType` — never written to `state`, so a photo never bloats `localStorage` or an exported backup; it exists only for the lifetime of one API call.
+
+### API call — `analyzeMealPhoto()`
+
+Validates, in order: an image is present, Meal Name is non-empty (focuses the field otherwise), and an API key exists (`getApiKey()`, same `localStorage` key every other AI feature uses) — each failure surfaces inline in `#photo-analyze-error`, matching `askBlocForAdvice()`'s existing error-display convention rather than an `alert()`.
+
+`buildMealPhotoPrompt(ctx)` is a standalone function (not inlined into the fetch call) so the two conditional-logic branches the dev plan calls out are easy to find independently of the request plumbing:
+
+- **Known-kcal-as-fixed-constraint**: when `ctx.knownKcal` is set, the system prompt explicitly instructs the model to treat it as immutable and apportion it across identified items rather than estimating total calories independently — the opposite instruction (estimate freely) is given when it's absent.
+- **Country-scoped web search**: `useWebSearch = !!restaurant && !homeCooked`. Only then does the request body include `tools: [{ type: 'web_search_20250305', name: 'web_search' }]`, and only then does the system prompt name the restaurant and (`state.profile.country`, new field — see below) the country to scope the lookup to, since chain menus differ by market. Home-cooked or no restaurant given → no web_search tool in the request at all, not just an unused one.
+
+Request body: `model: 'claude-sonnet-4-6'`, `max_tokens: 3000`, an image content block (`type: 'image', source: { type: 'base64', media_type, data }`) plus a text block, same `anthropic-dangerous-direct-browser-access` header pattern as every other direct-browser API call in the app. Response parsing filters `data.content` to `type === 'text'` blocks (ignoring any `web_search_tool_use`/`web_search_tool_result` blocks that come back when the tool fired), joins them, strips accidental markdown fences, and `JSON.parse`s — same defensive pattern as `askBlocForAdvice()`.
+
+Expected schema: `{"items":[{"item","estimated_grams","calories","protein","carbs","fat","confidence"}]}`. Each item is coerced defensively on the way into `_photoDetectedItems` — grams floored at 1 (never 0, to avoid a division-by-zero later), numeric fields parsed and rounded, `confidence` validated against the `high`/`medium`/`low` enum and defaulted to `medium` if the model returns something else. A response with no `items` array, or an empty one, throws with a user-facing "no items detected, try a clearer shot" message rather than opening an empty review screen.
+
+### Food-library cross-reference — suggestion only, never automatic
+
+`findFoodLibraryMatch(itemName)` — confirmed explicitly with Adam this session to be suggest-and-confirm, not auto-substitute, since name-based matching between an AI-guessed item name and a library entry is inherently uncertain. Simple Jaccard-style overlap: both strings are reduced to their significant words (`[a-z]{3,}`, lowercased, a small stopword list removed), and the library entry with the highest overlap-ratio ≥ 0.4 against `state.foodLibrary` wins, or `null` if nothing clears that bar. Run once per detected item at analysis time (not live on the review screen) and attached as `suggestedMatch`; `matchStatus` starts `'pending'` and moves to `'accepted'` or `'dismissed'` via the review screen's Use it/Dismiss buttons. Editing an item's numbers by hand also sets `matchStatus: 'dismissed'` — a manual correction supersedes a pending suggestion rather than leaving a stale chip against numbers the person has already overridden.
+
+### Review screen — `modal-nutr-photo-review`
+
+`renderPhotoReviewItems()` renders each detected item with its confidence badge (colour-mapped via `PHOTO_CONFIDENCE_COLOR`: high→`--accent`, medium→`--amber`, low→`--red`), edit (✎) and remove (✕) buttons, and — only while `matchStatus === 'pending'` — a suggestion chip. `editPhotoItem(idx)` opens a small dedicated edit modal (`modal-nutr-photo-item-edit`, patterned directly on the existing `modal-recipe-edit-ingredient`) with a live macro preview; `addPhotoItemManual()` pushes a blank low-confidence item and immediately opens that same edit modal, for anything the model missed entirely. Totals recompute on every render.
+
+### Confirm — `confirmPhotoItems()`
+
+No target picker, no servings modal (see Background above for why). On Save:
+
+1. Maps `_photoDetectedItems` into an `ingredients` array shaped exactly like any other recipe ingredient — `per1kcal`/`per1p`/`per1c`/`per1f` computed from the reviewed grams, `source: 'ai_photo'` (a new tag, not one of the existing `manual`/`recipe`/`library`/`barcode` values), plus `aiEstimated: true` and `confidence`. Because `isWeightEditableIngredient()` (Recipe Builder) checks `ing.per1kcal != null` *before* it checks `source`, these ingredients are weight-editable by grams if the saved recipe is later reopened for editing — no changes needed to that function.
+2. Builds a `recipe` object and an `addToFoodLibrary()` call that exactly mirror `_persistRecipe()`'s existing shape (`per100kcal`/`p`/`c`/`f` hold the per-serving totals *directly*, not scaled — same convention every other recipe in the app already uses; `defaultServing: null`, `isRecipe: true`, `source: 'recipe'`) — confirmed against `_persistRecipe()`'s own code rather than assumed, so a photo-derived recipe is indistinguishable from a hand-built one anywhere else in the app (My Recipes, Fill Day, etc).
+3. Calls `addFoodEntry()` with the shape `selectFromAddList()`'s existing `isRecipe` branch already produces for logging a recipe at 1 serving (`grams:1, servings:1, serving:1, source:'recipe'`), plus `aiEstimated: true` on the log entry itself.
+4. `save()`, clears `_photoDetectedItems`/`_photoContext`, closes the review modal. `renderNutrDaily()` (called inside `addFoodEntry()`) picks the new entry up on the currently-viewed date/meal immediately, same as any other log action.
+
+### Visual distinction — recipe ingredient list
+
+`renderRecipeIngredients()` (Recipe Builder, shared function) gained one additive line: when `ing.aiEstimated` is truthy, a small purple "AI est." badge renders next to the ingredient name. Gated entirely on that new field, so every existing ingredient type (manual, library, barcode, nested recipe) renders byte-for-byte as before — verified by rendering a mixed list and confirming only the flagged entry shows the badge.
+
+### New profile field — Country
+
+`state.profile.country`, added to the existing `modal-body-profile` (Settings → About me) between Date of Birth and the Save button — not part of the profile-entry gate's required fields (gender/height/DOB), since it's specific to this one feature rather than core to BMR/macro calculations. `COUNTRY_LIST` is a 43-entry array (UK/US/EU/major APAC/Middle East/Americas markets, plus "Other"), populated into the `<select>` lazily on first `openBodyProfile()` call (`populateCountrySelect()`, guarded by `_countrySelectPopulated`) rather than duplicating `<option>` tags in markup — consistent with the codebase's "design tokens over hardcoded values" convention. `saveBodyProfile()` writes it through the same blank-doesn't-overwrite pattern as gender/height/birthday.
+
+### Verification
+
+Playwright against synthetic seed data in a live browser (no real backup needed — see Background):
+
+- `findFoodLibraryMatch()` — a seeded "Chicken Breast, raw, Tesco" library entry correctly matched against "chicken breast" (score ≥ 0.4) and correctly returned `null` against an unrelated "a slice of watermelon".
+- Full review → confirm pipeline: seeded two synthetic `_photoDetectedItems`, called `confirmPhotoItems()` directly, and confirmed all three writes landed correctly — `state.nutritionMeals['2026-08-29']['Lunch']` gained the logged entry (name, kcal/macros, `source:'recipe'`, `aiEstimated:true`), `state.foodLibrary` gained the recipe record with correct `per100*` fields, and `state.recipes` gained the recipe with its `ingredients` array carrying `source:'ai_photo'`, correct `per1kcal` etc., and `aiEstimated`/`confidence` intact. `_photoDetectedItems` confirmed cleared to `[]` afterward.
+- All three `analyzeMealPhoto()` validation paths (no image / no meal name / no API key) confirmed to surface the correct inline error text and stop before any network call.
+- `renderRecipeIngredients()` badge gating confirmed via direct render of a flagged ingredient.
+- Country `<select>` population confirmed (43 options, correct pre-fill from `state.profile.country`) via `openBodyProfile()`.
+- Visual screenshots of all four new/changed screens (Add Food's 2x2 grid, photo capture modal, photo review modal with a live suggestion chip, Settings → About me with the new Country field) — caught and fixed the actions-row overflow (see Entry point above) and a cramped home-cooked checkbox layout (moved from squeezed alongside the Restaurant label to its own line below the input) before finalizing.
+- `node --check` on the extracted script block, a duplicate-function-declaration grep, and a div-balance check (delta unchanged from the −1 pre-existing baseline) all passed clean, including after the mid-session actions-row and checkbox layout fixes.
+- Zero browser console/page errors from app code across every check above.

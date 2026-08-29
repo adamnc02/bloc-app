@@ -779,10 +779,23 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
    use over the plain Nutrition page — bump both above the default 200 so
    neither is hidden behind whichever modal is already open underneath. */
 #modal-nutr-add, #modal-nutr-serving { z-index: 300; }
+/* modal-scan-confirm (Phase 3's post-scan confirmation popup) is shared by
+   both the Nutrition diary AND Recipe Builder ingredient scan flows — like
+   modal-nutr-add/serving above, it needs to render above modal-recipe-
+   ingredients when reached via the recipe context, not just above the
+   plain Nutrition page. */
+#modal-scan-confirm { z-index: 300; }
 /* modal-nutr-barcode (the camera scanner) is opened from within
    modal-nutr-add, so it needs to sit above it or the food library
    list stays visible on top of the camera. */
 #modal-nutr-barcode { z-index: 310; }
+/* modal-nutr-photo (AI Meal Photo Logging, Phase 4/v8.02) is opened from
+   within modal-nutr-add, same tier as the barcode scanner it sits
+   alongside. Its review and item-edit modals stack progressively higher
+   so each stays visible above the one that opened it. */
+#modal-nutr-photo { z-index: 310; }
+#modal-nutr-photo-review { z-index: 320; }
+#modal-nutr-photo-item-edit { z-index: 330; }
 /* ── Settings modal stacking ────────────────────────────────────────────
    Profile, Nutrition, Exercise, and Danger Zone are now inline collapsible
    cards on the Settings screen itself (not modals), so modals opened from
@@ -2315,7 +2328,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
       <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 2px;border-bottom:1px solid var(--border);margin-bottom:16px;cursor:pointer;" onclick="openModal('modal-settings-about')">
         <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-        <span class="tag tag-outline">v7.99</span>
+        <span class="tag tag-outline">v8.02</span>
       </div>
 
       <!-- ── Profile section ── -->
@@ -3085,6 +3098,18 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <input type="date" id="profile-birthday" style="font-size:15px;width:100%;box-sizing:border-box;">
     </div>
 
+    <!-- Country — added Phase 4 (v8.02): scopes AI Meal Photo Logging's
+         restaurant web-search lookups to the right market, since chain
+         menus differ significantly by country. Not part of the profile
+         gate's required fields — optional, defaults unset. -->
+    <div class="form-group">
+      <div class="label">Country</div>
+      <select id="profile-country" style="font-size:15px;width:100%;box-sizing:border-box;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+        <option value="">Not set</option>
+      </select>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;">Used to scope restaurant menu lookups in AI Meal Photo Logging</div>
+    </div>
+
     <button class="btn btn-accent btn-block" onclick="saveBodyProfile()">Save Profile →</button>
     <div id="profile-gate-error" style="display:none;font-size:11px;color:var(--red);margin-top:8px;text-align:center;">Please fill in all three fields to continue.</div>
   </div>
@@ -3202,18 +3227,26 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-add')">✕</button></div>
     <!-- TEMP DIAGNOSTIC — remove once keyboard-height numbers are gathered -->
     <input type="text" id="nutr-add-search" placeholder="Search foods…" oninput="renderNutrAddList()" style="margin-bottom:10px;flex-shrink:0;">
-    <div id="nutr-add-actions-row" style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0;">
-      <button onclick="toggleNutrRecipeFilter()" id="nutr-recipe-filter-btn" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
+    <!-- 2x2 grid since Phase 4 (v8.02) added a 4th option (Photo) — a
+         single flex row of 4 no longer fits this width without wrapping/
+         overflowing (verified against a 390px viewport during this
+         session). -->
+    <div id="nutr-add-actions-row" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px;flex-shrink:0;">
+      <button onclick="toggleNutrRecipeFilter()" id="nutr-recipe-filter-btn" style="display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
         <span style="font-weight:600;">Recipes</span>
       </button>
-      <button onclick="openNutrManual()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
+      <button onclick="openNutrManual()" style="display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         <span style="font-weight:600;">Manual</span>
       </button>
-      <button onclick="openNutrBarcode()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
+      <button onclick="openNutrBarcode()" style="display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/><line x1="13" y1="8" x2="13" y2="12"/><line x1="16" y1="8" x2="16" y2="16"/></svg>
         <span style="font-weight:600;">Scan Barcode</span>
+      </button>
+      <button onclick="openNutrPhoto()" style="display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:12px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        <span style="font-weight:600;">Photo</span>
       </button>
     </div>
     <div id="nutr-add-list-wrap" class="kb-list-wrap">
@@ -3271,10 +3304,18 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
         <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Ingredients</div>
         <div id="nutr-serving-recipe-ing-list"></div>
       </div>
+      <!-- Serving picker (Phase 3) — a dropdown of serving name / pack size /
+           100(unit) / 1(unit), always present for non-recipe items; the
+           user dials in an exact amount via the Servings multiplier next to
+           it (e.g. "1g" × 137 servings = 137g) rather than free-typing a
+           gram value — see renderServingPicker(). The underlying grams
+           input stays in the DOM (hidden) purely to hold the resolved
+           per-unit value the rest of the modal's math already runs on. -->
       <div class="input-row" style="margin-bottom:14px;">
         <div>
-          <div class="label">Amount (g)</div>
-          <input type="number" inputmode="decimal" id="nutr-serving-grams" min="1" placeholder="100" oninput="updateServingPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
+          <div class="label" id="nutr-serving-grams-label">Serving size</div>
+          <select id="nutr-serving-picker-select" onchange="_onServingPickerChange('nutr-serving')"></select>
+          <input type="number" inputmode="decimal" id="nutr-serving-grams" min="1" placeholder="100" oninput="updateServingPreview()" style="display:none;">
         </div>
         <div>
           <div class="label">Servings</div>
@@ -3304,6 +3345,67 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   </div>
 </div>
 
+<!-- ── Scan Confirmation Popup (Phase 3) ─────────────────────────────
+     Shared by both barcode-scan entry points (Nutrition diary + Recipe
+     Builder ingredients) — shown every time a product is scanned, before
+     it's saved to the food library. See openScanConfirm() / TECHNICAL.md §54. -->
+<div class="modal-overlay" id="modal-scan-confirm">
+  <div class="modal-sheet" data-modal="modal-scan-confirm" style="max-height:90dvh;display:flex;flex-direction:column;">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="cancelScanConfirm()">✕</button></div>
+    <div class="modal-title" style="flex-shrink:0;">Confirm Product</div>
+    <div style="overflow-y:auto;flex:1;">
+      <div class="card" style="margin-bottom:10px;">
+        <div style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:2px;" id="sc-name"></div>
+        <div style="font-size:12px;color:var(--text2);" id="sc-brand"></div>
+      </div>
+      <div id="sc-rss-banner" style="background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:14px;font-size:13px;font-weight:600;display:none;">
+        Recommended serving: <span id="sc-rss-text" style="color:var(--accent);"></span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;" id="sc-nutrition-grid">
+        <div class="card" style="padding:10px;" id="sc-serving-card">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;" id="sc-serving-label">Per serving</div>
+          <div style="font-size:13px;color:var(--text2);" id="sc-serving-values">—</div>
+        </div>
+        <div class="card" style="padding:10px;" id="sc-per100-card">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;" id="sc-per100-label">Per 100g</div>
+          <div style="font-size:13px;color:var(--text2);" id="sc-per100-values">—</div>
+        </div>
+      </div>
+      <div class="form-group">
+        <div class="label">Serving name <span style="color:var(--text3);font-size:10px;">e.g. "1 sausage" — required</span></div>
+        <input type="text" id="sc-serving-name" placeholder="e.g. 1 sausage">
+      </div>
+      <div class="input-row" style="margin-bottom:14px;">
+        <div>
+          <div class="label" id="sc-serving-size-label">Serving size (g)</div>
+          <input type="number" inputmode="decimal" id="sc-serving-size" placeholder="e.g. 250" oninput="updateScanConfirmPreview()">
+        </div>
+        <div>
+          <div class="label">Unit</div>
+          <div class="toggle-row" style="margin-bottom:0;">
+            <button type="button" class="toggle-btn active" id="sc-unit-g" onclick="setScanConfirmUnit('g')">g</button>
+            <button type="button" class="toggle-btn" id="sc-unit-ml" onclick="setScanConfirmUnit('ml')">ml</button>
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-sm" id="sc-amend-toggle" onclick="toggleScanConfirmAmend()" style="width:100%;margin-bottom:10px;">These nutrition details look wrong →</button>
+      <div id="sc-amend-fields" style="display:none;margin-bottom:14px;">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Corrected values per 100{unit}</div>
+        <div class="input-row">
+          <div><div class="label">kcal / 100<span id="sc-amend-unit-1">g</span></div><input type="number" inputmode="decimal" id="sc-amend-kcal" oninput="updateScanConfirmPreview()"></div>
+          <div><div class="label">Protein (g)</div><input type="number" inputmode="decimal" id="sc-amend-protein" oninput="updateScanConfirmPreview()"></div>
+        </div>
+        <div class="input-row">
+          <div><div class="label">Carbs (g)</div><input type="number" inputmode="decimal" id="sc-amend-carbs" oninput="updateScanConfirmPreview()"></div>
+          <div><div class="label">Fats (g)</div><input type="number" inputmode="decimal" id="sc-amend-fats" oninput="updateScanConfirmPreview()"></div>
+        </div>
+      </div>
+      <div id="sc-validation" style="display:none;color:var(--red);font-size:12px;margin-bottom:10px;">Serving name and serving size are both required.</div>
+      <button class="btn btn-accent btn-block" onclick="confirmScanDetails()">Confirm →</button>
+    </div>
+  </div>
+</div>
+
 <!-- Nutrition: previous meals search -->
 <div class="modal-overlay" id="modal-nutr-previous">
   <div class="modal-sheet" data-modal="modal-nutr-previous">
@@ -3311,6 +3413,92 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div class="modal-title">Previous Meals</div>
     <input type="text" id="nutr-prev-search" placeholder="Search foods…" oninput="renderPreviousMeals()" style="margin-bottom:12px;">
     <div id="nutr-prev-list" style="max-height:60vh;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<!-- Nutrition: AI Meal Photo Logging — capture + context (Phase 4, v8.02) -->
+<div class="modal-overlay" id="modal-nutr-photo">
+  <div class="modal-sheet" data-modal="modal-nutr-photo" style="max-height:90dvh;display:flex;flex-direction:column;">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-photo')">✕</button></div>
+    <div class="modal-title" style="flex-shrink:0;">Photo → Meal</div>
+    <div style="overflow-y:auto;flex:1;">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:12px;line-height:1.5;">Rougher than a barcode or weighed entry — good for fast logging of meals you wouldn't otherwise weigh. Review every item before it's saved.</div>
+
+      <input type="file" id="photo-file-input" accept="image/*" capture="environment" style="display:none;" onchange="handlePhotoFileSelect(this.files[0])">
+      <div id="photo-picker-tile" onclick="document.getElementById('photo-file-input').click()" style="border:1.5px dashed var(--border2);border-radius:var(--r-sm);padding:24px 12px;text-align:center;cursor:pointer;margin-bottom:14px;">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="1.5" style="margin-bottom:6px;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        <div style="font-size:12px;color:var(--text2);">Tap to take or choose a photo</div>
+      </div>
+      <div id="photo-preview-wrap" style="display:none;margin-bottom:14px;text-align:center;">
+        <img id="photo-preview-img" style="max-width:100%;max-height:220px;border-radius:var(--r-sm);">
+        <div style="margin-top:6px;"><button onclick="document.getElementById('photo-file-input').click()" style="background:none;border:none;color:var(--accent);font-size:12px;cursor:pointer;">Choose a different photo</button></div>
+      </div>
+
+      <div class="form-group">
+        <div class="label">Meal Name</div>
+        <input type="text" id="photo-meal-name" placeholder="e.g. Chicken Caesar Salad">
+      </div>
+
+      <div class="form-group">
+        <div class="label">Restaurant (optional)</div>
+        <input type="text" id="photo-restaurant-name" placeholder="e.g. Nando's" style="margin-bottom:8px;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer;">
+          <input type="checkbox" id="photo-home-cooked" onchange="toggleHomeCooked()"> Home-cooked / not a chain
+        </label>
+      </div>
+
+      <div class="form-group">
+        <div class="label">Known total kcal (optional)</div>
+        <input type="number" inputmode="decimal" id="photo-known-kcal" placeholder="e.g. from a menu listing">
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">If given, this is treated as fixed — macros are derived to fit it rather than estimated independently</div>
+      </div>
+
+      <div id="photo-analyze-error" style="display:none;background:rgba(226,75,74,0.12);color:var(--red);border-radius:var(--r-sm);padding:10px;font-size:12px;margin-bottom:12px;"></div>
+
+      <button class="btn btn-accent btn-block" id="photo-analyze-btn" onclick="analyzeMealPhoto()">Analyze Photo →</button>
+    </div>
+  </div>
+</div>
+
+<!-- Nutrition: AI Meal Photo Logging — review & confirm detected items -->
+<div class="modal-overlay" id="modal-nutr-photo-review">
+  <div class="modal-sheet" data-modal="modal-nutr-photo-review" style="max-height:90dvh;display:flex;flex-direction:column;">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-photo-review')">✕</button></div>
+    <div class="modal-title" style="flex-shrink:0;" id="photo-review-title">Review Detected Items</div>
+    <div style="overflow-y:auto;flex:1;">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">AI-estimated — edit anything that looks off before saving. Confidence shown per item.</div>
+      <div id="photo-review-list"></div>
+      <button onclick="addPhotoItemManual()" style="width:100%;background:none;border:1px dashed var(--border2);border-radius:var(--r-sm);padding:10px;color:var(--text2);font-size:12px;cursor:pointer;margin:10px 0 14px;">+ Add item</button>
+      <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px;margin-bottom:14px;font-size:12px;color:var(--text2);" id="photo-review-totals">—</div>
+      <button class="btn btn-accent btn-block" id="photo-review-save-btn" onclick="confirmPhotoItems()">Save →</button>
+    </div>
+  </div>
+</div>
+
+<!-- Nutrition: AI Meal Photo Logging — edit one detected item -->
+<div class="modal-overlay" id="modal-nutr-photo-item-edit">
+  <div class="modal-sheet" data-modal="modal-nutr-photo-item-edit">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-photo-item-edit')">✕</button></div>
+    <div class="modal-title">Edit Item</div>
+    <input type="hidden" id="photo-item-edit-idx">
+    <div class="form-group">
+      <div class="label">Name</div>
+      <input type="text" id="photo-item-edit-name">
+    </div>
+    <div class="form-group">
+      <div class="label">Amount (g)</div>
+      <input type="number" inputmode="decimal" id="photo-item-edit-grams" min="0" oninput="updatePhotoItemEditPreview()">
+    </div>
+    <div class="input-row" style="margin-bottom:8px;">
+      <div><div class="label">kcal</div><input type="number" inputmode="decimal" id="photo-item-edit-kcal" min="0" oninput="updatePhotoItemEditPreview()"></div>
+      <div><div class="label">Protein (g)</div><input type="number" inputmode="decimal" id="photo-item-edit-protein" min="0" step="0.1" oninput="updatePhotoItemEditPreview()"></div>
+    </div>
+    <div class="input-row" style="margin-bottom:14px;">
+      <div><div class="label">Carbs (g)</div><input type="number" inputmode="decimal" id="photo-item-edit-carbs" min="0" step="0.1" oninput="updatePhotoItemEditPreview()"></div>
+      <div><div class="label">Fats (g)</div><input type="number" inputmode="decimal" id="photo-item-edit-fats" min="0" step="0.1" oninput="updatePhotoItemEditPreview()"></div>
+    </div>
+    <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px;margin-bottom:14px;font-size:12px;color:var(--text2);" id="photo-item-edit-preview">—</div>
+    <button class="btn btn-accent btn-block" onclick="savePhotoItemEdit()">Save →</button>
   </div>
 </div>
 
@@ -17651,7 +17839,36 @@ function openBodyProfile() {
   // Pre-fill birthday
   document.getElementById('profile-birthday').value = prof.birthday || '';
 
+  // Pre-fill country (options populated once by populateCountrySelect())
+  populateCountrySelect();
+  document.getElementById('profile-country').value = prof.country || '';
+
   openModal('modal-body-profile');
+}
+
+// Country list for AI Meal Photo Logging's restaurant web-search scoping
+// (Phase 4, v8.02) — a single source-of-truth list rather than duplicating
+// <option> tags in markup. Populated once into #profile-country lazily,
+// on first open, rather than at page load.
+const COUNTRY_LIST = [
+  'United Kingdom','United States','Canada','Australia','New Zealand','Ireland',
+  'Germany','France','Spain','Italy','Portugal','Netherlands','Belgium','Switzerland',
+  'Austria','Sweden','Norway','Denmark','Finland','Poland','Czech Republic','Greece',
+  'Japan','South Korea','China','India','Singapore','Malaysia','Thailand','Philippines',
+  'Indonesia','Vietnam','United Arab Emirates','Saudi Arabia','Israel','South Africa',
+  'Brazil','Mexico','Argentina','Chile','Colombia','Other',
+];
+let _countrySelectPopulated = false;
+function populateCountrySelect() {
+  if (_countrySelectPopulated) return;
+  const sel = document.getElementById('profile-country');
+  if (!sel) return;
+  COUNTRY_LIST.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    sel.appendChild(opt);
+  });
+  _countrySelectPopulated = true;
 }
 
 // Sets which gender option is selected in the profile modal (drives which
@@ -17745,9 +17962,12 @@ function saveBodyProfile() {
     return;
   }
 
+  const country = document.getElementById('profile-country').value || state.profile.country || null;
+
   state.profile.gender = gender;
   if (finalHeightCm !== null) state.profile.heightCm = finalHeightCm;
   if (bday) state.profile.birthday = bday;
+  if (country) state.profile.country = country;
 
   save();
 
@@ -18161,6 +18381,10 @@ function saveBodyLog() {
 let nutrSelectedDate = null; // set on first render using local date
 let nutrActiveMeal = null;
 let nutrPendingProduct = null;
+// ── Scan confirmation popup state (Phase 3) ────────────────────────────────
+let scanConfirmCtx = null;   // 'nutr' | 'recipe' — which pending-product var and which serving modal to route into on confirm
+let scanConfirmData = null;  // the OFF-normalized result (+ barcode) currently being confirmed/amended
+let scanConfirmAmending = false;
 let nutrShowRecipesOnly = false;
 let _nutrReturnToAddList = false; // true when serving modal was opened via tap-to-edit from the Log Food list
 let _nutrQuickAddedThisSession = new Set(); // items quick-added since the Log Food list was last freshly opened
@@ -19150,7 +19374,32 @@ function initYesterdaySwipes() {
   });
 }
 
-// ── Meal ellipsis menu + copy/move meal ────────────────────────────────────
+// Populates a <select> with a rolling ±6-day date range around today,
+// formatted as "Mon 1st Sep 2026", with today pre-selected. Shared by every
+// date-target picker in the app (copy/move/swap meal, log-recipe target) so
+// the range/formatting logic exists in exactly one place.
+function populateRelativeDateSelect(selectId) {
+  const sel = document.getElementById(selectId);
+  sel.innerHTML = '';
+  const today = getLocalToday();
+  const todayDate = new Date(today + 'T00:00:00');
+  const ordinals = ['th','st','nd','rd'];
+  for (let i = -6; i <= 6; i++) {
+    const d = new Date(todayDate);
+    d.setDate(todayDate.getDate() + i);
+    const ds = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    const dayNum = d.getDate();
+    const ord = dayNum % 100 >= 11 && dayNum % 100 <= 13 ? 'th' : (ordinals[dayNum % 10] || 'th');
+    const label = d.toLocaleDateString('en-GB', { weekday:'short' }) + ' ' + dayNum + ord + ' ' +
+                  d.toLocaleDateString('en-GB', { month:'short' }) + ' ' + d.getFullYear();
+    const opt = document.createElement('option');
+    opt.value = ds; opt.textContent = label;
+    if (ds === today) opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+
+// ── Meal ellipsis menu + copy/move/swap meal ────────────────────────────────
 let _mealMenuMeal = null;
 
 // Opens the '···' bottom action sheet for a meal — copy, move, or save as
@@ -19184,6 +19433,11 @@ function showMealMenuSheet(meal) {
         <svg viewBox="0 0 24 24" width="18" height="18" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
         Move meal to…
       </button>
+      <button onclick="openMealCopyMove('swap')"
+        style="display:flex;align-items:center;gap:12px;width:100%;background:none;border:none;color:var(--text);font-size:15px;padding:12px 0;cursor:pointer;border-top:0.5px solid var(--border);">
+        <svg viewBox="0 0 24 24" width="18" height="18" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>
+        Swap meal with…
+      </button>
       <button onclick="saveMealAsRecipe()"
         style="display:flex;align-items:center;gap:12px;width:100%;background:none;border:none;color:var(--text);font-size:15px;padding:12px 0;cursor:pointer;border-top:0.5px solid var(--border);">
         <svg viewBox="0 0 24 24" width="18" height="18" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.41 0l6.59-6.59a1 1 0 0 0 0-1.41L12 2z"/><path d="M7 7h.01"/></svg>
@@ -19205,6 +19459,7 @@ function showMealMenuSheet(meal) {
 function saveMealAsRecipe() {
   const sheet = document.getElementById('meal-menu-sheet');
   if (sheet) sheet.remove();
+  _recipeLogEligible = false; // this meal's items are already logged individually — see flag comment above
 
   const meal  = _mealMenuMeal;
   const items = (state.nutritionMeals?.[nutrSelectedDate]?.[meal]) || [];
@@ -19243,31 +19498,15 @@ function openMealCopyMove(mode) {
   document.getElementById('nce-date').value  = nutrSelectedDate;
   document.getElementById('nce-meal').value  = _mealMenuMeal || '';
   document.getElementById('nce-idx').value   = '-1'; // -1 = whole meal
-  document.getElementById('nce-mode').value  = mode; // 'copy' or 'move'
+  document.getElementById('nce-mode').value  = mode; // 'copy', 'move', or 'swap'
 
-  // Update modal title
-  document.getElementById('nce-modal-title').textContent = mode === 'move' ? 'Move meal to…' : 'Copy meal to…';
-  document.getElementById('nce-confirm-btn').textContent = mode === 'move' ? 'Move →' : 'Copy →';
+  // Update modal title/button text
+  const titles    = { move: 'Move meal to…', copy: 'Copy meal to…', swap: 'Swap meal with…' };
+  const btnLabels = { move: 'Move →',        copy: 'Copy →',        swap: 'Swap ⇄' };
+  document.getElementById('nce-modal-title').textContent = titles[mode] || titles.copy;
+  document.getElementById('nce-confirm-btn').textContent = btnLabels[mode] || btnLabels.copy;
 
-  // Populate date select
-  const sel = document.getElementById('nce-target-date');
-  sel.innerHTML = '';
-  const today = getLocalToday();
-  const todayDate = new Date(today + 'T00:00:00');
-  const ordinals = ['th','st','nd','rd'];
-  for (let i = -6; i <= 6; i++) {
-    const d = new Date(todayDate);
-    d.setDate(todayDate.getDate() + i);
-    const ds = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-    const dayNum = d.getDate();
-    const ord = dayNum % 100 >= 11 && dayNum % 100 <= 13 ? 'th' : (ordinals[dayNum % 10] || 'th');
-    const label = d.toLocaleDateString('en-GB', { weekday:'short' }) + ' ' + dayNum + ord + ' ' +
-                  d.toLocaleDateString('en-GB', { month:'short' }) + ' ' + d.getFullYear();
-    const opt = document.createElement('option');
-    opt.value = ds; opt.textContent = label;
-    if (ds === today) opt.selected = true;
-    sel.appendChild(opt);
-  }
+  populateRelativeDateSelect('nce-target-date');
   document.getElementById('nce-target-meal').value = _mealMenuMeal || 'Breakfast';
   openModal('modal-nutr-copy-entry');
 }
@@ -19741,6 +19980,11 @@ function selectFromAddList(idx) {
     per100c: item.per100c,
     per100f: item.per100f,
     defaultServing: item.defaultServing || null,
+    servingName: item.servingName || null,
+    unit: item.unit || 'g',
+    packQuantityRaw: item.packQuantityRaw || null,
+    packQuantity: item.packQuantity || null,
+    cacheSource: item.cacheSource || null,
     source: item.source || 'library',
   };
   _nutrReturnToAddList = true;
@@ -19758,32 +20002,14 @@ function openCopyFoodEntry(date, meal, idx) {
   document.getElementById('nce-modal-title').textContent = 'Copy to…';
   document.getElementById('nce-confirm-btn').textContent = 'Copy →';
 
-  // Populate date select
-  const sel = document.getElementById('nce-target-date');
-  sel.innerHTML = '';
-  const today = getLocalToday();
-  const todayDate = new Date(today + 'T00:00:00');
-  const ordinals = ['th','st','nd','rd'];
-  for (let i = -6; i <= 6; i++) {
-    const d = new Date(todayDate);
-    d.setDate(todayDate.getDate() + i);
-    const ds = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-    const dayNum = d.getDate();
-    const ord = dayNum % 100 >= 11 && dayNum % 100 <= 13 ? 'th' : (ordinals[dayNum % 10] || 'th');
-    const label = d.toLocaleDateString('en-GB', { weekday:'short' }) + ' ' + dayNum + ord + ' ' +
-                  d.toLocaleDateString('en-GB', { month:'short' }) + ' ' + d.getFullYear();
-    const opt = document.createElement('option');
-    opt.value = ds; opt.textContent = label;
-    if (ds === today) opt.selected = true;
-    sel.appendChild(opt);
-  }
+  populateRelativeDateSelect('nce-target-date');
   document.getElementById('nce-target-meal').value = meal;
   openModal('modal-nutr-copy-entry');
 }
 
-// Executes a pending copy or move (single item or whole meal) to the chosen
-// destination date/meal, deep-cloning entries so the source and destination
-// never share object references.
+// Executes a pending copy, move, or swap (single item or whole meal) to/with
+// the chosen destination date/meal, deep-cloning entries so the source and
+// destination never share object references.
 function confirmCopyFoodEntry() {
   const srcDate  = document.getElementById('nce-date').value;
   const srcMeal  = document.getElementById('nce-meal').value;
@@ -19791,6 +20017,30 @@ function confirmCopyFoodEntry() {
   const tgtDate  = document.getElementById('nce-target-date').value;
   const tgtMeal  = document.getElementById('nce-target-meal').value;
   const mode     = document.getElementById('nce-mode').value || 'copy';
+
+  if (mode === 'swap') {
+    // Whole-meal bidirectional swap only — reached exclusively via the meal
+    // ellipsis menu, so srcIdx is always -1 here. A same date+meal target is
+    // a no-op (nothing to swap with) — silently close, nothing changes.
+    if (srcDate === tgtDate && srcMeal === tgtMeal) {
+      closeModal('modal-nutr-copy-entry');
+      return;
+    }
+    if (!state.nutritionMeals[srcDate]) state.nutritionMeals[srcDate] = { Breakfast:[], Lunch:[], Dinner:[], Snacks:[] };
+    if (!state.nutritionMeals[srcDate][srcMeal]) state.nutritionMeals[srcDate][srcMeal] = [];
+    if (!state.nutritionMeals[tgtDate]) state.nutritionMeals[tgtDate] = { Breakfast:[], Lunch:[], Dinner:[], Snacks:[] };
+    if (!state.nutritionMeals[tgtDate][tgtMeal]) state.nutritionMeals[tgtDate][tgtMeal] = [];
+    const srcItems = state.nutritionMeals[srcDate][srcMeal];
+    const tgtItems = state.nutritionMeals[tgtDate][tgtMeal];
+    state.nutritionMeals[srcDate][srcMeal] = tgtItems;
+    state.nutritionMeals[tgtDate][tgtMeal] = srcItems;
+    syncNutrLegacyLog(srcDate);
+    syncNutrLegacyLog(tgtDate);
+    save();
+    closeModal('modal-nutr-copy-entry');
+    renderNutrDaily();
+    return;
+  }
 
   if (!state.nutritionMeals[tgtDate]) state.nutritionMeals[tgtDate] = { Breakfast:[], Lunch:[], Dinner:[], Snacks:[] };
   if (!state.nutritionMeals[tgtDate][tgtMeal]) state.nutritionMeals[tgtDate][tgtMeal] = [];
@@ -19815,6 +20065,306 @@ function confirmCopyFoodEntry() {
   save();
   closeModal('modal-nutr-copy-entry');
   renderNutrDaily();
+}
+
+// ── Open Food Facts integration (Phase 3) ──────────────────────────────────
+// Shared by both barcode-scan entry points (Nutrition diary + Recipe Builder
+// ingredients), which previously each ran their own near-identical fetch —
+// see TECHNICAL.md §54. Every OFF lookup routes through fetchOFFProduct(),
+// then the normalized result is confirmed/amended in modal-scan-confirm
+// before it's ever written to the food library.
+
+// Parses a raw OFF quantity string ("330 ml", "4 x 100g", "1.5kg", "70cl")
+// into a normalized {value, unit} in g/ml. This is the fallback used only
+// when OFF's own explicit *_unit field is absent for that quantity — when
+// present, that field is trusted as-is (see fetchOFFProduct). Takes the
+// LAST number+unit pair in the string, which for a multipack ("4 x 100g")
+// is the per-unit size — the multipack-total-vs-per-unit distinction for
+// the "1 Pack" logging option is handled separately by the pack-quantity
+// guard chain below, not here. Returns null if nothing parseable is found.
+function parseRawQuantityString(raw) {
+  if (!raw) return null;
+  const matches = [...String(raw).matchAll(/([\d.,]+)\s*(kg|g|l|cl|ml)\b/gi)];
+  if (!matches.length) return null;
+  const last = matches[matches.length - 1];
+  let value = parseFloat(last[1].replace(',', '.'));
+  if (isNaN(value)) return null;
+  const rawUnit = last[2].toLowerCase();
+  let unit = 'g';
+  if (rawUnit === 'kg') { unit = 'g';  value *= 1000; }
+  else if (rawUnit === 'g') { unit = 'g'; }
+  else if (rawUnit === 'l') { unit = 'ml'; value *= 1000; }
+  else if (rawUnit === 'cl') { unit = 'ml'; value *= 10; }
+  else if (rawUnit === 'ml') { unit = 'ml'; }
+  return { value, unit };
+}
+
+// Ordered guard functions for the "1 Pack" logging option — each tries to
+// confidently parse a single-unit pack size out of the raw OFF quantity
+// string, and the first one to succeed wins. New packet-format edge cases
+// should be added as new guards here, not by rewriting existing ones (see
+// TECHNICAL.md §54). Returns the pack size in the item's own unit, or null
+// to hide "1 Pack" rather than risk showing a wrong value.
+const PACK_QUANTITY_GUARDS = [
+  // "4 x 100g" / "4x100g" / "3 X 150 g" multipack → the single-unit size
+  // (100g), not the multipack total (400g) — see Phase 3 dev plan.
+  function guardMultipack(raw) {
+    if (!raw) return null;
+    const m = String(raw).match(/(\d+)\s*x\s*([\d.,]+)/i);
+    if (!m) return null;
+    const v = parseFloat(m[2].replace(',', '.'));
+    return (v > 0) ? v : null;
+  },
+];
+
+// Runs packQuantityRaw through the guard chain; falls back to the plain
+// parsed packQuantity only when the raw string doesn't look like a
+// multipack the guards already tried and failed to confidently parse.
+// Returns null (hide "1 Pack") rather than ever guess.
+function resolvePackQuantity(packQuantityRaw, packQuantity) {
+  for (const guard of PACK_QUANTITY_GUARDS) {
+    const v = guard(packQuantityRaw);
+    if (v) return v;
+  }
+  if (packQuantity && packQuantity > 0 && !/\d\s*x\s*\d/i.test(packQuantityRaw || '')) {
+    return packQuantity;
+  }
+  return null;
+}
+
+// Fetches and normalizes a product from Open Food Facts (API v2). Returns
+// { ok:true, ...fields } or { ok:false, reason }. Unit resolution priority:
+// OFF's own explicit *_unit field first, then a fallback parse of the raw
+// quantity/serving_size string, defaulting to 'g' (flagged via
+// unitDefaulted) only as an absolute last resort — see Phase 3 dev plan §
+// "Unit (g vs ml) must be captured alongside every quantity, not assumed."
+async function fetchOFFProduct(barcode) {
+  try {
+    const res = await fetch('https://world.openfoodfacts.org/api/v2/product/' + barcode + '.json');
+    const data = await res.json();
+    if (data.status !== 1 || !data.product) return { ok: false, reason: 'not_found' };
+    const p = data.product, n = p.nutriments || {};
+    const kcal = n['energy-kcal_100g'] ?? n['energy-kcal'] ?? null;
+    if (kcal === null) return { ok: false, reason: 'no_kcal' };
+
+    let servingQuantity = parseFloat(p.serving_quantity) || null;
+    let servingUnit = (p.serving_quantity_unit === 'g' || p.serving_quantity_unit === 'ml') ? p.serving_quantity_unit : null;
+    if (!servingUnit) {
+      const parsed = parseRawQuantityString(p.serving_size);
+      if (parsed) { servingUnit = parsed.unit; if (!servingQuantity) servingQuantity = parsed.value; }
+    }
+
+    let packQuantity = parseFloat(p.product_quantity) || null;
+    let packUnit = (p.product_quantity_unit === 'g' || p.product_quantity_unit === 'ml') ? p.product_quantity_unit : null;
+    if (!packUnit) {
+      const parsed = parseRawQuantityString(p.quantity);
+      if (parsed) { packUnit = parsed.unit; if (!packQuantity) packQuantity = parsed.value; }
+    }
+
+    const unit = servingUnit || packUnit || 'g';
+    const unitDefaulted = !servingUnit && !packUnit;
+    const baseName = p.product_name || p.product_name_en || 'Unknown product';
+
+    return {
+      ok: true,
+      name: baseName,
+      brand: (p.brands || p.brand_owner || '').trim(),
+      per100kcal: Math.round(kcal),
+      per100p: parseFloat(n['proteins_100g'] ?? n['proteins'] ?? 0),
+      per100c: parseFloat(n['carbohydrates_100g'] ?? n['carbohydrates'] ?? 0),
+      per100f: parseFloat(n['fat_100g'] ?? n['fat'] ?? 0),
+      servingQuantity, unit, unitDefaulted,
+      packQuantityRaw: p.quantity || null,
+      packQuantity,
+    };
+  } catch (e) {
+    return { ok: false, reason: 'network_error' };
+  }
+}
+
+// ── Scan Confirmation Popup (Phase 3) ──────────────────────────────────────
+// Shown every time a product is scanned (either entry point), before it's
+// ever saved to the food library — implements the four-branch confirmation
+// table from the dev plan (OFF returned a serving? / did the user confirm
+// it's correct?) as a single screen rather than a step wizard: the "amend"
+// section is just an optional disclosure, since which branch applies falls
+// out naturally from whether OFF had a serving size and whether the person
+// opens that disclosure — see TECHNICAL.md §54.
+function openScanConfirm(ctx, barcode, offResult) {
+  scanConfirmCtx = ctx;
+  scanConfirmData = { barcode, ...offResult };
+  scanConfirmAmending = false;
+
+  document.getElementById('sc-amend-fields').style.display = 'none';
+  document.getElementById('sc-amend-toggle').textContent = 'These nutrition details look wrong →';
+  document.getElementById('sc-validation').style.display = 'none';
+  document.getElementById('sc-name').textContent = offResult.name;
+  document.getElementById('sc-brand').textContent = offResult.brand || '';
+  document.getElementById('sc-serving-name').value = '';
+  document.getElementById('sc-serving-size').value = offResult.servingQuantity || '';
+  document.getElementById('sc-amend-kcal').value    = offResult.per100kcal;
+  document.getElementById('sc-amend-protein').value = offResult.per100p;
+  document.getElementById('sc-amend-carbs').value   = offResult.per100c;
+  document.getElementById('sc-amend-fats').value    = offResult.per100f;
+
+  const rssBanner = document.getElementById('sc-rss-banner');
+  if (offResult.servingQuantity) {
+    rssBanner.style.display = 'block';
+    document.getElementById('sc-rss-text').textContent = offResult.servingQuantity + (offResult.unit || 'g');
+  } else {
+    rssBanner.style.display = 'none';
+  }
+
+  setScanConfirmUnit(offResult.unit || 'g');
+  openModal('modal-scan-confirm');
+}
+
+// Toggles the g/ml unit for the product currently being confirmed, updating
+// every unit-dependent label (serving size field, per-100 card header,
+// amend-fields kcal label) — never hardcode "g" anywhere in this popup.
+function setScanConfirmUnit(u) {
+  document.getElementById('sc-unit-g').classList.toggle('active', u === 'g');
+  document.getElementById('sc-unit-ml').classList.toggle('active', u === 'ml');
+  document.getElementById('sc-serving-size-label').textContent = 'Serving size (' + u + ')';
+  document.getElementById('sc-per100-label').textContent = 'Per 100' + u;
+  document.getElementById('sc-amend-unit-1').textContent = u;
+  updateScanConfirmPreview();
+}
+
+// Shows/hides the macro-correction fields. Opening this disclosure is what
+// distinguishes the "confirm correct" branches from the "amend" branches in
+// the dev plan's table — if the person never opens it, OFF's own per-100
+// values are trusted as-is (cacheSource: off_verified); if they do,
+// whatever's in the fields at Confirm time is used (cacheSource: off_amended).
+function toggleScanConfirmAmend() {
+  scanConfirmAmending = !scanConfirmAmending;
+  document.getElementById('sc-amend-fields').style.display = scanConfirmAmending ? 'block' : 'none';
+  document.getElementById('sc-amend-toggle').textContent = scanConfirmAmending
+    ? 'Using corrected values ✓' : 'These nutrition details look wrong →';
+  updateScanConfirmPreview();
+}
+
+// Recomputes the live per-serving / per-100(unit) preview cards as the
+// serving size, unit, or (if amending) macro fields change.
+function updateScanConfirmPreview() {
+  if (!scanConfirmData) return;
+  const unit = document.getElementById('sc-unit-ml').classList.contains('active') ? 'ml' : 'g';
+  const kcal = scanConfirmAmending ? (parseFloat(document.getElementById('sc-amend-kcal').value)   || 0) : scanConfirmData.per100kcal;
+  const p    = scanConfirmAmending ? (parseFloat(document.getElementById('sc-amend-protein').value)|| 0) : scanConfirmData.per100p;
+  const c    = scanConfirmAmending ? (parseFloat(document.getElementById('sc-amend-carbs').value)  || 0) : scanConfirmData.per100c;
+  const f    = scanConfirmAmending ? (parseFloat(document.getElementById('sc-amend-fats').value)   || 0) : scanConfirmData.per100f;
+
+  document.getElementById('sc-per100-values').textContent =
+    Math.round(kcal).toLocaleString() + ' kcal · P:' + Math.round(p) + 'g C:' + Math.round(c) + 'g F:' + Math.round(f) + 'g';
+
+  const servingSize = parseFloat(document.getElementById('sc-serving-size').value) || 0;
+  const servingCard = document.getElementById('sc-serving-card');
+  if (servingSize > 0) {
+    servingCard.style.display = '';
+    const r = servingSize / 100;
+    document.getElementById('sc-serving-values').textContent =
+      Math.round(kcal*r).toLocaleString() + ' kcal · P:' + Math.round(p*r) + 'g C:' + Math.round(c*r) + 'g F:' + Math.round(f*r) + 'g';
+  } else {
+    servingCard.style.display = 'none';
+  }
+}
+
+// Cancels the scan confirmation popup without saving anything.
+function cancelScanConfirm() {
+  scanConfirmData = null;
+  scanConfirmCtx = null;
+  closeModal('modal-scan-confirm');
+}
+
+// Validates and finalizes the confirmed/amended product, then hands off
+// into the appropriate quantity-entry modal for the context it was scanned
+// from (Nutrition diary vs Recipe Builder) — the food library write itself
+// happens from THAT modal's confirm action (confirmServing /
+// confirmRecipeIngredient), same as it always has, just now carrying the
+// new servingName/unit/packQuantity fields through.
+function confirmScanDetails() {
+  if (!scanConfirmData) return;
+  const servingName = document.getElementById('sc-serving-name').value.trim();
+  const servingSize = parseFloat(document.getElementById('sc-serving-size').value) || null;
+  if (!servingName || !servingSize) {
+    document.getElementById('sc-validation').style.display = 'block';
+    return;
+  }
+  const unit = document.getElementById('sc-unit-ml').classList.contains('active') ? 'ml' : 'g';
+  const per100kcal = scanConfirmAmending ? Math.round(parseFloat(document.getElementById('sc-amend-kcal').value) || 0)      : scanConfirmData.per100kcal;
+  const per100p    = scanConfirmAmending ? (parseFloat(document.getElementById('sc-amend-protein').value) || 0)            : scanConfirmData.per100p;
+  const per100c    = scanConfirmAmending ? (parseFloat(document.getElementById('sc-amend-carbs').value) || 0)              : scanConfirmData.per100c;
+  const per100f    = scanConfirmAmending ? (parseFloat(document.getElementById('sc-amend-fats').value) || 0)               : scanConfirmData.per100f;
+
+  const finalized = {
+    name: scanConfirmData.name,
+    brand: scanConfirmData.brand || '',
+    barcode: scanConfirmData.barcode,
+    per100kcal, per100p, per100c, per100f,
+    per1kcal: per100kcal / 100, per1p: per100p / 100, per1c: per100c / 100, per1f: per100f / 100,
+    defaultServing: servingSize,
+    servingName,
+    unit,
+    packQuantityRaw: scanConfirmData.packQuantityRaw || null,
+    packQuantity: scanConfirmData.packQuantity || null,
+    cacheSource: scanConfirmAmending ? 'off_amended' : 'off_verified',
+    source: 'barcode',
+  };
+
+  const ctx = scanConfirmCtx;
+  scanConfirmData = null;
+  scanConfirmCtx = null;
+  closeModal('modal-scan-confirm');
+
+  if (ctx === 'nutr') {
+    nutrPendingProduct = finalized;
+    requestAnimationFrame(() => openNutrServingModal());
+  } else {
+    recipePendingIngredient = finalized;
+    requestAnimationFrame(() => openRecipeServingModal());
+  }
+}
+
+// ── Logging-time serving picker (Phase 3) ──────────────────────────────────
+// Builds the "Serving Name / Pack / 100(unit) / 1(unit)" dropdown shared by
+// both quantity-entry modals (nutr-serving-* / recipe-serving-* id
+// namespaces, passed as `prefix`). Always has at least 100(unit) and
+// 1(unit) — "1(unit)" doubles as the free-entry option: paired with the
+// existing Servings multiplier field, it can express any exact amount
+// (e.g. "1g" × 137 servings = 137g) without a separate text box, keeping
+// the modal to a single always-a-dropdown control. Returns the option list
+// so the caller can pick an initial selection (e.g. matching a last-logged
+// amount) — see openNutrServingModal / openRecipeServingModal.
+function renderServingPicker(prefix, item) {
+  const selectEl = document.getElementById(prefix + '-picker-select');
+  const label = document.getElementById(prefix + '-grams-label');
+  const unit = item.unit || 'g';
+  if (label) label.textContent = 'Serving size';
+
+  const options = [];
+  if (item.servingName) options.push({ label: item.servingName, value: item.defaultServing || 100 });
+  const packSize = resolvePackQuantity(item.packQuantityRaw, item.packQuantity);
+  if (packSize) options.push({ label: '1 Pack (' + packSize + unit + ')', value: packSize });
+  options.push({ label: '100' + unit, value: 100 });
+  options.push({ label: '1' + unit, value: 1 });
+
+  selectEl.innerHTML = options.map((o, i) => `<option value="${i}">${o.label}</option>`).join('');
+  selectEl._options = options;
+  return options;
+}
+
+// Handles a dropdown selection in the serving picker — writes the chosen
+// unit's value into the (hidden) grams input the rest of the modal's math
+// already runs on, then refreshes whichever preview belongs to this
+// context (nutr-serving vs recipe-serving have separate preview functions).
+function _onServingPickerChange(prefix) {
+  const selectEl = document.getElementById(prefix + '-picker-select');
+  const gramsInput = document.getElementById(prefix + '-grams');
+  const opt = (selectEl._options || [])[parseInt(selectEl.value)];
+  if (!opt) return;
+  gramsInput.value = opt.value;
+  if (prefix === 'nutr-serving') updateServingPreview();
+  else updateRecipeServingPreview();
 }
 
 // Delays starting the camera until the barcode modal's slide-in transition
@@ -19845,8 +20395,10 @@ function openNutrBarcode() {
   _startScannerAfterTransition('nutr');
 }
 
-// Looks up a scanned or manually-entered barcode against the Open Food Facts
-// API and routes the result into the serving confirmation modal.
+// Looks up a scanned or manually-entered barcode against Open Food Facts
+// (via the shared fetchOFFProduct) and routes the result into the scan
+// confirmation popup (modal-scan-confirm) rather than straight into the
+// serving-quantity modal — see Phase 3 dev plan.
 async function lookupNutrBarcode() {
   const barcode = document.getElementById('nutr-barcode-input').value.trim();
   if (!barcode) return;
@@ -19856,56 +20408,22 @@ async function lookupNutrBarcode() {
   statusEl.style.color = 'var(--blue)';
   statusEl.style.border = '1px solid rgba(96,168,240,0.2)';
   statusEl.textContent = 'Looking up ' + barcode + '…';
-  try {
-    const res = await fetch('https://world.openfoodfacts.org/api/v2/product/' + barcode + '.json');
-    const data = await res.json();
-    if (data.status !== 1 || !data.product) {
-      statusEl.style.background = 'rgba(255,95,78,0.1)';
-      statusEl.style.color = 'var(--red)';
-      statusEl.style.border = '1px solid rgba(255,95,78,0.2)';
-      statusEl.textContent = 'Product not found. Try another barcode or enter manually.';
-      return;
-    }
-    const p = data.product, n = p.nutriments || {};
-    const kcal = n['energy-kcal_100g'] ?? n['energy-kcal'] ?? null;
-    if (kcal === null) {
-      statusEl.style.background = 'rgba(255,95,78,0.1)';
-      statusEl.style.color = 'var(--red)';
-      statusEl.style.border = '1px solid rgba(255,95,78,0.2)';
-      statusEl.textContent = 'Product found but no calorie data available.';
-      return;
-    }
-    // Serving size priority: product_quantity (whole pack) → serving_quantity → 100g
-    const packQty = parseFloat(p.product_quantity) || null;
-    const servingQty = parseFloat(p.serving_quantity) || null;
-    const baseName = p.product_name || p.product_name_en || 'Unknown product';
-    // Only include RSS suffix if serving_quantity exists
-    const displayName = servingQty ? baseName + ' (RSS - ' + servingQty + 'g)' : baseName;
-    const brand = (p.brands || p.brand_owner || '').trim();
-    nutrPendingProduct = {
-      name: displayName,
-      brand,
-      barcode,
-      defaultServing: servingQty || null,
-      per1kcal: Math.round(kcal) / 100,
-      per1p: parseFloat(n['proteins_100g'] ?? n['proteins'] ?? 0) / 100,
-      per1c: parseFloat(n['carbohydrates_100g'] ?? n['carbohydrates'] ?? 0) / 100,
-      per1f: parseFloat(n['fat_100g'] ?? n['fat'] ?? 0) / 100,
-      // Keep per100 for library storage
-      per100kcal: Math.round(kcal),
-      per100p: parseFloat(n['proteins_100g'] ?? n['proteins'] ?? 0),
-      per100c: parseFloat(n['carbohydrates_100g'] ?? n['carbohydrates'] ?? 0),
-      per100f: parseFloat(n['fat_100g'] ?? n['fat'] ?? 0),
-    };
-    closeModal('modal-nutr-barcode');
-    stopScannerCamera('nutr');
-    requestAnimationFrame(() => openNutrServingModal());
-  } catch(e) {
+
+  const result = await fetchOFFProduct(barcode);
+  if (!result.ok) {
     statusEl.style.background = 'rgba(255,95,78,0.1)';
     statusEl.style.color = 'var(--red)';
     statusEl.style.border = '1px solid rgba(255,95,78,0.2)';
-    statusEl.textContent = 'Network error — check your connection.';
+    statusEl.textContent = result.reason === 'not_found'
+      ? 'Product not found. Try another barcode or enter manually.'
+      : result.reason === 'no_kcal'
+        ? 'Product found but no calorie data available.'
+        : 'Network error — check your connection.';
+    return;
   }
+  closeModal('modal-nutr-barcode');
+  stopScannerCamera('nutr');
+  requestAnimationFrame(() => openScanConfirm('nutr', barcode, result));
 }
 
 // ── Barcode Scanner (shared for nutrition + recipe) ───────────────────────
@@ -20090,11 +20608,438 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+// ── AI Meal Photo Logging (Phase 4, v8.02) ──────────────────────────────────
+// Flow: photo capture/upload + optional context (modal-nutr-photo) → Anthropic
+// API call with an image content block (+ web_search when a chain restaurant
+// is named) → editable review screen (modal-nutr-photo-review) → confirmed
+// items are logged straight into the currently-active date/meal (already
+// known — this is opened from within modal-nutr-add) and silently saved as
+// a recipe in the background, same as any other logged recipe. No separate
+// date/meal picker or servings modal: the review screen IS the confirmation
+// step, and logging is always exactly 1x the reviewed amounts.
+const PHOTO_MAX_DIMENSION = 1024; // px, longest edge — keeps upload size/token cost sane on iOS photos
+const PHOTO_JPEG_QUALITY = 0.82;
+
+let _photoDetectedItems = [];   // working array while the review screen is open
+let _photoContext = {};         // { mealName, restaurant, homeCooked, knownKcal }
+let _photoImageBase64 = null;   // resized/compressed image, base64 (no data: prefix)
+let _photoImageMediaType = null;
+let _photoAnalyzing = false;
+
+function openNutrPhoto() {
+  closeModal('modal-nutr-add');
+  document.getElementById('photo-file-input').value = '';
+  document.getElementById('photo-preview-wrap').style.display = 'none';
+  document.getElementById('photo-picker-tile').style.display = '';
+  document.getElementById('photo-meal-name').value = '';
+  document.getElementById('photo-restaurant-name').value = '';
+  document.getElementById('photo-restaurant-name').disabled = false;
+  document.getElementById('photo-home-cooked').checked = false;
+  document.getElementById('photo-known-kcal').value = '';
+  document.getElementById('photo-analyze-error').style.display = 'none';
+  _photoImageBase64 = null;
+  _photoImageMediaType = null;
+  requestAnimationFrame(() => openModal('modal-nutr-photo'));
+}
+
+function toggleHomeCooked() {
+  const homeCooked = document.getElementById('photo-home-cooked').checked;
+  const restaurantInput = document.getElementById('photo-restaurant-name');
+  restaurantInput.disabled = homeCooked;
+  if (homeCooked) restaurantInput.value = '';
+}
+
+// Reads the selected file, downsizes it to PHOTO_MAX_DIMENSION on the
+// longest edge via canvas, and stores the resulting base64 JPEG for the API
+// call — full-resolution iOS photos are far larger than needed for this and
+// would needlessly inflate upload time and image tokens.
+function handlePhotoFileSelect(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > height && width > PHOTO_MAX_DIMENSION) {
+        height = Math.round(height * (PHOTO_MAX_DIMENSION / width));
+        width = PHOTO_MAX_DIMENSION;
+      } else if (height > PHOTO_MAX_DIMENSION) {
+        width = Math.round(width * (PHOTO_MAX_DIMENSION / height));
+        height = PHOTO_MAX_DIMENSION;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL('image/jpeg', PHOTO_JPEG_QUALITY);
+      _photoImageBase64 = dataUrl.split(',')[1];
+      _photoImageMediaType = 'image/jpeg';
+      document.getElementById('photo-preview-img').src = dataUrl;
+      document.getElementById('photo-preview-wrap').style.display = '';
+      document.getElementById('photo-picker-tile').style.display = 'none';
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// Builds the system + user prompt for the meal-photo API call. Kept as its
+// own function (rather than inlined) so the kcal-fixed-constraint and
+// country-scoped-web-search logic are easy to find and adjust independently
+// of the fetch/parse plumbing in analyzeMealPhoto().
+function buildMealPhotoPrompt(ctx) {
+  const systemPrompt = `You are a nutrition estimation assistant embedded in a personal fitness app called BLOC. You will be shown a photo of a meal and must identify each distinct food item, estimating its weight in grams and its macros.
+
+Respond with ONLY a raw JSON object, no markdown fences, no preamble, no commentary. Schema:
+{"items":[{"item":"string, short food name","estimated_grams":number,"calories":number,"protein":number,"carbs":number,"fat":number,"confidence":"high"|"medium"|"low"}]}
+
+Rules:
+- Break the meal into distinct items rather than one lumped total (e.g. "grilled chicken breast", "white rice", "steamed broccoli" — not "chicken and rice").
+- confidence reflects how certain you are about that item's portion size and composition given the photo — "low" for anything substantially obscured, ambiguous, or guessed.
+- All numeric fields are numbers, not strings. Grams and calories are whole numbers; protein/carbs/fat may have one decimal place.
+${ctx.knownKcal ? `- The user has supplied a known total calorie figure for this meal: ${ctx.knownKcal} kcal. Treat this as a fixed, immutable constraint — do NOT independently estimate total calories. Instead, apportion this exact total across the items you identify, and derive a plausible protein/carbs/fat split per item that is consistent with both the photo and this fixed total.` : '- Estimate calories independently from the photo, using typical portion-size and preparation cues.'}
+${ctx.useWebSearch ? `- The user says this meal is from "${ctx.restaurant}"${ctx.country ? `, in ${ctx.country}` : ''}. Use web search to find that chain's published nutritional information for the closest matching menu item(s) in that market, and prefer that data over a pure visual estimate where you can find a confident match. Menus differ significantly by country, so only use nutritional data specific to ${ctx.country || 'the stated market'} if you can find it.` : ''}`;
+
+  let userText = `Meal name: ${ctx.mealName}`;
+  if (ctx.homeCooked) userText += `\nHome-cooked / not a chain restaurant.`;
+  else if (ctx.restaurant) userText += `\nRestaurant: ${ctx.restaurant}`;
+  if (ctx.knownKcal) userText += `\nKnown total calories: ${ctx.knownKcal} kcal (fixed — see system instructions)`;
+  userText += `\n\nIdentify the food items in this photo and estimate their weights and macros per the schema.`;
+
+  return { systemPrompt, userText };
+}
+
+// Fuzzy food-library match, used only to surface a suggestion on the review
+// screen (never auto-applied — see confirmation from Adam during this
+// session). Simple Jaccard overlap on significant words (len >= 3,
+// case-insensitive) — good enough to flag "this is probably the same thing
+// as an item already in your library" without pretending to be precise.
+function findFoodLibraryMatch(itemName) {
+  const lib = state.foodLibrary || [];
+  if (!lib.length) return null;
+  const stopWords = new Set(['with','and','the','from','your']);
+  const wordsOf = (s) => new Set((s.toLowerCase().match(/[a-z]{3,}/g) || []).filter(w => !stopWords.has(w)));
+  const targetWords = wordsOf(itemName);
+  if (!targetWords.size) return null;
+
+  let best = null, bestScore = 0;
+  lib.forEach(f => {
+    const libWords = wordsOf(f.name);
+    if (!libWords.size) return;
+    let overlap = 0;
+    targetWords.forEach(w => { if (libWords.has(w)) overlap++; });
+    const union = new Set([...targetWords, ...libWords]).size;
+    const score = union > 0 ? overlap / union : 0;
+    if (score > bestScore) { bestScore = score; best = f; }
+  });
+  return bestScore >= 0.4 ? best : null;
+}
+
+async function analyzeMealPhoto() {
+  if (_photoAnalyzing) return;
+  const errEl = document.getElementById('photo-analyze-error');
+  errEl.style.display = 'none';
+
+  if (!_photoImageBase64) {
+    errEl.textContent = 'Choose a photo first.';
+    errEl.style.display = 'block';
+    return;
+  }
+  const mealName = document.getElementById('photo-meal-name').value.trim();
+  if (!mealName) {
+    errEl.textContent = 'Meal name is required.';
+    errEl.style.display = 'block';
+    document.getElementById('photo-meal-name').focus();
+    return;
+  }
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    errEl.textContent = 'No API key saved. Go to Settings → Linked services to add your Anthropic API key.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const homeCooked = document.getElementById('photo-home-cooked').checked;
+  const restaurant = homeCooked ? '' : document.getElementById('photo-restaurant-name').value.trim();
+  const knownKcal = parseFloat(document.getElementById('photo-known-kcal').value) || null;
+  const country = (state.profile && state.profile.country) || null;
+  const useWebSearch = !!restaurant && !homeCooked;
+
+  _photoContext = { mealName, restaurant, homeCooked, knownKcal };
+
+  const { systemPrompt, userText } = buildMealPhotoPrompt({ mealName, restaurant, homeCooked, knownKcal, country, useWebSearch });
+
+  _photoAnalyzing = true;
+  const btn = document.getElementById('photo-analyze-btn');
+  btn.disabled = true;
+  btn.textContent = 'Analyzing…';
+
+  try {
+    const body = {
+      model: 'claude-sonnet-4-6',
+      max_tokens: 3000,
+      system: systemPrompt,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: _photoImageMediaType, data: _photoImageBase64 } },
+          { type: 'text', text: userText },
+        ],
+      }],
+    };
+    if (useWebSearch) {
+      body.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
+    }
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new Error(errBody?.error?.message || `API error ${res.status}`);
+    }
+
+    const data = await res.json();
+    const rawText = (data.content || [])
+      .filter(b => b.type === 'text')
+      .map(b => b.text)
+      .join('');
+    const cleaned = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+    const parsed = JSON.parse(cleaned);
+
+    if (!parsed.items || !Array.isArray(parsed.items) || !parsed.items.length) {
+      throw new Error('No items detected in that photo — try a clearer shot.');
+    }
+
+    _photoDetectedItems = parsed.items.map(it => {
+      const grams = Math.max(1, Math.round(parseFloat(it.estimated_grams)) || 1);
+      const match = findFoodLibraryMatch(it.item || 'Food item');
+      return {
+        name: it.item || 'Food item',
+        grams,
+        kcal: Math.round(parseFloat(it.calories)) || 0,
+        protein: Math.round((parseFloat(it.protein) || 0) * 10) / 10,
+        carbs: Math.round((parseFloat(it.carbs) || 0) * 10) / 10,
+        fats: Math.round((parseFloat(it.fat) || 0) * 10) / 10,
+        confidence: ['high', 'medium', 'low'].includes(it.confidence) ? it.confidence : 'medium',
+        suggestedMatch: match,
+        matchStatus: 'pending', // pending | accepted | dismissed
+      };
+    });
+
+    closeModal('modal-nutr-photo');
+    document.getElementById('photo-review-title').textContent = mealName;
+    renderPhotoReviewItems();
+    requestAnimationFrame(() => openModal('modal-nutr-photo-review'));
+  } catch (err) {
+    errEl.textContent = err.message || 'Something went wrong analyzing that photo.';
+    errEl.style.display = 'block';
+  } finally {
+    _photoAnalyzing = false;
+    btn.disabled = false;
+    btn.textContent = 'Analyze Photo →';
+  }
+}
+
+const PHOTO_CONFIDENCE_COLOR = { high: 'var(--accent)', medium: 'var(--amber)', low: 'var(--red)' };
+
+function renderPhotoReviewItems() {
+  const el = document.getElementById('photo-review-list');
+  if (!_photoDetectedItems.length) {
+    el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:20px 0;">No items — add one manually below</div>';
+  } else {
+    el.innerHTML = _photoDetectedItems.map((it, idx) => `
+      <div style="padding:9px 0;border-bottom:0.5px solid var(--border);">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+              ${it.name}
+              <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:${PHOTO_CONFIDENCE_COLOR[it.confidence]};margin-left:6px;">${it.confidence}</span>
+            </div>
+            <div style="font-size:10px;color:var(--text3);margin-top:2px;">${it.grams}g · ${it.kcal.toLocaleString()} kcal · P:${it.protein}g C:${it.carbs}g F:${it.fats}g</div>
+          </div>
+          <div style="display:flex;gap:4px;flex-shrink:0;margin-left:8px;">
+            <button onclick="editPhotoItem(${idx})" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px 8px;font-size:14px;">✎</button>
+            <button onclick="removePhotoItem(${idx})" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px 8px;font-size:16px;">✕</button>
+          </div>
+        </div>
+        ${it.suggestedMatch && it.matchStatus === 'pending' ? `
+          <div style="margin-top:6px;background:var(--surface2);border-radius:var(--r-sm);padding:8px 10px;font-size:11px;color:var(--text2);display:flex;justify-content:space-between;align-items:center;gap:8px;">
+            <span>Looks like <strong>${it.suggestedMatch.name}</strong> in your library — use its exact macros?</span>
+            <span style="display:flex;gap:6px;flex-shrink:0;">
+              <button onclick="acceptSuggestedMatch(${idx})" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:11px;font-weight:600;">Use it</button>
+              <button onclick="dismissSuggestedMatch(${idx})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;">Dismiss</button>
+            </span>
+          </div>` : ''}
+      </div>`).join('');
+  }
+  const tot = _photoDetectedItems.reduce((a, b) => ({
+    kcal: a.kcal + b.kcal, p: a.p + b.protein, c: a.c + b.carbs, f: a.f + b.fats,
+  }), { kcal: 0, p: 0, c: 0, f: 0 });
+  document.getElementById('photo-review-totals').textContent = _photoDetectedItems.length
+    ? `Total: ${tot.kcal.toLocaleString()} kcal · P:${Math.round(tot.p)}g C:${Math.round(tot.c)}g F:${Math.round(tot.f)}g`
+    : 'No items yet';
+}
+
+function acceptSuggestedMatch(idx) {
+  const it = _photoDetectedItems[idx];
+  const m = it.suggestedMatch;
+  if (!it || !m) return;
+  const per1kcal = m.per1kcal !== undefined ? m.per1kcal : m.per100kcal / 100;
+  const per1p    = m.per1p    !== undefined ? m.per1p    : m.per100p / 100;
+  const per1c    = m.per1c    !== undefined ? m.per1c    : m.per100c / 100;
+  const per1f    = m.per1f    !== undefined ? m.per1f    : m.per100f / 100;
+  it.name = m.name;
+  it.kcal = Math.round(per1kcal * it.grams);
+  it.protein = Math.round(per1p * it.grams * 10) / 10;
+  it.carbs = Math.round(per1c * it.grams * 10) / 10;
+  it.fats = Math.round(per1f * it.grams * 10) / 10;
+  it.matchStatus = 'accepted';
+  renderPhotoReviewItems();
+}
+
+function dismissSuggestedMatch(idx) {
+  const it = _photoDetectedItems[idx];
+  if (!it) return;
+  it.matchStatus = 'dismissed';
+  renderPhotoReviewItems();
+}
+
+function removePhotoItem(idx) {
+  _photoDetectedItems.splice(idx, 1);
+  renderPhotoReviewItems();
+}
+
+function addPhotoItemManual() {
+  _photoDetectedItems.push({
+    name: 'New item', grams: 100, kcal: 0, protein: 0, carbs: 0, fats: 0,
+    confidence: 'low', suggestedMatch: null, matchStatus: 'dismissed',
+  });
+  renderPhotoReviewItems();
+  editPhotoItem(_photoDetectedItems.length - 1);
+}
+
+function editPhotoItem(idx) {
+  const it = _photoDetectedItems[idx];
+  if (!it) return;
+  document.getElementById('photo-item-edit-idx').value = idx;
+  document.getElementById('photo-item-edit-name').value = it.name;
+  document.getElementById('photo-item-edit-grams').value = it.grams;
+  document.getElementById('photo-item-edit-kcal').value = it.kcal;
+  document.getElementById('photo-item-edit-protein').value = it.protein;
+  document.getElementById('photo-item-edit-carbs').value = it.carbs;
+  document.getElementById('photo-item-edit-fats').value = it.fats;
+  updatePhotoItemEditPreview();
+  openModal('modal-nutr-photo-item-edit');
+}
+
+function updatePhotoItemEditPreview() {
+  const kcal = Math.round(parseFloat(document.getElementById('photo-item-edit-kcal').value) || 0);
+  const p    = Math.round(parseFloat(document.getElementById('photo-item-edit-protein').value) || 0);
+  const c    = Math.round(parseFloat(document.getElementById('photo-item-edit-carbs').value) || 0);
+  const f    = Math.round(parseFloat(document.getElementById('photo-item-edit-fats').value) || 0);
+  document.getElementById('photo-item-edit-preview').textContent = `Total: ${kcal.toLocaleString()} kcal · P:${p}g C:${c}g F:${f}g`;
+}
+
+function savePhotoItemEdit() {
+  const idx = parseInt(document.getElementById('photo-item-edit-idx').value);
+  if (isNaN(idx) || idx < 0 || idx >= _photoDetectedItems.length) return;
+  const it = _photoDetectedItems[idx];
+  it.name = document.getElementById('photo-item-edit-name').value.trim() || it.name;
+  it.grams = Math.max(1, parseFloat(document.getElementById('photo-item-edit-grams').value) || it.grams);
+  it.kcal = Math.round(parseFloat(document.getElementById('photo-item-edit-kcal').value) || 0);
+  it.protein = Math.round((parseFloat(document.getElementById('photo-item-edit-protein').value) || 0) * 10) / 10;
+  it.carbs = Math.round((parseFloat(document.getElementById('photo-item-edit-carbs').value) || 0) * 10) / 10;
+  it.fats = Math.round((parseFloat(document.getElementById('photo-item-edit-fats').value) || 0) * 10) / 10;
+  it.matchStatus = 'dismissed'; // manual edit supersedes any pending suggestion
+  closeModal('modal-nutr-photo-item-edit');
+  renderPhotoReviewItems();
+}
+
+// Confirms the reviewed items: silently persists them as a recipe (same
+// food-library record any other recipe gets — see addToFoodLibrary below)
+// and logs it directly into the date/meal that was already active when the
+// Photo button was tapped, at exactly 1x the reviewed amounts. No target
+// picker and no servings modal — the review screen already served as the
+// confirmation step, and re-asking would just be re-litigating numbers the
+// person already checked.
+function confirmPhotoItems() {
+  if (!_photoDetectedItems.length) return;
+  const ingredients = _photoDetectedItems.map(it => ({
+    name: it.name,
+    grams: it.grams,
+    kcal: it.kcal,
+    protein: it.protein,
+    carbs: it.carbs,
+    fats: it.fats,
+    source: 'ai_photo',
+    per1kcal: it.kcal / it.grams,
+    per1p: it.protein / it.grams,
+    per1c: it.carbs / it.grams,
+    per1f: it.fats / it.grams,
+    aiEstimated: true,
+    confidence: it.confidence,
+  }));
+
+  const tot = ingredients.reduce((a, b) => ({
+    kcal: a.kcal + b.kcal, p: a.p + b.protein, c: a.c + b.carbs, f: a.f + b.fats,
+  }), { kcal: 0, p: 0, c: 0, f: 0 });
+
+  const recipeName = _photoContext.mealName || 'Photo meal';
+  const recipe = {
+    id: 'recipe_' + Date.now(),
+    name: recipeName, servings: 1, ingredients,
+    per_serving_kcal: tot.kcal, per_serving_p: tot.p, per_serving_c: tot.c, per_serving_f: tot.f,
+    total_kcal: tot.kcal, total_p: tot.p, total_c: tot.c, total_f: tot.f,
+  };
+  if (!state.recipes) state.recipes = [];
+  state.recipes.push(recipe);
+
+  // Mirrors _persistRecipe's library-save exactly (per100 fields hold the
+  // per-serving totals directly, not scaled — same convention every other
+  // recipe uses, see saveRecipe/_persistRecipe above) so this recipe is
+  // indistinguishable from a manually-built one anywhere else in the app.
+  addToFoodLibrary({
+    id: recipe.id,
+    name: recipeName,
+    brand: 'My Recipe',
+    barcode: null,
+    per100kcal: tot.kcal, per100p: tot.p, per100c: tot.c, per100f: tot.f,
+    defaultServing: null,
+    isRecipe: true,
+    source: 'recipe',
+  });
+
+  // Mirrors the shape addFoodEntry receives for any other recipe logged at
+  // 1 serving (see selectFromAddList's isRecipe branch above).
+  addFoodEntry({
+    name: recipeName,
+    brand: 'My Recipe',
+    grams: 1, servings: 1, serving: 1,
+    kcal: tot.kcal, protein: tot.p, carbs: tot.c, fats: tot.f,
+    source: 'recipe',
+    aiEstimated: true,
+  });
+
+  save();
+  _photoDetectedItems = [];
+  _photoContext = {};
+  closeModal('modal-nutr-photo-review');
+}
+
 // ── Food Library ──────────────────────────────────────────────────────────
 function addToFoodLibrary(item) {
   if (!state.foodLibrary) state.foodLibrary = [];
   // Merge by name — update if exists, add if not
   const idx = state.foodLibrary.findIndex(f => f.name.toLowerCase() === item.name.toLowerCase());
+  const existing = idx >= 0 ? state.foodLibrary[idx] : null;
   const entry = {
     id: idx >= 0 ? state.foodLibrary[idx].id : 'lib_' + Date.now(),
     name: item.name,
@@ -20109,6 +21054,15 @@ function addToFoodLibrary(item) {
     per1c:    item.per1c    !== undefined ? item.per1c    : item.per100c / 100,
     per1f:    item.per1f    !== undefined ? item.per1f    : item.per100f / 100,
     defaultServing: item.defaultServing || null,
+    // Phase 3 fields — only meaningful for barcode-sourced items. Fall back
+    // to whatever the existing entry already had (rather than clobbering
+    // with null) so re-saving via a path that doesn't know about these
+    // fields (e.g. a future non-barcode caller) can't silently wipe them.
+    servingName:     item.servingName     !== undefined ? item.servingName     : (existing ? existing.servingName     : null),
+    unit:            item.unit            || (existing ? existing.unit : 'g') || 'g',
+    packQuantityRaw: item.packQuantityRaw !== undefined ? item.packQuantityRaw : (existing ? existing.packQuantityRaw : null),
+    packQuantity:    item.packQuantity    !== undefined ? item.packQuantity    : (existing ? existing.packQuantity    : null),
+    cacheSource:     item.cacheSource     !== undefined ? item.cacheSource     : (existing ? existing.cacheSource     : null),
     source: item.source || 'manual',
   };
   if (idx >= 0) state.foodLibrary[idx] = entry;
@@ -20378,16 +21332,39 @@ function openNutrServingModal() {
   // Pre-fill from last logged entry for this food; fall back to RSS then 100g
   const lastEntry = getLastNutrEntryForFood(nutrPendingProduct.name);
   const gramsInput = document.getElementById('nutr-serving-grams');
+  const pickerSelect = document.getElementById('nutr-serving-picker-select');
   if (isRecipe) {
     gramsInput.value = 100;
     gramsInput.readOnly = true;
     gramsInput.style.opacity = '0.4';
+    gramsInput.style.display = '';
+    pickerSelect.style.display = 'none';
+    document.getElementById('nutr-serving-grams-label').textContent = 'Amount (g)';
+    document.getElementById('nutr-serving-servings').value = (lastEntry && lastEntry.servings) ? lastEntry.servings : 1;
   } else {
-    gramsInput.value = (lastEntry && lastEntry.grams) ? lastEntry.grams : (nutrPendingProduct.defaultServing || 100);
-    gramsInput.readOnly = false;
-    gramsInput.style.opacity = '1';
+    gramsInput.style.display = 'none';
+    pickerSelect.style.display = '';
+    // Serving picker (Phase 3) — a dropdown of serving name / pack / 100(unit)
+    // / 1(unit), always available. Matches a last-logged amount to one of
+    // those options when possible; when the historical amount doesn't line
+    // up with any preset (e.g. it was hand-typed before this phase), falls
+    // back to "1(unit)" with the Servings field set to the exact historical
+    // total, so nothing is ever lost or approximated.
+    const options = renderServingPicker('nutr-serving', nutrPendingProduct);
+    let matchIdx = 0, servingsVal = (lastEntry && lastEntry.servings) ? lastEntry.servings : 1;
+    if (lastEntry && lastEntry.grams) {
+      const found = options.findIndex(o => o.value === lastEntry.grams);
+      if (found >= 0) {
+        matchIdx = found;
+      } else {
+        matchIdx = options.length - 1; // "1(unit)"
+        servingsVal = lastEntry.grams * (lastEntry.servings || 1);
+      }
+    }
+    pickerSelect.value = matchIdx;
+    gramsInput.value = options[matchIdx].value;
+    document.getElementById('nutr-serving-servings').value = servingsVal;
   }
-  document.getElementById('nutr-serving-servings').value = (lastEntry && lastEntry.servings) ? lastEntry.servings : 1;
   updateServingPreview();
   openModal('modal-nutr-serving');
 }
@@ -20481,6 +21458,11 @@ function confirmServing() {
       per100c: nutrPendingProduct.per100c || parseFloat((cPer1 * 100).toFixed(1)),
       per100f: nutrPendingProduct.per100f || parseFloat((fPer1 * 100).toFixed(1)),
       defaultServing: nutrPendingProduct.defaultServing || null,
+      servingName: nutrPendingProduct.servingName || null,
+      unit: nutrPendingProduct.unit || 'g',
+      packQuantityRaw: nutrPendingProduct.packQuantityRaw || null,
+      packQuantity: nutrPendingProduct.packQuantity || null,
+      cacheSource: nutrPendingProduct.cacheSource || null,
       source: nutrPendingProduct.source || 'barcode',
     });
   }
@@ -22237,12 +23219,15 @@ function renderFoodLibEditor() {
   }
 
   el.innerHTML = items.map((item, idx) => {
-    const rss = item.defaultServing ? ' · RSS ' + item.defaultServing + 'g' : '';
+    const unit = item.unit || 'g';
+    const servingBit = item.servingName
+      ? ' · ' + item.servingName + ' (' + item.defaultServing + unit + ')'
+      : (item.defaultServing ? ' · RSS ' + item.defaultServing + unit : '');
     const brand = item.brand ? ' · ' + item.brand : '';
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);">
       <div style="flex:1;min-width:0;cursor:pointer;" onclick="openFoodLibEntry(${idx})">
         <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:2px;">${item.per100kcal.toLocaleString()} kcal / 100g · P:${Math.round(item.per100p)}g C:${Math.round(item.per100c)}g F:${Math.round(item.per100f)}g${rss}${brand}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px;">${item.per100kcal.toLocaleString()} kcal / 100${unit} · P:${Math.round(item.per100p)}g C:${Math.round(item.per100c)}g F:${Math.round(item.per100f)}g${servingBit}${brand}</div>
       </div>
       <div style="display:flex;gap:6px;flex-shrink:0;margin-left:10px;">
         <button class="btn btn-sm" style="padding:5px 10px;" onclick="shareFoodLibItem(${idx})" title="Share"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="9 10 5 10 5 20 19 20 19 10 15 10"/><polyline points="12 3 8 7 12 3 16 7"/><line x1="12" y1="3" x2="12" y2="15"/></svg></button>
@@ -22267,8 +23252,20 @@ function openFoodLibEntry(idx) {
   document.getElementById('fle-carbs').value = item.per100c || '';
   document.getElementById('fle-fats').value = item.per100f || '';
   document.getElementById('fle-rss').value = item.defaultServing || '';
-  updateFlePreview();
+  document.getElementById('fle-serving-name').value = item.servingName || '';
+  setFleUnit(item.unit || 'g');
   openModal('modal-food-lib-entry');
+}
+
+// Toggles the g/ml unit for the food library entry currently being edited —
+// same fields the Phase 3 migration/confirmation flow gives every barcode
+// item, now also editable by hand here (Phase 3: "no field introduced by
+// this redesign should be editable only at scan-time and not afterwards").
+function setFleUnit(u) {
+  document.getElementById('fle-unit-g').classList.toggle('active', u === 'g');
+  document.getElementById('fle-unit-ml').classList.toggle('active', u === 'ml');
+  document.getElementById('fle-rss-label').innerHTML = 'RSS (' + u + ') <span style="color:var(--text3);font-size:10px;">optional</span>';
+  updateFlePreview();
 }
 
 // Recomputes the live macro preview in the food library entry edit modal.
@@ -22278,10 +23275,11 @@ function updateFlePreview() {
   const carbs   = parseFloat(document.getElementById('fle-carbs').value) || 0;
   const fats    = parseFloat(document.getElementById('fle-fats').value) || 0;
   const rss     = parseFloat(document.getElementById('fle-rss').value) || null;
-  let preview = kcal.toLocaleString() + ' kcal · P:' + protein + 'g C:' + carbs + 'g F:' + fats + 'g per 100g';
+  const unit    = document.getElementById('fle-unit-ml').classList.contains('active') ? 'ml' : 'g';
+  let preview = kcal.toLocaleString() + ' kcal · P:' + protein + 'g C:' + carbs + 'g F:' + fats + 'g per 100' + unit;
   if (rss) {
     const r = rss / 100;
-    preview += ' · Per RSS (' + rss + 'g): ' + Math.round(kcal*r).toLocaleString() + ' kcal P:' + Math.round(protein*r) + 'g C:' + Math.round(carbs*r) + 'g F:' + Math.round(fats*r) + 'g';
+    preview += ' · Per RSS (' + rss + unit + '): ' + Math.round(kcal*r).toLocaleString() + ' kcal P:' + Math.round(protein*r) + 'g C:' + Math.round(carbs*r) + 'g F:' + Math.round(fats*r) + 'g';
   }
   document.getElementById('fle-preview').textContent = preview;
 }
@@ -22297,6 +23295,8 @@ function saveFoodLibEntry() {
   const carbs   = Math.round(parseFloat(document.getElementById('fle-carbs').value) || 0);
   const fats    = Math.round(parseFloat(document.getElementById('fle-fats').value) || 0);
   const rss     = parseFloat(document.getElementById('fle-rss').value) || null;
+  const servingName = document.getElementById('fle-serving-name').value.trim() || null;
+  const unit    = document.getElementById('fle-unit-ml').classList.contains('active') ? 'ml' : 'g';
   if (!name) return;
 
   const idx = id ? state.foodLibrary.findIndex(f => f.id === id) : state.foodLibrary.findIndex(f => f.name.toLowerCase() === name.toLowerCase());
@@ -22315,6 +23315,8 @@ function saveFoodLibEntry() {
     per1c:        carbs / 100,
     per1f:        fats / 100,
     defaultServing: rss,
+    servingName,
+    unit,
   };
 
   if (idx >= 0) state.foodLibrary[idx] = updated;
@@ -22346,6 +23348,14 @@ function deleteFoodLibEntry(idx) {
 
 let recipeIngredients = []; // working list while building
 let _recipeListReturnPending = false; // true when the builder was opened from the My Recipes list
+// True only when the builder was opened from Settings → My Recipes (no
+// date/meal context). "Save & Log" is offered only in that case — a recipe
+// built from an existing meal's ellipsis menu (saveMealAsRecipe) already
+// has those ingredients logged individually, so offering to log it again
+// would double-count it. See recipeGoToIngredients() for where this is
+// applied to the button's visibility.
+let _recipeLogEligible = false;
+let _pendingLogRecipeName = null; // recipe awaiting a date/meal pick from Save & Log
 
 // Closes a recipe-builder modal (step1 or ingredients) and, if the builder was
 // opened from the My Recipes list, reopens that list afterwards.
@@ -22361,6 +23371,7 @@ let recipePendingIngredient = null; // barcode lookup result pending confirm
 // ── Step 1: open builder ──────────────────────────────────────────────────────
 function openRecipeBuilder(editId) {
   recipeIngredients = [];
+  _recipeLogEligible = true; // opened from Settings → My Recipes — see flag comment above
   const existing = editId ? (state.recipes || []).find(r => r.id === editId) : null;
   document.getElementById('recipe-edit-id').value = editId || '';
   document.getElementById('recipe-step1-title').textContent = existing ? 'Edit Recipe' : 'New Recipe';
@@ -22377,6 +23388,7 @@ function recipeGoToIngredients() {
   if (!name) { document.getElementById('recipe-name-input').focus(); return; }
   document.getElementById('recipe-ing-title').textContent = name;
   renderRecipeIngredients();
+  document.getElementById('recipe-savelog-btn').style.display = _recipeLogEligible ? '' : 'none';
   closeModal('modal-recipe-step1');
   requestAnimationFrame(() => openModal('modal-recipe-ingredients'));
 }
@@ -22390,7 +23402,7 @@ function renderRecipeIngredients() {
     el.innerHTML = recipeIngredients.map((ing, idx) => `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:0.5px solid var(--border);">
         <div style="flex:1;min-width:0;">
-          <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${ing.name}</div>
+          <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${ing.name}${ing.aiEstimated ? ` <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--purple);">AI est.</span>` : ''}</div>
           <div style="font-size:10px;color:var(--text3);margin-top:2px;">${ing.grams}g · ${ing.kcal.toLocaleString()} kcal · P:${Math.round(ing.protein)}g C:${Math.round(ing.carbs)}g F:${Math.round(ing.fats)}g</div>
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0;margin-left:8px;">
@@ -22554,7 +23566,8 @@ function openRecipeBarcode() {
 
 // Looks up a scanned/manual barcode against Open Food Facts specifically for
 // a recipe ingredient (as opposed to lookupNutrBarcode, which feeds a
-// regular meal log entry).
+// regular meal log entry) — shares fetchOFFProduct and the scan
+// confirmation popup with the Nutrition diary flow (Phase 3).
 async function lookupRecipeBarcode() {
   const barcode = document.getElementById('recipe-barcode-input').value.trim();
   if (!barcode) return;
@@ -22564,59 +23577,65 @@ async function lookupRecipeBarcode() {
   statusEl.style.color = 'var(--blue)';
   statusEl.style.border = '1px solid rgba(96,168,240,0.2)';
   statusEl.textContent = 'Looking up ' + barcode + '…';
-  try {
-    const res = await fetch('https://world.openfoodfacts.org/api/v2/product/' + barcode + '.json');
-    const data = await res.json();
-    if (data.status !== 1 || !data.product) {
-      statusEl.style.background = 'rgba(255,95,78,0.1)'; statusEl.style.color = 'var(--red)'; statusEl.style.border = '1px solid rgba(255,95,78,0.2)';
-      statusEl.textContent = 'Product not found.'; return;
-    }
-    const p = data.product, n = p.nutriments || {};
-    const kcal = n['energy-kcal_100g'] ?? n['energy-kcal'] ?? null;
-    if (kcal === null) {
-      statusEl.style.background = 'rgba(255,95,78,0.1)'; statusEl.style.color = 'var(--red)'; statusEl.style.border = '1px solid rgba(255,95,78,0.2)';
-      statusEl.textContent = 'No calorie data available.'; return;
-    }
-    const servingQty = parseFloat(p.serving_quantity) || null;
-    const baseName = p.product_name || p.product_name_en || 'Unknown product';
-    const displayName = servingQty ? baseName + ' (RSS - ' + servingQty + 'g)' : baseName;
-    recipePendingIngredient = {
-      name: displayName,
-      brand: (p.brands || p.brand_owner || '').trim(),
-      per100kcal: Math.round(kcal),
-      per100p: parseFloat(n['proteins_100g'] ?? n['proteins'] ?? 0),
-      per100c: parseFloat(n['carbohydrates_100g'] ?? n['carbohydrates'] ?? 0),
-      per100f: parseFloat(n['fat_100g'] ?? n['fat'] ?? 0),
-      defaultServing: servingQty || 100,
-    };
-    closeModal('modal-recipe-barcode');
-    stopScannerCamera('recipe');
-    document.getElementById('recipe-serving-name').textContent = recipePendingIngredient.name;
-    document.getElementById('recipe-serving-brand').textContent = recipePendingIngredient.brand;
-    document.getElementById('recipe-serving-grams').value = recipePendingIngredient.defaultServing;
-    updateRecipeServingPreview();
-    requestAnimationFrame(() => openModal('modal-recipe-serving'));
-  } catch(e) {
-    statusEl.style.background = 'rgba(255,95,78,0.1)'; statusEl.style.color = 'var(--red)'; statusEl.style.border = '1px solid rgba(255,95,78,0.2)';
-    statusEl.textContent = 'Network error — check your connection.';
+
+  const result = await fetchOFFProduct(barcode);
+  if (!result.ok) {
+    statusEl.style.background = 'rgba(255,95,78,0.1)';
+    statusEl.style.color = 'var(--red)';
+    statusEl.style.border = '1px solid rgba(255,95,78,0.2)';
+    statusEl.textContent = result.reason === 'not_found'
+      ? 'Product not found.'
+      : result.reason === 'no_kcal'
+        ? 'No calorie data available.'
+        : 'Network error — check your connection.';
+    return;
   }
+  closeModal('modal-recipe-barcode');
+  stopScannerCamera('recipe');
+  requestAnimationFrame(() => openScanConfirm('recipe', barcode, result));
+}
+
+// Opens the barcode-scan quantity modal (modal-recipe-serving) for a
+// confirmed pending ingredient, with the same Serving size dropdown +
+// Servings multiplier as the Nutrition diary's modal (Phase 3) — mirrors
+// openNutrServingModal for the recipe context. Recipe ingredients have no
+// prior "last logged" concept to match against, so this always opens on
+// the first (best) option with Servings at 1.
+function openRecipeServingModal() {
+  if (!recipePendingIngredient) return;
+  document.getElementById('recipe-serving-name').textContent = recipePendingIngredient.name;
+  document.getElementById('recipe-serving-brand').textContent = recipePendingIngredient.brand || '';
+  const gramsInput = document.getElementById('recipe-serving-grams');
+  const options = renderServingPicker('recipe-serving', recipePendingIngredient);
+  document.getElementById('recipe-serving-picker-select').value = 0;
+  gramsInput.value = options[0].value;
+  document.getElementById('recipe-serving-servings').value = 1;
+  updateRecipeServingPreview();
+  openModal('modal-recipe-serving');
 }
 
 // Recomputes the live macro preview when adding a barcode-sourced ingredient
-// to a recipe.
+// to a recipe — total amount is the picked serving size × the Servings
+// multiplier, same convention as the Nutrition diary's modal.
 function updateRecipeServingPreview() {
   if (!recipePendingIngredient) return;
-  const grams = parseFloat(document.getElementById('recipe-serving-grams').value) || 0;
-  const r = grams / 100;
+  const grams    = parseFloat(document.getElementById('recipe-serving-grams').value) || 0;
+  const servings = parseFloat(document.getElementById('recipe-serving-servings').value) || 1;
+  const r = (grams * servings) / 100;
   const i = recipePendingIngredient;
   document.getElementById('recipe-serving-preview').textContent =
     `${Math.round(i.per100kcal*r).toLocaleString()} kcal · P:${Math.round(i.per100p*r)}g C:${Math.round(i.per100c*r)}g F:${Math.round(i.per100f*r)}g`;
 }
 
-// Adds a barcode-sourced ingredient to the recipe currently being built.
+// Adds a barcode-sourced ingredient to the recipe currently being built,
+// and — new in Phase 3 — saves it to the food library so it's reusable next
+// time, matching every other ingredient-add path (this one previously
+// didn't persist to the library at all).
 function confirmRecipeIngredient() {
   if (!recipePendingIngredient) return;
-  const grams = parseFloat(document.getElementById('recipe-serving-grams').value) || 100;
+  const gramsUnit = parseFloat(document.getElementById('recipe-serving-grams').value) || 100;
+  const servings  = parseFloat(document.getElementById('recipe-serving-servings').value) || 1;
+  const grams = gramsUnit * servings;
   const r = grams / 100;
   const i = recipePendingIngredient;
   recipeIngredients.push({
@@ -22630,6 +23649,18 @@ function confirmRecipeIngredient() {
     per1p:    i.per100p / 100,
     per1c:    i.per100c / 100,
     per1f:    i.per100f / 100,
+    source: 'barcode',
+    unit: i.unit || 'g',
+  });
+  addToFoodLibrary({
+    name: i.name, brand: i.brand || '', barcode: i.barcode || null,
+    per100kcal: i.per100kcal, per100p: i.per100p, per100c: i.per100c, per100f: i.per100f,
+    defaultServing: i.defaultServing || null,
+    servingName: i.servingName || null,
+    unit: i.unit || 'g',
+    packQuantityRaw: i.packQuantityRaw || null,
+    packQuantity: i.packQuantity || null,
+    cacheSource: i.cacheSource || null,
     source: 'barcode',
   });
   recipePendingIngredient = null;
@@ -22735,10 +23766,15 @@ function confirmRecipeManual() {
 }
 
 // ── Save recipe ───────────────────────────────────────────────────────────────
-function saveRecipe() {
+// Validates and persists the recipe currently in the builder (state.recipes
+// + food library), without touching modal/navigation state. Returns the
+// saved recipe object, or null if the form is invalid (no name / no
+// ingredients) — shared by saveRecipe() and saveRecipeAndLog() so the
+// persistence logic exists in exactly one place.
+function _persistRecipe() {
   const name     = document.getElementById('recipe-name-input').value.trim();
   const servings = parseFloat(document.getElementById('recipe-servings-input').value) || 1;
-  if (!name || !recipeIngredients.length) return;
+  if (!name || !recipeIngredients.length) return null;
 
   const tot = recipeIngredients.reduce((a,b) => ({
     kcal: a.kcal+b.kcal, p: a.p+b.protein, c: a.c+b.carbs, f: a.f+b.fats
@@ -22783,10 +23819,79 @@ function saveRecipe() {
   });
 
   save();
+  return recipe;
+}
+
+function saveRecipe() {
+  const recipe = _persistRecipe();
+  if (!recipe) return;
   recipeIngredients = [];
   exitRecipeBuilder('modal-recipe-ingredients');
   renderRecipeList();
   openModal('modal-recipe-list');
+}
+
+// Save & Log — persists the recipe exactly like saveRecipe(), then routes
+// straight into logging it: a date/meal picker, followed by the standard
+// serving-entry modal pre-loaded with the recipe (same modal used for any
+// other recipe logged from the Nutrition Add Food list). Only offered when
+// _recipeLogEligible is true (see flag comment above recipeIngredients).
+function saveRecipeAndLog() {
+  const recipe = _persistRecipe();
+  if (!recipe) return;
+  recipeIngredients = [];
+  _pendingLogRecipeName = recipe.name;
+  _recipeListReturnPending = false; // bypass the "return to My Recipes" behaviour — we're heading to Nutrition instead
+  closeModal('modal-recipe-ingredients');
+  requestAnimationFrame(() => openRecipeLogTargetPicker());
+}
+
+// ── Save & Log: date/meal target picker + handoff to the standard serving modal ──
+// Opens the small date/meal picker used by Save & Log, pre-filled with
+// today and the last-active meal (falling back to Breakfast).
+function openRecipeLogTargetPicker() {
+  populateRelativeDateSelect('recipe-log-target-date');
+  document.getElementById('recipe-log-target-meal').value = nutrActiveMeal || 'Breakfast';
+  openModal('modal-recipe-log-target');
+}
+
+// Takes the chosen date/meal, switches to the Nutrition screen on that
+// date/meal, and opens the standard serving-entry modal pre-loaded with the
+// just-saved recipe — identical in shape to selecting that same recipe from
+// the Nutrition Add Food list (see selectFromAddList).
+function confirmRecipeLogTarget() {
+  const date = document.getElementById('recipe-log-target-date').value;
+  const meal = document.getElementById('recipe-log-target-meal').value;
+  const recipeName = _pendingLogRecipeName;
+  closeModal('modal-recipe-log-target');
+  _pendingLogRecipeName = null;
+  if (!recipeName) return;
+
+  const libItem = (state.foodLibrary || []).find(f => f.source === 'recipe' && f.name.toLowerCase() === recipeName.toLowerCase());
+  if (!libItem) return;
+
+  showScreen('nutrition'); // resets nutrSelectedDate to today — overridden below
+  nutrSelectedDate = date;
+  nutrActiveMeal = meal;
+  renderNutrDaily();
+
+  nutrPendingProduct = {
+    name: libItem.name,
+    brand: libItem.brand || '',
+    barcode: libItem.barcode || null,
+    per1kcal: libItem.per1kcal !== undefined ? libItem.per1kcal : libItem.per100kcal / 100,
+    per1p:    libItem.per1p    !== undefined ? libItem.per1p    : libItem.per100p / 100,
+    per1c:    libItem.per1c    !== undefined ? libItem.per1c    : libItem.per100c / 100,
+    per1f:    libItem.per1f    !== undefined ? libItem.per1f    : libItem.per100f / 100,
+    per100kcal: libItem.per100kcal,
+    per100p: libItem.per100p,
+    per100c: libItem.per100c,
+    per100f: libItem.per100f,
+    defaultServing: libItem.defaultServing || null,
+    source: 'recipe',
+  };
+  _nutrReturnToAddList = false;
+  requestAnimationFrame(() => openNutrServingModal());
 }
 
 // ── Recipe list (view / edit / delete) ───────────────────────────────────────
@@ -22990,9 +24095,22 @@ function deleteRecipe(id) {
       <div><div class="label">Carbs (g)</div><input type="number" inputmode="decimal" id="fle-carbs" oninput="updateFlePreview()"></div>
       <div><div class="label">Fats (g)</div><input type="number" inputmode="decimal" id="fle-fats" oninput="updateFlePreview()"></div>
     </div>
+    <div class="input-row">
+      <div>
+        <div class="label" id="fle-rss-label">RSS (g) <span style="color:var(--text3);font-size:10px;">optional</span></div>
+        <input type="number" inputmode="decimal" id="fle-rss" placeholder="e.g. 250" oninput="updateFlePreview()">
+      </div>
+      <div>
+        <div class="label">Unit</div>
+        <div class="toggle-row" style="margin-bottom:0;">
+          <button type="button" class="toggle-btn active" id="fle-unit-g" onclick="setFleUnit('g')">g</button>
+          <button type="button" class="toggle-btn" id="fle-unit-ml" onclick="setFleUnit('ml')">ml</button>
+        </div>
+      </div>
+    </div>
     <div class="form-group">
-      <div class="label">RSS (g) <span style="color:var(--text3);font-size:10px;">Recommended serving size — optional</span></div>
-      <input type="number" inputmode="decimal" id="fle-rss" placeholder="e.g. 250" oninput="updateFlePreview()">
+      <div class="label">Serving name <span style="color:var(--text3);font-size:10px;">e.g. "1 sausage" — optional</span></div>
+      <input type="text" id="fle-serving-name" placeholder="e.g. 1 sausage">
     </div>
     <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px;margin-bottom:14px;font-size:12px;color:var(--text2);" id="fle-preview">—</div>
     <button class="btn btn-accent btn-block" onclick="saveFoodLibEntry()" style="margin-bottom:8px;">Save →</button>
@@ -23041,7 +24159,10 @@ function deleteRecipe(id) {
     <div id="recipe-ing-list" style="overflow-y:auto;flex:1;margin-bottom:12px;"></div>
     <!-- Totals -->
     <div id="recipe-ing-totals" style="flex-shrink:0;background:var(--surface2);border-radius:var(--r-sm);padding:10px 12px;font-size:12px;color:var(--text2);margin-bottom:12px;">No ingredients yet</div>
-    <button class="btn btn-accent btn-block" style="flex-shrink:0;" onclick="saveRecipe()">Save recipe →</button>
+    <div style="display:flex;gap:8px;flex-shrink:0;">
+      <button class="btn btn-accent btn-block" onclick="saveRecipe()">Save recipe →</button>
+      <button id="recipe-savelog-btn" class="btn btn-block" style="display:none;background:var(--surface2);border:0.5px solid var(--border2);color:var(--text);" onclick="saveRecipeAndLog()">Save & Log →</button>
+    </div>
   </div>
 </div>
 
@@ -23085,9 +24206,16 @@ function deleteRecipe(id) {
       <div style="font-family:var(--font-display);font-size:15px;font-weight:700;margin-bottom:2px;" id="recipe-serving-name"></div>
       <div style="font-size:12px;color:var(--text2);" id="recipe-serving-brand"></div>
     </div>
-    <div class="form-group">
-      <div class="label">Amount (g)</div>
-      <input type="number" inputmode="decimal" id="recipe-serving-grams" min="1" oninput="updateRecipeServingPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
+    <div class="input-row" style="margin-bottom:14px;">
+      <div>
+        <div class="label" id="recipe-serving-grams-label">Serving size</div>
+        <select id="recipe-serving-picker-select" onchange="_onServingPickerChange('recipe-serving')"></select>
+        <input type="number" inputmode="decimal" id="recipe-serving-grams" min="1" oninput="updateRecipeServingPreview()" style="display:none;">
+      </div>
+      <div>
+        <div class="label">Servings</div>
+        <input type="number" inputmode="decimal" id="recipe-serving-servings" min="0.5" step="0.5" value="1" oninput="updateRecipeServingPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
+      </div>
     </div>
     <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px;margin-bottom:14px;font-size:12px;color:var(--text2);" id="recipe-serving-preview">—</div>
     <button class="btn btn-accent btn-block" onclick="confirmRecipeIngredient()">Add ingredient →</button>
@@ -23210,6 +24338,28 @@ function deleteRecipe(id) {
       </select>
     </div>
     <button id="nce-confirm-btn" class="btn btn-accent btn-block" onclick="confirmCopyFoodEntry()">Copy →</button>
+  </div>
+</div>
+
+<!-- Save & Log: choose where a just-saved recipe should be logged -->
+<div class="modal-overlay" id="modal-recipe-log-target">
+  <div class="modal-sheet" data-modal="modal-recipe-log-target">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-log-target')">✕</button></div>
+    <div class="modal-title">Log to…</div>
+    <div class="form-group">
+      <div class="label">Date</div>
+      <select id="recipe-log-target-date" style="font-size:14px;"></select>
+    </div>
+    <div class="form-group">
+      <div class="label">Meal</div>
+      <select id="recipe-log-target-meal" style="font-size:14px;">
+        <option value="Breakfast">Breakfast</option>
+        <option value="Lunch">Lunch</option>
+        <option value="Dinner">Dinner</option>
+        <option value="Snacks">Snacks</option>
+      </select>
+    </div>
+    <button id="recipe-log-confirm-btn" class="btn btn-accent btn-block" onclick="confirmRecipeLogTarget()">Log →</button>
   </div>
 </div>
 
