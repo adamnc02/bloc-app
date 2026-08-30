@@ -824,6 +824,83 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
    target that does nothing. */
 #modal-body-profile.gate-active .modal-close-btn { display: none; }
 
+/* ── AUTH GATE (Phase 5 — OAuth/Email sign-in) ──────────────────────────
+   A dedicated full-screen overlay, NOT part of the .modal-overlay system —
+   unlike every other gate in the app (see PROFILE ENTRY GATE), this one
+   has to block #app before load()/showScreen('home') ever run, so it
+   can't piggyback on initModal()'s tap-outside-to-close wiring or the
+   .open class toggle modals use. Defaults to visible (fail closed): a
+   person with no valid Supabase session, a slow/failed network check, or
+   a genuinely new device all land here first, and JS only ever hides it
+   once a session is positively confirmed — see initSupabaseAuth() /
+   onAuthResolved(). Sits above even #splash (z-index 9999) so a
+   signed-out person is never shown the splash animation over a gate
+   that's about to cover it; a signed-in returning user's session check
+   resolves fast enough (localStorage-cached) that the gate is already
+   hidden well before the splash even finishes, so no flash either way. */
+#auth-gate {
+  position: fixed; inset: 0; z-index: 10000;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  overflow-y: auto;
+  padding: 24px 20px calc(24px + var(--safe-bottom));
+}
+#auth-gate.hidden { display: none; }
+.auth-gate-inner { width: 100%; max-width: 360px; margin: auto; }
+.auth-gate-logo {
+  font-family: var(--font-display); font-size: 28px; font-weight: 800;
+  color: var(--text); text-align: center; letter-spacing: 0.02em;
+}
+.auth-gate-tagline {
+  font-size: 13px; color: var(--text2); text-align: center;
+  margin: 6px 0 28px;
+}
+/* Provider buttons render from AUTH_PROVIDERS — see renderAuthProviders().
+   Deliberately a plain vertical stack of full-width buttons rather than
+   anything provider-specific, so adding Apple/Microsoft later (both
+   currently deferred — see BLOC-dev-plan-oauth-backend-ai) is just a new
+   entry in that array, never a markup change here. */
+.auth-provider-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; padding: 12px; margin-bottom: 10px;
+  border-radius: var(--r-sm); border: 1px solid var(--border2);
+  background: var(--surface2); color: var(--text);
+  font-family: var(--font-display); font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s;
+}
+.auth-provider-btn:active { transform: scale(0.98); }
+.auth-provider-btn svg { flex-shrink: 0; }
+.auth-divider {
+  display: flex; align-items: center; gap: 10px;
+  margin: 18px 0; color: var(--text3); font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.auth-divider::before, .auth-divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--border2);
+}
+.auth-tabs {
+  display: flex; border: 1px solid var(--border2); border-radius: var(--r-sm);
+  overflow: hidden; margin-bottom: 18px;
+}
+.auth-tab {
+  flex: 1; padding: 9px; border: none; background: transparent;
+  color: var(--text2); font-family: var(--font-display); font-size: 13px;
+  font-weight: 600; cursor: pointer;
+}
+.auth-tab.active { background: var(--accent); color: var(--on-accent); }
+#auth-error {
+  font-size: 12px; color: var(--red); text-align: center;
+  margin-top: 8px; line-height: 1.5;
+}
+#auth-status {
+  font-size: 12px; color: var(--text2); text-align: center;
+  margin-top: 8px; line-height: 1.5;
+}
+#auth-forgot-row { text-align: center; margin-top: 14px; }
+#auth-forgot-row a {
+  font-size: 12px; color: var(--accent2); cursor: pointer;
+}
+
 /* ── ONBOARDING TOUR (spotlight + tooltip) ──────────────────────────────
    Shared by the Demo Tour, Macrocycle Creation Tour, and all five
    Mini-Tours (see TECHNICAL.md §33). Sits at z-index 400 — above every
@@ -2231,6 +2308,49 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 })();
 </script>
 
+<!-- ════════════════════════════════════════
+     AUTH GATE (Phase 5 — OAuth/Email sign-in)
+     ═══════════════════════════════════════════
+     Mandatory account creation, per the dev plan's Apple App Store
+     guideline driver and "no guest/local-only mode" architecture
+     decision. Visible by default (see CSS) — hidden only once
+     initSupabaseAuth() confirms a real session. Not a .modal-overlay:
+     this has to block #app before load()/showScreen('home') even run,
+     so it's wired directly rather than through the modal system. -->
+<div id="auth-gate">
+  <div class="auth-gate-inner">
+    <div class="auth-gate-logo">BLOC</div>
+    <div class="auth-gate-tagline" id="auth-gate-tagline">Sign in to continue</div>
+
+    <!-- Populated by renderAuthProviders() from the AUTH_PROVIDERS config
+         array — currently just Google. Apple and Microsoft are deferred
+         (Apple: $99/yr Developer Program cost; Microsoft: Azure tenant
+         setup friction) but per the dev plan, adding either later should
+         be a one-line addition to that array, not a markup change. -->
+    <div id="auth-provider-list"></div>
+
+    <div class="auth-divider"><span>or</span></div>
+
+    <div class="auth-tabs">
+      <button type="button" class="auth-tab active" id="auth-tab-signin" onclick="setAuthMode('signin')">Sign In</button>
+      <button type="button" class="auth-tab" id="auth-tab-signup" onclick="setAuthMode('signup')">Sign Up</button>
+    </div>
+
+    <div class="form-group">
+      <input type="email" id="auth-email-input" placeholder="Email" autocomplete="email" inputmode="email">
+    </div>
+    <div class="form-group">
+      <input type="password" id="auth-password-input" placeholder="Password" autocomplete="current-password">
+    </div>
+
+    <button class="btn btn-accent btn-block" id="auth-submit-btn" onclick="submitEmailAuth()">Sign In →</button>
+    <div id="auth-forgot-row"><a onclick="sendPasswordReset()">Forgot password?</a></div>
+
+    <div id="auth-error" style="display:none;"></div>
+    <div id="auth-status" style="display:none;"></div>
+  </div>
+</div>
+
 <div id="app">
 <div class="edge-fade edge-fade-top"></div>
 <div class="edge-fade edge-fade-bottom"></div>
@@ -2338,7 +2458,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
       <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 2px;border-bottom:1px solid var(--border);margin-bottom:16px;cursor:pointer;" onclick="openModal('modal-settings-about')">
         <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-        <span class="tag tag-outline">v8.02</span>
+        <span class="tag tag-outline">v8.03</span>
       </div>
 
       <!-- ── Profile section ── -->
@@ -2360,9 +2480,17 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
             <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><circle cx="12" cy="7" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>
             <span>Body logs</span>
           </div>
-          <div class="settings-row" style="border-bottom:none;" onclick="openModal('modal-linked-services')">
+          <div class="settings-row" onclick="openModal('modal-linked-services')">
             <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
             <span>Linked services</span>
+          </div>
+          <!-- Account (Phase 5, v8.03) — Supabase auth account info + sign out.
+               Kept as its own row rather than folded into Linked Services,
+               since it's the person's own identity/session, not a
+               third-party integration. -->
+          <div class="settings-row" style="border-bottom:none;" onclick="openModal('modal-account')">
+            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span>Account</span>
           </div>
         </div>
       </div>
@@ -3456,10 +3584,11 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
       <div class="form-group">
         <div class="label">Restaurant (optional)</div>
-        <input type="text" id="photo-restaurant-name" placeholder="e.g. Nando's" style="margin-bottom:8px;">
-        <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer;">
-          <input type="checkbox" id="photo-home-cooked" onchange="toggleHomeCooked()"> Home-cooked / not a chain
-        </label>
+        <div class="toggle-row" id="photo-source-toggle" style="margin-bottom:8px;">
+          <button type="button" class="toggle-btn active" data-source="restaurant" onclick="setPhotoSource('restaurant')">Restaurant</button>
+          <button type="button" class="toggle-btn" data-source="homeCooked" onclick="setPhotoSource('homeCooked')">Home-cooked</button>
+        </div>
+        <input type="text" id="photo-restaurant-name" placeholder="e.g. Nando's">
       </div>
 
       <div class="form-group">
@@ -3468,9 +3597,9 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
         <div style="font-size:11px;color:var(--text3);margin-top:4px;">If given, this is treated as fixed — macros are derived to fit it rather than estimated independently</div>
       </div>
 
-      <div id="photo-analyze-error" style="display:none;background:rgba(226,75,74,0.12);color:var(--red);border-radius:var(--r-sm);padding:10px;font-size:12px;margin-bottom:12px;"></div>
+      <div id="photo-analyse-error" style="display:none;background:rgba(226,75,74,0.12);color:var(--red);border-radius:var(--r-sm);padding:10px;font-size:12px;margin-bottom:12px;"></div>
 
-      <button class="btn btn-accent btn-block" id="photo-analyze-btn" onclick="analyzeMealPhoto()">Analyze Photo →</button>
+      <button class="btn btn-accent btn-block" id="photo-analyse-btn" onclick="analyseMealPhoto()">Analyse Photo →</button>
     </div>
   </div>
 </div>
@@ -3658,6 +3787,40 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
       API Key
     </button>
+  </div>
+</div>
+
+<!-- Profile → Account (Phase 5, v8.03) — signed-in identity + sign out.
+     renderAccountModal() fills in email/provider and toggles the two
+     action buttons (only one of which ever applies to a given account). -->
+<div class="modal-overlay" id="modal-account">
+  <div class="modal-sheet" data-modal="modal-account">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-account')">✕</button></div>
+    <div class="modal-title">Account</div>
+    <div class="card">
+      <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:4px;" id="account-email-display">—</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.5;" id="account-provider-display"></div>
+    </div>
+    <button class="btn btn-danger btn-block" style="margin-top:16px;" onclick="signOutUser()">Sign Out</button>
+  </div>
+</div>
+
+<!-- Existing-local-data migration notice (Phase 5, v8.03) — shown once,
+     right after a first successful sign-in, if this device already has
+     real local data. Phase 6 (Supabase backend/tables) doesn't exist yet,
+     so there's nothing to actually upload to — this only detects the
+     data and flags it (localStorage 'bloc_snapshot_zero_pending') so
+     Phase 6 can pick it up and upload it as that account's first synced
+     dataset ("snapshot zero") without needing to re-prompt. See
+     checkSnapshotZero() / TECHNICAL.md for the full writeup. -->
+<div class="modal-overlay" id="modal-snapshot-zero">
+  <div class="modal-sheet" data-modal="modal-snapshot-zero">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-snapshot-zero')">✕</button></div>
+    <div class="modal-title">Existing data found</div>
+    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px;">
+      This device already has BLOC data on it. It'll stay right here and keep working exactly as before — once cloud sync is switched on, it'll automatically become this account's starting dataset. Nothing is uploaded or changed today.
+    </div>
+    <button class="btn btn-accent btn-block" onclick="closeModal('modal-snapshot-zero')">Got it</button>
   </div>
 </div>
 
@@ -4477,24 +4640,280 @@ function startNutritionMiniTour() {
   }, 300));
 }
 
+// ════════════════════════════════════════════════
+// AUTH (Phase 5 — OAuth/Email sign-in, Supabase Auth)
+// ════════════════════════════════════════════════
+// Supabase project config — fill in from Settings → API in the Supabase
+// dashboard (Project URL + publishable/anon key). The anon key is safe to
+// ship client-side by design (RLS is what actually protects data), but
+// isn't filled in here since this file is generated without Adam's real
+// project details.
+const SUPABASE_URL = 'https://pinfjcxwwbbbwfqppqsj.supabase.co'; // e.g. https://xxxxxxxx.supabase.co
+const SUPABASE_ANON_KEY = 'sb_publishable_vC0Yhw8pgtkohqUI5tMVeQ_rnNhJ9vm';
+
+let supabase = null; // set once the dynamic import + createClient() resolve
+
+// Generic, extensible provider list the auth-gate's OAuth buttons render
+// from (see renderAuthProviders()) — adding Apple or Microsoft later
+// (both currently deferred — see BLOC-dev-plan-oauth-backend-ai, Phase 5)
+// is a one-line addition here, never a markup change in the auth-gate
+// HTML or a rebuild of the button row itself.
+const AUTH_PROVIDERS = [
+  {
+    id: 'google',
+    provider: 'google', // Supabase OAuth provider id
+    label: 'Continue with Google',
+    icon: '<svg viewBox="0 0 24 24" width="18" height="18"><path fill="#4285F4" d="M23.52 12.27c0-.82-.07-1.6-.2-2.36H12v4.47h6.47c-.28 1.5-1.13 2.77-2.4 3.62v3h3.88c2.27-2.09 3.57-5.17 3.57-8.73z"/><path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.95-2.9l-3.88-3c-1.08.72-2.45 1.15-4.07 1.15-3.13 0-5.78-2.11-6.73-4.96H1.26v3.1C3.24 21.3 7.28 24 12 24z"/><path fill="#FBBC05" d="M5.27 14.29c-.24-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29v-3.1H1.26A11.96 11.96 0 0 0 0 12c0 1.94.46 3.77 1.26 5.39l4.01-3.1z"/><path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.44-3.44C17.95 1.19 15.24 0 12 0 7.28 0 3.24 2.7 1.26 6.61l4.01 3.1C6.22 6.86 8.87 4.75 12 4.75z"/></svg>',
+  },
+  // Deferred (dev plan Phase 5) — Apple, once the $99/yr Developer
+  // Program is set up:
+  // { id: 'apple', provider: 'apple', label: 'Continue with Apple', icon: '…' },
+  // Deferred — Microsoft, once the Azure AD app registration is done:
+  // { id: 'azure', provider: 'azure', label: 'Continue with Microsoft', icon: '…' },
+];
+
+function renderAuthProviders() {
+  const el = document.getElementById('auth-provider-list');
+  if (!el) return;
+  el.innerHTML = AUTH_PROVIDERS.map(p =>
+    '<button type="button" class="auth-provider-btn" onclick="signInWithProvider(\'' + p.id + '\')">' + p.icon + '<span>' + p.label + '</span></button>'
+  ).join('');
+}
+renderAuthProviders();
+
+// undefined = auth not checked yet, null = checked and signed out,
+// object = a real session. maybeFinalizeBoot() below waits on this
+// leaving `undefined` before it lets anything past the gate.
+let _authResolvedSession = undefined;
+
+// Kicks off the Supabase client + initial session check. Called once,
+// immediately — createClient()/getSession() don't touch the DOM, so this
+// doesn't need to wait for DOMContentLoaded, and starting it as early as
+// possible keeps the gate's resolve time (and therefore the splash-vs-
+// gate race described in the CSS comment above #auth-gate) as short as
+// possible for a returning, already-signed-in person.
+async function initSupabaseAuth() {
+  try {
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+    supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    onAuthResolved(data.session || null);
+    // Future sign-ins/sign-outs/token refreshes — keeps the gate and the
+    // rest of the app in sync with the live session without a reload.
+    // The very first callback fires synchronously with the same session
+    // already handled by the getSession() call above; onAuthResolved()/
+    // maybeFinalizeBoot()'s own guards make that redundant call harmless.
+    supabase.auth.onAuthStateChange((_event, session) => { onAuthResolved(session); });
+  } catch (err) {
+    console.warn('[auth] Supabase init/session check failed:', err && err.message);
+    showAuthGateError('Couldn\u2019t connect. Check your connection and try reloading.');
+  }
+}
+
+function onAuthResolved(session) {
+  _authResolvedSession = session || null;
+  if (session) { hideAuthGate(); updateAccountUI(session); }
+  else { showAuthGate(); }
+  maybeFinalizeBoot();
+}
+
+let _bootFinalized = false; // guards continueBootAfterAuth() from running twice (e.g. a later token-refresh event)
+let _domReady = false;
+
+// The two things boot needs before it's safe to reveal anything: (1) the
+// DOM fully parsed — the DOMContentLoaded handler below sets _domReady
+// after initModal()'ing every modal — and (2) a positive auth result.
+// Whichever finishes second calls this; only a signed-in session ever
+// proceeds past the gate, and _bootFinalized ensures the one-time boot
+// work below (new-user detection, the demo-data fetch, the profile gate,
+// the initial showScreen('home')) only ever runs once per page load.
+function maybeFinalizeBoot() {
+  if (_bootFinalized) return;
+  if (!_domReady) return;
+  if (_authResolvedSession === undefined) return; // auth check hasn't resolved yet
+  if (!_authResolvedSession) return; // resolved, but signed out — stay on the gate
+  _bootFinalized = true;
+  continueBootAfterAuth();
+}
+
+// Everything that used to run unconditionally at parse time (pre-Phase-5)
+// now waits here for a confirmed session instead — substance unchanged,
+// just relocated behind the gate.
+function continueBootAfterAuth() {
+  fetchDemoDataIfNewUser(_isNewUserOnBoot);
+  // A genuinely new user is handled entirely by the fetch above (Demo Tour
+  // on success, openProfileGate() from its own .catch() on failure) — both
+  // async, so checking here too would race the fetch and could pop the
+  // gate open before the Demo Tour even starts. This branch only covers a
+  // RETURNING device (bloc_state already exists) that somehow still has 0
+  // macrocycles and an incomplete profile — an abandoned/pre-this-feature
+  // account — which has no async fetch racing it, so it's safe to check
+  // immediately.
+  // Deferred via setTimeout(0) rather than called inline — this runs before
+  // the tour engine's `let _tourState` declaration further down the file
+  // has executed, and referencing it early would throw.
+  if (!_isNewUserOnBoot) setTimeout(maybeOpenProfileGate, 0);
+  showScreen('home');
+  checkSnapshotZero();
+}
+
+function showAuthGate() {
+  const gate = document.getElementById('auth-gate');
+  if (gate) gate.classList.remove('hidden');
+}
+function hideAuthGate() {
+  const gate = document.getElementById('auth-gate');
+  if (gate) gate.classList.add('hidden');
+  const errEl = document.getElementById('auth-error');
+  if (errEl) errEl.style.display = 'none';
+  const statusEl = document.getElementById('auth-status');
+  if (statusEl) statusEl.style.display = 'none';
+}
+function showAuthGateError(msg) {
+  showAuthGate();
+  const errEl = document.getElementById('auth-error');
+  if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+}
+
+let _authMode = 'signin'; // 'signin' | 'signup'
+function setAuthMode(mode) {
+  _authMode = mode;
+  document.getElementById('auth-tab-signin').classList.toggle('active', mode === 'signin');
+  document.getElementById('auth-tab-signup').classList.toggle('active', mode === 'signup');
+  document.getElementById('auth-submit-btn').textContent = mode === 'signin' ? 'Sign In \u2192' : 'Sign Up \u2192';
+  document.getElementById('auth-forgot-row').style.display = mode === 'signin' ? 'block' : 'none';
+  const errEl = document.getElementById('auth-error'); if (errEl) errEl.style.display = 'none';
+}
+
+async function signInWithProvider(providerId) {
+  if (!supabase) return;
+  const cfg = AUTH_PROVIDERS.find(p => p.id === providerId);
+  if (!cfg) return;
+  const errEl = document.getElementById('auth-error');
+  if (errEl) errEl.style.display = 'none';
+  try {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: cfg.provider,
+      options: { redirectTo: window.location.href },
+    });
+    if (error) throw error;
+    // Redirect-based flow — the browser navigates away here; nothing
+    // further to do on this page load.
+  } catch (err) {
+    showAuthGateError(err && err.message ? err.message : 'Sign-in failed. Please try again.');
+  }
+}
+
+async function submitEmailAuth() {
+  if (!supabase) return;
+  const email = (document.getElementById('auth-email-input').value || '').trim();
+  const password = document.getElementById('auth-password-input').value || '';
+  const errEl = document.getElementById('auth-error');
+  const statusEl = document.getElementById('auth-status');
+  if (errEl) errEl.style.display = 'none';
+  if (statusEl) statusEl.style.display = 'none';
+
+  if (!email || !password) {
+    if (errEl) { errEl.textContent = 'Enter both an email and a password.'; errEl.style.display = 'block'; }
+    return;
+  }
+
+  const btn = document.getElementById('auth-submit-btn');
+  if (btn) btn.disabled = true;
+  try {
+    if (_authMode === 'signup') {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+      if (!data.session) {
+        // Email confirmation is on (per the dev plan's User Signups
+        // config) — no session yet until the person confirms via email.
+        if (statusEl) { statusEl.textContent = 'Check your email to confirm your account, then sign in.'; statusEl.style.display = 'block'; }
+        setAuthMode('signin');
+      }
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      // onAuthStateChange picks up the new session and hides the gate.
+    }
+  } catch (err) {
+    if (errEl) { errEl.textContent = err && err.message ? err.message : 'Something went wrong. Please try again.'; errEl.style.display = 'block'; }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function sendPasswordReset() {
+  if (!supabase) return;
+  const email = (document.getElementById('auth-email-input').value || '').trim();
+  const errEl = document.getElementById('auth-error');
+  const statusEl = document.getElementById('auth-status');
+  if (!email) {
+    if (errEl) { errEl.textContent = 'Enter your email above first.'; errEl.style.display = 'block'; }
+    return;
+  }
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
+    if (error) throw error;
+    if (errEl) errEl.style.display = 'none';
+    if (statusEl) { statusEl.textContent = 'Password reset email sent.'; statusEl.style.display = 'block'; }
+  } catch (err) {
+    if (statusEl) statusEl.style.display = 'none';
+    if (errEl) { errEl.textContent = err && err.message ? err.message : 'Could not send reset email.'; errEl.style.display = 'block'; }
+  }
+}
+
+async function signOutUser() {
+  if (!supabase) return;
+  closeModal('modal-account');
+  try {
+    await supabase.auth.signOut();
+  } catch (err) {
+    console.warn('[auth] sign-out failed:', err && err.message);
+  }
+  // onAuthStateChange fires with a null session and shows the gate again.
+  // Local data is left completely untouched — it stays on-device exactly
+  // as it was; there's no backend yet (Phase 6) for a sign-out to affect.
+}
+
+// Fills in the Account modal's email/provider display. Called from
+// onAuthResolved() on every sign-in; also safe to call again any time the
+// modal is reopened since it just reflects whatever _authResolvedSession
+// currently holds.
+function updateAccountUI(session) {
+  const emailEl = document.getElementById('account-email-display');
+  const providerEl = document.getElementById('account-provider-display');
+  if (!session || !session.user) return;
+  if (emailEl) emailEl.textContent = session.user.email || '(no email on file)';
+  if (providerEl) {
+    const provider = (session.user.app_metadata && session.user.app_metadata.provider) || 'email';
+    const label = provider === 'email' ? 'Signed in with email' : 'Signed in with ' + provider.charAt(0).toUpperCase() + provider.slice(1);
+    providerEl.textContent = label;
+  }
+}
+
+// ── Snapshot zero (existing-data migration notice) ──────────────────────
+// Phase 6 (Supabase backend/tables) doesn't exist yet, so there's nothing
+// to actually upload to here — this just detects real local data on a
+// first sign-in and flags it, so Phase 6 can pick the flag up and upload
+// it as this account's first synced dataset ("snapshot zero") without
+// needing to re-prompt. Fires at most once per device: the flag lives in
+// its own localStorage key, never inside `state`/bloc_state — same
+// pattern as bloc_api_key — so it survives Clear All Data and is never
+// swept into JSON export/import.
+function checkSnapshotZero() {
+  const alreadyHandled = localStorage.getItem('bloc_snapshot_zero_pending') || localStorage.getItem('bloc_snapshot_zero_done');
+  if (alreadyHandled) return;
+  const hasRealData = state.macrocycles && state.macrocycles.length > 0;
+  if (!hasRealData) return;
+  localStorage.setItem('bloc_snapshot_zero_pending', '1');
+  openModal('modal-snapshot-zero');
+}
+
+initSupabaseAuth();
+
 const _isNewUserOnBoot = !localStorage.getItem('bloc_state');
 load();
-fetchDemoDataIfNewUser(_isNewUserOnBoot);
-// A genuinely new user is handled entirely by the fetch above (Demo Tour
-// on success, openProfileGate() from its own .catch() on failure) — both
-// async, so checking here too would race the fetch and could pop the
-// gate open before the Demo Tour even starts. This branch only covers a
-// RETURNING device (bloc_state already exists) that somehow still has 0
-// macrocycles and an incomplete profile — an abandoned/pre-this-feature
-// account — which has no async fetch racing it, so it's safe to check
-// immediately.
-// Deferred via setTimeout(0) rather than called inline — this runs before
-// the tour engine's `let _tourState` declaration further down the file
-// has executed, and referencing it early would throw. Pushing to a
-// macrotask lets the rest of the script finish first, same as the rest
-// of boot already does for paint-dependent work (see positionNavPill's
-// double-rAF a few lines below).
-if (!_isNewUserOnBoot) setTimeout(maybeOpenProfileGate, 0);
 // Nav pill has no size/position until the DOM has painted at least once —
 // double rAF waits for that first paint before measuring, otherwise the
 // pill would start at 0x0 and only snap to the right place on the next
@@ -4586,6 +5005,11 @@ window.addEventListener('load', positionNavPill);
 // always happens regardless of which button triggered the open.
 function openModal(id) {
   const today = getLocalToday();
+  if (id === 'modal-account') {
+    // Always reflects the live session rather than whatever was last
+    // rendered — cheap enough to just recompute on every open.
+    updateAccountUI(_authResolvedSession);
+  }
   if (id === 'modal-body-log') {
     const dateEl = document.getElementById('body-date-input');
     if (!dateEl.dataset.originalDate) {
@@ -20639,7 +21063,7 @@ let _photoDetectedItems = [];   // working array while the review screen is open
 let _photoContext = {};         // { mealName, restaurant, homeCooked, knownKcal }
 let _photoImageBase64 = null;   // resized/compressed image, base64 (no data: prefix)
 let _photoImageMediaType = null;
-let _photoAnalyzing = false;
+let _photoAnalysing = false;
 
 function openNutrPhoto() {
   closeModal('modal-nutr-add');
@@ -20649,16 +21073,25 @@ function openNutrPhoto() {
   document.getElementById('photo-meal-name').value = '';
   document.getElementById('photo-restaurant-name').value = '';
   document.getElementById('photo-restaurant-name').disabled = false;
-  document.getElementById('photo-home-cooked').checked = false;
+  setPhotoSource('restaurant');
   document.getElementById('photo-known-kcal').value = '';
-  document.getElementById('photo-analyze-error').style.display = 'none';
+  document.getElementById('photo-analyse-error').style.display = 'none';
   _photoImageBase64 = null;
   _photoImageMediaType = null;
   requestAnimationFrame(() => openModal('modal-nutr-photo'));
 }
 
-function toggleHomeCooked() {
-  const homeCooked = document.getElementById('photo-home-cooked').checked;
+// Segmented Restaurant/Home-cooked control (same .toggle-row/.toggle-btn
+// pattern used elsewhere in the app, e.g. #mode-toggle-row, #ex-category-toggle)
+// replaces the old plain checkbox, whose checked/unchecked state was hard to
+// read at a glance. Home-cooked greys out and clears the restaurant name so
+// it's never sent to the LLM; buildMealPhotoPrompt() states "home cooked"
+// instead whenever homeCooked is true (see analyseMealPhoto()).
+function setPhotoSource(source) {
+  const homeCooked = source === 'homeCooked';
+  document.querySelectorAll('#photo-source-toggle .toggle-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.source === source);
+  });
   const restaurantInput = document.getElementById('photo-restaurant-name');
   restaurantInput.disabled = homeCooked;
   if (homeCooked) restaurantInput.value = '';
@@ -20700,7 +21133,7 @@ function handlePhotoFileSelect(file) {
 // Builds the system + user prompt for the meal-photo API call. Kept as its
 // own function (rather than inlined) so the kcal-fixed-constraint and
 // country-scoped-web-search logic are easy to find and adjust independently
-// of the fetch/parse plumbing in analyzeMealPhoto().
+// of the fetch/parse plumbing in analyseMealPhoto().
 function buildMealPhotoPrompt(ctx) {
   const systemPrompt = `You are a nutrition estimation assistant embedded in a personal fitness app called BLOC. You will be shown a photo of a meal and must identify each distinct food item, estimating its weight in grams and its macros.
 
@@ -20749,9 +21182,9 @@ function findFoodLibraryMatch(itemName) {
   return bestScore >= 0.4 ? best : null;
 }
 
-async function analyzeMealPhoto() {
-  if (_photoAnalyzing) return;
-  const errEl = document.getElementById('photo-analyze-error');
+async function analyseMealPhoto() {
+  if (_photoAnalysing) return;
+  const errEl = document.getElementById('photo-analyse-error');
   errEl.style.display = 'none';
 
   if (!_photoImageBase64) {
@@ -20773,7 +21206,7 @@ async function analyzeMealPhoto() {
     return;
   }
 
-  const homeCooked = document.getElementById('photo-home-cooked').checked;
+  const homeCooked = document.querySelector('#photo-source-toggle .toggle-btn.active').dataset.source === 'homeCooked';
   const restaurant = homeCooked ? '' : document.getElementById('photo-restaurant-name').value.trim();
   const knownKcal = parseFloat(document.getElementById('photo-known-kcal').value) || null;
   const country = (state.profile && state.profile.country) || null;
@@ -20783,10 +21216,10 @@ async function analyzeMealPhoto() {
 
   const { systemPrompt, userText } = buildMealPhotoPrompt({ mealName, restaurant, homeCooked, knownKcal, country, useWebSearch });
 
-  _photoAnalyzing = true;
-  const btn = document.getElementById('photo-analyze-btn');
+  _photoAnalysing = true;
+  const btn = document.getElementById('photo-analyse-btn');
   btn.disabled = true;
-  btn.textContent = 'Analyzing…';
+  btn.textContent = 'Analysing…';
 
   try {
     const body = {
@@ -20854,12 +21287,12 @@ async function analyzeMealPhoto() {
     renderPhotoReviewItems();
     requestAnimationFrame(() => openModal('modal-nutr-photo-review'));
   } catch (err) {
-    errEl.textContent = err.message || 'Something went wrong analyzing that photo.';
+    errEl.textContent = err.message || 'Something went wrong analysing that photo.';
     errEl.style.display = 'block';
   } finally {
-    _photoAnalyzing = false;
+    _photoAnalysing = false;
     btn.disabled = false;
-    btn.textContent = 'Analyze Photo →';
+    btn.textContent = 'Analyse Photo →';
   }
 }
 
@@ -22800,7 +23233,14 @@ window.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.modal-overlay').forEach(el => {
     if (el.id !== 'modal-timer') initModal(el); // timer has its own close handler
   });
-  showScreen('home');
+  // showScreen('home') no longer fires unconditionally here — Phase 5's
+  // auth gate has to resolve first (see maybeFinalizeBoot()/
+  // continueBootAfterAuth() near the top of this script). This handler
+  // just marks the DOM side of that two-condition wait as satisfied;
+  // whichever of the two (DOM parsed vs. auth resolved) finishes last is
+  // what actually triggers showScreen('home').
+  _domReady = true;
+  maybeFinalizeBoot();
 });
 
 // ── Custom confirm (replaces window.confirm for PWA compatibility) ──────────
