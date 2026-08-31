@@ -824,6 +824,83 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
    target that does nothing. */
 #modal-body-profile.gate-active .modal-close-btn { display: none; }
 
+/* ── AUTH GATE (Phase 5 — OAuth/Email sign-in) ──────────────────────────
+   A dedicated full-screen overlay, NOT part of the .modal-overlay system —
+   unlike every other gate in the app (see PROFILE ENTRY GATE), this one
+   has to block #app before load()/showScreen('home') ever run, so it
+   can't piggyback on initModal()'s tap-outside-to-close wiring or the
+   .open class toggle modals use. Defaults to visible (fail closed): a
+   person with no valid Supabase session, a slow/failed network check, or
+   a genuinely new device all land here first, and JS only ever hides it
+   once a session is positively confirmed — see initSupabaseAuth() /
+   onAuthResolved(). Sits above even #splash (z-index 9999) so a
+   signed-out person is never shown the splash animation over a gate
+   that's about to cover it; a signed-in returning user's session check
+   resolves fast enough (localStorage-cached) that the gate is already
+   hidden well before the splash even finishes, so no flash either way. */
+#auth-gate {
+  position: fixed; inset: 0; z-index: 10000;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  overflow-y: auto;
+  padding: 24px 20px calc(24px + var(--safe-bottom));
+}
+#auth-gate.hidden { display: none; }
+.auth-gate-inner { width: 100%; max-width: 360px; margin: auto; }
+.auth-gate-logo {
+  font-family: var(--font-display); font-size: 28px; font-weight: 800;
+  color: var(--text); text-align: center; letter-spacing: 0.02em;
+}
+.auth-gate-tagline {
+  font-size: 13px; color: var(--text2); text-align: center;
+  margin: 6px 0 28px;
+}
+/* Provider buttons render from AUTH_PROVIDERS — see renderAuthProviders().
+   Deliberately a plain vertical stack of full-width buttons rather than
+   anything provider-specific, so adding Apple/Microsoft later (both
+   currently deferred — see BLOC-dev-plan-oauth-backend-ai) is just a new
+   entry in that array, never a markup change here. */
+.auth-provider-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; padding: 12px; margin-bottom: 10px;
+  border-radius: var(--r-sm); border: 1px solid var(--border2);
+  background: var(--surface2); color: var(--text);
+  font-family: var(--font-display); font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s;
+}
+.auth-provider-btn:active { transform: scale(0.98); }
+.auth-provider-btn svg { flex-shrink: 0; }
+.auth-divider {
+  display: flex; align-items: center; gap: 10px;
+  margin: 18px 0; color: var(--text3); font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.auth-divider::before, .auth-divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--border2);
+}
+.auth-tabs {
+  display: flex; border: 1px solid var(--border2); border-radius: var(--r-sm);
+  overflow: hidden; margin-bottom: 18px;
+}
+.auth-tab {
+  flex: 1; padding: 9px; border: none; background: transparent;
+  color: var(--text2); font-family: var(--font-display); font-size: 13px;
+  font-weight: 600; cursor: pointer;
+}
+.auth-tab.active { background: var(--accent); color: var(--on-accent); }
+#auth-error {
+  font-size: 12px; color: var(--red); text-align: center;
+  margin-top: 8px; line-height: 1.5;
+}
+#auth-status {
+  font-size: 12px; color: var(--text2); text-align: center;
+  margin-top: 8px; line-height: 1.5;
+}
+#auth-forgot-row { text-align: center; margin-top: 14px; }
+#auth-forgot-row a {
+  font-size: 12px; color: var(--accent2); cursor: pointer;
+}
+
 /* ── ONBOARDING TOUR (spotlight + tooltip) ──────────────────────────────
    Shared by the Demo Tour, Macrocycle Creation Tour, and all five
    Mini-Tours (see TECHNICAL.md §33). Sits at z-index 400 — above every
@@ -1534,6 +1611,29 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   pointer-events: none;
 }
 
+#splash .splash-skip {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 0.5px solid rgba(242,242,242,0.25);
+  background: rgba(255,255,255,0.06);
+  color: var(--splash-text);
+  font-size: 16px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 1;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, opacity 0.5s ease, visibility 0.5s ease;
+}
+
+#splash .splash-skip:active { background: rgba(255,255,255,0.16); }
+
 #splash .logo-stage {
   display: flex;
   flex-direction: column;
@@ -1931,6 +2031,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 <body data-mode="dark">
 
 <div id="splash">
+  <button type="button" id="splash-skip" class="splash-skip" aria-label="Skip animation">&#10005;</button>
   <div class="logo-stage">
 
     <div class="blocks-grid">
@@ -2117,6 +2218,22 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     var timeouts = [];
     function after(ms, fn) { timeouts.push(setTimeout(fn, ms)); }
 
+    // Skip/cancel button — top-right corner, visible for the full
+    // splash duration. Clears every step still queued in `timeouts`
+    // (drops, flips, lift, scatter, rise, the eventual fade-out) rather
+    // than just hiding the splash on top of an animation that's still
+    // silently running underneath, then jumps straight to the same
+    // fade-out + revealApp() the natural sequence ends on, so the app
+    // becomes visible exactly the same way either path finishes.
+    var skipBtn = document.getElementById('splash-skip');
+    if (skipBtn) {
+      skipBtn.addEventListener('click', function() {
+        timeouts.forEach(clearTimeout);
+        splash.classList.add('fade-out');
+        revealApp();
+      });
+    }
+
     // heavy landing thud once each block's fall transition finishes
     blockEls.forEach(function(el) {
       el.addEventListener('transitionend', function(e) {
@@ -2231,6 +2348,49 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 })();
 </script>
 
+<!-- ════════════════════════════════════════
+     AUTH GATE (Phase 5 — OAuth/Email sign-in)
+     ═══════════════════════════════════════════
+     Mandatory account creation, per the dev plan's Apple App Store
+     guideline driver and "no guest/local-only mode" architecture
+     decision. Visible by default (see CSS) — hidden only once
+     initSupabaseAuth() confirms a real session. Not a .modal-overlay:
+     this has to block #app before load()/showScreen('home') even run,
+     so it's wired directly rather than through the modal system. -->
+<div id="auth-gate">
+  <div class="auth-gate-inner">
+    <div class="auth-gate-logo">BLOC</div>
+    <div class="auth-gate-tagline" id="auth-gate-tagline">Sign in to continue</div>
+
+    <!-- Populated by renderAuthProviders() from the AUTH_PROVIDERS config
+         array — currently just Google. Apple and Microsoft are deferred
+         (Apple: $99/yr Developer Program cost; Microsoft: Azure tenant
+         setup friction) but per the dev plan, adding either later should
+         be a one-line addition to that array, not a markup change. -->
+    <div id="auth-provider-list"></div>
+
+    <div class="auth-divider"><span>or</span></div>
+
+    <div class="auth-tabs">
+      <button type="button" class="auth-tab active" id="auth-tab-signin" onclick="setAuthMode('signin')">Sign In</button>
+      <button type="button" class="auth-tab" id="auth-tab-signup" onclick="setAuthMode('signup')">Sign Up</button>
+    </div>
+
+    <div class="form-group">
+      <input type="email" id="auth-email-input" placeholder="Email" autocomplete="email" inputmode="email">
+    </div>
+    <div class="form-group">
+      <input type="password" id="auth-password-input" placeholder="Password" autocomplete="current-password">
+    </div>
+
+    <button class="btn btn-accent btn-block" id="auth-submit-btn" onclick="submitEmailAuth()">Sign In →</button>
+    <div id="auth-forgot-row"><a onclick="sendPasswordReset()">Forgot password?</a></div>
+
+    <div id="auth-error" style="display:none;"></div>
+    <div id="auth-status" style="display:none;"></div>
+  </div>
+</div>
+
 <div id="app">
 <div class="edge-fade edge-fade-top"></div>
 <div class="edge-fade edge-fade-bottom"></div>
@@ -2338,7 +2498,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
       <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 2px;border-bottom:1px solid var(--border);margin-bottom:16px;cursor:pointer;" onclick="openModal('modal-settings-about')">
         <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-        <span class="tag tag-outline">v8.02</span>
+        <span class="tag tag-outline">v8.05</span>
       </div>
 
       <!-- ── Profile section ── -->
@@ -2360,9 +2520,19 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
             <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><circle cx="12" cy="7" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>
             <span>Body logs</span>
           </div>
-          <div class="settings-row" style="border-bottom:none;" onclick="openModal('modal-linked-services')">
+          <div class="settings-row" onclick="openModal('modal-linked-services')">
             <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
             <span>Linked services</span>
+          </div>
+          <!-- Account (Phase 5, v8.03) — Supabase auth account info + sign out.
+               Kept as its own row rather than folded into Linked Services,
+               since it's the person's own identity/session, not a
+               third-party integration. Renamed "Account & Data" (v8.06)
+               when Export/Restore/Download/Delete/Clear all moved into
+               this modal from the old standalone Data & Backup section.-->
+          <div class="settings-row" style="border-bottom:none;" onclick="openModal('modal-account')">
+            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span>Account &amp; Data</span>
           </div>
         </div>
       </div>
@@ -2426,33 +2596,8 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
         </div>
       </div>
 
-      <div class="section-title">Backup</div>
-      <div style="margin-bottom:20px;">
-        <div style="font-family:var(--font-display);font-size:14px;font-weight:500;margin-bottom:6px;color:var(--text);">Export data</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Downloads a complete JSON snapshot of all your plans, logs, and nutrition data. Save it to Files for safekeeping.</div>
-        <button class="btn btn-accent btn-block" onclick="exportData()">
-          <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Export JSON backup
-        </button>
-      </div>
-
-      <!-- ── Danger Zone — collapsed by default, kept as a real bordered alert box ── -->
-      <div style="border:1px solid color-mix(in srgb, var(--red) 35%, transparent);border-radius:var(--r-sm);padding:14px;">
-        <div onclick="toggleSettingsCard('dangerZone')" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent;">
-          <div class="section-title" style="margin:0;color:var(--red);">Danger Zone</div>
-          <svg id="settings-card-chevron-dangerZone" viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(0deg)"><polyline points="6 9 12 15 18 9"/></svg>
-        </div>
-        <div id="settings-card-body-dangerZone" style="padding-top:14px;display:none;">
-          <label class="btn btn-block" style="cursor:pointer;justify-content:center;color:var(--red);border-color:var(--red);margin-bottom:8px;">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            Import JSON backup
-            <input type="file" accept=".json,application/json" style="display:none;" onchange="importData(event)">
-          </label>
-          <div id="import-status" style="font-size:12px;margin-bottom:8px;text-align:center;"></div>
-          <button class="btn btn-danger-fill btn-block" onclick="clearAllData()">Clear all data</button>
-        </div>
-      </div>
     </div>
+
 
 
     <!-- ════════════════════════════════════════
@@ -3060,6 +3205,27 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       Your gender, height, and date of birth power BLOC's calorie and macro calculations throughout the app. These stay on your device even if you clear your data later.
     </div>
 
+    <!-- Name — three separate rows (not a side-by-side layout) per Adam's
+         preference. All optional: none of these are part of the profile
+         gate's required-field validation in saveBodyProfile(), same
+         treatment as Country below. Preferred Name is what "Welcome back"
+         on the home screen uses (see renderHomeHero()) — First Name/
+         Surname aren't shown anywhere in the UI yet, they exist for the
+         profiles table / any future coach-app context. -->
+    <div class="form-group">
+      <div class="label">First Name</div>
+      <input type="text" id="profile-first-name" autocomplete="given-name" style="font-size:15px;width:100%;box-sizing:border-box;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+    </div>
+    <div class="form-group">
+      <div class="label">Surname</div>
+      <input type="text" id="profile-surname" autocomplete="family-name" style="font-size:15px;width:100%;box-sizing:border-box;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+    </div>
+    <div class="form-group">
+      <div class="label">Preferred Name</div>
+      <input type="text" id="profile-preferred-name" autocomplete="nickname" placeholder="What should BLOC call you?" style="font-size:15px;width:100%;box-sizing:border-box;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;">Used for "Welcome back" on Home</div>
+    </div>
+
     <!-- Gender -->
     <div class="form-group">
       <div class="label">Gender</div>
@@ -3456,10 +3622,11 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
       <div class="form-group">
         <div class="label">Restaurant (optional)</div>
-        <input type="text" id="photo-restaurant-name" placeholder="e.g. Nando's" style="margin-bottom:8px;">
-        <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer;">
-          <input type="checkbox" id="photo-home-cooked" onchange="toggleHomeCooked()"> Home-cooked / not a chain
-        </label>
+        <div class="toggle-row" id="photo-source-toggle" style="margin-bottom:8px;">
+          <button type="button" class="toggle-btn active" data-source="restaurant" onclick="setPhotoSource('restaurant')">Restaurant</button>
+          <button type="button" class="toggle-btn" data-source="homeCooked" onclick="setPhotoSource('homeCooked')">Home-cooked</button>
+        </div>
+        <input type="text" id="photo-restaurant-name" placeholder="e.g. Nando's">
       </div>
 
       <div class="form-group">
@@ -3468,9 +3635,9 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
         <div style="font-size:11px;color:var(--text3);margin-top:4px;">If given, this is treated as fixed — macros are derived to fit it rather than estimated independently</div>
       </div>
 
-      <div id="photo-analyze-error" style="display:none;background:rgba(226,75,74,0.12);color:var(--red);border-radius:var(--r-sm);padding:10px;font-size:12px;margin-bottom:12px;"></div>
+      <div id="photo-analyse-error" style="display:none;background:rgba(226,75,74,0.12);color:var(--red);border-radius:var(--r-sm);padding:10px;font-size:12px;margin-bottom:12px;"></div>
 
-      <button class="btn btn-accent btn-block" id="photo-analyze-btn" onclick="analyzeMealPhoto()">Analyze Photo →</button>
+      <button class="btn btn-accent btn-block" id="photo-analyse-btn" onclick="analyseMealPhoto()">Analyse Photo →</button>
     </div>
   </div>
 </div>
@@ -3565,8 +3732,9 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <!-- Barcode/library/recipe mode: grams + servings -->
     <div id="nutr-edit-grams-row" class="input-row">
       <div>
-        <div class="label">Amount (g)</div>
-        <input type="number" inputmode="decimal" id="nutr-edit-grams" min="1" oninput="updateEditPreview()" style="font-size:18px;font-family:var(--font-display);font-weight:700;">
+        <div class="label" id="nutr-edit-grams-label">Serving size</div>
+        <select id="nutr-edit-picker-select" onchange="_onServingPickerChange('nutr-edit')"></select>
+        <input type="number" inputmode="decimal" id="nutr-edit-grams" min="1" oninput="updateEditPreview()" style="display:none;">
       </div>
       <div>
         <div class="label">Servings</div>
@@ -3658,6 +3826,171 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
       API Key
     </button>
+  </div>
+</div>
+
+<!-- Profile → Account (Phase 5, v8.03) — signed-in identity + sign out.
+     renderAccountModal() fills in email/provider and toggles the two
+     action buttons (only one of which ever applies to a given account). -->
+<div class="modal-overlay" id="modal-account">
+  <div class="modal-sheet" data-modal="modal-account">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-account')">✕</button></div>
+    <div class="modal-title">Account &amp; Data</div>
+    <div class="card">
+      <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:4px;" id="account-email-display">—</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.5;" id="account-provider-display"></div>
+      <!-- Email/password accounts only — OAuth accounts have no BLOC-side
+           password to change, Google/Apple/Microsoft manage that
+           themselves. Hidden by default; shown by updateAccountUI() when
+           the signed-in session's provider is 'email'. -->
+      <button id="account-change-password-btn" onclick="openChangePassword()" style="display:none;margin-top:10px;background:none;border:none;padding:0;color:var(--accent);font-size:12px;cursor:pointer;text-align:left;">Change password</button>
+    </div>
+    <div class="card" style="margin-top:16px;">
+      <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:4px;">Cloud Backups</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.5;" id="account-last-backup-display">No cloud backup yet</div>
+    </div>
+
+    <!-- Backup — moved here from the old standalone Settings → Data &
+         Backup section (v8.06): every export/restore/clear/download/
+         delete action now lives in this one modal instead of being split
+         between here and the bottom of the Settings page. Export/Restore
+         still each open their own local-vs-cloud choice modal below,
+         unchanged. -->
+    <div style="margin-top:16px;">
+      <div style="font-family:var(--font-display);font-size:14px;font-weight:500;margin-bottom:6px;color:var(--text);">Backup</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Save or restore a complete snapshot of all your plans, logs, and nutrition data.</div>
+      <button class="btn btn-accent btn-block" style="margin-bottom:8px;" onclick="openModal('modal-backup-export-choice')">
+        <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export
+      </button>
+      <div class="divider-sm" style="margin:12px 0;"></div>
+      <button class="btn btn-block" onclick="openModal('modal-backup-restore-choice')">
+        <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Restore
+      </button>
+    </div>
+
+    <!-- Data — collapsed by default, same red-bordered box and ids as
+         before (toggleSettingsCard('dangerZone') is DOM-location-
+         independent, so moving this needed no JS changes). -->
+    <div style="border:1px solid color-mix(in srgb, var(--red) 35%, transparent);border-radius:var(--r-sm);padding:14px;margin-top:16px;">
+      <div onclick="toggleSettingsCard('dangerZone')" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+        <div class="section-title" style="margin:0;color:var(--red);">Data</div>
+        <svg id="settings-card-chevron-dangerZone" viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(0deg)"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div id="settings-card-body-dangerZone" style="padding-top:14px;display:none;">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Clearing only resets this device. Downloading or deleting acts on your account's server-side data.</div>
+        <button class="btn btn-block" style="margin-bottom:8px;" id="settings-download-my-data-btn" onclick="handleDownloadMyData()">Download my data</button>
+        <button class="btn" style="margin-bottom:8px;color:var(--red);border-color:var(--red);width:100%;justify-content:center;" onclick="handleDeleteMyData()">Delete my data</button>
+        <div id="settings-data-zone-status" style="font-size:12px;margin-bottom:8px;text-align:center;display:none;"></div>
+        <button class="btn btn-danger-fill btn-block" onclick="clearAllData()">Clear all data</button>
+      </div>
+    </div>
+
+    <button class="btn btn-danger btn-block" style="margin-top:16px;" onclick="signOutUser()">Sign Out</button>
+  </div>
+</div>
+
+<!-- Change Password (v8.06) — email/password accounts only, opened from
+     the "Change password" link in the Account & Data modal's account
+     card. Both fields are real type="password" inputs with
+     autocomplete="new-password", the same hint used on Sign Up, so iOS
+     offers its strong-password suggestion / Keychain save prompt here
+     too rather than just masking the text. -->
+<div class="modal-overlay" id="modal-change-password">
+  <div class="modal-sheet" data-modal="modal-change-password">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-change-password')">✕</button></div>
+    <div class="modal-title">Change Password</div>
+    <div class="form-group">
+      <div class="label">New Password</div>
+      <input type="password" id="change-password-new" autocomplete="new-password" style="font-size:15px;width:100%;box-sizing:border-box;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+    </div>
+    <div class="form-group">
+      <div class="label">Confirm New Password</div>
+      <input type="password" id="change-password-confirm" autocomplete="new-password" style="font-size:15px;width:100%;box-sizing:border-box;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+    </div>
+    <button class="btn btn-accent btn-block" id="change-password-submit-btn" onclick="submitChangePassword()">Update Password</button>
+    <div id="change-password-status" style="font-size:12px;margin-top:10px;text-align:center;display:none;"></div>
+  </div>
+</div>
+
+<!-- Export choice (v8.05) — Settings → Account & Data → Backup → Export.
+     Local goes straight to exportData(); Cloud opens the second-level
+     choice below (plain snapshot vs full sync). Mirrors the existing
+     stacked-button pattern used by modal-linked-services. -->
+<div class="modal-overlay" id="modal-backup-export-choice">
+  <div class="modal-sheet" data-modal="modal-backup-export-choice">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-backup-export-choice')">✕</button></div>
+    <div class="modal-title">Export data</div>
+    <div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:14px;">Save a complete snapshot of all your plans, logs, and nutrition data.</div>
+    <button class="lib-primary-btn" style="width:100%;margin-bottom:8px;" onclick="closeModal('modal-backup-export-choice');exportData()">Local file</button>
+    <button class="lib-primary-btn" style="width:100%;" onclick="closeModal('modal-backup-export-choice');openModal('modal-backup-export-cloud-choice')">Cloud</button>
+  </div>
+</div>
+
+<!-- Export → Cloud (v8.05) — second-level choice: a plain dated snapshot
+     (handleBackupNow, unchanged) or a full sync that also force-pushes
+     every relational table (handleFullCloudSync, new this version). -->
+<div class="modal-overlay" id="modal-backup-export-cloud-choice">
+  <div class="modal-sheet" data-modal="modal-backup-export-cloud-choice">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-backup-export-cloud-choice')">✕</button></div>
+    <div class="modal-title">Export to cloud</div>
+    <div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:14px;">Backup file saves a dated snapshot. Full sync does that and refreshes every relational table used by future coach/progress features.</div>
+    <button class="lib-primary-btn" style="width:100%;margin-bottom:8px;" id="backup-export-file-btn" onclick="handleBackupNow('backup-export-file-btn','backup-export-cloud-status')">Backup file</button>
+    <button class="lib-primary-btn" style="width:100%;" id="backup-export-fullsync-btn" onclick="handleFullCloudSync('backup-export-fullsync-btn','backup-export-cloud-status')">Full sync</button>
+    <div id="backup-export-cloud-status" style="font-size:12px;margin-top:10px;text-align:center;display:none;"></div>
+  </div>
+</div>
+
+<!-- Restore choice (v8.05) — Settings → Account & Data → Backup → Restore.
+     Local file keeps the existing importData() path and its status line
+     (#import-status, unchanged element id) inline in this same modal
+     rather than auto-closing, so feedback on a bad file is actually
+     visible. Cloud hands off to the existing restore picker. -->
+<div class="modal-overlay" id="modal-backup-restore-choice">
+  <div class="modal-sheet" data-modal="modal-backup-restore-choice">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-backup-restore-choice')">✕</button></div>
+    <div class="modal-title">Restore data</div>
+    <div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:14px;">Restoring — from either source — replaces everything currently on this device.</div>
+    <label class="lib-primary-btn" style="width:100%;margin-bottom:8px;cursor:pointer;">
+      Local file
+      <input type="file" accept=".json,application/json" style="display:none;" onchange="importData(event)">
+    </label>
+    <button class="lib-primary-btn" style="width:100%;" onclick="closeModal('modal-backup-restore-choice');openRestorePicker()">Cloud</button>
+    <div id="import-status" style="font-size:12px;margin-top:10px;text-align:center;"></div>
+  </div>
+</div>
+
+<!-- Restore picker (Phase 6) — lists this account's dated snapshots from
+     Supabase Storage; picking one downloads and restores it via the same
+     validate-and-assign path as a local file restore. See
+     restoreFromSnapshot() / TECHNICAL.md §57. -->
+<div class="modal-overlay" id="modal-restore-picker">
+  <div class="modal-sheet" data-modal="modal-restore-picker">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-restore-picker')">✕</button></div>
+    <div class="modal-title">Restore from a snapshot</div>
+    <div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:8px;">This replaces everything on this device with the chosen snapshot. It can't be undone locally.</div>
+    <div id="restore-picker-last-backup" style="font-size:11px;color:var(--text3);margin-bottom:12px;"></div>
+    <div id="restore-picker-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+  </div>
+</div>
+
+<!-- Existing-local-data migration notice (Phase 5, v8.03) — shown once,
+     right after a first successful sign-in, if this device already has
+     real local data. Phase 6 (Supabase backend/tables) doesn't exist yet,
+     so there's nothing to actually upload to — this only detects the
+     data and flags it (localStorage 'bloc_snapshot_zero_pending') so
+     Phase 6 can pick it up and upload it as that account's first synced
+     dataset ("snapshot zero") without needing to re-prompt. See
+     checkSnapshotZero() / TECHNICAL.md for the full writeup. -->
+<div class="modal-overlay" id="modal-snapshot-zero">
+  <div class="modal-sheet" data-modal="modal-snapshot-zero">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-snapshot-zero')">✕</button></div>
+    <div class="modal-title">Existing data found</div>
+    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px;">
+      This device already has BLOC data on it. It'll stay right here and keep working exactly as before — once cloud sync is switched on, it'll automatically become this account's starting dataset. Nothing is uploaded or changed today.
+    </div>
+    <button class="btn btn-accent btn-block" onclick="closeModal('modal-snapshot-zero')">Got it</button>
   </div>
 </div>
 
@@ -3885,7 +4218,10 @@ let state = {
 // mutation throughout the app — there's no batching, so a screen with lots
 // of rapid edits (e.g. dragging a slider) can trigger many synchronous
 // writes in quick succession. Cheap enough in practice not to matter.
-function save() { localStorage.setItem('bloc_state', JSON.stringify(state)); }
+function save() {
+  localStorage.setItem('bloc_state', JSON.stringify(state));
+  markSyncDirty();
+}
 
 // Runs once on boot. Parses whatever's in localStorage (if anything), then
 // backfills any field that's missing with an empty default — this is what
@@ -4477,24 +4813,1199 @@ function startNutritionMiniTour() {
   }, 300));
 }
 
+// ════════════════════════════════════════════════
+// AUTH (Phase 5 — OAuth/Email sign-in, Supabase Auth)
+// ════════════════════════════════════════════════
+// Supabase project config — fill in from Settings → API in the Supabase
+// dashboard (Project URL + publishable/anon key). The anon key is safe to
+// ship client-side by design (RLS is what actually protects data), but
+// isn't filled in here since this file is generated without Adam's real
+// project details.
+const SUPABASE_URL = 'https://pinfjcxwwbbbwfqppqsj.supabase.co'; // e.g. https://xxxxxxxx.supabase.co
+const SUPABASE_ANON_KEY = 'sb_publishable_vC0Yhw8pgtkohqUI5tMVeQ_rnNhJ9vm';
+
+let supabase = null; // set once the dynamic import + createClient() resolve
+
+// Generic, extensible provider list the auth-gate's OAuth buttons render
+// from (see renderAuthProviders()) — adding Apple or Microsoft later
+// (both currently deferred — see BLOC-dev-plan-oauth-backend-ai, Phase 5)
+// is a one-line addition here, never a markup change in the auth-gate
+// HTML or a rebuild of the button row itself.
+const AUTH_PROVIDERS = [
+  {
+    id: 'google',
+    provider: 'google', // Supabase OAuth provider id
+    label: 'Continue with Google',
+    icon: '<svg viewBox="0 0 24 24" width="18" height="18"><path fill="#4285F4" d="M23.52 12.27c0-.82-.07-1.6-.2-2.36H12v4.47h6.47c-.28 1.5-1.13 2.77-2.4 3.62v3h3.88c2.27-2.09 3.57-5.17 3.57-8.73z"/><path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.95-2.9l-3.88-3c-1.08.72-2.45 1.15-4.07 1.15-3.13 0-5.78-2.11-6.73-4.96H1.26v3.1C3.24 21.3 7.28 24 12 24z"/><path fill="#FBBC05" d="M5.27 14.29c-.24-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29v-3.1H1.26A11.96 11.96 0 0 0 0 12c0 1.94.46 3.77 1.26 5.39l4.01-3.1z"/><path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.44-3.44C17.95 1.19 15.24 0 12 0 7.28 0 3.24 2.7 1.26 6.61l4.01 3.1C6.22 6.86 8.87 4.75 12 4.75z"/></svg>',
+  },
+  // Deferred (dev plan Phase 5) — Apple, once the $99/yr Developer
+  // Program is set up:
+  // { id: 'apple', provider: 'apple', label: 'Continue with Apple', icon: '…' },
+  // Deferred — Microsoft, once the Azure AD app registration is done:
+  // { id: 'azure', provider: 'azure', label: 'Continue with Microsoft', icon: '…' },
+];
+
+function renderAuthProviders() {
+  const el = document.getElementById('auth-provider-list');
+  if (!el) return;
+  el.innerHTML = AUTH_PROVIDERS.map(p =>
+    '<button type="button" class="auth-provider-btn" onclick="signInWithProvider(\'' + p.id + '\')">' + p.icon + '<span>' + p.label + '</span></button>'
+  ).join('');
+}
+renderAuthProviders();
+
+// undefined = auth not checked yet, null = checked and signed out,
+// object = a real session. maybeFinalizeBoot() below waits on this
+// leaving `undefined` before it lets anything past the gate.
+let _authResolvedSession = undefined;
+
+// Kicks off the Supabase client + initial session check. Called once,
+// immediately — createClient()/getSession() don't touch the DOM, so this
+// doesn't need to wait for DOMContentLoaded, and starting it as early as
+// possible keeps the gate's resolve time (and therefore the splash-vs-
+// gate race described in the CSS comment above #auth-gate) as short as
+// possible for a returning, already-signed-in person.
+async function initSupabaseAuth() {
+  try {
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+    supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    onAuthResolved(data.session || null);
+    // Future sign-ins/sign-outs/token refreshes — keeps the gate and the
+    // rest of the app in sync with the live session without a reload.
+    // The very first callback fires synchronously with the same session
+    // already handled by the getSession() call above; onAuthResolved()/
+    // maybeFinalizeBoot()'s own guards make that redundant call harmless.
+    supabase.auth.onAuthStateChange((_event, session) => { onAuthResolved(session); });
+  } catch (err) {
+    console.warn('[auth] Supabase init/session check failed:', err && err.message);
+    showAuthGateError('Couldn\u2019t connect. Check your connection and try reloading.');
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// SUPABASE SYNC LAYER (Phase 6) — write-only, local-first
+// ════════════════════════════════════════════════════════════════════════
+// BLOC never reads from these tables during normal use (see TECHNICAL.md
+// §57) — localStorage/`state` stays the sole source of truth for the UI.
+// This layer's only job is to best-effort mirror `state` up to Supabase
+// in the background, for the future coach app and a future read-only
+// progress website. Restore-on-new-device deliberately uses the full JSON
+// snapshot (see uploadSnapshot()/restoreFromSnapshot() below), never a
+// reconstruction from these tables.
+//
+// STRATEGY — full-state reconciliation, not per-mutation diffing: save()
+// is already the single funnel point for every state mutation in the app
+// (see its own comment above), so rather than threading a change-queue
+// through hundreds of call sites, every dirty save schedules a debounced
+// full push: each table is cleared for this user and re-inserted from the
+// current `state`. At this data scale (one person, or a handful of family
+// members each on their own account) this is cheap and far simpler to
+// reason about than incremental diffing — and since nothing ever reads
+// these rows back into the app, eventual consistency is all that's needed.
+
+let _syncDirty = false;
+let _syncTimer = null;
+const SYNC_DEBOUNCE_MS = 4000;
+
+function markSyncDirty() {
+  _syncDirty = true;
+  if (_syncTimer) clearTimeout(_syncTimer);
+  _syncTimer = setTimeout(flushSyncQueue, SYNC_DEBOUNCE_MS);
+}
+
+window.addEventListener('online', () => { if (_syncDirty) flushSyncQueue(); });
+
+async function flushSyncQueue() {
+  if (!_syncDirty) return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return; // retried by the online listener above
+  if (!supabase || !_authResolvedSession) return; // not signed in yet, or Supabase failed to init (see initSupabaseAuth())
+  const userId = _authResolvedSession.user.id;
+  try {
+    await pushStateToSupabase(userId);
+    _syncDirty = false;
+    // Piggyback the opportunistic daily snapshot check on every successful
+    // relational push — see maybeUploadOpportunisticSnapshot() below for
+    // why this can't just be a scheduled job (v8.05).
+    maybeUploadOpportunisticSnapshot();
+  } catch (err) {
+    // Best-effort — stays dirty and retries on the next save() or
+    // reconnect. Never surfaced to the person: sync failures must never
+    // block or interrupt the local-first experience.
+    console.warn('[sync] push failed, will retry on next change:', err && err.message);
+  }
+}
+
+// Forces an immediate, un-debounced full push of every table, bypassing
+// the _syncDirty gate entirely — used (a) once per fresh sign-in, silently
+// (see maybeForceFullSyncOnSignIn() below), and (b) on demand from
+// Settings → Account & Data → Backup → Export → Cloud → Full sync, paired there with
+// uploadSnapshot() (see handleFullCloudSync()). Shares pushStateToSupabase()
+// with the debounced path rather than duplicating it — the only difference
+// is not waiting on the dirty flag/timer. Clears any pending debounced
+// push afterwards since this already did a superset of that work (v8.05).
+async function forceFullRelationalSync() {
+  if (!supabase || !_authResolvedSession) throw new Error('Not signed in');
+  const userId = _authResolvedSession.user.id;
+  await pushStateToSupabase(userId);
+  _syncDirty = false;
+  if (_syncTimer) { clearTimeout(_syncTimer); _syncTimer = null; }
+}
+
+// Runs once per fresh sign-in (not on every token-refresh re-fire of
+// onAuthResolved() — _fullSyncTriggeredThisBoot guards that), silently, no
+// UI (Adam's call: this is background hygiene, not something worth
+// interrupting boot for). On failure, the guard is released so the next
+// onAuthResolved() call (e.g. a token refresh) gets another attempt rather
+// than silently never syncing for the rest of the session (v8.05).
+let _fullSyncTriggeredThisBoot = false;
+async function maybeForceFullSyncOnSignIn() {
+  if (_fullSyncTriggeredThisBoot) return;
+  if (!supabase || !_authResolvedSession) return;
+  _fullSyncTriggeredThisBoot = true;
+  try {
+    await forceFullRelationalSync();
+  } catch (err) {
+    console.warn('[sync] full sync on sign-in failed, will retry on next auth event:', err && err.message);
+    _fullSyncTriggeredThisBoot = false;
+  }
+}
+
+// ── Key-parsing helpers ─────────────────────────────────────────────────
+// Exercises/trainLogs/deloads/progressionLocks are keyed by composite
+// strings built from macrocycle/day/exercise ids (see the `state` object's
+// own field comments). These helpers reverse that into a bare {macroId,
+// day, microcycle, ...} object per row, so the values can be pushed to
+// SYNC_normalised columns. Verified against synthetic data mirroring the
+// app's own key-generation functions (getDeloadUnitKey, getProgressionLockKey,
+// and the exercises/trainLogs key patterns) before being wired in here —
+// see the Phase 6 session notes in the dev plan for the test coverage.
+
+function syncBuildExerciseIdContext() {
+  const ctx = {};
+  for (const key in state.exercises) {
+    const macro = state.macrocycles.find(m => key.startsWith(m.id + '_1_'));
+    if (!macro) continue;
+    const remainder = key.slice((macro.id + '_1_').length);
+    let day = null, microcycle = null;
+    for (const d of macro.days) {
+      if (remainder === d) { day = d; microcycle = null; break; }
+      if (remainder === d + 'm1') { day = d; microcycle = 'm1'; break; }
+      if (remainder === d + 'm2') { day = d; microcycle = 'm2'; break; }
+    }
+    if (!day) continue;
+    (state.exercises[key] || []).forEach(ex => {
+      ctx[ex.id] = { macroId: macro.id, day, microcycle, key };
+    });
+  }
+  return ctx;
+}
+
+function syncParseTrainLogKey(key, exIdContext) {
+  for (const exId in exIdContext) {
+    const marker = '_' + exId + '_';
+    const idx = key.indexOf(marker);
+    if (idx === -1) continue;
+    const setIndex = parseInt(key.slice(idx + marker.length), 10);
+    if (isNaN(setIndex)) continue;
+    const prefix = key.slice(0, idx);
+    const { macroId, day, microcycle } = exIdContext[exId];
+    const dayToken = day + (microcycle || '');
+    if (!prefix.startsWith(macroId + '_') || !prefix.endsWith('_' + dayToken)) continue;
+    const week = parseInt(prefix.slice((macroId + '_').length, prefix.length - ('_' + dayToken).length), 10);
+    if (isNaN(week)) continue;
+    return { exerciseId: exId, macroId, day, microcycle, week, setIndex };
+  }
+  return null;
+}
+
+function syncParseDeloadKey(key) {
+  const macro = state.macrocycles.find(m => key.startsWith(m.id + '_'));
+  if (!macro) return null;
+  const remainder = key.slice((macro.id + '_').length);
+  const m = remainder.match(/^(\d+)(?:_m([12]))?$/);
+  if (!m) return null;
+  return { macroId: macro.id, week: parseInt(m[1], 10), microcycle: m[2] ? 'm' + m[2] : null };
+}
+
+function syncParseProgressionLockKey(key, exIdContext) {
+  const weekMatch = key.match(/^(.*)_w(\d+)$/);
+  let base = key, week = null;
+  if (weekMatch) { base = weekMatch[1]; week = parseInt(weekMatch[2], 10); }
+  for (const exId in exIdContext) {
+    const marker = '_' + exId;
+    if (!base.endsWith(marker)) continue;
+    const prefix = base.slice(0, base.length - marker.length);
+    const { macroId, day, microcycle } = exIdContext[exId];
+    if (prefix !== macroId + '_' + day + (microcycle || '')) continue;
+    return { macroId, day, microcycle, exerciseId: exId, week };
+  }
+  return null;
+}
+
+// Which macrocycle (if any) a bare calendar date falls inside — used to
+// backfill macrocycle_id on meals/body_logs/nutrition_quick_log. Per
+// Adam's decision this session, a date outside every macrocycle's range
+// is left unlinked (null) rather than attached to the nearest one — see
+// migration 0002_rls_policies.sql's header note for the full reasoning.
+function syncFindMacrocycleForDate(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr + 'T00:00:00');
+  for (const macro of state.macrocycles) {
+    const start = new Date(macro.start + 'T00:00:00');
+    const end = new Date(start);
+    end.setDate(end.getDate() + macro.weeks * 7);
+    if (d >= start && d < end) return macro.id;
+  }
+  return null;
+}
+
+// ── Row builders — one per table, pure functions of `state` ────────────
+
+// ── profiles — single-row upsert, not part of the generic jobs loop ────
+// profiles is one row per user (PK = user_id), not a many-rows-per-user
+// table like everything else here, so it can't reuse syncTable()'s
+// delete-then-reinsert pattern: a delete+reinsert would silently reset
+// account_type back to its 'solo' default on every sync, since state
+// never tracks account_type at all (that field is Phase-7 territory,
+// set once by a dedicated coach/invite-code flow, not mirrored here).
+// upsert() only touches the columns listed below, so account_type (and
+// any future Phase-7 fields) survive untouched no matter how often this
+// runs. A bare profiles row is also auto-created on signup via a
+// Postgres trigger (see migration 0010) — this just keeps gender/
+// height/birthday/country in step with Settings → About Me afterwards.
+async function syncProfile(userId) {
+  const p = state.profile || {};
+  const { error } = await supabase.from('profiles').upsert({
+    user_id: userId,
+    gender: p.gender || null,
+    height_cm: p.heightCm ?? null,
+    birthday: p.birthday || null,
+    country: p.country || null,
+    first_name: p.firstName || null,
+    surname: p.surname || null,
+    preferred_name: p.preferredName || null,
+  }, { onConflict: 'user_id' });
+  if (error) throw new Error(`profiles: ${error.message}`);
+}
+
+function syncRowsMacrocycles(userId) {
+  return state.macrocycles.map(m => ({
+    id: m.id, user_id: userId, name: m.name, weeks: m.weeks,
+    weeks_per_meso: m.weeksPerMeso, sessions_per_week: m.sessionsPerWeek,
+    start_date: m.start, goal: m.goal || null, target_bw: m.targetBw ?? null,
+    goal_type: m.goalType || null, weight_increment: m.weightIncrement ?? null,
+    split_type: m.splitType, days: m.days, day_labels: m.dayLabels,
+    use_microcycles: !!m.useMicrocycles,
+  }));
+}
+
+function syncRowsExercises(userId, exIdContext) {
+  const rows = [];
+  for (const exId in exIdContext) {
+    const { macroId, day, microcycle, key } = exIdContext[exId];
+    const ex = (state.exercises[key] || []).find(e => e.id === exId);
+    if (!ex) continue;
+    rows.push({
+      id: exId, user_id: userId, macrocycle_id: macroId, day_key: day,
+      microcycle: microcycle || null, name: ex.name,
+      // Mirrors the app's own fallback elsewhere (buildExerciseCard()):
+      // anything not explicitly 'cardio' is 'weight' — some real
+      // exercises don't have `category` set at all, and the column is
+      // not-null, so passing ex.category through raw failed on those.
+      category: ex.category === 'cardio' ? 'cardio' : 'weight',
+      order_index: ex.order ?? 0, superset_id: ex.supersetId || null,
+      superset_order: ex.supersetOrder ?? null,
+      reps: ex.reps != null ? String(ex.reps) : null,
+      sets_start: ex.setsStart ?? null, sets_end: ex.setsEnd ?? null,
+      start_weight: ex.startWeight ?? null, type: ex.type || null,
+      is_heavy_leg: ex.isHeavyLeg ?? null, tracking_mode: ex.trackingMode || null,
+      metric_type: ex.metricType || null, target_seconds: ex.targetSeconds ?? null,
+      target_distance: ex.targetDistance ?? null, distance_unit: ex.distanceUnit || null,
+      speed_level: ex.speedLevel ?? null, resistance_level: ex.resistanceLevel ?? null,
+    });
+  }
+  return rows;
+}
+
+function syncRowsExerciseLogs(userId, exIdContext) {
+  const rows = [];
+  for (const key in state.trainLogs) {
+    const parsed = syncParseTrainLogKey(key, exIdContext);
+    if (!parsed) continue; // orphaned/legacy key — skip rather than guess
+    const log = state.trainLogs[key];
+    rows.push({
+      user_id: userId, macrocycle_id: parsed.macroId, exercise_id: parsed.exerciseId,
+      week: parsed.week, day_key: parsed.day + (parsed.microcycle || ''),
+      set_index: parsed.setIndex, weight: log.weight ?? null, reps: log.reps ?? null,
+      done: !!log.done,
+    });
+  }
+  return rows;
+}
+
+function syncRowsDeloads(userId) {
+  const rows = [];
+  for (const key in state.deloads) {
+    if (!state.deloads[key]) continue;
+    const parsed = syncParseDeloadKey(key);
+    if (!parsed) continue;
+    rows.push({ user_id: userId, macrocycle_id: parsed.macroId, week: parsed.week, microcycle: parsed.microcycle });
+  }
+  return rows;
+}
+
+function syncRowsProgressionLocks(userId, exIdContext) {
+  const rows = [];
+  for (const key in state.progressionLocks) {
+    const parsed = syncParseProgressionLockKey(key, exIdContext);
+    if (!parsed) continue;
+    rows.push({
+      user_id: userId, macrocycle_id: parsed.macroId, day_key: parsed.day + (parsed.microcycle || ''),
+      exercise_id: parsed.exerciseId, week: parsed.week, locked: !!state.progressionLocks[key],
+    });
+  }
+  return rows;
+}
+
+// Legacy state can carry '' instead of a real number for numeric fields
+// (pre-dates a validation tightening upstream) — `??` only catches
+// null/undefined, not '', and Postgres integer/numeric columns reject ''
+// outright ("invalid input syntax for type integer: \"\""). Normalises
+// both to null.
+function syncNumOrNull(v) {
+  return v === '' || v === null || v === undefined ? null : v;
+}
+
+function syncRowsExerciseHistory(userId) {
+  const rows = [];
+  for (const name in (state.exerciseHistory || {})) {
+    for (const setType in state.exerciseHistory[name]) {
+      const h = state.exerciseHistory[name][setType];
+      rows.push({
+        user_id: userId, exercise_name: name, set_type: setType,
+        sets: syncNumOrNull(h.sets), reps: syncNumOrNull(h.reps), weight: syncNumOrNull(h.weight),
+        drop_weight: syncNumOrNull(h.dropWeight), drop_reps: syncNumOrNull(h.dropReps),
+        performed_date: h.date || null,
+      });
+    }
+  }
+  return rows;
+}
+
+function syncRowsExerciseTrackingMode(userId) {
+  return Object.entries(state.exerciseTrackingMode || {}).map(([name, mode]) => ({
+    user_id: userId, exercise_name: name, tracking_mode: mode,
+  }));
+}
+
+function syncRowsSupersets(userId, exIdContext) {
+  const rows = [];
+  for (const id in (state.supersets || {})) {
+    // Attribute to whichever macrocycle actually contains a member exercise.
+    const ownerExId = Object.keys(exIdContext).find(exId => {
+      const { key } = exIdContext[exId];
+      return (state.exercises[key] || []).some(e => e.id === exId && e.supersetId === id);
+    });
+    if (!ownerExId) continue;
+    rows.push({ id, user_id: userId, macrocycle_id: exIdContext[ownerExId].macroId, name: state.supersets[id].name || null });
+  }
+  return rows;
+}
+
+function syncRowsCustomLibrary(userId) {
+  // id: matches macrocycles/exercises/foods/recipes/sample_days — an
+  // app-owned text id, not a DB-generated one (see migration 0011,
+  // which retypes custom_library.id from uuid to text for exactly this
+  // reason). The fallback covers any entry created before ids existed
+  // in local state and never since re-saved through the app (so never
+  // backfilled by saveExerciseLibEntry()/deleteExerciseLibEntry()) —
+  // stable per-sync-run but not persisted back to state here, since
+  // this is a pure read function; it'll get a real backfilled id the
+  // next time that entry is actually edited in the app.
+  return (state.customLibrary || []).map((c, i) => ({
+    user_id: userId, id: c.id || ('custom_' + Date.now() + '_' + i), name: c.name, body_part: c.bodyPart || null,
+  }));
+}
+
+function syncRowsFoods(userId) {
+  return (state.foodLibrary || []).map(f => ({
+    id: f.id, user_id: userId, name: f.name, brand: f.brand || null,
+    per_100_kcal: f.per100kcal ?? null, per_100_protein: f.per100p ?? null,
+    per_100_carbs: f.per100c ?? null, per_100_fats: f.per100f ?? null,
+    default_serving: f.defaultServing ?? null, serving_name: f.servingName ?? null,
+    unit: f.unit || null, pack_quantity_raw: f.packQuantityRaw ?? null,
+    pack_quantity: f.packQuantity ?? null, source: f.source || null,
+    ai_estimated: !!f.aiEstimated,
+  }));
+}
+
+function syncRowsRecipes(userId) {
+  return (state.recipes || []).map(r => ({
+    id: r.id, user_id: userId, name: r.name, servings: r.servings,
+    per_serving_kcal: r.per_serving_kcal ?? null, per_serving_protein: r.per_serving_p ?? null,
+    per_serving_carbs: r.per_serving_c ?? null, per_serving_fats: r.per_serving_f ?? null,
+  }));
+}
+
+function syncRowsRecipeIngredients(userId) {
+  const rows = [];
+  (state.recipes || []).forEach(r => {
+    (r.ingredients || []).forEach((ing, i) => {
+      rows.push({
+        user_id: userId, recipe_id: r.id, name: ing.name,
+        ai_estimated: !!ing.aiEstimated, quantity: ing.quantity ?? ing.grams ?? null,
+        unit: ing.unit || null, order_index: i,
+      });
+    });
+  });
+  return rows;
+}
+
+function syncRowsMealsAndItems(userId) {
+  const meals = [], items = [];
+  for (const date in (state.nutritionMeals || {})) {
+    const macrocycle_id = syncFindMacrocycleForDate(date);
+    for (const slot in state.nutritionMeals[date]) {
+      const entries = state.nutritionMeals[date][slot];
+      if (!entries || !entries.length) continue;
+      const mealId = `${date}__${slot}`; // deterministic id — one row per user/date/slot, matches the DB unique constraint
+      meals.push({ id: mealId, user_id: userId, macrocycle_id, log_date: date, meal_slot: slot });
+      entries.forEach((item, i) => {
+        items.push({
+          user_id: userId, meal_id: mealId, name: item.name, brand: item.brand || null,
+          kcal: item.kcal ?? null, protein: item.protein ?? null, carbs: item.carbs ?? null,
+          fats: item.fats ?? null, serving: item.serving ?? null, source: item.source || null,
+          ai_estimated: !!item.aiEstimated, copied_from: item.copiedFrom || null, order_index: i,
+        });
+      });
+    }
+  }
+  return { meals, items };
+}
+
+function syncRowsNutritionQuickLog(userId) {
+  return Object.entries(state.nutritionQuickLog || {}).map(([date, v]) => ({
+    user_id: userId, macrocycle_id: syncFindMacrocycleForDate(date), log_date: date,
+    kcal: v.kcal ?? null, protein: v.protein ?? null, carbs: v.carbs ?? null, fats: v.fats ?? null,
+  }));
+}
+
+function syncRowsSampleDays(userId) {
+  return (state.sampleDays || []).map(g => ({
+    id: g.id, user_id: userId, linked_goal_ids: g.linkedGoalIds || [],
+    origin_goal_macros: g.originGoalMacros || null, range: g.range, days: g.days || [],
+  }));
+}
+
+function syncRowsBodyLogs(userId) {
+  return (state.bodyLogs || []).map(b => ({
+    user_id: userId, macrocycle_id: syncFindMacrocycleForDate(b.date), log_date: b.date,
+    weight: b.weight ?? null, steps: b.steps ?? null, waist_in: b.waist ?? null, hip_in: b.hip ?? null,
+  }));
+}
+
+function syncRowsGoals(userId) {
+  return (state.goals || []).map(g => ({
+    user_id: userId, macrocycle_id: g.macroId, macro_goal_id: g.macroGoalID,
+    label: g._blocLabel || null, start_date: g.startDate, end_date: g.endDate,
+    kcal: g.kcal ?? null, steps: g.steps ?? null, protein: g.protein ?? null,
+    carbs: g.carbs ?? null, fats: g.fats ?? null,
+  }));
+}
+
+// ── Push orchestration ──────────────────────────────────────────────────
+// Each table is pushed independently (Promise.allSettled) so one bad
+// table never blocks the rest, and each table is cleared for this user
+// then re-inserted — see the strategy note at the top of this section for
+// why full reconciliation is preferred over incremental diffing here.
+async function syncTable(table, rows, userId) {
+  await supabase.from(table).delete().eq('user_id', userId);
+  if (rows.length) {
+    const { error } = await supabase.from(table).insert(rows);
+    if (error) throw new Error(`${table}: ${error.message}`);
+  }
+}
+
+async function pushStateToSupabase(userId) {
+  const exIdContext = syncBuildExerciseIdContext();
+  const { meals, items } = syncRowsMealsAndItems(userId);
+
+  const jobs = [
+    // Parents before children — meal_items/recipe_ingredients/exercises/
+    // exercise_logs all reference a row inserted in an earlier job, and
+    // deleting a parent cascades (see the `on delete cascade` FKs in
+    // migration 0001), so parents must land first.
+    ['macrocycles', syncRowsMacrocycles(userId)],
+    ['exercises', syncRowsExercises(userId, exIdContext)],
+    ['exercise_logs', syncRowsExerciseLogs(userId, exIdContext)],
+    ['deloads', syncRowsDeloads(userId)],
+    ['progression_locks', syncRowsProgressionLocks(userId, exIdContext)],
+    ['exercise_history', syncRowsExerciseHistory(userId)],
+    ['exercise_tracking_mode', syncRowsExerciseTrackingMode(userId)],
+    ['supersets', syncRowsSupersets(userId, exIdContext)],
+    ['custom_library', syncRowsCustomLibrary(userId)],
+    ['foods', syncRowsFoods(userId)],
+    ['recipes', syncRowsRecipes(userId)],
+    ['recipe_ingredients', syncRowsRecipeIngredients(userId)],
+    ['meals', meals],
+    ['meal_items', items],
+    ['nutrition_quick_log', syncRowsNutritionQuickLog(userId)],
+    ['sample_days', syncRowsSampleDays(userId)],
+    ['body_logs', syncRowsBodyLogs(userId)],
+    ['goals', syncRowsGoals(userId)],
+  ];
+
+  // Sequential, in this exact parent-before-child order — child tables
+  // (exercise_logs/progression_locks → exercises, recipe_ingredients →
+  // recipes, meal_items → meals, nutrition_quick_log/goals →
+  // macrocycles) carry FK references to rows a parent job re-inserts.
+  // Firing every job concurrently (the previous
+  // Promise.allSettled(jobs.map(...)) shape) raced a child's insert
+  // against its parent's still-in-flight delete+insert and produced
+  // spurious FK violations. Every job still runs even if an earlier one
+  // fails — this loop collects failures rather than aborting on the
+  // first — so one bad table doesn't block unrelated ones (foods/
+  // recipes have no dependency on macrocycles, for example).
+  const failures = [];
+
+  // profiles is a single upsert (see syncProfile()'s own comment for why
+  // it can't be another [table, rows] tuple through the generic
+  // syncTable() path) — run it up front, folded into the same failures
+  // list so a profile hiccup doesn't block everything below it, and vice
+  // versa.
+  try {
+    await syncProfile(userId);
+  } catch (err) {
+    failures.push((err && err.message) || 'profiles: sync failed');
+  }
+
+  for (const [table, rows] of jobs) {
+    try {
+      await syncTable(table, rows, userId);
+    } catch (err) {
+      failures.push((err && err.message) || `${table}: sync failed`); // syncTable() already prefixes err.message with the table name
+    }
+  }
+  if (failures.length) {
+    // flushSyncQueue() catches this and keeps _syncDirty set so the
+    // whole push (including tables that DID succeed this round) is
+    // retried next time, since a partial success still leaves the
+    // mirror inconsistent.
+    throw new Error(failures.join('; '));
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// SNAPSHOT BACKUP & RESTORE (Phase 6) — Supabase Storage
+// ════════════════════════════════════════════════════════════════════════
+// The actual disaster-recovery path (new/wiped device, or "I want last
+// Tuesday back"). Deliberately independent of the relational sync layer
+// above: uploads the exact same full-fidelity JSON payload the existing
+// local exportData() produces, and restore runs it through the exact same
+// validate-and-assign logic importData() already uses — see migration
+// 0003_storage_and_backups.sql's header for why this was chosen over
+// exporting from the relational tables.
+
+function snapshotPath(userId, date) {
+  return `bloc/${userId}/${date}.json`;
+}
+
+// Deletes every cloud snapshot file for this user via the Storage API.
+// Cloud backup cleanup used to be a raw `delete from storage.objects`
+// inside gdpr_erase_user_data() itself — Supabase blocks that directly
+// ("Direct deletion from storage tables is not allowed. Use the Storage
+// API instead."), since a plain SQL DELETE only removes the Postgres
+// metadata row, not the actual object in the underlying storage backend,
+// which would leave an orphaned blob behind. The Storage API is a
+// separate service outside Postgres and can't be called from inside a
+// SQL function at all, so this has to run client-side — see migration
+// 0012, which narrows gdpr_erase_user_data() to only the relational
+// tables it can actually delete correctly, and handleDeleteMyData()
+// below, which now calls this first.
+async function deleteAllSnapshots(userId) {
+  const { data, error: listError } = await supabase.storage.from('app-backups').list(`bloc/${userId}`);
+  if (listError) throw listError;
+  if (!data || !data.length) return;
+  const paths = data.map(f => `bloc/${userId}/${f.name}`);
+  const { error: removeError } = await supabase.storage.from('app-backups').remove(paths);
+  if (removeError) throw removeError;
+}
+
+// Uploads the current state as a dated snapshot. Called: (a) once, right
+// after Phase 6 sign-in, to finish the "snapshot zero" flow Phase 5 left
+// pending (see bloc_snapshot_zero_pending below); (b) on a "Back up now" /
+// "Backup file" / "Full sync" action in Settings; (c) opportunistically,
+// at most once per day — see maybeUploadOpportunisticSnapshot() directly
+// below, which is the real v8.05 implementation of what this comment
+// described (this function itself is unchanged; only what calls it grew).
+async function uploadSnapshot() {
+  if (!supabase || !_authResolvedSession) throw new Error('Not signed in');
+  const userId = _authResolvedSession.user.id;
+  const date = getLocalToday();
+  const payload = JSON.stringify(state, null, 2);
+  const { error } = await supabase.storage
+    .from('app-backups')
+    .upload(snapshotPath(userId, date), new Blob([payload], { type: 'application/json' }), { upsert: true });
+  if (error) throw error;
+  localStorage.setItem('bloc_last_snapshot_date', date);
+}
+
+// Opportunistic daily backup (v8.05) — replaces a stale comment that
+// described this behaviour without it ever being wired up. A true
+// scheduled 3am job isn't achievable here: the source of truth (`state`)
+// only exists in the browser, so a snapshot can only ever be produced
+// client-side, and iOS suspends a backgrounded/locked PWA almost
+// immediately (no Background Sync / Periodic Background Sync support in
+// iOS Safari), so a setTimeout scheduled for a fixed clock time simply
+// won't fire unless the app happens to already be open then. Instead:
+// piggyback a "has it been a calendar day since the last snapshot?" check
+// on every point the app already talks to Supabase while online — app
+// boot (continueBootAfterAuth) and every successful debounced relational
+// push (flushSyncQueue) — so a rolling ~daily backup happens tied to
+// actual app usage rather than a clock. Silent by design, same as the
+// sign-in full sync: failures just retry at the next check, never
+// surfaced to the person. Does update the "Last cloud backup" label in
+// Settings/Account on success, via the same updateLastBackupDisplay()
+// every other backup path already calls.
+async function maybeUploadOpportunisticSnapshot() {
+  if (!supabase || !_authResolvedSession) return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+  const last = localStorage.getItem('bloc_last_snapshot_date');
+  if (last === getLocalToday()) return; // already backed up today
+  try {
+    await uploadSnapshot();
+    updateLastBackupDisplay();
+  } catch (err) {
+    console.warn('[sync] opportunistic snapshot upload failed, will retry next check:', err && err.message);
+  }
+}
+
+// Lists this user's available snapshots, newest first, for the restore
+// picker in Settings.
+async function listSnapshots() {
+  if (!supabase || !_authResolvedSession) throw new Error('Not signed in');
+  const userId = _authResolvedSession.user.id;
+  const { data, error } = await supabase.storage.from('app-backups').list(`bloc/${userId}`, { sortBy: { column: 'name', order: 'desc' } });
+  if (error) throw error;
+  return (data || []).map(f => f.name.replace(/\.json$/, ''));
+}
+
+// Downloads one snapshot and restores it via the exact same validation
+// path as a manual local-file restore (importData()) — see that
+// function's own comment for the structural sanity check it runs.
+async function restoreFromSnapshot(date) {
+  if (!supabase || !_authResolvedSession) throw new Error('Not signed in');
+  const userId = _authResolvedSession.user.id;
+  const { data, error } = await supabase.storage.from('app-backups').download(snapshotPath(userId, date));
+  if (error) throw error;
+  const text = await data.text();
+  const parsed = JSON.parse(text);
+  if (!parsed.macrocycles || !parsed.exercises || !parsed.trainLogs) {
+    throw new Error('Invalid backup file — does not look like a BLOC export.');
+  }
+  state = parsed;
+  save();
+  location.reload();
+}
+
+// Finishes the "snapshot zero" flow Phase 5 deferred: the first time a
+// signed-in session resolves with the pending flag set, upload the
+// person's existing local data as their first cloud snapshot, then clear
+// the flag. Never overwrites/clears local data — upload-only, matching
+// the "do not clear local data until upload is confirmed successful"
+// rule from the Phase 5 spec.
+async function maybeUploadSnapshotZero() {
+  if (localStorage.getItem('bloc_snapshot_zero_pending') !== 'true') return;
+  if (!supabase || !_authResolvedSession) return;
+  try {
+    await uploadSnapshot();
+    localStorage.removeItem('bloc_snapshot_zero_pending');
+  } catch (err) {
+    console.warn('[sync] snapshot-zero upload failed, will retry next launch:', err && err.message);
+    // Flag stays set — retried the next time onAuthResolved() fires with a session.
+  }
+}
+
+function onAuthResolved(session) {
+  _authResolvedSession = session || null;
+  if (session) {
+    hideAuthGate();
+    updateAccountUI(session);
+    maybeUploadSnapshotZero();
+    maybeForceFullSyncOnSignIn();
+    if (_syncDirty) flushSyncQueue();
+  } else {
+    showAuthGate();
+  }
+  maybeFinalizeBoot();
+}
+
+let _bootFinalized = false; // guards continueBootAfterAuth() from running twice (e.g. a later token-refresh event)
+let _domReady = false;
+
+// The two things boot needs before it's safe to reveal anything: (1) the
+// DOM fully parsed — the DOMContentLoaded handler below sets _domReady
+// after initModal()'ing every modal — and (2) a positive auth result.
+// Whichever finishes second calls this; only a signed-in session ever
+// proceeds past the gate, and _bootFinalized ensures the one-time boot
+// work below (new-user detection, the demo-data fetch, the profile gate,
+// the initial showScreen('home')) only ever runs once per page load.
+function maybeFinalizeBoot() {
+  if (_bootFinalized) return;
+  if (!_domReady) return;
+  if (_authResolvedSession === undefined) return; // auth check hasn't resolved yet
+  if (!_authResolvedSession) return; // resolved, but signed out — stay on the gate
+  _bootFinalized = true;
+  continueBootAfterAuth();
+}
+
+// Everything that used to run unconditionally at parse time (pre-Phase-5)
+// now waits here for a confirmed session instead — substance unchanged,
+// just relocated behind the gate.
+function continueBootAfterAuth() {
+  fetchDemoDataIfNewUser(_isNewUserOnBoot);
+  // A genuinely new user is handled entirely by the fetch above (Demo Tour
+  // on success, openProfileGate() from its own .catch() on failure) — both
+  // async, so checking here too would race the fetch and could pop the
+  // gate open before the Demo Tour even starts. This branch only covers a
+  // RETURNING device (bloc_state already exists) that somehow still has 0
+  // macrocycles and an incomplete profile — an abandoned/pre-this-feature
+  // account — which has no async fetch racing it, so it's safe to check
+  // immediately.
+  // Deferred via setTimeout(0) rather than called inline — this runs before
+  // the tour engine's `let _tourState` declaration further down the file
+  // has executed, and referencing it early would throw.
+  if (!_isNewUserOnBoot) setTimeout(maybeOpenProfileGate, 0);
+  showScreen('home');
+  checkSnapshotZero();
+  maybeUploadOpportunisticSnapshot();
+}
+
+function showAuthGate() {
+  const gate = document.getElementById('auth-gate');
+  if (gate) gate.classList.remove('hidden');
+}
+function hideAuthGate() {
+  const gate = document.getElementById('auth-gate');
+  if (gate) gate.classList.add('hidden');
+  const errEl = document.getElementById('auth-error');
+  if (errEl) errEl.style.display = 'none';
+  const statusEl = document.getElementById('auth-status');
+  if (statusEl) statusEl.style.display = 'none';
+}
+function showAuthGateError(msg) {
+  showAuthGate();
+  const errEl = document.getElementById('auth-error');
+  if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+}
+
+let _authMode = 'signin'; // 'signin' | 'signup'
+function setAuthMode(mode) {
+  _authMode = mode;
+  document.getElementById('auth-tab-signin').classList.toggle('active', mode === 'signin');
+  document.getElementById('auth-tab-signup').classList.toggle('active', mode === 'signup');
+  document.getElementById('auth-submit-btn').textContent = mode === 'signin' ? 'Sign In \u2192' : 'Sign Up \u2192';
+  document.getElementById('auth-forgot-row').style.display = mode === 'signin' ? 'block' : 'none';
+  // autocomplete="current-password" tells iOS/the Passwords app "fill an
+  // existing saved credential"; "new-password" tells it "offer a strong
+  // suggestion and prompt to save this one" — the field itself was
+  // already a real type="password" input either way, but this attribute
+  // is what actually decides which of those two behaviours shows up, and
+  // it previously never changed away from current-password, so Sign Up
+  // never got the suggest/save prompt.
+  document.getElementById('auth-password-input').autocomplete = mode === 'signin' ? 'current-password' : 'new-password';
+  const errEl = document.getElementById('auth-error'); if (errEl) errEl.style.display = 'none';
+}
+
+async function signInWithProvider(providerId) {
+  if (!supabase) return;
+  const cfg = AUTH_PROVIDERS.find(p => p.id === providerId);
+  if (!cfg) return;
+  const errEl = document.getElementById('auth-error');
+  if (errEl) errEl.style.display = 'none';
+  try {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: cfg.provider,
+      options: { redirectTo: window.location.href },
+    });
+    if (error) throw error;
+    // Redirect-based flow — the browser navigates away here; nothing
+    // further to do on this page load.
+  } catch (err) {
+    showAuthGateError(err && err.message ? err.message : 'Sign-in failed. Please try again.');
+  }
+}
+
+async function submitEmailAuth() {
+  if (!supabase) return;
+  const email = (document.getElementById('auth-email-input').value || '').trim();
+  const password = document.getElementById('auth-password-input').value || '';
+  const errEl = document.getElementById('auth-error');
+  const statusEl = document.getElementById('auth-status');
+  if (errEl) errEl.style.display = 'none';
+  if (statusEl) statusEl.style.display = 'none';
+
+  if (!email || !password) {
+    if (errEl) { errEl.textContent = 'Enter both an email and a password.'; errEl.style.display = 'block'; }
+    return;
+  }
+
+  const btn = document.getElementById('auth-submit-btn');
+  if (btn) btn.disabled = true;
+  try {
+    if (_authMode === 'signup') {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+      if (!data.session) {
+        // Email confirmation is on (per the dev plan's User Signups
+        // config) — no session yet until the person confirms via email.
+        if (statusEl) { statusEl.textContent = 'Check your email to confirm your account, then sign in.'; statusEl.style.display = 'block'; }
+        setAuthMode('signin');
+      }
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      // onAuthStateChange picks up the new session and hides the gate.
+    }
+  } catch (err) {
+    if (errEl) { errEl.textContent = err && err.message ? err.message : 'Something went wrong. Please try again.'; errEl.style.display = 'block'; }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function sendPasswordReset() {
+  if (!supabase) return;
+  const email = (document.getElementById('auth-email-input').value || '').trim();
+  const errEl = document.getElementById('auth-error');
+  const statusEl = document.getElementById('auth-status');
+  if (!email) {
+    if (errEl) { errEl.textContent = 'Enter your email above first.'; errEl.style.display = 'block'; }
+    return;
+  }
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
+    if (error) throw error;
+    if (errEl) errEl.style.display = 'none';
+    if (statusEl) { statusEl.textContent = 'Password reset email sent.'; statusEl.style.display = 'block'; }
+  } catch (err) {
+    if (statusEl) statusEl.style.display = 'none';
+    if (errEl) { errEl.textContent = err && err.message ? err.message : 'Could not send reset email.'; errEl.style.display = 'block'; }
+  }
+}
+
+async function signOutUser() {
+  if (!supabase) return;
+  closeModal('modal-account');
+  try {
+    await supabase.auth.signOut();
+  } catch (err) {
+    console.warn('[auth] sign-out failed:', err && err.message);
+  }
+  // onAuthStateChange fires with a null session and shows the gate again.
+  // Local data is left completely untouched — it stays on-device exactly
+  // as it was; there's no backend yet (Phase 6) for a sign-out to affect.
+}
+
+// Fills in the Account modal's email/provider display. Called from
+// onAuthResolved() on every sign-in; also safe to call again any time the
+// modal is reopened since it just reflects whatever _authResolvedSession
+// currently holds.
+function updateAccountUI(session) {
+  const emailEl = document.getElementById('account-email-display');
+  const providerEl = document.getElementById('account-provider-display');
+  const changePwBtn = document.getElementById('account-change-password-btn');
+  if (!session || !session.user) return;
+  if (emailEl) emailEl.textContent = session.user.email || '(no email on file)';
+  const provider = (session.user.app_metadata && session.user.app_metadata.provider) || 'email';
+  if (providerEl) {
+    const label = provider === 'email' ? 'Signed in with email' : 'Signed in with ' + provider.charAt(0).toUpperCase() + provider.slice(1);
+    providerEl.textContent = label;
+  }
+  if (changePwBtn) changePwBtn.style.display = provider === 'email' ? 'block' : 'none';
+  updateLastBackupDisplay();
+}
+
+// Opens the Change Password modal — only ever reachable via the button
+// updateAccountUI() shows for provider === 'email', but this resets the
+// form regardless in case it's ever opened another way.
+function openChangePassword() {
+  document.getElementById('change-password-new').value = '';
+  document.getElementById('change-password-confirm').value = '';
+  const statusEl = document.getElementById('change-password-status');
+  if (statusEl) statusEl.style.display = 'none';
+  openModal('modal-change-password');
+}
+
+// Updates the signed-in user's password via Supabase Auth directly —
+// this is a built-in GoTrue operation (auth.users, not anything in the
+// public schema this app owns), so no migration is needed for this
+// feature at all, only this client-side call. Requires no re-entry of
+// the current password: Supabase's updateUser() call is authorised by
+// the person's existing active session, not a fresh credential check.
+// On success, forces an immediate sync (bypassing the usual 4s debounce)
+// per Adam's request — not because changing a password touches any app
+// data, but as a deliberate right-now confirmation that the account is
+// still fully working end-to-end straight after a credential change,
+// rather than silently trusting it until the next unrelated save.
+async function submitChangePassword() {
+  const newPw = document.getElementById('change-password-new').value;
+  const confirmPw = document.getElementById('change-password-confirm').value;
+  const statusEl = document.getElementById('change-password-status');
+  const btn = document.getElementById('change-password-submit-btn');
+
+  if (!newPw || !confirmPw) {
+    if (statusEl) { statusEl.style.color = 'var(--red)'; statusEl.textContent = 'Enter and confirm your new password.'; statusEl.style.display = 'block'; }
+    return;
+  }
+  if (newPw !== confirmPw) {
+    if (statusEl) { statusEl.style.color = 'var(--red)'; statusEl.textContent = 'Passwords don\u2019t match.'; statusEl.style.display = 'block'; }
+    return;
+  }
+
+  if (btn) btn.disabled = true;
+  try {
+    const { error } = await supabase.auth.updateUser({ password: newPw });
+    if (error) throw error;
+    if (statusEl) { statusEl.style.color = 'var(--accent)'; statusEl.textContent = '\u2713 Password updated.'; statusEl.style.display = 'block'; }
+    if (_authResolvedSession) {
+      markSyncDirty();
+      flushSyncQueue();
+    }
+    setTimeout(() => closeModal('modal-change-password'), 900);
+  } catch (err) {
+    if (statusEl) { statusEl.style.color = 'var(--red)'; statusEl.textContent = (err && err.message) || 'Could not update password.'; statusEl.style.display = 'block'; }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function updateLastBackupDisplay() {
+  const last = localStorage.getItem('bloc_last_snapshot_date');
+  const text = last ? `Last cloud backup: ${formatDate(last)}` : 'No cloud backup yet';
+  // Only account-last-backup-display remains as of v8.06 — the standalone
+  // Settings-page copy (settings-last-cloud-backup) was removed when
+  // Backup/Data moved into the Account & Data modal.
+  const el = document.getElementById('account-last-backup-display');
+  if (el) el.textContent = text;
+}
+
+// Manual "Save to cloud" action — shared by the Settings → Backup section
+// and Settings → Account → Cloud Backups, which each pass their own
+// button/status element ids so both surfaces can trigger the same
+// underlying uploadSnapshot() independently. Shares uploadSnapshot() with
+// the opportunistic once-a-day upload and the snapshot-zero flow — see
+// TECHNICAL.md §57 for why this is a full exportData()-shaped payload
+// rather than a table export.
+async function handleBackupNow(btnId, statusId) {
+  const btn = document.getElementById(btnId);
+  const statusEl = document.getElementById(statusId);
+  const originalHTML = btn.innerHTML; // preserves the SVG icon alongside the label
+  btn.disabled = true;
+  btn.textContent = 'Backing up…';
+  try {
+    await uploadSnapshot();
+    updateLastBackupDisplay();
+    statusEl.style.display = 'block';
+    statusEl.style.color = 'var(--accent)';
+    statusEl.textContent = '✓ Backed up';
+  } catch (err) {
+    statusEl.style.display = 'block';
+    statusEl.style.color = 'var(--red)';
+    statusEl.textContent = '✕ ' + (err && err.message || 'Backup failed — try again.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalHTML;
+  }
+}
+
+// "Full sync" cloud export action (v8.05) — Settings → Account & Data →
+// Export → Cloud → Full sync. Pairs forceFullRelationalSync() (the
+// relational tables) with uploadSnapshot() (the dated backup file) so one
+// tap guarantees both are current, unlike the plain "Backup file" option
+// above which only touches the snapshot.
+async function handleFullCloudSync(btnId, statusId) {
+  const btn = document.getElementById(btnId);
+  const statusEl = document.getElementById(statusId);
+  const originalHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.textContent = 'Syncing…';
+  try {
+    await forceFullRelationalSync();
+    await uploadSnapshot();
+    updateLastBackupDisplay();
+    statusEl.style.display = 'block';
+    statusEl.style.color = 'var(--accent)';
+    statusEl.textContent = '✓ Fully synced';
+  } catch (err) {
+    statusEl.style.display = 'block';
+    statusEl.style.color = 'var(--red)';
+    statusEl.textContent = '✕ ' + (err && err.message || 'Sync failed — try again.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalHTML;
+  }
+}
+
+// ── GDPR: Download my data / Delete my data (v8.05) ─────────────────────
+// Calls the two RPC functions from migrations 0004/0005
+// (gdpr_export_user_data / gdpr_erase_user_data) — see SUPABASE.md for the
+// full table-by-table scope of each. Both require a signed-in session;
+// there's no local-only equivalent since these act on server-side data.
+
+// Downloads a JSON file of everything Supabase holds for this account —
+// every user-owned table plus cloud backup file metadata (not file
+// contents — see migration 0004's header for why). Distinct from
+// exportData(): that's the live app-state export used for local
+// backup/restore; this is the server-side record, for a SARS-style
+// request.
+async function handleDownloadMyData() {
+  if (!supabase || !_authResolvedSession) { alert('Sign in required to download your data.'); return; }
+  const btn = document.getElementById('settings-download-my-data-btn');
+  const statusEl = document.getElementById('settings-data-zone-status');
+  if (btn) btn.disabled = true;
+  try {
+    const userId = _authResolvedSession.user.id;
+    const { data, error } = await supabase.rpc('gdpr_export_user_data', { target_user_id: userId });
+    if (error) throw error;
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bloc-account-data-${getLocalToday()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    if (statusEl) {
+      statusEl.style.display = 'block';
+      statusEl.style.color = 'var(--red)';
+      statusEl.textContent = '✕ ' + (err && err.message || 'Could not download your data — try again.');
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// Permanently erases every row this account owns server-side (calls
+// gdpr_erase_user_data — migration 0005), then wipes the local mirror and
+// reloads to a fresh state. Two-step confirmation, same showConfirm()
+// chain clearAllData() already uses, so the pattern is familiar rather
+// than a bespoke dialog. Deliberately does NOT sign out (Adam's call this
+// session): the account itself isn't closed, just emptied — a plain
+// reload with bloc_state gone lands back on the same _isNewUserOnBoot
+// fresh-start path a genuinely new sign-up gets (demo tour / profile
+// gate), rather than bouncing back to the auth gate for no reason.
+function handleDeleteMyData() {
+  if (!supabase || !_authResolvedSession) { alert('Sign in required to delete your account data.'); return; }
+  showConfirm(
+    'Delete my data?',
+    'This permanently deletes everything associated with your account from BLOC\u2019s servers — training history, nutrition logs, and cloud backup files. Download a copy first if you want to keep one.',
+    'Delete my data',
+    () => {
+      showConfirm(
+        'Are you really sure?',
+        'This cannot be undone. Your account data will be permanently erased from the server, and this device will be reset to a fresh, empty state.',
+        'Yes, delete everything',
+        async () => {
+          const statusEl = document.getElementById('settings-data-zone-status');
+          try {
+            const userId = _authResolvedSession.user.id;
+            // Storage cleanup first, and stopped on here rather than
+            // continuing regardless — a silent partial deletion (DB rows
+            // gone, backup files still sitting in Storage) is worse than
+            // a clear error the person can just retry.
+            await deleteAllSnapshots(userId);
+            const { error } = await supabase.rpc('gdpr_erase_user_data', { target_user_id: userId });
+            if (error) throw error;
+            // Only the account-data mirror and its tracking flags — theme
+            // and the locally-stored Anthropic API key were never uploaded
+            // to Supabase in the first place, so they're not "account
+            // data" this erasure covers (same reasoning clearAllData()
+            // already applies to appearance prefs).
+            localStorage.removeItem('bloc_state');
+            localStorage.removeItem('bloc_last_snapshot_date');
+            localStorage.removeItem('bloc_snapshot_zero_pending');
+            localStorage.removeItem('bloc_snapshot_zero_done');
+            location.reload();
+          } catch (err) {
+            if (statusEl) {
+              statusEl.style.display = 'block';
+              statusEl.style.color = 'var(--red)';
+              statusEl.textContent = '✕ ' + (err && err.message || 'Could not delete your data — try again.');
+            }
+          }
+        }
+      );
+    }
+  );
+}
+
+// Populates and opens the restore picker with this account's dated
+// snapshots, newest first.
+async function openRestorePicker() {
+  const listEl = document.getElementById('restore-picker-list');
+  const lastEl = document.getElementById('restore-picker-last-backup');
+  if (lastEl) {
+    const last = localStorage.getItem('bloc_last_snapshot_date');
+    lastEl.textContent = last ? `Last cloud backup: ${formatDate(last)}` : 'No cloud backup yet';
+  }
+  listEl.innerHTML = '<div style="font-size:12px;color:var(--text2);">Loading…</div>';
+  openModal('modal-restore-picker');
+  try {
+    const dates = await listSnapshots();
+    if (!dates.length) {
+      listEl.innerHTML = '<div style="font-size:12px;color:var(--text2);">No cloud backups yet.</div>';
+      return;
+    }
+    listEl.innerHTML = '';
+    dates.forEach(date => {
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-block';
+      btn.style.textAlign = 'left';
+      btn.textContent = formatDate(date);
+      btn.onclick = () => handleRestoreSnapshot(date);
+      listEl.appendChild(btn);
+    });
+  } catch (err) {
+    listEl.innerHTML = `<div style="font-size:12px;color:var(--red);">✕ ${(err && err.message) || 'Could not load backups.'}</div>`;
+  }
+}
+
+async function handleRestoreSnapshot(date) {
+  if (!confirm(`Replace everything on this device with the ${formatDate(date)} snapshot? This can't be undone locally.`)) return;
+  try {
+    await restoreFromSnapshot(date); // reloads the page on success
+  } catch (err) {
+    alert('Restore failed: ' + ((err && err.message) || 'unknown error'));
+  }
+}
+
+// ── Snapshot zero (existing-data migration notice) ──────────────────────
+// Phase 6 (Supabase backend/tables) doesn't exist yet, so there's nothing
+// to actually upload to here — this just detects real local data on a
+// first sign-in and flags it, so Phase 6 can pick the flag up and upload
+// it as this account's first synced dataset ("snapshot zero") without
+// needing to re-prompt. Fires at most once per device: the flag lives in
+// its own localStorage key, never inside `state`/bloc_state — same
+// pattern as bloc_api_key — so it survives Clear All Data and is never
+// swept into JSON export/import.
+function checkSnapshotZero() {
+  const alreadyHandled = localStorage.getItem('bloc_snapshot_zero_pending') || localStorage.getItem('bloc_snapshot_zero_done');
+  if (alreadyHandled) return;
+  const hasRealData = state.macrocycles && state.macrocycles.length > 0;
+  if (!hasRealData) return;
+  localStorage.setItem('bloc_snapshot_zero_pending', '1');
+  openModal('modal-snapshot-zero');
+}
+
+initSupabaseAuth();
+
 const _isNewUserOnBoot = !localStorage.getItem('bloc_state');
 load();
-fetchDemoDataIfNewUser(_isNewUserOnBoot);
-// A genuinely new user is handled entirely by the fetch above (Demo Tour
-// on success, openProfileGate() from its own .catch() on failure) — both
-// async, so checking here too would race the fetch and could pop the
-// gate open before the Demo Tour even starts. This branch only covers a
-// RETURNING device (bloc_state already exists) that somehow still has 0
-// macrocycles and an incomplete profile — an abandoned/pre-this-feature
-// account — which has no async fetch racing it, so it's safe to check
-// immediately.
-// Deferred via setTimeout(0) rather than called inline — this runs before
-// the tour engine's `let _tourState` declaration further down the file
-// has executed, and referencing it early would throw. Pushing to a
-// macrotask lets the rest of the script finish first, same as the rest
-// of boot already does for paint-dependent work (see positionNavPill's
-// double-rAF a few lines below).
-if (!_isNewUserOnBoot) setTimeout(maybeOpenProfileGate, 0);
 // Nav pill has no size/position until the DOM has painted at least once —
 // double rAF waits for that first paint before measuring, otherwise the
 // pill would start at 0x0 and only snap to the right place on the next
@@ -4586,6 +6097,11 @@ window.addEventListener('load', positionNavPill);
 // always happens regardless of which button triggered the open.
 function openModal(id) {
   const today = getLocalToday();
+  if (id === 'modal-account') {
+    // Always reflects the live session rather than whatever was last
+    // rendered — cheap enough to just recompute on every open.
+    updateAccountUI(_authResolvedSession);
+  }
   if (id === 'modal-body-log') {
     const dateEl = document.getElementById('body-date-input');
     if (!dateEl.dataset.originalDate) {
@@ -14637,7 +16153,7 @@ function renderHomeHero(animate = false) {
       </button>
     </div>
     <div class="hero-label">This week</div>
-    <h2 style="margin:0 0 16px;font-size:22px;">Welcome back</h2>
+    <h2 style="margin:0 0 16px;font-size:22px;">Welcome back${(state.profile && state.profile.preferredName) ? ', ' + state.profile.preferredName + '!' : ''}</h2>
     <div style="display:flex;align-items:center;gap:16px;padding:0 0 4px;">
       <svg width="64" height="64" style="flex-shrink:0;">
         <circle cx="32" cy="32" r="${ringR}" fill="none" stroke="var(--surface3)" stroke-width="6"></circle>
@@ -17833,6 +19349,11 @@ function openBodyProfile() {
   const errEl = document.getElementById('profile-gate-error');
   if (errEl) errEl.style.display = 'none';
 
+  // Pre-fill name fields
+  document.getElementById('profile-first-name').value = prof.firstName || '';
+  document.getElementById('profile-surname').value = prof.surname || '';
+  document.getElementById('profile-preferred-name').value = prof.preferredName || '';
+
   // Pre-fill gender buttons
   updateProfileGenderUI(prof.gender || null);
 
@@ -17978,11 +19499,17 @@ function saveBodyProfile() {
   }
 
   const country = document.getElementById('profile-country').value || state.profile.country || null;
+  const firstName = document.getElementById('profile-first-name').value.trim() || state.profile.firstName || null;
+  const surname = document.getElementById('profile-surname').value.trim() || state.profile.surname || null;
+  const preferredName = document.getElementById('profile-preferred-name').value.trim() || state.profile.preferredName || null;
 
   state.profile.gender = gender;
   if (finalHeightCm !== null) state.profile.heightCm = finalHeightCm;
   if (bday) state.profile.birthday = bday;
   if (country) state.profile.country = country;
+  if (firstName) state.profile.firstName = firstName;
+  if (surname) state.profile.surname = surname;
+  if (preferredName) state.profile.preferredName = preferredName;
 
   save();
 
@@ -20357,7 +21884,10 @@ function renderServingPicker(prefix, item) {
   if (label) label.textContent = 'Serving size';
 
   const options = [];
-  if (item.servingName) options.push({ label: item.servingName, value: item.defaultServing || 100 });
+  if (item.servingName) {
+    const servingVal = item.defaultServing || 100;
+    options.push({ label: item.servingName + ' (' + servingVal + unit + ')', value: servingVal });
+  }
   const packSize = resolvePackQuantity(item.packQuantityRaw, item.packQuantity);
   if (packSize) options.push({ label: '1 Pack (' + packSize + unit + ')', value: packSize });
   options.push({ label: '100' + unit, value: 100 });
@@ -20379,6 +21909,7 @@ function _onServingPickerChange(prefix) {
   if (!opt) return;
   gramsInput.value = opt.value;
   if (prefix === 'nutr-serving') updateServingPreview();
+  else if (prefix === 'nutr-edit') updateEditPreview();
   else updateRecipeServingPreview();
 }
 
@@ -20639,7 +22170,7 @@ let _photoDetectedItems = [];   // working array while the review screen is open
 let _photoContext = {};         // { mealName, restaurant, homeCooked, knownKcal }
 let _photoImageBase64 = null;   // resized/compressed image, base64 (no data: prefix)
 let _photoImageMediaType = null;
-let _photoAnalyzing = false;
+let _photoAnalysing = false;
 
 function openNutrPhoto() {
   closeModal('modal-nutr-add');
@@ -20649,16 +22180,25 @@ function openNutrPhoto() {
   document.getElementById('photo-meal-name').value = '';
   document.getElementById('photo-restaurant-name').value = '';
   document.getElementById('photo-restaurant-name').disabled = false;
-  document.getElementById('photo-home-cooked').checked = false;
+  setPhotoSource('restaurant');
   document.getElementById('photo-known-kcal').value = '';
-  document.getElementById('photo-analyze-error').style.display = 'none';
+  document.getElementById('photo-analyse-error').style.display = 'none';
   _photoImageBase64 = null;
   _photoImageMediaType = null;
   requestAnimationFrame(() => openModal('modal-nutr-photo'));
 }
 
-function toggleHomeCooked() {
-  const homeCooked = document.getElementById('photo-home-cooked').checked;
+// Segmented Restaurant/Home-cooked control (same .toggle-row/.toggle-btn
+// pattern used elsewhere in the app, e.g. #mode-toggle-row, #ex-category-toggle)
+// replaces the old plain checkbox, whose checked/unchecked state was hard to
+// read at a glance. Home-cooked greys out and clears the restaurant name so
+// it's never sent to the LLM; buildMealPhotoPrompt() states "home cooked"
+// instead whenever homeCooked is true (see analyseMealPhoto()).
+function setPhotoSource(source) {
+  const homeCooked = source === 'homeCooked';
+  document.querySelectorAll('#photo-source-toggle .toggle-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.source === source);
+  });
   const restaurantInput = document.getElementById('photo-restaurant-name');
   restaurantInput.disabled = homeCooked;
   if (homeCooked) restaurantInput.value = '';
@@ -20700,7 +22240,7 @@ function handlePhotoFileSelect(file) {
 // Builds the system + user prompt for the meal-photo API call. Kept as its
 // own function (rather than inlined) so the kcal-fixed-constraint and
 // country-scoped-web-search logic are easy to find and adjust independently
-// of the fetch/parse plumbing in analyzeMealPhoto().
+// of the fetch/parse plumbing in analyseMealPhoto().
 function buildMealPhotoPrompt(ctx) {
   const systemPrompt = `You are a nutrition estimation assistant embedded in a personal fitness app called BLOC. You will be shown a photo of a meal and must identify each distinct food item, estimating its weight in grams and its macros.
 
@@ -20749,9 +22289,9 @@ function findFoodLibraryMatch(itemName) {
   return bestScore >= 0.4 ? best : null;
 }
 
-async function analyzeMealPhoto() {
-  if (_photoAnalyzing) return;
-  const errEl = document.getElementById('photo-analyze-error');
+async function analyseMealPhoto() {
+  if (_photoAnalysing) return;
+  const errEl = document.getElementById('photo-analyse-error');
   errEl.style.display = 'none';
 
   if (!_photoImageBase64) {
@@ -20773,7 +22313,7 @@ async function analyzeMealPhoto() {
     return;
   }
 
-  const homeCooked = document.getElementById('photo-home-cooked').checked;
+  const homeCooked = document.querySelector('#photo-source-toggle .toggle-btn.active').dataset.source === 'homeCooked';
   const restaurant = homeCooked ? '' : document.getElementById('photo-restaurant-name').value.trim();
   const knownKcal = parseFloat(document.getElementById('photo-known-kcal').value) || null;
   const country = (state.profile && state.profile.country) || null;
@@ -20783,10 +22323,10 @@ async function analyzeMealPhoto() {
 
   const { systemPrompt, userText } = buildMealPhotoPrompt({ mealName, restaurant, homeCooked, knownKcal, country, useWebSearch });
 
-  _photoAnalyzing = true;
-  const btn = document.getElementById('photo-analyze-btn');
+  _photoAnalysing = true;
+  const btn = document.getElementById('photo-analyse-btn');
   btn.disabled = true;
-  btn.textContent = 'Analyzing…';
+  btn.textContent = 'Analysing…';
 
   try {
     const body = {
@@ -20854,12 +22394,12 @@ async function analyzeMealPhoto() {
     renderPhotoReviewItems();
     requestAnimationFrame(() => openModal('modal-nutr-photo-review'));
   } catch (err) {
-    errEl.textContent = err.message || 'Something went wrong analyzing that photo.';
+    errEl.textContent = err.message || 'Something went wrong analysing that photo.';
     errEl.style.display = 'block';
   } finally {
-    _photoAnalyzing = false;
+    _photoAnalysing = false;
     btn.disabled = false;
-    btn.textContent = 'Analyze Photo →';
+    btn.textContent = 'Analyse Photo →';
   }
 }
 
@@ -21711,11 +23251,40 @@ function openEditFoodEntry(date, meal, idx) {
     if (isRecipe) {
       gramsRow.children[0].style.display = 'none';
       document.getElementById('nutr-edit-grams').value = 1;
+      document.getElementById('nutr-edit-servings').value = item.servings || 1;
     } else {
       gramsRow.children[0].style.display = '';
-      document.getElementById('nutr-edit-grams').value = item.grams || item.serving || libEntry?.defaultServing || 100;
+      // Serving picker (mirrors the Log Food modal) — a dropdown of serving
+      // name / pack / 100(unit) / 1(unit), built from the food-library entry
+      // when one exists. Matches the logged grams value to a preset when
+      // possible; when the historical amount doesn't line up with any preset
+      // (e.g. hand-typed before the picker existed), falls back to "1(unit)"
+      // with the historical total folded into the Servings field, so nothing
+      // is ever lost or approximated.
+      const grams = item.grams || item.serving || libEntry?.defaultServing || 100;
+      const servingsVal = item.servings || 1;
+      const pickerItem = {
+        servingName:     libEntry?.servingName || null,
+        defaultServing:  libEntry?.defaultServing || null,
+        unit:            libEntry?.unit || item.unit || 'g',
+        packQuantityRaw: libEntry?.packQuantityRaw || null,
+        packQuantity:    libEntry?.packQuantity || null,
+      };
+      const options = renderServingPicker('nutr-edit', pickerItem);
+      const pickerSelect = document.getElementById('nutr-edit-picker-select');
+      const gramsInput = document.getElementById('nutr-edit-grams');
+      const found = options.findIndex(o => o.value === grams);
+      if (found >= 0) {
+        pickerSelect.value = found;
+        gramsInput.value = options[found].value;
+        document.getElementById('nutr-edit-servings').value = servingsVal;
+      } else {
+        const lastIdx = options.length - 1; // "1(unit)"
+        pickerSelect.value = lastIdx;
+        gramsInput.value = options[lastIdx].value;
+        document.getElementById('nutr-edit-servings').value = grams * servingsVal;
+      }
     }
-    document.getElementById('nutr-edit-servings').value = item.servings || 1;
     document.getElementById('nutr-edit-kcal').value    = libEntry ? libEntry.per100kcal : (item.serving ? Math.round(item.kcal    / item.serving * 100) : 0);
     document.getElementById('nutr-edit-protein').value = libEntry ? libEntry.per100p    : (item.serving ? Math.round(item.protein / item.serving * 100) : 0);
     document.getElementById('nutr-edit-carbs').value   = libEntry ? libEntry.per100c    : (item.serving ? Math.round(item.carbs   / item.serving * 100) : 0);
@@ -22309,7 +23878,16 @@ function saveCustomExercise() {
   const bodyPart = category === 'cardio' ? 'Cardio' : bodyPartRaw;
   if (!state.customLibrary) state.customLibrary = [];
   if (!state.customLibrary.find(e => e.name === name)) {
-    state.customLibrary.push(category === 'cardio' ? {name, bodyPart, category} : {name, bodyPart});
+    // id matches the app-wide '<prefix>_' + Date.now() convention (see
+    // macro_/ex_/recipe_/lib_ elsewhere) — custom_library entries were
+    // previously the one entity type with no stable id of their own,
+    // relying on name for lookup/edit/delete, which breaks on rename or
+    // a duplicate name. Existing entries from before this change get
+    // backfilled the same way, the first time they're touched (see
+    // saveExerciseLibEntry()/deleteExerciseLibEntry() below).
+    const entry = { id: 'custom_' + Date.now(), name, bodyPart };
+    if (category === 'cardio') entry.category = category;
+    state.customLibrary.push(entry);
     save();
   }
   closeModal('modal-custom-exercise');
@@ -22351,8 +23929,13 @@ function importExerciseLibrary(file) {
         // Skip default exercises — they're always present
         if (defaultNames.has(item.name.toLowerCase())) return;
         const idx = state.customLibrary.findIndex(e => e.name.toLowerCase() === item.name.toLowerCase());
-        if (idx >= 0) { state.customLibrary[idx] = { name: item.name, bodyPart: item.bodyPart }; updated++; }
-        else { state.customLibrary.push({ name: item.name, bodyPart: item.bodyPart }); added++; }
+        if (idx >= 0) {
+          // Preserve the existing entry's id (or backfill one now if it
+          // predates this change) rather than losing it on every re-import.
+          state.customLibrary[idx] = { id: state.customLibrary[idx].id || ('custom_' + Date.now()), name: item.name, bodyPart: item.bodyPart };
+          updated++;
+        }
+        else { state.customLibrary.push({ id: 'custom_' + Date.now(), name: item.name, bodyPart: item.bodyPart }); added++; }
       });
       save();
       showConfirm('Exercise library imported', added + ' new exercises added, ' + updated + ' updated.', 'OK', () => {});
@@ -22800,7 +24383,14 @@ window.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.modal-overlay').forEach(el => {
     if (el.id !== 'modal-timer') initModal(el); // timer has its own close handler
   });
-  showScreen('home');
+  // showScreen('home') no longer fires unconditionally here — Phase 5's
+  // auth gate has to resolve first (see maybeFinalizeBoot()/
+  // continueBootAfterAuth() near the top of this script). This handler
+  // just marks the DOM side of that two-condition wait as satisfied;
+  // whichever of the two (DOM parsed vs. auth resolved) finishes last is
+  // what actually triggers showScreen('home').
+  _domReady = true;
+  maybeFinalizeBoot();
 });
 
 // ── Custom confirm (replaces window.confirm for PWA compatibility) ──────────
@@ -23163,25 +24753,34 @@ function openExerciseLibEntry(idx) {
   const item = (el._items || [])[idx];
   if (!item || !item.isCustom) return;
   document.getElementById('ele-original-name').value = item.name;
+  document.getElementById('ele-original-id').value = item.id || '';
   document.getElementById('ele-name').value = item.name;
   document.getElementById('ele-bodypart').value = item.bodyPart;
   openModal('modal-exercise-lib-entry');
 }
 
-// Saves changes to a custom exercise library entry. Matched by its
-// original name (custom library entries have no id of their own) rather
-// than a stored id — same lookup style as saveCustomExercise(). Renaming
-// here only affects the picker going forward; exercises already added to
-// a plan keep whatever name they were given at the time, exactly like
-// editing a food library entry doesn't touch past nutrition logs.
+// Saves changes to a custom exercise library entry. Matched by id where
+// the entry has one — falling back to its original name only for legacy
+// entries that predate ids being added, which get backfilled here the
+// first time they're edited. Renaming here only affects the picker going
+// forward; exercises already added to a plan keep whatever name they
+// were given at the time, exactly like editing a food library entry
+// doesn't touch past nutrition logs.
 function saveExerciseLibEntry() {
   const originalName = document.getElementById('ele-original-name').value;
+  const originalId = document.getElementById('ele-original-id').value;
   const name     = document.getElementById('ele-name').value.trim();
   const bodyPart = document.getElementById('ele-bodypart').value;
   if (!name) return;
   if (!state.customLibrary) state.customLibrary = [];
-  const idx = state.customLibrary.findIndex(e => e.name.toLowerCase() === originalName.toLowerCase());
-  if (idx >= 0) state.customLibrary[idx] = { name, bodyPart };
+  const idx = originalId
+    ? state.customLibrary.findIndex(e => e.id === originalId)
+    : state.customLibrary.findIndex(e => e.name.toLowerCase() === originalName.toLowerCase());
+  if (idx >= 0) {
+    const id = state.customLibrary[idx].id || originalId || ('custom_' + Date.now());
+    const category = state.customLibrary[idx].category;
+    state.customLibrary[idx] = category ? { id, name, bodyPart, category } : { id, name, bodyPart };
+  }
   save();
   closeModal('modal-exercise-lib-entry');
   renderExerciseLibEditor();
@@ -23198,7 +24797,9 @@ function deleteExerciseLibEntry(idx) {
     '"' + item.name + '" will be removed from your library picker. Exercises already added to a plan are not affected.',
     'Delete',
     () => {
-      state.customLibrary = (state.customLibrary || []).filter(e => e.name.toLowerCase() !== item.name.toLowerCase());
+      state.customLibrary = (state.customLibrary || []).filter(e =>
+        item.id ? e.id !== item.id : e.name.toLowerCase() !== item.name.toLowerCase()
+      );
       save();
       renderExerciseLibEditor();
     }
@@ -24053,6 +25654,7 @@ function deleteRecipe(id) {
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-exercise-lib-entry')">✕</button></div>
     <div class="modal-title">Edit Exercise</div>
     <input type="hidden" id="ele-original-name">
+    <input type="hidden" id="ele-original-id">
     <div class="form-group">
       <div class="label">Name</div>
       <input type="text" id="ele-name">
