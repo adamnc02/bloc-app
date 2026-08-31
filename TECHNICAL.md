@@ -3574,3 +3574,352 @@ Playwright against synthetic seed data in a live browser (no real backup needed 
 - Visual screenshots of all four new/changed screens (Add Food's 2x2 grid, photo capture modal, photo review modal with a live suggestion chip, Settings → About me with the new Country field) — caught and fixed the actions-row overflow (see Entry point above) and a cramped home-cooked checkbox layout (moved from squeezed alongside the Restaurant label to its own line below the input) before finalizing.
 - `node --check` on the extracted script block, a duplicate-function-declaration grep, and a div-balance check (delta unchanged from the −1 pre-existing baseline) all passed clean, including after the mid-session actions-row and checkbox layout fixes.
 - Zero browser console/page errors from app code across every check above.
+
+## §56 — OAuth sign-in: Google + email/password, extensible provider config, snapshot-zero detection (v8.03)
+
+### Background
+
+Phase 5 of the OAuth/Backend/Food-Data/AI development plan. Setup (Supabase project, Google provider, email confirmation on, Data API/RLS defaults) was already done by Adam before this session — this session wires `signInWithOAuth`/email auth into the actual app code. Apple and Microsoft are explicitly deferred (Apple: $99/yr Developer Program cost; Microsoft: Azure tenant setup friction), so the whole sign-in screen is built to render its OAuth buttons from a config array (`AUTH_PROVIDERS`) rather than hardcoding "exactly these two buttons" — adding either later is a one-line array entry, not a markup or logic change. No real backup JSON was needed this session (auth/UI work, no training or nutrition data involved) — same precedent as Phase 1 and Phase 4.
+
+Phase 6 (the actual Supabase tables) doesn't exist yet. That constrains this session's scope in one specific way: the dev plan's "detect existing local data and offer to upload it as snapshot zero" step has nothing to upload *to* yet, so it's built as detection + flagging only (see Snapshot zero below) — the actual upload is Phase 6's job to pick up.
+
+### Config — `SUPABASE_URL` / `SUPABASE_ANON_KEY`
+
+Two placeholder constants near the top of the AUTH section, left unfilled since this file is generated without Adam's real project credentials — **fill these in from Supabase dashboard → Settings → API (Project URL + anon/publishable key) before this ships.** The anon key is safe to ship client-side by design (Supabase's RLS policies are what actually gate data access, not key secrecy).
+
+### `@supabase/supabase-js` — loaded via dynamic `import()`, not a `<script type="module">`
+
+The rest of the app is one large non-module `<script>` block using inline `onclick="..."` handlers throughout, which module scripts can't participate in without extra `window.` exposure plumbing. Rather than add a second script tag and wire globals across the boundary, `initSupabaseAuth()` uses a plain `async function` with `const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2')` — dynamic `import()` works from a classic script and keeps `supabase`, `AUTH_PROVIDERS`, and every auth function as ordinary same-scope globals like everything else in the file.
+
+### Generic provider config — `AUTH_PROVIDERS`
+
+```js
+const AUTH_PROVIDERS = [
+  { id: 'google', provider: 'google', label: 'Continue with Google', icon: '<svg>...' },
+];
+```
+
+`renderAuthProviders()` maps this into `.auth-provider-btn` buttons inside `#auth-provider-list` on script load, each wired to `signInWithProvider(cfg.id)` → `supabase.auth.signInWithOAuth({ provider: cfg.provider, options: { redirectTo: window.location.href } })`. Adding Apple or Microsoft later is exactly one new object in this array (commented-out placeholders are left in place showing the shape) — `renderAuthProviders()`, the auth-gate HTML, and `signInWithProvider()` all need zero changes.
+
+### The gate itself — `#auth-gate`, not a `.modal-overlay`
+
+Every other gate in the app (see PROFILE ENTRY GATE, `openProfileGate()`) reuses the `.modal-overlay`/`initModal()` system. This one can't: it has to block `#app` before `load()`/`showScreen('home')` even run, and `initModal()` doesn't wire up until `DOMContentLoaded`. So `#auth-gate` is a plain sibling `<div>` of `#splash`/`#app`, **default-visible** (fail-closed) via CSS, z-index 10000 (above `#splash`'s 9999) so a signed-out person is never shown the splash animation over a gate about to cover it. JS only ever hides it (`hideAuthGate()`) once `initSupabaseAuth()` positively confirms a session. A returning signed-in user's `getSession()` call resolves from localStorage fast enough that the gate is hidden well before the multi-second splash animation even finishes, so there's no visible flash either way.
+
+### Two-condition boot gate — `maybeFinalizeBoot()`
+
+Pre-Phase-5, boot ran unconditionally and synchronously: `load(); fetchDemoDataIfNewUser(...); (maybe) maybeOpenProfileGate(); ...; showScreen('home')` (the last part inside a `DOMContentLoaded` handler). Phase 5 needs all of that to wait on a confirmed session first. Rather than thread an auth check through each call site, `continueBootAfterAuth()` bundles the substance unchanged (verbatim logic, just relocated) and only fires once both of these are true:
+
+- `_domReady` — set by the existing `DOMContentLoaded` handler once every modal's `initModal()` has run (unchanged from before, just no longer also calls `showScreen('home')` directly).
+- `_authResolvedSession` — starts `undefined` (not yet checked), becomes `null` (checked, signed out) or a session object, set by `onAuthResolved()` inside `initSupabaseAuth()` and its `onAuthStateChange` listener.
+
+`maybeFinalizeBoot()` is called from both places and is a no-op unless `_domReady` is true AND `_authResolvedSession` is a real session; `_bootFinalized` then guards it from re-running on a later token-refresh event. Whichever of the two conditions resolves last is what actually triggers `continueBootAfterAuth()` — this mirrors the existing pattern the demo-data fetch already uses (a comment on that code specifically warns about racing async work against synchronous checks).
+
+### Email/password — `submitEmailAuth()`, `sendPasswordReset()`
+
+A single Sign In/Sign Up tab toggle (`setAuthMode()`) swaps the submit button's label and behaviour rather than two separate forms. Sign-up: `supabase.auth.signUp({ email, password })` — since email confirmation is on (per Adam's User Signups config), a successful sign-up returns no session yet, so the UI shows a "check your email" status message and flips back to the Sign In tab rather than waiting on a session that isn't coming. Sign-in: `supabase.auth.signInWithPassword(...)`; a real session triggers the same `onAuthStateChange` path OAuth uses, so there's exactly one success path for every auth method to converge on. `sendPasswordReset()` calls `resetPasswordForEmail` with the current page as `redirectTo`.
+
+### Sign out — `signOutUser()`
+
+Closes the Account modal, calls `supabase.auth.signOut()`, and stops — `onAuthStateChange` fires with a null session and `showAuthGate()` handles the rest. Deliberately touches nothing else: local `state`/`bloc_state` is completely untouched by sign-out, since there's no backend yet (Phase 6) for a sign-out to meaningfully affect — the person's training/nutrition data stays exactly where it was and is immediately visible again on the next sign-in.
+
+### Settings → Account (new)
+
+A new row in Settings → Profile (`modal-account`), separate from the pre-existing "Linked services" row (which is Anthropic API key only) since this is identity/session, not a third-party integration. Shows the signed-in email and provider (`updateAccountUI()`, reading `session.user.email`/`session.user.app_metadata.provider`) and a Sign Out button. Refreshed both from `onAuthResolved()` on every sign-in and again on every `openModal('modal-account')` call, so it can never show stale identity info.
+
+### Snapshot zero — detection only, no upload yet
+
+`checkSnapshotZero()` runs once at the end of `continueBootAfterAuth()`. If `state.macrocycles.length > 0` (real local data) and neither `bloc_snapshot_zero_pending` nor `bloc_snapshot_zero_done` exists in `localStorage` yet, it sets the `pending` flag and shows a one-time informational modal (`modal-snapshot-zero`) explaining that the data will become this account's starting dataset once cloud sync is available — no upload happens today, since Phase 6's tables don't exist. The flag lives in its own `localStorage` key, outside `state`/`bloc_state` — same pattern as `bloc_api_key` — so it's untouched by Clear All Data and never swept into JSON export/import. Phase 6 picks up `bloc_snapshot_zero_pending` when it's built.
+
+### Verification
+
+`node --check` on all four extracted inline `<script>` blocks (including the untouched ZXing bundle) — clean. Duplicate-function-declaration grep against every top-level `function` in the main app script — clean, no collisions with the new auth functions. Div-balance check — unchanged from the pre-existing −1 baseline (a harmless self-closing `<div />` elsewhere in the file, confirmed present in the original upload too) after the 27 new opens/27 new closes this session's HTML additions introduced.
+
+Full Playwright pass against a live-rendered page (no real backup JSON needed — auth/UI work only, per Background):
+- Cold load: `#auth-gate` renders correctly and blocks the app — logo, tagline, the Google button (rendered from `AUTH_PROVIDERS`, not hardcoded), divider, Sign In/Sign Up tabs, email/password fields, submit button, forgot-password link. Since `file://` origin blocks the `esm.sh` dynamic import via CORS (expected — will resolve fine over `https://` in production), the `initSupabaseAuth()` try/catch was itself exercised: it caught the failure and surfaced "Couldn't connect. Check your connection and try reloading." in the gate rather than throwing — zero uncaught page errors.
+- Tab toggle (`setAuthMode('signup')`): button label and forgot-password visibility both update correctly with no console errors.
+- Simulated a successful sign-in by calling `onAuthResolved()` directly with a fake session object (bypassing the network-blocked `createClient()`/`getSession()` call) — confirmed the gate hides, `continueBootAfterAuth()` fires exactly once, and the app underneath (Home, then Settings) renders normally.
+- Settings → Profile shows the new **Account** row in the correct position; opening it shows the correct email/provider (`Signed in with email`) and a working Sign Out button.
+- Zero browser console/page errors from app code across every check above.
+
+Not independently testable without real Supabase credentials and a live network: the actual OAuth redirect round-trip, `signUp`/`signInWithPassword` against a real project, and the `onAuthStateChange` listener's live behavior on token refresh. Flagged for Adam to verify once `SUPABASE_URL`/`SUPABASE_ANON_KEY` are filled in — same category of gap Phase 4 left for its own live-API-key verification.
+
+---
+
+## §57 — Supabase backend: schema, RLS, local-first sync layer, snapshot backup/restore (v8.04)
+
+### Background
+
+Phase 6 of the OAuth/Backend/Food-Data/AI development plan — the largest session in the plan, by design. Builds on Phase 5's auth gate (real `SUPABASE_URL`/anon key were already in the file; `_authResolvedSession` from §56 is reused directly).
+
+Three architecture questions were resolved with Adam before any code was written, and they shape everything below:
+
+1. **The app never reads from the relational tables during normal use.** BLOC is local-first — `localStorage`/`state` is the only thing the UI ever reads. The only genuine read scenarios are (a) a brand-new/wiped device's first hydration, and (b) the explicit snapshot/restore flow — and Adam's call was that even (a) should go through a full JSON snapshot restore, never a reconstruction from the tables, because the relational schema can't be guaranteed to capture every field the way the app's own `JSON.stringify(state)` export always can by definition. This eliminates the need for any pull-sync/read path entirely.
+2. **DIY sync over PowerSync.** Given (1), PowerSync's core value — a synced local SQLite mirror for reads — isn't needed. A push-only debounced queue extending the existing `save()` pattern was chosen instead: simpler, no new external SDK/account dependency, smaller trust surface.
+3. **`macrocycle_id` backfill is `null`, not nearest-match, for logs outside every macrocycle's date range.** A "nearest cycle" link would fabricate a relationship the source data doesn't actually contain (see the header comment in `migration 0002_rls_policies.sql`).
+
+### Schema — `supabase/migrations/0001_initial_schema.sql`
+
+Models every `state` structure as a relational table, audited against the real `index.html` code (not assumed from earlier notes) — e.g. `foods.per_100_kcal` etc. matches the app's actual stored `per100kcal`/`per100p`/`per100c`/`per100f` fields; the derived `per1kcal` etc. used at logging time are never stored, so they're not columns.
+
+Tables, by module:
+- **Training** — `macrocycles`, `exercises` (the week-1 template only, exactly as the app stores it — every other week is calculated on the fly, never duplicated here either), `exercise_logs`, `deloads`, `progression_locks`, `exercise_history`, `exercise_tracking_mode`, `supersets`, `custom_library`.
+- **Nutrition** — `foods`, `recipes` + `recipe_ingredients`, `meals` + `meal_items`, `nutrition_quick_log`, `sample_days`.
+- **Body/Goals** — `body_logs`, `goals`.
+- **Coach scaffolding (Phase 7, empty today)** — `coach_clients`, `invite_codes`, `plans`.
+
+`exercise_logs` deliberately has **no stored calendar date** — the app derives a session's date from `macrocycle.start_date` + week/day offset at read time, and storing a second copy here risks drifting out of sync if a macrocycle's start date is ever edited.
+
+### RLS — `supabase/migrations/0002_rls_policies.sql`
+
+Every user-owned table gets the identical extensible coach-aware policy shape from the architecture decisions:
+
+```sql
+using (
+  auth.uid() = user_id
+  or auth.uid() in (
+    select coach_id from coach_clients
+    where client_id = <table>.user_id and status = 'active'
+  )
+)
+```
+
+For solo users this is functionally identical to strict `auth.uid() = user_id` isolation today, since `coach_clients` starts empty. Written once as a `do $$ ... $$` loop over the table-name array rather than copy-pasted per table, so the policy shape can't drift between tables. `coach_clients`/`invite_codes`/`plans` get their own hand-written policies (two-party access, not a single owner) since the generic loop's shape doesn't fit them.
+
+Adam's admin/owner access uses the `service_role` key from the dashboard/CLI (bypasses RLS by design) — never an in-app admin flag, and the key is never shipped client-side.
+
+### Storage & snapshots — `supabase/migrations/0003_storage_and_backups.sql`
+
+**Deliberate deviation from the plan's original wording**, agreed with Adam this session: the plan described a scheduled Edge Function + `pg_cron` job that *exports the relational tables* into timestamped JSON snapshots. That's dropped in favour of a **client-side upload of the exact same payload `exportData()` already produces** (`JSON.stringify(state, null, 2)`), uploaded directly to Storage — see "Local-first sync layer" below. `pg_cron`'s only remaining job is retention pruning (deleting old snapshot *files*, not deriving anything from the tables): nightly for ~7 days, then one kept per calendar month beyond that, via `prune_old_backups()`.
+
+Storage path convention: `app-backups` bucket, object path `{app_slug}/{user_id}/{date}.json` (e.g. `bloc/3fa8.../2026-08-31.json`). Per-user isolation — required since family members share this Supabase project — is enforced by `storage.foldername(name)[2]` matching `auth.uid()`, same pattern as the plan's original spec.
+
+### Local-first sync layer — `index.html`
+
+**Strategy: full-state reconciliation, not per-mutation diffing.** `save()` (the single funnel point for every state mutation in the app) now also calls `markSyncDirty()`, which debounces (`SYNC_DEBOUNCE_MS = 4000`) into `flushSyncQueue()` → `pushStateToSupabase(userId)`. Rather than threading a change-queue through the hundreds of call sites that mutate `state`, each dirty flush **clears every table for this user and re-inserts fresh rows computed from the current `state`** (`syncTable()`: `delete().eq('user_id', userId)` then `insert(rows)`). At single-user-or-a-few-family-members data volumes this is cheap, and since nothing ever reads these rows back into the app, eventual consistency is all that's needed — this sidesteps a much larger and more fragile diffing implementation. Each table is pushed independently via `Promise.allSettled`, and any failure keeps `_syncDirty` set so the *whole* push retries next time (a partial success still leaves the mirror inconsistent, so it isn't treated as done). Fires again on the `online` event if a push failed while offline.
+
+**Key-parsing — the genuinely tricky part.** `state.exercises`/`trainLogs`/`deloads`/`progressionLocks` are keyed by composite strings built from macrocycle/day/exercise ids (see the field comments on `state` itself), and naive string-splitting is ambiguous — a macrocycle id like `macro_100` is a prefix of `macro_1000`, and an exercise id (`ex_<key>_<timestamp>`) already contains the very key it was generated from, embedded again inside the `trainLogs` key that references it. The parsing helpers (`syncBuildExerciseIdContext`, `syncParseTrainLogKey`, `syncParseDeloadKey`, `syncParseProgressionLockKey`) resolve this by:
+1. Matching a key's macrocycle prefix against `state.macrocycles` (known, finite list) rather than splitting blindly.
+2. For trainLogs/progressionLocks, finding the *known* exercise id as a substring marker (`'_' + exId + '_'`) rather than trying to parse it positionally — since exercise ids are already unique and already known from the exercises pass, this sidesteps the embedded-key ambiguity entirely.
+
+**Verified twice before being wired in:** first as a standalone Node module (`buildExerciseIdContext`/`parseTrainLogKey`/`parseDeloadKey`/`parseProgressionLockKey`) unit-tested against synthetic data deliberately including a `macro_100`/`macro_1000` prefix-collision case, a superset pair, a cardio exercise, and a two-digit week — all parsed correctly. Then re-verified as the actual in-app functions, run in a live Playwright-driven browser against a second, independent synthetic seed (two macrocycles, one with microcycles, superset exercises, a cardio exercise, deloads, both progression-lock variants, exercise history, foods/recipes, meals across two dates — one inside a macrocycle's range and one outside it to confirm the `null` backfill) — every row-builder (`syncRows*` functions) produced correct output, including the `macrocycle_id` null-outside-range case.
+
+### Snapshot backup/restore UI
+
+Two entry points, both calling the same underlying functions (`uploadSnapshot`, `listSnapshots`, `restoreFromSnapshot`, `handleBackupNow(btnId, statusId)`, `openRestorePicker`) — kept as one shared implementation rather than duplicated:
+- **Settings → Backup** — the primary surface, per Adam's request that local-JSON and cloud options both be directly available on every backup/restore action, not only reachable via Account. Two buttons each for backing up (**Download JSON file** / **Save to cloud**) and restoring (**Import JSON file** / **Restore from cloud…**, the latter moved into Danger Zone since a cloud restore is exactly as destructive as a local one).
+- **Settings → Account → Cloud Backups** — a convenience card (Back up now / Restore from a snapshot…) alongside Sign Out, using the same functions with its own element ids passed in.
+
+`handleBackupNow(btnId, statusId)` takes explicit element ids (rather than hardcoding one) specifically so both surfaces can trigger it independently — note it swaps `btn.innerHTML` (not `textContent`) during the "Backing up…" state, since these buttons contain an SVG icon that `textContent` would silently delete.
+
+**Restore** (`restoreFromSnapshot`) downloads the chosen dated snapshot and runs it through the *exact same* validation (`macrocycles`/`exercises`/`trainLogs` structural check) and assignment (`state = parsed; save(); location.reload()`) as the pre-existing local-file `importData()` — deliberately not a separate code path.
+
+**Snapshot zero** (deferred from Phase 5, see §56) is finished here: `maybeUploadSnapshotZero()`, called from `onAuthResolved()` whenever a session resolves, checks the `bloc_snapshot_zero_pending` flag left by Phase 5 and uploads the device's existing local data as its first cloud snapshot — upload-only, flag only cleared on confirmed success, matching the "never clear/overwrite local data until upload is confirmed" rule from the original spec.
+
+### ERD & docs
+
+`docs/bloc-erd.html` — a standalone interactive SVG diagram (hover a table to trace its relationships, click a group label to isolate that module). `SUPABASE.md` — the Mermaid version plus written schema documentation, for anyone who'd rather read it inline in the repo than open a browser.
+
+### Bundled bug fixes this session
+
+Two small pre-existing bugs, unrelated to Phase 6 but fixed in the same session at Adam's request:
+- **"Analyze" → "Analyse"** — the Phase 4 AI Meal Photo feature had a few remaining American spellings, including in internal identifiers (`analyzeMealPhoto` → `analyseMealPhoto`, `_photoAnalyzing` → `_photoAnalysing`, `photo-analyze-btn`/`photo-analyze-error` → `photo-analyse-*`). Earlier sessions had established a convention of user-facing-text-only for British spelling fixes; Adam explicitly asked this time for the identifiers to be renamed too, so this session's fix is broader than that precedent — flagged here since it's a deliberate one-off widening, not a silent convention change.
+- **Restaurant/Home-cooked control** — was a plain, unstyled checkbox with no clear checked/unchecked affordance. Replaced with the app's existing `.toggle-row`/`.toggle-btn` segmented-control pattern (same one used for Mode, Exercise Category, etc. — `setPhotoSource('restaurant' | 'homeCooked')`), functionally identical to before: Home-cooked greys out and clears the restaurant name so it's never sent to the LLM.
+
+### Verification
+
+- `node --check` on all four extracted `<script>` blocks, a duplicate-top-level-function-declaration grep, and a `<div>`/`</div>` balance check (matching the pre-existing baseline, unchanged by this session's edits) all passed clean after every edit in this session, not just at the end.
+- Every `syncRows*`/key-parsing function verified against synthetic data as described above, both as a standalone Node module and live in-browser via Playwright.
+- Visual verification via Playwright screenshots: the Restaurant/Home-cooked toggle in both states, the Settings → Account Cloud Backups card, the Settings → Backup section and Danger Zone with both local/cloud options visible, and the interactive ERD's hover/filter behaviour.
+- One test-harness-only issue was hit and diagnosed, not shipped: `#app` stays `visibility: hidden` until the *complete* natural boot sequence resolves, which needs a real network round-trip this sandbox can't make (no `supabase.co` in the sandbox's network allowlist) — screenshots of screen-level UI (as opposed to modals, which sit outside `#app`) needed `#app`'s visibility forced in the test harness only. Not a product bug; confirmed by inspecting the fully-correct underlying DOM (text, computed styles, positions) before finding the cause.
+
+**Left for Adam to verify with real infrastructure** (same category of gap Phase 4/5 left for their own live-credential verification):
+- The migration files haven't been applied to the live Supabase project from this session — delivered as files (`supabase/migrations/*.sql`) for Adam to run via the Supabase CLI/dashboard, per his preference this session.
+- Real network push/upload round-trips (RLS enforcement against a live project, actual Storage upload/list/download, `pg_cron`/extension availability) aren't testable without them.
+- The service role key was deliberately not requested or handled in this session — Adam noted he was advised not to provide it, which matches the architecture decision that it's dashboard/CLI-only, never client-side.
+
+## §58 — GDPR export/erasure, forced full sync, opportunistic daily backup, Data & Backup redesign (v8.05)
+
+Follow-up session to §57, working from pre-deployment questions Adam raised before running the test suite. Three threads: two real gaps found by auditing what §57's Phase 6 code actually does versus what its own comments claimed; a new GDPR compliance surface; and a full redesign of where all of this lives in Settings.
+
+### Audit findings from Adam's questions
+
+Two things §57 documented as intended behaviour but never actually wired up — found by tracing the real call graph rather than trusting the existing comments:
+
+1. **First sign-in didn't reliably seed either destination.** `markSyncDirty()` (the only path into the relational tables) is only ever called from `save()`, and signing in doesn't call `save()` — so a session resolving with no incidental local edit yet left the relational mirror empty indefinitely. Separately, `maybeUploadSnapshotZero()` runs from the *first* `onAuthResolved()` call, but `checkSnapshotZero()` (which sets the pending flag) only runs later, at the end of `continueBootAfterAuth()` — so on a literal first sign-in, the upload check fires before there's anything flagged to upload, and doesn't retry until the *next* `onAuthResolved()` (a token refresh, or the next app open).
+2. **The documented "opportunistic, at most once per day" snapshot upload didn't exist in code.** `uploadSnapshot()`'s own comment described a third call site alongside snapshot-zero and manual "Back up now" — piggybacking on the debounced sync — but `flushSyncQueue()` never called it. The only two real triggers were snapshot-zero (once) and a manual button press.
+
+Both are now real, addressed by the additions below rather than patched around.
+
+### Forced full relational sync
+
+`forceFullRelationalSync()` — new function, sits alongside the existing debounced path (`flushSyncQueue()`/`markSyncDirty()`) rather than replacing it. Calls the same `pushStateToSupabase(userId)` the debounced path already uses, just without waiting on `_syncDirty`/the 4s timer, then clears both so a debounce that was already pending doesn't fire redundantly afterward.
+
+Two callers:
+- **`maybeForceFullSyncOnSignIn()`**, called from `onAuthResolved()` alongside `maybeUploadSnapshotZero()`. Guarded by `_fullSyncTriggeredThisBoot` so it fires once per fresh sign-in, not on every token-refresh re-fire of `onAuthResolved()` within the same page load — and the guard is released on failure so the *next* auth event (not the next full page reload) gets a retry. Silent — no UI — per Adam's explicit call this session that this is background hygiene, not something worth interrupting boot for.
+- **`handleFullCloudSync(btnId, statusId)`**, the manual "Full sync" action in the new Export → Cloud menu (see below), which pairs it with `uploadSnapshot()` so one tap guarantees both the relational mirror and the backup file are current.
+
+### Opportunistic daily backup — the real implementation
+
+`maybeUploadOpportunisticSnapshot()` replaces the stale comment. Adam's original ask was a fixed 3am schedule; ruled out for an architectural reason, not a difficulty one — the snapshot's source of truth (`state`) only exists in the browser, so it can only ever be produced client-side while the app is running, and a server-side `pg_cron` job could only export from the relational tables, which §57 already established aren't fidelity-guaranteed for restore. Separately, iOS suspends a backgrounded/locked PWA almost immediately — no Background Sync or Periodic Background Sync API in iOS Safari — so a `setTimeout` scheduled for a clock time won't fire unless the app is already open then regardless.
+
+Landed instead: a "has it been a calendar day since `bloc_last_snapshot_date`?" check, called from two points the app already talks to Supabase while online — `continueBootAfterAuth()` (covers a day where the app is opened but nothing else triggers a sync) and the success branch of `flushSyncQueue()` (covers an actively-used day). Silent, matching the sign-in full sync; a failed check just logs and retries at the next opportunity rather than surfacing anything. On success it calls `updateLastBackupDisplay()`, so the "Last cloud backup" label in Settings and the Account modal reflects it immediately — confirmed with Adam this was expected, not just a side effect worth mentioning.
+
+### GDPR: SARS export & RTBF erasure
+
+Two new migrations, `0004_gdpr_sars_export.sql` / `0005_gdpr_rtbf_erasure.sql`, each a single `security definer` Postgres function:
+
+- **`gdpr_export_user_data(target_user_id)`** — one `jsonb_build_object` aggregating all 22 user-owned tables (both directions of `coach_clients`/`plans`, both roles — issuer and redeemer — of `invite_codes`) plus Storage backup-file metadata (name/date/size, not contents — the content is already a duplicate of what the app's own export gives the person, so inlining it would just store the same bytes twice).
+- **`gdpr_erase_user_data(target_user_id)`** — deletes the same scope, children before parents for auditability (not strictly required for correctness — every table is filtered directly by `user_id` and existing cascade/set-null rules handle overlap safely regardless of order — but keeps the deletion order legible to anyone reading the migration later), plus the Storage files. `invite_codes.used_by` is `UPDATE`d to `NULL` rather than deleted where this user redeemed someone else's code, since that row is owned by the issuing coach, not the redeemer — deleting it would destroy another user's data to erase this one's trace from it. Returns a `jsonb` summary of rows deleted per table as an audit record. Deliberately does **not** touch the Supabase Auth account itself (`auth.*` tables — credentials, sessions, identities, MFA factors) since Supabase's supported path for that is `supabase.auth.admin.deleteUser()` via the Admin API, not a raw `DELETE` against internal auth schema; a comment in the migration flags this as a separate follow-up call if full account closure is ever needed, not an oversight.
+
+Both are `authenticated`/`service_role`-executable via RPC, with the authorization check (`auth.uid() = target_user_id` or `auth.role() = 'service_role'`) inside the function body rather than relied on grants alone.
+
+Wired into the app: `handleDownloadMyData()` calls the export RPC and triggers a browser download of the JSON (`bloc-account-data-{date}.json`, distinct from `exportData()`'s local-state export — this is the server-side record). `handleDeleteMyData()` calls the erasure RPC behind the same two-step `showConfirm()` chain `clearAllData()` already uses (title → "Are you really sure?" → destructive action), then clears `bloc_state` and the snapshot-tracking flags (not theme or the locally-held Anthropic API key — those were never uploaded to Supabase, so they're outside this erasure's scope, same reasoning `clearAllData()` already applies to appearance prefs) and reloads. Per Adam's explicit choice this session, this does **not** sign the person out — the account isn't closed, only emptied, so a plain reload with `bloc_state` gone lands on the same `_isNewUserOnBoot` fresh-start path (demo tour / profile gate) a genuine new sign-up gets, rather than bouncing to the auth gate.
+
+### Settings → Profile → Data & Backup redesign
+
+Consolidates what was previously split across an inline "Backup" block, a collapsible "Danger Zone" box, and the separate Account modal's "Cloud Backups" card, into one section at the bottom of Profile, per Adam's spec this session:
+
+- **Backup** (always visible — not destructive on its own): **Export** and **Restore** buttons, each opening a local-vs-cloud choice modal (`modal-backup-export-choice` / `modal-backup-restore-choice`, mirroring the existing `modal-linked-services` stacked-button pattern). Choosing Cloud on Export opens a second-level choice (`modal-backup-export-cloud-choice`) between **Backup file** (`handleBackupNow`, unchanged) and **Full sync** (`handleFullCloudSync`, new). Choosing Cloud on Restore hands off to the existing `openRestorePicker()`, which now shows the last cloud backup's date at the top of the snapshot list. Choosing Local on either goes straight to the pre-existing `exportData()`/`importData()` — the local file input's `#import-status` status element moved into the restore-choice modal (not auto-closed on selection) so a bad-file error is actually visible rather than reported into a closed modal.
+- **Data** (kept inside the same red-bordered, collapsed-by-default box the old "Danger Zone" used — `toggleSettingsCard('dangerZone')`, id deliberately unchanged so the existing expanded-by-default-except-`dangerZone` logic needed no changes): **Download my data**, **Delete my data** (both new, described above), and **Clear all data** — wired exactly as before, unchanged, per Adam's explicit instruction not to touch it.
+
+`modal-account`'s "Cloud Backups" card is simplified to a read-only last-backup display pointing to the new Settings location, rather than duplicating the action buttons in two places.
+
+### Verification
+
+- `node --check` on all four extracted `<script>` blocks — clean.
+- Grep for duplicate top-level function declarations across every new/renamed function (`forceFullRelationalSync`, `maybeForceFullSyncOnSignIn`, `maybeUploadOpportunisticSnapshot`, `handleFullCloudSync`, `handleDownloadMyData`, `handleDeleteMyData`) — one declaration each.
+- Grep for orphaned references to every removed element id (`settings-backup-status`, `settings-backup-cloud-btn`, `account-backup-now-btn`, `account-backup-status`) — zero remaining, confirming the old inline Backup/Danger Zone/Account-modal-buttons markup was fully replaced rather than left dangling.
+- `<div>`/`</div>` balance check — the new markup is internally balanced (20/20 within the new modals, 0/0 within the new Settings section); the pre-existing whole-file off-by-one predates this session (confirmed against the original v8.04 upload before any edits) and wasn't introduced or worsened here.
+- Headless Playwright load against the modified file — zero console errors on boot.
+- RPC name cross-check: `gdpr_export_user_data`/`gdpr_erase_user_data` calls in `index.html` match the function names defined in `0004`/`0005` exactly.
+
+**Left for Adam to verify with real infrastructure**, same category of gap as §57:
+- Migrations `0004`/`0005` haven't been applied to the live Supabase project from this session.
+- The forced-sync/opportunistic-backup/GDPR RPC round-trips aren't testable without a live session and real credentials — this session's verification covers syntax, wiring, and structural correctness, not live network behaviour.
+- Whether iOS actually behaves as described (PWA suspension timing) is standard, well-documented WebKit behaviour, not something re-verified against Adam's specific device this session.
+
+
+## §59 — Live deployment shakedown: RLS/GRANT/storage-policy gaps, sync race condition, schema/app id mismatches, Account & Data consolidation (v8.06)
+
+The first session where migrations `0001`–`0005` (and everything added this session, `0006`–`0011`) were actually applied to a live Supabase project and exercised with real data, rather than delivered as files and verified only for syntax/wiring correctness (the explicit "left for Adam" gap both §57 and §58 closed with each other). Several real bugs only exist at this seam — reading the migration files or `index.html` in isolation wouldn't have surfaced any of them, since each one is a mismatch *between* the schema, the RLS policies, and the app's actual sync behaviour, not a defect visible in any single file. Working order below follows the order they were actually hit during testing, since several later fixes only became visible once an earlier one was in place.
+
+### RLS policies existed; the underlying GRANT didn't
+
+First real error, on the very first "Full sync" attempt: `permission denied for table macrocycles` (and every other user-owned table). Worth being precise about why this is a different failure mode from an RLS *policy* denial (`new row violates row-level security policy`, hit later for a different reason — see Storage below): Postgres's `GRANT` system is a coarser, earlier check than RLS — "can this role touch this table at all" — and RLS policies are only evaluated once that basic grant has already allowed the operation. `0002_rls_policies.sql` created a `create policy` for every table but never issued a `grant` — on projects where Supabase's own default-privilege setup doesn't auto-grant `authenticated` on newly created tables, that's a hard stop before RLS ever gets a say.
+
+Fixed in **`0008_grant_table_privileges.sql`**:
+```sql
+grant select, insert, update, delete on
+  profiles, macrocycles, exercises, exercise_logs, deloads, progression_locks,
+  exercise_history, exercise_tracking_mode, supersets, custom_library,
+  foods, recipes, recipe_ingredients, meals, meal_items, nutrition_quick_log,
+  sample_days, body_logs, goals, coach_clients, invite_codes, plans
+to authenticated;
+```
+RLS continues to restrict every row to its owner regardless — this grant is necessary but not sufficient on its own, exactly as intended.
+
+### Storage bucket policies covered three of the four operations needed
+
+Once table-level grants worked, the very next "Full sync" hit a genuine RLS policy denial this time — `new row violates row-level security policy` — but only ever on a **second** same-day cloud backup, never the first. `uploadSnapshot()` writes to `bloc/{user_id}/{date}.json` with `{ upsert: true }` — one file per calendar day, overwritten on any later write that day (the opportunistic daily check, a manual "Backup file" tap, or Full sync, any of which could plausibly fire twice in one day). Overwriting an existing object is an `UPDATE` under the hood, but `0003_storage_and_backups.sql` only granted `select`/`insert`/`delete` policies on `storage.objects` for this bucket — no `update`. First write of the day (a fresh insert) always succeeded; anything after that failed silently from the person's point of view until the generic error surfaced.
+
+Fixed in **`0007_storage_update_policy.sql`**, same `bucket_id`/`foldername` shape as the other three:
+```sql
+create policy "users_update_own_backups"
+on storage.objects for update
+using (bucket_id = 'app-backups' and auth.uid()::text = (storage.foldername(name))[2])
+with check (bucket_id = 'app-backups' and auth.uid()::text = (storage.foldername(name))[2]);
+```
+
+### Security Advisor: two functions with a wider blast radius than intended
+
+Once the tables/storage above were reachable, Supabase's own Security Advisor flagged `public.rls_auto_enable()` (pre-existing, unrelated to this session's own migrations — a Supabase-suggested event-trigger helper, not something `index.html` or any of `0001`–`0005` created; resolved by revoking its default `PUBLIC`/`authenticated` execute grants, since it's only ever meant to fire via its own event trigger, never called directly) and, after `0004`/`0005` deployed, the two GDPR functions plus `prune_old_backups()`. Fixed in **`0006_lockdown_function_grants.sql`**, with two different outcomes depending on what each function is actually meant to allow:
+
+- **`prune_old_backups()`** — genuinely internal. It's `security definer`, deletes Storage objects across *every* user's folder, and has no `auth.uid()` check of its own inside it — it's meant to run only as the scheduled `pg_cron` job. Postgres's default behaviour grants execute to `PUBLIC` on every new function unless revoked; nothing had revoked it, so any signed-in (or even unauthenticated) caller could invoke it directly via the API and wipe every user's backups early. `revoke execute on function public.prune_old_backups() from public, authenticated, anon;` closes this fully — the cron job's own role isn't subject to this ACL check.
+- **`gdpr_export_user_data()` / `gdpr_erase_user_data()`** — the "Signed-In Users Can Execute" half of the Advisor warning is *expected and correct*, not a bug: these are meant to be callable by any signed-in user, for their own data — that's what powers Download/Delete my data. The safety isn't "nobody can call this," it's the `auth.uid() = target_user_id or service_role` check inside each function body, which Advisor can't see and so flags regardless. Only the `PUBLIC` half needed closing (pure oversight — `0004`/`0005` granted `authenticated`/`service_role` but never explicitly revoked the separate default `PUBLIC` grant): `revoke execute on function ... from public;`, leaving the `authenticated` grant untouched.
+
+### Sync-layer race condition: the parent-before-child ordering was a comment, not code
+
+The most disruptive bug, and the one behind the bulk of first-real-sync failures: `exercise_logs`/`progression_locks` (FK → `exercises`), `recipe_ingredients` (FK → `recipes`), and `nutrition_quick_log`/`goals` (FK → `macrocycles`) all intermittently failed with FK violations, but never consistently, and never on tables with no FK dependency (`foods`, `recipes` themselves). `pushStateToSupabase()`'s own comment described parents landing before children — but the actual implementation was:
+```js
+const results = await Promise.allSettled(jobs.map(([table, rows]) => syncTable(table, rows, userId)));
+```
+`.map()` starts every promise in the same tick; `Promise.allSettled` only waits for all of them, it doesn't sequence them. Every table's delete-then-reinsert (`syncTable()`) ran concurrently, so a child table's insert could execute while its parent's delete had already cleared the old rows but the reinsert hadn't landed yet — a real, if narrow, race window, hit often enough at real data volumes (1,000+ exercise logs) to fail nearly every full sync attempt.
+
+Rewritten as an actual sequential `for...of` loop, still collecting every table's outcome rather than aborting the whole push on the first failure (so an unrelated table's problem doesn't block tables with no dependency on it):
+```js
+const failures = [];
+for (const [table, rows] of jobs) {
+  try { await syncTable(table, rows, userId); }
+  catch (err) { failures.push((err && err.message) || `${table}: sync failed`); }
+}
+if (failures.length) throw new Error(failures.join('; '));
+```
+`jobs`' existing order (macrocycles → exercises → exercise_logs → ... ) already matched the intended dependency order; it just needed to actually be respected at runtime.
+
+### Two bugs the race condition's fix then exposed underneath it
+
+Once tables synced in the correct order, two further failures surfaced that the race condition had been masking (or that simply hadn't been reached yet because everything upstream of them was failing first):
+
+- **`exercises.category`** sent through raw (`category: ex.category`) — `not null` in the schema, but some real exercises (pre-dating a validation tightening, per Adam) have no `category` field in local state at all. Fixed to mirror the fallback the app itself already uses elsewhere (`buildExerciseCard()`, ~L7192): `category: ex.category === 'cardio' ? 'cardio' : 'weight'`.
+- **`exercise_history`**'s numeric fields (`sets`/`reps`/`weight`/`dropWeight`/`dropReps`) used `h.sets ?? null` — `??` only substitutes for `null`/`undefined`, not `''`, and some legacy history entries have `''` rather than a real number. Postgres rejects `''` for an integer/numeric column outright (`invalid input syntax for type integer: ""`). Added a small `syncNumOrNull()` helper (`v === '' || v === null || v === undefined ? null : v`) and applied it to all five fields.
+
+### `meals.id`: a genuine schema/app mismatch, not a sync bug
+
+`invalid input syntax for type uuid: "2026-06-14__Breakfast"` — `0001` defined `meals.id` as `uuid primary key default gen_random_uuid()`, but the app has always generated a deterministic string id (`` `${date}__${slot}` ``) for meals, matching the text-id, app-owned convention every other entity type already follows (`macrocycles`, `exercises`, `foods`, `recipes`, `sample_days`). `meals` was the one table where the schema picked the wrong pattern for what the app actually does. Fixed in **`0009_fix_meals_id_type.sql`**:
+```sql
+alter table meal_items drop constraint meal_items_meal_id_fkey;
+alter table meals alter column id drop default;
+alter table meals alter column id type text;
+alter table meal_items alter column meal_id type text;
+alter table meal_items add constraint meal_items_meal_id_fkey
+  foreign key (meal_id) references meals(id) on delete cascade;
+```
+Safe to run with zero data-migration concern — no meal had ever successfully synced before this fix, so there was nothing to convert, only the column types.
+
+### `profiles`: no row-creation path existed at all
+
+Separately from any of the above, `profiles` never received a row for any account, ever — not a bug in a sync function, since there wasn't one: no Postgres trigger on `auth.users`, and no client-side insert either. `0002` gave the table RLS policies for a row that would never exist. Fixed in **`0010_profiles_auto_create.sql`**: a standard Supabase `handle_new_user()` trigger (`security definer`, execute revoked from every role except the trigger mechanism itself — same reasoning as `prune_old_backups()` above) that inserts a bare `(user_id)` row on signup, plus a one-time backfill (`insert ... on conflict do nothing`) covering every account created before the trigger existed.
+
+### `custom_library` gets real ids; `profiles` gets name fields (`0011`)
+
+Two unrelated changes landed in one migration since Adam asked for them together, each with its own reasoning:
+
+- **`custom_library.id`: `uuid` → `text`.** Custom exercise library entries in local `state` had no stable id of their own at all until this session — every edit/delete matched by name, which breaks on rename or a duplicate name. `index.html`'s `saveCustomExercise()`/`saveExerciseLibEntry()`/`deleteExerciseLibEntry()`/`importExerciseLibrary()` now generate/preserve/backfill a `'custom_' + Date.now()` id (the same convention as every other id-generating function in the file), and `syncRowsCustomLibrary()` now sends it as the row's `id`. The schema needed to follow: `custom_library` was otherwise the one exception to the app-owned-text-id pattern every sibling table (`macrocycles`/`exercises`/`foods`/`recipes`/`sample_days`) already used, inventing a fresh `uuid` on every sync instead. Nothing references `custom_library.id` via FK, so this was a clean retype with no cascade concerns — `alter table custom_library alter column id drop default; alter table custom_library alter column id type text;`. A small incidental fix landed alongside this: `saveExerciseLibEntry()` was silently dropping a cardio custom exercise's `category` field on every edit (rebuilding the entry as `{name, bodyPart}` with no `category` key) — since that exact object was already being rebuilt to add the id, preserving `category` too was a one-line addition rather than a fresh regression in code just touched.
+- **`profiles.first_name` / `surname` / `preferred_name`** — three new nullable `text` columns, added to About me as three separate stacked rows (not a side-by-side layout, per Adam's preference), none part of the profile-entry gate's required-field validation. `preferred_name` is the only one surfaced elsewhere in the UI so far — Home's "Welcome back" heading now reads "Welcome back, {name}!" when set, plain "Welcome back" otherwise.
+
+### Pre-deploy validation tooling
+
+Two standalone Node scripts, `validate-sync.mjs` and `validate-sync-offline.mjs`, built this session specifically to catch exactly the class of bug above *before* it reaches production, without maintaining a second, hand-written copy of the row-shaping logic that could itself drift out of sync with the real thing. Both extract the actual `syncRows*()` functions straight out of `index.html` — a brace-balanced parser that correctly skips over strings/template-literals/comments, so it survives things like `` `${date}__${slot}` `` without miscounting braces — and run them for real against a supplied backup JSON, so "expected" is always defined by whatever the sync layer currently does, not a snapshot of it from whenever the validator was written.
+
+- **`validate-sync.mjs`** — live comparison, via `@supabase/supabase-js` and a `service_role` key (never leaves the machine it's run on).
+- **`validate-sync-offline.mjs`** — the same comparison against a `gdpr_export_user_data()` JSON dump instead, so no credentials need to leave the Supabase dashboard at all; the person runs one SQL query, exports the result, and both files get handed over for an entirely offline diff.
+
+Both key each table's rows by whatever field actually identifies a row for that table (id for most; composite keys like `exercise_id|week|set_index` for tables with no id of their own; `macro_goal_id` for goals; `log_date` for the two date-keyed singleton tables) and report missing/unexpected/mismatched rows per table. Run against Adam's real account this session — 2,209 rows across 19 tables — with two false positives found and fixed in the *validator itself*, not the app: a numeric-string-vs-number comparison bug (Postgres numeric columns can come back as either JSON numbers or strings depending on the source, and a local backup can itself hold a numeric value as a string) and a `JSON.stringify()`-based object comparison that broke on `jsonb` columns not preserving their original key insertion order through Postgres. Both replaced with a proper type-coercing, order-independent `deepEqual()`. Final run: clean pass, zero issues, at full production scale.
+
+### Deployment-process lessons (not code changes)
+
+Two things learned about the deployment pipeline itself, worth recording since they'll recur on every future migration push:
+
+- **Supabase's GitHub integration only applies *pending* migrations**, tracked in `supabase_migrations.schema_migrations` — pushing to `main` re-runs the deploy workflow, which diffs the `supabase/migrations/` folder against that table and skips anything already recorded. A migration file that fails partway through **rolls back atomically** (confirmed by observation, not assumption: `0003`'s first attempt failed on its final `cron.schedule(...)` statement before `pg_cron` was enabled, and the retry re-ran the *entire* file from the top rather than resuming — meaning the bucket/policies earlier in that same file hadn't actually persisted from the failed attempt either). Practical implication: never edit or rename an already-applied migration file — the tracking table has no way to know it changed, so the edit simply never runs; any correction needs a new, later-numbered file.
+- **Enabling `pg_cron` via the dashboard extension toggle can silently fail to finish its own setup** — it can show as "enabled" in the Extensions list without the `cron` schema/grants actually existing yet, a known Supabase quirk (confirmed against a public Supabase CLI issue describing the same symptom). The fix is to disable and re-enable it, not anything on the migration/code side.
+
+### UI changes, same session
+
+- **Splash skip button** — a small ✕, top-right, visible for the whole sequence. Clears every step still queued in the boot script's own `timeouts` array (drops/flips/lift/scatter/rise/eventual fade-out) rather than just hiding the splash element on top of one still silently running underneath, then jumps straight to the same `fade-out` + `revealApp()` a full play-through ends on — so skipping arrives at exactly the same end state, just sooner.
+- **Account & Data** (renamed from "Account") — every button that used to live in a separate standalone "Data & Backup" section at the bottom of the Profile card now lives inside this one modal instead: Cloud Backups display, Backup (Export/Restore), and Data (Download/Delete/Clear), in that order, ending with Sign Out. `toggleSettingsCard('dangerZone')` needed no changes to move — it's already `getElementById`-based, not location-dependent. The Settings page's standalone Data & Backup section is fully removed (not just hidden), leaving Exercise as the page's last visible card.
+- **Change Password** — new, email/password accounts only (`account-change-password-btn` shown/hidden by `updateAccountUI()` based on the session's `app_metadata.provider`). Calls `supabase.auth.updateUser({ password })` directly — a built-in GoTrue operation against `auth.users`, not anything in this schema, so no migration was needed for the feature itself. Authorised by the existing session, no re-entry of the current password required. On success, forces an immediate sync (`markSyncDirty(); flushSyncQueue();`, bypassing the usual 4s debounce) — not because a password change touches any app data, but as a deliberate right-now confirmation the account is still fully working end-to-end straight after a credential change.
+- **`autocomplete` fix on the shared Sign In/Sign Up password field** — `setAuthMode()` previously never changed it away from its hardcoded `current-password`, so Sign Up never got iOS's strong-password-suggestion/Keychain-save prompt (which is specifically triggered by `autocomplete="new-password"`, not merely `type="password"`, which the field already correctly had). Now swaps between the two based on the active tab; both new Change Password fields also use `new-password` for the same reason.
+- **About me: First Name / Surname / Preferred Name** — three separate stacked rows, all optional, all outside the profile-entry gate's required fields (gender/height/birthday stay the only mandatory three). See `profiles` name-field migration above.
+
+### Verification
+
+- `node --check` on all four extracted `<script>` blocks after every edit in this session, not just once at the end.
+- Grep for duplicate top-level function declarations across every new/changed function this session (`pushStateToSupabase`, `syncRowsExercises`, `syncRowsExerciseHistory`, `syncNumOrNull`, `syncProfile`, `saveCustomExercise`, `saveExerciseLibEntry`, `deleteExerciseLibEntry`, `importExerciseLibrary`, `syncRowsCustomLibrary`, `openChangePassword`, `submitChangePassword`, `setAuthMode`, `updateAccountUI`) — one declaration each throughout.
+- `<div>`/`</div>` balance re-checked after every markup change (splash button, About me fields, Account & Data modal rebuild, Change Password modal) — the pre-existing whole-file off-by-one predates this session (confirmed against the same-count baseline before any v8.06 edit) and was neither introduced nor worsened by any change here.
+- `validate-sync-offline.mjs` run against Adam's real account and a real `gdpr_export_user_data()` export — 2,209 rows across 19 tables, zero issues, at the end of this session (i.e. against the final state of everything above, not a partial version).
+- Migration application itself verified against the live deploy log for every one of `0006`–`0011` (not just delivered as files, per this section's own opening point) — each showed a clean `Applying migration...` with no `ERROR` line, or, for the one genuine failure (`0003`'s first `pg_cron` attempt), a full retry that completed clean once the underlying dashboard issue was fixed.
+
+**Left for Adam / follow-up work, not gaps in this session's own scope:**
+- Apple and Microsoft OAuth remain deferred (Apple: paid Developer Program cost; Microsoft: Azure app registration friction) — unchanged from §56.
+- Phase 7 (the coach app) is still unbuilt; `coach_clients`/`invite_codes`/`plans` remain empty scaffolding, unaffected by anything in this session.
+- A PWA migration/reuse document — covering which of this session's Supabase Auth/sync/backup patterns carry over to Adam's other PWAs (My Dream Clean, Personal-F, Personal-Ledger-Balance), sharing one Supabase project across apps with app-name-prefixed storage paths — is the explicit next piece of work, not started in this session.
