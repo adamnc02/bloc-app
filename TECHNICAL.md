@@ -3923,3 +3923,24 @@ Two things learned about the deployment pipeline itself, worth recording since t
 - Apple and Microsoft OAuth remain deferred (Apple: paid Developer Program cost; Microsoft: Azure app registration friction) — unchanged from §56.
 - Phase 7 (the coach app) is still unbuilt; `coach_clients`/`invite_codes`/`plans` remain empty scaffolding, unaffected by anything in this session.
 - A PWA migration/reuse document — covering which of this session's Supabase Auth/sync/backup patterns carry over to Adam's other PWAs (My Dream Clean, Personal-F, Personal-Ledger-Balance), sharing one Supabase project across apps with app-name-prefixed storage paths — is the explicit next piece of work, not started in this session.
+
+## §60 — Hotfix: signUp() confirmation-email redirect + Ella's stuck-sync backup (no version bump)
+
+Two related-but-separate issues found and fixed live against a real family account (Ella), not a version-bump session — `index.html`'s displayed version stays v8.06.
+
+### signUp() had no explicit `emailRedirectTo`
+
+`submitEmailAuth()`'s sign-up branch called `supabase.auth.signUp({ email, password })` with no `options.redirectTo`, unlike `signInWithProvider()` and `sendPasswordReset()` a few lines above/below it, both of which already pass `redirectTo: window.location.href`. With no explicit value, Supabase falls back to whatever **Site URL** is set in the dashboard *at the moment the email is generated* — and Site URL had at some earlier point been set to the bare GitHub Pages domain (`https://adamnc02.github.io/`) rather than the actual deployed sub-path (`https://adamnc02.github.io/bloc-app/`). By the time this was investigated, Site URL in the dashboard had already been corrected — but Ella's original confirmation email had been generated while it was still wrong, and a sent email's link is never regenerated, so it stayed permanently broken (landed on GitHub Pages' bare domain root, which serves nothing, with `otp_expired` appended once the token also aged out).
+
+Two separate failure modes were stacked here: the wrong dashboard value at send-time (now corrected, not a code issue), and the app's own code silently depending on that dashboard value being right with no fallback or safety net. Fixed the second one — `signUp()` now passes `options: { emailRedirectTo: window.location.href }`, matching the other two auth calls exactly, so a future Site URL drift can't silently break new signups' confirmation emails again.
+
+**Manual recovery used for Ella's specific stuck account** (rate-limited on Supabase's default email sender, so a fresh confirmation email wasn't an option in the moment): password set directly via the Dashboard's per-user "Reset Password" panel, and `email_confirmed_at`/`confirmed_at` backfilled via a direct SQL update in the SQL Editor. Both are one-off admin actions against `auth.users`, not app changes.
+
+### Ella's local backup: Full sync failing on old-shaped nutrition data + a pre-`macroGoalID` goal
+
+Ella's uploaded backup (`bloc-backup-2026-08-31.json`) threw on "Full sync": duplicate-key errors on `foods`/`recipes`/`meals`, a foreign-key violation on `recipe_ingredients` (a child of the failed `recipes` insert), and a not-null violation on `goals.macro_goal_id`. Two distinct root causes, not one:
+
+- **Nutrition data.** Per Adam, Ella doesn't use the Nutrition module yet, so the safe fix was removing it from her backup rather than debugging why these particular rows were colliding server-side: `foodLibrary`, `recipes`, `nutritionMeals`, and `nutritionLogs` all cleared to their empty state (`[]`/`{}` as appropriate) in the backup file before restore. `customLibrary` (custom **exercise** entries — Push Press, Pressup, Kettlebell Swing, Renegade Row, Russian Twists) is unrelated to Nutrition and was left untouched.
+- **`goals.macro_goal_id`.** `macroGoalID` is a real, permanent per-goal identifier the app has generated at creation time since the goal-flashing/sample-day-linking features were added (`generateMacroGoalID()`, `` `${macroId}_g${Date.now()}` ``) — but Ella's one goal object predates that feature and simply never had the field written to it, so the sync layer sent `null` straight into a `not null` column. This is a genuine old-data gap, not a bug to fix in `index.html` — backfilled a `macroGoalID` directly onto that goal object in the backup file, following the app's own generation format.
+
+Delivered back as a corrected `bloc-backup-2026-08-31.json` for Adam to restore onto Ella's device via Settings → Account & Data → Restore → local file, then re-attempt Full sync.

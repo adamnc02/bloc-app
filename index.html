@@ -5656,7 +5656,16 @@ async function submitEmailAuth() {
   if (btn) btn.disabled = true;
   try {
     if (_authMode === 'signup') {
-      const { data, error } = await supabase.auth.signUp({ email, password });
+      const { data, error } = await supabase.auth.signUp({
+        email, password,
+        // Explicit, matching signInWithProvider()/sendPasswordReset() below —
+        // previously omitted, which meant the confirmation email's redirect
+        // silently depended on the dashboard's Site URL matching the app's
+        // actual deployed path. When Site URL drifted (e.g. missing the
+        // GitHub Pages repo sub-path), already-sent confirmation emails were
+        // permanently broken with no error until someone clicked the link.
+        options: { emailRedirectTo: window.location.href },
+      });
       if (error) throw error;
       if (!data.session) {
         // Email confirmation is on (per the dev plan's User Signups
