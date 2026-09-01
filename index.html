@@ -835,9 +835,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
    once a session is positively confirmed — see initSupabaseAuth() /
    onAuthResolved(). Sits above even #splash (z-index 9999) so a
    signed-out person is never shown the splash animation over a gate
-   that's about to cover it; a signed-in returning user's session check
-   resolves fast enough (localStorage-cached) that the gate is already
-   hidden well before the splash even finishes, so no flash either way. */
+   that's about to cover it. */
 #auth-gate {
   position: fixed; inset: 0; z-index: 10000;
   background: var(--bg);
@@ -846,6 +844,16 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   padding: 24px 20px calc(24px + var(--safe-bottom));
 }
 #auth-gate.hidden { display: none; }
+/* Pre-paint optimistic hide (v8.07) — see the inline script right after
+   <body> and TECHNICAL.md §60. onAuthResolved()'s real check is always
+   asynchronous (getSession() returns a Promise even for a cached local
+   session), so there's no way to make that check itself resolve before
+   first paint — only to avoid painting the gate at all when a cached
+   session token makes a real one very likely. This class is added
+   synchronously before #auth-gate is ever parsed, and removed again by
+   showAuthGate() if the async check later comes back negative, so a
+   corrective pop-in — not a flash-then-hide — is the worst case. */
+html.auth-likely-signed-in #auth-gate { display: none; }
 .auth-gate-inner { width: 100%; max-width: 360px; margin: auto; }
 .auth-gate-logo {
   font-family: var(--font-display); font-size: 28px; font-weight: 800;
@@ -2029,6 +2037,29 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 </script>
 </head>
 <body data-mode="dark">
+<script>
+// Pre-paint auth check (v8.07) — see TECHNICAL.md §60. Runs synchronously
+// before #splash or #auth-gate are even parsed. onAuthResolved() (the
+// real, authoritative check further down the file) is always async —
+// getSession() returns a Promise even when it's just reading a cached
+// local session — so no version of that check can finish before first
+// paint. This doesn't try to make it faster; it just looks for the same
+// localStorage key supabase-js itself persists a session under
+// (sb-<project-ref>-auth-token) and, if one exists, skips painting the
+// auth gate at all so the splash isn't covered by it for even one frame.
+// This is optimistic, not authoritative — onAuthResolved() still runs as
+// normal afterwards, and showAuthGate() removes this class again if it
+// turns out the cached token was stale/invalid, so the worst case is a
+// corrective pop-in rather than every signed-in return visit flashing
+// the login screen. No cached token at all (never signed in, or signed
+// out) leaves the gate exactly as fail-closed as before.
+try {
+  var _hasCachedSupabaseSession = Object.keys(localStorage).some(function (k) {
+    return /^sb-.*-auth-token$/.test(k);
+  });
+  if (_hasCachedSupabaseSession) document.documentElement.classList.add('auth-likely-signed-in');
+} catch (e) { /* localStorage inaccessible (private browsing etc.) — fail closed, gate shows as normal */ }
+</script>
 
 <div id="splash">
   <button type="button" id="splash-skip" class="splash-skip" aria-label="Skip animation">&#10005;</button>
@@ -2376,15 +2407,23 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <button type="button" class="auth-tab" id="auth-tab-signup" onclick="setAuthMode('signup')">Sign Up</button>
     </div>
 
-    <div class="form-group">
-      <input type="email" id="auth-email-input" placeholder="Email" autocomplete="email" inputmode="email">
-    </div>
-    <div class="form-group">
-      <input type="password" id="auth-password-input" placeholder="Password" autocomplete="current-password">
-    </div>
+    <!-- Real <form> (style="display:contents" so it adds no box of its own
+         and the layout above is untouched) rather than bare inputs — see
+         TECHNICAL.md §60. With no <form> boundary at all, iOS Safari can't
+         tell a password field is scoped to just this login flow and starts
+         offering its Passwords/Keychain AutoFill bar for unrelated inputs
+         elsewhere on the page (the Log Steps box on Home, for one). -->
+    <form style="display:contents" onsubmit="return false;">
+      <div class="form-group">
+        <input type="email" id="auth-email-input" placeholder="Email" autocomplete="email" inputmode="email">
+      </div>
+      <div class="form-group">
+        <input type="password" id="auth-password-input" placeholder="Password" autocomplete="current-password">
+      </div>
 
-    <button class="btn btn-accent btn-block" id="auth-submit-btn" onclick="submitEmailAuth()">Sign In →</button>
-    <div id="auth-forgot-row"><a onclick="sendPasswordReset()">Forgot password?</a></div>
+      <button class="btn btn-accent btn-block" id="auth-submit-btn" onclick="submitEmailAuth()">Sign In →</button>
+      <div id="auth-forgot-row"><a onclick="sendPasswordReset()">Forgot password?</a></div>
+    </form>
 
     <div id="auth-error" style="display:none;"></div>
     <div id="auth-status" style="display:none;"></div>
@@ -2498,7 +2537,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
       <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 2px;border-bottom:1px solid var(--border);margin-bottom:16px;cursor:pointer;" onclick="openModal('modal-settings-about')">
         <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-        <span class="tag tag-outline">v8.06</span>
+        <span class="tag tag-outline">v8.07</span>
       </div>
 
       <!-- ── Profile section ── -->
@@ -3901,15 +3940,20 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   <div class="modal-sheet" data-modal="modal-change-password">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-change-password')">✕</button></div>
     <div class="modal-title">Change Password</div>
-    <div class="form-group">
-      <div class="label">New Password</div>
-      <input type="password" id="change-password-new" autocomplete="new-password" style="font-size:15px;width:100%;box-sizing:border-box;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
-    </div>
-    <div class="form-group">
-      <div class="label">Confirm New Password</div>
-      <input type="password" id="change-password-confirm" autocomplete="new-password" style="font-size:15px;width:100%;box-sizing:border-box;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
-    </div>
-    <button class="btn btn-accent btn-block" id="change-password-submit-btn" onclick="submitChangePassword()">Update Password</button>
+    <!-- Real <form> (display:contents — see the auth-gate form above and
+         TECHNICAL.md §60) so Safari scopes its password AutoFill to just
+         these two fields instead of the whole unwrapped page. -->
+    <form style="display:contents" onsubmit="return false;">
+      <div class="form-group">
+        <div class="label">New Password</div>
+        <input type="password" id="change-password-new" autocomplete="new-password" style="font-size:15px;width:100%;box-sizing:border-box;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+      </div>
+      <div class="form-group">
+        <div class="label">Confirm New Password</div>
+        <input type="password" id="change-password-confirm" autocomplete="new-password" style="font-size:15px;width:100%;box-sizing:border-box;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+      </div>
+      <button class="btn btn-accent btn-block" id="change-password-submit-btn" onclick="submitChangePassword()">Update Password</button>
+    </form>
     <div id="change-password-status" style="font-size:12px;margin-top:10px;text-align:center;display:none;"></div>
   </div>
 </div>
@@ -4002,11 +4046,18 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div class="card">
       <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:4px;">Anthropic API key</div>
       <div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.5;">Optional. Enables the "Ask BLOC for advice" feature on the Progress page. Stored only on this device. Get a key at <span style="color:var(--accent);">console.anthropic.com</span> — billed separately from Claude Pro, but each call costs under $0.01.</div>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <input type="password" id="settings-api-key-input" placeholder="sk-ant-…"
-          style="flex:1;font-size:13px;padding:9px 11px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);font-family:var(--font-mono);">
-        <button onclick="saveApiKey()" class="btn btn-accent" style="padding:9px 14px;white-space:nowrap;">Save</button>
-      </div>
+      <!-- Real <form> (display:contents — see TECHNICAL.md §60) for the same
+           autofill-scoping reason as the auth-gate and Change Password
+           forms, even though this field is type="password" only to mask
+           the key visually, not a real login credential — Safari can't
+           tell the difference. -->
+      <form style="display:contents" onsubmit="return false;">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="password" id="settings-api-key-input" placeholder="sk-ant-…" autocomplete="off"
+            style="flex:1;font-size:13px;padding:9px 11px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);font-family:var(--font-mono);">
+          <button onclick="saveApiKey()" class="btn btn-accent" style="padding:9px 14px;white-space:nowrap;">Save</button>
+        </div>
+      </form>
       <div id="api-key-status" style="font-size:11px;margin-top:6px;color:var(--text3);"></div>
     </div>
   </div>
@@ -5584,6 +5635,12 @@ function continueBootAfterAuth() {
 }
 
 function showAuthGate() {
+  // Clears the pre-paint optimistic hide (see the inline script after
+  // <body> and TECHNICAL.md §60) — this only matters the first time
+  // onAuthResolved() genuinely comes back signed-out despite a cached
+  // token having looked promising pre-paint (e.g. the token was stale);
+  // harmless no-op otherwise.
+  document.documentElement.classList.remove('auth-likely-signed-in');
   const gate = document.getElementById('auth-gate');
   if (gate) gate.classList.remove('hidden');
 }
@@ -15660,9 +15717,14 @@ function getHomeMetricBadge(field, avg, target, dayMap, weekStart, today, kcalTa
   // Same underlying math as getHomeMetricSublabel's "on pace" text, so the
   // two can never disagree with each other.
   let paceValue = avg;
+  let weekOver = false;
   if (dayMap && weekStart && today) {
     const info = getWeeklyRequiredDaily(field, dayMap, weekStart, today, target, kcalTarget);
-    if (info && info.daysRemaining > 0) paceValue = info.requiredDaily;
+    if (info && info.daysRemaining > 0) {
+      paceValue = info.requiredDaily;
+    } else if (info) {
+      weekOver = true; // no days left to react to — see comment below
+    }
   }
 
   // Needing MORE than target for the rest of the week (paceValue above
@@ -15670,8 +15732,17 @@ function getHomeMetricBadge(field, avg, target, dayMap, weekStart, today, kcalTa
   // Needing LESS than target (paceValue below target) means a surplus
   // already banked — that's "Exceeding". This is the mirror image of a
   // plain avg-vs-target comparison, not the same direction.
-  const behindPace = paceValue > target + tol;
-  const aheadPace  = paceValue < target - tol;
+  //
+  // That framing only holds while days remain to react to. Once the week
+  // is over (weekOver), getWeeklyRequiredDaily has nothing left to
+  // "require" and just hands back the actual final average instead — at
+  // which point "above target" stops meaning a lingering deficit and
+  // starts meaning the week actually finished OVER target (a surplus),
+  // and "below target" means it finished under (a shortfall). That's the
+  // opposite relationship to the mid-week case, so the comparison flips
+  // here rather than reusing the same direction blindly.
+  const behindPace = weekOver ? (paceValue < target - tol) : (paceValue > target + tol);
+  const aheadPace  = weekOver ? (paceValue > target + tol) : (paceValue < target - tol);
   let label, isBad;
   if (behindPace)      { label = 'Falling behind'; isBad = polarity !== 'overBad'; }
   else if (aheadPace)  {
