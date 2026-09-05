@@ -575,6 +575,18 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
 .input-row { display: flex; gap: 8px; margin-bottom: 10px; }
 .input-row > * { flex: 1; }
+
+/* Serving-size picker rows (nutrition add/edit + recipe ingredient) pair a
+   plain select (14px text) with a bold 18px "Servings" number input in the
+   same .input-row — left at their natural sizes the two boxes render at
+   different heights because the taller font inflates the input's content
+   box. Pin both to the same explicit height so they align regardless of
+   font-size. */
+#nutr-serving-picker-select, #nutr-serving-servings,
+#nutr-edit-picker-select, #nutr-edit-servings,
+#recipe-serving-picker-select, #recipe-serving-servings {
+  height: 44px;
+}
 .form-group { margin-bottom: 12px; }
 
 /* ── MACRO SLIDERS (goal modal) ──────────────────────────── */
@@ -1277,6 +1289,22 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 
 /* ── Swipe rows ──────────────────────────────────────────────────── */
 .swipe-row-wrap { position:relative; overflow:hidden; touch-action:pan-y; }
+.swipe-row-wrap.dragging, .ss-inner-row.dragging { opacity: 0.35; }
+/* Drag landing-position indicator (ported from MyDreamClean's diary
+   reorder — see handlePlanRowsDragOver()/handleSsRowsDragOver()) — a
+   single shared element per nesting level, moved via insertBefore/after to
+   track the nearest insertion point as an exercise/superset-group (or a
+   superset member) is dragged up/down. Purely visual: the actual move
+   still happens in reorderExercise()/reorderSupersetExercise() on drop.
+   Kept out of layout (display:none) until a same-list drag is in progress. */
+.plan-drop-indicator {
+  display: none;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.plan-drop-indicator.showing { display: block; }
 .swipe-row-content { position:relative; z-index:1; width:100%; box-sizing:border-box; transition:transform 0.25s ease; will-change:transform; touch-action:pan-y; }
 .swipe-actions { position:absolute; right:0; top:0; bottom:0; display:flex; align-items:stretch; gap:6px; padding:6px 10px; pointer-events:none; opacity:0; }
 .swipe-actions.vertical { flex-direction:column; }
@@ -2409,15 +2437,19 @@ try {
 
     <!-- Real <form> (style="display:contents" so it adds no box of its own
          and the layout above is untouched) rather than bare inputs — see
-         TECHNICAL.md §60. With no <form> boundary at all, iOS Safari can't
-         tell a password field is scoped to just this login flow and starts
-         offering its Passwords/Keychain AutoFill bar for unrelated inputs
-         elsewhere on the page (the Log Steps box on Home, for one). -->
+         TECHNICAL.md §60. This scopes AutoFill while the form is on-screen,
+         but does NOT fix the actual Log Steps bug (see §61): the password
+         input below is only ever conditionally present in the DOM — see
+         ensureAuthPasswordField()/removeAuthPasswordField() — because a
+         type="password" input still triggers iOS's page-wide AutoFill/
+         passkey heuristic even while display:none, so leaving it sitting
+         in the DOM for the whole signed-in session (as before) kept
+         showing the Keychain bar on unrelated inputs like Log Steps. -->
     <form style="display:contents" onsubmit="return false;">
       <div class="form-group">
         <input type="email" id="auth-email-input" placeholder="Email" autocomplete="email" inputmode="email">
       </div>
-      <div class="form-group">
+      <div class="form-group" id="auth-password-wrap">
         <input type="password" id="auth-password-input" placeholder="Password" autocomplete="current-password">
       </div>
 
@@ -2429,6 +2461,22 @@ try {
     <div id="auth-status" style="display:none;"></div>
   </div>
 </div>
+<script>
+// §61 fix — strip the auth password field out of the DOM immediately,
+// synchronously, in the same tick the gate itself was optimistically
+// hidden (_hasCachedSupabaseSession, set just above at the top of <body>).
+// A type="password" input still trips iOS's page-wide AutoFill/passkey
+// heuristic while merely display:none, so a likely-signed-in load must
+// not leave one sitting in the DOM at all, not just visually hidden.
+// showAuthGate()/hideAuthGate() further down re-create or remove it again
+// as sign-in state actually changes during the session.
+try {
+  if (typeof _hasCachedSupabaseSession !== 'undefined' && _hasCachedSupabaseSession) {
+    var _apf = document.getElementById('auth-password-input');
+    if (_apf) _apf.remove();
+  }
+} catch (e) {}
+</script>
 
 <div id="app">
 <div class="edge-fade edge-fade-top"></div>
@@ -2537,7 +2585,7 @@ try {
 
       <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 2px;border-bottom:1px solid var(--border);margin-bottom:16px;cursor:pointer;" onclick="openModal('modal-settings-about')">
         <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-        <span class="tag tag-outline">v8.07</span>
+        <span class="tag tag-outline">v8.08</span>
       </div>
 
       <!-- ── Profile section ── -->
@@ -2830,6 +2878,48 @@ try {
     </div>
     <div class="modal-title">Cycle history</div>
     <div id="cycle-history-list"></div>
+  </div>
+</div>
+
+<!-- Cycle-end AI review (v8.08) — photos are downsized client-side and sent
+     directly to the Anthropic API in the same call as the review text; they
+     are never written to state/localStorage, only their counts are (see
+     runCycleReview()/TECHNICAL.md §62). -->
+<div class="modal-overlay" id="modal-cycle-review">
+  <div class="modal-sheet" data-modal="modal-cycle-review" style="max-height:90dvh;display:flex;flex-direction:column;">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-cycle-review')">✕</button>
+    </div>
+    <div class="modal-title" style="flex-shrink:0;">Cycle Review</div>
+    <div style="overflow-y:auto;flex:1;">
+      <div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:14px;">
+        BLOC will review your whole cycle — weight, measurements, training, and compliance — into one narrative and score. This runs once per cycle and can't be redone. Progress photos are optional: they're sent directly to Claude for this one review and are never stored, only counted.
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <div style="flex:1;border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:12px 10px;text-align:center;">
+          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Before</div>
+          <div id="cycle-review-before-count" style="font-family:var(--font-display);font-size:20px;font-weight:700;margin-bottom:8px;">0</div>
+          <div style="display:flex;gap:6px;">
+            <button type="button" onclick="document.getElementById('cycle-review-before-camera').click()" style="flex:1;padding:7px 4px;font-size:10px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">📷 Take</button>
+            <button type="button" onclick="document.getElementById('cycle-review-before-upload').click()" style="flex:1;padding:7px 4px;font-size:10px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">🖼 Upload</button>
+          </div>
+          <input type="file" accept="image/*" capture="environment" id="cycle-review-before-camera" style="display:none;" onchange="handleCycleReviewPhotoSelect(event,'before')">
+          <input type="file" accept="image/*" multiple id="cycle-review-before-upload" style="display:none;" onchange="handleCycleReviewPhotoSelect(event,'before')">
+        </div>
+        <div style="flex:1;border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:12px 10px;text-align:center;">
+          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">After</div>
+          <div id="cycle-review-after-count" style="font-family:var(--font-display);font-size:20px;font-weight:700;margin-bottom:8px;">0</div>
+          <div style="display:flex;gap:6px;">
+            <button type="button" onclick="document.getElementById('cycle-review-after-camera').click()" style="flex:1;padding:7px 4px;font-size:10px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">📷 Take</button>
+            <button type="button" onclick="document.getElementById('cycle-review-after-upload').click()" style="flex:1;padding:7px 4px;font-size:10px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">🖼 Upload</button>
+          </div>
+          <input type="file" accept="image/*" capture="environment" id="cycle-review-after-camera" style="display:none;" onchange="handleCycleReviewPhotoSelect(event,'after')">
+          <input type="file" accept="image/*" multiple id="cycle-review-after-upload" style="display:none;" onchange="handleCycleReviewPhotoSelect(event,'after')">
+        </div>
+      </div>
+      <button id="cycle-review-generate-btn" class="btn btn-accent btn-block" onclick="runCycleReview()">Generate Review →</button>
+      <div id="cycle-review-error" style="display:none;font-size:12px;color:var(--red);margin-top:8px;text-align:center;"></div>
+    </div>
   </div>
 </div>
 
@@ -3944,13 +4034,11 @@ try {
          TECHNICAL.md §60) so Safari scopes its password AutoFill to just
          these two fields instead of the whole unwrapped page. -->
     <form style="display:contents" onsubmit="return false;">
-      <div class="form-group">
+      <div class="form-group" id="change-password-new-wrap">
         <div class="label">New Password</div>
-        <input type="password" id="change-password-new" autocomplete="new-password" style="font-size:15px;width:100%;box-sizing:border-box;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
       </div>
-      <div class="form-group">
+      <div class="form-group" id="change-password-confirm-wrap">
         <div class="label">Confirm New Password</div>
-        <input type="password" id="change-password-confirm" autocomplete="new-password" style="font-size:15px;width:100%;box-sizing:border-box;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
       </div>
       <button class="btn btn-accent btn-block" id="change-password-submit-btn" onclick="submitChangePassword()">Update Password</button>
     </form>
@@ -4052,9 +4140,7 @@ try {
            the key visually, not a real login credential — Safari can't
            tell the difference. -->
       <form style="display:contents" onsubmit="return false;">
-        <div style="display:flex;gap:8px;align-items:center;">
-          <input type="password" id="settings-api-key-input" placeholder="sk-ant-…" autocomplete="off"
-            style="flex:1;font-size:13px;padding:9px 11px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);font-family:var(--font-mono);">
+        <div style="display:flex;gap:8px;align-items:center;" id="settings-api-key-wrap">
           <button onclick="saveApiKey()" class="btn btn-accent" style="padding:9px 14px;white-space:nowrap;">Save</button>
         </div>
       </form>
@@ -5634,6 +5720,30 @@ function continueBootAfterAuth() {
   maybeUploadOpportunisticSnapshot();
 }
 
+// §61 — mount/unmount helpers for every type="password" field in the app.
+// The bug: iOS Safari's AutoFill/passkey heuristic scans the whole document
+// for password inputs, and still finds one even when it's display:none —
+// so any password field left sitting in the DOM for the whole session (as
+// every one of these previously was, just CSS-hidden behind its gate/modal)
+// keeps triggering the Keychain/AutoFill bar on unrelated inputs elsewhere
+// on the page (Log Steps on Home, for one). Fix: physically add/remove the
+// node from the DOM as its gate/modal actually opens and closes, rather
+// than just toggling visibility.
+function mountPasswordField(id, wrapId, html) {
+  if (document.getElementById(id)) return;
+  const wrap = document.getElementById(wrapId);
+  if (wrap) wrap.insertAdjacentHTML('afterbegin', html);
+}
+function unmountPasswordField(id) {
+  const el = document.getElementById(id);
+  if (el) el.remove();
+}
+function ensureAuthPasswordField() {
+  mountPasswordField('auth-password-input', 'auth-password-wrap',
+    '<input type="password" id="auth-password-input" placeholder="Password" autocomplete="' +
+    (_authMode === 'signup' ? 'new-password' : 'current-password') + '">');
+}
+
 function showAuthGate() {
   // Clears the pre-paint optimistic hide (see the inline script after
   // <body> and TECHNICAL.md §60) — this only matters the first time
@@ -5641,12 +5751,14 @@ function showAuthGate() {
   // token having looked promising pre-paint (e.g. the token was stale);
   // harmless no-op otherwise.
   document.documentElement.classList.remove('auth-likely-signed-in');
+  ensureAuthPasswordField();
   const gate = document.getElementById('auth-gate');
   if (gate) gate.classList.remove('hidden');
 }
 function hideAuthGate() {
   const gate = document.getElementById('auth-gate');
   if (gate) gate.classList.add('hidden');
+  unmountPasswordField('auth-password-input');
   const errEl = document.getElementById('auth-error');
   if (errEl) errEl.style.display = 'none';
   const statusEl = document.getElementById('auth-status');
@@ -5672,7 +5784,8 @@ function setAuthMode(mode) {
   // is what actually decides which of those two behaviours shows up, and
   // it previously never changed away from current-password, so Sign Up
   // never got the suggest/save prompt.
-  document.getElementById('auth-password-input').autocomplete = mode === 'signin' ? 'current-password' : 'new-password';
+  const pwEl = document.getElementById('auth-password-input');
+  if (pwEl) pwEl.autocomplete = mode === 'signin' ? 'current-password' : 'new-password';
   const errEl = document.getElementById('auth-error'); if (errEl) errEl.style.display = 'none';
 }
 
@@ -5798,11 +5911,13 @@ function updateAccountUI(session) {
 // updateAccountUI() shows for provider === 'email', but this resets the
 // form regardless in case it's ever opened another way.
 function openChangePassword() {
+  // openModal() mounts the password fields into the DOM (see §61) —
+  // must run before they're referenced below.
+  openModal('modal-change-password');
   document.getElementById('change-password-new').value = '';
   document.getElementById('change-password-confirm').value = '';
   const statusEl = document.getElementById('change-password-status');
   if (statusEl) statusEl.style.display = 'none';
-  openModal('modal-change-password');
 }
 
 // Updates the signed-in user's password via Supabase Auth directly —
@@ -6090,6 +6205,9 @@ requestAnimationFrame(() => requestAnimationFrame(positionNavPill));
 // performance problem, and it avoids an entire category of "stale DOM"
 // bugs that partial updates would risk.
 function showScreen(name) {
+  // Cycle Review card (Progress) collapses by default whenever the page is
+  // left and come back to — see buildCycleReviewCardHTML()/dev notes §62.
+  if (name !== 'progress') _cycleReviewCardOpen = {};
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('screen-' + name).classList.add('active');
@@ -6163,6 +6281,26 @@ window.addEventListener('load', positionNavPill);
 // always happens regardless of which button triggered the open.
 function openModal(id) {
   const today = getLocalToday();
+  // §61 — mount these modals' type="password" fields only while actually
+  // open; see mountPasswordField()/showAuthGate() for why a password
+  // input can't just sit in the DOM display:none the rest of the time.
+  if (id === 'modal-change-password') {
+    mountPasswordField('change-password-new', 'change-password-new-wrap',
+      '<input type="password" id="change-password-new" autocomplete="new-password" style="font-size:15px;width:100%;box-sizing:border-box;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">');
+    mountPasswordField('change-password-confirm', 'change-password-confirm-wrap',
+      '<input type="password" id="change-password-confirm" autocomplete="new-password" style="font-size:15px;width:100%;box-sizing:border-box;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">');
+  }
+  if (id === 'modal-api-key') {
+    mountPasswordField('settings-api-key-input', 'settings-api-key-wrap',
+      '<input type="password" id="settings-api-key-input" placeholder="sk-ant-…" autocomplete="off" style="flex:1;font-size:13px;padding:9px 11px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);font-family:var(--font-mono);">');
+    // Reflect whether a key is already saved now that the field exists —
+    // previously done in renderSettings(), which can run while this field
+    // isn't mounted at all.
+    const keyEl = document.getElementById('settings-api-key-input');
+    const statusEl = document.getElementById('api-key-status');
+    if (keyEl) keyEl.placeholder = getApiKey() ? '••••••••••••••••••••••••••••••••' : 'sk-ant-…';
+    if (statusEl) statusEl.textContent = '';
+  }
   if (id === 'modal-account') {
     // Always reflects the live session rather than whatever was last
     // rendered — cheap enough to just recompute on every open.
@@ -6269,6 +6407,13 @@ function closeModal(id) {
     document.activeElement.blur();
   }
   overlay.classList.remove('open');
+  // §61 — unmount password fields the moment their modal closes; see
+  // mountPasswordField()/showAuthGate() for why.
+  if (id === 'modal-change-password') {
+    unmountPasswordField('change-password-new');
+    unmountPasswordField('change-password-confirm');
+  }
+  if (id === 'modal-api-key') unmountPasswordField('settings-api-key-input');
   // If the food-search modal (modal-nutr-add) was opened in "recipe
   // ingredient search" mode and is being dismissed outright (backdrop tap,
   // swipe-down, or the ✕ button — all funnel through here) rather than
@@ -7408,6 +7553,162 @@ function reorderSupersetExercise(day, supersetId, fromInnerIdx, toInnerIdx) {
   members.forEach((ex, i) => { ex.supersetOrder = i * 10; });
   save();
   renderPlan();
+}
+
+// ── Drag landing-position indicator (ported from MyDreamClean's diary
+//    reorder-drag-and-drop feature) ──────────────────────────────────────
+// dataTransfer.getData() isn't reliably readable during dragover in most
+// browsers (only dragstart/drop) — so the drag source is tracked in a
+// plain variable set on dragstart instead, purely for showing the
+// indicator as the row is dragged. The actual reorder on drop still goes
+// through dataTransfer as before (reorderExercise/reorderSupersetExercise),
+// so drop behaves the same even if something clears these mid-drag.
+//
+// Two independent instances, since Plan has two nesting levels that must
+// never interfere with each other: top-level slots (solo exercises and
+// whole superset groups, one .swipe-row-wrap per slot) within a day, and
+// members reordering *within* one superset group (one .ss-inner-row per
+// member). Each gets its own drag-source variable and its own shared
+// indicator element.
+
+// Returns the index the dragged row would land BEFORE if dropped now
+// (0..rows.length, where rows.length means "after the last row") — based
+// on comparing the cursor's Y position to each row's vertical midpoint,
+// top to bottom.
+function planDragBeforeIndex(clientY, rows) {
+  for (let i = 0; i < rows.length; i++) {
+    const rect = rows[i].getBoundingClientRect();
+    if (clientY < rect.top + rect.height / 2) return i;
+  }
+  return rows.length;
+}
+
+// Converts a "insert before this position" index (as returned by
+// planDragBeforeIndex, referring to positions in the array BEFORE the
+// dragged item is removed) into the toIdx reorderExercise()/
+// reorderSupersetExercise() expect (an index in the array AFTER the
+// dragged item is removed — standard splice-based array-move semantics).
+function planDragToIdx(beforeIdx, fromIdx, count) {
+  if (beforeIdx >= count) return count - 1; // dropped below everything — lands at the end
+  if (beforeIdx <= fromIdx) return beforeIdx; // unaffected by the removal, since it's earlier
+  return beforeIdx - 1; // shifts down by one once the earlier dragged item is removed
+}
+
+// ── Day-level slots (solo exercises + superset groups) ──
+let _planDayDragFrom = null; // { slotIdx, dayKey } | null
+let _planDayDropIndicatorEl = null;
+
+function handlePlanDayDragStart(slotIdx, dayKey, event) {
+  _planDayDragFrom = { slotIdx, dayKey };
+  if (event && event.currentTarget) event.currentTarget.classList.add('dragging');
+}
+function handlePlanDayDragEnd() {
+  document.querySelectorAll('.swipe-row-wrap.dragging').forEach(el => el.classList.remove('dragging'));
+  hidePlanDropIndicator('day');
+  _planDayDragFrom = null;
+}
+function handlePlanRowsDragOver(event, dayKey) {
+  event.preventDefault(); // required for drop to fire at all
+  const container = event.currentTarget;
+  if (!_planDayDragFrom || _planDayDragFrom.dayKey !== dayKey) {
+    hidePlanDropIndicator('day');
+    return;
+  }
+  const rows = Array.from(container.querySelectorAll(':scope > .swipe-row-wrap'));
+  const beforeIdx = planDragBeforeIndex(event.clientY, rows);
+  const indicator = getPlanDropIndicatorEl('day');
+  indicator.classList.add('showing');
+  if (beforeIdx < rows.length) {
+    container.insertBefore(indicator, rows[beforeIdx]);
+  } else if (rows.length > 0) {
+    rows[rows.length - 1].after(indicator);
+  } else {
+    container.appendChild(indicator);
+  }
+}
+function handlePlanRowsDrop(event, dayKey) {
+  event.preventDefault();
+  hidePlanDropIndicator('day');
+  const from = _planDayDragFrom;
+  _planDayDragFrom = null;
+  if (!from || from.dayKey !== dayKey) return;
+  const container = event.currentTarget;
+  const rows = Array.from(container.querySelectorAll(':scope > .swipe-row-wrap'));
+  const beforeIdx = planDragBeforeIndex(event.clientY, rows);
+  const toIdx = planDragToIdx(beforeIdx, from.slotIdx, rows.length);
+  if (from.slotIdx === toIdx) return;
+  reorderExercise(dayKey, from.slotIdx, toIdx);
+}
+
+// ── Within-superset member rows ──
+let _planSsDragFrom = null; // { mIdx, ssId, dayKey } | null
+let _planSsDropIndicatorEl = null;
+
+function handlePlanSsDragStart(mIdx, ssId, dayKey, event) {
+  _planSsDragFrom = { mIdx, ssId, dayKey };
+  if (event) event.stopPropagation(); // don't also start a day-level slot drag
+  if (event && event.currentTarget) event.currentTarget.classList.add('dragging');
+}
+function handlePlanSsDragEnd(event) {
+  if (event) event.stopPropagation();
+  document.querySelectorAll('.ss-inner-row.dragging').forEach(el => el.classList.remove('dragging'));
+  hidePlanDropIndicator('ss');
+  _planSsDragFrom = null;
+}
+function handleSsRowsDragOver(event, ssId) {
+  event.preventDefault();
+  event.stopPropagation(); // never let this bubble into the day-level container's dragover
+  const container = event.currentTarget;
+  if (!_planSsDragFrom || _planSsDragFrom.ssId !== ssId) {
+    hidePlanDropIndicator('ss');
+    return;
+  }
+  const rows = Array.from(container.querySelectorAll(':scope > .ss-inner-row'));
+  const beforeIdx = planDragBeforeIndex(event.clientY, rows);
+  const indicator = getPlanDropIndicatorEl('ss');
+  indicator.classList.add('showing');
+  if (beforeIdx < rows.length) {
+    container.insertBefore(indicator, rows[beforeIdx]);
+  } else if (rows.length > 0) {
+    rows[rows.length - 1].after(indicator);
+  } else {
+    container.appendChild(indicator);
+  }
+}
+function handleSsRowsDrop(event, ssId, dayKey) {
+  event.preventDefault();
+  event.stopPropagation();
+  hidePlanDropIndicator('ss');
+  const from = _planSsDragFrom;
+  _planSsDragFrom = null;
+  if (!from || from.ssId !== ssId) return;
+  const container = event.currentTarget;
+  const rows = Array.from(container.querySelectorAll(':scope > .ss-inner-row'));
+  const beforeIdx = planDragBeforeIndex(event.clientY, rows);
+  const toIdx = planDragToIdx(beforeIdx, from.mIdx, rows.length);
+  if (from.mIdx === toIdx) return;
+  reorderSupersetExercise(dayKey, ssId, from.mIdx, toIdx);
+}
+
+// Shared indicator element plumbing — `which` is 'day' or 'ss', selecting
+// which of the two independent indicator elements/state to operate on.
+function getPlanDropIndicatorEl(which) {
+  if (which === 'ss') {
+    if (!_planSsDropIndicatorEl) {
+      _planSsDropIndicatorEl = document.createElement('div');
+      _planSsDropIndicatorEl.className = 'plan-drop-indicator';
+    }
+    return _planSsDropIndicatorEl;
+  }
+  if (!_planDayDropIndicatorEl) {
+    _planDayDropIndicatorEl = document.createElement('div');
+    _planDayDropIndicatorEl.className = 'plan-drop-indicator';
+  }
+  return _planDayDropIndicatorEl;
+}
+function hidePlanDropIndicator(which) {
+  const el = which === 'ss' ? _planSsDropIndicatorEl : _planDayDropIndicatorEl;
+  if (el && el.parentNode) el.parentNode.removeChild(el);
 }
 
 // Opens the add-exercise modal (modal-exercise) for a given week/day, blank
@@ -10423,8 +10724,17 @@ function renderProgress(animate = false) {
   // directly below the weight header — it used to be its own standalone
   // card underneath the whole swipe deck. Existing peak-window content is
   // pushed below it, but stays in this same swipeable card.
-  const aiAdviceParts = buildAiAdviceCardHTML();
-  const trendInsightsHtml = buildInsightsCardHTML(aiAdviceParts);
+  // Once this cycle is at/past its effective end date (or already reviewed),
+  // the cycle-end review permanently takes over this slot instead of the
+  // mid-cycle checkin/plateau card — see buildCycleReviewCardHTML().
+  const cycleReviewCardHtml = buildCycleReviewCardHTML(macro);
+  let trendInsightsHtml;
+  if (cycleReviewCardHtml !== null) {
+    trendInsightsHtml = cycleReviewCardHtml;
+  } else {
+    const aiAdviceParts = buildAiAdviceCardHTML();
+    trendInsightsHtml = buildInsightsCardHTML(aiAdviceParts);
+  }
   const card1 = `<div>
     <div style="text-align:center;">
       <div style="font-family:var(--font-display);font-size:28px;font-weight:800;line-height:1;">${latest ? latest.weight + ' lbs' : '—'}</div>
@@ -12939,6 +13249,516 @@ function buildAiAdviceCardHTML() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// CYCLE-END AI REVIEW (v8.08) — see TECHNICAL.md §62
+// ─────────────────────────────────────────────────────────────────────────────
+// Once a macrocycle reaches its effective end date (start + duration incl.
+// any Extend-added weeks — see getMacroEndDate), the mid-cycle "Ask BLOC for
+// advice"/plateau card (buildAiAdviceCardHTML/buildInsightsCardHTML above)
+// is permanently replaced, for that cycle, by a one-time review: a compliance
+// score, an estimated bodyfat-change direction, and a full narrative built
+// from the same deterministic weekly/measurement/lift data as a mid-cycle
+// check-in plus optional before/after photos. Exactly one review per cycle,
+// no re-run — stored on macro.review so it round-trips through export/
+// import/backup like any other macrocycle field, and is always shown again
+// (never the mid-cycle card) whenever that cycle is later viewed.
+
+// True once a macrocycle has reached its effective end date (including any
+// extension) — the earliest point a review is allowed to be generated.
+function isCycleReviewDue(macro) {
+  if (!macro || !macro.start) return false;
+  return getLocalToday() >= toLocalDateStr(getMacroEndDate(macro));
+}
+
+// Best 5 exercises by % increase in top logged set weight from the first
+// week they were logged in this macro to the last — a simple, deterministic
+// stand-in for "most progressed lift" that only needs trainLogs/exercises,
+// both already keyed by macroId/week/dayKey/exerciseId (see getSessionVolume
+// for the same key-construction pattern). Iterates every real session slot
+// via getMacroSessionDayKeys/getMacroEffectiveMesoCount so extension weeks
+// and microcycles are included automatically.
+function computeCycleBestLifts(macro) {
+  const dayKeys = getMacroSessionDayKeys(macro);
+  const totalWeeks = getMacroEffectiveMesoCount(macro);
+  const byExercise = {};
+  for (let w = 1; w <= totalWeeks; w++) {
+    dayKeys.forEach(dayKey => {
+      if (dayKey.endsWith('m2') && !isMesoMicroValid(macro, w, 2)) return;
+      const exercises = state.exercises[macro.id + '_1_' + dayKey] || [];
+      const key = macro.id + '_' + w + '_' + dayKey;
+      exercises.forEach(ex => {
+        const sets = getWeekSets(ex, w, macro.weeks);
+        let bestThisSession = 0;
+        for (let s = 0; s < sets; s++) {
+          const log = state.trainLogs[key + '_' + ex.id + '_' + s];
+          if (log && log.weight && log.reps && parseFloat(log.weight) > bestThisSession) {
+            bestThisSession = parseFloat(log.weight);
+          }
+        }
+        if (bestThisSession > 0) {
+          if (!byExercise[ex.id]) {
+            byExercise[ex.id] = { name: ex.name, firstWeek: w, firstWeight: bestThisSession, lastWeek: w, lastWeight: bestThisSession };
+          } else {
+            const rec = byExercise[ex.id];
+            if (w < rec.firstWeek) { rec.firstWeek = w; rec.firstWeight = bestThisSession; }
+            if (w > rec.lastWeek)  { rec.lastWeek  = w; rec.lastWeight  = bestThisSession; }
+          }
+        }
+      });
+    });
+  }
+  return Object.values(byExercise)
+    .filter(r => r.lastWeek > r.firstWeek && r.firstWeight > 0)
+    .map(r => ({
+      name: r.name,
+      startWeight: r.firstWeight,
+      endWeight: r.lastWeight,
+      pctIncrease: Math.round(((r.lastWeight - r.firstWeight) / r.firstWeight) * 1000) / 10,
+    }))
+    .filter(r => r.pctIncrease > 0)
+    .sort((a, b) => b.pctIncrease - a.pctIncrease)
+    .slice(0, 5);
+}
+
+// Per-week min/max swing (weight) and actual-vs-target deviation swing
+// (kcal/steps/protein) across the whole cycle — same computation as
+// buildWeeklySwingsCardHTML's local weekBuckets, factored out as plain data
+// (rather than reusing that function directly, since it renders straight to
+// HTML) so the review payload and the live Progress card can never drift
+// out of sync in their swing definitions.
+function computeCycleWeeklySwings(macro) {
+  const dayMap = buildDayMap();
+  const allDates = Object.keys(dayMap).sort();
+  const anchor = macro.start || allDates[0];
+  const anchorMs = new Date(anchor + 'T00:00:00').getTime();
+  const rangeEndStr = toLocalDateStr(getMacroEndDate(macro));
+  const rangeEndMs = new Date(rangeEndStr + 'T00:00:00').getTime();
+
+  function swingOf(values) {
+    if (values.length < 2) return { min: null, max: null };
+    const diffs = [];
+    for (let i = 0; i < values.length - 1; i++) diffs.push(values[i+1] - values[i]);
+    return { min: Math.min(...diffs), max: Math.max(...diffs) };
+  }
+  function devSwingOf(dates, field) {
+    const diffs = [];
+    dates.forEach(d => {
+      const g = getGoalForDate(d, macro.id);
+      const target = g ? g[field] : null;
+      const actual = dayMap[d] ? dayMap[d][field] : null;
+      if (target !== null && target !== undefined && actual !== null && actual !== undefined) {
+        diffs.push(actual - target);
+      }
+    });
+    if (diffs.length < 1) return { min: null, max: null };
+    return { min: Math.min(...diffs), max: Math.max(...diffs) };
+  }
+
+  const weekBuckets = [];
+  let cur = new Date(anchorMs);
+  let wn = 1;
+  while (cur.getTime() <= rangeEndMs) {
+    const bStart = toLocalDateStr(cur);
+    const bEndDate = new Date(cur); bEndDate.setDate(bEndDate.getDate() + 6);
+    const bEnd = toLocalDateStr(bEndDate);
+    const bDates = allDates.filter(d => d >= bStart && d <= bEnd && dayMap[d]);
+    if (bDates.length > 0) {
+      const wD = bDates.filter(d => dayMap[d].weight !== null);
+      const sD = bDates.filter(d => dayMap[d].steps  !== null);
+      const nD = bDates.filter(d => dayMap[d].hasNutr);
+      weekBuckets.push({
+        label: 'W' + wn,
+        weight:  swingOf(wD.map(d => dayMap[d].weight)),
+        kcal:    devSwingOf(nD, 'kcal'),
+        steps:   devSwingOf(sD, 'steps'),
+        protein: devSwingOf(nD, 'protein'),
+      });
+    }
+    wn++;
+    cur = new Date(cur); cur.setDate(cur.getDate() + 7);
+  }
+  return weekBuckets;
+}
+
+// Start/end weight and waist/hip measurements actually logged within the
+// cycle's own date range (macro.start through its effective end date).
+function computeCycleMeasurements(macro) {
+  const startStr = macro.start;
+  const endStr = toLocalDateStr(getMacroEndDate(macro));
+  const bodyLogs = [...(state.bodyLogs || [])].sort((a, b) => a.date.localeCompare(b.date));
+  const inRange = l => l.date >= startStr && l.date <= endStr;
+  const weightLogs = bodyLogs.filter(l => l.weight !== null && l.weight !== undefined && inRange(l));
+  const waistLogs  = bodyLogs.filter(l => l.waist  !== null && l.waist  !== undefined && inRange(l));
+  const hipLogs    = bodyLogs.filter(l => l.hip    !== null && l.hip    !== undefined && inRange(l));
+  const startWeight = weightLogs.length ? weightLogs[0].weight : null;
+  const endWeight    = weightLogs.length ? weightLogs[weightLogs.length - 1].weight : null;
+  return {
+    startWeight, endWeight,
+    totalWeightChange: (startWeight !== null && endWeight !== null) ? parseFloat((endWeight - startWeight).toFixed(1)) : null,
+    startWaist: waistLogs.length ? waistLogs[0].waist : null,
+    endWaist:   waistLogs.length ? waistLogs[waistLogs.length - 1].waist : null,
+    startHip:   hipLogs.length ? hipLogs[0].hip : null,
+    endHip:     hipLogs.length ? hipLogs[hipLogs.length - 1].hip : null,
+    targetWeight: macro.targetBw || null,
+    weightTargetDelta: (endWeight !== null && macro.targetBw) ? parseFloat((endWeight - macro.targetBw).toFixed(1)) : null,
+  };
+}
+
+// Compact snapshots of the two most recently reviewed OTHER cycles, most
+// recent first — sent with every review call so BLOC can compare against
+// its own prior verdicts ("always include last 2 reviews in each call").
+function getPriorCycleReviews(excludeMacroId) {
+  return (state.macrocycles || [])
+    .filter(m => m.id !== excludeMacroId && m.review)
+    .sort((a, b) => toLocalDateStr(getMacroEndDate(b)).localeCompare(toLocalDateStr(getMacroEndDate(a))))
+    .slice(0, 2)
+    .map(m => ({
+      name: m.name, goalType: m.goalType,
+      start: m.start, end: toLocalDateStr(getMacroEndDate(m)),
+      complianceScore: m.review.complianceScore,
+      bodyfatDirection: m.review.bodyfatEstimate ? m.review.bodyfatEstimate.direction : null,
+      weightTargetDelta: m.review.weightTargetDelta,
+      highlights: m.review.highlights, improvements: m.review.improvements,
+    }));
+}
+
+// Assembles every deterministic input for the review call — weekly avgs
+// (reuses computeWeeklyInsights, the same function the mid-cycle check-in
+// prompt uses), weekly swings, measurements, best lifts, and prior reviews.
+// Pure computation, no DOM/API — kept separate from buildCycleReviewPrompt()
+// so the payload can be inspected/tested independently of prompt wording.
+function computeCycleReviewPayload(macro) {
+  const ins = computeWeeklyInsights(macro);
+  const todayStr = getLocalToday();
+  const endStr = toLocalDateStr(getMacroEndDate(macro));
+  const dayMap = buildDayMap();
+  // Steps is the last thing logged in a day — if the review is being run on
+  // the cycle's actual final day, that day's steps often genuinely haven't
+  // been logged yet even though the day is "done" in every other sense.
+  // Flagged here rather than silently treated as a missed target.
+  const finalDayStepsPending = (todayStr === endStr) &&
+    (!dayMap[endStr] || dayMap[endStr].steps === null || dayMap[endStr].steps === undefined);
+  return {
+    macroName: macro.name, goalType: macro.goalType || 'loss',
+    start: macro.start, end: endStr,
+    weeklyAverages: ins ? ins.weekBuckets : [],
+    weeklySwings: computeCycleWeeklySwings(macro),
+    measurements: computeCycleMeasurements(macro),
+    bestLifts: computeCycleBestLifts(macro),
+    priorReviews: getPriorCycleReviews(macro.id),
+    finalDayStepsPending,
+  };
+}
+
+// ── Photo capture — before/after, held in memory only ──────────────────────
+// Never written to state/localStorage; discarded once the call resolves
+// (success or failure) or the modal is dismissed. Only their counts persist
+// (macro.review.beforePhotoCount/afterPhotoCount). Mirrors the exact
+// downsize-to-base64-JPEG approach analyseMealPhoto() uses for meal photos.
+let _cycleReviewBeforeImages = [];
+let _cycleReviewAfterImages  = [];
+// Matches the meal-photo constants declared later in this file
+// (PHOTO_MAX_DIMENSION/PHOTO_JPEG_QUALITY) — duplicated as literals rather
+// than referenced directly since those are declared with const further
+// down the file and referencing them here would hit the temporal dead zone.
+const CYCLE_REVIEW_PHOTO_MAX_DIMENSION = 1024;
+const CYCLE_REVIEW_PHOTO_JPEG_QUALITY  = 0.82;
+
+function _downsizePhotoFileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read photo'));
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Could not read photo'));
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height && width > CYCLE_REVIEW_PHOTO_MAX_DIMENSION) {
+          height = Math.round(height * (CYCLE_REVIEW_PHOTO_MAX_DIMENSION / width));
+          width = CYCLE_REVIEW_PHOTO_MAX_DIMENSION;
+        } else if (height > CYCLE_REVIEW_PHOTO_MAX_DIMENSION) {
+          width = Math.round(width * (CYCLE_REVIEW_PHOTO_MAX_DIMENSION / height));
+          height = CYCLE_REVIEW_PHOTO_MAX_DIMENSION;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', CYCLE_REVIEW_PHOTO_JPEG_QUALITY);
+        resolve({ base64: dataUrl.split(',')[1], mediaType: 'image/jpeg' });
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleCycleReviewPhotoSelect(event, side) {
+  const files = Array.from(event.target.files || []);
+  event.target.value = ''; // allow re-selecting the same file(s) again
+  if (!files.length) return;
+  const bucket = side === 'before' ? _cycleReviewBeforeImages : _cycleReviewAfterImages;
+  for (const file of files) {
+    try { bucket.push(await _downsizePhotoFileToBase64(file)); }
+    catch (e) { /* skip unreadable file */ }
+  }
+  const countEl = document.getElementById('cycle-review-' + side + '-count');
+  if (countEl) countEl.textContent = String(bucket.length);
+}
+
+let _cycleReviewModalMacroId = null;
+let _cycleReviewLoading = false;
+// Keyed by macroId — whether a completed review's card is expanded. Reset
+// (collapsed) any time Progress is left for another screen (see showScreen).
+let _cycleReviewCardOpen = {};
+
+function openCycleReviewModal(macroId) {
+  _cycleReviewModalMacroId = macroId;
+  _cycleReviewBeforeImages = [];
+  _cycleReviewAfterImages  = [];
+  const beforeCount = document.getElementById('cycle-review-before-count');
+  const afterCount  = document.getElementById('cycle-review-after-count');
+  if (beforeCount) beforeCount.textContent = '0';
+  if (afterCount)  afterCount.textContent  = '0';
+  const errEl = document.getElementById('cycle-review-error');
+  if (errEl) errEl.style.display = 'none';
+  const btn = document.getElementById('cycle-review-generate-btn');
+  if (btn) { btn.disabled = false; btn.textContent = 'Generate Review →'; }
+  openModal('modal-cycle-review');
+}
+
+// Builds the system + user prompt for the cycle-end review call, plus the
+// ordered list of image content blocks (each preceded by its own text
+// label, since the API has no per-image caption field) to append after it.
+function buildCycleReviewPrompt(macro, payload) {
+  const weeklyLines = payload.weeklyAverages.map(w =>
+    `${w.label} (${w.bStart}–${w.bEnd}): avg weight ${w.avgWeight !== null ? w.avgWeight.toFixed(1) + ' lbs' : '—'}, avg kcal ${w.avgKcal ?? '—'}, avg protein ${w.avgProtein ?? '—'}g, avg carbs ${w.avgCarbs ?? '—'}g, avg steps ${w.avgSteps ?? '—'}`
+  ).join('\n') || 'No weekly data logged this cycle.';
+
+  const swingsLines = payload.weeklySwings.map(w => {
+    const f = (s, suf) => s.min === null ? '—' : (s.min === s.max ? `${s.min}${suf}` : `${s.min}${suf}/${s.max}${suf}`);
+    return `${w.label}: weight swing ${f(w.weight, 'lbs')}, kcal-vs-target swing ${f(w.kcal, '')}, steps-vs-target swing ${f(w.steps, '')}, protein-vs-target swing ${f(w.protein, 'g')}`;
+  }).join('\n') || 'No weekly swing data available.';
+
+  const m = payload.measurements;
+  const measLines = `Weight: ${m.startWeight ?? '—'} → ${m.endWeight ?? '—'} lbs (${m.totalWeightChange !== null ? (m.totalWeightChange > 0 ? '+' : '') + m.totalWeightChange : '—'} lbs)${m.targetWeight ? `, target was ${m.targetWeight} lbs (ended ${m.weightTargetDelta > 0 ? '+' : ''}${m.weightTargetDelta} lbs vs target)` : ''}
+Waist: ${m.startWaist ?? '—'} → ${m.endWaist ?? '—'} in
+Hip: ${m.startHip ?? '—'} → ${m.endHip ?? '—'} in`;
+
+  const liftsLines = payload.bestLifts.length
+    ? payload.bestLifts.map(l => `${l.name}: ${l.startWeight} → ${l.endWeight} (+${l.pctIncrease}%)`).join('\n')
+    : 'No exercises had enough logged data across the cycle to show progression.';
+
+  const priorLines = payload.priorReviews.length
+    ? payload.priorReviews.map(r => `- ${r.name} (${r.goalType}, ${r.start}–${r.end}): compliance ${r.complianceScore}/10, bodyfat ${r.bodyfatDirection || 'unclear'}, ended ${r.weightTargetDelta !== null ? (r.weightTargetDelta > 0 ? '+' : '') + r.weightTargetDelta + ' lbs vs target' : 'no target set'}`).join('\n')
+    : 'No prior reviewed cycles yet — this is the first.';
+
+  const beforeCount = _cycleReviewBeforeImages.length;
+  const afterCount  = _cycleReviewAfterImages.length;
+
+  const systemPrompt = `You are BLOC, a personal training and nutrition coach embedded in a fitness tracking app, writing this user's end-of-cycle review. Speak in second person, be direct and specific, and reference actual numbers from the data below rather than being vague.
+
+The user is heavily tattooed — if progress photos are provided, judge visual body composition change by silhouette, muscle definition, and waist/torso shape, and explicitly look past/ignore tattoos rather than mistaking skin art for shadow, discoloration, or other visual artifacts.
+
+${beforeCount || afterCount ? `${beforeCount} before photo(s) and ${afterCount} after photo(s) are attached below (labelled). Use them only to inform the bodyfat-change estimate and narrative — never to redo any of the numeric/deterministic figures already given to you.` : 'No before/after photos were provided this cycle — base the bodyfat-change estimate on weight, measurements, and training data only, and say so plainly rather than guessing from nothing.'}
+
+Respond with ONLY a raw JSON object, no markdown fences, no preamble. Schema:
+{
+  "complianceScore": number (0-10, how consistently the user stayed on track this cycle — nutrition/step/training adherence),
+  "bodyfatEstimate": { "direction": "loss"|"gain"|"no significant change"|"unclear", "note": "1-2 sentence explanation, cross-referencing weight/measurement trend against any visual estimate" },
+  "headline": "one-sentence verdict on the cycle",
+  "narrative": "3-5 paragraph full review — how far off the weight target they were, whether measurements/photos support genuine fat loss vs just scale movement, training performance, and whether the cycle ran too long (e.g. stalled in a deficit near the end) or was well-timed",
+  "highlights": ["short bullet", "..."],
+  "improvements": ["short bullet", "..."],
+  "stickingPoints": "1-2 sentences on the main sticking point(s), or empty string if none",
+  "ranTooLong": boolean,
+  "ranTooLongNote": "1 sentence if ranTooLong is true, else empty string"
+}
+
+${payload.finalDayStepsPending ? "Note: this cycle's final day's steps are not yet logged (steps is always the last thing logged in a day) — assume the daily steps goal was met for that day rather than treating it as a miss." : ''}`;
+
+  let userText = `CYCLE: ${payload.macroName} (${payload.goalType}), ${payload.start} to ${payload.end}
+
+WEEKLY AVERAGES
+${weeklyLines}
+
+WEEKLY SWINGS (min/max)
+${swingsLines}
+
+MEASUREMENTS
+${measLines}
+
+BEST PROGRESSED LIFTS (top set weight, first → last logged week)
+${liftsLines}
+
+PRIOR REVIEWED CYCLES (most recent first)
+${priorLines}
+
+Write this cycle's review per the schema above.`;
+
+  const imageBlocks = [];
+  _cycleReviewBeforeImages.forEach((img, i) => {
+    imageBlocks.push({ type: 'text', text: `BEFORE PHOTO ${i + 1}:` });
+    imageBlocks.push({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.base64 } });
+  });
+  _cycleReviewAfterImages.forEach((img, i) => {
+    imageBlocks.push({ type: 'text', text: `AFTER PHOTO ${i + 1}:` });
+    imageBlocks.push({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.base64 } });
+  });
+
+  return { systemPrompt, userText, imageBlocks };
+}
+
+async function runCycleReview() {
+  if (_cycleReviewLoading) return;
+  const macro = (state.macrocycles || []).find(m => m.id === _cycleReviewModalMacroId);
+  const errEl = document.getElementById('cycle-review-error');
+  if (errEl) errEl.style.display = 'none';
+  if (!macro) return;
+  if (macro.review) return; // one review per cycle, no re-run
+
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    if (errEl) { errEl.textContent = 'No API key saved. Go to Settings → Linked services to add your Anthropic API key.'; errEl.style.display = 'block'; }
+    return;
+  }
+
+  _cycleReviewLoading = true;
+  const btn = document.getElementById('cycle-review-generate-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'BLOC is reviewing…'; }
+
+  const beforePhotoCount = _cycleReviewBeforeImages.length;
+  const afterPhotoCount  = _cycleReviewAfterImages.length;
+
+  try {
+    const payload = computeCycleReviewPayload(macro);
+    const { systemPrompt, userText, imageBlocks } = buildCycleReviewPrompt(macro, payload);
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 4000,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: [{ type: 'text', text: userText }, ...imageBlocks] }],
+      }),
+    });
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new Error(errBody?.error?.message || `API error ${res.status}`);
+    }
+
+    const data = await res.json();
+    const rawText = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+    const cleaned = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+    const response = JSON.parse(cleaned);
+
+    if (!response.narrative || !response.headline || typeof response.complianceScore !== 'number') {
+      throw new Error('Response missing required fields');
+    }
+
+    macro.review = {
+      storedAt: getLocalToday(),
+      complianceScore: response.complianceScore,
+      bodyfatEstimate: response.bodyfatEstimate || null,
+      headline: response.headline,
+      narrative: response.narrative,
+      highlights: response.highlights || [],
+      improvements: response.improvements || [],
+      stickingPoints: response.stickingPoints || '',
+      ranTooLong: !!response.ranTooLong,
+      ranTooLongNote: response.ranTooLongNote || '',
+      weightTargetDelta: payload.measurements.weightTargetDelta,
+      totalWeightChange: payload.measurements.totalWeightChange,
+      beforePhotoCount, afterPhotoCount,
+    };
+    save();
+
+    _cycleReviewBeforeImages = [];
+    _cycleReviewAfterImages  = [];
+    _cycleReviewCardOpen[macro.id] = true; // show it open right after generating
+    closeModal('modal-cycle-review');
+    renderProgress();
+
+  } catch (err) {
+    if (errEl) { errEl.textContent = `Could not generate review: ${err.message}`; errEl.style.display = 'block'; }
+  }
+
+  _cycleReviewLoading = false;
+  if (btn) { btn.disabled = false; btn.textContent = 'Generate Review →'; }
+}
+
+function toggleCycleReviewCard(macroId) {
+  _cycleReviewCardOpen[macroId] = !_cycleReviewCardOpen[macroId];
+  renderProgress();
+}
+
+// Returns the replacement card HTML for card1's insights slot when the
+// resolved macro is at/past its effective end date (or already reviewed) —
+// null otherwise, meaning "render the normal mid-cycle card instead" (see
+// the call site in renderProgress()).
+function buildCycleReviewCardHTML(macro) {
+  if (!macro) return null;
+  if (!macro.review && !isCycleReviewDue(macro)) return null;
+
+  if (!macro.review) {
+    return `<div style="margin-top:10px;padding:13px 14px;border:1px solid var(--border2);border-radius:var(--r-lg);">
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">Cycle complete</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:10px;">This cycle has reached its end date. Run your cycle review to get a compliance score, bodyfat-change estimate, and full narrative — this can only be done once.</div>
+      <button class="btn btn-accent btn-block" onclick="openCycleReviewModal('${macro.id}')">✦ Start Cycle Review</button>
+    </div>`;
+  }
+
+  const r = macro.review;
+  const open = !!_cycleReviewCardOpen[macro.id];
+  const bf = r.bodyfatEstimate || {};
+  const scoreColor = r.complianceScore >= 8 ? 'var(--accent)' : r.complianceScore >= 5 ? 'var(--amber)' : 'var(--red)';
+
+  const bulletList = (items) => items && items.length
+    ? `<ul style="margin:6px 0 0;padding-left:18px;">${items.map(i => `<li style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:3px;">${i}</li>`).join('')}</ul>`
+    : '';
+
+  const bodyHtml = open ? `
+    <div style="font-size:12px;color:var(--text2);line-height:1.6;margin-top:10px;white-space:pre-line;">${r.narrative}</div>
+    ${r.highlights.length ? `<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-top:12px;">Highlights</div>${bulletList(r.highlights)}` : ''}
+    ${r.improvements.length ? `<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-top:12px;">Areas for improvement</div>${bulletList(r.improvements)}` : ''}
+    ${r.stickingPoints ? `<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-top:12px;">Sticking points</div><div style="font-size:12px;color:var(--text2);line-height:1.5;margin-top:4px;">${r.stickingPoints}</div>` : ''}
+    ${r.ranTooLong ? `<div style="font-size:12px;color:var(--amber);line-height:1.5;margin-top:12px;">⚠ ${r.ranTooLongNote}</div>` : ''}
+    ${(r.beforePhotoCount || r.afterPhotoCount) ? `<div style="font-size:11px;color:var(--text3);margin-top:12px;">${r.beforePhotoCount} before / ${r.afterPhotoCount} after photo(s) reviewed — not stored.</div>` : ''}
+  ` : '';
+
+  return `<div style="margin-top:10px;padding:13px 14px;border:1px solid var(--border2);border-radius:var(--r-lg);cursor:pointer;" onclick="toggleCycleReviewCard('${macro.id}')">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+      <div style="flex:1;">
+        <div style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:500;color:var(--accent);">✦ Cycle Review</div>
+        <div style="font-size:13px;font-weight:600;color:var(--text);margin-top:6px;line-height:1.35;">${r.headline}</div>
+      </div>
+      <span style="font-size:12px;color:var(--text3);flex-shrink:0;margin-top:2px;">${open ? '▲' : '▼'}</span>
+    </div>
+    <div style="display:flex;gap:6px;margin-top:10px;">
+      <div style="flex:1;min-width:0;text-align:center;">
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-weight:600;">Compliance</div>
+        <div style="font-size:14px;font-weight:600;color:${scoreColor};margin-top:2px;">${r.complianceScore}/10</div>
+      </div>
+      <div style="flex:1;min-width:0;text-align:center;">
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-weight:600;">Bodyfat</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text);margin-top:2px;text-transform:capitalize;">${bf.direction || '—'}</div>
+      </div>
+      <div style="flex:1;min-width:0;text-align:center;">
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-weight:600;">Wt change</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text);margin-top:2px;">${r.totalWeightChange !== null ? (r.totalWeightChange > 0 ? '+' : '') + r.totalWeightChange + ' lbs' : '—'}</div>
+      </div>
+    </div>
+    ${bodyHtml}
+  </div>`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PHASE 3 — Goal queue flow
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -15374,6 +16194,7 @@ function renderMicroBlock(macro, week, micro, days, dayLabels) {
         }
       });
 
+      html += `<div class="plan-day-rows" ondragover="handlePlanRowsDragOver(event,'${dayKey}')" ondrop="handlePlanRowsDrop(event,'${dayKey}')">`;
       planSlots.forEach((slot, slotIdx) => {
         if (slot.type === 'solo') {
           const ex  = slot.ex;
@@ -15389,9 +16210,8 @@ function renderMicroBlock(macro, week, micro, days, dayLabels) {
               : `${sets} sets · ${ex.reps} reps · ${ex.startWeight} kg start`;
           html += `<div class="swipe-row-wrap" style="border-top:0.5px solid var(--border);"
             draggable="true"
-            ondragstart="event.dataTransfer.setData('text/plain','${slotIdx}|${dayKey}')"
-            ondragover="event.preventDefault()"
-            ondrop="event.preventDefault();const parts=event.dataTransfer.getData('text/plain').split('|');if(parts[1]==='${dayKey}')reorderExercise('${dayKey}',parseInt(parts[0]),${slotIdx})">
+            ondragstart="event.dataTransfer.setData('text/plain','${slotIdx}|${dayKey}');handlePlanDayDragStart(${slotIdx},'${dayKey}',event)"
+            ondragend="handlePlanDayDragEnd()">
             <div class="swipe-row-content" style="padding:10px 0;width:100%;box-sizing:border-box;"
               onclick="openEditExercise(1,'${dayKey}',${idx})">
               <div style="display:flex;align-items:center;gap:8px;width:100%;cursor:pointer;-webkit-tap-highlight-color:transparent;">
@@ -15422,7 +16242,7 @@ function renderMicroBlock(macro, week, micro, days, dayLabels) {
           const displayName = getSupersetDisplayName(ssId, members);
           const leaderSets  = getWeekSets(members[0], 1, macro.weeks);
           // Build inner exercise rows
-          let innerRows = '';
+          let innerRows = `<div class="ss-inner-rows" ondragover="handleSsRowsDragOver(event,'${ssId}')" ondrop="handleSsRowsDrop(event,'${ssId}','${dayKey}')">`;
           members.forEach((mem, mIdx) => {
             const mSets      = getWeekSets(mem, 1, macro.weeks);
             const mTypeLabel = mem.type === 'standard' ? 'std' : mem.type === 'giant' ? 'giant set' : 'pause set';
@@ -15431,9 +16251,8 @@ function renderMicroBlock(macro, week, micro, days, dayLabels) {
             const fullIdx = exercises.findIndex(e => e.id === mem.id);
             innerRows += `<div class="ss-inner-row"
               draggable="true"
-              ondragstart="event.dataTransfer.setData('text/plain','${mIdx}|ss|${ssId}|${dayKey}');event.stopPropagation();"
-              ondragover="event.preventDefault();event.stopPropagation();"
-              ondrop="event.preventDefault();event.stopPropagation();const p=event.dataTransfer.getData('text/plain').split('|');if(p[1]==='ss'&&p[2]==='${ssId}')reorderSupersetExercise('${dayKey}','${ssId}',parseInt(p[0]),${mIdx})">
+              ondragstart="event.dataTransfer.setData('text/plain','${mIdx}|ss|${ssId}|${dayKey}');handlePlanSsDragStart(${mIdx},'${ssId}','${dayKey}',event)"
+              ondragend="handlePlanSsDragEnd(event)">
               <div style="color:var(--text3);cursor:grab;padding:0 4px;flex-shrink:0;touch-action:none;">⠿</div>
               <div class="ss-inner-row-content" onclick="openEditExercise(1,'${dayKey}',${fullIdx})">
                 <div style="font-weight:500;font-size:13px;color:var(--text);">${mem.name}${isLeader ? ' <span style="font-size:10px;color:var(--accent);font-weight:400;">sets leader</span>' : ''}</div>
@@ -15442,12 +16261,12 @@ function renderMicroBlock(macro, week, micro, days, dayLabels) {
               <button class="ss-unlink-btn" onclick="event.stopPropagation();unlinkExercise('${dayKey}','${mem.id}')" title="Remove from superset" aria-label="Remove from superset"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 0 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="2" y1="2" x2="22" y2="22"/></svg></button>
             </div>`;
           });
+          innerRows += `</div>`;
           // Swipe-to-delete wrapper around the whole group block
           html += `<div class="swipe-row-wrap ss-group-swipe-wrap" style="border-top:0.5px solid var(--border);"
             draggable="true"
-            ondragstart="event.dataTransfer.setData('text/plain','${slotIdx}|${dayKey}');"
-            ondragover="event.preventDefault();"
-            ondrop="event.preventDefault();const parts=event.dataTransfer.getData('text/plain').split('|');if(parts[1]==='${dayKey}')reorderExercise('${dayKey}',parseInt(parts[0]),${slotIdx})">
+            ondragstart="event.dataTransfer.setData('text/plain','${slotIdx}|${dayKey}');handlePlanDayDragStart(${slotIdx},'${dayKey}',event)"
+            ondragend="handlePlanDayDragEnd()">
             <div class="swipe-row-content" style="padding:8px 0;">
               <div class="ss-block">
                 <div class="ss-block-header">
@@ -15470,6 +16289,7 @@ function renderMicroBlock(macro, week, micro, days, dayLabels) {
           </div>`;
         }
       });
+      html += `</div>`; // close .plan-day-rows
       } // end if (!isCollapsed)
 
       html += `</div>`;
