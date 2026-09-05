@@ -3986,3 +3986,91 @@ This is **optimistic, not authoritative** — presence of a cached token doesn't
 - No cached token at all (never signed in, or previously signed out) → the optimistic class is never added, gate behaves exactly as it did before this fix — fail-closed, unaffected.
 
 Verified end-to-end with Playwright: (1) no cached token — gate visible at `display:flex` throughout, matching pre-fix behaviour exactly; (2) a mocked *successful* session resolution (network route intercepted to return a fake-but-valid `createClient()`/`getSession()` response) with a cached token present — `auth-likely-signed-in` present and `#auth-gate` computed `display:none` from `domcontentloaded` straight through to full load, confirming the gate genuinely never paints; (3) a cached token that can't be confirmed (network blocked, as in this sandboxed test environment with no reachable Supabase project) — confirmed the class is correctly cleared and the real gate reappears with its error banner, i.e. the fail-closed fallback still works.
+
+## §62 — Password-autofill leak (real fix), add/edit food modal height mismatch, and the Cycle-End AI Review (v8.08)
+
+### Log Steps still occasionally showed the Passwords/Keychain AutoFill bar, even after §61
+
+§61's `<form style="display:contents">` wrapper fix scoped each password field's autofill *semantically* while that section is on-screen, but never addressed the actual cause: `#auth-gate` (and every settings modal) is never removed from the DOM, only ever toggled with a `.hidden`/`.open` CSS class. All three `type="password"` inputs — the sign-in gate's password field, and Change Password's and the Settings API-key modal's — were therefore permanently present in the document, just `display:none`, for the entire lifetime of a session. iOS Safari's AutoFill/passkey heuristic scans the whole document for password inputs to decide whether to offer its Keychain bar on a given focused field, and it does this regardless of `display:none` — a `<form>` boundary changes which *credential* it would offer, not whether it fires at all. So a signed-in user, who will never touch the sign-in form again this session, still had a live password field sitting in the DOM the whole time, and the numeric Log Steps box on Home kept tripping the same heuristic.
+
+**Fix:** stopped treating "hidden" and "not needed" as the same thing. Each of the three password fields is now mounted into the DOM only while its gate/modal is actually in use, and physically removed (`.remove()`, not just hidden) the moment it closes:
+
+- **Auth gate** (`index.html`, `auth-password-wrap`): the input is present in the initial static markup (so a genuinely signed-out load still paints it with zero flash, same as before), but a synchronous inline `<script>` placed immediately after `#auth-gate`'s markup — in the same tick as §60's pre-paint `_hasCachedSupabaseSession` check — removes it immediately if that check found a cached session (i.e. the gate is about to be optimistically hidden anyway). `showAuthGate()` now calls `ensureAuthPasswordField()` to recreate it (respecting the current `_authMode` for the right `autocomplete` hint) before unhiding the gate; `hideAuthGate()` calls `unmountPasswordField()` to remove it again once a session is confirmed.
+- **Change Password modal** and **Settings → API key modal**: the `<input type="password">` markup was removed from the static HTML entirely, leaving empty wrapper `<div>`s (`change-password-new-wrap`, `change-password-confirm-wrap`, `settings-api-key-wrap`). `openModal(id)` now mounts the relevant field(s) fresh on open (also restoring the "key already saved" placeholder for the API-key field, previously done in `renderSettings()` which can run while the field doesn't exist at all); `closeModal(id)` unmounts them again.
+
+Shared helpers (`index.html`, next to `showAuthGate()`): `mountPasswordField(id, wrapId, html)` inserts the given markup into the wrapper if not already present; `unmountPasswordField(id)` removes the element if present. Both are idempotent, so double-calls (e.g. a modal opened twice) are harmless no-ops.
+
+One ordering fix fell out of this: `openChangePassword()` used to clear `change-password-new`/`confirm`'s `.value` *before* calling `openModal('modal-change-password')` — harmless when the fields were always in the DOM, but a null-dereference now that they only exist once the modal's mount step has run. Reordered to open the modal first.
+
+Net effect: at any moment during normal use, the DOM contains **zero** `type="password"` inputs except while the sign-in gate, Change Password, or API-key modal is genuinely on-screen — so the AutoFill heuristic has nothing to key off of the rest of the time, on any page.
+
+### Add/edit food modals: serving-size dropdown a different height than the Servings input
+
+`modal-nutr-serving`, `modal-nutr-edit`, and `modal-recipe-serving` all pair a serving-size `<select>` against a "Servings" `<input type="number">` in the same `.input-row`. The number input is deliberately styled at `font-size:18px` with the display font/weight (`nutr-serving-servings`, `nutr-edit-servings`, `recipe-serving-servings`) to read as a prominent quantity stepper, while its sibling `<select>` was left at the shared `input, select, textarea` rule's default `font-size:14px`. Same padding, different font metrics → visibly different rendered heights for two boxes sitting side by side in the same row.
+
+**Fix:** added one CSS rule pinning all three select/input pairs to an explicit `height:44px`, comfortably fitting the 18px input's content box:
+
+```css
+#nutr-serving-picker-select, #nutr-serving-servings,
+#nutr-edit-picker-select, #nutr-edit-servings,
+#recipe-serving-picker-select, #recipe-serving-servings {
+  height: 44px;
+}
+```
+
+No other styling (font-size, weight, padding) was touched — the visual hierarchy between the two fields is unchanged, just their box height now matches.
+
+### Cycle-End AI Review
+
+New Development item 3 (per the v8.08 dev notes) — the mid-cycle "Ask BLOC for advice"/plateau-detection card (`buildAiAdviceCardHTML()`/`buildInsightsCardHTML()`, card 1 of the Progress page's Insights swipe deck) is now permanently replaced, once a macrocycle reaches its **effective** end date — start date + total duration including any Extend-added weeks, i.e. `getMacroEndDate(macro)`, the same helper the Extend feature and every other cycle-boundary check in the app already uses — by a one-time, non-repeatable review: a compliance score, an estimated bodyfat-change direction, and a full narrative, optionally informed by before/after progress photos.
+
+**Eligibility & gating** (`isCycleReviewDue(macro)`): due once `getLocalToday() >= getMacroEndDate(macro)` and no review yet exists for that cycle. This is checked, and the review UI takes over, on whichever macrocycle the Progress page's hero card currently has resolved (`resolveProgressMacro()`) — so it applies correctly to the active cycle on its actual last day, and to a past cycle a person switches back to later via the existing "tap the hero card → Cycle history → pick a cycle" flow (`openCycleHistory()`/`selectCycle()`), which already re-points `state.currentMacroId` at the chosen cycle app-wide, not just within Progress. No new switching mechanism was needed — a missed review is simply performed later by switching back to that cycle exactly as the dev notes describe. Because eligibility is a pure function of the stored end date rather than "is this cycle currently active," a late review any number of weeks/months afterward works identically to one done exactly on time.
+
+Once `macro.review` exists, `buildCycleReviewCardHTML()` always renders the review instead of the mid-cycle card for that cycle, regardless of how long ago it ended — satisfying "when I look back at old cycles, I should always see the cycle review." There is deliberately no re-run path: `runCycleReview()` refuses if `macro.review` is already set, and the UI never offers the option once it exists.
+
+**Storage** (`macro.review`, `index.html` state model): the finished review is stored directly on the macrocycle object in `state.macrocycles` — not in `state.insightsRollup` (the separate, already-existing completed-cycle summary archive used by the mid-cycle/next-cycle AI prompts) — because macrocycles are never deleted on completion (only an explicit user delete removes one), so this persists through normal `save()`/export/import/cloud backup with no schema migration or new whitelisting, and works before `insightsRollup` would have archived the cycle (which only happens once `end < today`, a day *after* a same-day review could already exist). Shape:
+
+```js
+macro.review = {
+  storedAt, complianceScore,            // 0-10
+  bodyfatEstimate: { direction, note }, // direction: loss | gain | no significant change | unclear
+  headline, narrative,
+  highlights: [], improvements: [],
+  stickingPoints, ranTooLong, ranTooLongNote,
+  weightTargetDelta, totalWeightChange, // vs macro.targetBw, and start→end weight
+  beforePhotoCount, afterPhotoCount,    // counts only — see Photos below
+}
+```
+
+**Deterministic payload** (`computeCycleReviewPayload(macro)`), reusing existing engines wherever one already computed the right thing rather than re-deriving it:
+- **Weekly averages** — `computeWeeklyInsights(macro).weekBuckets` (the same function the mid-cycle check-in prompt uses): avg weight/kcal/protein/carbs/steps per week.
+- **Weekly swings** — `computeCycleWeeklySwings(macro)`, a standalone data-only port of `buildWeeklySwingsCardHTML()`'s internal min/max-swing logic (kept as a separate function rather than reused directly since the original renders straight to HTML), scoped to the cycle's own start/effective-end range.
+- **Measurements** — `computeCycleMeasurements(macro)`: first/last logged weight and waist/hip within `[macro.start, effective end]`, plus `weightTargetDelta` against `macro.targetBw`.
+- **Best lifts** — `computeCycleBestLifts(macro)`: for every exercise in the macro's session templates (`state.exercises[macro.id + '_1_' + dayKey]`, walked across every real week/day slot via `getMacroSessionDayKeys()`/`getMacroEffectiveMesoCount()`/`isMesoMicroValid()` — the same iteration helpers `getMacroTotalVolume()` uses, so extension weeks and microcycles are included automatically), compares the best logged top-set weight in the first week it was logged vs. the last, and returns the top 5 by % increase. There's no existing PR/1RM tracker in the app to lean on, so this is a new, deliberately simple metric.
+- **Prior reviews** — `getPriorCycleReviews(excludeMacroId)`: the last 2 *other* cycles that have a `.review`, most recent first, condensed to compliance/bodyfat-direction/weight-target-delta/highlights/improvements — sent with every call so BLOC can compare against its own prior verdicts, per the dev notes' "always include last 2 reviews in each call."
+- **Final-day steps caveat** — steps is always the last thing logged in a day, so if the review is generated on the cycle's actual last day and that day has no steps logged yet, `finalDayStepsPending` is set and the prompt is told to assume the daily steps goal was met for that day rather than scoring it a miss.
+
+**Photos** (`index.html`, `modal-cycle-review`): two tiles, Before and After, each with a "📷 Take" (`<input type="file" accept="image/*" capture="environment">`) and "🖼 Upload" (`<input type="file" accept="image/*" multiple>`) button, allowing multiple photos per side. Each selected file is downsized client-side to the same `1024`px-longest-edge / `0.82`-quality JPEG base64 that `analyseMealPhoto()`'s meal-photo flow already uses (constants duplicated as `CYCLE_REVIEW_PHOTO_MAX_DIMENSION`/`_QUALITY` rather than referencing the meal-photo ones directly, since those are declared with `const` later in the file and referencing them earlier would hit the temporal dead zone) and held in two module-level arrays (`_cycleReviewBeforeImages`/`_cycleReviewAfterImages`) — **never** written to `state` or `localStorage`. The system prompt explicitly instructs BLOC to judge visual body composition past tattoos (Adam is heavily tattooed) rather than mistaking ink for shadow/discoloration. On both success and failure the in-memory image arrays are discarded; only `beforePhotoCount`/`afterPhotoCount` (how many were attached) persist on `macro.review`.
+
+**The call** (`runCycleReview()`): identical plumbing to `askBlocForAdvice()`/`analyseMealPhoto()` — same BYO key (`getApiKey()`), same endpoint/headers (`x-api-key`, `anthropic-dangerous-direct-browser-access`), same model (`claude-sonnet-4-6`), direct browser → `api.anthropic.com` fetch, no proxy. The message content is the deterministic text prompt followed by each photo as an `image` block, each preceded by its own `text` block label (`BEFORE PHOTO 1:`, etc.) since the Messages API has no per-image caption field. On a valid JSON response, `macro.review` is set, `save()`d, the modal closes, and the card renders open (`_cycleReviewCardOpen[macro.id] = true`) so the result is immediately visible.
+
+**Card UI** (`buildCycleReviewCardHTML(macro)`, card 1 of the Progress Insights deck): before the cycle is due, this returns `null` and the existing mid-cycle card renders exactly as before (zero behavioural change pre-eligibility). Once due but not yet reviewed, it shows a single "Start Cycle Review →" CTA. Once reviewed, per the dev notes' "the whole card gets one single tap to expand/collapse, not individual sections," the entire card (not a sub-toggle within it) is one `onclick` that flips `_cycleReviewCardOpen[macro.id]` — a small always-visible header (headline + compliance/bodyfat/weight-change stat row) stays visible either way, with the narrative/highlights/improvements/sticking-points body shown only when open. `_cycleReviewCardOpen` is reset to `{}` in `showScreen()` whenever navigating to any screen other than Progress, so returning to Progress later always finds the card collapsed by default, matching "once a user has clicked review, when they leave the page and return, the card is collapsed by default" — it only opens automatically once, immediately after a fresh `runCycleReview()` completes.
+
+No changes were made to the mid-cycle "Ask BLOC for advice" feature itself (`buildAiAdviceCardHTML`/`askBlocForAdvice`/`buildBlocAdvicePrompt`) — it continues to run exactly as before right up until a cycle's effective end date, at which point this feature takes over that same card slot.
+
+## §63 — Plan exercise reorder: drag landing-position indicator (ported from MyDreamClean)
+
+Plan's Week-1 exercise list already used the same native HTML5 drag-and-drop as another in-house PWA, MyDreamClean's diary/planning page (`draggable="true"` + `dragstart`/`dragover`/`drop`, `dataTransfer.setData('text/plain', ...)` carrying the move) — but with no visual feedback for where a dragged row would actually land, and the landing position itself was coarse: dropping was only ever resolved against whichever row's own `ondrop` happened to fire (i.e. "wherever the cursor is when it's released, snapped to that row"), not a precise cursor-position calculation.
+
+MyDreamClean's diary reorder already solved both problems with a shared "drop indicator" element moved via `insertBefore`/`after` to track the nearest insertion point during `dragover`, computed from the cursor's Y position against each row's bounding-rect midpoint — ported into `index.html` as-is, adapted to Plan's two independent nesting levels (MyDreamClean's diary only has one):
+
+- **Day-level slots** — solo exercises and whole superset groups (each a `.swipe-row-wrap`), reordered via the existing `reorderExercise()`.
+- **Within-superset members** — `.ss-inner-row`s inside one superset group, reordered via the existing `reorderSupersetExercise()`.
+
+Each level gets its own drag-source variable (`_planDayDragFrom`/`_planSsDragFrom`) and its own shared indicator DOM node (`getPlanDropIndicatorEl('day'|'ss')`), mirroring MyDreamClean's `_diaryDragFrom`/`_diaryDropIndicatorEl` exactly — kept separate so a within-group drag can never be mistaken for a day-level slot drag (the inner-row container's `dragover`/`drop` handlers `stopPropagation()` before it can bubble up to the day-level container, exactly where the original per-row inline handlers already did the same for the identical reason).
+
+**Markup changes**: both nesting levels' per-row `ondragover`/`ondrop` were removed (they used to resolve the drop against whichever single row fired it) and replaced with one container-level pair each — a new `.plan-day-rows` wrapper around a day's `.swipe-row-wrap` rows, and a new `.ss-inner-rows` wrapper around one group's `.ss-inner-row`s — calling `handlePlanRowsDragOver`/`handlePlanRowsDrop` and `handleSsRowsDragOver`/`handleSsRowsDrop` respectively. Each row's `ondragstart` still calls `dataTransfer.setData(...)` (unused by the new drop handlers, which read the module-level drag-source variable instead, but kept for drag-initiation compliance in browsers that expect it) alongside the new `handlePlanDayDragStart`/`handlePlanSsDragStart` calls that populate that variable and add a `.dragging` class (new `opacity: 0.35` rule, same visual as MyDreamClean's `.diary-chip.dragging`) for in-flight visual feedback that didn't exist before either.
+
+New shared helpers `planDragBeforeIndex()`/`planDragToIdx()` are direct ports of MyDreamClean's `diaryDragBeforeIndex()`/`diaryDragToIdx()` — same midpoint-comparison and same before/after splice-index conversion — so both the indicator shown mid-drag and the index actually used on drop are computed identically (WYSIWYG), which the previous per-row-drop approach couldn't guarantee.
+
+The indicator itself (`.plan-drop-indicator` CSS, next to `.swipe-row-wrap`) reuses MyDreamClean's `.diary-drop-indicator` styling (a 3px accent-coloured bar with a soft outline), substituting `var(--surface)` for MyDreamClean's `rgba(var(--surface-rgb), 0.9)` outline colour since BLOC has no `--surface-rgb` token.
