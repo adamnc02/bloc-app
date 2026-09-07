@@ -5860,6 +5860,53 @@ document.addEventListener('focusin', function(e) {
     blocDebugLog('FOCUS ' + id + ' — [' + blocScanPasswordFields().join('] [') + ']');
   }
 });
+
+// ════════════════════════════════════════════════════════════════════════
+// Global AutoFill suppression (v8.09) — see BLOC Dev and Bug Fixes.md item
+// 1 / TECHNICAL.md §67. Confirmed via the debug instrumentation above that
+// the "Passwords"/"Autofill Contact" QuickType chip appearing on unrelated
+// fields (Log Steps, food search/filter boxes, serving-size pickers) isn't
+// caused by any live type="password" input in BLOC's own DOM — it's iOS
+// 17+'s "AutoFill Passwords in any text field" behavior, which Apple's own
+// release notes describe as intentional: once the page's ORIGIN has any
+// saved credential in Keychain anywhere (BLOC's own, or another project of
+// Adam's sharing the same adamnc02.github.io origin under a different
+// path), Safari offers it as a QuickType suggestion on every editable
+// field on that origin, regardless of the field's own type/autocomplete.
+// There's no web API to fully disable this per-field, but autocomplete=
+// "off" is the one hint Safari does at least partially respect — applied
+// here to every <input> in the app EXCEPT the handful that genuinely want
+// real credential/contact AutoFill (the auth-gate email/password fields
+// and the Change Password fields). A MutationObserver is used rather than
+// hand-editing every individual <input> tag, since almost every screen in
+// BLOC is fully rebuilt from `state` via innerHTML on every render
+// (showScreen(), openModal(), renderHome(), etc. — see SUPABASE.md/
+// TECHNICAL.md's own notes on this pattern) — a one-time pass at boot
+// would miss every input rendered afterward.
+const AUTOFILL_ALLOWED_IDS = new Set([
+  'auth-email-input', 'auth-password-input',
+  'change-password-new', 'change-password-confirm',
+]);
+function suppressAutofillIn(root) {
+  root.querySelectorAll('input').forEach(el => {
+    if (AUTOFILL_ALLOWED_IDS.has(el.id)) return;
+    if (el.getAttribute('autocomplete') !== 'off') el.setAttribute('autocomplete', 'off');
+  });
+}
+suppressAutofillIn(document);
+new MutationObserver(mutations => {
+  for (const m of mutations) {
+    m.addedNodes.forEach(node => {
+      if (node.nodeType !== 1) return;
+      if (node.tagName === 'INPUT') {
+        if (!AUTOFILL_ALLOWED_IDS.has(node.id) && node.getAttribute('autocomplete') !== 'off') node.setAttribute('autocomplete', 'off');
+      } else if (node.querySelectorAll) {
+        suppressAutofillIn(node);
+      }
+    });
+  }
+}).observe(document.body, { childList: true, subtree: true });
+
 function ensureAuthPasswordField() {
   mountPasswordField('auth-password-input', 'auth-password-wrap',
     '<input type="password" id="auth-password-input" placeholder="Password" autocomplete="' +

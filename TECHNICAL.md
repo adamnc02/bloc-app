@@ -4128,3 +4128,33 @@ Reported directly from Adam's own testing workflow: signing into an account that
 **Fix:** `checkSnapshotZero()` is now `async` and, before showing that notice, calls `listSnapshots()` to check whether the account already has *any* cloud backup. If it does, the notice is skipped entirely and `restoreFromSnapshot()` pulls the newest one down instead (`listSnapshots()` already sorts newest-first) — no prompt, matching how re-signing into an existing account should behave. The original notice only still fires when the account genuinely has zero cloud snapshots. Guarded per-device by a new `bloc_snapshot_autorestore_done` localStorage flag (same pattern as the existing `bloc_snapshot_zero_pending`/`_done` — its own key, not swept into `state`/export, cleared by both `handleDeleteMyData()` and `handleCloseAccount()`), so this only fires once per device rather than re-restoring on every boot.
 
 `continueBootAfterAuth()`'s call site now awaits `checkSnapshotZero()` before firing `maybeUploadOpportunisticSnapshot()` — previously fire-and-forget, which raced: an auto-restore reloads the page after downloading a snapshot, and an unguarded opportunistic upload firing in the meantime could have pushed this device's about-to-be-discarded local state back up under today's date, potentially clobbering the very snapshot mid-restore.
+
+## §67 — Password-autofill bug: real root cause found (iOS 17 origin-wide AutoFill), and a suppression pass
+
+The §61/§62 debug instrumentation (§64) paid off immediately: the debug panel's event log showed `FOCUS home-steps-input — []` — zero `type="password"` inputs anywhere in the DOM at the exact moment the bug fired. Both prior fixes had correctly eliminated the thing they were checking; neither was ever the actual mechanism.
+
+### What was actually happening
+
+The full-screen prompt Adam screenshotted (*"Sign in to 'github.io' with your password 'OpenRouteService API Key' for 'sleepy_hed_cox@hotmail.co.uk'"*) named a different site entirely and a different email than BLOC's. Root cause: browsers (and iOS Keychain) scope saved credentials by **origin** — scheme+host+port — not by path. BLOC is deployed at `https://adamnc02.github.io/bloc-app/` (`TECHNICAL.md` §60); every other project of Adam's on GitHub Pages shares that exact same origin, just a different path. A stray Keychain entry from an unrelated project (an OpenRouteService API key, tested on some other `adamnc02.github.io/...` project) was therefore offered on *any* page under that origin, BLOC included — nothing to do with BLOC's own password fields at all. Adam deleted that entry from iOS Settings → Passwords and the full-screen prompt stopped.
+
+A second, milder symptom remained: a small "Passwords"/"Autofill Contact" QuickType chip above the keyboard, appearing inconsistently across several unrelated fields (Log Steps, the food search/filter box, serving-size pickers) and changing which suggestion type it offered depending on recent navigation. This is a separate, later iOS behavior change — Apple's own release notes for iOS 17: *"In Safari and apps, you can use AutoFill to enter your saved passwords in any text field, not just password fields."* Once a page's origin has **any** saved credential in Keychain anywhere, Safari offers it as a QuickType suggestion on every editable field on that origin, regardless of the field's own type or autocomplete value — there is no web API to disable this per-field. Notably, Adam signed into BLOC itself via Google OAuth, which never creates a Keychain password entry for the origin — so even this remaining chip isn't caused by BLOC's own sign-in credential; it's almost certainly one more Keychain entry, scoped specifically to `adamnc02.github.io` itself (not the generic `github.io` display name Adam already checked), left behind by a *different* project of his sharing the same GitHub Pages account/origin (MyDreamClean is the likeliest candidate — another PWA of Adam's, referenced elsewhere in this file, that unlike BLOC has a real email/password login). Worth checking iOS Settings → Passwords for entries against `adamnc02.github.io` specifically.
+
+### What was done about it
+
+Nothing in `index.html` can fix the origin-sharing problem itself — that's a hosting-topology fact, not a code bug. What the code *can* do is give Safari the one hint it does partially respect. Added a global, permanent (not temporary-debug) suppression pass, next to the existing password-field mount/unmount helpers:
+
+```js
+const AUTOFILL_ALLOWED_IDS = new Set([
+  'auth-email-input', 'auth-password-input',
+  'change-password-new', 'change-password-confirm',
+]);
+function suppressAutofillIn(root) { /* sets autocomplete="off" on every <input> under root except the allowed ids */ }
+suppressAutofillIn(document);
+new MutationObserver(...).observe(document.body, { childList: true, subtree: true });
+```
+
+Applied to every `<input>` in the app except the four that genuinely want real credential/contact AutoFill (the auth-gate email/password fields, Change Password's two fields). A `MutationObserver` is used rather than a one-time boot pass or hand-editing individual `<input>` tags across the file, because almost every screen in BLOC is fully rebuilt from `state` via `innerHTML` on every render (`showScreen()`, `openModal()`, `renderHome()`, etc.) — a static pass would miss everything rendered after boot.
+
+**Not a guaranteed fix** — `autocomplete="off"` is a hint iOS is documented to sometimes override for this specific feature, and the underlying cause (shared GitHub Pages origin, plus whatever other project's credential is still triggering it) isn't something `index.html` can resolve on its own. The structural fix, if this doesn't fully resolve it, is either finding and removing the specific `adamnc02.github.io`-scoped Keychain entry from the other project, or moving BLOC to its own custom domain so its origin can never share Keychain scope with an unrelated project again.
+
+The debug panel/instrumentation from §64 was intentionally left in place rather than removed this session — it already proved decisive once and costs nothing to keep around if Adam needs to verify whether the suppression pass actually reduced the chip's frequency.
