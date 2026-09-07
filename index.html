@@ -2471,13 +2471,9 @@ try {
 // showAuthGate()/hideAuthGate() further down re-create or remove it again
 // as sign-in state actually changes during the session.
 try {
-  window._blocDebugLog = window._blocDebugLog || [];
   if (typeof _hasCachedSupabaseSession !== 'undefined' && _hasCachedSupabaseSession) {
     var _apf = document.getElementById('auth-password-input');
     if (_apf) _apf.remove();
-    window._blocDebugLog.push('(pre-paint) cached session found — removed static auth-password-input, existed=' + !!_apf);
-  } else {
-    window._blocDebugLog.push('(pre-paint) no cached session found — auth-password-input left in initial markup as-is');
   }
 } catch (e) {}
 </script>
@@ -2497,13 +2493,6 @@ try {
       <div id="home-log-boxes"></div>
       <div id="home-food-preview"></div>
       <div id="home-train-preview"></div>
-      <!-- TEMP DEBUG (v8.09) — investigating the password-autofill/Keychain
-           bar recurring on Log Steps despite §61/§62 (see BLOC Dev and Bug
-           Fixes.md item 1). Screenshot this panel when the bar reappears —
-           see renderHomeDebugPanel()/blocDebugLog() in index.html. Safe to
-           delete this div (and its call site in renderHome()) once the root
-           cause is confirmed. -->
-      <div id="home-debug-panel" style="margin:16px 0 0;padding:10px 12px;background:#1a1a1a;color:#7fffb0;font-family:ui-monospace,monospace;font-size:10px;line-height:1.5;border-radius:8px;white-space:normal;"></div>
     </div>
 
     <!-- ════════════════════════════════════════
@@ -5776,103 +5765,26 @@ function continueBootAfterAuth() {
 // node from the DOM as its gate/modal actually opens and closes, rather
 // than just toggling visibility.
 function mountPasswordField(id, wrapId, html) {
-  if (document.getElementById(id)) { blocDebugLog('mount SKIPPED, already present — id=' + id); return; }
+  if (document.getElementById(id)) return;
   const wrap = document.getElementById(wrapId);
   if (wrap) wrap.insertAdjacentHTML('afterbegin', html);
-  blocDebugLog('MOUNT id=' + id + ' wrap=' + wrapId + (wrap ? '' : ' — WRAP NOT FOUND'));
 }
 function unmountPasswordField(id) {
   const el = document.getElementById(id);
   if (el) el.remove();
-  blocDebugLog('UNMOUNT id=' + id + ' existed=' + !!el);
 }
-
-// ════════════════════════════════════════════════════════════════════════
-// TEMP DEBUG (v8.09) — investigating the password-autofill/Keychain bar
-// reappearing on Home's Log Steps box even after §62's DOM mount/unmount
-// fix (see BLOC Dev and Bug Fixes.md item 1, and TECHNICAL.md §61/§62).
-// Rather than guess at a third theory blind, this logs every mount/unmount
-// of a real type="password" field plus a live DOM scan whenever Log
-// Steps/weight is focused, and renders both into #home-debug-panel (Home
-// screen) so Adam can screenshot the exact DOM state the moment the bug
-// reproduces. Safe to delete this whole block — plus its call sites in
-// mountPasswordField()/unmountPasswordField()/renderHome(), the focusin
-// listener below, and the #home-debug-panel div in the HOME screen markup
-// — once the root cause is confirmed and fixed.
-// ════════════════════════════════════════════════════════════════════════
-window._blocDebugLog = window._blocDebugLog || [];
-function blocDebugLog(msg) {
-  const t = new Date();
-  const stamp = String(t.getHours()).padStart(2,'0') + ':' + String(t.getMinutes()).padStart(2,'0') + ':' + String(t.getSeconds()).padStart(2,'0');
-  window._blocDebugLog.push(stamp + '  ' + msg);
-  if (window._blocDebugLog.length > 40) window._blocDebugLog.shift();
-  renderHomeDebugPanel();
-}
-// Walks up from el to <body>, collecting an id/class breadcrumb and
-// flagging the first ancestor (if any) that's display:none or carries a
-// `.hidden` class — the exact condition §62's theory says shouldn't matter
-// anymore (a mounted-but-hidden password field was the old bug), so seeing
-// one here for a field that's supposedly unmounted-when-not-needed would be
-// a real clue.
-function blocDescribeEl(el) {
-  const chain = [];
-  let hiddenAncestor = null;
-  let node = el;
-  while (node && node.nodeType === 1 && node !== document.body) {
-    const label = node.id ? '#' + node.id : (node.className ? '.' + String(node.className).split(' ')[0] : node.tagName.toLowerCase());
-    chain.push(label);
-    if (!hiddenAncestor) {
-      let isHidden = false;
-      try { isHidden = window.getComputedStyle(node).display === 'none' || node.classList.contains('hidden'); } catch (e) {}
-      if (isHidden) hiddenAncestor = label;
-    }
-    node = node.parentElement;
-  }
-  return { path: chain.join(' < ') || '(root)', hiddenAncestor, connected: el.isConnected, visible: el.offsetParent !== null };
-}
-function blocScanPasswordFields() {
-  return [...document.querySelectorAll('input[type="password"]')].map(el => {
-    const d = blocDescribeEl(el);
-    return 'id=' + el.id + ' autocomplete=' + (el.getAttribute('autocomplete') || '-') +
-      ' connected=' + d.connected + ' visible=' + d.visible +
-      ' hiddenAncestor=' + (d.hiddenAncestor || 'none') + ' path=' + d.path;
-  });
-}
-function renderHomeDebugPanel() {
-  const box = document.getElementById('home-debug-panel');
-  if (!box) return;
-  const pwFields = blocScanPasswordFields();
-  box.innerHTML =
-    '<div style="font-weight:700;">DEBUG — password/autofill (temp, v8.09)</div>' +
-    '<div>type="password" inputs in DOM right now: ' + pwFields.length + '</div>' +
-    (pwFields.length ? pwFields.map(f => '&nbsp;&nbsp;• ' + f.replace(/</g,'&lt;')).join('<br>') + '<br>' : '') +
-    '<div style="margin-top:6px;font-weight:700;">Event log (oldest→newest, last 40):</div>' +
-    window._blocDebugLog.map(l => l.replace(/</g,'&lt;')).join('<br>');
-}
-// The critical evidence: what's actually in the DOM the instant Log Steps
-// (or, for comparison, the weight box — never implicated in this bug) is
-// focused, i.e. the exact moment iOS decides whether to show its Keychain
-// bar. Delegated on document since renderHomeLogBoxes() replaces these
-// inputs' markup on every re-render, so a direct listener would go stale.
-document.addEventListener('focusin', function(e) {
-  const id = e.target && e.target.id;
-  if (id === 'home-steps-input' || id === 'home-weight-input') {
-    blocDebugLog('FOCUS ' + id + ' — [' + blocScanPasswordFields().join('] [') + ']');
-  }
-});
 
 // ════════════════════════════════════════════════════════════════════════
 // Global AutoFill suppression (v8.09) — see BLOC Dev and Bug Fixes.md item
-// 1 / TECHNICAL.md §67. Confirmed via the debug instrumentation above that
+// 1 / TECHNICAL.md §67. A debug pass this session (since removed) confirmed
 // the "Passwords"/"Autofill Contact" QuickType chip appearing on unrelated
 // fields (Log Steps, food search/filter boxes, serving-size pickers) isn't
 // caused by any live type="password" input in BLOC's own DOM — it's iOS
 // 17+'s "AutoFill Passwords in any text field" behavior, which Apple's own
 // release notes describe as intentional: once the page's ORIGIN has any
-// saved credential in Keychain anywhere (BLOC's own, or another project of
-// Adam's sharing the same adamnc02.github.io origin under a different
-// path), Safari offers it as a QuickType suggestion on every editable
-// field on that origin, regardless of the field's own type/autocomplete.
+// saved credential in Keychain anywhere, Safari offers it as a QuickType
+// suggestion on every editable field on that origin, regardless of the
+// field's own type/autocomplete.
 // There's no web API to fully disable this per-field, but autocomplete=
 // "off" is the one hint Safari does at least partially respect — applied
 // here to every <input> in the app EXCEPT the handful that genuinely want
@@ -17147,7 +17059,6 @@ function renderHome(animateHero = false) {
   renderHomeLogBoxes();
   renderHomeFoodPreview();
   renderHomeTrainPreview();
-  renderHomeDebugPanel(); // TEMP DEBUG (v8.09) — see home-debug-panel above
 }
 
 // The 7 calendar-date strings (Monday..Sunday) making up the week that
