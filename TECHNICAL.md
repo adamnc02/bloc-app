@@ -4074,3 +4074,57 @@ Each level gets its own drag-source variable (`_planDayDragFrom`/`_planSsDragFro
 New shared helpers `planDragBeforeIndex()`/`planDragToIdx()` are direct ports of MyDreamClean's `diaryDragBeforeIndex()`/`diaryDragToIdx()` — same midpoint-comparison and same before/after splice-index conversion — so both the indicator shown mid-drag and the index actually used on drop are computed identically (WYSIWYG), which the previous per-row-drop approach couldn't guarantee.
 
 The indicator itself (`.plan-drop-indicator` CSS, next to `.swipe-row-wrap`) reuses MyDreamClean's `.diary-drop-indicator` styling (a 3px accent-coloured bar with a soft outline), substituting `var(--surface)` for MyDreamClean's `rgba(var(--surface-rgb), 0.9)` outline colour since BLOC has no `--surface-rgb` token.
+
+## §64 — v8.09 doc catch-up (Supabase schema for check-ins/cycle reviews/account closure) + password-autofill debug instrumentation
+
+Two unrelated pieces of work, no feature code changed in the first.
+
+### `SUPABASE.md` / `bloc-erd.html` brought up to date with migrations `0013`–`0015`
+
+These three migrations (`bloc_checkins`, `bloc_next_cycle_advice`, `cycle_reviews`, `account_closure_requests`) were drafted in an earlier session directly into this `BLOC V8.09` working folder's `supabase/migrations/`, per `CHECKINS-AND-CYCLE-REVIEW-SYNC-SCOPE.md` and `ACCOUNT-CLOSURE-SCOPE.md` — but neither the Mermaid ERD in `SUPABASE.md` nor the interactive `bloc-erd.html` had been updated to reflect them, and both are the "source of truth" documents Adam and future sessions read to understand the schema. This session added:
+
+- Four new entities to `SUPABASE.md`'s Mermaid diagram and a "Tables by module" write-up for each, explicitly calling out `bloc_checkins`' hardened insert/update-only RLS (the one table in the whole schema with no delete policy for `authenticated`) and the still-open app-side gaps (no stable id on `state.blocAdvice` yet, no `syncBlocCheckin()` push path, no closure-request insert UI) — matching the scope docs' own "Not yet built" sections rather than overstating progress.
+- Updated the GDPR section's table counts (22 → 25) and the migration list, including a new "restricted" legend colour and per-table tooltip note in `bloc-erd.html` for the two tables (`bloc_checkins`, `account_closure_requests`) that break the schema's otherwise-universal select/insert/update/delete RLS shape.
+- Noted that migration `0012` (referenced in `0015`'s header, narrowing `gdpr_erase_user_data()` to skip the Storage delete it can't correctly perform from inside SQL — see `deleteAllSnapshots()`'s comment in `index.html`) lives only in the actual app repo, not this folder, so the migration list here doesn't claim to have it.
+
+No schema, RLS, or `index.html` sync-layer changes were made — this was documentation only, correcting `SUPABASE.md`/`bloc-erd.html` to describe schema that already existed in this folder's migration files but wasn't yet written up anywhere else.
+
+### Password-autofill/Keychain bug: still not fixed — added in-app debug logging instead of a third guess
+
+Per the dev notes (item 1) and `TECHNICAL.md` §61/§62: Adam confirmed §62's DOM mount/unmount fix (physically removing every `type="password"` field from the DOM rather than merely CSS-hiding it) did **not** stop the Log Steps box from occasionally showing iOS's Keychain/AutoFill bar. Two theories were already tried and disproven this way; rather than propose a third without evidence, this session adds instrumentation instead of a fix:
+
+- `mountPasswordField()`/`unmountPasswordField()` (the §62 helpers) now call `blocDebugLog()` on every mount/unmount/skip, so the panel shows a timestamped history of exactly when each of the three password fields (auth gate, Change Password, API key) entered and left the DOM during the session.
+- A `document`-level `focusin` listener logs a full DOM scan (`blocScanPasswordFields()`) the instant Log Steps — or, as a control, the weight box, never implicated in this bug — is focused: every `type="password"` input currently in the document, whether it's actually connected/visible, and (via `blocDescribeEl()`) whether any ancestor is `display:none` or carries `.hidden`, since a merely-hidden-but-still-mounted field was the exact §62 theory.
+- Both render into a new `#home-debug-panel` at the bottom of the Home screen (`renderHomeDebugPanel()`, called from `renderHome()`), plain readable text sized for a screenshot — no remote logging, since the bug only reproduces on Adam's own device.
+- A synchronous pre-paint log line was also added to the existing inline `<script>` right after `<body>` (§60/§62's `_hasCachedSupabaseSession` check) recording whether the static `auth-password-input` markup was found and removed before first paint, since `blocDebugLog()` itself isn't defined yet that early in page load.
+
+All of this is explicitly marked temporary in-code (`TEMP DEBUG (v8.09)` comments at each of the four call sites: the pre-paint script, the two mount/unmount helpers, `renderHome()`, and the `#home-debug-panel` div itself) so it's trivial to strip out once Adam sends a screenshot of the panel from a reproduction and the actual root cause is found.
+
+## §65 — Account & Data modal: corrected which rows are red
+
+A prior pass had already rebuilt `modal-account` to mirror the main Settings screen's own visual language (`.section-title` grey-caps headers, `.settings-row` tappable rows, no bordered `<button>` elements, nothing collapsible — Account/Backup/Data, all three sections always expanded) — its own in-code comment describes this design correctly. What it got wrong: every row in the Data section (Download my data, Delete my data, Clear all data, Close my account) was styled red, both text and icon.
+
+Adam's instruction this session was that only the two truly irreversible-on-this-device/irreversible-account actions — **Clear all data** and **Close my account** — should read in red; **Download my data** and **Delete my data** should look like any other row. Fixed by dropping the `color:var(--red)` inline style and the `stroke:var(--red)` on those two rows' `<svg>` icons (back to the same `stroke:var(--text3)` every other row uses), leaving Clear all data/Close my account untouched. Updated the section's own in-code comment to match.
+
+**Found in passing, not fixed this session:** the "Close my account" row's `onclick="handleCloseAccount()"` has no matching function definition anywhere in `index.html` — tapping it today throws a `ReferenceError`. Its neighbouring code comment describes the full intended flow (insert into `account_closure_requests`, erase via `gdpr_erase_user_data()`, reset the device) as if built, but only the comment/markup exists; the actual function was never written. This matches `ACCOUNT-CLOSURE-SCOPE.md`'s own "Not yet built" section (the client-side insert path), so the design intent is documented correctly — it just hasn't been implemented. Left for a dedicated pass since it wasn't part of this session's ask.
+
+## §66 — `handleCloseAccount()` built, plus auto-restore for a second-device/re-test sign-in
+
+### `handleCloseAccount()`
+
+Implemented the function §65 flagged as missing, following `ACCOUNT-CLOSURE-SCOPE.md`'s own leanings on its three still-open code-shaped questions rather than re-deciding them:
+
+- **Q2 (does closure also erase immediately?) → yes.** `handleCloseAccount()` inserts a bare `{ user_id }` row into `account_closure_requests` first — deliberately before anything else, so the request is on record even if a later step throws — then calls `deleteAllSnapshots()` and `gdpr_erase_user_data()`, the same two calls `handleDeleteMyData()` already makes.
+- **Q3 (post-request device behaviour) → land on the auth gate, not a fresh-account state.** This is the one place `handleCloseAccount()` genuinely diverges from `handleDeleteMyData()`'s shape: after clearing the same local flags (`bloc_state`, `bloc_last_snapshot_date`, `bloc_snapshot_zero_pending`/`_done`, and the new `bloc_snapshot_autorestore_done` — see below), it also calls `supabase.auth.signOut()` before `location.reload()`. `handleDeleteMyData()` deliberately skips sign-out (its own comment: the account isn't closed, just emptied) — but a closure request means the account is *supposed* to stop being usable, and the scope doc's own reasoning was that landing on a working home screen mid-request would be confusing, so this one signs out.
+- **Q4 (copy)** handled inline in both `showConfirm()` dialogs — spelling out that data is erased immediately but the account itself closes only once Adam processes the request separately.
+- Q1 (processing latency) and Q7 (processing tooling) have no code-side answer — genuinely just "how Adam works the queue," left open.
+
+Two-step `showConfirm()` chain, same shape and same `settings-data-zone-status` error element as `handleDeleteMyData()`, so a failure at any step (insert, snapshot delete, or the erase RPC) surfaces the same way. **Not yet functional against a live project** — `account_closure_requests` (migration `0014`) still needs copying into the real repo and applying before the insert has a table to land in; see `SUPABASE.md`.
+
+### Second-device / repeat-test sign-in no longer offers the "keep local data" choice when the account already has cloud backups
+
+Reported directly from Adam's own testing workflow: signing into an account that already has real cloud data, from a device/browser profile that happens to have *some* local data sitting in it (leftover test data, an old demo dataset, anything), triggered the exact same "Existing data found… it'll automatically become this account's starting dataset" notice (`checkSnapshotZero()`/`modal-snapshot-zero`) a genuinely first-ever migration gets. That framing is actively wrong there — the next relational sync push (`syncTable()`'s delete-then-reinsert, `SUPABASE.md`) would silently overwrite the account's real data with whatever this device happens to have.
+
+**Fix:** `checkSnapshotZero()` is now `async` and, before showing that notice, calls `listSnapshots()` to check whether the account already has *any* cloud backup. If it does, the notice is skipped entirely and `restoreFromSnapshot()` pulls the newest one down instead (`listSnapshots()` already sorts newest-first) — no prompt, matching how re-signing into an existing account should behave. The original notice only still fires when the account genuinely has zero cloud snapshots. Guarded per-device by a new `bloc_snapshot_autorestore_done` localStorage flag (same pattern as the existing `bloc_snapshot_zero_pending`/`_done` — its own key, not swept into `state`/export, cleared by both `handleDeleteMyData()` and `handleCloseAccount()`), so this only fires once per device rather than re-restoring on every boot.
+
+`continueBootAfterAuth()`'s call site now awaits `checkSnapshotZero()` before firing `maybeUploadOpportunisticSnapshot()` — previously fire-and-forget, which raced: an auto-restore reloads the page after downloading a snapshot, and an unguarded opportunistic upload firing in the meantime could have pushed this device's about-to-be-discarded local state back up under today's date, potentially clobbering the very snapshot mid-restore.
