@@ -5259,6 +5259,86 @@ async function syncProfile(userId) {
   if (error) throw new Error(`profiles: ${error.message}`);
 }
 
+// ── bloc_checkins — single current check-in, upsert-by-id (v8.10) ──────
+// Deliberately NOT part of the generic jobs[] array / syncTable() path —
+// same reason profiles isn't: state.blocAdvice is a SINGLE object,
+// unconditionally overwritten by every new check-in (see askBlocForAdvice()),
+// so running it through syncTable()'s delete-then-reinsert would push
+// exactly one row and DELETE every previously-synced check-in on every
+// sync — the opposite of what this append-only historical table needs
+// (see migration 20260831000013's header and
+// CHECKINS-AND-CYCLE-REVIEW-SYNC-SCOPE.md for the full investigation).
+// Upserting by the stable id askBlocForAdvice() now stamps on creation
+// means each check-in's row is created once and only ever updated in
+// place afterward (chosenPath/chosenAt, a "Challenge this advice"
+// revision) — never replaced or deleted by a routine sync. bloc_checkins'
+// own RLS/GRANT has no delete at all (migration 0013/0016), so an upsert
+// is also the only operation this table permits from the client anyway.
+async function syncBlocCheckin(userId) {
+  const advice = state.blocAdvice;
+  if (!advice || !advice.response) return; // nothing stored yet this session
+  if (!advice.id) {
+    // Legacy local state from before v8.10 (no id field yet) — stamp one
+    // on first sync after upgrading rather than dropping this check-in.
+    advice.id = 'chk_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    save();
+  }
+  const { error } = await supabase.from('bloc_checkins').upsert({
+    id: advice.id,
+    user_id: userId,
+    macrocycle_id: advice.macroId || null,
+    stored_at: advice.storedAt,
+    signal: advice.response.signal ?? null,
+    headline: advice.response.headline ?? null,
+    narrative: advice.response.narrative ?? null,
+    chosen_path: advice.chosenPath || null,
+    chosen_at: advice.chosenAt || null,
+    response: advice.response,
+    conversation: advice.conversation || null,
+    prior_advice_this_cycle: advice.priorAdviceThisCycle || null,
+    revision_info: advice.revisionInfo || null,
+  }, { onConflict: 'id' });
+  if (error) throw new Error(`bloc_checkins: ${error.message}`);
+}
+
+// ── bloc_next_cycle_advice — ordinary jobs[] entry ──────────────────────
+// Safe to reconcile via the standard delete-then-reinsert (syncTable()):
+// unlike blocAdvice, state.nextCycleAdviceHistory is already a durable,
+// ever-growing array the app only ever .push()es to — see the scope doc.
+function syncRowsBlocNextCycleAdvice(userId) {
+  return (state.nextCycleAdviceHistory || []).map(h => ({
+    id: h.id, user_id: userId, macrocycle_id: h.macroId || null,
+    stored_at: h.date, next_goal_type: h.nextGoalType || null,
+    signal: h.signal ?? null, headline: h.headline ?? null, narrative: h.narrative ?? null,
+    plans: h.plans || [], chosen_plan_key: h.chosenPlanKey || null,
+    user_context: h.userContext || null,
+  }));
+}
+
+// ── cycle_reviews — ordinary jobs[] entry ───────────────────────────────
+// Safe to reconcile via the standard delete-then-reinsert: macro.review is
+// set at most once per macrocycle and never overwritten afterward
+// (runCycleReview() refuses to re-run if it's already set), so local state
+// is already durably authoritative for it — see the scope doc.
+function syncRowsCycleReviews(userId) {
+  return state.macrocycles.filter(m => m.review).map(m => {
+    const r = m.review;
+    return {
+      macrocycle_id: m.id, user_id: userId, stored_at: r.storedAt,
+      compliance_score: r.complianceScore ?? null,
+      bodyfat_direction: r.bodyfatEstimate ? r.bodyfatEstimate.direction : null,
+      bodyfat_note: r.bodyfatEstimate ? r.bodyfatEstimate.note : null,
+      headline: r.headline ?? null, narrative: r.narrative ?? null,
+      highlights: r.highlights || [], improvements: r.improvements || [],
+      sticking_points: r.stickingPoints || null,
+      ran_too_long: !!r.ranTooLong, ran_too_long_note: r.ranTooLongNote || null,
+      weight_target_delta: r.weightTargetDelta ?? null,
+      total_weight_change: r.totalWeightChange ?? null,
+      before_photo_count: r.beforePhotoCount || 0, after_photo_count: r.afterPhotoCount || 0,
+    };
+  });
+}
+
 function syncRowsMacrocycles(userId) {
   return state.macrocycles.map(m => ({
     id: m.id, user_id: userId, name: m.name, weeks: m.weeks,
@@ -5524,6 +5604,8 @@ async function pushStateToSupabase(userId) {
     ['sample_days', syncRowsSampleDays(userId)],
     ['body_logs', syncRowsBodyLogs(userId)],
     ['goals', syncRowsGoals(userId)],
+    ['bloc_next_cycle_advice', syncRowsBlocNextCycleAdvice(userId)],
+    ['cycle_reviews', syncRowsCycleReviews(userId)],
   ];
 
   // Sequential, in this exact parent-before-child order — child tables
@@ -5548,6 +5630,15 @@ async function pushStateToSupabase(userId) {
     await syncProfile(userId);
   } catch (err) {
     failures.push((err && err.message) || 'profiles: sync failed');
+  }
+
+  // bloc_checkins — same "single upsert, not a jobs[] tuple" shape as
+  // profiles, and for the same underlying reason: see syncBlocCheckin()'s
+  // own comment for why this table must never go through syncTable().
+  try {
+    await syncBlocCheckin(userId);
+  } catch (err) {
+    failures.push((err && err.message) || 'bloc_checkins: sync failed');
   }
 
   for (const [table, rows] of jobs) {
@@ -12754,8 +12845,16 @@ async function askBlocForAdvice() {
       if (supersededEntry) priorAdviceThisCycle.push(supersededEntry);
     }
 
+    // Stable id (v8.10) — same pattern as askBlocForNextCycleAdvice()'s
+    // adviceId: generated once, at creation, then carried through every
+    // later mutation of this same check-in (chosenPath, a "Challenge this
+    // advice" revision) so bloc_checkins can be upserted-by-id rather than
+    // needing its own delete-then-reinsert (see syncBlocCheckin()).
+    const checkinId = 'chk_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+
     // Store — only now do we update storedAt (cooldown clock starts here)
     state.blocAdvice = {
+      id: checkinId,
       response,
       storedAt:    today,
       macroId:     macro.id,
