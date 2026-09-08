@@ -4158,3 +4158,39 @@ Applied to every `<input>` in the app except the four that genuinely want real c
 **Not a guaranteed fix** — `autocomplete="off"` is a hint iOS is documented to sometimes override for this specific feature, and the underlying cause (shared GitHub Pages origin, plus whatever other project's credential is still triggering it) isn't something `index.html` can resolve on its own. The structural fix, if this doesn't fully resolve it, is either finding and removing the specific `adamnc02.github.io`-scoped Keychain entry from the other project, or moving BLOC to its own custom domain so its origin can never share Keychain scope with an unrelated project again.
 
 The debug panel/instrumentation from §64 was intentionally left in place rather than removed this session — it already proved decisive once and costs nothing to keep around if Adam needs to verify whether the suppression pass actually reduced the chip's frequency.
+
+## §68 — v8.10: "Build this plan next" mesocycle/weeks-per-meso gate, and a duplicate-build guard
+
+Two bugs reported on 2026-09-08 (`bloc-app/2026-09-08/Bug Fixes 2026-09-08.md`), both in the same flow: the New Macrocycle modal opened from Progress card 3's "Build this plan next" button (or from accepting an LLM next-cycle plan, `chooseNextCyclePlan()`).
+
+### Root cause
+
+`fillNextCycleMacroModal(goalType, totalWeeks)` (the shared prefill helper for both the deterministic recommendation and an accepted LLM plan) only ever set the "Mesocycles" field to the LLM/engine's suggested total weeks, leaving "Weeks per mesocycle" at its default of 1. The two fields (`#macro-weeks-input`, `#macro-weeks-per-meso-input`) were otherwise completely independent — the weeks-per-meso `<select>` had no `onchange` handler at all — so a person changing weeks-per-meso from 1→2 without also halving the mesocycle count silently doubled the real cycle length relative to what was suggested, with nothing in `createMacrocycle()` cross-checking the product against the original suggestion before save.
+
+Separately, `createMacrocycle()` set `state.currentMacroId` to the newly built macro but never touched `progressViewMacroId` — if that had been left pointing at the just-finished macro (e.g. from a prior swipe on the Progress hero card), `resolveProgressMacro()` kept resolving to the old, finished macro, so `recommendNextCycle()` kept recommending a next cycle for it and "Build this plan next" stayed clickable, risking a second plan being built for the same transition.
+
+### Fix
+
+- Added an editable "Suggested cycle length (weeks)" field (`#macro-target-weeks-input`, row hidden by default) that `fillNextCycleMacroModal()` now populates and reveals — this is the gate itself, defaulting to the LLM/engine's suggested total but editable before save.
+- Added `_nextCycleGateWeeks` (module-level, cleared back to `null` in `openModal()`'s existing `modal-macro` reset block, so the manual "+ New" macrocycle path is completely unaffected) plus `syncMacroMesocyclesFromGate()`, `onMacroTargetWeeksChange()`, and `onMacroWeeksPerMesoChange()`. Mesocycles is now a derived field while the gate is active: changing either the gate value or the weeks-per-mesocycle split recomputes mesocycles so the two always multiply back to the intended total, instead of drifting apart independently.
+- `createMacrocycle()` now sets `progressViewMacroId = id` alongside `state.currentMacroId = id`, so the Progress page always follows the macro that was just built. A brand-new macro has nothing for `recommendNextCycle()` to recommend yet, so "Build this plan next" naturally disappears rather than needing a separate "already built" flag.
+- The loaded plan page needed no changes — `macro.weeks`/`macro.weeksPerMeso` were already the single source of truth `getMacroDurationWeeks()` and the rest of plan rendering read from, so whatever the fixed modal saves is automatically what's prepopulated afterward.
+
+See `bloc-app/2026-09-08/UAT-RETEST-SCRIPT-2026-09-08.md` for the retest script.
+
+## §69 — v8.10: `bloc_checkins`/`bloc_next_cycle_advice`/`cycle_reviews` sync wiring
+
+Second half of the 2026-09-08 bug report: "the new tables for bloc advice/checkins/cycle review are not populating in supabase." Investigated in three parts before touching any code:
+
+1. **Ruled out PowerSync entirely.** The bug report mentioned "a forced manual sync in PowerSync," which pointed straight at PowerSync's sync-rules/publication config as a suspect. But `index.html` has zero references to PowerSync anywhere — BLOC talks directly to Supabase via `@supabase/supabase-js` (`createClient()`, ~line 5039). Adam confirmed the phrase was a mix-up with BLOC's own "Force full sync" button (Settings → Account & Data) — PowerSync is used only by the separate personal-finance-ledger app that happens to share this same Supabase project (see `BLOC-INFO.md`'s warning about that sharing). A YAML Adam pasted from the PowerSync dashboard, checked directly, was entirely `personal_finance.*` tables — confirming it belonged to that other app, not BLOC.
+2. **Confirmed the tables already existed live** — Adam checked Supabase Table Editor directly; `bloc_checkins`/`bloc_next_cycle_advice`/`cycle_reviews` were already there before this session (migrations `0013`–`0015` had already been applied to the live database, just never given the table-level `grant` — see `super-duper-octo-barnacle`'s migration `0016` and `docs/SUPABASE.md`).
+3. **That left exactly the gap `CHECKINS-AND-CYCLE-REVIEW-SYNC-SCOPE.md` (2026-09-07) had already identified and left unbuilt:** `index.html` never wrote to any of the three tables at all. Confirmed directly — zero occurrences of `bloc_checkins`, `bloc_next_cycle_advice`, `cycle_reviews`, or `syncBlocCheckin` anywhere in the file before this session.
+
+### Fix
+
+- `askBlocForAdvice()` now stamps a stable `id` onto `state.blocAdvice` at creation (`'chk_' + Date.now() + '_' + Math.random().toString(36).slice(2,8)`, same pattern `askBlocForNextCycleAdvice()` already used for `adviceId`) — carried through every later mutation of that same check-in (chosen path, a "Challenge this advice" revision).
+- `syncBlocCheckin(userId)` (next to `syncProfile()`) upserts `state.blocAdvice` by that id, run outside the generic `jobs` array in `pushStateToSupabase()` — exactly like `profiles`, and for the same reason `syncTable()` can't be used: `state.blocAdvice` is a single object overwritten on every new check-in, so a delete-then-reinsert would wipe every previously-synced check-in on every routine sync. Legacy local state saved before this fix (no `id` field yet) gets one stamped in on its first sync rather than being silently dropped.
+- `bloc_next_cycle_advice`/`cycle_reviews` were added as ordinary `jobs` array entries (`syncRowsBlocNextCycleAdvice()`, `syncRowsCycleReviews()`) — safe to reconcile the standard way since local state (`nextCycleAdviceHistory[]`, `macro.review`) is already a durable, never-trimmed history for both.
+- Supabase side: migration `20260831000016_grant_bloc_and_closure_table_privileges.sql` (drafted and merged to `main` in `super-duper-octo-barnacle` this session, with Adam's sign-off) grants the table-level privileges `0013`/`0014` never issued — without this, even the correctly-built sync above would fail with `permission denied for table bloc_checkins`. Also fixes the same gap for `account_closure_requests`, which had been silently broken since v8.09 for the same reason.
+
+Not covered by any UAT retest script yet — needs a real check-in / next-cycle-advice / cycle review generated and a forced sync, then confirming rows actually appear in Supabase Table Editor.
