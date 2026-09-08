@@ -4158,3 +4158,22 @@ Applied to every `<input>` in the app except the four that genuinely want real c
 **Not a guaranteed fix** — `autocomplete="off"` is a hint iOS is documented to sometimes override for this specific feature, and the underlying cause (shared GitHub Pages origin, plus whatever other project's credential is still triggering it) isn't something `index.html` can resolve on its own. The structural fix, if this doesn't fully resolve it, is either finding and removing the specific `adamnc02.github.io`-scoped Keychain entry from the other project, or moving BLOC to its own custom domain so its origin can never share Keychain scope with an unrelated project again.
 
 The debug panel/instrumentation from §64 was intentionally left in place rather than removed this session — it already proved decisive once and costs nothing to keep around if Adam needs to verify whether the suppression pass actually reduced the chip's frequency.
+
+## §68 — v8.10: "Build this plan next" mesocycle/weeks-per-meso gate, and a duplicate-build guard
+
+Two bugs reported on 2026-09-08 (`bloc-app/2026-09-08/Bug Fixes 2026-09-08.md`), both in the same flow: the New Macrocycle modal opened from Progress card 3's "Build this plan next" button (or from accepting an LLM next-cycle plan, `chooseNextCyclePlan()`).
+
+### Root cause
+
+`fillNextCycleMacroModal(goalType, totalWeeks)` (the shared prefill helper for both the deterministic recommendation and an accepted LLM plan) only ever set the "Mesocycles" field to the LLM/engine's suggested total weeks, leaving "Weeks per mesocycle" at its default of 1. The two fields (`#macro-weeks-input`, `#macro-weeks-per-meso-input`) were otherwise completely independent — the weeks-per-meso `<select>` had no `onchange` handler at all — so a person changing weeks-per-meso from 1→2 without also halving the mesocycle count silently doubled the real cycle length relative to what was suggested, with nothing in `createMacrocycle()` cross-checking the product against the original suggestion before save.
+
+Separately, `createMacrocycle()` set `state.currentMacroId` to the newly built macro but never touched `progressViewMacroId` — if that had been left pointing at the just-finished macro (e.g. from a prior swipe on the Progress hero card), `resolveProgressMacro()` kept resolving to the old, finished macro, so `recommendNextCycle()` kept recommending a next cycle for it and "Build this plan next" stayed clickable, risking a second plan being built for the same transition.
+
+### Fix
+
+- Added an editable "Suggested cycle length (weeks)" field (`#macro-target-weeks-input`, row hidden by default) that `fillNextCycleMacroModal()` now populates and reveals — this is the gate itself, defaulting to the LLM/engine's suggested total but editable before save.
+- Added `_nextCycleGateWeeks` (module-level, cleared back to `null` in `openModal()`'s existing `modal-macro` reset block, so the manual "+ New" macrocycle path is completely unaffected) plus `syncMacroMesocyclesFromGate()`, `onMacroTargetWeeksChange()`, and `onMacroWeeksPerMesoChange()`. Mesocycles is now a derived field while the gate is active: changing either the gate value or the weeks-per-mesocycle split recomputes mesocycles so the two always multiply back to the intended total, instead of drifting apart independently.
+- `createMacrocycle()` now sets `progressViewMacroId = id` alongside `state.currentMacroId = id`, so the Progress page always follows the macro that was just built. A brand-new macro has nothing for `recommendNextCycle()` to recommend yet, so "Build this plan next" naturally disappears rather than needing a separate "already built" flag.
+- The loaded plan page needed no changes — `macro.weeks`/`macro.weeksPerMeso` were already the single source of truth `getMacroDurationWeeks()` and the rest of plan rendering read from, so whatever the fixed modal saves is automatically what's prepopulated afterward.
+
+See `bloc-app/2026-09-08/UAT-RETEST-SCRIPT-2026-09-08.md` for the retest script.
