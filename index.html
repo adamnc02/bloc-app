@@ -2585,7 +2585,7 @@ try {
 
       <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 2px;border-bottom:1px solid var(--border);margin-bottom:16px;cursor:pointer;" onclick="openModal('modal-settings-about')">
         <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-        <span class="tag tag-outline">v8.10</span>
+        <span class="tag tag-outline">v8.11</span>
       </div>
 
       <!-- ── Profile section ── -->
@@ -11265,17 +11265,31 @@ function renderProgress(animate = false) {
   // isNextCycleAdviceEligible(), consulted from within the builder.
   const nextCycleAdviceHtml = _nextCyclePreviewMacroId ? '' : buildNextCycleAdviceSectionHTML(macro, rec);
 
+  // Once BLOC's advice has a chosen plan for THIS macro's transition
+  // (state.nextCycleAdvice.chosenPlanKey, scoped by macroId so switching
+  // active cycles doesn't carry a stale choice over), the deterministic
+  // engine's own recommendation/button becomes a second, conflicting way to
+  // build the same next cycle. Rather than relying on the actual macrocycle
+  // having been created (progressViewMacroId/state.currentMacroId only
+  // update once "Create Macrocycle" is actually saved, and a person can
+  // linger between choosing a plan and completing that save), gate on the
+  // choice itself — simpler, and the choice is the point past which the
+  // deterministic recommendation stops being the thing to act on.
+  const nextCyclePlanChosen = !_nextCyclePreviewMacroId
+    && state.nextCycleAdvice && state.nextCycleAdvice.macroId === macro.id
+    && !!state.nextCycleAdvice.chosenPlanKey;
+
   const card3 = `<div>
     <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Next cycle — weekly kcal projections</div>
     ${previewDropdownHtml}
-    ${headerHtml}
-    ${continuationAlternativeHtml}
-    ${directionChoiceHtml}
-    ${maintenanceInfoHtml}
-    ${targetInputHtml}
-    ${bridgeTableHtml}
-    ${directionRampTableHtml}
-    ${buildButtonHtml}
+    ${nextCyclePlanChosen ? '' : headerHtml}
+    ${nextCyclePlanChosen ? '' : continuationAlternativeHtml}
+    ${nextCyclePlanChosen ? '' : directionChoiceHtml}
+    ${nextCyclePlanChosen ? '' : maintenanceInfoHtml}
+    ${nextCyclePlanChosen ? '' : targetInputHtml}
+    ${nextCyclePlanChosen ? '' : bridgeTableHtml}
+    ${nextCyclePlanChosen ? '' : directionRampTableHtml}
+    ${nextCyclePlanChosen ? '' : buildButtonHtml}
     ${nextCycleAdviceHtml}
   </div>`;
 
