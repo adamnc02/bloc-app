@@ -4402,6 +4402,16 @@ function save() {
 function load() {
   const raw = localStorage.getItem('bloc_state');
   if (raw) { try { state = JSON.parse(raw); } catch(e) {} }
+  ensureStateDefaults();
+}
+
+// Extracted from load() (dev 2026-09-15) so enterDemoMode() can apply the
+// exact same defensive-default/migration guards to a freshly-swapped-in
+// demo dataset — without this, a demo-mode `state` could be missing a
+// field added since bloc-demo-data.json was last captured (e.g.
+// state.nextCycleAdviceHistory), crashing a feature that only a real,
+// migrated localStorage-backed state would already have.
+function ensureStateDefaults() {
   // Ensure all required fields exist (defensive defaults)
   if (!state.macrocycles) state.macrocycles = [];
   if (!state.exercises) state.exercises = {};
@@ -4517,6 +4527,7 @@ function enterDemoMode() {
   // mutate `state` freely during the tour, and this must never leak back
   // into the cached `demoData` object itself.
   state = JSON.parse(JSON.stringify(demoData));
+  ensureStateDefaults(); // same migration guards a real load() applies — see its own comment
   setTourAnchorDate('2026-08-02'); // Sunday — the dataset's anchor date, TECHNICAL.md §35
   showScreen('home');
 }
