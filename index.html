@@ -11068,14 +11068,24 @@ function renderProgress(animate = false) {
   // pushed below it, but stays in this same swipeable card.
   // Once this cycle is at/past its effective end date (or already reviewed),
   // the cycle-end review permanently takes over this slot instead of the
-  // mid-cycle checkin/plateau card — see buildCycleReviewCardHTML().
-  const cycleReviewCardHtml = buildCycleReviewCardHTML(macro);
+  // mid-cycle checkin/plateau card — see buildCycleReviewCardHTML(). During
+  // the active cycle's final week (dev 2026-09-15, item 1), the two-section
+  // Build-next-cycle/Cycle-review card (buildFinalWeekCardHTML) takes
+  // priority over both — including over buildCycleReviewCardHTML on the
+  // cycle's actual last day, since that plain whole-card review view is
+  // reserved for browsing a PAST (no longer active) cycle.
+  const finalWeekCardHtml = buildFinalWeekCardHTML(macro, nextCycleRec);
   let trendInsightsHtml;
-  if (cycleReviewCardHtml !== null) {
-    trendInsightsHtml = cycleReviewCardHtml;
+  if (finalWeekCardHtml !== null) {
+    trendInsightsHtml = finalWeekCardHtml;
   } else {
-    const aiAdviceParts = buildAiAdviceCardHTML();
-    trendInsightsHtml = buildInsightsCardHTML(aiAdviceParts);
+    const cycleReviewCardHtml = buildCycleReviewCardHTML(macro);
+    if (cycleReviewCardHtml !== null) {
+      trendInsightsHtml = cycleReviewCardHtml;
+    } else {
+      const aiAdviceParts = buildAiAdviceCardHTML();
+      trendInsightsHtml = buildInsightsCardHTML(aiAdviceParts);
+    }
   }
   const card1 = `<div>
     <div style="text-align:center;">
@@ -14088,6 +14098,18 @@ function buildCycleReviewCardHTML(macro) {
     </div>`;
   }
 
+  return `<div style="margin-top:10px;padding:13px 14px;border:1px solid var(--border2);border-radius:var(--r-lg);cursor:pointer;" onclick="toggleCycleReviewCard('${macro.id}')">
+    ${buildCycleReviewSummaryHTML(macro)}
+  </div>`;
+}
+
+// Extracted from buildCycleReviewCardHTML (dev 2026-09-15, item 1) so the
+// final-week card (buildFinalWeekCardHTML) can embed the exact same
+// reviewed-cycle score header + collapsible narrative/highlights/
+// improvements content — keyed by the same _cycleReviewCardOpen/
+// toggleCycleReviewCard() state either way — without duplicating this
+// markup. Caller supplies its own outer wrapper/click target.
+function buildCycleReviewSummaryHTML(macro) {
   const r = macro.review;
   const open = !!_cycleReviewCardOpen[macro.id];
   const bf = r.bodyfatEstimate || {};
@@ -14106,8 +14128,7 @@ function buildCycleReviewCardHTML(macro) {
     ${(r.beforePhotoCount || r.afterPhotoCount) ? `<div style="font-size:11px;color:var(--text3);margin-top:12px;">${r.beforePhotoCount} before / ${r.afterPhotoCount} after photo(s) reviewed — not stored.</div>` : ''}
   ` : '';
 
-  return `<div style="margin-top:10px;padding:13px 14px;border:1px solid var(--border2);border-radius:var(--r-lg);cursor:pointer;" onclick="toggleCycleReviewCard('${macro.id}')">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+  return `<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
       <div style="flex:1;">
         <div style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:500;color:var(--accent);">✦ Cycle Review</div>
         <div style="font-size:13px;font-weight:600;color:var(--text);margin-top:6px;line-height:1.35;">${r.headline}</div>
@@ -14128,7 +14149,63 @@ function buildCycleReviewCardHTML(macro) {
         <div style="font-size:14px;font-weight:600;color:var(--text);margin-top:2px;">${r.totalWeightChange !== null ? (r.totalWeightChange > 0 ? '+' : '') + r.totalWeightChange + ' lbs' : '—'}</div>
       </div>
     </div>
-    ${bodyHtml}
+    ${bodyHtml}`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FINAL-WEEK CARD (dev 2026-09-15, item 1)
+// ─────────────────────────────────────────────────────────────────────────────
+// Replaces the mid-cycle check-in card for the active cycle's entire final
+// calendar week (the 7 days up to and including its actual last day) with
+// two independent flows in the same swipe card: Build next cycle (BLOC's
+// own second opinion — reuses the Phase 4 second-opinion feature verbatim,
+// see buildNextCycleAdviceSectionHTML) and Cycle review (available once
+// the last day arrives — reuses the existing one-time review feature).
+// Keeps rendering — showing whichever of the two has actually run — for as
+// long as this remains the ACTIVE cycle, even once the review itself has
+// completed, unlike buildCycleReviewCardHTML's plain reviewed-card view
+// (used only when browsing a PAST cycle via the hero selector, after a new
+// cycle has actually been built and this one is no longer active).
+function isInFinalWeek(macro) {
+  if (!macro || !macro.start) return false;
+  const endStr = toLocalDateStr(getMacroEndDate(macro));
+  const finalWeekStartDate = new Date(endStr + 'T00:00:00');
+  finalWeekStartDate.setDate(finalWeekStartDate.getDate() - 6);
+  return getLocalToday() >= toLocalDateStr(finalWeekStartDate);
+}
+
+function buildFinalWeekCardHTML(macro, rec) {
+  if (!macro || !isInFinalWeek(macro)) return null;
+
+  const endStr = toLocalDateStr(getMacroEndDate(macro));
+  const endFmt = new Date(endStr + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const reviewDue = getLocalToday() >= endStr; // equivalent to isCycleReviewDue(macro)
+
+  const nextCycleBody = buildNextCycleAdviceSectionHTML(macro, rec);
+
+  let cycleReviewBody;
+  if (macro.review) {
+    cycleReviewBody = `<div style="margin-top:10px;cursor:pointer;" onclick="toggleCycleReviewCard('${macro.id}')">
+      ${buildCycleReviewSummaryHTML(macro)}
+    </div>`;
+  } else if (reviewDue) {
+    cycleReviewBody = `<div style="margin-top:10px;">
+      <button class="btn btn-accent btn-block" onclick="openCycleReviewModal('${macro.id}')">✦ Start Cycle Review</button>
+    </div>`;
+  } else {
+    const daysUntil = Math.round((new Date(endStr + 'T00:00:00') - new Date(getLocalToday() + 'T00:00:00')) / 86400000);
+    cycleReviewBody = `<div style="margin-top:10px;padding:10px 14px;border-radius:10px;background:var(--surface2);border:0.5px solid var(--border2);text-align:center;">
+      <div style="font-size:12px;color:var(--text3);">✦ Cycle review — available in ${daysUntil} day${daysUntil === 1 ? '' : 's'}</div>
+    </div>`;
+  }
+
+  return `<div>
+    <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Cycle ending — ${endFmt}</div>
+    <div style="font-size:13px;font-weight:600;color:var(--text);">Build next cycle</div>
+    ${nextCycleBody}
+    <div style="border-top:0.5px solid var(--border);margin:16px 0 12px;"></div>
+    <div style="font-size:13px;font-weight:600;color:var(--text);">Cycle review</div>
+    ${cycleReviewBody}
   </div>`;
 }
 
@@ -15078,7 +15155,7 @@ function buildNextCycleAdviceSectionHTML(macro, rec) {
           ? `available in ${Math.ceil(daysUntilEligible / 7)} week${Math.ceil(daysUntilEligible / 7) === 1 ? '' : 's'}`
           : `available in ${daysUntilEligible} day${daysUntilEligible === 1 ? '' : 's'}`;
         return `<div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--surface2);border:0.5px solid var(--border2);">
-          <div style="font-size:12px;color:var(--text3);">✦ Ask BLOC for a second opinion — ${countdownText}</div>
+          <div style="font-size:12px;color:var(--text3);">✦ Build next cycle — ${countdownText}</div>
         </div>`;
       }
       return '';
@@ -15096,7 +15173,7 @@ function buildNextCycleAdviceSectionHTML(macro, rec) {
                border:0.5px solid ${hasKey ? 'rgba(145,132,217,0.35)' : 'var(--border2)'};
                color:${hasKey ? 'var(--accent)' : 'var(--text3)'};
                cursor:${hasKey ? 'pointer' : 'default'};font-family:var(--font-display);">
-        ✦ Ask BLOC for a second opinion
+        ✦ Build next cycle
       </button>
       ${noKeyNote}
       <div id="next-cycle-advice-error" style="display:none;font-size:11px;color:var(--red);margin-top:6px;"></div>
