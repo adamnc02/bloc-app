@@ -2585,7 +2585,7 @@ try {
 
       <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 2px;border-bottom:1px solid var(--border);margin-bottom:16px;cursor:pointer;" onclick="openModal('modal-settings-about')">
         <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-        <span class="tag tag-outline">v8.11</span>
+        <span class="tag tag-outline">v8.12</span>
       </div>
 
       <!-- ── Profile section ── -->
@@ -2900,25 +2900,24 @@ try {
       <div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:14px;">
         BLOC will review your whole cycle — weight, measurements, training, and compliance — into one narrative and score. This runs once per cycle and can't be redone. Progress photos are optional: they're sent directly to Claude for this one review and are never stored, only counted.
       </div>
+      <!-- Simplified (dev 2026-09-15 item 2): the before/after box itself is
+           now the launcher — tapping it opens the plain file input, which on
+           mobile already surfaces the OS's camera/library picker sheet, so a
+           single input per side covers both without a separate Take/Upload
+           button pair. No emojis anywhere in this modal. -->
       <div style="display:flex;gap:8px;margin-bottom:14px;">
-        <div style="flex:1;border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:12px 10px;text-align:center;">
+        <div onclick="document.getElementById('cycle-review-before-upload').click()"
+             style="flex:1;border:1px dashed var(--border2);border-radius:var(--r-sm);padding:16px 10px;text-align:center;cursor:pointer;">
           <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Before</div>
-          <div id="cycle-review-before-count" style="font-family:var(--font-display);font-size:20px;font-weight:700;margin-bottom:8px;">0</div>
-          <div style="display:flex;gap:6px;">
-            <button type="button" onclick="document.getElementById('cycle-review-before-camera').click()" style="flex:1;padding:7px 4px;font-size:10px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">📷 Take</button>
-            <button type="button" onclick="document.getElementById('cycle-review-before-upload').click()" style="flex:1;padding:7px 4px;font-size:10px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">🖼 Upload</button>
-          </div>
-          <input type="file" accept="image/*" capture="environment" id="cycle-review-before-camera" style="display:none;" onchange="handleCycleReviewPhotoSelect(event,'before')">
+          <div id="cycle-review-before-count" style="font-family:var(--font-display);font-size:20px;font-weight:700;">0</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:6px;">Tap to add photos</div>
           <input type="file" accept="image/*" multiple id="cycle-review-before-upload" style="display:none;" onchange="handleCycleReviewPhotoSelect(event,'before')">
         </div>
-        <div style="flex:1;border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:12px 10px;text-align:center;">
+        <div onclick="document.getElementById('cycle-review-after-upload').click()"
+             style="flex:1;border:1px dashed var(--border2);border-radius:var(--r-sm);padding:16px 10px;text-align:center;cursor:pointer;">
           <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">After</div>
-          <div id="cycle-review-after-count" style="font-family:var(--font-display);font-size:20px;font-weight:700;margin-bottom:8px;">0</div>
-          <div style="display:flex;gap:6px;">
-            <button type="button" onclick="document.getElementById('cycle-review-after-camera').click()" style="flex:1;padding:7px 4px;font-size:10px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">📷 Take</button>
-            <button type="button" onclick="document.getElementById('cycle-review-after-upload').click()" style="flex:1;padding:7px 4px;font-size:10px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">🖼 Upload</button>
-          </div>
-          <input type="file" accept="image/*" capture="environment" id="cycle-review-after-camera" style="display:none;" onchange="handleCycleReviewPhotoSelect(event,'after')">
+          <div id="cycle-review-after-count" style="font-family:var(--font-display);font-size:20px;font-weight:700;">0</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:6px;">Tap to add photos</div>
           <input type="file" accept="image/*" multiple id="cycle-review-after-upload" style="display:none;" onchange="handleCycleReviewPhotoSelect(event,'after')">
         </div>
       </div>
@@ -4403,6 +4402,16 @@ function save() {
 function load() {
   const raw = localStorage.getItem('bloc_state');
   if (raw) { try { state = JSON.parse(raw); } catch(e) {} }
+  ensureStateDefaults();
+}
+
+// Extracted from load() (dev 2026-09-15) so enterDemoMode() can apply the
+// exact same defensive-default/migration guards to a freshly-swapped-in
+// demo dataset — without this, a demo-mode `state` could be missing a
+// field added since bloc-demo-data.json was last captured (e.g.
+// state.nextCycleAdviceHistory), crashing a feature that only a real,
+// migrated localStorage-backed state would already have.
+function ensureStateDefaults() {
   // Ensure all required fields exist (defensive defaults)
   if (!state.macrocycles) state.macrocycles = [];
   if (!state.exercises) state.exercises = {};
@@ -4518,6 +4527,7 @@ function enterDemoMode() {
   // mutate `state` freely during the tour, and this must never leak back
   // into the cached `demoData` object itself.
   state = JSON.parse(JSON.stringify(demoData));
+  ensureStateDefaults(); // same migration guards a real load() applies — see its own comment
   setTourAnchorDate('2026-08-02'); // Sunday — the dataset's anchor date, TECHNICAL.md §35
   showScreen('home');
 }
@@ -4662,25 +4672,62 @@ function buildDemoTourSteps() {
         _blocAdviceSectionsOpen.alt = chosenPath !== 'aggressive';
         renderProgress();
       } },
-    // Card 3 of the same progress-body swipe deck — previously missing
-    // from the tour entirely despite being where the Next Cycle
-    // Recommendation Engine (and its own "ask BLOC to confirm this is a
-    // good fit" second-opinion feature) actually lives.
+    // Final-week card (dev 2026-09-15, item 1 + tour follow-up) — replaces
+    // the old single "Next Cycle" card-3 step, which targeted a card that
+    // no longer exists in the UI (removed the same day, item 4). Jumps the
+    // tour's date anchor forward to this same macro's actual last day so
+    // the final-week two-section card (Build next cycle / Cycle review)
+    // renders for real, using the nextCycleAdvice/macro.review pre-seeded
+    // in bloc-demo-data.json (same pattern as blocAdvice above — no live
+    // API call needed mid-tour). Reset back to the dataset's real anchor
+    // date happens in the progress-tables-wrap step below, before Plan/
+    // Train/Nutrition — those depend on the ORIGINAL date for their own
+    // week/day context.
     { targetId: 'progress-body', screen: 'progress',
-      title: 'BLOC plans your next cycle too',
-      body: 'As your macrocycle nears its end, this card works out what comes next \u2014 a bridge, a cut, or a bulk \u2014 from your real trend data. Once you\u2019re in the final few weeks, you can ask BLOC for a second opinion here too, the same way you just did on your current plan.',
-      onEnter: () => { insightsIndex = 2; renderProgress(); } },
+      title: 'In the final week, this card does two things at once',
+      body: 'Once your cycle is in its last week, this same card swaps to two sections: what BLOC thinks should come next, and — once the cycle actually ends — a full review of how it went. Let’s jump ahead to your cycle’s last day to see both.',
+      onEnter: () => {
+        setTourAnchorDate('2026-09-13');
+        insightsIndex = 0;
+        _nextCycleAdviceSectionsOpen.narrative = true;
+        _nextCycleAdviceSectionsOpen.selected = false;
+        _nextCycleAdviceSectionsOpen.alt = false;
+        renderProgress();
+      } },
+    { targetId: 'progress-body', screen: 'progress',
+      title: 'Build next cycle — a second opinion on what’s next',
+      body: 'BLOC works out what comes next — a bridge, a cut, or a bulk — from your real trend data, the same way it gave you a second opinion on your current plan earlier. This is available for the whole final week, not just today.',
+      onEnter: () => {
+        insightsIndex = 0; // defensive — Back can land here directly from a later step
+        renderProgress();
+      } },
+    { targetId: 'progress-body', screen: 'progress',
+      title: 'Cycle review — one score, one narrative, once per cycle',
+      body: 'On the cycle’s actual last day, BLOC reviews the whole thing — weight, measurements, training, and compliance — into a score and a full narrative. This runs once and can’t be redone, but stays here for you to revisit any time you switch back to this cycle.',
+      onEnter: () => {
+        insightsIndex = 0;
+        const macro = state.macrocycles.find(m => m.id === macroId);
+        if (macro) _cycleReviewCardOpen[macro.id] = true;
+        renderProgress();
+      } },
     { targetId: 'progress-tables-wrap', screen: 'progress',
-      title: 'There\u2019s more than one screen here',
+      title: 'There’s more than one screen here',
       // Hero card used to be a swipe deck too — it isn't any more since
       // the flat-design redesign, so this step now points at the two
       // decks that actually are swipeable: this weekly-summary card, and
-      // the insights card (trend/AI-advice/next-cycle) a few steps back
+      // the insights card (trend/AI-advice/final-week) a few steps back
       // above it. Resets insightsIndex back to 0 first — otherwise the
-      // person would leave the tour with that deck sitting on the Next
-      // Cycle card rather than back at a sensible default.
-      body: 'Swipe left and right on both this card and the insights card you just saw above \u2014 each has several views tucked behind the dots.',
-      onEnter: () => { insightsIndex = 0; renderProgress(); } },
+      // person would leave the tour with that deck sitting on the
+      // final-week card rather than back at a sensible default. Also
+      // resets the date anchor back to the dataset's real one — Plan/
+      // Train/Nutrition below all depend on it for their own week/day
+      // context, and it must not leak forward past this point in the tour.
+      body: 'Swipe left and right on both this card and the insights card you just saw above — each has several views tucked behind the dots.',
+      onEnter: () => {
+        insightsIndex = 0;
+        setTourAnchorDate('2026-08-02');
+        renderProgress();
+      } },
     // ── Plan ──────────────────────────────────────────────────────────
     { targetId: 'plan-content', screen: 'plan',
       title: 'Your macrocycles live here',
@@ -4878,9 +4925,15 @@ function startProgressMiniTour() {
           renderProgress();
         } },
       { targetId: 'progress-body', screen: 'progress',
-        title: 'BLOC plans your next cycle too',
-        body: 'As your macrocycle nears its end, this card works out what comes next \u2014 a bridge, a cut, or a bulk \u2014 from your real trend data. Once you\u2019re in the final few weeks, you can ask BLOC for a second opinion here too, the same way you just did on your current plan.',
-        onEnter: () => { insightsIndex = 2; renderProgress(); } },
+        title: 'Your final week: two things happen automatically',
+        // Real user data here, not the demo dataset — can't jump the date
+        // anchor forward like the Demo Tour's version of this step does,
+        // so this stays descriptive rather than forcing a specific state.
+        body: 'In your cycle’s last week, this card swaps to show what BLOC thinks should come next, plus — once the cycle actually ends — a full cycle review with a compliance score and narrative. You’ll see this automatically once you get there.',
+        onEnter: () => {
+          insightsIndex = 0;
+          renderProgress();
+        } },
       { targetId: 'progress-tables-wrap', screen: 'progress',
         title: 'There\u2019s more than one screen here',
         body: 'Swipe left and right on both this card and the insights card you just saw above \u2014 each has several views tucked behind the dots.',
@@ -5027,6 +5080,26 @@ renderAuthProviders();
 // object = a real session. maybeFinalizeBoot() below waits on this
 // leaving `undefined` before it lets anything past the gate.
 let _authResolvedSession = undefined;
+
+// Local-dev-only bypass — true ONLY when served from localhost/127.0.0.1,
+// which GitHub Pages (the real deploy target — see BLOC-INFO/README) can
+// never be, so this can never accidentally activate for a real user.
+// Lets the app be run and screenshotted with no Supabase project, no
+// OAuth, and no network dependency at all. See initDevBypassAuth() and
+// its branch in continueBootAfterAuth() below.
+const IS_LOCAL_DEV = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+// Skips Supabase/OAuth entirely — `supabase` is deliberately left null
+// forever in this mode. Every sync/account code path elsewhere in this
+// file already guards on `if (!supabase ...)` (see initSupabaseAuth()'s
+// own consumers throughout), so leaving it unset is sufficient to fully
+// stub Supabase rather than needing a fake client.
+function initDevBypassAuth() {
+  console.warn('[dev] Local dev bypass active — Supabase/OAuth fully skipped. Only ever reachable on localhost/127.0.0.1.');
+  onAuthResolved({
+    user: { id: 'dev-local-user', email: 'dev@localhost', app_metadata: { provider: 'email' } },
+  });
+}
 
 // Kicks off the Supabase client + initial session check. Called once,
 // immediately — createClient()/getSession() don't touch the DOM, so this
@@ -5825,6 +5898,39 @@ function maybeFinalizeBoot() {
 // now waits here for a confirmed session instead — substance unchanged,
 // just relocated behind the gate.
 function continueBootAfterAuth() {
+  // Local dev bypass (see IS_LOCAL_DEV) — seed the demo dataset directly
+  // into state via enterDemoMode() (memory-only, matches its own existing
+  // contract — never save()'d) without the Demo Tour's welcome modal/
+  // spotlight walkthrough, so any screen is immediately reachable for
+  // testing/screenshots. Skips the profile gate and every network-backed
+  // snapshot/backup check below, all of which are Supabase-only concerns.
+  if (IS_LOCAL_DEV) {
+    if (demoData) {
+      enterDemoMode();
+      if (demoData._devAnchorDate) { setTourAnchorDate(demoData._devAnchorDate); showScreen('home'); }
+    } else {
+      // bloc-demo-data.dev.json is an untracked, developer-local fixture
+      // (see .gitignore) — a copy of the real demo dataset with an
+      // optional top-level `_devAnchorDate` override, for exercising
+      // date-sensitive flows (cycle review, build-next-cycle final week)
+      // without waiting for a real cycle to actually reach its end date.
+      // Falls back to the real, tracked demo dataset when the dev file
+      // doesn't exist — e.g. a fresh clone that hasn't made one yet.
+      fetch('bloc-demo-data.dev.json')
+        .then(res => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
+        .catch(() => fetch('bloc-demo-data.json').then(res => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); }))
+        .then(data => {
+          demoData = data;
+          enterDemoMode();
+          if (data._devAnchorDate) { setTourAnchorDate(data._devAnchorDate); showScreen('home'); }
+        })
+        .catch(err => {
+          console.warn('[dev] demo data fetch failed, staying on default/empty state:', err.message);
+          showScreen('home');
+        });
+    }
+    return;
+  }
   fetchDemoDataIfNewUser(_isNewUserOnBoot);
   // A genuinely new user is handled entirely by the fetch above (Demo Tour
   // on success, openProfileGate() from its own .catch() on failure) — both
@@ -6458,7 +6564,7 @@ async function checkSnapshotZero() {
   openModal('modal-snapshot-zero');
 }
 
-initSupabaseAuth();
+if (IS_LOCAL_DEV) { initDevBypassAuth(); } else { initSupabaseAuth(); }
 
 const _isNewUserOnBoot = !localStorage.getItem('bloc_state');
 load();
@@ -10900,7 +11006,10 @@ function renderProgress(animate = false) {
   const goalType = macro ? (macro.goalType || 'loss') : 'loss';
   const peak = findPeakWindow(dayMap, goalType);
   let peakHtml = '';
-  if (peak && Math.abs(peak.delta) >= 0.1) {
+  // Best 7-day window / "match your peak week" is meaningless for a
+  // maintenance cycle (dev 2026-09-15 item 3) — there's no direction to
+  // have had a "best" week toward.
+  if (peak && Math.abs(peak.delta) >= 0.1 && goalType !== 'maintenance') {
     const verb = peak.delta < 0 ? 'lost' : 'gained';
     const startFmt = new Date(peak.startDate + 'T00:00:00').toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
     const endFmt   = new Date(peak.endDate   + 'T00:00:00').toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
@@ -11013,14 +11122,24 @@ function renderProgress(animate = false) {
   // pushed below it, but stays in this same swipeable card.
   // Once this cycle is at/past its effective end date (or already reviewed),
   // the cycle-end review permanently takes over this slot instead of the
-  // mid-cycle checkin/plateau card — see buildCycleReviewCardHTML().
-  const cycleReviewCardHtml = buildCycleReviewCardHTML(macro);
+  // mid-cycle checkin/plateau card — see buildCycleReviewCardHTML(). During
+  // the active cycle's final week (dev 2026-09-15, item 1), the two-section
+  // Build-next-cycle/Cycle-review card (buildFinalWeekCardHTML) takes
+  // priority over both — including over buildCycleReviewCardHTML on the
+  // cycle's actual last day, since that plain whole-card review view is
+  // reserved for browsing a PAST (no longer active) cycle.
+  const finalWeekCardHtml = buildFinalWeekCardHTML(macro, nextCycleRec);
   let trendInsightsHtml;
-  if (cycleReviewCardHtml !== null) {
-    trendInsightsHtml = cycleReviewCardHtml;
+  if (finalWeekCardHtml !== null) {
+    trendInsightsHtml = finalWeekCardHtml;
   } else {
-    const aiAdviceParts = buildAiAdviceCardHTML();
-    trendInsightsHtml = buildInsightsCardHTML(aiAdviceParts);
+    const cycleReviewCardHtml = buildCycleReviewCardHTML(macro);
+    if (cycleReviewCardHtml !== null) {
+      trendInsightsHtml = cycleReviewCardHtml;
+    } else {
+      const aiAdviceParts = buildAiAdviceCardHTML();
+      trendInsightsHtml = buildInsightsCardHTML(aiAdviceParts);
+    }
   }
   const card1 = `<div>
     <div style="text-align:center;">
@@ -11043,14 +11162,19 @@ function renderProgress(animate = false) {
     ? `<span style="color:#E8875A;font-weight:600;">▸ Log-based TDEE</span> — Based on ${dynResult.dataPoints} tracked period${dynResult.dataPoints !== 1 ? 's' : ''}, your estimated TDEE is <strong>${dynResult.tdee.toLocaleString()} kcal/day</strong> (implied BMR ≈ <strong>${dynResult.bmr.toLocaleString()} kcal/day</strong> at <em>${actInfo.label}</em>).`
     : `<span style="color:#E8875A;font-weight:600;">▸ Log-based TDEE</span> — <span style="color:var(--text3);">Log calories alongside weight for at least 2 weigh-ins to unlock this.</span>`;
 
-  const bmrLine3 = dynResult !== null
+  // Calorie target and Goal weight ETA are both meaningless for a
+  // maintenance cycle — there's no deficit/surplus target or target weight
+  // to project toward (dev 2026-09-15 item 3). Previously maintenance fell
+  // through to the deficit branch here by accident (isGainCycle is false
+  // for 'maintenance' too), showing an incorrect cut-style target.
+  const bmrLine3 = (dynResult !== null && cycleGoalType !== 'maintenance')
     ? (() => {
         const adj = isGainCycle ? 250 : -500;
         const t   = dynResult.tdee + adj;
         return `<span style="color:#5BC4F5;font-weight:600;">◎ Calorie target</span> — For ${isGainCycle ? 'lean muscle gain' : 'sustainable weight loss'}, aim for <strong>${t.toLocaleString()} kcal/day</strong> — a ${Math.abs(adj).toLocaleString()} kcal ${isGainCycle ? 'surplus' : 'deficit'} targeting ${isGainCycle ? '~0.5 lbs/week' : '~1 lb/week'}.`;
       })() : '';
 
-  const etaHtml = goalWeightETA !== null
+  const etaHtml = (goalWeightETA !== null && cycleGoalType !== 'maintenance')
     ? `<div style="margin-top:10px;padding-top:10px;border-top:0.5px solid var(--border);font-size:12px;color:var(--text2);line-height:1.6;">
         <span style="color:var(--amber);font-weight:600;">📅 Goal weight ETA</span> — At your current rate of <strong>${goalWeightETA.ratePerWeek} lbs/week</strong>, you should reach <strong>${macro.targetBw} lbs</strong> around <strong>${goalWeightETA.date}</strong> (~${goalWeightETA.weeks} weeks).
       </div>` : '';
@@ -11294,8 +11418,13 @@ function renderProgress(animate = false) {
   </div>`;
 
   // ── Assemble swipeable stack ──────────────────────────────────────────────
-  const cards = [card1, card2, card3];
-  const cardTitles = ['Progress', 'Metabolism', 'Next cycle'];
+  // Card 3 ("Next cycle — weekly kcal projections") is permanently hidden
+  // from this deck (dev 2026-09-15) — recommendNextCycle()'s output (rec/
+  // nextCycleRec, computed above) stays in place since it still feeds the
+  // AI next-cycle prompt, but the deterministic card/button/LLM-advice
+  // section built into card3 above is no longer rendered anywhere.
+  const cards = [card1, card2];
+  const cardTitles = ['Progress', 'Metabolism'];
 
   // Card: no header buttons — swipe only. Content wrapped in animatable .card
   bodyEl.innerHTML = `<div class="insights-swipe-card">${cards[insightsIndex]}</div>`;
@@ -13234,6 +13363,30 @@ function declineBlocChallenge() {
   renderProgress();
 }
 
+// ── No-op guard (dev 2026-09-15, item 1e) ────────────────────────────────────
+// True when a plan's first (immediately-actionable) step is numerically
+// identical to the currently active goal on kcal/protein/carbs/steps only
+// — meaning "using" this plan wouldn't actually change anything about
+// what's active right now. Scoped per-plan (not per-response): a caller
+// with two plans (e.g. sustainable/aggressive) checks each independently
+// and only suppresses the action button for whichever one(s) match —
+// the plan's numbers/narrative always stay visible either way, so the
+// user isn't left wondering what happened. Used by both the mid-cycle
+// check-in plan buttons (startGoalQueue) and the build-next-cycle plan
+// buttons (chooseNextCyclePlan) — the same guard, since both ultimately
+// launch the goal queue.
+function planMatchesActiveGoal(plan) {
+  if (!plan || !plan.goals || !plan.goals.length) return false;
+  const activeGoal = getActiveGoal();
+  if (!activeGoal) return false;
+  const first = plan.goals[0];
+  const numsMatch = (a, b) => a !== null && a !== undefined && b !== null && b !== undefined && Number(a) === Number(b);
+  return numsMatch(first.kcal, activeGoal.kcal)
+    && numsMatch(first.protein, activeGoal.protein)
+    && numsMatch(first.carbs, activeGoal.carbs)
+    && numsMatch(first.steps, activeGoal.steps);
+}
+
 // ── Build AI advice card HTML ─────────────────────────────────────────────────
 function buildAiAdviceCardHTML() {
   const macro = resolveProgressMacro();
@@ -13476,23 +13629,27 @@ function buildAiAdviceCardHTML() {
       <span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:6px;">${sust.summary}</span>
     </div>
     ${goalSummaryBlock(sust, 'sustainable')}
-    <button onclick="startGoalQueue('sustainable')"
+    ${planMatchesActiveGoal(sust)
+      ? `<div style="font-size:11px;color:var(--text3);text-align:center;padding:9px 0;margin-bottom:14px;">No change from your current goal — nothing to build.</div>`
+      : `<button onclick="startGoalQueue('sustainable')"
       style="width:100%;padding:11px;border-radius:10px;font-size:13px;font-weight:600;
              background:var(--accent);color:#06281f;border:none;cursor:pointer;margin-bottom:14px;margin-top:4px;
              font-family:var(--font-display);">
       Use ${sust.label} plan →
-    </button>
+    </button>`}
     <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;">
       ⚡ ${agg.label} plan
       <span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:6px;">${agg.summary}</span>
     </div>
     ${goalSummaryBlock(agg, 'aggressive')}
-    <button onclick="startGoalQueue('aggressive')"
+    ${planMatchesActiveGoal(agg)
+      ? `<div style="font-size:11px;color:var(--text3);text-align:center;padding:9px 0;">No change from your current goal — nothing to build.</div>`
+      : `<button onclick="startGoalQueue('aggressive')"
       style="width:100%;padding:11px;border-radius:10px;font-size:13px;font-weight:600;
              background:var(--red);color:#fff;border:1px solid var(--red);cursor:pointer;margin-top:4px;
              font-family:var(--font-display);">
       Use ${agg.label} plan →
-    </button>`;
+    </button>`}`;
   } else {
     // Post-choice: chosen plan visible, unchosen plan collapsible
     const chosenPath_obj  = chosenPath === 'sustainable' ? sust : agg;
@@ -13523,12 +13680,14 @@ function buildAiAdviceCardHTML() {
     ${altOpen ? `
     <div style="margin-top:8px;">
       ${goalSummaryBlock(altPath_obj, altPathKey)}
-      <button onclick="startGoalQueue('${altPathKey}')"
+      ${planMatchesActiveGoal(altPath_obj)
+        ? `<div style="font-size:11px;color:var(--text3);text-align:center;padding:9px 0;">No change from your current goal — nothing to build.</div>`
+        : `<button onclick="startGoalQueue('${altPathKey}')"
         style="width:100%;padding:10px;border-radius:10px;font-size:12px;font-weight:600;
                ${altPathKey === 'aggressive' ? 'background:var(--red);color:#fff;border:1px solid var(--red);' : 'background:var(--surface2);color:var(--text);border:0.5px solid var(--border2);'}
                cursor:pointer;margin-top:4px;font-family:var(--font-display);">
         Switch to ${altPath_obj.label} plan →
-      </button>
+      </button>`}
     </div>` : ''}`;
   }
 
@@ -13740,12 +13899,34 @@ function computeCycleReviewPayload(macro) {
   const todayStr = getLocalToday();
   const endStr = toLocalDateStr(getMacroEndDate(macro));
   const dayMap = buildDayMap();
-  // Steps is the last thing logged in a day — if the review is being run on
-  // the cycle's actual final day, that day's steps often genuinely haven't
-  // been logged yet even though the day is "done" in every other sense.
-  // Flagged here rather than silently treated as a missed target.
-  const finalDayStepsPending = (todayStr === endStr) &&
-    (!dayMap[endStr] || dayMap[endStr].steps === null || dayMap[endStr].steps === undefined);
+
+  // On the cycle's actual final day, one or more of kcal/protein/carbs/
+  // steps/weight are often genuinely not yet logged (steps especially —
+  // always the last thing logged in a day), even though the day is "done"
+  // in every other sense. Rather than silently treating any missing metric
+  // as a miss, substitute this week's average-so-far (the last bucket in
+  // weeklyAverages already covers exactly this final week) and tell the
+  // LLM explicitly which figures were substituted and what value was used
+  // (dev 2026-09-15, item 1b — generalized from the original steps-only
+  // handling to cover kcal/macros/steps/weight alike).
+  const finalDaySubstitutions = {};
+  if (todayStr === endStr) {
+    const finalDayEntry = dayMap[endStr] || null;
+    const finalWeekBucket = ins && ins.weekBuckets && ins.weekBuckets.length ? ins.weekBuckets[ins.weekBuckets.length - 1] : null;
+    if (finalWeekBucket) {
+      const missingNutr   = !finalDayEntry || !finalDayEntry.hasNutr;
+      const missingSteps  = !finalDayEntry || finalDayEntry.steps === null || finalDayEntry.steps === undefined;
+      const missingWeight = !finalDayEntry || finalDayEntry.weight === null || finalDayEntry.weight === undefined;
+      if (missingNutr && finalWeekBucket.avgKcal !== null) {
+        finalDaySubstitutions.kcal = finalWeekBucket.avgKcal;
+        finalDaySubstitutions.protein = finalWeekBucket.avgProtein;
+        finalDaySubstitutions.carbs = finalWeekBucket.avgCarbs;
+      }
+      if (missingSteps && finalWeekBucket.avgSteps !== null) finalDaySubstitutions.steps = finalWeekBucket.avgSteps;
+      if (missingWeight && finalWeekBucket.avgWeight !== null) finalDaySubstitutions.weight = parseFloat(finalWeekBucket.avgWeight.toFixed(1));
+    }
+  }
+
   return {
     macroName: macro.name, goalType: macro.goalType || 'loss',
     start: macro.start, end: endStr,
@@ -13754,7 +13935,7 @@ function computeCycleReviewPayload(macro) {
     measurements: computeCycleMeasurements(macro),
     bestLifts: computeCycleBestLifts(macro),
     priorReviews: getPriorCycleReviews(macro.id),
-    finalDayStepsPending,
+    finalDaySubstitutions,
   };
 }
 
@@ -13837,7 +14018,7 @@ function openCycleReviewModal(macroId) {
 // Builds the system + user prompt for the cycle-end review call, plus the
 // ordered list of image content blocks (each preceded by its own text
 // label, since the API has no per-image caption field) to append after it.
-function buildCycleReviewPrompt(macro, payload) {
+function buildCycleReviewPrompt(macro, payload, beforeImages, afterImages) {
   const weeklyLines = payload.weeklyAverages.map(w =>
     `${w.label} (${w.bStart}–${w.bEnd}): avg weight ${w.avgWeight !== null ? w.avgWeight.toFixed(1) + ' lbs' : '—'}, avg kcal ${w.avgKcal ?? '—'}, avg protein ${w.avgProtein ?? '—'}g, avg carbs ${w.avgCarbs ?? '—'}g, avg steps ${w.avgSteps ?? '—'}`
   ).join('\n') || 'No weekly data logged this cycle.';
@@ -13860,8 +14041,8 @@ Hip: ${m.startHip ?? '—'} → ${m.endHip ?? '—'} in`;
     ? payload.priorReviews.map(r => `- ${r.name} (${r.goalType}, ${r.start}–${r.end}): compliance ${r.complianceScore}/10, bodyfat ${r.bodyfatDirection || 'unclear'}, ended ${r.weightTargetDelta !== null ? (r.weightTargetDelta > 0 ? '+' : '') + r.weightTargetDelta + ' lbs vs target' : 'no target set'}`).join('\n')
     : 'No prior reviewed cycles yet — this is the first.';
 
-  const beforeCount = _cycleReviewBeforeImages.length;
-  const afterCount  = _cycleReviewAfterImages.length;
+  const beforeCount = beforeImages.length;
+  const afterCount  = afterImages.length;
 
   const systemPrompt = `You are BLOC, a personal training and nutrition coach embedded in a fitness tracking app, writing this user's end-of-cycle review. Speak in second person, be direct and specific, and reference actual numbers from the data below rather than being vague.
 
@@ -13882,7 +14063,16 @@ Respond with ONLY a raw JSON object, no markdown fences, no preamble. Schema:
   "ranTooLongNote": "1 sentence if ranTooLong is true, else empty string"
 }
 
-${payload.finalDayStepsPending ? "Note: this cycle's final day's steps are not yet logged (steps is always the last thing logged in a day) — assume the daily steps goal was met for that day rather than treating it as a miss." : ''}`;
+${(() => {
+    const fd = payload.finalDaySubstitutions || {};
+    const parts = [];
+    if (fd.kcal !== undefined) parts.push(`kcal/protein/carbs — assume ~${fd.kcal} kcal, ${fd.protein}g protein, ${fd.carbs}g carbs`);
+    if (fd.steps !== undefined) parts.push(`steps — assume ~${fd.steps.toLocaleString()}`);
+    if (fd.weight !== undefined) parts.push(`weight — assume ~${fd.weight} lbs`);
+    return parts.length
+      ? `Note: this cycle's final day had not yet logged the following (the WEEKLY AVERAGES/MEASUREMENTS below already exclude it rather than counting it as zero). Assume it matched this week's average instead of treating it as a miss or a data gap: ${parts.join('; ')}.`
+      : '';
+  })()}`;
 
   let userText = `CYCLE: ${payload.macroName} (${payload.goalType}), ${payload.start} to ${payload.end}
 
@@ -13904,16 +14094,78 @@ ${priorLines}
 Write this cycle's review per the schema above.`;
 
   const imageBlocks = [];
-  _cycleReviewBeforeImages.forEach((img, i) => {
+  beforeImages.forEach((img, i) => {
     imageBlocks.push({ type: 'text', text: `BEFORE PHOTO ${i + 1}:` });
     imageBlocks.push({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.base64 } });
   });
-  _cycleReviewAfterImages.forEach((img, i) => {
+  afterImages.forEach((img, i) => {
     imageBlocks.push({ type: 'text', text: `AFTER PHOTO ${i + 1}:` });
     imageBlocks.push({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.base64 } });
   });
 
   return { systemPrompt, userText, imageBlocks };
+}
+
+// Core API call + validation + macro.review write, factored out of
+// runCycleReview() (dev 2026-09-15, item 1b) so the final-week card's
+// auto-sequenced review (see maybeAutoRunCycleReviewThenBuildNextCycle())
+// can run the exact same logic without the photo modal ever having been
+// opened — no DOM/button manipulation here, just the API call itself.
+// Throws on any failure; caller decides how to surface that.
+async function generateCycleReview(macro, beforeImages, afterImages) {
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error('No API key saved. Go to Settings → Linked services to add your Anthropic API key.');
+
+  const payload = computeCycleReviewPayload(macro);
+  const { systemPrompt, userText, imageBlocks } = buildCycleReviewPrompt(macro, payload, beforeImages, afterImages);
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 4000,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: [{ type: 'text', text: userText }, ...imageBlocks] }],
+    }),
+  });
+
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}));
+    throw new Error(errBody?.error?.message || `API error ${res.status}`);
+  }
+
+  const data = await res.json();
+  const rawText = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+  const cleaned = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+  const response = JSON.parse(cleaned);
+
+  if (!response.narrative || !response.headline || typeof response.complianceScore !== 'number') {
+    throw new Error('Response missing required fields');
+  }
+
+  macro.review = {
+    storedAt: getLocalToday(),
+    complianceScore: response.complianceScore,
+    bodyfatEstimate: response.bodyfatEstimate || null,
+    headline: response.headline,
+    narrative: response.narrative,
+    highlights: response.highlights || [],
+    improvements: response.improvements || [],
+    stickingPoints: response.stickingPoints || '',
+    ranTooLong: !!response.ranTooLong,
+    ranTooLongNote: response.ranTooLongNote || '',
+    weightTargetDelta: payload.measurements.weightTargetDelta,
+    totalWeightChange: payload.measurements.totalWeightChange,
+    beforePhotoCount: beforeImages.length, afterPhotoCount: afterImages.length,
+  };
+  save();
+  return macro.review;
 }
 
 async function runCycleReview() {
@@ -13924,69 +14176,12 @@ async function runCycleReview() {
   if (!macro) return;
   if (macro.review) return; // one review per cycle, no re-run
 
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    if (errEl) { errEl.textContent = 'No API key saved. Go to Settings → Linked services to add your Anthropic API key.'; errEl.style.display = 'block'; }
-    return;
-  }
-
   _cycleReviewLoading = true;
   const btn = document.getElementById('cycle-review-generate-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'BLOC is reviewing…'; }
 
-  const beforePhotoCount = _cycleReviewBeforeImages.length;
-  const afterPhotoCount  = _cycleReviewAfterImages.length;
-
   try {
-    const payload = computeCycleReviewPayload(macro);
-    const { systemPrompt, userText, imageBlocks } = buildCycleReviewPrompt(macro, payload);
-
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 4000,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: [{ type: 'text', text: userText }, ...imageBlocks] }],
-      }),
-    });
-
-    if (!res.ok) {
-      const errBody = await res.json().catch(() => ({}));
-      throw new Error(errBody?.error?.message || `API error ${res.status}`);
-    }
-
-    const data = await res.json();
-    const rawText = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
-    const cleaned = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
-    const response = JSON.parse(cleaned);
-
-    if (!response.narrative || !response.headline || typeof response.complianceScore !== 'number') {
-      throw new Error('Response missing required fields');
-    }
-
-    macro.review = {
-      storedAt: getLocalToday(),
-      complianceScore: response.complianceScore,
-      bodyfatEstimate: response.bodyfatEstimate || null,
-      headline: response.headline,
-      narrative: response.narrative,
-      highlights: response.highlights || [],
-      improvements: response.improvements || [],
-      stickingPoints: response.stickingPoints || '',
-      ranTooLong: !!response.ranTooLong,
-      ranTooLongNote: response.ranTooLongNote || '',
-      weightTargetDelta: payload.measurements.weightTargetDelta,
-      totalWeightChange: payload.measurements.totalWeightChange,
-      beforePhotoCount, afterPhotoCount,
-    };
-    save();
+    await generateCycleReview(macro, _cycleReviewBeforeImages, _cycleReviewAfterImages);
 
     _cycleReviewBeforeImages = [];
     _cycleReviewAfterImages  = [];
@@ -14023,6 +14218,18 @@ function buildCycleReviewCardHTML(macro) {
     </div>`;
   }
 
+  return `<div style="margin-top:10px;padding:13px 14px;border:1px solid var(--border2);border-radius:var(--r-lg);cursor:pointer;" onclick="toggleCycleReviewCard('${macro.id}')">
+    ${buildCycleReviewSummaryHTML(macro)}
+  </div>`;
+}
+
+// Extracted from buildCycleReviewCardHTML (dev 2026-09-15, item 1) so the
+// final-week card (buildFinalWeekCardHTML) can embed the exact same
+// reviewed-cycle score header + collapsible narrative/highlights/
+// improvements content — keyed by the same _cycleReviewCardOpen/
+// toggleCycleReviewCard() state either way — without duplicating this
+// markup. Caller supplies its own outer wrapper/click target.
+function buildCycleReviewSummaryHTML(macro) {
   const r = macro.review;
   const open = !!_cycleReviewCardOpen[macro.id];
   const bf = r.bodyfatEstimate || {};
@@ -14041,8 +14248,7 @@ function buildCycleReviewCardHTML(macro) {
     ${(r.beforePhotoCount || r.afterPhotoCount) ? `<div style="font-size:11px;color:var(--text3);margin-top:12px;">${r.beforePhotoCount} before / ${r.afterPhotoCount} after photo(s) reviewed — not stored.</div>` : ''}
   ` : '';
 
-  return `<div style="margin-top:10px;padding:13px 14px;border:1px solid var(--border2);border-radius:var(--r-lg);cursor:pointer;" onclick="toggleCycleReviewCard('${macro.id}')">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+  return `<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
       <div style="flex:1;">
         <div style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:500;color:var(--accent);">✦ Cycle Review</div>
         <div style="font-size:13px;font-weight:600;color:var(--text);margin-top:6px;line-height:1.35;">${r.headline}</div>
@@ -14063,7 +14269,81 @@ function buildCycleReviewCardHTML(macro) {
         <div style="font-size:14px;font-weight:600;color:var(--text);margin-top:2px;">${r.totalWeightChange !== null ? (r.totalWeightChange > 0 ? '+' : '') + r.totalWeightChange + ' lbs' : '—'}</div>
       </div>
     </div>
-    ${bodyHtml}
+    ${bodyHtml}`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FINAL-WEEK CARD (dev 2026-09-15, item 1)
+// ─────────────────────────────────────────────────────────────────────────────
+// Replaces the mid-cycle check-in card for the active cycle's entire final
+// calendar week (the 7 days up to and including its actual last day) with
+// two independent flows in the same swipe card: Build next cycle (BLOC's
+// own second opinion — reuses the Phase 4 second-opinion feature verbatim,
+// see buildNextCycleAdviceSectionHTML) and Cycle review (available once
+// the last day arrives — reuses the existing one-time review feature).
+// Keeps rendering — showing whichever of the two has actually run — for as
+// long as this remains the ACTIVE cycle, even once the review itself has
+// completed, unlike buildCycleReviewCardHTML's plain reviewed-card view
+// (used only when browsing a PAST cycle via the hero selector, after a new
+// cycle has actually been built and this one is no longer active).
+function isInFinalWeek(macro) {
+  if (!macro || !macro.start) return false;
+  const endStr = toLocalDateStr(getMacroEndDate(macro));
+  const finalWeekStartDate = new Date(endStr + 'T00:00:00');
+  finalWeekStartDate.setDate(finalWeekStartDate.getDate() - 6);
+  return getLocalToday() >= toLocalDateStr(finalWeekStartDate);
+}
+
+function buildFinalWeekCardHTML(macro, rec) {
+  // Active-cycle only: isInFinalWeek() has no upper bound (just "today is
+  // at/past this macro's own final-week start"), so without this check a
+  // long-past, never-reviewed macro browsed via the hero selector would
+  // show "Build next cycle" forever too, not just Cycle review — which
+  // makes no sense once one or more newer cycles already exist. A past
+  // cycle falls through to buildCycleReviewCardHTML()'s plain view
+  // instead (unaffected by this — reachable indefinitely, per your
+  // existing "always available via the hero selector" rule).
+  if (!macro || macro.id !== state.currentMacroId || !isInFinalWeek(macro)) return null;
+
+  const endStr = toLocalDateStr(getMacroEndDate(macro));
+  const endFmt = new Date(endStr + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const reviewDue = getLocalToday() >= endStr; // equivalent to isCycleReviewDue(macro)
+
+  const nextCycleBody = buildNextCycleAdviceSectionHTML(macro, rec);
+
+  let cycleReviewBody;
+  if (_cycleReviewLoading) {
+    // Covers both the modal-triggered run AND the silent auto-run kicked
+    // off by startBuildNextCycleFlow() when Build-next-cycle is clicked
+    // first — either way, this section shows the same "thinking" state so
+    // it's clear both flows are in progress together (dev 2026-09-15, 1b).
+    cycleReviewBody = `<div style="margin-top:10px;padding:11px 14px;border-radius:10px;font-size:13px;font-weight:600;
+                background:rgba(145,132,217,0.08);border:0.5px solid rgba(145,132,217,0.2);
+                color:var(--accent);text-align:center;font-family:var(--font-display);">
+      ✦ BLOC is thinking…
+    </div>`;
+  } else if (macro.review) {
+    cycleReviewBody = `<div style="margin-top:10px;cursor:pointer;" onclick="toggleCycleReviewCard('${macro.id}')">
+      ${buildCycleReviewSummaryHTML(macro)}
+    </div>`;
+  } else if (reviewDue) {
+    cycleReviewBody = `<div style="margin-top:10px;">
+      <button class="btn btn-accent btn-block" onclick="openCycleReviewModal('${macro.id}')">✦ Start Cycle Review</button>
+    </div>`;
+  } else {
+    const daysUntil = Math.round((new Date(endStr + 'T00:00:00') - new Date(getLocalToday() + 'T00:00:00')) / 86400000);
+    cycleReviewBody = `<div style="margin-top:10px;padding:10px 14px;border-radius:10px;background:var(--surface2);border:0.5px solid var(--border2);text-align:center;">
+      <div style="font-size:12px;color:var(--text3);">✦ Cycle review — available in ${daysUntil} day${daysUntil === 1 ? '' : 's'}</div>
+    </div>`;
+  }
+
+  return `<div>
+    <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Cycle ending — ${endFmt}</div>
+    <div style="font-size:13px;font-weight:600;color:var(--text);">Build next cycle</div>
+    ${nextCycleBody}
+    <div style="border-top:0.5px solid var(--border);margin:16px 0 12px;"></div>
+    <div style="font-size:13px;font-weight:600;color:var(--text);">Cycle review</div>
+    ${cycleReviewBody}
   </div>`;
 }
 
@@ -14442,7 +14722,7 @@ function nextCycleAdvicePlanMode(rec) {
 // at 8,000 steps/day, applied client-side after parsing — the schema and
 // constraints below simply omit the "steps" field entirely unless
 // rec.goalType === 'loss', so the model is never even asked for it.
-function buildNextCycleAdvicePrompt(macro, rec, userContext) {
+function buildNextCycleAdvicePrompt(macro, rec, userContext, priorResponse) {
   const ins             = computeWeeklyInsights(macro);
   const dynResult       = rec.dynResult || calcDynamicTDEE();
   const safetyFloorKcal = computeSafetyFloor(macro);
@@ -14594,10 +14874,10 @@ PLAN LENGTH GUIDANCE — this is a maintenance bridge. The deterministic engine'
   const maxGoalsPerPlan = mode.directionTwoPlans ? 6 : 5;
 
 
-  const systemPrompt = `You are BLOC, a personal training and nutrition coach embedded in a fitness tracking app. You are being asked for a second opinion on the NEXT training cycle — the user's current cycle (${macro.goalType}) is ending soon, and a deterministic engine has already produced a recommendation. Your job is to review the same data and either confirm it or propose a better-reasoned plan. Speak in second person. Never be vague. Reference actual numbers from the data.
+  const systemPrompt = `You are BLOC, a personal training and nutrition coach embedded in a fitness tracking app. You are being asked to plan the user's NEXT training cycle — the current cycle (${macro.goalType}) is ending soon. A deterministic engine has already produced its own recommendation, given to you below purely as input data for you to weigh alongside everything else — your job is to reach your own independent judgment from the full picture, not to confirm or critique that recommendation. Speak in second person. Never be vague. Reference actual numbers from the data. Never reveal in your output that a deterministic recommendation was given to you at all — see the HARD CONSTRAINT below.
 
 ${isContinuationCase
-    ? `The deterministic engine's own default here is to EXTEND the current cycle rather than switch direction — but you are specifically being asked to plan for the ALTERNATIVE instead, in case switching now is actually the better call: ${goalType.toUpperCase()} (a ${directionLabel}). See CONTINUATION CONTEXT below for both sides of this and explicitly weigh in on which is actually better in your narrative — but your plans[] must still represent the alternative (switching), since a plain extension isn't something this feature builds automatically.`
+    ? `The deterministic engine's own default here is to EXTEND the current cycle rather than switch direction — but you are specifically being asked to plan for the ALTERNATIVE instead, in case switching now is actually the better call: ${goalType.toUpperCase()} (a ${directionLabel}). See CONTINUATION CONTEXT below for both sides of this, and weigh in on whether extending or switching is actually better based on the data itself — reasoned from the data, never by naming or citing the deterministic engine's own default as your reason (see the HARD CONSTRAINT below). Your plans[] must still represent the alternative (switching), since a plain extension isn't something this feature builds automatically.`
     : `This next cycle's direction has already been decided: ${goalType.toUpperCase()} (a ${directionLabel}). Do not change the direction — only the pacing, kcal levels, and phase structure${mode.maintenanceFlex ? ' (and, for this maintenance bridge, its total length — see PLAN LENGTH GUIDANCE below)' : ''}.`}
 
 The user may have supplied free-text context and/or a stated intention for what they think comes AFTER this next cycle — see USER CONTEXT below. That stated future intention is NOT a request to change the direction decided above; it's a hint about where the user thinks they're headed next, useful for judging pacing/length of THIS cycle (e.g. a slower, longer maintenance bridge to prepare for a bulk the user is unsure they can sustain). Weigh in on it explicitly in your narrative, including if you think a different path than what they intend would serve them better — but never let it override the fixed direction above.
@@ -14612,6 +14892,8 @@ ${stepsConstraintLine}
 - Do NOT include a fats field — fats are calculated client-side
 - Every goal step must represent a single flat kcal/protein/carbs target sustained across its full date range. Do not describe or reference intra-week structure anywhere. Goal step granularity is NOT locked to one-week increments — if a bi-weekly or longer hold makes more sense, make one goal span that full range rather than repeating identical weekly goals.
 - When citing a specific week range from the WEEKLY DATA table (e.g. "weight oscillated between X and Y across W7–W10"), the X/Y values MUST come only from rows literally labeled within that range — never pull in a value from an adjacent week discussed elsewhere in the same narrative. Re-check every week-range claim against the table before including it.
+- The deterministic engine's own recommendation/reasoning below (see CONTINUATION CONTEXT and "DETERMINISTIC ENGINE'S OWN RECOMMENDATION") is given to you ONLY as input context, to help you reach your own independent judgment. Your "narrative" field must never mention it, agree or disagree with it, or refer to it in any way — no phrases like "the app's suggestion," "the deterministic engine," "the recommendation you were given," "confirming the original plan," etc. Write the narrative exactly as if you independently determined this plan from the raw data alone, with no prior guideline to react to.
+${priorResponse ? `- This is a REFRESH: you already gave the PRIOR RESPONSE below before the cycle review (see CYCLE REVIEW above) had come back. Only change anything if the cycle review's compliance/bodyfat/sticking-points verdict genuinely changes what you'd recommend — otherwise return your plans/narrative essentially unchanged. Never change anything just for the sake of it, and never mention that this is a refresh, that a prior response existed, or that anything was or wasn't changed anywhere in your narrative — write it exactly as a normal, fresh response either way.` : ''}
 ${planCountLine}
 ${fillConstraintLine}
 - Respond ONLY with valid JSON matching the schema below — no preamble, no markdown, no text outside the JSON
@@ -14620,7 +14902,7 @@ JSON SCHEMA:
 {
   "signal": "one of: on-track-continue | pace-too-fast | pace-too-slow | needs-longer-bridge | needs-shorter-bridge | conflict-resolution | extend-not-switch | switch-not-extend",
   "headline": "max 12 words",
-  "narrative": "2-4 paragraphs referencing actual numbers from the data, and explicitly agreeing or disagreeing with the deterministic recommendation's own reasoning (given below) and why${isContinuationCase ? ' — including which of extending vs switching you\'d actually recommend, and why' : ''}",
+  "narrative": "2-4 paragraphs referencing actual numbers from the data, presented as your own independent assessment — see the HARD CONSTRAINT above on never referencing the deterministic engine/recommendation itself${isContinuationCase ? ' — including which of extending vs switching you\'d actually recommend, and why (without naming the deterministic engine\'s own default as the reason)' : ''}",
   "plans": [
     {
       "key": "short machine-safe id — see plan-count rule above for exact required keys when 2 plans are requested",
@@ -14696,13 +14978,68 @@ CONFLICT: ${conflictStr}
 
 USER CONTEXT FOR THIS CYCLE: ${userContextStr}
 
+${(() => {
+    // Cycle review, if it's already been generated for the cycle that's
+    // ending (dev 2026-09-15, item 1b — the final-week sequencing feature
+    // runs the review first when both are triggered together, or it may
+    // simply have been run earlier by the user): fold its verdict in as
+    // extra context. Purely informational — never changes the fixed
+    // direction/constraints above, just gives you the review's own take on
+    // compliance/bodyfat/training this cycle to weigh alongside the raw
+    // weekly data.
+    if (!macro.review) return 'CYCLE REVIEW: Not yet generated for the cycle that\'s ending.';
+    const r = macro.review;
+    const bf = r.bodyfatEstimate || {};
+    return `CYCLE REVIEW (just completed for the cycle that's ending):
+Compliance score: ${r.complianceScore}/10
+Bodyfat-change estimate: ${bf.direction || 'unclear'}${bf.note ? ' — ' + bf.note : ''}
+Headline: ${r.headline}
+Ran too long: ${r.ranTooLong ? 'yes — ' + r.ranTooLongNote : 'no'}
+Sticking points: ${r.stickingPoints || 'none noted'}`;
+  })()}
+
 COMPLETED CYCLE HISTORY:
 ${cycleHistoryStr}
 
 RECENT NEXT-CYCLE ADVICE HISTORY (your own past calls, most recent last):
-${historyStr}`;
+${historyStr}
+
+${priorResponse ? `PRIOR RESPONSE (already given to the user, before the cycle review above was available — see the REFRESH instruction above):
+Headline: ${priorResponse.headline}
+Narrative: ${priorResponse.narrative}
+Plans: ${priorResponse.plans.map(p => `"${p.label}" (${p.key}) — ${p.summary}`).join(' | ')}` : ''}`;
 
   return { systemPrompt, userMessage };
+}
+
+// ── Sequencing entry point for the final-week card's "Build next cycle"
+//    button (dev 2026-09-15, item 1b) ──────────────────────────────────
+// If cycle review is due but hasn't run yet (the user clicked Build next
+// cycle before Cycle review — the button on the other section), runs the
+// review FIRST — silently, no photos, since its modal was never opened —
+// so buildNextCycleAdvicePrompt() picks up its result as context once
+// generated. Either way, then proceeds to the existing context-gathering
+// modal exactly as before. A failed silent review is logged and swallowed
+// rather than blocking build-next-cycle — the user can still run Cycle
+// review manually afterward from its own button. Sets both loading flags
+// during the review phase so the UI shows "BLOC is thinking" on both
+// sections at once, matching what a person clicking either button expects.
+async function startBuildNextCycleFlow() {
+  const macro = resolveProgressMacro();
+  if (macro && isCycleReviewDue(macro) && !macro.review && !_cycleReviewLoading) {
+    _cycleReviewLoading = true;
+    _nextCycleAdviceLoading = true;
+    renderProgress();
+    try {
+      await generateCycleReview(macro, [], []);
+    } catch (err) {
+      console.warn('[final-week] auto cycle review before build-next-cycle failed:', err.message);
+    }
+    _cycleReviewLoading = false;
+    _nextCycleAdviceLoading = false;
+    renderProgress();
+  }
+  openNextCycleAdviceContextModal();
 }
 
 // ── Context modal — gathers optional free text + stated future intention
@@ -14764,7 +15101,7 @@ function submitNextCycleAdviceContext(includeContext) {
 // from the modal above — see openNextCycleAdviceContextModal()/
 // submitNextCycleAdviceContext(); null/undefined here reproduces the exact
 // pre-existing behaviour for any other caller.
-async function askBlocForNextCycleAdvice(userContext) {
+async function askBlocForNextCycleAdvice(userContext, priorResponse) {
   const macro = resolveProgressMacro();
   if (!macro || _nextCycleAdviceLoading) return;
 
@@ -14793,7 +15130,7 @@ async function askBlocForNextCycleAdvice(userContext) {
 
   let systemPrompt, userMessage;
   try {
-    const prompt = buildNextCycleAdvicePrompt(macro, rec, userContext);
+    const prompt = buildNextCycleAdvicePrompt(macro, rec, userContext, priorResponse);
     systemPrompt = prompt.systemPrompt;
     userMessage  = prompt.userMessage;
     console.log('[BLOC next-cycle advice] Prompt built. User message length:', userMessage.length);
@@ -14937,6 +15274,11 @@ async function askBlocForNextCycleAdvice(userContext) {
       macroId:       macro.id,
       chosenPlanKey: null,
       userContext:   userContext || null,
+      // Whether this response already reflects the cycle review (dev
+      // 2026-09-15, item 1c) — drives the one-shot "Refresh with cycle
+      // review" affordance in buildNextCycleAdviceSectionHTML(): only
+      // offered once a review exists that this response didn't yet see.
+      reviewIncluded: !!macro.review,
     };
     state.nextCycleAdviceHistory.push({
       id:            adviceId,
@@ -15013,7 +15355,7 @@ function buildNextCycleAdviceSectionHTML(macro, rec) {
           ? `available in ${Math.ceil(daysUntilEligible / 7)} week${Math.ceil(daysUntilEligible / 7) === 1 ? '' : 's'}`
           : `available in ${daysUntilEligible} day${daysUntilEligible === 1 ? '' : 's'}`;
         return `<div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--surface2);border:0.5px solid var(--border2);">
-          <div style="font-size:12px;color:var(--text3);">✦ Ask BLOC for a second opinion — ${countdownText}</div>
+          <div style="font-size:12px;color:var(--text3);">✦ Build next cycle — ${countdownText}</div>
         </div>`;
       }
       return '';
@@ -15024,14 +15366,14 @@ function buildNextCycleAdviceSectionHTML(macro, rec) {
       : '';
     return `<div style="margin-top:10px;">
       <button id="next-cycle-advice-btn"
-        onclick="openNextCycleAdviceContextModal()"
+        onclick="startBuildNextCycleFlow()"
         ${!hasKey ? 'disabled' : ''}
         style="width:100%;padding:11px 14px;border-radius:10px;font-size:13px;font-weight:600;
                background:${hasKey ? 'rgba(145,132,217,0.12)' : 'var(--surface2)'};
                border:0.5px solid ${hasKey ? 'rgba(145,132,217,0.35)' : 'var(--border2)'};
                color:${hasKey ? 'var(--accent)' : 'var(--text3)'};
                cursor:${hasKey ? 'pointer' : 'default'};font-family:var(--font-display);">
-        ✦ Ask BLOC for a second opinion
+        ✦ Build next cycle
       </button>
       ${noKeyNote}
       <div id="next-cycle-advice-error" style="display:none;font-size:11px;color:var(--red);margin-top:6px;"></div>
@@ -15098,13 +15440,15 @@ function buildNextCycleAdviceSectionHTML(macro, rec) {
         <span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:6px;">${plan.summary}</span>
       </div>
       ${planStepsBlock(plan)}
-      <button onclick="chooseNextCyclePlan('${plan.key}')"
+      ${planMatchesActiveGoal(plan)
+        ? `<div style="font-size:11px;color:var(--text3);text-align:center;padding:9px 0;">No change from your current goal — nothing to build.</div>`
+        : `<button onclick="chooseNextCyclePlan('${plan.key}')"
         style="width:100%;padding:11px;border-radius:10px;font-size:13px;font-weight:600;
                background:${i === 0 ? 'var(--accent)' : 'var(--red)'};color:${i === 0 ? '#06281f' : '#fff'};
                border:${i === 0 ? 'none' : '1px solid var(--red)'};cursor:pointer;margin-top:4px;
                font-family:var(--font-display);">
         Use ${plan.label} →
-      </button>`).join('');
+      </button>`}`).join('');
   } else {
     // Post-choice: chosen plan collapsible-open, any other plan(s) tucked
     // under a single "view alternative(s)" toggle — same pattern as the
@@ -15138,16 +15482,36 @@ function buildNextCycleAdviceSectionHTML(macro, rec) {
         <span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:6px;">${p.summary}</span>
       </div>
       ${planStepsBlock(p)}
-      <button onclick="chooseNextCyclePlan('${p.key}')"
+      ${planMatchesActiveGoal(p)
+        ? `<div style="font-size:11px;color:var(--text3);text-align:center;padding:9px 0;">No change from your current goal — nothing to build.</div>`
+        : `<button onclick="chooseNextCyclePlan('${p.key}')"
         style="width:100%;padding:10px;border-radius:10px;font-size:12px;font-weight:600;
                background:var(--surface2);color:var(--text);border:0.5px solid var(--border2);
                cursor:pointer;margin-top:4px;font-family:var(--font-display);">
         Switch to ${p.label} plan →
-      </button>
+      </button>`}
     </div>`).join('') : ''}` : ''}`;
   }
 
   const storedFmt = new Date(stored.storedAt + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  // ── Refresh with cycle review ─────────────────────────────────────────
+  // One-shot, matching "Challenge this advice" for check-ins (dev
+  // 2026-09-15, item 1c) — offered only when this response was generated
+  // BEFORE the cycle review existed (the user clicked Build next cycle
+  // during the final week, ahead of the cycle's actual last day), a
+  // review has since completed, and no plan has been chosen yet (once a
+  // plan's chosen, the goal queue may already be built from it — nothing
+  // left here to usefully refresh).
+  const canRefreshWithReview = !chosenKey && !!macro.review && !stored.reviewIncluded;
+  const refreshHtml = canRefreshWithReview
+    ? `<div style="margin-top:6px;text-align:right;">
+        <span onclick="refreshNextCycleAdviceWithReview()"
+          style="font-size:11px;color:var(--text3);cursor:pointer;text-decoration:underline;">
+          Refresh with cycle review →
+        </span>
+      </div>`
+    : '';
 
   return `<div style="margin-top:10px;border-top:0.5px solid var(--border);padding-top:10px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -15163,9 +15527,23 @@ function buildNextCycleAdviceSectionHTML(macro, rec) {
       <span style="font-size:12px;color:var(--text3);flex-shrink:0;margin-top:2px;">${narrativeOpen ? '▲' : '▼'}</span>
     </div>
     ${narrativeOpen ? narrativeBody : ''}
+    ${refreshHtml}
     ${planSection}
     <div id="next-cycle-advice-error" style="display:none;font-size:11px;color:var(--red);margin-top:6px;"></div>
   </div>`;
+}
+
+// Triggers the one-shot refresh above — re-asks BLOC with the same prompt
+// plus the original response and the now-available cycle review, per
+// askBlocForNextCycleAdvice()'s priorResponse parameter (see
+// buildNextCycleAdvicePrompt()'s REFRESH instruction for how the model is
+// told to adjust only if something stands out).
+function refreshNextCycleAdviceWithReview() {
+  const macro = resolveProgressMacro();
+  const stored = state.nextCycleAdvice;
+  if (!macro || !stored || stored.macroId !== macro.id) return;
+  if (stored.chosenPlanKey || !macro.review || stored.reviewIncluded) return;
+  askBlocForNextCycleAdvice(stored.userContext, stored.response);
 }
 
 
