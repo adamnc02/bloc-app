@@ -13320,6 +13320,30 @@ function declineBlocChallenge() {
   renderProgress();
 }
 
+// ── No-op guard (dev 2026-09-15, item 1e) ────────────────────────────────────
+// True when a plan's first (immediately-actionable) step is numerically
+// identical to the currently active goal on kcal/protein/carbs/steps only
+// — meaning "using" this plan wouldn't actually change anything about
+// what's active right now. Scoped per-plan (not per-response): a caller
+// with two plans (e.g. sustainable/aggressive) checks each independently
+// and only suppresses the action button for whichever one(s) match —
+// the plan's numbers/narrative always stay visible either way, so the
+// user isn't left wondering what happened. Used by both the mid-cycle
+// check-in plan buttons (startGoalQueue) and the build-next-cycle plan
+// buttons (chooseNextCyclePlan) — the same guard, since both ultimately
+// launch the goal queue.
+function planMatchesActiveGoal(plan) {
+  if (!plan || !plan.goals || !plan.goals.length) return false;
+  const activeGoal = getActiveGoal();
+  if (!activeGoal) return false;
+  const first = plan.goals[0];
+  const numsMatch = (a, b) => a !== null && a !== undefined && b !== null && b !== undefined && Number(a) === Number(b);
+  return numsMatch(first.kcal, activeGoal.kcal)
+    && numsMatch(first.protein, activeGoal.protein)
+    && numsMatch(first.carbs, activeGoal.carbs)
+    && numsMatch(first.steps, activeGoal.steps);
+}
+
 // ── Build AI advice card HTML ─────────────────────────────────────────────────
 function buildAiAdviceCardHTML() {
   const macro = resolveProgressMacro();
@@ -13562,23 +13586,27 @@ function buildAiAdviceCardHTML() {
       <span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:6px;">${sust.summary}</span>
     </div>
     ${goalSummaryBlock(sust, 'sustainable')}
-    <button onclick="startGoalQueue('sustainable')"
+    ${planMatchesActiveGoal(sust)
+      ? `<div style="font-size:11px;color:var(--text3);text-align:center;padding:9px 0;margin-bottom:14px;">No change from your current goal — nothing to build.</div>`
+      : `<button onclick="startGoalQueue('sustainable')"
       style="width:100%;padding:11px;border-radius:10px;font-size:13px;font-weight:600;
              background:var(--accent);color:#06281f;border:none;cursor:pointer;margin-bottom:14px;margin-top:4px;
              font-family:var(--font-display);">
       Use ${sust.label} plan →
-    </button>
+    </button>`}
     <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;">
       ⚡ ${agg.label} plan
       <span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:6px;">${agg.summary}</span>
     </div>
     ${goalSummaryBlock(agg, 'aggressive')}
-    <button onclick="startGoalQueue('aggressive')"
+    ${planMatchesActiveGoal(agg)
+      ? `<div style="font-size:11px;color:var(--text3);text-align:center;padding:9px 0;">No change from your current goal — nothing to build.</div>`
+      : `<button onclick="startGoalQueue('aggressive')"
       style="width:100%;padding:11px;border-radius:10px;font-size:13px;font-weight:600;
              background:var(--red);color:#fff;border:1px solid var(--red);cursor:pointer;margin-top:4px;
              font-family:var(--font-display);">
       Use ${agg.label} plan →
-    </button>`;
+    </button>`}`;
   } else {
     // Post-choice: chosen plan visible, unchosen plan collapsible
     const chosenPath_obj  = chosenPath === 'sustainable' ? sust : agg;
@@ -13609,12 +13637,14 @@ function buildAiAdviceCardHTML() {
     ${altOpen ? `
     <div style="margin-top:8px;">
       ${goalSummaryBlock(altPath_obj, altPathKey)}
-      <button onclick="startGoalQueue('${altPathKey}')"
+      ${planMatchesActiveGoal(altPath_obj)
+        ? `<div style="font-size:11px;color:var(--text3);text-align:center;padding:9px 0;">No change from your current goal — nothing to build.</div>`
+        : `<button onclick="startGoalQueue('${altPathKey}')"
         style="width:100%;padding:10px;border-radius:10px;font-size:12px;font-weight:600;
                ${altPathKey === 'aggressive' ? 'background:var(--red);color:#fff;border:1px solid var(--red);' : 'background:var(--surface2);color:var(--text);border:0.5px solid var(--border2);'}
                cursor:pointer;margin-top:4px;font-family:var(--font-display);">
         Switch to ${altPath_obj.label} plan →
-      </button>
+      </button>`}
     </div>` : ''}`;
   }
 
@@ -15359,13 +15389,15 @@ function buildNextCycleAdviceSectionHTML(macro, rec) {
         <span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:6px;">${plan.summary}</span>
       </div>
       ${planStepsBlock(plan)}
-      <button onclick="chooseNextCyclePlan('${plan.key}')"
+      ${planMatchesActiveGoal(plan)
+        ? `<div style="font-size:11px;color:var(--text3);text-align:center;padding:9px 0;">No change from your current goal — nothing to build.</div>`
+        : `<button onclick="chooseNextCyclePlan('${plan.key}')"
         style="width:100%;padding:11px;border-radius:10px;font-size:13px;font-weight:600;
                background:${i === 0 ? 'var(--accent)' : 'var(--red)'};color:${i === 0 ? '#06281f' : '#fff'};
                border:${i === 0 ? 'none' : '1px solid var(--red)'};cursor:pointer;margin-top:4px;
                font-family:var(--font-display);">
         Use ${plan.label} →
-      </button>`).join('');
+      </button>`}`).join('');
   } else {
     // Post-choice: chosen plan collapsible-open, any other plan(s) tucked
     // under a single "view alternative(s)" toggle — same pattern as the
@@ -15399,12 +15431,14 @@ function buildNextCycleAdviceSectionHTML(macro, rec) {
         <span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:6px;">${p.summary}</span>
       </div>
       ${planStepsBlock(p)}
-      <button onclick="chooseNextCyclePlan('${p.key}')"
+      ${planMatchesActiveGoal(p)
+        ? `<div style="font-size:11px;color:var(--text3);text-align:center;padding:9px 0;">No change from your current goal — nothing to build.</div>`
+        : `<button onclick="chooseNextCyclePlan('${p.key}')"
         style="width:100%;padding:10px;border-radius:10px;font-size:12px;font-weight:600;
                background:var(--surface2);color:var(--text);border:0.5px solid var(--border2);
                cursor:pointer;margin-top:4px;font-family:var(--font-display);">
         Switch to ${p.label} plan →
-      </button>
+      </button>`}
     </div>`).join('') : ''}` : ''}`;
   }
 
