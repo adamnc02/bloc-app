@@ -11334,8 +11334,13 @@ function renderProgress(animate = false) {
   </div>`;
 
   // ── Assemble swipeable stack ──────────────────────────────────────────────
-  const cards = [card1, card2, card3];
-  const cardTitles = ['Progress', 'Metabolism', 'Next cycle'];
+  // Card 3 ("Next cycle — weekly kcal projections") is permanently hidden
+  // from this deck (dev 2026-09-15) — recommendNextCycle()'s output (rec/
+  // nextCycleRec, computed above) stays in place since it still feeds the
+  // AI next-cycle prompt, but the deterministic card/button/LLM-advice
+  // section built into card3 above is no longer rendered anywhere.
+  const cards = [card1, card2];
+  const cardTitles = ['Progress', 'Metabolism'];
 
   // Card: no header buttons — swipe only. Content wrapped in animatable .card
   bodyEl.innerHTML = `<div class="insights-swipe-card">${cards[insightsIndex]}</div>`;
