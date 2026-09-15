@@ -14252,7 +14252,15 @@ function isInFinalWeek(macro) {
 }
 
 function buildFinalWeekCardHTML(macro, rec) {
-  if (!macro || !isInFinalWeek(macro)) return null;
+  // Active-cycle only: isInFinalWeek() has no upper bound (just "today is
+  // at/past this macro's own final-week start"), so without this check a
+  // long-past, never-reviewed macro browsed via the hero selector would
+  // show "Build next cycle" forever too, not just Cycle review — which
+  // makes no sense once one or more newer cycles already exist. A past
+  // cycle falls through to buildCycleReviewCardHTML()'s plain view
+  // instead (unaffected by this — reachable indefinitely, per your
+  // existing "always available via the hero selector" rule).
+  if (!macro || macro.id !== state.currentMacroId || !isInFinalWeek(macro)) return null;
 
   const endStr = toLocalDateStr(getMacroEndDate(macro));
   const endFmt = new Date(endStr + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
