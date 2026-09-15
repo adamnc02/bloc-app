@@ -13815,12 +13815,34 @@ function computeCycleReviewPayload(macro) {
   const todayStr = getLocalToday();
   const endStr = toLocalDateStr(getMacroEndDate(macro));
   const dayMap = buildDayMap();
-  // Steps is the last thing logged in a day — if the review is being run on
-  // the cycle's actual final day, that day's steps often genuinely haven't
-  // been logged yet even though the day is "done" in every other sense.
-  // Flagged here rather than silently treated as a missed target.
-  const finalDayStepsPending = (todayStr === endStr) &&
-    (!dayMap[endStr] || dayMap[endStr].steps === null || dayMap[endStr].steps === undefined);
+
+  // On the cycle's actual final day, one or more of kcal/protein/carbs/
+  // steps/weight are often genuinely not yet logged (steps especially —
+  // always the last thing logged in a day), even though the day is "done"
+  // in every other sense. Rather than silently treating any missing metric
+  // as a miss, substitute this week's average-so-far (the last bucket in
+  // weeklyAverages already covers exactly this final week) and tell the
+  // LLM explicitly which figures were substituted and what value was used
+  // (dev 2026-09-15, item 1b — generalized from the original steps-only
+  // handling to cover kcal/macros/steps/weight alike).
+  const finalDaySubstitutions = {};
+  if (todayStr === endStr) {
+    const finalDayEntry = dayMap[endStr] || null;
+    const finalWeekBucket = ins && ins.weekBuckets && ins.weekBuckets.length ? ins.weekBuckets[ins.weekBuckets.length - 1] : null;
+    if (finalWeekBucket) {
+      const missingNutr   = !finalDayEntry || !finalDayEntry.hasNutr;
+      const missingSteps  = !finalDayEntry || finalDayEntry.steps === null || finalDayEntry.steps === undefined;
+      const missingWeight = !finalDayEntry || finalDayEntry.weight === null || finalDayEntry.weight === undefined;
+      if (missingNutr && finalWeekBucket.avgKcal !== null) {
+        finalDaySubstitutions.kcal = finalWeekBucket.avgKcal;
+        finalDaySubstitutions.protein = finalWeekBucket.avgProtein;
+        finalDaySubstitutions.carbs = finalWeekBucket.avgCarbs;
+      }
+      if (missingSteps && finalWeekBucket.avgSteps !== null) finalDaySubstitutions.steps = finalWeekBucket.avgSteps;
+      if (missingWeight && finalWeekBucket.avgWeight !== null) finalDaySubstitutions.weight = parseFloat(finalWeekBucket.avgWeight.toFixed(1));
+    }
+  }
+
   return {
     macroName: macro.name, goalType: macro.goalType || 'loss',
     start: macro.start, end: endStr,
@@ -13829,7 +13851,7 @@ function computeCycleReviewPayload(macro) {
     measurements: computeCycleMeasurements(macro),
     bestLifts: computeCycleBestLifts(macro),
     priorReviews: getPriorCycleReviews(macro.id),
-    finalDayStepsPending,
+    finalDaySubstitutions,
   };
 }
 
@@ -13912,7 +13934,7 @@ function openCycleReviewModal(macroId) {
 // Builds the system + user prompt for the cycle-end review call, plus the
 // ordered list of image content blocks (each preceded by its own text
 // label, since the API has no per-image caption field) to append after it.
-function buildCycleReviewPrompt(macro, payload) {
+function buildCycleReviewPrompt(macro, payload, beforeImages, afterImages) {
   const weeklyLines = payload.weeklyAverages.map(w =>
     `${w.label} (${w.bStart}–${w.bEnd}): avg weight ${w.avgWeight !== null ? w.avgWeight.toFixed(1) + ' lbs' : '—'}, avg kcal ${w.avgKcal ?? '—'}, avg protein ${w.avgProtein ?? '—'}g, avg carbs ${w.avgCarbs ?? '—'}g, avg steps ${w.avgSteps ?? '—'}`
   ).join('\n') || 'No weekly data logged this cycle.';
@@ -13935,8 +13957,8 @@ Hip: ${m.startHip ?? '—'} → ${m.endHip ?? '—'} in`;
     ? payload.priorReviews.map(r => `- ${r.name} (${r.goalType}, ${r.start}–${r.end}): compliance ${r.complianceScore}/10, bodyfat ${r.bodyfatDirection || 'unclear'}, ended ${r.weightTargetDelta !== null ? (r.weightTargetDelta > 0 ? '+' : '') + r.weightTargetDelta + ' lbs vs target' : 'no target set'}`).join('\n')
     : 'No prior reviewed cycles yet — this is the first.';
 
-  const beforeCount = _cycleReviewBeforeImages.length;
-  const afterCount  = _cycleReviewAfterImages.length;
+  const beforeCount = beforeImages.length;
+  const afterCount  = afterImages.length;
 
   const systemPrompt = `You are BLOC, a personal training and nutrition coach embedded in a fitness tracking app, writing this user's end-of-cycle review. Speak in second person, be direct and specific, and reference actual numbers from the data below rather than being vague.
 
@@ -13957,7 +13979,16 @@ Respond with ONLY a raw JSON object, no markdown fences, no preamble. Schema:
   "ranTooLongNote": "1 sentence if ranTooLong is true, else empty string"
 }
 
-${payload.finalDayStepsPending ? "Note: this cycle's final day's steps are not yet logged (steps is always the last thing logged in a day) — assume the daily steps goal was met for that day rather than treating it as a miss." : ''}`;
+${(() => {
+    const fd = payload.finalDaySubstitutions || {};
+    const parts = [];
+    if (fd.kcal !== undefined) parts.push(`kcal/protein/carbs — assume ~${fd.kcal} kcal, ${fd.protein}g protein, ${fd.carbs}g carbs`);
+    if (fd.steps !== undefined) parts.push(`steps — assume ~${fd.steps.toLocaleString()}`);
+    if (fd.weight !== undefined) parts.push(`weight — assume ~${fd.weight} lbs`);
+    return parts.length
+      ? `Note: this cycle's final day had not yet logged the following (the WEEKLY AVERAGES/MEASUREMENTS below already exclude it rather than counting it as zero). Assume it matched this week's average instead of treating it as a miss or a data gap: ${parts.join('; ')}.`
+      : '';
+  })()}`;
 
   let userText = `CYCLE: ${payload.macroName} (${payload.goalType}), ${payload.start} to ${payload.end}
 
@@ -13979,16 +14010,78 @@ ${priorLines}
 Write this cycle's review per the schema above.`;
 
   const imageBlocks = [];
-  _cycleReviewBeforeImages.forEach((img, i) => {
+  beforeImages.forEach((img, i) => {
     imageBlocks.push({ type: 'text', text: `BEFORE PHOTO ${i + 1}:` });
     imageBlocks.push({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.base64 } });
   });
-  _cycleReviewAfterImages.forEach((img, i) => {
+  afterImages.forEach((img, i) => {
     imageBlocks.push({ type: 'text', text: `AFTER PHOTO ${i + 1}:` });
     imageBlocks.push({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.base64 } });
   });
 
   return { systemPrompt, userText, imageBlocks };
+}
+
+// Core API call + validation + macro.review write, factored out of
+// runCycleReview() (dev 2026-09-15, item 1b) so the final-week card's
+// auto-sequenced review (see maybeAutoRunCycleReviewThenBuildNextCycle())
+// can run the exact same logic without the photo modal ever having been
+// opened — no DOM/button manipulation here, just the API call itself.
+// Throws on any failure; caller decides how to surface that.
+async function generateCycleReview(macro, beforeImages, afterImages) {
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error('No API key saved. Go to Settings → Linked services to add your Anthropic API key.');
+
+  const payload = computeCycleReviewPayload(macro);
+  const { systemPrompt, userText, imageBlocks } = buildCycleReviewPrompt(macro, payload, beforeImages, afterImages);
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 4000,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: [{ type: 'text', text: userText }, ...imageBlocks] }],
+    }),
+  });
+
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}));
+    throw new Error(errBody?.error?.message || `API error ${res.status}`);
+  }
+
+  const data = await res.json();
+  const rawText = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+  const cleaned = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+  const response = JSON.parse(cleaned);
+
+  if (!response.narrative || !response.headline || typeof response.complianceScore !== 'number') {
+    throw new Error('Response missing required fields');
+  }
+
+  macro.review = {
+    storedAt: getLocalToday(),
+    complianceScore: response.complianceScore,
+    bodyfatEstimate: response.bodyfatEstimate || null,
+    headline: response.headline,
+    narrative: response.narrative,
+    highlights: response.highlights || [],
+    improvements: response.improvements || [],
+    stickingPoints: response.stickingPoints || '',
+    ranTooLong: !!response.ranTooLong,
+    ranTooLongNote: response.ranTooLongNote || '',
+    weightTargetDelta: payload.measurements.weightTargetDelta,
+    totalWeightChange: payload.measurements.totalWeightChange,
+    beforePhotoCount: beforeImages.length, afterPhotoCount: afterImages.length,
+  };
+  save();
+  return macro.review;
 }
 
 async function runCycleReview() {
@@ -13999,69 +14092,12 @@ async function runCycleReview() {
   if (!macro) return;
   if (macro.review) return; // one review per cycle, no re-run
 
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    if (errEl) { errEl.textContent = 'No API key saved. Go to Settings → Linked services to add your Anthropic API key.'; errEl.style.display = 'block'; }
-    return;
-  }
-
   _cycleReviewLoading = true;
   const btn = document.getElementById('cycle-review-generate-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'BLOC is reviewing…'; }
 
-  const beforePhotoCount = _cycleReviewBeforeImages.length;
-  const afterPhotoCount  = _cycleReviewAfterImages.length;
-
   try {
-    const payload = computeCycleReviewPayload(macro);
-    const { systemPrompt, userText, imageBlocks } = buildCycleReviewPrompt(macro, payload);
-
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 4000,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: [{ type: 'text', text: userText }, ...imageBlocks] }],
-      }),
-    });
-
-    if (!res.ok) {
-      const errBody = await res.json().catch(() => ({}));
-      throw new Error(errBody?.error?.message || `API error ${res.status}`);
-    }
-
-    const data = await res.json();
-    const rawText = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
-    const cleaned = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
-    const response = JSON.parse(cleaned);
-
-    if (!response.narrative || !response.headline || typeof response.complianceScore !== 'number') {
-      throw new Error('Response missing required fields');
-    }
-
-    macro.review = {
-      storedAt: getLocalToday(),
-      complianceScore: response.complianceScore,
-      bodyfatEstimate: response.bodyfatEstimate || null,
-      headline: response.headline,
-      narrative: response.narrative,
-      highlights: response.highlights || [],
-      improvements: response.improvements || [],
-      stickingPoints: response.stickingPoints || '',
-      ranTooLong: !!response.ranTooLong,
-      ranTooLongNote: response.ranTooLongNote || '',
-      weightTargetDelta: payload.measurements.weightTargetDelta,
-      totalWeightChange: payload.measurements.totalWeightChange,
-      beforePhotoCount, afterPhotoCount,
-    };
-    save();
+    await generateCycleReview(macro, _cycleReviewBeforeImages, _cycleReviewAfterImages);
 
     _cycleReviewBeforeImages = [];
     _cycleReviewAfterImages  = [];
@@ -14184,7 +14220,17 @@ function buildFinalWeekCardHTML(macro, rec) {
   const nextCycleBody = buildNextCycleAdviceSectionHTML(macro, rec);
 
   let cycleReviewBody;
-  if (macro.review) {
+  if (_cycleReviewLoading) {
+    // Covers both the modal-triggered run AND the silent auto-run kicked
+    // off by startBuildNextCycleFlow() when Build-next-cycle is clicked
+    // first — either way, this section shows the same "thinking" state so
+    // it's clear both flows are in progress together (dev 2026-09-15, 1b).
+    cycleReviewBody = `<div style="margin-top:10px;padding:11px 14px;border-radius:10px;font-size:13px;font-weight:600;
+                background:rgba(145,132,217,0.08);border:0.5px solid rgba(145,132,217,0.2);
+                color:var(--accent);text-align:center;font-family:var(--font-display);">
+      ✦ BLOC is thinking…
+    </div>`;
+  } else if (macro.review) {
     cycleReviewBody = `<div style="margin-top:10px;cursor:pointer;" onclick="toggleCycleReviewCard('${macro.id}')">
       ${buildCycleReviewSummaryHTML(macro)}
     </div>`;
@@ -14839,6 +14885,26 @@ CONFLICT: ${conflictStr}
 
 USER CONTEXT FOR THIS CYCLE: ${userContextStr}
 
+${(() => {
+    // Cycle review, if it's already been generated for the cycle that's
+    // ending (dev 2026-09-15, item 1b — the final-week sequencing feature
+    // runs the review first when both are triggered together, or it may
+    // simply have been run earlier by the user): fold its verdict in as
+    // extra context. Purely informational — never changes the fixed
+    // direction/constraints above, just gives you the review's own take on
+    // compliance/bodyfat/training this cycle to weigh alongside the raw
+    // weekly data.
+    if (!macro.review) return 'CYCLE REVIEW: Not yet generated for the cycle that\'s ending.';
+    const r = macro.review;
+    const bf = r.bodyfatEstimate || {};
+    return `CYCLE REVIEW (just completed for the cycle that's ending):
+Compliance score: ${r.complianceScore}/10
+Bodyfat-change estimate: ${bf.direction || 'unclear'}${bf.note ? ' — ' + bf.note : ''}
+Headline: ${r.headline}
+Ran too long: ${r.ranTooLong ? 'yes — ' + r.ranTooLongNote : 'no'}
+Sticking points: ${r.stickingPoints || 'none noted'}`;
+  })()}
+
 COMPLETED CYCLE HISTORY:
 ${cycleHistoryStr}
 
@@ -14846,6 +14912,36 @@ RECENT NEXT-CYCLE ADVICE HISTORY (your own past calls, most recent last):
 ${historyStr}`;
 
   return { systemPrompt, userMessage };
+}
+
+// ── Sequencing entry point for the final-week card's "Build next cycle"
+//    button (dev 2026-09-15, item 1b) ──────────────────────────────────
+// If cycle review is due but hasn't run yet (the user clicked Build next
+// cycle before Cycle review — the button on the other section), runs the
+// review FIRST — silently, no photos, since its modal was never opened —
+// so buildNextCycleAdvicePrompt() picks up its result as context once
+// generated. Either way, then proceeds to the existing context-gathering
+// modal exactly as before. A failed silent review is logged and swallowed
+// rather than blocking build-next-cycle — the user can still run Cycle
+// review manually afterward from its own button. Sets both loading flags
+// during the review phase so the UI shows "BLOC is thinking" on both
+// sections at once, matching what a person clicking either button expects.
+async function startBuildNextCycleFlow() {
+  const macro = resolveProgressMacro();
+  if (macro && isCycleReviewDue(macro) && !macro.review && !_cycleReviewLoading) {
+    _cycleReviewLoading = true;
+    _nextCycleAdviceLoading = true;
+    renderProgress();
+    try {
+      await generateCycleReview(macro, [], []);
+    } catch (err) {
+      console.warn('[final-week] auto cycle review before build-next-cycle failed:', err.message);
+    }
+    _cycleReviewLoading = false;
+    _nextCycleAdviceLoading = false;
+    renderProgress();
+  }
+  openNextCycleAdviceContextModal();
 }
 
 // ── Context modal — gathers optional free text + stated future intention
@@ -15167,7 +15263,7 @@ function buildNextCycleAdviceSectionHTML(macro, rec) {
       : '';
     return `<div style="margin-top:10px;">
       <button id="next-cycle-advice-btn"
-        onclick="openNextCycleAdviceContextModal()"
+        onclick="startBuildNextCycleFlow()"
         ${!hasKey ? 'disabled' : ''}
         style="width:100%;padding:11px 14px;border-radius:10px;font-size:13px;font-weight:600;
                background:${hasKey ? 'rgba(145,132,217,0.12)' : 'var(--surface2)'};
