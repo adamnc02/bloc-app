@@ -24,7 +24,33 @@
         "session3": "Arms"
       },
       "useMicrocycles": true,
-      "weightIncrement": "2.5"
+      "weightIncrement": "2.5",
+      "review": {
+        "storedAt": "2026-09-13",
+        "complianceScore": 8,
+        "bodyfatEstimate": {
+          "direction": "loss",
+          "note": "Consistent with the early loss and the waist measurement drop during the plateau -- likely more fat loss than the scale alone shows given how flat W4-W6 ran."
+        },
+        "headline": "A real deficit, a stubborn plateau, and a strong finish",
+        "narrative": "You lost the bulk of this cycle's weight in the first two weeks, then hit a genuine three-week plateau from W4 through W6 despite a real ~246 kcal deficit -- the diet-break week in the sustainable path (and the harder push in the aggressive path) both existed specifically to break that stall, and weight moved again in W7-W8 once they ran. Ending at 212.9 lbs against a 200 lb target, you're 12.9 lbs out with 8.8 lbs of the cycle's progress banked -- short of the target, but the trend in the second half was clean once protein came up to the 224g minimum and stayed there.\n\nTraining and protein compliance were the strongest parts of this cycle -- protein sat below target through the plateau weeks but corrected quickly once flagged, and stayed at or above 224g the rest of the way. Waist measurements kept trending down even during the weeks the scale didn't move, which is the clearest sign the plateau was water/adaptation rather than a genuine stall in fat loss.\n\nThis cycle didn't run too long -- the plateau resolved with time and a planned refeed rather than needing an extension, and the final two weeks at increased steps closed most of the remaining gap.",
+        "highlights": [
+          "Broke the W4-W6 plateau after the diet-break week rather than cutting further into an already-real deficit",
+          "Protein hit the 224g minimum consistently once corrected",
+          "Waist measurement kept trending down through the plateau, confirming it wasn't a genuine stall"
+        ],
+        "improvements": [
+          "Protein ran 180-185g for the first third of the cycle, below the 224g minimum for your bodyweight",
+          "A couple of step-count logging gaps in the final two weeks made the high-steps push harder to verify"
+        ],
+        "stickingPoints": "The W4-W6 plateau was the main sticking point -- resolved cleanly with a diet-break week rather than a deeper cut.",
+        "ranTooLong": false,
+        "ranTooLongNote": "",
+        "weightTargetDelta": 12.9,
+        "totalWeightChange": -8.8,
+        "beforePhotoCount": 0,
+        "afterPhotoCount": 0
+      }
     }
   ],
   "exercises": {
@@ -5307,14 +5333,14 @@
     "response": {
       "signal": "plateau-adaptation",
       "headline": "Three-Week Plateau Despite a Real 246 kcal Deficit",
-      "narrative": "You lost 5.54 lbs in the first two weeks of this cycle at an average intake of roughly 1,709 kcal/day, which was aggressive and effective. From W4 onward your weekly average weight has barely moved — 215.3, 215.0, and 215.1 lbs — essentially flat for three consecutive weeks. Unlike a typical calorie-creep stall, this one isn't explained by rising intake: your most recent two-week average is 1,766 kcal/day, only 56 kcal above your W1–W2 baseline of 1,709 kcal/day. At your estimated TDEE of 2,011 kcal/day, you're still running a genuine ~246 kcal daily deficit — enough to expect roughly 0.35 lbs of loss per week on paper. The scale disagreeing with a real deficit like this points toward metabolic adaptation or water retention masking fat loss, rather than a logging or intake problem.\n\nProtein is the other piece worth fixing here — you've averaged only 180–185g across every week this cycle, consistently below the ~224g minimum recommended for your current bodyweight of 212.9 lbs (roughly 1g per lb). Low protein during an extended deficit increases the risk of losing lean mass, which would only suppress your BMR further and make this plateau harder to break. Carbs and fats have moved together with total intake in a fairly controlled band (124–165g carbs, 50–58g fats), so protein is the one number that actually needs to move.\n\nThe positive signal here is your waist measurement: a 0.5-inch drop between 2026-07-22 and 2026-07-25 suggests body recomposition is still occurring even while the scale is stuck. You are not in a metabolic crisis — cutting further right now risks chasing a deficit that's already real. The more useful move is holding steady (or a short structured refeed) and giving the plateau time to resolve before tightening intake again.\n\nWith 7 weeks remaining in your cycle ending 2026-09-13, you have enough runway to reach 200 lbs even after a short hold. Both paths below keep you at or below your current baseline while raising protein to 224g minimum — not cutting further into an already-real deficit — with the aggressive path pushing moderately below baseline once the plateau breaks, and the sustainable path holding at baseline and leaning on a steps increase instead of a deeper cut.",
-      "primaryAction": "Hold intake at or just below your baseline (~1,700 kcal) rather than cutting further this week — the deficit is already real, so the priority is ruling out adaptation, not widening the gap.",
-      "secondaryAction": "Bring protein up to 224g minimum and hold it there every day — it's been under target all cycle and matters more right now than cutting calories further.",
+      "narrative": "You lost 5.54 lbs in the first two weeks of this cycle at an average intake of roughly 1,709 kcal/day, which was aggressive and effective. From W4 onward your weekly average weight has barely moved \u2014 215.3, 215.0, and 215.1 lbs \u2014 essentially flat for three consecutive weeks. Unlike a typical calorie-creep stall, this one isn't explained by rising intake: your most recent two-week average is 1,766 kcal/day, only 56 kcal above your W1\u2013W2 baseline of 1,709 kcal/day. At your estimated TDEE of 2,011 kcal/day, you're still running a genuine ~246 kcal daily deficit \u2014 enough to expect roughly 0.35 lbs of loss per week on paper. The scale disagreeing with a real deficit like this points toward metabolic adaptation or water retention masking fat loss, rather than a logging or intake problem.\n\nProtein is the other piece worth fixing here \u2014 you've averaged only 180\u2013185g across every week this cycle, consistently below the ~224g minimum recommended for your current bodyweight of 212.9 lbs (roughly 1g per lb). Low protein during an extended deficit increases the risk of losing lean mass, which would only suppress your BMR further and make this plateau harder to break. Carbs and fats have moved together with total intake in a fairly controlled band (124\u2013165g carbs, 50\u201358g fats), so protein is the one number that actually needs to move.\n\nThe positive signal here is your waist measurement: a 0.5-inch drop between 2026-07-22 and 2026-07-25 suggests body recomposition is still occurring even while the scale is stuck. You are not in a metabolic crisis \u2014 cutting further right now risks chasing a deficit that's already real. The more useful move is holding steady (or a short structured refeed) and giving the plateau time to resolve before tightening intake again.\n\nWith 7 weeks remaining in your cycle ending 2026-09-13, you have enough runway to reach 200 lbs even after a short hold. Both paths below keep you at or below your current baseline while raising protein to 224g minimum \u2014 not cutting further into an already-real deficit \u2014 with the aggressive path pushing moderately below baseline once the plateau breaks, and the sustainable path holding at baseline and leaning on a steps increase instead of a deeper cut.",
+      "primaryAction": "Hold intake at or just below your baseline (~1,700 kcal) rather than cutting further this week \u2014 the deficit is already real, so the priority is ruling out adaptation, not widening the gap.",
+      "secondaryAction": "Bring protein up to 224g minimum and hold it there every day \u2014 it's been under target all cycle and matters more right now than cutting calories further.",
       "recommendations": {
         "sustainable": {
           "label": "Sustainable",
           "rationale": "Holding intake at baseline (~1,700 kcal) while raising protein to 224g minimum protects lean mass during the plateau, with a progressive steps ramp adding activity instead of widening an already-real deficit.",
-          "summary": "Week 1 holds at your existing baseline of 1,700 kcal and 10,000 steps, while protein increases to 224g minimum — no further calorie cut, since the deficit already checks out. Weeks 2–4 continue at the same intake and protein target. Week 5 is a full diet-break week at 2,050 kcal (protein still 224g) to actively rule out adaptive suppression. The final two weeks return to the 1,700 kcal baseline with steps increased to 12,000/day, using activity rather than further restriction to close out the cycle.",
+          "summary": "Week 1 holds at your existing baseline of 1,700 kcal and 10,000 steps, while protein increases to 224g minimum \u2014 no further calorie cut, since the deficit already checks out. Weeks 2\u20134 continue at the same intake and protein target. Week 5 is a full diet-break week at 2,050 kcal (protein still 224g) to actively rule out adaptive suppression. The final two weeks return to the 1,700 kcal baseline with steps increased to 12,000/day, using activity rather than further restriction to close out the cycle.",
           "goals": [
             {
               "label": "Hold at Baseline",
@@ -5361,7 +5387,7 @@
         "aggressive": {
           "label": "Aggressive",
           "rationale": "A moderate cut to just below baseline (~1,550 kcal, still well short of your old 1,500 kcal low) with protein raised to 224g minimum and a progressive steps ramp to 14,000 gives a realistic shot at 200 lbs by September 13, without stacking an extreme cut or continued low protein on top of a deficit that's already real.",
-          "summary": "Week 1 continues at your current level while data confirms the plateau is adaptation, not creep. Weeks 2–5 move to 1,550 kcal — below baseline, but a moderate step down rather than a shock cut — with protein raised to 224g minimum and steps rising to 12,000/day. Week 6 is a refeed week at 1,950 kcal (protein held at 224g) to manage adaptation risk before the final week, which holds 1,550 kcal and pushes steps to 14,000/day for the cycle finish.",
+          "summary": "Week 1 continues at your current level while data confirms the plateau is adaptation, not creep. Weeks 2\u20135 move to 1,550 kcal \u2014 below baseline, but a moderate step down rather than a shock cut \u2014 with protein raised to 224g minimum and steps rising to 12,000/day. Week 6 is a refeed week at 1,950 kcal (protein held at 224g) to manage adaptation risk before the final week, which holds 1,550 kcal and pushes steps to 14,000/day for the cycle finish.",
           "goals": [
             {
               "label": "Hard Cut Start",
@@ -5417,7 +5443,7 @@
       "_cycleEnd": "2026-09-13",
       "_sustainableExceedsCycle": false,
       "_aggressiveExceedsCycle": false,
-      "_revisionNote": "You're right on both counts — I made an error setting the Week 1 steps target at 8,000 when your logged data shows you've been consistently hitting above that, and I failed to structure a progressive steps increase toward the end of the sustainable path to widen the deficit in the final weeks. I'm revising both paths now to correct this."
+      "_revisionNote": "You're right on both counts \u2014 I made an error setting the Week 1 steps target at 8,000 when your logged data shows you've been consistently hitting above that, and I failed to structure a progressive steps increase toward the end of the sustainable path to widen the deficit in the final weeks. I'm revising both paths now to correct this."
     },
     "storedAt": "2026-07-25",
     "macroId": "macro_1780859905961",
@@ -5429,13 +5455,56 @@
     "chosenAt": "2026-07-26",
     "revisionInfo": {
       "originalSummary": {
-        "sustainable": "1750kcal/216p/120c (2026-07-27–2026-08-02) → 1750kcal/216p/120c (2026-08-03–2026-08-23) → 2100kcal/220p/200c (2026-08-24–2026-08-30) → 1750kcal/216p/120c (2026-08-31–2026-09-13)",
-        "aggressive": "1500kcal/220p/100c (2026-07-27–2026-08-02) → 1500kcal/220p/100c (2026-08-03–2026-08-30) → 1950kcal/220p/190c (2026-08-31–2026-09-06) → 1500kcal/220p/100c (2026-09-07–2026-09-13)"
+        "sustainable": "1750kcal/216p/120c (2026-07-27\u20132026-08-02) \u2192 1750kcal/216p/120c (2026-08-03\u20132026-08-23) \u2192 2100kcal/220p/200c (2026-08-24\u20132026-08-30) \u2192 1750kcal/216p/120c (2026-08-31\u20132026-09-13)",
+        "aggressive": "1500kcal/220p/100c (2026-07-27\u20132026-08-02) \u2192 1500kcal/220p/100c (2026-08-03\u20132026-08-30) \u2192 1950kcal/220p/190c (2026-08-31\u20132026-09-06) \u2192 1500kcal/220p/100c (2026-09-07\u20132026-09-13)"
       },
-      "acknowledgment": "You're right on both counts — I made an error setting the Week 1 steps target at 8,000 when your logged data shows you've been consistently hitting above that, and I failed to structure a progressive steps increase toward the end of the sustainable path to widen the deficit in the final weeks. I'm revising both paths now to correct this."
+      "acknowledgment": "You're right on both counts \u2014 I made an error setting the Week 1 steps target at 8,000 when your logged data shows you've been consistently hitting above that, and I failed to structure a progressive steps increase toward the end of the sustainable path to widen the deficit in the final weeks. I'm revising both paths now to correct this."
     }
   },
-  "nextCycleAdvice": null,
+  "nextCycleAdvice": {
+    "id": "nca_demo_1",
+    "storedAt": "2026-09-13",
+    "macroId": "macro_1780859905961",
+    "chosenPlanKey": null,
+    "userContext": null,
+    "reviewIncluded": true,
+    "response": {
+      "signal": "needs-longer-bridge",
+      "headline": "A longer bridge, given how the plateau played out",
+      "narrative": "Ending 12.9 lbs short of target after a real three-week plateau in the middle of this cycle is worth building into how the next block is paced, rather than defaulting to the shortest possible reset. A reverse-diet climb back to maintenance over 2 weeks, followed by a longer hold than usual, gives your metabolism more runway to actually stabilize before any future deficit -- the plateau this cycle suggests it would benefit from that instead of a quick bounce back into another cut.\n\nThe climb starts at 1,900 kcal and steps up to an estimated 2,011 kcal/day maintenance, with protein held at 210-200g and steps back to a flat 8,000/day throughout -- no lever needed here since this is a maintenance bridge, not a cut. Expect the scale to drift up 2-6 lbs over the first couple of weeks as glycogen and water refill; that's expected and not fat regain.\n\nThe real signal to watch for is 2-3 weeks of stable weekly averages, not a specific number on the scale -- once that holds, you'll be in a much stronger position for whatever comes next, cut or otherwise.",
+      "plans": [
+        {
+          "key": "p1",
+          "label": "Recommended",
+          "rationale": "A longer hold than the standard minimum, sized to the plateau history this cycle showed.",
+          "summary": "A 2-week reverse-diet climb from 1,900 to ~2,011 kcal/day, followed by a 6-week hold at maintenance with steps back to a flat 8,000/day.",
+          "weeks": 8,
+          "goals": [
+            {
+              "label": "Reverse Diet Climb",
+              "startDate": "2026-09-14",
+              "endDate": "2026-09-27",
+              "kcal": 1900,
+              "protein": 210,
+              "carbs": 180,
+              "steps": 8000,
+              "fats": 58
+            },
+            {
+              "label": "Maintenance Hold",
+              "startDate": "2026-09-28",
+              "endDate": "2026-11-08",
+              "kcal": 2011,
+              "protein": 200,
+              "carbs": 220,
+              "steps": 8000,
+              "fats": 62
+            }
+          ]
+        }
+      ]
+    }
+  },
   "sampleDays": [
     {
       "id": "sg_1785101426039",

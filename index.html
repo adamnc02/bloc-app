@@ -4672,25 +4672,62 @@ function buildDemoTourSteps() {
         _blocAdviceSectionsOpen.alt = chosenPath !== 'aggressive';
         renderProgress();
       } },
-    // Card 3 of the same progress-body swipe deck — previously missing
-    // from the tour entirely despite being where the Next Cycle
-    // Recommendation Engine (and its own "ask BLOC to confirm this is a
-    // good fit" second-opinion feature) actually lives.
+    // Final-week card (dev 2026-09-15, item 1 + tour follow-up) — replaces
+    // the old single "Next Cycle" card-3 step, which targeted a card that
+    // no longer exists in the UI (removed the same day, item 4). Jumps the
+    // tour's date anchor forward to this same macro's actual last day so
+    // the final-week two-section card (Build next cycle / Cycle review)
+    // renders for real, using the nextCycleAdvice/macro.review pre-seeded
+    // in bloc-demo-data.json (same pattern as blocAdvice above — no live
+    // API call needed mid-tour). Reset back to the dataset's real anchor
+    // date happens in the progress-tables-wrap step below, before Plan/
+    // Train/Nutrition — those depend on the ORIGINAL date for their own
+    // week/day context.
     { targetId: 'progress-body', screen: 'progress',
-      title: 'BLOC plans your next cycle too',
-      body: 'As your macrocycle nears its end, this card works out what comes next \u2014 a bridge, a cut, or a bulk \u2014 from your real trend data. Once you\u2019re in the final few weeks, you can ask BLOC for a second opinion here too, the same way you just did on your current plan.',
-      onEnter: () => { insightsIndex = 2; renderProgress(); } },
+      title: 'In the final week, this card does two things at once',
+      body: 'Once your cycle is in its last week, this same card swaps to two sections: what BLOC thinks should come next, and — once the cycle actually ends — a full review of how it went. Let’s jump ahead to your cycle’s last day to see both.',
+      onEnter: () => {
+        setTourAnchorDate('2026-09-13');
+        insightsIndex = 0;
+        _nextCycleAdviceSectionsOpen.narrative = true;
+        _nextCycleAdviceSectionsOpen.selected = false;
+        _nextCycleAdviceSectionsOpen.alt = false;
+        renderProgress();
+      } },
+    { targetId: 'progress-body', screen: 'progress',
+      title: 'Build next cycle — a second opinion on what’s next',
+      body: 'BLOC works out what comes next — a bridge, a cut, or a bulk — from your real trend data, the same way it gave you a second opinion on your current plan earlier. This is available for the whole final week, not just today.',
+      onEnter: () => {
+        insightsIndex = 0; // defensive — Back can land here directly from a later step
+        renderProgress();
+      } },
+    { targetId: 'progress-body', screen: 'progress',
+      title: 'Cycle review — one score, one narrative, once per cycle',
+      body: 'On the cycle’s actual last day, BLOC reviews the whole thing — weight, measurements, training, and compliance — into a score and a full narrative. This runs once and can’t be redone, but stays here for you to revisit any time you switch back to this cycle.',
+      onEnter: () => {
+        insightsIndex = 0;
+        const macro = state.macrocycles.find(m => m.id === macroId);
+        if (macro) _cycleReviewCardOpen[macro.id] = true;
+        renderProgress();
+      } },
     { targetId: 'progress-tables-wrap', screen: 'progress',
-      title: 'There\u2019s more than one screen here',
+      title: 'There’s more than one screen here',
       // Hero card used to be a swipe deck too — it isn't any more since
       // the flat-design redesign, so this step now points at the two
       // decks that actually are swipeable: this weekly-summary card, and
-      // the insights card (trend/AI-advice/next-cycle) a few steps back
+      // the insights card (trend/AI-advice/final-week) a few steps back
       // above it. Resets insightsIndex back to 0 first — otherwise the
-      // person would leave the tour with that deck sitting on the Next
-      // Cycle card rather than back at a sensible default.
-      body: 'Swipe left and right on both this card and the insights card you just saw above \u2014 each has several views tucked behind the dots.',
-      onEnter: () => { insightsIndex = 0; renderProgress(); } },
+      // person would leave the tour with that deck sitting on the
+      // final-week card rather than back at a sensible default. Also
+      // resets the date anchor back to the dataset's real one — Plan/
+      // Train/Nutrition below all depend on it for their own week/day
+      // context, and it must not leak forward past this point in the tour.
+      body: 'Swipe left and right on both this card and the insights card you just saw above — each has several views tucked behind the dots.',
+      onEnter: () => {
+        insightsIndex = 0;
+        setTourAnchorDate('2026-08-02');
+        renderProgress();
+      } },
     // ── Plan ──────────────────────────────────────────────────────────
     { targetId: 'plan-content', screen: 'plan',
       title: 'Your macrocycles live here',
@@ -4888,9 +4925,15 @@ function startProgressMiniTour() {
           renderProgress();
         } },
       { targetId: 'progress-body', screen: 'progress',
-        title: 'BLOC plans your next cycle too',
-        body: 'As your macrocycle nears its end, this card works out what comes next \u2014 a bridge, a cut, or a bulk \u2014 from your real trend data. Once you\u2019re in the final few weeks, you can ask BLOC for a second opinion here too, the same way you just did on your current plan.',
-        onEnter: () => { insightsIndex = 2; renderProgress(); } },
+        title: 'Your final week: two things happen automatically',
+        // Real user data here, not the demo dataset — can't jump the date
+        // anchor forward like the Demo Tour's version of this step does,
+        // so this stays descriptive rather than forcing a specific state.
+        body: 'In your cycle’s last week, this card swaps to show what BLOC thinks should come next, plus — once the cycle actually ends — a full cycle review with a compliance score and narrative. You’ll see this automatically once you get there.',
+        onEnter: () => {
+          insightsIndex = 0;
+          renderProgress();
+        } },
       { targetId: 'progress-tables-wrap', screen: 'progress',
         title: 'There\u2019s more than one screen here',
         body: 'Swipe left and right on both this card and the insights card you just saw above \u2014 each has several views tucked behind the dots.',
