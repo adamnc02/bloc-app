@@ -5028,6 +5028,26 @@ renderAuthProviders();
 // leaving `undefined` before it lets anything past the gate.
 let _authResolvedSession = undefined;
 
+// Local-dev-only bypass — true ONLY when served from localhost/127.0.0.1,
+// which GitHub Pages (the real deploy target — see BLOC-INFO/README) can
+// never be, so this can never accidentally activate for a real user.
+// Lets the app be run and screenshotted with no Supabase project, no
+// OAuth, and no network dependency at all. See initDevBypassAuth() and
+// its branch in continueBootAfterAuth() below.
+const IS_LOCAL_DEV = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+// Skips Supabase/OAuth entirely — `supabase` is deliberately left null
+// forever in this mode. Every sync/account code path elsewhere in this
+// file already guards on `if (!supabase ...)` (see initSupabaseAuth()'s
+// own consumers throughout), so leaving it unset is sufficient to fully
+// stub Supabase rather than needing a fake client.
+function initDevBypassAuth() {
+  console.warn('[dev] Local dev bypass active — Supabase/OAuth fully skipped. Only ever reachable on localhost/127.0.0.1.');
+  onAuthResolved({
+    user: { id: 'dev-local-user', email: 'dev@localhost', app_metadata: { provider: 'email' } },
+  });
+}
+
 // Kicks off the Supabase client + initial session check. Called once,
 // immediately — createClient()/getSession() don't touch the DOM, so this
 // doesn't need to wait for DOMContentLoaded, and starting it as early as
@@ -5825,6 +5845,26 @@ function maybeFinalizeBoot() {
 // now waits here for a confirmed session instead — substance unchanged,
 // just relocated behind the gate.
 function continueBootAfterAuth() {
+  // Local dev bypass (see IS_LOCAL_DEV) — seed the demo dataset directly
+  // into state via enterDemoMode() (memory-only, matches its own existing
+  // contract — never save()'d) without the Demo Tour's welcome modal/
+  // spotlight walkthrough, so any screen is immediately reachable for
+  // testing/screenshots. Skips the profile gate and every network-backed
+  // snapshot/backup check below, all of which are Supabase-only concerns.
+  if (IS_LOCAL_DEV) {
+    if (demoData) {
+      enterDemoMode();
+    } else {
+      fetch('bloc-demo-data.json')
+        .then(res => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
+        .then(data => { demoData = data; enterDemoMode(); })
+        .catch(err => {
+          console.warn('[dev] demo data fetch failed, staying on default/empty state:', err.message);
+          showScreen('home');
+        });
+    }
+    return;
+  }
   fetchDemoDataIfNewUser(_isNewUserOnBoot);
   // A genuinely new user is handled entirely by the fetch above (Demo Tour
   // on success, openProfileGate() from its own .catch() on failure) — both
@@ -6458,7 +6498,7 @@ async function checkSnapshotZero() {
   openModal('modal-snapshot-zero');
 }
 
-initSupabaseAuth();
+if (IS_LOCAL_DEV) { initDevBypassAuth(); } else { initSupabaseAuth(); }
 
 const _isNewUserOnBoot = !localStorage.getItem('bloc_state');
 load();
