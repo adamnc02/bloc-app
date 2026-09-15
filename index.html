@@ -2900,25 +2900,24 @@ try {
       <div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:14px;">
         BLOC will review your whole cycle — weight, measurements, training, and compliance — into one narrative and score. This runs once per cycle and can't be redone. Progress photos are optional: they're sent directly to Claude for this one review and are never stored, only counted.
       </div>
+      <!-- Simplified (dev 2026-09-15 item 2): the before/after box itself is
+           now the launcher — tapping it opens the plain file input, which on
+           mobile already surfaces the OS's camera/library picker sheet, so a
+           single input per side covers both without a separate Take/Upload
+           button pair. No emojis anywhere in this modal. -->
       <div style="display:flex;gap:8px;margin-bottom:14px;">
-        <div style="flex:1;border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:12px 10px;text-align:center;">
+        <div onclick="document.getElementById('cycle-review-before-upload').click()"
+             style="flex:1;border:1px dashed var(--border2);border-radius:var(--r-sm);padding:16px 10px;text-align:center;cursor:pointer;">
           <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Before</div>
-          <div id="cycle-review-before-count" style="font-family:var(--font-display);font-size:20px;font-weight:700;margin-bottom:8px;">0</div>
-          <div style="display:flex;gap:6px;">
-            <button type="button" onclick="document.getElementById('cycle-review-before-camera').click()" style="flex:1;padding:7px 4px;font-size:10px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">📷 Take</button>
-            <button type="button" onclick="document.getElementById('cycle-review-before-upload').click()" style="flex:1;padding:7px 4px;font-size:10px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">🖼 Upload</button>
-          </div>
-          <input type="file" accept="image/*" capture="environment" id="cycle-review-before-camera" style="display:none;" onchange="handleCycleReviewPhotoSelect(event,'before')">
+          <div id="cycle-review-before-count" style="font-family:var(--font-display);font-size:20px;font-weight:700;">0</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:6px;">Tap to add photos</div>
           <input type="file" accept="image/*" multiple id="cycle-review-before-upload" style="display:none;" onchange="handleCycleReviewPhotoSelect(event,'before')">
         </div>
-        <div style="flex:1;border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:12px 10px;text-align:center;">
+        <div onclick="document.getElementById('cycle-review-after-upload').click()"
+             style="flex:1;border:1px dashed var(--border2);border-radius:var(--r-sm);padding:16px 10px;text-align:center;cursor:pointer;">
           <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">After</div>
-          <div id="cycle-review-after-count" style="font-family:var(--font-display);font-size:20px;font-weight:700;margin-bottom:8px;">0</div>
-          <div style="display:flex;gap:6px;">
-            <button type="button" onclick="document.getElementById('cycle-review-after-camera').click()" style="flex:1;padding:7px 4px;font-size:10px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">📷 Take</button>
-            <button type="button" onclick="document.getElementById('cycle-review-after-upload').click()" style="flex:1;padding:7px 4px;font-size:10px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">🖼 Upload</button>
-          </div>
-          <input type="file" accept="image/*" capture="environment" id="cycle-review-after-camera" style="display:none;" onchange="handleCycleReviewPhotoSelect(event,'after')">
+          <div id="cycle-review-after-count" style="font-family:var(--font-display);font-size:20px;font-weight:700;">0</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:6px;">Tap to add photos</div>
           <input type="file" accept="image/*" multiple id="cycle-review-after-upload" style="display:none;" onchange="handleCycleReviewPhotoSelect(event,'after')">
         </div>
       </div>
