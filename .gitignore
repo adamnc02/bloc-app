@@ -1,0 +1,4 @@
+# Developer-local test fixture — a copy of bloc-demo-data.json with an
+# optional _devAnchorDate override for exercising date-sensitive flows
+# (cycle review, build-next-cycle) in local dev-bypass mode. Never shipped.
+bloc-demo-data.dev.json

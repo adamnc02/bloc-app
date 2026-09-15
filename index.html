@@ -5853,10 +5853,23 @@ function continueBootAfterAuth() {
   if (IS_LOCAL_DEV) {
     if (demoData) {
       enterDemoMode();
+      if (demoData._devAnchorDate) { setTourAnchorDate(demoData._devAnchorDate); showScreen('home'); }
     } else {
-      fetch('bloc-demo-data.json')
+      // bloc-demo-data.dev.json is an untracked, developer-local fixture
+      // (see .gitignore) — a copy of the real demo dataset with an
+      // optional top-level `_devAnchorDate` override, for exercising
+      // date-sensitive flows (cycle review, build-next-cycle final week)
+      // without waiting for a real cycle to actually reach its end date.
+      // Falls back to the real, tracked demo dataset when the dev file
+      // doesn't exist — e.g. a fresh clone that hasn't made one yet.
+      fetch('bloc-demo-data.dev.json')
         .then(res => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
-        .then(data => { demoData = data; enterDemoMode(); })
+        .catch(() => fetch('bloc-demo-data.json').then(res => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); }))
+        .then(data => {
+          demoData = data;
+          enterDemoMode();
+          if (data._devAnchorDate) { setTourAnchorDate(data._devAnchorDate); showScreen('home'); }
+        })
         .catch(err => {
           console.warn('[dev] demo data fetch failed, staying on default/empty state:', err.message);
           showScreen('home');
