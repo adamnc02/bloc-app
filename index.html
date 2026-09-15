@@ -14641,7 +14641,7 @@ function nextCycleAdvicePlanMode(rec) {
 // at 8,000 steps/day, applied client-side after parsing — the schema and
 // constraints below simply omit the "steps" field entirely unless
 // rec.goalType === 'loss', so the model is never even asked for it.
-function buildNextCycleAdvicePrompt(macro, rec, userContext) {
+function buildNextCycleAdvicePrompt(macro, rec, userContext, priorResponse) {
   const ins             = computeWeeklyInsights(macro);
   const dynResult       = rec.dynResult || calcDynamicTDEE();
   const safetyFloorKcal = computeSafetyFloor(macro);
@@ -14812,6 +14812,7 @@ ${stepsConstraintLine}
 - Every goal step must represent a single flat kcal/protein/carbs target sustained across its full date range. Do not describe or reference intra-week structure anywhere. Goal step granularity is NOT locked to one-week increments — if a bi-weekly or longer hold makes more sense, make one goal span that full range rather than repeating identical weekly goals.
 - When citing a specific week range from the WEEKLY DATA table (e.g. "weight oscillated between X and Y across W7–W10"), the X/Y values MUST come only from rows literally labeled within that range — never pull in a value from an adjacent week discussed elsewhere in the same narrative. Re-check every week-range claim against the table before including it.
 - The deterministic engine's own recommendation/reasoning below (see CONTINUATION CONTEXT and "DETERMINISTIC ENGINE'S OWN RECOMMENDATION") is given to you ONLY as input context, to help you reach your own independent judgment. Your "narrative" field must never mention it, agree or disagree with it, or refer to it in any way — no phrases like "the app's suggestion," "the deterministic engine," "the recommendation you were given," "confirming the original plan," etc. Write the narrative exactly as if you independently determined this plan from the raw data alone, with no prior guideline to react to.
+${priorResponse ? `- This is a REFRESH: you already gave the PRIOR RESPONSE below before the cycle review (see CYCLE REVIEW above) had come back. Only change anything if the cycle review's compliance/bodyfat/sticking-points verdict genuinely changes what you'd recommend — otherwise return your plans/narrative essentially unchanged. Never change anything just for the sake of it, and never mention that this is a refresh, that a prior response existed, or that anything was or wasn't changed anywhere in your narrative — write it exactly as a normal, fresh response either way.` : ''}
 ${planCountLine}
 ${fillConstraintLine}
 - Respond ONLY with valid JSON matching the schema below — no preamble, no markdown, no text outside the JSON
@@ -14920,7 +14921,12 @@ COMPLETED CYCLE HISTORY:
 ${cycleHistoryStr}
 
 RECENT NEXT-CYCLE ADVICE HISTORY (your own past calls, most recent last):
-${historyStr}`;
+${historyStr}
+
+${priorResponse ? `PRIOR RESPONSE (already given to the user, before the cycle review above was available — see the REFRESH instruction above):
+Headline: ${priorResponse.headline}
+Narrative: ${priorResponse.narrative}
+Plans: ${priorResponse.plans.map(p => `"${p.label}" (${p.key}) — ${p.summary}`).join(' | ')}` : ''}`;
 
   return { systemPrompt, userMessage };
 }
@@ -15014,7 +15020,7 @@ function submitNextCycleAdviceContext(includeContext) {
 // from the modal above — see openNextCycleAdviceContextModal()/
 // submitNextCycleAdviceContext(); null/undefined here reproduces the exact
 // pre-existing behaviour for any other caller.
-async function askBlocForNextCycleAdvice(userContext) {
+async function askBlocForNextCycleAdvice(userContext, priorResponse) {
   const macro = resolveProgressMacro();
   if (!macro || _nextCycleAdviceLoading) return;
 
@@ -15043,7 +15049,7 @@ async function askBlocForNextCycleAdvice(userContext) {
 
   let systemPrompt, userMessage;
   try {
-    const prompt = buildNextCycleAdvicePrompt(macro, rec, userContext);
+    const prompt = buildNextCycleAdvicePrompt(macro, rec, userContext, priorResponse);
     systemPrompt = prompt.systemPrompt;
     userMessage  = prompt.userMessage;
     console.log('[BLOC next-cycle advice] Prompt built. User message length:', userMessage.length);
@@ -15187,6 +15193,11 @@ async function askBlocForNextCycleAdvice(userContext) {
       macroId:       macro.id,
       chosenPlanKey: null,
       userContext:   userContext || null,
+      // Whether this response already reflects the cycle review (dev
+      // 2026-09-15, item 1c) — drives the one-shot "Refresh with cycle
+      // review" affordance in buildNextCycleAdviceSectionHTML(): only
+      // offered once a review exists that this response didn't yet see.
+      reviewIncluded: !!macro.review,
     };
     state.nextCycleAdviceHistory.push({
       id:            adviceId,
@@ -15399,6 +15410,24 @@ function buildNextCycleAdviceSectionHTML(macro, rec) {
 
   const storedFmt = new Date(stored.storedAt + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
+  // ── Refresh with cycle review ─────────────────────────────────────────
+  // One-shot, matching "Challenge this advice" for check-ins (dev
+  // 2026-09-15, item 1c) — offered only when this response was generated
+  // BEFORE the cycle review existed (the user clicked Build next cycle
+  // during the final week, ahead of the cycle's actual last day), a
+  // review has since completed, and no plan has been chosen yet (once a
+  // plan's chosen, the goal queue may already be built from it — nothing
+  // left here to usefully refresh).
+  const canRefreshWithReview = !chosenKey && !!macro.review && !stored.reviewIncluded;
+  const refreshHtml = canRefreshWithReview
+    ? `<div style="margin-top:6px;text-align:right;">
+        <span onclick="refreshNextCycleAdviceWithReview()"
+          style="font-size:11px;color:var(--text3);cursor:pointer;text-decoration:underline;">
+          Refresh with cycle review →
+        </span>
+      </div>`
+    : '';
+
   return `<div style="margin-top:10px;border-top:0.5px solid var(--border);padding-top:10px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
       <div style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:var(--r-sm);
@@ -15413,9 +15442,23 @@ function buildNextCycleAdviceSectionHTML(macro, rec) {
       <span style="font-size:12px;color:var(--text3);flex-shrink:0;margin-top:2px;">${narrativeOpen ? '▲' : '▼'}</span>
     </div>
     ${narrativeOpen ? narrativeBody : ''}
+    ${refreshHtml}
     ${planSection}
     <div id="next-cycle-advice-error" style="display:none;font-size:11px;color:var(--red);margin-top:6px;"></div>
   </div>`;
+}
+
+// Triggers the one-shot refresh above — re-asks BLOC with the same prompt
+// plus the original response and the now-available cycle review, per
+// askBlocForNextCycleAdvice()'s priorResponse parameter (see
+// buildNextCycleAdvicePrompt()'s REFRESH instruction for how the model is
+// told to adjust only if something stands out).
+function refreshNextCycleAdviceWithReview() {
+  const macro = resolveProgressMacro();
+  const stored = state.nextCycleAdvice;
+  if (!macro || !stored || stored.macroId !== macro.id) return;
+  if (stored.chosenPlanKey || !macro.review || stored.reviewIncluded) return;
+  askBlocForNextCycleAdvice(stored.userContext, stored.response);
 }
 
 
