@@ -10940,7 +10940,10 @@ function renderProgress(animate = false) {
   const goalType = macro ? (macro.goalType || 'loss') : 'loss';
   const peak = findPeakWindow(dayMap, goalType);
   let peakHtml = '';
-  if (peak && Math.abs(peak.delta) >= 0.1) {
+  // Best 7-day window / "match your peak week" is meaningless for a
+  // maintenance cycle (dev 2026-09-15 item 3) — there's no direction to
+  // have had a "best" week toward.
+  if (peak && Math.abs(peak.delta) >= 0.1 && goalType !== 'maintenance') {
     const verb = peak.delta < 0 ? 'lost' : 'gained';
     const startFmt = new Date(peak.startDate + 'T00:00:00').toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
     const endFmt   = new Date(peak.endDate   + 'T00:00:00').toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
@@ -11083,14 +11086,19 @@ function renderProgress(animate = false) {
     ? `<span style="color:#E8875A;font-weight:600;">▸ Log-based TDEE</span> — Based on ${dynResult.dataPoints} tracked period${dynResult.dataPoints !== 1 ? 's' : ''}, your estimated TDEE is <strong>${dynResult.tdee.toLocaleString()} kcal/day</strong> (implied BMR ≈ <strong>${dynResult.bmr.toLocaleString()} kcal/day</strong> at <em>${actInfo.label}</em>).`
     : `<span style="color:#E8875A;font-weight:600;">▸ Log-based TDEE</span> — <span style="color:var(--text3);">Log calories alongside weight for at least 2 weigh-ins to unlock this.</span>`;
 
-  const bmrLine3 = dynResult !== null
+  // Calorie target and Goal weight ETA are both meaningless for a
+  // maintenance cycle — there's no deficit/surplus target or target weight
+  // to project toward (dev 2026-09-15 item 3). Previously maintenance fell
+  // through to the deficit branch here by accident (isGainCycle is false
+  // for 'maintenance' too), showing an incorrect cut-style target.
+  const bmrLine3 = (dynResult !== null && cycleGoalType !== 'maintenance')
     ? (() => {
         const adj = isGainCycle ? 250 : -500;
         const t   = dynResult.tdee + adj;
         return `<span style="color:#5BC4F5;font-weight:600;">◎ Calorie target</span> — For ${isGainCycle ? 'lean muscle gain' : 'sustainable weight loss'}, aim for <strong>${t.toLocaleString()} kcal/day</strong> — a ${Math.abs(adj).toLocaleString()} kcal ${isGainCycle ? 'surplus' : 'deficit'} targeting ${isGainCycle ? '~0.5 lbs/week' : '~1 lb/week'}.`;
       })() : '';
 
-  const etaHtml = goalWeightETA !== null
+  const etaHtml = (goalWeightETA !== null && cycleGoalType !== 'maintenance')
     ? `<div style="margin-top:10px;padding-top:10px;border-top:0.5px solid var(--border);font-size:12px;color:var(--text2);line-height:1.6;">
         <span style="color:var(--amber);font-weight:600;">📅 Goal weight ETA</span> — At your current rate of <strong>${goalWeightETA.ratePerWeek} lbs/week</strong>, you should reach <strong>${macro.targetBw} lbs</strong> around <strong>${goalWeightETA.date}</strong> (~${goalWeightETA.weeks} weeks).
       </div>` : '';
