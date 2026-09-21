@@ -826,9 +826,14 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
    triggered while another modal is already open (e.g. the dinner
    fill-day prompt, fired while the food library add modal is still open
    so the person can keep logging). It must always render above every
-   other modal, including the highest existing tier (modal-nutr-barcode
-   at 310), so it's never hidden behind whatever's already on screen. */
-#modal-confirm { z-index: 320; }
+   other modal so it's never hidden behind whatever's already on screen.
+   v8.15: raised 320 → 340. It had been level with modal-nutr-photo-review
+   (320) and BELOW modal-nutr-photo-item-edit (330) since v8.02, and only
+   still painted on top of the review screen because its markup happens to
+   come later in the document. §79's discard confirmation is fired from
+   that review screen, so make the rule actually hold instead of resting on
+   DOM order. Keep this the highest tier if a new modal is ever added. */
+#modal-confirm { z-index: 340; }
 /* Profile-entry gate (Build Order step 6) — while active, the ✕ close
    button is hidden entirely rather than left visible-but-inert, since
    closeModal() already refuses to dismiss this modal in that state (see
@@ -3782,9 +3787,12 @@ try {
 </div>
 
 <!-- Nutrition: AI Meal Photo Logging — review & confirm detected items -->
-<div class="modal-overlay" id="modal-nutr-photo-review">
+<!-- data-no-dismiss (§79): these items came from a paid API call and there is
+     no way back to this screen once it closes, so swipe-down and backdrop-tap
+     are disabled here. The ✕ confirms first. -->
+<div class="modal-overlay" id="modal-nutr-photo-review" data-no-dismiss>
   <div class="modal-sheet" data-modal="modal-nutr-photo-review" style="max-height:90dvh;display:flex;flex-direction:column;">
-    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-photo-review')">✕</button></div>
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="discardPhotoReview()">✕</button></div>
     <div class="modal-title" style="flex-shrink:0;" id="photo-review-title">Review Detected Items</div>
     <div style="overflow-y:auto;flex:1;">
       <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">AI-estimated — edit anything that looks off before saving. Confidence shown per item.</div>
@@ -6824,6 +6832,24 @@ function closeModal(id) {
     nutrAddContext = 'meal';
     renderPhotoReviewItems();
     requestAnimationFrame(() => openModal('modal-nutr-photo-review'));
+  }
+  // The serving sheet dismissed by swipe-down or backdrop tap rather than by
+  // its ✕ or its confirm button (§79). Every deliberate exit nulls
+  // nutrPendingProduct immediately before closing, so a product still being
+  // set here is precisely the signal that this was a dismissal — no separate
+  // transitioning flag needed. Without this, dismissing it in photo context
+  // stranded the paid-for review screen with no way back to it.
+  if (id === 'modal-nutr-serving' && nutrPendingProduct) {
+    nutrPendingProduct = null;
+    returnFromNutrServing();
+  }
+  // Backed out of the Manual editor without saving — drop the blank row it
+  // pushed ahead of itself rather than leaving "New item · 0 kcal" behind
+  // (§79). savePhotoItemEdit() clears the marker, so a saved row survives.
+  if (id === 'modal-nutr-photo-item-edit' && _photoPendingNewItemIdx !== null) {
+    _photoDetectedItems.splice(_photoPendingNewItemIdx, 1);
+    _photoPendingNewItemIdx = null;
+    renderPhotoReviewItems();
   }
   _nutrAddTransitioning = false;
   // Always clear originalDate flags when closing so fresh opens start clean
@@ -23899,6 +23925,13 @@ let _photoContext = {};         // { mealName, restaurant, homeCooked, knownKcal
 let _photoImageBase64 = null;   // resized/compressed image, base64 (no data: prefix)
 let _photoImageMediaType = null;
 let _photoAnalysing = false;
+// Index of a row created by Manual that has not been saved yet, or null.
+// addPhotoItemManual() pushes the blank row BEFORE opening the editor (so
+// the editor can address it by index), which meant backing out of that
+// editor left a "New item · 0 kcal" row sitting on the review list — and,
+// if not spotted, a junk 0-kcal ingredient in the saved recipe. §79 drops
+// the row again if the editor closes without saving.
+let _photoPendingNewItemIdx = null;
 
 function openNutrPhoto() {
   closeModal('modal-nutr-add');
@@ -24243,7 +24276,31 @@ function removePhotoItem(idx) {
   renderPhotoReviewItems();
 }
 
+// The review screen's ✕ (§79). Closing it throws away the result of a paid
+// API call with no way back — the items only live in _photoDetectedItems,
+// nothing has been saved yet, and re-analysing means paying for the call
+// again. So the ✕ confirms first, and swipe/backdrop dismissal is disabled
+// outright (data-no-dismiss on the overlay). An empty list needs no
+// confirmation — there is nothing to lose.
+function discardPhotoReview() {
+  if (!_photoDetectedItems.length) {
+    closeModal('modal-nutr-photo-review');
+    return;
+  }
+  showConfirm(
+    'Discard this analysis?',
+    'The items from this photo will be lost. Analysing it again costs another API call.',
+    'Discard',
+    () => {
+      _photoDetectedItems = [];
+      _photoContext = {};
+      closeModal('modal-nutr-photo-review');
+    }
+  );
+}
+
 function addPhotoItemManual() {
+  _photoPendingNewItemIdx = _photoDetectedItems.length;
   _photoDetectedItems.push({
     name: 'New item', grams: 100, kcal: 0, protein: 0, carbs: 0, fats: 0,
     confidence: 'low', suggestedMatch: null, matchStatus: 'dismissed',
@@ -24283,6 +24340,9 @@ function pushPhotoItemFromLibrary({ name, grams, kcal, protein, carbs, fats, isR
 function editPhotoItem(idx) {
   const it = _photoDetectedItems[idx];
   if (!it) return;
+  // Editing an existing row is never a pending new one — only
+  // addPhotoItemManual() sets that marker, immediately before calling this.
+  if (_photoPendingNewItemIdx !== idx) _photoPendingNewItemIdx = null;
   document.getElementById('photo-item-edit-idx').value = idx;
   document.getElementById('photo-item-edit-name').value = it.name;
   document.getElementById('photo-item-edit-grams').value = it.grams;
@@ -24313,6 +24373,7 @@ function savePhotoItemEdit() {
   it.carbs = Math.round((parseFloat(document.getElementById('photo-item-edit-carbs').value) || 0) * 10) / 10;
   it.fats = Math.round((parseFloat(document.getElementById('photo-item-edit-fats').value) || 0) * 10) / 10;
   it.matchStatus = 'dismissed'; // manual edit supersedes any pending suggestion
+  _photoPendingNewItemIdx = null; // saved — it is a real row now
   closeModal('modal-nutr-photo-item-edit');
   renderPhotoReviewItems();
 }
@@ -24650,16 +24711,36 @@ function selectFromLibrary(idx) {
 function cancelNutrServing() {
   nutrPendingProduct = null;
   closeModal('modal-nutr-serving');
-  if (_nutrReturnToAddList) {
-    _nutrReturnToAddList = false;
-    if (nutrAddContext === 'recipe') {
-      requestAnimationFrame(() => openRecipeIngredientSearch(true));
-    } else if (nutrAddContext === 'photo') {
-      requestAnimationFrame(() => openPhotoItemSearch(true));
-    } else {
-      requestAnimationFrame(() => openNutrAdd(nutrActiveMeal, true));
-    }
+  returnFromNutrServing();
+}
+
+// Where to go when the serving sheet closes without confirming — shared by
+// the ✕ (cancelNutrServing) and by a swipe-down/backdrop dismissal, which
+// previously went nowhere at all (§79).
+//
+// The old code only handled _nutrReturnToAddList, so a dismissal left the
+// person on the Nutrition page with whatever they had been working on gone:
+// in recipe context the ingredients screen, and in photo context the review
+// screen — the latter holding the result of a paid API call that would have
+// to be paid for again. Both contexts now always hand back to the screen
+// underneath, whether or not the search list is part of the route.
+function returnFromNutrServing() {
+  const toList = _nutrReturnToAddList;
+  _nutrReturnToAddList = false;
+  if (nutrAddContext === 'photo') {
+    renderPhotoReviewItems(); // anything added before this detour must show
+    requestAnimationFrame(() => toList
+      ? openPhotoItemSearch(true)
+      : openModal('modal-nutr-photo-review'));
+    return;
   }
+  if (nutrAddContext === 'recipe') {
+    requestAnimationFrame(() => toList
+      ? openRecipeIngredientSearch(true)
+      : openModal('modal-recipe-ingredients'));
+    return;
+  }
+  if (toList) requestAnimationFrame(() => openNutrAdd(nutrActiveMeal, true));
 }
 
 // Opens the serving-size confirmation modal (grams/servings, live macro
@@ -26190,6 +26271,14 @@ function initModal(overlayEl) {
   const sheet = overlayEl.querySelector('.modal-sheet');
   if (!sheet) return;
   const modalId = overlayEl.id;
+
+  // §79 — opt out of both accidental-dismissal gestures. A sheet holding
+  // work that cannot be recreated for free sets data-no-dismiss: swipe-down
+  // and backdrop-tap do nothing, leaving its ✕ (which confirms first) as the
+  // only way out. Currently just the AI photo review screen, whose contents
+  // are the result of a paid API call with no way back once it closes —
+  // a stray backdrop tap there costs real money to undo.
+  if (overlayEl.hasAttribute('data-no-dismiss')) return;
 
   // Tap the dark backdrop to close — must NOT be passive so stopPropagation works on iOS
   overlayEl.addEventListener('touchstart', function(e) {

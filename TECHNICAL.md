@@ -4336,4 +4336,30 @@ After either, the search list stays open (`_nutrReturnToAddList`) so several ite
 
 **Check:** `scripts/verify-photo-review-items.mjs` — plain `node`, no dependencies; extracts the real `pushPhotoItemFromLibrary()` and `confirmPhotoItems()` out of `index.html` and runs them against DOM/state stubs, so it cannot drift from what ships. 11 checks covering the flag matrix (AI vs library vs manual vs pre-§78 rows, individually and mixed), the recipe-collapses-to-grams-1 convention, the grams floor `confirmPhotoItems` divides by, and that totals/per-gram rates are unchanged.
 
-**Known, unchanged:** dismissing `modal-nutr-serving` by swipe-down or backdrop tap (rather than its ✕, which calls `cancelNutrServing()`) drops you back to the Nutrition page instead of returning to the review screen. The recipe-ingredient context has behaved this way since it shipped and this change deliberately mirrors it rather than fixing one context and not the other; worth doing properly for both in one pass if it ever annoys anyone.
+**Superseded by §79:** this section originally shipped with a known hole — dismissing `modal-nutr-serving` by swipe-down or backdrop tap dropped you back to the Nutrition page instead of returning to the review screen. Adam's answer on seeing it flagged: *"i cannot lose the review screen without having to make the api call again, which costs"*. Fixed below, for both contexts.
+
+---
+
+## §79 — v8.15: the photo review screen is paid-for state — stop losing it
+
+The review screen holds the result of a **billed API call**. Nothing is persisted until Save: the rows live only in `_photoDetectedItems`, and no code path reopens `modal-nutr-photo-review` once it has closed. Losing it is not a papercut, it is another charge. §78 flagged one route to losing it; there were two, and the fix is the same principle applied to both.
+
+### 1. The serving sheet, dismissed rather than cancelled
+
+`cancelNutrServing()` (its ✕) handed back to the search list, but **only when `_nutrReturnToAddList` was set**, and nothing at all ran when the sheet was dismissed by swipe-down or backdrop tap — both of which go straight to `closeModal()` via `initModal()`'s gesture handlers. In photo context that stranded the review screen; in recipe context it had been stranding the ingredients screen since that context shipped.
+
+`returnFromNutrServing()` now owns that decision for both routes: photo → the search list if that is where it came from, otherwise the review screen (re-rendered first, since anything added before the detour must appear); recipe → the list or `modal-recipe-ingredients`; meal → unchanged (the list if it came from one, otherwise nothing, which is correct — the Nutrition page is already underneath).
+
+The dismissal is detected without a new flag. **Every deliberate exit — the ✕ and all three `confirmServing()` branches — nulls `nutrPendingProduct` immediately before closing.** So `nutrPendingProduct` still being set inside `closeModal()` *is* the signal that this was a dismissal. That is a stronger check than a transitioning flag, because it cannot drift: a future exit path that forgets to null the product would be routed as a dismissal (harmless), while one that nulls it is by definition handling itself.
+
+### 2. The review screen itself, swiped away
+
+`initModal()` wires swipe-down and backdrop-tap on every `.modal-overlay` with no opt-out. Both now check `data-no-dismiss` on the overlay and skip wiring entirely if present; `#modal-nutr-photo-review` carries it. Its ✕ calls `discardPhotoReview()`, which routes through `showConfirm()` — *"Discard this analysis? The items from this photo will be lost. Analysing it again costs another API call."* — and only clears state in the callback. An empty list closes without asking; there is nothing to lose.
+
+**`#modal-confirm` raised 320 → 340** as part of this. It had been level with `modal-nutr-photo-review` (320) and *below* `modal-nutr-photo-item-edit` (330) since v8.02, and only still painted above the review screen because its markup happens to sit later in the document. The discard dialog is fired from that screen, so the rule its own CSS comment claims ("must always render above every other modal") now actually holds rather than resting on DOM order. The comment named 310 as the top tier, which stopped being true three versions ago; it is corrected.
+
+### 3. The blank row Manual left behind
+
+Not a loss, but the same class of defect and adjacent: `addPhotoItemManual()` pushes a blank row *before* opening the editor (so the editor can address it by index), so backing out of that editor left `New item · 0 kcal` on the list — and a junk 0-kcal ingredient in the saved recipe if not spotted. Now more reachable, since Manual sits one tap deeper behind §78's search sheet. `_photoPendingNewItemIdx` marks that row; `savePhotoItemEdit()` clears the marker, and `closeModal()` splices the row out if the editor closes with the marker still set.
+
+**Check:** `scripts/verify-photo-review-retention.mjs` — 16 checks. The routing matrix for `returnFromNutrServing()` across all three contexts × both routes in (proving no combination lands nowhere); `discardPhotoReview()`'s confirm behaviour including that declining leaves the items intact and that an empty list skips the dialog; and the three structural invariants the protection actually rests on — the overlay carries `data-no-dismiss`, its ✕ does not call `closeModal` directly, `initModal()` checks the attribute *before* wiring either gesture, and `#modal-confirm` outranks every other modal tier (asserted by parsing the z-index rules, so adding a higher modal later fails the check rather than silently hiding confirmations).
