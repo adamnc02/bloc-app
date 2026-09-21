@@ -2585,7 +2585,7 @@ try {
 
       <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 2px;border-bottom:1px solid var(--border);margin-bottom:16px;cursor:pointer;" onclick="openModal('modal-settings-about')">
         <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-        <span class="tag tag-outline">v8.12</span>
+        <span class="tag tag-outline">v8.13</span>
       </div>
 
       <!-- ── Profile section ── -->
@@ -12465,6 +12465,44 @@ function updateInsightsRollup() {
 // PHASE 2 — AI advice layer
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Pulls the JSON object out of a model response. Every AI feature in this app
+// asks for "raw JSON, no preamble", and for a plain single-turn call that is
+// what comes back — but it is a request, not a guarantee, and it stops being
+// true the moment a server tool is in play: a web_search turn interleaves the
+// model's own narration ("No published nutrition data for…", "Let me search
+// for…") as extra text blocks alongside the JSON one, and analyseMealPhoto()
+// joins ALL text blocks together before parsing. That is the v8.13 bug —
+// "JSON Parse error: Unexpected identifier "No"" — see TECHNICAL.md §76.
+//
+// So: strip fences wherever they appear, then take the first balanced {…}
+// object rather than assuming the whole string is JSON. Brace counting is
+// string- and escape-aware, otherwise a brace inside a food name ("Chicken
+// {special}") would end the object early. Returns null when there is no
+// object at all, so callers can raise their own message instead of surfacing
+// a raw JSON.parse error to the user.
+function extractJsonObject(rawText) {
+  if (!rawText) return null;
+  const text = rawText.replace(/```json/gi, '').replace(/```/g, '');
+  const start = text.indexOf('{');
+  if (start === -1) return null;
+  let depth = 0, inString = false, escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (escaped) { escaped = false; continue; }
+    if (ch === '\\') { escaped = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) {
+        try { return JSON.parse(text.slice(start, i + 1)); } catch (e) { return null; }
+      }
+    }
+  }
+  return null;
+}
+
 // API key stored separately from state (localStorage direct) so it is never
 // included in JSON exports/backups. Cleared by saving an empty value.
 function getApiKey() {
@@ -12940,9 +12978,9 @@ async function askBlocForAdvice() {
     console.log('[BLOC] Raw length:', rawText.length, '| stop_reason:', data.stop_reason);
     console.log('[BLOC] Last 100 chars:', rawText.slice(-100));
 
-    // Strip any accidental markdown fences
-    const cleaned = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
-    const response = JSON.parse(cleaned);
+    // Fences/preamble tolerated — see extractJsonObject() and TECHNICAL.md §76
+    const response = extractJsonObject(rawText);
+    if (!response) throw new Error('Response was not valid JSON');
 
     // Validate required fields
     if (!response.signal || !response.headline || !response.narrative
@@ -13165,8 +13203,8 @@ async function askBlocForChallenge(challengeText) {
       .map(b => b.text)
       .join('');
 
-    const cleaned = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
-    const revision = JSON.parse(cleaned);
+    const revision = extractJsonObject(rawText);
+    if (!revision) throw new Error('Response was not valid JSON');
 
     if (!revision.acknowledgment || !revision.headline || !revision.narrative
         || typeof revision.isSignificantRevision !== 'boolean'
@@ -14142,8 +14180,8 @@ async function generateCycleReview(macro, beforeImages, afterImages) {
 
   const data = await res.json();
   const rawText = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
-  const cleaned = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
-  const response = JSON.parse(cleaned);
+  const response = extractJsonObject(rawText);
+  if (!response) throw new Error('Response was not valid JSON');
 
   if (!response.narrative || !response.headline || typeof response.complianceScore !== 'number') {
     throw new Error('Response missing required fields');
@@ -15179,9 +15217,9 @@ async function askBlocForNextCycleAdvice(userContext, priorResponse) {
 
     console.log('[BLOC next-cycle advice] Raw length:', rawText.length, '| stop_reason:', data.stop_reason);
 
-    // Strip any accidental markdown fences
-    const cleaned = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
-    const response = JSON.parse(cleaned);
+    // Fences/preamble tolerated — see extractJsonObject() and TECHNICAL.md §76
+    const response = extractJsonObject(rawText);
+    if (!response) throw new Error('Response was not valid JSON');
 
     // Validate required top-level fields and per-plan shape (>=2 goals per
     // plan, per the spec's "at least 2 goal phases" requirement).
@@ -23874,7 +23912,8 @@ Rules:
 - confidence reflects how certain you are about that item's portion size and composition given the photo — "low" for anything substantially obscured, ambiguous, or guessed.
 - All numeric fields are numbers, not strings. Grams and calories are whole numbers; protein/carbs/fat may have one decimal place.
 ${ctx.knownKcal ? `- The user has supplied a known total calorie figure for this meal: ${ctx.knownKcal} kcal. Treat this as a fixed, immutable constraint — do NOT independently estimate total calories. Instead, apportion this exact total across the items you identify, and derive a plausible protein/carbs/fat split per item that is consistent with both the photo and this fixed total.` : '- Estimate calories independently from the photo, using typical portion-size and preparation cues.'}
-${ctx.useWebSearch ? `- The user says this meal is from "${ctx.restaurant}"${ctx.country ? `, in ${ctx.country}` : ''}. Use web search to find that chain's published nutritional information for the closest matching menu item(s) in that market, and prefer that data over a pure visual estimate where you can find a confident match. Menus differ significantly by country, so only use nutritional data specific to ${ctx.country || 'the stated market'} if you can find it.` : ''}`;
+${ctx.useWebSearch ? `- The user says this meal is from "${ctx.restaurant}"${ctx.country ? `, in ${ctx.country}` : ''}. Use web search to find that chain's published nutritional information for the closest matching menu item(s) in that market, and prefer that data over a pure visual estimate where you can find a confident match. Menus differ significantly by country, so only use nutritional data specific to ${ctx.country || 'the stated market'} if you can find it.
+- Your final message must still be the raw JSON object and nothing else — no summary of what you searched for, no note about what you did or did not find, before or after it. If the search finds nothing usable, say nothing about that and simply estimate from the photo.` : ''}`;
 
   let userText = `Meal name: ${ctx.mealName}`;
   if (ctx.homeCooked) userText += `\nHome-cooked / not a chain restaurant.`;
@@ -23951,45 +23990,73 @@ async function analyseMealPhoto() {
   btn.textContent = 'Analysing…';
 
   try {
-    const body = {
-      model: 'claude-sonnet-4-6',
-      max_tokens: 3000,
-      system: systemPrompt,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'image', source: { type: 'base64', media_type: _photoImageMediaType, data: _photoImageBase64 } },
-          { type: 'text', text: userText },
-        ],
-      }],
-    };
-    if (useWebSearch) {
-      body.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
+    // The conversation is a growing array rather than a one-shot body because
+    // a web_search turn can come back with stop_reason 'pause_turn' — the
+    // model has paused mid-turn (typically after firing searches) and has not
+    // written its JSON yet. The continuation is to send its own content back
+    // and ask again; anything else silently parses a half-finished answer.
+    const messages = [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: _photoImageMediaType, data: _photoImageBase64 } },
+        { type: 'text', text: userText },
+      ],
+    }];
+
+    let data = null;
+    for (let turn = 0; turn < 4; turn++) {
+      const body = {
+        model: 'claude-sonnet-4-6',
+        max_tokens: 3000,
+        system: systemPrompt,
+        messages,
+      };
+      if (useWebSearch) {
+        body.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
+      }
+
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody?.error?.message || `API error ${res.status}`);
+      }
+
+      data = await res.json();
+      if (data.stop_reason !== 'pause_turn') break;
+      messages.push({ role: 'assistant', content: data.content });
     }
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!res.ok) {
-      const errBody = await res.json().catch(() => ({}));
-      throw new Error(errBody?.error?.message || `API error ${res.status}`);
-    }
-
-    const data = await res.json();
-    const rawText = (data.content || [])
+    const blocks = data.content || [];
+    const rawText = blocks
       .filter(b => b.type === 'text')
       .map(b => b.text)
-      .join('');
-    const cleaned = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
-    const parsed = JSON.parse(cleaned);
+      .join('\n');
+    // A web_search failure is NOT an HTTP error: it comes back 200 with the
+    // result block's content as a single error object rather than a list of
+    // results. Worth knowing about only to explain a missing answer — the
+    // model normally falls back to a visual estimate and still returns JSON.
+    const searchFailed = blocks.some(b => b.type === 'web_search_tool_result'
+      && b.content && !Array.isArray(b.content));
+
+    const parsed = extractJsonObject(rawText);
+    if (!parsed) {
+      if (data.stop_reason === 'max_tokens') {
+        throw new Error('That analysis was cut off before it finished — try again, or fewer items in shot.');
+      }
+      throw new Error(searchFailed
+        ? `Couldn't look up ${restaurant} and couldn't read the estimate back — try again, or switch to Home-cooked to skip the lookup.`
+        : "Couldn't read the analysis back — try again, or switch to Home-cooked to skip the restaurant lookup.");
+    }
 
     if (!parsed.items || !Array.isArray(parsed.items) || !parsed.items.length) {
       throw new Error('No items detected in that photo — try a clearer shot.');
