@@ -4265,3 +4265,28 @@ Request: dev 2026-09-15 item 4. The Progress page's insights swipe deck goes fro
 **Progress mini-tour** (`startProgressMiniTour()`, runs against a real signed-in user's own data): can't fake dates on someone's real account, so this step was rewritten to describe the final-week behavior narratively instead of forcing a specific state — matching the defensive style already used elsewhere in this mini-tour (it was already written not to assume a plateau is currently showing, for the same reason).
 
 Pre-seeded `bloc-demo-data.json` with a `nextCycleAdvice` response and a completed `macro.review` — same pattern as the existing pre-seeded `blocAdvice` the earlier check-in steps already relied on — so both new final-week tour steps show real content with no live API call needed mid-tour (a brand-new user going through onboarding won't have an API key configured yet).
+
+---
+
+## §76 — v8.13: Photo → Meal "JSON Parse error" — a web_search turn is not a single text block
+
+**The bug.** Reported 2026-09-21: Photo → Meal failed with `JSON Parse error: Unexpected identifier "No"` on every attempt, with and without a Known total kcal filled in. Both attempts named a restaurant ("Doubletree hotel - elstree chaplins").
+
+**Root cause.** `useWebSearch = !!restaurant && !homeCooked` (§55), so naming a restaurant is what puts `tools: [{ type: 'web_search_20250305' }]` in the request — and Photo → Meal is the only AI feature in the app that ever sends a tool. §55's parsing was written knowing a search turn returns extra block types, and it does filter `web_search_tool_use`/`web_search_tool_result` out. What it did not account for is that a search turn also returns *more than one `text` block of the model's own*: narration around the searches ("No published nutrition data for…", "Let me search…") arrives as text blocks alongside the JSON one. The old code joined **all** text blocks and called `JSON.parse` on the result, having stripped a markdown fence only from the very start and end of the string. Prose + JSON is not JSON. The error text is JavaScriptCore's (iOS Safari/PWA) way of saying the parse hit the bare identifier `No` — the first word of the narration.
+
+The system prompt did say "no preamble, no commentary", and for a plain single-turn call that holds, which is why the other four AI features never hit this and why the feature worked in testing without a restaurant name. An instruction is not a guarantee, and it is weakest exactly where the model has just done something (a search) it is inclined to report on.
+
+**The fix — `extractJsonObject(rawText)`** (declared just above `getApiKey()`, so all five AI call sites can reach it). Strips fences *wherever* they appear, then walks the first balanced `{…}` object and parses that, ignoring anything before or after it. Brace counting is string- and escape-aware — a brace or an escaped quote inside a food name ("Chips {large}", `Pineapple \"ring\"`) must not end the object early. Returns `null` rather than throwing when there is no object at all, so each caller raises its own message instead of leaking a raw `JSON.parse` error into the UI, which is what Adam saw.
+
+Applied to all five call sites — `askBlocForAdvice()`, the challenge/revision call, `generateCycleReview()`, the next-cycle advice call, and `analyseMealPhoto()`. It is a strict superset of the old behaviour (every string the old code parsed, this parses identically), so the four tool-free callers lose nothing and gain the same tolerance.
+
+**Also fixed in `analyseMealPhoto()`, same root area:**
+
+- **`pause_turn`.** A server-tool turn can come back with `stop_reason: 'pause_turn'` — the model has paused mid-turn and has not written its JSON yet. The continuation protocol is to append its own `content` as an `assistant` message and re-send. The request body is now built inside a loop (max 4 turns) doing exactly that; previously a paused turn would have been parsed as if it were the final answer.
+- **Failed searches don't raise.** A web_search failure returns HTTP 200 with the result block's `content` as a single error *object* instead of a list. That is detected only to word the error better — the model normally falls back to a visual estimate and still returns valid JSON, so a failed lookup is not itself a failure.
+- **Error messages.** No-JSON now says what to do ("switch to Home-cooked to skip the restaurant lookup"); a `max_tokens` cut-off is named as such rather than reported as a parse error.
+- **Prompt.** The web-search branch of `buildMealPhotoPrompt()` now states explicitly that the final message must be the raw JSON object even when the search found nothing — belt and braces, since the parser no longer depends on it.
+
+**Check:** `scripts/verify-json-extraction.mjs` (plain `node`, no dependencies — it reads the real function out of `index.html` rather than copying it, so it cannot drift). Covers the narration-before-JSON case that caused this bug, narration after, fences anywhere, braces and escaped quotes inside strings, nested objects, and the four cases that must return `null` instead of throwing (prose-only, truncated JSON, empty, null). The last check is a **control**: it runs the v8.12 parser against the narration case and asserts that it *does* fail — proof the script would have caught this bug rather than passing vacuously.
+
+**Not reproduced live.** No Anthropic API key exists in the dev environment (the app is BYO-key, held in Adam's browser `localStorage`), so the diagnosis is from the response shape and the error string, and the fix is verified against synthesised responses in the script above. Confirmation is UAT: the same photo, the same restaurant name.
