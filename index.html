@@ -826,9 +826,14 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
    triggered while another modal is already open (e.g. the dinner
    fill-day prompt, fired while the food library add modal is still open
    so the person can keep logging). It must always render above every
-   other modal, including the highest existing tier (modal-nutr-barcode
-   at 310), so it's never hidden behind whatever's already on screen. */
-#modal-confirm { z-index: 320; }
+   other modal so it's never hidden behind whatever's already on screen.
+   v8.15: raised 320 → 340. It had been level with modal-nutr-photo-review
+   (320) and BELOW modal-nutr-photo-item-edit (330) since v8.02, and only
+   still painted on top of the review screen because its markup happens to
+   come later in the document. §79's discard confirmation is fired from
+   that review screen, so make the rule actually hold instead of resting on
+   DOM order. Keep this the highest tier if a new modal is ever added. */
+#modal-confirm { z-index: 340; }
 /* Profile-entry gate (Build Order step 6) — while active, the ✕ close
    button is hidden entirely rather than left visible-but-inert, since
    closeModal() already refuses to dismiss this modal in that state (see
@@ -2585,7 +2590,7 @@ try {
 
       <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 2px;border-bottom:1px solid var(--border);margin-bottom:16px;cursor:pointer;" onclick="openModal('modal-settings-about')">
         <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-        <span class="tag tag-outline">v8.14</span>
+        <span class="tag tag-outline">v8.15</span>
       </div>
 
       <!-- ── Profile section ── -->
@@ -3547,15 +3552,15 @@ try {
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
         <span style="font-weight:600;">Recipes</span>
       </button>
-      <button onclick="openNutrManual()" class="nutr-add-action-btn" style="flex:1;min-width:0;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 4px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:11px;">
+      <button onclick="openNutrManualForContext()" id="nutr-add-btn-manual" class="nutr-add-action-btn" style="flex:1;min-width:0;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 4px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:11px;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         <span style="font-weight:600;">Manual</span>
       </button>
-      <button onclick="openNutrBarcode()" class="nutr-add-action-btn" style="flex:1;min-width:0;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 4px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:11px;">
+      <button onclick="openNutrBarcode()" id="nutr-add-btn-scan" class="nutr-add-action-btn" style="flex:1;min-width:0;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 4px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:11px;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/><line x1="13" y1="8" x2="13" y2="12"/><line x1="16" y1="8" x2="16" y2="16"/></svg>
         <span style="font-weight:600;">Scan</span>
       </button>
-      <button onclick="openNutrPhoto()" class="nutr-add-action-btn" style="flex:1;min-width:0;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 4px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:11px;">
+      <button onclick="openNutrPhoto()" id="nutr-add-btn-photo" class="nutr-add-action-btn" style="flex:1;min-width:0;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 4px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:11px;">
         <span style="position:relative;display:inline-flex;flex-shrink:0;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
           <span style="position:absolute;top:-6px;right:-7px;font-size:9px;line-height:1;color:var(--purple);">✦</span>
@@ -3782,14 +3787,17 @@ try {
 </div>
 
 <!-- Nutrition: AI Meal Photo Logging — review & confirm detected items -->
-<div class="modal-overlay" id="modal-nutr-photo-review">
+<!-- data-no-dismiss (§79): these items came from a paid API call and there is
+     no way back to this screen once it closes, so swipe-down and backdrop-tap
+     are disabled here. The ✕ confirms first. -->
+<div class="modal-overlay" id="modal-nutr-photo-review" data-no-dismiss>
   <div class="modal-sheet" data-modal="modal-nutr-photo-review" style="max-height:90dvh;display:flex;flex-direction:column;">
-    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-photo-review')">✕</button></div>
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="discardPhotoReview()">✕</button></div>
     <div class="modal-title" style="flex-shrink:0;" id="photo-review-title">Review Detected Items</div>
     <div style="overflow-y:auto;flex:1;">
       <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">AI-estimated — edit anything that looks off before saving. Confidence shown per item.</div>
       <div id="photo-review-list"></div>
-      <button onclick="addPhotoItemManual()" style="width:100%;background:none;border:1px dashed var(--border2);border-radius:var(--r-sm);padding:10px;color:var(--text2);font-size:12px;cursor:pointer;margin:10px 0 14px;">+ Add item</button>
+      <button onclick="openPhotoItemSearch()" style="width:100%;background:none;border:1px dashed var(--border2);border-radius:var(--r-sm);padding:10px;color:var(--text2);font-size:12px;cursor:pointer;margin:10px 0 14px;">+ Add item</button>
       <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px;margin-bottom:14px;font-size:12px;color:var(--text2);" id="photo-review-totals">—</div>
       <button class="btn btn-accent btn-block" id="photo-review-save-btn" onclick="confirmPhotoItems()">Save →</button>
     </div>
@@ -6816,6 +6824,32 @@ function closeModal(id) {
   if (id === 'modal-nutr-add' && nutrAddContext === 'recipe' && !_nutrAddTransitioning) {
     nutrAddContext = 'meal';
     requestAnimationFrame(() => openModal('modal-recipe-ingredients'));
+  }
+  // Same hand-back for the photo-review context (§78) — anything quick-added
+  // while the search was open is already in _photoDetectedItems, so re-render
+  // before the review screen comes back or the new rows won't be on it.
+  if (id === 'modal-nutr-add' && nutrAddContext === 'photo' && !_nutrAddTransitioning) {
+    nutrAddContext = 'meal';
+    renderPhotoReviewItems();
+    requestAnimationFrame(() => openModal('modal-nutr-photo-review'));
+  }
+  // The serving sheet dismissed by swipe-down or backdrop tap rather than by
+  // its ✕ or its confirm button (§79). Every deliberate exit nulls
+  // nutrPendingProduct immediately before closing, so a product still being
+  // set here is precisely the signal that this was a dismissal — no separate
+  // transitioning flag needed. Without this, dismissing it in photo context
+  // stranded the paid-for review screen with no way back to it.
+  if (id === 'modal-nutr-serving' && nutrPendingProduct) {
+    nutrPendingProduct = null;
+    returnFromNutrServing();
+  }
+  // Backed out of the Manual editor without saving — drop the blank row it
+  // pushed ahead of itself rather than leaving "New item · 0 kcal" behind
+  // (§79). savePhotoItemEdit() clears the marker, so a saved row survives.
+  if (id === 'modal-nutr-photo-item-edit' && _photoPendingNewItemIdx !== null) {
+    _photoDetectedItems.splice(_photoPendingNewItemIdx, 1);
+    _photoPendingNewItemIdx = null;
+    renderPhotoReviewItems();
   }
   _nutrAddTransitioning = false;
   // Always clear originalDate flags when closing so fresh opens start clean
@@ -22891,6 +22925,28 @@ function nutrPickDate(val) {
 }
 
 // ── Log entry flow ─────────────────────────────────────────────────────────
+// Shows/hides the four action buttons independently, and the row with them.
+// Each context wants a different subset: meal logging gets all four, recipe
+// ingredient search gets none, photo-review item search gets Manual only
+// (§78 — Adam's call: "select from my library or make manual entries").
+//
+// Must set 'flex' explicitly on the row rather than clearing the style ('').
+// Clearing removes the row's own display:flex, and since each button is
+// itself display:flex (a block-level box) they would then stack vertically,
+// one per line, instead of sitting in a horizontal row.
+function setNutrAddActions({ recipes, manual, scan, photo }) {
+  const show = (id, on) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = on ? '' : 'none';
+  };
+  show('nutr-recipe-filter-btn', recipes);
+  show('nutr-add-btn-manual', manual);
+  show('nutr-add-btn-scan', scan);
+  show('nutr-add-btn-photo', photo);
+  const actionsRow = document.getElementById('nutr-add-actions-row');
+  if (actionsRow) actionsRow.style.display = (recipes || manual || scan || photo) ? 'flex' : 'none';
+}
+
 function openNutrAdd(meal, isReopen) {
   nutrActiveMeal = meal;
   nutrAddContext = 'meal';
@@ -22898,12 +22954,7 @@ function openNutrAdd(meal, isReopen) {
   if (!isReopen) _nutrQuickAddedThisSession = new Set(); // fresh open — clear ticks from any prior session
   document.getElementById('nutr-add-search').placeholder = 'Search foods for ' + meal + '…';
   document.getElementById('nutr-add-search').value = '';
-  const actionsRow = document.getElementById('nutr-add-actions-row');
-  // Must explicitly restore 'flex' here, not clear the style (''). Clearing
-  // it removes the row's own display:flex, and since each button inside is
-  // itself display:flex (a block-level box), they'd then stack vertically
-  // one per line instead of sitting in a horizontal row.
-  if (actionsRow) actionsRow.style.display = 'flex';
+  setNutrAddActions({ recipes: true, manual: true, scan: true, photo: true });
   const listWrap = document.getElementById('nutr-add-list-wrap');
   if (listWrap) listWrap.style.maxHeight = '';
   updateNutrRecipeFilterBtn();
@@ -22927,13 +22978,43 @@ function openRecipeIngredientSearch(isReopen) {
   if (!isReopen) _nutrQuickAddedThisSession = new Set();
   document.getElementById('nutr-add-search').placeholder = 'Search food library…';
   if (!isReopen) document.getElementById('nutr-add-search').value = '';
-  const actionsRow = document.getElementById('nutr-add-actions-row');
-  if (actionsRow) actionsRow.style.display = 'none';
+  setNutrAddActions({ recipes: false, manual: false, scan: false, photo: false });
   const listWrap = document.getElementById('nutr-add-list-wrap');
   if (listWrap) listWrap.style.maxHeight = '';
   renderNutrAddList();
   openModal('modal-nutr-add');
   setTimeout(() => fitListToKeyboard('nutr-add-list-wrap'), 320);
+}
+
+// Third context for modal-nutr-add (§78): adding an item to the AI photo
+// review screen. Previously "+ Add item" there pushed a blank "New item" row
+// straight into the edit modal, so the only way to add anything was to type
+// every macro by hand — even for something already in the food library.
+//
+// Same modal, same list, same keyboard handling as the other two contexts;
+// only the destination differs. Manual is the one action button kept — Scan
+// and AI Photo don't belong mid-review (AI Photo would reopen the flow you
+// are already inside), and the Recipes filter is hidden because recipes
+// still appear in the unfiltered list anyway.
+//
+// The review modal is closed on the way in and reopened on the way out
+// (see closeModal's photo branch), mirroring how recipe-ingredient search
+// returns to modal-recipe-ingredients rather than stacking on top of it.
+function openPhotoItemSearch(isReopen) {
+  nutrAddContext = 'photo';
+  nutrShowRecipesOnly = false;
+  if (!isReopen) _nutrQuickAddedThisSession = new Set();
+  document.getElementById('nutr-add-search').placeholder = 'Search food library…';
+  if (!isReopen) document.getElementById('nutr-add-search').value = '';
+  setNutrAddActions({ recipes: false, manual: true, scan: false, photo: false });
+  const listWrap = document.getElementById('nutr-add-list-wrap');
+  if (listWrap) listWrap.style.maxHeight = '';
+  renderNutrAddList();
+  closeModal('modal-nutr-photo-review');
+  requestAnimationFrame(() => {
+    openModal('modal-nutr-add');
+    setTimeout(() => fitListToKeyboard('nutr-add-list-wrap'), 320);
+  });
 }
 
 // Sizes a .kb-list-wrap element so its bottom edge sits just behind the top
@@ -23145,6 +23226,13 @@ function quickAddFromList(idx) {
       });
     }
     renderRecipeIngredients();
+  } else if (nutrAddContext === 'photo') {
+    pushPhotoItemFromLibrary({
+      name: item.name,
+      grams: grams * servings,
+      kcal, protein, carbs, fats,
+      isRecipe,
+    });
   } else {
     addFoodEntry({
       name: item.name,
@@ -23837,6 +23925,13 @@ let _photoContext = {};         // { mealName, restaurant, homeCooked, knownKcal
 let _photoImageBase64 = null;   // resized/compressed image, base64 (no data: prefix)
 let _photoImageMediaType = null;
 let _photoAnalysing = false;
+// Index of a row created by Manual that has not been saved yet, or null.
+// addPhotoItemManual() pushes the blank row BEFORE opening the editor (so
+// the editor can address it by index), which meant backing out of that
+// editor left a "New item · 0 kcal" row sitting on the review list — and,
+// if not spotted, a junk 0-kcal ingredient in the saved recipe. §79 drops
+// the row again if the editor closes without saving.
+let _photoPendingNewItemIdx = null;
 
 function openNutrPhoto() {
   closeModal('modal-nutr-add');
@@ -24093,6 +24188,8 @@ async function analyseMealPhoto() {
         confidence: ['high', 'medium', 'low'].includes(it.confidence) ? it.confidence : 'medium',
         suggestedMatch: match,
         matchStatus: 'pending', // pending | accepted | dismissed
+        source: 'ai_photo',
+        aiEstimated: true,
       };
     });
 
@@ -24115,7 +24212,7 @@ const PHOTO_CONFIDENCE_COLOR = { high: 'var(--accent)', medium: 'var(--amber)', 
 function renderPhotoReviewItems() {
   const el = document.getElementById('photo-review-list');
   if (!_photoDetectedItems.length) {
-    el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:20px 0;">No items — add one manually below</div>';
+    el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:20px 0;">No items — add one below</div>';
   } else {
     el.innerHTML = _photoDetectedItems.map((it, idx) => `
       <div style="padding:9px 0;border-bottom:0.5px solid var(--border);">
@@ -24123,7 +24220,7 @@ function renderPhotoReviewItems() {
           <div style="flex:1;min-width:0;">
             <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
               ${it.name}
-              <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:${PHOTO_CONFIDENCE_COLOR[it.confidence]};margin-left:6px;">${it.confidence}</span>
+              ${it.aiEstimated === false ? '' : `<span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:${PHOTO_CONFIDENCE_COLOR[it.confidence]};margin-left:6px;">${it.confidence}</span>`}
             </div>
             <div style="font-size:10px;color:var(--text3);margin-top:2px;">${it.grams}g · ${it.kcal.toLocaleString()} kcal · P:${it.protein}g C:${it.carbs}g F:${it.fats}g</div>
           </div>
@@ -24179,18 +24276,73 @@ function removePhotoItem(idx) {
   renderPhotoReviewItems();
 }
 
+// The review screen's ✕ (§79). Closing it throws away the result of a paid
+// API call with no way back — the items only live in _photoDetectedItems,
+// nothing has been saved yet, and re-analysing means paying for the call
+// again. So the ✕ confirms first, and swipe/backdrop dismissal is disabled
+// outright (data-no-dismiss on the overlay). An empty list needs no
+// confirmation — there is nothing to lose.
+function discardPhotoReview() {
+  if (!_photoDetectedItems.length) {
+    closeModal('modal-nutr-photo-review');
+    return;
+  }
+  showConfirm(
+    'Discard this analysis?',
+    'The items from this photo will be lost. Analysing it again costs another API call.',
+    'Discard',
+    () => {
+      _photoDetectedItems = [];
+      _photoContext = {};
+      closeModal('modal-nutr-photo-review');
+    }
+  );
+}
+
 function addPhotoItemManual() {
+  _photoPendingNewItemIdx = _photoDetectedItems.length;
   _photoDetectedItems.push({
     name: 'New item', grams: 100, kcal: 0, protein: 0, carbs: 0, fats: 0,
     confidence: 'low', suggestedMatch: null, matchStatus: 'dismissed',
+    source: 'manual', aiEstimated: false,
   });
   renderPhotoReviewItems();
   editPhotoItem(_photoDetectedItems.length - 1);
 }
 
+// Adds a food-library pick to the review list as a detected item (§78).
+// Shared by both routes into the list — the row's quick-add button (last
+// logged amount) and the serving modal (a chosen amount).
+//
+// A nested recipe has no real weight: grams 1 means "1 serving", the same
+// convention recipe ingredients and quickAddFromList already use, and it
+// carries through confirmPhotoItems' per1* maths correctly (per1kcal then
+// equals the whole serving). aiEstimated is false and no confidence badge
+// is shown — these numbers came out of the library, not out of the model,
+// and badging them "AI est." in the saved recipe would be a lie.
+function pushPhotoItemFromLibrary({ name, grams, kcal, protein, carbs, fats, isRecipe }) {
+  _photoDetectedItems.push({
+    name,
+    grams: isRecipe ? 1 : Math.max(1, Math.round(grams) || 1),
+    kcal: Math.round(kcal) || 0,
+    protein: Math.round((protein || 0) * 10) / 10,
+    carbs: Math.round((carbs || 0) * 10) / 10,
+    fats: Math.round((fats || 0) * 10) / 10,
+    confidence: 'high',
+    suggestedMatch: null,
+    matchStatus: 'dismissed',
+    source: isRecipe ? 'recipe' : 'library',
+    aiEstimated: false,
+  });
+  renderPhotoReviewItems();
+}
+
 function editPhotoItem(idx) {
   const it = _photoDetectedItems[idx];
   if (!it) return;
+  // Editing an existing row is never a pending new one — only
+  // addPhotoItemManual() sets that marker, immediately before calling this.
+  if (_photoPendingNewItemIdx !== idx) _photoPendingNewItemIdx = null;
   document.getElementById('photo-item-edit-idx').value = idx;
   document.getElementById('photo-item-edit-name').value = it.name;
   document.getElementById('photo-item-edit-grams').value = it.grams;
@@ -24221,6 +24373,7 @@ function savePhotoItemEdit() {
   it.carbs = Math.round((parseFloat(document.getElementById('photo-item-edit-carbs').value) || 0) * 10) / 10;
   it.fats = Math.round((parseFloat(document.getElementById('photo-item-edit-fats').value) || 0) * 10) / 10;
   it.matchStatus = 'dismissed'; // manual edit supersedes any pending suggestion
+  _photoPendingNewItemIdx = null; // saved — it is a real row now
   closeModal('modal-nutr-photo-item-edit');
   renderPhotoReviewItems();
 }
@@ -24241,12 +24394,18 @@ function confirmPhotoItems() {
     protein: it.protein,
     carbs: it.carbs,
     fats: it.fats,
-    source: 'ai_photo',
+    // Per-item since §78: the review list can now hold library picks and
+    // hand-typed entries alongside the model's own guesses, and only the
+    // guesses should carry the "AI est." badge the recipe screen renders
+    // off aiEstimated (and the ai_estimated column the sync layer writes).
+    // Older items predate these fields — default them to the ai_photo
+    // shape they had when they were the only kind there was.
+    source: it.source || 'ai_photo',
     per1kcal: it.kcal / it.grams,
     per1p: it.protein / it.grams,
     per1c: it.carbs / it.grams,
     per1f: it.fats / it.grams,
-    aiEstimated: true,
+    aiEstimated: it.aiEstimated !== false,
     confidence: it.confidence,
   }));
 
@@ -24287,7 +24446,9 @@ function confirmPhotoItems() {
     grams: 1, servings: 1, serving: 1,
     kcal: tot.kcal, protein: tot.p, carbs: tot.c, fats: tot.f,
     source: 'recipe',
-    aiEstimated: true,
+    // True if ANY item is still a model estimate — a meal whose every row was
+    // replaced by a library pick or typed by hand is no longer AI-estimated.
+    aiEstimated: ingredients.some(i => i.aiEstimated),
   });
 
   save();
@@ -24550,14 +24711,36 @@ function selectFromLibrary(idx) {
 function cancelNutrServing() {
   nutrPendingProduct = null;
   closeModal('modal-nutr-serving');
-  if (_nutrReturnToAddList) {
-    _nutrReturnToAddList = false;
-    if (nutrAddContext === 'recipe') {
-      requestAnimationFrame(() => openRecipeIngredientSearch(true));
-    } else {
-      requestAnimationFrame(() => openNutrAdd(nutrActiveMeal, true));
-    }
+  returnFromNutrServing();
+}
+
+// Where to go when the serving sheet closes without confirming — shared by
+// the ✕ (cancelNutrServing) and by a swipe-down/backdrop dismissal, which
+// previously went nowhere at all (§79).
+//
+// The old code only handled _nutrReturnToAddList, so a dismissal left the
+// person on the Nutrition page with whatever they had been working on gone:
+// in recipe context the ingredients screen, and in photo context the review
+// screen — the latter holding the result of a paid API call that would have
+// to be paid for again. Both contexts now always hand back to the screen
+// underneath, whether or not the search list is part of the route.
+function returnFromNutrServing() {
+  const toList = _nutrReturnToAddList;
+  _nutrReturnToAddList = false;
+  if (nutrAddContext === 'photo') {
+    renderPhotoReviewItems(); // anything added before this detour must show
+    requestAnimationFrame(() => toList
+      ? openPhotoItemSearch(true)
+      : openModal('modal-nutr-photo-review'));
+    return;
   }
+  if (nutrAddContext === 'recipe') {
+    requestAnimationFrame(() => toList
+      ? openRecipeIngredientSearch(true)
+      : openModal('modal-recipe-ingredients'));
+    return;
+  }
+  if (toList) requestAnimationFrame(() => openNutrAdd(nutrActiveMeal, true));
 }
 
 // Opens the serving-size confirmation modal (grams/servings, live macro
@@ -24565,7 +24748,9 @@ function cancelNutrServing() {
 // breakdown instead of a simple grams field when the product is a recipe.
 function openNutrServingModal() {
   if (!nutrPendingProduct) return;
-  document.getElementById('nutr-serving-title').textContent = 'Add to ' + nutrActiveMeal;
+  document.getElementById('nutr-serving-title').textContent = nutrAddContext === 'photo'
+    ? 'Add to ' + (_photoContext.mealName || 'this meal')   // the photo meal being reviewed, not the diary meal
+    : 'Add to ' + nutrActiveMeal;
   document.getElementById('nutr-serving-name').textContent = nutrPendingProduct.name;
   document.getElementById('nutr-serving-brand').textContent = nutrPendingProduct.brand || '';
 
@@ -24700,6 +24885,27 @@ function confirmServing() {
     return;
   }
 
+  // Photo review (§78) — the chosen amount becomes a row on the review
+  // screen, not a log entry. Returns to the search list so several items can
+  // be added in a row; dismissing that list hands back to the review screen.
+  if (nutrAddContext === 'photo') {
+    pushPhotoItemFromLibrary({
+      name: nutrPendingProduct.name,
+      grams: total,
+      kcal, protein, carbs, fats,
+      isRecipe: nutrPendingProduct.source === 'recipe',
+    });
+    nutrPendingProduct = null;
+    closeModal('modal-nutr-serving');
+    if (_nutrReturnToAddList) {
+      _nutrReturnToAddList = false;
+      requestAnimationFrame(() => openPhotoItemSearch(true));
+    } else {
+      requestAnimationFrame(() => openModal('modal-nutr-photo-review'));
+    }
+    return;
+  }
+
   const entry = {
     name:     nutrPendingProduct.name,
     brand:    nutrPendingProduct.brand || '',
@@ -24740,6 +24946,25 @@ function confirmServing() {
 // Opens the manual food entry modal (name + direct per-serving macros,
 // rather than a per-100g lookup).
 let nutrManualMode = 'item'; // 'item' | 'gram' — see setNutrManualMode
+
+// The Manual button means "type an entry by hand", but where that entry
+// lands depends on which context modal-nutr-add was opened in — the meal
+// diary, or the photo review screen (§78). Dispatching here keeps the two
+// flows separate rather than threading a context check through the manual
+// modal itself, which only ever writes to a meal.
+function openNutrManualForContext() {
+  if (nutrAddContext === 'photo') {
+    _nutrAddTransitioning = true; // a deliberate hand-off, not a dismissal
+    closeModal('modal-nutr-add');
+    nutrAddContext = 'meal';
+    requestAnimationFrame(() => {
+      openModal('modal-nutr-photo-review');
+      addPhotoItemManual();
+    });
+    return;
+  }
+  openNutrManual();
+}
 
 function openNutrManual() {
   closeModal('modal-nutr-add');
@@ -26046,6 +26271,14 @@ function initModal(overlayEl) {
   const sheet = overlayEl.querySelector('.modal-sheet');
   if (!sheet) return;
   const modalId = overlayEl.id;
+
+  // §79 — opt out of both accidental-dismissal gestures. A sheet holding
+  // work that cannot be recreated for free sets data-no-dismiss: swipe-down
+  // and backdrop-tap do nothing, leaving its ✕ (which confirms first) as the
+  // only way out. Currently just the AI photo review screen, whose contents
+  // are the result of a paid API call with no way back once it closes —
+  // a stray backdrop tap there costs real money to undo.
+  if (overlayEl.hasAttribute('data-no-dismiss')) return;
 
   // Tap the dark backdrop to close — must NOT be passive so stopPropagation works on iOS
   overlayEl.addEventListener('touchstart', function(e) {

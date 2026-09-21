@@ -3543,13 +3543,13 @@ Expected schema: `{"items":[{"item","estimated_grams","calories","protein","carb
 
 ### Review screen — `modal-nutr-photo-review`
 
-`renderPhotoReviewItems()` renders each detected item with its confidence badge (colour-mapped via `PHOTO_CONFIDENCE_COLOR`: high→`--accent`, medium→`--amber`, low→`--red`), edit (✎) and remove (✕) buttons, and — only while `matchStatus === 'pending'` — a suggestion chip. `editPhotoItem(idx)` opens a small dedicated edit modal (`modal-nutr-photo-item-edit`, patterned directly on the existing `modal-recipe-edit-ingredient`) with a live macro preview; `addPhotoItemManual()` pushes a blank low-confidence item and immediately opens that same edit modal, for anything the model missed entirely. Totals recompute on every render.
+`renderPhotoReviewItems()` renders each detected item with its confidence badge (colour-mapped via `PHOTO_CONFIDENCE_COLOR`: high→`--accent`, medium→`--amber`, low→`--red`), edit (✎) and remove (✕) buttons, and — only while `matchStatus === 'pending'` — a suggestion chip. `editPhotoItem(idx)` opens a small dedicated edit modal (`modal-nutr-photo-item-edit`, patterned directly on the existing `modal-recipe-edit-ingredient`) with a live macro preview; `addPhotoItemManual()` pushes a blank low-confidence item and immediately opens that same edit modal, for anything the model missed entirely. **Superseded by §78 (v8.15):** "+ Add item" now opens the shared food-search sheet instead, and `addPhotoItemManual()` is reached from its Manual button — the blank-row behaviour described here is still exactly what Manual does, it is just no longer the only option. Totals recompute on every render.
 
 ### Confirm — `confirmPhotoItems()`
 
 No target picker, no servings modal (see Background above for why). On Save:
 
-1. Maps `_photoDetectedItems` into an `ingredients` array shaped exactly like any other recipe ingredient — `per1kcal`/`per1p`/`per1c`/`per1f` computed from the reviewed grams, `source: 'ai_photo'` (a new tag, not one of the existing `manual`/`recipe`/`library`/`barcode` values), plus `aiEstimated: true` and `confidence`. Because `isWeightEditableIngredient()` (Recipe Builder) checks `ing.per1kcal != null` *before* it checks `source`, these ingredients are weight-editable by grams if the saved recipe is later reopened for editing — no changes needed to that function.
+1. Maps `_photoDetectedItems` into an `ingredients` array shaped exactly like any other recipe ingredient — `per1kcal`/`per1p`/`per1c`/`per1f` computed from the reviewed grams, `source: 'ai_photo'` (a new tag, not one of the existing `manual`/`recipe`/`library`/`barcode` values), plus `aiEstimated: true` and `confidence`. **As of §78 (v8.15) those two fields are per-item, not hardcoded** — a row added from the food library or typed by hand carries `library`/`recipe`/`manual` and `aiEstimated: false`. Because `isWeightEditableIngredient()` (Recipe Builder) checks `ing.per1kcal != null` *before* it checks `source`, these ingredients are weight-editable by grams if the saved recipe is later reopened for editing — no changes needed to that function.
 2. Builds a `recipe` object and an `addToFoodLibrary()` call that exactly mirror `_persistRecipe()`'s existing shape (`per100kcal`/`p`/`c`/`f` hold the per-serving totals *directly*, not scaled — same convention every other recipe in the app already uses; `defaultServing: null`, `isRecipe: true`, `source: 'recipe'`) — confirmed against `_persistRecipe()`'s own code rather than assumed, so a photo-derived recipe is indistinguishable from a hand-built one anywhere else in the app (My Recipes, Fill Day, etc).
 3. Calls `addFoodEntry()` with the shape `selectFromAddList()`'s existing `isRecipe` branch already produces for logging a recipe at 1 serving (`grams:1, servings:1, serving:1, source:'recipe'`), plus `aiEstimated: true` on the log entry itself.
 4. `save()`, clears `_photoDetectedItems`/`_photoContext`, closes the review modal. `renderNutrDaily()` (called inside `addFoodEntry()`) picks the new entry up on the currently-viewed date/meal immediately, same as any other log action.
@@ -4306,3 +4306,60 @@ Applied to all five call sites — `askBlocForAdvice()`, the challenge/revision 
 **Follow-on, same change.** With the picker no longer camera-only, the selected file can be anything the library or Files app offers, including something Safari can't decode — previously impossible, since a camera capture is always a decodable JPEG. `handlePhotoFileSelect()` now has `img.onerror`/`reader.onerror` handlers (`showPhotoFileError()`) surfacing "Couldn't read that image — try another photo." in the existing `#photo-analyse-error` box; without them a failed decode did nothing whatsoever and the tile just sat there looking unresponsive. Selecting a file also clears any error still showing from a previous attempt.
 
 **Check:** no script covers this — it is a single markup attribute and a DOM error path, both of which only mean anything inside a real iOS picker. Verified by grep (`capture=` returns nothing across `index.html`) and by UAT on the phone. **The standing rule this leaves behind:** `capture` on a file input means camera-only, never camera-preferred. If a tile says "or choose", it must not carry `capture`.
+
+---
+
+## §78 — v8.15: Photo review "+ Add item" reuses the food-search sheet — a third `nutrAddContext`
+
+Request, 2026-09-21 (after v8.14's UAT passed): *"when I edit the ingredient list, I can add new items. This should [load] my current log meal modal, where I can either select from my library or make manual entries."*
+
+**What it was.** "+ Add item" on `modal-nutr-photo-review` called `addPhotoItemManual()`, which pushed a blank `New item` row and opened `modal-nutr-photo-item-edit`. Every macro had to be typed by hand — even for something already in the food library with exact numbers, and even for a saved recipe.
+
+**What it is now.** It calls `openPhotoItemSearch()`, which opens `modal-nutr-add` — the same sheet used for ordinary meal logging — in a **third context**.
+
+`modal-nutr-add` was already a shared component with a `nutrAddContext` switch (`'meal'` | `'recipe'`): §55-era code, plus `openRecipeIngredientSearch()` which reuses the same sheet to add a library item as a *recipe ingredient* rather than a log entry. Adding `'photo'` follows that seam exactly rather than building a second search UI — one list, one search box, one set of keyboard-fitting behaviour (`fitListToKeyboard`), three destinations. The context is read in five places, all of which already had a `'recipe'` branch to mirror: `quickAddFromList()`, `selectFromAddList()`→`confirmServing()`, `cancelNutrServing()`, `openNutrServingModal()`'s title, and `closeModal()`'s hand-back.
+
+**Scope — asked and answered.** Adam's call was **library + manual only**: the Recipes filter, Scan barcode and AI Photo buttons are hidden in this context. AI Photo would reopen the flow you are already inside; Scan was offered and declined (it can be added later — the barcode flow already ends at `confirmServing`, which now branches). Recipes still appear in the unfiltered list, so a saved recipe is selectable without the filter button.
+
+`setNutrAddActions({recipes, manual, scan, photo})` replaces the two ad-hoc `actionsRow.style.display` assignments that previously toggled the row wholesale; each context now names the subset it wants. It preserves the pre-existing trap `openNutrAdd()` documents in a comment: the row must be restored to `'flex'` explicitly, never cleared to `''`, or the buttons stack vertically (each is itself `display:flex`, a block-level box).
+
+**The two routes in**, both landing in `pushPhotoItemFromLibrary()`:
+
+1. **Quick-add** (the `+` on a list row) — last-logged amount, or the library default, exactly as it behaves for meal logging.
+2. **Tap the row** → `modal-nutr-serving` for a specific grams/servings amount → `confirmServing()`'s new `'photo'` branch. The serving modal's title reads "Add to \<the photo meal's name\>" here rather than "Add to \<diary meal\>", since the destination is the review screen, not the diary.
+
+After either, the search list stays open (`_nutrReturnToAddList`) so several items can be added in a row; dismissing it hands back to the review screen via `closeModal()`, which re-renders the list first — anything quick-added while the search was open is already in `_photoDetectedItems` and would otherwise not be on screen. **Manual** routes through `openNutrManualForContext()`, a dispatcher on the shared button: in photo context it reopens the review screen and calls the old `addPhotoItemManual()`; everywhere else it calls `openNutrManual()` unchanged.
+
+**Modal stacking.** `#modal-nutr-photo-review` is `z-index: 320`, above `#modal-nutr-add`/`#modal-nutr-serving` at 300. So the review screen is **closed on the way in and reopened on the way out**, mirroring how recipe-ingredient search hands back to `modal-recipe-ingredients` — not stacked on top of it. Leaving it open would put the search sheet behind it.
+
+**`aiEstimated` is now per-item, and that is the part worth keeping.** `confirmPhotoItems()` hardcoded `source: 'ai_photo'` and `aiEstimated: true` on every saved ingredient, which was true when the model was the only thing that could put a row on that screen. It no longer is. `aiEstimated` drives the purple **AI est.** badge on the recipe ingredients screen and the `ai_estimated` column the sync layer writes, so leaving it hardcoded would have labelled Adam's own library picks as guesses. Each review row now carries its own `source`/`aiEstimated` (`ai_photo`/true, `library`/false, `recipe`/false, `manual`/false), the confidence badge is suppressed for non-AI rows, and the logged entry's own flag is `ingredients.some(i => i.aiEstimated)` — a meal whose every row was replaced by hand is not an AI-estimated meal. Rows created before this version have neither field, so the defaulting is deliberately asymmetric: `it.source || 'ai_photo'` and `it.aiEstimated !== false`, i.e. **missing means AI**, never library.
+
+**Check:** `scripts/verify-photo-review-items.mjs` — plain `node`, no dependencies; extracts the real `pushPhotoItemFromLibrary()` and `confirmPhotoItems()` out of `index.html` and runs them against DOM/state stubs, so it cannot drift from what ships. 11 checks covering the flag matrix (AI vs library vs manual vs pre-§78 rows, individually and mixed), the recipe-collapses-to-grams-1 convention, the grams floor `confirmPhotoItems` divides by, and that totals/per-gram rates are unchanged.
+
+**Superseded by §79:** this section originally shipped with a known hole — dismissing `modal-nutr-serving` by swipe-down or backdrop tap dropped you back to the Nutrition page instead of returning to the review screen. Adam's answer on seeing it flagged: *"i cannot lose the review screen without having to make the api call again, which costs"*. Fixed below, for both contexts.
+
+---
+
+## §79 — v8.15: the photo review screen is paid-for state — stop losing it
+
+The review screen holds the result of a **billed API call**. Nothing is persisted until Save: the rows live only in `_photoDetectedItems`, and no code path reopens `modal-nutr-photo-review` once it has closed. Losing it is not a papercut, it is another charge. §78 flagged one route to losing it; there were two, and the fix is the same principle applied to both.
+
+### 1. The serving sheet, dismissed rather than cancelled
+
+`cancelNutrServing()` (its ✕) handed back to the search list, but **only when `_nutrReturnToAddList` was set**, and nothing at all ran when the sheet was dismissed by swipe-down or backdrop tap — both of which go straight to `closeModal()` via `initModal()`'s gesture handlers. In photo context that stranded the review screen; in recipe context it had been stranding the ingredients screen since that context shipped.
+
+`returnFromNutrServing()` now owns that decision for both routes: photo → the search list if that is where it came from, otherwise the review screen (re-rendered first, since anything added before the detour must appear); recipe → the list or `modal-recipe-ingredients`; meal → unchanged (the list if it came from one, otherwise nothing, which is correct — the Nutrition page is already underneath).
+
+The dismissal is detected without a new flag. **Every deliberate exit — the ✕ and all three `confirmServing()` branches — nulls `nutrPendingProduct` immediately before closing.** So `nutrPendingProduct` still being set inside `closeModal()` *is* the signal that this was a dismissal. That is a stronger check than a transitioning flag, because it cannot drift: a future exit path that forgets to null the product would be routed as a dismissal (harmless), while one that nulls it is by definition handling itself.
+
+### 2. The review screen itself, swiped away
+
+`initModal()` wires swipe-down and backdrop-tap on every `.modal-overlay` with no opt-out. Both now check `data-no-dismiss` on the overlay and skip wiring entirely if present; `#modal-nutr-photo-review` carries it. Its ✕ calls `discardPhotoReview()`, which routes through `showConfirm()` — *"Discard this analysis? The items from this photo will be lost. Analysing it again costs another API call."* — and only clears state in the callback. An empty list closes without asking; there is nothing to lose.
+
+**`#modal-confirm` raised 320 → 340** as part of this. It had been level with `modal-nutr-photo-review` (320) and *below* `modal-nutr-photo-item-edit` (330) since v8.02, and only still painted above the review screen because its markup happens to sit later in the document. The discard dialog is fired from that screen, so the rule its own CSS comment claims ("must always render above every other modal") now actually holds rather than resting on DOM order. The comment named 310 as the top tier, which stopped being true three versions ago; it is corrected.
+
+### 3. The blank row Manual left behind
+
+Not a loss, but the same class of defect and adjacent: `addPhotoItemManual()` pushes a blank row *before* opening the editor (so the editor can address it by index), so backing out of that editor left `New item · 0 kcal` on the list — and a junk 0-kcal ingredient in the saved recipe if not spotted. Now more reachable, since Manual sits one tap deeper behind §78's search sheet. `_photoPendingNewItemIdx` marks that row; `savePhotoItemEdit()` clears the marker, and `closeModal()` splices the row out if the editor closes with the marker still set.
+
+**Check:** `scripts/verify-photo-review-retention.mjs` — 16 checks. The routing matrix for `returnFromNutrServing()` across all three contexts × both routes in (proving no combination lands nowhere); `discardPhotoReview()`'s confirm behaviour including that declining leaves the items intact and that an empty list skips the dialog; and the three structural invariants the protection actually rests on — the overlay carries `data-no-dismiss`, its ✕ does not call `closeModal` directly, `initModal()` checks the attribute *before* wiring either gesture, and `#modal-confirm` outranks every other modal tier (asserted by parsing the z-index rules, so adding a higher modal later fails the check rather than silently hiding confirmations).
