@@ -4290,3 +4290,19 @@ Applied to all five call sites — `askBlocForAdvice()`, the challenge/revision 
 **Check:** `scripts/verify-json-extraction.mjs` (plain `node`, no dependencies — it reads the real function out of `index.html` rather than copying it, so it cannot drift). Covers the narration-before-JSON case that caused this bug, narration after, fences anywhere, braces and escaped quotes inside strings, nested objects, and the four cases that must return `null` instead of throwing (prose-only, truncated JSON, empty, null). The last check is a **control**: it runs the v8.12 parser against the narration case and asserts that it *does* fail — proof the script would have caught this bug rather than passing vacuously.
 
 **Not reproduced live.** No Anthropic API key exists in the dev environment (the app is BYO-key, held in Adam's browser `localStorage`), so the diagnosis is from the response shape and the error string, and the fix is verified against synthesised responses in the script above. Confirmation is UAT: the same photo, the same restaurant name.
+
+---
+
+## §77 — v8.14: Photo → Meal picker opened the camera only — `capture` was pinning it
+
+**The bug.** Reported 2026-09-21 during v8.13 UAT: tapping the Photo → Meal tile went straight to the camera, with no way to pick an existing photo — so a meal already photographed (the whole point of "log the thing you ate earlier") couldn't be logged at all.
+
+**Root cause.** `#photo-file-input` carried `capture="environment"` (§55, v8.02). `capture` is not a hint or a default — it binds the input to a capture device, and iOS then skips the picker sheet entirely. The tile's own label has always read "Tap to take or choose a photo", so the markup and the label had been contradicting each other since v8.02; nobody hit it until an already-taken photo needed logging.
+
+§73 (v8.12) had already learned and applied exactly this for the cycle-review boxes — "a plain `<input type=file accept=image/*>` with no `capture` attribute already surfaces the OS's camera/library picker sheet on mobile, so dropping the camera-only input loses nothing". That change was scoped to `#modal-cycle-review` and never swept the file. `#photo-file-input` was the **last remaining `capture=` in `index.html`**; there are now none.
+
+**The fix.** Remove the attribute. The input keeps `accept="image/*"` (and stays single-file — unlike the cycle-review inputs, which are `multiple`). iOS shows Photo Library / Take Photo / Choose File, so the camera is still one tap away; nothing is lost and the library is gained.
+
+**Follow-on, same change.** With the picker no longer camera-only, the selected file can be anything the library or Files app offers, including something Safari can't decode — previously impossible, since a camera capture is always a decodable JPEG. `handlePhotoFileSelect()` now has `img.onerror`/`reader.onerror` handlers (`showPhotoFileError()`) surfacing "Couldn't read that image — try another photo." in the existing `#photo-analyse-error` box; without them a failed decode did nothing whatsoever and the tile just sat there looking unresponsive. Selecting a file also clears any error still showing from a previous attempt.
+
+**Check:** no script covers this — it is a single markup attribute and a DOM error path, both of which only mean anything inside a real iOS picker. Verified by grep (`capture=` returns nothing across `index.html`) and by UAT on the phone. **The standing rule this leaves behind:** `capture` on a file input means camera-only, never camera-preferred. If a tile says "or choose", it must not carry `capture`.
