@@ -167,6 +167,10 @@ body {
   padding-top: var(--safe-top);
   padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 20px);
 }
+/* v8.16 — set on #content for a hidden page (one with no nav button, i.e.
+   Settings), where the nav is not rendered and its reserved space would
+   otherwise sit at the foot of the page as dead air. */
+#content.no-nav { padding-bottom: calc(var(--safe-bottom) + 20px); }
 
 .screen { display: none; padding: 16px 16px 0; }
 .screen.active { display: block; }
@@ -2110,6 +2114,134 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 
 .home-header { display: flex; align-items: center; justify-content: flex-end; padding: 4px 0 12px; }
 
+/* ══════════════════════════════════════════════════════════════════════
+   v8.16 PHASE 1 — HOME
+   Page header, hero, and the four numbered sections. These classes are
+   Home's, but the page-header, card, row and bar pieces are written to be
+   reused by the later page phases rather than reinvented per page.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Page header (every page gets this treatment) ────────────────────── */
+.page-head { display: flex; align-items: flex-start; gap: 12px; padding: 8px 0 4px; }
+.page-eyebrow {
+  font-family: var(--font-body); font-size: 11.5px; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--text3);
+  margin-bottom: 6px;
+}
+.page-h1 {
+  font-family: var(--font-display); font-size: 34px; font-weight: 600;
+  letter-spacing: -0.025em; line-height: 1.1; color: var(--text); margin: 0;
+}
+
+/* ── Home hero ───────────────────────────────────────────────────────── */
+.home-hero {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-hero); padding: 22px; margin-top: 24px;
+}
+.home-hero-inner { display: flex; align-items: center; gap: 18px; }
+.home-ring-num { font-family: var(--font-display); font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.home-ring-sub { font-family: var(--font-body); font-size: 10.5px; font-weight: 600; letter-spacing: .04em; }
+.home-hero-eyebrow {
+  font-family: var(--font-body); font-size: 11.5px; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--accent2); margin-bottom: 5px;
+}
+.home-hero-macro {
+  font-family: var(--font-display); font-size: 20px; font-weight: 600;
+  letter-spacing: -0.015em; color: var(--text); line-height: 1.2;
+}
+.home-hero-goal { font-size: 13.5px; font-weight: 500; color: var(--text2); line-height: 1.45; margin-top: 6px; }
+
+/* The upcoming-goal treatment REPLACES the goal subline in place (Q7) —
+   highlighted, not a separate card, so it cannot compete with the hero. */
+.home-goal-upcoming {
+  margin-top: 10px; padding: 10px 12px; cursor: pointer;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid rgba(145,132,217,.45); border-radius: var(--r-tile);
+}
+.home-goal-upcoming:active { transform: scale(0.99); }
+.home-goal-upcoming-head { font-size: 13px; font-weight: 700; color: var(--accent2); }
+.home-goal-upcoming-label { font-size: 12.5px; font-weight: 600; color: var(--text); margin-top: 3px; }
+.home-goal-upcoming-diff { font-size: 11.5px; font-weight: 500; color: var(--text2); margin-top: 3px; line-height: 1.4; }
+
+/* ── 01 This week: metric rows ───────────────────────────────────────── */
+.metric-row { padding: 14px 0; border-bottom: 1px solid var(--divider); position: relative; }
+.metric-row:first-child { padding-top: 2px; }
+.metric-row:last-child { border-bottom: none; padding-bottom: 2px; }
+.metric-row-top { display: flex; align-items: baseline; gap: 8px; margin-bottom: 9px; }
+.metric-name { font-family: var(--font-body); font-size: 14px; font-weight: 600; color: var(--text); }
+.metric-value { margin-left: auto; font-size: 14px; color: var(--text2); font-variant-numeric: tabular-nums; }
+.metric-value strong { font-family: var(--font-display); font-size: 17px; font-weight: 600; color: var(--text); }
+.metric-target { font-size: 12.5px; color: var(--text3); }
+.metric-note { font-size: 12px; font-weight: 500; color: var(--text3); margin-top: 8px; line-height: 1.45; }
+.metric-note-off { color: var(--text2); }
+.metric-note-off strong { color: var(--red); }
+.metric-info-btn {
+  position: absolute; top: 10px; right: 0; width: 26px; height: 26px; padding: 0;
+  border: none; background: none; color: var(--red); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ── Bars. The motion system animates `.bar > i` (see MOTION SYSTEM). ── */
+.bar { height: 6px; background: var(--surface3); border-radius: 999px; overflow: hidden; }
+.bar > i { display: block; height: 100%; border-radius: 999px; background: var(--accent); }
+
+/* ── Cards, rows and shared bits ─────────────────────────────────────── */
+.card-tappable { cursor: pointer; }
+.card-tappable:active { transform: scale(0.995); }
+.card-divider { height: 1px; background: var(--divider); margin: 14px 0; }
+.empty-inline { font-size: 13px; font-weight: 500; color: var(--text3); padding: 8px 0; }
+
+/* ── 02 Log today ────────────────────────────────────────────────────── */
+.log-field { margin-bottom: 14px; }
+.log-field:last-of-type { margin-bottom: 0; }
+.log-row { display: flex; gap: 8px; align-items: center; }
+.log-row input { flex: 1; min-width: 0; font-size: 15px; }
+.log-row-unit { font-size: 13px; color: var(--text2); }
+.log-row-anim { position: relative; overflow: hidden; border-radius: var(--r-tile); }
+
+/* The persistent saved state. It renders statically on every revisit — the
+   save flash only ever plays in response to an actual save — and tapping it
+   reopens the input, pre-filled. */
+.log-saved {
+  display: flex; align-items: center; gap: 9px; cursor: pointer;
+  padding: 13px 14px; border-radius: var(--r-tile);
+  background: var(--surface2); border: 1px solid var(--border2);
+  font-size: 14px; font-weight: 500; color: var(--text2);
+}
+.log-saved:active { transform: scale(0.99); }
+.log-saved strong { color: var(--text); font-weight: 700; }
+.log-saved-tick { color: var(--green-text); font-weight: 700; }
+.log-saved-edit { margin-left: auto; font-size: 12.5px; font-weight: 700; color: var(--accent2); }
+
+.tag-due { background: color-mix(in srgb, var(--red) 16%, transparent); border-color: transparent; color: var(--red); margin-left: 6px; }
+.tag-ss  { background: color-mix(in srgb, var(--accent2) 16%, transparent); border-color: transparent; color: var(--accent2); margin-left: 6px; }
+
+.meas-tile { flex: 1; background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--r-tile); padding: 12px 14px; }
+.meas-tile-label { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--text3); }
+.meas-tile-value { font-family: var(--font-display); font-size: 20px; font-weight: 600; color: var(--text); margin-top: 4px; font-variant-numeric: tabular-nums; }
+
+/* ── Centred dialog (v8.16) ──────────────────────────────────────────
+   NOT a bottom sheet. The sheet anatomy in §3.4 of the redesign is for
+   sheets; a confirm or an explainer is a centred dialog and stays centred.
+   It takes the same tokens, type and buttons so the two read as one family.
+   Phase 1 moves Home's three onto it (metric advice, nutrition info, the
+   app-wide confirm); the macro-extend dialogs follow in Phase 5. */
+.dialog {
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: var(--r-card); padding: 22px 20px;
+  width: calc(100% - 48px); max-width: 380px;
+}
+.dialog-title { font-family: var(--font-display); font-size: 20px; font-weight: 600; letter-spacing: -0.015em; margin-bottom: 8px; }
+.dialog-msg { font-size: 13.5px; font-weight: 500; color: var(--text2); line-height: 1.55; margin-bottom: 20px; }
+
+/* ── 03 Up next ──────────────────────────────────────────────────────── */
+.up-next-eyebrow { font-family: var(--font-body); font-size: 11.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent2); }
+.up-next-title { font-family: var(--font-display); font-size: 17px; font-weight: 600; color: var(--text); margin: 6px 0 12px; }
+.ex-row { display: flex; align-items: baseline; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--divider); }
+.ex-row:last-child { border-bottom: none; padding-bottom: 0; }
+.ex-row-name { font-size: 13.5px; font-weight: 600; color: var(--text); min-width: 0; }
+.ex-row-detail { margin-left: auto; font-size: 12.5px; font-weight: 500; color: var(--text2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
 </style>
 <script>
 // ── Real viewport height fix ───────────────────────────────────
@@ -2716,20 +2848,19 @@ try {
          SCREEN: HOME
     ═══════════════════════════════════════════ -->
     <div class="screen" id="screen-home">
-      <!-- v8.16 — Settings left the bottom nav, and this is now the only way
-           into it. Phase 1 folds this button into the designed Home header
-           (date eyebrow + greeting H1 + account button); until then it sits
-           on its own so Settings never becomes unreachable between phases. -->
-      <div class="home-header rise" style="--i:0">
-        <button class="icon-btn" id="home-account-btn" onclick="showScreen('settings')" aria-label="Settings">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 14 0v1"/></svg>
-        </button>
-      </div>
+      <!-- v8.16 Phase 1. Every child is rendered by its own function (see
+           renderHome); the ids are the contract. `home-hero-wrap`,
+           `home-log-boxes` and `home-metric-card-kcal` are demo-tour anchors,
+           and so is `home-goal-banner` — which now lives INSIDE the hero,
+           replacing its goal subline when a new goal period is imminent, so
+           there is no separate banner element any more.
+           `home-body-logs-btn` moved out of the header and into section 02. -->
+      <div id="home-header"></div>
       <div id="home-hero-wrap"><div id="home-hero-card"></div></div>
-      <div id="home-goal-banner"></div>
+      <div id="home-this-week"></div>
       <div id="home-log-boxes"></div>
-      <div id="home-food-preview"></div>
       <div id="home-train-preview"></div>
+      <div id="home-food-preview"></div>
     </div>
 
     <!-- ════════════════════════════════════════
@@ -2986,6 +3117,76 @@ try {
 <!-- ════════════════════════════════════════
      MODALS
 ═══════════════════════════════════════════ -->
+
+<!-- Measurements (v8.16 Phase 1 — NEW sheet, D2)
+     The measurement fields used to be inlined into Home, conditionally, once
+     4+ days had passed since the last log. They now live here, opened from a
+     Measurements row button that is ALWAYS present on Home (the 4-day rule
+     now only controls whether that row carries a red "Due" tag).
+
+     🚨 The fields, ids and handlers are LIFTED VERBATIM from the old inline
+     block — same `home-body-waist-whole` / `home-meas-fields-cm` ids, same
+     setHomeMeasUnit() / setHomeFrac() / initHomeMeasBox() / saveHomeMeasurements().
+     The ¼/½/¾ entry, the in↔cm conversion and the inch storage format are NOT
+     reimplemented here; moving them would have been a logic change wearing a
+     layout change's clothes. -->
+<div class="modal-overlay" id="modal-home-measurements">
+  <div class="modal-sheet" data-modal="modal-home-measurements">
+    <div class="modal-handle-row"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-home-measurements')">&#10005;</button>
+    </div>
+    <div class="modal-title">Measurements</div>
+    <div class="modal-sub" id="home-meas-last-logged"></div>
+
+    <div id="home-meas-last-tiles" style="display:flex;gap:10px;margin-bottom:18px;"></div>
+
+    <div class="toggle-row" style="margin-bottom:16px;">
+      <button class="toggle-btn active" id="home-meas-unit-in" onclick="setHomeMeasUnit('in')">in</button>
+      <button class="toggle-btn" id="home-meas-unit-cm" onclick="setHomeMeasUnit('cm')">cm</button>
+    </div>
+
+    <div id="home-meas-anim-wrap" style="position:relative;overflow:hidden;border-radius:var(--r-tile);">
+      <div id="home-meas-fields-in">
+        <div style="margin-bottom:14px;">
+          <div class="label">Waist (in)</div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input type="number" inputmode="numeric" id="home-body-waist-whole" min="0" max="99" placeholder="33" style="width:62px;flex-shrink:0;text-align:center;">
+            <div class="toggle-row" style="margin:0;flex:1;display:inline-flex;">
+              <button class="toggle-btn active" onclick="setHomeFrac('waist',0)" id="home-waist-frac-0" style="flex:1;">0</button>
+              <button class="toggle-btn" onclick="setHomeFrac('waist',0.25)" id="home-waist-frac-25" style="flex:1;">&#188;</button>
+              <button class="toggle-btn" onclick="setHomeFrac('waist',0.5)" id="home-waist-frac-50" style="flex:1;">&#189;</button>
+              <button class="toggle-btn" onclick="setHomeFrac('waist',0.75)" id="home-waist-frac-75" style="flex:1;">&#190;</button>
+            </div>
+          </div>
+        </div>
+        <div style="margin-bottom:14px;">
+          <div class="label">Hip (in)</div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input type="number" inputmode="numeric" id="home-body-hip-whole" min="0" max="99" placeholder="38" style="width:62px;flex-shrink:0;text-align:center;">
+            <div class="toggle-row" style="margin:0;flex:1;display:inline-flex;">
+              <button class="toggle-btn active" onclick="setHomeFrac('hip',0)" id="home-hip-frac-0" style="flex:1;">0</button>
+              <button class="toggle-btn" onclick="setHomeFrac('hip',0.25)" id="home-hip-frac-25" style="flex:1;">&#188;</button>
+              <button class="toggle-btn" onclick="setHomeFrac('hip',0.5)" id="home-hip-frac-50" style="flex:1;">&#189;</button>
+              <button class="toggle-btn" onclick="setHomeFrac('hip',0.75)" id="home-hip-frac-75" style="flex:1;">&#190;</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="home-meas-fields-cm" style="display:none;">
+        <div style="margin-bottom:14px;">
+          <div class="label">Waist (cm)</div>
+          <input type="number" inputmode="decimal" id="home-body-waist-cm" step="0.1" placeholder="84.5">
+        </div>
+        <div style="margin-bottom:14px;">
+          <div class="label">Hip (cm)</div>
+          <input type="number" inputmode="decimal" id="home-body-hip-cm" step="0.1" placeholder="97">
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-accent btn-block" onclick="saveHomeMeasurements()">Save measurements</button>
+  </div>
+</div>
 
 <!-- Create Macrocycle -->
 <div class="modal-overlay" id="modal-macro">
@@ -6853,6 +7054,13 @@ function showScreen(name) {
   // button), so this is a real null, not a bug. Everything below tolerates it.
   const navBtn = document.getElementById('nav-' + name);
   if (navBtn) navBtn.classList.add('active');
+  // v8.16 — a screen with no nav button is a HIDDEN page (Settings), and a
+  // hidden page shows no nav bar at all. #content also reclaims the space it
+  // was reserving for the nav, or the page ends with 84px of dead air.
+  const navEl = document.getElementById('nav');
+  const contentEl = document.getElementById('content');
+  if (navEl) navEl.style.display = navBtn ? '' : 'none';
+  if (contentEl) contentEl.classList.toggle('no-nav', !navBtn);
   animateNavPill();
   updateNavPillColor(name);
   if (name === 'home') renderHome(true);
@@ -10129,7 +10337,9 @@ function buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort, animate =
 
 // Counts the Progress hero's weight-so-far figure, the calendar-time bar
 // (+ its % label), and the Volume/Steps/Kcal callouts up from 0 together,
-// on one shared eased timeline — mirrors animateHomeHeroValues. Called only
+// on one shared eased timeline. (This used to mirror animateHomeHeroValues,
+// which v8.16 removed when Home's entrance motion moved into CSS; Progress
+// gets the same treatment in its own phase.) Called only
 // on an actual Progress page load (see renderProgressHero), never on
 // in-card actions like cycling between macrocycles or toggling the weight
 // sparkline, which re-render statically.
@@ -18030,11 +18240,20 @@ function getNutrDayReconciledAdvice(dayMap, weekStart, viewDate, goal) {
 // re-renders that follow a quick-log save, so saving steps/weight doesn't
 // restart the count-up.
 function renderHome(animateHero = false) {
-  renderHomeHero(animateHero);
-  renderHomeGoalBanner();
+  // `animateHero` is retained for call-site compatibility and deliberately
+  // ignored. v8.16 moved every Home entrance animation into the CSS motion
+  // system (see MOTION SYSTEM in the stylesheet): the ring draws via .arc,
+  // the bars grow via .bar > i, the hero number rises via .digits, and
+  // showScreen() replays the lot. The old JS odometer that counted the
+  // numbers up was removed with it — it produced nonsense intermediate
+  // values (negative percentages, impossible weights) whenever anything
+  // sampled the DOM mid-count.
+  renderHomeHeader();
+  renderHomeHero();
+  renderHomeThisWeek();
   renderHomeLogBoxes();
-  renderHomeFoodPreview();
-  renderHomeTrainPreview();
+  renderHomeUpNext();
+  renderHomeFoodPlan();
 }
 
 // The 7 calendar-date strings (Monday..Sunday) making up the week that
@@ -18109,8 +18328,164 @@ function computeWeekPlannedAvg(field, dayMap, weekStart, today, goal) {
   return Math.round(sum / count);
 }
 
-function renderHomeHero(animate = false) {
+// ── HOME HEADER (v8.16) ───────────────────────────────────────────────
+// Eyebrow is the full date; the H1 greets by time of day; the account
+// button is the ONLY way into Settings now that it has left the nav.
+function renderHomeHeader() {
+  const el = document.getElementById('home-header');
+  if (!el) return;
+  // 🚨 The DATE comes from getLocalToday(), not the wall clock. The demo
+  // tour and local dev both override "today" app-wide via setTourAnchorDate(),
+  // and a header reading the real date would then contradict every other
+  // number on the page — the hero's week, the logs, the targets.
+  // The GREETING is genuinely about the time of day, so that does read the
+  // clock.
+  const dateStr = new Date(getLocalToday() + 'T00:00:00')
+    .toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening';
+  const name = (state.profile && state.profile.preferredName) ? ', ' + state.profile.preferredName : '';
+  el.innerHTML = `<div class="page-head rise" style="--i:0">
+    <div style="min-width:0;">
+      <div class="page-eyebrow">${dateStr}</div>
+      <h1 class="page-h1">${greeting}${name}</h1>
+    </div>
+    <button class="icon-btn" id="home-account-btn" onclick="showScreen('settings')" aria-label="Settings">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 14 0v1"/></svg>
+    </button>
+  </div>`;
+}
+
+// ── HOME HERO (v8.16) ─────────────────────────────────────────────────
+// A 104px ring showing how far through the week today is — days elapsed out
+// of 7 — beside the cycle's identity: week number, macrocycle name, and the
+// current goal period.
+//
+// 🚨 The ring counts DAYS ELAPSED, not metrics on target. Those are two
+// different questions and they used to share one ring, which is exactly the
+// confusion this replaces: the "on target" count now lives in section 01's
+// header chip, where it sits next to the metrics it describes.
+function renderHomeHero() {
   const el = document.getElementById('home-hero-card');
+  if (!el) return;
+  const today = getLocalToday();
+  const dayOfWeek = getHomeIsoDow(today);          // Monday = 1 .. Sunday = 7
+  const ringR = 47, ringStroke = 9;
+  const ringC = 2 * Math.PI * ringR;
+  const ringOffset = ringC - (ringC * (dayOfWeek / 7));
+
+  const macro = (state.macrocycles || []).find(m => m.id === state.currentMacroId);
+  let weekLine = '', macroName = 'No active cycle';
+  if (macro) {
+    macroName = macro.name || 'Macrocycle';
+    const totalWeeks = getMacroDurationWeeks(macro);
+    const elapsed = macro.start
+      ? Math.floor((new Date(today + 'T00:00:00') - new Date(macro.start + 'T00:00:00')) / 604800000) + 1
+      : 1;
+    const weekNum = Math.max(1, Math.min(totalWeeks, elapsed));
+    weekLine = `Week ${weekNum} of ${totalWeeks}`;
+  }
+
+  // The goal subline is REPLACED by the upcoming-goal treatment whenever a
+  // genuinely different goal period starts within 6 days (Q7). It is not a
+  // separate banner card — see buildHomeUpcomingGoalHTML.
+  const upcoming = buildHomeUpcomingGoalHTML();
+  const subline = upcoming || `<div class="home-hero-goal" id="home-goal-banner">${buildHomeGoalLineText()}</div>`;
+
+  el.innerHTML = `<div class="home-hero rise" style="--i:1">
+    <div class="home-hero-inner">
+      <svg width="104" height="104" viewBox="0 0 104 104" style="flex-shrink:0;">
+        <circle cx="52" cy="52" r="${ringR}" fill="none" stroke="var(--surface3)" stroke-width="${ringStroke}"></circle>
+        <circle class="arc" cx="52" cy="52" r="${ringR}" fill="none" stroke="var(--accent)" stroke-width="${ringStroke}"
+                stroke-linecap="round" transform="rotate(-90 52 52)"
+                style="--c:${ringC};--off:${ringOffset};"></circle>
+        <text x="52" y="50" text-anchor="middle" fill="var(--text)" class="home-ring-num">${dayOfWeek}</text>
+        <text x="52" y="66" text-anchor="middle" fill="var(--text3)" class="home-ring-sub">of 7 days</text>
+      </svg>
+      <div style="flex:1;min-width:0;">
+        ${weekLine ? `<div class="home-hero-eyebrow">${weekLine}</div>` : ''}
+        <div class="home-hero-macro">${macroName}</div>
+        ${subline}
+      </div>
+    </div>
+  </div>`;
+}
+
+// The ordinary hero subline: the current goal period, and what it is aiming
+// at, worded by goal type.
+function buildHomeGoalLineText() {
+  const goal = getActiveGoal();
+  const macro = (state.macrocycles || []).find(m => m.id === state.currentMacroId);
+  if (!goal) return 'No goal period covering today.';
+  const label = goal.label || goal._blocLabel || 'Goal period';
+  const targetBw = macro && macro.targetBw;
+  if (!targetBw) return label;
+  const type = (macro && macro.goalType) || '';
+  const verb = type === 'maintenance' ? 'hold near'
+             : type === 'gain' ? 'build to'
+             : 'cut to';
+  return `${label} \u00b7 ${verb} ${targetBw} lbs`;
+}
+
+// Returns the highlighted upcoming-goal treatment, or null when there is
+// nothing upcoming. Every gate below is the one renderHomeGoalBanner() used
+// before v8.16 — a genuinely different goal, starting within 6 days, with
+// only the fields that actually change shown, and the same "Step N" label
+// resolution. Only its presentation moved: it replaces the hero's goal
+// subline instead of sitting in a card of its own (Q7).
+function buildHomeUpcomingGoalHTML() {
+  const today = getLocalToday();
+  const active = getActiveGoal();
+  const future = (state.goals || [])
+    .filter(g => g.startDate > today)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate));
+
+  const targetsMatch = (a, b) => a.kcal === b.kcal && a.protein === b.protein && a.carbs === b.carbs && a.fats === b.fats && a.steps === b.steps;
+  const upcoming = active ? future.find(g => !targetsMatch(g, active)) : future[0];
+  if (!upcoming) return null;
+
+  const daysAway = Math.round((new Date(upcoming.startDate + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000);
+  if (daysAway > 6) return null;
+
+  const isTomorrow = daysAway === 1; // only possible when today is Sunday
+  const headline = isTomorrow ? 'Your new goal starts tomorrow!' : 'Your new goal starts on Monday';
+
+  const macroGoals = (state.goals || []).filter(g => g.macroId === upcoming.macroId).sort((a,b) => a.startDate.localeCompare(b.startDate));
+  const stepIdx = macroGoals.findIndex(g => g === upcoming);
+  const labelText = upcoming.label || upcoming._blocLabel || 'Goal';
+  const labelAlreadyHasStep = /^step\s*\d+/i.test(labelText.trim());
+  const stepPrefix = (macroGoals.length > 1 && !labelAlreadyHasStep) ? `Step ${stepIdx + 1}: ` : '';
+
+  const fieldsMeta = [
+    { key: 'kcal',    unit: ' kcal',    fmt: v => v.toLocaleString() },
+    { key: 'protein', unit: 'g protein', fmt: v => v },
+    { key: 'carbs',   unit: 'g carbs',   fmt: v => v },
+    { key: 'fats',    unit: 'g fats',    fmt: v => v },
+    { key: 'steps',   unit: ' steps',   fmt: v => v.toLocaleString() },
+  ];
+  let changesStr;
+  if (active) {
+    const changes = fieldsMeta
+      .filter(f => active[f.key] !== upcoming[f.key])
+      .map(f => `${f.fmt(active[f.key])}${f.unit} \u2192 ${f.fmt(upcoming[f.key])}${f.unit}`);
+    changesStr = changes.length ? changes.join(' \u00b7 ') : 'No changes to targets';
+  } else {
+    changesStr = fieldsMeta.map(f => `${f.fmt(upcoming[f.key])}${f.unit}`).join(' \u00b7 ');
+  }
+
+  return `<div class="home-goal-upcoming" id="home-goal-banner" onclick="goToPlanAndFlashGoal('${upcoming.macroGoalID}')">
+    <div class="home-goal-upcoming-head">${headline}</div>
+    <div class="home-goal-upcoming-label">${stepPrefix}${labelText}</div>
+    <div class="home-goal-upcoming-diff">${changesStr}</div>
+  </div>`;
+}
+
+// ── 01 THIS WEEK (v8.16) ──────────────────────────────────────────────
+// One card, four metric rows. Every number, badge and gate below is the
+// v8.15 calculation untouched — only the presentation changed, from four
+// separate cards in the hero to four rows in a numbered section.
+function renderHomeThisWeek() {
+  const el = document.getElementById('home-this-week');
   if (!el) return;
   const today = getLocalToday();
   const weekStart = getHomeWeekStart(today);
@@ -18118,10 +18493,10 @@ function renderHomeHero(animate = false) {
   const dayMap = buildDayMap();
 
   const metrics = [
-    { field: 'kcal',    name: 'Kcal',    unit: '',  fmt: v => v.toLocaleString() },
-    { field: 'protein', name: 'Protein', unit: 'g', fmt: v => v.toLocaleString() },
-    { field: 'carbs',   name: 'Carbs',   unit: 'g', fmt: v => v.toLocaleString() },
-    { field: 'steps',   name: 'Steps',   unit: '',  fmt: v => v.toLocaleString() },
+    { field: 'kcal',    name: 'Calories', unit: '',  colour: 'var(--accent)',   fmt: v => v.toLocaleString() },
+    { field: 'protein', name: 'Protein',  unit: 'g', colour: 'var(--blue)',     fmt: v => v.toLocaleString() },
+    { field: 'carbs',   name: 'Carbs',    unit: 'g', colour: 'var(--amber)',    fmt: v => v.toLocaleString() },
+    { field: 'steps',   name: 'Steps',    unit: '',  colour: 'var(--ice-blue)', fmt: v => v.toLocaleString() },
   ];
 
   const badges = metrics.map(m => {
@@ -18133,99 +18508,73 @@ function renderHomeHero(animate = false) {
   });
 
   const withData = badges.filter(b => b.badge.label !== 'No data');
-  const trackedCount = withData.length;
   const concerning = withData.filter(b => b.badge.color === 'var(--red)');
-  // Ring shows ON-TRACK count, not merely "has data logged" — a metric
-  // with nothing logged yet doesn't count as on track, and a logged-but-
-  // red metric doesn't either. Previously this ring counted trackedCount
-  // (data presence only), which could show e.g. "4/4" while the subline
-  // simultaneously reported a metric off target — two different questions
-  // sharing one ring. See TECHNICAL.md changelog for the fix writeup.
   const onTrackCount = withData.length - concerning.length;
-  const ringPct = Math.round((onTrackCount / badges.length) * 100);
-  const ringR = 26, ringC = 2 * Math.PI * ringR;
-  const ringShown = animate ? 0 : ringPct;
-  const ringOffset = ringC - (ringC * ringShown) / 100;
-  const ringFraction = `${onTrackCount}/${badges.length}`;
-  let subline;
-  if (withData.length === 0) {
-    subline = "Log today's numbers to see how this week is tracking.";
-  } else if (concerning.length === 0) {
-    subline = withData.length === badges.length
-      ? `All ${badges.length} metrics on track this week.`
-      : `${trackedCount} of ${badges.length} tracked so far \u2014 all on track this week.`;
-  } else {
-    const names = concerning.map(b => b.m.name).join(' & ');
-    subline = `${names} off target this week \u2014 see the cards below for details.`;
-  }
+  const allOnTarget = onTrackCount === badges.length;
+  const chip = `<span class="chip" style="--chip-c:${allOnTarget ? 'var(--green-text)' : 'var(--red)'}">${onTrackCount} of ${badges.length} on target</span>`;
 
-  const rowsHtml = badges.map(({ m, avg, target, pct, weekPlannedAvg, badge }) => {
+  const rows = badges.map(({ m, avg, target, pct, badge }, i) => {
     const tracked = avg !== null;
-    const avgDisplay = tracked ? m.fmt(animate ? 0 : avg) : '—';
-    const targetStr = target !== null && target !== undefined
-      ? `${m.fmt(target)}${m.unit} target`
-      : 'no active goal';
-    const fillWidth = animate ? 0 : pct;
-    const plannedStr = weekPlannedAvg !== null
-      ? `<div style="font-size:11px;color:var(--text3);margin-top:2px;">Planned this week avg: ${m.fmt(weekPlannedAvg)}${m.unit}</div>`
-      : '';
-    // Off-target cards (red badge) swap the fill bar to red and surface a
-    // top-right info icon instead of any inline advice text — tapping it
-    // opens modal-home-metric-advice with the full catch-up breakdown for
-    // just this metric (see openHomeMetricAdvice). This is the only visual
-    // difference between an on-track and off-target card; nothing else on
-    // the card changes, keeping the grid uncluttered either way.
     const isOff = badge.color === 'var(--red)';
-    const fillColorStyle = isOff ? 'background:var(--red);' : '';
+    const barColour = isOff ? 'var(--red)' : m.colour;
+
+    // Steps is the one metric with an explicit "nothing logged" state — the
+    // others read as a dash against their target.
+    if (!tracked && m.field === 'steps') {
+      return `<div class="metric-row" id="home-metric-card-${m.field}">
+        <div class="metric-row-top"><span class="metric-name">${m.name}</span></div>
+        <div class="bar" style="--i:${i}"><i style="width:0%;background:${barColour};"></i></div>
+        <div class="metric-note">No steps logged yet this week.</div>
+      </div>`;
+    }
+
+    const valueStr = tracked ? `${m.fmt(avg)}${m.unit}` : '\u2014';
+    const targetStr = (target !== null && target !== undefined) ? `/ ${m.fmt(target)}${m.unit}` : '\u00b7 no active goal';
+
+    // The off-target note carries the existing adjusted-target figure — the
+    // same number the advice panel and the metric-advice modal both use.
+    let note = '';
+    if (isOff && target) {
+      const info = getWeeklyRequiredDaily(m.field, dayMap, weekStart, today, target, goal && goal.kcal);
+      if (info) {
+        const over = Math.abs(Math.round(avg - target));
+        const dir = avg > target ? 'over' : 'under';
+        note = `<div class="metric-note metric-note-off"><strong>${over.toLocaleString()}${m.unit} ${dir} target</strong> \u00b7 rest of week at ${Math.round(info.requiredDaily).toLocaleString()}${m.unit} to recover</div>`;
+      }
+    }
+
+    // kcal/protein/carbs explain where their numbers come from; steps is
+    // deliberately NOT tappable — its calculation has no qualifying-day gate
+    // to explain. Do not "fix" that.
+    const isNutrition = m.field === 'kcal' || m.field === 'protein' || m.field === 'carbs';
+    const rowTap = isNutrition ? ` onclick="openHomeNutritionInfoModal('${m.field}')" style="cursor:pointer;"` : '';
+    // The off-target info button stops propagation so a tap there opens ONLY
+    // the catch-up advice, never both modals at once.
     const infoBtn = isOff
-      ? `<button aria-label="${m.name} off target — view advice" onclick="event.stopPropagation();openHomeMetricAdvice('${m.field}')" style="position:absolute;top:10px;right:10px;width:22px;height:22px;padding:0;border:none;background:none;color:var(--red);display:flex;align-items:center;justify-content:center;">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16" stroke-linecap="round"/><circle cx="12" cy="8" r="1" fill="currentColor" stroke="none"/></svg>
-        </button>`
+      ? `<button class="metric-info-btn" aria-label="${m.name} off target \u2014 view advice" onclick="event.stopPropagation();openHomeMetricAdvice('${m.field}')">
+           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16" stroke-linecap="round"/><circle cx="12" cy="8" r="1" fill="currentColor" stroke="none"/></svg>
+         </button>`
       : '';
-    // Kcal/protein/carbs cards are tappable — opens a small explainer modal
-    // covering where "progress so far" vs. "Total this week avg" each come
-    // from, and the off-track gates, all specific to nutrition (see
-    // openHomeNutritionInfoModal). Steps intentionally has no such tap
-    // target — it follows a simpler, self-evident calculation with no
-    // qualifying-day gate to explain. The off-target info button (above)
-    // sits inside the same card and calls event.stopPropagation() so a tap
-    // there opens ONLY the catch-up advice modal, never both at once.
-    const isNutritionCard = m.field === 'kcal' || m.field === 'protein' || m.field === 'carbs';
-    const cardOnclick = isNutritionCard ? ` onclick="openHomeNutritionInfoModal('${m.field}')" style="cursor:pointer;"` : '';
-    return `<div class="card" id="home-metric-card-${m.field}" style="padding:14px 16px;margin-bottom:0;display:flex;flex-direction:column;gap:8px;position:relative;"${cardOnclick}>
-      ${infoBtn}
-      <div style="font-size:14px;font-weight:600;">${m.name}</div>
-      <div style="font-size:12px;color:var(--text3);"><span id="hero-avg-${m.field}">${avgDisplay}</span>${m.unit} / ${targetStr}</div>
-      <div class="hero-progress-track"><div class="hero-progress-fill" id="hero-fill-${m.field}" style="width:${fillWidth}%;transition:none;${fillColorStyle}"></div></div>
-      ${plannedStr}
+
+    return `<div class="metric-row" id="home-metric-card-${m.field}"${rowTap}>
+      <div class="metric-row-top">
+        <span class="metric-name">${m.name}</span>
+        <span class="metric-value"><strong>${valueStr}</strong> <span class="metric-target">${targetStr}</span></span>
+        ${infoBtn}
+      </div>
+      <div class="bar" style="--i:${i}"><i style="width:${pct}%;background:${barColour};"></i></div>
+      ${note}
     </div>`;
   }).join('');
 
-  el.innerHTML = `<div style="padding:4px 0 8px;position:relative;">
-    <div class="hero-nav-arrows" onclick="event.stopPropagation();">
-      <button onclick="showScreen('settings');openSettingsBodyLogs();" aria-label="Body logs" id="home-body-logs-btn">
-        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>
-      </button>
-    </div>
-    <div class="hero-label">This week</div>
-    <h2 style="margin:0 0 16px;font-size:22px;">Welcome back${(state.profile && state.profile.preferredName) ? ', ' + state.profile.preferredName + '!' : ''}</h2>
-    <div style="display:flex;align-items:center;gap:16px;padding:0 0 4px;">
-      <svg width="64" height="64" style="flex-shrink:0;">
-        <circle cx="32" cy="32" r="${ringR}" fill="none" stroke="var(--surface3)" stroke-width="6"></circle>
-        <circle cx="32" cy="32" r="${ringR}" fill="none" stroke="var(--accent)" stroke-width="6" stroke-linecap="round" transform="rotate(-90 32 32)" id="hero-ring-fill" style="stroke-dasharray:${ringC};stroke-dashoffset:${ringOffset};transition:none;"></circle>
-        <text x="32" y="37" text-anchor="middle" fill="var(--text)" font-size="14" font-weight="600" id="hero-ring-pct">${ringFraction}</text>
-      </svg>
-      <p style="margin:0;font-size:13px;color:var(--text2);flex:1;">${subline}</p>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;">${rowsHtml}</div>
-  </div>`;
-
-  if (animate) animateHomeHeroValues(badges, ringPct, ringC);
-
-  // Cached for openHomeMetricAdvice, so tapping a card's info icon can
-  // rebuild that one metric's advice without redoing the whole hero calc —
-  // and so the modal always reflects exactly what's on screen right now.
+  // Cached for openHomeMetricAdvice, so tapping a row's info icon rebuilds
+  // that one metric's advice from exactly what is on screen right now.
   _homeHeroCache = { badges, dayMap, weekStart, today, goal };
+
+  el.innerHTML = sectionHeader('01', 'This week', "Your daily averages against this phase's targets.", { i: 2, slot: chip })
+    + `<div class="card">${rows}</div>`
+    + buildHomeConsolidatedMessage(badges, dayMap, weekStart, today, goal)
+    + sectionEnd();
 }
 
 // Set at the end of every renderHomeHero call — see openHomeMetricAdvice.
@@ -18306,35 +18655,15 @@ function openHomeNutritionInfoModal(field) {
 // an actual Home page load (see renderHome). Metrics with no data yet
 // (avg === null) are left showing "—" / 0% and are skipped, since there's
 // nothing to count up to.
-function animateHomeHeroValues(badges, ringPct, ringC) {
-  const duration = 1000;
-  const start = performance.now();
-  const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
-  const ringFillEl = document.getElementById('hero-ring-fill');
-
-  function step(now) {
-    const t = Math.min(1, (now - start) / duration);
-    const e = easeOutCubic(t);
-    badges.forEach(({ m, avg, pct }) => {
-      if (avg === null || avg === undefined) return;
-      const numEl = document.getElementById(`hero-avg-${m.field}`);
-      const fillEl = document.getElementById(`hero-fill-${m.field}`);
-      if (numEl) numEl.textContent = m.fmt(Math.round(avg * e));
-      if (fillEl) fillEl.style.width = (pct * e) + '%';
-    });
-    if (ringFillEl) ringFillEl.style.strokeDashoffset = ringC - (ringC * ringPct * e) / 100;
-    if (t < 1) requestAnimationFrame(step);
-  }
-  requestAnimationFrame(step);
-}
-
 // Whether the per-metric advice detail is expanded behind the Home page's
 // consolidated warning message (only relevant/shown when there's at least
 // one concerning metric).
 let homeAdviceExpanded = false;
 function toggleHomeAdvice() {
   homeAdviceExpanded = !homeAdviceExpanded;
-  renderHomeHero();
+  // v8.16 — the consolidated pace message moved out of the hero and into
+  // section 01, so that is what re-renders.
+  renderHomeThisWeek();
 }
 
 // Single summary line replacing the old per-metric badges: rolls all four
@@ -18429,80 +18758,12 @@ function buildHomeConsolidatedMessage(badges, dayMap, weekStart, today, goal) {
   </div>`;
 }
 
-// Shows an upcoming-goal heads-up only when the NEXT genuinely different
-// goal (i.e. one whose targets actually change from what's active today)
-// starts within the next 6 days (so it first appears the Tuesday before a
-// Monday start, not the Monday itself). A macrocycle's future weeks are
-// often already scheduled in state.goals as separate entries — most of
-// those are just the current goal continuing unchanged, and shouldn't be
-// announced as "a new goal starting soon". Since every goal is Monday-
-// aligned, this only ever fires with a start date that's either "tomorrow"
-// (only possible if today is Sunday) or "next Monday" some other day.
-function renderHomeGoalBanner() {
-  const el = document.getElementById('home-goal-banner');
-  if (!el) return;
-  const today = getLocalToday();
-  const active = getActiveGoal();
-  const future = (state.goals || [])
-    .filter(g => g.startDate > today)
-    .sort((a, b) => a.startDate.localeCompare(b.startDate));
-
-  const targetsMatch = (a, b) => a.kcal === b.kcal && a.protein === b.protein && a.carbs === b.carbs && a.fats === b.fats && a.steps === b.steps;
-  const upcoming = active ? future.find(g => !targetsMatch(g, active)) : future[0];
-
-  if (!upcoming) { el.innerHTML = ''; return; }
-
-  const daysAway = Math.round((new Date(upcoming.startDate + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000);
-  if (daysAway > 6) { el.innerHTML = ''; return; }
-
-  const isTomorrow = daysAway === 1; // only possible when today is Sunday
-  const headline = isTomorrow ? "Your new goal starts tomorrow!" : "Your new goal starts on Monday";
-
-  // Resolve a display label the same way the Goals list does: the goal's
-  // own label (manual goals) falling back to its BLOC-generated label
-  // (goals created via the advice flow), prefixed with its step number
-  // within its macro's goal sequence — only when that macro has more than
-  // one step AND the stored label doesn't already carry its own "Step N"
-  // prefix (BLOC-generated labels for multi-step plans often already do,
-  // and double-prefixing reads as "Step 4: Step 4 - Hard Cut...").
-  const macroGoals = (state.goals || []).filter(g => g.macroId === upcoming.macroId).sort((a,b) => a.startDate.localeCompare(b.startDate));
-  const stepIdx = macroGoals.findIndex(g => g === upcoming);
-  const labelText = upcoming.label || upcoming._blocLabel || 'Goal';
-  const labelAlreadyHasStep = /^step\s*\d+/i.test(labelText.trim());
-  const stepPrefix = (macroGoals.length > 1 && !labelAlreadyHasStep) ? `Step ${stepIdx + 1}: ` : '';
-
-  // Compare against the currently active goal and show only what's
-  // actually changing, rather than the new goal's full breakdown —
-  // unchanged fields add nothing worth reading in a heads-up banner.
-  const fieldsMeta = [
-    { key: 'kcal',    unit: ' kcal',    fmt: v => v.toLocaleString() },
-    { key: 'protein', unit: 'g protein', fmt: v => v },
-    { key: 'carbs',   unit: 'g carbs',   fmt: v => v },
-    { key: 'fats',    unit: 'g fats',    fmt: v => v },
-    { key: 'steps',   unit: ' steps',   fmt: v => v.toLocaleString() },
-  ];
-  let changesStr;
-  if (active) {
-    const changes = fieldsMeta
-      .filter(f => active[f.key] !== upcoming[f.key])
-      .map(f => `${f.fmt(active[f.key])}${f.unit} → ${f.fmt(upcoming[f.key])}${f.unit}`);
-    changesStr = changes.length ? changes.join(' · ') : 'No changes to targets';
-  } else {
-    changesStr = fieldsMeta.map(f => `${f.fmt(upcoming[f.key])}${f.unit}`).join(' · ');
-  }
-  const preview = `${stepPrefix}${labelText} · ${changesStr}`;
-
-  // Routes to the Plan page (now that Job 2 folds goal display into it),
-  // switching to this goal's own macrocycle first so its row is guaranteed
-  // to be visible, then briefly flashing that row's border.
-  el.innerHTML = `<div class="home-goal-banner" onclick="goToPlanAndFlashGoal('${upcoming.macroGoalID}')">
-    <div>
-      <div class="home-goal-banner-text">${headline}</div>
-      <div class="home-goal-banner-sub">${preview}</div>
-    </div>
-    <div style="font-size:16px;color:var(--text3);flex-shrink:0;">→</div>
-  </div>`;
-}
+// The upcoming-goal heads-up is built by buildHomeUpcomingGoalHTML() (see
+// HOME HERO above) and rendered INSIDE the hero, replacing its goal subline,
+// rather than as a banner of its own — Adam's Q7 ruling, v8.16. The old
+// renderHomeGoalBanner() was removed with the element it filled; the
+// `home-goal-banner` id moved onto whichever element now carries that
+// content, so the demo-tour step still resolves.
 
 // Switches to the given goal's own macrocycle (so its row is guaranteed to
 // render even if a different cycle was last shown on Plan), ensures the
@@ -18533,6 +18794,35 @@ function goToPlanAndFlashGoal(macroGoalID) {
 // passed since the last waist/hip log (or none have ever been logged),
 // and persisting — not just for "today" — until a fresh measurement is
 // logged, at which point the 4-day countdown restarts from that date.
+// v8.16 — the state of the two "edit it again" affordances. A saved weight
+// or steps entry renders as a static saved message for the rest of the day;
+// tapping it sets the flag here, which swaps that message back to a
+// pre-filled input. Deliberately NOT persisted to storage: it is a transient
+// UI state, and a reload should go back to showing the saved value.
+const homeEditing = { weight: false, steps: false };
+function homeEditEntry(field) {
+  homeEditing[field] = true;
+  renderHomeLogBoxes();
+}
+
+// ── 02 LOG TODAY (v8.16) ──────────────────────────────────────────────
+// One card: weigh-in, steps, then the Measurements row button.
+//
+// Three behaviour changes from v8.15, all pre-approved (§2.3 of the build
+// prompt), all in this function:
+//
+//   1. A saved weight or steps entry no longer VANISHES. It becomes a static
+//      saved message that persists for the rest of the calendar day, with no
+//      animation when the page is revisited — the flash only ever plays in
+//      response to an actual save. Tapping the message reopens the input,
+//      pre-filled, so the entry can be corrected.
+//   2. "View body logs" appears once today's weight is saved and stays for
+//      the rest of the day. It used to sit unconditionally in the top-right
+//      corner of the hero; it now lives here, with the logging it relates to.
+//   3. The Measurements row is ALWAYS present. The 4-day rule no longer
+//      controls whether the fields exist — it now only decides whether the
+//      row carries a red "Due" tag. The fields themselves moved into their
+//      own sheet (modal-home-measurements).
 function renderHomeLogBoxes() {
   const el = document.getElementById('home-log-boxes');
   if (!el) return;
@@ -18547,97 +18837,107 @@ function renderHomeLogBoxes() {
     .sort((a, b) => b.date.localeCompare(a.date));
   const daysSinceMeas = measLogs.length
     ? Math.floor((new Date(today + 'T00:00:00') - new Date(measLogs[0].date + 'T00:00:00')) / 86400000)
-    : Infinity; // never logged — show immediately rather than waiting on an undefined "since"
-  const showMeasurements = daysSinceMeas >= 4;
+    : Infinity; // never logged — due immediately rather than waiting on an undefined "since"
+  const measDue = daysSinceMeas >= 4;
+  const lastMeas = measLogs[0] || null;
 
-  let html = '';
-
-  if (!hasWeight) {
-    html += `<div style="padding:14px 2px;">
-      <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text3);margin-bottom:10px;">Log weigh-in</div>
-      <div id="home-weight-row" style="position:relative;overflow:hidden;border-radius:var(--r-sm);">
-        <div style="display:flex;gap:8px;align-items:center;position:relative;">
-          <input type="number" inputmode="decimal" step="0.1" id="home-weight-input" placeholder="e.g. 182.4" style="flex:1;font-size:15px;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
-          <span style="font-size:13px;color:var(--text2);">lbs</span>
-          <button class="btn btn-accent" onclick="saveHomeWeight()" style="padding:10px 16px;">Save</button>
-        </div>
+  // Weigh-in
+  let weightHtml;
+  if (hasWeight && !homeEditing.weight) {
+    weightHtml = `<div class="log-saved" onclick="homeEditEntry('weight')">
+      <span class="log-saved-tick">\u2713</span>
+      <span>Saved <strong>${todayLog.weight} lbs</strong> \u00b7 today</span>
+      <span class="log-saved-edit">Edit</span>
+    </div>`;
+  } else {
+    weightHtml = `<div id="home-weight-row" class="log-row-anim">
+      <div class="log-row">
+        <input type="number" inputmode="decimal" step="0.1" id="home-weight-input" placeholder="e.g. 182.4"
+               value="${hasWeight ? todayLog.weight : ''}">
+        <span class="log-row-unit">lbs</span>
+        <button class="btn btn-accent" onclick="saveHomeWeight()">Save</button>
       </div>
     </div>`;
   }
 
-  if (!hasSteps) {
-    html += `<div style="padding:14px 2px;">
-      <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text3);margin-bottom:10px;">Log steps</div>
-      <div id="home-steps-row" style="position:relative;overflow:hidden;border-radius:var(--r-sm);">
-        <div style="display:flex;gap:8px;align-items:center;">
-          <input type="number" inputmode="numeric" id="home-steps-input" placeholder="e.g. 8500" style="flex:1;font-size:15px;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
-          <button class="btn btn-accent" onclick="saveHomeSteps()" style="padding:10px 16px;">Save</button>
-        </div>
+  // Steps
+  const stepsToday = (dayMap[today] && dayMap[today].steps);
+  let stepsHtml;
+  if (hasSteps && !homeEditing.steps) {
+    stepsHtml = `<div class="log-saved" onclick="homeEditEntry('steps')">
+      <span class="log-saved-tick">\u2713</span>
+      <span>Saved <strong>${Number(stepsToday).toLocaleString()} steps</strong> \u00b7 today</span>
+      <span class="log-saved-edit">Edit</span>
+    </div>`;
+  } else {
+    stepsHtml = `<div id="home-steps-row" class="log-row-anim">
+      <div class="log-row">
+        <input type="number" inputmode="numeric" id="home-steps-input" placeholder="e.g. 8500"
+               value="${hasSteps ? stepsToday : ''}">
+        <button class="btn btn-accent" onclick="saveHomeSteps()">Save</button>
       </div>
     </div>`;
   }
 
-  if (showMeasurements) {
-    // Exactly the same fields/ids as the old modal-home-log-measurements
-    // (now removed) — just inlined directly into the screen rather than
-    // behind a tap.
-    html += `<div style="padding:14px 2px;">
-      <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text3);margin-bottom:10px;">Log measurements</div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        <span style="font-size:12px;color:var(--amber);font-weight:500;">It has been 4 days since you last recorded your measurements.</span>
-      </div>
-      <div class="toggle-row" style="margin-bottom:12px;width:auto;display:inline-flex;">
-        <button class="toggle-btn active" id="home-meas-unit-in" onclick="setHomeMeasUnit('in')" style="padding:5px 14px;font-size:12px;">in</button>
-        <button class="toggle-btn" id="home-meas-unit-cm" onclick="setHomeMeasUnit('cm')" style="padding:5px 14px;font-size:12px;">cm</button>
-      </div>
-      <div id="home-meas-anim-wrap" style="position:relative;overflow:hidden;border-radius:var(--r-sm);">
-      <div id="home-meas-fields-in">
-        <div style="margin-bottom:12px;">
-          <div class="label">Waist (in)</div>
-          <div style="display:flex;gap:6px;align-items:center;">
-            <input type="number" inputmode="numeric" id="home-body-waist-whole" min="0" max="99" placeholder="33" style="width:58px;flex-shrink:0;text-align:center;">
-            <div class="toggle-row" style="margin:0;flex:1;display:inline-flex;">
-              <button class="toggle-btn active" onclick="setHomeFrac('waist',0)" id="home-waist-frac-0" style="flex:1;padding:9px 2px;font-size:13px;">0</button>
-              <button class="toggle-btn" onclick="setHomeFrac('waist',0.25)" id="home-waist-frac-25" style="flex:1;padding:9px 2px;font-size:13px;">¼</button>
-              <button class="toggle-btn" onclick="setHomeFrac('waist',0.5)" id="home-waist-frac-50" style="flex:1;padding:9px 2px;font-size:13px;">½</button>
-              <button class="toggle-btn" onclick="setHomeFrac('waist',0.75)" id="home-waist-frac-75" style="flex:1;padding:9px 2px;font-size:13px;">¾</button>
-            </div>
-          </div>
-        </div>
-        <div style="margin-bottom:10px;">
-          <div class="label">Hip (in)</div>
-          <div style="display:flex;gap:6px;align-items:center;">
-            <input type="number" inputmode="numeric" id="home-body-hip-whole" min="0" max="99" placeholder="38" style="width:58px;flex-shrink:0;text-align:center;">
-            <div class="toggle-row" style="margin:0;flex:1;display:inline-flex;">
-              <button class="toggle-btn active" onclick="setHomeFrac('hip',0)" id="home-hip-frac-0" style="flex:1;padding:9px 2px;font-size:13px;">0</button>
-              <button class="toggle-btn" onclick="setHomeFrac('hip',0.25)" id="home-hip-frac-25" style="flex:1;padding:9px 2px;font-size:13px;">¼</button>
-              <button class="toggle-btn" onclick="setHomeFrac('hip',0.5)" id="home-hip-frac-50" style="flex:1;padding:9px 2px;font-size:13px;">½</button>
-              <button class="toggle-btn" onclick="setHomeFrac('hip',0.75)" id="home-hip-frac-75" style="flex:1;padding:9px 2px;font-size:13px;">¾</button>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div id="home-meas-fields-cm" style="display:none;">
-        <div style="margin-bottom:12px;">
-          <div class="label">Waist (cm)</div>
-          <input type="number" inputmode="decimal" id="home-body-waist-cm" step="0.1" placeholder="84.5">
-        </div>
-        <div style="margin-bottom:10px;">
-          <div class="label">Hip (cm)</div>
-          <input type="number" inputmode="decimal" id="home-body-hip-cm" step="0.1" placeholder="97">
-        </div>
-      </div>
-      </div>
-      <button class="btn btn-accent btn-block" onclick="saveHomeMeasurements()">Save →</button>
-      </div>
-    </div>`;
+  // A log can carry a waist without a hip, or vice versa — print only what
+  // is actually there rather than "null\u2033".
+  const measParts = [];
+  if (lastMeas && lastMeas.waist !== null && lastMeas.waist !== undefined) measParts.push(`Waist ${fmtInch(lastMeas.waist)}\u2033`);
+  if (lastMeas && lastMeas.hip   !== null && lastMeas.hip   !== undefined) measParts.push(`hip ${fmtInch(lastMeas.hip)}\u2033`);
+  const measSub = lastMeas
+    ? `${measParts.join(' \u00b7 ')}${measParts.length ? ' \u00b7 ' : ''}last logged ${lastLogRelativeLabel(lastMeas.date, today)}`
+    : 'Not logged yet.';
+
+  const bodyLogsBtn = hasWeight
+    ? `<button class="btn btn-ghost btn-block" id="home-body-logs-btn" style="margin-top:12px;"
+               onclick="showScreen('settings');openSettingsBodyLogs();">View body logs</button>`
+    : '';
+
+  el.innerHTML = sectionHeader('02', 'Log today', "Two quick numbers. Measurements when they're due.", { i: 3 })
+    + `<div class="card">
+        <div class="log-field"><div class="label">Weigh-in</div>${weightHtml}</div>
+        <div class="log-field"><div class="label">Steps</div>${stepsHtml}</div>
+        <div class="card-divider"></div>
+        <button class="row-btn" onclick="openHomeMeasurements()">
+          <span class="row-btn-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--text2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h18v8H3z"/><path d="M7 8v4M11 8v3M15 8v4M19 8v3"/></svg>
+          </span>
+          <span class="row-btn-text">
+            <span class="row-btn-title">Measurements ${measDue ? '<span class="tag tag-due">Due</span>' : ''}</span>
+            <span class="row-btn-sub">${measSub}</span>
+          </span>
+          <span class="row-btn-chevron">\u203a</span>
+        </button>
+        ${bodyLogsBtn}
+      </div>`
+    + sectionEnd();
+}
+
+// Opens the Measurements sheet, seeding the unit toggle and fraction pickers
+// the way the old inline box's init did, and filling the "last logged" line
+// and the two last-value tiles.
+function openHomeMeasurements() {
+  const today = getLocalToday();
+  const measLogs = (state.bodyLogs || [])
+    .filter(l => l.waist || l.hip)
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const last = measLogs[0] || null;
+
+  const subEl = document.getElementById('home-meas-last-logged');
+  if (subEl) {
+    subEl.textContent = last
+      ? `Last logged ${lastLogRelativeLabel(last.date, today)}.`
+      : 'No measurements logged yet.';
   }
-
-  if (html) html += `<div class="divider" style="margin:18px 0 18px;"></div>`;
-
-  el.innerHTML = html;
-  if (showMeasurements) initHomeMeasBox();
+  const tilesEl = document.getElementById('home-meas-last-tiles');
+  if (tilesEl) {
+    tilesEl.innerHTML = last
+      ? `<div class="meas-tile"><div class="meas-tile-label">Last waist</div><div class="meas-tile-value">${(last.waist !== null && last.waist !== undefined) ? fmtInch(last.waist) + '\u2033' : '\u2014'}</div></div>
+         <div class="meas-tile"><div class="meas-tile-label">Last hip</div><div class="meas-tile-value">${(last.hip !== null && last.hip !== undefined) ? fmtInch(last.hip) + '\u2033' : '\u2014'}</div></div>`
+      : '';
+  }
+  openModal('modal-home-measurements');
+  initHomeMeasBox();
 }
 
 // Sets the measurements box's unit toggle to the person's last-used unit
@@ -18657,7 +18957,7 @@ function initHomeMeasBox() {
 // (Breakfast → Lunch → Dinner → Snacks), so an item spanning two meals
 // sorts ahead of anything only appearing in the later of those two meals.
 // Always renders the card, with an explicit empty state.
-function renderHomeFoodPreview() {
+function renderHomeFoodPlan() {
   const el = document.getElementById('home-food-preview');
   if (!el) return;
   const today = getLocalToday();
@@ -18695,60 +18995,65 @@ function renderHomeFoodPreview() {
 
   const rows = combined.map(r => r.html).join('');
 
-  el.innerHTML = `<div style="padding:16px 2px 4px;cursor:pointer;" onclick="showScreen('nutrition')">
-    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
-      <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text3);">Planned food today</div>
-      <div class="home-card-link" style="color:var(--accent2);font-size:12px;" onclick="event.stopPropagation();showScreen('nutrition')">Open →</div>
-    </div>
-    ${rows || `<div style="font-size:12px;color:var(--text3);padding:10px 0;">Nothing planned for today.</div>`}
-  </div>`;
+  el.innerHTML = sectionHeader('04', 'Food plan', "Meals you've planned ahead for today.", { i: 5 })
+    + `<div class="card card-tappable" onclick="showScreen('nutrition')">
+        ${rows || `<div class="empty-inline">Nothing planned for today.</div>`}
+      </div>`
+    + (rows ? '' : `<button class="btn btn-ghost btn-block" style="margin-top:12px;" onclick="showScreen('nutrition')">Plan today's meals</button>`)
+    + sectionEnd();
 }
 
 // Single-row-per-exercise preview of the next incomplete training session —
 // name and expected sets × reps only, no set type, no last-progression data.
-function renderHomeTrainPreview() {
+function renderHomeUpNext() {
   const el = document.getElementById('home-train-preview');
   if (!el) return;
+  const head = sectionHeader('03', 'Up next', 'Your next session, ready when you are.', { i: 4 });
   const macro = (state.macrocycles || []).find(m => m.id === state.currentMacroId);
 
   if (!macro) {
-    el.innerHTML = `<div style="padding:22px 2px 4px;margin-top:14px;border-top:1px solid var(--border2);cursor:pointer;" onclick="showScreen('plan')">
-      <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text3);margin-bottom:6px;">Next session</div>
-      <div style="font-size:12px;color:var(--text3);">Create a macrocycle in the Plan tab first.</div>
-    </div>`;
+    el.innerHTML = head + `<div class="card"><div class="empty-inline">Create a macrocycle in the Plan tab first.</div></div>`
+      + `<button class="btn btn-ghost btn-block" style="margin-top:12px;" onclick="showScreen('plan')">Go to Plan</button>` + sectionEnd();
     return;
   }
 
   const next = getNextIncompleteSession(macro);
   if (!next) {
-    el.innerHTML = `<div style="padding:22px 2px 4px;margin-top:14px;border-top:1px solid var(--border2);cursor:pointer;" onclick="trainManualSelect=false;showScreen('train')">
-      <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text3);margin-bottom:6px;">Next session</div>
-      <div style="font-size:12px;color:var(--text3);">All sessions complete for this cycle.</div>
-    </div>`;
+    el.innerHTML = head + `<div class="card"><div class="empty-inline">All sessions complete for this cycle.</div></div>` + sectionEnd();
     return;
   }
 
   const templateKey = macro.id + '_1_' + next.dayKey;
   const exercises = (state.exercises[templateKey] || []).slice().sort((a,b) => (a.order||0)-(b.order||0));
+  let totalSets = 0;
   const rows = exercises.map(ex => {
     const sets = getWeekSets(ex, next.week, macro.weeks);
+    totalSets += sets;
     const weight = getWeekWeight(ex, next.week, 'weight', macro.goalType, macro.weightIncrement);
-    return `<div class="home-ex-row"><span>${ex.name}</span><span class="home-row-sub">${sets} × ${ex.reps} @ ${weight.toFixed(1)}kg</span></div>`;
+    // Membership lives on the exercise itself — state.supersets only maps a
+    // superset id to its name (see the state shape comment at its definition).
+    const ssTag = ex.supersetId ? '<span class="tag tag-ss">SS</span>' : '';
+    return `<div class="ex-row">
+      <span class="ex-row-name">${ex.name} ${ssTag}</span>
+      <span class="ex-row-detail">${sets} \u00d7 ${ex.reps} \u00b7 ${weight.toFixed(1)}kg</span>
+    </div>`;
   }).join('');
 
   const useMicro = macro.useMicrocycles !== false;
   const dayLabels = macro.dayLabels || { push:'Push', pull:'Pull', legs:'Legs' };
   const dayId = useMicro ? next.dayKey.replace(/m[12]$/, '') : next.dayKey;
-  const microSuffix = useMicro ? (' ' + (next.dayKey.endsWith('m1') ? 'M1' : 'M2')) : '';
-  const sessionName = (dayLabels[dayId] || dayId) + microSuffix;
+  const microSuffix = useMicro ? (next.dayKey.endsWith('m1') ? 'Microcycle 1' : 'Microcycle 2') : '';
+  const sessionName = dayLabels[dayId] || dayId;
+  const eyebrow = microSuffix ? `${sessionName} \u00b7 ${microSuffix}` : sessionName;
 
-  el.innerHTML = `<div style="padding:22px 2px 4px;margin-top:14px;border-top:1px solid var(--border2);cursor:pointer;" onclick="trainManualSelect=false;showScreen('train')">
-    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
-      <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text3);">Next session – ${sessionName}</div>
-      <div class="home-card-link" style="color:var(--accent2);font-size:12px;" onclick="event.stopPropagation();trainManualSelect=false;showScreen('train')">Open →</div>
-    </div>
-    ${rows || `<div style="font-size:12px;color:var(--text3);padding:10px 0;">No exercises defined for this session yet.</div>`}
-  </div>`;
+  el.innerHTML = head
+    + `<div class="card">
+        <div class="up-next-eyebrow">${eyebrow}</div>
+        <div class="up-next-title">${exercises.length} exercise${exercises.length === 1 ? '' : 's'} \u00b7 ${totalSets} set${totalSets === 1 ? '' : 's'}</div>
+        ${rows || `<div class="empty-inline">No exercises defined for this session yet.</div>`}
+      </div>
+      <button class="btn btn-accent btn-block pulse" style="margin-top:14px;" onclick="trainManualSelect=false;showScreen('train')">Start session</button>`
+    + sectionEnd();
 }
 
 // ── Inline log boxes (Home) ─────────────────────────────────────────────
@@ -18833,6 +19138,7 @@ function saveHomeWeight() {
   };
   if (idx >= 0) state.bodyLogs[idx] = entry; else state.bodyLogs.push(entry);
   save();
+  homeEditing.weight = false;   // back to the saved message once the flash ends
 
   playLogSaveAnimation('home-weight-row', () => {
     if (!lastLog) return null;
@@ -18861,6 +19167,7 @@ function saveHomeSteps() {
   };
   if (idx >= 0) state.bodyLogs[idx] = entry; else state.bodyLogs.push(entry);
   save();
+  homeEditing.steps = false;    // back to the saved message once the flash ends
   playLogSaveAnimation('home-steps-row', null, () => renderHome(), { noReveal: true });
 }
 
@@ -18945,7 +19252,7 @@ function saveHomeMeasurements() {
       });
     }
     return lines;
-  }, () => renderHome());
+  }, () => { closeModal('modal-home-measurements'); renderHome(); });
 }
 
 // RENDER: TRAIN
@@ -28277,17 +28584,17 @@ function deleteRecipe(id) {
 
 <!-- Home: off-target metric advice modal -->
 <div class="modal-overlay" id="modal-home-metric-advice" style="align-items:center;justify-content:center;" onclick="if(event.target===this) closeModal('modal-home-metric-advice')">
-  <div style="background:var(--surface);border-radius:var(--r);border:0.5px solid var(--border2);padding:20px;width:calc(100% - 48px);max-width:380px;">
+  <div class="dialog">
     <div id="home-metric-advice-body"></div>
-    <button class="btn btn-block" style="margin-top:16px;" onclick="closeModal('modal-home-metric-advice')">Dismiss</button>
+    <button class="btn btn-ghost btn-block" style="margin-top:18px;" onclick="closeModal('modal-home-metric-advice')">Dismiss</button>
   </div>
 </div>
 
 <!-- Home: nutrition card tap-to-info modal (kcal/protein/carbs only) -->
 <div class="modal-overlay" id="modal-home-nutrition-info" style="align-items:center;justify-content:center;" onclick="if(event.target===this) closeModal('modal-home-nutrition-info')">
-  <div style="background:var(--surface);border-radius:var(--r);border:0.5px solid var(--border2);padding:20px;width:calc(100% - 48px);max-width:380px;">
+  <div class="dialog">
     <div id="home-nutrition-info-body"></div>
-    <button class="btn btn-block" style="margin-top:16px;" onclick="closeModal('modal-home-nutrition-info')">Got it</button>
+    <button class="btn btn-accent btn-block" style="margin-top:18px;" onclick="closeModal('modal-home-nutrition-info')">Got it</button>
   </div>
 </div>
 
@@ -28337,11 +28644,11 @@ function deleteRecipe(id) {
 
 <!-- Custom Confirm Modal -->
 <div class="modal-overlay" id="modal-confirm" style="align-items:center;justify-content:center;">
-  <div style="background:var(--surface);border-radius:var(--r);border:0.5px solid var(--border2);padding:24px 20px;width:calc(100% - 48px);max-width:340px;text-align:center;">
-    <div style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px;" id="confirm-title"></div>
-    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:20px;" id="confirm-msg"></div>
+  <div class="dialog" style="max-width:340px;text-align:center;">
+    <div class="dialog-title" id="confirm-title"></div>
+    <div class="dialog-msg" id="confirm-msg"></div>
     <div style="display:flex;gap:10px;">
-      <button class="btn btn-block" id="confirm-cancel-btn" style="flex:1;">Cancel</button>
+      <button class="btn btn-ghost btn-block" id="confirm-cancel-btn" style="flex:1;">Cancel</button>
       <button class="btn btn-danger btn-block" id="confirm-ok-btn" style="flex:1;"></button>
     </div>
   </div>

@@ -4544,3 +4544,127 @@ from a JS-measured `--app-height`, which never settles in headless Chrome: the f
 near the top of the page overlapping content, and the page below it reads as empty. **The same
 artifact reproduces on unmodified `main`** — it is the harness, not the build. Screenshot review
 needs a real browser; DOM probes are what to trust for regression checks.
+
+## §81 — v8.16 Phase 1: Home rebuilt as header + hero + four numbered sections
+
+Home is the first page laid out to the v8.16 design, and the patterns settled here — page header,
+hero, section anatomy, card, row button, metric row, saved-state — are the contract the later page
+phases follow rather than re-deriving.
+
+`renderHome()` now delegates to six functions, one per region: `renderHomeHeader()`,
+`renderHomeHero()`, `renderHomeThisWeek()`, `renderHomeLogBoxes()`, `renderHomeUpNext()`,
+`renderHomeFoodPlan()`.
+
+### The ring changed what it counts, and that was the point
+
+The v8.15 hero ring counted **metrics on target**, while the subline beside it described the same
+thing in words. v8.16's ring counts **days elapsed this week, out of 7** — it answers "how far
+through the week am I?", which is the one question the hero is for. The on-target count moved to a
+chip in section 01's header, next to the four metrics it actually describes.
+
+🚨 **This is the second time that ring has been wrong in the same way.** It previously counted
+"metrics with any data logged" and could read 4/4 while the subline reported a metric off target
+(fixed in v7.90). Both bugs have the same root: one ring trying to answer two questions. Whatever it
+displays, it must have exactly one meaning.
+
+### The upcoming-goal banner is now part of the hero, not a card
+
+`renderHomeGoalBanner()` is gone. Its content is built by `buildHomeUpcomingGoalHTML()` and
+**replaces the hero's goal subline** when it fires (Adam's Q7 ruling), rather than sitting in a card
+of its own.
+
+Every gate is carried over untouched: a genuinely *different* goal (compared field by field, because
+a macrocycle's future weeks are usually the same goal continuing and must not be announced), within
+**6 days**, with only the changed fields shown, and the same "Step N" prefix resolution including
+the guard against double-prefixing a label that already carries one.
+
+🚨 **The `home-goal-banner` id moved onto whichever element carries that content** — the plain goal
+line when nothing is upcoming, the highlighted treatment when something is. It is a demo-tour anchor
+and the step resolves either way. Deleting the id, or putting it on only one of the two branches,
+silently breaks the tour in exactly one state.
+
+### Section 02: three pre-approved behaviour changes in one function
+
+1. **A saved entry persists instead of vanishing.** v8.15 hid the weight and steps inputs once
+   today's value existed (`if (!hasWeight)`). Now a saved value renders as a static saved message
+   for the rest of the calendar day, and tapping it reopens the input pre-filled.
+
+   🚨 **The animation must only ever play in response to an actual save**, never on a revisit. That
+   is why the saved message is plain markup and the flash is fired by the save handlers alone — if
+   the entrance system animated it, leaving Home and coming back would replay a "✓ Saved" flash for
+   something saved hours ago.
+
+   `homeEditing` holds the transient "editing it again" flag. It is **deliberately not persisted**:
+   it is UI state, and a reload should show the saved value, not a half-finished edit. Each save
+   handler clears its own flag so the row returns to the saved message once the flash ends.
+
+2. **"View body logs" moved.** It used to sit unconditionally in the hero's top-right corner. It now
+   appears in section 02 once today's weight is saved and stays for the rest of the day, next to the
+   logging it relates to. It keeps the `home-body-logs-btn` id — a tour anchor — and still opens
+   Settings › Body logs.
+
+3. **Measurements is always present.** The 4-day rule no longer decides whether the fields exist —
+   it decides whether the row carries a red **Due** tag. The fields moved into a new sheet.
+
+### The Measurements sheet lifts the old fields verbatim
+
+🚨 **The ¼/½/¾ entry, the in↔cm conversion and the inch storage format were NOT reimplemented.**
+`modal-home-measurements` carries the same ids (`home-body-waist-whole`, `home-meas-fields-cm`, …)
+and the same handlers (`setHomeMeasUnit()`, `setHomeFrac()`, `initHomeMeasBox()`,
+`saveHomeMeasurements()`) that the inline block used. Rewriting them would have been a logic change
+wearing a layout change's clothes, and measurements are stored in inches with quarter-inch
+precision — a conversion bug there corrupts real body data silently.
+
+The only wiring that changed: `saveHomeMeasurements()` closes the sheet when its flash finishes,
+and `openHomeMeasurements()` fills the "last logged" line and the two last-value tiles before
+opening. Both tolerate a log carrying a waist without a hip, or vice versa, rather than printing
+`null″`.
+
+### Settings is a hidden page now, so it shows no nav at all
+
+Phase 0 removed the Settings tab and left the nav rendered-but-unhighlighted there. **Adam's call:
+a hidden page shows no nav bar.** `showScreen()` hides `#nav` outright for any screen with no nav
+button, and puts `.no-nav` on `#content` so the 84px it reserves for the nav is reclaimed rather
+than left as dead air at the foot of the page.
+
+This generalises correctly — "has no nav button" *is* the definition of a hidden page — so any
+future hidden page gets the same treatment without further code.
+
+### Centred dialogs are a separate component from bottom sheets
+
+The redesign's sheet anatomy is for sheets. A confirm or an explainer is a **centred dialog** and
+stays centred; it just moves onto the same tokens, type and buttons. `.dialog` / `.dialog-title` /
+`.dialog-msg` carry that, and Phase 1 moved Home's three onto it — `modal-home-metric-advice`,
+`modal-home-nutrition-info` and the app-wide `modal-confirm`. The three `modal-macro-extend-*`
+dialogs are the same shape and follow in Phase 5.
+
+### Removed
+
+- **`animateHomeHeroValues()`** — the bespoke JS odometer that counted Home's numbers up from 0.
+  Entrance motion is the CSS system's job now (§80). It also produced nonsense intermediate values:
+  a DOM read mid-count returns things like "Kcal 33 / 1,550" on a page whose real average is null.
+  `renderHome(animateHero)` keeps its parameter for call-site compatibility and ignores it.
+- **`renderHomeGoalBanner()`** — superseded by `buildHomeUpcomingGoalHTML()`, above.
+
+### What Phase 1 was verified against
+
+Driven under the local dev bypass, reading the DOM rather than eyeballing screenshots (§80 explains
+why headless screenshots of this app cannot be trusted):
+
+- **62/62 modals** open and close with no thrown error — the 61 existing plus the new Measurements
+  sheet.
+- All six screens render; Settings reports its nav hidden, the other five report it visible.
+- Sections number **01/02/03/04** with no gaps.
+- Tour anchors `home-hero-wrap`, `home-log-boxes`, `home-metric-card-kcal` and `home-goal-banner`
+  all resolve, and `home-body-logs-btn` resolves once a weight is saved.
+- Saving a weight and steps produces the persistent saved messages, reveals "View body logs", and
+  tapping the saved message reopens the input pre-filled with the saved value.
+- Light mode resolves every new token (`--divider`, `--inset`, `--green-text`, `--heat-amber`), and
+  dark mode confirms `--text3` at `.55` and `--border2` at `.12`.
+- 🚨 **`Object.keys(state)` is identical to `main`'s, key for key** — 32 keys, same names. No state
+  was renamed, added or restructured, so v8.15 backups round-trip.
+
+One finding worth keeping: Home's "—" against every target is **correct**, not a regression. The
+same probe run against `main` returns `kcalAvg=null` too — the demo fixture's anchor date sits in a
+week with no logs. Reconciling against the baseline rather than against memory is what settled it;
+`main`'s hero showed "Kcal 33 / 1,550" purely because the screenshot caught its odometer mid-count.
