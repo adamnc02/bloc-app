@@ -4363,3 +4363,184 @@ The dismissal is detected without a new flag. **Every deliberate exit — the �
 Not a loss, but the same class of defect and adjacent: `addPhotoItemManual()` pushes a blank row *before* opening the editor (so the editor can address it by index), so backing out of that editor left `New item · 0 kcal` on the list — and a junk 0-kcal ingredient in the saved recipe if not spotted. Now more reachable, since Manual sits one tap deeper behind §78's search sheet. `_photoPendingNewItemIdx` marks that row; `savePhotoItemEdit()` clears the marker, and `closeModal()` splices the row out if the editor closes with the marker still set.
 
 **Check:** `scripts/verify-photo-review-retention.mjs` — 16 checks. The routing matrix for `returnFromNutrServing()` across all three contexts × both routes in (proving no combination lands nowhere); `discardPhotoReview()`'s confirm behaviour including that declining leaves the items intact and that an empty list skips the dialog; and the three structural invariants the protection actually rests on — the overlay carries `data-no-dismiss`, its ✕ does not call `closeModal` directly, `initModal()` checks the attribute *before* wiring either gesture, and `#modal-confirm` outranks every other modal tier (asserted by parsing the z-index rules, so adding a higher modal later fails the check rather than silently hiding confirmations).
+
+## §80 — v8.16 Phase 0: the redesign foundation (tokens, type, motion, sheet chrome, five-tab nav)
+
+v8.16 is a whole-app visual redesign delivered in phases, one page per phase. **Phase 0 is
+infrastructure only and deliberately lays out no page.** Tokens, fonts, motion primitives and the
+shared sheet/button/row chrome are global: introducing them page by page would mean either
+duplicating them six times or leaving the app visually broken between phases. So they all land
+first, and the app is knowingly half-migrated until the page phases arrive — every page still
+renders and every modal still opens, but only the shared classes have moved to the new design.
+
+### Typography — a display/body pair, and why `--font-mono` still exists
+
+Inter was the sole typeface from v7.58. It is replaced by **Sora** (`--font-display`) for titles,
+section headings, hero numbers and stats, and **Manrope** (`--font-body`) for prose, labels and
+controls.
+
+The load-bearing change is on `body`, which now defaults to `--font-body` rather than
+`--font-display`. Anything that does not explicitly ask for the display face is now Manrope — which
+is the point, but it means the type of a great many elements moved without any of them being
+edited.
+
+`--font-mono` is **not deleted**. It has 24 call sites, resolved to Inter, and now resolves to
+Manrope, so nothing breaks. Each call site gets the font its role actually calls for as its own page
+is redesigned. 🚨 **Do not delete the token until every one of those sites has been swept** — a
+missing custom property resolves to nothing and silently drops those elements to the browser
+default, which looks like a font-loading failure rather than a code change.
+
+### Colour — the palette did NOT change
+
+The redesign scope asked for a brighter red (`#ff5f5d`) and for red to absorb the peach `--warn`.
+**Both were rejected.** `--warn` was split out of `--red` in v7.59–v7.60 precisely so `--red` could
+mean danger only, and that distinction still holds. Home's off-target state already uses
+`--red: #E24B4A` (`renderHomeHero()`), which is the colour the scope was reaching for.
+
+What did change is contrast and vocabulary:
+
+| Token | Change |
+|---|---|
+| `--text3` | `.45` → `.55` alpha — a contrast fix on eyebrows and captions |
+| `--border2` | `.16` → `.12` alpha |
+| `--inset` | **New.** Recessed card footers (copy-from-yesterday) and the on-hold panel |
+| `--divider` | **New.** Row dividers inside cards, replacing `--border` for that job |
+| `--green-text` | **New.** Positive text and "Stable"/"Active" chips, distinct from the `--green` fill |
+| `--heat-amber` | **New.** Same value as the existing `HEATMAP_AMBER` JS constant |
+
+🚨 **`--heat-amber` is added but nothing reads it yet.** The JS constant `HEATMAP_AMBER` is still
+what draws the heat squares. The token carries a light-mode value (`#b07d12`) that the constant does
+not, so repointing the constant at the token — a Phase 4 decision — **would change how heat squares
+look in light mode**. That is a visible change, not a refactor, and must be shown to Adam rather
+than slipped in with a tidy-up.
+
+`--on-accent` was already present and is deliberately **not** overridden in light mode, alongside
+`--nav-bg-rgb`: both exist so that contrast against fixed accent fills stays correct when light mode
+redefines `--bg`. It was left exactly as it was.
+
+### Shape — the new scale SUPPLEMENTS the old one
+
+The redesign wants 12–26px radii; the app has `--r: 8px`, `--r-sm: 4px` and `--r-lg: 14px`.
+
+🚨 **The trap is redefining `--r-sm` in place.** It has **102 call sites**. Moving it from 4px to
+12px reshapes every one of them at once, in a phase that has no screenshot gate — so the first
+anyone would see of it is a later phase's screenshots, by which point the cause is several commits
+back.
+
+Instead a named scale was **added** — `--r-hero`, `--r-card`, `--r-tile`, `--r-btn`, `--r-btn-sm`,
+`--r-icon`, `--r-icon-card`, `--r-chip`, `--r-tag`, `--r-sheet` — and the legacy three keep their
+values. Each element type adopts its named token as its own page is redesigned, so every shape
+change is visible in the screenshots of the phase that made it. The legacy tokens retire naturally
+when their last call site moves.
+
+### Motion — why every animation is scoped under `.is-entering`
+
+A screen assembles itself top to bottom and **replays that sequence every time it is shown**, not
+just on first paint. `showScreen()` does this by removing `.is-entering` from the screen root,
+forcing a reflow (`void el.offsetWidth`), and re-adding it — re-adding a class the element already
+carries does not restart a CSS animation, and the reflow is what makes it restart.
+
+Two properties of this design are deliberate and easy to undo by accident:
+
+1. 🚨 **Every animated element's resting state is already its final state.** The entrance rules
+   live under `.is-entering`; without that class, sections are visible, bars are at width, rings and
+   lines are fully drawn. **Motion is never load-bearing for visibility** — if the replay never runs,
+   the page still renders correctly. Writing `opacity: 0` into an element's base rule and animating
+   it to 1 would reverse that, and the failure mode is a blank page rather than a missing animation.
+2. 🚨 **The class comes back OFF after `ENTRANCE_MS` (2600ms).** Screens re-render constantly while
+   open — every weight save re-renders Home — and any `.rise` element inserted by one of those
+   re-renders would replay the entire entrance mid-interaction if the class were still on the root.
+   Entrance motion belongs to *arriving at* a screen, not to updating one. 2600ms covers the longest
+   item in the sequence, the weigh-in dot at 2s + 0.5s.
+
+Stagger is per element via a `--i` custom property (`style="--i:3"`), 90ms apart. Only `transform`,
+`opacity` and `stroke-dashoffset` are animated — never a layout property — and nothing blocks
+interaction.
+
+`prefers-reduced-motion: reduce` disables all of it, loops included, and renders final states. CSS
+handles the declarative half; `prefersReducedMotion()` exists for the JS-driven loops, which a media
+query cannot reach.
+
+**`onScreenChange(fn)` / `runScreenTeardowns()`** — anything that starts a timer or an observer
+while a screen is on-screen registers its cleanup, and `showScreen()` runs them all before
+switching. The Plan step chart's auto-cycle (Phase 5) is the one that would otherwise leak a
+`setInterval` across a tab change, and a stray interval is invisible until it starts fighting the
+next screen's renders.
+
+### The section header is a builder, not a pattern
+
+`sectionHeader(num, title, sublabel, opts)` + `sectionEnd()` produce the only section-header markup
+in the app, with `sectionCounter()` handing out the numbers and `sectionAiBadge()` the `✦ BLOC AI`
+slot. Numbering restarts at `01` per page and counts up **with no gaps**, so a conditionally hidden
+section renumbers the ones after it.
+
+The reason it is a builder rather than a documented pattern: the numbers have to be produced by
+counting the sections actually being rendered. Hand-written `01`/`02` literals cannot do that — the
+moment a conditional section (Fuel's "Save this day", Progress's final-week card) is hidden, the
+literals leave a gap, and the gap is only visible in exactly the conditional state that is hardest
+to reach in testing.
+
+### The nav lost a tab, and one screen now has no tab at all
+
+The nav is five buttons — **Home · Train · Fuel · Progress · Plan** — and Settings opens from the
+account button in the Home header (`#home-account-btn`) instead.
+
+- The Nutrition tab's **label** is now "Fuel". Its button id (`#nav-nutrition`) and screen id
+  (`#screen-nutrition`) are unchanged: renaming either would break `showScreen('nutrition')` and
+  every caller of it.
+- 🚨 **`showScreen()` can no longer assume a `#nav-<name>` exists.** Settings genuinely has none, so
+  the lookup is a real null rather than a bug, and it is guarded. This is the first time in the
+  app's life that an active screen has had no corresponding nav button.
+- `positionNavPill()` hides the pill when nothing is active, rather than leaving it stranded under
+  whichever tab was selected last.
+- `#home-account-btn` is a plain button in a minimal header for now. **Phase 1 folds it into the
+  designed Home header** (date eyebrow + greeting H1 + account button). It exists this early so
+  Settings never becomes unreachable in the gap between Phase 0 and Phase 1.
+
+### Shared chrome — redefined classes, not rewritten call sites
+
+There are ~1,550 `style="` attributes and ~1,189 `class="` attributes in this file, most of them
+inside JS template literals. Restyling by call site is not viable, so the shared classes were
+redefined in place:
+
+- **Sheet chrome** — scrim `rgba(8,9,16,.72)`, 26px top corners, `10px 20px 34px` padding, a 40×4
+  handle, a 40px round close button and a Sora 22/600 title. **55 of the 61 modals pick this up from
+  `.modal-sheet` alone.** The other six — `modal-confirm`, `modal-home-metric-advice`,
+  `modal-home-nutrition-info` and the three `modal-macro-extend-*` — build their own inner markup in
+  JS and carry no `.modal-sheet`, so they must be restyled by hand in the phase that owns them
+  (Phases 1 and 5). They are exactly the six marked "(dynamic)" in the redesign's modal register.
+- 🚨 **`.btn-accent` changed meaning: it is now the solid primary button**, not an outline. Every
+  save/confirm in the app is a primary, and `.btn-accent` already marked "the accent action" at 52
+  call sites, so the class was redefined rather than 52 sites rewritten. **This means 52 buttons
+  changed appearance in one commit.** Where a page's redesign finds a site that should not read as
+  primary, that site moves to `.btn-ghost` one at a time, visibly, in that phase's screenshots.
+  `.btn-primary` is an alias for new code.
+- `.btn-ghost` is now the real secondary (accent2 text, `rgba(145,132,217,.55)` border) and
+  `.btn-danger` a 50%-alpha red ghost. `.btn-block` is the 52px full-width primary shape.
+- `.row-btn` (new) is the row-button pattern — icon tile, bold title, subtitle, chevron — that
+  carries the Home Measurements row, Session tools, Tools, Progression preview and Settings rows.
+- `.chip` (new) takes a `--chip-c` per instance and renders a 15% tint of it with the full colour
+  for the text.
+- `.settings-row`, `.tag` and the `.toggle-row`/`.toggle-btn` segmented control keep their
+  structure and were restyled in place.
+
+### What Phase 0 was verified against
+
+There is no CI in this repo and the three `scripts/verify-*.mjs` files cover the AI JSON paths, not
+the UI, so Phase 0 was checked by driving the app under the local dev bypass and reading the DOM
+rather than by eye:
+
+- All **61** modal overlays open and close with no thrown error; 55 report the new 26px sheet radius
+  and 40px handle, and the 6 without `.modal-sheet` are the known dynamic ones listed above.
+- All **six** screens — including Settings, which has no nav button — become active, render content
+  and replay the entrance, with no console errors.
+- The nav pill reports `opacity: 0` on Settings and `1` everywhere else.
+- `document.fonts` contains **only** Sora and Manrope; `body` computes to Manrope and `.modal-title`
+  to Sora.
+- `.is-entering` is gone from the screen root by 7s, confirming the teardown timer.
+
+🚨 **A headless screenshot of this app is not a reliable check on its own.** The app sizes itself
+from a JS-measured `--app-height`, which never settles in headless Chrome: the floating nav ends up
+near the top of the page overlapping content, and the page below it reads as empty. **The same
+artifact reproduces on unmodified `main`** — it is the harness, not the build. Screenshot review
+needs a real browser; DOM probes are what to trust for regression checks.
