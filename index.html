@@ -2490,6 +2490,11 @@ html.auth-likely-signed-in #auth-gate { display: none; }
    test — every row is a child of the same card — unlike the :first-of-type
    trap in PHASE 1, where each item had its own container. */
 .card > .row-plain:not(:first-child) { border-top: 1px solid var(--divider); }
+/* Opts one row out of that rule. Home ▸ Log today is two labelled FIELDS and
+   then a row — the fields are already separated by their own spacing, so a
+   rule above the row cut the card in half rather than separating two like
+   things. Specificity has to match the rule above it, hence `.card >`. */
+.card > .row-plain.row-plain-flush { border-top: none; }
 /* 🚨 A card holding nothing but rows takes 6px of its own padding, and each row
    12px. That reads as 18px above the first row and 18px below the last, with
    24px around the divider between them. With .card's normal 16px the first and
@@ -2499,6 +2504,11 @@ html.auth-likely-signed-in #auth-gate { display: none; }
    cards that hold other things. */
 .card-rows { padding: 6px 18px; }
 .card-rows > .row-plain { padding: 12px 0; }
+/* Settings' rows are .settings-row, not .row-plain, and had the same
+   top-and-bottom-heavy card (v8.16 UAT). min-height goes with the padding —
+   56px plus the card's own 6px reintroduces exactly the gap this removes. */
+.card-rows > .settings-row,
+.card-rows > label.settings-row { padding: 12px 0; min-height: 0; }
 .train-picker-panel { padding: 12px 0 4px; }
 
 /* ── Exercise card ──────────────────────────────────────────────────── */
@@ -3186,10 +3196,23 @@ html.auth-likely-signed-in #auth-gate { display: none; }
    column so it reads as that column's label; centred over a bar of varying
    height it drifted away from the thing it labelled (v8.16 UAT). */
 .step-col { flex: 1; min-width: 0; text-align: left; }
-.step-val { font-family: var(--font-display); font-size: 12.5px; font-weight: 600; color: var(--text); margin-bottom: 6px; font-variant-numeric: tabular-nums; }
-.step-bar-track { height: 92px; display: flex; align-items: flex-end; }
+.step-val { font-family: var(--font-display); font-size: 12.5px; font-weight: 600; color: var(--text); margin-bottom: 5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* A column: the value, then the bar, both pushed to the bottom — so the value
+   always sits directly on top of its own bar however short the bar is. */
+.step-bar-track { height: 110px; display: flex; flex-direction: column; justify-content: flex-end; }
 .step-bar { width: 100%; border-radius: var(--r-btn-sm) var(--r-btn-sm) 0 0; transition: height .45s cubic-bezier(.2,.72,.16,1), opacity .45s; }
-.step-name { font-size: 10.5px; font-weight: 500; color: var(--text3); margin-top: 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 🚨 WRAPS to two lines rather than truncating. A cycle with six phases gives
+   each column about 45px, and shortening hard enough to fit that turns
+   "HCH Steps" into "Steps" — the name of a metric charted three buttons away.
+   Two short lines lose nothing; an over-shortened label loses the phase.
+   Clamped at two so a pathological name cannot push the chart's baseline
+   around, and ellipsised at that point, which is a visible admission rather
+   than a silent cut. */
+.step-name {
+  font-size: 10.5px; font-weight: 500; color: var(--text3); margin-top: 7px;
+  line-height: 1.25; overflow: hidden; text-overflow: ellipsis;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+}
 .step-name-on { color: var(--text); font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { .step-bar { transition: none; } }
 
@@ -3298,6 +3321,12 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 /* "Edit" is a chip, not the words "tap to edit" in the smallest grey on the
    page — an editable row should look editable (v8.16 UAT). It is decoration
    over the row's own onclick, so it takes no pointer events of its own. */
+/* A standalone entry — one not folded into a month group — is a card in its
+   own right, matching the month rows it sits above and the design reference. */
+.bw-entry-card {
+  background: var(--surface2); border: 0.5px solid var(--border);
+  border-radius: var(--r-card); padding: 4px 14px; margin-bottom: 8px;
+}
 .bw-entry-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
 .bw-steps { font-size: 13px; font-weight: 500; color: var(--text2); }
 .bw-edit-chip { pointer-events: none; }
@@ -4136,13 +4165,18 @@ try {
         </button>
       </div>
 
-      <!-- The page hero. 🚨 It replaces the "BLOC Training App" row that stood
+      <!-- The page hero. It replaces the "BLOC Training App" row that stood
            here: the top of Settings was the only page in the app without one,
            which is most of why this page read as the weakest of the redesign
-           (v8.16 UAT, "missing the hero card"). It is still the way into the
-           About sheet, so nothing was lost — the version chip and the whole
-           card still open it. Filled by renderSettingsHero(). -->
-      <button class="settings-hero rise" id="settings-hero" onclick="openModal('modal-settings-about')"></button>
+           (v8.16 UAT, "missing the hero card"). Filled by renderSettingsHero().
+
+           🚨 It opens ABOUT ME, not the app-info sheet. The hero shows your
+           name, your sex, your height and your country — every one of which is
+           edited in About me, so that is what tapping it has to open. It
+           carried the app-info sheet at first purely because it replaced the
+           row that used to. App info moved to its own row in the Profile
+           group, where About me had been. -->
+      <button class="settings-hero rise" id="settings-hero" onclick="openBodyProfile()"></button>
 
       <!-- ── Profile ──────────────────────────────────────────────────
            🚨 v8.16 — the three groups are always open. They were
@@ -4152,21 +4186,27 @@ try {
       <div class="section rise">
         <div class="section-head"><h2 class="section-h2">Profile</h2></div>
         <div class="section-sub">Who you are and how the app behaves.</div>
-        <div class="card">
+        <div class="card card-rows">
           <div class="settings-row settings-row-nav" onclick="openModal('modal-app-preferences')">
             <div class="settings-row-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
             <div class="settings-row-text">App preferences
               <div class="settings-row-sub">Dark or light mode, and distance units.</div>
             </div>
           </div>
-          <div class="settings-row settings-row-nav" onclick="openBodyProfile()">
-            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0 1 16 0v1"/></svg></div>
-            <div class="settings-row-text">About me
-              <div class="settings-row-sub">Height, birthday and the details your targets are built from.</div>
+          <!-- 🚨 About me moved OUT of this list to the hero (see above); this
+               row is App info, which the hero used to carry. The two swapped
+               places rather than one being added. -->
+          <div class="settings-row settings-row-nav" onclick="openModal('modal-settings-about')">
+            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg></div>
+            <div class="settings-row-text">App info
+              <div class="settings-row-sub">Version, and what is stored on this device.</div>
             </div>
           </div>
+          <!-- A weighing scale. It was a second person glyph, all but identical
+               to About me's and to Account &amp; Data's — three rows in one list
+               sharing one picture (v8.16 UAT). -->
           <div class="settings-row settings-row-nav" onclick="openSettingsBodyLogs()">
-            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg></div>
+            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M8 15a4 4 0 0 1 8 0"/><path d="M12 15l3-2.6"/></svg></div>
             <div class="settings-row-text">Body logs
               <div class="settings-row-sub">Every weight and measurement you have logged.</div>
             </div>
@@ -4184,7 +4224,7 @@ try {
                when Export/Restore/Download/Delete/Clear all moved into
                this modal from the old standalone Data & Backup section.-->
           <div class="settings-row settings-row-nav" onclick="openModal('modal-account')">
-            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></div>
             <div class="settings-row-text">Account &amp; Data
               <div class="settings-row-sub">Sign in details, backup, restore and closing your account.</div>
             </div>
@@ -4196,8 +4236,8 @@ try {
       <div class="section rise">
         <div class="section-head"><h2 class="section-h2">Nutrition</h2></div>
         <div class="section-sub">Recipes and foods you log from.</div>
-        <div class="card">
-          <div class="settings-row settings-row-nav settings-row-accent" onclick="openRecipeList()">
+        <div class="card card-rows">
+          <div class="settings-row settings-row-nav" onclick="openRecipeList()">
             <div class="settings-row-icon"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div>
             <div class="settings-row-text">My Recipes
               <div class="settings-row-sub">Build a recipe once, then log it in a tap.</div>
@@ -4242,7 +4282,7 @@ try {
       <div class="section rise">
         <div class="section-head"><h2 class="section-h2">Exercise</h2></div>
         <div class="section-sub">Movements available when you build sessions.</div>
-        <div class="card">
+        <div class="card card-rows">
           <div class="settings-row settings-row-nav" onclick="openExerciseLibraryEditor()">
             <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>
             <div class="settings-row-text">View / edit library
@@ -18731,6 +18771,61 @@ function renderPlanTools(macro) {
 // is not is worse than no affordance at all.
 // Drops a leading "Step N - " / "Step N: " from a goal label. Returns the
 // original when that prefix is the whole label, so nothing is ever left blank.
+// Shortens a phase name enough to sit under a chart column — roughly a quarter
+// of a 390px screen. Goal names are written for the phase LIST, where there is
+// a full row for them ("Ramp Phase 2 — Mid-climb to maintenance"); under a
+// column that is four or five times the space available.
+//
+// 🚨 It never invents an abbreviation. Every step removes something — the
+// descriptive tail, a filler word, the words before a distinguishing number —
+// so whatever survives is text the person actually typed. An ellipsis is the
+// last resort, and it is a visible admission that the label did not fit rather
+// than a guess at what they meant.
+function shortPhaseLabel(label, max) {
+  // 🚨 `max` is validated, not just defaulted. `names.map(shortPhaseLabel)`
+  // passes the ARRAY INDEX as the second argument, so element 1 would be
+  // shortened to one character and element 2 to two — silently, and only for
+  // the elements after the first. Anything that is not a sensible width is
+  // ignored. (Found by a test that made exactly that mistake.)
+  max = (typeof max === 'number' && max >= 4) ? max : 11;
+  let t = stripStepPrefix(label || '').trim();
+  // 1. Drop the descriptive tail: "Ramp Phase 1 — Gentle lift off" → "Ramp Phase 1".
+  t = t.split(/\s+[\u2014\u2013-]\s+|:\s+/)[0].trim();
+  if (t.length <= max) return t;
+  // 2. Drop filler nouns that carry no information here — every phase is a phase.
+  const trimmed = t.replace(/\b(phase|period|block|stage|cycle)\b/gi, '').replace(/\s+/g, ' ').trim();
+  if (trimmed && trimmed.length <= max) return trimmed;
+  const words = (trimmed || t).split(/\s+/);
+  const last = words[words.length - 1];
+  const lastIsNumber = /^\d+$/.test(last);
+  // 3. A trailing number is the ONE thing that tells sibling phases apart, so
+  //    it is kept with the first word: "Aggressive Deficit 2" → "Aggressive 2".
+  //    🚨 Allowed two characters over `max`, because a digit and a space are
+  //    narrow and the alternative is two columns that read identically.
+  if (words.length > 1 && lastIsNumber) {
+    const candidate = words[0] + ' ' + last;
+    if (candidate.length <= max + 2) return candidate;
+  }
+  // 4. Initialise the leading words and keep the last one whole:
+  //    "Hard Cut Start" → "HC Start", "Maintenance Hold" → "M Hold".
+  //
+  //    🚨 NOT just the last word. That reads well for "Maintenance Hold" →
+  //    "Hold" and is a disaster next to it: "Hard Cut Start" and "Hard Cut
+  //    High Steps" become "Start" and "Steps" — two labels that share no
+  //    visible relationship even though the phases do, and one of which is the
+  //    name of a metric charted three buttons away. Initials keep every word
+  //    represented, so two phases from the same family still look related.
+  if (words.length > 1 && !lastIsNumber) {
+    const initials = words.slice(0, -1).map(w => w.charAt(0).toUpperCase()).join('');
+    const candidate = initials + ' ' + last;
+    if (candidate.length <= max) return candidate;
+    if (last.length <= max) return last;
+  }
+  // 5. Out of removals. Cut, and say so.
+  const head = lastIsNumber && words.length > 1 ? words[0] : (words[0] || t);
+  return head.slice(0, max - 1) + '\u2026';
+}
+
 function stripStepPrefix(label) {
   const stripped = String(label).replace(/^\s*step\s*\d+\s*[-–—:.]\s*/i, '').trim();
   return stripped || label;
@@ -18870,10 +18965,17 @@ function buildStepChartHTML(goals) {
     // The phase name in full, not .split(' ')[0] — that printed "Step" for
     // every column of a queue-built plan, four identical labels.
     const name = stripStepPrefix(g._blocLabel || g.label || 'Goal');
+    const shortLabel = shortPhaseLabel(name);
+    // 🚨 The value lives INSIDE the track, bottom-aligned with the bar, so it
+    // rides on top of the column. As a sibling above the track it sat at the
+    // top of the CHART AREA — a fixed 92px up — so a short bar had its label
+    // floating most of a chart away from it (v8.16 UAT).
     return `<div class="step-col">
-      <div class="step-val">${label}</div>
-      <div class="step-bar-track"><div class="step-bar" style="height:${h}%;background:var(--accent);"></div></div>
-      <div class="step-name${isCurrent ? ' step-name-on' : ''}">${name}</div>
+      <div class="step-bar-track">
+        <div class="step-val">${label}</div>
+        <div class="step-bar" style="height:${h}%;background:var(--accent);"></div>
+      </div>
+      <div class="step-name${isCurrent ? ' step-name-on' : ''}">${shortLabel}</div>
     </div>`;
   }).join('');
 
@@ -19988,7 +20090,7 @@ function renderHomeHeader() {
       <h1 class="page-h1">${greeting}${name}</h1>
     </div>
     <button class="icon-btn" id="home-account-btn" onclick="showScreen('settings')" aria-label="Settings">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 14 0v1"/></svg>
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </button>
   </div>`;
 }
@@ -20452,7 +20554,7 @@ function renderHomeLogBoxes() {
     + `<div class="card">
         <div class="log-field"><div class="label">Weigh-in</div>${weightHtml}</div>
         <div class="log-field"><div class="label">Steps</div>${stepsHtml}</div>
-        <button class="row-plain" onclick="openHomeMeasurements()">
+        <button class="row-plain row-plain-flush" onclick="openHomeMeasurements()">
           <span class="row-btn-text">
             <span class="row-btn-title">Measurements ${measDue ? '<span class="tag tag-due">Due</span>' : ''}</span>
             <span class="row-btn-sub">${measSub}</span>
@@ -23281,8 +23383,18 @@ function renderBody() {
   // Renders a single log entry row — used both for standalone rows and for
   // rows nested inside an expanded month group, so the markup only lives
   // in one place.
-  const bodyLogRow = l => `
-    <div class="swipe-row-wrap" style="border-bottom:0.5px solid var(--border);">
+  // `standalone` — an entry that is NOT inside a month group, because it is
+  // missing weight or steps and so never joined one. Those sit directly on the
+  // sheet, and on the sheet's own background a bare row has nothing to make it
+  // look like an entry at all; the reference draws them as cards (v8.16 UAT).
+  // Inside an expanded month they stay flat rows: they already have the group's
+  // card around them.
+  //
+  // 🚨 Call it as `arr.map(l => bodyLogRow(l))`, never `arr.map(bodyLogRow)` —
+  // map passes the ARRAY INDEX as the second argument, so every row after the
+  // first would silently become a card.
+  const bodyLogRow = (l, standalone) => `
+    <div class="swipe-row-wrap${standalone === true ? ' bw-entry-card' : ''}"${standalone === true ? '' : ' style="border-bottom:0.5px solid var(--border);"'}>
       <div class="swipe-row-content bw-entry" style="border-bottom:none;" onclick="openEditBodyLog('${l.date}')">
         <div>
           <div class="bw-val">${l.weight ? l.weight + ' lbs' : '—'}</div>
@@ -23332,7 +23444,7 @@ function renderBody() {
   });
 
   el.innerHTML = renderItems.map(item => {
-    if (item.type === 'row') return bodyLogRow(item.log);
+    if (item.type === 'row') return bodyLogRow(item.log, true);
     const monthKey    = item.monthKey;
     const groupLogs   = monthGroups[monthKey];
     const isExpanded  = !!bodyExpandedMonths[monthKey];
@@ -23347,7 +23459,7 @@ function renderBody() {
         </div>
         <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${isExpanded ? '180' : '0'}deg)"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      ${isExpanded ? `<div style="padding:0 14px;">${groupLogs.map(bodyLogRow).join('')}</div>` : ''}
+      ${isExpanded ? `<div style="padding:0 14px;">${groupLogs.map(g => bodyLogRow(g)).join('')}</div>` : ''}
     </div>`;
   }).join('');
   requestAnimationFrame(() => initSwipeRows(el));

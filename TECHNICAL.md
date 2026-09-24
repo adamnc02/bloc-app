@@ -5638,6 +5638,42 @@ lookup tolerates a selector list. This matters more than a flaky test: a probe t
 report a **false pass** just as easily, and a verify script that passes vacuously is worse than no
 script at all.
 
+### Settings: the hero opens what the hero shows
+
+The hero displays your name, sex, height and country — every one of which is edited in **About me**
+— so that is what tapping it opens. It carried the app-info sheet at first only because it replaced
+the "BLOC Training App" row that used to stand there. App info moved into the Profile group, where
+About me had been: the two swapped places rather than one being added.
+
+Three rows in that one list also shared a picture — About me, Body logs and Account & Data were all
+variations of a person glyph. Body logs is a weighing scale and Account & Data is a database now.
+
+### Shortening a phase name for a chart column
+
+Plan's nutrition-phase chart gives each column about 47px on a six-phase cycle. Goal names are
+written for the phase LIST, where they get a whole row ("Ramp Phase 2 — Mid-climb to maintenance").
+`shortPhaseLabel()` removes, in order: the step prefix, the descriptive tail after an em dash or
+colon, filler nouns (phase/period/block/stage/cycle), then the words in front of a distinguishing
+number.
+
+🚨 **It never invents text.** Every step takes something away, so whatever survives is what the
+person typed; an ellipsis is the last resort and is a visible admission that the label was cut.
+
+🚨 **The last word alone is not the answer.** It reads beautifully for "Maintenance Hold" → "Hold"
+and is a disaster one row down: Adam's own cycle has "Hard Cut Start" and "Hard Cut High Steps",
+which become "Start" and "Steps" — two labels sharing no visible relationship even though the
+phases do, and one of them the name of a metric charted three buttons away. Leading words are
+initialised instead: "HC Start", "HCH Steps". A phase family still looks like a family.
+
+The label WRAPS to two lines rather than truncating. Shortening hard enough to fit 47px on one line
+is what produced "Steps" in the first place; two short lines lose nothing.
+
+🚨 `max` is validated, not just defaulted. `names.map(shortPhaseLabel)` passes the ARRAY INDEX as
+the second argument, so every element after the first would be shortened to one or two characters —
+silently, and only after the first. The same trap sits on `bodyLogRow(l, standalone)`, where a
+`.map(bodyLogRow)` would turn every row after the first into a card; both call sites pass their
+argument explicitly and both functions are written to survive it if one does not.
+
 ### Two judgement calls left open at the time of writing
 
 - **The Train eyebrow** reads `MC 1 · 21–27 Sept`. The design reference reads `Week 1 · 21–27
