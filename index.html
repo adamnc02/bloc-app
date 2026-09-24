@@ -348,7 +348,49 @@ h3 {
    Weekly Summary table deck (getProgressTablesCard() / progressTablesAnimateTo())
    — none of that deck's three table builders wrap their output in .card,
    so this dedicated hook is what the swipe animation actually targets. */
-.progress-tables-swipe-card { }
+/* 🚨 This was an EMPTY rule. The three table builders deliberately do not wrap
+   their own output in .card (see getProgressTablesCard), and nothing else did
+   either — so the "swipe deck" rendered as loose rows on the page background
+   with no card, no edge and nothing to suggest it could be swiped (v8.16 UAT).
+   .progress-deck's two pseudo-elements are the rest of the stack, peeking out
+   at each side: they are decoration, so they sit behind the card and take no
+   pointer events. Vertically inset 12px so they read as cards UNDER this one
+   rather than as a border. */
+.progress-deck { position: relative; }
+.progress-deck::before,
+.progress-deck::after {
+  content: ''; position: absolute; top: 12px; bottom: 12px; width: 20px;
+  background: var(--surface2); border: 0.5px solid var(--border);
+  z-index: 0; pointer-events: none;
+}
+.progress-deck::before { left: -10px; border-radius: var(--r-card) 0 0 var(--r-card); border-right: 0; }
+.progress-deck::after  { right: -10px; border-radius: 0 var(--r-card) var(--r-card) 0; border-left: 0; }
+.progress-tables-swipe-card {
+  position: relative; z-index: 1;
+  background: var(--surface); border: 0.5px solid var(--border);
+  border-radius: var(--r-card); padding: 8px 16px 12px;
+}
+/* The Best/Middle/Weakest/No data key for the heat squares. Without it the
+   colours are decoration — you can see one week is redder than another and
+   have no way to know what red means (v8.16 UAT). */
+.heat-legend {
+  display: flex; justify-content: space-between; gap: 8px; margin-top: 12px;
+  font-size: 11px; font-weight: 500; color: var(--text3);
+}
+.wk-table { width: 100%; border-collapse: collapse; }
+.wk-table th {
+  font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--text3); text-align: left; padding: 8px 4px; white-space: nowrap;
+}
+/* 🚨 --divider, not --border, and a full 1px. At 0.5px of --border the row
+   rules were invisible on a phone and the table read as floating numbers
+   (v8.16 UAT, "no row horizontal grid lines"). */
+.wk-cell {
+  font-size: 12.5px; color: var(--text2); padding: 9px 4px;
+  border-top: 1px solid var(--divider); white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.wk-cell-date { color: var(--text3); font-size: 12px; }
 .card-accent {
   border-color: var(--accent);
   border-width: 1px;
@@ -2856,7 +2898,9 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 /* ── Hero ────────────────────────────────────────────────────────────── */
 /* The whole card opens Choose cycle. Safe here and deliberately not on the
    Fuel hero, which carries a swipe: this one has no gesture to compete with. */
-.prog-hero { margin-top: 24px; cursor: pointer; }
+/* --r-hero, not the .card default: this is the page's hero, the same shape as
+   Home's and Train's (v8.16 UAT, "inconsistent card border radius"). */
+.prog-hero { margin-top: 24px; cursor: pointer; border-radius: var(--r-hero); }
 .prog-hero:active { transform: scale(0.995); }
 .prog-hero-top { display: flex; align-items: center; gap: 6px; }
 .prog-hero-name {
@@ -2867,9 +2911,14 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .prog-hero-chev { width: 14px; height: 14px; stroke: var(--text3); fill: none; stroke-width: 2.5; stroke-linecap: round; flex-shrink: 0; }
 .prog-hero-eyebrow {
   font-family: var(--font-body); font-size: 11.5px; font-weight: 700;
-  letter-spacing: .14em; text-transform: uppercase; color: var(--text3); margin-top: 18px;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--text3);
 }
-.prog-hero-week { font-size: 13px; font-weight: 500; color: var(--text2); margin-top: 3px; }
+/* "Body weight" and "Week n of N" are one line, pushed to opposite edges — the
+   label says what the figure is, the counter says where in the cycle it sits,
+   and stacking them made the counter read as a second label for the same
+   number (v8.16 UAT). */
+.prog-hero-metric { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 18px; }
+.prog-hero-week { font-size: 12px; font-weight: 500; color: var(--text2); }
 .prog-hero-val {
   font-family: var(--font-display); font-size: 52px; font-weight: 600;
   letter-spacing: -0.03em; line-height: 1; color: var(--text);
@@ -2887,9 +2936,57 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .prog-hero-foot { text-align: center; margin-top: 14px; font-size: 11.5px; font-weight: 500; color: var(--text3); }
 
 /* ── Stat tiles (This week, Last cycle) ──────────────────────────────── */
+/* Three bare figures, equal thirds — no tile, no border. See
+   renderProgressLastCycle for why. */
+.prog-callout-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.prog-callout-row + * { margin-top: 14px; }
+.prog-callout-val {
+  font-family: var(--font-display); font-size: 24px; font-weight: 600;
+  color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+}
+.prog-callout-of { font-family: var(--font-body); font-size: 14px; font-weight: 500; color: var(--text3); }
+/* Lowercase, and UNDER the figure. Uppercase above it read as a column
+   heading, which made three results look like a table (v8.16 UAT). */
+.prog-callout-lbl { font-size: 12px; font-weight: 500; color: var(--text2); margin-top: 3px; }
 .prog-tile-row { display: flex; gap: 8px; }
 .prog-tile-row + * { margin-top: 14px; }
 .prog-tile-delta { font-size: 12px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+
+/* ── A "Read full…" sheet's body ─────────────────────────────────────── */
+/* These three sheets (check-in, cycle review, build next cycle) are the long
+   form of an AI card. They are always fully expanded — the collapsibles that
+   used to be here never worked (see buildCheckinSheetBodyHTML). */
+.sheet-headline {
+  font-family: var(--font-display); font-size: 20px; font-weight: 600;
+  color: var(--text); line-height: 1.3; letter-spacing: -0.015em; margin-bottom: 12px;
+}
+.sheet-rule { height: 1px; background: var(--divider); margin: 18px 0 16px; }
+.sheet-plan + .sheet-plan { margin-top: 16px; }
+.sheet-plan-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.sheet-plan-name { font-family: var(--font-display); font-size: 15px; font-weight: 600; color: var(--text); }
+.sheet-plan-sum { font-size: 12.5px; font-weight: 500; color: var(--text3); margin: 3px 0 8px; line-height: 1.4; }
+/* The chosen plan is marked by its chip, not by being moved — reordering the
+   two around the selection meant the same plan sat in a different place
+   depending on what you had picked. */
+.sheet-plan-on .sheet-plan-name { color: var(--accent2); }
+/* The actions live at the FOOT of the sheet, as a pair of cards. They used to
+   sit inline under each plan's detail, which on a long sheet put the two
+   choices a screen and a half apart (v8.16 UAT). */
+.sheet-actions { margin-top: 22px; }
+.sheet-actions-lbl {
+  font-size: 11.5px; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--text3); margin-bottom: 10px;
+}
+.sheet-choice-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.sheet-choice {
+  text-align: left; padding: 14px; min-width: 0; cursor: pointer;
+  font-family: var(--font-body); color: var(--text);
+  background: var(--surface); border: 1px solid var(--border2); border-radius: var(--r-card);
+}
+.sheet-choice-on { border-color: var(--accent); }
+.sheet-choice:active { transform: scale(0.99); }
+.sheet-choice-name { font-family: var(--font-display); font-size: 14.5px; font-weight: 600; }
+.sheet-choice-sub { font-size: 12px; font-weight: 500; color: var(--text2); margin-top: 3px; line-height: 1.35; }
 
 /* ── The AI cards ────────────────────────────────────────────────────── */
 .ai-card-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
@@ -2915,6 +3012,7 @@ html.auth-likely-signed-in #auth-gate { display: none; }
    is something to do, a grey timer row when there is not. Never beside it. */
 .ai-card-headline + .btn-ghost,
 .ai-card-summary + .btn-ghost,
+.prog-callout-row + .btn-ghost,
 .prog-tile-row + .btn-ghost,
 .empty-inline + .btn-ghost { margin-top: 16px; }
 .ai-action-row {
@@ -6270,7 +6368,7 @@ function buildDemoTourSteps() {
       } },
     { targetId: 'progress-body', screen: 'progress',
       title: 'BLOC explains its reasoning, not just the numbers',
-      body: 'Tap to expand the full narrative \u2014 BLOC walks through exactly why it thinks this is happening before recommending anything.',
+      body: 'BLOC walks through exactly why it thinks this is happening before recommending anything \u2014 tap "Read full check-in" for the whole thing.',
       // _blocAdviceSectionsOpen.narrative only controls the narrative
       // sub-section WITHIN the advice card — it's nested behind a
       // separate outer collapse (_aiAdviceBodyOpen, the "View BLOC AI
@@ -6303,7 +6401,7 @@ function buildDemoTourSteps() {
       } },
     { targetId: 'progress-body', screen: 'progress',
       title: 'The Aggressive plan \u2014 and a way to push back',
-      body: 'This is the faster, more demanding route. Whichever plan you\u2019re actually on, if the numbers don\u2019t sit right, tap \u2018Challenge this\u2019 above \u2014 BLOC will respond with a revised plan, not just an explanation.',
+      body: 'This is the faster, more demanding route. Whichever plan you\u2019re actually on, if the numbers don\u2019t sit right, tap \u2018Challenge this\u2019 in the full check-in \u2014 BLOC will respond with a revised plan, not just an explanation.',
       onEnter: () => {
         const chosenPath = state.blocAdvice && state.blocAdvice.chosenPath;
         _blocAdviceSectionsOpen.selected = chosenPath === 'aggressive';
@@ -6508,7 +6606,7 @@ function startProgressMiniTour() {
         } },
       { targetId: 'progress-body', screen: 'progress',
         title: 'BLOC explains its reasoning, not just the numbers',
-        body: 'Tap to expand the full narrative \u2014 BLOC walks through exactly why it thinks this is happening before recommending anything.',
+        body: 'BLOC walks through exactly why it thinks this is happening before recommending anything \u2014 tap "Read full check-in" for the whole thing.',
         onEnter: () => {
           _blocAdviceSectionsOpen.narrative = true;
           _blocAdviceSectionsOpen.selected = false;
@@ -6527,7 +6625,7 @@ function startProgressMiniTour() {
         } },
       { targetId: 'progress-body', screen: 'progress',
         title: 'The Aggressive plan \u2014 and a way to push back',
-        body: 'This is the faster, more demanding route. Whichever plan you\u2019re actually on, if the numbers don\u2019t sit right, tap \u2018Challenge this\u2019 above \u2014 BLOC will respond with a revised plan, not just an explanation.',
+        body: 'This is the faster, more demanding route. Whichever plan you\u2019re actually on, if the numbers don\u2019t sit right, tap \u2018Challenge this\u2019 in the full check-in \u2014 BLOC will respond with a revised plan, not just an explanation.',
         onEnter: () => {
           const chosenPath = state.blocAdvice && state.blocAdvice.chosenPath;
           _blocAdviceSectionsOpen.selected = chosenPath === 'aggressive';
@@ -11675,8 +11773,10 @@ function buildProgressHeroHTML(macro) {
       <svg class="prog-hero-chev" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
       <span class="chip" style="--chip-c:${statusColour};margin-left:auto;">${statusLabel}</span>
     </div>
-    <div class="prog-hero-eyebrow">Body weight</div>
-    <div class="prog-hero-week">${isFuture ? 'Not started' : `Week ${weekNo} of ${totalWks}`}</div>
+    <div class="prog-hero-metric">
+      <div class="prog-hero-eyebrow">Body weight</div>
+      <div class="prog-hero-week">${isFuture ? 'Not started' : `Week ${weekNo} of ${totalWks}`}</div>
+    </div>
     <div class="prog-hero-val digits">${latestBw !== null ? latestBw.toFixed(1) : '—'}<span class="prog-hero-unit"> lbs</span></div>
     ${statusLine ? `<div class="prog-hero-status">${statusLine}</div>` : ''}
     ${buildProgressHeroChart(cycleLogs, macro.targetBw)}
@@ -12842,9 +12942,28 @@ function renderProgress() {
 // Each fills its body on open rather than at boot: all five read state that
 // changes while the page is up (a check-in lands, a review runs, a plan is
 // chosen), and a body built once would show whatever was true at boot.
+// 🚨 The date belongs in the sheet's TITLE, not stacked above the headline in
+// the body where it competed with it for the top of the sheet (v8.16 UAT). The
+// reference reads "Check-in · 24 Aug". setSheetTitle() writes textContent, so
+// nothing that matters may be a CHILD of a .modal-title — see
+// verify-icon-labels-survive.mjs.
+function setSheetTitle(modalId, base, dateStr) {
+  const sheet = document.getElementById(modalId);
+  const el = sheet && sheet.querySelector('.modal-title');
+  if (!el) return;
+  const when = dateStr
+    ? new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+    : '';
+  el.textContent = when ? `${base} \u00b7 ${when}` : base;
+}
+
 function openCheckinSheet() {
   const el = document.getElementById('checkin-full-body');
   if (el) el.innerHTML = buildCheckinSheetBodyHTML();
+  const macro = resolveProgressMacro();
+  const st = macro ? computeCheckinState(macro) : null;
+  setSheetTitle('modal-checkin-full', 'Check-in',
+    st && st.hasStoredAdvice ? st.stored.storedAt : null);
   openModal('modal-checkin-full');
 }
 
@@ -12856,6 +12975,10 @@ function openCycleReviewSheet(macroId) {
       ? buildCycleReviewSummaryHTML(macro, true)
       : '<div class="empty-inline">This cycle has not been reviewed yet.</div>';
   }
+  // A review covers a whole cycle, so its date is the cycle's END, not a
+  // generated-at stamp.
+  setSheetTitle('modal-cycle-review-full', 'Cycle review',
+    macro ? toLocalDateStr(getMacroEndDate(macro)) : null);
   openModal('modal-cycle-review-full');
 }
 
@@ -12874,6 +12997,9 @@ function openNextCycleAdviceSheet() {
         || '<div class="empty-inline">No next-cycle advice has been generated for this cycle yet.</div>';
     }
   }
+  const advice = state.nextCycleAdvice;
+  setSheetTitle('modal-next-cycle-full', 'Build next cycle',
+    (advice && macro && advice.macroId === macro.id) ? advice.storedAt : null);
   openModal('modal-next-cycle-full');
 }
 
@@ -13103,7 +13229,7 @@ function renderProgressWeekByWeek() {
   const el = document.getElementById('progress-week-by-week');
   if (!el) return;
   el.innerHTML = sectionHeader('Week by week', 'Each week of this cycle, and how the numbers moved.')
-    + `<div id="progress-tables-wrap"></div>
+    + `<div id="progress-tables-wrap" class="progress-deck"></div>
        <div id="progress-tables-deckbar" class="deck-bar"></div>`
     + sectionEnd();
   renderProgressTables();
@@ -13292,12 +13418,34 @@ function renderProgressLastCycle(macro) {
     // and a narrative. The waist change is computed here from the cycle's own
     // measurement logs, which are the only record of it.
     const waist = computeCycleWaistChange(macro);
-    statsHtml = `<div class="prog-tile-row">
-      <div class="fuel-rest-tile"><div class="fuel-rest-tile-lbl">Weight</div><div class="fuel-rest-tile-val">${r.totalWeightChange !== null && r.totalWeightChange !== undefined ? (r.totalWeightChange > 0 ? '+' : '') + r.totalWeightChange : '—'}<span class="fuel-rest-tile-unit"> lbs</span></div></div>
-      <div class="fuel-rest-tile"><div class="fuel-rest-tile-lbl">Waist</div><div class="fuel-rest-tile-val">${waist !== null ? (waist > 0 ? '+' : '') + fmtInch(waist) + '\u2033' : '\u2014'}</div></div>
-      <div class="fuel-rest-tile"><div class="fuel-rest-tile-lbl">Compliance</div><div class="fuel-rest-tile-val" style="color:${scoreColour};">${r.complianceScore}<span class="fuel-rest-tile-unit">/10</span></div></div>
+    // 🚨 No tiles. These three are the cycle's result, and a bordered tile made
+    // each one look like a control (v8.16 UAT). Figure first, lowercase label
+    // under it — the reference's treatment.
+    //
+    // Green marks a change that went the way this cycle wanted. A gain cycle
+    // wants the weight UP, so the sign alone cannot decide it; maintenance
+    // wants neither, so nothing is coloured there.
+    const goalDir = macro.goalType === 'gain' || macro.goalType === 'strength' ? 1
+                  : macro.goalType === 'maintenance' ? 0 : -1;
+    const wChg = (r.totalWeightChange !== null && r.totalWeightChange !== undefined) ? r.totalWeightChange : null;
+    const wGood = goalDir !== 0 && wChg !== null && Math.sign(wChg) === goalDir;
+    // The waist is read the same way in every cycle except a bulk: smaller is
+    // the win, and a maintenance cycle still counts it.
+    const waistGood = goalDir !== 1 && waist !== null && waist < 0;
+    const callout = (value, label, colour) =>
+      `<div class="prog-callout">
+         <div class="prog-callout-val"${colour ? ` style="color:${colour};"` : ''}>${value}</div>
+         <div class="prog-callout-lbl">${label}</div>
+       </div>`;
+    statsHtml = `<div class="prog-callout-row">
+      ${callout(wChg !== null ? (wChg > 0 ? '+' : '') + wChg : '\u2014', 'lbs', wGood ? 'var(--green-text)' : '')}
+      ${callout(waist !== null ? (waist > 0 ? '+' : '') + fmtInch(waist) + '\u2033' : '\u2014', 'off the waist', waistGood ? 'var(--green-text)' : '')}
+      ${callout(`${r.complianceScore}<span class="prog-callout-of">/10</span>`, 'compliance', scoreColour)}
     </div>`;
-    summaryHtml = `<div class="ai-card-headline">${r.headline}</div>`;
+    // 🚨 .ai-card-summary, NOT .ai-card-headline. The narrative under the
+    // callouts was 17px Sora 600 — heavier and larger than the figures it was
+    // explaining, so the card read headline-first (v8.16 UAT).
+    summaryHtml = `<div class="ai-card-summary">${r.headline}</div>`;
     actionHtml = aiTimerRow(`Reviewed · this cycle ended ${endFmt}`);
   } else if (reviewDue) {
     summaryHtml = `<div class="ai-card-summary">This cycle has reached its end date. The review gives you a compliance score, a bodyfat-change estimate and a full narrative — it can only be run once.</div>`;
@@ -13419,8 +13567,7 @@ function computeCycleWaistChange(macro) {
 function renderProgressStatistics(macro) {
   const el = document.getElementById('progress-statistics');
   if (!el) return;
-  el.innerHTML = sectionHeader('Statistics', 'Your last seven days, day by day.', {
-      slot: `<div id="progress-stats-view-toggle" style="display:flex;gap:6px;"></div>` })
+  el.innerHTML = sectionHeader('Statistics', 'Your last seven days, day by day.')
     + `<div class="card">
         <div id="progress-nutrition"></div>
         <div class="stats-sheet-btns">
@@ -13497,7 +13644,12 @@ function buildWeeklySummaryCardHTML() {
         if (avgWeight !== null) prevAvgWeight = avgWeight;
 
         b.push({
-          label:   'W' + wn++,
+          // The week commencing date, not "W3". A cycle's third week means
+          // nothing on its own; the date it started is what you match against
+          // a memory of the week (v8.16 UAT). wn is still counted — the swings
+          // and measurements cards label by it.
+          label:   new Date(bStart + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+          weekNo:  wn++,
           avgWeight,
           delta,
           steps:   sD.length ? Math.round(sD.reduce((s,d) => s + dayMap[d].steps,   0) / sD.length) : null,
@@ -13540,39 +13692,43 @@ function buildWeeklySummaryCardHTML() {
     return `<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${colour};margin-right:4px;flex-shrink:0;vertical-align:middle;"></span>`;
   }
 
+  // 🚨 Units live in the COLUMN HEADING, never in the cell. Repeating "lbs" on
+  // every row of a six-column table on a 390px screen is what pushed the last
+  // two columns off the edge (v8.16 UAT).
   const tableRows = weekBuckets.map(b => {
     const deltaStr = b.delta === null ? '—'
-      : (b.delta >= 0 ? '+' : '') + b.delta.toFixed(1) + ' lbs';
+      : (b.delta >= 0 ? '+' : '') + b.delta.toFixed(1);
     const deltaCol = b.delta === null ? 'var(--text3)' : b.delta < 0 ? 'var(--accent)' : b.delta > 0 ? 'var(--red)' : 'var(--text2)';
-    const avgWeightStr = b.avgWeight === null ? '—' : b.avgWeight.toFixed(1) + ' lbs';
+    const avgWeightStr = b.avgWeight === null ? '—' : b.avgWeight.toFixed(1);
     const stepsHeat   = heatColour(b.steps,   allSteps,   false); // high steps = good
     const kcalHeat    = heatColour(b.kcal,    allKcal,    kcalLowGood);
     const proteinHeat = heatColour(b.protein, allProtein, false); // high protein = good
     return `<tr>
-      <td style="font-family:var(--font-mono);font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);">${b.label}</td>
-      <td style="font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);">${avgWeightStr}</td>
-      <td style="font-size:11px;color:${deltaCol};padding:5px 4px;border-bottom:0.5px solid var(--border);font-weight:500;">${deltaStr}</td>
-      <td style="font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);">${sq(kcalHeat)}${b.kcal !== null ? b.kcal.toLocaleString() : '—'}</td>
-      <td style="font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);">${sq(stepsHeat)}${b.steps !== null ? b.steps.toLocaleString() : '—'}</td>
-      <td style="font-size:11px;color:var(--text2);padding:5px 4px;border-bottom:0.5px solid var(--border);">${sq(proteinHeat)}${b.protein !== null ? b.protein + 'g' : '—'}</td>
+      <td class="wk-cell wk-cell-date">${b.label}</td>
+      <td class="wk-cell">${avgWeightStr}</td>
+      <td class="wk-cell" style="color:${deltaCol};font-weight:600;">${deltaStr}</td>
+      <td class="wk-cell">${sq(kcalHeat)}${b.kcal !== null ? b.kcal.toLocaleString() : '—'}</td>
+      <td class="wk-cell">${sq(stepsHeat)}${b.steps !== null ? b.steps.toLocaleString() : '—'}</td>
+      <td class="wk-cell">${sq(proteinHeat)}${b.protein !== null ? b.protein : '—'}</td>
     </tr>`;
   }).join('');
 
   return `<div style="margin-top:8px;">
     <div style="overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;">
+      <table class="wk-table">
         <thead>
           <tr>
-            <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Week</th>
-            <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Avg weight</th>
-            <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Δ weight</th>
-            <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Avg kcal</th>
-            <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Avg steps</th>
-            <th style="font-size:10px;color:var(--text2);text-align:left;padding:4px 4px;font-weight:500;">Avg prot</th>
+            <th>Week</th><th>Lbs</th><th>Δ</th><th>Kcal</th><th>Steps</th><th>Prot</th>
           </tr>
         </thead>
         <tbody>${tableRows}</tbody>
       </table>
+    </div>
+    <div class="heat-legend">
+      <span>${sq('var(--green)')}Best</span>
+      <span>${sq(HEATMAP_AMBER)}Middle</span>
+      <span>${sq('var(--red)')}Weakest</span>
+      <span>${sq('var(--text3)')}No data</span>
     </div>
   </div>`;
 }
@@ -15402,12 +15558,19 @@ function buildCheckinSheetBodyHTML() {
       ${stepsHtml}${exceedNote}`;
   }
 
-  const storedFmt = new Date(stored.storedAt + 'T00:00:00').toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'});
   const chosenPath   = stored.chosenPath; // null | 'sustainable' | 'aggressive'
-  const narrativeOpen = _blocAdviceSectionsOpen.narrative;
-  const altOpen       = _blocAdviceSectionsOpen.alt;
-  const selectedOpen  = _blocAdviceSectionsOpen.selected;
-
+  // 🚨 Every section of this sheet is OPEN, always. The three collapsibles that
+  // used to be here were BROKEN: their onclick flipped a flag and called
+  // renderProgress(), which rebuilds the PAGE — but this sheet's body is filled
+  // by openCheckinSheet() writing into #checkin-full-body, and renderProgress()
+  // never touches it. So a tap re-rendered the page behind the sheet and left
+  // the sheet exactly as it was; the narrative could not be read at all
+  // (v8.16 UAT: "they currently don't work anyway so I can't see anything").
+  //
+  // Adam's call was to remove them rather than repair them — a sheet opened by
+  // "Read full check-in" has one job, and collapsing its contents is at odds
+  // with that. _blocAdviceSectionsOpen survives because the demo tour still
+  // writes to it; nothing reads it any more.
   // ── Challenge this advice ─────────────────────────────────────────────────
   // Available the moment a response exists, in both pre-choice and
   // post-choice states — a single one-shot challenge per advice instance.
@@ -15449,13 +15612,6 @@ function buildCheckinSheetBodyHTML() {
     }
   }
 
-  // Toggle helpers — flip a flag on the session-only collapse state and
-  // re-render (defined as inline onclick strings so they work in the
-  // innerHTML context). Deliberately no save() — these reset every reload.
-  const togNarr    = `_blocAdviceSectionsOpen.narrative=!_blocAdviceSectionsOpen.narrative;renderProgress();`;
-  const togAlt     = `_blocAdviceSectionsOpen.alt=!_blocAdviceSectionsOpen.alt;renderProgress();`;
-  const togSelected = `_blocAdviceSectionsOpen.selected=!_blocAdviceSectionsOpen.selected;renderProgress();`;
-
   // ── Narrative section ─────────────────────────────────────────────────────
   const narrativeBody = `
     <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:8px;">${r.narrative.split('\n\n')[0]}</div>
@@ -15466,102 +15622,67 @@ function buildCheckinSheetBodyHTML() {
     ${r.primaryAction ? `<div style="font-size:12px;color:var(--accent);font-weight:500;padding:8px 10px;background:rgba(145,132,217,0.08);border-radius:7px;margin-bottom:4px;">→ ${r.primaryAction}</div>` : ''}
     ${r.secondaryAction ? `<div style="font-size:12px;color:var(--text2);padding:8px 10px;background:var(--surface2);border-radius:7px;margin-top:4px;">→ ${r.secondaryAction}</div>` : ''}`;
 
-  // ── Plan section — branches on whether a plan has been chosen ─────────────
-  let planSection = '';
-  if (!chosenPath) {
-    // Pre-choice: show both plans side by side with choose buttons
-    planSection = `
-    <div style="border-top:0.5px solid var(--border);margin:12px 0 10px;"></div>
-    <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;">
-      🌱 ${sust.label} plan
-      <span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:6px;">${sust.summary}</span>
-    </div>
-    ${goalSummaryBlock(sust, 'sustainable')}
-    ${planMatchesActiveGoal(sust)
-      ? `<div style="font-size:11px;color:var(--text3);text-align:center;padding:9px 0;margin-bottom:14px;">No change from your current goal — nothing to build.</div>`
-      : `<button onclick="startGoalQueue('sustainable')"
-      style="width:100%;padding:11px;border-radius:10px;font-size:13px;font-weight:600;
-             background:var(--accent);color:#06281f;border:none;cursor:pointer;margin-bottom:14px;margin-top:4px;
-             font-family:var(--font-display);">
-      Use ${sust.label} plan →
-    </button>`}
-    <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;">
-      ⚡ ${agg.label} plan
-      <span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:6px;">${agg.summary}</span>
-    </div>
-    ${goalSummaryBlock(agg, 'aggressive')}
-    ${planMatchesActiveGoal(agg)
-      ? `<div style="font-size:11px;color:var(--text3);text-align:center;padding:9px 0;">No change from your current goal — nothing to build.</div>`
-      : `<button onclick="startGoalQueue('aggressive')"
-      style="width:100%;padding:11px;border-radius:10px;font-size:13px;font-weight:600;
-             background:var(--red);color:#fff;border:1px solid var(--red);cursor:pointer;margin-top:4px;
-             font-family:var(--font-display);">
-      Use ${agg.label} plan →
-    </button>`}`;
-  } else {
-    // Post-choice: chosen plan visible, unchosen plan collapsible
-    const chosenPath_obj  = chosenPath === 'sustainable' ? sust : agg;
-    const chosenEmoji     = chosenPath === 'sustainable' ? '🌱' : '⚡';
-    const altPath_obj     = chosenPath === 'sustainable' ? agg  : sust;
-    const altEmoji        = chosenPath === 'sustainable' ? '⚡' : '🌱';
-    const altPathKey      = chosenPath === 'sustainable' ? 'aggressive' : 'sustainable';
+  // ── Plan section ─────────────────────────────────────────────────────────
+  // Both paths are always laid out in full, in a fixed order (Sustainable then
+  // Aggressive) whichever is chosen — the old post-choice layout reordered them
+  // around the selection, so the same plan moved depending on what you had
+  // picked. The ACTIONS are separated out and rendered at the foot of the
+  // sheet (see planActions), which is where the reference puts them.
+  //
+  // 🚨 startGoalQueue() is untouched. It is what builds the goal periods and,
+  // where the plan runs past the cycle end, walks into the new-cycle flow;
+  // these buttons are the only route to it from here.
+  const planBlock = (path, key, emoji) => `
+    <div class="sheet-plan${chosenPath === key ? ' sheet-plan-on' : ''}">
+      <div class="sheet-plan-head">
+        <span class="sheet-plan-name">${emoji} ${path.label} plan</span>
+        ${chosenPath === key ? '<span class="chip" style="--chip-c:var(--accent2);">Selected</span>' : ''}
+      </div>
+      <div class="sheet-plan-sum">${path.summary}</div>
+      ${goalSummaryBlock(path, key)}
+    </div>`;
 
-    planSection = `
-    <div style="border-top:0.5px solid var(--border);margin:12px 0 10px;"></div>
-    <div onclick="${togSelected}"
-         style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:4px 0;margin-bottom:${selectedOpen ? '6px' : '0'};">
-      <span style="font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:0.06em;">${chosenEmoji} Selected plan — ${chosenPath_obj.label}</span>
-      <span style="font-size:12px;color:var(--text3);">${selectedOpen ? '▲' : '▼'}</span>
-    </div>
-    ${selectedOpen ? `
-    <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;">
-      ${chosenEmoji} ${chosenPath_obj.label} plan
-      <span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:6px;">${chosenPath_obj.summary}</span>
-    </div>
-    ${goalSummaryBlock(chosenPath_obj, chosenPath)}` : ''}
-    <div style="border-top:0.5px solid var(--border);margin:10px 0 8px;"></div>
-    <div onclick="${togAlt}"
-         style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:4px 0;">
-      <span style="font-size:11px;color:var(--text3);">${altEmoji} View alternative plan (${altPath_obj.label})</span>
-      <span style="font-size:12px;color:var(--text3);">${altOpen ? '▲' : '▼'}</span>
-    </div>
-    ${altOpen ? `
-    <div style="margin-top:8px;">
-      ${goalSummaryBlock(altPath_obj, altPathKey)}
-      ${planMatchesActiveGoal(altPath_obj)
-        ? `<div style="font-size:11px;color:var(--text3);text-align:center;padding:9px 0;">No change from your current goal — nothing to build.</div>`
-        : `<button onclick="startGoalQueue('${altPathKey}')"
-        style="width:100%;padding:10px;border-radius:10px;font-size:12px;font-weight:600;
-               ${altPathKey === 'aggressive' ? 'background:var(--red);color:#fff;border:1px solid var(--red);' : 'background:var(--surface2);color:var(--text);border:0.5px solid var(--border2);'}
-               cursor:pointer;margin-top:4px;font-family:var(--font-display);">
-        Switch to ${altPath_obj.label} plan →
-      </button>`}
-    </div>` : ''}`;
-  }
+  const planSection = `
+    <div class="sheet-rule"></div>
+    ${planBlock(sust, 'sustainable', '\ud83c\udf31')}
+    ${planBlock(agg,  'aggressive',  '\u26a1')}`;
 
-  const aiBody = `<div>
-    <div style="display:flex;justify-content:flex-end;margin-bottom:6px;">
-      <div style="font-size:10px;color:var(--text3);">${storedFmt}</div>
-    </div>
+  // The two choices, as a pair of cards at the foot of the sheet. A path that
+  // is already live has nothing to build, so it says so instead of offering a
+  // button that would do nothing.
+  const planChoice = (path, key, emoji) => {
+    const isOn = chosenPath === key;
+    const matches = planMatchesActiveGoal(path);
+    if (matches && isOn) {
+      return `<div class="sheet-choice sheet-choice-on">
+        <div class="sheet-choice-name">${emoji} ${path.label}</div>
+        <div class="sheet-choice-sub">You are on this plan</div>
+      </div>`;
+    }
+    return `<button class="sheet-choice${isOn ? ' sheet-choice-on' : ''}" onclick="startGoalQueue('${key}')">
+      <div class="sheet-choice-name">${emoji} ${path.label}</div>
+      <div class="sheet-choice-sub">${isOn ? 'Rebuild this plan' : chosenPath ? `Switch to ${path.label.toLowerCase()}` : path.summary}</div>
+    </button>`;
+  };
+  const planActions = `
+    <div class="sheet-actions">
+      <div class="sheet-actions-lbl">Choose your path</div>
+      <div class="sheet-choice-row">
+        ${planChoice(sust, 'sustainable', '\ud83c\udf31')}
+        ${planChoice(agg,  'aggressive',  '\u26a1')}
+      </div>
+    </div>`;
 
-    <!-- Headline + collapse toggle -->
-    <div onclick="${togNarr}"
-         style="display:flex;align-items:flex-start;justify-content:space-between;cursor:pointer;gap:8px;margin-bottom:${narrativeOpen ? '8px' : '0'};">
-      <div style="font-size:13px;font-weight:600;color:var(--text);flex:1;">${r.headline}</div>
-      <span style="font-size:12px;color:var(--text3);flex-shrink:0;margin-top:2px;">${narrativeOpen ? '▲' : '▼'}</span>
-    </div>
-
-    <!-- Narrative body (collapsible) -->
-    ${narrativeOpen ? narrativeBody : ''}
-
-    <!-- Challenge this advice -->
+  // storedFmt is NOT printed here any more — it is the sheet's TITLE
+  // (openCheckinSheet sets "Check-in · <date>"), which is where the reference
+  // puts it and where it stops competing with the headline (v8.16 UAT).
+  return `<div>
+    <div class="sheet-headline">${r.headline}</div>
+    ${narrativeBody}
     ${challengeHtml}
-
-    <!-- Plan section -->
     ${planSection}
+    ${planActions}
   </div>`;
-
-  return aiBody;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -16068,6 +16189,12 @@ function buildCycleReviewSummaryHTML(macro, alwaysOpen) {
   const r = macro.review;
   // The sheet shows the whole review — there is nothing to collapse behind
   // once the narrative has a page of its own.
+  // 🚨 `open` is now always true: the only caller is openCycleReviewSheet(),
+  // which passes alwaysOpen. The collapse this used to support was the same
+  // broken pattern as the check-in sheet's — toggleCycleReviewCard() called
+  // renderProgress(), which does not rewrite this sheet — and the ▲/▼ it drew
+  // was a control that did nothing (v8.16 UAT). The parameter stays so the
+  // call site still reads as a deliberate choice.
   const open = alwaysOpen || !!_cycleReviewCardOpen[macro.id];
   const bf = r.bodyfatEstimate || {};
   const scoreColor = r.complianceScore >= 8 ? 'var(--accent)' : r.complianceScore >= 5 ? 'var(--amber)' : 'var(--red)';
@@ -16085,13 +16212,7 @@ function buildCycleReviewSummaryHTML(macro, alwaysOpen) {
     ${(r.beforePhotoCount || r.afterPhotoCount) ? `<div style="font-size:11px;color:var(--text3);margin-top:12px;">${r.beforePhotoCount} before / ${r.afterPhotoCount} after photo(s) reviewed — not stored.</div>` : ''}
   ` : '';
 
-  return `<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
-      <div style="flex:1;">
-        <div style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:500;color:var(--accent);">✦ Cycle Review</div>
-        <div style="font-size:13px;font-weight:600;color:var(--text);margin-top:6px;line-height:1.35;">${r.headline}</div>
-      </div>
-      <span style="font-size:12px;color:var(--text3);flex-shrink:0;margin-top:2px;">${open ? '▲' : '▼'}</span>
-    </div>
+  return `<div class="sheet-headline">${r.headline}</div>
     <div style="display:flex;gap:6px;margin-top:10px;">
       <div style="flex:1;min-width:0;text-align:center;">
         <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-weight:600;">Compliance</div>
@@ -17175,12 +17296,9 @@ function buildNextCycleAdviceSectionHTML(macro, rec) {
   const plans = r.plans || [];
   const chosenKey = stored.chosenPlanKey; // null | plan.key
 
-  const narrativeOpen = _nextCycleAdviceSectionsOpen.narrative;
-  const selectedOpen  = _nextCycleAdviceSectionsOpen.selected;
-  const altOpen       = _nextCycleAdviceSectionsOpen.alt;
-  const togNarr     = `_nextCycleAdviceSectionsOpen.narrative=!_nextCycleAdviceSectionsOpen.narrative;renderProgress();`;
-  const togSelected = `_nextCycleAdviceSectionsOpen.selected=!_nextCycleAdviceSectionsOpen.selected;renderProgress();`;
-  const togAlt      = `_nextCycleAdviceSectionsOpen.alt=!_nextCycleAdviceSectionsOpen.alt;renderProgress();`;
+  // 🚨 No collapsibles — same removal, same reason, as buildCheckinSheetBodyHTML.
+  // These toggles called renderProgress(), which never rewrites this sheet's
+  // body, so none of them did anything at all.
 
   const narrativeBody = `
     <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:8px;">${r.narrative.split('\n\n')[0]}</div>
@@ -17215,75 +17333,43 @@ function buildNextCycleAdviceSectionHTML(macro, rec) {
     return `<div style="font-size:11px;color:var(--text3);margin-bottom:6px;">${plan.rationale}</div>${stepsHtml}`;
   }
 
-  let planSection = '';
-  if (!chosenKey) {
-    // Pre-choice: every plan visible, in order, each with its own CTA.
-    // First plan gets the accent/teal treatment (mirrors "sustainable"'s
-    // styling in the mid-cycle feature), any further plan uses the red
-    // "aggressive"-style treatment — reasonable given every current mode
-    // (sustainable/aggressive, preserve-weight/preserve-date, or a lone
-    // single plan) puts the safer/primary option first.
-    planSection = plans.map((plan, i) => `
-      <div style="border-top:0.5px solid var(--border);margin:12px 0 10px;"></div>
-      <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;">
-        ${i === 0 ? '🌱' : '⚡'} ${plan.label}
-        <span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:6px;">${plan.summary}</span>
-      </div>
-      ${planStepsBlock(plan)}
-      ${planMatchesActiveGoal(plan)
-        ? `<div style="font-size:11px;color:var(--text3);text-align:center;padding:9px 0;">No change from your current goal — nothing to build.</div>`
-        : `<button onclick="chooseNextCyclePlan('${plan.key}')"
-        style="width:100%;padding:11px;border-radius:10px;font-size:13px;font-weight:600;
-               background:${i === 0 ? 'var(--accent)' : 'var(--red)'};color:${i === 0 ? '#06281f' : '#fff'};
-               border:${i === 0 ? 'none' : '1px solid var(--red)'};cursor:pointer;margin-top:4px;
-               font-family:var(--font-display);">
-        Use ${plan.label} →
-      </button>`}`).join('');
-  } else {
-    // Post-choice: chosen plan collapsible-open, any other plan(s) tucked
-    // under a single "view alternative(s)" toggle — same pattern as the
-    // mid-cycle feature, generalized over however many other plans exist.
-    const chosenPlan = plans.find(p => p.key === chosenKey);
-    const altPlans    = plans.filter(p => p.key !== chosenKey);
-    planSection = `
-    <div style="border-top:0.5px solid var(--border);margin:12px 0 10px;"></div>
-    <div onclick="${togSelected}"
-         style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:4px 0;margin-bottom:${selectedOpen ? '6px' : '0'};">
-      <span style="font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:0.06em;">🌱 Selected plan${chosenPlan ? ' — ' + chosenPlan.label : ''}</span>
-      <span style="font-size:12px;color:var(--text3);">${selectedOpen ? '▲' : '▼'}</span>
-    </div>
-    ${selectedOpen && chosenPlan ? `
-    <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;">
-      ${chosenPlan.label}
-      <span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:6px;">${chosenPlan.summary}</span>
-    </div>
-    ${planStepsBlock(chosenPlan)}` : ''}
-    ${altPlans.length ? `
-    <div style="border-top:0.5px solid var(--border);margin:10px 0 8px;"></div>
-    <div onclick="${togAlt}"
-         style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:4px 0;">
-      <span style="font-size:11px;color:var(--text3);">⚡ View alternative plan${altPlans.length > 1 ? 's' : ''}</span>
-      <span style="font-size:12px;color:var(--text3);">${altOpen ? '▲' : '▼'}</span>
-    </div>
-    ${altOpen ? altPlans.map(p => `
-    <div style="margin-top:8px;">
-      <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;">
-        ${p.label}
-        <span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:6px;">${p.summary}</span>
-      </div>
-      ${planStepsBlock(p)}
-      ${planMatchesActiveGoal(p)
-        ? `<div style="font-size:11px;color:var(--text3);text-align:center;padding:9px 0;">No change from your current goal — nothing to build.</div>`
-        : `<button onclick="chooseNextCyclePlan('${p.key}')"
-        style="width:100%;padding:10px;border-radius:10px;font-size:12px;font-weight:600;
-               background:var(--surface2);color:var(--text);border:0.5px solid var(--border2);
-               cursor:pointer;margin-top:4px;font-family:var(--font-display);">
-        Switch to ${p.label} plan →
-      </button>`}
-    </div>`).join('') : ''}` : ''}`;
-  }
+  // Every plan, in the order BLOC returned them, always open. The ACTIONS are
+  // lifted out to the foot of the sheet (planActions) — see the same change in
+  // buildCheckinSheetBodyHTML.
+  //
+  // 🚨 chooseNextCyclePlan() is untouched. It is what starts the new-cycle
+  // build, and these buttons are the only route to it from here.
+  const planSection = `
+    <div class="sheet-rule"></div>
+    ${plans.map((plan, i) => `
+      <div class="sheet-plan${chosenKey === plan.key ? ' sheet-plan-on' : ''}">
+        <div class="sheet-plan-head">
+          <span class="sheet-plan-name">${i === 0 ? '\ud83c\udf31' : '\u26a1'} ${plan.label}</span>
+          ${chosenKey === plan.key ? '<span class="chip" style="--chip-c:var(--accent2);">Selected</span>' : ''}
+        </div>
+        <div class="sheet-plan-sum">${plan.summary}</div>
+        ${planStepsBlock(plan)}
+      </div>`).join('')}`;
 
-  const storedFmt = new Date(stored.storedAt + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const planActions = plans.length ? `
+    <div class="sheet-actions">
+      <div class="sheet-actions-lbl">${chosenKey ? 'Change your plan' : 'Choose your plan'}</div>
+      <div class="sheet-choice-row">
+        ${plans.map((plan, i) => {
+          const isOn = chosenKey === plan.key;
+          if (planMatchesActiveGoal(plan) && isOn) {
+            return `<div class="sheet-choice sheet-choice-on">
+              <div class="sheet-choice-name">${i === 0 ? '\ud83c\udf31' : '\u26a1'} ${plan.label}</div>
+              <div class="sheet-choice-sub">You are on this plan</div>
+            </div>`;
+          }
+          return `<button class="sheet-choice${isOn ? ' sheet-choice-on' : ''}" onclick="chooseNextCyclePlan('${plan.key}')">
+            <div class="sheet-choice-name">${i === 0 ? '\ud83c\udf31' : '\u26a1'} ${plan.label}</div>
+            <div class="sheet-choice-sub">${isOn ? 'Rebuild this plan' : plan.summary}</div>
+          </button>`;
+        }).join('')}
+      </div>
+    </div>` : '';
 
   // ── Refresh with cycle review ─────────────────────────────────────────
   // One-shot, matching "Challenge this advice" for check-ins (dev
@@ -17303,22 +17389,13 @@ function buildNextCycleAdviceSectionHTML(macro, rec) {
       </div>`
     : '';
 
-  return `<div style="margin-top:10px;border-top:0.5px solid var(--border);padding-top:10px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-      <div style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:var(--r-sm);
-                  font-size:10px;font-weight:600;background:rgba(145,132,217,0.12);color:var(--accent);">
-        ✦ BLOC second opinion
-      </div>
-      <div style="font-size:10px;color:var(--text3);">${storedFmt}</div>
-    </div>
-    <div onclick="${togNarr}"
-         style="display:flex;align-items:flex-start;justify-content:space-between;cursor:pointer;gap:8px;margin-bottom:${narrativeOpen ? '8px' : '0'};">
-      <div style="font-size:13px;font-weight:600;color:var(--text);flex:1;">${r.headline}</div>
-      <span style="font-size:12px;color:var(--text3);flex-shrink:0;margin-top:2px;">${narrativeOpen ? '▲' : '▼'}</span>
-    </div>
-    ${narrativeOpen ? narrativeBody : ''}
+  // storedFmt goes in the sheet's TITLE, set by openNextCycleAdviceSheet().
+  return `<div>
+    <div class="sheet-headline">${r.headline}</div>
+    ${narrativeBody}
     ${refreshHtml}
     ${planSection}
+    ${planActions}
     <div id="next-cycle-advice-error" style="display:none;font-size:11px;color:var(--red);margin-top:6px;"></div>
   </div>`;
 }
@@ -17982,16 +18059,15 @@ function buildStatRowAllTimeChart(cycleDays, actualFn, targetFn, color, overColo
 // when today actually falls within the selected cycle — browsing a past
 // cycle shows "—" there rather than today's real (out-of-cycle) numbers.
 //
-// A separate 7-Day/All toggle (progressStatsAllView) switches every row
-// between this compact view and a full-cycle horizontally-scrollable bar
-// chart with no callout numbers (see buildStatRowAllTimeChart), which is
-// intentionally still scoped to the whole cycle (cycleDays) — that toggle
-// is the one place a full-cycle view belongs.
-let progressStatsAllView = false;
-function setProgressStatsView(isAll) {
-  progressStatsAllView = isAll;
-  renderProgressNutr();
-}
+// 🚨 The 7-Day/All toggle was REMOVED in the v8.16 UAT. The full-cycle view it
+// switched to is the same thing the All-time stats sheet shows, reached by a
+// button in this very card — so the section had two routes to one view, one of
+// them a pair of tags in the section header slot that looked like a filter.
+// The section keeps its 7-day view and its sublabel says so.
+//
+// The full-cycle rendering itself is NOT deleted: renderProgressNutr(id, true)
+// still builds it, and that is how the All-time sheet is drawn
+// (openAllTimeStatsSheet → renderProgressNutr('all-time-stats-body', true)).
 
 // The statistics card. `targetId` lets the All-time sheet render the same
 // builder into its own container: the sheet IS this card's "All" view, so
@@ -18006,16 +18082,9 @@ function renderProgressNutr(targetId, forceAll) {
   const cycleDays = getCycleDays(macro);
   const days = cycleDays.slice(-7); // for the mini bar chart only
   const isToday = progressToggle.nutr === 'today';
-  const isAll = forceAll !== undefined ? forceAll : progressStatsAllView;
+  // Only the All-time sheet asks for the full-cycle view now — see above.
+  const isAll = forceAll === true;
   const todayInCycle = cycleDays.some(d => d.date === today);
-
-  // Toggle buttons
-  const toggleEl = targetId ? null : document.getElementById('progress-stats-view-toggle');
-  if (toggleEl) {
-    toggleEl.innerHTML = `
-      <span class="tag${!isAll ? ' active' : ''}" onclick="event.stopPropagation();setProgressStatsView(false)">7-Day</span>
-      <span class="tag${isAll ? ' active' : ''}" onclick="event.stopPropagation();setProgressStatsView(true)">All</span>`;
-  }
 
   // ── Steps row ──
   const stepsGoal = goal ? (goal.steps||0) : 0;
