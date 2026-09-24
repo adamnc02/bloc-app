@@ -4677,6 +4677,18 @@ so backups round-trip both ways.
 - Plan's step chart auto-cycles its metric, which is new motion on a timer (§88).
 - The remaining page-level changes land with their own phases and are documented as they do.
 
+Added by the v8.16 UAT round (§92):
+
+- Progress, Train and Plan snap to the cycle today falls inside on page entry. Previously they kept
+  whatever cycle was last created or picked, however long ago it ended.
+- On the **Plan page**, a session day and the progression preview open as sheets instead of
+  expanding in place. Train's Change session did the same.
+- The three Progress "Read full…" sheets are fully expanded; their collapsibles never worked.
+- Progress's Statistics section lost its 7-Day/All toggle. The full-cycle view it switched to is
+  the same one the All-time stats button in that card opens.
+- Fuel's Quick add moved from the Meals section header into Shortcuts, which is now three tiles.
+- Home's Measurements row carries the last-logged figures as a sublabel.
+
 ---
 
 ## §85 — v8.16: the Train screen
@@ -5373,3 +5385,150 @@ checks then fail.
 literal text `enterDemoMode()`, so an `indexOf()` over the raw slice matched the comment
 above the guard and reported the guard as too late — a false failure from a probe
 reading its own neighbours.
+
+---
+
+## §92 — v8.16 UAT: what the review round changed, and the four silent failures it found
+
+The v8.16 UAT (2026-09-24) produced ~70 items across all six screens. Most were presentation and
+are described in the section for the page they belong to. This section records the **mechanisms**
+that changed globally, and — separately — the four defects that were **invisible from the screen**
+until someone looked for them. Those four are the reason this section exists at all; a list of
+"made the corners rounder" would not be worth keeping.
+
+### The four silent failures
+
+**1. `state.currentMacroId` never re-derives from the calendar.** It is written when a cycle is
+CREATED or PICKED, and nothing else ever writes it. The day a cycle ended, Progress, Train and Plan
+all kept opening on the finished one, and the only way to reach the cycle you were actually in was
+to step the arrows forward by hand.
+
+🚨 **Two different things are both called "the current cycle", and conflating them is the plausible
+wrong fix:**
+
+| | |
+|---|---|
+| What a page is SHOWING | `state.currentMacroId` / `progressViewMacroId`. The cycle arrows move these, and browsing history that way has to keep working. |
+| The DATE-ACTIVE cycle | The one today falls inside. Nothing chose it; the calendar did. |
+
+`getDateActiveMacroId()` answers the second. `resetToDateActiveMacro()` points both selections at
+it, and is called **from `showScreen()` — page entry, not render**. Called from `renderProgress()`
+it would re-run immediately after `cycleProgressMacro()` set a new cycle and snap the view straight
+back, so the arrows would appear broken. It returns null between cycles and after the last one, and
+the previous selection is then left alone rather than blanked. `verify-date-active-cycle.mjs` pins
+all of this, including a check that the reset is wired into `showScreen()` and NOT into
+`renderProgress()`.
+
+**2. The scrim closed a sheet and then opened whatever was under the tap.** `initModal()`'s
+backdrop handler called `e.stopPropagation()` but not `e.preventDefault()`. The browser still
+synthesises `mousedown`/`mouseup`/`click` about 300ms after `touchstart`; by then `dismiss()` has
+removed `.open`, the overlay is back to `pointer-events: none`, and the synthetic click lands on the
+button underneath. 🚨 `preventDefault()` is the load-bearing call, not `stopPropagation()`. The
+listener is already registered `{ passive: false }`, which is what makes it legal.
+
+**3. Three "Read full…" sheets had collapsibles that could not work.** Every toggle in the
+check-in, cycle-review and next-cycle-advice sheets flipped a flag and called `renderProgress()` —
+which rebuilds the **page**. Those sheets' bodies are written by `openCheckinSheet()` /
+`openCycleReviewSheet()` / `openNextCycleAdviceSheet()` into their own containers, which
+`renderProgress()` never touches. A tap re-rendered the page behind the sheet and left the sheet
+identical. The narrative was unreadable, and nothing anywhere reported an error.
+
+🚨 **The general rule this leaves behind: a control inside a sheet must re-render the SHEET.** Where
+a sheet mirrors page state, the page's render function calls the sheet's — `renderPlan()` calls
+`renderPlanDaySession()` for exactly this reason. All three sheets are now fully expanded and their
+toggles are gone.
+
+**4. A `:last-child` rule that could never match.** Superset cards drew a divider under their final
+exercise because `.ss-row:last-child { border-bottom: none }` never matched: the expand chevron —
+an `<svg>`, not a row — was the container's real last child. Replaced with
+`.ss-row + .ss-row { border-top }`, which cannot fail that way whatever else the container ends up
+holding. **Prefer an adjacent-sibling rule to a `:last-child` reset** wherever a container may grow
+a non-row child later.
+
+A fifth, nearly the same shape: `.progress-tables-swipe-card { }` was an **empty rule**. The three
+table builders deliberately do not wrap their own output in `.card` (there is a comment saying so),
+and nothing else did either, so Progress's "swipe deck" rendered as loose rows on the page
+background with no card at all.
+
+### The entrance observer's rootMargin was the wrong sign
+
+`setupScreenEntrance()` used `rootMargin: '0px 0px -8% 0px'`, with a comment saying "fire just
+before it is flush". A **negative** bottom margin SHRINKS the observer root, which does the
+opposite: an element parked in the bottom 8% of the viewport is on screen, with visible space
+around it, and still carries `.will-rise` (opacity 0). Settings' next section header landed exactly
+in that band and simply was not drawn until you scrolled.
+
+It is `'0px 0px 12% 0px'` now — positive, so the root's bottom is **extended** and an element rises
+just before it scrolls in. 🚨 **Erring early costs nothing; erring late leaves visible blank space
+on the page.** This affected every screen; Settings is only where the dead band happened to line up
+with a section header.
+
+### Text characters are not icons
+
+v8.16 shipped `›`, `+` and `✕` as literal characters where an icon was meant. A glyph takes the
+font's own weight and optical size, so it renders visibly thinner and smaller than every real icon
+beside it, and **cannot be stroke-matched** — the only fix is to stop using one.
+
+`icoSvg(path, size, extra)` and its named builders (`icoChevron`, `icoChevDown`, `icoPlus`,
+`icoList`, `icoRuler`, `icoPlay`, `icoSwitch`) are the whole icon set, each path lifted from the
+design reference at its 1.8 stroke. `.settings-row-nav::after` is the one place that cannot hold an
+element, so it uses `--chev-mask` — the same path as a CSS mask, tinted with `background:
+currentColor`.
+
+🚨 **An icon inside an element that JS later writes with `textContent` is deleted on the first
+state change.** The rest timer's Start/Pause/Resume buttons were exactly that, and the icon would
+have vanished on the first tap, on a control nobody would think to re-check. `setTimerBtn(id,
+label, accent)` rewrites label and icon together, and `verify-icon-labels-survive.mjs` fails if a
+`textContent` write to either button ever comes back. **The same trap is why the sheet ✕ is
+positioned onto the title line with CSS rather than being made a child of `.modal-title`:** nine
+titles have their text set from JS by id, so as a child it would be deleted on nine sheets and
+survive on the other fifty-five.
+
+### Shape, fields and rows
+
+- **`.card` adopted `--r-card`.** It was still on the legacy `--r` (8px) while §80's shape scale
+  defined `--r-card` (16px). One token, every card in the app. `.prog-hero` and `.plan-hero` took
+  `--r-hero` at the same time.
+- **Fields sit on `--bg`** — a step DARKER than the card holding them, so an input reads as a well
+  rather than a raised tile — at `--r-btn-sm` and **16px**, which is the iOS threshold below which
+  focusing a field zooms the page. `input:not([type=range]):not([type=file])` excludes the two
+  kinds that are not boxes and that the `min-height` would deform.
+- **`.toggle-row.acc`** is the emphatic toggle: a solid `--accent` fill on the selected segment.
+  It marks a switch that changes MODE (the rest timer, Plan's microcycle picker) rather than one
+  that filters a view, which keeps the quieter `--surface3` default.
+- **`.card-rows`** gives a card whose whole content is rows the reference's 6px/12px padding —
+  18px above the first row and below the last, 24px around the divider between them. The padding is
+  on the CARD, not the row, because `.row-plain` is also used in cards that hold other things.
+- **`.row-btn-title` / `.row-btn-sub` are `display: block`.** They were spans, so at every call
+  site that used spans rather than divs the title and subtitle ran inline — most visibly on the
+  Fuel meal sheet.
+
+### The Plan page's chevron rule
+
+Adam, 2026-09-24: *"everything on the plan page with a chevron loads a modal, no exceptions on the
+plan page."* Two things moved, and in both cases only the **container** changed:
+
+- **Weekly sessions** is one `.card-rows` with a row per session day. `buildPlanDayBodyHTML()` holds
+  the editable exercise list — lifted verbatim, every handler name, drag attribute and swipe
+  wrapper intact — and `modal-plan-session` renders it. `renderPlan()` calls
+  `renderPlanDaySession()` so an edit updates the sheet and not only the page behind it.
+  `planDayCollapsed` and `togglePlanDaySession()` are gone.
+- **Progression preview** opens `modal-plan-preview` with every session block expanded.
+  `planExpandedSessions` and `togglePlanSession()` are gone.
+
+An empty session shows a **+ Add** button in place of the chevron: there is nothing to open yet.
+
+🚨 **This rule is scoped to Plan.** Train's exercise cards still expand in place — that is where you
+log sets, and a sheet between you and the set table would be in the way. Train's *Change session*
+did move to a sheet (`modal-train-session`), because the panel it replaced pushed the rest of the
+page down as you reached for it.
+
+### Two judgement calls left open at the time of writing
+
+- **The Train eyebrow** reads `MC 1 · 21–27 Sept`. The design reference reads `Week 1 · 21–27
+  Sept`, but §85 records a deliberate decision that this line says "MC n": a mesocycle can span two
+  calendar weeks, so calling it a week would contradict the picker, the logs and every other
+  screen. The simplification applied was dropping "of N" — the eyebrow is a locator, not a progress
+  bar.
+- **The Settings hero's name** is derived from the signed-in email's local part
+  (`adam.cox` → "Adam Cox"), because there is no name field anywhere in `state`.
