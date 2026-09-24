@@ -2860,6 +2860,92 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .stats-sheet-btns { display: flex; gap: 8px; margin-top: 4px; }
 .stats-sheet-btns .btn-block { min-height: 46px; }
 
+/* ══════════════════════════════════════════════════════════════════════
+   v8.16 PHASE 5 — PLAN
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Hero ────────────────────────────────────────────────────────────── */
+.plan-hero { margin-top: 24px; cursor: pointer; }
+.plan-hero:active { transform: scale(0.995); }
+.plan-hero-top { display: flex; align-items: center; gap: 8px; }
+.plan-hero-lbl { font-size: 12.5px; font-weight: 600; color: var(--text2); }
+.plan-hero-divider { height: 1px; background: var(--divider); margin: 20px 0 18px; }
+.plan-hero-foot { text-align: center; margin-top: 14px; font-size: 11.5px; font-weight: 500; color: var(--text3); }
+
+/* Mesocycle pills. The current one is accent-filled and pulses — the only
+   thing on the card that moves, so it reads as "you are here". */
+.meso-row { display: flex; gap: 6px; margin-top: 16px; }
+.meso-col { flex: 1; min-width: 0; text-align: center; }
+.meso-pill { height: 10px; border-radius: 999px; background: var(--surface3); }
+.meso-pill-on { background: var(--accent); animation: pulse 2.6s ease-in-out infinite; }
+.meso-lbl { font-size: 10.5px; font-weight: 600; color: var(--text3); margin-top: 7px; letter-spacing: .04em; }
+.meso-lbl-on { color: var(--text); }
+.meso-date { font-size: 9.5px; font-weight: 500; color: var(--text3); margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+.plan-extend-badge {
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  margin-top: 12px; padding: 12px 16px; border-radius: var(--r-btn);
+  border: 1px solid var(--border2); background: var(--surface2);
+  font-size: 12.5px; font-weight: 500; color: var(--text2);
+}
+.plan-extend-badge svg { width: 15px; height: 15px; stroke: var(--accent); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.plan-extend-badge span { flex: 1; min-width: 0; }
+.plan-extend-chev { stroke: var(--text3) !important; width: 14px !important; height: 14px !important; }
+
+/* ── Nutrition phase rows ────────────────────────────────────────────── */
+/* The row is the edit affordance; there is no separate Edit button. */
+.phase-row { align-items: flex-start; gap: 10px; }
+.phase-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+.phase-dot-now   { background: var(--accent); }
+.phase-dot-next  { background: transparent; box-shadow: inset 0 0 0 2px var(--accent); }
+.phase-dot-later { background: transparent; box-shadow: inset 0 0 0 2px var(--border2); }
+.phase-text { flex: 1; min-width: 0; }
+.phase-line1 { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.phase-name { font-size: 14.5px; font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.phase-kcal { font-size: 13px; font-weight: 600; color: var(--text2); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.phase-line2 { font-size: 12px; font-weight: 500; color: var(--text2); margin-top: 4px; line-height: 1.5; }
+.phase-line2 .chip { margin-left: 4px; vertical-align: middle; }
+.phase-line3 { font-size: 11.5px; font-weight: 500; color: var(--text3); margin-top: 3px; font-variant-numeric: tabular-nums; }
+.plan-build-btn { margin-top: 14px; }
+
+/* ── The step chart ──────────────────────────────────────────────────── */
+.step-chart { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--divider); }
+.step-btns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.step-btn {
+  padding: 8px 4px; border-radius: var(--r-btn-sm); border: 1px solid var(--border2);
+  background: transparent; color: var(--text3); cursor: pointer;
+  font-family: var(--font-body); font-size: 11.5px; font-weight: 600;
+}
+.step-btn-on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.step-cols { display: flex; gap: 8px; margin-top: 16px; align-items: flex-end; }
+.step-col { flex: 1; min-width: 0; text-align: center; }
+.step-val { font-size: 11px; font-weight: 700; color: var(--text2); margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+.step-bar-track { height: 92px; display: flex; align-items: flex-end; }
+.step-bar { width: 100%; border-radius: var(--r-btn-sm) var(--r-btn-sm) 0 0; transition: height .45s cubic-bezier(.2,.72,.16,1), opacity .45s; }
+.step-name { font-size: 10.5px; font-weight: 500; color: var(--text3); margin-top: 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.step-name-on { color: var(--text); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .step-bar { transition: none; } }
+
+/* ── Weekly sessions and the progression preview ─────────────────────── */
+.plan-micro-toggle { margin-top: 14px; }
+.plan-preview-divider { height: 1px; background: var(--divider); margin: 14px 0 2px; }
+.plan-preview-wrap { margin-top: 4px; }
+.plan-preview-block + .plan-preview-block { border-top: 1px solid var(--divider); }
+.plan-preview-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 0; cursor: pointer;
+  font-family: var(--font-display); font-size: 13.5px; font-weight: 600; color: var(--text);
+}
+.plan-preview-head svg { width: 16px; height: 16px; stroke: var(--text3); fill: none; stroke-width: 2; stroke-linecap: round; transition: transform .2s; }
+.plan-preview-body { padding-bottom: 12px; }
+.plan-preview-ex + .plan-preview-ex { margin-top: 12px; }
+.plan-preview-ex-name { font-size: 12.5px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.plan-preview-wk {
+  display: flex; justify-content: space-between; padding: 4px 0;
+  border-top: 1px solid var(--divider);
+  font-size: 11.5px; font-weight: 500; color: var(--text3); font-variant-numeric: tabular-nums;
+}
+
 </style>
 <script>
 // ── Real viewport height fix ───────────────────────────────────
@@ -3514,10 +3600,21 @@ try {
          SCREEN 1: PLAN
     ═══════════════════════════════════════════ -->
     <div class="screen" id="screen-plan">
+      <!-- v8.16 Phase 5. Page header, hero, then four sections, each filled by
+           its own function (see renderPlan); the ids are the contract.
+
+           `plan-content` is a demo-tour anchor. It holds the session editor and
+           now sits INSIDE the Weekly sessions section rather than being a
+           sibling of everything — the same reasoning as Train's: the editor
+           re-renders on every exercise edit, and a section header rebuilt that
+           often would restart its entrance animation each time. -->
+      <div id="plan-header"></div>
       <div id="macro-overview"></div>
       <div id="macro-extend-badge"></div>
       <div id="plan-goals-section"></div>
-      <div id="plan-content"></div>
+      <div id="plan-sessions"></div>
+      <div id="plan-volume"></div>
+      <div id="plan-tools"></div>
     </div>
 
     <!-- ════════════════════════════════════════
@@ -17592,204 +17689,274 @@ function buildBwProgress(macro) {
 // editable Week-1 template card, the Weeks-2+ progression preview, and
 // the body-part volume table — in that order, all from state fresh on
 // every call.
+// ── v8.16 Phase 5: the Plan page ──────────────────────────────────────────
+// A page header, a hero, and four sections — Nutrition phases, Weekly
+// sessions, Volume by body part, Tools. renderPlan() resolves the macrocycle
+// and delegates one region each.
+//
+// Everything this page calculates is v8.15's. What changed is the layout, that
+// phase rows are tappable in place of a separate Edit button, and that the
+// progression preview sits behind a row rather than filling the page.
 function renderPlan() {
   const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
-  const overviewEl = document.getElementById('macro-overview');
-  const contentEl = document.getElementById('plan-content');
 
   if (!macro) {
-    overviewEl.innerHTML = '';
-    document.getElementById('macro-extend-badge').innerHTML = '';
-    document.getElementById('plan-goals-section').innerHTML = '';
-    contentEl.innerHTML = `<div class="empty-state" onclick="openModal('modal-macro')" style="cursor:pointer;">
+    ['plan-header','macro-overview','macro-extend-badge','plan-goals-section',
+     'plan-sessions','plan-volume','plan-tools'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = '';
+    });
+    const el = document.getElementById('plan-sessions');
+    if (el) el.innerHTML = `<div class="empty-state" onclick="openModal('modal-macro')" style="cursor:pointer;">
       <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
-      <p>Tap here to start building your 8-week plan.</p>
+      <p>Tap here to start building your plan.</p>
     </div>`;
     return;
   }
 
-  // No pill switcher — cycle selection via name tap (openCycleHistory)
+  renderPlanHeader(macro);
+  renderPlanHero(macro);
+  renderPlanExtendBadge(macro);
+  renderPlanGoalsSection();
+  renderPlanSessions(macro);
+  renderPlanVolume(macro);
+  renderPlanTools(macro);
+}
 
-  const totalCalendarWeeks = getMacroDurationWeeks(macro);
+function renderPlanHeader(macro) {
+  const el = document.getElementById('plan-header');
+  if (!el) return;
+  const totalWks = getMacroDurationWeeks(macro);
+  const endStr = getMacroEndDate(macro).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+  el.innerHTML = `<div class="page-head rise">
+    <div class="page-head-text">
+      <div class="page-eyebrow">Macrocycle</div>
+      <h1 class="page-h1">${macro.name}</h1>
+      <div class="page-sub">${macro.goal ? macro.goal + ' · ' : ''}${totalWks} weeks · ends ${endStr}</div>
+    </div>
+    <button class="icon-btn" onclick="openEditMacro('${macro.id}')" aria-label="Edit macrocycle">
+      <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+    </button>
+  </div>`;
+}
+
+// ── Hero ──────────────────────────────────────────────────────────────────
+// Mesocycle pills across the cycle, then three stats. The whole card opens
+// Choose cycle; like Progress's and unlike Fuel's, it carries no swipe, so a
+// tap is the only thing it can be read as.
+function renderPlanHero(macro) {
+  const el = document.getElementById('macro-overview');
+  if (!el) return;
+
+  const totalWks = getMacroDurationWeeks(macro);
+  const mesoCount = getMacroEffectiveMesoCount(macro);
+  const weeksPerMeso = macro.weeksPerMeso || 1;
   const startDate = macro.start ? new Date(macro.start + 'T00:00:00') : now();
   const endDate = getMacroEndDate(macro);
-  const today = now();
-  today.setHours(0,0,0,0);
-  startDate.setHours(0,0,0,0);
-  const totalDays = totalCalendarWeeks * 7;
-  const elapsedDays = Math.max(0, Math.min(today - startDate, endDate - startDate)) / (1000*60*60*24);
-  const pct = Math.min(100, Math.round((elapsedDays / totalDays) * 100));
-  const currentMeso = today < startDate ? 0 : Math.min(getMacroEffectiveMesoCount(macro), Math.floor(elapsedDays / ((macro.weeksPerMeso || 1) * 7)) + 1);
-  const weekLabel = today < startDate ? 'Not started' : `Mesocycle ${currentMeso} of ${getMacroEffectiveMesoCount(macro)}`;
-  const endStr = endDate.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
-  const splitBadge = macro.splitType === 'fullbody' ? 'Full Body' : macro.splitType === 'custom' ? 'Custom' : 'PPL';
-  const microBadge = macro.useMicrocycles === false ? 'no microcycles' : 'microcycles';
+  const today = now(); today.setHours(0,0,0,0); startDate.setHours(0,0,0,0);
+  const elapsedDays = Math.max(0, Math.min(today - startDate, endDate - startDate)) / 86400000;
+  const currentMeso = today < startDate ? 0 : Math.min(mesoCount, Math.floor(elapsedDays / (weeksPerMeso * 7)) + 1);
 
-  const goalPeriodCount = (state.goals || []).filter(g => g.macroId === macro.id).length;
-  const totalSessionCount = Math.round((macro.sessionsPerWeek || 3) * totalCalendarWeeks);
-
-  overviewEl.innerHTML = `
-    <div class="swipe-row-wrap card-wrap" style="border-radius:var(--r-lg);margin-bottom:14px;">
-      <div class="swipe-row-content">
-        <div class="hero-card hero-tappable" data-page="plan" style="width:100%;box-sizing:border-box;margin-bottom:0;" onclick="openEditMacro('${macro.id}')">
-          <div class="hero-nav-arrows" onclick="event.stopPropagation();" style="flex-direction:column;align-items:flex-end;">
-            <button onclick="openModal('modal-macro')" aria-label="New macrocycle" style="width:auto;height:26px;padding:0 10px;border-radius:var(--r-sm);font-size:11px;font-weight:500;white-space:nowrap;">+ New</button>
-            ${!macro.extensionWeeks ? `<button onclick="openMacroExtend('${macro.id}')" aria-label="Extend macrocycle" style="width:auto;height:26px;padding:0 10px;border-radius:var(--r-sm);font-size:11px;font-weight:500;white-space:nowrap;">Extend</button>` : ''}
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-            <div style="flex:1;min-width:0;">
-              <div class="hero-label">Macrocycle</div>
-              <div onclick="event.stopPropagation();openCycleHistory()" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;-webkit-tap-highlight-color:transparent;">
-                <div class="hero-value" style="font-size:24px;">${macro.name}</div>
-                <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2.5;stroke-linecap:round;flex-shrink:0;margin-top:2px;" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
-              </div>
-              <div class="hero-sub">${macro.goal || ''}${macro.goal ? ' · ' : ''}${totalCalendarWeeks}wk · Ends ${endStr}</div>
-            </div>
-          </div>
-          <div class="hero-progress-track" style="margin-top:18px;"><div class="hero-progress-fill" style="width:${pct}%"></div></div>
-          <div class="hero-progress-row" style="margin-top:6px;"><span>${weekLabel}</span><span>${pct}%</span></div>
-          <div class="hero-callouts" style="margin-top:16px;">
-            <div class="hero-callout"><div class="hero-callout-lbl">Goal periods</div><div class="hero-callout-val">${goalPeriodCount}</div></div>
-            <div class="hero-callout"><div class="hero-callout-lbl">Sessions</div><div class="hero-callout-val">${totalSessionCount}</div></div>
-            <div class="hero-callout"><div class="hero-callout-lbl">Goal weight</div><div class="hero-callout-val">${macro.targetBw ? macro.targetBw + ' lbs' : '—'}</div></div>
-          </div>
-        </div>
-      </div>
-      <div class="swipe-actions vertical" style="width:100px;">
-        <button class="swipe-btn swipe-btn-default" onclick="event.stopPropagation();copyMacrocycle('${macro.id}')" title="Copy">
-          <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-        </button>
-        <button class="swipe-btn swipe-btn-danger" onclick="event.stopPropagation();deleteMacrocycle('${macro.id}')" title="Delete">
-          <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-        </button>
-      </div>
-    </div>`;
-
-  // Extension badge — only shown once an extension exists (see
-  // getMacroExtensionInfo); the Extend button in hero-nav-arrows hides
-  // itself in that same condition, so exactly one of the two shows at a
-  // time. Tapping the badge opens the edit/remove flow.
-  const extendBadgeEl = document.getElementById('macro-extend-badge');
-  if (macro.extensionWeeks) {
-    extendBadgeEl.innerHTML = `<div onclick="openMacroExtendEdit('${macro.id}')" style="margin:14px 0 0;padding:12px 4px;border-top:1px solid var(--border2);display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent;">
-      <div style="display:flex;align-items:center;gap:8px;">
-        <svg viewBox="0 0 24 24" width="15" height="15" style="stroke:var(--accent);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
-        <span style="font-size:12.5px;color:var(--text2);">Extended by ${macro.extensionWeeks} week${macro.extensionWeeks === 1 ? '' : 's'}</span>
-      </div>
-      <svg viewBox="0 0 24 24" width="14" height="14" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0;"><path d="M9 18l6-6-6-6"/></svg>
-    </div>`;
-  } else {
-    extendBadgeEl.innerHTML = '';
+  const pills = [];
+  for (let i = 1; i <= mesoCount; i++) {
+    const d = new Date(startDate); d.setDate(d.getDate() + (i - 1) * weeksPerMeso * 7);
+    const isCurrent = i === currentMeso;
+    pills.push(`<div class="meso-col">
+      <div class="meso-pill${isCurrent ? ' meso-pill-on' : ''}"></div>
+      <div class="meso-lbl${isCurrent ? ' meso-lbl-on' : ''}">MC ${i}</div>
+      <div class="meso-date">${d.toLocaleDateString('en-GB', { day:'numeric', month:'short' })}</div>
+    </div>`);
   }
 
-  // Build plan — exercises defined once in Week 1, propagated automatically
-  let html = '';
+  const goalPeriodCount = (state.goals || []).filter(g => g.macroId === macro.id).length;
+  const totalSessionCount = Math.round((macro.sessionsPerWeek || 3) * totalWks);
+  const statusLabel = today < startDate ? 'Upcoming' : today > endDate ? 'Past' : 'Active';
+
+  el.innerHTML = `<div class="card plan-hero rise" onclick="openCycleHistory()">
+    <div class="plan-hero-top">
+      <span class="plan-hero-lbl">Mesocycles · ${weeksPerMeso} week${weeksPerMeso === 1 ? '' : 's'} each</span>
+      <span class="chip" style="--chip-c:${statusLabel === 'Active' ? 'var(--green-text)' : 'var(--text3)'};margin-left:auto;">${statusLabel}</span>
+    </div>
+    <div class="meso-row">${pills.join('')}</div>
+    <div class="plan-hero-divider"></div>
+    <div class="prog-tile-row">
+      <div class="fuel-rest-tile"><div class="fuel-rest-tile-lbl">Goal weight</div><div class="fuel-rest-tile-val">${macro.targetBw ? macro.targetBw : '—'}<span class="fuel-rest-tile-unit">${macro.targetBw ? ' lbs' : ''}</span></div></div>
+      <div class="fuel-rest-tile"><div class="fuel-rest-tile-lbl">Sessions</div><div class="fuel-rest-tile-val">${totalSessionCount}</div></div>
+      <div class="fuel-rest-tile"><div class="fuel-rest-tile-lbl">Phases</div><div class="fuel-rest-tile-val">${goalPeriodCount}</div></div>
+    </div>
+    <div class="plan-hero-foot">Tap to switch macrocycle</div>
+  </div>`;
+}
+
+// The extension badge, shown only once an extension exists. Its counterpart is
+// the Extend row in Tools, which is the route to creating one.
+function renderPlanExtendBadge(macro) {
+  const el = document.getElementById('macro-extend-badge');
+  if (!el) return;
+  if (!macro.extensionWeeks) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="plan-extend-badge rise" onclick="openMacroExtendEdit('${macro.id}')">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+    <span>Extended by ${macro.extensionWeeks} week${macro.extensionWeeks === 1 ? '' : 's'}</span>
+    <svg class="plan-extend-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+  </div>`;
+}
+
+// ── 02 Weekly sessions ────────────────────────────────────────────────────
+function renderPlanSessions(macro) {
+  const el = document.getElementById('plan-sessions');
+  if (!el) return;
   const days = macro.days || ['push','pull','legs'];
   const dayLabels = macro.dayLabels || { push:'Push', pull:'Pull', legs:'Legs' };
   const useMicro = macro.useMicrocycles !== false;
 
-  // ── Week 1: editable template ──────────────────
-  html += `<div style="margin-bottom:24px;">
-    <div class="section-title" style="margin-top:28px;">Set your exercises here</div>
-    <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Exercises defined here carry forward to all weeks automatically.</div>
-    ${useMicro
-      ? renderMicroBlock(macro, 1, 1, days, dayLabels) + renderMicroBlock(macro, 1, 2, days, dayLabels)
-      : renderMicroBlock(macro, 1, 0, days, dayLabels)
-    }
-  </div>`;
+  // 🚨 The microcycle control only exists when the cycle uses microcycles.
+  // Rendering it regardless offers a choice between two things where only one
+  // of them is real.
+  const microToggle = useMicro
+    ? `<div class="toggle-row plan-micro-toggle">
+        ${[1,2].map(n => `<button class="toggle-btn${planMicroView === n ? ' active' : ''}" onclick="setPlanMicroView(${n})">Microcycle ${n}</button>`).join('')}
+      </div>`
+    : '';
 
-  // ── Weeks 2+: read-only progression preview ────
-  // Grouped by session (day, or day+microcycle) first, then broken down by
-  // mesocycle week within each session — e.g. "Push · MC1" expands to show
-  // Week 2, Week 3, ... for every exercise in that session, rather than the
-  // old "Week 2" card containing every day's exercises.
+  el.innerHTML = sectionHeader('Weekly sessions', 'Exercises set here carry forward to every week of the cycle.')
+    + microToggle
+    + `<div id="plan-content"></div>`
+    + sectionEnd();
+
+  const contentEl = document.getElementById('plan-content');
+  if (contentEl) {
+    contentEl.innerHTML = useMicro
+      ? renderMicroBlock(macro, 1, planMicroView, days, dayLabels)
+      : renderMicroBlock(macro, 1, 0, days, dayLabels);
+    // Drag-to-reorder and swipe-to-delete are re-attached on every render,
+    // since innerHTML replaced the rows they were bound to.
+    requestAnimationFrame(() => initSwipeRows(contentEl));
+  }
+}
+
+let planMicroView = 1;
+function setPlanMicroView(n) { planMicroView = n; renderPlan(); }
+
+// ── 03 Volume by body part, and the progression preview ───────────────────
+let planProgressionPreviewOpen = false;
+function togglePlanProgressionPreview() {
+  planProgressionPreviewOpen = !planProgressionPreviewOpen;
+  renderPlanVolume(state.macrocycles.find(m => m.id === state.currentMacroId));
+}
+
+function renderPlanVolume(macro) {
+  const el = document.getElementById('plan-volume');
+  if (!el || !macro) return;
+
+  const days = macro.days || ['push','pull','legs'];
+  const dayLabels = macro.dayLabels || { push:'Push', pull:'Pull', legs:'Legs' };
+  const useMicro = macro.useMicrocycles !== false;
+  const totalMesos = getMacroEffectiveMesoCount(macro);
+
   const hasExercises = days.some(day => {
     const micros = useMicro ? ['m1','m2'] : [''];
     return micros.some(mk => (state.exercises[macro.id + '_1_' + day + mk] || []).length > 0);
   });
 
-  const totalMesos = getMacroEffectiveMesoCount(macro);
-  if (hasExercises && totalMesos > 1) {
-    html += `<div class="section-title" style="margin-top:0;">Weeks 2–${totalMesos} — Progression preview</div>
-    <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Sets scale from your starting sets to peak sets. Targets shown use weight progression — you choose per-exercise each session.</div>`;
+  // The preview row is a flat in-card row with a divider above it, not a card
+  // of its own beneath this one — a component carrying its own surface inside
+  // a card is a card within a card.
+  const previewRow = (hasExercises && totalMesos > 1)
+    ? `<div class="plan-preview-divider"></div>
+       <div class="row-plain" onclick="togglePlanProgressionPreview()">
+         <div style="flex:1;min-width:0;">
+           <div class="row-btn-title">Progression preview</div>
+           <div class="row-btn-sub">How sets and loads build, weeks 2–${totalMesos}</div>
+         </div>
+         <span class="row-btn-chevron" style="transform:rotate(${planProgressionPreviewOpen ? '90deg' : '0deg'});display:inline-block;transition:transform .2s;">›</span>
+       </div>
+       ${planProgressionPreviewOpen ? buildProgressionPreviewHTML(macro, days, dayLabels, useMicro, totalMesos) : ''}`
+    : '';
 
-    const microKeys = useMicro ? ['m1', 'm2'] : [''];
-    const sessionBlocks = [];
-    microKeys.forEach(mk => {
-      days.forEach(day => {
-        const templateKey = macro.id + '_1_' + day + mk;
-        const exercises = (state.exercises[templateKey] || []).slice().sort((a,b) => (a.order||0)-(b.order||0));
-        if (exercises.length === 0) return;
+  el.innerHTML = sectionHeader('Volume by body part', 'The range each body part covers across the cycle.')
+    + `<div class="card">${renderBodyPartVolumeTable(macro)}${previewRow}</div>`
+    + sectionEnd();
+}
 
-        const sessionKey = day + mk;
-        const sessionLabel = dayLabels[day] + (mk ? ' · MC' + mk.slice(1) : '');
-        const isOpen = !!planExpandedSessions[macro.id + '_' + sessionKey];
-        // A partial trailing extension mesocycle only exists as M1 — M2's
-        // preview stops one mesocycle short of M1's (see isMesoMicroValid).
-        const mcNum = mk === 'm2' ? 2 : (mk === 'm1' ? 1 : 0);
-        const sessionMaxMeso = (mcNum === 2 && !isMesoMicroValid(macro, totalMesos, 2)) ? totalMesos - 1 : totalMesos;
+// The per-session read-only previews. Each session keeps its own collapse
+// state (planExpandedSessions), which is what the row button reveals.
+function buildProgressionPreviewHTML(macro, days, dayLabels, useMicro, totalMesos) {
+  const microKeys = useMicro ? ['m1', 'm2'] : [''];
+  const blocks = [];
+  microKeys.forEach(mk => {
+    days.forEach(day => {
+      const templateKey = macro.id + '_1_' + day + mk;
+      const exercises = (state.exercises[templateKey] || []).slice().sort((a,b) => (a.order||0)-(b.order||0));
+      if (!exercises.length) return;
 
-        let body = '';
-        exercises.forEach(ex => {
-          body += `<div style="margin-bottom:10px;">
-            <div style="font-size:12px;font-weight:500;color:var(--text);margin-bottom:4px;">${ex.name}</div>`;
-          for (let w = 2; w <= sessionMaxMeso; w++) {
-            const sets = getWeekSets(ex, w, macro.weeks);
-            const weightTarget = getWeekWeight(ex, w, 'weight', macro.goalType, macro.weightIncrement).toFixed(1);
-            // Reps preview always shows the plan's starting reps, for all
-            // three exercise types — matches pause set/standard (which were
-            // already flat here) rather than escalating giant-set reps
-            // weekly, which read as inconsistent against the other two.
-            const repsTarget = ex.reps;
-            body += `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-top:0.5px solid var(--border);">
-              <span style="font-size:11px;color:var(--text3);">Week ${w}</span>
-              <span style="font-size:11px;color:var(--text3);">${sets} sets · ${repsTarget} · ${weightTarget}kg</span>
-            </div>`;
-          }
-          body += `</div>`;
-        });
+      const sessionKey = day + mk;
+      const sessionLabel = dayLabels[day] + (mk ? ' · MC' + mk.slice(1) : '');
+      const isOpen = !!planExpandedSessions[macro.id + '_' + sessionKey];
+      // A partial trailing extension mesocycle only exists as M1, so M2's
+      // preview stops one mesocycle short of M1's (see isMesoMicroValid).
+      const mcNum = mk === 'm2' ? 2 : (mk === 'm1' ? 1 : 0);
+      const sessionMaxMeso = (mcNum === 2 && !isMesoMicroValid(macro, totalMesos, 2)) ? totalMesos - 1 : totalMesos;
 
-        sessionBlocks.push(`<div onclick="togglePlanSession('${macro.id}','${sessionKey}')"
-            style="padding:12px 2px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent;">
-            <span style="font-family:var(--font-display);font-weight:600;font-size:13px;color:var(--text);">${sessionLabel}</span>
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${isOpen?'180':'0'}deg)"><polyline points="6 9 12 15 18 9"/></svg>
-          </div>
-          ${isOpen ? `<div style="padding:0 2px 14px;">${body}</div>` : ''}`);
+      let body = '';
+      exercises.forEach(ex => {
+        body += `<div class="plan-preview-ex"><div class="plan-preview-ex-name">${ex.name}</div>`;
+        for (let w = 2; w <= sessionMaxMeso; w++) {
+          const sets = getWeekSets(ex, w, macro.weeks);
+          const weightTarget = getWeekWeight(ex, w, 'weight', macro.goalType, macro.weightIncrement).toFixed(1);
+          // Reps stay at the plan's starting reps for all three exercise
+          // types here, matching pause and standard sets rather than
+          // escalating giant-set reps weekly, which read as inconsistent.
+          body += `<div class="plan-preview-wk"><span>Week ${w}</span><span>${sets} sets · ${ex.reps} · ${weightTarget}kg</span></div>`;
+        }
+        body += `</div>`;
       });
+
+      blocks.push(`<div class="plan-preview-block">
+        <div class="plan-preview-head" onclick="togglePlanSession('${macro.id}','${sessionKey}')">
+          <span>${sessionLabel}</span>
+          <svg viewBox="0 0 24 24" style="transform:rotate(${isOpen ? '180' : '0'}deg);"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        ${isOpen ? `<div class="plan-preview-body">${body}</div>` : ''}
+      </div>`);
     });
-
-    // Each block gets its own bottom-border row divider EXCEPT the very
-    // last one — that one now sits directly above renderBodyPartVolumeTable's
-    // new section divider, and having both there read as two stacked
-    // dividers back to back.
-    sessionBlocks.forEach((block, idx) => {
-      const isLast = idx === sessionBlocks.length - 1;
-      html += `<div style="margin-bottom:2px;${isLast ? '' : 'border-bottom:1px solid var(--border);'}padding-bottom:2px;">${block}</div>`;
-    });
-  }
-
-  html += renderBodyPartVolumeTable(macro);
-
-  contentEl.innerHTML = html;
-  requestAnimationFrame(() => initSwipeRows(document.getElementById('plan-content')));
-  initSwipeRows(document.getElementById('macro-overview'));
-  renderPlanGoalsSection(macro);
+  });
+  return `<div class="plan-preview-wrap">${blocks.join('')}</div>`;
 }
 
-// ── Plan page: goals section ─────────────────────────────────────────────
-// Below the macrocycle hero card — a "+ Build goals" button (opens the same
-// goal modal the old Goals tab used) plus every goal period belonging to
-// THIS macro, in the same row layout Progress's cycle-goals list uses.
-// Expanded by default; collapsible; each row taps to edit and swipes to
-// delete. Collapse state (unlike the per-session ones above) is a simple
-// persistent toggle, not reset on nav.
-let planGoalsSectionCollapsed = false;
-
-function togglePlanGoalsSection() {
-  planGoalsSectionCollapsed = !planGoalsSectionCollapsed;
-  renderPlanGoalsSection();
+// ── 04 Tools ──────────────────────────────────────────────────────────────
+function renderPlanTools(macro) {
+  const el = document.getElementById('plan-tools');
+  if (!el) return;
+  el.innerHTML = sectionHeader('Tools')
+    + `<div class="card">
+        <div class="row-plain" onclick="openMacroExtend('${macro.id}')">
+          <div style="flex:1;min-width:0;">
+            <div class="row-btn-title">Extend cycle</div>
+            <div class="row-btn-sub">Add weeks to ${macro.name}</div>
+          </div>
+          <span class="row-btn-chevron">›</span>
+        </div>
+        <div class="row-plain" onclick="openModal('modal-macro')">
+          <div style="flex:1;min-width:0;">
+            <div class="row-btn-title">New cycle</div>
+            <div class="row-btn-sub">Start a fresh macrocycle</div>
+          </div>
+          <span class="row-btn-chevron">›</span>
+        </div>
+      </div>`
+    + sectionEnd();
 }
 
+// planGoalsSectionCollapsed/togglePlanGoalsSection were removed in v8.16: the
+// phase list is a section of its own now and is always open.
+
+// ── 01 Nutrition phases ───────────────────────────────────────────────────
+// The goal periods belonging to this macrocycle, as tappable rows, over a step
+// chart of how one metric moves across them.
+//
+// Each row opens the Goal period sheet directly. There is no separate Edit
+// button: the row IS the edit affordance, and a row that looks tappable and
+// is not is worse than no affordance at all.
 function renderPlanGoalsSection() {
   const el = document.getElementById('plan-goals-section');
   if (!el) return;
@@ -17804,49 +17971,40 @@ function renderPlanGoalsSection() {
   const activeIdx = goals.findIndex(g => g.startDate <= today && g.endDate >= today);
   const nextUpcoming = goals.filter(g => g.startDate > today).sort((a, b) => a.startDate.localeCompare(b.startDate))[0] || null;
 
-  // "Next up" subtitle for whichever goal is next upcoming — identical logic
-  // to renderProgressCycleGoals(), so the two stay in lockstep.
-  let nextUpSubtitle = '';
-  if (nextUpcoming) {
-    const todayDate = new Date(today + 'T00:00:00');
-    const startDateObj = new Date(nextUpcoming.startDate + 'T00:00:00');
-    const daysUntil = Math.round((startDateObj - todayDate) / 86400000);
-    const switchDate = new Date(startDateObj); switchDate.setDate(switchDate.getDate() - 6);
-    if (today < toLocalDateStr(switchDate)) {
-      nextUpSubtitle = `Next up: starting in ${daysUntil} day${daysUntil !== 1 ? 's' : ''}`;
-    } else {
-      const weekdayName = startDateObj.toLocaleDateString('en-GB', { weekday: 'long' });
-      nextUpSubtitle = `Next up: starting ${weekdayName}`;
-    }
-  }
-
   const rows = goals.map((g, idx) => {
     const isActive = idx === activeIdx;
-    const isNextUpcoming = nextUpcoming && g.macroGoalID === nextUpcoming.macroGoalID;
-    const dotColor = isActive ? 'var(--accent)' : isNextUpcoming ? 'var(--red)' : 'transparent';
+    const isNext = nextUpcoming && g.macroGoalID === nextUpcoming.macroGoalID;
+    // Three states, and the dot is the only thing that carries them: filled
+    // accent for the current phase, an accent ring for the next, a grey ring
+    // for everything later.
+    const dotClass = isActive ? 'phase-dot-now' : isNext ? 'phase-dot-next' : 'phase-dot-later';
     const label = g._blocLabel || g.label || 'Goal';
-    const summaryParts = [
-      g.kcal  ? `${g.kcal.toLocaleString()} kcal` : null,
-      g.steps ? `${parseInt(g.steps).toLocaleString()} steps` : null,
-    ].filter(Boolean).join(' · ');
+
+    let startsChip = '';
+    if (isNext) {
+      const daysUntil = Math.round((new Date(g.startDate + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000);
+      startsChip = `<span class="chip" style="--chip-c:var(--amber);">Starts in ${daysUntil} day${daysUntil === 1 ? '' : 's'}</span>`;
+    }
+
+    const msPerWeek = 7 * 86400000;
+    const weeks = Math.round((new Date(g.endDate + 'T00:00:00') - new Date(g.startDate + 'T00:00:00') + 86400000) / msPerWeek);
     const macroParts = [
-      g.protein ? `${g.protein}g protein` : null,
-      g.carbs   ? `${g.carbs}g carbs` : null,
-      g.fats    ? `${g.fats}g fats` : null,
+      g.protein ? `P ${g.protein}g` : null,
+      g.carbs   ? `C ${g.carbs}g` : null,
+      g.fats    ? `F ${g.fats}g` : null,
+      g.steps   ? `${parseInt(g.steps).toLocaleString()} steps` : null,
     ].filter(Boolean).join(' · ');
-    return `<div class="swipe-row-wrap" data-goal-id="${g.macroGoalID}" style="border-radius:6px;margin-bottom:2px;">
+
+    return `<div class="swipe-row-wrap" data-goal-id="${g.macroGoalID}">
       <div class="swipe-row-content" style="padding:0;">
-        <div style="display:flex;align-items:center;gap:10px;padding:10px 2px;border-bottom:1px solid var(--border);cursor:pointer;width:100%;box-sizing:border-box;" onclick="openEditGoal('${g.macroGoalID}')">
-          <span style="width:6px;height:6px;border-radius:50%;background:${dotColor};flex-shrink:0;margin-top:5px;align-self:flex-start;"></span>
-          <div style="flex:1;min-width:0;">
-            <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">
-              <div style="font-size:12px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${label}</div>
-              <div style="font-size:10px;color:var(--text3);flex-shrink:0;">${formatDate(g.startDate)} – ${formatDate(g.endDate)}</div>
-            </div>
-            ${isNextUpcoming && nextUpSubtitle ? `<div style="font-size:10px;color:var(--red);margin-top:2px;font-weight:500;">${nextUpSubtitle}</div>` : ''}
-            <div style="font-size:11px;color:var(--text2);margin-top:4px;">${summaryParts || '—'}</div>
-            ${macroParts ? `<div style="font-size:10px;color:var(--text3);margin-top:2px;">${macroParts}</div>` : ''}
+        <div class="row-plain phase-row" onclick="openEditGoal('${g.macroGoalID}')">
+          <span class="phase-dot ${dotClass}"></span>
+          <div class="phase-text">
+            <div class="phase-line1"><span class="phase-name">${label}</span><span class="phase-kcal">${g.kcal ? g.kcal.toLocaleString() + ' kcal' : '—'}</span></div>
+            <div class="phase-line2">${formatDate(g.startDate)} – ${formatDate(g.endDate)} · ${weeks} week${weeks === 1 ? '' : 's'}${startsChip ? ' ' + startsChip : ''}</div>
+            ${macroParts ? `<div class="phase-line3">${macroParts}</div>` : ''}
           </div>
+          <span class="row-btn-chevron">›</span>
         </div>
       </div>
       <div class="swipe-actions">
@@ -17857,21 +18015,110 @@ function renderPlanGoalsSection() {
     </div>`;
   }).join('');
 
-  el.innerHTML = `<div style="margin-bottom:14px;">
-    <div class="divider" style="margin:20px 0 20px;"></div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${goals.length ? '10px' : '0'};padding-bottom:10px;border-bottom:1px solid var(--border);">
-      <div class="section-title" style="margin:0;">Goals</div>
-      <button class="btn btn-sm" onclick="openModal('modal-add-goal');document.getElementById('goal-macro-select').value='${macro.id}';onGoalMacroSelectChange();">+ Build goals</button>
-    </div>
-    ${goals.length ? `
-      <div onclick="togglePlanGoalsSection()" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent;margin-bottom:${planGoalsSectionCollapsed?'0':'8px'};">
-        <div style="font-size:11px;color:var(--text3);">${goals.length} goal period${goals.length !== 1 ? 's' : ''}</div>
-        <svg viewBox="0 0 24 24" width="14" height="14" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${planGoalsSectionCollapsed?'0':'180'}deg)"><polyline points="6 9 12 15 18 9"/></svg>
-      </div>
-      ${planGoalsSectionCollapsed ? '' : rows}
-    ` : `<div style="font-size:12px;color:var(--text3);">No goal periods yet for this macrocycle.</div>`}
-  </div>`;
+  // The build button lives INSIDE the card, not floating beneath it. It runs
+  // the existing goal queue — the same picker flow the check-in and cycle
+  // review "Build this plan" paths use, so there is one implementation of
+  // building a set of goal periods.
+  const buildBtn = `<button class="btn btn-ghost btn-block plan-build-btn"
+    onclick="openModal('modal-add-goal');document.getElementById('goal-macro-select').value='${macro.id}';onGoalMacroSelectChange();">+ Build goal periods</button>`;
+
+  el.innerHTML = sectionHeader('Nutrition phases', 'Each phase and its targets, in the order they run.')
+    + `<div class="card">
+        ${goals.length ? rows : '<div class="empty-inline">No goal periods yet for this macrocycle.</div>'}
+        ${goals.length ? buildStepChartHTML(goals) : ''}
+        ${buildBtn}
+      </div>`
+    + sectionEnd();
+
   requestAnimationFrame(() => initSwipeRows(el));
+  startPlanStepChart(goals);
+}
+
+// ── The step chart ────────────────────────────────────────────────────────
+// One bar per phase for the selected metric, cycling Calories → Steps →
+// Carbs → Fats every 2s. There is no Protein button: protein is the one
+// target that is held flat across phases by design, so a chart of it would be
+// four identical bars every time.
+const PLAN_STEP_METRICS = [
+  { key:'kcal',    label:'Calories', colour:'var(--accent)' },
+  { key:'steps',   label:'Steps',    colour:'var(--ice-blue)' },
+  { key:'carbs',   label:'Carbs',    colour:'var(--amber)' },
+  { key:'fats',    label:'Fats',     colour:'var(--red)' },
+];
+let planStepMetric = 0;
+let _planStepTimer = null;
+let _planStepHoldUntil = 0;
+
+function buildStepChartHTML(goals) {
+  const m = PLAN_STEP_METRICS[planStepMetric];
+  const today = getLocalToday();
+  const values = goals.map(g => {
+    const raw = g[m.key];
+    return raw === null || raw === undefined || raw === '' ? null : parseFloat(raw);
+  });
+  const valid = values.filter(v => v !== null);
+  const min = valid.length ? Math.min(...valid) : 0;
+  const max = valid.length ? Math.max(...valid) : 0;
+
+  const bars = goals.map((g, i) => {
+    const v = values[i];
+    // 🚨 When every phase carries the same value there is no range to scale
+    // against, and (v - min) / (max - min) is 0/0. All bars render at the same
+    // mid height, which is the honest picture: nothing changes across phases.
+    const h = v === null ? 0
+      : (max - min < 0.0001 ? 55 : 22 + ((v - min) / (max - min)) * 68);
+    const isCurrent = g.startDate <= today && g.endDate >= today;
+    return `<div class="step-col">
+      <div class="step-val">${v === null ? '—' : v.toLocaleString()}</div>
+      <div class="step-bar-track"><div class="step-bar" style="height:${h}%;background:${m.colour};opacity:${isCurrent ? 1 : 0.3};"></div></div>
+      <div class="step-name${isCurrent ? ' step-name-on' : ''}">${(g._blocLabel || g.label || 'Goal').split(' ')[0]}</div>
+    </div>`;
+  }).join('');
+
+  return `<div class="step-chart" id="plan-step-chart">
+    <div class="step-btns">
+      ${PLAN_STEP_METRICS.map((mm, i) =>
+        `<button class="step-btn${i === planStepMetric ? ' step-btn-on' : ''}" onclick="event.stopPropagation();holdPlanStepMetric(${i})">${mm.label}</button>`
+      ).join('')}
+    </div>
+    <div class="step-cols">${bars}</div>
+  </div>`;
+}
+
+// Re-renders only the chart, so selecting a metric does not rebuild the phase
+// rows and restart their entrance animation.
+function repaintPlanStepChart() {
+  const el = document.getElementById('plan-step-chart');
+  if (!el) return;
+  const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
+  if (!macro) return;
+  const goals = (state.goals || []).filter(g => g.macroId === macro.id)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate));
+  el.outerHTML = buildStepChartHTML(goals);
+}
+
+// Tapping a metric selects it immediately and holds it for 4s, then the loop
+// continues from the next one. Tapping again during a hold restarts the 4s.
+function holdPlanStepMetric(i) {
+  planStepMetric = i;
+  _planStepHoldUntil = Date.now() + 4000;
+  repaintPlanStepChart();
+}
+
+// 🚨 The interval is registered for teardown on screen change. A 2s timer left
+// running after the tab is left keeps calling repaintPlanStepChart() against a
+// screen that is no longer on, and the first symptom is Plan fighting the next
+// screen's renders — invisible until it is not.
+function startPlanStepChart(goals) {
+  if (_planStepTimer) { clearInterval(_planStepTimer); _planStepTimer = null; }
+  if (!goals || goals.length < 2) return;
+  if (prefersReducedMotion()) return;   // the chart still works; it just does not cycle
+  _planStepTimer = setInterval(() => {
+    if (Date.now() < _planStepHoldUntil) return;
+    planStepMetric = (planStepMetric + 1) % PLAN_STEP_METRICS.length;
+    repaintPlanStepChart();
+  }, 2000);
+  onScreenChange(() => { if (_planStepTimer) { clearInterval(_planStepTimer); _planStepTimer = null; } });
 }
 
 // Cycle-wide MIN/MAX training volume per body part, assuming a single
@@ -18018,8 +18265,10 @@ function buildCardioSummaryLine(ex, setsOverrideLabel) {
 
 function renderMicroBlock(macro, week, micro, days, dayLabels) {
   const microKey = micro === 0 ? '' : `m${micro}`;
-  const sectionTitle = micro === 0 ? '' : `<div class="section-title" style="font-size:10px;">Microcycle ${micro}</div>`;
-  let html = `<div style="margin-bottom:12px;">${sectionTitle}`;
+  // v8.16: no "Microcycle N" heading of its own. The Weekly sessions section
+  // renders one microcycle at a time behind a segmented control, which names
+  // the one on screen — the heading repeated what the control already said.
+  let html = `<div style="margin-bottom:12px;">`;
 
   days.forEach(day => {
     // Always read exercises from Week 1 template
@@ -19205,7 +19454,6 @@ function buildAdviceLineHtml(name, field, dayMap, weekStart, today, target, unit
 function goToPlanAndFlashGoal(macroGoalID) {
   const g = (state.goals || []).find(x => x.macroGoalID === macroGoalID);
   if (g) state.currentMacroId = g.macroId;
-  planGoalsSectionCollapsed = false;
   showScreen('plan');
   requestAnimationFrame(() => requestAnimationFrame(() => {
     const row = document.querySelector(`[data-goal-id="${macroGoalID}"]`);
@@ -22003,7 +22251,7 @@ function setBodyHistoryPeriod(p) { bodyHistoryPeriod = p; renderBody(); }
 
 // Which historic month groups are expanded in Recent Entries (v6.11) —
 // keyed by 'YYYY-MM', collapsed by default. Not persisted, purely a
-// render-time UI toggle, same pattern as planGoalsSectionCollapsed.
+// render-time UI toggle, not persisted.
 let bodyExpandedMonths = {};
 function toggleBodyMonth(monthKey) {
   bodyExpandedMonths[monthKey] = !bodyExpandedMonths[monthKey];
