@@ -2747,6 +2747,119 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 }
 .day-tabs { margin-bottom: 8px; }
 
+/* ══════════════════════════════════════════════════════════════════════
+   v8.16 PHASE 4 — PROGRESS
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Hero ────────────────────────────────────────────────────────────── */
+/* The whole card opens Choose cycle. Safe here and deliberately not on the
+   Fuel hero, which carries a swipe: this one has no gesture to compete with. */
+.prog-hero { margin-top: 24px; cursor: pointer; }
+.prog-hero:active { transform: scale(0.995); }
+.prog-hero-top { display: flex; align-items: center; gap: 6px; }
+.prog-hero-name {
+  font-family: var(--font-display); font-size: 15px; font-weight: 600;
+  color: var(--text); letter-spacing: -0.01em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.prog-hero-chev { width: 14px; height: 14px; stroke: var(--text3); fill: none; stroke-width: 2.5; stroke-linecap: round; flex-shrink: 0; }
+.prog-hero-eyebrow {
+  font-family: var(--font-body); font-size: 11.5px; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--text3); margin-top: 18px;
+}
+.prog-hero-week { font-size: 13px; font-weight: 500; color: var(--text2); margin-top: 3px; }
+.prog-hero-val {
+  font-family: var(--font-display); font-size: 52px; font-weight: 600;
+  letter-spacing: -0.03em; line-height: 1; color: var(--text);
+  font-variant-numeric: tabular-nums; margin-top: 10px;
+}
+.prog-hero-unit { font-family: var(--font-body); font-size: 16px; font-weight: 500; color: var(--text2); letter-spacing: 0; }
+.prog-hero-status { font-size: 13px; font-weight: 500; color: var(--text2); margin-top: 10px; line-height: 1.45; }
+.prog-hero-chart { margin-top: 18px; }
+.prog-hero-chart svg { width: 100%; height: 96px; display: block; overflow: visible; }
+.prog-hero-chart-empty { font-size: 13px; font-weight: 500; color: var(--text3); padding: 22px 0 6px; text-align: center; }
+.prog-hero-axis {
+  display: flex; justify-content: space-between; margin-top: 6px;
+  font-size: 11px; font-weight: 500; color: var(--text3); font-variant-numeric: tabular-nums;
+}
+.prog-hero-foot { text-align: center; margin-top: 14px; font-size: 11.5px; font-weight: 500; color: var(--text3); }
+
+/* ── Stat tiles (This week, Last cycle) ──────────────────────────────── */
+.prog-tile-row { display: flex; gap: 8px; }
+.prog-tile-row + * { margin-top: 14px; }
+.prog-tile-delta { font-size: 12px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+
+/* ── The AI cards ────────────────────────────────────────────────────── */
+.ai-card-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.ai-card-when { font-size: 11.5px; font-weight: 500; color: var(--text3); margin-left: auto; font-variant-numeric: tabular-nums; }
+.ai-card-headline {
+  font-family: var(--font-display); font-size: 17px; font-weight: 600;
+  color: var(--text); line-height: 1.3; letter-spacing: -0.015em; margin-top: 8px;
+}
+.ai-card-summary { font-size: 13.5px; font-weight: 500; color: var(--text2); line-height: 1.5; margin-top: 6px; }
+.ai-card-error { display: none; font-size: 12px; color: var(--red); margin-top: 8px; }
+
+/* The AI action rule: "Read full…" is the ghost button, and the conditional
+   action is ALWAYS a full-width row directly beneath it — lavender when there
+   is something to do, a grey timer row when there is not. Never beside it. */
+.ai-card-headline + .btn-ghost,
+.ai-card-summary + .btn-ghost,
+.prog-tile-row + .btn-ghost,
+.empty-inline + .btn-ghost { margin-top: 16px; }
+.ai-action-row {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; min-height: 52px; margin-top: 8px; padding: 12px 16px;
+  border-radius: var(--r-btn); border: 1px solid rgba(145,132,217,.35);
+  background: color-mix(in srgb, var(--accent2) 12%, transparent);
+  color: var(--accent2); font-family: var(--font-display);
+  font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.ai-action-row:active { transform: scale(0.99); }
+.ai-action-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--accent2); flex-shrink: 0;
+  animation: pulse 2.4s ease-in-out infinite;
+}
+.ai-timer-row {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; min-height: 52px; margin-top: 8px; padding: 12px 16px;
+  border-radius: var(--r-btn); border: 1px solid var(--border2);
+  background: var(--surface2); color: var(--text3);
+  font-size: 13px; font-weight: 500; text-align: center; line-height: 1.4;
+}
+.ai-thinking {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; min-height: 52px; margin-top: 8px; padding: 12px 16px;
+  border-radius: var(--r-btn); border: 1px solid rgba(145,132,217,.2);
+  background: color-mix(in srgb, var(--accent2) 8%, transparent);
+  color: var(--accent2); font-family: var(--font-display); font-size: 14px; font-weight: 600;
+}
+
+/* ── Insights ────────────────────────────────────────────────────────── */
+.insight-delta { font-size: 15px; line-height: 1.4; }
+.insight-delta-sub { display: block; font-size: 12.5px; font-weight: 500; color: var(--text3); margin-top: 3px; font-variant-numeric: tabular-nums; }
+.insight-block { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--divider); }
+.insight-line { font-size: 13px; font-weight: 500; color: var(--text2); line-height: 1.55; margin-top: 12px; }
+.insight-line-lead { color: var(--accent); font-weight: 700; }
+
+/* ── The Week-by-week deck bar ───────────────────────────────────────── */
+.deck-bar { display: flex; align-items: center; gap: 4px; margin-top: 12px; }
+.deck-arrow {
+  width: 36px; height: 36px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  background: none; border: none; color: var(--text3); cursor: pointer; padding: 0;
+}
+.deck-arrow svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.deck-arrow:active { transform: scale(0.92); }
+.deck-names { flex: 1; display: flex; justify-content: center; gap: 14px; min-width: 0; }
+.deck-name {
+  background: none; border: none; padding: 4px 0; cursor: pointer;
+  font-size: 12.5px; font-weight: 500; color: var(--text3); font-family: var(--font-body);
+}
+.deck-name-on { color: var(--text); font-weight: 600; }
+
+/* ── Statistics ──────────────────────────────────────────────────────── */
+.stats-sheet-btns { display: flex; gap: 8px; margin-top: 4px; }
+.stats-sheet-btns .btn-block { min-height: 46px; }
+
 </style>
 <script>
 // ── Real viewport height fix ───────────────────────────────────
@@ -3372,44 +3485,29 @@ try {
          SCREEN 0: PROGRESS
     ═══════════════════════════════════════════ -->
     <div class="screen" id="screen-progress">
+      <!-- v8.16 Phase 4. Page header, hero, then seven sections, each filled
+           by its own function (see renderProgress); the ids are the contract.
+
+           `progress-body` and `progress-tables-wrap` are demo-tour anchors.
+           `progress-body` is now the Insights section's card rather than a
+           two-card swipe deck, and `progress-tables-wrap` is the Week-by-week
+           deck, which still swipes. Both resolve by id at run time, so they
+           follow their sections.
+
+           The three AI features each own a section and render independently.
+           They used to share one slot by priority, which is why the mid-cycle
+           check-in vanished during a cycle's final week. -->
       <div id="progress-date" style="display:none;"></div>
-
-      <!-- Active cycle hero + swipeable chart deck (cycle overview, weight
-           over time, volume over time, steps vs goal, kcal vs goal) -->
+      <div id="progress-header"></div>
       <div id="progress-hero-wrap"><div id="progress-hero-card"></div></div>
-      <div id="progress-hero-dots"></div>
-
-      <!-- Body weight + peak insight -->
-      <div class="section-title" style="margin-top:16px;">Insights</div>
-      <div id="progress-body" style="margin-bottom:2px;"></div>
-      <div id="progress-body-dots" style="display:flex;justify-content:center;gap:6px;margin-bottom:6px;min-height:18px;"></div>
-
-      <!-- Phase 1 trend insights (goalType-branched deterministic narrative,
-           incl. plateau detection) and Phase 2 AI advice now render inside
-           card 1 of the swipe deck above (#progress-body) — see
-           buildInsightsCardHTML() and buildAiAdviceCardHTML(). -->
-
-      <!-- Weekly tables: swipeable stack (weekly summary / measurements) -->
-      <div class="section-title" style="margin-top:16px;">Weekly Summary</div>
-      <div id="progress-tables-wrap" style="margin-top:6px;"></div>
-      <div id="progress-tables-dots" style="display:flex;justify-content:center;gap:6px;margin-bottom:6px;min-height:18px;"></div>
-
-      <div class="divider" style="margin:20px 0 0;"></div>
-
-      <!-- Steps + Nutrition, merged into one statistics card with a single toggle -->
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;margin-bottom:6px;">
-        <div class="section-title" style="margin:0;">Statistics</div>
-        <div id="progress-stats-view-toggle" style="display:flex;gap:6px;"></div>
-      </div>
-      <div id="progress-nutrition" style="margin-bottom:4px;"></div>
-
-      <!-- Small row summaries of every goal period belonging to the
-           selected cycle, ordered by start date — see renderProgressCycleGoals() -->
-      <div id="progress-cycle-goals"></div>
-
-      <!-- Weekly macro split (moved here from the Nutrition tab) -->
-      <div class="section-title" style="margin-top:16px;">Weekly Macro Split</div>
-      <div id="progress-nutr-pies" style="margin-bottom:4px;"></div>
+      <div id="progress-hero-dots" style="display:none;"></div>
+      <div id="progress-this-week"></div>
+      <div id="progress-checkin"></div>
+      <div id="progress-week-by-week"></div>
+      <div id="progress-insights"></div>
+      <div id="progress-last-cycle"></div>
+      <div id="progress-next-cycle"></div>
+      <div id="progress-statistics"></div>
     </div>
 
     <!-- ════════════════════════════════════════
@@ -3860,6 +3958,71 @@ try {
      directly to the Anthropic API in the same call as the review text; they
      are never written to state/localStorage, only their counts are (see
      runCycleReview()/TECHNICAL.md §62). -->
+
+<!-- ── v8.16 Phase 4: the three AI full-view sheets (D3) ──────────────────
+     Each wraps the existing narrative builder for its feature. They replace
+     the expand-in-place bodies the check-in and cycle review used to have —
+     there is no fallback to expanding in the card. Content is filled on open
+     rather than at boot, because all three read state that changes. -->
+<div class="modal-overlay" id="modal-checkin-full">
+  <div class="modal-sheet" data-modal="modal-checkin-full" style="max-height:90dvh;display:flex;flex-direction:column;">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-checkin-full')">✕</button>
+    </div>
+    <div class="modal-title" style="flex-shrink:0;">Check-in</div>
+    <div class="modal-sub" style="flex-shrink:0;">BLOC's read on the plan you are on, and what it would change.</div>
+    <div id="checkin-full-body" style="overflow-y:auto;flex:1;"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-cycle-review-full">
+  <div class="modal-sheet" data-modal="modal-cycle-review-full" style="max-height:90dvh;display:flex;flex-direction:column;">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-cycle-review-full')">✕</button>
+    </div>
+    <div class="modal-title" style="flex-shrink:0;">Cycle review</div>
+    <div class="modal-sub" style="flex-shrink:0;">The whole cycle at once — weight, measurements, training and compliance.</div>
+    <div id="cycle-review-full-body" style="overflow-y:auto;flex:1;"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-next-cycle-full">
+  <div class="modal-sheet" data-modal="modal-next-cycle-full" style="max-height:90dvh;display:flex;flex-direction:column;">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-next-cycle-full')">✕</button>
+    </div>
+    <div class="modal-title" style="flex-shrink:0;">Build next cycle</div>
+    <div class="modal-sub" style="flex-shrink:0;">What BLOC thinks should come next, and the plans it would build.</div>
+    <div id="next-cycle-full-body" style="overflow-y:auto;flex:1;"></div>
+  </div>
+</div>
+
+<!-- ── v8.16 Phase 4: the two Statistics sheets ───────────────────────────
+     All-time stats is the existing "All" view of the statistics card; Macro
+     split is the weekly pie section, which used to be an inline section of
+     its own at the foot of the Progress page. -->
+<div class="modal-overlay" id="modal-all-time-stats">
+  <div class="modal-sheet" data-modal="modal-all-time-stats" style="max-height:90dvh;display:flex;flex-direction:column;">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-all-time-stats')">✕</button>
+    </div>
+    <div class="modal-title" style="flex-shrink:0;">All-time stats</div>
+    <div class="modal-sub" style="flex-shrink:0;">Every day of this cycle, not just the last seven.</div>
+    <div id="all-time-stats-body" style="overflow-y:auto;flex:1;"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-macro-split">
+  <div class="modal-sheet" data-modal="modal-macro-split" style="max-height:90dvh;display:flex;flex-direction:column;">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-macro-split')">✕</button>
+    </div>
+    <div class="modal-title" style="flex-shrink:0;">Macro split</div>
+    <div class="modal-sub" style="flex-shrink:0;">How each week's calories divided between protein, carbs and fats.</div>
+    <div id="progress-nutr-pies" style="overflow-y:auto;flex:1;"></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-cycle-review">
   <div class="modal-sheet" data-modal="modal-cycle-review" style="max-height:90dvh;display:flex;flex-direction:column;">
     <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div>
@@ -5593,8 +5756,6 @@ function buildDemoTourSteps() {
       // the ring stayed sized to the expanded card instead of shrinking
       // back down to this step's collapsed one.
       onEnter: () => {
-        insightsIndex = 0;
-        _aiAdviceBodyOpen = false;
         renderProgress();
       } },
     { targetId: 'progress-body', screen: 'progress',
@@ -5607,9 +5768,6 @@ function buildDemoTourSteps() {
       // stays hidden regardless of the inner flag. Found by testing: the
       // narrative visibly failed to expand until both were set together.
       onEnter: () => {
-        insightsIndex = 0; // defensive — Back can land here directly from
-                            // the Next Cycle step further along the deck
-        _aiAdviceBodyOpen = true;
         _blocAdviceSectionsOpen.narrative = true;
         _blocAdviceSectionsOpen.selected = false;
         _blocAdviceSectionsOpen.alt = false;
@@ -5627,8 +5785,6 @@ function buildDemoTourSteps() {
       // plans side by side unconditionally and these flags don't apply —
       // harmless, not wrong, just redundant with the next step in that case.
       onEnter: () => {
-        insightsIndex = 0; // defensive, same reasoning as the narrative step above
-        _aiAdviceBodyOpen = true;
         _blocAdviceSectionsOpen.narrative = false;
         const chosenPath = state.blocAdvice && state.blocAdvice.chosenPath;
         _blocAdviceSectionsOpen.selected = chosenPath === 'sustainable';
@@ -5638,15 +5794,7 @@ function buildDemoTourSteps() {
     { targetId: 'progress-body', screen: 'progress',
       title: 'The Aggressive plan \u2014 and a way to push back',
       body: 'This is the faster, more demanding route. Whichever plan you\u2019re actually on, if the numbers don\u2019t sit right, tap \u2018Challenge this\u2019 above \u2014 BLOC will respond with a revised plan, not just an explanation.',
-      // insightsIndex reset to 0 is the fix for Back from the Next Cycle
-      // step: that step's onEnter jumps the swipe deck to insightsIndex 2,
-      // and without resetting it here, coming back landed the tooltip on
-      // THIS step's ring/content while the deck itself was still showing
-      // the Next Cycle card underneath — spotlight and card visibly out
-      // of sync.
       onEnter: () => {
-        insightsIndex = 0;
-        _aiAdviceBodyOpen = true;
         const chosenPath = state.blocAdvice && state.blocAdvice.chosenPath;
         _blocAdviceSectionsOpen.selected = chosenPath === 'aggressive';
         _blocAdviceSectionsOpen.alt = chosenPath !== 'aggressive';
@@ -5668,7 +5816,6 @@ function buildDemoTourSteps() {
       body: 'Once your cycle is in its last week, this same card swaps to two sections: what BLOC thinks should come next, and — once the cycle actually ends — a full review of how it went. Let’s jump ahead to your cycle’s last day to see both.',
       onEnter: () => {
         setTourAnchorDate('2026-09-13');
-        insightsIndex = 0;
         _nextCycleAdviceSectionsOpen.narrative = true;
         _nextCycleAdviceSectionsOpen.selected = false;
         _nextCycleAdviceSectionsOpen.alt = false;
@@ -5678,33 +5825,21 @@ function buildDemoTourSteps() {
       title: 'Build next cycle — a second opinion on what’s next',
       body: 'BLOC works out what comes next — a bridge, a cut, or a bulk — from your real trend data, the same way it gave you a second opinion on your current plan earlier. This is available for the whole final week, not just today.',
       onEnter: () => {
-        insightsIndex = 0; // defensive — Back can land here directly from a later step
         renderProgress();
       } },
     { targetId: 'progress-body', screen: 'progress',
       title: 'Cycle review — one score, one narrative, once per cycle',
       body: 'On the cycle’s actual last day, BLOC reviews the whole thing — weight, measurements, training, and compliance — into a score and a full narrative. This runs once and can’t be redone, but stays here for you to revisit any time you switch back to this cycle.',
       onEnter: () => {
-        insightsIndex = 0;
-        const macro = state.macrocycles.find(m => m.id === macroId);
-        if (macro) _cycleReviewCardOpen[macro.id] = true;
         renderProgress();
       } },
     { targetId: 'progress-tables-wrap', screen: 'progress',
       title: 'There’s more than one screen here',
-      // Hero card used to be a swipe deck too — it isn't any more since
-      // the flat-design redesign, so this step now points at the two
-      // decks that actually are swipeable: this weekly-summary card, and
-      // the insights card (trend/AI-advice/final-week) a few steps back
-      // above it. Resets insightsIndex back to 0 first — otherwise the
-      // person would leave the tour with that deck sitting on the
-      // final-week card rather than back at a sensible default. Also
-      // resets the date anchor back to the dataset's real one — Plan/
-      // Train/Nutrition below all depend on it for their own week/day
-      // context, and it must not leak forward past this point in the tour.
+      // Resets the date anchor back to the dataset's real one — Plan, Train
+      // and Nutrition below all depend on it for their own week/day context,
+      // and it must not leak forward past this point in the tour.
       body: 'Swipe left and right on both this card and the insights card you just saw above — each has several views tucked behind the dots.',
       onEnter: () => {
-        insightsIndex = 0;
         setTourAnchorDate('2026-08-02');
         renderProgress();
       } },
@@ -5845,7 +5980,6 @@ function startProgressMiniTour() {
   closeModal('modal-tour-help');
   showScreen('progress');
   requestAnimationFrame(() => setTimeout(() => {
-    insightsIndex = 0;
     startTour([
       { targetId: 'progress-body', screen: 'progress',
         title: 'BLOC watches your trend, not just today',
@@ -5860,17 +5994,12 @@ function startProgressMiniTour() {
         // no re-render), so the ring stayed sized to the expanded card
         // instead of shrinking back down to this step's collapsed one.
         onEnter: () => {
-          insightsIndex = 0;
-          _aiAdviceBodyOpen = false;
           renderProgress();
         } },
       { targetId: 'progress-body', screen: 'progress',
         title: 'BLOC explains its reasoning, not just the numbers',
         body: 'Tap to expand the full narrative \u2014 BLOC walks through exactly why it thinks this is happening before recommending anything.',
         onEnter: () => {
-          insightsIndex = 0; // defensive — Back can land here directly from
-                              // the Next Cycle step further along the deck
-          _aiAdviceBodyOpen = true;
           _blocAdviceSectionsOpen.narrative = true;
           _blocAdviceSectionsOpen.selected = false;
           _blocAdviceSectionsOpen.alt = false;
@@ -5880,8 +6009,6 @@ function startProgressMiniTour() {
         title: 'The Sustainable plan',
         body: 'BLOC always lays out both options side by side \u2014 this is the gentler, slower-paced route toward your goal.',
         onEnter: () => {
-          insightsIndex = 0; // defensive, same reasoning as the narrative step above
-          _aiAdviceBodyOpen = true;
           _blocAdviceSectionsOpen.narrative = false;
           const chosenPath = state.blocAdvice && state.blocAdvice.chosenPath;
           _blocAdviceSectionsOpen.selected = chosenPath === 'sustainable';
@@ -5891,14 +6018,7 @@ function startProgressMiniTour() {
       { targetId: 'progress-body', screen: 'progress',
         title: 'The Aggressive plan \u2014 and a way to push back',
         body: 'This is the faster, more demanding route. Whichever plan you\u2019re actually on, if the numbers don\u2019t sit right, tap \u2018Challenge this\u2019 above \u2014 BLOC will respond with a revised plan, not just an explanation.',
-        // insightsIndex reset to 0 is the fix for Back from the Next Cycle
-        // step: that step's onEnter jumps the swipe deck to insightsIndex
-        // 2, and without resetting it here, coming back left the deck
-        // showing the Next Cycle card underneath this step's tooltip —
-        // spotlight and card visibly out of sync.
         onEnter: () => {
-          insightsIndex = 0;
-          _aiAdviceBodyOpen = true;
           const chosenPath = state.blocAdvice && state.blocAdvice.chosenPath;
           _blocAdviceSectionsOpen.selected = chosenPath === 'aggressive';
           _blocAdviceSectionsOpen.alt = chosenPath !== 'aggressive';
@@ -5911,13 +6031,12 @@ function startProgressMiniTour() {
         // so this stays descriptive rather than forcing a specific state.
         body: 'In your cycle’s last week, this card swaps to show what BLOC thinks should come next, plus — once the cycle actually ends — a full cycle review with a compliance score and narrative. You’ll see this automatically once you get there.',
         onEnter: () => {
-          insightsIndex = 0;
           renderProgress();
         } },
       { targetId: 'progress-tables-wrap', screen: 'progress',
         title: 'There\u2019s more than one screen here',
         body: 'Swipe left and right on both this card and the insights card you just saw above \u2014 each has several views tucked behind the dots.',
-        onEnter: () => { insightsIndex = 0; renderProgress(); } },
+        onEnter: () => { renderProgress(); } },
     ], { allowSkip: true, finalLabel: 'Done' });
   }, 300));
 }
@@ -7650,7 +7769,7 @@ function showScreen(name) {
   animateNavPill();
   updateNavPillColor(name);
   if (name === 'home') renderHome(true);
-  if (name === 'progress') renderProgress(true);
+  if (name === 'progress') renderProgress();
   if (name === 'plan') { planDayCollapsed = {}; renderPlan(); }
   if (name === 'train') renderTrain(true);
   if (name === 'nutrition') { nutrSelectedDate = getLocalToday(); renderNutrition(true); }
@@ -10834,181 +10953,146 @@ function buildWeightSparklineHtml(cycleLogs) {
   return `<div style="margin-top:8px;">${buildAreaLineChart(points, 'var(--accent)')}</div>`;
 }
 
-function buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort, animate = false) {
+// ── v8.16 Phase 4: the Progress hero ──────────────────────────────────────
+// Cycle name and status, this cycle's body weight, and a line chart of recent
+// weigh-ins against the target.
+//
+// The whole card opens Choose cycle. That is safe here and deliberately NOT
+// on Fuel: the Fuel hero carries a swipe gesture, and a tap target sharing an
+// element with a swipe turns a short swipe into an accidental navigation. This
+// hero has no gesture — the deck it once belonged to is down to a single card
+// and nothing calls initProgressHeroSwipe() — so a tap is the only thing it
+// can be read as.
+function buildProgressHeroHTML(macro) {
   if (!macro) {
-    return `<div style="cursor:pointer;padding:16px 2px;border-bottom:1px solid var(--border);" onclick="showScreen('plan')">
-      <div style="display:flex;align-items:center;justify-content:space-between;">
-        <span style="font-size:13px;color:var(--text3);">No active cycle — tap to create one</span>
-        <span style="color:var(--text3);font-size:18px;">→</span>
-      </div></div>`;
+    return `<div class="card rise" style="cursor:pointer;" onclick="showScreen('plan')">
+      <div class="empty-inline">No cycle yet — tap to create one in Plan.</div>
+    </div>`;
   }
 
   const startDate = macro.start ? new Date(macro.start + 'T00:00:00') : now();
-  const totalCalWks = getMacroDurationWeeks(macro);
   const endDate = getMacroEndDate(macro);
+  const totalWks = getMacroDurationWeeks(macro);
   const today = now(); today.setHours(0,0,0,0); startDate.setHours(0,0,0,0);
-  const totalDays = totalCalWks * 7 - 1; // inclusive day count, matches getMacroEndDate's start+days-1
-  const elapsedDays = Math.max(0, Math.min(today - startDate, endDate - startDate)) / (1000*60*60*24);
-  const cyclePct = Math.min(100, Math.round((elapsedDays / totalDays) * 100));
-  const currentMeso = today < startDate ? 0 : Math.min(getMacroEffectiveMesoCount(macro), Math.floor(elapsedDays / ((macro.weeksPerMeso || 1) * 7)) + 1);
-  const weekLabel = today < startDate ? 'Not started' : `MC ${currentMeso} of ${getMacroEffectiveMesoCount(macro)}`;
-  const endStr = endDate.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
-  const splitBadge = macro.splitType === 'fullbody' ? 'Full Body' : macro.splitType === 'custom' ? 'Custom' : 'PPL';
-  const isPast = today > endDate;
   const isFuture = today < startDate;
+  const isPast = today > endDate;
+  const elapsedDays = Math.max(0, Math.min(today - startDate, endDate - startDate)) / 86400000;
+  const weekNo = isFuture ? 0 : Math.min(totalWks, Math.floor(elapsedDays / 7) + 1);
 
-  // Goal direction for this cycle — used everywhere below that talks about
-  // "progress toward target" so the wording (and sign) always matches
-  // whether this is a loss or gain/strength cycle, rather than assuming loss.
-  const cycleGoalType = macro.goalType || 'loss';
-  const isGainGoal = cycleGoalType === 'gain' || cycleGoalType === 'strength';
-  const isMaintenanceGoal = cycleGoalType === 'maintenance';
+  // Status is purely date-based, never state.currentMacroId, which drives Plan
+  // and Train and can lag the cycle's own dates after a create or a date edit.
+  const statusLabel = isFuture ? 'Upcoming' : isPast ? 'Past' : 'Active';
+  const statusColour = isFuture ? 'var(--text3)' : isPast ? 'var(--text3)' : 'var(--green-text)';
 
-  // ── Body weight progress within this cycle ──
-  const bwLogsAll = (state.bodyLogs || []).filter(l => l.weight).sort((a,b) => a.date.localeCompare(b.date));
-  const cycleStartLogs = bwLogsAll.filter(l => macro.start && l.date >= macro.start && (!isPast || l.date <= toLocalDateStr(endDate)));
-  const startBw = cycleStartLogs.length ? parseFloat(cycleStartLogs[0].weight) : null;
-  const latestBw = cycleStartLogs.length ? parseFloat(cycleStartLogs[cycleStartLogs.length - 1].weight) : null;
-  const cycleDelta = (startBw !== null && latestBw !== null) ? latestBw - startBw : null;
+  const goalType = macro.goalType || 'loss';
+  const isGainGoal = goalType === 'gain' || goalType === 'strength';
+  const isMaintenance = goalType === 'maintenance';
 
-  let heroSub = '';
-  if (!isPast && macro.targetBw && latestBw !== null) {
-    const remaining = isGainGoal ? (macro.targetBw - latestBw) : (latestBw - macro.targetBw);
-    heroSub = Math.abs(remaining) <= 0.1
-      ? 'On target ✓'
-      : remaining > 0
-        ? remaining.toFixed(1) + ' lbs left to go'
-        : Math.abs(remaining).toFixed(1) + ' lbs ' + (isGainGoal ? 'above target' : 'below target');
-  } else if (!isPast && macro.targetBw) {
-    heroSub = `Target ${macro.targetBw} lbs — no weigh-ins yet`;
-  }
+  const endStr = toLocalDateStr(endDate);
+  const cycleLogs = (state.bodyLogs || [])
+    .filter(l => l.weight && macro.start && l.date >= macro.start && l.date <= endStr)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const latestBw = cycleLogs.length ? parseFloat(cycleLogs[cycleLogs.length - 1].weight) : null;
+  const startBw  = cycleLogs.length ? parseFloat(cycleLogs[0].weight) : null;
 
-  // ── On-track / behind / ahead schedule comparison (ongoing cycles) ──
-  // or final result vs target (finished cycles) ─────────────────────────
-  let statusHtml = '';
-  if (isMaintenanceGoal && latestBw !== null && macro.targetBw) {
-    // Maintenance: success = staying within ±2 lbs of target weight.
-    // No directional schedule comparison — stability IS the goal.
+  // ── The status line — the existing status logic and its colours ──
+  let statusLine = '';
+  if (isMaintenance && latestBw !== null && macro.targetBw) {
+    // Maintenance succeeds by staying put, so there is no schedule to be
+    // ahead of or behind — stability IS the goal.
     const diff = Math.abs(latestBw - macro.targetBw);
-    const isStable = diff <= 2.0;
-    const isFarOff = diff > 5.0;
-    const statusLabel = isStable
-      ? `● Stable — within ${diff.toFixed(1)} lbs of target`
-      : isFarOff
-        ? `⚠ ${diff.toFixed(1)} lbs from target`
-        : `● ${diff.toFixed(1)} lbs from target`;
-    const statusColor = isStable ? 'var(--green)' : isFarOff ? 'var(--red)' : 'var(--amber)';
-    statusHtml = `<div style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:${statusColor};">${statusLabel}</div>`;
+    const colour = diff <= 2.0 ? 'var(--green-text)' : diff > 5.0 ? 'var(--red)' : 'var(--amber)';
+    const label = diff <= 2.0 ? 'Stable' : diff > 5.0 ? 'Drifting' : 'Slipping';
+    statusLine = `<span style="color:${colour};font-weight:700;">${label}</span> · within ${diff.toFixed(1)} lbs of your ${macro.targetBw} lb target`;
   } else if (isPast && macro.targetBw && latestBw !== null) {
-    const diff = latestBw - macro.targetBw; // positive = finished above target, negative = below
-    const isOnTarget = Math.abs(diff) <= 0.1;
-    const posLabel = diff > 0 ? 'above' : 'below';
-    // Bad (red) only when this final position represents falling short of
-    // THIS cycle's own goal: finishing above target on a loss cycle, or
-    // below target on a gain cycle.
-    const isBad = isGainGoal ? diff < -0.1 : diff > 0.1;
-    const statusLabel = isOnTarget ? '✓ Finished on target' : `You finished ${Math.abs(diff).toFixed(1)} lbs ${posLabel} target`;
-    const statusColor = isOnTarget ? 'var(--green)' : (isBad ? 'var(--red)' : 'var(--green)');
-    statusHtml = `<div style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:${statusColor};">${statusLabel}</div>`;
-  } else if (!isPast && macro.targetBw && startBw !== null && latestBw !== null && !isFuture) {
-    const totalBwChangeNeeded = macro.targetBw - startBw;
-    let bwPct = 0;
-    if (Math.abs(totalBwChangeNeeded) >= 0.1) {
-      bwPct = Math.max(0, Math.min(150, ((latestBw - startBw) / totalBwChangeNeeded) * 100));
-    } else {
-      bwPct = 100; // already at goal at cycle start
-    }
+    const diff = latestBw - macro.targetBw;
+    const onTarget = Math.abs(diff) <= 0.1;
+    // Red only where the finish falls short of THIS cycle's own goal:
+    // above target on a cut, below it on a bulk.
+    const bad = isGainGoal ? diff < -0.1 : diff > 0.1;
+    const colour = onTarget ? 'var(--green-text)' : bad ? 'var(--red)' : 'var(--green-text)';
+    statusLine = onTarget
+      ? `<span style="color:${colour};font-weight:700;">Finished on target</span>`
+      : `<span style="color:${colour};font-weight:700;">Finished ${Math.abs(diff).toFixed(1)} lbs ${diff > 0 ? 'above' : 'below'} target</span> · ${macro.targetBw} lbs`;
+  } else if (!isPast && !isFuture && macro.targetBw && startBw !== null && latestBw !== null) {
+    const totalNeeded = macro.targetBw - startBw;
+    const totalDays = totalWks * 7 - 1;
+    const cyclePct = Math.min(100, Math.round((elapsedDays / totalDays) * 100));
+    const bwPct = Math.abs(totalNeeded) >= 0.1
+      ? Math.max(0, Math.min(150, ((latestBw - startBw) / totalNeeded) * 100))
+      : 100;
     const gap = bwPct - cyclePct;
-    let statusLabel, statusColor;
-    if (gap >= 8) { statusLabel = '↗ Ahead of schedule'; statusColor = 'var(--green)'; }
-    else if (gap <= -8) { statusLabel = '↘ Falling behind'; statusColor = 'var(--accent2)'; }
-    else { statusLabel = '● On track'; statusColor = 'var(--amber)'; }
-    statusHtml = `<div style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:${statusColor};">${statusLabel} — ${Math.round(bwPct)}% of goal vs ${cyclePct}% of cycle</div>`;
+    const label  = gap >= 8 ? 'Ahead of schedule' : gap <= -8 ? 'Falling behind' : 'On track';
+    const colour = gap >= 8 ? 'var(--green-text)' : gap <= -8 ? 'var(--accent2)' : 'var(--amber)';
+    statusLine = `<span style="color:${colour};font-weight:700;">${label}</span> · ${Math.round(bwPct)}% of goal against ${cyclePct}% of cycle`;
+  } else if (macro.targetBw) {
+    statusLine = `Target ${macro.targetBw} lbs · no weigh-ins in this cycle yet`;
   }
 
-  // ── New callouts: cycle totals, averages, volume ──
-  const dayMapForMacro = buildDayMap();
-  const macroEndStr = toLocalDateStr(endDate);
-  const avgSteps   = avgDayMapField(dayMapForMacro, 'steps',   macro.start || '0000-00-00', macroEndStr);
-  const avgKcal    = avgDayMapField(dayMapForMacro, 'kcal',    macro.start || '0000-00-00', macroEndStr);
-  const totalVolume = getMacroTotalVolume(macro);
-
-  // Label reflects this cycle's own goal direction (loss vs gain), not the
-  // raw sign of the change — so a gain cycle always says "Weight gained"
-  // even if the actual trend is negative (shown as a negative figure),
-  // rather than flipping to "lost" based on what actually happened.
-  const weightChangeLabel = (isGainGoal ? 'Weight gained' : 'Weight lost') + ' so far';
-  let heroValFinal = '—';
-  let heroValMagnitude = null; // numeric magnitude to count up from 0 (sign/decimal handled separately)
-  let heroValSign = '';
-  if (cycleDelta !== null) {
-    let displayVal, sign;
-    if (isGainGoal) { displayVal = cycleDelta; sign = ''; }
-    else if (cycleDelta > 0) { displayVal = cycleDelta; sign = '+'; }
-    else { displayVal = -cycleDelta; sign = ''; }
-    heroValMagnitude = displayVal;
-    heroValSign = sign;
-    heroValFinal = `${sign}${displayVal.toFixed(1)}`;
-  }
-  const heroValDisplay = animate ? (heroValMagnitude !== null ? `${heroValSign}0.0` : '—') : heroValFinal;
-
-  const navArrowButtons = canCycle ? `<div style="display:flex;gap:6px;">
-      <button onclick="cycleProgressMacro(-1)" aria-label="Previous cycle"><svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
-      <button onclick="cycleProgressMacro(1)" aria-label="Next cycle"><svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
-    </div>` : '';
-
-  // Purely date-based — never tied to state.currentMacroId, which drives
-  // Plan/Train and can lag behind what the cycle dates actually say (e.g.
-  // right after creating a new cycle or editing an existing one's dates).
-  const isActiveCycle = !isFuture && !isPast;
-  const cycleStatusLabel = isFuture ? 'Upcoming' : isPast ? 'Past' : 'Active';
-  const cycleStatusPill = `<span style="display:inline-block;padding:3px 9px;border-radius:var(--r-sm);font-size:10px;font-weight:600;letter-spacing:0.04em;white-space:nowrap;border:1px solid ${isActiveCycle ? 'var(--accent)' : 'var(--border2)'};color:${isActiveCycle ? 'var(--accent2)' : 'var(--text3)'};">${cycleStatusLabel.toUpperCase()}</span>`;
-
-  const html = `<div class="hero-card" data-page="progress">
-    <div class="hero-nav-arrows" style="flex-direction:column;align-items:flex-end;gap:6px;" onclick="event.stopPropagation();">
-      ${cycleStatusPill}
-      ${navArrowButtons}
+  return `<div class="card prog-hero rise" onclick="openCycleHistory()">
+    <div class="prog-hero-top">
+      <span class="prog-hero-name">${macro.name}</span>
+      <svg class="prog-hero-chev" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+      <span class="chip" style="--chip-c:${statusColour};margin-left:auto;">${statusLabel}</span>
     </div>
-    <div class="hero-tappable" style="flex:1;min-width:0;" onclick="openCycleHistory()">
-      <div class="hero-label">${todayStrShort}</div>
-      <div style="display:flex;align-items:center;gap:6px;">
-        <div class="hero-value" style="font-size:24px;">${macro.name}</div>
-        <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2.5;stroke-linecap:round;flex-shrink:0;margin-top:4px;" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
-      </div>
-      <div class="hero-sub">${macro.goal || ''}${macro.goal ? ' · ' : ''}${totalCalWks}wk · Ends ${endStr}</div>
-    </div>
-
-    <div style="text-align:center;padding:20px 0 4px;">
-      <div style="font-size:12px;color:var(--text3);margin-bottom:6px;">${weightChangeLabel}</div>
-      <div class="hero-value" style="font-size:56px;"><span id="progress-hero-weight-val">${heroValDisplay}</span><span class="unit"> lbs</span></div>
-      ${heroSub ? `<div style="font-size:12px;color:var(--text3);margin-top:8px;">${heroSub}</div>` : ''}
-    </div>
-
-    <div class="hero-progress-track" style="margin-top:18px;"><div class="hero-progress-fill" id="progress-hero-cyclebar" style="width:${animate ? 0 : cyclePct}%;transition:none;"></div></div>
-    <div class="hero-progress-row" style="margin-top:6px;"><span>${weekLabel}</span><span id="progress-hero-cyclepct">${animate ? 0 : cyclePct}%</span></div>
-    <div style="text-align:center;margin-top:2px;">
-      <svg onclick="toggleProgressWeightSpark()" viewBox="0 0 24 24" width="16" height="16" style="cursor:pointer;stroke:var(--text3);fill:none;stroke-width:2.5;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${progressWeightSparkOpen ? '180deg' : '0deg'});"><polyline points="6 9 12 15 18 9"/></svg>
-    </div>
-    ${progressWeightSparkOpen ? buildWeightSparklineHtml(cycleStartLogs) : ''}
-    ${statusHtml ? `<div class="divider" style="margin:22px 0;"></div>${statusHtml}` : ''}
-    <div class="divider" style="margin:22px 0;"></div>
-
-    <div class="hero-callouts">
-      <div class="hero-callout"><div class="hero-callout-lbl">Volume</div><div class="hero-callout-val"><span id="progress-hero-volume">${(animate ? 0 : Math.round(totalVolume)).toLocaleString()}</span> kg</div></div>
-      <div class="hero-callout"><div class="hero-callout-lbl">Steps</div><div class="hero-callout-val" id="progress-hero-steps">${avgSteps !== null ? (animate ? 0 : avgSteps).toLocaleString() : '—'}</div></div>
-      <div class="hero-callout"><div class="hero-callout-lbl">Kcal</div><div class="hero-callout-val" id="progress-hero-kcal">${avgKcal !== null ? (animate ? 0 : avgKcal).toLocaleString() : '—'}</div></div>
-    </div>
-    <div class="divider" style="margin:22px 0 0;"></div>
+    <div class="prog-hero-eyebrow">Body weight</div>
+    <div class="prog-hero-week">${isFuture ? 'Not started' : `Week ${weekNo} of ${totalWks}`}</div>
+    <div class="prog-hero-val digits">${latestBw !== null ? latestBw.toFixed(1) : '—'}<span class="prog-hero-unit"> lbs</span></div>
+    ${statusLine ? `<div class="prog-hero-status">${statusLine}</div>` : ''}
+    ${buildProgressHeroChart(cycleLogs, macro.targetBw)}
+    <div class="prog-hero-foot"><span>Tap to switch cycle</span></div>
   </div>`;
+}
 
-  if (animate) {
-    animateProgressHeroValues({
-      heroValMagnitude, heroValSign, cyclePct,
-      totalVolume: Math.round(totalVolume), avgSteps, avgKcal,
-    });
+// The weigh-in line, the target as a dashed ice-blue line, and the latest
+// weigh-in as a dot. Drawn as inline SVG so the target line and the dot are
+// real elements the entrance system can animate (.line and .dot, §83) rather
+// than a generic chart the motion classes cannot reach into.
+function buildProgressHeroChart(cycleLogs, targetBw) {
+  if (!cycleLogs || cycleLogs.length < 2) {
+    return `<div class="prog-hero-chart-empty">Log a few weigh-ins to see this cycle’s trend.</div>`;
   }
+  const W = 320, H = 96, padL = 4, padR = 4, padT = 10, padB = 4;
+  const target = (targetBw !== null && targetBw !== undefined && targetBw !== '') ? parseFloat(targetBw) : null;
+  const ys = cycleLogs.map(l => parseFloat(l.weight));
+  // The target is inside the scale so the dashed line is always on the chart.
+  // Left out, a target already met sits off the top and reads as "no target".
+  const all = target !== null && !isNaN(target) ? ys.concat([target]) : ys;
+  let min = Math.min(...all), max = Math.max(...all);
+  if (max - min < 1) { const mid = (max + min) / 2; min = mid - 0.5; max = mid + 0.5; }
+  const pad = (max - min) * 0.12;
+  min -= pad; max += pad;
 
-  return html;
+  const x = i => padL + (i / (cycleLogs.length - 1)) * (W - padL - padR);
+  const y = v => padT + (1 - (v - min) / (max - min)) * (H - padT - padB);
+
+  const d = ys.map((v, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const lastX = x(cycleLogs.length - 1), lastY = y(ys[ys.length - 1]);
+  const targetLine = (target !== null && !isNaN(target))
+    ? `<line x1="${padL}" y1="${y(target).toFixed(1)}" x2="${W - padR}" y2="${y(target).toFixed(1)}"
+         stroke="var(--ice-blue)" stroke-width="1.2" stroke-dasharray="4 4" opacity="0.8"/>
+       <text x="${W - padR}" y="${(y(target) - 5).toFixed(1)}" text-anchor="end"
+         font-size="9.5" fill="var(--ice-blue)" font-weight="600">Target ${target}</text>`
+    : '';
+
+  const firstDate = new Date(cycleLogs[0].date + 'T00:00:00').toLocaleDateString('en-GB', { day:'numeric', month:'short' });
+  const lastDate  = new Date(cycleLogs[cycleLogs.length - 1].date + 'T00:00:00').toLocaleDateString('en-GB', { day:'numeric', month:'short' });
+
+  return `<div class="prog-hero-chart">
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Weigh-ins this cycle">
+      ${targetLine}
+      <path class="line" d="${d}" fill="none" stroke="var(--accent)" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round" pathLength="1"/>
+      <circle class="dot" cx="${lastX.toFixed(1)}" cy="${lastY.toFixed(1)}" r="4" fill="var(--accent)"/>
+    </svg>
+    <div class="prog-hero-axis"><span>${firstDate}</span><span>${lastDate}</span></div>
+  </div>`;
+}
+
+function renderProgressHero() {
+  const el = document.getElementById('progress-hero-card');
+  if (!el) return;
+  el.innerHTML = buildProgressHeroHTML(resolveProgressMacro());
 }
 
 // Counts the Progress hero's weight-so-far figure, the calendar-time bar
@@ -11019,42 +11103,6 @@ function buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort, animate =
 // on an actual Progress page load (see renderProgressHero), never on
 // in-card actions like cycling between macrocycles or toggling the weight
 // sparkline, which re-render statically.
-function animateProgressHeroValues(data) {
-  const duration = 1000;
-  const start = performance.now();
-  const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
-
-  function step(now) {
-    const t = Math.min(1, (now - start) / duration);
-    const e = easeOutCubic(t);
-
-    if (data.heroValMagnitude !== null) {
-      const el = document.getElementById('progress-hero-weight-val');
-      if (el) el.textContent = `${data.heroValSign}${(data.heroValMagnitude * e).toFixed(1)}`;
-    }
-    const barEl = document.getElementById('progress-hero-cyclebar');
-    const pctEl = document.getElementById('progress-hero-cyclepct');
-    const curPct = Math.round(data.cyclePct * e);
-    if (barEl) barEl.style.width = (data.cyclePct * e) + '%';
-    if (pctEl) pctEl.textContent = curPct + '%';
-
-    const volEl = document.getElementById('progress-hero-volume');
-    if (volEl) volEl.textContent = Math.round(data.totalVolume * e).toLocaleString();
-
-    if (data.avgSteps !== null) {
-      const stepsEl = document.getElementById('progress-hero-steps');
-      if (stepsEl) stepsEl.textContent = Math.round(data.avgSteps * e).toLocaleString();
-    }
-    if (data.avgKcal !== null) {
-      const kcalEl = document.getElementById('progress-hero-kcal');
-      if (kcalEl) kcalEl.textContent = Math.round(data.avgKcal * e).toLocaleString();
-    }
-
-    if (t < 1) requestAnimationFrame(step);
-  }
-  requestAnimationFrame(step);
-}
-
 // Slide 1 — body weight over time, as a white area line chart on the
 // gradient hero shell. The x-axis is always the active cycle's own real
 // calendar dates (unchanged from the single-cycle view). Browsing to a
@@ -11281,24 +11329,6 @@ function buildGoalColumnHeroChart(macro, metric) {
   </div>`;
 }
 
-// ── Progress hero card ───────────────────────────────────────────────────
-// Down to a single view (Active Cycle) — the weight-over-time, volume-
-// over-time, and steps/kcal-vs-goal slides that used to live here as
-// separate swipeable cards have been folded elsewhere: weight trend is now
-// a collapsible sparkline inside this card (see buildWeightSparklineHtml),
-// and the steps/kcal bar-chart visual now powers the Statistics card's
-// "All" toggle (see buildStatRowAllTimeChart). Volume-over-time wasn't
-// carried forward — not needed as a standalone view.
-function renderProgressHero(animate = false) {
-  const el = document.getElementById('progress-hero-card');
-  if (!el) return;
-  const todayStrShort = now().toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
-  const macro = resolveProgressMacro();
-  const macroList = state.macrocycles.slice().sort((a,b) => (a.start||'').localeCompare(b.start||''));
-  const canCycle = macroList.length > 1;
-
-  el.innerHTML = buildActiveCycleHeroSlideHtml(macro, canCycle, todayStrShort, animate);
-}
 
 // Dot pagination below the hero deck — kept as a no-op stub (renders
 // nothing) now that the deck is down to a single card, so any leftover
@@ -11380,11 +11410,9 @@ function progressHeroAnimateTo(rawIndex) {
   }, 160);
 }
 
-// ── Insights card swipe deck (3 cards: Progress / Metabolism / Next cycle) ──
-let insightsIndex        = 0;
-let _insightsBusy        = false;
-let _insightsGestureId   = 0;
-const INSIGHTS_CARD_COUNT = 3;
+// The Insights swipe deck was removed in v8.16: its two cards are one
+// scrolling section now. It existed to save vertical space on a page that
+// did not scroll.
 
 // Returns the currently-rendered .card element inside the Progress page's
 // secondary swipeable deck (#progress-body — the 3-card 'insights' strip
@@ -12065,112 +12093,12 @@ function recommendNextCycle(macro, override) {
   };
 }
 
-function getInsightsCard() {
-  const wrap = document.getElementById('progress-body');
-  return wrap ? wrap.querySelector('.insights-swipe-card') : null;
-}
-
-// Animates the insights card back to its resting position after a swipe that
-// didn't cross the threshold to change cards — same pattern as
-// progressHeroSnapBack but for the secondary deck.
-function insightsSnapBack() {
-  const card = getInsightsCard();
-  if (card) {
-    card.style.transition = 'transform 0.18s ease-out, opacity 0.18s ease-out';
-    card.style.transform  = 'translateX(0)';
-    card.style.opacity    = '1';
-  }
-}
-
-// Advances the Progress page's secondary 'insights' card deck to a new index
-// (wrapping via INSIGHTS_CARD_COUNT), animating the transition.
-function insightsAnimateTo(rawIndex) {
-  const dir = rawIndex > insightsIndex ? 1 : (rawIndex < insightsIndex ? -1 : 0);
-  let newIndex = ((rawIndex % INSIGHTS_CARD_COUNT) + INSIGHTS_CARD_COUNT) % INSIGHTS_CARD_COUNT;
-  if (newIndex === insightsIndex) { insightsSnapBack(); return; }
-  if (_insightsBusy) return;
-  _insightsBusy = true;
-  const myGesture = ++_insightsGestureId;
-
-  const outX = dir > 0 ? -260 : 260;
-  const card = getInsightsCard();
-  if (card) {
-    card.style.transition = 'transform 0.16s ease-in, opacity 0.16s ease-in';
-    card.style.transform  = `translateX(${outX}px)`;
-    card.style.opacity    = '0';
-  }
-
-  setTimeout(() => {
-    if (myGesture !== _insightsGestureId) return;
-    insightsIndex = newIndex;
-    renderProgress();   // re-renders card + dots
-    requestAnimationFrame(() => {
-      if (myGesture !== _insightsGestureId) return;
-      const newCard = getInsightsCard();
-      if (newCard) {
-        newCard.style.transition = 'none';
-        newCard.style.transform  = `translateX(${-outX}px)`;
-        newCard.style.opacity    = '0';
-        void newCard.offsetWidth;
-        requestAnimationFrame(() => {
-          if (myGesture !== _insightsGestureId) return;
-          newCard.style.transition = 'transform 0.2s ease-out, opacity 0.2s ease-out';
-          newCard.style.transform  = 'translateX(0)';
-          newCard.style.opacity    = '1';
-          setTimeout(() => { if (myGesture === _insightsGestureId) _insightsBusy = false; }, 210);
-        });
-      } else {
-        setTimeout(() => { if (myGesture === _insightsGestureId) _insightsBusy = false; }, 210);
-      }
-    });
-  }, 160);
-}
 
 let _insightsSwipeInited = false;
 // Attaches touch/mouse swipe gesture handlers to the Progress page's
 // secondary insights deck (#progress-body) — the same swipe-to-advance
 // pattern as the hero deck (initProgressHeroSwipe), applied to a separate,
 // smaller 3-card carousel.
-function initInsightsSwipe() {
-  _insightsSwipeInited = false; // re-init on each render (wrap may change)
-  const wrap = document.getElementById('progress-body');
-  if (!wrap) return;
-  wrap.style.touchAction = 'pan-y';
-  let startX = 0, startY = 0, tracking = false, moved = false, suppressClick = false;
-  function resetGesture() { tracking = false; moved = false; }
-  wrap.addEventListener('touchstart', e => {
-    if (_insightsBusy) { resetGesture(); return; }
-    if (e.touches.length !== 1) { resetGesture(); return; }
-    startX = e.touches[0].clientX; startY = e.touches[0].clientY;
-    tracking = true; moved = false;
-  }, { passive: true });
-  wrap.addEventListener('touchmove', e => {
-    if (!tracking || _insightsBusy) return;
-    const dx = e.touches[0].clientX - startX;
-    const dy = e.touches[0].clientY - startY;
-    if (!moved && Math.abs(dy) > Math.abs(dx) + 4) { tracking = false; return; }
-    if (Math.abs(dx) > 8) moved = true;
-  }, { passive: true });
-  wrap.addEventListener('touchend', e => {
-    if (_insightsBusy) { resetGesture(); return; }
-    if (tracking && moved && e.changedTouches.length === 1) {
-      const dx = e.changedTouches[0].clientX - startX;
-      if (Math.abs(dx) > 40) {
-        suppressClick = true;
-        insightsAnimateTo(insightsIndex + (dx < 0 ? 1 : -1));
-      } else { insightsSnapBack(); }
-    }
-    resetGesture();
-  }, { passive: true });
-  wrap.addEventListener('touchcancel', () => {
-    if (!_insightsBusy) insightsSnapBack();
-    resetGesture();
-  }, { passive: true });
-  wrap.addEventListener('click', e => {
-    if (suppressClick) { e.stopPropagation(); e.preventDefault(); }
-    suppressClick = false;
-  }, true);
-}
 
 let _progressHeroSwipeInited = false;
 // Attaches touch/mouse swipe gesture handlers to the Progress hero deck.
@@ -12241,55 +12169,354 @@ function initProgressHeroSwipe() {
 
 // Top-level render function for the Progress screen. Renders the hero deck,
 // the secondary insights card deck, and wires up both sets of swipe handlers.
-function renderProgress(animate = false) {
-  const todayStr = now().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' });
-  document.getElementById('progress-date').textContent = todayStr;
-
+// ── v8.16 Phase 4: the Progress page ──────────────────────────────────────
+// renderProgress() resolves which cycle is being viewed and then delegates one
+// region each. Every calculation below it is v8.15's; what changed is where the
+// output lives and which conditions gate it.
+//
+// 🚨 The three AI features each own a section and render independently. They
+// used to fill ONE slot by priority — final-week card, then cycle review, then
+// the check-in fused into Insights — which is why the mid-cycle check-in
+// disappeared for the whole of a cycle's final week and why a finished cycle's
+// review permanently displaced it. Nothing is gated on another feature's state
+// any more; each renders on its own eligibility.
+function renderProgress() {
   const macro = resolveProgressMacro();
+  const dateEl = document.getElementById('progress-date');
+  if (dateEl) dateEl.textContent = now().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' });
 
-  // ── Active cycle hero + swipeable chart deck ──
-  renderProgressHero(animate);
+  renderProgressHeader();
+  renderProgressHero();
+  renderProgressThisWeek(macro);
+  renderProgressCheckin(macro);
+  renderProgressWeekByWeek();
+  renderProgressInsights(macro);
+  renderProgressLastCycle(macro);
+  renderProgressNextCycle(macro);
+  renderProgressStatistics(macro);
 
-  // ── Body weight card ──────────────────────────
-  const bodyEl = document.getElementById('progress-body');
-  const weightLogs = [...(state.bodyLogs||[])].sort((a,b) => b.date.localeCompare(a.date));
+  updateInsightsRollup();
+}
+
+// ── v8.16 Phase 4: the Progress sheets ────────────────────────────────────
+// Each fills its body on open rather than at boot: all five read state that
+// changes while the page is up (a check-in lands, a review runs, a plan is
+// chosen), and a body built once would show whatever was true at boot.
+function openCheckinSheet() {
+  const el = document.getElementById('checkin-full-body');
+  if (el) el.innerHTML = buildCheckinSheetBodyHTML();
+  openModal('modal-checkin-full');
+}
+
+function openCycleReviewSheet(macroId) {
+  const macro = (state.macrocycles || []).find(m => m.id === macroId) || resolveProgressMacro();
+  const el = document.getElementById('cycle-review-full-body');
+  if (el) {
+    el.innerHTML = (macro && macro.review)
+      ? buildCycleReviewSummaryHTML(macro, true)
+      : '<div class="empty-inline">This cycle has not been reviewed yet.</div>';
+  }
+  openModal('modal-cycle-review-full');
+}
+
+function openNextCycleAdviceSheet() {
+  const macro = resolveProgressMacro();
+  const el = document.getElementById('next-cycle-full-body');
+  if (el) {
+    if (!macro) {
+      el.innerHTML = '<div class="empty-inline">No cycle to plan from yet.</div>';
+    } else {
+      const previewMacro = _nextCyclePreviewMacroId
+        ? (state.macrocycles || []).find(m => m.id === _nextCyclePreviewMacroId)
+        : null;
+      const rec = recommendNextCycle(previewMacro || macro, _nextCycleOverride);
+      el.innerHTML = buildNextCycleAdviceSectionHTML(macro, rec)
+        || '<div class="empty-inline">No next-cycle advice has been generated for this cycle yet.</div>';
+    }
+  }
+  openModal('modal-next-cycle-full');
+}
+
+function openAllTimeStatsSheet() {
+  openModal('modal-all-time-stats');
+  // After the sheet is open, so the "All" view's horizontal scrollers can
+  // measure a container that has a width. renderProgressNutr()'s own rAF
+  // sizing reads clientWidth, which is 0 while the sheet is still closed.
+  renderProgressNutr('all-time-stats-body', true);
+}
+
+function openMacroSplitSheet() {
+  openModal('modal-macro-split');
+  renderProgressNutrPies();
+}
+
+function renderProgressHeader() {
+  const el = document.getElementById('progress-header');
+  if (!el) return;
+  // getLocalToday() rather than the clock: the demo tour and local dev move
+  // "today" app-wide, and a header reading the real date would contradict the
+  // hero's week number and every figure below it.
+  const d = new Date(getLocalToday() + 'T00:00:00');
+  el.innerHTML = `<div class="page-head rise">
+    <div class="page-head-text">
+      <div class="page-eyebrow">${d.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' })}</div>
+      <h1 class="page-h1">Progress</h1>
+    </div>
+  </div>`;
+}
+
+// ── 01 This week ──────────────────────────────────────────────────────────
+// Three tiles against the active goal's targets. Same averages Home reports —
+// avgDayMapField over the same Monday-anchored week — so the two pages cannot
+// disagree about what this week has been.
+function renderProgressThisWeek(macro) {
+  const el = document.getElementById('progress-this-week');
+  if (!el) return;
+  const today = getLocalToday();
+  const weekStart = getHomeWeekStart(today);
+  const goal = getActiveGoal();
+  const dayMap = buildDayMap();
+
+  const metrics = [
+    { field:'kcal',    name:'Calories', unit:'',  colour:'var(--accent)',   lowGood:false },
+    { field:'protein', name:'Protein',  unit:'g', colour:'var(--blue)',     lowGood:false },
+    { field:'steps',   name:'Steps',    unit:'',  colour:'var(--ice-blue)', lowGood:false },
+  ];
+
+  const tiles = metrics.map(m => {
+    const avg = avgDayMapField(dayMap, m.field, weekStart, today);
+    const target = goal ? goal[m.field] : null;
+    let deltaHtml = '';
+    if (avg !== null && target) {
+      const diff = Math.round(avg - target);
+      // Calories are the one metric where over is the concern and under is
+      // not; protein and steps read the other way. The colour follows the
+      // metric's own direction rather than the sign.
+      const bad = m.field === 'kcal' ? diff > 0 : diff < 0;
+      const colour = diff === 0 ? 'var(--text3)' : bad ? 'var(--red)' : 'var(--green-text)';
+      deltaHtml = `<div class="prog-tile-delta" style="color:${colour};">${diff > 0 ? '+' : ''}${diff.toLocaleString()}${m.unit}</div>`;
+    } else if (avg !== null) {
+      deltaHtml = `<div class="prog-tile-delta" style="color:var(--text3);">no target</div>`;
+    }
+    return `<div class="fuel-rest-tile">
+      <div class="fuel-rest-tile-lbl">${m.name}</div>
+      <div class="fuel-rest-tile-val" style="color:${m.colour};">${avg !== null ? avg.toLocaleString() : '—'}<span class="fuel-rest-tile-unit">${avg !== null ? m.unit : ''}</span></div>
+      ${deltaHtml}
+    </div>`;
+  }).join('');
+
+  el.innerHTML = sectionHeader('This week', 'Your daily averages so far this week, against this phase’s targets.')
+    + `<div class="card"><div class="prog-tile-row">${tiles}</div></div>`
+    + sectionEnd();
+}
+
+// ── The check-in's eligibility, cooldown and stored state ─────────────────
+// One implementation, read by the section and by its full-view sheet. It was
+// inline in the old fused card; both readers computing it separately is how
+// a section and its sheet start disagreeing about whether a check-in is due.
+function computeCheckinState(macro) {
+  if (!macro) return null;
+  const ins = computeWeeklyInsights(macro);
+  const today = getLocalToday();
+
+  // drift-warning alone is informational — it does not warrant an API call.
+  const INTERVENTION_SIGNALS = new Set([
+    'plateau-creep', 'plateau-adaptation',
+    'gain-deficit', 'gain-undereating', 'gain-excess',
+    'maint-unstable',
+  ]);
+
+  const hasEnoughData  = ins && !ins.insufficientData;
+  const signalWarrants = ins && INTERVENTION_SIGNALS.has(ins.signal);
+  const eligible       = hasEnoughData && signalWarrants;
+
+  const stored = state.blocAdvice;
+  const hasStoredAdvice = !!(stored && stored.macroId === macro.id && stored.response);
+
+  // nextCheckIn is per-path; with no plan chosen, the earlier of the two.
+  // A date more than 16 days after storedAt was computed by the old
+  // end-of-plan logic — cap it at the 14-day fallback rather than trusting it.
+  let inCooldown = false;
+  let cooldownUntil = null;
+  if (hasStoredAdvice && stored.response.nextCheckIn) {
+    const nc = stored.response.nextCheckIn;
+    const chosen = stored.chosenPath;
+    let rawDate = chosen && nc[chosen] ? nc[chosen] : ([nc.sustainable, nc.aggressive].filter(Boolean).sort()[0] || null);
+    if (rawDate && stored.storedAt) {
+      const storedMs = new Date(stored.storedAt + 'T00:00:00').getTime();
+      const checkMs  = new Date(rawDate + 'T00:00:00').getTime();
+      if (checkMs > storedMs + 16 * 86400000) {
+        rawDate = getMondayAfter(getSundayAfterWeeks(stored.storedAt, 2));
+      }
+    }
+    cooldownUntil = rawDate;
+    if (cooldownUntil && today < cooldownUntil) inCooldown = true;
+  }
+
+  return { ins, hasEnoughData, signalWarrants, eligible, stored, hasStoredAdvice, inCooldown, cooldownUntil };
+}
+
+// The signal chip vocabulary, shared by the check-in section and its sheet.
+const CHECKIN_SIGNAL_CHIPS = {
+  'plateau-creep':      { colour:'var(--red)',       label:'Plateau detected' },
+  'plateau-adaptation': { colour:'var(--amber)',     label:'Plateau — adaptation?' },
+  'drift-warning':      { colour:'var(--amber)',     label:'Intake drift' },
+  'on-track':           { colour:'var(--green-text)',label:'On track' },
+  'gain-deficit':       { colour:'var(--red)',       label:'Eating at deficit' },
+  'gain-undereating':   { colour:'var(--amber)',     label:'Surplus too small' },
+  'gain-excess':        { colour:'var(--amber)',     label:'Surplus may be large' },
+  'maint-unstable':     { colour:'var(--amber)',     label:'Weight varying' },
+  'maint-stable':       { colour:'var(--green-text)',label:'Stable' },
+  'maint-nodata':       { colour:'var(--text3)',     label:'Insufficient data' },
+};
+
+// The AI action row (§3.6 / scope §6.4). "Read full…" is always the ghost
+// button above it; this is always a full-width row directly beneath, lavender
+// with ✦ when there is something to do and a grey timer row when there is not.
+// Never beside "Read full…".
+function aiActionRow(label, onclick, btnId) {
+  return `<button class="ai-action-row" ${btnId ? `id="${btnId}"` : ''} onclick="${onclick}">
+    <span class="ai-action-dot"></span>${label}
+  </button>`;
+}
+function aiTimerRow(label) {
+  return `<div class="ai-timer-row">⏱ ${label}</div>`;
+}
+// The ghost "Read full…" button. Inert at 40% when there is nothing stored to
+// read — a different condition from §3.6's no-key state, which is 40% and
+// deliberately still clickable. A new user with no key and no stored advice
+// sees both at once and they must not behave the same.
+function aiReadFullButton(label, onclick, enabled) {
+  return enabled
+    ? `<button class="btn btn-ghost btn-block" onclick="${onclick}">${label}</button>`
+    : `<button class="btn btn-ghost btn-block" style="opacity:0.4;" disabled>${label}</button>`;
+}
+
+// ── 02 Check-in ───────────────────────────────────────────────────────────
+function renderProgressCheckin(macro) {
+  const el = document.getElementById('progress-checkin');
+  if (!el) return;
+  if (!macro) { el.innerHTML = ''; return; }
+
+  const st = computeCheckinState(macro);
+  const ins = st.ins;
+
+  let cardBody;
+  if (!st.hasEnoughData) {
+    const weeksLogged = ins ? ins.weekBuckets.length : 0;
+    const weeksNeeded = (macro.goalType || 'loss') === 'loss' ? 4 : 3;
+    const weeksLeft = Math.max(0, weeksNeeded - weeksLogged);
+    cardBody = `<div class="empty-inline">${weeksLeft > 0
+      ? `A check-in needs a baseline period and a comparison window — about ${weeksLeft} more week${weeksLeft !== 1 ? 's' : ''} of weight and nutrition logs.`
+      : 'Logging more days with both weight and nutrition data will unlock the check-in.'}</div>`;
+  } else {
+    const chip = CHECKIN_SIGNAL_CHIPS[ins.signal] || CHECKIN_SIGNAL_CHIPS['on-track'];
+    const storedFmt = st.hasStoredAdvice && st.stored.storedAt
+      ? new Date(st.stored.storedAt + 'T00:00:00').toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })
+      : null;
+    const headline = st.hasStoredAdvice ? st.stored.response.headline : ins.headline;
+    const summary  = st.hasStoredAdvice ? (st.stored.response.narrative || '').split('\n\n')[0] : ins.detail;
+
+    let actionHtml;
+    if (_blocAdviceLoading) {
+      actionHtml = `<div class="ai-thinking">✦ BLOC is thinking…</div>`;
+    } else if (st.inCooldown && st.cooldownUntil) {
+      const coolFmt = new Date(st.cooldownUntil + 'T00:00:00').toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+      actionHtml = aiTimerRow(`Next check-in · ${coolFmt}`);
+    } else if (st.eligible || st.hasStoredAdvice) {
+      actionHtml = aiActionRow(
+        st.hasStoredAdvice ? '✦ Check in with BLOC' : '✦ Ask BLOC for advice',
+        'handleCheckinAction()', 'bloc-advice-btn');
+    } else {
+      actionHtml = aiTimerRow('Check-in opens when a plateau or sustained imbalance is detected');
+    }
+
+    cardBody = `<div class="ai-card-head">
+        <span class="chip" style="--chip-c:${chip.colour}">${chip.label}</span>
+        ${storedFmt ? `<span class="ai-card-when">Last · ${storedFmt}</span>` : ''}
+      </div>
+      <div class="ai-card-headline">${headline}</div>
+      <div class="ai-card-summary">${summary}</div>
+      ${aiReadFullButton('Read full check-in', 'openCheckinSheet()', st.hasStoredAdvice)}
+      ${actionHtml}
+      <div id="bloc-advice-error" class="ai-card-error"></div>`;
+  }
+
+  el.innerHTML = sectionHeader('Check-in', 'What your logged data says about the plan you are on.', { slot: sectionAiBadge() })
+    + `<div class="card">${cardBody}</div>`
+    + sectionEnd();
+
+  // §3.6: no key means 40% and still clickable, routed to the key sheet.
+  markAiKeyState('bloc-advice-btn');
+}
+
+// Routes the check-in button per §3.6: with no key it opens the key sheet
+// rather than failing, since that is the only thing that would fix the state
+// the dimming reports.
+function handleCheckinAction() {
+  if (!getApiKey()) { openModal('modal-api-key'); return; }
+  askBlocForAdvice();
+}
+
+// ── 03 Week by week ───────────────────────────────────────────────────────
+function renderProgressWeekByWeek() {
+  const el = document.getElementById('progress-week-by-week');
+  if (!el) return;
+  el.innerHTML = sectionHeader('Week by week', 'Each week of this cycle, and how the numbers moved.')
+    + `<div id="progress-tables-wrap"></div>
+       <div id="progress-tables-deckbar" class="deck-bar"></div>`
+    + sectionEnd();
+  renderProgressTables();
+}
+
+// ── 04 Insights ───────────────────────────────────────────────────────────
+// The deterministic read on this cycle: the trend narrative and plateau
+// detection, the week-vs-last-week delta, and the metabolism block. It was a
+// two-card horizontal swipe deck, which existed to save vertical space on a
+// page that did not scroll. The page scrolls, so both cards are one section.
+function renderProgressInsights(macro) {
+  const el = document.getElementById('progress-insights');
+  if (!el) return;
+  if (!macro) { el.innerHTML = ''; return; }
+
+  const goalType = macro.goalType || 'loss';
+  const isGainCycle = goalType === 'gain' || goalType === 'strength';
+  const dayMap = buildDayMap();
   const today = getLocalToday();
   const todayDate = new Date(today + 'T00:00:00');
 
-  // Calendar-week helpers (Mon–Sun)
-  const dowProg = todayDate.getDay(); // 0=Sun
+  // ── Week-vs-last-week weight delta ──
+  const weightLogs = [...(state.bodyLogs||[])].sort((a,b) => b.date.localeCompare(a.date));
+  const dowProg = todayDate.getDay();
   const daysFromMonProg = dowProg === 0 ? 6 : dowProg - 1;
   const thisMonDate = new Date(todayDate); thisMonDate.setDate(todayDate.getDate() - daysFromMonProg);
-  const thisSunDate = new Date(thisMonDate); thisSunDate.setDate(thisMonDate.getDate() + 6);
   const lastMonDate = new Date(thisMonDate); lastMonDate.setDate(thisMonDate.getDate() - 7);
   const lastSunDate = new Date(thisMonDate); lastSunDate.setDate(thisMonDate.getDate() - 1);
   const thisMonStr = toLocalDateStr(thisMonDate);
-  const thisSunStr = toLocalDateStr(thisSunDate);
   const lastMonStr = toLocalDateStr(lastMonDate);
   const lastSunStr = toLocalDateStr(lastSunDate);
 
-  // Body logs for this week (Mon to today) and last week (Mon to Sun)
   const thisWeekWLogs = weightLogs.filter(l => l.weight && l.date >= thisMonStr && l.date <= today);
   const lastWeekWLogs = weightLogs.filter(l => l.weight && l.date >= lastMonStr && l.date <= lastSunStr);
   const latest   = weightLogs.find(l => l.weight);
   const avg7     = thisWeekWLogs.length ? thisWeekWLogs.reduce((a,b) => a + parseFloat(b.weight), 0) / thisWeekWLogs.length : null;
   const avg7prev = lastWeekWLogs.length ? lastWeekWLogs.reduce((a,b) => a + parseFloat(b.weight), 0) / lastWeekWLogs.length : null;
-  const wkChange = avg7 !== null && avg7prev !== null ? avg7 - avg7prev : null;
+  const wkChange = (avg7 !== null && avg7prev !== null) ? avg7 - avg7prev : null;
   const changeColor = wkChange === null ? 'var(--text3)' : wkChange < 0 ? 'var(--accent)' : wkChange > 0 ? 'var(--red)' : 'var(--text2)';
   const changeStr = wkChange !== null
-    ? (wkChange >= 0 ? '+' : '') + wkChange.toFixed(1) + ' lbs vs last wk'
-    : avg7 !== null ? 'No prior week data' : 'No data this week';
-  // Entry count: body logs Monday to today only
-  const bodyLogsThisWeekCount = thisWeekWLogs.length;
+    ? (wkChange >= 0 ? '+' : '') + wkChange.toFixed(1) + ' lbs vs last week'
+    : avg7 !== null ? 'No prior week to compare' : 'No weigh-ins this week';
 
-  // Peak 7-day window insight
-  const dayMap = buildDayMap();
-  const goalType = macro ? (macro.goalType || 'loss') : 'loss';
+  const weekDeltaHtml = `<div class="insight-delta">
+    <span style="color:${changeColor};font-weight:700;">${changeStr}</span>
+    ${avg7 !== null ? `<span class="insight-delta-sub">7-day average ${avg7.toFixed(1)} lbs · ${thisWeekWLogs.length} log${thisWeekWLogs.length === 1 ? '' : 's'} this week</span>` : ''}
+  </div>`;
+
+  // ── Best 7-day window + the peak-vs-this-week callout ──
+  // 🚨 Both are hidden on a maintenance cycle (§72): there is no direction to
+  // have had a "best" week toward.
   const peak = findPeakWindow(dayMap, goalType);
   let peakHtml = '';
-  // Best 7-day window / "match your peak week" is meaningless for a
-  // maintenance cycle (dev 2026-09-15 item 3) — there's no direction to
-  // have had a "best" week toward.
   if (peak && Math.abs(peak.delta) >= 0.1 && goalType !== 'maintenance') {
     const verb = peak.delta < 0 ? 'lost' : 'gained';
     const startFmt = new Date(peak.startDate + 'T00:00:00').toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
@@ -12298,79 +12525,53 @@ function renderProgress(animate = false) {
     if (peak.avgSteps   !== null) parts.push(`${peak.avgSteps.toLocaleString()} avg steps/day`);
     if (peak.avgKcal    !== null) parts.push(`${peak.avgKcal.toLocaleString()} avg kcal/day`);
     if (peak.avgProtein !== null) parts.push(`${peak.avgProtein}g avg protein/day`);
-    const factorStr = parts.length ? ' During this time: ' + parts.join(', ') + '.' : '';
-    peakHtml = `<div style="font-size:12px;color:var(--text2);line-height:1.5;">
-      <span style="color:var(--text);font-weight:600;">★ Best 7-day window</span> — ${startFmt} to ${endFmt}, <strong>${Math.abs(peak.delta).toFixed(1)} lbs ${verb}</strong>.${factorStr}
+    peakHtml = `<div class="insight-line">
+      <span class="insight-line-lead">★ Best 7-day window</span> — ${startFmt} to ${endFmt}, <strong>${Math.abs(peak.delta).toFixed(1)} lbs ${verb}</strong>.${parts.length ? ' During this time: ' + parts.join(', ') + '.' : ''}
     </div>`;
 
-    // Peak-vs-this-week callout
-    const activeGoal = getActiveGoal ? getActiveGoal() : null;
+    const activeGoal = typeof getActiveGoal === 'function' ? getActiveGoal() : null;
     if (activeGoal) {
-      // Week runs Mon–Sun. dayOfWeek: 0=Sun,1=Mon...6=Sat
       const dow = now().getDay();
-      // Days elapsed this week (Mon=1 through today). Sunday counts as 7th day.
-      const daysElapsed = dow === 0 ? 7 : dow; // Mon=1 ... Sat=6 ... Sun=7
-      const daysLeft    = 7 - daysElapsed;      // remaining days including today? No — remaining AFTER today
-      // Completed days = days before today this week (for summing actuals)
-      const completedDays = daysElapsed - 1;    // excludes today
-
-      // Build list of completed dates this week (Mon through yesterday)
+      const daysElapsed = dow === 0 ? 7 : dow;
+      const completedDays = daysElapsed - 1;
       const completedDates = [];
       for (let i = completedDays; i >= 1; i--) {
         const d = new Date(todayDate); d.setDate(todayDate.getDate() - i);
         completedDates.push(toLocalDateStr(d));
       }
-      // Days remaining = today + rest of week until Sun
-      const daysRemaining = daysLeft + 1; // include today
-
-      // Peak week totals (avg * 7)
-      const peakStepsTotal   = peak.avgSteps   !== null ? peak.avgSteps   * 7 : null;
-      const peakKcalTotal    = peak.avgKcal    !== null ? peak.avgKcal    * 7 : null;
-      const peakProteinTotal = peak.avgProtein !== null ? peak.avgProtein * 7 : null;
-
-      // Completed days totals (sum actual logged values, exclude today)
+      const daysRemaining = (7 - daysElapsed) + 1;
       const compSteps   = completedDates.reduce((s,d) => s + (dayMap[d]?.steps   ?? 0), 0);
       const compKcal    = completedDates.reduce((s,d) => s + (dayMap[d]?.kcal    ?? 0), 0);
       const compProtein = completedDates.reduce((s,d) => s + (dayMap[d]?.protein ?? 0), 0);
-
       const hints = [];
-      if (peakStepsTotal !== null && daysRemaining > 0) {
-        const needed = Math.round((peakStepsTotal - compSteps) / daysRemaining);
-        if (needed > 0) hints.push(`${needed.toLocaleString()} steps/day`);
-      }
-      if (peakKcalTotal !== null && daysRemaining > 0) {
-        const needed = Math.round((peakKcalTotal - compKcal) / daysRemaining);
-        if (needed > 0) hints.push(`${needed.toLocaleString()} kcal/day`);
-      }
-      if (peakProteinTotal !== null && daysRemaining > 0) {
-        const needed = Math.round((peakProteinTotal - compProtein) / daysRemaining);
-        if (needed > 0) hints.push(`${needed}g protein/day`);
-      }
+      const need = (peakAvg, completed) => peakAvg === null || daysRemaining <= 0 ? null : Math.round((peakAvg * 7 - completed) / daysRemaining);
+      const nSteps = need(peak.avgSteps, compSteps);
+      const nKcal  = need(peak.avgKcal, compKcal);
+      const nProt  = need(peak.avgProtein, compProtein);
+      if (nSteps !== null && nSteps > 0) hints.push(`${nSteps.toLocaleString()} steps/day`);
+      if (nKcal  !== null && nKcal  > 0) hints.push(`${nKcal.toLocaleString()} kcal/day`);
+      if (nProt  !== null && nProt  > 0) hints.push(`${nProt}g protein/day`);
       if (hints.length && daysRemaining > 0) {
-        peakHtml += `<div style="margin-top:8px;font-size:12px;color:var(--text2);line-height:1.5;">
-          <span style="color:var(--amber);font-weight:600;">↗ To match your peak week</span>, aim for ${hints.join(', ')} for the remaining ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''} (including today).
+        peakHtml += `<div class="insight-line">
+          <span class="insight-line-lead" style="color:var(--amber);">↗ To match your peak week</span>, aim for ${hints.join(', ')} for the remaining ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''} (including today).
         </div>`;
       }
     }
   }
 
+  // ── The trend narrative and plateau detection ──
+  const trendHtml = buildInsightsCardHTML();
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // BMR / TDEE / Calorie calculations (shared by cards 2 & 3)
-  // ──────────────────────────────────────────────────────────────────────────
+  // ── Metabolism ──
   const mifflinBmr = calcMifflinBMR();
   const actInfo    = getActivityMultiplier();
   const dynResult  = calcDynamicTDEE();
-  const cycleGoalType = macro ? (macro.goalType || 'loss') : 'loss';
-  const isGainCycle   = cycleGoalType === 'gain' || cycleGoalType === 'strength';
 
-  // ── Goal weight ETA (from body log rate within cycle) ────────────────────
   const goalWeightETA = (() => {
     if (!macro || !macro.targetBw || !latest) return null;
     const target = parseFloat(macro.targetBw);
     const current = parseFloat(latest.weight);
-    if (isGainCycle ? current >= target : current <= target) return null; // already there
-    // Rate from cycle-scoped body logs
+    if (isGainCycle ? current >= target : current <= target) return null;
     const cycleStart = macro.start || null;
     const cycleLogs = [...(state.bodyLogs||[])]
       .filter(l => l.weight && (!cycleStart || l.date >= cycleStart))
@@ -12379,372 +12580,216 @@ function renderProgress(animate = false) {
     const first = cycleLogs[0], last2 = cycleLogs[cycleLogs.length - 1];
     const nDays = Math.round((new Date(last2.date+'T00:00:00') - new Date(first.date+'T00:00:00')) / 86400000);
     if (nDays < 3) return null;
-    const ratePerDay = (parseFloat(last2.weight) - parseFloat(first.weight)) / nDays; // lbs/day
-    if (isGainCycle ? ratePerDay <= 0 : ratePerDay >= 0) return null; // wrong direction
+    const ratePerDay = (parseFloat(last2.weight) - parseFloat(first.weight)) / nDays;
+    if (isGainCycle ? ratePerDay <= 0 : ratePerDay >= 0) return null;
     const daysToGoal = Math.abs((current - target) / ratePerDay);
     const etaDate = now(); etaDate.setDate(etaDate.getDate() + Math.round(daysToGoal));
     return { weeks: (daysToGoal / 7).toFixed(1), date: etaDate.toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}), ratePerWeek: Math.abs(ratePerDay * 7).toFixed(2) };
   })();
 
-  // ── Next cycle recommendation (deterministic engine, computed once for card3) ──
+  const bmrLine = mifflinBmr !== null
+    ? `<span class="insight-line-lead">⚡ Mifflin BMR</span> — Your estimated basal metabolic rate is <strong>${mifflinBmr.toLocaleString()} kcal/day</strong>. At your activity level (${actInfo.label}), your total daily expenditure is <strong>${Math.round(mifflinBmr * actInfo.multiplier).toLocaleString()} kcal/day</strong>.`
+    : `<span class="insight-line-lead">⚡ Mifflin BMR</span> — <span style="color:var(--text3);">Set your gender, height and date of birth in Body profile to unlock this.</span>`;
+
+  const tdeeLine = dynResult !== null
+    ? `<span class="insight-line-lead" style="color:var(--warn);">▸ Log-based TDEE</span> — From ${dynResult.dataPoints} tracked period${dynResult.dataPoints !== 1 ? 's' : ''}, your estimated TDEE is <strong>${dynResult.tdee.toLocaleString()} kcal/day</strong> (implied BMR ≈ <strong>${dynResult.bmr.toLocaleString()} kcal/day</strong>).`
+    : `<span class="insight-line-lead" style="color:var(--warn);">▸ Log-based TDEE</span> — <span style="color:var(--text3);">Log calories alongside weight for at least 2 weigh-ins to unlock this.</span>`;
+
+  // 🚨 Calorie target and goal-weight ETA are hidden on a maintenance cycle
+  // (§72). Maintenance is not a deficit or a surplus and has no target weight
+  // to project toward; before v8.12 it fell through to the deficit branch by
+  // accident, because isGainCycle is false for maintenance too.
+  const targetLine = (dynResult !== null && goalType !== 'maintenance')
+    ? (() => {
+        const adj = isGainCycle ? 250 : -500;
+        const t = dynResult.tdee + adj;
+        return `<div class="insight-line"><span class="insight-line-lead" style="color:var(--ice-blue);">◎ Calorie target</span> — For ${isGainCycle ? 'lean muscle gain' : 'sustainable weight loss'}, aim for <strong>${t.toLocaleString()} kcal/day</strong> — a ${Math.abs(adj).toLocaleString()} kcal ${isGainCycle ? 'surplus' : 'deficit'} targeting ${isGainCycle ? '~0.5 lbs/week' : '~1 lb/week'}.</div>`;
+      })() : '';
+
+  const etaLine = (goalWeightETA !== null && goalType !== 'maintenance')
+    ? `<div class="insight-line"><span class="insight-line-lead" style="color:var(--amber);">▦ Goal weight ETA</span> — At your current rate of <strong>${goalWeightETA.ratePerWeek} lbs/week</strong>, you should reach <strong>${macro.targetBw} lbs</strong> around <strong>${goalWeightETA.date}</strong> (~${goalWeightETA.weeks} weeks).</div>`
+    : '';
+
+  el.innerHTML = sectionHeader('Insights', 'What your logged data says about how this cycle is going.')
+    + `<div class="card" id="progress-body">
+        ${weekDeltaHtml}
+        ${trendHtml}
+        ${peakHtml}
+        <div class="insight-line">${bmrLine}</div>
+        <div class="insight-line">${tdeeLine}</div>
+        ${targetLine}
+        ${etaLine}
+      </div>`
+    + sectionEnd();
+}
+
+// ── 05 Last cycle ─────────────────────────────────────────────────────────
+// The cycle-end review. It renders on its own eligibility — a stored review,
+// or a review that has come due — and no longer waits for, or displaces, the
+// other two AI features.
+function renderProgressLastCycle(macro) {
+  const el = document.getElementById('progress-last-cycle');
+  if (!el) return;
+  if (!macro) { el.innerHTML = ''; return; }
+
+  const r = macro.review;
+  const endStr = toLocalDateStr(getMacroEndDate(macro));
+  const endFmt = new Date(endStr + 'T00:00:00').toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+  const reviewDue = isCycleReviewDue(macro);
+
+  let statsHtml = '', summaryHtml = '', actionHtml = '';
+
+  if (_cycleReviewLoading) {
+    // Covers the modal-triggered run AND the silent auto-run that
+    // startBuildNextCycleFlow() kicks off when Build-next-cycle is used first,
+    // so both routes report the same in-flight state here.
+    actionHtml = `<div class="ai-thinking">✦ BLOC is thinking…</div>`;
+    summaryHtml = `<div class="ai-card-summary">Reviewing this cycle’s weight, measurements, training and compliance.</div>`;
+  } else if (r) {
+    const bf = r.bodyfatEstimate || {};
+    const scoreColour = r.complianceScore >= 8 ? 'var(--green-text)' : r.complianceScore >= 5 ? 'var(--amber)' : 'var(--red)';
+    // 🚨 The review carries no waist figure — it reports a bodyfat DIRECTION
+    // and a narrative. The waist change is computed here from the cycle's own
+    // measurement logs, which are the only record of it.
+    const waist = computeCycleWaistChange(macro);
+    statsHtml = `<div class="prog-tile-row">
+      <div class="fuel-rest-tile"><div class="fuel-rest-tile-lbl">Weight</div><div class="fuel-rest-tile-val">${r.totalWeightChange !== null && r.totalWeightChange !== undefined ? (r.totalWeightChange > 0 ? '+' : '') + r.totalWeightChange : '—'}<span class="fuel-rest-tile-unit"> lbs</span></div></div>
+      <div class="fuel-rest-tile"><div class="fuel-rest-tile-lbl">Waist</div><div class="fuel-rest-tile-val">${waist !== null ? (waist > 0 ? '+' : '') + fmtInch(waist) + '\u2033' : '\u2014'}</div></div>
+      <div class="fuel-rest-tile"><div class="fuel-rest-tile-lbl">Compliance</div><div class="fuel-rest-tile-val" style="color:${scoreColour};">${r.complianceScore}<span class="fuel-rest-tile-unit">/10</span></div></div>
+    </div>`;
+    summaryHtml = `<div class="ai-card-headline">${r.headline}</div>`;
+    actionHtml = aiTimerRow(`Reviewed · this cycle ended ${endFmt}`);
+  } else if (reviewDue) {
+    summaryHtml = `<div class="ai-card-summary">This cycle has reached its end date. The review gives you a compliance score, a bodyfat-change estimate and a full narrative — it can only be run once.</div>`;
+    actionHtml = aiActionRow('✦ Review this cycle', `handleCycleReviewAction('${macro.id}')`, 'cycle-review-btn');
+  } else {
+    summaryHtml = `<div class="ai-card-summary">The review covers the whole cycle at once — weight, measurements, training and compliance — so it opens when the cycle ends.</div>`;
+    actionHtml = aiTimerRow(`Review this cycle · opens when it ends on ${endFmt}`);
+  }
+
+  el.innerHTML = sectionHeader('Last cycle', 'One score, one narrative, once per cycle.', { slot: sectionAiBadge() })
+    + `<div class="card">
+        ${statsHtml}
+        ${summaryHtml}
+        ${aiReadFullButton('Read full review', `openCycleReviewSheet('${macro.id}')`, !!r)}
+        ${actionHtml}
+      </div>`
+    + sectionEnd();
+
+  markAiKeyState('cycle-review-btn');
+}
+
+function handleCycleReviewAction(macroId) {
+  if (!getApiKey()) { openModal('modal-api-key'); return; }
+  openCycleReviewModal(macroId);
+}
+
+// ── 06 Build next cycle ───────────────────────────────────────────────────
+function renderProgressNextCycle(macro) {
+  const el = document.getElementById('progress-next-cycle');
+  if (!el) return;
+  if (!macro) { el.innerHTML = ''; return; }
+
   const _previewMacro = _nextCyclePreviewMacroId
     ? (state.macrocycles || []).find(m => m.id === _nextCyclePreviewMacroId)
     : null;
-  const nextCycleRec = recommendNextCycle(_previewMacro || macro, _nextCycleOverride);
+  const rec = recommendNextCycle(_previewMacro || macro, _nextCycleOverride);
 
+  const stored = state.nextCycleAdvice;
+  const hasStored = !!(stored && stored.macroId === macro.id && stored.response);
+  const gate = isNextCycleAdviceEligible(macro, rec);
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Build the 3 insight cards
-  // ──────────────────────────────────────────────────────────────────────────
-  // ─── Card 1: Weight progress + plateau/trend narrative + peak window ─────
-  // Deterministic trend narrative (incl. plateau detection) now lives here,
-  // directly below the weight header — it used to be its own standalone
-  // card underneath the whole swipe deck. Existing peak-window content is
-  // pushed below it, but stays in this same swipeable card.
-  // Once this cycle is at/past its effective end date (or already reviewed),
-  // the cycle-end review permanently takes over this slot instead of the
-  // mid-cycle checkin/plateau card — see buildCycleReviewCardHTML(). During
-  // the active cycle's final week (dev 2026-09-15, item 1), the two-section
-  // Build-next-cycle/Cycle-review card (buildFinalWeekCardHTML) takes
-  // priority over both — including over buildCycleReviewCardHTML on the
-  // cycle's actual last day, since that plain whole-card review view is
-  // reserved for browsing a PAST (no longer active) cycle.
-  const finalWeekCardHtml = buildFinalWeekCardHTML(macro, nextCycleRec);
-  let trendInsightsHtml;
-  if (finalWeekCardHtml !== null) {
-    trendInsightsHtml = finalWeekCardHtml;
+  let headlineHtml = '', actionHtml = '';
+
+  if (_nextCycleAdviceLoading) {
+    actionHtml = `<div class="ai-thinking">✦ BLOC is thinking…</div>`;
+  } else if (gate.eligible) {
+    actionHtml = aiActionRow(
+      hasStored ? '✦ Ask BLOC again' : '✦ Ask BLOC for next-cycle advice',
+      'handleNextCycleAction()', 'next-cycle-advice-btn');
   } else {
-    const cycleReviewCardHtml = buildCycleReviewCardHTML(macro);
-    if (cycleReviewCardHtml !== null) {
-      trendInsightsHtml = cycleReviewCardHtml;
-    } else {
-      const aiAdviceParts = buildAiAdviceCardHTML();
-      trendInsightsHtml = buildInsightsCardHTML(aiAdviceParts);
-    }
+    actionHtml = aiTimerRow(nextCycleAdviceWaitText(gate));
   }
-  const card1 = `<div>
-    <div style="text-align:center;">
-      <div style="font-family:var(--font-display);font-size:28px;font-weight:800;line-height:1;">${latest ? latest.weight + ' lbs' : '—'}</div>
-      <div style="font-size:13px;font-weight:500;color:${changeColor};margin-top:6px;">${changeStr}</div>
-      <div style="font-size:11px;color:var(--text3);margin-top:3px;">${avg7 !== null ? '7d avg: ' + avg7.toFixed(1) + ' lbs' : 'no recent data'} · ${bodyLogsThisWeekCount} ${bodyLogsThisWeekCount === 1 ? 'log' : 'logs'} this week</div>
-    </div>
-    ${trendInsightsHtml}
-  </div>`;
 
-  // ─── Card 2: BMR / TDEE / Calorie target / ETA ───────────────────────────
-  // peakHtml (Best 7-day window + "to match your peak week" callout) now
-  // lives here at the top, alongside the other metabolism-adjacent stats,
-  // rather than in card1 with the plateau narrative.
-  const bmrLine1 = mifflinBmr !== null
-    ? `<span style="color:var(--accent);font-weight:600;">⚡ Mifflin BMR</span> — Your estimated basal metabolic rate is <strong>${mifflinBmr.toLocaleString()} kcal/day</strong>. Based on your activity level (<em>${actInfo.label}</em>), your Total Daily Expenditure is <strong>${Math.round(mifflinBmr * actInfo.multiplier).toLocaleString()} kcal/day</strong>.`
-    : `<span style="color:var(--accent);font-weight:600;">⚡ Mifflin BMR</span> — <span style="color:var(--text3);">Tap the Body card to set your gender, height and date of birth.</span>`;
+  if (hasStored) {
+    const storedFmt = stored.storedAt
+      ? new Date(stored.storedAt + 'T00:00:00').toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })
+      : null;
+    headlineHtml = `<div class="ai-card-head">
+        ${stored.response.goalType ? `<span class="chip" style="--chip-c:var(--accent2)">${({loss:'Cut', gain:'Bulk', maintenance:'Maintenance'})[stored.response.goalType] || stored.response.goalType}</span>` : ''}
+        ${storedFmt ? `<span class="ai-card-when">Last · ${storedFmt}</span>` : ''}
+      </div>
+      <div class="ai-card-headline">${stored.response.headline || 'BLOC has a plan for your next cycle'}</div>
+      <div class="ai-card-summary">${(stored.response.narrative || '').split('\n\n')[0]}</div>`;
+  } else {
+    headlineHtml = `<div class="ai-card-summary">When this cycle is near its end, BLOC reads your real trend data and recommends what should come next — a bridge, a cut or a bulk — as a second opinion on the deterministic recommendation.</div>`;
+  }
 
-  const bmrLine2 = dynResult !== null
-    ? `<span style="color:#E8875A;font-weight:600;">▸ Log-based TDEE</span> — Based on ${dynResult.dataPoints} tracked period${dynResult.dataPoints !== 1 ? 's' : ''}, your estimated TDEE is <strong>${dynResult.tdee.toLocaleString()} kcal/day</strong> (implied BMR ≈ <strong>${dynResult.bmr.toLocaleString()} kcal/day</strong> at <em>${actInfo.label}</em>).`
-    : `<span style="color:#E8875A;font-weight:600;">▸ Log-based TDEE</span> — <span style="color:var(--text3);">Log calories alongside weight for at least 2 weigh-ins to unlock this.</span>`;
-
-  // Calorie target and Goal weight ETA are both meaningless for a
-  // maintenance cycle — there's no deficit/surplus target or target weight
-  // to project toward (dev 2026-09-15 item 3). Previously maintenance fell
-  // through to the deficit branch here by accident (isGainCycle is false
-  // for 'maintenance' too), showing an incorrect cut-style target.
-  const bmrLine3 = (dynResult !== null && cycleGoalType !== 'maintenance')
-    ? (() => {
-        const adj = isGainCycle ? 250 : -500;
-        const t   = dynResult.tdee + adj;
-        return `<span style="color:#5BC4F5;font-weight:600;">◎ Calorie target</span> — For ${isGainCycle ? 'lean muscle gain' : 'sustainable weight loss'}, aim for <strong>${t.toLocaleString()} kcal/day</strong> — a ${Math.abs(adj).toLocaleString()} kcal ${isGainCycle ? 'surplus' : 'deficit'} targeting ${isGainCycle ? '~0.5 lbs/week' : '~1 lb/week'}.`;
-      })() : '';
-
-  const etaHtml = (goalWeightETA !== null && cycleGoalType !== 'maintenance')
-    ? `<div style="margin-top:10px;padding-top:10px;border-top:0.5px solid var(--border);font-size:12px;color:var(--text2);line-height:1.6;">
-        <span style="color:var(--amber);font-weight:600;">📅 Goal weight ETA</span> — At your current rate of <strong>${goalWeightETA.ratePerWeek} lbs/week</strong>, you should reach <strong>${macro.targetBw} lbs</strong> around <strong>${goalWeightETA.date}</strong> (~${goalWeightETA.weeks} weeks).
-      </div>` : '';
-
-  const card2 = `<div>
-    ${peakHtml}
-    <div style="font-size:12px;color:var(--text2);line-height:1.7;${peakHtml ? 'margin-top:10px;' : ''}">
-      <div>${bmrLine1}</div>
-      <div style="margin-top:6px;">${bmrLine2}</div>
-      ${bmrLine3 ? `<div style="margin-top:6px;">${bmrLine3}</div>` : ''}
-    </div>
-    ${etaHtml}
-  </div>`;
-
-  // ─── Card 3: Next cycle — simplified to weekly kcal projections only ─────
-  // Stripped down from the Phase 1 diagnostic view to just the ramp table +
-  // button, specifically to validate the rampStartKcal change in isolation.
-  // The underlying computations (sustainableRange, taper, trendResult) are
-  // still returned by recommendNextCycle() untouched — just not rendered
-  // here right now. New targeted validation views (including the full LLM
-  // request payload once that's built) get added back in as each piece of
-  // Phase 2+ actually needs validating, rather than showing everything.
-  const rec = nextCycleRec;
-  const goalTypeLabel = { loss: 'Cut', gain: 'Bulk', maintenance: 'Maintenance' };
-
-  // Preview-macro dropdown (testing aid) — always shows *something* now,
-  // even when there's nothing to preview, since silently rendering nothing
-  // gave zero feedback about why the dropdown wasn't there.
-  const previewOptions = (state.macrocycles || []).filter(m => m.id !== macro.id);
-  const previewDropdownHtml = previewOptions.length
-    ? `<div style="margin-bottom:10px;">
-        <div style="font-size:10px;color:var(--text3);margin-bottom:3px;">Preview recommendation for (testing only — doesn't affect "Build this plan next"):</div>
-        <select onchange="updateNextCyclePreviewMacro(this.value)"
-          style="width:100%;font-size:12px;padding:6px 8px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
-          <option value="">${macro.name} (active)</option>
-          ${previewOptions.map(m => `<option value="${m.id}"${_nextCyclePreviewMacroId === m.id ? ' selected' : ''}>${m.name}</option>`).join('')}
-        </select>
+  el.innerHTML = sectionHeader('Build next cycle', 'A second opinion on what should come after this cycle.', { slot: sectionAiBadge() })
+    + `<div class="card">
+        ${headlineHtml}
+        ${aiReadFullButton('Read full advice', 'openNextCycleAdviceSheet()', hasStored)}
+        ${actionHtml}
+        <div id="next-cycle-advice-error" class="ai-card-error"></div>
       </div>`
-    : '';
+    + sectionEnd();
 
-  const headerHtml = rec
-    ? `<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">
-        ${rec.goalType ? `Recommended: ${goalTypeLabel[rec.goalType] || rec.goalType}${rec.isContinuation ? ' (extend current cycle)' : ''}` : (rec.needsDirectionChoice ? 'Choose a direction' : 'No recommendation yet')}
-      </div>${rec.isContinuation && rec.rationale.length ? `<div style="font-size:12px;color:var(--text2);margin-bottom:10px;">${rec.rationale[rec.rationale.length - 1]}</div>` : ''}`
-    : '';
+  markAiKeyState('next-cycle-advice-btn');
+}
 
-  // "Normal logic" alternative — whenever the deterministic engine's
-  // default is to extend the current cycle instead, it also computes what
-  // it would have recommended had that not been the case (continues into
-  // a maintenance bridge, or a bulk into a cut). Shown as its own small
-  // option here, with a button that builds it directly — bypassing the
-  // extend-yourself default without needing to wait out the extension
-  // first. Never shown for a genuinely new-cycle recommendation, since
-  // there's nothing to be an alternative TO in that case.
-  const continuationAlternativeHtml = (rec && rec.isContinuation && rec.continuationAlternative && rec.continuationAlternative.goalType)
-    ? (() => {
-        const alt = rec.continuationAlternative;
-        const altLabel = goalTypeLabel[alt.goalType] || alt.goalType;
-        const altSummaryLine = (alt.rationale && alt.rationale.length) ? alt.rationale[alt.rationale.length - 1] : '';
-        return `<div style="margin-bottom:10px;padding:10px;border-radius:var(--r-sm);background:var(--surface2);border:0.5px solid var(--border2);">
-          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Alternative — ${altLabel}</div>
-          <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">${altSummaryLine}</div>
-          ${alt.overrideConflict ? '' : `<button onclick="openNextCycleMacroModal(true)"
-            style="width:100%;padding:9px;border-radius:8px;font-size:12px;font-weight:600;background:var(--surface);color:var(--text);border:0.5px solid var(--border2);cursor:pointer;">
-            Build the ${altLabel} option instead →
-          </button>`}
-        </div>`;
-      })()
-    : '';
+function handleNextCycleAction() {
+  if (!getApiKey()) { openModal('modal-api-key'); return; }
+  // 🚨 startBuildNextCycleFlow(), not openNextCycleAdviceContextModal():
+  // the flow is what sequences the cycle review ahead of the advice call when
+  // the review has come due but has not run yet. Calling the context modal
+  // directly skips that sequencing and asks for advice with no review behind
+  // it — the one piece of v8.12's hard-won ordering that a naive split of the
+  // final-week card would drop.
+  startBuildNextCycleFlow();
+}
 
-  // Direction choice (bulk vs cut) — shown when a maintenance bridge has no
-  // determinable direction (no prior cycle, or the prior cycle also wasn't
-  // a cut or bulk) rather than leaving a dead end. Picking one sets
-  // override.forcedDirection and recommendNextCycle() re-runs, landing
-  // exactly where the auto-determined case would have.
-  const directionChoiceHtml = (rec && rec.needsDirectionChoice)
-    ? `<div style="font-size:12px;color:var(--text2);line-height:1.6;padding:10px;background:var(--surface2);border-radius:var(--r-sm);margin-bottom:10px;">
-        ${rec.rationale[rec.rationale.length - 1] || 'Choose a direction for the next cycle:'}
-        <div style="display:flex;gap:8px;margin-top:8px;">
-          <button onclick="applyNextCycleOverrideValue('forcedDirection', 'loss')"
-            style="flex:1;padding:9px;border-radius:8px;font-size:12px;font-weight:600;background:var(--surface);color:var(--text);border:0.5px solid var(--border2);cursor:pointer;">
-            Plan a cut
-          </button>
-          <button onclick="applyNextCycleOverrideValue('forcedDirection', 'gain')"
-            style="flex:1;padding:9px;border-radius:8px;font-size:12px;font-weight:600;background:var(--surface);color:var(--text);border:0.5px solid var(--border2);cursor:pointer;">
-            Plan a bulk
-          </button>
-        </div>
-      </div>` : '';
-
-  // Maintenance-specific informational text (§2.4) — maintenance goals get
-  // no target-weight input at all (Phase 2, §4.3): the actual goal is
-  // behavioral stability at TDEE, not a number on the scale, so this
-  // replaces a weight field entirely rather than sitting alongside one.
-  const maintenanceInfoHtml = (rec && rec.goalType === 'maintenance' && !rec.isContinuation)
-    ? `<div style="font-size:12px;color:var(--text2);line-height:1.6;padding:10px;background:var(--surface2);border-radius:var(--r-sm);margin-bottom:10px;">
-        Expect the scale to rise 2–6 lbs during this bridge — mostly water and glycogen refilling, not fat. True fat regain during a properly executed reverse diet is typically under 1–2 lbs over 8–12 weeks. This phase ends when your weekly average has been stable for 2–3 weeks — that's the real signal, not a specific weight.
-      </div>` : '';
-
-  // Target weight / deadline input (Phase 2, §4) — cut/bulk-direction
-  // recommendations only, never maintenance (per §4.3, resolved this phase:
-  // maintenance gets no target-weight/end-date inputs at all).
-  const isDirectionCase = rec && rec.goalType && rec.goalType !== 'maintenance' && !rec.isContinuation;
-  const targetInputHtml = isDirectionCase
-    ? `<div style="margin-bottom:10px;">
-        <div style="display:flex;gap:8px;margin-bottom:8px;">
-          <div style="flex:1;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:3px;">Target weight (optional)</div>
-            <input type="number" step="0.1" inputmode="decimal" placeholder="${rec.latestBw || '—'} lbs"
-              value="${_nextCycleOverride.targetWeight !== null ? _nextCycleOverride.targetWeight : ''}"
-              onchange="updateNextCycleOverride('targetWeight', this.value)"
-              style="width:100%;font-size:13px;padding:7px 8px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
-          </div>
-          <div style="flex:1;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:3px;">Deadline (optional, snaps to Sunday)</div>
-            <input type="date"
-              value="${_nextCycleOverride.deadline || ''}"
-              onchange="updateNextCycleOverride('deadline', this.value)"
-              style="width:100%;font-size:13px;padding:7px 8px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
-          </div>
-        </div>
-        ${rec.overrideConflict ? `
-          <div style="font-size:12px;color:var(--text2);line-height:1.6;padding:10px;background:var(--surface2);border-left:2px solid var(--amber, #d99a3a);border-radius:var(--r-sm);margin-bottom:8px;">
-            ${rec.overrideConflict.message}
-          </div>
-          <div style="display:flex;gap:8px;">
-            ${rec.overrideConflict.altDate ? `<button onclick="applyNextCycleOverrideValue('deadline', '${rec.overrideConflict.altDate}')"
-                style="flex:1;padding:8px;border-radius:8px;font-size:11px;font-weight:600;background:var(--surface2);color:var(--text);border:0.5px solid var(--border2);cursor:pointer;">
-                Use ${rec.overrideConflict.altDate} instead
-              </button>` : ''}
-            ${rec.overrideConflict.altWeight !== null && rec.overrideConflict.altWeight !== undefined ? `<button onclick="applyNextCycleOverrideValue('targetWeight', ${rec.overrideConflict.altWeight})"
-                style="flex:1;padding:8px;border-radius:8px;font-size:11px;font-weight:600;background:var(--surface2);color:var(--text);border:0.5px solid var(--border2);cursor:pointer;">
-                Use ${rec.overrideConflict.altWeight} lbs instead
-              </button>` : ''}
-          </div>
-        ` : (_nextCycleOverride.targetWeight || _nextCycleOverride.deadline)
-          ? `<div style="font-size:11px;color:var(--text3);">Applied — new cycle now ${rec.newMacroStart} – ${rec.newMacroEnd} (${rec.placeholderWeeks === null ? 'from your target' : rec.placeholderWeeks + 'wk default'}).</div>`
-          : `<div style="font-size:11px;color:var(--text3);">No target set — using the ${rec.placeholderWeeks}wk default (${rec.newMacroStart} – ${rec.newMacroEnd}).</div>`
-        }
-      </div>` : '';
-
-  // Reused weekly kcal table (loss→maintenance bridge case only) — shows
-  // the full bridge: climb weeks + flat hold weeks, matching what the goal
-  // queue will actually build. This is the one thing being actively
-  // validated right now (rampStartKcal sourced from the current cycle's
-  // last goal, not recent actual eating).
-  const bridgeTableHtml = (rec && rec.bridge && rec.bridge.fullRows.length) ? (() => {
-    const rows = rec.bridge.fullRows.map(r =>
-      `<tr><td style="padding:3px 8px;color:var(--text3);">Wk ${r.week}${r.isHoldWeek ? ' (hold)' : ''}</td><td style="padding:3px 8px;color:var(--text);font-weight:500;">${r.kcal.toLocaleString()} kcal</td></tr>`
-    ).join('');
-    return `<div style="margin-top:4px;margin-bottom:10px;">
-      <div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.06em;">Full bridge (+${rec.bridge.weeklyIncrement} kcal/week climb, then hold) — ${rec.bridge.totalWeeks} weeks total</div>
-      <table style="width:100%;border-collapse:collapse;">${rows}</table>
-      <div style="font-size:11px;color:var(--text3);margin-top:4px;">Ramp start: ${rec.bridge.rampStartKcal ? rec.bridge.rampStartKcal.toLocaleString() : '?'} kcal (current cycle's last goal)${rec.dynResult ? ` · Target maintenance: ${rec.dynResult.tdee.toLocaleString()} kcal/day` : ''}</div>
-      <div style="font-size:11px;color:var(--text3);margin-top:2px;">New cycle: ${rec.newMacroStart} – ${rec.newMacroEnd}</div>
-    </div>`;
-  })() : '';
-
-  // Cut/bulk-direction weekly kcal ramp — mirrors bridgeTableHtml's shape
-  // but for the gain→cut / maintenance→direction cases. Front-loaded,
-  // tapering toward the end, scaled to the target weight (set or implied).
-  const directionRampTableHtml = (rec && rec.directionRamp && rec.directionRamp.length && !rec.overrideConflict) ? (() => {
-    const rows = rec.directionRamp.map(r => {
-      const wkLabel = r.startWeek === r.endWeek ? `Wk ${r.startWeek}` : `Wk ${r.startWeek}-${r.endWeek}`;
-      return `<tr><td style="padding:3px 8px;color:var(--text3);">${wkLabel}</td><td style="padding:3px 8px;color:${r.clamped ? 'var(--amber, #d99a3a)' : 'var(--text)'};font-weight:500;">${r.kcal.toLocaleString()} kcal${r.clamped ? ' (floor)' : ''}</td></tr>`;
-    }).join('');
-    return `<div style="margin-top:4px;margin-bottom:10px;">
-      <div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.06em;">Kcal steps (${rec.goalType === 'gain' ? 'building toward' : 'stepping down to'} steady state) — TDEE ${rec.dynResult ? rec.dynResult.tdee.toLocaleString() : '?'} kcal/day</div>
-      <table style="width:100%;border-collapse:collapse;">${rows}</table>
-      <div style="font-size:11px;color:var(--text3);margin-top:4px;">New cycle: ${rec.newMacroStart} – ${rec.newMacroEnd}</div>
-    </div>`;
-  })() : '';
-
-  // "Build this plan next" button — only for genuinely new-cycle recommendations,
-  // never for continuation exceptions (narrative-only, per design spec §2.1),
-  // never while a target-weight/deadline conflict is unresolved (Phase 2)
-  // — otherwise clicking through would silently fall back to the 12-week
-  // default rather than reflect what was actually typed — and never while
-  // previewing a different macro, since the button always builds against
-  // the real active cycle regardless of what's currently being previewed.
-  const directionBackButtonHtml = (rec && rec.directionWasForced)
-    ? `<button onclick="backToNextCycleDirectionChoice()"
-        style="flex:0 0 44px;width:44px;height:44px;padding:0;display:flex;align-items:center;justify-content:center;
-               border-radius:10px;font-size:16px;font-weight:600;
-               background:var(--surface2);color:var(--text2);border:0.5px solid var(--border2);cursor:pointer;margin-top:4px;
-               font-family:var(--font-display);">
-        ←
-      </button>` : '';
-  const mainCtaHtml = _nextCyclePreviewMacroId
-    ? `<div style="font-size:11px;color:var(--text3);text-align:center;padding:8px;flex:1;">Previewing "${(_previewMacro && _previewMacro.name) || 'a different cycle'}" — clear the preview above to build for your actual active cycle.</div>`
-    : (rec && rec.goalType && !rec.isContinuation && !rec.overrideConflict)
-      ? `<button onclick="openNextCycleMacroModal()"
-          style="flex:1;height:44px;padding:0 11px;border-radius:10px;font-size:13px;font-weight:600;
-                 background:var(--accent);color:#06281f;border:none;cursor:pointer;margin-top:4px;
-                 font-family:var(--font-display);">
-          Build this plan next →
-        </button>`
-      : (rec && rec.goalType && !rec.isContinuation && rec.overrideConflict)
-        ? `<div style="font-size:11px;color:var(--text3);text-align:center;padding:8px;flex:1;">Resolve the target above before building — pick an alternative or clear the fields.</div>`
-        : '';
-  // Always the same flex wrapper, back button or not — a lone flex:1 child
-  // still correctly fills the full row width, unlike rendering mainCtaHtml
-  // bare outside any flex container (where flex:1 has no effect at all).
-  const buildButtonHtml = (mainCtaHtml || directionBackButtonHtml)
-    ? `<div style="display:flex;gap:8px;align-items:stretch;">${directionBackButtonHtml}${mainCtaHtml}</div>`
-    : '';
-
-  // ── Phase 4 — LLM second-opinion section, rendered directly below the
-  // "Build this plan next" button. Never shown while previewing a different
-  // macro (mirrors the guard on the button itself); real gating (3-week
-  // window, continuation, direction-not-chosen) happens inside
-  // isNextCycleAdviceEligible(), consulted from within the builder.
-  const nextCycleAdviceHtml = _nextCyclePreviewMacroId ? '' : buildNextCycleAdviceSectionHTML(macro, rec);
-
-  // Once BLOC's advice has a chosen plan for THIS macro's transition
-  // (state.nextCycleAdvice.chosenPlanKey, scoped by macroId so switching
-  // active cycles doesn't carry a stale choice over), the deterministic
-  // engine's own recommendation/button becomes a second, conflicting way to
-  // build the same next cycle. Rather than relying on the actual macrocycle
-  // having been created (progressViewMacroId/state.currentMacroId only
-  // update once "Create Macrocycle" is actually saved, and a person can
-  // linger between choosing a plan and completing that save), gate on the
-  // choice itself — simpler, and the choice is the point past which the
-  // deterministic recommendation stops being the thing to act on.
-  const nextCyclePlanChosen = !_nextCyclePreviewMacroId
-    && state.nextCycleAdvice && state.nextCycleAdvice.macroId === macro.id
-    && !!state.nextCycleAdvice.chosenPlanKey;
-
-  const card3 = `<div>
-    <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Next cycle — weekly kcal projections</div>
-    ${previewDropdownHtml}
-    ${nextCyclePlanChosen ? '' : headerHtml}
-    ${nextCyclePlanChosen ? '' : continuationAlternativeHtml}
-    ${nextCyclePlanChosen ? '' : directionChoiceHtml}
-    ${nextCyclePlanChosen ? '' : maintenanceInfoHtml}
-    ${nextCyclePlanChosen ? '' : targetInputHtml}
-    ${nextCyclePlanChosen ? '' : bridgeTableHtml}
-    ${nextCyclePlanChosen ? '' : directionRampTableHtml}
-    ${nextCyclePlanChosen ? '' : buildButtonHtml}
-    ${nextCycleAdviceHtml}
-  </div>`;
-
-  // ── Assemble swipeable stack ──────────────────────────────────────────────
-  // Card 3 ("Next cycle — weekly kcal projections") is permanently hidden
-  // from this deck (dev 2026-09-15) — recommendNextCycle()'s output (rec/
-  // nextCycleRec, computed above) stays in place since it still feeds the
-  // AI next-cycle prompt, but the deterministic card/button/LLM-advice
-  // section built into card3 above is no longer rendered anywhere.
-  const cards = [card1, card2];
-  const cardTitles = ['Progress', 'Metabolism'];
-
-  // Card: no header buttons — swipe only. Content wrapped in animatable .card
-  bodyEl.innerHTML = `<div class="insights-swipe-card">${cards[insightsIndex]}</div>`;
-
-  // Dots below the card (outside bodyEl, in sibling progress-body-dots)
-  const dotsEl = document.getElementById('progress-body-dots');
-  if (dotsEl) {
-    dotsEl.innerHTML = cardTitles.map((t,i) =>
-      `<button onclick="insightsAnimateTo(${i})" style="background:none;border:none;padding:4px;cursor:pointer;display:flex;align-items:center;gap:4px;">
-        <span style="width:${i===insightsIndex?'16px':'6px'};height:6px;border-radius:3px;background:${i===insightsIndex?'var(--accent)':'var(--border2)'};transition:width 0.2s;display:inline-block;"></span>
-        ${i===insightsIndex ? `<span style="font-size:10px;color:var(--accent);font-weight:600;">${t}</span>` : ''}
-      </button>`
-    ).join('');
+// The countdown to eligibility — measured to the 21-day mark, which is when
+// the feature actually opens, not to the cycle's end date.
+function nextCycleAdviceWaitText(gate) {
+  if (gate.reason !== 'outside-3-week-window') {
+    return 'Build next cycle \u00b7 opens in the last three weeks of this cycle';
   }
+  const days = gate.daysToEnd - 21;
+  return days > 13
+    ? `Build next cycle \u00b7 available in ${Math.ceil(days / 7)} week${Math.ceil(days / 7) === 1 ? '' : 's'}`
+    : `Build next cycle \u00b7 available in ${days} day${days === 1 ? '' : 's'}`;
+}
 
-  // Attach swipe gestures (re-attach each render since innerHTML was replaced)
-  initInsightsSwipe();
+// The cycle's waist change in inches, or null when there are not two
+// measurements inside it to compare.
+function computeCycleWaistChange(macro) {
+  if (!macro || !macro.start) return null;
+  const endStr = toLocalDateStr(getMacroEndDate(macro));
+  const logs = (state.bodyLogs || [])
+    .filter(l => l.date >= macro.start && l.date <= endStr && l.waist !== null && l.waist !== undefined)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (logs.length < 2) return null;
+  return logs[logs.length - 1].waist - logs[0].waist;
+}
 
-  // Phase 1 trend insights are now built directly into card1 above
-  // (trendInsightsHtml), rather than rendered separately here.
-
-  // ── Phase 2 AI advice card ────────────────────────────
-  // (now folded directly into card1 above via aiAdviceParts — see
-  // buildInsightsCardHTML's aiAdvice param — rather than its own element)
-
-  // ── Historical rollup (archive completed cycles) ──────
-  updateInsightsRollup();
-
-  // ── Weekly tables (swipeable: summary / swings / measurements) ──
-  renderProgressTables();
-
-  // ── Steps & Nutrition (merged into one card) ──
+// ── 07 Statistics ─────────────────────────────────────────────────────────
+// Defaults to the rolling last 7 days, not "this week". The All-time view and
+// the weekly macro split are both sheets now; the macro split used to be an
+// inline section of its own at the foot of the page.
+function renderProgressStatistics(macro) {
+  const el = document.getElementById('progress-statistics');
+  if (!el) return;
+  el.innerHTML = sectionHeader('Statistics', 'Your last seven days, day by day.', {
+      slot: `<div id="progress-stats-view-toggle" style="display:flex;gap:6px;"></div>` })
+    + `<div class="card">
+        <div id="progress-nutrition"></div>
+        <div class="stats-sheet-btns">
+          <button class="btn btn-ghost btn-block" onclick="openAllTimeStatsSheet()">All-time stats</button>
+          <button class="btn btn-ghost btn-block" onclick="openMacroSplitSheet()">Macro split</button>
+        </div>
+      </div>`
+    + sectionEnd();
   renderProgressNutr();
-
-  // ── Goal periods belonging to the selected cycle ──
-  renderProgressCycleGoals();
-
-  // ── Weekly macro split pies ───────────────────
-  renderProgressNutrPies();
 }
 
 // Renders the chart content shown inside the Progress page's secondary
@@ -13133,65 +13178,8 @@ function buildMeasurementsCardHTML() {
 // it's still more than a week out, switching to "starting <weekday>" from
 // the day 6 days before its start date onward (e.g. the Tuesday before a
 // Monday start) — a specific date, not just a countdown, once it's close.
-function renderProgressCycleGoals() {
-  const el = document.getElementById('progress-cycle-goals');
-  if (!el) return;
-  const macro = resolveProgressMacro();
-  if (!macro) { el.innerHTML = ''; return; }
-
-  const today = getLocalToday();
-  // Restricted to active + upcoming — past goal periods for this cycle are
-  // no longer shown here (full history, past included, still lives on the
-  // Plan page's goals section).
-  const goals = (state.goals || [])
-    .filter(g => g.macroId === macro.id && g.endDate >= today)
-    .sort((a, b) => a.startDate.localeCompare(b.startDate));
-  if (!goals.length) { el.innerHTML = ''; return; }
-
-  const activeIdx = goals.findIndex(g => g.startDate <= today && g.endDate >= today);
-  const nextUpcoming = goals.filter(g => g.startDate > today).sort((a, b) => a.startDate.localeCompare(b.startDate))[0] || null;
-
-  // "Next up" subtitle for whichever goal is next upcoming.
-  let nextUpSubtitle = '';
-  if (nextUpcoming) {
-    const todayDate = new Date(today + 'T00:00:00');
-    const startDateObj = new Date(nextUpcoming.startDate + 'T00:00:00');
-    const daysUntil = Math.round((startDateObj - todayDate) / 86400000);
-    // The day the display switches from a countdown to a fixed weekday —
-    // 6 days before start (the Tuesday before, for a Monday start).
-    const switchDate = new Date(startDateObj); switchDate.setDate(switchDate.getDate() - 6);
-    if (today < toLocalDateStr(switchDate)) {
-      nextUpSubtitle = `Next up: starting in ${daysUntil} day${daysUntil !== 1 ? 's' : ''}`;
-    } else {
-      const weekdayName = startDateObj.toLocaleDateString('en-GB', { weekday: 'long' });
-      nextUpSubtitle = `Next up: starting ${weekdayName}`;
-    }
-  }
-
-  const rows = goals.map((g, idx) => {
-    const isActive = idx === activeIdx;
-    const isNextUpcoming = nextUpcoming && g.macroGoalID === nextUpcoming.macroGoalID;
-    const accent = isActive ? 'var(--accent)' : isNextUpcoming ? 'var(--red)' : 'transparent';
-    const label = g._blocLabel || 'Goal';
-    const targets = [
-      g.kcal    ? `${g.kcal.toLocaleString()} kcal` : null,
-      g.protein ? `${g.protein}g protein` : null,
-      g.carbs   ? `${g.carbs}g carbs` : null,
-      g.fats    ? `${g.fats}g fats` : null,
-      g.steps   ? `${parseInt(g.steps).toLocaleString()} steps` : null,
-    ].filter(Boolean).join(' · ');
-    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-left:3px solid ${accent};background:var(--surface2);border-radius:6px;margin-bottom:6px;cursor:pointer;" onclick="openEditGoal('${g.macroGoalID}')">
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${label}</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:1px;">${formatDate(g.startDate)} – ${formatDate(g.endDate)}</div>
-        ${isNextUpcoming && nextUpSubtitle ? `<div style="font-size:10px;color:var(--red);margin-top:2px;font-weight:600;">${nextUpSubtitle}</div>` : ''}
-      </div>
-      <div style="font-size:11px;color:var(--text2);text-align:right;flex-shrink:0;max-width:58%;">${targets || '—'}</div>
-    </div>`;
-  }).join('');
-
-  el.innerHTML = `<div class="section-title" style="margin-top:16px;">Goal periods this cycle</div>${rows}<div class="divider" style="margin:20px 0 0;"></div>`;
-}
+// renderProgressCycleGoals() was removed in v8.16: the goal-period list lives
+// on Plan, which is where goal periods are edited.
 
 // ── Sticky flat/moving period grouping ──────────────────────────────────────
 // Groups the weeks since baseline into contiguous "flat" (|delta|<=0.5, same
@@ -13557,8 +13545,12 @@ function computeWeeklyInsights(macro) {
 // Builds and returns the HTML string for the Phase 1 trend insights card,
 // rendered below the existing Insights swipe deck on the Progress page.
 // Returns '' when there is no active macrocycle or insufficient data.
-function buildInsightsCardHTML(aiAdvice) {
-  aiAdvice = aiAdvice || { cta: '', body: '' };
+// The deterministic trend narrative and plateau detection, rendered into
+// Insights. It used to carry the check-in's button and its expand-in-place
+// body as well — the two were fused, which is why the check-in could not be
+// shown anywhere the Insights card was not. The check-in owns its own section
+// and its own sheet now, and this builds only what it computes itself.
+function buildInsightsCardHTML() {
   const macro = resolveProgressMacro();
   if (!macro) return '';
   const goalType = macro.goalType || 'loss';
@@ -13583,8 +13575,8 @@ function buildInsightsCardHTML(aiAdvice) {
     const weeksLogged = ins ? ins.weekBuckets.length : 0;
     const weeksNeeded = goalType === 'loss' ? 4 : 3; // loss needs baseline+2 comparison weeks
     const weeksLeft   = Math.max(0, weeksNeeded - weeksLogged);
-    return `<div style="margin-top:10px;padding-top:10px;border-top:0.5px solid var(--border);">
-      <div style="font-size:12px;color:var(--text3);line-height:1.5;">
+    return `<div class="insight-block">
+      <div class="empty-inline">
         ${weeksLeft > 0
           ? `Trend insights will be available in ~${weeksLeft} more week${weeksLeft !== 1 ? 's' : ''} — needs a valid baseline period and comparison window.`
           : 'Logging more days with weight and nutrition data will unlock trend insights.'}
@@ -13637,22 +13629,13 @@ function buildInsightsCardHTML(aiAdvice) {
         Start recalibration →
       </button>` : '';
 
-  const aiAdviceToggleHtml = aiAdvice.body
-    ? `<button onclick="toggleAiAdviceBody()" class="btn btn-ghost" style="padding-inline:0;font-size:12px;margin-top:10px;display:flex;align-items:center;gap:5px;color:var(--accent);">
-        View BLOC AI advice <svg viewBox="0 0 24 24" width="12" height="12" style="stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${_aiAdviceBodyOpen ? '180deg' : '0deg'});"><polyline points="6 9 12 15 18 9"/></svg>
-      </button>
-      ${_aiAdviceBodyOpen ? aiAdvice.body : ''}`
-    : '';
-
-  return `<div style="margin-top:10px;padding:13px 14px;border:1px solid var(--border2);border-radius:var(--r-lg);">
-    <div style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:500;color:${pill.color};">${pill.label}</div>
-    <div style="font-size:13px;font-weight:600;color:var(--text);margin-top:8px;line-height:1.35;">${ins.headline}</div>
-    <div style="font-size:12px;color:var(--text2);margin-top:4px;line-height:1.55;">${ins.detail}</div>
+  return `<div class="insight-block">
+    <span class="chip" style="--chip-c:${pill.color}">${pill.label}</span>
+    <div class="ai-card-headline">${ins.headline}</div>
+    <div class="ai-card-summary">${ins.detail}</div>
     ${statsHtml}
     ${recalButtonHtml}
-    ${aiAdvice.cta ? `<div style="margin-top:10px;">${aiAdvice.cta}</div>` : ''}
     ${driftToggleHtml}
-    ${aiAdviceToggleHtml}
   </div>`;
 }
 
@@ -13944,12 +13927,10 @@ let _blocAdviceLoading = false;
 // narrativeOpen/altOpen fields it replaces, specifically so the collapsed
 // state doesn't carry over between sessions.
 let _blocAdviceSectionsOpen = { narrative: false, selected: false, alt: false };
-// Progress plateau card: two independent collapse/expand sections —
-// the intake-drift visualisation, and the full BLOC AI advice body.
-let _intakeDriftOpen = false;
-let _aiAdviceBodyOpen = false;
-function toggleIntakeDrift() { _intakeDriftOpen = !_intakeDriftOpen; renderProgress(); }
-function toggleAiAdviceBody() { _aiAdviceBodyOpen = !_aiAdviceBodyOpen; renderProgress(); }
+// _intakeDriftOpen/toggleIntakeDrift were removed in v8.16: nothing read the
+// flag, so the intake-drift visualisation its comment described did not
+// exist. _aiAdviceBodyOpen/toggleAiAdviceBody went with the check-in's
+// expand-in-place body, which is a sheet now.
 
 // ── Prior check-in history helpers ──────────────────────────────────────────
 // Condenses a recommendation response into a compact kcal/protein/carbs
@@ -14707,112 +14688,20 @@ function planMatchesActiveGoal(plan) {
 }
 
 // ── Build AI advice card HTML ─────────────────────────────────────────────────
-function buildAiAdviceCardHTML() {
+// ── The check-in's full view (D3) ────────────────────────────────────────
+// The stored check-in's narrative, its one-shot challenge, and the plan
+// choice. This used to be the `body` half of a function that also built the
+// card's button and rendered behind an expand-in-place toggle; the section
+// builds its own actions from computeCheckinState() and this renders inside
+// the sheet. There is no expand-in-place fallback.
+function buildCheckinSheetBodyHTML() {
   const macro = resolveProgressMacro();
   if (!macro) return '';
-
-  const ins   = computeWeeklyInsights(macro);
-  const today = getLocalToday();
-  const hasKey = !!getApiKey();
-
-  // Signals that warrant intervention (confirmed plateau or sustained imbalance).
-  // drift-warning alone is informational only — not enough for an API call.
-  const INTERVENTION_SIGNALS = new Set([
-    'plateau-creep', 'plateau-adaptation',
-    'gain-deficit', 'gain-undereating', 'gain-excess',
-    'maint-unstable',
-  ]);
-
-  const hasEnoughData  = ins && !ins.insufficientData;
-  const signalWarrants = ins && INTERVENTION_SIGNALS.has(ins.signal);
-  const eligible       = hasEnoughData && signalWarrants;
-
-  // Stored advice for this cycle
-  const stored         = state.blocAdvice;
-  const hasStoredAdvice = stored && stored.macroId === macro.id && stored.response;
-
-  // ── Cooldown check ────────────────────────────────────────────────────────
-  // nextCheckIn is per-path; if no plan chosen, use the earlier of the two.
-  // Guard: if nextCheckIn is more than 16 days after storedAt, it was computed
-  // with the old end-of-plan logic — cap it at storedAt + 14 days instead.
-  let inCooldown = false;
-  let cooldownUntil = null;
-  if (hasStoredAdvice && stored.response.nextCheckIn) {
-    const nc = stored.response.nextCheckIn;
-    const chosen = stored.chosenPath;
-    let rawDate = chosen && nc[chosen] ? nc[chosen] : ([nc.sustainable, nc.aggressive].filter(Boolean).sort()[0] || null);
-    // Cap stale dates: if more than 16 days from call date, use 14-day fallback
-    if (rawDate && stored.storedAt) {
-      const storedMs  = new Date(stored.storedAt + 'T00:00:00').getTime();
-      const checkMs   = new Date(rawDate + 'T00:00:00').getTime();
-      const maxMs     = storedMs + 16 * 86400000;
-      if (checkMs > maxMs) {
-        rawDate = getMondayAfter(getSundayAfterWeeks(stored.storedAt, 2));
-      }
-    }
-    cooldownUntil = rawDate;
-    if (cooldownUntil && today < cooldownUntil) inCooldown = true;
+  const st = computeCheckinState(macro);
+  if (!st || !st.hasStoredAdvice) {
+    return '<div class="empty-inline">No check-in has been run for this cycle yet.</div>';
   }
-
-  // ── Button area HTML ──────────────────────────────────────────────────────
-  const safetyFloor = computeSafetyFloor(macro);
-  let buttonHtml = '';
-
-  if (_blocAdviceLoading) {
-    // In-flight state
-    buttonHtml = `<div style="margin-top:${hasStoredAdvice ? '0' : '4px'};">
-      <div style="padding:11px 14px;border-radius:10px;font-size:13px;font-weight:600;
-                  background:rgba(145,132,217,0.08);border:0.5px solid rgba(145,132,217,0.2);
-                  color:var(--accent);text-align:center;font-family:var(--font-display);">
-        ✦ BLOC is thinking…
-      </div>
-      <div id="bloc-advice-error" style="display:none;font-size:11px;color:var(--red);margin-top:6px;"></div>
-    </div>`;
-  } else if (inCooldown && cooldownUntil) {
-    // Cooldown state — show next check-in date
-    const coolFmt = new Date(cooldownUntil + 'T00:00:00')
-      .toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-    buttonHtml = `<div style="margin-top:${hasStoredAdvice ? '0' : '4px'};">
-      <div style="padding:10px 14px;border-radius:10px;font-size:12px;font-weight:500;
-                  background:var(--surface2);border:0.5px solid var(--border2);color:var(--text3);
-                  text-align:center;">
-        ✦ Next check-in: ${coolFmt}
-      </div>
-      <div id="bloc-advice-error" style="display:none;font-size:11px;color:var(--red);margin-top:6px;"></div>
-    </div>`;
-  } else if (eligible || hasStoredAdvice) {
-    // Eligible and idle — show the button. Label differs for a follow-up
-    // check-in (hasStoredAdvice true — this isn't the first ask this cycle)
-    // vs the very first ask, so the button doesn't imply "starting over"
-    // when it's actually continuing an existing conversation this cycle.
-    const btnLabel = hasStoredAdvice ? '✦ Check in with BLOC' : '✦ Ask BLOC for advice';
-    const noKeyNote = !hasKey
-      ? `<div style="font-size:10px;color:var(--amber);margin-top:5px;">⚠ Add your Anthropic API key in Settings to enable this.</div>`
-      : `<div style="font-size:10px;color:var(--text3);margin-top:5px;">Safety floor: ${safetyFloor.toLocaleString()} kcal/day · Protein min: ${Math.ceil(parseFloat((([...(state.bodyLogs||[])].filter(l=>l.weight).sort((a,b)=>b.date.localeCompare(a.date))[0])||{weight:0}).weight)||0)}g/day</div>`;
-    buttonHtml = `<div style="margin-top:${hasStoredAdvice ? '0' : '4px'};">
-      <button id="bloc-advice-btn"
-        onclick="askBlocForAdvice()"
-        ${!hasKey ? 'disabled' : ''}
-        style="width:100%;padding:11px 14px;border-radius:10px;font-size:13px;font-weight:600;
-               background:${hasKey ? 'rgba(145,132,217,0.12)' : 'var(--surface2)'};
-               border:0.5px solid ${hasKey ? 'rgba(145,132,217,0.35)' : 'var(--border2)'};
-               color:${hasKey ? 'var(--accent)' : 'var(--text3)'};
-               cursor:${hasKey ? 'pointer' : 'default'};font-family:var(--font-display);">
-        ${btnLabel}
-      </button>
-      ${noKeyNote}
-      <div id="bloc-advice-error" style="display:none;font-size:11px;color:var(--red);margin-top:6px;"></div>
-    </div>`;
-  } else if (hasEnoughData && !signalWarrants) {
-    buttonHtml = `<div style="margin-top:4px;padding:10px 12px;border-radius:10px;background:var(--surface2);border:0.5px solid var(--border2);">
-      <div style="font-size:12px;color:var(--text3);">✦ Ask BLOC for advice — available when a plateau or sustained imbalance is detected</div>
-      <div id="bloc-advice-error" style="display:none;font-size:11px;color:var(--red);margin-top:6px;"></div>
-    </div>`;
-  } else {
-    return { cta: '', body: '' }; // Insufficient data — no card at all yet
-  }
-
-  if (!hasStoredAdvice) return { cta: buttonHtml, body: '' };
+  const stored = st.stored;
 
   // ── Render stored advice card ────────────────────────────────────────────
   const r = stored.response;
@@ -15010,7 +14899,7 @@ function buildAiAdviceCardHTML() {
     </div>` : ''}`;
   }
 
-  const aiBody = `<div style="margin-top:10px;">
+  const aiBody = `<div>
     <div style="display:flex;justify-content:flex-end;margin-bottom:6px;">
       <div style="font-size:10px;color:var(--text3);">${storedFmt}</div>
     </div>
@@ -15032,7 +14921,7 @@ function buildAiAdviceCardHTML() {
     ${planSection}
   </div>`;
 
-  return { cta: buttonHtml, body: aiBody };
+  return aiBody;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -15525,22 +15414,9 @@ function toggleCycleReviewCard(macroId) {
 // resolved macro is at/past its effective end date (or already reviewed) —
 // null otherwise, meaning "render the normal mid-cycle card instead" (see
 // the call site in renderProgress()).
-function buildCycleReviewCardHTML(macro) {
-  if (!macro) return null;
-  if (!macro.review && !isCycleReviewDue(macro)) return null;
-
-  if (!macro.review) {
-    return `<div style="margin-top:10px;padding:13px 14px;border:1px solid var(--border2);border-radius:var(--r-lg);">
-      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">Cycle complete</div>
-      <div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:10px;">This cycle has reached its end date. Run your cycle review to get a compliance score, bodyfat-change estimate, and full narrative — this can only be done once.</div>
-      <button class="btn btn-accent btn-block" onclick="openCycleReviewModal('${macro.id}')">✦ Start Cycle Review</button>
-    </div>`;
-  }
-
-  return `<div style="margin-top:10px;padding:13px 14px;border:1px solid var(--border2);border-radius:var(--r-lg);cursor:pointer;" onclick="toggleCycleReviewCard('${macro.id}')">
-    ${buildCycleReviewSummaryHTML(macro)}
-  </div>`;
-}
+// buildCycleReviewCardHTML() was removed in v8.16: the Last cycle section
+// renders the not-yet-reviewed, reviewed and in-flight states directly, and
+// the narrative moved into a sheet.
 
 // Extracted from buildCycleReviewCardHTML (dev 2026-09-15, item 1) so the
 // final-week card (buildFinalWeekCardHTML) can embed the exact same
@@ -15548,9 +15424,11 @@ function buildCycleReviewCardHTML(macro) {
 // improvements content — keyed by the same _cycleReviewCardOpen/
 // toggleCycleReviewCard() state either way — without duplicating this
 // markup. Caller supplies its own outer wrapper/click target.
-function buildCycleReviewSummaryHTML(macro) {
+function buildCycleReviewSummaryHTML(macro, alwaysOpen) {
   const r = macro.review;
-  const open = !!_cycleReviewCardOpen[macro.id];
+  // The sheet shows the whole review — there is nothing to collapse behind
+  // once the narrative has a page of its own.
+  const open = alwaysOpen || !!_cycleReviewCardOpen[macro.id];
   const bf = r.bodyfatEstimate || {};
   const scoreColor = r.complianceScore >= 8 ? 'var(--accent)' : r.complianceScore >= 5 ? 'var(--amber)' : 'var(--red)';
 
@@ -15613,58 +15491,11 @@ function isInFinalWeek(macro) {
   return getLocalToday() >= toLocalDateStr(finalWeekStartDate);
 }
 
-function buildFinalWeekCardHTML(macro, rec) {
-  // Active-cycle only: isInFinalWeek() has no upper bound (just "today is
-  // at/past this macro's own final-week start"), so without this check a
-  // long-past, never-reviewed macro browsed via the hero selector would
-  // show "Build next cycle" forever too, not just Cycle review — which
-  // makes no sense once one or more newer cycles already exist. A past
-  // cycle falls through to buildCycleReviewCardHTML()'s plain view
-  // instead (unaffected by this — reachable indefinitely, per your
-  // existing "always available via the hero selector" rule).
-  if (!macro || macro.id !== state.currentMacroId || !isInFinalWeek(macro)) return null;
-
-  const endStr = toLocalDateStr(getMacroEndDate(macro));
-  const endFmt = new Date(endStr + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-  const reviewDue = getLocalToday() >= endStr; // equivalent to isCycleReviewDue(macro)
-
-  const nextCycleBody = buildNextCycleAdviceSectionHTML(macro, rec);
-
-  let cycleReviewBody;
-  if (_cycleReviewLoading) {
-    // Covers both the modal-triggered run AND the silent auto-run kicked
-    // off by startBuildNextCycleFlow() when Build-next-cycle is clicked
-    // first — either way, this section shows the same "thinking" state so
-    // it's clear both flows are in progress together (dev 2026-09-15, 1b).
-    cycleReviewBody = `<div style="margin-top:10px;padding:11px 14px;border-radius:10px;font-size:13px;font-weight:600;
-                background:rgba(145,132,217,0.08);border:0.5px solid rgba(145,132,217,0.2);
-                color:var(--accent);text-align:center;font-family:var(--font-display);">
-      ✦ BLOC is thinking…
-    </div>`;
-  } else if (macro.review) {
-    cycleReviewBody = `<div style="margin-top:10px;cursor:pointer;" onclick="toggleCycleReviewCard('${macro.id}')">
-      ${buildCycleReviewSummaryHTML(macro)}
-    </div>`;
-  } else if (reviewDue) {
-    cycleReviewBody = `<div style="margin-top:10px;">
-      <button class="btn btn-accent btn-block" onclick="openCycleReviewModal('${macro.id}')">✦ Start Cycle Review</button>
-    </div>`;
-  } else {
-    const daysUntil = Math.round((new Date(endStr + 'T00:00:00') - new Date(getLocalToday() + 'T00:00:00')) / 86400000);
-    cycleReviewBody = `<div style="margin-top:10px;padding:10px 14px;border-radius:10px;background:var(--surface2);border:0.5px solid var(--border2);text-align:center;">
-      <div style="font-size:12px;color:var(--text3);">✦ Cycle review — available in ${daysUntil} day${daysUntil === 1 ? '' : 's'}</div>
-    </div>`;
-  }
-
-  return `<div>
-    <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Cycle ending — ${endFmt}</div>
-    <div style="font-size:13px;font-weight:600;color:var(--text);">Build next cycle</div>
-    ${nextCycleBody}
-    <div style="border-top:0.5px solid var(--border);margin:16px 0 12px;"></div>
-    <div style="font-size:13px;font-weight:600;color:var(--text);">Cycle review</div>
-    ${cycleReviewBody}
-  </div>`;
-}
+// buildFinalWeekCardHTML() was removed in v8.16. It combined Build-next-cycle
+// and Cycle review in one card because the three AI features shared a single
+// slot; each has its own section now. Its two bodies were independent, so the
+// split cost nothing — the API sequencing it was credited with lives in
+// startBuildNextCycleFlow(), not in the markup.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PHASE 3 — Goal queue flow
@@ -17222,15 +17053,25 @@ function renderProgressTables() {
   const wrap = document.getElementById('progress-tables-wrap');
   if (!wrap) return;
   const cards = [buildWeeklySummaryCardHTML(), buildWeeklySwingsCardHTML(), buildMeasurementsCardHTML()];
+  const names = ['Summary', 'Swings', 'Measurements'];
   wrap.innerHTML = `<div class="progress-tables-swipe-card">${cards[progressTablesIndex]}</div>`;
 
-  const dotsEl = document.getElementById('progress-tables-dots');
-  if (dotsEl) {
-    dotsEl.innerHTML = cards.map((_, i) =>
-      `<button onclick="progressTablesAnimateTo(${i})" style="background:none;border:none;padding:4px;cursor:pointer;display:flex;align-items:center;">
-        <span style="width:${i===progressTablesIndex?'16px':'6px'};height:6px;border-radius:3px;background:${i===progressTablesIndex?'var(--accent)':'var(--border2)'};transition:width 0.2s;display:inline-block;"></span>
-      </button>`
-    ).join('');
+  // v8.16: a named deck bar rather than dots. Dots say how many cards there
+  // are; they do not say what is on them, and this deck's three cards are not
+  // interchangeable views of one thing. The chevrons step the deck alongside
+  // the swipe, so the deck is reachable without knowing it is swipeable.
+  const barEl = document.getElementById('progress-tables-deckbar');
+  if (barEl) {
+    barEl.innerHTML = `
+      <button class="deck-arrow" onclick="progressTablesAnimateTo(${progressTablesIndex - 1})" aria-label="Previous view">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="deck-names">${names.map((n, i) =>
+        `<button class="deck-name${i === progressTablesIndex ? ' deck-name-on' : ''}" onclick="progressTablesAnimateTo(${i})">${n}</button>`
+      ).join('')}</div>
+      <button class="deck-arrow" onclick="progressTablesAnimateTo(${progressTablesIndex + 1})" aria-label="Next view">
+        <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>`;
   }
 
   initProgressTablesSwipe();
@@ -17512,8 +17353,12 @@ function setProgressStatsView(isAll) {
   renderProgressNutr();
 }
 
-function renderProgressNutr() {
-  const el = document.getElementById('progress-nutrition');
+// The statistics card. `targetId` lets the All-time sheet render the same
+// builder into its own container: the sheet IS this card's "All" view, so
+// duplicating the row/chart code for it would be two implementations of one
+// table drifting apart.
+function renderProgressNutr(targetId, forceAll) {
+  const el = document.getElementById(targetId || 'progress-nutrition');
   if (!el) return;
   const today = getLocalToday();
   const goal = typeof getActiveGoal === 'function' ? getActiveGoal() : null;
@@ -17521,11 +17366,11 @@ function renderProgressNutr() {
   const cycleDays = getCycleDays(macro);
   const days = cycleDays.slice(-7); // for the mini bar chart only
   const isToday = progressToggle.nutr === 'today';
-  const isAll = progressStatsAllView;
+  const isAll = forceAll !== undefined ? forceAll : progressStatsAllView;
   const todayInCycle = cycleDays.some(d => d.date === today);
 
   // Toggle buttons
-  const toggleEl = document.getElementById('progress-stats-view-toggle');
+  const toggleEl = targetId ? null : document.getElementById('progress-stats-view-toggle');
   if (toggleEl) {
     toggleEl.innerHTML = `
       <span class="tag${!isAll ? ' active' : ''}" onclick="event.stopPropagation();setProgressStatsView(false)">7-Day</span>
@@ -27501,7 +27346,7 @@ function deleteGoal(macroGoalID) {
   const macroId = state.goals[idx].macroId;
   state.goals.splice(idx, 1);
   renumberMacroGoalSteps(macroId);
-  save(); renderPlanGoalsSection(); renderProgressCycleGoals();
+  save(); renderPlanGoalsSection();
 }
 
 // Finds an existing goal whose date range overlaps [startDate, endDate],
@@ -27586,7 +27431,7 @@ function saveGoal() {
   else state.goals.push(g);
   modal._editIdx = undefined;
   renumberMacroGoalSteps(macroId);
-  save(); closeModal('modal-add-goal'); renderPlanGoalsSection(); renderProgressCycleGoals();
+  save(); closeModal('modal-add-goal'); renderPlanGoalsSection();
 }
 
 
