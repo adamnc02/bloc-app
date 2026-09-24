@@ -1157,10 +1157,26 @@ html.auth-likely-signed-in #auth-gate { display: none; }
    (container-type:inline-size) so this only drops to a stacked layout
    when the row itself is too narrow for icon+label to fit inline without
    wrapping or overflowing (e.g. a much smaller device width). */
-.nutr-add-action-btn { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
-@container (max-width: 300px) {
-  .nutr-add-action-btn { flex-direction: column; gap: 5px; white-space: normal; }
+/* The four Add-food tiles (D4). container-type is on the row so the query below
+   measures the ROW, not the viewport — four tiles inline need ~300px. */
+.nutr-add-actions { display: flex; gap: 8px; margin-bottom: 14px; flex-shrink: 0; container-type: inline-size; }
+.nutr-add-action-btn {
+  flex: 1 1 0; min-width: 0; min-height: 52px; padding: 10px 4px;
+  display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 7px;
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: var(--r-tile); cursor: pointer;
+  color: var(--text); font-family: var(--font-body); font-size: 12px; font-weight: 700;
+  white-space: nowrap;
 }
+.nutr-add-action-btn:active { transform: scale(0.98); }
+.nutr-add-action-btn svg { width: 17px; height: 17px; flex-shrink: 0; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+@container (max-width: 300px) {
+  .nutr-add-action-btn { flex-direction: column; gap: 6px; white-space: normal; text-align: center; }
+}
+/* The ✦ that marks the AI tile. --purple is its own token (14 uses) and is
+   deliberately not collapsed into --accent2 despite sharing its value. */
+.nutr-add-ai-icon { position: relative; display: inline-flex; flex-shrink: 0; }
+.nutr-add-ai-spark { position: absolute; top: -6px; right: -7px; font-size: 9px; line-height: 1; color: var(--purple); }
 /* 🚨 min-height must be at least the close button's 40px. The row's own
    content is a 4px handle, so before v8.16 it collapsed to 4px tall and the
    40px button — absolutely positioned and vertically centred on it —
@@ -2678,6 +2694,25 @@ html.auth-likely-signed-in #auth-gate { display: none; }
   font-size: 13px; font-weight: 700;
 }
 
+/* ── The 2×2 "log to which meal?" picker ─────────────────────────────── */
+.meal-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.meal-picker-tile {
+  min-height: 46px; padding: 0 10px;
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: var(--r-tile); color: var(--text2);
+  font-family: var(--font-body); font-size: 13.5px; font-weight: 600;
+  cursor: pointer; transition: all .15s;
+}
+.meal-picker-tile.active {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  border-color: var(--accent); color: var(--text); font-weight: 700;
+}
+
+/* ── Meal options sheet (dynamic; showMealMenuSheet) ─────────────────── */
+.meal-menu-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.meal-menu-row { text-align: left; }
+.meal-menu-icon { width: 17px; height: 17px; stroke: var(--accent2); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
 /* ── Rest timer preset chips (D11) ───────────────────────────────────── */
 .timer-presets { display: flex; gap: 8px; margin-bottom: 22px; }
 .timer-preset {
@@ -3796,12 +3831,13 @@ try {
       <button class="modal-close-btn" onclick="closeModal('modal-nutr-date')">✕</button>
     </div>
     <div class="modal-title">Jump to date</div>
+    <div class="modal-sub">Pick any date, or jump straight to today or yesterday.</div>
     <div class="form-group">
       <input type="date" id="nutr-date-input" onchange="nutrPickDate(this.value);closeModal('modal-nutr-date');" style="font-size:15px;">
     </div>
     <div style="display:flex;gap:8px;margin-top:4px;">
-      <button class="btn btn-block" style="flex:1;" onclick="nutrPickDate(getLocalToday());closeModal('modal-nutr-date');">Today</button>
-      <button class="btn btn-block" style="flex:1;" onclick="(function(){const d=now();d.setDate(d.getDate()-1);nutrPickDate(toLocalDateStr(d));closeModal('modal-nutr-date');})();">Yesterday</button>
+      <button class="btn btn-ghost btn-block" style="flex:1;" onclick="nutrPickDate(getLocalToday());closeModal('modal-nutr-date');">Today</button>
+      <button class="btn btn-ghost btn-block" style="flex:1;" onclick="(function(){const d=now();d.setDate(d.getDate()-1);nutrPickDate(toLocalDateStr(d));closeModal('modal-nutr-date');})();">Yesterday</button>
     </div>
   </div>
 </div>
@@ -4461,36 +4497,34 @@ try {
 
 <!-- Nutrition Log -->
 <!-- Nutrition: meal log chooser -->
+<!-- Add food (v8.16 Phase 3)
+     🚨 FOUR tiles, not three (D4). AI Photo shipped in v8.02 and stays; the 4-up
+     row is the constraint the tile design has to fit, not a 3-up. The container
+     query stacks icon over label when the row is too narrow for them inline. -->
 <div class="modal-overlay" id="modal-nutr-add">
   <div class="modal-sheet kb-pinned-sheet" data-modal="modal-nutr-add">
     <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-add')">✕</button></div>
-    <!-- TEMP DIAGNOSTIC — remove once keyboard-height numbers are gathered -->
-    <input type="text" id="nutr-add-search" placeholder="Search foods…" oninput="renderNutrAddList()" style="margin-bottom:10px;flex-shrink:0;">
-    <!-- Single flex row of 4 — each button flex:1 so the row fills and
-         flexes to the sheet width (390px viewport, 16px side padding)
-         without wrapping. Icon+label sit inline via .nutr-add-action-btn
-         (see CSS) which only drops to a stacked layout via a container
-         query if the row is too narrow to fit icon+text inline without
-         wrapping/overflowing — see rule near .modal-sheet. -->
-    <div id="nutr-add-actions-row" style="display:flex;gap:6px;margin-bottom:12px;flex-shrink:0;container-type:inline-size;">
-      <button onclick="toggleNutrRecipeFilter()" id="nutr-recipe-filter-btn" class="nutr-add-action-btn" style="flex:1;min-width:0;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 4px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:11px;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-        <span style="font-weight:600;">Recipes</span>
+    <div class="modal-title" style="flex-shrink:0;">Add food</div>
+    <input type="text" id="nutr-add-search" placeholder="Search foods…" oninput="renderNutrAddList()" style="margin-bottom:12px;flex-shrink:0;">
+    <div id="nutr-add-actions-row" class="nutr-add-actions">
+      <button onclick="toggleNutrRecipeFilter()" id="nutr-recipe-filter-btn" class="nutr-add-action-btn">
+        <svg viewBox="0 0 24 24" style="stroke:var(--blue);"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        <span>Recipes</span>
       </button>
-      <button onclick="openNutrManualForContext()" id="nutr-add-btn-manual" class="nutr-add-action-btn" style="flex:1;min-width:0;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 4px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:11px;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-        <span style="font-weight:600;">Manual</span>
+      <button onclick="openNutrManualForContext()" id="nutr-add-btn-manual" class="nutr-add-action-btn">
+        <svg viewBox="0 0 24 24" style="stroke:var(--amber);"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        <span>Manual</span>
       </button>
-      <button onclick="openNutrBarcode()" id="nutr-add-btn-scan" class="nutr-add-action-btn" style="flex:1;min-width:0;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 4px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:11px;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/><line x1="13" y1="8" x2="13" y2="12"/><line x1="16" y1="8" x2="16" y2="16"/></svg>
-        <span style="font-weight:600;">Scan</span>
+      <button onclick="openNutrBarcode()" id="nutr-add-btn-scan" class="nutr-add-action-btn">
+        <svg viewBox="0 0 24 24" style="stroke:var(--accent);"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/><line x1="13" y1="8" x2="13" y2="12"/><line x1="16" y1="8" x2="16" y2="16"/></svg>
+        <span>Scan</span>
       </button>
-      <button onclick="openNutrPhoto()" id="nutr-add-btn-photo" class="nutr-add-action-btn" style="flex:1;min-width:0;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 4px;cursor:pointer;color:var(--text);font-family:var(--font-mono);font-size:11px;">
-        <span style="position:relative;display:inline-flex;flex-shrink:0;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-          <span style="position:absolute;top:-6px;right:-7px;font-size:9px;line-height:1;color:var(--purple);">✦</span>
+      <button onclick="openNutrPhoto()" id="nutr-add-btn-photo" class="nutr-add-action-btn">
+        <span class="nutr-add-ai-icon">
+          <svg viewBox="0 0 24 24" style="stroke:var(--purple);"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          <span class="nutr-add-ai-spark">✦</span>
         </span>
-        <span style="font-weight:600;">AI Photo</span>
+        <span>AI Photo</span>
       </button>
     </div>
     <div id="nutr-add-list-wrap" class="kb-list-wrap">
@@ -4654,7 +4688,8 @@ try {
 <div class="modal-overlay" id="modal-nutr-previous">
   <div class="modal-sheet" data-modal="modal-nutr-previous">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-previous')">✕</button></div>
-    <div class="modal-title">Previous Meals</div>
+    <div class="modal-title">Previous meals</div>
+    <div class="modal-sub">Anything you have logged before, ready to log again.</div>
     <input type="text" id="nutr-prev-search" placeholder="Search foods…" oninput="renderPreviousMeals()" style="margin-bottom:12px;">
     <div id="nutr-prev-list" style="max-height:60vh;overflow-y:auto;"></div>
   </div>
@@ -4665,8 +4700,8 @@ try {
   <div class="modal-sheet" data-modal="modal-nutr-photo" style="max-height:90dvh;display:flex;flex-direction:column;">
     <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-photo')">✕</button></div>
     <div class="modal-title" style="flex-shrink:0;">Photo → Meal</div>
+    <div class="modal-sub" style="flex-shrink:0;">Rougher than a barcode or a weighed entry, and good for meals you would not otherwise log. Every item is reviewed before it is saved.</div>
     <div style="overflow-y:auto;flex:1;">
-      <div style="font-size:11px;color:var(--text3);margin-bottom:12px;line-height:1.5;">Rougher than a barcode or weighed entry — good for fast logging of meals you wouldn't otherwise weigh. Review every item before it's saved.</div>
 
       <!-- No `capture` attribute: it pins the input to the camera and skips the
            OS picker sheet entirely, so an existing photo can never be chosen —
@@ -4760,7 +4795,8 @@ try {
 <div class="modal-overlay" id="modal-nutr-manual">
   <div class="modal-sheet" data-modal="modal-nutr-manual">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-manual')">✕</button></div>
-    <div class="modal-title" id="nutr-manual-title">Quick Add</div>
+    <div class="modal-title" id="nutr-manual-title">Manual entry</div>
+    <div class="modal-sub">Type the macros straight in, per item or per gram.</div>
     <div class="toggle-row" style="margin-bottom:14px;">
       <button class="toggle-btn active" id="nutr-manual-mode-item" onclick="setNutrManualMode('item')">Per item</button>
       <button class="toggle-btn" id="nutr-manual-mode-gram" onclick="setNutrManualMode('gram')">Per gram</button>
@@ -4838,8 +4874,8 @@ try {
 <div class="modal-overlay" id="modal-nutr-quick">
   <div class="modal-sheet" data-modal="modal-nutr-quick">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-nutr-quick')">✕</button></div>
-    <div class="modal-title">Quick Add</div>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6;">Log today's totals directly. When a quick log exists for a day, it overrides any meal entries for that day's summary.</div>
+    <div class="modal-title">Quick add</div>
+    <div class="modal-sub">Log the whole day as one total. A quick log overrides that day’s individual meals.</div>
     <div class="input-row">
       <div><div class="label">kcal</div><input type="number" inputmode="decimal" id="qa-kcal" placeholder="1830"></div>
       <div><div class="label">Protein (g)</div><input type="number" inputmode="decimal" id="qa-protein" placeholder="290"></div>
@@ -4857,7 +4893,7 @@ try {
   <div class="modal-sheet" data-modal="modal-fill-day">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-fill-day')">✕</button></div>
     <div class="modal-title">Fill day</div>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6;">Pick a saved day to copy every meal from into today. This will overwrite anything already logged.</div>
+    <div class="modal-sub">Pick a saved day to copy every meal from. This overwrites anything already logged for this date.</div>
     <div id="fill-day-list"></div>
   </div>
 </div>
@@ -5158,7 +5194,8 @@ try {
 <div class="modal-overlay" id="modal-sample-day-edit">
   <div class="modal-sheet" data-modal="modal-sample-day-edit">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-sample-day-edit')">✕</button></div>
-    <div class="modal-title">Saved Day</div>
+    <div class="modal-title">Saved day</div>
+    <div class="modal-sub">The label is how this day is listed when you fill a future one from it.</div>
     <input type="hidden" id="sde-group-id" value="">
     <input type="hidden" id="sde-date" value="">
     <div style="font-size:12px;color:var(--text3);margin-bottom:10px;" id="sde-date-label"></div>
@@ -24094,36 +24131,45 @@ function showMealMenuSheet(meal) {
   const old = document.getElementById('meal-menu-sheet');
   if (old) old.remove();
 
+  // v8.16 — the stacked-choice pattern of §3.8: a leading 36px icon tile, a title
+  // and a subtitle per action, with Cancel last. It takes the sheet anatomy from
+  // .modal-sheet like every other sheet, rather than rebuilding it inline.
+  //
+  // 🚨 FOUR actions, not three (D5). Swap shipped in v8.00 and stays.
+  //
+  // This one is built in JS rather than being a static .modal-overlay, so it also
+  // wires its own scrim dismissal — initModal() only ever sees the static sheets.
   const sheet = document.createElement('div');
   sheet.id = 'meal-menu-sheet';
-  sheet.style.cssText = 'position:fixed;inset:0;z-index:250;display:flex;flex-direction:column;justify-content:flex-end;background:rgba(0,0,0,0.4);';
+  sheet.className = 'modal-overlay open';
+  const action = (fn, title, sub, icon) => `
+      <button class="row-btn meal-menu-row" onclick="${fn}">
+        <span class="row-btn-icon">${icon}</span>
+        <span class="row-btn-text">
+          <span class="row-btn-title">${title}</span>
+          <span class="row-btn-sub">${sub}</span>
+        </span>
+        <span class="row-btn-chevron">\u203a</span>
+      </button>`;
+  const ic = (d) => `<svg viewBox="0 0 24 24" class="meal-menu-icon">${d}</svg>`;
   sheet.innerHTML = `
-    <div style="background:var(--surface);border-radius:var(--r) var(--r) 0 0;padding:16px 14px 32px;border-top:0.5px solid var(--border2);">
-      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px;">${meal}</div>
-      <button onclick="openMealCopyMove('copy')"
-        style="display:flex;align-items:center;gap:12px;width:100%;background:none;border:none;color:var(--text);font-size:15px;padding:12px 0;cursor:pointer;border-bottom:0.5px solid var(--border);">
-        <svg viewBox="0 0 24 24" width="18" height="18" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-        Copy meal to…
-      </button>
-      <button onclick="openMealCopyMove('move')"
-        style="display:flex;align-items:center;gap:12px;width:100%;background:none;border:none;color:var(--text);font-size:15px;padding:12px 0;cursor:pointer;">
-        <svg viewBox="0 0 24 24" width="18" height="18" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-        Move meal to…
-      </button>
-      <button onclick="openMealCopyMove('swap')"
-        style="display:flex;align-items:center;gap:12px;width:100%;background:none;border:none;color:var(--text);font-size:15px;padding:12px 0;cursor:pointer;border-top:0.5px solid var(--border);">
-        <svg viewBox="0 0 24 24" width="18" height="18" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>
-        Swap meal with…
-      </button>
-      <button onclick="saveMealAsRecipe()"
-        style="display:flex;align-items:center;gap:12px;width:100%;background:none;border:none;color:var(--text);font-size:15px;padding:12px 0;cursor:pointer;border-top:0.5px solid var(--border);">
-        <svg viewBox="0 0 24 24" width="18" height="18" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.41 0l6.59-6.59a1 1 0 0 0 0-1.41L12 2z"/><path d="M7 7h.01"/></svg>
-        Save meal as recipe…
-      </button>
-      <button onclick="document.getElementById('meal-menu-sheet').remove()"
-        style="width:100%;margin-top:14px;background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:12px;font-size:14px;color:var(--text2);cursor:pointer;">
-        Cancel
-      </button>
+    <div class="modal-sheet">
+      <div class="modal-handle-row"><div class="modal-handle"></div>
+        <button class="modal-close-btn" onclick="document.getElementById('meal-menu-sheet').remove()">\u2715</button>
+      </div>
+      <div class="modal-title">${meal}</div>
+      <div class="modal-sub">Move this meal's items somewhere else, or keep them as a recipe.</div>
+      <div class="meal-menu-rows">
+        ${action("openMealCopyMove('copy')", 'Copy meal to\u2026', 'Leaves this meal as it is.',
+          ic('<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'))}
+        ${action("openMealCopyMove('move')", 'Move meal to\u2026', 'Empties this meal.',
+          ic('<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>'))}
+        ${action("openMealCopyMove('swap')", 'Swap meal with\u2026', 'Exchanges the two meals.',
+          ic('<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>'))}
+        ${action('saveMealAsRecipe()', 'Save meal as recipe\u2026', 'Keeps them to log again later.',
+          ic('<path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.41 0l6.59-6.59a1 1 0 0 0 0-1.41L12 2z"/><path d="M7 7h.01"/>'))}
+      </div>
+      <button class="btn btn-ghost btn-block" onclick="document.getElementById('meal-menu-sheet').remove()">Cancel</button>
     </div>`;
   sheet.addEventListener('pointerdown', e => { if (e.target === sheet) sheet.remove(); });
   document.body.appendChild(sheet);
@@ -25384,6 +25430,7 @@ function openNutrPhoto() {
   document.getElementById('photo-analyse-error').style.display = 'none';
   _photoImageBase64 = null;
   _photoImageMediaType = null;
+  markAiKeyState('photo-analyse-btn');
   requestAnimationFrame(() => openModal('modal-nutr-photo'));
 }
 
@@ -25501,6 +25548,23 @@ function findFoodLibraryMatch(itemName) {
   return bestScore >= 0.4 ? best : null;
 }
 
+// ── The API-key state, one implementation (§3.6, Q9) ──────────────────
+// Dims an AI feature's primary button to 40% when no Anthropic key is saved,
+// and restores it to full when one is. It deliberately does NOT set `disabled`:
+// the button stays clickable so its own handler can open modal-api-key, which is
+// the only route to fixing the thing the dimming is reporting. A disabled button
+// is a dead end that explains nothing.
+//
+// Used by Photo → Meal here; check-in, cycle review and next-cycle advice take
+// the same treatment in Phase 4.
+function markAiKeyState(btnId) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  const hasKey = !!getApiKey();
+  btn.style.opacity = hasKey ? '' : '0.4';
+  btn.removeAttribute('disabled');
+}
+
 async function analyseMealPhoto() {
   if (_photoAnalysing) return;
   const errEl = document.getElementById('photo-analyse-error');
@@ -25518,10 +25582,16 @@ async function analyseMealPhoto() {
     document.getElementById('photo-meal-name').focus();
     return;
   }
+  // ── The API-key state (§3.6, Q9) ──────────────────────────────────────
+  // 🚨 One rule across all four AI features: with no key the button renders at
+  // 40% opacity but stays CLICKABLE, and opens the key sheet. It is not
+  // `disabled`, there is no amber warning note, no alert() and no thrown error.
+  // The old inline message named "Settings → Linked services", a path that had
+  // already moved — which is what a hand-written instruction does over time. A
+  // sheet cannot go stale.
   const apiKey = getApiKey();
   if (!apiKey) {
-    errEl.textContent = 'No API key saved. Go to Settings → Linked services to add your Anthropic API key.';
-    errEl.style.display = 'block';
+    openModal('modal-api-key');
     return;
   }
 
@@ -26406,7 +26476,9 @@ function openNutrManualForContext() {
 
 function openNutrManual() {
   closeModal('modal-nutr-add');
-  document.getElementById('nutr-manual-title').textContent = 'Quick Add to ' + nutrActiveMeal;
+  // "Manual entry", not "Quick Add" — modal-nutr-quick is the sheet that logs a
+  // whole day as one total, and two sheets with the same title is a collision.
+  document.getElementById('nutr-manual-title').textContent = 'Manual entry \u00b7 ' + nutrActiveMeal;
   document.getElementById('nutr-manual-name').value = '';
   document.getElementById('nutr-manual-grams').value = '';
   document.getElementById('nutr-manual-kcal').value = '';
@@ -28903,8 +28975,33 @@ function saveRecipeAndLog() {
 // today and the last-active meal (falling back to Breakfast).
 function openRecipeLogTargetPicker() {
   populateRelativeDateSelect('recipe-log-target-date');
+  // 🚨 The default stays `nutrActiveMeal` — the meal whose + Log was tapped.
+  // The design reference suggested defaulting by time of day instead; that is a
+  // guess, and this is knowledge, so it was not adopted.
   document.getElementById('recipe-log-target-meal').value = nutrActiveMeal || 'Breakfast';
+  markRecipeLogMeal();
   openModal('modal-recipe-log-target');
+}
+
+// Sets the chosen meal on the select, which is what confirmRecipeLogTarget()
+// reads, then reflects it in the picker and the button.
+function setRecipeLogMeal(meal) {
+  document.getElementById('recipe-log-target-meal').value = meal;
+  markRecipeLogMeal();
+}
+
+// Reflects the select's value in the 2×2 picker and the primary button's label,
+// so the tiles and the button can never disagree with what would be logged.
+function markRecipeLogMeal() {
+  const sel = document.getElementById('recipe-log-target-meal');
+  const picker = document.getElementById('recipe-log-meal-picker');
+  const btn = document.getElementById('recipe-log-confirm-btn');
+  if (!sel) return;
+  const meal = sel.value;
+  if (picker) picker.querySelectorAll('.meal-picker-tile').forEach(t => {
+    t.classList.toggle('active', t.dataset.meal === meal);
+  });
+  if (btn) btn.textContent = `Log to ${meal}`;
 }
 
 // Takes the chosen date/meal, switches to the Nutrition screen on that
@@ -29419,15 +29516,23 @@ function deleteRecipe(id) {
       <select id="recipe-log-target-date" style="font-size:14px;"></select>
     </div>
     <div class="form-group">
-      <div class="label">Meal</div>
-      <select id="recipe-log-target-meal" style="font-size:14px;">
+      <div class="label">Log to which meal?</div>
+      <!-- A 2×2 picker over the select, which stays as the single source of
+           truth so confirmRecipeLogTarget() keeps reading .value unchanged. -->
+      <select id="recipe-log-target-meal" style="display:none;" onchange="markRecipeLogMeal()">
         <option value="Breakfast">Breakfast</option>
         <option value="Lunch">Lunch</option>
         <option value="Dinner">Dinner</option>
         <option value="Snacks">Snacks</option>
       </select>
+      <div class="meal-picker" id="recipe-log-meal-picker">
+        <button class="meal-picker-tile" data-meal="Breakfast" onclick="setRecipeLogMeal('Breakfast')">Breakfast</button>
+        <button class="meal-picker-tile" data-meal="Lunch" onclick="setRecipeLogMeal('Lunch')">Lunch</button>
+        <button class="meal-picker-tile" data-meal="Dinner" onclick="setRecipeLogMeal('Dinner')">Dinner</button>
+        <button class="meal-picker-tile" data-meal="Snacks" onclick="setRecipeLogMeal('Snacks')">Snacks</button>
+      </div>
     </div>
-    <button id="recipe-log-confirm-btn" class="btn btn-accent btn-block" onclick="confirmRecipeLogTarget()">Log →</button>
+    <button id="recipe-log-confirm-btn" class="btn btn-accent btn-block" onclick="confirmRecipeLogTarget()">Log to Breakfast</button>
   </div>
 </div>
 
