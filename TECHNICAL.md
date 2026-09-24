@@ -4668,3 +4668,61 @@ One finding worth keeping: Home's "—" against every target is **correct**, not
 same probe run against `main` returns `kcalAvg=null` too — the demo fixture's anchor date sits in a
 week with no logs. Reconciling against the baseline rather than against memory is what settled it;
 `main`'s hero showed "Kcal 33 / 1,550" purely because the screenshot caught its odometer mid-count.
+
+## §82 — v8.16: the local-dev bypass accepts private-network hosts, so the app can be opened on a phone
+
+### Why it changed
+
+`IS_LOCAL_DEV` was `['localhost','127.0.0.1'].includes(window.location.hostname)`. That is
+obviously safe, and it made the app impossible to review on a phone: a phone on the same Wi-Fi
+reaches the laptop's dev server at its LAN address (`http://192.168.0.42:8777`), never at
+`localhost`, so it fell through to the real sign-in gate and Adam's real account. Design review on
+the device the app is actually used on was the one thing the bypass could not do.
+
+The host test is now `isLocalDevHost(hostname)`, which also accepts private-network addresses.
+
+### Why this is still safe on the deployed site
+
+🚨 **This function decides whether authentication is skipped.** The reasoning that makes the
+widening acceptable:
+
+- It matches a bare IPv4 **literal** in an RFC1918 or link-local range, a `.local` mDNS name, or
+  exact loopback. Nothing else.
+- The deploy target is `adamnc02.github.io` — a public DNS name, neither an IP literal nor `.local`
+  — so **it cannot match by construction**. There is no flag, build step or environment variable
+  that could make it match; the only input is the hostname the browser is already on.
+- Matching is exact or anchored at both ends. This is the part that is easy to get wrong: a
+  `startsWith`/`includes` implementation would happily bypass on `localhost.evil.com` and
+  `192.168.0.42.evil.com`, which are ordinary public domains anybody can register.
+
+**What it deliberately does not protect against**, stated plainly rather than left implied: while
+the dev server is running, anyone else on the same Wi-Fi who knows the address gets the app with the
+bypass active. That is acceptable because the bypass leaves `supabase` **null** and seeds the
+**demo** dataset — there is no real account and no real data behind it — and the server only runs
+during a working session.
+
+🚨 **Never widen this to a hostname public DNS can resolve.** If something one day needs that, it
+needs a different mechanism, not another branch in this function.
+
+### It is covered by a verify script, because nothing else covers it
+
+`scripts/verify-local-dev-hosts.mjs` **extracts the real `isLocalDevHost()` out of `index.html` by
+brace matching and runs it** — it does not keep its own copy of the logic, because a copy passes
+forever while the shipped code drifts away from it. 35 cases: 14 hosts that must bypass, 21 that
+must never, including the deployed site, both lookalike domains, and the off-by-one neighbours of
+every private range (`172.15` / `172.32`, `193.168`, `11.0`, `169.253`).
+
+It ends with a **control**: it runs a deliberately naive `includes()`/`startsWith()` predicate and
+asserts that the lookalike cases *do* slip through it. A suite that cannot fail proves nothing, and
+this one exists precisely to catch a plausible wrong implementation.
+
+This matters more than usual here: there is **no CI in this repo**, `npm run deploy` does not run
+the verify scripts, and the failure mode is invisible from the UI — a bypassed build looks entirely
+normal until you notice it never asked anyone to sign in.
+
+### Verified
+
+Loaded through both `http://localhost:8777` and `http://192.168.0.42:8777` in a real browser
+engine: both report `IS_LOCAL_DEV=true`, the auth gate hidden (`display: none`), `supabase === null`,
+the demo macrocycle seeded, and Home rendering the same content. Sweep: 4/4 verify scripts pass, and
+the count of `scripts/verify*.mjs` on disk matches the number the sweep actually ran.
