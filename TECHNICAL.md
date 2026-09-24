@@ -5263,7 +5263,14 @@ mounts those inputs on open with `insertAdjacentHTML('afterbegin')`, which lands
 the label in the DOM. That helper is shared with the auth gate, so the order is corrected with
 `order: -1` in CSS rather than in the JS. The DOM is untouched; only the paint order changes.
 
-### Body Profile
+### About me (`modal-body-profile`)
+
+🚨 **The sheet is titled "About me", and the id is not.** The row that opens it, in Settings ▸
+Profile, has always said "About me"; the sheet said "Body Profile" until the v8.16 UAT — a name
+that appears nowhere else in the app, left over from the v7.51 Body screen that was folded into
+Settings. The **id stays `modal-body-profile`**: eight call sites and the profile gate's own CSS
+(`#modal-body-profile.gate-active`) reference it, and renaming an id to match a label is churn with
+a real chance of missing one.
 
 The gender cards use `.ex-chip` / `.ex-chip-on` — the same two-up selectable card the Train page
 uses — and the height unit switch is a `.toggle-row` with `.active`. `updateProfileGenderUI()` and
@@ -5530,5 +5537,8 @@ page down as you reached for it.
   calendar weeks, so calling it a week would contradict the picker, the logs and every other
   screen. The simplification applied was dropping "of N" — the eyebrow is a locator, not a progress
   bar.
-- **The Settings hero's name** is derived from the signed-in email's local part
-  (`adam.cox` → "Adam Cox"), because there is no name field anywhere in `state`.
+- ~~**The Settings hero's name** is derived from the signed-in email.~~ **Wrong — corrected the
+  same day.** `state.profile` has carried `firstName`, `surname` and `preferredName` since v8.03,
+  and `preferredName` is already what Home's greeting reads. The hero shows `firstName surname`,
+  falls back to `preferredName`, and only then to the email. Deriving a name from the email would
+  have put a second, differently-spelled version of the person's own name on the same app.

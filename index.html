@@ -2600,6 +2600,10 @@ html.auth-likely-signed-in #auth-gate { display: none; }
   border-color: var(--accent);
 }
 .ex-chip-title { font-family: var(--font-display); font-size: 13.5px; font-weight: 600; color: var(--text); }
+/* An icon and its label on one line, optically centred against each other
+   rather than sharing a baseline — a 17px square icon and 13.5px text have
+   nothing useful in common at the baseline. */
+.ex-chip-title-icon { display: flex; align-items: center; gap: 7px; }
 .ex-chip-sub { font-size: 11.5px; font-weight: 500; color: var(--text2); margin-top: 3px; font-variant-numeric: tabular-nums; }
 
 /* ── Set table (redefined in place; ~60 call sites read these) ───────── */
@@ -5062,13 +5066,18 @@ try {
   </div>
 </div>
 
-<!-- Body Profile (gender / height / birthday) -->
+<!-- About me (name / gender / height / birthday / country)
+     🚨 The TITLE must stay "About me". The row that opens it, in Settings ▸
+     Profile, says "About me"; this sheet said "Body Profile", which is a name
+     that appears nowhere else in the app and belonged to the v7.51 Body screen
+     that was folded into Settings. The id stays modal-body-profile — it is
+     referenced from eight places and from the profile gate's CSS. -->
 <div class="modal-overlay" id="modal-body-profile">
   <div class="modal-sheet" data-modal="modal-body-profile">
     <div class="modal-handle-row"><div class="modal-handle"></div>
       <button class="modal-close-btn" onclick="closeModal('modal-body-profile')">✕</button>
     </div>
-    <div class="modal-title">Body Profile</div>
+    <div class="modal-title">About me</div>
     <!-- Shown only while the profile-entry gate (Build Order step 6) is
          active — hidden the rest of the time, when this is just the
          ordinary Settings → About me editor. Copy from
@@ -5080,10 +5089,11 @@ try {
     <!-- Name — three separate rows (not a side-by-side layout) per Adam's
          preference. All optional: none of these are part of the profile
          gate's required-field validation in saveBodyProfile(), same
-         treatment as Country below. Preferred Name is what "Welcome back"
-         on the home screen uses (see renderHomeHero()) — First Name/
-         Surname aren't shown anywhere in the UI yet, they exist for the
-         profiles table / any future coach-app context. -->
+         treatment as Country below. Preferred Name is what the greeting on
+         Home uses (see renderHomeHero()); First Name + Surname are what the
+         Settings hero shows, and its initials tile is built from their first
+         letters (see renderSettingsHero(), v8.16 UAT). Leaving all three blank
+         is still fine — the hero falls back to the sign-in email. -->
     <div class="form-group">
       <div class="label">First name</div>
       <input type="text" id="profile-first-name" autocomplete="given-name">
@@ -5102,12 +5112,28 @@ try {
          chosen option reads the same way everywhere in the app. -->
     <div class="form-group">
       <div class="label">Gender</div>
+      <!-- 🚨 Real SVGs, not the ♂ / ♀ CHARACTERS these used to be. .ex-chip-title
+           is set in var(--font-display) — Sora, since v8.16 — and Sora has no
+           glyph for either, so both fell back to a system symbol font whose
+           baseline and optical size do not match Sora's. The result was two
+           symbols sitting low against their own labels, reported in the v8.16
+           UAT as "aligned to the bottom of the buttons". A fallback glyph
+           cannot be baseline-matched; the only fix is to stop using one.
+           (Same class of bug as the › and + characters this round replaced —
+           see TECHNICAL.md §92.) Safe as markup because updateProfileGenderUI()
+           only toggles a class and never rewrites these buttons. -->
       <div class="ex-chips" style="margin-top:0;">
         <button class="ex-chip" id="profile-btn-male" onclick="selectProfileGender('male')">
-          <div class="ex-chip-title">&#9794; Male</div>
+          <span class="ex-chip-title ex-chip-title-icon">
+            <svg class="ico" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="14" r="6"/><path d="M14.5 9.5 20 4M15 4h5v5"/></svg>
+            Male
+          </span>
         </button>
         <button class="ex-chip" id="profile-btn-female" onclick="selectProfileGender('female')">
-          <div class="ex-chip-title">&#9792; Female</div>
+          <span class="ex-chip-title ex-chip-title-icon">
+            <svg class="ico" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="9" r="6"/><path d="M12 15v6M9 18h6"/></svg>
+            Female
+          </span>
         </button>
       </div>
     </div>
@@ -27966,15 +27992,30 @@ function renderSettingsHero() {
   const el = document.getElementById('settings-hero');
   if (!el) return;
   const prof = state.profile || {};
+
+  // 🚨 The name comes from Settings ▸ About me — state.profile.firstName /
+  // .surname / .preferredName — NOT from the sign-in email. Those three fields
+  // have existed since v8.03 and preferredName is already what Home's
+  // "Morning, Adam" greeting reads; deriving a name from the email here would
+  // have put a second, differently-spelled version of the person's own name on
+  // the same app.
+  //
+  // Full name first, because that is what a profile hero shows and it is the
+  // reference's treatment. preferredName is the fallback rather than the first
+  // choice: it is what BLOC should CALL you, which is not always your name.
+  const full = [prof.firstName, prof.surname].filter(Boolean).join(' ');
   const session = _authResolvedSession;
   const email = (session && session.user && session.user.email) || '';
-  // There is no name field anywhere in state, so the email's local part is the
-  // only thing that identifies the person. "adam.cox" → "Adam Cox".
-  const name = email
-    ? email.split('@')[0].split(/[._-]+/).filter(Boolean)
-        .map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
-    : 'BLOC';
-  const initials = name.split(' ').map(w => w.charAt(0)).join('').slice(0, 2).toUpperCase() || 'BL';
+  const name = full
+    || prof.preferredName
+    || (email ? email.split('@')[0].split(/[._-]+/).filter(Boolean)
+          .map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : '')
+    || 'BLOC';
+  // Two initials from a first name AND a surname; one word gives one letter
+  // rather than two letters of the same word.
+  const initials = (full
+    ? [prof.firstName, prof.surname].filter(Boolean).map(w => w.charAt(0)).join('')
+    : name.charAt(0)).slice(0, 2).toUpperCase() || 'BL';
 
   const bits = [];
   if (prof.gender) bits.push(prof.gender.charAt(0).toUpperCase() + prof.gender.slice(1));
