@@ -3064,6 +3064,35 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 }
 /* The explanatory line UNDER a field, as opposed to .label above it. */
 .field-hint { font-size: 11.5px; font-weight: 500; color: var(--text3); margin-top: 5px; line-height: 1.4; }
+/* ── Library list rows ───────────────────────────────────────────────── */
+/* The Food and Exercise library sheets. Both are a searchable list whose
+   rows carry two or three icon actions, so the row and its buttons are
+   defined once here and shared. */
+.lib-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 0; border-bottom: 1px solid var(--divider);
+}
+.lib-row:last-child { border-bottom: none; }
+.lib-row-text { flex: 1; min-width: 0; }
+.lib-row-name {
+  font-size: 14px; font-weight: 700; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Wraps, unlike the name: a food's macro line is long and truncating it
+   hides the numbers that are the reason to look at the row. */
+.lib-row-meta { font-size: 11.5px; font-weight: 500; color: var(--text3); margin-top: 3px; line-height: 1.4; }
+.lib-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.lib-icon-btn {
+  width: 34px; height: 34px; padding: 0; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface3); border: none; border-radius: var(--r-icon-card);
+  color: var(--text2); cursor: pointer;
+}
+.lib-icon-btn:active { transform: scale(0.95); }
+.lib-icon-btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.lib-icon-btn-danger { color: var(--red); background: color-mix(in srgb, var(--red) 12%, transparent); }
+.lib-empty { text-align: center; color: var(--text3); font-size: 13px; font-weight: 500; padding: 26px 0; }
+
 /* The storage read-out in About This App. */
 .about-stat-row {
   display: flex; align-items: baseline; justify-content: space-between;
@@ -7969,25 +7998,30 @@ async function openRestorePicker() {
     const last = localStorage.getItem('bloc_last_snapshot_date');
     lastEl.textContent = last ? `Last cloud backup: ${formatDate(last)}` : 'No cloud backup yet';
   }
-  listEl.innerHTML = '<div style="font-size:12px;color:var(--text2);">Loading…</div>';
+  listEl.innerHTML = '<div class="lib-empty">Loading…</div>';
   openModal('modal-restore-picker');
   try {
     const dates = await listSnapshots();
     if (!dates.length) {
-      listEl.innerHTML = '<div style="font-size:12px;color:var(--text2);">No cloud backups yet.</div>';
+      listEl.innerHTML = '<div class="lib-empty">No cloud backups yet.</div>';
       return;
     }
-    listEl.innerHTML = '';
+    // Each snapshot is a row in a card, not a full-width button: they are a
+    // list to choose from, and a stack of primary-shaped buttons reads as
+    // several separate actions.
+    listEl.innerHTML = '<div class="card" style="margin-bottom:0;"></div>';
+    const card = listEl.firstElementChild;
     dates.forEach(date => {
       const btn = document.createElement('button');
-      btn.className = 'btn btn-block';
-      btn.style.textAlign = 'left';
-      btn.textContent = formatDate(date);
+      btn.className = 'settings-row settings-row-nav';
+      btn.innerHTML =
+        '<div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg></div>' +
+        '<div class="settings-row-text">' + formatDate(date) + '</div>';
       btn.onclick = () => handleRestoreSnapshot(date);
-      listEl.appendChild(btn);
+      card.appendChild(btn);
     });
   } catch (err) {
-    listEl.innerHTML = `<div style="font-size:12px;color:var(--red);">✕ ${(err && err.message) || 'Could not load backups.'}</div>`;
+    listEl.innerHTML = `<div class="lib-empty" style="color:var(--red);">✕ ${(err && err.message) || 'Could not load backups.'}</div>`;
   }
 }
 
@@ -23885,18 +23919,18 @@ function renderProfileNutritionLibraries() {
   });
 
   if (!groups.length) {
-    el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:30px 0;">No saved days yet. Qualifying nutrition days can be saved from the Nutrition page.</div>';
+    el.innerHTML = '<div class="lib-empty">No saved days yet. Qualifying nutrition days can be saved from the Fuel page.</div>';
     return;
   }
 
   el.innerHTML = groups.map(g => {
     const rows = g.days.slice().sort((a, b) => b.date.localeCompare(a.date)).map(d => `
-      <div class="swipe-row-wrap" style="border-top:0.5px solid var(--border);">
-        <div class="swipe-row-content" style="padding:10px 0;display:flex;justify-content:space-between;align-items:center;cursor:pointer;background:var(--surface);"
+      <div class="swipe-row-wrap" style="border-top:1px solid var(--divider);">
+        <div class="swipe-row-content" style="padding:12px 0;display:flex;justify-content:space-between;align-items:center;cursor:pointer;background:var(--surface);"
           onclick="openSampleDayEditor('${g.id}','${d.date}')">
           <div style="min-width:0;">
-            <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${d.dinnerName}</div>
-            <div style="font-size:11px;color:var(--text2);margin-top:2px;">${formatDate(d.date)} · ${Math.round(d.totals.kcal).toLocaleString()} kcal</div>
+            <div class="lib-row-name">${d.dinnerName}</div>
+            <div class="lib-row-meta">${formatDate(d.date)} · ${Math.round(d.totals.kcal).toLocaleString()} kcal</div>
           </div>
         </div>
         <div class="swipe-actions">
@@ -23912,18 +23946,18 @@ function renderProfileNutritionLibraries() {
       .filter(id => id !== originId)
       .map(getGoalDisplayLabel)
       .filter(Boolean)
-      .map(label => `<span style="font-size:10px;font-weight:600;color:var(--text2);background:var(--surface3);border:0.5px solid var(--border2);border-radius:99px;padding:3px 9px;">${label}</span>`)
+      .map(label => `<span class="chip" style="--chip-c: var(--text2);">${label}</span>`)
       .join('');
     const originPillHtml = originLabel
-      ? `<span style="font-size:10px;font-weight:600;color:var(--accent);background:rgba(145,132,217,0.1);border:0.5px solid rgba(145,132,217,0.25);border-radius:99px;padding:3px 9px;">${originLabel}</span>`
+      ? `<span class="chip">${originLabel}</span>`
       : '';
-    return `<div class="card" style="margin-bottom:10px;padding:0 14px;">
-      <div style="padding:12px 0;border-bottom:0.5px solid var(--border);">
-        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+    return `<div class="card" style="margin-bottom:10px;padding:0 16px;">
+      <div style="padding:14px 0;border-bottom:1px solid var(--divider);">
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px;">
           ${originPillHtml}${otherPillsHtml}
         </div>
-        <div style="font-weight:700;font-size:13px;">${g.originGoalMacros.kcal.toLocaleString()} kcal target${effectiveIds.length > 1 ? ` · ${effectiveIds.length} linked goals` : ''}</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:2px;">${g.days.length} saved day${g.days.length !== 1 ? 's' : ''} · P:${Math.round(g.originGoalMacros.protein)}g C:${Math.round(g.originGoalMacros.carbs)}g F:${Math.round(g.originGoalMacros.fats)}g</div>
+        <div style="font-family:var(--font-display);font-weight:600;font-size:15px;letter-spacing:-0.01em;">${g.originGoalMacros.kcal.toLocaleString()} kcal target${effectiveIds.length > 1 ? ` · ${effectiveIds.length} linked goals` : ''}</div>
+        <div class="lib-row-meta">${g.days.length} saved day${g.days.length !== 1 ? 's' : ''} · P:${Math.round(g.originGoalMacros.protein)}g C:${Math.round(g.originGoalMacros.carbs)}g F:${Math.round(g.originGoalMacros.fats)}g</div>
       </div>
       ${rows}
     </div>`;
@@ -28563,23 +28597,23 @@ function renderExerciseLibEditor() {
   const el = document.getElementById('exercise-lib-list');
 
   if (!items.length) {
-    el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:20px 0;">'
+    el.innerHTML = '<div class="lib-empty">'
       + (query ? 'No matches for "' + query + '"' : 'No exercises in library yet.') + '</div>';
     el._items = [];
     return;
   }
 
   el.innerHTML = items.map((item, idx) => {
-    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);">
-      <div style="flex:1;min-width:0;${item.isCustom ? 'cursor:pointer;' : ''}" ${item.isCustom ? `onclick="openExerciseLibEntry(${idx})"` : ''}>
-        <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:2px;">${item.bodyPart}</div>
+    return `<div class="lib-row">
+      <div class="lib-row-text"${item.isCustom ? ` style="cursor:pointer;" onclick="openExerciseLibEntry(${idx})"` : ''}>
+        <div class="lib-row-name">${item.name}</div>
+        <div class="lib-row-meta">${item.bodyPart}</div>
       </div>
-      <div style="display:flex;gap:6px;flex-shrink:0;margin-left:10px;">
+      <div class="lib-row-actions">
         ${item.isCustom
-          ? `<button class="btn btn-sm" style="padding:5px 10px;" onclick="openExerciseLibEntry(${idx})" title="Edit"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-             <button class="btn btn-sm btn-danger" style="padding:5px 10px;" onclick="deleteExerciseLibEntry(${idx})" title="Delete"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`
-          : `<span class="badge" style="font-size:10px;">default</span>`}
+          ? `<button class="lib-icon-btn" onclick="openExerciseLibEntry(${idx})" aria-label="Edit"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+             <button class="lib-icon-btn lib-icon-btn-danger" onclick="deleteExerciseLibEntry(${idx})" aria-label="Delete"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`
+          : `<span class="chip" style="--chip-c: var(--text3);">Built in</span>`}
       </div>
     </div>`;
   }).join('');
@@ -28669,7 +28703,7 @@ function renderFoodLibEditor() {
   const el = document.getElementById('food-lib-list');
 
   if (!items.length) {
-    el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:20px 0;">'
+    el.innerHTML = '<div class="lib-empty">'
       + (query ? 'No matches for "' + query + '"' : 'No foods in library yet.') + '</div>';
     el._items = [];
     return;
@@ -28681,15 +28715,15 @@ function renderFoodLibEditor() {
       ? ' · ' + item.servingName + ' (' + item.defaultServing + unit + ')'
       : (item.defaultServing ? ' · RSS ' + item.defaultServing + unit : '');
     const brand = item.brand ? ' · ' + item.brand : '';
-    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);">
-      <div style="flex:1;min-width:0;cursor:pointer;" onclick="openFoodLibEntry(${idx})">
-        <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:2px;">${item.per100kcal.toLocaleString()} kcal / 100${unit} · P:${Math.round(item.per100p)}g C:${Math.round(item.per100c)}g F:${Math.round(item.per100f)}g${servingBit}${brand}</div>
+    return `<div class="lib-row">
+      <div class="lib-row-text" style="cursor:pointer;" onclick="openFoodLibEntry(${idx})">
+        <div class="lib-row-name">${item.name}</div>
+        <div class="lib-row-meta">${item.per100kcal.toLocaleString()} kcal / 100${unit} · P:${Math.round(item.per100p)}g C:${Math.round(item.per100c)}g F:${Math.round(item.per100f)}g${servingBit}${brand}</div>
       </div>
-      <div style="display:flex;gap:6px;flex-shrink:0;margin-left:10px;">
-        <button class="btn btn-sm" style="padding:5px 10px;" onclick="shareFoodLibItem(${idx})" title="Share"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="9 10 5 10 5 20 19 20 19 10 15 10"/><polyline points="12 3 8 7 12 3 16 7"/><line x1="12" y1="3" x2="12" y2="15"/></svg></button>
-        <button class="btn btn-sm" style="padding:5px 10px;" onclick="openFoodLibEntry(${idx})" title="Edit"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-        <button class="btn btn-sm btn-danger" style="padding:5px 10px;" onclick="deleteFoodLibEntry(${idx})" title="Delete"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
+      <div class="lib-row-actions">
+        <button class="lib-icon-btn" onclick="shareFoodLibItem(${idx})" aria-label="Share"><svg viewBox="0 0 24 24"><polyline points="9 10 5 10 5 20 19 20 19 10 15 10"/><polyline points="12 3 8 7 12 3 16 7"/><line x1="12" y1="3" x2="12" y2="15"/></svg></button>
+        <button class="lib-icon-btn" onclick="openFoodLibEntry(${idx})" aria-label="Edit"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+        <button class="lib-icon-btn lib-icon-btn-danger" onclick="deleteFoodLibEntry(${idx})" aria-label="Delete"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
       </div>
     </div>`;
   }).join('');
