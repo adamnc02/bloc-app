@@ -2033,9 +2033,8 @@ html.auth-likely-signed-in #auth-gate { display: none; }
    if the observer never runs — no JS, no IntersectionObserver, reduced
    motion — every element is simply visible in its final state. Motion must
    never be load-bearing for visibility. */
-/* Travel and duration were raised twice on review (2026-09-24): 18px/0.75s,
-   then 34px/1.15s, both of which read as a twitch on a phone rather than as
-   the page assembling itself. */
+/* 50px over 1.6s. Shorter and faster values read as a twitch on a phone
+   rather than as the page assembling itself. */
 @keyframes rise { from { opacity: 0; transform: translateY(50px); } to { opacity: 1; transform: none; } }
 .will-rise { opacity: 0; transform: translateY(50px); }
 /* .risen asserts the FINAL state as well as running the animation. The
@@ -2105,9 +2104,7 @@ html.auth-likely-signed-in #auth-gate { display: none; }
    H2 + sublabel, with an optional right-hand slot. Built by sectionHeader()
    in the script; the markup is only ever produced there.
 
-   🚨 NO NUMBER BADGE. A two-digit number badge was built and then dropped
-   on review (2026-09-24) — sections are titled, not numbered. Do not
-   reintroduce one.
+   Sections are titled, not numbered — there is no number badge.
    ══════════════════════════════════════════════════════════════════════ */
 .section-head { display: flex; align-items: center; gap: 9px; }
 .section-h2 {
@@ -2212,10 +2209,8 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .metric-value { margin-left: auto; font-size: 14px; color: var(--text2); font-variant-numeric: tabular-nums; }
 .metric-value strong { font-family: var(--font-display); font-size: 17px; font-weight: 600; color: var(--text); }
 .metric-target { font-size: 12.5px; color: var(--text3); }
-/* The note is rendered only when there is something to say, and takes no
-   space when there is not. Reserving an empty line for it was tried and
-   reverted (2026-09-24) — the permanent gap under every row cost more than
-   the reflow it avoided. */
+/* Rendered only when there is something to say, and takes no space when
+   there is not. */
 .metric-note { font-size: 12px; font-weight: 500; color: var(--text3); margin-top: 8px; line-height: 1.45; }
 .metric-note-off { color: var(--text2); }
 .metric-note-off strong { color: var(--red); }
@@ -7194,14 +7189,6 @@ function showScreen(name) {
 // this never runs — reduced motion, no IntersectionObserver — everything is
 // simply visible in its final state. Motion is never load-bearing for
 // visibility.
-// ⚗️ EXPERIMENT, 2026-09-24 — awaiting Adam's decision.
-//   false = an element animates ONCE per visit to a screen. Scrolling back
-//           over it does nothing; leaving the screen and returning re-arms it.
-//   true  = it animates EVERY time it scrolls back into view.
-// Flipping this constant is the whole switch. Whichever way it settles, delete
-// the losing branch and this comment rather than leaving both paths alive.
-const ENTRANCE_REPLAY = true;
-
 let _entranceObserver = null;
 function setupScreenEntrance(el) {
   if (_entranceObserver) { _entranceObserver.disconnect(); _entranceObserver = null; }
@@ -7214,22 +7201,20 @@ function setupScreenEntrance(el) {
 
   items.forEach(n => n.classList.add('will-rise'));
 
-  _entranceObserver = new IntersectionObserver((entries, obs) => {
+  _entranceObserver = new IntersectionObserver((entries) => {
     // Everything arriving in the SAME batch is staggered in document order —
     // that is what produces the top-to-bottom assembly on first paint. A
     // section scrolled to on its own is a batch of one, so it rises
     // immediately rather than waiting out a delay it cannot explain.
-    // Anything that has scrolled COMPLETELY out of view is reset, so it can
-    // play again next time. Re-adding a class an element already carries does
-    // not restart a CSS animation, so the reset is what makes replay work at
-    // all — removing the unobserve on its own would do nothing.
-    // The reset waits for intersectionRatio 0 rather than firing the moment an
-    // edge crosses, so an element parked half on screen does not flicker.
-    if (ENTRANCE_REPLAY) {
-      entries
-        .filter(e => !e.isIntersecting && e.intersectionRatio === 0)
-        .forEach(e => { e.target.classList.remove('risen'); e.target.style.removeProperty('--d'); });
-    }
+    // Anything that has scrolled COMPLETELY out of view is reset, so it plays
+    // again next time it comes back. This reset is what makes the replay work:
+    // re-adding a class an element already carries does not restart a CSS
+    // animation, so without it the element would return already-risen.
+    // It waits for intersectionRatio 0 rather than firing the moment an edge
+    // crosses, so an element parked half on screen does not flicker.
+    entries
+      .filter(e => !e.isIntersecting && e.intersectionRatio === 0)
+      .forEach(e => { e.target.classList.remove('risen'); e.target.style.removeProperty('--d'); });
 
     entries
       .filter(e => e.isIntersecting && !e.target.classList.contains('risen'))
@@ -7237,7 +7222,6 @@ function setupScreenEntrance(el) {
       .forEach((e, i) => {
         e.target.style.setProperty('--d', i * 220);
         e.target.classList.add('risen');
-        if (!ENTRANCE_REPLAY) obs.unobserve(e.target);
       });
   }, {
     root: document.getElementById('content'),   // #content is the only scroller
@@ -7268,10 +7252,7 @@ function setupScreenEntrance(el) {
     let last = 0;
     const revealVisible = () => {
       const pending = items.filter(n => !n.classList.contains('risen'));
-      if (!pending.length) {
-        if (!ENTRANCE_REPLAY) detach();   // in replay mode there is always more to do
-        return;
-      }
+      if (!pending.length) return;   // nothing to reveal right now; more will come
       const box = scroller.getBoundingClientRect();
       const limit = box.bottom - scroller.clientHeight * 0.08;
       pending.forEach(n => {
@@ -7284,7 +7265,6 @@ function setupScreenEntrance(el) {
         if (rect.top <= limit && rect.bottom > box.top) {
           n.style.setProperty('--d', 0);
           n.classList.add('risen');
-          if (_entranceObserver && !ENTRANCE_REPLAY) _entranceObserver.unobserve(n);
         }
       });
     };
@@ -7359,9 +7339,7 @@ function runScreenTeardowns() {
 // The one builder for every section header in the app. Markup is produced
 // only here, so the whole app moves together if the treatment changes again.
 //
-// 🚨 Sections are NOT numbered in the UI. A two-digit number badge was built
-// and then dropped on review (2026-09-24). Section titles carry the structure
-// on their own. Do not reintroduce one.
+// Sections are titled, not numbered.
 //
 // Usage:
 //   html += sectionHeader('This week', "Your daily averages against this
@@ -18647,7 +18625,7 @@ function buildHomeGoalLineText() {
 // before v8.16 — a genuinely different goal, starting within 6 days, with
 // only the fields that actually change shown, and the same "Step N" label
 // resolution. Only its presentation moved: it replaces the hero's goal
-// subline instead of sitting in a card of its own (Q7).
+// subline instead of sitting in a card of its own.
 function buildHomeUpcomingGoalHTML() {
   const today = getLocalToday();
   const active = getActiveGoal();
@@ -18886,8 +18864,8 @@ function buildAdviceLineHtml(name, field, dayMap, weekStart, today, target, unit
 
 // The upcoming-goal heads-up is built by buildHomeUpcomingGoalHTML() (see
 // HOME HERO above) and rendered INSIDE the hero, replacing its goal subline,
-// rather than as a banner of its own — Adam's Q7 ruling, v8.16. The old
-// renderHomeGoalBanner() was removed with the element it filled; the
+// rather than as a banner of its own. The v8.15 renderHomeGoalBanner() was
+// removed along with the element it filled; the
 // `home-goal-banner` id moved onto whichever element now carries that
 // content, so the demo-tour step still resolves.
 

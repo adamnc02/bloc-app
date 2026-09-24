@@ -4364,576 +4364,305 @@ Not a loss, but the same class of defect and adjacent: `addPhotoItemManual()` pu
 
 **Check:** `scripts/verify-photo-review-retention.mjs` — 16 checks. The routing matrix for `returnFromNutrServing()` across all three contexts × both routes in (proving no combination lands nowhere); `discardPhotoReview()`'s confirm behaviour including that declining leaves the items intact and that an empty list skips the dialog; and the three structural invariants the protection actually rests on — the overlay carries `data-no-dismiss`, its ✕ does not call `closeModal` directly, `initModal()` checks the attribute *before* wiring either gesture, and `#modal-confirm` outranks every other modal tier (asserted by parsing the z-index rules, so adding a higher modal later fails the check rather than silently hiding confirmations).
 
-## §80 — v8.16 Phase 0: the redesign foundation (tokens, type, motion, sheet chrome, five-tab nav)
+## §80 — v8.16 design foundation: type, colour, shape and shared components
 
-v8.16 is a whole-app visual redesign delivered in phases, one page per phase. **Phase 0 is
-infrastructure only and deliberately lays out no page.** Tokens, fonts, motion primitives and the
-shared sheet/button/row chrome are global: introducing them page by page would mean either
-duplicating them six times or leaving the app visually broken between phases. So they all land
-first, and the app is knowingly half-migrated until the page phases arrive — every page still
-renders and every modal still opens, but only the shared classes have moved to the new design.
+v8.16 replaces the app's visual language. The pieces below are global — every page and all 62 modals
+read them — so they are described once here rather than per page.
 
-### Typography — a display/body pair, and why `--font-mono` still exists
+### Typography
 
-Inter was the sole typeface from v7.58. It is replaced by **Sora** (`--font-display`) for titles,
-section headings, hero numbers and stats, and **Manrope** (`--font-body`) for prose, labels and
-controls.
+Two faces. **Sora** (`--font-display`) for page titles, section headings, hero numbers and stats;
+**Manrope** (`--font-body`) for prose, labels and controls. `body` resolves to `--font-body`, so an
+element that does not explicitly ask for the display face renders in Manrope.
 
-The load-bearing change is on `body`, which now defaults to `--font-body` rather than
-`--font-display`. Anything that does not explicitly ask for the display face is now Manrope — which
-is the point, but it means the type of a great many elements moved without any of them being
-edited.
-
-`--font-mono` is **not deleted**. It has 24 call sites, resolved to Inter, and now resolves to
-Manrope, so nothing breaks. Each call site gets the font its role actually calls for as its own page
-is redesigned. 🚨 **Do not delete the token until every one of those sites has been swept** — a
-missing custom property resolves to nothing and silently drops those elements to the browser
+`--font-mono` resolves to Manrope. It is a legacy token with 24 call sites, retained so those sites
+keep working; a missing custom property resolves to nothing and drops the element to the browser
 default, which looks like a font-loading failure rather than a code change.
 
-### Colour — the palette did NOT change
+All numbers carry `font-variant-numeric: tabular-nums`.
 
-A brighter red (`#ff5f5d`) was proposed during design, along with folding the peach `--warn` back
-into `--red`. **Both were rejected.** `--warn` was split out of `--red` in v7.59–v7.60 precisely so `--red` could
-mean danger only, and that distinction still holds. Home's off-target state already uses
-`--red: #E24B4A` (`renderHomeHero()`), which is the colour that proposal was reaching for.
+### Colour
 
-What did change is contrast and vocabulary:
+The palette is unchanged from v8.15. `--warn` (`#e0a08f`) and `--red` (`#E24B4A`) remain separate
+tokens — `--warn` was split out of `--red` in v7.59–v7.60 so `--red` means danger only, and Home's
+off-target state uses `--red`.
 
-| Token | Change |
+Contrast and vocabulary did change:
+
+| Token | |
 |---|---|
-| `--text3` | `.45` → `.55` alpha — a contrast fix on eyebrows and captions |
+| `--text3` | `.45` → `.55` alpha |
 | `--border2` | `.16` → `.12` alpha |
-| `--inset` | **New.** Recessed card footers (copy-from-yesterday) and the on-hold panel |
-| `--divider` | **New.** Row dividers inside cards, replacing `--border` for that job |
-| `--green-text` | **New.** Positive text and "Stable"/"Active" chips, distinct from the `--green` fill |
-| `--heat-amber` | **New.** Same value as the existing `HEATMAP_AMBER` JS constant |
+| `--inset` | Recessed card footers and the on-hold panel |
+| `--divider` | Row dividers inside cards |
+| `--green-text` | Positive text and "Stable"/"Active" chips, distinct from the `--green` fill |
+| `--heat-amber` | Same value as the `HEATMAP_AMBER` JS constant |
 
-🚨 **`--heat-amber` is added but nothing reads it yet.** The JS constant `HEATMAP_AMBER` is still
-what draws the heat squares. The token carries a light-mode value (`#b07d12`) that the constant does
-not, so repointing the constant at the token — a Phase 4 decision — **would change how heat squares
-look in light mode**. That is a visible change, not a refactor, and must be shown to Adam rather
-than slipped in with a tidy-up.
+`--heat-amber` is defined but unread: `HEATMAP_AMBER` still draws the heat squares. The token carries
+a light-mode value (`#b07d12`) the constant does not, so repointing the constant at it changes how
+heat squares look in light mode.
 
-`--on-accent` was already present and is deliberately **not** overridden in light mode, alongside
-`--nav-bg-rgb`: both exist so that contrast against fixed accent fills stays correct when light mode
-redefines `--bg`. It was left exactly as it was.
+`--on-accent` and `--nav-bg-rgb` are deliberately not overridden in light mode, so contrast against
+fixed accent fills stays correct when light mode redefines `--bg`.
 
-### Shape — the new scale SUPPLEMENTS the old one
+### Shape
 
-The redesign wants 12–26px radii; the app has `--r: 8px`, `--r-sm: 4px` and `--r-lg: 14px`.
+A named radius scale — `--r-hero`, `--r-card`, `--r-tile`, `--r-btn`, `--r-btn-sm`, `--r-icon`,
+`--r-icon-card`, `--r-chip`, `--r-tag`, `--r-sheet` — sits alongside the legacy `--r` (8px),
+`--r-sm` (4px) and `--r-lg` (14px), which keep their values. `--r-sm` alone has 102 call sites, so
+redefining it in place would reshape all of them at once; each element type adopts its named token as
+its page is redesigned, and the legacy tokens retire when their last call site moves.
 
-🚨 **The trap is redefining `--r-sm` in place.** It has **102 call sites**. Moving it from 4px to
-12px reshapes every one of them at once, in a phase that has no screenshot gate — so the first
-anyone would see of it is a later phase's screenshots, by which point the cause is several commits
-back.
+### Section headers
 
-Instead a named scale was **added** — `--r-hero`, `--r-card`, `--r-tile`, `--r-btn`, `--r-btn-sm`,
-`--r-icon`, `--r-icon-card`, `--r-chip`, `--r-tag`, `--r-sheet` — and the legacy three keep their
-values. Each element type adopts its named token as its own page is redesigned, so every shape
-change is visible in the screenshots of the phase that made it. The legacy tokens retire naturally
-when their last call site moves.
+`sectionHeader(title, sublabel, opts)` and `sectionEnd()` produce every section header: an H2, an
+optional right-aligned slot (a status chip, a small button, or the `✦ BLOC AI` badge from
+`sectionAiBadge()`), and a sublabel. Sections are not numbered.
 
-### Motion — why every animation is scoped under an entrance class
+### Shared components
 
-A screen assembles itself top to bottom and **replays that sequence every time it is shown**, not
-just on first paint. `showScreen()` does this by removing `.is-entering` from the screen root,
-forcing a reflow (`void el.offsetWidth`), and re-adding it — re-adding a class the element already
-carries does not restart a CSS animation, and the reflow is what makes it restart.
+`index.html` holds ~1,550 `style="` attributes and ~1,189 `class="` attributes, most inside JS
+template literals, so the shared classes were redefined in place rather than call sites rewritten.
 
-Two properties of this design are deliberate and easy to undo by accident:
+- **Bottom sheets** — scrim `rgba(8,9,16,.72)`, 26px top corners, `10px 20px 34px` padding, a 40×4
+  handle, a 40px round close button, a Sora 22/600 title. 55 of the 62 modals take this from
+  `.modal-sheet`. The other seven build their inner markup in JS and carry no `.modal-sheet`:
+  `modal-confirm`, `modal-home-metric-advice`, `modal-home-nutrition-info` and the three
+  `modal-macro-extend-*`.
+  - `.modal-handle-row` carries `min-height: 44px`. Its own content is a 4px handle, and the close
+    button is absolutely positioned and vertically centred on it; at the row's natural height the
+    button overflows the sheet's top padding and is clipped by `.modal-sheet`'s `overflow-y: auto`.
+- **Centred dialogs** (`.dialog`) are a separate component from sheets and stay centred. They carry
+  the same tokens, type and buttons.
+- **`.btn-accent` / `.btn-primary`** is the solid primary: `--accent` fill, `--on-accent` text,
+  weight 700. It was an outline button before v8.16 and has 52 call sites. `.btn-ghost` is the
+  secondary (accent2 text, `rgba(145,132,217,.55)` border), `.btn-danger` a 50%-alpha red ghost,
+  `.btn-block` the 52px full-width shape.
+- **`.row-btn`** is a standalone row — icon tile, bold title, subtitle, chevron — and carries its own
+  surface and border. **`.row-plain`** is the flat equivalent for rows inside a card, which already
+  has both.
+- **`.chip`** takes a `--chip-c` per instance and renders a 15% tint with the full colour for text.
+- **`.section`** carries `margin-top: 44px` with no `:first-of-type` reset: each section renders into
+  its own container element, so such a reset matches every section rather than only the first.
 
-1. 🚨 **Every animated element's resting state is already its final state.** The entrance rules
-   live under `.is-entering`; without that class, sections are visible, bars are at width, rings and
-   lines are fully drawn. **Motion is never load-bearing for visibility** — if the replay never runs,
-   the page still renders correctly. Writing `opacity: 0` into an element's base rule and animating
-   it to 1 would reverse that, and the failure mode is a blank page rather than a missing animation.
-2. 🚨 **The class comes back OFF after `ENTRANCE_MS` (2600ms).** Screens re-render constantly while
-   open — every weight save re-renders Home — and any `.rise` element inserted by one of those
-   re-renders would replay the entire entrance mid-interaction if the class were still on the root.
-   Entrance motion belongs to *arriving at* a screen, not to updating one. 2600ms covers the longest
-   item in the sequence, the weigh-in dot at 2s + 0.5s.
+### Navigation, and hidden pages
 
-Stagger is per element via a `--i` custom property (`style="--i:3"`), 90ms apart. Only `transform`,
-`opacity` and `stroke-dashoffset` are animated — never a layout property — and nothing blocks
-interaction.
+The nav is five tabs — Home · Train · Fuel · Progress · Plan. The Nutrition tab's label is "Fuel";
+its button id (`#nav-nutrition`) and screen id (`#screen-nutrition`) are unchanged, so existing
+`showScreen('nutrition')` callers still work.
 
-`prefers-reduced-motion: reduce` disables all of it, loops included, and renders final states. CSS
-handles the declarative half; `prefersReducedMotion()` exists for the JS-driven loops, which a media
-query cannot reach.
+Settings has no nav button. It is reached from the account button in the Home header and left by its
+own `‹ Home` back link. A screen with no nav button is a **hidden page**: `showScreen()` tolerates
+the missing `#nav-<name>`, hides `#nav` entirely, and puts `.no-nav` on `#content` so the space
+reserved for the nav is reclaimed. `positionNavPill()` hides the pill when nothing is active.
 
-**`onScreenChange(fn)` / `runScreenTeardowns()`** — anything that starts a timer or an observer
-while a screen is on-screen registers its cleanup, and `showScreen()` runs them all before
-switching. The Plan step chart's auto-cycle (Phase 5) is the one that would otherwise leak a
-`setInterval` across a tab change, and a stray interval is invisible until it starts fighting the
-next screen's renders.
+### A note on layout measurement
 
-### The section header is a builder, not a pattern
+The app shell is sized from `--app-height`, a JS-measured value updated by resize and visualViewport
+listeners, rather than from viewport units — see the comments on `#nav` and `html` for why. One
+consequence is that the layout does not settle in environments that do not run a full rendering
+lifecycle.
 
-`sectionHeader(num, title, sublabel, opts)` + `sectionEnd()` produce the only section-header markup
-in the app, with `sectionCounter()` handing out the numbers and `sectionAiBadge()` the `✦ BLOC AI`
-slot. Numbering restarts at `01` per page and counts up **with no gaps**, so a conditionally hidden
-section renumbers the ones after it.
+---
 
-The reason it is a builder rather than a documented pattern: the numbers have to be produced by
-counting the sections actually being rendered. Hand-written `01`/`02` literals cannot do that — the
-moment a conditional section (Fuel's "Save this day", Progress's final-week card) is hidden, the
-literals leave a gap, and the gap is only visible in exactly the conditional state that is hardest
-to reach in testing.
+## §81 — v8.16: the Home screen
 
-### The nav lost a tab, and one screen now has no tab at all
-
-The nav is five buttons — **Home · Train · Fuel · Progress · Plan** — and Settings opens from the
-account button in the Home header (`#home-account-btn`) instead.
-
-- The Nutrition tab's **label** is now "Fuel". Its button id (`#nav-nutrition`) and screen id
-  (`#screen-nutrition`) are unchanged: renaming either would break `showScreen('nutrition')` and
-  every caller of it.
-- 🚨 **`showScreen()` can no longer assume a `#nav-<name>` exists.** Settings genuinely has none, so
-  the lookup is a real null rather than a bug, and it is guarded. This is the first time in the
-  app's life that an active screen has had no corresponding nav button.
-- `positionNavPill()` hides the pill when nothing is active, rather than leaving it stranded under
-  whichever tab was selected last.
-- `#home-account-btn` is a plain button in a minimal header for now. **Phase 1 folds it into the
-  designed Home header** (date eyebrow + greeting H1 + account button). It exists this early so
-  Settings never becomes unreachable in the gap between Phase 0 and Phase 1.
-
-### Shared chrome — redefined classes, not rewritten call sites
-
-There are ~1,550 `style="` attributes and ~1,189 `class="` attributes in this file, most of them
-inside JS template literals. Restyling by call site is not viable, so the shared classes were
-redefined in place:
-
-- **Sheet chrome** — scrim `rgba(8,9,16,.72)`, 26px top corners, `10px 20px 34px` padding, a 40×4
-  handle, a 40px round close button and a Sora 22/600 title. **55 of the 61 modals pick this up from
-  `.modal-sheet` alone.** The other six — `modal-confirm`, `modal-home-metric-advice`,
-  `modal-home-nutrition-info` and the three `modal-macro-extend-*` — build their own inner markup in
-  JS and carry no `.modal-sheet`, so they must be restyled by hand in the phase that owns them
-  (Phases 1 and 5). They are exactly the six marked "(dynamic)" in the redesign's modal register.
-- 🚨 **`.btn-accent` changed meaning: it is now the solid primary button**, not an outline. Every
-  save/confirm in the app is a primary, and `.btn-accent` already marked "the accent action" at 52
-  call sites, so the class was redefined rather than 52 sites rewritten. **This means 52 buttons
-  changed appearance in one commit.** Where a page's redesign finds a site that should not read as
-  primary, that site moves to `.btn-ghost` one at a time, visibly, in that phase's screenshots.
-  `.btn-primary` is an alias for new code.
-- `.btn-ghost` is now the real secondary (accent2 text, `rgba(145,132,217,.55)` border) and
-  `.btn-danger` a 50%-alpha red ghost. `.btn-block` is the 52px full-width primary shape.
-- `.row-btn` (new) is the row-button pattern — icon tile, bold title, subtitle, chevron — that
-  carries the Home Measurements row, Session tools, Tools, Progression preview and Settings rows.
-- `.chip` (new) takes a `--chip-c` per instance and renders a 15% tint of it with the full colour
-  for the text.
-- `.settings-row`, `.tag` and the `.toggle-row`/`.toggle-btn` segmented control keep their
-  structure and were restyled in place.
-
-### What Phase 0 was verified against
-
-There is no CI in this repo and the three `scripts/verify-*.mjs` files cover the AI JSON paths, not
-the UI, so Phase 0 was checked by driving the app under the local dev bypass and reading the DOM
-rather than by eye:
-
-- All **61** modal overlays open and close with no thrown error; 55 report the new 26px sheet radius
-  and 40px handle, and the 6 without `.modal-sheet` are the known dynamic ones listed above.
-- All **six** screens — including Settings, which has no nav button — become active, render content
-  and replay the entrance, with no console errors.
-- The nav pill reports `opacity: 0` on Settings and `1` everywhere else.
-- `document.fonts` contains **only** Sora and Manrope; `body` computes to Manrope and `.modal-title`
-  to Sora.
-- `.is-entering` is gone from the screen root by 7s, confirming the teardown timer.
-
-🚨 **A headless screenshot of this app is not a reliable check on its own.** The app sizes itself
-from a JS-measured `--app-height`, which never settles in headless Chrome: the floating nav ends up
-near the top of the page overlapping content, and the page below it reads as empty. **The same
-artifact reproduces on unmodified `main`** — it is the harness, not the build. Screenshot review
-needs a real browser; DOM probes are what to trust for regression checks.
-
-## §81 — v8.16 Phase 1: Home rebuilt as header + hero + four numbered sections
-
-Home is the first page laid out to the v8.16 design, and the patterns settled here — page header,
-hero, section anatomy, card, row button, metric row, saved-state — are the contract the later page
-phases follow rather than re-deriving.
-
-`renderHome()` now delegates to six functions, one per region: `renderHomeHeader()`,
+Home is a page header, a hero, and four sections — This week, Log today, Up next, Food plan. It
+scrolls. `renderHome()` delegates to one function per region: `renderHomeHeader()`,
 `renderHomeHero()`, `renderHomeThisWeek()`, `renderHomeLogBoxes()`, `renderHomeUpNext()`,
 `renderHomeFoodPlan()`.
 
-### The ring changed what it counts, and that was the point
+### Header
 
-The v8.15 hero ring counted **metrics on target**, while the subline beside it described the same
-thing in words. v8.16's ring counts **days elapsed this week, out of 7** — it answers "how far
-through the week am I?", which is the one question the hero is for. The on-target count moved to a
-chip in section 01's header, next to the four metrics it actually describes.
+A full-date eyebrow, a greeting H1 by time of day, and the account button, which is the only route
+into Settings.
 
-🚨 **This is the second time that ring has been wrong in the same way.** It previously counted
-"metrics with any data logged" and could read 4/4 while the subline reported a metric off target
-(fixed in v7.90). Both bugs have the same root: one ring trying to answer two questions. Whatever it
-displays, it must have exactly one meaning.
+The date comes from `getLocalToday()`, not the clock: the demo tour and local dev override "today"
+app-wide via `setTourAnchorDate()`, and a header reading the real date would contradict the hero's
+week, the logs and the targets. The greeting is about time of day, so it does read the clock.
 
-### The upcoming-goal banner is now part of the hero, not a card
+### Hero
 
-`renderHomeGoalBanner()` is gone. Its content is built by `buildHomeUpcomingGoalHTML()` and
-**replaces the hero's goal subline** when it fires (Adam's Q7 ruling), rather than sitting in a card
-of its own.
+A 104px ring showing **days elapsed this week out of 7**, beside the cycle's week number, macrocycle
+name and current goal period, worded by goal type ("cut to / build to / hold near {target} lbs").
 
-Every gate is carried over untouched: a genuinely *different* goal (compared field by field, because
-a macrocycle's future weeks are usually the same goal continuing and must not be announced), within
-**6 days**, with only the changed fields shown, and the same "Step N" prefix resolution including
-the guard against double-prefixing a label that already carries one.
+The ring measures one thing only. It previously counted metrics on target, which is the same question
+the text beside it answered; that count is now a chip in the This-week header, beside the metrics it
+describes. (An earlier variant counted metrics with *any* data logged and could read 4/4 while the
+subline reported a metric off target — fixed in v7.90.)
 
-🚨 **The `home-goal-banner` id moved onto whichever element carries that content** — the plain goal
-line when nothing is upcoming, the highlighted treatment when something is. It is a demo-tour anchor
-and the step resolves either way. Deleting the id, or putting it on only one of the two branches,
-silently breaks the tour in exactly one state.
+**Upcoming goal.** When a genuinely different goal period starts within 6 days,
+`buildHomeUpcomingGoalHTML()` replaces the hero's goal line with a highlighted treatment carrying the
+headline, the resolved step label and the changed fields only. The gates are unchanged from
+`renderHomeGoalBanner()`, which it replaces: goals are compared field by field, because a
+macrocycle's future weeks are usually the same goal continuing and must not be announced as new.
 
-### Section 02: three pre-approved behaviour changes in one function
+The `home-goal-banner` id is a demo-tour anchor and sits on whichever element carries that content —
+the plain goal line or the highlighted treatment.
 
-1. **A saved entry persists instead of vanishing.** v8.15 hid the weight and steps inputs once
-   today's value existed (`if (!hasWeight)`). Now a saved value renders as a static saved message
-   for the rest of the calendar day, and tapping it reopens the input pre-filled.
+### This week
 
-   🚨 **The animation must only ever play in response to an actual save**, never on a revisit. That
-   is why the saved message is plain markup and the flash is fired by the save handlers alone — if
-   the entrance system animated it, leaving Home and coming back would replay a "✓ Saved" flash for
-   something saved hours ago.
+One card, four metric rows: label, bold weekly average against target, and a 6px bar in the metric's
+colour. Every calculation is v8.15's, unchanged.
 
-   `homeEditing` holds the transient "editing it again" flag. It is **deliberately not persisted**:
-   it is UI state, and a reload should show the saved value, not a half-finished edit. Each save
-   handler clears its own flag so the row returns to the saved message once the flash ends.
+An off-target row turns its bar red and adds a note carrying the adjusted-target figure from
+`getWeeklyRequiredDaily()` — the same number `openHomeMetricAdvice()`'s modal uses — plus an info
+icon opening that modal. The note is rendered only when there is something to say.
 
-2. **"View body logs" moved.** It used to sit unconditionally in the hero's top-right corner. It now
-   appears in section 02 once today's weight is saved and stays for the rest of the day, next to the
-   logging it relates to. It keeps the `home-body-logs-btn` id — a tour anchor — and still opens
-   Settings › Body logs.
+Calories, protein and carbs open an explainer of where their numbers come from. Steps does not: its
+calculation has no qualifying-day gate to explain.
 
-3. **Measurements is always present.** The 4-day rule no longer decides whether the fields exist —
-   it decides whether the row carries a red **Due** tag. The fields moved into a new sheet.
+### Log today
 
-### The Measurements sheet lifts the old fields verbatim
+Weigh-in and steps inputs, then the Measurements row and a "View body logs" button.
 
-🚨 **The ¼/½/¾ entry, the in↔cm conversion and the inch storage format were NOT reimplemented.**
-`modal-home-measurements` carries the same ids (`home-body-waist-whole`, `home-meas-fields-cm`, …)
-and the same handlers (`setHomeMeasUnit()`, `setHomeFrac()`, `initHomeMeasBox()`,
-`saveHomeMeasurements()`) that the inline block used. Rewriting them would have been a logic change
-wearing a layout change's clothes, and measurements are stored in inches with quarter-inch
-precision — a conversion bug there corrupts real body data silently.
+**A saved entry persists.** v8.15 hid the input once today's value existed; a saved value now renders
+as a static message for the rest of the calendar day, and tapping it reopens the input pre-filled.
+`homeEditing` holds the transient "editing again" flag and is deliberately not persisted — a reload
+shows the saved value, not a half-finished edit. Each save handler clears its own flag.
 
-The only wiring that changed: `saveHomeMeasurements()` closes the sheet when its flash finishes,
-and `openHomeMeasurements()` fills the "last logged" line and the two last-value tiles before
-opening. Both tolerate a log carrying a waist without a hip, or vice versa, rather than printing
-`null″`.
+The save flash fires only from the save handlers, never from the entrance system, so returning to
+Home does not replay a "✓ Saved" flash for something saved hours ago.
 
-### Settings is a hidden page now, so it shows no nav at all
+**Measurements** is always present as a row, carrying a red **Due** tag once 4 days have passed since
+the last log. It opens `modal-home-measurements`, which holds the fields verbatim from the old inline
+block — the same ids (`home-body-waist-whole`, `home-meas-fields-cm`, …) and the same handlers
+(`setHomeMeasUnit()`, `setHomeFrac()`, `initHomeMeasBox()`, `saveHomeMeasurements()`). Measurements
+are stored in inches at quarter-inch precision; the entry, conversion and storage logic is not
+reimplemented anywhere. `saveHomeMeasurements()` closes the sheet when its flash finishes, and
+`openHomeMeasurements()` fills the "last logged" line and the two last-value tiles, tolerating a log
+with a waist but no hip or the reverse.
 
-Phase 0 removed the Settings tab and left the nav rendered-but-unhighlighted there. **Adam's call:
-a hidden page shows no nav bar.** `showScreen()` hides `#nav` outright for any screen with no nav
-button, and puts `.no-nav` on `#content` so the 84px it reserves for the nav is reclaimed rather
-than left as dead air at the foot of the page.
+### Up next and Food plan
 
-This generalises correctly — "has no nav button" *is* the definition of a hidden page — so any
-future hidden page gets the same treatment without further code.
+Up next shows the next incomplete session — name and microcycle, exercise and set counts, a row per
+exercise with an SS tag on superset members (membership lives on `ex.supersetId`; `state.supersets`
+maps a superset id to its name only), and a pulsing Start session button.
 
-### Centred dialogs are a separate component from bottom sheets
+Food plan lists today's planned recipes by serving count and non-recipe items by grams, ordered by
+first meal appearance, or an empty state with a "Plan today's meals" button.
 
-The redesign's sheet anatomy is for sheets. A confirm or an explainer is a **centred dialog** and
-stays centred; it just moves onto the same tokens, type and buttons. `.dialog` / `.dialog-title` /
-`.dialog-msg` carry that, and Phase 1 moved Home's three onto it — `modal-home-metric-advice`,
-`modal-home-nutrition-info` and the app-wide `modal-confirm`. The three `modal-macro-extend-*`
-dialogs are the same shape and follow in Phase 5.
+Each section's buttons sit inside its card.
 
 ### Removed
 
-- **`animateHomeHeroValues()`** — the bespoke JS odometer that counted Home's numbers up from 0.
-  Entrance motion is the CSS system's job now (§80). It also produced nonsense intermediate values:
-  a DOM read mid-count returns things like "Kcal 33 / 1,550" on a page whose real average is null.
-  `renderHome(animateHero)` keeps its parameter for call-site compatibility and ignores it.
-- **`renderHomeGoalBanner()`** — superseded by `buildHomeUpcomingGoalHTML()`, above.
+- `animateHomeHeroValues()` — the JS odometer that counted Home's numbers up from 0. Entrance motion
+  is CSS (§83), and the odometer produced nonsense intermediate values: a DOM read mid-count returns
+  figures like "Kcal 33 / 1,550" on a page whose real average is null.
+- `renderHomeGoalBanner()` — replaced by `buildHomeUpcomingGoalHTML()`.
+- `buildHomeConsolidatedMessage()`, `toggleHomeAdvice()` and `homeAdviceExpanded` — the advice
+  callout below the This-week card. The per-row notes and the metric-advice modal carry that
+  information. `buildAdviceLineHtml()` remains, used by the modal.
 
-### What Phase 1 was verified against
+### Demo-tour anchors
 
-Driven under the local dev bypass, reading the DOM rather than eyeballing screenshots (§80 explains
-why headless screenshots of this app cannot be trusted):
+`home-hero-wrap`, `home-log-boxes`, `home-metric-card-kcal`, `home-goal-banner` and
+`home-body-logs-btn` all resolve. `home-body-logs-btn` moved from the hero's top-right corner into
+Log today and is unconditional.
 
-- **62/62 modals** open and close with no thrown error — the 61 existing plus the new Measurements
-  sheet.
-- All six screens render; Settings reports its nav hidden, the other five report it visible.
-- Sections number **01/02/03/04** with no gaps.
-- Tour anchors `home-hero-wrap`, `home-log-boxes`, `home-metric-card-kcal` and `home-goal-banner`
-  all resolve, and `home-body-logs-btn` resolves once a weight is saved.
-- Saving a weight and steps produces the persistent saved messages, reveals "View body logs", and
-  tapping the saved message reopens the input pre-filled with the saved value.
-- Light mode resolves every new token (`--divider`, `--inset`, `--green-text`, `--heat-amber`), and
-  dark mode confirms `--text3` at `.55` and `--border2` at `.12`.
-- 🚨 **`Object.keys(state)` is identical to `main`'s, key for key** — 32 keys, same names. No state
-  was renamed, added or restructured, so v8.15 backups round-trip.
+---
 
-One finding worth keeping: Home's "—" against every target is **correct**, not a regression. The
-same probe run against `main` returns `kcalAvg=null` too — the demo fixture's anchor date sits in a
-week with no logs. Reconciling against the baseline rather than against memory is what settled it;
-`main`'s hero showed "Kcal 33 / 1,550" purely because the screenshot caught its odometer mid-count.
+## §82 — The local-dev bypass: which hosts qualify
 
-## §82 — v8.16: the local-dev bypass accepts private-network hosts, so the app can be opened on a phone
+`isLocalDevHost(hostname)` decides whether BLOC skips Supabase and OAuth entirely and seeds the demo
+dataset instead. It accepts:
 
-### Why it changed
+- exact loopback — `localhost`, `127.0.0.1`, `::1`, `[::1]`, and the whole `127/8` range;
+- `.local` mDNS names;
+- bare IPv4 literals in RFC1918 or link-local ranges — `10/8`, `192.168/16`, `172.16/12`,
+  `169.254/16`.
 
-`IS_LOCAL_DEV` was `['localhost','127.0.0.1'].includes(window.location.hostname)`. That is
-obviously safe, and it made the app impossible to review on a phone: a phone on the same Wi-Fi
-reaches the laptop's dev server at its LAN address (`http://192.168.0.42:8777`), never at
-`localhost`, so it fell through to the real sign-in gate and Adam's real account. Design review on
-the device the app is actually used on was the one thing the bypass could not do.
+This is what allows the app to be opened on a phone: a phone on the same Wi-Fi reaches the laptop's
+dev server at its LAN address, never at `localhost`.
 
-The host test is now `isLocalDevHost(hostname)`, which also accepts private-network addresses.
+**The deployed host cannot match.** `adamnc02.github.io` is a public DNS name, neither an IP literal
+nor `.local`. There is no flag, build step or environment variable involved — the only input is the
+hostname the browser is already on.
 
-### Why this is still safe on the deployed site
+**Matching is exact or anchored at both ends.** `localhost.evil.com` and `192.168.0.42.evil.com` are
+ordinary public domains that anyone can register, and a `startsWith`/`includes` implementation would
+bypass on both.
 
-🚨 **This function decides whether authentication is skipped.** The reasoning that makes the
-widening acceptable:
+The bypass leaves `supabase` null and seeds the demo dataset, so there is no real account or real
+data behind it. While the dev server runs, anyone on the same network who knows the address reaches
+the app in that state.
 
-- It matches a bare IPv4 **literal** in an RFC1918 or link-local range, a `.local` mDNS name, or
-  exact loopback. Nothing else.
-- The deploy target is `adamnc02.github.io` — a public DNS name, neither an IP literal nor `.local`
-  — so **it cannot match by construction**. There is no flag, build step or environment variable
-  that could make it match; the only input is the hostname the browser is already on.
-- Matching is exact or anchored at both ends. This is the part that is easy to get wrong: a
-  `startsWith`/`includes` implementation would happily bypass on `localhost.evil.com` and
-  `192.168.0.42.evil.com`, which are ordinary public domains anybody can register.
+`scripts/verify-local-dev-hosts.mjs` extracts `isLocalDevHost()` from `index.html` by brace matching
+and runs it, so it tests the shipped function rather than a copy. 35 cases cover the deployed host,
+both lookalike domains, and the off-by-one neighbours of every private range (`172.15`/`172.32`,
+`193.168`, `11.0`, `169.253`), and a control asserts that a naive predicate fails them. There is no
+CI in this repo and the deploy does not run the verify scripts; a bypassed build looks normal until
+you notice it never asked anyone to sign in.
 
-**What it deliberately does not protect against**, stated plainly rather than left implied: while
-the dev server is running, anyone else on the same Wi-Fi who knows the address gets the app with the
-bypass active. That is acceptable because the bypass leaves `supabase` **null** and seeds the
-**demo** dataset — there is no real account and no real data behind it — and the server only runs
-during a working session.
+---
 
-🚨 **Never widen this to a hostname public DNS can resolve.** If something one day needs that, it
-needs a different mechanism, not another branch in this function.
+## §83 — The entrance motion system
 
-### It is covered by a verify script, because nothing else covers it
+A screen assembles itself as it is reached: each `.rise` element animates when it scrolls into view,
+and again whenever it scrolls back into view. Only `transform`, `opacity` and `stroke-dashoffset` are
+animated, and nothing blocks interaction.
 
-`scripts/verify-local-dev-hosts.mjs` **extracts the real `isLocalDevHost()` out of `index.html` by
-brace matching and runs it** — it does not keep its own copy of the logic, because a copy passes
-forever while the shipped code drifts away from it. 35 cases: 14 hosts that must bypass, 21 that
-must never, including the deployed site, both lookalike domains, and the off-by-one neighbours of
-every private range (`172.15` / `172.32`, `193.168`, `11.0`, `169.253`).
-
-It ends with a **control**: it runs a deliberately naive `includes()`/`startsWith()` predicate and
-asserts that the lookalike cases *do* slip through it. A suite that cannot fail proves nothing, and
-this one exists precisely to catch a plausible wrong implementation.
-
-This matters more than usual here: there is **no CI in this repo**, `npm run deploy` does not run
-the verify scripts, and the failure mode is invisible from the UI — a bypassed build looks entirely
-normal until you notice it never asked anyone to sign in.
-
-### Verified
-
-Loaded through both `http://localhost:8777` and `http://192.168.0.42:8777` in a real browser
-engine: both report `IS_LOCAL_DEV=true`, the auth gate hidden (`display: none`), `supabase === null`,
-the demo macrocycle seeded, and Home rendering the same content. Sweep: 4/4 verify scripts pass, and
-the count of `scripts/verify*.mjs` on disk matches the number the sweep actually ran.
-
-## §83 — v8.16 Phase 1 review round: numbering dropped, motion moved to scroll, and four layout bugs
-
-Adam's review of the Home build. Two design decisions and several genuine defects — the defects are
-the interesting part, because most of them were invisible to the DOM probes that had already passed.
-
-### Section numbering is gone, permanently
-
-🚨 **Sections are no longer numbered in the UI.** A two-digit number badge on every section header
-was built in Phase 1 and dropped on review (2026-09-24) — the titles carry the structure on their
-own. `sectionHeader()` lost its `num` parameter, `sectionCounter()` was deleted, and `.section-num`
-went with them.
-
-**Do not reintroduce one.** The "renumber with no gaps when a section is hidden" rule died with the
-badge — there is nothing left to renumber.
-
-### Motion: scroll-triggered, not a page-load sweep
-
-The original implementation animated the whole screen once when it was shown. 🚨 **The flaw is only
-visible on a real device:** everything below the fold finished animating before you ever scrolled to
-it, so scrolling revealed static content. On a phone that is most of the page.
-
-`setupScreenEntrance()` now uses an **IntersectionObserver** rooted on `#content` (the app's only
-scroller). Each `.rise` element is revealed the first time it comes into view and then `unobserve`d,
-so it never re-animates on scroll back. Everything arriving in the same batch is staggered 90ms
-apart **in document order**, which produces the top-to-bottom assembly on first paint; a section
-scrolled to on its own is a batch of one and rises immediately rather than waiting out a delay it
-cannot explain.
-
-Descendant animations moved from `.is-entering` on the screen root to `.risen` on the section, so a
-bar, ring or hero number animates when *its own* section arrives.
-
-🚨 **The safety net, and why its condition is what it is.** `.will-rise` sets `opacity: 0`, which
-makes the observer load-bearing for visibility — the one thing this system is written to avoid. The
-fallback fires after 1s if **nothing has risen at all**, not if the observer failed to call back. A
-callback-based test is not enough: with a root of zero height the observer dutifully reports every
-element as not-intersecting, so the net never fires and the entire page stays invisible. That state
-is reachable — it is exactly what headless Chrome does to this app, where `--app-height` never
-settles. On any correctly laid-out screen the header intersects immediately, so something has risen
-well inside a second. `.risen` also asserts the final visible state directly, so a cancelled or
-unsupported animation cannot hide content either.
-
-### The spacing bug: `:first-of-type` matched every section
-
-Sections looked like they had no gap above them at all. The rule was:
-
-```css
-.section { margin-top: 44px; }
-.section:first-of-type { margin-top: 0; }   /* wrong */
-```
-
-🚨 **Each section is rendered into its own container element** (`#home-this-week`,
-`#home-log-boxes`, …), so every section is the first `.section` inside its own parent and the reset
-matched **all four**, collapsing every gap to zero. The fix is not to have the reset. The general
-trap: a `:first-child` / `:first-of-type` reset means "first among its siblings", which stops being
-the same as "first on the page" the moment each item has its own wrapper.
-
-### The clipped close button: a 40px control on a 4px row
-
-Every sheet in the app showed a half-drawn ✕. Phase 0 grew `.modal-close-btn` from 28px to 40px, but
-`.modal-handle-row`'s own content is a 4px handle, so the row was 4px tall and the absolutely
-positioned, vertically centred button overflowed the sheet's 10px top padding — where
-`.modal-sheet`'s `overflow-y: auto` clipped it. 🚨 **A row containing an absolutely positioned
-control must be at least as tall as that control.** `min-height: 44px` fixes all 55 sheets at once.
-
-This one is worth remembering as a class of bug: Phase 0 changed a shared component's size and
-verified that all 61 modals still *opened*. They did. Nothing checked whether their chrome still
-*fitted*, and "it opens" is not "it renders".
-
-### Smaller corrections from the same round
-
-- **The account button sat beside the title instead of in the corner.** `.page-head` is a flex row,
-  but neither child had `flex: 1`, so both sized to their content. The title block now takes the
-  space (`.page-head-text`) and the button is pinned with `margin-left: auto`.
-- **The Measurements row was a card inside a card.** It used `.row-btn`, which carries its own
-  surface and border — right for a standalone row, wrong inside a card that already has both. Added
-  `.row-plain` for in-card rows, and **the last-logged values came off the button entirely**: they
-  belong in the sheet, which is where you go to act on them.
-- **Section buttons belong inside their card**, not floating beneath it. Start session (now with a
-  play icon) and Plan today's meals both moved in.
-- **Settings had no way out.** It is a hidden page with no nav bar at all (§81), so the `‹ Home`
-  back link is the only exit. It was scheduled for Phase 6 and had to come forward the moment the
-  nav stopped rendering there.
-
-### Not a bug: "View body logs" was absent
-
-It is conditional by design — it appears once **today's** weight is saved and then stays for the
-rest of the day (§81). The demo fixture has no `bodyLogs` entry for its anchor date (`2026-09-10`),
-so on a fresh demo load there is correctly nothing to show. Saving a weight reveals it.
-
-### What this round says about verification
-
-Of the nine defects, the DOM probes used in Phase 1 would have caught **one**. The rest were
-spacing, alignment, clipping and containment — all of which need either a rendered page or a
-measurement of the rendered box, and none of which show up in "does the element exist and does it
-contain the right text".
-
-Where a fact is measurable, measure it rather than describing it: the fixes above were confirmed by
-reading computed `margin-top` on all four sections (44/44/44/44, previously 0), the account button's
-gap from its container's right edge (0px), and every sheet's close button against its sheet's
-bounding box (55 checked, none clipped). That is a much better check than another screenshot.
-
-## §84 — v8.16 Phase 1, second review round: scroll reveal made deterministic, and reserved space for conditional text
-
-### The entrance needed a backstop, not a better observer
-
-§83 replaced the page-load sweep with an IntersectionObserver. Sections still did not animate as you
-scrolled to them.
-
-`setupScreenEntrance()` now keeps the observer as the primary mechanism and adds a **scroll
-backstop**: one passive listener on `#content`, throttled to ~10/second, which reveals any
-still-pending element whose top has come within the viewport. It detaches itself as soon as
-everything has risen, so on a normal page it stops running within a scroll or two, and when the
-observer is doing its job the backstop never has anything left to do.
-
-🚨 **It is throttled on a timestamp, not `requestAnimationFrame`.** rAF is part of the same rendering
-lifecycle an IntersectionObserver depends on, so a backstop built on rAF fails in precisely the
-situation it exists to cover. That is not hypothetical — see below.
-
-### Conditional text: reserved, then reverted
-
-The off-target note was briefly given a permanent empty slot (`min-height`, always rendered) so a
-metric row would be the same height on or off target and the card would never reflow. **Reverted on
-review the same day** — the permanent gap under every row cost more than the reflow it avoided.
-
-The note is rendered only when there is something to say, and rows keep their original first/last
-padding trim. Worth recording as a judgement, not a principle: reserving space for conditional text
-is a reasonable instinct, and here the empty space was more noticeable than the movement.
-
-### Motion values were raised, twice
-
-The original figures — 18px of travel over 0.75s, staggered 90ms — read as a twitch on a phone
-rather than as the page assembling itself. 34px/1.15s/140ms was still short. The house values are
-now:
+### Values
 
 | | |
 |---|---|
-| Section rise | **50px over 1.6s** |
-| Stagger within a batch | **220ms** |
+| Section rise | 50px over 1.6s |
+| Stagger within a batch | 220ms, in document order |
 | Progress bars | 1.45s, 110ms apart, 420ms after their section |
 | Ring draw | 1.9s |
 | Line chart | 2.3s |
-| Hero digits | 1.25s, from 55% offset and a 9px blur |
+| Hero digits | 1.25s, from a 55% offset and a 9px blur |
 
-Use these on the remaining pages rather than deriving new ones.
+### Mechanism
 
-### `ENTRANCE_REPLAY` — once per visit, or every time it scrolls back into view
+`setupScreenEntrance(el)` runs from `showScreen()` after the render calls, since the elements it
+observes are built by them. It observes every `.rise` element with an IntersectionObserver rooted on
+`#content`, the app's only scroller.
 
-⚗️ **An open experiment, one constant at the top of `setupScreenEntrance()`.**
+An element that has scrolled **completely** out of view (`intersectionRatio === 0`) has `.risen`
+removed so it plays again on return. That reset is what makes the replay work: re-adding a class an
+element already carries does not restart a CSS animation. It waits for full exit rather than the
+first edge crossing, so an element parked half on screen does not flicker.
 
-- `false` — an element animates **once per visit** to a screen. It is `unobserve`d as soon as it
-  rises, so scrolling back over it does nothing; leaving the screen and returning re-arms the page.
-- `true` — it animates **every time** it scrolls back into view.
+Elements arriving in the same batch are staggered in document order, which produces the
+top-to-bottom assembly on first paint. A section scrolled to on its own is a batch of one and rises
+immediately.
 
-🚨 **Removing the `unobserve` is not enough on its own.** Re-adding a class an element already
-carries does not restart a CSS animation, so replay also requires *resetting* the element when it
-leaves. The reset waits for `intersectionRatio === 0` — completely out of view — rather than firing
-as soon as an edge crosses, or an element parked half on screen flickers.
+### Visibility never depends on motion
 
-The scroll backstop needed two changes to match. Its reveal test is now "top past the reveal line
-**and** bottom still below the top of the scroller", because the original test was also true for
-anything scrolled off the top — in replay mode that re-revealed those elements on every scroll
-frame, fighting the observer's reset. And it no longer detaches itself once everything has risen,
-since in replay mode there is always more to do.
+`.will-rise` sets `opacity: 0`, and it is applied **by JavaScript**. CSS hides nothing on its own, so
+without JS, without IntersectionObserver, or under `prefers-reduced-motion: reduce`, every element is
+simply visible in its final state. `.risen` also asserts the final visible state directly, so a
+cancelled or unsupported animation cannot hide content.
 
-Note the asymmetry: the backstop reveals, but only the observer resets. Where the observer cannot
-run, replay degrades to once-per-visit rather than breaking — which is the right way round.
+Two mechanisms guard the rest:
 
-**Whichever way this settles, delete the losing branch** rather than leaving both paths alive.
+- **A fallback**, 1s after arming, reveals everything if *nothing* has risen. The test is "nothing
+  risen" rather than "the observer did not call back", because with a root of zero height the
+  observer reports every element as not-intersecting — a callback-based test would pass while the
+  page stayed invisible.
+- **A scroll backstop** — one passive listener on `#content`, throttled on a timestamp to ~10/second
+  — reveals any pending element whose top has passed the reveal line while its bottom is still below
+  the top of the scroller. It is throttled on a timestamp rather than `requestAnimationFrame`
+  because rAF belongs to the same rendering lifecycle the observer depends on.
 
-### Also in this round
+Looping motion (`.pulse`, `.nudge`) is not part of the entrance. Anything looping on a JS timer
+registers a teardown with `onScreenChange()`, which `showScreen()` runs before switching; a stray
+interval is invisible until it starts fighting the next screen's renders.
 
-- **"View body logs" is now unconditional.** Gating it on today's weight being saved meant a fresh
-  day offered no route into the history at all. A button that navigates somewhere is an **entry
-  point**, not a confirmation that something was logged.
-- **Steps lost its special-case "No steps logged yet this week" copy** and renders like every other
-  metric — a dash against its target.
-- **The consolidated advice callout under the This-week card was removed entirely**, with its
-  dividers. `buildHomeConsolidatedMessage()`, `toggleHomeAdvice()` and `homeAdviceExpanded` went
-  with it. The per-row off-target notes and the info-icon modal already carry that information.
-  `buildAdviceLineHtml()` **stays** — `openHomeMetricAdvice()`'s modal still uses it.
+---
 
-### The verification lessons, which cost the most
+## §84 — v8.16 behaviour changes carried by the redesign
 
-🚨 **Headless Chrome does not run this app's rendering lifecycle.** Established three separate ways
-in one session: CSS animations sit at `currentTime 0` indefinitely, `requestAnimationFrame`
-callbacks never fire, and IntersectionObserver never re-evaluates on scroll. It also reports a 500px
-viewport under `--force-device-scale-factor=3`, and `--app-height` never settles, so the floating nav
-lands over the content.
+The redesign is presentational, with these deliberate exceptions. Every other calculation, `state`
+key, storage format and render guard is unchanged, and `Object.keys(state)` is identical to v8.15's,
+so backups round-trip both ways.
 
-**Never conclude that an animation plays, or that an observer fires, from this harness.** What it
-*can* do, once `html,body,#app { height: 956px !important }` is injected, is lay the page out
-properly and let you measure boxes — and box measurements are exactly what the review-round defects
-needed.
-
-🚨 **Never test for a string's ABSENCE with `document.body.textContent`.** A probe script injected
-into the page is itself part of the DOM, so its own regex literals match, and the check reports the
-text as still present. It cost a round of chasing two "bugs" that had already been fixed — the
-strings existed only inside the test that was looking for them. Scope the search to the screen
-element, and grep the source as a cross-check.
-
-### The forbidden-citation sweep
-
-🚨 **Nothing in this repo may cite the redesign's working documents.** Phases 0–1 accumulated about
-ten such references: code comments pointing at a numbered section of an external design file, prose
-here attributing a decision to one, and a `README.md` paragraph explaining what those files call a
-section. All were rewritten to state the rule or the decision on its own terms.
-
-Those documents are deleted when the round is retired, so a citation outlives the file it names and
-leaves a permanent dead reference in shipped code. `README.md` in particular is **fact about the app
-as it stands** — not process, not what was tried and rejected, and never what another document says.
+- A saved weight or steps entry persists as a saved message for the rest of the day and can be
+  reopened for editing, instead of the input disappearing (§81).
+- "View body logs" is unconditional and lives in Log today rather than the hero.
+- The Measurements row is always present; the 4-day rule drives only its Due tag.
+- The upcoming-goal treatment replaces the hero's goal line rather than occupying its own card.
+- Settings left the nav and renders no nav bar.
+- The Progress AI features, the Fuel section order and the remaining page-level changes land with
+  their own phases and are documented as they do.
