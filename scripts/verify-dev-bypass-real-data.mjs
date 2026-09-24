@@ -66,11 +66,11 @@ function stripComments(src) {
 // can re-run them against a mutated one.
 function runChecks(rawBranch, emit) {
   const devBranch = stripComments(rawBranch);
-  const guard = /if\s*\(\s*!_isNewUserOnBoot\s*\)\s*\{[^}]*return;\s*\}/.test(devBranch);
-  emit('dev bypass refuses to seed demo data when bloc_state exists', guard);
+  const guard = /if\s*\(\s*devBypassHasRealData\(\)\s*\)\s*\{[^}]*return;\s*\}/.test(devBranch);
+  emit('dev bypass refuses to seed demo data over real content', guard);
 
   // The guard must come BEFORE any enterDemoMode() call, or it seeds first.
-  const guardAt = devBranch.search(/if\s*\(\s*!_isNewUserOnBoot\s*\)/);
+  const guardAt = devBranch.search(/if\s*\(\s*devBypassHasRealData\(\)\s*\)/);
   const seedAt = devBranch.indexOf('enterDemoMode()');
   emit('the guard precedes every enterDemoMode() call in the branch',
     guard && guardAt !== -1 && seedAt !== -1 && guardAt < seedAt);
@@ -90,12 +90,28 @@ check('the IS_LOCAL_DEV branch of continueBootAfterAuth() was found', !!devBranc
 if (devBranch) {
   runChecks(devBranch, check);
 
-  // Boot order: load() must run before the branch can consult bloc_state, and
-  // _isNewUserOnBoot must be declared before it is read.
-  check('_isNewUserOnBoot is declared from bloc_state',
-    /const _isNewUserOnBoot = !localStorage\.getItem\('bloc_state'\)/.test(html));
-  check('load() runs after _isNewUserOnBoot is declared',
-    html.indexOf("const _isNewUserOnBoot") < html.indexOf('\nload();'));
+  // 🚨 The guard must test CONTENT, not the presence of bloc_state.
+  // clearAllData() writes an empty state through save() instead of removing
+  // the key, so a key check reports a wiped device as still holding data and
+  // strands it on an empty app with no route back to the demo dataset.
+  check('the guard does not key off bloc_state / _isNewUserOnBoot',
+    !/_isNewUserOnBoot|getItem\('bloc_state'\)/.test(stripComments(devBranch)));
+  check('clearAllData() still does NOT remove bloc_state (the reason why)',
+    !/localStorage\.removeItem\('bloc_state'\)/.test(
+      html.slice(html.indexOf('function clearAllData('),
+                 html.indexOf('function clearAllData(') + 3000)));
+
+  // devBypassHasRealData() must look at real collections, so an emptied device
+  // reads as empty and the demo dataset seeds again.
+  const helper = html.slice(html.indexOf('function devBypassHasRealData('),
+                            html.indexOf('function devBypassHasRealData(') + 800);
+  check('devBypassHasRealData() inspects macrocycles, logs and meals',
+    /macrocycles/.test(helper) && /bodyLogs/.test(helper)
+    && /nutritionLogs/.test(helper) && /trainLogs/.test(helper));
+
+  // Boot order: load() fills `state` before the guard can inspect it.
+  check('load() runs at module level, before the guard reads state',
+    html.indexOf('\nload();') !== -1);
 
   // Restoring must not need Supabase: importData() is the local-file path and
   // has to stay free of it, or the whole no-auth workflow breaks.
@@ -107,7 +123,7 @@ if (devBranch) {
   // ── CONTROL ──────────────────────────────────────────────────────────
   // Delete the guard and assert these checks then fail. Without this, a
   // rewrite that quietly drops the guard would still show a green suite.
-  const mutated = devBranch.replace(/if\s*\(\s*!_isNewUserOnBoot\s*\)\s*\{[^}]*return;\s*\}/, '');
+  const mutated = devBranch.replace(/if\s*\(\s*devBypassHasRealData\(\)\s*\)\s*\{[^}]*return;\s*\}/, '');
   let controlFailures = 0;
   runChecks(mutated, (_l, cond) => { if (!cond) controlFailures++; });
   check(`CONTROL: deleting the guard fails ${controlFailures} of 3 checks`, controlFailures === 3);

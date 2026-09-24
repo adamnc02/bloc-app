@@ -7445,6 +7445,25 @@ function maybeFinalizeBoot() {
   continueBootAfterAuth();
 }
 
+// Does this device hold data worth keeping, as opposed to a fresh or wiped
+// one? Used only by the local dev bypass, to decide whether to seed the demo
+// dataset over what load() just put in `state`.
+//
+// Deliberately content-based. "Has bloc_state" is the wrong question here:
+// clearAllData() writes an empty state rather than removing the key, so the key
+// survives a wipe and a key check would report an emptied device as having
+// data. Any one of these collections being non-empty means a real backup was
+// restored (importData() requires macrocycles/exercises/trainLogs to be present
+// at all) or real use has happened.
+function devBypassHasRealData() {
+  const s = state || {};
+  return (s.macrocycles || []).length > 0
+    || (s.bodyLogs || []).length > 0
+    || (s.nutritionLogs || []).length > 0
+    || Object.keys(s.trainLogs || {}).length > 0
+    || Object.keys(s.nutritionMeals || {}).length > 0;
+}
+
 // Everything that used to run unconditionally at parse time (pre-Phase-5)
 // now waits here for a confirmed session instead — substance unchanged,
 // just relocated behind the gate.
@@ -7465,12 +7484,18 @@ function continueBootAfterAuth() {
     //
     // This is what makes it possible to test against a real backup with no
     // Supabase and no sign-in. To go back to the demo dataset: Clear all data,
-    // which removes bloc_state, then reload.
+    // then reload.
+    //
+    // 🚨 The test is whether the device holds real CONTENT, not whether
+    // bloc_state exists. clearAllData() does not remove that key — it writes an
+    // empty state through save() — so keying off the key's presence would leave
+    // a wiped device stuck on an empty app with no route back to the demo data,
+    // and on a phone there is no devtools to clear it by hand.
     //
     // 🚨 Do NOT apply _devAnchorDate here. It pins "today" to the fixture's
     // date, and against real logs that silently rewrites every "this week"
     // figure on the app. The anchor belongs to the demo dataset alone.
-    if (!_isNewUserOnBoot) {
+    if (devBypassHasRealData()) {
       showScreen('home');
       return;
     }

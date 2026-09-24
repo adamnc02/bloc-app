@@ -5326,43 +5326,50 @@ and changing it unseen is how a cosmetic guess becomes a regression.
 ## §91 — Testing against a real backup with no sign-in
 
 The local dev bypass (§82) skips Supabase and OAuth on a loopback or private-network
-host. It used to seed the demo dataset on **every** load. That made it impossible to
+host. It used to seed the demo dataset on **every** load, which made it impossible to
 test against real data without auth: restoring a backup through Settings → Account &
 Data → Restore → Local file saved it to `bloc_state` correctly, and `load()` put it
-into `state` on the next boot — then `enterDemoMode()` replaced it.
+into `state` on the next boot — then `enterDemoMode()` replaced it. The data was never
+lost, only invisible, which is the worst version: you keep testing against demo numbers
+believing they are yours.
 
-**Real data on the device now wins**, matching what production already does:
-`fetchDemoDataIfNewUser()` seeds only a genuinely new user. The bypass takes the same
-signal, `_isNewUserOnBoot` (`!localStorage.getItem('bloc_state')`), and returns before
-seeding when the device has state.
+**Real content on the device now wins.** `devBypassHasRealData()` returns before the
+seeding when any of `macrocycles`, `bodyLogs`, `nutritionLogs`, `trainLogs` or
+`nutritionMeals` holds anything.
 
-The ordering this depends on: `initDevBypassAuth()` resolves the fake session
-synchronously, but `finalizeBootIfReady()` will not proceed until `_domReady`, so
-`continueBootAfterAuth()` always runs after the module-level `const _isNewUserOnBoot`
-and `load()` further down the file. Nothing reads `_isNewUserOnBoot` before it exists.
+🚨 **The test is content, not the presence of `bloc_state`.** That distinction is the
+whole design. `clearAllData()` does **not** remove the key — it writes an empty state
+through `save()` — so a device that has been wiped still has `bloc_state`. Keyed off the
+key, a wipe would strand the bypass on an empty app with no route back to the demo
+dataset, and on a phone there is no devtools to clear it by hand. Keyed off content, a
+wiped device reads as empty and the demo dataset seeds again on the next load.
 
-🚨 **The guard must skip the anchor date as well as the seeding, and that is the half
-that matters.** `bloc-demo-data.dev.json` carries a `_devAnchorDate` that overrides
-"today" app-wide through `setTourAnchorDate()`. Applied over a real backup, every
-"this week" average, pace figure and qualifying-day gate is computed against the
-fixture's date rather than the real one, with nothing on screen saying so. Demo data
-on a demo date is coherent; real data on a demo date is quietly wrong — and looks fine.
+🚨 **The guard skips the anchor date as well as the seeding, and that is the half that
+matters.** `bloc-demo-data.dev.json` carries a `_devAnchorDate` that overrides "today"
+app-wide through `setTourAnchorDate()`. Applied over a real backup, every "this week"
+average, pace figure and qualifying-day gate is computed against the fixture's date
+rather than the real one, with nothing on screen saying so. Demo data on a demo date is
+coherent; real data on a demo date is quietly wrong — and looks entirely fine.
 
-**To go back to the demo dataset:** Clear all data, which removes `bloc_state`, then
-reload.
+**Round trip:** restore a backup and it persists across reloads; Clear all data, reload,
+and the demo dataset is back.
 
-⚠️ **A consequence worth knowing:** anything that calls `save()` while the demo dataset
-is on screen writes it to `bloc_state`, and the bypass will then treat that snapshot as
-real data on every later boot instead of re-seeding a fresh one. `enterDemoMode()` is
-memory-only by contract, so this does not arise in normal use — but Clear all data is
-the reset if a stale demo snapshot ever sticks.
+**Nothing outside the bypass is touched.** The guard sits inside `if (IS_LOCAL_DEV)`,
+which `isLocalDevHost()` makes false for any public address, so the deployed app never
+reaches it. The live path, `fetchDemoDataIfNewUser()`, is unchanged — and already gated
+on `_isNewUserOnBoot`, so the bypass now matches production rather than diverging from
+it. The full Demo Tour is reachable only from that function's `.then()`, so it is
+unaffected; it has never been reachable under the bypass, which deliberately seeds the
+dataset without the walkthrough. The Settings → Help mini-tours never read `demoData` at
+all — they target real data and use no anchor (§36) — so they are unaffected everywhere.
 
 `scripts/verify-dev-bypass-real-data.mjs` covers the guard, its position relative to
-both `enterDemoMode()` and `setTourAnchorDate()`, the boot ordering, and that
+both `enterDemoMode()` and `setTourAnchorDate()`, that it does not key off `bloc_state`,
+that `clearAllData()` still leaves the key in place (the reason why), and that
 `importData()` stays free of Supabase. Its control deletes the guard and asserts the
 checks then fail.
 
-🚨 **That script strips comments before any position check.** Its own prose contains
-the literal text `enterDemoMode()`, so an `indexOf()` over the raw slice matched the
-comment above the guard and reported the guard as too late — a false failure from a
-probe reading its own neighbours.
+🚨 **That script strips comments before any position check.** Its own prose contains the
+literal text `enterDemoMode()`, so an `indexOf()` over the raw slice matched the comment
+above the guard and reported the guard as too late — a false failure from a probe
+reading its own neighbours.
