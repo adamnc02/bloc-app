@@ -7456,6 +7456,24 @@ function continueBootAfterAuth() {
   // testing/screenshots. Skips the profile gate and every network-backed
   // snapshot/backup check below, all of which are Supabase-only concerns.
   if (IS_LOCAL_DEV) {
+    // 🚨 Real data on the device wins over the demo dataset, exactly as it
+    // does in production (fetchDemoDataIfNewUser below seeds only a genuinely
+    // new user). Without this the bypass seeded demo data on EVERY load, so a
+    // backup restored through Settings → Account & Data → Restore survived in
+    // localStorage but was masked the moment you reloaded — load() had already
+    // put it in `state` and enterDemoMode() replaced it.
+    //
+    // This is what makes it possible to test against a real backup with no
+    // Supabase and no sign-in. To go back to the demo dataset: Clear all data,
+    // which removes bloc_state, then reload.
+    //
+    // 🚨 Do NOT apply _devAnchorDate here. It pins "today" to the fixture's
+    // date, and against real logs that silently rewrites every "this week"
+    // figure on the app. The anchor belongs to the demo dataset alone.
+    if (!_isNewUserOnBoot) {
+      showScreen('home');
+      return;
+    }
     if (demoData) {
       enterDemoMode();
       if (demoData._devAnchorDate) { setTourAnchorDate(demoData._devAnchorDate); showScreen('home'); }

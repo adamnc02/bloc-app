@@ -5322,3 +5322,47 @@ directly — the comment above `measureEnv()` explains why.
 as tall as the top inset rather than the bottom one. It predates v8.16 and is
 left as it is, deliberately: it is only visible on a device with real insets,
 and changing it unseen is how a cosmetic guess becomes a regression.
+
+## §91 — Testing against a real backup with no sign-in
+
+The local dev bypass (§82) skips Supabase and OAuth on a loopback or private-network
+host. It used to seed the demo dataset on **every** load. That made it impossible to
+test against real data without auth: restoring a backup through Settings → Account &
+Data → Restore → Local file saved it to `bloc_state` correctly, and `load()` put it
+into `state` on the next boot — then `enterDemoMode()` replaced it.
+
+**Real data on the device now wins**, matching what production already does:
+`fetchDemoDataIfNewUser()` seeds only a genuinely new user. The bypass takes the same
+signal, `_isNewUserOnBoot` (`!localStorage.getItem('bloc_state')`), and returns before
+seeding when the device has state.
+
+The ordering this depends on: `initDevBypassAuth()` resolves the fake session
+synchronously, but `finalizeBootIfReady()` will not proceed until `_domReady`, so
+`continueBootAfterAuth()` always runs after the module-level `const _isNewUserOnBoot`
+and `load()` further down the file. Nothing reads `_isNewUserOnBoot` before it exists.
+
+🚨 **The guard must skip the anchor date as well as the seeding, and that is the half
+that matters.** `bloc-demo-data.dev.json` carries a `_devAnchorDate` that overrides
+"today" app-wide through `setTourAnchorDate()`. Applied over a real backup, every
+"this week" average, pace figure and qualifying-day gate is computed against the
+fixture's date rather than the real one, with nothing on screen saying so. Demo data
+on a demo date is coherent; real data on a demo date is quietly wrong — and looks fine.
+
+**To go back to the demo dataset:** Clear all data, which removes `bloc_state`, then
+reload.
+
+⚠️ **A consequence worth knowing:** anything that calls `save()` while the demo dataset
+is on screen writes it to `bloc_state`, and the bypass will then treat that snapshot as
+real data on every later boot instead of re-seeding a fresh one. `enterDemoMode()` is
+memory-only by contract, so this does not arise in normal use — but Clear all data is
+the reset if a stale demo snapshot ever sticks.
+
+`scripts/verify-dev-bypass-real-data.mjs` covers the guard, its position relative to
+both `enterDemoMode()` and `setTourAnchorDate()`, the boot ordering, and that
+`importData()` stays free of Supabase. Its control deletes the guard and asserts the
+checks then fail.
+
+🚨 **That script strips comments before any position check.** Its own prose contains
+the literal text `enterDemoMode()`, so an `indexOf()` over the raw slice matched the
+comment above the guard and reported the guard as too late — a false failure from a
+probe reading its own neighbours.
