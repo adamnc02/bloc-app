@@ -5570,6 +5570,37 @@ enough to read as a well, and `--bg` is only one step down (v8.16 UAT: *"not dar
 `verify-one-selected-state.mjs` holds the rule. It is a test rather than a comment because this
 decays one call site at a time and every individual regression looks reasonable in isolation.
 
+### Two more from the retest
+
+**A double divider, for the second time in one round.** Rows in a card take their separator from
+`.card > .row-plain:not(:first-child)` in the stylesheet. Putting an explicit `<div class="divider">`
+in front of such a row draws that border AND the element — two lines. It happened on Home ▸ Log
+today, was fixed there with the root cause written down, and then survived in Plan ▸ Volume by body
+part through a sweep that was meant to catch exactly it.
+
+🚨 **The stylesheet rule is the only divider between rows in a card.** It cannot double up, and it
+cannot strand a line above a row that turns out not to render — which matters, because several of
+these rows are conditional. `.card-divider` stays available for a card holding non-row content.
+`verify-card-dividers.mjs` fails on any divider element placed in front of a self-dividing row.
+
+**Inches read back the way they are entered.** `fmtInch()` renders whole + ¼ / ½ / ¾ — "31¼", not
+"31.25" — matching the fraction picker and the reference.
+
+🚨 **Its decimal fallback is load-bearing, not defensive.** A measurement entered in CENTIMETRES is
+stored as `cmToIn()`, an arbitrary decimal: 83cm is 32.677in. Snapping that to "32¾" would print a
+figure the person never measured and cannot reproduce on a tape — a data misrepresentation dressed
+as a formatting choice. Only a value that genuinely is a quarter, within 0.005in (about a tenth of
+a millimetre, well under any tape's precision), is drawn as one. `verify-inch-fractions.mjs` covers
+both directions, and its cm cases are the ones that catch a "simplification" to an unconditional
+nearest-quarter round.
+
+The ¼ ½ ¾ glyphs are present in **both** Sora and Manrope. That was measured, not assumed — by
+comparing each character's advance width in each face against a fallback-only stack. The same
+measurement is what confirms `♂` and `♀` are in **neither**: both faces report the identical width
+for them, meaning both fall through to the same system symbol font, which is the defect §92 records
+above. `″` is in Sora but not Manrope, so it falls back at body size; it is kept because the design
+reference uses it.
+
 ### Two judgement calls left open at the time of writing
 
 - **The Train eyebrow** reads `MC 1 · 21–27 Sept`. The design reference reads `Week 1 · 21–27

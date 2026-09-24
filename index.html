@@ -3194,7 +3194,10 @@ html.auth-likely-signed-in #auth-gate { display: none; }
   display: inline-block; cursor: text;
   font-family: var(--font-display); font-size: 15px; font-weight: 600; color: var(--text);
 }
-.plan-preview-divider { height: 1px; background: var(--divider); margin: 14px 0 2px; }
+/* .plan-preview-divider was deleted in the v8.16 UAT retest — the row it sat
+   above already takes its border from `.card > .row-plain:not(:first-child)`,
+   so the two together drew a double line. Dividers between rows in a card come
+   from that rule and nowhere else. */
 .plan-preview-wrap { margin-top: 4px; }
 .plan-preview-block + .plan-preview-block { border-top: 1px solid var(--divider); }
 /* A heading, not a control — nothing collapses any more. */
@@ -18609,13 +18612,16 @@ function renderPlanVolume(macro) {
     return micros.some(mk => (state.exercises[macro.id + '_1_' + day + mk] || []).length > 0);
   });
 
-  // 🚨 ONE divider above the preview row. There were two — .plan-preview-divider
-  // plus the rule renderBodyPartVolumeTable used to print at the top of its own
-  // output — and a third at the very top of the card with nothing above it
-  // (v8.16 UAT). The row itself opens a sheet; see openPlanProgressionPreview.
+  // 🚨 NO explicit divider element here. `.card > .row-plain:not(:first-child)`
+  // already draws a border-top on this row, so an element on top of that is a
+  // SECOND line — which is what the first fix pass left behind, and is the
+  // identical defect that was corrected on Home ▸ Log today in the same round.
+  //
+  // The rule in the stylesheet is the only divider between rows in a card. It
+  // cannot double up, and it cannot strand a divider above a row that turns
+  // out not to render — which this one would, since the row is conditional.
   const previewRow = (hasExercises && totalMesos > 1)
-    ? `<div class="plan-preview-divider"></div>
-       <div class="row-plain" onclick="openPlanProgressionPreview()">
+    ? `<div class="row-plain" onclick="openPlanProgressionPreview()">
          <div class="row-btn-text">
            <div class="row-btn-title">Progression preview</div>
            <div class="row-btn-sub">How sets and loads build, weeks 2–${totalMesos}</div>
@@ -23833,11 +23839,39 @@ function cmToIn(cm) {
 // Smart inch display: trims to the minimum decimals needed (33 → "33",
 // 33.5 → "33.5", 33.25 → "33.25") rather than always showing a fixed
 // number of decimal places.
+// Formats a stored inch value the way the app ASKS for one: whole number plus
+// ¼ / ½ / ¾, matching the fraction picker and the design reference ("31¼", not
+// "31.25"). v8.16 UAT.
+//
+// 🚨 It falls back to a decimal for anything that is NOT a clean quarter, and
+// that fallback is load-bearing, not defensive. Measurements entered in CM are
+// stored as cmToIn(), an arbitrary decimal — 83cm is 32.677in. Snapping that to
+// "32¾" would print a figure the person never measured and cannot reproduce:
+// a data misrepresentation dressed as a formatting choice. Only render a
+// fraction when the value genuinely IS that fraction.
+//
+// The ¼ ½ ¾ glyphs are present in BOTH Sora and Manrope (checked by measuring
+// their advance widths against a fallback-only stack), so unlike the ♂ / ♀
+// characters this round replaced, these do not drop to a mismatched face.
 function fmtInch(val) {
-  if (val === null || val === undefined) return '—';
+  if (val === null || val === undefined) return '\u2014';
   const n = parseFloat(val);
-  if (isNaN(n)) return '—';
-  return parseFloat(n.toFixed(2)).toString();
+  if (isNaN(n)) return '\u2014';
+  const neg = n < 0;
+  const abs = Math.abs(n);
+  const whole = Math.floor(abs + 1e-9);
+  const frac = abs - whole;
+  const quarters = Math.round(frac * 4);
+  // Within half a hundredth of a quarter — tight enough that a cm-derived
+  // value never passes, loose enough to absorb float noise from `+ 0.25`.
+  if (Math.abs(frac - quarters / 4) > 0.005) {
+    return (neg ? '\u2212' : '') + parseFloat(abs.toFixed(2)).toString();
+  }
+  const sign = neg ? '\u2212' : '';
+  if (quarters === 4) return sign + (whole + 1);        // 31.999 → 32, not "31" + a glyph
+  const glyph = ['', '\u00BC', '\u00BD', '\u00BE'][quarters];
+  if (whole === 0 && glyph) return sign + glyph;        // 0.25 → "¼", not "0¼"
+  return sign + whole + glyph;
 }
 
 // Opens the body log modal pre-filled for editing an existing day's entry.
