@@ -2033,41 +2033,43 @@ html.auth-likely-signed-in #auth-gate { display: none; }
    if the observer never runs — no JS, no IntersectionObserver, reduced
    motion — every element is simply visible in its final state. Motion must
    never be load-bearing for visibility. */
-@keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
-.will-rise { opacity: 0; transform: translateY(18px); }
+/* Travel and duration were raised on review (2026-09-24): 18px/0.75s read as
+   a twitch on a phone rather than as the page assembling itself. */
+@keyframes rise { from { opacity: 0; transform: translateY(34px); } to { opacity: 1; transform: none; } }
+.will-rise { opacity: 0; transform: translateY(34px); }
 /* .risen asserts the FINAL state as well as running the animation. The
    animation's fill overrides these while it plays; if it is cancelled, never
    starts, or the browser does not support it, the element is still visible.
    Defence in depth for the same rule as everywhere else in this system:
    never let motion decide whether content can be seen. */
-.will-rise.risen { opacity: 1; transform: none; animation: rise 0.75s cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(var(--d,0) * 1ms); }
+.will-rise.risen { opacity: 1; transform: none; animation: rise 1.15s cubic-bezier(.2,.72,.16,1) both; animation-delay: calc(var(--d,0) * 1ms); }
 
 /* Progress bars fill from the left once their section has risen. */
 @keyframes grow { from { transform: scaleX(0); } to { transform: none; } }
 .bar > i { transform-origin: left center; }
 .will-rise:not(.risen) .bar > i { transform: scaleX(0); }
-.risen .bar > i { animation: grow 1.1s cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(var(--i,0) * 80ms + 350ms); }
+.risen .bar > i { animation: grow 1.45s cubic-bezier(.2,.72,.16,1) both; animation-delay: calc(var(--i,0) * 110ms + 420ms); }
 
 /* Rings draw round to their value. --c = circumference, --off = final offset.
    The RESTING state is the finished ring. */
 @keyframes draw { from { stroke-dashoffset: var(--c); } to { stroke-dashoffset: var(--off); } }
 .arc { stroke-dasharray: var(--c); stroke-dashoffset: var(--off); }
 .will-rise:not(.risen) .arc { stroke-dashoffset: var(--c); }
-.risen .arc { animation: draw 1.4s 0.3s cubic-bezier(.3,.7,.2,1) both; }
+.risen .arc { animation: draw 1.9s 0.35s cubic-bezier(.3,.7,.2,1) both; }
 
 /* Line charts trace themselves (polyline with pathLength="1"). */
 @keyframes line { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 .will-rise:not(.risen) .line { stroke-dasharray: 1; stroke-dashoffset: 1; }
-.risen .line { stroke-dasharray: 1; animation: line 1.8s 0.35s ease-out both; }
+.risen .line { stroke-dasharray: 1; animation: line 2.3s 0.4s ease-out both; }
 @keyframes pop { from { transform: scale(0); } to { transform: none; } }
 .will-rise:not(.risen) .dot { transform: scale(0); }
 .risen .dot { animation: pop 0.5s 2s both; transform-box: fill-box; transform-origin: center; }
 
 /* Hero numbers rise and un-blur. */
-@keyframes digit { from { opacity: 0; transform: translateY(40%); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes digit { from { opacity: 0; transform: translateY(55%); filter: blur(9px); } to { opacity: 1; transform: none; filter: none; } }
 .digits { display: inline-block; }
 .will-rise:not(.risen) .digits { opacity: 0; }
-.risen .digits { animation: digit 0.9s 0.15s cubic-bezier(.2,.7,.2,1) both; }
+.risen .digits { animation: digit 1.25s 0.2s cubic-bezier(.2,.72,.16,1) both; }
 
 /* ── Looping motion, used sparingly ────────────────────────────────────
    Not tied to the entrance: these are continuous. Anything that loops on a
@@ -2201,25 +2203,19 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .home-goal-upcoming-diff { font-size: 11.5px; font-weight: 500; color: var(--text2); margin-top: 3px; line-height: 1.4; }
 
 /* ── 01 This week: metric rows ───────────────────────────────────────── */
-/* Every row is the same height, so the card does not reflow as metrics come
-   on and off target. The first/last rows used to trim their outer padding,
-   which made them shorter than the ones between them. */
 .metric-row { padding: 14px 0; border-bottom: 1px solid var(--divider); position: relative; }
-.metric-row:last-child { border-bottom: none; }
+.metric-row:first-child { padding-top: 2px; }
+.metric-row:last-child { border-bottom: none; padding-bottom: 2px; }
 .metric-row-top { display: flex; align-items: baseline; gap: 8px; margin-bottom: 9px; }
 .metric-name { font-family: var(--font-body); font-size: 14px; font-weight: 600; color: var(--text); }
 .metric-value { margin-left: auto; font-size: 14px; color: var(--text2); font-variant-numeric: tabular-nums; }
 .metric-value strong { font-family: var(--font-display); font-size: 17px; font-weight: 600; color: var(--text); }
 .metric-target { font-size: 12.5px; color: var(--text3); }
-/* 🚨 The note slot is always in the DOM and always occupies its line, even
-   when empty. Reserving the space means a row is the same height whether or
-   not it has a note, so nothing below shifts when a metric goes off target
-   or comes back on. Give any conditional line in a repeated row the same
-   treatment — a collapsing element is a layout jump waiting to happen. */
-.metric-note {
-  font-size: 12px; font-weight: 500; color: var(--text3);
-  margin-top: 8px; line-height: 1.45; min-height: 17px;
-}
+/* The note is rendered only when there is something to say, and takes no
+   space when there is not. Reserving an empty line for it was tried and
+   reverted (2026-09-24) — the permanent gap under every row cost more than
+   the reflow it avoided. */
+.metric-note { font-size: 12px; font-weight: 500; color: var(--text3); margin-top: 8px; line-height: 1.45; }
 .metric-note-off { color: var(--text2); }
 .metric-note-off strong { color: var(--red); }
 .metric-info-btn {
@@ -7218,7 +7214,7 @@ function setupScreenEntrance(el) {
       .filter(e => e.isIntersecting)
       .sort((a, b) => items.indexOf(a.target) - items.indexOf(b.target))
       .forEach((e, i) => {
-        e.target.style.setProperty('--d', i * 90);
+        e.target.style.setProperty('--d', i * 140);
         e.target.classList.add('risen');
         obs.unobserve(e.target);   // first time only; never re-runs on scroll back
       });
@@ -18710,13 +18706,8 @@ function renderHomeThisWeek() {
     const targetStr = (target !== null && target !== undefined) ? `/ ${m.fmt(target)}${m.unit}` : '\u00b7 no active goal';
 
     // The off-target note carries the existing adjusted-target figure — the
-    // same number the metric-advice modal uses.
-    //
-    // 🚨 The note element is ALWAYS rendered, empty when there is nothing to
-    // say. Its space is reserved by CSS either way, so a row is the same
-    // height whether or not it has a note and nothing below it shifts when
-    // one appears or clears. Conditionally rendering the element instead
-    // makes the whole card jump the moment a metric goes off target.
+    // same number the metric-advice modal uses. It is rendered only when
+    // there is something to say.
     let noteText = '';
     if (isOff && target) {
       const info = getWeeklyRequiredDaily(m.field, dayMap, weekStart, today, target, goal && goal.kcal);
@@ -18726,7 +18717,7 @@ function renderHomeThisWeek() {
         noteText = `<strong>${over.toLocaleString()}${m.unit} ${dir} target</strong> \u00b7 rest of week at ${Math.round(info.requiredDaily).toLocaleString()}${m.unit} to recover`;
       }
     }
-    const note = `<div class="metric-note${noteText ? ' metric-note-off' : ''}">${noteText}</div>`;
+    const note = noteText ? `<div class="metric-note metric-note-off">${noteText}</div>` : '';
 
     // kcal/protein/carbs explain where their numbers come from; steps is
     // deliberately NOT tappable — its calculation has no qualifying-day gate

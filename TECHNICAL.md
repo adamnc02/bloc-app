@@ -4845,17 +4845,34 @@ observer is doing its job the backstop never has anything left to do.
 lifecycle an IntersectionObserver depends on, so a backstop built on rAF fails in precisely the
 situation it exists to cover. That is not hypothetical — see below.
 
-### Conditional text now reserves its space
+### Conditional text: reserved, then reverted
 
-🚨 **A line that renders only sometimes keeps its element in the DOM, empty, with its height held
-open by CSS.** `.metric-note` is always rendered and carries `min-height: 17px`, so a metric row is
-the same height whether or not it is off target, and nothing below it moves when a value crosses a
-threshold. Measured: all four note slots 17px, all four rows 90px.
+The off-target note was briefly given a permanent empty slot (`min-height`, always rendered) so a
+metric row would be the same height on or off target and the card would never reflow. **Reverted on
+review the same day** — the permanent gap under every row cost more than the reflow it avoided.
 
-The uniform-row rule goes with it — `.metric-row:first-child` / `:last-child` used to trim their
-outer padding, making those rows shorter than the ones between them for no benefit.
+The note is rendered only when there is something to say, and rows keep their original first/last
+padding trim. Worth recording as a judgement, not a principle: reserving space for conditional text
+is a reasonable instinct, and here the empty space was more noticeable than the movement.
 
-Apply both to any repeated row on the remaining pages.
+### Motion values were raised
+
+The original figures — 18px of travel over 0.75s, staggered 90ms — read as a twitch on a phone
+rather than as the page assembling itself. The house values are now:
+
+| | |
+|---|---|
+| Section rise | 34px over 1.15s |
+| Stagger within a batch | 140ms |
+| Progress bars | 1.45s, 110ms apart, 420ms after their section |
+| Ring draw | 1.9s |
+| Line chart | 2.3s |
+| Hero digits | 1.25s, from 55% offset and a 9px blur |
+
+🚨 **Each element animates once per visit to a screen.** It is `unobserve`d as soon as it has
+risen, so scrolling back up and down again does not replay it; leaving the screen and returning
+re-arms everything. This is deliberate — an entrance that re-fires every time it re-enters the
+viewport turns into a flicker on any page you scroll around in.
 
 ### Also in this round
 
