@@ -4889,10 +4889,47 @@ All 24 take the shared sheet anatomy. Three carry more than a restyle:
   as icon-tile rows with subtitles, Cancel last. It is built in JS rather than being a static
   overlay, so it wires its own scrim dismissal; `initModal()` only ever sees the static sheets. Its
   subtitles are one line each so the four rows are the same height.
-- **Log to…** has a 2×2 meal picker built over the existing `<select>`, which stays the single source
-  of truth so `confirmRecipeLogTarget()` reads one value and no logic changed. The primary button
-  reads "Log to {meal}". The default is `nutrActiveMeal` — the meal whose + Log was tapped — which is
-  knowledge, rather than a guess from the time of day.
+- **Log a recipe** (`modal-recipe-pick`) is the Shortcuts › Recipes route — a picker, listing
+  `state.foodLibrary` entries with `source === 'recipe'`, the same source the Add-food list filters
+  on, so both routes offer the same recipes. It is not the recipe *manager*: `modal-recipe-list` edits
+  and deletes, which is not what the Fuel page wants.
+- **Log to…** (`modal-recipe-log-target`) has a 2×2 meal picker built over the existing `<select>`,
+  which stays the single source of truth so `confirmRecipeLogTarget()` reads one value. The primary
+  button names the chosen meal.
+
+### Logging a recipe: two routes, differing by what they already know
+
+Fuel has two ways to log a recipe, and only one of them needs to ask which meal.
+
+| Route | Knows the meal? | Knows the date? | Extra step |
+|---|---|---|---|
+| A meal card's **+ Log** → Recipes filter | Yes — the card you tapped | Yes | none |
+| **Shortcuts › Recipes** | No | Yes — the day on screen | the meal |
+
+Route A is the Add-food sheet's recipe filter, selected through `selectFromAddList()`, which logs
+straight to `nutrActiveMeal`. It gains nothing and is untouched.
+
+Route B runs `openRecipePickerForLog()` → `chooseRecipeToLog()` →
+`openRecipeLogTargetPicker('mealOnly')` → `confirmRecipeLogTarget()`, ending in the same serving
+modal every other route uses, so there is one implementation of "log this recipe".
+
+`openRecipeLogTargetPicker(mode)` carries both callers:
+
+- `'dateAndMeal'` — Save & Log from the recipe builder, which has no day context, so it asks for
+  both. The meal defaults to `nutrActiveMeal`.
+- `'mealOnly'` — the Fuel shortcut. The date row is hidden, the title becomes "Which meal?", and a
+  sublabel names the recipe and the day, because with the date step gone nothing else says which day
+  is being written to.
+
+🚨 **In `'mealOnly'` mode no meal is preselected.** Nobody tapped a meal on this route, so
+`nutrActiveMeal` is a stale leftover from whatever was logged last; offering it as the selected answer
+invites a tap-through into the wrong meal. The button reads "Pick a meal" at 40% until one is chosen,
+and `confirmRecipeLogTarget()` returns early on an empty meal.
+
+🚨 **The date is captured when the sheet opens, not read when it is confirmed.**
+`confirmRecipeLogTarget()` calls `showScreen('nutrition')`, which resets `nutrSelectedDate` to today
+before the function has finished using it. Reading the date afterwards logs to today whenever a past
+or future day was on screen — silently, since the entry lands somewhere real.
 
 ### The API-key state
 

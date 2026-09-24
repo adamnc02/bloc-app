@@ -2694,6 +2694,10 @@ html.auth-likely-signed-in #auth-gate { display: none; }
   font-size: 13px; font-weight: 700;
 }
 
+/* ── Recipe picker rows (Fuel › Shortcuts › Recipes) ─────────────────── */
+.recipe-pick-row { text-align: left; margin-bottom: 8px; }
+.recipe-pick-row:last-child { margin-bottom: 0; }
+
 /* ── The 2×2 "log to which meal?" picker ─────────────────────────────── */
 .meal-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .meal-picker-tile {
@@ -23861,7 +23865,7 @@ function renderNutrShortcuts() {
           <div class="fuel-tile-title">Fill day</div>
           <div class="fuel-tile-sub">From your meal plan</div>
         </div>
-        <div class="fuel-tile" onclick="openRecipeList()">
+        <div class="fuel-tile" onclick="openRecipePickerForLog()">
           <div class="fuel-tile-icon">
             <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
           </div>
@@ -28973,12 +28977,43 @@ function saveRecipeAndLog() {
 // ── Save & Log: date/meal target picker + handoff to the standard serving modal ──
 // Opens the small date/meal picker used by Save & Log, pre-filled with
 // today and the last-active meal (falling back to Breakfast).
-function openRecipeLogTargetPicker() {
-  populateRelativeDateSelect('recipe-log-target-date');
-  // 🚨 The default is `nutrActiveMeal` — the meal whose + Log was tapped. That is
-  // knowledge about what the person is doing; guessing the meal from the time of
-  // day is not, and would be wrong for anyone logging a meal after the fact.
-  document.getElementById('recipe-log-target-meal').value = nutrActiveMeal || 'Breakfast';
+// Which of the two modes the sheet is currently in. 'mealOnly' means the caller
+// already knows the date and the sheet must not ask for it again.
+let _recipeLogTargetMode = 'dateAndMeal';
+// The date a 'mealOnly' run is logging to, captured at open time.
+let _recipeLogTargetDate = null;
+
+// `mode` is 'dateAndMeal' (Save & Log from the recipe builder — no day context)
+// or 'mealOnly' (the Fuel Recipes shortcut — the day is the one on screen).
+//
+// 🚨 The meal default is `nutrActiveMeal` only when that means something. Coming
+// from the Fuel shortcut nobody has tapped a meal, so the previous meal would be
+// a stale leftover presented as a choice; that mode starts with none selected and
+// requires a tap, which is the whole point of the step.
+function openRecipeLogTargetPicker(mode) {
+  _recipeLogTargetMode = mode === 'mealOnly' ? 'mealOnly' : 'dateAndMeal';
+  const mealOnly = _recipeLogTargetMode === 'mealOnly';
+  const dateGroup = document.getElementById('recipe-log-date-group');
+  const sub = document.getElementById('recipe-log-target-sub');
+  const title = document.getElementById('recipe-log-target-title');
+
+  if (mealOnly) {
+    _recipeLogTargetDate = nutrSelectedDate;
+    dateGroup.style.display = 'none';
+    title.textContent = 'Which meal?';
+    // The date step is gone, so the sheet says which day it is logging to rather
+    // than leaving it to be inferred.
+    sub.textContent = `Logging ${_pendingLogRecipeName || 'this recipe'} to ${formatDate(_recipeLogTargetDate)}.`;
+    sub.style.display = '';
+    document.getElementById('recipe-log-target-meal').value = '';
+  } else {
+    _recipeLogTargetDate = null;
+    populateRelativeDateSelect('recipe-log-target-date');
+    dateGroup.style.display = '';
+    title.textContent = 'Log to\u2026';
+    sub.style.display = 'none';
+    document.getElementById('recipe-log-target-meal').value = nutrActiveMeal || 'Breakfast';
+  }
   markRecipeLogMeal();
   openModal('modal-recipe-log-target');
 }
@@ -29001,7 +29036,17 @@ function markRecipeLogMeal() {
   if (picker) picker.querySelectorAll('.meal-picker-tile').forEach(t => {
     t.classList.toggle('active', t.dataset.meal === meal);
   });
-  if (btn) btn.textContent = `Log to ${meal}`;
+  if (!btn) return;
+  // With no meal chosen yet the button says what it wants rather than naming a
+  // meal nobody picked, and does nothing if tapped — confirmRecipeLogTarget()
+  // bails on an empty meal.
+  if (!meal) {
+    btn.textContent = 'Pick a meal';
+    btn.style.opacity = '0.4';
+  } else {
+    btn.textContent = `Log to ${meal}`;
+    btn.style.opacity = '';
+  }
 }
 
 // Takes the chosen date/meal, switches to the Nutrition screen on that
@@ -29009,12 +29054,21 @@ function markRecipeLogMeal() {
 // just-saved recipe — identical in shape to selecting that same recipe from
 // the Nutrition Add Food list (see selectFromAddList).
 function confirmRecipeLogTarget() {
-  const date = document.getElementById('recipe-log-target-date').value;
   const meal = document.getElementById('recipe-log-target-meal').value;
+  // No meal chosen yet — the button is dimmed and this is the guard behind it.
+  if (!meal) return;
+  // 🚨 In 'mealOnly' mode the date is whatever Fuel was showing when the sheet
+  // opened, captured then. It cannot be read here, because showScreen('nutrition')
+  // below resets nutrSelectedDate to today before this function is finished with
+  // it — which would silently log to the wrong day whenever a past or future day
+  // was on screen.
+  const date = _recipeLogTargetMode === 'mealOnly'
+    ? _recipeLogTargetDate
+    : document.getElementById('recipe-log-target-date').value;
   const recipeName = _pendingLogRecipeName;
   closeModal('modal-recipe-log-target');
   _pendingLogRecipeName = null;
-  if (!recipeName) return;
+  if (!recipeName || !date) return;
 
   const libItem = (state.foodLibrary || []).find(f => f.source === 'recipe' && f.name.toLowerCase() === recipeName.toLowerCase());
   if (!libItem) return;
@@ -29041,6 +29095,62 @@ function confirmRecipeLogTarget() {
   };
   _nutrReturnToAddList = false;
   requestAnimationFrame(() => openNutrServingModal());
+}
+
+// ── Log a recipe, from the Fuel page's Shortcuts ─────────────────────────────
+// Fuel has two ways to log a recipe and they differ by what they already know:
+//
+//   · a meal card's + Log → the Add-food sheet's Recipes filter. The meal is the
+//     card you tapped, so the recipe is logged straight to it. Untouched.
+//   · Shortcuts › Recipes → here. Nothing has told us the meal, so this route
+//     adds the meal step. The date is the day on screen, so it does NOT ask for
+//     that — which is the one difference from the recipe builder's Save & Log.
+//
+// Recipes are read from state.foodLibrary where source === 'recipe', the same
+// source the Add-food list filters on, so both routes offer the same recipes.
+function openRecipePickerForLog() {
+  document.getElementById('recipe-pick-search').value = '';
+  document.getElementById('recipe-pick-sub').textContent =
+    `Pick a recipe to log to ${formatDate(nutrSelectedDate)}.`;
+  renderRecipePickList();
+  openModal('modal-recipe-pick');
+}
+
+function renderRecipePickList() {
+  const el = document.getElementById('recipe-pick-list');
+  if (!el) return;
+  const query = (document.getElementById('recipe-pick-search').value || '').trim().toLowerCase();
+  const recipes = (state.foodLibrary || [])
+    .filter(f => f.source === 'recipe')
+    .filter(f => !query || f.name.toLowerCase().includes(query))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  if (!recipes.length) {
+    el.innerHTML = `<div class="empty-inline" style="text-align:center;padding:24px 0;">${
+      query ? `No recipes match “${query}”.` : 'No recipes saved yet. Build one from Settings › Nutrition › My Recipes.'
+    }</div>`;
+    return;
+  }
+
+  // per100* on a recipe entry is per SERVING, not per 100g — a recipe's unit is
+  // one serving, which is why the Add-food list treats grams as 1 for recipes.
+  el.innerHTML = recipes.map(r => `
+    <button class="row-btn recipe-pick-row" onclick="chooseRecipeToLog('${String(r.name).replace(/'/g, "\\'")}')">
+      <span class="row-btn-text">
+        <span class="row-btn-title">${r.name}</span>
+        <span class="row-btn-sub">${Math.round(r.per100kcal).toLocaleString()} kcal per serving · P${Math.round(r.per100p)} C${Math.round(r.per100c)} F${Math.round(r.per100f)}</span>
+      </span>
+      <span class="row-btn-chevron">›</span>
+    </button>`).join('');
+}
+
+// Hands the chosen recipe to the meal step, then into the standard serving modal
+// via confirmRecipeLogTarget() — the same path Save & Log uses, so there is one
+// implementation of "log this recipe" rather than two.
+function chooseRecipeToLog(name) {
+  _pendingLogRecipeName = name;
+  closeModal('modal-recipe-pick');
+  requestAnimationFrame(() => openRecipeLogTargetPicker('mealOnly'));
 }
 
 // ── Recipe list (view / edit / delete) ───────────────────────────────────────
@@ -29507,11 +29617,33 @@ function deleteRecipe(id) {
 </div>
 
 <!-- Save & Log: choose where a just-saved recipe should be logged -->
+<!-- Pick a recipe to log (v8.16 Phase 3) — the Fuel page's Shortcuts › Recipes
+     route. This is a PICKER, not the recipe manager: modal-recipe-list edits and
+     deletes recipes, which is not what you want from the Fuel page.
+
+     The + Log route inside a meal card does not come through here. It already
+     knows its meal, so it uses the Add-food sheet's Recipes filter and logs
+     straight to that meal — only this route needs the extra meal step. -->
+<div class="modal-overlay" id="modal-recipe-pick">
+  <div class="modal-sheet" data-modal="modal-recipe-pick">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-pick')">✕</button></div>
+    <div class="modal-title">Log a recipe</div>
+    <div class="modal-sub" id="recipe-pick-sub"></div>
+    <input type="text" id="recipe-pick-search" placeholder="Search recipes…" oninput="renderRecipePickList()" style="margin-bottom:12px;">
+    <div id="recipe-pick-list" style="max-height:60vh;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<!-- Where to log a recipe. Two modes (see openRecipeLogTargetPicker):
+     · date + meal, for Save & Log from the recipe builder, which has no day context;
+     · meal only, for the Fuel page's Recipes shortcut, where the day is already
+       the one being viewed — so asking for it again would be asking twice. -->
 <div class="modal-overlay" id="modal-recipe-log-target">
   <div class="modal-sheet" data-modal="modal-recipe-log-target">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-log-target')">✕</button></div>
-    <div class="modal-title">Log to…</div>
-    <div class="form-group">
+    <div class="modal-title" id="recipe-log-target-title">Log to…</div>
+    <div class="modal-sub" id="recipe-log-target-sub" style="display:none;"></div>
+    <div class="form-group" id="recipe-log-date-group">
       <div class="label">Date</div>
       <select id="recipe-log-target-date" style="font-size:14px;"></select>
     </div>
