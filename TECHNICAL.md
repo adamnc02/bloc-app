@@ -5267,3 +5267,58 @@ exercise carries a "Built in" chip where a custom one carries its edit and delet
 
 The restore picker lists each snapshot as a row in a card. A stack of full-width primary-shaped
 buttons read as several separate actions rather than one list to choose from.
+
+## §90 — v8.16: the shell sweep
+
+The cross-cutting pass over the things that are not any one page.
+
+### The tour sheets
+
+`modal-tour-welcome` and `modal-tour-help` were the last two sheets still
+carrying pre-v8.16 styling. Both now use the shared chrome, a `.modal-title`
+and a `.modal-sub`.
+
+The welcome sheet gained a ✕. Swipe-down already dismissed it, so skipping the
+tour was possible but had no visible affordance.
+
+Help lists the five tours as rows in a card, each carrying its own tab's nav
+icon so a tour and the tab it walks through are recognisably the same thing,
+in nav order. 🚨 **The Fuel row read "Nutrition"** — the tab was relabelled in
+Phase 0 and this list was not. `startNutritionMiniTour()` keeps its name: the
+screen id never changed, only the label.
+
+### Reduced motion
+
+`prefersReducedMotion()` has two callers that matter — the entrance observer
+and the Plan step chart — and both return early, so nothing starts rather than
+being started and cancelled.
+
+🚨 **The per-element entrance animations need no reduced-motion rule of their
+own.** `.bar > i`, `.arc`, `.line`, `.dot` and `.digits` are every one scoped
+to `.risen`, and `.risen` is only ever added by the observer. Under reduced
+motion they render in their final state because they were never started. The
+same reasoning is why `.will-rise` is added in JS and not CSS: if the script
+never runs, everything is simply visible. Motion is never load-bearing for
+visibility.
+
+`animateNavPill()` now snaps the pill in a single measurement under reduced
+motion. Its 420ms loop re-measures every frame, and across seven screen
+changes that was ~175 `requestAnimationFrame` calls doing nothing a static
+layout needed; it is 5 now.
+
+The 420ms itself is vestigial. It was sized to a `.nav-label` text-reveal
+transition, and labels have been permanently visible since ~v7.66 — neither
+`#nav-pill` nor `.nav-label` carries a CSS transition today. The window
+survives as slack for the layout to settle.
+
+### Safe areas
+
+`#content` pads by `--safe-top` at the top and `--nav-h + --safe-bottom` at the
+foot; `#content.no-nav` drops the nav's share for a hidden page. Both values
+are measured by JS through a probe element rather than read from `env()`
+directly — the comment above `measureEnv()` explains why.
+
+⚠️ **`.edge-fade` sizes BOTH fades from `--safe-top`**, so the bottom fade is
+as tall as the top inset rather than the bottom one. It predates v8.16 and is
+left as it is, deliberately: it is only visible on a device with real insets,
+and changing it unseen is how a cosmetic guess becomes a regression.

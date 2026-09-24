@@ -179,9 +179,9 @@ body {
    Floating pill bottom nav. #nav-pill is one shared highlight
    element that JS (positionNavPill(), see NAVIGATION) slides and
    resizes behind whichever button is .active — that produces the
-   morphing-bubble animation between screens. Inactive buttons show
-   icon only; the active button's label reveals via the max-width/
-   opacity transition on .nav-label. */
+   morphing-bubble animation between screens. Every button's label is
+   permanently visible — .nav-label carries no transition and is not
+   revealed on activation; only the pill and the text colour move. */
 #nav {
   /* Anchored to #app (position: relative) rather than the native
      viewport. #nav used to be `position: fixed`, which on iOS standalone
@@ -2118,6 +2118,17 @@ html.auth-likely-signed-in #auth-gate { display: none; }
   .pulse, .nudge { animation: none !important; }
   .modal-sheet { transition: none !important; }
   .will-rise { opacity: 1; transform: none; }
+  /* v8.16 Phase 7 — the rest of the shell.
+     The per-element entrance animations (.bar > i, .arc, .line, .dot,
+     .digits) need nothing here: every one is scoped to .risen, and .risen is
+     only ever added by the entrance observer, which returns early under
+     reduced motion. They render in their final state because they were never
+     started, not because they were cancelled. */
+  .modal-overlay { transition: none !important; }
+  .nav-btn, .nav-btn svg { transition: none !important; }
+  .edge-fade { display: none; }
+  /* Scale feedback on a press is a response to a tap, not motion the page
+     starts on its own, so :active transforms are deliberately left alone. */
 }
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -4848,14 +4859,12 @@ try {
      the spotlight sequence begins. See startDemoTour()/beginDemoTourSteps(). -->
 <div class="modal-overlay" id="modal-tour-welcome">
   <div class="modal-sheet" data-modal="modal-tour-welcome">
-    <div class="modal-handle-row"><div class="modal-handle"></div></div>
-    <div style="text-align:center;padding:8px 4px 4px;">
-      <div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--text);margin-bottom:10px;">Welcome to BLOC</div>
-      <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:22px;">
-        We've loaded a few weeks of sample training and nutrition data so you can see exactly how BLOC works before setting up your own. Take a quick tour — it only takes a minute.
-      </div>
-      <button class="btn btn-accent btn-block" onclick="closeModal('modal-tour-welcome');beginDemoTourSteps();">Let's go →</button>
-    </div>
+    <!-- The ✕ is the explicit way to skip the tour. Swipe-down already
+         dismissed this sheet, so the option existed but was invisible. -->
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-tour-welcome')">✕</button></div>
+    <div class="modal-title">Welcome to BLOC</div>
+    <div class="modal-sub">We've loaded a few weeks of sample training and nutrition data so you can see exactly how BLOC works before setting up your own. Take a quick tour — it only takes a minute.</div>
+    <button class="btn btn-accent btn-block" onclick="closeModal('modal-tour-welcome');beginDemoTourSteps();">Let's go &rarr;</button>
   </div>
 </div>
 
@@ -4866,18 +4875,38 @@ try {
       <button class="modal-close-btn" onclick="closeModal('modal-tour-help')">✕</button>
     </div>
     <div class="modal-title">Help</div>
-    <!-- Built with a future Tours-vs-FAQs segmented control in mind
-         (bloc-onboarding-tour-scope-v2.md §8.4) — only Tours ships now,
-         but this uppercase label row is exactly where a two-tab switcher
-         would slot in later without needing to restructure anything
-         below it. -->
-    <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text3);margin-bottom:10px;">Tours</div>
-    <div style="display:flex;flex-direction:column;gap:8px;">
-      <button class="btn btn-block" style="justify-content:space-between;" onclick="startHomeMiniTour()">Home <span style="color:var(--text3);">→</span></button>
-      <button class="btn btn-block" style="justify-content:space-between;" onclick="startProgressMiniTour()">Progress <span style="color:var(--text3);">→</span></button>
-      <button class="btn btn-block" style="justify-content:space-between;" onclick="startPlanMiniTour()">Plan <span style="color:var(--text3);">→</span></button>
-      <button class="btn btn-block" style="justify-content:space-between;" onclick="startTrainMiniTour()">Train <span style="color:var(--text3);">→</span></button>
-      <button class="btn btn-block" style="justify-content:space-between;" onclick="startNutritionMiniTour()">Nutrition <span style="color:var(--text3);">→</span></button>
+    <div class="modal-sub">A short guided walk through any page, using your own data.</div>
+    <!-- Room for a future Tours-vs-FAQs segmented control: only Tours ships
+         now, and this heading is where a two-tab switcher would slot in
+         without restructuring anything below it. -->
+    <div class="sheet-sec sheet-sec-first">Tours</div>
+    <div class="card">
+      <!-- Each row carries its own tab's nav icon, so the tour and the tab
+           it walks you through are recognisably the same thing. The order
+           follows the nav bar, not the order these were written. -->
+      <div class="settings-row settings-row-nav" onclick="startHomeMiniTour()">
+        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V10"/></svg></div>
+        <div class="settings-row-text">Home</div>
+      </div>
+      <div class="settings-row settings-row-nav" onclick="startTrainMiniTour()">
+        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M5 12h14"/><rect x="2" y="9" width="2" height="6" rx="0.5"/><rect x="20" y="9" width="2" height="6" rx="0.5"/><rect x="5" y="7" width="2" height="10" rx="0.5"/><rect x="17" y="7" width="2" height="10" rx="0.5"/></svg></div>
+        <div class="settings-row-text">Train</div>
+      </div>
+      <!-- 🚨 "Fuel", not "Nutrition". The tab was relabelled in v8.16 and
+           this list still named the old one. The function keeps its name —
+           the screen id did not change. -->
+      <div class="settings-row settings-row-nav" onclick="startNutritionMiniTour()">
+        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M5 3v6a2 2 0 0 0 4 0V3M7 3v18"/><path d="M17 3c-2 0-3 2-3 5s1 4 3 4v9"/></svg></div>
+        <div class="settings-row-text">Fuel</div>
+      </div>
+      <div class="settings-row settings-row-nav" onclick="startProgressMiniTour()">
+        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="9" rx="0.5"/><rect x="10" y="7" width="4" height="14" rx="0.5"/><rect x="17" y="3" width="4" height="18" rx="0.5"/></svg></div>
+        <div class="settings-row-text">Progress</div>
+      </div>
+      <div class="settings-row settings-row-nav" onclick="startPlanMiniTour()">
+        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
+        <div class="settings-row-text">Plan</div>
+      </div>
     </div>
   </div>
 </div>
@@ -8372,12 +8401,22 @@ function positionNavPill() {
 // re-measure every frame for the duration of that CSS transition so the
 // pill always exactly matches the real, currently-animating layout.
 let _navPillAnimId = null;
-// Smoothly slides/resizes #nav-pill to the newly active nav button over 420ms
-// (matches the .nav-label text-reveal transition timing). Runs its own
-// requestAnimationFrame loop rather than relying on a CSS transition alone,
-// so it can be cancelled mid-flight if the user taps nav buttons rapidly.
+// Slides/resizes #nav-pill to the newly active nav button, re-measuring every
+// frame for 420ms so the pill matches the real layout rather than whatever it
+// was at the instant .active was toggled. It is cancellable, so tapping nav
+// buttons rapidly does not leave two loops fighting.
+//
+// The 420ms came from a .nav-label text-reveal transition that no longer
+// exists — labels have been permanently visible since ~v7.66, and neither
+// #nav-pill nor .nav-label carries a CSS transition today. The window is now
+// just slack for the layout to settle.
 function animateNavPill() {
   if (_navPillAnimId) cancelAnimationFrame(_navPillAnimId);
+  // 🚨 Under reduced motion the pill snaps to its final place in one
+  // measurement. The loop exists only to track a CSS transition that the
+  // reduced-motion block switches off, so without this it would spend 420ms
+  // re-measuring a layout that already finished moving.
+  if (prefersReducedMotion()) { positionNavPill(); return; }
   const start = performance.now();
   const duration = 420; // covers the .nav-label transition (380ms) plus a small buffer
   (function step(now) {
