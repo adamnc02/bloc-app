@@ -1578,21 +1578,26 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .ss-unlink-btn:active { color: var(--text2); }
 
 /* ── Link modal styles ────────────────────────────────── */
+/* v8.16 — the choosable-row pattern of §3.8: a full-width row with a leading
+   control, a title and a subtitle. Selected takes an accent border and a 20%
+   accent wash, matching the progression chips rather than inventing a third
+   selected treatment. */
 .modal-link-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
-  border-radius: var(--r-sm);
-  background: var(--surface);
-  border: 0.5px solid var(--border);
+  padding: 13px 14px;
+  min-height: 60px;
+  border-radius: var(--r-tile);
+  background: var(--surface2);
+  border: 1px solid var(--border2);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, background 0.15s;
 }
 .modal-link-row--checked {
   border-color: var(--accent);
-  background: var(--surface2);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 .modal-link-check {
   width: 20px;
@@ -2515,6 +2520,21 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .ss-prog-member-head { font-size: 13px; font-weight: 600; color: var(--text); }
 .ss-prog-member-last { display: block; font-size: 11.5px; font-weight: 500; color: var(--text3); margin-top: 3px; }
 .ss-set-cards { padding: 0; display: flex; flex-direction: column; gap: 10px; }
+
+/* ── Rest timer preset chips (D11) ───────────────────────────────────── */
+.timer-presets { display: flex; gap: 8px; margin-bottom: 22px; }
+.timer-preset {
+  flex: 1 1 0; min-width: 0; min-height: 44px; padding: 0 4px;
+  border-radius: var(--r-btn-sm);
+  border: 1px solid var(--border2); background: transparent;
+  color: var(--text2);
+  font-family: var(--font-display); font-size: 13px; font-weight: 600;
+  font-variant-numeric: tabular-nums; cursor: pointer; transition: all .15s;
+}
+.timer-preset.active {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  border-color: var(--accent); color: var(--text);
+}
 
 /* ── Week / session picker pills ─────────────────────────────────────── */
 .week-pill, .day-tab {
@@ -3911,9 +3931,9 @@ try {
       <button class="modal-close-btn" onclick="closeModal('modal-link')">✕</button>
     </div>
     <div class="modal-title">Link exercises</div>
-    <div style="font-size:13px;color:var(--text2);margin-bottom:14px;">Select exercises to group into a superset. The tapped exercise is always the sets leader.</div>
+    <div class="modal-sub">Select exercises to group into a superset. The tapped exercise is always the sets leader.</div>
     <div id="modal-link-rows" style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px;"></div>
-    <button id="modal-link-confirm-btn" class="btn btn-primary" style="width:100%;" onclick="confirmLink()" disabled>Select at least 2 exercises</button>
+    <button id="modal-link-confirm-btn" class="btn btn-accent btn-block" onclick="confirmLink()" disabled>Select at least 2 exercises</button>
   </div>
 </div>
 
@@ -9460,9 +9480,9 @@ function openLinkModal(day, exId) {
       <div class="modal-link-check${checked ? ' modal-link-check--on' : ''}" id="lc-${ex.id}">
         ${checked ? '<svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 18 4 13"/></svg>' : ''}
       </div>
-      <div style="flex:1;min-width:0;">
-        <div style="font-weight:500;font-size:13px;color:var(--text);">${ex.name}${isOrigin ? ' <span style="font-size:10px;color:var(--accent);font-weight:400;">starting exercise</span>' : ''}</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:2px;">${ex.type === 'standard' ? 'Standard' : ex.type === 'giant' ? 'Giant Set' : 'Pause Set'} · ${ex.setsStart}–${ex.setsEnd} sets</div>
+      <div class="row-btn-text">
+        <div class="row-btn-title">${ex.name}${isOrigin ? ' <span class="ex-tag" style="--tag-c:var(--accent2);">sets leader</span>' : ''}</div>
+        <div class="row-btn-sub">${ex.type === 'standard' ? 'Standard' : ex.type === 'giant' ? 'Giant Set' : 'Pause Set'} · ${ex.setsStart}–${ex.setsEnd} sets</div>
       </div>
     </div>`;
   });
@@ -27400,10 +27420,28 @@ function onGoalFatSliderInput() {
 }
 
 // ── Modal swipe-down + tap-outside ───────────────────────────────────────────
+
+// Sheets whose dismissal needs more than hiding the overlay. A swipe-down or a
+// backdrop tap runs the function named here instead of closeModal().
+//
+// 🚨 The rest timer is why this exists. v8.16 gave it `data-modal` so it can be
+// swiped away like every other sheet — but closing it has to stop whichever
+// timer is running and reset the Train page's clock icon (closeTimerModal).
+// Wiring the ordinary dismiss path to closeModal() would hide the sheet and
+// leave a countdown ticking behind it with the icon still lit. Before v8.16 the
+// timer was simply excluded from initModal() altogether, which is the same bug
+// avoided by having no gesture at all.
+const MODAL_DISMISS_HANDLERS = { 'modal-timer': 'closeTimerModal' };
+
 function initModal(overlayEl) {
   const sheet = overlayEl.querySelector('.modal-sheet');
   if (!sheet) return;
   const modalId = overlayEl.id;
+  const dismiss = () => {
+    const fn = MODAL_DISMISS_HANDLERS[modalId];
+    if (fn && typeof window[fn] === 'function') window[fn]();
+    else closeModal(modalId);
+  };
 
   // §79 — opt out of both accidental-dismissal gestures. A sheet holding
   // work that cannot be recreated for free sets data-no-dismiss: swipe-down
@@ -27415,11 +27453,11 @@ function initModal(overlayEl) {
 
   // Tap the dark backdrop to close — must NOT be passive so stopPropagation works on iOS
   overlayEl.addEventListener('touchstart', function(e) {
-    if (e.target === overlayEl) { e.stopPropagation(); closeModal(modalId); }
+    if (e.target === overlayEl) { e.stopPropagation(); dismiss(); }
   }, { passive: false });
   // Pointer fallback for non-touch (desktop)
   overlayEl.addEventListener('pointerdown', function(e) {
-    if (e.pointerType !== 'touch' && e.target === overlayEl) closeModal(modalId);
+    if (e.pointerType !== 'touch' && e.target === overlayEl) dismiss();
   });
 
   // Swipe the handle row down to close
@@ -27447,14 +27485,14 @@ function initModal(overlayEl) {
     dragging = false;
     const delta = e.changedTouches[0].clientY - startY;
     sheet.style.transform = '';
-    if (delta > 80) closeModal(modalId);
+    if (delta > 80) dismiss();
   }, { passive: true });
 }
 
 // Init — runs after all HTML (including appended modals) is parsed
 window.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.modal-overlay').forEach(el => {
-    if (el.id !== 'modal-timer') initModal(el); // timer has its own close handler
+    initModal(el); // the timer routes its dismissal via MODAL_DISMISS_HANDLERS
   });
   // showScreen('home') no longer fires unconditionally here — Phase 5's
   // auth gate has to resolve first (see maybeFinalizeBoot()/
@@ -27592,14 +27630,48 @@ let pickerMinCtrl, pickerSecCtrl;
 // Builds both drum-scroll picker columns (minutes, seconds) for the
 // countdown timer on first open.
 function initPickers() {
-  pickerMinCtrl = buildPicker('picker-min', 60, false, cdPickerMin, (v) => { cdPickerMin = v; });
-  pickerSecCtrl = buildPicker('picker-sec', 60, true,  cdPickerSec, (v) => { cdPickerSec = v; });
+  pickerMinCtrl = buildPicker('picker-min', 60, false, cdPickerMin, (v) => { cdPickerMin = v; markTimerPreset(); });
+  pickerSecCtrl = buildPicker('picker-sec', 60, true,  cdPickerSec, (v) => { cdPickerSec = v; markTimerPreset(); });
 }
 
 // Opens the rest timer modal, building the picker columns on first open only.
 function openTimerModal() {
   document.getElementById('modal-timer').classList.add('open');
   if (!pickerMinCtrl) initPickers();
+  markTimerPreset();
+}
+
+// Sets both wheel columns from a preset chip (D11, new in v8.16).
+//
+// It deliberately does NOT start the timer: the chip is a shortcut to a value,
+// so the figure stays on the wheels where it can still be adjusted, and Start
+// remains the only thing that starts anything.
+//
+// A countdown that is already running (or paused mid-count) has its picker
+// hidden, so a preset would set a value nobody could see and that the next
+// Start would ignore — cdRemaining is already non-zero. Resetting first is what
+// makes the chip mean the same thing whenever it is tapped.
+function setTimerPreset(min, sec) {
+  if (!pickerMinCtrl) initPickers();
+  if (cdRunning || cdRemaining > 0) countdownReset();
+  cdPickerMin = min;
+  cdPickerSec = sec;
+  pickerMinCtrl.setPos(min);
+  pickerSecCtrl.setPos(sec);
+  markTimerPreset();
+}
+
+// Highlights whichever preset chip matches the wheels' current value, and none
+// of them when the value was dialled by hand.
+function markTimerPreset() {
+  const wrap = document.getElementById('timer-presets');
+  if (!wrap) return;
+  const current = cdPickerMin * 60 + cdPickerSec;
+  wrap.querySelectorAll('.timer-preset').forEach(btn => {
+    const parts = (btn.textContent || '').trim().split(':');
+    const secs = (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0);
+    btn.classList.toggle('active', secs === current);
+  });
 }
 
 // Closes the timer modal and cancels/resets both the countdown and stopwatch,
@@ -27648,6 +27720,10 @@ function countdownStart() {
     cdRemaining = (cdPickerMin * 60 + cdPickerSec) * 1000;
     if (cdRemaining === 0) return;
     document.getElementById('timer-picker').style.display = 'none';
+    // The presets set the wheels, so they hide with them — a chip tap while the
+    // count is hidden would have nothing visible to change.
+    var presetsEl = document.getElementById('timer-presets');
+    if (presetsEl) presetsEl.style.display = 'none';
     document.getElementById('timer-display').style.display = 'block';
     document.getElementById('cd-reset-btn').style.display = '';
   }
@@ -27686,6 +27762,8 @@ function countdownReset() {
   const picker = document.getElementById('timer-picker');
   const display = document.getElementById('timer-display');
   if (picker) picker.style.display = 'flex';
+  const presets = document.getElementById('timer-presets');
+  if (presets) presets.style.display = '';
   if (display) display.style.display = 'none';
   const startBtn = document.getElementById('cd-start-btn');
   const resetBtn = document.getElementById('cd-reset-btn');
@@ -28653,11 +28731,16 @@ function deleteRecipe(id) {
 </script>
 
 <!-- ── Rest Timer Modal ───────────────────────────────────────────── -->
+<!-- Rest timer (v8.16 Phase 2)
+     Gains a title row, preset chips and `data-modal` so it swipes away like
+     every other sheet. 🚨 Its dismissal must run closeTimerModal(), not
+     closeModal() — see MODAL_DISMISS_HANDLERS. -->
 <div class="modal-overlay" id="modal-timer">
-  <div class="modal-sheet" style="max-height:70dvh;">
+  <div class="modal-sheet" data-modal="modal-timer" style="max-height:78dvh;">
     <div class="modal-handle-row"><div class="modal-handle"></div>
       <button class="modal-close-btn" onclick="closeTimerModal()">✕</button>
     </div>
+    <div class="modal-title">Rest timer</div>
     <div class="toggle-row" style="margin-bottom:20px;">
       <button class="toggle-btn active" id="timer-tog-countdown" onclick="setTimerMode('countdown')">Countdown</button>
       <button class="toggle-btn" id="timer-tog-stopwatch" onclick="setTimerMode('stopwatch')">Stopwatch</button>
@@ -28677,6 +28760,16 @@ function deleteRecipe(id) {
             <div id="picker-sec" style="display:flex;flex-direction:column;align-items:center;cursor:ns-resize;touch-action:none;"></div>
           </div>
         </div>
+      </div>
+      <!-- Preset chips (D11) — new in v8.16. They set the wheel picker rather
+           than starting the timer, so the chosen figure is still visible and
+           adjustable before Start. -->
+      <div id="timer-presets" class="timer-presets">
+        <button class="timer-preset" onclick="setTimerPreset(0,45)">0:45</button>
+        <button class="timer-preset" onclick="setTimerPreset(1,0)">1:00</button>
+        <button class="timer-preset" onclick="setTimerPreset(1,30)">1:30</button>
+        <button class="timer-preset" onclick="setTimerPreset(2,0)">2:00</button>
+        <button class="timer-preset" onclick="setTimerPreset(3,0)">3:00</button>
       </div>
       <div id="timer-display" style="display:none;text-align:center;margin-bottom:24px;">
         <div id="timer-digits" style="font-family:var(--font-display);font-size:64px;font-weight:800;letter-spacing:-0.02em;color:var(--text);line-height:1;"></div>
