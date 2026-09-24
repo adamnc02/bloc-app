@@ -2955,6 +2955,126 @@ html.auth-likely-signed-in #auth-gate { display: none; }
   font-size: 11.5px; font-weight: 500; color: var(--text3); font-variant-numeric: tabular-nums;
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   v8.16 PHASE 6 — SETTINGS
+   Settings keeps its v8.15 groupings and row order exactly; what changes
+   is the language they are drawn in. The rows are the page, so
+   .settings-row carries almost all of it and is redefined once here
+   rather than at each of its call sites.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── The row ─────────────────────────────────────────────────────────── */
+/* Flat: no surface and no border of its own, because every one of these
+   sits inside a .card. A row that brought its own surface would be a card
+   within a card. The dividers come from the sibling rule below, which is a
+   real sibling test — all the rows of a group are children of one card. */
+.settings-row {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 11px 0; min-height: 56px;
+  background: none; border: none; color: var(--text);
+  text-align: left; cursor: pointer;
+  font-family: var(--font-body); font-size: 14.5px; font-weight: 700;
+  -webkit-tap-highlight-color: transparent;
+}
+.settings-row:active { opacity: 0.7; }
+.card > .settings-row + .settings-row,
+.card > .settings-row + label.settings-row { border-top: 1px solid var(--divider); }
+/* The 36px icon tile, the same one .row-btn uses. The svg inside it is
+   sized and stroked here so the 22 call sites carry markup, not styling. */
+.settings-row-icon {
+  width: 36px; height: 36px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface3); border-radius: var(--r-icon-card);
+  color: var(--text2);
+}
+.settings-row-icon svg {
+  width: 17px; height: 17px;
+  stroke: currentColor; fill: none;
+  stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+}
+.settings-row-text { flex: 1; min-width: 0; }
+.settings-row-sub {
+  font-size: 12.5px; font-weight: 500; color: var(--text2);
+  margin-top: 2px; line-height: 1.35;
+}
+/* 🚨 The chevron is opt-in, not automatic. It means "this opens something
+   else"; a row that performs its action there and then (Sign Out, Export,
+   Clear all data) must not carry one, or it promises a screen that never
+   arrives. */
+.settings-row-nav::after {
+  content: '\203A'; margin-left: auto; flex-shrink: 0;
+  color: var(--text3); font-size: 17px; line-height: 1;
+}
+/* Destructive rows. Only Clear all data and Close my account use this, and
+   the icon tile picks the colour up through currentColor. */
+.settings-row-danger, .settings-row-danger .settings-row-icon { color: var(--red); }
+.settings-row-danger .settings-row-icon { background: color-mix(in srgb, var(--red) 12%, transparent); }
+/* The one accent-tinted row on the page (My Recipes), kept from v8.15. */
+.settings-row-accent, .settings-row-accent .settings-row-icon { color: var(--accent2); }
+.settings-row-accent .settings-row-icon { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+
+/* ── The About row ───────────────────────────────────────────────────── */
+/* Alone above the first section, so it is the standalone .row-btn shape
+   rather than an in-card row. The version chip sits in its trailing slot
+   in place of a chevron. */
+.settings-about-row { margin-top: 20px; }
+.settings-about-chip { margin-left: auto; flex-shrink: 0; }
+
+/* ── Sheets ──────────────────────────────────────────────────────────── */
+/* Section headings inside a sheet: quieter than a page's .section-h2,
+   since a sheet is already one topic. Used by Account & Data's three
+   sub-sections, which stay non-collapsible. */
+.sheet-sec {
+  font-family: var(--font-display); font-size: 15px; font-weight: 600;
+  letter-spacing: -0.01em; color: var(--text); margin: 22px 0 4px;
+}
+/* 🚨 NOT :first-of-type. That means "first div among its siblings", and the
+   first div inside a sheet is the handle row — so it would never match here,
+   and in a sheet where it did match it would match every heading that
+   happened to open its own container. An explicit class says what is meant. */
+.sheet-sec-first { margin-top: 4px; }
+.sheet-sec-sub {
+  font-size: 12.5px; font-weight: 500; color: var(--text2);
+  line-height: 1.45; margin-bottom: 10px;
+}
+.sheet-sec-note { font-size: 11.5px; font-weight: 500; color: var(--text3); margin: -6px 0 10px; }
+/* A stacked-choice sheet (Export data, Restore data, Export to cloud): the
+   icon + title + subtitle row pattern, one card, Cancel last. Each choice
+   needs its subtitle — "Local file" and "Cloud" alone do not say which one
+   overwrites what. */
+.choice-cancel { margin-top: 12px; }
+/* 🚨 Change Password's two inputs are mounted on open by
+   mountPasswordField(), which uses insertAdjacentHTML('afterbegin') — so
+   the input lands BEFORE the label in the DOM and the label rendered under
+   its own field. The mount helper is shared with the auth gate, whose
+   design is not being touched, so the order is corrected here instead of in
+   the JS. Reordering, not reflowing: the DOM is untouched. */
+#change-password-new-wrap, #change-password-confirm-wrap { display: flex; flex-direction: column; }
+#change-password-new-wrap .label, #change-password-confirm-wrap .label { order: -1; }
+
+/* The form-field label, across all 140 of its call sites. It is the one
+   place a sheet's field labels are defined, so it is redefined here rather
+   than restated per sheet. */
+.label {
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  margin-bottom: 7px;
+}
+/* The explanatory line UNDER a field, as opposed to .label above it. */
+.field-hint { font-size: 11.5px; font-weight: 500; color: var(--text3); margin-top: 5px; line-height: 1.4; }
+/* The storage read-out in About This App. */
+.about-stat-row {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: 11px 0; font-size: 13.5px; font-weight: 500; color: var(--text2);
+}
+.card > .about-stat-row + .about-stat-row { border-top: 1px solid var(--divider); }
+.about-stat-val {
+  font-family: var(--font-display); font-size: 15px; font-weight: 600;
+  color: var(--text); font-variant-numeric: tabular-nums;
+}
+
 </style>
 <script>
 // ── Real viewport height fix ───────────────────────────────────
@@ -3662,41 +3782,62 @@ try {
            bar is not rendered here at all, so this back link is the ONLY way
            out. Do not remove it, and do not rely on the nav returning. -->
       <button class="back-link" onclick="showScreen('home')">&#8249; Home</button>
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div class="section-title" style="margin-top:0;">Settings</div>
-        <button id="settings-help-btn" onclick="openTourHelpModal()" aria-label="Help"
-          style="width:30px;height:30px;border-radius:50%;border:1px solid var(--border2);background:transparent;color:var(--text2);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;flex-shrink:0;">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <div class="page-head">
+        <div class="page-head-text">
+          <div class="page-eyebrow">Your app</div>
+          <h1 class="page-h1">Settings</h1>
+        </div>
+        <button class="icon-btn icon-btn-card" id="settings-help-btn" onclick="openTourHelpModal()" aria-label="Help">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         </button>
       </div>
 
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 2px;border-bottom:1px solid var(--border);margin-bottom:16px;cursor:pointer;" onclick="openModal('modal-settings-about')">
-        <span style="font-size:13px;color:var(--text2);">BLOC Training App</span>
-        <span class="tag tag-outline">v8.16</span>
-      </div>
-
-      <!-- ── Profile section ── -->
-      <div style="margin-bottom:20px;">
-        <div onclick="toggleSettingsCard('profile')" style="padding-bottom:8px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent;">
-          <div class="section-title" style="margin:0;">Profile</div>
-          <svg id="settings-card-chevron-profile" viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(180deg)"><polyline points="6 9 12 15 18 9"/></svg>
+      <!-- The About row sits alone above the first group, so it is the
+           standalone .row-btn shape rather than an in-card row. The version
+           chip takes the trailing slot instead of a chevron. -->
+      <button class="row-btn settings-about-row" onclick="openModal('modal-settings-about')">
+        <div class="row-btn-icon">
+          <svg viewBox="0 0 24 24" width="17" height="17" style="stroke:var(--text2);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
         </div>
-        <div id="settings-card-body-profile">
-          <div class="settings-row" onclick="openModal('modal-app-preferences')">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-            <span>App preferences</span>
+        <div class="row-btn-text">
+          <div class="row-btn-title">BLOC Training App</div>
+          <div class="row-btn-sub">What is stored on this device.</div>
+        </div>
+        <span class="tag tag-outline settings-about-chip">v8.16</span>
+      </button>
+
+      <!-- ── Profile ──────────────────────────────────────────────────
+           🚨 v8.16 — the three groups are always open. They were
+           collapsible cards in v8.15; there is no toggle and no chevron on
+           a group heading now, and a chevron on a ROW means that row opens
+           a sheet. -->
+      <div class="section rise">
+        <div class="section-head"><h2 class="section-h2">Profile</h2></div>
+        <div class="section-sub">You, your body history, and the services BLOC connects to.</div>
+        <div class="card">
+          <div class="settings-row settings-row-nav" onclick="openModal('modal-app-preferences')">
+            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+            <div class="settings-row-text">App preferences
+              <div class="settings-row-sub">Dark or light mode, and distance units.</div>
+            </div>
           </div>
-          <div class="settings-row" onclick="openBodyProfile()">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0 1 16 0v1"/></svg>
-            <span>About me</span>
+          <div class="settings-row settings-row-nav" onclick="openBodyProfile()">
+            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0 1 16 0v1"/></svg></div>
+            <div class="settings-row-text">About me
+              <div class="settings-row-sub">Height, birthday and the details your targets are built from.</div>
+            </div>
           </div>
-          <div class="settings-row" onclick="openSettingsBodyLogs()">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><circle cx="12" cy="7" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>
-            <span>Body logs</span>
+          <div class="settings-row settings-row-nav" onclick="openSettingsBodyLogs()">
+            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg></div>
+            <div class="settings-row-text">Body logs
+              <div class="settings-row-sub">Every weight and measurement you have logged.</div>
+            </div>
           </div>
-          <div class="settings-row" onclick="openModal('modal-linked-services')">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-            <span>Linked services</span>
+          <div class="settings-row settings-row-nav" onclick="openModal('modal-linked-services')">
+            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
+            <div class="settings-row-text">Linked services
+              <div class="settings-row-sub">The Anthropic API key that powers the BLOC AI features.</div>
+            </div>
           </div>
           <!-- Account (Phase 5, v8.03) — Supabase auth account info + sign out.
                Kept as its own row rather than folded into Linked Services,
@@ -3704,67 +3845,83 @@ try {
                third-party integration. Renamed "Account & Data" (v8.06)
                when Export/Restore/Download/Delete/Clear all moved into
                this modal from the old standalone Data & Backup section.-->
-          <div class="settings-row" style="border-bottom:none;" onclick="openModal('modal-account')">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            <span>Account &amp; Data</span>
+          <div class="settings-row settings-row-nav" onclick="openModal('modal-account')">
+            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+            <div class="settings-row-text">Account &amp; Data
+              <div class="settings-row-sub">Sign in details, backup, restore and closing your account.</div>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- ── Nutrition section ── -->
-      <div style="margin-bottom:20px;">
-        <div onclick="toggleSettingsCard('nutrition')" style="padding-bottom:8px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent;">
-          <div class="section-title" style="margin:0;">Nutrition</div>
-          <svg id="settings-card-chevron-nutrition" viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(180deg)"><polyline points="6 9 12 15 18 9"/></svg>
-        </div>
-        <div id="settings-card-body-nutrition">
-          <div class="settings-row" style="color:var(--accent2);background:color-mix(in srgb, var(--accent) 10%, transparent);border-radius:var(--r-sm);padding-left:8px;padding-right:8px;margin:0 -8px 2px;" onclick="openRecipeList()">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-            <span style="font-weight:500;">My Recipes</span>
+      <!-- ── Nutrition ────────────────────────────────────────────────── -->
+      <div class="section rise">
+        <div class="section-head"><h2 class="section-h2">Nutrition</h2></div>
+        <div class="section-sub">Your recipes, saved days and the food library behind them.</div>
+        <div class="card">
+          <div class="settings-row settings-row-nav settings-row-accent" onclick="openRecipeList()">
+            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div>
+            <div class="settings-row-text">My Recipes
+              <div class="settings-row-sub">Build a recipe once, then log it in a tap.</div>
+            </div>
           </div>
-          <div class="settings-row" onclick="openProfileNutrition()">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-            <span>Sample libraries</span>
+          <div class="settings-row settings-row-nav" onclick="openProfileNutrition()">
+            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div>
+            <div class="settings-row-text">Sample libraries
+              <div class="settings-row-sub">The days you saved to fill a future one from.</div>
+            </div>
           </div>
-          <div class="settings-row" onclick="openFoodLibraryEditor()">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            <span>View / edit library</span>
+          <div class="settings-row settings-row-nav" onclick="openFoodLibraryEditor()">
+            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>
+            <div class="settings-row-text">View / edit library
+              <div class="settings-row-sub">Every food BLOC knows, with its per-100g numbers.</div>
+            </div>
           </div>
           <div class="settings-row" onclick="exportFoodLibrary()">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            <span>Export food library</span>
+            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+            <div class="settings-row-text">Export food library
+              <div class="settings-row-sub">Downloads the library as a JSON file.</div>
+            </div>
           </div>
-          <label class="settings-row" style="cursor:pointer;">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            <span>Import food library</span>
+          <label class="settings-row">
+            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+            <div class="settings-row-text">Import food library
+              <div class="settings-row-sub">Merges an exported library file into this one.</div>
+            </div>
             <input type="file" accept=".json,application/json" style="display:none;" onchange="importFoodLibrary(this.files[0]);this.value='';">
           </label>
-          <label class="settings-row" style="cursor:pointer;border-bottom:none;">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            <span>Import recipe</span>
+          <label class="settings-row">
+            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+            <div class="settings-row-text">Import recipe
+              <div class="settings-row-sub">Adds a single recipe someone shared with you.</div>
+            </div>
             <input type="file" accept=".json,application/json" style="display:none;" onchange="importSharedFoodItem(this.files[0]);this.value='';">
           </label>
         </div>
       </div>
 
-      <!-- ── Exercise section ── -->
-      <div style="margin-bottom:20px;">
-        <div onclick="toggleSettingsCard('exercise')" style="padding-bottom:8px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent;">
-          <div class="section-title" style="margin:0;">Exercise</div>
-          <svg id="settings-card-chevron-exercise" viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(180deg)"><polyline points="6 9 12 15 18 9"/></svg>
-        </div>
-        <div id="settings-card-body-exercise">
-          <div class="settings-row" onclick="openExerciseLibraryEditor()">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            <span>View / edit library</span>
+      <!-- ── Exercise ─────────────────────────────────────────────────── -->
+      <div class="section rise">
+        <div class="section-head"><h2 class="section-h2">Exercise</h2></div>
+        <div class="section-sub">The movements available when you build a session.</div>
+        <div class="card">
+          <div class="settings-row settings-row-nav" onclick="openExerciseLibraryEditor()">
+            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>
+            <div class="settings-row-text">View / edit library
+              <div class="settings-row-sub">Every exercise, its body part and its tracking type.</div>
+            </div>
           </div>
           <div class="settings-row" onclick="exportLibrary()">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            <span>Export</span>
+            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+            <div class="settings-row-text">Export
+              <div class="settings-row-sub">Downloads the exercise library as a JSON file.</div>
+            </div>
           </div>
-          <label class="settings-row" style="cursor:pointer;border-bottom:none;">
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            <span>Import</span>
+          <label class="settings-row">
+            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+            <div class="settings-row-text">Import
+              <div class="settings-row-sub">Merges an exported exercise library into this one.</div>
+            </div>
             <input type="file" accept=".json,application/json" style="display:none;" onchange="importExerciseLibrary(this.files[0]);this.value='';">
           </label>
         </div>
@@ -4573,7 +4730,7 @@ try {
          active — hidden the rest of the time, when this is just the
          ordinary Settings → About me editor. Copy from
          bloc-onboarding-tour-scope-v2.md §10.1. -->
-    <div id="profile-gate-explainer" style="display:none;font-size:12px;color:var(--text2);line-height:1.5;margin:-8px 0 16px;">
+    <div id="profile-gate-explainer" class="modal-sub" style="display:none;">
       Your gender, height, and date of birth power BLOC's calorie and macro calculations throughout the app. These stay on your device even if you clear your data later.
     </div>
 
@@ -4585,65 +4742,60 @@ try {
          Surname aren't shown anywhere in the UI yet, they exist for the
          profiles table / any future coach-app context. -->
     <div class="form-group">
-      <div class="label">First Name</div>
-      <input type="text" id="profile-first-name" autocomplete="given-name" style="font-size:15px;width:100%;box-sizing:border-box;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+      <div class="label">First name</div>
+      <input type="text" id="profile-first-name" autocomplete="given-name">
     </div>
     <div class="form-group">
       <div class="label">Surname</div>
-      <input type="text" id="profile-surname" autocomplete="family-name" style="font-size:15px;width:100%;box-sizing:border-box;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+      <input type="text" id="profile-surname" autocomplete="family-name">
     </div>
     <div class="form-group">
-      <div class="label">Preferred Name</div>
-      <input type="text" id="profile-preferred-name" autocomplete="nickname" placeholder="What should BLOC call you?" style="font-size:15px;width:100%;box-sizing:border-box;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
-      <div style="font-size:11px;color:var(--text3);margin-top:4px;">Used for "Welcome back" on Home</div>
+      <div class="label">Preferred name</div>
+      <input type="text" id="profile-preferred-name" autocomplete="nickname" placeholder="What should BLOC call you?">
+      <div class="field-hint">Used for "Welcome back" on Home.</div>
     </div>
 
-    <!-- Gender -->
+    <!-- Gender — the same two-up selectable card the Train page uses, so a
+         chosen option reads the same way everywhere in the app. -->
     <div class="form-group">
       <div class="label">Gender</div>
-      <div style="display:flex;gap:8px;">
-        <button id="profile-btn-male" onclick="selectProfileGender('male')"
-          style="flex:1;padding:12px;border-radius:var(--r-sm);border:1.5px solid var(--border2);background:var(--surface2);color:var(--text);font-size:18px;cursor:pointer;transition:all .15s;">
-          ♂ Male
+      <div class="ex-chips" style="margin-top:0;">
+        <button class="ex-chip" id="profile-btn-male" onclick="selectProfileGender('male')">
+          <div class="ex-chip-title">&#9794; Male</div>
         </button>
-        <button id="profile-btn-female" onclick="selectProfileGender('female')"
-          style="flex:1;padding:12px;border-radius:var(--r-sm);border:1.5px solid var(--border2);background:var(--surface2);color:var(--text);font-size:18px;cursor:pointer;transition:all .15s;">
-          ♀ Female
+        <button class="ex-chip" id="profile-btn-female" onclick="selectProfileGender('female')">
+          <div class="ex-chip-title">&#9792; Female</div>
         </button>
       </div>
     </div>
 
     <!-- Height -->
     <div class="form-group">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-        <div class="label" style="margin-bottom:0;">Height</div>
-        <div style="display:flex;gap:0;border:1px solid var(--border2);border-radius:var(--r-sm);overflow:hidden;">
-          <button id="profile-unit-ftin" onclick="switchHeightUnit('ftin')"
-            style="padding:4px 10px;background:var(--surface2);color:var(--text2);border:none;font-size:11px;cursor:pointer;font-family:var(--font-mono);">ft/in</button>
-          <button id="profile-unit-cm" onclick="switchHeightUnit('cm')"
-            style="padding:4px 10px;background:var(--surface2);color:var(--text2);border:none;font-size:11px;cursor:pointer;font-family:var(--font-mono);">cm</button>
-        </div>
+      <div class="label">Height</div>
+      <div class="toggle-row" style="margin-bottom:10px;">
+        <button class="toggle-btn" id="profile-unit-ftin" onclick="switchHeightUnit('ftin')">ft / in</button>
+        <button class="toggle-btn" id="profile-unit-cm" onclick="switchHeightUnit('cm')">cm</button>
       </div>
       <div id="profile-height-ftin" style="display:flex;gap:8px;">
         <div style="flex:1;">
-          <input type="number" inputmode="numeric" id="profile-feet" min="3" max="8" placeholder="5" style="width:100%;box-sizing:border-box;font-size:15px;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
-          <div style="font-size:11px;color:var(--text3);text-align:center;margin-top:3px;">feet</div>
+          <input type="number" inputmode="numeric" id="profile-feet" min="3" max="8" placeholder="5">
+          <div class="field-hint" style="text-align:center;">feet</div>
         </div>
         <div style="flex:1;">
-          <input type="number" inputmode="numeric" id="profile-inches" min="0" max="11" placeholder="10" style="width:100%;box-sizing:border-box;font-size:15px;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
-          <div style="font-size:11px;color:var(--text3);text-align:center;margin-top:3px;">inches</div>
+          <input type="number" inputmode="numeric" id="profile-inches" min="0" max="11" placeholder="10">
+          <div class="field-hint" style="text-align:center;">inches</div>
         </div>
       </div>
       <div id="profile-height-cm" style="display:none;">
-        <input type="number" inputmode="decimal" id="profile-cm" min="100" max="250" placeholder="178" style="width:100%;box-sizing:border-box;font-size:15px;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
-        <div style="font-size:11px;color:var(--text3);margin-top:3px;">cm</div>
+        <input type="number" inputmode="decimal" id="profile-cm" min="100" max="250" placeholder="178">
+        <div class="field-hint">cm</div>
       </div>
     </div>
 
     <!-- Birthday -->
     <div class="form-group">
-      <div class="label">Date of Birth</div>
-      <input type="date" id="profile-birthday" style="font-size:15px;width:100%;box-sizing:border-box;">
+      <div class="label">Date of birth</div>
+      <input type="date" id="profile-birthday">
     </div>
 
     <!-- Country — added Phase 4 (v8.02): scopes AI Meal Photo Logging's
@@ -4652,14 +4804,14 @@ try {
          gate's required fields — optional, defaults unset. -->
     <div class="form-group">
       <div class="label">Country</div>
-      <select id="profile-country" style="font-size:15px;width:100%;box-sizing:border-box;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
+      <select id="profile-country">
         <option value="">Not set</option>
       </select>
-      <div style="font-size:11px;color:var(--text3);margin-top:4px;">Used to scope restaurant menu lookups in AI Meal Photo Logging</div>
+      <div class="field-hint">Scopes restaurant menu lookups when you log a meal from a photo.</div>
     </div>
 
-    <button class="btn btn-accent btn-block" onclick="saveBodyProfile()">Save Profile →</button>
-    <div id="profile-gate-error" style="display:none;font-size:11px;color:var(--red);margin-top:8px;text-align:center;">Please fill in all three fields to continue.</div>
+    <button class="btn btn-accent btn-block" onclick="saveBodyProfile()">Save profile &rarr;</button>
+    <div id="profile-gate-error" style="display:none;font-size:12px;color:var(--red);margin-top:10px;text-align:center;">Please fill in all three fields to continue.</div>
   </div>
 </div>
 
@@ -5177,19 +5329,20 @@ try {
   <div class="modal-sheet" data-modal="modal-app-preferences">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-app-preferences')">✕</button></div>
     <div class="modal-title">App Preferences</div>
+    <div class="modal-sub">How the app looks, and the units it measures cardio in.</div>
 
-    <div class="card" style="margin-bottom:10px;">
-      <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Mode</div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Dark is the default. Light reverses the app into a blue-tinted light scheme.</div>
+    <div class="card">
+      <div class="label">Mode</div>
+      <div class="settings-row-sub" style="margin:-3px 0 12px;">Dark is the default. Light reverses the app into a blue-tinted light scheme.</div>
       <div class="toggle-row" id="mode-toggle-row" style="margin-bottom:0;">
         <button class="toggle-btn active" data-mode="dark" onclick="setMode('dark')">Dark</button>
         <button class="toggle-btn" data-mode="light" onclick="setMode('light')">Light</button>
       </div>
     </div>
 
-    <div class="card" style="margin-bottom:10px;">
-      <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:6px;">Distance Units</div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Used for cardio exercises (run, bike, row, etc). Miles gives a single unit; Km also lets you choose Metres per exercise for shorter distances.</div>
+    <div class="card">
+      <div class="label">Distance units</div>
+      <div class="settings-row-sub" style="margin:-3px 0 12px;">Used for cardio exercises (run, bike, row, etc). Miles gives a single unit; Km also lets you choose Metres per exercise for shorter distances.</div>
       <div class="toggle-row" id="distance-unit-toggle-row" style="margin-bottom:0;">
         <button class="toggle-btn active" data-unit="km" onclick="setDistanceUnitPref('km')">Km / Metres</button>
         <button class="toggle-btn" data-unit="mi" onclick="setDistanceUnitPref('mi')">Miles</button>
@@ -5203,10 +5356,15 @@ try {
   <div class="modal-sheet" data-modal="modal-linked-services">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-linked-services')">✕</button></div>
     <div class="modal-title">Linked Services</div>
-    <button class="lib-primary-btn" style="width:100%;" onclick="openModal('modal-api-key')">
-      <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-      API Key
-    </button>
+    <div class="modal-sub">Outside services BLOC can talk to. Everything here is optional.</div>
+    <div class="card">
+      <div class="settings-row settings-row-nav" onclick="openModal('modal-api-key')">
+        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
+        <div class="settings-row-text">Anthropic API key
+          <div class="settings-row-sub">Powers the check-in, cycle review, next-cycle advice and photo logging.</div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -5232,70 +5390,95 @@ try {
          are plain rows like every other section, per Adam's explicit call. -->
 
     <!-- ── Account ── -->
-    <div class="section-title" style="margin-top:0;">Account</div>
-    <div style="padding:4px 2px 12px;">
-      <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:2px;" id="account-email-display">—</div>
-      <div style="font-size:12px;color:var(--text2);line-height:1.5;" id="account-provider-display"></div>
-    </div>
-    <!-- Email/password accounts only — OAuth accounts have no BLOC-side
-         password to change, Google/Apple/Microsoft manage that
-         themselves. Hidden by default; shown by updateAccountUI() when
-         the signed-in session's provider is 'email'. -->
-    <div class="settings-row" id="account-change-password-btn" style="display:none;" onclick="openChangePassword()">
-      <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-      <span>Change password</span>
-    </div>
-    <div class="settings-row" style="border-bottom:none;" onclick="signOutUser()">
-      <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-      <span>Sign Out</span>
+    <div class="sheet-sec sheet-sec-first">Account</div>
+    <div class="card">
+      <div style="padding:4px 0 12px;">
+        <div style="font-family:var(--font-display);font-size:16px;font-weight:600;letter-spacing:-0.01em;" id="account-email-display">—</div>
+        <div class="settings-row-sub" id="account-provider-display"></div>
+      </div>
+      <!-- Email/password accounts only — OAuth accounts have no BLOC-side
+           password to change, Google/Apple/Microsoft manage that
+           themselves. Hidden by default; shown by updateAccountUI() when
+           the signed-in session's provider is 'email'. -->
+      <div class="settings-row settings-row-nav" id="account-change-password-btn" style="display:none;" onclick="openChangePassword()">
+        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+        <div class="settings-row-text">Change password
+          <div class="settings-row-sub">Sets a new password for this email account.</div>
+        </div>
+      </div>
+      <div class="settings-row" onclick="signOutUser()">
+        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></div>
+        <div class="settings-row-text">Sign out
+          <div class="settings-row-sub">Leaves your data on this device.</div>
+        </div>
+      </div>
     </div>
 
     <!-- ── Backup ── -->
-    <div class="section-title">Backup</div>
-    <div style="font-size:12px;color:var(--text2);margin:-2px 2px 4px;">Save or restore a complete snapshot of all your plans, logs, and nutrition data.</div>
-    <div style="font-size:11px;color:var(--text3);margin:0 2px 8px;" id="account-last-backup-display">No cloud backup yet</div>
-    <div class="settings-row" onclick="openModal('modal-backup-export-choice')">
-      <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      <span>Export</span>
-    </div>
-    <div class="settings-row" style="border-bottom:none;" onclick="openModal('modal-backup-restore-choice')">
-      <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-      <span>Restore</span>
+    <div class="sheet-sec">Backup</div>
+    <div class="sheet-sec-sub">Save or restore a complete snapshot of all your plans, logs and nutrition data.</div>
+    <div class="sheet-sec-note" id="account-last-backup-display">No cloud backup yet</div>
+    <div class="card">
+      <div class="settings-row settings-row-nav" onclick="openModal('modal-backup-export-choice')">
+        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+        <div class="settings-row-text">Export
+          <div class="settings-row-sub">To a local file, or to your account in the cloud.</div>
+        </div>
+      </div>
+      <div class="settings-row settings-row-nav" onclick="openModal('modal-backup-restore-choice')">
+        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+        <div class="settings-row-text">Restore
+          <div class="settings-row-sub">Replaces everything on this device.</div>
+        </div>
+      </div>
     </div>
 
     <!-- ── Data ── -->
-    <div class="section-title">Data</div>
-    <div style="font-size:12px;color:var(--text2);margin:-2px 2px 4px;">Clearing only resets this device. Downloading, deleting, or closing your account acts on your account's server-side data.</div>
-    <div class="settings-row" id="settings-download-my-data-btn" onclick="handleDownloadMyData()">
-      <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-      <span>Download my data</span>
+    <div class="sheet-sec">Data</div>
+    <div class="sheet-sec-sub">Clearing only resets this device. Downloading, deleting or closing your account acts on your account's server-side data.</div>
+    <div class="card">
+      <div class="settings-row" id="settings-download-my-data-btn" onclick="handleDownloadMyData()">
+        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
+        <div class="settings-row-text">Download my data
+          <div class="settings-row-sub">Everything held against your account, as a file.</div>
+        </div>
+      </div>
+      <div class="settings-row" onclick="handleDeleteMyData()">
+        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></div>
+        <div class="settings-row-text">Delete my data
+          <div class="settings-row-sub">Erases your server-side data. The account stays open.</div>
+        </div>
+      </div>
+      <!-- 🚨 Only these two rows are red, and Close my account is last.
+           Download and Delete are plain rows like any other. -->
+      <div class="settings-row settings-row-danger" onclick="clearAllData()">
+        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
+        <div class="settings-row-text">Clear all data
+          <div class="settings-row-sub">Resets this device only. Your account is untouched.</div>
+        </div>
+      </div>
+      <!-- Close my account (v8.09) — genuinely different from Delete my data
+           above: that wipes relational data but leaves auth.users intact
+           (the account stays open, usable, signed in). This files a
+           one-way closure request (account_closure_requests — insert-only,
+           nothing in the app can read/update/delete it afterward), erases
+           relational data immediately via the same gdpr_erase_user_data()
+           RPC Delete my data uses, then — unlike Delete my data — signs out
+           and resets the device, landing back on the auth gate rather than
+           a fresh-account state, since the account technically still works
+           until the request is processed manually with the service_role
+           key. See handleCloseAccount(). Placed last, at the bottom of
+           Data. -->
+      <div class="settings-row settings-row-danger" onclick="handleCloseAccount()">
+        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="18" y1="8" x2="23" y2="13"/><line x1="23" y1="8" x2="18" y2="13"/></svg></div>
+        <div class="settings-row-text">Close my account
+          <div class="settings-row-sub">Files a closure request, erases your data and signs you out.</div>
+        </div>
+      </div>
     </div>
-    <div class="settings-row" onclick="handleDeleteMyData()">
-      <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-      <span>Delete my data</span>
-    </div>
-    <div id="settings-data-zone-status" style="font-size:12px;margin:4px 2px 8px;text-align:center;display:none;"></div>
-    <div class="settings-row" style="color:var(--red);" onclick="clearAllData()">
-      <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--red);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-      <span>Clear all data</span>
-    </div>
-    <!-- Close my account (v8.09) — genuinely different from Delete my data
-         above: that wipes relational data but leaves auth.users intact
-         (the account stays open, usable, signed in). This files a
-         one-way closure request (account_closure_requests — insert-only,
-         nothing in the app can read/update/delete it afterward), erases
-         relational data immediately via the same gdpr_erase_user_data()
-         RPC Delete my data uses, then — unlike Delete my data — signs out
-         and resets the device, landing back on the auth gate rather than
-         a fresh-account state, since the account technically still works
-         until Adam processes the request manually with the service_role
-         key. See handleCloseAccount()/ACCOUNT-CLOSURE-SCOPE.md. Placed
-         last, per Adam's explicit instruction to put it at the bottom of
-         Data. -->
-    <div class="settings-row" style="border-bottom:none;color:var(--red);" onclick="handleCloseAccount()">
-      <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--red);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="18" y1="8" x2="23" y2="13"/><line x1="23" y1="8" x2="18" y2="13"/></svg>
-      <span>Close my account</span>
-    </div>
+    <!-- Status line for Download my data / Delete my data. Sits below the
+         card because both handlers write into it. -->
+    <div id="settings-data-zone-status" style="font-size:12.5px;margin:4px 2px 0;text-align:center;display:none;"></div>
   </div>
 </div>
 
@@ -5309,19 +5492,20 @@ try {
   <div class="modal-sheet" data-modal="modal-change-password">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-change-password')">✕</button></div>
     <div class="modal-title">Change Password</div>
+    <div class="modal-sub">Sets a new password for signing in to BLOC on any device.</div>
     <!-- Real <form> (display:contents — see the auth-gate form above and
          TECHNICAL.md §60) so Safari scopes its password AutoFill to just
          these two fields instead of the whole unwrapped page. -->
     <form style="display:contents" onsubmit="return false;">
       <div class="form-group" id="change-password-new-wrap">
-        <div class="label">New Password</div>
+        <div class="label">New password</div>
       </div>
       <div class="form-group" id="change-password-confirm-wrap">
-        <div class="label">Confirm New Password</div>
+        <div class="label">Confirm new password</div>
       </div>
-      <button class="btn btn-accent btn-block" id="change-password-submit-btn" onclick="submitChangePassword()">Update Password</button>
+      <button class="btn btn-accent btn-block" id="change-password-submit-btn" onclick="submitChangePassword()">Update password</button>
     </form>
-    <div id="change-password-status" style="font-size:12px;margin-top:10px;text-align:center;display:none;"></div>
+    <div id="change-password-status" style="font-size:12.5px;margin-top:10px;text-align:center;display:none;"></div>
   </div>
 </div>
 
@@ -5333,9 +5517,22 @@ try {
   <div class="modal-sheet" data-modal="modal-backup-export-choice">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-backup-export-choice')">✕</button></div>
     <div class="modal-title">Export data</div>
-    <div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:14px;">Save a complete snapshot of all your plans, logs, and nutrition data.</div>
-    <button class="lib-primary-btn" style="width:100%;margin-bottom:8px;" onclick="closeModal('modal-backup-export-choice');exportData()">Local file</button>
-    <button class="lib-primary-btn" style="width:100%;" onclick="closeModal('modal-backup-export-choice');openModal('modal-backup-export-cloud-choice')">Cloud</button>
+    <div class="modal-sub">Save a complete snapshot of all your plans, logs and nutrition data.</div>
+    <div class="card">
+      <div class="settings-row" onclick="closeModal('modal-backup-export-choice');exportData()">
+        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+        <div class="settings-row-text">Local file
+          <div class="settings-row-sub">Downloads a JSON file to this device. Nothing leaves it.</div>
+        </div>
+      </div>
+      <div class="settings-row settings-row-nav" onclick="closeModal('modal-backup-export-choice');openModal('modal-backup-export-cloud-choice')">
+        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></div>
+        <div class="settings-row-text">Cloud
+          <div class="settings-row-sub">Stores a dated snapshot against your account.</div>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-ghost btn-block choice-cancel" onclick="closeModal('modal-backup-export-choice')">Cancel</button>
   </div>
 </div>
 
@@ -5346,10 +5543,29 @@ try {
   <div class="modal-sheet" data-modal="modal-backup-export-cloud-choice">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-backup-export-cloud-choice')">✕</button></div>
     <div class="modal-title">Export to cloud</div>
-    <div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:14px;">Backup file saves a dated snapshot. Full sync does that and refreshes every relational table used by future coach/progress features.</div>
-    <button class="lib-primary-btn" style="width:100%;margin-bottom:8px;" id="backup-export-file-btn" onclick="handleBackupNow('backup-export-file-btn','backup-export-cloud-status')">Backup file</button>
-    <button class="lib-primary-btn" style="width:100%;" id="backup-export-fullsync-btn" onclick="handleFullCloudSync('backup-export-fullsync-btn','backup-export-cloud-status')">Full sync</button>
-    <div id="backup-export-cloud-status" style="font-size:12px;margin-top:10px;text-align:center;display:none;"></div>
+    <div class="modal-sub">Both write to your account. Neither one changes anything on this device.</div>
+    <div class="card">
+      <!-- 🚨 Real <button> elements, not divs. Both handlers set
+           btn.disabled while the upload is in flight, which is what stops a
+           second tap firing a second upload — and `disabled` is inert on a
+           div. They also swap textContent for a progress label and restore
+           innerHTML afterwards, so the row flattens to one line mid-flight
+           and comes back; that is the v8.15 behaviour, unchanged. -->
+      <button class="settings-row" id="backup-export-file-btn" onclick="handleBackupNow('backup-export-file-btn','backup-export-cloud-status')">
+        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+        <div class="settings-row-text">Backup file
+          <div class="settings-row-sub">Saves one dated snapshot you can restore from later.</div>
+        </div>
+      </button>
+      <button class="settings-row" id="backup-export-fullsync-btn" onclick="handleFullCloudSync('backup-export-fullsync-btn','backup-export-cloud-status')">
+        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></div>
+        <div class="settings-row-text">Full sync
+          <div class="settings-row-sub">Saves the snapshot and refreshes every relational table too.</div>
+        </div>
+      </button>
+    </div>
+    <div id="backup-export-cloud-status" style="font-size:12.5px;margin-top:10px;text-align:center;display:none;"></div>
+    <button class="btn btn-ghost btn-block choice-cancel" onclick="closeModal('modal-backup-export-cloud-choice')">Cancel</button>
   </div>
 </div>
 
@@ -5362,13 +5578,26 @@ try {
   <div class="modal-sheet" data-modal="modal-backup-restore-choice">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-backup-restore-choice')">✕</button></div>
     <div class="modal-title">Restore data</div>
-    <div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:14px;">Restoring — from either source — replaces everything currently on this device.</div>
-    <label class="lib-primary-btn" style="width:100%;margin-bottom:8px;cursor:pointer;">
-      Local file
-      <input type="file" accept=".json,application/json" style="display:none;" onchange="importData(event)">
-    </label>
-    <button class="lib-primary-btn" style="width:100%;" onclick="closeModal('modal-backup-restore-choice');openRestorePicker()">Cloud</button>
-    <div id="import-status" style="font-size:12px;margin-top:10px;text-align:center;"></div>
+    <div class="modal-sub">Restoring — from either source — replaces everything currently on this device.</div>
+    <div class="card">
+      <label class="settings-row">
+        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+        <div class="settings-row-text">Local file
+          <div class="settings-row-sub">Pick a JSON backup from this device.</div>
+        </div>
+        <input type="file" accept=".json,application/json" style="display:none;" onchange="importData(event)">
+      </label>
+      <div class="settings-row settings-row-nav" onclick="closeModal('modal-backup-restore-choice');openRestorePicker()">
+        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></div>
+        <div class="settings-row-text">Cloud
+          <div class="settings-row-sub">Choose from the dated snapshots on your account.</div>
+        </div>
+      </div>
+    </div>
+    <!-- Stays inline in this sheet rather than auto-closing, so feedback on a
+         bad file is actually visible. Same element id since v8.05. -->
+    <div id="import-status" style="font-size:12.5px;margin-top:10px;text-align:center;"></div>
+    <button class="btn btn-ghost btn-block choice-cancel" onclick="closeModal('modal-backup-restore-choice')">Cancel</button>
   </div>
 </div>
 
@@ -5380,8 +5609,8 @@ try {
   <div class="modal-sheet" data-modal="modal-restore-picker">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-restore-picker')">✕</button></div>
     <div class="modal-title">Restore from a snapshot</div>
-    <div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:8px;">This replaces everything on this device with the chosen snapshot. It can't be undone locally.</div>
-    <div id="restore-picker-last-backup" style="font-size:11px;color:var(--text3);margin-bottom:12px;"></div>
+    <div class="modal-sub">This replaces everything on this device with the chosen snapshot. It can't be undone locally.</div>
+    <div id="restore-picker-last-backup" class="sheet-sec-note"></div>
     <div id="restore-picker-list" style="display:flex;flex-direction:column;gap:8px;"></div>
   </div>
 </div>
@@ -5398,9 +5627,7 @@ try {
   <div class="modal-sheet" data-modal="modal-snapshot-zero">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-snapshot-zero')">✕</button></div>
     <div class="modal-title">Existing data found</div>
-    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px;">
-      This device already has BLOC data on it. It'll stay right here and keep working exactly as before — once cloud sync is switched on, it'll automatically become this account's starting dataset. Nothing is uploaded or changed today.
-    </div>
+    <div class="modal-sub">This device already has BLOC data on it. It'll stay right here and keep working exactly as before — once cloud sync is switched on, it'll automatically become this account's starting dataset. Nothing is uploaded or changed today.</div>
     <button class="btn btn-accent btn-block" onclick="closeModal('modal-snapshot-zero')">Got it</button>
   </div>
 </div>
@@ -5410,9 +5637,10 @@ try {
   <div class="modal-sheet" data-modal="modal-api-key">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-api-key')">✕</button></div>
     <div class="modal-title">Anthropic API Key</div>
+    <div class="modal-sub">Optional, and stored only on this device. It powers the check-in, cycle review, next-cycle advice and photo meal logging.</div>
     <div class="card">
-      <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:4px;">Anthropic API key</div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.5;">Optional. Enables the "Ask BLOC for advice" feature on the Progress page. Stored only on this device. Get a key at <span style="color:var(--accent);">console.anthropic.com</span> — billed separately from Claude Pro, but each call costs under $0.01.</div>
+      <div class="label">Your key</div>
+      <div class="settings-row-sub" style="margin:-3px 0 12px;">Get one at <span style="color:var(--accent2);">console.anthropic.com</span>. It is billed separately from Claude Pro, at under $0.01 a call.</div>
       <!-- Real <form> (display:contents — see TECHNICAL.md §60) for the same
            autofill-scoping reason as the auth-gate and Change Password
            forms, even though this field is type="password" only to mask
@@ -5446,8 +5674,9 @@ try {
   <div class="modal-sheet" data-modal="modal-settings-about">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-settings-about')">✕</button></div>
     <div class="modal-title">About This App</div>
+    <div class="modal-sub">BLOC Training App, version 8.16. Everything below is held on this device.</div>
     <div class="card">
-      <div id="storage-info" style="font-size:13px;color:var(--text2);line-height:1.8;"></div>
+      <div id="storage-info"></div>
     </div>
   </div>
 </div>
@@ -5458,7 +5687,7 @@ try {
   <div class="modal-sheet" data-modal="modal-profile-nutrition">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-profile-nutrition')">✕</button></div>
     <div class="modal-title">Nutrition Libraries</div>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6;">Saved qualifying nutrition days, grouped by linked goal. Tap a day to edit its label, swipe to delete.</div>
+    <div class="modal-sub">Saved qualifying nutrition days, grouped by linked goal. Tap a day to edit its label, swipe to delete.</div>
     <div id="profile-nutrition-list"></div>
   </div>
 </div>
@@ -22587,10 +22816,10 @@ function updateProfileGenderUI(g) {
   const mBtn = document.getElementById('profile-btn-male');
   const fBtn = document.getElementById('profile-btn-female');
   if (!mBtn || !fBtn) return;
-  mBtn.style.borderColor = g === 'male' ? 'var(--accent)' : 'var(--border2)';
-  mBtn.style.background  = g === 'male' ? 'rgba(29,158,117,0.15)' : 'var(--surface2)';
-  fBtn.style.borderColor = g === 'female' ? 'var(--accent)' : 'var(--border2)';
-  fBtn.style.background  = g === 'female' ? 'rgba(29,158,117,0.15)' : 'var(--surface2)';
+  // v8.16 — the selected state is .ex-chip-on, the same selectable-card
+  // class the Train page uses, rather than inline border/background values.
+  mBtn.classList.toggle('ex-chip-on', g === 'male');
+  fBtn.classList.toggle('ex-chip-on', g === 'female');
 }
 
 // Toggles the profile modal's height input between cm and ft/in display,
@@ -22603,13 +22832,14 @@ function switchHeightUnit(unit) {
   const cmBtn   = document.getElementById('profile-unit-cm');
   if (!ftinEl) return;
 
+  // v8.16 — the two unit buttons are a .toggle-row segmented control now, so
+  // the selected one is marked with .active rather than inline colours.
+  ftinBtn.classList.toggle('active', unit === 'ftin');
+  cmBtn.classList.toggle('active', unit !== 'ftin');
+
   if (unit === 'ftin') {
     ftinEl.style.display = 'flex';
     cmEl.style.display   = 'none';
-    ftinBtn.style.background = 'var(--accent)';
-    ftinBtn.style.color      = '#0a0a0a';
-    cmBtn.style.background   = 'var(--surface2)';
-    cmBtn.style.color        = 'var(--text2)';
     // Convert cm → ft/in if cm field has a value
     const cmVal = parseFloat(document.getElementById('profile-cm').value);
     if (cmVal && !document.getElementById('profile-feet').value) {
@@ -22620,10 +22850,6 @@ function switchHeightUnit(unit) {
   } else {
     ftinEl.style.display = 'none';
     cmEl.style.display   = 'block';
-    cmBtn.style.background = 'var(--accent)';
-    cmBtn.style.color      = '#0a0a0a';
-    ftinBtn.style.background = 'var(--surface2)';
-    ftinBtn.style.color      = 'var(--text2)';
     // Convert ft/in → cm if fields have values
     const ft = parseFloat(document.getElementById('profile-feet').value);
     const inc = parseFloat(document.getElementById('profile-inches').value) || 0;
@@ -23626,18 +23852,10 @@ function fillDayFromSample(groupId, sourceDate) {
   renderNutrDaily();
 }
 
-// ── Settings page collapsible cards (Profile / Nutrition / Exercise /
-// Danger Zone) — expanded by default except Danger Zone, which starts
-// collapsed. Purely a display toggle on static markup; no re-render needed
-// since none of these cards show dynamic data.
-function toggleSettingsCard(key) {
-  const body = document.getElementById('settings-card-body-' + key);
-  const chevron = document.getElementById('settings-card-chevron-' + key);
-  if (!body) return;
-  const isOpen = body.style.display !== 'none';
-  body.style.display = isOpen ? 'none' : '';
-  if (chevron) chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
-}
+// v8.16 — Settings' three groups (Profile / Nutrition / Exercise) are always
+// open, so the toggleSettingsCard() collapse mechanism that drove them is
+// gone along with its chevrons and its settings-card-body-* / -chevron-*
+// element ids. Nothing else called it.
 
 // Opens the relocated Body Logs modal (same content/IDs as the old standalone
 // Body screen, now trimmed to just the grouped Recent Entries list) —
@@ -27154,7 +27372,16 @@ function renderSettings() {
   const logs = Object.keys(state.trainLogs).length;
   const bodyLogs = state.bodyLogs.length;
   const nutrLogs = state.nutritionLogs.length;
-  el.innerHTML = `${macros} macrocycle${macros!==1?'s':''} &nbsp;·&nbsp; ${logs} set logs<br>${bodyLogs} body entries &nbsp;·&nbsp; ${nutrLogs} nutrition entries<br><span style="color:var(--text3);">~${kb} KB stored in Safari localStorage</span>`;
+  // v8.16 — one labelled row per figure, rather than three <br>-separated
+  // lines, so the numbers line up in a column and can be read at a glance.
+  const statRow = (label, value) =>
+    `<div class="about-stat-row"><span>${label}</span><span class="about-stat-val">${value}</span></div>`;
+  el.innerHTML =
+    statRow(`Macrocycle${macros !== 1 ? 's' : ''}`, macros) +
+    statRow('Set logs', logs) +
+    statRow('Body entries', bodyLogs) +
+    statRow('Nutrition entries', nutrLogs) +
+    statRow('Stored on this device', `~${kb} KB`);
 
   // Show whether an API key is currently saved
   const keyEl = document.getElementById('settings-api-key-input');
@@ -29398,6 +29625,7 @@ function deleteRecipe(id) {
   <div class="modal-sheet kb-pinned-sheet" data-modal="modal-exercise-lib-editor">
     <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-exercise-lib-editor')">✕</button></div>
     <div class="modal-title" style="flex-shrink:0;">Exercise Library</div>
+    <div class="modal-sub" style="flex-shrink:0;">Your own exercises can be edited or deleted. The built-in ones are shown for reference.</div>
     <input type="text" id="exercise-lib-search" placeholder="Search exercises…" oninput="renderExerciseLibEditor()" style="margin-bottom:10px;flex-shrink:0;">
     <div id="exercise-lib-list-wrap" class="kb-list-wrap">
       <div id="exercise-lib-list" class="kb-list-inner"></div>
@@ -29413,6 +29641,7 @@ function deleteRecipe(id) {
   <div class="modal-sheet" data-modal="modal-exercise-lib-entry">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-exercise-lib-entry')">✕</button></div>
     <div class="modal-title">Edit Exercise</div>
+    <div class="modal-sub">The body part is what groups this exercise in your volume tables.</div>
     <input type="hidden" id="ele-original-name">
     <input type="hidden" id="ele-original-id">
     <div class="form-group">
@@ -29420,7 +29649,7 @@ function deleteRecipe(id) {
       <input type="text" id="ele-name">
     </div>
     <div class="form-group">
-      <div class="label">Body Part</div>
+      <div class="label">Body part</div>
       <select id="ele-bodypart">
         <option value="Back">Back</option>
         <option value="Biceps">Biceps</option>
@@ -29441,6 +29670,7 @@ function deleteRecipe(id) {
   <div class="modal-sheet kb-pinned-sheet" data-modal="modal-food-lib-editor">
     <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-food-lib-editor')">✕</button></div>
     <div class="modal-title" style="flex-shrink:0;">Food Library</div>
+    <div class="modal-sub" style="flex-shrink:0;">Every food BLOC knows about, with its values per 100g. Tap one to edit it.</div>
     <input type="text" id="food-lib-search" placeholder="Search foods…" oninput="renderFoodLibEditor()" style="margin-bottom:10px;flex-shrink:0;">
     <div id="food-lib-list-wrap" class="kb-list-wrap">
       <div id="food-lib-list" class="kb-list-inner"></div>
@@ -29454,6 +29684,7 @@ function deleteRecipe(id) {
   <div class="modal-sheet" data-modal="modal-food-lib-entry">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-food-lib-entry')">✕</button></div>
     <div class="modal-title">Edit Food</div>
+    <div class="modal-sub">Macros are stored per 100g. A serving size and name are optional, and only change how it is offered when you log it.</div>
     <input type="hidden" id="fle-id">
     <div class="form-group">
       <div class="label">Name</div>
@@ -29463,7 +29694,7 @@ function deleteRecipe(id) {
       <div class="label">Brand</div>
       <input type="text" id="fle-brand" placeholder="Optional">
     </div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Values per 100g</div>
+    <div class="sheet-sec">Per 100g</div>
     <div class="input-row">
       <div><div class="label">kcal / 100g</div><input type="number" inputmode="decimal" id="fle-kcal" oninput="updateFlePreview()"></div>
       <div><div class="label">Protein (g)</div><input type="number" inputmode="decimal" id="fle-protein" oninput="updateFlePreview()"></div>
