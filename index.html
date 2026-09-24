@@ -2281,6 +2281,256 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .ex-row-name { font-size: 13.5px; font-weight: 600; color: var(--text); min-width: 0; }
 .ex-row-detail { margin-left: auto; font-size: 12.5px; font-weight: 500; color: var(--text2); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
+/* ══════════════════════════════════════════════════════════════════════
+   v8.16 PHASE 2 — TRAIN
+   The page header and section pieces are shared (see PHASE 1 above); what
+   follows is the hero, the exercise card and the set table.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* A subtitle under an H1. Train uses it to name the cycle and microcycle,
+   which the eyebrow has no room for. */
+.page-subtitle { font-size: 13.5px; font-weight: 500; color: var(--text2); margin-top: 7px; line-height: 1.4; }
+
+/* ── Train hero: three stats over one bar ────────────────────────────── */
+.train-hero {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-hero); padding: 22px; margin-top: 24px;
+}
+.train-stats { display: flex; align-items: flex-start; }
+/* Equal thirds, each centred in its own third, so the three read as one row
+   of stats rather than three things that happen to be beside each other. */
+.train-stat { flex: 1; min-width: 0; text-align: center; }
+.train-stat-val {
+  font-family: var(--font-display); font-size: 24px; font-weight: 600;
+  letter-spacing: -0.02em; color: var(--text); font-variant-numeric: tabular-nums;
+}
+/* The denominator and the unit are part of the figure, not a second stat:
+   smaller, muted, and on the same line. */
+.train-stat-of { font-family: var(--font-body); font-size: 13px; font-weight: 500; color: var(--text2); margin-left: 1px; }
+.train-stat-lbl {
+  font-family: var(--font-body); font-size: 11.5px; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--text3); margin-top: 6px;
+}
+.train-hero-bar { margin-top: 20px; }
+/* Plain centred text, no badge and no pill (and rendered only when there is
+   something to say — a macro with no deload yet has no line here at all). */
+.train-since-deload {
+  margin-top: 16px; text-align: center;
+  font-size: 12.5px; font-weight: 500; color: var(--text3);
+}
+/* The deload banner takes the hero's top slot, and is mutually exclusive with
+   the line above. */
+.train-deload-banner {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 13px 14px; margin-bottom: 20px;
+  background: color-mix(in srgb, var(--ice-blue) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ice-blue) 35%, transparent);
+  border-radius: var(--r-tile);
+}
+.train-deload-icon { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; stroke: var(--ice-blue); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.train-deload-title { font-family: var(--font-display); font-size: 15px; font-weight: 600; color: var(--ice-blue); }
+.train-deload-body { font-size: 12.5px; font-weight: 500; color: var(--text2); margin-top: 3px; line-height: 1.45; }
+
+/* ── Session tools: the picker panel, inside the card ────────────────── */
+/* Rows inside a card are separated by a 1px divider. This is a real sibling
+   test — every row is a child of the same card — unlike the :first-of-type
+   trap in PHASE 1, where each item had its own container. */
+.card > .row-plain:not(:first-child) { border-top: 1px solid var(--divider); }
+.train-picker-panel { padding: 12px 0 4px; }
+
+/* ── Exercise card ──────────────────────────────────────────────────── */
+/* Cards stack 12px apart. .card's own margin-bottom is 10px, so it is
+   restated here rather than changed globally. */
+.ex-card { margin-bottom: 12px; padding: 16px 18px; border-radius: var(--r-card); }
+.ex-card:last-child { margin-bottom: 0; }
+.ex-head { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+/* 30×30 index badge. It numbers the exercise within the session — unrelated to
+   the section numbering that was dropped in Q13. */
+.ex-idx {
+  width: 30px; height: 30px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface3); border-radius: var(--r-icon-card);
+  font-family: var(--font-display); font-size: 12px; font-weight: 600;
+  color: var(--accent2); font-variant-numeric: tabular-nums;
+}
+.ex-head-text { flex: 1; min-width: 0; }
+.ex-head-right { flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+.ex-name { font-family: var(--font-display); font-size: 16px; font-weight: 600; color: var(--text); line-height: 1.25; }
+.ex-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+/* Tag: 2px 7px, 11px/700, a 16% tint of --tag-c with the full colour for the
+   text — the same formula as .chip, at tag size. */
+.ex-tag {
+  display: inline-flex; align-items: center;
+  padding: 2px 7px; border-radius: var(--r-tag);
+  font-family: var(--font-body); font-size: 11px; font-weight: 700;
+  background: color-mix(in srgb, var(--tag-c, var(--accent)) 16%, transparent);
+  color: var(--tag-c, var(--accent)); white-space: nowrap;
+}
+/* The quiet variant carries information rather than a flag ("Last wk: ↑ reps"),
+   so it takes no colour of its own. */
+.ex-tag-quiet { background: var(--surface2); color: var(--text3); font-weight: 600; }
+
+/* 40×40 square auto-complete button. It is 40 rather than 44 because it sits
+   inside a card (see the shape table). */
+.ex-auto-btn {
+  width: 40px; height: 40px; flex-shrink: 0; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid var(--border2);
+  border-radius: var(--r-icon-card); color: var(--text2); cursor: pointer;
+}
+.ex-auto-btn:active { transform: scale(0.95); }
+.ex-auto-btn svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ex-done { font-size: 12.5px; font-weight: 700; color: var(--green-text); white-space: nowrap; flex-shrink: 0; text-align: right; }
+.ex-done-missed { color: var(--red); }
+
+.ex-target {
+  display: flex; align-items: baseline; gap: 10px;
+  margin-top: 14px; cursor: pointer;
+}
+.ex-target-left { font-size: 13px; font-weight: 500; color: var(--text2); min-width: 0; }
+.ex-target-right {
+  margin-left: auto; flex-shrink: 0;
+  font-family: var(--font-display); font-size: 17px; font-weight: 600;
+  color: var(--text); font-variant-numeric: tabular-nums;
+}
+.ex-target-unit { font-family: var(--font-body); font-size: 12px; font-weight: 500; color: var(--text2); margin-left: 4px; }
+
+.ex-dots-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; cursor: pointer; }
+.ex-dots { display: flex; gap: 6px; flex-wrap: wrap; min-width: 0; }
+/* 22px circles, filled accent once that set is logged done. */
+.ex-dot { width: 22px; height: 22px; border-radius: 50%; background: var(--surface3); flex-shrink: 0; }
+.ex-dot-on { background: var(--accent); }
+.ex-lastwk { margin-left: auto; font-size: 12px; font-weight: 500; color: var(--text3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ex-chevron { width: 16px; height: 16px; flex-shrink: 0; stroke: var(--text3); fill: none; stroke-width: 2; stroke-linecap: round; transition: transform .2s; }
+.ex-since-start { font-size: 11.5px; font-weight: 600; margin-top: 10px; font-variant-numeric: tabular-nums; }
+
+/* ── On hold: the recessed panel ─────────────────────────────────────── */
+/* Full-bleed to the card's edges with an --inset background, so it reads as
+   recessed into the card rather than as a second card inside it. The negative
+   margins match .ex-card's padding. */
+.ex-hold {
+  margin: 14px -18px -16px; padding: 13px 18px;
+  background: var(--inset); border-top: 1px solid var(--divider);
+  border-radius: 0 0 var(--r-card) var(--r-card);
+}
+.ex-card-open .ex-hold { margin-bottom: 0; border-radius: 0; }
+.ex-hold-head { font-size: 12.5px; font-weight: 600; color: var(--amber); line-height: 1.4; }
+.ex-hold-label {
+  font-family: var(--font-body); font-size: 11px; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--text3); margin-top: 11px;
+}
+.ex-hold-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+/* One pill per set from last week. Neutral where the target was met, amber
+   where it was missed — the missed ones are the reason for the hold. */
+.ex-hold-pill {
+  padding: 3px 9px; border-radius: var(--r-chip);
+  font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums;
+  background: var(--surface3); color: var(--text2);
+}
+.ex-hold-pill-miss { background: color-mix(in srgb, var(--amber) 18%, transparent); color: var(--amber); }
+
+/* ── Expanded body ───────────────────────────────────────────────────── */
+.ex-body { margin: 16px -18px -16px; padding: 16px 18px; border-top: 1px solid var(--divider); }
+.ex-block { margin-bottom: 18px; }
+.ex-block-label {
+  font-family: var(--font-body); font-size: 11.5px; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--text3);
+}
+.ex-block-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.ex-block-actions { margin-left: auto; display: flex; gap: 8px; flex-shrink: 0; }
+.ex-block-caption { font-size: 12px; font-weight: 500; color: var(--text3); margin-top: 8px; line-height: 1.4; }
+
+/* Two equal columns that never wrap — a progression choice is a comparison,
+   and a wrapped second chip stops reading as the alternative to the first. */
+.ex-chips { display: flex; gap: 8px; margin-top: 8px; }
+.ex-chip {
+  flex: 1 1 0; min-width: 0;
+  padding: 11px 12px; border-radius: var(--r-tile); cursor: pointer;
+  background: var(--surface2); border: 1px solid var(--border2);
+}
+.ex-chip:active { transform: scale(0.99); }
+/* The selected chip: a 20% accent fill with an accent border, NOT a solid
+   fill — a solid accent block at this size fought the primary buttons below
+   it for the eye. */
+.ex-chip-on {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  border-color: var(--accent);
+}
+.ex-chip-title { font-family: var(--font-display); font-size: 13.5px; font-weight: 600; color: var(--text); }
+.ex-chip-sub { font-size: 11.5px; font-weight: 500; color: var(--text2); margin-top: 3px; font-variant-numeric: tabular-nums; }
+
+/* ── Set table (redefined in place; ~60 call sites read these) ───────── */
+.set-row {
+  display: grid;
+  grid-template-columns: 24px 1fr 62px 62px 42px;
+  gap: 8px; align-items: center;
+  padding: 6px 0; border-bottom: 1px solid var(--divider);
+}
+.set-row:last-child { border-bottom: none; }
+.set-row-head { padding: 0 0 8px; border-bottom: 1px solid var(--divider); }
+.set-row-head span, .cardio-set-row-head span {
+  font-family: var(--font-body); font-size: 11px; font-weight: 700;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--text3);
+}
+.set-num { font-size: 12px; font-weight: 600; color: var(--text3); text-align: center; font-variant-numeric: tabular-nums; }
+.set-suggested { font-size: 12px; font-weight: 500; color: var(--text3); font-variant-numeric: tabular-nums; }
+.cardio-set-row { display: grid; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--divider); }
+.cardio-set-row:last-child { border-bottom: none; }
+.cardio-set-row-head { padding: 0 0 8px; }
+.set-input {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: var(--r-btn-sm);
+  font-size: 14px; font-weight: 600;
+  height: 42px; padding: 0 4px;
+  text-align: center; color: var(--text); width: 100%;
+  font-family: var(--font-display); font-variant-numeric: tabular-nums;
+}
+/* 42px square, accent fill with a dark tick when done. */
+.check-done, .check-empty {
+  width: 42px; height: 42px; border-radius: var(--r-btn-sm);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0; margin: 0 auto; border: none; transition: background .15s;
+}
+.check-done { background: var(--accent); }
+.check-done svg { stroke: var(--on-accent); }
+.check-empty { background: var(--surface2); border: 1px solid var(--border2); }
+.check-empty svg { stroke: transparent; }
+.check-done svg, .check-empty svg { width: 16px; height: 16px; fill: none; stroke-width: 2.5; }
+
+/* ── Superset card ──────────────────────────────────────────────────── */
+.ss-rows { margin-top: 14px; cursor: pointer; position: relative; padding-right: 24px; }
+.ss-chevron { position: absolute; right: 0; top: 50%; margin-top: -8px; }
+.ss-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--divider); }
+.ss-row:last-child { border-bottom: none; }
+.ss-row-text { flex: 1; min-width: 0; }
+.ss-row-name { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.ss-row-meta { font-size: 12px; font-weight: 500; color: var(--text3); margin-top: 3px; line-height: 1.4; }
+.ss-row-weight {
+  flex-shrink: 0; margin-left: auto;
+  font-family: var(--font-display); font-size: 13.5px; font-weight: 600;
+  color: var(--text2); white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.ss-prog-toggles { padding: 0; border-bottom: none; display: flex; flex-direction: column; gap: 16px; margin-bottom: 18px; }
+.ss-prog-member-head { font-size: 13px; font-weight: 600; color: var(--text); }
+.ss-prog-member-last { display: block; font-size: 11.5px; font-weight: 500; color: var(--text3); margin-top: 3px; }
+.ss-set-cards { padding: 0; display: flex; flex-direction: column; gap: 10px; }
+
+/* ── Week / session picker pills ─────────────────────────────────────── */
+.week-pill, .day-tab {
+  padding: 9px 14px; min-height: 40px;
+  border-radius: var(--r-btn-sm);
+  border: 1px solid var(--border2);
+  background: transparent; color: var(--text2);
+  font-family: var(--font-body); font-size: 12.5px; font-weight: 600;
+  cursor: pointer; transition: all .15s;
+}
+.week-pill.active, .day-tab.active {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--text); border-color: var(--accent); font-weight: 700;
+}
+.day-tabs { margin-bottom: 8px; }
+
 </style>
 <script>
 // ── Real viewport height fix ───────────────────────────────────
@@ -2960,18 +3210,24 @@ try {
          SCREEN 2: TRAIN
     ═══════════════════════════════════════════ -->
     <div class="screen" id="screen-train">
+      <!-- v8.16 Phase 2. Page header, hero, then the two sections. Each child
+           is filled by its own function (see renderTrain); the ids are the
+           contract.
+
+           `train-hero` is a demo-tour anchor. So is `deload-toggle-<macroId>`,
+           which the tour points at directly — it has MOVED out of the hero and
+           into the Session tools card, which is now the only place the deload
+           action lives. The tour resolves it by id at run time, so it follows.
+
+           `train-content` sits INSIDE the session section rather than being a
+           sibling of it: renderTrainDay() re-runs on every set tick, and a
+           section header rebuilt that often would restart its entrance
+           animation each time a checkbox was tapped. -->
       <div id="train-sub" style="display:none;"></div>
-
+      <div id="train-header"></div>
       <div id="train-hero"></div>
-
-      <div id="train-session-picker"></div>
-
-      <div id="train-content">
-        <div class="empty-state">
-          <svg viewBox="0 0 24 24"><path d="M6 4v16M18 4v16M3 8h4M17 8h4M3 16h4M17 16h4"/></svg>
-          <p>Build your macrocycle in the Plan tab first, then select a week and day to start training.</p>
-        </div>
-      </div>
+      <div id="train-session"></div>
+      <div id="train-tools"></div>
     </div>
 
     <!-- ════════════════════════════════════════
@@ -19357,17 +19613,27 @@ function saveHomeMeasurements() {
 
 // RENDER: TRAIN
 // ════════════════════════════════════════════════
-// Top-level render function for the Train screen. Renders the week/day
-// picker, then delegates the actual session content to renderTrainHero()
-// (summary + volume) and renderTrainDay() (the exercise/superset cards).
+// Top-level render function for the Train screen. It resolves which session is
+// being viewed, then delegates one region each to renderTrainHeader(),
+// renderTrainHero(), renderTrainSession() (which in turn calls
+// renderTrainDay() for the exercise/superset cards) and renderTrainTools().
+//
+// ── TRAIN (v8.16 Phase 2) ─────────────────────────────────────────────
+// `animate` is retained for call-site compatibility and deliberately ignored,
+// exactly as renderHome's was: every entrance animation is CSS now (see the
+// MOTION SYSTEM block in the stylesheet), replayed by showScreen(). The JS
+// odometer that counted the session-progress % up from 0 went with it — it
+// produced nonsense intermediate values for anything reading the DOM
+// mid-count, and it fought the CSS bar growth for the same pixels.
 function renderTrain(animate = false) {
   const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
-  const pickerEl = document.getElementById('train-session-picker');
   const subEl = document.getElementById('train-sub');
 
   if (!macro) {
-    pickerEl.innerHTML = '';
-    document.getElementById('train-content').innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24"><path d="M6 4v16M18 4v16M3 8h4M17 8h4M3 16h4M17 16h4"/></svg><p>Create a macrocycle in the Plan tab first.</p></div>`;
+    document.getElementById('train-header').innerHTML = '';
+    document.getElementById('train-hero').innerHTML = '';
+    document.getElementById('train-tools').innerHTML = '';
+    document.getElementById('train-session').innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24"><path d="M6 4v16M18 4v16M3 8h4M17 8h4M3 16h4M17 16h4"/></svg><p>Create a macrocycle in the Plan tab first.</p></div>`;
     return;
   }
 
@@ -19411,19 +19677,80 @@ function renderTrain(animate = false) {
   const dayDisplay = dayLabels[dayId] || dayId;
   subEl.textContent = `MC ${state.currentWeek} · ${dayDisplay}${microSuffix}`;
 
-  // ── Collapsed picker bar + expandable pill grid ─────────────────────────
-  let pickerHtml = `<div style="margin-bottom:14px;border-bottom:1px solid var(--border2);">
-    <div onclick="toggleTrainPicker()" style="padding:12px 2px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent;">
-      <div>
-        <span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;">Session</span>
-        <div style="font-family:var(--font-display);font-size:14px;font-weight:600;color:var(--text);margin-top:1px;">MC ${state.currentWeek} · ${dayDisplay}${microSuffix}</div>
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-size:11px;color:var(--text3);">Change</span>
-        <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${trainPickerExpanded?'180':'0'}deg)"><polyline points="6 9 12 15 18 9"/></svg>
-      </div>
-    </div>`;
+  renderTrainHeader(macro, dayDisplay, microSuffix);
+  renderTrainHero(macro);
+  renderTrainSession(macro);
+  renderTrainTools(macro, allSessions, days, dayLabels, micros, useMicro);
+}
 
+// ── TRAIN PAGE HEADER (v8.16) ─────────────────────────────────────────
+// Eyebrow is the mesocycle and the real calendar dates it covers, the H1 is
+// the session itself, and the subtitle identifies the cycle. The right-hand
+// icon button opens the rest timer.
+//
+// 🚨 The eyebrow says "MC n", not "Week n". A mesocycle is BLOC's own unit and
+// can span two calendar weeks; calling it a week here would contradict the
+// picker, the logs and every other screen. The calendar dates beside it are
+// what actually answer "which week is this".
+function renderTrainHeader(macro, dayDisplay, microSuffix) {
+  const el = document.getElementById('train-header');
+  if (!el) return;
+  const weekDates = getSelectedTrainWeekDates(macro);
+  const dateRangeStr = weekDates ? ` · ${formatDate(weekDates.start)} – ${formatDate(weekDates.end)}` : '';
+  const useMicro = macro.useMicrocycles !== false;
+  const microPart = useMicro ? ` · Microcycle ${state.currentDay.endsWith('m1') ? 1 : 2}` : '';
+  el.innerHTML = `<div class="page-head rise">
+    <div class="page-head-text">
+      <div class="page-eyebrow">MC ${state.currentWeek} of ${getMacroEffectiveMesoCount(macro)}${dateRangeStr}</div>
+      <h1 class="page-h1">${dayDisplay}</h1>
+      <div class="page-subtitle">${macro.name}${microPart}</div>
+    </div>
+    <button class="icon-btn" id="timer-open-btn" onclick="openTimerModal()" aria-label="Rest timer">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9.5 2.5h5"/><path d="M12 2.5V5"/></svg>
+    </button>
+  </div>`;
+}
+
+// ── TRAIN: the session section (v8.16) ────────────────────────────────
+// Only the header and the container are built here. The exercise cards go into
+// #train-content, which renderTrainDay() owns and rewrites on every set tick —
+// keeping the two apart is what stops a checkbox tap from restarting the
+// section's entrance animation.
+function renderTrainSession(macro) {
+  const el = document.getElementById('train-session');
+  if (!el) return;
+  const isDeload = isDeloadUnit(macro, state.currentWeek, state.currentDay);
+  const sub = isDeload
+    ? 'Deload targets shown. Progression resumes next week.'
+    : 'Tap an exercise to log sets. The tick button completes every set at target.';
+  el.innerHTML = sectionHeader('The session', sub)
+    + '<div id="train-content"></div>'
+    + sectionEnd();
+  renderTrainDay(macro);
+}
+
+// ── TRAIN: session tools (v8.16) ──────────────────────────────────────
+// The two less-common actions, in one card, as flat in-card rows (.row-plain —
+// NOT .row-btn, which carries its own surface and would make a card inside a
+// card). The week+session picker expands inside this card rather than living
+// above the hero as its own bar.
+//
+// 🚨 This is the ONLY place the deload action lives now, and its row carries
+// `deload-toggle-<macroId>` because the demo tour points a step straight at
+// that id. The toggle still reads and writes the unit derived from
+// state.currentDay (which carries the m1/m2 suffix), so on a two-week
+// mesocycle it affects only the calendar week being viewed, never its sibling
+// microcycle.
+function renderTrainTools(macro, allSessions, days, dayLabels, micros, useMicro) {
+  const el = document.getElementById('train-tools');
+  if (!el) return;
+  const heroIsDeload = isDeloadUnit(macro, state.currentWeek, state.currentDay);
+  const dayKey = state.currentDay;
+  const dayId = useMicro ? dayKey.replace(/m[12]$/, '') : dayKey;
+  const microSuffix = useMicro ? (' ' + (dayKey.endsWith('m1') ? 'M1' : 'M2')) : '';
+  const dayDisplay = dayLabels[dayId] || dayId;
+
+  let pickerHtml = '';
   if (trainPickerExpanded) {
     // Mesocycle strip
     let wHtml = '';
@@ -19465,18 +19792,30 @@ function renderTrain(animate = false) {
       });
       tHtml = `<div class="day-tabs" style="margin-bottom:0;">${rowHtml}</div>`;
     }
-    pickerHtml += `<div style="padding:0 14px 14px;border-top:0.5px solid var(--border);">
-      <div style="height:10px;"></div>
+    pickerHtml = `<div class="train-picker-panel" id="train-session-picker">
       <div class="week-strip" style="margin-bottom:10px;">${wHtml}</div>
       ${tHtml}
     </div>`;
   }
-  pickerHtml += `</div>`;
-  pickerEl.innerHTML = pickerHtml;
 
-  renderTrainHero(macro, animate);
-
-  renderTrainDay(macro);
+  el.innerHTML = sectionHeader('Session tools', 'Less common actions, kept out of the way.')
+    + `<div class="card">
+      <div class="row-plain" onclick="toggleTrainPicker()">
+        <div class="row-btn-text">
+          <div class="row-btn-title">Change session</div>
+          <div class="row-btn-sub">MC ${state.currentWeek} · ${dayDisplay}${microSuffix}</div>
+        </div>
+        <svg class="row-chevron-rot" viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0;transform:rotate(${trainPickerExpanded ? '180' : '0'}deg);"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      ${pickerHtml}
+      <div class="row-plain" id="deload-toggle-${macro.id}" onclick="toggleDeloadWeek('${macro.id}',${state.currentWeek},'${dayKey}')">
+        <div class="row-btn-text">
+          <div class="row-btn-title"${heroIsDeload ? ' style="color:var(--ice-blue);"' : ''}>${heroIsDeload ? 'Unmark deload' : 'Mark week as deload'}</div>
+          <div class="row-btn-sub">${heroIsDeload ? 'Restores this week’s normal targets.' : 'Drops every weight to 60% for this week.'}</div>
+        </div>
+      </div>
+    </div>`
+    + sectionEnd();
 }
 
 // Switches which week of the macrocycle the Train page is displaying.
@@ -19564,15 +19903,14 @@ function getSelectedTrainWeekDates(macro) {
   return { start: toLocalDateStr(start), end: toLocalDateStr(end) };
 }
 
-function renderTrainHero(macro, animate = false) {
+// ── TRAIN HERO (v8.16) ────────────────────────────────────────────────
+// Three centred stats over one progress bar. The session's identity moved up
+// into the page header, so the hero carries no title, no big percentage and no
+// Start button — the exercises are directly below it.
+function renderTrainHero(macro) {
   const heroEl = document.getElementById('train-hero');
   if (!heroEl || !macro) return;
   const dayKey = state.currentDay;
-  const macroDayLabels = macro.dayLabels || { push:'Push', pull:'Pull', legs:'Legs' };
-  const useMicro = macro.useMicrocycles !== false;
-  const dayId = useMicro ? dayKey.replace(/m[12]$/, '') : dayKey;
-  const microSuffix = useMicro ? (' ' + (dayKey.endsWith('m1') ? 'M1' : 'M2')) : '';
-  const dayDisplay = macroDayLabels[dayId] || dayId;
 
   const templateKey = macro.id + '_1_' + dayKey;
   const sessionExercises = (state.exercises[templateKey] || []);
@@ -19595,85 +19933,56 @@ function renderTrainHero(macro, animate = false) {
   // drives both the toggle button state below and the status pill.
   const heroIsDeload = isDeloadUnit(macro, state.currentWeek, dayKey);
   const weeksSinceDeload = getWeeksSinceLastDeload(macro, state.currentWeek, dayKey);
-  // One combined status pill: shows the deload warning when active (red),
-  // otherwise the weeks-since-last-deload callout once at least one deload
-  // has happened earlier in the macro, otherwise nothing at all — no more
-  // "Not a deload week" placeholder text taking up space every session.
-  const statusPillText = heroIsDeload
-    ? '⚠ Deload week — weights reduced to 60%'
-    : weeksSinceDeload !== null
-      ? `${weeksSinceDeload} week${weeksSinceDeload === 1 ? '' : 's'} since last deload`
-      : '';
-  const statusPillHtml = statusPillText
-    ? `<div style="margin-top:12px;font-size:12px;font-weight:500;color:${heroIsDeload ? 'var(--red)' : 'var(--text3)'};">${statusPillText}</div>`
+
+  // The deload banner takes the hero's top slot when the viewed unit is a
+  // deload. The weeks-since-last-deload line is its mutually-exclusive
+  // counterpart at the foot of the card: plain centred text, no badge and no
+  // pill, and rendered only once at least one deload has actually happened
+  // earlier in this macro (getWeeksSinceLastDeload returns null before that).
+  // It is not reserved space — when there is nothing to say the line is simply
+  // absent.
+  const deloadBannerHtml = heroIsDeload ? `<div class="train-deload-banner">
+      <svg class="train-deload-icon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      <div>
+        <div class="train-deload-title">Deload week</div>
+        <div class="train-deload-body">Loads drop to 60% and volume eases off. Focus on form, move well, recover.</div>
+      </div>
+    </div>` : '';
+  const sinceDeloadHtml = (!heroIsDeload && weeksSinceDeload !== null)
+    ? `<div class="train-since-deload">${weeksSinceDeload} week${weeksSinceDeload === 1 ? '' : 's'} since last deload</div>`
     : '';
-  // Note: the toggle intentionally reads/writes the unit derived from
-  // state.currentDay (which carries the m1/m2 suffix), NOT the whole
-  // mesoweek — so on a 2-week mesocycle, toggling here only affects the
-  // calendar week you're actually viewing, never its sibling microcycle.
-  const deloadLinkHtml = `<span id="deload-toggle-${macro.id}" onclick="toggleDeloadWeek('${macro.id}',${state.currentWeek},'${dayKey}')"
-      style="font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap;color:${heroIsDeload ? 'var(--red)' : 'var(--accent2)'};">
-      ${heroIsDeload ? '✓ Deload' : 'Mark as deload'}
-    </span>`;
+
+  // The whole hero is dropped when the session has no exercises — there is no
+  // session to summarise, and the empty state in the section below says so.
   if (sessionExercises.length === 0) {
     heroEl.innerHTML = '';
   } else {
-    const weekDates = getSelectedTrainWeekDates(macro);
-    const dateRangeStr = weekDates ? ` · ${formatDate(weekDates.start)} – ${formatDate(weekDates.end)}` : '';
-    heroEl.innerHTML = `<div class="hero-card" data-page="train">
-      <div class="hero-nav-arrows">
-        <button id="timer-open-btn" onclick="openTimerModal()" aria-label="Rest timer">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9.5 2.5h5"/><path d="M12 2.5V5"/>
-          </svg>
-        </button>
+    heroEl.innerHTML = `<div class="train-hero rise" data-page="train">
+      ${deloadBannerHtml}
+      <div class="train-stats">
+        <div class="train-stat">
+          <div class="train-stat-val">${sessionExercises.length}</div>
+          <div class="train-stat-lbl">Exercises</div>
+        </div>
+        <div class="train-stat">
+          <div class="train-stat-val">${doneSets}<span class="train-stat-of">/${totalSets}</span></div>
+          <div class="train-stat-lbl">Sets done</div>
+        </div>
+        <div class="train-stat">
+          <div class="train-stat-val">${Math.round(sessionVolume).toLocaleString()}<span class="train-stat-of">kg</span></div>
+          <div class="train-stat-lbl">Volume</div>
+        </div>
       </div>
-      <div class="hero-label">${dayDisplay}${microSuffix} · MC ${state.currentWeek}/${macro.weeks}${dateRangeStr}</div>
-      <div class="hero-value" style="font-size:24px;margin-top:2px;">${macro.name}</div>
-
-      <div style="text-align:center;padding:20px 0 4px;">
-        <div style="font-size:12px;color:var(--text3);margin-bottom:6px;">Session progress</div>
-        <div class="hero-value" style="font-size:56px;"><span id="train-hero-pct">${animate ? 0 : sessionPct}</span><span class="unit">%</span></div>
-      </div>
-      <div class="hero-progress-track" style="margin-top:16px;"><div class="hero-progress-fill" id="train-hero-bar" style="width:${animate ? 0 : sessionPct}%;transition:none;"></div></div>
-
-      <div class="hero-callouts" style="margin-top:16px;">
-        <div class="hero-callout"><div class="hero-callout-lbl">Exercises</div><div class="hero-callout-val">${sessionExercises.length}</div></div>
-        <div class="hero-callout"><div class="hero-callout-lbl">Sets done</div><div class="hero-callout-val">${doneSets} / ${totalSets}</div></div>
-        <div class="hero-callout"><div class="hero-callout-lbl">Volume</div><div class="hero-callout-val">${Math.round(sessionVolume).toLocaleString()} kg</div></div>
-      </div>
-
-      <div style="display:flex;align-items:center;margin-top:16px;">
-        ${deloadLinkHtml}
-      </div>
-      ${statusPillHtml}
-      <div class="divider" style="margin:16px 0 0;"></div>
+      <div class="bar train-hero-bar"><i style="width:${sessionPct}%;"></i></div>
+      ${sinceDeloadHtml}
     </div>`;
-    if (animate) animateTrainHeroValue(sessionPct);
   }
 }
 
-// Counts the Train hero's session-progress % and its bar up from 0 together,
-// on the same eased 1000ms timeline as Home/Progress — called only on an
-// actual Train page load (see renderTrain), never on the re-renders that
-// follow logging/toggling/clearing a set (see renderTrainDay), so saving a
-// set doesn't restart the count-up.
-function animateTrainHeroValue(sessionPct) {
-  const duration = 1000;
-  const start = performance.now();
-  const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
-
-  function step(now) {
-    const t = Math.min(1, (now - start) / duration);
-    const e = easeOutCubic(t);
-    const pctEl = document.getElementById('train-hero-pct');
-    const barEl = document.getElementById('train-hero-bar');
-    if (pctEl) pctEl.textContent = Math.round(sessionPct * e);
-    if (barEl) barEl.style.width = (sessionPct * e) + '%';
-    if (t < 1) requestAnimationFrame(step);
-  }
-  requestAnimationFrame(step);
-}
+// v8.16 removed animateTrainHeroValue() — the JS odometer that counted the
+// session-progress % and its bar up from 0. The hero no longer shows a big
+// percentage at all (three stats and one bar instead), and the bar's growth is
+// CSS, replayed by the entrance system.
 
 // Computes every (week, dayKey) session in a macrocycle in order, and
 // whether each is fully logged done. Sessions with zero exercises defined
@@ -20183,7 +20492,7 @@ function renderTrainDay(macro) {
   // and the expanded section (showProgSelector) without declaring twice.
   const isMaintCycle = macro && (macro.goalType === 'maintenance');
 
-  trainSlots.forEach(slot => {
+  trainSlots.forEach((slot, slotIdx) => {
     if (slot.type === 'solo') {
       const ex   = slot.ex;
       const exId = ex.id;
@@ -20193,7 +20502,7 @@ function renderTrainDay(macro) {
       // — no progression, no compliance lock, unaffected by deload; see the
       // CARDIO EXERCISES — TRAIN LOGGING section below renderTrainDay.
       if (ex.category === 'cardio') {
-        html += buildCardioTrainCard(macro, ex, expandKey, isExpanded);
+        html += buildCardioTrainCard(macro, ex, expandKey, isExpanded, slotIdx);
         return;
       }
       const d = exProgData(ex);
@@ -20227,11 +20536,14 @@ function renderTrainDay(macro) {
       if (!isDeloadSession && currentActualWeight !== null && currentActualWeight !== baseForDelta) {
         const progressKg  = currentActualWeight - baseForDelta;
         const progressPct = ex.startWeight > 0 ? Math.round(((currentActualWeight - ex.startWeight) / ex.startWeight) * 100) : 0;
-        const col = progressKg >= 0 ? 'var(--accent)' : 'var(--red)';
-        progressBadge = `<span style="font-size:10px;color:${col};font-weight:500;white-space:nowrap;">${progressKg >= 0 ? '+' : ''}${progressKg.toFixed(1)}kg&nbsp;/&nbsp;${progressPct >= 0 ? '+' : ''}${progressPct}%</span>`;
+        const col = progressKg >= 0 ? 'var(--green-text)' : 'var(--red)';
+        progressBadge = `<div class="ex-since-start" style="color:${col};">${progressKg >= 0 ? '+' : ''}${progressKg.toFixed(1)}kg · ${progressPct >= 0 ? '+' : ''}${progressPct}% since week 1</div>`;
       }
-      const typeBadgeHtml = ex.type !== 'standard'
-        ? `<span class="badge ${ex.type==='giant'?'badge-purple':ex.type==='pause'?'badge-amber':'badge-red'}" style="font-size:10px;vertical-align:middle;">${typeLabel}</span>`
+      // v8.16 — the exercise's flags are tags under its name rather than
+      // badges inline with it. Colours are fixed by meaning: drop set red,
+      // pause and on-hold amber, giant lavender, deload ice.
+      const typeTagHtml = ex.type !== 'standard'
+        ? `<span class="ex-tag" style="--tag-c:${ex.type==='giant'?'var(--accent2)':ex.type==='pause'?'var(--amber)':'var(--red)'};">${typeLabel}</span>`
         : '';
       const lastReps   = prevActualReps   !== null ? prevActualReps : null;
       const lastWeight = prevActualWeight !== null ? prevActualWeight.toFixed(1) : null;
@@ -20250,129 +20562,189 @@ function renderTrainDay(macro) {
         : isMaintCycle ? `${sets} sets · ${stripReps(recommendedReps)} reps`
         : lastReps !== null ? `${sets} sets · ${stripReps(lastReps)}/${stripReps(recommendedReps)} reps`
         : `${sets} sets · ${stripReps(recommendedReps)} reps`;
-      const weightRefText = allDone
-        ? `${summaryWeight} logged`
-        : (isDeloadSession || isPostDeloadSession) ? `${weightPlaceholder} kg`
-        : isLocked ? `${weightPlaceholder} kg`
-        : isMaintCycle ? `${weightPlaceholder} kg`
-        : lastWeight !== null ? `${lastWeight} / ${recommendedWeight.toFixed(1)} kg`
-        : `${weightPlaceholder} kg`;
-      const trackingLabel = ex.trackingMode === 'perSide'
-        ? `<span style="font-size:10px;color:var(--text3);white-space:nowrap;"> · per side</span>` : '';
-      // Which progression path was used last week, shown in the header now
-      // rather than buried in the expanded "Last week" box (removed below —
-      // its two pieces now live here and in the set rows instead). Suppressed
-      // during deload/post-deload since there's no progression path to show.
-      const lastWkBadge = isDeloadSession
-        ? ` <span class="badge badge-amber" style="margin-left:8px;font-size:10px;vertical-align:middle;">deload</span>`
-        : isMaintCycle
-        ? '' // no progression badge on maintenance cycles
-        : isLocked
-        ? ` <span style="font-size:10px;font-weight:400;color:var(--text3);" title="Suggested weight/reps weren't hit last time — progression is on hold at this target until they are">· <span style="color:var(--red);">⚠ locked</span></span>`
+      // Split into the figure and its unit so the two can be typeset
+      // differently — the number in the display face, the unit small and muted.
+      // summaryWeight already carries " kg", so it is stripped here rather than
+      // changing what summaryWeight means (it is read elsewhere).
+      const weightRefValue = allDone
+        ? summaryWeight.replace(/ kg$/, '')
+        : (isDeloadSession || isPostDeloadSession) ? weightPlaceholder
+        : isLocked ? weightPlaceholder
+        : isMaintCycle ? weightPlaceholder
+        : lastWeight !== null ? `${lastWeight} / ${recommendedWeight.toFixed(1)}`
+        : weightPlaceholder;
+      // Per-side doubles the volume as well as changing the label, so the unit
+      // says so rather than leaving the weight ambiguous (see getSessionVolume).
+      const unitLabel = ex.trackingMode === 'perSide' ? 'kg per side' : 'kg';
+      // The on-hold / deload / last-week-route flags, as tags. Which of them
+      // can appear is mutually constrained: a deload session has no
+      // progression route to report, and a locked exercise's route is "held".
+      const holdTagHtml = (isLocked && !isDeloadSession && !isPostDeloadSession)
+        ? `<span class="ex-tag" style="--tag-c:var(--amber);">On hold</span>` : '';
+      const deloadTagHtml = isDeloadSession
+        ? `<span class="ex-tag" style="--tag-c:var(--ice-blue);">Deload</span>` : '';
+      // Which progression path was used last week. Suppressed during
+      // deload/post-deload (no route was chosen) and on maintenance cycles
+      // (no load progression is suggested at all).
+      const lastRouteText = (isDeloadSession || isMaintCycle || isLocked)
+        ? ''
         : (prevWeek2 >= 1 && prevProgType && !isPostDeloadSession)
-        ? ` <span style="font-size:10px;font-weight:400;color:var(--text3);">· Last wk: <span style="color:var(--text2);">${prevProgType === 'weight' ? '↑ weight' : '↑ reps'}</span></span>`
+        ? `Last wk: ${prevProgType === 'weight' ? '↑ weight' : '↑ reps'}`
         : (prevWeek2 >= 1 && prevNoProgression && !isPostDeloadSession)
-          ? ` <span style="font-size:10px;font-weight:400;color:var(--text3);">· Last wk: no progression</span>`
-          : '';
+        ? 'Last wk: no progression'
+        : '';
+      const lastRouteHtml = lastRouteText ? `<span class="ex-tag ex-tag-quiet">${lastRouteText}</span>` : '';
+      const tagsHtml = [typeTagHtml, holdTagHtml, deloadTagHtml, lastRouteHtml].filter(Boolean).join('');
 
-      html += `<div style="margin-bottom:2px;border-bottom:1px solid var(--border);">
-        <div onclick="toggleExercise('${expandKey}')"
-          style="width:100%;background:none;border:none;padding:14px 2px;cursor:pointer;-webkit-tap-highlight-color:transparent;">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
-            <div style="flex:1;min-width:0;">
-              <div style="font-family:var(--font-display);font-size:15px;font-weight:600;color:var(--text);">${ex.name}${lastWkBadge}</div>
-              ${typeBadgeHtml ? `<div style="margin-top:4px;">${typeBadgeHtml}</div>` : ''}
-              <div style="font-size:12px;color:var(--text2);margin-top:5px;">${setsRepsText}</div>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
-              ${allDone
-                ? (missedTarget
-                    ? `<span style="font-size:11px;white-space:nowrap;"><span style="color:var(--accent);font-weight:500;">✓ done</span> <span style="color:var(--text3);">·</span> <span style="color:var(--red);font-weight:500;">⚠ missed target</span></span>`
-                    : `<span style="font-size:11px;color:var(--accent);font-weight:500;white-space:nowrap;">✓ done</span>`)
-                : (isLocked && !isDeloadSession && !isPostDeloadSession)
-                ? `${doneSets > 0 ? `<span style="font-size:11px;color:var(--text3);white-space:nowrap;">${doneSets}/${sets}</span>` : ''}`
-                : isDropSet
-                ? `<div style="display:flex;align-items:center;gap:6px;">
-                     <button onclick="quickFillCompleteDropset(event,'${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholders.join('|')}','${repsPlaceholders.join('|')}','${dropWeightPlaceholders.join('|')}','${dropRepsPlaceholders.join('|')}')"
-                       title="Quick fill suggested and mark complete"
-                       style="width:26px;height:26px;border-radius:50%;border:1.5px solid var(--border2);background:transparent;color:var(--text2);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;">
-                       <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                     </button>
-                     ${doneSets > 0 ? `<span style="font-size:11px;color:var(--text3);white-space:nowrap;">${doneSets}/${sets}</span>` : ''}
-                   </div>`
-                : `<div style="display:flex;align-items:center;gap:6px;">
-                     <button onclick="quickFillComplete(event,'${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholders.join('|')}','${repsPlaceholders.join('|')}')"
-                       title="Quick fill suggested and mark complete"
-                       style="width:26px;height:26px;border-radius:50%;border:1.5px solid var(--border2);background:transparent;color:var(--text2);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;">
-                       <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                     </button>
-                     ${doneSets > 0 ? `<span style="font-size:11px;color:var(--text3);white-space:nowrap;">${doneSets}/${sets}</span>` : ''}
-                   </div>`
-              }
-              <span style="font-size:11px;color:var(--text3);white-space:nowrap;">${weightRefText}${trackingLabel}</span>
-            </div>
+      // The 40×40 auto-complete button — completes every set at target. It is
+      // withheld only where there is nothing left to complete (already done) or
+      // where completing at target is not the point (a locked exercise, whose
+      // whole state is "these numbers are not moving yet").
+      const autoBtnHtml = (allDone || (isLocked && !isDeloadSession && !isPostDeloadSession))
+        ? ''
+        : `<button class="ex-auto-btn" title="Complete every set at target"
+             onclick="${isDropSet
+               ? `quickFillCompleteDropset(event,'${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholders.join('|')}','${repsPlaceholders.join('|')}','${dropWeightPlaceholders.join('|')}','${dropRepsPlaceholders.join('|')}')`
+               : `quickFillComplete(event,'${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholders.join('|')}','${repsPlaceholders.join('|')}')`}">
+             <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+           </button>`;
+
+      // Per-set dots, 22px, filled when that set is logged done. This is the
+      // same per-set truth the set table shows, at a glance — it replaces the
+      // "{done}/{sets}" counter that used to sit beside the tick button.
+      let dotsHtml = '';
+      for (let s = 0; s < sets; s++) {
+        const lg = state.trainLogs[key2 + '_' + exId + '_' + s] || {};
+        dotsHtml += `<span class="ex-dot${lg.done ? ' ex-dot-on' : ''}"></span>`;
+      }
+      const lastWkSummary = (lastWeight !== null)
+        ? `${lastWeight}kg${lastReps !== null ? ` × ${stripReps(lastReps)}` : ''}`
+        : '—';
+      // "✓ done" and "⚠ missed target" are a statement about the finished
+      // session, so they sit where the auto-complete button was.
+      const doneStateHtml = allDone
+        ? `<span class="ex-done${missedTarget ? ' ex-done-missed' : ''}">✓ done${missedTarget ? ' · ⚠ missed target' : ''}</span>`
+        : '';
+
+      html += `<div class="card ex-card${isExpanded ? ' ex-card-open' : ''}">
+        <div class="ex-head" onclick="toggleExercise('${expandKey}')">
+          <div class="ex-idx">${String(slotIdx + 1).padStart(2, '0')}</div>
+          <div class="ex-head-text">
+            <div class="ex-name">${ex.name}</div>
+            ${tagsHtml ? `<div class="ex-tags">${tagsHtml}</div>` : ''}
           </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
-            <div>${progressBadge}</div>
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${isExpanded?'180':'0'}deg)"><polyline points="6 9 12 15 18 9"/></svg>
-          </div>
+          ${doneStateHtml || autoBtnHtml}
+        </div>
+        <div class="ex-target" onclick="toggleExercise('${expandKey}')">
+          <span class="ex-target-left">${setsRepsText}</span>
+          <span class="ex-target-right">${weightRefValue}<span class="ex-target-unit">${unitLabel}</span></span>
+        </div>
+        <div class="ex-dots-row" onclick="toggleExercise('${expandKey}')">
+          <div class="ex-dots">${dotsHtml}</div>
+          <span class="ex-lastwk">Last wk ${lastWkSummary}</span>
+          <svg class="ex-chevron" viewBox="0 0 24 24" style="transform:rotate(${isExpanded?'180':'0'}deg);"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        ${progressBadge}`;
+
+      // ── On hold: the inset panel (v8.16) ──────────────────────────────
+      // Shown on the card itself, collapsed or expanded, because "why is this
+      // exercise not progressing" is the first thing the card has to answer.
+      // One pill per set from last week: neutral where that set met its target,
+      // amber where it fell short — the amber ones are the reason for the hold.
+      //
+      // 🚨 A set must meet BOTH its weight and its reps target to be compliant
+      // (getWeekComplianceResult breaks on `!wOk || !rOk`), so the pills are
+      // coloured on both and the headline names both figures. Colouring on reps
+      // alone is the plausible wrong version: an exercise locked because the
+      // weight fell short would render every pill as met, directly under a
+      // headline saying the target had not been hit.
+      //
+      // The frozen targets are read from the lock itself rather than
+      // re-derived — the lock is what froze them, and its stored arrays are the
+      // only record of what they were when it was created.
+      //
+      // 🚨 Keeps the `locked-notice-<macroId>-<exId>` id: the demo tour points a
+      // step straight at it via an id-prefix lookup.
+      let holdPanelHtml = '';
+      if (isLocked && !isDeloadSession && !isPostDeloadSession) {
+        const lock = (state.progressionLocks || {})[getProgressionLockKey(macro.id, state.currentDay, exId)] || {};
+        const lockW = lock.weightTargets || [];
+        const lockR = lock.repsTargets || [];
+        const atSet = (arr, s, fallback) => {
+          if (!arr.length) return fallback;
+          return arr[s] !== undefined ? arr[s] : arr[arr.length - 1];
+        };
+        let pills = '';
+        for (let s = 0; s < sets; s++) {
+          const prevSet = prevLoggedSets[s] || null;
+          if (!prevSet) { pills += `<span class="ex-hold-pill ex-hold-pill-miss">—</span>`; continue; }
+          const tW = parseFloat(atSet(lockW, s, weightPlaceholder));
+          const tR = atSet(lockR, s, repsPlaceholder);
+          const aW = prevSet.weight ? parseFloat(prevSet.weight) : null;
+          // Same comparisons the compliance check itself uses, so the pill can
+          // never disagree with the lock: a 0.01 tolerance on weight, and
+          // parseRepsForVolume's lower-bound read so ranges compare sensibly.
+          const wOk = aW !== null && !isNaN(tW) && (aW - tW > -0.01);
+          const rOk = parseRepsForVolume(String(prevSet.reps || '')) >= parseRepsForVolume(String(tR));
+          const label = `${aW !== null ? aW.toFixed(1) : '—'}${isPauseSet ? '' : ` × ${stripReps(prevSet.reps || '—')}`}`;
+          pills += `<span class="ex-hold-pill${(wOk && rOk) ? '' : ' ex-hold-pill-miss'}">${label}</span>`;
+        }
+        const heldW = atSet(lockW, 0, weightPlaceholder);
+        const heldR = stripReps(atSet(lockR, 0, repsPlaceholder));
+        holdPanelHtml = `<div class="ex-hold" id="locked-notice-${macro.id}-${exId}">
+          <div class="ex-hold-head">Hit ${heldW} kg${isPauseSet ? '' : ` × ${heldR} reps`} on every set to unlock progression</div>
+          <div class="ex-hold-label">Last wk</div>
+          <div class="ex-hold-pills">${pills}</div>
         </div>`;
+      }
+      html += holdPanelHtml;
 
       if (isExpanded) {
         let weightRec = '', repsRec = '';
         const showProgSelector = state.currentWeek > 1 && !isDeloadSession && !isPostDeloadSession && !isMaintCycle && !isLocked;
         if (showProgSelector) {
           const prevWLabel = prevActualWeight !== null ? prevActualWeight.toFixed(1) : getWeekWeight(ex, prevWeek2, 'weight', macro.goalType, macro.weightIncrement).toFixed(1);
-          weightRec = `${prevWLabel} kg → ${recommendedWeight.toFixed(1)} kg (+${weightJump} kg)`;
+          weightRec = `${prevWLabel} → ${recommendedWeight.toFixed(1)} kg`;
           if (ex.type === 'giant') {
             const prevRLabelGiant = prevActualReps !== null ? prevActualReps : getGiantSetProgression(ex, prevWeek2);
-            repsRec = `${prevRLabelGiant} → ${recommendedReps} (+10 reps)`;
+            repsRec = `${stripReps(prevRLabelGiant)} → ${stripReps(recommendedReps)} reps`;
           } else if (!isPauseSet) {
             const prevRLabel = prevActualReps || getWeekReps(ex, prevWeek2, 'reps');
-            repsRec = `${prevRLabel} → ${recommendedReps} (+1 rep)`;
+            repsRec = `${stripReps(prevRLabel)} → ${stripReps(recommendedReps)} reps`;
           }
         }
-        const lockedNotice = (isLocked && !isDeloadSession && !isPostDeloadSession) ? `<div id="locked-notice-${macro.id}-${exId}" style="margin-bottom:12px;padding:10px 12px;border-radius:var(--r-sm);background:var(--surface2);border:1px solid var(--border2);">
-          <div style="font-size:12px;font-weight:600;color:var(--red);">⚠ Progression on hold</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:2px;">The suggested weight/reps weren't hit last time, so they're staying put at ${weightPlaceholder} kg · ${stripReps(repsPlaceholder)} reps until you complete every set exactly as suggested.</div>
-        </div>` : '';
-        const progSelector = !showProgSelector ? lockedNotice : `<div id="prog-selector-${macro.id}-${exId}" style="margin-bottom:12px;">
-          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">This week — choose progression</div>
-          <div style="display:flex;gap:8px;">
-            <div onclick="selectProgType('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}','weight')"
-              style="flex:1;padding:10px 12px;border-radius:var(--r-sm);cursor:pointer;background:${progType==='weight'?'var(--accent)':'var(--surface2)'};color:${progType==='weight'?'#06281f':'var(--text2)'};">
-              <div style="font-size:12px;font-weight:600;">↑ Weight</div>
-              <div style="font-size:11px;opacity:0.8;margin-top:1px;">${weightRec}</div>
+        // Two equal columns that never wrap. A pause set progresses on weight
+        // only and a giant set on its reps base, so the reps column is dropped
+        // for pause sets rather than rendered inert.
+        const progSelector = !showProgSelector ? '' : `<div class="ex-block" id="prog-selector-${macro.id}-${exId}">
+          <div class="ex-block-label">Progress this week</div>
+          <div class="ex-chips">
+            <div class="ex-chip${progType==='weight'?' ex-chip-on':''}" onclick="selectProgType('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}','weight')">
+              <div class="ex-chip-title">↑ Weight</div>
+              <div class="ex-chip-sub">${weightRec}</div>
             </div>
-            ${isPauseSet ? '' : `<div onclick="selectProgType('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}','reps')"
-              style="flex:1;padding:10px 12px;border-radius:var(--r-sm);cursor:pointer;background:${progType==='reps'?'var(--accent)':'var(--surface2)'};color:${progType==='reps'?'#06281f':'var(--text2)'};">
-              <div style="font-size:12px;font-weight:600;">↑ Reps</div>
-              <div style="font-size:11px;opacity:0.8;margin-top:1px;">${repsRec}</div>
+            ${isPauseSet ? '' : `<div class="ex-chip${progType==='reps'?' ex-chip-on':''}" onclick="selectProgType('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}','reps')">
+              <div class="ex-chip-title">↑ Reps</div>
+              <div class="ex-chip-sub">${repsRec}</div>
             </div>`}
           </div>
+          ${lastRouteText ? `<div class="ex-block-caption">${lastRouteText}</div>` : ''}
         </div>`;
-        let setRows = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;">Log sets</div>
-          <div style="display:flex;gap:6px;">
-            <button onclick="${isDropSet
+        let setRows = `<div class="ex-block-head">
+          <div class="ex-block-label">Log sets</div>
+          <div class="ex-block-actions">
+            <button class="btn-ghost btn-sm" id="fill-btn-${macro.id}-${exId}" onclick="${isDropSet
                 ? `fillSuggestedDropset('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholders.join('|')}','${repsPlaceholders.join('|')}','${dropWeightPlaceholders.join('|')}')`
-                : `fillSuggested('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholders.join('|')}','${repsPlaceholders.join('|')}')`}"
-              id="fill-btn-${macro.id}-${exId}"
-              style="font-size:11px;padding:5px 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;color:var(--text2);font-family:var(--font-display);cursor:pointer;">
-              ↓ Fill suggested
-            </button>
-            <button onclick="clearExerciseLogs('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets})"
-              style="font-size:11px;padding:5px 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;color:var(--red);font-family:var(--font-display);cursor:pointer;">
-              Clear
-            </button>
+                : `fillSuggested('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholders.join('|')}','${repsPlaceholders.join('|')}')`}">Fill suggested</button>
+            <button class="btn-danger btn-sm" onclick="clearExerciseLogs('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets})">Clear</button>
           </div>
         </div>
-        <div class="set-row" style="border-bottom:0.5px solid var(--border);padding-top:0;">
+        <div class="set-row set-row-head">
           <span class="set-num">#</span>
-          <span style="font-size:10px;color:var(--text3);">Last wk</span>
-          <span style="font-size:10px;color:var(--text3);text-align:center;">kg</span>
-          <span style="font-size:10px;color:var(--text3);text-align:center;">reps</span>
-          <span style="font-size:10px;color:var(--text3);text-align:center;">✓</span>
+          <span>Last wk</span>
+          <span style="text-align:center;">kg</span>
+          <span style="text-align:center;">Reps</span>
+          <span style="text-align:center;">✓</span>
         </div>`;
         if (isDropSet) {
           // ── Drop-set log layout: one block per set, two rows within it
@@ -20457,8 +20829,7 @@ function renderTrainDay(macro) {
           </div>`;
         }
         }
-        html += `<div style="padding:0 14px 14px;border-top:0.5px solid var(--border);">
-          <div style="height:10px;"></div>
+        html += `<div class="ex-body">
           ${progSelector}
           ${setRows}
         </div>`;
@@ -20518,25 +20889,27 @@ function renderTrainDay(macro) {
             if ((state.trainLogs[key2 + '_' + m.id + '_' + s] || {}).done) doneCount++;
           }
           const mDeltaBadge = buildCardioDeltaBadge(macro, m);
-          return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:3px;">' +
-            '<span style="font-size:12px;color:var(--text2);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' +
-              m.name + ' <span class="badge badge-blue" style="font-size:8px;vertical-align:middle;">cardio</span> ' +
-              '<span style="font-size:11px;color:var(--text3);">' + sets + ' sets · ' + buildCardioTrainSubtitlePart(macro, m) + mDeltaBadge + '</span>' +
-            '</span>' +
-            '<span style="font-size:11px;color:' + (doneCount === sets && sets > 0 ? 'var(--accent)' : 'var(--text3)') + ';white-space:nowrap;flex-shrink:0;">' + doneCount + '/' + sets + '</span>' +
+          return '<div class="ss-row">' +
+            '<div class="ss-row-text">' +
+              '<div class="ss-row-name">' + m.name + ' <span class="ex-tag" style="--tag-c:var(--blue);">cardio</span></div>' +
+              '<div class="ss-row-meta">' + sets + ' sets · ' + buildCardioTrainSubtitlePart(macro, m) + mDeltaBadge + '</div>' +
+            '</div>' +
+            '<span class="ss-row-weight"' + (doneCount === sets && sets > 0 ? ' style="color:var(--green-text);"' : '') + '>' + doneCount + '/' + sets + '</span>' +
           '</div>';
         }
         const mSets = getWeekSets(m, state.currentWeek, macro.weeks);
-        const mTracking = m.trackingMode === 'perSide' ? ' · per side' : '';
+        // Reads as part of the unit ("52.5 kg per side"), not as a separate fact
+        // after it ("52.5 kg · per side").
+        const mTracking = m.trackingMode === 'perSide' ? ' per side' : '';
 
         if (state.currentWeek === 1) {
           const mSetsReps = mSets + ' sets · ' + ssStrip(m.reps) + ' reps';
-          const mWRef = md.weightPlaceholder + ' kg';
-          return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:3px;">' +
-            '<span style="font-size:12px;color:var(--text2);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' +
-              m.name + '  <span style="font-size:11px;color:var(--text3);">' + mSetsReps + '</span>' +
-            '</span>' +
-            '<span style="font-size:11px;color:var(--text3);white-space:nowrap;flex-shrink:0;">' + mWRef + mTracking + '</span>' +
+          return '<div class="ss-row">' +
+            '<div class="ss-row-text">' +
+              '<div class="ss-row-name">' + m.name + '</div>' +
+              '<div class="ss-row-meta">' + mSetsReps + '</div>' +
+            '</div>' +
+            '<span class="ss-row-weight">' + md.weightPlaceholder + ' kg' + mTracking + '</span>' +
           '</div>';
         }
 
@@ -20564,8 +20937,10 @@ function renderTrainDay(macro) {
             : mLastReps !== null
               ? mSets + ' sets · ' + ssStrip(mLastReps) + '/' + ssStrip(md.recommendedReps) + ' reps'
               : mSets + ' sets · ' + ssStrip(md.recommendedReps) + ' reps';
+        // No " logged" suffix: the row's own weight column is the only weight
+        // it shows, and the tick state is carried by the set cards below.
         const mWeightRefText = mAllDone
-          ? mSummaryW + ' logged'
+          ? mSummaryW
           : (md.isDeloadSession || md.isPostDeloadSession)
             ? md.weightPlaceholder + ' kg'
           : md.isLocked
@@ -20575,42 +20950,34 @@ function renderTrainDay(macro) {
           : mLastWeight !== null
             ? mLastWeight + ' / ' + md.recommendedWeight.toFixed(1) + ' kg'
             : md.weightPlaceholder + ' kg';
-        const mCurrentLog = state.trainLogs[key2 + '_' + m.id + '_0'];
-        const mCurrentActualW = mCurrentLog && mCurrentLog.weight ? parseFloat(mCurrentLog.weight) : null;
-        // Same week-1 anchoring as the solo-exercise badge above.
-        const mBaseForDelta = m.startWeight || 0;
-        let mProgressBadge = '';
-        if (!md.isDeloadSession && mCurrentActualW !== null && mCurrentActualW !== mBaseForDelta) {
-          const mProgressKg  = mCurrentActualW - mBaseForDelta;
-          const mProgressPct = m.startWeight > 0 ? Math.round(((mCurrentActualW - m.startWeight) / m.startWeight) * 100) : 0;
-          const mCol = mProgressKg >= 0 ? 'var(--accent)' : 'var(--red)';
-          mProgressBadge = '<div style="font-size:10px;color:' + mCol + ';font-weight:500;margin-top:1px;">' +
-            (mProgressKg >= 0 ? '+' : '') + mProgressKg.toFixed(1) + 'kg\u00a0/\u00a0' +
-            (mProgressPct >= 0 ? '+' : '') + mProgressPct + '%</div>';
-        }
-        // progress badge inline: rendered as a span so it sits on the same line as sets·reps
-        const mProgressInline = mProgressBadge
-          ? ' ' + mProgressBadge.replace('<div ', '<span ').replace('</div>', '</span>').replace('margin-top:1px;', '')
-          : '';
-        // Which progression path was used last week — placed next to
-        // sets/reps here (rather than next to the name, as on solo
-        // exercises) since each superset member only gets one compact line.
-        const mLastWkBadge = md.isDeloadSession
-          ? ' <span class="badge badge-amber" style="font-size:9px;">deload</span>'
+        // v8.16 dropped the since-week-1 delta from superset member rows. It is
+        // still on solo cards (.ex-since-start), where it has a line of its own
+        // and a label; squeezed unlabelled into a row already carrying sets,
+        // reps and last week's log, it read as part of the neighbouring figure.
+        // The member's own flags, as tags beside its name — the same vocabulary
+        // as a solo card's, one line shorter.
+        const mTags = md.isDeloadSession
+          ? '<span class="ex-tag" style="--tag-c:var(--ice-blue);">Deload</span>'
           : isMaintCycle
           ? ''
           : md.isLocked
-          ? ' <span style="color:var(--text3);" title="Suggested weight/reps weren\'t hit last time — on hold until they are">· <span style="color:var(--red);">⚠ locked</span></span>'
+          ? '<span class="ex-tag" style="--tag-c:var(--amber);">On hold</span>'
           : (md.prevWeek2 >= 1 && md.prevProgType && !md.isPostDeloadSession)
-          ? ' <span style="color:var(--text3);">· Last wk: <span style="color:var(--text2);">' + (md.prevProgType === 'weight' ? '↑ weight' : '↑ reps') + '</span></span>'
+          ? '<span class="ex-tag ex-tag-quiet">Last wk: ' + (md.prevProgType === 'weight' ? '↑ weight' : '↑ reps') + '</span>'
           : (md.prevWeek2 >= 1 && md.prevNoProgression && !md.isPostDeloadSession)
-            ? ' <span style="color:var(--text3);">· Last wk: no progression</span>'
+            ? '<span class="ex-tag ex-tag-quiet">Last wk: no progression</span>'
             : '';
-        return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:3px;">' +
-          '<span style="font-size:12px;color:var(--text2);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' +
-            m.name + '  <span style="font-size:11px;color:var(--text3);">' + mSetsRepsText + mLastWkBadge + mProgressInline + '</span>' +
-          '</span>' +
-          '<span style="font-size:11px;color:var(--text3);white-space:nowrap;flex-shrink:0;">' + mWeightRefText + mTracking + '</span>' +
+        // Last week's actual set-1 log, which is what "last week" means on a
+        // superset row — the per-set detail lives in the expanded body.
+        const mLastWk = mLastWeight !== null
+          ? 'Last wk ' + mLastWeight + 'kg' + (mLastReps !== null ? ' × ' + ssStrip(mLastReps) : '')
+          : '';
+        return '<div class="ss-row">' +
+          '<div class="ss-row-text">' +
+            '<div class="ss-row-name">' + m.name + (mTags ? ' ' + mTags : '') + '</div>' +
+            '<div class="ss-row-meta">' + mSetsRepsText + (mLastWk ? ' · ' + mLastWk : '') + '</div>' +
+          '</div>' +
+          '<span class="ss-row-weight">' + mWeightRefText + mTracking + '</span>' +
         '</div>';
       }).join('');
 
@@ -20626,60 +20993,62 @@ function renderTrainDay(macro) {
         return [m.id, md.sets, md.weightPlaceholders.join('|'), md.repsPlaceholders.join('|')];
       })).replace(/"/g, '&quot;');
 
-      html += `<div class="ss-train-block">
-        <div class="ss-train-header" onclick="toggleExercise('${expandKey}')">
-          <span class="ss-train-badge">${badge}</span>
-          <div class="ss-train-info">
-            <div class="ss-train-title">${ssName}</div>
-            ${previewRows}
+      // One card for the whole group, with ONE auto-complete button that fills
+      // every member. The lavender tag names the group and its round count; the
+      // members are listed below it, one row each.
+      html += `<div class="card ex-card${isExpanded ? ' ex-card-open' : ''}">
+        <div class="ex-head" onclick="toggleExercise('${expandKey}')">
+          <div class="ex-idx">${String(slotIdx + 1).padStart(2, '0')}</div>
+          <div class="ex-head-text">
+            <div class="ex-name">${ssName}</div>
+            <div class="ex-tags"><span class="ex-tag" style="--tag-c:var(--accent2);">Superset · ${sets} round${sets === 1 ? '' : 's'}</span></div>
           </div>
-          <div class="ss-train-btns" onclick="event.stopPropagation()">
+          <div class="ex-head-right" onclick="event.stopPropagation()">
             ${allSSDone
-              ? (anySSMissedTarget
-                  ? `<span style="font-size:11px;white-space:nowrap;"><span style="color:var(--accent);font-weight:500;">✓ done</span> <span style="color:var(--text3);">·</span> <span style="color:var(--red);font-weight:500;">⚠ missed target</span></span>`
-                  : `<span style="font-size:11px;color:var(--accent);font-weight:500;white-space:nowrap;">✓ done</span>`)
+              ? `<span class="ex-done${anySSMissedTarget ? ' ex-done-missed' : ''}">✓ done${anySSMissedTarget ? ' · ⚠ missed target' : ''}</span>`
               : anySSLocked
-              ? (totalDone > 0 ? `<span style="font-size:11px;color:var(--text3);white-space:nowrap;">${totalDone}/${totalSets}</span>` : '')
-              : `<button onclick="quickFillCompleteSuperset(event,'${macro.id}',${state.currentWeek},'${state.currentDay}','${fillArgs}')"
-                  title="Fill all suggested and mark complete"
-                  style="width:26px;height:26px;border-radius:50%;border:1.5px solid var(--border2);background:transparent;color:var(--text2);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;">
-                  <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              ? (totalDone > 0 ? `<span class="ex-lastwk">${totalDone}/${totalSets}</span>` : '')
+              : `<button class="ex-auto-btn" title="Complete every set at target"
+                  onclick="quickFillCompleteSuperset(event,'${macro.id}',${state.currentWeek},'${state.currentDay}','${fillArgs}')">
+                  <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                 </button>`
             }
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${isExpanded?'180':'0'}deg)"><polyline points="6 9 12 15 18 9"/></svg>
           </div>
+        </div>
+        <div class="ss-rows" onclick="toggleExercise('${expandKey}')">
+          ${previewRows}
+          <svg class="ex-chevron ss-chevron" viewBox="0 0 24 24" style="transform:rotate(${isExpanded?'180':'0'}deg);"><polyline points="6 9 12 15 18 9"/></svg>
         </div>`;
 
       if (isExpanded) {
         // Progression toggles — per exercise, full-width cards matching normal exercise style
         let progToggles = '';
         if (state.currentWeek > 1 && !isDeloadSession && !isPostDeloadSession && members.some(m => m.category !== 'cardio')) {
-          progToggles = '<div class="ss-prog-toggles"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">This week — choose progression</div>';
+          progToggles = '<div class="ss-prog-toggles"><div class="ex-block-label">Progress this week</div>';
           members.forEach((m, mi) => {
             // Cardio members never get a progression-type toggle — there's
             // nothing to choose between (see exProgData's cardio guard).
             if (m.category === 'cardio') return;
             const md = memberData[mi];
             if (md.isLocked) {
-              progToggles += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:10px 12px;border-radius:var(--r-sm);background:var(--surface2);border:1px solid var(--border2);">' +
-                '<div style="flex:1;min-width:0;">' +
-                  '<div style="font-size:12px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + m.name + ' <span style="color:var(--red);font-size:11px;">· ⚠ locked</span></div>' +
-                  '<div style="font-size:10px;color:var(--text3);margin-top:2px;">On hold at ' + md.weightPlaceholder + ' kg · ' + md.repsPlaceholder + ' reps until fully hit</div>' +
-                '</div>' +
+              progToggles += '<div class="ex-hold" id="locked-notice-' + macro.id + '-' + m.id + '">' +
+                '<div class="ex-hold-head">' + m.name + ' — hit ' + ssStrip(md.repsPlaceholder) + ' on every set to unlock progression</div>' +
+                '<div class="ex-hold-label">Held at</div>' +
+                '<div class="ex-hold-pills"><span class="ex-hold-pill">' + md.weightPlaceholder + ' kg</span><span class="ex-hold-pill">' + ssStrip(md.repsPlaceholder) + ' reps</span></div>' +
               '</div>';
               return;
             }
             const pt = md.progType;
             const isPauseSet = m.type === 'pause';
             const prevWLabel = md.prevActualWeight !== null ? md.prevActualWeight.toFixed(1) : getWeekWeight(m, md.prevWeek2, 'weight', macro.goalType, macro.weightIncrement).toFixed(1);
-            const mWeightRec = prevWLabel + ' kg → ' + md.recommendedWeight.toFixed(1) + ' kg (+' + md.weightJump + ' kg)';
+            const mWeightRec = prevWLabel + ' → ' + md.recommendedWeight.toFixed(1) + ' kg';
             let mRepsRec = '';
             if (m.type === 'giant') {
               const mPrevRLabel = md.prevActualReps !== null ? md.prevActualReps : getGiantSetProgression(m, md.prevWeek2);
-              mRepsRec = mPrevRLabel + ' → ' + md.recommendedReps + ' (+10 reps)';
+              mRepsRec = ssStrip(mPrevRLabel) + ' → ' + ssStrip(md.recommendedReps) + ' reps';
             } else if (!isPauseSet) {
               const prevRLabel = md.prevActualReps || getWeekReps(m, md.prevWeek2, 'reps');
-              mRepsRec = prevRLabel + ' → ' + md.recommendedReps + ' (+1 rep)';
+              mRepsRec = ssStrip(prevRLabel) + ' → ' + ssStrip(md.recommendedReps) + ' reps';
             }
             // Aggregate last-week summary (sets/reps/weight actually logged),
             // rather than listing every individual set — mirrors how solo
@@ -20692,26 +21061,28 @@ function renderTrainDay(macro) {
               return `Last wk: ${setsCount} sets · ${repsPart}${weightPart}`;
             })();
             const mTypeLabel = m.type === 'standard' ? '' : m.type === 'giant' ? 'giant set' : 'pause set';
-            const mTypeBadgeHtml = mTypeLabel
-              ? `<span class="badge ${m.type==='giant'?'badge-purple':'badge-amber'}" style="font-size:9px;margin-left:6px;vertical-align:middle;">${mTypeLabel}</span>`
+            const mTypeTagHtml = mTypeLabel
+              ? ' <span class="ex-tag" style="--tag-c:' + (m.type === 'giant' ? 'var(--accent2)' : 'var(--amber)') + ';">' + mTypeLabel + '</span>'
               : '';
-            // Single row: exercise name (+ type badge, + last week summary) on left, buttons on right
-            progToggles += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">';
-            progToggles += '<div style="flex:1;min-width:0;">' +
-              '<div style="font-size:12px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + m.name + mTypeBadgeHtml + '</div>' +
-              (mLastWeekSummary ? '<div style="font-size:10px;color:var(--text3);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + mLastWeekSummary + '</div>' : '') +
+            // Per member: its name and last week above, then its own two chips —
+            // same two equal columns as a solo card's, stacked per member because
+            // a superset chooses a route for each exercise separately.
+            progToggles += '<div class="ss-prog-member">';
+            progToggles += '<div class="ss-prog-member-head">' + m.name + mTypeTagHtml +
+              (mLastWeekSummary ? '<span class="ss-prog-member-last">' + mLastWeekSummary + '</span>' : '') +
             '</div>';
-            progToggles += '<div onclick="selectProgType(\'' + macro.id + '\',' + state.currentWeek + ',\'' + state.currentDay + '\',\'' + m.id + '\',' + '\'weight\')" style="padding:8px 10px;border-radius:var(--r-sm);cursor:pointer;background:' + (pt==='weight'?'var(--accent)':'var(--surface2)') + ';color:' + (pt==='weight'?'#06281f':'var(--text2)') + ';">' +
-              '<div style="font-size:11px;font-weight:600;">↑ Weight</div>' +
-              '<div style="font-size:10px;opacity:0.8;margin-top:1px;">' + mWeightRec + '</div>' +
+            progToggles += '<div class="ex-chips">';
+            progToggles += '<div class="ex-chip' + (pt==='weight'?' ex-chip-on':'') + '" onclick="selectProgType(\'' + macro.id + '\',' + state.currentWeek + ',\'' + state.currentDay + '\',\'' + m.id + '\',\'weight\')">' +
+              '<div class="ex-chip-title">↑ Weight</div>' +
+              '<div class="ex-chip-sub">' + mWeightRec + '</div>' +
             '</div>';
             if (!isPauseSet) {
-              progToggles += '<div onclick="selectProgType(\'' + macro.id + '\',' + state.currentWeek + ',\'' + state.currentDay + '\',\'' + m.id + '\',' + '\'reps\')" style="padding:8px 10px;border-radius:var(--r-sm);cursor:pointer;background:' + (pt==='reps'?'var(--accent)':'var(--surface2)') + ';color:' + (pt==='reps'?'#06281f':'var(--text2)') + ';">' +
-                '<div style="font-size:11px;font-weight:600;">↑ Reps</div>' +
-                '<div style="font-size:10px;opacity:0.8;margin-top:1px;">' + mRepsRec + '</div>' +
+              progToggles += '<div class="ex-chip' + (pt==='reps'?' ex-chip-on':'') + '" onclick="selectProgType(\'' + macro.id + '\',' + state.currentWeek + ',\'' + state.currentDay + '\',\'' + m.id + '\',\'reps\')">' +
+                '<div class="ex-chip-title">↑ Reps</div>' +
+                '<div class="ex-chip-sub">' + mRepsRec + '</div>' +
               '</div>';
             }
-            progToggles += '</div>';
+            progToggles += '</div></div>';
           });
           progToggles += '</div>';
         }
@@ -20826,23 +21197,17 @@ function renderTrainDay(macro) {
           const md = memberData[mi];
           return "clearExerciseLogs('" + macro.id + "'," + state.currentWeek + ",'" + state.currentDay + "','" + m.id + "'," + md.sets + ")";
         }).join(';');
-        const ssFillBtns = `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px 0;">
-          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;">Log sets</div>
-          <div style="display:flex;gap:6px;">
-            <button onclick="event.stopPropagation();${ssFillOnclick}"
-              style="font-size:11px;padding:5px 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;color:var(--text2);font-family:var(--font-display);cursor:pointer;">
-              ↓ Fill suggested
-            </button>
-            <button onclick="event.stopPropagation();${ssClearOnclick}"
-              style="font-size:11px;padding:5px 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;color:var(--red);font-family:var(--font-display);cursor:pointer;">
-              Clear
-            </button>
+        const ssFillBtns = `<div class="ex-block-head">
+          <div class="ex-block-label">Log sets</div>
+          <div class="ex-block-actions">
+            <button class="btn-ghost btn-sm" onclick="event.stopPropagation();${ssFillOnclick}">Fill suggested</button>
+            <button class="btn-danger btn-sm" onclick="event.stopPropagation();${ssClearOnclick}">Clear</button>
           </div>
         </div>`;
 
-        html += `<div class="ss-expanded-body">
-          ${ssFillBtns}
+        html += `<div class="ex-body">
           ${progToggles}
+          ${ssFillBtns}
           <div class="ss-set-cards">${setCards}</div>
         </div>`;
       }
@@ -21118,7 +21483,7 @@ function fillCardioLevels(macroId, week, day, exId, sets) {
 // · last-logged levels, delta badge, done count, click to expand/collapse)
 // plus, when expanded: Fill-suggested/Clear controls (levels only — see
 // fillCardioLevels()), a column header row, and one logging row per set.
-function buildCardioTrainCard(macro, ex, expandKey, isExpanded) {
+function buildCardioTrainCard(macro, ex, expandKey, isExpanded, slotIdx) {
   const sets = getWeekSets(ex, state.currentWeek, macro.weeks);
   const key2 = macro.id + '_' + state.currentWeek + '_' + state.currentDay;
   let doneCount = 0;
@@ -21139,47 +21504,53 @@ function buildCardioTrainCard(macro, ex, expandKey, isExpanded) {
     const loggedColLabel = isTimeTarget ? (ex.distanceUnit || 'km') : 'time';
     let setRows = '';
     for (let s = 0; s < sets; s++) setRows += buildCardioSetRowHtml(macro, ex, s, false);
-    expandedBody = `<div style="padding:0 14px 14px;border-top:0.5px solid var(--border);">
-      <div style="height:10px;"></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;">Log sets</div>
-        <div style="display:flex;gap:6px;">
-          <button onclick="event.stopPropagation();fillCardioLevels('${macro.id}',${state.currentWeek},'${state.currentDay}','${ex.id}',${sets})"
-            title="Fill suggested speed/resistance levels for every set"
-            style="font-size:11px;padding:5px 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;color:var(--text2);font-family:var(--font-display);cursor:pointer;">
-            ↓ Fill suggested
-          </button>
-          <button onclick="event.stopPropagation();clearExerciseLogs('${macro.id}',${state.currentWeek},'${state.currentDay}','${ex.id}',${sets})"
-            style="font-size:11px;padding:5px 10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;color:var(--red);font-family:var(--font-display);cursor:pointer;">
-            Clear
-          </button>
+    expandedBody = `<div class="ex-body">
+      <div class="ex-block-head">
+        <div class="ex-block-label">Log sets</div>
+        <div class="ex-block-actions">
+          <button class="btn-ghost btn-sm" title="Fill suggested speed/resistance levels for every set"
+            onclick="event.stopPropagation();fillCardioLevels('${macro.id}',${state.currentWeek},'${state.currentDay}','${ex.id}',${sets})">Fill suggested</button>
+          <button class="btn-danger btn-sm" onclick="event.stopPropagation();clearExerciseLogs('${macro.id}',${state.currentWeek},'${state.currentDay}','${ex.id}',${sets})">Clear</button>
         </div>
       </div>
-      <div class="cardio-set-row" style="grid-template-columns:${getCardioGridTemplate(ex, false)};padding-top:0;">
-        <span style="font-size:10px;color:var(--text3);">Set</span>
-        <span style="font-size:10px;color:var(--text3);">Target (${isTimeTarget ? 'time' : 'distance'})</span>
-        <span style="font-size:10px;color:var(--text3);text-align:center;">${loggedColLabel}</span>
-        ${ex.speedLevel != null ? '<span style="font-size:10px;color:var(--text3);text-align:center;">speed</span>' : ''}
-        ${ex.resistanceLevel != null ? '<span style="font-size:10px;color:var(--text3);text-align:center;">resist</span>' : ''}
-        <span style="font-size:10px;color:var(--text3);text-align:center;">✓</span>
+      <div class="cardio-set-row cardio-set-row-head" style="grid-template-columns:${getCardioGridTemplate(ex, false)};">
+        <span>Set</span>
+        <span>Target (${isTimeTarget ? 'time' : 'distance'})</span>
+        <span style="text-align:center;">${loggedColLabel}</span>
+        ${ex.speedLevel != null ? '<span style="text-align:center;">speed</span>' : ''}
+        ${ex.resistanceLevel != null ? '<span style="text-align:center;">resist</span>' : ''}
+        <span style="text-align:center;">✓</span>
       </div>
       ${setRows}
     </div>`;
   }
 
-  return `<div style="margin-bottom:2px;border-bottom:1px solid var(--border);">
-    <div onclick="toggleExercise('${expandKey}')"
-      style="width:100%;background:none;border:none;padding:14px 2px;cursor:pointer;-webkit-tap-highlight-color:transparent;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
-        <div style="flex:1;min-width:0;">
-          <div style="font-family:var(--font-display);font-size:15px;font-weight:600;color:var(--text);">${ex.name} <span class="badge badge-blue" style="font-size:10px;vertical-align:middle;">cardio</span></div>
-          <div style="font-size:12px;color:var(--text2);margin-top:5px;">${subtitle}</div>
-        </div>
-        <span style="font-size:11px;color:${allDone ? 'var(--accent)' : 'var(--text3)'};flex-shrink:0;white-space:nowrap;">${allDone ? '✓ done' : `${doneCount}/${sets}`}</span>
+  // The cardio card follows the same anatomy as a weight card — index badge,
+  // name, tags, the target row — with speed/resistance in place of kg × reps.
+  // There is no auto-complete button: there is no suggested distance or time to
+  // complete a set AT, only levels, which is why cardio is always logged by
+  // hand (see fillCardioLevels, which fills levels only).
+  let dots = '';
+  for (let s = 0; s < sets; s++) {
+    const lg = state.trainLogs[key2 + '_' + ex.id + '_' + s] || {};
+    dots += `<span class="ex-dot${lg.done ? ' ex-dot-on' : ''}"></span>`;
+  }
+  return `<div class="card ex-card${isExpanded ? ' ex-card-open' : ''}">
+    <div class="ex-head" onclick="toggleExercise('${expandKey}')">
+      <div class="ex-idx">${String(slotIdx + 1).padStart(2, '0')}</div>
+      <div class="ex-head-text">
+        <div class="ex-name">${ex.name}</div>
+        <div class="ex-tags"><span class="ex-tag" style="--tag-c:var(--blue);">cardio</span></div>
       </div>
-      <div onclick="event.stopPropagation();toggleExercise('${expandKey}')" style="display:flex;justify-content:flex-end;margin-top:4px;padding:4px 0 4px 20px;margin-right:-4px;">
-        <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${isExpanded ? '180' : '0'}deg)"><polyline points="6 9 12 15 18 9"/></svg>
-      </div>
+      ${allDone ? '<span class="ex-done">✓ done</span>' : ''}
+    </div>
+    <div class="ex-target" onclick="toggleExercise('${expandKey}')">
+      <span class="ex-target-left">${subtitle}</span>
+    </div>
+    <div class="ex-dots-row" onclick="toggleExercise('${expandKey}')">
+      <div class="ex-dots">${dots}</div>
+      <span class="ex-lastwk">${doneCount}/${sets} logged</span>
+      <svg class="ex-chevron" viewBox="0 0 24 24" style="transform:rotate(${isExpanded ? '180' : '0'}deg);"><polyline points="6 9 12 15 18 9"/></svg>
     </div>
     ${expandedBody}
   </div>`;
