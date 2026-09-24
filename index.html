@@ -637,9 +637,13 @@ h3 {
   background: var(--surface3); border-radius: var(--r-icon-card);
 }
 .row-btn-text { flex: 1; min-width: 0; }
-.row-btn-title { font-size: 14.5px; font-weight: 700; color: var(--text); }
-.row-btn-sub { font-size: 12.5px; font-weight: 500; color: var(--text2); margin-top: 2px; line-height: 1.35; }
-.row-btn-chevron { flex-shrink: 0; color: var(--text3); font-size: 16px; }
+/* display:block so the pair stacks whether the call site used <div> or <span>. */
+.row-btn-title { display: block; font-size: 14.5px; font-weight: 700; color: var(--text); }
+.row-btn-sub { display: block; font-size: 12.5px; font-weight: 500; color: var(--text2); margin-top: 2px; line-height: 1.35; }
+/* Holds icoChevron(). display:flex stops the svg sitting on the text baseline
+   and leaving a descender's worth of gap under every row. */
+.row-btn-chevron { flex-shrink: 0; color: var(--text3); display: flex; align-items: center; }
+.ico { flex-shrink: 0; }
 
 /* The way out of a hidden page — a page with no nav tab (Settings). */
 .back-link {
@@ -2270,8 +2274,14 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .metric-note { font-size: 12px; font-weight: 500; color: var(--text3); margin-top: 8px; line-height: 1.45; }
 .metric-note-off { color: var(--text2); }
 .metric-note-off strong { color: var(--red); }
+/* 🚨 NOT absolutely positioned. It was `position:absolute; top:10px; right:0`
+   inside .metric-row, which put it a third of a line below the value it belongs
+   to and printed it straight over the "/ target" figure (v8.16 UAT, Home ▸ This
+   week). As a flex child of .metric-row-top it takes its own width, so the
+   value shortens to make room instead of being overlapped. align-self:center
+   because the row aligns on the text baseline and a button has none worth using. */
 .metric-info-btn {
-  position: absolute; top: 10px; right: 0; width: 26px; height: 26px; padding: 0;
+  width: 26px; height: 26px; padding: 0; flex-shrink: 0; align-self: center;
   border: none; background: none; color: var(--red); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
 }
@@ -2285,6 +2295,13 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .card-tappable:active { transform: scale(0.995); }
 .card-divider { height: 1px; background: var(--divider); margin: 14px 0; }
 .empty-inline { font-size: 13px; font-weight: 500; color: var(--text3); padding: 8px 0; }
+/* A card whose whole content is "there is nothing here yet". Centred, with
+   the roomier padding of the reference — left-aligned it read as a row that
+   had failed to load rather than a deliberate empty state (v8.16 UAT). Used
+   by Home ▸ Food plan and Home ▸ Up next, which must stay identical: the
+   report specifically asked that fixing one did not leave the other odd. */
+.card-empty { text-align: center; padding: 26px 18px; }
+.card-empty .empty-inline { padding: 0; }
 
 /* ── 02 Log today ────────────────────────────────────────────────────── */
 .log-field { margin-bottom: 14px; }
@@ -2311,7 +2328,18 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .tag-due { background: color-mix(in srgb, var(--red) 16%, transparent); border-color: transparent; color: var(--red); margin-left: 6px; }
 .tag-ss  { background: color-mix(in srgb, var(--accent2) 16%, transparent); border-color: transparent; color: var(--accent2); margin-left: 6px; }
 
-.meas-tile { flex: 1; background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--r-tile); padding: 12px 14px; }
+/* 🚨 No border. A border makes these read as chips — tappable, or a state —
+   and they are neither: they are the last figures, shown so the new entry has
+   something to be judged against (v8.16 UAT). The --surface2 fill is the only
+   separation they need against the sheet's --surface. */
+.meas-tile { flex: 1; background: var(--surface2); border: none; border-radius: var(--r-tile); padding: 12px 14px; }
+/* The "last logged" line and the in/cm toggle share one row. The toggle keeps
+   its own width; the line takes the rest and cancels .modal-sub's negative
+   top margin, which only makes sense directly under a title. */
+.meas-head-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -6px 0 16px; }
+.meas-head-row .modal-sub { margin: 0; }
+.meas-unit-toggle { width: 118px; flex-shrink: 0; margin-bottom: 0; }
+.meas-unit-toggle .toggle-btn { min-height: 34px; padding: 5px 8px; font-size: 13px; }
 .meas-tile-label { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--text3); }
 .meas-tile-value { font-family: var(--font-display); font-size: 20px; font-weight: 600; color: var(--text); margin-top: 4px; font-variant-numeric: tabular-nums; }
 
@@ -4086,14 +4114,19 @@ try {
       <button class="modal-close-btn" onclick="closeModal('modal-home-measurements')">&#10005;</button>
     </div>
     <div class="modal-title">Measurements</div>
-    <div class="modal-sub" id="home-meas-last-logged"></div>
-
-    <div id="home-meas-last-tiles" style="display:flex;gap:10px;margin-bottom:18px;"></div>
-
-    <div class="toggle-row" style="margin-bottom:16px;">
-      <button class="toggle-btn active" id="home-meas-unit-in" onclick="setHomeMeasUnit('in')">in</button>
-      <button class="toggle-btn" id="home-meas-unit-cm" onclick="setHomeMeasUnit('cm')">cm</button>
+    <!-- The unit toggle rides on the "last logged" line rather than taking a
+         full-width row of its own below the tiles: it is a preference about
+         how to READ the figures, so it belongs beside them, not in the flow
+         of entering a new one (v8.16 UAT). -->
+    <div class="meas-head-row">
+      <div class="modal-sub" id="home-meas-last-logged"></div>
+      <div class="toggle-row meas-unit-toggle">
+        <button class="toggle-btn active" id="home-meas-unit-in" onclick="setHomeMeasUnit('in')">in</button>
+        <button class="toggle-btn" id="home-meas-unit-cm" onclick="setHomeMeasUnit('cm')">cm</button>
+      </div>
     </div>
+
+    <div id="home-meas-last-tiles" style="display:flex;gap:10px;margin-bottom:20px;"></div>
 
     <div id="home-meas-anim-wrap" style="position:relative;overflow:hidden;border-radius:var(--r-tile);">
       <div id="home-meas-fields-in">
@@ -8432,6 +8465,28 @@ function sectionHeader(title, sublabel, opts) {
     ${sub}`;
 }
 function sectionEnd() { return '</div>'; }
+
+// ── v8.16: THE ICON SET ───────────────────────────────────────────────
+// One builder per icon, so a glyph is drawn in exactly one place. Every path
+// here is lifted from the design reference, at its 1.8 stroke weight.
+//
+// 🚨 These replace TEXT characters (›, ✕, +) used as icons. A text glyph takes
+// the font's own weight and optical size, so it rendered visibly thinner and
+// smaller than every real icon beside it — the v8.16 UAT report "chevron /
+// icon sizes were not updated". A character cannot be stroke-matched to an
+// SVG; the only fix is to stop using one.
+function icoSvg(path, size, extra) {
+  return `<svg class="ico" width="${size || 22}" height="${size || 22}" viewBox="0 0 24 24"`
+    + ` fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"`
+    + ` stroke-linejoin="round" aria-hidden="true"${extra || ''}>${path}</svg>`;
+}
+const icoChevron  = size => icoSvg('<path d="m9 6 6 6-6 6"/>', size);
+const icoChevDown = size => icoSvg('<path d="m6 9 6 6 6-6"/>', size);
+const icoPlus     = size => icoSvg('<path d="M12 5v14M5 12h14"/>', size || 18);
+const icoList     = size => icoSvg('<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>', size || 18);
+const icoRuler    = size => icoSvg('<path d="M3 15 15 3l6 6L9 21z"/><path d="M7.5 10.5 9 12M10.5 7.5 12 9M13.5 4.5 15 6"/>', size || 18);
+const icoPlay     = size => `<svg class="ico" width="${size || 18}" height="${size || 18}" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>`;
+const icoSwitch   = size => icoSvg('<path d="M4 8h13l-3.5-3.5M20 16H7l3.5 3.5"/>', size || 18);
 
 // The ✦ BLOC AI badge that sits in the right slot of every AI-backed section.
 function sectionAiBadge() {
@@ -19978,25 +20033,38 @@ function renderHomeLogBoxes() {
     </div>`;
   }
 
-  // 🚨 The last-logged values are NOT shown on this row. They live in the
-  // sheet, which is where you go to act on them — repeating them on the
-  // button made it a second card inside the card it already sits in.
-  // openHomeMeasurements() fills them in there.
+  // The row carries the last-logged figures as its sublabel, matching the
+  // design reference. (An earlier v8.16 pass left them off on the reasoning
+  // that the sheet shows them anyway; Adam ruled against that in the UAT —
+  // the point of the sublabel is to answer "do I need to do this today?"
+  // WITHOUT opening the sheet.) No sublabel at all until something has been
+  // logged, rather than a row that says "never".
+  // A log qualifies for this list on waist OR hip, so either can be missing.
+  const measSub = (() => {
+    if (!lastMeas) return 'Not logged yet';
+    const parts = [];
+    if (lastMeas.waist) parts.push(`Waist ${fmtInch(lastMeas.waist)}\u2033`);
+    if (lastMeas.hip)   parts.push(`hip ${fmtInch(lastMeas.hip)}\u2033`);
+    parts.push(`last logged ${lastLogRelativeLabel(lastMeas.date, today)}`);
+    return parts.join(' \u00b7 ');
+  })();
 
   // Always present. It was conditional on today's weight being saved, which
   // meant a fresh day showed no route to the history at all — and the button
   // is a way IN to the logs, not a confirmation that something was logged.
   const bodyLogsBtn = `<button class="btn btn-ghost btn-block" id="home-body-logs-btn" style="margin-top:14px;"
-             onclick="showScreen('settings');openSettingsBodyLogs();">View body logs</button>`;
+             onclick="showScreen('settings');openSettingsBodyLogs();">${icoList()} View body logs</button>`;
 
   el.innerHTML = sectionHeader('Log today', "Two quick numbers. Measurements when they're due.")
     + `<div class="card">
         <div class="log-field"><div class="label">Weigh-in</div>${weightHtml}</div>
         <div class="log-field"><div class="label">Steps</div>${stepsHtml}</div>
-        <div class="card-divider"></div>
         <button class="row-plain" onclick="openHomeMeasurements()">
-          <span class="row-plain-title">Measurements ${measDue ? '<span class="tag tag-due">Due</span>' : ''}</span>
-          <span class="row-btn-chevron">\u203a</span>
+          <span class="row-btn-text">
+            <span class="row-btn-title">Measurements ${measDue ? '<span class="tag tag-due">Due</span>' : ''}</span>
+            <span class="row-btn-sub">${measSub}</span>
+          </span>
+          <span class="row-btn-chevron">${icoChevron()}</span>
         </button>
         ${bodyLogsBtn}
       </div>`
@@ -20016,8 +20084,8 @@ function openHomeMeasurements() {
   const subEl = document.getElementById('home-meas-last-logged');
   if (subEl) {
     subEl.textContent = last
-      ? `Last logged ${lastLogRelativeLabel(last.date, today)}.`
-      : 'No measurements logged yet.';
+      ? `Last logged ${lastLogRelativeLabel(last.date, today)}`
+      : 'No measurements logged yet';
   }
   const tilesEl = document.getElementById('home-meas-last-tiles');
   if (tilesEl) {
@@ -20086,9 +20154,9 @@ function renderHomeFoodPlan() {
   const rows = combined.map(r => r.html).join('');
 
   el.innerHTML = sectionHeader('Food plan', "Meals you've planned ahead for today.")
-    + `<div class="card${rows ? ' card-tappable' : ''}"${rows ? ` onclick="showScreen('nutrition')"` : ''}>
+    + `<div class="card${rows ? ' card-tappable' : ' card-empty'}"${rows ? ` onclick="showScreen('nutrition')"` : ''}>
         ${rows || `<div class="empty-inline">Nothing planned for today.</div>`}
-        ${rows ? '' : `<button class="btn btn-ghost btn-block" style="margin-top:14px;" onclick="showScreen('nutrition')">Plan today's meals</button>`}
+        ${rows ? '' : `<button class="btn btn-ghost btn-block" style="margin-top:16px;" onclick="showScreen('nutrition')">${icoPlus()} Plan today's meals</button>`}
       </div>`
     + sectionEnd();
 }
@@ -20102,16 +20170,16 @@ function renderHomeUpNext() {
   const macro = (state.macrocycles || []).find(m => m.id === state.currentMacroId);
 
   if (!macro) {
-    el.innerHTML = head + `<div class="card">
+    el.innerHTML = head + `<div class="card card-empty">
         <div class="empty-inline">Create a macrocycle in the Plan tab first.</div>
-        <button class="btn btn-ghost btn-block" style="margin-top:14px;" onclick="showScreen('plan')">Go to Plan</button>
+        <button class="btn btn-ghost btn-block" style="margin-top:16px;" onclick="showScreen('plan')">${icoPlus()} Go to Plan</button>
       </div>` + sectionEnd();
     return;
   }
 
   const next = getNextIncompleteSession(macro);
   if (!next) {
-    el.innerHTML = head + `<div class="card"><div class="empty-inline">All sessions complete for this cycle.</div></div>` + sectionEnd();
+    el.innerHTML = head + `<div class="card card-empty"><div class="empty-inline">All sessions complete for this cycle.</div></div>` + sectionEnd();
     return;
   }
 
