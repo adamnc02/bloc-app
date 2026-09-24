@@ -4726,3 +4726,106 @@ Loaded through both `http://localhost:8777` and `http://192.168.0.42:8777` in a 
 engine: both report `IS_LOCAL_DEV=true`, the auth gate hidden (`display: none`), `supabase === null`,
 the demo macrocycle seeded, and Home rendering the same content. Sweep: 4/4 verify scripts pass, and
 the count of `scripts/verify*.mjs` on disk matches the number the sweep actually ran.
+
+## §83 — v8.16 Phase 1 review round: numbering dropped, motion moved to scroll, and four layout bugs
+
+Adam's review of the Home build. Two design decisions and several genuine defects — the defects are
+the interesting part, because most of them were invisible to the DOM probes that had already passed.
+
+### Section numbering is gone, permanently
+
+🚨 **Sections are no longer numbered in the UI.** The design scope specified a two-digit badge on
+every section header and Phase 1 built it; Adam dropped it on review (2026-09-24) — the titles carry
+the structure on their own. `sectionHeader()` lost its `num` parameter, `sectionCounter()` was
+deleted, and `.section-num` went with them.
+
+**Do not reintroduce it in later phases**, and do not read the scope's "01 This week" / "02 Log
+today" labelling as an instruction to render numbers: that is how the documents *name* sections. The
+"renumber with no gaps when a section is hidden" rule died with the badge — there is nothing left to
+renumber.
+
+### Motion: scroll-triggered, not a page-load sweep
+
+The original implementation animated the whole screen once when it was shown. 🚨 **The flaw is only
+visible on a real device:** everything below the fold finished animating before you ever scrolled to
+it, so scrolling revealed static content. On a phone that is most of the page.
+
+`setupScreenEntrance()` now uses an **IntersectionObserver** rooted on `#content` (the app's only
+scroller). Each `.rise` element is revealed the first time it comes into view and then `unobserve`d,
+so it never re-animates on scroll back. Everything arriving in the same batch is staggered 90ms
+apart **in document order**, which produces the top-to-bottom assembly on first paint; a section
+scrolled to on its own is a batch of one and rises immediately rather than waiting out a delay it
+cannot explain.
+
+Descendant animations moved from `.is-entering` on the screen root to `.risen` on the section, so a
+bar, ring or hero number animates when *its own* section arrives.
+
+🚨 **The safety net, and why its condition is what it is.** `.will-rise` sets `opacity: 0`, which
+makes the observer load-bearing for visibility — the one thing this system is written to avoid. The
+fallback fires after 1s if **nothing has risen at all**, not if the observer failed to call back. A
+callback-based test is not enough: with a root of zero height the observer dutifully reports every
+element as not-intersecting, so the net never fires and the entire page stays invisible. That state
+is reachable — it is exactly what headless Chrome does to this app, where `--app-height` never
+settles. On any correctly laid-out screen the header intersects immediately, so something has risen
+well inside a second. `.risen` also asserts the final visible state directly, so a cancelled or
+unsupported animation cannot hide content either.
+
+### The spacing bug: `:first-of-type` matched every section
+
+Sections looked like they had no gap above them at all. The rule was:
+
+```css
+.section { margin-top: 44px; }
+.section:first-of-type { margin-top: 0; }   /* wrong */
+```
+
+🚨 **Each section is rendered into its own container element** (`#home-this-week`,
+`#home-log-boxes`, …), so every section is the first `.section` inside its own parent and the reset
+matched **all four**, collapsing every gap to zero. The fix is not to have the reset. The general
+trap: a `:first-child` / `:first-of-type` reset means "first among its siblings", which stops being
+the same as "first on the page" the moment each item has its own wrapper.
+
+### The clipped close button: a 40px control on a 4px row
+
+Every sheet in the app showed a half-drawn ✕. Phase 0 grew `.modal-close-btn` from 28px to 40px, but
+`.modal-handle-row`'s own content is a 4px handle, so the row was 4px tall and the absolutely
+positioned, vertically centred button overflowed the sheet's 10px top padding — where
+`.modal-sheet`'s `overflow-y: auto` clipped it. 🚨 **A row containing an absolutely positioned
+control must be at least as tall as that control.** `min-height: 44px` fixes all 55 sheets at once.
+
+This one is worth remembering as a class of bug: Phase 0 changed a shared component's size and
+verified that all 61 modals still *opened*. They did. Nothing checked whether their chrome still
+*fitted*, and "it opens" is not "it renders".
+
+### Smaller corrections from the same round
+
+- **The account button sat beside the title instead of in the corner.** `.page-head` is a flex row,
+  but neither child had `flex: 1`, so both sized to their content. The title block now takes the
+  space (`.page-head-text`) and the button is pinned with `margin-left: auto`.
+- **The Measurements row was a card inside a card.** It used `.row-btn`, which carries its own
+  surface and border — right for a standalone row, wrong inside a card that already has both. Added
+  `.row-plain` for in-card rows, and **the last-logged values came off the button entirely**: they
+  belong in the sheet, which is where you go to act on them.
+- **Section buttons belong inside their card**, not floating beneath it. Start session (now with a
+  play icon) and Plan today's meals both moved in.
+- **Settings had no way out.** It is a hidden page with no nav bar at all (§81), so the `‹ Home`
+  back link is the only exit. It was scheduled for Phase 6 and had to come forward the moment the
+  nav stopped rendering there.
+
+### Not a bug: "View body logs" was absent
+
+It is conditional by design — it appears once **today's** weight is saved and then stays for the
+rest of the day (§81). The demo fixture has no `bodyLogs` entry for its anchor date (`2026-09-10`),
+so on a fresh demo load there is correctly nothing to show. Saving a weight reveals it.
+
+### What this round says about verification
+
+Of the nine defects, the DOM probes used in Phase 1 would have caught **one**. The rest were
+spacing, alignment, clipping and containment — all of which need either a rendered page or a
+measurement of the rendered box, and none of which show up in "does the element exist and does it
+contain the right text".
+
+Where a fact is measurable, measure it rather than describing it: the fixes above were confirmed by
+reading computed `margin-top` on all four sections (44/44/44/44, previously 0), the account button's
+gap from its container's right edge (0px), and every sheet's close button against its sheet's
+bounding box (55 checked, none clipped). That is a much better check than another screenshot.
