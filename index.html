@@ -2521,6 +2521,163 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .ss-prog-member-last { display: block; font-size: 11.5px; font-weight: 500; color: var(--text3); margin-top: 3px; }
 .ss-set-cards { padding: 0; display: flex; flex-direction: column; gap: 10px; }
 
+/* ══════════════════════════════════════════════════════════════════════
+   v8.16 PHASE 3 — FUEL
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* The ‹ [calendar] › cluster in the page header. */
+.nutr-date-cluster { display: flex; gap: 8px; margin-left: auto; flex-shrink: 0; }
+
+/* ── Fuel hero ───────────────────────────────────────────────────────── */
+.fuel-hero {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-hero); padding: 22px; margin-top: 24px;
+}
+.fuel-hero-eyebrow {
+  font-family: var(--font-body); font-size: 11.5px; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--text3); margin-bottom: 8px;
+}
+.fuel-kcal {
+  font-family: var(--font-display); font-size: 56px; font-weight: 600;
+  letter-spacing: -0.03em; line-height: 1; color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.fuel-kcal-unit { font-family: var(--font-body); font-size: 16px; font-weight: 500; color: var(--text2); margin-left: 8px; letter-spacing: 0; }
+.fuel-target { font-size: 13.5px; font-weight: 500; color: var(--text2); margin-top: 10px; font-variant-numeric: tabular-nums; }
+.fuel-left { color: var(--green-text); font-weight: 700; }
+.fuel-over { color: var(--red); font-weight: 700; }
+
+/* 8px bar: accent up to the target, then a red segment for the excess. The two
+   are siblings sharing the track's width, so together they can never exceed it. */
+.fuel-bar { height: 8px; margin-top: 16px; display: flex; }
+.fuel-bar > i { border-radius: 999px 0 0 999px; }
+.fuel-bar > i:only-child { border-radius: 999px; }
+.fuel-bar > em {
+  display: block; height: 100%; background: var(--red);
+  border-radius: 0 999px 999px 0;
+}
+/* The excess segment grows with the main one rather than appearing at full
+   width the instant the section rises. */
+.will-rise:not(.risen) .fuel-bar > em { transform: scaleX(0); }
+.risen .fuel-bar > em { transform-origin: left; animation: grow 1.45s cubic-bezier(.2,.72,.16,1) both; animation-delay: 420ms; }
+
+.fuel-macros { display: flex; gap: 16px; margin-top: 22px; }
+.fuel-macro { flex: 1 1 0; min-width: 0; }
+.fuel-macro-top { display: flex; align-items: baseline; gap: 6px; margin-bottom: 7px; }
+.fuel-macro-lbl { font-size: 12px; font-weight: 600; color: var(--text2); }
+.fuel-macro-val {
+  margin-left: auto; font-family: var(--font-display); font-size: 13px; font-weight: 600;
+  color: var(--text); font-variant-numeric: tabular-nums;
+}
+.fuel-macro-target { font-family: var(--font-body); font-size: 11px; font-weight: 500; color: var(--text3); }
+.fuel-macro-bar { height: 6px; }
+/* --text3, and no pagination dots — the hint IS the affordance. */
+.fuel-swipe-hint { text-align: center; font-size: 12px; font-weight: 500; color: var(--text3); margin-top: 22px; }
+
+/* ── Save this day ───────────────────────────────────────────────────── */
+.fuel-save-row { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+.fuel-save-text { flex: 1; min-width: 0; }
+.fuel-save-title { font-family: var(--font-display); font-size: 16px; font-weight: 600; color: var(--text); }
+.fuel-save-sub { font-size: 12.5px; font-weight: 500; color: var(--text2); margin-top: 4px; font-variant-numeric: tabular-nums; }
+
+/* ── Meals ───────────────────────────────────────────────────────────── */
+.fuel-meal { margin-bottom: 12px; padding: 16px 18px; border-radius: var(--r-card); position: relative; }
+.fuel-meal:last-child { margin-bottom: 0; }
+.fuel-meal-head { display: flex; align-items: center; gap: 10px; }
+.fuel-meal-text { flex: 1; min-width: 0; }
+.fuel-meal-name { font-family: var(--font-display); font-size: 16px; font-weight: 600; color: var(--text); }
+.fuel-meal-sub { font-size: 12.5px; font-weight: 500; color: var(--text3); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.fuel-meal-menu, .fuel-meal-log { flex-shrink: 0; }
+
+.fuel-items { margin-top: 12px; }
+.fuel-item { display: flex; align-items: center; gap: 12px; width: 100%; box-sizing: border-box; padding: 11px 0; border-bottom: 1px solid var(--divider); cursor: pointer; }
+.swipe-row-wrap:last-child .fuel-item { border-bottom: none; padding-bottom: 0; }
+.fuel-item-text { flex: 1; min-width: 0; }
+.fuel-item-name { font-size: 13.5px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fuel-item-sub { font-size: 11.5px; font-weight: 500; color: var(--text3); margin-top: 3px; }
+.fuel-item-kcal {
+  flex-shrink: 0; font-family: var(--font-display); font-size: 14px; font-weight: 600;
+  color: var(--text2); font-variant-numeric: tabular-nums;
+}
+.fuel-item-kcal-unit { font-family: var(--font-body); font-size: 11px; font-weight: 500; color: var(--text3); margin-left: 3px; }
+
+/* Copy-from-yesterday: a RECESSED FOOTER, not a card inside a card. Full-bleed
+   to the card's edges (the negative margins match .fuel-meal's padding), an
+   --inset background, a 1px top divider, and bottom corners matching the card. */
+.fuel-copy-foot {
+  margin: 14px -18px -16px; overflow: hidden;
+  background: var(--inset); border-top: 1px solid var(--divider);
+  border-radius: 0 0 var(--r-card) var(--r-card);
+}
+.fuel-copy-inner { position: relative; padding: 13px 18px; min-height: 44px; cursor: grab; user-select: none; touch-action: pan-y; }
+.fuel-copy-fill { position: absolute; inset: 0; background: var(--accent); opacity: .15; width: 0%; pointer-events: none; }
+.fuel-copy-text { position: relative; display: flex; align-items: center; gap: 12px; }
+.fuel-copy-left { flex: 1; min-width: 0; }
+.fuel-copy-label {
+  font-family: var(--font-body); font-size: 11px; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--text3);
+}
+.fuel-copy-detail { font-size: 12.5px; font-weight: 500; color: var(--text2); margin-top: 4px; }
+.fuel-copy-action { flex-shrink: 0; font-size: 12.5px; font-weight: 700; color: var(--accent2); white-space: nowrap; }
+.fuel-copy-arrow { margin-left: 4px; }
+
+/* ── Quick-logged day ────────────────────────────────────────────────── */
+.fuel-quick-head { display: flex; align-items: center; gap: 12px; }
+.fuel-quick-kcal {
+  font-family: var(--font-display); font-size: 28px; font-weight: 600;
+  letter-spacing: -0.02em; color: var(--text); font-variant-numeric: tabular-nums;
+}
+.fuel-quick-unit { font-family: var(--font-body); font-size: 13px; font-weight: 500; color: var(--text2); margin-left: 6px; }
+.fuel-quick-macros { font-size: 13px; font-weight: 500; color: var(--text2); margin-top: 8px; font-variant-numeric: tabular-nums; }
+.fuel-quick-actions { display: flex; gap: 8px; margin-top: 16px; }
+
+/* ── Rest of the week ────────────────────────────────────────────────── */
+.fuel-rest-head { display: flex; align-items: center; gap: 12px; }
+.fuel-rest-kcal {
+  font-family: var(--font-display); font-size: 34px; font-weight: 600;
+  letter-spacing: -0.025em; line-height: 1.05; color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.fuel-rest-kcal-unit { font-family: var(--font-body); font-size: 13px; font-weight: 500; color: var(--text2); margin-left: 7px; letter-spacing: 0; }
+.fuel-rest-tiles { display: flex; gap: 10px; margin-top: 18px; }
+.fuel-rest-tile {
+  flex: 1 1 0; min-width: 0; padding: 12px 14px;
+  background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--r-tile);
+}
+.fuel-rest-tile-lbl { font-family: var(--font-body); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.fuel-rest-tile-val {
+  font-family: var(--font-display); font-size: 20px; font-weight: 600;
+  color: var(--text); margin-top: 5px; font-variant-numeric: tabular-nums;
+}
+.fuel-rest-tile-unit { font-family: var(--font-body); font-size: 12px; font-weight: 500; color: var(--text2); margin-left: 2px; }
+
+/* ── Shortcuts ───────────────────────────────────────────────────────── */
+.fuel-tiles { display: flex; gap: 12px; }
+.fuel-tile {
+  flex: 1 1 0; min-width: 0; padding: 16px 14px; cursor: pointer;
+  background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--r-tile);
+}
+.fuel-tile:active { transform: scale(0.99); }
+.fuel-tile-icon {
+  width: 36px; height: 36px; margin-bottom: 12px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface3); border-radius: var(--r-icon-card); color: var(--accent2);
+}
+.fuel-tile-icon svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.fuel-tile-title { font-family: var(--font-display); font-size: 15px; font-weight: 600; color: var(--text); }
+.fuel-tile-sub { font-size: 12px; font-weight: 500; color: var(--text2); margin-top: 4px; line-height: 1.35; }
+
+/* ── "Saved to library" pill ─────────────────────────────────────────── */
+/* Full page width at the foot of the page. A quiet confirmation, deliberately
+   nowhere near the kcal figure it used to sit beside. */
+.fuel-saved-pill {
+  margin-top: 44px; padding: 14px 18px; text-align: center;
+  background: color-mix(in srgb, var(--green-text) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--green-text) 30%, transparent);
+  border-radius: var(--r-btn); color: var(--green-text);
+  font-size: 13px; font-weight: 700;
+}
+
 /* ── Rest timer preset chips (D11) ───────────────────────────────────── */
 .timer-presets { display: flex; gap: 8px; margin-bottom: 22px; }
 .timer-preset {
@@ -3378,14 +3535,24 @@ try {
          SCREEN 4: NUTRITION
     ═══════════════════════════════════════════ -->
     <div class="screen" id="screen-nutrition">
-      <!-- Hero: kcal + macros, swipeable left/right between days -->
+      <!-- v8.16 Phase 3. Page header, hero, then the sections in order:
+           Save this day (conditional) · Meals · Rest of the week · Shortcuts,
+           and the "Saved to library" pill at the foot of the page.
+
+           `nutr-save-badge-wrap` and `meal-menu-btn-Dinner` are demo-tour
+           anchors, and so is `nutr-manual-mode-item` inside modal-nutr-manual.
+
+           🚨 Save this day is section 01 when it shows (Q6) and is simply absent
+           otherwise, which is most days — so Fuel usually reads Meals · Rest of
+           the week · Shortcuts. Nothing renumbers, because sections carry no
+           numbers (Q13). -->
+      <div id="nutr-header"></div>
       <div id="nutr-hero-wrap"><div id="nutr-hero-card"></div></div>
-
-      <!-- Save-day badge / saved pill — see renderNutrSaveBadge() -->
       <div id="nutr-save-badge-wrap"></div>
-
-      <!-- Diary -->
       <div id="nutr-diary"></div>
+      <div id="nutr-week-rest"></div>
+      <div id="nutr-shortcuts"></div>
+      <div id="nutr-saved-pill"></div>
     </div>
 
 
@@ -22936,6 +23103,11 @@ function getLocalToday() {
 // Top-level render function for the Nutrition screen — renders the hero and
 // the per-meal diary for nutrSelectedDate, and (re)initialises the hero's
 // swipe gesture and the yesterday-copy-strip swipe gestures.
+// ── FUEL (v8.16 Phase 3) ──────────────────────────────────────────────
+// `animate` is retained for call-site compatibility and deliberately ignored,
+// the same way Home's and Train's were: entrance motion is CSS (see the MOTION
+// SYSTEM block), and the JS odometer that counted the kcal figure up went with
+// it — mid-count reads produced nonsense, and it fought the CSS bar growth.
 function renderNutrDaily(animate = false) {
   const el = document.getElementById('nutr-diary');
   if (!el) return;
@@ -22945,11 +23117,50 @@ function renderNutrDaily(animate = false) {
   const picker = document.getElementById('nutr-day-picker');
   if (picker) picker.value = nutrSelectedDate;
 
-  renderNutrHero(animate);
-  renderNutrDiary();
+  renderNutrHeader();
+  renderNutrHero();
   renderNutrSaveBadge();
+  renderNutrDiary();
+  renderNutrWeekRest();
+  renderNutrShortcuts();
+  renderNutrSavedPill();
   requestAnimationFrame(initYesterdaySwipes);
   requestAnimationFrame(initNutrHeroSwipe);
+}
+
+// ── FUEL PAGE HEADER (v8.16) ──────────────────────────────────────────
+// Eyebrow is the viewed date, the H1 is the page, and the right-hand cluster is
+// ‹ [calendar] › — three 44px icon buttons.
+//
+// 🚨 The calendar button is now the ONLY thing that opens Jump to date (§2.3-6).
+// The hero used to open it on tap, which fought its own swipe: a swipe that
+// started and ended in nearly the same place registered as a tap and opened the
+// date picker instead of changing the day.
+function renderNutrHeader() {
+  const el = document.getElementById('nutr-header');
+  if (!el) return;
+  const today = getLocalToday();
+  const d = new Date(nutrSelectedDate + 'T00:00:00');
+  const dateStr = nutrSelectedDate === today
+    ? 'Today · ' + d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
+    : d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  el.innerHTML = `<div class="page-head rise">
+    <div class="page-head-text">
+      <div class="page-eyebrow">${dateStr}</div>
+      <h1 class="page-h1">Fuel</h1>
+    </div>
+    <div class="nutr-date-cluster">
+      <button class="icon-btn" onclick="nutrShiftDate(-1)" aria-label="Previous day">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <button class="icon-btn" onclick="openNutrDatePicker()" aria-label="Jump to date">
+        <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+      </button>
+      <button class="icon-btn" onclick="nutrShiftDate(1)" aria-label="Next day">
+        <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+  </div>`;
 }
 
 // Returns the raw meals object for a given date from state.nutritionMeals,
@@ -23147,8 +23358,8 @@ function renderNutrSaveBadge() {
   const goal = getGoalForDay(nutrSelectedDate);
   if (!goal) { el.innerHTML = ''; return; }
 
-  // Once a day is saved, the "Saved to library" pill lives inside the hero
-  // card itself (see renderNutrHero) — nothing to show down here.
+  // The prompt does not persist once the day is saved. Its confirmation is the
+  // pill at the foot of the page (renderNutrSavedPill) — nothing to show here.
   if (isDateSavedInLibrary(nutrSelectedDate)) { el.innerHTML = ''; return; }
 
   const totals = getDayTotals(nutrSelectedDate);
@@ -23163,9 +23374,24 @@ function renderNutrSaveBadge() {
   const alreadyStored = group && group.days.some(d => d.dinnerName.toLowerCase() === dinnerItem.name.toLowerCase());
   if (alreadyStored) { el.innerHTML = ''; return; }
 
-  el.innerHTML = `<button class="btn btn-block" style="margin-bottom:8px;background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600;" onclick="saveDayToLibrary()">
-    On target for your goal — save this day to pre-fill later?
-  </button>`;
+  // v8.16 (Q6) — promoted from a thin full-width button to a section of its own
+  // with a header, so a day worth keeping is actually noticed. Every gate above
+  // is unchanged; in particular `alreadyStored` is what stops the prompt
+  // reappearing on a day filled FROM a saved day, since fillDayFromSample()
+  // copies the sample's meals verbatim and the dinner name therefore matches.
+  // There is no provenance field anywhere in state to fall back on.
+  el.innerHTML = sectionHeader('Save this day', 'This day landed close to your targets. Keep it to pre-fill a future one.')
+    + `<div class="card card-accent">
+      <div class="fuel-save-row">
+        <div class="fuel-save-text">
+          <div class="fuel-save-title">${dinnerItem.name}</div>
+          <div class="fuel-save-sub">${totals.kcal.toLocaleString()} kcal · P${Math.round(totals.p)} C${Math.round(totals.c)} F${Math.round(totals.f)}</div>
+        </div>
+        <span class="chip" style="--chip-c:var(--green-text);">On target</span>
+      </div>
+      <button class="btn btn-accent btn-block" onclick="saveDayToLibrary()">Save this day</button>
+    </div>`
+    + sectionEnd();
 }
 
 // Saves nutrSelectedDate into the sample library — the whole day's meals,
@@ -23191,8 +23417,11 @@ function saveDayToLibrary() {
     totals: { kcal: totals.kcal, protein: totals.p, carbs: totals.c, fats: totals.f },
   });
   save();
-  renderNutrHero();
+  // The prompt section disappears and the foot-of-page pill appears, so both are
+  // re-rendered. The pill used to live inside the hero, which is why the hero
+  // was refreshed here; it no longer carries it.
   renderNutrSaveBadge();
+  renderNutrSavedPill();
 }
 
 // ── Fill Day (loading a saved sample day into the current date) ────────────
@@ -23456,134 +23685,173 @@ function clearNutrQuickAdd() {
 
 // Renders the Nutrition hero card — kcal/macro summary for nutrSelectedDate
 // against the active goal (getGoalForDay).
-function renderNutrHero(animate = false) {
+// ── FUEL HERO (v8.16) ─────────────────────────────────────────────────
+// Eaten kcal against target, an 8px bar that grows a red excess segment past
+// 100%, and three macro mini-bars. Swipe left or right to change day.
+//
+// 🚨 The hero no longer opens Jump to date on tap (§2.3-6) — the header's
+// calendar button does. A tap target on the same element as a swipe gesture
+// means a short swipe opens the date picker instead of changing the day.
+//
+// The "adjusted to get the week back on track" figures moved OUT of the hero
+// into their own section (renderNutrWeekRest) — four more numbers under the one
+// number the hero exists to show made neither legible.
+function renderNutrHero() {
   const el = document.getElementById('nutr-hero-card');
   if (!el) return;
   const goal = getGoalForDay(nutrSelectedDate);
   const totals = getDayTotals(nutrSelectedDate);
   const kcalGoal = goal ? goal.kcal : 0;
-  const pct = kcalGoal > 0 ? Math.min(100, Math.round(totals.kcal / kcalGoal * 100)) : 0;
   const left = kcalGoal - totals.kcal;
-
-  const dateObj = new Date(nutrSelectedDate + 'T00:00:00');
+  const over = left < 0;
   const today = getLocalToday();
-  const dateLabel = nutrSelectedDate === today ? "Today's calories" : dateObj.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+
+  // The bar fills to the target, then grows a red segment for the excess. Both
+  // are expressed as a share of the whole bar so the two together never exceed
+  // it: at 120% of target the accent portion is 83% wide and the red 17%.
+  const ratio = kcalGoal > 0 ? totals.kcal / kcalGoal : 0;
+  const mainPct = kcalGoal > 0 ? Math.min(100, Math.round(ratio * 100)) : 0;
+  const excessPct = (kcalGoal > 0 && ratio > 1) ? Math.round(Math.min(1, (ratio - 1) / ratio) * 100) : 0;
+  const barPct = excessPct > 0 ? 100 - excessPct : mainPct;
 
   const macros = [
-    { field:'protein', label:'Protein', logged:Math.round(totals.p), target: goal?Math.round(goal.protein):0 },
-    { field:'carbs',   label:'Carbs',   logged:Math.round(totals.c), target: goal?Math.round(goal.carbs):0 },
-    { field:'fats',    label:'Fats',    logged:Math.round(totals.f), target: goal?Math.round(goal.fats):0 },
+    { field:'protein', label:'Protein', logged:Math.round(totals.p), target: goal?Math.round(goal.protein):0, colour:'var(--blue)' },
+    { field:'carbs',   label:'Carbs',   logged:Math.round(totals.c), target: goal?Math.round(goal.carbs):0,   colour:'var(--amber)' },
+    { field:'fats',    label:'Fats',    logged:Math.round(totals.f), target: goal?Math.round(goal.fats):0,    colour:'var(--red)' },
   ];
-  const macroCallouts = macros.map(m => {
-    return `<div class="hero-callout">
-      <div class="hero-callout-lbl">${m.label}</div>
-      <div class="hero-callout-val"><span id="nutr-hero-${m.field}">${animate ? 0 : m.logged}</span>${m.target ? ` / ${m.target}g` : 'g'}</div>
+  const macroBars = macros.map((m, i) => {
+    const pct = m.target > 0 ? Math.min(100, Math.round((m.logged / m.target) * 100)) : 0;
+    return `<div class="fuel-macro">
+      <div class="fuel-macro-top">
+        <span class="fuel-macro-lbl">${m.label}</span>
+        <span class="fuel-macro-val">${m.logged}${m.target ? `<span class="fuel-macro-target"> / ${m.target}g</span>` : 'g'}</span>
+      </div>
+      <div class="bar fuel-macro-bar" style="--i:${i}"><i style="width:${pct}%;background:${m.colour};"></i></div>
     </div>`;
   }).join('');
 
-  // ── Suggested, to get the week back on track (v7.95) ────────────────────
-  // The suggested TARGET numbers are computed per-day (getNutrDayReconciledAdvice,
-  // getDayViewRequiredDaily) — a fully separate calculation from Home's
-  // week-pace engine, deliberately never touching it. Whether to show the
-  // row at all is still gated on Home's real "is the week currently
-  // concerning" read (today's actual badge status) — that's a single,
-  // real-time fact about the week, independent of which day is being
-  // browsed; the numbers shown once triggered are what's specific per day.
-  // Shown from TODAY through the end of the current calendar week (Sunday)
-  // — a day that's already passed never shows it (nothing left to plan for
-  // a day that's over), and a date in a past or future week doesn't either.
-  // The "logged" side always reflects whichever day is currently selected;
-  // the suggested target is that day's own planning figure — see
-  // getDayViewRequiredDaily's comment for exactly how that's computed and
-  // why adjusting a day's own log never moves its own suggested number,
-  // only the day after it.
-  let suggestedHtml = '';
+  const targetLine = kcalGoal
+    ? `Target ${kcalGoal.toLocaleString()} \u00b7 <strong class="${over ? 'fuel-over' : 'fuel-left'}">${Math.abs(left).toLocaleString()} ${over ? 'over' : 'left'}</strong>`
+    : 'No goal set';
+
+  el.innerHTML = `<div class="fuel-hero rise" data-page="nutrition">
+    <div class="fuel-hero-eyebrow">${nutrSelectedDate === today ? 'Eaten today' : 'Eaten'}</div>
+    <div class="fuel-kcal digits">${totals.kcal.toLocaleString()}<span class="fuel-kcal-unit">kcal</span></div>
+    <div class="fuel-target">${targetLine}</div>
+    ${kcalGoal ? `<div class="bar fuel-bar"><i style="width:${barPct}%;"></i>${excessPct > 0 ? `<em style="width:${excessPct}%;"></em>` : ''}</div>` : ''}
+    <div class="fuel-macros">${macroBars}</div>
+    <div class="fuel-swipe-hint">\u2039 Swipe to change day \u203a</div>
+  </div>`;
+}
+
+// ── FUEL: Rest of the week (v8.16) ────────────────────────────────────
+// The existing "adjusted to get the week back on track" calculation, in its own
+// accent-bordered card with the adjusted daily kcal as the headline figure and
+// three macro tiles under it.
+//
+// Every gate below is v8.15's, unchanged. The suggested TARGET numbers are
+// computed per-day (getNutrDayReconciledAdvice, getDayViewRequiredDaily) — a
+// fully separate calculation from Home's week-pace engine, deliberately never
+// touching it. Whether to show the card at all is still gated on Home's real
+// "is the week currently concerning" read (today's actual badge status): a
+// single, real-time fact about the week, independent of which day is browsed.
+// Shown from TODAY through the end of the current calendar week (Sunday) — a day
+// that has already passed never shows it (nothing left to plan for a day that is
+// over), and a date in a past or future week does not either. See
+// getDayViewRequiredDaily's comment for why adjusting a day's own log never
+// moves its own suggested number, only the day after it.
+function renderNutrWeekRest() {
+  const el = document.getElementById('nutr-week-rest');
+  if (!el) return;
+  el.innerHTML = '';
+  const goal = getGoalForDay(nutrSelectedDate);
+  const today = getLocalToday();
   const weekStart = getHomeWeekStart(today);
   const weekStartDate = new Date(weekStart + 'T00:00:00');
   const weekEndDate = new Date(weekStartDate);
   weekEndDate.setDate(weekEndDate.getDate() + 6);
   const weekEnd = toLocalDateStr(weekEndDate);
   const todayGoal = getGoalForDay(today);
-  if (nutrSelectedDate >= today && nutrSelectedDate <= weekEnd && goal && goal.kcal !== null && goal.kcal !== undefined && goal.protein !== null && goal.protein !== undefined) {
-    const dayMap = buildDayMap();
-    const kcalAvg = avgDayMapField(dayMap, 'kcal', weekStart, today);
-    const proteinAvg = avgDayMapField(dayMap, 'protein', weekStart, today);
-    const kcalBadge = todayGoal ? getHomeMetricBadge('kcal', kcalAvg, todayGoal.kcal, dayMap, weekStart, today, todayGoal.kcal) : { color: null };
-    const proteinBadge = todayGoal ? getHomeMetricBadge('protein', proteinAvg, todayGoal.protein, dayMap, weekStart, today, todayGoal.kcal) : { color: null };
-    const concerning = kcalBadge.color === 'var(--red)' || proteinBadge.color === 'var(--red)';
-    if (concerning) {
-      const reconciled = getNutrDayReconciledAdvice(dayMap, weekStart, nutrSelectedDate, goal);
-      if (reconciled) {
-        const suggested = [
-          { label:'Kcal',    logged: totals.kcal,          target: Math.round(reconciled.kcal),    unit:'' },
-          { label:'Protein', logged: Math.round(totals.p), target: Math.round(reconciled.protein), unit:'g' },
-          { label:'Carbs',   logged: Math.round(totals.c), target: Math.round(reconciled.carbs),   unit:'g' },
-          { label:'Fats',    logged: Math.round(totals.f), target: Math.round(reconciled.fats),    unit:'g' },
-        ];
-        const suggCallouts = suggested.map(m => `<div class="hero-callout">
-          <div class="hero-callout-lbl">${m.label}</div>
-          <div class="hero-callout-val" style="font-size:13px;">${m.logged} / ${m.target}${m.unit}</div>
-        </div>`).join('');
-        suggestedHtml = `<div class="divider" style="margin:16px 0 0;"></div>
-        <div style="padding:12px 0 0;">
-          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;text-align:center;">Adjusted to get the week back on track</div>
-          <div class="hero-callouts" style="grid-template-columns:repeat(4, 1fr);margin-top:8px;">${suggCallouts}</div>
-        </div>`;
-      }
-    }
-  }
+  if (!(nutrSelectedDate >= today && nutrSelectedDate <= weekEnd && goal
+        && goal.kcal !== null && goal.kcal !== undefined
+        && goal.protein !== null && goal.protein !== undefined)) return;
 
-  el.innerHTML = `<div class="hero-card hero-tappable" data-page="nutrition" onclick="openNutrDatePicker()">
-    <div class="hero-nav-arrows" style="display:flex;gap:6px;" onclick="event.stopPropagation();">
-      <button id="fill-day-btn" onclick="openFillDayModal()" aria-label="Fill day" style="width:auto;height:26px;padding:0 10px;border-radius:var(--r-sm);font-size:11px;font-weight:500;white-space:nowrap;">Fill day</button>
-      <button onclick="openNutrQuickAdd()" aria-label="Quick add" style="width:auto;height:26px;padding:0 10px;border-radius:var(--r-sm);font-size:11px;font-weight:500;white-space:nowrap;border-color:var(--accent);color:var(--accent);">Quick add</button>
-    </div>
-    <div style="text-align:center;padding:20px 0 4px;">
-      <div class="hero-label" style="text-align:center;">${dateLabel}</div>
-      <div class="hero-value" style="font-size:56px;"><span id="nutr-hero-kcal">${(animate ? 0 : totals.kcal).toLocaleString()}</span><span class="unit"> kcal</span></div>
-      <div class="hero-sub" style="text-align:center;margin-top:8px;">${kcalGoal ? `${kcalGoal.toLocaleString()} goal · ${left >= 0 ? left.toLocaleString() + ' remaining' : Math.abs(left).toLocaleString() + ' over'}` : 'No goal set'}</div>
-    </div>
-    ${kcalGoal ? `<div class="hero-progress-track" style="margin-top:14px;"><div class="hero-progress-fill" id="nutr-hero-bar" style="width:${animate ? 0 : pct}%;transition:none;"></div></div>` : ''}
-    <div class="hero-callouts" style="margin-top:20px;">${macroCallouts}</div>
-    ${suggestedHtml}
-    <div class="divider" style="margin:16px 0 0;"></div>
-    ${isDateSavedInLibrary(nutrSelectedDate) ? `<div style="display:flex;align-items:center;gap:6px;color:var(--green);font-size:12.5px;font-weight:500;padding:12px 0 0;">✓ Saved to library</div>
-    <div class="divider" style="margin:12px 0 0;"></div>` : ''}
-  </div>`;
+  const dayMap = buildDayMap();
+  const kcalAvg = avgDayMapField(dayMap, 'kcal', weekStart, today);
+  const proteinAvg = avgDayMapField(dayMap, 'protein', weekStart, today);
+  const kcalBadge = todayGoal ? getHomeMetricBadge('kcal', kcalAvg, todayGoal.kcal, dayMap, weekStart, today, todayGoal.kcal) : { color: null };
+  const proteinBadge = todayGoal ? getHomeMetricBadge('protein', proteinAvg, todayGoal.protein, dayMap, weekStart, today, todayGoal.kcal) : { color: null };
+  const concerning = kcalBadge.color === 'var(--red)' || proteinBadge.color === 'var(--red)';
+  if (!concerning) return;
 
-  if (animate) animateNutrHeroValues({ kcal: totals.kcal, pct, macros });
+  const reconciled = getNutrDayReconciledAdvice(dayMap, weekStart, nutrSelectedDate, goal);
+  if (!reconciled) return;
+
+  const tiles = [
+    { label:'Protein', target: Math.round(reconciled.protein), colour:'var(--blue)'  },
+    { label:'Carbs',   target: Math.round(reconciled.carbs),   colour:'var(--amber)' },
+    { label:'Fats',    target: Math.round(reconciled.fats),    colour:'var(--red)'   },
+  ].map(t => `<div class="fuel-rest-tile">
+      <div class="fuel-rest-tile-lbl" style="color:${t.colour};">${t.label}</div>
+      <div class="fuel-rest-tile-val">${t.target}<span class="fuel-rest-tile-unit">g</span></div>
+    </div>`).join('');
+
+  el.innerHTML = sectionHeader('Rest of the week', 'Daily targets adjusted so the week still lands on plan.')
+    + `<div class="card card-accent">
+      <div class="fuel-rest-head">
+        <div class="fuel-rest-kcal">${Math.round(reconciled.kcal).toLocaleString()}<span class="fuel-rest-kcal-unit">kcal / day</span></div>
+        <span class="chip" style="--chip-c:var(--accent2);">Adjusted</span>
+      </div>
+      <div class="fuel-rest-tiles">${tiles}</div>
+    </div>`
+    + sectionEnd();
 }
 
-// Counts the Nutrition hero's kcal figure and its bar up together, plus the
-// Protein/Carbs/Fats callouts alongside them, on the same eased 1000ms
-// timeline as Home/Progress/Train — called only on an actual Nutrition page
-// load (see renderNutrition), never on the re-renders that follow logging
-// food, quick-adding, or switching the selected date (see renderNutrDaily's
-// many other call sites), so those actions don't restart the count-up.
-function animateNutrHeroValues(data) {
-  const duration = 1000;
-  const start = performance.now();
-  const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
-
-  function step(now) {
-    const t = Math.min(1, (now - start) / duration);
-    const e = easeOutCubic(t);
-
-    const kcalEl = document.getElementById('nutr-hero-kcal');
-    if (kcalEl) kcalEl.textContent = Math.round(data.kcal * e).toLocaleString();
-
-    const barEl = document.getElementById('nutr-hero-bar');
-    if (barEl) barEl.style.width = (data.pct * e) + '%';
-
-    data.macros.forEach(m => {
-      const mEl = document.getElementById(`nutr-hero-${m.field}`);
-      if (mEl) mEl.textContent = Math.round(m.logged * e);
-    });
-
-    if (t < 1) requestAnimationFrame(step);
-  }
-  requestAnimationFrame(step);
+// ── FUEL: Shortcuts (v8.16) ───────────────────────────────────────────
+// Two tiles. Recipes opens the recipe list, which leads to the Log a recipe
+// sheet and its meal picker.
+function renderNutrShortcuts() {
+  const el = document.getElementById('nutr-shortcuts');
+  if (!el) return;
+  const recipeCount = (state.recipes || []).length;
+  el.innerHTML = sectionHeader('Shortcuts', 'Speed up logging.')
+    + `<div class="card">
+      <div class="fuel-tiles">
+        <div class="fuel-tile" id="fill-day-btn" onclick="openFillDayModal()">
+          <div class="fuel-tile-icon">
+            <svg viewBox="0 0 24 24"><path d="M4 5h16v16H4z"/><path d="M4 10h16"/><path d="M9 14h6"/></svg>
+          </div>
+          <div class="fuel-tile-title">Fill day</div>
+          <div class="fuel-tile-sub">From your meal plan</div>
+        </div>
+        <div class="fuel-tile" onclick="openRecipeList()">
+          <div class="fuel-tile-icon">
+            <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          </div>
+          <div class="fuel-tile-title">Recipes</div>
+          <div class="fuel-tile-sub">${recipeCount} saved \u00b7 pick a meal</div>
+        </div>
+      </div>
+    </div>`
+    + sectionEnd();
 }
+
+// ── FUEL: the "Saved to library" pill (v8.16) ─────────────────────────
+// Moved out of the hero (Q6) to the foot of the page, full page width. It is the
+// quiet confirmation that this day is stored — not a hero element, and it must
+// not compete with the kcal figure.
+function renderNutrSavedPill() {
+  const el = document.getElementById('nutr-saved-pill');
+  if (!el) return;
+  el.innerHTML = isDateSavedInLibrary(nutrSelectedDate)
+    ? `<div class="fuel-saved-pill rise">\u2713 Saved to your day library</div>`
+    : '';
+}
+
+// v8.16 removed animateNutrHeroValues() — the JS odometer that counted the kcal
+// figure, its bar and the three macro callouts up from 0. Entrance motion is CSS
+// now (the kcal figure rises via .digits, the bars grow via .bar > i), and the
+// odometer produced nonsense for anything reading the DOM mid-count.
 
 // Per-meal dot colour for diary item rows, matching the mockup's pattern
 // of a different accent colour per meal (purple breakfast, amber lunch,
@@ -23597,31 +23865,40 @@ const mealDotColors = {
 
 // Renders the per-meal food log cards (Breakfast/Lunch/Dinner/Snacks), each
 // item's small print varying by its source (library/manual/barcode/recipe).
+// ── FUEL: Meals (v8.16) ───────────────────────────────────────────────
+// One card per meal. Header row: meal name and a subtitle (its kcal total, or
+// "Nothing logged yet"), then the ··· menu and + Log on the right. Items are
+// listed underneath when there are any.
+//
+// 🚨 A quick-logged day has NO discrete meal items at all (state.nutritionQuickLog
+// overrides the per-item sum — see getDayTotals), so the four meal cards would
+// otherwise render as four identical empty states while the hero showed a full
+// day's calories. That day gets its own single card instead, and the per-meal
+// cards are not rendered.
 function renderNutrDiary() {
   const el = document.getElementById('nutr-diary');
   if (!el) return;
   const isQuick = !!(state.nutritionQuickLog?.[nutrSelectedDate]);
 
-  // Quick log banner
-  let banner = '';
   if (isQuick) {
     const q = state.nutritionQuickLog[nutrSelectedDate];
-    banner = `
-      <div style="background:color-mix(in srgb, var(--accent) 8%, transparent);border:1px solid color-mix(in srgb, var(--accent) 25%, transparent);border-radius:var(--r-lg);
-        padding:12px 14px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <div style="font-size:12px;color:var(--accent2);font-weight:500;">⚡ Quick log active</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:2px;">${q.kcal.toLocaleString()} kcal · P:${Math.round(q.protein)}g C:${Math.round(q.carbs)}g F:${Math.round(q.fats)}g</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:2px;">Meal entries below are ignored for this day's totals</div>
+    el.innerHTML = sectionHeader('Meals', 'This day was quick-logged as one total, so there are no separate meals.')
+      + `<div class="card">
+        <div class="fuel-quick-head">
+          <div class="fuel-quick-kcal">${q.kcal.toLocaleString()}<span class="fuel-quick-unit">kcal</span></div>
+          <span class="chip" style="--chip-c:var(--accent2);">Quick log</span>
         </div>
-        <div style="display:flex;gap:6px;flex-shrink:0;">
-          <button onclick="openNutrQuickAdd()" style="background:none;border:0.5px solid var(--border2);border-radius:var(--r-sm);color:var(--text2);font-size:11px;padding:5px 8px;cursor:pointer;" title="Edit"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-          <button onclick="clearNutrQuickAdd()" style="background:none;border:0.5px solid var(--border2);border-radius:var(--r-sm);color:var(--red);font-size:11px;padding:5px 8px;cursor:pointer;">Clear</button>
+        <div class="fuel-quick-macros">P ${Math.round(q.protein)}g · C ${Math.round(q.carbs)}g · F ${Math.round(q.fats)}g</div>
+        <div class="fuel-quick-actions">
+          <button class="btn-ghost btn-sm" onclick="openNutrQuickAdd()">Edit total</button>
+          <button class="btn-danger btn-sm" onclick="clearNutrQuickAdd()">Clear</button>
         </div>
-      </div>`;
+      </div>`
+      + sectionEnd();
+    return;
   }
 
-  // Previous day for copy feature
+  // Previous day, for the copy-from-yesterday footer.
   const prevDate = new Date(nutrSelectedDate + 'T00:00:00');
   prevDate.setDate(prevDate.getDate() - 1);
   const prevDs = `${prevDate.getFullYear()}-${String(prevDate.getMonth()+1).padStart(2,'0')}-${String(prevDate.getDate()).padStart(2,'0')}`;
@@ -23639,19 +23916,18 @@ function renderNutrDiary() {
 
     const itemRows = items.map((item, idx) => {
       const servingLabel = item.source === 'recipe'
-        ? `${item.servings || 1} Serving${(item.servings || 1) !== 1 ? 's' : ''}`
+        ? `${item.servings || 1} serving${(item.servings || 1) !== 1 ? 's' : ''}`
         : (item.grams && item.servings && item.servings !== 1
           ? `${item.grams}g × ${item.servings}`
           : `${item.serving || 100}g`);
       return `
         <div class="swipe-row-wrap">
-          <div class="swipe-row-content" style="padding:9px 0;width:100%;box-sizing:border-box;display:flex;align-items:center;gap:10px;"
-            onclick="openEditFoodEntry('${nutrSelectedDate}','${meal}',${idx})">
-            <div style="flex:1;min-width:0;cursor:pointer;">
-              <div style="font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</div>
-              <div style="font-size:11px;color:var(--text3);margin-top:2px;">${servingLabel}</div>
+          <div class="swipe-row-content fuel-item" onclick="openEditFoodEntry('${nutrSelectedDate}','${meal}',${idx})">
+            <div class="fuel-item-text">
+              <div class="fuel-item-name">${item.name}</div>
+              <div class="fuel-item-sub">${servingLabel}${item.protein ? ` · ${Math.round(item.protein)}g protein` : ''}</div>
             </div>
-            <div style="font-size:13px;color:var(--text2);flex-shrink:0;">${(item.kcal||0).toLocaleString()} kcal</div>
+            <div class="fuel-item-kcal">${(item.kcal||0).toLocaleString()}<span class="fuel-item-kcal-unit">kcal</span></div>
           </div>
           <div class="swipe-actions">
             <button class="swipe-btn swipe-btn-default" onclick="event.stopPropagation();openCopyFoodEntry('${nutrSelectedDate}','${meal}',${idx})" title="Copy">
@@ -23664,11 +23940,14 @@ function renderNutrDiary() {
         </div>`;
     }).join('');
 
-    // Copy-from-yesterday swipe row — only offered while today's meal is
-    // still empty. Once anything is logged for this meal today (whether
-    // copied from yesterday or added any other way), the affordance goes
-    // away rather than sticking around as long as it merely wasn't a
-    // direct copy from yesterday specifically.
+    // Copy-from-yesterday — only offered while today's meal is still empty. Once
+    // anything is logged for this meal today (whether copied from yesterday or
+    // added any other way) the affordance goes away, rather than sticking around
+    // as long as it merely wasn't a direct copy from yesterday specifically.
+    //
+    // It is a RECESSED FOOTER, not a card inside a card: full-bleed to the card's
+    // edges with an --inset background, a 1px top divider, and its bottom corners
+    // matching the card's radius.
     const prevMealItems = getNutrDayMeals(prevDs)[meal] || [];
     let copyRow = '';
     if (prevMealItems.length && items.length === 0) {
@@ -23679,37 +23958,40 @@ function renderNutrDiary() {
         : `${prevMealItems[0].name} · ${prevTotKcal.toLocaleString()} kcal`;
       const swipeId = `swipe-yesterday-${meal.toLowerCase()}`;
       copyRow = `
-        <div style="border-top:0.5px solid var(--border);overflow:hidden;border-radius:0 0 var(--r) var(--r);">
-          <div id="${swipeId}" data-meal="${meal}"
-            style="position:relative;padding:12px 14px;cursor:grab;user-select:none;touch-action:pan-y;min-height:44px;">
-            <div class="swipe-fill" style="position:absolute;inset:0;background:var(--accent);opacity:0.15;width:0%;border-radius:0 0 var(--r) var(--r);pointer-events:none;"></div>
-            <div class="swipe-text" style="position:relative;font-size:11px;color:var(--text3);line-height:1.5;">
-              Yesterday: ${label} · <span style="color:var(--accent);font-style:italic;">swipe → to copy</span>
+        <div class="fuel-copy-foot">
+          <div id="${swipeId}" data-meal="${meal}" class="fuel-copy-inner">
+            <div class="swipe-fill fuel-copy-fill"></div>
+            <div class="swipe-text fuel-copy-text">
+              <div class="fuel-copy-left">
+                <div class="fuel-copy-label">Yesterday</div>
+                <div class="fuel-copy-detail">${label}</div>
+              </div>
+              <div class="fuel-copy-action">Swipe to copy <span class="nudge fuel-copy-arrow">→</span></div>
             </div>
           </div>
         </div>`;
     }
 
     return `
-      <div style="margin-bottom:2px;border-bottom:1px solid var(--border2);">
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 2px;">
-          <div>
-            <div style="font-family:var(--font-display);font-size:16px;font-weight:600;">${meal}</div>
-            <div style="font-size:11px;color:var(--text3);margin-top:2px;">
-              ${hasItems ? `${tot.kcal.toLocaleString()} kcal · P${tot.p} C${tot.c} F${tot.f}` : 'Nothing logged yet'}
-            </div>
+      <div class="card fuel-meal">
+        <div class="fuel-meal-head">
+          <div class="fuel-meal-text">
+            <div class="fuel-meal-name">${meal}</div>
+            <div class="fuel-meal-sub">${hasItems ? `${tot.kcal.toLocaleString()} kcal · P${Math.round(tot.p)} C${Math.round(tot.c)} F${Math.round(tot.f)}` : 'Nothing logged yet'}</div>
           </div>
-          <div style="display:flex;gap:10px;align-items:center;">
-            <button id="meal-menu-btn-${meal}" onclick="openMealMenu('${meal}')" style="background:none;border:0.5px solid var(--border2);border-radius:var(--r-sm);color:var(--text3);padding:4px 8px;cursor:pointer;font-size:16px;line-height:1;" title="Meal options">···</button>
-            <span onclick="openNutrAdd('${meal}')" style="font-size:12px;font-weight:600;color:var(--accent2);cursor:pointer;white-space:nowrap;">+ Log</span>
-          </div>
+          <button class="icon-btn icon-btn-card fuel-meal-menu" id="meal-menu-btn-${meal}" onclick="openMealMenu('${meal}')" aria-label="${meal} options">
+            <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg>
+          </button>
+          <button class="btn-ghost btn-sm fuel-meal-log" onclick="openNutrAdd('${meal}')">+ Log</button>
         </div>
-        ${hasItems ? `<div style="padding:0 2px 10px;">${itemRows}</div>` : ''}
+        ${hasItems ? `<div class="fuel-items">${itemRows}</div>` : ''}
         ${copyRow}
       </div>`;
   }).join('');
 
-  el.innerHTML = banner + mealCards;
+  el.innerHTML = sectionHeader('Meals', "What you ate, by meal. Swipe yesterday's entry across to copy it.", {
+    slot: '<button class="btn-ghost btn-sm" onclick="openNutrQuickAdd()">Quick add</button>'
+  }) + mealCards + sectionEnd();
   requestAnimationFrame(() => initSwipeRows(el));
 }
 
@@ -23949,7 +24231,10 @@ function initNutrHeroSwipe() {
   let suppressClick = false;
   let gestureId = 0;
 
-  function getCard() { return wrap.querySelector('.hero-card'); }
+  // 🚨 v8.16 renamed the Fuel hero's class from .hero-card to .fuel-hero. This
+  // lookup is what the whole swipe animation targets — a stale selector here
+  // returns null and the day still changes, silently, with no animation at all.
+  function getCard() { return wrap.querySelector('.fuel-hero'); }
 
   function resetGesture() {
     tracking = false;
