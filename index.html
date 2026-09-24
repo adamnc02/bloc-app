@@ -563,7 +563,7 @@ h3 {
 }
 .btn-accent:active, .btn-primary:active { background: color-mix(in srgb, var(--accent) 82%, #000); }
 /* Compact, for dense rows only — below the 44px target on purpose, the way
-   the scope allows at 36–40px inside a dense row. */
+   36–40px is deliberate for a dense row, below the usual 44px target. */
 .btn-sm { padding: 7px 12px; font-size: 12.5px; min-height: 40px; border-radius: var(--r-btn-sm); }
 /* A full-width button is the page-level primary shape: 52px, 14px radius. */
 .btn-block { width: 100%; justify-content: center; min-height: 52px; border-radius: var(--r-btn); }
@@ -615,7 +615,7 @@ h3 {
 }
 .settings-row:active { opacity: 0.75; }
 
-/* v8.16 — ROW BUTTON (§2.4 of the design scope)
+/* v8.16 — ROW BUTTON
    Full-width row: bold title, small subtitle, trailing chevron. This is the
    Home "Measurements" row, and the same component carries Progression
    preview, Tools, Session tools and the Settings rows. */
@@ -1170,7 +1170,7 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .modal-close-btn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); background: var(--surface3); border: none; color: var(--text2); width: 40px; height: 40px; border-radius: 50%; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; }
 .modal-title { font-family: var(--font-display); font-size: 22px; font-weight: 600; letter-spacing: -0.015em; margin-bottom: 16px; }
 /* A short explanatory line under a sheet title — sentence case, full stop.
-   Same voice as the section sublabel (§3 of the design scope). */
+   Same voice as the section sublabel. */
 .modal-sub { font-family: var(--font-body); font-size: 13.5px; font-weight: 500; color: var(--text2); line-height: 1.45; margin: -10px 0 16px; }
 
 /* ── Keyboard-safe modal pattern ────────────────────────────────────────────
@@ -2102,11 +2102,9 @@ html.auth-likely-signed-in #auth-gate { display: none; }
    H2 + sublabel, with an optional right-hand slot. Built by sectionHeader()
    in the script; the markup is only ever produced there.
 
-   🚨 NO NUMBER BADGE. The design scope specified a two-digit badge on every
-   section; Adam dropped it on review (2026-09-24) — sections are titled, not
-   numbered. Do not reintroduce it in later phases, and ignore the "01"/"02"
-   labelling the scope and build prompt use: those are how the documents
-   refer to a section, not something the UI shows.
+   🚨 NO NUMBER BADGE. A two-digit number badge was built and then dropped
+   on review (2026-09-24) — sections are titled, not numbered. Do not
+   reintroduce one.
    ══════════════════════════════════════════════════════════════════════ */
 .section-head { display: flex; align-items: center; gap: 9px; }
 .section-h2 {
@@ -2124,8 +2122,8 @@ html.auth-likely-signed-in #auth-gate { display: none; }
   letter-spacing: .1em; text-transform: uppercase; color: var(--accent2);
   white-space: nowrap;
 }
-/* Sections are 44px apart (scope §1.2), measured from the bottom of the
-   content above to the top of the next section's heading.
+/* Sections are 44px apart, measured from the bottom of the content above to
+   the top of the next section's heading.
 
    🚨 There is deliberately NO `:first-of-type` reset here. Each section is
    rendered into its OWN container element, so every section is the first of
@@ -2203,15 +2201,25 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .home-goal-upcoming-diff { font-size: 11.5px; font-weight: 500; color: var(--text2); margin-top: 3px; line-height: 1.4; }
 
 /* ── 01 This week: metric rows ───────────────────────────────────────── */
+/* Every row is the same height, so the card does not reflow as metrics come
+   on and off target. The first/last rows used to trim their outer padding,
+   which made them shorter than the ones between them. */
 .metric-row { padding: 14px 0; border-bottom: 1px solid var(--divider); position: relative; }
-.metric-row:first-child { padding-top: 2px; }
-.metric-row:last-child { border-bottom: none; padding-bottom: 2px; }
+.metric-row:last-child { border-bottom: none; }
 .metric-row-top { display: flex; align-items: baseline; gap: 8px; margin-bottom: 9px; }
 .metric-name { font-family: var(--font-body); font-size: 14px; font-weight: 600; color: var(--text); }
 .metric-value { margin-left: auto; font-size: 14px; color: var(--text2); font-variant-numeric: tabular-nums; }
 .metric-value strong { font-family: var(--font-display); font-size: 17px; font-weight: 600; color: var(--text); }
 .metric-target { font-size: 12.5px; color: var(--text3); }
-.metric-note { font-size: 12px; font-weight: 500; color: var(--text3); margin-top: 8px; line-height: 1.45; }
+/* 🚨 The note slot is always in the DOM and always occupies its line, even
+   when empty. Reserving the space means a row is the same height whether or
+   not it has a note, so nothing below shifts when a metric goes off target
+   or comes back on. Give any conditional line in a repeated row the same
+   treatment — a collapsing element is a layout jump waiting to happen. */
+.metric-note {
+  font-size: 12px; font-weight: 500; color: var(--text3);
+  margin-top: 8px; line-height: 1.45; min-height: 17px;
+}
 .metric-note-off { color: var(--text2); }
 .metric-note-off strong { color: var(--red); }
 .metric-info-btn {
@@ -7222,6 +7230,48 @@ function setupScreenEntrance(el) {
 
   items.forEach(n => _entranceObserver.observe(n));
 
+  // ── Scroll backstop ──────────────────────────────────────────────────
+  // 🚨 The observer is the primary mechanism, and this reveals anything it
+  // misses. It exists because an IntersectionObserver only re-evaluates as
+  // part of the browser's rendering lifecycle, and a lifecycle that does not
+  // run — or runs in a way this app's JS-measured layout confuses — produces
+  // exactly the symptom this is here to prevent: sections that stay blank as
+  // you scroll past them, with no error anywhere.
+  //
+  // It is cheap: one passive scroll listener, throttled to ~10/second, doing
+  // a rect read per still-pending element. It removes itself as soon as
+  // everything has risen, so on a normal page it stops running within a
+  // scroll or two. When the observer is working it never has anything to do.
+  //
+  // 🚨 Throttled on a TIMESTAMP, not requestAnimationFrame. rAF is part of
+  // the same rendering lifecycle the observer depends on, so a backstop
+  // built on it would fail in exactly the situation it exists to cover.
+  const scroller = document.getElementById('content');
+  if (scroller) {
+    let last = 0;
+    const revealVisible = () => {
+      const pending = items.filter(n => !n.classList.contains('risen'));
+      if (!pending.length) { detach(); return; }
+      const limit = scroller.getBoundingClientRect().bottom - scroller.clientHeight * 0.08;
+      pending.forEach(n => {
+        if (n.getBoundingClientRect().top <= limit) {
+          n.style.setProperty('--d', 0);
+          n.classList.add('risen');
+          if (_entranceObserver) _entranceObserver.unobserve(n);
+        }
+      });
+    };
+    const onScroll = () => {
+      const now = Date.now();
+      if (now - last < 100) return;
+      last = now;
+      revealVisible();
+    };
+    const detach = () => scroller.removeEventListener('scroll', onScroll);
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    onScreenChange(detach);
+  }
+
   // ── Safety net ───────────────────────────────────────────────────────
   // 🚨 `.will-rise` sets opacity:0, so while the observer is the only thing
   // that can clear it, the observer IS load-bearing for visibility — exactly
@@ -7282,11 +7332,9 @@ function runScreenTeardowns() {
 // The one builder for every section header in the app. Markup is produced
 // only here, so the whole app moves together if the treatment changes again.
 //
-// 🚨 Sections are NOT numbered in the UI. The design scope specified a
-// two-digit number badge; Adam dropped it on review (2026-09-24). The
-// scope and build prompt still refer to sections as "01 This week",
-// "02 Log today" and so on — that is how the DOCUMENTS name them, not
-// something to render. Do not reintroduce the badge in later phases.
+// 🚨 Sections are NOT numbered in the UI. A two-digit number badge was built
+// and then dropped on review (2026-09-24). Section titles carry the structure
+// on their own. Do not reintroduce one.
 //
 // Usage:
 //   html += sectionHeader('This week', "Your daily averages against this
@@ -18171,8 +18219,9 @@ function formatAdviceSublabel(requiredDaily, target, unit, today, daysRemaining,
 // Builds the "adjust your daily avg by X" (or, on the week's final day, the
 // exact "hit X today") sublabel for one metric's OWN independent catch-up
 // rate — unreconciled against any other metric. Used as-is for steps, and
-// for kcal/protein/carbs whenever getReconciledMacroAdvice isn't in play
-// (see buildHomeConsolidatedMessage).
+// for kcal/protein/carbs whenever getReconciledMacroAdvice isn't in play.
+// Reached through openHomeMetricAdvice()'s modal; the Home page's own
+// consolidated advice panel that also used it was removed in v8.16.
 function getHomeMetricSublabel(field, dayMap, weekStart, today, target, unit, kcalTarget) {
   const info = getWeeklyRequiredDaily(field, dayMap, weekStart, today, target, kcalTarget);
   if (info === null) return '';
@@ -18657,30 +18706,27 @@ function renderHomeThisWeek() {
     const isOff = badge.color === 'var(--red)';
     const barColour = isOff ? 'var(--red)' : m.colour;
 
-    // Steps is the one metric with an explicit "nothing logged" state — the
-    // others read as a dash against their target.
-    if (!tracked && m.field === 'steps') {
-      return `<div class="metric-row" id="home-metric-card-${m.field}">
-        <div class="metric-row-top"><span class="metric-name">${m.name}</span></div>
-        <div class="bar" style="--i:${i}"><i style="width:0%;background:${barColour};"></i></div>
-        <div class="metric-note">No steps logged yet this week.</div>
-      </div>`;
-    }
-
     const valueStr = tracked ? `${m.fmt(avg)}${m.unit}` : '\u2014';
     const targetStr = (target !== null && target !== undefined) ? `/ ${m.fmt(target)}${m.unit}` : '\u00b7 no active goal';
 
     // The off-target note carries the existing adjusted-target figure — the
-    // same number the advice panel and the metric-advice modal both use.
-    let note = '';
+    // same number the metric-advice modal uses.
+    //
+    // 🚨 The note element is ALWAYS rendered, empty when there is nothing to
+    // say. Its space is reserved by CSS either way, so a row is the same
+    // height whether or not it has a note and nothing below it shifts when
+    // one appears or clears. Conditionally rendering the element instead
+    // makes the whole card jump the moment a metric goes off target.
+    let noteText = '';
     if (isOff && target) {
       const info = getWeeklyRequiredDaily(m.field, dayMap, weekStart, today, target, goal && goal.kcal);
       if (info) {
         const over = Math.abs(Math.round(avg - target));
         const dir = avg > target ? 'over' : 'under';
-        note = `<div class="metric-note metric-note-off"><strong>${over.toLocaleString()}${m.unit} ${dir} target</strong> \u00b7 rest of week at ${Math.round(info.requiredDaily).toLocaleString()}${m.unit} to recover</div>`;
+        noteText = `<strong>${over.toLocaleString()}${m.unit} ${dir} target</strong> \u00b7 rest of week at ${Math.round(info.requiredDaily).toLocaleString()}${m.unit} to recover`;
       }
     }
+    const note = `<div class="metric-note${noteText ? ' metric-note-off' : ''}">${noteText}</div>`;
 
     // kcal/protein/carbs explain where their numbers come from; steps is
     // deliberately NOT tappable — its calculation has no qualifying-day gate
@@ -18712,7 +18758,6 @@ function renderHomeThisWeek() {
 
   el.innerHTML = sectionHeader('This week', "Your daily averages against this phase's targets.", { slot: chip })
     + `<div class="card">${rows}</div>`
-    + buildHomeConsolidatedMessage(badges, dayMap, weekStart, today, goal)
     + sectionEnd();
 }
 
@@ -18794,23 +18839,6 @@ function openHomeNutritionInfoModal(field) {
 // an actual Home page load (see renderHome). Metrics with no data yet
 // (avg === null) are left showing "—" / 0% and are skipped, since there's
 // nothing to count up to.
-// Whether the per-metric advice detail is expanded behind the Home page's
-// consolidated warning message (only relevant/shown when there's at least
-// one concerning metric).
-let homeAdviceExpanded = false;
-function toggleHomeAdvice() {
-  homeAdviceExpanded = !homeAdviceExpanded;
-  // v8.16 — the consolidated pace message moved out of the hero and into
-  // section 01, so that is what re-renders.
-  renderHomeThisWeek();
-}
-
-// Single summary line replacing the old per-metric badges: rolls all four
-// kcal/protein/carbs/steps statuses into one message so the hero reads as
-// calm status rather than four separate judgments. Only badges flagged red
-// (i.e. genuinely a concern, per getHomeMetricBadge's polarity logic) pull
-// the message negative — "Exceeding" on a metric where that's actually fine
-// (e.g. steps) never counts against it.
 // Builds one metric's advice block for the expanded Home warning panel: the
 // existing "adjust by X" sublabel, plus two new bullets — the resulting
 // flat daily target ("New target"), and what the FULL week (already-logged
@@ -18831,69 +18859,6 @@ function buildAdviceLineHtml(name, field, dayMap, weekStart, today, target, unit
     <strong style="color:var(--text);">${name}:</strong> ${sub}
     <div style="margin:4px 0 0 12px;font-size:10.5px;color:var(--text3);">• New target: ${newTarget.toLocaleString()}${unit}/day</div>
     <div style="margin:2px 0 0 12px;font-size:10.5px;color:var(--text3);">• Projected weekly avg if met: ${projectedAvg.toLocaleString()}${unit}</div>
-  </div>`;
-}
-
-function buildHomeConsolidatedMessage(badges, dayMap, weekStart, today, goal) {
-  const withData = badges.filter(b => b.badge.label !== 'No data');
-  const concerning = withData.filter(b => b.badge.color === 'var(--red)');
-
-  let icon, color, text;
-  if (withData.length === 0) {
-    icon = 'ph-info'; color = 'var(--text3)';
-    text = 'Log today\'s numbers to see how this week is tracking';
-  } else if (concerning.length === 0) {
-    icon = 'ph-check-circle'; color = 'var(--green)';
-    text = withData.length === badges.length
-      ? `All ${badges.length} on track this week`
-      : `${withData.length} of ${badges.length} tracked so far — all on track`;
-  } else {
-    icon = 'ph-warning'; color = 'var(--red)';
-    const names = concerning.map(b => b.m.name).join(' & ');
-    text = `${names} off target this week`;
-  }
-
-  // Reconciled kcal/protein/carbs advice only kicks in once kcal or protein
-  // is actually flagged concerning — carbs/steps being off on their own
-  // isn't a kcal-vs-protein conflict, so their independent sublabel stands
-  // as before. See getReconciledMacroAdvice for the full reconciliation
-  // rules. This only changes advice TEXT, never badge colours or which
-  // metrics get flagged.
-  const concerningFields = new Set(concerning.map(b => b.m.field));
-  const needsReconciliation = concerningFields.has('kcal') || concerningFields.has('protein');
-  const reconciled = needsReconciliation ? getReconciledMacroAdvice(dayMap, weekStart, today, goal) : null;
-
-  const canExpand = concerning.length > 0;
-  const adviceLines = canExpand ? concerning.map(b => {
-    const reconciledValue = (reconciled && (b.m.field === 'kcal' || b.m.field === 'protein' || b.m.field === 'carbs')) ? reconciled[b.m.field] : null;
-    const warningPrefix = (reconciled && !reconciled.feasible && b.m.field === 'kcal') ? "Can't meet kcal target this week without cutting protein further" : null;
-    return buildAdviceLineHtml(b.m.name, b.m.field, dayMap, weekStart, today, b.target, b.m.unit, reconciledValue, warningPrefix, goal && goal.kcal);
-  }).join('') : '';
-
-  // Fats has no hero row/badge of its own, so it only ever shows up here —
-  // and only when reconciliation actually had to move it off its own
-  // independent number to make room for kcal/protein.
-  const fatsLine = (reconciled && reconciled.fatsChanged)
-    ? buildAdviceLineHtml('Fats', 'fats', dayMap, weekStart, today, goal && goal.fats, 'g', reconciled.fats, null, goal && goal.kcal)
-    : '';
-
-  const footnote = canExpand
-    ? `<div style="margin-top:4px;font-size:10.5px;color:var(--text3);font-style:italic;">Adjustments shown here don't include what you've already logged today.</div>`
-    : '';
-
-  return `<div style="margin-top:10px;border-top:1px solid var(--border2);border-bottom:1px solid var(--border2);">
-    <div style="display:flex;align-items:center;gap:8px;padding:16px 4px;color:${color};font-size:12.5px;${canExpand ? 'cursor:pointer;' : ''}" ${canExpand ? 'onclick="toggleHomeAdvice()"' : ''}>
-      <svg viewBox="0 0 24 24" width="15" height="15" style="flex-shrink:0;">
-        ${icon === 'ph-check-circle'
-          ? '<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 12l2.5 2.5L16 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
-          : icon === 'ph-warning'
-          ? '<path d="M12 3l10 18H2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><line x1="12" y1="10" x2="12" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="18" r="1" fill="currentColor"/>'
-          : '<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><line x1="12" y1="11" x2="12" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="8" r="1" fill="currentColor"/>'}
-      </svg>
-      <span style="flex:1;">${text}</span>
-      ${canExpand ? `<svg viewBox="0 0 24 24" width="13" height="13" style="flex-shrink:0;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${homeAdviceExpanded ? '180deg' : '0deg'});"><polyline points="6 9 12 15 18 9"/></svg>` : ''}
-    </div>
-    ${canExpand && homeAdviceExpanded ? `<div style="padding:0 4px 12px;">${footnote}${adviceLines}${fatsLine}</div>` : ''}
   </div>`;
 }
 
@@ -19023,10 +18988,11 @@ function renderHomeLogBoxes() {
   // button made it a second card inside the card it already sits in.
   // openHomeMeasurements() fills them in there.
 
-  const bodyLogsBtn = hasWeight
-    ? `<button class="btn btn-ghost btn-block" id="home-body-logs-btn" style="margin-top:12px;"
-               onclick="showScreen('settings');openSettingsBodyLogs();">View body logs</button>`
-    : '';
+  // Always present. It was conditional on today's weight being saved, which
+  // meant a fresh day showed no route to the history at all — and the button
+  // is a way IN to the logs, not a confirmation that something was logged.
+  const bodyLogsBtn = `<button class="btn btn-ghost btn-block" id="home-body-logs-btn" style="margin-top:14px;"
+             onclick="showScreen('settings');openSettingsBodyLogs();">View body logs</button>`;
 
   el.innerHTML = sectionHeader('Log today', "Two quick numbers. Measurements when they're due.")
     + `<div class="card">

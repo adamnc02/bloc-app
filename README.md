@@ -34,12 +34,8 @@ Since v7.58, pages use a three-tier divider system instead of card wrappers: `.d
 ### Sections (new in v8.16)
 Every page is built as a page header (uppercase eyebrow, H1, optional 44×44 icon button pinned to the top right), a hero card, then **titled sections** stacked vertically 44px apart, and the page scrolls rather than compressing to fit. Each section header is an H2, an optional right-aligned slot (a status chip, a small button, or the `✦ BLOC AI` badge), and a one- or two-sentence sublabel saying what the section is for. The markup comes from a single builder, so the treatment can change everywhere at once.
 
-Sections are **not numbered** in the interface. A two-digit number badge was designed and built, then dropped on review — the titles carry it. The design documents still refer to sections as "01 This week", "02 Log today" and so on; that is how those documents name them, not something the app shows.
-
 ### Motion (new in v8.16)
 A screen assembles itself as you reach it: each section rises the first time it actually scrolls into view, with whatever arrives together staggered 90ms apart in document order. Progress bars fill from the left, rings and line charts draw themselves, and hero numbers rise into focus, each once its own section has arrived. Only `transform`, `opacity` and `stroke-dashoffset` are animated, and taps work throughout.
-
-The alternative — animating the whole page once on load — was built first and replaced: everything below the fold finished animating long before you scrolled to it, so on a phone, where most of a page is below the fold, scrolling revealed nothing but static content.
 
 Nothing is hidden by CSS alone. The hiding class is applied by JavaScript, and there is a one-second fallback that reveals everything if nothing has entered view, so a failure shows a page with no animation rather than a page with no content. `prefers-reduced-motion: reduce` skips the whole mechanism and renders every final state.
 
@@ -85,16 +81,16 @@ The default landing screen — a page header, a hero, then four numbered section
 - **Hero** — a 104px ring showing **how far through the week today is** (days elapsed out of 7), beside the cycle's identity: week number, macrocycle name, and the current goal period worded by goal type ("cut to / build to / hold near {target} lbs").
   - The ring used to count metrics on target, which meant one ring answering two different questions. That count now lives where it belongs — as a chip in section 01's header.
   - **Upcoming goal** — when the *next genuinely different* goal (compared by target values, not merely the next scheduled entry) starts within 6 days, a highlighted treatment **replaces the hero's goal line**, showing the headline, the resolved step label, and only the targets that actually change. It is not a separate banner. Tapping it goes to Plan and flashes that goal's row.
-- **01 This week** — one card, four metric rows (Calories, Protein, Carbs, Steps): the label, the bold weekly average against its target, and a 6px bar in that metric's colour. The section header carries an "{n} of 4 on target" chip.
+- **This week** — one card, four metric rows (Calories, Protein, Carbs, Steps): the label, the bold weekly average against its target, and a 6px bar in that metric's colour. The section header carries an "{n} of 4 on target" chip. Every row is the same height whether or not it has a note, so the card never reflows as values cross their targets.
   - An off-target row turns its bar red and adds a note — "{x} over target · rest of week at {adjusted} to recover" — using the existing adjusted-target calculation, plus an info icon opening the full catch-up breakdown. The reconciled kcal/protein/carbs/fats advice, and its expandable detail, are unchanged.
   - Calories, protein and carbs are tappable for an explainer of where their numbers come from. **Steps deliberately is not** — its calculation has no qualifying-day gate to explain.
   - Steps with nothing logged shows an empty bar and "No steps logged yet this week."
-- **02 Log today** — weigh-in and steps inputs, then the Measurements row.
+- **Log today** — weigh-in and steps inputs, then the Measurements row.
   - **A saved entry no longer disappears.** It becomes a saved message that persists for the rest of the calendar day and renders with no animation on revisit — the save flash only ever plays in response to an actual save. Tapping the message reopens the input, pre-filled, so it can be corrected.
   - **Measurements is always present**, as a row button showing the last waist/hip and when they were logged, with a red **Due** tag once 4 days have passed (the existing rule). It opens the **Measurements sheet**, which keeps whole-number + ¼/½/¾ entry, the in↔cm toggle and inch storage exactly as they were.
-  - **"View body logs"** appears once today's weight is saved and stays for the rest of the day. It used to sit permanently in the top-right corner of the hero.
-- **03 Up next** — the next incomplete session: its name and microcycle, the exercise and set count, then a row per exercise (sets × reps · weight, with an SS tag on superset members), and a pulsing **Start session** button.
-- **04 Food plan** — today's planned recipes (by serving count) and non-recipe items (by grams), ordered by first meal appearance (Breakfast → Lunch → Dinner → Snacks), tapping through to Fuel; or an empty state with a "Plan today's meals" button.
+  - **"View body logs"** sits at the foot of the card and opens Settings › Body logs. It used to sit in the top-right corner of the hero.
+- **Up next** — the next incomplete session: its name and microcycle, the exercise and set count, then a row per exercise (sets × reps · weight, with an SS tag on superset members), and a pulsing **Start session** button.
+- **Food plan** — today's planned recipes (by serving count) and non-recipe items (by grams), ordered by first meal appearance (Breakfast → Lunch → Dinner → Snacks), tapping through to Fuel; or an empty state with a "Plan today's meals" button.
 
 Home's entrance animation is now part of the app-wide motion system (see Motion above) rather than a bespoke JS count-up. The old odometer was removed: it produced nonsense intermediate values whenever anything read the DOM mid-count.
 

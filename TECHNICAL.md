@@ -4392,10 +4392,10 @@ default, which looks like a font-loading failure rather than a code change.
 
 ### Colour — the palette did NOT change
 
-The redesign scope asked for a brighter red (`#ff5f5d`) and for red to absorb the peach `--warn`.
-**Both were rejected.** `--warn` was split out of `--red` in v7.59–v7.60 precisely so `--red` could
+A brighter red (`#ff5f5d`) was proposed during design, along with folding the peach `--warn` back
+into `--red`. **Both were rejected.** `--warn` was split out of `--red` in v7.59–v7.60 precisely so `--red` could
 mean danger only, and that distinction still holds. Home's off-target state already uses
-`--red: #E24B4A` (`renderHomeHero()`), which is the colour the scope was reaching for.
+`--red: #E24B4A` (`renderHomeHero()`), which is the colour that proposal was reaching for.
 
 What did change is contrast and vocabulary:
 
@@ -4433,7 +4433,7 @@ values. Each element type adopts its named token as its own page is redesigned, 
 change is visible in the screenshots of the phase that made it. The legacy tokens retire naturally
 when their last call site moves.
 
-### Motion — why every animation is scoped under `.is-entering`
+### Motion — why every animation is scoped under an entrance class
 
 A screen assembles itself top to bottom and **replays that sequence every time it is shown**, not
 just on first paint. `showScreen()` does this by removing `.is-entering` from the screen root,
@@ -4734,15 +4734,13 @@ the interesting part, because most of them were invisible to the DOM probes that
 
 ### Section numbering is gone, permanently
 
-🚨 **Sections are no longer numbered in the UI.** The design scope specified a two-digit badge on
-every section header and Phase 1 built it; Adam dropped it on review (2026-09-24) — the titles carry
-the structure on their own. `sectionHeader()` lost its `num` parameter, `sectionCounter()` was
-deleted, and `.section-num` went with them.
+🚨 **Sections are no longer numbered in the UI.** A two-digit number badge on every section header
+was built in Phase 1 and dropped on review (2026-09-24) — the titles carry the structure on their
+own. `sectionHeader()` lost its `num` parameter, `sectionCounter()` was deleted, and `.section-num`
+went with them.
 
-**Do not reintroduce it in later phases**, and do not read the scope's "01 This week" / "02 Log
-today" labelling as an instruction to render numbers: that is how the documents *name* sections. The
-"renumber with no gaps when a section is hidden" rule died with the badge — there is nothing left to
-renumber.
+**Do not reintroduce one.** The "renumber with no gaps when a section is hidden" rule died with the
+badge — there is nothing left to renumber.
 
 ### Motion: scroll-triggered, not a page-load sweep
 
@@ -4829,3 +4827,74 @@ Where a fact is measurable, measure it rather than describing it: the fixes abov
 reading computed `margin-top` on all four sections (44/44/44/44, previously 0), the account button's
 gap from its container's right edge (0px), and every sheet's close button against its sheet's
 bounding box (55 checked, none clipped). That is a much better check than another screenshot.
+
+## §84 — v8.16 Phase 1, second review round: scroll reveal made deterministic, and reserved space for conditional text
+
+### The entrance needed a backstop, not a better observer
+
+§83 replaced the page-load sweep with an IntersectionObserver. Sections still did not animate as you
+scrolled to them.
+
+`setupScreenEntrance()` now keeps the observer as the primary mechanism and adds a **scroll
+backstop**: one passive listener on `#content`, throttled to ~10/second, which reveals any
+still-pending element whose top has come within the viewport. It detaches itself as soon as
+everything has risen, so on a normal page it stops running within a scroll or two, and when the
+observer is doing its job the backstop never has anything left to do.
+
+🚨 **It is throttled on a timestamp, not `requestAnimationFrame`.** rAF is part of the same rendering
+lifecycle an IntersectionObserver depends on, so a backstop built on rAF fails in precisely the
+situation it exists to cover. That is not hypothetical — see below.
+
+### Conditional text now reserves its space
+
+🚨 **A line that renders only sometimes keeps its element in the DOM, empty, with its height held
+open by CSS.** `.metric-note` is always rendered and carries `min-height: 17px`, so a metric row is
+the same height whether or not it is off target, and nothing below it moves when a value crosses a
+threshold. Measured: all four note slots 17px, all four rows 90px.
+
+The uniform-row rule goes with it — `.metric-row:first-child` / `:last-child` used to trim their
+outer padding, making those rows shorter than the ones between them for no benefit.
+
+Apply both to any repeated row on the remaining pages.
+
+### Also in this round
+
+- **"View body logs" is now unconditional.** Gating it on today's weight being saved meant a fresh
+  day offered no route into the history at all. A button that navigates somewhere is an **entry
+  point**, not a confirmation that something was logged.
+- **Steps lost its special-case "No steps logged yet this week" copy** and renders like every other
+  metric — a dash against its target.
+- **The consolidated advice callout under the This-week card was removed entirely**, with its
+  dividers. `buildHomeConsolidatedMessage()`, `toggleHomeAdvice()` and `homeAdviceExpanded` went
+  with it. The per-row off-target notes and the info-icon modal already carry that information.
+  `buildAdviceLineHtml()` **stays** — `openHomeMetricAdvice()`'s modal still uses it.
+
+### The verification lessons, which cost the most
+
+🚨 **Headless Chrome does not run this app's rendering lifecycle.** Established three separate ways
+in one session: CSS animations sit at `currentTime 0` indefinitely, `requestAnimationFrame`
+callbacks never fire, and IntersectionObserver never re-evaluates on scroll. It also reports a 500px
+viewport under `--force-device-scale-factor=3`, and `--app-height` never settles, so the floating nav
+lands over the content.
+
+**Never conclude that an animation plays, or that an observer fires, from this harness.** What it
+*can* do, once `html,body,#app { height: 956px !important }` is injected, is lay the page out
+properly and let you measure boxes — and box measurements are exactly what the review-round defects
+needed.
+
+🚨 **Never test for a string's ABSENCE with `document.body.textContent`.** A probe script injected
+into the page is itself part of the DOM, so its own regex literals match, and the check reports the
+text as still present. It cost a round of chasing two "bugs" that had already been fixed — the
+strings existed only inside the test that was looking for them. Scope the search to the screen
+element, and grep the source as a cross-check.
+
+### The forbidden-citation sweep
+
+🚨 **Nothing in this repo may cite the redesign's working documents.** Phases 0–1 accumulated about
+ten such references: code comments pointing at a numbered section of an external design file, prose
+here attributing a decision to one, and a `README.md` paragraph explaining what those files call a
+section. All were rewritten to state the rule or the decision on its own terms.
+
+Those documents are deleted when the round is retired, so a citation outlives the file it names and
+leaves a permanent dead reference in shipped code. `README.md` in particular is **fact about the app
+as it stands** — not process, not what was tried and rejected, and never what another document says.
