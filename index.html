@@ -28975,9 +28975,9 @@ function saveRecipeAndLog() {
 // today and the last-active meal (falling back to Breakfast).
 function openRecipeLogTargetPicker() {
   populateRelativeDateSelect('recipe-log-target-date');
-  // 🚨 The default stays `nutrActiveMeal` — the meal whose + Log was tapped.
-  // The design reference suggested defaulting by time of day instead; that is a
-  // guess, and this is knowledge, so it was not adopted.
+  // 🚨 The default is `nutrActiveMeal` — the meal whose + Log was tapped. That is
+  // knowledge about what the person is doing; guessing the meal from the time of
+  // day is not, and would be wrong for anyone logging a meal after the fact.
   document.getElementById('recipe-log-target-meal').value = nutrActiveMeal || 'Breakfast';
   markRecipeLogMeal();
   openModal('modal-recipe-log-target');

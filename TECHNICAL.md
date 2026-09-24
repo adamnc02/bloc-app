@@ -4664,5 +4664,253 @@ so backups round-trip both ways.
 - The Measurements row is always present; the 4-day rule drives only its Due tag.
 - The upcoming-goal treatment replaces the hero's goal line rather than occupying its own card.
 - Settings left the nav and renders no nav bar.
-- The Progress AI features, the Fuel section order and the remaining page-level changes land with
-  their own phases and are documented as they do.
+- Mark/unmark deload lives only in Train's Session tools (§85).
+- Jump to date is opened only by the Fuel header's calendar button (§86).
+- The Fuel hero no longer carries the rest-of-week figures or the saved-day pill (§86).
+- Photo → Meal's Analyse button dims instead of failing when no API key is saved (§86).
+- The Progress AI features and the remaining page-level changes land with their own phases and are
+  documented as they do.
+
+---
+
+## §85 — v8.16: the Train screen
+
+Train is a page header, a hero, and two sections — The session, Session tools. `renderTrain()`
+resolves which session is being viewed, then delegates one region each to `renderTrainHeader()`,
+`renderTrainHero()`, `renderTrainSession()` and `renderTrainTools()`.
+
+`renderTrainSession()` builds only its own header and an empty `#train-content`;
+`renderTrainDay()` fills that container and is what re-runs on every set tick. Keeping the two apart
+is what stops tapping a checkbox from restarting the section's entrance animation.
+
+### Header
+
+An eyebrow reading `MC {n} of {total}` plus the real calendar dates that mesocycle covers, the
+session label as the H1, and the macrocycle and microcycle as a subtitle. The right-hand icon button
+opens the rest timer.
+
+The eyebrow says "MC", not "Week". A mesocycle is the app's own unit and can span two calendar weeks
+(`weeksPerMeso`), so calling it a week would contradict the picker, the logs and every other screen.
+The calendar dates beside it, from `getSelectedTrainWeekDates()`, are what answer "which week is
+this".
+
+### Hero
+
+Three centred stats — Exercises, Sets done `{done}/{total}`, Volume — over one progress bar. Volume
+comes from `getSessionVolume()`, the same calculation Plan and Progress use, which doubles per-side
+tracked weight. There is no Start button and no percentage figure.
+
+The whole hero is dropped (`heroEl.innerHTML = ''`) when the session has no exercises: there is no
+session to summarise, and the section below says so.
+
+**Deload.** When the viewed unit is a deload, an ice-tinted banner takes the hero's top slot and the
+section's sublabel changes to "Deload targets shown. Progression resumes next week." Its mutually
+exclusive counterpart is `getWeeksSinceLastDeload()`'s output as plain centred text at the foot of
+the card — no badge, no pill — which renders only once at least one deload has happened earlier in
+the macro (the function returns null before that). Neither line reserves space when it has nothing
+to say.
+
+### The session
+
+One card per exercise: a 30px index badge, the name, its flags as tags, a target row of
+`{sets} sets · {reps} reps` against the target weight, and a row of 22px per-set dots that fill as
+sets are logged. Tapping anywhere expands the card in place (`toggleExercise()`).
+
+Tags are coloured by meaning: drop set red, pause and on-hold amber, giant and superset lavender,
+cardio blue, deload ice. The "Last wk: ↑ weight / ↑ reps" route is a quiet tag with no colour of its
+own, because it reports information rather than flagging a state.
+
+The 40px auto-complete button completes every set at target. It is withheld only where there is
+nothing to complete (the exercise is done) or where completing at target is not the point (the
+exercise is locked, and its whole state is that those numbers are not moving yet).
+
+**Expanded.** "Progress this week" offers two progression chips in two equal columns that never
+wrap — a progression choice is a comparison, and a wrapped second chip stops reading as the
+alternative to the first. The selected chip takes a 20% accent fill with an accent border rather
+than a solid fill, which at that size competed with the primary buttons below it. Every existing
+rule still governs which chips appear: none when locked, none in deload or post-deload units, weight
+only for pause sets, and the reps base for giant sets. Below them, "Log sets" with Fill suggested
+and Clear, then the set table at `# · Last wk · kg · Reps · ✓`, 42px inputs and a 42px tick that
+fills accent.
+
+**On hold.** A locked exercise carries an amber "On hold" tag, no progression chips, and a recessed
+`--inset` panel at the foot of the card — collapsed or expanded, because "why is this not
+progressing" is the first thing the card has to answer. The panel names the frozen target and shows
+one pill per set from last week, neutral where that set met its target and amber where it fell
+short.
+
+🚨 A set must meet **both** its weight and its reps target to be compliant —
+`getWeekComplianceResult()` breaks on `!wOk || !rOk`. The pills are therefore coloured on both, and
+the headline names both figures. Colouring on reps alone is the plausible wrong version: an exercise
+locked because the weight fell short renders every pill as met, directly under a headline saying the
+target was not hit. The frozen figures are read from the lock's own stored `weightTargets` /
+`repsTargets` rather than re-derived, because the lock is what froze them and its arrays are the only
+record of what they were at that moment.
+
+**Supersets** are one card for the group, with a lavender `Superset · {n} rounds` tag, one
+auto-complete button that fills every member, and one row per member carrying its sets and reps, its
+own flags, last week's set-1 log and its target weight. The expanded body offers each member its own
+pair of progression chips, since a superset chooses a route per exercise. The since-week-1 delta is
+not on these rows: unlabelled, in a row already carrying sets, reps and last week's log, it read as
+part of the neighbouring figure. It remains on solo cards, where it has its own line and a label.
+
+**Cardio** cards follow the same anatomy with speed and resistance in place of kg × reps. They have
+no auto-complete button, because there is no suggested distance or time to complete a set *at* —
+only levels, which is what `fillCardioLevels()` fills.
+
+### Session tools
+
+Two flat in-card rows (`.row-plain`, not `.row-btn`, which carries its own surface and would make a
+card inside a card), separated by a `--divider`.
+
+- **Change session** expands the week and session picker inside this card. Both mesocycle and
+  session selection stay reachable; `trainManualSelect` still means a manual choice wins until the
+  screen is left.
+- **Mark week as deload / Unmark deload** is the only place the deload action lives. The row carries
+  `deload-toggle-<macroId>`, which a demo-tour step points at directly. The toggle reads and writes
+  the unit derived from `state.currentDay` (which carries the m1/m2 suffix), so on a two-week
+  mesocycle it affects only the calendar week being viewed, never its sibling microcycle.
+
+### Rest timer
+
+`modal-timer` carries a title row and `data-modal`, so it swipes away like every other sheet, and
+five preset chips (0:45, 1:00, 1:30, 2:00, 3:00). A chip sets the wheel columns and does not start
+anything: the figure stays visible and adjustable, and Start remains the only thing that starts a
+count. Tapping a chip while a count is already running resets it first, since a running countdown
+hides the picker and `cdRemaining` is already non-zero.
+
+🚨 Closing the timer has to stop whichever timer is running and reset the Train clock icon, which is
+what `closeTimerModal()` does and `closeModal()` does not. Gesture dismissals resolve through
+`MODAL_DISMISS_HANDLERS`, which maps `modal-timer` to `closeTimerModal`. Before v8.16 the timer was
+excluded from `initModal()` altogether to avoid this; wiring it to the ordinary dismiss path instead
+would hide the sheet with the countdown still ticking behind it.
+
+### Removed
+
+- `animateTrainHeroValue()` — the JS odometer that counted the session-progress percentage and its
+  bar up from 0. The hero shows three stats and one bar now, and bar growth is CSS (§83).
+
+---
+
+## §86 — v8.16: the Fuel screen
+
+Fuel is a page header, a hero, and the sections Save this day · Meals · Rest of the week ·
+Shortcuts, with a saved-day pill at the foot. `renderNutrDaily()` delegates to `renderNutrHeader()`,
+`renderNutrHero()`, `renderNutrSaveBadge()`, `renderNutrDiary()`, `renderNutrWeekRest()`,
+`renderNutrShortcuts()` and `renderNutrSavedPill()`.
+
+Sections carry no numbers, so a conditional section that does not render leaves no gap and nothing
+renumbers.
+
+### Header
+
+The viewed date as the eyebrow, "Fuel" as the H1, and a cluster of three 44px icon buttons —
+previous day, calendar, next day.
+
+🚨 The calendar button is the only thing that opens Jump to date. The hero used to open it on tap,
+which fought its own swipe: a swipe that began and ended in nearly the same place registered as a tap
+and opened the date picker instead of changing the day.
+
+### Hero
+
+Eaten kcal as the headline figure, then `Target {t} · {n} left` in green or `{n} over` in red, an 8px
+bar, three macro mini-bars (protein blue, carbs amber, fats red) and a swipe hint. No pagination
+dots. Swiping the hero left or right changes the day (`initNutrHeroSwipe()`).
+
+Past target the bar grows a red excess segment. The two segments are siblings sharing the track's
+width, each sized as a share of the whole, so together they can never exceed it: at 120% of target
+the accent portion is 83% wide and the red 17%.
+
+🚨 `initNutrHeroSwipe()`'s `getCard()` looks for `.fuel-hero`. It is what the whole swipe animation
+targets, and a stale selector there leaves the day changing silently with no animation at all.
+
+### Save this day
+
+A conditional section, shown only when `renderNutrSaveBadge()`'s five gates all pass: a goal exists,
+the day is not already saved, it is not a quick-log day and is within `dayWithinSaveTolerance()`, a
+dinner recipe identifies it, and that dinner is not already stored. It names the dinner, states the
+day's totals, and offers one primary button.
+
+It does not persist: the moment the day is saved the section disappears, and its confirmation is the
+pill at the foot of the page.
+
+🚨 The last gate, `alreadyStored`, is what stops a day filled **from** a saved day being offered back.
+Nothing in `state` records where a day's food came from — there is no provenance field, and none is
+needed, because `fillDayFromSample()` deep-copies the sample's meals verbatim, so the filled day's
+dinner item carries the same name as the stored sample's `dinnerName` and the name comparison
+matches. `scripts/verify-save-day-gates.mjs` runs the real function against stubs and asserts the
+whole chain, with a control that deletes that gate and confirms the suite then fails.
+
+### Meals
+
+One card per meal: the name, a subtitle of its kcal total or "Nothing logged yet", a ··· button
+opening the meal-options sheet, and + Log. Items are listed underneath with their serving, protein
+and kcal, and keep their swipe-to-copy and swipe-to-delete actions.
+
+**Copy from yesterday** appears when the meal is empty and the previous day's same meal had items, so
+up to four can show at once or none. It is a recessed footer, not a card inside a card: full-bleed to
+the card's edges with an `--inset` background, a 1px top divider and bottom corners matching the
+card's radius. Swiping it right copies the meal. The affordance goes as soon as anything is logged
+for that meal, however it was added.
+
+🚨 A quick-logged day has no discrete meal items at all — `state.nutritionQuickLog` overrides the
+per-item sum in `getDayTotals()`. That day gets a single card stating its total, and the four meal
+cards are not rendered; otherwise it showed four identical empty states beside a hero reporting a
+full day's calories.
+
+### Rest of the week
+
+The existing adjusted-daily-target calculation, in an accent-bordered card with the adjusted kcal as
+the headline, an "Adjusted" chip and three macro tiles. Every gate is unchanged: it shows from today
+through the end of the current calendar week, only while today's own kcal or protein badge reads
+concerning, and only when `getNutrDayReconciledAdvice()` returns something.
+
+It used to sit inside the hero. Four more numbers under the one number the hero exists to show made
+neither legible.
+
+### Shortcuts
+
+Two tiles — Fill day, and Recipes with its saved count, which opens the recipe list and from there
+the Log to… sheet.
+
+### The saved-day pill
+
+Full page width at the foot of the page, shown for the rest of that day's view. It was in the hero
+card before; it is a quiet confirmation and must not compete with the kcal figure.
+
+### The Fuel sheets
+
+All 24 take the shared sheet anatomy. Three carry more than a restyle:
+
+- **Add food** has four tiles — Recipes, Manual, Scan, AI Photo. The `container-type` is on the row,
+  so the container query measures the row rather than the viewport and stacks icon over label when
+  four cannot fit inline. The AI tile's ✦ uses `--purple`, its own token.
+- **Meal options** (`showMealMenuSheet()`) offers four actions — Copy, Move, Swap, Save as recipe —
+  as icon-tile rows with subtitles, Cancel last. It is built in JS rather than being a static
+  overlay, so it wires its own scrim dismissal; `initModal()` only ever sees the static sheets. Its
+  subtitles are one line each so the four rows are the same height.
+- **Log to…** has a 2×2 meal picker built over the existing `<select>`, which stays the single source
+  of truth so `confirmRecipeLogTarget()` reads one value and no logic changed. The primary button
+  reads "Log to {meal}". The default is `nutrActiveMeal` — the meal whose + Log was tapped — which is
+  knowledge, rather than a guess from the time of day.
+
+### The API-key state
+
+`markAiKeyState(btnId)` dims an AI feature's primary button to 40% when no Anthropic key is saved and
+restores it when one is. It deliberately does not set `disabled`: the button stays clickable so its
+handler can open `modal-api-key`, which is the only route to fixing the thing the dimming reports. A
+disabled button is a dead end that explains nothing.
+
+Photo → Meal uses it. Its old inline error named "Settings → Linked services", a path that had
+already moved — a hand-written instruction goes stale, a sheet does not.
+
+### Renamed
+
+`modal-nutr-manual` was titled "Quick Add", the same as `modal-nutr-quick`. It is the manual entry
+reached from the Add-food "Manual" tile, so it is titled "Manual entry" after that tile;
+`modal-nutr-quick` keeps "Quick add" for logging a whole day as one total.
+
+### Removed
+
+- `animateNutrHeroValues()` — the last of the three JS odometers. The kcal figure rises via
+  `.digits` and the bars grow via `.bar > i` (§83).
