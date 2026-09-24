@@ -4855,24 +4855,46 @@ The note is rendered only when there is something to say, and rows keep their or
 padding trim. Worth recording as a judgement, not a principle: reserving space for conditional text
 is a reasonable instinct, and here the empty space was more noticeable than the movement.
 
-### Motion values were raised
+### Motion values were raised, twice
 
 The original figures — 18px of travel over 0.75s, staggered 90ms — read as a twitch on a phone
-rather than as the page assembling itself. The house values are now:
+rather than as the page assembling itself. 34px/1.15s/140ms was still short. The house values are
+now:
 
 | | |
 |---|---|
-| Section rise | 34px over 1.15s |
-| Stagger within a batch | 140ms |
+| Section rise | **50px over 1.6s** |
+| Stagger within a batch | **220ms** |
 | Progress bars | 1.45s, 110ms apart, 420ms after their section |
 | Ring draw | 1.9s |
 | Line chart | 2.3s |
 | Hero digits | 1.25s, from 55% offset and a 9px blur |
 
-🚨 **Each element animates once per visit to a screen.** It is `unobserve`d as soon as it has
-risen, so scrolling back up and down again does not replay it; leaving the screen and returning
-re-arms everything. This is deliberate — an entrance that re-fires every time it re-enters the
-viewport turns into a flicker on any page you scroll around in.
+Use these on the remaining pages rather than deriving new ones.
+
+### `ENTRANCE_REPLAY` — once per visit, or every time it scrolls back into view
+
+⚗️ **An open experiment, one constant at the top of `setupScreenEntrance()`.**
+
+- `false` — an element animates **once per visit** to a screen. It is `unobserve`d as soon as it
+  rises, so scrolling back over it does nothing; leaving the screen and returning re-arms the page.
+- `true` — it animates **every time** it scrolls back into view.
+
+🚨 **Removing the `unobserve` is not enough on its own.** Re-adding a class an element already
+carries does not restart a CSS animation, so replay also requires *resetting* the element when it
+leaves. The reset waits for `intersectionRatio === 0` — completely out of view — rather than firing
+as soon as an edge crosses, or an element parked half on screen flickers.
+
+The scroll backstop needed two changes to match. Its reveal test is now "top past the reveal line
+**and** bottom still below the top of the scroller", because the original test was also true for
+anything scrolled off the top — in replay mode that re-revealed those elements on every scroll
+frame, fighting the observer's reset. And it no longer detaches itself once everything has risen,
+since in replay mode there is always more to do.
+
+Note the asymmetry: the backstop reveals, but only the observer resets. Where the observer cannot
+run, replay degrades to once-per-visit rather than breaking — which is the right way round.
+
+**Whichever way this settles, delete the losing branch** rather than leaving both paths alive.
 
 ### Also in this round
 
