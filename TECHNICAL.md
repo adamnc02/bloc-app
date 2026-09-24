@@ -4363,3 +4363,1326 @@ The dismissal is detected without a new flag. **Every deliberate exit — the �
 Not a loss, but the same class of defect and adjacent: `addPhotoItemManual()` pushes a blank row *before* opening the editor (so the editor can address it by index), so backing out of that editor left `New item · 0 kcal` on the list — and a junk 0-kcal ingredient in the saved recipe if not spotted. Now more reachable, since Manual sits one tap deeper behind §78's search sheet. `_photoPendingNewItemIdx` marks that row; `savePhotoItemEdit()` clears the marker, and `closeModal()` splices the row out if the editor closes with the marker still set.
 
 **Check:** `scripts/verify-photo-review-retention.mjs` — 16 checks. The routing matrix for `returnFromNutrServing()` across all three contexts × both routes in (proving no combination lands nowhere); `discardPhotoReview()`'s confirm behaviour including that declining leaves the items intact and that an empty list skips the dialog; and the three structural invariants the protection actually rests on — the overlay carries `data-no-dismiss`, its ✕ does not call `closeModal` directly, `initModal()` checks the attribute *before* wiring either gesture, and `#modal-confirm` outranks every other modal tier (asserted by parsing the z-index rules, so adding a higher modal later fails the check rather than silently hiding confirmations).
+
+## §80 — v8.16 design foundation: type, colour, shape and shared components
+
+v8.16 replaces the app's visual language. The pieces below are global — every page and all 62 modals
+read them — so they are described once here rather than per page.
+
+### Typography
+
+Two faces. **Sora** (`--font-display`) for page titles, section headings, hero numbers and stats;
+**Manrope** (`--font-body`) for prose, labels and controls. `body` resolves to `--font-body`, so an
+element that does not explicitly ask for the display face renders in Manrope.
+
+`--font-mono` resolves to Manrope. It is a legacy token with 24 call sites, retained so those sites
+keep working; a missing custom property resolves to nothing and drops the element to the browser
+default, which looks like a font-loading failure rather than a code change.
+
+All numbers carry `font-variant-numeric: tabular-nums`.
+
+### Colour
+
+The palette is unchanged from v8.15. `--warn` (`#e0a08f`) and `--red` (`#E24B4A`) remain separate
+tokens — `--warn` was split out of `--red` in v7.59–v7.60 so `--red` means danger only, and Home's
+off-target state uses `--red`.
+
+Contrast and vocabulary did change:
+
+| Token | |
+|---|---|
+| `--text3` | `.45` → `.55` alpha |
+| `--border2` | `.16` → `.12` alpha |
+| `--inset` | Recessed card footers and the on-hold panel |
+| `--divider` | Row dividers inside cards |
+| `--green-text` | Positive text and "Stable"/"Active" chips, distinct from the `--green` fill |
+| `--heat-amber` | Same value as the `HEATMAP_AMBER` JS constant |
+
+`--heat-amber` is defined but unread: `HEATMAP_AMBER` still draws the heat squares. The token carries
+a light-mode value (`#b07d12`) the constant does not, so repointing the constant at it changes how
+heat squares look in light mode.
+
+`--on-accent` and `--nav-bg-rgb` are deliberately not overridden in light mode, so contrast against
+fixed accent fills stays correct when light mode redefines `--bg`.
+
+### Shape
+
+A named radius scale — `--r-hero`, `--r-card`, `--r-tile`, `--r-btn`, `--r-btn-sm`, `--r-icon`,
+`--r-icon-card`, `--r-chip`, `--r-tag`, `--r-sheet` — sits alongside the legacy `--r` (8px),
+`--r-sm` (4px) and `--r-lg` (14px), which keep their values. `--r-sm` alone has 102 call sites, so
+redefining it in place would reshape all of them at once; each element type adopts its named token as
+its page is redesigned, and the legacy tokens retire when their last call site moves.
+
+### Section headers
+
+`sectionHeader(title, sublabel, opts)` and `sectionEnd()` produce every section header: an H2, an
+optional right-aligned slot (a status chip, a small button, or the `✦ BLOC AI` badge from
+`sectionAiBadge()`), and a sublabel. Sections are not numbered.
+
+### Shared components
+
+`index.html` holds ~1,550 `style="` attributes and ~1,189 `class="` attributes, most inside JS
+template literals, so the shared classes were redefined in place rather than call sites rewritten.
+
+- **Bottom sheets** — scrim `rgba(8,9,16,.72)`, 26px top corners, `10px 20px 34px` padding, a 40×4
+  handle, a 40px round close button, a Sora 22/600 title. 55 of the 62 modals take this from
+  `.modal-sheet`. The other seven build their inner markup in JS and carry no `.modal-sheet`:
+  `modal-confirm`, `modal-home-metric-advice`, `modal-home-nutrition-info` and the three
+  `modal-macro-extend-*`.
+  - `.modal-handle-row` carries `min-height: 44px`. Its own content is a 4px handle, and the close
+    button is absolutely positioned and vertically centred on it; at the row's natural height the
+    button overflows the sheet's top padding and is clipped by `.modal-sheet`'s `overflow-y: auto`.
+- **Centred dialogs** (`.dialog`) are a separate component from sheets and stay centred. They carry
+  the same tokens, type and buttons.
+- **`.btn-accent` / `.btn-primary`** is the solid primary: `--accent` fill, `--on-accent` text,
+  weight 700. It was an outline button before v8.16 and has 52 call sites. `.btn-ghost` is the
+  secondary (accent2 text, `rgba(145,132,217,.55)` border), `.btn-danger` a 50%-alpha red ghost,
+  `.btn-block` the 52px full-width shape.
+- **`.row-btn`** is a standalone row — icon tile, bold title, subtitle, chevron — and carries its own
+  surface and border. **`.row-plain`** is the flat equivalent for rows inside a card, which already
+  has both.
+- **`.chip`** takes a `--chip-c` per instance and renders a 15% tint with the full colour for text.
+- **`.section`** carries `margin-top: 44px` with no `:first-of-type` reset: each section renders into
+  its own container element, so such a reset matches every section rather than only the first.
+
+### Navigation, and hidden pages
+
+The nav is five tabs — Home · Train · Fuel · Progress · Plan. The Nutrition tab's label is "Fuel";
+its button id (`#nav-nutrition`) and screen id (`#screen-nutrition`) are unchanged, so existing
+`showScreen('nutrition')` callers still work.
+
+Settings has no nav button. It is reached from the account button in the Home header and left by its
+own `‹ Home` back link. A screen with no nav button is a **hidden page**: `showScreen()` tolerates
+the missing `#nav-<name>`, hides `#nav` entirely, and puts `.no-nav` on `#content` so the space
+reserved for the nav is reclaimed. `positionNavPill()` hides the pill when nothing is active.
+
+### A note on layout measurement
+
+The app shell is sized from `--app-height`, a JS-measured value updated by resize and visualViewport
+listeners, rather than from viewport units — see the comments on `#nav` and `html` for why. One
+consequence is that the layout does not settle in environments that do not run a full rendering
+lifecycle.
+
+---
+
+## §81 — v8.16: the Home screen
+
+Home is a page header, a hero, and four sections — This week, Log today, Up next, Food plan. It
+scrolls. `renderHome()` delegates to one function per region: `renderHomeHeader()`,
+`renderHomeHero()`, `renderHomeThisWeek()`, `renderHomeLogBoxes()`, `renderHomeUpNext()`,
+`renderHomeFoodPlan()`.
+
+### Header
+
+A full-date eyebrow, a greeting H1 by time of day, and the account button, which is the only route
+into Settings.
+
+The date comes from `getLocalToday()`, not the clock: the demo tour and local dev override "today"
+app-wide via `setTourAnchorDate()`, and a header reading the real date would contradict the hero's
+week, the logs and the targets. The greeting is about time of day, so it does read the clock.
+
+### Hero
+
+A 104px ring showing **days elapsed this week out of 7**, beside the cycle's week number, macrocycle
+name and current goal period, worded by goal type ("cut to / build to / hold near {target} lbs").
+
+The ring measures one thing only. It previously counted metrics on target, which is the same question
+the text beside it answered; that count is now a chip in the This-week header, beside the metrics it
+describes. (An earlier variant counted metrics with *any* data logged and could read 4/4 while the
+subline reported a metric off target — fixed in v7.90.)
+
+**Upcoming goal.** When a genuinely different goal period starts within 6 days,
+`buildHomeUpcomingGoalHTML()` replaces the hero's goal line with a highlighted treatment carrying the
+headline, the resolved step label and the changed fields only. The gates are unchanged from
+`renderHomeGoalBanner()`, which it replaces: goals are compared field by field, because a
+macrocycle's future weeks are usually the same goal continuing and must not be announced as new.
+
+The `home-goal-banner` id is a demo-tour anchor and sits on whichever element carries that content —
+the plain goal line or the highlighted treatment.
+
+### This week
+
+One card, four metric rows: label, bold weekly average against target, and a 6px bar in the metric's
+colour. Every calculation is v8.15's, unchanged.
+
+An off-target row turns its bar red and adds a note carrying the adjusted-target figure from
+`getWeeklyRequiredDaily()` — the same number `openHomeMetricAdvice()`'s modal uses — plus an info
+icon opening that modal. The note is rendered only when there is something to say.
+
+Calories, protein and carbs open an explainer of where their numbers come from. Steps does not: its
+calculation has no qualifying-day gate to explain.
+
+### Log today
+
+Weigh-in and steps inputs, then the Measurements row and a "View body logs" button.
+
+**A saved entry persists.** v8.15 hid the input once today's value existed; a saved value now renders
+as a static message for the rest of the calendar day, and tapping it reopens the input pre-filled.
+`homeEditing` holds the transient "editing again" flag and is deliberately not persisted — a reload
+shows the saved value, not a half-finished edit. Each save handler clears its own flag.
+
+The save flash fires only from the save handlers, never from the entrance system, so returning to
+Home does not replay a "✓ Saved" flash for something saved hours ago.
+
+**Measurements** is always present as a row, carrying a red **Due** tag once 4 days have passed since
+the last log. It opens `modal-home-measurements`, which holds the fields verbatim from the old inline
+block — the same ids (`home-body-waist-whole`, `home-meas-fields-cm`, …) and the same handlers
+(`setHomeMeasUnit()`, `setHomeFrac()`, `initHomeMeasBox()`, `saveHomeMeasurements()`). Measurements
+are stored in inches at quarter-inch precision; the entry, conversion and storage logic is not
+reimplemented anywhere. `saveHomeMeasurements()` closes the sheet when its flash finishes, and
+`openHomeMeasurements()` fills the "last logged" line and the two last-value tiles, tolerating a log
+with a waist but no hip or the reverse.
+
+### Up next and Food plan
+
+Up next shows the next incomplete session — name and microcycle, exercise and set counts, a row per
+exercise with an SS tag on superset members (membership lives on `ex.supersetId`; `state.supersets`
+maps a superset id to its name only), and a pulsing Start session button.
+
+Food plan lists today's planned recipes by serving count and non-recipe items by grams, ordered by
+first meal appearance, or an empty state with a "Plan today's meals" button.
+
+Each section's buttons sit inside its card.
+
+### Removed
+
+- `animateHomeHeroValues()` — the JS odometer that counted Home's numbers up from 0. Entrance motion
+  is CSS (§83), and the odometer produced nonsense intermediate values: a DOM read mid-count returns
+  figures like "Kcal 33 / 1,550" on a page whose real average is null.
+- `renderHomeGoalBanner()` — replaced by `buildHomeUpcomingGoalHTML()`.
+- `buildHomeConsolidatedMessage()`, `toggleHomeAdvice()` and `homeAdviceExpanded` — the advice
+  callout below the This-week card. The per-row notes and the metric-advice modal carry that
+  information. `buildAdviceLineHtml()` remains, used by the modal.
+
+### Demo-tour anchors
+
+`home-hero-wrap`, `home-log-boxes`, `home-metric-card-kcal`, `home-goal-banner` and
+`home-body-logs-btn` all resolve. `home-body-logs-btn` moved from the hero's top-right corner into
+Log today and is unconditional.
+
+---
+
+## §82 — The local-dev bypass: which hosts qualify
+
+`isLocalDevHost(hostname)` decides whether BLOC skips Supabase and OAuth entirely and seeds the demo
+dataset instead. It accepts:
+
+- exact loopback — `localhost`, `127.0.0.1`, `::1`, `[::1]`, and the whole `127/8` range;
+- `.local` mDNS names;
+- bare IPv4 literals in RFC1918 or link-local ranges — `10/8`, `192.168/16`, `172.16/12`,
+  `169.254/16`.
+
+This is what allows the app to be opened on a phone: a phone on the same Wi-Fi reaches the laptop's
+dev server at its LAN address, never at `localhost`.
+
+**The deployed host cannot match.** `adamnc02.github.io` is a public DNS name, neither an IP literal
+nor `.local`. There is no flag, build step or environment variable involved — the only input is the
+hostname the browser is already on.
+
+**Matching is exact or anchored at both ends.** `localhost.evil.com` and `192.168.0.42.evil.com` are
+ordinary public domains that anyone can register, and a `startsWith`/`includes` implementation would
+bypass on both.
+
+The bypass leaves `supabase` null and seeds the demo dataset, so there is no real account or real
+data behind it. While the dev server runs, anyone on the same network who knows the address reaches
+the app in that state.
+
+`scripts/verify-local-dev-hosts.mjs` extracts `isLocalDevHost()` from `index.html` by brace matching
+and runs it, so it tests the shipped function rather than a copy. 35 cases cover the deployed host,
+both lookalike domains, and the off-by-one neighbours of every private range (`172.15`/`172.32`,
+`193.168`, `11.0`, `169.253`), and a control asserts that a naive predicate fails them. There is no
+CI in this repo and the deploy does not run the verify scripts; a bypassed build looks normal until
+you notice it never asked anyone to sign in.
+
+---
+
+## §83 — The entrance motion system
+
+A screen assembles itself as it is reached: each `.rise` element animates when it scrolls into view,
+and again whenever it scrolls back into view. Only `transform`, `opacity` and `stroke-dashoffset` are
+animated, and nothing blocks interaction.
+
+### Values
+
+| | |
+|---|---|
+| Section rise | 50px over 1.6s |
+| Stagger within a batch | 220ms, in document order |
+| Progress bars | 1.45s, 110ms apart, 420ms after their section |
+| Ring draw | 1.9s |
+| Line chart | 2.3s |
+| Hero digits | 1.25s, from a 55% offset and a 9px blur |
+
+### Mechanism
+
+`setupScreenEntrance(el)` runs from `showScreen()` after the render calls, since the elements it
+observes are built by them. It observes every `.rise` element with an IntersectionObserver rooted on
+`#content`, the app's only scroller.
+
+An element that has scrolled **completely** out of view (`intersectionRatio === 0`) has `.risen`
+removed so it plays again on return. That reset is what makes the replay work: re-adding a class an
+element already carries does not restart a CSS animation. It waits for full exit rather than the
+first edge crossing, so an element parked half on screen does not flicker.
+
+Elements arriving in the same batch are staggered in document order, which produces the
+top-to-bottom assembly on first paint. A section scrolled to on its own is a batch of one and rises
+immediately.
+
+### Visibility never depends on motion
+
+`.will-rise` sets `opacity: 0`, and it is applied **by JavaScript**. CSS hides nothing on its own, so
+without JS, without IntersectionObserver, or under `prefers-reduced-motion: reduce`, every element is
+simply visible in its final state. `.risen` also asserts the final visible state directly, so a
+cancelled or unsupported animation cannot hide content.
+
+Two mechanisms guard the rest:
+
+- **A fallback**, 1s after arming, reveals everything if *nothing* has risen. The test is "nothing
+  risen" rather than "the observer did not call back", because with a root of zero height the
+  observer reports every element as not-intersecting — a callback-based test would pass while the
+  page stayed invisible.
+- **A scroll backstop** — one passive listener on `#content`, throttled on a timestamp to ~10/second
+  — reveals any pending element whose top has passed the reveal line while its bottom is still below
+  the top of the scroller. It is throttled on a timestamp rather than `requestAnimationFrame`
+  because rAF belongs to the same rendering lifecycle the observer depends on.
+
+Looping motion (`.pulse`, `.nudge`) is not part of the entrance. Anything looping on a JS timer
+registers a teardown with `onScreenChange()`, which `showScreen()` runs before switching; a stray
+interval is invisible until it starts fighting the next screen's renders.
+
+---
+
+## §84 — v8.16 behaviour changes carried by the redesign
+
+The redesign is presentational, with these deliberate exceptions. Every other calculation, `state`
+key, storage format and render guard is unchanged, and `Object.keys(state)` is identical to v8.15's,
+so backups round-trip both ways.
+
+- A saved weight or steps entry persists as a saved message for the rest of the day and can be
+  reopened for editing, instead of the input disappearing (§81).
+- "View body logs" is unconditional and lives in Log today rather than the hero.
+- The Measurements row is always present; the 4-day rule drives only its Due tag.
+- The upcoming-goal treatment replaces the hero's goal line rather than occupying its own card.
+- Settings left the nav and renders no nav bar.
+- Mark/unmark deload lives only in Train's Session tools (§85).
+- Jump to date is opened only by the Fuel header's calendar button (§86).
+- The Fuel hero no longer carries the rest-of-week figures or the saved-day pill (§86).
+- Photo → Meal's Analyse button dims instead of failing when no API key is saved (§86).
+- The three Progress AI features stopped sharing one slot; the mid-cycle check-in is no longer
+  hidden during a cycle's final week (§87).
+- Goal periods left Progress; they live on Plan, which is where they are edited (§87).
+- Progress's weekly macro split moved from an inline page section into a sheet, beside a new
+  all-time statistics sheet (§87).
+- Plan's phase rows are tappable and the separate Edit button is gone (§88).
+- Plan's step chart auto-cycles its metric, which is new motion on a timer (§88).
+- The remaining page-level changes land with their own phases and are documented as they do.
+
+Added by the v8.16 UAT round (§92):
+
+- Progress, Train and Plan snap to the cycle today falls inside on page entry. Previously they kept
+  whatever cycle was last created or picked, however long ago it ended.
+- On the **Plan page**, a session day and the progression preview open as sheets instead of
+  expanding in place. Train's Change session did the same.
+- The three Progress "Read full…" sheets are fully expanded; their collapsibles never worked.
+- Progress's Statistics section lost its 7-Day/All toggle. The full-cycle view it switched to is
+  the same one the All-time stats button in that card opens.
+- Fuel's Quick add moved from the Meals section header into Shortcuts, which is now three tiles.
+- Home's Measurements row carries the last-logged figures as a sublabel.
+
+---
+
+## §85 — v8.16: the Train screen
+
+Train is a page header, a hero, and two sections — The session, Session tools. `renderTrain()`
+resolves which session is being viewed, then delegates one region each to `renderTrainHeader()`,
+`renderTrainHero()`, `renderTrainSession()` and `renderTrainTools()`.
+
+`renderTrainSession()` builds only its own header and an empty `#train-content`;
+`renderTrainDay()` fills that container and is what re-runs on every set tick. Keeping the two apart
+is what stops tapping a checkbox from restarting the section's entrance animation.
+
+### Header
+
+An eyebrow reading `MC {n} of {total}` plus the real calendar dates that mesocycle covers, the
+session label as the H1, and the macrocycle and microcycle as a subtitle. The right-hand icon button
+opens the rest timer.
+
+The eyebrow says "MC", not "Week". A mesocycle is the app's own unit and can span two calendar weeks
+(`weeksPerMeso`), so calling it a week would contradict the picker, the logs and every other screen.
+The calendar dates beside it, from `getSelectedTrainWeekDates()`, are what answer "which week is
+this".
+
+### Hero
+
+Three centred stats — Exercises, Sets done `{done}/{total}`, Volume — over one progress bar. Volume
+comes from `getSessionVolume()`, the same calculation Plan and Progress use, which doubles per-side
+tracked weight. There is no Start button and no percentage figure.
+
+The whole hero is dropped (`heroEl.innerHTML = ''`) when the session has no exercises: there is no
+session to summarise, and the section below says so.
+
+**Deload.** When the viewed unit is a deload, an ice-tinted banner takes the hero's top slot and the
+section's sublabel changes to "Deload targets shown. Progression resumes next week." Its mutually
+exclusive counterpart is `getWeeksSinceLastDeload()`'s output as plain centred text at the foot of
+the card — no badge, no pill — which renders only once at least one deload has happened earlier in
+the macro (the function returns null before that). Neither line reserves space when it has nothing
+to say.
+
+### The session
+
+One card per exercise: a 30px index badge, the name, its flags as tags, a target row of
+`{sets} sets · {reps} reps` against the target weight, and a row of 22px per-set dots that fill as
+sets are logged. Tapping anywhere expands the card in place (`toggleExercise()`).
+
+Tags are coloured by meaning: drop set red, pause and on-hold amber, giant and superset lavender,
+cardio blue, deload ice. The "Last wk: ↑ weight / ↑ reps" route is a quiet tag with no colour of its
+own, because it reports information rather than flagging a state.
+
+The 40px auto-complete button completes every set at target. It is withheld only where there is
+nothing to complete (the exercise is done) or where completing at target is not the point (the
+exercise is locked, and its whole state is that those numbers are not moving yet).
+
+**Expanded.** "Progress this week" offers two progression chips in two equal columns that never
+wrap — a progression choice is a comparison, and a wrapped second chip stops reading as the
+alternative to the first. The selected chip takes a 20% accent fill with an accent border rather
+than a solid fill, which at that size competed with the primary buttons below it. Every existing
+rule still governs which chips appear: none when locked, none in deload or post-deload units, weight
+only for pause sets, and the reps base for giant sets. Below them, "Log sets" with Fill suggested
+and Clear, then the set table at `# · Last wk · kg · Reps · ✓`, 42px inputs and a 42px tick that
+fills accent.
+
+**On hold.** A locked exercise carries an amber "On hold" tag, no progression chips, and a recessed
+`--inset` panel at the foot of the card — collapsed or expanded, because "why is this not
+progressing" is the first thing the card has to answer. The panel names the frozen target and shows
+one pill per set from last week, neutral where that set met its target and amber where it fell
+short.
+
+🚨 A set must meet **both** its weight and its reps target to be compliant —
+`getWeekComplianceResult()` breaks on `!wOk || !rOk`. The pills are therefore coloured on both, and
+the headline names both figures. Colouring on reps alone is the plausible wrong version: an exercise
+locked because the weight fell short renders every pill as met, directly under a headline saying the
+target was not hit. The frozen figures are read from the lock's own stored `weightTargets` /
+`repsTargets` rather than re-derived, because the lock is what froze them and its arrays are the only
+record of what they were at that moment.
+
+**Supersets** are one card for the group, with a lavender `Superset · {n} rounds` tag, one
+auto-complete button that fills every member, and one row per member carrying its sets and reps, its
+own flags, last week's set-1 log and its target weight. The expanded body offers each member its own
+pair of progression chips, since a superset chooses a route per exercise. The since-week-1 delta is
+not on these rows: unlabelled, in a row already carrying sets, reps and last week's log, it read as
+part of the neighbouring figure. It remains on solo cards, where it has its own line and a label.
+
+**Cardio** cards follow the same anatomy with speed and resistance in place of kg × reps. They have
+no auto-complete button, because there is no suggested distance or time to complete a set *at* —
+only levels, which is what `fillCardioLevels()` fills.
+
+### Session tools
+
+Two flat in-card rows (`.row-plain`, not `.row-btn`, which carries its own surface and would make a
+card inside a card), separated by a `--divider`.
+
+- **Change session** expands the week and session picker inside this card. Both mesocycle and
+  session selection stay reachable; `trainManualSelect` still means a manual choice wins until the
+  screen is left.
+- **Mark week as deload / Unmark deload** is the only place the deload action lives. The row carries
+  `deload-toggle-<macroId>`, which a demo-tour step points at directly. The toggle reads and writes
+  the unit derived from `state.currentDay` (which carries the m1/m2 suffix), so on a two-week
+  mesocycle it affects only the calendar week being viewed, never its sibling microcycle.
+
+### Rest timer
+
+`modal-timer` carries a title row and `data-modal`, so it swipes away like every other sheet, and
+five preset chips (0:45, 1:00, 1:30, 2:00, 3:00). A chip sets the wheel columns and does not start
+anything: the figure stays visible and adjustable, and Start remains the only thing that starts a
+count. Tapping a chip while a count is already running resets it first, since a running countdown
+hides the picker and `cdRemaining` is already non-zero.
+
+🚨 Closing the timer has to stop whichever timer is running and reset the Train clock icon, which is
+what `closeTimerModal()` does and `closeModal()` does not. Gesture dismissals resolve through
+`MODAL_DISMISS_HANDLERS`, which maps `modal-timer` to `closeTimerModal`. Before v8.16 the timer was
+excluded from `initModal()` altogether to avoid this; wiring it to the ordinary dismiss path instead
+would hide the sheet with the countdown still ticking behind it.
+
+### Removed
+
+- `animateTrainHeroValue()` — the JS odometer that counted the session-progress percentage and its
+  bar up from 0. The hero shows three stats and one bar now, and bar growth is CSS (§83).
+
+---
+
+## §86 — v8.16: the Fuel screen
+
+Fuel is a page header, a hero, and the sections Save this day · Meals · Rest of the week ·
+Shortcuts, with a saved-day pill at the foot. `renderNutrDaily()` delegates to `renderNutrHeader()`,
+`renderNutrHero()`, `renderNutrSaveBadge()`, `renderNutrDiary()`, `renderNutrWeekRest()`,
+`renderNutrShortcuts()` and `renderNutrSavedPill()`.
+
+Sections carry no numbers, so a conditional section that does not render leaves no gap and nothing
+renumbers.
+
+### Header
+
+The viewed date as the eyebrow, "Fuel" as the H1, and a cluster of three 44px icon buttons —
+previous day, calendar, next day.
+
+🚨 The calendar button is the only thing that opens Jump to date. The hero used to open it on tap,
+which fought its own swipe: a swipe that began and ended in nearly the same place registered as a tap
+and opened the date picker instead of changing the day.
+
+### Hero
+
+Eaten kcal as the headline figure, then `Target {t} · {n} left` in green or `{n} over` in red, an 8px
+bar, three macro mini-bars (protein blue, carbs amber, fats red) and a swipe hint. No pagination
+dots. Swiping the hero left or right changes the day (`initNutrHeroSwipe()`).
+
+Past target the bar grows a red excess segment. The two segments are siblings sharing the track's
+width, each sized as a share of the whole, so together they can never exceed it: at 120% of target
+the accent portion is 83% wide and the red 17%.
+
+🚨 `initNutrHeroSwipe()`'s `getCard()` looks for `.fuel-hero`. It is what the whole swipe animation
+targets, and a stale selector there leaves the day changing silently with no animation at all.
+
+### Save this day
+
+A conditional section, shown only when `renderNutrSaveBadge()`'s five gates all pass: a goal exists,
+the day is not already saved, it is not a quick-log day and is within `dayWithinSaveTolerance()`, a
+dinner recipe identifies it, and that dinner is not already stored. It names the dinner, states the
+day's totals, and offers one primary button.
+
+It does not persist: the moment the day is saved the section disappears, and its confirmation is the
+pill at the foot of the page.
+
+🚨 The last gate, `alreadyStored`, is what stops a day filled **from** a saved day being offered back.
+Nothing in `state` records where a day's food came from — there is no provenance field, and none is
+needed, because `fillDayFromSample()` deep-copies the sample's meals verbatim, so the filled day's
+dinner item carries the same name as the stored sample's `dinnerName` and the name comparison
+matches. `scripts/verify-save-day-gates.mjs` runs the real function against stubs and asserts the
+whole chain, with a control that deletes that gate and confirms the suite then fails.
+
+### Meals
+
+One card per meal: the name, a subtitle of its kcal total or "Nothing logged yet", a ··· button
+opening the meal-options sheet, and + Log. Items are listed underneath with their serving, protein
+and kcal, and keep their swipe-to-copy and swipe-to-delete actions.
+
+**Copy from yesterday** appears when the meal is empty and the previous day's same meal had items, so
+up to four can show at once or none. It is a recessed footer, not a card inside a card: full-bleed to
+the card's edges with an `--inset` background, a 1px top divider and bottom corners matching the
+card's radius. Swiping it right copies the meal. The affordance goes as soon as anything is logged
+for that meal, however it was added.
+
+🚨 A quick-logged day has no discrete meal items at all — `state.nutritionQuickLog` overrides the
+per-item sum in `getDayTotals()`. That day gets a single card stating its total, and the four meal
+cards are not rendered; otherwise it showed four identical empty states beside a hero reporting a
+full day's calories.
+
+### Rest of the week
+
+The existing adjusted-daily-target calculation, in an accent-bordered card with the adjusted kcal as
+the headline, an "Adjusted" chip and three macro tiles. Every gate is unchanged: it shows from today
+through the end of the current calendar week, only while today's own kcal or protein badge reads
+concerning, and only when `getNutrDayReconciledAdvice()` returns something.
+
+It used to sit inside the hero. Four more numbers under the one number the hero exists to show made
+neither legible.
+
+### Shortcuts
+
+Two tiles — Fill day, and Recipes with its saved count, which opens the recipe list and from there
+the Log to… sheet.
+
+### The saved-day pill
+
+Full page width at the foot of the page, shown for the rest of that day's view. It was in the hero
+card before; it is a quiet confirmation and must not compete with the kcal figure.
+
+### The Fuel sheets
+
+All 24 take the shared sheet anatomy. Three carry more than a restyle:
+
+- **Add food** has four tiles — Recipes, Manual, Scan, AI Photo. The `container-type` is on the row,
+  so the container query measures the row rather than the viewport and stacks icon over label when
+  four cannot fit inline. The AI tile's ✦ uses `--purple`, its own token.
+- **Meal options** (`showMealMenuSheet()`) offers four actions — Copy, Move, Swap, Save as recipe —
+  as icon-tile rows with subtitles, Cancel last. It is built in JS rather than being a static
+  overlay, so it wires its own scrim dismissal; `initModal()` only ever sees the static sheets. Its
+  subtitles are one line each so the four rows are the same height.
+- **Log a recipe** (`modal-recipe-pick`) is the Shortcuts › Recipes route — a picker, listing
+  `state.foodLibrary` entries with `source === 'recipe'`, the same source the Add-food list filters
+  on, so both routes offer the same recipes. It is not the recipe *manager*: `modal-recipe-list` edits
+  and deletes, which is not what the Fuel page wants.
+- **Log to…** (`modal-recipe-log-target`) has a 2×2 meal picker built over the existing `<select>`,
+  which stays the single source of truth so `confirmRecipeLogTarget()` reads one value. The primary
+  button names the chosen meal.
+
+### Logging a recipe: two routes, differing by what they already know
+
+Fuel has two ways to log a recipe, and only one of them needs to ask which meal.
+
+| Route | Knows the meal? | Knows the date? | Extra step |
+|---|---|---|---|
+| A meal card's **+ Log** → Recipes filter | Yes — the card you tapped | Yes | none |
+| **Shortcuts › Recipes** | No | Yes — the day on screen | the meal |
+
+Route A is the Add-food sheet's recipe filter, selected through `selectFromAddList()`, which logs
+straight to `nutrActiveMeal`. It gains nothing and is untouched.
+
+Route B runs `openRecipePickerForLog()` → `chooseRecipeToLog()` →
+`openRecipeLogTargetPicker('mealOnly')` → `confirmRecipeLogTarget()`, ending in the same serving
+modal every other route uses, so there is one implementation of "log this recipe".
+
+`openRecipeLogTargetPicker(mode)` carries both callers:
+
+- `'dateAndMeal'` — Save & Log from the recipe builder, which has no day context, so it asks for
+  both. The meal defaults to `nutrActiveMeal`.
+- `'mealOnly'` — the Fuel shortcut. The date row is hidden, the title becomes "Which meal?", and a
+  sublabel names the recipe and the day, because with the date step gone nothing else says which day
+  is being written to.
+
+🚨 **In `'mealOnly'` mode no meal is preselected.** Nobody tapped a meal on this route, so
+`nutrActiveMeal` is a stale leftover from whatever was logged last; offering it as the selected answer
+invites a tap-through into the wrong meal. The button reads "Pick a meal" at 40% until one is chosen,
+and `confirmRecipeLogTarget()` returns early on an empty meal.
+
+🚨 **The date is captured when the sheet opens, not read when it is confirmed.**
+`confirmRecipeLogTarget()` calls `showScreen('nutrition')`, which resets `nutrSelectedDate` to today
+before the function has finished using it. Reading the date afterwards logs to today whenever a past
+or future day was on screen — silently, since the entry lands somewhere real.
+
+### The API-key state
+
+`markAiKeyState(btnId)` dims an AI feature's primary button to 40% when no Anthropic key is saved and
+restores it when one is. It deliberately does not set `disabled`: the button stays clickable so its
+handler can open `modal-api-key`, which is the only route to fixing the thing the dimming reports. A
+disabled button is a dead end that explains nothing.
+
+Photo → Meal uses it. Its old inline error named "Settings → Linked services", a path that had
+already moved — a hand-written instruction goes stale, a sheet does not.
+
+### Renamed
+
+`modal-nutr-manual` was titled "Quick Add", the same as `modal-nutr-quick`. It is the manual entry
+reached from the Add-food "Manual" tile, so it is titled "Manual entry" after that tile;
+`modal-nutr-quick` keeps "Quick add" for logging a whole day as one total.
+
+### Removed
+
+- `animateNutrHeroValues()` — the last of the three JS odometers. The kcal figure rises via
+  `.digits` and the bars grow via `.bar > i` (§83).
+
+## §87 — v8.16: the Progress screen
+
+Progress is a page header, a hero, and seven sections — This week, Check-in, Week by week,
+Insights, Last cycle, Build next cycle, Statistics. `renderProgress()` resolves which cycle is being
+viewed and delegates one region each to `renderProgressHeader()`, `renderProgressHero()`,
+`renderProgressThisWeek()`, `renderProgressCheckin()`, `renderProgressWeekByWeek()`,
+`renderProgressInsights()`, `renderProgressLastCycle()`, `renderProgressNextCycle()` and
+`renderProgressStatistics()`.
+
+### The three AI features are independent
+
+This is the substantive change on the page. The mid-cycle check-in, the cycle review and
+build-next-cycle used to fill **one** slot, chosen by priority:
+
+```
+buildFinalWeekCardHTML()  →  buildCycleReviewCardHTML()  →  the check-in fused into Insights
+```
+
+Each renders on its own eligibility now, into its own container, and reads none of the others'
+state.
+
+🚨 **The consequences of the chain were invisible from any screen**, because the slot always had
+something in it. The check-in disappeared for the whole of a cycle's **final week** — the week you
+would most want one — because the final-week card outranked it. And once a cycle ended, its review
+took the slot permanently, so the check-in never came back. Nothing looked broken; the page simply
+stopped offering something.
+
+`scripts/verify-progress-ai-independence.mjs` parses the shipped `renderProgress()` and the three
+section renderers out of `index.html` and asserts all three are called unconditionally, that each
+writes only to its own container, that none reads another feature's stored state, and that no
+section sets a `disabled` attribute. Two controls mutate that extracted source — one reintroducing a
+priority chain, one pointing two sections at the same container — and assert the suite then fails.
+
+`buildAiAdviceCardHTML()` returned `{ cta, body }`, the card's button and its expand-in-place body
+from one function. The eligibility, cooldown and stored-advice logic is `computeCheckinState()`,
+read by both the section and its sheet; `buildCheckinSheetBodyHTML()` builds the narrative.
+`buildFinalWeekCardHTML()` combined two independent bodies in one card, so splitting it across the
+Last cycle and Build next cycle sections cost nothing — but the API sequencing it was credited with
+does not live in it. It lives in `startBuildNextCycleFlow()`, which is why `handleNextCycleAction()`
+calls that rather than `openNextCycleAdviceContextModal()` directly. Calling the context modal
+straight would ask for advice with no cycle review behind it, silently.
+
+### Hero
+
+The cycle's name with an Active/Past chip, a "Body weight" eyebrow, the week within the cycle, the
+latest weigh-in, a status line, and a line chart. Tapping anywhere opens Cycle history.
+
+The status is purely date-based and never reads `state.currentMacroId`, which drives Plan and Train
+and can lag a cycle's own dates right after a create or a date edit. The status line keeps v8.15's
+three branches: a maintenance cycle reports distance from target because stability is the goal and
+there is no schedule to be ahead of; a finished cycle reports where it finished, red only where that
+falls short of its own goal — above target on a cut, below it on a bulk; an ongoing cycle compares
+percentage of goal against percentage of cycle.
+
+🚨 **The whole card is a tap target, which the Fuel hero deliberately is not.** The difference is the
+gesture: Fuel's hero swipes to change the day, and a tap target on the same element turns a short
+swipe into an accidental navigation. This hero has none — `initProgressHeroSwipe()` has had no
+caller since the deck came down to one card — so a tap is the only thing it can be read as. The same
+is true of Plan's hero (§88).
+
+`buildProgressHeroChart()` draws inline SVG rather than calling the shared area-chart renderer, so
+the target line and the latest-weigh-in dot are real elements carrying `.line` and `.dot` and the
+entrance system can animate them (§83). The target is included in the y-scale: left out, a target
+already met sits off the top of the chart and reads as no target at all.
+
+### This week, and Insights
+
+This week reads `avgDayMapField()` over the same Monday-anchored week Home uses, so the two pages
+cannot disagree about what the week has been. A tile's delta is coloured by its metric's own
+direction — over is the concern for calories, under for protein and steps — not by the sign.
+
+Insights is the deterministic read: the week-against-last-week weight delta, the trend and plateau
+narrative from `buildInsightsCardHTML()`, the best 7-day window with its match-your-peak callout,
+and the metabolism block. It was a two-card horizontal swipe deck, which existed to save vertical
+space on a page that did not scroll; the page scrolls, so both cards are one section.
+`buildInsightsCardHTML()` took the check-in's parts as an argument and rendered them inside itself —
+that fusion is why the check-in could not appear anywhere the Insights card did not.
+
+The v8.12 maintenance rules are unchanged (§72): the best-7-day window, the calorie target and the
+goal-weight ETA are all hidden on a maintenance cycle. There is no direction to have had a best week
+toward, and no target weight to project to; before v8.12 maintenance fell through to the deficit
+branch by accident, because `isGainCycle` is false for it too.
+
+### Last cycle
+
+🚨 **The stored review carries no waist figure.** It reports a bodyfat *direction* and a narrative.
+`computeCycleWaistChange()` computes the waist tile from the cycle's own measurement logs, which are
+the only record of it, and returns null when there are not two measurements inside the cycle to
+compare.
+
+### Statistics
+
+Defaults to the rolling last seven days. `renderProgressNutr(targetId, forceAll)` takes a container
+and an override so the All-time sheet renders the same builder into its own body: the sheet *is*
+this card's "All" view, and a second copy of the row and chart code would drift from it. The 7-Day/
+All toggle is rendered only for the page card, never into the sheet, since the sheet has already
+answered that question.
+
+### The sheets
+
+Five, all filling their body on open rather than at boot, because each reads state that changes
+while the page is up — a check-in lands, a review runs, a plan is chosen.
+
+| Sheet | Body from |
+|---|---|
+| Check-in | `buildCheckinSheetBodyHTML()` |
+| Cycle review | `buildCycleReviewSummaryHTML(macro, true)` — the flag forces it open; there is nothing to collapse behind once the narrative has a page of its own |
+| Build next cycle | `buildNextCycleAdviceSectionHTML()` |
+| All-time stats | `renderProgressNutr('all-time-stats-body', true)` |
+| Macro split | `renderProgressNutrPies()` |
+
+`openAllTimeStatsSheet()` opens the sheet *before* rendering into it: the All view's horizontal
+scrollers size themselves from `clientWidth`, which is 0 while the sheet is still closed.
+
+### The API-key state
+
+`markAiKeyState()` (§86) is called for all three AI actions. No key means 40% opacity and a button
+that still works, routed to `modal-api-key` by `handleCheckinAction()`,
+`handleCycleReviewAction()` and `handleNextCycleAction()`. Before v8.16 these four features failed
+four different ways — a `disabled` button with an amber note, a thrown `Error`, an `alert()` and an
+inline error row, two of them naming Settings sections that no longer existed.
+
+This is a different condition from the "Read full…" buttons, which also sit at 40% but are genuinely
+inert, meaning there is nothing stored to read yet. A new user with no key and no stored advice sees
+both at once.
+
+### Removed
+
+- `animateProgressHeroValues()` — the last JS odometer. A DOM read mid-count returns nonsense, and
+  it fought the CSS bar growth for the same pixels.
+- The Insights swipe deck — `insightsIndex`, `insightsAnimateTo()`, `initInsightsSwipe()` and
+  `getInsightsCard()`.
+- `renderProgressCycleGoals()` — goal periods live on Plan, which is where they are edited.
+- `buildFinalWeekCardHTML()`, `buildCycleReviewCardHTML()`, and the `{cta, body}` shape of
+  `buildAiAdviceCardHTML()`.
+- `toggleAiAdviceBody()` / `_aiAdviceBodyOpen`, and `toggleCycleReviewCard()`'s role in the page —
+  both expand-in-place bodies are sheets.
+- `toggleIntakeDrift()` / `_intakeDriftOpen`. Nothing read the flag, so the intake-drift
+  visualisation its own comment described did not exist.
+- The dead card-3 block inside `renderProgress()` — the deterministic next-cycle table, its preview
+  dropdown and its build button. `recommendNextCycle()` still runs; its output feeds the AI prompt.
+
+### Demo-tour anchors
+
+`progress-body` (the Insights card) and `progress-tables-wrap` (the Week-by-week deck) both resolve.
+
+---
+
+## §88 — v8.16: the Plan screen
+
+Plan is a page header, a hero, and four sections — Nutrition phases, Weekly sessions, Volume by body
+part, Tools. `renderPlan()` resolves the macrocycle and delegates to `renderPlanHeader()`,
+`renderPlanHero()`, `renderPlanExtendBadge()`, `renderPlanGoalsSection()`, `renderPlanSessions()`,
+`renderPlanVolume()` and `renderPlanTools()`.
+
+### Header and hero
+
+The header carries the macrocycle name as its H1 and the edit button; the hero carries the cycle's
+shape. One pill per mesocycle with its label and start date, the current one accent-filled and
+pulsing — the only thing on the card that moves, so it reads as "you are here" — then three stats.
+The whole card opens Cycle history, on the same reasoning as Progress's: no gesture competes with
+the tap.
+
+### Nutrition phases
+
+One row per goal period, in date order. **The row is the edit affordance** — tapping it opens
+`openEditGoal()` — and there is no separate Edit button. The status dot carries three states and is
+the only thing that does: filled accent for the current phase, an accent ring for the next, a grey
+ring for later ones.
+
+#### The step chart
+
+One bar per phase for one metric, scaled between that metric's own minimum and maximum across the
+phases, the current phase's bar solid and the others at 30%.
+
+🚨 **When every phase carries the same value there is no range to scale against** and
+`(v - min) / (max - min)` is 0/0. Every bar renders at the same mid height instead, which is the
+honest picture: nothing changes across the phases.
+
+There are four buttons — Calories, Steps, Carbs, Fats — and **no Protein button**, because protein
+is the one target held flat across phases by design; its chart would be four identical bars every
+time. The chart cycles every 2s, a tap holds a metric for 4s before the loop resumes, and a tap
+during a hold restarts the 4s. `repaintPlanStepChart()` replaces only the chart element, so
+selecting a metric does not rebuild the phase rows and restart their entrance animation.
+
+🚨 **The interval registers a teardown with `onScreenChange()`** and does not start at all under
+`prefersReducedMotion()`. A 2s timer surviving a tab change keeps repainting a screen that is not on
+any more, and the first symptom is Plan fighting the next screen's renders — invisible until it is
+not.
+
+"+ Build goal periods" sits inside the card and runs the existing goal queue, the same flow the
+check-in and cycle review's "Build this plan" paths use.
+
+### Weekly sessions
+
+A Microcycle 1 / 2 segmented control, rendered only when `macro.useMicrocycles` is true, over
+`renderMicroBlock()` for the microcycle on screen. `renderMicroBlock()` lost its own "Microcycle N"
+heading: with the control naming what is on screen, the heading repeated it.
+
+`plan-content` sits **inside** this section rather than beside it, for the same reason
+`train-content` does (§85): it re-renders on every exercise edit, and a section header rebuilt that
+often would restart its entrance animation each time. Drag-to-reorder with its landing indicator
+(§63) and swipe-to-delete are re-attached on every render, since `innerHTML` replaced the rows they
+were bound to.
+
+### Volume by body part
+
+`renderBodyPartVolumeTable()` unchanged, then a divider and the **Progression preview** row, which
+reveals the per-session blocks. The row is a flat `.row-plain` with a divider above it, not a
+`.row-btn` — a component carrying its own surface inside a card is a card within a card. Each
+session block keeps its own collapse state in `planExpandedSessions`.
+
+A partial trailing extension mesocycle only exists as M1, so M2's preview stops one mesocycle short
+of M1's — `isMesoMicroValid()` is what says so.
+
+### Removed
+
+- `planGoalsSectionCollapsed` / `togglePlanGoalsSection()` — the phase list is a section of its own
+  and is always open.
+- The macrocycle hero's inline `+ New` and `Extend` buttons, which are rows in Tools.
+
+## §89 — v8.16: the Settings screen
+
+Settings is a hidden page. It has no nav tab, `showScreen()` renders no nav bar for it at all, and
+its `‹ Home` back link is the only way out — see §81. The page is a header, an About row, and three
+groups of rows: Profile, Nutrition, Exercise.
+
+Its v8.15 groupings, order and every row survive unchanged. Backup, data and account actions all
+live in the **Account & Data** sheet and have since v8.06; there is no Backup section and no Danger
+zone on the page itself.
+
+### The groups are always open
+
+The three groups were collapsible cards driven by `toggleSettingsCard()`. They are always open now,
+and that function, its chevrons and its `settings-card-body-*` / `settings-card-chevron-*` element
+ids are gone. Nothing else called it.
+
+🚨 **A chevron on a row means that row opens something else.** The rows that perform their action
+where they stand — Sign out, Export food library, Import, Clear all data — deliberately carry none,
+via the opt-in `.settings-row-nav`. A chevron on one of those promises a screen that never arrives.
+
+### `.settings-row` is the page
+
+One class carries almost all of it: a 36px `.settings-row-icon` tile, a title, a
+`.settings-row-sub`, and the optional chevron. It is flat — no surface and no border of its own —
+because every row sits inside a `.card`; a row bringing its own surface would be a card within a
+card. Dividers come from `.card > .settings-row + .settings-row`, a real sibling test, since all of
+a group's rows are children of one card.
+
+`.settings-row-danger` and `.settings-row-accent` recolour the row and its tile through
+`currentColor`. Only Clear all data and Close my account are red, and Close my account is last.
+
+Because Account & Data was already built to mirror the page's language (§65), redefining
+`.settings-row` once carried that sheet too, with its red/plain split and row order untouched.
+
+### The About row
+
+It sits alone above the first group, so it is the standalone `.row-btn` shape rather than an in-card
+row, and the version chip takes the trailing slot in place of a chevron. It opens
+`modal-settings-about`, where `renderSettings()` writes one `.about-stat-row` per figure instead of
+three `<br>`-separated lines, so the numbers line up in a column.
+
+### Sheets
+
+`.sheet-sec` / `.sheet-sec-sub` / `.sheet-sec-note` are a section heading inside a sheet, quieter
+than a page's `.section-h2` because a sheet is already one topic. Account & Data's three
+sub-sections use them and stay non-collapsible.
+
+🚨 **`.sheet-sec-first` is an explicit class, not `:first-of-type`.** `:first-of-type` means "the
+first div among its siblings", and the first div inside a sheet is the handle row — so it would
+never match there, and where it did match it would match every heading that opened its own
+container.
+
+The stacked-choice sheets — Export data, Export to cloud, Restore data — are icon + title +
+subtitle rows in one card with Cancel last. Each choice carries its subtitle because "Local file"
+and "Cloud" alone do not say which one overwrites what.
+
+🚨 **The two cloud-export rows are real `<button>` elements, not divs.** `handleBackupNow()` and
+`handleFullCloudSync()` set `btn.disabled` for the duration of the upload, and that is what stops a
+second tap firing a second upload — `disabled` is inert on a div. Both also swap `textContent` for a
+progress label and restore `innerHTML` afterwards, so the row flattens to one line mid-flight and
+comes back.
+
+### `.label`, across the app
+
+`.label` is the form-field label in every sheet, and is defined once: Manrope 11.5/700, `.12em`,
+uppercase. It has 140 call sites, so it is redefined rather than replaced at each one.
+
+🚨 **Change Password's two labels rendered underneath their own fields.** `mountPasswordField()`
+mounts those inputs on open with `insertAdjacentHTML('afterbegin')`, which lands the input *before*
+the label in the DOM. That helper is shared with the auth gate, so the order is corrected with
+`order: -1` in CSS rather than in the JS. The DOM is untouched; only the paint order changes.
+
+### About me (`modal-body-profile`)
+
+🚨 **The sheet is titled "About me", and the id is not.** The row that opens it, in Settings ▸
+Profile, has always said "About me"; the sheet said "Body Profile" until the v8.16 UAT — a name
+that appears nowhere else in the app, left over from the v7.51 Body screen that was folded into
+Settings. The **id stays `modal-body-profile`**: eight call sites and the profile gate's own CSS
+(`#modal-body-profile.gate-active`) reference it, and renaming an id to match a label is churn with
+a real chance of missing one.
+
+The gender cards use `.ex-chip` / `.ex-chip-on` — the same two-up selectable card the Train page
+uses — and the height unit switch is a `.toggle-row` with `.active`. `updateProfileGenderUI()` and
+`switchHeightUnit()` toggle those classes; neither sets colours inline any more. The conversions
+between cm and ft/in, and which fields are required by the profile gate, are unchanged.
+
+### Library lists
+
+The Food and Exercise library sheets share `.lib-row` and a 34px `.lib-icon-btn` per action. A
+food's macro line wraps rather than truncating — it is the reason to look at the row. A built-in
+exercise carries a "Built in" chip where a custom one carries its edit and delete buttons; only
+`state.customLibrary` entries are editable, matching `importExerciseLibrary()`'s merge behaviour.
+
+The restore picker lists each snapshot as a row in a card. A stack of full-width primary-shaped
+buttons read as several separate actions rather than one list to choose from.
+
+## §90 — v8.16: the shell sweep
+
+The cross-cutting pass over the things that are not any one page.
+
+### The tour sheets
+
+`modal-tour-welcome` and `modal-tour-help` were the last two sheets still
+carrying pre-v8.16 styling. Both now use the shared chrome, a `.modal-title`
+and a `.modal-sub`.
+
+The welcome sheet gained a ✕. Swipe-down already dismissed it, so skipping the
+tour was possible but had no visible affordance.
+
+Help lists the five tours as rows in a card, each carrying its own tab's nav
+icon so a tour and the tab it walks through are recognisably the same thing,
+in nav order. 🚨 **The Fuel row read "Nutrition"** — the tab was relabelled in
+Phase 0 and this list was not. `startNutritionMiniTour()` keeps its name: the
+screen id never changed, only the label.
+
+### Reduced motion
+
+`prefersReducedMotion()` has two callers that matter — the entrance observer
+and the Plan step chart — and both return early, so nothing starts rather than
+being started and cancelled.
+
+🚨 **The per-element entrance animations need no reduced-motion rule of their
+own.** `.bar > i`, `.arc`, `.line`, `.dot` and `.digits` are every one scoped
+to `.risen`, and `.risen` is only ever added by the observer. Under reduced
+motion they render in their final state because they were never started. The
+same reasoning is why `.will-rise` is added in JS and not CSS: if the script
+never runs, everything is simply visible. Motion is never load-bearing for
+visibility.
+
+`animateNavPill()` now snaps the pill in a single measurement under reduced
+motion. Its 420ms loop re-measures every frame, and across seven screen
+changes that was ~175 `requestAnimationFrame` calls doing nothing a static
+layout needed; it is 5 now.
+
+The 420ms itself is vestigial. It was sized to a `.nav-label` text-reveal
+transition, and labels have been permanently visible since ~v7.66 — neither
+`#nav-pill` nor `.nav-label` carries a CSS transition today. The window
+survives as slack for the layout to settle.
+
+### Safe areas
+
+`#content` pads by `--safe-top` at the top and `--nav-h + --safe-bottom` at the
+foot; `#content.no-nav` drops the nav's share for a hidden page. Both values
+are measured by JS through a probe element rather than read from `env()`
+directly — the comment above `measureEnv()` explains why.
+
+⚠️ **`.edge-fade` sizes BOTH fades from `--safe-top`**, so the bottom fade is
+as tall as the top inset rather than the bottom one. It predates v8.16 and is
+left as it is, deliberately: it is only visible on a device with real insets,
+and changing it unseen is how a cosmetic guess becomes a regression.
+
+## §91 — Testing against a real backup with no sign-in
+
+The local dev bypass (§82) skips Supabase and OAuth on a loopback or private-network
+host. It used to seed the demo dataset on **every** load, which made it impossible to
+test against real data without auth: restoring a backup through Settings → Account &
+Data → Restore → Local file saved it to `bloc_state` correctly, and `load()` put it
+into `state` on the next boot — then `enterDemoMode()` replaced it. The data was never
+lost, only invisible, which is the worst version: you keep testing against demo numbers
+believing they are yours.
+
+**Real content on the device now wins.** `devBypassHasRealData()` returns before the
+seeding when any of `macrocycles`, `bodyLogs`, `nutritionLogs`, `trainLogs` or
+`nutritionMeals` holds anything.
+
+🚨 **The test is content, not the presence of `bloc_state`.** That distinction is the
+whole design. `clearAllData()` does **not** remove the key — it writes an empty state
+through `save()` — so a device that has been wiped still has `bloc_state`. Keyed off the
+key, a wipe would strand the bypass on an empty app with no route back to the demo
+dataset, and on a phone there is no devtools to clear it by hand. Keyed off content, a
+wiped device reads as empty and the demo dataset seeds again on the next load.
+
+🚨 **The guard skips the anchor date as well as the seeding, and that is the half that
+matters.** `bloc-demo-data.dev.json` carries a `_devAnchorDate` that overrides "today"
+app-wide through `setTourAnchorDate()`. Applied over a real backup, every "this week"
+average, pace figure and qualifying-day gate is computed against the fixture's date
+rather than the real one, with nothing on screen saying so. Demo data on a demo date is
+coherent; real data on a demo date is quietly wrong — and looks entirely fine.
+
+**Round trip:** restore a backup and it persists across reloads; Clear all data, reload,
+and the demo dataset is back.
+
+**Nothing outside the bypass is touched.** The guard sits inside `if (IS_LOCAL_DEV)`,
+which `isLocalDevHost()` makes false for any public address, so the deployed app never
+reaches it. The live path, `fetchDemoDataIfNewUser()`, is unchanged — and already gated
+on `_isNewUserOnBoot`, so the bypass now matches production rather than diverging from
+it. The full Demo Tour is reachable only from that function's `.then()`, so it is
+unaffected; it has never been reachable under the bypass, which deliberately seeds the
+dataset without the walkthrough. The Settings → Help mini-tours never read `demoData` at
+all — they target real data and use no anchor (§36) — so they are unaffected everywhere.
+
+`scripts/verify-dev-bypass-real-data.mjs` covers the guard, its position relative to
+both `enterDemoMode()` and `setTourAnchorDate()`, that it does not key off `bloc_state`,
+that `clearAllData()` still leaves the key in place (the reason why), and that
+`importData()` stays free of Supabase. Its control deletes the guard and asserts the
+checks then fail.
+
+🚨 **That script strips comments before any position check.** Its own prose contains the
+literal text `enterDemoMode()`, so an `indexOf()` over the raw slice matched the comment
+above the guard and reported the guard as too late — a false failure from a probe
+reading its own neighbours.
+
+---
+
+## §92 — v8.16 UAT: what the review round changed, and the four silent failures it found
+
+The v8.16 UAT (2026-09-24) produced ~70 items across all six screens. Most were presentation and
+are described in the section for the page they belong to. This section records the **mechanisms**
+that changed globally, and — separately — the four defects that were **invisible from the screen**
+until someone looked for them. Those four are the reason this section exists at all; a list of
+"made the corners rounder" would not be worth keeping.
+
+### The four silent failures
+
+**1. `state.currentMacroId` never re-derives from the calendar.** It is written when a cycle is
+CREATED or PICKED, and nothing else ever writes it. The day a cycle ended, Progress, Train and Plan
+all kept opening on the finished one, and the only way to reach the cycle you were actually in was
+to step the arrows forward by hand.
+
+🚨 **Two different things are both called "the current cycle", and conflating them is the plausible
+wrong fix:**
+
+| | |
+|---|---|
+| What a page is SHOWING | `state.currentMacroId` / `progressViewMacroId`. The cycle arrows move these, and browsing history that way has to keep working. |
+| The DATE-ACTIVE cycle | The one today falls inside. Nothing chose it; the calendar did. |
+
+`getDateActiveMacroId()` answers the second. `resetToDateActiveMacro()` points both selections at
+it, and is called **from `showScreen()` — page entry, not render**. Called from `renderProgress()`
+it would re-run immediately after `cycleProgressMacro()` set a new cycle and snap the view straight
+back, so the arrows would appear broken. It returns null between cycles and after the last one, and
+the previous selection is then left alone rather than blanked. `verify-date-active-cycle.mjs` pins
+all of this, including a check that the reset is wired into `showScreen()` and NOT into
+`renderProgress()`.
+
+**2. The scrim closed a sheet and then opened whatever was under the tap.** `initModal()`'s
+backdrop handler called `e.stopPropagation()` but not `e.preventDefault()`. The browser still
+synthesises `mousedown`/`mouseup`/`click` about 300ms after `touchstart`; by then `dismiss()` has
+removed `.open`, the overlay is back to `pointer-events: none`, and the synthetic click lands on the
+button underneath. 🚨 `preventDefault()` is the load-bearing call, not `stopPropagation()`. The
+listener is already registered `{ passive: false }`, which is what makes it legal.
+
+**3. Three "Read full…" sheets had collapsibles that could not work.** Every toggle in the
+check-in, cycle-review and next-cycle-advice sheets flipped a flag and called `renderProgress()` —
+which rebuilds the **page**. Those sheets' bodies are written by `openCheckinSheet()` /
+`openCycleReviewSheet()` / `openNextCycleAdviceSheet()` into their own containers, which
+`renderProgress()` never touches. A tap re-rendered the page behind the sheet and left the sheet
+identical. The narrative was unreadable, and nothing anywhere reported an error.
+
+🚨 **The general rule this leaves behind: a control inside a sheet must re-render the SHEET.** Where
+a sheet mirrors page state, the page's render function calls the sheet's — `renderPlan()` calls
+`renderPlanDaySession()` for exactly this reason. All three sheets are now fully expanded and their
+toggles are gone.
+
+**4. A `:last-child` rule that could never match.** Superset cards drew a divider under their final
+exercise because `.ss-row:last-child { border-bottom: none }` never matched: the expand chevron —
+an `<svg>`, not a row — was the container's real last child. Replaced with
+`.ss-row + .ss-row { border-top }`, which cannot fail that way whatever else the container ends up
+holding. **Prefer an adjacent-sibling rule to a `:last-child` reset** wherever a container may grow
+a non-row child later.
+
+A fifth, nearly the same shape: `.progress-tables-swipe-card { }` was an **empty rule**. The three
+table builders deliberately do not wrap their own output in `.card` (there is a comment saying so),
+and nothing else did either, so Progress's "swipe deck" rendered as loose rows on the page
+background with no card at all.
+
+### The entrance observer's rootMargin was the wrong sign
+
+`setupScreenEntrance()` used `rootMargin: '0px 0px -8% 0px'`, with a comment saying "fire just
+before it is flush". A **negative** bottom margin SHRINKS the observer root, which does the
+opposite: an element parked in the bottom 8% of the viewport is on screen, with visible space
+around it, and still carries `.will-rise` (opacity 0). Settings' next section header landed exactly
+in that band and simply was not drawn until you scrolled.
+
+It is `'0px 0px 12% 0px'` now — positive, so the root's bottom is **extended** and an element rises
+just before it scrolls in. 🚨 **Erring early costs nothing; erring late leaves visible blank space
+on the page.** This affected every screen; Settings is only where the dead band happened to line up
+with a section header.
+
+### Text characters are not icons
+
+v8.16 shipped `›`, `+` and `✕` as literal characters where an icon was meant. A glyph takes the
+font's own weight and optical size, so it renders visibly thinner and smaller than every real icon
+beside it, and **cannot be stroke-matched** — the only fix is to stop using one.
+
+`icoSvg(path, size, extra)` and its named builders (`icoChevron`, `icoChevDown`, `icoPlus`,
+`icoList`, `icoRuler`, `icoPlay`, `icoSwitch`) are the whole icon set, each path lifted from the
+design reference at its 1.8 stroke. `.settings-row-nav::after` is the one place that cannot hold an
+element, so it uses `--chev-mask` — the same path as a CSS mask, tinted with `background:
+currentColor`.
+
+🚨 **An icon inside an element that JS later writes with `textContent` is deleted on the first
+state change.** The rest timer's Start/Pause/Resume buttons were exactly that, and the icon would
+have vanished on the first tap, on a control nobody would think to re-check. `setTimerBtn(id,
+label, accent)` rewrites label and icon together, and `verify-icon-labels-survive.mjs` fails if a
+`textContent` write to either button ever comes back. **The same trap is why the sheet ✕ is
+positioned onto the title line with CSS rather than being made a child of `.modal-title`:** nine
+titles have their text set from JS by id, so as a child it would be deleted on nine sheets and
+survive on the other fifty-five.
+
+### Shape, fields and rows
+
+- **`.card` adopted `--r-card`.** It was still on the legacy `--r` (8px) while §80's shape scale
+  defined `--r-card` (16px). One token, every card in the app. `.prog-hero` and `.plan-hero` took
+  `--r-hero` at the same time.
+- **Fields sit on `--bg`** — a step DARKER than the card holding them, so an input reads as a well
+  rather than a raised tile — at `--r-btn-sm` and **16px**, which is the iOS threshold below which
+  focusing a field zooms the page. `input:not([type=range]):not([type=file])` excludes the two
+  kinds that are not boxes and that the `min-height` would deform.
+- **`.toggle-row.acc`** is the emphatic toggle: a solid `--accent` fill on the selected segment.
+  It marks a switch that changes MODE (the rest timer, Plan's microcycle picker) rather than one
+  that filters a view, which keeps the quieter `--surface3` default.
+- **`.card-rows`** gives a card whose whole content is rows the reference's 6px/12px padding —
+  18px above the first row and below the last, 24px around the divider between them. The padding is
+  on the CARD, not the row, because `.row-plain` is also used in cards that hold other things.
+- **`.row-btn-title` / `.row-btn-sub` are `display: block`.** They were spans, so at every call
+  site that used spans rather than divs the title and subtitle ran inline — most visibly on the
+  Fuel meal sheet.
+
+### The Plan page's chevron rule
+
+Adam, 2026-09-24: *"everything on the plan page with a chevron loads a modal, no exceptions on the
+plan page."* Two things moved, and in both cases only the **container** changed:
+
+- **Weekly sessions** is one `.card-rows` with a row per session day. `buildPlanDayBodyHTML()` holds
+  the editable exercise list — lifted verbatim, every handler name, drag attribute and swipe
+  wrapper intact — and `modal-plan-session` renders it. `renderPlan()` calls
+  `renderPlanDaySession()` so an edit updates the sheet and not only the page behind it.
+  `planDayCollapsed` and `togglePlanDaySession()` are gone.
+- **Progression preview** opens `modal-plan-preview` with every session block expanded.
+  `planExpandedSessions` and `togglePlanSession()` are gone.
+
+An empty session shows a **+ Add** button in place of the chevron: there is nothing to open yet.
+
+🚨 **This rule is scoped to Plan.** Train's exercise cards still expand in place — that is where you
+log sets, and a sheet between you and the set table would be in the way. Train's *Change session*
+did move to a sheet (`modal-train-session`), because the panel it replaced pushed the rest of the
+page down as you reached for it.
+
+### A fifth silent failure, found in the retest: a sheet that opened empty
+
+Plan ▸ Weekly sessions → tap a session opened `modal-plan-session` with **nothing in it** — no
+exercise list, no way to add one — and logged no error, because nothing threw. It looked like the
+feature had not been built.
+
+`renderPlanDaySession()` refuses to draw into a sheet that is not open. That guard is deliberate:
+`renderPlan()` calls it on every Plan render, and filling a hidden sheet is wasted work.
+`openPlanDaySession()` called it **before** `openModal()`, so the guard returned early and
+`openModal()` then revealed a sheet nobody had filled.
+
+🚨 **The two lines look interchangeable and are not.** Open first, fill second, wherever a
+renderer guards on `.open`. `verify-sheet-fill-order.mjs` pins the ordering for every sheet of this
+shape, and only asserts it where the renderer actually guards — a renderer with no guard cannot be
+stranded and does not need the constraint.
+
+That script also had to strip comments before any position check: its own subject carries a comment
+naming `renderPlanDaySession()` *above* the `openModal()` call, so an `indexOf()` over raw text
+matched the prose and reported correct code as broken. It did, on the first run.
+`verify-dev-bypass-real-data.mjs` was bitten by the identical thing (§91) — **a probe that reads
+its own neighbours.**
+
+### One selected state, everywhere
+
+Adam, in the retest: *"do a full sweep for toggles/switches and use the same design for all."* The
+app had **four** answers to "which one is selected" — a `--surface3` fill on `.toggle-btn.active`,
+a solid `--accent` fill on `.step-btn-on` and on the `.acc` toggle variant, a 20%-accent tint with
+an accent border on `.week-pill`/`.day-tab`, and an outline-only accent in the legacy rules beneath
+them. Each looked deliberate on its own screen.
+
+There is now one: **a solid `var(--accent)` fill with `var(--on-accent)` text, on an unselected
+ground of `var(--inset)`.** The `.toggle-row.acc` escape hatch is deleted rather than left unused —
+it existed for two call sites and is precisely how one design becomes two again.
+
+`--inset` rather than `--bg`: a toggle sitting inside a card needs to be darker than the card by
+enough to read as a well, and `--bg` is only one step down (v8.16 UAT: *"not dark enough"*).
+
+`verify-one-selected-state.mjs` holds the rule. It is a test rather than a comment because this
+decays one call site at a time and every individual regression looks reasonable in isolation.
+
+### Two more from the retest
+
+**A double divider, for the second time in one round.** Rows in a card take their separator from
+`.card > .row-plain:not(:first-child)` in the stylesheet. Putting an explicit `<div class="divider">`
+in front of such a row draws that border AND the element — two lines. It happened on Home ▸ Log
+today, was fixed there with the root cause written down, and then survived in Plan ▸ Volume by body
+part through a sweep that was meant to catch exactly it.
+
+🚨 **The stylesheet rule is the only divider between rows in a card.** It cannot double up, and it
+cannot strand a line above a row that turns out not to render — which matters, because several of
+these rows are conditional. `.card-divider` stays available for a card holding non-row content.
+`verify-card-dividers.mjs` fails on any divider element placed in front of a self-dividing row.
+
+**Inches read back the way they are entered.** `fmtInch()` renders whole + ¼ / ½ / ¾ — "31¼", not
+"31.25" — matching the fraction picker and the reference.
+
+🚨 **Its decimal fallback is load-bearing, not defensive.** A measurement entered in CENTIMETRES is
+stored as `cmToIn()`, an arbitrary decimal: 83cm is 32.677in. Snapping that to "32¾" would print a
+figure the person never measured and cannot reproduce on a tape — a data misrepresentation dressed
+as a formatting choice. Only a value that genuinely is a quarter, within 0.005in (about a tenth of
+a millimetre, well under any tape's precision), is drawn as one. `verify-inch-fractions.mjs` covers
+both directions, and its cm cases are the ones that catch a "simplification" to an unconditional
+nearest-quarter round.
+
+The ¼ ½ ¾ glyphs are present in **both** Sora and Manrope. That was measured, not assumed — by
+comparing each character's advance width in each face against a fallback-only stack. The same
+measurement is what confirms `♂` and `♀` are in **neither**: both faces report the identical width
+for them, meaning both fall through to the same system symbol font, which is the defect §92 records
+above. `″` is in Sora but not Manrope, so it falls back at body size; it is kept because the design
+reference uses it.
+
+### The clip nobody could explain
+
+`playLogSaveAnimation()` swipes an absolutely-positioned panel across a row to confirm a save.
+Its three anchors — `#home-weight-row`, `#home-steps-row` (both `.log-row-anim`) and
+`#home-meas-anim-wrap` — carried `overflow: hidden` + `border-radius: var(--r-tile)` so that the
+PANEL would be rounded while it swiped.
+
+That also made each anchor clip **its own ordinary content** along the same curve, permanently. In
+the Measurements sheet the first thing inside is the "WAIST (IN)" label, in the top-left corner,
+and the top-left of the W was sliced off. Nothing in the label's styling explained it, because
+nothing in the label was wrong.
+
+🚨 **The radius belongs on the panels, not on the container as a clip.** Both panels are `inset: 0`,
+so rounding them is identical to rounding the box — and costs nothing. The swipe is a `scaleX` from
+`transform-origin: right`, so it never leaves the box: there was never anything to clip.
+
+Both halves of this are invisible in normal use — the clip shows on one glyph in one sheet, and the
+rounding it existed for only appears during a 0.6s animation right after a save — which is why
+`verify-save-anim-shape.mjs` holds them rather than a comment.
+
+### 🚨 A probe must not be able to read its own prose
+
+Three scripts written in this round first failed, or would have falsely passed, because a regex over
+raw `index.html` matched a **comment** instead of code:
+
+| | |
+|---|---|
+| `verify-sheet-fill-order.mjs` | its subject's comment names `renderPlanDaySession()` above the `openModal()` call, so an `indexOf()` ordering check found the prose and called correct code broken |
+| `verify-save-anim-shape.mjs` | one CSS comment says "see `.log-row-anim`" above a *different* rule, so a selector lookup returned that rule's body |
+| `verify-card-dividers.mjs` | a rule written as a comma-separated selector list put its declaration after the comma, where a `selector\s*\{` regex could not see it |
+
+§91 records the same thing happening to `verify-dev-bypass-real-data.mjs`. **Every probe in this
+repo that searches source now strips block, line and HTML comments first**, and every selector
+lookup tolerates a selector list. This matters more than a flaky test: a probe that reads prose can
+report a **false pass** just as easily, and a verify script that passes vacuously is worse than no
+script at all.
+
+### Settings: the hero opens what the hero shows
+
+The hero displays your name, sex, height and country — every one of which is edited in **About me**
+— so that is what tapping it opens. It carried the app-info sheet at first only because it replaced
+the "BLOC Training App" row that used to stand there. App info moved into the Profile group, where
+About me had been: the two swapped places rather than one being added.
+
+Three rows in that one list also shared a picture — About me, Body logs and Account & Data were all
+variations of a person glyph. Body logs is a weighing scale and Account & Data is a database now.
+
+### Shortening a phase name for a chart column
+
+Plan's nutrition-phase chart gives each column about 47px on a six-phase cycle. Goal names are
+written for the phase LIST, where they get a whole row ("Ramp Phase 2 — Mid-climb to maintenance").
+`shortPhaseLabel()` removes, in order: the step prefix, the descriptive tail after an em dash or
+colon, filler nouns (phase/period/block/stage/cycle), then the words in front of a distinguishing
+number.
+
+🚨 **It never invents text.** Every step takes something away, so whatever survives is what the
+person typed; an ellipsis is the last resort and is a visible admission that the label was cut.
+
+🚨 **The last word alone is not the answer.** It reads beautifully for "Maintenance Hold" → "Hold"
+and is a disaster one row down: Adam's own cycle has "Hard Cut Start" and "Hard Cut High Steps",
+which become "Start" and "Steps" — two labels sharing no visible relationship even though the
+phases do, and one of them the name of a metric charted three buttons away. Leading words are
+initialised instead: "HC Start", "HCH Steps". A phase family still looks like a family.
+
+The label WRAPS to two lines rather than truncating. Shortening hard enough to fit 47px on one line
+is what produced "Steps" in the first place; two short lines lose nothing.
+
+🚨 `max` is validated, not just defaulted. `names.map(shortPhaseLabel)` passes the ARRAY INDEX as
+the second argument, so every element after the first would be shortened to one or two characters —
+silently, and only after the first. The same trap sits on `bodyLogRow(l, standalone)`, where a
+`.map(bodyLogRow)` would turn every row after the first into a card; both call sites pass their
+argument explicitly and both functions are written to survive it if one does not.
+
+### Two judgement calls left open at the time of writing
+
+- **The Train eyebrow** reads `MC 1 · 21–27 Sept`. The design reference reads `Week 1 · 21–27
+  Sept`, but §85 records a deliberate decision that this line says "MC n": a mesocycle can span two
+  calendar weeks, so calling it a week would contradict the picker, the logs and every other
+  screen. The simplification applied was dropping "of N" — the eyebrow is a locator, not a progress
+  bar.
+- ~~**The Settings hero's name** is derived from the signed-in email.~~ **Wrong — corrected the
+  same day.** `state.profile` has carried `firstName`, `surname` and `preferredName` since v8.03,
+  and `preferredName` is already what Home's greeting reads. The hero shows `firstName surname`,
+  falls back to `preferredName`, and only then to the email. Deriving a name from the email would
+  have put a second, differently-spelled version of the person's own name on the same app.
