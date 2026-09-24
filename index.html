@@ -12467,7 +12467,7 @@ const CHECKIN_SIGNAL_CHIPS = {
   'maint-nodata':       { colour:'var(--text3)',     label:'Insufficient data' },
 };
 
-// The AI action row (§3.6 / scope §6.4). "Read full…" is always the ghost
+// The AI action row. "Read full…" is always the ghost
 // button above it; this is always a full-width row directly beneath, lavender
 // with ✦ when there is something to do and a grey timer row when there is not.
 // Never beside "Read full…".
@@ -12480,7 +12480,7 @@ function aiTimerRow(label) {
   return `<div class="ai-timer-row">⏱ ${label}</div>`;
 }
 // The ghost "Read full…" button. Inert at 40% when there is nothing stored to
-// read — a different condition from §3.6's no-key state, which is 40% and
+// read — a different condition from the no-key state, which is 40% and
 // deliberately still clickable. A new user with no key and no stored advice
 // sees both at once and they must not behave the same.
 function aiReadFullButton(label, onclick, enabled) {
@@ -12543,11 +12543,11 @@ function renderProgressCheckin(macro) {
     + `<div class="card">${cardBody}</div>`
     + sectionEnd();
 
-  // §3.6: no key means 40% and still clickable, routed to the key sheet.
+  // No key means 40% and still clickable, routed to the key sheet.
   markAiKeyState('bloc-advice-btn');
 }
 
-// Routes the check-in button per §3.6: with no key it opens the key sheet
+// Routes the check-in button: with no key it opens the key sheet
 // rather than failing, since that is the only thing that would fix the state
 // the dimming reports.
 function handleCheckinAction() {

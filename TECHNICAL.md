@@ -4668,8 +4668,14 @@ so backups round-trip both ways.
 - Jump to date is opened only by the Fuel header's calendar button (§86).
 - The Fuel hero no longer carries the rest-of-week figures or the saved-day pill (§86).
 - Photo → Meal's Analyse button dims instead of failing when no API key is saved (§86).
-- The Progress AI features and the remaining page-level changes land with their own phases and are
-  documented as they do.
+- The three Progress AI features stopped sharing one slot; the mid-cycle check-in is no longer
+  hidden during a cycle's final week (§87).
+- Goal periods left Progress; they live on Plan, which is where they are edited (§87).
+- Progress's weekly macro split moved from an inline page section into a sheet, beside a new
+  all-time statistics sheet (§87).
+- Plan's phase rows are tappable and the separate Edit button is gone (§88).
+- Plan's step chart auto-cycles its metric, which is new motion on a timer (§88).
+- The remaining page-level changes land with their own phases and are documented as they do.
 
 ---
 
@@ -4951,3 +4957,224 @@ reached from the Add-food "Manual" tile, so it is titled "Manual entry" after th
 
 - `animateNutrHeroValues()` — the last of the three JS odometers. The kcal figure rises via
   `.digits` and the bars grow via `.bar > i` (§83).
+
+## §87 — v8.16: the Progress screen
+
+Progress is a page header, a hero, and seven sections — This week, Check-in, Week by week,
+Insights, Last cycle, Build next cycle, Statistics. `renderProgress()` resolves which cycle is being
+viewed and delegates one region each to `renderProgressHeader()`, `renderProgressHero()`,
+`renderProgressThisWeek()`, `renderProgressCheckin()`, `renderProgressWeekByWeek()`,
+`renderProgressInsights()`, `renderProgressLastCycle()`, `renderProgressNextCycle()` and
+`renderProgressStatistics()`.
+
+### The three AI features are independent
+
+This is the substantive change on the page. The mid-cycle check-in, the cycle review and
+build-next-cycle used to fill **one** slot, chosen by priority:
+
+```
+buildFinalWeekCardHTML()  →  buildCycleReviewCardHTML()  →  the check-in fused into Insights
+```
+
+Each renders on its own eligibility now, into its own container, and reads none of the others'
+state.
+
+🚨 **The consequences of the chain were invisible from any screen**, because the slot always had
+something in it. The check-in disappeared for the whole of a cycle's **final week** — the week you
+would most want one — because the final-week card outranked it. And once a cycle ended, its review
+took the slot permanently, so the check-in never came back. Nothing looked broken; the page simply
+stopped offering something.
+
+`scripts/verify-progress-ai-independence.mjs` parses the shipped `renderProgress()` and the three
+section renderers out of `index.html` and asserts all three are called unconditionally, that each
+writes only to its own container, that none reads another feature's stored state, and that no
+section sets a `disabled` attribute. Two controls mutate that extracted source — one reintroducing a
+priority chain, one pointing two sections at the same container — and assert the suite then fails.
+
+`buildAiAdviceCardHTML()` returned `{ cta, body }`, the card's button and its expand-in-place body
+from one function. The eligibility, cooldown and stored-advice logic is `computeCheckinState()`,
+read by both the section and its sheet; `buildCheckinSheetBodyHTML()` builds the narrative.
+`buildFinalWeekCardHTML()` combined two independent bodies in one card, so splitting it across the
+Last cycle and Build next cycle sections cost nothing — but the API sequencing it was credited with
+does not live in it. It lives in `startBuildNextCycleFlow()`, which is why `handleNextCycleAction()`
+calls that rather than `openNextCycleAdviceContextModal()` directly. Calling the context modal
+straight would ask for advice with no cycle review behind it, silently.
+
+### Hero
+
+The cycle's name with an Active/Past chip, a "Body weight" eyebrow, the week within the cycle, the
+latest weigh-in, a status line, and a line chart. Tapping anywhere opens Cycle history.
+
+The status is purely date-based and never reads `state.currentMacroId`, which drives Plan and Train
+and can lag a cycle's own dates right after a create or a date edit. The status line keeps v8.15's
+three branches: a maintenance cycle reports distance from target because stability is the goal and
+there is no schedule to be ahead of; a finished cycle reports where it finished, red only where that
+falls short of its own goal — above target on a cut, below it on a bulk; an ongoing cycle compares
+percentage of goal against percentage of cycle.
+
+🚨 **The whole card is a tap target, which the Fuel hero deliberately is not.** The difference is the
+gesture: Fuel's hero swipes to change the day, and a tap target on the same element turns a short
+swipe into an accidental navigation. This hero has none — `initProgressHeroSwipe()` has had no
+caller since the deck came down to one card — so a tap is the only thing it can be read as. The same
+is true of Plan's hero (§88).
+
+`buildProgressHeroChart()` draws inline SVG rather than calling the shared area-chart renderer, so
+the target line and the latest-weigh-in dot are real elements carrying `.line` and `.dot` and the
+entrance system can animate them (§83). The target is included in the y-scale: left out, a target
+already met sits off the top of the chart and reads as no target at all.
+
+### This week, and Insights
+
+This week reads `avgDayMapField()` over the same Monday-anchored week Home uses, so the two pages
+cannot disagree about what the week has been. A tile's delta is coloured by its metric's own
+direction — over is the concern for calories, under for protein and steps — not by the sign.
+
+Insights is the deterministic read: the week-against-last-week weight delta, the trend and plateau
+narrative from `buildInsightsCardHTML()`, the best 7-day window with its match-your-peak callout,
+and the metabolism block. It was a two-card horizontal swipe deck, which existed to save vertical
+space on a page that did not scroll; the page scrolls, so both cards are one section.
+`buildInsightsCardHTML()` took the check-in's parts as an argument and rendered them inside itself —
+that fusion is why the check-in could not appear anywhere the Insights card did not.
+
+The v8.12 maintenance rules are unchanged (§72): the best-7-day window, the calorie target and the
+goal-weight ETA are all hidden on a maintenance cycle. There is no direction to have had a best week
+toward, and no target weight to project to; before v8.12 maintenance fell through to the deficit
+branch by accident, because `isGainCycle` is false for it too.
+
+### Last cycle
+
+🚨 **The stored review carries no waist figure.** It reports a bodyfat *direction* and a narrative.
+`computeCycleWaistChange()` computes the waist tile from the cycle's own measurement logs, which are
+the only record of it, and returns null when there are not two measurements inside the cycle to
+compare.
+
+### Statistics
+
+Defaults to the rolling last seven days. `renderProgressNutr(targetId, forceAll)` takes a container
+and an override so the All-time sheet renders the same builder into its own body: the sheet *is*
+this card's "All" view, and a second copy of the row and chart code would drift from it. The 7-Day/
+All toggle is rendered only for the page card, never into the sheet, since the sheet has already
+answered that question.
+
+### The sheets
+
+Five, all filling their body on open rather than at boot, because each reads state that changes
+while the page is up — a check-in lands, a review runs, a plan is chosen.
+
+| Sheet | Body from |
+|---|---|
+| Check-in | `buildCheckinSheetBodyHTML()` |
+| Cycle review | `buildCycleReviewSummaryHTML(macro, true)` — the flag forces it open; there is nothing to collapse behind once the narrative has a page of its own |
+| Build next cycle | `buildNextCycleAdviceSectionHTML()` |
+| All-time stats | `renderProgressNutr('all-time-stats-body', true)` |
+| Macro split | `renderProgressNutrPies()` |
+
+`openAllTimeStatsSheet()` opens the sheet *before* rendering into it: the All view's horizontal
+scrollers size themselves from `clientWidth`, which is 0 while the sheet is still closed.
+
+### The API-key state
+
+`markAiKeyState()` (§86) is called for all three AI actions. No key means 40% opacity and a button
+that still works, routed to `modal-api-key` by `handleCheckinAction()`,
+`handleCycleReviewAction()` and `handleNextCycleAction()`. Before v8.16 these four features failed
+four different ways — a `disabled` button with an amber note, a thrown `Error`, an `alert()` and an
+inline error row, two of them naming Settings sections that no longer existed.
+
+This is a different condition from the "Read full…" buttons, which also sit at 40% but are genuinely
+inert, meaning there is nothing stored to read yet. A new user with no key and no stored advice sees
+both at once.
+
+### Removed
+
+- `animateProgressHeroValues()` — the last JS odometer. A DOM read mid-count returns nonsense, and
+  it fought the CSS bar growth for the same pixels.
+- The Insights swipe deck — `insightsIndex`, `insightsAnimateTo()`, `initInsightsSwipe()` and
+  `getInsightsCard()`.
+- `renderProgressCycleGoals()` — goal periods live on Plan, which is where they are edited.
+- `buildFinalWeekCardHTML()`, `buildCycleReviewCardHTML()`, and the `{cta, body}` shape of
+  `buildAiAdviceCardHTML()`.
+- `toggleAiAdviceBody()` / `_aiAdviceBodyOpen`, and `toggleCycleReviewCard()`'s role in the page —
+  both expand-in-place bodies are sheets.
+- `toggleIntakeDrift()` / `_intakeDriftOpen`. Nothing read the flag, so the intake-drift
+  visualisation its own comment described did not exist.
+- The dead card-3 block inside `renderProgress()` — the deterministic next-cycle table, its preview
+  dropdown and its build button. `recommendNextCycle()` still runs; its output feeds the AI prompt.
+
+### Demo-tour anchors
+
+`progress-body` (the Insights card) and `progress-tables-wrap` (the Week-by-week deck) both resolve.
+
+---
+
+## §88 — v8.16: the Plan screen
+
+Plan is a page header, a hero, and four sections — Nutrition phases, Weekly sessions, Volume by body
+part, Tools. `renderPlan()` resolves the macrocycle and delegates to `renderPlanHeader()`,
+`renderPlanHero()`, `renderPlanExtendBadge()`, `renderPlanGoalsSection()`, `renderPlanSessions()`,
+`renderPlanVolume()` and `renderPlanTools()`.
+
+### Header and hero
+
+The header carries the macrocycle name as its H1 and the edit button; the hero carries the cycle's
+shape. One pill per mesocycle with its label and start date, the current one accent-filled and
+pulsing — the only thing on the card that moves, so it reads as "you are here" — then three stats.
+The whole card opens Cycle history, on the same reasoning as Progress's: no gesture competes with
+the tap.
+
+### Nutrition phases
+
+One row per goal period, in date order. **The row is the edit affordance** — tapping it opens
+`openEditGoal()` — and there is no separate Edit button. The status dot carries three states and is
+the only thing that does: filled accent for the current phase, an accent ring for the next, a grey
+ring for later ones.
+
+#### The step chart
+
+One bar per phase for one metric, scaled between that metric's own minimum and maximum across the
+phases, the current phase's bar solid and the others at 30%.
+
+🚨 **When every phase carries the same value there is no range to scale against** and
+`(v - min) / (max - min)` is 0/0. Every bar renders at the same mid height instead, which is the
+honest picture: nothing changes across the phases.
+
+There are four buttons — Calories, Steps, Carbs, Fats — and **no Protein button**, because protein
+is the one target held flat across phases by design; its chart would be four identical bars every
+time. The chart cycles every 2s, a tap holds a metric for 4s before the loop resumes, and a tap
+during a hold restarts the 4s. `repaintPlanStepChart()` replaces only the chart element, so
+selecting a metric does not rebuild the phase rows and restart their entrance animation.
+
+🚨 **The interval registers a teardown with `onScreenChange()`** and does not start at all under
+`prefersReducedMotion()`. A 2s timer surviving a tab change keeps repainting a screen that is not on
+any more, and the first symptom is Plan fighting the next screen's renders — invisible until it is
+not.
+
+"+ Build goal periods" sits inside the card and runs the existing goal queue, the same flow the
+check-in and cycle review's "Build this plan" paths use.
+
+### Weekly sessions
+
+A Microcycle 1 / 2 segmented control, rendered only when `macro.useMicrocycles` is true, over
+`renderMicroBlock()` for the microcycle on screen. `renderMicroBlock()` lost its own "Microcycle N"
+heading: with the control naming what is on screen, the heading repeated it.
+
+`plan-content` sits **inside** this section rather than beside it, for the same reason
+`train-content` does (§85): it re-renders on every exercise edit, and a section header rebuilt that
+often would restart its entrance animation each time. Drag-to-reorder with its landing indicator
+(§63) and swipe-to-delete are re-attached on every render, since `innerHTML` replaced the rows they
+were bound to.
+
+### Volume by body part
+
+`renderBodyPartVolumeTable()` unchanged, then a divider and the **Progression preview** row, which
+reveals the per-session blocks. The row is a flat `.row-plain` with a divider above it, not a
+`.row-btn` — a component carrying its own surface inside a card is a card within a card. Each
+session block keeps its own collapse state in `planExpandedSessions`.
+
+A partial trailing extension mesocycle only exists as M1, so M2's preview stops one mesocycle short
+of M1's — `isMesoMicroValid()` is what says so.
+
+### Removed
+
+- `planGoalsSectionCollapsed` / `togglePlanGoalsSection()` — the phase list is a section of its own
+  and is always open.
+- The macrocycle hero's inline `+ New` and `Extend` buttons, which are rows in Tools.
