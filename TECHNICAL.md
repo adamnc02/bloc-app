@@ -5530,6 +5530,46 @@ log sets, and a sheet between you and the set table would be in the way. Train's
 did move to a sheet (`modal-train-session`), because the panel it replaced pushed the rest of the
 page down as you reached for it.
 
+### A fifth silent failure, found in the retest: a sheet that opened empty
+
+Plan ▸ Weekly sessions → tap a session opened `modal-plan-session` with **nothing in it** — no
+exercise list, no way to add one — and logged no error, because nothing threw. It looked like the
+feature had not been built.
+
+`renderPlanDaySession()` refuses to draw into a sheet that is not open. That guard is deliberate:
+`renderPlan()` calls it on every Plan render, and filling a hidden sheet is wasted work.
+`openPlanDaySession()` called it **before** `openModal()`, so the guard returned early and
+`openModal()` then revealed a sheet nobody had filled.
+
+🚨 **The two lines look interchangeable and are not.** Open first, fill second, wherever a
+renderer guards on `.open`. `verify-sheet-fill-order.mjs` pins the ordering for every sheet of this
+shape, and only asserts it where the renderer actually guards — a renderer with no guard cannot be
+stranded and does not need the constraint.
+
+That script also had to strip comments before any position check: its own subject carries a comment
+naming `renderPlanDaySession()` *above* the `openModal()` call, so an `indexOf()` over raw text
+matched the prose and reported correct code as broken. It did, on the first run.
+`verify-dev-bypass-real-data.mjs` was bitten by the identical thing (§91) — **a probe that reads
+its own neighbours.**
+
+### One selected state, everywhere
+
+Adam, in the retest: *"do a full sweep for toggles/switches and use the same design for all."* The
+app had **four** answers to "which one is selected" — a `--surface3` fill on `.toggle-btn.active`,
+a solid `--accent` fill on `.step-btn-on` and on the `.acc` toggle variant, a 20%-accent tint with
+an accent border on `.week-pill`/`.day-tab`, and an outline-only accent in the legacy rules beneath
+them. Each looked deliberate on its own screen.
+
+There is now one: **a solid `var(--accent)` fill with `var(--on-accent)` text, on an unselected
+ground of `var(--inset)`.** The `.toggle-row.acc` escape hatch is deleted rather than left unused —
+it existed for two call sites and is precisely how one design becomes two again.
+
+`--inset` rather than `--bg`: a toggle sitting inside a card needs to be darker than the card by
+enough to read as a well, and `--bg` is only one step down (v8.16 UAT: *"not dark enough"*).
+
+`verify-one-selected-state.mjs` holds the rule. It is a test rather than a comment because this
+decays one call site at a time and every individual regression looks reasonable in isolation.
+
 ### Two judgement calls left open at the time of writing
 
 - **The Train eyebrow** reads `MC 1 · 21–27 Sept`. The design reference reads `Week 1 · 21–27

@@ -394,10 +394,10 @@ h3 {
   font-variant-numeric: tabular-nums;
 }
 .wk-cell-date { color: var(--text3); font-size: 12px; }
-.card-accent {
-  border-color: var(--accent);
-  border-width: 1px;
-}
+/* 🚨 No border-WIDTH override. It was 1px against every other card's 0.5px,
+   which at this size reads as a heavy outline rather than an accented one
+   (v8.16 UAT, Fuel ▸ Rest of the week). The colour alone is the accent. */
+.card-accent { border-color: var(--accent); }
 
 /* ── HERO CARD ───────────────────────────────────────────────
    The signature element: a gradient card with two soft radial
@@ -1325,14 +1325,25 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 }
 
 /* ── TOGGLE ──────────────────────────────── */
-.toggle-row { display: flex; background: var(--bg); border: 1px solid var(--border2); border-radius: var(--r-btn-sm); padding: 4px; gap: 4px; margin-bottom: 14px; }
+/* ══ SELECTED STATE — ONE DESIGN, EVERY TOGGLE AND PICKER ══════════════
+   🚨 Adam, v8.16 UAT: "do a full sweep for toggles/switches and use the same
+   design for all". There is exactly one way to say "this one is selected" in
+   this app: a SOLID --accent fill with --on-accent text. No tinted variant, no
+   outline variant, no per-component exception. Every rule below is part of
+   that one statement — change them together or not at all.
+
+   The unselected ground is --inset, the darkest surface token. It was --bg,
+   which is darker than a card but not by enough to read as a well when the
+   toggle sits IN one (v8.16 UAT: "not dark enough").
+
+   This covers: .toggle-row (18 of them — dark/light mode, distance units,
+   in/cm, ft/cm, the ¼-½-¾ fraction pickers, exercise category and metric,
+   photo source, manual entry mode, Plan's microcycle switch, the rest timer's
+   mode switch), .week-pill / .day-tab (Train's Change-session sheet) and
+   .step-btn (Plan's chart metrics). ══════════════════════════════════════ */
+.toggle-row { display: flex; background: var(--inset); border: 1px solid var(--border2); border-radius: var(--r-btn-sm); padding: 4px; gap: 4px; margin-bottom: 14px; }
 .toggle-btn { flex: 1; min-height: 40px; padding: 9px 8px; text-align: center; border-radius: 9px; border: none; background: transparent; color: var(--text2); font-family: var(--font-body); font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
-.toggle-btn.active { background: var(--surface3); color: var(--text); }
-/* .acc is the emphatic variant — a solid --accent fill on the selected
-   segment. It marks a toggle that switches MODE rather than filtering a view:
-   the rest timer's Countdown/Stopwatch and Plan's microcycle picker. The
-   plain variant (--surface3) stays the default everywhere else. */
-.toggle-row.acc .toggle-btn.active { background: var(--accent); color: var(--on-accent); }
+.toggle-btn.active { background: var(--accent); color: var(--on-accent); }
 
 /* ── LOG SET ROW (matches mockup's .set-row grid exactly) ─── */
 .set-row {
@@ -2884,17 +2895,20 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 }
 
 /* ── Week / session picker pills ─────────────────────────────────────── */
+/* Same selected state as every other picker — see the block above. These were
+   a 20% accent tint with an accent border, which is a third way of saying
+   "selected" in an app that should have one. */
 .week-pill, .day-tab {
   padding: 9px 14px; min-height: 40px;
   border-radius: var(--r-btn-sm);
   border: 1px solid var(--border2);
-  background: transparent; color: var(--text2);
+  background: var(--inset); color: var(--text2);
   font-family: var(--font-body); font-size: 12.5px; font-weight: 600;
   cursor: pointer; transition: all .15s;
 }
 .week-pill.active, .day-tab.active {
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
-  color: var(--text); border-color: var(--accent); font-weight: 700;
+  background: var(--accent); color: var(--on-accent);
+  border-color: var(--accent); font-weight: 700;
 }
 .day-tabs { margin-bottom: 8px; }
 
@@ -2958,6 +2972,16 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .prog-tile-row { display: flex; gap: 8px; }
 .prog-tile-row + * { margin-top: 14px; }
 .prog-tile-delta { font-size: 12px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+/* Progress ▸ This week: three equal cards, not three tiles inside one. */
+.prog-week-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.prog-week-card { padding: 14px; margin-bottom: 0; }
+.prog-week-lbl { font-size: 12px; font-weight: 500; color: var(--text2); }
+/* White. The variance line under it is the only coloured thing on the card. */
+.prog-week-val {
+  font-family: var(--font-display); font-size: 21px; font-weight: 600; color: var(--text);
+  margin-top: 6px; font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+}
+.prog-week-unit { font-family: var(--font-body); font-size: 12px; font-weight: 500; color: var(--text2); margin-left: 1px; }
 
 /* ── A "Read full…" sheet's body ─────────────────────────────────────── */
 /* These three sheets (check-in, cycle review, build next cycle) are the long
@@ -3139,7 +3163,7 @@ html.auth-likely-signed-in #auth-gate { display: none; }
    outline — four faint outlines read as four disabled buttons (v8.16 UAT). */
 .step-btn {
   min-height: 38px; padding: 8px 4px; border-radius: var(--r-btn-sm); border: none;
-  background: var(--surface2); color: var(--text2); cursor: pointer;
+  background: var(--inset); color: var(--text2); cursor: pointer;
   font-family: var(--font-body); font-size: 12.5px; font-weight: 700;
 }
 .step-btn-on { background: var(--accent); color: var(--on-accent); }
@@ -13133,10 +13157,14 @@ function renderProgressThisWeek(macro) {
   const goal = getActiveGoal();
   const dayMap = buildDayMap();
 
+  // 🚨 No per-metric colour any more. The FIGURE is white on every tile; the
+  // only coloured thing is the variance line under it, which is the one part
+  // that carries a judgement (v8.16 UAT). Colouring the figure too meant every
+  // tile was coloured all the time, so colour stopped meaning anything.
   const metrics = [
-    { field:'kcal',    name:'Calories', unit:'',  colour:'var(--accent)',   lowGood:false },
-    { field:'protein', name:'Protein',  unit:'g', colour:'var(--blue)',     lowGood:false },
-    { field:'steps',   name:'Steps',    unit:'',  colour:'var(--ice-blue)', lowGood:false },
+    { field:'kcal',    name:'Calories', unit:''  },
+    { field:'protein', name:'Protein',  unit:'g' },
+    { field:'steps',   name:'Steps',    unit:''  },
   ];
 
   const tiles = metrics.map(m => {
@@ -13154,15 +13182,18 @@ function renderProgressThisWeek(macro) {
     } else if (avg !== null) {
       deltaHtml = `<div class="prog-tile-delta" style="color:var(--text3);">no target</div>`;
     }
-    return `<div class="fuel-rest-tile">
-      <div class="fuel-rest-tile-lbl">${m.name}</div>
-      <div class="fuel-rest-tile-val" style="color:${m.colour};">${avg !== null ? avg.toLocaleString() : '—'}<span class="fuel-rest-tile-unit">${avg !== null ? m.unit : ''}</span></div>
+    // Each metric is its own CARD, not a tile inside a shared one — three
+    // tiles in one card is a card within a card, the same thing Fuel's
+    // Shortcuts was corrected for (v8.16 UAT).
+    return `<div class="card prog-week-card">
+      <div class="prog-week-lbl">${m.name}</div>
+      <div class="prog-week-val">${avg !== null ? avg.toLocaleString() : '\u2014'}<span class="prog-week-unit">${avg !== null ? m.unit : ''}</span></div>
       ${deltaHtml}
     </div>`;
   }).join('');
 
   el.innerHTML = sectionHeader('This week', 'Your daily averages so far this week, against this phase’s targets.')
-    + `<div class="card"><div class="prog-tile-row">${tiles}</div></div>`
+    + `<div class="prog-week-row">${tiles}</div>`
     + sectionEnd();
 }
 
@@ -18520,7 +18551,7 @@ function renderPlanSessions(macro) {
   // Rendering it regardless offers a choice between two things where only one
   // of them is real.
   const microToggle = useMicro
-    ? `<div class="toggle-row acc plan-micro-toggle">
+    ? `<div class="toggle-row plan-micro-toggle">
         ${[1,2].map(n => `<button class="toggle-btn${planMicroView === n ? ' active' : ''}" onclick="setPlanMicroView(${n})">Microcycle ${n}</button>`).join('')}
       </div>`
     : '';
@@ -19093,8 +19124,13 @@ function renderMicroBlock(macro, week, micro, days, dayLabels) {
 let _planSessionOpen = null;
 function openPlanDaySession(macroId, dayKey, day) {
   _planSessionOpen = { macroId, dayKey, day };
-  renderPlanDaySession();
+  // 🚨 openModal FIRST, then render. renderPlanDaySession() refuses to draw
+  // into a sheet that is not open — that guard is what stops renderPlan()
+  // rebuilding a hidden sheet on every Plan render — so calling it before the
+  // sheet opened returned early and the sheet appeared EMPTY, with no error
+  // anywhere. Do not reorder these two lines.
   openModal('modal-plan-session');
+  renderPlanDaySession();
 }
 // Redraws the open session sheet from state. Called on open, and by
 // renderPlan() so that adding, editing, deleting or reordering an exercise
@@ -19103,6 +19139,10 @@ function renderPlanDaySession() {
   if (!_planSessionOpen) return;
   const el = document.getElementById('plan-session-body');
   const overlay = document.getElementById('modal-plan-session');
+  // The .open test is deliberate: renderPlan() calls this on every Plan render,
+  // and there is no point building a list into a sheet nobody is looking at.
+  // 🚨 It is also why openPlanDaySession() must open the sheet before calling
+  // this — see the comment there.
   if (!el || !overlay || !overlay.classList.contains('open')) return;
   const macro = state.macrocycles.find(m => m.id === _planSessionOpen.macroId);
   if (!macro) { el.innerHTML = ''; return; }
@@ -30256,7 +30296,7 @@ function deleteRecipe(id) {
       <button class="modal-close-btn" onclick="closeTimerModal()">✕</button>
     </div>
     <div class="modal-title">Rest timer</div>
-    <div class="toggle-row acc" style="margin-bottom:24px;">
+    <div class="toggle-row" style="margin-bottom:24px;">
       <button class="toggle-btn active" id="timer-tog-countdown" onclick="setTimerMode('countdown')">Countdown</button>
       <button class="toggle-btn" id="timer-tog-stopwatch" onclick="setTimerMode('stopwatch')">Stopwatch</button>
     </div>
