@@ -70,6 +70,9 @@
   --r-chip: 999px;
   --r-tag: 6px;
   --r-sheet: 26px;
+  /* The row chevron, for CSS that cannot hold an element (see
+     .settings-row-nav::after). Same path and stroke as icoChevron(). */
+  --chev-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 6 6 6-6 6'/%3E%3C/svg%3E");
   --r: 8px;
   --r-sm: 4px;
   --r-lg: 14px;
@@ -3210,8 +3213,10 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .settings-row-icon {
   width: 36px; height: 36px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  background: var(--surface3); border-radius: var(--r-icon-card);
-  color: var(--text2);
+  background: var(--surface2); border-radius: var(--r-icon-card);
+  /* Accent, not --text2. Twenty-two grey glyphs on grey tiles read as a
+     disabled list (v8.16 UAT). --danger and --accent rows override it. */
+  color: var(--accent2);
 }
 .settings-row-icon svg {
   width: 17px; height: 17px;
@@ -3227,9 +3232,15 @@ html.auth-likely-signed-in #auth-gate { display: none; }
    else"; a row that performs its action there and then (Sign Out, Export,
    Clear all data) must not carry one, or it promises a screen that never
    arrives. */
+/* 🚨 A masked SVG, not the text character ›. Everything else on the page
+   moved to real icons in the v8.16 UAT; a glyph here would be the one
+   remaining chevron drawn at the font's weight instead of the icon set's 1.8
+   stroke. mask + currentColor is how an ::after can carry an SVG at all. */
 .settings-row-nav::after {
-  content: '\203A'; margin-left: auto; flex-shrink: 0;
-  color: var(--text3); font-size: 17px; line-height: 1;
+  content: ''; margin-left: auto; flex-shrink: 0;
+  width: 22px; height: 22px; background: var(--text3);
+  -webkit-mask: var(--chev-mask) center / 22px 22px no-repeat;
+  mask: var(--chev-mask) center / 22px 22px no-repeat;
 }
 /* Destructive rows. Only Clear all data and Close my account use this, and
    the icon tile picks the colour up through currentColor. */
@@ -3239,12 +3250,45 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .settings-row-accent, .settings-row-accent .settings-row-icon { color: var(--accent2); }
 .settings-row-accent .settings-row-icon { background: color-mix(in srgb, var(--accent) 16%, transparent); }
 
-/* ── The About row ───────────────────────────────────────────────────── */
-/* Alone above the first section, so it is the standalone .row-btn shape
-   rather than an in-card row. The version chip sits in its trailing slot
-   in place of a chevron. */
-.settings-about-row { margin-top: 20px; }
-.settings-about-chip { margin-left: auto; flex-shrink: 0; }
+/* "Edit" is a chip, not the words "tap to edit" in the smallest grey on the
+   page — an editable row should look editable (v8.16 UAT). It is decoration
+   over the row's own onclick, so it takes no pointer events of its own. */
+.bw-entry-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+.bw-steps { font-size: 13px; font-weight: 500; color: var(--text2); }
+.bw-edit-chip { pointer-events: none; }
+
+/* A row of equal-width ghost pills under a settings card — the actions that
+   DO something, kept apart from the rows that navigate. */
+.settings-pills { display: grid; gap: 8px; margin-top: 10px; }
+.settings-pills-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.settings-pills-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.settings-pills > .btn { min-height: 44px; font-size: 13px; justify-content: center; cursor: pointer; }
+
+/* ── The Settings hero ───────────────────────────────────────────────── */
+.settings-hero {
+  display: flex; align-items: center; gap: 16px; width: 100%;
+  margin-top: 24px; padding: 20px 18px; cursor: pointer; text-align: left;
+  background: var(--surface); border: 0.5px solid var(--border);
+  border-radius: var(--r-hero); color: var(--text); font-family: var(--font-body);
+}
+.settings-hero:active { transform: scale(0.995); }
+.settings-hero-initials {
+  width: 60px; height: 60px; flex-shrink: 0; border-radius: var(--r-hero);
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent); color: var(--on-accent);
+  font-family: var(--font-display); font-size: 21px; font-weight: 700;
+}
+.settings-hero-text { flex: 1; min-width: 0; }
+.settings-hero-name {
+  display: block; font-family: var(--font-display); font-size: 19px; font-weight: 600;
+  color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.settings-hero-sub { display: block; font-size: 13px; font-weight: 500; color: var(--text2); margin-top: 3px; }
+
+/* .settings-about-row / .settings-about-chip were removed in the v8.16 UAT:
+   the "BLOC Training App" row above the first section became the page hero
+   (see .settings-hero). The About sheet it opened is unchanged — the hero
+   opens it. */
 
 /* ── Sheets ──────────────────────────────────────────────────────────── */
 /* Section headings inside a sheet: quieter than a page's .section-h2,
@@ -4047,19 +4091,13 @@ try {
         </button>
       </div>
 
-      <!-- The About row sits alone above the first group, so it is the
-           standalone .row-btn shape rather than an in-card row. The version
-           chip takes the trailing slot instead of a chevron. -->
-      <button class="row-btn settings-about-row" onclick="openModal('modal-settings-about')">
-        <div class="row-btn-icon">
-          <svg viewBox="0 0 24 24" width="17" height="17" style="stroke:var(--text2);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-        </div>
-        <div class="row-btn-text">
-          <div class="row-btn-title">BLOC Training App</div>
-          <div class="row-btn-sub">What is stored on this device.</div>
-        </div>
-        <span class="tag tag-outline settings-about-chip">v8.16</span>
-      </button>
+      <!-- The page hero. 🚨 It replaces the "BLOC Training App" row that stood
+           here: the top of Settings was the only page in the app without one,
+           which is most of why this page read as the weakest of the redesign
+           (v8.16 UAT, "missing the hero card"). It is still the way into the
+           About sheet, so nothing was lost — the version chip and the whole
+           card still open it. Filled by renderSettingsHero(). -->
+      <button class="settings-hero rise" id="settings-hero" onclick="openModal('modal-settings-about')"></button>
 
       <!-- ── Profile ──────────────────────────────────────────────────
            🚨 v8.16 — the three groups are always open. They were
@@ -4068,7 +4106,7 @@ try {
            a sheet. -->
       <div class="section rise">
         <div class="section-head"><h2 class="section-h2">Profile</h2></div>
-        <div class="section-sub">You, your body history, and the services BLOC connects to.</div>
+        <div class="section-sub">Who you are and how the app behaves.</div>
         <div class="card">
           <div class="settings-row settings-row-nav" onclick="openModal('modal-app-preferences')">
             <div class="settings-row-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
@@ -4112,7 +4150,7 @@ try {
       <!-- ── Nutrition ────────────────────────────────────────────────── -->
       <div class="section rise">
         <div class="section-head"><h2 class="section-h2">Nutrition</h2></div>
-        <div class="section-sub">Your recipes, saved days and the food library behind them.</div>
+        <div class="section-sub">Recipes and foods you log from.</div>
         <div class="card">
           <div class="settings-row settings-row-nav settings-row-accent" onclick="openRecipeList()">
             <div class="settings-row-icon"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div>
@@ -4132,24 +4170,24 @@ try {
               <div class="settings-row-sub">Every food BLOC knows, with its per-100g numbers.</div>
             </div>
           </div>
-          <div class="settings-row" onclick="exportFoodLibrary()">
-            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
-            <div class="settings-row-text">Export food library
-              <div class="settings-row-sub">Downloads the library as a JSON file.</div>
-            </div>
-          </div>
-          <label class="settings-row">
-            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
-            <div class="settings-row-text">Import food library
-              <div class="settings-row-sub">Merges an exported library file into this one.</div>
-            </div>
+        </div>
+        <!-- 🚨 Import and export are PILLS under the card, not rows inside it.
+             As rows they sat among "My Recipes" and "View / edit library",
+             which navigate — so a list of five identical rows mixed two
+             things that do very different things when tapped (v8.16 UAT).
+             The two file inputs stay inside their <label>s: that label-wraps-
+             hidden-input pattern IS the file picker, and a <button> cannot
+             replace it. -->
+        <div class="settings-pills settings-pills-3">
+          <button class="btn btn-ghost" onclick="exportFoodLibrary()">
+            <svg class="ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M4 20h16"/></svg> Export
+          </button>
+          <label class="btn btn-ghost">
+            <svg class="ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V9M7 14l5-5 5 5M4 4h16"/></svg> Import
             <input type="file" accept=".json,application/json" style="display:none;" onchange="importFoodLibrary(this.files[0]);this.value='';">
           </label>
-          <label class="settings-row">
-            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
-            <div class="settings-row-text">Import recipe
-              <div class="settings-row-sub">Adds a single recipe someone shared with you.</div>
-            </div>
+          <label class="btn btn-ghost">
+            <svg class="ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V9M7 14l5-5 5 5M4 4h16"/></svg> Recipe
             <input type="file" accept=".json,application/json" style="display:none;" onchange="importSharedFoodItem(this.files[0]);this.value='';">
           </label>
         </div>
@@ -4158,7 +4196,7 @@ try {
       <!-- ── Exercise ─────────────────────────────────────────────────── -->
       <div class="section rise">
         <div class="section-head"><h2 class="section-h2">Exercise</h2></div>
-        <div class="section-sub">The movements available when you build a session.</div>
+        <div class="section-sub">Movements available when you build sessions.</div>
         <div class="card">
           <div class="settings-row settings-row-nav" onclick="openExerciseLibraryEditor()">
             <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>
@@ -4166,17 +4204,13 @@ try {
               <div class="settings-row-sub">Every exercise, its body part and its tracking type.</div>
             </div>
           </div>
-          <div class="settings-row" onclick="exportLibrary()">
-            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
-            <div class="settings-row-text">Export
-              <div class="settings-row-sub">Downloads the exercise library as a JSON file.</div>
-            </div>
-          </div>
-          <label class="settings-row">
-            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
-            <div class="settings-row-text">Import
-              <div class="settings-row-sub">Merges an exported exercise library into this one.</div>
-            </div>
+        </div>
+        <div class="settings-pills settings-pills-2">
+          <button class="btn btn-ghost" onclick="exportLibrary()">
+            <svg class="ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M4 20h16"/></svg> Export
+          </button>
+          <label class="btn btn-ghost">
+            <svg class="ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V9M7 14l5-5 5 5M4 4h16"/></svg> Import
             <input type="file" accept=".json,application/json" style="display:none;" onchange="importExerciseLibrary(this.files[0]);this.value='';">
           </label>
         </div>
@@ -8541,7 +8575,13 @@ function setupScreenEntrance(el) {
       });
   }, {
     root: document.getElementById('content'),   // #content is the only scroller
-    rootMargin: '0px 0px -8% 0px',              // fire just before it is flush
+    // 🚨 POSITIVE, so the root's bottom is EXTENDED and an element rises just
+    // BEFORE it scrolls in. It was -8%, which shrank the root instead: an
+    // element parked in the bottom 8% of the viewport was on screen, visible
+    // space around it, and still blank — Settings' next section header landed
+    // exactly there and simply was not drawn until you scrolled (v8.16 UAT).
+    // Erring early costs nothing; erring late leaves visible blank space.
+    rootMargin: '0px 0px 12% 0px',
     threshold: 0.01,
   });
 
@@ -23159,9 +23199,9 @@ function renderBody() {
           <div class="bw-val">${l.weight ? l.weight + ' lbs' : '—'}</div>
           <div class="bw-date">${formatDate(l.date)}</div>
         </div>
-        <div style="text-align:right;">
-          ${l.steps ? `<div style="font-size:13px;color:var(--text2);">${parseInt(l.steps).toLocaleString()} steps</div>` : ''}
-          <div style="font-size:11px;color:var(--text3);margin-top:3px;">tap to edit</div>
+        <div class="bw-entry-right">
+          ${l.steps ? `<div class="bw-steps">${parseInt(l.steps).toLocaleString()} steps</div>` : ''}
+          <span class="chip bw-edit-chip" style="--chip-c:var(--accent2);">Edit</span>
         </div>
       </div>
       <div class="swipe-actions">
@@ -27919,7 +27959,43 @@ function renderDistanceUnitToggle() {
 
 // Top-level render function for the Settings screen — mode control
 // and the storage-usage summary.
+// The Settings hero: initials, who is signed in, the profile line, and the
+// version. Built in JS rather than written into the markup because every part
+// of it comes from state or the live session.
+function renderSettingsHero() {
+  const el = document.getElementById('settings-hero');
+  if (!el) return;
+  const prof = state.profile || {};
+  const session = _authResolvedSession;
+  const email = (session && session.user && session.user.email) || '';
+  // There is no name field anywhere in state, so the email's local part is the
+  // only thing that identifies the person. "adam.cox" → "Adam Cox".
+  const name = email
+    ? email.split('@')[0].split(/[._-]+/).filter(Boolean)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+    : 'BLOC';
+  const initials = name.split(' ').map(w => w.charAt(0)).join('').slice(0, 2).toUpperCase() || 'BL';
+
+  const bits = [];
+  if (prof.gender) bits.push(prof.gender.charAt(0).toUpperCase() + prof.gender.slice(1));
+  if (prof.heightCm) {
+    const totalIn = Math.round(cmToIn(prof.heightCm));
+    bits.push(`${Math.floor(totalIn / 12)}\u2032${totalIn % 12}\u2033`);
+  }
+  if (prof.country) bits.push(prof.country);
+  // Never an empty line: with no profile filled in, say what to do about it.
+  const sub = bits.length ? bits.join(' \u00b7 ') : 'Add your details in About me';
+
+  el.innerHTML = `<span class="settings-hero-initials">${initials}</span>
+    <span class="settings-hero-text">
+      <span class="settings-hero-name">${name}</span>
+      <span class="settings-hero-sub">${sub}</span>
+    </span>
+    <span class="chip" style="--chip-c:var(--accent2);">v8.16</span>`;
+}
+
 function renderSettings() {
+  renderSettingsHero();
   renderModeToggle();
   renderDistanceUnitToggle();
   const raw = localStorage.getItem('bloc_state') || '';
