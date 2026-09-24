@@ -5178,3 +5178,92 @@ of M1's — `isMesoMicroValid()` is what says so.
 - `planGoalsSectionCollapsed` / `togglePlanGoalsSection()` — the phase list is a section of its own
   and is always open.
 - The macrocycle hero's inline `+ New` and `Extend` buttons, which are rows in Tools.
+
+## §89 — v8.16: the Settings screen
+
+Settings is a hidden page. It has no nav tab, `showScreen()` renders no nav bar for it at all, and
+its `‹ Home` back link is the only way out — see §81. The page is a header, an About row, and three
+groups of rows: Profile, Nutrition, Exercise.
+
+Its v8.15 groupings, order and every row survive unchanged. Backup, data and account actions all
+live in the **Account & Data** sheet and have since v8.06; there is no Backup section and no Danger
+zone on the page itself.
+
+### The groups are always open
+
+The three groups were collapsible cards driven by `toggleSettingsCard()`. They are always open now,
+and that function, its chevrons and its `settings-card-body-*` / `settings-card-chevron-*` element
+ids are gone. Nothing else called it.
+
+🚨 **A chevron on a row means that row opens something else.** The rows that perform their action
+where they stand — Sign out, Export food library, Import, Clear all data — deliberately carry none,
+via the opt-in `.settings-row-nav`. A chevron on one of those promises a screen that never arrives.
+
+### `.settings-row` is the page
+
+One class carries almost all of it: a 36px `.settings-row-icon` tile, a title, a
+`.settings-row-sub`, and the optional chevron. It is flat — no surface and no border of its own —
+because every row sits inside a `.card`; a row bringing its own surface would be a card within a
+card. Dividers come from `.card > .settings-row + .settings-row`, a real sibling test, since all of
+a group's rows are children of one card.
+
+`.settings-row-danger` and `.settings-row-accent` recolour the row and its tile through
+`currentColor`. Only Clear all data and Close my account are red, and Close my account is last.
+
+Because Account & Data was already built to mirror the page's language (§65), redefining
+`.settings-row` once carried that sheet too, with its red/plain split and row order untouched.
+
+### The About row
+
+It sits alone above the first group, so it is the standalone `.row-btn` shape rather than an in-card
+row, and the version chip takes the trailing slot in place of a chevron. It opens
+`modal-settings-about`, where `renderSettings()` writes one `.about-stat-row` per figure instead of
+three `<br>`-separated lines, so the numbers line up in a column.
+
+### Sheets
+
+`.sheet-sec` / `.sheet-sec-sub` / `.sheet-sec-note` are a section heading inside a sheet, quieter
+than a page's `.section-h2` because a sheet is already one topic. Account & Data's three
+sub-sections use them and stay non-collapsible.
+
+🚨 **`.sheet-sec-first` is an explicit class, not `:first-of-type`.** `:first-of-type` means "the
+first div among its siblings", and the first div inside a sheet is the handle row — so it would
+never match there, and where it did match it would match every heading that opened its own
+container.
+
+The stacked-choice sheets — Export data, Export to cloud, Restore data — are icon + title +
+subtitle rows in one card with Cancel last. Each choice carries its subtitle because "Local file"
+and "Cloud" alone do not say which one overwrites what.
+
+🚨 **The two cloud-export rows are real `<button>` elements, not divs.** `handleBackupNow()` and
+`handleFullCloudSync()` set `btn.disabled` for the duration of the upload, and that is what stops a
+second tap firing a second upload — `disabled` is inert on a div. Both also swap `textContent` for a
+progress label and restore `innerHTML` afterwards, so the row flattens to one line mid-flight and
+comes back.
+
+### `.label`, across the app
+
+`.label` is the form-field label in every sheet, and is defined once: Manrope 11.5/700, `.12em`,
+uppercase. It has 140 call sites, so it is redefined rather than replaced at each one.
+
+🚨 **Change Password's two labels rendered underneath their own fields.** `mountPasswordField()`
+mounts those inputs on open with `insertAdjacentHTML('afterbegin')`, which lands the input *before*
+the label in the DOM. That helper is shared with the auth gate, so the order is corrected with
+`order: -1` in CSS rather than in the JS. The DOM is untouched; only the paint order changes.
+
+### Body Profile
+
+The gender cards use `.ex-chip` / `.ex-chip-on` — the same two-up selectable card the Train page
+uses — and the height unit switch is a `.toggle-row` with `.active`. `updateProfileGenderUI()` and
+`switchHeightUnit()` toggle those classes; neither sets colours inline any more. The conversions
+between cm and ft/in, and which fields are required by the profile gate, are unchanged.
+
+### Library lists
+
+The Food and Exercise library sheets share `.lib-row` and a 34px `.lib-icon-btn` per action. A
+food's macro line wraps rather than truncating — it is the reason to look at the row. A built-in
+exercise carries a "Built in" chip where a custom one carries its edit and delete buttons; only
+`state.customLibrary` entries are editable, matching `importExerciseLibrary()`'s merge behaviour.
+
+The restore picker lists each snapshot as a row in a card. A stack of full-width primary-shaped
+buttons read as several separate actions rather than one list to choose from.
