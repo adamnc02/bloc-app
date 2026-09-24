@@ -3074,7 +3074,7 @@ html.auth-likely-signed-in #auth-gate { display: none; }
    ══════════════════════════════════════════════════════════════════════ */
 
 /* ── Hero ────────────────────────────────────────────────────────────── */
-.plan-hero { margin-top: 24px; cursor: pointer; }
+.plan-hero { margin-top: 24px; cursor: pointer; border-radius: var(--r-hero); }
 .plan-hero:active { transform: scale(0.995); }
 .plan-hero-top { display: flex; align-items: center; gap: 8px; }
 .plan-hero-lbl { font-size: 12.5px; font-weight: 600; color: var(--text2); }
@@ -3103,6 +3103,10 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 
 /* ── Nutrition phase rows ────────────────────────────────────────────── */
 /* The row is the edit affordance; there is no separate Edit button. */
+/* A rule between phases, never after the last. The rows are wrapped one deep
+   in .swipe-row-wrap (swipe-to-delete), so `.card > .row-plain + .row-plain`
+   never sees them as siblings — the rule has to hang off the wrapper. */
+.swipe-row-wrap + .swipe-row-wrap { border-top: 1px solid var(--divider); }
 .phase-row { align-items: flex-start; gap: 10px; }
 .phase-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
 .phase-dot-now   { background: var(--accent); }
@@ -3111,7 +3115,11 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .phase-text { flex: 1; min-width: 0; }
 .phase-line1 { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .phase-name { font-size: 14.5px; font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.phase-kcal { font-size: 13px; font-weight: 600; color: var(--text2); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+/* The number is the point — display face, white, bigger. "kcal" is the unit
+   that tells you how to read it, so it is smaller and muted. They were the
+   same size and the same grey (v8.16 UAT). */
+.phase-kcal { font-family: var(--font-display); font-size: 15px; font-weight: 600; color: var(--text); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.phase-kcal-unit { font-family: var(--font-body); font-size: 12px; font-weight: 500; color: var(--text2); margin-left: 4px; }
 .phase-line2 { font-size: 12px; font-weight: 500; color: var(--text2); margin-top: 4px; line-height: 1.5; }
 .phase-line2 .chip { margin-left: 4px; vertical-align: middle; }
 .phase-line3 { font-size: 11.5px; font-weight: 500; color: var(--text3); margin-top: 3px; font-variant-numeric: tabular-nums; }
@@ -3120,29 +3128,47 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 /* ── The step chart ──────────────────────────────────────────────────── */
 .step-chart { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--divider); }
 .step-btns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+/* Taller, and the selected one is a solid accent fill rather than a tinted
+   outline — four faint outlines read as four disabled buttons (v8.16 UAT). */
 .step-btn {
-  padding: 8px 4px; border-radius: var(--r-btn-sm); border: 1px solid var(--border2);
-  background: transparent; color: var(--text3); cursor: pointer;
-  font-family: var(--font-body); font-size: 11.5px; font-weight: 600;
+  min-height: 38px; padding: 8px 4px; border-radius: var(--r-btn-sm); border: none;
+  background: var(--surface2); color: var(--text2); cursor: pointer;
+  font-family: var(--font-body); font-size: 12.5px; font-weight: 700;
 }
-.step-btn-on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.step-btn-on { background: var(--accent); color: var(--on-accent); }
 .step-cols { display: flex; gap: 8px; margin-top: 16px; align-items: flex-end; }
-.step-col { flex: 1; min-width: 0; text-align: center; }
-.step-val { font-size: 11px; font-weight: 700; color: var(--text2); margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+/* 🚨 Left-aligned, not centred. The value sits at the top-left of its own
+   column so it reads as that column's label; centred over a bar of varying
+   height it drifted away from the thing it labelled (v8.16 UAT). */
+.step-col { flex: 1; min-width: 0; text-align: left; }
+.step-val { font-family: var(--font-display); font-size: 12.5px; font-weight: 600; color: var(--text); margin-bottom: 6px; font-variant-numeric: tabular-nums; }
 .step-bar-track { height: 92px; display: flex; align-items: flex-end; }
 .step-bar { width: 100%; border-radius: var(--r-btn-sm) var(--r-btn-sm) 0 0; transition: height .45s cubic-bezier(.2,.72,.16,1), opacity .45s; }
 .step-name { font-size: 10.5px; font-weight: 500; color: var(--text3); margin-top: 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .step-name-on { color: var(--text); font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { .step-bar { transition: none; } }
 
+/* ── Volume by body part ─────────────────────────────────────────────── */
+.vol-row + .vol-row { margin-top: 14px; }
+.vol-row-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.vol-name { font-size: 14px; font-weight: 600; color: var(--text); }
+.vol-range { font-size: 12.5px; font-weight: 500; color: var(--text2); font-variant-numeric: tabular-nums; }
+.vol-bar { height: 8px; margin-top: 8px; }
+
 /* ── Weekly sessions and the progression preview ─────────────────────── */
 .plan-micro-toggle { margin-top: 14px; }
+/* Tap-to-rename in place, so it keeps a text cursor and stops its own tap
+   from reaching the row and opening the session sheet. */
+.plan-day-name {
+  display: inline-block; cursor: text;
+  font-family: var(--font-display); font-size: 15px; font-weight: 600; color: var(--text);
+}
 .plan-preview-divider { height: 1px; background: var(--divider); margin: 14px 0 2px; }
 .plan-preview-wrap { margin-top: 4px; }
 .plan-preview-block + .plan-preview-block { border-top: 1px solid var(--divider); }
+/* A heading, not a control — nothing collapses any more. */
 .plan-preview-head {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 0; cursor: pointer;
+  padding: 14px 0 4px;
   font-family: var(--font-display); font-size: 13.5px; font-weight: 600; color: var(--text);
 }
 .plan-preview-head svg { width: 16px; height: 16px; stroke: var(--text3); fill: none; stroke-width: 2; stroke-linecap: round; transition: transform .2s; }
@@ -4232,6 +4258,34 @@ try {
 <!-- ════════════════════════════════════════
      MODALS
 ═══════════════════════════════════════════ -->
+
+<!-- Plan ▸ one session day's exercises (v8.16 UAT — was an in-card expansion)
+     The body is rendered by renderPlanDaySession(), which renderPlan() also
+     calls, so an add/edit/delete/reorder updates the sheet and not just the
+     page behind it. -->
+<div class="modal-overlay" id="modal-plan-session">
+  <div class="modal-sheet" data-modal="modal-plan-session">
+    <div class="modal-handle-row"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-plan-session')">&#10005;</button>
+    </div>
+    <div class="modal-title">Session</div>
+    <div class="modal-sub">Exercises set here carry forward to every week of the cycle.</div>
+    <div id="plan-session-body"></div>
+  </div>
+</div>
+
+<!-- Plan ▸ progression preview (v8.16 UAT — was an in-card expanding panel
+     of collapsed per-session blocks). Every block is open. -->
+<div class="modal-overlay" id="modal-plan-preview">
+  <div class="modal-sheet" data-modal="modal-plan-preview">
+    <div class="modal-handle-row"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-plan-preview')">&#10005;</button>
+    </div>
+    <div class="modal-title">Progression preview</div>
+    <div class="modal-sub">How sets and loads build after week 1. Read-only.</div>
+    <div id="plan-preview-body"></div>
+  </div>
+</div>
 
 <!-- Change session (v8.16 UAT — was an in-card expanding panel)
      Adam, 2026-09-24: "everything that has a chevron should launch a modal …
@@ -8429,7 +8483,7 @@ function showScreen(name) {
   // far the person browsed last time. See resetToDateActiveMacro().
   if (name === 'progress' || name === 'plan' || name === 'train') resetToDateActiveMacro();
   if (name === 'progress') renderProgress();
-  if (name === 'plan') { planDayCollapsed = {}; renderPlan(); }
+  if (name === 'plan') renderPlan();
   if (name === 'train') renderTrain(true);
   if (name === 'nutrition') { nutrSelectedDate = getLocalToday(); renderNutrition(true); }
   if (name === 'settings') renderSettings();
@@ -10230,7 +10284,6 @@ function resetExCardioFields() {
 }
 
 function openAddExercise(week, day) {
-  planDayCollapsed[state.currentMacroId + '_' + day] = false;
   state.currentEditContext = { week, day, editIdx: null };
   document.getElementById('modal-ex-title').textContent = 'Add Exercise';
   setSelectValue('ex-reps-input', '10');
@@ -10256,7 +10309,6 @@ function openAddExercise(week, day) {
 
 // Opens the add-exercise modal pre-configured to join an existing superset on save
 function openAddExerciseToSuperset(day, ssId) {
-  planDayCollapsed[state.currentMacroId + '_' + day] = false;
   state.currentEditContext = { week: 1, day, editIdx: null, pendingSupersetId: ssId };
   document.getElementById('modal-ex-title').textContent = 'Add to superset';
   setSelectValue('ex-reps-input', '10');
@@ -10282,7 +10334,6 @@ function openAddExerciseToSuperset(day, ssId) {
 // Disables the sets/reps inputs for non-leader superset members, since their
 // values are intentionally locked to follow the group leader.
 function openEditExercise(week, day, idx) {
-  planDayCollapsed[state.currentMacroId + '_' + day] = false;
   const key = state.currentMacroId + '_' + week + '_' + day;
   const sorted = (state.exercises[key] || []).slice().sort((a,b) => (a.order||0)-(b.order||0));
   const ex = sorted[idx];
@@ -11394,43 +11445,16 @@ function renderTrainSessionPicker() {
 }
 // Tracks which "Weeks 2+" progression-preview blocks are expanded on the
 // Plan page, keyed by `${macroId}_${day}${microKey}` (one entry per
-// session — e.g. push/pull/legs, or push/pull/legsm1 + m2 when
-// microcycles are used). Collapsed by default — these are read-only
-// previews, not the editable Week 1 template, so showing all of them at
-// once for a long macrocycle becomes a huge wall of cards.
-let planExpandedSessions = {};
-// Expands/collapses one session's card in the Plan page's read-only
-// 'Weeks 2+' progression preview. Collapsed by default (planExpandedSessions) —
-// distinct from togglePlanDaySession below, which controls the *editable*
-// Week-1 template cards and defaults expanded.
-function togglePlanSession(macroId, sessionKey) {
-  const key = macroId + '_' + sessionKey;
-  planExpandedSessions[key] = !planExpandedSessions[key];
-  renderPlan();
-}
+// session — e.g. push/pull/legs, or push/pull/legsm1 + m2 when microcycles are
+// used). REMOVED in the v8.16 UAT along with togglePlanSession(): the
+// progression preview is a sheet now and every block in it is open.
 
-// Collapse override for the editable Week 1 day-session cards, keyed by
-// `${macroId}_${day}${microKey}`. Undefined = use the default rule (expanded
-// while empty, collapsed once at least one exercise exists); an explicit
-// true/false here is a user override (manual toggle, or auto-set while
-// actively adding/editing an exercise in that session) that wins over the
-// default until this map is reset fresh on the next visit to the Plan tab.
-// Collapsing only hides the exercise rows/drag targets for that one day —
-// drag-to-reorder is already scoped per-day, so a collapsed day simply has
-// no rows in the DOM to drag until it's expanded again.
-let planDayCollapsed = {};
-// Expands/collapses one session's card in the editable Week-1 template.
-// Collapsing removes the exercise rows (and their drag handlers) from the
-// DOM entirely rather than just hiding them — since drag-to-reorder is
-// already scoped to a single day, a collapsed card simply has nothing
-// draggable in it until it's reopened.
-function togglePlanDaySession(macroId, dayKey) {
-  const key = macroId + '_' + dayKey;
-  const exercises = state.exercises[macroId + '_1_' + dayKey] || [];
-  const currentlyCollapsed = planDayCollapsed[key] !== undefined ? planDayCollapsed[key] : exercises.length > 0;
-  planDayCollapsed[key] = !currentlyCollapsed;
-  renderPlan();
-}
+// planDayCollapsed / togglePlanDaySession were REMOVED in the v8.16 UAT. The
+// editable Week-1 session list no longer expands inside the Plan page — it
+// opens as a sheet (openPlanDaySession), so there is nothing on the page to
+// collapse and no state to remember. Anything that used to force a day open
+// before showing the add/edit-exercise modal is now a no-op by construction:
+// the sheet it would have opened is already the thing on screen.
 
 // Tap-to-rename a day session's display label (e.g. "Push" → "Upper A").
 // Renames macro.dayLabels[day], so it applies to every microcycle instance
@@ -18333,6 +18357,11 @@ function renderPlan() {
   renderPlanSessions(macro);
   renderPlanVolume(macro);
   renderPlanTools(macro);
+  // 🚨 The session sheet is built from the same state as this page. Adding,
+  // editing, deleting or reordering an exercise calls renderPlan(); without
+  // this the sheet the person is looking AT would keep showing the list as it
+  // was before their edit, while the page behind it updated correctly.
+  renderPlanDaySession();
 }
 
 function renderPlanHeader(macro) {
@@ -18425,7 +18454,7 @@ function renderPlanSessions(macro) {
   // Rendering it regardless offers a choice between two things where only one
   // of them is real.
   const microToggle = useMicro
-    ? `<div class="toggle-row plan-micro-toggle">
+    ? `<div class="toggle-row acc plan-micro-toggle">
         ${[1,2].map(n => `<button class="toggle-btn${planMicroView === n ? ' active' : ''}" onclick="setPlanMicroView(${n})">Microcycle ${n}</button>`).join('')}
       </div>`
     : '';
@@ -18450,10 +18479,23 @@ let planMicroView = 1;
 function setPlanMicroView(n) { planMicroView = n; renderPlan(); }
 
 // ── 03 Volume by body part, and the progression preview ───────────────────
-let planProgressionPreviewOpen = false;
-function togglePlanProgressionPreview() {
-  planProgressionPreviewOpen = !planProgressionPreviewOpen;
-  renderPlanVolume(state.macrocycles.find(m => m.id === state.currentMacroId));
+// 🚨 The progression preview is a SHEET, and everything in it is open. It was
+// a panel that expanded inside the volume card, holding one collapsed block
+// per session — so reading week 3 of one session was two taps and a scroll
+// past everything else (v8.16 UAT: "move progression preview into a modal,
+// expand everything, no option to collapse/expand"). planProgressionPreviewOpen
+// and planExpandedSessions both went with it.
+function openPlanProgressionPreview() {
+  const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
+  const el = document.getElementById('plan-preview-body');
+  if (!macro || !el) return;
+  const days = macro.days || ['push','pull','legs'];
+  const dayLabels = macro.dayLabels || { push:'Push', pull:'Pull', legs:'Legs' };
+  const useMicro = macro.useMicrocycles !== false;
+  const totalMesos = getMacroEffectiveMesoCount(macro);
+  el.innerHTML = buildProgressionPreviewHTML(macro, days, dayLabels, useMicro, totalMesos);
+  setSheetTitle('modal-plan-preview', 'Progression preview', null);
+  openModal('modal-plan-preview');
 }
 
 function renderPlanVolume(macro) {
@@ -18470,28 +18512,28 @@ function renderPlanVolume(macro) {
     return micros.some(mk => (state.exercises[macro.id + '_1_' + day + mk] || []).length > 0);
   });
 
-  // The preview row is a flat in-card row with a divider above it, not a card
-  // of its own beneath this one — a component carrying its own surface inside
-  // a card is a card within a card.
+  // 🚨 ONE divider above the preview row. There were two — .plan-preview-divider
+  // plus the rule renderBodyPartVolumeTable used to print at the top of its own
+  // output — and a third at the very top of the card with nothing above it
+  // (v8.16 UAT). The row itself opens a sheet; see openPlanProgressionPreview.
   const previewRow = (hasExercises && totalMesos > 1)
     ? `<div class="plan-preview-divider"></div>
-       <div class="row-plain" onclick="togglePlanProgressionPreview()">
-         <div style="flex:1;min-width:0;">
+       <div class="row-plain" onclick="openPlanProgressionPreview()">
+         <div class="row-btn-text">
            <div class="row-btn-title">Progression preview</div>
            <div class="row-btn-sub">How sets and loads build, weeks 2–${totalMesos}</div>
          </div>
-         <span class="row-btn-chevron" style="transform:rotate(${planProgressionPreviewOpen ? '90deg' : '0deg'});display:inline-block;transition:transform .2s;">›</span>
-       </div>
-       ${planProgressionPreviewOpen ? buildProgressionPreviewHTML(macro, days, dayLabels, useMicro, totalMesos) : ''}`
+         <span class="row-btn-chevron">${icoChevron()}</span>
+       </div>`
     : '';
 
-  el.innerHTML = sectionHeader('Volume by body part', 'The range each body part covers across the cycle.')
+  el.innerHTML = sectionHeader('Volume by body part', 'Total across the cycle. Solid is minimum, faded is peak.')
     + `<div class="card">${renderBodyPartVolumeTable(macro)}${previewRow}</div>`
     + sectionEnd();
 }
 
-// The per-session read-only previews. Each session keeps its own collapse
-// state (planExpandedSessions), which is what the row button reveals.
+// The per-session read-only previews, every one of them open — see
+// openPlanProgressionPreview for why there is nothing to collapse any more.
 function buildProgressionPreviewHTML(macro, days, dayLabels, useMicro, totalMesos) {
   const microKeys = useMicro ? ['m1', 'm2'] : [''];
   const blocks = [];
@@ -18501,9 +18543,7 @@ function buildProgressionPreviewHTML(macro, days, dayLabels, useMicro, totalMeso
       const exercises = (state.exercises[templateKey] || []).slice().sort((a,b) => (a.order||0)-(b.order||0));
       if (!exercises.length) return;
 
-      const sessionKey = day + mk;
       const sessionLabel = dayLabels[day] + (mk ? ' · MC' + mk.slice(1) : '');
-      const isOpen = !!planExpandedSessions[macro.id + '_' + sessionKey];
       // A partial trailing extension mesocycle only exists as M1, so M2's
       // preview stops one mesocycle short of M1's (see isMesoMicroValid).
       const mcNum = mk === 'm2' ? 2 : (mk === 'm1' ? 1 : 0);
@@ -18524,11 +18564,8 @@ function buildProgressionPreviewHTML(macro, days, dayLabels, useMicro, totalMeso
       });
 
       blocks.push(`<div class="plan-preview-block">
-        <div class="plan-preview-head" onclick="togglePlanSession('${macro.id}','${sessionKey}')">
-          <span>${sessionLabel}</span>
-          <svg viewBox="0 0 24 24" style="transform:rotate(${isOpen ? '180' : '0'}deg);"><polyline points="6 9 12 15 18 9"/></svg>
-        </div>
-        ${isOpen ? `<div class="plan-preview-body">${body}</div>` : ''}
+        <div class="plan-preview-head"><span>${sessionLabel}</span></div>
+        <div class="plan-preview-body">${body}</div>
       </div>`);
     });
   });
@@ -18539,21 +18576,24 @@ function buildProgressionPreviewHTML(macro, days, dayLabels, useMicro, totalMeso
 function renderPlanTools(macro) {
   const el = document.getElementById('plan-tools');
   if (!el) return;
-  el.innerHTML = sectionHeader('Tools')
-    + `<div class="card">
+  // The section had NO sublabel, which is why its card sat tight up against
+  // the heading — every other section on the page has one holding that space
+  // open (v8.16 UAT).
+  el.innerHTML = sectionHeader('Tools', 'Change the length of this cycle, or start the next one.')
+    + `<div class="card card-rows">
         <div class="row-plain" onclick="openMacroExtend('${macro.id}')">
-          <div style="flex:1;min-width:0;">
+          <div class="row-btn-text">
             <div class="row-btn-title">Extend cycle</div>
             <div class="row-btn-sub">Add weeks to ${macro.name}</div>
           </div>
-          <span class="row-btn-chevron">›</span>
+          <span class="row-btn-chevron">${icoChevron()}</span>
         </div>
         <div class="row-plain" onclick="openModal('modal-macro')">
-          <div style="flex:1;min-width:0;">
+          <div class="row-btn-text">
             <div class="row-btn-title">New cycle</div>
             <div class="row-btn-sub">Start a fresh macrocycle</div>
           </div>
-          <span class="row-btn-chevron">›</span>
+          <span class="row-btn-chevron">${icoPlus(22)}</span>
         </div>
       </div>`
     + sectionEnd();
@@ -18569,6 +18609,13 @@ function renderPlanTools(macro) {
 // Each row opens the Goal period sheet directly. There is no separate Edit
 // button: the row IS the edit affordance, and a row that looks tappable and
 // is not is worse than no affordance at all.
+// Drops a leading "Step N - " / "Step N: " from a goal label. Returns the
+// original when that prefix is the whole label, so nothing is ever left blank.
+function stripStepPrefix(label) {
+  const stripped = String(label).replace(/^\s*step\s*\d+\s*[-–—:.]\s*/i, '').trim();
+  return stripped || label;
+}
+
 function renderPlanGoalsSection() {
   const el = document.getElementById('plan-goals-section');
   if (!el) return;
@@ -18590,12 +18637,20 @@ function renderPlanGoalsSection() {
     // accent for the current phase, an accent ring for the next, a grey ring
     // for everything later.
     const dotClass = isActive ? 'phase-dot-now' : isNext ? 'phase-dot-next' : 'phase-dot-later';
-    const label = g._blocLabel || g.label || 'Goal';
+    // 🚨 A goal built by the queue is stored with its step number already in the
+    // label ("Step 1 - Ramp Phase 1 — Gentle lift off"), which on a phone
+    // truncated the part that actually identifies the phase (v8.16 UAT). The
+    // dot and the running order already say which step this is. The prefix is
+    // only stripped where something survives it — a goal genuinely called
+    // "Step 2" and nothing else keeps its name.
+    const label = stripStepPrefix(g._blocLabel || g.label || 'Goal');
 
     let startsChip = '';
     if (isNext) {
       const daysUntil = Math.round((new Date(g.startDate + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000);
-      startsChip = `<span class="chip" style="--chip-c:var(--amber);">Starts in ${daysUntil} day${daysUntil === 1 ? '' : 's'}</span>`;
+      // --accent2, not --amber. Amber is the app's caution colour; a phase
+      // starting on schedule is not a caution (v8.16 UAT).
+      startsChip = `<span class="chip" style="--chip-c:var(--accent2);">Starts in ${daysUntil} day${daysUntil === 1 ? '' : 's'}</span>`;
     }
 
     const msPerWeek = 7 * 86400000;
@@ -18612,11 +18667,11 @@ function renderPlanGoalsSection() {
         <div class="row-plain phase-row" onclick="openEditGoal('${g.macroGoalID}')">
           <span class="phase-dot ${dotClass}"></span>
           <div class="phase-text">
-            <div class="phase-line1"><span class="phase-name">${label}</span><span class="phase-kcal">${g.kcal ? g.kcal.toLocaleString() + ' kcal' : '—'}</span></div>
+            <div class="phase-line1"><span class="phase-name">${label}</span><span class="phase-kcal">${g.kcal ? g.kcal.toLocaleString() + '<span class="phase-kcal-unit">kcal</span>' : '—'}</span></div>
             <div class="phase-line2">${formatDate(g.startDate)} – ${formatDate(g.endDate)} · ${weeks} week${weeks === 1 ? '' : 's'}${startsChip ? ' ' + startsChip : ''}</div>
             ${macroParts ? `<div class="phase-line3">${macroParts}</div>` : ''}
           </div>
-          <span class="row-btn-chevron">›</span>
+          <span class="row-btn-chevron">${icoChevron()}</span>
         </div>
       </div>
       <div class="swipe-actions">
@@ -18651,11 +18706,15 @@ function renderPlanGoalsSection() {
 // Carbs → Fats every 2s. There is no Protein button: protein is the one
 // target that is held flat across phases by design, so a chart of it would be
 // four identical bars every time.
+// `unit` is appended to each bar's data label. `colour` is no longer read —
+// every bar is --accent (see buildStepChartHTML) — and is kept only because
+// PLAN_STEP_METRICS is the one list of what this chart can show, and a colour
+// per metric is the obvious thing a future change would want back.
 const PLAN_STEP_METRICS = [
-  { key:'kcal',    label:'Calories', colour:'var(--accent)' },
-  { key:'steps',   label:'Steps',    colour:'var(--ice-blue)' },
-  { key:'carbs',   label:'Carbs',    colour:'var(--amber)' },
-  { key:'fats',    label:'Fats',     colour:'var(--red)' },
+  { key:'kcal',    label:'Calories', unit:'',  colour:'var(--accent)' },
+  { key:'steps',   label:'Steps',    unit:'',  colour:'var(--ice-blue)' },
+  { key:'carbs',   label:'Carbs',    unit:'g', colour:'var(--amber)' },
+  { key:'fats',    label:'Fats',     unit:'g', colour:'var(--red)' },
 ];
 let planStepMetric = 0;
 let _planStepTimer = null;
@@ -18680,10 +18739,21 @@ function buildStepChartHTML(goals) {
     const h = v === null ? 0
       : (max - min < 0.0001 ? 55 : 22 + ((v - min) / (max - min)) * 68);
     const isCurrent = g.startDate <= today && g.endDate >= today;
+    // 🚨 EVERY bar is the accent at full strength. Fading the others to 0.3
+    // made the chart look like one live column and three disabled ones, when
+    // all four are equally real parts of the plan (v8.16 UAT). The current
+    // phase is marked by its NAME below the bar, which is enough.
+    //
+    // The unit rides with the value — a bare "129" in the Carbs view does not
+    // say grams, and the buttons above only name the metric.
+    const label = v === null ? '\u2014' : v.toLocaleString() + (m.unit || '');
+    // The phase name in full, not .split(' ')[0] — that printed "Step" for
+    // every column of a queue-built plan, four identical labels.
+    const name = stripStepPrefix(g._blocLabel || g.label || 'Goal');
     return `<div class="step-col">
-      <div class="step-val">${v === null ? '—' : v.toLocaleString()}</div>
-      <div class="step-bar-track"><div class="step-bar" style="height:${h}%;background:${m.colour};opacity:${isCurrent ? 1 : 0.3};"></div></div>
-      <div class="step-name${isCurrent ? ' step-name-on' : ''}">${(g._blocLabel || g.label || 'Goal').split(' ')[0]}</div>
+      <div class="step-val">${label}</div>
+      <div class="step-bar-track"><div class="step-bar" style="height:${h}%;background:var(--accent);"></div></div>
+      <div class="step-name${isCurrent ? ' step-name-on' : ''}">${name}</div>
     </div>`;
   }).join('');
 
@@ -18810,16 +18880,34 @@ function renderBodyPartVolumeTable(macro) {
   const rows = computeBodyPartVolumeRange(macro);
   if (rows.length === 0) return '';
 
-  const rowsHtml = rows.map(r => `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:0.5px solid var(--border);">
-      <span style="font-size:13px;color:var(--text);">${r.bodyPart}</span>
-      <span style="font-size:12px;color:var(--text3);">${Math.round(r.min).toLocaleString()}–${Math.round(r.max).toLocaleString()}kg</span>
-    </div>`).join('');
+  // 🚨 A BAR per body part, not a list of numbers. The figures alone made the
+  // relative picture — which body part actually carries this cycle — something
+  // you had to work out by reading six ranges (v8.16 UAT, "the charts were not
+  // built").
+  //
+  // Each bar's WIDTH is that body part's peak against the biggest peak, so the
+  // bars rank the cycle. Within a bar, the solid part is the MINIMUM and the
+  // faded tail is the headroom up to the peak — which is what the section
+  // sublabel promises: "Solid is minimum, faded is peak."
+  const peak = Math.max(...rows.map(r => r.max), 1);
+  const rowsHtml = rows.map((r, i) => {
+    const width = Math.max(4, (r.max / peak) * 100);
+    // Where the solid stops inside this bar. A pause-set-only body part has
+    // min === max, so it is solid end to end — correct, not a rounding error.
+    const solid = r.max > 0 ? (r.min / r.max) * 100 : 100;
+    return `<div class="vol-row">
+      <div class="vol-row-head">
+        <span class="vol-name">${r.bodyPart}</span>
+        <span class="vol-range">${Math.round(r.min).toLocaleString()}–${Math.round(r.max).toLocaleString()}kg</span>
+      </div>
+      <div class="bar vol-bar"><i style="width:${width}%;--i:${i};
+        background:linear-gradient(90deg, var(--accent) ${solid}%, color-mix(in srgb, var(--accent) 40%, transparent) ${solid}%);"></i></div>
+    </div>`;
+  }).join('');
 
-  return `<div class="divider" style="margin:20px 0 20px;"></div>
-    <div class="section-title" style="margin-top:0;">Body part volume — cycle total</div>
-    <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Min–max total volume across the whole cycle, assuming either weight-only or reps-only progression throughout (pause sets are weight-only either way, so their min and max match). Sorted by minimum volume, highest first.</div>
-    <div style="margin-bottom:24px;">${rowsHtml}</div>`;
+  // No heading and no explanatory paragraph inside the card — the section
+  // header above it already names this and says how to read it (v8.16 UAT).
+  return rowsHtml;
 }
 // Renders one microcycle's worth of session cards for the *editable* Week-1
 // template (the exercise-adding/editing UI, as opposed to the read-only
@@ -18875,33 +18963,33 @@ function buildCardioSummaryLine(ex, setsOverrideLabel) {
   return setsPart + ' · ' + buildCardioTargetLevelsText(ex);
 }
 
+// ── PLAN: the Weekly sessions card (v8.16 UAT) ────────────────────────
+// One card, one ROW per session day: name, its Week-1 totals, and a chevron.
+//
+// 🚨 Adam, 2026-09-24: "everything on the plan page with a chevron loads a
+// modal, no exceptions on the plan page". The rows used to expand in place, so
+// opening a long session pushed every section below it down the page — and on
+// a phone that is most of the page. The exercise list, its drag-to-reorder and
+// its swipe-to-delete all move into modal-plan-session UNCHANGED; only their
+// container is different (see buildPlanDayBodyHTML).
+//
+// An EMPTY session shows a "+ Add" button instead of a chevron: there is
+// nothing to open yet, and the only useful thing to do is add the first
+// exercise.
 function renderMicroBlock(macro, week, micro, days, dayLabels) {
   const microKey = micro === 0 ? '' : `m${micro}`;
-  // v8.16: no "Microcycle N" heading of its own. The Weekly sessions section
-  // renders one microcycle at a time behind a segmented control, which names
-  // the one on screen — the heading repeated what the control already said.
-  let html = `<div style="margin-bottom:12px;">`;
+  let html = `<div class="card card-rows">`;
 
   days.forEach(day => {
     // Always read exercises from Week 1 template
     const templateKey = macro.id + '_1_' + day + microKey;
     const exercises = (state.exercises[templateKey] || []).slice().sort((a,b) => (a.order||0)-(b.order||0));
     const dayKey = day + microKey;
-    const dayCollapseKey = macro.id + '_' + dayKey;
-    // No explicit override yet this Plan visit → default to collapsed once
-    // the session has at least one exercise (nothing to hide before that).
-    // An explicit override (from a manual toggle, or from opening the
-    // add/edit-exercise modal for this day) always wins over the default,
-    // and lasts until the next time this tab is navigated to fresh.
-    const isCollapsed = planDayCollapsed[dayCollapseKey] !== undefined
-      ? planDayCollapsed[dayCollapseKey]
-      : exercises.length > 0;
     const dayLabelSpanId = 'day-label-' + macro.id + '-' + dayKey;
 
-    // Week-1 totals shown in the header — sets and volume are summed across
-    // every exercise in the session (including all superset members, each
-    // using its own stored sets/reps/weight/tracking), so the numbers stay
-    // meaningful whether the card is collapsed or expanded.
+    // Week-1 totals shown on the row — sets and volume are summed across every
+    // exercise in the session (including all superset members, each using its
+    // own stored sets/reps/weight/tracking).
     let totalSets = 0, totalVolume = 0;
     exercises.forEach(ex => {
       const exSets = getWeekSets(ex, 1, macro.weeks);
@@ -18911,20 +18999,63 @@ function renderMicroBlock(macro, week, micro, days, dayLabels) {
       totalVolume += exSets * exReps * (ex.startWeight || 0) * exWeightMult;
     });
 
-    // Fully editable — show add button and exercise list with delete
-    html += `<div style="margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:4px;">
-        <div class="ex-header" style="cursor:pointer;-webkit-tap-highlight-color:transparent;" onclick="togglePlanDaySession('${macro.id}','${dayKey}')">
-          <div style="min-width:0;">
-            <span id="${dayLabelSpanId}" class="ex-name" style="cursor:text;" onclick="event.stopPropagation();renameDaySessionStart('${macro.id}','${day}','${dayLabelSpanId}','${dayLabels[day].replace(/'/g,"\\'")}')">${dayLabels[day]}</span>
-            <div class="ex-meta">${exercises.length} exercise${exercises.length !== 1 ? 's' : ''} · ${totalSets} set${totalSets !== 1 ? 's' : ''} · ${Math.round(totalVolume).toLocaleString()}kg volume</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-            ${isCollapsed ? '' : `<button class="btn btn-sm" onclick="event.stopPropagation();openAddExercise(1,'${dayKey}')">+ Add</button>`}
-            <svg viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;transition:transform 0.2s;transform:rotate(${isCollapsed?'0':'180'}deg)"><polyline points="6 9 12 15 18 9"/></svg>
-          </div>
-        </div>`;
+    const meta = exercises.length
+      ? `${exercises.length} exercise${exercises.length !== 1 ? 's' : ''} \u00b7 ${totalSets} set${totalSets !== 1 ? 's' : ''} \u00b7 ${Math.round(totalVolume).toLocaleString()}kg`
+      : 'No exercises yet';
 
-      if (!isCollapsed) {
+    // 🚨 The name is still rename-in-place, so its own tap must not reach the
+    // row underneath and open the sheet.
+    const right = exercises.length
+      ? `<span class="row-btn-chevron">${icoChevron()}</span>`
+      : `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openAddExercise(1,'${dayKey}')">${icoPlus(15)} Add</button>`;
+
+    html += `<div class="row-plain" onclick="openPlanDaySession('${macro.id}','${dayKey}','${day}')">
+        <div class="row-btn-text">
+          <span id="${dayLabelSpanId}" class="plan-day-name" onclick="event.stopPropagation();renameDaySessionStart('${macro.id}','${day}','${dayLabelSpanId}','${dayLabels[day].replace(/'/g,"\\'")}')">${dayLabels[day]}</span>
+          <div class="row-btn-sub">${meta}</div>
+        </div>
+        ${right}
+      </div>`;
+  });
+
+  html += `</div>`;
+  return html;
+}
+
+// Opens one session day's editable exercise list as a sheet, and remembers
+// which one so anything that changes the list can redraw it in place.
+let _planSessionOpen = null;
+function openPlanDaySession(macroId, dayKey, day) {
+  _planSessionOpen = { macroId, dayKey, day };
+  renderPlanDaySession();
+  openModal('modal-plan-session');
+}
+// Redraws the open session sheet from state. Called on open, and by
+// renderPlan() so that adding, editing, deleting or reordering an exercise
+// updates the sheet rather than only the page behind it.
+function renderPlanDaySession() {
+  if (!_planSessionOpen) return;
+  const el = document.getElementById('plan-session-body');
+  const overlay = document.getElementById('modal-plan-session');
+  if (!el || !overlay || !overlay.classList.contains('open')) return;
+  const macro = state.macrocycles.find(m => m.id === _planSessionOpen.macroId);
+  if (!macro) { el.innerHTML = ''; return; }
+  const dayLabels = macro.dayLabels || { push:'Push', pull:'Pull', legs:'Legs' };
+  setSheetTitle('modal-plan-session', dayLabels[_planSessionOpen.day] || _planSessionOpen.day, null);
+  el.innerHTML = buildPlanDayBodyHTML(macro, _planSessionOpen.dayKey);
+  requestAnimationFrame(() => initSwipeRows(el));
+}
+
+// The editable exercise list for one session day. Lifted VERBATIM out of
+// renderMicroBlock's expanded branch — every handler name, drag attribute and
+// swipe wrapper is the original. Only the container changed.
+function buildPlanDayBodyHTML(macro, dayKey) {
+  const templateKey = macro.id + '_1_' + dayKey;
+  const exercises = (state.exercises[templateKey] || []).slice().sort((a,b) => (a.order||0)-(b.order||0));
+  let html = `<button class="btn btn-ghost btn-block" style="margin-bottom:14px;" onclick="openAddExercise(1,'${dayKey}')">${icoPlus()} Add exercise</button>`;
+  if (!exercises.length) {
+    return html + `<div class="empty-inline" style="text-align:center;">No exercises in this session yet.</div>`;
+  }
       // Build visual slots: standalone exercises and superset groups
       const planSlots = [];
       const seenSsPlan = new Set();
@@ -19036,13 +19167,7 @@ function renderMicroBlock(macro, week, micro, days, dayLabels) {
           </div>`;
         }
       });
-      html += `</div>`; // close .plan-day-rows
-      } // end if (!isCollapsed)
-
-      html += `</div>`;
-  });
-
-  html += `</div>`;
+  html += `</div>`; // close .plan-day-rows
   return html;
 }
 
@@ -29921,7 +30046,7 @@ function renderRecipePickList() {
         <span class="row-btn-title">${r.name}</span>
         <span class="row-btn-sub">${Math.round(r.per100kcal).toLocaleString()} kcal per serving · P${Math.round(r.per100p)} C${Math.round(r.per100c)} F${Math.round(r.per100f)}</span>
       </span>
-      <span class="row-btn-chevron">›</span>
+      <span class="row-btn-chevron">${icoChevron()}</span>
     </button>`).join('');
 }
 
