@@ -32,7 +32,16 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const source = readFileSync(join(here, '..', 'index.html'), 'utf8');
+const raw = readFileSync(join(here, '..', 'index.html'), 'utf8');
+// 🚨 Comment-stripped. A probe that regexes over raw source can match the app's
+// own PROSE — index.html's comments name these very selectors — and that
+// produces false passes as readily as false failures. Three scripts in this
+// round were bitten by it; see TECHNICAL.md §91 and §92.
+const source = raw
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/^[ \t]*\/\/.*$/gm, '')
+  .replace(/<!--[\s\S]*?-->/g, '');
+
 
 let failures = 0;
 function check(label, actual, expected) {

@@ -904,8 +904,12 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 .goal-flash { animation: goalFlash 1.4s ease; }
 @keyframes logSaveSwipe { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes logSaveFlashIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-.log-save-overlay { position: absolute; inset: 0; background: var(--surface3); transform-origin: right center; animation: logSaveSwipe 0.6s ease-out forwards; z-index: 3; }
-.log-save-flash { position: absolute; inset: 0; background: var(--surface3); z-index: 4; display: flex; align-items: center; gap: 14px; padding-left: 12px; font-size: 13px; color: var(--text); animation: logSaveFlashIn 0.35s ease-out forwards; }
+/* 🚨 The RADIUS LIVES HERE, on the panels, not on the container as a clip.
+   Both are inset:0, so rounding them is identical to rounding the box — but it
+   costs nothing, where `overflow:hidden` on the container clips its ordinary
+   content too. See .log-row-anim for the bug that caused. */
+.log-save-overlay { position: absolute; inset: 0; border-radius: var(--r-tile); background: var(--surface3); transform-origin: right center; animation: logSaveSwipe 0.6s ease-out forwards; z-index: 3; }
+.log-save-flash { position: absolute; inset: 0; border-radius: var(--r-tile); background: var(--surface3); z-index: 4; display: flex; align-items: center; gap: 14px; padding-left: 12px; font-size: 13px; color: var(--text); animation: logSaveFlashIn 0.35s ease-out forwards; }
 .log-save-flash-line span:first-child { color: var(--text3); }
 .badge-blue { background: color-mix(in srgb, var(--blue) 16%, transparent); color: var(--blue); }
 .badge-purple { background: color-mix(in srgb, var(--purple) 16%, transparent); color: var(--purple); }
@@ -2365,7 +2369,17 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .log-row { display: flex; gap: 8px; align-items: center; }
 .log-row input { flex: 1; min-width: 0; font-size: 15px; }
 .log-row-unit { font-size: 13px; color: var(--text2); }
-.log-row-anim { position: relative; overflow: hidden; border-radius: var(--r-tile); }
+/* 🚨 NO overflow:hidden and NO border-radius. This is only an anchor for the
+   save animation's absolutely-positioned panels (playLogSaveAnimation), which
+   round themselves — see .log-save-overlay.
+   With a 13px radius AND overflow:hidden, the container CLIPPED ITS OWN
+   CONTENT along that curve. The Measurements sheet showed it: "WAIST (IN)"
+   starts at the top-left corner, and the top-left of the W was quietly sliced
+   off. Nothing in the label's own styling could explain it, because nothing in
+   the label was wrong (v8.16 UAT).
+   The swipe is a scaleX from transform-origin:right — it never leaves the box —
+   so there was never anything to clip. */
+.log-row-anim { position: relative; }
 
 /* The persistent saved state. It renders statically on every revisit — the
    save flash only ever plays in response to an actual save — and tapping it
@@ -4405,7 +4419,10 @@ try {
 
     <div id="home-meas-last-tiles" style="display:flex;gap:10px;margin-bottom:20px;"></div>
 
-    <div id="home-meas-anim-wrap" style="position:relative;overflow:hidden;border-radius:var(--r-tile);">
+    <!-- Anchors the save animation's panels only. NO overflow:hidden and no
+         radius — see .log-row-anim for why that combination clipped the "W" of
+         the WAIST label sitting in this element's top-left corner. -->
+    <div id="home-meas-anim-wrap" style="position:relative;">
       <div id="home-meas-fields-in">
         <div style="margin-bottom:14px;">
           <div class="label">Waist (in)</div>

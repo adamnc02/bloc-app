@@ -5601,6 +5601,43 @@ for them, meaning both fall through to the same system symbol font, which is the
 above. `″` is in Sora but not Manrope, so it falls back at body size; it is kept because the design
 reference uses it.
 
+### The clip nobody could explain
+
+`playLogSaveAnimation()` swipes an absolutely-positioned panel across a row to confirm a save.
+Its three anchors — `#home-weight-row`, `#home-steps-row` (both `.log-row-anim`) and
+`#home-meas-anim-wrap` — carried `overflow: hidden` + `border-radius: var(--r-tile)` so that the
+PANEL would be rounded while it swiped.
+
+That also made each anchor clip **its own ordinary content** along the same curve, permanently. In
+the Measurements sheet the first thing inside is the "WAIST (IN)" label, in the top-left corner,
+and the top-left of the W was sliced off. Nothing in the label's styling explained it, because
+nothing in the label was wrong.
+
+🚨 **The radius belongs on the panels, not on the container as a clip.** Both panels are `inset: 0`,
+so rounding them is identical to rounding the box — and costs nothing. The swipe is a `scaleX` from
+`transform-origin: right`, so it never leaves the box: there was never anything to clip.
+
+Both halves of this are invisible in normal use — the clip shows on one glyph in one sheet, and the
+rounding it existed for only appears during a 0.6s animation right after a save — which is why
+`verify-save-anim-shape.mjs` holds them rather than a comment.
+
+### 🚨 A probe must not be able to read its own prose
+
+Three scripts written in this round first failed, or would have falsely passed, because a regex over
+raw `index.html` matched a **comment** instead of code:
+
+| | |
+|---|---|
+| `verify-sheet-fill-order.mjs` | its subject's comment names `renderPlanDaySession()` above the `openModal()` call, so an `indexOf()` ordering check found the prose and called correct code broken |
+| `verify-save-anim-shape.mjs` | one CSS comment says "see `.log-row-anim`" above a *different* rule, so a selector lookup returned that rule's body |
+| `verify-card-dividers.mjs` | a rule written as a comma-separated selector list put its declaration after the comma, where a `selector\s*\{` regex could not see it |
+
+§91 records the same thing happening to `verify-dev-bypass-real-data.mjs`. **Every probe in this
+repo that searches source now strips block, line and HTML comments first**, and every selector
+lookup tolerates a selector list. This matters more than a flaky test: a probe that reads prose can
+report a **false pass** just as easily, and a verify script that passes vacuously is worse than no
+script at all.
+
 ### Two judgement calls left open at the time of writing
 
 - **The Train eyebrow** reads `MC 1 · 21–27 Sept`. The design reference reads `Week 1 · 21–27
