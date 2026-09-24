@@ -2420,6 +2420,15 @@ html.auth-likely-signed-in #auth-gate { display: none; }
    test — every row is a child of the same card — unlike the :first-of-type
    trap in PHASE 1, where each item had its own container. */
 .card > .row-plain:not(:first-child) { border-top: 1px solid var(--divider); }
+/* 🚨 A card holding nothing but rows takes 6px of its own padding, and each row
+   12px. That reads as 18px above the first row and 18px below the last, with
+   24px around the divider between them. With .card's normal 16px the first and
+   last rows sat ~29px from the edges against 26px in the middle, which looked
+   top- and bottom-heavy (v8.16 UAT, Train ▸ Session tools and Plan ▸ Tools).
+   The padding lives on the CARD, not the row, because a row is also used in
+   cards that hold other things. */
+.card-rows { padding: 6px 18px; }
+.card-rows > .row-plain { padding: 12px 0; }
 .train-picker-panel { padding: 12px 0 4px; }
 
 /* ── Exercise card ──────────────────────────────────────────────────── */
@@ -2467,9 +2476,14 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .ex-done { font-size: 12.5px; font-weight: 700; color: var(--green-text); white-space: nowrap; flex-shrink: 0; text-align: right; }
 .ex-done-missed { color: var(--red); }
 
+/* 🚨 padding-left = .ex-idx's 30px + .ex-head's 12px gap. The target line and
+   the set dots are about the exercise, so they line up under its NAME; before
+   v8.16's UAT they started at the card's left edge, under the number tile, and
+   the card read as two unrelated columns. Any change to the tile size or the
+   head gap has to change this number with it. */
 .ex-target {
   display: flex; align-items: baseline; gap: 10px;
-  margin-top: 14px; cursor: pointer;
+  margin-top: 14px; cursor: pointer; padding-left: 42px;
 }
 .ex-target-left { font-size: 13px; font-weight: 500; color: var(--text2); min-width: 0; }
 .ex-target-right {
@@ -2479,7 +2493,7 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 }
 .ex-target-unit { font-family: var(--font-body); font-size: 12px; font-weight: 500; color: var(--text2); margin-left: 4px; }
 
-.ex-dots-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; cursor: pointer; }
+.ex-dots-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; cursor: pointer; padding-left: 42px; }
 .ex-dots { display: flex; gap: 6px; flex-wrap: wrap; min-width: 0; }
 /* 22px circles, filled accent once that set is logged done. */
 .ex-dot { width: 22px; height: 22px; border-radius: 50%; background: var(--surface3); flex-shrink: 0; }
@@ -2583,10 +2597,24 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .check-done svg, .check-empty svg { width: 16px; height: 16px; fill: none; stroke-width: 2.5; }
 
 /* ── Superset card ──────────────────────────────────────────────────── */
-.ss-rows { margin-top: 14px; cursor: pointer; position: relative; padding-right: 24px; }
-.ss-chevron { position: absolute; right: 0; top: 50%; margin-top: -8px; }
-.ss-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--divider); }
-.ss-row:last-child { border-bottom: none; }
+/* An accent-tinted border is the group's only frame — it is the one card that
+   holds more than one exercise, and it carries no title to say so. */
+.ex-card-ss { border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+/* The head is just the tag and the auto-complete button: no index tile (it
+   belongs beside the rows it numbers) and no name. */
+.ex-head-ss { align-items: center; }
+.ss-body { display: flex; gap: 12px; margin-top: 10px; cursor: pointer; }
+.ss-rows { flex: 1; min-width: 0; }
+/* 🚨 Dividers go BETWEEN members, never after the last one. This was
+   `border-bottom` plus `.ss-row:last-child { border-bottom: none }`, and the
+   chevron used to be the container's real last child — so :last-child never
+   matched a row and every superset card drew a stray rule under its final
+   exercise (v8.16 UAT). A `+` rule cannot fail that way whatever else the
+   container ends up holding. */
+.ss-row + .ss-row { border-top: 1px solid var(--divider); }
+.ss-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; }
+.ss-row:first-child { padding-top: 0; }
+.ss-row:last-child { padding-bottom: 0; }
 .ss-row-text { flex: 1; min-width: 0; }
 .ss-row-name { font-size: 13.5px; font-weight: 600; color: var(--text); }
 .ss-row-meta { font-size: 12px; font-weight: 500; color: var(--text3); margin-top: 3px; line-height: 1.4; }
@@ -2711,7 +2739,10 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .fuel-quick-actions { display: flex; gap: 8px; margin-top: 16px; }
 
 /* ── Rest of the week ────────────────────────────────────────────────── */
-.fuel-rest-head { display: flex; align-items: center; gap: 12px; }
+/* justify-content pushes the "Adjusted" chip to the card's right edge instead
+   of leaving it tucked against the "kcal / day" unit, where it read as part of
+   the figure (v8.16 UAT). */
+.fuel-rest-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .fuel-rest-kcal {
   font-family: var(--font-display); font-size: 34px; font-weight: 600;
   letter-spacing: -0.025em; line-height: 1.05; color: var(--text);
@@ -2723,7 +2754,12 @@ html.auth-likely-signed-in #auth-gate { display: none; }
   flex: 1 1 0; min-width: 0; padding: 12px 14px;
   background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--r-tile);
 }
-.fuel-rest-tile-lbl { font-family: var(--font-body); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+/* 🚨 The LABEL is always muted. Colour on this line made three small words
+   compete with the figures under them, and read as a status — amber carbs
+   looked like a warning when it was only the carbs row (v8.16 UAT). Where a
+   macro needs its colour it goes on the VALUE, which is what the Progress
+   "this week" tiles already do. */
+.fuel-rest-tile-lbl { font-family: var(--font-body); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--text3); }
 .fuel-rest-tile-val {
   font-family: var(--font-display); font-size: 20px; font-weight: 600;
   color: var(--text); margin-top: 5px; font-variant-numeric: tabular-nums;
@@ -2731,10 +2767,13 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .fuel-rest-tile-unit { font-family: var(--font-body); font-size: 12px; font-weight: 500; color: var(--text2); margin-left: 2px; }
 
 /* ── Shortcuts ───────────────────────────────────────────────────────── */
-.fuel-tiles { display: flex; gap: 12px; }
+/* Equal thirds. At 390px that is ~112px per tile, which is why the icon tile
+   sits above the label rather than beside it. */
+.fuel-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .fuel-tile {
-  flex: 1 1 0; min-width: 0; padding: 16px 14px; cursor: pointer;
-  background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--r-tile);
+  min-width: 0; padding: 16px 14px; cursor: pointer; text-align: left;
+  font-family: var(--font-body); color: var(--text);
+  background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-card);
 }
 .fuel-tile:active { transform: scale(0.99); }
 .fuel-tile-icon {
@@ -4095,6 +4134,27 @@ try {
 <!-- ════════════════════════════════════════
      MODALS
 ═══════════════════════════════════════════ -->
+
+<!-- Change session (v8.16 UAT — was an in-card expanding panel)
+     Adam, 2026-09-24: "everything that has a chevron should launch a modal …
+     the train page exercise cards [stay expand/collapse] (change session moves
+     to a modal)". The panel used to push the deload row and the whole page
+     below it down by ~120px on open, which on a phone meant the thing you were
+     reaching for moved as you reached for it.
+
+     🚨 The body is rendered by renderTrainSessionPicker(), NOT held here —
+     the week strip has to be rebuilt when a week is chosen, without closing
+     the sheet. selectTrainWeek() redraws it in place; selectTrainDay() closes. -->
+<div class="modal-overlay" id="modal-train-session">
+  <div class="modal-sheet" data-modal="modal-train-session">
+    <div class="modal-handle-row"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-train-session')">&#10005;</button>
+    </div>
+    <div class="modal-title">Change session</div>
+    <div class="modal-sub">Pick the mesocycle, then the session.</div>
+    <div id="train-session-picker-body"></div>
+  </div>
+</div>
 
 <!-- Measurements (v8.16 Phase 1 — NEW sheet, D2)
      The measurement fields used to be inlined into Home, conditionally, once
@@ -11212,17 +11272,27 @@ function findPeakWindow(dayMap, goalType) {
 // state.currentMacroId (which drives Plan/Train) so browsing history here
 // never changes what's "active" for training. Defaults to current cycle.
 let progressViewMacroId = null;
-// Train page session picker: collapsed by default, showing only a compact
-// bar with the current session + a chevron. Expands into the full MC/day
-// pill grid on tap. trainManualSelect tracks whether the person has
-// explicitly picked a session this app-load — until they do, renderTrain()
-// auto-jumps to the next incomplete session whenever it runs.
-let trainPickerExpanded = false;
+// trainManualSelect tracks whether the person has explicitly picked a session
+// this app-load — until they do, renderTrain() auto-jumps to the next
+// incomplete session whenever it runs. (The picker's own expanded/collapsed
+// flag went with the v8.16 UAT move into modal-train-session: a sheet is
+// either open or it is not, and the DOM already knows which.)
 let trainManualSelect = false;
-// Shows/hides the week/day selector strip on the Train page.
-function toggleTrainPicker() {
-  trainPickerExpanded = !trainPickerExpanded;
-  renderTrain();
+// Opens the Change-session sheet and fills it. Replaces the in-card panel
+// that used to expand under the row (v8.16 UAT).
+function openTrainSessionPicker() {
+  renderTrainSessionPicker();
+  openModal('modal-train-session');
+}
+// Builds the sheet's body from current state. Called on open and again
+// whenever a mesocycle is chosen, so the day tabs follow it without the sheet
+// closing and reopening.
+function renderTrainSessionPicker() {
+  const body = document.getElementById('train-session-picker-body');
+  if (!body) return;
+  const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
+  if (!macro) { body.innerHTML = ''; return; }
+  body.innerHTML = buildTrainPickerHTML(macro);
 }
 // Tracks which "Weeks 2+" progression-preview blocks are expanded on the
 // Plan page, keyed by `${macroId}_${day}${microKey}` (one entry per
@@ -20499,6 +20569,11 @@ function renderTrain(animate = false) {
 // can span two calendar weeks; calling it a week here would contradict the
 // picker, the logs and every other screen. The calendar dates beside it are
 // what actually answer "which week is this".
+//
+// 🚨 "of N" was dropped in the v8.16 UAT — the eyebrow is a locator, not a
+// progress bar, and how far through the cycle you are is the hero's job. The
+// design reference reads "Week 1 · 21–27 Sept"; this is that shape with BLOC's
+// own unit name kept, for the reason immediately above.
 function renderTrainHeader(macro, dayDisplay, microSuffix) {
   const el = document.getElementById('train-header');
   if (!el) return;
@@ -20508,7 +20583,7 @@ function renderTrainHeader(macro, dayDisplay, microSuffix) {
   const microPart = useMicro ? ` · Microcycle ${state.currentDay.endsWith('m1') ? 1 : 2}` : '';
   el.innerHTML = `<div class="page-head rise">
     <div class="page-head-text">
-      <div class="page-eyebrow">MC ${state.currentWeek} of ${getMacroEffectiveMesoCount(macro)}${dateRangeStr}</div>
+      <div class="page-eyebrow">MC ${state.currentWeek}${dateRangeStr}</div>
       <h1 class="page-h1">${dayDisplay}</h1>
       <div class="page-subtitle">${macro.name}${microPart}</div>
     </div>
@@ -20548,6 +20623,63 @@ function renderTrainSession(macro) {
 // state.currentDay (which carries the m1/m2 suffix), so on a two-week
 // mesocycle it affects only the calendar week being viewed, never its sibling
 // microcycle.
+// ── TRAIN: the Change-session picker (v8.16 UAT) ──────────────────────
+// Extracted verbatim from renderTrainTools(), where it was an inline panel
+// that expanded inside the tools card. The markup, the week/day rules and the
+// partial-trailing-mesocycle guards are unchanged — only its container moved
+// (see openTrainSessionPicker).
+function buildTrainPickerHTML(macro) {
+  const allSessions = getAllMacroSessions(macro);
+  const days = macro.days || ['push','pull','legs'];
+  const dayLabels = macro.dayLabels || { push:'Push', pull:'Pull', legs:'Legs' };
+  const useMicro = macro.useMicrocycles !== false;
+  const micros = useMicro ? [1,2] : [0];
+  // Mesocycle strip
+  let wHtml = '';
+  for (let w = 1; w <= getMacroEffectiveMesoCount(macro); w++) {
+    const weekSessions = allSessions.filter(s => s.week === w);
+    const isDone = weekSessions.length > 0 && weekSessions.every(s => s.done);
+    wHtml += `<button class="week-pill ${state.currentWeek===w?'active':''}" onclick="selectTrainWeek(${w})">MC ${w}${isDone ? ' ✓' : ''}</button>`;
+  }
+  // Day tabs — grouped by real calendar week, not just by microcycle.
+  // A microcycle only represents a distinct calendar week when the
+  // mesocycle actually spans more than one real week (weeksPerMeso 2);
+  // if weeksPerMeso is 1, M1/M2 (if both are used) fall inside the same
+  // single calendar week, so they stay merged into one row exactly like
+  // a macro with no microcycles at all.
+  let tHtml = '';
+  if (useMicro && (macro.weeksPerMeso || 1) === 2) {
+    // Drop the M2 row entirely if the currently-viewed mesocycle is a
+    // partial trailing extension week — that microcycle was never
+    // generated for this specific week (see isMesoMicroValid).
+    const weekMicros = micros.filter(mc => isMesoMicroValid(macro, state.currentWeek, mc));
+    const rows = weekMicros.map(mc => {
+      let rowHtml = '';
+      days.forEach(d => {
+        const key = d + 'm' + mc;
+        const label = (dayLabels[d] || d) + ' M' + mc;
+        rowHtml += `<button class="day-tab ${state.currentDay===key?'active':''}" onclick="selectTrainDay('${key}')">${label}</button>`;
+      });
+      return `<div class="day-tabs" style="margin-bottom:6px;">${rowHtml}</div>`;
+    });
+    tHtml = `<div>${rows.join('')}</div>`;
+  } else {
+    let rowHtml = '';
+    micros.forEach(mc => {
+      days.forEach(d => {
+        const key = mc === 0 ? d : (d + 'm' + mc);
+        const label = useMicro ? ((dayLabels[d] || d) + ' M' + mc) : (dayLabels[d] || d);
+        rowHtml += `<button class="day-tab ${state.currentDay===key?'active':''}" onclick="selectTrainDay('${key}')">${label}</button>`;
+      });
+    });
+    tHtml = `<div class="day-tabs" style="margin-bottom:0;">${rowHtml}</div>`;
+  }
+  return `<div class="train-picker-panel" id="train-session-picker">
+    <div class="week-strip" style="margin-bottom:10px;">${wHtml}</div>
+    ${tHtml}
+  </div>`;
+}
+
 function renderTrainTools(macro, allSessions, days, dayLabels, micros, useMicro) {
   const el = document.getElementById('train-tools');
   if (!el) return;
@@ -20557,69 +20689,22 @@ function renderTrainTools(macro, allSessions, days, dayLabels, micros, useMicro)
   const microSuffix = useMicro ? (' ' + (dayKey.endsWith('m1') ? 'M1' : 'M2')) : '';
   const dayDisplay = dayLabels[dayId] || dayId;
 
-  let pickerHtml = '';
-  if (trainPickerExpanded) {
-    // Mesocycle strip
-    let wHtml = '';
-    for (let w = 1; w <= getMacroEffectiveMesoCount(macro); w++) {
-      const weekSessions = allSessions.filter(s => s.week === w);
-      const isDone = weekSessions.length > 0 && weekSessions.every(s => s.done);
-      wHtml += `<button class="week-pill ${state.currentWeek===w?'active':''}" onclick="selectTrainWeek(${w})">MC ${w}${isDone ? ' ✓' : ''}</button>`;
-    }
-    // Day tabs — grouped by real calendar week, not just by microcycle.
-    // A microcycle only represents a distinct calendar week when the
-    // mesocycle actually spans more than one real week (weeksPerMeso 2);
-    // if weeksPerMeso is 1, M1/M2 (if both are used) fall inside the same
-    // single calendar week, so they stay merged into one row exactly like
-    // a macro with no microcycles at all.
-    let tHtml = '';
-    if (useMicro && (macro.weeksPerMeso || 1) === 2) {
-      // Drop the M2 row entirely if the currently-viewed mesocycle is a
-      // partial trailing extension week — that microcycle was never
-      // generated for this specific week (see isMesoMicroValid).
-      const weekMicros = micros.filter(mc => isMesoMicroValid(macro, state.currentWeek, mc));
-      const rows = weekMicros.map(mc => {
-        let rowHtml = '';
-        days.forEach(d => {
-          const key = d + 'm' + mc;
-          const label = (dayLabels[d] || d) + ' M' + mc;
-          rowHtml += `<button class="day-tab ${state.currentDay===key?'active':''}" onclick="selectTrainDay('${key}')">${label}</button>`;
-        });
-        return `<div class="day-tabs" style="margin-bottom:6px;">${rowHtml}</div>`;
-      });
-      tHtml = `<div>${rows.join('')}</div>`;
-    } else {
-      let rowHtml = '';
-      micros.forEach(mc => {
-        days.forEach(d => {
-          const key = mc === 0 ? d : (d + 'm' + mc);
-          const label = useMicro ? ((dayLabels[d] || d) + ' M' + mc) : (dayLabels[d] || d);
-          rowHtml += `<button class="day-tab ${state.currentDay===key?'active':''}" onclick="selectTrainDay('${key}')">${label}</button>`;
-        });
-      });
-      tHtml = `<div class="day-tabs" style="margin-bottom:0;">${rowHtml}</div>`;
-    }
-    pickerHtml = `<div class="train-picker-panel" id="train-session-picker">
-      <div class="week-strip" style="margin-bottom:10px;">${wHtml}</div>
-      ${tHtml}
-    </div>`;
-  }
 
   el.innerHTML = sectionHeader('Session tools', 'Less common actions, kept out of the way.')
-    + `<div class="card">
-      <div class="row-plain" onclick="toggleTrainPicker()">
+    + `<div class="card card-rows">
+      <div class="row-plain" onclick="openTrainSessionPicker()">
         <div class="row-btn-text">
           <div class="row-btn-title">Change session</div>
           <div class="row-btn-sub">MC ${state.currentWeek} · ${dayDisplay}${microSuffix}</div>
         </div>
-        <svg class="row-chevron-rot" viewBox="0 0 24 24" width="16" height="16" style="stroke:var(--text3);fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0;transform:rotate(${trainPickerExpanded ? '180' : '0'}deg);"><polyline points="6 9 12 15 18 9"/></svg>
+        <span class="row-btn-chevron">${icoSwitch(22)}</span>
       </div>
-      ${pickerHtml}
       <div class="row-plain" id="deload-toggle-${macro.id}" onclick="toggleDeloadWeek('${macro.id}',${state.currentWeek},'${dayKey}')">
         <div class="row-btn-text">
           <div class="row-btn-title"${heroIsDeload ? ' style="color:var(--ice-blue);"' : ''}>${heroIsDeload ? 'Unmark deload' : 'Mark week as deload'}</div>
           <div class="row-btn-sub">${heroIsDeload ? 'Restores this week’s normal targets.' : 'Drops every weight to 60% for this week.'}</div>
         </div>
+        <span class="row-btn-chevron">${icoChevron()}</span>
       </div>
     </div>`
     + sectionEnd();
@@ -20639,6 +20724,9 @@ function selectTrainWeek(w) {
   }
   save();
   renderTrain();
+  // The sheet stays open — a mesocycle is half a choice, and its day tabs
+  // have to redraw under it (a partial trailing week has no M2).
+  renderTrainSessionPicker();
 }
 
 // Switches which day (session) of the macrocycle the Train page is displaying.
@@ -20646,6 +20734,7 @@ function selectTrainDay(d) {
   state.currentDay = d;
   trainManualSelect = true;
   save();
+  closeModal('modal-train-session');
   renderTrain();
 }
 
@@ -21388,8 +21477,11 @@ function renderTrainDay(macro) {
       // progression route to report, and a locked exercise's route is "held".
       const holdTagHtml = (isLocked && !isDeloadSession && !isPostDeloadSession)
         ? `<span class="ex-tag" style="--tag-c:var(--amber);">On hold</span>` : '';
-      const deloadTagHtml = isDeloadSession
-        ? `<span class="ex-tag" style="--tag-c:var(--ice-blue);">Deload</span>` : '';
+      // 🚨 Deliberately empty, and kept as a named const so the reason survives.
+      // A deload is a property of the WEEK, not of an exercise: the hero already
+      // carries a full-width "Deload week" banner above these cards, so a badge
+      // on every card repeated the same fact five times over (v8.16 UAT).
+      const deloadTagHtml = '';
       // Which progression path was used last week. Suppressed during
       // deload/post-deload (no route was chosen) and on maintenance cycles
       // (no load progression is suggested at all).
@@ -21435,7 +21527,7 @@ function renderTrainDay(macro) {
 
       html += `<div class="card ex-card${isExpanded ? ' ex-card-open' : ''}">
         <div class="ex-head" onclick="toggleExercise('${expandKey}')">
-          <div class="ex-idx">${String(slotIdx + 1).padStart(2, '0')}</div>
+          <div class="ex-idx">${slotIdx + 1}</div>
           <div class="ex-head-text">
             <div class="ex-name">${ex.name}</div>
             ${tagsHtml ? `<div class="ex-tags">${tagsHtml}</div>` : ''}
@@ -21449,7 +21541,6 @@ function renderTrainDay(macro) {
         <div class="ex-dots-row" onclick="toggleExercise('${expandKey}')">
           <div class="ex-dots">${dotsHtml}</div>
           <span class="ex-lastwk">Last wk ${lastWkSummary}</span>
-          <svg class="ex-chevron" viewBox="0 0 24 24" style="transform:rotate(${isExpanded?'180':'0'}deg);"><polyline points="6 9 12 15 18 9"/></svg>
         </div>
         ${progressBadge}`;
 
@@ -21801,13 +21892,19 @@ function renderTrainDay(macro) {
       })).replace(/"/g, '&quot;');
 
       // One card for the whole group, with ONE auto-complete button that fills
-      // every member. The lavender tag names the group and its round count; the
-      // members are listed below it, one row each.
-      html += `<div class="card ex-card${isExpanded ? ' ex-card-open' : ''}">
-        <div class="ex-head" onclick="toggleExercise('${expandKey}')">
-          <div class="ex-idx">${String(slotIdx + 1).padStart(2, '0')}</div>
+      // every member.
+      //
+      // 🚨 The group has NO TITLE. It used to print "<A> + <B>" as the card's
+      // name, which for a three-member superset ran to two lines and repeated
+      // names the member rows list immediately below it. The lavender
+      // "Superset · N rounds" tag IS the heading (v8.16 UAT). ssName is still
+      // computed — the expanded view and the logging sheet use it.
+      //
+      // The index tile therefore drops out of the head and sits beside the
+      // MEMBER ROWS, which is what it numbers.
+      html += `<div class="card ex-card ex-card-ss${isExpanded ? ' ex-card-open' : ''}">
+        <div class="ex-head ex-head-ss" onclick="toggleExercise('${expandKey}')">
           <div class="ex-head-text">
-            <div class="ex-name">${ssName}</div>
             <div class="ex-tags"><span class="ex-tag" style="--tag-c:var(--accent2);">Superset · ${sets} round${sets === 1 ? '' : 's'}</span></div>
           </div>
           <div class="ex-head-right" onclick="event.stopPropagation()">
@@ -21822,9 +21919,9 @@ function renderTrainDay(macro) {
             }
           </div>
         </div>
-        <div class="ss-rows" onclick="toggleExercise('${expandKey}')">
-          ${previewRows}
-          <svg class="ex-chevron ss-chevron" viewBox="0 0 24 24" style="transform:rotate(${isExpanded?'180':'0'}deg);"><polyline points="6 9 12 15 18 9"/></svg>
+        <div class="ss-body" onclick="toggleExercise('${expandKey}')">
+          <div class="ex-idx">${slotIdx + 1}</div>
+          <div class="ss-rows">${previewRows}</div>
         </div>`;
 
       if (isExpanded) {
@@ -22344,7 +22441,7 @@ function buildCardioTrainCard(macro, ex, expandKey, isExpanded, slotIdx) {
   }
   return `<div class="card ex-card${isExpanded ? ' ex-card-open' : ''}">
     <div class="ex-head" onclick="toggleExercise('${expandKey}')">
-      <div class="ex-idx">${String(slotIdx + 1).padStart(2, '0')}</div>
+      <div class="ex-idx">${slotIdx + 1}</div>
       <div class="ex-head-text">
         <div class="ex-name">${ex.name}</div>
         <div class="ex-tags"><span class="ex-tag" style="--tag-c:var(--blue);">cardio</span></div>
@@ -22357,7 +22454,6 @@ function buildCardioTrainCard(macro, ex, expandKey, isExpanded, slotIdx) {
     <div class="ex-dots-row" onclick="toggleExercise('${expandKey}')">
       <div class="ex-dots">${dots}</div>
       <span class="ex-lastwk">${doneCount}/${sets} logged</span>
-      <svg class="ex-chevron" viewBox="0 0 24 24" style="transform:rotate(${isExpanded ? '180' : '0'}deg);"><polyline points="6 9 12 15 18 9"/></svg>
     </div>
     ${expandedBody}
   </div>`;
@@ -24397,11 +24493,11 @@ function renderNutrWeekRest() {
   if (!reconciled) return;
 
   const tiles = [
-    { label:'Protein', target: Math.round(reconciled.protein), colour:'var(--blue)'  },
-    { label:'Carbs',   target: Math.round(reconciled.carbs),   colour:'var(--amber)' },
-    { label:'Fats',    target: Math.round(reconciled.fats),    colour:'var(--red)'   },
+    { label:'Protein', target: Math.round(reconciled.protein) },
+    { label:'Carbs',   target: Math.round(reconciled.carbs)   },
+    { label:'Fats',    target: Math.round(reconciled.fats)    },
   ].map(t => `<div class="fuel-rest-tile">
-      <div class="fuel-rest-tile-lbl" style="color:${t.colour};">${t.label}</div>
+      <div class="fuel-rest-tile-lbl">${t.label}</div>
       <div class="fuel-rest-tile-val">${t.target}<span class="fuel-rest-tile-unit">g</span></div>
     </div>`).join('');
 
@@ -24417,31 +24513,45 @@ function renderNutrWeekRest() {
 }
 
 // ── FUEL: Shortcuts (v8.16) ───────────────────────────────────────────
-// Two tiles. Recipes opens the recipe list, which leads to the Log a recipe
-// sheet and its meal picker.
+// THREE tiles, in one row: Quick add, Fill day, Recipes.
+//
+// 🚨 Each tile IS a card. They used to be three tiles inside one shared card,
+// which is a card within a card — the thing .row-plain exists to avoid — and it
+// made the group read as one control with three regions rather than three
+// buttons (v8.16 UAT). The reference has no wrapper at all.
+//
+// 🚨 Quick add moved here from the Meals section header, where it was a small
+// ghost button in the right-hand slot. It is a shortcut for logging, which is
+// exactly what this section is; in the header it was the only section slot in
+// the app that performed an action rather than reporting a state.
 function renderNutrShortcuts() {
   const el = document.getElementById('nutr-shortcuts');
   if (!el) return;
   const recipeCount = (state.recipes || []).length;
   el.innerHTML = sectionHeader('Shortcuts', 'Speed up logging.')
-    + `<div class="card">
-      <div class="fuel-tiles">
-        <div class="fuel-tile" id="fill-day-btn" onclick="openFillDayModal()">
+    + `<div class="fuel-tiles">
+        <button class="fuel-tile" onclick="openNutrQuickAdd()">
+          <div class="fuel-tile-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          </div>
+          <div class="fuel-tile-title">Quick add</div>
+          <div class="fuel-tile-sub">The whole day as one total</div>
+        </button>
+        <button class="fuel-tile" id="fill-day-btn" onclick="openFillDayModal()">
           <div class="fuel-tile-icon">
             <svg viewBox="0 0 24 24"><path d="M4 5h16v16H4z"/><path d="M4 10h16"/><path d="M9 14h6"/></svg>
           </div>
           <div class="fuel-tile-title">Fill day</div>
           <div class="fuel-tile-sub">From your meal plan</div>
-        </div>
-        <div class="fuel-tile" onclick="openRecipePickerForLog()">
+        </button>
+        <button class="fuel-tile" onclick="openRecipePickerForLog()">
           <div class="fuel-tile-icon">
             <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
           </div>
           <div class="fuel-tile-title">Recipes</div>
-          <div class="fuel-tile-sub">${recipeCount} saved \u00b7 pick a meal</div>
-        </div>
-      </div>
-    </div>`
+          <div class="fuel-tile-sub">${recipeCount} saved</div>
+        </button>
+      </div>`
     + sectionEnd();
 }
 
@@ -24598,9 +24708,10 @@ function renderNutrDiary() {
       </div>`;
   }).join('');
 
-  el.innerHTML = sectionHeader('Meals', "What you ate, by meal. Swipe yesterday's entry across to copy it.", {
-    slot: '<button class="btn-ghost btn-sm" onclick="openNutrQuickAdd()">Quick add</button>'
-  }) + mealCards + sectionEnd();
+  // Quick add moved to the Shortcuts section (v8.16 UAT) — see
+  // renderNutrShortcuts() for why this slot is now empty.
+  el.innerHTML = sectionHeader('Meals', "What you ate, by meal. Swipe yesterday's entry across to copy it.")
+    + mealCards + sectionEnd();
   requestAnimationFrame(() => initSwipeRows(el));
 }
 
@@ -24704,8 +24815,13 @@ function showMealMenuSheet(meal) {
   if (old) old.remove();
 
   // v8.16 — the stacked-choice pattern of §3.8: a leading 36px icon tile, a title
-  // and a subtitle per action, with Cancel last. It takes the sheet anatomy from
-  // .modal-sheet like every other sheet, rather than rebuilding it inline.
+  // and a subtitle per action. It takes the sheet anatomy from .modal-sheet like
+  // every other sheet, rather than rebuilding it inline.
+  //
+  // 🚨 No Cancel button. The sheet already had three ways out — the ✕, the
+  // backdrop tap wired at the foot of this function, and swipe-down — and a
+  // fourth spelled the same escape as a full-width primary-weight control,
+  // which is the widest thing on the sheet (v8.16 UAT).
   //
   // 🚨 FOUR actions, not three (D5). Swap shipped in v8.00 and stays.
   //
@@ -24721,7 +24837,7 @@ function showMealMenuSheet(meal) {
           <span class="row-btn-title">${title}</span>
           <span class="row-btn-sub">${sub}</span>
         </span>
-        <span class="row-btn-chevron">\u203a</span>
+        <span class="row-btn-chevron">${icoChevron()}</span>
       </button>`;
   const ic = (d) => `<svg viewBox="0 0 24 24" class="meal-menu-icon">${d}</svg>`;
   sheet.innerHTML = `
@@ -24732,16 +24848,15 @@ function showMealMenuSheet(meal) {
       <div class="modal-title">${meal}</div>
       <div class="modal-sub">Move this meal's items somewhere else, or keep them as a recipe.</div>
       <div class="meal-menu-rows">
-        ${action("openMealCopyMove('copy')", 'Copy meal to\u2026', 'Leaves this meal as it is.',
+        ${action("openMealCopyMove('copy')", 'Copy meal to\u2026', 'Copies this meal to another date \u2014 this one stays put.',
           ic('<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'))}
-        ${action("openMealCopyMove('move')", 'Move meal to\u2026', 'Empties this meal.',
+        ${action("openMealCopyMove('move')", 'Move meal to\u2026', 'Moves this meal to another date \u2014 this one is removed.',
           ic('<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>'))}
-        ${action("openMealCopyMove('swap')", 'Swap meal with\u2026', 'Exchanges the two meals.',
+        ${action("openMealCopyMove('swap')", 'Swap meal with\u2026', 'Swap this meal with a meal from another day.',
           ic('<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>'))}
-        ${action('saveMealAsRecipe()', 'Save meal as recipe\u2026', 'Keeps them to log again later.',
+        ${action('saveMealAsRecipe()', 'Save meal as recipe\u2026', 'Save this meal as a single recipe \u2014 for quick use later if this is a common meal.',
           ic('<path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.41 0l6.59-6.59a1 1 0 0 0 0-1.41L12 2z"/><path d="M7 7h.01"/>'))}
       </div>
-      <button class="btn btn-ghost btn-block" onclick="document.getElementById('meal-menu-sheet').remove()">Cancel</button>
     </div>`;
   sheet.addEventListener('pointerdown', e => { if (e.target === sheet) sheet.remove(); });
   document.body.appendChild(sheet);
@@ -28512,7 +28627,14 @@ function playBeep() {
   } catch(e) {}
 }
 
-const ITEM_H = 40;
+// 🚨 The drum's three sizes move TOGETHER: PICKER_H is exactly three rows, and
+// the wrapper's inline height in modal-timer's markup must match it, or the
+// centred row stops being centred. Raised from 40/120 in the v8.16 UAT —
+// "countdown values too small, increase width and font size" — which is also
+// why PICKER_W exists rather than the 80px that was written in three places.
+const ITEM_H = 56;
+const PICKER_H = ITEM_H * 3;
+const PICKER_W = 104;
 
 // Constructs one iOS-style scroll-drum picker column (used for the rest
 // timer's minutes/seconds inputs).
@@ -28529,13 +28651,13 @@ function buildPicker(elId, count, zeroPad, initial, onPick) {
   col.dataset.value = initial;
   for (let i = 0; i < count; i++) {
     const item = document.createElement('div');
-    item.style.cssText = `height:${ITEM_H}px;line-height:${ITEM_H}px;font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--text);width:80px;text-align:center;flex-shrink:0;`;
+    item.style.cssText = `height:${ITEM_H}px;line-height:${ITEM_H}px;font-family:var(--font-display);font-size:36px;font-weight:600;color:var(--text);width:${PICKER_W}px;text-align:center;flex-shrink:0;font-variant-numeric:tabular-nums;`;
     item.textContent = zeroPad ? String(i).padStart(2, '0') : i;
     col.appendChild(item);
   }
   wrap.appendChild(col);
   const setPos = (val) => {
-    const y = -(val * ITEM_H) + (120 / 2 - ITEM_H / 2);
+    const y = -(val * ITEM_H) + (PICKER_H / 2 - ITEM_H / 2);
     col.style.transition = 'none';
     col.style.transform = `translateY(${y}px)`;
     col.dataset.value = val;
@@ -28547,7 +28669,7 @@ function buildPicker(elId, count, zeroPad, initial, onPick) {
     if (!dragging) return;
     const delta = startY - clientY;
     const newVal = Math.max(0, Math.min(count - 1, startVal + Math.round(delta / ITEM_H)));
-    col.style.transform = `translateY(${-(newVal * ITEM_H) + (120 / 2 - ITEM_H / 2)}px)`;
+    col.style.transform = `translateY(${-(newVal * ITEM_H) + (PICKER_H / 2 - ITEM_H / 2)}px)`;
     col.dataset.value = newVal;
     onPick(newVal);
   };
@@ -28556,7 +28678,7 @@ function buildPicker(elId, count, zeroPad, initial, onPick) {
     dragging = false;
     const val = parseInt(col.dataset.value);
     col.style.transition = 'transform 0.15s ease';
-    col.style.transform = `translateY(${-(val * ITEM_H) + (120 / 2 - ITEM_H / 2)}px)`;
+    col.style.transform = `translateY(${-(val * ITEM_H) + (PICKER_H / 2 - ITEM_H / 2)}px)`;
     onPick(val);
   };
   col.addEventListener('touchstart', e => { e.preventDefault(); onStart(e.touches[0].clientY); }, { passive: false });
@@ -28649,13 +28771,27 @@ function cdFormat(ms) {
   return Math.floor(totalSec / 60) + ':' + String(totalSec % 60).padStart(2, '0');
 }
 
+// 🚨 Sets a timer button's label AND its icon together. Every state change here
+// used to be `btn.textContent = 'Pause'`, which silently deleted the inline
+// <svg> the button was given in the v8.16 UAT — the play icon would appear on
+// load and never come back after the first tap. Nothing in this file may write
+// textContent to #cd-start-btn or #sw-start-btn again.
+function setTimerBtn(id, label, accent) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  const icon = label === 'Pause'
+    ? '<svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><rect x="7" y="5" width="3.6" height="14" rx="1"/><rect x="13.4" y="5" width="3.6" height="14" rx="1"/></svg>'
+    : '<svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+  btn.innerHTML = icon + ' ' + label;
+  btn.className = accent ? 'btn btn-accent btn-block' : 'btn btn-block';
+}
+
 // Starts, pauses, or resumes the countdown timer depending on its current state.
 function countdownStart() {
   if (cdRunning) {
     clearInterval(cdInterval);
     cdRunning = false;
-    document.getElementById('cd-start-btn').textContent = 'Resume';
-    document.getElementById('cd-start-btn').className = 'btn btn-block';
+    setTimerBtn('cd-start-btn', 'Resume', false);
     updateTimerIcon();
     return;
   }
@@ -28671,8 +28807,7 @@ function countdownStart() {
     document.getElementById('cd-reset-btn').style.display = '';
   }
   cdRunning = true;
-  document.getElementById('cd-start-btn').textContent = 'Pause';
-  document.getElementById('cd-start-btn').className = 'btn btn-accent btn-block';
+  setTimerBtn('cd-start-btn', 'Pause', true);
   document.getElementById('timer-status').textContent = 'Rest timer running';
   updateTimerIcon();
   const tick = () => {
@@ -28684,8 +28819,7 @@ function countdownStart() {
       document.getElementById('timer-digits').textContent = '0:00';
       document.getElementById('timer-digits').style.color = 'var(--accent)';
       document.getElementById('timer-status').textContent = "Time's up!";
-      document.getElementById('cd-start-btn').textContent = 'Start';
-      document.getElementById('cd-start-btn').className = 'btn btn-accent btn-block';
+      setTimerBtn('cd-start-btn', 'Start', true);
       playBeep();
       updateTimerIcon();
       return;
@@ -28708,9 +28842,8 @@ function countdownReset() {
   const presets = document.getElementById('timer-presets');
   if (presets) presets.style.display = '';
   if (display) display.style.display = 'none';
-  const startBtn = document.getElementById('cd-start-btn');
   const resetBtn = document.getElementById('cd-reset-btn');
-  if (startBtn) { startBtn.textContent = 'Start'; startBtn.className = 'btn btn-accent btn-block'; }
+  setTimerBtn('cd-start-btn', 'Start', true);
   if (resetBtn) resetBtn.style.display = 'none';
   const digits = document.getElementById('timer-digits');
   if (digits) digits.style.color = 'var(--text)';
@@ -28732,8 +28865,7 @@ function swToggle() {
   if (swRunning) {
     swRunning = false;
     clearInterval(swInterval);
-    document.getElementById('sw-start-btn').textContent = 'Resume';
-    document.getElementById('sw-start-btn').className = 'btn btn-block';
+    setTimerBtn('sw-start-btn', 'Resume', false);
     updateTimerIcon();
   } else {
     swRunning = true;
@@ -28742,8 +28874,7 @@ function swToggle() {
       swElapsed = Date.now() - swLastTick;
       document.getElementById('sw-digits').textContent = swFormat(swElapsed);
     }, 100);
-    document.getElementById('sw-start-btn').textContent = 'Pause';
-    document.getElementById('sw-start-btn').className = 'btn btn-accent btn-block';
+    setTimerBtn('sw-start-btn', 'Pause', true);
     updateTimerIcon();
   }
 }
@@ -28755,8 +28886,7 @@ function swReset() {
   swElapsed = 0;
   const el = document.getElementById('sw-digits');
   if (el) el.textContent = '0:00.0';
-  const btn = document.getElementById('sw-start-btn');
-  if (btn) { btn.textContent = 'Start'; btn.className = 'btn btn-accent btn-block'; }
+  setTimerBtn('sw-start-btn', 'Start', true);
   updateTimerIcon();
 }
 
@@ -29815,7 +29945,7 @@ function deleteRecipe(id) {
       <button class="modal-close-btn" onclick="closeTimerModal()">✕</button>
     </div>
     <div class="modal-title">Rest timer</div>
-    <div class="toggle-row" style="margin-bottom:20px;">
+    <div class="toggle-row acc" style="margin-bottom:24px;">
       <button class="toggle-btn active" id="timer-tog-countdown" onclick="setTimerMode('countdown')">Countdown</button>
       <button class="toggle-btn" id="timer-tog-stopwatch" onclick="setTimerMode('stopwatch')">Stopwatch</button>
     </div>
@@ -29823,14 +29953,14 @@ function deleteRecipe(id) {
       <div id="timer-picker" style="display:flex;justify-content:center;align-items:center;gap:0;margin-bottom:24px;user-select:none;">
         <div style="text-align:center;">
           <div style="font-size:11px;color:var(--text3);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;">Min</div>
-          <div style="position:relative;height:120px;overflow:hidden;width:80px;" id="picker-min-wrap">
+          <div style="position:relative;height:168px;overflow:hidden;width:104px;" id="picker-min-wrap">
             <div id="picker-min" style="display:flex;flex-direction:column;align-items:center;cursor:ns-resize;touch-action:none;"></div>
           </div>
         </div>
-        <div style="font-size:32px;font-weight:700;color:var(--text3);padding:0 4px;margin-top:14px;">:</div>
+        <div style="font-family:var(--font-display);font-size:36px;font-weight:600;color:var(--text3);padding:0 2px;margin-top:20px;">:</div>
         <div style="text-align:center;">
           <div style="font-size:11px;color:var(--text3);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;">Sec</div>
-          <div style="position:relative;height:120px;overflow:hidden;width:80px;" id="picker-sec-wrap">
+          <div style="position:relative;height:168px;overflow:hidden;width:104px;" id="picker-sec-wrap">
             <div id="picker-sec" style="display:flex;flex-direction:column;align-items:center;cursor:ns-resize;touch-action:none;"></div>
           </div>
         </div>
@@ -29850,7 +29980,7 @@ function deleteRecipe(id) {
         <div id="timer-status" style="font-size:12px;color:var(--text3);margin-top:8px;letter-spacing:0.08em;text-transform:uppercase;"></div>
       </div>
       <div style="display:flex;gap:10px;">
-        <button id="cd-start-btn" class="btn btn-accent btn-block" onclick="countdownStart()">Start</button>
+        <button id="cd-start-btn" class="btn btn-accent btn-block" onclick="countdownStart()"><svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg> Start</button>
         <button id="cd-reset-btn" class="btn btn-block" onclick="countdownReset()" style="display:none;">Reset</button>
       </div>
     </div>
@@ -29859,7 +29989,7 @@ function deleteRecipe(id) {
         <div id="sw-digits" style="font-family:var(--font-display);font-size:64px;font-weight:800;letter-spacing:-0.02em;color:var(--text);line-height:1;">0:00.0</div>
       </div>
       <div style="display:flex;gap:10px;">
-        <button id="sw-start-btn" class="btn btn-accent btn-block" onclick="swToggle()">Start</button>
+        <button id="sw-start-btn" class="btn btn-accent btn-block" onclick="swToggle()"><svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg> Start</button>
         <button id="sw-reset-btn" class="btn btn-block" onclick="swReset()">Reset</button>
       </div>
     </div>
