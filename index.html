@@ -331,7 +331,11 @@ h3 {
 .card {
   background: var(--surface);
   border: 0.5px solid var(--border);
-  border-radius: var(--r);
+  /* v8.16 UAT: every .card was still on the legacy --r (8px) while the
+     redesign's shape scale defines --r-card (16px). Home/Train/Fuel passed
+     UAT only because nothing sat next to a correctly-rounded element; on
+     Progress and Plan the mismatch was obvious. One token, 400+ call sites. */
+  border-radius: var(--r-card);
   padding: 16px 18px;
   margin-bottom: 10px;
 }
@@ -671,14 +675,20 @@ h3 {
 }
 
 /* ── INPUTS ──────────────────────────────── */
-input, select, textarea {
-  background: var(--surface2);
-  border: 0.5px solid var(--border2);
-  border-radius: var(--r-sm);
+/* v8.16 UAT: fields sit on --bg, a step DARKER than the card they sit in, so
+   the input reads as a well rather than a raised tile. Ranges and file inputs
+   are excluded — they are not boxes and the min-height/padding would deform
+   them. 16px is also the iOS threshold below which focusing a field zooms the
+   page. */
+input:not([type=range]):not([type=file]), select, textarea {
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: var(--r-btn-sm);
   color: var(--text);
   font-family: var(--font-mono);
-  font-size: 14px;
-  padding: 10px 12px;
+  font-size: 16px;
+  min-height: 48px;
+  padding: 10px 14px;
   width: 100%;
   outline: none;
   -webkit-appearance: none;
@@ -1182,9 +1192,18 @@ html.auth-likely-signed-in #auth-gate { display: none; }
    40px button — absolutely positioned and vertically centred on it —
    overflowed the sheet's top padding and was CLIPPED by .modal-sheet's
    overflow-y:auto. It looked like a half-drawn ✕ on every sheet in the app. */
-.modal-handle-row { display: flex; align-items: center; justify-content: center; position: relative; min-height: 44px; margin-bottom: 8px; }
-.modal-close-btn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); background: var(--surface3); border: none; color: var(--text2); width: 40px; height: 40px; border-radius: 50%; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; }
-.modal-title { font-family: var(--font-display); font-size: 22px; font-weight: 600; letter-spacing: -0.015em; margin-bottom: 16px; }
+.modal-handle-row { display: flex; align-items: center; justify-content: center; position: relative; min-height: 24px; margin-bottom: 10px; }
+/* 🚨 The ✕ is absolutely positioned but NOT centred on the handle row — it is
+   pushed down past it onto the title line, so button and title read as one
+   header (the reference's .sh-h). It stays in the handle row's markup rather
+   than becoming a child of .modal-title because nine titles have their text
+   set from JS by id (goal-modal-title, photo-review-title, …) and a
+   textContent write would delete a child button. top = the row's own height
+   + its margin-bottom, and the two boxes are both 40px, so they align exactly.
+   Before v8.16 this was centred on a 44px handle row, which put it a whole row
+   ABOVE the title — the "staggered" ✕ reported on all 67 sheets. */
+.modal-close-btn { position: absolute; right: 0; top: calc(100% + 10px); transform: none; background: var(--surface3); border: none; color: var(--text2); width: 40px; height: 40px; border-radius: 50%; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; }
+.modal-title { font-family: var(--font-display); font-size: 22px; font-weight: 600; letter-spacing: -0.015em; margin-bottom: 18px; min-height: 40px; display: flex; align-items: center; padding-right: 52px; }
 /* A short explanatory line under a sheet title — sentence case, full stop.
    Same voice as the section sublabel. */
 .modal-sub { font-family: var(--font-body); font-size: 13.5px; font-weight: 500; color: var(--text2); line-height: 1.45; margin: -10px 0 16px; }
@@ -1232,7 +1251,7 @@ html.auth-likely-signed-in #auth-gate { display: none; }
   transform: translate(-50%, -50%);
 }
 .kb-pinned-sheet .modal-close-btn {
-  top: 0;
+  top: calc(100% + 12px);
   transform: none;
 }
 .kb-list-wrap {
@@ -1257,9 +1276,14 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 }
 
 /* ── TOGGLE ──────────────────────────────── */
-.toggle-row { display: flex; background: var(--surface2); border-radius: var(--r-btn-sm); padding: 3px; gap: 3px; margin-bottom: 14px; }
-.toggle-btn { flex: 1; padding: 9px 8px; text-align: center; border-radius: 9px; border: none; background: transparent; color: var(--text2); font-family: var(--font-body); font-size: 12.5px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+.toggle-row { display: flex; background: var(--bg); border: 1px solid var(--border2); border-radius: var(--r-btn-sm); padding: 4px; gap: 4px; margin-bottom: 14px; }
+.toggle-btn { flex: 1; min-height: 40px; padding: 9px 8px; text-align: center; border-radius: 9px; border: none; background: transparent; color: var(--text2); font-family: var(--font-body); font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
 .toggle-btn.active { background: var(--surface3); color: var(--text); }
+/* .acc is the emphatic variant — a solid --accent fill on the selected
+   segment. It marks a toggle that switches MODE rather than filtering a view:
+   the rest timer's Countdown/Stopwatch and Plan's microcycle picker. The
+   plain variant (--surface3) stays the default everywhere else. */
+.toggle-row.acc .toggle-btn.active { background: var(--accent); color: var(--on-accent); }
 
 /* ── LOG SET ROW (matches mockup's .set-row grid exactly) ─── */
 .set-row {
@@ -8210,6 +8234,9 @@ function showScreen(name) {
   animateNavPill();
   updateNavPillColor(name);
   if (name === 'home') renderHome(true);
+  // Progress, Train and Plan all open on the cycle today falls inside, however
+  // far the person browsed last time. See resetToDateActiveMacro().
+  if (name === 'progress' || name === 'plan' || name === 'train') resetToDateActiveMacro();
   if (name === 'progress') renderProgress();
   if (name === 'plan') { planDayCollapsed = {}; renderPlan(); }
   if (name === 'train') renderTrain(true);
@@ -11350,6 +11377,43 @@ function openCycleHistory() {
     </div>`;
   }).join('');
   openModal('modal-cycle-history');
+}
+
+// ── Which cycle is ACTIVE, by the calendar ────────────────────────────────
+// 🚨 Two different ideas are both called "the current cycle" and they are not
+// the same thing:
+//   · state.currentMacroId / progressViewMacroId — what a page is SHOWING.
+//     The person changes these with the cycle arrows, and browsing history
+//     that way must keep working.
+//   · the date-active cycle — the one today falls inside. Nothing chose it;
+//     the calendar did.
+// state.currentMacroId is only ever written when a cycle is created or picked,
+// so once a cycle ends it keeps pointing at the finished one and every page
+// opens on last cycle until the person manually steps forward. That is the
+// v8.16 UAT report "doesn't reset to the currently active cycle on Progress,
+// Train and Plan — I have to first change the cycle".
+//
+// Returns null when today is BETWEEN cycles or past the last one: there is no
+// active cycle to snap to then, and the last selection is left alone rather
+// than being wiped.
+function getDateActiveMacroId() {
+  const today = toLocalDateStr(now());
+  const hit = (state.macrocycles || []).find(m =>
+    m.start && today >= m.start && today <= toLocalDateStr(getMacroEndDate(m)));
+  return hit ? hit.id : null;
+}
+
+// Re-points both page selections at the date-active cycle. Called from
+// showScreen() — i.e. on ARRIVING at Progress/Train/Plan, not from the render
+// functions themselves. 🚨 Calling it from renderProgress() would undo
+// cycleProgressMacro() the instant it ran and the cycle arrows would be dead:
+// the reset is a page-entry behaviour, the arrows are an in-page one. Same
+// idiom as `nutrSelectedDate = getLocalToday()` on entering Fuel.
+function resetToDateActiveMacro() {
+  const id = getDateActiveMacroId();
+  if (!id) return;
+  progressViewMacroId = id;
+  if (state.currentMacroId !== id) { state.currentMacroId = id; save(); }
 }
 
 // Resolves which macrocycle the Progress page is currently showing —
@@ -28257,9 +28321,14 @@ function initModal(overlayEl) {
   // a stray backdrop tap there costs real money to undo.
   if (overlayEl.hasAttribute('data-no-dismiss')) return;
 
-  // Tap the dark backdrop to close — must NOT be passive so stopPropagation works on iOS
+  // Tap the dark backdrop to close — must NOT be passive so preventDefault works on iOS.
+  // 🚨 preventDefault() is the load-bearing call, not stopPropagation(). Without it
+  // the browser still synthesises mousedown/mouseup/click ~300ms after touchstart;
+  // by then dismiss() has removed .open, the overlay is back to pointer-events:none,
+  // and that synthetic click lands on whatever button was UNDER the scrim — so a tap
+  // meant to close a sheet opened the next one instead (v8.16 UAT, Settings).
   overlayEl.addEventListener('touchstart', function(e) {
-    if (e.target === overlayEl) { e.stopPropagation(); dismiss(); }
+    if (e.target === overlayEl) { e.preventDefault(); e.stopPropagation(); dismiss(); }
   }, { passive: false });
   // Pointer fallback for non-touch (desktop)
   overlayEl.addEventListener('pointerdown', function(e) {
