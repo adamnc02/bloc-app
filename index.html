@@ -1164,7 +1164,8 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .tour-tooltip-body { font-size: 12.5px; color: var(--text2); line-height: 1.5; margin-top: 6px; }
 .tour-tooltip-hint { font-size: 10.5px; color: var(--accent2); margin-top: 8px; font-weight: 500; }
 .tour-tooltip-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; gap: 10px; }
-.tour-progress-dots { display: flex; gap: 4px; }
+.tour-progress-dots { display: flex; gap: 4px; min-width: 0; overflow: hidden; }
+.tour-progress-count { font-size: 11.5px; font-weight: 600; color: var(--text3); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .tour-progress-dot { width: 5px; height: 5px; border-radius: 999px; background: var(--border2); transition: background 0.2s; }
 .tour-progress-dot.tour-progress-dot-active { background: var(--accent); }
 .tour-tooltip-arrow {
@@ -6149,7 +6150,7 @@ try {
   <div class="modal-sheet" data-modal="modal-settings-about">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-settings-about')">✕</button></div>
     <div class="modal-title">About This App</div>
-    <div class="modal-sub">BLOC Training App, version 8.16. Everything below is held on this device.</div>
+    <div class="modal-sub">BLOC Training App, version 8.17. Everything below is held on this device.</div>
     <div class="card">
       <div id="storage-info"></div>
     </div>
@@ -6463,9 +6464,8 @@ function fetchDemoDataIfNewUser(isNewUser) {
 // The walkthrough itself, built on top of the tour engine (§33) and the
 // "today" anchor (§35). Three pieces: enterDemoMode() swaps `state` for
 // the fetched dataset and pins the anchor date; buildDemoTourSteps()
-// builds the actual step list, reading macro/exercise ids directly off
-// `demoData` rather than hardcoding them (see the function's own comment
-// for exactly which assumptions ARE dataset-specific); exitDemoMode()
+// strings the five per-page step builders together (see TOUR STEPS
+// below — the same builders the Mini-Tours use); exitDemoMode()
 // wipes back to a genuinely empty state and clears the anchor. No Skip
 // link on this tour (only Next / Get Started), per scope §1/§4 — that's
 // deliberately reserved for the Macrocycle Creation Tour.
@@ -6476,9 +6476,8 @@ function fetchDemoDataIfNewUser(isNewUser) {
 // the wipe at the very end of exitDemoMode().
 function enterDemoMode() {
   if (!demoData) return;
-  // Deep copy: expandedExercises / _blocAdviceSectionsOpen toggles below
-  // mutate `state` freely during the tour, and this must never leak back
-  // into the cached `demoData` object itself.
+  // Deep copy: the tour steps' onEnter hooks mutate `state` freely, and
+  // none of that may leak back into the cached `demoData` object itself.
   state = JSON.parse(JSON.stringify(demoData));
   ensureStateDefaults(); // same migration guards a real load() applies — see its own comment
   setTourAnchorDate('2026-08-02'); // Sunday — the dataset's anchor date, TECHNICAL.md §35
@@ -6507,194 +6506,246 @@ function beginDemoTourSteps() {
   });
 }
 
-// Builds the ordered Demo Tour step list. Copy is the first-pass draft
-// from bloc-onboarding-tour-scope-v2.md §10.2, plus the Train additions
-// from v3 §10.4. Macro/exercise ids are read off `demoData` itself so
-// the tour keeps working if the dataset is ever regenerated with new
-// ids — but the WEEK/DAY and exercise-NAME assumptions below (Pull day
-// at week 5 showing a normal, a locked, and a missed-target exercise
-// side by side) are genuinely dataset-specific, per v3 §10.4's "no
-// forced navigation needed" resolution: the default Train landing
-// already has everything both Train steps need.
-function buildDemoTourSteps() {
-  const macroId = demoData.currentMacroId;
-  const week = demoData.currentWeek;
-  const day = demoData.currentDay;
-  const exList = (demoData.exercises && demoData.exercises[`${macroId}_1_${day}`]) || [];
-  // Expands every exercise on the tour's Train landing day at once, rather
-  // than targeting one exercise by name. Progression lock status is
-  // re-evaluated live from logged sets against targets (not just read
-  // verbatim from the stored progressionLocks blob) — so which exercise
-  // actually renders locked vs normal can end up differing from what a
-  // dataset's own authors expected when they picked names for the scope
-  // doc's tooltip copy. Expanding all of them and then finding whichever
-  // one genuinely has a prog-selector/locked-notice element in the DOM
-  // (below) is correct regardless of that, and never goes stale if the
-  // dataset or the lock logic changes later.
-  const expandAllExercisesForDay = () => {
-    const macro = state.macrocycles.find(m => m.id === macroId);
+// ════════════════════════════════════════════════
+// TOUR STEPS — one builder per page (v8.17, TECHNICAL.md §93)
+// ════════════════════════════════════════════════
+// Each page's steps are written ONCE, here, and used twice: the Demo Tour
+// runs all five builders back to back against the demo dataset, and each
+// Mini-Tour (Settings → Help) runs its own page's builder against the
+// person's real data. Until v8.17 these were two hand-copied arrays per page,
+// so every fix had to be made twice (§33's v7.85 addendum) — and the v8.16
+// redesign broke both copies identically.
+//
+// `demo` changes only what a step is allowed to ASSERT. The demo dataset
+// guarantees a plateau, a stored check-in and a cycle review, and lets the
+// tour move "today"; real data guarantees none of that, so the mini-tour copy
+// describes rather than points.
+//
+// 🚨 Every target is a section or a row, never a whole screen. v8.16 turned
+// `progress-body` into the Insights card (770px tall), and seven old steps in
+// a row kept spotlighting that same wall of text while their copy talked
+// about things elsewhere on the page. A step that needs something smaller
+// than a section gets its own id: home-measure-row, ex-card-*, phase-row-*,
+// checkin-plan-*, checkin-challenge-btn. scripts/verify-tour-anchors.mjs
+// checks every static target exists in the markup.
+//
+// 🚨 A step whose onEnter OPENS a sheet needs its neighbours to CLOSE it, and
+// every tour exit closes it too (_closeTourSheets). Back reaches a step as
+// often as Next does — this is the bug class §36, §38 and §39 each found once.
+const TOUR_SHEETS = ['modal-checkin-full', 'modal-nutr-manual'];
+function _closeTourSheets() { TOUR_SHEETS.forEach(id => closeModal(id)); }
+
+// The demo dataset's anchor, and its cycle's last day (§35, §75).
+const DEMO_TOUR_TODAY = '2026-08-02';
+const DEMO_TOUR_CYCLE_END = '2026-09-13';
+
+function buildHomeTourSteps(demo) {
+  return [
+    { targetId: 'home-goal-banner', screen: 'home',
+      title: 'Your next phase, before it starts',
+      body: demo
+        ? 'A new nutrition phase starts tomorrow, so this line now shows what’s changing — only the targets that actually move.'
+        : 'This line shows the phase you’re on. When the next one is less than a week away, it switches to what’s about to change — only the targets that actually move.' },
+    { targetId: 'home-hero-wrap', screen: 'home',
+      title: 'Where you are',
+      body: 'The ring counts the days of this week so far. Beside it: the week of the cycle you’re in, and the goal you’re working towards.' },
+    { targetId: 'home-this-week', screen: 'home',
+      title: 'Your week against its targets',
+      body: 'Daily averages for this week against your phase’s targets. When a bar turns red, the note under it gives the daily figure for the rest of the week that brings it back.' },
+    { targetId: 'home-metric-card-kcal', screen: 'home',
+      title: 'Tap a row for the maths',
+      body: 'Calories, protein and carbs each explain where their numbers come from — including the rule BLOC uses to decide whether a day counts.' },
+    { targetId: 'home-log-boxes', screen: 'home',
+      title: 'Two numbers a day',
+      body: 'Log your weigh-in and steps here. Once saved they stay on screen for the rest of the day — tap one to change it. View body logs has the full history.' },
+    { targetId: 'home-measure-row', screen: 'home',
+      title: 'A nudge, not a nag',
+      body: 'Waist and hip aren’t daily. Four days after your last measurement this row shows Due, and it stays until you log a fresh one.' },
+    { targetId: 'home-train-preview', screen: 'home',
+      title: 'Up next',
+      body: 'Your next session and its targets. Start session takes you straight to it.' },
+    { targetId: 'home-food-preview', screen: 'home',
+      title: 'Food plan',
+      body: 'Anything you’ve planned ahead for today. Tap it to open Fuel.' },
+  ];
+}
+
+function buildProgressTourSteps(demo) {
+  // Demo only: the Last cycle and Build next cycle steps move "today" to the
+  // demo cycle's last day, so the review reads as a finished cycle's rather
+  // than a verdict on one still running (§75). Every other Progress step puts
+  // it back — Back can land on any of them straight from the moved date, and
+  // Plan, Train and Fuel after them need the real anchor for their own week.
+  const setDay = (d) => { if (demo) setTourAnchorDate(d); };
+  const onPage = (d = DEMO_TOUR_TODAY) => () => { _closeTourSheets(); setDay(d); renderProgress(); };
+  const inCheckinSheet = () => { setDay(DEMO_TOUR_TODAY); openCheckinSheet(); };
+
+  return [
+    { targetId: 'progress-hero-wrap', screen: 'progress', onEnter: onPage(),
+      title: 'Your cycle at a glance',
+      body: 'Your latest weigh-in against the cycle’s target, and whether you’re ahead or behind for how far through the cycle you are. Tap the card to look at another cycle.' },
+    { targetId: 'progress-checkin', screen: 'progress', onEnter: onPage(),
+      title: 'A check-in with BLOC',
+      body: demo
+        ? 'Partway through a cycle, BLOC AI reads everything you’ve logged and tells you whether the plan is working. Here it has found a three-week plateau.'
+        : 'Partway through a cycle, BLOC AI reads everything you’ve logged and tells you whether the plan is working. Read full check-in opens the whole thing.' },
+    // The check-in's sheet has no stored advice to show until one has been
+    // asked for — on a real account these two steps may find nothing, and
+    // the engine skips them (§33); the next step's onEnter closes the sheet.
+    { targetId: 'checkin-plan-sustainable', screen: 'progress', onEnter: inCheckinSheet,
+      title: 'Two ways forward',
+      body: 'Every check-in ends with two plans side by side: Sustainable, the gentler route, and Aggressive, the faster one. Choose one at the foot of the sheet and BLOC builds the goal periods for you.' },
+    // "Challenge this" is one-shot per check-in, and the link goes once it has
+    // been used — as it has in the demo dataset. Point at the Aggressive plan
+    // instead and say so, rather than describe a link that is not there.
+    { targetId: 'checkin-challenge-btn', screen: 'progress',
+      onEnter: (step) => {
+        inCheckinSheet();
+        const live = !!document.getElementById('checkin-challenge-btn');
+        step.targetId = live ? 'checkin-challenge-btn' : 'checkin-plan-aggressive';
+        step.body = live
+          ? 'Numbers don’t sit right? Tap Challenge this and tell BLOC what seems off. It replies once, with a revised plan rather than just an explanation.'
+          : 'Each check-in also gets one Challenge this: tell BLOC what seems off and it replies with a revised plan, not just an explanation. This one has already been used.';
+      },
+      title: 'Not convinced? Push back',
+      body: '' },
+    { targetId: 'progress-week-by-week', screen: 'progress', onEnter: onPage(),
+      title: 'Week by week',
+      body: 'Every week of the cycle in one table, each number coloured from your best week to your weakest. Swipe it, or tap Summary, Swings and Measurements, for the other views.' },
+    { targetId: 'progress-insights', screen: 'progress', onEnter: onPage(),
+      title: 'BLOC’s own read of the numbers',
+      body: demo
+        ? 'No AI and no key needed: your trend, any plateau — like this one — your best 7-day window, and what your logs say about your metabolism.'
+        : 'No AI and no key needed: your trend, any plateau, your best 7-day window, and what your logs say about your metabolism.' },
+    { targetId: 'progress-last-cycle', screen: 'progress', onEnter: onPage(DEMO_TOUR_CYCLE_END),
+      title: 'A review when the cycle ends',
+      body: demo
+        ? 'We’ve jumped ahead to this cycle’s last day. BLOC reviews the whole cycle once — weight, waist, training and how closely you stuck to plan — and Read full review has the story behind the score.'
+        : 'On a cycle’s last day, BLOC reviews the whole cycle once — weight, waist, training and how closely you stuck to plan. Read full review has the story behind the score.' },
+    { targetId: 'progress-next-cycle', screen: 'progress', onEnter: onPage(DEMO_TOUR_CYCLE_END),
+      title: 'What comes next',
+      body: 'In a cycle’s final week, BLOC suggests the next one — a bridge, a cut or a bulk — from your real trend. Read full advice lays out the plan and can build it for you.' },
+    { targetId: 'progress-statistics', screen: 'progress', onEnter: onPage(),
+      title: 'The detail, day by day',
+      body: 'Your last seven days, day by day. All-time stats and your macro split are one tap away.' },
+  ];
+}
+
+function buildPlanTourSteps(demo) {
+  return [
+    { targetId: 'macro-overview', screen: 'plan',
+      title: 'Your training block',
+      body: 'One pill per mesocycle — the pulsing one is where you are now — with the block’s goal weight, sessions and phases. Tap the card to switch to another macrocycle.' },
+    // The phase you are on, not simply the first row: the filled dot is what
+    // the copy points at. Falls back to the section if there are no phases.
+    { targetId: 'plan-goals-section', screen: 'plan',
+      onEnter: (step) => {
+        const row = document.querySelector('#plan-goals-section .phase-dot-now')?.closest('.phase-row')
+          || document.querySelector('#plan-goals-section .phase-row');
+        step.targetId = row ? row.id : 'plan-goals-section';
+      },
+      title: 'Nutrition phases',
+      body: 'Each phase and its targets, in the order they run. The filled dot is the phase you’re on — tap any phase to edit it.' },
+    { targetId: 'plan-step-chart', screen: 'plan',
+      title: 'How your targets move',
+      body: 'One bar per phase. It cycles through calories, steps, carbs and fats on its own — tap one to hold it.' },
+    { targetId: 'plan-content', screen: 'plan',
+      title: 'Weekly sessions',
+      body: 'Exercises set here carry forward to every week of the cycle. Tap a session to see and edit its exercises.' },
+    { targetId: 'plan-volume', screen: 'plan',
+      title: 'Volume by body part',
+      body: 'Total training volume across the cycle for each body part. Solid is the minimum, faded is the peak.' },
+    { targetId: 'plan-tools', screen: 'plan',
+      title: 'Extend, or start again',
+      body: demo
+        ? 'Extend adds weeks to this cycle; New cycle starts the next one. After this tour you’ll set up your profile, and then we’ll walk through creating your first cycle together.'
+        : 'Extend adds weeks to this cycle; New cycle starts the next one.' },
+  ];
+}
+
+function buildTrainTourSteps(demo) {
+  // Reads the session Train is actually showing at the moment the step runs —
+  // _ensureTourScreen() has just rendered it — rather than one captured when
+  // the tour was built, which the Demo Tour's state swap would make stale.
+  const setAllExpanded = (open) => {
+    const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
     if (!macro) return;
-    exList.forEach(ex => { expandedExercises[`${macroId}_${week}_${day}_${ex.id}`] = true; });
+    (state.exercises[`${macro.id}_1_${state.currentDay}`] || []).forEach(ex => {
+      expandedExercises[`${macro.id}_${state.currentWeek}_${state.currentDay}_${ex.id}`] = open;
+    });
     renderTrainDay(macro);
+  };
+  // Expands every card, then finds whichever one actually renders the element
+  // — which exercise is locked is re-derived live from the logs, so it cannot
+  // be named in advance (§36). Falls back to the hero if none does.
+  const findExpanded = (prefix) => (step) => {
+    setAllExpanded(true);
+    const el = document.querySelector(`#train-content [id^="${prefix}"]`);
+    step.targetId = el ? el.id : 'train-hero';
   };
 
   return [
-    // ── Home ──────────────────────────────────────────────────────────
-    { targetId: 'home-goal-banner', screen: 'home',
-      title: 'Goals change automatically',
-      body: 'When your next goal is close, BLOC shows what\u2019s changing here \u2014 so you\u2019re never caught off guard by a shift in your targets.' },
-    { targetId: 'home-hero-wrap', screen: 'home',
-      title: 'BLOC does the math for you',
-      body: 'If you\u2019re off pace for the week, this tells you exactly how to adjust your daily average for the rest of the week \u2014 no spreadsheet required.' },
-    { targetId: 'home-log-boxes', screen: 'home',
-      title: 'A gentle nudge, not a nag',
-      body: 'Waist/hip measurements aren\u2019t daily \u2014 BLOC reminds you every 4 days, and the reminder stays until you log a fresh one.' },
-    { targetId: 'home-body-logs-btn', screen: 'home',
-      title: 'Quick access',
-      body: 'Tap here any time to jump straight to your full body-log history.' },
-    { targetId: 'home-metric-card-kcal', screen: 'home',
-      title: 'Tap a card to see the math',
-      body: 'Tap the Kcal, Protein, or Carbs card any time to see exactly where its numbers come from \u2014 and the rule BLOC uses to decide if a day counts.' },
-    // ── Progress ──────────────────────────────────────────────────────
-    { targetId: 'progress-body', screen: 'progress',
-      title: 'BLOC watches your trend, not just today',
-      body: 'This card flags plateaus, calorie drift, undereating on a bulk, or weight instability on maintenance \u2014 whatever\u2019s relevant to your current goal. Right now, it\u2019s showing a plateau it\u2019s detected in this data.',
-      // Collapses the AI-advice section and re-renders — needed for Back,
-      // not just the initial forward entry. Without this, arriving here
-      // via Back from the narrative step left the card exactly as the
-      // narrative step's onEnter set it up (expanded, no re-render), so
-      // the ring stayed sized to the expanded card instead of shrinking
-      // back down to this step's collapsed one.
-      onEnter: () => {
-        renderProgress();
-      } },
-    { targetId: 'progress-body', screen: 'progress',
-      title: 'BLOC explains its reasoning, not just the numbers',
-      body: 'BLOC walks through exactly why it thinks this is happening before recommending anything \u2014 tap "Read full check-in" for the whole thing.',
-      // _blocAdviceSectionsOpen.narrative only controls the narrative
-      // sub-section WITHIN the advice card — it's nested behind a
-      // separate outer collapse (_aiAdviceBodyOpen, the "View BLOC AI
-      // advice" toggle) that has to be opened too, or the whole card body
-      // stays hidden regardless of the inner flag. Found by testing: the
-      // narrative visibly failed to expand until both were set together.
-      onEnter: () => {
-        _blocAdviceSectionsOpen.narrative = true;
-        _blocAdviceSectionsOpen.selected = false;
-        _blocAdviceSectionsOpen.alt = false;
-        renderProgress();
-      } },
-    { targetId: 'progress-body', screen: 'progress',
-      title: 'The Sustainable plan',
-      body: 'BLOC always lays out both options side by side \u2014 this is the gentler, slower-paced route toward your goal.',
-      // Which flag shows "Sustainable" depends on which path was actually
-      // chosen (post-choice UI shows the CHOSEN plan under .selected and
-      // the other one under .alt, never a fixed pairing) — read
-      // chosenPath at render time rather than assuming Sustainable is
-      // always the alternate, so this is correct however the advice was
-      // chosen. If no plan has been chosen yet, the card shows both
-      // plans side by side unconditionally and these flags don't apply —
-      // harmless, not wrong, just redundant with the next step in that case.
-      onEnter: () => {
-        _blocAdviceSectionsOpen.narrative = false;
-        const chosenPath = state.blocAdvice && state.blocAdvice.chosenPath;
-        _blocAdviceSectionsOpen.selected = chosenPath === 'sustainable';
-        _blocAdviceSectionsOpen.alt = chosenPath !== 'sustainable';
-        renderProgress();
-      } },
-    { targetId: 'progress-body', screen: 'progress',
-      title: 'The Aggressive plan \u2014 and a way to push back',
-      body: 'This is the faster, more demanding route. Whichever plan you\u2019re actually on, if the numbers don\u2019t sit right, tap \u2018Challenge this\u2019 in the full check-in \u2014 BLOC will respond with a revised plan, not just an explanation.',
-      onEnter: () => {
-        const chosenPath = state.blocAdvice && state.blocAdvice.chosenPath;
-        _blocAdviceSectionsOpen.selected = chosenPath === 'aggressive';
-        _blocAdviceSectionsOpen.alt = chosenPath !== 'aggressive';
-        renderProgress();
-      } },
-    // Final-week card (dev 2026-09-15, item 1 + tour follow-up) — replaces
-    // the old single "Next Cycle" card-3 step, which targeted a card that
-    // no longer exists in the UI (removed the same day, item 4). Jumps the
-    // tour's date anchor forward to this same macro's actual last day so
-    // the final-week two-section card (Build next cycle / Cycle review)
-    // renders for real, using the nextCycleAdvice/macro.review pre-seeded
-    // in bloc-demo-data.json (same pattern as blocAdvice above — no live
-    // API call needed mid-tour). Reset back to the dataset's real anchor
-    // date happens in the progress-tables-wrap step below, before Plan/
-    // Train/Nutrition — those depend on the ORIGINAL date for their own
-    // week/day context.
-    { targetId: 'progress-body', screen: 'progress',
-      title: 'In the final week, this card does two things at once',
-      body: 'Once your cycle is in its last week, this same card swaps to two sections: what BLOC thinks should come next, and — once the cycle actually ends — a full review of how it went. Let’s jump ahead to your cycle’s last day to see both.',
-      onEnter: () => {
-        setTourAnchorDate('2026-09-13');
-        _nextCycleAdviceSectionsOpen.narrative = true;
-        _nextCycleAdviceSectionsOpen.selected = false;
-        _nextCycleAdviceSectionsOpen.alt = false;
-        renderProgress();
-      } },
-    { targetId: 'progress-body', screen: 'progress',
-      title: 'Build next cycle — a second opinion on what’s next',
-      body: 'BLOC works out what comes next — a bridge, a cut, or a bulk — from your real trend data, the same way it gave you a second opinion on your current plan earlier. This is available for the whole final week, not just today.',
-      onEnter: () => {
-        renderProgress();
-      } },
-    { targetId: 'progress-body', screen: 'progress',
-      title: 'Cycle review — one score, one narrative, once per cycle',
-      body: 'On the cycle’s actual last day, BLOC reviews the whole thing — weight, measurements, training, and compliance — into a score and a full narrative. This runs once and can’t be redone, but stays here for you to revisit any time you switch back to this cycle.',
-      onEnter: () => {
-        renderProgress();
-      } },
-    { targetId: 'progress-tables-wrap', screen: 'progress',
-      title: 'There’s more than one screen here',
-      // Resets the date anchor back to the dataset's real one — Plan, Train
-      // and Nutrition below all depend on it for their own week/day context,
-      // and it must not leak forward past this point in the tour.
-      body: 'Swipe left and right on both this card and the insights card you just saw above — each has several views tucked behind the dots.',
-      onEnter: () => {
-        setTourAnchorDate('2026-08-02');
-        renderProgress();
-      } },
-    // ── Plan ──────────────────────────────────────────────────────────
-    { targetId: 'plan-content', screen: 'plan',
-      title: 'Your macrocycles live here',
-      body: 'This is where you build and manage training blocks. We\u2019ll walk through creating your first one in detail right after this.' },
-    // ── Train ─────────────────────────────────────────────────────────
-    { targetId: `deload-toggle-${macroId}`, screen: 'train',
-      title: 'Deload weeks, one tap',
-      body: 'Mark a week as deload here and every weight drops to 60% automatically \u2014 your next session reverts to normal on its own.' },
-    { targetId: 'train-hero', screen: 'train', // overwritten in onEnter once the real element is known — see comment above
+    { targetId: 'train-header', screen: 'train',
+      title: 'Today’s session',
+      body: 'The session you’re on, the mesocycle it belongs to and the dates it covers. The clock opens the rest timer.' },
+    { targetId: 'train-hero', screen: 'train',
+      title: 'The session at a glance',
+      body: 'Exercises, sets done and total volume, filling in as you log.' },
+    { targetId: 'train-hero', screen: 'train',
+      onEnter: (step) => {
+        setAllExpanded(false);
+        const card = document.querySelector('#train-content .ex-card');
+        step.targetId = card ? card.id : 'train-hero';
+      },
+      title: 'One card per exercise',
+      body: 'Its target sets, reps and weight, with a dot for each set. Tap the card to log it — the tick button completes every set at target.' },
+    { targetId: 'train-hero', screen: 'train', onEnter: findExpanded('prog-selector-'),
       title: 'You choose how to progress',
-      body: 'Once you\u2019ve got a full week logged, BLOC gives you two ways forward: add weight, or add reps. Pick whichever fits your session that day.',
-      onEnter: (step) => {
-        expandAllExercisesForDay();
-        const found = document.querySelector(`[id^="prog-selector-${macroId}-"]`);
-        if (found) step.targetId = found.id;
-      } },
-    { targetId: 'train-hero', screen: 'train', // overwritten in onEnter once the real element is known — see comment above
-      title: 'Miss a target and BLOC notices',
-      body: 'If you don\u2019t hit last week\u2019s suggestion, BLOC freezes next week\u2019s numbers at the same target instead of pushing you further \u2014 so you\u2019re never asked to progress on top of a target you haven\u2019t hit yet.',
-      onEnter: (step) => {
-        expandAllExercisesForDay();
-        const found = document.querySelector(`[id^="locked-notice-${macroId}-"]`);
-        if (found) step.targetId = found.id;
-      } },
-    // ── Nutrition ─────────────────────────────────────────────────────
+      body: 'Once you’ve logged a full week, BLOC offers two ways forward: more weight or more reps. Pick whichever suits the session.' },
+    { targetId: 'train-hero', screen: 'train', onEnter: findExpanded('locked-notice-'),
+      title: 'Miss a target and BLOC holds',
+      body: 'Miss last week’s target on any set and the exercise goes On hold: next week keeps the same target instead of adding more. Amber marks the sets that fell short.' },
+    { targetId: 'train-tools', screen: 'train',
+      title: 'Session tools',
+      body: 'Change session jumps to any other day in the cycle. Mark week as deload drops every weight to 60% for that week, and progression picks up again after it.' },
+  ];
+}
+
+function buildFuelTourSteps(demo) {
+  return [
+    { targetId: 'nutr-hero-wrap', screen: 'nutrition', onEnter: _closeTourSheets,
+      title: 'Today’s food',
+      body: 'What you’ve eaten against today’s targets. Swipe the card to change day, or tap the calendar at the top to jump to any date.' },
     { targetId: 'nutr-save-badge-wrap', screen: 'nutrition',
-      title: 'Save a day that\u2019s working',
-      body: 'When a day lands close to your targets, BLOC offers to save it \u2014 so you can reuse it instantly on a future date with Fill Day.' },
+      title: 'Save a day that’s working',
+      body: demo
+        ? 'This day landed close to its targets, so BLOC offers to save it. A saved day fills a future one in a single tap, with Fill day.'
+        : 'When a day lands close to your targets, BLOC offers to save it here, so you can reuse it on a future day with Fill day.' },
     { targetId: 'meal-menu-btn-Dinner', screen: 'nutrition',
       title: 'More options on any meal',
-      body: 'Tap the \u22ef on any meal to copy it, move it to another meal, or save it as a recipe.',
-      // Closes the next step's Quick Add modal — needed for Back. The
-      // next step opens modal-nutr-manual in its own onEnter but never
-      // closes it on the way back out, so arriving here via Back left
-      // that modal sitting open on top of (and blocking) this step's
-      // spotlighted ellipsis button. closeModal() is a no-op if the
-      // modal isn't already open, so this is safe on the forward pass too.
-      onEnter: () => closeModal('modal-nutr-manual') },
-    { targetId: 'nutr-manual-mode-item', screen: 'nutrition',
-      title: 'Pick the right entry type',
-      body: 'Per item logs a one-off total. Per gram is for something you\u2019ve weighed yourself \u2014 it saves a reusable per-gram rate to your food library.',
-      onEnter: () => openModal('modal-nutr-manual') },
+      body: 'The ··· on each meal copies or moves it to another day, swaps it with another day’s meal, or saves it as a recipe.' },
+    { targetId: 'nutr-week-rest', screen: 'nutrition',
+      title: 'The rest of your week',
+      body: 'Daily targets recalculated so the week still lands on plan, whatever today looked like.' },
+    { targetId: 'nutr-shortcuts', screen: 'nutrition', onEnter: _closeTourSheets,
+      title: 'Shortcuts',
+      body: 'Quick add logs a whole day as one total, Fill day fills it from your meal plan, and Recipes logs something you’ve built before.' },
+    { targetId: 'nutr-manual-mode-item', screen: 'nutrition', onEnter: () => openModal('modal-nutr-manual'),
+      title: 'Typing a food in by hand?',
+      body: 'Per item logs a one-off total. Per gram is for something you’ve weighed — it saves a reusable per-gram rate to your food library.' },
+  ];
+}
+
+// The Demo Tour is the five pages back to back. Order matters beyond taste:
+// Progress hands the anchor back to DEMO_TOUR_TODAY before Plan, Train and
+// Fuel, which read their own week from it.
+function buildDemoTourSteps() {
+  return [
+    ...buildHomeTourSteps(true),
+    ...buildProgressTourSteps(true),
+    ...buildPlanTourSteps(true),
+    ...buildTrainTourSteps(true),
+    ...buildFuelTourSteps(true),
   ];
 }
 
@@ -6742,207 +6793,46 @@ function exitDemoMode() {
 // MINI-TOURS (Build Order step 8)
 // ════════════════════════════════════════════════
 // Fully manual, Settings-triggered, on-demand — never auto-triggered,
-// never re-shown automatically. Reuses the same per-page tooltip copy as
-// the Demo Tour's corresponding steps (§36), but points at whatever the
-// person's REAL current data actually is, not `demoData`. No date
-// anchor (§35) — Mini-Tours always run against the real device date,
-// since there's no engineered dataset to keep in sync with a fixed
-// anchor. `allowSkip: true` throughout, since unlike the Demo Tour and
-// the Macrocycle Creation Tour these are entirely optional exploration
-// the person opted into — they should always have an easy way out.
+// never re-shown automatically. Each runs its page's step builder (above)
+// against the person's REAL data: no demoData, and no date anchor (§35).
+// `allowSkip: true` throughout, since unlike the Demo Tour and the
+// Macrocycle Creation Tour these are optional exploration the person opted
+// into.
 //
-// Because real data varies per person (no macrocycle yet, no meals
-// logged today, no AI advice ever requested, etc.), several steps below
-// target elements that may not currently hold anything interesting, or
-// may not exist in the DOM at all for a genuinely empty account. Both
-// are fine: the tour engine's target-not-found handling (§33) already
-// skips a step cleanly if its element isn't there, and a step whose
-// target exists but is currently empty just explains the feature for
-// next time — the same tradeoff any "explore the app" tour anywhere
-// makes.
+// Real data varies per person (no macrocycle yet, nothing logged today, no
+// check-in ever requested), so some targets will not exist. That is fine:
+// the tour engine skips a step whose element is not on the page (§33).
 function openTourHelpModal() { openModal('modal-tour-help'); }
 
-function startHomeMiniTour() {
+function _startMiniTour(screen, buildSteps) {
   closeModal('modal-tour-help');
-  showScreen('home');
+  // Progress, Plan and Train describe a cycle. With none, every step's
+  // target is empty and the engine would skip them all — the tour would
+  // end the moment it began, silently. Say why instead.
+  if (['progress', 'plan', 'train'].includes(screen) && !(state.macrocycles || []).length) {
+    showConfirm('Nothing to tour yet',
+      'This tour walks through your own training cycle. Create one from Plan, then come back.', 'OK', null);
+    return;
+  }
+  showScreen(screen);
   requestAnimationFrame(() => setTimeout(() => {
-    startTour([
-      { targetId: 'home-goal-banner', screen: 'home',
-        title: 'Goals change automatically',
-        body: 'When your next goal is close, BLOC shows what\u2019s changing here \u2014 so you\u2019re never caught off guard by a shift in your targets.' },
-      { targetId: 'home-hero-wrap', screen: 'home',
-        title: 'BLOC does the math for you',
-        body: 'If you\u2019re off pace for the week, this tells you exactly how to adjust your daily average for the rest of the week \u2014 no spreadsheet required.' },
-      { targetId: 'home-log-boxes', screen: 'home',
-        title: 'A gentle nudge, not a nag',
-        body: 'Waist/hip measurements aren\u2019t daily \u2014 BLOC reminds you every 4 days, and the reminder stays until you log a fresh one.' },
-      { targetId: 'home-body-logs-btn', screen: 'home',
-        title: 'Quick access',
-        body: 'Tap here any time to jump straight to your full body-log history.' },
-      { targetId: 'home-metric-card-kcal', screen: 'home',
-        title: 'Tap a card to see the math',
-        body: 'Tap the Kcal, Protein, or Carbs card any time to see exactly where its numbers come from \u2014 and the rule BLOC uses to decide if a day counts.' },
-    ], { allowSkip: true, finalLabel: 'Done' });
-  }, 300));
-}
-
-function startProgressMiniTour() {
-  closeModal('modal-tour-help');
-  showScreen('progress');
-  requestAnimationFrame(() => setTimeout(() => {
-    startTour([
-      { targetId: 'progress-body', screen: 'progress',
-        title: 'BLOC watches your trend, not just today',
-        // Demo Tour's version of this line asserted a plateau was
-        // currently showing, since the engineered dataset guaranteed
-        // one — dropped here since a Mini-Tour has no such guarantee.
-        body: 'This card flags plateaus, calorie drift, undereating on a bulk, or weight instability on maintenance \u2014 whatever\u2019s relevant to your current goal.',
-        // Collapses the AI-advice section and re-renders — needed for
-        // Back, not just the initial forward entry. Without this,
-        // arriving here via Back from the narrative step left the card
-        // exactly as the narrative step's onEnter set it up (expanded,
-        // no re-render), so the ring stayed sized to the expanded card
-        // instead of shrinking back down to this step's collapsed one.
-        onEnter: () => {
-          renderProgress();
-        } },
-      { targetId: 'progress-body', screen: 'progress',
-        title: 'BLOC explains its reasoning, not just the numbers',
-        body: 'BLOC walks through exactly why it thinks this is happening before recommending anything \u2014 tap "Read full check-in" for the whole thing.',
-        onEnter: () => {
-          _blocAdviceSectionsOpen.narrative = true;
-          _blocAdviceSectionsOpen.selected = false;
-          _blocAdviceSectionsOpen.alt = false;
-          renderProgress();
-        } },
-      { targetId: 'progress-body', screen: 'progress',
-        title: 'The Sustainable plan',
-        body: 'BLOC always lays out both options side by side \u2014 this is the gentler, slower-paced route toward your goal.',
-        onEnter: () => {
-          _blocAdviceSectionsOpen.narrative = false;
-          const chosenPath = state.blocAdvice && state.blocAdvice.chosenPath;
-          _blocAdviceSectionsOpen.selected = chosenPath === 'sustainable';
-          _blocAdviceSectionsOpen.alt = chosenPath !== 'sustainable';
-          renderProgress();
-        } },
-      { targetId: 'progress-body', screen: 'progress',
-        title: 'The Aggressive plan \u2014 and a way to push back',
-        body: 'This is the faster, more demanding route. Whichever plan you\u2019re actually on, if the numbers don\u2019t sit right, tap \u2018Challenge this\u2019 in the full check-in \u2014 BLOC will respond with a revised plan, not just an explanation.',
-        onEnter: () => {
-          const chosenPath = state.blocAdvice && state.blocAdvice.chosenPath;
-          _blocAdviceSectionsOpen.selected = chosenPath === 'aggressive';
-          _blocAdviceSectionsOpen.alt = chosenPath !== 'aggressive';
-          renderProgress();
-        } },
-      { targetId: 'progress-body', screen: 'progress',
-        title: 'Your final week: two things happen automatically',
-        // Real user data here, not the demo dataset — can't jump the date
-        // anchor forward like the Demo Tour's version of this step does,
-        // so this stays descriptive rather than forcing a specific state.
-        body: 'In your cycle’s last week, this card swaps to show what BLOC thinks should come next, plus — once the cycle actually ends — a full cycle review with a compliance score and narrative. You’ll see this automatically once you get there.',
-        onEnter: () => {
-          renderProgress();
-        } },
-      { targetId: 'progress-tables-wrap', screen: 'progress',
-        title: 'There\u2019s more than one screen here',
-        body: 'Swipe left and right on both this card and the insights card you just saw above \u2014 each has several views tucked behind the dots.',
-        onEnter: () => { renderProgress(); } },
-    ], { allowSkip: true, finalLabel: 'Done' });
-  }, 300));
-}
-
-function startPlanMiniTour() {
-  closeModal('modal-tour-help');
-  showScreen('plan');
-  requestAnimationFrame(() => setTimeout(() => {
-    startTour([
-      { targetId: 'plan-content', screen: 'plan',
-        title: 'Your macrocycles live here',
-        body: 'This is where you build and manage training blocks \u2014 tap any macrocycle to see its full schedule, or the + button to start a new one.' },
-    ], { allowSkip: true, finalLabel: 'Done' });
-  }, 300));
-}
-
-function startTrainMiniTour() {
-  closeModal('modal-tour-help');
-  showScreen('train');
-  requestAnimationFrame(() => setTimeout(() => {
-    // Same dynamic-lookup approach as the Demo Tour's Train steps (§36),
-    // generalized off the CURRENTLY ACTIVE real macro/week/day rather
-    // than a fixed demo one — expands every exercise on today's session
-    // at once, then finds whichever one actually renders a progression
-    // selector vs a locked notice, since a real account might have
-    // neither (nothing logged yet) or only one of the two.
-    const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
-    const macroId = state.currentMacroId;
-    const week = state.currentWeek;
-    const day = state.currentDay;
-    const exList = (macro && state.exercises[`${macroId}_1_${day}`]) || [];
-    const expandAllExercisesForDay = () => {
-      if (!macro) return;
-      exList.forEach(ex => { expandedExercises[`${macroId}_${week}_${day}_${ex.id}`] = true; });
-      renderTrainDay(macro);
-    };
-    startTour([
-      { targetId: `deload-toggle-${macroId}`, screen: 'train',
-        title: 'Deload weeks, one tap',
-        body: 'Mark a week as deload here and every weight drops to 60% automatically \u2014 your next session reverts to normal on its own.' },
-      { targetId: 'train-hero', screen: 'train',
-        title: 'You choose how to progress',
-        body: 'Once you\u2019ve got a full week logged, BLOC gives you two ways forward: add weight, or add reps. Pick whichever fits your session that day.',
-        onEnter: (step) => {
-          expandAllExercisesForDay();
-          const found = document.querySelector(`[id^="prog-selector-${macroId}-"]`);
-          if (found) step.targetId = found.id;
-        } },
-      { targetId: 'train-hero', screen: 'train',
-        title: 'Miss a target and BLOC notices',
-        body: 'If you don\u2019t hit last week\u2019s suggestion, BLOC freezes next week\u2019s numbers at the same target instead of pushing you further \u2014 so you\u2019re never asked to progress on top of a target you haven\u2019t hit yet.',
-        onEnter: (step) => {
-          expandAllExercisesForDay();
-          const found = document.querySelector(`[id^="locked-notice-${macroId}-"]`);
-          if (found) step.targetId = found.id;
-        } },
-    ], { allowSkip: true, finalLabel: 'Done' });
-  }, 300));
-}
-
-function startNutritionMiniTour() {
-  closeModal('modal-tour-help');
-  showScreen('nutrition');
-  requestAnimationFrame(() => setTimeout(() => {
-    startTour([
-      { targetId: 'nutr-save-badge-wrap', screen: 'nutrition',
-        title: 'Save a day that\u2019s working',
-        body: 'When a day lands close to your targets, BLOC offers to save it \u2014 so you can reuse it instantly on a future date with Fill Day.' },
-      { targetId: 'meal-menu-btn-Dinner', screen: 'nutrition',
-        title: 'More options on any meal',
-        body: 'Tap the \u22ef on any meal to copy it, move it to another meal, or save it as a recipe.',
-        // Closes the next step's Quick Add modal — needed for Back. The
-        // next step opens modal-nutr-manual in its own onEnter but never
-        // closes it on the way back out, so arriving here via Back left
-        // that modal sitting open on top of (and blocking) this step's
-        // spotlighted ellipsis button. closeModal() is a no-op if the
-        // modal isn't already open, so this is safe on the forward pass too.
-        onEnter: () => closeModal('modal-nutr-manual') },
-      { targetId: 'nutr-manual-mode-item', screen: 'nutrition',
-        title: 'Pick the right entry type',
-        body: 'Per item logs a one-off total. Per gram is for something you\u2019ve weighed yourself \u2014 it saves a reusable per-gram rate to your food library.',
-        onEnter: () => openModal('modal-nutr-manual') },
-    ], {
+    startTour(buildSteps(false), {
       allowSkip: true,
       finalLabel: 'Done',
-      // The last step's own onEnter opens modal-nutr-manual and nothing
-      // else in this tour ever closes it — unlike the Demo Tour, a
-      // Mini-Tour has no wipe-and-handoff to sweep it up afterward, so
-      // it has to be closed explicitly here on both exit paths. Safe to
-      // call even if the person skipped before this step ever opened it
-      // — closeModal() on an already-closed modal is a harmless no-op.
-      onComplete: () => closeModal('modal-nutr-manual'),
-      onSkip: () => closeModal('modal-nutr-manual'),
+      // A Mini-Tour has no wipe-and-handoff to sweep up a sheet a step
+      // opened (the Demo Tour's exitDemoMode() does), so close them on
+      // both exit paths. closeModal() on a closed sheet is a no-op.
+      onComplete: _closeTourSheets,
+      onSkip: _closeTourSheets,
     });
   }, 300));
 }
+
+function startHomeMiniTour()      { _startMiniTour('home',      buildHomeTourSteps); }
+function startProgressMiniTour()  { _startMiniTour('progress',  buildProgressTourSteps); }
+function startPlanMiniTour()      { _startMiniTour('plan',      buildPlanTourSteps); }
+function startTrainMiniTour()     { _startMiniTour('train',     buildTrainTourSteps); }
+function startNutritionMiniTour() { _startMiniTour('nutrition', buildFuelTourSteps); }
 
 // ════════════════════════════════════════════════
 // AUTH (Phase 5 — OAuth/Email sign-in, Supabase Auth)
@@ -7914,6 +7804,25 @@ function continueBootAfterAuth() {
     // figure on the app. The anchor belongs to the demo dataset alone.
     if (devBypassHasRealData()) {
       showScreen('home');
+      return;
+    }
+    // Local dev only: `?tour=demo` runs the real first-run Demo Tour — the
+    // welcome sheet, every step, then exitDemoMode()'s wipe, the profile gate
+    // and the Macrocycle Creation Tour — on the TRACKED dataset production
+    // serves. Production starts it from the new-user demo fetch, which this
+    // bypass skips, so until v8.17 the Demo Tour could not be run on a phone
+    // against a local build at all.
+    //
+    // 🚨 Deliberately below devBypassHasRealData(): exitDemoMode() save()s an
+    // empty state, which on a device holding a restored backup would wipe it.
+    if (new URLSearchParams(window.location.search).get('tour') === 'demo') {
+      fetch('bloc-demo-data.json')
+        .then(res => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
+        .then(data => { demoData = data; startDemoTour(); })
+        .catch(err => {
+          console.warn('[dev] ?tour=demo: demo data fetch failed:', err.message);
+          showScreen('home');
+        });
       return;
     }
     if (demoData) {
@@ -9176,6 +9085,7 @@ function tourNext() {
   if (!_tourState) return;
   const step = _tourState.steps[_tourState.index];
   if (step && step.onAdvance) step.onAdvance(step);
+  _tourState.dir = 1;
   _tourState.index++;
   if (_tourState.index >= _tourState.steps.length) {
     _completeTour();
@@ -9186,6 +9096,7 @@ function tourNext() {
 
 function tourBack() {
   if (!_tourState || _tourState.index === 0) return;
+  _tourState.dir = -1;
   _tourState.index--;
   _renderTourStep();
 }
@@ -9325,14 +9236,30 @@ function _renderTourStep() {
   if (step.onEnter) step.onEnter(step);
 
   const target = document.getElementById(step.targetId);
-  if (!target) {
+  const targetRect = target && target.getBoundingClientRect();
+  if (!target || !targetRect.width || !targetRect.height) {
     // Target genuinely isn't on the page (wrong screen, conditional
     // element not currently rendered, etc). Rather than soft-lock the
     // tour on an invisible step, skip it — this is a content/sequencing
     // bug to fix in the step list, not something the person should ever
     // get stuck on.
-    console.warn('[tour] target not found, skipping step:', step.targetId);
-    tourNext();
+    //
+    // 🚨 An EMPTY target is skipped too (v8.17). v8.16's page sections are
+    // containers that always exist, so on an account with nothing logged
+    // the element is there at 0px tall — and the tour would ring a hairline
+    // while its copy described a card that is not on screen.
+    //
+    // 🚨 Skip in the direction of travel. Skipping forward from a Back
+    // lands straight back on the step Back was pressed on, so Back past any
+    // skipped step looked like a button that did nothing.
+    console.warn('[tour] target not found or empty, skipping step:', step.targetId);
+    if (_tourState.dir === -1 && _tourState.index > 0) {
+      _tourState.index--;
+      _renderTourStep();
+    } else {
+      _tourState.dir = 1;
+      tourNext();
+    }
     return;
   }
   // Instant, not smooth — found live: for a large scroll distance, a
@@ -9383,6 +9310,13 @@ function _repositionTourStep() {
 }
 
 function _positionTourStep(step, target, skipTooltipContent) {
+  // 🚨 Re-resolve a target that was REPLACED during the settle delay. Plan's
+  // step chart repaints itself every 2s via outerHTML (repaintPlanStepChart),
+  // so the node captured before the 220ms wait can be detached by the time it
+  // is measured — a detached node measures 0×0 at (0,0), which put the ring in
+  // the screen's top-left corner and masked the chart (v8.17 UAT). Timing-
+  // dependent, so a walk-through only catches it some of the time.
+  if (!target.isConnected) target = document.getElementById(step.targetId) || target;
   const r = target.getBoundingClientRect();
   const pad = 6;
   const top = r.top - pad, left = r.left - pad, right = r.right + pad, bottom = r.bottom + pad;
@@ -9473,9 +9407,16 @@ function _positionTourStep(step, target, skipTooltipContent) {
 function _renderTourTooltipContent(step, tip) {
   const idx = _tourState.index, total = _tourState.steps.length, opts = _tourState.opts;
   const isLast = idx === total - 1;
-  const dots = _tourState.steps.map((s, i) =>
-    `<span class="tour-progress-dot${i === idx ? ' tour-progress-dot-active' : ''}"></span>`
-  ).join('');
+  // 🚨 One dot per step stops fitting past a dozen or so: at 35 steps the row
+  // was wider than the tooltip and pushed Back/Next off its right edge, so
+  // the Demo Tour could not be advanced at all (v8.17). Long tours show a
+  // count instead, and the progress area may shrink but never push.
+  const TOUR_MAX_DOTS = 12;
+  const progress = total > TOUR_MAX_DOTS
+    ? `<span class="tour-progress-count">${idx + 1} of ${total}</span>`
+    : _tourState.steps.map((s, i) =>
+        `<span class="tour-progress-dot${i === idx ? ' tour-progress-dot-active' : ''}"></span>`
+      ).join('');
   const nextLabel = step.waitForAction ? null : (isLast ? (opts.finalLabel || 'Get Started') : 'Next');
   // Back re-runs the previous step's onEnter fresh (same as any other
   // step render) — best-effort, not a true undo: an onEnter with a real
@@ -9491,8 +9432,8 @@ function _renderTourTooltipContent(step, tip) {
     <div class="tour-tooltip-body">${step.body}</div>
     ${step.waitForAction ? '<div class="tour-tooltip-hint">Tap the highlighted element to continue</div>' : ''}
     <div class="tour-tooltip-footer">
-      <div class="tour-progress-dots">${dots}</div>
-      <div style="display:flex; gap:8px; align-items:center;">
+      <div class="tour-progress-dots">${progress}</div>
+      <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
         ${opts.allowSkip ? '<span onclick="tourSkip()" style="font-size:11.5px; color:var(--text3); cursor:pointer;">Skip tour</span>' : ''}
         ${backBtn}
         ${nextLabel ? `<button class="btn btn-accent btn-sm" onclick="tourNext()">${nextLabel}</button>` : ''}
@@ -13114,6 +13055,21 @@ function renderProgress() {
   renderProgressStatistics(macro);
 
   updateInsightsRollup();
+  refreshOpenCheckinSheet();
+}
+
+// 🚨 The check-in sheet's body is built once, on open — but every step of
+// "Challenge this" (open the input, BLOC is thinking…, the revised-plan
+// preview, accept, decline) happens INSIDE that sheet, and each of those
+// handlers re-renders by calling renderProgress(). Before this, that redrew
+// the page underneath and left the sheet exactly as it was, so tapping
+// "Challenge this →" set its flag and visibly did nothing (v8.17). Rebuilding
+// here, only while the sheet is open, covers every one of those call sites.
+function refreshOpenCheckinSheet() {
+  const sheet = document.getElementById('modal-checkin-full');
+  if (!sheet || !sheet.classList.contains('open')) return;
+  const el = document.getElementById('checkin-full-body');
+  if (el) el.innerHTML = buildCheckinSheetBodyHTML();
 }
 
 // ── v8.16 Phase 4: the Progress sheets ────────────────────────────────────
@@ -14901,13 +14857,8 @@ function computeMaintenanceRecalibration(macro, ins) {
 // this to render the loading state. Never stored in state — resets on reload.
 let _blocAdviceLoading = false;
 
-// ── Card section collapse state ─────────────────────────────────────────
-// All three sections (narrative, selected plan, alternative plan) default
-// to collapsed, and reset to collapsed on every fresh page load — this is
-// deliberately NOT persisted to state.blocAdvice/save(), unlike the old
-// narrativeOpen/altOpen fields it replaces, specifically so the collapsed
-// state doesn't carry over between sessions.
-let _blocAdviceSectionsOpen = { narrative: false, selected: false, alt: false };
+// _blocAdviceSectionsOpen was removed in v8.17: the check-in's sections
+// became a sheet in v8.16 and the demo tour was the last thing writing to it.
 // _intakeDriftOpen/toggleIntakeDrift were removed in v8.16: nothing read the
 // flag, so the intake-drift visualisation its comment described did not
 // exist. _aiAdviceBodyOpen/toggleAiAdviceBody went with the check-in's
@@ -15323,7 +15274,7 @@ async function askBlocForAdvice() {
 // In-flight flag for the challenge call — mirrors _blocAdviceLoading.
 let _blocChallengeLoading = false;
 // Whether the challenge text input is currently shown — session-only,
-// resets on reload, same pattern as _blocAdviceSectionsOpen.
+// resets on reload, never persisted.
 let _blocChallengeInputOpen = false;
 
 // Builds the system prompt + message history for a challenge call. Rebuilds
@@ -15754,8 +15705,8 @@ function buildCheckinSheetBodyHTML() {
   //
   // Adam's call was to remove them rather than repair them — a sheet opened by
   // "Read full check-in" has one job, and collapsing its contents is at odds
-  // with that. _blocAdviceSectionsOpen survives because the demo tour still
-  // writes to it; nothing reads it any more.
+  // with that. _blocAdviceSectionsOpen, which the demo tour kept writing to
+  // after nothing read it, went in v8.17.
   // ── Challenge this advice ─────────────────────────────────────────────────
   // Available the moment a response exists, in both pre-choice and
   // post-choice states — a single one-shot challenge per advice instance.
@@ -15789,7 +15740,7 @@ function buildCheckinSheetBodyHTML() {
       </div>`;
     } else {
       challengeHtml = `<div style="margin-top:6px;text-align:right;">
-        <span onclick="_blocChallengeInputOpen=true;renderProgress();"
+        <span id="checkin-challenge-btn" onclick="_blocChallengeInputOpen=true;renderProgress();"
           style="font-size:11px;color:var(--text3);cursor:pointer;text-decoration:underline;">
           Challenge this →
         </span>
@@ -15818,7 +15769,7 @@ function buildCheckinSheetBodyHTML() {
   // where the plan runs past the cycle end, walks into the new-cycle flow;
   // these buttons are the only route to it from here.
   const planBlock = (path, key, emoji) => `
-    <div class="sheet-plan${chosenPath === key ? ' sheet-plan-on' : ''}">
+    <div class="sheet-plan${chosenPath === key ? ' sheet-plan-on' : ''}" id="checkin-plan-${key}">
       <div class="sheet-plan-head">
         <span class="sheet-plan-name">${emoji} ${path.label} plan</span>
         ${chosenPath === key ? '<span class="chip" style="--chip-c:var(--accent2);">Selected</span>' : ''}
@@ -16730,10 +16681,6 @@ function buildNextCycleGoalSteps(rec) {
 
 let _nextCycleAdviceLoading = false; // in-flight flag, never persisted — mirrors _blocAdviceLoading
 
-// Collapse state for the rendered advice section (narrative / selected plan /
-// alternative plan(s)) — session-only, never persisted, same reasoning as
-// _blocAdviceSectionsOpen for the mid-cycle feature.
-let _nextCycleAdviceSectionsOpen = { narrative: false, selected: false, alt: false };
 
 // Usage-discipline gate for the LLM CALL ONLY — per design spec §3, the
 // deterministic recommendation itself is never gated by cycle timing, just
@@ -18883,7 +18830,7 @@ function renderPlanGoalsSection() {
 
     return `<div class="swipe-row-wrap" data-goal-id="${g.macroGoalID}">
       <div class="swipe-row-content" style="padding:0;">
-        <div class="row-plain phase-row" onclick="openEditGoal('${g.macroGoalID}')">
+        <div class="row-plain phase-row" id="phase-row-${g.macroGoalID}" onclick="openEditGoal('${g.macroGoalID}')">
           <span class="phase-dot ${dotClass}"></span>
           <div class="phase-text">
             <div class="phase-line1"><span class="phase-name">${label}</span><span class="phase-kcal">${g.kcal ? g.kcal.toLocaleString() + '<span class="phase-kcal-unit">kcal</span>' : '—'}</span></div>
@@ -20558,7 +20505,7 @@ function renderHomeLogBoxes() {
     + `<div class="card">
         <div class="log-field"><div class="label">Weigh-in</div>${weightHtml}</div>
         <div class="log-field"><div class="label">Steps</div>${stepsHtml}</div>
-        <button class="row-plain row-plain-flush" onclick="openHomeMeasurements()">
+        <button class="row-plain row-plain-flush" id="home-measure-row" onclick="openHomeMeasurements()">
           <span class="row-btn-text">
             <span class="row-btn-title">Measurements ${measDue ? '<span class="tag tag-due">Due</span>' : ''}</span>
             <span class="row-btn-sub">${measSub}</span>
@@ -21954,7 +21901,7 @@ function renderTrainDay(macro) {
         ? `<span class="ex-done${missedTarget ? ' ex-done-missed' : ''}">✓ done${missedTarget ? ' · ⚠ missed target' : ''}</span>`
         : '';
 
-      html += `<div class="card ex-card${isExpanded ? ' ex-card-open' : ''}">
+      html += `<div class="card ex-card${isExpanded ? ' ex-card-open' : ''}" id="ex-card-${macro.id}-${exId}">
         <div class="ex-head" onclick="toggleExercise('${expandKey}')">
           <div class="ex-idx">${slotIdx + 1}</div>
           <div class="ex-head-text">
