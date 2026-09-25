@@ -13114,6 +13114,21 @@ function renderProgress() {
   renderProgressStatistics(macro);
 
   updateInsightsRollup();
+  refreshOpenCheckinSheet();
+}
+
+// 🚨 The check-in sheet's body is built once, on open — but every step of
+// "Challenge this" (open the input, BLOC is thinking…, the revised-plan
+// preview, accept, decline) happens INSIDE that sheet, and each of those
+// handlers re-renders by calling renderProgress(). Before this, that redrew
+// the page underneath and left the sheet exactly as it was, so tapping
+// "Challenge this →" set its flag and visibly did nothing (v8.17). Rebuilding
+// here, only while the sheet is open, covers every one of those call sites.
+function refreshOpenCheckinSheet() {
+  const sheet = document.getElementById('modal-checkin-full');
+  if (!sheet || !sheet.classList.contains('open')) return;
+  const el = document.getElementById('checkin-full-body');
+  if (el) el.innerHTML = buildCheckinSheetBodyHTML();
 }
 
 // ── v8.16 Phase 4: the Progress sheets ────────────────────────────────────
