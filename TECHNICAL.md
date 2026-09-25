@@ -5765,6 +5765,13 @@ arrive on any of them from the moved date. Plan, Train and Fuel read their own w
   the tooltip and pushed Back/Next off its right edge, so the Demo Tour could not be advanced past
   step 1. Above `TOUR_MAX_DOTS` (12) the footer reads "12 of 35". The progress area can now shrink
   but never push the buttons.
+- 🚨 **A target replaced mid-settle is looked up again.** Plan's step chart repaints itself every 2s
+  with `outerHTML` (§88), so the node `_renderTourStep()` captured can be detached by the time the
+  220ms settle delay ends. A detached node measures 0×0 at (0,0), so the ring sat in the screen's
+  top-left corner and the mask covered the chart. Found in UAT, not in the Playwright walks,
+  because it only happens when a repaint lands inside that window. `_positionTourStep()` now
+  re-resolves by id when `!target.isConnected`. Any future self-repainting element is covered
+  as long as it keeps its id.
 - **An empty target is skipped like a missing one.** v8.16's sections are containers that always
   exist, so on an account with nothing logged a target sits in the DOM at 0px. The tour would ring a
   hairline while its copy described a card that isn't on screen.

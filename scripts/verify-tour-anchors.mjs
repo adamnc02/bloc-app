@@ -24,7 +24,10 @@
 //      and no step targets the whole Insights card;
 //   4. the tooltip swaps its dots for a count on long tours — at 35 steps the
 //      dot row pushed Back/Next off the tooltip and the Demo Tour could not
-//      be advanced.
+//      be advanced;
+//   5. the engine re-finds a target replaced during its 220ms settle delay —
+//      Plan's step chart repaints via outerHTML every 2s, and the detached
+//      node measured 0×0, ringing the screen's top-left corner (v8.17 UAT).
 //
 // 🚨 Reads the REAL source. The controls at the end break each property and
 // assert the suite then FAILS. A check that cannot fail proves nothing.
@@ -120,6 +123,12 @@ function run(src, label) {
   c(!!tip && /total > TOUR_MAX_DOTS/.test(tip) && tip.includes('tour-progress-count'),
     'long tours show a step count instead of one dot per step');
 
+  // A target replaced during the settle delay (Plan's step chart repaints via
+  // outerHTML every 2s) measures 0×0 at (0,0) unless it is looked up again.
+  const pos = extract(src, '_positionTourStep');
+  c(!!pos && /if \(!target\.isConnected\) target = document\.getElementById\(step\.targetId\)/.test(pos),
+    '_positionTourStep() re-resolves a target that was replaced before it is measured');
+
   if (label) return fails.length;
   fails.forEach(bad);
   if (!fails.length) ok(`every assertion passed against the shipped source (${all.length} targets)`);
@@ -140,6 +149,8 @@ check(run(source.replace(
   'a Mini-Tour with its own copied step list is caught');
 check(run(source.replace('total > TOUR_MAX_DOTS', 'false'), 'control') > 0,
   'one dot per step on a 35-step tour is caught');
+check(run(source.replace('if (!target.isConnected) target = document.getElementById(step.targetId) || target;', ''), 'control') > 0,
+  'measuring a detached (repainted) target is caught');
 
 console.log('');
 if (failures) {

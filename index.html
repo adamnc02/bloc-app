@@ -9310,6 +9310,13 @@ function _repositionTourStep() {
 }
 
 function _positionTourStep(step, target, skipTooltipContent) {
+  // 🚨 Re-resolve a target that was REPLACED during the settle delay. Plan's
+  // step chart repaints itself every 2s via outerHTML (repaintPlanStepChart),
+  // so the node captured before the 220ms wait can be detached by the time it
+  // is measured — a detached node measures 0×0 at (0,0), which put the ring in
+  // the screen's top-left corner and masked the chart (v8.17 UAT). Timing-
+  // dependent, so a walk-through only catches it some of the time.
+  if (!target.isConnected) target = document.getElementById(step.targetId) || target;
   const r = target.getBoundingClientRect();
   const pad = 6;
   const top = r.top - pad, left = r.left - pad, right = r.right + pad, bottom = r.bottom + pad;
