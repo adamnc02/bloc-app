@@ -6150,7 +6150,7 @@ try {
   <div class="modal-sheet" data-modal="modal-settings-about">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-settings-about')">✕</button></div>
     <div class="modal-title">About This App</div>
-    <div class="modal-sub">BLOC Training App, version 8.16. Everything below is held on this device.</div>
+    <div class="modal-sub">BLOC Training App, version 8.17. Everything below is held on this device.</div>
     <div class="card">
       <div id="storage-info"></div>
     </div>
@@ -7804,6 +7804,25 @@ function continueBootAfterAuth() {
     // figure on the app. The anchor belongs to the demo dataset alone.
     if (devBypassHasRealData()) {
       showScreen('home');
+      return;
+    }
+    // Local dev only: `?tour=demo` runs the real first-run Demo Tour — the
+    // welcome sheet, every step, then exitDemoMode()'s wipe, the profile gate
+    // and the Macrocycle Creation Tour — on the TRACKED dataset production
+    // serves. Production starts it from the new-user demo fetch, which this
+    // bypass skips, so until v8.17 the Demo Tour could not be run on a phone
+    // against a local build at all.
+    //
+    // 🚨 Deliberately below devBypassHasRealData(): exitDemoMode() save()s an
+    // empty state, which on a device holding a restored backup would wipe it.
+    if (new URLSearchParams(window.location.search).get('tour') === 'demo') {
+      fetch('bloc-demo-data.json')
+        .then(res => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
+        .then(data => { demoData = data; startDemoTour(); })
+        .catch(err => {
+          console.warn('[dev] ?tour=demo: demo data fetch failed:', err.message);
+          showScreen('home');
+        });
       return;
     }
     if (demoData) {

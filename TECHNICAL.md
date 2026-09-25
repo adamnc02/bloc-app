@@ -2703,6 +2703,8 @@ _blocAdviceSectionsOpen.alt = chosenPath !== 'sustainable';
 
 **A previously-missing spotlight.** The Progress insights deck (`progress-body`) is a 3-card swipe deck — weight/trend/AI-advice (card 1, `insightsIndex = 0`), BMR/TDEE/ETA (card 2), and the Next Cycle Recommendation Engine with its own "ask BLOC for a second opinion" feature (card 3, `insightsIndex = 2`). Every prior version of both the Demo Tour and the Progress Mini-Tour only ever showed card 1 — card 3 was never spotlighted at all, despite being one of the deck's three cards and the app's largest genuinely separate AI-advice feature (`askBlocForNextCycleAdvice()`, `TECHNICAL.md`'s own Next Cycle Recommendation Engine module). Added a new step that sets `insightsIndex = 2` before re-rendering, spotlighting the same `progress-body` container now showing that card's real content. Copy deliberately doesn't assert the second-opinion button is tappable *right now* — its own 3-week-from-cycle-end eligibility gate (checked against the demo dataset's macro: starts 2026-06-08, ends mid-September, well outside the window at the 2 Aug anchor date) means it's realistically showing its countdown state rather than an active button during the demo, and real Mini-Tour users will be at all different points in their own cycles. The final "swipeable decks" step now resets `insightsIndex = 0` in its own `onEnter`, so the person doesn't leave the tour with that deck sitting on the Next Cycle card by default.
 
+> **Superseded (v8.17):** the step lists described here and in §39 were rewritten for the v8.16 redesign — one builder per page, shared by the Demo Tour and the Mini-Tours. See §93.
+
 ## 37. Module: Profile Entry Gate (v7.79)
 
 Build Order step 6. Per `bloc-onboarding-tour-scope-v2.md` §1/§10.1: gender, height, and date of birth become mandatory for a brand-new account, hard-blocking the rest of the app until all three are filled in. Rather than build a separate gate screen, this reuses the existing Settings → About me profile modal (`modal-body-profile`) — only its dismissability and copy change while the gate is active.
@@ -2849,6 +2851,8 @@ Building synthetic-account test fixtures for the Mini-Tours (real data, not `dem
 ### Verification
 
 Checked with Playwright against hand-built synthetic accounts (not `demoData`) covering two shapes: a real account with a macrocycle and real (non-demo) exercises, and a genuinely empty account with no macrocycle at all. The Help icon opens the modal; the Train Mini-Tour completes without error against exercises with no progression lock or logged history yet (confirming the dynamic-lookup fallback works, not just the happy path already proven in §36/§38); the Nutrition Mini-Tour completes without leaving `modal-nutr-manual` open; the Home and Train Mini-Tours both complete without error against the fully-empty account; and Skip Tour ends a Mini-Tour cleanly. The Progress Mini-Tour's own logic wasn't independently re-verified end-to-end in this pass — it hit the pre-existing `renderProgress()` bug above on every synthetic fixture tried — but it uses the identical mechanism (target `progress-body`, toggle `_blocAdviceSectionsOpen`, call `renderProgress()`) already verified working against real rendering in the Demo Tour's Progress steps (§36), so it's judged correct by that equivalence rather than independently re-tested here.
+
+> **Superseded (v8.17):** the Mini-Tour step lists described here, and the Demo Tour's in §36, were rewritten for the v8.16 redesign — one builder per page, shared by the Demo Tour and the Mini-Tours. See §93.
 
 ---
 
@@ -5686,3 +5690,126 @@ argument explicitly and both functions are written to survive it if one does not
   and `preferredName` is already what Home's greeting reads. The hero shows `firstName surname`,
   falls back to `preferredName`, and only then to the email. Deriving a name from the email would
   have put a second, differently-spelled version of the person's own name on the same app.
+
+---
+
+## §93 — v8.17: the tours, rebuilt for the redesign
+
+v8.16 redesigned every screen and left the tour step lists pointing at the old app. **Nothing
+flagged it, because every anchor still resolved.** `progress-body` had become the 770px Insights
+card, so seven Progress steps in a row spotlighted the same wall of text while their copy described
+a check-in, two plans and a cycle review that had moved into sections and sheets of their own. Those
+steps also still wrote to `_aiAdviceBodyOpen`, `_blocAdviceSectionsOpen`,
+`_nextCycleAdviceSectionsOpen` and `insightsIndex`, the state behind an expand-in-place card and a
+swipe deck that v8.16 had deleted (§87). The engine skips a missing target without complaint, and
+the id that stayed meant something else.
+
+### One step list per page
+
+`buildHomeTourSteps(demo)`, `buildProgressTourSteps(demo)`, `buildPlanTourSteps(demo)`,
+`buildTrainTourSteps(demo)` and `buildFuelTourSteps(demo)` each return their page's steps.
+`buildDemoTourSteps()` concatenates all five with `demo = true`; each Mini-Tour runs its own page's
+builder with `demo = false`, through `_startMiniTour()`.
+
+Before v8.17 each page had two hand-copied arrays, one per tour, and §33's v7.85 addendum records
+the cost: every fix made twice. The redesign then broke both copies identically.
+
+`demo` changes only what a step may **assert**. The demo dataset guarantees a plateau, a stored
+check-in and a cycle review, and it lets the tour move "today". Real data guarantees none of that,
+so the Mini-Tour copy describes rather than points ("Here it has found a three-week plateau" vs "…
+tells you whether the plan is working").
+
+| Page | Steps (Demo Tour order) |
+|---|---|
+| Home (8) | goal line · hero · This week · a metric row · Log today · Measurements row · Up next · Food plan |
+| Progress (9) | hero · Check-in · **sheet:** Sustainable plan · **sheet:** Challenge this · Week by week · Insights · Last cycle · Build next cycle · Statistics |
+| Plan (6) | block overview · the current phase row · step chart · Weekly sessions · Volume by body part · Tools |
+| Train (6) | header · hero · first exercise card · progression choice · On hold panel · Session tools |
+| Fuel (6) | hero · Save this day · a meal's ··· · Rest of the week · Shortcuts · manual entry's Per item/Per gram |
+
+### Anchors
+
+Every target is a section or a row, never a screen. Where a step needed something smaller than a
+section, it got its own id: `home-measure-row`, `ex-card-{macroId}-{exId}`,
+`phase-row-{macroGoalID}`, `checkin-plan-{sustainable|aggressive}` and `checkin-challenge-btn`.
+Four are resolved at run time because the right instance can't be named in advance:
+
+- **The first exercise card, the progression choice and the On hold panel.** Which exercise is
+  locked is re-derived from the logs (§36), so the step expands every card and takes whichever one
+  renders the element.
+- **The current phase.** Found by its filled `.phase-dot-now` dot, falling back to the first row.
+- **Challenge this.** The link is one-shot and disappears once used, as it already is in the demo
+  dataset. The step then points at the Aggressive plan and **rewrites its own body** to say the
+  challenge has been used, rather than describe a link that isn't there.
+
+`scripts/verify-tour-anchors.mjs` checks that every target a builder names exists in the markup,
+that each Mini-Tour runs its builder and carries no step list of its own, and that no step writes
+the deleted state or targets `progress-body`.
+
+### Sheets and the date
+
+The two check-in steps open `modal-checkin-full` in their `onEnter`. **Every other Progress step
+closes it**, as does every Mini-Tour exit (`_closeTourSheets()`), because Back reaches a step as
+often as Next does. §36, §38 and §39 each found this bug class once. The last Fuel step opens
+`modal-nutr-manual` on the same terms.
+
+The demo's date jump is kept (§75): Last cycle and Build next cycle move "today" to
+`DEMO_TOUR_CYCLE_END` so the review reads as a finished cycle's. Without the jump, the Last cycle
+section on 2 Aug says "this cycle ended 13 Sept" about a cycle still marked Active. **Every other
+Progress step sets `DEMO_TOUR_TODAY` back**, not just the one after the jump, because Back can
+arrive on any of them from the moved date. Plan, Train and Fuel read their own week from it.
+
+### Engine changes
+
+- 🚨 **A long tour shows a count, not dots.** At 35 steps the one-dot-per-step row was wider than
+  the tooltip and pushed Back/Next off its right edge, so the Demo Tour could not be advanced past
+  step 1. Above `TOUR_MAX_DOTS` (12) the footer reads "12 of 35". The progress area can now shrink
+  but never push the buttons.
+- **An empty target is skipped like a missing one.** v8.16's sections are containers that always
+  exist, so on an account with nothing logged a target sits in the DOM at 0px. The tour would ring a
+  hairline while its copy described a card that isn't on screen.
+- **Skips follow the direction of travel.** `tourNext()` and `tourBack()` record `_tourState.dir`.
+  Skipping forward after a Back landed straight back on the step Back was pressed on, so Back past
+  any skipped step looked like a dead button. More steps can be skipped now, so this became
+  reachable.
+- **A Progress, Plan or Train Mini-Tour on an account with no macrocycle shows "Nothing to tour
+  yet"** instead of starting. Every one of its targets is empty, so the tour would skip them all and
+  end the instant it began, silently.
+
+The Macrocycle Creation Tour (§38) was re-walked end to end against the new engine: all seven steps
+render, none are skipped, and its `waitForAction` step still creates a real macrocycle.
+
+### Also fixed: "Challenge this" did nothing in the check-in sheet
+
+The sheet's body is built once, by `openCheckinSheet()`, but every step of the challenge flow re-
+rendered through `renderProgress()`, which redraws the page and not the sheet. That covers opening
+the input, "BLOC is thinking…", the revised-plan preview, accept and decline. Tapping the link set
+`_blocChallengeInputOpen` and nothing visible happened. `renderProgress()` now ends with
+`refreshOpenCheckinSheet()`, which rebuilds the body only while the sheet is open. That covers all
+seven call sites without touching any of them. `scripts/verify-checkin-sheet-refresh.mjs` guards it.
+
+§92 recorded the same shape for the "Read full…" sheets' collapsibles: a sheet built on open, with
+handlers that re-render something else. **Any new control inside a sheet built on open needs a
+route back into that sheet's body.**
+
+### Running the Demo Tour on a local build — `?tour=demo`
+
+Production starts the Demo Tour only for a genuinely new user, from the demo-data fetch that the
+local dev bypass (§82, §91) skips. So the tour could not be run against a local build at all:
+v8.16's UAT had to park it for the live app. On a local-dev host, **`index.html?tour=demo`** fetches
+the tracked `bloc-demo-data.json` and calls `startDemoTour()`. That runs the whole first-run
+sequence: the welcome sheet, every step, then `exitDemoMode()`'s wipe, the profile gate and the
+Macrocycle Creation Tour.
+
+🚨 It sits **below** `devBypassHasRealData()` on purpose. `exitDemoMode()` `save()`s an empty
+state, which on a device holding a restored backup would wipe it. With real data on the device
+the parameter is ignored — Clear all data first.
+
+### Verification
+
+Walked in Playwright at 390×844 against the tracked `bloc-demo-data.json`. The Demo Tour went
+forward (35 steps, none skipped, date 2026-09-13 on exactly the two jump steps) and backward (every
+step visible, on its own screen, with its own date, and the check-in sheet open on its two steps
+only). All five Mini-Tours ran against the demo data and against an empty account. The Progress
+Mini-Tour was also walked backward with no stored check-in, where Back correctly passes over the two
+skipped sheet steps.
