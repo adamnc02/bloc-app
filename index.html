@@ -6236,7 +6236,7 @@ try {
   <div class="modal-sheet" data-modal="modal-settings-about">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-settings-about')">✕</button></div>
     <div class="modal-title">About This App</div>
-    <div class="modal-sub">BLOC Training App, version 8.18. Everything below is held on this device.</div>
+    <div class="modal-sub">BLOC Training App, version 8.19. Everything below is held on this device.</div>
     <div class="card">
       <div id="storage-info"></div>
     </div>
@@ -8974,11 +8974,19 @@ function openModal(id) {
     if (!state.goals) state.goals = [];
     const errEl = document.getElementById('goal-overlap-error');
     if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
-    const sel = document.getElementById('goal-macro-select');
-    sel.innerHTML = (state.macrocycles || []).map(m => '<option value="' + m.id + '">' + m.name + '</option>').join('') || '<option value="">No macrocycles yet</option>';
     const modal = document.getElementById('modal-add-goal');
     // Only reset fields when opening fresh — openEditGoal pre-sets _editIdx and field values
     const isEditing = modal._editIdx !== undefined && modal._editIdx !== null;
+    // v8.19 — when editing, the rebuilt options must keep the goal's OWN
+    // macrocycle selected. This rebuild runs after openEditGoal has already
+    // chosen it, and an unselected <select> falls back to the first option —
+    // so every edit silently re-linked the goal to state.macrocycles[0] on
+    // save (TECHNICAL §95). Covers every edit entry point in one place:
+    // openEditGoal, chooseExtendLastGoal and the queue's truncation step.
+    const editingMacroId = isEditing && state.goals[modal._editIdx] ? state.goals[modal._editIdx].macroId : null;
+    const sel = document.getElementById('goal-macro-select');
+    sel.innerHTML = (state.macrocycles || []).map(m => '<option value="' + m.id + '"' + (m.id === editingMacroId ? ' selected' : '') + '>' + m.name + '</option>').join('') || '<option value="">No macrocycles yet</option>';
+    if (editingMacroId) sel.value = editingMacroId;
     if (!isEditing) {
       // Default start date: the day after the latest existing goal's end
       // date (across every goal, any macro) — falls back to today only if
@@ -28825,10 +28833,14 @@ function saveGoal() {
     macroGoalID,
     _blocLabel: labelVal,
   };
+  // A goal deliberately moved to another macrocycle leaves a gap in its old
+  // one's Step numbering — renumber both.
+  const prevMacroId = editIdx >= 0 ? state.goals[editIdx].macroId : null;
   if (editIdx >= 0) state.goals[editIdx] = g;
   else state.goals.push(g);
   modal._editIdx = undefined;
   renumberMacroGoalSteps(macroId);
+  if (prevMacroId && prevMacroId !== macroId) renumberMacroGoalSteps(prevMacroId);
   save(); closeModal('modal-add-goal'); renderPlanGoalsSection();
 }
 

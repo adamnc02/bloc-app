@@ -5906,3 +5906,50 @@ it; run against v8.17's `index.html` it fails 7 of its 12 checks, as it should. 
 screenshotted in Chromium at 375 and 320px in both modes, and the splash's computed colours read in
 the browser: Train block `rgb(167,158,227)`, brackets `rgb(47,185,138)`.
 
+
+## §95 — v8.19: editing a goal period re-linked it to the first macrocycle
+
+### The bug
+
+Reported 2026-09-25: *"When I edit a goal, the linked macrocycle seems to reset to another
+macrocycle, rather than retain whatever macrocycle it belonged to."*
+
+`openEditGoal()` builds the `#goal-macro-select` options with the goal's own macro marked
+`selected`, then calls `openModal('modal-add-goal')`. `openModal`'s goal block **rebuilt the same
+options from scratch with nothing selected**, and a `<select>` with no selected option shows — and
+returns as `.value` — its **first** option. `saveGoal()` reads `macroId` straight off that dropdown,
+so every save from an edit, even a kcal-only one, re-linked the goal to `state.macrocycles[0]`.
+A goal in the first macrocycle was unaffected, which is why it looked intermittent.
+
+The goal queue had already hit this for its own new steps and worked around it in
+`_openQueueStep()` (it sets `macroSelect.value` after `openModal`). The edit path never got the
+same treatment.
+
+### The fix — in `openModal`, not in each caller
+
+The rebuild now marks the edited goal's macro `selected` (and sets `sel.value`) whenever `_editIdx`
+is set. Every edit entry point goes through that one rebuild — `openEditGoal` (a phase row),
+`chooseExtendLastGoal` (§42's "extend last goal period") and the queue's truncation step — so one
+change covers all three. 🚨 **The trap:** fixing it in `openEditGoal` by setting the value *before*
+`openModal` is what the code already did. Anything done to the dropdown before `openModal` is thrown
+away by the rebuild; it must be done by the rebuild or after it.
+
+`saveGoal()` also now renumbers the goal's **previous** macrocycle when an edit deliberately moves
+it, so the cycle it left does not keep a gap in its "Step N" names. `renumberMacroGoalSteps()` was
+previously called only for the new one.
+
+### Data already affected
+
+Goals moved by the bug before v8.19 stay in the macrocycle they were moved to — the app has no
+record of where they were. The fix does not guess. Each one is corrected by opening it, choosing its
+real macrocycle and saving, which the fixed dropdown now allows.
+
+### Verification
+
+`scripts/verify-goal-edit-keeps-macro.mjs` extracts the real `openEditGoal`, `saveGoal` and
+`openModal`'s `modal-add-goal` block and runs an edit → save round trip against a `<select>` stub
+that behaves like a browser's (no `selected` option → the first wins). It checks a goal in the 2nd
+and 3rd macrocycle keeps its macro across a kcal-only and an unchanged save, that a deliberate move
+is honoured and renumbers both cycles, and — as its control — that restoring the pre-v8.19 rebuild
+fails the suite. Run against v8.18's `index.html` it fails 4 of its 8 checks: both goals are saved
+into `m1`.
