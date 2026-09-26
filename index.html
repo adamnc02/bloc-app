@@ -9001,19 +9001,7 @@ function openModal(id) {
     sel.innerHTML = (state.macrocycles || []).map(m => '<option value="' + m.id + '"' + (m.id === editingMacroId ? ' selected' : '') + '>' + m.name + '</option>').join('') || '<option value="">No macrocycles yet</option>';
     if (editingMacroId) sel.value = editingMacroId;
     if (!isEditing) {
-      // Default start date: the day after the latest existing goal's end
-      // date (across every goal, any macro) — falls back to today only if
-      // no goals exist yet. Prevents new goals from silently overlapping
-      // the tail end of the most recent one.
-      let defaultStart = today;
-      if (state.goals.length) {
-        const lastEnd = state.goals.reduce((max, g) => g.endDate > max ? g.endDate : max, state.goals[0].endDate);
-        const d = new Date(lastEnd + 'T00:00:00');
-        d.setDate(d.getDate() + 1);
-        defaultStart = toLocalDateStr(d);
-      }
-      document.getElementById('goal-start-input').value = defaultStart;
-      document.getElementById('goal-end-input').value = defaultStart;
+      applyNewGoalDefaultDates();
       document.getElementById('goal-kcal-input').value = '';
       document.getElementById('goal-steps-input').value = '';
       document.getElementById('goal-modal-title').textContent = 'New Goal Period';
@@ -28878,12 +28866,58 @@ function prefillGoalLabelForSelectedMacro() {
   labelEl.value = `Step ${count + 1} - `;
 }
 
-// Re-runs the Step N prefill when the person changes which macrocycle a
-// brand-new goal belongs to. No-op while editing an existing goal.
+// Re-runs the Step N prefill and the default dates when the person changes
+// which macrocycle a brand-new goal belongs to. No-op while editing an
+// existing goal. "+ Build goal periods" and the post-create "Add a goal?"
+// nudge also land here after choosing the macro, which is what makes a
+// cycle's first goal default to that cycle's start (openModal ran before
+// the macro was chosen).
 function onGoalMacroSelectChange() {
   const modal = document.getElementById('modal-add-goal');
   const isEditing = modal._editIdx !== undefined && modal._editIdx !== null;
-  if (!isEditing) prefillGoalLabelForSelectedMacro();
+  if (!isEditing) {
+    prefillGoalLabelForSelectedMacro();
+    applyNewGoalDefaultDates();
+  }
+}
+
+// The Sunday that ends the Monday-to-Sunday week `dateStr` falls in
+// (a Sunday returns itself).
+function sundayOfWeek(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + (7 - d.getDay()) % 7);
+  return toLocalDateStr(d);
+}
+
+// Default dates for a brand-new goal period in `macro` (v8.19, §97).
+//   Start — the macro's own start date when it has no goal periods yet (its
+//     first goal); otherwise the day after the latest goal's end date across
+//     EVERY macro, so a new goal never silently overlaps the most recent one;
+//     today only when there are no goals at all.
+//   End — the Sunday of the start's week. It used to equal the start, a
+//     one-day goal nobody wants, which had to be re-picked every time.
+function defaultNewGoalDates(macro, goals, today) {
+  let start = today;
+  const hasOwnGoals = macro && goals.some(g => g.macroId === macro.id);
+  if (macro && macro.start && !hasOwnGoals) {
+    start = macro.start;
+  } else if (goals.length) {
+    const lastEnd = goals.reduce((max, g) => g.endDate > max ? g.endDate : max, goals[0].endDate);
+    const d = new Date(lastEnd + 'T00:00:00');
+    d.setDate(d.getDate() + 1);
+    start = toLocalDateStr(d);
+  }
+  return { start, end: sundayOfWeek(start) };
+}
+
+// Writes defaultNewGoalDates() for the currently-selected macro into the
+// goal sheet's date fields.
+function applyNewGoalDefaultDates() {
+  const sel = document.getElementById('goal-macro-select');
+  const macro = sel && (state.macrocycles || []).find(m => m.id === sel.value);
+  const { start, end } = defaultNewGoalDates(macro, state.goals || [], getLocalToday());
+  document.getElementById('goal-start-input').value = start;
+  document.getElementById('goal-end-input').value = end;
 }
 
 // Opens the goal modal pre-filled for editing an existing goal period.

@@ -6010,3 +6010,39 @@ past; −7 days; the started flag; no sheet when the start is unchanged or the c
 control strips the clash check and asserts the suite then fails. The sheet was also driven in
 headless Chromium at 390px against the dev-bypass demo data: no console errors, and the moved dates
 persisted to `bloc_state`.
+
+## §97 — v8.19: a new goal period's default dates
+
+Asked for on 2026-09-26: *"make sure that the first goal has a default start date as the start date of
+the cycle (already correct), but make sure the end date is the sunday of the same week."*
+
+`defaultNewGoalDates(macro, goals, today)` → `{ start, end }`, written into the sheet by
+`applyNewGoalDefaultDates()`:
+
+| | Before v8.19 | v8.19 |
+|---|---|---|
+| Start, the cycle's **first** goal | day after the latest goal in **any** cycle | **the cycle's own `start`** |
+| Start, a later goal | day after the latest goal in any cycle | unchanged. It still prevents a new goal overlapping the most recent one |
+| Start, no goals anywhere | today | today (or the cycle start, if a cycle is selected) |
+| End | **= start** (a one-day goal) | **`sundayOfWeek(start)`**, the end of the Monday–Sunday week |
+
+"Already correct" was true only by coincidence. The old rule gave the cycle start only when the
+new cycle began the day after the previous cycle's last goal. A cycle pushed later, which is §96's
+case, got a first goal on the old dates.
+
+🚨 **Where it runs is half the fix.** `openModal('modal-add-goal')` sets the defaults **before** the
+cycle is chosen: "+ Build goal periods" and the "Add a goal?" nudge after creating a cycle both set
+the dropdown *after* `openModal` returns, then call `onGoalMacroSelectChange()`. So the defaults
+are re-applied there, alongside the Step N label prefill. Computing them only in `openModal` would
+use whichever cycle is first in the list. The same trap is described in §95, from the other side.
+Callers that set their own dates after choosing the cycle (`chooseExtendAddNewGoal`, the goal
+queue's `_openQueueStep`) set `.value` directly and do not call it, so their dates are not
+overwritten.
+
+Changing the dropdown by hand on a new goal also resets the two dates, just as it already reset the
+label.
+
+`scripts/verify-new-goal-default-dates.mjs` covers `sundayOfWeek` (Monday, midweek, Sunday itself,
+across 25 Oct 2026) and all four start cases. Its control restores `end = start` and fails 4 checks.
+Driven in headless Chromium: "+ Build goal periods" on a cycle starting 19 Oct with no goals opens
+on 19 Oct → 25 Oct, "Step 1 - ", with no console errors.
