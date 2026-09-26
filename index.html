@@ -2338,9 +2338,11 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .settings-topbar { position: relative; }
 .settings-logo {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  height: 30px; width: auto; aspect-ratio: 449.8 / 178; pointer-events: none;
+  /* 44px = the back-link row's own height, so it fills the row without
+     pushing anything down. Was 30px, which read too small on a phone. */
+  height: 44px; width: auto; aspect-ratio: 449.8 / 178; pointer-events: none;
 }
-/* 10, not the brand kit's 6: at 30px tall a 6-unit stroke renders at ~1px and
+/* 10, not the brand kit's 6: at 44px tall a 6-unit stroke renders at ~1.5px and
    the corners all but vanish. The kit's geometry is drawn for 170px+. */
 .settings-logo .logo-brk { fill: none; stroke: var(--logo-bracket); stroke-width: 10; }
 .settings-logo .logo-type { fill: var(--text); }

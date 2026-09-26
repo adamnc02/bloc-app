@@ -5877,12 +5877,16 @@ beside a page that already says what it is.
 🚨 **It sits in the back-link row, not the title row.** Adam asked for it "in line with the header —
 centred". Centred in `.page-head`, it was measured in Chromium at 375px: `Settings` at 34px runs to
 x=157 and the logo started at x=150, and at 320px it covered the word entirely. The `‹ Home` row
-ends at x=67, so its centre is empty at every width. The logo is absolutely centred there (x=150–225
-at 375px, vertical centre level with the back link), so the back link keeps its 44px tap target and
-the title and Help button do not move.
+ends at x=67, so its centre is empty at every width. The logo is absolutely centred there and
+vertically centred on the back link, so the back link keeps its 44px tap target and the title and
+Help button do not move.
 
-The corners are drawn at `stroke-width: 10`, not the kit's 6: at 30px tall a 6-unit stroke renders at
-about 1px and the corners all but disappear. The kit's geometry is drawn for 170px and up.
+It is **44px tall — the row's own height** (x=132–243 at 375px, x=104–216 at 320px). It shipped at
+30px and read too small on Adam's phone; 44px is the largest it can be without spilling out of the
+row onto the eyebrow below.
+
+The corners are drawn at `stroke-width: 10`, not the kit's 6: at this size a 6-unit stroke renders at
+about 1.5px and the corners all but disappear. The kit's geometry is drawn for 170px and up.
 
 ### The installed icon does not update itself
 
