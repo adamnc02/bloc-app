@@ -17,7 +17,11 @@
 //      the Train block, which Adam asked to keep lavender; the brackets and
 //      OVERCOME use --splash-brand. Collapse them and one side is wrong.
 //
-// Also pins the app icon to the brand kit's green tile by content hash, and
+// v8.19 swapped the Bracket logo for the Rebuild kit (three stacked bars, the
+// top one green): the brackets are gone, and the bars now carry the green.
+// The palette split itself is unchanged.
+//
+// Also pins the app icon to the brand kit's tile by content hash, and
 // the Settings logo to the back-link row: in the title row it sits on top of
 // "Settings" on a 375px phone (measured, v8.18).
 //
@@ -65,24 +69,34 @@ check('dark + light accent tokens are the pre-v8.18 values', appAccentIsLavender
 const glowsOutsideSplash = source.split('#splash {')[0].match(/rgba\(47,\s*185,\s*138/g) || [];
 check('no green glow before the splash block (the 18 app glows stay lavender)', glowsOutsideSplash.length, 0);
 
-console.log('\nSplash — Train lavender, brand green on the brackets and OVERCOME');
+console.log('\nSplash — Train lavender, brand green on the top bar and OVERCOME');
 const splash = block(source, '#splash');
 check('--splash-accent (the Train block) is the original lavender', token(splash, '--splash-accent'), '#A79EE3');
 check('--splash-brand is the logo green', token(splash, '--splash-brand'), '#2fb98a');
 check('Train block paints with --splash-accent', /#splash \.c-train\s*\{[^}]*var\(--splash-accent\)/.test(source), true);
-check('brackets paint with --splash-brand', /#splash \.brk \{[^}]*border: 5px solid var\(--splash-brand\)/.test(source), true);
-check('four bracket corners in the splash markup', (source.match(/<span class="brk brk-(tl|tr|bl|br)"><\/span>/g) || []).length, 4);
+check('top bar paints with --splash-brand', /#splash \.sb-3 \{ fill: var\(--splash-brand\); \}/.test(source), true);
+check('neutral bars paint with --splash-block', /#splash \.sbar \{[^}]*fill: var\(--splash-block\)/.test(source), true);
+check('three logo bars in the splash markup, bottom → top', (source.match(/<rect class="sbar sb-[123]"/g) || []).length, 3);
+check('no v8.18 bracket corners left', /class="brk /.test(source), false);
 
-console.log('\nApp icon — the brand kit green tile');
+console.log('\nApp icon — the Rebuild kit tile');
 const icon = (source.match(/<link rel="apple-touch-icon" href="data:image\/png;base64,([^"]+)"/) || [])[1];
 const iconHash = icon && createHash('sha256').update(Buffer.from(icon, 'base64')).digest('hex').slice(0, 16);
-check('apple-touch-icon is bloc-brand/icon/apple-touch-icon-1024.png', iconHash, '13dace25a7770019');
+check('apple-touch-icon is bloc-brand-rebuild/icon/apple-touch-icon-1024.png', iconHash, '34ee21cf75e7f96e');
 
 console.log('\nSettings logo — in the back-link row, not the title row');
 const topbar = source.slice(source.indexOf('<div class="settings-topbar">'), source.indexOf('<div class="page-head">', source.indexOf('<div class="settings-topbar">')));
 check('the logo sits inside .settings-topbar', topbar.includes('class="settings-logo"'), true);
 check('the back link is still there (the only way out of Settings)', topbar.includes(`onclick="showScreen('home')"`), true);
 check('exactly one Settings logo', (source.match(/class="settings-logo"/g) || []).length, 1);
+// v8.19 §102 — the splash animation replays on the Settings logo each time it
+// comes into view. The restart needs remove → reflow → add; drop the reflow and
+// the browser coalesces the two class changes and nothing replays.
+const logoInit = source.slice(source.indexOf('function initSettingsLogoAnimation()'), source.indexOf('function initSettingsLogoAnimation()') + 900);
+check('Settings logo bars carry lb-1..lb-3 (bottom → top)', (topbar.match(/class="logo-bar[^"]*lb-[123]"/g) || []).length, 3);
+check('an IntersectionObserver replays it on every entry into view', /new IntersectionObserver/.test(logoInit) && /observe\(logo\)/.test(logoInit), true);
+check('replay is remove → reflow → add', /classList\.remove\('animate'\);\s*void logo\.getBoundingClientRect\(\);\s*logo\.classList\.add\('animate'\)/.test(logoInit), true);
+check('Settings logo bars follow the theme tokens', /\.settings-logo \.logo-bar \{ fill: var\(--logo-block\); \}/.test(source) && /\.settings-logo \.logo-bar-top \{ fill: var\(--logo-accent\); \}/.test(source), true);
 
 console.log('\nControl — re-apply the experiment\'s accent change');
 const recoloured = source.replace('--accent: #9184d9;', '--accent: #2fb98a;');

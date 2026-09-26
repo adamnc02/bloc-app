@@ -5829,6 +5829,8 @@ skipped sheet steps.
 
 ## §94 — v8.18: the Bracket logo — app icon, splash and Settings, not the app palette
 
+> **v8.19:** superseded as a logo by the Rebuild kit. The icon, splash and Settings mark changed, and the brackets were removed. The palette split this section describes still holds. See §101.
+
 ### What this is
 
 A design experiment, `index-green.html`, recoloured the whole app green **and** introduced a new
@@ -5906,3 +5908,345 @@ it; run against v8.17's `index.html` it fails 7 of its 12 checks, as it should. 
 screenshotted in Chromium at 375 and 320px in both modes, and the splash's computed colours read in
 the browser: Train block `rgb(167,158,227)`, brackets `rgb(47,185,138)`.
 
+
+## §95 — v8.19: editing a goal period re-linked it to the first macrocycle
+
+### The bug
+
+Reported 2026-09-25: *"When I edit a goal, the linked macrocycle seems to reset to another
+macrocycle, rather than retain whatever macrocycle it belonged to."*
+
+`openEditGoal()` builds the `#goal-macro-select` options with the goal's own macro marked
+`selected`, then calls `openModal('modal-add-goal')`. `openModal`'s goal block **rebuilt the same
+options from scratch with nothing selected**, and a `<select>` with no selected option shows — and
+returns as `.value` — its **first** option. `saveGoal()` reads `macroId` straight off that dropdown,
+so every save from an edit, even a kcal-only one, re-linked the goal to `state.macrocycles[0]`.
+A goal in the first macrocycle was unaffected, which is why it looked intermittent.
+
+The goal queue had already hit this for its own new steps and worked around it in
+`_openQueueStep()` (it sets `macroSelect.value` after `openModal`). The edit path never got the
+same treatment.
+
+### The fix — in `openModal`, not in each caller
+
+The rebuild now marks the edited goal's macro `selected` (and sets `sel.value`) whenever `_editIdx`
+is set. Every edit entry point goes through that one rebuild — `openEditGoal` (a phase row),
+`chooseExtendLastGoal` (§42's "extend last goal period") and the queue's truncation step — so one
+change covers all three. 🚨 **The trap:** fixing it in `openEditGoal` by setting the value *before*
+`openModal` is what the code already did. Anything done to the dropdown before `openModal` is thrown
+away by the rebuild; it must be done by the rebuild or after it.
+
+`saveGoal()` also now renumbers the goal's **previous** macrocycle when an edit deliberately moves
+it, so the cycle it left does not keep a gap in its "Step N" names. `renumberMacroGoalSteps()` was
+previously called only for the new one.
+
+### Data already affected
+
+Goals moved by the bug before v8.19 stay in the macrocycle they were moved to — the app has no
+record of where they were. The fix does not guess. Each one is corrected by opening it, choosing its
+real macrocycle and saving, which the fixed dropdown now allows.
+
+### Verification
+
+`scripts/verify-goal-edit-keeps-macro.mjs` extracts the real `openEditGoal`, `saveGoal` and
+`openModal`'s `modal-add-goal` block and runs an edit → save round trip against a `<select>` stub
+that behaves like a browser's (no `selected` option → the first wins). It checks a goal in the 2nd
+and 3rd macrocycle keeps its macro across a kcal-only and an unchanged save, that a deliberate move
+is honoured and renumbers both cycles, and — as its control — that restoring the pre-v8.19 rebuild
+fails the suite. Run against v8.18's `index.html` it fails 4 of its 8 checks: both goals are saved
+into `m1`.
+
+## §96 — v8.19: a new macrocycle start date moves its goal periods
+
+### What it is
+
+Asked for on 2026-09-26, after pushing a cycle two weeks later and re-dating six goals by hand, last
+to first (which is how §95 was found). Saving the Edit Macrocycle sheet with a **changed start date**
+on a cycle that **has goal periods** no longer saves at once. `saveEditMacro()` reads the fields into
+an `edits` object, `buildGoalShiftPlan()` plans the move, and the **Move goal periods too?** sheet
+(`modal-macro-shift-goals`) shows it:
+
+- the cycle's old → new start/end, as a sense check (`getMacroEndDate` of the macro with `edits`
+  applied, so a mesocycle count changed in the same edit is reflected);
+- every goal in the cycle, old dates struck through, new dates beneath;
+- an amber note if the cycle has **already started** (`oldStart <= today`), because moving its goals
+  moves the targets of days already logged: `getGoalForDay` finds a day's goal **by date**;
+- any goal that would fall outside the new cycle dates, in red, with how far ("ends 1 week (7 days)
+  after the cycle"), and listed as ones to review after saving. **Flagged, not blocked**, per Adam's
+  choice. This matches the extend/crop flow (§42), which already allows goals past the cycle end;
+- any goal that would **overlap a goal in another macrocycle**, in red with the goal it hits.
+  **This one blocks** "Move goals & save": goal periods never overlap (`findOverlappingGoal`).
+
+**Move goals & save** → `applyEditMacro(id, edits, plan)`; **Save cycle only** →
+`applyEditMacro(id, edits, null)`, the pre-v8.19 behaviour; **✕** saves nothing. Nothing touches
+`state` until a button is pressed; the pending edit lives in `_macroShiftPending`.
+
+Asked alternatives, and why not (Adam, 2026-09-26): moving the goals automatically with no sheet
+(you never see the new dates first); for a started cycle, moving only its future goals (leaves a
+gap or an overlap at the join) or not offering the move (back to hand-editing).
+
+### 🚨 The trap: last-to-first order is not the mechanism
+
+Adam's manual method, the last goal first, working backwards, is a workaround for the goal
+sheet checking each **single** save against the goals not yet moved. Copying it into code (a loop
+that saves one goal at a time through the overlap gate) is the plausible wrong implementation. It
+would pass for a push later and fail in the other direction, where first-to-last is the order that
+works. Every goal in the cycle moves by **the same `deltaDays` in one write**, so the gaps between
+them are unchanged and they cannot overlap each other. The only overlap that can arise is with
+**other** macrocycles' goals, and that is what `clashes` checks.
+
+The delta is whole calendar days from `dayDiff()` (noon anchors) and applied by `shiftDateStr()`
+(`setDate`, local), so a move across the BST→GMT change does not lose or gain a day. The start is
+Monday-only, so the delta is always a whole number of weeks and goals keep their weekdays.
+
+`macroGoalID`s and labels are unchanged and the order is unchanged, so no renumbering is needed.
+
+### Verification
+
+`scripts/verify-macro-start-shifts-goals.mjs` extracts the real `buildGoalShiftPlan`,
+`applyEditMacro`, `shiftDateStr`, `dayDiff`, `getMacroEndDate` and `toLocalDateStr` and checks: a
++14-day push moves six back-to-back goals exactly 14 days, across 25 Oct 2026, under
+`TZ=Europe/London`; Move writes them and Save cycle only does not; +21 days onto the next cycle's first
+goal is a clash on that one goal only; move + one fewer mesocycle flags only the last goal, 7 days
+past; −7 days; the started flag; no sheet when the start is unchanged or the cycle has no goals. The
+control strips the clash check and asserts the suite then fails. The sheet was also driven in
+headless Chromium at 390px against the dev-bypass demo data: no console errors, and the moved dates
+persisted to `bloc_state`.
+
+## §97 — v8.19: a new goal period's default dates
+
+Asked for on 2026-09-26: *"make sure that the first goal has a default start date as the start date of
+the cycle (already correct), but make sure the end date is the sunday of the same week."*
+
+`defaultNewGoalDates(macro, goals, today)` → `{ start, end }`, written into the sheet by
+`applyNewGoalDefaultDates()`:
+
+| | Before v8.19 | v8.19 |
+|---|---|---|
+| Start, the cycle's **first** goal | day after the latest goal in **any** cycle | **the cycle's own `start`** |
+| Start, a later goal | day after the latest goal in any cycle | unchanged. It still prevents a new goal overlapping the most recent one |
+| Start, no goals anywhere | today | today (or the cycle start, if a cycle is selected) |
+| End | **= start** (a one-day goal) | **`sundayOfWeek(start)`**, the end of the Monday–Sunday week |
+
+"Already correct" was true only by coincidence. The old rule gave the cycle start only when the
+new cycle began the day after the previous cycle's last goal. A cycle pushed later, which is §96's
+case, got a first goal on the old dates.
+
+🚨 **Where it runs is half the fix.** `openModal('modal-add-goal')` sets the defaults **before** the
+cycle is chosen: "+ Build goal periods" and the "Add a goal?" nudge after creating a cycle both set
+the dropdown *after* `openModal` returns, then call `onGoalMacroSelectChange()`. So the defaults
+are re-applied there, alongside the Step N label prefill. Computing them only in `openModal` would
+use whichever cycle is first in the list. The same trap is described in §95, from the other side.
+Callers that set their own dates after choosing the cycle (`chooseExtendAddNewGoal`, the goal
+queue's `_openQueueStep`) set `.value` directly and do not call it, so their dates are not
+overwritten.
+
+Changing the dropdown by hand on a new goal also resets the two dates, just as it already reset the
+label.
+
+`scripts/verify-new-goal-default-dates.mjs` covers `sundayOfWeek` (Monday, midweek, Sunday itself,
+across 25 Oct 2026) and all four start cases. Its control restores `end = start` and fails 4 checks.
+Driven in headless Chromium: "+ Build goal periods" on a cycle starting 19 Oct with no goals opens
+on 19 Oct → 25 Oct, "Step 1 - ", with no console errors.
+
+## §98 — v8.19 UAT: follow-up goal sheets until the cycle is covered; New Macrocycle's carried-over name
+
+### Follow-up goal sheets
+
+Asked for in the v8.19 UAT (2026-09-26): a 4-week cycle was given one 2-week goal, and *"there was no
+clue that there was still 2 weeks left … without a goal. On these follow-up goal phase modals, we need
+to show 'x weeks still unaccounted for - cycle end date xx' at the top of the modal in red."*
+
+At the end of `saveGoal()`, when the save was a **new** goal (`editIdx < 0`) and
+`macroGoalCoverage(macro, state.goals).uncoveredDays > 0`, `openGoalFollowUp(macroId)` runs 350ms
+later (after the close animation, the same gap the goal queue uses). It opens a fresh sheet, selects
+the cycle, sets `modal._followUp`, and `applyGoalFollowUp()` writes the red
+`#goal-remaining-banner` ("2 weeks still unaccounted for · cycle ends 6 Dec 2026"; days when not a
+whole number of weeks) and dates that start on `firstUncovered` and end on that week's Sunday,
+capped at the cycle end.
+
+- **It stops** when the cycle is covered, or on ✕: `closeModal` clears `_followUp`, and so does every
+  `openModal`, so the banner never shows on an ordinary open.
+- **Edits never chain.** Nor does the AI goal queue, which saves through its own branch of
+  `saveGoalAndAdvanceQueue()` and never reaches `saveGoal()`.
+- Changing the dropdown on a follow-up sheet recomputes the banner and dates for the new cycle
+  (`onGoalMacroSelectChange`), and hides the banner if that cycle is already covered.
+- The first sheet ("Add a goal?", "+ Build goal periods") has no banner. Only follow-ups do, as
+  asked.
+
+🚨 **Coverage counts goals from every cycle, not just this one.** Goal periods never overlap, so a
+day already held by another cycle's goal can never be filled by this one. Counted per cycle, a
+cycle that overlaps its neighbour's goals would reopen the sheet forever, and every save would be
+refused by the overlap check. `scripts/verify-goal-follow-up-coverage.mjs` has this case, and its
+control narrows coverage to the cycle's own goals and asserts the failure. It also covers: no
+goals, 14 days left from 23 Nov, fully covered, a gap in the middle found first, and a goal running
+past the end. The whole chain was driven in headless Chromium on UAT C's shape (4 weeks from 9
+Nov): the sheet reopened with "2 weeks…" from 23 Nov, then "1 week…" from 30 Nov, then closed once
+6 Dec was covered. No console errors.
+
+### New Macrocycle carried over the last cycle's name
+
+`openModal('modal-macro')` reset the dates, split, goal type and target weight but never
+`#macro-name-input` or `#macro-goal-input`, so a second cycle opened with the first one's name
+(found in the same UAT). Both are now cleared on open. `fillNextCycleMacroModal()` sets its own name
+*after* `openModal` returns, so the Next Cycle flow's "Cut 2026" default is unaffected.
+
+## §99 — v8.19 UAT: macrocycles never overlap
+
+### Why
+
+Found in the v8.19 UAT (2026-09-26): moving UAT B three weeks later ran it a week into UAT C, and the
+only signal was §96's goal-period clash. Adam: *"we also need a higher level check, which is
+macrocycle clash checks. We should not have the option for clashing macrocycles."* Before v8.19
+**nothing** checked cycle overlap. Creating, re-dating, adding mesocycles and Extend could all do it.
+
+### The rule and where it is enforced
+
+`findMacroClash(candidate, macros, excludeId)` → the earliest-starting other cycle whose
+`macroRange()` (start → `getMacroEndDate` Sunday) overlaps. A cycle ending Sunday and the next
+starting Monday **touch but do not clash**, and that boundary is what the verify control attacks.
+
+| Path | On a clash |
+|---|---|
+| `createMacrocycle` | Blocked; `#macro-clash-error` names the cycle, with a "Start {first free Monday} instead" link (`firstFreeMacroStart`, searching forward from the typed start) |
+| `saveEditMacro`, start date moved | The **Clashes with …** sheet (below) |
+| `saveEditMacro`, same start but longer | Blocked inline (`#edit-macro-clash-error`): "at most N mesocycles fit" (`mesosThatFit`) |
+| `confirmMacroExtendWeeks`, `saveMacroExtensionEdit` (grow only) | Blocked: "at most N weeks fit" (`extensionClashMessage`) |
+
+🚨 **The edit sheet checks only an edit that moves the start or lengthens the cycle.** Data from before
+v8.19 may already overlap. Checking every save would stop anyone renaming such a cycle until they
+had untangled it.
+
+### The clash sheet (`modal-macro-clash`) — `planMacroClash(macro, edits, macros)`
+
+It opens **on top of** the edit sheet, which stays open, so **Cancel** (option 4) loses nothing
+typed and saves nothing. Adam's four options, when the move runs into a **later** cycle
+(`direction: 'next'`):
+
+1. **fit**: start = next cycle's start − the cycle's length, so it ends the day before. Continues
+   into `proceedEditMacro`, which is §96's goal-shift sheet.
+2. **cut**: keep the requested start, with `weeks = mesosThatFit(...)`. Whole mesocycles, so with
+   2-week mesocycles it can end a week early. Not offered if fewer than 2 would remain (the edit
+   sheet's minimum).
+3. **both**: *"Pick a start, auto-cut the rest"* (Adam's choice over a split-the-weeks stepper).
+   Every Monday strictly between the fit start and the requested start, each with its own cut, in a
+   `<select>`. Empty when the overlap is under 2 weeks, since any in-between start would then be
+   option 1 or 2.
+
+Every option is re-checked against **all** cycles, and one that would land on a third cycle is
+dropped, not offered. When the move runs into an **earlier** cycle (`direction: 'previous'`), only
+**fit** (the first free Monday after it) and Cancel are offered. 🚨 Cutting mesocycles shortens the
+**end**, which cannot clear a clash at the **start**, so offering it would be a button that
+cannot work.
+
+### Fit goal periods (`modal-goal-fit`) — `layoutGoalFit(cycleStart, cycleEnd, cycleWeeks, weeks, others)`
+
+After **cut** or **both**, one slider per goal period (0 → the cycle's weeks), in the goals' current
+order, starting from each goal's current length rounded to whole weeks. Goals are laid **back to
+back from the cycle start**, so they cannot overlap each other and the first kept goal is anchored
+to the start. Row status is shown as a green or red dot, and the slider's colour: `over` (past the
+cycle end, which outranks `clash` because it is the cause), `clash` (hits another cycle's goal),
+`gap` (the last kept goal, when the total is short), `deleted` (0 weeks: the name is struck through,
+"Will be deleted", per Adam), `ok`. **Save is enabled only when `ok`**: total exactly the cycle
+length, at least one goal kept, no clash (Adam: *"only when all green"*). Save deletes the 0-week
+goals, writes the rest, renumbers the Step names, then `applyEditMacro` saves the cycle. ✕ and Cancel
+save nothing.
+
+🚨 **The sliders are built once and updated in place** (`updateGoalFitSheet`). Re-rendering on
+`oninput` replaces the `<input type=range>` under the finger and ends a drag after one step on a
+phone.
+
+### Verification
+
+`scripts/verify-macro-no-overlap.mjs` (19 checks) covers the touching-not-clashing boundary; fit /
+cut / both on the UAT shape (1-week overlap → 28 Sep or 7 mesocycles; 3-week overlap → 5 or both
+5 Oct/7 and 12 Oct/6); 2-week mesocycles rounding; the previous direction with no cut; a cut
+leaving under 2 mesocycles not offered; `firstFreeMacroStart`; and `layoutGoalFit` for over, ok,
+deleted/gap, re-anchoring when goal 1 is 0, none kept, and a clash. Its control widens the overlap
+test by one day and fails 3 checks. Driven end to end in headless Chromium at 390px: all four
+options, Cancel keeping the typed values, the sliders taken from red to green, a 0-week delete
+saved, the mesocycles-only / create / extend blocks, and a rename on an already-overlapping cycle
+still saving. No console errors.
+
+## §100 — v8.19: Local backup opens the Share Sheet, not Quick Look
+
+Reported 2026-09-26: Export → Local file on the phone opened *"a black screen with 'More' in the
+middle"*, iOS Safari's **Quick Look** page, which is what it shows for a bare `<a download>` click.
+personal-ledger's backup opens the **Share Sheet** (AirDrop, Save to Files…) because it calls
+`navigator.share({ files: [file] })` (`shareOrDownloadFile` in `personal-ledger/src/lib/ledgerStorage.ts`).
+
+BLOC already had that pattern, but only for sharing a single food item (`_shareOrDownload`). It is
+now **`shareOrDownloadFile(contents, filename, mimeType, title)`**, and every JSON export goes through
+it: `exportData` (the backup), `exportFoodLibrary`, `exportLibrary`, `handleDownloadMyData`, and the
+single-item share.
+
+- Can share files → the Share Sheet, and nothing else.
+- **`AbortError`** is the person dismissing the sheet: a normal cancel, so it must **not** also
+  start a download.
+- Any other error, or no file sharing (desktop, older browsers) → the old `<a download>`, same file.
+
+🚨 **`navigator.share` needs a live tap.** `exportData` runs straight from the Settings row's click,
+so it qualifies. `handleDownloadMyData` shares only after `await`ing an RPC, by which time iOS may
+refuse with `NotAllowedError`, and the download fallback then runs. That is no worse than before,
+and why the fallback exists.
+
+`scripts/verify-backup-share-sheet.mjs` runs the real helper against stubbed `navigator` / `document`
+for all five outcomes, checks each export calls it, and checks no bare `a.download =` survives outside
+it (a new one would be a new Quick Look path). Its control restores the old `exportData` and fails.
+
+## §101 — v8.19: the Rebuild logo — icon, splash bars and Settings
+
+Adam supplied the **Rebuild · Green** kit (`bloc-brand-rebuild-CHOSEN/`, in the tracking folder,
+not in git): three stacked bars, the top one green, beside an Oxanium Bold BLOC converted to
+outlines. It replaces §94's Bracket logo in the three places that one went:
+
+| | Now |
+|---|---|
+| `apple-touch-icon` | the kit's `icon/apple-touch-icon-1024.png`, byte-identical, as a data URI (SHA-256 `34ee21cf75e7f96e…`) |
+| Settings `.settings-logo` | inline SVG, geometry from `logo/bloc-logo-on-dark.svg` minus its margin (`viewBox 0 0 507.8 100`). Bars `--logo-block`, the top one `--logo-accent`, and the type `--text`: dark `#3b4063`/`#2fb98a`, light `#aab6c8`/`#1b9e75`, the kit's on-dark and on-light values. It replaces `--logo-bracket`. **28px tall** (~142px wide): the lock-up is 5:1, so at the Bracket logo's 44px it would be 223px wide. At 320px it spans x=89–231, clear of the back link (ends x=67) |
+| Splash `#wordmark` | the same lock-up **inline** instead of a PNG, so the bars can animate individually. The type is `--splash-text`, the bars `--splash-block` (new) and `--splash-brand` |
+
+**The splash animation** (Adam: *"add some similar bar-by-bar flash/pulse animation to the bars"*)
+replaces the four bracket corners and keeps their two hooks and timings in the splash script:
+
+- `.locked` (as the wordmark settles): bars `sb-1` → `sb-3` **build bottom to top**, 0.16s apart.
+  Each slides in from the left and flashes light green as it lands (`blocSplashBarIn`); the top one
+  settles on the brand green.
+- `.pulsing` (1.1s later, until the fade): a **green wave runs up the stack** on a 1.6s loop. Each
+  neutral bar turns brand green and back, and the top one brightens, 0.18s apart.
+- Reduced motion: no animation, bars shown.
+
+🚨 **Only `transform`, `opacity` and `fill` animate.** CSS `filter` (the brackets' glow) on SVG
+child elements is not reliable in Safari. `transform-box: fill-box` makes each bar scale about its
+own centre; without it, SVG transforms pivot on the SVG's origin and the bars fly off diagonally.
+
+`#wordmark` keeps the brackets' 29px padding so the tagline lands where the rise timings put it.
+
+`scripts/verify-brand-palette-split.mjs` now checks the three bars and their tokens, that no
+bracket markup remains, the new icon hash, and the Settings logo's theme tokens. Run against
+v8.18's `index.html`, it fails 7 checks. Screenshotted in Chromium at 390px mid-build and
+mid-pulse, and Settings in both modes. The home-screen icon cannot update itself: see §94's note on
+re-adding.
+
+## §102 — v8.19 UAT: the splash bar animation replays on the Settings logo
+
+Adam, after seeing §101's splash: *"add that same animation to the logo in the settings page, so
+every time the page loads / the logo comes back into view, the same animation triggers."*
+
+The Settings logo's bars are `lb-1` → `lb-3`, bottom to top. With `.animate` on the `<svg>`, each
+bar runs **two** animations: the build (`blocLogoBarIn`, fill-mode `both` so it starts hidden),
+then the pulse from 1.25s, the splash's lock-to-pulse gap. The pulse runs **twice** and stops,
+because Settings stays open where the splash fades. The timings and staggers are the splash's. The
+colours are the logo's theme tokens (`--logo-block`, `--logo-accent`, and a new `--logo-flash`:
+`#7ff0c6` dark, `#45d19d` light, where a paler flash would vanish on the light page).
+
+`initSettingsLogoAnimation()` puts one `IntersectionObserver` (threshold 0.6) on the logo. That
+covers both triggers: opening Settings takes it from `display:none` to visible, and scrolling it
+back on screen crosses the threshold. Either way it counts as entering view. 🚨 **The restart is
+remove → reflow → add.** Removing and re-adding a class in one frame is coalesced, and nothing
+replays. Reduced motion: no animation.
+
+Checked in headless Chromium: the animation starts on opening Settings, restarts from 0 on
+re-opening and on scrolling back into view, and there are no console errors.
+`scripts/verify-brand-palette-split.mjs` checks the bar classes, the observer and the
+remove → reflow → add order.
