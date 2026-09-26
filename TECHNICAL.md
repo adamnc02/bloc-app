@@ -5829,6 +5829,8 @@ skipped sheet steps.
 
 ## §94 — v8.18: the Bracket logo — app icon, splash and Settings, not the app palette
 
+> **v8.19:** superseded as a logo by the Rebuild kit. The icon, splash and Settings mark changed, and the brackets were removed. The palette split this section describes still holds. See §101.
+
 ### What this is
 
 A design experiment, `index-green.html`, recoloured the whole app green **and** introduced a new
@@ -6165,3 +6167,63 @@ test by one day and fails 3 checks. Driven end to end in headless Chromium at 39
 options, Cancel keeping the typed values, the sliders taken from red to green, a 0-week delete
 saved, the mesocycles-only / create / extend blocks, and a rename on an already-overlapping cycle
 still saving. No console errors.
+
+## §100 — v8.19: Local backup opens the Share Sheet, not Quick Look
+
+Reported 2026-09-26: Export → Local file on the phone opened *"a black screen with 'More' in the
+middle"*, iOS Safari's **Quick Look** page, which is what it shows for a bare `<a download>` click.
+personal-ledger's backup opens the **Share Sheet** (AirDrop, Save to Files…) because it calls
+`navigator.share({ files: [file] })` (`shareOrDownloadFile` in `personal-ledger/src/lib/ledgerStorage.ts`).
+
+BLOC already had that pattern, but only for sharing a single food item (`_shareOrDownload`). It is
+now **`shareOrDownloadFile(contents, filename, mimeType, title)`**, and every JSON export goes through
+it: `exportData` (the backup), `exportFoodLibrary`, `exportLibrary`, `handleDownloadMyData`, and the
+single-item share.
+
+- Can share files → the Share Sheet, and nothing else.
+- **`AbortError`** is the person dismissing the sheet: a normal cancel, so it must **not** also
+  start a download.
+- Any other error, or no file sharing (desktop, older browsers) → the old `<a download>`, same file.
+
+🚨 **`navigator.share` needs a live tap.** `exportData` runs straight from the Settings row's click,
+so it qualifies. `handleDownloadMyData` shares only after `await`ing an RPC, by which time iOS may
+refuse with `NotAllowedError`, and the download fallback then runs. That is no worse than before,
+and why the fallback exists.
+
+`scripts/verify-backup-share-sheet.mjs` runs the real helper against stubbed `navigator` / `document`
+for all five outcomes, checks each export calls it, and checks no bare `a.download =` survives outside
+it (a new one would be a new Quick Look path). Its control restores the old `exportData` and fails.
+
+## §101 — v8.19: the Rebuild logo — icon, splash bars and Settings
+
+Adam supplied the **Rebuild · Green** kit (`bloc-brand-rebuild-CHOSEN/`, in the tracking folder,
+not in git): three stacked bars, the top one green, beside an Oxanium Bold BLOC converted to
+outlines. It replaces §94's Bracket logo in the three places that one went:
+
+| | Now |
+|---|---|
+| `apple-touch-icon` | the kit's `icon/apple-touch-icon-1024.png`, byte-identical, as a data URI (SHA-256 `34ee21cf75e7f96e…`) |
+| Settings `.settings-logo` | inline SVG, geometry from `logo/bloc-logo-on-dark.svg` minus its margin (`viewBox 0 0 507.8 100`). Bars `--logo-block`, the top one `--logo-accent`, and the type `--text`: dark `#3b4063`/`#2fb98a`, light `#aab6c8`/`#1b9e75`, the kit's on-dark and on-light values. It replaces `--logo-bracket`. **28px tall** (~142px wide): the lock-up is 5:1, so at the Bracket logo's 44px it would be 223px wide. At 320px it spans x=89–231, clear of the back link (ends x=67) |
+| Splash `#wordmark` | the same lock-up **inline** instead of a PNG, so the bars can animate individually. The type is `--splash-text`, the bars `--splash-block` (new) and `--splash-brand` |
+
+**The splash animation** (Adam: *"add some similar bar-by-bar flash/pulse animation to the bars"*)
+replaces the four bracket corners and keeps their two hooks and timings in the splash script:
+
+- `.locked` (as the wordmark settles): bars `sb-1` → `sb-3` **build bottom to top**, 0.16s apart.
+  Each slides in from the left and flashes light green as it lands (`blocSplashBarIn`); the top one
+  settles on the brand green.
+- `.pulsing` (1.1s later, until the fade): a **green wave runs up the stack** on a 1.6s loop. Each
+  neutral bar turns brand green and back, and the top one brightens, 0.18s apart.
+- Reduced motion: no animation, bars shown.
+
+🚨 **Only `transform`, `opacity` and `fill` animate.** CSS `filter` (the brackets' glow) on SVG
+child elements is not reliable in Safari. `transform-box: fill-box` makes each bar scale about its
+own centre; without it, SVG transforms pivot on the SVG's origin and the bars fly off diagonally.
+
+`#wordmark` keeps the brackets' 29px padding so the tagline lands where the rise timings put it.
+
+`scripts/verify-brand-palette-split.mjs` now checks the three bars and their tokens, that no
+bracket markup remains, the new icon hash, and the Settings logo's theme tokens. Run against
+v8.18's `index.html`, it fails 7 checks. Screenshotted in Chromium at 390px mid-build and
+mid-pulse, and Settings in both modes. The home-screen icon cannot update itself: see §94's note on
+re-adding.
