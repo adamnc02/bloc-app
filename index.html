@@ -4958,6 +4958,19 @@ try {
   </div>
 </div>
 
+<!-- v8.19 — Edit macrocycle: move its goal periods with a new start date (TECHNICAL §96) -->
+<div class="modal-overlay" id="modal-macro-shift-goals">
+  <div class="modal-sheet" data-modal="modal-macro-shift-goals">
+    <div class="modal-handle-row"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="cancelMacroShift()">✕</button>
+    </div>
+    <div class="modal-title">Move goal periods too?</div>
+    <div id="macro-shift-content"></div>
+    <button class="btn btn-accent btn-block" style="margin-top:16px;" id="macro-shift-confirm-btn" onclick="confirmMacroShift(true)">Move goals &amp; save →</button>
+    <button class="btn btn-block" style="margin-top:8px;" onclick="confirmMacroShift(false)">Save cycle only</button>
+  </div>
+</div>
+
 <!-- Add / Edit Goal -->
 <div class="modal-overlay" id="modal-add-goal">
   <div class="modal-sheet" data-modal="modal-add-goal">
@@ -19487,21 +19500,190 @@ function saveEditMacro() {
   }
   if (startErrEl) startErrEl.style.display = 'none';
 
-  macro.name = document.getElementById('edit-macro-name-input').value.trim() || macro.name;
-  macro.weeks = parseInt(document.getElementById('edit-macro-weeks-input').value) || macro.weeks;
-  macro.start = startVal;
-  macro.goal = document.getElementById('edit-macro-goal-input').value.trim();
-  macro.targetBw = parseFloat(document.getElementById('edit-macro-target-bw-input').value) || null;
-  macro.goalType = document.getElementById('edit-macro-goal-type-input').value;
-  macro.weightIncrement = document.getElementById('edit-macro-weight-increment-input').value || '2.5';
-  macro.weeksPerMeso = parseInt(document.getElementById('edit-macro-weeks-per-meso-input').value) || 1;
+  const edits = {
+    name: document.getElementById('edit-macro-name-input').value.trim() || macro.name,
+    weeks: parseInt(document.getElementById('edit-macro-weeks-input').value) || macro.weeks,
+    start: startVal,
+    goal: document.getElementById('edit-macro-goal-input').value.trim(),
+    targetBw: parseFloat(document.getElementById('edit-macro-target-bw-input').value) || null,
+    goalType: document.getElementById('edit-macro-goal-type-input').value,
+    weightIncrement: document.getElementById('edit-macro-weight-increment-input').value || '2.5',
+    weeksPerMeso: parseInt(document.getElementById('edit-macro-weeks-per-meso-input').value) || 1,
+  };
+
+  // v8.19 — a new start date offers to move the cycle's goal periods by the
+  // same number of days (§96). Nothing is saved until the person chooses.
+  const plan = buildGoalShiftPlan(macro, edits, state.goals || [], getLocalToday());
+  if (plan) {
+    _macroShiftPending = { id, edits, plan };
+    closeModal('modal-edit-macro');
+    renderMacroShiftSheet();
+    openModal('modal-macro-shift-goals');
+    return;
+  }
+  applyEditMacro(id, edits, null);
+}
+
+// Writes the edit sheet's values onto the macrocycle and, when `shiftPlan`
+// is given, moves every goal period in it to that plan's new dates.
+function applyEditMacro(id, edits, shiftPlan) {
+  const macro = state.macrocycles.find(m => m.id === id);
+  if (!macro) return;
+  Object.assign(macro, edits);
   // sessionsPerWeek is calculated, not edited here — keep it in sync with
   // the actual split in case days was ever changed elsewhere.
   macro.sessionsPerWeek = (macro.days ? macro.days.length : macro.sessionsPerWeek) || 3;
+  if (shiftPlan) {
+    shiftPlan.rows.forEach(r => {
+      const g = (state.goals || []).find(x => x.macroGoalID === r.macroGoalID);
+      if (g) { g.startDate = r.newStart; g.endDate = r.newEnd; }
+    });
+  }
   save();
   closeModal('modal-edit-macro');
   renderPlan();
   maybePromptCreateGoal(id);
+}
+
+// ── Edit macrocycle: move goal periods with the start date (v8.19, §96) ──
+// The edit being confirmed in modal-macro-shift-goals: { id, edits, plan }.
+let _macroShiftPending = null;
+
+// Moves a YYYY-MM-DD string by `days` calendar days (local, DST-safe).
+function shiftDateStr(dateStr, days) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return toLocalDateStr(d);
+}
+
+// Whole calendar days from a to b (b − a). Noon anchors keep a BST/GMT
+// change from rounding a day away.
+function dayDiff(a, b) {
+  return Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 86400000);
+}
+
+// Plans moving a macrocycle's goal periods when its start date changes.
+// Returns null when there is nothing to offer: the start is unchanged, the
+// macro had no start, or it has no goal periods.
+//
+// 🚨 Every goal moves by the SAME number of days in ONE save, so the gaps
+// between them are preserved and they cannot overlap each other. Moving them
+// one at a time through the goal sheet needs last-to-first order only because
+// each single save is checked against the not-yet-moved ones. What CAN still
+// collide is a goal in ANOTHER macrocycle — `clashes` — and that blocks the
+// move, because goal periods must never overlap (findOverlappingGoal).
+function buildGoalShiftPlan(macro, edits, goals, today) {
+  const oldStart = macro.start;
+  const newStart = edits.start;
+  if (!oldStart || !newStart || oldStart === newStart) return null;
+  const linked = goals.filter(g => g.macroId === macro.id).sort((a, b) => a.startDate.localeCompare(b.startDate));
+  if (!linked.length) return null;
+
+  const deltaDays = dayDiff(oldStart, newStart);
+  const oldEnd = toLocalDateStr(getMacroEndDate(macro));
+  const newEnd = toLocalDateStr(getMacroEndDate(Object.assign({}, macro, edits)));
+  const others = goals.filter(g => g.macroId !== macro.id);
+
+  const rows = linked.map(g => {
+    const rs = shiftDateStr(g.startDate, deltaDays);
+    const re = shiftDateStr(g.endDate, deltaDays);
+    const clash = others.find(o => o.startDate <= re && o.endDate >= rs) || null;
+    return {
+      macroGoalID: g.macroGoalID,
+      label: g._blocLabel || g.label || 'Goal',
+      oldStart: g.startDate, oldEnd: g.endDate,
+      newStart: rs, newEnd: re,
+      daysPastEnd: Math.max(0, dayDiff(newEnd, re)),
+      daysBeforeStart: Math.max(0, dayDiff(rs, newStart)),
+      clash,
+    };
+  });
+
+  return {
+    deltaDays, oldStart, oldEnd, newStart, newEnd, rows,
+    started: oldStart <= today,
+    outOfRange: rows.filter(r => r.daysPastEnd || r.daysBeforeStart),
+    clashes: rows.filter(r => r.clash),
+  };
+}
+
+// "2 weeks (14 days)" / "3 days"
+function describeDays(n) {
+  const days = `${n} day${n === 1 ? '' : 's'}`;
+  if (n % 7 !== 0) return days;
+  const w = n / 7;
+  return `${w} week${w === 1 ? '' : 's'} (${days})`;
+}
+
+function renderMacroShiftSheet() {
+  const p = _macroShiftPending && _macroShiftPending.plan;
+  const el = document.getElementById('macro-shift-content');
+  if (!p || !el) return;
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const range = (a, b) => `${formatDate(a)} – ${formatDate(b)}`;
+  const dir = p.deltaDays > 0 ? 'later' : 'earlier';
+  const n = p.rows.length;
+
+  let html = `<div style="font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.5;">The cycle now starts ${describeDays(Math.abs(p.deltaDays))} ${dir}. Move its ${n} goal period${n === 1 ? '' : 's'} by the same amount?</div>`;
+
+  // Sense check: the cycle's own dates, old → new.
+  html += `<div style="background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:12px;">
+    <div class="label" style="margin-bottom:4px;">Macrocycle</div>
+    <div style="font-size:12px;color:var(--text3);text-decoration:line-through;">${range(p.oldStart, p.oldEnd)}</div>
+    <div style="font-size:14px;font-weight:600;">${range(p.newStart, p.newEnd)}</div>
+  </div>`;
+
+  if (p.started) {
+    html += `<div style="font-size:12px;color:var(--amber);margin-bottom:12px;line-height:1.5;">This cycle has already started. Moving its goal periods moves past days' nutrition targets too, so days you have already logged may be measured against different targets.</div>`;
+  }
+
+  if (p.clashes.length) {
+    html += `<div style="font-size:12px;color:var(--red);margin-bottom:12px;line-height:1.5;">Can't move the goal periods — ${p.clashes.length === 1 ? 'one would' : 'some would'} overlap a goal period in another macrocycle. Goal periods can never overlap. Save the cycle only, or change that other goal period first.</div>`;
+  }
+
+  if (p.outOfRange.length) {
+    const items = p.outOfRange.map(r => {
+      const parts = [];
+      if (r.daysBeforeStart) parts.push(`starts ${describeDays(r.daysBeforeStart)} before the cycle`);
+      if (r.daysPastEnd) parts.push(`ends ${describeDays(r.daysPastEnd)} after the cycle`);
+      return `<li><strong>${esc(r.label)}</strong> ${parts.join(' and ')}</li>`;
+    }).join('');
+    html += `<div style="font-size:12px;color:var(--red);margin-bottom:12px;line-height:1.5;">After saving, review ${p.outOfRange.length === 1 ? 'this goal period' : 'these goal periods'} in Plan so ${p.outOfRange.length === 1 ? 'it fits' : 'they fit'} within the macrocycle:<ul style="margin:6px 0 0 18px;padding:0;">${items}</ul></div>`;
+  }
+
+  html += p.rows.map(r => {
+    const bad = r.daysPastEnd || r.daysBeforeStart || r.clash;
+    const note = r.clash
+      ? `Overlaps ${esc(r.clash._blocLabel || r.clash.label || 'a goal')} (${range(r.clash.startDate, r.clash.endDate)})`
+      : r.daysPastEnd ? `Ends ${describeDays(r.daysPastEnd)} after the cycle`
+      : r.daysBeforeStart ? `Starts ${describeDays(r.daysBeforeStart)} before the cycle` : '';
+    return `<div style="padding:10px 0;border-top:0.5px solid var(--border);">
+      <div style="font-size:13px;font-weight:600;${bad ? 'color:var(--red);' : ''}">${esc(r.label)}</div>
+      <div style="font-size:12px;color:var(--text3);text-decoration:line-through;">${range(r.oldStart, r.oldEnd)}</div>
+      <div style="font-size:13px;${bad ? 'color:var(--red);' : ''}">→ ${range(r.newStart, r.newEnd)}</div>
+      ${note ? `<div style="font-size:11px;color:var(--red);margin-top:2px;">${note}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  el.innerHTML = html;
+  const btn = document.getElementById('macro-shift-confirm-btn');
+  if (btn) { btn.disabled = p.clashes.length > 0; btn.style.opacity = p.clashes.length ? '0.4' : ''; }
+}
+
+// Both buttons save the cycle edit; only "Move goals & save" moves goals.
+function confirmMacroShift(moveGoals) {
+  const pending = _macroShiftPending;
+  if (!pending) return;
+  if (moveGoals && pending.plan.clashes.length) return;
+  _macroShiftPending = null;
+  closeModal('modal-macro-shift-goals');
+  applyEditMacro(pending.id, pending.edits, moveGoals ? pending.plan : null);
+}
+
+// ✕ — nothing saved: neither the cycle edit nor the goals.
+function cancelMacroShift() {
+  _macroShiftPending = null;
+  closeModal('modal-macro-shift-goals');
 }
 
 // Toggles the weight-increment row visibility when goalType changes in either

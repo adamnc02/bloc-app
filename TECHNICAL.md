@@ -5953,3 +5953,60 @@ and 3rd macrocycle keeps its macro across a kcal-only and an unchanged save, tha
 is honoured and renumbers both cycles, and — as its control — that restoring the pre-v8.19 rebuild
 fails the suite. Run against v8.18's `index.html` it fails 4 of its 8 checks: both goals are saved
 into `m1`.
+
+## §96 — v8.19: a new macrocycle start date moves its goal periods
+
+### What it is
+
+Asked for on 2026-09-26, after pushing a cycle two weeks later and re-dating six goals by hand, last
+to first (which is how §95 was found). Saving the Edit Macrocycle sheet with a **changed start date**
+on a cycle that **has goal periods** no longer saves at once. `saveEditMacro()` reads the fields into
+an `edits` object, `buildGoalShiftPlan()` plans the move, and the **Move goal periods too?** sheet
+(`modal-macro-shift-goals`) shows it:
+
+- the cycle's old → new start/end, as a sense check (`getMacroEndDate` of the macro with `edits`
+  applied, so a mesocycle count changed in the same edit is reflected);
+- every goal in the cycle, old dates struck through, new dates beneath;
+- an amber note if the cycle has **already started** (`oldStart <= today`), because moving its goals
+  moves the targets of days already logged: `getGoalForDay` finds a day's goal **by date**;
+- any goal that would fall outside the new cycle dates, in red, with how far ("ends 1 week (7 days)
+  after the cycle"), and listed as ones to review after saving. **Flagged, not blocked**, per Adam's
+  choice. This matches the extend/crop flow (§42), which already allows goals past the cycle end;
+- any goal that would **overlap a goal in another macrocycle**, in red with the goal it hits.
+  **This one blocks** "Move goals & save": goal periods never overlap (`findOverlappingGoal`).
+
+**Move goals & save** → `applyEditMacro(id, edits, plan)`; **Save cycle only** →
+`applyEditMacro(id, edits, null)`, the pre-v8.19 behaviour; **✕** saves nothing. Nothing touches
+`state` until a button is pressed; the pending edit lives in `_macroShiftPending`.
+
+Asked alternatives, and why not (Adam, 2026-09-26): moving the goals automatically with no sheet
+(you never see the new dates first); for a started cycle, moving only its future goals (leaves a
+gap or an overlap at the join) or not offering the move (back to hand-editing).
+
+### 🚨 The trap: last-to-first order is not the mechanism
+
+Adam's manual method, the last goal first, working backwards, is a workaround for the goal
+sheet checking each **single** save against the goals not yet moved. Copying it into code (a loop
+that saves one goal at a time through the overlap gate) is the plausible wrong implementation. It
+would pass for a push later and fail in the other direction, where first-to-last is the order that
+works. Every goal in the cycle moves by **the same `deltaDays` in one write**, so the gaps between
+them are unchanged and they cannot overlap each other. The only overlap that can arise is with
+**other** macrocycles' goals, and that is what `clashes` checks.
+
+The delta is whole calendar days from `dayDiff()` (noon anchors) and applied by `shiftDateStr()`
+(`setDate`, local), so a move across the BST→GMT change does not lose or gain a day. The start is
+Monday-only, so the delta is always a whole number of weeks and goals keep their weekdays.
+
+`macroGoalID`s and labels are unchanged and the order is unchanged, so no renumbering is needed.
+
+### Verification
+
+`scripts/verify-macro-start-shifts-goals.mjs` extracts the real `buildGoalShiftPlan`,
+`applyEditMacro`, `shiftDateStr`, `dayDiff`, `getMacroEndDate` and `toLocalDateStr` and checks: a
++14-day push moves six back-to-back goals exactly 14 days, across 25 Oct 2026, under
+`TZ=Europe/London`; Move writes them and Save cycle only does not; +21 days onto the next cycle's first
+goal is a clash on that one goal only; move + one fewer mesocycle flags only the last goal, 7 days
+past; −7 days; the started flag; no sheet when the start is unchanged or the cycle has no goals. The
+control strips the clash check and asserts the suite then fails. The sheet was also driven in
+headless Chromium at 390px against the dev-bypass demo data: no console errors, and the moved dates
+persisted to `bloc_state`.
