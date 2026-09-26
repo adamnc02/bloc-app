@@ -6088,3 +6088,80 @@ Nov): the sheet reopened with "2 weeks…" from 23 Nov, then "1 week…" from 30
 `#macro-name-input` or `#macro-goal-input`, so a second cycle opened with the first one's name
 (found in the same UAT). Both are now cleared on open. `fillNextCycleMacroModal()` sets its own name
 *after* `openModal` returns, so the Next Cycle flow's "Cut 2026" default is unaffected.
+
+## §99 — v8.19 UAT: macrocycles never overlap
+
+### Why
+
+Found in the v8.19 UAT (2026-09-26): moving UAT B three weeks later ran it a week into UAT C, and the
+only signal was §96's goal-period clash. Adam: *"we also need a higher level check, which is
+macrocycle clash checks. We should not have the option for clashing macrocycles."* Before v8.19
+**nothing** checked cycle overlap. Creating, re-dating, adding mesocycles and Extend could all do it.
+
+### The rule and where it is enforced
+
+`findMacroClash(candidate, macros, excludeId)` → the earliest-starting other cycle whose
+`macroRange()` (start → `getMacroEndDate` Sunday) overlaps. A cycle ending Sunday and the next
+starting Monday **touch but do not clash**, and that boundary is what the verify control attacks.
+
+| Path | On a clash |
+|---|---|
+| `createMacrocycle` | Blocked; `#macro-clash-error` names the cycle, with a "Start {first free Monday} instead" link (`firstFreeMacroStart`, searching forward from the typed start) |
+| `saveEditMacro`, start date moved | The **Clashes with …** sheet (below) |
+| `saveEditMacro`, same start but longer | Blocked inline (`#edit-macro-clash-error`): "at most N mesocycles fit" (`mesosThatFit`) |
+| `confirmMacroExtendWeeks`, `saveMacroExtensionEdit` (grow only) | Blocked: "at most N weeks fit" (`extensionClashMessage`) |
+
+🚨 **The edit sheet checks only an edit that moves the start or lengthens the cycle.** Data from before
+v8.19 may already overlap. Checking every save would stop anyone renaming such a cycle until they
+had untangled it.
+
+### The clash sheet (`modal-macro-clash`) — `planMacroClash(macro, edits, macros)`
+
+It opens **on top of** the edit sheet, which stays open, so **Cancel** (option 4) loses nothing
+typed and saves nothing. Adam's four options, when the move runs into a **later** cycle
+(`direction: 'next'`):
+
+1. **fit**: start = next cycle's start − the cycle's length, so it ends the day before. Continues
+   into `proceedEditMacro`, which is §96's goal-shift sheet.
+2. **cut**: keep the requested start, with `weeks = mesosThatFit(...)`. Whole mesocycles, so with
+   2-week mesocycles it can end a week early. Not offered if fewer than 2 would remain (the edit
+   sheet's minimum).
+3. **both**: *"Pick a start, auto-cut the rest"* (Adam's choice over a split-the-weeks stepper).
+   Every Monday strictly between the fit start and the requested start, each with its own cut, in a
+   `<select>`. Empty when the overlap is under 2 weeks, since any in-between start would then be
+   option 1 or 2.
+
+Every option is re-checked against **all** cycles, and one that would land on a third cycle is
+dropped, not offered. When the move runs into an **earlier** cycle (`direction: 'previous'`), only
+**fit** (the first free Monday after it) and Cancel are offered. 🚨 Cutting mesocycles shortens the
+**end**, which cannot clear a clash at the **start**, so offering it would be a button that
+cannot work.
+
+### Fit goal periods (`modal-goal-fit`) — `layoutGoalFit(cycleStart, cycleEnd, cycleWeeks, weeks, others)`
+
+After **cut** or **both**, one slider per goal period (0 → the cycle's weeks), in the goals' current
+order, starting from each goal's current length rounded to whole weeks. Goals are laid **back to
+back from the cycle start**, so they cannot overlap each other and the first kept goal is anchored
+to the start. Row status is shown as a green or red dot, and the slider's colour: `over` (past the
+cycle end, which outranks `clash` because it is the cause), `clash` (hits another cycle's goal),
+`gap` (the last kept goal, when the total is short), `deleted` (0 weeks: the name is struck through,
+"Will be deleted", per Adam), `ok`. **Save is enabled only when `ok`**: total exactly the cycle
+length, at least one goal kept, no clash (Adam: *"only when all green"*). Save deletes the 0-week
+goals, writes the rest, renumbers the Step names, then `applyEditMacro` saves the cycle. ✕ and Cancel
+save nothing.
+
+🚨 **The sliders are built once and updated in place** (`updateGoalFitSheet`). Re-rendering on
+`oninput` replaces the `<input type=range>` under the finger and ends a drag after one step on a
+phone.
+
+### Verification
+
+`scripts/verify-macro-no-overlap.mjs` (19 checks) covers the touching-not-clashing boundary; fit /
+cut / both on the UAT shape (1-week overlap → 28 Sep or 7 mesocycles; 3-week overlap → 5 or both
+5 Oct/7 and 12 Oct/6); 2-week mesocycles rounding; the previous direction with no cut; a cut
+leaving under 2 mesocycles not offered; `firstFreeMacroStart`; and `layoutGoalFit` for over, ok,
+deleted/gap, re-anchoring when goal 1 is 0, none kept, and a clash. Its control widens the overlap
+test by one day and fails 3 checks. Driven end to end in headless Chromium at 390px: all four
+options, Cancel keeping the typed values, the sliders taken from red to green, a 0-week delete
+saved, the mesocycles-only / create / extend blocks, and a rename on an already-overlapping cycle
+still saving. No console errors.

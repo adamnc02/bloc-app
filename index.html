@@ -4623,6 +4623,8 @@ try {
       </div>
     </div>
     <div id="macro-start-error" style="display:none;font-size:12px;color:var(--red);margin:-6px 0 12px;">Macrocycles can only start on a Monday.</div>
+    <!-- v8.19 — cycles never overlap (§99) -->
+    <div id="macro-clash-error" style="display:none;font-size:12px;color:var(--red);margin:-6px 0 12px;line-height:1.5;"></div>
     <div class="input-row">
       <div>
         <div class="label">Weeks per mesocycle</div>
@@ -4915,6 +4917,8 @@ try {
       </div>
     </div>
     <div id="edit-macro-start-error" style="display:none;font-size:12px;color:var(--red);margin:-6px 0 12px;">Macrocycles can only start on a Monday.</div>
+    <!-- v8.19 — cycles never overlap (§99) -->
+    <div id="edit-macro-clash-error" style="display:none;font-size:12px;color:var(--red);margin:-6px 0 12px;line-height:1.5;"></div>
     <div class="input-row">
       <div>
         <div class="label">Weeks per mesocycle</div>
@@ -4968,6 +4972,32 @@ try {
     <div id="macro-shift-content"></div>
     <button class="btn btn-accent btn-block" style="margin-top:16px;" id="macro-shift-confirm-btn" onclick="confirmMacroShift(true)">Move goals &amp; save →</button>
     <button class="btn btn-block" style="margin-top:8px;" onclick="confirmMacroShift(false)">Save cycle only</button>
+  </div>
+</div>
+
+<!-- v8.19 — Edit macrocycle: the new dates overlap another cycle (TECHNICAL §99).
+     Sits ABOVE the edit sheet, which stays open underneath so Cancel loses nothing typed. -->
+<div class="modal-overlay" id="modal-macro-clash">
+  <div class="modal-sheet" data-modal="modal-macro-clash">
+    <div class="modal-handle-row"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="cancelMacroClash()">✕</button>
+    </div>
+    <div class="modal-title" id="macro-clash-title">Cycles can't overlap</div>
+    <div id="macro-clash-content"></div>
+    <button class="btn btn-block" style="margin-top:8px;" onclick="cancelMacroClash()">Cancel</button>
+  </div>
+</div>
+
+<!-- v8.19 — Fit goal periods to a shortened cycle, one slider per goal (TECHNICAL §99) -->
+<div class="modal-overlay" id="modal-goal-fit">
+  <div class="modal-sheet" data-modal="modal-goal-fit">
+    <div class="modal-handle-row"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="cancelGoalFit()">✕</button>
+    </div>
+    <div class="modal-title">Fit goal periods to the cycle</div>
+    <div id="goal-fit-content"></div>
+    <button class="btn btn-accent btn-block" style="margin-top:16px;" id="goal-fit-save-btn" onclick="confirmGoalFit()">Save cycle &amp; goals →</button>
+    <button class="btn btn-block" style="margin-top:8px;" onclick="cancelGoalFit()">Cancel</button>
   </div>
 </div>
 
@@ -9023,6 +9053,7 @@ function openModal(id) {
     // fillNextCycleMacroModal sets its own name after this returns.
     document.getElementById('macro-name-input').value = '';
     document.getElementById('macro-goal-input').value = '';
+    const _clashErr = document.getElementById('macro-clash-error'); if (_clashErr) _clashErr.style.display = 'none';
     const nextStart = getNextMacroStart();
     document.getElementById('macro-start-input').value = nextStart;
     document.getElementById('macro-start-input').style.borderColor = '';
@@ -9723,6 +9754,9 @@ function confirmMacroExtendWeeks() {
     if (errEl) { errEl.textContent = 'Enter a number of weeks (1 or more).'; errEl.style.display = 'block'; }
     return;
   }
+  // v8.19 — cycles never overlap (§99).
+  const extClash = extensionClashMessage(macro, weeks);
+  if (extClash) { if (errEl) { errEl.textContent = extClash; errEl.style.display = 'block'; } return; }
   if (errEl) errEl.style.display = 'none';
   macro.extensionWeeks = weeks;
   save();
@@ -9810,6 +9844,9 @@ function saveMacroExtensionEdit() {
     if (errEl) { errEl.textContent = 'Enter a number of weeks (1 or more), or use Remove to delete the extension.'; errEl.style.display = 'block'; }
     return;
   }
+  // v8.19 — cycles never overlap (§99). Only a grow can create a clash.
+  const extClash = weeks > (macro.extensionWeeks || 0) ? extensionClashMessage(macro, weeks) : null;
+  if (extClash) { if (errEl) { errEl.textContent = extClash; errEl.style.display = 'block'; } return; }
   if (errEl) errEl.style.display = 'none';
   macro.extensionWeeks = weeks;
   save();
@@ -9974,6 +10011,24 @@ function createMacrocycle() {
     return;
   }
   if (startErrEl) startErrEl.style.display = 'none';
+
+  // v8.19 — cycles never overlap (§99). Block, and offer the first Monday
+  // from the typed start where a cycle of this length fits.
+  const clashErrEl = document.getElementById('macro-clash-error');
+  const candidate = { id: null, start, weeks, weeksPerMeso };
+  const clash = findMacroClash(candidate, state.macrocycles, null);
+  if (clash) {
+    const free = firstFreeMacroStart(candidate, start, state.macrocycles, null);
+    if (clashErrEl) {
+      clashErrEl.innerHTML = `Overlaps ${escMacroText(clash.name)} (${formatDate(clash.start)} – ${formatDate(macroRange(clash).end)}). Cycles can't overlap.`
+        + (free ? ` <a href="#" style="color:var(--accent);font-weight:600;" onclick="event.preventDefault();document.getElementById('macro-start-input').value='${free}';document.getElementById('macro-clash-error').style.display='none';">Start ${formatDate(free)} instead</a>` : '');
+      clashErrEl.style.display = 'block';
+    }
+    startEl.style.borderColor = 'var(--red)';
+    setTimeout(() => { startEl.style.borderColor = ''; }, 1500);
+    return;
+  }
+  if (clashErrEl) clashErrEl.style.display = 'none';
 
   const goal = document.getElementById('macro-goal-input').value.trim();
   const targetBw = parseFloat(document.getElementById('macro-target-bw-input').value) || null;
@@ -19468,6 +19523,7 @@ function openEditMacro(id) {
   document.getElementById('edit-macro-start-input').value = macro.start || '';
   document.getElementById('edit-macro-start-input').style.borderColor = '';
   const _editStartErr = document.getElementById('edit-macro-start-error'); if (_editStartErr) _editStartErr.style.display = 'none';
+  const _editClashErr = document.getElementById('edit-macro-clash-error'); if (_editClashErr) _editClashErr.style.display = 'none';
   document.getElementById('edit-macro-goal-input').value = macro.goal || '';
   document.getElementById('edit-macro-target-bw-input').value = macro.targetBw || '';
   document.getElementById('edit-macro-goal-type-input').value = macro.goalType || 'loss';
@@ -19510,8 +19566,44 @@ function saveEditMacro() {
     weeksPerMeso: parseInt(document.getElementById('edit-macro-weeks-per-meso-input').value) || 1,
   };
 
+  // v8.19 — cycles never overlap (§99). A new START with a clash opens the
+  // four-option sheet above this one. A longer cycle on the same start is
+  // blocked inline, saying how many mesocycles fit. Only an edit that moves
+  // the start or lengthens the cycle is checked, so a pre-v8.19 overlap
+  // never blocks renaming a cycle.
+  const clashErrEl = document.getElementById('edit-macro-clash-error');
+  if (clashErrEl) clashErrEl.style.display = 'none';
+  const startMoved = edits.start !== macro.start;
+  const grew = getMacroDurationWeeks(Object.assign({}, macro, edits)) > getMacroDurationWeeks(macro);
+  if (startMoved || grew) {
+    const clashPlan = planMacroClash(macro, edits, state.macrocycles);
+    if (clashPlan && startMoved) {
+      _macroClashPending = { id, edits, plan: clashPlan };
+      renderMacroClashSheet();
+      openModal('modal-macro-clash');
+      return;
+    }
+    if (clashPlan) {
+      const fit = mesosThatFit(Object.assign({}, macro, edits), clashPlan.clash);
+      if (clashErrEl) {
+        clashErrEl.textContent = `This runs into ${clashPlan.clash.name} (starts ${formatDate(clashPlan.clash.start)}). Cycles can't overlap — ` +
+          (fit >= 2 ? `at most ${fit} mesocycles fit.` : `there's no room to lengthen it.`);
+        clashErrEl.style.display = 'block';
+      }
+      return;
+    }
+  }
+
   // v8.19 — a new start date offers to move the cycle's goal periods by the
   // same number of days (§96). Nothing is saved until the person chooses.
+  proceedEditMacro(id, edits);
+}
+
+// The goal-shift step of an edit (§96) — shared by a clean save and by the
+// clash sheet's "start later instead" option (§99).
+function proceedEditMacro(id, edits) {
+  const macro = state.macrocycles.find(m => m.id === id);
+  if (!macro) return;
   const plan = buildGoalShiftPlan(macro, edits, state.goals || [], getLocalToday());
   if (plan) {
     _macroShiftPending = { id, edits, plan };
@@ -19683,6 +19775,342 @@ function confirmMacroShift(moveGoals) {
 function cancelMacroShift() {
   _macroShiftPending = null;
   closeModal('modal-macro-shift-goals');
+}
+
+// ── Cycles never overlap (v8.19, §99) ─────────────────────────────────────
+// Before v8.19 nothing checked it: creating, re-dating, lengthening or
+// extending a cycle could all run it into the next one. Only goal periods
+// were protected (findOverlappingGoal).
+
+function escMacroText(str) { return String(str == null ? '' : str).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+
+// { start, end } as YYYY-MM-DD; end is the Sunday of the last week.
+function macroRange(m) {
+  return { start: m.start, end: toLocalDateStr(getMacroEndDate(m)) };
+}
+
+// The earliest-starting other cycle whose dates overlap `candidate`'s, or null.
+function findMacroClash(candidate, macros, excludeId) {
+  if (!candidate.start) return null;
+  const r = macroRange(candidate);
+  return (macros || [])
+    .filter(m => m.id !== excludeId && m.start)
+    .sort((a, b) => a.start.localeCompare(b.start))
+    .find(m => { const o = macroRange(m); return o.start <= r.end && o.end >= r.start; }) || null;
+}
+
+// First Monday on or after `from` where `candidate` (its length unchanged)
+// overlaps nothing. Ten years of weeks is the search limit.
+function firstFreeMacroStart(candidate, from, macros, excludeId) {
+  let s = snapToNextMonday(from);
+  for (let i = 0; i < 520; i++, s = shiftDateStr(s, 7)) {
+    if (!findMacroClash(Object.assign({}, candidate, { start: s }), macros, excludeId)) return s;
+  }
+  return null;
+}
+
+// How many mesocycles of `candidate` fit between its start and `next`'s
+// start (extension weeks count against the room).
+function mesosThatFit(candidate, next) {
+  const calWeeks = Math.floor(dayDiff(candidate.start, next.start) / 7);
+  return Math.floor((calWeeks - (candidate.extensionWeeks || 0)) / (candidate.weeksPerMeso || 1));
+}
+
+// The Extend flows' message when `weeks` of extension would run `macro` into
+// another cycle; null when it fits.
+function extensionClashMessage(macro, weeks) {
+  const clash = findMacroClash(Object.assign({}, macro, { extensionWeeks: weeks }), state.macrocycles, macro.id);
+  if (!clash) return null;
+  const room = Math.floor(dayDiff(macro.start, clash.start) / 7) - (macro.weeks || 8) * (macro.weeksPerMeso || 1);
+  return `That runs into ${clash.name} (starts ${formatDate(clash.start)}). Cycles can't overlap — ` +
+    (room >= 1 ? `at most ${room} week${room === 1 ? '' : 's'} fit.` : `there's no room to extend before it.`);
+}
+
+// The options for an edit whose new dates overlap another cycle. null when
+// nothing clashes.
+//   direction 'next'     — runs into a LATER cycle: fit (start earlier so it
+//                          ends the day before it), cut (keep the start, fewer
+//                          mesocycles), both (any Monday in between, the rest
+//                          cut).
+//   direction 'previous' — starts inside an EARLIER cycle: fit only (the
+//                          earliest start that clears it). Cutting mesocycles
+//                          shortens the END, which cannot clear a clash at the
+//                          start.
+// Every option is re-checked against ALL cycles; one that would land on a
+// third cycle is dropped rather than offered.
+function planMacroClash(macro, edits, macros) {
+  const cand = Object.assign({}, macro, edits);
+  const clash = findMacroClash(cand, macros, macro.id);
+  if (!clash) return null;
+  const wpm = cand.weeksPerMeso || 1;
+  const reqEnd = macroRange(cand).end;
+  const fits = (over) => !findMacroClash(Object.assign({}, cand, over), macros, macro.id);
+  const plan = {
+    clash, clashEnd: macroRange(clash).end,
+    requestedStart: cand.start, requestedEnd: reqEnd,
+    overlapDays: dayDiff(clash.start > cand.start ? clash.start : cand.start, reqEnd < macroRange(clash).end ? reqEnd : macroRange(clash).end) + 1,
+    direction: clash.start > cand.start ? 'next' : 'previous',
+    fit: null, cut: null, both: [],
+  };
+
+  if (plan.direction === 'previous') {
+    const s = firstFreeMacroStart(cand, shiftDateStr(plan.clashEnd, 1), macros, macro.id);
+    if (s) plan.fit = { start: s, end: macroRange(Object.assign({}, cand, { start: s })).end };
+    return plan;
+  }
+
+  const durDays = getMacroDurationWeeks(cand) * 7;
+  const fitStart = shiftDateStr(clash.start, -durDays);
+  if (fits({ start: fitStart })) plan.fit = { start: fitStart, end: shiftDateStr(clash.start, -1) };
+
+  const cutAt = (start) => {
+    const weeks = mesosThatFit(Object.assign({}, cand, { start }), clash);
+    if (weeks < 2 || weeks >= cand.weeks) return null;   // edit sheet minimum is 2
+    if (!fits({ start, weeks })) return null;
+    return { start, weeks, cutMesos: cand.weeks - weeks, cutWeeks: (cand.weeks - weeks) * wpm,
+             end: macroRange(Object.assign({}, cand, { start, weeks })).end };
+  };
+  plan.cut = cutAt(cand.start);
+  const lower = plan.fit ? plan.fit.start : (macro.start < cand.start ? macro.start : shiftDateStr(cand.start, -durDays));
+  for (let s = shiftDateStr(lower, 7); s < cand.start; s = shiftDateStr(s, 7)) {
+    const o = cutAt(s);
+    if (o) plan.both.push(o);
+  }
+  return plan;
+}
+
+// The edit being resolved in modal-macro-clash: { id, edits, plan }.
+let _macroClashPending = null;
+
+function renderMacroClashSheet() {
+  const pend = _macroClashPending;
+  const el = document.getElementById('macro-clash-content');
+  if (!pend || !el) return;
+  const p = pend.plan;
+  const macro = state.macrocycles.find(m => m.id === pend.id);
+  const name = escMacroText(macro ? macro.name : 'This cycle');
+  const other = escMacroText(p.clash.name);
+  const range = (a, b) => `${formatDate(a)} – ${formatDate(b)}`;
+  const mesoWord = (n) => `${n} mesocycle${n === 1 ? '' : 's'}`;
+  document.getElementById('macro-clash-title').textContent = `Clashes with ${p.clash.name}`;
+
+  const card = (title, sub, onclick, enabled = true) => `<button class="btn btn-block" style="text-align:left;margin-bottom:10px;padding:12px 14px;height:auto;display:block;${enabled ? '' : 'opacity:0.45;'}" ${enabled ? `onclick="${onclick}"` : 'disabled'}>
+      <div style="font-size:14px;font-weight:700;">${title}</div>
+      <div style="font-size:12px;color:var(--text3);font-weight:400;margin-top:2px;line-height:1.45;">${sub}</div>
+    </button>`;
+
+  let html = `<div style="font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.5;">${name} would run ${range(p.requestedStart, p.requestedEnd)}, overlapping <strong>${other}</strong> (${range(p.clash.start, p.clashEnd)}) by ${describeDays(p.overlapDays)}. Cycles can't overlap.</div>`;
+
+  if (p.direction === 'previous') {
+    html += p.fit
+      ? card(`1 · Start ${formatDate(p.fit.start)} instead`, `The earliest start after ${other}. Runs ${range(p.fit.start, p.fit.end)}. Then choose whether its goals move.`, 'chooseMacroClash(\'fit\')')
+      : card('1 · Start later', `No start after ${other} fits without running into another cycle.`, '', false);
+    html += `<div style="font-size:11px;color:var(--text3);margin:2px 0 6px;line-height:1.5;">Fewer mesocycles only shortens the end of a cycle, so it can't clear a clash at the start.</div>`;
+    el.innerHTML = html;
+    return;
+  }
+
+  html += p.fit
+    ? card(`1 · Start ${formatDate(p.fit.start)} instead`, `Ends ${formatDate(p.fit.end)}, the day before ${other}. Then choose whether its goals move.`, 'chooseMacroClash(\'fit\')')
+    : card('1 · Start earlier', 'No earlier start fits without running into another cycle.', '', false);
+
+  html += p.cut
+    ? card(`2 · Keep ${formatDate(p.cut.start)}, cut ${mesoWord(p.cut.cutMesos)}`, `${macro.weeks} → ${mesoWord(p.cut.weeks)} (${describeDays(p.cut.cutWeeks * 7)} shorter), ending ${formatDate(p.cut.end)}. Then fit its goal periods to the shorter cycle.`, 'chooseMacroClash(\'cut\')')
+    : card('2 · Fewer mesocycles', 'Not possible — it would leave fewer than 2 mesocycles.', '', false);
+
+  if (p.both.length) {
+    // Short dates, no year — the full wording is cut off inside a <select> at phone width.
+    const dm = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    const opts = p.both.map((o, i) => `<option value="${i}">${dm(o.start)} · ${mesoWord(o.weeks)} · ends ${dm(o.end)}</option>`).join('');
+    html += `<div style="border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:12px 14px;margin-bottom:10px;">
+      <div style="font-size:14px;font-weight:700;">3 · Both</div>
+      <div style="font-size:12px;color:var(--text3);margin:2px 0 8px;line-height:1.45;">Pick a start in between; mesocycles come off the end so it still ends the day before ${other}.</div>
+      <select id="macro-clash-both-select" style="width:100%;margin-bottom:8px;">${opts}</select>
+      <button class="btn btn-accent btn-block" onclick="chooseMacroClash('both')">Use this start →</button>
+    </div>`;
+  } else {
+    html += card('3 · Both', 'Needs an overlap of 2 weeks or more — a start in between would be one of the two above.', '', false);
+  }
+  el.innerHTML = html;
+}
+
+// Resolves the clash with the chosen option, then carries on exactly as a
+// clean edit would: 'fit' → the goal-shift sheet (§96); 'cut'/'both' → the
+// goal-fit sheet, because a shorter cycle changes how its goals fit.
+function chooseMacroClash(kind) {
+  const pend = _macroClashPending;
+  if (!pend) return;
+  const p = pend.plan;
+  let opt = kind === 'fit' ? p.fit : kind === 'cut' ? p.cut : null;
+  if (kind === 'both') {
+    const sel = document.getElementById('macro-clash-both-select');
+    opt = p.both[sel ? parseInt(sel.value) || 0 : 0];
+  }
+  if (!opt) return;
+  const edits = Object.assign({}, pend.edits, { start: opt.start });
+  if (kind !== 'fit') edits.weeks = opt.weeks;
+  _macroClashPending = null;
+  closeModal('modal-macro-clash');
+  if (kind === 'fit') { proceedEditMacro(pend.id, edits); return; }
+  openGoalFit(pend.id, edits);
+}
+
+// Cancel / ✕ — nothing saved. The edit sheet underneath is still open with
+// what was typed.
+function cancelMacroClash() {
+  _macroClashPending = null;
+  closeModal('modal-macro-clash');
+}
+
+// ── Fit goal periods to a shortened cycle (v8.19, §99) ───────────────────
+// Goals are laid back to back from the cycle start in their current order,
+// each a whole number of weeks, so they can never overlap each other. The
+// first is anchored to the cycle start. 0 weeks = deleted on save.
+
+// Lays out `weeksList` from `cycleStart`. `others` are goals of OTHER cycles.
+// Row status: 'ok', 'over' (runs past the cycle end), 'gap' (the last kept
+// goal, when the total is short), 'clash' (hits another cycle's goal),
+// 'deleted'. ok = total exactly the cycle length, ≥1 goal kept, no clash.
+function layoutGoalFit(cycleStart, cycleEnd, cycleWeeks, weeksList, others) {
+  let cursor = cycleStart, total = 0;
+  const rows = weeksList.map(w => {
+    if (!w) return { weeks: 0, start: null, end: null, status: 'deleted' };
+    const start = cursor, end = shiftDateStr(cursor, w * 7 - 1);
+    cursor = shiftDateStr(end, 1);
+    total += w;
+    const clash = (others || []).find(o => o.startDate <= end && o.endDate >= start) || null;
+    // 'over' outranks 'clash': past the cycle end is the cause, and fixing
+    // it clears the clash with the next cycle's goals too.
+    return { weeks: w, start, end, clash, status: end > cycleEnd ? 'over' : clash ? 'clash' : 'ok' };
+  });
+  const kept = rows.filter(r => r.weeks);
+  if (total < cycleWeeks && kept.length) {
+    const last = kept[kept.length - 1];
+    if (last.status === 'ok') last.status = 'gap';
+  }
+  const clashes = rows.filter(r => r.status === 'clash').length;
+  return { rows, total, shortBy: Math.max(0, cycleWeeks - total), overBy: Math.max(0, total - cycleWeeks),
+           ok: total === cycleWeeks && kept.length > 0 && !clashes, clashes };
+}
+
+// { id, edits, goals: [{ macroGoalID, label }], weeks: [n…], cycleStart, cycleEnd, cycleWeeks, started }
+let _goalFitPending = null;
+
+function openGoalFit(id, edits) {
+  const macro = state.macrocycles.find(m => m.id === id);
+  if (!macro) return;
+  const goals = (state.goals || []).filter(g => g.macroId === id).sort((a, b) => a.startDate.localeCompare(b.startDate));
+  if (!goals.length) { applyEditMacro(id, edits, null); return; }
+  const cand = Object.assign({}, macro, edits);
+  const r = macroRange(cand);
+  _goalFitPending = {
+    id, edits,
+    goals: goals.map(g => ({ macroGoalID: g.macroGoalID, label: g._blocLabel || g.label || 'Goal' })),
+    weeks: goals.map(g => Math.max(1, Math.round((dayDiff(g.startDate, g.endDate) + 1) / 7))),
+    cycleStart: r.start, cycleEnd: r.end, cycleWeeks: getMacroDurationWeeks(cand),
+    started: macro.start <= getLocalToday(),
+  };
+  closeModal('modal-edit-macro');
+  renderGoalFitSheet();
+  openModal('modal-goal-fit');
+}
+
+function onGoalFitSlider(i, v) {
+  if (!_goalFitPending) return;
+  _goalFitPending.weeks[i] = parseInt(v) || 0;
+  updateGoalFitSheet();
+}
+
+// Builds the sheet once. Slider moves only UPDATE it (updateGoalFitSheet) —
+// re-rendering would replace the <input type=range> under the person's
+// finger and end the drag after one step.
+function renderGoalFitSheet() {
+  const f = _goalFitPending;
+  const el = document.getElementById('goal-fit-content');
+  if (!f || !el) return;
+  const range = (a, b) => `${formatDate(a)} – ${formatDate(b)}`;
+  const wk = (n) => `${n} week${n === 1 ? '' : 's'}`;
+  let html = `<div style="font-size:12px;color:var(--text3);margin-bottom:12px;line-height:1.5;">The cycle is shorter now. Set each goal period's length; they run back to back from the cycle start. 0 weeks deletes a goal period.</div>
+  <div style="background:var(--surface2);border:0.5px solid var(--border2);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:12px;">
+    <div class="label" style="margin-bottom:4px;">Macrocycle</div>
+    <div style="font-size:14px;font-weight:600;">${range(f.cycleStart, f.cycleEnd)} · ${wk(f.cycleWeeks)}</div>
+  </div>`;
+  if (f.started) html += `<div style="font-size:12px;color:var(--amber);margin-bottom:12px;line-height:1.5;">This cycle has already started. Changing its goal periods changes past days' nutrition targets too.</div>`;
+  html += `<div id="goal-fit-status" style="font-size:13px;font-weight:600;margin-bottom:10px;"></div>`;
+  html += f.goals.map((g, i) => `<div style="padding:10px 0;border-top:0.5px solid var(--border);">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span id="goal-fit-dot-${i}" style="width:10px;height:10px;border-radius:50%;flex-shrink:0;"></span>
+        <span id="goal-fit-name-${i}" style="font-size:13px;font-weight:600;flex:1;">${escMacroText(g.label)}</span>
+        <span id="goal-fit-wk-${i}" style="font-size:13px;font-weight:600;"></span>
+      </div>
+      <input type="range" id="goal-fit-range-${i}" min="0" max="${f.cycleWeeks}" step="1" value="${f.weeks[i]}" style="width:100%;margin:6px 0 2px;" aria-label="${escMacroText(g.label)} length in weeks" oninput="onGoalFitSlider(${i}, this.value)">
+      <div id="goal-fit-dates-${i}" style="font-size:12px;color:var(--text3);"></div>
+      <div id="goal-fit-note-${i}" style="font-size:11px;margin-top:2px;"></div>
+    </div>`).join('');
+  el.innerHTML = html;
+  updateGoalFitSheet();
+}
+
+function updateGoalFitSheet() {
+  const f = _goalFitPending;
+  if (!f) return;
+  const others = (state.goals || []).filter(g => g.macroId !== f.id);
+  const lay = layoutGoalFit(f.cycleStart, f.cycleEnd, f.cycleWeeks, f.weeks, others);
+  const range = (a, b) => `${formatDate(a)} – ${formatDate(b)}`;
+  const wk = (n) => `${n} week${n === 1 ? '' : 's'}`;
+  const set = (id, fn) => { const e = document.getElementById(id); if (e) fn(e); };
+
+  const status = lay.overBy ? `${wk(lay.overBy)} over the cycle — shorten or delete a goal period.`
+    : lay.clashes ? 'A goal period would overlap one in another cycle — move or shorten it.'
+    : lay.shortBy ? `${wk(lay.shortBy)} short — the end of the cycle has no goal.`
+    : !lay.rows.some(r => r.weeks) ? 'Keep at least one goal period.'
+    : 'Covers the whole cycle.';
+  set('goal-fit-status', e => { e.textContent = status; e.style.color = lay.ok ? 'var(--green)' : 'var(--red)'; });
+
+  const firstKept = lay.rows.findIndex(x => x.weeks);
+  lay.rows.forEach((r, i) => {
+    const del = r.status === 'deleted';
+    const colour = del ? 'var(--text3)' : r.status === 'ok' ? 'var(--green)' : 'var(--red)';
+    const note = del ? 'Will be deleted'
+      : r.status === 'over' ? `Runs ${describeDays(dayDiff(f.cycleEnd, r.end))} past the cycle end`
+      : r.status === 'gap' ? `Leaves ${wk(lay.shortBy)} after it with no goal`
+      : r.status === 'clash' ? `Overlaps ${r.clash._blocLabel || r.clash.label || 'a goal'} (${range(r.clash.startDate, r.clash.endDate)})`
+      : '';
+    set(`goal-fit-dot-${i}`, e => { e.style.background = colour; });
+    set(`goal-fit-name-${i}`, e => { e.style.textDecoration = del ? 'line-through' : ''; e.style.color = del ? 'var(--text3)' : ''; });
+    set(`goal-fit-wk-${i}`, e => { e.textContent = `${r.weeks} wk`; e.style.color = colour; });
+    set(`goal-fit-range-${i}`, e => { e.style.accentColor = colour; });
+    set(`goal-fit-dates-${i}`, e => { e.textContent = del ? '' : range(r.start, r.end) + (i === firstKept ? ' · anchored to the cycle start' : ''); });
+    set(`goal-fit-note-${i}`, e => { e.textContent = note; e.style.color = del ? 'var(--text3)' : 'var(--red)'; });
+  });
+  const btn = document.getElementById('goal-fit-save-btn');
+  if (btn) { btn.disabled = !lay.ok; btn.style.opacity = lay.ok ? '' : '0.4'; }
+}
+
+// Saves the cycle edit and the fitted goals together — only when all green.
+function confirmGoalFit() {
+  const f = _goalFitPending;
+  if (!f) return;
+  const others = (state.goals || []).filter(g => g.macroId !== f.id);
+  const lay = layoutGoalFit(f.cycleStart, f.cycleEnd, f.cycleWeeks, f.weeks, others);
+  if (!lay.ok) return;
+  f.goals.forEach((g, i) => {
+    const r = lay.rows[i];
+    const idx = state.goals.findIndex(x => x.macroGoalID === g.macroGoalID);
+    if (idx < 0) return;
+    if (!r.weeks) state.goals.splice(idx, 1);
+    else { state.goals[idx].startDate = r.start; state.goals[idx].endDate = r.end; }
+  });
+  renumberMacroGoalSteps(f.id);
+  _goalFitPending = null;
+  closeModal('modal-goal-fit');
+  applyEditMacro(f.id, f.edits, null);
+}
+
+// Cancel / ✕ — nothing saved: not the cycle edit, not the goals.
+function cancelGoalFit() {
+  _goalFitPending = null;
+  closeModal('modal-goal-fit');
 }
 
 // Toggles the weight-increment row visibility when goalType changes in either
