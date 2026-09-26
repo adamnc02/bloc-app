@@ -39,6 +39,7 @@
   --green: #1b9e75;
   --green-text: #4cc59d;
   --heat-amber: #d9a441;
+  --logo-bracket: #4cc59d;  /* v8.18 — Bracket logo corners; brand green, not an app accent */
   /* v8.16 — Inter retired in favour of a display/body pair: Sora for
      titles, hero numbers and stats; Manrope for everything read as prose,
      labels and controls. `body` defaults to --font-body, so anything that
@@ -125,6 +126,7 @@
   --accent2: #6f5cc4;
   --green: #137359;
   --green-text: #137359;
+  --logo-bracket: #1b9e75;  /* brand kit's on-light bracket green */
   --heat-amber: #b07d12;
   /* --nav-inactive intentionally NOT overridden here — the floating nav
      bar keeps its dark background in both modes, so the near-white icon
@@ -1863,7 +1865,8 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 #splash {
   --splash-bg: #161826;
   --splash-surface: #2A2E47;
-  --splash-accent: #2fb98a;
+  --splash-accent: #A79EE3;   /* the Train block — the app's own lavender, unchanged */
+  --splash-brand: #2fb98a;    /* v8.18 — the Bracket logo's green: brackets + OVERCOME */
   --splash-ice: #D6E2F2;
   --splash-text: #F2F2F2;
   --splash-dark-text: #161826;
@@ -2094,7 +2097,7 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 #splash .brk {
   position: absolute;
   width: 21px; height: 21px;
-  border: 5px solid var(--splash-accent);
+  border: 5px solid var(--splash-brand);
   opacity: 0;
   transform: translate(var(--bx, 0px), var(--by, 0px)) scale(1.25);
   transition: transform 0.55s cubic-bezier(0.2, 0.9, 0.25, 1), opacity 0.35s ease;
@@ -2159,7 +2162,7 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 #splash .tword.show { opacity: 1; }
 #splash .tword.landed { transform: translate(0, 0); }
 #splash .tword.landed-accent {
-  color: var(--splash-accent);
+  color: var(--splash-brand);
   font-weight: 800;
   transition: color 0.4s ease, font-weight 0.3s ease,
               opacity 0.4s ease, transform 0.9s cubic-bezier(0.3, 0.9, 0.4, 1);
@@ -2330,6 +2333,17 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .page-head { display: flex; align-items: flex-start; gap: 12px; padding: 8px 0 4px; }
 .page-head-text { flex: 1; min-width: 0; }
 .page-head .icon-btn { margin-left: auto; }
+/* v8.18 — the Bracket logo, centred on the page in Settings' back-link row
+   and vertically centred on it. See the markup comment for why not the H1 row. */
+.settings-topbar { position: relative; }
+.settings-logo {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  height: 30px; width: auto; aspect-ratio: 449.8 / 178; pointer-events: none;
+}
+/* 10, not the brand kit's 6: at 30px tall a 6-unit stroke renders at ~1px and
+   the corners all but vanish. The kit's geometry is drawn for 170px+. */
+.settings-logo .logo-brk { fill: none; stroke: var(--logo-bracket); stroke-width: 10; }
+.settings-logo .logo-type { fill: var(--text); }
 .page-eyebrow {
   font-family: var(--font-body); font-size: 11.5px; font-weight: 700;
   letter-spacing: .14em; text-transform: uppercase; color: var(--text3);
@@ -4212,7 +4226,20 @@ try {
       <!-- 🚨 v8.16 — Settings is a HIDDEN page: it has no nav tab and the nav
            bar is not rendered here at all, so this back link is the ONLY way
            out. Do not remove it, and do not rely on the nav returning. -->
-      <button class="back-link" onclick="showScreen('home')">&#8249; Home</button>
+      <div class="settings-topbar">
+        <button class="back-link" onclick="showScreen('home')">&#8249; Home</button>
+        <!-- v8.18 — the Bracket logo, centred on the page in the back-link row.
+             🚨 Not in .page-head: "Settings" at 34px runs to x≈157 on a 375px
+             phone, so a logo centred in the title row lands on top of it (measured).
+             This row's centre is empty at every width. Inline SVG, not an <img>,
+             so it follows light/dark mode: letters take --text, corners
+             --logo-bracket (bloc-brand/README). Absolutely positioned, so the back
+             link keeps its 44px tap target and nothing else moves; decorative. -->
+        <svg class="settings-logo" viewBox="21 21 449.8 178" aria-hidden="true" focusable="false">
+          <path class="logo-brk" transform="translate(24 24)" d="M0 26V0H26M417.8 0H443.8V26M443.8 146V172H417.8M26 172H0V146"/>
+          <g class="logo-type" transform="translate(60 60)"><path d="M0 100V0H47.2Q71.6 0 71.6 24.3V33Q71.6 38 68.7 41.4L63.6 47.5L69.7 52.6Q74.5 56.5 74.5 64.2V75.7Q74.5 100 50.1 100ZM20.9 81.2H49.3Q53.6 81.2 53.6 76.8V62.3Q53.6 58 49.3 58H20.9ZM20.9 39.1H46.4Q50.7 39.1 50.7 34.8V23.2Q50.7 18.8 46.4 18.8H20.9Z"/><path d="M102.5 100V0H123.4V81.2H166.6V100Z"/><path d="M188.5 75.7V24.3Q188.5 0 212.8 0H245.9Q270.2 0 270.2 24.3V75.7Q270.2 100 245.9 100H212.8Q188.5 100 188.5 75.7ZM209.3 76.8Q209.3 81.2 213.7 81.2H245Q249.3 81.2 249.3 76.8V23.2Q249.3 18.8 245 18.8H213.7Q209.3 18.8 209.3 23.2Z"/><path d="M299.1 75.7V24.3Q299.1 0 323.4 0H362.1L371.8 7.5V18.8H324.3Q319.9 18.8 319.9 23.2V76.8Q319.9 81.2 324.3 81.2H371.8V92.5L362.1 100H323.4Q299.1 100 299.1 75.7Z"/></g>
+        </svg>
+      </div>
       <div class="page-head">
         <div class="page-head-text">
           <div class="page-eyebrow">Your app</div>
