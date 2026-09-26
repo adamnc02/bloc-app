@@ -41,6 +41,7 @@
   --heat-amber: #d9a441;
   --logo-accent: #2fb98a;   /* v8.19 — Rebuild logo: the top (green) bar; brand green, not an app accent */
   --logo-block: #3b4063;    /* v8.19 — Rebuild logo: the two neutral bars */
+  --logo-flash: #7ff0c6;    /* v8.19 — the bars' landing flash (the splash's) */
   /* v8.16 — Inter retired in favour of a display/body pair: Sora for
      titles, hero numbers and stats; Manrope for everything read as prose,
      labels and controls. `body` defaults to --font-body, so anything that
@@ -129,6 +130,7 @@
   --green-text: #137359;
   --logo-accent: #1b9e75;   /* brand kit's on-light accent block */
   --logo-block: #aab6c8;    /* brand kit's on-light neutral blocks */
+  --logo-flash: #45d19d;    /* a lighter flash would vanish on the light page */
   --heat-amber: #b07d12;
   /* --nav-inactive intentionally NOT overridden here — the floating nav
      bar keeps its dark background in both modes, so the near-white icon
@@ -2354,6 +2356,38 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 }
 .settings-logo .logo-bar { fill: var(--logo-block); }
 .settings-logo .logo-bar-top { fill: var(--logo-accent); }
+/* v8.19 — the splash's bar animation, replayed each time the logo comes into
+   view (initSettingsLogoAnimation, §102): build bottom → top with a flash on
+   landing, then two green pulses up the stack, then rest. Same timings as
+   the splash; theme tokens instead of the splash's fixed dark colours. */
+.settings-logo .logo-bar { transform-box: fill-box; transform-origin: center; }
+@keyframes blocLogoBarIn {
+  0%   { opacity: 0; transform: translateX(-26px); fill: var(--logo-block); }
+  55%  { opacity: 1; transform: translateX(3px) scale(1.06); fill: var(--logo-flash); }
+  100% { opacity: 1; transform: none; fill: var(--logo-block); }
+}
+@keyframes blocLogoBarInTop {
+  0%   { opacity: 0; transform: translateX(-26px); fill: var(--logo-accent); }
+  55%  { opacity: 1; transform: translateX(3px) scale(1.08); fill: var(--logo-flash); }
+  100% { opacity: 1; transform: none; fill: var(--logo-accent); }
+}
+@keyframes blocLogoBarPulse {
+  0%, 40%, 100% { fill: var(--logo-block); transform: none; }
+  14%           { fill: var(--logo-accent); transform: scale(1.05); }
+}
+@keyframes blocLogoBarPulseTop {
+  0%, 40%, 100% { fill: var(--logo-accent); transform: none; }
+  14%           { fill: var(--logo-flash); transform: scale(1.08); }
+}
+/* Two animations per bar: the build (fill-mode both, so it starts hidden),
+   then the pulse from 1.25s — the splash's lock → pulse gap. The later one
+   in the list wins while it runs; afterwards the build's end state holds. */
+.settings-logo.animate .lb-1 { animation: blocLogoBarIn 0.5s ease-out 0s both, blocLogoBarPulse 1.6s ease-in-out 1.25s 2; }
+.settings-logo.animate .lb-2 { animation: blocLogoBarIn 0.5s ease-out 0.16s both, blocLogoBarPulse 1.6s ease-in-out 1.43s 2; }
+.settings-logo.animate .lb-3 { animation: blocLogoBarInTop 0.55s ease-out 0.32s both, blocLogoBarPulseTop 1.6s ease-in-out 1.61s 2; }
+@media (prefers-reduced-motion: reduce) {
+  .settings-logo.animate .logo-bar { animation: none; }
+}
 .settings-logo .logo-type { fill: var(--text); }
 .page-eyebrow {
   font-family: var(--font-body); font-size: 11.5px; font-weight: 700;
@@ -4255,7 +4289,7 @@ try {
              and nothing else moves; decorative. Geometry copied verbatim from
              bloc-logo-on-dark.svg, minus its 24-unit margin. -->
         <svg class="settings-logo" viewBox="0 0 507.8 100" aria-hidden="true" focusable="false">
-          <rect class="logo-bar" x="10" y="70.7" width="60" height="29.3" rx="7"/><rect class="logo-bar" x="22" y="35.3" width="60" height="29.3" rx="7"/><rect class="logo-bar logo-bar-top" x="34" y="0" width="60" height="29.3" rx="7"/>
+          <rect class="logo-bar lb-1" x="10" y="70.7" width="60" height="29.3" rx="7"/><rect class="logo-bar lb-2" x="22" y="35.3" width="60" height="29.3" rx="7"/><rect class="logo-bar logo-bar-top lb-3" x="34" y="0" width="60" height="29.3" rx="7"/>
           <g class="logo-type" transform="translate(136 0)"><path d="M0 100V0H47.2Q71.6 0 71.6 24.3V33Q71.6 38 68.7 41.4L63.6 47.5L69.7 52.6Q74.5 56.5 74.5 64.2V75.7Q74.5 100 50.1 100ZM20.9 81.2H49.3Q53.6 81.2 53.6 76.8V62.3Q53.6 58 49.3 58H20.9ZM20.9 39.1H46.4Q50.7 39.1 50.7 34.8V23.2Q50.7 18.8 46.4 18.8H20.9Z"/><path d="M102.5 100V0H123.4V81.2H166.6V100Z"/><path d="M188.5 75.7V24.3Q188.5 0 212.8 0H245.9Q270.2 0 270.2 24.3V75.7Q270.2 100 245.9 100H212.8Q188.5 100 188.5 75.7ZM209.3 76.8Q209.3 81.2 213.7 81.2H245Q249.3 81.2 249.3 76.8V23.2Q249.3 18.8 245 18.8H213.7Q209.3 18.8 209.3 23.2Z"/><path d="M299.1 75.7V24.3Q299.1 0 323.4 0H362.1L371.8 7.5V18.8H324.3Q319.9 18.8 319.9 23.2V76.8Q319.9 81.2 324.3 81.2H371.8V92.5L362.1 100H323.4Q299.1 100 299.1 75.7Z"/></g>
         </svg>
       </div>
@@ -27858,6 +27892,27 @@ function _buildSharePayload(item) {
   }
   return payload;
 }
+
+// v8.19 — replays the splash's bar animation on the Settings logo every time
+// it comes into view (§102). One observer covers both cases Adam asked for:
+// opening Settings takes the logo from display:none to visible, and
+// scrolling it back on screen does the same, so each crossing into view
+// restarts it. Remove class → force a reflow → add, or the browser treats
+// the re-add as no change and nothing replays.
+function initSettingsLogoAnimation() {
+  const logo = document.querySelector('.settings-logo');
+  if (!logo || !('IntersectionObserver' in window)) return;
+  new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (!e.isIntersecting) return;
+      logo.classList.remove('animate');
+      void logo.getBoundingClientRect();
+      logo.classList.add('animate');
+    });
+  }, { threshold: 0.6 }).observe(logo);
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initSettingsLogoAnimation);
+else initSettingsLogoAnimation();
 
 // Hands a generated file to the native Share Sheet (iOS: AirDrop, Save to
 // Files, Messages…), falling back to a plain download where sharing files

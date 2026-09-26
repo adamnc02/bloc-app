@@ -6227,3 +6227,26 @@ bracket markup remains, the new icon hash, and the Settings logo's theme tokens.
 v8.18's `index.html`, it fails 7 checks. Screenshotted in Chromium at 390px mid-build and
 mid-pulse, and Settings in both modes. The home-screen icon cannot update itself: see §94's note on
 re-adding.
+
+## §102 — v8.19 UAT: the splash bar animation replays on the Settings logo
+
+Adam, after seeing §101's splash: *"add that same animation to the logo in the settings page, so
+every time the page loads / the logo comes back into view, the same animation triggers."*
+
+The Settings logo's bars are `lb-1` → `lb-3`, bottom to top. With `.animate` on the `<svg>`, each
+bar runs **two** animations: the build (`blocLogoBarIn`, fill-mode `both` so it starts hidden),
+then the pulse from 1.25s, the splash's lock-to-pulse gap. The pulse runs **twice** and stops,
+because Settings stays open where the splash fades. The timings and staggers are the splash's. The
+colours are the logo's theme tokens (`--logo-block`, `--logo-accent`, and a new `--logo-flash`:
+`#7ff0c6` dark, `#45d19d` light, where a paler flash would vanish on the light page).
+
+`initSettingsLogoAnimation()` puts one `IntersectionObserver` (threshold 0.6) on the logo. That
+covers both triggers: opening Settings takes it from `display:none` to visible, and scrolling it
+back on screen crosses the threshold. Either way it counts as entering view. 🚨 **The restart is
+remove → reflow → add.** Removing and re-adding a class in one frame is coalesced, and nothing
+replays. Reduced motion: no animation.
+
+Checked in headless Chromium: the animation starts on opening Settings, restarts from 0 on
+re-opening and on scrolling back into view, and there are no console errors.
+`scripts/verify-brand-palette-split.mjs` checks the bar classes, the observer and the
+remove → reflow → add order.

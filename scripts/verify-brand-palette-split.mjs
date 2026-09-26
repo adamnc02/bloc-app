@@ -89,6 +89,13 @@ const topbar = source.slice(source.indexOf('<div class="settings-topbar">'), sou
 check('the logo sits inside .settings-topbar', topbar.includes('class="settings-logo"'), true);
 check('the back link is still there (the only way out of Settings)', topbar.includes(`onclick="showScreen('home')"`), true);
 check('exactly one Settings logo', (source.match(/class="settings-logo"/g) || []).length, 1);
+// v8.19 §102 — the splash animation replays on the Settings logo each time it
+// comes into view. The restart needs remove → reflow → add; drop the reflow and
+// the browser coalesces the two class changes and nothing replays.
+const logoInit = source.slice(source.indexOf('function initSettingsLogoAnimation()'), source.indexOf('function initSettingsLogoAnimation()') + 900);
+check('Settings logo bars carry lb-1..lb-3 (bottom → top)', (topbar.match(/class="logo-bar[^"]*lb-[123]"/g) || []).length, 3);
+check('an IntersectionObserver replays it on every entry into view', /new IntersectionObserver/.test(logoInit) && /observe\(logo\)/.test(logoInit), true);
+check('replay is remove → reflow → add', /classList\.remove\('animate'\);\s*void logo\.getBoundingClientRect\(\);\s*logo\.classList\.add\('animate'\)/.test(logoInit), true);
 check('Settings logo bars follow the theme tokens', /\.settings-logo \.logo-bar \{ fill: var\(--logo-block\); \}/.test(source) && /\.settings-logo \.logo-bar-top \{ fill: var\(--logo-accent\); \}/.test(source), true);
 
 console.log('\nControl — re-apply the experiment\'s accent change');
