@@ -2858,6 +2858,8 @@ Checked with Playwright against hand-built synthetic accounts (not `demoData`) c
 
 ## 40. Module: Splash Screen (v7.88)
 
+> **v8.18:** the wordmark image is now the Bracket lock-up, four CSS corner brackets snap onto it and pulse, and the splash has two accent tokens, not one — `--splash-accent` (the Train block, lavender) and `--splash-brand` (brackets and OVERCOME, green). See §94.
+
 A boot-time animated intro — four "pillar" blocks (Train/Fuel/Overcome/Repeat), the real BLOC wordmark image, and a tagline row — that plays before the real app becomes visible. All markup, CSS, and JS live inline as the first content inside `<body>`, ahead of `#app`, wrapped in a single IIFE that runs on `DOMContentLoaded` (or immediately if the document has already finished loading by the time the script executes).
 
 ### Sequence
@@ -5197,6 +5199,8 @@ of M1's — `isMesoMicroValid()` is what says so.
 
 ## §89 — v8.16: the Settings screen
 
+> **v8.18:** the back link now sits in a `.settings-topbar` row that also carries the centred Bracket logo — see §94.
+
 Settings is a hidden page. It has no nav tab, `showScreen()` renders no nav bar for it at all, and
 its `‹ Home` back link is the only way out — see §81. The page is a header, an About row, and three
 groups of rows: Profile, Nutrition, Exercise.
@@ -5820,3 +5824,81 @@ step visible, on its own screen, with its own date, and the check-in sheet open 
 only). All five Mini-Tours ran against the demo data and against an empty account. The Progress
 Mini-Tour was also walked backward with no stored check-in, where Back correctly passes over the two
 skipped sheet steps.
+
+---
+
+## §94 — v8.18: the Bracket logo — app icon, splash and Settings, not the app palette
+
+### What this is
+
+A design experiment, `index-green.html`, recoloured the whole app green **and** introduced a new
+logo: viewfinder brackets around the BLOC wordmark (the "Bracket" mark, Oxanium Bold, in the
+`bloc-brand` kit). Adam kept the logo and rejected the recolour: *"The logo stays green, but the app
+accent colours remain as they are."* v8.18 is exactly the logo half.
+
+| Taken | Left behind |
+|---|---|
+| `apple-touch-icon` → the green Bracket tile (`bloc-brand/icon/apple-touch-icon-1024.png`, byte-identical) | `--accent` / `--accent2` / `--purple`, dark and light — still `#9184d9` / `#b5abfc` / `#6f5cc4` |
+| Splash `#wordmark` image → the new lock-up, white type only | The 18 hard-coded `rgba(145,132,217,…)` glows outside the splash (ghost button, tags, tour ring, AI buttons, challenge boxes, …) |
+| Four CSS brackets that snap on and pulse, and the wordmark resized 390 → 300px (85 → 72vw) with 29px padding for them | A light-mode `--accent: #157a5c` override the experiment added — light mode still inherits the dark accent, as it did |
+| The splash hold before the fade extended by 1s so the pulse is seen | |
+
+The experiment's diff was split hunk by hunk, and the split proven exact: v8.18's first commit plus
+the 21 dropped hunks reproduces `index-green.html` byte for byte.
+
+### Two splash tokens, not one
+
+🚨 `--splash-accent` used to paint three things: the Train block, the OVERCOME word as it lands, and
+(in the experiment) the brackets. Adam asked for the Train block back in its original lavender after
+reviewing the green, so the token is split:
+
+- **`--splash-accent: #A79EE3`** — the Train block. Unchanged from v8.17.
+- **`--splash-brand: #2fb98a`** — the brackets and OVERCOME. The logo's green.
+
+Collapsing them back onto one token looks like a tidy-up and turns one side wrong. Both stay scoped
+to `#splash` (§40's CSS scoping), so neither can reach the app.
+
+### The brackets
+
+Four `<span class="brk">` corners inside `#wordmark`, each a 21px square with two borders removed.
+They start 22px out, at `scale(1.25)` and transparent; `.locked` (added 200ms before the wordmark's
+rise finishes) transitions them onto the word with a one-off drop-shadow flash, and `.pulsing`
+(1.1s after the rise) loops a 1.6s breathe that scales each corner about its outer corner, so the
+frame grows outward rather than towards the word. Only `transform`, `opacity` and `filter` animate.
+`prefers-reduced-motion` stops the pulse; the snap still plays.
+
+### The Settings logo
+
+Inline SVG built from `bloc-brand/logo/bloc-logo-on-dark.svg`'s paths, not an `<img>`, so it
+follows Dark/Light mode: the letters take `--text` and the corners `--logo-bracket` — `#4cc59d` dark,
+`#1b9e75` light, the kit's own on-dark/on-light bracket greens. `aria-hidden`, since it is decoration
+beside a page that already says what it is.
+
+🚨 **It sits in the back-link row, not the title row.** Adam asked for it "in line with the header —
+centred". Centred in `.page-head`, it was measured in Chromium at 375px: `Settings` at 34px runs to
+x=157 and the logo started at x=150, and at 320px it covered the word entirely. The `‹ Home` row
+ends at x=67, so its centre is empty at every width. The logo is absolutely centred there (x=150–225
+at 375px, vertical centre level with the back link), so the back link keeps its 44px tap target and
+the title and Help button do not move.
+
+The corners are drawn at `stroke-width: 10`, not the kit's 6: at 30px tall a 6-unit stroke renders at
+about 1px and the corners all but disappear. The kit's geometry is drawn for 170px and up.
+
+### The installed icon does not update itself
+
+iOS saves a home-screen app's icon when it is added. An existing install keeps the old icon until it
+is removed and re-added, and 🚨 **removing a home-screen app can delete its storage** — for BLOC,
+everything, since `bloc_state` is the source of truth. Before re-adding: Account & Data → Export →
+Cloud → Full sync (and a local file). Signing in on the fresh install pulls the newest cloud snapshot
+(§66).
+
+### Verification
+
+`scripts/verify-brand-palette-split.mjs` — the app accent tokens and the absence of green glows
+before `#splash`; both splash tokens and which element uses which; four bracket corners; the icon,
+by SHA-256 of the brand kit's file; and the Settings logo inside `.settings-topbar` alongside the
+back link. Its control re-applies the experiment's `--accent` change and asserts the check catches
+it; run against v8.17's `index.html` it fails 7 of its 12 checks, as it should. Settings was
+screenshotted in Chromium at 375 and 320px in both modes, and the splash's computed colours read in
+the browser: Train block `rgb(167,158,227)`, brackets `rgb(47,185,138)`.
+
