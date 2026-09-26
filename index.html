@@ -4978,6 +4978,8 @@ try {
       <button class="modal-close-btn" onclick="closeModal('modal-add-goal')">✕</button>
     </div>
     <div class="modal-title" id="goal-modal-title">New Goal Period</div>
+    <!-- v8.19 — follow-up sheets only: how much of the cycle has no goal yet (§98) -->
+    <div id="goal-remaining-banner" style="display:none;font-size:13px;font-weight:600;color:var(--red);margin:-4px 0 12px;line-height:1.4;"></div>
     <div id="goal-queue-indicator" style="display:none;margin-bottom:10px;">
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <span id="goal-queue-step-label" style="font-size:11px;font-weight:600;color:var(--accent);letter-spacing:0.04em;"></span>
@@ -8988,6 +8990,9 @@ function openModal(id) {
     const errEl = document.getElementById('goal-overlap-error');
     if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
     const modal = document.getElementById('modal-add-goal');
+    modal._followUp = false;
+    const remainingEl = document.getElementById('goal-remaining-banner');
+    if (remainingEl) remainingEl.style.display = 'none';
     // Only reset fields when opening fresh — openEditGoal pre-sets _editIdx and field values
     const isEditing = modal._editIdx !== undefined && modal._editIdx !== null;
     // v8.19 — when editing, the rebuilt options must keep the goal's OWN
@@ -9013,6 +9018,11 @@ function openModal(id) {
     requestAnimationFrame(() => initGoalMacroSliders(isEditing ? state.goals[modal._editIdx] : null));
   }
   if (id === 'modal-macro') {
+    // v8.19 — the free-text fields were never cleared, so a new cycle opened
+    // with the previous one's name and goal text (UAT 2026-09-26).
+    // fillNextCycleMacroModal sets its own name after this returns.
+    document.getElementById('macro-name-input').value = '';
+    document.getElementById('macro-goal-input').value = '';
     const nextStart = getNextMacroStart();
     document.getElementById('macro-start-input').value = nextStart;
     document.getElementById('macro-start-input').style.borderColor = '';
@@ -9119,6 +9129,7 @@ function closeModal(id) {
   // for a resumed edit (was only cleared on save, not on cancel/close)
   if (id === 'modal-add-goal') {
     overlay._editIdx = undefined;
+    overlay._followUp = false;
     // Only abort the queue on a genuine user dismissal (swipe/backdrop).
     // Programmatic closes between queue steps set _goalQueueAdvancing = true
     // first so we know not to kill the queue here.
@@ -28878,6 +28889,7 @@ function onGoalMacroSelectChange() {
   if (!isEditing) {
     prefillGoalLabelForSelectedMacro();
     applyNewGoalDefaultDates();
+    if (modal._followUp) applyGoalFollowUp(document.getElementById('goal-macro-select').value);
   }
 }
 
@@ -29058,6 +29070,64 @@ function saveGoal() {
   renumberMacroGoalSteps(macroId);
   if (prevMacroId && prevMacroId !== macroId) renumberMacroGoalSteps(prevMacroId);
   save(); closeModal('modal-add-goal'); renderPlanGoalsSection();
+
+  // v8.19 — a new goal that leaves part of its cycle without one opens the
+  // next goal sheet straight away (§98). Edits never do; ✕ ends the chain.
+  const macro = editIdx < 0 && (state.macrocycles || []).find(m => m.id === macroId);
+  if (macro && macroGoalCoverage(macro, state.goals).uncoveredDays > 0) {
+    setTimeout(() => openGoalFollowUp(macroId), 350);
+  }
+}
+
+// How much of a macrocycle's date range has no goal period (v8.19, §98).
+// Coverage counts goals from ANY cycle — goal periods never overlap, so a
+// day another cycle's goal holds can never be filled by this one, and
+// counting only this cycle's goals would chain sheets that can never finish.
+// Returns { end, uncoveredDays, firstUncovered } (firstUncovered null when
+// fully covered).
+function macroGoalCoverage(macro, goals) {
+  const end = toLocalDateStr(getMacroEndDate(macro));
+  let uncoveredDays = 0, firstUncovered = null;
+  if (!macro.start) return { end, uncoveredDays, firstUncovered };
+  for (let day = macro.start; day <= end; day = shiftDateStr(day, 1)) {
+    if (!goals.some(g => g.startDate <= day && g.endDate >= day)) {
+      uncoveredDays++;
+      if (!firstUncovered) firstUncovered = day;
+    }
+  }
+  return { end, uncoveredDays, firstUncovered };
+}
+
+// "2 weeks" / "10 days" — the follow-up banner's wording.
+function describeUncovered(n) {
+  if (n % 7 === 0) { const w = n / 7; return `${w} week${w === 1 ? '' : 's'}`; }
+  return `${n} day${n === 1 ? '' : 's'}`;
+}
+
+// Opens a fresh goal sheet for `macroId` as a follow-up: dates start at the
+// cycle's first uncovered day, and the red banner says what is left.
+function openGoalFollowUp(macroId) {
+  const modal = document.getElementById('modal-add-goal');
+  modal._editIdx = undefined;
+  openModal('modal-add-goal');
+  document.getElementById('goal-macro-select').value = macroId;
+  modal._followUp = true;
+  onGoalMacroSelectChange();
+}
+
+// Sets a follow-up sheet's banner and default dates for `macroId`. A cycle
+// that is already covered (the dropdown was changed to one) hides the banner.
+function applyGoalFollowUp(macroId) {
+  const el = document.getElementById('goal-remaining-banner');
+  const macro = (state.macrocycles || []).find(m => m.id === macroId);
+  const cov = macro ? macroGoalCoverage(macro, state.goals || []) : null;
+  if (!el) return;
+  if (!cov || !cov.uncoveredDays) { el.style.display = 'none'; return; }
+  el.textContent = `${describeUncovered(cov.uncoveredDays)} still unaccounted for · cycle ends ${formatDate(cov.end)}`;
+  el.style.display = 'block';
+  document.getElementById('goal-start-input').value = cov.firstUncovered;
+  const sunday = sundayOfWeek(cov.firstUncovered);
+  document.getElementById('goal-end-input').value = sunday < cov.end ? sunday : cov.end;
 }
 
 

@@ -6046,3 +6046,45 @@ label.
 across 25 Oct 2026) and all four start cases. Its control restores `end = start` and fails 4 checks.
 Driven in headless Chromium: "+ Build goal periods" on a cycle starting 19 Oct with no goals opens
 on 19 Oct → 25 Oct, "Step 1 - ", with no console errors.
+
+## §98 — v8.19 UAT: follow-up goal sheets until the cycle is covered; New Macrocycle's carried-over name
+
+### Follow-up goal sheets
+
+Asked for in the v8.19 UAT (2026-09-26): a 4-week cycle was given one 2-week goal, and *"there was no
+clue that there was still 2 weeks left … without a goal. On these follow-up goal phase modals, we need
+to show 'x weeks still unaccounted for - cycle end date xx' at the top of the modal in red."*
+
+At the end of `saveGoal()`, when the save was a **new** goal (`editIdx < 0`) and
+`macroGoalCoverage(macro, state.goals).uncoveredDays > 0`, `openGoalFollowUp(macroId)` runs 350ms
+later (after the close animation, the same gap the goal queue uses). It opens a fresh sheet, selects
+the cycle, sets `modal._followUp`, and `applyGoalFollowUp()` writes the red
+`#goal-remaining-banner` ("2 weeks still unaccounted for · cycle ends 6 Dec 2026"; days when not a
+whole number of weeks) and dates that start on `firstUncovered` and end on that week's Sunday,
+capped at the cycle end.
+
+- **It stops** when the cycle is covered, or on ✕: `closeModal` clears `_followUp`, and so does every
+  `openModal`, so the banner never shows on an ordinary open.
+- **Edits never chain.** Nor does the AI goal queue, which saves through its own branch of
+  `saveGoalAndAdvanceQueue()` and never reaches `saveGoal()`.
+- Changing the dropdown on a follow-up sheet recomputes the banner and dates for the new cycle
+  (`onGoalMacroSelectChange`), and hides the banner if that cycle is already covered.
+- The first sheet ("Add a goal?", "+ Build goal periods") has no banner. Only follow-ups do, as
+  asked.
+
+🚨 **Coverage counts goals from every cycle, not just this one.** Goal periods never overlap, so a
+day already held by another cycle's goal can never be filled by this one. Counted per cycle, a
+cycle that overlaps its neighbour's goals would reopen the sheet forever, and every save would be
+refused by the overlap check. `scripts/verify-goal-follow-up-coverage.mjs` has this case, and its
+control narrows coverage to the cycle's own goals and asserts the failure. It also covers: no
+goals, 14 days left from 23 Nov, fully covered, a gap in the middle found first, and a goal running
+past the end. The whole chain was driven in headless Chromium on UAT C's shape (4 weeks from 9
+Nov): the sheet reopened with "2 weeks…" from 23 Nov, then "1 week…" from 30 Nov, then closed once
+6 Dec was covered. No console errors.
+
+### New Macrocycle carried over the last cycle's name
+
+`openModal('modal-macro')` reset the dates, split, goal type and target weight but never
+`#macro-name-input` or `#macro-goal-input`, so a second cycle opened with the first one's name
+(found in the same UAT). Both are now cleared on open. `fillNextCycleMacroModal()` sets its own name
+*after* `openModal` returns, so the Next Cycle flow's "Cut 2026" default is unaffected.
