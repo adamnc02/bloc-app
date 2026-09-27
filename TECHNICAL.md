@@ -689,26 +689,64 @@ In iOS standalone, `position: fixed` tracks `window.innerHeight`, which shrinks 
 
 The body log modal (`modal-body-log`) is the canonical reference for this behaviour: its sheet has no inline styles, uses the base `.modal-sheet` CSS (`max-height: 92dvh; overflow-y: auto`), and its compact content always fits within the shrunken overlay.
 
-**Modals that need a scrollable list (`modal-nutr-add`, `modal-food-lib-editor`, `modal-exercise-lib-editor`):**
+**Search sheets: a filterable list with the keyboard up (`.kb-pinned-sheet`).**
 
-Both require a scrollable results list, which creates an additional challenge. A list using `flex: 1` inside a `display: flex` sheet causes the sheet to grow to its full `max-height`. Because `dvh` does not reliably shrink with the keyboard in iOS standalone, this leaves the sheet taller than the overlay and pushes the search input off the top of the screen.
+🚨 **Adam, 2026-09-28: the Add food sheet "took HOURS to get right". Copy this pattern exactly for any
+new sheet with a search box over a list, and don't simplify it.** It's used by `modal-nutr-add` (Add
+food), `modal-food-lib-editor`, `modal-exercise-lib-editor` and, since v8.28, `modal-recipe-pick`
+(Fuel › Shortcuts › Recipes, §117). *(Rewritten 2026-09-28. This subsection used to describe an
+older version, a bottom-anchored `.modal-sheet` with `max-height:85dvh`, which isn't what the code
+does.)*
 
-The fix is structural — the sheet is kept compact by giving the list a fixed `max-height` in pixels rather than `flex: 1`, and that height is then further shrunk live by `fitListToKeyboard(wrapId)` whenever the keyboard opens, rather than resizing the sheet itself:
+**Why a plain `.modal-sheet` fails.** A plain sheet is anchored to the bottom of the overlay and
+sized by its content. Filtering the list shortens it, so the sheet shrinks on every keystroke and its
+top edge drops down towards, then behind, the keyboard. That was the v8.27 Recipes sheet: in
+Chromium at 393pt with 12 recipes, its top moved 118 → 486 → 563px while typing.
+
+**The pattern has four parts, and every one is needed:**
+
+1. **The sheet never resizes.** `.kb-pinned-sheet` is `position: fixed`, with its top pinned at
+   `--safe-top + 30px` and `height: calc(var(--app-height) - var(--safe-top) - 30px)`. It's a flex
+   column with `overflow: hidden`. `setAppHeight()` deliberately **doesn't update `--app-height`
+   while the keyboard is open** (`isKeyboardOpen()`), so the sheet keeps its full height and its own
+   background runs behind the keyboard. There's no gap for the overlay's dark tint to show through.
+   The handle row, title, sub, search input and action row are all `flex-shrink: 0`.
+2. **Only the list resizes.** The list is `.kb-list-wrap` (`flex: 1 1 auto; min-height: 0`), holding
+   `.kb-list-inner` (the scroller, whose `innerHTML` the render function replaces) and a
+   **`.kb-list-fade` sibling**. The fade is a 32px gradient in `--surface-rgb`. It must be a sibling,
+   because as a child of the scroller each render would delete it.
+3. **The open function sets the fit.** It clears the wrap's `style.maxHeight`, renders, calls
+   `openModal()`, then `setTimeout(() => fitListToKeyboard('<wrap id>'), 320)`. The wait is there
+   because measuring during the sheet's 0.3s slide-in returns an in-flight position, and a transform
+   fires no `resize`.
+4. **`measureAll()` re-fits the wrap** on every `visualViewport` resize, which fires when the
+   keyboard opens and closes. `fitListToKeyboard(wrapId)` sets
+   `maxHeight = max(80, --kb-vvh − wrap top + 28)`. `--kb-vvh` (`setKbViewportHeight()`) is the live
+   visual viewport height, and unlike `--app-height` it **does** shrink with the keyboard. The list
+   runs 28px behind the keyboard, and the fade covers that overlap so it reads as a soft edge rather
+   than a hard cut. On-device measurement (July 2026) showed one clean resize per focus or blur, so
+   there's no debounce. **A wrap missing from `measureAll()`'s list is never re-fitted when the
+   keyboard opens.**
 
 ```html
-<!-- Sheet: base CSS only, no flex/overflow:hidden override -->
-<div class="modal-sheet" data-modal="modal-nutr-add" style="max-height:85dvh;">
-  <!-- fixed-height elements: handle, title, action buttons, search input -->
-  <!-- List: bounded height, independently scrollable, shrunk by fitListToKeyboard() -->
-  <div id="nutr-add-list-wrap" class="kb-list-wrap">
-    <div id="nutr-add-list"
-         style="overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;">
+<div class="modal-overlay" id="modal-recipe-pick">
+  <div class="modal-sheet kb-pinned-sheet" data-modal="modal-recipe-pick">
+    <div class="modal-handle-row" style="flex-shrink:0;">…</div>
+    <div class="modal-title" style="flex-shrink:0;">Log a recipe</div>
+    <input type="text" id="recipe-pick-search" oninput="renderRecipePickList()" style="margin-bottom:12px;flex-shrink:0;">
+    <div id="recipe-pick-list-wrap" class="kb-list-wrap">
+      <div id="recipe-pick-list" class="kb-list-inner" style="overscroll-behavior:contain;-webkit-overflow-scrolling:touch;"></div>
+      <div class="kb-list-fade"></div>
     </div>
   </div>
 </div>
 ```
 
-`fitListToKeyboard(wrapId)` measures the wrap element's distance from the top of the viewport and the current `visualViewport.height`, then sets the list's height so its bottom edge lands just above the keyboard. It's called from the shared `visualViewport.resize` handler (see §5) for `nutr-add-list-wrap`, `food-lib-list-wrap`, and (since v6.10) `exercise-lib-list-wrap`, plus once explicitly after each modal's own slide-in transform finishes (a `setTimeout(..., 320)` after opening), since the transform itself doesn't fire a `resize` event.
+**Testing it.** `isKeyboardOpen()` only returns true in the **Home Screen app**
+(`navigator.standalone`). A Safari tab over LAN http shows the sheet staying pinned while you filter,
+but only the installed app shows the frozen `--app-height` with the keyboard up. So sign-off happens
+on the live app. `scripts/verify-kb-pinned-sheets.mjs` checks all four parts for **every** sheet
+with a search box that anything opens, so a new one that skips a part fails the sweep.
 
 `overscroll-behavior: contain` on the list prevents scroll events from bubbling out to `#content` when the list boundary is reached.
 
@@ -7017,3 +7055,37 @@ measured at 375pt.** BLOC Coach's three-column rows follow the same rule (PROMPT
 `scripts/verify-fuel-macro-row.mjs` runs the real `renderNutrHero()` on Adam's reported day, the
 three-digit worst case and a day with no goal. It checks the top rows, the `of …g` lines and the
 no-wrap CSS. A control shows v8.26 (`8b79a54`) put the target on the top row.
+
+## §117 — v8.28: Log a recipe stays pinned above the keyboard, like Add food
+
+**The bug (Adam, 2026-09-28).** Fuel › Shortcuts › Recipes (`modal-recipe-pick`, v8.16) was a plain
+`.modal-sheet` whose list was capped at `max-height: 60vh`. Typing in its search box filtered the
+list, the sheet shrank to fit, and its top edge dropped behind the keyboard. Add food, the sheet
+Adam compared it with, never moves.
+
+**The fix.** `modal-recipe-pick` now uses the Add food pattern exactly (§9 → "Search sheets"):
+`.kb-pinned-sheet`, a `.kb-list-wrap` / `.kb-list-inner` / `.kb-list-fade` list,
+`openRecipePickerForLog()` clearing and re-fitting `recipe-pick-list-wrap` after the slide-in, and the
+wrap added to `measureAll()`. Nothing else about the sheet changed: the same rows, sub line, search
+and "No recipes match" text.
+
+**Checked in Chromium at 393pt, 12 recipes, against v8.27:**
+
+| | Sheet top: full → "chi" → no match | Height |
+|---|---|---|
+| v8.27 | 118 → 486 → 563px | 734 → 366 → 289 |
+| v8.28 | 30 → 30 → 30px | 784 throughout |
+
+There were no console errors. **What this can't show is the keyboard itself.** Desktop Chromium
+has no `navigator.standalone`, so `--app-height` isn't frozen, and shrinking the viewport to fake a
+keyboard shrinks the whole sheet in both versions. The keyboard behaviour is signed off on the Home
+Screen app (§9 → "Testing it").
+
+**Also found.** §9's write-up of this pattern described an older, bottom-anchored version and
+contradicted the code. It's rewritten above. `modal-nutr-previous` (Previous meals) has the same
+unpinned design, but nothing opens it any more, so it can't show the bug. It's left alone, and the
+verify script names it as unreachable.
+
+`scripts/verify-kb-pinned-sheets.mjs` finds every sheet with a search box over a list that anything
+opens, and checks all four parts of the pattern on each. Controls show v8.27's `modal-recipe-pick`
+fails and v8.27's `modal-nutr-add` passes.
