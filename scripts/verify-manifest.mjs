@@ -71,12 +71,11 @@ if (existsSync(swPath)) {
   check('no sw.js yet → index.html registers no service worker', /serviceWorker\.register\(/.test(source), false);
 }
 
-// The on-device readout the manifest test reads (§108): present, and read-only.
-const rowsStart = source.indexOf('function installReadinessRows(');
-const rowsFn = rowsStart === -1 ? '' : source.slice(rowsStart, source.indexOf('\n}\n', rowsStart));
-check('Settings shows the install-readiness rows (standalone, display mode, push available)',
-  ['Opened from Home Screen', 'Display mode', 'Push available on this install'].every(t => rowsFn.includes(t)) && /installReadinessRows\(statRow\)/.test(source), true);
-check('…and they request nothing (no requestPermission / subscribe / register)', /requestPermission|subscribe\(|register\(/.test(rowsFn), false);
+// v8.25: the install-readiness rows were a debugging readout for the v8.21
+// manifest test (§108) and were removed with the round's other diagnostics
+// (§114). They must not creep back into Settings → About.
+check('the v8.21 install-readiness debug rows are gone from Settings → About',
+  /installReadinessRows|Push available on this install/.test(source), false);
 
 // CONTROL: a root-scoped manifest must fail the scope check.
 check('CONTROL: a scope of "/" is rejected (it would claim every app on the origin)', scopeOk({ scope: '/', start_url: '/' }), false);

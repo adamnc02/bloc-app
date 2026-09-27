@@ -186,9 +186,7 @@ function page(noteBody) {
 {
   const now = Date.now();
   const p = page({ open: 'measurements', at: now - 60 * 1000 });
-  check('route 3: a fresh note opens Measurements (and says where the worker found it)', await p.fns.takePendingOpenIntent(now), { open: 'measurements', via: 'data' });
-  const viaTag = page({ open: 'measurements', via: 'tag', at: now });
-  check('route 3: the note carries `via` through', (await viaTag.fns.takePendingOpenIntent(now)).via, 'tag');
+  check('route 3: a fresh note opens Measurements', await p.fns.takePendingOpenIntent(now), { open: 'measurements' });
   check('route 3: …and is deleted (it never opens twice)', p.key in p.store, false);
   const stale = page({ open: 'measurements', at: now - 6 * 60 * 1000 });
   check('route 3: a note older than 5 minutes is ignored', await stale.fns.takePendingOpenIntent(now), null);
@@ -212,8 +210,9 @@ const signOut = extract(html, 'async function signOutUser(');
 check('sign-out unregisters this device BEFORE signing out', signOut.indexOf('forgetThisPushDevice()') > -1 && signOut.indexOf('forgetThisPushDevice()') < signOut.indexOf('auth.signOut()'), true);
 check('boot checks for a tapped notification', /continueBootAfterAuth\(\);\s*\n\s*checkOpenIntents\(\)/.test(extract(html, 'function maybeFinalizeBoot(')), true);
 check('the worker is registered on every load, with scope ./', /registerBlocServiceWorker\(\);/.test(html) && constLine('BLOC_SW_SCOPE') === './', true);
-check('the message route also consumes the note (no second open later)', /takePendingOpenIntent\(\)\.finally\(\(\) => applyOpenIntent\(e\.data\.open, 'message'/.test(html), true);
-check('Settings → About shows the last notification tap', /statRow\('Last notification tap', lastOpenIntentText\(\)\)/.test(html), true);
+check('the message route also consumes the note (no second open later)', /takePendingOpenIntent\(\)\.finally\(\(\) => applyOpenIntent\(e\.data\.open\)\)/.test(html), true);
+// v8.25 (§114): the round's debugging readouts are gone and must stay gone.
+check('no "Last notification tap" debug readout (removed in v8.25)', /Last notification tap|bloc_last_open_intent/.test(html), false);
 const reg = extract(html, 'async function registerPushHere(');
 check('re-registering deletes this phone\'s previous (dead) row and remembers the new one',
   /prev\.id !== newId/.test(reg) && /\.delete\(\)\.eq\('id', prev\.id\)/.test(reg) && /pushLocalSet\(newId\)/.test(reg), true);
@@ -221,7 +220,7 @@ check('the silent re-register never prompts (ask=false reads Notification.permis
   /ask \? await Notification\.requestPermission\(\) : Notification\.permission/.test(reg), true);
 check('boot runs the health check', /checkPushHealth\(\);/.test(extract(html, 'function maybeFinalizeBoot(')), true);
 check('turning off forgets this phone\'s registration', /pushLocalClear\(\)/.test(extract(html, 'async function turnOffPushHere(')), true);
-check('Settings → Notifications lists registered devices with Remove', /Registered devices \(/.test(html) && /removePushDevice\('/.test(html), true);
+check('no "Registered devices" debug list (removed in v8.25; Turn off/on is the recovery, §113)', /Registered devices|removePushDevice|listPushDevices/.test(html), false);
 
 // 🚨 TRIPWIRE (v8.24, §113). On iOS, changing sw.js can DROP every phone's
 // push subscription (v8.23 UAT: Adam had to turn notifications on and allow
