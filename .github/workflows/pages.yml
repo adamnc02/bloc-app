@@ -1,6 +1,7 @@
 # BLOC's first CI, and how the live site is published (v8.31, TECHNICAL §121).
 #
-#   verify  — the full scripts/verify*.mjs sweep, strict, on every PR and push.
+#   verify  — the full scripts/verify*.mjs sweep, strict, on every PR and push
+#             (including the engine rebuild-and-compare, v8.32 §122).
 #   deploy  — on main only, and only after verify passes: publish EXACTLY the
 #             files in scripts/publish-files.txt to GitHub Pages.
 #
@@ -36,6 +37,12 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
+      # v8.32 (§122): the engine's pinned TypeScript and esbuild, which
+      # verify-engine-build.mjs uses to rebuild engine/src and compare it with
+      # the committed engine/dist/bloc-engine.js. The deploy job needs neither:
+      # it publishes the committed build that this job proved current.
+      - name: Install the engine toolchain
+        run: npm ci --prefix engine
       - name: Full verify sweep (strict)
         run: bash scripts/ci-verify.sh
 
