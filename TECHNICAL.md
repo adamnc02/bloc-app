@@ -6390,6 +6390,28 @@ entry's step before computing anything. That guarantees two things:
 
 The sweep that runs on every render therefore returns the same answer every time.
 
+### The Supabase mirror (migration `0018`)
+
+`syncRowsExerciseRatings()` sends `state.rpe` to `exercise_ratings`, as one row per key, through the
+ordinary delete-then-reinsert `syncTable()`. That is safe because `state.rpe` is the complete
+history. The job runs after `exercises`, which it references. `syncParseRpeKey()` matches the key
+against the known exercise ids, the same way the set-log parser does, because the ids contain
+underscores and, in the demo data, the day key itself. Each row sets exactly one of `rpe` (1–10) or
+`skipped`, which is what the table's CHECK allows. A row that broke it would fail the whole insert
+after the delete had already run. Orphaned, empty and out-of-range entries are not sent.
+`syncRowsMacrocycles()` sends `rpe: m.rpe === true`.
+
+🚨 **`0018` must be live before this app build merges.** `syncTable()` deletes before it inserts, so
+a `macrocycles` insert failing on the unknown `rpe` column would leave the mirror's `macrocycles`
+empty, and the cascade would take `exercises` and `exercise_logs` with it. The Supabase PR merges
+first, and the live check (`supabase/checks/20260927_exercise_ratings_verify.sql`, as `claude_ro`)
+passes before the app PR is opened. `scripts/verify-rpe-sync.mjs` covers:
+
+- the parser, on demo-shaped ids;
+- the one-of-two rule;
+- the job order;
+- that this warning is still in the code.
+
 ### The AI prompts
 
 `buildRpePromptSummary()` adds up to 12 lines, hardest first, to the check-in and next-cycle prompts.

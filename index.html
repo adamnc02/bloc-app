@@ -7492,6 +7492,10 @@ function syncRowsMacrocycles(userId) {
     goal_type: m.goalType || null, weight_increment: m.weightIncrement ?? null,
     split_type: m.splitType, days: m.days, day_labels: m.dayLabels,
     use_microcycles: !!m.useMicrocycles,
+    // v8.20 — migration 0018. 🚨 That migration must be LIVE before this ships:
+    // syncTable() deletes first, so an insert failing on an unknown column
+    // would empty macrocycles and cascade away exercises and exercise_logs.
+    rpe: m.rpe === true,
   }));
 }
 
@@ -7534,6 +7538,42 @@ function syncRowsExerciseLogs(userId, exIdContext) {
       week: parsed.week, day_key: parsed.day + (parsed.microcycle || ''),
       set_index: parsed.setIndex, weight: log.weight ?? null, reps: log.reps ?? null,
       done: !!log.done,
+    });
+  }
+  return rows;
+}
+
+// v8.20 — state.rpe → exercise_ratings (migration 0018, TECHNICAL §104).
+// Key `${macroId}_${week}_${dayKey}_${exId}` — a set-log key with no set
+// index. Exactly one of rpe / skipped per row, matching the table's CHECK:
+// a skip is never sent as a number.
+function syncParseRpeKey(key, exIdContext) {
+  for (const exId in exIdContext) {
+    const marker = '_' + exId;
+    if (!key.endsWith(marker)) continue;
+    const prefix = key.slice(0, key.length - marker.length);
+    const { macroId, day, microcycle } = exIdContext[exId];
+    const dayToken = day + (microcycle || '');
+    if (!prefix.startsWith(macroId + '_') || !prefix.endsWith('_' + dayToken)) continue;
+    const week = parseInt(prefix.slice((macroId + '_').length, prefix.length - ('_' + dayToken).length), 10);
+    if (isNaN(week) || week < 1) continue;
+    return { exerciseId: exId, macroId, dayToken, week };
+  }
+  return null;
+}
+
+function syncRowsExerciseRatings(userId, exIdContext) {
+  const rows = [];
+  for (const key in (state.rpe || {})) {
+    const r = state.rpe[key];
+    const rated = r && typeof r.rpe === 'number' && r.rpe >= 1 && r.rpe <= 10;
+    if (!rated && !(r && r.rpeSkipped)) continue;
+    const parsed = syncParseRpeKey(key, exIdContext);
+    if (!parsed) continue; // orphaned key (exercise deleted) — skip rather than guess
+    rows.push({
+      user_id: userId, macrocycle_id: parsed.macroId, exercise_id: parsed.exerciseId,
+      week: parsed.week, day_key: parsed.dayToken,
+      rpe: rated ? Math.round(r.rpe) : null, skipped: !rated,
     });
   }
   return rows;
@@ -7734,6 +7774,7 @@ async function pushStateToSupabase(userId) {
     ['macrocycles', syncRowsMacrocycles(userId)],
     ['exercises', syncRowsExercises(userId, exIdContext)],
     ['exercise_logs', syncRowsExerciseLogs(userId, exIdContext)],
+    ['exercise_ratings', syncRowsExerciseRatings(userId, exIdContext)],
     ['deloads', syncRowsDeloads(userId)],
     ['progression_locks', syncRowsProgressionLocks(userId, exIdContext)],
     ['exercise_history', syncRowsExerciseHistory(userId)],
