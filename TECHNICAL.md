@@ -6901,3 +6901,71 @@ change for a real reason (PROMPT-03's coach pushes).
 
 `verify-manifest.mjs` and `verify-push.mjs` now assert that all three readouts are **absent**, so
 they can't creep back unnoticed.
+
+## §115 — v8.26: Change session is a week agenda; Edit cycle lives in Plan → Tools
+
+Adam, 2026-09-27, choosing option A of the mockups (the "BLOC Change session" design canvas). Both
+changes **supersede the BLOC Coach wireframes** where they differ. Everything else in the
+wireframes stands (PROMPT-03).
+
+### Train → Change session
+
+**The old sheet** was an MC pill strip that scrolled off the right edge (the current mesocycle was
+often the clipped one) and "Pull M1 / Pull M2" day tabs. It had no dates, no status, and needed two
+taps: a week (which kept the sheet open), then a day.
+
+**Now.** `getTrainAgendaUnits(macro)` returns one **unit per real calendar week**, and
+`buildTrainPickerHTML()` draws each unit as a card:
+
+- **The header:** "3 Aug – 9 Aug · This week", "MC 5 · week 1 of 2", Deload flagged, and a summary:
+  ✓ All done, In progress, *n* of *m* done, or *n* sessions.
+- **The rows:** each session with its status: ✓ Done, "13 of 19 sets logged", **Up next**
+  (`getNextIncompleteSession()`, the same answer Home's Up next uses) or **Viewing**.
+- **One tap** (`selectTrainSession(week, dayKey)`) sets the week and the session together, closes the
+  sheet and re-renders Train.
+- **Go to up next** sits above the list when the next unfinished session isn't the one being viewed.
+- **Which cards start open:** the viewed week, this week and up next's week
+  (`trainAgendaOpen`, re-derived on every open). The others expand with a tap
+  (`toggleTrainAgendaUnit`).
+- 🚨 **Only the week list scrolls** (`.train-agenda`, `max-height: 58vh`). On open, the list is
+  scrolled to the viewed week by setting its own `scrollTop`. `scrollIntoView` scrolled the whole
+  sheet and pushed the title and Go to up next out of sight; the build check caught it.
+
+🚨 **What a unit is.** A mesocycle is two calendar weeks only when it uses microcycles over two weeks
+(`weeksPerMeso` 2): then `m1` is its first week and `m2` its second, the same rule as
+`getSelectedTrainWeekDates()`. Otherwise one unit spans the whole mesocycle:
+
+- if both microcycles share that week, their sessions sit in one card, told apart as **A/B**, never
+  the old "M1/M2";
+- a partial trailing extension mesocycle has no second week (`isMesoMicroValid`), so it gets no card
+  for one.
+
+The dates come from `macro.start` plus the unit's week offset.
+
+The fill-order contract (`renderTrainSessionPicker()` fills `train-session-picker-body` before
+`modal-train-session` opens) is unchanged. `selectTrainWeek()` and `selectTrainDay()` remain but
+the sheet no longer calls them.
+
+### Plan → Tools → Edit cycle
+
+The pencil button left the Plan page header (`renderPlanHeader`). **Edit cycle** is the first row
+of Tools (`#plan-edit-cycle-row` → `openEditMacro()`), labelled "Name, goal, start date, length and
+increments", above Extend cycle, New cycle and Effort ratings. The Tools sublabel and its tour step
+("Edit, extend, or start again") say so.
+
+**BLOC Coach** already puts Edit cycle in its client Plan tab's Tools card, so it conforms. The
+BLOC Solo wireframe's header pencil (`PlanSoloScreen`) is what this supersedes.
+
+`scripts/verify-train-agenda.mjs` covers:
+
+- two-week units with their dates, this week, done, partial, up next, viewing and deload;
+- one-week mesocycles with A/B;
+- no microcycles;
+- a partial extension;
+- the one-tap selection;
+- the Plan header and Tools order, and the tour step;
+- a control on v8.25's pill-strip builder.
+
+Checked in headless Chromium at 390px: the header stays fixed while the list scrolls, a tap on
+another week's session opens it and closes the sheet, Tools → Edit cycle opens the edit sheet,
+there's no header button, and there are no console errors.
