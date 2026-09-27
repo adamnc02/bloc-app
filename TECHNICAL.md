@@ -6524,3 +6524,50 @@ every member. Adam found it in the v8.20 UAT. The member rows now return nothing
 as a solo card. The README's Train section still said "Replaced by a Deload tag"; that line is fixed
 too. `scripts/verify-rpe-progression.mjs` asserts that no `>Deload</span>` remains anywhere in
 `renderTrainDay()`, and the previous commit fails that check.
+
+## §108 — v8.21: the web app manifest, shipped alone
+
+PROMPT-02 Part A. iOS Web Push works only for a Home Screen install **that has a manifest**
+(`display: standalone`), and BLOC had never had one: only `apple-mobile-web-app-capable`. Nobody knew
+whether an existing install, added without a manifest, picks one up when it appears, or has to be
+removed and re-added. A re-add creates a fresh, **empty** storage container on iOS, so that answer
+decides whether every existing install (Adam's and Ella's) needs a backup-and-restore before push
+can work. v8.21 ships the manifest and nothing else, so the on-device test changes exactly one
+thing.
+
+**Why it can only be tested on the live site.** A manifest, a service worker, push and a Home
+Screen install all need a secure context. The LAN dev URL is plain http, and it's a different
+origin, with different storage, from the install being asked about. So Part A's "serve it locally"
+could never answer the question.
+
+**What shipped:**
+
+- `manifest.webmanifest` with `name`/`short_name` BLOC, `display: standalone`, and background and
+  theme colour `#161826` (`--bg`);
+- `icon-192.png`, `icon-512.png` and `icon-512-maskable.png`, generated with `sips` from
+  `index.html`'s embedded 1024px `apple-touch-icon`, so they are the icon already on the Home
+  Screen. The bars sit at most about 36% from the centre, inside the 40% maskable safe zone, so one
+  image serves as both;
+- `<link rel="manifest">` in `index.html`.
+
+🚨 **Scope is relative.** `start_url` and `scope` are `"./"`, which resolve against the manifest's
+own URL to `/bloc-app/`. Every one of Adam's apps is on `adamnc02.github.io`, and `"/"` would claim
+Listly, the ledgers and everything else on the origin. BLOC Coach (`/bloc-app/coach/`, PROMPT-03)
+will carry its own manifest and service worker, and the more specific scope wins. The same decision
+applies to BLOC's service worker when it arrives in PROMPT-02 B1.
+
+🚨 **There is no service worker in v8.21, and there will never be a caching one.** A fetch handler
+on a single-file app that deploys by merge is how a device gets stuck on an old build (Listly's
+rule). `scripts/verify-manifest.mjs` checks:
+
+- the scope, and the fields;
+- that each icon's real pixel size matches what the manifest declares;
+- the single relative link;
+- that there's no service-worker registration while no `sw.js` exists, and no `fetch` listener
+  once one does;
+- with a control proving that a root-scoped manifest fails.
+
+Chromium's own parser (`Page.getAppManifest`) reports no errors.
+
+**The result of the on-device test goes here** once it's run: whether the existing install picked
+the manifest up, and if not, the safe re-add flow.
