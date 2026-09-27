@@ -6461,9 +6461,8 @@ its collapsed line) was last week's reps + 1.
 numbers on maintenance, and every caller now passes `macro.goalType`. `getProgressionStep()` returns
 a zero step on maintenance, so the logged path adds no reps either.
 
-⚠️ **Not changed, and noted for Adam:** Home's Up next always shows the planned weight
-(`getWeekWeight`) rather than last week's actual, on every cycle type. After a manual change, Home
-and Train can disagree.
+Home's Up next printed the plan's formula weight on every cycle type, not just maintenance. That is
+fixed separately, in §106.
 
 `scripts/verify-rpe-progression.mjs` checks:
 
@@ -6471,3 +6470,43 @@ and Train can disagree.
 - that a loss cycle still climbs;
 - that a manual increase to 70 carries into the next week;
 - that a stored reps route adds nothing on maintenance.
+
+## §106 — v8.20: Home's Up next shows what Train will suggest
+
+Adam, 2026-09-27: *"Home should match train with the up next."* `renderHomeUpNext()` printed
+`getWeekWeight()`, the plan's formula (`startWeight + increment × (week − 1)`), and `ex.reps`. So a
+weight raised by hand, a lock, a deload, or an RPE step showed on Train and not on Home.
+
+`getSessionPreviewTarget(macro, week, dayKey, ex)` returns set 1's weight and reps, in the same order
+of precedence as `exProgData()`'s set-1 placeholder:
+
+1. deload: 60% of last week's actual, rounded to the plain increment;
+2. the session after a deload: its reset target;
+3. On hold: the lock's frozen target;
+4. week 1: the starting numbers;
+5. otherwise: `computeRawSuggestedTargets()`, which is last week's actual plus the step (§104/§105)
+   on the week's chosen route.
+
+Cardio returns null and keeps its old line.
+
+🚨 **Two traps, both found by comparing the two screens in headless Chromium, not by reading the
+code:**
+
+- **It must not read `progressionTargets` for the week it previews.** Train's display computes live
+  from last week's actuals and reads only the frozen step. A cached entry can go stale: the demo data
+  ships entries for week 5, which has no logs. A preview that preferred the cache showed 7.5 kg where
+  Train showed 12.5 kg. It must not *write* the cache either, because `getWeekTargets()` would freeze
+  next week before this week's rating was given.
+- **It runs the same per-exercise lock sweep as `exProgData()`** (`evaluateProgressionLock` for weeks
+  2 … *week − 1*) before reading the lock. Locks are normally decided when a set is ticked. A
+  restored backup, though, can hold weeks that were never evaluated, and Home, rendered before Train
+  had ever been opened, showed the climb (50.0) where Train then showed On hold (47.5). The sweep is
+  idempotent and saves only on a real change.
+
+After both fixes, all five exercises of the demo's next session match Train's set-1 placeholders,
+with Home rendered first. `scripts/verify-rpe-progression.mjs` checks:
+
+- a weight raised by hand, on a loss cycle and on maintenance;
+- week 1, an easy rating, a lock, an unevaluated miss, a deload, the reps route and cardio;
+- that the preview writes no cache entry;
+- the wiring.

@@ -21677,8 +21677,62 @@ function renderHomeFoodPlan() {
     + sectionEnd();
 }
 
+// v8.20 — the set-1 weight and reps Train will suggest for (week, dayKey, ex),
+// for Home's Up next. Adam, 2026-09-27: "Home should match train with the up
+// next." Up next used to print getWeekWeight() — the plan's formula — and the
+// plan's starting reps, so a weight raised by hand (or an RPE step, or a lock)
+// showed on Train but not on Home.
+//
+// Same precedence as exProgData()'s set-1 placeholder:
+//   deload → 60% of last week's actual, rounded to the plain increment;
+//   the session after a deload → its walked-back reset target;
+//   On hold (a lock from an earlier week) → the frozen target;
+//   week 1 → the starting numbers;
+//   otherwise → computeRawSuggestedTargets(): last week's actual + the step
+//   (the RPE / maintenance step included), per the week's chosen route.
+//
+// 🚨 It never CACHES a target for the week it previews. getWeekTargets() would
+// freeze next week's target the moment Home rendered — before the rating for
+// this week had been given. And it does not READ that cache either, because
+// Train's display doesn't: exProgData() computes live from last week's actuals
+// (reading only the frozen RPE step), so a cached entry that has gone stale —
+// the demo data ships some for weeks with no logs — would make Home disagree
+// with Train. Found by comparing the two screens in a browser. (The post-deload
+// branch uses getWeekTargets because Train caches that reset target on view
+// too, and no rating can change it.) Returns null for cardio (no target).
+function getSessionPreviewTarget(macro, week, dayKey, ex) {
+  if (!macro || !ex || ex.category === 'cardio') return null;
+  const first = arr => (arr && arr.length ? arr[0] : null);
+  const isGain = macro.goalType === 'gain';
+  const isMaintenance = macro.goalType === 'maintenance';
+  const weightJump = ex.isHeavyLeg ? (isMaintenance ? 0 : (isGain ? 10 : 5))
+    : (isMaintenance ? 0 : parseFloat(macro.weightIncrement || '2.5'));
+  if (isDeloadUnit(macro, week, dayKey)) {
+    const prev = week > 1 ? state.trainLogs[macro.id + '_' + (week - 1) + '_' + dayKey + '_' + ex.id + '_0'] : null;
+    const prevDone = prev && prev.done ? prev : null;
+    const baseW = prevDone && prevDone.weight ? parseFloat(prevDone.weight)
+      : getWeekWeight(ex, week, 'weight', macro.goalType, macro.weightIncrement);
+    return { weight: roundToIncrement(baseW * 0.6, weightJump).toFixed(1), reps: prevDone && prevDone.reps ? prevDone.reps : ex.reps };
+  }
+  if (isFirstUnitAfterDeload(macro, week, dayKey)) {
+    const t = getWeekTargets(macro, week, dayKey, ex);
+    return { weight: first(t.weightTargets), reps: first(t.repsTargets) };
+  }
+  // The same catch-up sweep exProgData() runs on every Train render, so a week
+  // that was never evaluated (a restored backup, legacy data) has its lock
+  // decided before Home reads it — otherwise Home shows the climb and Train,
+  // once opened, shows On hold. Idempotent; saves only on a real change.
+  for (let w = 2; w < week; w++) evaluateProgressionLock(macro, w, dayKey, ex);
+  const lock = state.progressionLocks && state.progressionLocks[getProgressionLockKey(macro.id, dayKey, ex.id)];
+  if (lock && (lock.lockedAtWeek || 0) < week) return { weight: first(lock.weightTargets), reps: first(lock.repsTargets) };
+  if (week === 1) return { weight: ex.startWeight.toFixed(1), reps: ex.reps };
+  const t = computeRawSuggestedTargets(macro, week, dayKey, ex);
+  return { weight: first(t.weightTargets), reps: first(t.repsTargets) };
+}
+
 // Single-row-per-exercise preview of the next incomplete training session —
 // name and expected sets × reps only, no set type, no last-progression data.
+// v8.20: the weight and reps are Train's own (getSessionPreviewTarget).
 function renderHomeUpNext() {
   const el = document.getElementById('home-train-preview');
   if (!el) return;
@@ -21705,13 +21759,15 @@ function renderHomeUpNext() {
   const rows = exercises.map(ex => {
     const sets = getWeekSets(ex, next.week, macro.weeks);
     totalSets += sets;
-    const weight = getWeekWeight(ex, next.week, 'weight', macro.goalType, macro.weightIncrement);
+    const target = getSessionPreviewTarget(macro, next.week, next.dayKey, ex);
+    const weight = target ? parseFloat(target.weight) : getWeekWeight(ex, next.week, 'weight', macro.goalType, macro.weightIncrement);
+    const reps = target ? target.reps : ex.reps;
     // Membership lives on the exercise itself — state.supersets only maps a
     // superset id to its name (see the state shape comment at its definition).
     const ssTag = ex.supersetId ? '<span class="tag tag-ss">SS</span>' : '';
     return `<div class="ex-row">
       <span class="ex-row-name">${ex.name} ${ssTag}</span>
-      <span class="ex-row-detail">${sets} \u00d7 ${ex.reps} \u00b7 ${weight.toFixed(1)}kg</span>
+      <span class="ex-row-detail">${sets} \u00d7 ${reps} \u00b7 ${weight.toFixed(1)}kg</span>
     </div>`;
   }).join('');
 

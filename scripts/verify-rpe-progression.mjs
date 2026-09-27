@@ -80,7 +80,8 @@ const ENGINE = ['getDeloadUnitKey', 'isDeloadUnit', 'getPrevTrackUnit', 'getPrev
 const RPE = ['getRpeKey', 'isRpeOn', 'rpeDrivesProgression', 'rpeStepFromKind', 'computeRpeStepKind',
   'getRpeStep', 'getProgressionStep', 'bumpRepsBy', 'getRpeSessionExercises', 'isTrainSessionComplete',
   'maybeOpenRpeSheet', 'closeRpeSheet', 'buildRpePromptSummary', 'buildRpeTagsHtml',
-  'getMacroExtensionInfo', 'getMacroEffectiveMesoCount', 'isMesoMicroValid'];
+  'getMacroExtensionInfo', 'getMacroEffectiveMesoCount', 'isMesoMicroValid',
+  'roundToIncrement', 'getSessionPreviewTarget'];
 
 function build(src, withRpe) {
   const fns = ENGINE.map(n => extractFrom(src, `function ${n}(`));
@@ -357,6 +358,35 @@ check('loss: giant look-ahead still +10/week', E.getGiantSetProgression(giant, 3
   check('summary counts skips as "not rated", not as a number', txt.includes('- Squat: 1 not rated'), true);
 }
 
+// ── Home Up next matches Train (v8.20, Adam: "Home should match train") ──
+{
+  const prev = (logs, goalType = 'loss', extra = {}) => makeState({ goalType, exs: [bench, squat], logs, ...extra });
+  const up = (st, week, ex) => { E.setState(st); return E.getSessionPreviewTarget(macroOf(st), week, 'push', ex); };
+  const raised = logEx(logEx({}, 1, 'push', bench, 60, 8), 2, 'push', bench, 70, 8);
+  check('Up next: a weight raised by hand carries (70 → 72.5), not the plan (65)', up(prev(raised), 3, bench).weight, '72.5');
+  check('Up next, maintenance: a raised weight carries flat (70)', up(prev(raised, 'maintenance'), 3, bench).weight, '70.0');
+  check('Up next: week 1 shows the starting numbers', up(prev({}), 1, bench), { weight: '60.0', reps: '8' });
+  const easy = prev(logEx({}, 1, 'push', bench, 60, 8), 'loss', { ratings: { mc_1_push_bench: { rpe: 5 } } });
+  check('Up next: an easy rating shows the double step, as Train does', up(easy, 2, bench).weight, '65.0');
+  const st = prev(logEx({}, 1, 'push', bench, 60, 8), 'loss', { ratings: { mc_1_push_bench: { rpe: 5 } } });
+  up(st, 2, bench);
+  check('Up next never caches the week it previews (a later rating still counts)', st.progressionTargets['mc_push_bench_w2'], undefined);
+  const locked = prev(logEx({}, 1, 'push', bench, 60, 8));
+  locked.progressionLocks['mc_push_bench'] = { weightTargets: ['62.5', '62.5', '62.5'], repsTargets: ['8', '8', '8'], sets: 3, lockedAtWeek: 2 };
+  check('Up next: an On-hold exercise shows its frozen target', up(locked, 3, bench), { weight: '62.5', reps: '8' });
+  // Unevaluated miss (a restored backup): week 2 missed its 62.5 target and no
+  // lock was ever written. Home must decide it the way Train's sweep would.
+  const missed = prev(logEx(logEx({}, 1, 'push', bench, 60, 8), 2, 'push', bench, 60, 8));
+  check('Up next: an unevaluated miss is swept into On hold, as Train would', up(missed, 3, bench).weight, '62.5');
+  check('…and the lock it found is the one Train will read', missed.progressionLocks['mc_push_bench']?.lockedAtWeek, 2);
+  const dl = prev(logEx({}, 1, 'push', bench, 60, 8), 'loss', { deloads: { mc_2: true } });
+  check('Up next: a deload shows 60% of last week, rounded to the increment', up(dl, 2, bench).weight, '35.0');
+  const reps = logEx({}, 1, 'push', bench, 60, 8); reps['mc_prog_2_push_bench'] = { progType: 'reps' };
+  check('Up next: the reps route shows the target reps, not the plan reps', up(prev(reps), 2, bench), { weight: '60.0', reps: '9' });
+  E.setState(prev({}));
+  check('Up next: cardio has no target (keeps its old line)', E.getSessionPreviewTarget(macroOf(E.getState()), 2, 'push', bike), null);
+}
+
 // ── Wiring ───────────────────────────────────────────────────────────────
 for (const fn of ['function quickFillComplete(', 'function quickFillCompleteDropset(', 'function quickFillCompleteSuperset(', 'function toggleSetDone(']) {
   const body = extractFrom(source, fn);
@@ -367,6 +397,9 @@ const renderDay = extractFrom(source, 'function renderTrainDay(');
 check('exProgData reads getProgressionStep (the same step as the judged target)', /const rpeStep = getProgressionStep\(macro, state\.currentWeek, state\.currentDay, ex\)/.test(renderDay), true);
 check('the deload 60% rounding keeps the unscaled weightJump', /roundToIncrement\(baseWeight \* 0\.6, weightJump\)/.test(renderDay), true);
 check('no progression site in exProgData adds the unscaled weightJump', /\+ weightJump\b/.test(renderDay), false);
+const homeUp = extractFrom(source, 'function renderHomeUpNext(');
+check('renderHomeUpNext reads getSessionPreviewTarget (Home matches Train)', /getSessionPreviewTarget\(macro, next\.week, next\.dayKey, ex\)/.test(homeUp), true);
+check('renderHomeUpNext prints the target reps, not ex.reps', /\$\{sets\} \\u00d7 \$\{reps\}/.test(homeUp), true);
 check('the RPE sheet routes every dismissal through closeRpeSheet', /'modal-rpe': 'closeRpeSheet'/.test(source), true);
 
 console.log(failures ? `\n✗ ${failures} check(s) failed` : '\nALL CHECKS PASS');
