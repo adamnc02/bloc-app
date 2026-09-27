@@ -6524,3 +6524,113 @@ every member. Adam found it in the v8.20 UAT. The member rows now return nothing
 as a solo card. The README's Train section still said "Replaced by a Deload tag"; that line is fixed
 too. `scripts/verify-rpe-progression.mjs` asserts that no `>Deload</span>` remains anywhere in
 `renderTrainDay()`, and the previous commit fails that check.
+
+## §108 — v8.21: the web app manifest, shipped alone
+
+PROMPT-02 Part A. iOS Web Push works only for a Home Screen install **that has a manifest**
+(`display: standalone`), and BLOC had never had one: only `apple-mobile-web-app-capable`. Nobody knew
+whether an existing install, added without a manifest, picks one up when it appears, or has to be
+removed and re-added. A re-add creates a fresh, **empty** storage container on iOS, so that answer
+decides whether every existing install (Adam's and Ella's) needs a backup-and-restore before push
+can work. v8.21 ships the manifest and nothing else, so the on-device test changes exactly one
+thing.
+
+**Why it can only be tested on the live site.** A manifest, a service worker, push and a Home
+Screen install all need a secure context. The LAN dev URL is plain http, and it's a different
+origin, with different storage, from the install being asked about. So Part A's "serve it locally"
+could never answer the question.
+
+**What shipped:**
+
+- `manifest.webmanifest` with `name`/`short_name` BLOC, `display: standalone`, and background and
+  theme colour `#161826` (`--bg`);
+- `icon-192.png`, `icon-512.png` and `icon-512-maskable.png`, generated with `sips` from
+  `index.html`'s embedded 1024px `apple-touch-icon`, so they are the icon already on the Home
+  Screen. The bars sit at most about 36% from the centre, inside the 40% maskable safe zone, so one
+  image serves as both;
+- `<link rel="manifest">` in `index.html`.
+
+🚨 **Scope is relative.** `start_url` and `scope` are `"./"`, which resolve against the manifest's
+own URL to `/bloc-app/`. Every one of Adam's apps is on `adamnc02.github.io`, and `"/"` would claim
+Listly, the ledgers and everything else on the origin. BLOC Coach (`/bloc-app/coach/`, PROMPT-03)
+will carry its own manifest and service worker, and the more specific scope wins. The same decision
+applies to BLOC's service worker when it arrives in PROMPT-02 B1.
+
+🚨 **There is no service worker in v8.21, and there will never be a caching one.** A fetch handler
+on a single-file app that deploys by merge is how a device gets stuck on an old build (Listly's
+rule). `scripts/verify-manifest.mjs` checks:
+
+- the scope, and the fields;
+- that each icon's real pixel size matches what the manifest declares;
+- the single relative link;
+- that there's no service-worker registration while no `sw.js` exists, and no `fetch` listener
+  once one does;
+- with a control proving that a root-scoped manifest fails.
+
+Chromium's own parser (`Page.getAppManifest`) reports no errors.
+
+**How the test is read: three rows under Settings → About** (`installReadinessRows()`):
+
+- **Opened from Home Screen**: `navigator.standalone` or the standalone display mode;
+- **Display mode**: `(display-mode: standalone)`;
+- **Push available on this install**: `Notification`, `PushManager` and `serviceWorker` all present.
+
+iOS gives no visible sign that an install has picked a manifest up, and it exposes the push APIs
+only inside a Home Screen app. Comparing the rows on a **spare** install, made after v8.21 deployed,
+with the rows on the **existing** install is the test. The rows are read-only: they request no
+permission, subscribe nothing and register nothing (the verify script asserts that). A desktop
+browser tab reports push available, which is correct for desktop.
+
+**The result of the on-device test goes here** once it's run: whether the existing install picked
+the manifest up, and if not, the safe re-add flow.
+
+## §109 — v8.21: a device with no data never writes to the cloud, and restores instead
+
+Found while planning §108's on-device test, before any spare install had signed in. A fresh Home
+Screen install starts with an **empty** storage container, and signing in on one did three things:
+
+1. **`maybeForceFullSyncOnSignIn()` pushed the empty state.** `syncTable()` deletes a user's rows
+   before inserting, so every mirrored table was emptied (the tables the GDPR export and BLOC Coach
+   read).
+2. **`maybeUploadOpportunisticSnapshot()` uploaded the empty state as today's snapshot.** It's one
+   file per day with `upsert`, so the empty file overwrote the day's real backup, including the one a
+   pre-flight Full sync had just made.
+3. **Nothing restored the device.** `checkSnapshotZero()`'s auto-restore (§66) only ran for a device
+   that already *had* data.
+
+Any re-add (the thing push may force on existing installs), a new phone, or a spare test install
+took this path. The worst case: re-add a phone, and the "newest backup" it restores from is the
+empty one it just wrote.
+
+**The rule now: an empty device never writes, and restores instead.**
+
+- `deviceHasRealData()` / `stateHasRealData(s)` are the same content test as §91's
+  `devBypassHasRealData()`, which gained an optional argument so one definition covers both the
+  device and a downloaded snapshot: macrocycles, body logs, nutrition logs, train logs, meals.
+- `pushStateToSupabase()` returns before any table when the device is empty. That covers the
+  sign-in sync, the debounced sync and the Full sync button.
+- `uploadSnapshot()` throws "Nothing on this device to back up yet." on an empty device. The daily
+  check swallows that; a manual backup shows it.
+- `checkSnapshotZero()`: an empty device calls `restoreNewestRealSnapshot()`. It runs once, guarded
+  by the existing `bloc_snapshot_autorestore_done` flag.
+- 🚨 **`restoreNewestRealSnapshot()` does not just take the newest file.** If an empty snapshot was
+  ever written (by the path above, before v8.21), the newest one is empty. So it walks newest-first,
+  skips anything empty or invalid, and restores the first file with real content through the
+  ordinary `restoreFromSnapshot()` (validate, save, reload).
+- **Clear all data** sets `bloc_snapshot_autorestore_done`, so a device emptied on purpose isn't
+  refilled from the cloud on its next launch.
+
+**Deliberate consequence:** after Clear all data, this device's cloud mirror is left as it was, not
+emptied. "Delete my data" (`gdpr_erase_user_data()`) is the route that empties the cloud.
+
+`scripts/verify-empty-device-guard.mjs` covers:
+
+- push and upload refused when empty, and working when not;
+- the restore choosing the newest *real* snapshot over an empty or invalid newer one;
+- a genuinely new account (no backups): nothing restored, no notice;
+- the once-only flag;
+- the unchanged v8.09 paths for a device with data;
+- the Clear all data wiring.
+
+**Its control runs v8.20** (`d3cc842`, live at the time) on an empty device: it restored nothing,
+uploaded an empty snapshot, and pushed.
