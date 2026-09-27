@@ -7317,6 +7317,11 @@ Phase 5 adds `coach/dist`.
   `*.md` and dotfiles. The same script refuses them.
 - **`fetch-depth: 0`.** Nine verify scripts `git show` an older commit as their control
   (`d3c824f`, `ba8fcc6`, …), and a shallow clone fails them. All of those commits are on `main`.
+- **One check needs the private sibling repo.** `verify-push.mjs` compares the app's VAPID public
+  key with the `bloc-reminders` Edge Function's, read from `../super-duper-octo-barnacle`. That repo
+  is private and CI checks out `bloc-app` alone, so under `GITHUB_ACTIONS` with no sibling, that one
+  comparison prints a skip line. Everywhere else a missing sibling still fails. The key is compared
+  in every local sweep (the first CI run found this, 2026-09-28).
 - **Merge is no longer automatically deploy.** A merge whose sweep fails is **not** published. Read
   the run, don't assume.
 - **The workflow never deploys while Pages is still `legacy`.** So it was safe to merge before
