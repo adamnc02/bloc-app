@@ -69,6 +69,21 @@ const cases = [
 ];
 for (const [facts, want, label] of cases) check(label, decidePushState(facts), want);
 
+// ── decidePushHealth (v8.24, §113): a registration iOS dropped ──────────
+const decidePushHealth = new Function(`${extract(html, 'function decidePushHealth(')}; return decidePushHealth;`)();
+const H = { supported: true, localId: 'ps_a', hereId: 'ps_a', hereOnServer: true, permission: 'granted' };
+for (const [facts, want, label] of [
+  [{ ...H, localId: null, hereId: null }, 'none', 'never turned on here → none'],
+  [{ ...H, localId: null }, 'adopt', 'registered before v8.24 remembered it (on the server, granted) → adopt'],
+  [{ ...H, localId: null, hereOnServer: false }, 'none', 'a local subscription the server never had → none (not adopted)'],
+  [H, 'ok', 'still holds the registration it made → ok'],
+  [{ ...H, hereId: 'ps_new' }, 'resubscribe', 'iOS replaced it, permission still granted → re-register quietly'],
+  [{ ...H, hereId: null }, 'resubscribe', 'iOS dropped it entirely, permission granted → re-register quietly'],
+  [{ ...H, hereId: null, permission: 'default' }, 'ask', 'dropped AND permission reset (Adam, v8.23) → ask with one tap'],
+  [{ ...H, hereId: null, permission: 'denied' }, 'ask', 'dropped and denied → ask (the sheet then explains iPhone Settings)'],
+  [{ ...H, supported: false }, 'none', 'no push support → none'],
+]) check(label, decidePushHealth(facts), want);
+
 // ── pushIdFor: 'ps_' + full sha256, as 0019's CHECK requires ─────────────
 globalThis.crypto ??= webcrypto;
 const pushIdFor = new Function(`${extract(html, 'async function pushIdFor(')}; return pushIdFor;`)();
@@ -199,7 +214,29 @@ check('boot checks for a tapped notification', /continueBootAfterAuth\(\);\s*\n\
 check('the worker is registered on every load, with scope ./', /registerBlocServiceWorker\(\);/.test(html) && constLine('BLOC_SW_SCOPE') === './', true);
 check('the message route also consumes the note (no second open later)', /takePendingOpenIntent\(\)\.finally\(\(\) => applyOpenIntent\(e\.data\.open, 'message'/.test(html), true);
 check('Settings → About shows the last notification tap', /statRow\('Last notification tap', lastOpenIntentText\(\)\)/.test(html), true);
-check('the permission prompt is only raised from turnOnPushHere (a tap)', (html.match(/Notification\.requestPermission\(/g) || []).length === 1 && /Notification\.requestPermission\(/.test(extract(html, 'async function turnOnPushHere(')), true);
+const reg = extract(html, 'async function registerPushHere(');
+check('re-registering deletes this phone\'s previous (dead) row and remembers the new one',
+  /prev\.id !== newId/.test(reg) && /\.delete\(\)\.eq\('id', prev\.id\)/.test(reg) && /pushLocalSet\(newId\)/.test(reg), true);
+check('the silent re-register never prompts (ask=false reads Notification.permission)',
+  /ask \? await Notification\.requestPermission\(\) : Notification\.permission/.test(reg), true);
+check('boot runs the health check', /checkPushHealth\(\);/.test(extract(html, 'function maybeFinalizeBoot(')), true);
+check('turning off forgets this phone\'s registration', /pushLocalClear\(\)/.test(extract(html, 'async function turnOffPushHere(')), true);
+check('Settings → Notifications lists registered devices with Remove', /Registered devices \(/.test(html) && /removePushDevice\('/.test(html), true);
+
+// 🚨 TRIPWIRE (v8.24, §113). On iOS, changing sw.js can DROP every phone's
+// push subscription (v8.23 UAT: Adam had to turn notifications on and allow
+// them again). checkPushHealth() now heals that, but only when the person next
+// opens BLOC — and may have to ask. So sw.js changes only on purpose: if you
+// change it, update this hash in the same commit and say why in TECHNICAL §113.
+const { createHash } = await import('node:crypto');
+const SW_SHA256 = 'faa71eba1c059a9560d2d47658ed7951494af6490ee8f87d3a069d145e605d27';
+check('TRIPWIRE: sw.js is unchanged (changing it can switch off reminders on every iPhone — update this hash deliberately)',
+  createHash('sha256').update(sw).digest('hex'), SW_SHA256);
+
+check('the permission prompt is only raised by a tap (registerPushHere with ask=true, via turnOnPushHere)',
+  (html.match(/Notification\.requestPermission\(/g) || []).length === 1
+  && /Notification\.requestPermission\(/.test(extract(html, 'async function registerPushHere('))
+  && /return registerPushHere\(true\)/.test(extract(html, 'async function turnOnPushHere(')), true);
 
 // ── The key the app subscribes with = the key the function signs with ────
 const fnPath = join(repo, '..', 'super-duper-octo-barnacle', 'supabase', 'functions', 'bloc-reminders', 'index.ts');

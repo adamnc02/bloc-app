@@ -6806,3 +6806,51 @@ route now also deletes the Cache Storage note, so it can't open the sheet a seco
 - the v8.19-style control on v8.22's worker;
 - the message route consuming the note;
 - the new About row.
+
+## §113 — v8.24: a push registration iOS drops is healed, and its dead row removed
+
+**What happened (v8.23 UAT, 2026-09-27).** After updating from v8.22 to v8.23, Adam had to **turn
+notifications on and allow them again**. `sw.js` changed between those two releases (§112).
+Afterwards the test button said **"Sent to 2 devices"** while one banner arrived:
+
+- both `push_subscriptions` rows kept being stamped as delivered (`n_tup_upd` rising, no deletes),
+  because Apple went on accepting pushes to the old, replaced subscription;
+- only the new one reached the phone;
+- it wasn't Ella, because the test path sends only to the caller's rows, and `measurement_status`
+  held exactly one row.
+
+🚨 **Observed rule: on iOS, changing `sw.js` can drop a phone's push subscription, and even reset its
+permission.** The old row then lingers as a dead end, and that person silently stops getting
+reminders until they reopen Settings. For Ella, that's a reminder that just stops.
+
+**What v8.24 does:**
+
+- **`sw.js` is unchanged, byte for byte.** `scripts/verify-push.mjs` pins its SHA-256 as a
+  **tripwire**. Changing the worker is allowed, but only deliberately: update the hash in the same
+  commit and record why here. v8.24 is also the test: an update that leaves `sw.js` alone should
+  keep the registration.
+- **BLOC remembers which registration is this phone's.** It's stored in
+  `localStorage.bloc_push_device`, set by `registerPushHere()` and cleared by `turnOffPushHere()`. A
+  registration made before v8.24 is **adopted** on the next launch, if the server has it and
+  permission is granted.
+- **`checkPushHealth()` runs on every signed-in boot.** `decidePushHealth()` is pure and fully tested:
+  - **none:** never turned on here, or the device can't do push;
+  - **adopt:** registered before v8.24 existed; remember it now;
+  - **ok:** this phone still holds the registration it made;
+  - **resubscribe:** the registration was replaced or dropped, but permission is still granted, so the
+    dead row is deleted and BLOC re-registers **without a prompt** (`registerPushHere(false)` reads
+    `Notification.permission` and never calls `requestPermission`);
+  - **ask:** it was dropped and iOS reset the permission (Adam's case), so the dead row is deleted
+    and BLOC asks **once**: "Reminders were switched off / An update switched off measurement
+    reminders on this phone. Turn them back on?". The local record is cleared first, so declining
+    doesn't nag on every launch.
+- **Each re-registration deletes this phone's previous row.** A replaced subscription never lingers
+  as a second "device".
+- **Settings → Notifications lists every registered device:** the label, "this device", when it was
+  added and when it was last sent to, with **Remove** for any device that isn't this phone. That's how
+  Adam's existing dead row gets cleared: v8.23 had no local record, so it can't be identified
+  automatically.
+
+The permission prompt is still raised in exactly one place, `registerPushHere(true)`, via
+`turnOnPushHere()` from a tap; the verify script asserts it. A silent re-subscribe that iOS rejects
+falls through to the one-tap prompt.

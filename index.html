@@ -8050,6 +8050,7 @@ function maybeFinalizeBoot() {
   _bootFinalized = true;
   continueBootAfterAuth();
   checkOpenIntents(); // v8.22 (§111) — a tapped notification's destination
+  checkPushHealth();  // v8.24 (§113) — heal a registration iOS dropped
 }
 
 // Does this device hold data worth keeping, as opposed to a fresh or wiped
@@ -8098,6 +8099,12 @@ const BLOC_SW_SCOPE = './';
 const BLOC_OPEN_INTENT_CACHE = 'bloc-open-intent';
 const BLOC_OPEN_INTENT_PATH = '__open-intent';
 const BLOC_OPEN_INTENT_MAX_AGE_MS = 5 * 60 * 1000;
+// v8.24 (§113): which server row is THIS phone's, so a registration iOS drops
+// can be detected, healed, and its dead row removed instead of left behind.
+const BLOC_PUSH_LOCAL_KEY = 'bloc_push_device';
+function pushLocalGet() { try { return JSON.parse(localStorage.getItem(BLOC_PUSH_LOCAL_KEY) || 'null'); } catch (e) { return null; } }
+function pushLocalSet(id) { try { localStorage.setItem(BLOC_PUSH_LOCAL_KEY, JSON.stringify({ id, at: Date.now() })); } catch (e) {} }
+function pushLocalClear() { try { localStorage.removeItem(BLOC_PUSH_LOCAL_KEY); } catch (e) {} }
 
 function pushIsIos() {
   const ua = navigator.userAgent;
@@ -8198,10 +8205,14 @@ async function currentPushState() {
 // 🚨 MUST be called from a tap: it asks for permission (iOS won't show the
 // prompt otherwise), subscribes, and registers this device with its time zone.
 // Throws a sentence a person can act on; never fails silently.
-async function turnOnPushHere() {
+async function turnOnPushHere() { return registerPushHere(true); }
+
+// v8.24 (§113): `ask` false is the silent re-register after iOS dropped the
+// subscription — only when permission is ALREADY granted, never a prompt.
+async function registerPushHere(ask) {
   if (!supabase || !_authResolvedSession) throw new Error('Sign in first.');
   if (!pushSupported()) throw new Error('This browser can\'t show notifications.');
-  const permission = await Notification.requestPermission();
+  const permission = ask ? await Notification.requestPermission() : Notification.permission;
   if (permission !== 'granted') {
     throw new Error(permission === 'denied'
       ? 'Notifications were turned off. BLOC can\'t ask again — turn them on in iPhone Settings → Notifications → BLOC.'
@@ -8223,6 +8234,15 @@ async function turnOnPushHere() {
     failed_count: 0,
   }, { onConflict: 'id' });
   if (error) throw new Error('Couldn\'t register this device: ' + error.message);
+  // v8.24 (§113): this phone's previous registration, if iOS replaced it, is a
+  // dead end on the server — "sent" to, never received. Remove it, remember
+  // the new one.
+  const newId = await pushIdFor(sub.endpoint);
+  const prev = pushLocalGet();
+  if (prev && prev.id && prev.id !== newId) {
+    await supabase.from('push_subscriptions').delete().eq('id', prev.id).then(() => {}, () => {});
+  }
+  pushLocalSet(newId);
   // The server needs the due date too, or it has nothing to remind about.
   await syncMeasurementStatus(_authResolvedSession.user.id).catch(() => {});
 }
@@ -8235,6 +8255,72 @@ async function turnOffPushHere() {
     if (error) throw new Error('Couldn\'t turn notifications off: ' + error.message);
   }
   await sub.unsubscribe();
+  pushLocalClear();
+}
+
+// v8.24 (§113) — iOS can DROP a phone's push subscription when sw.js changes:
+// in the v8.23 UAT Adam had to turn notifications on and allow them again, and
+// the old registration stayed on the server as a second "device" that was sent
+// to and never received. Pure, so verify-push.mjs proves every case.
+//   none        — never turned on here (or cleanly turned off): nothing to do
+//   adopt       — registered before v8.24 remembered it: remember it now
+//   ok          — this phone still holds the registration it made
+//   resubscribe — it was dropped, but permission is still granted: re-register quietly
+//   ask         — it was dropped and iOS wants to ask again: one tap to turn back on
+function decidePushHealth(f) {
+  if (!f.supported) return 'none';
+  if (!f.localId) return f.hereId && f.hereOnServer && f.permission === 'granted' ? 'adopt' : 'none';
+  if (f.hereId === f.localId) return 'ok';
+  return f.permission === 'granted' ? 'resubscribe' : 'ask';
+}
+
+async function checkPushHealth() {
+  try {
+    if (!supabase || !_authResolvedSession || !pushSupported()) return;
+    const local = pushLocalGet();
+    const hereId = await pushThisDeviceId();
+    let hereOnServer = false;
+    if (hereId && !local) {
+      const { data } = await supabase.from('push_subscriptions').select('id').eq('id', hereId);
+      hereOnServer = !!(data && data.length);
+    }
+    const verdict = decidePushHealth({
+      supported: true, localId: local && local.id, hereId, hereOnServer, permission: Notification.permission,
+    });
+    if (verdict === 'adopt') { pushLocalSet(hereId); return; }
+    if (verdict === 'none' || verdict === 'ok') return;
+    // Dropped: the old row can never reach this phone again.
+    await supabase.from('push_subscriptions').delete().eq('id', local.id).then(() => {}, () => {});
+    if (verdict === 'resubscribe') {
+      try { await registerPushHere(false); return; }
+      catch (e) { console.warn('[push] silent re-register failed; asking instead:', e && e.message); }
+    }
+    pushLocalClear(); // asked once; if they decline, BLOC doesn't nag every launch
+    whenAppReady(() => showConfirm(
+      'Reminders were switched off',
+      'An update switched off measurement reminders on this phone. Turn them back on?',
+      'Turn on',
+      () => { turnOnPushHere().catch(e => showConfirm('Couldn\'t turn them on', e.message, 'OK', () => {})); }));
+  } catch (e) {
+    console.warn('[push] health check failed:', e && e.message);
+  }
+}
+
+// The account's registered devices, for Settings → Notifications (§113).
+async function listPushDevices() {
+  const { data, error } = await supabase.from('push_subscriptions')
+    .select('id, device_label, created_at, last_ok_at').eq('app', 'bloc').order('created_at');
+  if (error) throw new Error('Couldn\'t load your devices: ' + error.message);
+  return data || [];
+}
+async function removePushDevice(id) {
+  const hereId = await pushThisDeviceId();
+  if (id === hereId) return handleTurnOffPush();
+  notifStatus('Removing…');
+  const { error } = await supabase.from('push_subscriptions').delete().eq('id', id);
+  if (error) { notifStatus('Couldn\'t remove it: ' + error.message, true); return; }
+  await renderNotificationsSheet();
+  notifStatus('Removed.');
 }
 
 async function sendTestPush() {
@@ -8312,7 +8398,25 @@ async function renderNotificationsSheet() {
   const c = NOTIF_COPY[st];
   el.innerHTML = `<div class="modal-sub" data-push-state="${st}">${c.text}</div>`
     + (c.action ? `<button class="btn btn-accent btn-block" style="margin-top:16px;" onclick="${c.action.fn}">${c.action.label}</button>` : '')
-    + (c.second ? `<button class="btn btn-ghost btn-block" style="margin-top:10px;" onclick="${c.second.fn}">${c.second.label}</button>` : '');
+    + (c.second ? `<button class="btn btn-ghost btn-block" style="margin-top:10px;" onclick="${c.second.fn}">${c.second.label}</button>` : '')
+    + '<div id="notif-devices"></div>';
+  // v8.24 (§113): every registered device, so a dead one — a registration iOS
+  // replaced — can be seen and removed. Only when there are some.
+  if (st === 'on' || st === 'off') {
+    try {
+      const [rows, hereId] = await Promise.all([listPushDevices(), pushThisDeviceId()]);
+      const fmt = iso => { const d = new Date(iso); return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' ' + d.toTimeString().slice(0, 5); };
+      const box = document.getElementById('notif-devices');
+      if (box && rows.length) {
+        box.innerHTML = `<div class="label" style="margin-top:20px;">Registered devices (${rows.length})</div>`
+          + rows.map(r => `<div class="about-stat-row" data-device-id="${r.id}">
+              <span>${r.device_label || 'A device'}${r.id === hereId ? ' · <strong>this device</strong>' : ''}
+                <span style="display:block;font-size:12px;color:var(--text3);">added ${fmt(r.created_at)}${r.last_ok_at ? ' · last sent ' + fmt(r.last_ok_at) : ''}</span></span>
+              ${r.id === hereId ? '' : `<button class="btn btn-ghost" style="padding:6px 12px;min-height:0;" onclick="removePushDevice('${r.id}')">Remove</button>`}
+            </div>`).join('');
+      }
+    } catch (e) { notifStatus(e.message, true); }
+  }
 }
 async function handleTurnOnPush() {
   notifStatus('Turning on…');
@@ -29937,7 +30041,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.23</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.24</span>`;
 }
 
 // v8.21 (§108) — what THIS install supports, read-only. It exists for the
