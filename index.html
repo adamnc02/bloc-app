@@ -6618,7 +6618,7 @@ let state = {
 // of rapid edits (e.g. dragging a slider) can trigger many synchronous
 // writes in quick succession. Cheap enough in practice not to matter.
 function save() {
-  localStorage.setItem('bloc_state', JSON.stringify(state));
+  localStorage.setItem(STATE_KEY, JSON.stringify(state));
   markSyncDirty();
 }
 
@@ -6631,7 +6631,7 @@ function save() {
 // full state object matching this exact shape). Every field the app ever
 // reads without its own `|| fallback` must be listed here.
 function load() {
-  const raw = localStorage.getItem('bloc_state');
+  const raw = localStorage.getItem(STATE_KEY);
   if (raw) { try { state = JSON.parse(raw); } catch(e) {} }
   ensureStateDefaults();
 }
@@ -7192,7 +7192,7 @@ let _authResolvedSession = undefined;
 //
 // What it does NOT protect against, stated plainly: while the dev server is
 // running, anyone else on the same Wi-Fi who knows the address gets the app
-// with the bypass active. That is acceptable because the bypass leaves
+// with the bypass active. (`?auth=real` can only turn it OFF — see isDevBypassActive() below.) That is acceptable because the bypass leaves
 // `supabase` null and seeds the DEMO dataset — there is no real account and
 // no real data behind it — and the server only runs during a working session.
 //
@@ -7224,7 +7224,42 @@ function isLocalDevHost(hostname) {
   return false;                                   // every public address
 }
 
-const IS_LOCAL_DEV = isLocalDevHost(window.location.hostname);
+// v8.30 (§119, PROMPT-03 Phase 1b) — `?auth=real` turns the bypass OFF on a
+// local host, so the dev server can sign in to BLOC's LIVE Supabase project
+// and test linking, publishing and Realtime. It can only ever turn the bypass
+// off, never on: a public host is real with or without it, because
+// isLocalDevHost() is still the first test.
+//
+// 🚨 With it on, the local build is signed in to the LIVE project and real
+// data. Every edit syncs to the live mirror and the cloud backups.
+function isRealAuthRequested(search) {
+  try { return new URLSearchParams(search || '').get('auth') === 'real'; } catch (e) { return false; }
+}
+function isDevBypassActive(hostname, search) {
+  return isLocalDevHost(hostname) && !isRealAuthRequested(search);
+}
+// IS_LOCAL_DEV means "the bypass is active", as it always has.
+const IS_LOCAL_DEV = isDevBypassActive(window.location.hostname, window.location.search);
+const IS_LOCAL_REAL_AUTH = isLocalDevHost(window.location.hostname) && !IS_LOCAL_DEV;
+
+// 🚨 The two local modes never share a state key. The bypass keeps the demo
+// dataset (or a restored backup, §91) in `bloc_state` on this same origin.
+// Signed in, onAuthResolved() runs a full relational sync that DELETES and
+// re-inserts every mirrored table from local state, and demo data counts as
+// real content to the empty-device guard (§109). So a shared key would
+// replace the live account's rows with the demo dataset. Under its own key a
+// first real sign-in starts empty: the guard refuses to push, and the
+// newest real cloud backup is restored instead, exactly as on a new phone.
+// Production is never IS_LOCAL_REAL_AUTH, so its key is unchanged.
+const STATE_KEY = IS_LOCAL_REAL_AUTH ? 'bloc_state_authreal' : 'bloc_state';
+if (IS_LOCAL_REAL_AUTH) {
+  console.warn('[dev] ?auth=real on ' + window.location.hostname +
+    ' — bypass OFF: signed in to the LIVE Supabase project with real data. Local state key: ' + STATE_KEY + '.');
+  // On screen too: a local build on live data looks identical to the bypass.
+  const showLiveTag = () => document.body.insertAdjacentHTML('beforeend',
+    '<div id="dev-live-data-tag" style="position:fixed;top:calc(env(safe-area-inset-top) + 4px);left:50%;transform:translateX(-50%);z-index:2147483647;pointer-events:none;background:var(--red);color:#fff;font:700 11px/1 Inter,system-ui,sans-serif;letter-spacing:.06em;padding:5px 9px;border-radius:999px;">LIVE DATA · LOCAL BUILD</div>');
+  if (document.body) showLiveTag(); else document.addEventListener('DOMContentLoaded', showLiveTag);
+}
 
 // Skips Supabase/OAuth entirely — `supabase` is deliberately left null
 // forever in this mode. Every sync/account code path elsewhere in this
@@ -9075,7 +9110,7 @@ function handleDeleteMyData() {
             // to Supabase in the first place, so they're not "account
             // data" this erasure covers (same reasoning clearAllData()
             // already applies to appearance prefs).
-            localStorage.removeItem('bloc_state');
+            localStorage.removeItem(STATE_KEY);
             localStorage.removeItem('bloc_last_snapshot_date');
             localStorage.removeItem('bloc_snapshot_zero_pending');
             localStorage.removeItem('bloc_snapshot_zero_done');
@@ -9132,7 +9167,7 @@ function handleCloseAccount() {
             await deleteAllSnapshots(userId);
             const { error: eraseError } = await supabase.rpc('gdpr_erase_user_data', { target_user_id: userId });
             if (eraseError) throw eraseError;
-            localStorage.removeItem('bloc_state');
+            localStorage.removeItem(STATE_KEY);
             localStorage.removeItem('bloc_last_snapshot_date');
             localStorage.removeItem('bloc_snapshot_zero_pending');
             localStorage.removeItem('bloc_snapshot_zero_done');
@@ -9270,7 +9305,7 @@ async function checkSnapshotZero() {
 
 if (IS_LOCAL_DEV) { initDevBypassAuth(); } else { initSupabaseAuth(); }
 
-const _isNewUserOnBoot = !localStorage.getItem('bloc_state');
+const _isNewUserOnBoot = !localStorage.getItem(STATE_KEY);
 load();
 // Nav pill has no size/position until the DOM has painted at least once —
 // double rAF waits for that first paint before measuring, otherwise the
@@ -30138,14 +30173,14 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.29</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.30</span>`;
 }
 
 function renderSettings() {
   renderSettingsHero();
   renderModeToggle();
   renderDistanceUnitToggle();
-  const raw = localStorage.getItem('bloc_state') || '';
+  const raw = localStorage.getItem(STATE_KEY) || '';
   const kb = (new Blob([raw]).size / 1024).toFixed(1);
   const el = document.getElementById('storage-info');
   const macros = state.macrocycles.length;

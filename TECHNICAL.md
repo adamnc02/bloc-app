@@ -4624,7 +4624,7 @@ dev server at its LAN address, never at `localhost`.
 
 **The deployed host cannot match.** `adamnc02.github.io` is a public DNS name, neither an IP literal
 nor `.local`. There is no flag, build step or environment variable involved — the only input is the
-hostname the browser is already on.
+hostname the browser is already on. *(v8.30: `?auth=real` can turn the bypass **off** on a local host, never on; §119.)*
 
 **Matching is exact or anchored at both ends.** `localhost.evil.com` and `192.168.0.42.evil.com` are
 ordinary public domains that anyone can register, and a `startsWith`/`includes` implementation would
@@ -7160,3 +7160,80 @@ its own, and no two may overlap. Only `save()` and `document` are stubbed.
 
 **Size.** The golden file is 2.0 MB, about 110 KB gzipped: one line per run, so a git diff still
 names the runs that moved. Nothing in the app loads it.
+
+## §119 — v8.30: `?auth=real` signs a local build in to the live project (PROMPT-03 Phase 1b)
+
+**Why.** The §82 bypass switches Supabase off on every local host, so none of BLOC Coach's linking,
+publishing or Realtime flows could be tested on the dev server. Adam chose `?auth=real` in PROMPT-03
+Phase 0 (proposal §12). BLOC Coach uses the same rule when it's built.
+
+**The rule.** On a local host, `?auth=real` turns the bypass **off**, and the build signs in to BLOC's
+live Supabase project like the deployed app. Without it nothing changes: the bypass, the demo
+dataset, §91's restored backups and `?tour=demo` all work as before.
+
+```
+isRealAuthRequested(search)       → ?auth=real exactly (not Real, not auth=, not auth%3Dreal)
+isDevBypassActive(hostname, search) = isLocalDevHost(hostname) && !isRealAuthRequested(search)
+IS_LOCAL_DEV       = isDevBypassActive(location.hostname, location.search)   // "bypass on"
+IS_LOCAL_REAL_AUTH = isLocalDevHost(location.hostname) && !IS_LOCAL_DEV
+STATE_KEY          = IS_LOCAL_REAL_AUTH ? 'bloc_state_authreal' : 'bloc_state'
+```
+
+🚨 **The parameter can only turn the bypass off.** `isLocalDevHost()` stays the first test, so a
+public host is real with or without it, and no query string can make any host bypass. The plausible
+wrong versions are `!isRealAuthRequested(search)` alone, which lets the query decide auth on the
+deployed site, and `isLocalDevHost(h) || …`. `scripts/verify-auth-real.mjs` runs both as controls,
+and both fail.
+
+🚨 **The two local modes never share a state key. This is the trap that matters.** The bypass
+keeps its data (the demo dataset once any tap has saved, or a restored real backup, §91) in
+`bloc_state` on the same origin. Signing in runs `maybeForceFullSyncOnSignIn()`, which deletes
+and re-inserts every mirrored table from local state. Demo data counts as real content to the §109
+empty-device guard. So with one shared key, the first `?auth=real` sign-in would replace the live
+account's rows with the demo dataset, and could overwrite today's cloud backup.
+
+Real auth on a local host therefore uses **`bloc_state_authreal`**. A first sign-in starts empty: the
+guard refuses to push, and `checkSnapshotZero()` restores the account's newest real backup, as on a
+new phone. `save()`, `load()`, new-user detection, Settings' storage size and both erasure paths use
+`STATE_KEY`, and none names `'bloc_state'` directly. Production is never `IS_LOCAL_REAL_AUTH`, so its
+key is unchanged. The snapshot flags (`bloc_snapshot_*`, `bloc_last_snapshot_date`) are only ever
+written by a real sign-in, so they need no second name.
+
+**It looks different.** A red **LIVE DATA · LOCAL BUILD** tag sits at the top of the screen, and the
+console warns on load. A local build on live data otherwise looks identical to the bypass.
+
+**Using it.**
+- `http://localhost:8000/?auth=real`, or `http://<LAN-IP>:8000/?auth=real` from a phone.
+- ⚠️ **Every edit is real.** It syncs to the live mirror and the cloud backups, and from Phase 4
+  it reaches a linked coach. Every UAT that uses it opens by saying so.
+- **Sign in with email and password.** Google sign-in redirects, and Supabase sends it back only to a
+  URL on the project's Redirect URLs list (Auth → URL Configuration). A local URL that isn't listed
+  lands on the Site URL, the live app. The param survives only if the local URL is listed:
+  `redirectTo` is `window.location.href`, query included.
+- ⚠️ **Push is real on `localhost` too.** The worker's scope is `./`, and `localhost` is a secure
+  context, so `sw.js` registers at the server root (checked: scope `http://localhost:8765/`). Settings
+  → Notifications → Turn on would add a real `push_subscriptions` row for this browser, which then
+  gets the 07:00 reminder. Leave notifications off on a local build. On a LAN IP (plain http)
+  there's no worker at all. Push is still tested on the live https app (§111), which is also the
+  only place iOS allows it.
+- **Back to the bypass:** drop the parameter. The bypass's own data is still in `bloc_state`, and the
+  Supabase session stays stored but unused (the bypass never creates a client).
+
+**Checked in headless Chromium at 393pt, on `http://localhost/`:**
+
+| Step | Result |
+|---|---|
+| Bypass | Demo dataset, no Supabase client, no tag |
+| `?auth=real` | The real sign-in screen, a live client, the tag. `state` empty. `bloc_state` untouched at 127,932 bytes |
+| Bypass again | The demo dataset back, unchanged |
+
+No request other than a GET went to Supabase, and there were no console errors.
+
+`scripts/verify-auth-real.mjs` checks:
+- the host × query matrix: 7 public and 10 local hosts, 13 queries;
+- the invariant that bypass implies `isLocalDevHost`, including malformed queries;
+- the state key in each mode;
+- that no `localStorage` call names the key directly;
+- that the tag sits behind `IS_LOCAL_REAL_AUTH` only.
+
+Its controls are the two wrong switches above, plus v8.29's literal key.
