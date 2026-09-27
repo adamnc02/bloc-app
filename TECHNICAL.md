@@ -6854,3 +6854,27 @@ reminders until they reopen Settings. For Ella, that's a reminder that just stop
 The permission prompt is still raised in exactly one place, `registerPushHere(true)`, via
 `turnOnPushHere()` from a tap; the verify script asserts it. A silent re-subscribe that iOS rejects
 falls through to the one-tap prompt.
+
+### §113 addendum: what v8.24's UAT showed (2026-09-27, 17:05–17:30)
+
+- **The update itself was fine.** v8.24 left `sw.js` byte-identical, and Adam got **no** re-allow
+  prompt. That supports the tripwire's premise: it's `sw.js` changes that hurt, not app updates.
+- **The damage from the v8.23 `sw.js` change hadn't gone away.** Banners arrived, but **no tap reached
+  the page**: from the Notifications sheet, from Home, or from Notification Centre. Settings → About
+  → Last notification tap stayed on the last time it worked, 16:55, set under v8.23 and "via message
+  (data)", which also proves `notification.data` **does** survive on iOS. §112's "empty data"
+  explanation for v8.22 was most likely the same two-registration confusion.
+- **What fixed it: Settings → Notifications → Turn off, then Turn on.** That makes a fresh subscription
+  on the current worker, and taps worked straight away ("17:28 via message (data)").
+- 🚨 **`checkPushHealth()` can't see this state.** The phone still holds a subscription and the server
+  still has its row, so it reads as healthy. After an iOS `sw.js` update, a phone can be left with a
+  subscription that **shows** notifications while its clicks go to a worker that doesn't reach the
+  page. The device list also showed both of Adam's rows as looking like "this device", consistent
+  with two subscriptions on one phone.
+- **So the rules are:**
+  1. **Don't change `sw.js` without a reason worth the cost.** The tripwire enforces this.
+  2. **If a change is ever needed, plan a re-registration.** Tell users, Ella included, to go to
+     Settings → Notifications → Turn off, then Turn on, and test a tap.
+  3. **If taps stop opening Measurements, apply the same recovery.**
+
+  PROMPT-03's coach pushes will need a `sw.js` change (tag routing, §112): apply rule 2 then.
