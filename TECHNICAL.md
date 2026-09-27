@@ -6878,3 +6878,26 @@ falls through to the one-tap prompt.
   3. **If taps stop opening Measurements, apply the same recovery.**
 
   PROMPT-03's coach pushes will need a `sw.js` change (tag routing, §112): apply rule 2 then.
+
+## §114 — v8.25: the notifications round's debugging readouts, removed
+
+Adam, 2026-09-27: *"clean up any debugging steps visible in the app from this round"*. All three
+existed only to diagnose the push round on a phone, which has no console:
+
+| Removed | Added in | It was for |
+|---|---|---|
+| Settings → About: *Opened from Home Screen · Display mode · Push available on this install* (`installReadinessRows()`) | v8.21, §108 | reading the manifest test |
+| Settings → About: *Last notification tap* (`lastOpenIntentText()`, the `bloc_last_open_intent` key) | v8.23, §112 | proving which tap route worked |
+| Settings → Notifications: *Registered devices* with Remove (`listPushDevices()`, `removePushDevice()`) | v8.24, §113 | clearing the dead second registration |
+
+Kept, because they're how the feature works: the six-state Notifications sheet, the three open
+routes, and `checkPushHealth()`. The recovery for a phone whose taps stop reaching the page is
+**Turn off, then Turn on** (§113 addendum), which replaces the device list's Remove.
+
+🚨 **`sw.js` still writes `via` into its note and message.** The page now ignores it. It stays because
+`sw.js` is pinned by the §113 tripwire, and changing it could split every iPhone's registration
+again, which is far too high a price for tidying one field. Remove it the next time `sw.js` has to
+change for a real reason (PROMPT-03's coach pushes).
+
+`verify-manifest.mjs` and `verify-push.mjs` now assert that all three readouts are **absent**, so
+they can't creep back unnoticed.

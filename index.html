@@ -8306,23 +8306,6 @@ async function checkPushHealth() {
   }
 }
 
-// The account's registered devices, for Settings → Notifications (§113).
-async function listPushDevices() {
-  const { data, error } = await supabase.from('push_subscriptions')
-    .select('id, device_label, created_at, last_ok_at').eq('app', 'bloc').order('created_at');
-  if (error) throw new Error('Couldn\'t load your devices: ' + error.message);
-  return data || [];
-}
-async function removePushDevice(id) {
-  const hereId = await pushThisDeviceId();
-  if (id === hereId) return handleTurnOffPush();
-  notifStatus('Removing…');
-  const { error } = await supabase.from('push_subscriptions').delete().eq('id', id);
-  if (error) { notifStatus('Couldn\'t remove it: ' + error.message, true); return; }
-  await renderNotificationsSheet();
-  notifStatus('Removed.');
-}
-
 async function sendTestPush() {
   const { data, error } = await supabase.functions.invoke('bloc-reminders', { body: { mode: 'test' } });
   if (error) throw new Error('The test couldn\'t be sent: ' + error.message);
@@ -8398,25 +8381,7 @@ async function renderNotificationsSheet() {
   const c = NOTIF_COPY[st];
   el.innerHTML = `<div class="modal-sub" data-push-state="${st}">${c.text}</div>`
     + (c.action ? `<button class="btn btn-accent btn-block" style="margin-top:16px;" onclick="${c.action.fn}">${c.action.label}</button>` : '')
-    + (c.second ? `<button class="btn btn-ghost btn-block" style="margin-top:10px;" onclick="${c.second.fn}">${c.second.label}</button>` : '')
-    + '<div id="notif-devices"></div>';
-  // v8.24 (§113): every registered device, so a dead one — a registration iOS
-  // replaced — can be seen and removed. Only when there are some.
-  if (st === 'on' || st === 'off') {
-    try {
-      const [rows, hereId] = await Promise.all([listPushDevices(), pushThisDeviceId()]);
-      const fmt = iso => { const d = new Date(iso); return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' ' + d.toTimeString().slice(0, 5); };
-      const box = document.getElementById('notif-devices');
-      if (box && rows.length) {
-        box.innerHTML = `<div class="label" style="margin-top:20px;">Registered devices (${rows.length})</div>`
-          + rows.map(r => `<div class="about-stat-row" data-device-id="${r.id}">
-              <span>${r.device_label || 'A device'}${r.id === hereId ? ' · <strong>this device</strong>' : ''}
-                <span style="display:block;font-size:12px;color:var(--text3);">added ${fmt(r.created_at)}${r.last_ok_at ? ' · last sent ' + fmt(r.last_ok_at) : ''}</span></span>
-              ${r.id === hereId ? '' : `<button class="btn btn-ghost" style="padding:6px 12px;min-height:0;" onclick="removePushDevice('${r.id}')">Remove</button>`}
-            </div>`).join('');
-      }
-    } catch (e) { notifStatus(e.message, true); }
-  }
+    + (c.second ? `<button class="btn btn-ghost btn-block" style="margin-top:10px;" onclick="${c.second.fn}">${c.second.label}</button>` : '');
 }
 async function handleTurnOnPush() {
   notifStatus('Turning on…');
@@ -8456,9 +8421,9 @@ async function takePendingOpenIntent(now = Date.now()) {
     await cache.delete(key);
     const body = await hit.json();
     if (body.open !== 'measurements' || typeof body.at !== 'number') return null;
-    // v8.23: returns { open, via } — `via` says where the worker found the
-    // destination ('data' | 'tag' | 'default'), for the About readout (§112).
-    return now - body.at <= BLOC_OPEN_INTENT_MAX_AGE_MS ? { open: 'measurements', via: body.via || 'data' } : null;
+    // Returns { open }. (sw.js also writes `via`, left from the v8.23 debugging
+    // readout removed in v8.25 — harmless, and sw.js is pinned, §113.)
+    return now - body.at <= BLOC_OPEN_INTENT_MAX_AGE_MS ? { open: 'measurements' } : null;
   } catch (e) { return null; }
 }
 // Waits until the app is actually showing (the splash has handed over and the
@@ -8469,25 +8434,12 @@ function whenAppReady(fn, tries = 0) {
   if (tries > 100) return; // ~20s: give up quietly
   setTimeout(() => whenAppReady(fn, tries + 1), 200);
 }
-// v8.23 (§112): records which route delivered the tap and where the worker
-// found the destination, so Settings → About can show it — the evidence a
-// phone test needs, since a phone has no console.
-function applyOpenIntent(target, route, via) {
+function applyOpenIntent(target) {
   if (target !== 'measurements') return;
   whenAppReady(() => {
     showScreen('home');
     openHomeMeasurements();
-    try { localStorage.setItem('bloc_last_open_intent', JSON.stringify({ route: route || '?', via: via || '?', at: Date.now() })); } catch (e) {}
   });
-}
-function lastOpenIntentText() {
-  try {
-    const d = JSON.parse(localStorage.getItem('bloc_last_open_intent') || 'null');
-    if (!d || !d.at) return 'None yet';
-    const t = new Date(d.at);
-    const when = t.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' ' + t.toTimeString().slice(0, 5);
-    return `${when} · via ${d.route} (${d.via})`;
-  } catch (e) { return 'None yet'; }
 }
 let _openIntentBusy = false;
 async function checkOpenIntents() {
@@ -8509,8 +8461,8 @@ async function checkOpenIntentsOnce() {
   }
   // Route 3: the note (always read, so it is always deleted).
   const fromNote = await takePendingOpenIntent();
-  if (fromUrl) applyOpenIntent(fromUrl, 'url', fromNote ? fromNote.via : 'url');
-  else if (fromNote) applyOpenIntent(fromNote.open, 'note', fromNote.via);
+  const target = fromUrl || (fromNote && fromNote.open);
+  if (target) applyOpenIntent(target);
 }
 
 // v8.21 (§109) — the empty-device guard. 🚨 A device holding NO real data
@@ -30041,24 +29993,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.24</span>`;
-}
-
-// v8.21 (§108) — what THIS install supports, read-only. It exists for the
-// on-device manifest test: iOS gives no visible sign that a Home Screen
-// install has picked a manifest up, and push only works where all three of
-// the Notification API, PushManager and a service-worker container exist.
-// Comparing these rows on a spare install and on the existing one answers
-// whether the existing one needs re-adding. Requests nothing, changes nothing.
-function installReadinessRows(statRow) {
-  const standalone = window.navigator.standalone === true
-    || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
-  const displayMode = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches ? 'standalone' : 'browser';
-  const pushable = 'Notification' in window && 'PushManager' in window && 'serviceWorker' in navigator;
-  return statRow('Opened from Home Screen', standalone ? 'Yes' : 'No')
-    + statRow('Display mode', displayMode)
-    + statRow('Push available on this install', pushable ? 'Yes' : 'No')
-    + statRow('Last notification tap', lastOpenIntentText());
+    <span class="chip" style="--chip-c:var(--accent2);">v8.25</span>`;
 }
 
 function renderSettings() {
@@ -30081,8 +30016,7 @@ function renderSettings() {
     statRow('Set logs', logs) +
     statRow('Body entries', bodyLogs) +
     statRow('Nutrition entries', nutrLogs) +
-    statRow('Stored on this device', `~${kb} KB`) +
-    installReadinessRows(statRow);
+    statRow('Stored on this device', `~${kb} KB`);
 
   // Show whether an API key is currently saved
   const keyEl = document.getElementById('settings-api-key-input');
@@ -30995,7 +30929,7 @@ window.addEventListener('DOMContentLoaded', function() {
       // Route 2. Also consume the note the worker wrote alongside, or it would
       // open the sheet a second time the next time BLOC comes to the front.
       if (e.data && e.data.type === 'bloc:open') {
-        takePendingOpenIntent().finally(() => applyOpenIntent(e.data.open, 'message', e.data.via || 'data'));
+        takePendingOpenIntent().finally(() => applyOpenIntent(e.data.open));
       }
     });
   }
