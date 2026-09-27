@@ -46,7 +46,8 @@ function referenced() {
   const isLocal = p => !/^(https?:|data:|mailto:|javascript:|\/\/|#)/.test(p) && !p.includes('${');
   // Any quoted path with a file extension, in either file (catches fetch(),
   // register(), href/src, icon: '…', const X = '…').
-  const re = /['"`]([A-Za-z0-9_.\/-]+\.(?:png|jpe?g|svg|ico|json|webmanifest|js|mjs|css|html|webp|gif|woff2?|mp3|wav))['"`]/g;
+  // v8.32: an optional ?query before the closing quote (the engine's ?v= cache-buster); it is not part of the path.
+  const re = /['"`]([A-Za-z0-9_.\/-]+\.(?:png|jpe?g|svg|ico|json|webmanifest|js|mjs|css|html|webp|gif|woff2?|mp3|wav))(?:\?[A-Za-z0-9=&_.-]*)?['"`]/g;
   // Comment LINES are skipped: they cite scripts and docs by path ("see
   // scripts/verify-local-dev-hosts.mjs") that the app never loads. Line-based on
   // purpose — a general /* */ stripper would swallow real code after a string
@@ -67,8 +68,8 @@ function missingFrom(l) { return [...refs].filter(r => !DEV_ONLY.has(r) && !l.in
 // ── 1. Coverage ──────────────────────────────────────────────────────────
 check(`every file the app references is published (${[...refs].filter(r => !DEV_ONLY.has(r)).length} referenced)`,
   missingFrom(list).length === 0, `missing from scripts/publish-files.txt: ${missingFrom(list).join(', ')}`);
-check('the reference scan finds the files that matter most (sw.js, the manifest, all three icons, the demo data)',
-  ['sw.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-512-maskable.png', 'bloc-demo-data.json'].every(f => refs.has(f)),
+check('the reference scan finds the files that matter most (sw.js, the manifest, all three icons, the demo data, the engine)',
+  ['sw.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-512-maskable.png', 'bloc-demo-data.json', 'engine/dist/bloc-engine.js'].every(f => refs.has(f)),
   `found: ${[...refs].sort().join(', ')}`);
 
 // ── 2. Every listed file exists, tracked, once ───────────────────────────
@@ -97,7 +98,9 @@ check('it can be run by hand (workflow_dispatch) for the first deploy after the 
 // ── Controls: each must FAIL coverage ────────────────────────────────────
 check('control: a list without sw.js fails coverage', missingFrom(list.filter(f => f !== 'sw.js')).includes('sw.js'));
 check('control: D7\'s original list (index.html, demo data only) fails coverage on sw.js, the manifest and the icons',
-  missingFrom(['index.html', 'bloc-demo-data.json']).length === 5);
+  ['sw.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-512-maskable.png'].every(f => missingFrom(['index.html', 'bloc-demo-data.json']).includes(f)));
+check('control: a list without the engine build fails coverage (v8.32)',
+  missingFrom(list.filter(f => f !== 'engine/dist/bloc-engine.js')).includes('engine/dist/bloc-engine.js'));
 
 console.log(failures ? `\n✗ ${failures} check(s) failed` : '\nAll checks passed.');
 process.exit(failures ? 1 : 0);

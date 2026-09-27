@@ -13,3 +13,5 @@ icon-192.png
 icon-512.png
 icon-512-maskable.png
 bloc-demo-data.json
+# v8.32 (§122): the shared engine, built from engine/src/ and committed.
+engine/dist/bloc-engine.js

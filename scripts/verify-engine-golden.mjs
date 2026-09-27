@@ -54,6 +54,11 @@ import { mainScript, indexTopLevel, closure } from './golden/extract-engine.mjs'
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, '..');
 const GOLDEN = join(here, 'golden', 'engine-golden.json');
+// v8.32 (§122): functions move out of index.html into the shared engine, and
+// index.html keeps a same-named shim calling window.BlocEngine. So the harness
+// runs the COMMITTED build too, exactly as the browser does, with the same
+// pinned Date and stub document. The golden file itself never changes for a move.
+const ENGINE_DIST = readFileSync(join(repo, 'engine', 'dist', 'bloc-engine.js'), 'utf8');
 const WRITE = process.argv.includes('--write');
 const ANCHOR = '2026-08-02';                                 // the demo dataset's "today" (§35)
 const ANCHORS = ['2026-07-12', '2026-08-02', '2026-09-20'];   // mid-cycle, anchor, after the cycle ends (13 Sep)
@@ -103,7 +108,7 @@ const STUBS = new Set(['save']);
 // Globals the harness sets and reads back.
 const HANDLES = ['state', '_tourAnchorDate', '_homeHeroCache', '_nextCycleOverride', '_nextCyclePreviewMacroId'];
 
-function buildEngine(src) {
+function buildEngine(src, engineDist = ENGINE_DIST) {
   const { decls } = indexTopLevel(src);
   const parts = closure(decls, SEEDS, STUBS);
   const names = new Set(parts.map(p => p.name));
@@ -118,7 +123,12 @@ function buildEngine(src) {
       set: { ${handles.map(h => `${h}: v => { ${h} = v; }`).join(', ')} },
       saves: () => __saves,
     };`;
-  return { size: parts.length, make: (Date, document) => new Function('Date', 'document', body)(Date, document) };
+  // The engine build is evaluated in its OWN function: it opens with "use
+  // strict", which must not spill into the (sloppy, as in the browser)
+  // index.html code the way it would if the two were concatenated.
+  const loadEngine = (Date, document) => new Function('Date', 'document', `${engineDist}\nreturn BlocEngine;`)(Date, document);
+  return { size: parts.length, make: (Date, document) =>
+    new Function('Date', 'document', 'BlocEngine', body)(Date, document, loadEngine(Date, document)) };
 }
 
 // `new Date()` / `Date.now()` pinned to noon on the anchor; every other form
@@ -464,6 +474,18 @@ if (WRITE) {
   })() : [];
   check(`control (code): a one-character edit to getWeekWeight changes the output (${moved2.length} runs moved)`,
     moved2.some(k => k.startsWith('targets ·')));
+
+  // 3. One character of the ENGINE BUILD (v8.32, §122): proves the harness
+  //    runs engine/dist/bloc-engine.js, not a stale copy of the old in-place
+  //    code. The `rpe` default (one of the two the demo data relies on)
+  //    becomes an array.
+  const patchedDist = ENGINE_DIST.replace('if (!s.rpe) s.rpe = {};', 'if (!s.rpe) s.rpe = [];');
+  const moved3 = patchedDist !== ENGINE_DIST ? (() => {
+    const alt = runAll(buildEngine(source, patchedDist));
+    return Object.keys(current).filter(k => JSON.stringify(current[k]) !== JSON.stringify(alt[k]));
+  })() : [];
+  check(`control (engine): a one-character edit to the engine build changes the output (${moved3.length} runs moved)`,
+    moved3.some(k => k.startsWith('normalise ·')));
 }
 
 console.log(failures ? `\n✗ ${failures} check(s) failed` : '\nAll checks passed.');

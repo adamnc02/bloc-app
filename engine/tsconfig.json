@@ -1,0 +1,23 @@
+{
+  // Type-checking only: esbuild (build.mjs) emits the bundle. The options that
+  // matter: strict, and erasableSyntaxOnly + allowImportingTsExtensions, so the
+  // source is plain JS once types are stripped (Node and Vite can both load it
+  // directly; no enums, namespaces or parameter properties).
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true
+  },
+  "include": ["src"]
+}

@@ -7350,3 +7350,88 @@ which workflow deploys. The order, planned for a gap anyway:
 
 **Rollback:** Settings → Pages → Source → **Deploy from a branch**, `main`, `/ (root)`. Legacy
 rebuilds from `main` within a minute or two.
+
+## §122 — v8.32: the shared engine, `engine/` (PROMPT-03 Phase 2, scaffold)
+
+**Why.** BLOC Coach runs BLOC's calculations over each client's uploaded state, so those
+calculations need one home both apps load. Phase 2 moves them out of `index.html`, one step at a
+time (deep dive §10 steps 1–6), into a TypeScript `engine/`. BLOC must behave **byte-identically**
+at every step except the one planned change, H7. This first step builds the machinery and moves
+one function through it, end to end.
+
+**Layout.**
+
+| Path | What it is |
+|---|---|
+| `engine/src/index.ts` | the export list; its header holds the rules for anything added |
+| `engine/src/state.ts` | `BlocState` (every field optional, index signatures kept: old backups and old clients carry partial states) and `normaliseState()` |
+| `engine/build.mjs` | esbuild: `src/index.ts` → **`engine/dist/bloc-engine.js`**, one classic script defining `window.BlocEngine`, unminified. `--check` rebuilds in memory and compares |
+| `engine/package.json`, `package-lock.json` | pinned `typescript` 7.0.2 and `esbuild` 0.28.2. `npm ci --prefix engine` installs them; `npm run build` / `npm run check` in `engine/` |
+| `engine/tsconfig.json` | type-checking only, strict. `erasableSyntaxOnly`, so the source is plain JS once types are stripped: Coach (Vite) and Node can load it directly |
+
+**How BLOC loads it (decided with Adam, 2026-09-28: commit the build, CI rebuilds and compares).**
+`index.html` has `<script src="engine/dist/bloc-engine.js?v=<hash>">` immediately before the main
+script. For every moved function, `index.html` keeps a **same-named global shim** that calls
+`BlocEngine.<name>`, so none of its call sites change. The build is committed, so the phone, a
+local `python -m http.server`, and the verify scripts all run the same file with no build step.
+It's on `scripts/publish-files.txt`. Coach will import `engine/src/index.ts` as source (Phase 5).
+
+**Moved in v8.32: `ensureStateDefaults()` → `normaliseState(raw)`** (deep dive H5). It used to
+fill the global `state` in place. Now it returns a new object and never writes to its input, and
+untouched fields are shared, not deep-copied. The shim is `state = BlocEngine.normaliseState(state)`,
+then the `data-mode` attribute, which stays BLOC's. Its only callers, `load()` and
+`enterDemoMode()`, have just assigned `state`, so nothing holds a reference to the old object.
+
+🚨 **The traps.**
+- **Editing the source without rebuilding.** The live site serves `dist/`, byte for byte, and every
+  other check runs against `dist/` too, so a stale build would pass all of them.
+  `scripts/verify-engine-build.mjs` type-checks `src/`, rebuilds it, and fails unless the result
+  equals the committed file. So edit `src/`, then run `npm run build` in `engine/` and commit both.
+  **Never hand-edit `dist/`.** The check needs `engine/node_modules`; CI runs `npm ci --prefix
+  engine` before the sweep, and a local sweep fails with that instruction if it's missing.
+- **A phone pairing a new `index.html` with an older engine.** Pages serves both with a 10-minute
+  HTTP cache. Without a cache-buster, v8.33's shims could call a function that the cached v8.32
+  engine doesn't have, and throw at boot. The `?v=` is the first 12 hex of the build's SHA-256,
+  and `verify-engine-build.mjs` fails if it's stale. After `npm run build`, update the `?v=` in
+  `index.html`; the check prints the right value. It also fails if the tag is missing, appears
+  twice, or comes after the main script, and if `index.html` calls a `BlocEngine.<name>` that the
+  build doesn't export.
+- **`verify-publish-list.mjs` reads the path without the query string.** Its reference scan used to
+  require the closing quote straight after the extension, so it would have silently missed
+  `bloc-engine.js?v=…`. It now drops an optional `?query`, lists the engine among the files that
+  matter most, and has a control: the list without the engine fails.
+- **"Never mutates its input" is checked with a write-trapping Proxy, not `Object.freeze`.** From
+  sloppy-mode code, a write to a frozen object fails silently, so a freeze test would pass while
+  the function computed from a write that never landed. `scripts/verify-engine-pure.mjs`
+  wraps the demo state (and edge-case states) in a Proxy that records any set, define or delete at
+  any depth. It fails if any export writes, **and if any export has no case**, so every function
+  moved in later needs its case in the same change. Control: the v8.31 in-place
+  `ensureStateDefaults` is caught making 12 writes.
+- **"Never reads the clock" is checked by the same cases.** Each one also runs against the build
+  loaded in a context where `new Date()` (no arguments) and `Date.now()` throw, so "today" can only
+  arrive as a parameter. Otherwise Coach would judge a client in New York by the coach's London
+  date (deep dive §2b). `new Date(str)` stays real, because parsing a date string is arithmetic,
+  not a clock read. Control: a build whose `normaliseState` calls `new Date()` is caught.
+- **Key order is saved bytes.** The golden harness compares with sorted keys, but `save()` writes
+  `JSON.stringify(state)` as it stands. `normaliseState` repeats the old tests, **in the old order,
+  with the old falsy/`=== undefined`/`Array.isArray` distinctions**, and copies only the
+  `sampleDays` groups the `proteinMax` repair touches. `scripts/verify-normalise-state.mjs` runs
+  the real v8.31 function (`git show 3fb1c3f`) and the engine over 11 inputs, and requires
+  identical unsorted JSON. Control: the same values with one key moved first fails. A state that
+  isn't an object still throws, as before.
+- **The golden harness runs the build, in its own strict function.** `verify-engine-golden.mjs`
+  now evaluates `engine/dist/bloc-engine.js` with the same pinned `Date` and stub `document`, and
+  passes `BlocEngine` into the extracted `index.html` code. It's kept separate because the build
+  opens with `"use strict"`, which must not spill into the sloppy `index.html` code. The golden
+  file is unchanged. A third control edits one character of the build (the `rpe` default), and
+  the `normalise` run must move.
+- **`sw.js` is untouched.** It has no fetch handler and caches nothing (§111), so a new script needs
+  no worker change. Keep it that way (§112–§113).
+
+**What's next (Phase 2, one PR per step, Adam merges each):** the clock (`EngineContext { today }`
+and the date helpers, deep dive §10 step 2), then the pure leaves including `isLocalDevHost`
+(step 3, which re-points the five verify scripts that brace-extract engine functions from
+`index.html`), the state readers with the H7 change (step 4, the one deliberate regeneration of the
+golden file), the progression core (step 5), and the mutators (step 6). When a function the
+golden harness's code control patches (`getWeekWeight`) moves, that control must move to the
+engine source with it.
