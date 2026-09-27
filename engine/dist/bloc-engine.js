@@ -22,7 +22,15 @@ var BlocEngine = (() => {
   // src/index.ts
   var index_exports = {};
   __export(index_exports, {
-    normaliseState: () => normaliseState
+    getHomeWeekStart: () => getHomeWeekStart,
+    getMacroDurationWeeks: () => getMacroDurationWeeks,
+    getMacroEndDate: () => getMacroEndDate,
+    getMondayAfter: () => getMondayAfter,
+    getNextMonday: () => getNextMonday,
+    getSundayAfterWeeks: () => getSundayAfterWeeks,
+    getWeekDates: () => getWeekDates,
+    normaliseState: () => normaliseState,
+    toLocalDateStr: () => toLocalDateStr
   });
 
   // src/state.ts
@@ -64,6 +72,57 @@ var BlocEngine = (() => {
   }
   function needsProteinMaxRepair(g) {
     return !!(g.range && (g.range.proteinMax === null || g.range.proteinMax === void 0));
+  }
+
+  // src/dates.ts
+  function toLocalDateStr(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+  function getHomeWeekStart(dateStr) {
+    const d = /* @__PURE__ */ new Date(dateStr + "T00:00:00");
+    const dow = d.getDay();
+    const diffToMonday = dow === 0 ? 6 : dow - 1;
+    d.setDate(d.getDate() - diffToMonday);
+    return toLocalDateStr(d);
+  }
+  function getWeekDates(weekStart) {
+    const dates = [];
+    const d = /* @__PURE__ */ new Date(weekStart + "T00:00:00");
+    for (let i = 0; i < 7; i++) {
+      dates.push(toLocalDateStr(d));
+      d.setDate(d.getDate() + 1);
+    }
+    return dates;
+  }
+  function getSundayAfterWeeks(startDateStr, weeks) {
+    const d = /* @__PURE__ */ new Date(startDateStr + "T00:00:00");
+    d.setDate(d.getDate() + weeks * 7 - 1);
+    return toLocalDateStr(d);
+  }
+  function getMondayAfter(sundayStr) {
+    const d = /* @__PURE__ */ new Date(sundayStr + "T00:00:00");
+    d.setDate(d.getDate() + 1);
+    return toLocalDateStr(d);
+  }
+  function getNextMonday(ctx) {
+    const today = /* @__PURE__ */ new Date(ctx.today + "T00:00:00");
+    const dow = today.getDay();
+    const daysUntilMon = dow === 1 ? 0 : dow === 0 ? 1 : 8 - dow;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + daysUntilMon);
+    return toLocalDateStr(monday);
+  }
+  function getMacroDurationWeeks(macro) {
+    return (macro.weeks || 8) * (macro.weeksPerMeso || 1) + (macro.extensionWeeks || 0);
+  }
+  function getMacroEndDate(macro, ctx) {
+    const startDate = /* @__PURE__ */ new Date((macro.start || ctx.today) + "T00:00:00");
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + getMacroDurationWeeks(macro) * 7 - 1);
+    return toLocalDateStr(endDate);
   }
   return __toCommonJS(index_exports);
 })();

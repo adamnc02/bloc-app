@@ -7435,3 +7435,45 @@ and the date helpers, deep dive §10 step 2), then the pure leaves including `is
 golden file), the progression core (step 5), and the mutators (step 6). When a function the
 golden harness's code control patches (`getWeekWeight`) moves, that control must move to the
 engine source with it.
+
+## §123 — v8.33: "today" is a parameter — the engine's date helpers (PROMPT-03 Phase 2, clock)
+
+**Why.** Coach will evaluate a client's week from the **client's** local date. If the engine read
+the clock, a coach in London at 02:00 would see a client in New York a day ahead: wrong goal, wrong
+day-of-week, wrong Home badges (deep dive §2b). So from this step on, "today" only reaches the
+engine as a parameter.
+
+**`EngineContext = { today: 'YYYY-MM-DD' }`** (`engine/src/dates.ts`). In BLOC, `engineCtx()` in
+`index.html` returns `{ today: getLocalToday() }`, so the Demo Tour's anchor (§35) still applies.
+`now()`, `_tourAnchorDate` and `getLocalToday()` stay in `index.html`: they're BLOC's clock.
+Coach will build its own context from the timezone BLOC uploads.
+
+**Moved, each behind a same-named shim:** `toLocalDateStr`, `getHomeWeekStart`, `getWeekDates`,
+`getSundayAfterWeeks`, `getMondayAfter`, `getNextMonday(ctx)`, `getMacroDurationWeeks` (which
+`getMacroEndDate` needs), and `getMacroEndDate(macro, ctx)`.
+
+🚨 **The traps.**
+- **`getMacroEndDate` returns a string in the engine, and a `Date` in BLOC.** Its ~40 call sites
+  use the `Date`, so the shim converts it back at local midnight. The catch is a macro with **no
+  `start`**. The old code started from `now()`, so without the tour anchor its `Date` carried the
+  *current time of day*, not midnight. The shim restores that, reading the clock once for both the
+  date and the time. The tidy midnight-only shim is the plausible wrong version, and
+  `verify-engine-clock.mjs` has it as a control that fails (17,808 instants differ).
+- **Date bugs live at midnight, across DST, and away from UTC, and the golden harness runs only
+  in London at noon.** `scripts/verify-engine-clock.mjs` runs the real v8.31 functions
+  (`git show 3fb1c3f`) against today's shims and build in six timezones, each in its own process
+  because `TZ` is fixed per process: London, New York, Lord Howe (30-minute DST), Auckland,
+  Kolkata (+5:30) and UTC. It covers every day from 25 Dec 2025 to 5 Jan 2028, at 00:00:30,
+  01:30, 12:00 and 23:59:59.999, with the tour anchor on and off, and requires identical output.
+  Controls: the midnight shim above, and a `toLocalDateStr` via `toISOString()`, which must fail in
+  every zone but UTC.
+- **The older verify scripts extract shims now.** `verify-goal-follow-up-coverage`,
+  `verify-macro-no-overlap`, `verify-macro-start-shifts-goals`, `verify-new-goal-default-dates`
+  and `verify-train-agenda` brace-extract functions that now call `BlocEngine`. Each imports
+  `scripts/engine-global.mjs`, which runs the committed build as a global script, as the browser's
+  `<script src>` does. Their controls don't patch a moved function, so they still bite. **When a
+  step moves a function a control patches, move the control to the engine source.** (The golden
+  harness's `getWeekWeight` control is the next one, in step 3.)
+- **`verify-engine-pure.mjs` can't wrap a `Date` in its write-trap Proxy**, because `Date` methods
+  check the real object. Dates pass through unwrapped, and a `setDate` on an argument is caught by
+  the before/after JSON comparison.
