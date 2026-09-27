@@ -22205,13 +22205,11 @@ function renderTrainTools(macro, allSessions, days, dayLabels, micros, useMicro)
         // v8.20 — reopen this session's effort sheet to rate or change a
         // rating (§104). Only when ratings are on, and not in a deload.
         if (!isRpeOn(macro) || heroIsDeload) return '';
-        const exs = getRpeSessionExercises(macro, dayKey);
-        if (!exs.length) return '';
-        const rated = exs.filter(ex => { const r = (state.rpe || {})[getRpeKey(macro.id, state.currentWeek, dayKey, ex.id)]; return r && typeof r.rpe === 'number'; }).length;
+        if (!getRpeSessionExercises(macro, dayKey).length) return '';
         return `<div class="row-plain" onclick="openRpeSheet('${macro.id}',${state.currentWeek},'${dayKey}')">
           <div class="row-btn-text">
             <div class="row-btn-title">Effort ratings</div>
-            <div class="row-btn-sub">${rated ? rated + ' of ' + exs.length + ' rated this session' : 'Rate how hard each exercise felt'}</div>
+            <div class="row-btn-sub" id="train-rpe-row-sub">${rpeRowSubText(macro, state.currentWeek, dayKey)}</div>
           </div>
           <span class="row-btn-chevron">${icoChevron()}</span>
         </div>`;
@@ -24404,6 +24402,25 @@ function maybeOpenRpeSheet(macro, week, dayKey, wasComplete) {
 
 let rpeSheetCtx = null; // { macroId, week, dayKey } while the sheet is open
 
+// The Session tools row's sub-line — "2 of 5 rated this session", or the
+// prompt when none are. One function for both the render and the refresh.
+function rpeRowSubText(macro, week, dayKey) {
+  const exs = getRpeSessionExercises(macro, dayKey);
+  const rated = exs.filter(ex => { const r = (state.rpe || {})[getRpeKey(macro.id, week, dayKey, ex.id)]; return r && typeof r.rpe === 'number'; }).length;
+  return rated ? rated + ' of ' + exs.length + ' rated this session' : 'Rate how hard each exercise felt';
+}
+
+// 🚨 The Session tools section is drawn once per Train render; rating and
+// closing the sheet only redraw the cards (renderTrainDay), so the row kept
+// saying "Rate how hard each exercise felt" after a rating (v8.20 UAT, step 6).
+// Update just its text — re-rendering the section would replay its entrance.
+function refreshTrainRpeRowSub(macroId, week, dayKey) {
+  const el = document.getElementById('train-rpe-row-sub');
+  const macro = state.macrocycles.find(m => m.id === macroId);
+  if (!el || !macro || week !== state.currentWeek || dayKey !== state.currentDay) return;
+  el.textContent = rpeRowSubText(macro, week, dayKey);
+}
+
 function openRpeSheet(macroId, week, dayKey) {
   const macro = state.macrocycles.find(m => m.id === macroId);
   if (!macro) return;
@@ -24445,6 +24462,7 @@ function setRpeRating(exId, value) {
   else state.rpe[key] = { rpe: value };
   save();
   renderRpeSheet();
+  refreshTrainRpeRowSub(rpeSheetCtx.macroId, rpeSheetCtx.week, rpeSheetCtx.dayKey);
 }
 
 // Every exit from the sheet. Anything still unanswered becomes
@@ -24459,9 +24477,11 @@ function closeRpeSheet() {
         if (!state.rpe[key]) state.rpe[key] = { rpeSkipped: true };
       });
       save();
+      const ctx = rpeSheetCtx;
       rpeSheetCtx = null;
       closeModal('modal-rpe');
       if (state.currentMacroId === macro.id) renderTrainDay(macro);
+      refreshTrainRpeRowSub(ctx.macroId, ctx.week, ctx.dayKey);
       return;
     }
   }

@@ -99,6 +99,7 @@ function build(src, withRpe) {
     const closeModal = id => calls.closeModal.push(id);
     const renderTrainDay = () => { calls.render++; };
     const renderRpeSheet = () => {};
+    const refreshTrainRpeRowSub = (macroId, week, dayKey) => { calls.rowRefresh = (calls.rowRefresh || 0) + 1; };
     const openRpeSheet = (macroId, week, dayKey) => { rpeSheetCtx = { macroId, week, dayKey }; openModal('modal-rpe'); };
     ${fns.join('\n')}
     return {
@@ -400,6 +401,9 @@ check('no progression site in exProgData adds the unscaled weightJump', /\+ weig
 const homeUp = extractFrom(source, 'function renderHomeUpNext(');
 check('renderHomeUpNext reads getSessionPreviewTarget (Home matches Train)', /getSessionPreviewTarget\(macro, next\.week, next\.dayKey, ex\)/.test(homeUp), true);
 check('renderHomeUpNext prints the target reps, not ex.reps', /\$\{sets\} \\u00d7 \$\{reps\}/.test(homeUp), true);
+check('rating refreshes the Session tools row (UAT step 6)', /refreshTrainRpeRowSub\(/.test(extractFrom(source, 'function setRpeRating(')), true);
+check('closing the sheet refreshes the Session tools row (UAT step 6)', /refreshTrainRpeRowSub\(/.test(extractFrom(source, 'function closeRpeSheet(')), true);
+check('the row and the refresh share one text function', /id="train-rpe-row-sub">\$\{rpeRowSubText\(/.test(source), true);
 check('the RPE sheet routes every dismissal through closeRpeSheet', /'modal-rpe': 'closeRpeSheet'/.test(source), true);
 
 console.log(failures ? `\n✗ ${failures} check(s) failed` : '\nALL CHECKS PASS');

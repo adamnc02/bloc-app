@@ -6341,7 +6341,11 @@ boring quickly — I would probably ignore it myself".
 - **Closing:** every exit (Done, ✕, swipe, backdrop) goes through `closeRpeSheet()` via
   `MODAL_DISMISS_HANDLERS`, which marks anything unanswered `rpeSkipped`.
 - **Reopening:** the Train → Session tools row **Effort ratings** reopens the sheet for the session
-  being viewed.
+  being viewed. Its sub-line ("2 of 5 rated this session") comes from `rpeRowSubText()`.
+  🚨 **The Session tools section is drawn once per Train render**, and rating or closing the sheet
+  redraws only the cards (`renderTrainDay`). So `setRpeRating()` and `closeRpeSheet()` call
+  `refreshTrainRpeRowSub()`, which updates that line's text in place. Re-rendering the section would
+  replay its entrance animation. Before this fix (found in UAT) the row kept its pre-rating text.
 
 ### The step
 
