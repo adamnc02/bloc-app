@@ -1285,7 +1285,9 @@ html.auth-likely-signed-in #auth-gate { display: none; }
    cut. .kb-list-fade uses --surface-rgb since modal-sheet's background is
    var(--surface), not var(--bg) (mirrors the .edge-fade-bottom technique
    used on the main app pages). Currently used by: nutrition add-food modal,
-   food library editor modal. ── */
+   food library editor, exercise library editor, and Log a recipe (Fuel ›
+   Shortcuts › Recipes, v8.28). TECHNICAL §117 has the full recipe for adding
+   another one: miss any step and the sheet shrinks behind the keyboard. ── */
 .kb-pinned-sheet {
   display: flex;
   flex-direction: column;
@@ -3754,6 +3756,7 @@ html.auth-likely-signed-in #auth-gate { display: none; }
       fitListToKeyboard('nutr-add-list-wrap');
       fitListToKeyboard('food-lib-list-wrap');
       fitListToKeyboard('exercise-lib-list-wrap');
+      fitListToKeyboard('recipe-pick-list-wrap');
     }
   }
 
@@ -27534,7 +27537,9 @@ function openPhotoItemSearch(isReopen) {
 // screen height and there's no gap for the overlay's dark tint to show
 // through behind the keyboard. Shared by any .kb-pinned-sheet modal with a
 // scrollable list (currently: nutrition add-food, food library editor,
-// exercise library editor).
+// exercise library editor, Log a recipe). A new one must also be added to
+// measureAll()'s list, or it is never re-fitted when the keyboard opens
+// (TECHNICAL §117).
 //
 // --kb-vvh already tracks the live post-keyboard viewport height (see
 // setKbViewportHeight). Real on-device measurement (July 2026) showed a
@@ -30133,7 +30138,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.27</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.28</span>`;
 }
 
 function renderSettings() {
@@ -32356,8 +32361,14 @@ function openRecipePickerForLog() {
   document.getElementById('recipe-pick-search').value = '';
   document.getElementById('recipe-pick-sub').textContent =
     `Pick a recipe to log to ${formatDate(nutrSelectedDate)}.`;
+  // The keyboard-safe sheet (§117), set up exactly as openNutrAdd() does: clear
+  // the last fit, then fit once the 0.3s slide-in has settled (measuring
+  // mid-transition returns an in-flight position).
+  const listWrap = document.getElementById('recipe-pick-list-wrap');
+  if (listWrap) listWrap.style.maxHeight = '';
   renderRecipePickList();
   openModal('modal-recipe-pick');
+  setTimeout(() => fitListToKeyboard('recipe-pick-list-wrap'), 320);
 }
 
 function renderRecipePickList() {
@@ -32872,13 +32883,20 @@ function deleteRecipe(id) {
      The + Log route inside a meal card does not come through here. It already
      knows its meal, so it uses the Add-food sheet's Recipes filter and logs
      straight to that meal — only this route needs the extra meal step. -->
+<!-- v8.28 (§117): a .kb-pinned-sheet, exactly like Add food. As a plain
+     .modal-sheet it was anchored to the bottom and sized by its list, so every
+     keystroke that filtered the list shrank the sheet and dropped its top
+     edge down behind the keyboard. -->
 <div class="modal-overlay" id="modal-recipe-pick">
-  <div class="modal-sheet" data-modal="modal-recipe-pick">
-    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-pick')">✕</button></div>
-    <div class="modal-title">Log a recipe</div>
-    <div class="modal-sub" id="recipe-pick-sub"></div>
-    <input type="text" id="recipe-pick-search" placeholder="Search recipes…" oninput="renderRecipePickList()" style="margin-bottom:12px;">
-    <div id="recipe-pick-list" style="max-height:60vh;overflow-y:auto;"></div>
+  <div class="modal-sheet kb-pinned-sheet" data-modal="modal-recipe-pick">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-pick')">✕</button></div>
+    <div class="modal-title" style="flex-shrink:0;">Log a recipe</div>
+    <div class="modal-sub" id="recipe-pick-sub" style="flex-shrink:0;"></div>
+    <input type="text" id="recipe-pick-search" placeholder="Search recipes…" oninput="renderRecipePickList()" style="margin-bottom:12px;flex-shrink:0;">
+    <div id="recipe-pick-list-wrap" class="kb-list-wrap">
+      <div id="recipe-pick-list" class="kb-list-inner" style="overscroll-behavior:contain;-webkit-overflow-scrolling:touch;"></div>
+      <div class="kb-list-fade"></div>
+    </div>
   </div>
 </div>
 
