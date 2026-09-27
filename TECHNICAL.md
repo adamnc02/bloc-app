@@ -212,6 +212,7 @@ let state = {
   deloads:           {},   // Record<deloadUnitKey, true> — see §12 Deload Logic. Key = `${macroId}_${week}` (no microcycles) or `${macroId}_${week}_m${1|2}` (microcycles)
   progressionLocks:  {},   // Record<lockKey, LockEntry> — see §12 Progression Compliance Guard (v7.55). LockEntry = {weightTargets, repsTargets, sets, lockedAtWeek}
   progressionTargets: {},  // Record<lockKey + '_w' + week, {weightTargets, repsTargets}> — per-week target cache backing the guard's idempotency (v7.57), see §12
+  rpe:               {},   // v8.20 — Record<`${macroId}_${week}_${dayKey}_${exId}`, {rpe: 1–10} | {rpeSkipped: true}> — effort ratings, see §104
   exerciseHistory:   {},   // Record<nameNorm, Record<setType, HistoryEntry>> — see §12 Exercise History. HistoryEntry = {sets, reps, weight, dropWeight, dropReps, date}
   exerciseTrackingMode: {}, // Record<nameNorm, 'total'|'perSide'> — remembered tracking mode per exercise name, updated alongside exerciseHistory
   profile:           {},   // {gender, heightCm, birthday, measureUnit, distanceUnit} — used for BMR/TDEE calc on the Body screen; measureUnit ('in'|'cm', default 'in') governs the waist/hip input mode only — storage is always inches regardless (v6.12). distanceUnit ('km'|'mi', new ~v7.60–v7.68) is the global Distance Units Settings preference — only shown as a per-exercise km/m picker in Plan's cardio exercise modal when set to 'km' (a 'mi' preference has no further per-exercise sub-choice)
@@ -329,6 +330,7 @@ The "standalone" boolean that used to exist purely to force a 1-set session was 
 - Both formats key on the exercise's stable `id`, not a positional array index — this is deliberate, since reordering, superset regrouping, or mid-cycle exercise edits must never silently remap old logs to the wrong exercise.
 - **`state.deloads`** keys: `` `${macroId}_${week}` `` when the macro doesn't use microcycles, or `` `${macroId}_${week}_m${1|2}` `` when it does — always at the week/microcycle level, never per day, since a deload applies to every session within that calendar-week unit (§12).
 - **`state.progressionLocks`** keys (`getProgressionLockKey()`): `` `${macroId}_${dayKey}_${exerciseId}` `` — one per exercise per track, independent of week, since the whole point is that a lock persists across however many weeks it takes to clear (§12).
+- **`state.rpe`** keys (v8.20, `getRpeKey()`): `` `${macroId}_${week}_${dayKey}_${exId}` `` — a set-log key without the set index, so `dayKey` carries the m1/m2 microcycle (§104).
 - **`state.progressionTargets`** keys: the same lock key with `_w${week}` appended — caches the exact target a given week was judged against the first time it's evaluated, so a later re-evaluation (the render-time catch-up sweep, or a genuine post-hoc edit) always compares against the same numbers rather than silently recomputing a different one (§12).
 - **`state.exerciseHistory`** keys: exercise name lowercased/trimmed, then set type — `state.exerciseHistory['bench press']['standard']`. Independent of `state.exercises`/`DEFAULT_LIBRARY`, so it persists across macrocycles and works for built-in and custom exercises alike.
 - **`state.sampleDays[].id`**: `` `sg_${Date.now()}` ``. Not a compound key — no other part of state references it except `linkedGoalIds` pointing the other direction, from goal to group (§28).
@@ -6290,3 +6292,160 @@ copy was reworded so that it doesn't claim the tag is showing.
 forced day 1 (a log before the start, a log on day 1, day 2 with nothing logged), clock changes in
 both directions, a year end, and that Home reads the function. A control running the old 4-day
 rule fails it.
+
+## §104 — v8.20: effort ratings (RPE) and the progression step
+
+From PROMPT-01, decided with Adam on 2026-09-27. RPE is built into BLOC itself, for Solo users first.
+The future BLOC Coach app only reads it (proposal §7.3).
+
+### The switch
+
+`macro.rpe` is a boolean, set in **Plan → Tools** by `setMacroRpe()`. `isRpeOn(macro)` is true only
+for `rpe === true`.
+
+🚨 **An absent `macro.rpe` is off.** Adam: existing cycles start off, and new Solo cycles are off too.
+Only a cycle that a coach creates (PROMPT-03) will start on. Reading absent as on would switch ratings
+on for every existing cycle on the first load. `createMacrocycle()` writes no `rpe` field, so a new
+cycle is off.
+
+Turning ratings off keeps every rating already given. It stops Train asking, and it stops ratings
+changing targets for weeks that haven't been judged yet.
+
+### The data (PROMPT-03 reads this shape)
+
+`state.rpe[getRpeKey(macroId, week, dayKey, exId)]` is `{ rpe: 1–10 }` or `{ rpeSkipped: true }`:
+one entry per exercise, per session, per mesocycle. The key is a set-log key without the set index,
+so `dayKey` carries `m1`/`m2`, and each microcycle track only ever steers itself. That is the same
+pairing `computeRawSuggestedTargets()`'s `prevKey` already uses. Deleting a macrocycle deletes its
+ratings. `ensureStateDefaults()` and both reset objects carry `rpe: {}`.
+
+🚨 **A skip is stored as `{ rpeSkipped: true }`, never as a number.** Adam: "Option to close assumes it
+was fine." A skip is neutral (no step change), and a coach will see "Not rated". A default number
+would be indistinguishable from an answer. Don't "simplify" it into one.
+
+### The sheet
+
+There's one sheet per session (`modal-rpe`). Adam's worry was that a per-exercise prompt "gets
+boring quickly — I would probably ignore it myself".
+
+- **When it opens:** `maybeOpenRpeSheet()` runs at the end of all four completion paths:
+  `toggleSetDone()`, `quickFillComplete()`, `quickFillCompleteDropset()` and
+  `quickFillCompleteSuperset()`. Each of them captures `isTrainSessionComplete()` **before** the
+  mutation, and the sheet opens only on the transition to complete.
+  🚨 Quick-fill-complete counts as completing, so it must not skip the sheet.
+- **When it doesn't open:** when ratings are off, for a deload session, or when every exercise
+  already has an answer. So un-ticking and re-ticking a set doesn't ask again.
+- **What it lists:** every non-cardio exercise in the session, with superset members listed
+  individually.
+- **Rating:** a tap stores the rating immediately. Tapping the same number again clears it.
+- **Closing:** every exit (Done, ✕, swipe, backdrop) goes through `closeRpeSheet()` via
+  `MODAL_DISMISS_HANDLERS`, which marks anything unanswered `rpeSkipped`.
+- **Reopening:** the Train → Session tools row **Effort ratings** reopens the sheet for the session
+  being viewed.
+
+### The step
+
+The step for week *W* on a track depends on *W − 1*'s rating on that same track:
+
+| *W − 1* on the same track | Step for *W* |
+|---|---|
+| compliant and rated ≤ 6 | `easy`: weight jump × 2 (heavy-leg **× 1.5**, as Adam asked instead of excluding them), +2 reps, giant +20 |
+| compliant and rated 9–10 | `hold`: no step for one mesocycle. It isn't a lock, and it releases on its own |
+| 7–8, skipped, not compliant, or no rating | none |
+
+Compliance is `getWeekComplianceResult()`, the same test the lock uses. The step is also none when:
+
+- *W* is week 1, a deload, or the session after a deload;
+- *W − 1* was a deload;
+- the exercise is cardio;
+- the cycle is maintenance;
+- `rpeDrivesProgression()` is false.
+
+Not compliant with a high rating changes nothing extra, because the lock already freezes the target.
+The card adds "Rated 9 · consider a lighter target".
+
+🚨 **`rpeDrivesProgression()` is the Coached-mode switch.** In Coached mode ratings only inform the
+coach (Adam). When PROMPT-03 builds Coached mode, this function returns false there, and nothing else
+needs to change.
+
+### Two call sites, one decision
+
+`getProgressionStep()` returns the maintenance step (zero, §105) or `getRpeStep()`. Two places apply
+it:
+
+- `computeRawSuggestedTargets()`, which produces the target a week is **judged** against;
+- `exProgData()`, which produces what Train **shows**: `recommendedWeight`/`Reps`, the drop portion
+  and the per-set placeholders.
+
+In both, it scales the jump (`rpeJump`) and the rep increment (`bumpRepsBy()`). The deload 60%
+rounding keeps the plain `weightJump`.
+
+🚨 **Frozen with the target.** `getWeekTargets()` stores the step on the cached
+`progressionTargets` entry (`rpeStep: 'easy' | 'hold'`, and only then). `getRpeStep()` reads a cached
+entry's step before computing anything. That guarantees two things:
+
+- a rating given or edited after a week was judged changes neither its target nor what Train
+  displays for it (the prompt's frozen-target trap);
+- every pre-v8.20 entry, which has no `rpeStep`, reads as none, so existing weeks are untouched.
+
+The sweep that runs on every render therefore returns the same answer every time.
+
+### The AI prompts
+
+`buildRpePromptSummary()` adds up to 12 lines, hardest first, to the check-in and next-cycle prompts.
+Each line gives the average RPE, the number of sessions, the latest rating, target hit in *n*/*m*
+judged sessions, and the number not rated. It returns `''` when the cycle has no ratings, so a cycle
+with ratings off sends the prompt it sent before v8.20.
+
+### Checks
+
+`scripts/verify-rpe-progression.mjs` extracts the real engine and covers:
+
+- every row of the table above, heavy-leg on loss and gain, rep ranges, giant sets and the reps track;
+- the exemptions, and microcycle isolation;
+- the frozen target in both directions: a late rating, and an edited rating;
+- the sheet's open and close rules, and the skip shape;
+- the summary, and the wiring of all four completion paths.
+
+**Its control runs the v8.19 engine (`d3c824f`) side by side**: with no ratings, targets and locks
+must be identical across 32 scenarios. Checked in headless Chromium against the demo data at 390px:
+five tick buttons open the sheet once, a 5 stores `{rpe: 5}` and the rest `{rpeSkipped: true}`, the
+next mesocycle shows "Felt easy · bigger step" at 45.0 → 50.0, and there are no console errors.
+
+## §105 — v8.20: maintenance cycles no longer climb when looking ahead
+
+Adam, 2026-09-27: *"in maintenance cycle there is no progression, but when looking ahead, suggested
+values actually mimic the progression logic."*
+
+**Where it came from.** A logged week was already correct: `weightJump` is 0 on maintenance, so next
+week's suggestion is last week's actual + 0. That also answers Adam's second question: a weight
+raised by hand **carries forward**, and doesn't reset to the plan. The fallbacks for a week with
+nothing to build on were not maintenance-aware:
+
+- `getWeekWeight()` returned `startWeight + increment × (week − 1)` for any cycle that wasn't a gain;
+- `getWeekReps()` and `getGiantSetProgression()` climbed by 1 and by 10.
+
+That showed up in four places:
+
+- Train, looking two or more weeks ahead;
+- the Plan progression preview, and its volume scenarios;
+- Home's Up next;
+- the Train "last week" labels.
+
+Separately, the rep increment was never zeroed, so a maintenance card's `recommendedReps` (shown in
+its collapsed line) was last week's reps + 1.
+
+**The fix is at the source.** All three helpers take the cycle's `goalType` and return the starting
+numbers on maintenance, and every caller now passes `macro.goalType`. `getProgressionStep()` returns
+a zero step on maintenance, so the logged path adds no reps either.
+
+⚠️ **Not changed, and noted for Adam:** Home's Up next always shows the planned weight
+(`getWeekWeight`) rather than last week's actual, on every cycle type. After a manual change, Home
+and Train can disagree.
+
+`scripts/verify-rpe-progression.mjs` checks:
+
+- the flat look-ahead for weight, heavy-leg, reps and giant sets;
+- that a loss cycle still climbs;
+- that a manual increase to 70 carries into the next week;
+- that a stored reps route adds nothing on maintenance.
