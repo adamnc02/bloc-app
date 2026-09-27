@@ -6587,7 +6587,10 @@ v8.21, and Settings → About read *Opened from Home Screen: Yes · Display mode
 available on this install: Yes*. So existing installs, Ella's included, should not need
 re-adding for push. The final proof, subscribing and receiving a notification, comes with the
 service worker in PROMPT-02 B1–B4. If a device ever does need re-adding, §109 makes the fresh
-install restore its newest real backup instead of overwriting the cloud.
+install restore its newest real backup instead of overwriting the cloud. **That was proven on the same
+day:** Adam made a fresh install and signed in, his data appeared exactly as before, and the mirror's
+row counts were unchanged from the pre-flight reading (3 macrocycles, 1,208 set logs, 194 body
+entries, 338 meals). The fresh device's first sync, after restoring, pushed real data.
 
 ## §109 — v8.21: a device with no data never writes to the cloud, and restores instead
 
