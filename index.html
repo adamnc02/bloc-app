@@ -6474,7 +6474,7 @@ try {
      same-named shims. ?v= is the first 12 hex of the file's SHA-256, so a phone never pairs a
      new index.html with an older engine from its HTTP cache; scripts/verify-engine-build.mjs
      fails if it is stale. Listed in scripts/publish-files.txt. -->
-<script src="engine/dist/bloc-engine.js?v=f0dbf282f52f"></script>
+<script src="engine/dist/bloc-engine.js?v=cac460da6916"></script>
 <script>
 // ════════════════════════════════════════════════
 // DATE HELPERS
@@ -23739,7 +23739,9 @@ function calcAge(birthdayStr) {
 
 /** Return activity multiplier (TDEE = BMR × multiplier) based on training plan + avg steps. */
 function getActivityMultiplier() {
-  return BlocEngine.getActivityMultiplier(state); // v8.35 (§125): the engine's
+  // v8.35 H7 (§126): the calendar's cycle (date-active, else the latest started),
+  // never state.currentMacroId, which is whichever cycle was last browsed.
+  return BlocEngine.getActivityMultiplier(state, engineCtx());
 }
 
 /** Mifflin-St Jeor BMR (returns kcal/day or null if profile incomplete). */

@@ -8,8 +8,9 @@
 //    (÷ 2.2046 for Mifflin-St Jeor's kg), 3,500 kcal ≈ 1 lb (deep dive §2b).
 // ═══════════════════════════════════════════════════════════════════════
 
-import type { BlocState, DateStr, Loose } from './state.ts';
+import type { BlocState, DateStr, Loose, Macrocycle } from './state.ts';
 import { type EngineContext, toLocalDateStr } from './dates.ts';
+import { getDateActiveMacroId } from './cycles.ts';
 
 // A `type`, not an interface, so it stays assignable to state.ts's DayMap.
 export type DayStats = {
@@ -77,9 +78,41 @@ export function calcAge(birthdayStr: DateStr | null | undefined, ctx: EngineCont
   return age;
 }
 
+// ── H7 (v8.35, TECHNICAL §126): whose training load the multiplier reads ──
+// The cycle the CALENDAR says you're training on: the date-active cycle,
+// else (between cycles) the latest one that has started, else none.
+//
+// 🚨 Before v8.35 this was s.currentMacroId: whichever cycle the person last
+//    BROWSED with the cycle arrows. Looking at an old, lighter cycle changed
+//    today's BMR estimate, and with it the safety floor and every AI prompt's
+//    floor (deep dive §3, H7), and Coach would have reproduced whatever the
+//    client last clicked. Don't "simplify" it back to currentMacroId.
+//
+// Between cycles (Adam, 2026-09-27: "Most recent started cycle"): the cycle
+// that just ended. Strictly date-active would read as no cycle, 0 sessions a
+// week, sedentary: a ~29% jump in the BMR estimate and the floor in exactly
+// the week Next Cycle advice is asked for. Only before any cycle has started
+// is there no cycle, and so no training load.
+//
+// Ties on start date: the first in s.macrocycles (cycles never overlap,
+// §108, so a tie means a malformed state, not a choice).
+//
+// 🚨 verify-engine-leaves.mjs's H7 control replaces the first line below, in
+//    the build, with `return s.currentMacroId;`. If it changes, update it.
+export function getActivityMacroId(s: BlocState, ctx: EngineContext): string | null {
+  const active = getDateActiveMacroId(s, ctx);
+  if (active) return active;
+  let latest: Macrocycle | null = null;
+  for (const m of s.macrocycles || []) {
+    if (m.start && m.start <= ctx.today && (!latest || m.start > (latest.start as DateStr))) latest = m;
+  }
+  return latest ? latest.id : null;
+}
+
 /** Return activity multiplier (TDEE = BMR × multiplier) based on training plan + avg steps. */
-export function getActivityMultiplier(s: BlocState): { multiplier: number; label: string } {
-  const macro = (s.macrocycles as Loose[]).find(m => m.id === s.currentMacroId);
+export function getActivityMultiplier(s: BlocState, ctx: EngineContext): { multiplier: number; label: string } {
+  const activityId = getActivityMacroId(s, ctx); // H7: the calendar's cycle, never the browsed one
+  const macro = (s.macrocycles as Loose[]).find(m => m.id === activityId);
   const spw = macro ? (macro.sessionsPerWeek || 0) : 0;
 
   // Average daily steps from all body logs with steps logged
@@ -181,7 +214,7 @@ export function calcTrendBasedTDEE(s: BlocState, ctx: EngineContext): TdeeResult
   if (median < 800 || median > 6000) return null;
 
   const roundedTdee = Math.round(median);
-  const { multiplier } = getActivityMultiplier(s);
+  const { multiplier } = getActivityMultiplier(s, ctx);
   return { tdee: roundedTdee, bmr: Math.round(roundedTdee / multiplier), dataPoints: pairs.length, pairs };
 }
 
@@ -262,7 +295,7 @@ export function calcDynamicTDEE_rawLogPair(s: BlocState, ctx: EngineContext): Td
   if (medianTdee < 800 || medianTdee > 6000) return null;
 
   const roundedTdee = Math.round(medianTdee);
-  const { multiplier } = getActivityMultiplier(s);
+  const { multiplier } = getActivityMultiplier(s, ctx);
   return {
     tdee:       roundedTdee,
     bmr:        Math.round(roundedTdee / multiplier),

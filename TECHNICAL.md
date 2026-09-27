@@ -7675,3 +7675,85 @@ fetched its own engine `?v=`.
 untracked, and its `_devAnchorDate` (2026-09-10 on Adam's machine) moves "today". A comparison
 with a `git archive` of an older version, which lacks the file, shows every date-dependent screen
 "different". Copy the file into both trees before comparing.
+
+## §126 — v8.35: H7 — the activity multiplier follows the calendar, not the cycle you browsed
+
+**The one intended behaviour change in Phase 2** (deep dive §3, H7).
+
+**What it was.** `getActivityMultiplier()` read `state.currentMacroId`: the cycle the person last
+picked with the cycle arrows, on Train, Plan or Progress. Its sessions per week, together with
+average steps, sets the multiplier. The multiplier divides the TDEE estimate into the BMR estimate,
+and the BMR sets the safety floor (log-based BMR × 0.80) that every AI prompt carries. So browsing
+back to an old, lighter cycle changed today's floor. And Coach, running the engine on a client's
+upload, would have reproduced whatever the client last tapped.
+
+**What it is.** `getActivityMacroId(s, ctx)` (`engine/src/tdee.ts`) picks the cycle whose training
+load counts, by the calendar:
+
+1. the date-active cycle, the one today falls inside (`getDateActiveMacroId`);
+2. otherwise the latest cycle whose start is on or before today, the one that just ended;
+3. otherwise none (no cycle has started yet), so 0 sessions a week.
+
+A cycle with no `start` never counts. `getActivityMultiplier(s, ctx)` reads that cycle, and both
+TDEE paths pass `ctx`.
+
+**Why "the latest started" between cycles** (Adam, 2026-09-27). Strictly date-active would read the
+gap between cycles as no cycle: 0 sessions a week, sedentary, 1.2. On the demo (4 sessions a week,
+about 10,071 average steps, 1.55) that raises the BMR estimate and the floor by about 29%, in exactly
+the week Next Cycle advice is asked for. Falling back to the last browsed cycle would keep the
+browse-dependence H7 exists to remove.
+
+**What moves.** Only for someone whose browsed cycle isn't the calendar's, and only these:
+
+- the multiplier and its label;
+- Progress's metabolism insight, "At your activity level (…), your total daily expenditure is …",
+  which is the profile (Mifflin-St Jeor) BMR × the multiplier;
+- the BMR estimate in `calcDynamicTDEE` / `calcTrendBasedTDEE` / `calcDynamicTDEE_rawLogPair`;
+- the safety floor;
+- two lines of every AI prompt: "Log-based BMR" and "Minimum safe kcal floor" / "No recommended
+  kcal value may fall below".
+
+The TDEE itself doesn't move. It comes from weight change and intake; the multiplier only turns it
+into a BMR.
+
+Also, before the first cycle has started, a cycle browsed ahead of its start no longer counts:
+nothing is being trained yet. On the demo on 1 Jun (its cycle starts 8 Jun), Progress's metabolism
+line read "moderately active … 3,012 kcal/day" and now reads "sedentary … 2,332 kcal/day". That
+was the one screen difference in the headless boot against v8.34. Every other day and screen was
+identical, the Settings version chip aside.
+
+**Worked example** (the golden file's `demo-browsed` scenario). The person browsed back to a
+finished 2-session cycle while the calendar is in the demo's 4-session cycle. On 2 Aug:
+
+| | Before (v8.34) | After (v8.35) |
+|---|---|---|
+| Multiplier | 1.375, lightly active | 1.55, moderately active |
+| Log-based BMR | ~1,463 kcal/day | ~1,297 kcal/day |
+| Safety floor (BMR × 0.80) | 1,170 kcal/day | 1,038 kcal/day |
+
+🚨 **The traps.**
+- **"Simplifying" it back to `currentMacroId`.** That's the bug. `tdee.ts` says so beside the
+  code, and `verify-engine-leaves`' control builds exactly that and must fail the rule's table.
+- **`resolveProgressMacro` still reads `currentMacroId`, correctly.** It's the cycle a *page*
+  falls back to showing, which is a different question.
+- **The golden file.** `--write` ran once, in H7's own commit. It added the `demo-browsed`
+  scenario's 9 runs (`nutrition`, `nextCycle`, `prompts` × 3 anchors), and the extraction's
+  `_source.closure` count changed from 134 to 103 because step 4 moved functions out of
+  `index.html`. Every existing run is byte-identical: the demo's only cycle is the calendar's
+  cycle at all three anchors, so H7 can't move them. Before writing, the new scenario was run
+  under the pre-H7 code and under H7, and every difference was checked. In `nutrition`: the
+  multiplier and label, the three BMRs and the floor. In `nextCycle`: the BMRs inside
+  `dynResult`/`trendResult`. In `prompts`: only the BMR and floor lines. Writes and `save()`
+  counts didn't change.
+
+**How it's checked** (`verify-engine-leaves`):
+
+- Every state case's BLOC call must equal **v8.34 run with `currentMacroId` pointed at the
+  calendar's cycle**, which is the exact claim "the only change is which cycle's load counts".
+  76 runs per timezone really do differ from plain v8.34, so H7 is exercised, not assumed.
+- The rule is checked as a table: eight days across three cycles and a cycle with no start, each
+  with five different browsed selections.
+- A 2-session cycle browsed back to no longer changes the multiplier.
+
+**UAT (at the end of the PR):** TDEE, BMR and the safety floor on a browsed, non-active cycle,
+with the Work account on a local `?auth=real` build.

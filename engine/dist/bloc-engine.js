@@ -63,6 +63,7 @@ var BlocEngine = (() => {
     formatPriorAdviceEntry: () => formatPriorAdviceEntry,
     formatSignalPeriodsForPrompt: () => formatSignalPeriodsForPrompt,
     getActiveGoal: () => getActiveGoal,
+    getActivityMacroId: () => getActivityMacroId,
     getActivityMultiplier: () => getActivityMultiplier,
     getAllMacroSessions: () => getAllMacroSessions,
     getDateActiveMacroId: () => getDateActiveMacroId,
@@ -810,8 +811,18 @@ Write this cycle's review per the schema above.`;
     if (m < 0 || m === 0 && today.getDate() < bday.getDate()) age--;
     return age;
   }
-  function getActivityMultiplier(s) {
-    const macro = s.macrocycles.find((m) => m.id === s.currentMacroId);
+  function getActivityMacroId(s, ctx) {
+    const active = getDateActiveMacroId(s, ctx);
+    if (active) return active;
+    let latest = null;
+    for (const m of s.macrocycles || []) {
+      if (m.start && m.start <= ctx.today && (!latest || m.start > latest.start)) latest = m;
+    }
+    return latest ? latest.id : null;
+  }
+  function getActivityMultiplier(s, ctx) {
+    const activityId = getActivityMacroId(s, ctx);
+    const macro = s.macrocycles.find((m) => m.id === activityId);
     const spw = macro ? macro.sessionsPerWeek || 0 : 0;
     const stepLogs = (s.bodyLogs || []).filter((l) => parseInt(l.steps) > 0);
     const avgSteps = stepLogs.length ? stepLogs.reduce((a, b) => a + parseInt(b.steps), 0) / stepLogs.length : 0;
@@ -880,7 +891,7 @@ Write this cycle's review per the schema above.`;
     const median = sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
     if (median < 800 || median > 6e3) return null;
     const roundedTdee = Math.round(median);
-    const { multiplier } = getActivityMultiplier(s);
+    const { multiplier } = getActivityMultiplier(s, ctx);
     return { tdee: roundedTdee, bmr: Math.round(roundedTdee / multiplier), dataPoints: pairs.length, pairs };
   }
   function calcDynamicTDEE(s, ctx) {
@@ -920,7 +931,7 @@ Write this cycle's review per the schema above.`;
     const medianTdee = sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
     if (medianTdee < 800 || medianTdee > 6e3) return null;
     const roundedTdee = Math.round(medianTdee);
-    const { multiplier } = getActivityMultiplier(s);
+    const { multiplier } = getActivityMultiplier(s, ctx);
     return {
       tdee: roundedTdee,
       bmr: Math.round(roundedTdee / multiplier),

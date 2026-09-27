@@ -158,6 +158,14 @@ const S = {
       { id: 'next', name: 'Next', start: '2026-10-05', weeks: 4, sessionsPerWeek: 4, goalType: 'maintenance', days: ['a'] });
     return s;
   }),
+  // v8.35 H7 (§126): the person has browsed back to a lighter, finished cycle
+  // (2 sessions a week), so currentMacroId points at it. The activity
+  // multiplier must follow the calendar, not this.
+  browsed: state(s => {
+    s.macrocycles.push({ id: 'light', name: 'Light 2026', start: '2026-03-02', weeks: 3, weeksPerMeso: 2, sessionsPerWeek: 2, goalType: 'gain', days: ['a'] });
+    s.currentMacroId = 'light';
+    return s;
+  }),
   // Stored check-in advice, with and without a chosen path, and a nextCheckIn
   // far enough out to be capped at the 14-day fallback.
   advice: state(s => { s.blocAdvice = { macroId: s.macrocycles[0].id, storedAt: '2026-07-27', chosenPath: null,
@@ -248,11 +256,11 @@ add('getTrainAgendaUnits', [at(S.demo, '2026-08-02', (s, c) => ({ engine: [s, c,
   at(state(s => { m0(s).useMicrocycles = false; return s; }), '2026-08-02', (s, c) => ({ engine: [s, c, m0(s), { week: 1, dayKey: 'x' }], bloc: null }))]);
 
 // Nutrition, TDEE and insights, across the cycle's life and every goal type.
-const NUTRITION_STATES = [S.demo, S.gain, S.maint, S.maintNoHistory, S.rollup, S.empty, S.finalDayUnlogged];
+const NUTRITION_STATES = [S.demo, S.gain, S.maint, S.maintNoHistory, S.rollup, S.empty, S.finalDayUnlogged, S.browsed];
 for (const st of NUTRITION_STATES) {
   add('buildDayMap', [at(st, '2026-08-02', s => ({ engine: [s], bloc: { args: [] } }))]);
   add('getSustainableWeightRange', [at(st, '2026-08-02', s => ({ engine: [s], bloc: { args: [] } }))]);
-  add('getActivityMultiplier', [at(st, '2026-08-02', s => ({ engine: [s], bloc: { args: [] } }))]);
+  add('getActivityMultiplier', eachDay(st, (s, c) => ({ engine: [s, c], bloc: { args: [] } }))); // H7: (s, ctx)
   for (const name of ['calcMifflinBMR', 'calcTrendBasedTDEE', 'calcDynamicTDEE', 'calcDynamicTDEE_rawLogPair']) {
     add(name, eachDay(st, (s, c) => ({ engine: [s, c], bloc: { args: [] } })));
   }
@@ -301,6 +309,13 @@ add('recommendNextCycle', [
     (s, c) => ({ engine: [s, c, m0(s), { targetWeight: 200 }], bloc: { args: [m0(s), { targetWeight: 200 }] } })),
   at(S.noStart, '2026-08-02', (s, c) => ({ engine: [s, c, m0(s)], bloc: { args: [m0(s)] } })),
 ]);
+// H7 (§126): which cycle's training load counts. Engine only: BLOC has no
+// such function (v8.34 read currentMacroId); verify-engine-leaves checks the
+// answers against a table, and every TDEE path against v8.34 run with
+// currentMacroId pointed at this cycle.
+add('getActivityMacroId', [S.demo, S.history, S.browsed, S.empty, S.noStart].flatMap(st =>
+  [...DAYS, '2025-08-01', '2026-10-06'].map(d => at(st, d, (s, c) => ({ engine: [s, c], bloc: null })))));
+
 // Goal steps, eligibility and plan mode are judged on a recommendation: build
 // several (every goal type, with overrides) through BLOC's own function first.
 const recs = () => [

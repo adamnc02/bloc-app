@@ -76,7 +76,7 @@ export {
 } from './sessions.ts';
 export type { DayStats, TdeeResult } from './tdee.ts';
 export {
-  buildDayMap, calcAge, getActivityMultiplier, calcMifflinBMR, calcTrendBasedTDEE, calcDynamicTDEE,
+  buildDayMap, calcAge, getActivityMacroId, getActivityMultiplier, calcMifflinBMR, calcTrendBasedTDEE, calcDynamicTDEE,
   calcDynamicTDEE_rawLogPair, getSustainableWeightRange,
 } from './tdee.ts';
 export { computeWeeklyInsights, computeSafetyFloor, computeMaintenanceRecalibration, computeCheckinState } from './insights.ts';

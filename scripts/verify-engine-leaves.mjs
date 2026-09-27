@@ -115,7 +115,7 @@ if (process.env.BLOC_LEAVES_CHILD) {
     try { return ser(typeof f === 'function' ? f(...args) : f); } catch (e) { return `threw ${e.constructor.name}: ${e.message}`; }
   };
 
-  let runs = 0, diffs = 0, throws = 0;
+  let runs = 0, diffs = 0, throws = 0, h7Moved = 0;
   const firstDiffs = [], firstThrows = [];
   const compare = (label, name, mkArgs, today = '2026-08-02') => {
     const D = fixedAt(today);
@@ -212,9 +212,19 @@ if (process.env.BLOC_LEAVES_CHILD) {
   const docOld = makeDoc(), docNew = makeDoc();
   const O34 = buildStateSide(mainScript(git34('index.html')), OLD34_ENGINE)(ClockDate, docOld, OLD34_ENGINE);
   const N34 = buildStateSide(newSrc, NEW_ENGINE)(ClockDate, docNew, NEW_ENGINE);
-  const runState = (E, doc, name, c, tour) => {
+  // v8.35 H7 (§126): the activity multiplier reads the calendar's cycle, not
+  // state.currentMacroId. So today is compared with v8.34 run with
+  // currentMacroId pointed at the calendar's cycle (put back before the state
+  // is compared): "the only change is which cycle's training load counts".
+  // resolveProgressMacro reads currentMacroId for another reason (the cycle a
+  // page falls back to) and is compared as it was. Each case also runs against
+  // plain v8.34, to count the runs H7 really moved.
+  const H7_EXEMPT = new Set(['resolveProgressMacro']);
+  const runState = (E, doc, name, c, tour, pointAtCalendar = false) => {
     for (const k of Object.keys(doc.els)) delete doc.els[k];
     E.reset();
+    const browsed = c.s.currentMacroId;
+    if (pointAtCalendar) c.s.currentMacroId = NEW_ENGINE.getActivityMacroId(c.s, { today: c.today });
     clock.ms = new RealDate((tour ? '2031-01-15' : c.today) + 'T12:00:00').getTime();
     E.set.state(c.s);
     if (E.set._tourAnchorDate) E.set._tourAnchorDate(tour ? c.today : null);
@@ -222,6 +232,7 @@ if (process.env.BLOC_LEAVES_CHILD) {
     for (const [g, v] of Object.entries(c.bloc.globals || {})) E.set[g](v);
     let out;
     try { out = ser(E.fns[c.bloc.fn || name](...c.bloc.args)); } catch (e) { out = `threw ${e.constructor.name}: ${e.message}`; }
+    if (pointAtCalendar) c.s.currentMacroId = browsed;
     // The state as save() would write it: JSON.stringify, key order and all
     // (and native, so ~9,000 of them stay fast).
     const after = JSON.stringify(E.get.state());
@@ -242,8 +253,9 @@ if (process.env.BLOC_LEAVES_CHILD) {
     cases.forEach((mk, i) => {
       if (!mk().bloc) return; // engine only: verify-engine-pure checks it
       for (const tour of [false, true]) {
-        const o = runState(O34, docOld, name, mk(), tour);
+        const o = runState(O34, docOld, name, mk(), tour, !H7_EXEMPT.has(name));
         const n = runState(N34, docNew, name, mk(), tour);
+        if (!H7_EXEMPT.has(name) && runState(O34, docOld, name, mk(), tour) !== n) h7Moved++;
         runs++;
         if (o.startsWith('threw') || n.startsWith('threw')) { throws++; if (firstThrows.length < 3) firstThrows.push(`${name} #${i + 1}: ${o.slice(0, 120)} / ${n.slice(0, 120)}`); }
         if (o !== n) {
@@ -259,7 +271,7 @@ if (process.env.BLOC_LEAVES_CHILD) {
 
   }
 
-  console.log(JSON.stringify({ runs, diffs, firstDiffs, throws, firstThrows }));
+  console.log(JSON.stringify({ runs, diffs, firstDiffs, throws, firstThrows, h7Moved }));
   process.exit(0);
 }
 
@@ -295,6 +307,7 @@ const [zones, drop, wrong, stale, colour] = await Promise.all([
 ]);
 ZONES.forEach((zone, k) => {
   const r = zones[k];
+  check(`${zone}: H7 moved the runs where the browsed cycle isn't the calendar's (${r.h7Moved || 0} runs differ from plain v8.34)`, !r.error && r.h7Moved > 0);
   check(`${zone}: v8.33 and the engine agree on all ${NAMES.length} leaves, and v8.34 and today on all ${Object.keys(STATE_CASES).length} state readers (${r.runs || 0} runs)`, !r.error && r.runs > 10000 && r.diffs === 0,
     r.error || (r.firstDiffs || []).join('\n    '));
   check(`${zone}: no run threw, on either side`, !r.error && r.throws === 0, (r.firstThrows || []).join('\n    '));
@@ -303,6 +316,45 @@ check(`control: a getWeekWeight shim that drops weightIncrement is caught (${dro
 check(`control: a macroRange shim given the wrong today is caught (${wrong.diffs || 0} runs differ)`, !wrong.error && wrong.diffs > 0, wrong.error);
 check(`control: a getActiveGoal shim given the wrong today is caught (${stale.diffs || 0} runs differ)`, !stale.error && stale.diffs > 0, stale.error);
 check(`control: Home's "bad" badge mapped to green is caught (${colour.diffs || 0} runs differ)`, !colour.error && colour.diffs > 0, colour.error);
+
+// ── v8.35 H7 (§126): which cycle's training load counts ─────────────────
+// The rule, as a table: the date-active cycle; between cycles, the latest one
+// that has started; before any has started, none. Never the browsed one.
+{
+  const DIST = readFileSync(join(repo, 'engine', 'dist', 'bloc-engine.js'), 'utf8');
+  const E = vm.runInNewContext(`${DIST}\n;BlocEngine`, {});
+  const cycles = [
+    { id: 'A', start: '2026-03-02', weeks: 3, weeksPerMeso: 2 },  // 2 Mar – 12 Apr
+    { id: 'B', start: '2026-06-08', weeks: 7, weeksPerMeso: 2 },  // 8 Jun – 13 Sep
+    { id: 'C', start: '2026-10-05', weeks: 4 },                   // 5 Oct – 1 Nov
+    { id: 'U', weeks: 4 },                                        // no start: never counts
+  ];
+  const TABLE = [
+    ['2026-01-10', null, 'before any cycle has started'],
+    ['2026-03-02', 'A', 'the first day of A'],
+    ['2026-05-01', 'A', 'between A and B: the latest started, A'],
+    ['2026-06-08', 'B', 'the first day of B'],
+    ['2026-09-13', 'B', 'the last day of B'],
+    ['2026-09-20', 'B', 'between B and C: B, not C (not started) and not A'],
+    ['2026-10-05', 'C', 'the first day of C'],
+    ['2027-02-01', 'C', 'after the last cycle: C'],
+  ];
+  const misses = Eng => TABLE.filter(([today, want]) => ['A', 'B', 'C', 'U', null].some(browsed =>
+    Eng.getActivityMacroId({ macrocycles: cycles, currentMacroId: browsed }, { today }) !== want));
+  const wrong = misses(E);
+  check(`H7: the activity cycle is the date-active one, else the latest started, never the browsed one (${TABLE.length} days × 5 selections)`,
+    wrong.length === 0, wrong.map(([d, w, why]) => `${d}: want ${w} (${why})`).join('; '));
+  // Control: a build that reads the browsed cycle again, as v8.34 did, must
+  // get the table wrong. (tdee.ts carries a 🚨 note next to the patched line.)
+  const browsedDist = DIST.replace('const active = getDateActiveMacroId(s, ctx);', 'return s.currentMacroId;');
+  const v834 = browsedDist === DIST ? null : misses(vm.runInNewContext(`${browsedDist}\n;BlocEngine`, {}));
+  check(`control: a build reading the browsed cycle, as v8.34 did, fails the table (${v834 ? v834.length : 'could not apply'} of ${TABLE.length} days)`,
+    !!v834 && v834.length > 0);
+  const light = { macrocycles: [{ ...cycles[0], sessionsPerWeek: 2 }, { ...cycles[1], sessionsPerWeek: 4 }], currentMacroId: 'A',
+    bodyLogs: [{ date: '2026-07-01', steps: 9000 }, { date: '2026-07-02', steps: 9500 }] };
+  check('H7: browsing back to a 2-session cycle no longer changes today\'s multiplier (1.55, moderately active)',
+    E.getActivityMultiplier(light, { today: '2026-07-12' }).multiplier === 1.55);
+}
 
 // ── v8.35 (§125): computeHomeWeek's weekClosed, which BLOC never passes ──
 // Coach judges a client's PAST week with it. There is no v8.34 to compare
