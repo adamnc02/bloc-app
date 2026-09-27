@@ -3060,6 +3060,33 @@ html.auth-likely-signed-in #auth-gate { display: none; }
   border-color: var(--accent); font-weight: 700;
 }
 .day-tabs { margin-bottom: 8px; }
+/* v8.26 (§115) — Change session as a week agenda */
+.train-agenda { display: flex; flex-direction: column; gap: 8px; padding-bottom: 8px; max-height: 58vh; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.agenda-upnext { margin-bottom: 6px; }
+.agenda-unit { border: 1px solid var(--border); border-radius: var(--r-card, 16px); background: var(--surface2); }
+.agenda-unit.is-this-week { border-color: rgba(145,132,217,0.45); background: rgba(145,132,217,0.06); }
+.agenda-head { width: 100%; min-height: 56px; padding: 10px 14px; border: none; background: transparent; color: var(--text); display: flex; align-items: center; gap: 10px; text-align: left; font-family: var(--font-body); cursor: pointer; }
+.agenda-head-text { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.agenda-dates { font-size: 15px; font-weight: 700; }
+.agenda-when { margin-left: 6px; font-weight: 600; color: var(--accent2); }
+.agenda-when::before { content: '· '; }
+.agenda-sub { font-size: 12px; color: var(--text3); }
+.agenda-sum { font-size: 12px; font-weight: 700; color: var(--text3); white-space: nowrap; }
+.agenda-sum.is-done { color: var(--green-text); }
+.agenda-sum.is-deload { color: var(--ice-blue); }
+.agenda-chev { font-size: 14px; color: var(--text3); }
+.agenda-rows { padding: 0 8px 8px; display: flex; flex-direction: column; gap: 4px; }
+.agenda-row { min-height: 56px; padding: 8px 10px; border-radius: 12px; border: 1px solid transparent; background: transparent; color: var(--text); display: flex; align-items: center; gap: 12px; text-align: left; font-family: var(--font-body); cursor: pointer; }
+.agenda-row.is-viewing { border-color: var(--accent); background: rgba(145,132,217,0.1); }
+.agenda-dot { flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--border2); box-sizing: border-box; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: var(--bg); }
+.agenda-dot.is-done { border-color: var(--green-text); background: var(--green-text); }
+.agenda-dot.is-partial { border-color: var(--accent2); background: rgba(181,171,252,0.35); }
+.agenda-row-text { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.agenda-row-name { font-size: 15px; font-weight: 700; }
+.agenda-row-meta { font-size: 12px; color: var(--text3); }
+.agenda-badge { flex-shrink: 0; font-size: 12px; font-weight: 700; padding: 4px 8px; border-radius: 8px; }
+.agenda-badge.is-viewing { background: rgba(145,132,217,0.2); color: var(--accent2); }
+.agenda-badge.is-next { background: rgba(76,197,157,0.15); color: var(--green-text); }
 
 /* ══════════════════════════════════════════════════════════════════════
    v8.16 PHASE 4 — PROGRESS
@@ -4578,16 +4605,17 @@ try {
      below it down by ~120px on open, which on a phone meant the thing you were
      reaching for moved as you reached for it.
 
-     🚨 The body is rendered by renderTrainSessionPicker(), NOT held here —
-     the week strip has to be rebuilt when a week is chosen, without closing
-     the sheet. selectTrainWeek() redraws it in place; selectTrainDay() closes. -->
+     🚨 The body is rendered by renderTrainSessionPicker(), NOT held here.
+     v8.26 (§115): it is a WEEK AGENDA — one card per real calendar week,
+     expanding into that week's sessions with their status; one tap on a
+     session opens it (selectTrainSession) and closes the sheet. -->
 <div class="modal-overlay" id="modal-train-session">
   <div class="modal-sheet" data-modal="modal-train-session">
     <div class="modal-handle-row"><div class="modal-handle"></div>
       <button class="modal-close-btn" onclick="closeModal('modal-train-session')">&#10005;</button>
     </div>
     <div class="modal-title">Change session</div>
-    <div class="modal-sub">Pick the mesocycle, then the session.</div>
+    <div class="modal-sub" id="train-session-picker-sub">Every week of this cycle. Tap a session to open it.</div>
     <div id="train-session-picker-body"></div>
   </div>
 </div>
@@ -6896,10 +6924,10 @@ function buildPlanTourSteps(demo) {
       title: 'Volume by body part',
       body: 'Total training volume across the cycle for each body part. Solid is the minimum, faded is the peak.' },
     { targetId: 'plan-tools', screen: 'plan',
-      title: 'Extend, or start again',
+      title: 'Edit, extend, or start again',
       body: demo
-        ? 'Extend adds weeks to this cycle; New cycle starts the next one. After this tour you’ll set up your profile, and then we’ll walk through creating your first cycle together.'
-        : 'Extend adds weeks to this cycle; New cycle starts the next one.' },
+        ? 'Edit cycle changes its name, goal, dates and increments; Extend adds weeks; New cycle starts the next one. After this tour you’ll set up your profile, and then we’ll walk through creating your first cycle together.'
+        : 'Edit cycle changes its name, goal, dates and increments; Extend adds weeks; New cycle starts the next one.' },
   ];
 }
 
@@ -12438,8 +12466,17 @@ let trainManualSelect = false;
 // Opens the Change-session sheet and fills it. Replaces the in-card panel
 // that used to expand under the row (v8.16 UAT).
 function openTrainSessionPicker() {
+  trainAgendaOpen = null; // re-derive: the viewed week, this week and up next start open
   renderTrainSessionPicker();
   openModal('modal-train-session');
+  // Land on the week being viewed, not the top of a 14-week list — by
+  // scrolling the week list only, so the sheet's title and "Go to up next"
+  // stay in view (scrollIntoView scrolled the whole sheet).
+  requestAnimationFrame(() => {
+    const list = document.getElementById('train-session-picker');
+    const el = list && list.querySelector('.agenda-unit.is-viewing');
+    if (el) list.scrollTop = Math.max(0, el.offsetTop - list.offsetTop - 8);
+  });
 }
 // Builds the sheet's body from current state. Called on open and again
 // whenever a mesocycle is chosen, so the day tabs follow it without the sheet
@@ -19443,10 +19480,9 @@ function renderPlanHeader(macro) {
       <h1 class="page-h1">${macro.name}</h1>
       <div class="page-sub">${macro.goal ? macro.goal + ' · ' : ''}${totalWks} weeks · ends ${endStr}</div>
     </div>
-    <button class="icon-btn" onclick="openEditMacro('${macro.id}')" aria-label="Edit macrocycle">
-      <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-    </button>
   </div>`;
+  // v8.26 (§115): no edit button here any more — Edit cycle is the first row
+  // of Tools (Adam, 2026-09-27), with everything else you change about a cycle.
 }
 
 // ── Hero ──────────────────────────────────────────────────────────────────
@@ -19650,8 +19686,15 @@ function renderPlanTools(macro) {
   // The section had NO sublabel, which is why its card sat tight up against
   // the heading — every other section on the page has one holding that space
   // open (v8.16 UAT).
-  el.innerHTML = sectionHeader('Tools', 'Change the length of this cycle, or start the next one.')
+  el.innerHTML = sectionHeader('Tools', 'Edit this cycle, change its length, or start the next one.')
     + `<div class="card card-rows">
+        <div class="row-plain" id="plan-edit-cycle-row" onclick="openEditMacro('${macro.id}')">
+          <div class="row-btn-text">
+            <div class="row-btn-title">Edit cycle</div>
+            <div class="row-btn-sub">Name, goal, start date, length and increments</div>
+          </div>
+          <span class="row-btn-chevron"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+        </div>
         <div class="row-plain" onclick="openMacroExtend('${macro.id}')">
           <div class="row-btn-text">
             <div class="row-btn-title">Extend cycle</div>
@@ -22616,61 +22659,149 @@ function renderTrainSession(macro) {
 // state.currentDay (which carries the m1/m2 suffix), so on a two-week
 // mesocycle it affects only the calendar week being viewed, never its sibling
 // microcycle.
-// ── TRAIN: the Change-session picker (v8.16 UAT) ──────────────────────
-// Extracted verbatim from renderTrainTools(), where it was an inline panel
-// that expanded inside the tools card. The markup, the week/day rules and the
-// partial-trailing-mesocycle guards are unchanged — only its container moved
-// (see openTrainSessionPicker).
-function buildTrainPickerHTML(macro) {
-  const allSessions = getAllMacroSessions(macro);
+// ── TRAIN: the Change-session sheet — a week agenda (v8.26, TECHNICAL §115) ─
+// Adam, 2026-09-27, choosing option A of the mockups: the old sheet was an
+// MC pill strip that scrolled off the edge, plus "Pull M1 / Pull M2" tabs —
+// no dates, no status, jargon. Now every REAL CALENDAR WEEK of the cycle is a
+// card ("3 Aug – 9 Aug · This week", "MC 5 · week 1 of 2"), expanding into
+// its sessions, each with its status (done / sets logged / up next / viewing),
+// deload weeks flagged, and a "Go to up next" shortcut. One tap opens a
+// session. 🚨 BLOC Coach follows this design wherever a coach picks a
+// client's week or session (it supersedes the wireframes there, PROMPT-03).
+//
+// A mesocycle is TWO calendar weeks only when it uses microcycles over a
+// 2-week mesocycle (m1 = its first week, m2 its second) — the same rule as
+// getSelectedTrainWeekDates() and the old day-tab grouping. Otherwise one
+// unit spans the whole mesocycle, with both microcycles' sessions in it.
+let trainAgendaOpen = null; // Set of unit keys expanded in the sheet; null = derive on render
+
+function getTrainAgendaUnits(macro) {
   const days = macro.days || ['push','pull','legs'];
   const dayLabels = macro.dayLabels || { push:'Push', pull:'Pull', legs:'Legs' };
   const useMicro = macro.useMicrocycles !== false;
-  const micros = useMicro ? [1,2] : [0];
-  // Mesocycle strip
-  let wHtml = '';
-  for (let w = 1; w <= getMacroEffectiveMesoCount(macro); w++) {
-    const weekSessions = allSessions.filter(s => s.week === w);
-    const isDone = weekSessions.length > 0 && weekSessions.every(s => s.done);
-    wHtml += `<button class="week-pill ${state.currentWeek===w?'active':''}" onclick="selectTrainWeek(${w})">MC ${w}${isDone ? ' ✓' : ''}</button>`;
-  }
-  // Day tabs — grouped by real calendar week, not just by microcycle.
-  // A microcycle only represents a distinct calendar week when the
-  // mesocycle actually spans more than one real week (weeksPerMeso 2);
-  // if weeksPerMeso is 1, M1/M2 (if both are used) fall inside the same
-  // single calendar week, so they stay merged into one row exactly like
-  // a macro with no microcycles at all.
-  let tHtml = '';
-  if (useMicro && (macro.weeksPerMeso || 1) === 2) {
-    // Drop the M2 row entirely if the currently-viewed mesocycle is a
-    // partial trailing extension week — that microcycle was never
-    // generated for this specific week (see isMesoMicroValid).
-    const weekMicros = micros.filter(mc => isMesoMicroValid(macro, state.currentWeek, mc));
-    const rows = weekMicros.map(mc => {
-      let rowHtml = '';
-      days.forEach(d => {
-        const key = d + 'm' + mc;
-        const label = (dayLabels[d] || d) + ' M' + mc;
-        rowHtml += `<button class="day-tab ${state.currentDay===key?'active':''}" onclick="selectTrainDay('${key}')">${label}</button>`;
-      });
-      return `<div class="day-tabs" style="margin-bottom:6px;">${rowHtml}</div>`;
+  const wpm = macro.weeksPerMeso || 1;
+  const twoWeeks = useMicro && wpm === 2;
+  const total = getMacroEffectiveMesoCount(macro);
+  const today = getLocalToday();
+  const next = getNextIncompleteSession(macro);
+  const addDays = (iso, n) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return toLocalDateStr(d); };
+  const sessionFor = (w, dayKey, label) => {
+    const exercises = (state.exercises[macro.id + '_1_' + dayKey] || []);
+    if (!exercises.length) return null;
+    let sets = 0, doneSets = 0;
+    exercises.forEach(ex => {
+      const n = getWeekSets(ex, w, macro.weeks);
+      sets += n;
+      for (let s = 0; s < n; s++) {
+        const lg = state.trainLogs[macro.id + '_' + w + '_' + dayKey + '_' + ex.id + '_' + s];
+        if (lg && lg.done) doneSets++;
+      }
     });
-    tHtml = `<div>${rows.join('')}</div>`;
-  } else {
-    let rowHtml = '';
-    micros.forEach(mc => {
-      days.forEach(d => {
-        const key = mc === 0 ? d : (d + 'm' + mc);
-        const label = useMicro ? ((dayLabels[d] || d) + ' M' + mc) : (dayLabels[d] || d);
-        rowHtml += `<button class="day-tab ${state.currentDay===key?'active':''}" onclick="selectTrainDay('${key}')">${label}</button>`;
+    return {
+      week: w, dayKey, label, exercises: exercises.length, sets, doneSets,
+      done: sets > 0 && doneSets === sets,
+      partial: doneSets > 0 && doneSets < sets,
+      upNext: !!(next && next.week === w && next.dayKey === dayKey),
+      viewing: state.currentWeek === w && state.currentDay === dayKey,
+    };
+  };
+  const units = [];
+  for (let w = 1; w <= total; w++) {
+    const groups = twoWeeks ? [1, 2].filter(mc => isMesoMicroValid(macro, w, mc)).map(mc => [mc]) : [useMicro ? [1, 2].filter(mc => isMesoMicroValid(macro, w, mc)) : [0]];
+    groups.forEach(mcs => {
+      const offsetWeeks = twoWeeks ? (w - 1) * 2 + (mcs[0] - 1) : (w - 1) * wpm;
+      const spanDays = twoWeeks ? 7 : wpm * 7;
+      const start = macro.start ? addDays(macro.start, offsetWeeks * 7) : null;
+      const end = start ? addDays(start, spanDays - 1) : null;
+      const sessions = [];
+      mcs.forEach(mc => days.forEach(d => {
+        const dayKey = mc === 0 ? d : d + 'm' + mc;
+        const name = dayLabels[d] || d;
+        // Both microcycles share one unit only when they share a calendar week:
+        // then, and only then, the session needs telling apart.
+        const label = (!twoWeeks && useMicro) ? name + ' · ' + (mc === 1 ? 'A' : 'B') : name;
+        const sess = sessionFor(w, dayKey, label);
+        if (sess) sessions.push(sess);
+      }));
+      if (!sessions.length) return;
+      units.push({
+        key: w + '-' + mcs.join(''), week: w, weekOfMeso: twoWeeks ? mcs[0] : 0,
+        start, end,
+        isThisWeek: !!(start && today >= start && today <= end),
+        isDeload: isDeloadUnit(macro, w, sessions[0].dayKey),
+        sessions,
+        doneCount: sessions.filter(x => x.done).length,
+        viewing: sessions.some(x => x.viewing),
+        hasUpNext: sessions.some(x => x.upNext),
       });
     });
-    tHtml = `<div class="day-tabs" style="margin-bottom:0;">${rowHtml}</div>`;
   }
-  return `<div class="train-picker-panel" id="train-session-picker">
-    <div class="week-strip" style="margin-bottom:10px;">${wHtml}</div>
-    ${tHtml}
-  </div>`;
+  return { units, next, total };
+}
+
+function trainAgendaDate(iso) {
+  return iso ? new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '';
+}
+
+function buildTrainPickerHTML(macro) {
+  const { units, next, total } = getTrainAgendaUnits(macro);
+  if (!trainAgendaOpen) {
+    trainAgendaOpen = new Set(units.filter(u => u.viewing || u.isThisWeek || u.hasUpNext).map(u => u.key));
+  }
+  const sub = document.getElementById('train-session-picker-sub');
+  if (sub) sub.textContent = `${macro.name} · MC ${state.currentWeek} of ${total}. Tap a session to open it.`;
+  let upNextHtml = '';
+  if (next && !(next.week === state.currentWeek && next.dayKey === state.currentDay)) {
+    const u = units.find(x => x.sessions.some(s => s.week === next.week && s.dayKey === next.dayKey));
+    const s = u && u.sessions.find(x => x.week === next.week && x.dayKey === next.dayKey);
+    if (s) {
+      upNextHtml = `<button class="btn btn-accent btn-block agenda-upnext" onclick="selectTrainSession(${s.week},'${s.dayKey}')">Go to up next · ${s.label}, MC ${s.week}${u.start ? ' · ' + trainAgendaDate(u.start) : ''}</button>`;
+    }
+  }
+  const cards = units.map(u => {
+    const open = trainAgendaOpen.has(u.key);
+    const dates = u.start ? `${trainAgendaDate(u.start)} – ${trainAgendaDate(u.end)}` : `MC ${u.week}`;
+    const when = u.isThisWeek ? '<span class="agenda-when">This week</span>' : '';
+    const subLine = `MC ${u.week}${u.weekOfMeso ? ' · week ' + u.weekOfMeso + ' of 2' : ''}${u.isDeload ? ' · Deload' : ''}`;
+    const summary = u.isDeload ? '<span class="agenda-sum is-deload">Deload</span>'
+      : u.doneCount === u.sessions.length ? '<span class="agenda-sum is-done">✓ All done</span>'
+      : u.sessions.some(x => x.partial) ? '<span class="agenda-sum">In progress</span>'
+      : u.doneCount ? `<span class="agenda-sum">${u.doneCount} of ${u.sessions.length} done</span>`
+      : `<span class="agenda-sum">${u.sessions.length} sessions</span>`;
+    const rows = !open ? '' : `<div class="agenda-rows">${u.sessions.map(x => {
+      const dot = x.done ? '<span class="agenda-dot is-done">✓</span>' : x.partial ? '<span class="agenda-dot is-partial"></span>' : '<span class="agenda-dot"></span>';
+      const meta = x.done ? `Done · ${x.sets} sets` : x.partial ? `${x.doneSets} of ${x.sets} sets logged` : `${x.exercises} exercise${x.exercises === 1 ? '' : 's'} · ${x.sets} sets`;
+      const badge = x.viewing ? '<span class="agenda-badge is-viewing">Viewing</span>' : x.upNext ? '<span class="agenda-badge is-next">Up next</span>' : '';
+      return `<button class="agenda-row${x.viewing ? ' is-viewing' : ''}" onclick="selectTrainSession(${x.week},'${x.dayKey}')">
+          ${dot}<span class="agenda-row-text"><span class="agenda-row-name">${x.label}</span><span class="agenda-row-meta">${meta}</span></span>${badge}
+        </button>`;
+    }).join('')}</div>`;
+    return `<div class="agenda-unit${u.isThisWeek ? ' is-this-week' : ''}${u.viewing ? ' is-viewing' : ''}">
+        <button class="agenda-head" onclick="toggleTrainAgendaUnit('${u.key}')" aria-expanded="${open}">
+          <span class="agenda-head-text"><span class="agenda-dates">${dates}${when}</span><span class="agenda-sub">${subLine}</span></span>
+          ${summary}<span class="agenda-chev">${open ? '▾' : '▸'}</span>
+        </button>${rows}
+      </div>`;
+  }).join('');
+  // The title and "Go to up next" stay put; only the weeks scroll (the mockup's
+  // fixed header — scrolling the whole sheet hid them, v8.26 build check).
+  return `${upNextHtml}<div class="train-agenda" id="train-session-picker">${cards}</div>`;
+}
+
+function toggleTrainAgendaUnit(key) {
+  if (!trainAgendaOpen) trainAgendaOpen = new Set();
+  if (trainAgendaOpen.has(key)) trainAgendaOpen.delete(key); else trainAgendaOpen.add(key);
+  renderTrainSessionPicker();
+}
+
+// One tap: the week AND the session (the old sheet took two, week then day).
+function selectTrainSession(week, dayKey) {
+  state.currentWeek = week;
+  state.currentDay = dayKey;
+  trainManualSelect = true;
+  save();
+  closeModal('modal-train-session');
+  renderTrain();
 }
 
 function renderTrainTools(macro, allSessions, days, dayLabels, micros, useMicro) {
@@ -29993,7 +30124,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.25</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.26</span>`;
 }
 
 function renderSettings() {
