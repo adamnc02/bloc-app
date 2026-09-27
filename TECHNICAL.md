@@ -6669,3 +6669,100 @@ appears inside markup (`accept="image/*"`), and the first version of the script 
 comment and swallowed everything up to the next `*/`. It reported a clean app while blind to most
 of the file. The control caught it: the script runs v8.21's `index.html`, which must fail on
 "version 8.19".
+
+## §111 — v8.22: push notifications, the browser half (PROMPT-02 B1/B4)
+
+The 07:00 measurements reminder. The server half is in `super-duper-octo-barnacle`: migration `0019`
+(`push_subscriptions`, `measurement_status`, `reminder_log`, the claim and the hourly schedule) and
+the `bloc-reminders` Edge Function. See that repo's `docs/SUPABASE.md` → Notifications. It is ported
+from Listly (TECHNICAL §22 there), with two deliberate differences, both marked in the code: the row
+id is the **full** SHA-256, and the device's **time zone** travels with the subscription.
+
+**Decisions (Adam, 2026-09-27):**
+
+- **Timing.** 07:00 local, every morning from the due date until measurements are saved.
+- **Rule.** Due on day 1 of every macrocycle, then 7 days after the last log (§103).
+- **Words.** The first morning: "Measurements due / Log your waist and hip today." After that:
+  "Measurements still due / Due since Mon 28 Sep. Tap to log your waist and hip."
+- **Tap.** A tap opens the Measurements sheet.
+- **Scope.** No other notifications.
+
+### The service worker, `sw.js`
+
+- Push only. It handles `push` (always showing a notification, because iOS revokes permission from
+  a site whose pushes show nothing) and `notificationclick`.
+- 🚨 **It has no `fetch` handler, ever.** A caching worker pins a merge-deployed single-file app to
+  an old build. `verify-manifest.mjs` and `verify-push.mjs` both assert it.
+- It's registered on every load with scope `'./'` (`/bloc-app/`), plus `skipWaiting` and
+  `clients.claim`, so a changed `sw.js` takes over at once.
+- That scope includes the future `/bloc-app/coach/`. That's harmless with no fetch handler, and
+  BLOC Coach registers its own worker there, where the more specific scope wins.
+
+### Settings → Notifications
+
+`decidePushState()` picks one of six honest states:
+
+- **needs-install** is decided before **unsupported**, because in an iPhone Safari tab PushManager
+  is absent;
+- **unsupported**;
+- **denied**, which only iPhone Settings can undo;
+- **ask**;
+- **off**;
+- **on**, which requires the **server's** row, not just the browser's subscription.
+
+The permission prompt is raised only by the "Turn on" tap (`turnOnPushHere()`), and a check asserts
+that's the only `requestPermission` call. That registers the row with `app: 'bloc'`, the device's IANA
+zone (`Intl…timeZone`) and a `ps_`+sha256 id, then uploads `measurement_status`.
+
+🚨 **Permission is per origin** (MIGRATION-LESSONS §55). BLOC shares `adamnc02.github.io` with Listly,
+so a phone that allowed Listly shows **no prompt** here. That's correct, and so is the flip side:
+blocking notifications in iPhone Settings blocks both apps. The Test button calls the function's
+test mode with the user's JWT. **Sign-out unregisters the device first**, while the session still
+passes RLS.
+
+### The due date the server reads
+
+`measurementStatusRow()` sends `getMeasurementStatus()`'s `nextDueDate` and `lastDate`.
+`syncMeasurementStatus()` upserts it on every sync push, as a single upsert next to
+`syncProfile`/`syncBlocCheckin`, never through `syncTable()`, and again right after registering.
+🚨 **The server has no copy of the rule.** It compares that date with the device's local date,
+so the Home Due tag and the 07:00 push can't disagree. A device with no data never syncs (§109), so
+it never uploads a status either.
+
+### Three routes to the Measurements sheet
+
+On an iPhone any single route can be lost (Listly, UAT 2026-09-25):
+
+1. **The URL** `?open=measurements`. It's lost when iOS cold-starts at `start_url`, and it's stripped
+   once read so a reload doesn't reopen the sheet.
+2. **A `bloc:open` message** to an open BLOC window. A suspended page can miss it. A Listly window
+   on the same origin is never reused.
+3. **A note in Cache Storage** (`bloc-open-intent/__open-intent`), read **and deleted** on boot and
+   whenever BLOC comes to the front, and ignored after 5 minutes. It's a notepad, not a page cache.
+
+`applyOpenIntent()` waits for `#app.bloc-app-ready` (the splash handing over) and for the boot, so
+the sheet never opens under the splash. `checkOpenIntents()` holds a guard, so a boot and a
+foreground event firing together can't open it twice.
+
+**Checked:**
+
+- `scripts/verify-push.mjs` (40 checks):
+  - every push state;
+  - the id shape against `0019`'s CHECK, with a control showing a Listly-style truncated id is
+    refused;
+  - the real `sw.js` run in a simulated worker: a cold tap writes the note and opens
+    `?open=measurements`, a warm tap messages the window, a Listly window isn't reused, and an
+    outside URL is replaced;
+  - route 3's fresh, stale and junk cases;
+  - the status row;
+  - the wiring (sync, sign-out order, boot, the single permission call);
+  - that **the app's VAPID public key equals the Edge Function's** (MIGRATION-LESSONS §61).
+- Headless Chromium on `localhost` (a secure context): the worker registers at `/`,
+  `?open=measurements` opens Measurements once the splash hands over (via Skip) and the parameter
+  is gone, and there are no console errors.
+- 🚨 **In headless Chromium the splash never finishes by itself**, on the live site too. It advances
+  on animation events headless-shell doesn't fire. Use the Skip button in any browser test that
+  needs the app revealed.
+
+**Can only be tested on the live site** (a secure context, the installed app's own origin): turning
+it on, the test notification, a tap opening Measurements, and the real 07:00 nag.

@@ -4351,6 +4351,13 @@ try {
               <div class="settings-row-sub">Dark or light mode, and distance units.</div>
             </div>
           </div>
+          <!-- v8.22 (§111) — push notifications: the 07:00 measurements reminder. -->
+          <div class="settings-row settings-row-nav" id="settings-notifications-row" onclick="openNotificationsSheet()">
+            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></div>
+            <div class="settings-row-text">Notifications
+              <div class="settings-row-sub">A 07:00 reminder when measurements are due.</div>
+            </div>
+          </div>
           <!-- 🚨 About me moved OUT of this list to the hero (see above); this
                row is App info, which the hero used to carry. The two swapped
                places rather than one being added. -->
@@ -4582,6 +4589,21 @@ try {
     <div class="modal-title">Change session</div>
     <div class="modal-sub">Pick the mesocycle, then the session.</div>
     <div id="train-session-picker-body"></div>
+  </div>
+</div>
+
+<!-- Notifications (v8.22, §111) — what THIS device can do, honestly. There is
+     no other channel: a device that can't receive push gets no reminder, so the
+     sheet's job is to say so (Listly's rule). renderNotificationsSheet() fills
+     it from decidePushState(). -->
+<div class="modal-overlay" id="modal-notifications">
+  <div class="modal-sheet" data-modal="modal-notifications">
+    <div class="modal-handle-row"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-notifications')">&#10005;</button>
+    </div>
+    <div class="modal-title">Notifications</div>
+    <div id="notif-body"></div>
+    <div id="notif-status" style="font-size:13px;margin-top:12px;display:none;"></div>
   </div>
 </div>
 
@@ -7838,6 +7860,14 @@ async function pushStateToSupabase(userId) {
     failures.push((err && err.message) || 'bloc_checkins: sync failed');
   }
 
+  // measurement_status (migration 0019) — a single upsert of the app-computed
+  // next due date, which the 07:00 reminder reads (§111). Never syncTable().
+  try {
+    await syncMeasurementStatus(userId);
+  } catch (err) {
+    failures.push((err && err.message) || 'measurement_status: sync failed');
+  }
+
   for (const [table, rows] of jobs) {
     try {
       await syncTable(table, rows, userId);
@@ -8019,6 +8049,7 @@ function maybeFinalizeBoot() {
   if (!_authResolvedSession) return; // resolved, but signed out — stay on the gate
   _bootFinalized = true;
   continueBootAfterAuth();
+  checkOpenIntents(); // v8.22 (§111) — a tapped notification's destination
 }
 
 // Does this device hold data worth keeping, as opposed to a fresh or wiped
@@ -8040,6 +8071,327 @@ function devBypassHasRealData(src) {
     || (s.nutritionLogs || []).length > 0
     || Object.keys(s.trainLogs || {}).length > 0
     || Object.keys(s.nutritionMeals || {}).length > 0;
+}
+
+// ── Push notifications (v8.22, TECHNICAL §111) ─────────────────────────────
+// The browser half of PROMPT-02. The server half is super-duper-octo-barnacle
+// migration 0019 and the bloc-reminders Edge Function. Ported from Listly
+// (src/lib/push.ts, pushState.ts, openIntent.ts).
+//
+// 🚨 PUSH IS THE ONLY REMINDER. A device that cannot receive push gets none,
+// so the Settings sheet must say which state THIS device is in, truthfully.
+// 🚨 iOS: push exists only in the Home Screen app, and permission can only be
+// asked from a real tap — once denied, only iPhone Settings can undo it. So
+// nothing here ever asks on load.
+// 🚨 Permission is per ORIGIN (MIGRATION-LESSONS §55): BLOC shares
+// adamnc02.github.io with Listly, so a phone that allowed Listly arrives here
+// already 'granted' and the first tap shows NO prompt. That is correct.
+//
+// The public key must equal the Edge Function's (bloc-reminders/index.ts): a
+// subscription is bound to the key it was made with, and a mismatch fails every
+// push 403 with nothing to explain it (MIGRATION-LESSONS §61). The private half
+// is the VAPID_PRIVATE_KEY secret on BLOC's own Supabase project.
+const BLOC_VAPID_PUBLIC_KEY = 'BNEl1hpY_ki-wZusqT2dH3RYQbQRQNulTtA6u342THI9ouH9C4oxAj_NprdRnGu3MfN_eUivnocXMzdXXe1_zMI';
+const BLOC_SW_URL = 'sw.js';
+const BLOC_SW_SCOPE = './';
+// Copied in sw.js; scripts/verify-push.mjs proves they agree.
+const BLOC_OPEN_INTENT_CACHE = 'bloc-open-intent';
+const BLOC_OPEN_INTENT_PATH = '__open-intent';
+const BLOC_OPEN_INTENT_MAX_AGE_MS = 5 * 60 * 1000;
+
+function pushIsIos() {
+  const ua = navigator.userAgent;
+  // iPadOS reports itself as a Mac; a touch screen gives it away.
+  return /iPhone|iPad|iPod/.test(ua) || (ua.includes('Macintosh') && navigator.maxTouchPoints > 1);
+}
+function pushIsStandalone() {
+  return navigator.standalone === true
+    || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches === true);
+}
+function pushSupported() {
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+// Which state a device is in — pure, so verify-push.mjs proves every case.
+// 🚨 'on' needs the SERVER's row, not just the browser's subscription: a row
+// removed from another device, or pruned after a 404/410, leaves the phone
+// subscribed and reminded by nobody. 'needs-install' comes BEFORE
+// 'unsupported', because in a Safari tab PushManager is absent and the phone
+// would otherwise be told "this browser can't" when three taps would fix it.
+function decidePushState(f) {
+  if (f.ios && !f.standalone) return 'needs-install';
+  if (!f.supported) return 'unsupported';
+  if (f.permission === 'denied') return 'denied';
+  if (f.permission === 'default') return 'ask';
+  return f.hereId !== null && (f.registeredIds || []).includes(f.hereId) ? 'on' : 'off';
+}
+
+// Registered on every boot, so a changed sw.js reaches every device on its next
+// launch. No fetch handler, no caching (see sw.js). Never throws.
+function registerBlocServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.register(BLOC_SW_URL, { scope: BLOC_SW_SCOPE })
+    .catch(e => console.warn('[push] service worker registration failed:', e && e.message));
+}
+async function pushRegistration() {
+  const existing = await navigator.serviceWorker.getRegistration(BLOC_SW_SCOPE);
+  return existing || navigator.serviceWorker.register(BLOC_SW_URL, { scope: BLOC_SW_SCOPE });
+}
+async function pushLocalSubscription() {
+  if (!pushSupported()) return null;
+  const reg = await navigator.serviceWorker.getRegistration(BLOC_SW_SCOPE);
+  return (reg && await reg.pushManager.getSubscription()) || null;
+}
+// 'ps_' + the FULL SHA-256 of the endpoint (64 hex) — migration 0019's CHECK.
+// Derived, so registering the same browser twice updates one row (§36).
+// (Listly truncates to 24 hex; BLOC's table requires all 64.)
+async function pushIdFor(endpoint) {
+  const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(endpoint)));
+  return 'ps_' + Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+}
+async function pushThisDeviceId() {
+  const sub = await pushLocalSubscription();
+  return sub ? pushIdFor(sub.endpoint) : null;
+}
+function pushB64ToBytes(base64) {
+  const padded = (base64 + '='.repeat((4 - (base64.length % 4)) % 4)).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(padded);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+function pushBytesToB64(buf) {
+  if (!buf) return '';
+  return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function pushDeviceLabel() {
+  const ua = navigator.userAgent;
+  if (/iPhone/.test(ua)) return 'iPhone';
+  if (/iPad/.test(ua) || (ua.includes('Macintosh') && navigator.maxTouchPoints > 1)) return 'iPad';
+  if (/Android/.test(ua)) return 'Android phone';
+  if (/Macintosh/.test(ua)) return 'Mac';
+  return 'This browser';
+}
+function pushDeviceTimeZone() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/London'; }
+  catch (e) { return 'Europe/London'; }
+}
+
+async function currentPushState() {
+  const ok = pushSupported();
+  let registeredIds = [];
+  if (ok && supabase && _authResolvedSession) {
+    const { data, error } = await supabase.from('push_subscriptions').select('id').eq('app', 'bloc');
+    if (error) throw new Error('Couldn\'t check this device with the server: ' + error.message);
+    registeredIds = (data || []).map(r => r.id);
+  }
+  return decidePushState({
+    ios: pushIsIos(),
+    standalone: pushIsStandalone(),
+    supported: ok,
+    permission: ok ? Notification.permission : 'default',
+    hereId: ok ? await pushThisDeviceId() : null,
+    registeredIds,
+  });
+}
+
+// 🚨 MUST be called from a tap: it asks for permission (iOS won't show the
+// prompt otherwise), subscribes, and registers this device with its time zone.
+// Throws a sentence a person can act on; never fails silently.
+async function turnOnPushHere() {
+  if (!supabase || !_authResolvedSession) throw new Error('Sign in first.');
+  if (!pushSupported()) throw new Error('This browser can\'t show notifications.');
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') {
+    throw new Error(permission === 'denied'
+      ? 'Notifications were turned off. BLOC can\'t ask again — turn them on in iPhone Settings → Notifications → BLOC.'
+      : 'No answer was given, so nothing was turned on. Tap again when you\'re ready.');
+  }
+  const reg = await pushRegistration();
+  await navigator.serviceWorker.ready;
+  const sub = (await reg.pushManager.getSubscription())
+    || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: pushB64ToBytes(BLOC_VAPID_PUBLIC_KEY) }));
+  const { error } = await supabase.from('push_subscriptions').upsert({
+    id: await pushIdFor(sub.endpoint),
+    user_id: _authResolvedSession.user.id,
+    app: 'bloc',
+    endpoint: sub.endpoint,
+    p256dh: pushBytesToB64(sub.getKey('p256dh')),
+    auth_key: pushBytesToB64(sub.getKey('auth')),
+    tz: pushDeviceTimeZone(),
+    device_label: pushDeviceLabel(),
+    failed_count: 0,
+  }, { onConflict: 'id' });
+  if (error) throw new Error('Couldn\'t register this device: ' + error.message);
+  // The server needs the due date too, or it has nothing to remind about.
+  await syncMeasurementStatus(_authResolvedSession.user.id).catch(() => {});
+}
+
+async function turnOffPushHere() {
+  const sub = await pushLocalSubscription();
+  if (!sub) return;
+  if (supabase && _authResolvedSession) {
+    const { error } = await supabase.from('push_subscriptions').delete().eq('id', await pushIdFor(sub.endpoint));
+    if (error) throw new Error('Couldn\'t turn notifications off: ' + error.message);
+  }
+  await sub.unsubscribe();
+}
+
+async function sendTestPush() {
+  const { data, error } = await supabase.functions.invoke('bloc-reminders', { body: { mode: 'test' } });
+  if (error) throw new Error('The test couldn\'t be sent: ' + error.message);
+  return data || {};
+}
+
+// On sign-out this phone must stop getting this account's reminders, or the
+// next person to sign in here would be sent them. Best effort: sign-out is
+// never blocked by it.
+async function forgetThisPushDevice() {
+  try { await turnOffPushHere(); }
+  catch (e) { console.warn('[push] could not unregister this device on sign-out:', e && e.message); }
+}
+
+// v8.22 — the row the server reads to decide whether to nag. 🚨 The DATE comes
+// from getMeasurementStatus(), the app's only copy of the rule (§103); the
+// server just compares it with the device's local date. Upserted by every sync
+// push (so a new log or a changed cycle reaches it) and on registration.
+function measurementStatusRow(userId) {
+  const st = getMeasurementStatus(state.bodyLogs, state.macrocycles, getLocalToday());
+  return { user_id: userId, next_due_date: st.nextDueDate, last_saved: st.lastDate, updated_at: new Date().toISOString() };
+}
+async function syncMeasurementStatus(userId) {
+  if (!supabase || !userId) return;
+  const { error } = await supabase.from('measurement_status').upsert(measurementStatusRow(userId), { onConflict: 'user_id' });
+  if (error) throw new Error('measurement_status: ' + error.message);
+}
+
+// ── The Settings sheet ─────────────────────────────────────────────────────
+const NOTIF_COPY = {
+  'needs-install': {
+    text: 'Notifications only work when BLOC is opened from your Home Screen. In Safari, tap Share → Add to Home Screen, then open BLOC from that icon.',
+    action: null },
+  'unsupported': { text: 'This browser can\'t show notifications, so this device won\'t be reminded.', action: null },
+  'denied': {
+    text: 'Notifications are turned off for BLOC on this device, and BLOC can\'t ask again. To turn them on: iPhone Settings → Notifications → BLOC. (That setting is shared with Listly, which lives on the same site.)',
+    action: { label: 'Check again', fn: 'renderNotificationsSheet()' } },
+  'ask': {
+    text: 'BLOC sends one kind of notification: at 07:00 on the mornings your measurements are due (day 1 of every cycle, then 7 days after your last log), repeated each morning until you log them. Tapping it opens Measurements.',
+    action: { label: 'Turn on notifications', fn: 'handleTurnOnPush()' } },
+  'off': {
+    text: 'Notifications are allowed, but this device isn\'t registered for measurement reminders yet.',
+    action: { label: 'Turn on for this device', fn: 'handleTurnOnPush()' } },
+  'on': {
+    text: '✓ This device gets your measurement reminders at 07:00.',
+    action: { label: 'Send a test notification', fn: 'handleTestPush()' },
+    second: { label: 'Turn off for this device', fn: 'handleTurnOffPush()' } },
+};
+
+function openNotificationsSheet() {
+  openModal('modal-notifications');
+  renderNotificationsSheet();
+}
+function notifStatus(text, isError) {
+  const el = document.getElementById('notif-status');
+  if (!el) return;
+  el.textContent = text || '';
+  el.style.display = text ? 'block' : 'none';
+  el.style.color = isError ? 'var(--red)' : 'var(--text2)';
+}
+async function renderNotificationsSheet() {
+  const el = document.getElementById('notif-body');
+  if (!el) return;
+  notifStatus('');
+  if (!supabase || !_authResolvedSession) {
+    el.innerHTML = '<div class="modal-sub">Sign in to turn on notifications. (Not available in local development.)</div>';
+    return;
+  }
+  el.innerHTML = '<div class="modal-sub">Checking this device…</div>';
+  let st;
+  try { st = await currentPushState(); }
+  catch (e) { el.innerHTML = ''; notifStatus(e.message, true); return; }
+  const c = NOTIF_COPY[st];
+  el.innerHTML = `<div class="modal-sub" data-push-state="${st}">${c.text}</div>`
+    + (c.action ? `<button class="btn btn-accent btn-block" style="margin-top:16px;" onclick="${c.action.fn}">${c.action.label}</button>` : '')
+    + (c.second ? `<button class="btn btn-ghost btn-block" style="margin-top:10px;" onclick="${c.second.fn}">${c.second.label}</button>` : '');
+}
+async function handleTurnOnPush() {
+  notifStatus('Turning on…');
+  try { await turnOnPushHere(); await renderNotificationsSheet(); notifStatus('Done. This device will be reminded at 07:00 when measurements are due.'); }
+  catch (e) { notifStatus(e.message, true); }
+}
+async function handleTurnOffPush() {
+  notifStatus('Turning off…');
+  try { await turnOffPushHere(); await renderNotificationsSheet(); notifStatus('This device won\'t be reminded any more.'); }
+  catch (e) { notifStatus(e.message, true); }
+}
+async function handleTestPush() {
+  notifStatus('Sending…');
+  try {
+    const r = await sendTestPush();
+    notifStatus(r.sent ? `Sent to ${r.sent} device${r.sent === 1 ? '' : 's'}.` + (r.gone ? ` ${r.gone} no longer existed and ${r.gone === 1 ? 'was' : 'were'} removed.` : '')
+      : (r.devices ? 'It couldn\'t be delivered. Try turning notifications off and on again.' : 'No devices are registered.'), !r.sent);
+  } catch (e) { notifStatus(e.message, true); }
+}
+
+// ── Opening Measurements from a notification: three routes ─────────────────
+// 🚨 On an iPhone any single route can be lost (Listly, UAT 2026-09-25): the
+// URL (a cold start opens start_url), the message (a suspended page misses
+// it), so the worker ALSO leaves a note in Cache Storage that is read and
+// deleted here on start and whenever BLOC comes to the front.
+function parseOpenIntent(url) {
+  try { return new URL(url, window.location.href).searchParams.get('open') === 'measurements' ? 'measurements' : null; }
+  catch (e) { return null; }
+}
+async function takePendingOpenIntent(now = Date.now()) {
+  try {
+    if (!('caches' in window)) return null;
+    const cache = await caches.open(BLOC_OPEN_INTENT_CACHE);
+    const key = new URL(BLOC_OPEN_INTENT_PATH, window.location.href).href;
+    const hit = await cache.match(key);
+    if (!hit) return null;
+    await cache.delete(key);
+    const body = await hit.json();
+    if (body.open !== 'measurements' || typeof body.at !== 'number') return null;
+    return now - body.at <= BLOC_OPEN_INTENT_MAX_AGE_MS ? 'measurements' : null;
+  } catch (e) { return null; }
+}
+// Waits until the app is actually showing (the splash has handed over and the
+// boot has run), so the sheet never opens underneath the splash.
+function whenAppReady(fn, tries = 0) {
+  const ready = document.querySelector('.bloc-app-ready') && (_bootFinalized || IS_LOCAL_DEV);
+  if (ready) return fn();
+  if (tries > 100) return; // ~20s: give up quietly
+  setTimeout(() => whenAppReady(fn, tries + 1), 200);
+}
+function applyOpenIntent(target) {
+  if (target !== 'measurements') return;
+  whenAppReady(() => {
+    showScreen('home');
+    openHomeMeasurements();
+  });
+}
+let _openIntentBusy = false;
+async function checkOpenIntents() {
+  // One at a time: boot and a foreground event can fire together, and two
+  // overlapping reads of the note would both open the sheet.
+  if (_openIntentBusy) return;
+  _openIntentBusy = true;
+  try { await checkOpenIntentsOnce(); } finally { _openIntentBusy = false; }
+}
+async function checkOpenIntentsOnce() {
+  // Route 1: the URL. Strip it, so a reload doesn't open the sheet again.
+  const fromUrl = parseOpenIntent(window.location.href);
+  if (fromUrl) {
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.delete('open');
+      history.replaceState(null, '', u.pathname + (u.search || '') + u.hash);
+    } catch (e) {}
+  }
+  // Route 3: the note (always read, so it is always deleted).
+  const fromNote = await takePendingOpenIntent();
+  const target = fromUrl || fromNote;
+  if (target) applyOpenIntent(target);
 }
 
 // v8.21 (§109) — the empty-device guard. 🚨 A device holding NO real data
@@ -8387,6 +8739,9 @@ async function sendPasswordReset() {
 async function signOutUser() {
   if (!supabase) return;
   closeModal('modal-account');
+  // v8.22 (§111): unregister this device FIRST, while the session still passes
+  // RLS, so the next person to sign in here isn't sent this account's reminders.
+  await forgetThisPushDevice();
   try {
     await supabase.auth.signOut();
   } catch (err) {
@@ -30507,6 +30862,24 @@ function initModal(overlayEl) {
     if (delta > 80) dismiss();
   }, { passive: true });
 }
+
+// v8.22 (§111) — push plumbing that must run on every load, signed in or not:
+// register the worker (so a changed sw.js reaches every device), listen for
+// its 'bloc:open' message (route 2), and re-read the Cache Storage note
+// whenever BLOC comes back to the front (route 3). The local dev bypass
+// (§82) never runs maybeFinalizeBoot(), so the dev path checks here too.
+window.addEventListener('DOMContentLoaded', function() {
+  registerBlocServiceWorker();
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', e => {
+      if (e.data && e.data.type === 'bloc:open') applyOpenIntent(e.data.open);
+    });
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkOpenIntents();
+  });
+  if (IS_LOCAL_DEV) checkOpenIntents();
+});
 
 // Init — runs after all HTML (including appended modals) is parsed
 window.addEventListener('DOMContentLoaded', function() {
