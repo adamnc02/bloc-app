@@ -81,8 +81,14 @@ const called = calledIn(html);
 const missing = called.filter(n => !exported.has(n));
 check(`every BlocEngine.<name> index.html calls is exported (${called.length} called: ${called.join(', ')})`,
   called.length > 0 && missing.length === 0, `not exported: ${missing.join(', ')}`);
-check('every export is a function', [...exported].every(n => typeof engine[n] === 'function'),
-  [...exported].filter(n => typeof engine[n] !== 'function').join(', '));
+// v8.34 (§124): or a number. The RECONCILE_* constants are exported so
+// index.html reads the engine's values instead of keeping a second copy. A
+// primitive can't be changed through the export, but an object could be: one
+// caller writing to a shared constant would change it for every other.
+const exportOk = v => typeof v === 'function' || (typeof v === 'number' && Number.isFinite(v));
+check('every export is a function or a finite number', [...exported].every(n => exportOk(engine[n])),
+  [...exported].filter(n => !exportOk(engine[n])).join(', '));
+check('control: an exported object would be refused', !exportOk({ kcal: 50 }) && !exportOk(NaN) && exportOk(50));
 
 // ── Controls: each must FAIL ────────────────────────────────────────────
 const flipped = Buffer.from(dist); flipped[flipped.length - 3] ^= 1;

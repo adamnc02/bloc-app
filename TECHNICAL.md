@@ -4333,7 +4333,7 @@ Applied to all five call sites — `askBlocForAdvice()`, the challenge/revision 
 - **Error messages.** No-JSON now says what to do ("switch to Home-cooked to skip the restaurant lookup"); a `max_tokens` cut-off is named as such rather than reported as a parse error.
 - **Prompt.** The web-search branch of `buildMealPhotoPrompt()` now states explicitly that the final message must be the raw JSON object even when the search found nothing — belt and braces, since the parser no longer depends on it.
 
-**Check:** `scripts/verify-json-extraction.mjs` (plain `node`, no dependencies — it reads the real function out of `index.html` rather than copying it, so it cannot drift). Covers the narration-before-JSON case that caused this bug, narration after, fences anywhere, braces and escaped quotes inside strings, nested objects, and the four cases that must return `null` instead of throwing (prose-only, truncated JSON, empty, null). The last check is a **control**: it runs the v8.12 parser against the narration case and asserts that it *does* fail — proof the script would have caught this bug rather than passing vacuously.
+**Check:** `scripts/verify-json-extraction.mjs` (plain `node`, no dependencies — it reads the real function out of `index.html` rather than copying it, so it cannot drift). Covers the narration-before-JSON case that caused this bug, narration after, fences anywhere, braces and escaped quotes inside strings, nested objects, and the four cases that must return `null` instead of throwing (prose-only, truncated JSON, empty, null). The last check is a **control**: it runs the v8.12 parser against the narration case and asserts that it *does* fail — proof the script would have caught this bug rather than passing vacuously. *(v8.34: the function lives in the shared engine, `engine/src/prompts.ts`, behind a shim; the script runs the build and checks the shim. §124.)*
 
 **Not reproduced live.** No Anthropic API key exists in the dev environment (the app is BYO-key, held in Adam's browser `localStorage`), so the diagnosis is from the response shape and the error string, and the fix is verified against synthesised responses in the script above. Confirmation is UAT: the same photo, the same restaurant name.
 
@@ -4635,7 +4635,9 @@ data behind it. While the dev server runs, anyone on the same network who knows 
 the app in that state.
 
 `scripts/verify-local-dev-hosts.mjs` extracts `isLocalDevHost()` from `index.html` by brace matching
-and runs it, so it tests the shipped function rather than a copy. 35 cases cover the deployed host,
+and runs it, so it tests the shipped function rather than a copy. *(v8.34: the predicate lives in the
+shared engine, `engine/src/host.ts`, so BLOC Coach keys its bypass on the same one; the script runs
+the committed build and fails unless `index.html`'s function is exactly the shim. §124.)* 35 cases cover the deployed host,
 both lookalike domains, and the off-by-one neighbours of every private range (`172.15`/`172.32`,
 `193.168`, `11.0`, `169.253`), and a control asserts that a naive predicate fails them. There is no
 CI in this repo and the deploy does not run the verify scripts; a bypassed build looks normal until
@@ -7139,7 +7141,8 @@ its own, and no two may overlap. Only `save()` and `document` are stubbed.
   otherwise.
 - **A pass that proves nothing.** Two controls must change the output, or the run fails:
   - making the anchor day's weigh-in 2 lb heavier (17 runs move);
-  - editing one character of `getWeekWeight` (the `targets` runs move).
+  - editing one character of `getWeekWeight` (the `targets` runs move). Since v8.34 the edit is
+    made in the engine build, where the function now lives (§124).
 
   A tampered golden file fails with the exact path, e.g.
   `homeWeek · demo · 2026-07-27 → .value.cache.badges.0.m.name`.
@@ -7472,8 +7475,94 @@ Coach will build its own context from the timezone BLOC uploads.
   and `verify-train-agenda` brace-extract functions that now call `BlocEngine`. Each imports
   `scripts/engine-global.mjs`, which runs the committed build as a global script, as the browser's
   `<script src>` does. Their controls don't patch a moved function, so they still bite. **When a
-  step moves a function a control patches, move the control to the engine source.** (The golden
-  harness's `getWeekWeight` control is the next one, in step 3.)
+  step moves a function a control patches, move the control to the engine source.** (Step 3 moved
+  three, §124.)
 - **`verify-engine-pure.mjs` can't wrap a `Date` in its write-trap Proxy**, because `Date` methods
   check the real object. Dates pass through unwrapped, and a `setDate` on an argument is caught by
   the before/after JSON comparison.
+
+## §124 — v8.34: the pure leaves move into the engine (PROMPT-03 Phase 2, step 3)
+
+**Why.** Coach needs BLOC's calculations, not a copy of them. Step 3 moves the functions that were
+already pure (deep dive §1a): they read only their arguments, so they move unchanged, with no new
+parameters except where §123's `EngineContext` reaches them. BLOC behaves byte-identically.
+
+**Moved, each behind a same-named shim in `index.html`** (so no call site changes), 43 functions and
+four constants:
+
+| File | What |
+|---|---|
+| `engine/src/progression.ts` | `getWeekSets`, `getWeekWeight`, `getWeekReps`, `getGiantSetProgression`, `getDeloadUnitKey`, `getPrevTrackUnit`, `getPrevCalendarWeek`, `roundToIncrement`, `getProgressionLockKey`, `getProgKey`, `parseRepsForVolume`; a macro's shape: `getMacroExtensionInfo`, `getMacroEffectiveMesoCount`, `isMesoMicroValid`, `getMacroSessionDayKeys` |
+| `engine/src/dates.ts` | added `snapToNextMonday`, `getDayBefore`, `shiftDateStr`, `dayDiff` |
+| `engine/src/nutrition.ts` | `avgDayMapField`, `findPeakWindow`, `computeTaperCurve`, `resolveNextCycleOverride`, `buildReverseDietRows`, `buildDirectionSteppedRamp` |
+| `engine/src/prompts.ts` | `buildSignalPeriods`, `formatSignalPeriodsForPrompt`, `extractJsonObject`, `condenseBlocAdvicePlans`, `condenseBlocAdviceEntry`, `formatPriorAdviceEntry`, `buildCycleReviewPrompt` |
+| `engine/src/home.ts` | `getHomeIsoDow`, `isCompleteNutritionDay`, `getWeeklyRequiredDaily`, `computeWeekPlannedAvg`, `formatAdviceSublabel`, `getHomeMetricSublabel`, `getReconciledMacroAdvice`, and `RECONCILE_CARBS_FLOOR`/`_FATS_FLOOR`/`_PROTEIN_MAX_DROP`/`_KCAL_MAX_OVERSHOOT` |
+| `engine/src/clash.ts` | `macroRange`, `findMacroClash`, `buildGoalShiftPlan` |
+| `engine/src/host.ts` | `isLocalDevHost` (deep dive §8: BLOC and Coach share one predicate) |
+
+**Not moved, though §1a lists them.** Since v8.19 two have stopped being pure leaves:
+- `getHomeMetricBadge` returns a CSS colour. Step 4 splits its status from its colour and adds
+  `computeHomeWeek`, so it moves then, with `getHomeMetricTolerance`, `SAVE_DAY_TOLERANCE`,
+  `HOME_STEPS_TOLERANCE` and `HOME_METRIC_POLARITY`. Moving it now would mean moving it twice.
+- `renumberMacroGoalSteps` reads the global `state` and relabels goals in place. That makes it a
+  mutator, so it moves in step 6.
+
+🚨 **The traps.**
+- **`macroRange` and `findMacroClash` need a "today".** They call `getMacroEndDate`, which treats a
+  cycle with no `start` as starting today (§123). In the engine they take a trailing `ctx`, and
+  their shims pass `engineCtx()`. `findMacroClash` never reaches an unstarted cycle (it skips them),
+  so its answer doesn't depend on the date. `macroRange` on an unstarted cycle does.
+  `buildGoalShiftPlan` already took `today`: it builds its own `{ today }`, and its signature is
+  unchanged.
+- **The constants are exported; `index.html` reads them.** `getDayViewRequiredDaily`'s
+  reconciliation in BLOC uses the same four floors, so `index.html` has
+  `const RECONCILE_… = BlocEngine.RECONCILE_…`, one source for both.
+  `verify-engine-build.mjs`'s "every export is a function" rule now also allows a finite number,
+  and nothing else. A number can't be changed through the export, but an exported object could
+  be, by one caller, for every other caller. That's why `SAVE_DAY_TOLERANCE` (an object) waits for
+  step 4, to be decided then.
+- **Moved unchanged means unchanged, including the untidy parts.** The TypeScript adds types only.
+  `Date − Date` stays as it was, with `as unknown as number` casts that esbuild erases. Unused
+  parameters (`getPrevTrackUnit`'s `macro`, `buildCycleReviewPrompt`'s `macro`) keep their places,
+  renamed `_macro`. The prompt text was copied from `index.html` by script, not retyped. Number
+  formatting still uses `toLocaleString()`, so Coach will format numbers in the coach's locale, and
+  that's a Phase 5 decision, not this step's. esbuild drops comments from `dist/`, so the 🚨 notes
+  are in `src/` only.
+- **A control that patches a moved function moves with it (§123).** Three did:
+  - the golden harness's `getWeekWeight` edit (§118);
+  - `verify-macro-no-overlap`'s widened `findMacroClash`;
+  - `verify-macro-start-shifts-goals`'s `buildGoalShiftPlan` without its clash lookup.
+
+  Each now patches the function **in the engine build** and loads that patched copy. Patching the
+  one-line shim in `index.html` would change nothing, and the control would fail as "could not
+  apply", or worse, pass vacuously. The source carries a 🚨 note next to each patched expression.
+- **Re-pointed at the engine (deep dive §8):** `verify-local-dev-hosts` and
+  `verify-json-extraction` run the committed build. They also fail unless `index.html`'s function
+  is exactly one shim handing its argument over, so BLOC can't quietly decide the bypass with a
+  different predicate from the tested one. Control: a local copy in place of the shim is refused.
+  `verify-auth-real` and `verify-rpe-progression` extract shims, so they import
+  `scripts/engine-global.mjs`. 🚨 **`verify-dev-bypass-real-data` needed nothing.** Deep dive §8
+  assumed it extracted `isLocalDevHost`, but it tests the boot branch (`continueBootAfterAuth`,
+  `devBypassHasRealData`, `clearAllData`, `importData`), all of which stay in BLOC.
+- **Pure is not the same as unchanged.** `verify-engine-pure` proves the engine never writes to
+  its input or reads the clock; it doesn't compare answers. The golden harness compares answers,
+  but only reaches most leaves through larger functions: it never reaches a partial extension
+  mesocycle, or every outcome of `resolveNextCycleOverride`. So **`scripts/verify-engine-leaves.mjs`**
+  runs the real v8.33 functions (`git show 8598830`, with v8.33's own engine build) and today's
+  shims and build side by side. It requires identical output, key order and the arguments
+  afterwards included, over:
+  - every case in `scripts/engine-cases.mjs`;
+  - every day of 2026–27 through the date leaves;
+  - every demo exercise × weeks 1–16 × progression type × goal type × increment.
+
+  That's 55,379 runs in each of London, New York and Auckland, and it also fails if any run throws
+  on either side, because two identical errors would "agree". Controls: a `getWeekWeight` shim that
+  drops `weightIncrement` (3,690 runs differ), and a `macroRange` shim given the wrong today.
+- **One list of inputs.** `scripts/engine-cases.mjs` (not a verify script) holds step 3's cases.
+  `verify-engine-pure` and `verify-engine-leaves` both import it, so a function added later gets
+  both checks from one entry.
+
+**Checked beyond the sweep:** headless Chromium booted v8.33 and v8.34 on localhost, seeded and in
+the demo. The in-memory state, the saved `localStorage` and all seven screens' HTML were identical,
+with no page errors, and each build fetched its own `engine/dist/bloc-engine.js?v=`. The golden file
+is unchanged. `sw.js` is unchanged.

@@ -22,11 +22,17 @@
 //
 // It extracts the REAL functions out of index.html and runs them against
 // stubs. A control strips the clash check and asserts the suite then FAILS.
+//
+// v8.34 (TECHNICAL §124): buildGoalShiftPlan, shiftDateStr and dayDiff moved
+// to the shared engine behind shims, so the control strips the clash check
+// in the ENGINE BUILD (§123: a control that patches a moved function moves
+// with it). Stripping it from the shim would change nothing.
 // ═══════════════════════════════════════════════════════════════════════
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import vm from 'node:vm';
 import './engine-global.mjs'; // v8.33 (§123): extracted functions may be shims calling BlocEngine
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -61,9 +67,12 @@ for (const n of NAMES) {
   }
 }
 
-function load(srcs, state) {
+// `engine` is the BlocEngine the shims call: the committed build, or the
+// control's patched copy of it.
+function load(srcs, state, engine = globalThis.BlocEngine) {
   const calls = [];
   const scope = {
+    BlocEngine: engine,
     state,
     now: () => new Date('2026-09-26T12:00:00'),
     save: () => calls.push('save'),
@@ -106,12 +115,12 @@ function check(name, got, want) {
   else { console.log(`✗ FAIL: ${name} — expected ${w}, got ${g}`); failures++; }
 }
 
-function suite(srcs) {
+function suite(srcs, engine) {
   const before = failures;
   const run = (over, today = '2026-09-26', mutate) => {
     const s = world();
     if (mutate) mutate(s);
-    const { api } = load(srcs, s);
+    const { api } = load(srcs, s, engine);
     return { s, api, plan: api.buildGoalShiftPlan(s.macrocycles[0], edits(over), s.goals, today) };
   };
 
@@ -167,13 +176,18 @@ console.log('— Real code —');
 suite(sources);
 
 // ── Control: without the clash check, the suite must fail ────────────────
-const noClash = { ...sources, buildGoalShiftPlan: sources.buildGoalShiftPlan.replace(/const clash = [^;]+;/, 'const clash = null;') };
+// Made in the engine build, where buildGoalShiftPlan now lives.
+const DIST = readFileSync(join(here, '..', 'engine', 'dist', 'bloc-engine.js'), 'utf8');
+const fnAt = DIST.indexOf('function buildGoalShiftPlan(');
+const fnText = fnAt < 0 ? '' : DIST.slice(fnAt, DIST.indexOf('\n  }', fnAt) + 4);
+const noClashText = fnText.replace(/const clash = [^;]+;/, 'const clash = null;');
+const noClashEngine = vm.runInNewContext(`${DIST.replace(fnText, noClashText)}\n;BlocEngine`, {});
 const realFailures = failures;
 const log = console.log; console.log = () => {};
-const controlFailures = suite(noClash);
+const controlFailures = suite(sources, noClashEngine);
 console.log = log;
 failures = realFailures;
-if (noClash.buildGoalShiftPlan === sources.buildGoalShiftPlan) {
+if (!fnText || noClashText === fnText) {
   console.log('✗ FAIL: control could not remove the clash check — its line changed; update the control');
   failures++;
 } else if (controlFailures === 0) {

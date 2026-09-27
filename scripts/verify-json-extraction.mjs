@@ -18,25 +18,33 @@
 // first balanced {…} object, string- and escape-aware so a brace inside a food
 // name cannot end the object early.
 //
-// This script runs the REAL function, read out of index.html — not a copy — so
-// it cannot drift from what ships. Run: node scripts/verify-json-extraction.mjs
+// This script runs the REAL function, not a copy, so it cannot drift from
+// what ships. v8.34 (TECHNICAL §124): extractJsonObject moved to the shared
+// engine, so it runs from the COMMITTED build (engine/dist/bloc-engine.js),
+// and checks index.html's extractJsonObject is only a shim handing the text
+// to it. Run: node scripts/verify-json-extraction.mjs
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import vm from 'node:vm';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const html = readFileSync(join(root, 'index.html'), 'utf8');
+const dist = readFileSync(join(root, 'engine', 'dist', 'bloc-engine.js'), 'utf8');
 
-const start = html.indexOf('function extractJsonObject(');
-if (start === -1) {
-  console.error('✗ extractJsonObject() not found in index.html');
+const engine = vm.runInNewContext(`${dist}\n;BlocEngine`, {});
+if (typeof engine.extractJsonObject !== 'function') {
+  console.error('✗ extractJsonObject() is not exported by the engine build');
   process.exit(1);
 }
-// The function ends at the first line that is exactly "}" at column 0.
-const end = html.indexOf('\n}\n', start);
-const src = html.slice(start, end + 3);
-const extractJsonObject = new Function(`${src}; return extractJsonObject;`)();
+const extractJsonObject = engine.extractJsonObject;
+
+// BLOC must call the engine's, not keep a copy of its own.
+const SHIM = /function extractJsonObject\(rawText\) \{\n  return BlocEngine\.extractJsonObject\(rawText\);[^\n]*\n\}/;
+const shimOk = (html.match(/function extractJsonObject\(/g) || []).length === 1 && SHIM.test(html);
+console.log(`${shimOk ? '✓' : '✗'} index.html's extractJsonObject() hands the text to the engine's`);
+const shimFailed = shimOk ? 0 : 1;
 
 const JSON_BODY = '{"items":[{"item":"Gammon steak","estimated_grams":220,"calories":420,"protein":48,"carbs":0,"fat":24,"confidence":"high"}]}';
 
@@ -116,5 +124,6 @@ try { old('No published nutrition data was found.\n\n' + JSON_BODY); } catch { o
 console.log(`${oldBroke ? '✓' : '✗'} control: the v8.12 parser does fail on the narration case`);
 if (!oldBroke) failed++;
 
+failed += shimFailed;
 console.log(failed === 0 ? '\nDONE — all checks passed' : `\nFAIL — ${failed} check(s) failed`);
 process.exit(failed === 0 ? 0 : 1);
