@@ -6583,3 +6583,54 @@ browser tab reports push available, which is correct for desktop.
 
 **The result of the on-device test goes here** once it's run: whether the existing install picked
 the manifest up, and if not, the safe re-add flow.
+
+## §109 — v8.21: a device with no data never writes to the cloud, and restores instead
+
+Found while planning §108's on-device test, before any spare install had signed in. A fresh Home
+Screen install starts with an **empty** storage container, and signing in on one did three things:
+
+1. **`maybeForceFullSyncOnSignIn()` pushed the empty state.** `syncTable()` deletes a user's rows
+   before inserting, so every mirrored table was emptied (the tables the GDPR export and BLOC Coach
+   read).
+2. **`maybeUploadOpportunisticSnapshot()` uploaded the empty state as today's snapshot.** It's one
+   file per day with `upsert`, so the empty file overwrote the day's real backup, including the one a
+   pre-flight Full sync had just made.
+3. **Nothing restored the device.** `checkSnapshotZero()`'s auto-restore (§66) only ran for a device
+   that already *had* data.
+
+Any re-add (the thing push may force on existing installs), a new phone, or a spare test install
+took this path. The worst case: re-add a phone, and the "newest backup" it restores from is the
+empty one it just wrote.
+
+**The rule now: an empty device never writes, and restores instead.**
+
+- `deviceHasRealData()` / `stateHasRealData(s)` are the same content test as §91's
+  `devBypassHasRealData()`, which gained an optional argument so one definition covers both the
+  device and a downloaded snapshot: macrocycles, body logs, nutrition logs, train logs, meals.
+- `pushStateToSupabase()` returns before any table when the device is empty. That covers the
+  sign-in sync, the debounced sync and the Full sync button.
+- `uploadSnapshot()` throws "Nothing on this device to back up yet." on an empty device. The daily
+  check swallows that; a manual backup shows it.
+- `checkSnapshotZero()`: an empty device calls `restoreNewestRealSnapshot()`. It runs once, guarded
+  by the existing `bloc_snapshot_autorestore_done` flag.
+- 🚨 **`restoreNewestRealSnapshot()` does not just take the newest file.** If an empty snapshot was
+  ever written (by the path above, before v8.21), the newest one is empty. So it walks newest-first,
+  skips anything empty or invalid, and restores the first file with real content through the
+  ordinary `restoreFromSnapshot()` (validate, save, reload).
+- **Clear all data** sets `bloc_snapshot_autorestore_done`, so a device emptied on purpose isn't
+  refilled from the cloud on its next launch.
+
+**Deliberate consequence:** after Clear all data, this device's cloud mirror is left as it was, not
+emptied. "Delete my data" (`gdpr_erase_user_data()`) is the route that empties the cloud.
+
+`scripts/verify-empty-device-guard.mjs` covers:
+
+- push and upload refused when empty, and working when not;
+- the restore choosing the newest *real* snapshot over an empty or invalid newer one;
+- a genuinely new account (no backups): nothing restored, no notice;
+- the once-only flag;
+- the unchanged v8.09 paths for a device with data;
+- the Clear all data wiring.
+
+**Its control runs v8.20** (`d3cc842`, live at the time) on an empty device: it restored nothing,
+uploaded an empty snapshot, and pushed.

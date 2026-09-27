@@ -7768,6 +7768,12 @@ async function syncTable(table, rows, userId) {
 }
 
 async function pushStateToSupabase(userId) {
+  // v8.21 (§109): an empty device never pushes. syncTable() deletes before
+  // it inserts, so pushing nothing would empty every mirrored table.
+  if (!deviceHasRealData()) {
+    console.warn('[sync] skipped: this device holds no data yet, so it must not overwrite the cloud copy');
+    return;
+  }
   const exIdContext = syncBuildExerciseIdContext();
   const { meals, items } = syncRowsMealsAndItems(userId);
 
@@ -7893,6 +7899,9 @@ async function deleteAllSnapshots(userId) {
 // described (this function itself is unchanged; only what calls it grew).
 async function uploadSnapshot() {
   if (!supabase || !_authResolvedSession) throw new Error('Not signed in');
+  // v8.21 (§109): never upload an empty device — it would overwrite today's
+  // real snapshot (one file per day, upsert).
+  if (!deviceHasRealData()) throw new Error('Nothing on this device to back up yet.');
   const userId = _authResolvedSession.user.id;
   const date = getLocalToday();
   const payload = JSON.stringify(state, null, 2);
@@ -8022,13 +8031,50 @@ function maybeFinalizeBoot() {
 // data. Any one of these collections being non-empty means a real backup was
 // restored (importData() requires macrocycles/exercises/trainLogs to be present
 // at all) or real use has happened.
-function devBypassHasRealData() {
-  const s = state || {};
+function devBypassHasRealData(src) {
+  // v8.21: optional `src` so the same content test can judge a downloaded
+  // snapshot too (stateHasRealData) — one definition of "real data".
+  const s = (src === undefined ? state : src) || {};
   return (s.macrocycles || []).length > 0
     || (s.bodyLogs || []).length > 0
     || (s.nutritionLogs || []).length > 0
     || Object.keys(s.trainLogs || {}).length > 0
     || Object.keys(s.nutritionMeals || {}).length > 0;
+}
+
+// v8.21 (§109) — the empty-device guard. 🚨 A device holding NO real data
+// must never write to the cloud. Before this, signing in on a fresh Home
+// Screen install (a re-add, a spare test install, a new phone):
+//   1. maybeForceFullSyncOnSignIn() pushed the empty state — syncTable()
+//      deletes before it inserts, so every mirrored table was emptied;
+//   2. maybeUploadOpportunisticSnapshot() uploaded the empty state as TODAY's
+//      snapshot (upsert: one file per day), overwriting the real one;
+//   3. checkSnapshotZero() never auto-restored, because it only looked at
+//      devices that already HAD data.
+// So a re-add followed by "restore the newest backup" restored nothing.
+// Now: pushStateToSupabase() and uploadSnapshot() refuse an empty device, and
+// restoreNewestRealSnapshot() pulls the newest backup that has real content.
+function stateHasRealData(s) { return devBypassHasRealData(s); }
+function deviceHasRealData() { return devBypassHasRealData(state); }
+
+// The newest cloud snapshot that actually holds data — skipping any empty
+// file (one written by the pre-v8.21 path above, say). Restores it through
+// the same path as the picker (restoreFromSnapshot: validate, save, reload).
+// Returns false if there is nothing worth restoring.
+async function restoreNewestRealSnapshot() {
+  const userId = _authResolvedSession.user.id;
+  const dates = await listSnapshots(); // newest first
+  for (const date of dates) {
+    const { data, error } = await supabase.storage.from('app-backups').download(snapshotPath(userId, date));
+    if (error) continue;
+    let parsed;
+    try { parsed = JSON.parse(await data.text()); } catch (e) { continue; }
+    if (!parsed || !parsed.macrocycles || !parsed.exercises || !parsed.trainLogs) continue;
+    if (!stateHasRealData(parsed)) continue;
+    await restoreFromSnapshot(date);
+    return true;
+  }
+  return false;
 }
 
 // Everything that used to run unconditionally at parse time (pre-Phase-5)
@@ -8716,6 +8762,20 @@ async function handleRestoreSnapshot(date) {
 async function checkSnapshotZero() {
   const alreadyHandled = localStorage.getItem('bloc_snapshot_zero_pending') || localStorage.getItem('bloc_snapshot_zero_done') || localStorage.getItem('bloc_snapshot_autorestore_done');
   if (alreadyHandled) return;
+  // v8.21 (§109) — an EMPTY device (a fresh Home Screen install, a re-add)
+  // restores the account's newest real backup. This used to return here,
+  // leaving a re-added install empty. Once only: the flag stops a device
+  // someone emptied on purpose (Clear all data sets it) being refilled.
+  if (!deviceHasRealData()) {
+    localStorage.setItem('bloc_snapshot_autorestore_done', '1');
+    try {
+      await restoreNewestRealSnapshot(); // reloads the page when it restores
+    } catch (err) {
+      console.warn('[sync] empty-device restore failed, will retry next launch:', err && err.message);
+      localStorage.removeItem('bloc_snapshot_autorestore_done');
+    }
+    return;
+  }
   const hasRealData = state.macrocycles && state.macrocycles.length > 0;
   if (!hasRealData) return;
 
@@ -29671,6 +29731,9 @@ function clearAllData() {
           };
           document.body.setAttribute('data-mode', state.mode);
           save();
+          // v8.21 (§109): a deliberately emptied device must not be refilled
+          // from the cloud on the next launch by the empty-device restore.
+          try { localStorage.setItem('bloc_snapshot_autorestore_done', '1'); } catch (e) {}
           renderSettings();
           showScreen('progress');
           // A wipe can leave a genuinely empty account (0 macrocycles)
