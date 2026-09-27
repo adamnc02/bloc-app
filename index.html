@@ -6474,7 +6474,7 @@ try {
      same-named shims. ?v= is the first 12 hex of the file's SHA-256, so a phone never pairs a
      new index.html with an older engine from its HTTP cache; scripts/verify-engine-build.mjs
      fails if it is stale. Listed in scripts/publish-files.txt. -->
-<script src="engine/dist/bloc-engine.js?v=54334ec90f06"></script>
+<script src="engine/dist/bloc-engine.js?v=c0a510b367ff"></script>
 <script>
 // ════════════════════════════════════════════════
 // DATE HELPERS
@@ -6485,10 +6485,7 @@ try {
 // and can silently land on the wrong day (or the same day twice)
 // depending on the user's timezone offset.
 function toLocalDateStr(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  return BlocEngine.toLocalDateStr(d); // v8.33 (§123): the engine's
 }
 
 // ── Tour "today" anchor ─────────────────────────────────────────────────
@@ -10316,7 +10313,7 @@ function updateSessionsPerWeekPreview() {
 // ORIGINAL plan; changing it would retroactively reflow already-completed
 // weeks' set counts (see getWeekSets below for the extension-side fix).
 function getMacroDurationWeeks(macro) {
-  return (macro.weeks || 8) * (macro.weeksPerMeso || 1) + (macro.extensionWeeks || 0);
+  return BlocEngine.getMacroDurationWeeks(macro); // v8.33 (§123): the engine's
 }
 
 // ════════════════════════════════════════════════
@@ -10375,12 +10372,15 @@ function isMesoMicroValid(macro, week, mc) {
 // its start date plus total duration in weeks. Used anywhere a cycle's end
 // needs to be compared or displayed (schedule pills, Progress cycle list).
 function getMacroEndDate(macro) {
-  // End on the Sunday of the last week: start + (weeks*7) - 1 day
-  const startDate = macro.start ? new Date(macro.start + 'T00:00:00') : now();
-  const totalCalWks = getMacroDurationWeeks(macro);
-  const endDate = new Date(startDate);
-  endDate.setDate(endDate.getDate() + totalCalWks * 7 - 1);
-  return endDate;
+  // v8.33 (§123): the engine returns the end date as a string; BLOC's call
+  // sites want a Date at local midnight. With no macro.start the old code
+  // started from now(), so the Date it returned carried the current time of
+  // day (unless the Demo Tour's anchor was set): kept exactly, with one clock
+  // read for both the date and the time. verify-engine-clock.mjs proves it.
+  const t = now();
+  const end = new Date(BlocEngine.getMacroEndDate(macro, { today: toLocalDateStr(t) }) + 'T00:00:00');
+  if (!macro.start) end.setHours(t.getHours(), t.getMinutes(), t.getSeconds(), t.getMilliseconds());
+  return end;
 }
 
 // Macrocycles must always start on a Monday — enforced on both creation
@@ -15709,26 +15709,17 @@ function saveApiKey() {
 // Returns the ISO date string of the next upcoming Monday (or today if today
 // is a Monday). Used as the anchor start date for all recommended goal sequences.
 function getNextMonday() {
-  const today = new Date(getLocalToday() + 'T00:00:00');
-  const dow = today.getDay(); // 0=Sun, 1=Mon … 6=Sat
-  const daysUntilMon = dow === 1 ? 0 : dow === 0 ? 1 : 8 - dow;
-  const monday = new Date(today);
-  monday.setDate(today.getDate() + daysUntilMon);
-  return toLocalDateStr(monday);
+  return BlocEngine.getNextMonday(engineCtx()); // v8.33 (§123): the engine's
 }
 
 // Given a start date string and a number of weeks, returns the Sunday end date.
 function getSundayAfterWeeks(startDateStr, weeks) {
-  const d = new Date(startDateStr + 'T00:00:00');
-  d.setDate(d.getDate() + weeks * 7 - 1);
-  return toLocalDateStr(d);
+  return BlocEngine.getSundayAfterWeeks(startDateStr, weeks); // v8.33 (§123): the engine's
 }
 
 // The Monday after a given Sunday end date.
 function getMondayAfter(sundayStr) {
-  const d = new Date(sundayStr + 'T00:00:00');
-  d.setDate(d.getDate() + 1);
-  return toLocalDateStr(d);
+  return BlocEngine.getMondayAfter(sundayStr); // v8.33 (§123): the engine's
 }
 
 // Materialises startDate/endDate fields in a recommendation path's goal array,
@@ -21162,11 +21153,7 @@ function getHomeMetricTolerance(field) {
 // construct from a local midnight Date, then use setDate() (never raw ms
 // arithmetic), and read back through toLocalDateStr().
 function getHomeWeekStart(dateStr) {
-  const d = new Date(dateStr + 'T00:00:00');
-  const dow = d.getDay(); // 0 = Sunday .. 6 = Saturday
-  const diffToMonday = dow === 0 ? 6 : dow - 1;
-  d.setDate(d.getDate() - diffToMonday);
-  return toLocalDateStr(d);
+  return BlocEngine.getHomeWeekStart(dateStr); // v8.33 (§123): the engine's
 }
 
 // ISO day-of-week for a date string: Monday = 1 .. Sunday = 7.
@@ -21551,13 +21538,7 @@ function renderHome(animateHero = false) {
 // The 7 calendar-date strings (Monday..Sunday) making up the week that
 // starts on weekStart.
 function getWeekDates(weekStart) {
-  const dates = [];
-  const d = new Date(weekStart + 'T00:00:00');
-  for (let i = 0; i < 7; i++) {
-    dates.push(toLocalDateStr(d));
-    d.setDate(d.getDate() + 1);
-  }
-  return dates;
+  return BlocEngine.getWeekDates(weekStart); // v8.33 (§123): the engine's
 }
 
 // A kcal/protein/carbs day only counts as a genuinely "logged" day (as
@@ -26171,6 +26152,13 @@ function getLocalToday() {
   return toLocalDateStr(now());
 }
 
+// v8.33 (§123): the EngineContext every engine function that needs "today" is
+// given. BLOC's today is getLocalToday(), so the Demo Tour's anchor (§35)
+// still applies; Coach will pass the client's own date instead.
+function engineCtx() {
+  return { today: getLocalToday() };
+}
+
 // Top-level render function for the Nutrition screen — renders the hero and
 // the per-meal diary for nutrSelectedDate, and (re)initialises the hero's
 // swipe gesture and the yesterday-copy-strip swipe gestures.
@@ -30156,7 +30144,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.32</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.33</span>`;
 }
 
 function renderSettings() {

@@ -66,6 +66,9 @@ function guard(target, writes, path = 'input') {
   const seen = new WeakMap();
   const wrap = (t, p) => {
     if (t === null || typeof t !== 'object') return t;
+    // A Date can't be proxied (its methods check the real object); a write
+    // to one (setDate) is caught by the before/after JSON comparison instead.
+    if (Object.prototype.toString.call(t) === '[object Date]') return t;
     if (seen.has(t)) return seen.get(t);
     const px = new Proxy(t, {
       get: (o, k, r) => wrap(Reflect.get(o, k, r), `${p}.${String(k)}`),
@@ -82,7 +85,20 @@ function guard(target, writes, path = 'input') {
 
 // ── The cases: export name → argument lists (each a function, so every run
 //    gets a fresh copy). Cover the branches that WRITE in the old code. ────
+const at = s => new Date(s); // a real Date for an argument: parsing, not a clock read
+const ctx = today => ({ today });
+const macroOf = () => demo().macrocycles[0];
 const CASES = {
+  // v8.33 (§123): the clock step. Dates around both 2026 UK clock changes.
+  toLocalDateStr: [() => [at('2026-03-29T00:30:00')], () => [at('2026-10-25T23:59:59')]],
+  getHomeWeekStart: [() => ['2026-08-02'], () => ['2026-03-29'], () => ['2026-10-26']],
+  getWeekDates: [() => ['2026-10-19'], () => ['2026-03-23']],
+  getSundayAfterWeeks: [() => ['2026-03-02', 6], () => ['2026-10-05', 13]],
+  getMondayAfter: [() => ['2026-10-25'], () => ['2026-03-29']],
+  getNextMonday: [() => [ctx('2026-08-02')], () => [ctx('2026-08-03')], () => [ctx('2026-10-24')]],
+  getMacroDurationWeeks: [() => [macroOf()], () => [{ id: 'x' }], () => [{ id: 'x', weeks: 3, weeksPerMeso: 2, extensionWeeks: 3 }]],
+  // No start: the engine must take "today" from ctx, never the clock.
+  getMacroEndDate: [() => [macroOf(), ctx('2026-08-02')], () => [{ id: 'x', weeks: 4 }, ctx('2026-08-02')]],
   normaliseState: [
     () => [demo()],
     () => [{}],                                                        // every default

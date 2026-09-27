@@ -10,8 +10,8 @@
 //
 // 🚨 Rules for anything added here:
 //   · Never read the clock, `state`, the DOM, localStorage or the network.
-//     "Today" comes in as a parameter (EngineContext, from the clock step on),
-//     the state as an argument.
+//     "Today" comes in as a parameter (EngineContext, dates.ts), the state as
+//     an argument.
 //   · Never write to an argument, never read the clock. scripts/
 //     verify-engine-pure.mjs runs every export over a write-trapping copy of
 //     the demo state, with `new Date()` and `Date.now()` throwing, and fails
@@ -24,3 +24,8 @@
 
 export type { BlocState, BlocProfile, BodyLog, DateStr, Macrocycle, SampleDayGroup } from './state.ts';
 export { normaliseState } from './state.ts';
+export type { EngineContext } from './dates.ts';
+export {
+  toLocalDateStr, getHomeWeekStart, getWeekDates, getSundayAfterWeeks, getMondayAfter, getNextMonday,
+  getMacroDurationWeeks, getMacroEndDate,
+} from './dates.ts';

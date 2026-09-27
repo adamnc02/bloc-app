@@ -27,6 +27,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import './engine-global.mjs'; // v8.33 (§123): extracted functions may be shims calling BlocEngine
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(here, '..', 'index.html'), 'utf8');
