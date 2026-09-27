@@ -4572,8 +4572,8 @@ try {
 <!-- Measurements (v8.16 Phase 1 — NEW sheet, D2)
      The measurement fields used to be inlined into Home, conditionally, once
      4+ days had passed since the last log. They now live here, opened from a
-     Measurements row button that is ALWAYS present on Home (the 4-day rule
-     now only controls whether that row carries a red "Due" tag).
+     Measurements row button that is ALWAYS present on Home (the due rule,
+     getMeasurementStatus() since v8.20, only controls its red "Due" tag).
 
      🚨 The fields, ids and handlers are LIFTED VERBATIM from the old inline
      block — same `home-body-waist-whole` / `home-meas-fields-cm` ids, same
@@ -6742,7 +6742,7 @@ function buildHomeTourSteps(demo) {
       body: 'Log your weigh-in and steps here. Once saved they stay on screen for the rest of the day — tap one to change it. View body logs has the full history.' },
     { targetId: 'home-measure-row', screen: 'home',
       title: 'A nudge, not a nag',
-      body: 'Waist and hip aren’t daily. Four days after your last measurement this row shows Due, and it stays until you log a fresh one.' },
+      body: 'Waist and hip aren’t daily. They’re due on day 1 of every macrocycle, then 7 days after your last one. When they are, this row shows Due until you log them.' },
     { targetId: 'home-train-preview', screen: 'home',
       title: 'Up next',
       body: 'Your next session and its targets. Start session takes you straight to it.' },
@@ -21138,10 +21138,9 @@ function goToPlanAndFlashGoal(macroGoalID) {
 // logged" pattern (see saveInlineBodyLog(), historically) — weight and
 // steps each show a simple input box every day until that field is logged
 // for today, then hide. Measurements works differently: it's a periodic
-// nag rather than a daily one, showing only once at least 4 days have
-// passed since the last waist/hip log (or none have ever been logged),
-// and persisting — not just for "today" — until a fresh measurement is
-// logged, at which point the 4-day countdown restarts from that date.
+// nag rather than a daily one. Since v8.20 the rule is getMeasurementStatus()
+// below (day 1 of every macrocycle, then every 7 days from the last log);
+// it was a flat 4 days since the last log before that.
 // v8.16 — the state of the two "edit it again" affordances. A saved weight
 // or steps entry renders as a static saved message for the rest of the day;
 // tapping it sets the flag here, which swaps that message back to a
@@ -21151,6 +21150,41 @@ const homeEditing = { weight: false, steps: false };
 function homeEditEntry(field) {
   homeEditing[field] = true;
   renderHomeLogBoxes();
+}
+
+// v8.20 — when are waist/hip measurements due? Adam, 2026-09-27: "force it
+// to be required on day 1 of every macrocycle, and then every 7 days from
+// each last log". Replaces the flat `daysSinceMeas >= 4` rule.
+//
+//   nextDueDate = the EARLIER of
+//     · lastLog + 7 days, and
+//     · the first macrocycle start date AFTER lastLog (day 1 is forced).
+//   due = today >= nextDueDate. Never logged → due today.
+//
+// 🚨 Day 1 is forced even when the last log is recent. A measurement taken
+// the Friday before a Monday start does NOT count for that cycle — every
+// cycle gets a fresh baseline (Adam, 2026-09-27). The plausible wrong
+// version is "due if 7+ days OR today is day 1", which clears the tag the
+// day after day 1 whether or not anything was logged. Comparing against the
+// start date as a date fixes both.
+//
+// 🚨 This is the ONLY copy of the rule. The push reminders (PROMPT-02) upload
+// nextDueDate from here and the server just compares dates — never
+// re-implement this in SQL, or the tag and the push will disagree.
+//
+// Pure: pass the logs, the cycles and today; dates are 'YYYY-MM-DD' strings
+// and the +7 is done in UTC so a BST/GMT change can't shift it by a day.
+function getMeasurementStatus(bodyLogs, macrocycles, today) {
+  const dates = (bodyLogs || []).filter(l => l && (l.waist || l.hip) && l.date)
+    .map(l => l.date).sort();
+  const lastDate = dates.length ? dates[dates.length - 1] : null;
+  if (!lastDate) return { due: true, nextDueDate: today, lastDate: null };
+  const [y, m, d] = lastDate.split('-').map(Number);
+  const plus7 = new Date(Date.UTC(y, m - 1, d + 7)).toISOString().slice(0, 10);
+  const nextStart = (macrocycles || []).map(mc => mc && mc.start)
+    .filter(st => st && st > lastDate).sort()[0] || null;
+  const nextDueDate = nextStart && nextStart < plus7 ? nextStart : plus7;
+  return { due: today >= nextDueDate, nextDueDate, lastDate };
 }
 
 // ── 02 LOG TODAY (v8.16) ──────────────────────────────────────────────
@@ -21167,9 +21201,9 @@ function homeEditEntry(field) {
 //   2. "View body logs" appears once today's weight is saved and stays for
 //      the rest of the day. It used to sit unconditionally in the top-right
 //      corner of the hero; it now lives here, with the logging it relates to.
-//   3. The Measurements row is ALWAYS present. The 4-day rule no longer
-//      controls whether the fields exist — it now only decides whether the
-//      row carries a red "Due" tag. The fields themselves moved into their
+//   3. The Measurements row is ALWAYS present. The due rule (now
+//      getMeasurementStatus(), v8.20) no longer controls whether the fields
+//      exist — it only decides whether the row carries a red "Due" tag. The fields themselves moved into their
 //      own sheet (modal-home-measurements).
 function renderHomeLogBoxes() {
   const el = document.getElementById('home-log-boxes');
@@ -21183,10 +21217,7 @@ function renderHomeLogBoxes() {
   const measLogs = (state.bodyLogs || [])
     .filter(l => l.waist || l.hip)
     .sort((a, b) => b.date.localeCompare(a.date));
-  const daysSinceMeas = measLogs.length
-    ? Math.floor((new Date(today + 'T00:00:00') - new Date(measLogs[0].date + 'T00:00:00')) / 86400000)
-    : Infinity; // never logged — due immediately rather than waiting on an undefined "since"
-  const measDue = daysSinceMeas >= 4;
+  const measDue = getMeasurementStatus(state.bodyLogs, state.macrocycles, today).due;
   const lastMeas = measLogs[0] || null;
 
   // Weigh-in

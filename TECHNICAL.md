@@ -4530,8 +4530,9 @@ shows the saved value, not a half-finished edit. Each save handler clears its ow
 The save flash fires only from the save handlers, never from the entrance system, so returning to
 Home does not replay a "✓ Saved" flash for something saved hours ago.
 
-**Measurements** is always present as a row, carrying a red **Due** tag once 4 days have passed since
-the last log. It opens `modal-home-measurements`, which holds the fields verbatim from the old inline
+**Measurements** is always present as a row, carrying a red **Due** tag when `getMeasurementStatus()`
+says so: **day 1 of every macrocycle, then 7 days after the last log** (v8.20; it was a flat 4 days
+since the last log before that — see §103). It opens `modal-home-measurements`, which holds the fields verbatim from the old inline
 block — the same ids (`home-body-waist-whole`, `home-meas-fields-cm`, …) and the same handlers
 (`setHomeMeasUnit()`, `setHomeFrac()`, `initHomeMeasBox()`, `saveHomeMeasurements()`). Measurements
 are stored in inches at quarter-inch precision; the entry, conversion and storage logic is not
@@ -4667,7 +4668,7 @@ so backups round-trip both ways.
 - A saved weight or steps entry persists as a saved message for the rest of the day and can be
   reopened for editing, instead of the input disappearing (§81).
 - "View body logs" is unconditional and lives in Log today rather than the hero.
-- The Measurements row is always present; the 4-day rule drives only its Due tag.
+- The Measurements row is always present; the due rule (4 days then, §103 since v8.20) drives only its Due tag.
 - The upcoming-goal treatment replaces the hero's goal line rather than occupying its own card.
 - Settings left the nav and renders no nav bar.
 - Mark/unmark deload lives only in Train's Session tools (§85).
@@ -6250,3 +6251,42 @@ Checked in headless Chromium: the animation starts on opening Settings, restarts
 re-opening and on scrolling back into view, and there are no console errors.
 `scripts/verify-brand-palette-split.mjs` checks the bar classes, the observer and the
 remove → reflow → add order.
+
+## §103 — v8.20: measurements are due on day 1 of every macrocycle, then every 7 days
+
+Adam, 2026-09-27: *"force it to be required on day 1 of every macrocycle, and then every 7 days
+from each last log (currently it's every 4 days since last log)."* This replaced both the 4-day rule
+and an earlier, never-built plan for "due every Monday".
+
+`getMeasurementStatus(bodyLogs, macrocycles, today)` is pure and returns
+`{ due, nextDueDate, lastDate }`:
+
+- `nextDueDate` is the **earlier** of *last waist/hip log + 7 days* and *the first macrocycle start
+  date after that log*;
+- `due` is `today >= nextDueDate`;
+- a user who has never logged a measurement is due today.
+
+`renderHomeLogBoxes()` takes the Home **Due** tag from it, and the Measurements row is unchanged
+otherwise.
+
+🚨 **Day 1 is forced, and it is compared as a date.** A measurement taken the Friday before a
+Monday start does **not** count for that cycle (Adam: every cycle gets a fresh baseline). The
+plausible wrong version is *"due if 7+ days OR today is day 1"*. It clears the tag on day 2 whether
+or not anything was logged, and it lets the Friday log stand in as the baseline.
+
+🚨 **This is the only copy of the rule.** The push reminders (PROMPT-02, BLOC's first push) upload
+`nextDueDate` from this function, and the server only compares dates. A second copy, in SQL or
+anywhere else, is how the tag and the push end up disagreeing.
+
+The +7 is calendar arithmetic in UTC on `YYYY-MM-DD` strings, so a BST/GMT change cannot move it by
+a day. Outside any macrocycle, only the 7-day rule applies.
+
+**The demo data no longer shows Due.** Its last measurement (27 Jul) is 6 days before the demo's
+anchor date (2 Aug), which was due under the 4-day rule and isn't under 7 days. The data was left
+alone, because its other figures are engineered around those logs. Instead, the Home tour step's
+copy was reworded so that it doesn't claim the tag is showing.
+
+`scripts/verify-measurement-due.mjs` extracts the real function and checks the 7-day boundary, the
+forced day 1 (a log before the start, a log on day 1, day 2 with nothing logged), clock changes in
+both directions, a year end, and that Home reads the function. A control running the old 4-day
+rule fails it.
