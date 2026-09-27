@@ -6581,8 +6581,13 @@ with the rows on the **existing** install is the test. The rows are read-only: t
 permission, subscribe nothing and register nothing (the verify script asserts that). A desktop
 browser tab reports push available, which is correct for desktop.
 
-**The result of the on-device test goes here** once it's run: whether the existing install picked
-the manifest up, and if not, the safe re-add flow.
+**Result, 2026-09-27: the existing install picked it up, with no re-add.** On Adam's everyday
+Home Screen icon, installed long before v8.21, after a force-quit and reopen, the version chip read
+v8.21, and Settings → About read *Opened from Home Screen: Yes · Display mode: standalone · Push
+available on this install: Yes*. So existing installs, Ella's included, should not need
+re-adding for push. The final proof, subscribing and receiving a notification, comes with the
+service worker in PROMPT-02 B1–B4. If a device ever does need re-adding, §109 makes the fresh
+install restore its newest real backup instead of overwriting the cloud.
 
 ## §109 — v8.21: a device with no data never writes to the cloud, and restores instead
 
@@ -6634,3 +6639,30 @@ emptied. "Delete my data" (`gdpr_erase_user_data()`) is the route that empties t
 
 **Its control runs v8.20** (`d3cc842`, live at the time) on an empty device: it restored nothing,
 uploaded an empty snapshot, and pushed.
+
+## §110 — v8.22: the Settings hero chip is the app's only version
+
+Adam, 2026-09-27: *"the sub label text at the top of the app info modal still stuck on v8.19, remove
+any trace of the app version here to avoid future issues, just keep the badge in the hero card."*
+
+Version strings drift because nothing checks them. The hero chip sat at v8.16 through v8.17–v8.19,
+and the App info sheet (`modal-about`'s subtitle) still said "BLOC Training App, version 8.19" in
+v8.21. That subtitle is now "BLOC Training App. Everything below is held on this device.", and the
+Settings row under it reads "What is stored on this device." rather than "Version, and …".
+
+**A release now bumps exactly three things together:** the hero chip in `renderSettingsHero()`,
+the README badge, and a new top row in the README Version History.
+`scripts/verify-version-single-source.mjs` fails if:
+
+- the chip appears more or fewer than once;
+- any other version appears in the app, meaning `vN.NN` or "version N.N" outside comments;
+- the chip, the badge and the newest history row disagree.
+
+Comments are stripped first, because the code cites the version each section arrived in, and that
+provenance is wanted.
+
+🚨 **The comment stripper opens a block comment only after whitespace or at a line start.** `/*` also
+appears inside markup (`accept="image/*"`), and the first version of the script treated it as a
+comment and swallowed everything up to the next `*/`. It reported a clean app while blind to most
+of the file. The control caught it: the script runs v8.21's `index.html`, which must fail on
+"version 8.19".
