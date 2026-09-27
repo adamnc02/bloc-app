@@ -7089,3 +7089,74 @@ verify script names it as unreachable.
 `scripts/verify-kb-pinned-sheets.mjs` finds every sheet with a search box over a list that anything
 opens, and checks all four parts of the pattern on each. Controls show v8.27's `modal-recipe-pick`
 fails and v8.27's `modal-nutr-add` passes.
+
+## §118 — v8.29: the engine's golden outputs (PROMPT-03 Phase 1a)
+
+**Why it exists.** BLOC Coach runs BLOC's engine over each client's uploaded state. PROMPT-03
+Phase 2 therefore lifts about 90 functions out of `index.html` into a shared TypeScript `engine/`.
+BLOC must behave **byte-identically** while that happens, and nothing else would notice a small
+drift: every other verify script tests a handful of rules, not the whole output. A target 2.5 lb
+off, a Home badge turning red a day early, or a prompt losing a line would all pass.
+
+**What it does.** `scripts/verify-engine-golden.mjs` extracts the real functions from `index.html`,
+runs them over `bloc-demo-data.json`, and compares every output with
+`scripts/golden/engine-golden.json`. `--write` regenerates that file. It covers the deep dive's §10
+step 0 list, plus the RPE rules (§104) and the measurement due rule (§103), which Coach will call
+for "Measurements not in". 30 runs, grouped into cases:
+
+| Case | Runs | What's recorded |
+|---|---|---|
+| `normalise` | 1 | what `ensureStateDefaults()` adds to the demo state (Phase 2's `normaliseState`, H5) |
+| `nutrition` | 3 anchors | `buildDayMap`, all three TDEE paths, BMR, age, activity multiplier, weekly insights, safety floor, maintenance recalibration, sustainable range, peak windows |
+| `nextCycle` | 3 anchors | `recommendNextCycle` (default and three overrides), eligibility, plan mode, goal steps |
+| `homeWeek` | 7 days | `renderHomeThisWeek()`'s own badges (read back from `_homeHeroCache`) and its HTML for each day, Mon 27 Jul to Sun 2 Aug, plus the reconciled advice, sub-labels and catch-up rates |
+| `targets` | 3 scenarios | every (week, session, exercise), 616 rows over 14 weeks: sets, theoretical weight and reps, `getWeekTargets`, `getWeekComplianceResult`, Train's preview, raw targets, last compliant week, the RPE step. Plus the `progressionTargets`/`progressionLocks` those reads leave behind |
+| `sessions` | 3 anchors | all sessions, next incomplete, the week agenda (§115), volume, the selected week's dates |
+| `prompts` | 3 anchors | the advice, challenge, next-cycle and cycle review prompts in full, the review payload, the check-in state, review-due, final week, the RPE summary |
+| `rpe` | 2 scenarios | the switch (`isRpeOn`, `rpeDrivesProgression` off, on and absent), the ratings and the `exercise_ratings` mirror rows |
+| `measurements` | 1 | `getMeasurementStatus()` for every day from 12 Jul to 23 Aug, with no logs, and with a cycle starting tomorrow |
+| `dates` | 3 anchors | today, the date-active cycle, the active goal and the goal for every third day, cycle end and next start, `findMacroClash`, `buildGoalShiftPlan`, `materialiseDates` |
+| `pure` | 1 | `isLocalDevHost` over 15 hostnames (lookalikes included), `extractJsonObject` |
+
+The scenarios are `demo` (as the Demo Tour loads it), `demo-cold` (no cached targets or locks, so
+every target is computed from the logs) and `demo-rpe` (RPE on, with 176 ratings in a fixed pattern
+that reaches every branch: 14 easy, 12 hold, the rest none). The anchors are 12 Jul (mid-cycle),
+**2 Aug** (the dataset's own "today", §35) and 20 Sep (after the cycle's 13 Sep end, so review-due
+and final-week are true).
+
+**How the extraction works.** `scripts/golden/extract-engine.mjs` lexes the main `<script>`,
+handling strings, nested template `${}`, comments and regex literals. It indexes every top-level
+declaration and follows references from 70 seed functions to their full closure (134 declarations
+today). The plain brace counters in the older verify scripts are fine for five functions but not
+for 134: one `{` in a string or regex returns half a function. The extractor checks itself before it
+returns. All 835 top-level functions and 174 top-level variables must be found, each must parse on
+its own, and no two may overlap. Only `save()` and `document` are stubbed.
+
+🚨 **The traps.**
+- **Regenerating to make it pass.** `--write` is only for an intended behaviour change, named in the
+  PR. The one Phase 2 plans is H7: `getActivityMultiplier` reading the date-active cycle, which moves
+  the `nutrition` and `prompts` runs. Anything else that moves is a regression until proven
+  otherwise.
+- **A pass that proves nothing.** Two controls must change the output, or the run fails:
+  - making the anchor day's weigh-in 2 lb heavier (17 runs move);
+  - editing one character of `getWeekWeight` (the `targets` runs move).
+
+  A tampered golden file fails with the exact path, e.g.
+  `homeWeek · demo · 2026-07-27 → .value.cache.badges.0.m.name`.
+- **Engine reads that write.** `getWeekTargets` and `getWeekComplianceResult` fill
+  `progressionTargets` and `progressionLocks` and call `save()` (deep dive H1–H3). So every run
+  starts from a fresh copy of the state, and records which top-level keys it changed (`mutates`) and
+  how many saves it made (`saves`). Phase 2's pure cores must leave BLOC's wrappers writing exactly
+  that. Today only the `targets` runs mutate: 131, 132 and 359 saves.
+- **The clock.** `new Date()` with no arguments and `Date.now()` are pinned to noon on the anchor,
+  `_tourAnchorDate` is set as the Demo Tour sets it, and `TZ` is forced to `Europe/London`. The
+  file comes out the same in UTC, New York and Auckland (checked), so it will also match in CI (1c).
+- **Key order and lost values.** Outputs are compared in canonical form: sorted keys, with
+  `undefined`, `NaN`, `Infinity`, `Date`, `Set` and `Map` spelled out. Phase 2's TypeScript can
+  build objects in a different order without failing, but can't turn an `undefined` into a `null`
+  unnoticed.
+- **Real data.** The golden file comes from the demo dataset only, and this repo is public. It
+  records the demo file's SHA-256 and refuses to compare if that file changes.
+
+**Size.** The golden file is 2.0 MB, about 110 KB gzipped: one line per run, so a git diff still
+names the runs that moved. Nothing in the app loads it.
