@@ -1,0 +1,15 @@
+# The files the live app needs — the ONLY files the Pages workflow publishes
+# (v8.31, TECHNICAL §121). One path per line; '#' starts a comment.
+#
+# 🚨 Every file here must reach the site byte-identical to `main`.
+# 🚨 Adding a file the app loads? Add it here in the same change, or the live
+#    app 404s on it. scripts/verify-publish-list.mjs fails if index.html,
+#    sw.js or the manifest reference a file missing from this list.
+# 🚨 Never add bloc-demo-data.dev.json (gitignored, developer-only) or .github/.
+index.html
+sw.js
+manifest.webmanifest
+icon-192.png
+icon-512.png
+icon-512-maskable.png
+bloc-demo-data.json

@@ -239,7 +239,13 @@ check('the permission prompt is only raised by a tap (registerPushHere with ask=
 
 // ── The key the app subscribes with = the key the function signs with ────
 const fnPath = join(repo, '..', 'super-duper-octo-barnacle', 'supabase', 'functions', 'bloc-reminders', 'index.ts');
-check('the Edge Function source is beside this repo (needed for the next check)', existsSync(fnPath), true);
+// v8.31 (§121): in GitHub Actions the sibling repo cannot be there — it is
+// private, and CI checks out bloc-app alone — so this one comparison runs on a
+// developer machine only (every local sweep, including the one before each
+// PR). Anywhere else a missing sibling is still a failure.
+if (!existsSync(fnPath) && process.env.GITHUB_ACTIONS === 'true') {
+  console.log('– skipped in CI: the VAPID key comparison needs super-duper-octo-barnacle beside this repo (private); it runs in every local sweep');
+} else check('the Edge Function source is beside this repo (needed for the next check)', existsSync(fnPath), true);
 if (existsSync(fnPath)) {
   const fnKey = (readFileSync(fnPath, 'utf8').match(/const VAPID_PUBLIC_KEY =\s*'([^']+)'/) || [])[1];
   check('app VAPID public key = bloc-reminders VAPID public key (§61)', constLine('BLOC_VAPID_PUBLIC_KEY'), fnKey);

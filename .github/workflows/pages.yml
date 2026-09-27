@@ -1,0 +1,79 @@
+# BLOC's first CI, and how the live site is published (v8.31, TECHNICAL §121).
+#
+#   verify  — the full scripts/verify*.mjs sweep, strict, on every PR and push.
+#   deploy  — on main only, and only after verify passes: publish EXACTLY the
+#             files in scripts/publish-files.txt to GitHub Pages.
+#
+# 🚨 Until Settings → Pages → Source is "GitHub Actions", Pages still serves
+#    `main` directly (legacy). The `pages-mode` job reads that setting and the
+#    deploy job does not run at all in legacy mode, so this workflow is safe to
+#    merge before the switch.
+# 🚨 fetch-depth: 0 — several verify scripts `git show` an older commit as
+#    their control, and fail on a shallow clone.
+name: Verify and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Full verify sweep (strict)
+        run: bash scripts/ci-verify.sh
+
+  pages-mode:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: read
+    outputs:
+      build_type: ${{ steps.mode.outputs.build_type }}
+    steps:
+      - id: mode
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bt=$(gh api "repos/${{ github.repository }}/pages" --jq .build_type)
+          echo "build_type=$bt" >> "$GITHUB_OUTPUT"
+          if [ "$bt" != "workflow" ]; then
+            echo "::notice::Pages source is '$bt', not 'GitHub Actions' — Pages is still serving main directly, so this run does not deploy."
+          fi
+
+  deploy:
+    needs: [verify, pages-mode]
+    if: needs.pages-mode.outputs.build_type == 'workflow'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Assemble the published files
+        run: bash scripts/ci-assemble-site.sh _site
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v5
