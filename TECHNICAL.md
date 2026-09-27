@@ -6766,3 +6766,43 @@ foreground event firing together can't open it twice.
 
 **Can only be tested on the live site** (a secure context, the installed app's own origin): turning
 it on, the test notification, a tap opening Measurements, and the real 07:00 nag.
+
+## §112 — v8.23 UAT: a tapped notification must not depend on `notification.data`
+
+The v8.22 UAT on Adam's iPhone: turning on and the test notification worked (the server held one
+`push_subscriptions` row and one `measurement_status` row). But **tapping the notification opened
+BLOC on Home without the Measurements sheet**, from the banner with BLOC open, and from Notification
+Centre.
+
+**Cause.** `sw.js` took the destination only from `event.notification.data` (`data.open`, and the URL
+from `data.url`). Both failures share one explanation: the click arrived with an empty `data`. Then
+the worker wrote **no note**, posted **no message**, and opened the plain scope with no `?open=`,
+so all three routes (§111) came out empty at once. `scripts/verify-push.mjs` reproduces that exactly
+by running the v8.22 worker (`be2c045`) with an empty-data click. Listly had already been routing
+its important value on the notification's **tag**, not on `data`.
+
+**Fix.** `openFor(notification)` takes the destination from:
+
+1. `data.open`, if it's there;
+2. otherwise the **tag**: every BLOC push is tagged `measurements:<device>:<local day>` by the claim,
+   or `bloc-test`;
+3. otherwise **Measurements anyway**, because until BLOC sends a second kind of notification (BLOC
+   Coach, PROMPT-03), every one of them is a measurements reminder.
+
+The URL is built from the scope, never from `data.url`. 🚨 **When PROMPT-03 adds coach pushes,
+route them by tag prefix and change the default.** A default of Measurements would then be wrong.
+
+**Evidence on the phone.** A note and a message carry `via` (`data` / `tag` / `default`), and
+`applyOpenIntent()` records `{route, via, at}` in `localStorage.bloc_last_open_intent`. Settings →
+About shows it as **Last notification tap**, for example "27 Sep 18:02 · via message (tag)", because
+a phone has no console to show which route worked and where the destination came from. The message
+route now also deletes the Cache Storage note, so it can't open the sheet a second time later.
+
+`scripts/verify-push.mjs` covers:
+
+- empty data with a measurements tag, cold (a note via the tag, `?open=measurements`);
+- empty data with the test tag, warm (a message via the tag);
+- no data and no tag (the default);
+- the v8.19-style control on v8.22's worker;
+- the message route consuming the note;
+- the new About row.

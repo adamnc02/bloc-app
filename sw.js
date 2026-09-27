@@ -60,19 +60,30 @@ self.addEventListener('push', (event) => {
 const OPEN_INTENT_CACHE = 'bloc-open-intent'
 const OPEN_INTENT_PATH = '__open-intent'
 
+// 🚨 v8.23 (§112): the destination must NOT depend on notification.data. In
+// v8.22 it did, and on Adam's iPhone a tap — from the banner with BLOC open,
+// and from Notification Centre — opened BLOC on Home with no sheet: every
+// route came out empty, consistent with iOS handing the click an empty
+// `data`. So: `data.open` if it is there, else the TAG (every BLOC push is
+// tagged 'measurements:<device>:<day>' or 'bloc-test' — Listly also routes on
+// its tag), else Measurements anyway, because until BLOC sends a second kind
+// of notification (BLOC Coach, PROMPT-03) every one of them is a measurements
+// reminder. `via` records which it was, for the Settings → About readout.
+function openFor(notification) {
+  const data = notification.data || null
+  if (data && data.open === 'measurements') return { open: 'measurements', via: 'data' }
+  const tag = notification.tag || ''
+  if (/^measurements:/.test(tag) || tag === 'bloc-test') return { open: 'measurements', via: 'tag' }
+  return { open: 'measurements', via: 'default' }
+}
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const scope = self.registration.scope
-  let target
-  try {
-    target = new URL(event.notification.data?.url || scope, scope)
-  } catch {
-    target = new URL(scope)
-  }
-  // Only ever somewhere inside BLOC.
-  const inside = target.href.startsWith(scope) ? target : new URL(scope)
-  const open = event.notification.data?.open === 'measurements' ? 'measurements' : null
-  if (open && !inside.searchParams.has('open')) inside.searchParams.set('open', open)
+  const { open, via } = openFor(event.notification)
+  // Built from the scope, never from data.url: only ever somewhere inside BLOC.
+  const inside = new URL(scope)
+  inside.searchParams.set('open', open)
   const url = inside.href
 
   const note = open
@@ -81,7 +92,7 @@ self.addEventListener('notificationclick', (event) => {
         .then((c) =>
           c.put(
             new URL(OPEN_INTENT_PATH, scope).href,
-            new Response(JSON.stringify({ open, at: Date.now() }), { headers: { 'Content-Type': 'application/json' } }),
+            new Response(JSON.stringify({ open, via, at: Date.now() }), { headers: { 'Content-Type': 'application/json' } }),
           ),
         )
         .catch(() => {})
@@ -93,7 +104,7 @@ self.addEventListener('notificationclick', (event) => {
       .then((windows) => {
         for (const w of windows) {
           if (w.url.startsWith(scope)) {
-            if (open) w.postMessage({ type: 'bloc:open', open })
+            if (open) w.postMessage({ type: 'bloc:open', open, via })
             return w.focus()
           }
         }

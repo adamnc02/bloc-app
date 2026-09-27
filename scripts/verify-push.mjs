@@ -29,6 +29,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { webcrypto } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '..');
 const html = readFileSync(join(repo, 'index.html'), 'utf8');
@@ -88,7 +89,7 @@ check('open-intent note path agrees (sw.js = index.html)', swConst('OPEN_INTENT_
 check('the message type agrees (bloc:open)', /type: 'bloc:open'/.test(sw) && /e\.data\.type === 'bloc:open'/.test(html), true);
 
 // Run the real sw.js against a simulated worker.
-async function runClick({ windows, data }) {
+async function runClick({ windows, data, tag = 'measurements:ps_x:2026-09-28', swSrc = sw }) {
   const listeners = {};
   const log = { notes: [], messages: [], focused: 0, opened: [], shown: [] };
   const scope = 'https://adamnc02.github.io/bloc-app/';
@@ -104,9 +105,9 @@ async function runClick({ windows, data }) {
   };
   const caches = { open: async name => ({ put: async (key, res) => log.notes.push({ name, key, body: JSON.parse(await res.text()) }) }) };
   class Resp { constructor(b) { this.b = b; } async text() { return this.b; } }
-  new Function('self', 'caches', 'Response', 'URL', sw)(self, caches, Resp, URL);
+  new Function('self', 'caches', 'Response', 'URL', swSrc)(self, caches, Resp, URL);
   let waited;
-  listeners.notificationclick({ notification: { close: () => {}, data, tag: 'measurements:ps_x:2026-09-28' }, waitUntil: p => { waited = p; } });
+  listeners.notificationclick({ notification: { close: () => {}, data, tag }, waitUntil: p => { waited = p; } });
   await waited;
   // and a push, to see what it shows
   let pushWait;
@@ -121,11 +122,29 @@ check('cold tap: the note is written (route 3) with open=measurements and a time
 check('cold tap: opens BLOC at ?open=measurements (route 1)', cold.opened, ['https://adamnc02.github.io/bloc-app/?open=measurements']);
 const warm = await runClick({ windows: ['https://adamnc02.github.io/bloc-app/'], data: { url: 'https://adamnc02.github.io/bloc-app/?open=measurements', open: 'measurements' } });
 check('warm tap: messages the open window (route 2) and focuses it, no second window',
-  [warm.messages, warm.focused, warm.opened], [[{ type: 'bloc:open', open: 'measurements' }], 1, []]);
+  [warm.messages, warm.focused, warm.opened], [[{ type: 'bloc:open', open: 'measurements', via: 'data' }], 1, []]);
 const other = await runClick({ windows: ['https://adamnc02.github.io/listly/'], data: { url: 'https://adamnc02.github.io/bloc-app/?open=measurements', open: 'measurements' } });
 check('a Listly window on the same origin is NOT reused; BLOC opens its own', [other.messages.length, other.opened.length], [0, 1]);
 const evil = await runClick({ windows: [], data: { url: 'https://evil.example/', open: 'measurements' } });
 check('a URL outside BLOC is replaced by BLOC\'s own', evil.opened, ['https://adamnc02.github.io/bloc-app/?open=measurements']);
+// 🚨 v8.23 (§112): the case that broke on Adam's iPhone — a click whose
+// notification.data is EMPTY. The destination must come from the tag, or the
+// default, on every route.
+const noDataCold = await runClick({ windows: [], data: null, tag: 'measurements:ps_x:2026-09-28' });
+check('empty data, measurements tag, cold: note written via the tag, opens ?open=measurements',
+  [noDataCold.notes[0]?.body.open, noDataCold.notes[0]?.body.via, noDataCold.opened], ['measurements', 'tag', ['https://adamnc02.github.io/bloc-app/?open=measurements']]);
+const noDataWarm = await runClick({ windows: ['https://adamnc02.github.io/bloc-app/'], data: undefined, tag: 'bloc-test' });
+check('empty data, test-notification tag, warm: messages the window via the tag',
+  noDataWarm.messages, [{ type: 'bloc:open', open: 'measurements', via: 'tag' }]);
+const nothing = await runClick({ windows: [], data: null, tag: '' });
+check('empty data AND no tag: still opens Measurements (the only kind BLOC sends), via default',
+  [nothing.notes[0]?.body.via, nothing.opened], ['default', ['https://adamnc02.github.io/bloc-app/?open=measurements']]);
+// CONTROL: the v8.22 worker, given the same empty-data click, opened no sheet.
+const v822 = execFileSync('git', ['show', 'be2c045:sw.js'], { cwd: repo, encoding: 'utf8' });
+const oldCold = await runClick({ windows: [], data: null, tag: 'measurements:ps_x:2026-09-28', swSrc: v822 });
+check('CONTROL: v8.22\'s worker, with empty data, wrote no note and dropped ?open= (the bug)',
+  [oldCold.notes.length, oldCold.opened], [0, ['https://adamnc02.github.io/bloc-app/']]);
+
 check('the push shows its title and body, with the icon', [cold.shown[0][0], cold.shown[0][1].body, cold.shown[0][1].icon], ['Measurements due', 'Log your waist and hip today.', 'icon-192.png']);
 
 // ── The page side of the routes ──────────────────────────────────────────
@@ -152,7 +171,9 @@ function page(noteBody) {
 {
   const now = Date.now();
   const p = page({ open: 'measurements', at: now - 60 * 1000 });
-  check('route 3: a fresh note opens Measurements', await p.fns.takePendingOpenIntent(now), 'measurements');
+  check('route 3: a fresh note opens Measurements (and says where the worker found it)', await p.fns.takePendingOpenIntent(now), { open: 'measurements', via: 'data' });
+  const viaTag = page({ open: 'measurements', via: 'tag', at: now });
+  check('route 3: the note carries `via` through', (await viaTag.fns.takePendingOpenIntent(now)).via, 'tag');
   check('route 3: …and is deleted (it never opens twice)', p.key in p.store, false);
   const stale = page({ open: 'measurements', at: now - 6 * 60 * 1000 });
   check('route 3: a note older than 5 minutes is ignored', await stale.fns.takePendingOpenIntent(now), null);
@@ -176,6 +197,8 @@ const signOut = extract(html, 'async function signOutUser(');
 check('sign-out unregisters this device BEFORE signing out', signOut.indexOf('forgetThisPushDevice()') > -1 && signOut.indexOf('forgetThisPushDevice()') < signOut.indexOf('auth.signOut()'), true);
 check('boot checks for a tapped notification', /continueBootAfterAuth\(\);\s*\n\s*checkOpenIntents\(\)/.test(extract(html, 'function maybeFinalizeBoot(')), true);
 check('the worker is registered on every load, with scope ./', /registerBlocServiceWorker\(\);/.test(html) && constLine('BLOC_SW_SCOPE') === './', true);
+check('the message route also consumes the note (no second open later)', /takePendingOpenIntent\(\)\.finally\(\(\) => applyOpenIntent\(e\.data\.open, 'message'/.test(html), true);
+check('Settings → About shows the last notification tap', /statRow\('Last notification tap', lastOpenIntentText\(\)\)/.test(html), true);
 check('the permission prompt is only raised from turnOnPushHere (a tap)', (html.match(/Notification\.requestPermission\(/g) || []).length === 1 && /Notification\.requestPermission\(/.test(extract(html, 'async function turnOnPushHere(')), true);
 
 // ── The key the app subscribes with = the key the function signs with ────
