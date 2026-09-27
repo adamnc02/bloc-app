@@ -7282,3 +7282,66 @@ Supabase, and §91 relies on its saves. So it keeps its v8.29 behaviour exactly.
 - In headless Chromium with `?auth=real`: `enterDemoMode()`, then Train, Progress, Plan, Home and a
   direct `save()`. Nothing was stored, no sync was queued, and no request reached Supabase.
   `exitDemoMode()` then wrote the empty state.
+
+## §121 — v8.31: Pages publishes from a GitHub Actions workflow, and BLOC has CI (PROMPT-03 Phase 1c)
+
+**Why.** BLOC Coach will be built with Vite and published at `/bloc-app/coach/`, and the Phase 2
+engine is built too. Neither can come from GitHub Pages' "serve `main` as it is" mode (build type
+`legacy`). The switch also gives BLOC its **first CI**: before this, nothing ran the verify scripts
+except a person running them by hand.
+
+**The workflow** (`.github/workflows/pages.yml`):
+
+| Job | Runs on | What it does |
+|---|---|---|
+| `verify` | every PR and every push to `main` | `scripts/ci-verify.sh`: the full `scripts/verify*.mjs` sweep, strict (a non-zero exit, a ✗, `FAIL` or `Error:` fails it), and the number of scripts run must equal the number on disk |
+| `pages-mode` | pushes to `main` and manual runs | reads the repo's Pages `build_type` |
+| `deploy` | only when `verify` passed **and** the build type is `workflow` | `scripts/ci-assemble-site.sh` copies exactly the files in `scripts/publish-files.txt` into `_site`, then `upload-pages-artifact` and `deploy-pages` publish it |
+
+**What is published: the files the app needs, byte-identical, and nothing else.** That means
+`index.html`, `sw.js`, `manifest.webmanifest`, `icon-192.png`, `icon-512.png`,
+`icon-512-maskable.png` and `bloc-demo-data.json`. The legacy mode served the whole repo, and
+`README.md`, `TECHNICAL.md` and `scripts/` are no longer served (Adam agreed, 2026-09-28). They're
+public on GitHub, and the app never loads them. Phase 2 adds the engine build to the list, and
+Phase 5 adds `coach/dist`.
+
+🚨 **The traps.**
+- **A file the app loads but the list forgets is a 404 on the live site.** The deep dive's first
+  list (D7, at v8.19) would have dropped `sw.js`, the manifest and the icons, which means every
+  phone's 07:00 push and the Home Screen install. `scripts/verify-publish-list.mjs` finds every
+  same-origin file that `index.html`, `sw.js` and the manifest name, requires each one on the list,
+  and fails on D7's list and on a list without `sw.js`. **Add a new asset to the list in the same
+  change that first references it.** It skips comment lines only, because a code comment citing
+  `scripts/…` isn't a load.
+- **Never published:** `bloc-demo-data.dev.json` (gitignored, dev-only), `.github/`, `scripts/`,
+  `*.md` and dotfiles. The same script refuses them.
+- **`fetch-depth: 0`.** Nine verify scripts `git show` an older commit as their control
+  (`d3c824f`, `ba8fcc6`, …), and a shallow clone fails them. All of those commits are on `main`.
+- **Merge is no longer automatically deploy.** A merge whose sweep fails is **not** published. Read
+  the run, don't assume.
+- **The workflow never deploys while Pages is still `legacy`.** So it was safe to merge before
+  Adam flipped the setting: the `deploy` job doesn't run at all.
+
+**The switch (done once, 2026-09-28).** GitHub doesn't document what a site serves between
+changing the source and the first Actions deployment. The evidence says the last deployment keeps
+serving: legacy mode already publishes through an Actions run ("pages build and deployment", into
+the `github-pages` environment, whose one allowed branch is `main`), and the setting only changes
+which workflow deploys. The order, planned for a gap anyway:
+1. Merge the workflow. Legacy publishes that merge as before, and the workflow's `verify` runs and
+   its `deploy` is skipped.
+2. Adam: **Settings → Pages → Build and deployment → Source → GitHub Actions**. Only that: no
+   suggested workflow is needed.
+3. Run the workflow at once: `gh workflow run pages.yml --ref main`, or Actions → Verify and deploy
+   → Run workflow.
+4. Prove it by artefact:
+   - `curl` each of the 7 files from the live URL and `cmp` it against `git show main:<file>`,
+     `sw.js` above all;
+   - `Content-Type` of `sw.js` (`application/javascript`) and `manifest.webmanifest`
+     (`application/manifest+json`) unchanged;
+   - `README.md` and `scripts/…` now 404;
+   - re-check after a minute.
+5. Adam opens BLOC from the Home Screen: notifications still on (push can't be tested off the live
+   https app, §111).
+
+**Rollback:** Settings → Pages → Source → **Deploy from a branch**, `main`, `/ (root)`. Legacy
+rebuilds from `main` within a minute or two.
