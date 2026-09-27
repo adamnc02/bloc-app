@@ -6514,3 +6514,13 @@ with Home rendered first. `scripts/verify-rpe-progression.mjs` checks:
 - week 1, an easy rating, a lock, an unevaluated miss, a deload, the reps route and cardio;
 - that the preview writes no cache entry;
 - the wiring.
+
+## §107 — v8.20 UAT: superset members no longer carry a Deload tag
+
+v8.16's UAT removed the per-card **Deload** tag. A deload belongs to the week, and the hero's banner
+already says so once (`deloadTagHtml` is deliberately empty, §85). The superset card builds its
+member rows' tags separately (`mTags`), and that branch still returned an ice-blue "Deload" tag for
+every member. Adam found it in the v8.20 UAT. The member rows now return nothing in a deload, the same
+as a solo card. The README's Train section still said "Replaced by a Deload tag"; that line is fixed
+too. `scripts/verify-rpe-progression.mjs` asserts that no `>Deload</span>` remains anywhere in
+`renderTrainDay()`, and the previous commit fails that check.

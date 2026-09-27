@@ -404,6 +404,7 @@ check('renderHomeUpNext prints the target reps, not ex.reps', /\$\{sets\} \\u00d
 check('rating refreshes the Session tools row (UAT step 6)', /refreshTrainRpeRowSub\(/.test(extractFrom(source, 'function setRpeRating(')), true);
 check('closing the sheet refreshes the Session tools row (UAT step 6)', /refreshTrainRpeRowSub\(/.test(extractFrom(source, 'function closeRpeSheet(')), true);
 check('the row and the refresh share one text function', /id="train-rpe-row-sub">\$\{rpeRowSubText\(/.test(source), true);
+check('no per-exercise Deload tag anywhere in Train (the hero banner says it; v8.20 UAT)', />Deload<\/span>/.test(extractFrom(source, 'function renderTrainDay(')), false);
 check('the RPE sheet routes every dismissal through closeRpeSheet', /'modal-rpe': 'closeRpeSheet'/.test(source), true);
 
 console.log(failures ? `\n✗ ${failures} check(s) failed` : '\nALL CHECKS PASS');

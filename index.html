@@ -23377,8 +23377,11 @@ function renderTrainDay(macro) {
         // reps and last week's log, it read as part of the neighbouring figure.
         // The member's own flags, as tags beside its name — the same vocabulary
         // as a solo card's, one line shorter.
+        // 🚨 No Deload tag here: a deload belongs to the WEEK, and the hero's banner
+        // already says so. v8.16's UAT removed it from solo cards (deloadTagHtml)
+        // but missed these member rows, which still badged every member (v8.20 UAT).
         const mTags = (md.isDeloadSession
-          ? '<span class="ex-tag" style="--tag-c:var(--ice-blue);">Deload</span>'
+          ? ''
           : isMaintCycle
           ? ''
           : md.isLocked
