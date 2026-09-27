@@ -8352,7 +8352,9 @@ async function takePendingOpenIntent(now = Date.now()) {
     await cache.delete(key);
     const body = await hit.json();
     if (body.open !== 'measurements' || typeof body.at !== 'number') return null;
-    return now - body.at <= BLOC_OPEN_INTENT_MAX_AGE_MS ? 'measurements' : null;
+    // v8.23: returns { open, via } — `via` says where the worker found the
+    // destination ('data' | 'tag' | 'default'), for the About readout (§112).
+    return now - body.at <= BLOC_OPEN_INTENT_MAX_AGE_MS ? { open: 'measurements', via: body.via || 'data' } : null;
   } catch (e) { return null; }
 }
 // Waits until the app is actually showing (the splash has handed over and the
@@ -8363,12 +8365,25 @@ function whenAppReady(fn, tries = 0) {
   if (tries > 100) return; // ~20s: give up quietly
   setTimeout(() => whenAppReady(fn, tries + 1), 200);
 }
-function applyOpenIntent(target) {
+// v8.23 (§112): records which route delivered the tap and where the worker
+// found the destination, so Settings → About can show it — the evidence a
+// phone test needs, since a phone has no console.
+function applyOpenIntent(target, route, via) {
   if (target !== 'measurements') return;
   whenAppReady(() => {
     showScreen('home');
     openHomeMeasurements();
+    try { localStorage.setItem('bloc_last_open_intent', JSON.stringify({ route: route || '?', via: via || '?', at: Date.now() })); } catch (e) {}
   });
+}
+function lastOpenIntentText() {
+  try {
+    const d = JSON.parse(localStorage.getItem('bloc_last_open_intent') || 'null');
+    if (!d || !d.at) return 'None yet';
+    const t = new Date(d.at);
+    const when = t.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' ' + t.toTimeString().slice(0, 5);
+    return `${when} · via ${d.route} (${d.via})`;
+  } catch (e) { return 'None yet'; }
 }
 let _openIntentBusy = false;
 async function checkOpenIntents() {
@@ -8390,8 +8405,8 @@ async function checkOpenIntentsOnce() {
   }
   // Route 3: the note (always read, so it is always deleted).
   const fromNote = await takePendingOpenIntent();
-  const target = fromUrl || fromNote;
-  if (target) applyOpenIntent(target);
+  if (fromUrl) applyOpenIntent(fromUrl, 'url', fromNote ? fromNote.via : 'url');
+  else if (fromNote) applyOpenIntent(fromNote.open, 'note', fromNote.via);
 }
 
 // v8.21 (§109) — the empty-device guard. 🚨 A device holding NO real data
@@ -29922,7 +29937,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.22</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.23</span>`;
 }
 
 // v8.21 (§108) — what THIS install supports, read-only. It exists for the
@@ -29938,7 +29953,8 @@ function installReadinessRows(statRow) {
   const pushable = 'Notification' in window && 'PushManager' in window && 'serviceWorker' in navigator;
   return statRow('Opened from Home Screen', standalone ? 'Yes' : 'No')
     + statRow('Display mode', displayMode)
-    + statRow('Push available on this install', pushable ? 'Yes' : 'No');
+    + statRow('Push available on this install', pushable ? 'Yes' : 'No')
+    + statRow('Last notification tap', lastOpenIntentText());
 }
 
 function renderSettings() {
@@ -30872,7 +30888,11 @@ window.addEventListener('DOMContentLoaded', function() {
   registerBlocServiceWorker();
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', e => {
-      if (e.data && e.data.type === 'bloc:open') applyOpenIntent(e.data.open);
+      // Route 2. Also consume the note the worker wrote alongside, or it would
+      // open the sheet a second time the next time BLOC comes to the front.
+      if (e.data && e.data.type === 'bloc:open') {
+        takePendingOpenIntent().finally(() => applyOpenIntent(e.data.open, 'message', e.data.via || 'data'));
+      }
     });
   }
   document.addEventListener('visibilitychange', () => {
