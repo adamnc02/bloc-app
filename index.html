@@ -2651,6 +2651,17 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 /* The quiet variant carries information rather than a flag ("Last wk: ↑ reps"),
    so it takes no colour of its own. */
 .ex-tag-quiet { background: var(--surface2); color: var(--text3); font-weight: 600; }
+/* v8.20 — the end-of-session effort sheet (§104). One row per exercise, a
+   1–10 scale as ten equal cells; wraps to 5 × 2 below 380px so no cell drops
+   under a 40px tap target. */
+.rpe-row { padding: 12px 0; border-top: 1px solid var(--divider); }
+.rpe-row:first-child { border-top: none; }
+.rpe-row-name { font-weight: 700; font-size: 15px; margin-bottom: 8px; display: flex; justify-content: space-between; gap: 8px; }
+.rpe-row-state { font-weight: 600; font-size: 13px; color: var(--text3); }
+.rpe-scale { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; margin-bottom: 0; }
+.rpe-scale .toggle-btn { min-height: 40px; padding: 6px 0; font-size: 14px; }
+.rpe-scale-ends { display: flex; justify-content: space-between; font-size: 12px; color: var(--text3); margin-top: 4px; }
+@media (max-width: 379px) { .rpe-scale { grid-template-columns: repeat(5, 1fr); } }
 
 /* 40×40 square auto-complete button. It is 40 rather than 44 because it sits
    inside a card (see the shape table). */
@@ -4569,11 +4580,29 @@ try {
   </div>
 </div>
 
+<!-- Effort ratings (v8.20, §104) — ONE sheet per session, opened when the
+     session's last exercise completes (Adam, 2026-09-27: one interruption per
+     session, not one per exercise). Every way out — ✕, swipe, backdrop, Done —
+     routes through closeRpeSheet() (MODAL_DISMISS_HANDLERS), which stores
+     { rpeSkipped: true } for anything left unrated: "closing assumes it was
+     fine". -->
+<div class="modal-overlay" id="modal-rpe">
+  <div class="modal-sheet" data-modal="modal-rpe">
+    <div class="modal-handle-row"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeRpeSheet()">&#10005;</button>
+    </div>
+    <div class="modal-title">How hard was it?</div>
+    <div class="modal-sub">Rate each exercise from 1 to 10. Anything you leave counts as fine.</div>
+    <div id="rpe-sheet-list"></div>
+    <button class="btn btn-accent btn-block" style="margin-top:16px;" onclick="closeRpeSheet()">Done</button>
+  </div>
+</div>
+
 <!-- Measurements (v8.16 Phase 1 — NEW sheet, D2)
      The measurement fields used to be inlined into Home, conditionally, once
      4+ days had passed since the last log. They now live here, opened from a
-     Measurements row button that is ALWAYS present on Home (the 4-day rule
-     now only controls whether that row carries a red "Due" tag).
+     Measurements row button that is ALWAYS present on Home (the due rule,
+     getMeasurementStatus() since v8.20, only controls its red "Due" tag).
 
      🚨 The fields, ids and handlers are LIFTED VERBATIM from the old inline
      block — same `home-body-waist-whole` / `home-meas-fields-cm` ids, same
@@ -6582,6 +6611,8 @@ function ensureStateDefaults() {
   // always compares against the same numbers rather than silently
   // recomputing a different (and usually wrong) target.
   if (!state.progressionTargets) state.progressionTargets = {};
+  // v8.20 — effort ratings (RPE), see getRpeStep(). Record<rpeKey, {rpe} | {rpeSkipped}>.
+  if (!state.rpe) state.rpe = {};
   if (!state.exerciseHistory) state.exerciseHistory = {};
   if (!state.exerciseTrackingMode) state.exerciseTrackingMode = {};
   if (!state.profile) state.profile = {};
@@ -6742,7 +6773,7 @@ function buildHomeTourSteps(demo) {
       body: 'Log your weigh-in and steps here. Once saved they stay on screen for the rest of the day — tap one to change it. View body logs has the full history.' },
     { targetId: 'home-measure-row', screen: 'home',
       title: 'A nudge, not a nag',
-      body: 'Waist and hip aren’t daily. Four days after your last measurement this row shows Due, and it stays until you log a fresh one.' },
+      body: 'Waist and hip aren’t daily. They’re due on day 1 of every macrocycle, then 7 days after your last one. When they are, this row shows Due until you log them.' },
     { targetId: 'home-train-preview', screen: 'home',
       title: 'Up next',
       body: 'Your next session and its targets. Start session takes you straight to it.' },
@@ -6957,6 +6988,7 @@ function exitDemoMode() {
     recipes: [], supersets: {}, profile: {}, deloads: {},
     progressionLocks: {},
     progressionTargets: {},
+    rpe: {},
     exerciseHistory: {}, exerciseTrackingMode: {},
     insightsRollup: { completedCycles: [] },
     blocAdvice: null,
@@ -7460,6 +7492,10 @@ function syncRowsMacrocycles(userId) {
     goal_type: m.goalType || null, weight_increment: m.weightIncrement ?? null,
     split_type: m.splitType, days: m.days, day_labels: m.dayLabels,
     use_microcycles: !!m.useMicrocycles,
+    // v8.20 — migration 0018. 🚨 That migration must be LIVE before this ships:
+    // syncTable() deletes first, so an insert failing on an unknown column
+    // would empty macrocycles and cascade away exercises and exercise_logs.
+    rpe: m.rpe === true,
   }));
 }
 
@@ -7502,6 +7538,42 @@ function syncRowsExerciseLogs(userId, exIdContext) {
       week: parsed.week, day_key: parsed.day + (parsed.microcycle || ''),
       set_index: parsed.setIndex, weight: log.weight ?? null, reps: log.reps ?? null,
       done: !!log.done,
+    });
+  }
+  return rows;
+}
+
+// v8.20 — state.rpe → exercise_ratings (migration 0018, TECHNICAL §104).
+// Key `${macroId}_${week}_${dayKey}_${exId}` — a set-log key with no set
+// index. Exactly one of rpe / skipped per row, matching the table's CHECK:
+// a skip is never sent as a number.
+function syncParseRpeKey(key, exIdContext) {
+  for (const exId in exIdContext) {
+    const marker = '_' + exId;
+    if (!key.endsWith(marker)) continue;
+    const prefix = key.slice(0, key.length - marker.length);
+    const { macroId, day, microcycle } = exIdContext[exId];
+    const dayToken = day + (microcycle || '');
+    if (!prefix.startsWith(macroId + '_') || !prefix.endsWith('_' + dayToken)) continue;
+    const week = parseInt(prefix.slice((macroId + '_').length, prefix.length - ('_' + dayToken).length), 10);
+    if (isNaN(week) || week < 1) continue;
+    return { exerciseId: exId, macroId, dayToken, week };
+  }
+  return null;
+}
+
+function syncRowsExerciseRatings(userId, exIdContext) {
+  const rows = [];
+  for (const key in (state.rpe || {})) {
+    const r = state.rpe[key];
+    const rated = r && typeof r.rpe === 'number' && r.rpe >= 1 && r.rpe <= 10;
+    if (!rated && !(r && r.rpeSkipped)) continue;
+    const parsed = syncParseRpeKey(key, exIdContext);
+    if (!parsed) continue; // orphaned key (exercise deleted) — skip rather than guess
+    rows.push({
+      user_id: userId, macrocycle_id: parsed.macroId, exercise_id: parsed.exerciseId,
+      week: parsed.week, day_key: parsed.dayToken,
+      rpe: rated ? Math.round(r.rpe) : null, skipped: !rated,
     });
   }
   return rows;
@@ -7702,6 +7774,7 @@ async function pushStateToSupabase(userId) {
     ['macrocycles', syncRowsMacrocycles(userId)],
     ['exercises', syncRowsExercises(userId, exIdContext)],
     ['exercise_logs', syncRowsExerciseLogs(userId, exIdContext)],
+    ['exercise_ratings', syncRowsExerciseRatings(userId, exIdContext)],
     ['deloads', syncRowsDeloads(userId)],
     ['progression_locks', syncRowsProgressionLocks(userId, exIdContext)],
     ['exercise_history', syncRowsExerciseHistory(userId)],
@@ -11083,6 +11156,12 @@ function getWeekSets(ex, week, totalWeeks) {
 // (they used to, before this was consolidated into one function).
 function getWeekWeight(ex, week, progType, goalType, weightIncrement) {
   if (progType !== 'weight') return ex.startWeight;
+  // v8.20 — a maintenance cycle has no progression, so its look-ahead must not
+  // climb either. Before this, every week with no log to build on (Train
+  // looking ahead, the Plan preview, Home's Up next) showed startWeight +
+  // increment × (week − 1) on a maintenance cycle, while the logged path
+  // correctly carried last week's actual forward with a jump of 0 (§104).
+  if (goalType === 'maintenance') return ex.startWeight;
   // Jump per mesocycle based on macrocycle type — mirrors the weightJump
   // logic in exProgData() so the Plan preview and Train recommendations
   // never disagree. weightIncrement is the user-configurable per-session
@@ -11100,8 +11179,9 @@ function getWeekWeight(ex, week, progType, goalType, weightIncrement) {
 // Theoretical target reps for a given week — returns ex.reps unchanged unless
 // progType is 'reps', in which case it adds +1 rep per week (handling both
 // plain numbers and 'N-M' ranges).
-function getWeekReps(ex, week, progType) {
+function getWeekReps(ex, week, progType, goalType) {
   if (progType !== 'reps') return ex.reps;
+  if (goalType === 'maintenance') return ex.reps; // v8.20 — no progression, see getWeekWeight
   const match = ex.reps.match(/(\d+)/);
   if (!match) return ex.reps;
   const base = parseInt(match[1]);
@@ -11230,7 +11310,7 @@ function getWeeksSinceLastDeload(macro, week, dayKey) {
 // are always weight-only progression, so this returns a fixed base derived
 // from ex.reps regardless of week. Giant sets add +10 reps per week when
 // reps progression is chosen.
-function getGiantSetProgression(ex, week) {
+function getGiantSetProgression(ex, week, goalType) {
   // giant set: +10 reps/week (mesoweek fallback only — actual logged reps
   // take priority wherever they're available, see exProgData); pause set:
   // reps don't increase (weight only). Returns a bare number string (no
@@ -11240,7 +11320,9 @@ function getGiantSetProgression(ex, week) {
     const base = parseInt(ex.reps.match(/\d+/)?.[0]) || 20;
     return String(base); // fixed — progression is weight only
   }
-  const add = 10; // giant set: +10 per week (mesoweek fallback, e.g. week 2 with no prior log)
+  // giant set: +10 per week (mesoweek fallback, e.g. week 2 with no prior log);
+  // none on a maintenance cycle (v8.20, see getWeekWeight).
+  const add = goalType === 'maintenance' ? 0 : 10;
   const base = parseInt(ex.reps.match(/\d+/)?.[0]) || 20;
   return String(base + add * (week - 1));
 }
@@ -11311,7 +11393,9 @@ function computeRawSuggestedTargets(macro, week, dayKey, ex) {
   const isMaintenance = macro.goalType === 'maintenance';
   const lightJump = isMaintenance ? 0 : parseFloat(macro.weightIncrement || '2.5');
   const heavyJump = isMaintenance ? 0 : (isGain ? 10 : 5);
-  const weightJump = ex.isHeavyLeg ? heavyJump : lightJump;
+  // v8.20: the RPE step scales the jump (2×, heavy-leg 1.5×, or 0 on a hold).
+  const rpeStep = getProgressionStep(macro, week, dayKey, ex);
+  const weightJump = (ex.isHeavyLeg ? heavyJump : lightJump) * rpeStep.weightMult;
   const sets = getWeekSets(ex, week, macro.weeks);
   const pk = getProgKey(macro.id, week, dayKey, ex.id);
   const progLog = state.trainLogs[pk] || {};
@@ -11345,19 +11429,19 @@ function computeRawSuggestedTargets(macro, week, dayKey, ex) {
       ? setActualWeight + weightJump
       : getWeekWeight(ex, week, 'weight', macro.goalType, macro.weightIncrement);
     const setRecReps = (() => {
-      if (isPauseSet) return getGiantSetProgression(ex, week);
+      if (isPauseSet) return getGiantSetProgression(ex, week, macro.goalType);
       if (ex.type === 'giant') {
         if (setActualReps !== null) {
           const baseNum = parseInt(String(setActualReps).match(/(\d+)/)?.[0]) || 0;
-          return String(baseNum + 10);
+          return String(baseNum + rpeStep.giantInc);
         }
-        return getGiantSetProgression(ex, week);
+        return getGiantSetProgression(ex, week, macro.goalType);
       }
       if (setActualReps !== null) {
-        const m = String(setActualReps).match(/^(\d+)(?:–(\d+))?$/);
-        if (m) { const lo = parseInt(m[1]) + 1; return m[2] ? lo + '–' + (parseInt(m[2]) + 1) : String(lo); }
+        const bumped = bumpRepsBy(setActualReps, rpeStep.repsInc);
+        if (bumped !== null) return bumped;
       }
-      return getWeekReps(ex, week, 'reps');
+      return getWeekReps(ex, week, 'reps', macro.goalType);
     })();
     weightTargets.push(progType === 'weight'
       ? setRecWeight.toFixed(1)
@@ -11366,7 +11450,7 @@ function computeRawSuggestedTargets(macro, week, dayKey, ex) {
       ? setRecReps
       : (setActualReps !== null ? setActualReps : ex.reps));
   }
-  return { sets, weightTargets, repsTargets, progType };
+  return { sets, weightTargets, repsTargets, progType, rpeStep: rpeStep.kind };
 }
 
 // v7.99: resolves what (macro, week, dayKey, ex) target IS/WAS — the
@@ -11408,6 +11492,9 @@ function getWeekTargets(macro, week, dayKey, ex) {
       : computeRawSuggestedTargets(macro, week, dayKey, ex);
   }
   const result = { weightTargets: raw.weightTargets.slice(), repsTargets: raw.repsTargets.slice() };
+  // v8.20: freeze the RPE step with the target (see getRpeStep). Only written
+  // when there was one, so every no-RPE entry keeps its pre-v8.20 shape.
+  if (raw.rpeStep === 'easy' || raw.rpeStep === 'hold') result.rpeStep = raw.rpeStep;
   state.progressionTargets[targetKey] = result;
   return result;
 }
@@ -11449,6 +11536,135 @@ function getWeekComplianceResult(macro, week, dayKey, ex) {
     if (!wOk || !rOk) { compliant = false; break; }
   }
   return { fullyLogged: true, compliant, weightTargets, repsTargets, sets };
+}
+
+// ── Effort ratings (RPE, v8.20 — TECHNICAL §104) ────────────────────────
+// One rating per exercise per session per mesocycle, 1–10, given on the
+// end-of-session sheet (openRpeSheet). Keyed exactly like a set log minus
+// the set index — `${macroId}_${week}_${dayKey}_${exId}` — so dayKey carries
+// the m1/m2 microcycle and each track's rating only ever steers that same
+// track, the way computeRawSuggestedTargets' prevKey already works.
+//
+// 🚨 Closing the sheet stores { rpeSkipped: true }, NEVER a number. Adam:
+// "Option to close assumes it was fine" — so a skip is neutral here (no
+// speed-up, no hold) and the coach sees "Not rated". Do not "simplify" it
+// into a default rating: a fake 6 or 7 is indistinguishable from an answer.
+function getRpeKey(macroId, week, dayKey, exId) {
+  return macroId + '_' + week + '_' + dayKey + '_' + exId;
+}
+
+// 🚨 Off unless explicitly true. Existing cycles have no `rpe` field and
+// must read as OFF (Adam, 2026-09-27: existing and new Solo cycles default
+// off; only coach-created cycles default on). Reading absent as on would
+// switch ratings on for every existing cycle on first load.
+function isRpeOn(macro) {
+  return !!(macro && macro.rpe === true);
+}
+
+// Whether ratings change targets. In Solo they do. 🚨 In Coached mode
+// (PROMPT-03) this must return false: the coach owns the plan, so ratings
+// only INFORM the coach there (Adam, 2026-09-27). This is the one switch.
+function rpeDrivesProgression(macro) {
+  return isRpeOn(macro);
+}
+
+const RPE_STEP_NONE = Object.freeze({ kind: 'none', weightMult: 1, repsInc: 1, giantInc: 10 });
+
+// The step a rating asks for. 'easy' (compliant + RPE ≤ 6): a double step —
+// 2× weightIncrement, heavy-leg 1.5× (Adam: "don't exclude heavy leg.
+// Instead do 1.5x multiplier"), +2 reps, giant +20. 'hold' (compliant +
+// RPE 9–10): no step at all for one mesocycle — not a lock; it releases on
+// its own the week after, because the week after reads its own rating.
+function rpeStepFromKind(kind, ex) {
+  if (kind === 'easy') return { kind, weightMult: ex && ex.isHeavyLeg ? 1.5 : 2, repsInc: 2, giantInc: 20 };
+  if (kind === 'hold') return { kind, weightMult: 0, repsInc: 0, giantInc: 0 };
+  return RPE_STEP_NONE;
+}
+
+// Decides the step for `week` from the rating given in `week - 1` on the
+// same dayKey track. Only ever called for an ordinary week — never for week
+// 1, a deload, the session after a deload, or when the week before was a
+// deload (Adam: deloads and the session after are exempt, as the
+// compliance guard already exempts them). Cardio and maintenance have no
+// step to change. A rating of 7–8, a skip, or a non-compliant week → none
+// (not compliant + high RPE is already frozen by the lock; it adds a hint,
+// never a second target change).
+function computeRpeStepKind(macro, week, dayKey, ex) {
+  if (!rpeDrivesProgression(macro)) return 'none';
+  if (!ex || ex.category === 'cardio' || macro.goalType === 'maintenance') return 'none';
+  if (week <= 1) return 'none';
+  if (isDeloadUnit(macro, week, dayKey) || isFirstUnitAfterDeload(macro, week, dayKey)
+      || isDeloadUnit(macro, week - 1, dayKey)) return 'none';
+  const r = state.rpe && state.rpe[getRpeKey(macro.id, week - 1, dayKey, ex.id)];
+  if (!r || typeof r.rpe !== 'number') return 'none';
+  if (r.rpe > 6 && r.rpe < 9) return 'none';
+  const prev = getWeekComplianceResult(macro, week - 1, dayKey, ex);
+  if (!prev.fullyLogged || !prev.compliant) return 'none';
+  return r.rpe <= 6 ? 'easy' : 'hold';
+}
+
+// The step `week` uses, for BOTH the target the week is judged against
+// (computeRawSuggestedTargets) and what Train displays (exProgData).
+//
+// 🚨 Frozen with the target. Once getWeekTargets() has cached a week's
+// target, the step it was built with is stored on that same entry and
+// read back from there — so a rating given (or edited) after the week was
+// judged can never make the display disagree with the target, and never
+// rewrites the frozen target itself. A cached entry with no `rpeStep`
+// (every entry written before v8.20, and every week that had no step)
+// reads as none — which is what keeps existing data byte-identical.
+function getRpeStep(macro, week, dayKey, ex) {
+  if (!macro || !ex) return RPE_STEP_NONE;
+  const cached = state.progressionTargets
+    && state.progressionTargets[getProgressionLockKey(macro.id, dayKey, ex.id) + '_w' + week];
+  if (cached) return rpeStepFromKind(cached.rpeStep || 'none', ex);
+  return rpeStepFromKind(computeRpeStepKind(macro, week, dayKey, ex), ex);
+}
+
+// The effort-rating tags on an exercise card (solo and superset member alike).
+// Only when ratings are on for the cycle; cardio never carries them.
+//   · this session's own rating — "RPE 7", or "Not rated" after a skip;
+//   · the step this week uses — "Felt easy · bigger step" / "Holding · rated 9+";
+//   · on an On-hold exercise rated 9+ last time, the Solo hint that the
+//     target is too heavy (the lock already freezes it; this only says why).
+function buildRpeTagsHtml(macro, week, dayKey, ex, isLocked, isDeloadSession) {
+  if (!isRpeOn(macro) || !ex || ex.category === 'cardio') return '';
+  const tags = [];
+  const own = state.rpe && state.rpe[getRpeKey(macro.id, week, dayKey, ex.id)];
+  if (own && typeof own.rpe === 'number') tags.push(`<span class="ex-tag ex-tag-quiet">RPE ${own.rpe}</span>`);
+  else if (own && own.rpeSkipped) tags.push('<span class="ex-tag ex-tag-quiet">Not rated</span>');
+  if (!isDeloadSession && !isLocked) {
+    const step = getRpeStep(macro, week, dayKey, ex);
+    if (step.kind === 'easy') tags.push('<span class="ex-tag" style="--tag-c:var(--accent);">Felt easy · bigger step</span>');
+    else if (step.kind === 'hold') tags.push('<span class="ex-tag" style="--tag-c:var(--amber);">Holding · rated 9+</span>');
+  }
+  if (isLocked && !isDeloadSession && week > 1) {
+    const prev = state.rpe && state.rpe[getRpeKey(macro.id, week - 1, dayKey, ex.id)];
+    if (prev && typeof prev.rpe === 'number' && prev.rpe >= 9 && rpeDrivesProgression(macro)) {
+      tags.push(`<span class="ex-tag ex-tag-quiet">Rated ${prev.rpe} · consider a lighter target</span>`);
+    }
+  }
+  return tags.join('');
+}
+
+// v8.20 — the per-mesocycle step every progression site applies: none at all
+// on a maintenance cycle (weight jump was already 0 there, but reps still
+// added +1 and giant sets +10 — so a maintenance card showed last week's
+// reps + 1), otherwise the effort-rating step. 🚨 Use this, not getRpeStep,
+// wherever a target is COMPUTED; getRpeStep alone is for the tags.
+const PROG_STEP_MAINTENANCE = Object.freeze({ kind: 'maintenance', weightMult: 0, repsInc: 0, giantInc: 0 });
+function getProgressionStep(macro, week, dayKey, ex) {
+  if (macro && macro.goalType === 'maintenance') return PROG_STEP_MAINTENANCE;
+  return getRpeStep(macro, week, dayKey, ex);
+}
+
+// "8" → "10" and "8–10" → "10–12" for inc 2; the +1 everywhere else in the
+// engine is this with inc 1. Unparseable strings come back null.
+function bumpRepsBy(reps, inc) {
+  const m = String(reps).match(/^(\d+)(?:–(\d+))?$/);
+  if (!m) return null;
+  const lo = parseInt(m[1]) + inc;
+  return m[2] ? lo + '–' + (parseInt(m[2]) + inc) : String(lo);
 }
 
 // Creates, leaves untouched, or clears state.progressionLocks for
@@ -15128,6 +15344,53 @@ function formatPriorAdviceEntry(entry, idx) {
 // Constructs the system prompt and user message for the Anthropic API call.
 // All constraints (safety floor, protein minimum) are computed here client-side
 // and injected as hard rules so the LLM cannot produce unsafe values.
+// v8.20 — effort ratings for the AI prompts (§104; Adam, 2026-09-27: "yes,
+// short summary"). One bounded line per rated exercise, never the raw
+// per-session data: average RPE, how many sessions it covers, the latest,
+// how often the rated sessions hit target, and how many were skipped. At
+// most 12 lines, hardest first. Returns '' when the cycle has no ratings,
+// so a cycle with RPE off sends exactly the prompt it sent before v8.20.
+function buildRpePromptSummary(macro) {
+  if (!macro || !state.rpe) return '';
+  const days = macro.days || [];
+  const micros = macro.useMicrocycles !== false ? [1, 2] : [0];
+  const totalMesos = getMacroEffectiveMesoCount(macro);
+  const byName = {};
+  for (let w = 1; w <= totalMesos; w++) {
+    micros.forEach(mc => {
+      if (!isMesoMicroValid(macro, w, mc)) return;
+      days.forEach(d => {
+        const dayKey = mc === 0 ? d : d + 'm' + mc;
+        getRpeSessionExercises(macro, dayKey).forEach(ex => {
+          const r = state.rpe[getRpeKey(macro.id, w, dayKey, ex.id)];
+          if (!r) return;
+          const name = (ex.name || '').trim() || ex.id;
+          const agg = byName[name] || (byName[name] = { ratings: [], skipped: 0, hit: 0, judged: 0 });
+          if (typeof r.rpe === 'number') {
+            agg.ratings.push(r.rpe);
+            if (w > 1 && !isDeloadUnit(macro, w, dayKey) && macro.goalType !== 'maintenance') {
+              const c = getWeekComplianceResult(macro, w, dayKey, ex);
+              if (c.fullyLogged) { agg.judged++; if (c.compliant) agg.hit++; }
+            }
+          } else if (r.rpeSkipped) agg.skipped++;
+        });
+      });
+    });
+  }
+  const rows = Object.entries(byName).filter(([, a]) => a.ratings.length || a.skipped)
+    .map(([name, a]) => ({ name, a, avg: a.ratings.length ? a.ratings.reduce((x, y) => x + y, 0) / a.ratings.length : null }))
+    .sort((x, y) => (y.avg ?? -1) - (x.avg ?? -1)).slice(0, 12);
+  if (!rows.length) return '';
+  const lines = rows.map(({ name, a, avg }) => {
+    const parts = [];
+    if (avg !== null) parts.push(`avg RPE ${avg.toFixed(1)} over ${a.ratings.length} session${a.ratings.length === 1 ? '' : 's'} (latest ${a.ratings[a.ratings.length - 1]})`);
+    if (a.judged) parts.push(`hit target ${a.hit}/${a.judged}`);
+    if (a.skipped) parts.push(`${a.skipped} not rated`);
+    return `- ${name}: ${parts.join(', ')}`;
+  });
+  return `\n\nEFFORT RATINGS THIS CYCLE (RPE 1–10, 10 = nothing left; "not rated" means the user closed the rating and it counts as fine — never read it as a number):\n${lines.join('\n')}`;
+}
+
 function buildBlocAdvicePrompt(macro) {
   const ins        = computeWeeklyInsights(macro);
   const dynResult  = calcDynamicTDEE();
@@ -15288,7 +15551,7 @@ KEY METRICS:
 - Longest flat stretch this cycle (any time, historical max): ${ins?.plateauWeeks || 0} weeks
 - Current signal: ${ins?.signal || 'unknown'}
 - Waist trend this cycle: ${waistTrendStr}
-- Hip trend this cycle: ${hipTrendStr}
+- Hip trend this cycle: ${hipTrendStr}${buildRpePromptSummary(macro)}
 
 CONSTRAINTS FOR YOUR RECOMMENDATIONS:
 - Minimum safe kcal floor: ${safetyFloor} kcal/day (log-based BMR × 0.80)
@@ -17212,7 +17475,7 @@ KEY METRICS:
 - Log-based BMR: ${dynResult ? '~' + dynResult.bmr.toLocaleString() + ' kcal/day' : 'unknown'}
 - Currently flagged plateau (sticky — see mid-cycle logic): ${ins?.activePeriodWeeks || 0} weeks${ins?.activePeriod && !ins.activePeriodIsOngoing ? ' (ended, not currently ongoing)' : ''}
 - Longest flat stretch this cycle (any time, historical max): ${ins?.plateauWeeks || 0} weeks
-- Current signal (current cycle): ${ins?.signal || 'unknown'}
+- Current signal (current cycle): ${ins?.signal || 'unknown'}${buildRpePromptSummary(macro)}
 
 SAFE BOUNDARIES FOR THE NEXT CYCLE:
 - Minimum safe kcal floor: ${safetyFloorKcal} kcal/day
@@ -18912,8 +19175,35 @@ function renderPlanTools(macro) {
           </div>
           <span class="row-btn-chevron">${icoPlus(22)}</span>
         </div>
+        <div class="row-plain" id="plan-rpe-row" style="cursor:default;">
+          <div class="row-btn-text">
+            <div class="row-btn-title">Effort ratings (RPE)</div>
+            <div class="row-btn-sub">${isRpeOn(macro)
+              ? 'After each session, rate how hard each exercise felt. Easy weeks progress faster.'
+              : 'Off. Turn on to rate each session 1–10.'}</div>
+          </div>
+          <div class="toggle-row meas-unit-toggle" style="width:108px;">
+            <button class="toggle-btn${isRpeOn(macro) ? '' : ' active'}" onclick="setMacroRpe('${macro.id}', false)">Off</button>
+            <button class="toggle-btn${isRpeOn(macro) ? ' active' : ''}" onclick="setMacroRpe('${macro.id}', true)">On</button>
+          </div>
+        </div>
       </div>`
     + sectionEnd();
+}
+
+// v8.20 — the cycle's effort-ratings switch (§104). A macrocycle setting,
+// in Tools because it is something you change about a running cycle, not
+// something you decide once at creation (Adam, 2026-09-27). Stored as an
+// explicit boolean; an absent value reads as off (isRpeOn). Turning it off
+// keeps every rating already given — it only stops Train asking, and stops
+// ratings changing targets for weeks not yet judged (weeks already judged
+// keep the step frozen into their cached target, see getRpeStep).
+function setMacroRpe(macroId, on) {
+  const macro = state.macrocycles.find(m => m.id === macroId);
+  if (!macro || isRpeOn(macro) === !!on) return;
+  macro.rpe = !!on;
+  save();
+  renderPlanTools(macro);
 }
 
 // planGoalsSectionCollapsed/togglePlanGoalsSection were removed in v8.16: the
@@ -19233,10 +19523,10 @@ function computeBodyPartVolumeRange(macro) {
             scenarioReps = baseReps;
             scenarioWeightFlat = scenarioWeightW;
           } else if (ex.type === 'giant') {
-            scenarioReps = parseRepsForVolume(getGiantSetProgression(ex, w));
+            scenarioReps = parseRepsForVolume(getGiantSetProgression(ex, w, macro.goalType));
             scenarioWeightFlat = ex.startWeight || 0;
           } else {
-            scenarioReps = parseRepsForVolume(getWeekReps(ex, w, 'reps'));
+            scenarioReps = parseRepsForVolume(getWeekReps(ex, w, 'reps', macro.goalType));
             scenarioWeightFlat = ex.startWeight || 0;
           }
           totals[bp].repsScenario += sets * scenarioReps * scenarioWeightFlat * mult;
@@ -20262,6 +20552,7 @@ function deleteMacrocycle(id) {
           state.macrocycles = state.macrocycles.filter(m => m.id !== id);
           Object.keys(state.exercises).forEach(k => { if (k.startsWith(id)) delete state.exercises[k]; });
           Object.keys(state.trainLogs).forEach(k => { if (k.startsWith(id)) delete state.trainLogs[k]; });
+          Object.keys(state.rpe || {}).forEach(k => { if (k.startsWith(id + '_')) delete state.rpe[k]; });
           state.currentMacroId = state.macrocycles.length ? state.macrocycles[state.macrocycles.length - 1].id : null;
           const next = state.macrocycles.find(m => m.id === state.currentMacroId);
           state.currentWeek = 1;
@@ -21138,10 +21429,9 @@ function goToPlanAndFlashGoal(macroGoalID) {
 // logged" pattern (see saveInlineBodyLog(), historically) — weight and
 // steps each show a simple input box every day until that field is logged
 // for today, then hide. Measurements works differently: it's a periodic
-// nag rather than a daily one, showing only once at least 4 days have
-// passed since the last waist/hip log (or none have ever been logged),
-// and persisting — not just for "today" — until a fresh measurement is
-// logged, at which point the 4-day countdown restarts from that date.
+// nag rather than a daily one. Since v8.20 the rule is getMeasurementStatus()
+// below (day 1 of every macrocycle, then every 7 days from the last log);
+// it was a flat 4 days since the last log before that.
 // v8.16 — the state of the two "edit it again" affordances. A saved weight
 // or steps entry renders as a static saved message for the rest of the day;
 // tapping it sets the flag here, which swaps that message back to a
@@ -21151,6 +21441,41 @@ const homeEditing = { weight: false, steps: false };
 function homeEditEntry(field) {
   homeEditing[field] = true;
   renderHomeLogBoxes();
+}
+
+// v8.20 — when are waist/hip measurements due? Adam, 2026-09-27: "force it
+// to be required on day 1 of every macrocycle, and then every 7 days from
+// each last log". Replaces the flat `daysSinceMeas >= 4` rule.
+//
+//   nextDueDate = the EARLIER of
+//     · lastLog + 7 days, and
+//     · the first macrocycle start date AFTER lastLog (day 1 is forced).
+//   due = today >= nextDueDate. Never logged → due today.
+//
+// 🚨 Day 1 is forced even when the last log is recent. A measurement taken
+// the Friday before a Monday start does NOT count for that cycle — every
+// cycle gets a fresh baseline (Adam, 2026-09-27). The plausible wrong
+// version is "due if 7+ days OR today is day 1", which clears the tag the
+// day after day 1 whether or not anything was logged. Comparing against the
+// start date as a date fixes both.
+//
+// 🚨 This is the ONLY copy of the rule. The push reminders (PROMPT-02) upload
+// nextDueDate from here and the server just compares dates — never
+// re-implement this in SQL, or the tag and the push will disagree.
+//
+// Pure: pass the logs, the cycles and today; dates are 'YYYY-MM-DD' strings
+// and the +7 is done in UTC so a BST/GMT change can't shift it by a day.
+function getMeasurementStatus(bodyLogs, macrocycles, today) {
+  const dates = (bodyLogs || []).filter(l => l && (l.waist || l.hip) && l.date)
+    .map(l => l.date).sort();
+  const lastDate = dates.length ? dates[dates.length - 1] : null;
+  if (!lastDate) return { due: true, nextDueDate: today, lastDate: null };
+  const [y, m, d] = lastDate.split('-').map(Number);
+  const plus7 = new Date(Date.UTC(y, m - 1, d + 7)).toISOString().slice(0, 10);
+  const nextStart = (macrocycles || []).map(mc => mc && mc.start)
+    .filter(st => st && st > lastDate).sort()[0] || null;
+  const nextDueDate = nextStart && nextStart < plus7 ? nextStart : plus7;
+  return { due: today >= nextDueDate, nextDueDate, lastDate };
 }
 
 // ── 02 LOG TODAY (v8.16) ──────────────────────────────────────────────
@@ -21167,9 +21492,9 @@ function homeEditEntry(field) {
 //   2. "View body logs" appears once today's weight is saved and stays for
 //      the rest of the day. It used to sit unconditionally in the top-right
 //      corner of the hero; it now lives here, with the logging it relates to.
-//   3. The Measurements row is ALWAYS present. The 4-day rule no longer
-//      controls whether the fields exist — it now only decides whether the
-//      row carries a red "Due" tag. The fields themselves moved into their
+//   3. The Measurements row is ALWAYS present. The due rule (now
+//      getMeasurementStatus(), v8.20) no longer controls whether the fields
+//      exist — it only decides whether the row carries a red "Due" tag. The fields themselves moved into their
 //      own sheet (modal-home-measurements).
 function renderHomeLogBoxes() {
   const el = document.getElementById('home-log-boxes');
@@ -21183,10 +21508,7 @@ function renderHomeLogBoxes() {
   const measLogs = (state.bodyLogs || [])
     .filter(l => l.waist || l.hip)
     .sort((a, b) => b.date.localeCompare(a.date));
-  const daysSinceMeas = measLogs.length
-    ? Math.floor((new Date(today + 'T00:00:00') - new Date(measLogs[0].date + 'T00:00:00')) / 86400000)
-    : Infinity; // never logged — due immediately rather than waiting on an undefined "since"
-  const measDue = daysSinceMeas >= 4;
+  const measDue = getMeasurementStatus(state.bodyLogs, state.macrocycles, today).due;
   const lastMeas = measLogs[0] || null;
 
   // Weigh-in
@@ -21355,8 +21677,62 @@ function renderHomeFoodPlan() {
     + sectionEnd();
 }
 
+// v8.20 — the set-1 weight and reps Train will suggest for (week, dayKey, ex),
+// for Home's Up next. Adam, 2026-09-27: "Home should match train with the up
+// next." Up next used to print getWeekWeight() — the plan's formula — and the
+// plan's starting reps, so a weight raised by hand (or an RPE step, or a lock)
+// showed on Train but not on Home.
+//
+// Same precedence as exProgData()'s set-1 placeholder:
+//   deload → 60% of last week's actual, rounded to the plain increment;
+//   the session after a deload → its walked-back reset target;
+//   On hold (a lock from an earlier week) → the frozen target;
+//   week 1 → the starting numbers;
+//   otherwise → computeRawSuggestedTargets(): last week's actual + the step
+//   (the RPE / maintenance step included), per the week's chosen route.
+//
+// 🚨 It never CACHES a target for the week it previews. getWeekTargets() would
+// freeze next week's target the moment Home rendered — before the rating for
+// this week had been given. And it does not READ that cache either, because
+// Train's display doesn't: exProgData() computes live from last week's actuals
+// (reading only the frozen RPE step), so a cached entry that has gone stale —
+// the demo data ships some for weeks with no logs — would make Home disagree
+// with Train. Found by comparing the two screens in a browser. (The post-deload
+// branch uses getWeekTargets because Train caches that reset target on view
+// too, and no rating can change it.) Returns null for cardio (no target).
+function getSessionPreviewTarget(macro, week, dayKey, ex) {
+  if (!macro || !ex || ex.category === 'cardio') return null;
+  const first = arr => (arr && arr.length ? arr[0] : null);
+  const isGain = macro.goalType === 'gain';
+  const isMaintenance = macro.goalType === 'maintenance';
+  const weightJump = ex.isHeavyLeg ? (isMaintenance ? 0 : (isGain ? 10 : 5))
+    : (isMaintenance ? 0 : parseFloat(macro.weightIncrement || '2.5'));
+  if (isDeloadUnit(macro, week, dayKey)) {
+    const prev = week > 1 ? state.trainLogs[macro.id + '_' + (week - 1) + '_' + dayKey + '_' + ex.id + '_0'] : null;
+    const prevDone = prev && prev.done ? prev : null;
+    const baseW = prevDone && prevDone.weight ? parseFloat(prevDone.weight)
+      : getWeekWeight(ex, week, 'weight', macro.goalType, macro.weightIncrement);
+    return { weight: roundToIncrement(baseW * 0.6, weightJump).toFixed(1), reps: prevDone && prevDone.reps ? prevDone.reps : ex.reps };
+  }
+  if (isFirstUnitAfterDeload(macro, week, dayKey)) {
+    const t = getWeekTargets(macro, week, dayKey, ex);
+    return { weight: first(t.weightTargets), reps: first(t.repsTargets) };
+  }
+  // The same catch-up sweep exProgData() runs on every Train render, so a week
+  // that was never evaluated (a restored backup, legacy data) has its lock
+  // decided before Home reads it — otherwise Home shows the climb and Train,
+  // once opened, shows On hold. Idempotent; saves only on a real change.
+  for (let w = 2; w < week; w++) evaluateProgressionLock(macro, w, dayKey, ex);
+  const lock = state.progressionLocks && state.progressionLocks[getProgressionLockKey(macro.id, dayKey, ex.id)];
+  if (lock && (lock.lockedAtWeek || 0) < week) return { weight: first(lock.weightTargets), reps: first(lock.repsTargets) };
+  if (week === 1) return { weight: ex.startWeight.toFixed(1), reps: ex.reps };
+  const t = computeRawSuggestedTargets(macro, week, dayKey, ex);
+  return { weight: first(t.weightTargets), reps: first(t.repsTargets) };
+}
+
 // Single-row-per-exercise preview of the next incomplete training session —
 // name and expected sets × reps only, no set type, no last-progression data.
+// v8.20: the weight and reps are Train's own (getSessionPreviewTarget).
 function renderHomeUpNext() {
   const el = document.getElementById('home-train-preview');
   if (!el) return;
@@ -21383,13 +21759,15 @@ function renderHomeUpNext() {
   const rows = exercises.map(ex => {
     const sets = getWeekSets(ex, next.week, macro.weeks);
     totalSets += sets;
-    const weight = getWeekWeight(ex, next.week, 'weight', macro.goalType, macro.weightIncrement);
+    const target = getSessionPreviewTarget(macro, next.week, next.dayKey, ex);
+    const weight = target ? parseFloat(target.weight) : getWeekWeight(ex, next.week, 'weight', macro.goalType, macro.weightIncrement);
+    const reps = target ? target.reps : ex.reps;
     // Membership lives on the exercise itself — state.supersets only maps a
     // superset id to its name (see the state shape comment at its definition).
     const ssTag = ex.supersetId ? '<span class="tag tag-ss">SS</span>' : '';
     return `<div class="ex-row">
       <span class="ex-row-name">${ex.name} ${ssTag}</span>
-      <span class="ex-row-detail">${sets} \u00d7 ${ex.reps} \u00b7 ${weight.toFixed(1)}kg</span>
+      <span class="ex-row-detail">${sets} \u00d7 ${reps} \u00b7 ${weight.toFixed(1)}kg</span>
     </div>`;
   }).join('');
 
@@ -21823,6 +22201,19 @@ function renderTrainTools(macro, allSessions, days, dayLabels, micros, useMicro)
         </div>
         <span class="row-btn-chevron">${icoSwitch(22)}</span>
       </div>
+      ${(() => {
+        // v8.20 — reopen this session's effort sheet to rate or change a
+        // rating (§104). Only when ratings are on, and not in a deload.
+        if (!isRpeOn(macro) || heroIsDeload) return '';
+        if (!getRpeSessionExercises(macro, dayKey).length) return '';
+        return `<div class="row-plain" onclick="openRpeSheet('${macro.id}',${state.currentWeek},'${dayKey}')">
+          <div class="row-btn-text">
+            <div class="row-btn-title">Effort ratings</div>
+            <div class="row-btn-sub" id="train-rpe-row-sub">${rpeRowSubText(macro, state.currentWeek, dayKey)}</div>
+          </div>
+          <span class="row-btn-chevron">${icoChevron()}</span>
+        </div>`;
+      })()}
       <div class="row-plain" id="deload-toggle-${macro.id}" onclick="toggleDeloadWeek('${macro.id}',${state.currentWeek},'${dayKey}')">
         <div class="row-btn-text">
           <div class="row-btn-title"${heroIsDeload ? ' style="color:var(--ice-blue);"' : ''}>${heroIsDeload ? 'Unmark deload' : 'Mark week as deload'}</div>
@@ -22199,6 +22590,13 @@ function renderTrainDay(macro) {
     const postDeloadTarget = isPostDeloadSession
       ? getWeekTargets(macro, state.currentWeek, state.currentDay, ex)
       : null;
+    // v8.20 — the effort-rating step, the SAME one computeRawSuggestedTargets
+    // uses (getRpeStep; frozen with the cached target once there is one), so
+    // what Train shows and what the week is judged against cannot disagree.
+    // 🚨 rpeJump is for progression only. The deload 60% rounding below keeps
+    // using the plain weightJump — a double step must not change deload maths.
+    const rpeStep = getProgressionStep(macro, state.currentWeek, state.currentDay, ex);
+    const rpeJump = weightJump * rpeStep.weightMult;
 
     // Same done-check as computeRawSuggestedTargets() above — a set that's
     // been typed but not yet confirmed must never seed a target, here or
@@ -22257,25 +22655,25 @@ function renderTrainDay(macro) {
       }
     }
     const recommendedWeight = prevActualWeight !== null
-      ? prevActualWeight + weightJump
+      ? prevActualWeight + rpeJump
       : getWeekWeight(ex, state.currentWeek, 'weight', macro.goalType, macro.weightIncrement);
     const recommendedReps = (() => {
-      if (isPauseSet) return getGiantSetProgression(ex, state.currentWeek); // fixed base, weight-only progression
+      if (isPauseSet) return getGiantSetProgression(ex, state.currentWeek, macro.goalType); // fixed base, weight-only progression
       if (ex.type === 'giant') {
         if (prevActualReps !== null) {
           // Base the suggestion on what was actually logged last week, not on
           // mesoweek count — so choosing "weight" progression one week doesn't
           // silently double the reps jump the following week.
           const baseNum = parseInt(String(prevActualReps).match(/(\d+)/)?.[0]) || 0;
-          return String(baseNum + 10);
+          return String(baseNum + rpeStep.giantInc);
         }
-        return getGiantSetProgression(ex, state.currentWeek); // no prior log yet (e.g. week 2)
+        return getGiantSetProgression(ex, state.currentWeek, macro.goalType); // no prior log yet (e.g. week 2)
       }
       if (prevActualReps !== null) {
-        const m = String(prevActualReps).match(/^(\d+)(?:–(\d+))?$/);
-        if (m) { const lo = parseInt(m[1]) + 1; return m[2] ? lo + '–' + (parseInt(m[2]) + 1) : String(lo); }
+        const bumped = bumpRepsBy(prevActualReps, rpeStep.repsInc);
+        if (bumped !== null) return bumped;
       }
-      return getWeekReps(ex, state.currentWeek, 'reps');
+      return getWeekReps(ex, state.currentWeek, 'reps', macro.goalType);
     })();
     // Drop-set only: the drop portion follows the exact same progression
     // math as the main set (same weightJump, same +1-rep step) so 'apply
@@ -22284,11 +22682,11 @@ function renderTrainDay(macro) {
     // only discovered live. If there's no prior actual drop data, there's
     // simply nothing to suggest yet (null / blank), unlike the main set
     // which always has ex.startWeight to fall back on.
-    const recommendedDropWeight = prevActualDropWeight !== null ? prevActualDropWeight + weightJump : null;
+    const recommendedDropWeight = prevActualDropWeight !== null ? prevActualDropWeight + rpeJump : null;
     const recommendedDropReps = (() => {
       if (prevActualDropReps !== null) {
-        const m = String(prevActualDropReps).match(/^(\d+)(?:–(\d+))?$/);
-        if (m) { const lo = parseInt(m[1]) + 1; return m[2] ? lo + '–' + (parseInt(m[2]) + 1) : String(lo); }
+        const bumped = bumpRepsBy(prevActualDropReps, rpeStep.repsInc);
+        if (bumped !== null) return bumped;
       }
       return '';
     })();
@@ -22407,28 +22805,28 @@ function renderTrainDay(macro) {
       const setActualDropReps  = srcSet && srcSet.dropReps   ? srcSet.dropReps : null;
 
       const setRecWeight = setActualWeight !== null
-        ? setActualWeight + weightJump
+        ? setActualWeight + rpeJump
         : getWeekWeight(ex, state.currentWeek, 'weight', macro.goalType, macro.weightIncrement);
       const setRecReps = (() => {
-        if (isPauseSet) return getGiantSetProgression(ex, state.currentWeek);
+        if (isPauseSet) return getGiantSetProgression(ex, state.currentWeek, macro.goalType);
         if (ex.type === 'giant') {
           if (setActualReps !== null) {
             const baseNum = parseInt(String(setActualReps).match(/(\d+)/)?.[0]) || 0;
-            return String(baseNum + 10);
+            return String(baseNum + rpeStep.giantInc);
           }
-          return getGiantSetProgression(ex, state.currentWeek);
+          return getGiantSetProgression(ex, state.currentWeek, macro.goalType);
         }
         if (setActualReps !== null) {
-          const m = String(setActualReps).match(/^(\d+)(?:–(\d+))?$/);
-          if (m) { const lo = parseInt(m[1]) + 1; return m[2] ? lo + '–' + (parseInt(m[2]) + 1) : String(lo); }
+          const bumped = bumpRepsBy(setActualReps, rpeStep.repsInc);
+          if (bumped !== null) return bumped;
         }
-        return getWeekReps(ex, state.currentWeek, 'reps');
+        return getWeekReps(ex, state.currentWeek, 'reps', macro.goalType);
       })();
-      const setRecDropWeight = setActualDropWeight !== null ? setActualDropWeight + weightJump : null;
+      const setRecDropWeight = setActualDropWeight !== null ? setActualDropWeight + rpeJump : null;
       const setRecDropReps = (() => {
         if (setActualDropReps !== null) {
-          const m = String(setActualDropReps).match(/^(\d+)(?:–(\d+))?$/);
-          if (m) { const lo = parseInt(m[1]) + 1; return m[2] ? lo + '–' + (parseInt(m[2]) + 1) : String(lo); }
+          const bumped = bumpRepsBy(setActualDropReps, rpeStep.repsInc);
+          if (bumped !== null) return bumped;
         }
         return '';
       })();
@@ -22617,7 +23015,8 @@ function renderTrainDay(macro) {
         ? 'Last wk: no progression'
         : '';
       const lastRouteHtml = lastRouteText ? `<span class="ex-tag ex-tag-quiet">${lastRouteText}</span>` : '';
-      const tagsHtml = [typeTagHtml, holdTagHtml, deloadTagHtml, lastRouteHtml].filter(Boolean).join('');
+      const tagsHtml = [typeTagHtml, holdTagHtml, deloadTagHtml, lastRouteHtml,
+        buildRpeTagsHtml(macro, state.currentWeek, state.currentDay, ex, isLocked, isDeloadSession)].filter(Boolean).join('');
 
       // The 40×40 auto-complete button — completes every set at target. It is
       // withheld only where there is nothing left to complete (already done) or
@@ -22728,10 +23127,10 @@ function renderTrainDay(macro) {
           const prevWLabel = prevActualWeight !== null ? prevActualWeight.toFixed(1) : getWeekWeight(ex, prevWeek2, 'weight', macro.goalType, macro.weightIncrement).toFixed(1);
           weightRec = `${prevWLabel} → ${recommendedWeight.toFixed(1)} kg`;
           if (ex.type === 'giant') {
-            const prevRLabelGiant = prevActualReps !== null ? prevActualReps : getGiantSetProgression(ex, prevWeek2);
+            const prevRLabelGiant = prevActualReps !== null ? prevActualReps : getGiantSetProgression(ex, prevWeek2, macro.goalType);
             repsRec = `${stripReps(prevRLabelGiant)} → ${stripReps(recommendedReps)} reps`;
           } else if (!isPauseSet) {
-            const prevRLabel = prevActualReps || getWeekReps(ex, prevWeek2, 'reps');
+            const prevRLabel = prevActualReps || getWeekReps(ex, prevWeek2, 'reps', macro.goalType);
             repsRec = `${stripReps(prevRLabel)} → ${stripReps(recommendedReps)} reps`;
           }
         }
@@ -22978,8 +23377,11 @@ function renderTrainDay(macro) {
         // reps and last week's log, it read as part of the neighbouring figure.
         // The member's own flags, as tags beside its name — the same vocabulary
         // as a solo card's, one line shorter.
-        const mTags = md.isDeloadSession
-          ? '<span class="ex-tag" style="--tag-c:var(--ice-blue);">Deload</span>'
+        // 🚨 No Deload tag here: a deload belongs to the WEEK, and the hero's banner
+        // already says so. v8.16's UAT removed it from solo cards (deloadTagHtml)
+        // but missed these member rows, which still badged every member (v8.20 UAT).
+        const mTags = (md.isDeloadSession
+          ? ''
           : isMaintCycle
           ? ''
           : md.isLocked
@@ -22988,7 +23390,8 @@ function renderTrainDay(macro) {
           ? '<span class="ex-tag ex-tag-quiet">Last wk: ' + (md.prevProgType === 'weight' ? '↑ weight' : '↑ reps') + '</span>'
           : (md.prevWeek2 >= 1 && md.prevNoProgression && !md.isPostDeloadSession)
             ? '<span class="ex-tag ex-tag-quiet">Last wk: no progression</span>'
-            : '';
+            : '')
+          + buildRpeTagsHtml(macro, state.currentWeek, state.currentDay, m, md.isLocked, md.isDeloadSession);
         // Last week's actual set-1 log, which is what "last week" means on a
         // superset row — the per-set detail lives in the expanded body.
         const mLastWk = mLastWeight !== null
@@ -23072,10 +23475,10 @@ function renderTrainDay(macro) {
             const mWeightRec = prevWLabel + ' → ' + md.recommendedWeight.toFixed(1) + ' kg';
             let mRepsRec = '';
             if (m.type === 'giant') {
-              const mPrevRLabel = md.prevActualReps !== null ? md.prevActualReps : getGiantSetProgression(m, md.prevWeek2);
+              const mPrevRLabel = md.prevActualReps !== null ? md.prevActualReps : getGiantSetProgression(m, md.prevWeek2, macro.goalType);
               mRepsRec = ssStrip(mPrevRLabel) + ' → ' + ssStrip(md.recommendedReps) + ' reps';
             } else if (!isPauseSet) {
-              const prevRLabel = md.prevActualReps || getWeekReps(m, md.prevWeek2, 'reps');
+              const prevRLabel = md.prevActualReps || getWeekReps(m, md.prevWeek2, 'reps', macro.goalType);
               mRepsRec = ssStrip(prevRLabel) + ' → ' + ssStrip(md.recommendedReps) + ' reps';
             }
             // Aggregate last-week summary (sets/reps/weight actually logged),
@@ -23784,6 +24187,8 @@ function clearExerciseLogs(macroId, week, day, exId, sets) {
 // specifically, regardless of what later sets get filled with here.
 function quickFillComplete(event, macroId, week, day, exId, sets, weight, reps) {
   if (event) event.stopPropagation();
+  const rpeMacro = state.macrocycles.find(m => m.id === macroId);
+  const wasComplete = rpeMacro ? isTrainSessionComplete(rpeMacro, week, day) : true;
   const baseKey = macroId + '_' + week + '_' + day;
   const weightList = String(weight).split('|');
   const repsList   = String(reps).split('|');
@@ -23806,6 +24211,7 @@ function quickFillComplete(event, macroId, week, day, exId, sets, weight, reps) 
   }
   save();
   if (macro) renderTrainDay(macro);
+  maybeOpenRpeSheet(macro, week, day, wasComplete);
 }
 
 // Quick fill + complete for a drop-set exercise: used on a COLLAPSED
@@ -23822,6 +24228,8 @@ function quickFillComplete(event, macroId, week, day, exId, sets, weight, reps) 
 // suggestion lists.
 function quickFillCompleteDropset(event, macroId, week, day, exId, sets, weight, reps, dropWeight, dropReps) {
   if (event) event.stopPropagation();
+  const rpeMacro = state.macrocycles.find(m => m.id === macroId);
+  const wasComplete = rpeMacro ? isTrainSessionComplete(rpeMacro, week, day) : true;
   const baseKey = macroId + '_' + week + '_' + day;
   const weightList = String(weight).split('|');
   const repsList = String(reps).split('|');
@@ -23850,6 +24258,7 @@ function quickFillCompleteDropset(event, macroId, week, day, exId, sets, weight,
   }
   save();
   if (macro) renderTrainDay(macro);
+  maybeOpenRpeSheet(macro, week, day, wasComplete);
 }
 // fillArgsJson is a JSON array of [exId, sets, weightList, repsList] tuples,
 // where weightList/repsList are '|'-delimited per-set suggestions (v6.09).
@@ -23859,6 +24268,7 @@ function quickFillCompleteSuperset(event, macroId, week, day, fillArgsJson) {
   try { tuples = JSON.parse(fillArgsJson); } catch(e) { return; }
   const baseKey = macroId + '_' + week + '_' + day;
   const macro = state.macrocycles.find(m => m.id === macroId);
+  const wasComplete = macro ? isTrainSessionComplete(macro, week, day) : true;
   const templateExercises = macro ? (state.exercises[macro.id + '_1_' + day] || []) : [];
   tuples.forEach(([exId, sets, weightStr, repsStr]) => {
     const weightList = String(weightStr).split('|');
@@ -23882,6 +24292,7 @@ function quickFillCompleteSuperset(event, macroId, week, day, fillArgsJson) {
   });
   save();
   if (macro) renderTrainDay(macro);
+  maybeOpenRpeSheet(macro, week, day, wasComplete);
 }
 
 // Flips a single set's done flag. If weight or reps is missing when marking
@@ -23937,6 +24348,7 @@ function toggleSetDone(key) {
       return;
     }
   }
+  const wasComplete = macro ? isTrainSessionComplete(macro, state.currentWeek, state.currentDay) : true;
   if (!state.trainLogs[key]) state.trainLogs[key] = {};
   state.trainLogs[key].done = !state.trainLogs[key].done;
   if (state.trainLogs[key].done && macro && ex) {
@@ -23945,6 +24357,139 @@ function toggleSetDone(key) {
   }
   save();
   if (macro) renderTrainDay(macro);
+  maybeOpenRpeSheet(macro, state.currentWeek, state.currentDay, wasComplete);
+}
+
+// ── Effort-rating sheet (v8.20, §104) ────────────────────────────────────
+// The exercises a session asks about: every non-cardio exercise in the
+// session template, in plan order, superset members individually (a rating
+// is per exercise, whatever group it sits in).
+function getRpeSessionExercises(macro, dayKey) {
+  return (state.exercises[macro.id + '_1_' + dayKey] || [])
+    .filter(ex => ex.category !== 'cardio')
+    .slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+}
+
+// Every set of every exercise in (week, dayKey) done — the same test
+// getAllMacroSessions() applies per session.
+function isTrainSessionComplete(macro, week, dayKey) {
+  const exercises = state.exercises[macro.id + '_1_' + dayKey] || [];
+  if (!exercises.length) return false;
+  return exercises.every(ex => {
+    const sets = getWeekSets(ex, week, macro.weeks);
+    for (let s = 0; s < sets; s++) {
+      const lg = state.trainLogs[macro.id + '_' + week + '_' + dayKey + '_' + ex.id + '_' + s];
+      if (!lg || !lg.done) return false;
+    }
+    return true;
+  });
+}
+
+// Called by every completion path (toggleSetDone and the three quick-fill
+// buttons) with whether the session was complete BEFORE that action. Opens
+// the sheet only on the transition to complete, only when ratings are on
+// for the cycle, never for a deload session (its ratings steer nothing and
+// Adam's worry was a chore), and not again once every exercise already has
+// an answer (rated or skipped) — so un-ticking and re-ticking a set does
+// not re-ask. 🚨 Quick-fill-complete counts: it must not skip the sheet.
+function maybeOpenRpeSheet(macro, week, dayKey, wasComplete) {
+  if (!macro || wasComplete || !isRpeOn(macro)) return;
+  if (isDeloadUnit(macro, week, dayKey)) return;
+  if (!isTrainSessionComplete(macro, week, dayKey)) return;
+  const exs = getRpeSessionExercises(macro, dayKey);
+  if (!exs.length) return;
+  const unanswered = exs.some(ex => !(state.rpe || {})[getRpeKey(macro.id, week, dayKey, ex.id)]);
+  if (!unanswered) return;
+  openRpeSheet(macro.id, week, dayKey);
+}
+
+let rpeSheetCtx = null; // { macroId, week, dayKey } while the sheet is open
+
+// The Session tools row's sub-line — "2 of 5 rated this session", or the
+// prompt when none are. One function for both the render and the refresh.
+function rpeRowSubText(macro, week, dayKey) {
+  const exs = getRpeSessionExercises(macro, dayKey);
+  const rated = exs.filter(ex => { const r = (state.rpe || {})[getRpeKey(macro.id, week, dayKey, ex.id)]; return r && typeof r.rpe === 'number'; }).length;
+  return rated ? rated + ' of ' + exs.length + ' rated this session' : 'Rate how hard each exercise felt';
+}
+
+// 🚨 The Session tools section is drawn once per Train render; rating and
+// closing the sheet only redraw the cards (renderTrainDay), so the row kept
+// saying "Rate how hard each exercise felt" after a rating (v8.20 UAT, step 6).
+// Update just its text — re-rendering the section would replay its entrance.
+function refreshTrainRpeRowSub(macroId, week, dayKey) {
+  const el = document.getElementById('train-rpe-row-sub');
+  const macro = state.macrocycles.find(m => m.id === macroId);
+  if (!el || !macro || week !== state.currentWeek || dayKey !== state.currentDay) return;
+  el.textContent = rpeRowSubText(macro, week, dayKey);
+}
+
+function openRpeSheet(macroId, week, dayKey) {
+  const macro = state.macrocycles.find(m => m.id === macroId);
+  if (!macro) return;
+  rpeSheetCtx = { macroId, week, dayKey };
+  renderRpeSheet();
+  openModal('modal-rpe');
+}
+
+function renderRpeSheet() {
+  const el = document.getElementById('rpe-sheet-list');
+  if (!el || !rpeSheetCtx) return;
+  const macro = state.macrocycles.find(m => m.id === rpeSheetCtx.macroId);
+  if (!macro) return;
+  el.innerHTML = getRpeSessionExercises(macro, rpeSheetCtx.dayKey).map(ex => {
+    const r = (state.rpe || {})[getRpeKey(macro.id, rpeSheetCtx.week, rpeSheetCtx.dayKey, ex.id)];
+    const val = r && typeof r.rpe === 'number' ? r.rpe : null;
+    const stateText = val !== null ? 'RPE ' + val : (r && r.rpeSkipped ? 'Not rated' : '');
+    let cells = '';
+    for (let v = 1; v <= 10; v++) {
+      cells += `<button class="toggle-btn${val === v ? ' active' : ''}" onclick="setRpeRating('${ex.id}',${v})">${v}</button>`;
+    }
+    return `<div class="rpe-row">
+        <div class="rpe-row-name"><span>${ex.name}</span><span class="rpe-row-state">${stateText}</span></div>
+        <div class="toggle-row rpe-scale">${cells}</div>
+        <div class="rpe-scale-ends"><span>1 · easy</span><span>10 · nothing left</span></div>
+      </div>`;
+  }).join('');
+}
+
+// Tapping a number stores it straight away (so a half-rated sheet that is
+// swiped away keeps what was rated). Tapping the selected number again
+// clears it back to unanswered.
+function setRpeRating(exId, value) {
+  if (!rpeSheetCtx) return;
+  if (!state.rpe) state.rpe = {};
+  const key = getRpeKey(rpeSheetCtx.macroId, rpeSheetCtx.week, rpeSheetCtx.dayKey, exId);
+  const cur = state.rpe[key];
+  if (cur && cur.rpe === value) delete state.rpe[key];
+  else state.rpe[key] = { rpe: value };
+  save();
+  renderRpeSheet();
+  refreshTrainRpeRowSub(rpeSheetCtx.macroId, rpeSheetCtx.week, rpeSheetCtx.dayKey);
+}
+
+// Every exit from the sheet. Anything still unanswered becomes
+// { rpeSkipped: true } — never a number (see getRpeKey's note).
+function closeRpeSheet() {
+  if (rpeSheetCtx) {
+    const macro = state.macrocycles.find(m => m.id === rpeSheetCtx.macroId);
+    if (macro) {
+      if (!state.rpe) state.rpe = {};
+      getRpeSessionExercises(macro, rpeSheetCtx.dayKey).forEach(ex => {
+        const key = getRpeKey(macro.id, rpeSheetCtx.week, rpeSheetCtx.dayKey, ex.id);
+        if (!state.rpe[key]) state.rpe[key] = { rpeSkipped: true };
+      });
+      save();
+      const ctx = rpeSheetCtx;
+      rpeSheetCtx = null;
+      closeModal('modal-rpe');
+      if (state.currentMacroId === macro.id) renderTrainDay(macro);
+      refreshTrainRpeRowSub(ctx.macroId, ctx.week, ctx.dayKey);
+      return;
+    }
+  }
+  rpeSheetCtx = null;
+  closeModal('modal-rpe');
 }
 
 // ════════════════════════════════════════════════
@@ -28957,7 +29502,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.16</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.20</span>`;
 }
 
 function renderSettings() {
@@ -29092,6 +29637,7 @@ function clearAllData() {
             recipes: [], supersets: {}, profile: keepProfile, deloads: {},
             progressionLocks: {},
             progressionTargets: {},
+            rpe: {},
             exerciseHistory: {}, exerciseTrackingMode: {},
             insightsRollup: { completedCycles: [] },
             blocAdvice: null,
@@ -29814,7 +30360,7 @@ function onGoalFatSliderInput() {
 // leave a countdown ticking behind it with the icon still lit. Before v8.16 the
 // timer was simply excluded from initModal() altogether, which is the same bug
 // avoided by having no gesture at all.
-const MODAL_DISMISS_HANDLERS = { 'modal-timer': 'closeTimerModal' };
+const MODAL_DISMISS_HANDLERS = { 'modal-timer': 'closeTimerModal', 'modal-rpe': 'closeRpeSheet' };
 
 function initModal(overlayEl) {
   const sheet = overlayEl.querySelector('.modal-sheet');
