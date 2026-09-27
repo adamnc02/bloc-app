@@ -6474,7 +6474,7 @@ try {
      same-named shims. ?v= is the first 12 hex of the file's SHA-256, so a phone never pairs a
      new index.html with an older engine from its HTTP cache; scripts/verify-engine-build.mjs
      fails if it is stale. Listed in scripts/publish-files.txt. -->
-<script src="engine/dist/bloc-engine.js?v=5ed317478287"></script>
+<script src="engine/dist/bloc-engine.js?v=f0dbf282f52f"></script>
 <script>
 // ════════════════════════════════════════════════
 // DATE HELPERS
@@ -10518,16 +10518,7 @@ function snapToNextMonday(dateStr) {
 // Always snapped forward to a Monday — every macrocycle starts on one, so
 // the suggested default should never itself need correcting.
 function getNextMacroStart() {
-  // Find the latest end date across all macrocycles, return the day after
-  if (!state.macrocycles.length) return snapToNextMonday(getLocalToday());
-  let latest = null;
-  state.macrocycles.forEach(m => {
-    const end = getMacroEndDate(m);
-    if (!latest || end > latest) latest = end;
-  });
-  const next = new Date(latest);
-  next.setDate(next.getDate() + 1);
-  return snapToNextMonday(toLocalDateStr(next));
+  return BlocEngine.getNextMacroStart(state, engineCtx()); // v8.35 (§125): the engine's
 }
 
 // Formats one exerciseHistory entry into a display line, e.g.
@@ -11693,7 +11684,7 @@ function getDeloadUnitKey(macro, week, dayKey) {
 
 // Whether the given (macro, week, dayKey) unit is currently marked deload.
 function isDeloadUnit(macro, week, dayKey) {
-  return !!(state.deloads && state.deloads[getDeloadUnitKey(macro, week, dayKey)]);
+  return BlocEngine.isDeloadUnit(state, macro, week, dayKey); // v8.35 (§125): the engine's
 }
 
 // Toggles the deload flag for the unit containing (week, dayKey) and
@@ -11735,12 +11726,7 @@ function getPrevTrackUnit(macro, week, dayKey) {
 // For macros without microcycles the two checks are identical (both reduce
 // to week-1, same dayKey), so this collapses to the simple case there.
 function isFirstUnitAfterDeload(macro, week, dayKey) {
-  if (isDeloadUnit(macro, week, dayKey)) return false;
-  const trackPrev = getPrevTrackUnit(macro, week, dayKey);
-  if (trackPrev && isDeloadUnit(macro, trackPrev.week, trackPrev.dayKey)) return true;
-  const calPrev = getPrevCalendarWeek(macro, week, dayKey);
-  if (calPrev && isDeloadUnit(macro, calPrev.week, calPrev.dayKey)) return true;
-  return false;
+  return BlocEngine.isFirstUnitAfterDeload(state, macro, week, dayKey); // v8.35 (§125): the engine's
 }
 
 // Rounds a weight to the nearest multiple of increment (e.g. rounding a
@@ -12173,42 +12159,7 @@ function evaluateProgressionLock(macro, week, dayKey, ex) {
 
 // Build per-day stats map from all logs
 function buildDayMap() {
-  const days = {};
-  const ensure = d => { if (!days[d]) days[d] = { weight: null, steps: null, kcal: 0, protein: 0, carbs: 0, fats: 0, hasNutr: false }; };
-  (state.bodyLogs || []).forEach(l => {
-    ensure(l.date);
-    if (l.weight) days[l.date].weight  = parseFloat(l.weight);
-    if (l.steps)  days[l.date].steps   = parseInt(l.steps);
-  });
-  (state.nutritionLogs || []).forEach(l => {
-    ensure(l.date);
-    if (l.kcal || l.protein) {
-      days[l.date].kcal    = parseInt(l.kcal)    || 0;
-      days[l.date].protein = parseFloat(l.protein) || 0;
-      days[l.date].carbs   = parseFloat(l.carbs)   || 0;
-      days[l.date].fats    = parseFloat(l.fats)    || 0;
-      days[l.date].hasNutr = true;
-    }
-  });
-  // Also sum from nutritionMeals if available
-  Object.entries(state.nutritionMeals || {}).forEach(([date, meals]) => {
-    ensure(date);
-    let kcal = 0, protein = 0, carbs = 0, fats = 0;
-    Object.values(meals).forEach(items => (items || []).forEach(item => {
-      kcal    += item.kcal    || 0;
-      protein += item.protein || 0;
-      carbs   += item.carbs   || 0;
-      fats    += item.fats    || 0;
-    }));
-    if (kcal > 0 || protein > 0) {
-      days[date].kcal    = kcal;
-      days[date].protein = Math.round(protein);
-      days[date].carbs   = Math.round(carbs);
-      days[date].fats    = Math.round(fats);
-      days[date].hasNutr = true;
-    }
-  });
-  return days;
+  return BlocEngine.buildDayMap(state); // v8.35 (§125): the engine's
 }
 
 // Parse a reps log value like "8" or "6-8" (range) into a single number for
@@ -12223,25 +12174,7 @@ function parseRepsForVolume(repsVal) {
 // Drop-set exercises contribute both halves — the main set's volume plus
 // the drop's, since both are real work performed.
 function getSessionVolume(macro, week, dayKey) {
-  const templateKey = macro.id + '_1_' + dayKey;
-  const exercises = state.exercises[templateKey] || [];
-  const key = macro.id + '_' + week + '_' + dayKey;
-  let vol = 0;
-  exercises.forEach(ex => {
-    const sets = getWeekSets(ex, week, macro.weeks);
-    const sideMultiplier = ex.trackingMode === 'perSide' ? 2 : 1;
-    for (let s = 0; s < sets; s++) {
-      const log = state.trainLogs[key + '_' + ex.id + '_' + s];
-      if (!log) continue;
-      if (log.weight && log.reps) {
-        vol += parseFloat(log.weight) * sideMultiplier * parseRepsForVolume(log.reps);
-      }
-      if (ex.type === 'dropset' && log.dropWeight && log.dropReps) {
-        vol += parseFloat(log.dropWeight) * sideMultiplier * parseRepsForVolume(log.dropReps);
-      }
-    }
-  });
-  return vol;
+  return BlocEngine.getSessionVolume(state, macro, week, dayKey); // v8.35 (§125): the engine's
 }
 
 // Snapshots an exercise's current representative weight/reps/sets (set-1
@@ -12291,16 +12224,7 @@ function getMacroSessionDayKeys(macro) {
 // Total volume (kg) across an entire macrocycle — all weeks, all sessions,
 // including any Extend-added weeks (see getMacroExtensionInfo).
 function getMacroTotalVolume(macro) {
-  const dayKeys = getMacroSessionDayKeys(macro);
-  const totalMesos = getMacroEffectiveMesoCount(macro);
-  let total = 0;
-  for (let w = 1; w <= totalMesos; w++) {
-    dayKeys.forEach(dayKey => {
-      if (dayKey.endsWith('m2') && !isMesoMicroValid(macro, w, 2)) return;
-      total += getSessionVolume(macro, w, dayKey);
-    });
-  }
-  return total;
+  return BlocEngine.getMacroTotalVolume(state, macro); // v8.35 (§125): the engine's
 }
 
 // Volume time series for a macrocycle — one point per session date (week+day
@@ -12317,27 +12241,10 @@ function getMacroTotalVolume(macro) {
 // two real weeks would have every session's approximate date collapse into
 // the same single 7-day window.
 function getMacroVolumeSeries(macro) {
-  const dayKeys = getMacroSessionDayKeys(macro);
-  const startDate = macro.start ? new Date(macro.start + 'T00:00:00') : now();
-  const sessionsPerWeek = dayKeys.length;
-  const mesoSpanDays = (macro.weeksPerMeso || 1) * 7;
-  const totalMesos = getMacroEffectiveMesoCount(macro);
-  const points = [];
-  for (let w = 1; w <= totalMesos; w++) {
-    dayKeys.forEach((dayKey, di) => {
-      if (dayKey.endsWith('m2') && !isMesoMicroValid(macro, w, 2)) return;
-      const vol = getSessionVolume(macro, w, dayKey);
-      if (vol > 0) {
-        // Approximate calendar date: mesocycle block start + proportional
-        // offset within that block's real span.
-        const d = new Date(startDate);
-        d.setDate(d.getDate() + (w - 1) * mesoSpanDays + Math.round((di / sessionsPerWeek) * mesoSpanDays));
-        points.push({ date: d, week: w, day: dayKey, vol });
-      }
-    });
-  }
-  points.sort((a,b) => a.date - b.date);
-  return points;
+  // v8.35 (§125): the engine's. An unstarted cycle counts from now(), whose
+  // time of day every point's Date carried; one clock read serves both.
+  const t = now();
+  return BlocEngine.getMacroVolumeSeries(state, macro, { today: toLocalDateStr(t) }, t);
 }
 
 // Average a dayMap field (steps/kcal/protein) across a date range [startStr, endStr] inclusive.
@@ -12588,10 +12495,7 @@ function openCycleHistory() {
 // active cycle to snap to then, and the last selection is left alone rather
 // than being wiped.
 function getDateActiveMacroId() {
-  const today = toLocalDateStr(now());
-  const hit = (state.macrocycles || []).find(m =>
-    m.start && today >= m.start && today <= toLocalDateStr(getMacroEndDate(m)));
-  return hit ? hit.id : null;
+  return BlocEngine.getDateActiveMacroId(state, engineCtx()); // v8.35 (§125): the engine's
 }
 
 // Re-points both page selections at the date-active cycle. Called from
@@ -12612,10 +12516,12 @@ function resetToDateActiveMacro() {
 // the rest of the page (body weight, weekly table, nutrition) always
 // agree on the same cycle without needing to be rendered together.
 function resolveProgressMacro() {
+  // v8.35 (§125): the engine resolves it; pointing the page's own selection
+  // back at state.currentMacroId when it names no cycle is BLOC's write.
   if (!progressViewMacroId || !state.macrocycles.find(m => m.id === progressViewMacroId)) {
     progressViewMacroId = state.currentMacroId;
   }
-  return state.macrocycles.find(m => m.id === progressViewMacroId) || state.macrocycles.find(m => m.id === state.currentMacroId);
+  return BlocEngine.resolveProgressMacro(state, progressViewMacroId);
 }
 
 // Advances or retreats which macrocycle the Progress page is displaying,
@@ -12937,8 +12843,7 @@ function buildVolumeHeroChart(macro) {
 // per-day lookup rather than a single "current goal" — that's what lets the
 // steps/kcal charts reflect a goal that changed partway through a cycle.
 function getGoalForDate(dateStr, macroId) {
-  if (!state.goals) return null;
-  return state.goals.find(g => g.macroId === macroId && g.startDate <= dateStr && g.endDate >= dateStr) || null;
+  return BlocEngine.getGoalForDate(state, dateStr, macroId); // v8.35 (§125): the engine's
 }
 
 // Slides 3/4 — steps or kcal vs goal, one column per day, from the cycle's
@@ -13143,65 +13048,7 @@ function progressHeroAnimateTo(rawIndex) {
 // { tdee, bmr, dataPoints, pairs: [...] } or null. `pairs` is surfaced
 // directly in Card 3's diagnostic table.
 function calcTrendBasedTDEE() {
-  const dayMap = buildDayMap();
-  const allDates = Object.keys(dayMap).sort();
-  if (allDates.length < 8) return null;
-
-  // Anchor the weekly grid to the Monday on/before the earliest logged date
-  const first = new Date(allDates[0] + 'T00:00:00');
-  const dow = first.getDay(); // 0=Sun..6=Sat
-  first.setDate(first.getDate() - (dow === 0 ? 6 : dow - 1));
-
-  const today = getLocalToday();
-  const buckets = [];
-  let cur = new Date(first);
-  while (toLocalDateStr(cur) <= today) {
-    const bStart = toLocalDateStr(cur);
-    // DST-safe: setDate() on the calendar day, not raw ms arithmetic — a
-    // span crossing a DST transition is not exactly N*24h of real time.
-    const bEndDate = new Date(cur); bEndDate.setDate(bEndDate.getDate() + 6);
-    const bEnd = toLocalDateStr(bEndDate);
-    // Cap to today — same reasoning as computeWeeklyInsights: the bucket
-    // containing today must not average in future-dated entries, or the
-    // TDEE estimate (and everything derived from it) gets skewed by
-    // meals that haven't happened yet.
-    const bDates = allDates.filter(d => d >= bStart && d <= bEnd && d <= today);
-    const wD = bDates.filter(d => dayMap[d].weight !== null);
-    const nD = bDates.filter(d => dayMap[d].hasNutr);
-    const avgWeight = wD.length ? wD.reduce((s, d) => s + dayMap[d].weight, 0) / wD.length : null;
-    const avgKcal   = nD.length ? Math.round(nD.reduce((s, d) => s + dayMap[d].kcal, 0) / nD.length) : null;
-    buckets.push({ bStart, bEnd, avgWeight, avgKcal, weightDayCount: wD.length, nutrDayCount: nD.length });
-    cur = new Date(cur); cur.setDate(cur.getDate() + 7);
-  }
-
-  const pairs = [];
-  for (let i = 0; i < buckets.length - 1; i++) {
-    const a = buckets[i], b = buckets[i + 1];
-    if (a.avgWeight === null || b.avgWeight === null) continue;
-    // Each side needs >1 weigh-in to actually be a smoothed trend value,
-    // not just a single raw reading wearing a trend label.
-    if (a.weightDayCount < 2 || b.weightDayCount < 2) continue;
-    if (!b.avgKcal || b.nutrDayCount < 4) continue;
-    const weightChangeLbs = b.avgWeight - a.avgWeight;
-    const impliedTDEE = b.avgKcal - (weightChangeLbs * 3500) / 7;
-    pairs.push({
-      weekStart: a.bStart, weekEnd: b.bEnd,
-      trendWeightStart: parseFloat(a.avgWeight.toFixed(1)),
-      trendWeightEnd:   parseFloat(b.avgWeight.toFixed(1)),
-      avgKcal: b.avgKcal,
-      impliedTDEE: Math.round(impliedTDEE),
-    });
-  }
-  if (!pairs.length) return null;
-
-  const sorted = pairs.map(p => p.impliedTDEE).sort((x, y) => x - y);
-  const mid = Math.floor(sorted.length / 2);
-  const median = sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-  if (median < 800 || median > 6000) return null;
-
-  const roundedTdee = Math.round(median);
-  const { multiplier } = getActivityMultiplier();
-  return { tdee: roundedTdee, bmr: Math.round(roundedTdee / multiplier), dataPoints: pairs.length, pairs };
+  return BlocEngine.calcTrendBasedTDEE(state, engineCtx()); // v8.35 (§125): the engine's
 }
 
 // ── Sustainable weight floor/ceiling ──
@@ -13212,32 +13059,7 @@ function calcTrendBasedTDEE() {
 // risk). Falls back to a 10%-below-most-recent-stable-weight cap when no
 // qualifying maintenance cycle exists yet.
 function getSustainableWeightRange() {
-  const rollup = state.insightsRollup || { completedCycles: [] };
-  const qualifying = (rollup.completedCycles || []).filter(c =>
-    c.goalType === 'maintenance' && (c.plateauWeeksDetected || 0) >= 3 &&
-    c.startBw != null && c.endBw != null
-  );
-
-  if (!qualifying.length) {
-    const latestLog = [...(state.bodyLogs || [])].filter(l => l.weight).sort((a, b) => b.date.localeCompare(a.date))[0];
-    const recentStable = latestLog ? parseFloat(latestLog.weight) : null;
-    return {
-      floor: recentStable ? parseFloat((recentStable * 0.90).toFixed(1)) : null,
-      ceiling: recentStable ? parseFloat((recentStable * 1.10).toFixed(1)) : null,
-      source: 'cold-start-fallback',
-      qualifyingCycles: [],
-    };
-  }
-
-  const weights = qualifying.map(c => (c.startBw + c.endBw) / 2);
-  const lowest = Math.min(...weights);
-  const highest = Math.max(...weights);
-  return {
-    floor: parseFloat((lowest * 0.95).toFixed(1)),
-    ceiling: parseFloat((highest * 1.05).toFixed(1)),
-    source: 'confirmed',
-    qualifyingCycles: qualifying.map(c => ({ name: c.name, start: c.start, end: c.end, weight: parseFloat(((c.startBw + c.endBw) / 2).toFixed(1)), avgKcal: c.avgKcal, weeksStable: c.plateauWeeksDetected })),
-  };
+  return BlocEngine.getSustainableWeightRange(state); // v8.35 (§125): the engine's
 }
 
 // ── 1.5% → 1%/0.5% taper curve ──
@@ -13313,355 +13135,7 @@ function buildDirectionSteppedRamp(startKcal, finalTargetKcal, tdee, totalWeeks,
 // only, no queue), and the maintenance→direction lookback. Returns a single
 // object Card 3 renders directly — see design spec for the full rule set.
 function recommendNextCycle(macro, override) {
-  if (!macro) return null;
-  const goalType = macro.goalType || 'loss';
-  const rollup = state.insightsRollup || { completedCycles: [] };
-  const prevCycle = rollup.completedCycles.length ? rollup.completedCycles[rollup.completedCycles.length - 1] : null;
-
-  const dynResult   = calcDynamicTDEE();
-  const trendResult = calcTrendBasedTDEE();
-  const sustainableRange = getSustainableWeightRange();
-  const safetyFloorKcal = computeSafetyFloor(macro); // existing app function — 80% of log-based BMR, min 1400
-
-  const today = getLocalToday();
-  const macroStart = macro.start || today;
-  const macroEndDate = getMacroEndDate(macro);
-  const macroEnd = toLocalDateStr(macroEndDate);
-  const cycleDurationWeeks = Math.max(1, Math.round((macroEndDate - new Date(macroStart + 'T00:00:00')) / 86400000 / 7));
-
-  const latestLog = [...(state.bodyLogs || [])].filter(l => l.weight).sort((a, b) => b.date.localeCompare(a.date))[0];
-  const latestBw = latestLog ? parseFloat(latestLog.weight) : null;
-
-  const recentKcal = (() => {
-    const cutoff = now(); cutoff.setDate(cutoff.getDate() - 14);
-    const cutoffStr = toLocalDateStr(cutoff);
-    const logs = (state.nutritionLogs || []).filter(l => l.date >= cutoffStr && parseInt(l.kcal) > 0);
-    if (!logs.length) return null;
-    return Math.round(logs.reduce((a, b) => a + parseInt(b.kcal), 0) / logs.length);
-  })();
-
-  // The reverse-diet ramp (and, as of this build, the cut/bulk-direction
-  // ramp too) should start from the CURRENT CYCLE'S PLAN, not from recent
-  // actual eating — recentKcal (above) reflects adherence noise in either
-  // direction and stays in use for depth classification / TDEE work, where
-  // actual behavior is exactly what's needed. But a ramp's job is to
-  // continue from wherever the current plan actually left off, so it
-  // should begin at whatever the current macro's LAST (most recent by end
-  // date) goal actually targets — falling back to recentKcal only if the
-  // current cycle has no goals logged yet. Synthetic test scenarios carry
-  // a fixed startKcal directly, for the same contamination reasons as the
-  // gain branch's totalGain/gainRatePerWeek/surplus overrides.
-  const currentCycleGoals = (state.goals || []).filter(g => g.macroId === macro.id);
-  const lastGoalInCycle = currentCycleGoals.length
-    ? currentCycleGoals.reduce((latest, g) => (!latest || g.endDate > latest.endDate) ? g : latest, null)
-    : null;
-  const rampStartKcal = macro._synthetic && macro._synthetic.startKcal
-    ? macro._synthetic.startKcal
-    : ((lastGoalInCycle && lastGoalInCycle.kcal) ? parseInt(lastGoalInCycle.kcal) : recentKcal);
-
-  const rationale = [];
-  let goalTypeRec = null;
-  let isContinuation = false;
-  let bridge = null;       // { climbWeeks, minBridgeWeeks, totalWeeks, fillWeeks, weeklyIncrement, rows }
-  let placeholderWeeks = null; // used for gain→cut / maintenance→direction (no formula-derived length yet)
-  let taper = null; // 1.5%→1%/0.5% safe-rate curve, informational only in Phase 1 (no deadline input yet)
-  let overrideConflict = null; // set when a Phase 2 target-weight/deadline override can't be safely honored
-  let directionRamp = []; // weekly kcal table for cut/bulk-direction recommendations (§ buildDirectionSteppedRamp)
-  let needsDirectionChoice = false; // maintenance with no determinable direction — Card 3 offers both routes
-  let directionWasForced = false; // direction came from override.forcedDirection, not history — Card 3 offers a back button
-  // Set only for the loss→loss / gain→gain continuation exceptions — the
-  // "normal logic" alternative that would have been recommended had this
-  // NOT qualified as short+mild/short-and-not-excessive. Structurally a
-  // full substitute rec (goalType/rationale/bridge/directionRamp/newMacroEnd
-  // etc., sharing this rec's newMacroStart/dynResult/sustainableRange/etc.)
-  // so it can be fed to fillNextCycleMacroModal()/buildNextCycleGoalSteps()
-  // exactly like a primary recommendation, and so the Phase 4 prompt can
-  // treat it as the thing actually being planned for. Never set for
-  // maintenance — maintenance has no continuation exception to begin with.
-  let continuationAlternative = null;
-
-  // Applies a 12-week default, or — for cut/bulk-direction cases only, per
-  // §4.3 — a resolved target-weight/deadline override if one was given and
-  // it clears both the floor/ceiling safety check and the taper pace check.
-  // Shared by the gain→cut and maintenance→direction branches below (and,
-  // for the continuation-alternative case, called a second time to compute
-  // the "normal logic" alternative) — all otherwise identical in how they
-  // size their placeholder duration. Also builds the weekly kcal ramp once
-  // the duration is settled — using the requested target weight if one was
-  // given, otherwise defaulting to the taper curve's own maximum safe
-  // change for that duration (i.e. "assume the safest fastest pace" as the
-  // default, the same philosophy the bridge already uses without needing
-  // any user input).
-  //
-  // Pure w.r.t. the outer scope — returns its results rather than mutating
-  // rationale/overrideConflict/directionRamp/newMacroEnd/placeholderWeeks
-  // directly, so it can safely run twice in the same recommendNextCycle()
-  // call (once for the primary recommendation, once for a continuation's
-  // alternative) without the two calls clobbering each other. `useOverride`
-  // is `override` for the primary call, or `null` when computing an
-  // alternative — a target-weight/deadline typed against the PRIMARY
-  // direction has no meaning for a different direction.
-  const applyPlaceholderOrOverride = (recGoalType, useOverride) => {
-    const out = { rationale: [], overrideConflict: null, directionRamp: [], newMacroEnd: null, placeholderWeeks: null };
-    const resolved = resolveNextCycleOverride(latestBw, recGoalType, sustainableRange, newMacroStart, useOverride);
-    let finalWeeks;
-    if (resolved && resolved.conflict) {
-      out.overrideConflict = resolved.conflict;
-      out.rationale.push(`Requested target couldn't be safely applied: ${resolved.conflict.message}`);
-      return out; // no ramp, no dates — Card 3 shows the conflict UI instead
-    } else if (resolved) {
-      out.placeholderWeeks = null; // no longer a default — this is a user-set duration
-      out.newMacroEnd = resolved.endDate;
-      finalWeeks = resolved.weeks;
-      out.rationale.push(`Using your requested target: cycle ends ${resolved.endDate} (${resolved.weeks} weeks).`);
-    } else {
-      out.placeholderWeeks = 12;
-      const d = new Date(newMacroStart + 'T00:00:00');
-      d.setDate(d.getDate() + out.placeholderWeeks * 7 - 1);
-      out.newMacroEnd = toLocalDateStr(d);
-      finalWeeks = out.placeholderWeeks;
-    }
-
-    if (latestBw && dynResult) {
-      let rampTargetWeight = (useOverride && useOverride.targetWeight) ? useOverride.targetWeight : null;
-      if (rampTargetWeight === null) {
-        const t = computeTaperCurve(latestBw, finalWeeks);
-        if (t) rampTargetWeight = parseFloat((recGoalType === 'loss' ? latestBw - t.totalSafeChange : latestBw + t.totalSafeChange).toFixed(1));
-      }
-      if (rampTargetWeight !== null) {
-        const requestedChange = Math.abs(rampTargetWeight - latestBw);
-        const avgDailyDelta = Math.round((requestedChange * 3500) / (finalWeeks * 7));
-        const finalTargetKcal = recGoalType === 'loss' ? Math.round(dynResult.tdee) - avgDailyDelta : Math.round(dynResult.tdee) + avgDailyDelta;
-        out.directionRamp = buildDirectionSteppedRamp(rampStartKcal, finalTargetKcal, dynResult.tdee, finalWeeks, recGoalType, safetyFloorKcal);
-        out.rationale.push(`Weekly kcal steps built from ${rampStartKcal ? rampStartKcal.toLocaleString() : '?'} kcal (current cycle's last goal) toward a ${finalTargetKcal.toLocaleString()} kcal steady state over ${finalWeeks} weeks, aiming for a ${rampTargetWeight} lbs target${(useOverride && useOverride.targetWeight) ? '' : ' (taper curve default — no target weight set)'}. Bigger steps while still on the easy side of TDEE, smaller steps once past it, held a few weeks at a time — a rough estimate, not a precise prescription, given the AI advice flow can catch a real plateau mid-cycle.`);
-        const clampedSteps = out.directionRamp.filter(r => r.clamped).length;
-        if (clampedSteps > 0) {
-          out.rationale.push(`${clampedSteps} step${clampedSteps !== 1 ? 's' : ''} capped at the ${safetyFloorKcal.toLocaleString()} kcal safety floor — the resulting pace will be slower than the raw target implies.`);
-        }
-        const lastStepKcal = out.directionRamp.length ? out.directionRamp[out.directionRamp.length - 1].kcal : null;
-        if (lastStepKcal !== null && lastStepKcal !== finalTargetKcal) {
-          out.rationale.push(`This cycle's length doesn't fit enough steps to fully reach the ${finalTargetKcal.toLocaleString()} kcal steady state (ends at ${lastStepKcal.toLocaleString()} instead) — the fixed step sizes deliberately don't force an oversized final jump just to land exactly on target. Extend the cycle or reassess near its end if you want to close the gap.`);
-        }
-      }
-    }
-    return out;
-  };
-  let newMacroStart = getNextMacroStart();
-  let newMacroEnd = null; // computed once duration is known
-
-  if (goalType === 'loss') {
-    const cutDepth = (dynResult && recentKcal) ? dynResult.tdee - recentKcal : null;
-    const pctOfTDEE = (dynResult && cutDepth !== null) ? cutDepth / dynResult.tdee : null;
-
-    let depthBand = 'mild';
-    if (cutDepth !== null && (cutDepth > 700 || (pctOfTDEE !== null && pctOfTDEE > 0.25))) depthBand = 'aggressive';
-    else if (cutDepth !== null && (cutDepth > 500 || (pctOfTDEE !== null && pctOfTDEE > 0.15))) depthBand = 'moderate';
-    // Synthetic test scenarios (Card 3 preview dropdown) carry a fixed
-    // depth band directly, since faking dynResult/recentKcal to derive one
-    // isn't worth the complexity — see SYNTHETIC_NEXT_CYCLE_SCENARIOS.
-    if (macro._synthetic && macro._synthetic.depthBandOverride) depthBand = macro._synthetic.depthBandOverride;
-
-    let durationBand = 'short';
-    if (cycleDurationWeeks > 16) durationBand = 'long';
-    else if (cycleDurationWeeks >= 8) durationBand = 'medium';
-
-    const matrix = {
-      short:  { mild: 2, moderate: 3, aggressive: 4 },
-      medium: { mild: 3, moderate: 4, aggressive: 6 },
-      long:   { mild: 4, moderate: 6, aggressive: 8 },
-    };
-    const bridgeWeeksMin = matrix[durationBand][depthBand];
-
-    // Taper curve — informational only in Phase 1 (no deadline/target-weight
-    // input exists yet to actually constrain against it). Sized against the
-    // cut just completed, so this is a look-back sanity check for now: was
-    // the pace that was actually run within the 1.5%→1%/0.5% safe band?
-    if (latestBw) {
-      taper = computeTaperCurve(latestBw, cycleDurationWeeks);
-    }
-
-    rationale.push(`Current cut ran ${cycleDurationWeeks} weeks (${durationBand}) at a ${depthBand} deficit${cutDepth !== null ? ` (~${Math.abs(Math.round(cutDepth))} kcal/day below TDEE)` : ' (not enough data to size the deficit)'}.`);
-
-    // Computes the maintenance bridge that follows this cut — used as the
-    // PRIMARY recommendation whenever this cut doesn't qualify for
-    // continuation, and as the "normal logic" alternative when it does.
-    // Pure w.r.t. outer scope, same reasoning as applyPlaceholderOrOverride.
-    const computeMaintenanceBridgeFromCut = () => {
-      const out = { rationale: [], bridge: null, newMacroEnd: null };
-      // Derived from depthBand directly, not recomputed from raw cutDepth —
-      // depthBand's 'aggressive' threshold also considers % of TDEE, not
-      // just raw kcal, so recomputing here independently could disagree
-      // with what the rationale text just said. Also correctly picks up
-      // the synthetic depthBandOverride when previewing a test scenario.
-      const isAggressiveCut = depthBand === 'aggressive';
-      const weeklyIncrement = isAggressiveCut ? 75 : 125;
-      const rows = buildReverseDietRows(rampStartKcal, dynResult ? dynResult.tdee : null, weeklyIncrement);
-      const climbWeeks = rows.length;
-      // bridgeWeeksMin is time spent AT (or effectively at) TDEE-level intake,
-      // not the total bridge length. The final climb week already lands
-      // exactly on TDEE (guaranteed by buildReverseDietRows), so it counts
-      // as the first hold week — only bridgeWeeksMin-1 additional flat weeks
-      // are needed after any climb. If there's no climb at all (already at
-      // TDEE), the full bridgeWeeksMin becomes flat hold weeks.
-      const fillWeeks = climbWeeks > 0 ? Math.max(0, bridgeWeeksMin - 1) : bridgeWeeksMin;
-      const totalWeeks = climbWeeks + fillWeeks;
-      // Canonical full week-by-week table (climb + flat fill weeks) — shared
-      // by the diagnostic table and the goal queue builder, so both always
-      // agree on what a "7-week bridge" actually contains.
-      const maintenanceKcal = dynResult ? Math.round(dynResult.tdee) : (rows.length ? rows[rows.length - 1].kcal : null);
-      const fullRows = rows.slice();
-      for (let fw = 1; fw <= fillWeeks; fw++) {
-        fullRows.push({ week: climbWeeks + fw, kcal: maintenanceKcal, isHoldWeek: true });
-      }
-      out.bridge = { climbWeeks, minBridgeWeeks: bridgeWeeksMin, totalWeeks, fillWeeks, weeklyIncrement, rows, fullRows, depthBand, durationBand, rampStartKcal };
-      out.rationale.push(rampStartKcal !== recentKcal
-        ? `Ramp starts at ${rampStartKcal.toLocaleString()} kcal — the current cycle's last planned goal, not the ${recentKcal ? recentKcal.toLocaleString() + ' kcal 14-day actual average' : 'unavailable 14-day actual average'}. Starting from the plan (not adherence noise) errs toward a longer, more conservative climb.`
-        : `Ramp starts at ${rampStartKcal ? rampStartKcal.toLocaleString() : '?'} kcal (plan and recent actual eating currently agree).`);
-      out.rationale.push(`Recommended time at maintenance-level intake: minimum ${bridgeWeeksMin} weeks (matrix: ${durationBand} × ${depthBand}).`);
-      if (climbWeeks) {
-        out.rationale.push(fillWeeks > 0
-          ? `The reverse-diet ramp to TDEE takes ${climbWeeks} week${climbWeeks !== 1 ? 's' : ''} at +${weeklyIncrement} kcal/week — its final week already lands exactly on TDEE and counts as the first maintenance week, so ${fillWeeks} more flat week${fillWeeks !== 1 ? 's' : ''} at TDEE complete the ${bridgeWeeksMin}-week minimum (total: ${totalWeeks} weeks).`
-          : `The reverse-diet ramp to TDEE takes ${climbWeeks} weeks at +${weeklyIncrement} kcal/week, and its final week alone already satisfies the ${bridgeWeeksMin}-week minimum — no extra flat weeks needed.`);
-      } else {
-        out.rationale.push(`Not enough recent kcal/weight data yet to compute the reverse-diet ramp — recommending ${bridgeWeeksMin} flat weeks at TDEE until more data is available.`);
-      }
-      const d = new Date(newMacroStart + 'T00:00:00');
-      d.setDate(d.getDate() + totalWeeks * 7 - 1);
-      out.newMacroEnd = toLocalDateStr(d);
-      return out;
-    };
-
-    if (durationBand === 'short' && depthBand === 'mild') {
-      goalTypeRec = 'loss';
-      isContinuation = true;
-      rationale.push('Short and mild — reasonable to continue cutting without a maintenance bridge. Consider extending this cut by roughly 2–4 weeks yourself, then reassess against these same rules.');
-      // "Normal logic" alternative — what would have been recommended had
-      // this NOT qualified as short+mild. Computed alongside the
-      // continuation, never in place of it — Card 3 and the Phase 4
-      // prompt both surface it.
-      const alt = computeMaintenanceBridgeFromCut();
-      continuationAlternative = {
-        goalType: 'maintenance', isContinuation: false, rationale: alt.rationale,
-        bridge: alt.bridge, directionRamp: [], overrideConflict: null,
-        newMacroStart, newMacroEnd: alt.newMacroEnd, placeholderWeeks: null,
-        cycleDurationWeeks, dynResult, trendResult, sustainableRange,
-        latestBw, recentKcal, rampStartKcal,
-      };
-    } else {
-      goalTypeRec = 'maintenance';
-      const primary = computeMaintenanceBridgeFromCut();
-      rationale.push(...primary.rationale);
-      bridge = primary.bridge;
-      newMacroEnd = primary.newMacroEnd;
-    }
-  } else if (goalType === 'gain') {
-    // Synthetic test scenarios provide these directly (§ preview dropdown)
-    // rather than deriving from state.bodyLogs — a fake macro's start date
-    // would otherwise pull in real logged data from that period (e.g. the
-    // person's actual cut), which has nothing to do with the fake bulk
-    // being tested and would produce a nonsensical rate/surplus figure.
-    const synth = macro._synthetic;
-    const cycleLogs = synth ? [] : [...(state.bodyLogs || [])].filter(l => l.weight && l.date >= macroStart).sort((a, b) => a.date.localeCompare(b.date));
-    const startBw = cycleLogs.length ? parseFloat(cycleLogs[0].weight) : null;
-    const totalGain = synth ? synth.totalGain : ((startBw !== null && latestBw !== null) ? latestBw - startBw : null);
-    const gainRatePerWeek = synth ? synth.gainRatePerWeek : ((totalGain !== null && cycleDurationWeeks > 0) ? totalGain / cycleDurationWeeks : null);
-    const surplus = synth ? synth.surplus : ((dynResult && recentKcal) ? recentKcal - dynResult.tdee : null);
-    const excessiveSurplus = surplus !== null && surplus > 500;
-    const isShortBulk = cycleDurationWeeks < 10;
-    const isMildRate = gainRatePerWeek !== null && gainRatePerWeek <= 0.35;
-
-    rationale.push(`Current bulk ran ${cycleDurationWeeks} weeks${totalGain !== null ? `, gaining ~${totalGain.toFixed(1)} lbs (~${gainRatePerWeek.toFixed(2)} lbs/week)` : ''}${surplus !== null ? `, averaging ~${Math.round(surplus)} kcal/day above TDEE` : ''}.`);
-
-    // Computes the cut that follows this bulk — used as the PRIMARY
-    // recommendation whenever this bulk doesn't qualify for continuation,
-    // and as the "normal logic" alternative when it does. `useOverride` is
-    // `override` for the primary call, `null` for the alternative (a
-    // target/deadline typed against "continue bulk" has no meaning for a
-    // cut). Pure w.r.t. outer scope, wraps applyPlaceholderOrOverride.
-    const computeCutFromBulk = (useOverride) => {
-      const rat = [];
-      rat.push('A bulk-to-cut transition doesn\'t need a mandatory bridge — surplus doesn\'t cause the same adaptive suppression a deficit does.');
-      if (cycleDurationWeeks > 12) {
-        rat.push('This bulk ran long enough (>12 weeks) that a short 1–2 week maintenance step first would give a cleaner TDEE reading at your new weight before setting cut targets — optional, not physiologically required.');
-      }
-      const res = applyPlaceholderOrOverride('loss', useOverride);
-      return { goalType: 'loss', rationale: rat.concat(res.rationale), bridge: null, directionRamp: res.directionRamp, newMacroEnd: res.newMacroEnd, placeholderWeeks: res.placeholderWeeks, overrideConflict: res.overrideConflict };
-    };
-
-    if ((isShortBulk && !excessiveSurplus) || isMildRate) {
-      goalTypeRec = 'gain';
-      isContinuation = true;
-      rationale.push(isMildRate
-        ? `Gain rate has been mild (≤0.35 lbs/week) — comfortable to extend even though the cycle itself may read as long. Consider extending by roughly 2–4 weeks, then reassess.`
-        : `Bulk is still short and the surplus isn't excessive — reasonable to extend by roughly 2–4 weeks, then reassess.`);
-      // "Normal logic" alternative — the cut this bulk would transition
-      // into if it weren't continuing. Card 3 and the Phase 4 prompt both
-      // surface it.
-      const alt = computeCutFromBulk(null);
-      continuationAlternative = {
-        goalType: alt.goalType, isContinuation: false, rationale: alt.rationale,
-        bridge: alt.bridge, directionRamp: alt.directionRamp, overrideConflict: alt.overrideConflict,
-        newMacroStart, newMacroEnd: alt.newMacroEnd, placeholderWeeks: alt.placeholderWeeks,
-        cycleDurationWeeks, dynResult, trendResult, sustainableRange,
-        latestBw, recentKcal, rampStartKcal,
-      };
-    } else {
-      const primary = computeCutFromBulk(override);
-      goalTypeRec = primary.goalType;
-      rationale.push(...primary.rationale);
-      directionRamp = primary.directionRamp;
-      newMacroEnd = primary.newMacroEnd;
-      placeholderWeeks = primary.placeholderWeeks;
-      overrideConflict = primary.overrideConflict;
-    }
-  } else {
-    // maintenance
-    let autoDirection = null;
-    if (prevCycle) {
-      autoDirection = prevCycle.goalType === 'gain' ? 'loss' : (prevCycle.goalType === 'loss' ? 'gain' : null);
-    }
-
-    if (autoDirection) {
-      goalTypeRec = autoDirection;
-      rationale.push(`This maintenance bridge followed a ${prevCycle.goalType === 'gain' ? 'bulk' : 'cut'} (${prevCycle.name}) — direction continues ${goalTypeRec === 'gain' ? 'into a bulk' : 'into a cut'}.`);
-      const res = applyPlaceholderOrOverride(goalTypeRec, override);
-      rationale.push(...res.rationale);
-      overrideConflict = res.overrideConflict;
-      directionRamp = res.directionRamp;
-      newMacroEnd = res.newMacroEnd;
-      placeholderWeeks = res.placeholderWeeks;
-    } else if (override && override.forcedDirection) {
-      // No history to determine direction automatically, but the user
-      // picked one via Card 3's cut/bulk choice buttons — proceed exactly
-      // as if it had been auto-determined. directionWasForced flags this
-      // so Card 3 can offer a way back to the choice screen.
-      goalTypeRec = override.forcedDirection;
-      directionWasForced = true;
-      rationale.push(`No completed cycle history to determine a direction automatically — you chose to plan a ${goalTypeRec === 'gain' ? 'bulk' : 'cut'}.`);
-      const res = applyPlaceholderOrOverride(goalTypeRec, override);
-      rationale.push(...res.rationale);
-      overrideConflict = res.overrideConflict;
-      directionRamp = res.directionRamp;
-      newMacroEnd = res.newMacroEnd;
-      placeholderWeeks = res.placeholderWeeks;
-    } else {
-      // Genuinely ambiguous — offer both routes rather than a dead end.
-      // Card 3 renders two buttons; picking one sets override.forcedDirection
-      // and this whole function re-runs, landing in the branch above.
-      needsDirectionChoice = true;
-      rationale.push(prevCycle
-        ? `The cycle before this maintenance bridge (${prevCycle.name}) wasn't a cut or bulk — not enough history to determine a direction automatically. Choose one below.`
-        : 'No completed cycle history yet to determine which direction to continue in. Choose one below.');
-    }
-  }
-
-  return {
-    goalType: goalTypeRec, isContinuation, rationale, bridge, placeholderWeeks, taper, overrideConflict, directionRamp, needsDirectionChoice, directionWasForced,
-    continuationAlternative,
-    newMacroStart, newMacroEnd,
-    cycleDurationWeeks, dynResult, trendResult, sustainableRange,
-    latestBw, recentKcal, rampStartKcal,
-  };
+  return BlocEngine.recommendNextCycle(state, engineCtx(), macro, override); // v8.35 (§125): the engine's
 }
 
 
@@ -13934,45 +13408,7 @@ function renderProgressThisWeek(macro) {
 // inline in the old fused card; both readers computing it separately is how
 // a section and its sheet start disagreeing about whether a check-in is due.
 function computeCheckinState(macro) {
-  if (!macro) return null;
-  const ins = computeWeeklyInsights(macro);
-  const today = getLocalToday();
-
-  // drift-warning alone is informational — it does not warrant an API call.
-  const INTERVENTION_SIGNALS = new Set([
-    'plateau-creep', 'plateau-adaptation',
-    'gain-deficit', 'gain-undereating', 'gain-excess',
-    'maint-unstable',
-  ]);
-
-  const hasEnoughData  = ins && !ins.insufficientData;
-  const signalWarrants = ins && INTERVENTION_SIGNALS.has(ins.signal);
-  const eligible       = hasEnoughData && signalWarrants;
-
-  const stored = state.blocAdvice;
-  const hasStoredAdvice = !!(stored && stored.macroId === macro.id && stored.response);
-
-  // nextCheckIn is per-path; with no plan chosen, the earlier of the two.
-  // A date more than 16 days after storedAt was computed by the old
-  // end-of-plan logic — cap it at the 14-day fallback rather than trusting it.
-  let inCooldown = false;
-  let cooldownUntil = null;
-  if (hasStoredAdvice && stored.response.nextCheckIn) {
-    const nc = stored.response.nextCheckIn;
-    const chosen = stored.chosenPath;
-    let rawDate = chosen && nc[chosen] ? nc[chosen] : ([nc.sustainable, nc.aggressive].filter(Boolean).sort()[0] || null);
-    if (rawDate && stored.storedAt) {
-      const storedMs = new Date(stored.storedAt + 'T00:00:00').getTime();
-      const checkMs  = new Date(rawDate + 'T00:00:00').getTime();
-      if (checkMs > storedMs + 16 * 86400000) {
-        rawDate = getMondayAfter(getSundayAfterWeeks(stored.storedAt, 2));
-      }
-    }
-    cooldownUntil = rawDate;
-    if (cooldownUntil && today < cooldownUntil) inCooldown = true;
-  }
-
-  return { ins, hasEnoughData, signalWarrants, eligible, stored, hasStoredAdvice, inCooldown, cooldownUntil };
+  return BlocEngine.computeCheckinState(state, engineCtx(), macro); // v8.35 (§125): the engine's
 }
 
 // The signal chip vocabulary, shared by the check-in section and its sheet.
@@ -14871,270 +14307,7 @@ function formatSignalPeriodsForPrompt(ins) {
 // Plateau definition (loss cycles): ≤ 0.3 lbs average weekly weight delta
 // for 2 or more consecutive complete buckets.
 function computeWeeklyInsights(macro) {
-  if (!macro) return null;
-  const goalType = macro.goalType || 'loss';
-  const isLoss = goalType === 'loss';
-  const isGain = goalType === 'gain';
-  const isMaint = goalType === 'maintenance';
-
-  // Reuse the same bucket builder as buildWeeklySummaryCardHTML
-  const dayMap = buildDayMap();
-  const allDates = Object.keys(dayMap).sort();
-  if (allDates.length < 2) return null;
-
-  const todayStr = getLocalToday();
-  const macroEndStr = toLocalDateStr(getMacroEndDate(macro));
-  const anchor = macro.start || allDates[0];
-  const anchorMs = new Date(anchor + 'T00:00:00').getTime();
-  const rangeEndStr = macroEndStr < todayStr ? macroEndStr : todayStr;
-  const rangeEndMs = new Date(rangeEndStr + 'T00:00:00').getTime();
-
-  const weekBuckets = [];
-  let cur = new Date(anchorMs);
-  let wn = 1;
-  let prevAvgWeight = null;
-  while (cur.getTime() <= rangeEndMs) {
-    const bStart = toLocalDateStr(cur);
-    const bEndDate = new Date(cur); bEndDate.setDate(bEndDate.getDate() + 6); const bEnd = toLocalDateStr(bEndDate);
-    // Cap to today — a bucket spanning the current in-progress week must
-    // never average in future-dated entries (e.g. meals pre-logged later
-    // this week). Without this cap, a partial week's avgKcal/avgProtein
-    // gets diluted by days that haven't happened yet, which then feeds a
-    // distorted "recent intake" figure straight into the AI advice prompt.
-    const bDates = allDates.filter(d => d >= bStart && d <= bEnd && d <= todayStr);
-    if (bDates.length > 0) {
-      const wD = bDates.filter(d => dayMap[d].weight !== null);
-      const nD = bDates.filter(d => dayMap[d].hasNutr);
-      const sD = bDates.filter(d => dayMap[d].steps !== null);
-      const avgWeight = wD.length ? wD.reduce((s,d) => s + dayMap[d].weight, 0) / wD.length : null;
-      const avgKcal   = nD.length ? Math.round(nD.reduce((s,d) => s + dayMap[d].kcal, 0) / nD.length) : null;
-      const avgProtein= nD.length ? Math.round(nD.reduce((s,d) => s + dayMap[d].protein, 0) / nD.length) : null;
-      const avgCarbs  = nD.length ? Math.round(nD.reduce((s,d) => s + (dayMap[d].carbs || 0), 0) / nD.length) : null;
-      const avgSteps  = sD.length ? Math.round(sD.reduce((s,d) => s + dayMap[d].steps, 0) / sD.length) : null;
-      const delta = (avgWeight !== null && prevAvgWeight !== null)
-        ? parseFloat((avgWeight - prevAvgWeight).toFixed(2)) : null;
-      if (avgWeight !== null) prevAvgWeight = avgWeight;
-      weekBuckets.push({
-        weekNum: wn, label: 'W' + wn,
-        bStart, bEnd,
-        avgWeight, delta, avgKcal, avgProtein, avgCarbs, avgSteps,
-        nutrDayCount: nD.length, weightDayCount: wD.length, stepsDayCount: sD.length,
-      });
-    }
-    cur = new Date(cur); cur.setDate(cur.getDate() + 7);
-    wn++;
-  }
-  if (weekBuckets.length < 2) return null;
-
-  // ── TDEE estimate ──
-  const tdeeResult = calcDynamicTDEE();
-  const estimatedTDEE = tdeeResult ? tdeeResult.tdee : null;
-
-  // ── Baseline anchor selection (loss cycles only) ──
-  // Find the first valid week bucket (≥4 nutr days) for the baseline.
-  // If weeks 1–2 show weight drops faster than −2% bodyweight/week,
-  // slide the baseline forward (max anchor = weeks 3–4).
-  function isAnomalouslyFast(bucket) {
-    if (!isLoss) return false;
-    if (bucket.delta === null || bucket.avgWeight === null) return false;
-    const pct = bucket.delta / bucket.avgWeight; // negative = loss
-    return pct < -0.02; // dropping faster than 2% bodyweight/week
-  }
-
-  let baselineIdx = -1; // index into weekBuckets
-  // For loss: try wk1, then wk2, cap at wk3 (index 2)
-  // For gain/maintenance: always use wk1
-  if (isLoss) {
-    for (let i = 0; i <= Math.min(2, weekBuckets.length - 2); i++) {
-      const b = weekBuckets[i];
-      if (b.nutrDayCount >= 4 && !isAnomalouslyFast(b)) {
-        baselineIdx = i;
-        break;
-      }
-    }
-    // If all early weeks are anomalous or thin, fall back to first valid week ≤ idx 2
-    if (baselineIdx === -1) {
-      for (let i = 0; i <= Math.min(2, weekBuckets.length - 2); i++) {
-        if (weekBuckets[i].nutrDayCount >= 4) { baselineIdx = i; break; }
-      }
-    }
-  } else {
-    // Gain/maintenance — anchor on first week with ≥4 nutr days
-    baselineIdx = weekBuckets.findIndex(b => b.nutrDayCount >= 4);
-  }
-
-  // Need at least one comparison period after the baseline
-  if (baselineIdx === -1 || baselineIdx >= weekBuckets.length - 1) {
-    return { weekBuckets, estimatedTDEE, insufficientData: true };
-  }
-
-  // ── Baseline and recent windows ──
-  // Baseline: the anchor week itself + the next one (2-week window)
-  const baselineWeeks = weekBuckets.slice(baselineIdx, baselineIdx + 2).filter(b => b.nutrDayCount >= 4);
-  // Recent: the last 2 complete weeks (≥4 nutr days) after the baseline
-  const afterBaseline = weekBuckets.slice(baselineIdx + 2).filter(b => b.nutrDayCount >= 4);
-  if (!baselineWeeks.length || !afterBaseline.length) {
-    return { weekBuckets, estimatedTDEE, insufficientData: true };
-  }
-  const recentWeeks = afterBaseline.slice(-2);
-
-  const avgKcalBaseline = baselineWeeks.reduce((s,b) => s + (b.avgKcal || 0), 0) / baselineWeeks.length;
-  const avgKcalRecent   = recentWeeks.reduce((s,b)   => s + (b.avgKcal || 0), 0) / recentWeeks.length;
-  const avgProteinRecent= recentWeeks.reduce((s,b)   => s + (b.avgProtein || 0), 0) / recentWeeks.length;
-  const caloricDrift    = Math.round(avgKcalRecent - avgKcalBaseline); // +ve = eating more
-
-  // Deficit/surplus vs TDEE (using recent kcal avg)
-  const deficitOrSurplus = estimatedTDEE ? Math.round(avgKcalRecent - estimatedTDEE) : null; // -ve = deficit
-
-  // ── Plateau detection (loss only) — ≤0.5 lbs/wk for 2+ consecutive buckets ──
-  // 0.5 lbs is the right threshold: 0.3 was too tight and would break a real
-  // 3-week plateau if a single week came in at e.g. -0.34 lbs. Weekly average
-  // weight has enough noise (water, glycogen, digestive load) that anything
-  // below 0.5 lbs/week should be treated as effectively flat for a loss cycle.
-  // NOTE: this `plateauWeeks` (= the longest flat run anywhere since baseline)
-  // is kept exactly as before because it's still the correct metric for the
-  // completed-cycle rollup and getSustainableWeightRange() — "did this cycle
-  // ever demonstrate a genuine N-week stable stretch" is a whole-cycle
-  // question, not a "what's true right now" one. The UI/LLM "is there
-  // currently a flagged plateau" question uses the separate sticky
-  // activePeriod logic below instead — see buildSignalPeriods().
-  let plateauWeeks = 0, maxPlateauRun = 0, curRun = 0;
-  for (const b of weekBuckets.slice(baselineIdx + 1)) {
-    if (b.delta !== null && Math.abs(b.delta) <= 0.5) {
-      curRun++;
-      if (curRun > maxPlateauRun) maxPlateauRun = curRun;
-    } else { curRun = 0; }
-  }
-  plateauWeeks = maxPlateauRun;
-
-  // ── Sticky flat/moving periods ──────────────────────────────────────────
-  // Groups weeks since baseline into contiguous "flat" (plateau) vs "moving"
-  // runs. The UI/LLM-facing "active" period is STICKY: once a plateau is
-  // confirmed (2+ consecutive flat weeks), it stays the active/flagged
-  // period until a NEW confirmed (2+ consecutive week) run of movement
-  // appears. A single good week — or a single flat week breaking up a run
-  // of otherwise-moving weeks — is not enough to flip the flag on or off;
-  // that's exactly the "3-week stall, then 1 good week, then flat again"
-  // case that shouldn't flicker the badge. See buildSignalPeriods().
-  const { periods: signalPeriods, activePeriod } = buildSignalPeriods(weekBuckets, baselineIdx);
-  const stuckSignal = !!activePeriod && activePeriod.type === 'flat';
-  const activePeriodWeeks = activePeriod ? activePeriod.length : 0;
-  const activePeriodIsOngoing = !!activePeriod && activePeriod === signalPeriods[signalPeriods.length - 1];
-  // Deficit specifically DURING the active flagged period (not blended with
-  // weeks outside it, which is what the old plateauWeeks-based check did) —
-  // this is what actually determines whether that particular stall looked
-  // like real adaptation or was just calorie creep at the time.
-  const avgKcalDuringActive = (activePeriod && activePeriod.avgKcalDuring !== null) ? activePeriod.avgKcalDuring : avgKcalRecent;
-  const deficitDuringActive = estimatedTDEE ? Math.round(avgKcalDuringActive - estimatedTDEE) : deficitOrSurplus;
-  const hasPlateauSignal = isLoss && stuckSignal;
-
-  // ── Maintenance: weight stability check ──
-  let maintVariance = null;
-  if (isMaint && macro.targetBw) {
-    const wksWithWeight = weekBuckets.filter(b => b.avgWeight !== null);
-    if (wksWithWeight.length >= 2) {
-      const weights = wksWithWeight.map(b => b.avgWeight);
-      maintVariance = parseFloat((Math.max(...weights) - Math.min(...weights)).toFixed(1));
-    }
-  }
-
-  // ── Build narrative (goalType-branched) ──
-  let signal, headline, detail;
-
-  if (isLoss) {
-    // "Weeks since the flagged period ended" — 0 if it's still the latest
-    // (ongoing) period, otherwise how many confirmed/unconfirmed weeks have
-    // passed since. Used to make the headline honest about timing instead of
-    // implying "this is happening right now" for a stall that's actually over.
-    const weeksSincePeriodEnded = (!activePeriodIsOngoing && activePeriod)
-      ? signalPeriods.slice(signalPeriods.indexOf(activePeriod) + 1).reduce((s, p) => s + p.length, 0)
-      : 0;
-    const agoNote = activePeriodIsOngoing ? '' : ` (${activePeriod.startLabel}–${activePeriod.endLabel}, ${weeksSincePeriodEnded} week${weeksSincePeriodEnded === 1 ? '' : 's'} ago — no confirmed 2+ week breakthrough since)`;
-
-    if (hasPlateauSignal && deficitDuringActive !== null && deficitDuringActive > -200) {
-      // Plateau + deficit had narrowed to near-zero during that period — calorie creep is the cause
-      signal = 'plateau-creep';
-      headline = caloricDrift > 100
-        ? `Intake has drifted up ~${Math.abs(caloricDrift)} kcal since your baseline`
-        : `Your deficit had narrowed — weight was flat for ${activePeriodWeeks} weeks${agoNote}`;
-      detail = estimatedTDEE
-        ? `Your estimated TDEE is ~${estimatedTDEE.toLocaleString()} kcal/day. During that flat stretch you were averaging ${avgKcalDuringActive.toLocaleString()} kcal — only a ~${Math.abs(deficitDuringActive)} kcal deficit. ${caloricDrift > 100 ? `This compares to ~${Math.round(avgKcalBaseline).toLocaleString()} kcal/day in your baseline weeks.` : ''} Right now you're averaging ${Math.round(avgKcalRecent).toLocaleString()} kcal/day.`
-        : `You averaged ${avgKcalDuringActive.toLocaleString()} kcal/day during that flat stretch vs ~${Math.round(avgKcalBaseline).toLocaleString()} kcal/day at your baseline — a drift of ${caloricDrift > 0 ? '+' : ''}${caloricDrift} kcal.`;
-    } else if (hasPlateauSignal) {
-      // Plateau but deficit still looked real during that period — adaptation or logging gap
-      signal = 'plateau-adaptation';
-      headline = `Weight was flat for ${activePeriodWeeks} weeks despite a deficit${agoNote}`;
-      detail = estimatedTDEE
-        ? `During that flat stretch you were averaging ${avgKcalDuringActive.toLocaleString()} kcal/day — a ~${Math.abs(deficitDuringActive).toLocaleString()} kcal deficit vs your estimated TDEE of ${estimatedTDEE.toLocaleString()} kcal. Flat weight despite a real deficit can indicate metabolic adaptation, water retention masking fat loss, or logging gaps. Right now you're averaging ${Math.round(avgKcalRecent).toLocaleString()} kcal/day — this flag will clear once a new 2+ week run of genuine loss is confirmed.`
-        : `Weight was flat for ${activePeriodWeeks} weeks. This can reflect metabolic adaptation, water retention, or calorie logging gaps.`;
-    } else if (caloricDrift > 150) {
-      // Drift detected but not yet a confirmed plateau
-      signal = 'drift-warning';
-      headline = `Intake has crept up ~${Math.abs(caloricDrift)} kcal from your baseline`;
-      detail = `You're averaging ${Math.round(avgKcalRecent).toLocaleString()} kcal/day recently vs ~${Math.round(avgKcalBaseline).toLocaleString()} kcal at your baseline${estimatedTDEE ? ` (est. TDEE ~${estimatedTDEE.toLocaleString()} kcal)` : ''}. No plateau yet — but this trend typically leads to one within 1–2 weeks if intake continues rising.`;
-    } else {
-      signal = 'on-track';
-      headline = 'Deficit looks consistent';
-      detail = `You're averaging ${Math.round(avgKcalRecent).toLocaleString()} kcal/day${estimatedTDEE ? ` — a ~${Math.abs(deficitOrSurplus).toLocaleString()} kcal deficit vs estimated TDEE of ${estimatedTDEE.toLocaleString()} kcal` : ''}. Intake drift from baseline is minimal (${caloricDrift > 0 ? '+' : ''}${caloricDrift} kcal).`;
-    }
-
-  } else if (isGain) {
-    const surplusOk = deficitOrSurplus !== null && deficitOrSurplus >= 150 && deficitOrSurplus <= 500;
-    const weightRising = recentWeeks.some(b => b.delta !== null && b.delta > 0.1);
-    const weightStuck  = stuckSignal;
-    if (deficitOrSurplus !== null && deficitOrSurplus < 0) {
-      signal = 'gain-deficit';
-      headline = `You're eating below TDEE on a gain cycle`;
-      detail = `Your recent avg intake is ${Math.round(avgKcalRecent).toLocaleString()} kcal/day — ${Math.abs(deficitOrSurplus).toLocaleString()} kcal below your estimated TDEE of ${estimatedTDEE ? estimatedTDEE.toLocaleString() : '?'} kcal. A small surplus of ~200–300 kcal above TDEE is needed to support lean muscle gain.`;
-    } else if (weightStuck && deficitOrSurplus !== null && deficitOrSurplus < 200) {
-      signal = 'gain-undereating';
-      headline = `Weight is flat — surplus may be too small`;
-      detail = `Weight has been flat for ${activePeriodWeeks} weeks${activePeriodIsOngoing ? '' : ' (' + activePeriod.startLabel + '–' + activePeriod.endLabel + ')'}. Your avg intake of ${Math.round(avgKcalRecent).toLocaleString()} kcal yields only a ~${deficitOrSurplus} kcal surplus — likely not enough for consistent lean gain. Aim for 200–300 kcal above TDEE.`;
-    } else if (deficitOrSurplus !== null && deficitOrSurplus > 500) {
-      signal = 'gain-excess';
-      headline = `Surplus may be larger than needed for lean gain`;
-      detail = `You're averaging ${Math.round(avgKcalRecent).toLocaleString()} kcal/day — ~${deficitOrSurplus.toLocaleString()} kcal above estimated TDEE. Lean gain typically only requires ~200–300 kcal surplus. A larger surplus tends to increase fat accumulation without proportionally more muscle.`;
-    } else {
-      signal = 'on-track';
-      headline = 'Intake looks good for lean gain';
-      detail = `You're averaging ${Math.round(avgKcalRecent).toLocaleString()} kcal/day${deficitOrSurplus !== null ? ` — a ~${deficitOrSurplus} kcal surplus vs estimated TDEE` : ''}. ${weightRising ? 'Weight is trending upward, consistent with lean gain.' : 'Keep monitoring weight weekly to confirm the surplus is sufficient.'}`;
-    }
-
-  } else {
-    // Maintenance
-    if (maintVariance !== null && maintVariance > 3) {
-      signal = 'maint-unstable';
-      headline = `Weight varying ${maintVariance} lbs — more than expected for maintenance`;
-      detail = `Maintenance targets ±1–2 lbs variance around goal weight. A ${maintVariance} lb range may indicate inconsistent intake${macro.targetBw ? ` relative to your ${macro.targetBw} lbs target` : ''}. Check if calorie intake is fluctuating significantly week-to-week.`;
-    } else if (maintVariance !== null) {
-      signal = 'maint-stable';
-      headline = `Weight is stable — maintenance on track`;
-      detail = `Weight range across logged weeks is ${maintVariance} lbs${macro.targetBw ? ` around your ${macro.targetBw} lbs target` : ''}. That's within the expected variance for maintenance. Focus on keeping training performance steady.`;
-    } else {
-      signal = 'maint-nodata';
-      headline = 'Log more weigh-ins to track stability';
-      detail = 'Maintenance insights need at least 2 weeks of body weight data to detect variance trends.';
-    }
-  }
-
-  return {
-    weekBuckets,
-    estimatedTDEE,
-    avgKcalBaseline: Math.round(avgKcalBaseline),
-    avgKcalRecent:   Math.round(avgKcalRecent),
-    avgProteinRecent:Math.round(avgProteinRecent),
-    caloricDrift,
-    deficitOrSurplus,
-    plateauWeeks,          // longest flat run anywhere since baseline (whole-cycle max — used by the rollup/getSustainableWeightRange, NOT the sticky UI signal)
-    signalPeriods,          // full chronological list of flat/moving periods since baseline, for LLM context
-    activePeriod,           // the sticky "currently flagged" period (null if none confirmed yet)
-    activePeriodWeeks,      // length of activePeriod, or 0
-    activePeriodIsOngoing,  // true if activePeriod is also the most recent period (i.e. still happening now)
-    baselineWeekLabel: weekBuckets[baselineIdx] ? weekBuckets[baselineIdx].label : 'W1',
-    maintVariance,
-    signal, headline, detail,
-    insufficientData: false,
-  };
+  return BlocEngine.computeWeeklyInsights(state, engineCtx(), macro); // v8.35 (§125): the engine's
 }
 
 // Builds and returns the HTML string for the Phase 1 trend insights card,
@@ -15387,16 +14560,7 @@ function getMondayAfter(sundayStr) {
 // by the LLM (which has been instructed to produce Mon–Sun aligned dates).
 // Also back-calculates fats from kcal/protein/carbs. Returns a new array.
 function materialiseDates(goals, macro) {
-  const cycleEnd = toLocalDateStr(getMacroEndDate(macro));
-  return goals.map(g => {
-    // Use LLM-provided dates; fall back to sequential Mon–Sun windows if missing
-    const start = g.startDate || getNextMonday();
-    const end   = g.endDate   || getSundayAfterWeeks(start, g.weeks || 2);
-    // Back-calculate fats: remaining kcal after protein (4 kcal/g) + carbs (4 kcal/g) ÷ 9
-    const remainingKcal = Math.max(0, g.kcal - (g.protein * 4) - (g.carbs * 4));
-    const fats = Math.round(remainingKcal / 9);
-    return { ...g, startDate: start, endDate: end, fats };
-  });
+  return BlocEngine.materialiseDates(goals, macro, engineCtx()); // v8.35 (§125): the engine's
 }
 
 // ── Safety floor calculation ─────────────────────────────────────────────────
@@ -15407,20 +14571,7 @@ function materialiseDates(goals, macro) {
 // Fallback (no log-based TDEE): best single week with ≥1 lb loss, avgKcal − 175.
 // Hard minimum: 1,400 kcal if no loss weeks exist yet.
 function computeSafetyFloor(macro) {
-  // Primary: log-based BMR × 0.80
-  const dynResult = calcDynamicTDEE();
-  if (dynResult && dynResult.bmr && dynResult.bmr > 800) {
-    return Math.round(dynResult.bmr * 0.80);
-  }
-  // Fallback: best single loss week avgKcal − 175
-  const ins = computeWeeklyInsights(macro);
-  if (ins && !ins.insufficientData && ins.weekBuckets) {
-    const bestLossWeek = ins.weekBuckets
-      .filter(b => b.delta !== null && b.delta <= -1.0 && b.avgKcal)
-      .sort((a, b) => a.delta - b.delta)[0];
-    if (bestLossWeek) return Math.max(1400, bestLossWeek.avgKcal - 175);
-  }
-  return 1400;
+  return BlocEngine.computeSafetyFloor(state, engineCtx(), macro); // v8.35 (§125): the engine's
 }
 
 // ── Maintenance TDEE-discrepancy recalibration (Phase 3) ───────────────────
@@ -15443,43 +14594,7 @@ function computeSafetyFloor(macro) {
 // goal plus all not-yet-started future ones), the exact set Card 3's modal
 // will preview and batch-update.
 function computeMaintenanceRecalibration(macro, ins) {
-  if (!macro || macro.goalType !== 'maintenance') return null;
-  const today = getLocalToday();
-  const macroEnd = toLocalDateStr(getMacroEndDate(macro));
-  if (today < (macro.start || today) || today > macroEnd) return null; // active cycle only
-
-  const qualifying = (ins.weekBuckets || []).filter(b => b.avgWeight !== null && b.nutrDayCount >= 4);
-  if (qualifying.length < 3) return null; // need a real trend, not one or two noisy points
-
-  const recent = qualifying.slice(-3);
-  const deltas = recent.slice(1).map((b, i) => b.avgWeight - recent[i].avgWeight);
-  const avgWeeklyDelta = deltas.reduce((a, b) => a + b, 0) / deltas.length;
-  if (Math.abs(avgWeeklyDelta) <= 0.5) return null; // stable — this is what maintenance should look like, no action needed
-
-  // Locally-implied TDEE from just the two most recent qualifying weeks —
-  // deliberately NOT the whole-history calcDynamicTDEE(), since the whole
-  // point is catching a shift that figure won't reflect for a long time.
-  const w1 = recent[recent.length - 2], w2 = recent[recent.length - 1];
-  const weightChangeLbs = w2.avgWeight - w1.avgWeight;
-  const localImpliedTDEE = Math.round(w2.avgKcal - (weightChangeLbs * 3500) / 7);
-  if (localImpliedTDEE < 800 || localImpliedTDEE > 6000) return null; // sanity guard, same bounds as calcDynamicTDEE
-
-  const affectedGoals = (state.goals || [])
-    .filter(g => g.macroId === macro.id && g.endDate >= today)
-    .sort((a, b) => a.startDate.localeCompare(b.startDate));
-  if (!affectedGoals.length) return null;
-
-  const currentTargetKcal = parseInt(affectedGoals[0].kcal) || null;
-  if (!currentTargetKcal) return null;
-
-  const discrepancy = localImpliedTDEE - currentTargetKcal;
-  if (Math.abs(discrepancy) < 150 && Math.abs(discrepancy / currentTargetKcal) < 0.07) return null; // not meaningful
-
-  return {
-    localImpliedTDEE, currentTargetKcal, discrepancy,
-    direction: avgWeeklyDelta > 0 ? 'gaining' : 'losing',
-    affectedGoals,
-  };
+  return BlocEngine.computeMaintenanceRecalibration(state, engineCtx(), macro, ins); // v8.35 (§125): the engine's
 }
 
 // ── In-flight flag ────────────────────────────────────────────────────────────
@@ -16486,8 +15601,7 @@ function buildCheckinSheetBodyHTML() {
 // True once a macrocycle has reached its effective end date (including any
 // extension) — the earliest point a review is allowed to be generated.
 function isCycleReviewDue(macro) {
-  if (!macro || !macro.start) return false;
-  return getLocalToday() >= toLocalDateStr(getMacroEndDate(macro));
+  return BlocEngine.isCycleReviewDue(macro, engineCtx()); // v8.35 (§125): the engine's
 }
 
 // Best 5 exercises by % increase in top logged set weight from the first
@@ -16498,46 +15612,7 @@ function isCycleReviewDue(macro) {
 // via getMacroSessionDayKeys/getMacroEffectiveMesoCount so extension weeks
 // and microcycles are included automatically.
 function computeCycleBestLifts(macro) {
-  const dayKeys = getMacroSessionDayKeys(macro);
-  const totalWeeks = getMacroEffectiveMesoCount(macro);
-  const byExercise = {};
-  for (let w = 1; w <= totalWeeks; w++) {
-    dayKeys.forEach(dayKey => {
-      if (dayKey.endsWith('m2') && !isMesoMicroValid(macro, w, 2)) return;
-      const exercises = state.exercises[macro.id + '_1_' + dayKey] || [];
-      const key = macro.id + '_' + w + '_' + dayKey;
-      exercises.forEach(ex => {
-        const sets = getWeekSets(ex, w, macro.weeks);
-        let bestThisSession = 0;
-        for (let s = 0; s < sets; s++) {
-          const log = state.trainLogs[key + '_' + ex.id + '_' + s];
-          if (log && log.weight && log.reps && parseFloat(log.weight) > bestThisSession) {
-            bestThisSession = parseFloat(log.weight);
-          }
-        }
-        if (bestThisSession > 0) {
-          if (!byExercise[ex.id]) {
-            byExercise[ex.id] = { name: ex.name, firstWeek: w, firstWeight: bestThisSession, lastWeek: w, lastWeight: bestThisSession };
-          } else {
-            const rec = byExercise[ex.id];
-            if (w < rec.firstWeek) { rec.firstWeek = w; rec.firstWeight = bestThisSession; }
-            if (w > rec.lastWeek)  { rec.lastWeek  = w; rec.lastWeight  = bestThisSession; }
-          }
-        }
-      });
-    });
-  }
-  return Object.values(byExercise)
-    .filter(r => r.lastWeek > r.firstWeek && r.firstWeight > 0)
-    .map(r => ({
-      name: r.name,
-      startWeight: r.firstWeight,
-      endWeight: r.lastWeight,
-      pctIncrease: Math.round(((r.lastWeight - r.firstWeight) / r.firstWeight) * 1000) / 10,
-    }))
-    .filter(r => r.pctIncrease > 0)
-    .sort((a, b) => b.pctIncrease - a.pctIncrease)
-    .slice(0, 5);
+  return BlocEngine.computeCycleBestLifts(state, macro); // v8.35 (§125): the engine's
 }
 
 // Per-week min/max swing (weight) and actual-vs-target deviation swing
@@ -16547,99 +15622,20 @@ function computeCycleBestLifts(macro) {
 // HTML) so the review payload and the live Progress card can never drift
 // out of sync in their swing definitions.
 function computeCycleWeeklySwings(macro) {
-  const dayMap = buildDayMap();
-  const allDates = Object.keys(dayMap).sort();
-  const anchor = macro.start || allDates[0];
-  const anchorMs = new Date(anchor + 'T00:00:00').getTime();
-  const rangeEndStr = toLocalDateStr(getMacroEndDate(macro));
-  const rangeEndMs = new Date(rangeEndStr + 'T00:00:00').getTime();
-
-  function swingOf(values) {
-    if (values.length < 2) return { min: null, max: null };
-    const diffs = [];
-    for (let i = 0; i < values.length - 1; i++) diffs.push(values[i+1] - values[i]);
-    return { min: Math.min(...diffs), max: Math.max(...diffs) };
-  }
-  function devSwingOf(dates, field) {
-    const diffs = [];
-    dates.forEach(d => {
-      const g = getGoalForDate(d, macro.id);
-      const target = g ? g[field] : null;
-      const actual = dayMap[d] ? dayMap[d][field] : null;
-      if (target !== null && target !== undefined && actual !== null && actual !== undefined) {
-        diffs.push(actual - target);
-      }
-    });
-    if (diffs.length < 1) return { min: null, max: null };
-    return { min: Math.min(...diffs), max: Math.max(...diffs) };
-  }
-
-  const weekBuckets = [];
-  let cur = new Date(anchorMs);
-  let wn = 1;
-  while (cur.getTime() <= rangeEndMs) {
-    const bStart = toLocalDateStr(cur);
-    const bEndDate = new Date(cur); bEndDate.setDate(bEndDate.getDate() + 6);
-    const bEnd = toLocalDateStr(bEndDate);
-    const bDates = allDates.filter(d => d >= bStart && d <= bEnd && dayMap[d]);
-    if (bDates.length > 0) {
-      const wD = bDates.filter(d => dayMap[d].weight !== null);
-      const sD = bDates.filter(d => dayMap[d].steps  !== null);
-      const nD = bDates.filter(d => dayMap[d].hasNutr);
-      weekBuckets.push({
-        label: 'W' + wn,
-        weight:  swingOf(wD.map(d => dayMap[d].weight)),
-        kcal:    devSwingOf(nD, 'kcal'),
-        steps:   devSwingOf(sD, 'steps'),
-        protein: devSwingOf(nD, 'protein'),
-      });
-    }
-    wn++;
-    cur = new Date(cur); cur.setDate(cur.getDate() + 7);
-  }
-  return weekBuckets;
+  return BlocEngine.computeCycleWeeklySwings(state, engineCtx(), macro); // v8.35 (§125): the engine's
 }
 
 // Start/end weight and waist/hip measurements actually logged within the
 // cycle's own date range (macro.start through its effective end date).
 function computeCycleMeasurements(macro) {
-  const startStr = macro.start;
-  const endStr = toLocalDateStr(getMacroEndDate(macro));
-  const bodyLogs = [...(state.bodyLogs || [])].sort((a, b) => a.date.localeCompare(b.date));
-  const inRange = l => l.date >= startStr && l.date <= endStr;
-  const weightLogs = bodyLogs.filter(l => l.weight !== null && l.weight !== undefined && inRange(l));
-  const waistLogs  = bodyLogs.filter(l => l.waist  !== null && l.waist  !== undefined && inRange(l));
-  const hipLogs    = bodyLogs.filter(l => l.hip    !== null && l.hip    !== undefined && inRange(l));
-  const startWeight = weightLogs.length ? weightLogs[0].weight : null;
-  const endWeight    = weightLogs.length ? weightLogs[weightLogs.length - 1].weight : null;
-  return {
-    startWeight, endWeight,
-    totalWeightChange: (startWeight !== null && endWeight !== null) ? parseFloat((endWeight - startWeight).toFixed(1)) : null,
-    startWaist: waistLogs.length ? waistLogs[0].waist : null,
-    endWaist:   waistLogs.length ? waistLogs[waistLogs.length - 1].waist : null,
-    startHip:   hipLogs.length ? hipLogs[0].hip : null,
-    endHip:     hipLogs.length ? hipLogs[hipLogs.length - 1].hip : null,
-    targetWeight: macro.targetBw || null,
-    weightTargetDelta: (endWeight !== null && macro.targetBw) ? parseFloat((endWeight - macro.targetBw).toFixed(1)) : null,
-  };
+  return BlocEngine.computeCycleMeasurements(state, engineCtx(), macro); // v8.35 (§125): the engine's
 }
 
 // Compact snapshots of the two most recently reviewed OTHER cycles, most
 // recent first — sent with every review call so BLOC can compare against
 // its own prior verdicts ("always include last 2 reviews in each call").
 function getPriorCycleReviews(excludeMacroId) {
-  return (state.macrocycles || [])
-    .filter(m => m.id !== excludeMacroId && m.review)
-    .sort((a, b) => toLocalDateStr(getMacroEndDate(b)).localeCompare(toLocalDateStr(getMacroEndDate(a))))
-    .slice(0, 2)
-    .map(m => ({
-      name: m.name, goalType: m.goalType,
-      start: m.start, end: toLocalDateStr(getMacroEndDate(m)),
-      complianceScore: m.review.complianceScore,
-      bodyfatDirection: m.review.bodyfatEstimate ? m.review.bodyfatEstimate.direction : null,
-      weightTargetDelta: m.review.weightTargetDelta,
-      highlights: m.review.highlights, improvements: m.review.improvements,
-    }));
+  return BlocEngine.getPriorCycleReviews(state, engineCtx(), excludeMacroId); // v8.35 (§125): the engine's
 }
 
 // Assembles every deterministic input for the review call — weekly avgs
@@ -16648,48 +15644,7 @@ function getPriorCycleReviews(excludeMacroId) {
 // Pure computation, no DOM/API — kept separate from buildCycleReviewPrompt()
 // so the payload can be inspected/tested independently of prompt wording.
 function computeCycleReviewPayload(macro) {
-  const ins = computeWeeklyInsights(macro);
-  const todayStr = getLocalToday();
-  const endStr = toLocalDateStr(getMacroEndDate(macro));
-  const dayMap = buildDayMap();
-
-  // On the cycle's actual final day, one or more of kcal/protein/carbs/
-  // steps/weight are often genuinely not yet logged (steps especially —
-  // always the last thing logged in a day), even though the day is "done"
-  // in every other sense. Rather than silently treating any missing metric
-  // as a miss, substitute this week's average-so-far (the last bucket in
-  // weeklyAverages already covers exactly this final week) and tell the
-  // LLM explicitly which figures were substituted and what value was used
-  // (dev 2026-09-15, item 1b — generalized from the original steps-only
-  // handling to cover kcal/macros/steps/weight alike).
-  const finalDaySubstitutions = {};
-  if (todayStr === endStr) {
-    const finalDayEntry = dayMap[endStr] || null;
-    const finalWeekBucket = ins && ins.weekBuckets && ins.weekBuckets.length ? ins.weekBuckets[ins.weekBuckets.length - 1] : null;
-    if (finalWeekBucket) {
-      const missingNutr   = !finalDayEntry || !finalDayEntry.hasNutr;
-      const missingSteps  = !finalDayEntry || finalDayEntry.steps === null || finalDayEntry.steps === undefined;
-      const missingWeight = !finalDayEntry || finalDayEntry.weight === null || finalDayEntry.weight === undefined;
-      if (missingNutr && finalWeekBucket.avgKcal !== null) {
-        finalDaySubstitutions.kcal = finalWeekBucket.avgKcal;
-        finalDaySubstitutions.protein = finalWeekBucket.avgProtein;
-        finalDaySubstitutions.carbs = finalWeekBucket.avgCarbs;
-      }
-      if (missingSteps && finalWeekBucket.avgSteps !== null) finalDaySubstitutions.steps = finalWeekBucket.avgSteps;
-      if (missingWeight && finalWeekBucket.avgWeight !== null) finalDaySubstitutions.weight = parseFloat(finalWeekBucket.avgWeight.toFixed(1));
-    }
-  }
-
-  return {
-    macroName: macro.name, goalType: macro.goalType || 'loss',
-    start: macro.start, end: endStr,
-    weeklyAverages: ins ? ins.weekBuckets : [],
-    weeklySwings: computeCycleWeeklySwings(macro),
-    measurements: computeCycleMeasurements(macro),
-    bestLifts: computeCycleBestLifts(macro),
-    priorReviews: getPriorCycleReviews(macro.id),
-    finalDaySubstitutions,
-  };
+  return BlocEngine.computeCycleReviewPayload(state, engineCtx(), macro); // v8.35 (§125): the engine's
 }
 
 // ── Photo capture — before/after, held in memory only ──────────────────────
@@ -16945,11 +15900,7 @@ function buildCycleReviewSummaryHTML(macro, alwaysOpen) {
 // (used only when browsing a PAST cycle via the hero selector, after a new
 // cycle has actually been built and this one is no longer active).
 function isInFinalWeek(macro) {
-  if (!macro || !macro.start) return false;
-  const endStr = toLocalDateStr(getMacroEndDate(macro));
-  const finalWeekStartDate = new Date(endStr + 'T00:00:00');
-  finalWeekStartDate.setDate(finalWeekStartDate.getDate() - 6);
-  return getLocalToday() >= toLocalDateStr(finalWeekStartDate);
+  return BlocEngine.isInFinalWeek(macro, engineCtx()); // v8.35 (§125): the engine's
 }
 
 // buildFinalWeekCardHTML() was removed in v8.16. It combined Build-next-cycle
@@ -17151,86 +16102,7 @@ function chooseNextCyclePlan(planKey) {
 // Daily step target is carried forward from whatever goal is currently
 // active, since the deterministic engine has no basis to recommend one.
 function buildNextCycleGoalSteps(rec) {
-  // Phase 4 — an accepted LLM plan already carries fully-formed goal objects
-  // (materialised in askBlocForNextCycleAdvice: dates, kcal, protein, carbs,
-  // fats, and steps already resolved per the cut-only-lever rule). Use them
-  // directly rather than re-deriving from rec.bridge/rec.directionRamp.
-  if (rec._llmGoals && rec._llmGoals.length) return rec._llmGoals;
-
-  const bwRounded = rec.latestBw ? Math.round(rec.latestBw) : 150;
-  const proteinG = Math.max(1, Math.ceil(bwRounded));
-  const macrosFor = (kcal) => {
-    const remaining = Math.max(0, kcal - proteinG * 4);
-    return { protein: proteinG, carbs: Math.round(remaining * 0.5 / 4), fats: Math.round(remaining * 0.5 / 9) };
-  };
-  const today = getLocalToday();
-  const currentActiveGoal = (state.goals || []).find(g => g.startDate <= today && g.endDate >= today);
-  // Maintenance goals are always 8,000 steps flat — never carried forward
-  // from whatever the current active goal happens to be, and never varied.
-  // Cut/bulk-direction goals still carry forward the current goal's steps,
-  // since that rule is maintenance-specific.
-  const stepsTarget = rec.goalType === 'maintenance' ? 8000 : (currentActiveGoal ? currentActiveGoal.steps : 8000);
-
-  const steps = [];
-  // DST-safe date-add helper — setDate() operates on the calendar day
-  // component directly, unlike raw millisecond arithmetic (getTime() + N *
-  // 86400000), which silently drifts a day when a span crosses a DST
-  // transition (a "spring forward"/"fall back" day is not exactly 24h of
-  // real time). Matches the pattern getMacroEndDate() already uses.
-  const addDays = (d, n) => { const nd = new Date(d); nd.setDate(nd.getDate() + n); return nd; };
-  let cursor = new Date(rec.newMacroStart + 'T00:00:00');
-
-  if (rec.bridge && rec.bridge.fullRows.length) {
-    // Group consecutive weeks holding the SAME kcal level into one goal
-    // spanning the full held range — one goal per distinct kcal level, not
-    // one per calendar week. Ramp weeks (kcal changes every week) naturally
-    // stay as individual one-week goals; the flat hold weeks (including the
-    // final ramp week, which already lands on TDEE) collapse into a single
-    // multi-week goal. Same principle as the LLM path's variable-cadence
-    // goal granularity — just applied to the deterministic table too.
-    const groups = [];
-    rec.bridge.fullRows.forEach(r => {
-      const last = groups[groups.length - 1];
-      if (last && last.kcal === r.kcal) {
-        last.endWeek = r.week;
-        last.isHoldWeek = last.isHoldWeek || r.isHoldWeek;
-      } else {
-        groups.push({ startWeek: r.week, endWeek: r.week, kcal: r.kcal, isHoldWeek: r.isHoldWeek });
-      }
-    });
-    groups.forEach(gr => {
-      const weeksSpanned = gr.endWeek - gr.startWeek + 1;
-      const startDate = toLocalDateStr(cursor);
-      const endDate   = toLocalDateStr(addDays(cursor, weeksSpanned * 7 - 1));
-      const label = gr.startWeek === gr.endWeek
-        ? `Wk ${gr.startWeek}${gr.isHoldWeek ? ' (hold)' : ''}`
-        : `Wk ${gr.startWeek}-${gr.endWeek}${gr.isHoldWeek ? ' (hold)' : ''}`;
-      steps.push({ label, startDate, endDate, kcal: gr.kcal, steps: stepsTarget, ...macrosFor(gr.kcal) });
-      cursor = addDays(cursor, weeksSpanned * 7);
-    });
-  } else if (rec.directionRamp && rec.directionRamp.length) {
-    // Cut/bulk-direction ramp — buildDirectionSteppedRamp() already outputs
-    // pre-grouped {startWeek, endWeek, kcal} steps (it merges consecutive
-    // holds at the same level internally), so this just walks them
-    // directly rather than needing its own grouping pass.
-    rec.directionRamp.forEach(gr => {
-      const weeksSpanned = gr.endWeek - gr.startWeek + 1;
-      const startDate = toLocalDateStr(cursor);
-      const endDate   = toLocalDateStr(addDays(cursor, weeksSpanned * 7 - 1));
-      const label = gr.startWeek === gr.endWeek ? `Wk ${gr.startWeek}` : `Wk ${gr.startWeek}-${gr.endWeek}`;
-      steps.push({ label, startDate, endDate, kcal: gr.kcal, steps: stepsTarget, ...macrosFor(gr.kcal) });
-      cursor = addDays(cursor, weeksSpanned * 7);
-    });
-  } else {
-    // Last-resort fallback — flat single-step goal, only reached if the
-    // ramp genuinely couldn't be computed (e.g. no TDEE data at all yet).
-    const target = rec.dynResult
-      ? (rec.goalType === 'gain' ? rec.dynResult.tdee + 250 : rec.dynResult.tdee - 500)
-      : (rec.recentKcal || 2000);
-    const endDate = rec.newMacroEnd || toLocalDateStr(addDays(cursor, (rec.placeholderWeeks || 8) * 7 - 1));
-    steps.push({ label: 'Starting target', startDate: toLocalDateStr(cursor), endDate, kcal: Math.round(target), steps: stepsTarget, ...macrosFor(Math.round(target)) });
-  }
-  return steps;
+  return BlocEngine.buildNextCycleGoalSteps(state, engineCtx(), rec); // v8.35 (§125): the engine's
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -17251,25 +16123,7 @@ let _nextCycleAdviceLoading = false; // in-flight flag, never persisted — mirr
 // this API call. Returns { eligible, reason } (rather than a bare bool) so
 // the future render pass can explain *why* it's unavailable, not just hide it.
 function isNextCycleAdviceEligible(macro, rec) {
-  if (!macro || !rec || !rec.goalType)  return { eligible: false, reason: 'no-recommendation' };
-  // A continuation is only eligible when a "normal logic" alternative was
-  // actually computed — the LLM plans for/reasons about that alternative
-  // (see nextCycleAdvicePlanMode's planRec resolution), so without one
-  // there's nothing concrete to ask about.
-  if (rec.isContinuation && (!rec.continuationAlternative || !rec.continuationAlternative.goalType)) {
-    return { eligible: false, reason: 'continuation-no-alternative' };
-  }
-  if (rec.needsDirectionChoice)         return { eligible: false, reason: 'direction-not-chosen' };
-  // Always plans for the real active cycle, never a previewed one — same
-  // guard "Build this plan next" already applies, for the same reason.
-  if (_nextCyclePreviewMacroId && _nextCyclePreviewMacroId !== macro.id) {
-    return { eligible: false, reason: 'previewing-different-cycle' };
-  }
-  const macroEndDate = getMacroEndDate(macro);
-  const today = new Date(getLocalToday() + 'T00:00:00');
-  const daysToEnd = Math.round((macroEndDate - today) / 86400000);
-  if (daysToEnd > 21) return { eligible: false, reason: 'outside-3-week-window', daysToEnd };
-  return { eligible: true, reason: null, daysToEnd };
+  return BlocEngine.isNextCycleAdviceEligible(engineCtx(), macro, rec, _nextCyclePreviewMacroId); // v8.35 (§125): the engine's
 }
 
 // ── Plan-mode decision, shared by the prompt builder AND the response
@@ -17298,21 +16152,7 @@ function isNextCycleAdviceEligible(macro, rec) {
 //                         the user already gave a deadline that resolved
 //                         cleanly).
 function nextCycleAdvicePlanMode(rec) {
-  const planRec = (rec && rec.isContinuation && rec.continuationAlternative) ? rec.continuationAlternative : rec;
-  const override         = _nextCycleOverride || {};
-  const hasDeadline      = !!override.deadline;
-  const conflictTwoPlans = !!(planRec && planRec.overrideConflict);
-  const directionTwoPlans = !!(planRec && planRec.goalType && planRec.goalType !== 'maintenance' && !hasDeadline && !conflictTwoPlans);
-  // Maintenance bridges have no target-weight/deadline concept, so they can
-  // never hit conflictTwoPlans/directionTwoPlans — but the deterministic
-  // bridge length (climb + minimum hold) is still just this engine's OWN
-  // best guess, same as any other placeholder duration. Gives the LLM room
-  // to propose a genuinely different bridge length (still exactly 1 plan,
-  // not 2 — there's no "sustainable vs aggressive" split for a bridge) when
-  // it has good reason to (see USER CONTEXT / HISTORY in the prompt) rather
-  // than being hard-locked to the engine's own default end date.
-  const maintenanceFlex = !!(planRec && planRec.goalType === 'maintenance' && !hasDeadline);
-  return { hasDeadline, conflictTwoPlans, directionTwoPlans, maintenanceFlex, returnTwoPlans: conflictTwoPlans || directionTwoPlans, planRec };
+  return BlocEngine.nextCycleAdvicePlanMode(rec, _nextCycleOverride); // v8.35 (§125): the engine's
 }
 
 
@@ -20636,23 +19476,15 @@ function deleteMacrocycle(id) {
 // quick-log modals below; everything else is a jumping-off point to the
 // page that actually owns that data.
 
-const HOME_STEPS_TOLERANCE = 500;
-
-// Polarity of each metric — whether being ABOVE or BELOW the weekly target
-// is the "bad" direction for badge colouring. 'both' = bad either way
-// (kcal). 'underBad' = only bad if short (protein, steps — exceeding is
-// fine/good). 'overBad' = only bad if over (carbs — under is fine).
-const HOME_METRIC_POLARITY = { kcal: 'both', protein: 'underBad', carbs: 'overBad', steps: 'underBad' };
+// v8.35 (§125): HOME_STEPS_TOLERANCE and HOME_METRIC_POLARITY (steps' own
+// band, and which direction is "bad" per metric) live in the engine, with
+// getHomeMetricTolerance and the badge's status. Nothing else in BLOC read them.
 
 // Tolerance band width per metric, reusing the exact same bands the
 // qualifying-nutrition-day logic uses (see SAVE_DAY_TOLERANCE), plus a
 // steps-specific band since SAVE_DAY_TOLERANCE has no steps entry.
 function getHomeMetricTolerance(field) {
-  if (field === 'kcal') return SAVE_DAY_TOLERANCE.kcal;
-  if (field === 'protein') return SAVE_DAY_TOLERANCE.proteinLow;
-  if (field === 'carbs') return SAVE_DAY_TOLERANCE.carbs;
-  if (field === 'steps') return HOME_STEPS_TOLERANCE;
-  return 0;
+  return BlocEngine.getHomeMetricTolerance(field); // v8.35 (§125): the engine's
 }
 
 // The Monday that starts the calendar week containing dateStr, as a date
@@ -20672,56 +19504,17 @@ function getHomeIsoDow(dateStr) {
 // days average and the goal's target. avg may be null (nothing logged yet
 // this week) — shown as a neutral "No data" badge rather than guessing.
 function getHomeMetricBadge(field, avg, target, dayMap, weekStart, today, kcalTarget) {
-  if (avg === null || target === null || target === undefined) {
-    return { label: 'No data', color: 'var(--text3)' };
-  }
-  const tol = getHomeMetricTolerance(field);
-  const polarity = HOME_METRIC_POLARITY[field] || 'both';
+  // v8.35 (§125): the engine judges the status; the colour is BLOC's.
+  return homeBadgeWithColour(BlocEngine.getHomeMetricBadge(field, avg, target, dayMap, weekStart, today, kcalTarget));
+}
 
-  // Pace-aware comparison: judge the daily rate still NEEDED for the rest
-  // of the week to land on the weekly target, rather than the raw average
-  // logged so far — an early-week dip is still perfectly recoverable and
-  // shouldn't read as "falling behind" if there's time left to catch up.
-  // Same underlying math as getHomeMetricSublabel's "on pace" text, so the
-  // two can never disagree with each other.
-  let paceValue = avg;
-  let weekOver = false;
-  if (dayMap && weekStart && today) {
-    const info = getWeeklyRequiredDaily(field, dayMap, weekStart, today, target, kcalTarget);
-    if (info && info.daysRemaining > 0) {
-      paceValue = info.requiredDaily;
-    } else if (info) {
-      weekOver = true; // no days left to react to — see comment below
-    }
-  }
-
-  // Needing MORE than target for the rest of the week (paceValue above
-  // target) means a deficit built up earlier — that's "Falling behind".
-  // Needing LESS than target (paceValue below target) means a surplus
-  // already banked — that's "Exceeding". This is the mirror image of a
-  // plain avg-vs-target comparison, not the same direction.
-  //
-  // That framing only holds while days remain to react to. Once the week
-  // is over (weekOver), getWeeklyRequiredDaily has nothing left to
-  // "require" and just hands back the actual final average instead — at
-  // which point "above target" stops meaning a lingering deficit and
-  // starts meaning the week actually finished OVER target (a surplus),
-  // and "below target" means it finished under (a shortfall). That's the
-  // opposite relationship to the mid-week case, so the comparison flips
-  // here rather than reusing the same direction blindly.
-  const behindPace = weekOver ? (paceValue < target - tol) : (paceValue > target + tol);
-  const aheadPace  = weekOver ? (paceValue > target + tol) : (paceValue < target - tol);
-  let label, isBad;
-  if (behindPace)      { label = 'Falling behind'; isBad = polarity !== 'overBad'; }
-  else if (aheadPace)  {
-    // 'underBad' metrics (protein, steps) treat exceeding target as simply
-    // fine — not just non-bad, but not worth distinguishing from being on
-    // target at all, so it collapses into the same 'On track' label.
-    isBad = polarity !== 'underBad';
-    label = (polarity === 'underBad') ? 'On track' : 'Exceeding';
-  }
-  else                 { label = 'On track';        isBad = false; }
-  return { label, color: isBad ? 'var(--red)' : 'var(--green)' };
+// The engine's badge status → the { label, color } every BLOC caller reads.
+// 🚨 Callers compare `color === 'var(--red)'` to mean "off target", so these
+//    three strings are behaviour, not styling: change one and Home's "N of 4
+//    on target" chip, the red bars and Fuel's rest-of-week tiles all change.
+const HOME_BADGE_COLOURS = { noData: 'var(--text3)', ok: 'var(--green)', bad: 'var(--red)' };
+function homeBadgeWithColour(b) {
+  return { label: b.label, color: HOME_BADGE_COLOURS[b.status] };
 }
 
 // Builds the "adjust your daily avg by X for the rest of the week" (or, on
@@ -21140,10 +19933,11 @@ function buildHomeUpcomingGoalHTML() {
 function renderHomeThisWeek() {
   const el = document.getElementById('home-this-week');
   if (!el) return;
-  const today = getLocalToday();
-  const weekStart = getHomeWeekStart(today);
-  const goal = getActiveGoal();
-  const dayMap = buildDayMap();
+  // v8.35 (§125): every number and badge is the engine's computeHomeWeek (the
+  // orchestration that used to live here, deep dive §1d); the names, colours
+  // and number formats below are BLOC's presentation of it.
+  const week = BlocEngine.computeHomeWeek(state, engineCtx());
+  const { today, weekStart, goal, dayMap } = week;
 
   const metrics = [
     { field: 'kcal',    name: 'Calories', unit: '',  colour: 'var(--accent)',   fmt: v => v.toLocaleString() },
@@ -21153,11 +19947,8 @@ function renderHomeThisWeek() {
   ];
 
   const badges = metrics.map(m => {
-    const avg = avgDayMapField(dayMap, m.field, weekStart, today);
-    const target = goal ? goal[m.field] : null;
-    const pct = (target && avg !== null) ? Math.max(0, Math.min(100, Math.round((avg / target) * 100))) : 0;
-    const weekPlannedAvg = computeWeekPlannedAvg(m.field, dayMap, weekStart, today, goal);
-    return { m, avg, target, pct, weekPlannedAvg, badge: getHomeMetricBadge(m.field, avg, target, dayMap, weekStart, today, goal && goal.kcal) };
+    const w = week.metrics.find(x => x.field === m.field);
+    return { m, avg: w.avg, target: w.target, pct: w.pct, weekPlannedAvg: w.weekPlannedAvg, badge: homeBadgeWithColour(w.badge) };
   });
 
   const withData = badges.filter(b => b.badge.label !== 'No data');
@@ -22066,67 +20857,7 @@ function renderTrainSession(macro) {
 let trainAgendaOpen = null; // Set of unit keys expanded in the sheet; null = derive on render
 
 function getTrainAgendaUnits(macro) {
-  const days = macro.days || ['push','pull','legs'];
-  const dayLabels = macro.dayLabels || { push:'Push', pull:'Pull', legs:'Legs' };
-  const useMicro = macro.useMicrocycles !== false;
-  const wpm = macro.weeksPerMeso || 1;
-  const twoWeeks = useMicro && wpm === 2;
-  const total = getMacroEffectiveMesoCount(macro);
-  const today = getLocalToday();
-  const next = getNextIncompleteSession(macro);
-  const addDays = (iso, n) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return toLocalDateStr(d); };
-  const sessionFor = (w, dayKey, label) => {
-    const exercises = (state.exercises[macro.id + '_1_' + dayKey] || []);
-    if (!exercises.length) return null;
-    let sets = 0, doneSets = 0;
-    exercises.forEach(ex => {
-      const n = getWeekSets(ex, w, macro.weeks);
-      sets += n;
-      for (let s = 0; s < n; s++) {
-        const lg = state.trainLogs[macro.id + '_' + w + '_' + dayKey + '_' + ex.id + '_' + s];
-        if (lg && lg.done) doneSets++;
-      }
-    });
-    return {
-      week: w, dayKey, label, exercises: exercises.length, sets, doneSets,
-      done: sets > 0 && doneSets === sets,
-      partial: doneSets > 0 && doneSets < sets,
-      upNext: !!(next && next.week === w && next.dayKey === dayKey),
-      viewing: state.currentWeek === w && state.currentDay === dayKey,
-    };
-  };
-  const units = [];
-  for (let w = 1; w <= total; w++) {
-    const groups = twoWeeks ? [1, 2].filter(mc => isMesoMicroValid(macro, w, mc)).map(mc => [mc]) : [useMicro ? [1, 2].filter(mc => isMesoMicroValid(macro, w, mc)) : [0]];
-    groups.forEach(mcs => {
-      const offsetWeeks = twoWeeks ? (w - 1) * 2 + (mcs[0] - 1) : (w - 1) * wpm;
-      const spanDays = twoWeeks ? 7 : wpm * 7;
-      const start = macro.start ? addDays(macro.start, offsetWeeks * 7) : null;
-      const end = start ? addDays(start, spanDays - 1) : null;
-      const sessions = [];
-      mcs.forEach(mc => days.forEach(d => {
-        const dayKey = mc === 0 ? d : d + 'm' + mc;
-        const name = dayLabels[d] || d;
-        // Both microcycles share one unit only when they share a calendar week:
-        // then, and only then, the session needs telling apart.
-        const label = (!twoWeeks && useMicro) ? name + ' · ' + (mc === 1 ? 'A' : 'B') : name;
-        const sess = sessionFor(w, dayKey, label);
-        if (sess) sessions.push(sess);
-      }));
-      if (!sessions.length) return;
-      units.push({
-        key: w + '-' + mcs.join(''), week: w, weekOfMeso: twoWeeks ? mcs[0] : 0,
-        start, end,
-        isThisWeek: !!(start && today >= start && today <= end),
-        isDeload: isDeloadUnit(macro, w, sessions[0].dayKey),
-        sessions,
-        doneCount: sessions.filter(x => x.done).length,
-        viewing: sessions.some(x => x.viewing),
-        hasUpNext: sessions.some(x => x.upNext),
-      });
-    });
-  }
-  return { units, next, total };
+  return BlocEngine.getTrainAgendaUnits(state, engineCtx(), macro, { week: state.currentWeek, dayKey: state.currentDay }); // v8.35 (§125): the engine's
 }
 
 function trainAgendaDate(iso) {
@@ -22309,21 +21040,7 @@ function toggleExercise(expandKey) {
 // represent each real week), fanned out from the macro's start date.
 // Returns null if the macro has no start date set.
 function getSelectedTrainWeekDates(macro) {
-  if (!macro || !macro.start) return null;
-  const mesoSpanDays = (macro.weeksPerMeso || 1) * 7;
-  const useMicro = macro.useMicrocycles !== false;
-  // A mesocycle only represents two distinct real calendar weeks when it
-  // actually spans 2 weeks via microcycles — otherwise M1/M2 (if used at
-  // all) share the same single calendar week, mirroring the exact
-  // distinction the Train page's own day-tab grouping already makes.
-  const usesTwoRealWeeks = useMicro && (macro.weeksPerMeso || 1) === 2;
-  let offsetDays = (state.currentWeek - 1) * mesoSpanDays;
-  if (usesTwoRealWeeks && String(state.currentDay).endsWith('m2')) offsetDays += 7;
-  const start = new Date(macro.start + 'T00:00:00');
-  start.setDate(start.getDate() + offsetDays);
-  const end = new Date(start);
-  end.setDate(end.getDate() + (usesTwoRealWeeks ? 6 : mesoSpanDays - 1));
-  return { start: toLocalDateStr(start), end: toLocalDateStr(end) };
+  return BlocEngine.getSelectedTrainWeekDates(macro, state.currentWeek, state.currentDay); // v8.35 (§125): the engine's
 }
 
 // ── TRAIN HERO (v8.16) ────────────────────────────────────────────────
@@ -22413,32 +21130,7 @@ function renderTrainHero(macro) {
 // (which auto-selects the next incomplete one) and the Home page's next-
 // session preview, so both always agree on what "next" means.
 function getAllMacroSessions(macro) {
-  const days = macro.days || ['push','pull','legs'];
-  const useMicro = macro.useMicrocycles !== false;
-  const micros = useMicro ? [1,2] : [0];
-  const allSessions = [];
-  const totalMesos = getMacroEffectiveMesoCount(macro);
-  for (let w = 1; w <= totalMesos; w++) {
-    micros.forEach(mc => {
-      if (!isMesoMicroValid(macro, w, mc)) return; // dropped M2 of a partial trailing extension mesocycle
-      days.forEach(d => {
-        const dayKey = mc === 0 ? d : d + 'm' + mc;
-        const templateKey = macro.id + '_1_' + dayKey;
-        const exercises = (state.exercises[templateKey] || []).slice().sort((a,b) => (a.order||0)-(b.order||0));
-        if (exercises.length === 0) return;
-        let allDone = true;
-        exercises.forEach(ex => {
-          const sets = getWeekSets(ex, w, macro.weeks);
-          for (let s = 0; s < sets; s++) {
-            const lk = macro.id + '_' + w + '_' + dayKey + '_' + ex.id + '_' + s;
-            if (!state.trainLogs[lk] || !state.trainLogs[lk].done) allDone = false;
-          }
-        });
-        allSessions.push({ week: w, dayKey, done: allDone });
-      });
-    });
-  }
-  return allSessions;
+  return BlocEngine.getAllMacroSessions(state, macro); // v8.35 (§125): the engine's
 }
 
 // Returns the next incomplete { week, dayKey } session for a macro, or null
@@ -22447,9 +21139,7 @@ function getAllMacroSessions(macro) {
 // picker does — callers like the Home preview want to know unambiguously
 // whether there's anything left to do today.
 function getNextIncompleteSession(macro) {
-  const allSessions = getAllMacroSessions(macro);
-  const next = allSessions.find(s => !s.done);
-  return next || null;
+  return BlocEngine.getNextIncompleteSession(state, macro); // v8.35 (§125): the engine's
 }
 
 // Renders every exercise/superset card for the currently selected week+day —
@@ -25044,50 +23734,17 @@ function buildMacrocycleCreationTourSteps() {
 // Returns age in whole years from a stored birthday, accounting for whether
 // this year's birthday has occurred yet.
 function calcAge(birthdayStr) {
-  if (!birthdayStr) return null;
-  const today = now();
-  const bday  = new Date(birthdayStr + 'T00:00:00');
-  let age = today.getFullYear() - bday.getFullYear();
-  const m = today.getMonth() - bday.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < bday.getDate())) age--;
-  return age;
+  return BlocEngine.calcAge(birthdayStr, engineCtx()); // v8.35 (§125): the engine's
 }
 
 /** Return activity multiplier (TDEE = BMR × multiplier) based on training plan + avg steps. */
 function getActivityMultiplier() {
-  const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
-  const spw = macro ? (macro.sessionsPerWeek || 0) : 0;
-
-  // Average daily steps from all body logs with steps logged
-  const stepLogs = (state.bodyLogs || []).filter(l => parseInt(l.steps) > 0);
-  const avgSteps = stepLogs.length
-    ? stepLogs.reduce((a, b) => a + parseInt(b.steps), 0) / stepLogs.length
-    : 0;
-
-  if (spw >= 5 && avgSteps >= 9000) return { multiplier: 1.725, label: 'very active' };
-  if (spw >= 3 && avgSteps >= 7000) return { multiplier: 1.55,  label: 'moderately active' };
-  if (spw >= 1 && avgSteps >= 5000) return { multiplier: 1.375, label: 'lightly active' };
-  return { multiplier: 1.2, label: 'sedentary' };
+  return BlocEngine.getActivityMultiplier(state); // v8.35 (§125): the engine's
 }
 
 /** Mifflin-St Jeor BMR (returns kcal/day or null if profile incomplete). */
 function calcMifflinBMR() {
-  const prof = state.profile || {};
-  if (!prof.gender || !prof.heightCm || !prof.birthday) return null;
-  // Use most recent body weight
-  const wLog = [...(state.bodyLogs || [])]
-    .filter(l => l.weight)
-    .sort((a, b) => b.date.localeCompare(a.date))[0];
-  if (!wLog) return null;
-
-  const weightKg  = parseFloat(wLog.weight) / 2.2046;
-  const heightCm  = prof.heightCm;
-  const age       = calcAge(prof.birthday);
-  if (!age || age < 1 || age > 120) return null;
-
-  let bmr = (10 * weightKg) + (6.25 * heightCm) - (5 * age);
-  bmr += prof.gender === 'male' ? 5 : -161;
-  return Math.round(bmr);
+  return BlocEngine.calcMifflinBMR(state, engineCtx()); // v8.35 (§125): the engine's
 }
 
 /**
@@ -25108,76 +23765,11 @@ function calcMifflinBMR() {
 // than the raw method's "any 2 adjacent readings") — better to give a
 // noisier answer than none at all for someone just starting to log.
 function calcDynamicTDEE() {
-  const trend = calcTrendBasedTDEE();
-  if (trend) return trend;
-  return calcDynamicTDEE_rawLogPair();
+  return BlocEngine.calcDynamicTDEE(state, engineCtx()); // v8.35 (§125): the engine's
 }
 
 function calcDynamicTDEE_rawLogPair() {
-  // Consecutive-pairs method, using median for robustness.
-  // Every adjacent pair of weight logs is evaluated. Daily weight fluctuation
-  // (water retention, food mass, glycogen) skews individual estimates but the
-  // median naturally ignores extremes — every log contributes to the result.
-  //
-  // Deliberately NOT scoped to the active/browsed macrocycle: the metabolic
-  // estimate itself should reflect the person's full logging history, not
-  // just whichever cycle happens to be showing. Cycle-specific context (goal
-  // weight, direction, calorie target) is applied separately by the caller
-  // using the resolved macro, not here.
-  const today = getLocalToday();
-
-  const wLogs = [...(state.bodyLogs || [])]
-    .filter(l => l.weight && l.date <= today)
-    .sort((a, b) => a.date.localeCompare(b.date));
-
-  if (wLogs.length < 2) return null;
-
-  const estimates = [];
-
-  for (let i = 0; i < wLogs.length - 1; i++) {
-    const w1    = wLogs[i], w2 = wLogs[i + 1];
-    const d1    = new Date(w1.date + 'T00:00:00');
-    const d2    = new Date(w2.date + 'T00:00:00');
-    const nDays = Math.round((d2 - d1) / 86400000);
-    if (nDays < 1 || nDays > 21) continue;
-
-    // Collect calorie data from nutritionLogs (confirmed single source of truth;
-    // meals sync here via syncNutrLegacyLog on every save)
-    const kcalValues = [];
-    for (let k = 1; k <= nDays; k++) {
-      const d    = new Date(d1); d.setDate(d.getDate() + k);
-      const ds   = toLocalDateStr(d);
-      const nLog = (state.nutritionLogs || []).find(l => l.date === ds);
-      const kcal = nLog ? parseInt(nLog.kcal) || 0 : 0;
-      if (kcal > 0) kcalValues.push(kcal);
-    }
-    // Need at least 50% calorie coverage for the pair to count
-    if (kcalValues.length < Math.max(1, Math.ceil(nDays * 0.5))) continue;
-
-    const avgKcal          = kcalValues.reduce((a, b) => a + b, 0) / kcalValues.length;
-    const weightChangeLbs  = parseFloat(w2.weight) - parseFloat(w1.weight);
-    const calPerDayImplied = (weightChangeLbs * 3500) / nDays;
-    estimates.push(avgKcal - calPerDayImplied);
-  }
-
-  if (!estimates.length) return null;
-
-  // Median — robust against overnight fluctuation outliers
-  const sorted     = [...estimates].sort((a, b) => a - b);
-  const mid        = Math.floor(sorted.length / 2);
-  const medianTdee = sorted.length % 2 !== 0
-    ? sorted[mid]
-    : (sorted[mid - 1] + sorted[mid]) / 2;
-
-  if (medianTdee < 800 || medianTdee > 6000) return null;
-
-  const roundedTdee = Math.round(medianTdee);
-  const { multiplier } = getActivityMultiplier();
-  return {
-    tdee:       roundedTdee,
-    bmr:        Math.round(roundedTdee / multiplier),
-    dataPoints: estimates.length,
-  };
+  return BlocEngine.calcDynamicTDEE_rawLogPair(state, engineCtx()); // v8.35 (§125): the engine's
 }
 
 // ── Measurement unit helpers ────────────────────────────────────────────
@@ -25643,7 +24235,7 @@ function getDayTotals(date) {
 //     (derived from the goal that originated it) — later logged days are
 //     matched against that stored band by their actual totals to decide
 //     whether they belong in the same group or need a new one.
-const SAVE_DAY_TOLERANCE = { kcal: 50, proteinLow: 10, carbs: 15, fats: 10 };
+const SAVE_DAY_TOLERANCE = BlocEngine.SAVE_DAY_TOLERANCE; // v8.35 (§125): the engine's, frozen
 const SIMILAR_GOAL_TOLERANCE = { kcal: 100, proteinLow: 15, carbs: 25, fats: 15 };
 
 // Whether a day's logged totals are close enough to ITS OWN goal's targets
@@ -29524,7 +28116,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.34</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.35</span>`;
 }
 
 function renderSettings() {
@@ -29878,9 +28470,7 @@ function importExerciseLibrary(file) {
 
 // Returns whichever goal period covers today's date, regardless of macrocycle.
 function getActiveGoal() {
-  if (!state.goals) return null;
-  const today = getLocalToday();
-  return state.goals.find(g => g.startDate <= today && g.endDate >= today) || null;
+  return BlocEngine.getActiveGoal(state, engineCtx()); // v8.35 (§125): the engine's
 }
 
 // The goal covering an arbitrary date, regardless of macrocycle — used
@@ -29888,8 +28478,7 @@ function getActiveGoal() {
 // Nutrition page's date picker/swipe) so the targets shown always match
 // whichever goal period actually covers that day, not just today's.
 function getGoalForDay(dateStr) {
-  if (!state.goals) return null;
-  return state.goals.find(g => g.startDate <= dateStr && g.endDate >= dateStr) || null;
+  return BlocEngine.getGoalForDay(state, dateStr); // v8.35 (§125): the engine's
 }
 
 // Recomputes the "Step N - " prefix on every goal belonging to a macrocycle,

@@ -26,10 +26,10 @@ export interface Macrocycle {
 
 export interface BodyLog {
   date: DateStr;
-  weight?: string | number;
-  steps?: string | number;
-  waist?: string | number; // inches, always (§3)
-  hip?: string | number;
+  weight?: Loose;   // string or number: the log form stores what was typed
+  steps?: Loose;
+  waist?: Loose;    // inches, always (§3)
+  hip?: Loose;
   [k: string]: unknown;
 }
 
@@ -59,15 +59,60 @@ export interface BlocProfile {
   [k: string]: unknown;
 }
 
+// ── v8.35 (§125): the records the state readers read ─────────────────────
+// 🚨 `Loose` is `any`, on purpose, for values whose shape is whatever the code
+// that builds them builds: a form field that arrives as "82.5" or 82.5, an AI
+// response, a next-cycle recommendation, a rollup entry. Restating those as
+// types would only copy the code; the golden harness (§118) and
+// verify-engine-leaves (§124) pin them instead. Tighten one when Coach needs
+// to read a field, not before.
+export type Loose = any;
+
+// One set's log, keyed `${macroId}_${week}_${dayKey}_${exId}_${set}`; the
+// `_prog_` progression-choice records share the map (getProgKey).
+export interface TrainLog {
+  weight?: Loose;
+  reps?: Loose;
+  done?: boolean;
+  dropWeight?: Loose;
+  dropReps?: Loose;
+  progType?: string;
+  [k: string]: unknown;
+}
+
+export interface NutritionLog {
+  date: DateStr;
+  kcal?: Loose;
+  protein?: Loose;
+  carbs?: Loose;
+  fats?: Loose;
+  [k: string]: unknown;
+}
+
+// A goal period (TECHNICAL §3). kcal/protein/carbs/fats/steps are numbers once
+// saved, but old goals carry strings, which is why the readers parseInt them.
+export interface GoalPeriod {
+  macroId?: string;
+  startDate: DateStr;
+  endDate: DateStr;
+  kcal?: Loose;
+  protein?: Loose;
+  carbs?: Loose;
+  fats?: Loose;
+  steps?: Loose;
+  _blocLabel?: string;
+  [k: string]: unknown;
+}
+
 export interface BlocState {
   macrocycles?: Macrocycle[];
-  exercises?: Record<string, unknown[]>;
-  trainLogs?: Record<string, unknown>;
+  exercises?: Record<string, Loose[]>;
+  trainLogs?: Record<string, TrainLog>;
   bodyLogs?: BodyLog[];
-  nutritionLogs?: unknown[];
-  goals?: unknown[];
+  nutritionLogs?: NutritionLog[];
+  goals?: GoalPeriod[];
   customLibrary?: unknown[];
-  nutritionMeals?: Record<string, unknown>;
+  nutritionMeals?: Record<string, Record<string, Loose[]>>;
   nutritionQuickLog?: Record<string, unknown>;
   foodLibrary?: unknown[];
   recipes?: unknown[];
@@ -80,8 +125,8 @@ export interface BlocState {
   exerciseHistory?: Record<string, unknown>;
   exerciseTrackingMode?: Record<string, unknown>;
   profile?: BlocProfile;
-  insightsRollup?: { completedCycles: unknown[]; [k: string]: unknown };
-  blocAdvice?: unknown;
+  insightsRollup?: { completedCycles: Loose[]; [k: string]: unknown };
+  blocAdvice?: Loose;
   nextCycleAdvice?: unknown;
   nextCycleAdviceHistory?: unknown[];
   mode?: string;

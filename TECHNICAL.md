@@ -7566,3 +7566,112 @@ four constants:
 the demo. The in-memory state, the saved `localStorage` and all seven screens' HTML were identical,
 with no page errors, and each build fetched its own `engine/dist/bloc-engine.js?v=`. The golden file
 is unchanged. `sw.js` is unchanged.
+
+## §125 — v8.35: the state readers, the progression core and the mutators move into the engine (PROMPT-03 Phase 2, steps 4–6)
+
+**Why.** Coach runs BLOC's calculations over a client's uploaded state. Steps 1–3 (§122–§124)
+moved the parts that never touched `state`. These steps move the rest of deep dive §1b–§1f:
+everything that reads the state, everything that wrote while it read, and the AI prompt builders.
+BLOC behaves byte-identically, except for one deliberate change, H7, which has its own section
+(§126). All three steps ship in one PR (Adam, 2026-09-27), one commit each.
+
+**The shape every moved function takes.** What used to come from BLOC's globals now arrives as an
+argument:
+
+- the state as `s`;
+- "today" as `ctx` (§123);
+- what a page is showing as a named parameter: the Progress page's `progressViewMacroId`, the week
+  and session Train is showing (`state.currentWeek`/`currentDay`), and the cycle Card 3 is
+  previewing along with the target the person typed (`_nextCyclePreviewMacroId`,
+  `_nextCycleOverride`).
+
+BLOC's same-named shims pass `state`, `engineCtx()` and those globals, so no call site changed.
+Coach passes a client's state, the client's today, and whatever its own screen is showing.
+
+### Step 4: the state readers
+
+| File | Moved |
+|---|---|
+| `engine/src/cycles.ts` | `getDateActiveMacroId`, `getNextMacroStart`, `getActiveGoal`, `getGoalForDate`, `getGoalForDay`, `materialiseDates`, `isCycleReviewDue`, `isInFinalWeek`, `resolveProgressMacro(s, viewMacroId)` |
+| `engine/src/sessions.ts` | `isDeloadUnit`, `isFirstUnitAfterDeload`, `getSessionVolume`, `getMacroTotalVolume`, `getMacroVolumeSeries`, `getAllMacroSessions`, `getNextIncompleteSession`, `getSelectedTrainWeekDates(macro, week, dayKey)`, `getTrainAgendaUnits(s, ctx, macro, viewing)` (§115's week agenda, which Coach reuses) |
+| `engine/src/tdee.ts` | `buildDayMap`, `calcAge`, `getActivityMultiplier`, `calcMifflinBMR`, `calcTrendBasedTDEE`, `calcDynamicTDEE`, `calcDynamicTDEE_rawLogPair`, `getSustainableWeightRange` |
+| `engine/src/insights.ts` | `computeWeeklyInsights`, `computeSafetyFloor`, `computeMaintenanceRecalibration`, `computeCheckinState` |
+| `engine/src/nextcycle.ts` | `recommendNextCycle`, `buildNextCycleGoalSteps`, `isNextCycleAdviceEligible(ctx, macro, rec, previewMacroId)`, `nextCycleAdvicePlanMode(rec, override)` |
+| `engine/src/review.ts` | `computeCycleBestLifts`, `computeCycleWeeklySwings`, `computeCycleMeasurements`, `getPriorCycleReviews`, `computeCycleReviewPayload` |
+| `engine/src/home.ts` | `SAVE_DAY_TOLERANCE`, `HOME_STEPS_TOLERANCE`, `HOME_METRIC_POLARITY`, `getHomeMetricTolerance`, `getHomeMetricBadge`, and the new `computeHomeWeek(s, ctx, {weekClosed})` |
+
+**Home's badge says what it means, and BLOC picks the colour.** `getHomeMetricBadge` used to
+return a CSS colour, so "is this metric off target?" could only be answered by comparing against
+`'var(--red)'`. The engine returns `{ label, status: 'noData' | 'ok' | 'bad', weekOver }`. BLOC's
+shim maps the status through `HOME_BADGE_COLOURS` back to the `{ label, color }` every caller
+reads. `computeHomeWeek` is the orchestration that used to sit inside `renderHomeThisWeek` (deep
+dive §1d): the four metrics' averages, planned averages and badges for the week containing
+`ctx.today`. `renderHomeThisWeek` now renders it; the names, colours and number formats are BLOC's.
+
+**`weekClosed`** (deep dive §2b) judges a week as finished, from its Sunday, whatever `ctx.today`
+is. Coach needs it for a client's past weeks. Passing today = the Sunday isn't enough: with Sunday
+unlogged, `getWeeklyRequiredDaily` still counts Sunday as a day left, and the badge stays in pace
+mode. BLOC never passes it.
+
+🚨 **The traps.**
+- **Home's three colour strings are behaviour.** Home's "N of 4 on target" chip, the red bars and
+  Fuel's rest-of-week tiles all test `badge.color === 'var(--red)'`. `HOME_BADGE_COLOURS` in
+  `index.html` carries a 🚨 note, and `verify-engine-leaves`' control maps "bad" to green and must
+  fail (98 runs differ).
+- **An exported object is shared by every caller.** `SAVE_DAY_TOLERANCE` and
+  `HOME_METRIC_POLARITY` are `Object.freeze`d, and `index.html` reads
+  `const SAVE_DAY_TOLERANCE = BlocEngine.SAVE_DAY_TOLERANCE`. `verify-engine-build`'s export rule
+  now also allows a *frozen* table of numbers and strings, and nothing else. Its control refuses an
+  unfrozen object, a frozen object holding an object, a frozen array and `NaN`.
+  `HOME_STEPS_TOLERANCE` and `HOME_METRIC_POLARITY` are gone from `index.html`, because nothing
+  else there read them.
+- **Moved unchanged, including where the old code throws.** `getNextMacroStart` and
+  `resolveProgressMacro` read `s.macrocycles` with no `|| []`, as before, so a partial state still
+  throws where it did. `normaliseState` guarantees the field, and Coach must run it (H5).
+  `materialiseDates` still evaluates the cycle's end date that it never uses, so a missing macro
+  still throws there.
+- **An unstarted cycle and the time of day (§123's trap again).** `getMacroVolumeSeries` started an
+  unstarted cycle from `now()`, whose time of day every point's `Date` inherited. It now takes a
+  `startFallback` Date, which BLOC's shim fills with `now()`, one clock read for the date and the
+  time. **One place differs, and only in a state BLOC can't create**: a cycle with no `start`
+  (`createMacrocycle()` and `saveEditMacro()` refuse to save one that doesn't start on a Monday, §11). There,
+  `isNextCycleAdviceEligible` counted `daysToEnd` from the end date *with* the current time of day,
+  so after midday `Math.round` added a day. The engine counts from midnight.
+  `recommendNextCycle`'s cycle length can't change this way: its rounding is in weeks.
+- **The page's selection stays BLOC's write.** `resolveProgressMacro`'s shim still repoints
+  `progressViewMacroId` at `state.currentMacroId` when it names no cycle, then asks the engine.
+  `verify-engine-leaves` reads the global back afterwards.
+- **Controls that patch a moved function move with it (§123).** `verify-date-active-cycle`'s
+  control now breaks the date comparison **in the engine build**, and `cycles.ts` carries the 🚨
+  note. `verify-train-agenda` needed only an `engineCtx` stub.
+
+**How it's checked.** Beyond the golden file (§118, unchanged by this step):
+
+- `scripts/engine-cases.mjs` gains **`STATE_CASES`**: about 1,200 cases over the demo and ten
+  variants built from it. The variants are a gain cycle, a maintenance cycle with and without
+  history, a rollup with qualifying maintenance cycles, reviewed past cycles and a future one,
+  stored check-in advice with and without a chosen path, a drop set with extra deloads, an almost
+  empty state, a cycle with no start, and an unlogged final week. Each case gives the engine call
+  and the BLOC call it stands for.
+- `verify-engine-pure` runs every engine call under its write-trapping Proxy, with the clock
+  throwing.
+- `verify-engine-leaves` runs every BLOC call through **v8.34's real `index.html` and engine**
+  (`8c6451c`) and today's, each on a fresh state, on the real clock and on the Demo Tour's anchor.
+  The result, the state afterwards (as `save()` would write it), the `save()` count, the named page
+  globals and any HTML written must be identical: 2,367 runs in each of London, New York and
+  Auckland.
+- Two new controls: a `getActiveGoal` shim given the wrong today (20 runs differ), and "bad"
+  mapped to green (98). A `weekClosed` property check: a closed week, judged from any of its days,
+  equals Home's own Sunday judgment for all 8 demo weeks. Its control: with Sunday unlogged, Home's
+  Sunday is still in pace mode and `weekClosed` isn't.
+- The children now run in parallel, so the whole script takes about 8 seconds.
+
+**Checked beyond the sweep:** headless Chromium booted v8.34 and this step on localhost, seeded on
+four days (2 Aug, 29 Jul, 20 Sep, 1 Jun) and from empty storage. The in-memory state, the saved
+`localStorage` and all six screens' HTML were identical, with no page errors, and each build
+fetched its own engine `?v=`.
+
+🚨 **The local dev bypass loads `bloc-demo-data.dev.json` when it exists.** That file is
+untracked, and its `_devAnchorDate` (2026-09-10 on Adam's machine) moves "today". A comparison
+with a `git archive` of an older version, which lacks the file, shows every date-dependent screen
+"different". Copy the file into both trees before comparing.

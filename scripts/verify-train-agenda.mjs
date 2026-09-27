@@ -61,6 +61,7 @@ function build(src, fns) {
     const closeModal = id => calls.closed.push(id);
     const renderTrain = () => { calls.rendered++; };
     const getLocalToday = () => today;
+    const engineCtx = () => ({ today: getLocalToday() }); // v8.35 (§125): the shims pass it to the engine
     const document = { getElementById: () => null };
     ${fns.map(n => extract(src, `function ${n}(`)).join('\n')}
     return {

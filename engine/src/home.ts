@@ -6,16 +6,18 @@
 // Moved from index.html in v8.34, UNCHANGED, behind same-named shims. Pure:
 // `today` is already a parameter here, as it always was.
 //
-// Not here yet: getHomeMetricBadge, its tolerance and its polarity. Step 4
-// splits the badge's status from its colour (deep dive §1a SCOPE) and adds
-// computeHomeWeek; moving it now would mean moving it twice.
+// v8.35 (§125, step 4) added the badge, split into a status and BLOC's
+// colour (deep dive §1a SCOPE), its tolerance and polarity, and
+// computeHomeWeek: the whole "This week" card as data.
 //
-// The casts only satisfy the type-checker (a day-map field is `unknown`
-// until buildDayMap moves) and are erased.
+// The casts only satisfy the type-checker and are erased.
 // ═══════════════════════════════════════════════════════════════════════
 
-import type { DateStr, DayMap, DayMapEntry } from './state.ts';
-import { toLocalDateStr, getWeekDates } from './dates.ts';
+import type { BlocState, DateStr, DayMap, DayMapEntry, GoalPeriod } from './state.ts';
+import { type EngineContext, toLocalDateStr, getWeekDates, getHomeWeekStart } from './dates.ts';
+import { avgDayMapField } from './nutrition.ts';
+import { getActiveGoal } from './cycles.ts';
+import { buildDayMap } from './tdee.ts';
 
 export interface RequiredDaily {
   requiredDaily: number;
@@ -275,4 +277,163 @@ export function getReconciledMacroAdvice(dayMap: DayMap, weekStart: DateStr, tod
     kcal: kcalAdvice, protein: proteinAdvice, carbs: RECONCILE_CARBS_FLOOR,
     fats: RECONCILE_FATS_FLOOR, fatsChanged: true,
   };
+}
+
+// ── v8.35 (§125, deep dive §10 step 4): the badge, and the week it sits in ─
+
+// The tolerance bands the Home badges judge against. SAVE_DAY_TOLERANCE is
+// also the band a logged day must fall inside to "save" (index.html's
+// isSaveDayWithinTolerance); HOME_STEPS_TOLERANCE is steps' own, because
+// SAVE_DAY_TOLERANCE has no steps entry.
+//
+// 🚨 Frozen, because they're objects shared by every caller: BLOC reads them
+//    as `const SAVE_DAY_TOLERANCE = BlocEngine.SAVE_DAY_TOLERANCE`, and one
+//    caller writing to an exported object would change it for all of them
+//    (§124 held SAVE_DAY_TOLERANCE back for exactly this decision).
+export const SAVE_DAY_TOLERANCE = Object.freeze({ kcal: 50, proteinLow: 10, carbs: 15, fats: 10 });
+export const HOME_STEPS_TOLERANCE = 500;
+
+// Polarity of each metric — whether being ABOVE or BELOW the weekly target
+// is the "bad" direction for badge colouring. 'both' = bad either way
+// (kcal). 'underBad' = only bad if short (protein, steps — exceeding is
+// fine/good). 'overBad' = only bad if over (carbs — under is fine).
+export const HOME_METRIC_POLARITY: Readonly<Record<string, 'both' | 'underBad' | 'overBad'>> =
+  Object.freeze({ kcal: 'both', protein: 'underBad', carbs: 'overBad', steps: 'underBad' });
+
+// Tolerance band width per metric, reusing the exact same bands the
+// qualifying-nutrition-day logic uses (see SAVE_DAY_TOLERANCE), plus a
+// steps-specific band since SAVE_DAY_TOLERANCE has no steps entry.
+export function getHomeMetricTolerance(field: string): number {
+  if (field === 'kcal') return SAVE_DAY_TOLERANCE.kcal;
+  if (field === 'protein') return SAVE_DAY_TOLERANCE.proteinLow;
+  if (field === 'carbs') return SAVE_DAY_TOLERANCE.carbs;
+  if (field === 'steps') return HOME_STEPS_TOLERANCE;
+  return 0;
+}
+
+// What a badge MEANS. BLOC maps it to a colour (its getHomeMetricBadge shim:
+// noData → --text3, ok → --green, bad → --red); Coach will score compliance
+// from it (deep dive D4). Before v8.35 the badge returned the CSS colour
+// itself, so "is this metric off target" could only be answered by comparing
+// strings against 'var(--red)'.
+export type HomeBadgeStatus = 'noData' | 'ok' | 'bad';
+export interface HomeMetricBadge {
+  label: string;
+  status: HomeBadgeStatus;
+  weekOver: boolean; // judged as a finished week (no days left to react to)
+}
+
+// Badge label + status for one metric this week, given the qualifying-
+// days average and the goal's target. avg may be null (nothing logged yet
+// this week) — shown as a neutral "No data" badge rather than guessing.
+//
+// `weekClosed` (v8.35, deep dive §2b SCOPE) judges the week as finished
+// whatever `today` is. Passing today = the week's Sunday is NOT enough: if
+// Sunday has no log, getWeeklyRequiredDaily still counts Sunday as a day
+// left (daysRemaining = 1) and the badge stays in pace mode. Coach needs it
+// for a client's past weeks. BLOC never passes it, and without it this is
+// the v8.34 function exactly.
+export function getHomeMetricBadge(field: string, avg: number | null, target: number | null | undefined, dayMap: DayMap | null | undefined, weekStart: DateStr | null | undefined, today: DateStr | null | undefined, kcalTarget?: number | null, weekClosed?: boolean): HomeMetricBadge {
+  if (avg === null || target === null || target === undefined) {
+    return { label: 'No data', status: 'noData', weekOver: false };
+  }
+  const tol = getHomeMetricTolerance(field);
+  const polarity = HOME_METRIC_POLARITY[field] || 'both';
+
+  // Pace-aware comparison: judge the daily rate still NEEDED for the rest
+  // of the week to land on the weekly target, rather than the raw average
+  // logged so far — an early-week dip is still perfectly recoverable and
+  // shouldn't read as "falling behind" if there's time left to catch up.
+  // Same underlying math as getHomeMetricSublabel's "on pace" text, so the
+  // two can never disagree with each other.
+  let paceValue = avg;
+  let weekOver = false;
+  if (dayMap && weekStart && today) {
+    const info = getWeeklyRequiredDaily(field, dayMap, weekStart, today, target, kcalTarget);
+    if (info && weekClosed) {
+      // The finished week's own average over the days it logged: the same
+      // figure the daysRemaining <= 0 branch hands back, with no day left open.
+      weekOver = true;
+      paceValue = info.daysTrackedSoFar > 0 ? info.loggedSoFar / info.daysTrackedSoFar : target;
+    } else if (info && info.daysRemaining > 0) {
+      paceValue = info.requiredDaily;
+    } else if (info) {
+      weekOver = true; // no days left to react to — see comment below
+    }
+  }
+
+  // Needing MORE than target for the rest of the week (paceValue above
+  // target) means a deficit built up earlier — that's "Falling behind".
+  // Needing LESS than target (paceValue below target) means a surplus
+  // already banked — that's "Exceeding". This is the mirror image of a
+  // plain avg-vs-target comparison, not the same direction.
+  //
+  // That framing only holds while days remain to react to. Once the week
+  // is over (weekOver), getWeeklyRequiredDaily has nothing left to
+  // "require" and just hands back the actual final average instead — at
+  // which point "above target" stops meaning a lingering deficit and
+  // starts meaning the week actually finished OVER target (a surplus),
+  // and "below target" means it finished under (a shortfall). That's the
+  // opposite relationship to the mid-week case, so the comparison flips
+  // here rather than reusing the same direction blindly.
+  const behindPace = weekOver ? (paceValue < target - tol) : (paceValue > target + tol);
+  const aheadPace  = weekOver ? (paceValue > target + tol) : (paceValue < target - tol);
+  let label: string, isBad: boolean;
+  if (behindPace)      { label = 'Falling behind'; isBad = polarity !== 'overBad'; }
+  else if (aheadPace)  {
+    // 'underBad' metrics (protein, steps) treat exceeding target as simply
+    // fine — not just non-bad, but not worth distinguishing from being on
+    // target at all, so it collapses into the same 'On track' label.
+    isBad = polarity !== 'underBad';
+    label = (polarity === 'underBad') ? 'On track' : 'Exceeding';
+  }
+  else                 { label = 'On track';        isBad = false; }
+  return { label, status: isBad ? 'bad' : 'ok', weekOver };
+}
+
+export interface HomeWeekMetric {
+  field: 'kcal' | 'protein' | 'carbs' | 'steps';
+  avg: number | null;
+  target: number | null;
+  pct: number;
+  weekPlannedAvg: number | null;
+  badge: HomeMetricBadge;
+}
+export interface HomeWeek {
+  today: DateStr;       // the day judged (the week's Sunday when weekClosed)
+  weekStart: DateStr;
+  goal: GoalPeriod | null;
+  dayMap: DayMap;
+  metrics: HomeWeekMetric[];
+}
+
+// Home's "This week" card as data: the four badges, averages and planned
+// averages, for the calendar week containing ctx.today (deep dive §1d: this
+// was renderHomeThisWeek's own orchestration). BLOC's renderHomeThisWeek()
+// renders it; Coach judges a client's week with it, the client's nutrition
+// compliance (D4).
+//
+// `weekClosed`: the week is over — judge it as of its Sunday, as a finished
+// week (see getHomeMetricBadge). Coach passes it for any week before the
+// client's current one. Without it, this is exactly what Home shows today.
+//
+// 🚨 The goal is the one active on ctx.today (getActiveGoal), as Home has
+//    always used, even when weekClosed: a past week is judged against the
+//    goal it was lived under only if ctx.today falls inside it.
+export function computeHomeWeek(s: BlocState, ctx: EngineContext, opts?: { weekClosed?: boolean }): HomeWeek {
+  const weekClosed = !!(opts && opts.weekClosed);
+  const weekStart = getHomeWeekStart(ctx.today);
+  const today = weekClosed ? getWeekDates(weekStart)[6] : ctx.today;
+  const goal = getActiveGoal(s, ctx);
+  const dayMap = buildDayMap(s);
+  const fields = ['kcal', 'protein', 'carbs', 'steps'] as const;
+  const metrics = fields.map(field => {
+    const avg = avgDayMapField(dayMap, field, weekStart, today);
+    const target = goal ? goal[field] : null;
+    const pct = (target && avg !== null) ? Math.max(0, Math.min(100, Math.round((avg / target) * 100))) : 0;
+    const weekPlannedAvg = computeWeekPlannedAvg(field, dayMap, weekStart, today, goal);
+    return { field, avg, target, pct, weekPlannedAvg,
+      badge: getHomeMetricBadge(field, avg, target, dayMap, weekStart, today, goal && goal.kcal, weekClosed) };
+  });
+  return { today, weekStart, goal, dayMap, metrics };
 }

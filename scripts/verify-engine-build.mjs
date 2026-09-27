@@ -85,10 +85,23 @@ check(`every BlocEngine.<name> index.html calls is exported (${called.length} ca
 // index.html reads the engine's values instead of keeping a second copy. A
 // primitive can't be changed through the export, but an object could be: one
 // caller writing to a shared constant would change it for every other.
-const exportOk = v => typeof v === 'function' || (typeof v === 'number' && Number.isFinite(v));
-check('every export is a function or a finite number', [...exported].every(n => exportOk(engine[n])),
+//
+// v8.35 (§125): or a FROZEN plain object of numbers and strings.
+// SAVE_DAY_TOLERANCE and HOME_METRIC_POLARITY moved with the Home badge, and
+// index.html reads SAVE_DAY_TOLERANCE as `BlocEngine.SAVE_DAY_TOLERANCE`.
+// Object.freeze is what makes sharing one safe: a write through the export
+// then changes nothing (and throws in strict code), so every caller keeps
+// seeing the same numbers. An unfrozen object, or one holding anything but
+// numbers and strings (an array or object inside could still be written), is
+// refused as before.
+const frozenTable = v => !!v && typeof v === 'object' && !Array.isArray(v) && Object.isFrozen(v)
+  && Object.values(v).every(x => (typeof x === 'number' && Number.isFinite(x)) || typeof x === 'string');
+const exportOk = v => typeof v === 'function' || (typeof v === 'number' && Number.isFinite(v)) || frozenTable(v);
+check('every export is a function, a finite number, or a frozen table of numbers and strings', [...exported].every(n => exportOk(engine[n])),
   [...exported].filter(n => !exportOk(engine[n])).join(', '));
-check('control: an exported object would be refused', !exportOk({ kcal: 50 }) && !exportOk(NaN) && exportOk(50));
+check('control: an unfrozen object, a frozen object holding an object, and NaN would be refused',
+  !exportOk({ kcal: 50 }) && !exportOk(Object.freeze({ a: { b: 1 } })) && !exportOk(Object.freeze([1])) && !exportOk(NaN)
+  && exportOk(50) && exportOk(Object.freeze({ kcal: 50, x: 'both' })));
 
 // ── Controls: each must FAIL ────────────────────────────────────────────
 const flipped = Buffer.from(dist); flipped[flipped.length - 3] ^= 1;

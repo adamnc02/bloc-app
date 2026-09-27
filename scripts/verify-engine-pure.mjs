@@ -36,7 +36,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
-import { LEAF_CASES } from './engine-cases.mjs';
+import { LEAF_CASES, STATE_CASES } from './engine-cases.mjs';
 
 process.env.TZ = 'Europe/London';
 const repo = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -110,6 +110,11 @@ const CASES = {
   // v8.34 (§124): step 3, the pure leaves. Shared with verify-engine-leaves.mjs,
   // which runs the same inputs through v8.33's functions and today's shims.
   ...LEAF_CASES,
+
+  // v8.35 (§125): steps 4–6, the functions that read the state. Each case's
+  // `engine` argument list, the state among them; verify-engine-leaves.mjs
+  // runs the same cases' `bloc` calls against v8.34.
+  ...Object.fromEntries(Object.entries(STATE_CASES).map(([n, cs]) => [n, cs.map(mk => () => mk().engine)])),
 };
 
 const exported = Object.keys(E).sort();
