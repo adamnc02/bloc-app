@@ -7237,3 +7237,48 @@ No request other than a GET went to Supabase, and there were no console errors.
 - that the tag sits behind `IS_LOCAL_REAL_AUTH` only.
 
 Its controls are the two wrong switches above, plus v8.29's literal key.
+
+## §120 — v8.30: the Demo Tour's data never leaves memory (deep dive D6)
+
+**The bug (found in the v8.30 UAT, 2026-09-28).** The first sign-in of the test client account
+(a brand-new account) started the Demo Tour, and the live write counters moved by exactly the demo
+dataset's shape: `body_logs` +56 inserted, then −56 +56 (the demo has 56 weigh-ins),
+`nutrition_quick_log` 55, `exercise_tracking_mode` 27, `goals` 6, one macrocycle. So the demo
+dataset was synced into the new account's live mirror: once by the sign-in full sync, then again
+by a debounced flush. It may also have been uploaded as that day's cloud backup. This is how the
+live app behaved for **every new sign-up**, not something `?auth=real` introduced. The deep dive
+had flagged it (D6) and PROMPT-03 had it down for Phase 4. Adam chose to fix it in v8.30.
+
+**Why it happened.** `enterDemoMode()`'s comment promises the dataset is "memory-only — never
+save()'d". It wasn't true. Entering Progress, Plan or Train runs `resetToDateActiveMacro()`, which
+saves, and so do some tour steps. `save()` wrote localStorage and queued a sync, and nothing checked
+for the tour. The §109 empty-device guard couldn't catch it, because demo data is real content.
+**A reload mid-tour was worse.** The saved demo data came back with no anchor and no tour, and then
+synced as the account's own.
+
+**The fix.** `demoTourIsRunning()` is true while the Demo Tour's dataset is in `state`: the tour's
+anchor date is pinned, and this isn't the local bypass.
+- `save()` does nothing while it's true. That makes the old promise true: the tour runs in memory,
+  and nothing about it needs persisting.
+- Three backstops refuse too, **before** their first network call: `pushStateToSupabase()` (the
+  sign-in full sync reaches it with no `save()`), `uploadSnapshot()` and `syncMeasurementStatus()`.
+
+The anchor is set only by `enterDemoMode()` and the tour's own steps. It's cleared by
+`exitDemoMode()` and by a restore, and **both clear it before their `save()`**. That ordering is
+load-bearing: otherwise the empty state that ends the tour, or the restored backup, would be refused
+too. After the tour, the empty state is written and the §109 guard refuses to push it, so a new
+account's cloud copy stays empty until the person logs something.
+
+🚨 **The local bypass is excluded.** It pins an anchor over its own demo data too, but it has no
+Supabase, and §91 relies on its saves. So it keeps its v8.29 behaviour exactly.
+
+**Checked:**
+- `scripts/verify-demo-tour-no-sync.mjs` runs the real `save()` in three modes: tour (writes
+  nothing), no tour (writes and queues) and bypass (as v8.29). It checks each backstop comes before
+  its network call, and the ordering in `exitDemoMode`, `enterDemoMode` and the restore. Its control
+  is v8.29's `save()`, which writes and queues during the tour.
+- `verify-empty-device-guard.mjs` stubs `demoTourIsRunning` as false, since the tour isn't its
+  subject.
+- In headless Chromium with `?auth=real`: `enterDemoMode()`, then Train, Progress, Plan, Home and a
+  direct `save()`. Nothing was stored, no sync was queued, and no request reached Supabase.
+  `exitDemoMode()` then wrote the empty state.

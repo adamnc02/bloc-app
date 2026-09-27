@@ -6618,8 +6618,22 @@ let state = {
 // of rapid edits (e.g. dragging a slider) can trigger many synchronous
 // writes in quick succession. Cheap enough in practice not to matter.
 function save() {
+  // v8.30 (§120, deep dive D6) — the Demo Tour's dataset is never saved, as
+  // enterDemoMode() has always promised. It wasn't true: screen entry and the
+  // tour's own steps call save(), so a brand-new signed-in account had the
+  // whole demo dataset written to localStorage and synced to its live mirror
+  // (found in the v8.30 UAT). Nothing here needs persisting: the tour runs in
+  // memory, and exitDemoMode() clears the anchor BEFORE its own save().
+  if (demoTourIsRunning()) return;
   localStorage.setItem(STATE_KEY, JSON.stringify(state));
   markSyncDirty();
+}
+// True while the Demo Tour's dataset is in `state`: enterDemoMode() pins the
+// anchor, exitDemoMode() and a restore clear it. The local bypass also pins an
+// anchor over its demo data, but it has no Supabase and keeps its v8.29
+// behaviour, so it is excluded.
+function demoTourIsRunning() {
+  return !!_tourAnchorDate && !IS_LOCAL_DEV;
 }
 
 // Runs once on boot. Parses whatever's in localStorage (if anything), then
@@ -7864,6 +7878,12 @@ async function syncTable(table, rows, userId) {
 }
 
 async function pushStateToSupabase(userId) {
+  // v8.30 (§120): nor does the Demo Tour's dataset — a backstop to save()'s
+  // own check, because the sign-in full sync reaches here without a save().
+  if (demoTourIsRunning()) {
+    console.warn('[sync] skipped: the Demo Tour is running, and its data is not this account\'s');
+    return;
+  }
   // v8.21 (§109): an empty device never pushes. syncTable() deletes before
   // it inserts, so pushing nothing would empty every mirrored table.
   if (!deviceHasRealData()) {
@@ -8006,6 +8026,7 @@ async function uploadSnapshot() {
   // v8.21 (§109): never upload an empty device — it would overwrite today's
   // real snapshot (one file per day, upsert).
   if (!deviceHasRealData()) throw new Error('Nothing on this device to back up yet.');
+  if (demoTourIsRunning()) throw new Error('The Demo Tour is running; its data is not backed up.'); // v8.30 (§120)
   const userId = _authResolvedSession.user.id;
   const date = getLocalToday();
   const payload = JSON.stringify(state, null, 2);
@@ -8404,6 +8425,7 @@ function measurementStatusRow(userId) {
 }
 async function syncMeasurementStatus(userId) {
   if (!supabase || !userId) return;
+  if (demoTourIsRunning()) return; // v8.30 (§120): the demo's logs are not this account's
   const { error } = await supabase.from('measurement_status').upsert(measurementStatusRow(userId), { onConflict: 'user_id' });
   if (error) throw new Error('measurement_status: ' + error.message);
 }

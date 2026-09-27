@@ -76,6 +76,9 @@ function build(src, withNew) {
     }) } };
     const syncBuildExerciseIdContext = () => { log.pushed++; throw new Error('PROCEEDED'); };
     const console = { warn: () => {} };
+    // v8.30: push/upload also refuse while the Demo Tour runs (§120). Not this
+    // script's subject — verify-demo-tour-no-sync.mjs tests it — so: no tour.
+    const demoTourIsRunning = () => false;
     ${fns.join('\n')}
     return {
       set: (s, snaps = {}, flags = {}) => { state = s; snapshots = snaps; ls = { ...flags }; log.restored = []; log.uploaded = []; log.pushed = 0; log.modal = []; },
