@@ -2879,14 +2879,22 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 
 .fuel-macros { display: flex; gap: 16px; margin-top: 22px; }
 .fuel-macro { flex: 1 1 0; min-width: 0; }
-.fuel-macro-top { display: flex; align-items: baseline; gap: 6px; margin-bottom: 7px; }
+/* v8.27 (§116): the top row is ONLY "Protein ··· 141g", and it never wraps. The
+   target sits under the bar ("of 211g"). "Protein 141 / 211g" on one line needs
+   110px in Sora/Manrope; a column is ~110px on a 440pt iPhone, 93px on a 393pt
+   one and 88px on a 375pt one, so it wrapped after the slash and pushed
+   Protein's bar below the other two. "Protein 888g" needs ~80px. */
+.fuel-macro-top { display: flex; align-items: baseline; gap: 6px; margin-bottom: 7px; white-space: nowrap; }
 .fuel-macro-lbl { font-size: 12px; font-weight: 600; color: var(--text2); }
 .fuel-macro-val {
   margin-left: auto; font-family: var(--font-display); font-size: 13px; font-weight: 600;
   color: var(--text); font-variant-numeric: tabular-nums;
 }
-.fuel-macro-target { font-family: var(--font-body); font-size: 11px; font-weight: 500; color: var(--text3); }
 .fuel-macro-bar { height: 6px; }
+.fuel-macro-of {
+  margin-top: 6px; text-align: right; white-space: nowrap;
+  font-size: 11px; font-weight: 500; color: var(--text3); font-variant-numeric: tabular-nums;
+}
 /* --text3, and no pagination dots — the hint IS the affordance. */
 .fuel-swipe-hint { text-align: center; font-size: 12px; font-weight: 500; color: var(--text3); margin-top: 22px; }
 
@@ -26758,9 +26766,10 @@ function renderNutrHero() {
     return `<div class="fuel-macro">
       <div class="fuel-macro-top">
         <span class="fuel-macro-lbl">${m.label}</span>
-        <span class="fuel-macro-val">${m.logged}${m.target ? `<span class="fuel-macro-target"> / ${m.target}g</span>` : 'g'}</span>
+        <span class="fuel-macro-val">${m.logged}g</span>
       </div>
       <div class="bar fuel-macro-bar" style="--i:${i}"><i style="width:${pct}%;background:${m.colour};"></i></div>
+      ${m.target ? `<div class="fuel-macro-of">of ${m.target}g</div>` : ''}
     </div>`;
   }).join('');
 
@@ -30124,7 +30133,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.26</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.27</span>`;
 }
 
 function renderSettings() {

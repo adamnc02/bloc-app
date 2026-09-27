@@ -6969,3 +6969,51 @@ BLOC Solo wireframe's header pencil (`PlanSoloScreen`) is what this supersedes.
 Checked in headless Chromium at 390px: the header stays fixed while the list scrolls, a tap on
 another week's session opens it and closes the sheet, Tools → Edit cycle opens the edit sheet,
 there's no header button, and there are no console errors.
+
+## §116 — v8.27: Fuel's macro mini-bars keep to one line
+
+**The bug (Adam, 2026-09-28, on a 440pt iPhone).** Fuel's hero showed each macro as one line,
+`Protein 141 / 211g`, over a 6px bar, in three equal columns (`.fuel-macros`, `renderNutrHero()`).
+Nothing stopped that line wrapping. It wrapped after the slash, so Protein's bar sat lower than
+Carbs' and Fats'.
+
+**Why it wrapped.** Widths were measured in headless Chrome with the real Sora and Manrope:
+
+| Line | Width |
+|---|---|
+| `Protein 141 / 211g` (any three-digit pair) | 110.1px |
+| `Carbs 888 / 888g` | 102.1px |
+| `Fats 888 / 888g` | 92.6px |
+
+A column is the hero's inner width minus two 16px gaps, divided by three: **~110px on a 440pt
+phone, ~98px at 402, ~93px at 393, ~88px at 375.** So the line overflowed by a fraction of a pixel
+on the widest iPhone, and by up to 22px on a standard one. Any spacing tweak that fixes the 440pt
+case still leaves every standard iPhone wrapping.
+
+**The fix (option A of four mockups, Adam's choice).**
+
+- The top row is **only the label and the logged figure**, `Protein ··· 141g`, with
+  `white-space: nowrap`. The widest, `Protein 888g`, is ~80px, which fits every column down to 375pt.
+- The target moves **under the bar**, right-aligned in `--text3` 11px: `of 211g` (`.fuel-macro-of`).
+  It isn't drawn when there's no goal.
+- All three columns are built the same way, so the bars always sit on one line with the 16px gap
+  between them.
+
+**Rejected:**
+
+- **Shrinking the type to fit.** It needs ~20% smaller type at 375pt, so the target would be ~9px.
+- **Option B** (figure on its own line under the label) and **option C** (figures above the bar,
+  name below, centred).
+- **One-letter labels (P / C / F).** They fit today's layout exactly (the widest is 77px). Adam
+  preferred A. Three-letter labels (`Pro` / `Carb` / `Fat`, up to 96px) still wrap on a standard
+  iPhone.
+- **Today's layout on 430–440pt phones only**, with a container query switching to another layout
+  below. It needs two layouts, and has 1px to spare at 440.
+
+🚨 **The trap:** putting the target back on the top row "because there's room". There is on the
+widest phone, by less than a pixel. **Any label-and-figure row in a third-width column must be
+measured at 375pt.** BLOC Coach's three-column rows follow the same rule (PROMPT-03).
+
+`scripts/verify-fuel-macro-row.mjs` runs the real `renderNutrHero()` on Adam's reported day, the
+three-digit worst case and a day with no goal. It checks the top rows, the `of …g` lines and the
+no-wrap CSS. A control shows v8.26 (`8b79a54`) put the target on the top row.
