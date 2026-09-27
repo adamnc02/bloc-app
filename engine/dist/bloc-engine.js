@@ -22,14 +22,61 @@ var BlocEngine = (() => {
   // src/index.ts
   var index_exports = {};
   __export(index_exports, {
+    RECONCILE_CARBS_FLOOR: () => RECONCILE_CARBS_FLOOR,
+    RECONCILE_FATS_FLOOR: () => RECONCILE_FATS_FLOOR,
+    RECONCILE_KCAL_MAX_OVERSHOOT: () => RECONCILE_KCAL_MAX_OVERSHOOT,
+    RECONCILE_PROTEIN_MAX_DROP: () => RECONCILE_PROTEIN_MAX_DROP,
+    avgDayMapField: () => avgDayMapField,
+    buildCycleReviewPrompt: () => buildCycleReviewPrompt,
+    buildDirectionSteppedRamp: () => buildDirectionSteppedRamp,
+    buildGoalShiftPlan: () => buildGoalShiftPlan,
+    buildReverseDietRows: () => buildReverseDietRows,
+    buildSignalPeriods: () => buildSignalPeriods,
+    computeTaperCurve: () => computeTaperCurve,
+    computeWeekPlannedAvg: () => computeWeekPlannedAvg,
+    condenseBlocAdviceEntry: () => condenseBlocAdviceEntry,
+    condenseBlocAdvicePlans: () => condenseBlocAdvicePlans,
+    dayDiff: () => dayDiff,
+    extractJsonObject: () => extractJsonObject,
+    findMacroClash: () => findMacroClash,
+    findPeakWindow: () => findPeakWindow,
+    formatAdviceSublabel: () => formatAdviceSublabel,
+    formatPriorAdviceEntry: () => formatPriorAdviceEntry,
+    formatSignalPeriodsForPrompt: () => formatSignalPeriodsForPrompt,
+    getDayBefore: () => getDayBefore,
+    getDeloadUnitKey: () => getDeloadUnitKey,
+    getGiantSetProgression: () => getGiantSetProgression,
+    getHomeIsoDow: () => getHomeIsoDow,
+    getHomeMetricSublabel: () => getHomeMetricSublabel,
     getHomeWeekStart: () => getHomeWeekStart,
     getMacroDurationWeeks: () => getMacroDurationWeeks,
+    getMacroEffectiveMesoCount: () => getMacroEffectiveMesoCount,
     getMacroEndDate: () => getMacroEndDate,
+    getMacroExtensionInfo: () => getMacroExtensionInfo,
+    getMacroSessionDayKeys: () => getMacroSessionDayKeys,
     getMondayAfter: () => getMondayAfter,
     getNextMonday: () => getNextMonday,
+    getPrevCalendarWeek: () => getPrevCalendarWeek,
+    getPrevTrackUnit: () => getPrevTrackUnit,
+    getProgKey: () => getProgKey,
+    getProgressionLockKey: () => getProgressionLockKey,
+    getReconciledMacroAdvice: () => getReconciledMacroAdvice,
     getSundayAfterWeeks: () => getSundayAfterWeeks,
     getWeekDates: () => getWeekDates,
+    getWeekReps: () => getWeekReps,
+    getWeekSets: () => getWeekSets,
+    getWeekWeight: () => getWeekWeight,
+    getWeeklyRequiredDaily: () => getWeeklyRequiredDaily,
+    isCompleteNutritionDay: () => isCompleteNutritionDay,
+    isLocalDevHost: () => isLocalDevHost,
+    isMesoMicroValid: () => isMesoMicroValid,
+    macroRange: () => macroRange,
     normaliseState: () => normaliseState,
+    parseRepsForVolume: () => parseRepsForVolume,
+    resolveNextCycleOverride: () => resolveNextCycleOverride,
+    roundToIncrement: () => roundToIncrement,
+    shiftDateStr: () => shiftDateStr,
+    snapToNextMonday: () => snapToNextMonday,
     toLocalDateStr: () => toLocalDateStr
   });
 
@@ -123,6 +170,713 @@ var BlocEngine = (() => {
     const endDate = new Date(startDate);
     endDate.setDate(endDate.getDate() + getMacroDurationWeeks(macro) * 7 - 1);
     return toLocalDateStr(endDate);
+  }
+  function snapToNextMonday(dateStr) {
+    const d = /* @__PURE__ */ new Date(dateStr + "T00:00:00");
+    const dow = d.getDay();
+    const add = dow === 1 ? 0 : dow === 0 ? 1 : 8 - dow;
+    d.setDate(d.getDate() + add);
+    return toLocalDateStr(d);
+  }
+  function getDayBefore(dateStr) {
+    const d = /* @__PURE__ */ new Date(dateStr + "T00:00:00");
+    d.setDate(d.getDate() - 1);
+    return toLocalDateStr(d);
+  }
+  function shiftDateStr(dateStr, days) {
+    const d = /* @__PURE__ */ new Date(dateStr + "T00:00:00");
+    d.setDate(d.getDate() + days);
+    return toLocalDateStr(d);
+  }
+  function dayDiff(a, b) {
+    return Math.round((/* @__PURE__ */ new Date(b + "T12:00:00") - /* @__PURE__ */ new Date(a + "T12:00:00")) / 864e5);
+  }
+
+  // src/progression.ts
+  function getMacroExtensionInfo(macro) {
+    const extWeeks = macro.extensionWeeks || 0;
+    const wpm = macro.weeksPerMeso || 1;
+    if (extWeeks <= 0) {
+      return { extWeeks: 0, extraMesos: 0, partialFinalMeso: false, totalMesos: macro.weeks || 8 };
+    }
+    const fullExtraMesos = Math.floor(extWeeks / wpm);
+    const remainder = extWeeks % wpm;
+    const partialFinalMeso = remainder > 0;
+    const extraMesos = fullExtraMesos + (partialFinalMeso ? 1 : 0);
+    return { extWeeks, extraMesos, partialFinalMeso, totalMesos: (macro.weeks || 8) + extraMesos };
+  }
+  function getMacroEffectiveMesoCount(macro) {
+    return getMacroExtensionInfo(macro).totalMesos;
+  }
+  function isMesoMicroValid(macro, week, mc) {
+    if (mc !== 2) return true;
+    const info = getMacroExtensionInfo(macro);
+    if (!info.partialFinalMeso) return true;
+    return week !== info.totalMesos;
+  }
+  function getMacroSessionDayKeys(macro) {
+    const days = macro.days || ["push", "pull", "legs"];
+    const useMicro = macro.useMicrocycles !== false;
+    if (!useMicro) return days.slice();
+    const keys = [];
+    [1, 2].forEach((mc) => days.forEach((d) => keys.push(d + "m" + mc)));
+    return keys;
+  }
+  function getWeekSets(ex, week, totalWeeks) {
+    if (week > totalWeeks) return ex.setsEnd;
+    const t = totalWeeks > 1 ? (week - 1) / (totalWeeks - 1) : 0;
+    return Math.round(ex.setsStart + t * (ex.setsEnd - ex.setsStart));
+  }
+  function getWeekWeight(ex, week, progType, goalType, weightIncrement) {
+    if (progType !== "weight") return ex.startWeight;
+    if (goalType === "maintenance") return ex.startWeight;
+    const isGain = goalType === "gain";
+    const userInc = parseFloat(weightIncrement || "2.5");
+    const jump = ex.isHeavyLeg ? isGain ? 10 : 5 : userInc;
+    return ex.startWeight + jump * (week - 1);
+  }
+  function getWeekReps(ex, week, progType, goalType) {
+    if (progType !== "reps") return ex.reps;
+    if (goalType === "maintenance") return ex.reps;
+    const match = ex.reps.match(/(\d+)/);
+    if (!match) return ex.reps;
+    const base = parseInt(match[1]);
+    const added = base + (week - 1);
+    if (ex.reps.includes("–")) {
+      const top = parseInt(ex.reps.split("–")[1]);
+      return added + "–" + (top + (week - 1));
+    }
+    return String(added);
+  }
+  function getDeloadUnitKey(macro, week, dayKey) {
+    const useMicro = macro.useMicrocycles !== false;
+    if (!useMicro) return macro.id + "_" + week;
+    const mc = dayKey && dayKey.endsWith("m2") ? "2" : "1";
+    return macro.id + "_" + week + "_m" + mc;
+  }
+  function getPrevTrackUnit(_macro, week, dayKey) {
+    return week > 1 ? { week: week - 1, dayKey } : null;
+  }
+  function roundToIncrement(weight, increment) {
+    if (!increment) return weight;
+    return Math.round(weight / increment) * increment;
+  }
+  function getPrevCalendarWeek(macro, week, dayKey) {
+    const useMicro = macro.useMicrocycles !== false;
+    if (!useMicro) return week > 1 ? { week: week - 1, dayKey } : null;
+    const isM2 = dayKey && dayKey.endsWith("m2");
+    const dayBase = (dayKey || "").replace(/m[12]$/, "");
+    if (isM2) return { week, dayKey: dayBase + "m1" };
+    return week > 1 ? { week: week - 1, dayKey: dayBase + "m2" } : null;
+  }
+  function getGiantSetProgression(ex, week, goalType) {
+    if (ex.type === "pause") {
+      const base2 = parseInt(ex.reps.match(/\d+/)?.[0]) || 20;
+      return String(base2);
+    }
+    const add = goalType === "maintenance" ? 0 : 10;
+    const base = parseInt(ex.reps.match(/\d+/)?.[0]) || 20;
+    return String(base + add * (week - 1));
+  }
+  function getProgressionLockKey(macroId, dayKey, exId) {
+    return macroId + "_" + dayKey + "_" + exId;
+  }
+  function getProgKey(macroId, week, day, exId) {
+    return macroId + "_prog_" + week + "_" + day + "_" + exId;
+  }
+  function parseRepsForVolume(repsVal) {
+    if (repsVal === null || repsVal === void 0) return 0;
+    const m = String(repsVal).match(/(\d+)/);
+    return m ? parseInt(m[1]) : 0;
+  }
+
+  // src/nutrition.ts
+  function avgDayMapField(dayMap, field, startStr, endStr) {
+    const dates = Object.keys(dayMap).filter((d) => d >= startStr && d <= endStr && (field === "steps" ? dayMap[d].steps !== null : dayMap[d].hasNutr));
+    if (!dates.length) return null;
+    const sum = dates.reduce((s, d) => s + (dayMap[d][field] || 0), 0);
+    return Math.round(sum / dates.length);
+  }
+  function findPeakWindow(dayMap, goalType) {
+    const dates = Object.keys(dayMap).sort();
+    if (dates.length < 2) return null;
+    const wantLoss = !goalType || goalType === "loss";
+    let best = null;
+    for (let i = 0; i < dates.length; i++) {
+      const startMs = (/* @__PURE__ */ new Date(dates[i] + "T00:00:00")).getTime();
+      const endMs = startMs + 6 * 864e5;
+      const wSlice = dates.filter((d) => {
+        const ms = (/* @__PURE__ */ new Date(d + "T00:00:00")).getTime();
+        return ms >= startMs && ms <= endMs;
+      });
+      const wDates = wSlice.filter((d) => dayMap[d].weight !== null);
+      if (wDates.length < 2) continue;
+      const firstW = dayMap[wDates[0]].weight;
+      const lastW = dayMap[wDates[wDates.length - 1]].weight;
+      const delta = lastW - firstW;
+      const score = wantLoss ? -delta : delta;
+      if (best === null || score > best.score) {
+        const stepDays = wSlice.filter((d) => dayMap[d].steps !== null);
+        const nutrDays = wSlice.filter((d) => dayMap[d].hasNutr);
+        best = {
+          score,
+          delta,
+          startDate: dates[i],
+          endDate: toLocalDateStr(new Date(endMs)),
+          avgSteps: stepDays.length ? Math.round(stepDays.reduce((s, d) => s + dayMap[d].steps, 0) / stepDays.length) : null,
+          avgKcal: nutrDays.length ? Math.round(nutrDays.reduce((s, d) => s + dayMap[d].kcal, 0) / nutrDays.length) : null,
+          avgProtein: nutrDays.length ? Math.round(nutrDays.reduce((s, d) => s + dayMap[d].protein, 0) / nutrDays.length) : null
+        };
+      }
+    }
+    return best;
+  }
+  function computeTaperCurve(startWeight, weeks) {
+    if (!startWeight || !weeks || weeks < 1) return null;
+    const topPct = 0.015;
+    const bottomPct = weeks <= 10 ? 0.01 : 5e-3;
+    const weeklyRates = [];
+    let w = startWeight;
+    let totalSafeChange = 0;
+    for (let i = 0; i < weeks; i++) {
+      const pct = weeks > 1 ? topPct - (topPct - bottomPct) * i / (weeks - 1) : topPct;
+      const maxChange = parseFloat((w * pct).toFixed(2));
+      weeklyRates.push({ week: i + 1, maxChangeLbs: maxChange, atWeight: parseFloat(w.toFixed(1)) });
+      totalSafeChange += maxChange;
+      w -= maxChange;
+    }
+    return { weeklyRates, totalSafeChange: parseFloat(totalSafeChange.toFixed(1)) };
+  }
+  function resolveNextCycleOverride(latestBw, goalTypeRec, sustainableRange, newMacroStart, override) {
+    if (!override || !override.targetWeight && !override.deadline || !latestBw) return null;
+    const boundary = goalTypeRec === "loss" ? sustainableRange.floor : sustainableRange.ceiling;
+    const targetWeight = override.targetWeight || null;
+    let deadline = override.deadline || null;
+    if (deadline) {
+      const d = /* @__PURE__ */ new Date(deadline + "T00:00:00");
+      const dow = d.getDay();
+      if (dow !== 0) d.setDate(d.getDate() + (7 - dow));
+      deadline = toLocalDateStr(d);
+    }
+    if (targetWeight !== null && boundary !== null) {
+      const beyond = goalTypeRec === "loss" ? targetWeight < boundary : targetWeight > boundary;
+      if (beyond) {
+        return {
+          weeks: null,
+          endDate: null,
+          conflict: {
+            type: "boundary",
+            message: `${targetWeight} lbs is beyond the ${goalTypeRec === "loss" ? "safety floor" : "safety ceiling"} of ${boundary} lbs from your confirmed sustainable weight range (${sustainableRange.source === "confirmed" ? "based on past maintenance cycles" : "cold-start fallback — no confirmed maintenance cycle yet"}). This isn't a pace suggestion — it's a hard boundary and isn't offered as a one-tap alternative.`,
+            altDate: null,
+            altWeight: null
+          }
+        };
+      }
+    }
+    const start = /* @__PURE__ */ new Date(newMacroStart + "T00:00:00");
+    const findMinSafeWeeks = (requestedChange2) => {
+      let weeks = 1;
+      while (weeks <= 104) {
+        const t = computeTaperCurve(latestBw, weeks);
+        if (t && t.totalSafeChange >= requestedChange2) return weeks;
+        weeks++;
+      }
+      return 104;
+    };
+    const endDateForWeeks = (weeks) => {
+      const d = new Date(start);
+      d.setDate(d.getDate() + weeks * 7 - 1);
+      return toLocalDateStr(d);
+    };
+    if (targetWeight !== null && !deadline) {
+      const requestedChange2 = Math.abs(targetWeight - latestBw);
+      const weeks = findMinSafeWeeks(requestedChange2);
+      return { weeks, endDate: endDateForWeeks(weeks), conflict: null };
+    }
+    if (deadline && targetWeight === null) {
+      const weeks = Math.max(1, Math.round((/* @__PURE__ */ new Date(deadline + "T00:00:00") - start) / 864e5 / 7));
+      return { weeks, endDate: endDateForWeeks(weeks), conflict: null };
+    }
+    const requestedWeeks = Math.max(1, Math.round((/* @__PURE__ */ new Date(deadline + "T00:00:00") - start) / 864e5 / 7));
+    const requestedChange = Math.abs(targetWeight - latestBw);
+    const taper = computeTaperCurve(latestBw, requestedWeeks);
+    if (taper && requestedChange > taper.totalSafeChange) {
+      const safeWeeks = findMinSafeWeeks(requestedChange);
+      const altWeightRaw = goalTypeRec === "loss" ? latestBw - taper.totalSafeChange : latestBw + taper.totalSafeChange;
+      return {
+        weeks: null,
+        endDate: null,
+        conflict: {
+          type: "pace",
+          message: `That combination averages ~${(requestedChange / requestedWeeks).toFixed(1)} lbs/week over ${requestedWeeks} weeks — above the safe taper ceiling of ~${taper.totalSafeChange} lbs total for a cycle this length.`,
+          altDate: endDateForWeeks(safeWeeks),
+          altWeight: parseFloat(altWeightRaw.toFixed(1))
+        }
+      };
+    }
+    return { weeks: requestedWeeks, endDate: endDateForWeeks(requestedWeeks), conflict: null };
+  }
+  function buildReverseDietRows(recentKcal, tdee, weeklyIncrement) {
+    if (!tdee || !recentKcal) return [];
+    const maintenance = Math.round(tdee);
+    const rows = [];
+    let kcal = recentKcal;
+    let week = 1;
+    while (kcal < maintenance - weeklyIncrement / 2 && week <= 60) {
+      kcal = Math.min(kcal + weeklyIncrement, maintenance);
+      rows.push({ week, kcal: Math.round(kcal) });
+      week++;
+    }
+    if (rows.length && rows[rows.length - 1].kcal !== maintenance) {
+      rows[rows.length - 1] = { week: rows[rows.length - 1].week, kcal: maintenance };
+    }
+    return rows;
+  }
+  function buildDirectionSteppedRamp(startKcal, finalTargetKcal, tdee, totalWeeks, goalTypeRec, safetyFloor) {
+    if (!startKcal || !finalTargetKcal || !tdee || !totalWeeks) return [];
+    const holdWeeks = 3;
+    const bigStep = 250;
+    const smallStep = 125;
+    const isCut = goalTypeRec === "loss";
+    const pastTDEE = (k) => isCut ? k <= tdee : k >= tdee;
+    const rows = [];
+    let kcal = startKcal;
+    let weeksUsed = 0;
+    while (weeksUsed < totalWeeks) {
+      let displayKcal = kcal;
+      let clamped = false;
+      if (isCut) {
+        displayKcal = Math.max(displayKcal, finalTargetKcal);
+        clamped = !!(safetyFloor && displayKcal < safetyFloor);
+        if (clamped) displayKcal = safetyFloor;
+      } else {
+        displayKcal = Math.min(displayKcal, finalTargetKcal);
+      }
+      displayKcal = Math.round(displayKcal);
+      const weeksThisStep = Math.min(holdWeeks, totalWeeks - weeksUsed);
+      const last = rows[rows.length - 1];
+      if (last && last.kcal === displayKcal) {
+        last.endWeek += weeksThisStep;
+        last.clamped = last.clamped || clamped;
+      } else {
+        rows.push({ startWeek: weeksUsed + 1, endWeek: weeksUsed + weeksThisStep, kcal: displayKcal, clamped });
+      }
+      weeksUsed += weeksThisStep;
+      if (kcal !== finalTargetKcal) {
+        const stepSize = isCut ? pastTDEE(kcal) ? smallStep : bigStep : smallStep;
+        kcal = isCut ? Math.max(finalTargetKcal, kcal - stepSize) : Math.min(finalTargetKcal, kcal + stepSize);
+      }
+    }
+    return rows;
+  }
+
+  // src/prompts.ts
+  function buildSignalPeriods(weekBuckets, baselineIdx) {
+    const seq = weekBuckets.slice(baselineIdx + 1).filter((b) => b.delta !== null);
+    const periods = [];
+    let cur = null;
+    for (const b of seq) {
+      const type = Math.abs(b.delta) <= 0.5 ? "flat" : "moving";
+      if (cur && cur.type === type) {
+        cur.weeks.push(b);
+      } else {
+        if (cur) periods.push(cur);
+        cur = { type, weeks: [b] };
+      }
+    }
+    if (cur) periods.push(cur);
+    periods.forEach((p) => {
+      p.length = p.weeks.length;
+      p.startLabel = p.weeks[0].label;
+      p.endLabel = p.weeks[p.weeks.length - 1].label;
+      p.startDate = p.weeks[0].bStart;
+      p.endDate = p.weeks[p.weeks.length - 1].bEnd;
+      p.confirmed = p.length >= 2;
+      const kcalWeeks = p.weeks.filter((w) => w.avgKcal !== null);
+      p.avgKcalDuring = kcalWeeks.length ? Math.round(kcalWeeks.reduce((s, w) => s + w.avgKcal, 0) / kcalWeeks.length) : null;
+    });
+    let activePeriod = null;
+    for (const p of periods) {
+      if (p.confirmed) activePeriod = p;
+    }
+    return { periods, activePeriod };
+  }
+  function formatSignalPeriodsForPrompt(ins) {
+    if (!ins || !ins.signalPeriods || !ins.signalPeriods.length) {
+      return "No confirmed flat/moving periods yet — still gathering data since baseline.";
+    }
+    const lines = ins.signalPeriods.map((p) => {
+      const range = p.startLabel === p.endLabel ? p.startLabel : `${p.startLabel}–${p.endLabel}`;
+      const label = p.type === "flat" ? "PLATEAU (flat weight)" : "active movement";
+      const conf = p.confirmed ? "" : " [not yet confirmed — fewer than 2 weeks, could still turn out to be noise]";
+      const kcalPart = p.avgKcalDuring !== null ? `, avg ${p.avgKcalDuring.toLocaleString()} kcal/day during` : "";
+      return `${range} (${p.length}wk): ${label}${kcalPart}${conf}`;
+    }).join("\n");
+    let activeNote = "";
+    if (ins.activePeriod && ins.activePeriod.type === "flat") {
+      activeNote = ins.activePeriodIsOngoing ? `
+Currently flagged: PLATEAU, ${ins.activePeriod.startLabel}–${ins.activePeriod.endLabel} (${ins.activePeriod.length} weeks), still ongoing as of the latest logged week.` : `
+Currently flagged: PLATEAU, ${ins.activePeriod.startLabel}–${ins.activePeriod.endLabel} (${ins.activePeriod.length} weeks). This specific stall has ENDED, but the flag is deliberately sticky and stays up until a NEW confirmed 2+ consecutive-week run of genuine movement is logged — a single good week (or a single flat week breaking up otherwise-moving weeks) is not enough on its own to clear it. Use the weeks logged since this period ended to judge whether a breakthrough looks like it's forming, but don't claim the flag has cleared unless the data above actually shows 2+ confirmed weeks of it.`;
+    }
+    return lines + activeNote;
+  }
+  function extractJsonObject(rawText) {
+    if (!rawText) return null;
+    const text = rawText.replace(/```json/gi, "").replace(/```/g, "");
+    const start = text.indexOf("{");
+    if (start === -1) return null;
+    let depth = 0, inString = false, escaped = false;
+    for (let i = start; i < text.length; i++) {
+      const ch = text[i];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (ch === '"') {
+        inString = !inString;
+        continue;
+      }
+      if (inString) continue;
+      if (ch === "{") depth++;
+      else if (ch === "}") {
+        depth--;
+        if (depth === 0) {
+          try {
+            return JSON.parse(text.slice(start, i + 1));
+          } catch (e) {
+            return null;
+          }
+        }
+      }
+    }
+    return null;
+  }
+  function condenseBlocAdvicePlans(response) {
+    const condensePath = (path) => (path?.goals || []).map((g) => `${g.kcal}kcal/${g.protein}p/${g.carbs}c/${g.steps || "?"}steps (${g.startDate}–${g.endDate})`).join(" → ");
+    return {
+      sustainable: condensePath(response?.recommendations?.sustainable),
+      aggressive: condensePath(response?.recommendations?.aggressive)
+    };
+  }
+  function condenseBlocAdviceEntry(stored) {
+    if (!stored || !stored.response) return null;
+    const pr = stored.response;
+    const plans = condenseBlocAdvicePlans(pr);
+    const entry = {
+      date: stored.storedAt,
+      why: pr.primaryAction || pr.headline || "",
+      sustainable: plans.sustainable,
+      aggressive: plans.aggressive,
+      chosenPath: stored.chosenPath || null,
+      chosenAt: stored.chosenAt || null
+    };
+    if (stored.revisionInfo) {
+      entry.revisedFrom = stored.revisionInfo.originalSummary;
+      entry.revisionReason = stored.revisionInfo.acknowledgment;
+    }
+    return entry;
+  }
+  function formatPriorAdviceEntry(entry, idx) {
+    let s = `Check-in ${idx + 1} (${entry.date}): `;
+    if (entry.revisedFrom) {
+      s += `Originally recommended — sustainable: ${entry.revisedFrom.sustainable || "none"}; aggressive: ${entry.revisedFrom.aggressive || "none"}. After a user challenge, revised to — sustainable: ${entry.sustainable || "none"}; aggressive: ${entry.aggressive || "none"} (reason: ${entry.revisionReason}).`;
+    } else {
+      s += `Recommended — sustainable: ${entry.sustainable || "none"}; aggressive: ${entry.aggressive || "none"}.`;
+    }
+    s += ` Why: ${entry.why}.`;
+    if (entry.chosenPath) s += ` User chose the ${entry.chosenPath} plan${entry.chosenAt ? " on " + entry.chosenAt : ""}.`;
+    return s;
+  }
+  function buildCycleReviewPrompt(_macro, payload, beforeImages, afterImages) {
+    const weeklyLines = payload.weeklyAverages.map(
+      (w) => `${w.label} (${w.bStart}–${w.bEnd}): avg weight ${w.avgWeight !== null ? w.avgWeight.toFixed(1) + " lbs" : "—"}, avg kcal ${w.avgKcal ?? "—"}, avg protein ${w.avgProtein ?? "—"}g, avg carbs ${w.avgCarbs ?? "—"}g, avg steps ${w.avgSteps ?? "—"}`
+    ).join("\n") || "No weekly data logged this cycle.";
+    const swingsLines = payload.weeklySwings.map((w) => {
+      const f = (s, suf) => s.min === null ? "—" : s.min === s.max ? `${s.min}${suf}` : `${s.min}${suf}/${s.max}${suf}`;
+      return `${w.label}: weight swing ${f(w.weight, "lbs")}, kcal-vs-target swing ${f(w.kcal, "")}, steps-vs-target swing ${f(w.steps, "")}, protein-vs-target swing ${f(w.protein, "g")}`;
+    }).join("\n") || "No weekly swing data available.";
+    const m = payload.measurements;
+    const measLines = `Weight: ${m.startWeight ?? "—"} → ${m.endWeight ?? "—"} lbs (${m.totalWeightChange !== null ? (m.totalWeightChange > 0 ? "+" : "") + m.totalWeightChange : "—"} lbs)${m.targetWeight ? `, target was ${m.targetWeight} lbs (ended ${m.weightTargetDelta > 0 ? "+" : ""}${m.weightTargetDelta} lbs vs target)` : ""}
+Waist: ${m.startWaist ?? "—"} → ${m.endWaist ?? "—"} in
+Hip: ${m.startHip ?? "—"} → ${m.endHip ?? "—"} in`;
+    const liftsLines = payload.bestLifts.length ? payload.bestLifts.map((l) => `${l.name}: ${l.startWeight} → ${l.endWeight} (+${l.pctIncrease}%)`).join("\n") : "No exercises had enough logged data across the cycle to show progression.";
+    const priorLines = payload.priorReviews.length ? payload.priorReviews.map((r) => `- ${r.name} (${r.goalType}, ${r.start}–${r.end}): compliance ${r.complianceScore}/10, bodyfat ${r.bodyfatDirection || "unclear"}, ended ${r.weightTargetDelta !== null ? (r.weightTargetDelta > 0 ? "+" : "") + r.weightTargetDelta + " lbs vs target" : "no target set"}`).join("\n") : "No prior reviewed cycles yet — this is the first.";
+    const beforeCount = beforeImages.length;
+    const afterCount = afterImages.length;
+    const systemPrompt = `You are BLOC, a personal training and nutrition coach embedded in a fitness tracking app, writing this user's end-of-cycle review. Speak in second person, be direct and specific, and reference actual numbers from the data below rather than being vague.
+
+The user is heavily tattooed — if progress photos are provided, judge visual body composition change by silhouette, muscle definition, and waist/torso shape, and explicitly look past/ignore tattoos rather than mistaking skin art for shadow, discoloration, or other visual artifacts.
+
+${beforeCount || afterCount ? `${beforeCount} before photo(s) and ${afterCount} after photo(s) are attached below (labelled). Use them only to inform the bodyfat-change estimate and narrative — never to redo any of the numeric/deterministic figures already given to you.` : "No before/after photos were provided this cycle — base the bodyfat-change estimate on weight, measurements, and training data only, and say so plainly rather than guessing from nothing."}
+
+Respond with ONLY a raw JSON object, no markdown fences, no preamble. Schema:
+{
+  "complianceScore": number (0-10, how consistently the user stayed on track this cycle — nutrition/step/training adherence),
+  "bodyfatEstimate": { "direction": "loss"|"gain"|"no significant change"|"unclear", "note": "1-2 sentence explanation, cross-referencing weight/measurement trend against any visual estimate" },
+  "headline": "one-sentence verdict on the cycle",
+  "narrative": "3-5 paragraph full review — how far off the weight target they were, whether measurements/photos support genuine fat loss vs just scale movement, training performance, and whether the cycle ran too long (e.g. stalled in a deficit near the end) or was well-timed",
+  "highlights": ["short bullet", "..."],
+  "improvements": ["short bullet", "..."],
+  "stickingPoints": "1-2 sentences on the main sticking point(s), or empty string if none",
+  "ranTooLong": boolean,
+  "ranTooLongNote": "1 sentence if ranTooLong is true, else empty string"
+}
+
+${(() => {
+      const fd = payload.finalDaySubstitutions || {};
+      const parts = [];
+      if (fd.kcal !== void 0) parts.push(`kcal/protein/carbs — assume ~${fd.kcal} kcal, ${fd.protein}g protein, ${fd.carbs}g carbs`);
+      if (fd.steps !== void 0) parts.push(`steps — assume ~${fd.steps.toLocaleString()}`);
+      if (fd.weight !== void 0) parts.push(`weight — assume ~${fd.weight} lbs`);
+      return parts.length ? `Note: this cycle's final day had not yet logged the following (the WEEKLY AVERAGES/MEASUREMENTS below already exclude it rather than counting it as zero). Assume it matched this week's average instead of treating it as a miss or a data gap: ${parts.join("; ")}.` : "";
+    })()}`;
+    const userText = `CYCLE: ${payload.macroName} (${payload.goalType}), ${payload.start} to ${payload.end}
+
+WEEKLY AVERAGES
+${weeklyLines}
+
+WEEKLY SWINGS (min/max)
+${swingsLines}
+
+MEASUREMENTS
+${measLines}
+
+BEST PROGRESSED LIFTS (top set weight, first → last logged week)
+${liftsLines}
+
+PRIOR REVIEWED CYCLES (most recent first)
+${priorLines}
+
+Write this cycle's review per the schema above.`;
+    const imageBlocks = [];
+    beforeImages.forEach((img, i) => {
+      imageBlocks.push({ type: "text", text: `BEFORE PHOTO ${i + 1}:` });
+      imageBlocks.push({ type: "image", source: { type: "base64", media_type: img.mediaType, data: img.base64 } });
+    });
+    afterImages.forEach((img, i) => {
+      imageBlocks.push({ type: "text", text: `AFTER PHOTO ${i + 1}:` });
+      imageBlocks.push({ type: "image", source: { type: "base64", media_type: img.mediaType, data: img.base64 } });
+    });
+    return { systemPrompt, userText, imageBlocks };
+  }
+
+  // src/home.ts
+  function getHomeIsoDow(dateStr) {
+    const d = /* @__PURE__ */ new Date(dateStr + "T00:00:00");
+    const dow = d.getDay();
+    return dow === 0 ? 7 : dow;
+  }
+  function isCompleteNutritionDay(day, kcalTarget) {
+    if (!day || !day.hasNutr) return false;
+    if (kcalTarget === null || kcalTarget === void 0) return true;
+    return day.kcal >= kcalTarget - 300;
+  }
+  function getWeeklyRequiredDaily(field, dayMap, weekStart, today, target, kcalTarget) {
+    if (target === null || target === void 0) return null;
+    const dow = getHomeIsoDow(today);
+    const todayEntry = dayMap[today];
+    const todayHasField = !!todayEntry && (field === "steps" ? todayEntry.steps !== null : isCompleteNutritionDay(todayEntry, kcalTarget));
+    const cutoff = todayHasField ? today : (() => {
+      const d = /* @__PURE__ */ new Date(today + "T00:00:00");
+      d.setDate(d.getDate() - 1);
+      return toLocalDateStr(d);
+    })();
+    const daysRemaining = todayHasField ? 7 - dow : 8 - dow;
+    let loggedSoFar = 0;
+    let daysTrackedSoFar = 0;
+    Object.keys(dayMap).forEach((d) => {
+      if (d >= weekStart && d <= cutoff) {
+        const day = dayMap[d];
+        const hasField = field === "steps" ? day.steps !== null : isCompleteNutritionDay(day, kcalTarget);
+        if (hasField) {
+          loggedSoFar += day[field] || 0;
+          daysTrackedSoFar++;
+        }
+      }
+    });
+    if (daysRemaining <= 0) {
+      const requiredDaily = daysTrackedSoFar > 0 ? loggedSoFar / daysTrackedSoFar : target;
+      return { requiredDaily, loggedSoFar, daysTrackedSoFar, daysRemaining, startsToday: !todayHasField };
+    }
+    const neededTotal = target * (daysTrackedSoFar + daysRemaining);
+    const remainingBudget = neededTotal - loggedSoFar;
+    return { requiredDaily: remainingBudget / daysRemaining, loggedSoFar, daysTrackedSoFar, daysRemaining, startsToday: !todayHasField };
+  }
+  function computeWeekPlannedAvg(field, dayMap, weekStart, today, goal) {
+    if (!goal) return null;
+    const target = goal[field];
+    if (target === null || target === void 0) return null;
+    const dates = getWeekDates(weekStart);
+    if (field === "steps") {
+      let sum2 = 0;
+      dates.forEach((d) => {
+        const day = dayMap[d];
+        const hasActual = d <= today && day && day.steps !== null && day.steps !== void 0;
+        sum2 += hasActual ? day.steps : target;
+      });
+      return Math.round(sum2 / dates.length);
+    }
+    const kcalTarget = goal.kcal;
+    let sum = 0, count = 0;
+    dates.forEach((d) => {
+      const day = dayMap[d];
+      if (isCompleteNutritionDay(day, kcalTarget)) {
+        sum += day[field] || 0;
+        count++;
+        return;
+      }
+      if (d > today && !(day && day.hasNutr)) {
+        sum += target;
+        count++;
+      }
+    });
+    if (count === 0) return null;
+    return Math.round(sum / count);
+  }
+  function formatAdviceSublabel(requiredDaily, target, unit, today, daysRemaining, startsToday) {
+    if (daysRemaining === void 0) daysRemaining = 8 - getHomeIsoDow(today);
+    const rounded = Math.round(requiredDaily);
+    if (daysRemaining <= 1) {
+      return `Hit ${rounded.toLocaleString()}${unit} today to bring the week to target`;
+    }
+    const delta = rounded - Math.round(target);
+    const fromWord = startsToday === false ? "starting tomorrow" : "starting today";
+    if (Math.abs(delta) < 1) return "On pace for the week";
+    const sign = delta > 0 ? "+" : "";
+    return `Adjust your daily avg by ${sign}${delta.toLocaleString()}${unit} for the rest of the week (${fromWord}) to hit target`;
+  }
+  function getHomeMetricSublabel(field, dayMap, weekStart, today, target, unit, kcalTarget) {
+    const info = getWeeklyRequiredDaily(field, dayMap, weekStart, today, target, kcalTarget);
+    if (info === null) return "";
+    return formatAdviceSublabel(info.requiredDaily, target, unit, today, info.daysRemaining, info.startsToday);
+  }
+  var RECONCILE_CARBS_FLOOR = 50;
+  var RECONCILE_FATS_FLOOR = 20;
+  var RECONCILE_PROTEIN_MAX_DROP = 10;
+  var RECONCILE_KCAL_MAX_OVERSHOOT = 75;
+  function getReconciledMacroAdvice(dayMap, weekStart, today, goal) {
+    if (!goal || goal.kcal === null || goal.kcal === void 0 || goal.protein === null || goal.protein === void 0) return null;
+    const kcalInfo = getWeeklyRequiredDaily("kcal", dayMap, weekStart, today, goal.kcal, goal.kcal);
+    const proteinInfo = getWeeklyRequiredDaily("protein", dayMap, weekStart, today, goal.protein, goal.kcal);
+    const carbsInfo = getWeeklyRequiredDaily("carbs", dayMap, weekStart, today, goal.carbs, goal.kcal);
+    const fatsInfo = getWeeklyRequiredDaily("fats", dayMap, weekStart, today, goal.fats, goal.kcal);
+    if (kcalInfo === null || proteinInfo === null) return null;
+    const kcalRaw = kcalInfo.requiredDaily;
+    const proteinRaw = proteinInfo.requiredDaily;
+    const carbsRaw = carbsInfo ? carbsInfo.requiredDaily : null;
+    const fatsRaw = fatsInfo ? fatsInfo.requiredDaily : null;
+    const floorKcalCost = proteinRaw * 4 + RECONCILE_CARBS_FLOOR * 4 + RECONCILE_FATS_FLOOR * 9;
+    const feasible = floorKcalCost <= kcalRaw;
+    if (feasible) {
+      let carbsAdvice = carbsRaw !== null ? carbsRaw : RECONCILE_CARBS_FLOOR;
+      let fatsAdvice = fatsRaw !== null ? fatsRaw : RECONCILE_FATS_FLOOR;
+      const budgetForCarbsAndFats = kcalRaw - proteinRaw * 4;
+      let cost = carbsAdvice * 4 + fatsAdvice * 9;
+      if (cost > budgetForCarbsAndFats) {
+        const maxFatsKcal = budgetForCarbsAndFats - carbsAdvice * 4;
+        fatsAdvice = Math.max(RECONCILE_FATS_FLOOR, maxFatsKcal / 9);
+        cost = carbsAdvice * 4 + fatsAdvice * 9;
+        if (cost > budgetForCarbsAndFats) {
+          const maxCarbsKcal = budgetForCarbsAndFats - fatsAdvice * 9;
+          carbsAdvice = Math.max(RECONCILE_CARBS_FLOOR, maxCarbsKcal / 4);
+        }
+      }
+      const fatsChanged = fatsRaw !== null && Math.round(fatsAdvice) !== Math.round(fatsRaw);
+      return {
+        feasible: true,
+        kcal: kcalRaw,
+        protein: proteinRaw,
+        carbs: carbsAdvice,
+        fats: fatsAdvice,
+        fatsChanged
+      };
+    }
+    const proteinAdvice = goal.protein - RECONCILE_PROTEIN_MAX_DROP;
+    const floorCost = proteinAdvice * 4 + RECONCILE_CARBS_FLOOR * 4 + RECONCILE_FATS_FLOOR * 9;
+    const kcalCeiling = goal.kcal + RECONCILE_KCAL_MAX_OVERSHOOT;
+    const kcalAdvice = Math.min(kcalCeiling, Math.max(kcalRaw, floorCost));
+    return {
+      feasible: false,
+      kcal: kcalAdvice,
+      protein: proteinAdvice,
+      carbs: RECONCILE_CARBS_FLOOR,
+      fats: RECONCILE_FATS_FLOOR,
+      fatsChanged: true
+    };
+  }
+
+  // src/clash.ts
+  function macroRange(m, ctx) {
+    return { start: m.start, end: getMacroEndDate(m, ctx) };
+  }
+  function findMacroClash(candidate, macros, excludeId, ctx) {
+    if (!candidate.start) return null;
+    const r = macroRange(candidate, ctx);
+    return (macros || []).filter((m) => m.id !== excludeId && m.start).sort((a, b) => a.start.localeCompare(b.start)).find((m) => {
+      const o = macroRange(m, ctx);
+      return o.start <= r.end && o.end >= r.start;
+    }) || null;
+  }
+  function buildGoalShiftPlan(macro, edits, goals, today) {
+    const oldStart = macro.start;
+    const newStart = edits.start;
+    if (!oldStart || !newStart || oldStart === newStart) return null;
+    const linked = goals.filter((g) => g.macroId === macro.id).sort((a, b) => a.startDate.localeCompare(b.startDate));
+    if (!linked.length) return null;
+    const ctx = { today };
+    const deltaDays = dayDiff(oldStart, newStart);
+    const oldEnd = getMacroEndDate(macro, ctx);
+    const newEnd = getMacroEndDate(Object.assign({}, macro, edits), ctx);
+    const others = goals.filter((g) => g.macroId !== macro.id);
+    const rows = linked.map((g) => {
+      const rs = shiftDateStr(g.startDate, deltaDays);
+      const re = shiftDateStr(g.endDate, deltaDays);
+      const clash = others.find((o) => o.startDate <= re && o.endDate >= rs) || null;
+      return {
+        macroGoalID: g.macroGoalID,
+        label: g._blocLabel || g.label || "Goal",
+        oldStart: g.startDate,
+        oldEnd: g.endDate,
+        newStart: rs,
+        newEnd: re,
+        daysPastEnd: Math.max(0, dayDiff(newEnd, re)),
+        daysBeforeStart: Math.max(0, dayDiff(rs, newStart)),
+        clash
+      };
+    });
+    return {
+      deltaDays,
+      oldStart,
+      oldEnd,
+      newStart,
+      newEnd,
+      rows,
+      started: oldStart <= today,
+      outOfRange: rows.filter((r) => r.daysPastEnd || r.daysBeforeStart),
+      clashes: rows.filter((r) => r.clash)
+    };
+  }
+
+  // src/host.ts
+  function isLocalDevHost(hostname) {
+    const h = String(hostname || "").toLowerCase();
+    if (h === "localhost" || h === "127.0.0.1" || h === "::1" || h === "[::1]") return true;
+    if (/^[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)*\.local$/.test(h)) return true;
+    const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+    if (!m) return false;
+    const parts = m.slice(1).map(Number);
+    if (parts.some((n) => n > 255)) return false;
+    const [a, b] = parts;
+    if (a === 127) return true;
+    if (a === 10) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 169 && b === 254) return true;
+    return false;
   }
   return __toCommonJS(index_exports);
 })();

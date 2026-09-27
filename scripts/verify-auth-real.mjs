@@ -31,6 +31,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { mainScript, indexTopLevel } from './golden/extract-engine.mjs';
+import './engine-global.mjs'; // v8.34 (§124): isLocalDevHost is a shim calling BlocEngine
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '..');
 const source = mainScript(readFileSync(join(repo, 'index.html'), 'utf8'));

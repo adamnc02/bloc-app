@@ -16,6 +16,11 @@ export interface Macrocycle {
   start?: DateStr;
   weeks?: number;
   rpe?: boolean; // §104: absent = off
+  // v8.34 (§124): read by the moved progression and macro-shape helpers.
+  weeksPerMeso?: number;
+  extensionWeeks?: number;
+  useMicrocycles?: boolean; // absent = on (`!== false` everywhere)
+  days?: string[];
   [k: string]: unknown;
 }
 
@@ -33,6 +38,21 @@ export interface SampleDayGroup {
   range?: { proteinMax?: number | null; [k: string]: unknown };
   [k: string]: unknown;
 }
+
+// One day of buildDayMap()'s output (index.html; it moves in step 4): a
+// date's weigh-in, steps and nutrition totals. `weight`/`steps` are null when
+// not logged; `hasNutr` says whether any nutrition was.
+export interface DayMapEntry {
+  weight?: number | null;
+  steps?: number | null;
+  hasNutr?: boolean;
+  kcal?: number;
+  protein?: number;
+  carbs?: number;
+  fats?: number;
+  [k: string]: unknown;
+}
+export type DayMap = Record<DateStr, DayMapEntry>;
 
 export interface BlocProfile {
   measureUnit?: string;

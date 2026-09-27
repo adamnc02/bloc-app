@@ -36,6 +36,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
+import { LEAF_CASES } from './engine-cases.mjs';
 
 process.env.TZ = 'Europe/London';
 const repo = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -105,6 +106,10 @@ const CASES = {
     () => [{ sampleDays: [{ range: { proteinMax: null } }, { range: {} }, { id: 'x' }], profile: { gender: 'm' },
       mode: '', nextCycleAdviceHistory: 'not an array' }],             // the repair, the nested profile default, falsy mode
   ],
+
+  // v8.34 (§124): step 3, the pure leaves. Shared with verify-engine-leaves.mjs,
+  // which runs the same inputs through v8.33's functions and today's shims.
+  ...LEAF_CASES,
 };
 
 const exported = Object.keys(E).sort();

@@ -19,11 +19,18 @@
 //
 // Real functions, extracted from index.html. The control widens the overlap
 // test by a day (so touching cycles count as clashing) and asserts failure.
+//
+// v8.34 (TECHNICAL §124): macroRange, findMacroClash, shiftDateStr, dayDiff
+// and snapToNextMonday moved to the shared engine; index.html keeps shims,
+// and macroRange/findMacroClash pass BLOC's engineCtx(). So the control edits
+// findMacroClash in the ENGINE BUILD (§123: a control that patches a moved
+// function moves with it); editing the shim would change nothing.
 // ═══════════════════════════════════════════════════════════════════════
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import vm from 'node:vm';
 import './engine-global.mjs'; // v8.33 (§123): extracted functions may be shims calling BlocEngine
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -47,7 +54,7 @@ function extract(marker) {
   return null;
 }
 
-const NAMES = ['toLocalDateStr', 'getMacroDurationWeeks', 'getMacroEndDate', 'shiftDateStr', 'dayDiff', 'snapToNextMonday',
+const NAMES = ['toLocalDateStr', 'getLocalToday', 'engineCtx', 'getMacroDurationWeeks', 'getMacroEndDate', 'shiftDateStr', 'dayDiff', 'snapToNextMonday',
   'macroRange', 'findMacroClash', 'firstFreeMacroStart', 'mesosThatFit', 'planMacroClash', 'layoutGoalFit'];
 const sources = {};
 for (const n of NAMES) {
@@ -58,9 +65,11 @@ for (const n of NAMES) {
     process.exit(1);
   }
 }
-function load(srcs) {
+// `engine` is the BlocEngine the shims call: the committed build, or the
+// control's patched copy of it.
+function load(srcs, engine = globalThis.BlocEngine) {
   // eslint-disable-next-line no-new-func
-  return new Function('now', `${NAMES.map(n => srcs[n]).join('\n')}\nreturn { ${NAMES.join(', ')} };`)(() => new Date());
+  return new Function('now', 'BlocEngine', `${NAMES.map(n => srcs[n]).join('\n')}\nreturn { ${NAMES.join(', ')} };`)(() => new Date(), engine);
 }
 
 let failures = 0;
@@ -75,9 +84,9 @@ const mk = (id, start, weeks, weeksPerMeso = 1) => ({ id, name: id, start, weeks
 const B = mk('B', '2026-09-14', 8), C = mk('C', '2026-11-23', 4), D = mk('D', '2026-12-21', 6);
 const macros = [B, C, D];
 
-function suite(srcs) {
+function suite(srcs, engine) {
   const before = failures;
-  const f = load(srcs);
+  const f = load(srcs, engine);
 
   check('C and D touch (20 Dec / 21 Dec) — not a clash', f.findMacroClash(D, macros, 'D'), null);
   check('B moved to 5 Oct runs into C', (f.findMacroClash({ ...B, start: '2026-10-05' }, macros, 'B') || {}).id, 'C');
@@ -133,13 +142,18 @@ console.log('— Real code —');
 suite(sources);
 
 // ── Control: count touching cycles as overlapping → must fail ────────────
-const wide = { ...sources, findMacroClash: sources.findMacroClash.replace('o.end >= r.start', 'shiftDateStr(o.end, 1) >= r.start') };
+// Made in the engine build, where findMacroClash now lives.
+const DIST = readFileSync(join(here, '..', 'engine', 'dist', 'bloc-engine.js'), 'utf8');
+const fnAt = DIST.indexOf('function findMacroClash(');
+const fnText = fnAt < 0 ? '' : DIST.slice(fnAt, DIST.indexOf('\n  }', fnAt) + 4);
+const wideText = fnText.replace('o.end >= r.start', 'shiftDateStr(o.end, 1) >= r.start');
+const wideEngine = vm.runInNewContext(`${DIST.replace(fnText, wideText)}\n;BlocEngine`, {});
 const realFailures = failures;
 const log = console.log; console.log = () => {};
-const controlFailures = suite(wide);
+const controlFailures = suite(sources, wideEngine);
 console.log = log;
 failures = realFailures;
-if (wide.findMacroClash === sources.findMacroClash) {
+if (!fnText || wideText === fnText) {
   console.log('✗ FAIL: control could not widen the overlap test — the line changed; update the control');
   failures++;
 } else if (controlFailures === 0) {

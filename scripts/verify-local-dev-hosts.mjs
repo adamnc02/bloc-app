@@ -23,48 +23,45 @@
 // a bypassed build looks completely normal until you notice it never asked
 // anyone to sign in.
 //
-// 🚨 This reads the REAL function out of index.html and runs it, rather than
-// keeping its own copy of the logic. A copy would pass forever while the
-// shipped code drifted away from it.
+// 🚨 This runs the REAL function, rather than keeping its own copy of the
+// logic. A copy would pass forever while the shipped code drifted away.
+//
+// v8.34 (TECHNICAL §124, deep dive §8): the function lives in the shared
+// engine now, so BLOC and BLOC Coach key their bypass on ONE predicate. This
+// runs it from the COMMITTED build (engine/dist/bloc-engine.js, the file the
+// live site serves), and checks that index.html's isLocalDevHost is only a
+// shim handing the hostname to it. Testing the old brace-extracted copy in
+// index.html would now test a one-line shim, and pass while proving nothing.
 // ═══════════════════════════════════════════════════════════════════════
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import vm from 'node:vm';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(here, '..', 'index.html'), 'utf8');
+const dist = readFileSync(join(here, '..', 'engine', 'dist', 'bloc-engine.js'), 'utf8');
 
-// ── Extract `function isLocalDevHost(...) { ... }` by brace matching ──────
-const marker = 'function isLocalDevHost(hostname) {';
-const start = source.indexOf(marker);
-if (start === -1) {
-  console.error('✗ FAIL: isLocalDevHost() not found in index.html.');
-  console.error('  Either it was renamed or the bypass was restructured. Both need this');
-  console.error('  script updated deliberately — do not delete the check.');
+// ── The engine's isLocalDevHost, from the committed build ────────────────
+const engine = vm.runInNewContext(`${dist}\n;BlocEngine`, {});
+if (typeof engine.isLocalDevHost !== 'function') {
+  console.error('✗ FAIL: the engine build does not export isLocalDevHost().');
+  console.error('  It was renamed or moved. Update this script deliberately — do not delete the check.');
   process.exit(1);
 }
-if (source.indexOf(marker, start + 1) !== -1) {
-  console.error('✗ FAIL: isLocalDevHost() is defined more than once in index.html.');
+const isLocalDevHost = engine.isLocalDevHost;
+
+// ── index.html's isLocalDevHost must be the shim, and only the shim ──────
+// Otherwise BLOC could decide the bypass with a different predicate from the
+// one tested here (and from the one Coach uses).
+const SHIM = /function isLocalDevHost\(hostname\) \{\n  return BlocEngine\.isLocalDevHost\(hostname\);[^\n]*\n\}/;
+const shimOk = src => (src.match(/function isLocalDevHost\(/g) || []).length === 1 && SHIM.test(src);
+if (!shimOk(source)) {
+  console.error('✗ FAIL: index.html\'s isLocalDevHost() is not exactly one shim calling BlocEngine.isLocalDevHost(hostname).');
   process.exit(1);
 }
-
-let depth = 0, end = -1;
-for (let i = source.indexOf('{', start); i < source.length; i++) {
-  const ch = source[i];
-  if (ch === '{') depth++;
-  else if (ch === '}') {
-    depth--;
-    if (depth === 0) { end = i + 1; break; }
-  }
-}
-if (end === -1) {
-  console.error('✗ FAIL: could not find the end of isLocalDevHost().');
-  process.exit(1);
-}
-
-const fnSource = source.slice(start, end);
-const isLocalDevHost = new Function(`${fnSource}; return isLocalDevHost;`)();
+console.log('✓ index.html\'s isLocalDevHost() hands the hostname to the engine\'s, unchanged');
 
 // ── Cases ────────────────────────────────────────────────────────────────
 const shouldBypass = [
@@ -148,6 +145,15 @@ if (!controlCatches) {
 } else {
   console.log('Control: a naive includes()/startsWith() predicate does let the lookalike');
   console.log('         domains through, so these cases genuinely discriminate. ✓');
+}
+
+// Control: a copy of the logic left in index.html (not a shim) is refused.
+const local = source.replace(SHIM, 'function isLocalDevHost(hostname) {\n  return String(hostname || \'\').toLowerCase() === \'localhost\';\n}');
+if (local === source || shimOk(local)) {
+  console.error('✗ FAIL: control — a local copy of isLocalDevHost in index.html was not refused.');
+  failures++;
+} else {
+  console.log('Control: a local copy in index.html instead of the shim is refused. ✓');
 }
 
 if (failures > 0) {

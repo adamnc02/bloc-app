@@ -32,6 +32,7 @@ import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import './engine-global.mjs'; // v8.34 (§124): the progression leaves are shims calling BlocEngine
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, '..');

@@ -463,16 +463,21 @@ if (WRITE) {
   check(`control (data): one weigh-in 2 lb heavier changes the output (${moved1.length} runs moved)`,
     moved1.some(k => k.startsWith('nutrition ·')) && moved1.some(k => k.startsWith('prompts ·')));
 
-  // 2. One character of engine source: the weight-increment rounding in
+  // 2. One character of engine source: the weight-increment step in
   //    getWeekWeight. Proves a code change is caught, not just a data change.
-  const fnStart = source.indexOf('function getWeekWeight(');
-  const fnText = source.slice(fnStart, source.indexOf('\n}', fnStart) + 2);
+  //    v8.34 (§124): getWeekWeight moved to the engine, and index.html keeps
+  //    only a shim, so the edit is made in the BUILD. Patching index.html's
+  //    shim would change nothing (the §123 rule: a control that patches a
+  //    moved function moves with it). A missing function or a changed
+  //    expression leaves `patched` equal to the original and fails this.
+  const fnStart = ENGINE_DIST.indexOf('function getWeekWeight(');
+  const fnText = fnStart < 0 ? '' : ENGINE_DIST.slice(fnStart, ENGINE_DIST.indexOf('\n  }', fnStart) + 4);
   const patched = fnText.replace(/\(week - 1\)/, '(week - 0)');
-  const moved2 = patched !== fnText ? (() => {
-    const alt = runAll(buildEngine(source.replace(fnText, patched)));
+  const moved2 = fnText && patched !== fnText ? (() => {
+    const alt = runAll(buildEngine(source, ENGINE_DIST.replace(fnText, patched)));
     return Object.keys(current).filter(k => JSON.stringify(current[k]) !== JSON.stringify(alt[k]));
   })() : [];
-  check(`control (code): a one-character edit to getWeekWeight changes the output (${moved2.length} runs moved)`,
+  check(`control (code): a one-character edit to the engine's getWeekWeight changes the output (${moved2.length} runs moved)`,
     moved2.some(k => k.startsWith('targets ·')));
 
   // 3. One character of the ENGINE BUILD (v8.32, §122): proves the harness

@@ -95,3 +95,38 @@ export function getMacroEndDate(macro: Macrocycle, ctx: EngineContext): DateStr 
   endDate.setDate(endDate.getDate() + getMacroDurationWeeks(macro) * 7 - 1);
   return toLocalDateStr(endDate);
 }
+
+// ── Moved in v8.34 (§124, deep dive §10 step 3): pure date arithmetic ─────
+
+// Rolls a date string forward to the next Monday (or returns it unchanged
+// if it's already a Monday).
+export function snapToNextMonday(dateStr: DateStr): DateStr {
+  const d = new Date(dateStr + 'T00:00:00');
+  const dow = d.getDay(); // 0=Sun..6=Sat
+  const add = dow === 1 ? 0 : dow === 0 ? 1 : (8 - dow);
+  d.setDate(d.getDate() + add);
+  return toLocalDateStr(d);
+}
+
+// Returns the ISO date string for the day immediately before the given date.
+// Used to find where the active goal must end so it closes cleanly right up
+// against the new plan's start date, with no gap and no overlap.
+export function getDayBefore(dateStr: DateStr): DateStr {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() - 1);
+  return toLocalDateStr(d);
+}
+
+// Moves a YYYY-MM-DD string by `days` calendar days (local, DST-safe).
+export function shiftDateStr(dateStr: DateStr, days: number): DateStr {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return toLocalDateStr(d);
+}
+
+// Whole calendar days from a to b (b − a). Noon anchors keep a BST/GMT
+// change from rounding a day away. (Date − Date is the old code's own
+// arithmetic; the casts only satisfy the type-checker and are erased.)
+export function dayDiff(a: DateStr, b: DateStr): number {
+  return Math.round(((new Date(b + 'T12:00:00') as unknown as number) - (new Date(a + 'T12:00:00') as unknown as number)) / 86400000);
+}
