@@ -29510,6 +29510,22 @@ function renderSettingsHero() {
     <span class="chip" style="--chip-c:var(--accent2);">v8.21</span>`;
 }
 
+// v8.21 (§108) — what THIS install supports, read-only. It exists for the
+// on-device manifest test: iOS gives no visible sign that a Home Screen
+// install has picked a manifest up, and push only works where all three of
+// the Notification API, PushManager and a service-worker container exist.
+// Comparing these rows on a spare install and on the existing one answers
+// whether the existing one needs re-adding. Requests nothing, changes nothing.
+function installReadinessRows(statRow) {
+  const standalone = window.navigator.standalone === true
+    || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+  const displayMode = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches ? 'standalone' : 'browser';
+  const pushable = 'Notification' in window && 'PushManager' in window && 'serviceWorker' in navigator;
+  return statRow('Opened from Home Screen', standalone ? 'Yes' : 'No')
+    + statRow('Display mode', displayMode)
+    + statRow('Push available on this install', pushable ? 'Yes' : 'No');
+}
+
 function renderSettings() {
   renderSettingsHero();
   renderModeToggle();
@@ -29530,7 +29546,8 @@ function renderSettings() {
     statRow('Set logs', logs) +
     statRow('Body entries', bodyLogs) +
     statRow('Nutrition entries', nutrLogs) +
-    statRow('Stored on this device', `~${kb} KB`);
+    statRow('Stored on this device', `~${kb} KB`) +
+    installReadinessRows(statRow);
 
   // Show whether an API key is currently saved
   const keyEl = document.getElementById('settings-api-key-input');

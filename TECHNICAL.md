@@ -6569,5 +6569,17 @@ rule). `scripts/verify-manifest.mjs` checks:
 
 Chromium's own parser (`Page.getAppManifest`) reports no errors.
 
+**How the test is read: three rows under Settings → About** (`installReadinessRows()`):
+
+- **Opened from Home Screen**: `navigator.standalone` or the standalone display mode;
+- **Display mode**: `(display-mode: standalone)`;
+- **Push available on this install**: `Notification`, `PushManager` and `serviceWorker` all present.
+
+iOS gives no visible sign that an install has picked a manifest up, and it exposes the push APIs
+only inside a Home Screen app. Comparing the rows on a **spare** install, made after v8.21 deployed,
+with the rows on the **existing** install is the test. The rows are read-only: they request no
+permission, subscribe nothing and register nothing (the verify script asserts that). A desktop
+browser tab reports push available, which is correct for desktop.
+
 **The result of the on-device test goes here** once it's run: whether the existing install picked
 the manifest up, and if not, the safe re-add flow.
