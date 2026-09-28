@@ -173,7 +173,9 @@ function run(label, html, engineSrc) {
     check('Solo keeps its Progress tour', soloIds.includes('progress-checkin') && soloIds.includes('progress-next-cycle'), true);
     check('the Coached tour has no check-in, Last cycle or Next cycle step',
       coachedIds.filter(t => /checkin|last-cycle|next-cycle/.test(t)), []);
-    check('…and keeps the rest, in order', coachedIds, soloIds.filter(t => !/checkin|last-cycle|next-cycle/.test(t)));
+    // v8.41 (§135): From your coach takes the check-in's place.
+    check('…and keeps the rest, in order, with From your coach where the check-in was', coachedIds,
+      soloIds.map(t => (t === 'progress-checkin' ? 'progress-from-coach' : t)).filter(t => !/checkin|last-cycle|next-cycle/.test(t)));
     check('the Demo Tour is always the Solo one', ids(true, true), ids(false, true));
     const env = { coached: true, opened: [] };
     for (const st of tour(env)(false)) if (st.onEnter) st.onEnter(st);
@@ -186,8 +188,12 @@ function run(label, html, engineSrc) {
     /^function showScreen\(name\) \{[\s\S]{0,600}if \(name === 'plan' && coachedView\(\)\) name = 'home';/.test(body('showScreen')), true);
   check('the Plan nav button and its Help tour row hide when coached',
     /nav-plan[\s\S]*'none'[\s\S]*tour-help-plan-row/.test(body('applyCoachedNav')) && html.includes('id="tour-help-plan-row"'), true);
-  for (const fn of ['renderProgressCheckin', 'renderProgressLastCycle', 'renderProgressNextCycle'])
+  for (const fn of ['renderProgressLastCycle', 'renderProgressNextCycle'])
     check(`${fn}() draws nothing when coached`, /if \(coachedView\(\)\) \{ el\.innerHTML = ''; return; \}/.test(body(fn)), true);
+  // v8.41 (§135): the check-in section becomes From your coach, drawn even
+  // with no cycle (the coach's responses don't need one). v8.40 drew nothing.
+  check('renderProgressCheckin() draws From your coach when coached, before the no-cycle return (no Solo check-in)',
+    /if \(coachedView\(\)\) \{ renderProgressFromCoach\(el, macro\); return; \}\s*if \(!macro\)/.test(body('renderProgressCheckin')), true);
   check('Insights drops the plateau narrative and BLOC\'s calorie target when coached',
     /const trendHtml = coached \? '' : buildInsightsCardHTML\(\)/.test(body('renderProgressInsights')) && /!coached\)/.test(body('renderProgressInsights')), true);
   check('Train\'s deload row is Solo-only, and the toggle refuses when coached',

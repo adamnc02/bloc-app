@@ -8527,3 +8527,83 @@ before. The v8.39 control fails it.
 snapshot from **before** the day it happened (that day's file was overwritten). The pull then
 re-applies from that backup's ledger. The mirror is rebuilt by the next push.
 
+
+## §135 — v8.41: Progress → From your coach, a note back, and Check in (PROMPT-03 Phase 4e-2)
+
+Proposal §4.3 and §11 (the note-back reply and "when the last check-in was sent" suggestions). The
+server half is `0023`'s `client_submissions` and `0024`'s `client-media` bucket. No migration. Visual
+reference: the wireframes' `FromCoach.tsx`, rebuilt from BLOC's own AI-card parts (`.ai-card-headline`,
+`.ai-card-summary`, `aiReadFullButton` shape, `aiActionRow` / `aiTimerRow`) and a `.toggle-row` for the
+tabs.
+
+**Where.** In Coached mode `renderProgressCheckin()` draws `renderProgressFromCoach()` instead of the
+Solo check-in (§132 had left it empty). It draws **before** the no-cycle return: a coach's response
+doesn't need a cycle on the phone. The section id is `progress-from-coach`. The Coached Progress tour
+has a step for it where the check-in step was.
+
+**What it shows.** One tab per tool (Check-in / Review / Next cycle), each holding **that tool's latest
+response** (highest `seq`) from `state.coachAdvice` (§131, never `blocAdvice`, I5). It opens on the tool
+of the newest response. Each response shows:
+- a byline: the coach's initials and name, "Updated · " when republished (§11 Q10), the tool, and the
+  **publication's** date (`publishedAt`, now kept from `created_at` by the applier; `receivedAt` for
+  older entries);
+- the headline, the first paragraph, and up to three numbers;
+- **Read full…** (`modal-coach-response`: every paragraph);
+- the note-back row.
+
+It's **read-only**: no signal chip, no Build this plan, no Challenge.
+
+🚨 **The content contract** (what Coach's `ai_response` publish must send as `content`, the coach's edit):
+`{ headline, narrative: string[] | string (paragraphs split on a blank line), kcal?, steps?, compliance? (0–10) }`.
+- The tool accepts `check_in`, `check-in`, `cycle_review`, `review` and `next_cycle`.
+- The numbers are `kcal` → "kcal a day" and `steps` → "steps a day". A cycle review also gets the
+  weight and waist change across its cycle, from the client's own body logs, plus `compliance` →
+  "/10 compliance" (the deterministic score is Coach's to compute, proposal §7).
+- **Everything the coach wrote is escaped** (`coachEsc`): it's text, never markup.
+
+**A note back** (`modal-coach-note`, replaces Challenge this advice): one `client_submissions` row:
+- `kind 'note_back'`, the coach, and **the response's `publication_id`** (the server checks the client
+  can read it);
+- `body {v, response_id, tool, text}`.
+
+It's remembered in `state.coachNotesSent[publicationId]`, so a republished response (a new
+publication) can take a new note. Once sent, the row reads "✓ Note sent to {coach} · {day}". When the
+coach's `note_reply` arrives (`state.coachNoteReplies[submissionId]`, §131), it shows under the row as
+"{coach} replied".
+
+**Check in** (`modal-coach-checkin`, the section's "Check in" button) is one `client_submissions` row:
+- `kind 'check_in'`;
+- `body {v, feel: Great|Good|Okay|Tough, note, photos: [paths], macro_id, sent_on}`.
+
+Send is disabled until a feel is chosen. The sheet and the section say when the last one went
+(`state.coachCheckinsSent`, the last 20).
+- **Photos** (up to 3, downsized by the cycle review's `_downsizePhotoFileToBase64`, 1024px JPEG) go
+  to `client-media` at `{uid}/checkins/{folder}/{n}.jpg` **before** the row, and the row lists their
+  paths.
+- 🚨 **Only while photo consent is on, read from the link at SEND time**, not when they were picked.
+  With consent off the sheet says "Photos are off" and points to Settings → Coaching, and any photos
+  already picked are not uploaded.
+- 🚨 **A failed insert removes the photos it uploaded**, so a check-in that didn't send leaves nothing
+  behind in the coach-readable bucket. The form stays open with the reason.
+
+Neither send runs unless `coachingAvailable()` and linked. The server also refuses a submission to a
+coach the client isn't actively linked to (`is_my_active_coach`). Neither is queued offline: a failure
+says so and keeps what was typed.
+
+**Check:** `scripts/verify-from-coach.mjs` runs the real functions against a fake Supabase. It covers:
+- tool and content shapes, and the applier keeping `publishedAt`;
+- the card: the newest tool, the latest response per tool, the byline, first paragraph only, the
+  scores, read-only, "Updated", escaping and the empty state;
+- the note: its row, the remembered state, the reply, a failure and unlinked;
+- Check in: no feel means nothing sent, the upload paths and the row, consent off at send time, and a
+  failed insert removing its uploads.
+
+**Control:** v8.40 (`99273df`). `verify-coached-hides.mjs` now expects From your coach in the
+check-in's place, and in the tour.
+
+Driven in headless Chromium at 375pt with a cached link and two injected responses:
+- both tabs, the "Updated" byline and the reply;
+- the full, note and check-in sheets;
+- nothing overflows (the byline, scores and labels);
+- a send while not really linked (the bypass) says "You're not linked to a coach right now.";
+- no console errors.

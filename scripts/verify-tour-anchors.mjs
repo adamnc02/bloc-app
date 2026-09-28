@@ -71,6 +71,9 @@ const TEMPLATED = {
   'checkin-plan-aggressive':  'id="checkin-plan-${key}"',
   'home-metric-card-kcal':    'id="home-metric-card-${m.field}"',
   'meal-menu-btn-Dinner':     'id="meal-menu-btn-${meal}"',
+  // v8.41 (§135): Coached mode's From your coach section, whose id is set by
+  // sectionHeader({ id }) when renderProgressFromCoach() draws it.
+  'progress-from-coach':      "{ id: 'progress-from-coach'",
 };
 // Prefixes a step resolves at run time (it cannot know which exercise or
 // phase in advance) — the template must exist for the lookup to find anything.
