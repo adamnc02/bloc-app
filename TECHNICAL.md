@@ -8665,10 +8665,15 @@ dayKey}`. 🚨 **Assigning makes the session the coach's at once** (§5.6), not 
   `coachOwnedSession()`):
   - a notice above the cards;
   - every input disabled, and every write control marked `data-locked` (`applyTrainCoachLock()`);
-  - 🚨 **every write handler refuses on its first line**: `logSet`, `logCardioField`, `toggleSetDone`,
-    `toggleCardioSetDone`, `fillSuggested`, `fillSuggestedDropset`, `clearExerciseLogs`,
-    `quickFillCompleteSuperset`, `selectProgType`, `recheckProgressionLockForKey`. They all act on the
-    session Train is showing, so one check covers them;
+  - 🚨 **every function that writes `trainLogs` or `rpe` refuses on its first line** (15 of them,
+    including `quickFillComplete`, the card's ✓, and the effort sheet's `setRpeRating` /
+    `closeRpeSheet`). They all act on the session Train is showing, so one check covers them.
+    **The first draft guarded a hand-made list of ten and missed the ✓**, whose `onclick` is built
+    inside a template expression; Adam ticked a coach's session complete in UAT. The verify script
+    now **derives** the list from the code, with the pre-fix commit as a control, so a new writer that
+    skips the guard fails the sweep;
+  - `closeRpeSheet()` is also the sheet's dismiss handler, so on the coach's session it writes nothing
+    but still closes;
   - no Effort ratings row (the coach rates their own session, §11 Q13);
   - the cards still open, to see what's planned.
 

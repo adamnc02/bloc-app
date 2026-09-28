@@ -15177,7 +15177,7 @@ function applyTrainCoachLock() {
   el.classList.toggle('train-locked', locked);
   if (!locked) return;
   el.querySelectorAll('input, textarea, select').forEach(i => { i.disabled = true; });
-  el.querySelectorAll('[onclick*="toggleSetDone"], [onclick*="toggleCardioSetDone"], [onclick*="selectProgType"], [onclick*="fillSuggested"], [onclick*="clearExerciseLogs"], [onclick*="quickFillCompleteSuperset"]')
+  el.querySelectorAll('[onclick*="toggleSetDone"], [onclick*="toggleCardioSetDone"], [onclick*="selectProgType"], [onclick*="fillSuggested"], [onclick*="clearExerciseLogs"], [onclick*="quickFill"], [onclick*="fillCardio"], .ex-auto-btn')
     .forEach(b => { b.setAttribute('data-locked', ''); b.setAttribute('aria-disabled', 'true'); });
 }
 
@@ -23310,6 +23310,7 @@ function buildCardioTrainLevelsText(macro, ex) {
 // fill (no progression exists for cardio) and no "overhead complete" is
 // wanted here, per spec.
 function fillCardioLevels(macroId, week, day, exId, sets) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   const macro = state.macrocycles.find(m => m.id === macroId);
   if (!macro) return;
   const templateKey = macroId + '_1_' + day;
@@ -23610,6 +23611,7 @@ function clearExerciseLogs(macroId, week, day, exId, sets) {
 // bearing on recordExerciseHistory() below: that always reads set 1's log
 // specifically, regardless of what later sets get filled with here.
 function quickFillComplete(event, macroId, week, day, exId, sets, weight, reps) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   if (event) event.stopPropagation();
   const rpeMacro = state.macrocycles.find(m => m.id === macroId);
   const wasComplete = rpeMacro ? isTrainSessionComplete(rpeMacro, week, day) : true;
@@ -23651,6 +23653,7 @@ function quickFillComplete(event, macroId, week, day, exId, sets, weight, reps) 
 // hit differs. weight/reps/dropWeight/dropReps are '|'-delimited per-set
 // suggestion lists.
 function quickFillCompleteDropset(event, macroId, week, day, exId, sets, weight, reps, dropWeight, dropReps) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   if (event) event.stopPropagation();
   const rpeMacro = state.macrocycles.find(m => m.id === macroId);
   const wasComplete = rpeMacro ? isTrainSessionComplete(rpeMacro, week, day) : true;
@@ -23881,6 +23884,7 @@ function renderRpeSheet() {
 // swiped away keeps what was rated). Tapping the selected number again
 // clears it back to unanswered.
 function setRpeRating(exId, value) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   if (!rpeSheetCtx) return;
   if (!state.rpe) state.rpe = {};
   const key = getRpeKey(rpeSheetCtx.macroId, rpeSheetCtx.week, rpeSheetCtx.dayKey, exId);
@@ -23895,6 +23899,10 @@ function setRpeRating(exId, value) {
 // Every exit from the sheet. Anything still unanswered becomes
 // { rpeSkipped: true } — never a number (see getRpeKey's note).
 function closeRpeSheet() {
+  // v8.42 (§136): on the coach's session nothing is written (the coach rates
+  // their own session, §11 Q13), but the sheet still closes. An early return
+  // here would leave it stuck open, since this IS its dismiss handler.
+  if (trainViewCoachOwned()) { rpeSheetCtx = null; closeModal('modal-rpe'); return; }
   if (rpeSheetCtx) {
     const macro = state.macrocycles.find(m => m.id === rpeSheetCtx.macroId);
     if (macro) {

@@ -34,8 +34,21 @@ const demo = JSON.parse(readFileSync(join(repo, 'bloc-demo-data.json'), 'utf8'))
 const clone = v => JSON.parse(JSON.stringify(v));
 const engineOf = src => { const c = {}; vm.runInNewContext(src + '\n;this.BlocEngine = BlocEngine;', c); return c.BlocEngine; };
 
-const TRAIN_WRITERS = ['selectProgType', 'logCardioField', 'toggleCardioSetDone', 'logSet', 'recheckProgressionLockForKey',
-  'fillSuggested', 'fillSuggestedDropset', 'clearExerciseLogs', 'quickFillCompleteSuperset', 'toggleSetDone'];
+// 🚨 The Train writers are DERIVED from the code, never listed by hand: every
+// top-level function that writes state.trainLogs or state.rpe (plus the lock
+// recheck that runs on blur). A hand list missed quickFillComplete, the card's
+// ✓ button, whose onclick is built inside a template expression; Adam ticked a
+// coach's session complete in the v8.42 UAT. Plan's delete functions are
+// excluded: Plan doesn't exist in Coached mode (§132).
+const PLAN_ONLY = new Set(['deleteExercise', 'deleteSupersetGroup', 'deleteMacrocycle']);
+function trainWriters(decls) {
+  const out = [];
+  for (const [name, d] of decls) {
+    if (!/^(async\s+)?function\s/.test(d.text) || PLAN_ONLY.has(name)) continue;
+    if (/state\.trainLogs\[[^\]]+\]\s*(=|\.)|delete state\.trainLogs|state\.rpe\[[^\]]+\]\s*=|delete state\.rpe/.test(d.text)) out.push(name);
+  }
+  return out.concat(decls.has('recheckProgressionLockForKey') ? ['recheckProgressionLockForKey'] : []);
+}
 
 async function run(label, html, engineSrc) {
   let failures = 0;
@@ -80,9 +93,12 @@ async function run(label, html, engineSrc) {
   }
 
   // ── 2. Train is read-only on the coach's session ─────────────────────────
-  for (const fn of TRAIN_WRITERS) {
+  const writers = trainWriters(decls);
+  check('the Train writers found in the code include the card ✓ (quickFillComplete) and the effort sheet',
+    ['quickFillComplete', 'quickFillCompleteDropset', 'setRpeRating', 'closeRpeSheet', 'toggleSetDone', 'logSet'].every(n => writers.includes(n)), true);
+  for (const fn of writers) {
     const d = decls.get(fn);
-    check(`${fn}() refuses on the coach's session`, !!d && /^[^{]*\{\s*if \(trainViewCoachOwned\(\)\) return;/.test(d.text), true);
+    check(`${fn}() refuses on the coach's session`, !!d && /^[^{]*\{\s*(\/\/[^\n]*\n\s*)*if \(trainViewCoachOwned\(\)\)/.test(d.text), true);
   }
   const rtd = decls.get('renderTrainDay');
   check('renderTrainDay() shows the notice and locks the controls', !!rtd && /trainCoachNoticeHTML\(macro\) \+ html/.test(rtd.text) && /applyTrainCoachLock\(\)/.test(rtd.text), true);
@@ -178,6 +194,16 @@ try { cf = await run('v8.41', git('index.html'), git('engine/dist/bloc-engine.js
 finally { console.log = orig; }
 if (cf > 0 && lines.some(l => /✗ .*getCoachAssignment/.test(l)) && lines.some(l => /✗ .*Home row and Request/.test(l))) console.log(`✓ control: v8.41 fails ${cf} checks, including the engine skip and the Home row`);
 else { console.log(`✗ control: v8.41 should fail (${cf} failed)`); process.exitCode = 1; }
+
+// CONTROL 2: v8.42's first commit (1a0017e) guarded a hand-made list of ten
+// handlers and missed the card's ✓. The derived list must catch it.
+{
+  const src2 = execFileSync('git', ['show', '1a0017e:index.html'], { cwd: repo, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const orig2 = console.log; const l2 = []; console.log = s => l2.push(String(s));
+  try { await run('1a0017e', src2, readFileSync(join(repo, 'engine', 'dist', 'bloc-engine.js'), 'utf8')); } finally { console.log = orig2; }
+  if (l2.some(l => /✗ .*quickFillComplete\(\) refuses/.test(l))) console.log('✓ control: 1a0017e (the hand-listed guards) fails on quickFillComplete, the card ✓');
+  else { console.log('✗ control: 1a0017e should fail on quickFillComplete'); process.exitCode = 1; }
+}
 
 if (failures) { console.log(`\nFAIL: ${failures} check(s) failed.`); process.exit(1); }
 console.log('\nAll checks passed.');
