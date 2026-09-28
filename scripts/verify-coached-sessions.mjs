@@ -41,10 +41,15 @@ const engineOf = src => { const c = {}; vm.runInNewContext(src + '\n;this.BlocEn
 // coach's session complete in the v8.42 UAT. Plan's delete functions are
 // excluded: Plan doesn't exist in Coached mode (§132).
 const PLAN_ONLY = new Set(['deleteExercise', 'deleteSupersetGroup', 'deleteMacrocycle']);
+// v8.43 (§137): the coach's own writer. applySessionLogPublication() is the
+// coach's in-person log arriving: it is what MAKES a session the coach's, so it
+// must write into one (verify-coach-logged.mjs checks what it writes). Named
+// here rather than matched by pattern, so nothing else slips through with it.
+const COACH_WRITES = new Set(['applySessionLogPublication']);
 function trainWriters(decls) {
   const out = [];
   for (const [name, d] of decls) {
-    if (!/^(async\s+)?function\s/.test(d.text) || PLAN_ONLY.has(name)) continue;
+    if (!/^(async\s+)?function\s/.test(d.text) || PLAN_ONLY.has(name) || COACH_WRITES.has(name)) continue;
     if (/state\.trainLogs\[[^\]]+\]\s*(=|\.)|delete state\.trainLogs|state\.rpe\[[^\]]+\]\s*=|delete state\.rpe/.test(d.text)) out.push(name);
   }
   return out.concat(decls.has('recheckProgressionLockForKey') ? ['recheckProgressionLockForKey'] : []);

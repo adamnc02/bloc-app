@@ -3699,6 +3699,15 @@ button.coach-reqrow.is-tap + .coach-reqrow, .coach-reqrow + button.coach-reqrow.
   font-size: 13px; line-height: 1.45; color: var(--text2); }
 .coach-banner b { display: block; color: var(--accent2); font-size: 14px; margin-bottom: 3px; }
 .coach-banner-home { margin: 18px 0 0; }
+/* v8.43 (§137): Swap for today */
+.ex-swap-note { font-size: 12px; color: var(--text2); margin-top: 3px; }
+.ex-swap-btn { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; }
+.ex-swap-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.swap-planned { background: var(--surface2); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
+.swap-planned-cap { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; }
+.swap-planned-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 4px; }
+.swap-planned-row b { font-size: 15px; min-width: 0; }
+.swap-planned-row span { font-size: 13px; color: var(--text2); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .coach-banner-x { flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--surface2); color: var(--text2); cursor: pointer; font-size: 14px; }
 .coach-banner-ico svg { width: 20px; height: 20px; fill: none; stroke: var(--accent2); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .coach-reqlist { padding-top: 4px; padding-bottom: 4px; }
@@ -3926,6 +3935,7 @@ button.coach-reqrow.is-tap + .coach-reqrow, .coach-reqrow + button.coach-reqrow.
       fitListToKeyboard('food-lib-list-wrap');
       fitListToKeyboard('exercise-lib-list-wrap');
       fitListToKeyboard('recipe-pick-list-wrap');
+      fitListToKeyboard('swap-today-list-wrap'); // v8.43 (§137): Swap for today
     }
   }
 
@@ -6736,7 +6746,7 @@ try {
      same-named shims. ?v= is the first 12 hex of the file's SHA-256, so a phone never pairs a
      new index.html with an older engine from its HTTP cache; scripts/verify-engine-build.mjs
      fails if it is stale. Listed in scripts/publish-files.txt. -->
-<script src="engine/dist/bloc-engine.js?v=cf76137cd850"></script>
+<script src="engine/dist/bloc-engine.js?v=472e944018f9"></script>
 <script>
 // ════════════════════════════════════════════════
 // DATE HELPERS
@@ -10319,6 +10329,7 @@ function applyPlanPublication(pub) {
   const p = pub.payload || {};
   const incoming = p.macrocycle && typeof p.macrocycle === 'object' ? p.macrocycle : null;
   const macroIds = new Set(state.macrocycles.map(m => m.id));
+  const macroIdsBefore = new Set(macroIds);
   let candidate = null;
   if (incoming) {
     if (typeof incoming.id !== 'string' || !incoming.id) return { status: 'needs_attention', note: 'The cycle has no id.' };
@@ -10355,6 +10366,12 @@ function applyPlanPublication(pub) {
   for (const id of (p.remove_superset_ids || [])) delete state.supersets[id];
   for (const [key, on] of Object.entries(p.deloads || {})) { if (on) state.deloads[key] = true; else delete state.deloads[key]; }
   invalidateUnloggedTargets(changedEx.concat([...removeEx].map(id => [null, id])));
+  // v8.43 (§137): the Home banner "{coach} updated your plan".
+  const named = candidate || state.macrocycles.find(m => Object.keys(p.exercises || {}).concat(Object.keys(p.deloads || {})).some(k => k.startsWith(m.id + '_')));
+  const isNew = incoming && !macroIdsBefore.has(incoming.id);
+  addCoachNotice(pub, 'plan', `${coachFirstName()} updated your plan`,
+    named ? (isNew && named.start ? `“${named.name || 'A new cycle'}” starts ${coachDayFmt(named.start)}. Train shows it when you get there.`
+      : `Changes to “${named.name || 'your cycle'}”. Train shows them when you get there.`) : 'Train shows the changes when you get there.');
   return { status: 'applied' };
 }
 
@@ -10393,6 +10410,7 @@ function applyGoalPhasesPublication(pub) {
   if (p.macro_id && !state.macrocycles.some(m => m.id === p.macro_id)) return { status: 'needs_attention', note: 'Its cycle isn’t on this phone yet.' };
   for (const g of (p.goals || [])) if (!g || !g.macroGoalID || !g.startDate || !g.endDate) return { status: 'needs_attention', note: 'A goal phase is missing its id or dates.' };
   applyGoalsPatch(p.goals, p.remove_goal_ids, pub, p.macro_id);
+  addGoalPhasesNotice(pub, p.goals);
   return { status: 'applied' };
 }
 // I5: the coach's AI responses never go in blocAdvice (the client's own
@@ -10411,13 +10429,23 @@ function applyAiResponsePublication(pub) {
   const i = state.coachAdvice.findIndex(a => a.responseId === p.response_id);
   if (i >= 0) state.coachAdvice[i] = Object.assign(entry, { updated: true }); else state.coachAdvice.push(entry);
   if (gc) applyGoalsPatch(gc.goals, gc.remove_goal_ids, pub, p.macro_id);
+  // v8.43 (§137): Progress's "New check-in from {coach}", and Home's goal
+  // phases banner when the response changed them (§11 Q9: one Publish).
+  addCoachNotice(pub, 'response', `New ${coachToolMeta(p.tool).label.toLowerCase()} from ${coachFirstName()}`, 'Read it in From your coach below.');
+  if (gc && ((gc.goals || []).length || (gc.remove_goal_ids || []).length)) addGoalPhasesNotice(Object.assign({}, pub, { id: pub.id + ':goals' }), gc.goals);
   return { status: 'applied' };
 }
 function applyBookingPublication(pub) {
   const p = pub.payload || {};
   if (!p.booking_id) return { status: 'needs_attention', note: 'The booking has no id.' };
   if (!state.coachBookings || typeof state.coachBookings !== 'object') state.coachBookings = {};
+  const before = state.coachBookings[p.booking_id];
   state.coachBookings[p.booking_id] = Object.assign(pubCopy(p), { seq: pub.seq });
+  // v8.43 (§137): "Session confirmed" (proposal §8: accepted, moved or cancelled).
+  const when = coachDateTimeFmt(p.date, p.start_min);
+  if (p.status === 'cancelled') { if (before && before.status !== 'cancelled') addCoachNotice(pub, 'booking', 'Session cancelled', `${when} with ${coachFirstName()} is off.`); }
+  else if (!before || before.status === 'cancelled') addCoachNotice(pub, 'booking', 'Session confirmed', `${coachFirstName()} booked you in: ${when}${coachBookingWeekly(p) ? ', weekly' : ''}.`);
+  else if (before.date !== p.date || before.start_min !== p.start_min) addCoachNotice(pub, 'booking', 'Session moved', `${coachFirstName()} moved it to ${when}.`);
   return { status: 'applied' };
 }
 function applyMeasurementPublication(pub) {
@@ -10437,14 +10465,127 @@ function applyNoteReplyPublication(pub) {
   state.coachNoteReplies[p.submission_id] = { text: p.text || '', seq: pub.seq, receivedAt: new Date().toISOString() };
   return { status: 'applied' };
 }
-// A coach-logged in-person session changes trainLogs, the progression locks
-// and history (deep dive I2/I3), with Train's read-only "Logged by your coach"
-// view. That lands with the Coached-mode Train work; until then the session is
-// KEPT (state.coachSessionLogs) and not acked, so the coach sees it as pending.
-function storeSessionLogPublication(pub) {
+// ── A session the coach logged (v8.43, §137; proposal §5.6, deep dive I2/I3) ──
+// The payload contract Coach's Start session must send (0023 allow-lists the
+// keys; this is what's inside them):
+//   in person: {v, session_id, booking_id?, macro_id, week, day_key,
+//               kind: 'in_person', logs: {exId: {sets: [{weight, reps, done?,
+//               dropWeight?, dropReps?}], progType?} | [sets]},
+//               rpe?: {exId: 1–10 | 'skipped'}}
+//   group:     {v, session_id, booking_id, kind: 'group',
+//               logs: [{name, sets: [{weight, reps}]}],
+//               replaces?: {macroId, week, dayKey} | null}
+// A republish with the same session_id (a correction, `supersedes`) replaces it.
+const COACH_LOG_NUM_FIELDS = ['weight', 'reps', 'dropWeight', 'dropReps'];
+// Set-log keys of one exercise-week (`…_${exId}_${n}`, never the progKey).
+function trainSetKeysFor(macroId, week, dayKey, exId) {
+  const p = `${macroId}_${week}_${dayKey}_${exId}_`;
+  return Object.keys(state.trainLogs || {}).filter(k => k.startsWith(p) && /^\d+$/.test(k.slice(p.length)));
+}
+function coachSessionPlace(macroId, week, dayKey) {
+  const macro = (state.macrocycles || []).find(m => m.id === macroId);
+  if (!macro) return { note: 'Its cycle isn’t on this phone.' };
+  const w = Number(week);
+  if (!Number.isInteger(w) || w < 1 || w > getMacroEffectiveMesoCount(macro)) return { note: `Week ${week} isn’t in “${macro.name || 'that cycle'}”.` };
+  const template = state.exercises[macro.id + '_1_' + dayKey] || [];
+  if (!template.length) return { note: `That session (${dayKey}) isn’t in “${macro.name || 'that cycle'}” on this phone.` };
+  return { macro, week: w, dayKey, template };
+}
+function applySessionLogPublication(pub) {
+  const p = pub.payload || {};
+  if (!p.session_id) return { status: 'needs_attention', note: 'The session has no id.' };
+  const kind = p.kind || 'in_person';
+  if (kind === 'group') return applyGroupSessionLog(pub);
+  if (kind !== 'in_person') return { status: 'needs_attention', note: `This version of BLOC can’t read a “${kind}” session.` };
+  const at = coachSessionPlace(p.macro_id, p.week, p.day_key);
+  if (at.note) return { status: 'needs_attention', note: at.note };
+  const { macro, week, dayKey, template } = at;
+  const logs = p.logs && typeof p.logs === 'object' && !Array.isArray(p.logs) ? p.logs : {};
+  const known = new Set(template.map(e => e.id));
+  for (const exId of Object.keys(logs).concat(Object.keys(p.rpe || {}))) {
+    if (!known.has(exId)) return { status: 'needs_attention', note: `An exercise it logs (${exId}) isn’t in that session on this phone.` };
+  }
+  const loggedAt = pub.created_at || new Date().toISOString();
+  // 🚨 I3: a coach-logged session owns the WHOLE (week, dayKey) session. What
+  // was logged in it before (the client's, or the coach's previous version)
+  // is replaced; the client's own sets are kept on the record, never lost.
+  const replaced = {};
+  for (const ex of template) for (const k of trainSetKeysFor(macro.id, week, dayKey, ex.id)) {
+    if (state.trainLogs[k] && state.trainLogs[k].loggedBy !== 'coach') replaced[k] = state.trainLogs[k];
+    delete state.trainLogs[k];
+  }
+  for (const [exId, entry] of Object.entries(logs)) {
+    const sets = Array.isArray(entry) ? entry : (entry && Array.isArray(entry.sets) ? entry.sets : []);
+    sets.forEach((st, i) => {
+      if (!st || typeof st !== 'object') return;
+      const rec = {};
+      for (const [f, v] of Object.entries(st)) {
+        if (v == null || typeof v === 'object' || ['loggedBy', 'loggedAt', 'sessionId', 'done'].includes(f)) continue;
+        rec[f] = COACH_LOG_NUM_FIELDS.includes(f) ? String(v) : v; // as Train's inputs store them
+      }
+      rec.done = st.done !== false;
+      Object.assign(rec, { loggedBy: 'coach', loggedAt, sessionId: p.session_id });
+      state.trainLogs[`${macro.id}_${week}_${dayKey}_${exId}_${i}`] = rec;
+    });
+    if (entry && (entry.progType === 'weight' || entry.progType === 'reps')) {
+      state.trainLogs[getProgKey(macro.id, week, dayKey, exId)] = { progType: entry.progType };
+    }
+  }
+  // §11 Q13: ratings in the coach's session are the coach's, marked so.
+  if (!state.rpe) state.rpe = {};
+  for (const [exId, r] of Object.entries(p.rpe || {})) {
+    const k = getRpeKey(macro.id, week, dayKey, exId);
+    const n = typeof r === 'number' ? r : (r && typeof r.rpe === 'number' ? r.rpe : null);
+    if (n != null && n >= 1 && n <= 10) state.rpe[k] = { rpe: Math.round(n), ratedBy: 'coach' };
+    else if (r === 'skipped' || (r && r.rpeSkipped)) state.rpe[k] = { rpeSkipped: true, ratedBy: 'coach' };
+  }
+  // 🚨 I2: later weeks the client hasn't logged recompute from the coach's
+  // numbers; logged weeks never change (§0). The lock replays from week 2.
+  const touched = template.filter(e => e.id in logs || Object.keys(replaced).some(k => k.startsWith(`${macro.id}_${week}_${dayKey}_${e.id}_`)));
+  const r = BlocEngine.replayProgressionAfterLog(state, progressionTargetCache(), macro, week, dayKey, touched);
+  if (!state.progressionTargets) state.progressionTargets = {};
+  for (const k of r.deleteTargets) delete state.progressionTargets[k];
+  Object.assign(state.progressionTargets, r.setTargets);
+  if (!state.progressionLocks) state.progressionLocks = {};
+  for (const [k, v] of Object.entries(r.locks)) { if (v) state.progressionLocks[k] = v; else delete state.progressionLocks[k]; }
+  // I3: the history side effect toggleSetDone has, but only when this is the
+  // exercise's latest logged week: an older week mustn't overwrite "last logged".
+  const total = getMacroEffectiveMesoCount(macro);
+  for (const ex of template.filter(e => e.id in logs)) {
+    let later = false;
+    for (let w = week + 1; w <= total && !later; w++) later = trainSetKeysFor(macro.id, w, dayKey, ex.id).length > 0;
+    if (!later) recordExerciseHistory(macro, week, dayKey, ex);
+  }
   if (!state.coachSessionLogs || typeof state.coachSessionLogs !== 'object') state.coachSessionLogs = {};
-  state.coachSessionLogs[pub.id] = { seq: pub.seq, payload: pubCopy(pub.payload) };
-  return { status: 'stored' };
+  state.coachSessionLogs[pub.id] = { seq: pub.seq, payload: pubCopy(p), applied: true, loggedAt,
+    ...(Object.keys(replaced).length ? { replacedClientLogs: replaced } : {}) };
+  return { status: 'applied' };
+}
+// A group session (§5.6, §11 Q21): an EXTRA session in the client's record
+// ("Group session · logged by coach", in Your sessions), which never touches
+// progression. If the coach marked it as replacing the client's planned session
+// that day, that session is treated as swapped: counted as done, not scored,
+// its targets held (the 'group' substitution, D3).
+function applyGroupSessionLog(pub) {
+  const p = pub.payload || {};
+  let at = null;
+  if (p.replaces) {
+    at = coachSessionPlace(p.replaces.macroId, p.replaces.week, p.replaces.dayKey);
+    if (at.note) return { status: 'needs_attention', note: 'The session it replaces: ' + at.note };
+  }
+  if (!state.substitutions) state.substitutions = {};
+  for (const [k, x] of Object.entries(state.substitutions)) if (x && x.kind === 'group' && x.sessionId === p.session_id) delete state.substitutions[k];
+  const loggedAt = pub.created_at || new Date().toISOString();
+  if (at) for (const ex of at.template) {
+    state.substitutions[BlocEngine.getSubstitutionKey(at.macro.id, at.week, at.dayKey, ex.id)] = { kind: 'group', sessionId: p.session_id, at: loggedAt };
+  }
+  const b = p.booking_id && state.coachBookings && state.coachBookings[p.booking_id];
+  if (!state.coachExtraSessions || typeof state.coachExtraSessions !== 'object') state.coachExtraSessions = {};
+  state.coachExtraSessions[p.session_id] = { kind: 'group', seq: pub.seq, loggedAt,
+    date: (b && b.date) || loggedAt.slice(0, 10), bookingId: p.booking_id || null,
+    exercises: pubCopy(Array.isArray(p.logs) ? p.logs : []),
+    replaces: at ? { macroId: at.macro.id, week: at.week, dayKey: at.dayKey } : null };
+  return { status: 'applied' };
 }
 const PUB_APPLIERS = {
   plan: applyPlanPublication,
@@ -10453,7 +10594,7 @@ const PUB_APPLIERS = {
   booking: applyBookingPublication,
   measurement: applyMeasurementPublication,
   note_reply: applyNoteReplyPublication,
-  session_log: storeSessionLogPublication,
+  session_log: applySessionLogPublication,
 };
 
 // ── THE funnel ─────────────────────────────────────────────────────────────
@@ -10465,7 +10606,8 @@ function applyPublications(pubs) {
   let changed = false;
   for (const pub of pubs.slice().sort((a, b) => a.seq - b.seq)) {
     const done = ledger[pub.id];
-    if (done && done.status !== 'needs_attention') continue; // already settled: idempotent
+    // v8.43 (§137): 'stored' was 4d's "kept for later" (session_log); it now applies.
+    if (done && done.status !== 'needs_attention' && done.status !== 'stored') continue; // already settled: idempotent
     let r;
     if (superseded.has(pub.id)) r = { status: 'superseded' };
     else {
@@ -10516,6 +10658,7 @@ function drainPublications() {
   // Unlinked since they were fetched (a retry timer can outlive the link):
   // nothing from that coach may land now.
   if (!isCoachedMode()) { _pubPending = []; return Promise.resolve('not-coached'); }
+  queueStoredSessionLogs();
   if (!_pubPending.length) return sendPendingAcks().then(() => 'nothing-new');
   const wait = publicationsMustWait();
   if (wait) {
@@ -10535,6 +10678,17 @@ function drainPublications() {
     if (ses && ses.classList.contains('open') && typeof renderCoachSessions === 'function') renderCoachSessions();
   }
   return sendPendingAcks().then(() => 'applied');
+}
+
+// v8.43 (§137): session_logs that v8.39–v8.42 STORED (their seq is below the
+// cursor, so no pull brings them back) apply from the stored copy, once.
+function queueStoredSessionLogs() {
+  const ledger = coachLedger();
+  const pending = new Set(_pubPending.map(p => p.id));
+  for (const [id, e] of Object.entries(state.coachSessionLogs || {})) {
+    if (!e || e.applied || !e.payload || pending.has(id) || !ledger[id] || ledger[id].status !== 'stored') continue;
+    _pubPending.push({ id, seq: e.seq, coach_id: null, type: 'session_log', payload: e.payload, supersedes: null, created_at: null });
+  }
 }
 
 // Acks for every settled, un-acked ledger entry. Kept un-acked on failure and
@@ -13419,7 +13573,7 @@ function buildRpeTagsHtml(macro, week, dayKey, ex, isLocked, isDeloadSession) {
   if (!isRpeOn(macro) || !ex || ex.category === 'cardio') return '';
   const tags = [];
   const own = state.rpe && state.rpe[getRpeKey(macro.id, week, dayKey, ex.id)];
-  if (own && typeof own.rpe === 'number') tags.push(`<span class="ex-tag ex-tag-quiet">RPE ${own.rpe}</span>`);
+  if (own && typeof own.rpe === 'number') tags.push(`<span class="ex-tag ex-tag-quiet">RPE ${own.rpe}${own.ratedBy === 'coach' ? ' · rated by coach' : ''}</span>`); // §11 Q13
   else if (own && own.rpeSkipped) tags.push('<span class="ex-tag ex-tag-quiet">Not rated</span>');
   if (!isDeloadSession && !isLocked) {
     const step = getRpeStep(macro, week, dayKey, ex);
@@ -14965,6 +15119,7 @@ function renderProgressFromCoach(el, macro) {
   const last = (state.coachCheckinsSent || [])[(state.coachCheckinsSent || []).length - 1];
   el.innerHTML = sectionHeader('From your coach', 'Your coach’s check-ins and reviews. Send a note back if something doesn’t fit.',
       { id: 'progress-from-coach', slot: `<button class="btn btn-ghost btn-sm" id="coach-checkin-btn" onclick="openCoachCheckin()">Check in</button>` })
+    + `<div id="progress-coach-banner">${progressCoachBannerHTML()}</div>`
     + `<div class="card">${tabs}${body}</div>`
     + (last ? `<div class="coach-last">Last check-in sent ${coachDayFmt(last.at)}.</div>` : '')
     + sectionEnd();
@@ -15251,10 +15406,20 @@ const COACH_ICO_CLOCK = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx=
 const COACH_ICO_CALENDAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 9.5h18M8 2.5v4M16 2.5v4"/></svg>';
 
 // ── The coach's session, read-only in Train ───────────────────────────────
-// 4e-4 adds a coach-LOGGED session to the same question.
+// v8.43 (§137): …and a session the coach LOGGED in person (their sets carry
+// loggedBy 'coach', deep dive I3), and one a group session replaced (§5.6).
 function coachOwnedSession(macroId, week, dayKey) {
+  const macro = (state.macrocycles || []).find(m => m.id === macroId);
+  const logged = macro && BlocEngine.getCoachLoggedSession(state, macro, week, dayKey);
+  if (logged) return Object.assign({ kind: 'logged' }, logged);
+  const group = macro && coachGroupReplacing(macroId, week, dayKey);
+  if (group) return { kind: 'group', session: group };
   const b = getCoachAssignment(macroId, week, dayKey);
   return b ? { kind: 'assigned', booking: b } : null;
+}
+function coachGroupReplacing(macroId, week, dayKey) {
+  return Object.values(state.coachExtraSessions || {}).find(x => x && x.replaces
+    && x.replaces.macroId === macroId && Number(x.replaces.week) === week && x.replaces.dayKey === dayKey) || null;
 }
 function trainViewCoachOwned() {
   return !!(state.currentMacroId && coachOwnedSession(state.currentMacroId, state.currentWeek, state.currentDay));
@@ -15262,7 +15427,11 @@ function trainViewCoachOwned() {
 function trainCoachNoticeHTML(macro) {
   const own = macro && coachOwnedSession(macro.id, state.currentWeek, state.currentDay);
   if (!own) return '';
-  return `<div class="coach-notice train-coach-notice"><b>${coachEsc(coachSessionWhen(own.booking))}</b>${coachEsc(coachFirstName())} logs this session with you in person, so it’s read-only here. It fills in once it’s logged.</div>`;
+  const first = coachEsc(coachFirstName());
+  // v8.43 (§137): the wireframe's "Logged by your coach · in person".
+  if (own.kind === 'logged') return `<div class="coach-notice train-coach-notice"><b>Logged by your coach · in person</b>${first} logged this session with you${own.loggedAt ? ` on ${coachDayFmt(own.loggedAt.slice(0, 10))}` : ''}. It’s read-only.</div>`;
+  if (own.kind === 'group') return `<div class="coach-notice train-coach-notice"><b>Replaced by a group session</b>${first}’s group session on ${coachDayFmt(own.session.date)} took its place. It counts as done, and its targets hold for next time.</div>`;
+  return `<div class="coach-notice train-coach-notice"><b>${coachEsc(coachSessionWhen(own.booking))}</b>${first} logs this session with you in person, so it’s read-only here. It fills in once it’s logged.</div>`;
 }
 // Every control that writes a log is inert (the handlers refuse too); the
 // cards still open, so the client can see what's planned.
@@ -15275,6 +15444,109 @@ function applyTrainCoachLock() {
   el.querySelectorAll('input, textarea, select').forEach(i => { i.disabled = true; });
   el.querySelectorAll('[onclick*="toggleSetDone"], [onclick*="toggleCardioSetDone"], [onclick*="selectProgType"], [onclick*="fillSuggested"], [onclick*="clearExerciseLogs"], [onclick*="quickFill"], [onclick*="fillCardio"], .ex-auto-btn')
     .forEach(b => { b.setAttribute('data-locked', ''); b.setAttribute('aria-disabled', 'true'); });
+}
+
+// ── Swap for today (v8.43, §137; proposal §4.3, §11 Q24/Q26, deep dive D3) ──
+// Replace an exercise for THIS session only (the machine is busy). Coached
+// only (§11 Q24: Solo edits its own plan). The substitute comes from the
+// client's own library, getLibrary() (§11 Q26), and is logged in the planned
+// exercise's set-log slots, marked by state.substitutions; the engine skips
+// the week everywhere it would read those logs as the planned exercise's, and
+// the planned exercise holds its target for next time. Solo exercises only:
+// a superset member or a cardio exercise isn't offered it.
+const ICO_SWAP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4 3 8l4 4"/><path d="M3 8h14"/><path d="m17 20 4-4-4-4"/><path d="M21 16H7"/></svg>';
+let _swapToday = null;         // {macroId, week, dayKey, exId}
+let _swapTodayOptions = [];    // the rows on show, by index
+function getSubstitution(macroId, week, dayKey, exId) {
+  return BlocEngine.getSubstitution(state, macroId, week, dayKey, exId);
+}
+function swapTodayRowHTML(macro, ex, doneSets, isSwapped) {
+  if (!coachedView() || trainViewCoachOwned() || !ex || ex.category === 'cardio' || ex.supersetId) return '';
+  const a = `'${macro.id}',${state.currentWeek},'${state.currentDay}','${ex.id}'`;
+  if (isSwapped) return `<button class="btn btn-ghost btn-sm btn-block ex-swap-btn" onclick="undoSwapToday(${a})">${ICO_SWAP}Back to ${ex.name}</button>`;
+  if (doneSets > 0) return ''; // the wireframe: only before the first set is done
+  return `<button class="btn btn-ghost btn-sm btn-block ex-swap-btn" onclick="openSwapToday(${a})">${ICO_SWAP}Swap for today</button>`;
+}
+function swapTodayExercise(t) {
+  return t && (state.exercises[t.macroId + '_1_' + t.dayKey] || []).find(e => e.id === t.exId) || null;
+}
+function openSwapToday(macroId, week, dayKey, exId) {
+  if (trainViewCoachOwned()) return;
+  const macro = (state.macrocycles || []).find(m => m.id === macroId);
+  _swapToday = { macroId, week, dayKey, exId };
+  const ex = swapTodayExercise(_swapToday);
+  if (!macro || !ex) { _swapToday = null; return; }
+  const d = BlocEngine.computeExerciseProgression(state, progressionTargetCache(), macro, week, dayKey, ex);
+  const reps = String(d.repsPlaceholder || ex.reps || '').replace(/ reps$/, '');
+  document.getElementById('swap-today-planned').innerHTML = `<div class="swap-planned-cap">Planned</div>
+    <div class="swap-planned-row"><b>${ex.name}</b><span>${d.sets} × ${coachEsc(reps)}${d.weightPlaceholder ? ` · ${d.weightPlaceholder} kg` : ''}</span></div>`;
+  document.getElementById('swap-today-sub').textContent = `Pick something to do instead, just for this session. It’s logged under its own name, ${ex.name} holds its target for next time, and ${coachFirstName()} sees the swap.`;
+  document.getElementById('swap-today-search').value = '';
+  // The keyboard-safe sheet, set up exactly as openRecipePickerForLog() does (§9).
+  const listWrap = document.getElementById('swap-today-list-wrap');
+  if (listWrap) listWrap.style.maxHeight = '';
+  renderSwapTodayList();
+  openModal('modal-swap-today');
+  setTimeout(() => fitListToKeyboard('swap-today-list-wrap'), 320);
+}
+function renderSwapTodayList() {
+  const el = document.getElementById('swap-today-list');
+  const ex = swapTodayExercise(_swapToday);
+  if (!el || !ex) return;
+  const q = (document.getElementById('swap-today-search').value || '').trim().toLowerCase();
+  const planned = (ex.name || '').trim().toLowerCase();
+  const lib = getLibrary().filter(e => getLibraryCategory(e) !== 'cardio' && e.name.trim().toLowerCase() !== planned);
+  const own = getLibrary().find(e => e.name.trim().toLowerCase() === planned);
+  const part = (own && own.bodyPart) || ex.bodyPart;
+  // With no search, the planned exercise's muscle group comes first.
+  _swapTodayOptions = q ? lib.filter(e => e.name.toLowerCase().includes(q))
+    : lib.filter(e => e.bodyPart === part).concat(lib.filter(e => e.bodyPart !== part));
+  if (!_swapTodayOptions.length) {
+    el.innerHTML = `<div class="empty-inline" style="text-align:center;padding:24px 0;">No exercises match “${coachEsc(q)}”.</div>`;
+    return;
+  }
+  el.innerHTML = _swapTodayOptions.map((e, i) => `
+    <button class="row-btn" onclick="chooseSwapToday(${i})">
+      <span class="row-btn-text"><span class="row-btn-title">${coachEsc(e.name)}</span><span class="row-btn-sub">${coachEsc(e.bodyPart || '')}</span></span>
+      <span class="row-btn-chevron">${icoChevron()}</span>
+    </button>`).join('');
+}
+function chooseSwapToday(i) {
+  if (trainViewCoachOwned()) return;
+  const t = _swapToday, pick = _swapTodayOptions[i], ex = swapTodayExercise(t);
+  if (!t || !pick || !ex) return;
+  // The substitute starts blank: anything typed in for the planned exercise
+  // this session goes (nothing is done yet; the row isn't offered after).
+  for (const k of trainSetKeysFor(t.macroId, t.week, t.dayKey, t.exId)) delete state.trainLogs[k];
+  if (state.rpe) delete state.rpe[getRpeKey(t.macroId, t.week, t.dayKey, t.exId)];
+  if (!state.substitutions) state.substitutions = {};
+  state.substitutions[BlocEngine.getSubstitutionKey(t.macroId, t.week, t.dayKey, t.exId)] = {
+    kind: 'swap', name: pick.name, bodyPart: pick.bodyPart || null, type: ex.type || 'standard',
+    trackingMode: pick.trackingMode || ex.trackingMode || null, at: new Date().toISOString() };
+  expandedExercises[`${t.macroId}_${t.week}_${t.dayKey}_${t.exId}`] = true;
+  _swapToday = null;
+  save();
+  closeModal('modal-swap-today');
+  renderTrain();
+}
+// "Back to {planned}". What was logged for the substitute goes with it: those
+// sets were another exercise's, and would otherwise count as the planned one's.
+function undoSwapToday(macroId, week, dayKey, exId) {
+  if (trainViewCoachOwned()) return;
+  const t = { macroId, week, dayKey, exId };
+  const sub = getSubstitution(macroId, week, dayKey, exId), ex = swapTodayExercise(t);
+  if (!sub || !ex) return;
+  const keys = trainSetKeysFor(macroId, week, dayKey, exId);
+  const logged = keys.filter(k => { const l = state.trainLogs[k]; return l && (l.done || l.weight || l.reps); }).length;
+  const back = () => {
+    for (const k of keys) delete state.trainLogs[k];
+    if (state.rpe) delete state.rpe[getRpeKey(macroId, week, dayKey, exId)];
+    delete state.substitutions[BlocEngine.getSubstitutionKey(macroId, week, dayKey, exId)];
+    save();
+    renderTrain();
+  };
+  if (!logged) return back();
+  showConfirm(`Back to ${ex.name}?`, `This clears the ${logged} set${logged === 1 ? '' : 's'} you logged for ${sub.name} today.`, 'Clear and go back', back);
 }
 
 // ── Home: Your next session (§4.3, §11 Q23) ───────────────────────────────
@@ -15447,8 +15719,24 @@ function renderCoachSessions() {
         <div class="coach-reqrow-main"><div class="coach-reqrow-when" style="color:var(--accent2);">${_coachSessionsAll ? 'Show fewer' : `Show all (${rows.length})`}</div></div>
         <span class="row-btn-chevron">${_coachSessionsAll ? icoSvg('<path d="m6 15 6-6 6 6"/>', 20) : icoChevDown(20)}</span></button>` : ''}
     </div>` : '';
-  el.innerHTML = hero + upcomingHTML
+  el.innerHTML = hero + upcomingHTML + coachGroupSessionsHTML()
     + `<div class="coach-caption">Sessions ${first} books appear here. To change one, ask ${first}.</div>`;
+}
+
+// v8.43 (§137, §5.6): group sessions, the extra sessions in the client's
+// record. "Group session · logged by coach"; they never touch progression.
+function coachGroupSessionsHTML() {
+  const list = Object.values(state.coachExtraSessions || {}).filter(x => x && x.kind === 'group')
+    .sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 5);
+  if (!list.length) return '';
+  const row = x => {
+    const names = (x.exercises || []).map(e => e && e.name).filter(Boolean);
+    const rep = x.replaces ? coachAssignedLabel({ assigned_session: x.replaces }).replace(/^With your coach · /, 'In place of ') : '';
+    return `<div class="coach-reqrow"><span class="coach-rep-ico">${COACH_NOTICE_ICONS.plan}</span><div class="coach-reqrow-main">
+        <div class="coach-reqrow-when">Group session · logged by coach</div>
+        <div class="coach-req-sub" style="margin-top:2px;">${[coachEsc(coachDayFmt(x.date)), names.length ? coachEsc(names.join(', ')) : '', coachEsc(rep)].filter(Boolean).join(' · ')}</div></div></div>`;
+  };
+  return `<div class="coach-section-title">Group sessions</div><div class="card coach-reqlist">${list.map(row).join('')}</div>`;
 }
 
 // ── The coach banner on Home (wireframe HomeScreen BannerSlot 'proposed') ──
@@ -15467,12 +15755,81 @@ function renderCoachSessions() {
 const _coachBannerDismissedThisRun = new Set();
 function coachBannerDismissed() { return [..._coachBannerDismissedThisRun]; }
 function coachProposalKey(r) { return r.id + ':' + (r.proposed ? r.proposed.date + ':' + r.proposed.start_min : ''); }
+// ── v8.43 (§137): the other three Home banners (wireframe HomeScreen
+// BannerSlot 'plan' / 'phases' / 'booking') and Progress's 'response' ──────
+// Raised by the appliers (§131) into state.coachNotices, one per publication,
+// so they survive a restart and travel with the data. 🚨 Informational, so
+// their ✕ is PERMANENT (Adam, v8.42 UAT): `dismissed` is saved. Only the
+// proposed time comes back (above). One slot, like the wireframe: the proposed
+// time first (it needs an answer), then the newest undismissed notice; its ✕
+// shows the next.
+const COACH_NOTICE_KEEP = 30;
+const COACH_NOTICE_ICONS = {
+  plan: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5v11M17.5 6.5v11M3 9.5v5M21 9.5v5M6.5 12h11"/></svg>',
+  phases: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>',
+  booking: COACH_ICO_CALENDAR,
+  response: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>',
+};
+function addCoachNotice(pub, kind, title, body) {
+  if (!Array.isArray(state.coachNotices)) state.coachNotices = [];
+  if (state.coachNotices.some(n => n.id === pub.id)) return; // re-applied after a restore: already raised
+  state.coachNotices.push({ id: pub.id, kind, seq: pub.seq, title, body, at: new Date().toISOString(), dismissed: false });
+  if (state.coachNotices.length > COACH_NOTICE_KEEP) state.coachNotices = state.coachNotices.slice(-COACH_NOTICE_KEEP);
+}
+// "Cut 3 now starts on Mon 5 Oct at 1,600 kcal and 10,000 steps." (the wireframe)
+function addGoalPhasesNotice(pub, goals) {
+  const today = getLocalToday();
+  const g = (goals || []).filter(x => x && x.startDate).sort((a, b) => a.startDate.localeCompare(b.startDate))
+    .find(x => (x.endDate || x.startDate) >= today) || (goals || [])[0];
+  const name = g && (g._blocLabel || g.label || g.name);
+  const nums = g ? [g.kcal ? `${Number(g.kcal).toLocaleString('en-GB')} kcal` : '', g.steps ? `${Number(g.steps).toLocaleString('en-GB')} steps` : ''].filter(Boolean).join(' and ') : '';
+  addCoachNotice(pub, 'phases', 'Your goal phases changed', g && g.startDate
+    ? `${name ? `“${name}”` : 'A phase'} ${g.startDate > today ? 'now starts' : 'started'} on ${coachDayFmt(g.startDate)}${nums ? ` at ${nums}` : ''}.`
+    : `${coachFirstName()} changed your goal phases.`);
+}
+function nextCoachNotice(kinds) {
+  const due = (state.coachNotices || []).filter(n => n && !n.dismissed && kinds.includes(n.kind));
+  return due.length ? due.reduce((a, b) => ((b.seq || 0) > (a.seq || 0) ? b : a)) : null;
+}
+function coachNoticeBannerHTML(n, action) {
+  return `<div class="coach-banner coach-banner-home" role="status">
+      <span class="coach-banner-ico">${COACH_NOTICE_ICONS[n.kind] || COACH_ICO_CLOCK}</span>
+      <div style="flex:1;min-width:0;"><b>${coachEsc(n.title)}</b><div>${coachEsc(n.body)}</div>
+        ${action ? `<button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="${action.onclick}">${action.label}</button>` : ''}</div>
+      <button class="coach-banner-x" aria-label="Dismiss" onclick="dismissCoachNotice('${coachEsc(n.id)}')">✕</button>
+    </div>`;
+}
+// 🚨 Permanent: the one dismissed, and every older one of its kind (they're
+// the same news, superseded).
+function dismissCoachNotice(id) {
+  const n = (state.coachNotices || []).find(x => x.id === id);
+  if (!n) return;
+  for (const x of state.coachNotices) if (x.kind === n.kind && (x.seq || 0) <= (n.seq || 0)) x.dismissed = true;
+  save();
+  renderHomeCoachBanner();
+  const pb = document.getElementById('progress-coach-banner');
+  if (pb) pb.innerHTML = progressCoachBannerHTML();
+}
+function progressCoachBannerHTML() {
+  if (!coachedView()) return '';
+  const n = nextCoachNotice(['response']);
+  return n ? coachNoticeBannerHTML(n, null) : '';
+}
+const HOME_NOTICE_ACTIONS = {
+  plan: { label: 'View', onclick: "showScreen('train')" },
+  booking: { label: 'View', onclick: 'openCoachSessions()' },
+};
+
 function renderHomeCoachBanner() {
   const el = document.getElementById('home-coach-banner');
   if (!el) return;
   const dismissed = coachBannerDismissed();
   const due = coachedView() ? (_coachRequests || []).filter(r => r.status === 'proposed' && r.proposed && !dismissed.includes(coachProposalKey(r))) : [];
-  if (!due.length) { el.innerHTML = ''; return; }
+  if (!due.length) {
+    const n = coachedView() ? nextCoachNotice(['plan', 'phases', 'booking']) : null;
+    el.innerHTML = n ? coachNoticeBannerHTML(n, HOME_NOTICE_ACTIONS[n.kind]) : '';
+    return;
+  }
   const r = due[0];
   el.innerHTML = `<div class="coach-banner coach-banner-home" role="status">
       <span class="coach-banner-ico">${COACH_ICO_CLOCK}</span>
@@ -22278,7 +22635,10 @@ function buildTrainPickerHTML(macro) {
       const badge = x.viewing ? '<span class="agenda-badge is-viewing">Viewing</span>' : x.upNext ? '<span class="agenda-badge is-next">Up next</span>' : '';
       // v8.42 (§136): a session the coach has taken for an in-person booking.
       // It replaces the row's meta line; the dot still shows what's logged.
-      const rowMeta = x.withCoach && !x.done ? coachEsc(coachSessionWhen(x.withCoach)) : meta;
+      // v8.43 (§137): logged by the coach, or replaced by a group session.
+      const rowMeta = x.coachLogged ? `Logged by your coach · ${x.doneSets} of ${x.sets} sets`
+        : x.groupReplaced ? 'Replaced by a group session'
+        : x.withCoach && !x.done ? coachEsc(coachSessionWhen(x.withCoach)) : meta;
       return `<button class="agenda-row${x.viewing ? ' is-viewing' : ''}" onclick="selectTrainSession(${x.week},'${x.dayKey}')">
           ${dot}<span class="agenda-row-text"><span class="agenda-row-name">${x.label}</span><span class="agenda-row-meta">${rowMeta}</span></span>${badge}
         </button>`;
@@ -22648,6 +23008,10 @@ function renderTrainDay(macro) {
               isDeloadSession, isPostDeloadSession, isLocked, prevWasLocked,
               isDropSet, prevActualDropWeight, prevActualDropReps,
               recommendedDropWeight, recommendedDropReps, dropWeightPlaceholder, dropRepsPlaceholder } = d;
+      // v8.43 (§137): Swap for today. THIS session's exercise is another one
+      // (no target, no last week); or last session's was, and its target holds.
+      const isSwapped = !!d.isSwapped, heldAfterSwap = !!d.heldAfterSwap;
+      const swap = isSwapped ? getSubstitution(macro.id, state.currentWeek, state.currentDay, exId) : null;
       const key2 = macro.id + '_' + state.currentWeek + '_' + state.currentDay;
       const typeLabel = ex.type === 'standard' ? 'std' : ex.type === 'giant' ? 'giant set' : ex.type === 'pause' ? 'pause set' : 'drop set';
 
@@ -22668,7 +23032,7 @@ function renderTrainDay(macro) {
       // are untouched and still anchor to the actual previous week's log.
       const baseForDelta  = ex.startWeight || 0;
       let progressBadge = '';
-      if (!isDeloadSession && currentActualWeight !== null && currentActualWeight !== baseForDelta) {
+      if (!isDeloadSession && !isSwapped && currentActualWeight !== null && currentActualWeight !== baseForDelta) {
         const progressKg  = currentActualWeight - baseForDelta;
         const progressPct = ex.startWeight > 0 ? Math.round(((currentActualWeight - ex.startWeight) / ex.startWeight) * 100) : 0;
         const col = progressKg >= 0 ? 'var(--green-text)' : 'var(--red)';
@@ -22687,7 +23051,8 @@ function renderTrainDay(macro) {
       // Deload (and the single session right after one) show only the flat
       // computed sets/reps/weight — no last-week/suggested comparison, since
       // there's no progression decision being made either of those weeks.
-      const setsRepsText = (isDropSet && !allDone && !repsPlaceholder && lastReps === null && !recommendedReps)
+      const setsRepsText = isSwapped ? `${sets} sets${allDone ? ` · ${stripReps(summaryReps)} reps` : ''}`
+        : (isDropSet && !allDone && !repsPlaceholder && lastReps === null && !recommendedReps)
         ? `${sets} sets · to failure + drop`
         : allDone
         ? `${sets} sets · ${stripReps(summaryReps)} reps`
@@ -22701,7 +23066,8 @@ function renderTrainDay(macro) {
       // differently — the number in the display face, the unit small and muted.
       // summaryWeight already carries " kg", so it is stripped here rather than
       // changing what summaryWeight means (it is read elsewhere).
-      const weightRefValue = allDone
+      const weightRefValue = isSwapped ? (loggedWeights.length ? loggedWeights[0].toFixed(1) : '—')
+        : allDone
         ? summaryWeight.replace(/ kg$/, '')
         : (isDeloadSession || isPostDeloadSession) ? weightPlaceholder
         : isLocked ? weightPlaceholder
@@ -22732,14 +23098,18 @@ function renderTrainDay(macro) {
         ? 'Last wk: no progression'
         : '';
       const lastRouteHtml = lastRouteText ? `<span class="ex-tag ex-tag-quiet">${lastRouteText}</span>` : '';
-      const tagsHtml = [typeTagHtml, holdTagHtml, deloadTagHtml, lastRouteHtml,
-        buildRpeTagsHtml(macro, state.currentWeek, state.currentDay, ex, isLocked, isDeloadSession)].filter(Boolean).join('');
+      const rpeTagsHtml = buildRpeTagsHtml(macro, state.currentWeek, state.currentDay, ex, isLocked, isDeloadSession);
+      const tagsHtml = isSwapped
+        ? ['<span class="ex-tag" style="--tag-c:var(--accent);">Swapped for today</span>', rpeTagsHtml].filter(Boolean).join('')
+        : [typeTagHtml, holdTagHtml, deloadTagHtml, lastRouteHtml,
+          heldAfterSwap ? '<span class="ex-tag ex-tag-quiet">Target held after a swap</span>' : '',
+          rpeTagsHtml].filter(Boolean).join('');
 
       // The 40×40 auto-complete button — completes every set at target. It is
       // withheld only where there is nothing left to complete (already done) or
       // where completing at target is not the point (a locked exercise, whose
       // whole state is "these numbers are not moving yet").
-      const autoBtnHtml = (allDone || (isLocked && !isDeloadSession && !isPostDeloadSession))
+      const autoBtnHtml = (allDone || isSwapped || (isLocked && !isDeloadSession && !isPostDeloadSession))
         ? ''
         : `<button class="ex-auto-btn" title="Complete every set at target"
              onclick="${isDropSet
@@ -22769,7 +23139,7 @@ function renderTrainDay(macro) {
         <div class="ex-head" onclick="toggleExercise('${expandKey}')">
           <div class="ex-idx">${slotIdx + 1}</div>
           <div class="ex-head-text">
-            <div class="ex-name">${ex.name}</div>
+            <div class="ex-name">${isSwapped ? coachEsc(swap.name || 'Another exercise') : ex.name}</div>${isSwapped ? `<div class="ex-swap-note">Instead of ${ex.name}. Its target holds for next time.</div>` : ''}
             ${tagsHtml ? `<div class="ex-tags">${tagsHtml}</div>` : ''}
           </div>
           ${doneStateHtml || autoBtnHtml}
@@ -22804,7 +23174,7 @@ function renderTrainDay(macro) {
       // 🚨 Keeps the `locked-notice-<macroId>-<exId>` id: the demo tour points a
       // step straight at it via an id-prefix lookup.
       let holdPanelHtml = '';
-      if (isLocked && !isDeloadSession && !isPostDeloadSession) {
+      if (isLocked && !isDeloadSession && !isPostDeloadSession && !isSwapped) {
         const lock = (state.progressionLocks || {})[getProgressionLockKey(macro.id, state.currentDay, exId)] || {};
         const lockW = lock.weightTargets || [];
         const lockR = lock.repsTargets || [];
@@ -22839,7 +23209,8 @@ function renderTrainDay(macro) {
 
       if (isExpanded) {
         let weightRec = '', repsRec = '';
-        const showProgSelector = state.currentWeek > 1 && !isDeloadSession && !isPostDeloadSession && !isMaintCycle && !isLocked;
+        const showProgSelector = state.currentWeek > 1 && !isDeloadSession && !isPostDeloadSession && !isMaintCycle && !isLocked
+          && !isSwapped && !heldAfterSwap; // v8.43 (§137): a swap has no route; a held target isn't a step
         if (showProgSelector) {
           const prevWLabel = prevActualWeight !== null ? prevActualWeight.toFixed(1) : getWeekWeight(ex, prevWeek2, 'weight', macro.goalType, macro.weightIncrement).toFixed(1);
           weightRec = `${prevWLabel} → ${recommendedWeight.toFixed(1)} kg`;
@@ -22871,9 +23242,9 @@ function renderTrainDay(macro) {
         let setRows = `<div class="ex-block-head">
           <div class="ex-block-label">Log sets</div>
           <div class="ex-block-actions">
-            <button class="btn-ghost btn-sm" id="fill-btn-${macro.id}-${exId}" onclick="${isDropSet
+            ${isSwapped ? '' : `<button class="btn-ghost btn-sm" id="fill-btn-${macro.id}-${exId}" onclick="${isDropSet
                 ? `fillSuggestedDropset('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholders.join('|')}','${repsPlaceholders.join('|')}','${dropWeightPlaceholders.join('|')}')`
-                : `fillSuggested('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholders.join('|')}','${repsPlaceholders.join('|')}')`}">Fill suggested</button>
+                : `fillSuggested('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholders.join('|')}','${repsPlaceholders.join('|')}')`}">Fill suggested</button>`}
             <button class="btn-danger btn-sm" onclick="clearExerciseLogs('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets})">Clear</button>
           </div>
         </div>
@@ -22969,7 +23340,7 @@ function renderTrainDay(macro) {
         }
         html += `<div class="ex-body">
           ${progSelector}
-          ${setRows}
+          ${setRows}${swapTodayRowHTML(macro, ex, doneSets, isSwapped)}
         </div>`;
       }
       html += `</div>`;
@@ -24169,12 +24540,15 @@ function renderRpeSheet() {
     const r = (state.rpe || {})[getRpeKey(macro.id, rpeSheetCtx.week, rpeSheetCtx.dayKey, ex.id)];
     const val = r && typeof r.rpe === 'number' ? r.rpe : null;
     const stateText = val !== null ? 'RPE ' + val : (r && r.rpeSkipped ? 'Not rated' : '');
+    // v8.43 (§137): a swapped exercise is rated under the substitute's name.
+    const sw = getSubstitution(macro.id, rpeSheetCtx.week, rpeSheetCtx.dayKey, ex.id);
+    const swapName = sw && sw.kind === 'swap' ? sw.name : null;
     let cells = '';
     for (let v = 1; v <= 10; v++) {
       cells += `<button class="toggle-btn${val === v ? ' active' : ''}" onclick="setRpeRating('${ex.id}',${v})">${v}</button>`;
     }
     return `<div class="rpe-row">
-        <div class="rpe-row-name"><span>${ex.name}</span><span class="rpe-row-state">${stateText}</span></div>
+        <div class="rpe-row-name"><span>${swapName ? coachEsc(swapName) : ex.name}</span><span class="rpe-row-state">${stateText}</span></div>
         <div class="toggle-row rpe-scale">${cells}</div>
         <div class="rpe-scale-ends"><span>1 · easy</span><span>10 · nothing left</span></div>
       </div>`;
@@ -29165,7 +29539,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.42</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.43</span>`;
 }
 
 function renderSettings() {
@@ -31919,6 +32293,22 @@ function deleteRecipe(id) {
     <input type="text" id="recipe-pick-search" placeholder="Search recipes…" oninput="renderRecipePickList()" style="margin-bottom:12px;flex-shrink:0;">
     <div id="recipe-pick-list-wrap" class="kb-list-wrap">
       <div id="recipe-pick-list" class="kb-list-inner" style="overscroll-behavior:contain;-webkit-overflow-scrolling:touch;"></div>
+      <div class="kb-list-fade"></div>
+    </div>
+  </div>
+</div>
+
+<!-- v8.43 (§137): Swap for today. A search sheet over the client's library, so
+     it's §9's .kb-pinned-sheet exactly (verify-kb-pinned-sheets.mjs). -->
+<div class="modal-overlay" id="modal-swap-today">
+  <div class="modal-sheet kb-pinned-sheet" data-modal="modal-swap-today">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-swap-today')">✕</button></div>
+    <div class="modal-title" style="flex-shrink:0;">Swap for today</div>
+    <div class="swap-planned" id="swap-today-planned" style="flex-shrink:0;"></div>
+    <div class="modal-sub" id="swap-today-sub" style="flex-shrink:0;"></div>
+    <input type="text" id="swap-today-search" placeholder="Search your exercise library" oninput="renderSwapTodayList()" style="margin-bottom:12px;flex-shrink:0;">
+    <div id="swap-today-list-wrap" class="kb-list-wrap">
+      <div id="swap-today-list" class="kb-list-inner" style="overscroll-behavior:contain;-webkit-overflow-scrolling:touch;"></div>
       <div class="kb-list-fade"></div>
     </div>
   </div>

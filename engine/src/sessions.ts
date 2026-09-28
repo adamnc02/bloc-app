@@ -11,16 +11,52 @@
 //    deloads key (getDeloadUnitKey) are the contract with stored data.
 // ═══════════════════════════════════════════════════════════════════════
 
-import type { BlocState, CoachBooking, DateStr, Loose, Macrocycle } from './state.ts';
+import type { BlocState, CoachBooking, DateStr, Loose, Macrocycle, Substitution } from './state.ts';
 import { type EngineContext, toLocalDateStr } from './dates.ts';
 import {
   getDeloadUnitKey, getPrevTrackUnit, getPrevCalendarWeek, getWeekSets, parseRepsForVolume,
-  getMacroSessionDayKeys, getMacroEffectiveMesoCount, isMesoMicroValid,
+  getMacroSessionDayKeys, getMacroEffectiveMesoCount, isMesoMicroValid, getProgressionLockKey,
 } from './progression.ts';
 
 // Whether the given (macro, week, dayKey) unit is currently marked deload.
 export function isDeloadUnit(s: BlocState, macro: Macrocycle, week: number, dayKey: string): boolean {
   return !!(s.deloads && s.deloads[getDeloadUnitKey(macro, week, dayKey)]);
+}
+
+// ── v8.43 (§137): a substituted exercise-week (deep dive D3) ─────────────
+// `state.substitutions` is keyed like a progression target,
+// `${macroId}_${dayKey}_${exId}_w${week}`. A swap or a group session's
+// "replaces" marks the week; everything that reads a week's logs as the
+// planned exercise's performance skips it, exactly as getLastCompliantWeek
+// already skips deloads. Absent everywhere in Solo, so Solo is unchanged.
+export function getSubstitutionKey(macroId: string, week: number, dayKey: string, exId: string): string {
+  return getProgressionLockKey(macroId, dayKey, exId) + '_w' + week;
+}
+export function getSubstitution(s: BlocState, macroId: string, week: number, dayKey: string, exId: string): Substitution | null {
+  const all = s.substitutions;
+  if (!all || typeof all !== 'object') return null;
+  const sub = all[getSubstitutionKey(macroId, week, dayKey, exId)];
+  return sub && typeof sub === 'object' ? sub : null;
+}
+export function isSubstitutedUnit(s: BlocState, macro: Macrocycle, week: number, dayKey: string, exId: string): boolean {
+  return !!getSubstitution(s, macro.id, week, dayKey, exId);
+}
+
+// v8.43 (§137, deep dive I3): the session the coach logged in person, or
+// null. Read from the set logs themselves (`loggedBy: 'coach'`), so it holds
+// after a restore, an unlink, and in the client_state Coach reads: a coach's
+// set in the session makes the whole session the coach's.
+export function getCoachLoggedSession(s: BlocState, macro: Macrocycle, week: number, dayKey: string): { sessionId: string | null; loggedAt: string | null } | null {
+  const exercises = (s.exercises as Record<string, Loose[]> | undefined)?.[macro.id + '_1_' + dayKey] || [];
+  const logs = (s.trainLogs || {}) as Record<string, Loose>;
+  for (const ex of exercises) {
+    const n = getWeekSets(ex, week, macro.weeks as number);
+    for (let i = 0; i < n; i++) {
+      const lg = logs[macro.id + '_' + week + '_' + dayKey + '_' + ex.id + '_' + i];
+      if (lg && lg.loggedBy === 'coach') return { sessionId: lg.sessionId || null, loggedAt: lg.loggedAt || null };
+    }
+  }
+  return null;
 }
 
 // True for the first occurrence of a session that comes right after a
@@ -156,6 +192,10 @@ export function getAllMacroSessions(s: BlocState, macro: Macrocycle): MacroSessi
         if (exercises.length === 0) return;
         let allDone = true;
         exercises.forEach(ex => {
+          // v8.43 (§137, §11 Q21): a planned session a group session replaced
+          // counts as done, with nothing logged against it.
+          const sub = getSubstitution(s, macro.id, w, dayKey, ex.id);
+          if (sub && sub.kind === 'group') return;
           const sets = getWeekSets(ex, w, macro.weeks as number);
           for (let i = 0; i < sets; i++) {
             const lk = macro.id + '_' + w + '_' + dayKey + '_' + ex.id + '_' + i;
@@ -200,9 +240,12 @@ export function getCoachAssignment(s: BlocState, macroId: string, week: number, 
 // is stepped over: Home's Up next, Train's default and the agenda's Up next
 // all move on to the following unfinished one. In the ENGINE, so BLOC Coach's
 // "client's next unfinished session" (the booking picker's default) agrees.
+// v8.43 (§137): so is a session the coach LOGGED and left unfinished; it's
+// the coach's, read-only, and the client can't finish it.
 export function getNextIncompleteSession(s: BlocState, macro: Macrocycle): MacroSession | null {
   const allSessions = getAllMacroSessions(s, macro);
-  const next = allSessions.find(x => !x.done && !getCoachAssignment(s, macro.id, x.week, x.dayKey));
+  const next = allSessions.find(x => !x.done && !getCoachAssignment(s, macro.id, x.week, x.dayKey)
+    && !getCoachLoggedSession(s, macro, x.week, x.dayKey));
   return next || null;
 }
 
@@ -253,8 +296,11 @@ export function getTrainAgendaUnits(s: BlocState, ctx: EngineContext, macro: Mac
   const sessionFor = (w: number, dayKey: string, label: string) => {
     const exercises = ((s.exercises as Record<string, Loose[]>)[macro.id + '_1_' + dayKey] || []);
     if (!exercises.length) return null;
-    let sets = 0, doneSets = 0;
+    let sets = 0, doneSets = 0, replaced = 0;
     exercises.forEach(ex => {
+      // v8.43 (§137): what a group session replaced is done, with no sets owed.
+      const x = getSubstitution(s, macro.id, w, dayKey, ex.id);
+      if (x && x.kind === 'group') { replaced++; return; }
       const n = getWeekSets(ex, w, macro.weeks as number);
       sets += n;
       for (let i = 0; i < n; i++) {
@@ -265,13 +311,17 @@ export function getTrainAgendaUnits(s: BlocState, ctx: EngineContext, macro: Mac
     // v8.42 (§136): "With your coach · Tue 18:00" in the agenda. Only present
     // when there is one, so every existing output (the golden file) is unchanged.
     const b = getCoachAssignment(s, macro.id, w, dayKey);
+    // v8.43 (§137): likewise "Logged by your coach" and "Group session".
+    const byCoach = getCoachLoggedSession(s, macro, w, dayKey);
     return {
       week: w, dayKey, label, exercises: exercises.length, sets, doneSets,
-      done: sets > 0 && doneSets === sets,
+      done: replaced > 0 ? doneSets === sets : sets > 0 && doneSets === sets,
       partial: doneSets > 0 && doneSets < sets,
       upNext: !!(next && next.week === w && next.dayKey === dayKey),
       viewing: viewWeek === w && viewDay === dayKey,
       ...(b ? { withCoach: { date: b.date || null, start_min: b.start_min ?? null } } : {}),
+      ...(byCoach ? { coachLogged: true } : {}),
+      ...(replaced ? { groupReplaced: true } : {}),
     };
   };
   const units: Loose[] = [];

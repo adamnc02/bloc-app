@@ -12,7 +12,7 @@
 import type { BlocState, DateStr, GoalPeriod, Loose, Macrocycle } from './state.ts';
 import { type EngineContext, getMacroEndDate } from './dates.ts';
 import { getWeekSets } from './progression.ts';
-import { isDeloadUnit } from './sessions.ts';
+import { isDeloadUnit, getSubstitution } from './sessions.ts';
 import { buildDayMap } from './tdee.ts';
 import { computeWeeklyInsights } from './insights.ts';
 
@@ -137,6 +137,13 @@ export function computeRollupEntries(s: BlocState, ctx: EngineContext): Loose[] 
 export function recordExerciseHistory(s: BlocState, ctx: EngineContext, macro: Macrocycle, week: number, dayKey: string, ex: Loose):
   { name: string; type: string; entry: Loose; trackingMode: Loose } | null {
   if (isDeloadUnit(s, macro, week, dayKey)) return null;
+  // v8.43 (§137, D3): a swapped week is filed under the SUBSTITUTE's name
+  // (the proposal: "logged under its own exercise"), never the planned one's,
+  // whose "last logged" figures it would otherwise overwrite. A group session
+  // replacing the planned one leaves the planned exercise's history alone.
+  const sub = getSubstitution(s, macro.id, week, dayKey, ex.id);
+  if (sub && sub.kind !== 'swap') return null;
+  if (sub) ex = { ...ex, name: sub.name || '', type: sub.type || 'standard', trackingMode: sub.trackingMode };
   const nameNorm = (ex.name || '').trim().toLowerCase();
   if (!nameNorm) return null;
   const type = ex.type || 'standard';

@@ -41,7 +41,8 @@ const repo = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CONTROL = '99273df';
 
 const STUBS = ['state', 'save', 'coachLinkGet', 'coachingAvailable', 'isCoachedMode', 'supabase', '_authResolvedSession',
-  'renderProgress', 'openModal', 'closeModal', 'getLocalToday', '_downsizePhotoFileToBase64', 'document', 'engineCtx'];
+  'renderProgress', 'openModal', 'closeModal', 'getLocalToday', '_downsizePhotoFileToBase64', 'document', 'engineCtx',
+  'coachedView']; // v8.43 (§137): the response banner above From your coach asks it
 
 function build(src) {
   const { decls } = indexTopLevel(mainScript(src));
@@ -55,6 +56,7 @@ function build(src) {
     const coachLinkGet = () => env.link;
     const coachingAvailable = () => env.available;
     const isCoachedMode = () => !!env.link;
+    const coachedView = () => !!env.link;
     const supabase = env.supabase;
     const _authResolvedSession = { user: { id: 'u1' } };
     const renderProgress = () => env.log.push(['render']);

@@ -479,6 +479,40 @@ for (const [reps, inc] of [['8', 2], ['8', 1], ['8–10', 2], ['8-10', 1], ['AMR
 }
 add('RPE_STEP_NONE', []); add('PROG_STEP_MAINTENANCE', []);
 
+// v8.43 (§137): Swap for today / a group's "replaces" (the D3 marker) and a
+// session the coach logged. Engine only (bloc: null); verify-coach-logged.mjs
+// checks what they decide.
+const withSwap = (kind = 'swap', w = 3) => state(s => {
+  const ex = exsOf(s, 'session0m1')[0];
+  cold(s); // nothing cached: the held target is computed, not read back
+  s.substitutions = { [`${m0(s).id}_session0m1_${ex.id}_w${w}`]: { kind, name: 'Lying leg curl', type: 'standard', sessionId: 'g1' } };
+  return s;
+});
+const withCoachLog = () => state(s => {
+  const ex = exsOf(s, 'session0m1')[0];
+  for (const k of Object.keys(s.trainLogs)) if (k.startsWith(`${m0(s).id}_6_session0m1_`)) delete s.trainLogs[k];
+  s.trainLogs[`${m0(s).id}_6_session0m1_${ex.id}_0`] = { weight: '60', reps: '8', done: true, loggedBy: 'coach', loggedAt: '2026-08-04T18:00:00Z', sessionId: 'ses1' };
+  return s;
+});
+add('getSubstitutionKey', [atP(S.demo, '2026-08-02', () => ({ engine: ['m', 3, 'pushm2', 'ex1'], bloc: null }))]);
+for (const st of [withSwap(), withSwap('group'), S.demo]) {
+  add('getSubstitution', [3, 4].map(w => atP(st, '2026-08-02', s => ({ engine: [s, m0(s).id, w, 'session0m1', exsOf(s, 'session0m1')[0].id], bloc: null }))));
+  add('isSubstitutedUnit', [3, 4].map(w => atP(st, '2026-08-02', s => ({ engine: [s, m0(s), w, 'session0m1', exsOf(s, 'session0m1')[0].id], bloc: null }))));
+  add('getAllMacroSessions', [atP(st, '2026-08-02', s => ({ engine: [s, m0(s)], bloc: null }))]);
+  for (const w of [3, 4, 5]) {
+    add('getWeekTargets', [atP(st, '2026-08-02', s => ({ engine: [s, overlay(s), m0(s), w, 'session0m1', exsOf(s, 'session0m1')[0]], bloc: null }))]);
+    add('computeExerciseProgression', [atP(st, '2026-08-02', s => ({ engine: [s, overlay(s), m0(s), w, 'session0m1', exsOf(s, 'session0m1')[0]], bloc: null }))]);
+  }
+  add('recordExerciseHistory', [at(st, '2026-08-02', (s, c) => ({ engine: [s, c, m0(s), 3, 'session0m1', exsOf(s, 'session0m1')[0]], bloc: null }))]);
+}
+for (const st of [withCoachLog(), S.demo]) {
+  add('getCoachLoggedSession', [6, 5].map(w => atP(st, '2026-08-02', s => ({ engine: [s, m0(s), w, 'session0m1'], bloc: null }))));
+  add('getNextIncompleteSession', [atP(st, '2026-08-02', s => ({ engine: [s, m0(s)], bloc: null }))]);
+  add('replayProgressionAfterLog', [2, 6].map(w => atP(st, '2026-08-02', s => ({ engine: [s, overlay(s), m0(s), w, 'session0m1', exsOf(s, 'session0m1')], bloc: null }))));
+}
+add('getTrainAgendaUnits', [at(withCoachLog(), '2026-08-02', (s, c) => ({ engine: [s, c, m0(s), null], bloc: null })),
+  at(withSwap('group'), '2026-08-02', (s, c) => ({ engine: [s, c, m0(s), null], bloc: null }))]);
+
 // ── Step 6 (§125): mutators as pure cores, and the AI flows ─────────────────
 // The mutators' BLOC calls write (the labels, the rollup, the exercise
 // history), and verify-engine-leaves compares what they write with v8.34.

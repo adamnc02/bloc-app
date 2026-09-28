@@ -81,6 +81,7 @@ var BlocEngine = (() => {
     getActivityMultiplier: () => getActivityMultiplier,
     getAllMacroSessions: () => getAllMacroSessions,
     getCoachAssignment: () => getCoachAssignment,
+    getCoachLoggedSession: () => getCoachLoggedSession,
     getDateActiveMacroId: () => getDateActiveMacroId,
     getDayBefore: () => getDayBefore,
     getDeloadUnitKey: () => getDeloadUnitKey,
@@ -116,6 +117,8 @@ var BlocEngine = (() => {
     getRpeStep: () => getRpeStep,
     getSelectedTrainWeekDates: () => getSelectedTrainWeekDates,
     getSessionVolume: () => getSessionVolume,
+    getSubstitution: () => getSubstitution,
+    getSubstitutionKey: () => getSubstitutionKey,
     getSundayAfterWeeks: () => getSundayAfterWeeks,
     getSustainableWeightRange: () => getSustainableWeightRange,
     getTrainAgendaUnits: () => getTrainAgendaUnits,
@@ -135,6 +138,7 @@ var BlocEngine = (() => {
     isMesoMicroValid: () => isMesoMicroValid,
     isNextCycleAdviceEligible: () => isNextCycleAdviceEligible,
     isRpeOn: () => isRpeOn,
+    isSubstitutedUnit: () => isSubstitutedUnit,
     macroRange: () => macroRange,
     materialiseDates: () => materialiseDates,
     nextCycleAdvicePlanMode: () => nextCycleAdvicePlanMode,
@@ -147,6 +151,7 @@ var BlocEngine = (() => {
     recommendNextCycle: () => recommendNextCycle,
     recordExerciseHistory: () => recordExerciseHistory,
     renumberMacroGoalSteps: () => renumberMacroGoalSteps,
+    replayProgressionAfterLog: () => replayProgressionAfterLog,
     requestBlocAdvice: () => requestBlocAdvice,
     requestBlocChallenge: () => requestBlocChallenge,
     requestCycleReview: () => requestCycleReview,
@@ -1285,6 +1290,30 @@ Write this cycle's review per the schema above.`;
   function isDeloadUnit(s, macro, week, dayKey) {
     return !!(s.deloads && s.deloads[getDeloadUnitKey(macro, week, dayKey)]);
   }
+  function getSubstitutionKey(macroId, week, dayKey, exId) {
+    return getProgressionLockKey(macroId, dayKey, exId) + "_w" + week;
+  }
+  function getSubstitution(s, macroId, week, dayKey, exId) {
+    const all = s.substitutions;
+    if (!all || typeof all !== "object") return null;
+    const sub = all[getSubstitutionKey(macroId, week, dayKey, exId)];
+    return sub && typeof sub === "object" ? sub : null;
+  }
+  function isSubstitutedUnit(s, macro, week, dayKey, exId) {
+    return !!getSubstitution(s, macro.id, week, dayKey, exId);
+  }
+  function getCoachLoggedSession(s, macro, week, dayKey) {
+    const exercises = s.exercises?.[macro.id + "_1_" + dayKey] || [];
+    const logs = s.trainLogs || {};
+    for (const ex of exercises) {
+      const n = getWeekSets(ex, week, macro.weeks);
+      for (let i = 0; i < n; i++) {
+        const lg = logs[macro.id + "_" + week + "_" + dayKey + "_" + ex.id + "_" + i];
+        if (lg && lg.loggedBy === "coach") return { sessionId: lg.sessionId || null, loggedAt: lg.loggedAt || null };
+      }
+    }
+    return null;
+  }
   function isFirstUnitAfterDeload(s, macro, week, dayKey) {
     if (isDeloadUnit(s, macro, week, dayKey)) return false;
     const trackPrev = getPrevTrackUnit(macro, week, dayKey);
@@ -1363,6 +1392,8 @@ Write this cycle's review per the schema above.`;
           if (exercises.length === 0) return;
           let allDone = true;
           exercises.forEach((ex) => {
+            const sub = getSubstitution(s, macro.id, w, dayKey, ex.id);
+            if (sub && sub.kind === "group") return;
             const sets = getWeekSets(ex, w, macro.weeks);
             for (let i = 0; i < sets; i++) {
               const lk = macro.id + "_" + w + "_" + dayKey + "_" + ex.id + "_" + i;
@@ -1392,7 +1423,7 @@ Write this cycle's review per the schema above.`;
   }
   function getNextIncompleteSession(s, macro) {
     const allSessions = getAllMacroSessions(s, macro);
-    const next = allSessions.find((x) => !x.done && !getCoachAssignment(s, macro.id, x.week, x.dayKey));
+    const next = allSessions.find((x) => !x.done && !getCoachAssignment(s, macro.id, x.week, x.dayKey) && !getCoachLoggedSession(s, macro, x.week, x.dayKey));
     return next || null;
   }
   function getSelectedTrainWeekDates(macro, week, dayKey) {
@@ -1427,8 +1458,13 @@ Write this cycle's review per the schema above.`;
     const sessionFor = (w, dayKey, label) => {
       const exercises = s.exercises[macro.id + "_1_" + dayKey] || [];
       if (!exercises.length) return null;
-      let sets = 0, doneSets = 0;
+      let sets = 0, doneSets = 0, replaced = 0;
       exercises.forEach((ex) => {
+        const x = getSubstitution(s, macro.id, w, dayKey, ex.id);
+        if (x && x.kind === "group") {
+          replaced++;
+          return;
+        }
         const n = getWeekSets(ex, w, macro.weeks);
         sets += n;
         for (let i = 0; i < n; i++) {
@@ -1437,6 +1473,7 @@ Write this cycle's review per the schema above.`;
         }
       });
       const b = getCoachAssignment(s, macro.id, w, dayKey);
+      const byCoach = getCoachLoggedSession(s, macro, w, dayKey);
       return {
         week: w,
         dayKey,
@@ -1444,11 +1481,13 @@ Write this cycle's review per the schema above.`;
         exercises: exercises.length,
         sets,
         doneSets,
-        done: sets > 0 && doneSets === sets,
+        done: replaced > 0 ? doneSets === sets : sets > 0 && doneSets === sets,
         partial: doneSets > 0 && doneSets < sets,
         upNext: !!(next && next.week === w && next.dayKey === dayKey),
         viewing: viewWeek === w && viewDay === dayKey,
-        ...b ? { withCoach: { date: b.date || null, start_min: b.start_min ?? null } } : {}
+        ...b ? { withCoach: { date: b.date || null, start_min: b.start_min ?? null } } : {},
+        ...byCoach ? { coachLogged: true } : {},
+        ...replaced ? { groupReplaced: true } : {}
       };
     };
     const units = [];
@@ -2330,7 +2369,7 @@ Write this cycle's review per the schema above.`;
   function getLastCompliantWeek(s, cache, macro, dayKey, ex, beforeWeek) {
     let w = beforeWeek - 1;
     while (w > 1) {
-      if (isDeloadUnit(s, macro, w, dayKey)) {
+      if (isDeloadUnit(s, macro, w, dayKey) || isSubstitutedUnit(s, macro, w, dayKey, ex.id)) {
         w--;
         continue;
       }
@@ -2402,7 +2441,14 @@ Write this cycle's review per the schema above.`;
       raw = getWeekTargets(s, cache, macro, refWeek, dayKey, ex);
     } else {
       const existingLock = s.progressionLocks && s.progressionLocks[lockKey];
-      raw = existingLock ? { weightTargets: existingLock.weightTargets, repsTargets: existingLock.repsTargets } : computeRawSuggestedTargets(s, cache, macro, week, dayKey, ex);
+      if (existingLock) {
+        raw = { weightTargets: existingLock.weightTargets, repsTargets: existingLock.repsTargets };
+      } else if (isSubstitutedUnit(s, macro, week - 1, dayKey, ex.id)) {
+        const held = getWeekTargets(s, cache, macro, week - 1, dayKey, ex);
+        raw = { weightTargets: held.weightTargets, repsTargets: held.repsTargets };
+      } else {
+        raw = computeRawSuggestedTargets(s, cache, macro, week, dayKey, ex);
+      }
     }
     const result = { weightTargets: raw.weightTargets.slice(), repsTargets: raw.repsTargets.slice() };
     if (raw.rpeStep === "easy" || raw.rpeStep === "hold") result.rpeStep = raw.rpeStep;
@@ -2411,6 +2457,9 @@ Write this cycle's review per the schema above.`;
   }
   function getWeekComplianceResult(s, cache, macro, week, dayKey, ex) {
     const sets = getWeekSets(ex, week, macro.weeks);
+    if (isSubstitutedUnit(s, macro, week, dayKey, ex.id)) {
+      return { fullyLogged: false, compliant: false, weightTargets: null, repsTargets: null, sets, substituted: true };
+    }
     const key2 = macro.id + "_" + week + "_" + dayKey;
     const logs = [];
     for (let i = 0; i < sets; i++) {
@@ -2527,6 +2576,10 @@ Write this cycle's review per the schema above.`;
     const progLock = opts && "lockComingIn" in opts ? opts.lockComingIn : s.progressionLocks && s.progressionLocks[getProgressionLockKey(macro.id, dayKey, exId)];
     const isLocked = !isDeloadSession && !isPostDeloadSession && !!progLock && (progLock.lockedAtWeek || 0) < week;
     const postDeloadTarget = isPostDeloadSession ? getWeekTargets(s, cache, macro, week, dayKey, ex) : null;
+    const isSwapped = isSubstitutedUnit(s, macro, week, dayKey, exId);
+    const heldAfterSwap = !isSwapped && !isDeloadSession && !isPostDeloadSession && !isLocked && week > 1 && isSubstitutedUnit(s, macro, week - 1, dayKey, exId);
+    const heldTarget = heldAfterSwap ? getWeekTargets(s, cache, macro, week, dayKey, ex) : null;
+    const hidePrev = isSwapped || heldAfterSwap;
     const rpeStep = getProgressionStep(s, cache, macro, week, dayKey, ex);
     const rpeJump = weightJump * rpeStep.weightMult;
     let prevLoggedSets = [];
@@ -2535,7 +2588,7 @@ Write this cycle's review per the schema above.`;
       for (let i = 0; i < prevSetsCount; i++) {
         const lk = prevKey2 + "_" + exId + "_" + i;
         const prevLog = logsOf[lk];
-        prevLoggedSets.push(prevLog && prevLog.done ? prevLog : null);
+        prevLoggedSets.push(prevLog && prevLog.done && !hidePrev ? prevLog : null);
       }
     }
     const prevSet1 = prevLoggedSets[0];
@@ -2545,7 +2598,7 @@ Write this cycle's review per the schema above.`;
     const prevActualDropReps = prevSet1 && prevSet1.dropReps ? prevSet1.dropReps : null;
     let prevProgType = prevProgLog.progType || null;
     let prevNoProgression = false;
-    if (prevWasLocked) {
+    if (prevWasLocked || hidePrev) {
       prevProgType = null;
     } else if (!prevProgType && prevActualWeight !== null) {
       const priorWeek = prevWeek2 - 1;
@@ -2566,8 +2619,9 @@ Write this cycle's review per the schema above.`;
         prevNoProgression = true;
       }
     }
-    const recommendedWeight = prevActualWeight !== null ? prevActualWeight + rpeJump : getWeekWeight(ex, week, "weight", macro.goalType, macro.weightIncrement);
+    const recommendedWeight = heldTarget ? parseFloat(heldTarget.weightTargets[0]) : prevActualWeight !== null ? prevActualWeight + rpeJump : getWeekWeight(ex, week, "weight", macro.goalType, macro.weightIncrement);
     const recommendedReps = (() => {
+      if (heldTarget) return heldTarget.repsTargets[0];
       if (isPauseSet) return getGiantSetProgression(ex, week, macro.goalType);
       if (ex.type === "giant") {
         if (prevActualReps !== null) {
@@ -2604,12 +2658,19 @@ Write this cycle's review per the schema above.`;
     }
     const lockWeightPlaceholder = isLocked ? progLock.weightTargets[0] !== void 0 ? progLock.weightTargets[0] : progLock.weightTargets[progLock.weightTargets.length - 1] : null;
     const lockRepsPlaceholder = isLocked ? progLock.repsTargets[0] !== void 0 ? progLock.repsTargets[0] : progLock.repsTargets[progLock.repsTargets.length - 1] : null;
-    const weightPlaceholder = deloadWeightPlaceholder !== null ? deloadWeightPlaceholder : postDeloadTarget !== null ? postDeloadTarget.weightTargets[0] : lockWeightPlaceholder !== null ? lockWeightPlaceholder : week === 1 ? ex.startWeight.toFixed(1) : progType === "weight" ? recommendedWeight.toFixed(1) : prevActualWeight !== null ? prevActualWeight.toFixed(1) : ex.startWeight.toFixed(1);
-    const repsPlaceholder = deloadRepsPlaceholder !== null ? deloadRepsPlaceholder : postDeloadTarget !== null ? postDeloadTarget.repsTargets[0] : lockRepsPlaceholder !== null ? lockRepsPlaceholder : week === 1 ? ex.reps : progType === "reps" ? recommendedReps : prevActualReps !== null ? prevActualReps : ex.reps;
+    const weightPlaceholder = isSwapped ? "" : deloadWeightPlaceholder !== null ? deloadWeightPlaceholder : postDeloadTarget !== null ? postDeloadTarget.weightTargets[0] : heldTarget !== null ? heldTarget.weightTargets[0] : lockWeightPlaceholder !== null ? lockWeightPlaceholder : week === 1 ? ex.startWeight.toFixed(1) : progType === "weight" ? recommendedWeight.toFixed(1) : prevActualWeight !== null ? prevActualWeight.toFixed(1) : ex.startWeight.toFixed(1);
+    const repsPlaceholder = isSwapped ? "" : deloadRepsPlaceholder !== null ? deloadRepsPlaceholder : postDeloadTarget !== null ? postDeloadTarget.repsTargets[0] : heldTarget !== null ? heldTarget.repsTargets[0] : lockRepsPlaceholder !== null ? lockRepsPlaceholder : week === 1 ? ex.reps : progType === "reps" ? recommendedReps : prevActualReps !== null ? prevActualReps : ex.reps;
     const dropWeightPlaceholder = !isDropSet ? "" : deloadDropWeightPlaceholder !== null ? deloadDropWeightPlaceholder : week === 1 ? "" : progType === "weight" ? recommendedDropWeight !== null ? recommendedDropWeight.toFixed(1) : "" : prevActualDropWeight !== null ? prevActualDropWeight.toFixed(1) : "";
     const dropRepsPlaceholder = !isDropSet ? "" : deloadDropRepsPlaceholder !== null ? deloadDropRepsPlaceholder : week === 1 ? "" : progType === "reps" ? recommendedDropReps : prevActualDropReps !== null ? prevActualDropReps : "";
     const weightPlaceholders = [], repsPlaceholders = [], dropWeightPlaceholders = [], dropRepsPlaceholders = [];
     for (let i = 0; i < sets; i++) {
+      if (isSwapped) {
+        weightPlaceholders.push("");
+        repsPlaceholders.push("");
+        dropWeightPlaceholders.push("");
+        dropRepsPlaceholders.push("");
+        continue;
+      }
       if (deloadWeightPlaceholder !== null) {
         weightPlaceholders.push(deloadWeightPlaceholder);
         repsPlaceholders.push(deloadRepsPlaceholder);
@@ -2624,6 +2685,15 @@ Write this cycle's review per the schema above.`;
         repsPlaceholders.push(pr);
         dropWeightPlaceholders.push(!isDropSet ? "" : prevActualDropWeight !== null ? prevActualDropWeight.toFixed(1) : "");
         dropRepsPlaceholders.push(!isDropSet ? "" : prevActualDropReps !== null ? prevActualDropReps : "");
+        continue;
+      }
+      if (heldTarget !== null) {
+        const hw = heldTarget.weightTargets[i] !== void 0 ? heldTarget.weightTargets[i] : heldTarget.weightTargets[heldTarget.weightTargets.length - 1];
+        const hr = heldTarget.repsTargets[i] !== void 0 ? heldTarget.repsTargets[i] : heldTarget.repsTargets[heldTarget.repsTargets.length - 1];
+        weightPlaceholders.push(hw);
+        repsPlaceholders.push(hr);
+        dropWeightPlaceholders.push("");
+        dropRepsPlaceholders.push("");
         continue;
       }
       if (week === 1) {
@@ -2719,8 +2789,51 @@ Write this cycle's review per the schema above.`;
       recommendedDropWeight,
       recommendedDropReps,
       dropWeightPlaceholder,
-      dropRepsPlaceholder
+      dropRepsPlaceholder,
+      // v8.43 (§137): only when true, so every existing output is unchanged.
+      ...isSwapped ? { isSwapped: true } : {},
+      ...heldAfterSwap ? { heldAfterSwap: true } : {}
     };
+  }
+  function replayProgressionAfterLog(s, cache, macro, week, dayKey, exercises) {
+    const out = { deleteTargets: [], setTargets: {}, locks: {} };
+    const total = getMacroEffectiveMesoCount(macro);
+    const logKeys = Object.keys(s.trainLogs || {});
+    const locks = { ...s.progressionLocks || {} };
+    const ws = { ...s, progressionLocks: locks };
+    for (const ex of exercises) {
+      if (!ex || !ex.id || ex.category === "cardio") continue;
+      const lockKey = getProgressionLockKey(macro.id, dayKey, ex.id);
+      const logged = (w) => {
+        const p = macro.id + "_" + w + "_" + dayKey + "_" + ex.id + "_";
+        return logKeys.some((k) => k.startsWith(p));
+      };
+      const hidden = /* @__PURE__ */ new Set();
+      for (let w = week + 1; w <= total; w++) {
+        const k = lockKey + "_w" + w;
+        if (cache.get(k) && !logged(w)) {
+          hidden.add(k);
+          out.deleteTargets.push(k);
+        }
+      }
+      const local = {};
+      const overlay = {
+        get: (k) => k in local ? local[k] : hidden.has(k) ? void 0 : cache.get(k),
+        set: (k, t) => {
+          local[k] = t;
+        }
+      };
+      delete locks[lockKey];
+      for (let w = 2; w <= total; w++) {
+        const t = computeLockTransition(ws, overlay, macro, w, dayKey, ex);
+        if (!t) continue;
+        if ("set" in t) locks[t.key] = t.set;
+        else delete locks[t.key];
+      }
+      out.locks[lockKey] = locks[lockKey] || null;
+      Object.assign(out.setTargets, local);
+    }
+    return out;
   }
 
   // src/mutators.ts
@@ -2795,6 +2908,9 @@ Write this cycle's review per the schema above.`;
   }
   function recordExerciseHistory(s, ctx, macro, week, dayKey, ex) {
     if (isDeloadUnit(s, macro, week, dayKey)) return null;
+    const sub = getSubstitution(s, macro.id, week, dayKey, ex.id);
+    if (sub && sub.kind !== "swap") return null;
+    if (sub) ex = { ...ex, name: sub.name || "", type: sub.type || "standard", trackingMode: sub.trackingMode };
     const nameNorm = (ex.name || "").trim().toLowerCase();
     if (!nameNorm) return null;
     const type = ex.type || "standard";
