@@ -6,3 +6,7 @@ bloc-demo-data.dev.json
 # The engine's build toolchain (v8.32, TECHNICAL §122): `npm ci --prefix engine`.
 # engine/dist/ IS committed — it is what the live site serves.
 engine/node_modules/
+
+# BLOC Coach's toolchain (Coach v0.1, TECHNICAL §139): `npm ci --prefix coach`.
+# coach/dist/ IS committed — it is what /bloc-app/coach/ serves.
+coach/node_modules/
