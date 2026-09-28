@@ -3532,7 +3532,11 @@ button.coach-reqrow.is-tap + .coach-reqrow, .coach-reqrow + button.coach-reqrow.
   background: color-mix(in srgb, var(--accent) 10%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
   font-size: 13px; line-height: 1.45; color: var(--text2); }
 .coach-banner b { display: block; color: var(--accent2); font-size: 14px; margin-bottom: 3px; }
-.coach-banner-home { margin: 18px 0 0; }
+.coach-banner-home { margin: 18px 0 0; position: relative; }
+/* v8.43 (§137): how many banners are waiting, over the top-right corner (iOS-style), clear of the ✕ */
+.coach-banner-count { position: absolute; top: -9px; right: -7px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px;
+  background: var(--red); color: #fff; font-size: 12px; font-weight: 700; line-height: 22px; text-align: center;
+  font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--bg); pointer-events: none; }
 /* v8.43 (§137): Swap for today */
 .ex-swap-note { font-size: 12px; color: var(--text2); margin-top: 3px; }
 .ex-swap-btn { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; }
@@ -10033,6 +10037,8 @@ function applyGoalPhasesPublication(pub) {
   addGoalPhasesNotice(pub, p.goals);
   return { status: 'applied' };
 }
+// The response banner's line: the coach's headline, when there is one.
+function c0Headline(content) { return content && typeof content === 'object' && content.headline ? String(content.headline) : ''; }
 // I5: the coach's AI responses never go in blocAdvice (the client's own
 // check-in slot). One entry per response_id; a republished edit replaces it
 // and is marked updated ("Updated by {coach}", §11 Q10). Its goal changes,
@@ -10051,7 +10057,8 @@ function applyAiResponsePublication(pub) {
   if (gc) applyGoalsPatch(gc.goals, gc.remove_goal_ids, pub, p.macro_id);
   // v8.43 (§137): Progress's "New check-in from {coach}", and Home's goal
   // phases banner when the response changed them (§11 Q9: one Publish).
-  addCoachNotice(pub, 'response', `New ${coachToolMeta(p.tool).label.toLowerCase()} from ${coachFirstName()}`, 'Read it in From your coach below.');
+  addCoachNotice(pub, 'response', `New ${coachToolMeta(p.tool).label.toLowerCase()} from ${coachFirstName()}`,
+    c0Headline(p.content) || 'It’s in Progress, under From your coach.', { responseId: p.response_id });
   if (gc && ((gc.goals || []).length || (gc.remove_goal_ids || []).length)) addGoalPhasesNotice(Object.assign({}, pub, { id: pub.id + ':goals' }), gc.goals);
   return { status: 'applied' };
 }
@@ -14741,7 +14748,6 @@ function renderProgressFromCoach(el, macro) {
   const last = (state.coachCheckinsSent || [])[(state.coachCheckinsSent || []).length - 1];
   el.innerHTML = sectionHeader('From your coach', 'Your coach’s check-ins and reviews. Send a note back if something doesn’t fit.',
       { id: 'progress-from-coach', slot: `<button class="btn btn-ghost btn-sm" id="coach-checkin-btn" onclick="openCoachCheckin()">Check in</button>` })
-    + `<div id="progress-coach-banner">${progressCoachBannerHTML()}</div>`
     + `<div class="card">${tabs}${body}</div>`
     + (last ? `<div class="coach-last">Last check-in sent ${coachDayFmt(last.at)}.</div>` : '')
     + sectionEnd();
@@ -15118,8 +15124,7 @@ function renderSwapTodayList() {
   const q = (document.getElementById('swap-today-search').value || '').trim().toLowerCase();
   const planned = (ex.name || '').trim().toLowerCase();
   const all = getLibrary(); // sorted body part, then name
-  const own = all.find(e => e.name.trim().toLowerCase() === planned);
-  const part = (own && own.bodyPart) || ex.bodyPart || null;
+  const part = swapBodyPartOf(ex, all);
   const lib = all.filter(e => getLibraryCategory(e) !== 'cardio' && e.name.trim().toLowerCase() !== planned
     && (!q || e.name.toLowerCase().includes(q)));
   // v8.43 (Adam, UAT): alternatives for the same body part first (Bench Press →
@@ -15139,6 +15144,27 @@ function renderSwapTodayList() {
   const label = t => `<div class="swap-group-label">${coachEsc(t)}</div>`;
   el.innerHTML = (same.length ? label(`Other ${part.toLowerCase()} exercises`) + same.map(row).join('') : '')
     + (rest.length ? (same.length ? label('Everything else') : '') + rest.map((e, i) => row(e, same.length + i)).join('') : '');
+}
+// The planned exercise's body part: its library entry, else its own bodyPart,
+// else a guess from its name. 🚨 A coach's plan can name an exercise BLOC's
+// library doesn't have ("Bench Press"; the library says "Flat Press") and carry
+// no bodyPart, so without the guess nothing came first (Adam, v8.43 UAT).
+const SWAP_PART_WORDS = [
+  ['Legs', /squat|lunge|leg press|leg ext|leg curl|hamstring|rdl|romanian|deadlift|glute|hip thrust|step.?up/],
+  ['Calves', /calf|calves/],
+  ['Chest', /bench|chest|fly|flye|pec|push.?up|dip\b|incline|decline/],
+  ['Back', /row|pull.?down|pull.?up|chin.?up|lat\b|lats|pullover/],
+  ['Shoulders', /shoulder|overhead|military|lateral raise|front raise|delt|arnold|upright/],
+  ['Triceps', /tricep|push.?down|skull|close.?grip|kickback/],
+  ['Biceps', /bicep|curl|hammer/],
+];
+function swapBodyPartOf(ex, lib) {
+  const name = String((ex && ex.name) || '').trim().toLowerCase();
+  const own = (lib || getLibrary()).find(e => e.name.trim().toLowerCase() === name);
+  if (own && own.bodyPart) return own.bodyPart;
+  if (ex && ex.bodyPart) return ex.bodyPart;
+  const hit = SWAP_PART_WORDS.find(([, re]) => re.test(name));
+  return hit ? hit[0] : null;
 }
 function chooseSwapToday(i) {
   if (trainViewCoachOwned()) return;
@@ -15399,10 +15425,10 @@ const COACH_NOTICE_ICONS = {
   booking: COACH_ICO_CALENDAR,
   response: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>',
 };
-function addCoachNotice(pub, kind, title, body) {
+function addCoachNotice(pub, kind, title, body, extra) {
   if (!Array.isArray(state.coachNotices)) state.coachNotices = [];
   if (state.coachNotices.some(n => n.id === pub.id)) return; // re-applied after a restore: already raised
-  state.coachNotices.push({ id: pub.id, kind, seq: pub.seq, title, body, at: new Date().toISOString(), dismissed: false });
+  state.coachNotices.push(Object.assign({ id: pub.id, kind, seq: pub.seq, title, body, at: new Date().toISOString(), dismissed: false }, extra || {}));
   if (state.coachNotices.length > COACH_NOTICE_KEEP) state.coachNotices = state.coachNotices.slice(-COACH_NOTICE_KEEP);
 }
 // "Cut 3 now starts on Mon 5 Oct at 1,600 kcal and 10,000 steps." (the wireframe)
@@ -15420,8 +15446,8 @@ function nextCoachNotice(kinds) {
   const due = (state.coachNotices || []).filter(n => n && !n.dismissed && kinds.includes(n.kind));
   return due.length ? due.reduce((a, b) => ((b.seq || 0) > (a.seq || 0) ? b : a)) : null;
 }
-function coachNoticeBannerHTML(n, action) {
-  return `<div class="coach-banner coach-banner-home" role="status">
+function coachNoticeBannerHTML(n, action, count) {
+  return `<div class="coach-banner coach-banner-home" role="status">${coachBannerCountHTML(count)}
       <span class="coach-banner-ico">${COACH_NOTICE_ICONS[n.kind] || COACH_ICO_CLOCK}</span>
       <div style="flex:1;min-width:0;"><b>${coachEsc(n.title)}</b><div>${coachEsc(n.body)}</div>
         ${action ? `<button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="${action.onclick}">${action.label}</button>` : ''}</div>
@@ -15436,18 +15462,35 @@ function dismissCoachNotice(id) {
   for (const x of state.coachNotices) if (x.kind === n.kind && (x.seq || 0) <= (n.seq || 0)) x.dismissed = true;
   save();
   renderHomeCoachBanner();
-  const pb = document.getElementById('progress-coach-banner');
-  if (pb) pb.innerHTML = progressCoachBannerHTML();
 }
-function progressCoachBannerHTML() {
-  if (!coachedView()) return '';
-  const n = nextCoachNotice(['response']);
-  return n ? coachNoticeBannerHTML(n, null) : '';
-}
+// 🚨 Every banner is on HOME (Adam, v8.43 UAT: "banners this deep in the app
+// are pointless"). The response one's View opens Progress on that response's
+// cycle and its full text.
+const HOME_NOTICE_KINDS = ['plan', 'phases', 'booking', 'response'];
 const HOME_NOTICE_ACTIONS = {
-  plan: { label: 'View', onclick: "showScreen('train')" },
-  booking: { label: 'View', onclick: 'openCoachSessions()' },
+  plan: () => ({ label: 'View', onclick: "showScreen('train')" }),
+  booking: () => ({ label: 'View', onclick: 'openCoachSessions()' }),
+  response: n => n.responseId ? { label: 'View', onclick: `viewCoachResponse('${coachEsc(n.responseId)}')` } : null,
 };
+function viewCoachResponse(responseId) {
+  const a = coachAdviceById(responseId);
+  showScreen('progress'); // resets the viewed cycle on entry, so set it after
+  if (a && a.macroId && (state.macrocycles || []).some(m => m.id === a.macroId)) progressViewMacroId = a.macroId;
+  if (a) _fromCoachTab = coachToolKey(a.tool);
+  renderProgress();
+  openCoachResponse(responseId);
+}
+// How many banners are waiting, counting the one on show (the proposed time,
+// then one per kind with anything undismissed: dismissing one clears its kind).
+function coachBannerQueueCount(proposedShowing) {
+  const kinds = new Set((state.coachNotices || []).filter(n => n && !n.dismissed && HOME_NOTICE_KINDS.includes(n.kind)).map(n => n.kind));
+  return (proposedShowing ? 1 : 0) + kinds.size;
+}
+// iOS-style: a count over the banner's top-right corner, only when more than
+// one is waiting (Adam, v8.43 UAT), clear of the ✕ below it.
+function coachBannerCountHTML(count) {
+  return count > 1 ? `<span class="coach-banner-count" aria-label="${count} notifications">${count}</span>` : '';
+}
 
 function renderHomeCoachBanner() {
   const el = document.getElementById('home-coach-banner');
@@ -15455,12 +15498,12 @@ function renderHomeCoachBanner() {
   const dismissed = coachBannerDismissed();
   const due = coachedView() ? (_coachRequests || []).filter(r => r.status === 'proposed' && r.proposed && !dismissed.includes(coachProposalKey(r))) : [];
   if (!due.length) {
-    const n = coachedView() ? nextCoachNotice(['plan', 'phases', 'booking']) : null;
-    el.innerHTML = n ? coachNoticeBannerHTML(n, HOME_NOTICE_ACTIONS[n.kind]) : '';
+    const n = coachedView() ? nextCoachNotice(HOME_NOTICE_KINDS) : null;
+    el.innerHTML = n ? coachNoticeBannerHTML(n, HOME_NOTICE_ACTIONS[n.kind] ? HOME_NOTICE_ACTIONS[n.kind](n) : null, coachBannerQueueCount(false)) : '';
     return;
   }
   const r = due[0];
-  el.innerHTML = `<div class="coach-banner coach-banner-home" role="status">
+  el.innerHTML = `<div class="coach-banner coach-banner-home" role="status">${coachBannerCountHTML(coachBannerQueueCount(true))}
       <span class="coach-banner-ico">${COACH_ICO_CLOCK}</span>
       <div style="flex:1;min-width:0;"><b>${coachEsc(coachFirstName())} proposed a different time</b>
         <div>${coachEsc(coachSlotLine(r.proposed))} instead of your choices.${due.length > 1 ? ` ${due.length - 1} more waiting.` : ''}</div>

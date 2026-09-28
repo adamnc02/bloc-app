@@ -49,7 +49,7 @@ const STUBS = ['state', 'save', 'coachLinkGet', 'coachingAvailable', 'isCoachedM
   'renderTrain', 'openModal', 'closeModal', 'showConfirm', 'fitListToKeyboard', 'showScreen', 'openCoachSessions', '_coachRequests',
   'engineCtx', 'supabase', '_authResolvedSession', 'expandedExercises', 'BlocEngine'];
 const SEEDS = ['applyPublications', 'queueStoredSessionLogs', 'chooseSwapToday', 'undoSwapToday', 'openSwapToday', 'renderSwapTodayList',
-  'swapTodayRowHTML', 'renderHomeCoachBanner', 'dismissCoachNotice', 'progressCoachBannerHTML', 'coachOwnedSession', 'trainCoachNoticeHTML',
+  'swapTodayRowHTML', 'renderHomeCoachBanner', 'dismissCoachNotice', 'swapBodyPartOf', 'coachOwnedSession', 'trainCoachNoticeHTML',
   'coachGroupSessionsHTML'];
 function build(src) {
   const { decls } = indexTopLevel(mainScript(src));
@@ -300,7 +300,17 @@ async function run(label, html, engineSrc, quiet = false) {
     B.applyPublications([pub('plan', {}, { id: env.state.coachNotices[0].id })]);
     check('a re-applied publication (after a restore) raises nothing twice', env.state.coachNotices.length, again);
     B.applyPublications([pub('ai_response', { response_id: 'r9', tool: 'check_in', content: { headline: 'Hi' } })]);
-    check('a response shows on Progress, above From your coach', /New check-in from Sam/.test(B.progressCoachBannerHTML()), true);
+    env.requests.length = 0;
+    for (const n of env.state.coachNotices) n.dismissed = true;
+    B.applyPublications([pub('ai_response', { response_id: 'r10', tool: 'check_in', content: { headline: 'Hi' } })]);
+    B.renderHomeCoachBanner();
+    check('a response\'s banner is on HOME (Adam, UAT), with View opening it', [/New check-in from Sam/.test(home()), /viewCoachResponse\('r10'\)/.test(home()), />View</.test(home())], [true, true, true]);
+    check('one waiting: no count', /coach-banner-count/.test(home()), false);
+    B.applyPublications([pub('booking', { booking_id: 'b-new', date: '2026-10-09', start_min: 600, status: 'booked' })]);
+    env.requests.push({ id: 'rq2', status: 'proposed', proposed: { date: '2026-10-10', start_min: 600 }, preferences: [] });
+    B.renderHomeCoachBanner();
+    check('three waiting (a proposal, a booking, a response): the badge says 3', (home().match(/coach-banner-count[^>]*>(\d+)</) || [])[1], '3');
+    check('Bench Press (not in the library, no bodyPart) is Chest; Machine Row is Back', [B.swapBodyPartOf({ name: 'Bench Press' }), B.swapBodyPartOf({ name: 'Machine Row' }), B.swapBodyPartOf({ name: 'Leg Curl' })], ['Chest', 'Back', 'Legs']);
   }
   return failures;
 }

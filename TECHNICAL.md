@@ -8875,6 +8875,12 @@ has no template, or an exercise it logs or rates isn't in that session.
   logged, **only when it's that exercise's latest logged week**, so an older week can't overwrite "last
   logged".
 
+🚨 **`state.coachSessionLogs` is an OBJECT keyed by publication id** (found in UAT). v8.40's
+`removeCoachPlan()` reset it to `[]` on unlink, and a record keyed onto an array is dropped by
+`JSON.stringify`: on any account that had been unlinked, no session record (and none of the client's
+replaced sets) survived a save. The sets themselves were unaffected. Unlink now leaves `{}`, and the
+appliers treat an array as empty; `verify-coached-hides.mjs` had `[]` as its expected value.
+
 **Read-only.** `BlocEngine.getCoachLoggedSession()` finds a set with `loggedBy: 'coach'` in the session.
 It's read from the logs themselves, so it holds after a restore, after an unlink and in the `client_state`
 Coach reads. `coachOwnedSession()` returns `{kind: 'logged'}` for it, so every one of §136's Train guards
@@ -8893,8 +8899,10 @@ never be their "next".
 `state.coachExtraSessions[session_id]` (dated by its booking), shown in **Your sessions → Group sessions**
 as "Group session · logged by coach". With `replaces`, the planned session that day is treated as swapped:
 a `'group'` substitution (below) on every exercise of it, so it **counts as done** with nothing logged,
-**isn't scored**, and its targets hold. Train shows it read-only: "Replaced by a group session". A
-correction without `replaces` hands it back.
+**isn't scored**, and its targets hold. Train shows it read-only: "Replaced by a group session", with each
+exercise under its **own** name and that tag (the first build treated the group marker as a swap and read
+"Another exercise", found in UAT); the week after says "Target held after a group session". A correction
+without `replaces` hands it back.
 
 ### Swap for today (D3; §11 Q24, Q26)
 
@@ -8904,7 +8912,14 @@ is done** (the wireframe), never on the coach's session. **Swap for today** open
 🚨 **It's a search sheet, so it's §9's `.kb-pinned-sheet`, exactly** (the four parts; the search box is
 `oninput="renderSwapTodayList()"`, which `verify-kb-pinned-sheets.mjs` recognises; `swap-today-list-wrap` is in
 `measureAll()`). It shows the planned exercise and its target, then **the client's own library**,
-`getLibrary()` (Q26), without cardio or the planned exercise, its muscle group first. **Tapping a row swaps**,
+`getLibrary()` (Q26), without cardio or the planned exercise, **as divider rows** (the exercise library's
+`.lib-row`, not cards; Adam, UAT): **"Other {part} exercises"** first, then everything else in the library's
+own order (body part, then name). 🚨 **The part** (`swapBodyPartOf()`) is the planned exercise's library entry,
+else its own `bodyPart`, else a guess from its name (`SWAP_PART_WORDS`): a coach's plan can name an exercise
+the library doesn't have ("Bench Press"; the library says "Flat Press") with no `bodyPart`, and in UAT nothing
+came first. **Phase 5: Coach's plan exercises should carry `bodyPart`.** The sheet's height is the pinned
+pattern's, unchanged (Adam: *"if it's the same as the log food search modal, it needs to stay as it is"*); the
+gap under it in a laptop browser is how every pinned sheet looks there. **Tapping a row swaps**,
 the one-tap pattern of Log a recipe. The wireframe's pick-then-button would put the button behind the
 keyboard. **Back to {planned}** undoes it; with sets logged it asks first, then clears them.
 
@@ -8943,7 +8958,7 @@ restart and travel with the data:
 | `plan` | a `plan` | Home | "{coach} updated your plan": "“{cycle}” starts Mon 5 Oct." or "Changes to “{cycle}”." + **View** (Train) |
 | `phases` | `goal_phases`, or an `ai_response` with goal changes (§11 Q9) | Home | "Your goal phases changed": "“Cut 3” now starts on Mon 5 Oct at 1,600 kcal and 10,000 steps." |
 | `booking` | a new, moved or cancelled `booking` | Home | "Session confirmed" / "Session moved" / "Session cancelled" + **View** (Your sessions) |
-| `response` | an `ai_response` | Progress, above From your coach | "New check-in from {coach}": "Read it in From your coach below." |
+| `response` | an `ai_response` | Home | "New check-in from {coach}": the coach's headline + **View** (Progress, on the response's cycle, its full text open: `viewCoachResponse()`) |
 
 🚨 **Their ✕ is permanent** (Adam, v8.42 UAT: informational). `dismissCoachNotice()` saves `dismissed` on that
 notice **and every older one of its kind** (the same news, superseded). Only §136's "proposed a time" comes
@@ -8951,7 +8966,12 @@ back after ✕. **One slot**, like the wireframe: the proposed time first (it ne
 undismissed notice; its ✕ shows the next. A publication re-applied after a restore raises nothing twice (a
 notice is keyed by its publication id).
 
-**Check:** `scripts/verify-coach-logged.mjs` (54 checks) runs the built engine and the real functions on the
+🚨 **Every banner is on Home** (Adam, v8.43 UAT: *"banners this deep in the app are pointless"*). The first
+build put the response banner on Progress, above From your coach. **A count** (`coachBannerCountHTML()`),
+iOS-style, sits over the banner's top-right corner when more than one is waiting: the proposed time, plus one
+per kind with anything undismissed (dismissing one clears its kind). It's above the ✕, never over it.
+
+**Check:** `scripts/verify-coach-logged.mjs` (59 checks) runs the built engine and the real functions on the
 demo dataset. It covers:
 - **D3:** the held target (with the unmarked substitute's 10 kg as the control inside), no lock, the walk
   past, Train on both weeks, history under the substitute's name, and nothing changing shape without a
@@ -8965,7 +8985,7 @@ demo dataset. It covers:
 - **Swap for today:** the sheet, `getLibrary()`, the marker, Back to (with the confirm), when it's offered,
   and the coach's session refusing;
 - **the banners:** all three kinds, the copy, one at a time, ✕ permanent, a move is news again, the
-  proposed time first, no duplicates, and the Progress one.
+  proposed time first, no duplicates, the response on Home with View, and the count.
 
 **Control:** v8.42 (`ee1a2b9`). `verify-publications-apply.mjs` now expects a `session_log` applied (4d
 stored it). `engine-cases.mjs` has cases for the five new engine exports.
