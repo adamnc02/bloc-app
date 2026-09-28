@@ -7918,3 +7918,44 @@ finished 2-session cycle while the calendar is in the demo's 4-session cycle. On
 
 **UAT (at the end of the PR):** TDEE, BMR and the safety floor on a browsed, non-active cycle,
 with the Work account on a local `?auth=real` build.
+
+## §127 — v8.35: Home's "Planned this week avg" line, restored
+
+**What happened.** Before v8.16, each of Home's four "This week" cards had a grey line under its
+bar: **"Planned this week avg: X"**, where the week lands if the rest of it goes to plan
+(`computeWeekPlannedAvg`, §124). v8.16's rebuild of "This week" into one card of four rows left
+that line out of the row template (`830059d`, live 24 Sep).
+- The figure was still computed on every render and passed to each row as `weekPlannedAvg`.
+- The tap-info modal still explained it.
+- Nothing showed it. Adam lost sight of the week's planned meals, and every check passed, because
+  the numbers hadn't changed.
+
+**Restored (Adam, 2026-09-28).** A `.metric-planned` line sits under each row's bar, above the
+off-target note. It's laid out like the row's top line: "Planned this week avg" on the left in the
+note's type, and the figure on the right with tabular numbers, aligned with the bar's end. It
+shows whenever there's a planned figure, which means whenever there's an active goal, as before
+v8.16.
+
+**What the figure is** (unchanged since v7.72, the same words as the tap-info modal):
+- **Calories, protein, carbs:** every genuine logged day at its real number, including meals
+  **planned ahead** for a later day. A future day with nothing planned counts at target. A light,
+  partly-logged day (under target − 300 kcal) is left out, not counted as zero.
+- **Steps** (Adam: "this never had planned… any unlogged days take the goal"): a forecast. Days up
+  to today with steps logged use them. Every other day, a missed past day or a future day, uses the
+  goal's steps target. The label is still "Planned this week avg".
+
+**Checked against the old line.** The last pre-v8.16 build (`6e7b10c`) and today's engine were
+compared on the same data. That was the demo on four days of its week, a demo variant with meals
+planned ahead, and the UAT file. The figures were identical on all 9 days. Planning Friday's and
+Saturday's meals moved the kcal figure from 1,706 to 1,659, so planned meals are counted exactly as
+before.
+
+🚨 **The traps.**
+- **A display line has no number to guard it.** `scripts/verify-home-planned-line.mjs` runs the
+  real `renderHomeThisWeek` over three datasets × 7 days. Every row must show exactly the engine's
+  figure, with its unit, and no line without a goal (56 lines over 84 rows). The label must sit
+  left and the figure right. Control: the template without the line fails.
+- **The golden file records Home's HTML, so this moved it:** a second `--write` in Phase 2, in its
+  own commit, with Adam's agreement. Exactly the 7 `homeWeek` runs moved, by 4 added lines each.
+  With those lines removed, each is byte-identical to the file before, and no other run changed.
+  `_source.closure` 103 → 89 is extraction metadata (steps 5–6 moved functions out).

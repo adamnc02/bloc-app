@@ -2450,6 +2450,12 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .metric-note { font-size: 12px; font-weight: 500; color: var(--text3); margin-top: 8px; line-height: 1.45; }
 .metric-note-off { color: var(--text2); }
 .metric-note-off strong { color: var(--red); }
+/* v8.35 — "Planned this week avg", restored under the bar (v8.16's rebuild
+   dropped it). Laid out like the row's own top line: the label on the left in
+   the note's type, the figure on the right with tabular numbers. */
+.metric-planned { display: flex; align-items: baseline; gap: 8px; margin-top: 8px; font-size: 12px; font-weight: 500; color: var(--text3); line-height: 1.45; }
+.metric-planned-value { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--text2); }
+.metric-planned-value strong { font-weight: 600; color: var(--text); }
 /* 🚨 NOT absolutely positioned. It was `position:absolute; top:10px; right:0`
    inside .metric-row, which put it a third of a line below the value it belongs
    to and printed it straight over the "/ target" figure (v8.16 UAT, Home ▸ This
@@ -18955,7 +18961,7 @@ function renderHomeThisWeek() {
   const allOnTarget = onTrackCount === badges.length;
   const chip = `<span class="chip" style="--chip-c:${allOnTarget ? 'var(--green-text)' : 'var(--red)'}">${onTrackCount} of ${badges.length} on target</span>`;
 
-  const rows = badges.map(({ m, avg, target, pct, badge }, i) => {
+  const rows = badges.map(({ m, avg, target, pct, weekPlannedAvg, badge }, i) => {
     const tracked = avg !== null;
     const isOff = badge.color === 'var(--red)';
     const barColour = isOff ? 'var(--red)' : m.colour;
@@ -18977,6 +18983,15 @@ function renderHomeThisWeek() {
     }
     const note = noteText ? `<div class="metric-note metric-note-off">${noteText}</div>` : '';
 
+    // v8.35: where the week lands if the rest of it goes to plan: logged days,
+    // meals planned ahead, and target for the days still to come
+    // (computeWeekPlannedAvg; the tap-info modal explains it). Shown whenever
+    // there is one, i.e. whenever there's an active goal, as before v8.16,
+    // whose rebuild left this line out. verify-home-planned-line.mjs keeps it.
+    const planned = weekPlannedAvg !== null && weekPlannedAvg !== undefined
+      ? `<div class="metric-planned"><span>Planned this week avg</span><span class="metric-planned-value"><strong>${m.fmt(weekPlannedAvg)}</strong>${m.unit}</span></div>\n      `
+      : ''; // carries its own line break, so a row with no line is byte-for-byte v8.34's
+
     // kcal/protein/carbs explain where their numbers come from; steps is
     // deliberately NOT tappable — its calculation has no qualifying-day gate
     // to explain. Do not "fix" that.
@@ -18997,7 +19012,7 @@ function renderHomeThisWeek() {
         ${infoBtn}
       </div>
       <div class="bar" style="--i:${i}"><i style="width:${pct}%;background:${barColour};"></i></div>
-      ${note}
+      ${planned}${note}
     </div>`;
   }).join('');
 

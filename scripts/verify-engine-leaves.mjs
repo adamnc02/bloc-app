@@ -121,7 +121,7 @@ if (process.env.BLOC_LEAVES_CHILD) {
     try { return ser(typeof f === 'function' ? f(...args) : f); } catch (e) { return `threw ${e.constructor.name}: ${e.message}`; }
   };
 
-  let runs = 0, diffs = 0, throws = 0, h7Moved = 0, badgeMoved = 0;
+  let runs = 0, diffs = 0, throws = 0, h7Moved = 0, badgeMoved = 0, plannedAdded = 0;
   const firstDiffs = [], firstThrows = [];
   const compare = (label, name, mkArgs, today = '2026-08-02') => {
     const D = fixedAt(today);
@@ -265,6 +265,12 @@ if (process.env.BLOC_LEAVES_CHILD) {
   // each such move against the frozen target.
   const MISSED = /<span class="ex-done ex-done-missed">✓ done · ⚠ missed target<\/span>/g;
   const noBadge = str => str.replace(MISSED, '<span class="ex-done">✓ done</span>');
+  // v8.35 (§127): Home's "Planned this week avg" line, restored under each
+  // bar, is new HTML v8.34 didn't have (verify-home-planned-line checks its
+  // figures). Compared with it removed; the renders where only it was added
+  // are counted.
+  const PLANNED = /\n      <div class="metric-planned">.*?<\/div>/g;
+  const noPlanned = str => str.replace(PLANNED, '');
   for (const [name, cases] of only === 'ai' ? [] : Object.entries(STATE_CASES)) {
     if (!cases.length) {
       // A constant: the engine's value against v8.34's own declaration.
@@ -286,6 +292,7 @@ if (process.env.BLOC_LEAVES_CHILD) {
         let n = runState(N34, docNew, name, mk(), tour);
         if (!H7_EXEMPT.has(name) && !timeless && runState(O34, docOld, name, mk(), tour) !== n) h7Moved++;
         if (first.bloc.fn === 'renderTrainDay' && o !== n && noBadge(o) === noBadge(n)) { badgeMoved++; o = noBadge(o); n = noBadge(n); }
+        if (first.bloc.fn === 'renderHomeThisWeek' && o !== n && o === noPlanned(n)) { plannedAdded++; n = noPlanned(n); }
         runs++;
         if (o.startsWith('threw') || n.startsWith('threw')) { throws++; if (firstThrows.length < 3) firstThrows.push(`${name} #${i + 1}: ${o.slice(0, 120)} / ${n.slice(0, 120)}`); }
         if (o !== n) {
@@ -478,7 +485,7 @@ if (process.env.BLOC_LEAVES_CHILD) {
   }
   }
 
-  console.log(JSON.stringify({ runs, diffs, firstDiffs, throws, firstThrows, h7Moved, badgeMoved, aiRuns: typeof aiCount === 'number' ? aiCount : 0, aiOutcomes: typeof aiOutcomes === 'object' ? aiOutcomes : {} }));
+  console.log(JSON.stringify({ runs, diffs, firstDiffs, throws, firstThrows, h7Moved, badgeMoved, plannedAdded, aiRuns: typeof aiCount === 'number' ? aiCount : 0, aiOutcomes: typeof aiOutcomes === 'object' ? aiOutcomes : {} }));
   process.exit(0);
 }
 
@@ -521,6 +528,7 @@ ZONES.forEach((zone, k) => {
     r.error || (r.firstDiffs || []).join('\n    '));
   check(`${zone}: no run threw, on either side`, !r.error && r.throws === 0, (r.firstThrows || []).join('\n    '));
   check(`${zone}: Train's "missed target" badge moved on ${r.badgeMoved || 0} rendered sessions, and nothing else in Train did`, !r.error && r.badgeMoved > 0);
+  check(`${zone}: Home's "Planned this week avg" line was added on ${r.plannedAdded || 0} renders, and nothing else on Home moved`, !r.error && r.plannedAdded > 0);
   const oc = r.aiOutcomes || {};
   const flows = ['askBlocForAdvice', 'askBlocForChallenge', 'askBlocForNextCycleAdvice', 'generateCycleReview'];
   check(`${zone}: the AI flows match v8.34 end to end (${r.aiRuns || 0} scenarios), each reaching both a stored result and a shown error (${flows.map(f => `${f.replace(/^(askBlocFor|generate)/, '')} ${(oc[f] || {}).stored || 0}/${(oc[f] || {}).failed || 0}`).join(', ')})`,
