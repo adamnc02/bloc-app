@@ -22639,8 +22639,13 @@ function renderTrainDay(macro) {
               recommendedDropWeight, recommendedDropReps, dropWeightPlaceholder, dropRepsPlaceholder } = d;
       // v8.43 (§137): Swap for today. THIS session's exercise is another one
       // (no target, no last week); or last session's was, and its target holds.
+      // isSwapped covers both kinds of substitution (no target either way); a
+      // GROUP replacement keeps the planned name (Adam, v8.43 UAT: the names
+      // read "Another exercise"), only a swap shows the substitute.
       const isSwapped = !!d.isSwapped, heldAfterSwap = !!d.heldAfterSwap;
       const swap = isSwapped ? getSubstitution(macro.id, state.currentWeek, state.currentDay, exId) : null;
+      const isGroup = !!(swap && swap.kind === 'group');
+      const prevSub = heldAfterSwap ? getSubstitution(macro.id, state.currentWeek - 1, state.currentDay, exId) : null;
       const key2 = macro.id + '_' + state.currentWeek + '_' + state.currentDay;
       const typeLabel = ex.type === 'standard' ? 'std' : ex.type === 'giant' ? 'giant set' : ex.type === 'pause' ? 'pause set' : 'drop set';
 
@@ -22728,10 +22733,11 @@ function renderTrainDay(macro) {
         : '';
       const lastRouteHtml = lastRouteText ? `<span class="ex-tag ex-tag-quiet">${lastRouteText}</span>` : '';
       const rpeTagsHtml = buildRpeTagsHtml(macro, state.currentWeek, state.currentDay, ex, isLocked, isDeloadSession);
-      const tagsHtml = isSwapped
+      const tagsHtml = isGroup ? '<span class="ex-tag ex-tag-quiet">Replaced by a group session</span>'
+        : isSwapped
         ? ['<span class="ex-tag" style="--tag-c:var(--accent);">Swapped for today</span>', rpeTagsHtml].filter(Boolean).join('')
         : [typeTagHtml, holdTagHtml, deloadTagHtml, lastRouteHtml,
-          heldAfterSwap ? '<span class="ex-tag ex-tag-quiet">Target held after a swap</span>' : '',
+          heldAfterSwap ? `<span class="ex-tag ex-tag-quiet">Target held after ${prevSub && prevSub.kind === 'group' ? 'a group session' : 'a swap'}</span>` : '',
           rpeTagsHtml].filter(Boolean).join('');
 
       // The 40×40 auto-complete button — completes every set at target. It is
@@ -22772,7 +22778,7 @@ function renderTrainDay(macro) {
         <div class="ex-head" onclick="toggleExercise('${expandKey}')">
           <div class="ex-idx">${slotIdx + 1}</div>
           <div class="ex-head-text">
-            <div class="ex-name">${isSwapped ? coachEsc(swap.name || 'Another exercise') : ex.name}</div>${isSwapped ? `<div class="ex-swap-note">Instead of ${ex.name}. Its target holds for next time.</div>` : ''}
+            <div class="ex-name">${isSwapped && !isGroup ? coachEsc(swap.name || 'Another exercise') : ex.name}</div>${isSwapped && !isGroup ? `<div class="ex-swap-note">Instead of ${ex.name}. Its target holds for next time.</div>` : ''}
             ${tagsHtml ? `<div class="ex-tags">${tagsHtml}</div>` : ''}
           </div>
           ${doneStateHtml || autoBtnHtml}
@@ -22973,7 +22979,7 @@ function renderTrainDay(macro) {
         }
         html += `<div class="ex-body">
           ${progSelector}
-          ${setRows}${swapTodayRowHTML(macro, ex, doneSets, isSwapped)}
+          ${setRows}${swapTodayRowHTML(macro, ex, doneSets, isSwapped && !isGroup)}
         </div>`;
       }
       html += `</div>`;
