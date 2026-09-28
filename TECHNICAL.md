@@ -8129,3 +8129,16 @@ Supabase and a fake document:
 
 **Control:** v8.36 (`c2be73a`) has none of it. Driven in headless Chromium at 393pt: every step,
 the splash, Settings linked and unlinked, no console errors.
+
+**UAT, 2026-09-28** (in chat; Work account = client, Hotmail = test coach, created through
+`create_coach_profile` / `create_invite` in the SQL Editor): 9/9 against the live project. Every
+server write was the expected one, read from `pg_stat_user_tables`:
+- the peek wrote nothing;
+- redeeming made one `coach_clients` insert plus one update each to `invite_codes` and `client_records`;
+- photo consent made one update;
+- a used code wrote nothing;
+- Unlink made one update and no delete.
+
+⚠️ **The first-run mode question was not run on a real new account** (Adam: *"Skip, ship on the
+checks"*). It needs an account with no cloud backup. The verify script covers all six cases, and the
+headless run covered every screen.
