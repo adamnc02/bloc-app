@@ -10208,10 +10208,29 @@ async function sendPendingAcks() {
     .filter(([, e]) => e && !e.acked && e.status !== 'stored')
     .map(([id, e]) => ({ publication_id: id, client_id: _authResolvedSession.user.id, status: e.status, note: e.note || null }));
   if (!rows.length) return;
-  const { error } = await supabase.from('publication_acks').upsert(rows, { onConflict: 'publication_id,client_id' });
-  if (error) { console.warn('[publications] acks not sent, will retry:', error.message); return; }
-  for (const r of rows) ledger[r.publication_id].acked = true;
-  save();
+  // 🚨 Never .upsert() here. supabase-js sends INSERT … ON CONFLICT DO UPDATE
+  // SET <every column>, and 0023 grants the client UPDATE on status, note and
+  // acked_at only, so Postgres refuses the whole statement ("permission denied
+  // for table publication_acks"; found in the 4d UAT). Update first; insert
+  // when there was nothing to update.
+  let sent = 0;
+  for (const r of rows) {
+    try {
+      const { data, error } = await supabase.from('publication_acks')
+        .update({ status: r.status, note: r.note, acked_at: new Date().toISOString() })
+        .eq('publication_id', r.publication_id).eq('client_id', r.client_id).select('publication_id');
+      if (error) throw error;
+      if (!data || !data.length) {
+        const { error: insErr } = await supabase.from('publication_acks').insert(r);
+        if (insErr) throw insErr;
+      }
+      ledger[r.publication_id].acked = true;
+      sent++;
+    } catch (err) {
+      console.warn('[publications] a receipt was not sent, will retry:', err && err.message);
+    }
+  }
+  if (sent) save();
 }
 
 let _pubRunning = null;

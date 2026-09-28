@@ -8284,8 +8284,17 @@ travels with the data it describes (deep dive I8):
 - **The cursor stays below any held publication**, so it's fetched and retried on every pull until
   it applies.
 
-**Receipts** (`publication_acks`, `sendPendingAcks()`): upserted `applied` / `needs_attention` (with the
-reason) / `superseded` for every settled, un-acked entry.
+**Receipts** (`publication_acks`, `sendPendingAcks()`): `applied` / `needs_attention` (with the
+reason) / `superseded`, for every settled, un-acked entry.
+
+🚨 **Update, then insert; never `.upsert()`** (found in this phase's UAT: every receipt was refused).
+supabase-js's upsert is `INSERT … ON CONFLICT DO UPDATE SET` **every column**, and `0023` grants the
+client UPDATE on `status`, `note` and `acked_at` only, so Postgres refused the whole statement ("permission
+denied for table publication_acks"). The grant is right: a client must not move a receipt to another
+publication. So BLOC updates the row, and inserts when there was none. The first version's verify script
+passed because its fake table accepted the upsert, a stand-in more permissive than the platform
+(MIGRATION-LESSONS §70's lesson). Its fake now refuses an upsert as the grants do, and a control runs
+`bdb3f58`'s receipt code against it.
 - A failed send stays owed, and goes out with the next pull.
 - A publication held again **for the same reason** doesn't re-send the receipt.
 - `stored` entries aren't acked yet, so the coach sees them as pending.

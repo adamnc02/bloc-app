@@ -19,6 +19,9 @@
 //   · §0 — targets for weeks NOT logged may change; logged weeks never do.
 //   · A held publication must not re-send the same receipt on every pull.
 //   · Unlinked: nothing queued may land afterwards.
+//   · Receipts are INSERT-or-UPDATE, never .upsert(): 0023 grants UPDATE on
+//     status/note/acked_at only, and an upsert SETs every column (refused
+//     live in the 4d UAT). The fake table below refuses an upsert the same way.
 //
 // Runs the real functions from index.html on the demo dataset. CONTROL:
 // v8.38 (c5949c3) has no funnel.
@@ -106,7 +109,35 @@ function doc(opts = {}) {
 function envFor(eng, over = {}) {
   const e = Object.assign({ state: JSON.parse(JSON.stringify(demo)), engine: eng, saves: 0, rendered: [], coached: true, acks: [], ackFail: false }, over);
   e.document = doc(over);
-  e.supabase = { from: () => ({ upsert: async (rows) => { if (e.ackFail) return { error: { message: 'offline' } }; e.acks.push(...rows); return { error: null }; } }) };
+  // publication_acks as 0023 grants it: INSERT, and UPDATE of status/note/acked_at
+  // only. An upsert (ON CONFLICT DO UPDATE SET every column) is REFUSED, exactly
+  // as live refused it in the 4d UAT — a fake that accepted it hid the bug.
+  const table = new Map();
+  e.acksTable = table;
+  e.supabase = { from: () => {
+    let patch = null; const where = {};
+    const chain = {
+      upsert: async () => ({ error: { message: 'permission denied for table publication_acks' } }),
+      update(p) { patch = p; return chain; },
+      eq(c, v) { where[c] = v; return chain; },
+      async select() {
+        if (e.ackFail) return { data: null, error: { message: 'offline' } };
+        if (Object.keys(patch).some(k => !['status', 'note', 'acked_at'].includes(k))) return { data: null, error: { message: 'permission denied for table publication_acks' } };
+        const k = where.publication_id + '|' + where.client_id;
+        if (!table.has(k)) return { data: [], error: null };
+        Object.assign(table.get(k), patch); e.acks.push(Object.assign({ publication_id: where.publication_id }, patch));
+        return { data: [{ publication_id: where.publication_id }], error: null };
+      },
+      async insert(row) {
+        if (e.ackFail) return { error: { message: 'offline' } };
+        const k = row.publication_id + '|' + row.client_id;
+        if (table.has(k)) return { error: { message: 'duplicate key value' } };
+        table.set(k, Object.assign({}, row)); e.acks.push(row);
+        return { error: null };
+      },
+    };
+    return chain;
+  } };
   return e;
 }
 const COACH = 'coach-1';
@@ -259,6 +290,11 @@ async function run(source, label) {
     P.queue([pub('note_reply', { submission_id: 'w2', text: 'x' })]);
     const r = await P.drainPublications();
     check('when nothing blocks it: applied, saved, the screen re-rendered, and acked', [r, e.saves > 0, e.rendered, e.acks.map(a => a.status)], ['applied', true, ['home'], ['applied']]);
+    // The receipt changes later (a held one now applied): an UPDATE, never an upsert.
+    const rid = Object.keys(P.coachLedger())[0];
+    P.coachLedger()[rid].status = 'needs_attention'; P.coachLedger()[rid].note = 'later'; P.coachLedger()[rid].acked = false;
+    await P.sendPendingAcks();
+    check('a changed receipt updates the existing row (status/note only), never an upsert', [e.acksTable.size, [...e.acksTable.values()][0].status, P.coachLedger()[rid].acked], [1, 'needs_attention', true]);
     const e2 = envFor(eng, { ackFail: true }); const P2 = factory(e2);
     P2.queue([pub('note_reply', { submission_id: 'w3', text: 'x' })]);
     await P2.drainPublications();
@@ -281,6 +317,22 @@ async function run(source, label) {
 }
 
 const failures = await run(current, 'now');
+
+// CONTROL for the receipt fix: bdb3f58 (v8.39 as first built) sent receipts
+// with .upsert(), which the live table refused. Against this file's fake table
+// (which refuses an upsert as 0023's grants do) its receipt must stay owed.
+{
+  const bdb = execFileSync('git', ['show', 'bdb3f58:index.html'], { cwd: repo, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const factory = build(bdb);
+  const e = envFor(await engine()); const P = factory(e);
+  P.queue([pub('note_reply', { submission_id: 'ctl', text: 'x' })]);
+  const orig = console.warn; console.warn = () => {};
+  try { await P.drainPublications(); } finally { console.warn = orig; }
+  const id = Object.keys(P.coachLedger())[0];
+  const ok = P.coachLedger()[id].acked === false && e.acksTable.size === 0;
+  console.log(`${ok ? '✓' : '✗'} control: bdb3f58's .upsert() receipt is refused by the grant-accurate fake (it stays owed)`);
+  if (!ok) process.exitCode = 1;
+}
 
 const control = execFileSync('git', ['show', 'c5949c3:index.html'], { cwd: repo, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 {
