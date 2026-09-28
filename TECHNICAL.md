@@ -7959,3 +7959,74 @@ before.
   own commit, with Adam's agreement. Exactly the 7 `homeWeek` runs moved, by 4 added lines each.
   With those lines removed, each is byte-identical to the file before, and no other run changed.
   `_source.closure` 103 → 89 is extraction metadata (steps 5–6 moved functions out).
+
+## §128 — v8.36: four mirror fixes, one push at a time, and Delete my data removes coach-visible photos (PROMPT-03 Phase 4a)
+
+Carried from Phase 3 (`super-duper-octo-barnacle/docs/SUPABASE.md` → "Keys are per user"). **Ships
+with migration `0025`, which merges FIRST** (see the trap below). Nothing on screen changes.
+
+**1. `syncRowsMacrocycles()`.**
+- `use_microcycles: m.useMicrocycles !== false`. The app has always read an unset value as ON, and
+  the sync sent `!!m.useMicrocycles`, which mirrored every such cycle as OFF. (`0021` fixed the
+  column's default; this fixes what's sent.)
+- `extension_weeks` is now sent: `Math.max(0, parseInt(m.extensionWeeks, 10) || 0)`. The app only
+  ever stores an integer ≥ 1 (Extend's `parseInt`), but a restored file can hold anything, and the
+  column CHECKs ≥ 0. A refused value would fail the whole `macrocycles` insert, **after**
+  `syncTable()` has deleted the rows, and the cascade takes `exercises` and `exercise_logs` with it.
+
+**2. `syncRowsExerciseLogs()`:** `weight` and `reps` go through `syncNumOrNull()`, as
+`syncRowsExerciseHistory()` already did. A cleared box stores `''`, and `numeric` refuses it, so one
+such set failed the **entire** `exercise_logs` push on every retry: the reps-as-integer bug's shape.
+`reps` is text since `0021`, but `''` still means "nothing logged", so it's null too. `0` and text
+reps (`'60 reps'`) pass through unchanged.
+
+**3. `syncBlocCheckin()` upserts with `onConflict: 'user_id,id'`**, because `0025` keys
+`bloc_checkins` `(user_id, id)` like every other app-id table (§ "Keys are per user"). 🚨 **The trap is
+the order.** PostgREST's ON CONFLICT must name exactly the columns of a unique constraint:
+- **v8.36 before `0025`:** every check-in upsert is refused ("no unique or exclusion constraint
+  matching the ON CONFLICT specification").
+- **`0025` before v8.36:** the same, for the old `'id'`.
+
+There's no order with no gap, so **`0025` merges first and v8.36 straight after**. In the gap, and
+on any phone still running v8.35, only the check-in upsert fails. The other tables sync, the failure
+keeps `_syncDirty` set, and the first sync on v8.36 succeeds. The check-in stays on the device
+meanwhile. (Keeping a unique on `(id)` as well would have closed the gap, but it would also keep the
+cross-account collision `0025` removes, until yet another migration.)
+
+**4. Delete my data and Close my account remove the user's `client-media` files first**
+(`deleteAllClientMedia()`), right after `deleteAllSnapshots()` and before `gdpr_erase_user_data`.
+- `client-media` (`0024`) holds the check-in and cycle-review photos a coach may see, at `{uid}/…`.
+- Supabase refuses a SQL delete on `storage.objects`, so the erase function can't remove them
+  (MIGRATION-LESSONS §70). Once the rows are gone, nothing else ever would.
+- 🚨 **Storage's `list()` is not recursive.** A folder comes back as an entry with `id: null`, so a
+  flat list like `deleteAllSnapshots()`'s would miss every photo in `{uid}/checkins/<date>/`.
+  `listClientMediaPaths()` walks the folders and pages by 1000. `remove()` goes in batches of 1000.
+- BLOC doesn't upload to `client-media` yet (Phase 4's check-in form will), so today this lists an
+  empty folder and removes nothing. It's here first so no photo can ever be uploaded without a
+  delete path.
+
+**5. One push at a time: `pushStateSerialised()`** (found in this phase's UAT, pre-existing).
+- **What happened.** On a reload of the Work account, the console showed 409 "duplicate key value
+  violates unique constraint `macrocycles_pkey`" (and `exercises_pkey`), after two clean Full syncs.
+  The sign-in full sync (`maybeForceFullSyncOnSignIn`) was still running when a boot `save()`'s 4 s
+  debounced `flushSyncQueue()` started a second push. Nothing kept them apart.
+- **Why it breaks.** `syncTable()` clears the user's rows, then re-inserts them. Two pushes
+  interleave: A clears, B clears, A inserts, B's insert hits A's rows. Worse, and silent: a late
+  clear of `macrocycles` cascades away the `exercises` and `exercise_logs` the other push had just
+  written, so the mirror can sit incomplete until the next change retries. It isn't new with `0025`:
+  under the old global keys the same race hit the same constraint.
+- **The fix.** `flushSyncQueue()` and `forceFullRelationalSync()` call `pushStateSerialised()`, never
+  `pushStateToSupabase()`. A push asked for while one runs waits for it. Any number of such requests
+  share **one** follow-up push, which reads `state` when it starts, so it sends the latest. A failed
+  push still reports its error, and the queued one still runs.
+- 🚨 **Phase 4c's `client_state` upload must go through the same kind of gate**, or the same race
+  returns as a `state_rev` refusal.
+
+**Check:** `scripts/verify-sync-mapping-fixes.mjs` runs the real functions: the four mappings, a
+fake Storage that answers `list()` one level at a time (sub-folders, a 1,203-file folder, another
+user's file that must survive), and the order inside both handlers. **Control:** the same checks on
+v8.35 (`d789154`) must fail all eight targeted checks. For item 5 it runs the real
+`pushStateSerialised()` over a slow fake push (never two at once; three waiting requests make one
+follow-up; the follow-up sees the newer state; a failure doesn't block the queue), a control calling
+the push directly shows the overlap, and a source check allows no other caller. It reads that commit with `git show`, as
+`verify-version-single-source.mjs` does, which is why CI checks out full history.
