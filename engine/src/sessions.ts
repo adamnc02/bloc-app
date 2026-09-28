@@ -11,7 +11,7 @@
 //    deloads key (getDeloadUnitKey) are the contract with stored data.
 // ═══════════════════════════════════════════════════════════════════════
 
-import type { BlocState, DateStr, Loose, Macrocycle } from './state.ts';
+import type { BlocState, CoachBooking, DateStr, Loose, Macrocycle } from './state.ts';
 import { type EngineContext, toLocalDateStr } from './dates.ts';
 import {
   getDeloadUnitKey, getPrevTrackUnit, getPrevCalendarWeek, getWeekSets, parseRepsForVolume,
@@ -170,14 +170,39 @@ export function getAllMacroSessions(s: BlocState, macro: Macrocycle): MacroSessi
   return allSessions;
 }
 
+// v8.42 (§136, proposal §5.6): the live booking a session is assigned to, or
+// null. Assigning hands the session to the coach at once: the client sees it
+// read-only ("With your coach · Tue 18:00") and it's never their "next". A
+// MOVED booking keeps its session (same booking, new date); a CANCELLED one
+// releases it back to the client. With two live bookings on one session (it
+// shouldn't happen: Coach assigns once), the earliest wins.
+export function getCoachAssignment(s: BlocState, macroId: string, week: number, dayKey: string): CoachBooking | null {
+  const all = s.coachBookings;
+  if (!all || typeof all !== 'object') return null;
+  let hit: CoachBooking | null = null;
+  for (const id of Object.keys(all)) {
+    const b = all[id];
+    const a = b && b.assigned_session;
+    if (!a || b.status === 'cancelled') continue;
+    if (a.macroId !== macroId || Number(a.week) !== week || a.dayKey !== dayKey) continue;
+    const key = (x: CoachBooking) => String(x.date || '') + String(x.start_min ?? '').padStart(5, '0');
+    if (!hit || key(b) < key(hit)) hit = b;
+  }
+  return hit;
+}
+
 // Returns the next incomplete { week, dayKey } session for a macro, or null
 // if every defined session is done (or the macro has no exercises at all).
 // Deliberately does NOT fall back to the last session the way renderTrain's
 // picker does — callers like the Home preview want to know unambiguously
 // whether there's anything left to do today.
+// 🚨 v8.42 (§136): a session assigned to a coach's booking and not yet done
+// is stepped over: Home's Up next, Train's default and the agenda's Up next
+// all move on to the following unfinished one. In the ENGINE, so BLOC Coach's
+// "client's next unfinished session" (the booking picker's default) agrees.
 export function getNextIncompleteSession(s: BlocState, macro: Macrocycle): MacroSession | null {
   const allSessions = getAllMacroSessions(s, macro);
-  const next = allSessions.find(x => !x.done);
+  const next = allSessions.find(x => !x.done && !getCoachAssignment(s, macro.id, x.week, x.dayKey));
   return next || null;
 }
 
@@ -237,12 +262,16 @@ export function getTrainAgendaUnits(s: BlocState, ctx: EngineContext, macro: Mac
         if (lg && lg.done) doneSets++;
       }
     });
+    // v8.42 (§136): "With your coach · Tue 18:00" in the agenda. Only present
+    // when there is one, so every existing output (the golden file) is unchanged.
+    const b = getCoachAssignment(s, macro.id, w, dayKey);
     return {
       week: w, dayKey, label, exercises: exercises.length, sets, doneSets,
       done: sets > 0 && doneSets === sets,
       partial: doneSets > 0 && doneSets < sets,
       upNext: !!(next && next.week === w && next.dayKey === dayKey),
       viewing: viewWeek === w && viewDay === dayKey,
+      ...(b ? { withCoach: { date: b.date || null, start_min: b.start_min ?? null } } : {}),
     };
   };
   const units: Loose[] = [];

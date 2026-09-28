@@ -112,6 +112,19 @@ export interface GoalPeriod {
   [k: string]: unknown;
 }
 
+// A coach's booking with the client (§131's `booking` payload). `assigned_session`
+// hands that session to the coach from the moment it's assigned (proposal §5.6).
+export interface CoachBooking {
+  booking_id?: string;
+  date?: DateStr;
+  start_min?: number;
+  duration_min?: number;
+  status?: string; // 'cancelled' releases the session back to the client
+  location?: string;
+  assigned_session?: { macroId: string; week: number; dayKey: string } | null;
+  [k: string]: unknown;
+}
+
 export interface BlocState {
   macrocycles?: Macrocycle[];
   exercises?: Record<string, Loose[]>;
@@ -137,6 +150,9 @@ export interface BlocState {
   blocAdvice?: Loose;
   nextCycleAdvice?: Loose;
   nextCycleAdviceHistory?: Loose[];
+  // v8.39 (§131): a coach's bookings, applied from `booking` publications.
+  // v8.42 (§136): read by the engine for the in-person assignment (proposal §5.6).
+  coachBookings?: Record<string, CoachBooking>;
   mode?: string;
   currentMacroId?: string | null;
   currentWeek?: number;

@@ -86,8 +86,14 @@ run(source, null);
 console.log('\nControls — each must FAIL the suite above');
 check(run(source.replace(/\n\s*refreshOpenCheckinSheet\(\);/, '\n'), 'control') > 0,
   'removing the refresh from renderProgress() is caught');
-check(run(source.replace(/classList\.contains\('open'\)/, 'isConnected'), 'control') > 0,
-  'rebuilding the sheet whether or not it is open is caught');
+// Aimed at refreshOpenCheckinSheet() itself: the FIRST classList.contains('open')
+// in the file moved elsewhere in v8.42 (applyPublications redraws Request a
+// session), and a file-wide first match broke that line instead.
+{
+  const at = source.indexOf('function refreshOpenCheckinSheet(');
+  const broken = source.slice(0, at) + source.slice(at).replace(/classList\.contains\('open'\)/, 'isConnected');
+  check(at > 0 && run(broken, 'control') > 0, 'rebuilding the sheet whether or not it is open is caught');
+}
 
 console.log('');
 if (failures) {

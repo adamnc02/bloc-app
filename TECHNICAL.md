@@ -8637,3 +8637,190 @@ Driven in headless Chromium at 375pt with a cached link and two injected respons
 - nothing overflows (the byline, scores and labels);
 - a send while not really linked (the bypass) says "You're not linked to a coach right now.";
 - no console errors.
+
+## §136 — v8.42: Your next session, Request a session, and a session with your coach (PROMPT-03 Phase 4e-3)
+
+Proposal §4.3, §5.6 and §11 Q23. The server half is `0023`'s `booking` publication (with
+`assigned_session`) and `0024`'s `session_requests`. No migration. Wireframe reference:
+`RequestScreen.tsx` and `HomeScreen.tsx`, rebuilt as a BLOC sheet from `.toggle-row`, `.card` and the
+coach parts.
+
+### A session the coach takes in person
+
+A `booking` publication (§131, `state.coachBookings`) can carry `assigned_session {macroId, week,
+dayKey}`. 🚨 **Assigning makes the session the coach's at once** (§5.6), not once logging starts:
+
+- **`getCoachAssignment(s, macroId, week, dayKey)`**, in the **engine**, returns the live booking a
+  session is assigned to. A **moved** booking keeps its session (same booking, new date). A
+  **cancelled** one (`status 'cancelled'`) releases it. With two live bookings on one session, the
+  earliest wins.
+- 🚨 **`getNextIncompleteSession()` steps over an assigned, unfinished session**, so Home's Up next,
+  Train's default session and the agenda's Up next all move on to the following one. It's in the
+  engine, not BLOC, because Phase 5's booking picker defaults to "the client's next unfinished
+  session" by running this same function on `client_state`. Both must agree.
+- **The agenda** (`getTrainAgendaUnits`) adds `withCoach {date, start_min}` to that session's row, only
+  when there is one. So every existing output, the golden file included, is byte-identical. The row's
+  meta line reads "With your coach · Thu 1 Oct, 18:00".
+- **Train is read-only on it** (`trainViewCoachOwned()`; 4e-4 adds a coach-logged session to
+  `coachOwnedSession()`):
+  - a notice above the cards;
+  - every input disabled, and every write control marked `data-locked` (`applyTrainCoachLock()`);
+  - 🚨 **every function that writes `trainLogs` or `rpe` refuses on its first line** (15 of them,
+    including `quickFillComplete`, the card's ✓, and the effort sheet's `setRpeRating` /
+    `closeRpeSheet`). They all act on the session Train is showing, so one check covers them.
+    **The first draft guarded a hand-made list of ten and missed the ✓**, whose `onclick` is built
+    inside a template expression; Adam ticked a coach's session complete in UAT. The verify script
+    now **derives** the list from the code, with the pre-fix commit as a control, so a new writer that
+    skips the guard fails the sweep;
+  - `closeRpeSheet()` is also the sheet's dismiss handler, so on the coach's session it writes nothing
+    but still closes;
+  - no Effort ratings row (the coach rates their own session, §11 Q13);
+  - the cards still open, to see what's planned.
+
+⚠️ **A booking that passes without being logged or cancelled keeps its session** out of "next" until
+Coach does one or the other. That's Coach's to prompt (Phase 5), not BLOC's to time out.
+
+### Home → Your next session (§11 Q23)
+
+In Coached mode the hero gains a row (`homeNextSessionHTML()`), and 🚨 **the whole row is the button**:
+BLOC has no inline text buttons (Adam, UAT). It opens **Your sessions**. It shows:
+- the calendar icon **in accent**;
+- "Your next session", then the earliest live booking **from today** (`nextCoachBooking()`) in the
+  wireframe's **short form** (`coachShortWhen()`: "Wed 18:00" within the coming week, "Mon 12 Oct
+  18:00" after that, "Today 18:00"), or "None booked";
+- a chevron.
+
+Just the time, no "Weekly": Adam, *"next session is a fact, I don't need details"*. Your sessions says
+whether it repeats.
+
+### Your sessions (`modal-coach-sessions`, `data-pub-safe`)
+
+Adam, UAT: separate from Request a session, and the row's label says what it opens.
+- **The hero card**, shaped like Home's Up next card: an eyebrow, the date and time large, "60 min ·
+  Studio · with {coach} · weekly", and for an assigned session "With your coach · Pull, week 7".
+  **Request a session is a full-width button inside it** (Adam: *"the button has to be in the hero card
+  … matching the design of the up next card"*).
+- **Upcoming:** 🚨 **one card for everything**, weekly and one-off together, by next date (Adam:
+  separate Weekly and Upcoming cards were *"overkill"*). A weekly booking is **one row**: a repeat
+  icon, "Every Wed · 18:00", "Next Wed 30 Sep · 60 min · Studio", and a **Weekly** chip. A one-off row
+  is indented to line up with it. The first three show, then a tappable **Show all (n)** row (chevron).
+- Settings → Coaching → Sessions has two rows: **Your sessions** and **Request a session**.
+
+🚨 **Measured at 375pt:** the icon, the label and "Wed 30 Sep, 18:00 · weekly" don't fit on one line
+(it ran off the hero), hence the short form and the second line.
+
+**A repeating booking** is the booking payload's `kind: 'weekly'` (also read: `series`, `recurring`).
+That's the contract Coach's diary publish must meet; the allow-list has no separate recurring field.
+
+It always reads "Your next session" (wireframe `HomeScreen`). A suggested time waiting for an answer is
+the **banner's** job. It's two lines because one line wrapped, and ran off the hero at 375pt.
+
+### The coach banner on Home (`renderHomeCoachBanner()`)
+
+🚨 **On Home, above the hero, not inside the sheet** (wireframe `HomeScreen` → `BannerSlot` 'proposed').
+Adam, UAT: *"There's no use that banner being at the top of a modal where I drive the action from, the
+banner needs to call my attention when I load the app."* The first rebuild put it at the top of the
+Request sheet.
+
+- **When:** a request has a suggested time. It shows "{coach} proposed a different time", "{time}
+  instead of your choices." ("N more waiting." if several), **Review** (opens Request a session), and
+  a ✕.
+- 🚨 **Dismissing lasts until the next cold start, never longer** (Adam: *"it genuinely requires an
+  action, that can't be ignored, so it needs to have a level of persistence"*). The dismissal is held
+  in memory (`_coachBannerDismissedThisRun`), never saved. So leaving Home and coming back keeps it
+  hidden, and every fresh load (the one that plays the splash) shows it again while the suggestion is
+  unanswered. A new time on the same request is a new suggestion and shows at once. The first draft
+  saved the dismissal, so an unanswered suggestion never came back.
+- 🚨 **It's the only banner that comes back.** 4e-4's other three (plan updated, goal phases changed,
+  session confirmed) are informational: their dismissal is permanent.
+- **It updates live** with the request (the `session_requests` listener), and goes once answered.
+- 4e-4 adds the other banner kinds (plan, goal phases, a response, a booking).
+
+### Request a session (`modal-coach-request`)
+
+Also in Settings → Coaching → Sessions. The client never sees the coach's diary. 🚨 **Rebuilt to the
+wireframe** (`RequestScreen` / `SessionPrefs`) after Adam's UAT review: the first draft mixed the next
+session, requests and bookings in one list that would grow without end, and made "weekly" one easily
+missed word. Adam: *"separate my sessions and request a session into separate sheets"* (My sessions
+is its own sheet, next), and on this one *"Show all that aren't booked"*. From the top:
+
+- **No next-session card** (Adam: Your sessions, the sheet this opens from, already shows it). The
+  wireframe's `RequestScreen` had one because it was a page of its own.
+- **Each suggested time**, the eye-catching card: accent-tinted, with "{coach} proposed", an amber
+  **Needs your answer** chip, the time large, "You asked for …", a full-width **✓ Confirm Tue 19:00**
+  and **Suggest another time**. The counter opens inside the card: 🚨 **one** time or one window
+  (Adam: *"One time or window"*; `0024` keeps one `counter` slot, the wireframe offered three).
+- **Every other request that isn't booked yet**, in one list, 🚨 **one row per request: its latest
+  state and a status, never its history** (Adam, UAT: *"seeing the history of a request is not
+  valuable information at all"*; the first rebuild showed choices, counters and confirmations as
+  separate lines). `coachRequestLatest()`:
+  - the time is your counter if you countered, the time you confirmed if confirmed, otherwise your
+    first choice "+N more", then "· weekly";
+  - the chip is Waiting for {coach} (pending or countered), Confirmed, or Declined (for 14 days);
+  - 🚨 **a row still waiting on {coach}** (pending or countered) **is itself the button**: a chevron,
+    and tapping it asks "Withdraw this request? {time}. {coach} won't see it any more." in BLOC's own
+    confirm, with a red **Withdraw** (Adam's design: no inline text buttons). `0024` lets a client
+    withdraw any open request. Confirmed and declined rows aren't tappable.
+
+  A confirmed request that's been **booked leaves this sheet** (`coachRequestBooked()`: a live
+  booking at the confirmed time). It's a session now. 🚨 **Confirming doesn't make the booking**; the
+  coach's diary does, and it arrives as a `booking` publication.
+- **The form:**
+  - When suits you: **Up to 3 times | A free window**. Each time is a labelled "Choice 1–3" row
+    with a date, a time and ✕, then "+ Add another time", with "Up to 3 choices." / "That's three, the
+    most you can add." The window has Date, then Free from / Until, and "Any start time inside this
+    window works for you." (in red, "The end time needs to be after the start.");
+  - Notes for {coach};
+  - **Repeat weekly as an iOS-style switch** (`.coach-switch`, `role="switch"`; BLOC's first, where
+    on/off is otherwise a `.toggle-row` (§129); Adam asked for it);
+  - **Send request**, with the wireframe's paper-plane icon (as is Send new time), and "{coach}
+    confirms a time or suggests another."
+- **The slots** use the wireframe's format ("Wed 30 Sep · 17:30", "Thu 1 Oct · any time 17:00–20:00").
+  They're exactly what `0024`'s `session_request_slots_ok()` accepts: `{date, start_min}` or
+  `{date, start_min, end_min}`, 1–3, duplicates dropped, days from **tomorrow**.
+- **What's sent:** Send inserts **only the columns `0024` grants a client**: `client_id`, `coach_id`,
+  `preferences`, `notes`, `repeat_weekly`. **Withdraw** and **Confirm** set only `status`
+  (`withdrawn` / `accepted`); **Suggest another time** sets `counter` and `status 'countered'`. The
+  one-writer trigger refuses anything else a client tries.
+- 🚨 **Requests are server truth, never `state`** (`_coachRequests`, in memory). `refreshSessionRequests()`
+  reads the newest 20 on opening the sheet, on resume, and **live**: the publications channel also
+  listens to `session_requests` for this client.
+- 🚨 **A publication may land under this sheet** (`data-pub-safe`). §131's rule is "nothing applies
+  while a sheet is open", because an edit sheet's stale save would overwrite it. This sheet never saves
+  `state`, so `publicationsMustWait()` skips it and `applyPublications()` redraws it. It's the only
+  sheet marked; anything that saves `state` must never be.
+
+### Two Settings details, from the same UAT
+
+- **Settings → Coaching's hero ends with the wireframe's footer**: a divider, then "Linked since" on the
+  left and the date on the right (`.coach-since`). The first build had it as a small grey line that
+  read as missing. It's in Coaching only (Adam, UAT); the Settings hero's sub-line adds "Coached by
+  {coach}", as the wireframe's does.
+- **Home → View body logs opens the sheet over Home.** It used to `showScreen('settings')` first, so
+  closing it left you in Settings (Adam: mirror the photo-consent shortcut, which closes back where it
+  opened). `saveBodyLog()` and `deleteBodyLog()` now also redraw Home when it's showing
+  (`redrawHomeIfShowing()`), because Home's weigh-in box and hero read those logs.
+
+**A weekly booking rolls forward** (`coachBookingNextDate()`): it's one booking dated its first
+occurrence, so "next" is the first weekly repeat on or after today. 🚨 Without it, a weekly session
+vanished from Your next session once its first date had passed.
+
+**Check:** `scripts/verify-coached-sessions.mjs` covers:
+- the engine: the skip, "exactly the next after", cancel, move, the earliest of two, the agenda's
+  `withCoach` and Up next, and no `withCoach` without bookings;
+- all ten Train handlers refusing, and the notice and lock;
+- Home's next booking (past and cancelled ignored), the proposed state and "None booked";
+- the slot rules;
+- the insert's columns, withdraw, confirm and the one-slot counter;
+- the Realtime listener.
+
+**Control:** v8.41 (`c67d610`) fails 14. `engine-cases.mjs` has `getCoachAssignment` cases;
+`verify-engine-leaves` stubs the Train hooks as Solo.
+
+Driven in Chromium at 375pt with a booking assigned to the next session:
+- Home's Up next moved from Pull to Legs, and the row shows "Your next session · Thu 10 Sep, 18:00";
+- Train on Pull showed the notice, with 0 editable inputs, and a direct `toggleSetDone()` changed
+  nothing;
+- the agenda shows "Pull · With your coach · …" and "Legs · … · Up next";
+- the request sheet renders;
+- nothing overflows, and there are no console errors.

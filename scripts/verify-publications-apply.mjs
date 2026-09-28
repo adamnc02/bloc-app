@@ -98,8 +98,11 @@ async function engine() {
 
 function doc(opts = {}) {
   return {
+    getElementById: () => null, // v8.42: the request sheet's redraw looks it up
     querySelector(sel) {
       if (sel === '.modal-overlay.open') return opts.sheetOpen ? {} : null;
+      // v8.42 (§136): a data-pub-safe sheet (Request a session) doesn't block.
+      if (sel === '.modal-overlay.open:not([data-pub-safe])') return opts.sheetOpen && !opts.safeSheet ? {} : null;
       if (sel === '.screen.active') return { id: 'screen-home' };
       return null;
     },
@@ -284,6 +287,13 @@ async function run(source, label) {
     P.queue([pub('note_reply', { submission_id: 'w1', text: 'x' })]);
     const r = await P.drainPublications();
     check(`I7: nothing applies while ${why}`, [/^waiting:/.test(r), P.pending(), !!(P.state.coachNoteReplies && P.state.coachNoteReplies.w1)], [true, 1, false]);
+  }
+  {
+    // v8.42 (§136): Request a session is data-pub-safe (it never saves state).
+    const e = envFor(eng, { sheetOpen: true, safeSheet: true }); const P = factory(e);
+    P.queue([pub('note_reply', { submission_id: 'w3', text: 'x' })]);
+    const r = await P.drainPublications();
+    check('v8.42: a data-pub-safe sheet (Request a session) does not hold it back', [r, !!(P.state.coachNoteReplies && P.state.coachNoteReplies.w3)], ['applied', true]);
   }
   {
     const e = envFor(eng); const P = factory(e);

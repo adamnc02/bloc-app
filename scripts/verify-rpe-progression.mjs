@@ -104,6 +104,7 @@ function build(src, withRpe) {
     const renderRpeSheet = () => {};
     const refreshTrainRpeRowSub = (macroId, week, dayKey) => { calls.rowRefresh = (calls.rowRefresh || 0) + 1; };
     const openRpeSheet = (macroId, week, dayKey) => { rpeSheetCtx = { macroId, week, dayKey }; openModal('modal-rpe'); };
+    const trainViewCoachOwned = () => false; // v8.42 (§136): Solo here; verify-coached-sessions.mjs covers the coach's session
     ${fns.join('\n')}
     return {
       setState: s => { state = s; rpeSheetCtx = null; calls.openModal = []; calls.closeModal = []; calls.save = 0; },

@@ -3641,6 +3641,11 @@ html.auth-likely-signed-in #auth-gate { display: none; }
   font-size: 13.5px; line-height: 1.45; margin-bottom: 14px; }
 .coach-notice b { display: block; margin-bottom: 2px; }
 .coach-hero { display: flex; gap: 14px; align-items: center; }
+/* v8.42: the wireframe CoachingScreen hero's footer: a divider, then "Linked since … date". */
+.coach-since { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-top: 18px; padding-top: 14px;
+  border-top: 1px solid var(--divider); font-size: 13.5px; }
+.coach-since span { color: var(--text2); }
+.coach-since b { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .coach-avatar { width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
   background: var(--accent); color: var(--on-accent); font-family: var(--font-display); font-weight: 600; font-size: 18px; }
 .coach-name { font-family: var(--font-display); font-size: 19px; font-weight: 600; }
@@ -3651,6 +3656,75 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .coach-facts li b { display: block; font-weight: 700; }
 .coach-facts li span { color: var(--text2); font-size: 13px; font-weight: 500; }
 .coach-section-title { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--text2); margin: 20px 0 8px; }
+
+/* v8.42 (§136): Your next session (Home), Request a session, a session with the coach (Train). */
+.home-next-session { display: block; width: 100%; text-align: left; background: none; border: 0; border-top: 1px solid var(--divider); border-radius: 0;
+  margin-top: 14px; padding: 12px 0 0; font: inherit; font-size: 13.5px; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.home-next-session .row1 { display: flex; align-items: center; gap: 10px; }
+.home-next-session .row1 .row-btn-chevron { margin-left: -4px; }
+.home-next-session .lbl { color: var(--text2); white-space: nowrap; display: inline-flex; align-items: center; gap: 8px; }
+.home-next-session .lbl svg { width: 18px; height: 18px; fill: none; stroke: var(--accent2); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.coach-req.is-done .coach-req-line { color: var(--text2); }
+.home-next-session b { margin-left: auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.home-next-session .row2 { display: block; margin: 4px 0 0 26px; }
+.home-next-session .row2 .sub { color: var(--text3); font-size: 12.5px; }
+.coach-rep-ico { width: 20px; flex-shrink: 0; }
+.coach-rep-ico svg { width: 20px; height: 20px; fill: none; stroke: var(--accent2); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; display: block; }
+button.coach-reqrow.is-tap, .coach-reqrow.is-tap { width: 100%; text-align: left; background: none; border: 0; border-radius: 0; font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button.coach-reqrow.is-tap + .coach-reqrow, .coach-reqrow + button.coach-reqrow.is-tap { border-top: 1px solid var(--divider); }
+.coach-req { padding: 12px 0; }
+.coach-req + .coach-req { border-top: 1px solid var(--divider); }
+.coach-req-line { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.coach-req-sub { font-size: 12.5px; color: var(--text2); margin-top: 3px; line-height: 1.4; }
+.coach-req-actions { display: flex; gap: 8px; margin-top: 10px; }
+.coach-req-actions .btn { flex: 1; }
+.coach-slot { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 36px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.coach-slot.window { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.coach-slot input { width: 100%; box-sizing: border-box; min-width: 0; }
+.coach-slot-x { height: 36px; border-radius: 50%; border: 1px solid var(--border2); background: var(--surface2); color: var(--text2); cursor: pointer; }
+.train-coach-notice { margin-bottom: 14px; }
+#train-session.train-locked [data-locked] { pointer-events: none; opacity: .45; }
+
+/* v8.42 (§136): Request a session, rebuilt to the wireframe (RequestScreen / SessionPrefs). */
+.coach-hero-card { margin-bottom: 14px; }
+.coach-hero-card.is-proposed { border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+.coach-hero-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.coach-eyebrow { font-size: 11.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent2); }
+.coach-eyebrow.is-muted { color: var(--text3); }
+.coach-display { font-family: var(--font-display); font-size: 26px; font-weight: 600; letter-spacing: -0.015em; margin-top: 10px; font-variant-numeric: tabular-nums; }
+.coach-hero-sub { font-size: 13.5px; color: var(--text2); margin-top: 6px; line-height: 1.4; }
+.coach-banner { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border-radius: 14px; margin-bottom: 14px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  font-size: 13px; line-height: 1.45; color: var(--text2); }
+.coach-banner b { display: block; color: var(--accent2); font-size: 14px; margin-bottom: 3px; }
+.coach-banner-home { margin: 18px 0 0; }
+.coach-banner-x { flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--surface2); color: var(--text2); cursor: pointer; font-size: 14px; }
+.coach-banner-ico svg { width: 20px; height: 20px; fill: none; stroke: var(--accent2); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.coach-reqlist { padding-top: 4px; padding-bottom: 4px; }
+.coach-reqrow { display: flex; align-items: center; gap: 10px; padding: 12px 0; }
+.coach-reqrow + .coach-reqrow { border-top: 1px solid var(--divider); }
+.coach-reqrow-main { flex: 1; min-width: 0; }
+.coach-reqrow-when { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.coach-reqrow .chip { flex-shrink: 0; }
+.coach-field-label { font-size: 12px; font-weight: 700; color: var(--text2); margin: 14px 0 6px; }
+.coach-inrow { display: flex; gap: 8px; align-items: center; }
+.coach-inrow input { flex: 1 1 auto; min-width: 0; box-sizing: border-box; }
+.coach-inrow input.coach-time { flex: 0 0 112px; }
+.coach-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.coach-two input { width: 100%; box-sizing: border-box; }
+.coach-counter { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--divider); }
+.coach-switch-row { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--divider); }
+.coach-switch-row > div { flex: 1; min-width: 0; }
+.coach-switch-row b { display: block; font-size: 14.5px; }
+.coach-switch-row small { display: block; font-size: 12.5px; color: var(--text2); margin-top: 3px; }
+/* An iOS-style switch (the wireframe's Switch): BLOC's first. On/off is a
+   .toggle-row everywhere else (§129); Adam asked for this one (v8.42 UAT). */
+.coach-switch { position: relative; width: 50px; height: 30px; border-radius: 15px; background: var(--surface3); border: 0; cursor: pointer; flex-shrink: 0; padding: 0; }
+.coach-switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: var(--text); transition: transform .2s; }
+.coach-switch[aria-checked="true"] { background: var(--accent); }
+.coach-switch[aria-checked="true"]::after { transform: translateX(20px); background: var(--on-accent); }
+@media (prefers-reduced-motion: reduce) { .coach-switch::after { transition: none; } }
 
 /* v8.41 (§135): Progress → From your coach, and its three sheets. */
 .coach-byline { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
@@ -4334,6 +4408,7 @@ try {
            there is no separate banner element any more.
            `home-body-logs-btn` moved out of the header and into section 02. -->
       <div id="home-header"></div>
+      <div id="home-coach-banner"></div><!-- v8.42 (§136): the coach banner, above the hero (wireframe HomeScreen) -->
       <div id="home-hero-wrap"><div id="home-hero-card"></div></div>
       <div id="home-this-week"></div>
       <div id="home-log-boxes"></div>
@@ -5067,6 +5142,24 @@ try {
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-coach-sessions" data-pub-safe>
+  <div class="modal-sheet" data-modal="modal-coach-sessions" style="max-height:92dvh;display:flex;flex-direction:column;">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-coach-sessions')">✕</button>
+    </div>
+    <div class="modal-title" style="flex-shrink:0;">Your sessions</div>
+    <div id="coach-sessions-body" style="overflow-y:auto;flex:1;"></div>
+  </div>
+</div>
+<div class="modal-overlay" id="modal-coach-request" data-pub-safe>
+  <div class="modal-sheet" data-modal="modal-coach-request" style="max-height:92dvh;display:flex;flex-direction:column;">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-coach-request')">✕</button>
+    </div>
+    <div class="modal-title" style="flex-shrink:0;">Request a session</div>
+    <div id="coach-request-body" style="overflow-y:auto;flex:1;"></div>
+  </div>
+</div>
 <div class="modal-overlay" id="modal-coach-review-photos">
   <div class="modal-sheet" data-modal="modal-coach-review-photos" style="max-height:92dvh;display:flex;flex-direction:column;">
     <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div>
@@ -6643,7 +6736,7 @@ try {
      same-named shims. ?v= is the first 12 hex of the file's SHA-256, so a phone never pairs a
      new index.html with an older engine from its HTTP cache; scripts/verify-engine-build.mjs
      fails if it is stale. Listed in scripts/publish-files.txt. -->
-<script src="engine/dist/bloc-engine.js?v=f5987f732d20"></script>
+<script src="engine/dist/bloc-engine.js?v=cf76137cd850"></script>
 <script>
 // ════════════════════════════════════════════════
 // DATE HELPERS
@@ -9610,6 +9703,7 @@ function maybeRefreshCoachLink() {
     .then(() => {
       requestClientStateUpload('resume'); // v8.38 (§130): after the link is known
       requestPublicationPull('resume');   // v8.39 (§131)
+      refreshSessionRequests().catch(() => {}); // v8.42 (§136)
       syncPublicationChannel();
     })
     .catch(err => console.warn('[coaching] could not check the coach link:', err && err.message));
@@ -9927,7 +10021,8 @@ function renderSettingsCoaching() {
         <span class="coach-avatar" aria-hidden="true">${coachEsc(coachInitials(l.coachName))}</span>
         <div style="flex:1;min-width:0;"><div class="coach-name">${coachEsc(l.coachName)}</div>${l.businessName ? `<div class="coach-biz">${coachEsc(l.businessName)}</div>` : ''}</div>
         <span class="chip" style="--chip-c:var(--green-text);">Linked</span>
-      </div>${since ? `<div class="modal-sub" style="margin:12px 0 0;">Linked since ${coachEsc(since)}</div>` : ''}</div>
+      </div>
+      <div class="coach-since"><span>Linked since</span><b>${coachEsc(since || '—')}</b></div></div>
     <div class="coach-section-title">What ${coachEsc(l.coachName)} sees</div>
     <div class="card"><ul class="coach-facts">${COACH_SHARED.map(([t, s]) => `<li><b>${t}</b><span>${s}</span></li>`).join('')}</ul></div>
     <div class="coach-section-title">Progress photos</div>
@@ -9937,6 +10032,17 @@ function renderSettingsCoaching() {
     <div class="toggle-row" id="settings-coaching-photos" role="group" aria-label="Share progress photos with your coach">
       <button class="toggle-btn${l.photoConsent ? '' : ' active'}" aria-pressed="${!l.photoConsent}" onclick="setCoachPhotoConsent(false)">Off</button>
       <button class="toggle-btn${l.photoConsent ? ' active' : ''}" aria-pressed="${l.photoConsent}" onclick="setCoachPhotoConsent(true)">On</button>
+    </div>
+    <div class="coach-section-title">Sessions</div>
+    <div class="card">
+      <div class="settings-row settings-row-nav" onclick="closeModal('modal-settings-coaching');openCoachSessions()">
+        <div class="settings-row-icon">${COACH_ICO_CALENDAR}</div>
+        <div class="settings-row-text">Your sessions<div class="settings-row-sub">What ${coachEsc(l.coachName)} has booked with you.</div></div>
+      </div>
+      <div class="settings-row settings-row-nav" onclick="closeModal('modal-settings-coaching');openCoachRequest()">
+        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></div>
+        <div class="settings-row-text">Request a session<div class="settings-row-sub">Pick the times; ${coachEsc(l.coachName)} confirms one.</div></div>
+      </div>
     </div>
     <div class="coach-section-title">Unlink</div>
     <div class="modal-sub" style="margin:0 0 8px;">Stop coaching and go back to Solo.</div>
@@ -10194,7 +10300,10 @@ function publicationCursor() {
 // ── Can it apply now? ──────────────────────────────────────────────────────
 function publicationsMustWait() {
   if (_tourAnchorDate || demoTourIsRunning()) return 'tour';
-  if (document.querySelector('.modal-overlay.open')) return 'sheet-open';
+  // v8.42 (§136): a sheet marked data-pub-safe never saves `state` (Request a
+  // session writes only to the server), so a publication may land under it.
+  // Adam, UAT: a booking for his confirmed time waited until the sheet closed.
+  if (document.querySelector('.modal-overlay.open:not([data-pub-safe])')) return 'sheet-open';
   const a = document.activeElement;
   if (a && a.closest && a.closest('#screen-train') && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return 'train-input';
   if (typeof _goalQueue !== 'undefined' && _goalQueue) return 'goal-queue';
@@ -10419,6 +10528,11 @@ function drainPublications() {
   if (changed) {
     const active = document.querySelector('.screen.active');
     if (active && active.id) showScreen(active.id.replace(/^screen-/, ''));
+    // v8.42 (§136): the one sheet a publication may land under redraws too.
+    const req = document.getElementById('modal-coach-request');
+    if (req && req.classList.contains('open') && typeof renderCoachRequest === 'function') renderCoachRequest();
+    const ses = document.getElementById('modal-coach-sessions');
+    if (ses && ses.classList.contains('open') && typeof renderCoachSessions === 'function') renderCoachSessions();
   }
   return sendPendingAcks().then(() => 'applied');
 }
@@ -10491,6 +10605,9 @@ function syncPublicationChannel() {
     _pubChannel = supabase.channel('bloc-publications-' + card)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'publications', filter: 'client_record_id=eq.' + card },
         () => requestPublicationPull('realtime'))
+      // v8.42 (§136): the coach proposing, accepting or declining a request.
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'session_requests', filter: 'client_id=eq.' + _authResolvedSession.user.id },
+        () => refreshSessionRequests().catch(() => {}))
       .subscribe();
   } catch (err) {
     console.warn('[publications] realtime not started:', err && err.message);
@@ -15093,6 +15210,490 @@ async function sendCoachReviewPhotos() {
     f.busy = false;
     f.error = coachEsc('Couldn’t send them: ' + ((err && err.message) || 'check your connection and try again.'));
     renderCoachReviewPhotos();
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// YOUR NEXT SESSION, REQUEST A SESSION, A SESSION WITH YOUR COACH
+// (v8.42, PROMPT-03 Phase 4e-3, TECHNICAL §136)
+// ════════════════════════════════════════════════════════════════════════
+// Proposal §4.3 and §5.6, §11 Q23. Bookings arrive as `booking` publications
+// (state.coachBookings, §131). A booking can carry `assigned_session`
+// {macroId, week, dayKey}: from that moment the session is the coach's. The
+// client sees it read-only ("With your coach · Tue 29 Sep, 18:00"), and the
+// engine's getNextIncompleteSession() steps over it (so Home's Up next, Train's
+// default and the agenda's Up next move on). A cancelled booking hands it back.
+//
+// Requests are `session_requests` rows (0024), SERVER truth, never `state`:
+// the client writes the details once, then may only withdraw, accept the
+// coach's proposed time, or counter with one slot (a trigger enforces it).
+// The client never sees the coach's diary.
+function coachMinToHHMM(m) { const n = Math.max(0, Math.round(+m || 0)); return String(Math.floor(n / 60)).padStart(2, '0') + ':' + String(n % 60).padStart(2, '0'); }
+function coachHHMMToMin(t) { const m = /^(\d{1,2}):(\d{2})/.exec(String(t || '')); return m ? (+m[1]) * 60 + (+m[2]) : null; }
+function coachDateTimeFmt(date, startMin) {
+  const d = coachDayFmt(date);
+  return startMin != null ? `${d}, ${coachMinToHHMM(startMin)}` : d;
+}
+// Home's short form (the wireframe's "Tue 18:00"): day and time within the
+// coming week, day and date after that.
+function coachShortWhen(date, startMin) {
+  if (!date) return '';
+  const d = new Date(date + 'T00:00:00');
+  const days = Math.round((d - new Date(getLocalToday() + 'T00:00:00')) / 86400000);
+  const day = d.toLocaleDateString('en-GB', days >= 0 && days < 7 ? { weekday: 'short' } : { weekday: 'short', day: 'numeric', month: 'short' });
+  return (days === 0 ? 'Today' : day) + (startMin != null ? ' ' + coachMinToHHMM(startMin) : '');
+}
+function coachSessionWhen(b) { return `With your coach · ${coachDateTimeFmt(b && b.date, b && b.start_min)}`; }
+// A repeating booking (§136 contract: the booking payload's `kind` is 'weekly').
+function coachBookingWeekly(b) { return !!b && ['weekly', 'series', 'recurring'].includes(String(b.kind || '').toLowerCase()); }
+// The wireframe's calendar icon (HomeScreen's "Your next session").
+const COACH_ICO_CLOCK = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+const COACH_ICO_CALENDAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 9.5h18M8 2.5v4M16 2.5v4"/></svg>';
+
+// ── The coach's session, read-only in Train ───────────────────────────────
+// 4e-4 adds a coach-LOGGED session to the same question.
+function coachOwnedSession(macroId, week, dayKey) {
+  const b = getCoachAssignment(macroId, week, dayKey);
+  return b ? { kind: 'assigned', booking: b } : null;
+}
+function trainViewCoachOwned() {
+  return !!(state.currentMacroId && coachOwnedSession(state.currentMacroId, state.currentWeek, state.currentDay));
+}
+function trainCoachNoticeHTML(macro) {
+  const own = macro && coachOwnedSession(macro.id, state.currentWeek, state.currentDay);
+  if (!own) return '';
+  return `<div class="coach-notice train-coach-notice"><b>${coachEsc(coachSessionWhen(own.booking))}</b>${coachEsc(coachFirstName())} logs this session with you in person, so it’s read-only here. It fills in once it’s logged.</div>`;
+}
+// Every control that writes a log is inert (the handlers refuse too); the
+// cards still open, so the client can see what's planned.
+function applyTrainCoachLock() {
+  const el = document.getElementById('train-session');
+  if (!el) return;
+  const locked = trainViewCoachOwned();
+  el.classList.toggle('train-locked', locked);
+  if (!locked) return;
+  el.querySelectorAll('input, textarea, select').forEach(i => { i.disabled = true; });
+  el.querySelectorAll('[onclick*="toggleSetDone"], [onclick*="toggleCardioSetDone"], [onclick*="selectProgType"], [onclick*="fillSuggested"], [onclick*="clearExerciseLogs"], [onclick*="quickFill"], [onclick*="fillCardio"], .ex-auto-btn')
+    .forEach(b => { b.setAttribute('data-locked', ''); b.setAttribute('aria-disabled', 'true'); });
+}
+
+// ── Home: Your next session (§4.3, §11 Q23) ───────────────────────────────
+// The date a booking next happens on or after `today`: its own date, or for a
+// weekly booking (one booking dated its first occurrence, §136 contract) the
+// first weekly repeat from today. 🚨 Without the roll-forward a weekly session
+// vanished from "Your next session" once its first date had passed.
+function coachBookingNextDate(b, today) {
+  if (!b || !b.date) return null;
+  if (b.date >= today || !coachBookingWeekly(b)) return b.date >= today ? b.date : null;
+  const d = new Date(b.date + 'T00:00:00');
+  const days = Math.round((new Date(today + 'T00:00:00') - d) / 86400000);
+  d.setDate(d.getDate() + Math.ceil(days / 7) * 7);
+  return toLocalDateStr(d);
+}
+function nextCoachBooking() {
+  const today = getLocalToday();
+  let best = null;
+  for (const b of Object.values(state.coachBookings || {})) {
+    if (!b || b.status === 'cancelled') continue;
+    const date = coachBookingNextDate(b, today);
+    if (!date) continue;
+    const k = date + String(b.start_min ?? '').padStart(5, '0');
+    if (!best || k < best.k) best = { k, b: date === b.date ? b : Object.assign({}, b, { date }) };
+  }
+  return best ? best.b : null;
+}
+function homeNextSessionHTML() {
+  // Always "Your next session" (wireframe HomeScreen): a suggested time waiting
+  // for an answer is the banner's job, above the hero (renderHomeCoachBanner).
+  // 🚨 The WHOLE row is the button (Adam, UAT: BLOC has no inline text
+  // buttons): accent calendar icon, chevron, and it opens Your sessions.
+  // Measured at 375pt: the time is the wireframe's short form, and "Weekly"
+  // sits on a second line, or it runs off the hero.
+  const b = nextCoachBooking();
+  return `<button class="home-next-session" id="home-next-session" onclick="openCoachSessions()" aria-label="Your sessions">
+      <span class="row1"><span class="lbl">${COACH_ICO_CALENDAR}Your next session</span>
+      ${b ? `<b>${coachEsc(coachShortWhen(b.date, b.start_min))}</b>` : '<b style="color:var(--text3);font-weight:500;">None booked</b>'}
+      <span class="row-btn-chevron">${icoChevron(18)}</span></span>
+    </button>`; // v8.42: the time only; whether it repeats is in Your sessions (Adam, UAT)
+}
+
+// ── Request a session ─────────────────────────────────────────────────────
+let _coachRequests = null;   // the client's requests, newest first (server truth); null = not fetched
+let _coachReqForm = null;    // the new-request form
+let _coachCounterFor = null; // {id, mode, date, time, from, to} while suggesting another time
+const COACH_REQ_OPEN = ['pending', 'proposed', 'countered'];
+// Answered requests stay visible for a fortnight (Adam, v8.42 UAT: a confirmed
+// time vanished from the sheet, and nothing showed it until the coach's booking
+// arrived). Confirming doesn't make the booking: the coach adds it to their diary,
+// and it arrives as a `booking` publication (then it's "Your next session").
+const COACH_REQ_RECENT_DAYS = 14;
+
+async function refreshSessionRequests() {
+  if (!coachingAvailable() || !isCoachedMode()) { _coachRequests = []; return _coachRequests; }
+  const { data, error } = await supabase.from('session_requests')
+    .select('id, status, preferences, notes, repeat_weekly, proposed, counter, created_at, updated_at')
+    .eq('client_id', _authResolvedSession.user.id).order('created_at', { ascending: false }).limit(20);
+  if (error) throw error;
+  _coachRequests = data || [];
+  const sheet = document.getElementById('modal-coach-request');
+  if (sheet && sheet.classList.contains('open')) renderCoachRequest();
+  const home = document.getElementById('screen-home');
+  if (home && home.classList.contains('active')) { renderHomeCoachBanner(); renderHomeHero(); }
+  return _coachRequests;
+}
+function coachTomorrow() { const d = new Date(getLocalToday() + 'T00:00:00'); d.setDate(d.getDate() + 1); return toLocalDateStr(d); }
+// The wireframe's prefLines: "Wed 30 Sep · 17:30" / "Thu 1 Oct · any time 17:00–20:00".
+function coachSlotLine(p) {
+  if (!p) return '';
+  return p.end_min != null
+    ? `${coachDayFmt(p.date)} · any time ${coachMinToHHMM(p.start_min)}–${coachMinToHHMM(p.end_min)}`
+    : `${coachDayFmt(p.date)} · ${coachMinToHHMM(p.start_min)}`;
+}
+function openCoachRequest() {
+  const t = coachTomorrow();
+  _coachReqForm = { mode: 'times', times: [{ date: t, time: '18:00' }], window: { date: t, from: '17:00', to: '20:00' }, notes: '', repeat: false, busy: false, error: null };
+  _coachCounterFor = null;
+  renderCoachRequest();
+  openModal('modal-coach-request');
+  refreshSessionRequests().catch(err => { if (_coachReqForm) { _coachReqForm.error = 'Couldn’t load your requests: ' + ((err && err.message) || 'try again'); renderCoachRequest(); } });
+}
+// ── Request a session: the sheet, rebuilt to the wireframe (RequestScreen /
+// SessionPrefs) after Adam's UAT review. From the top:
+//   · a banner when the coach has suggested a time (the wireframe's
+//     CoachBanner 'proposed');
+//   · Your next session, a card of its own;
+//   · each suggested time, the eye-catching card: "{coach} proposed", an amber
+//     "Needs your answer" chip, the time large, what you asked for, Confirm
+//     {day time} and Suggest another time (ONE time or window: 0024 keeps one
+//     counter; Adam: "One time or window");
+//   · every other request that isn't booked yet (Adam: "Show all that aren't
+//     booked"): waiting, countered, confirmed-not-yet-booked, recently declined;
+//   · the form: When suits you (Up to 3 times | A free window), Notes, and the
+//     iOS-style Repeat weekly switch.
+// Booked requests leave this sheet (they're sessions now: My sessions).
+function coachWaitingChip(r, first) {
+  if (r.status === 'countered') return `<span class="chip" style="--chip-c:var(--accent2);">Waiting for ${first}</span>`;
+  if (r.status === 'accepted') return `<span class="chip" style="--chip-c:var(--green-text);">Confirmed</span>`;
+  if (r.status === 'declined') return `<span class="chip" style="--chip-c:var(--red);">Declined</span>`;
+  return `<span class="chip" style="--chip-c:var(--accent2);">Waiting for ${first}</span>`;
+}
+// ── Your sessions (v8.42, §136) ───────────────────────────────────────────
+// Adam, UAT: separate from Request a session; opened by Home's "Your next
+// session" row (the whole row is the button: accent calendar icon, chevron;
+// BLOC has no inline text buttons). From the top:
+//   · the next session as the hero card, shaped like Home's Up next card, with
+//     "Request a session" INSIDE it (Adam: "the button has to be in the hero
+//     card … matching the design of the up next card");
+//   · Weekly: each repeating booking once, "↻ Every Wed · 18:00" + a Weekly chip,
+//     its next date beneath (Adam: weekly was one missable word);
+//   · Upcoming: one-offs by date, the first three, then a Show all row.
+const COACH_ICO_REPEAT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></svg>';
+const COACH_ICO_SEND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>';
+const COACH_UPCOMING_SHOWN = 3;
+let _coachSessionsAll = false;
+function coachAssignedLabel(b) {
+  const a = b && b.assigned_session;
+  if (!a) return '';
+  const m = (state.macrocycles || []).find(x => x.id === a.macroId);
+  const base = String(a.dayKey || '').replace(/m[12]$/, '');
+  const name = (m && m.dayLabels && m.dayLabels[base]) || base;
+  return `With your coach · ${name}, week ${a.week}`;
+}
+function openCoachSessions() {
+  _coachSessionsAll = false;
+  renderCoachSessions();
+  openModal('modal-coach-sessions');
+}
+function renderCoachSessions() {
+  const el = document.getElementById('coach-sessions-body');
+  if (!el) return;
+  const today = getLocalToday();
+  const first = coachEsc(coachFirstName());
+  const next = nextCoachBooking();
+  const live = Object.values(state.coachBookings || {}).filter(b => b && b.status !== 'cancelled' && b.date);
+  const weekly = live.filter(coachBookingWeekly).map(b => Object.assign({}, b, { next: coachBookingNextDate(b, today) }))
+    .filter(b => b.next).sort((x, y) => (x.next + x.start_min).localeCompare(y.next + y.start_min));
+  const oneOffs = live.filter(b => !coachBookingWeekly(b) && b.date >= today && !(next && next.booking_id === b.booking_id))
+    .sort((x, y) => (x.date + String(x.start_min).padStart(5, '0')).localeCompare(y.date + String(y.start_min).padStart(5, '0')));
+  const bits = b => [b.duration_min ? `${b.duration_min} min` : '', b.location ? coachEsc(b.location) : ''].filter(Boolean).join(' · ');
+  const hero = `<div class="card coach-hero-card">
+      <div class="up-next-eyebrow">Your next session</div>
+      ${next ? `<div class="coach-display" style="margin-top:6px;">${coachEsc(coachSlotLine({ date: next.date, start_min: next.start_min }))}</div>
+        <div class="coach-hero-sub">${[bits(next), `with ${coachEsc(coachName())}`, coachBookingWeekly(next) ? 'weekly' : ''].filter(Boolean).join(' · ')}</div>
+        ${next.assigned_session ? `<div class="coach-hero-sub">${coachEsc(coachAssignedLabel(next))}</div>` : ''}`
+        : `<div class="coach-hero-sub" style="margin-top:6px;">Nothing booked with ${first} yet.</div>`}
+      <button class="btn btn-accent btn-block" style="margin-top:16px;" onclick="closeModal('modal-coach-sessions');openCoachRequest()">${icoPlus(16)} Request a session</button>
+    </div>`;
+  // One card for everything upcoming, weekly and one-off together, by next date
+  // (Adam, UAT: separate Weekly and Upcoming cards were overkill; the repeat
+  // icon and the Weekly chip tell them apart). A weekly booking is one row.
+  const rows = weekly.map(b => ({ b, when: b.next, weekly: true }))
+    .concat(oneOffs.map(b => ({ b, when: b.date, weekly: false })))
+    .sort((x, y) => (x.when + String(x.b.start_min).padStart(5, '0')).localeCompare(y.when + String(y.b.start_min).padStart(5, '0')));
+  const shown = _coachSessionsAll ? rows : rows.slice(0, COACH_UPCOMING_SHOWN);
+  const rowHTML = ({ b, weekly: w }) => {
+    if (w) {
+      const day = new Date(b.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short' });
+      return `<div class="coach-reqrow"><span class="coach-rep-ico">${COACH_ICO_REPEAT}</span>
+        <div class="coach-reqrow-main"><div class="coach-reqrow-when">Every ${day} · ${coachMinToHHMM(b.start_min)}</div>
+          <div class="coach-req-sub" style="margin-top:2px;">Next ${coachEsc(coachDayFmt(b.next))}${bits(b) ? ' · ' + bits(b) : ''}</div></div>
+        <span class="chip" style="--chip-c:var(--accent2);">Weekly</span></div>`;
+    }
+    return `<div class="coach-reqrow"><span class="coach-rep-ico" aria-hidden="true"></span><div class="coach-reqrow-main"><div class="coach-reqrow-when">${coachEsc(coachSlotLine({ date: b.date, start_min: b.start_min }))}</div>
+        <div class="coach-req-sub" style="margin-top:2px;">${[bits(b), coachEsc(coachAssignedLabel(b))].filter(Boolean).join(' · ') || `with ${coachEsc(coachName())}`}</div></div></div>`;
+  };
+  const upcomingHTML = rows.length ? `<div class="coach-section-title">Upcoming</div><div class="card coach-reqlist">${shown.map(rowHTML).join('')}
+      ${rows.length > COACH_UPCOMING_SHOWN ? `<button class="coach-reqrow is-tap" onclick="_coachSessionsAll=!_coachSessionsAll;renderCoachSessions()">
+        <div class="coach-reqrow-main"><div class="coach-reqrow-when" style="color:var(--accent2);">${_coachSessionsAll ? 'Show fewer' : `Show all (${rows.length})`}</div></div>
+        <span class="row-btn-chevron">${_coachSessionsAll ? icoSvg('<path d="m6 15 6-6 6 6"/>', 20) : icoChevDown(20)}</span></button>` : ''}
+    </div>` : '';
+  el.innerHTML = hero + upcomingHTML
+    + `<div class="coach-caption">Sessions ${first} books appear here. To change one, ask ${first}.</div>`;
+}
+
+// ── The coach banner on Home (wireframe HomeScreen BannerSlot 'proposed') ──
+// 🚨 On HOME, above the hero, not in the sheet (Adam, v8.42 UAT: "the banner
+// needs to call my attention when I load the app"; the first rebuild put it at
+// the top of the Request sheet, where the action already is). Dismissible;
+// "Review" opens Request a session.
+// 🚨 A dismissal lasts until the next COLD START, never longer (Adam, v8.42
+// UAT: "it genuinely requires an action, that can't be ignored, so it needs
+// to have a level of persistence"). It's held in memory, so switching tabs
+// and coming back to Home keeps it hidden, and every fresh load (the one that
+// plays the splash) shows it again while the suggestion is unanswered. A new
+// time on the same request is a new suggestion and shows at once. This is the
+// ONLY banner that comes back: 4e-4's plan / goal phases / session confirmed
+// banners are informational, and their dismissal is permanent.
+const _coachBannerDismissedThisRun = new Set();
+function coachBannerDismissed() { return [..._coachBannerDismissedThisRun]; }
+function coachProposalKey(r) { return r.id + ':' + (r.proposed ? r.proposed.date + ':' + r.proposed.start_min : ''); }
+function renderHomeCoachBanner() {
+  const el = document.getElementById('home-coach-banner');
+  if (!el) return;
+  const dismissed = coachBannerDismissed();
+  const due = coachedView() ? (_coachRequests || []).filter(r => r.status === 'proposed' && r.proposed && !dismissed.includes(coachProposalKey(r))) : [];
+  if (!due.length) { el.innerHTML = ''; return; }
+  const r = due[0];
+  el.innerHTML = `<div class="coach-banner coach-banner-home" role="status">
+      <span class="coach-banner-ico">${COACH_ICO_CLOCK}</span>
+      <div style="flex:1;min-width:0;"><b>${coachEsc(coachFirstName())} proposed a different time</b>
+        <div>${coachEsc(coachSlotLine(r.proposed))} instead of your choices.${due.length > 1 ? ` ${due.length - 1} more waiting.` : ''}</div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="openCoachRequest()">Review</button></div>
+      <button class="coach-banner-x" aria-label="Dismiss" onclick="dismissHomeCoachBanner()">✕</button>
+    </div>`;
+}
+function dismissHomeCoachBanner() {
+  for (const r of (_coachRequests || [])) if (r.status === 'proposed' && r.proposed) _coachBannerDismissedThisRun.add(coachProposalKey(r));
+  renderHomeCoachBanner();
+}
+function coachRequestBooked(r) {
+  if (r.status !== 'accepted') return false;
+  const slot = r.proposed || r.counter || (r.preferences || [])[0];
+  return !!slot && Object.values(state.coachBookings || {}).some(b => b && b.status !== 'cancelled' && b.date === slot.date && b.start_min === slot.start_min);
+}
+function coachProposedCardHTML(r) {
+  const first = coachEsc(coachFirstName());
+  const p = r.proposed;
+  const when = new Date(p.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short' }) + ' ' + coachMinToHHMM(p.start_min);
+  const asked = (r.preferences || []).map(coachSlotLine).map(coachEsc).join(' or ');
+  const counter = _coachCounterFor && _coachCounterFor.id === r.id;
+  return `<div class="card coach-hero-card is-proposed">
+      <div class="coach-hero-row"><span class="coach-eyebrow">${first} proposed</span><span class="chip" style="--chip-c:var(--amber);">Needs your answer</span></div>
+      <div class="coach-display">${coachEsc(coachSlotLine(p))}</div>
+      <div class="coach-hero-sub">with ${coachEsc(coachName())}${r.repeat_weekly ? ' · weekly' : ''}</div>
+      <div class="coach-caption" style="text-align:left;margin-top:10px;">You asked for ${asked}.</div>
+      ${counter ? coachCounterFormHTML(r) : `
+      <button class="btn btn-accent btn-block" style="margin-top:16px;" onclick="answerCoachRequest('${r.id}','accept')">✓ Confirm ${coachEsc(when)}</button>
+      <button class="btn btn-ghost btn-block" style="margin-top:10px;" onclick="startCoachCounter('${r.id}')">Suggest another time</button>`}
+    </div>`;
+}
+function coachCounterFormHTML(r) {
+  const c = _coachCounterFor;
+  const t = coachTomorrow();
+  const first = coachEsc(coachFirstName());
+  return `<div class="coach-counter">
+      <div class="coach-field-label" style="margin-top:0;">Suggest another time</div>
+      <div class="coach-caption" style="text-align:left;margin:0 0 10px;">${first} proposed ${coachEsc(coachSlotLine(r.proposed))}. Offer one that suits you better.</div>
+      <div class="toggle-row" role="group" aria-label="A time or a free window">
+        <button class="toggle-btn${c.mode === 'times' ? ' active' : ''}" onclick="setCoachCounterMode('times')">A time</button>
+        <button class="toggle-btn${c.mode === 'window' ? ' active' : ''}" onclick="setCoachCounterMode('window')">A free window</button>
+      </div>
+      ${c.mode === 'times'
+        ? `<div class="coach-inrow"><input type="date" min="${t}" value="${c.date}" aria-label="Date" onchange="_coachCounterFor.date=this.value"><input type="time" step="900" value="${c.time}" aria-label="Time" onchange="_coachCounterFor.time=this.value" class="coach-time"></div>`
+        : `<div class="coach-inrow"><input type="date" min="${t}" value="${c.date}" aria-label="Date" onchange="_coachCounterFor.date=this.value"></div>
+           <div class="coach-two"><div><div class="coach-field-label">Free from</div><input type="time" step="900" value="${c.from}" onchange="_coachCounterFor.from=this.value"></div>
+           <div><div class="coach-field-label">Until</div><input type="time" step="900" value="${c.to}" onchange="_coachCounterFor.to=this.value"></div></div>`}
+      <button class="btn btn-accent btn-block" style="margin-top:14px;" onclick="sendCoachCounter()">${COACH_ICO_SEND} Send new time</button>
+      <button class="btn btn-ghost btn-block" style="margin-top:10px;" onclick="_coachCounterFor=null;renderCoachRequest()">Cancel</button>
+    </div>`;
+}
+// One row per request: its LATEST state and a status, never its history
+// (Adam, v8.42 UAT: "seeing the history of a request is not valuable
+// information at all"). The latest time is your counter if you countered, the
+// time you confirmed, otherwise your first choice (+ how many more).
+function coachRequestLatest(r) {
+  const prefs = r.preferences || [];
+  if (r.status === 'countered' && r.counter) return coachSlotLine(r.counter);
+  if (r.status === 'accepted') return coachSlotLine(r.proposed || r.counter || prefs[0]);
+  return coachSlotLine(prefs[0]) + (prefs.length > 1 ? ` +${prefs.length - 1} more` : '');
+}
+// A request still waiting on the coach is a tappable row (chevron) that asks
+// before withdrawing (Adam, UAT: no inline text buttons in BLOC; "each request
+// row is a tappable row, which launches a modal asking to withdraw").
+function coachWaitingCardHTML(r) {
+  const first = coachEsc(coachFirstName());
+  const when = `${coachEsc(coachRequestLatest(r))}${r.repeat_weekly ? ' · weekly' : ''}`;
+  if (['pending', 'countered'].includes(r.status)) {
+    return `<button class="coach-reqrow is-tap" onclick="confirmWithdrawCoachRequest('${r.id}')" aria-label="Withdraw this request">
+        <div class="coach-reqrow-main"><div class="coach-reqrow-when">${when}</div></div>
+        ${coachWaitingChip(r, first)}<span class="row-btn-chevron">${icoChevron(18)}</span>
+      </button>`;
+  }
+  return `<div class="coach-reqrow"><div class="coach-reqrow-main"><div class="coach-reqrow-when">${when}</div></div>${coachWaitingChip(r, first)}</div>`;
+}
+function confirmWithdrawCoachRequest(id) {
+  const r = (_coachRequests || []).find(x => x.id === id);
+  if (!r) return;
+  showConfirm('Withdraw this request?', `${coachRequestLatest(r)}${r.repeat_weekly ? ', weekly' : ''}. ${coachFirstName()} won’t see it any more.`, 'Withdraw',
+    () => answerCoachRequest(id, 'withdraw'));
+}
+function coachReqFormHTML(f) {
+  const first = coachEsc(coachFirstName());
+  const t = coachTomorrow();
+  const bad = f.mode === 'window' && coachHHMMToMin(f.window.to) != null && coachHHMMToMin(f.window.from) != null && coachHHMMToMin(f.window.to) <= coachHHMMToMin(f.window.from);
+  const prefs = f.mode === 'times'
+    ? f.times.map((x, i) => `<div class="coach-field-label">Choice ${i + 1}</div>
+        <div class="coach-inrow">
+          <input type="date" min="${t}" value="${x.date}" aria-label="Choice ${i + 1} date" onchange="_coachReqForm.times[${i}].date=this.value">
+          <input type="time" step="900" value="${x.time}" aria-label="Choice ${i + 1} time" onchange="_coachReqForm.times[${i}].time=this.value" class="coach-time">
+          ${f.times.length > 1 ? `<button class="coach-slot-x" aria-label="Remove choice ${i + 1}" onclick="removeCoachReqTime(${i})">✕</button>` : ''}
+        </div>`).join('')
+      + `<button class="btn btn-ghost btn-block" style="margin-top:16px;" ${f.times.length >= 3 ? 'disabled' : ''} onclick="addCoachReqTime()">+ Add another time</button>
+         <div class="coach-caption" style="text-align:left;margin-top:8px;">${f.times.length >= 3 ? 'That’s three, the most you can add.' : 'Up to 3 choices.'}</div>`
+    : `<div class="coach-field-label">Date</div>
+       <div class="coach-inrow"><input type="date" min="${t}" value="${f.window.date}" aria-label="Date" onchange="_coachReqForm.window.date=this.value"></div>
+       <div class="coach-two"><div><div class="coach-field-label">Free from</div><input type="time" step="900" value="${f.window.from}" onchange="_coachReqForm.window.from=this.value;renderCoachRequest()"></div>
+       <div><div class="coach-field-label">Until</div><input type="time" step="900" value="${f.window.to}"${bad ? ' aria-invalid="true" style="border-color:var(--red);"' : ''} onchange="_coachReqForm.window.to=this.value;renderCoachRequest()"></div></div>
+       <div class="coach-caption" style="text-align:left;margin-top:8px;${bad ? 'color:var(--red);' : ''}">${bad ? 'The end time needs to be after the start.' : 'Any start time inside this window works for you.'}</div>`;
+  return `<div class="coach-section-title">When suits you</div>
+    <div class="modal-sub" style="margin:0 0 10px;">Pick up to three times, or a day with a free window. ${first} confirms one.</div>
+    <div class="card">
+      <div class="toggle-row" role="group" aria-label="How you’d like to choose">
+        <button class="toggle-btn${f.mode === 'times' ? ' active' : ''}" onclick="setCoachReqMode('times')">Up to 3 times</button>
+        <button class="toggle-btn${f.mode === 'window' ? ' active' : ''}" onclick="setCoachReqMode('window')">A free window</button>
+      </div>${prefs}
+    </div>
+    <div class="coach-section-title">Notes</div>
+    <div class="modal-sub" style="margin:0 0 10px;">Anything ${first} should know, and whether it repeats.</div>
+    <div class="card">
+      <div class="coach-field-label" style="margin-top:0;">Notes for ${first}</div>
+      <textarea id="coach-req-notes" rows="4" maxlength="1000" style="width:100%;box-sizing:border-box;" placeholder="What you’d like to work on." oninput="_coachReqForm.notes=this.value">${coachEsc(f.notes)}</textarea>
+      <div class="coach-switch-row">
+        <div><b>Repeat weekly</b><small>Same day and time each week.</small></div>
+        <button type="button" role="switch" class="coach-switch" aria-checked="${!!f.repeat}" aria-label="Repeat weekly" onclick="coachReqKeepNotes();_coachReqForm.repeat=!_coachReqForm.repeat;renderCoachRequest()"></button>
+      </div>
+    </div>
+    ${f.error ? `<div class="coach-err">${coachEsc(f.error)}</div>` : ''}
+    <button class="btn btn-accent btn-block" style="margin-top:20px;" ${f.busy ? 'disabled' : ''} onclick="sendCoachRequest()">${f.busy ? 'Sending…' : COACH_ICO_SEND + ' Send request'}</button>
+    <div class="coach-caption">${first} confirms a time or suggests another.</div>`;
+}
+function renderCoachRequest() {
+  const el = document.getElementById('coach-request-body');
+  const f = _coachReqForm;
+  if (!el || !f) return;
+  const first = coachEsc(coachFirstName());
+  const since = new Date(Date.now() - COACH_REQ_RECENT_DAYS * 86400000).toISOString();
+  const shown = (_coachRequests || []).filter(r => COACH_REQ_OPEN.includes(r.status)
+    || (r.status === 'accepted' && !coachRequestBooked(r))
+    || (r.status === 'declined' && String(r.updated_at || r.created_at || '') >= since));
+  const proposed = shown.filter(r => r.status === 'proposed' && r.proposed);
+  const others = shown.filter(r => !(r.status === 'proposed' && r.proposed));
+  // v8.42 (Adam, UAT): no next-session card here; Your sessions, the sheet
+  // this opens from, already shows it.
+  el.innerHTML = proposed.map(coachProposedCardHTML).join('')
+    + (others.length ? `<div class="coach-section-title">Your requests</div><div class="card coach-reqlist">${others.map(coachWaitingCardHTML).join('')}</div>` : '')
+    + coachReqFormHTML(f);
+}
+function coachReqKeepNotes() { const n = document.getElementById('coach-req-notes'); if (n && _coachReqForm) _coachReqForm.notes = n.value; }
+function setCoachReqMode(m) { coachReqKeepNotes(); _coachReqForm.mode = m; renderCoachRequest(); }
+function addCoachReqTime() { coachReqKeepNotes(); const f = _coachReqForm; if (f.times.length < 3) f.times.push({ date: f.times[f.times.length - 1].date, time: '18:00' }); renderCoachRequest(); }
+function removeCoachReqTime(i) { coachReqKeepNotes(); _coachReqForm.times.splice(i, 1); renderCoachRequest(); }
+
+// The slots as 0024's `session_request_slots_ok()` wants them, or an error.
+function coachReqSlots(mode, times, win) {
+  const t = coachTomorrow();
+  if (mode === 'window') {
+    const a = coachHHMMToMin(win.from), b = coachHHMMToMin(win.to);
+    if (!win.date || win.date < t) return { error: 'Pick a day from tomorrow on.' };
+    if (a == null || b == null || b <= a) return { error: 'The window needs a start before its end.' };
+    return { slots: [{ date: win.date, start_min: a, end_min: b }] };
+  }
+  const slots = [];
+  for (const x of times) {
+    const m = coachHHMMToMin(x.time);
+    if (!x.date || m == null) continue;
+    if (x.date < t) return { error: 'Pick days from tomorrow on.' };
+    if (!slots.some(s => s.date === x.date && s.start_min === m)) slots.push({ date: x.date, start_min: m });
+  }
+  if (!slots.length) return { error: 'Add at least one day and time.' };
+  return { slots: slots.slice(0, 3) };
+}
+async function sendCoachRequest() {
+  const f = _coachReqForm;
+  if (!f || f.busy) return;
+  coachReqKeepNotes();
+  if (!coachingAvailable() || !isCoachedMode()) { f.error = 'You’re not linked to a coach right now.'; renderCoachRequest(); return; }
+  const v = coachReqSlots(f.mode, f.times, f.window);
+  if (v.error) { f.error = v.error; renderCoachRequest(); return; }
+  f.busy = true; f.error = null; renderCoachRequest();
+  try {
+    const { error } = await supabase.from('session_requests').insert({
+      client_id: _authResolvedSession.user.id, coach_id: coachLinkGet().coachId,
+      preferences: v.slots, notes: (f.notes || '').trim() || null, repeat_weekly: !!f.repeat,
+    });
+    if (error) throw error;
+    const t = coachTomorrow();
+    _coachReqForm = { mode: 'times', times: [{ date: t, time: '18:00' }], window: { date: t, from: '17:00', to: '20:00' }, notes: '', repeat: false, busy: false, error: null };
+    await refreshSessionRequests();
+    renderCoachRequest();
+  } catch (err) {
+    f.busy = false; f.error = 'Couldn’t send it: ' + ((err && err.message) || 'check your connection and try again.'); renderCoachRequest();
+  }
+}
+// Withdraw a pending request (it clears the coach's placeholder, §11), or
+// accept the time the coach suggested.
+async function answerCoachRequest(id, what) {
+  const f = _coachReqForm;
+  const status = what === 'accept' ? 'accepted' : 'withdrawn';
+  try {
+    const { error } = await supabase.from('session_requests').update({ status }).eq('id', id);
+    if (error) throw error;
+    await refreshSessionRequests();
+  } catch (err) {
+    if (f) { f.error = 'Couldn’t update it: ' + ((err && err.message) || 'try again.'); renderCoachRequest(); }
+  }
+}
+function startCoachCounter(id) {
+  coachReqKeepNotes();
+  const r = (_coachRequests || []).find(x => x.id === id);
+  const p = (r && r.proposed) || {};
+  _coachCounterFor = { id, mode: 'times', date: p.date || coachTomorrow(), time: coachMinToHHMM(p.start_min ?? 1080), from: '17:00', to: '20:00' };
+  renderCoachRequest();
+}
+function setCoachCounterMode(m) { _coachCounterFor.mode = m; renderCoachRequest(); }
+// 0024 keeps ONE counter slot: a time, or a day with a window.
+async function sendCoachCounter() {
+  const c = _coachCounterFor, f = _coachReqForm;
+  if (!c) return;
+  const v = coachReqSlots(c.mode, [{ date: c.date, time: c.time }], { date: c.date, from: c.from, to: c.to });
+  if (v.error) { if (f) { f.error = v.error; renderCoachRequest(); } return; }
+  try {
+    const { error } = await supabase.from('session_requests').update({ counter: v.slots[0], status: 'countered' }).eq('id', c.id);
+    if (error) throw error;
+    _coachCounterFor = null;
+    await refreshSessionRequests();
+  } catch (err) {
+    if (f) { f.error = 'Couldn’t send it: ' + ((err && err.message) || 'try again.'); renderCoachRequest(); }
   }
 }
 
@@ -20498,6 +21099,7 @@ function renderHome(animateHero = false) {
   // values (negative percentages, impossible weights) whenever anything
   // sampled the DOM mid-count.
   renderHomeHeader();
+  renderHomeCoachBanner(); // v8.42 (§136)
   renderHomeHero();
   renderHomeThisWeek();
   renderHomeLogBoxes();
@@ -20619,6 +21221,7 @@ function renderHomeHero() {
         ${subline}
       </div>
     </div>
+    ${coachedView() ? homeNextSessionHTML() : '' /* v8.42 (§136, proposal §4.3, §11 Q23) */}
   </div>`;
 }
 
@@ -21061,7 +21664,7 @@ function renderHomeLogBoxes() {
   // meant a fresh day showed no route to the history at all — and the button
   // is a way IN to the logs, not a confirmation that something was logged.
   const bodyLogsBtn = `<button class="btn btn-ghost btn-block" id="home-body-logs-btn" style="margin-top:14px;"
-             onclick="showScreen('settings');openSettingsBodyLogs();">${icoList()} View body logs</button>`;
+             onclick="openSettingsBodyLogs();">${icoList()} View body logs</button>`;
 
   el.innerHTML = sectionHeader('Log today', "Two quick numbers. Measurements when they're due.")
     + `<div class="card">
@@ -21598,7 +22201,8 @@ function renderTrainSession(macro) {
   const el = document.getElementById('train-session');
   if (!el) return;
   const isDeload = isDeloadUnit(macro, state.currentWeek, state.currentDay);
-  const sub = isDeload
+  const sub = trainViewCoachOwned() ? 'Tap an exercise to see what’s planned.' // v8.42 (§136): the coach's session
+    : isDeload
     ? 'Deload targets shown. Progression resumes next week.'
     : 'Tap an exercise to log sets. The tick button completes every set at target.';
   el.innerHTML = sectionHeader('The session', sub)
@@ -21672,8 +22276,11 @@ function buildTrainPickerHTML(macro) {
       const dot = x.done ? '<span class="agenda-dot is-done">✓</span>' : x.partial ? '<span class="agenda-dot is-partial"></span>' : '<span class="agenda-dot"></span>';
       const meta = x.done ? `Done · ${x.sets} sets` : x.partial ? `${x.doneSets} of ${x.sets} sets logged` : `${x.exercises} exercise${x.exercises === 1 ? '' : 's'} · ${x.sets} sets`;
       const badge = x.viewing ? '<span class="agenda-badge is-viewing">Viewing</span>' : x.upNext ? '<span class="agenda-badge is-next">Up next</span>' : '';
+      // v8.42 (§136): a session the coach has taken for an in-person booking.
+      // It replaces the row's meta line; the dot still shows what's logged.
+      const rowMeta = x.withCoach && !x.done ? coachEsc(coachSessionWhen(x.withCoach)) : meta;
       return `<button class="agenda-row${x.viewing ? ' is-viewing' : ''}" onclick="selectTrainSession(${x.week},'${x.dayKey}')">
-          ${dot}<span class="agenda-row-text"><span class="agenda-row-name">${x.label}</span><span class="agenda-row-meta">${meta}</span></span>${badge}
+          ${dot}<span class="agenda-row-text"><span class="agenda-row-name">${x.label}</span><span class="agenda-row-meta">${rowMeta}</span></span>${badge}
         </button>`;
     }).join('')}</div>`;
     return `<div class="agenda-unit${u.isThisWeek ? ' is-this-week' : ''}${u.viewing ? ' is-viewing' : ''}">
@@ -21727,6 +22334,7 @@ function renderTrainTools(macro, allSessions, days, dayLabels, micros, useMicro)
         // v8.20 — reopen this session's effort sheet to rate or change a
         // rating (§104). Only when ratings are on, and not in a deload.
         if (!isRpeOn(macro) || heroIsDeload) return '';
+        if (trainViewCoachOwned()) return ''; // v8.42 (§136): the coach rates their own session (§11 Q13)
         if (!getRpeSessionExercises(macro, dayKey).length) return '';
         return `<div class="row-plain" onclick="openRpeSheet('${macro.id}',${state.currentWeek},'${dayKey}')">
           <div class="row-btn-text">
@@ -21786,6 +22394,7 @@ function getProgKey(macroId, week, day, exId) {
 // this week, driving which of the two input placeholders shows the boosted
 // suggested value (see exProgData's weightPlaceholder/repsPlaceholder).
 function selectProgType(macroId, week, day, exId, progType) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   const pk = getProgKey(macroId, week, day, exId);
   if (!state.trainLogs[pk]) state.trainLogs[pk] = {};
   state.trainLogs[pk].progType = progType;
@@ -21917,6 +22526,10 @@ function getAllMacroSessions(macro) {
 // Deliberately does NOT fall back to the last session the way renderTrain's
 // picker does — callers like the Home preview want to know unambiguously
 // whether there's anything left to do today.
+// v8.42 (§136): the live booking a session is assigned to (proposal §5.6).
+function getCoachAssignment(macroId, week, dayKey) {
+  return BlocEngine.getCoachAssignment(state, macroId, week, dayKey);
+}
 function getNextIncompleteSession(macro) {
   return BlocEngine.getNextIncompleteSession(state, macro); // v8.35 (§125): the engine's
 }
@@ -22751,8 +23364,9 @@ function renderTrainDay(macro) {
     }
   });
 
-  el.innerHTML = html;
+  el.innerHTML = trainCoachNoticeHTML(macro) + html; // v8.42 (§136)
   renderTrainHero(macro);
+  applyTrainCoachLock(); // v8.42 (§136)
 }
 
 // ════════════════════════════════════════════════
@@ -22780,6 +23394,7 @@ function getCardioLoggedSeconds(log) {
 // loggedDistance / speedLevel / resistanceLevel) — mirrors logSet() but
 // without reps-specific sanitization, since every cardio field is numeric.
 function logCardioField(key, field, value) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   if (!state.trainLogs[key]) state.trainLogs[key] = {};
   state.trainLogs[key][field] = value;
   save();
@@ -22880,6 +23495,7 @@ function buildCardioSetRowHtml(macro, ex, s, compact) {
 // cardio exercises simply aren't part of any of that (see the exProgData
 // guard above).
 function toggleCardioSetDone(key) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
   let ex = null;
   if (macro) {
@@ -22995,6 +23611,7 @@ function buildCardioTrainLevelsText(macro, ex) {
 // fill (no progression exists for cardio) and no "overhead complete" is
 // wanted here, per spec.
 function fillCardioLevels(macroId, week, day, exId, sets) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   const macro = state.macrocycles.find(m => m.id === macroId);
   if (!macro) return;
   const templateKey = macroId + '_1_' + day;
@@ -23101,6 +23718,7 @@ function sanitizeReps(v) {
 // Writes a single field (weight or reps) of one logged set into
 // state.trainLogs, creating the entry if it doesn't exist yet.
 function logSet(key, field, value) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   if (!state.trainLogs[key]) state.trainLogs[key] = {};
   let v = value;
   if (field === 'reps' || field === 'dropReps') {
@@ -23120,6 +23738,7 @@ function logSet(key, field, value) {
 // numbers left on the page. Drop-set drop fields intentionally don't call
 // this (never part of the compliance check).
 function recheckProgressionLockForKey(key) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   const log = state.trainLogs[key];
   if (!log || !log.done) return; // only matters for sets already marked done
   const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
@@ -23141,6 +23760,7 @@ function recheckProgressionLockForKey(key) {
 // (see weightPlaceholders/repsPlaceholders in exProgData) — v6.09, replacing
 // the single flat value previously applied to every set.
 function fillSuggested(macroId, week, day, exId, sets, weight, reps) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   const baseKey = macroId + '_' + week + '_' + day;
   const weightList = String(weight).split('|');
   const repsList   = String(reps).split('|');
@@ -23193,6 +23813,7 @@ function fillSuggested(macroId, week, day, exId, sets, weight, reps) {
 // failure, so its rep count is only ever discovered live, never suggested.
 // weight/reps/dropWeight are '|'-delimited per-set suggestion lists.
 function fillSuggestedDropset(macroId, week, day, exId, sets, weight, reps, dropWeight) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   const baseKey = macroId + '_' + week + '_' + day;
   const weightList = String(weight).split('|');
   const repsList = String(reps).split('|');
@@ -23253,6 +23874,7 @@ function fillSuggestedDropset(macroId, week, day, exId, sets, weight, reps, drop
 // Clears every logged set for one exercise this week (weight, reps, and done
 // state), used by the 'Clear' button next to Fill Suggested.
 function clearExerciseLogs(macroId, week, day, exId, sets) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   const baseKey = macroId + '_' + week + '_' + day;
   for (let s = 0; s < sets; s++) {
     const logKey = baseKey + '_' + exId + '_' + s;
@@ -23290,6 +23912,7 @@ function clearExerciseLogs(macroId, week, day, exId, sets) {
 // bearing on recordExerciseHistory() below: that always reads set 1's log
 // specifically, regardless of what later sets get filled with here.
 function quickFillComplete(event, macroId, week, day, exId, sets, weight, reps) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   if (event) event.stopPropagation();
   const rpeMacro = state.macrocycles.find(m => m.id === macroId);
   const wasComplete = rpeMacro ? isTrainSessionComplete(rpeMacro, week, day) : true;
@@ -23331,6 +23954,7 @@ function quickFillComplete(event, macroId, week, day, exId, sets, weight, reps) 
 // hit differs. weight/reps/dropWeight/dropReps are '|'-delimited per-set
 // suggestion lists.
 function quickFillCompleteDropset(event, macroId, week, day, exId, sets, weight, reps, dropWeight, dropReps) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   if (event) event.stopPropagation();
   const rpeMacro = state.macrocycles.find(m => m.id === macroId);
   const wasComplete = rpeMacro ? isTrainSessionComplete(rpeMacro, week, day) : true;
@@ -23367,6 +23991,7 @@ function quickFillCompleteDropset(event, macroId, week, day, exId, sets, weight,
 // fillArgsJson is a JSON array of [exId, sets, weightList, repsList] tuples,
 // where weightList/repsList are '|'-delimited per-set suggestions (v6.09).
 function quickFillCompleteSuperset(event, macroId, week, day, fillArgsJson) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   if (event) event.stopPropagation();
   let tuples;
   try { tuples = JSON.parse(fillArgsJson); } catch(e) { return; }
@@ -23411,6 +24036,7 @@ function quickFillCompleteSuperset(event, macroId, week, day, fillArgsJson) {
 // known exactly from current Train state. Used both to determine isDropSet
 // and to snapshot exerciseHistory the moment a set is completed.
 function toggleSetDone(key) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   const log = state.trainLogs[key] || {};
   const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
   let ex = null;
@@ -23559,6 +24185,7 @@ function renderRpeSheet() {
 // swiped away keeps what was rated). Tapping the selected number again
 // clears it back to unanswered.
 function setRpeRating(exId, value) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   if (!rpeSheetCtx) return;
   if (!state.rpe) state.rpe = {};
   const key = getRpeKey(rpeSheetCtx.macroId, rpeSheetCtx.week, rpeSheetCtx.dayKey, exId);
@@ -23573,6 +24200,10 @@ function setRpeRating(exId, value) {
 // Every exit from the sheet. Anything still unanswered becomes
 // { rpeSkipped: true } — never a number (see getRpeKey's note).
 function closeRpeSheet() {
+  // v8.42 (§136): on the coach's session nothing is written (the coach rates
+  // their own session, §11 Q13), but the sheet still closes. An early return
+  // here would leave it stuck open, since this IS its dismiss handler.
+  if (trainViewCoachOwned()) { rpeSheetCtx = null; closeModal('modal-rpe'); return; }
   if (rpeSheetCtx) {
     const macro = state.macrocycles.find(m => m.id === rpeSheetCtx.macroId);
     if (macro) {
@@ -24359,6 +24990,7 @@ function saveBodyLog() {
   save();
   closeModal('modal-body-log');
   renderBody();
+  redrawHomeIfShowing(); // v8.42
 }
 
 // ════════════════════════════════════════════════
@@ -24519,6 +25151,7 @@ function deleteBodyLog(date) {
     state.bodyLogs = state.bodyLogs.filter(l => l.date !== date);
     save();
     renderBody();
+  redrawHomeIfShowing(); // v8.42
   });
 }
 
@@ -24930,9 +25563,18 @@ function fillDayFromSample(groupId, sourceDate) {
 // via a nav tab. Stacks on top of whatever's open (e.g. modal-profile)
 // rather than closing it. Also used directly by the Home page's
 // "View logs" button on the steps progress card.
+// v8.42: opens over whatever is showing. Home's "View body logs" used to
+// switch to Settings first, so closing the sheet left you in Settings (Adam,
+// UAT: mirror the photo-consent shortcut, which closes back where it opened).
 function openSettingsBodyLogs() {
   renderBody();
   openModal('modal-settings-body-logs');
+}
+// A body log saved or deleted from that sheet while Home is showing redraws
+// Home (its weigh-in box and hero read the logs); Settings needed no redraw.
+function redrawHomeIfShowing() {
+  const h = document.getElementById('screen-home');
+  if (h && h.classList.contains('active')) renderHome();
 }
 
 function openProfileNutrition() {
@@ -28514,6 +29156,8 @@ function renderSettingsHero() {
   }
   if (prof.country) bits.push(prof.country);
   // Never an empty line: with no profile filled in, say what to do about it.
+  // v8.42: the wireframe's "… · Coached by {coach}" (SettingsScreen hero).
+  if (coachedView()) { const l = coachLinkGet(); bits.push(`Coached by ${coachEsc((l && l.coachName) || 'your coach')}`); }
   const sub = bits.length ? bits.join(' \u00b7 ') : 'Add your details in About me';
 
   el.innerHTML = `<span class="settings-hero-initials">${initials}</span>
@@ -28521,7 +29165,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.41</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.42</span>`;
 }
 
 function renderSettings() {
