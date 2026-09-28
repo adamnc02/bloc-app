@@ -1,0 +1,51 @@
+/* =====================================================================
+   App shells. Coach: bottom bar on phone, side rail on tablet/laptop.
+   BLOC: phone-first; wider screens centre ONE column where the header
+   and content share the same width (no wide header over clipped content).
+   ===================================================================== */
+
+/* ---------- bottom pill nav (BLOC reference) ---------- */
+.bottom-nav {
+  position: fixed; left: 14px; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom)); z-index: 50;
+  height: 66px; border-radius: 33px; background: var(--surface); border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  display: grid; align-items: center; padding: 0 6px; max-width: 520px; margin: 0 auto;
+}
+.navi {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; height: 54px; border-radius: 27px;
+  font-size: 10.5px; font-weight: 600; color: var(--text3); text-decoration: none; background: none; border: 0; cursor: pointer; min-width: 0;
+}
+.navi[aria-current="page"] { color: var(--on-accent); background: var(--accent) }
+
+/* ---------- Coach shell ---------- */
+.coach-shell { min-height: 100dvh }
+.coach-shell .rail-col { display: none }
+.coach-main { min-width: 0 }
+.coach-main .page { max-width: 1180px }
+
+@media (min-width: 768px) {
+  .coach-shell { display: grid; grid-template-columns: 92px minmax(0, 1fr) }
+  .coach-shell .bottom-nav { display: none }
+  .coach-shell .rail-col { display: block; background: var(--surface); border-right: 1px solid var(--border) }
+  .coach-shell .rail {
+    display: flex; flex-direction: column; align-items: center; gap: 6px; position: sticky; top: 0; height: 100dvh; max-height: 100vh;
+    padding: calc(24px + env(safe-area-inset-top)) 10px 20px;
+  }
+  .rail .rail-logo-full { display: none }
+  .rail .navi { width: 72px; height: 64px; border-radius: 18px; font-size: 11px }
+  .rail .rail-foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; align-items: center }
+  .coach-main .page { padding-bottom: 60px }
+}
+@media (min-width: 1200px) {
+  .coach-shell { grid-template-columns: 240px minmax(0, 1fr) }
+  .coach-shell .rail { align-items: stretch; padding: 28px 16px 20px }
+  .rail .rail-logo-mark { display: none }
+  .rail .rail-logo-full { display: block; padding: 0 8px 22px }
+  .rail .navi { flex-direction: row; justify-content: flex-start; gap: 12px; width: 100%; height: 48px; padding: 0 14px; border-radius: 14px; font-size: 14px }
+  .rail .rail-foot { align-items: stretch }
+}
+
+.seg.auto { display: inline-flex }
+.seg.auto button { flex: 0 0 auto; padding: 0 16px }
+
+@media (min-width: 768px) { .phone-only { display: none !important } }
+@media (max-width: 767.98px) { .wide-only { display: none !important } }

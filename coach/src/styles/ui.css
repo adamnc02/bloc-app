@@ -1,0 +1,242 @@
+/* =====================================================================
+   Shared component styles (BLOC + BLOC Coach). Class names follow the
+   Night Shift reference so BLOC's own index.html and Coach stay in step.
+   Colours come only from tokens.css. Tints use color-mix() on a token.
+   ===================================================================== */
+
+*, *::before, *::after { box-sizing: border-box }
+html, body { margin: 0; background: var(--bg); color: var(--text) }
+body {
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  font-size: 15px;
+  line-height: 1.4;
+}
+h1, h2, h3, h4, p { margin: 0 }
+button, input, select, textarea { font: inherit; color: inherit }
+a { color: inherit }
+.num, input, table { font-variant-numeric: tabular-nums }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap }
+:focus-visible { outline: 2px solid var(--accent2); outline-offset: 2px }
+
+/* ---------- page anatomy (§1.2) ---------- */
+.page {
+  width: 100%;
+  padding: 0 var(--gutter) calc(120px + env(safe-area-inset-bottom));
+  margin: 0 auto;
+}
+.top {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+  padding-top: calc(var(--header-top) + env(safe-area-inset-top));
+}
+.top .titles { min-width: 0; flex: 1 }
+.top .actions { display: flex; gap: 8px; flex-shrink: 0 }
+.eyebrow { font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--text3); font-weight: 700 }
+.eyebrow.acc { color: var(--accent2) }
+.eyebrow.red { color: var(--red) }
+.eyebrow-link { display: inline-flex; align-items: center; gap: 4px; min-height: 24px; text-decoration: none; background: none; border: 0; padding: 0; cursor: pointer }
+h1 { font-family: var(--font-display); font-size: 34px; font-weight: 600; letter-spacing: -.025em; line-height: 1.1; margin-top: 6px }
+.sub { font-size: 14px; color: var(--text2); margin-top: 6px }
+.hero {
+  display: block; margin-top: var(--hero-gap); padding: var(--pad-hero);
+  border-radius: var(--r-hero); background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); text-decoration: none; width: 100%; text-align: left;
+}
+button.hero { cursor: pointer; font: inherit }
+.sec { margin-top: var(--section-gap) }
+.sec-h { display: flex; align-items: center; gap: 10px; min-height: 28px }
+.sec-n { font-family: var(--font-display); font-size: 12px; font-weight: 600; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); border-radius: 6px; padding: 2px 6px; font-variant-numeric: tabular-nums }
+h2 { font-family: var(--font-display); font-size: 19px; font-weight: 600; letter-spacing: -.01em }
+.sec-slot { margin-left: auto; display: flex; align-items: center; gap: 8px }
+.sec-d { font-size: 13.5px; color: var(--text2); margin: 6px 0 16px; line-height: 1.45 }
+
+/* ---------- surfaces ---------- */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-card); padding: var(--pad-card) }
+.card.list { padding: 4px 18px }
+.card.acc { border-color: color-mix(in srgb, var(--accent) 55%, transparent) }
+.card + .card, .stack > * + * { margin-top: var(--stack-gap) }
+.tile { background: var(--surface2); border-radius: var(--r-tile); padding: 12px }
+.inset-foot { margin: 18px calc(-1 * var(--pad-card)) calc(-1 * var(--pad-card)); padding: 14px var(--pad-card); background: var(--inset); border-top: 1px solid var(--divider); border-radius: 0 0 var(--r-card) var(--r-card) }
+.divider { height: 1px; background: var(--divider); margin: 18px 0 }
+.divider.flush { margin: 0 }
+
+/* ---------- text helpers ---------- */
+.row { display: flex; justify-content: space-between; align-items: center; gap: 12px }
+.row.top-align { align-items: flex-start }
+.muted { color: var(--text2); font-size: 13.5px }
+.caption { color: var(--text3); font-size: 12px }
+.display { font-family: var(--font-display); font-weight: 600; letter-spacing: -.01em }
+.stat { font-family: var(--font-display); font-weight: 600; font-size: 22px; font-variant-numeric: tabular-nums }
+.big { font-family: var(--font-display); font-size: 56px; font-weight: 600; letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums }
+.big small { font-family: var(--font-body); font-size: 16px; font-weight: 500; color: var(--text2); letter-spacing: 0; margin-left: 4px }
+.t-good { color: var(--green-text) }
+.t-bad { color: var(--red) }
+.t-acc { color: var(--accent2) }
+.t-amber { color: var(--amber) }
+.t-ice { color: var(--ice) }
+.body-copy { font-size: 13.5px; line-height: 1.55; color: var(--text2) }
+.label { display: block; font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--text3); font-weight: 700; margin-bottom: 8px }
+
+/* ---------- chips & tags (14–16% tint + full colour text) ---------- */
+.chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 700; padding: 4px 9px; border-radius: var(--r-chip); white-space: nowrap; background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--text2); border: 0 }
+.chip.bad { background: color-mix(in srgb, var(--red) 14%, transparent); color: var(--red) }
+.chip.good { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green-text) }
+.chip.acc { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent2) }
+.chip.amber { background: color-mix(in srgb, var(--amber) 16%, transparent); color: var(--amber) }
+.chip.ice { background: color-mix(in srgb, var(--ice) 14%, transparent); color: var(--ice) }
+.chip.neutral { background: var(--surface3); color: var(--text2) }
+.tag { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .04em; padding: 2px 7px; border-radius: var(--r-tag); vertical-align: 2px; white-space: nowrap; background: color-mix(in srgb, var(--red) 14%, transparent); color: var(--red) }
+.tag.acc { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent2) }
+.tag.amber { background: color-mix(in srgb, var(--amber) 16%, transparent); color: var(--amber) }
+.tag.blue { background: color-mix(in srgb, var(--blue) 16%, transparent); color: var(--blue) }
+.tag.ice { background: color-mix(in srgb, var(--ice) 14%, transparent); color: var(--ice) }
+.tag.good { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green-text) }
+.tag.neutral { background: var(--surface3); color: var(--text2) }
+.aibadge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--accent2); white-space: nowrap }
+
+/* ---------- buttons (§2.4) ---------- */
+.btn {
+  height: var(--h-btn); border-radius: var(--r-btn); border: 0; background: var(--accent); color: var(--on-accent);
+  font-weight: 700; font-size: 15.5px; width: 100%; display: flex; align-items: center; justify-content: center;
+  gap: 8px; cursor: pointer; text-decoration: none; padding: 0 16px; white-space: nowrap;
+}
+.btn.in-card { height: var(--h-btn-in-card); border-radius: var(--r-btn-in-card); font-size: 14px }
+.btn.ghost { background: transparent; border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent); color: var(--accent2) }
+.btn.danger { background: transparent; border: 1px solid color-mix(in srgb, var(--red) 50%, transparent); color: var(--red) }
+.btn[disabled], .btn[aria-disabled="true"] { opacity: .4; cursor: not-allowed }
+.btn.auto { width: auto }
+.btn-sm {
+  height: var(--h-btn-sm); padding: 0 16px; border-radius: var(--r-btn-in-card); border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  background: transparent; color: var(--accent2); font-weight: 700; font-size: 14px; cursor: pointer; white-space: nowrap;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none;
+}
+.btn-sm.solid { background: var(--accent); color: var(--on-accent); border-color: var(--accent) }
+.btn-sm.danger { border-color: color-mix(in srgb, var(--red) 50%, transparent); color: var(--red) }
+.btn-sm.compact { height: 36px; padding: 0 12px; font-size: 13px }
+.btnrow { display: flex; gap: 8px; margin-top: 16px }
+.btnrow > * { flex: 1 }
+.icon-btn { width: 44px; height: 44px; border-radius: 14px; border: 1px solid var(--border2); background: var(--surface); color: var(--text); display: grid; place-items: center; cursor: pointer; flex-shrink: 0; text-decoration: none; padding: 0 }
+.icon-btn.in-card { width: 40px; height: 40px; border-radius: 12px; color: var(--accent2) }
+.icon-btn.round { border-radius: 50%; background: var(--surface3); border: 0; width: 40px; height: 40px }
+.rowbtn { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: transparent; border: 0; text-align: left; padding: 12px 0; cursor: pointer; min-height: 44px; text-decoration: none; color: var(--text) }
+.rowbtn b { display: block; font-size: 14.5px }
+.rowbtn small { display: block; font-size: 12.5px; color: var(--text2); margin-top: 3px }
+.rowbtn .chev { color: var(--text3); flex-shrink: 0 }
+.rowbtn + .rowbtn { border-top: 1px solid var(--divider) }
+.icon-tile { width: 36px; height: 36px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent2); display: grid; place-items: center; flex-shrink: 0 }
+
+/* AI action rows (§6.4 placement rule) */
+.soon { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text2); margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--surface2); min-height: 44px; width: 100%; border: 0; text-align: left }
+.soon.act { border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--accent2); font-weight: 700; font-size: 13px; cursor: pointer }
+.ready-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent2); display: inline-block; margin-left: auto; flex-shrink: 0 }
+
+/* ---------- bars & metrics ---------- */
+.bar { height: 6px; border-radius: 3px; background: var(--surface3); overflow: hidden; margin-top: 10px; position: relative }
+.bar.thick { height: 8px; border-radius: 4px }
+.bar > i { display: block; height: 100%; border-radius: inherit }
+.metric + .metric { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--divider) }
+.metric .lbl { font-size: 14.5px; font-weight: 600 }
+.metric .val { font-size: 14px; color: var(--text2) }
+.metric .val b { color: var(--text); font-weight: 700; font-size: 16px }
+.note { font-size: 12.5px; margin-top: 8px; color: var(--text2) }
+.sq { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 5px; vertical-align: 1px }
+
+/* ---------- lists ---------- */
+.ex { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--divider); font-size: 14.5px }
+.ex:last-child { border-bottom: 0 }
+.ex > span:last-child { color: var(--text2); font-size: 13.5px; font-variant-numeric: tabular-nums; white-space: nowrap }
+.listrow { display: flex; align-items: center; gap: 14px; padding: 14px 0; width: 100%; background: none; border: 0; border-top: 1px solid var(--divider); text-align: left; cursor: pointer; color: var(--text); text-decoration: none; min-height: 44px }
+.listrow:first-child { border-top: 0 }
+.listrow .main { flex: 1; min-width: 0 }
+.listrow b { font-size: 15px }
+
+/* ---------- fields ---------- */
+.field + .field { margin-top: 16px }
+.field > label, .field > .label-text { display: block; font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 8px }
+.inrow { display: flex; gap: 8px; align-items: center }
+.input, .inrow input, select.input, textarea.input {
+  flex: 1; min-width: 0; height: 44px; border-radius: 12px; border: 1px solid var(--border2); background: var(--bg);
+  color: var(--text); padding: 0 14px; font-size: 16px; width: 100%;
+}
+textarea.input { height: auto; min-height: 96px; padding: 12px 14px; resize: vertical; line-height: 1.45 }
+.input::placeholder, .inrow input::placeholder, textarea.input::placeholder { color: var(--text3) }
+.box { height: 48px }
+.unit { font-size: 13px; color: var(--text3); min-width: 26px }
+.seg { display: flex; background: var(--bg); border: 1px solid var(--border2); border-radius: 12px; padding: 4px; gap: 4px }
+.seg button { flex: 1; height: 40px; border: 0; border-radius: 9px; background: transparent; color: var(--text2); font-weight: 700; font-size: 14px; cursor: pointer; padding: 0 10px; white-space: nowrap }
+.seg button[aria-pressed="true"], .seg button[aria-selected="true"] { background: var(--surface3); color: var(--text) }
+.seg.acc button[aria-pressed="true"], .seg.acc button[aria-selected="true"] { background: var(--accent); color: var(--on-accent) }
+.switch { position: relative; width: 50px; height: 30px; border-radius: 15px; background: var(--surface3); border: 0; cursor: pointer; flex-shrink: 0 }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: var(--text); transition: transform .2s }
+.switch[aria-checked="true"] { background: var(--accent) }
+.switch[aria-checked="true"]::after { transform: translateX(20px); background: var(--on-accent) }
+.switch[disabled] { opacity: .5; cursor: not-allowed }
+.check { width: 24px; height: 24px; border-radius: 7px; border: 1.5px solid var(--border2); display: grid; place-items: center; background: transparent; flex-shrink: 0 }
+.check[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent) }
+.pickgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px }
+.pick { min-height: 56px; border-radius: 14px; border: 1px solid var(--border2); background: var(--surface2); text-align: left; padding: 12px 14px; cursor: pointer; color: var(--text) }
+.pick[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent) }
+.pick b { display: block; font-size: 14.5px }
+.pick small { display: block; color: var(--text2); font-size: 12px; margin-top: 2px }
+
+/* ---------- bottom sheet (§5) ---------- */
+.sheet-layer { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; justify-content: flex-end; align-items: center }
+.scrim { position: absolute; inset: 0; background: var(--scrim); border: 0; padding: 0; cursor: default }
+.sheet {
+  position: relative; width: 100%; max-width: 560px; max-height: calc(100dvh - 40px); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--surface); border-radius: var(--r-sheet) var(--r-sheet) 0 0; border-top: 1px solid var(--border2);
+  padding: 10px 20px calc(34px + env(safe-area-inset-bottom));
+}
+.sheet.wide { max-width: 720px }
+.handle { width: 40px; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--text) 20%, transparent); margin: 0 auto 14px }
+.sh-h { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px }
+.sh-h h3 { font-family: var(--font-display); font-size: 22px; font-weight: 600 }
+@media (min-width: 768px) {
+  .sheet-layer { justify-content: center; padding: 24px }
+  .sheet { border-radius: var(--r-sheet); border: 1px solid var(--border2) }
+}
+
+/* ---------- toast (event feedback) ---------- */
+.toast { position: fixed; left: 50%; bottom: calc(100px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 200; background: var(--surface3); color: var(--text); border-radius: 12px; padding: 12px 16px; font-size: 14px; font-weight: 600; display: flex; gap: 10px; align-items: center; max-width: calc(100vw - 40px) }
+
+/* ---------- ring ---------- */
+.ring { position: relative; flex-shrink: 0 }
+.ring svg { display: block }
+.ring .trk { fill: none; stroke: var(--surface3) }
+.ring .arc { fill: none; stroke: var(--accent); stroke-linecap: round }
+.ring-l { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center }
+.ring-l b { font-family: var(--font-display); font-size: 28px; font-weight: 600; line-height: 1 }
+.ring-l span { font-size: 11px; color: var(--text2); margin-top: 4px }
+
+/* ---------- avatar ---------- */
+.avatar { border-radius: 50%; background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent2); display: grid; place-items: center; font-family: var(--font-display); font-weight: 600; flex-shrink: 0 }
+.avatar.solid { background: var(--accent); color: var(--on-accent) }
+
+/* ---------- tabs under a page header ---------- */
+.tabs { display: flex; gap: 4px; margin-top: 20px; border-bottom: 1px solid var(--divider); overflow-x: auto; scrollbar-width: none }
+.tabs button, .tabs a { height: 44px; padding: 0 14px; border: 0; background: none; color: var(--text2); font-weight: 700; font-size: 14px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; text-decoration: none; display: inline-flex; align-items: center }
+.tabs [aria-selected="true"], .tabs [aria-current="page"] { color: var(--text); border-bottom-color: var(--accent) }
+
+/* ---------- responsive grids (header and content share one container) ---------- */
+.grid-2, .grid-3 { display: grid; gap: 0 28px; grid-template-columns: minmax(0, 1fr) }
+.tiles-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px }
+.tiles-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px }
+@media (min-width: 768px) {
+  :root { --gutter: 32px }
+}
+@media (min-width: 1024px) {
+  .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)) }
+  .span-2 { grid-column: span 2 }
+  .span-all { grid-column: 1 / -1 }
+}
+
+/* ---------- centred modal (quick questions, e.g. RPE) ---------- */
+.modal-layer { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 20px }
+.modal {
+  position: relative; width: 100%; max-width: 380px; background: var(--surface); border: 1px solid var(--border2);
+  border-radius: var(--r-hero); padding: 22px; animation: modal-in .4s var(--ease-sheet) both;
+}
+.modal h3 { font-family: var(--font-display); font-size: 21px; font-weight: 600; letter-spacing: -.01em; line-height: 1.25 }
+@keyframes modal-in { from { opacity: 0; transform: translateY(12px) scale(.94) } }
+.modal:focus, .sheet:focus { outline: none }
