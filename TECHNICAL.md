@@ -8694,8 +8694,23 @@ In Coached mode the hero gains a two-line row (`homeNextSessionHTML()`):
 **A repeating booking** is the booking payload's `kind: 'weekly'` (also read: `series`, `recurring`).
 That's the contract Coach's diary publish must meet; the allow-list has no separate recurring field.
 
-When a request has a time waiting for an answer, the row reads "{coach} suggested a time" with
-**Answer {coach}**. It's two lines because one line wrapped, and ran off the hero at 375pt.
+It always reads "Your next session" (wireframe `HomeScreen`). A suggested time waiting for an answer is
+the **banner's** job. It's two lines because one line wrapped, and ran off the hero at 375pt.
+
+### The coach banner on Home (`renderHomeCoachBanner()`)
+
+🚨 **On Home, above the hero, not inside the sheet** (wireframe `HomeScreen` → `BannerSlot` 'proposed').
+Adam, UAT: *"There's no use that banner being at the top of a modal where I drive the action from, the
+banner needs to call my attention when I load the app."* The first rebuild put it at the top of the
+Request sheet.
+
+- **When:** a request has a suggested time. It shows "{coach} proposed a different time", "{time}
+  instead of your choices." ("N more waiting." if several), **Review** (opens Request a session), and
+  a ✕.
+- **Dismissing** is remembered per suggestion (request + time) and per account
+  (`bloc_coach_banner_dismissed`), so a new suggestion on the same request shows it again.
+- **It updates live** with the request (the `session_requests` listener), and goes once answered.
+- 4e-4 adds the other banner kinds (plan, goal phases, a response, a booking).
 
 ### Request a session (`modal-coach-request`)
 
@@ -8705,8 +8720,6 @@ session, requests and bookings in one list that would grow without end, and made
 missed word. Adam: *"separate my sessions and request a session into separate sheets"* (My sessions
 is its own sheet, next), and on this one *"Show all that aren't booked"*. From the top:
 
-- **A banner** when the coach has suggested a time (the wireframe's `CoachBanner` 'proposed'): a clock
-  icon, "{coach} proposed a different time", and "Tue 6 Oct · 19:00 instead of your choices".
 - **Your next session**, a card of its own: an eyebrow, the date and time large, then "60 min · Studio ·
   with {coach} · weekly".
 - **Each suggested time**, the eye-catching card: accent-tinted, with "{coach} proposed", an amber
@@ -8720,7 +8733,9 @@ is its own sheet, next), and on this one *"Show all that aren't booked"*. From t
   - the time is your counter if you countered, the time you confirmed if confirmed, otherwise your
     first choice "+N more", then "· weekly";
   - the chip is Waiting for {coach} (pending or countered), Confirmed, or Declined (for 14 days);
-  - a small **Withdraw** shows only while a request still waits for its first answer.
+  - a small **Withdraw** while it's waiting on {coach}: pending or countered. `0024` lets a client
+    withdraw any open request; an earlier draft offered it on pending only, and Adam asked why only one
+    row had it.
 
   A confirmed request that's been **booked leaves this sheet** (`coachRequestBooked()`: a live
   booking at the confirmed time). It's a session now. 🚨 **Confirming doesn't make the booking**; the

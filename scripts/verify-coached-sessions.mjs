@@ -107,10 +107,10 @@ async function run(label, html, engineSrc) {
   let F = null;
   try {
     const seeds = ['homeNextSessionHTML', 'nextCoachBooking', 'coachReqSlots', 'sendCoachRequest', 'answerCoachRequest', 'sendCoachCounter',
-      'startCoachCounter', 'trainViewCoachOwned', 'coachSessionWhen', 'openCoachRequest', 'coachWaitingCardHTML', 'coachProposedCardHTML', 'coachRequestBooked', 'coachSlotLine', 'coachReqFormHTML'];
+      'startCoachCounter', 'trainViewCoachOwned', 'coachSessionWhen', 'openCoachRequest', 'coachWaitingCardHTML', 'coachProposedCardHTML', 'coachRequestBooked', 'coachSlotLine', 'coachReqFormHTML', 'renderHomeCoachBanner', 'dismissHomeCoachBanner'];
     for (const n of seeds) if (!decls.has(n)) throw new Error('missing ' + n);
     const stubs = ['state', 'coachLinkGet', 'coachingAvailable', 'isCoachedMode', 'supabase', '_authResolvedSession', 'getLocalToday',
-      'renderHomeHero', 'openModal', 'document', 'getCoachAssignment', 'toLocalDateStr'];
+      'renderHomeHero', 'openModal', 'document', 'getCoachAssignment', 'toLocalDateStr', 'coachedView', 'localStorage'];
     const parts = closure(decls, seeds, new Set(stubs));
     F = env => new Function('env', `
       let state = env.state;
@@ -120,11 +120,15 @@ async function run(label, html, engineSrc) {
       const _authResolvedSession = { user: { id: 'u1' } };
       const getLocalToday = () => '2026-09-28';
       const renderHomeHero = () => {}, openModal = () => {};
-      const document = { getElementById: () => null };
+      const els = {};
+      const document = { getElementById: id => (id === 'home-coach-banner' ? (els[id] ||= { innerHTML: '' }) : null) };
+      const coachedView = () => true;
+      const store = env.store || (env.store = new Map());
+      const localStorage = { getItem: k => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)) };
       const getCoachAssignment = (m, w, d) => env.E.getCoachAssignment(state, m, w, d);
       const toLocalDateStr = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
       ${parts.map(p => p.text).join('\n')}
-      return { ${seeds.join(', ')}, setRequests: r => { _coachRequests = r; }, form: () => _coachReqForm, setCounter: c => { _coachCounterFor = c; } };`)(env);
+      return { ${seeds.join(', ')}, setRequests: r => { _coachRequests = r; }, form: () => _coachReqForm, setCounter: c => { _coachCounterFor = c; }, banner: () => (els['home-coach-banner'] || {}).innerHTML || '' };`)(env);
   } catch (e) { F = null; }
   check('the Home row and Request a session exist', !!F, true);
   if (F) {
@@ -150,7 +154,8 @@ async function run(label, html, engineSrc) {
     const h = G.homeNextSessionHTML();
     check('…shown in the wireframe\'s short form, "Your next session · Wed 18:00" (within the week), with Request a session', [/Your next session/.test(h), /<b>Wed 18:00<\/b>/.test(h), /Request a session/.test(h)], [true, true, true]);
     G.setRequests([{ id: 'r1', status: 'proposed', proposed: { date: '2026-10-01', start_min: 1080 }, preferences: [] }]);
-    check('a proposed time due an answer: "{coach} suggested a time" and "Answer Sam"', [/Sam suggested a time/.test(G.homeNextSessionHTML()), /Answer Sam/.test(G.homeNextSessionHTML())], [true, true]);
+    check('a suggested time does NOT change the row (the banner above the hero says it): still "Your next session"',
+      [/Your next session/.test(G.homeNextSessionHTML()), /suggested a time|Answer/.test(G.homeNextSessionHTML())], [true, false]);
     const wk = mk({ macrocycles: [], coachBookings: { w: { booking_id: 'w', date: '2026-09-30', start_min: 1080, status: 'booked', kind: 'weekly' } } }).homeNextSessionHTML();
     check('the row carries the wireframe\'s calendar icon, and a weekly booking says "Weekly" on its second line', [/<svg[^>]*>.*M3 6\.5a2 2/.test(wk), /<span class="sub">Weekly<\/span>/.test(wk)], [true, true]);
     const I = mk({ macrocycles: [], coachBookings: {} });
@@ -169,8 +174,21 @@ async function run(label, html, engineSrc) {
     check('🚨 a request that has been booked leaves this sheet (it is a session now)',
       [I2.coachRequestBooked({ status: 'accepted', proposed: { date: '2026-09-30', start_min: 1080 } }), I.coachRequestBooked({ status: 'accepted', proposed: { date: '2026-09-30', start_min: 1080 } })], [true, false]);
     const ctr = row({ id: 'c', status: 'countered', proposed: { date: '2026-10-06', start_min: 1140 }, counter: { date: '2026-10-07', start_min: 420, end_min: 540 }, preferences: [{ date: '2026-10-06', start_min: 1080 }] });
-    check('countered: the row is YOUR latest time only (not your first ask, not the coach\'s), Waiting for {coach}, no Withdraw',
-      [/Wed 7 Oct · any time 07:00–09:00/.test(ctr), /Tue 6 Oct/.test(ctr), /Waiting for Sam/.test(ctr), /Withdraw/.test(ctr)], [true, false, true, false]);
+    check('countered: the row is YOUR latest time only (not your first ask, not the coach\'s), Waiting for {coach}, and Withdraw',
+      [/Wed 7 Oct · any time 07:00–09:00/.test(ctr), /Tue 6 Oct/.test(ctr), /Waiting for Sam/.test(ctr), /Withdraw/.test(ctr)], [true, false, true, true]);
+
+    // The banner, on HOME (Adam, UAT: it must call attention when the app loads).
+    const B = mk({ macrocycles: [], coachBookings: {} });
+    const pr = { id: 'p9', status: 'proposed', proposed: { date: '2026-10-12', start_min: 1110 }, preferences: [{ date: '2026-10-12', start_min: 960, end_min: 1200 }] };
+    B.setRequests([pr]); B.renderHomeCoachBanner();
+    check('a suggested time puts the banner on Home: "{coach} proposed a different time", the time, Review, and ✕',
+      [/Sam proposed a different time/.test(B.banner()), /Mon 12 Oct · 18:30 instead of your choices/.test(B.banner()), /openCoachRequest\(\)">Review/.test(B.banner()), /Dismiss/.test(B.banner())], [true, true, true, true]);
+    B.dismissHomeCoachBanner();
+    check('✕ dismisses it', B.banner(), '');
+    B.setRequests([Object.assign({}, pr, { proposed: { date: '2026-10-13', start_min: 1110 } })]); B.renderHomeCoachBanner();
+    check('…but a NEW suggested time on the same request brings it back', /Tue 13 Oct · 18:30/.test(B.banner()), true);
+    B.setRequests([Object.assign({}, pr, { status: 'accepted' })]); B.renderHomeCoachBanner();
+    check('answered: no banner', B.banner(), '');
     const pend = row({ id: 'w', status: 'pending', preferences: [{ date: '2026-10-01', start_min: 1080 }, { date: '2026-10-02', start_min: 420 }], notes: 'Knees' });
     check('pending: the first choice "+1 more", Waiting, and Withdraw; no notes',
       [/Thu 1 Oct · 18:00 \+1 more/.test(pend), /Waiting for Sam/.test(pend), /Withdraw/.test(pend), /Knees/.test(pend)], [true, true, true, false]);

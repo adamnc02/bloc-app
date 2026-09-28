@@ -3689,6 +3689,8 @@ html.auth-likely-signed-in #auth-gate { display: none; }
   background: color-mix(in srgb, var(--accent) 10%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
   font-size: 13px; line-height: 1.45; color: var(--text2); }
 .coach-banner b { display: block; color: var(--accent2); font-size: 14px; margin-bottom: 3px; }
+.coach-banner-home { margin: 18px 0 0; }
+.coach-banner-x { flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--surface2); color: var(--text2); cursor: pointer; font-size: 14px; }
 .coach-banner-ico svg { width: 20px; height: 20px; fill: none; stroke: var(--accent2); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .coach-reqlist { padding-top: 4px; padding-bottom: 4px; }
 .coach-reqrow { display: flex; align-items: center; gap: 10px; padding: 12px 0; }
@@ -4398,6 +4400,7 @@ try {
            there is no separate banner element any more.
            `home-body-logs-btn` moved out of the header and into section 02. -->
       <div id="home-header"></div>
+      <div id="home-coach-banner"></div><!-- v8.42 (§136): the coach banner, above the hero (wireframe HomeScreen) -->
       <div id="home-hero-wrap"><div id="home-hero-card"></div></div>
       <div id="home-this-week"></div>
       <div id="home-log-boxes"></div>
@@ -15272,18 +15275,16 @@ function nextCoachBooking() {
   return best ? best.b : null;
 }
 function homeNextSessionHTML() {
+  // Always "Your next session" (wireframe HomeScreen): a suggested time waiting
+  // for an answer is the banner's job, above the hero (renderHomeCoachBanner).
   const b = nextCoachBooking();
-  const proposed = (_coachRequests || []).find(r => r.status === 'proposed');
-  const link = `<button onclick="openCoachRequest()">${proposed ? 'Answer ' + coachEsc(coachFirstName()) : 'Request a session'}</button>`;
-  // Two lines, so nothing wraps or runs off the hero at 375pt: what and when,
-  // then the link.
   // 🚨 Measured at 375pt: the icon, the label and "Wed 30 Sep, 18:00 · weekly"
   // don't fit on one line, so the time is the wireframe's short form and
   // "Weekly" sits on the second line with the link.
   return `<div class="home-next-session" id="home-next-session">
-      <div class="row1"><span class="lbl">${COACH_ICO_CALENDAR}${proposed ? `${coachEsc(coachFirstName())} suggested a time` : 'Your next session'}</span>
-      ${b && !proposed ? `<b>${coachEsc(coachShortWhen(b.date, b.start_min))}</b>` : (proposed ? '' : '<b style="color:var(--text3);font-weight:500;">None booked</b>')}</div>
-      <div class="row2"><span class="sub">${b && !proposed && coachBookingWeekly(b) ? 'Weekly' : ''}</span>${link}</div>
+      <div class="row1"><span class="lbl">${COACH_ICO_CALENDAR}Your next session</span>
+      ${b ? `<b>${coachEsc(coachShortWhen(b.date, b.start_min))}</b>` : '<b style="color:var(--text3);font-weight:500;">None booked</b>'}</div>
+      <div class="row2"><span class="sub">${b && coachBookingWeekly(b) ? 'Weekly' : ''}</span><button onclick="openCoachRequest()">Request a session</button></div>
     </div>`;
 }
 
@@ -15308,7 +15309,7 @@ async function refreshSessionRequests() {
   const sheet = document.getElementById('modal-coach-request');
   if (sheet && sheet.classList.contains('open')) renderCoachRequest();
   const home = document.getElementById('screen-home');
-  if (home && home.classList.contains('active')) renderHomeHero();
+  if (home && home.classList.contains('active')) { renderHomeCoachBanner(); renderHomeHero(); }
   return _coachRequests;
 }
 function coachTomorrow() { const d = new Date(getLocalToday() + 'T00:00:00'); d.setDate(d.getDate() + 1); return toLocalDateStr(d); }
@@ -15346,6 +15347,44 @@ function coachWaitingChip(r, first) {
   if (r.status === 'accepted') return `<span class="chip" style="--chip-c:var(--green-text);">Confirmed</span>`;
   if (r.status === 'declined') return `<span class="chip" style="--chip-c:var(--red);">Declined</span>`;
   return `<span class="chip" style="--chip-c:var(--accent2);">Waiting for ${first}</span>`;
+}
+// ── The coach banner on Home (wireframe HomeScreen BannerSlot 'proposed') ──
+// 🚨 On HOME, above the hero, not in the sheet (Adam, v8.42 UAT: "the banner
+// needs to call my attention when I load the app"; the first rebuild put it at
+// the top of the Request sheet, where the action already is). Dismissible;
+// "Review" opens Request a session. A dismissal is remembered per suggestion
+// (request + time) and per account, so the coach suggesting a new time shows
+// it again. 4e-4 adds the other banners (plan, phases, response, booking).
+const COACH_BANNER_DISMISSED_KEY = 'bloc_coach_banner_dismissed';
+function coachBannerDismissed() {
+  try {
+    const d = JSON.parse(localStorage.getItem(COACH_BANNER_DISMISSED_KEY) || 'null');
+    const uid = _authResolvedSession && _authResolvedSession.user && _authResolvedSession.user.id;
+    return d && d.userId === uid && Array.isArray(d.keys) ? d.keys : [];
+  } catch (e) { return []; }
+}
+function coachProposalKey(r) { return r.id + ':' + (r.proposed ? r.proposed.date + ':' + r.proposed.start_min : ''); }
+function renderHomeCoachBanner() {
+  const el = document.getElementById('home-coach-banner');
+  if (!el) return;
+  const dismissed = coachBannerDismissed();
+  const due = coachedView() ? (_coachRequests || []).filter(r => r.status === 'proposed' && r.proposed && !dismissed.includes(coachProposalKey(r))) : [];
+  if (!due.length) { el.innerHTML = ''; return; }
+  const r = due[0];
+  el.innerHTML = `<div class="coach-banner coach-banner-home" role="status">
+      <span class="coach-banner-ico">${COACH_ICO_CLOCK}</span>
+      <div style="flex:1;min-width:0;"><b>${coachEsc(coachFirstName())} proposed a different time</b>
+        <div>${coachEsc(coachSlotLine(r.proposed))} instead of your choices.${due.length > 1 ? ` ${due.length - 1} more waiting.` : ''}</div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="openCoachRequest()">Review</button></div>
+      <button class="coach-banner-x" aria-label="Dismiss" onclick="dismissHomeCoachBanner()">✕</button>
+    </div>`;
+}
+function dismissHomeCoachBanner() {
+  const uid = _authResolvedSession && _authResolvedSession.user && _authResolvedSession.user.id;
+  const keys = coachBannerDismissed();
+  for (const r of (_coachRequests || [])) if (r.status === 'proposed' && r.proposed) keys.push(coachProposalKey(r));
+  try { localStorage.setItem(COACH_BANNER_DISMISSED_KEY, JSON.stringify({ userId: uid, keys: keys.slice(-50) })); } catch (e) {}
+  renderHomeCoachBanner();
 }
 function coachRequestBooked(r) {
   if (r.status !== 'accepted') return false;
@@ -15412,7 +15451,7 @@ function coachWaitingCardHTML(r) {
   const first = coachEsc(coachFirstName());
   return `<div class="coach-reqrow">
       <div class="coach-reqrow-main"><div class="coach-reqrow-when">${coachEsc(coachRequestLatest(r))}${r.repeat_weekly ? ' · weekly' : ''}</div>
-        ${r.status === 'pending' ? `<button class="coach-reqrow-act" onclick="answerCoachRequest('${r.id}','withdraw')">Withdraw</button>` : ''}</div>
+        ${['pending', 'countered'].includes(r.status) ? `<button class="coach-reqrow-act" onclick="answerCoachRequest('${r.id}','withdraw')">Withdraw</button>` : ''}</div>
       ${coachWaitingChip(r, first)}
     </div>`;
 }
@@ -15467,11 +15506,7 @@ function renderCoachRequest() {
     || (r.status === 'declined' && String(r.updated_at || r.created_at || '') >= since));
   const proposed = shown.filter(r => r.status === 'proposed' && r.proposed);
   const others = shown.filter(r => !(r.status === 'proposed' && r.proposed));
-  const p0 = proposed[0];
-  const banner = p0 ? `<div class="coach-banner" role="status"><span class="coach-banner-ico">${COACH_ICO_CLOCK}</span><div>
-      <b>${first} proposed a different time</b><div>${coachEsc(coachSlotLine(p0.proposed))} instead of your choices.${proposed.length > 1 ? ` And ${proposed.length - 1} more below.` : ''}</div></div></div>` : '';
-  el.innerHTML = banner
-    + coachNextSessionCardHTML()
+  el.innerHTML = coachNextSessionCardHTML()
     + proposed.map(coachProposedCardHTML).join('')
     + (others.length ? `<div class="coach-section-title">Your requests</div><div class="card coach-reqlist">${others.map(coachWaitingCardHTML).join('')}</div>` : '')
     + coachReqFormHTML(f);
@@ -20961,6 +20996,7 @@ function renderHome(animateHero = false) {
   // values (negative percentages, impossible weights) whenever anything
   // sampled the DOM mid-count.
   renderHomeHeader();
+  renderHomeCoachBanner(); // v8.42 (§136)
   renderHomeHero();
   renderHomeThisWeek();
   renderHomeLogBoxes();
