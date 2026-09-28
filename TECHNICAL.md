@@ -8293,7 +8293,7 @@ client UPDATE on `status`, `note` and `acked_at` only, so Postgres refused the w
 denied for table publication_acks"). The grant is right: a client must not move a receipt to another
 publication. So BLOC updates the row, and inserts when there was none. The first version's verify script
 passed because its fake table accepted the upsert, a stand-in more permissive than the platform
-(MIGRATION-LESSONS §70's lesson). Its fake now refuses an upsert as the grants do, and a control runs
+(MIGRATION-LESSONS §70 and §72). Its fake now refuses an upsert as the grants do, and a control runs
 `bdb3f58`'s receipt code against it.
 - A failed send stays owed, and goes out with the next pull.
 - A publication held again **for the same reason** doesn't re-send the receipt.
