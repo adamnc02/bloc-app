@@ -78,6 +78,8 @@ function build(source) {
     const listSnapshots = async () => { if (env.listFails) throw new Error('offline'); return env.snapshots; };
     const playLinkSplash = l => log.push(['splash', l.coachName]);
     const requestClientStateUpload = r => log.push(['upload', r]); // v8.38 (§130)
+    const requestPublicationPull = r => log.push(['pull', r]); // v8.39 (§131)
+    const syncPublicationChannel = () => log.push(['channel']);
     const showConfirm = (t, m, ok, cb) => { log.push(['confirm', t]); env.confirmCb = cb; };
     const setTimeout = (fn) => fn();
     ${consts.join('\n')}
@@ -226,6 +228,8 @@ async function run(source, label) {
       [e.store.has('bloc_pending_invite'), e.log.some(l => l[0] === 'splash'), L.flow().step], [false, true, 'linked']);
     if (/requestClientStateUpload\(/.test(extract(source, 'async function coachAgreeAndLink(') || ''))
       check('v8.38: a new link starts the client_state upload, once', e.log.filter(l => l[0] === 'upload'), [['upload', 'linked']]);
+    if (/requestPublicationPull\(/.test(extract(source, 'async function coachAgreeAndLink(') || ''))
+      check('v8.39: a new link pulls publications and opens the channel', [e.log.filter(l => l[0] === 'pull'), e.log.some(l => l[0] === 'channel')], [[['pull', 'linked']], true]);
   }
 
   // ── Refusals

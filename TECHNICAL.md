@@ -8228,3 +8228,92 @@ exactly as `0023` does. It covers:
   (today's steps 8,042 → 10,000).
 - **An unchanged reload sent nothing.**
 - **Unlinked:** a change sent nothing, while the mirror sync still ran.
+
+## §131 — v8.39: the coach → client publications — pull, apply, acknowledge (PROMPT-03 Phase 4d)
+
+Proposal §6.2, deep dive §5 and §6. The server half is `0023` (`publications`, `publication_acks`,
+Realtime; `super-duper-octo-barnacle/docs/SUPABASE.md` → "BLOC Coach: how the two apps talk"). No
+migration.
+
+**Delivery.** The **pull is the source of truth** (`pullPublicationsOnce()`): `publications` for this
+client's card (`client_record_id`, now cached with the link, §129), `seq > cursor`, in `seq` order. It
+runs:
+- on sign-in and on resume, once the link is re-checked;
+- on coming online;
+- at once on linking (anything the coach published before the link arrives then, §11 Q16);
+- every 5 minutes while the app is visible.
+
+**Realtime is only a hint.** While the app is open, a `postgres_changes` INSERT on this card triggers
+a pull (`syncPublicationChannel()`, which closes on unlink). iOS drops the socket soon after the app
+is backgrounded, and that's fine because the resume pull covers it. Pulls go one at a time
+(`publicationsSerialised()`, the §128 pattern).
+
+**One funnel: `applyPublications()`.** Each publication is a **field-level patch** (deep dive I6), with
+the per-type allow-list the server enforces in a CHECK. Each type has an applier:
+
+| Type | What BLOC does | Held (needs_attention) when |
+|---|---|---|
+| `plan` | `macrocycle`: creates the cycle, or **patches only the coach's fields** (`PUB_MACRO_FIELDS`, the server's list), so the client's own fields (`review`, …) survive. It stamps `publishedBy` / `publishedSeq`. `exercises: {key: Exercise[]}` replaces that session template (`key` exactly as `state.exercises` holds it: `${macroId}_1_${dayKey}`, plus `m1`/`m2` with microcycles). `supersets: {id: {name}}`, `deloads: {key: bool}` (false removes it), `remove_exercise_ids`, `remove_superset_ids` | the cycle **overlaps another** (`findMacroClash`, the §99 rule, deep dive I10; the note names it); it has no id or start; an exercise list or deload names a cycle the phone doesn't hold |
+| `goal_phases` | upserts goals by `macroGoalID` (stamped `publishedBy`), removes `remove_goal_ids` | its `macro_id` isn't on the phone; a goal has no id or dates |
+| `ai_response` | **`state.coachAdvice[]`, never `blocAdvice`** (I5), one entry per `response_id`. A republish replaces it, marked `updated` (§11 Q10). Its `goal_changes: {goals, remove_goal_ids}` apply with it (§11 Q9) | no `response_id`; a goal change has no id or dates |
+| `booking` | `state.coachBookings[booking_id]`, including `assigned_session` | no `booking_id` |
+| `measurement` | merges weight / waist / hip into that date's body log, keeping the client's steps; `measuredByCoach` | no `log_date` |
+| `note_reply` | `state.coachNoteReplies[submission_id]` | no `submission_id` |
+| `session_log` | **stored only** (`state.coachSessionLogs`), not acked. Applying a coach-logged session changes trainLogs, locks and history (I2/I3), with Train's read-only view. That's the Coached Train work, next | — |
+| anything else | — | always (a newer Coach than this BLOC) |
+
+A publication named in another's `supersedes` in the same pull is skipped and acked `superseded`.
+
+🚨 **§0 "logged weeks never change":** a `plan` that changes or removes an exercise drops its
+cached targets (`progressionTargets`, `${macroId}_${dayKey}_${exId}_w${week}`) only for **weeks with
+no set logged** (`invalidateUnloggedTargets()`). They recompute from the new template; logged weeks
+keep theirs. Progression locks are left alone.
+
+🚨 **It waits** (deep dive I7, `publicationsMustWait()`): never while a sheet is open, a Train input
+has focus, the goal queue is running, or the Demo Tour / any pretend "today" is active. A publication
+landing under an open edit sheet would be overwritten by that sheet's stale save. Fetched
+publications stay queued, retried every 3 s. **A queue that outlives its link is dropped**, so nothing
+from an unlinked coach lands.
+
+🚨 **The ledger lives in `state`** (`state.coachLedger`: `{pubId: {seq, type, status, note, acked}}`), so it
+travels with the data it describes (deep dive I8):
+- **A restore, an import or a clear** brings back an older ledger, or none. The next pull starts from
+  there (`publicationCursor()`) and re-applies what that state lacks, with no special case in any of
+  those paths.
+- **Every applier is idempotent;** a settled entry is never applied twice.
+- **The cursor stays below any held publication**, so it's fetched and retried on every pull until
+  it applies.
+
+**Receipts** (`publication_acks`, `sendPendingAcks()`): upserted `applied` / `needs_attention` (with the
+reason) / `superseded` for every settled, un-acked entry.
+- A failed send stays owed, and goes out with the next pull.
+- A publication held again **for the same reason** doesn't re-send the receipt.
+- `stored` entries aren't acked yet, so the coach sees them as pending.
+
+After applying, BLOC `save()`s (so the mirror and `client_state` follow, §130) and re-renders the
+current screen. **Nothing in the UI marks the coach's cycle yet:** in v8.39 it's an ordinary cycle in
+Plan. Coached mode's hiding and "From your coach" come next, keyed on `publishedBy` and
+`coachAdvice`.
+
+⚠️ **Open for Phase 5: replacing a running Solo cycle.** Proposal §4.1 says the client's Solo cycle
+"runs unchanged until the coach publishes one; they replace it". I10 says an overlapping plan is held,
+not forced. BLOC holds it, and the receipt names the clash. Coach must decide how it replaces a running
+cycle: start after it (§11 Q17's default) or an explicit "replace" that the client accepts. Don't
+loosen the hold in BLOC to make this easy.
+
+**Check:** `scripts/verify-publications-apply.mjs` (40 checks) runs the real funnel on the demo dataset
+with the built engine's clash rule. It covers:
+- **plan:** create, the I6 patch keeping `review`, idempotency; the I10 hold (nothing changed, the
+  cursor below it, no repeat receipt, applied once the clash is gone); exercises for an unknown
+  cycle held;
+- the §0 target reset;
+- every other type (the I5 separation included, and `session_log` stored without a receipt);
+- supersedes;
+- I8 re-apply after a restore;
+- all four I7 waits;
+- apply, save and re-render;
+- a failed receipt kept owed, and an unlinked queue dropped;
+- the wiring.
+
+**Control:** v8.38 (`c5949c3`). `verify-coach-linking.mjs` also checks a new link pulls and opens the
+channel.

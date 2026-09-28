@@ -9391,7 +9391,7 @@ async function refreshCoachLink() {
   if (!coachingAvailable()) return coachLinkGet();
   const uid = _authResolvedSession.user.id;
   const { data, error } = await supabase.from('coach_clients')
-    .select('coach_id, photo_consent, linked_at').eq('client_id', uid).eq('status', 'active').maybeSingle();
+    .select('coach_id, client_record_id, photo_consent, linked_at').eq('client_id', uid).eq('status', 'active').maybeSingle();
   if (error) throw error;
   if (!data) { coachLinkClear(); updateSettingsCoachingRow(); return null; }
   const prev = coachLinkGet();
@@ -9402,6 +9402,7 @@ async function refreshCoachLink() {
     coachName: (cp && cp.display_name) || (prev && prev.coachId === data.coach_id && prev.coachName) || 'Your coach',
     businessName: (cp && cp.business_name) || null,
     linkedAt: data.linked_at, photoConsent: !!data.photo_consent,
+    clientRecordId: data.client_record_id || null, // v8.39 (§131): the card publications are addressed to
   };
   coachLinkSet(link);
   updateSettingsCoachingRow();
@@ -9412,7 +9413,11 @@ function maybeRefreshCoachLink() {
   if (Date.now() - _coachLinkRefreshedAt < 60 * 1000) return;
   _coachLinkRefreshedAt = Date.now();
   refreshCoachLink()
-    .then(() => requestClientStateUpload('resume')) // v8.38 (§130): after the link is known
+    .then(() => {
+      requestClientStateUpload('resume'); // v8.38 (§130): after the link is known
+      requestPublicationPull('resume');   // v8.39 (§131)
+      syncPublicationChannel();
+    })
     .catch(err => console.warn('[coaching] could not check the coach link:', err && err.message));
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') maybeRefreshCoachLink(); });
@@ -9556,6 +9561,8 @@ async function coachAgreeAndLink() {
   // v8.38 (§130): the coach sees the client straight away. Outside the try on
   // purpose: nothing about the upload may make a link that worked look failed.
   requestClientStateUpload('linked');
+  requestPublicationPull('linked'); // v8.39 (§131): anything published before the link arrives now (§11 Q16)
+  syncPublicationChannel();
 }
 
 function renderCoachLink() {
@@ -9771,6 +9778,7 @@ async function unlinkCoach(l) {
     const { error } = await supabase.rpc('revoke_coach', { p_coach_id: l.coachId });
     if (error) throw error;
     coachLinkClear();
+    syncPublicationChannel(); // v8.39 (§131): stop listening
     updateSettingsCoachingRow();
     renderSettingsCoaching();
     coachingStatus('Unlinked. You’re back to Solo.');
@@ -9916,6 +9924,337 @@ function scheduleClientStateUpload() {
   _clientStateTimer = setTimeout(() => { _clientStateTimer = null; requestClientStateUpload('saved'); }, CLIENT_STATE_DEBOUNCE_MS);
 }
 window.addEventListener('online', () => requestClientStateUpload('online'));
+
+// ════════════════════════════════════════════════════════════════════════
+// PUBLICATIONS: coach → client (v8.39, PROMPT-03 Phase 4d, TECHNICAL §131)
+// ════════════════════════════════════════════════════════════════════════
+// The coach's changes arrive as rows in `publications` (0023), addressed to
+// the coach's card for this client, each a FIELD-LEVEL PATCH of one type with
+// an allow-list the server enforces (deep dive I6). BLOC pulls them, applies
+// them through ONE funnel, and tells the coach how it went (publication_acks).
+//
+// Delivery (deep dive §6): the PULL is the source of truth — on sign-in,
+// resume, coming online, a new link, and every 5 minutes while open. Realtime
+// is only a hint that makes it immediate while the app is open. Push (Phase 6)
+// only brings the client back into the app.
+//
+// 🚨 The ledger lives IN `state` (state.coachLedger, {pubId: {seq, type,
+// status, at}}), so it travels with the data it describes. A restore, an
+// import or a clear brings back an OLDER ledger (or none), and the next pull
+// simply re-applies everything after it — deep dive I8, with no special case
+// in any of those paths. Every apply is idempotent for the same reason.
+//
+// 🚨 One funnel, and it WAITS (deep dive I7): never while a sheet is open, a
+// Train input has focus, the goal queue is running, or the Demo Tour / any
+// pretend "today" is active. A publication landing under an open edit sheet
+// would be overwritten by the stale sheet's save.
+//
+// 🚨 It re-validates (deep dive I10): a plan whose cycle would overlap another
+// is HELD as needs_attention, never forced (the §99 no-overlap rule), and
+// retried on every pull.
+const PUB_POLL_MS = 5 * 60 * 1000;
+const PUB_RETRY_MS = 3000;
+// The macrocycle fields the coach owns — the server's allow-list (0023's
+// publication_payload_ok). Anything else on the cycle (review, …) is the
+// client's and survives every publication.
+const PUB_MACRO_FIELDS = ['name', 'weeks', 'weeksPerMeso', 'sessionsPerWeek', 'start', 'goal', 'targetBw', 'goalType',
+  'splitType', 'days', 'dayLabels', 'useMicrocycles', 'weightIncrement', 'rpe', 'extensionWeeks'];
+
+function coachLedger() {
+  if (!state.coachLedger || typeof state.coachLedger !== 'object') state.coachLedger = {};
+  return state.coachLedger;
+}
+// Where the next pull starts: after the newest settled publication, but no
+// later than the oldest one still held (needs_attention), so held ones are
+// fetched and retried.
+function publicationCursor() {
+  const l = state.coachLedger || {};
+  let max = 0, heldMin = Infinity;
+  for (const id in l) {
+    const e = l[id];
+    if (!e || typeof e.seq !== 'number') continue;
+    if (e.status === 'needs_attention') heldMin = Math.min(heldMin, e.seq);
+    else max = Math.max(max, e.seq);
+  }
+  return heldMin !== Infinity ? Math.min(max, heldMin - 1) : max;
+}
+
+// ── Can it apply now? ──────────────────────────────────────────────────────
+function publicationsMustWait() {
+  if (_tourAnchorDate || demoTourIsRunning()) return 'tour';
+  if (document.querySelector('.modal-overlay.open')) return 'sheet-open';
+  const a = document.activeElement;
+  if (a && a.closest && a.closest('#screen-train') && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return 'train-input';
+  if (typeof _goalQueue !== 'undefined' && _goalQueue) return 'goal-queue';
+  return null;
+}
+
+// ── The per-type patches ───────────────────────────────────────────────────
+// Each returns {status, note?}: 'applied', 'needs_attention' (held, retried),
+// or 'stored' (kept for a later sub-phase, not acked yet).
+function pubCopy(v) { return v == null ? v : JSON.parse(JSON.stringify(v)); }
+
+function applyPlanPublication(pub) {
+  const p = pub.payload || {};
+  const incoming = p.macrocycle && typeof p.macrocycle === 'object' ? p.macrocycle : null;
+  const macroIds = new Set(state.macrocycles.map(m => m.id));
+  let candidate = null;
+  if (incoming) {
+    if (typeof incoming.id !== 'string' || !incoming.id) return { status: 'needs_attention', note: 'The cycle has no id.' };
+    const existing = state.macrocycles.find(m => m.id === incoming.id);
+    const patch = {};
+    for (const f of PUB_MACRO_FIELDS) if (f in incoming) patch[f] = pubCopy(incoming[f]);
+    candidate = Object.assign({}, existing || { id: incoming.id }, patch);
+    if (!candidate.start) return { status: 'needs_attention', note: 'The cycle has no start date.' };
+    const clash = findMacroClash(candidate, state.macrocycles, candidate.id);
+    if (clash) return { status: 'needs_attention', note: `Overlaps “${clash.name || 'another cycle'}” (from ${clash.start}).` };
+    macroIds.add(candidate.id);
+  }
+  // Every exercise list and deload must belong to a cycle the client holds (or
+  // this plan brings), or it can't be placed.
+  const owned = key => [...macroIds].some(id => key.startsWith(id + '_'));
+  for (const key of Object.keys(p.exercises || {})) if (!owned(key)) return { status: 'needs_attention', note: `Session ${key} belongs to no cycle on this phone.` };
+  for (const key of Object.keys(p.deloads || {})) if (!owned(key)) return { status: 'needs_attention', note: `Deload ${key} belongs to no cycle on this phone.` };
+
+  // Valid: apply it all.
+  if (candidate) {
+    candidate.publishedBy = pub.coach_id;
+    candidate.publishedSeq = pub.seq;
+    const i = state.macrocycles.findIndex(m => m.id === candidate.id);
+    if (i >= 0) state.macrocycles[i] = candidate; else state.macrocycles.push(candidate);
+  }
+  const changedEx = [];
+  for (const [key, list] of Object.entries(p.exercises || {})) {
+    state.exercises[key] = pubCopy(Array.isArray(list) ? list : []);
+    for (const ex of state.exercises[key]) if (ex && ex.id) changedEx.push([key, ex.id]);
+  }
+  const removeEx = new Set(p.remove_exercise_ids || []);
+  if (removeEx.size) for (const key in state.exercises) state.exercises[key] = (state.exercises[key] || []).filter(e => !removeEx.has(e.id));
+  for (const [id, ss] of Object.entries(p.supersets || {})) state.supersets[id] = Object.assign({ name: null }, pubCopy(ss));
+  for (const id of (p.remove_superset_ids || [])) delete state.supersets[id];
+  for (const [key, on] of Object.entries(p.deloads || {})) { if (on) state.deloads[key] = true; else delete state.deloads[key]; }
+  invalidateUnloggedTargets(changedEx.concat([...removeEx].map(id => [null, id])));
+  return { status: 'applied' };
+}
+
+// §0: targets for weeks the client has NOT logged may change; logged weeks
+// never do. The target cache is keyed `${macroId}_${dayKey}_${exId}_w${week}`
+// and a set log `${macroId}_${week}_${dayKey}_${exId}_${set}`.
+function invalidateUnloggedTargets(pairs) {
+  const exIds = new Set(pairs.map(p => p[1]));
+  if (!exIds.size || !state.progressionTargets) return;
+  const logKeys = Object.keys(state.trainLogs || {});
+  for (const tKey of Object.keys(state.progressionTargets)) {
+    for (const exId of exIds) {
+      const m = tKey.match(new RegExp('^(.+?)_(.+)_' + exId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '_w(\\d+)$'));
+      if (!m) continue;
+      const macroId = state.macrocycles.map(x => x.id).find(id => tKey.startsWith(id + '_'));
+      if (!macroId) continue;
+      const dayKey = tKey.slice(macroId.length + 1, tKey.length - ('_' + exId + '_w' + m[3]).length);
+      const prefix = `${macroId}_${m[3]}_${dayKey}_${exId}_`;
+      if (!logKeys.some(k => k.startsWith(prefix))) delete state.progressionTargets[tKey];
+    }
+  }
+}
+
+function applyGoalsPatch(goals, removeIds, pub, macroId) {
+  const remove = new Set(removeIds || []);
+  if (remove.size) state.goals = state.goals.filter(g => !remove.has(g.macroGoalID));
+  for (const g of (goals || [])) {
+    if (!g || !g.macroGoalID) continue;
+    const next = Object.assign(pubCopy(g), { macroId: g.macroId || macroId, publishedBy: pub.coach_id, publishedSeq: pub.seq });
+    const i = state.goals.findIndex(x => x.macroGoalID === g.macroGoalID);
+    if (i >= 0) state.goals[i] = next; else state.goals.push(next);
+  }
+}
+function applyGoalPhasesPublication(pub) {
+  const p = pub.payload || {};
+  if (p.macro_id && !state.macrocycles.some(m => m.id === p.macro_id)) return { status: 'needs_attention', note: 'Its cycle isn’t on this phone yet.' };
+  for (const g of (p.goals || [])) if (!g || !g.macroGoalID || !g.startDate || !g.endDate) return { status: 'needs_attention', note: 'A goal phase is missing its id or dates.' };
+  applyGoalsPatch(p.goals, p.remove_goal_ids, pub, p.macro_id);
+  return { status: 'applied' };
+}
+// I5: the coach's AI responses never go in blocAdvice (the client's own
+// check-in slot). One entry per response_id; a republished edit replaces it
+// and is marked updated ("Updated by {coach}", §11 Q10). Its goal changes,
+// if any, apply with it (§11 Q9: one Publish sends both).
+function applyAiResponsePublication(pub) {
+  const p = pub.payload || {};
+  if (!p.response_id) return { status: 'needs_attention', note: 'The response has no id.' };
+  const gc = p.goal_changes;
+  if (gc && gc.goals) for (const g of gc.goals) if (!g || !g.macroGoalID || !g.startDate || !g.endDate) return { status: 'needs_attention', note: 'A goal change is missing its id or dates.' };
+  if (!Array.isArray(state.coachAdvice)) state.coachAdvice = [];
+  const entry = { responseId: p.response_id, tool: p.tool || null, macroId: p.macro_id || null, content: pubCopy(p.content),
+    updated: !!p.updated, publicationId: pub.id, seq: pub.seq, receivedAt: new Date().toISOString() };
+  const i = state.coachAdvice.findIndex(a => a.responseId === p.response_id);
+  if (i >= 0) state.coachAdvice[i] = Object.assign(entry, { updated: true }); else state.coachAdvice.push(entry);
+  if (gc) applyGoalsPatch(gc.goals, gc.remove_goal_ids, pub, p.macro_id);
+  return { status: 'applied' };
+}
+function applyBookingPublication(pub) {
+  const p = pub.payload || {};
+  if (!p.booking_id) return { status: 'needs_attention', note: 'The booking has no id.' };
+  if (!state.coachBookings || typeof state.coachBookings !== 'object') state.coachBookings = {};
+  state.coachBookings[p.booking_id] = Object.assign(pubCopy(p), { seq: pub.seq });
+  return { status: 'applied' };
+}
+function applyMeasurementPublication(pub) {
+  const p = pub.payload || {};
+  if (!p.log_date) return { status: 'needs_attention', note: 'The measurement has no date.' };
+  let log = state.bodyLogs.find(b => b.date === p.log_date);
+  if (!log) { log = { date: p.log_date, weight: null, steps: null, waist: null, hip: null }; state.bodyLogs.push(log); }
+  for (const f of ['weight', 'waist', 'hip']) if (p[f] != null && p[f] !== '') log[f] = p[f];
+  log.measuredByCoach = true;
+  state.bodyLogs.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  return { status: 'applied' };
+}
+function applyNoteReplyPublication(pub) {
+  const p = pub.payload || {};
+  if (!p.submission_id) return { status: 'needs_attention', note: 'The reply has no note to answer.' };
+  if (!state.coachNoteReplies || typeof state.coachNoteReplies !== 'object') state.coachNoteReplies = {};
+  state.coachNoteReplies[p.submission_id] = { text: p.text || '', seq: pub.seq, receivedAt: new Date().toISOString() };
+  return { status: 'applied' };
+}
+// A coach-logged in-person session changes trainLogs, the progression locks
+// and history (deep dive I2/I3), with Train's read-only "Logged by your coach"
+// view. That lands with the Coached-mode Train work; until then the session is
+// KEPT (state.coachSessionLogs) and not acked, so the coach sees it as pending.
+function storeSessionLogPublication(pub) {
+  if (!state.coachSessionLogs || typeof state.coachSessionLogs !== 'object') state.coachSessionLogs = {};
+  state.coachSessionLogs[pub.id] = { seq: pub.seq, payload: pubCopy(pub.payload) };
+  return { status: 'stored' };
+}
+const PUB_APPLIERS = {
+  plan: applyPlanPublication,
+  goal_phases: applyGoalPhasesPublication,
+  ai_response: applyAiResponsePublication,
+  booking: applyBookingPublication,
+  measurement: applyMeasurementPublication,
+  note_reply: applyNoteReplyPublication,
+  session_log: storeSessionLogPublication,
+};
+
+// ── THE funnel ─────────────────────────────────────────────────────────────
+// Applies a batch (in seq order), idempotently. Returns the acks to send.
+function applyPublications(pubs) {
+  const ledger = coachLedger();
+  const superseded = new Set(pubs.map(p => p.supersedes).filter(Boolean));
+  const acks = [];
+  let changed = false;
+  for (const pub of pubs.slice().sort((a, b) => a.seq - b.seq)) {
+    const done = ledger[pub.id];
+    if (done && done.status !== 'needs_attention') continue; // already settled: idempotent
+    let r;
+    if (superseded.has(pub.id)) r = { status: 'superseded' };
+    else {
+      const fn = PUB_APPLIERS[pub.type];
+      try { r = fn ? fn(pub) : { status: 'needs_attention', note: `This version of BLOC can’t read “${pub.type}”.` }; }
+      catch (err) { r = { status: 'needs_attention', note: 'It couldn’t be applied: ' + ((err && err.message) || 'unknown error') }; }
+    }
+    // Held again for the same reason: the coach already has that receipt.
+    const same = done && done.status === r.status && (done.note || null) === (r.note || null);
+    ledger[pub.id] = { seq: pub.seq, type: pub.type, status: r.status, note: r.note || null, at: new Date().toISOString(), acked: same ? !!done.acked : false };
+    if (r.status === 'applied' || r.status === 'stored') changed = true;
+    if (r.status !== 'stored') acks.push({ publication_id: pub.id, status: r.status, note: r.note || null });
+  }
+  return { acks, changed };
+}
+
+// ── Pull, apply, ack ───────────────────────────────────────────────────────
+let _pubPending = [];
+let _pubRetryTimer = null;
+
+async function pullPublicationsOnce() {
+  if (!coachingAvailable() || !isCoachedMode()) return 'not-coached';
+  // The card id comes from coach_clients; a link made on this phone learns it here.
+  if (!coachLinkGet().clientRecordId) await refreshCoachLink();
+  const l2 = coachLinkGet();
+  if (!l2 || !l2.clientRecordId) return 'no-card';
+  const { data, error } = await supabase.from('publications')
+    .select('id, seq, coach_id, type, payload, supersedes, created_at')
+    .eq('client_record_id', l2.clientRecordId).gt('seq', publicationCursor()).order('seq', { ascending: true }).limit(500);
+  if (error) throw error;
+  const seen = new Set(_pubPending.map(p => p.id));
+  for (const p of (data || [])) if (!seen.has(p.id)) _pubPending.push(p);
+  return drainPublications();
+}
+
+function drainPublications() {
+  // Unlinked since they were fetched (a retry timer can outlive the link):
+  // nothing from that coach may land now.
+  if (!isCoachedMode()) { _pubPending = []; return Promise.resolve('not-coached'); }
+  if (!_pubPending.length) return sendPendingAcks().then(() => 'nothing-new');
+  const wait = publicationsMustWait();
+  if (wait) {
+    if (!_pubRetryTimer) _pubRetryTimer = setTimeout(() => { _pubRetryTimer = null; drainPublications().catch(() => {}); }, PUB_RETRY_MS);
+    return Promise.resolve('waiting:' + wait);
+  }
+  const batch = _pubPending; _pubPending = [];
+  const { changed } = applyPublications(batch);
+  save(); // the ledger always changes; the mirror and client_state follow
+  if (changed) {
+    const active = document.querySelector('.screen.active');
+    if (active && active.id) showScreen(active.id.replace(/^screen-/, ''));
+  }
+  return sendPendingAcks().then(() => 'applied');
+}
+
+// Acks for every settled, un-acked ledger entry. Kept un-acked on failure and
+// retried on the next pull, so the coach always hears eventually.
+async function sendPendingAcks() {
+  if (!coachingAvailable() || !isCoachedMode()) return;
+  const ledger = coachLedger();
+  const rows = Object.entries(ledger)
+    .filter(([, e]) => e && !e.acked && e.status !== 'stored')
+    .map(([id, e]) => ({ publication_id: id, client_id: _authResolvedSession.user.id, status: e.status, note: e.note || null }));
+  if (!rows.length) return;
+  const { error } = await supabase.from('publication_acks').upsert(rows, { onConflict: 'publication_id,client_id' });
+  if (error) { console.warn('[publications] acks not sent, will retry:', error.message); return; }
+  for (const r of rows) ledger[r.publication_id].acked = true;
+  save();
+}
+
+let _pubRunning = null;
+let _pubQueued = null;
+function publicationsSerialised() {
+  if (_pubQueued) return _pubQueued;
+  const start = () => { _pubRunning = pullPublicationsOnce().finally(() => { _pubRunning = null; }); return _pubRunning; };
+  if (!_pubRunning) return start();
+  _pubQueued = _pubRunning.catch(() => {}).then(() => { _pubQueued = null; return start(); });
+  return _pubQueued;
+}
+function requestPublicationPull(reason) {
+  try {
+    if (!isCoachedMode()) return;
+    publicationsSerialised()
+      .then(r => { if (r === 'applied') console.info(`[publications] applied (${reason})`); })
+      .catch(err => console.warn(`[publications] pull failed (${reason}), will retry:`, err && err.message));
+  } catch (err) {
+    console.warn(`[publications] pull not started (${reason}):`, err && err.message);
+  }
+}
+
+// ── Realtime: a hint, while the app is open ────────────────────────────────
+let _pubChannel = null;
+let _pubChannelCard = null;
+function syncPublicationChannel() {
+  try {
+    const link = isCoachedMode() ? coachLinkGet() : null;
+    const card = link && link.clientRecordId;
+    if (card === _pubChannelCard) return;
+    if (_pubChannel) { supabase.removeChannel(_pubChannel); _pubChannel = null; _pubChannelCard = null; }
+    if (!card || !coachingAvailable()) return;
+    _pubChannelCard = card;
+    _pubChannel = supabase.channel('bloc-publications-' + card)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'publications', filter: 'client_record_id=eq.' + card },
+        () => requestPublicationPull('realtime'))
+      .subscribe();
+  } catch (err) {
+    console.warn('[publications] realtime not started:', err && err.message);
+  }
+}
+window.addEventListener('online', () => requestPublicationPull('online'));
+setInterval(() => { if (document.visibilityState === 'visible') requestPublicationPull('poll'); }, PUB_POLL_MS);
 
 
 
@@ -27518,7 +27857,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.38</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.39</span>`;
 }
 
 function renderSettings() {
