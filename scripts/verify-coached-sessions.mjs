@@ -159,7 +159,7 @@ async function run(label, html, engineSrc) {
     check('a suggested time does NOT change the row (the banner above the hero says it): still "Your next session"',
       [/Your next session/.test(G.homeNextSessionHTML()), /suggested a time|Answer/.test(G.homeNextSessionHTML())], [true, false]);
     const wk = mk({ macrocycles: [], coachBookings: { w: { booking_id: 'w', date: '2026-09-30', start_min: 1080, status: 'booked', kind: 'weekly' } } }).homeNextSessionHTML();
-    check('the row carries the wireframe\'s calendar icon, and a weekly booking says "Weekly" on its second line', [/<svg[^>]*>.*M3 6\.5a2 2/.test(wk), /<span class="sub">Weekly<\/span>/.test(wk)], [true, true]);
+    check('the row carries the wireframe\'s calendar icon, and just the time: no "Weekly" (Adam: "next session is a fact")', [/<svg[^>]*>.*M3 6\.5a2 2/.test(wk), /Weekly/.test(wk), /<b>Wed 18:00<\/b>/.test(wk)], [true, false, true]);
     const I = mk({ macrocycles: [], coachBookings: {} });
     // The rebuilt sheet (Adam, UAT: to the wireframe; "Show all that aren't booked").
     check('the wireframe\'s slot format: "Wed 30 Sep · 18:00" / "Thu 1 Oct · any time 17:00–20:00"',

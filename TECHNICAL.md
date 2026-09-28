@@ -8688,8 +8688,10 @@ BLOC has no inline text buttons (Adam, UAT). It opens **Your sessions**. It show
 - "Your next session", then the earliest live booking **from today** (`nextCoachBooking()`) in the
   wireframe's **short form** (`coachShortWhen()`: "Wed 18:00" within the coming week, "Mon 12 Oct
   18:00" after that, "Today 18:00"), or "None booked";
-- a chevron;
-- "Weekly" beneath, for a repeating booking.
+- a chevron.
+
+Just the time, no "Weekly": Adam, *"next session is a fact, I don't need details"*. Your sessions says
+whether it repeats.
 
 ### Your sessions (`modal-coach-sessions`, `data-pub-safe`)
 
@@ -8698,9 +8700,10 @@ Adam, UAT: separate from Request a session, and the row's label says what it ope
   Studio · with {coach} · weekly", and for an assigned session "With your coach · Pull, week 7".
   **Request a session is a full-width button inside it** (Adam: *"the button has to be in the hero card
   … matching the design of the up next card"*).
-- **Weekly:** each repeating booking once, a repeat icon, "Every Wed · 18:00", "Next Wed 30 Sep · 60
-  min · Studio", and a **Weekly** chip.
-- **Upcoming:** one-offs by date, the first three, then a tappable **Show all (n)** row (chevron).
+- **Upcoming:** 🚨 **one card for everything**, weekly and one-off together, by next date (Adam:
+  separate Weekly and Upcoming cards were *"overkill"*). A weekly booking is **one row**: a repeat
+  icon, "Every Wed · 18:00", "Next Wed 30 Sep · 60 min · Studio", and a **Weekly** chip. A one-off row
+  is indented to line up with it. The first three show, then a tappable **Show all (n)** row (chevron).
 - Settings → Coaching → Sessions has two rows: **Your sessions** and **Request a session**.
 
 🚨 **Measured at 375pt:** the icon, the label and "Wed 30 Sep, 18:00 · weekly" don't fit on one line
@@ -8741,8 +8744,8 @@ session, requests and bookings in one list that would grow without end, and made
 missed word. Adam: *"separate my sessions and request a session into separate sheets"* (My sessions
 is its own sheet, next), and on this one *"Show all that aren't booked"*. From the top:
 
-- **Your next session**, a card of its own: an eyebrow, the date and time large, then "60 min · Studio ·
-  with {coach} · weekly".
+- **No next-session card** (Adam: Your sessions, the sheet this opens from, already shows it). The
+  wireframe's `RequestScreen` had one because it was a page of its own.
 - **Each suggested time**, the eye-catching card: accent-tinted, with "{coach} proposed", an amber
   **Needs your answer** chip, the time large, "You asked for …", a full-width **✓ Confirm Tue 19:00**
   and **Suggest another time**. The counter opens inside the card: 🚨 **one** time or one window
@@ -8789,9 +8792,11 @@ is its own sheet, next), and on this one *"Show all that aren't booked"*. From t
 
 ### Two Settings details, from the same UAT
 
-- **Settings → Coaching's hero ends with the wireframe's footer**: a divider, then "Linked since" on the
-  left and the date on the right (`.coach-since`). The first build had it as a small grey line that
-  read as missing. The Settings hero's sub-line adds "Coached by {coach}", as the wireframe's does.
+- **"Linked since" is the footer of both heroes**: Settings' own (`settingsHeroSinceHTML()`, the hero
+  now wraps), and Settings → Coaching's (`.coach-since`). Each has a divider, then "Linked since" on
+  the left and the date on the right, as the wireframe's coaching hero has it. Adam looked for it on
+  the Settings hero. The Settings hero's sub-line also adds "Coached by {coach}", as the wireframe's
+  does.
 - **Home → View body logs opens the sheet over Home.** It used to `showScreen('settings')` first, so
   closing it left you in Settings (Adam: mirror the photo-consent shortcut, which closes back where it
   opened). `saveBodyLog()` and `deleteBodyLog()` now also redraw Home when it's showing

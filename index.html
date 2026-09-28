@@ -3521,6 +3521,11 @@ html.auth-likely-signed-in #auth-gate { display: none; }
   font-family: var(--font-display); font-size: 21px; font-weight: 700;
 }
 .settings-hero-text { flex: 1; min-width: 0; }
+.settings-hero { flex-wrap: wrap; } /* v8.42: room for the Linked since footer on its own line */
+.settings-hero-since { flex-basis: 100%; display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+  margin-top: 2px; padding-top: 14px; border-top: 1px solid var(--divider); font-size: 13.5px; }
+.settings-hero-since span { color: var(--text2); }
+.settings-hero-since b { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text); }
 .settings-hero-name {
   display: block; font-family: var(--font-display); font-size: 19px; font-weight: 600;
   color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -3668,6 +3673,7 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .home-next-session b { margin-left: auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .home-next-session .row2 { display: block; margin: 4px 0 0 26px; }
 .home-next-session .row2 .sub { color: var(--text3); font-size: 12.5px; }
+.coach-rep-ico { width: 20px; flex-shrink: 0; }
 .coach-rep-ico svg { width: 20px; height: 20px; fill: none; stroke: var(--accent2); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; display: block; }
 button.coach-reqrow.is-tap, .coach-reqrow.is-tap { width: 100%; text-align: left; background: none; border: 0; border-radius: 0; font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 button.coach-reqrow.is-tap + .coach-reqrow, .coach-reqrow + button.coach-reqrow.is-tap { border-top: 1px solid var(--divider); }
@@ -15313,8 +15319,7 @@ function homeNextSessionHTML() {
       <span class="row1"><span class="lbl">${COACH_ICO_CALENDAR}Your next session</span>
       ${b ? `<b>${coachEsc(coachShortWhen(b.date, b.start_min))}</b>` : '<b style="color:var(--text3);font-weight:500;">None booked</b>'}
       <span class="row-btn-chevron">${icoChevron(18)}</span></span>
-      ${b && coachBookingWeekly(b) ? '<span class="row2"><span class="sub">Weekly</span></span>' : ''}
-    </button>`;
+    </button>`; // v8.42: the time only; whether it repeats is in Your sessions (Adam, UAT)
 }
 
 // ── Request a session ─────────────────────────────────────────────────────
@@ -15424,22 +15429,30 @@ function renderCoachSessions() {
         : `<div class="coach-hero-sub" style="margin-top:6px;">Nothing booked with ${first} yet.</div>`}
       <button class="btn btn-accent btn-block" style="margin-top:16px;" onclick="closeModal('modal-coach-sessions');openCoachRequest()">${icoPlus(16)} Request a session</button>
     </div>`;
-  const weeklyHTML = weekly.length ? `<div class="coach-section-title">Weekly</div><div class="card coach-reqlist">${weekly.map(b => {
+  // One card for everything upcoming, weekly and one-off together, by next date
+  // (Adam, UAT: separate Weekly and Upcoming cards were overkill; the repeat
+  // icon and the Weekly chip tell them apart). A weekly booking is one row.
+  const rows = weekly.map(b => ({ b, when: b.next, weekly: true }))
+    .concat(oneOffs.map(b => ({ b, when: b.date, weekly: false })))
+    .sort((x, y) => (x.when + String(x.b.start_min).padStart(5, '0')).localeCompare(y.when + String(y.b.start_min).padStart(5, '0')));
+  const shown = _coachSessionsAll ? rows : rows.slice(0, COACH_UPCOMING_SHOWN);
+  const rowHTML = ({ b, weekly: w }) => {
+    if (w) {
       const day = new Date(b.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short' });
       return `<div class="coach-reqrow"><span class="coach-rep-ico">${COACH_ICO_REPEAT}</span>
         <div class="coach-reqrow-main"><div class="coach-reqrow-when">Every ${day} · ${coachMinToHHMM(b.start_min)}</div>
           <div class="coach-req-sub" style="margin-top:2px;">Next ${coachEsc(coachDayFmt(b.next))}${bits(b) ? ' · ' + bits(b) : ''}</div></div>
         <span class="chip" style="--chip-c:var(--accent2);">Weekly</span></div>`;
-    }).join('')}</div>` : '';
-  const shown = _coachSessionsAll ? oneOffs : oneOffs.slice(0, COACH_UPCOMING_SHOWN);
-  const upcomingHTML = oneOffs.length ? `<div class="coach-section-title">Upcoming</div><div class="card coach-reqlist">${shown.map(b => `
-      <div class="coach-reqrow"><div class="coach-reqrow-main"><div class="coach-reqrow-when">${coachEsc(coachSlotLine({ date: b.date, start_min: b.start_min }))}</div>
-        <div class="coach-req-sub" style="margin-top:2px;">${[bits(b), coachEsc(coachAssignedLabel(b))].filter(Boolean).join(' · ') || `with ${coachEsc(coachName())}`}</div></div></div>`).join('')}
-      ${oneOffs.length > COACH_UPCOMING_SHOWN ? `<button class="coach-reqrow is-tap" onclick="_coachSessionsAll=!_coachSessionsAll;renderCoachSessions()">
-        <div class="coach-reqrow-main"><div class="coach-reqrow-when" style="color:var(--accent2);">${_coachSessionsAll ? 'Show fewer' : `Show all (${oneOffs.length})`}</div></div>
+    }
+    return `<div class="coach-reqrow"><span class="coach-rep-ico" aria-hidden="true"></span><div class="coach-reqrow-main"><div class="coach-reqrow-when">${coachEsc(coachSlotLine({ date: b.date, start_min: b.start_min }))}</div>
+        <div class="coach-req-sub" style="margin-top:2px;">${[bits(b), coachEsc(coachAssignedLabel(b))].filter(Boolean).join(' · ') || `with ${coachEsc(coachName())}`}</div></div></div>`;
+  };
+  const upcomingHTML = rows.length ? `<div class="coach-section-title">Upcoming</div><div class="card coach-reqlist">${shown.map(rowHTML).join('')}
+      ${rows.length > COACH_UPCOMING_SHOWN ? `<button class="coach-reqrow is-tap" onclick="_coachSessionsAll=!_coachSessionsAll;renderCoachSessions()">
+        <div class="coach-reqrow-main"><div class="coach-reqrow-when" style="color:var(--accent2);">${_coachSessionsAll ? 'Show fewer' : `Show all (${rows.length})`}</div></div>
         <span class="row-btn-chevron">${_coachSessionsAll ? icoSvg('<path d="m6 15 6-6 6 6"/>', 20) : icoChevDown(20)}</span></button>` : ''}
     </div>` : '';
-  el.innerHTML = hero + weeklyHTML + upcomingHTML
+  el.innerHTML = hero + upcomingHTML
     + `<div class="coach-caption">Sessions ${first} books appear here. To change one, ask ${first}.</div>`;
 }
 
@@ -15482,16 +15495,6 @@ function coachRequestBooked(r) {
   if (r.status !== 'accepted') return false;
   const slot = r.proposed || r.counter || (r.preferences || [])[0];
   return !!slot && Object.values(state.coachBookings || {}).some(b => b && b.status !== 'cancelled' && b.date === slot.date && b.start_min === slot.start_min);
-}
-function coachNextSessionCardHTML() {
-  const b = nextCoachBooking();
-  const first = coachEsc(coachFirstName());
-  if (!b) return `<div class="card coach-hero-card"><div class="coach-eyebrow is-muted">Your next session</div>
-      <div class="coach-hero-sub" style="margin-top:6px;">Nothing booked with ${first} yet.</div></div>`;
-  const bits = [b.duration_min ? `${b.duration_min} min` : '', b.location ? coachEsc(b.location) : '', `with ${coachEsc(coachName())}`, coachBookingWeekly(b) ? 'weekly' : ''].filter(Boolean);
-  return `<div class="card coach-hero-card"><div class="coach-eyebrow is-muted">Your next session</div>
-      <div class="coach-display">${coachEsc(coachSlotLine({ date: b.date, start_min: b.start_min }))}</div>
-      <div class="coach-hero-sub">${bits.join(' · ')}</div></div>`;
 }
 function coachProposedCardHTML(r) {
   const first = coachEsc(coachFirstName());
@@ -15610,8 +15613,9 @@ function renderCoachRequest() {
     || (r.status === 'declined' && String(r.updated_at || r.created_at || '') >= since));
   const proposed = shown.filter(r => r.status === 'proposed' && r.proposed);
   const others = shown.filter(r => !(r.status === 'proposed' && r.proposed));
-  el.innerHTML = coachNextSessionCardHTML()
-    + proposed.map(coachProposedCardHTML).join('')
+  // v8.42 (Adam, UAT): no next-session card here; Your sessions, the sheet
+  // this opens from, already shows it.
+  el.innerHTML = proposed.map(coachProposedCardHTML).join('')
     + (others.length ? `<div class="coach-section-title">Your requests</div><div class="card coach-reqlist">${others.map(coachWaitingCardHTML).join('')}</div>` : '')
     + coachReqFormHTML(f);
 }
@@ -29166,7 +29170,15 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.42</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.42</span>${settingsHeroSinceHTML()}`;
+}
+// v8.42 (§136): the hero's footnote when coached, as the wireframe's coaching
+// hero has it: a divider, then "Linked since … 28 Sep 2026" (Adam, UAT).
+function settingsHeroSinceHTML() {
+  if (!coachedView()) return '';
+  const l = coachLinkGet();
+  const since = l && l.linkedAt ? new Date(l.linkedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  return since ? `<span class="settings-hero-since"><span>Linked since</span><b>${coachEsc(since)}</b></span>` : '';
 }
 
 function renderSettings() {
