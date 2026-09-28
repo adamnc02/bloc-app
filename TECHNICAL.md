@@ -7676,6 +7676,88 @@ untracked, and its `_devAnchorDate` (2026-09-10 on Adam's machine) moves "today"
 with a `git archive` of an older version, which lacks the file, shows every date-dependent screen
 "different". Copy the file into both trees before comparing.
 
+### Step 5: the progression core
+
+`engine/src/targets.ts` holds:
+- the effort-rating step (§104): `getRpeKey`, `isRpeOn`, `rpeDrivesProgression`,
+  `rpeStepFromKind`, `computeRpeStepKind`, `getRpeStep`, `getProgressionStep`, `bumpRepsBy`, and the
+  frozen `RPE_STEP_NONE` / `PROG_STEP_MAINTENANCE`;
+- the targets and the compliance check (§12): `computeRawSuggestedTargets`, `getWeekTargets`,
+  `getWeekComplianceResult`, `getLastCompliantWeek`;
+- two new cores: `computeLockTransition` and `computeExerciseProgression`.
+
+**No more writing while reading (deep dive H1–H3).**
+- **`getWeekTargets(s, cache, …)`.** It used to fill `state.progressionTargets` on a cache miss.
+  Every progression function now takes a `TargetCache` (`{ get(key), set(key, target) }`) after
+  the state. BLOC's `progressionTargetCache()` wraps the live `state.progressionTargets`, so BLOC
+  caches, freezes and saves exactly what it did before. Coach will pass an overlay: the client's
+  cached targets read first, and anything it computes kept in memory and never published.
+- **`computeLockTransition(s, cache, …)`.** It returns `null` (no change), `{ key, set }` or
+  `{ key, clear: true }`. This was `evaluateProgressionLock`'s body, which wrote the lock and
+  saved. BLOC's `evaluateProgressionLock()` now applies the transition and saves, only on a real
+  change, as before.
+- **`computeExerciseProgression(s, cache, macro, week, dayKey, ex, opts)`.** It's
+  `renderTrainDay`'s `exProgData()` lifted out, with the week and session as parameters.
+  - What wrote stays in BLOC's `exProgData()`, in the same order: the catch-up sweep over every
+    prior week, then this week's own evaluation.
+  - The core gets what the sweep knows through `opts`: `lockComingIn` (the lock as it stood before
+    this week's evaluation) and `prevWasLocked`.
+  - Without `opts` it reads the stored lock, and treats `prevWasLocked` as false.
+
+**Train's "⚠ missed target" is the lock's own decision now** (deep dive §1d; Adam, 2026-09-27: "Do
+the swap"). This was a third copy of the compliance comparison. It checked the logs against the
+*displayed* placeholders, which come live from last week's actuals. The lock checks them against
+the target frozen when the week was first judged. The two disagree only once a frozen target has
+drifted from the display: last week's sets edited afterwards, the route switched, or a lock set
+in a later week while you look back at an earlier one. The badge could then say "missed" while
+the lock said compliant, or stay quiet while the lock froze next week. `missedTarget` is now
+`getWeekComplianceResult(…).fullyLogged && !compliant`. By then this week's evaluation has cached
+the target, so reading it back writes nothing.
+
+- On the demo, 3 badges change. Lateral Raise weeks 3 and 4 lose a "missed": 10 × 15 logged
+  against a displayed 12.5, but a frozen 7.5. Lat Pull week 5 gains one: 50/50/42.5/42.5/42.5
+  against a frozen 47.5, and the lock did put it On hold.
+- The golden file doesn't record the badge, so it doesn't move.
+
+🚨 **The traps.**
+- **The order of writes is saved bytes.** `progressionTargets` keys are added in the order the
+  targets are first computed, and `save()` writes that order. So the wrapper keeps the old
+  sequence: the sweep, capture the lock, this week's evaluation, then the core. The core then
+  computes the post-deload target and the step in the old order.
+  - `verify-engine-leaves` renders `renderTrainDay` for every session of five progression states
+    against v8.34. The state afterwards and the `save()` count must match.
+  - The golden `targets` runs' 131, 132 and 359 saves are unchanged.
+- **`isLocked` reads the lock *coming into* the week.** This week's evaluation may replace the
+  lock object, and the old code kept using the one it read before. That's why the wrapper passes
+  `lockComingIn`. Reading `s.progressionLocks` inside the core after the evaluation would show a
+  lock created by this week's own logging.
+- **The old code created `progressionTargets` / `progressionLocks` on every call; the engine
+  doesn't.** `progressionTargetCache().set` and `evaluateProgressionLock` still create them when
+  writing, and nothing in BLOC removes either object after load (`normaliseState` and every reset
+  assign `{}`), so the difference can't be seen.
+- **The text checks moved with the code.** `verify-rpe-progression`'s checks on the progression
+  step, the deload 60% rounding and "no unscaled `+ weightJump`" now read
+  `computeExerciseProgression` in `engine/src/targets.ts`, and a new check requires
+  `renderTrainDay` to hand over to it. It also stops extracting the two constants. Its brace
+  extractor stops at the first `{`, so the core's options are a named type (`ProgressionOpts`),
+  not an inline one.
+
+**How it's checked.**
+- `STATE_CASES` gains about 3,000 cases over five progression states: the demo with its shipped
+  cache, cold, RPE on with ratings, maintenance, and the drop set with extra deloads. The first
+  three days × three exercises × weeks 1–7 run through every function. The lock runs through
+  BLOC's `evaluateProgressionLock`. Every session renders through `renderTrainDay`.
+- They carry `timeless: true`: nothing in them reads the clock or the activity multiplier, so
+  they skip the tour and H7 passes.
+- Train's HTML is compared with the missed-target badge normalised. The renders where only the
+  badge moved are counted (4 per timezone).
+- A survey of every finished session, in three states (the demo's cache, none, the demo's locks
+  alone), requires the badge to be the lock's decision. Wherever it differs from v8.34's rule, the
+  target the week is judged against must differ from the one Train displays (3 and 9 sessions).
+  Control: with every target computed from the logs, the two rules agree everywhere.
+- To keep `verify-engine-leaves` near 15 seconds, fixture states are built once and copied, and
+  the first run reuses the case it has already built.
+
 ## §126 — v8.35: H7 — the activity multiplier follows the calendar, not the cycle you browsed
 
 **The one intended behaviour change in Phase 2** (deep dive §3, H7).

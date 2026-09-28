@@ -87,9 +87,11 @@ const RPE = ['getRpeKey', 'isRpeOn', 'rpeDrivesProgression', 'rpeStepFromKind', 
 function build(src, withRpe) {
   const fns = ENGINE.map(n => extractFrom(src, `function ${n}(`));
   if (withRpe) {
-    fns.push(extractLine(src, 'const RPE_STEP_NONE ='));
-    fns.push(extractLine(src, 'const PROG_STEP_MAINTENANCE ='));
+    // v8.35 (§125): RPE_STEP_NONE / PROG_STEP_MAINTENANCE moved into the
+    // engine with the functions that read them; the shims read the targets
+    // through progressionTargetCache(), BLOC's view of state.progressionTargets.
     RPE.forEach(n => fns.push(extractFrom(src, `function ${n}(`)));
+    fns.push(extractFrom(src, 'function progressionTargetCache('));
   }
   const body = `
     let state = null;
@@ -395,10 +397,15 @@ for (const fn of ['function quickFillComplete(', 'function quickFillCompleteDrop
   check(`${fn.replace('function ', '').replace('(', '()')} opens the sheet (quick-fill must not skip it)`,
     /maybeOpenRpeSheet\(/.test(body) && /isTrainSessionComplete\(/.test(body), true);
 }
-const renderDay = extractFrom(source, 'function renderTrainDay(');
-check('exProgData reads getProgressionStep (the same step as the judged target)', /const rpeStep = getProgressionStep\(macro, state\.currentWeek, state\.currentDay, ex\)/.test(renderDay), true);
+// v8.35 (§125): exProgData's calculation is the engine's
+// computeExerciseProgression (engine/src/targets.ts), so these read its source;
+// renderTrainDay's exProgData() is the wrapper that sweeps and evaluates locks.
+const targetsSrc = readFileSync(join(repo, 'engine', 'src', 'targets.ts'), 'utf8');
+const renderDay = extractFrom(targetsSrc, 'export function computeExerciseProgression(');
+check('computeExerciseProgression reads getProgressionStep (the same step as the judged target)', /const rpeStep = getProgressionStep\(s, cache, macro, week, dayKey, ex\)/.test(renderDay), true);
 check('the deload 60% rounding keeps the unscaled weightJump', /roundToIncrement\(baseWeight \* 0\.6, weightJump\)/.test(renderDay), true);
-check('no progression site in exProgData adds the unscaled weightJump', /\+ weightJump\b/.test(renderDay), false);
+check('no progression site in computeExerciseProgression adds the unscaled weightJump', /\+ weightJump\b/.test(renderDay), false);
+check('renderTrainDay\'s exProgData() hands the calculation to the engine', /BlocEngine\.computeExerciseProgression\(/.test(extractFrom(source, 'function renderTrainDay(')), true);
 const homeUp = extractFrom(source, 'function renderHomeUpNext(');
 check('renderHomeUpNext reads getSessionPreviewTarget (Home matches Train)', /getSessionPreviewTarget\(macro, next\.week, next\.dayKey, ex\)/.test(homeUp), true);
 check('renderHomeUpNext prints the target reps, not ex.reps', /\$\{sets\} \\u00d7 \$\{reps\}/.test(homeUp), true);

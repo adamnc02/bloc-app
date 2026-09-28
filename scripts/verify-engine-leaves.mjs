@@ -115,7 +115,7 @@ if (process.env.BLOC_LEAVES_CHILD) {
     try { return ser(typeof f === 'function' ? f(...args) : f); } catch (e) { return `threw ${e.constructor.name}: ${e.message}`; }
   };
 
-  let runs = 0, diffs = 0, throws = 0, h7Moved = 0;
+  let runs = 0, diffs = 0, throws = 0, h7Moved = 0, badgeMoved = 0;
   const firstDiffs = [], firstThrows = [];
   const compare = (label, name, mkArgs, today = '2026-08-02') => {
     const D = fixedAt(today);
@@ -183,7 +183,14 @@ if (process.env.BLOC_LEAVES_CHILD) {
   //    the case names and any HTML written must all be identical. Every case
   //    runs twice: on the real clock, and with the Demo Tour's anchor set
   //    (the clock a year away), because BLOC's "today" comes from either.
-  const stateNames = [...new Set(Object.entries(STATE_CASES).flatMap(([n, cs]) => cs.map(mk => { const c = mk(); return c.bloc ? (c.bloc.fn || n) : null; })).filter(Boolean))];
+  // The BLOC function each name stands for, from its first case that has one
+  // (building every case just to ask would double the run; a later case
+  // naming a different function fails below instead of being missed).
+  const blocFnOf = {};
+  for (const [n, cs] of Object.entries(STATE_CASES)) {
+    for (const mk of cs) { const c = mk(); if (c.bloc) { blocFnOf[n] = c.bloc.fn || n; break; } }
+  }
+  const stateNames = [...new Set(Object.values(blocFnOf))];
   const HANDLES = ['state', '_tourAnchorDate', 'progressViewMacroId', '_nextCycleOverride', '_nextCyclePreviewMacroId', '_homeHeroCache'];
   const clock = { ms: 0 };
   const ClockDate = class extends RealDate {
@@ -240,6 +247,15 @@ if (process.env.BLOC_LEAVES_CHILD) {
     const html = Object.values(doc.els).map(el => `${el.id}=${el.innerHTML}`).join(' | ');
     return `${out} || state ${after} || saves ${E.saves()} || read ${reads} || html ${html}`;
   };
+  // v8.35 step 5 (§125, Adam 2026-09-27: "Do the swap"): Train's "missed
+  // target" badge is now the lock's own decision (getWeekComplianceResult),
+  // not a third comparison against the displayed placeholders. It may
+  // differ from v8.34 only where a frozen target has drifted from the
+  // display. So Train's HTML is compared with that badge normalised on both
+  // sides, and the runs where it alone moved are counted; the parent checks
+  // each such move against the frozen target.
+  const MISSED = /<span class="ex-done ex-done-missed">✓ done · ⚠ missed target<\/span>/g;
+  const noBadge = str => str.replace(MISSED, '<span class="ex-done">✓ done</span>');
   for (const [name, cases] of Object.entries(STATE_CASES)) {
     if (!cases.length) {
       // A constant: the engine's value against v8.34's own declaration.
@@ -251,11 +267,16 @@ if (process.env.BLOC_LEAVES_CHILD) {
       continue;
     }
     cases.forEach((mk, i) => {
-      if (!mk().bloc) return; // engine only: verify-engine-pure checks it
-      for (const tour of [false, true]) {
-        const o = runState(O34, docOld, name, mk(), tour, !H7_EXEMPT.has(name));
-        const n = runState(N34, docNew, name, mk(), tour);
-        if (!H7_EXEMPT.has(name) && runState(O34, docOld, name, mk(), tour) !== n) h7Moved++;
+      let c0 = mk();
+      if (!c0.bloc) return; // engine only: verify-engine-pure checks it
+      if ((c0.bloc.fn || name) !== blocFnOf[name]) throw new Error(`${name} #${i + 1}: its cases name two BLOC functions`);
+      const { timeless } = c0;
+      for (const tour of timeless ? [false] : [false, true]) {
+        const first = c0 || mk(); c0 = null; // the first run uses the case already built
+        let o = runState(O34, docOld, name, first, tour, !H7_EXEMPT.has(name) && !timeless);
+        let n = runState(N34, docNew, name, mk(), tour);
+        if (!H7_EXEMPT.has(name) && !timeless && runState(O34, docOld, name, mk(), tour) !== n) h7Moved++;
+        if (first.bloc.fn === 'renderTrainDay' && o !== n && noBadge(o) === noBadge(n)) { badgeMoved++; o = noBadge(o); n = noBadge(n); }
         runs++;
         if (o.startsWith('threw') || n.startsWith('threw')) { throws++; if (firstThrows.length < 3) firstThrows.push(`${name} #${i + 1}: ${o.slice(0, 120)} / ${n.slice(0, 120)}`); }
         if (o !== n) {
@@ -271,7 +292,7 @@ if (process.env.BLOC_LEAVES_CHILD) {
 
   }
 
-  console.log(JSON.stringify({ runs, diffs, firstDiffs, throws, firstThrows, h7Moved }));
+  console.log(JSON.stringify({ runs, diffs, firstDiffs, throws, firstThrows, h7Moved, badgeMoved }));
   process.exit(0);
 }
 
@@ -311,6 +332,7 @@ ZONES.forEach((zone, k) => {
   check(`${zone}: v8.33 and the engine agree on all ${NAMES.length} leaves, and v8.34 and today on all ${Object.keys(STATE_CASES).length} state readers (${r.runs || 0} runs)`, !r.error && r.runs > 10000 && r.diffs === 0,
     r.error || (r.firstDiffs || []).join('\n    '));
   check(`${zone}: no run threw, on either side`, !r.error && r.throws === 0, (r.firstThrows || []).join('\n    '));
+  check(`${zone}: Train's "missed target" badge moved on ${r.badgeMoved || 0} rendered sessions, and nothing else in Train did`, !r.error && r.badgeMoved > 0);
 });
 check(`control: a getWeekWeight shim that drops weightIncrement is caught (${drop.diffs || 0} runs differ)`, !drop.error && drop.diffs > 0, drop.error);
 check(`control: a macroRange shim given the wrong today is caught (${wrong.diffs || 0} runs differ)`, !wrong.error && wrong.diffs > 0, wrong.error);
@@ -354,6 +376,62 @@ check(`control: Home's "bad" badge mapped to green is caught (${colour.diffs || 
     bodyLogs: [{ date: '2026-07-01', steps: 9000 }, { date: '2026-07-02', steps: 9500 }] };
   check('H7: browsing back to a 2-session cycle no longer changes today\'s multiplier (1.55, moderately active)',
     E.getActivityMultiplier(light, { today: '2026-07-12' }).multiplier === 1.55);
+}
+
+// ── v8.35 step 5 (§125): Train's "missed target" badge is the lock's ──────
+// For every finished, non-deload session of every exercise in the demo (with
+// its shipped cache of frozen targets) and with no cache at all: the badge
+// must be the lock's decision, and where it differs from v8.34's rule (the
+// logs against the DISPLAYED placeholders) the frozen target must differ from
+// the displayed one. With no cache (every target computed from the logs, as
+// it is the moment a real week is judged) the two rules must agree everywhere.
+{
+  const E = vm.runInNewContext(`${readFileSync(join(repo, 'engine', 'dist', 'bloc-engine.js'), 'utf8')}\n;BlocEngine`, {});
+  const survey = (cold, keepLocks = false) => {
+    const s = JSON.parse(readFileSync(join(repo, 'bloc-demo-data.json'), 'utf8'));
+    if (cold) { s.progressionTargets = {}; if (!keepLocks) s.progressionLocks = {}; }
+    s.rpe = s.rpe || {};
+    const m = s.macrocycles[0];
+    const cache = { get: k => s.progressionTargets[k], set: (k, v) => { s.progressionTargets[k] = v; } };
+    let finished = 0, disagree = 0, unexplained = 0, notLock = 0;
+    for (const key of Object.keys(s.exercises)) {
+      const dk = key.slice((m.id + '_1_').length);
+      for (let w = 2; w <= E.getMacroEffectiveMesoCount(m); w++) for (const ex of s.exercises[key]) {
+        if (ex.category === 'cardio') continue;
+        const p = E.computeExerciseProgression(s, cache, m, w, dk, ex);
+        if (!p.allDone || p.isDeloadSession) continue;
+        finished++;
+        const c = E.getWeekComplianceResult(s, cache, m, w, dk, ex);
+        if (p.missedTarget !== (c.fullyLogged && !c.compliant)) notLock++;
+        let v834 = false;
+        for (let i = 0; i < p.sets; i++) {
+          const lg = s.trainLogs[`${m.id}_${w}_${dk}_${ex.id}_${i}`] || {};
+          const tW = p.weightPlaceholders[i] !== undefined ? p.weightPlaceholders[i] : p.weightPlaceholders[p.weightPlaceholders.length - 1];
+          const tR = p.repsPlaceholders[i] !== undefined ? p.repsPlaceholders[i] : p.repsPlaceholders[p.repsPlaceholders.length - 1];
+          const aW = lg.weight ? parseFloat(lg.weight) : null;
+          const aR = lg.reps !== undefined && lg.reps !== null ? String(lg.reps).trim() : '';
+          if (!(aW !== null && aW - parseFloat(tW) > -0.01) || !(E.parseRepsForVolume(aR) >= E.parseRepsForVolume(tR))) { v834 = true; break; }
+        }
+        if (v834 !== p.missedTarget) {
+          disagree++;
+          const frozen = c.weightTargets.map(String).join('/') + ' x ' + c.repsTargets.map(String).join('/');
+          const shown = p.weightPlaceholders.slice(0, p.sets).map(String).join('/') + ' x ' + p.repsPlaceholders.slice(0, p.sets).map(String).join('/');
+          if (frozen === shown) unexplained++;
+        }
+      }
+    }
+    return { finished, disagree, unexplained, notLock };
+  };
+  // Three states: the demo's shipped cache; no cache and no locks; and no
+  // cache but the demo's locks (a lock set in a later week then decides an
+  // earlier week's target, while Train displays last week's numbers).
+  const demo = survey(false), cold = survey(true), locksOnly = survey(true, true);
+  check(`the badge is the lock's decision on every finished session (${demo.finished} × 3 states)`,
+    demo.notLock === 0 && cold.notLock === 0 && locksOnly.notLock === 0);
+  check(`where it differs from v8.34 (${demo.disagree} sessions with the demo's cache, ${locksOnly.disagree} with its locks alone), the target the week is judged against differs from what Train displays`,
+    demo.unexplained === 0 && locksOnly.unexplained === 0);
+  check('control: the demo\'s drifted cache does make the two rules disagree, and computing every target from the logs makes them agree',
+    demo.disagree > 0 && cold.disagree === 0);
 }
 
 // ── v8.35 (§125): computeHomeWeek's weekClosed, which BLOC never passes ──

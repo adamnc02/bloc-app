@@ -6474,7 +6474,7 @@ try {
      same-named shims. ?v= is the first 12 hex of the file's SHA-256, so a phone never pairs a
      new index.html with an older engine from its HTTP cache; scripts/verify-engine-build.mjs
      fails if it is stale. Listed in scripts/publish-files.txt. -->
-<script src="engine/dist/bloc-engine.js?v=cac460da6916"></script>
+<script src="engine/dist/bloc-engine.js?v=14b8d449a42b"></script>
 <script>
 // ════════════════════════════════════════════════
 // DATE HELPERS
@@ -11811,14 +11811,7 @@ function getProgressionLockKey(macroId, dayKey, exId) {
 // exercise's genuine starting point — so the walk stops there
 // unconditionally if nothing else qualifies first.
 function getLastCompliantWeek(macro, dayKey, ex, beforeWeek) {
-  let w = beforeWeek - 1;
-  while (w > 1) {
-    if (isDeloadUnit(macro, w, dayKey)) { w--; continue; }
-    const result = getWeekComplianceResult(macro, w, dayKey, ex);
-    if (result.fullyLogged && result.compliant) return w;
-    w--;
-  }
-  return 1;
+  return BlocEngine.getLastCompliantWeek(state, progressionTargetCache(), macro, dayKey, ex, beforeWeek); // v8.35 (§125): the engine's
 }
 
 // Recomputes the per-set weight/reps target this week WOULD suggest under
@@ -11834,68 +11827,7 @@ function getLastCompliantWeek(macro, dayKey, ex, beforeWeek) {
 // a post-deload week's target is a direct carry-forward of its reference
 // week's own target instead, never a fresh "+jump" computation here.
 function computeRawSuggestedTargets(macro, week, dayKey, ex) {
-  const isGain = macro.goalType === 'gain';
-  const isMaintenance = macro.goalType === 'maintenance';
-  const lightJump = isMaintenance ? 0 : parseFloat(macro.weightIncrement || '2.5');
-  const heavyJump = isMaintenance ? 0 : (isGain ? 10 : 5);
-  // v8.20: the RPE step scales the jump (2×, heavy-leg 1.5×, or 0 on a hold).
-  const rpeStep = getProgressionStep(macro, week, dayKey, ex);
-  const weightJump = (ex.isHeavyLeg ? heavyJump : lightJump) * rpeStep.weightMult;
-  const sets = getWeekSets(ex, week, macro.weeks);
-  const pk = getProgKey(macro.id, week, dayKey, ex.id);
-  const progLog = state.trainLogs[pk] || {};
-  const progType = progLog.progType || 'weight';
-  const isPauseSet = ex.type === 'pause';
-  const prevWeek = week - 1;
-  const prevKey = macro.id + '_' + prevWeek + '_' + dayKey;
-  // Only a set actually marked done counts as a real progression source —
-  // an in-progress, not-yet-confirmed entry (typed but not checked off) must
-  // never seed a target that then gets cached and frozen forever (see the
-  // caching note on evaluateProgressionLock below). Without this guard, a
-  // stray draft value present in trainLogs at the moment this first gets
-  // evaluated could compute a target that's silently wrong for good, even
-  // after the real number is logged and confirmed moments later.
-  let prevLoggedSets = [];
-  if (prevWeek >= 1) {
-    const prevSetsCount = getWeekSets(ex, prevWeek, macro.weeks);
-    for (let s = 0; s < prevSetsCount; s++) {
-      const prevLog = state.trainLogs[prevKey + '_' + ex.id + '_' + s];
-      prevLoggedSets.push(prevLog && prevLog.done ? prevLog : null);
-    }
-  }
-  const weightTargets = [], repsTargets = [];
-  for (let s = 0; s < sets; s++) {
-    const srcSet = s < prevLoggedSets.length
-      ? prevLoggedSets[s]
-      : (prevLoggedSets.length > 0 ? prevLoggedSets[prevLoggedSets.length - 1] : null);
-    const setActualWeight = srcSet && srcSet.weight ? parseFloat(srcSet.weight) : null;
-    const setActualReps   = srcSet && srcSet.reps   ? srcSet.reps : null;
-    const setRecWeight = setActualWeight !== null
-      ? setActualWeight + weightJump
-      : getWeekWeight(ex, week, 'weight', macro.goalType, macro.weightIncrement);
-    const setRecReps = (() => {
-      if (isPauseSet) return getGiantSetProgression(ex, week, macro.goalType);
-      if (ex.type === 'giant') {
-        if (setActualReps !== null) {
-          const baseNum = parseInt(String(setActualReps).match(/(\d+)/)?.[0]) || 0;
-          return String(baseNum + rpeStep.giantInc);
-        }
-        return getGiantSetProgression(ex, week, macro.goalType);
-      }
-      if (setActualReps !== null) {
-        const bumped = bumpRepsBy(setActualReps, rpeStep.repsInc);
-        if (bumped !== null) return bumped;
-      }
-      return getWeekReps(ex, week, 'reps', macro.goalType);
-    })();
-    weightTargets.push(progType === 'weight'
-      ? setRecWeight.toFixed(1)
-      : (setActualWeight !== null ? setActualWeight.toFixed(1) : ex.startWeight.toFixed(1)));
-    repsTargets.push(progType === 'reps'
-      ? setRecReps
-      : (setActualReps !== null ? setActualReps : ex.reps));
-  }
-  return { sets, weightTargets, repsTargets, progType, rpeStep: rpeStep.kind };
+  return BlocEngine.computeRawSuggestedTargets(state, progressionTargetCache(), macro, week, dayKey, ex); // v8.35 (§125): the engine's
 }
 
 // v7.99: resolves what (macro, week, dayKey, ex) target IS/WAS — the
@@ -11914,34 +11846,7 @@ function computeRawSuggestedTargets(macro, week, dayKey, ex) {
 // normal progression (computeRawSuggestedTargets) only resumes the
 // following week, once this reset week has itself been evaluated.
 function getWeekTargets(macro, week, dayKey, ex) {
-  const lockKey = getProgressionLockKey(macro.id, dayKey, ex.id);
-  if (!state.progressionTargets) state.progressionTargets = {};
-  const targetKey = lockKey + '_w' + week;
-  const cached = state.progressionTargets[targetKey];
-  if (cached) return cached;
-
-  let raw;
-  if (week === 1) {
-    // Week 1 is the exercise's genuine starting point — not part of the
-    // lock/compliance pipeline at all, so its "target" is simply its own
-    // configured starting numbers, same as exProgData's week-1 display.
-    const sets = getWeekSets(ex, 1, macro.weeks);
-    raw = { weightTargets: Array(sets).fill(ex.startWeight.toFixed(1)), repsTargets: Array(sets).fill(ex.reps) };
-  } else if (isFirstUnitAfterDeload(macro, week, dayKey)) {
-    const refWeek = getLastCompliantWeek(macro, dayKey, ex, week);
-    raw = getWeekTargets(macro, refWeek, dayKey, ex);
-  } else {
-    const existingLock = state.progressionLocks && state.progressionLocks[lockKey];
-    raw = existingLock
-      ? { weightTargets: existingLock.weightTargets, repsTargets: existingLock.repsTargets }
-      : computeRawSuggestedTargets(macro, week, dayKey, ex);
-  }
-  const result = { weightTargets: raw.weightTargets.slice(), repsTargets: raw.repsTargets.slice() };
-  // v8.20: freeze the RPE step with the target (see getRpeStep). Only written
-  // when there was one, so every no-RPE entry keeps its pre-v8.20 shape.
-  if (raw.rpeStep === 'easy' || raw.rpeStep === 'hold') result.rpeStep = raw.rpeStep;
-  state.progressionTargets[targetKey] = result;
-  return result;
+  return BlocEngine.getWeekTargets(state, progressionTargetCache(), macro, week, dayKey, ex); // v8.35 (§125): the engine's
 }
 
 // v7.99: the single compliance comparison — shared by evaluateProgressionLock
@@ -11952,35 +11857,7 @@ function getWeekTargets(macro, week, dayKey, ex) {
 // completely logged and marked done yet — nothing to evaluate; compliant
 // is only meaningful when fullyLogged is true.
 function getWeekComplianceResult(macro, week, dayKey, ex) {
-  const sets = getWeekSets(ex, week, macro.weeks);
-  const key2 = macro.id + '_' + week + '_' + dayKey;
-  const logs = [];
-  for (let s = 0; s < sets; s++) {
-    const log = state.trainLogs[key2 + '_' + ex.id + '_' + s];
-    if (!log || !log.done) return { fullyLogged: false, compliant: false, weightTargets: null, repsTargets: null, sets };
-    logs.push(log);
-  }
-  if (sets === 0) return { fullyLogged: false, compliant: false, weightTargets: null, repsTargets: null, sets };
-
-  const { weightTargets, repsTargets } = getWeekTargets(macro, week, dayKey, ex);
-
-  let compliant = true;
-  for (let s = 0; s < sets; s++) {
-    const targetW = weightTargets[s] !== undefined ? weightTargets[s] : weightTargets[weightTargets.length - 1];
-    const targetR = repsTargets[s] !== undefined ? repsTargets[s] : repsTargets[repsTargets.length - 1];
-    const actualW = logs[s].weight ? parseFloat(logs[s].weight) : null;
-    const actualR = logs[s].reps !== undefined && logs[s].reps !== null ? String(logs[s].reps).trim() : '';
-    // Meeting OR exceeding the suggested number is compliant — only
-    // falling short is a miss. A machine that only lets you jump by 5kg
-    // when the plan called for 2.5kg, or an extra couple of reps past the
-    // target, isn't a compliance failure; it's still progression, just by
-    // more than planned. Reps compare via parseRepsForVolume's lower-bound
-    // extraction so ranges (e.g. "8–10") compare sensibly too.
-    const wOk = actualW !== null && targetW !== undefined && (actualW - parseFloat(targetW) > -0.01);
-    const rOk = targetR !== undefined && parseRepsForVolume(actualR) >= parseRepsForVolume(targetR);
-    if (!wOk || !rOk) { compliant = false; break; }
-  }
-  return { fullyLogged: true, compliant, weightTargets, repsTargets, sets };
+  return BlocEngine.getWeekComplianceResult(state, progressionTargetCache(), macro, week, dayKey, ex); // v8.35 (§125): the engine's
 }
 
 // ── Effort ratings (RPE, v8.20 — TECHNICAL §104) ────────────────────────
@@ -11995,7 +11872,7 @@ function getWeekComplianceResult(macro, week, dayKey, ex) {
 // speed-up, no hold) and the coach sees "Not rated". Do not "simplify" it
 // into a default rating: a fake 6 or 7 is indistinguishable from an answer.
 function getRpeKey(macroId, week, dayKey, exId) {
-  return macroId + '_' + week + '_' + dayKey + '_' + exId;
+  return BlocEngine.getRpeKey(macroId, week, dayKey, exId); // v8.35 (§125): the engine's
 }
 
 // 🚨 Off unless explicitly true. Existing cycles have no `rpe` field and
@@ -12003,17 +11880,17 @@ function getRpeKey(macroId, week, dayKey, exId) {
 // off; only coach-created cycles default on). Reading absent as on would
 // switch ratings on for every existing cycle on first load.
 function isRpeOn(macro) {
-  return !!(macro && macro.rpe === true);
+  return BlocEngine.isRpeOn(macro); // v8.35 (§125): the engine's
 }
 
 // Whether ratings change targets. In Solo they do. 🚨 In Coached mode
 // (PROMPT-03) this must return false: the coach owns the plan, so ratings
 // only INFORM the coach there (Adam, 2026-09-27). This is the one switch.
 function rpeDrivesProgression(macro) {
-  return isRpeOn(macro);
+  return BlocEngine.rpeDrivesProgression(macro); // v8.35 (§125): the engine's
 }
 
-const RPE_STEP_NONE = Object.freeze({ kind: 'none', weightMult: 1, repsInc: 1, giantInc: 10 });
+// v8.35 (§125): RPE_STEP_NONE (the neutral step) lives in the engine, with the functions that read it.
 
 // The step a rating asks for. 'easy' (compliant + RPE ≤ 6): a double step —
 // 2× weightIncrement, heavy-leg 1.5× (Adam: "don't exclude heavy leg.
@@ -12021,9 +11898,7 @@ const RPE_STEP_NONE = Object.freeze({ kind: 'none', weightMult: 1, repsInc: 1, g
 // RPE 9–10): no step at all for one mesocycle — not a lock; it releases on
 // its own the week after, because the week after reads its own rating.
 function rpeStepFromKind(kind, ex) {
-  if (kind === 'easy') return { kind, weightMult: ex && ex.isHeavyLeg ? 1.5 : 2, repsInc: 2, giantInc: 20 };
-  if (kind === 'hold') return { kind, weightMult: 0, repsInc: 0, giantInc: 0 };
-  return RPE_STEP_NONE;
+  return BlocEngine.rpeStepFromKind(kind, ex); // v8.35 (§125): the engine's
 }
 
 // Decides the step for `week` from the rating given in `week - 1` on the
@@ -12035,17 +11910,7 @@ function rpeStepFromKind(kind, ex) {
 // (not compliant + high RPE is already frozen by the lock; it adds a hint,
 // never a second target change).
 function computeRpeStepKind(macro, week, dayKey, ex) {
-  if (!rpeDrivesProgression(macro)) return 'none';
-  if (!ex || ex.category === 'cardio' || macro.goalType === 'maintenance') return 'none';
-  if (week <= 1) return 'none';
-  if (isDeloadUnit(macro, week, dayKey) || isFirstUnitAfterDeload(macro, week, dayKey)
-      || isDeloadUnit(macro, week - 1, dayKey)) return 'none';
-  const r = state.rpe && state.rpe[getRpeKey(macro.id, week - 1, dayKey, ex.id)];
-  if (!r || typeof r.rpe !== 'number') return 'none';
-  if (r.rpe > 6 && r.rpe < 9) return 'none';
-  const prev = getWeekComplianceResult(macro, week - 1, dayKey, ex);
-  if (!prev.fullyLogged || !prev.compliant) return 'none';
-  return r.rpe <= 6 ? 'easy' : 'hold';
+  return BlocEngine.computeRpeStepKind(state, progressionTargetCache(), macro, week, dayKey, ex); // v8.35 (§125): the engine's
 }
 
 // The step `week` uses, for BOTH the target the week is judged against
@@ -12059,11 +11924,7 @@ function computeRpeStepKind(macro, week, dayKey, ex) {
 // (every entry written before v8.20, and every week that had no step)
 // reads as none — which is what keeps existing data byte-identical.
 function getRpeStep(macro, week, dayKey, ex) {
-  if (!macro || !ex) return RPE_STEP_NONE;
-  const cached = state.progressionTargets
-    && state.progressionTargets[getProgressionLockKey(macro.id, dayKey, ex.id) + '_w' + week];
-  if (cached) return rpeStepFromKind(cached.rpeStep || 'none', ex);
-  return rpeStepFromKind(computeRpeStepKind(macro, week, dayKey, ex), ex);
+  return BlocEngine.getRpeStep(state, progressionTargetCache(), macro, week, dayKey, ex); // v8.35 (§125): the engine's
 }
 
 // The effort-rating tags on an exercise card (solo and superset member alike).
@@ -12097,19 +11958,15 @@ function buildRpeTagsHtml(macro, week, dayKey, ex, isLocked, isDeloadSession) {
 // added +1 and giant sets +10 — so a maintenance card showed last week's
 // reps + 1), otherwise the effort-rating step. 🚨 Use this, not getRpeStep,
 // wherever a target is COMPUTED; getRpeStep alone is for the tags.
-const PROG_STEP_MAINTENANCE = Object.freeze({ kind: 'maintenance', weightMult: 0, repsInc: 0, giantInc: 0 });
+// v8.35 (§125): PROG_STEP_MAINTENANCE (no step at all on a maintenance cycle) lives in the engine.
 function getProgressionStep(macro, week, dayKey, ex) {
-  if (macro && macro.goalType === 'maintenance') return PROG_STEP_MAINTENANCE;
-  return getRpeStep(macro, week, dayKey, ex);
+  return BlocEngine.getProgressionStep(state, progressionTargetCache(), macro, week, dayKey, ex); // v8.35 (§125): the engine's
 }
 
 // "8" → "10" and "8–10" → "10–12" for inc 2; the +1 everywhere else in the
 // engine is this with inc 1. Unparseable strings come back null.
 function bumpRepsBy(reps, inc) {
-  const m = String(reps).match(/^(\d+)(?:–(\d+))?$/);
-  if (!m) return null;
-  const lo = parseInt(m[1]) + inc;
-  return m[2] ? lo + '–' + (parseInt(m[2]) + inc) : String(lo);
+  return BlocEngine.bumpRepsBy(reps, inc); // v8.35 (§125): the engine's
 }
 
 // Creates, leaves untouched, or clears state.progressionLocks for
@@ -12125,36 +11982,28 @@ function bumpRepsBy(reps, inc) {
 // fresh one at the walked-back target — it never silently continues
 // fighting an old frozen number from before the deload.
 function evaluateProgressionLock(macro, week, dayKey, ex) {
-  if (!macro || !ex) return;
-  if (macro.goalType === 'maintenance') return;
-  if (week <= 1) return;
-  if (isDeloadUnit(macro, week, dayKey)) return;
-
-  const lockKey = getProgressionLockKey(macro.id, dayKey, ex.id);
-  const result = getWeekComplianceResult(macro, week, dayKey, ex);
-  if (!result.fullyLogged) return; // session not fully logged yet — wait
-
+  // v8.35 (§125, deep dive H1/H3): the engine decides (computeLockTransition);
+  // writing the lock and saving stay BLOC's, only on a real change, as before.
+  const t = BlocEngine.computeLockTransition(state, progressionTargetCache(), macro, week, dayKey, ex);
+  if (!t) return;
   if (!state.progressionLocks) state.progressionLocks = {};
-  const existingLock = state.progressionLocks[lockKey];
-  const isPostDeload = isFirstUnitAfterDeload(macro, week, dayKey);
-  let changed = false;
+  if (t.set) state.progressionLocks[t.key] = t.set;
+  else delete state.progressionLocks[t.key];
+  save();
+}
 
-  if (!result.compliant) {
-    if (!existingLock || isPostDeload) {
-      state.progressionLocks[lockKey] = {
-        weightTargets: result.weightTargets.slice(),
-        repsTargets: result.repsTargets.slice(),
-        sets: result.sets, lockedAtWeek: week,
-      };
-      changed = true;
-    }
-    // Already locked on an ordinary week — target stays frozen exactly as
-    // first set; nothing to update.
-  } else if (existingLock) {
-    delete state.progressionLocks[lockKey];
-    changed = true;
-  }
-  if (changed) save();
+// v8.35 (§125): the progression-target cache the engine reads and fills
+// (getWeekTargets, deep dive H2). It is state.progressionTargets itself, so
+// BLOC caches, freezes and saves exactly what it did before; Coach passes an
+// overlay instead and never writes the client's.
+function progressionTargetCache() {
+  return {
+    get: key => state.progressionTargets ? state.progressionTargets[key] : undefined,
+    set: (key, target) => {
+      if (!state.progressionTargets) state.progressionTargets = {};
+      state.progressionTargets[key] = target;
+    },
+  };
 }
 
 // Build per-day stats map from all logs
@@ -21189,36 +21038,16 @@ function renderTrainDay(macro) {
     }
   });
 
-  // Helper: compute per-exercise progression data (same logic as before, extracted for reuse)
+  // Helper: compute per-exercise progression data. v8.35 (§125): the
+  // calculation is the engine's computeExerciseProgression (deep dive §1d,
+  // lifted out of this closure so Coach runs the same one). What WRITES stays
+  // here, in the same order as before: the retroactive sweep over every
+  // prior week, then this week's own evaluation (deep dive H1/H3).
   function exProgData(ex) {
-    const exId = ex.id;
-    // Cardio exercises never participate in progression/compliance — see
-    // CARDIO EXERCISES section. Short-circuit with safe zeroed values so
-    // this can never throw, however it's reached (e.g. as a superset
-    // member) — but doneSets/allDone are computed for real, since the
-    // superset card's combined "done" badge sums doneSets across every
-    // member regardless of category.
     if (ex.category === 'cardio') {
-      const sets = getWeekSets(ex, state.currentWeek, macro.weeks);
-      const key2c = macro.id + '_' + state.currentWeek + '_' + state.currentDay;
-      let doneSetsC = 0;
-      for (let s = 0; s < sets; s++) {
-        if ((state.trainLogs[key2c + '_' + exId + '_' + s] || {}).done) doneSetsC++;
-      }
-      return {
-        exId, sets, progType: 'weight', prevProgType: null, prevLoggedSets: [],
-        prevActualWeight: null, prevActualReps: null, recommendedWeight: 0, recommendedReps: '0',
-        weightPlaceholder: '0.0', repsPlaceholder: '0',
-        weightPlaceholders: Array(sets).fill('0.0'), repsPlaceholders: Array(sets).fill('0'),
-        dropWeightPlaceholders: [], dropRepsPlaceholders: [],
-        weightJump: 0, isPauseSet: false, doneSets: doneSetsC, allDone: doneSetsC === sets && sets > 0, missedTarget: false,
-        prevWeek2: state.currentWeek - 1, prevNoProgression: false,
-        isDeloadSession, isPostDeloadSession, isLocked: false, prevWasLocked: false,
-        isDropSet: false, prevActualDropWeight: null, prevActualDropReps: null,
-        recommendedDropWeight: 0, recommendedDropReps: '0', dropWeightPlaceholder: '0.0', dropRepsPlaceholder: '0',
-      };
+      return BlocEngine.computeExerciseProgression(state, progressionTargetCache(), macro, state.currentWeek, state.currentDay, ex);
     }
-    const progLockKey = getProgressionLockKey(macro.id, state.currentDay, exId);
+    const progLockKey = getProgressionLockKey(macro.id, state.currentDay, ex.id);
     // ── Retroactive compliance catch-up ──────────────────────────────
     // Sweeps every PRIOR week (deliberately NOT including this one) so
     // the lock status read below reflects "coming into this week", never
@@ -21231,7 +21060,7 @@ function renderTrainDay(macro) {
     // harmless no-op — so this safely re-runs on every render.
     //
     // prevWasLocked snapshots lock status immediately before evaluating
-    // the single week right before this one — used further down to detect
+    // the single week right before this one — used by the engine to detect
     // "last week was actually the compliance week that cleared a lock"
     // (not a genuine new progression choice), so the "Last wk: ↑ weight"
     // badge can be suppressed there instead of showing a misleading route.
@@ -21242,370 +21071,13 @@ function renderTrainDay(macro) {
       }
       evaluateProgressionLock(macro, w, state.currentDay, ex);
     }
-    const isPauseSet= ex.type === 'pause';
-    const isDropSet = ex.type === 'dropset';
-    const isGain        = macro.goalType === 'gain';
-    const isMaintenance = macro.goalType === 'maintenance';
-    // Maintenance cycles carry forward last week's values exactly — no load
-    // progression is suggested. The progression selector is also hidden for
-    // maintenance cycles (see renderTrainDay). weightJump = 0 here ensures
-    // the fill-suggested / quick-complete buttons use the previous weight.
-    // weightIncrement is user-configurable and applies to light exercises
-    // regardless of cycle type; heavy-leg jumps stay fixed (5kg loss /
-    // 10kg gain) and are never affected by the user's setting.
-    const lightJump = isMaintenance ? 0 : parseFloat(macro.weightIncrement || '2.5');
-    const heavyJump = isMaintenance ? 0 : (isGain ? 10 : 5);
-    const weightJump= ex.isHeavyLeg ? heavyJump : lightJump;
-    const sets      = getWeekSets(ex, state.currentWeek, macro.weeks);
-    const pk        = getProgKey(macro.id, state.currentWeek, state.currentDay, exId);
-    const progLog   = state.trainLogs[pk] || {};
-    const progType  = progLog.progType || 'weight';
-    const prevWeek2 = state.currentWeek - 1;
-    const prevPk    = getProgKey(macro.id, prevWeek2, state.currentDay, exId);
-    const prevProgLog = state.trainLogs[prevPk] || {};
-    const prevKey2  = macro.id + '_' + prevWeek2 + '_' + state.currentDay;
-
-    // ── Progression compliance lock ──────────────────────────────────
-    // See PROGRESSION COMPLIANCE GUARD section for how this is created/
-    // cleared. Read AFTER the catch-up sweep above (which stops short of
-    // this week), so isLocked reflects the state coming into this week —
-    // stable for the whole time you're viewing/logging it.
-    const progLock = state.progressionLocks && state.progressionLocks[progLockKey];
-    // Deliberately excludes a lock whose lockedAtWeek equals THIS week —
-    // that means this week's own evaluation is what just created it (e.g.
-    // via the trailing evaluate below, or a toggle mid-session), which
-    // must not hide this week's own chips/button. Only a lock inherited
-    // from a strictly earlier week should affect what's shown right now.
-    // v7.99: also suppressed outright during deload/post-deload — a
-    // deload week always shows its flat 60% figure, and a post-deload
-    // week always shows a fresh target walked back to the last compliant
-    // week (getLastCompliantWeek) rather than any inherited frozen
-    // number, even if one exists. Either way, this exercise's own
-    // evaluation below (which now runs for post-deload weeks too) is
-    // what decides whether NEXT week sees a lock — never this render.
-    const isLocked = !isDeloadSession && !isPostDeloadSession
-      && !!progLock && (progLock.lockedAtWeek || 0) < state.currentWeek;
-    // Evaluate THIS week's own compliance too — but only AFTER isLocked
-    // above has already been captured, so it can only ever affect what
-    // NEXT week sees, never this render.
+    // The lock coming into this week, read AFTER the sweep and BEFORE this
+    // week's own evaluation: that evaluation can only ever affect what NEXT
+    // week sees, never this render.
+    const lockComingIn = state.progressionLocks && state.progressionLocks[progLockKey];
     evaluateProgressionLock(macro, state.currentWeek, state.currentDay, ex);
-    const postDeloadTarget = isPostDeloadSession
-      ? getWeekTargets(macro, state.currentWeek, state.currentDay, ex)
-      : null;
-    // v8.20 — the effort-rating step, the SAME one computeRawSuggestedTargets
-    // uses (getRpeStep; frozen with the cached target once there is one), so
-    // what Train shows and what the week is judged against cannot disagree.
-    // 🚨 rpeJump is for progression only. The deload 60% rounding below keeps
-    // using the plain weightJump — a double step must not change deload maths.
-    const rpeStep = getProgressionStep(macro, state.currentWeek, state.currentDay, ex);
-    const rpeJump = weightJump * rpeStep.weightMult;
-
-    // Same done-check as computeRawSuggestedTargets() above — a set that's
-    // been typed but not yet confirmed must never seed a target, here or
-    // there, so the two implementations can't quietly drift apart again.
-    let prevLoggedSets = [];
-    if (prevWeek2 >= 1) {
-      const prevSetsCount = getWeekSets(ex, prevWeek2, macro.weeks);
-      for (let s = 0; s < prevSetsCount; s++) {
-        const lk = prevKey2 + '_' + exId + '_' + s;
-        const prevLog = state.trainLogs[lk];
-        prevLoggedSets.push(prevLog && prevLog.done ? prevLog : null);
-      }
-    }
-    const prevSet1          = prevLoggedSets[0];
-    const prevActualWeight  = prevSet1 && prevSet1.weight ? parseFloat(prevSet1.weight) : null;
-    const prevActualReps    = prevSet1 && prevSet1.reps   ? prevSet1.reps : null;
-    // Drop-set only: the drop portion of the same set-1 log entry. Stored
-    // alongside the main weight/reps on the same trainLogs object (not a
-    // separate set index) — see the DROP SET section of the Train
-    // renderer for how these two fields are logged per set.
-    const prevActualDropWeight = prevSet1 && prevSet1.dropWeight ? parseFloat(prevSet1.dropWeight) : null;
-    const prevActualDropReps   = prevSet1 && prevSet1.dropReps   ? prevSet1.dropReps : null;
-    // Infer which progression path was used last week when it was never
-    // explicitly chosen (e.g. filled via "Fill suggested" then just checked
-    // done): compare last week's actual weight/reps against the week before
-    // that one (or the exercise's starting values, if last week was week 1).
-    // Weight increase wins first; if weight didn't increase, check reps;
-    // if neither increased, there's no detectable progression to report.
-    let prevProgType = prevProgLog.progType || null;
-    let prevNoProgression = false;
-    // If last week started off locked, we already know (by elimination —
-    // otherwise this week would itself still be locked) that it must have
-    // been the week that successfully cleared the lock, not a genuine new
-    // progression decision. Skip the inference below entirely so the
-    // header shows nothing rather than a misleading "↑ weight/reps".
-    if (prevWasLocked) {
-      prevProgType = null;
-    } else if (!prevProgType && prevActualWeight !== null) {
-      const priorWeek = prevWeek2 - 1;
-      let priorWeight, priorReps;
-      if (priorWeek < 1) {
-        priorWeight = ex.startWeight;
-        priorReps   = ex.reps;
-      } else {
-        const priorLog = state.trainLogs[macro.id + '_' + priorWeek + '_' + state.currentDay + '_' + exId + '_0'];
-        priorWeight = priorLog && priorLog.weight ? parseFloat(priorLog.weight) : null;
-        priorReps   = priorLog && priorLog.reps   ? priorLog.reps : null;
-      }
-      if (priorWeight !== null && prevActualWeight > priorWeight) {
-        prevProgType = 'weight';
-      } else if (priorReps !== null && prevActualReps !== null &&
-                 parseRepsForVolume(prevActualReps) > parseRepsForVolume(priorReps)) {
-        prevProgType = 'reps';
-      } else {
-        prevNoProgression = true;
-      }
-    }
-    const recommendedWeight = prevActualWeight !== null
-      ? prevActualWeight + rpeJump
-      : getWeekWeight(ex, state.currentWeek, 'weight', macro.goalType, macro.weightIncrement);
-    const recommendedReps = (() => {
-      if (isPauseSet) return getGiantSetProgression(ex, state.currentWeek, macro.goalType); // fixed base, weight-only progression
-      if (ex.type === 'giant') {
-        if (prevActualReps !== null) {
-          // Base the suggestion on what was actually logged last week, not on
-          // mesoweek count — so choosing "weight" progression one week doesn't
-          // silently double the reps jump the following week.
-          const baseNum = parseInt(String(prevActualReps).match(/(\d+)/)?.[0]) || 0;
-          return String(baseNum + rpeStep.giantInc);
-        }
-        return getGiantSetProgression(ex, state.currentWeek, macro.goalType); // no prior log yet (e.g. week 2)
-      }
-      if (prevActualReps !== null) {
-        const bumped = bumpRepsBy(prevActualReps, rpeStep.repsInc);
-        if (bumped !== null) return bumped;
-      }
-      return getWeekReps(ex, state.currentWeek, 'reps', macro.goalType);
-    })();
-    // Drop-set only: the drop portion follows the exact same progression
-    // math as the main set (same weightJump, same +1-rep step) so 'apply
-    // the same progression to both' holds — but with no plan-time
-    // fallback target, since the drop weight/reps are never pre-planned,
-    // only discovered live. If there's no prior actual drop data, there's
-    // simply nothing to suggest yet (null / blank), unlike the main set
-    // which always has ex.startWeight to fall back on.
-    const recommendedDropWeight = prevActualDropWeight !== null ? prevActualDropWeight + rpeJump : null;
-    const recommendedDropReps = (() => {
-      if (prevActualDropReps !== null) {
-        const bumped = bumpRepsBy(prevActualDropReps, rpeStep.repsInc);
-        if (bumped !== null) return bumped;
-      }
-      return '';
-    })();
-    // ── Deload override ──────────────────────────────────────────────
-    // A deload session ignores normal progression entirely: weight drops
-    // to 60% of whatever was actually logged last time (rounded to this
-    // exercise's own increment — weightJump, computed above), reps stay
-    // exactly as last logged. A post-deload session needs no override of
-    // its own (v7.99) — it's just an ordinary progression week whose
-    // reference point (prevWeek2/prevKey2 above) already walked back past
-    // the deload to the last genuinely compliant week, so the normal
-    // weightPlaceholder/repsPlaceholder math below produces the correct
-    // reset numbers automatically.
-    let deloadWeightPlaceholder = null, deloadRepsPlaceholder = null;
-    let deloadDropWeightPlaceholder = null, deloadDropRepsPlaceholder = null;
-    if (isDeloadSession) {
-      const baseWeight = prevActualWeight !== null ? prevActualWeight
-        : getWeekWeight(ex, state.currentWeek, 'weight', macro.goalType, macro.weightIncrement);
-      const baseReps = prevActualReps !== null ? prevActualReps : ex.reps;
-      deloadWeightPlaceholder = roundToIncrement(baseWeight * 0.6, weightJump).toFixed(1);
-      deloadRepsPlaceholder = baseReps;
-      if (isDropSet) {
-        // Drop weight only reduces if there's something real to reduce —
-        // no fallback target to fall back to, unlike the main set.
-        deloadDropWeightPlaceholder = prevActualDropWeight !== null
-          ? roundToIncrement(prevActualDropWeight * 0.6, weightJump).toFixed(1)
-          : '';
-        deloadDropRepsPlaceholder = prevActualDropReps !== null ? prevActualDropReps : '';
-      }
-    }
-    // Locked single-value fallbacks (exercise-wide — set 1's frozen target),
-    // used only when deload doesn't already override (deload always wins).
-    const lockWeightPlaceholder = isLocked
-      ? (progLock.weightTargets[0] !== undefined ? progLock.weightTargets[0] : progLock.weightTargets[progLock.weightTargets.length - 1])
-      : null;
-    const lockRepsPlaceholder = isLocked
-      ? (progLock.repsTargets[0] !== undefined ? progLock.repsTargets[0] : progLock.repsTargets[progLock.repsTargets.length - 1])
-      : null;
-    const weightPlaceholder = deloadWeightPlaceholder !== null ? deloadWeightPlaceholder
-      : postDeloadTarget !== null ? postDeloadTarget.weightTargets[0]
-      : lockWeightPlaceholder !== null ? lockWeightPlaceholder
-      : state.currentWeek === 1
-      ? ex.startWeight.toFixed(1)
-      : progType === 'weight' ? recommendedWeight.toFixed(1)
-        : (prevActualWeight !== null ? prevActualWeight.toFixed(1) : ex.startWeight.toFixed(1));
-    const repsPlaceholder = deloadRepsPlaceholder !== null ? deloadRepsPlaceholder
-      : postDeloadTarget !== null ? postDeloadTarget.repsTargets[0]
-      : lockRepsPlaceholder !== null ? lockRepsPlaceholder
-      : state.currentWeek === 1
-      ? ex.reps
-      : progType === 'reps' ? recommendedReps
-        : (prevActualReps !== null ? prevActualReps : ex.reps);
-    // Drop-set only: mirrors weightPlaceholder/repsPlaceholder exactly,
-    // just with no week-1 (or otherwise-no-prior-data) fallback target —
-    // blank means "nothing to suggest yet, log it live".
-    const dropWeightPlaceholder = !isDropSet ? '' : deloadDropWeightPlaceholder !== null ? deloadDropWeightPlaceholder
-      : state.currentWeek === 1 ? ''
-      : progType === 'weight' ? (recommendedDropWeight !== null ? recommendedDropWeight.toFixed(1) : '')
-        : (prevActualDropWeight !== null ? prevActualDropWeight.toFixed(1) : '');
-    const dropRepsPlaceholder = !isDropSet ? '' : deloadDropRepsPlaceholder !== null ? deloadDropRepsPlaceholder
-      : state.currentWeek === 1 ? ''
-      : progType === 'reps' ? recommendedDropReps
-        : (prevActualDropReps !== null ? prevActualDropReps : '');
-
-    // ── Per-set suggested placeholders ─────────────────────────────────
-    // v6.09: suggestions now key off the same set number in the previous
-    // mesocycle/day, rather than a single exercise-wide figure derived from
-    // set 1. This lets an ad-hoc mid-session weight drop (e.g. set 4 dropped
-    // to 195kg because 200kg wasn't sustainable) carry forward correctly
-    // into the next mesocycle for that specific set only, while the other
-    // sets still progress from their own last actual numbers. If this
-    // week has more sets than last week (a set added partway through a
-    // plan), the extra set(s) simply inherit last week's final set's
-    // suggestion. True deload and week-1 sessions are unaffected — they
-    // already use a single flat reference for the whole exercise, and
-    // that behaviour is preserved unchanged here. Post-deload (v7.99) DOES
-    // use per-set targets, same as locked/normal weeks — see
-    // postDeloadTarget below.
-    const weightPlaceholders = [], repsPlaceholders = [], dropWeightPlaceholders = [], dropRepsPlaceholders = [];
-    for (let s = 0; s < sets; s++) {
-      if (deloadWeightPlaceholder !== null) {
-        weightPlaceholders.push(deloadWeightPlaceholder);
-        repsPlaceholders.push(deloadRepsPlaceholder);
-        dropWeightPlaceholders.push(!isDropSet ? '' : (deloadDropWeightPlaceholder !== null ? deloadDropWeightPlaceholder : ''));
-        dropRepsPlaceholders.push(!isDropSet ? '' : (deloadDropRepsPlaceholder !== null ? deloadDropRepsPlaceholder : ''));
-        continue;
-      }
-      if (postDeloadTarget !== null) {
-        const pw = postDeloadTarget.weightTargets[s] !== undefined ? postDeloadTarget.weightTargets[s] : postDeloadTarget.weightTargets[postDeloadTarget.weightTargets.length - 1];
-        const pr = postDeloadTarget.repsTargets[s] !== undefined ? postDeloadTarget.repsTargets[s] : postDeloadTarget.repsTargets[postDeloadTarget.repsTargets.length - 1];
-        weightPlaceholders.push(pw);
-        repsPlaceholders.push(pr);
-        // The drop-set portion has no reset target of its own (never part
-        // of the compliance guard, same exemption true deload's drop
-        // handling already has) — falls back to last actual, if any.
-        dropWeightPlaceholders.push(!isDropSet ? '' : (prevActualDropWeight !== null ? prevActualDropWeight.toFixed(1) : ''));
-        dropRepsPlaceholders.push(!isDropSet ? '' : (prevActualDropReps !== null ? prevActualDropReps : ''));
-        continue;
-      }
-      if (state.currentWeek === 1) {
-        weightPlaceholders.push(ex.startWeight.toFixed(1));
-        repsPlaceholders.push(ex.reps);
-        dropWeightPlaceholders.push('');
-        dropRepsPlaceholders.push('');
-        continue;
-      }
-      // Source set for this index: the same set number logged last week, or
-      // — if this week has extra sets that didn't exist last week — last
-      // week's final logged set, so a newly-added set isn't left blank.
-      const srcSet = s < prevLoggedSets.length
-        ? prevLoggedSets[s]
-        : (prevLoggedSets.length > 0 ? prevLoggedSets[prevLoggedSets.length - 1] : null);
-      const setActualWeight    = srcSet && srcSet.weight ? parseFloat(srcSet.weight) : null;
-      const setActualReps      = srcSet && srcSet.reps   ? srcSet.reps : null;
-      const setActualDropWeight= srcSet && srcSet.dropWeight ? parseFloat(srcSet.dropWeight) : null;
-      const setActualDropReps  = srcSet && srcSet.dropReps   ? srcSet.dropReps : null;
-
-      const setRecWeight = setActualWeight !== null
-        ? setActualWeight + rpeJump
-        : getWeekWeight(ex, state.currentWeek, 'weight', macro.goalType, macro.weightIncrement);
-      const setRecReps = (() => {
-        if (isPauseSet) return getGiantSetProgression(ex, state.currentWeek, macro.goalType);
-        if (ex.type === 'giant') {
-          if (setActualReps !== null) {
-            const baseNum = parseInt(String(setActualReps).match(/(\d+)/)?.[0]) || 0;
-            return String(baseNum + rpeStep.giantInc);
-          }
-          return getGiantSetProgression(ex, state.currentWeek, macro.goalType);
-        }
-        if (setActualReps !== null) {
-          const bumped = bumpRepsBy(setActualReps, rpeStep.repsInc);
-          if (bumped !== null) return bumped;
-        }
-        return getWeekReps(ex, state.currentWeek, 'reps', macro.goalType);
-      })();
-      const setRecDropWeight = setActualDropWeight !== null ? setActualDropWeight + rpeJump : null;
-      const setRecDropReps = (() => {
-        if (setActualDropReps !== null) {
-          const bumped = bumpRepsBy(setActualDropReps, rpeStep.repsInc);
-          if (bumped !== null) return bumped;
-        }
-        return '';
-      })();
-
-      // Locked exercise: main weight/reps freeze at the lock's original
-      // missed target (same value every week until compliance is met) —
-      // completely overriding progType/normal math for the main set. The
-      // drop portion below is never part of the guard, so it keeps
-      // following its own normal formula regardless of lock state.
-      if (isLocked) {
-        const lockW = progLock.weightTargets[s] !== undefined ? progLock.weightTargets[s] : progLock.weightTargets[progLock.weightTargets.length - 1];
-        const lockR = progLock.repsTargets[s] !== undefined ? progLock.repsTargets[s] : progLock.repsTargets[progLock.repsTargets.length - 1];
-        weightPlaceholders.push(lockW);
-        repsPlaceholders.push(lockR);
-      } else {
-        weightPlaceholders.push(progType === 'weight'
-          ? setRecWeight.toFixed(1)
-          : (setActualWeight !== null ? setActualWeight.toFixed(1) : ex.startWeight.toFixed(1)));
-        repsPlaceholders.push(progType === 'reps'
-          ? setRecReps
-          : (setActualReps !== null ? setActualReps : ex.reps));
-      }
-      dropWeightPlaceholders.push(!isDropSet ? '' : (progType === 'weight'
-        ? (setRecDropWeight !== null ? setRecDropWeight.toFixed(1) : '')
-        : (setActualDropWeight !== null ? setActualDropWeight.toFixed(1) : '')));
-      dropRepsPlaceholders.push(!isDropSet ? '' : (progType === 'reps'
-        ? setRecDropReps
-        : (setActualDropReps !== null ? setActualDropReps : '')));
-    }
-
-    let doneSets = 0;
-    const key2 = macro.id + '_' + state.currentWeek + '_' + state.currentDay;
-    for (let s = 0; s < sets; s++) {
-      const lk = key2 + '_' + exId + '_' + s;
-      if ((state.trainLogs[lk] || {}).done) doneSets++;
-    }
-    const allDone = doneSets === sets && sets > 0;
-
-    // Whether a fully-completed session actually matched its own target
-    // (main set only — drop-set drop portions are never part of this,
-    // same exemption as the compliance guard itself). Only meaningful on
-    // a genuine progression week; a true deload/maintenance/week-1
-    // session doesn't have a "target" to miss in this sense. A
-    // post-deload session DOES (v7.99) — its target is the walked-back
-    // getLastCompliantWeek reference, and missing it is exactly as real
-    // as missing any other week's.
-    let missedTarget = false;
-    if (allDone && !isDeloadSession && !isMaintenance && state.currentWeek > 1) {
-      for (let s = 0; s < sets; s++) {
-        const lg = state.trainLogs[key2 + '_' + exId + '_' + s] || {};
-        const targetW = weightPlaceholders[s] !== undefined ? weightPlaceholders[s] : weightPlaceholders[weightPlaceholders.length - 1];
-        const targetR = repsPlaceholders[s] !== undefined ? repsPlaceholders[s] : repsPlaceholders[repsPlaceholders.length - 1];
-        const actualW = lg.weight ? parseFloat(lg.weight) : null;
-        const actualR = lg.reps !== undefined && lg.reps !== null ? String(lg.reps).trim() : '';
-        // Meeting OR exceeding the target is compliant — only falling short
-        // is a genuine miss. This mirrors evaluateProgressionLock()'s own
-        // compliance check exactly (same >-0.01 weight tolerance, same
-        // parseRepsForVolume lower-bound reps comparison) — this badge is
-        // purely a display of that same compliance decision, so it must
-        // never disagree with the logic that actually freezes/clears the
-        // lock. Previously this used an exact-match comparison instead,
-        // which flagged "missed target" any time a set exceeded its
-        // suggestion (e.g. logging 80kg against a 77.5kg target) even
-        // though the lock itself correctly treated that as compliant.
-        const wOk = actualW !== null && targetW !== undefined && (actualW - parseFloat(targetW) > -0.01);
-        const rOk = targetR !== undefined && parseRepsForVolume(actualR) >= parseRepsForVolume(targetR);
-        if (!wOk || !rOk) { missedTarget = true; break; }
-      }
-    }
-
-    return { exId, sets, progType, prevProgType, prevLoggedSets, prevActualWeight, prevActualReps,
-             recommendedWeight, recommendedReps, weightPlaceholder, repsPlaceholder,
-             weightPlaceholders, repsPlaceholders, dropWeightPlaceholders, dropRepsPlaceholders,
-             weightJump, isPauseSet, doneSets, allDone, missedTarget, prevWeek2, prevNoProgression,
-             isDeloadSession, isPostDeloadSession, isLocked, prevWasLocked,
-             isDropSet, prevActualDropWeight, prevActualDropReps,
-             recommendedDropWeight, recommendedDropReps, dropWeightPlaceholder, dropRepsPlaceholder };
+    return BlocEngine.computeExerciseProgression(state, progressionTargetCache(), macro, state.currentWeek, state.currentDay, ex,
+      { lockComingIn, prevWasLocked });
   }
 
   // Hoisted here so it's in scope for both the card header (lastWkBadge)

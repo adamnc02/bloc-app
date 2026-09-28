@@ -85,3 +85,13 @@ export {
   computeCycleBestLifts, computeCycleWeeklySwings, computeCycleMeasurements, getPriorCycleReviews,
   computeCycleReviewPayload,
 } from './review.ts';
+
+// ── v8.35 (§125): step 5, the progression core. Targets are read and filled
+//    through a TargetCache; the lock is returned as a transition, never
+//    written. ───────────────────────────────────────────────────────────────
+export type { RpeStep, WeekTarget, TargetCache, RawTargets, ComplianceResult, LockEntry, LockTransition, ExerciseProgression, ProgressionOpts } from './targets.ts';
+export {
+  getRpeKey, isRpeOn, rpeDrivesProgression, RPE_STEP_NONE, rpeStepFromKind, computeRpeStepKind, getRpeStep,
+  PROG_STEP_MAINTENANCE, getProgressionStep, bumpRepsBy, getLastCompliantWeek, computeRawSuggestedTargets,
+  getWeekTargets, getWeekComplianceResult, computeLockTransition, computeExerciseProgression,
+} from './targets.ts';

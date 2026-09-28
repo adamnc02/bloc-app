@@ -24,10 +24,12 @@ var BlocEngine = (() => {
   __export(index_exports, {
     HOME_METRIC_POLARITY: () => HOME_METRIC_POLARITY,
     HOME_STEPS_TOLERANCE: () => HOME_STEPS_TOLERANCE,
+    PROG_STEP_MAINTENANCE: () => PROG_STEP_MAINTENANCE,
     RECONCILE_CARBS_FLOOR: () => RECONCILE_CARBS_FLOOR,
     RECONCILE_FATS_FLOOR: () => RECONCILE_FATS_FLOOR,
     RECONCILE_KCAL_MAX_OVERSHOOT: () => RECONCILE_KCAL_MAX_OVERSHOOT,
     RECONCILE_PROTEIN_MAX_DROP: () => RECONCILE_PROTEIN_MAX_DROP,
+    RPE_STEP_NONE: () => RPE_STEP_NONE,
     SAVE_DAY_TOLERANCE: () => SAVE_DAY_TOLERANCE,
     avgDayMapField: () => avgDayMapField,
     buildCycleReviewPrompt: () => buildCycleReviewPrompt,
@@ -37,6 +39,7 @@ var BlocEngine = (() => {
     buildNextCycleGoalSteps: () => buildNextCycleGoalSteps,
     buildReverseDietRows: () => buildReverseDietRows,
     buildSignalPeriods: () => buildSignalPeriods,
+    bumpRepsBy: () => bumpRepsBy,
     calcAge: () => calcAge,
     calcDynamicTDEE: () => calcDynamicTDEE,
     calcDynamicTDEE_rawLogPair: () => calcDynamicTDEE_rawLogPair,
@@ -47,8 +50,12 @@ var BlocEngine = (() => {
     computeCycleMeasurements: () => computeCycleMeasurements,
     computeCycleReviewPayload: () => computeCycleReviewPayload,
     computeCycleWeeklySwings: () => computeCycleWeeklySwings,
+    computeExerciseProgression: () => computeExerciseProgression,
     computeHomeWeek: () => computeHomeWeek,
+    computeLockTransition: () => computeLockTransition,
     computeMaintenanceRecalibration: () => computeMaintenanceRecalibration,
+    computeRawSuggestedTargets: () => computeRawSuggestedTargets,
+    computeRpeStepKind: () => computeRpeStepKind,
     computeSafetyFloor: () => computeSafetyFloor,
     computeTaperCurve: () => computeTaperCurve,
     computeWeekPlannedAvg: () => computeWeekPlannedAvg,
@@ -77,6 +84,7 @@ var BlocEngine = (() => {
     getHomeMetricSublabel: () => getHomeMetricSublabel,
     getHomeMetricTolerance: () => getHomeMetricTolerance,
     getHomeWeekStart: () => getHomeWeekStart,
+    getLastCompliantWeek: () => getLastCompliantWeek,
     getMacroDurationWeeks: () => getMacroDurationWeeks,
     getMacroEffectiveMesoCount: () => getMacroEffectiveMesoCount,
     getMacroEndDate: () => getMacroEndDate,
@@ -93,15 +101,20 @@ var BlocEngine = (() => {
     getPriorCycleReviews: () => getPriorCycleReviews,
     getProgKey: () => getProgKey,
     getProgressionLockKey: () => getProgressionLockKey,
+    getProgressionStep: () => getProgressionStep,
     getReconciledMacroAdvice: () => getReconciledMacroAdvice,
+    getRpeKey: () => getRpeKey,
+    getRpeStep: () => getRpeStep,
     getSelectedTrainWeekDates: () => getSelectedTrainWeekDates,
     getSessionVolume: () => getSessionVolume,
     getSundayAfterWeeks: () => getSundayAfterWeeks,
     getSustainableWeightRange: () => getSustainableWeightRange,
     getTrainAgendaUnits: () => getTrainAgendaUnits,
+    getWeekComplianceResult: () => getWeekComplianceResult,
     getWeekDates: () => getWeekDates,
     getWeekReps: () => getWeekReps,
     getWeekSets: () => getWeekSets,
+    getWeekTargets: () => getWeekTargets,
     getWeekWeight: () => getWeekWeight,
     getWeeklyRequiredDaily: () => getWeeklyRequiredDaily,
     isCompleteNutritionDay: () => isCompleteNutritionDay,
@@ -112,6 +125,7 @@ var BlocEngine = (() => {
     isLocalDevHost: () => isLocalDevHost,
     isMesoMicroValid: () => isMesoMicroValid,
     isNextCycleAdviceEligible: () => isNextCycleAdviceEligible,
+    isRpeOn: () => isRpeOn,
     macroRange: () => macroRange,
     materialiseDates: () => materialiseDates,
     nextCycleAdvicePlanMode: () => nextCycleAdvicePlanMode,
@@ -121,6 +135,8 @@ var BlocEngine = (() => {
     resolveNextCycleOverride: () => resolveNextCycleOverride,
     resolveProgressMacro: () => resolveProgressMacro,
     roundToIncrement: () => roundToIncrement,
+    rpeDrivesProgression: () => rpeDrivesProgression,
+    rpeStepFromKind: () => rpeStepFromKind,
     shiftDateStr: () => shiftDateStr,
     snapToNextMonday: () => snapToNextMonday,
     toLocalDateStr: () => toLocalDateStr
@@ -2228,6 +2244,447 @@ Write this cycle's review per the schema above.`;
       bestLifts: computeCycleBestLifts(s, macro),
       priorReviews: getPriorCycleReviews(s, ctx, macro.id),
       finalDaySubstitutions
+    };
+  }
+
+  // src/targets.ts
+  function getRpeKey(macroId, week, dayKey, exId) {
+    return macroId + "_" + week + "_" + dayKey + "_" + exId;
+  }
+  function isRpeOn(macro) {
+    return !!(macro && macro.rpe === true);
+  }
+  function rpeDrivesProgression(macro) {
+    return isRpeOn(macro);
+  }
+  var RPE_STEP_NONE = Object.freeze({ kind: "none", weightMult: 1, repsInc: 1, giantInc: 10 });
+  function rpeStepFromKind(kind, ex) {
+    if (kind === "easy") return { kind, weightMult: ex && ex.isHeavyLeg ? 1.5 : 2, repsInc: 2, giantInc: 20 };
+    if (kind === "hold") return { kind, weightMult: 0, repsInc: 0, giantInc: 0 };
+    return RPE_STEP_NONE;
+  }
+  function computeRpeStepKind(s, cache, macro, week, dayKey, ex) {
+    if (!rpeDrivesProgression(macro)) return "none";
+    if (!ex || ex.category === "cardio" || macro.goalType === "maintenance") return "none";
+    if (week <= 1) return "none";
+    if (isDeloadUnit(s, macro, week, dayKey) || isFirstUnitAfterDeload(s, macro, week, dayKey) || isDeloadUnit(s, macro, week - 1, dayKey)) return "none";
+    const r = s.rpe && s.rpe[getRpeKey(macro.id, week - 1, dayKey, ex.id)];
+    if (!r || typeof r.rpe !== "number") return "none";
+    if (r.rpe > 6 && r.rpe < 9) return "none";
+    const prev = getWeekComplianceResult(s, cache, macro, week - 1, dayKey, ex);
+    if (!prev.fullyLogged || !prev.compliant) return "none";
+    return r.rpe <= 6 ? "easy" : "hold";
+  }
+  function getRpeStep(s, cache, macro, week, dayKey, ex) {
+    if (!macro || !ex) return RPE_STEP_NONE;
+    const cached = cache.get(getProgressionLockKey(macro.id, dayKey, ex.id) + "_w" + week);
+    if (cached) return rpeStepFromKind(cached.rpeStep || "none", ex);
+    return rpeStepFromKind(computeRpeStepKind(s, cache, macro, week, dayKey, ex), ex);
+  }
+  var PROG_STEP_MAINTENANCE = Object.freeze({ kind: "maintenance", weightMult: 0, repsInc: 0, giantInc: 0 });
+  function getProgressionStep(s, cache, macro, week, dayKey, ex) {
+    if (macro && macro.goalType === "maintenance") return PROG_STEP_MAINTENANCE;
+    return getRpeStep(s, cache, macro, week, dayKey, ex);
+  }
+  function bumpRepsBy(reps, inc) {
+    const m = String(reps).match(/^(\d+)(?:–(\d+))?$/);
+    if (!m) return null;
+    const lo = parseInt(m[1]) + inc;
+    return m[2] ? lo + "–" + (parseInt(m[2]) + inc) : String(lo);
+  }
+  function getLastCompliantWeek(s, cache, macro, dayKey, ex, beforeWeek) {
+    let w = beforeWeek - 1;
+    while (w > 1) {
+      if (isDeloadUnit(s, macro, w, dayKey)) {
+        w--;
+        continue;
+      }
+      const result = getWeekComplianceResult(s, cache, macro, w, dayKey, ex);
+      if (result.fullyLogged && result.compliant) return w;
+      w--;
+    }
+    return 1;
+  }
+  function computeRawSuggestedTargets(s, cache, macro, week, dayKey, ex) {
+    const isGain = macro.goalType === "gain";
+    const isMaintenance = macro.goalType === "maintenance";
+    const lightJump = isMaintenance ? 0 : parseFloat(macro.weightIncrement || "2.5");
+    const heavyJump = isMaintenance ? 0 : isGain ? 10 : 5;
+    const rpeStep = getProgressionStep(s, cache, macro, week, dayKey, ex);
+    const weightJump = (ex.isHeavyLeg ? heavyJump : lightJump) * rpeStep.weightMult;
+    const sets = getWeekSets(ex, week, macro.weeks);
+    const pk = getProgKey(macro.id, week, dayKey, ex.id);
+    const progLog = s.trainLogs[pk] || {};
+    const progType = progLog.progType || "weight";
+    const isPauseSet = ex.type === "pause";
+    const prevWeek = week - 1;
+    const prevKey = macro.id + "_" + prevWeek + "_" + dayKey;
+    let prevLoggedSets = [];
+    if (prevWeek >= 1) {
+      const prevSetsCount = getWeekSets(ex, prevWeek, macro.weeks);
+      for (let i = 0; i < prevSetsCount; i++) {
+        const prevLog = s.trainLogs[prevKey + "_" + ex.id + "_" + i];
+        prevLoggedSets.push(prevLog && prevLog.done ? prevLog : null);
+      }
+    }
+    const weightTargets = [], repsTargets = [];
+    for (let i = 0; i < sets; i++) {
+      const srcSet = i < prevLoggedSets.length ? prevLoggedSets[i] : prevLoggedSets.length > 0 ? prevLoggedSets[prevLoggedSets.length - 1] : null;
+      const setActualWeight = srcSet && srcSet.weight ? parseFloat(srcSet.weight) : null;
+      const setActualReps = srcSet && srcSet.reps ? srcSet.reps : null;
+      const setRecWeight = setActualWeight !== null ? setActualWeight + weightJump : getWeekWeight(ex, week, "weight", macro.goalType, macro.weightIncrement);
+      const setRecReps = (() => {
+        if (isPauseSet) return getGiantSetProgression(ex, week, macro.goalType);
+        if (ex.type === "giant") {
+          if (setActualReps !== null) {
+            const baseNum = parseInt(String(setActualReps).match(/(\d+)/)?.[0]) || 0;
+            return String(baseNum + rpeStep.giantInc);
+          }
+          return getGiantSetProgression(ex, week, macro.goalType);
+        }
+        if (setActualReps !== null) {
+          const bumped = bumpRepsBy(setActualReps, rpeStep.repsInc);
+          if (bumped !== null) return bumped;
+        }
+        return getWeekReps(ex, week, "reps", macro.goalType);
+      })();
+      weightTargets.push(progType === "weight" ? setRecWeight.toFixed(1) : setActualWeight !== null ? setActualWeight.toFixed(1) : ex.startWeight.toFixed(1));
+      repsTargets.push(progType === "reps" ? setRecReps : setActualReps !== null ? setActualReps : ex.reps);
+    }
+    return { sets, weightTargets, repsTargets, progType, rpeStep: rpeStep.kind };
+  }
+  function getWeekTargets(s, cache, macro, week, dayKey, ex) {
+    const lockKey = getProgressionLockKey(macro.id, dayKey, ex.id);
+    const targetKey = lockKey + "_w" + week;
+    const cached = cache.get(targetKey);
+    if (cached) return cached;
+    let raw;
+    if (week === 1) {
+      const sets = getWeekSets(ex, 1, macro.weeks);
+      raw = { weightTargets: Array(sets).fill(ex.startWeight.toFixed(1)), repsTargets: Array(sets).fill(ex.reps) };
+    } else if (isFirstUnitAfterDeload(s, macro, week, dayKey)) {
+      const refWeek = getLastCompliantWeek(s, cache, macro, dayKey, ex, week);
+      raw = getWeekTargets(s, cache, macro, refWeek, dayKey, ex);
+    } else {
+      const existingLock = s.progressionLocks && s.progressionLocks[lockKey];
+      raw = existingLock ? { weightTargets: existingLock.weightTargets, repsTargets: existingLock.repsTargets } : computeRawSuggestedTargets(s, cache, macro, week, dayKey, ex);
+    }
+    const result = { weightTargets: raw.weightTargets.slice(), repsTargets: raw.repsTargets.slice() };
+    if (raw.rpeStep === "easy" || raw.rpeStep === "hold") result.rpeStep = raw.rpeStep;
+    cache.set(targetKey, result);
+    return result;
+  }
+  function getWeekComplianceResult(s, cache, macro, week, dayKey, ex) {
+    const sets = getWeekSets(ex, week, macro.weeks);
+    const key2 = macro.id + "_" + week + "_" + dayKey;
+    const logs = [];
+    for (let i = 0; i < sets; i++) {
+      const log = s.trainLogs[key2 + "_" + ex.id + "_" + i];
+      if (!log || !log.done) return { fullyLogged: false, compliant: false, weightTargets: null, repsTargets: null, sets };
+      logs.push(log);
+    }
+    if (sets === 0) return { fullyLogged: false, compliant: false, weightTargets: null, repsTargets: null, sets };
+    const { weightTargets, repsTargets } = getWeekTargets(s, cache, macro, week, dayKey, ex);
+    let compliant = true;
+    for (let i = 0; i < sets; i++) {
+      const targetW = weightTargets[i] !== void 0 ? weightTargets[i] : weightTargets[weightTargets.length - 1];
+      const targetR = repsTargets[i] !== void 0 ? repsTargets[i] : repsTargets[repsTargets.length - 1];
+      const actualW = logs[i].weight ? parseFloat(logs[i].weight) : null;
+      const actualR = logs[i].reps !== void 0 && logs[i].reps !== null ? String(logs[i].reps).trim() : "";
+      const wOk = actualW !== null && targetW !== void 0 && actualW - parseFloat(targetW) > -0.01;
+      const rOk = targetR !== void 0 && parseRepsForVolume(actualR) >= parseRepsForVolume(targetR);
+      if (!wOk || !rOk) {
+        compliant = false;
+        break;
+      }
+    }
+    return { fullyLogged: true, compliant, weightTargets, repsTargets, sets };
+  }
+  function computeLockTransition(s, cache, macro, week, dayKey, ex) {
+    if (!macro || !ex) return null;
+    if (macro.goalType === "maintenance") return null;
+    if (week <= 1) return null;
+    if (isDeloadUnit(s, macro, week, dayKey)) return null;
+    const lockKey = getProgressionLockKey(macro.id, dayKey, ex.id);
+    const result = getWeekComplianceResult(s, cache, macro, week, dayKey, ex);
+    if (!result.fullyLogged) return null;
+    const existingLock = s.progressionLocks && s.progressionLocks[lockKey];
+    const isPostDeload = isFirstUnitAfterDeload(s, macro, week, dayKey);
+    if (!result.compliant) {
+      if (!existingLock || isPostDeload) {
+        return { key: lockKey, set: {
+          weightTargets: result.weightTargets.slice(),
+          repsTargets: result.repsTargets.slice(),
+          sets: result.sets,
+          lockedAtWeek: week
+        } };
+      }
+      return null;
+    } else if (existingLock) {
+      return { key: lockKey, clear: true };
+    }
+    return null;
+  }
+  function computeExerciseProgression(s, cache, macro, week, dayKey, ex, opts) {
+    const exId = ex.id;
+    const logsOf = s.trainLogs;
+    const isDeloadSession = isDeloadUnit(s, macro, week, dayKey);
+    const isPostDeloadSession = isFirstUnitAfterDeload(s, macro, week, dayKey);
+    if (ex.category === "cardio") {
+      const sets2 = getWeekSets(ex, week, macro.weeks);
+      const key2c = macro.id + "_" + week + "_" + dayKey;
+      let doneSetsC = 0;
+      for (let i = 0; i < sets2; i++) {
+        if ((logsOf[key2c + "_" + exId + "_" + i] || {}).done) doneSetsC++;
+      }
+      return {
+        exId,
+        sets: sets2,
+        progType: "weight",
+        prevProgType: null,
+        prevLoggedSets: [],
+        prevActualWeight: null,
+        prevActualReps: null,
+        recommendedWeight: 0,
+        recommendedReps: "0",
+        weightPlaceholder: "0.0",
+        repsPlaceholder: "0",
+        weightPlaceholders: Array(sets2).fill("0.0"),
+        repsPlaceholders: Array(sets2).fill("0"),
+        dropWeightPlaceholders: [],
+        dropRepsPlaceholders: [],
+        weightJump: 0,
+        isPauseSet: false,
+        doneSets: doneSetsC,
+        allDone: doneSetsC === sets2 && sets2 > 0,
+        missedTarget: false,
+        prevWeek2: week - 1,
+        prevNoProgression: false,
+        isDeloadSession,
+        isPostDeloadSession,
+        isLocked: false,
+        prevWasLocked: false,
+        isDropSet: false,
+        prevActualDropWeight: null,
+        prevActualDropReps: null,
+        recommendedDropWeight: 0,
+        recommendedDropReps: "0",
+        dropWeightPlaceholder: "0.0",
+        dropRepsPlaceholder: "0"
+      };
+    }
+    const prevWasLocked = !!(opts && opts.prevWasLocked);
+    const isPauseSet = ex.type === "pause";
+    const isDropSet = ex.type === "dropset";
+    const isGain = macro.goalType === "gain";
+    const isMaintenance = macro.goalType === "maintenance";
+    const lightJump = isMaintenance ? 0 : parseFloat(macro.weightIncrement || "2.5");
+    const heavyJump = isMaintenance ? 0 : isGain ? 10 : 5;
+    const weightJump = ex.isHeavyLeg ? heavyJump : lightJump;
+    const sets = getWeekSets(ex, week, macro.weeks);
+    const pk = getProgKey(macro.id, week, dayKey, exId);
+    const progLog = logsOf[pk] || {};
+    const progType = progLog.progType || "weight";
+    const prevWeek2 = week - 1;
+    const prevPk = getProgKey(macro.id, prevWeek2, dayKey, exId);
+    const prevProgLog = logsOf[prevPk] || {};
+    const prevKey2 = macro.id + "_" + prevWeek2 + "_" + dayKey;
+    const progLock = opts && "lockComingIn" in opts ? opts.lockComingIn : s.progressionLocks && s.progressionLocks[getProgressionLockKey(macro.id, dayKey, exId)];
+    const isLocked = !isDeloadSession && !isPostDeloadSession && !!progLock && (progLock.lockedAtWeek || 0) < week;
+    const postDeloadTarget = isPostDeloadSession ? getWeekTargets(s, cache, macro, week, dayKey, ex) : null;
+    const rpeStep = getProgressionStep(s, cache, macro, week, dayKey, ex);
+    const rpeJump = weightJump * rpeStep.weightMult;
+    let prevLoggedSets = [];
+    if (prevWeek2 >= 1) {
+      const prevSetsCount = getWeekSets(ex, prevWeek2, macro.weeks);
+      for (let i = 0; i < prevSetsCount; i++) {
+        const lk = prevKey2 + "_" + exId + "_" + i;
+        const prevLog = logsOf[lk];
+        prevLoggedSets.push(prevLog && prevLog.done ? prevLog : null);
+      }
+    }
+    const prevSet1 = prevLoggedSets[0];
+    const prevActualWeight = prevSet1 && prevSet1.weight ? parseFloat(prevSet1.weight) : null;
+    const prevActualReps = prevSet1 && prevSet1.reps ? prevSet1.reps : null;
+    const prevActualDropWeight = prevSet1 && prevSet1.dropWeight ? parseFloat(prevSet1.dropWeight) : null;
+    const prevActualDropReps = prevSet1 && prevSet1.dropReps ? prevSet1.dropReps : null;
+    let prevProgType = prevProgLog.progType || null;
+    let prevNoProgression = false;
+    if (prevWasLocked) {
+      prevProgType = null;
+    } else if (!prevProgType && prevActualWeight !== null) {
+      const priorWeek = prevWeek2 - 1;
+      let priorWeight, priorReps;
+      if (priorWeek < 1) {
+        priorWeight = ex.startWeight;
+        priorReps = ex.reps;
+      } else {
+        const priorLog = logsOf[macro.id + "_" + priorWeek + "_" + dayKey + "_" + exId + "_0"];
+        priorWeight = priorLog && priorLog.weight ? parseFloat(priorLog.weight) : null;
+        priorReps = priorLog && priorLog.reps ? priorLog.reps : null;
+      }
+      if (priorWeight !== null && prevActualWeight > priorWeight) {
+        prevProgType = "weight";
+      } else if (priorReps !== null && prevActualReps !== null && parseRepsForVolume(prevActualReps) > parseRepsForVolume(priorReps)) {
+        prevProgType = "reps";
+      } else {
+        prevNoProgression = true;
+      }
+    }
+    const recommendedWeight = prevActualWeight !== null ? prevActualWeight + rpeJump : getWeekWeight(ex, week, "weight", macro.goalType, macro.weightIncrement);
+    const recommendedReps = (() => {
+      if (isPauseSet) return getGiantSetProgression(ex, week, macro.goalType);
+      if (ex.type === "giant") {
+        if (prevActualReps !== null) {
+          const baseNum = parseInt(String(prevActualReps).match(/(\d+)/)?.[0]) || 0;
+          return String(baseNum + rpeStep.giantInc);
+        }
+        return getGiantSetProgression(ex, week, macro.goalType);
+      }
+      if (prevActualReps !== null) {
+        const bumped = bumpRepsBy(prevActualReps, rpeStep.repsInc);
+        if (bumped !== null) return bumped;
+      }
+      return getWeekReps(ex, week, "reps", macro.goalType);
+    })();
+    const recommendedDropWeight = prevActualDropWeight !== null ? prevActualDropWeight + rpeJump : null;
+    const recommendedDropReps = (() => {
+      if (prevActualDropReps !== null) {
+        const bumped = bumpRepsBy(prevActualDropReps, rpeStep.repsInc);
+        if (bumped !== null) return bumped;
+      }
+      return "";
+    })();
+    let deloadWeightPlaceholder = null, deloadRepsPlaceholder = null;
+    let deloadDropWeightPlaceholder = null, deloadDropRepsPlaceholder = null;
+    if (isDeloadSession) {
+      const baseWeight = prevActualWeight !== null ? prevActualWeight : getWeekWeight(ex, week, "weight", macro.goalType, macro.weightIncrement);
+      const baseReps = prevActualReps !== null ? prevActualReps : ex.reps;
+      deloadWeightPlaceholder = roundToIncrement(baseWeight * 0.6, weightJump).toFixed(1);
+      deloadRepsPlaceholder = baseReps;
+      if (isDropSet) {
+        deloadDropWeightPlaceholder = prevActualDropWeight !== null ? roundToIncrement(prevActualDropWeight * 0.6, weightJump).toFixed(1) : "";
+        deloadDropRepsPlaceholder = prevActualDropReps !== null ? prevActualDropReps : "";
+      }
+    }
+    const lockWeightPlaceholder = isLocked ? progLock.weightTargets[0] !== void 0 ? progLock.weightTargets[0] : progLock.weightTargets[progLock.weightTargets.length - 1] : null;
+    const lockRepsPlaceholder = isLocked ? progLock.repsTargets[0] !== void 0 ? progLock.repsTargets[0] : progLock.repsTargets[progLock.repsTargets.length - 1] : null;
+    const weightPlaceholder = deloadWeightPlaceholder !== null ? deloadWeightPlaceholder : postDeloadTarget !== null ? postDeloadTarget.weightTargets[0] : lockWeightPlaceholder !== null ? lockWeightPlaceholder : week === 1 ? ex.startWeight.toFixed(1) : progType === "weight" ? recommendedWeight.toFixed(1) : prevActualWeight !== null ? prevActualWeight.toFixed(1) : ex.startWeight.toFixed(1);
+    const repsPlaceholder = deloadRepsPlaceholder !== null ? deloadRepsPlaceholder : postDeloadTarget !== null ? postDeloadTarget.repsTargets[0] : lockRepsPlaceholder !== null ? lockRepsPlaceholder : week === 1 ? ex.reps : progType === "reps" ? recommendedReps : prevActualReps !== null ? prevActualReps : ex.reps;
+    const dropWeightPlaceholder = !isDropSet ? "" : deloadDropWeightPlaceholder !== null ? deloadDropWeightPlaceholder : week === 1 ? "" : progType === "weight" ? recommendedDropWeight !== null ? recommendedDropWeight.toFixed(1) : "" : prevActualDropWeight !== null ? prevActualDropWeight.toFixed(1) : "";
+    const dropRepsPlaceholder = !isDropSet ? "" : deloadDropRepsPlaceholder !== null ? deloadDropRepsPlaceholder : week === 1 ? "" : progType === "reps" ? recommendedDropReps : prevActualDropReps !== null ? prevActualDropReps : "";
+    const weightPlaceholders = [], repsPlaceholders = [], dropWeightPlaceholders = [], dropRepsPlaceholders = [];
+    for (let i = 0; i < sets; i++) {
+      if (deloadWeightPlaceholder !== null) {
+        weightPlaceholders.push(deloadWeightPlaceholder);
+        repsPlaceholders.push(deloadRepsPlaceholder);
+        dropWeightPlaceholders.push(!isDropSet ? "" : deloadDropWeightPlaceholder !== null ? deloadDropWeightPlaceholder : "");
+        dropRepsPlaceholders.push(!isDropSet ? "" : deloadDropRepsPlaceholder !== null ? deloadDropRepsPlaceholder : "");
+        continue;
+      }
+      if (postDeloadTarget !== null) {
+        const pw = postDeloadTarget.weightTargets[i] !== void 0 ? postDeloadTarget.weightTargets[i] : postDeloadTarget.weightTargets[postDeloadTarget.weightTargets.length - 1];
+        const pr = postDeloadTarget.repsTargets[i] !== void 0 ? postDeloadTarget.repsTargets[i] : postDeloadTarget.repsTargets[postDeloadTarget.repsTargets.length - 1];
+        weightPlaceholders.push(pw);
+        repsPlaceholders.push(pr);
+        dropWeightPlaceholders.push(!isDropSet ? "" : prevActualDropWeight !== null ? prevActualDropWeight.toFixed(1) : "");
+        dropRepsPlaceholders.push(!isDropSet ? "" : prevActualDropReps !== null ? prevActualDropReps : "");
+        continue;
+      }
+      if (week === 1) {
+        weightPlaceholders.push(ex.startWeight.toFixed(1));
+        repsPlaceholders.push(ex.reps);
+        dropWeightPlaceholders.push("");
+        dropRepsPlaceholders.push("");
+        continue;
+      }
+      const srcSet = i < prevLoggedSets.length ? prevLoggedSets[i] : prevLoggedSets.length > 0 ? prevLoggedSets[prevLoggedSets.length - 1] : null;
+      const setActualWeight = srcSet && srcSet.weight ? parseFloat(srcSet.weight) : null;
+      const setActualReps = srcSet && srcSet.reps ? srcSet.reps : null;
+      const setActualDropWeight = srcSet && srcSet.dropWeight ? parseFloat(srcSet.dropWeight) : null;
+      const setActualDropReps = srcSet && srcSet.dropReps ? srcSet.dropReps : null;
+      const setRecWeight = setActualWeight !== null ? setActualWeight + rpeJump : getWeekWeight(ex, week, "weight", macro.goalType, macro.weightIncrement);
+      const setRecReps = (() => {
+        if (isPauseSet) return getGiantSetProgression(ex, week, macro.goalType);
+        if (ex.type === "giant") {
+          if (setActualReps !== null) {
+            const baseNum = parseInt(String(setActualReps).match(/(\d+)/)?.[0]) || 0;
+            return String(baseNum + rpeStep.giantInc);
+          }
+          return getGiantSetProgression(ex, week, macro.goalType);
+        }
+        if (setActualReps !== null) {
+          const bumped = bumpRepsBy(setActualReps, rpeStep.repsInc);
+          if (bumped !== null) return bumped;
+        }
+        return getWeekReps(ex, week, "reps", macro.goalType);
+      })();
+      const setRecDropWeight = setActualDropWeight !== null ? setActualDropWeight + rpeJump : null;
+      const setRecDropReps = (() => {
+        if (setActualDropReps !== null) {
+          const bumped = bumpRepsBy(setActualDropReps, rpeStep.repsInc);
+          if (bumped !== null) return bumped;
+        }
+        return "";
+      })();
+      if (isLocked) {
+        const lockW = progLock.weightTargets[i] !== void 0 ? progLock.weightTargets[i] : progLock.weightTargets[progLock.weightTargets.length - 1];
+        const lockR = progLock.repsTargets[i] !== void 0 ? progLock.repsTargets[i] : progLock.repsTargets[progLock.repsTargets.length - 1];
+        weightPlaceholders.push(lockW);
+        repsPlaceholders.push(lockR);
+      } else {
+        weightPlaceholders.push(progType === "weight" ? setRecWeight.toFixed(1) : setActualWeight !== null ? setActualWeight.toFixed(1) : ex.startWeight.toFixed(1));
+        repsPlaceholders.push(progType === "reps" ? setRecReps : setActualReps !== null ? setActualReps : ex.reps);
+      }
+      dropWeightPlaceholders.push(!isDropSet ? "" : progType === "weight" ? setRecDropWeight !== null ? setRecDropWeight.toFixed(1) : "" : setActualDropWeight !== null ? setActualDropWeight.toFixed(1) : "");
+      dropRepsPlaceholders.push(!isDropSet ? "" : progType === "reps" ? setRecDropReps : setActualDropReps !== null ? setActualDropReps : "");
+    }
+    let doneSets = 0;
+    const key2 = macro.id + "_" + week + "_" + dayKey;
+    for (let i = 0; i < sets; i++) {
+      const lk = key2 + "_" + exId + "_" + i;
+      if ((logsOf[lk] || {}).done) doneSets++;
+    }
+    const allDone = doneSets === sets && sets > 0;
+    let missedTarget = false;
+    if (allDone && !isDeloadSession && !isMaintenance && week > 1) {
+      const c = getWeekComplianceResult(s, cache, macro, week, dayKey, ex);
+      missedTarget = c.fullyLogged && !c.compliant;
+    }
+    return {
+      exId,
+      sets,
+      progType,
+      prevProgType,
+      prevLoggedSets,
+      prevActualWeight,
+      prevActualReps,
+      recommendedWeight,
+      recommendedReps,
+      weightPlaceholder,
+      repsPlaceholder,
+      weightPlaceholders,
+      repsPlaceholders,
+      dropWeightPlaceholders,
+      dropRepsPlaceholders,
+      weightJump,
+      isPauseSet,
+      doneSets,
+      allDone,
+      missedTarget,
+      prevWeek2,
+      prevNoProgression,
+      isDeloadSession,
+      isPostDeloadSession,
+      isLocked,
+      prevWasLocked,
+      isDropSet,
+      prevActualDropWeight,
+      prevActualDropReps,
+      recommendedDropWeight,
+      recommendedDropReps,
+      dropWeightPlaceholder,
+      dropRepsPlaceholder
     };
   }
   return __toCommonJS(index_exports);

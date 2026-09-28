@@ -21,6 +21,10 @@ export interface Macrocycle {
   extensionWeeks?: number;
   useMicrocycles?: boolean; // absent = on (`!== false` everywhere)
   days?: string[];
+  // v8.35 (§125): read by the progression core. Loose: old cycles carry the
+  // increment as '2.5' or 2.5, and a missing goalType is read as 'loss'.
+  goalType?: Loose;
+  weightIncrement?: Loose;
   [k: string]: unknown;
 }
 

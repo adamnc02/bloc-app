@@ -124,7 +124,9 @@ export const LEAF_CASES = {
 // compares the result, the state afterwards, the save() count, the `read`
 // globals and any HTML written. verify-engine-pure.mjs runs `engine`.
 export const STATE_CASES = {};
-const state = (fn = x => x) => () => fn(full(demo()));
+// Each variant is built once and then copied (every call still gets its own
+// objects): the ~4,000 cases would otherwise rebuild the demo ~20,000 times.
+const state = (fn = x => x) => { let text = null; return () => JSON.parse(text ??= JSON.stringify(fn(full(demo())))); };
 const at = (stateFn, today, f) => () => { const s = stateFn(); return { s, today, ...f(s, ctx(today)) }; };
 const DAYS = ['2026-06-01', '2026-06-08', '2026-07-12', '2026-08-02', '2026-09-08', '2026-09-13', '2026-09-20'];
 const add = (name, list) => { (STATE_CASES[name] ||= []).push(...list); };
@@ -375,6 +377,92 @@ for (const st of [S.demo, S.gain, S.empty, state(s => { s.goals = []; return s; 
   add('computeHomeWeek', ['2026-07-29', '2026-08-02'].map(d => at(st, d, (s, c) => ({ engine: [s, c, { weekClosed: true }], bloc: null }))));
 }
 add('SAVE_DAY_TOLERANCE', []); add('HOME_STEPS_TOLERANCE', []); add('HOME_METRIC_POLARITY', []); // constants: nothing to call
+
+// ── Step 5 (§125): the progression core ───────────────────────────────────
+// The engine reads and fills targets through a TargetCache. The cases pass
+// Coach's kind: the state's own cached targets read first, anything computed
+// kept in memory, the state never written. BLOC's shims pass its live
+// state.progressionTargets, and verify-engine-leaves compares what BLOC then
+// writes (and saves) with v8.34.
+// Step 5's cases never read the clock or the activity multiplier, so
+// verify-engine-leaves runs them once (no Demo Tour pass, no H7 pass).
+const atP = (stateFn, today, f) => () => ({ ...at(stateFn, today, f)(), timeless: true });
+const overlay = s => { const mine = new Map(); return {
+  get: k => (mine.has(k) ? mine.get(k) : (s.progressionTargets || {})[k]),
+  set: (k, v) => { mine.set(k, v); } }; };
+// Progression states: the demo (with its shipped cache and locks), cold (none,
+// so every target is computed), RPE on with ratings, a maintenance cycle, and
+// the drop set + extra deload.
+const cold = s => { s.progressionTargets = {}; s.progressionLocks = {}; return s; };
+const P = {
+  demo: S.demo,
+  cold: state(cold),
+  rpe: state(s => {
+    cold(s); s.macrocycles[0].rpe = true;
+    const pattern = [{ rpe: 5 }, { rpe: 9 }, { rpe: 7 }, { rpeSkipped: true }, { rpe: 6 }, { rpe: 10 }];
+    let n = 0;
+    for (const key of Object.keys(s.exercises).sort()) {
+      const dk = key.slice((s.macrocycles[0].id + '_1_').length);
+      for (const ex of s.exercises[key]) for (let w = 1; w <= 7; w++) if ((w + ex.id.length) % 2 === 0) s.rpe[`${s.macrocycles[0].id}_${w}_${dk}_${ex.id}`] = pattern[n++ % pattern.length];
+    }
+    return s;
+  }),
+  maint: state(s => { cold(s); s.macrocycles[0].goalType = 'maintenance'; return s; }),
+  training: state(s => { const x = S.training(); x.progressionTargets = {}; return Object.assign(s, x); }),
+};
+const PROG_DAYS = ['session0m1', 'session2m2', 'session1m1'];
+const PROG_WEEKS = [1, 2, 3, 4, 5, 6, 7];
+const exsOf = (s, dk) => (s.exercises[`${s.macrocycles[0].id}_1_${dk}`] || []).slice(0, 3);
+for (const [label, st] of Object.entries(P)) {
+  const s0 = st();
+  for (const dk of PROG_DAYS) exsOf(s0, dk).forEach((_, xi) => {
+    for (const w of PROG_WEEKS) {
+      const pick = s => [m0(s), w, dk, exsOf(s, dk)[xi]];
+      for (const name of ['computeRpeStepKind', 'getRpeStep', 'getProgressionStep', 'computeRawSuggestedTargets', 'getWeekTargets', 'getWeekComplianceResult']) {
+        add(name, [atP(st, '2026-08-02', s => ({ engine: [s, overlay(s), ...pick(s)], bloc: { args: pick(s) } }))]);
+      }
+      add('getLastCompliantWeek', [atP(st, '2026-08-02', s => { const [m, , d, x] = pick(s); return { engine: [s, overlay(s), m, d, x, w], bloc: { args: [m, d, x, w] } }; })]);
+      // The lock: the engine returns the change; BLOC's evaluateProgressionLock applies it and saves.
+      add('computeLockTransition', [atP(st, '2026-08-02', s => ({ engine: [s, overlay(s), ...pick(s)], bloc: { fn: 'evaluateProgressionLock', args: pick(s) } }))]);
+    }
+  });
+  void label;
+}
+add('computeLockTransition', [atP(S.demo, '2026-08-02', s => ({ engine: [s, overlay(s), null, 2, 'x', null], bloc: { fn: 'evaluateProgressionLock', args: [null, 2, 'x', null] } }))]);
+add('getRpeStep', [atP(S.demo, '2026-08-02', s => ({ engine: [s, overlay(s), null, 2, 'x', null], bloc: { args: [null, 2, 'x', null] } }))]);
+add('getProgressionStep', [atP(P.maint, '2026-08-02', s => ({ engine: [s, overlay(s), m0(s), 3, 'session0m1', null], bloc: { args: [m0(s), 3, 'session0m1', null] } }))]);
+// What Train shows: every session the demo has, through renderTrainDay (its
+// exProgData() wraps computeExerciseProgression), in every progression state.
+// The whole Train HTML, the state afterwards and the save() count must match
+// v8.34, which is also what proves "missed target" now reads the lock's own
+// decision without changing a badge.
+for (const st of Object.values(P)) {
+  const s0 = st();
+  const dks = Object.keys(s0.exercises).map(k => k.slice((s0.macrocycles[0].id + '_1_').length));
+  for (const dk of dks) for (const w of PROG_WEEKS) {
+    add('computeExerciseProgression', [atP(st, '2026-08-02', s => {
+      s.currentWeek = w; s.currentDay = dk;
+      const exs = s.exercises[`${m0(s).id}_1_${dk}`];
+      return { engine: [s, overlay(s), m0(s), w, dk, exs[0], { lockComingIn: undefined, prevWasLocked: w % 2 === 0 }],
+        bloc: { fn: 'renderTrainDay', args: [m0(s)] } };
+    })]);
+  }
+}
+add('computeExerciseProgression', [atP(S.demo, '2026-08-02', s => ({ engine: [s, overlay(s), m0(s), 3, 'session0m1', { ...exsOf(s, 'session0m1')[0], category: 'cardio' }], bloc: null })),
+  atP(S.demo, '2026-08-02', s => ({ engine: [s, overlay(s), m0(s), 5, 'session0m1', exsOf(s, 'session0m1')[0]], bloc: null }))]);
+// The pure RPE helpers.
+add('getRpeKey', [atP(S.demo, '2026-08-02', () => ({ engine: ['m', 3, 'pushm2', 'ex1'], bloc: { args: ['m', 3, 'pushm2', 'ex1'] } }))]);
+for (const m of [{ rpe: true }, { rpe: false }, {}, null, { rpe: 'yes' }]) {
+  add('isRpeOn', [atP(S.demo, '2026-08-02', () => ({ engine: [m], bloc: { args: [m] } }))]);
+  add('rpeDrivesProgression', [atP(S.demo, '2026-08-02', () => ({ engine: [m], bloc: { args: [m] } }))]);
+}
+for (const kind of ['easy', 'hold', 'none', 'maintenance']) for (const ex of [{ isHeavyLeg: true }, { isHeavyLeg: false }, null]) {
+  add('rpeStepFromKind', [atP(S.demo, '2026-08-02', () => ({ engine: [kind, ex], bloc: { args: [kind, ex] } }))]);
+}
+for (const [reps, inc] of [['8', 2], ['8', 1], ['8–10', 2], ['8-10', 1], ['AMRAP', 1], [12, 1], ['', 1], [null, 0]]) {
+  add('bumpRepsBy', [atP(S.demo, '2026-08-02', () => ({ engine: [reps, inc], bloc: { args: [reps, inc] } }))]);
+}
+add('RPE_STEP_NONE', []); add('PROG_STEP_MAINTENANCE', []);
 
 // ── Fixtures ──────────────────────────────────────────────────────────────
 function exOf() {
