@@ -246,7 +246,11 @@ async function run(label, html, engineSrc, quiet = false) {
     B.openSwapToday(MID, 6, DK, EX(0));
     check('the sheet opens, and fits the list to the keyboard (§9)', env.log.includes('open:modal-swap-today'), true);
     const list = env.els.get('swap-today-list').innerHTML;
-    check('it lists the client\'s own library (getLibrary()), not the planned exercise', [/row-btn/.test(list), /Lat Pull Machine</.test(list)], [true, false]);
+    check('it lists the client\'s own library (getLibrary()), not the planned exercise', [/lib-row/.test(list), /Lat Pull Machine</.test(list)], [true, false]);
+    const names = [...list.matchAll(/lib-row-name">([^<]+)</g)].map(m => m[1]);
+    const back = names.filter(n => /Row|Pulldown|Pull/.test(n));
+    check('alternatives for the planned exercise\'s body part come first, under their own label',
+      [/^\s*<div class="swap-group-label">Other back exercises/.test(list), names.indexOf(back[back.length - 1]) < names.length - 1 && names.slice(0, back.length).every(n => back.includes(n))], [true, true]);
     B.chooseSwapToday(0);
     const sub = B.state.substitutions[`${MID}_${DK}_${EX(0)}_w6`];
     check('choosing marks the week (kind swap, the substitute\'s name) and clears what was typed',

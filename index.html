@@ -1863,25 +1863,22 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .ss-set-check { font-size: 20px; color: var(--text3); cursor: pointer; flex-shrink: 0; }
 .ss-set-check.done { color: var(--accent); }
 /* ============================================================
-   BLOC SPLASH SCREEN
-   Plays on every fresh load of the app (real page parse/reload —
-   not on resume from background). All custom properties are
-   scoped to #splash so they can never leak into or collide with
-   the app's own --bg/--text/--surface theming above.
+   BLOC SPLASH SCREEN (v8.43: the new CSS splash, ported from bloc-splash/
+   PORTING.md). Scoped to #splash. TECHNICAL §138.
    ============================================================ */
-
+/* BLOC splash — v9 */
 #app { visibility: hidden; }
 #app.bloc-app-ready { visibility: visible; }
 
 #splash {
   --splash-bg: #161826;
-  --splash-surface: #2A2E47;
-  --splash-accent: #A79EE3;   /* the Train block — the app's own lavender, unchanged */
-  --splash-brand: #2fb98a;    /* the logo green: the top bar, the bar flashes, OVERCOME */
-  --splash-block: #3b4063;    /* v8.19 — the Rebuild logo's two neutral bars (on dark) */
-  --splash-ice: #D6E2F2;
+  --splash-brand: #2fb98a;
+  --splash-block: #3b4063;
+  --splash-flash: #7ff0c6;
+  --splash-flash-top: #bff7e2;
   --splash-text: #F2F2F2;
   --splash-dark-text: #161826;
+  --splash-muted: #8a8fa8;
 
   position: fixed;
   inset: 0;
@@ -1894,301 +1891,138 @@ html.auth-likely-signed-in #auth-gate { display: none; }
   transition: opacity 0.5s ease, visibility 0.5s ease;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
-
 #splash.fade-out {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
 }
-
 #splash .splash-skip {
   position: absolute;
   top: max(16px, env(safe-area-inset-top));
   right: max(16px, env(safe-area-inset-right));
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
+  width: 36px; height: 36px; border-radius: 50%;
   border: 0.5px solid rgba(242,242,242,0.25);
   background: rgba(255,255,255,0.06);
-  color: var(--splash-text);
-  font-size: 16px;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 1;
+  color: var(--splash-text); font-size: 16px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; z-index: 1;
   -webkit-tap-highlight-color: transparent;
-  transition: background 0.15s ease, opacity 0.5s ease, visibility 0.5s ease;
+  transition: background 0.15s ease;
 }
-
 #splash .splash-skip:active { background: rgba(255,255,255,0.16); }
 
-#splash .logo-stage {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  position: relative;
+/* The whole scene is one SVG: the mark, the type and the tagline share one
+   coordinate system, so every position below is a fixed number — nothing is
+   measured at runtime. Sits above centre. */
+#splash .splash-scene {
+  width: 340px; max-width: 86vw; height: auto; display: block; overflow: visible;
+  transform: translateY(-12vh);
 }
 
-/* ---------- 2x2 FLIP GRID + PILLAR LABELS ---------- */
-#splash .blocks-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 70px);
-  grid-template-rows: repeat(2, 70px);
-  gap: 16px;
-  perspective: 900px;
-  margin-bottom: 16px;
+/* ---- the mark: starts big and centred (inside the REPEAT loop), settles into the lock-up ---- */
+#splash .s-mark {
+  transform-box: view-box; transform-origin: 0 0;
+  animation: sMarkSettle 0.9s cubic-bezier(0.3, 0.9, 0.4, 1) 3.9s both;
+}
+@keyframes sMarkSettle {
+  from { transform: translate(253.9px, 80.05px) scale(3.35) translate(-52px, -50px); }
+  to   { transform: translate(0px, 0px) scale(1) translate(0px, 0px); }
 }
 
-#splash .block-wrap {
-  position: relative;
-  width: 70px;
-  height: 70px;
+/* ---- bars: slide in bottom → top, flash on landing, wave, then pulse ---- */
+#splash .s-bar { animation: sBarIn 0.5s ease-out both; }
+#splash .s-b1 { animation-delay: 0.3s; }
+#splash .s-b2 { animation-delay: 0.95s; }
+#splash .s-b3 { animation-delay: 1.6s; }
+@keyframes sBarIn {
+  0%   { opacity: 0; transform: translateX(-26px); }
+  55%  { opacity: 1; transform: translateX(3px); }
+  100% { opacity: 1; transform: none; }
 }
-
-/* ---------- DROP-IN ENTRANCE ---------- */
-#splash .block.pre-drop {
-  transform: translateY(-70vh);
-  transition: none;
+#splash .s-rect { fill: var(--splash-block); transform-box: fill-box; transform-origin: center; }
+#splash .s-r3 { fill: var(--splash-brand); }
+#splash .s-r1 { animation: sFlash 0.5s ease-out 0.3s, sWave 0.6s ease-in-out 2.6s, sPulse 1.6s ease-in-out 5.2s infinite; }
+#splash .s-r2 { animation: sFlash 0.5s ease-out 0.95s, sWave 0.6s ease-in-out 2.75s, sPulse 1.6s ease-in-out 5.38s infinite; }
+#splash .s-r3 { animation: sFlashTop 0.55s ease-out 1.6s, sWaveTop 0.6s ease-in-out 2.9s, sPulseTop 1.6s ease-in-out 5.56s infinite; }
+@keyframes sFlash {
+  0%, 100% { fill: var(--splash-block); transform: none; }
+  55%      { fill: var(--splash-flash); transform: scale(1.06); }
 }
-#splash .block.dropping {
-  /* steep gravity-style acceleration, not a gentle ease */
-  transition: transform 0.52s cubic-bezier(0.76, 0, 0.87, 0);
+@keyframes sFlashTop {
+  0%, 100% { fill: var(--splash-brand); transform: none; }
+  55%      { fill: var(--splash-flash-top); transform: scale(1.08); }
 }
-@keyframes blocSplashThud {
-  0%   { transform: scaleY(1) scaleX(1); }
-  20%  { transform: scaleY(0.6) scaleX(1.24); }
-  55%  { transform: scaleY(0.92) scaleX(1.05); }
-  100% { transform: scaleY(1) scaleX(1); }
+@keyframes sWave {
+  0%, 100% { fill: var(--splash-block); transform: none; }
+  40%      { fill: var(--splash-brand); transform: scale(1.05); }
 }
-#splash .block.impact {
-  animation: blocSplashThud 0.34s cubic-bezier(0.2, 0.9, 0.3, 1);
-  transform-origin: bottom center;
+@keyframes sWaveTop {
+  0%, 100% { fill: var(--splash-brand); transform: none; }
+  40%      { fill: var(--splash-flash); transform: scale(1.08); }
 }
-
-/* dust + ground shadow at the base of each block */
-#splash .impact-fx {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 66px;
-  height: 16px;
-  pointer-events: none;
-}
-#splash .impact-shadow {
-  position: absolute;
-  left: 50%;
-  top: 4px;
-  width: 54px;
-  height: 10px;
-  margin-left: -27px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.5);
-  opacity: 0;
-}
-#splash .dust {
-  position: absolute;
-  top: 2px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: rgba(210, 210, 220, 0.55);
-  opacity: 0;
-}
-#splash .dust.left { left: 10px; }
-#splash .dust.right { right: 10px; }
-
-@keyframes blocSplashShadowPulse {
-  0%   { opacity: 0; transform: scaleX(0.5); }
-  22%  { opacity: 0.65; transform: scaleX(1.2); }
-  100% { opacity: 0; transform: scaleX(0.85); }
-}
-@keyframes blocSplashDustLeft {
-  0%   { opacity: 0; transform: translate(0, 0) scale(0.4); }
-  20%  { opacity: 0.6; }
-  100% { opacity: 0; transform: translate(-24px, -8px) scale(1.4); }
-}
-@keyframes blocSplashDustRight {
-  0%   { opacity: 0; transform: translate(0, 0) scale(0.4); }
-  20%  { opacity: 0.6; }
-  100% { opacity: 0; transform: translate(24px, -8px) scale(1.4); }
-}
-#splash .block-wrap.impacting .impact-shadow { animation: blocSplashShadowPulse 0.5s ease-out; }
-#splash .block-wrap.impacting .dust.left { animation: blocSplashDustLeft 0.55s ease-out; }
-#splash .block-wrap.impacting .dust.right { animation: blocSplashDustRight 0.55s ease-out; }
-
-#splash .block {
-  width: 70px;
-  height: 70px;
-  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.7s ease;
-}
-
-#splash .block.lifted-top {
-  transform: translateY(-32px);
-}
-#splash .block.lifted-bottom {
-  transform: translateY(-16px);
-}
-
-/* defined AFTER lifted-top/lifted-bottom so scatter's transform always
-   wins the cascade once both classes are present on an element */
-#splash .block.scatter {
-  transform: translate(var(--sx), var(--sy)) rotate(var(--sr));
-  opacity: 0;
-}
-
-#splash .block-inner {
-  width: 100%;
-  height: 100%;
-  position: relative;
-  transform-style: preserve-3d;
-  transform: rotateY(0deg);
-  transition: transform 0.9s cubic-bezier(0.3, 1.4, 0.55, 1);
-}
-
-#splash .block-inner.flipped { transform: rotateY(180deg); }
-
-#splash .face {
-  position: absolute;
-  inset: 0;
-  backface-visibility: hidden;
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-#splash .face.back { transform: rotateY(180deg); }
-#splash .face svg { width: 36px; height: 36px; }
-
-#splash .c-train  { background: var(--splash-accent); color: var(--splash-text); }
-#splash .c-fuel   { background: var(--splash-surface); color: var(--splash-text); }
-#splash .c-over   { background: var(--splash-ice); color: var(--splash-dark-text); }
-#splash .c-repeat { background: var(--splash-surface); color: var(--splash-text); }
-
-/* ---------- WORDMARK (real logo image) ----------
-   Rises from a lower starting point (roughly where the blocks were)
-   up to its final resting position — set on the GROUP (not just the
-   image) so the tagline, as its child, rises the exact same distance
-   automatically, with no separate calculation needed. */
-#splash .wordmark-group {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  position: relative;
-  transform: translateY(160px);
-  transition: transform 0.9s cubic-bezier(0.3, 0.9, 0.4, 1);
-}
-#splash .wordmark-group.risen {
-  /* negative = finishes above the wordmark's original static position */
-  transform: translateY(-80px);
-}
-
-#splash #wordmark {
-  margin-top: 26px;
-  opacity: 0;
-  transition: opacity 0.9s ease;
-  position: relative;
-  /* v8.19 — kept from the bracket frame's 29px so the tagline below lands
-     where the rise timings expect it */
-  padding: 29px;
-}
-#splash #wordmark svg {
-  width: 300px;
-  max-width: 72vw;
-  height: auto;
-  display: block;
-  overflow: visible;
-}
-#splash #wordmark.show { opacity: 1; }
-#splash #wordmark .stype { fill: var(--splash-text); }
-
-/* ---------- BARS (the Rebuild logo's three blocks) — v8.19, §101 ----------
-   Replace v8.18's brackets. The type fades in with the rise; the bars stay
-   hidden, then BUILD bottom → top as it settles (.locked) — each slides in
-   and flashes green on arrival — and finally PULSE in the same order,
-   a wave of green running up the stack, until the splash fades (.pulsing).
-   Only transform / opacity / fill animate: CSS filter on SVG children is
-   not reliable in Safari. transform-box: fill-box makes each bar scale about
-   its own centre, not the SVG's origin. */
-#splash .sbar {
-  fill: var(--splash-block);
-  opacity: 0;
-  transform: translateX(-26px);
-  transform-box: fill-box;
-  transform-origin: center;
-}
-#splash .sb-3 { fill: var(--splash-brand); }
-
-@keyframes blocSplashBarIn {
-  0%   { opacity: 0; transform: translateX(-26px); fill: var(--splash-block); }
-  55%  { opacity: 1; transform: translateX(3px) scale(1.06); fill: #7ff0c6; }
-  100% { opacity: 1; transform: translateX(0) scale(1); fill: var(--splash-block); }
-}
-@keyframes blocSplashBarInTop {
-  0%   { opacity: 0; transform: translateX(-26px); fill: var(--splash-brand); }
-  55%  { opacity: 1; transform: translateX(3px) scale(1.08); fill: #bff7e2; }
-  100% { opacity: 1; transform: translateX(0) scale(1); fill: var(--splash-brand); }
-}
-#splash #wordmark.locked .sbar { opacity: 1; transform: translateX(0); }
-#splash #wordmark.locked .sb-1 { animation: blocSplashBarIn 0.5s ease-out 0s both; }
-#splash #wordmark.locked .sb-2 { animation: blocSplashBarIn 0.5s ease-out 0.16s both; }
-#splash #wordmark.locked .sb-3 { animation: blocSplashBarInTop 0.55s ease-out 0.32s both; }
-
-@keyframes blocSplashBarPulse {
-  0%, 40%, 100% { fill: var(--splash-block); transform: scale(1); }
+@keyframes sPulse {
+  0%, 40%, 100% { fill: var(--splash-block); transform: none; }
   14%           { fill: var(--splash-brand); transform: scale(1.05); }
 }
-@keyframes blocSplashBarPulseTop {
-  0%, 40%, 100% { fill: var(--splash-brand); transform: scale(1); }
-  14%           { fill: #7ff0c6; transform: scale(1.08); }
+@keyframes sPulseTop {
+  0%, 40%, 100% { fill: var(--splash-brand); transform: none; }
+  14%           { fill: var(--splash-flash); transform: scale(1.08); }
 }
-#splash #wordmark.pulsing .sb-1 { animation: blocSplashBarPulse 1.6s ease-in-out 0s infinite; }
-#splash #wordmark.pulsing .sb-2 { animation: blocSplashBarPulse 1.6s ease-in-out 0.18s infinite; }
-#splash #wordmark.pulsing .sb-3 { animation: blocSplashBarPulseTop 1.6s ease-in-out 0.36s infinite; }
+
+/* ---- REPEAT: a dashed loop wrapped round the whole stack, slanted to follow
+   the staircase. It closes in round the bars, its dashes keep travelling round
+   while the green wave runs up the stack, and it fades as the mark settles. ---- */
+#splash .s-loop {
+  transform-box: fill-box; transform-origin: center;
+  animation: sLoopIn 0.55s cubic-bezier(0.3, 0.9, 0.4, 1) 2.2s both, sOut 0.35s ease 3.9s forwards;
+}
+@keyframes sLoopIn {
+  from { opacity: 0; transform: scale(1.12); }
+  to   { opacity: 1; transform: none; }
+}
+#splash .s-loop-line {
+  fill: rgba(47, 185, 138, 0.05);
+  stroke: var(--splash-brand); stroke-width: 1px; stroke-dasharray: 3.2 2.2;
+  animation: sMarch 0.8s linear 2.2s infinite;
+}
+@keyframes sMarch { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -10.8; } }
+#splash .s-chip { fill: #1b1e2f; }
+#splash .s-loop-icon { transform-box: fill-box; transform-origin: center; animation: sSpin 0.9s cubic-bezier(0.4, 0, 0.2, 1) 2.6s; }
+#splash .s-rep-arc { fill: none; stroke: var(--splash-brand); stroke-width: 2.3px; stroke-linecap: round; }
+#splash .s-rep-head { fill: var(--splash-brand); }
+@keyframes sSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* ---- pillar icons inside the bars: gone once the mark settles ---- */
+#splash .s-icon { opacity: 0; fill: var(--splash-text); animation: sOut 0.3s ease 3.9s both; }
+#splash .s-icon-dark { fill: var(--splash-dark-text); }
+@keyframes sOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes sIn  { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---- BLOC type ---- */
+#splash .s-type { fill: var(--splash-text); animation: sTypeIn 0.7s cubic-bezier(0.3, 0.9, 0.4, 1) 4.25s both; }
+@keyframes sTypeIn { from { opacity: 0; transform: translateX(-18px); } to { opacity: 1; transform: none; } }
+
+/* ---- the four pillar words: labels in the bars / on the loop, then the tagline ---- */
+#splash .s-word {
+  font-size: 18px; font-weight: 700; text-anchor: middle;
+  fill: var(--splash-muted);
+  transform-box: fill-box; transform-origin: center;
+}
+#splash .s-w-over { fill: var(--splash-brand); font-weight: 800; }
+#splash .s-w-train  { animation: sIn 0.35s ease 0.75s both, sFlyTrain 0.9s cubic-bezier(0.3, 0.9, 0.4, 1) 3.9s both; }
+#splash .s-w-fuel   { animation: sIn 0.35s ease 1.4s both,  sFlyFuel 0.9s cubic-bezier(0.3, 0.9, 0.4, 1) 3.95s both; }
+#splash .s-w-over   { animation: sIn 0.35s ease 2.05s both, sFlyOver 0.9s cubic-bezier(0.3, 0.9, 0.4, 1) 4.0s both; }
+#splash .s-w-repeat { animation: sIn 0.35s ease 2.5s both,  sFlyRepeat 0.9s cubic-bezier(0.3, 0.9, 0.4, 1) 4.05s both; }
+@keyframes sFlyTrain  { from { transform: translate(175.8px, 54.8px) scale(0.97);     fill: var(--splash-text); } to { transform: none; fill: var(--splash-muted); } }
+@keyframes sFlyFuel   { from { transform: translate(115.5px, -63.8px) scale(0.97);    fill: var(--splash-text); } to { transform: none; fill: var(--splash-muted); } }
+@keyframes sFlyOver   { from { transform: translate(23.2px, -182.1px) scale(0.97);  fill: var(--splash-dark-text); } to { transform: none; fill: var(--splash-brand); } }
+@keyframes sFlyRepeat { from { transform: translate(-104.2px, -257.9px) scale(0.97); fill: var(--splash-brand); } to { transform: none; fill: var(--splash-muted); } }
+#splash .s-dot { font-size: 18px; text-anchor: middle; fill: var(--splash-muted); animation: sIn 0.4s ease 4.9s both; }
+
 @media (prefers-reduced-motion: reduce) {
-  #splash #wordmark.locked .sbar, #splash #wordmark.pulsing .sbar { animation: none; opacity: 1; transform: none; }
+  #splash * { animation: none !important; }
+  #splash .s-loop { opacity: 0; }
 }
-
-/* ---------- TAGLINE ----------
-   Sits in its normal, permanent position below the wordmark and never
-   moves. Each word IS the pillar label — no separate floating clone.
-   It starts displaced up/sideways (via --fx/--fy, set inline per word
-   to match where it's revealed under its block) and visible in the
-   muted colour; landing is simply that offset animating back to (0,0). */
-#splash .tagline {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 10px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 3px;
-}
-
-#splash .tword {
-  display: inline-block;
-  color: #8a8fa8;
-  opacity: 0;
-  transform: translate(var(--fx, 0px), var(--fy, 0px));
-  transition: opacity 0.4s ease, transform 0.9s cubic-bezier(0.3, 0.9, 0.4, 1);
-}
-#splash .tword.show { opacity: 1; }
-#splash .tword.landed { transform: translate(0, 0); }
-#splash .tword.landed-accent {
-  color: var(--splash-brand);
-  font-weight: 800;
-  transition: color 0.4s ease, font-weight 0.3s ease,
-              opacity 0.4s ease, transform 0.9s cubic-bezier(0.3, 0.9, 0.4, 1);
-}
-
-#splash .tbullet {
-  color: var(--splash-bg); /* invisible until the words have landed */
-  transition: color 0.4s ease;
-}
-#splash .tbullet.show { color: #8a8fa8; }
 /* ══════════════════════════════════════════════════════════════════════
    v8.16 — MOTION SYSTEM
    A screen assembles itself top to bottom as you reach it. setupScreenEntrance()
@@ -3707,6 +3541,9 @@ button.coach-reqrow.is-tap + .coach-reqrow, .coach-reqrow + button.coach-reqrow.
 .swap-planned-cap { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; }
 .swap-planned-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 4px; }
 .swap-planned-row b { font-size: 15px; min-width: 0; }
+.swap-row { cursor: pointer; }
+.swap-group-label { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; padding: 14px 0 4px; }
+.swap-group-label:first-child { padding-top: 4px; }
 .swap-planned-row span { font-size: 13px; color: var(--text2); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .coach-banner-x { flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--surface2); color: var(--text2); cursor: pointer; font-size: 14px; }
 .coach-banner-ico svg { width: 20px; height: 20px; fill: none; stroke: var(--accent2); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
@@ -3999,142 +3836,83 @@ try {
 
 <div id="splash">
   <button type="button" id="splash-skip" class="splash-skip" aria-label="Skip animation">&#10005;</button>
-  <div class="logo-stage">
-
-    <div class="blocks-grid">
-
-      <div class="block-wrap" id="wrap-train">
-        <div class="block pre-drop" id="block-1">
-          <div class="block-inner">
-            <div class="face front c-train"></div>
-            <div class="face back c-train">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <rect x="0.5" y="9" width="2.2" height="6" rx="1"/>
-                <rect x="3.4" y="6.5" width="3.4" height="11" rx="1.5"/>
-                <rect x="6.6" y="10.6" width="10.8" height="2.8" rx="1"/>
-                <rect x="17.2" y="6.5" width="3.4" height="11" rx="1.5"/>
-                <rect x="21.3" y="9" width="2.2" height="6" rx="1"/>
-              </svg>
-            </div>
-          </div>
-        </div>
-        <div class="impact-fx">
-          <div class="impact-shadow"></div>
-          <div class="dust left"></div>
-          <div class="dust right"></div>
-        </div>
-      </div>
-
-      <div class="block-wrap" id="wrap-fuel">
-        <div class="block pre-drop" id="block-2">
-          <div class="block-inner">
-            <div class="face front c-fuel"></div>
-            <div class="face back c-fuel">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <rect x="6.1" y="2" width="1" height="6.3" rx="0.5"/>
-                <rect x="7.5" y="2" width="1" height="6.3" rx="0.5"/>
-                <rect x="8.9" y="2" width="1" height="6.3" rx="0.5"/>
-                <rect x="6.1" y="7.6" width="3.8" height="1.8" rx="0.9"/>
-                <rect x="7.5" y="8.9" width="1" height="13.1" rx="0.5"/>
-                <path d="M15.2 2c1.9 0.4 2.7 2.5 2.3 4.9-0.3 1.7-1.1 3-2.1 3.4V22h-1.2V2z"/>
-              </svg>
-            </div>
-          </div>
-        </div>
-        <div class="impact-fx">
-          <div class="impact-shadow"></div>
-          <div class="dust left"></div>
-          <div class="dust right"></div>
-        </div>
-      </div>
-
-      <div class="block-wrap" id="wrap-over">
-        <div class="block pre-drop" id="block-3">
-          <div class="block-inner">
-            <div class="face front c-over"></div>
-            <div class="face back c-over">
-              <svg viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                <path d="M2 19L9 6l4 7 3-4.5 6 10.5z"/>
-              </svg>
-            </div>
-          </div>
-        </div>
-        <div class="impact-fx">
-          <div class="impact-shadow"></div>
-          <div class="dust left"></div>
-          <div class="dust right"></div>
-        </div>
-      </div>
-
-      <div class="block-wrap" id="wrap-repeat">
-        <div class="block pre-drop" id="block-4">
-          <div class="block-inner">
-            <div class="face front c-repeat"></div>
-            <div class="face back c-repeat">
-              <svg viewBox="0 0 24 24">
-                <path d="M4.5 9a7.5 7.5 0 0112.5-3.5" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/>
-                <path d="M19.5 15a7.5 7.5 0 01-12.5 3.5" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/>
-                <path d="M17.8 3.2L20.3 8.0L14.8 7.5Z" fill="currentColor"/>
-                <path d="M6.2 20.8L3.7 16.0L9.2 16.5Z" fill="currentColor"/>
-              </svg>
-            </div>
-          </div>
-        </div>
-        <div class="impact-fx">
-          <div class="impact-shadow"></div>
-          <div class="dust left"></div>
-          <div class="dust right"></div>
-        </div>
-      </div>
-
-    </div>
-
-    <div class="wordmark-group" id="wordmark-group">
-      <div id="wordmark">
-        <!-- v8.19 — the Rebuild lock-up, inline so its three bars can animate one
-             by one (§101). Geometry verbatim from bloc-brand-rebuild's
-             bloc-logo-on-dark.svg, minus its margin. Bottom → top: sb-1, sb-2, sb-3. -->
-        <svg viewBox="-8 -8 523.8 116" role="img" aria-label="BLOC">
-          <rect class="sbar sb-1" x="10" y="70.7" width="60" height="29.3" rx="7"/>
-          <rect class="sbar sb-2" x="22" y="35.3" width="60" height="29.3" rx="7"/>
-          <rect class="sbar sb-3" x="34" y="0" width="60" height="29.3" rx="7"/>
-          <g class="stype" transform="translate(136 0)"><path d="M0 100V0H47.2Q71.6 0 71.6 24.3V33Q71.6 38 68.7 41.4L63.6 47.5L69.7 52.6Q74.5 56.5 74.5 64.2V75.7Q74.5 100 50.1 100ZM20.9 81.2H49.3Q53.6 81.2 53.6 76.8V62.3Q53.6 58 49.3 58H20.9ZM20.9 39.1H46.4Q50.7 39.1 50.7 34.8V23.2Q50.7 18.8 46.4 18.8H20.9Z"/><path d="M102.5 100V0H123.4V81.2H166.6V100Z"/><path d="M188.5 75.7V24.3Q188.5 0 212.8 0H245.9Q270.2 0 270.2 24.3V75.7Q270.2 100 245.9 100H212.8Q188.5 100 188.5 75.7ZM209.3 76.8Q209.3 81.2 213.7 81.2H245Q249.3 81.2 249.3 76.8V23.2Q249.3 18.8 245 18.8H213.7Q209.3 18.8 209.3 23.2Z"/><path d="M299.1 75.7V24.3Q299.1 0 323.4 0H362.1L371.8 7.5V18.8H324.3Q319.9 18.8 319.9 23.2V76.8Q319.9 81.2 324.3 81.2H371.8V92.5L362.1 100H323.4Q299.1 100 299.1 75.7Z"/></g>
-        </svg>
-      </div>
-
-      <div class="tagline" id="tagline">
-        <span class="tword" id="target-train">TRAIN</span>
-        <span class="tbullet" id="bullet-1">&bull;</span>
-        <span class="tword" id="target-fuel">FUEL</span>
-        <span class="tbullet" id="bullet-2">&bull;</span>
-        <span class="tword" id="target-overcome">OVERCOME</span>
-        <span class="tbullet" id="bullet-3">&bull;</span>
-        <span class="tword" id="target-repeat">REPEAT</span>
-      </div>
-    </div>
-
-  </div>
+<svg class="splash-scene" viewBox="-8 -160 523.8 460" role="img" aria-label="BLOC — Train, Fuel, Overcome, Repeat">
+<g class="s-mark">
+<g class="s-loop">
+<rect class="s-loop-line" x="26" y="-8" width="86" height="116" rx="10" transform="skewX(-18.78)"></rect>
+<rect class="s-chip" x="50.05" y="-14" width="43.3" height="12" rx="6"></rect>
+<g transform="translate(53.05 -11.5) scale(0.2917)">
+<g class="s-loop-icon">
+<path class="s-rep-arc" d="M4.5 9a7.5 7.5 0 0112.5-3.5"></path>
+<path class="s-rep-arc" d="M19.5 15a7.5 7.5 0 01-12.5 3.5"></path>
+<path class="s-rep-head" d="M17.8 3.2L20.3 8.0L14.8 7.5Z"></path>
+<path class="s-rep-head" d="M6.2 20.8L3.7 16.0L9.2 16.5Z"></path>
+</g>
+</g>
+</g>
+<g class="s-bar s-b1">
+<rect class="s-rect s-r1" x="10" y="70.7" width="60" height="29.3" rx="7"></rect>
+<g class="s-icon" transform="translate(23.88 81.05) scale(0.3583)">
+<rect x="0.5" y="9" width="2.2" height="6" rx="1"></rect>
+<rect x="3.4" y="6.5" width="3.4" height="11" rx="1.5"></rect>
+<rect x="6.6" y="10.6" width="10.8" height="2.8" rx="1"></rect>
+<rect x="17.2" y="6.5" width="3.4" height="11" rx="1.5"></rect>
+<rect x="21.3" y="9" width="2.2" height="6" rx="1"></rect>
+</g>
+</g>
+<g class="s-bar s-b2">
+<rect class="s-rect s-r2" x="22" y="35.3" width="60" height="29.3" rx="7"></rect>
+<g class="s-icon" transform="translate(37.77 45.65) scale(0.3583)">
+<rect x="6.1" y="2" width="1" height="6.3" rx="0.5"></rect>
+<rect x="7.5" y="2" width="1" height="6.3" rx="0.5"></rect>
+<rect x="8.9" y="2" width="1" height="6.3" rx="0.5"></rect>
+<rect x="6.1" y="7.6" width="3.8" height="1.8" rx="0.9"></rect>
+<rect x="7.5" y="8.9" width="1" height="13.1" rx="0.5"></rect>
+<path d="M15.2 2c1.9 0.4 2.7 2.5 2.3 4.9-0.3 1.7-1.1 3-2.1 3.4V22h-1.2V2z"></path>
+</g>
+</g>
+<g class="s-bar s-b3">
+<rect class="s-rect s-r3" x="34" y="0" width="60" height="29.3" rx="7"></rect>
+<g class="s-icon s-icon-dark" transform="translate(38.62 10.35) scale(0.3583)">
+<path d="M2 19L9 6l4 7 3-4.5 6 10.5z"></path>
+</g>
+</g>
+</g>
+<g transform="translate(136 0)">
+<g class="s-type">
+<path d="M0 100V0H47.2Q71.6 0 71.6 24.3V33Q71.6 38 68.7 41.4L63.6 47.5L69.7 52.6Q74.5 56.5 74.5 64.2V75.7Q74.5 100 50.1 100ZM20.9 81.2H49.3Q53.6 81.2 53.6 76.8V62.3Q53.6 58 49.3 58H20.9ZM20.9 39.1H46.4Q50.7 39.1 50.7 34.8V23.2Q50.7 18.8 46.4 18.8H20.9Z"></path>
+<path d="M102.5 100V0H123.4V81.2H166.6V100Z"></path>
+<path d="M188.5 75.7V24.3Q188.5 0 212.8 0H245.9Q270.2 0 270.2 24.3V75.7Q270.2 100 245.9 100H212.8Q188.5 100 188.5 75.7ZM209.3 76.8Q209.3 81.2 213.7 81.2H245Q249.3 81.2 249.3 76.8V23.2Q249.3 18.8 245 18.8H213.7Q209.3 18.8 209.3 23.2Z"></path>
+<path d="M299.1 75.7V24.3Q299.1 0 323.4 0H362.1L371.8 7.5V18.8H324.3Q319.9 18.8 319.9 23.2V76.8Q319.9 81.2 324.3 81.2H371.8V92.5L362.1 100H323.4Q299.1 100 299.1 75.7Z"></path>
+</g>
+</g>
+<text class="s-word s-w-train" x="56.5" y="150" textLength="73" lengthAdjust="spacing">TRAIN</text>
+<text class="s-dot" x="110" y="150">&#8226;</text>
+<text class="s-word s-w-fuel" x="157" y="150" textLength="60" lengthAdjust="spacing">FUEL</text>
+<text class="s-dot" x="204" y="150">&#8226;</text>
+<text class="s-word s-w-over" x="289.5" y="150" textLength="137" lengthAdjust="spacing">OVERCOME</text>
+<text class="s-dot" x="375" y="150">&#8226;</text>
+<text class="s-word s-w-repeat" x="440" y="150" textLength="96" lengthAdjust="spacing">REPEAT</text>
+</svg>
 </div>
-
 <script>
-(function() {
+// BLOC splash — the animation itself is pure CSS and starts as soon as #splash
+// is painted. This script only times the hand-over (and the skip button).
+(function () {
+  var SPLASH_MS = 7000;   // matches the CSS timeline: final state held briefly, then fade
+  var REDUCED_MS = 1400;  // reduced motion: the finished logo, shown briefly
+  var startedAt = Date.now(); // this script runs straight after #splash is parsed
+
   function boot() {
     var splash = document.getElementById('splash');
+    if (!splash) return;
     var app = document.getElementById('app');
 
-    function revealApp() {
-      app.classList.add('bloc-app-ready');
-    }
+    function revealApp() { if (app) app.classList.add('bloc-app-ready'); }
 
-    // ---- Splash frequency: plays on every fresh load of the app ----
-    // (a real page parse — first open, force-quit + reopen, or the OS
-    // evicting it from memory — not on resuming a backgrounded session).
-    // No persistence check by design; kept as a named function so a
-    // different rule (e.g. once-per-day) can be swapped in later
-    // without touching anything else below.
-    function qualifiesForSplash() {
-      return true;
-    }
+    // Plays on every fresh load. Kept as a named function so a different rule
+    // (e.g. once per day) can be swapped in later.
+    function qualifiesForSplash() { return true; }
 
     if (!qualifiesForSplash()) {
       splash.style.display = 'none';
@@ -4142,190 +3920,29 @@ try {
       return;
     }
 
-    var blockInners = Array.from(splash.querySelectorAll('.block-inner'));
-    var blockEls = Array.from(splash.querySelectorAll('.block'));
-    var topBlocks = [document.getElementById('block-1'), document.getElementById('block-2')];
-    var bottomBlocks = [document.getElementById('block-3'), document.getElementById('block-4')];
-    var wordmarkGroup = document.getElementById('wordmark-group');
-    var wordmark = document.getElementById('wordmark');
-    var bullets = [
-      document.getElementById('bullet-1'),
-      document.getElementById('bullet-2'),
-      document.getElementById('bullet-3'),
-    ];
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var total = reduce ? REDUCED_MS : SPLASH_MS;
+    var done = false;
+    var timer;
 
-    // the tagline's own words ARE the pillar labels — no separate
-    // floating clone. Their starting position (under the blocks) is
-    // computed at runtime from the block-wrap rects — see wordBlockWraps below.
-    var words = [
-      { el: document.getElementById('target-train'),    accent: false },
-      { el: document.getElementById('target-fuel'),      accent: false },
-      { el: document.getElementById('target-overcome'),  accent: true  },
-      { el: document.getElementById('target-repeat'),    accent: false },
-    ];
-    // block-wrap never moves (only the .block child inside it does, via
-    // transform) — so measuring the wrap is always safe/stable, with zero
-    // dependency on transition timing. We add the KNOWN lift constant
-    // mathematically instead of trying to read a live, mid-transition value.
-    var wordBlockWraps = {
-      'target-train':    document.getElementById('wrap-train'),
-      'target-fuel':      document.getElementById('wrap-fuel'),
-      'target-overcome':  document.getElementById('wrap-over'),
-      'target-repeat':    document.getElementById('wrap-repeat'),
-    };
-    var TOP_ROW_WORDS = ['target-train', 'target-fuel'];
-    var LIFT_TOP = 32;    // must match .block.lifted-top translateY(-32px)
-    var LIFT_BOTTOM = 16; // must match .block.lifted-bottom translateY(-16px)
-    var BLOCK_SIZE = 70;  // must match .block width/height
-
-    // Tetris-style drop order: bottom-left, bottom-right, top-right, top-left
-    var dropOrder = [
-      document.getElementById('block-3'),
-      document.getElementById('block-4'),
-      document.getElementById('block-2'),
-      document.getElementById('block-1'),
-    ];
-    var dropWraps = {
-      'block-1': 'wrap-train', 'block-2': 'wrap-fuel',
-      'block-3': 'wrap-over',  'block-4': 'wrap-repeat',
-    };
-
-    var timeouts = [];
-    function after(ms, fn) { timeouts.push(setTimeout(fn, ms)); }
-
-    // Skip/cancel button — top-right corner, visible for the full
-    // splash duration. Clears every step still queued in `timeouts`
-    // (drops, flips, lift, scatter, rise, the eventual fade-out) rather
-    // than just hiding the splash on top of an animation that's still
-    // silently running underneath, then jumps straight to the same
-    // fade-out + revealApp() the natural sequence ends on, so the app
-    // becomes visible exactly the same way either path finishes.
-    var skipBtn = document.getElementById('splash-skip');
-    if (skipBtn) {
-      skipBtn.addEventListener('click', function() {
-        timeouts.forEach(clearTimeout);
-        splash.classList.add('fade-out');
-        revealApp();
-      });
-    }
-
-    // heavy landing thud once each block's fall transition finishes
-    blockEls.forEach(function(el) {
-      el.addEventListener('transitionend', function(e) {
-        if (e.propertyName === 'transform' && el.classList.contains('dropping')) {
-          el.classList.remove('dropping');
-          el.classList.add('impact');
-          var wrap = document.getElementById(dropWraps[el.id]);
-          wrap.classList.add('impacting');
-          setTimeout(function() { el.classList.remove('impact'); }, 340);
-          setTimeout(function() { wrap.classList.remove('impacting'); }, 560);
-        }
-      });
-    });
-
-    var DROP_STAGGER = 380;   // ms between each block starting its fall — slower, heavier cadence
-    var DROP_FALL_MS = 520;   // slower, more deliberate fall
-    var ENTRY_OFFSET = DROP_STAGGER * (dropOrder.length - 1) + DROP_FALL_MS + 400 + 150; // last drop start + fall + thud settle + breathing room
-    var RISE_MS = 900; // must match #wordmark / .tword transition duration
-
-    // 1) Tetris-style drop-in: bottom-left, bottom-right, top-right,
-    // top-left — heavy fall + hard thud on landing (no bounce)
-    dropOrder.forEach(function(el, i) {
-      after(i * DROP_STAGGER, function() {
-        el.classList.add('dropping');
-        el.classList.remove('pre-drop');
-      });
-    });
-
-    // 2) staggered block flips (icon only) — shifted to start once all
-    // blocks have landed
-    var flipDelays = [700, 1250, 1800, 2350].map(function(d) { return d + ENTRY_OFFSET; });
-    blockInners.forEach(function(b, i) { after(flipDelays[i], function() { b.classList.add('flipped'); }); });
-
-    // 3) pause ~1s after the last flip, then blocks lift — top row rises
-    // twice as far as bottom row — to reveal the pillar words tucked
-    // underneath them. Each word's starting position is computed
-    // analytically from the static block-wrap position + the known lift
-    // amount, so it lands exactly under its own block with no overlap.
-    var pauseUntil = 4250 + ENTRY_OFFSET;
-    var REVEAL_GAP = 8; // px between the lifted block's bottom edge and the word
-
-    after(pauseUntil, function() {
-      topBlocks.forEach(function(el) { el.classList.add('lifted-top'); });
-      bottomBlocks.forEach(function(el) { el.classList.add('lifted-bottom'); });
-
-      words.forEach(function(w) {
-        var isTopRow = TOP_ROW_WORDS.indexOf(w.el.id) !== -1;
-        var liftAmount = isTopRow ? LIFT_TOP : LIFT_BOTTOM;
-        var wrapRect = wordBlockWraps[w.el.id].getBoundingClientRect(); // block-wrap is static — always safe to measure
-        var blockCenterX = wrapRect.left + BLOCK_SIZE / 2;
-        var liftedBlockBottom = wrapRect.top + BLOCK_SIZE - liftAmount;
-        var wordRect = w.el.getBoundingClientRect(); // natural (un-offset) tagline position — stable, never moves
-        var dx = blockCenterX - (wordRect.left + wordRect.width / 2);
-        var dy = (liftedBlockBottom + REVEAL_GAP) - wordRect.top;
-        w.el.style.transition = 'none';
-        w.el.style.setProperty('--fx', dx + 'px');
-        w.el.style.setProperty('--fy', dy + 'px');
-      });
-      void words[0].el.offsetWidth; // commit the instant (non-animated) position
-      words.forEach(function(w) { w.el.style.transition = ''; }); // restore CSS transition for the later landing animation
-
-      words.forEach(function(w, i) { setTimeout(function() { w.el.classList.add('show'); }, i * 80); });
-    });
-
-    // 4) hold, then blocks scatter — on their own; the words stay
-    // exactly where they are, untouched
-    var scatterAt = pauseUntil + 2200;
-    after(scatterAt, function() {
-      blockEls.forEach(function(el, i) {
-        el.classList.remove('lifted-top', 'lifted-bottom');
-        var angle = Math.random() * Math.PI * 2;
-        var dist = 260 + Math.random() * 140;
-        el.style.setProperty('--sx', (Math.cos(angle) * dist) + 'px');
-        el.style.setProperty('--sy', (Math.sin(angle) * dist) + 'px');
-        el.style.setProperty('--sr', ((Math.random() * 240 - 120)) + 'deg');
-        setTimeout(function() { el.classList.add('scatter'); }, i * 70);
-      });
-    });
-
-    // 5) shortly after, BLOC rises to its resting position (roughly
-    // where the blocks were) and the words settle into the tagline at
-    // the same time, on the same duration, so they arrive together
-    var riseAt = scatterAt + 400;
-    after(riseAt, function() {
-      wordmarkGroup.classList.add('risen');
-      wordmark.classList.add('show');
-      words.forEach(function(w) { w.el.classList.add('landed'); });
-    });
-
-    // 6) once everything has landed: OVERCOME picks up weight + accent
-    // colour, and the bullets fade in around the now-settled words
-    after(riseAt + RISE_MS + 150, function() {
-      var overcome = words.filter(function(w) { return w.accent; })[0];
-      overcome.el.classList.add('landed-accent');
-      bullets.forEach(function(b) { b.classList.add('show'); });
-    });
-
-    // 6b) v8.19 — the logo's three bars build bottom → top as the wordmark
-    // settles, each flashing green as it lands, then a green pulse runs up
-    // the stack on a loop until the splash fades out (§101)
-    after(riseAt + RISE_MS - 200, function() { wordmark.classList.add('locked'); });
-    after(riseAt + RISE_MS + 1100, function() { wordmark.classList.add('pulsing'); });
-
-    // 7) whole splash fades, after a moment to hold on the final state —
-    // and the real app is revealed underneath at the same moment, so it
-    // crossfades in rather than appearing as a hard cut
-    after(riseAt + RISE_MS + 2600, function() {
+    function finish() {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
       splash.classList.add('fade-out');
       revealApp();
-    });
+    }
+
+    var skipBtn = document.getElementById('splash-skip');
+    if (skipBtn) skipBtn.addEventListener('click', finish);
+
+    // time from when the splash started, not from DOMContentLoaded, so a slow
+    // parse of the rest of the page doesn't stretch the splash
+    timer = setTimeout(finish, Math.max(0, total - (Date.now() - startedAt)));
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', boot);
-  } else {
-    boot();
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
 })();
 </script>
 
@@ -15495,21 +15112,28 @@ function renderSwapTodayList() {
   if (!el || !ex) return;
   const q = (document.getElementById('swap-today-search').value || '').trim().toLowerCase();
   const planned = (ex.name || '').trim().toLowerCase();
-  const lib = getLibrary().filter(e => getLibraryCategory(e) !== 'cardio' && e.name.trim().toLowerCase() !== planned);
-  const own = getLibrary().find(e => e.name.trim().toLowerCase() === planned);
-  const part = (own && own.bodyPart) || ex.bodyPart;
-  // With no search, the planned exercise's muscle group comes first.
-  _swapTodayOptions = q ? lib.filter(e => e.name.toLowerCase().includes(q))
-    : lib.filter(e => e.bodyPart === part).concat(lib.filter(e => e.bodyPart !== part));
+  const all = getLibrary(); // sorted body part, then name
+  const own = all.find(e => e.name.trim().toLowerCase() === planned);
+  const part = (own && own.bodyPart) || ex.bodyPart || null;
+  const lib = all.filter(e => getLibraryCategory(e) !== 'cardio' && e.name.trim().toLowerCase() !== planned
+    && (!q || e.name.toLowerCase().includes(q)));
+  // v8.43 (Adam, UAT): alternatives for the same body part first (Bench Press →
+  // the other chest exercises), then everything else in the library's own order.
+  const same = part ? lib.filter(e => e.bodyPart === part) : [];
+  const rest = lib.filter(e => !same.includes(e));
+  _swapTodayOptions = same.concat(rest);
   if (!_swapTodayOptions.length) {
-    el.innerHTML = `<div class="empty-inline" style="text-align:center;padding:24px 0;">No exercises match “${coachEsc(q)}”.</div>`;
+    el.innerHTML = `<div class="lib-empty">No exercises match “${coachEsc(q)}”.</div>`;
     return;
   }
-  el.innerHTML = _swapTodayOptions.map((e, i) => `
-    <button class="row-btn" onclick="chooseSwapToday(${i})">
-      <span class="row-btn-text"><span class="row-btn-title">${coachEsc(e.name)}</span><span class="row-btn-sub">${coachEsc(e.bodyPart || '')}</span></span>
-      <span class="row-btn-chevron">${icoChevron()}</span>
-    </button>`).join('');
+  // The exercise library's rows (.lib-row: a divider between, no cards).
+  const row = (e, i) => `<div class="lib-row swap-row" onclick="chooseSwapToday(${i})">
+      <div class="lib-row-text"><div class="lib-row-name">${coachEsc(e.name)}</div><div class="lib-row-meta">${coachEsc(e.bodyPart || '')}</div></div>
+      <div class="lib-row-actions"><span class="row-btn-chevron">${icoChevron()}</span></div>
+    </div>`;
+  const label = t => `<div class="swap-group-label">${coachEsc(t)}</div>`;
+  el.innerHTML = (same.length ? label(`Other ${part.toLowerCase()} exercises`) + same.map(row).join('') : '')
+    + (rest.length ? (same.length ? label('Everything else') : '') + rest.map((e, i) => row(e, same.length + i)).join('') : '');
 }
 function chooseSwapToday(i) {
   if (trainViewCoachOwned()) return;
@@ -23109,7 +22733,11 @@ function renderTrainDay(macro) {
       // withheld only where there is nothing left to complete (already done) or
       // where completing at target is not the point (a locked exercise, whose
       // whole state is "these numbers are not moving yet").
-      const autoBtnHtml = (allDone || isSwapped || (isLocked && !isDeloadSession && !isPostDeloadSession))
+      // v8.43 (§138): a drop set with nothing to carry into a drop (its first session:
+      // no drop weight or reps last week) has no target to complete at. The
+      // button used to tick every set with the drop left blank (Adam, v8.43 UAT).
+      const dropUnknown = isDropSet && (dropWeightPlaceholders.some(v => !v) || dropRepsPlaceholders.some(v => !v));
+      const autoBtnHtml = (allDone || isSwapped || dropUnknown || (isLocked && !isDeloadSession && !isPostDeloadSession))
         ? ''
         : `<button class="ex-auto-btn" title="Complete every set at target"
              onclick="${isDropSet
@@ -24334,6 +23962,8 @@ function quickFillCompleteDropset(event, macroId, week, day, exId, sets, weight,
   const repsList = String(reps).split('|');
   const dropWeightList = String(dropWeight).split('|');
   const dropRepsList = String(dropReps).split('|');
+  // v8.43 (§138): never complete a drop set with its drop unknown (the button isn't drawn then either).
+  if (dropWeightList.some(v => !v) || dropRepsList.some(v => !v)) return;
   for (let s = 0; s < sets; s++) {
     const logKey = baseKey + '_' + exId + '_' + s;
     const wVal  = weightList[s] !== undefined ? weightList[s] : weightList[weightList.length - 1];

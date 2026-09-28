@@ -8981,3 +8981,45 @@ Driven in Chromium at 375pt on the dev fixture, coached:
 
 🚨 **Sign Swap for today off in the Home Screen app after the merge** (§9: only the installed app freezes
 `--app-height` with the keyboard up).
+
+## §138 — v8.43: the new CSS splash, and no auto-complete on a first-session drop set
+
+Two changes for everyone, alongside Coached mode's §137 (Adam, 2026-09-28).
+
+### The splash
+
+Replaced with the `bloc-splash` design, ported exactly as its `PORTING.md` says (the design files live
+in the tracking folder, `bloc-app/bloc-splash/`, with BLOC Coach's version for Phase 5):
+1. **CSS:** the `BLOC SPLASH SCREEN` block, from its comment to the last `#splash` rule before
+   `v8.16 — MOTION SYSTEM`, is `bloc-splash.css`, with the `#app` / `#app.bloc-app-ready` gate at the top.
+2. **Markup:** `<div id="splash">` is one SVG with fixed coordinates (`viewBox="-8 -160 523.8 460"`), so
+   nothing is measured at runtime (§40's measurement bug can't recur).
+3. **Script:** straight after `#splash`, because it starts the clock there. The animation is pure CSS; the
+   script only times the hand-over: `SPLASH_MS` 7000 (`REDUCED_MS` 1400 with reduced motion), then
+   `fade-out` on `#splash` and `bloc-app-ready` on `#app`, from when the splash started, not from
+   `DOMContentLoaded`. The ✕ (`#splash-skip`) does the same at once. `qualifiesForSplash()` stays.
+
+Nothing else referred to the old ids. `whenAppReady()` (§111) waits on `.bloc-app-ready`, which the new
+script still adds. The Settings logo replay (`.settings-logo`, `blocLogoBar*`, §102) is separate and
+unchanged. To change the length, change `SPLASH_MS`; the CSS timeline doesn't move.
+
+🚨 **The palette split holds:** the splash's green is `--splash-brand` on the top bar, REPEAT and OVERCOME;
+the other bars are `--splash-block`; there's **no lavender** in it any more (v8.18's Train block is gone).
+`verify-brand-palette-split.mjs` now checks that shape.
+
+### A drop set's first session has no auto-complete
+
+A drop set's ✓ button (`quickFillCompleteDropset`) fills each set from its placeholders, including the drop
+portion. In a drop set's **first** session there's no drop weight or reps to carry over (the drop is never
+planned, only discovered live: §12 → "Drop Sets"), so the button ticked every set with the drop left blank. Now:
+- the button isn't drawn when **any** set's drop weight or drop reps placeholder is empty
+  (`dropUnknown` in `renderTrainDay`); those sets are logged by hand, and `toggleSetDone` already requires
+  both halves;
+- `quickFillCompleteDropset()` also refuses when any drop value is empty.
+
+From the second session the drop carries over from last week and the button is back. Supersets aren't
+affected: a drop set can't be a superset member (saving one into a superset makes it standard).
+
+**Check:** `verify-engine-leaves.mjs` counts the renders where only a first-session drop set's button went
+(3 per zone), and compares everything else with v8.34 as before.
+
