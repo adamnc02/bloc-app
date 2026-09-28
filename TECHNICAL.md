@@ -8142,3 +8142,79 @@ server write was the expected one, read from `pg_stat_user_tables`:
 ⚠️ **The first-run mode question was not run on a real new account** (Adam: *"Skip, ship on the
 checks"*). It needs an account with no cloud backup. The verify script covers all six cases, and the
 headless run covered every screen.
+
+## §130 — v8.38: the client → coach state upload, `client_state` (PROMPT-03 Phase 4c)
+
+Proposal §6.1, deep dive §4c. The server half is `0023` (`super-duper-octo-barnacle/docs/SUPABASE.md`
+→ "BLOC Coach: how the two apps talk").
+
+**Why a whole-state upload.** BLOC Coach runs BLOC's own engine (`engine/`) on the client's real state.
+The relational mirror is lossy (deep dive §4a): no per-set RPE history, no progression cache, no
+recipes-as-typed. So Coach reads what BLOC holds, byte for byte.
+
+**What is sent** (`uploadClientStateOnce()`), one `client_state` row per upload:
+
+| Column | Value |
+|---|---|
+| `state_gz` | `JSON.stringify(state)` (compact), gzipped with `CompressionStream`, as PostgREST's hex bytea text (`\x…`) |
+| `state_hash` | sha-256 hex of the **uncompressed** compact JSON (Coach re-hashes after gunzip) |
+| `state_rev` | one past the last. The server refuses one that doesn't rise, and keeps the newest 7 |
+| `app_version` | the Settings chip (`blocAppVersion()` reads it from `renderSettingsHero`'s own source, so a release still bumps one place, §110) |
+| `tz` | the device's IANA zone. Coach evaluates the client at **their** local today |
+| `device_id` | a random id kept in `bloc_device_id` |
+
+The demo dataset is ~127 KB compact and ~14 KB gzipped. A heavy year is ~100 KB gzipped, well under the
+5 MB cap.
+
+**When.** Only while `isCoachedMode()` (§129): nobody else reads it, so a Solo user's state never
+leaves the device this way.
+- **60 s after the last `save()`** (`markSyncDirty()` → `scheduleClientStateUpload()`), separate from
+  the mirror's 4 s debounce.
+- **On sign-in and on resume**, once `refreshCoachLink()` has confirmed the link.
+- **On coming online.**
+- **At once when a link is made**, so the coach sees the client straight away.
+
+**Never:**
+- during the Demo Tour, or under any pretend "today" (`_tourAnchorDate`, which the local dev
+  fixture can set even where `demoTourIsRunning()` is false);
+- from a device holding nothing (`deviceHasRealData()`, the §109 rule). A wiped or fresh phone
+  must not replace what the coach sees with nothing. That's the wipe guard: a coached client
+  who clears their data leaves the coach looking at the last real upload, which the 7 kept
+  revisions also protect;
+- when the hash equals the last upload's;
+- without `CompressionStream` (iOS 16.4+) or WebCrypto: it just doesn't send.
+
+🚨 **The rev.** The server refuses an upload at or below its newest rev. A new phone, a restore or
+another account on this phone doesn't know the last rev. The local record (`bloc_client_state_meta`:
+`{userId, rev, hash}`) is per account, and without one BLOC asks the server for its newest rev first.
+If an insert is refused as "a newer state is already stored" (a second device, which v1 doesn't
+support, got there first), BLOC re-reads the server's newest and goes one past it, once. Delete my
+data and Close my account forget the local record, because the erase removed the rows.
+
+🚨 **One at a time.** `clientStateSerialised()` is the same gate as the mirror push's
+`pushStateSerialised()` (§128). Two overlapping uploads would pick the same rev, and the second would be
+refused. Any number of requests made during an upload share one follow-up, which reads `state` when it
+starts. Nothing calls `uploadClientStateOnce()` except the gate. A failure stays on the console, and
+the next trigger tries again; it never interrupts the app.
+
+🚨 **A trigger must never throw into its caller.** Linking calls `requestClientStateUpload('linked')`.
+In the first draft it sat inside `coachAgreeAndLink()`'s `try`, after the link was made, so any throw
+there (4b's own test harness, which had no such function, found it) would have shown a link that
+worked as a failed code. The call now runs after the `try`, and `requestClientStateUpload()` catches
+everything itself.
+
+**Not in this version:** the publication pull (coach → client), next. Nothing on screen changes.
+
+**Check:** `scripts/verify-client-state-upload.mjs` (27 checks) runs the real functions with Node's own
+`CompressionStream` and WebCrypto against a fake `client_state` table that refuses a non-rising rev,
+exactly as `0023` does. It covers:
+- what is sent: gunzip the `\x…` text back to exactly `JSON.stringify(state)`; the hash, rev 1, the
+  chip's version, a real IANA zone and a stable device id;
+- an unchanged state skipped;
+- the rev: 41 → 42 with no local record, a stale rev refused then retried one past the server, and
+  another account's record ignored;
+- all four "never" cases;
+- the gate: never two inserts at once, three waiting requests making one follow-up;
+- the wiring: saves, links, resume, and both erase handlers.
+
+**Control:** v8.37 (`05689a1`).
