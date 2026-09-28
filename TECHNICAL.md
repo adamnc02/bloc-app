@@ -8710,8 +8710,9 @@ Also in Settings → Coaching → Sessions. The client never sees the coach's di
   `preferences`, `notes`, `repeat_weekly`.
 - **Your requests** sit at the top of the sheet: the open ones (pending, proposed, countered), plus those
   **answered in the last 14 days**. An accepted request reads "✓ Confirmed · Wed 30 Sep, 18:00 ·
-  weekly", with "{coach} adds it to the diary; it shows as your next session once it's booked", or
-  "Booked" once a live booking at that time has arrived. A declined one reads "{coach} couldn't make
+  weekly", with "{coach} adds it to the diary; it shows as your next session once it's booked". Once a
+  live booking at that time has arrived, the **header** changes to "✓ Booked · …" (Adam read the header
+  and missed a sub-line saying it). A declined one reads "{coach} couldn't make
   these times". 🚨 **Confirming doesn't make the booking**; the coach's diary does, and it arrives as a
   `booking` publication. The first draft dropped a request the moment it was answered, so a confirmed
   time vanished until then (Adam, UAT).

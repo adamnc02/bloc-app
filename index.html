@@ -15279,8 +15279,10 @@ function coachRequestItemHTML(r) {
   if (r.status === 'accepted') {
     const slot = r.proposed || r.counter || (r.preferences || [])[0];
     const booked = slot && Object.values(state.coachBookings || {}).some(b => b && b.status !== 'cancelled' && b.date === slot.date && b.start_min === slot.start_min);
-    return `<div class="coach-req is-done"><div class="coach-req-line">✓ Confirmed · ${coachEsc(coachSlotLine(slot))}${r.repeat_weekly ? ' · weekly' : ''}</div>
-      <div class="coach-req-sub">${booked ? 'Booked. It shows as your next session.' : `${first} adds it to the diary; it shows as your next session once it’s booked.`}</div></div>`;
+    // The header says which it is (Adam, UAT: he read "Confirmed" and missed the
+    // sub-line saying it was booked).
+    return `<div class="coach-req is-done"><div class="coach-req-line">✓ ${booked ? 'Booked' : 'Confirmed'} · ${coachEsc(coachSlotLine(slot))}${r.repeat_weekly ? ' · weekly' : ''}</div>
+      <div class="coach-req-sub">${booked ? 'It shows as your next session.' : `${first} adds it to the diary; it shows as your next session once it’s booked.`}</div></div>`;
   }
   if (r.status === 'declined') {
     return `<div class="coach-req is-done"><div class="coach-req-line">${first} couldn’t make these times</div>

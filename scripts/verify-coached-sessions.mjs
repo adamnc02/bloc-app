@@ -158,8 +158,8 @@ async function run(label, html, engineSrc) {
     check('a confirmed request stays visible: "✓ Confirmed · Wed 30 Sep, 18:00 · weekly", and that the coach books it',
       [/✓ Confirmed · Wed 30 Sept?, 18:00 · weekly/.test(acc), /adds it to the diary/.test(acc), /Withdraw|Confirm<\/button>/.test(acc)], [true, true, false]);
     const I2 = mk({ macrocycles: [], coachBookings: { b: { booking_id: 'b', date: '2026-09-30', start_min: 1080, status: 'booked' } } });
-    check('…and says "Booked" once the coach\'s booking for that time has arrived',
-      /Booked\. It shows as your next session/.test(I2.coachRequestItemHTML({ id: 'a', status: 'accepted', proposed: { date: '2026-09-30', start_min: 1080 }, preferences: [] })), true);
+    check('…and its HEADER says "✓ Booked" once the coach\'s booking for that time has arrived',
+      /✓ Booked · Wed 30 Sept?, 18:00/.test(I2.coachRequestItemHTML({ id: 'a', status: 'accepted', proposed: { date: '2026-09-30', start_min: 1080 }, preferences: [] })), true);
     check('a declined request says so, with no actions',
       /couldn’t make these times/.test(I.coachRequestItemHTML({ id: 'd', status: 'declined', preferences: [{ date: '2026-10-01', start_min: 1080 }] })), true);
     const none = mk({ macrocycles: [], coachBookings: {} }).homeNextSessionHTML();
