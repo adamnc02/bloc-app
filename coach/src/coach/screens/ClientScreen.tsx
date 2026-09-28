@@ -1,6 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Avatar, Chip, EmptyState, Hero, Icon, Notice, Page, PageHeader, Section, numberSections, useEntering } from '@/components/ui';
-import { WeightSparkline } from '@/components/charts/Sparkline';
 import { CoachShell } from '@/coach/CoachShell';
 import { useCoach } from '@/app/App';
 import { fmt } from '@/lib/format';
@@ -49,7 +48,6 @@ export function ClientScreen({ id }: { id: string }) {
               {c.clientToday ? `It’s ${fmt.ddm(c.clientToday)} for them (${c.tz})` : bundle.card.email || bundle.card.phone || ' '}
             </div>
           </div>
-          {c.weights.length > 1 && <WeightSparkline points={c.weights} target={c.targetLbs} width={104} height={34} />}
         </Hero>
 
         <Section n={n.link} i={2} title="Link" sub="What they share with you, and how recently.">

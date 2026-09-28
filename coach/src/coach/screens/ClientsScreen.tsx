@@ -198,8 +198,9 @@ function Seg_({ grow, bg, i }: { grow: number; bg: string; i: number }) {
 const statusChip = (c: ClientSummary) => <Chip tone={STATUS[c.status].tone}>{STATUS[c.status].label}</Chip>;
 const clip: CSSProperties = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 
-// 375pt (BLOC TECHNICAL §116): the stacked row keeps every text line on one
-// line with an ellipsis, and the sparkline a fixed 84px beside it.
+// 375pt (BLOC TECHNICAL §116): the cycle line gets the row's full width (at
+// 375pt "Weight Loss 2026 · week 8 of 14" lost its week beside an 84px
+// sparkline), so the sparkline sits on the shorter "last synced" line instead.
 function ClientRowStacked({ r, onOpen }: { r: ClientSummary; onOpen: (c: ClientSummary) => void }) {
   return (
     <button type="button" className="listrow" onClick={() => onOpen(r)} style={{ alignItems: 'flex-start' }} aria-label={`${r.name}, ${STATUS[r.status].label}, ${r.cycleText}, ${syncText(r)}`}>
@@ -209,14 +210,12 @@ function ClientRowStacked({ r, onOpen }: { r: ClientSummary; onOpen: (c: ClientS
           <b style={clip}>{r.name}</b>
           {statusChip(r)}
         </span>
-        <span className="row" style={{ marginTop: 6, alignItems: 'flex-end', gap: 10 }}>
-          <span style={{ minWidth: 0 }}>
-            <span className="muted" style={{ display: 'block', fontSize: 12.5, ...clip }}>{r.cycleText}</span>
-            <span className={r.staleSync || r.problem ? 't-bad' : 'caption'} style={{ display: 'flex', gap: 5, alignItems: 'center', marginTop: 3, fontSize: 12, ...clip }}>
-              <Icon name={r.staleSync || r.problem ? 'warning' : 'sync'} size={13} />{syncText(r)}
-            </span>
+        <span className="muted" style={{ display: 'block', marginTop: 5, fontSize: 12.5, ...clip }}>{r.cycleText}</span>
+        <span className="row" style={{ marginTop: 3, alignItems: 'center', gap: 10 }}>
+          <span className={r.staleSync || r.problem ? 't-bad' : 'caption'} style={{ display: 'flex', gap: 5, alignItems: 'center', fontSize: 12, minWidth: 0, ...clip }}>
+            <Icon name={r.staleSync || r.problem ? 'warning' : 'sync'} size={13} />{syncText(r)}
           </span>
-          {r.weights.length > 1 && <span style={{ flexShrink: 0 }}><WeightSparkline points={r.weights} target={r.targetLbs} width={84} height={28} /></span>}
+          {r.weights.length > 1 && <span style={{ flexShrink: 0 }}><WeightSparkline points={r.weights} target={r.targetLbs} width={84} height={24} /></span>}
         </span>
       </span>
     </button>
