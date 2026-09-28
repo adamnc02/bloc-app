@@ -126,18 +126,21 @@ check('every case names a real export', stale.length === 0, stale.join(', '));
 
 for (const [name, argSets] of Object.entries(CASES)) {
   if (typeof E[name] !== 'function') continue;
-  argSets.forEach((mk, i) => {
+  for (const [i, mk] of argSets.entries()) {
     const args = mk();
     const before = JSON.stringify(args);
     const writes = [];
     let threw = null;
-    try { E[name](...args.map((a, j) => guard(a, writes, `arg${j}`))); } catch (e) { threw = e.message; }
+    // v8.35 (§125): the AI request functions are async (they await the
+    // injected callModel), so a returned promise is awaited: a write or a
+    // clock read after the await counts too.
+    try { await E[name](...args.map((a, j) => guard(a, writes, `arg${j}`))); } catch (e) { threw = e.message; }
     check(`${name} #${i + 1}: never writes to its input`, writes.length === 0 && threw === null && JSON.stringify(args) === before,
       threw ? `threw: ${threw}` : writes.slice(0, 5).join(', '));
     let clock = null;
-    try { EC[name](...mk()); } catch (e) { clock = e.message; }
+    try { await EC[name](...mk()); } catch (e) { clock = e.message; }
     check(`${name} #${i + 1}: never reads the clock`, clock === null || !/read the clock/.test(clock), clock);
-  });
+  }
 }
 
 // ── Control: the OLD in-place ensureStateDefaults (v8.31) must be caught ────

@@ -464,6 +464,89 @@ for (const [reps, inc] of [['8', 2], ['8', 1], ['8–10', 2], ['8-10', 1], ['AMR
 }
 add('RPE_STEP_NONE', []); add('PROG_STEP_MAINTENANCE', []);
 
+// ── Step 6 (§125): mutators as pure cores, and the AI flows ─────────────────
+// The mutators' BLOC calls write (the labels, the rollup, the exercise
+// history), and verify-engine-leaves compares what they write with v8.34.
+const goalsState = state(s => {
+  s.goals.push({ macroId: s.macrocycles[0].id, startDate: '2026-06-01', endDate: '2026-06-07', _blocLabel: 'Step 9 - Primer' },
+    { macroId: 'other', startDate: '2026-01-05', endDate: '2026-01-11', _blocLabel: 'Step 1' },
+    { macroId: s.macrocycles[0].id, startDate: '2026-09-07', endDate: '2026-09-13' });
+  return s;
+});
+for (const st of [S.demo, goalsState, S.empty]) {
+  add('renumberMacroGoalSteps', [atP(st, '2026-08-02', s => ({ engine: [s.goals, m0(s).id], bloc: { args: [m0(s).id] } })),
+    atP(st, '2026-08-02', s => ({ engine: [s.goals, 'other'], bloc: { args: ['other'] } })),
+    atP(st, '2026-08-02', s => ({ engine: [s.goals, null], bloc: { args: [null] } }))]);
+}
+for (const st of [S.demo, S.history, S.rollup, S.empty, state(s => { s.insightsRollup = { completedCycles: Array.from({ length: 10 }, (_, i) => rolled('Old ' + i, 'loss', 0)) }; return s; })]) {
+  add('computeRollupEntries', eachDay(st, (s, c) => ({ engine: [s, c], bloc: { fn: 'updateInsightsRollup', args: [] } }), ['2026-08-02', '2026-09-13', '2026-09-14', '2026-11-01']));
+}
+for (const st of [S.demo, S.training, state(s => { s.exerciseHistory = undefined; s.exerciseTrackingMode = undefined; return s; })]) {
+  const s0 = st();
+  for (const dk of ['session0m1', 'session1m1', 'session1m2']) exsOf(s0, dk).forEach((_, xi) => {
+    for (const w of [1, 3, 6, 7]) add('recordExerciseHistory', [at(st, '2026-08-02', (s, c) => {
+      const ex = exsOf(s, dk)[xi];
+      return { engine: [s, c, m0(s), w, dk, ex], bloc: { args: [m0(s), w, dk, ex] } };
+    })]);
+  });
+}
+add('recordExerciseHistory', [at(S.demo, '2026-08-02', (s, c) => ({ engine: [s, c, m0(s), 3, 'session0m1', { ...exsOf(s, 'session0m1')[0], name: '  ' }], bloc: { args: [m0(s), 3, 'session0m1', { ...exsOf(s, 'session0m1')[0], name: '  ' }] } }))]);
+
+// The prompts, over the nutrition states and the cycle's life. The next-cycle
+// prompt is judged on real recommendations, built through BLOC's own path by
+// verify-engine-leaves' AI section; here it runs on the demo's own shape.
+for (const st of [S.demo, S.gain, S.maint, S.rollup, S.advice, S.finalDayUnlogged, P.rpe]) {
+  add('buildBlocAdvicePrompt', eachDay(st, (s, c) => ({ engine: [s, c, overlay(s), m0(s)], bloc: { args: [m0(s)] } }), ['2026-07-12', '2026-08-02', '2026-09-20']));
+  add('buildBlocChallengePrompt', eachDay(st, (s, c) => ({ engine: [s, c, overlay(s), m0(s), 'Protein feels too high.'], bloc: { args: [m0(s), 'Protein feels too high.'] } }), ['2026-08-02']));
+  add('buildRpePromptSummary', [at(st, '2026-08-02', s => ({ engine: [s, overlay(s), m0(s)], bloc: { args: [m0(s)] } }))]);
+}
+add('buildRpePromptSummary', [at(S.demo, '2026-08-02', s => ({ engine: [s, overlay(s), null], bloc: { args: [null] } })),
+  at(state(s => { delete s.rpe; return s; }), '2026-08-02', s => ({ engine: [s, overlay(s), m0(s)], bloc: { args: [m0(s)] } }))]);
+for (const dk of ['session0m1', 'session3m2', 'nope']) add('getRpeSessionExercises', [atP(S.demo, '2026-08-02', s => ({ engine: [s, m0(s), dk], bloc: { args: [m0(s), dk] } }))]);
+const nextRec = s => ({ goalType: 'maintenance', latestBw: 212.9, newMacroStart: '2026-09-14', newMacroEnd: '2026-11-08', dynResult: { tdee: 2400, bmr: 1550, dataPoints: 5 },
+  sustainableRange: { floor: 190, ceiling: 230, source: 'cold-start-fallback' }, rationale: ['r1', 'r2'], bridge: { climbWeeks: 3, minBridgeWeeks: 4, totalWeeks: 6, fullRows: [] }, cycleDurationWeeks: 14, recentKcal: 1800, rampStartKcal: 1700, _m: m0(s).id });
+for (const [label, st] of [['demo', S.demo], ['maint', S.maint]]) {
+  for (const override of [null, { targetWeight: 200 }, { deadline: '2026-11-29' }]) {
+    add('buildNextCycleAdvicePrompt', [at(st, '2026-09-08', (s, c) => ({ engine: [s, c, overlay(s), m0(s), nextRec(s), 'Holiday week 2.', null, structuredClone(override)],
+      bloc: { args: [m0(s), nextRec(s), 'Holiday week 2.', null], globals: { _nextCycleOverride: structuredClone(override) } } }))]);
+  }
+  void label;
+}
+// Engine only: the request body, the replies' processing (non-throwing
+// replies: the throwing ones are compared with v8.34 in verify-engine-leaves'
+// AI section, message for message), and the requests with a canned callModel.
+add('buildModelRequest', [atP(S.demo, '2026-08-02', () => ({ engine: ['sys', [{ role: 'user', content: 'hi' }], 8000], bloc: null }))]);
+const goal = (start, end) => ({ label: 'G', startDate: start, endDate: end, kcal: 2000, protein: 200, carbs: 150, steps: 8000 });
+export const adviceReply = (sust = [goal('2026-08-03', '2026-08-16'), goal('2026-08-17', '2026-09-27')]) => JSON.stringify({
+  signal: 'plateau-creep', headline: 'H', narrative: 'N', primaryAction: 'P', secondaryAction: null,
+  recommendations: { sustainable: { label: 'Sustainable', rationale: 'r', summary: 's', goals: sust },
+    aggressive: { label: 'Aggressive', rationale: 'r', summary: 's', goals: [{ label: 'A', kcal: 1800, protein: 210, carbs: 120, steps: 10000 }] } } });
+export const challengeReply = (significant = false) => JSON.stringify({ ...JSON.parse(adviceReply()), acknowledgment: 'Fair point.', isSignificantRevision: significant });
+export const reviewReply = () => JSON.stringify({ complianceScore: 7, headline: 'H', narrative: 'N', highlights: ['h'], improvements: ['i'], ranTooLong: false, bodyfatEstimate: { direction: 'down' } });
+add('postProcessAdviceResponse', [at(S.demo, '2026-08-02', (s, c) => ({ engine: ['Here you go:\n```json\n' + adviceReply() + '\n```', m0(s), c], bloc: null })),
+  at(S.demo, '2026-08-02', (s, c) => ({ engine: [adviceReply([goal('2026-08-03', '2026-10-04')]), m0(s), c, '2026-07-30'], bloc: null }))]);
+add('postProcessChallengeResponse', [false, true].map(sig => at(S.demo, '2026-08-02', (s, c) => ({ engine: [challengeReply(sig), m0(s), c], bloc: null }))));
+add('postProcessCycleReviewResponse', [at(S.demo, '2026-09-13', (s, c) => ({ engine: [reviewReply(), { measurements: { weightTargetDelta: 1.2, totalWeightChange: -8.8 } }, 2, 1, c], bloc: null }))]);
+const cycleReply = (weeks, end, key = 'sustainable') => ({ key, label: key, rationale: 'r', summary: 's', weeks,
+  goals: [{ startDate: '2026-09-14', endDate: '2026-09-27', kcal: 2100, protein: 200, carbs: 200, steps: 12000 }, { startDate: '2026-09-28', endDate: end, kcal: 2200, protein: 200, carbs: 220 }] });
+export const nextCycleReply = plans => JSON.stringify({ signal: 'maint-stable', headline: 'H', narrative: 'N', plans });
+add('postProcessNextCycleResponse', [
+  at(S.demo, '2026-09-08', (s, c) => ({ engine: [nextCycleReply([cycleReply(8, '2026-11-08')]), m0(s), nextRec(s), null, c], bloc: null })),
+  at(S.demo, '2026-09-08', (s, c) => ({ engine: [nextCycleReply([cycleReply(6, '2026-10-25'), cycleReply(8, '2026-11-08', 'aggressive')]), m0(s),
+    { ...nextRec(s), goalType: 'loss', bridge: null }, null, c], bloc: null })),
+]);
+const canned = text => async () => ({ text, stopReason: 'end_turn' });
+add('acceptChallengeRevision', [false, true].map(sig => at(S.advice, '2026-08-02', s => {
+  s.blocAdvice.response = JSON.parse(adviceReply());
+  s.blocAdvice.conversation = { replyUsed: true, pendingRevision: JSON.parse(challengeReply(sig)) };
+  return { engine: [s.blocAdvice], bloc: { fn: 'acceptBlocChallenge', args: [] } };
+})));
+add('requestBlocAdvice', [at(S.demo, '2026-08-02', (s, c) => ({ engine: [{ systemPrompt: 's', userMessage: 'u' }, m0(s), canned(adviceReply()), () => c, '2026-07-31'], bloc: null }))]);
+add('requestBlocChallenge', [at(S.demo, '2026-08-02', (s, c) => ({ engine: [{ systemPrompt: 's', messages: [] }, m0(s), canned(challengeReply()), () => c], bloc: null }))]);
+add('requestNextCycleAdvice', [at(S.demo, '2026-09-08', (s, c) => ({ engine: [{ systemPrompt: 's', userMessage: 'u' }, m0(s), nextRec(s), canned(nextCycleReply([cycleReply(8, '2026-11-08')])), () => c, () => null], bloc: null }))]);
+add('requestCycleReview', [at(S.demo, '2026-09-13', (s, c) => ({ engine: [{ systemPrompt: 's', userText: 'u', imageBlocks: [{ type: 'image' }] },
+  { measurements: { weightTargetDelta: null, totalWeightChange: -3 } }, 1, 0, canned(reviewReply()), () => c], bloc: null }))]);
+
 // ── Fixtures ──────────────────────────────────────────────────────────────
 function exOf() {
   const all = Object.values(demo().exercises).flat();

@@ -131,8 +131,8 @@ export interface BlocState {
   profile?: BlocProfile;
   insightsRollup?: { completedCycles: Loose[]; [k: string]: unknown };
   blocAdvice?: Loose;
-  nextCycleAdvice?: unknown;
-  nextCycleAdviceHistory?: unknown[];
+  nextCycleAdvice?: Loose;
+  nextCycleAdviceHistory?: Loose[];
   mode?: string;
   currentMacroId?: string | null;
   currentWeek?: number;

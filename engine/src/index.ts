@@ -95,3 +95,15 @@ export {
   PROG_STEP_MAINTENANCE, getProgressionStep, bumpRepsBy, getLastCompliantWeek, computeRawSuggestedTargets,
   getWeekTargets, getWeekComplianceResult, computeLockTransition, computeExerciseProgression,
 } from './targets.ts';
+
+// ── v8.35 (§125): step 6, mutators as pure cores, and the AI flows. The engine
+//    returns what BLOC then writes; every model request goes through a
+//    `callModel` the caller injects (BLOC: its fetch, with the user's key). ──
+export { renumberMacroGoalSteps, computeRollupEntries, recordExerciseHistory } from './mutators.ts';
+export type { ModelRequest, ModelReply, CallModel } from './advice.ts';
+export {
+  buildModelRequest, getRpeSessionExercises, buildRpePromptSummary, buildBlocAdvicePrompt, buildBlocChallengePrompt,
+  buildNextCycleAdvicePrompt, postProcessAdviceResponse, postProcessChallengeResponse, acceptChallengeRevision,
+  postProcessNextCycleResponse, postProcessCycleReviewResponse, requestBlocAdvice, requestBlocChallenge,
+  requestNextCycleAdvice, requestCycleReview,
+} from './advice.ts';

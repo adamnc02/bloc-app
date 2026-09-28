@@ -31,13 +31,19 @@ var BlocEngine = (() => {
     RECONCILE_PROTEIN_MAX_DROP: () => RECONCILE_PROTEIN_MAX_DROP,
     RPE_STEP_NONE: () => RPE_STEP_NONE,
     SAVE_DAY_TOLERANCE: () => SAVE_DAY_TOLERANCE,
+    acceptChallengeRevision: () => acceptChallengeRevision,
     avgDayMapField: () => avgDayMapField,
+    buildBlocAdvicePrompt: () => buildBlocAdvicePrompt,
+    buildBlocChallengePrompt: () => buildBlocChallengePrompt,
     buildCycleReviewPrompt: () => buildCycleReviewPrompt,
     buildDayMap: () => buildDayMap,
     buildDirectionSteppedRamp: () => buildDirectionSteppedRamp,
     buildGoalShiftPlan: () => buildGoalShiftPlan,
+    buildModelRequest: () => buildModelRequest,
+    buildNextCycleAdvicePrompt: () => buildNextCycleAdvicePrompt,
     buildNextCycleGoalSteps: () => buildNextCycleGoalSteps,
     buildReverseDietRows: () => buildReverseDietRows,
+    buildRpePromptSummary: () => buildRpePromptSummary,
     buildSignalPeriods: () => buildSignalPeriods,
     bumpRepsBy: () => bumpRepsBy,
     calcAge: () => calcAge,
@@ -55,6 +61,7 @@ var BlocEngine = (() => {
     computeLockTransition: () => computeLockTransition,
     computeMaintenanceRecalibration: () => computeMaintenanceRecalibration,
     computeRawSuggestedTargets: () => computeRawSuggestedTargets,
+    computeRollupEntries: () => computeRollupEntries,
     computeRpeStepKind: () => computeRpeStepKind,
     computeSafetyFloor: () => computeSafetyFloor,
     computeTaperCurve: () => computeTaperCurve,
@@ -104,6 +111,7 @@ var BlocEngine = (() => {
     getProgressionStep: () => getProgressionStep,
     getReconciledMacroAdvice: () => getReconciledMacroAdvice,
     getRpeKey: () => getRpeKey,
+    getRpeSessionExercises: () => getRpeSessionExercises,
     getRpeStep: () => getRpeStep,
     getSelectedTrainWeekDates: () => getSelectedTrainWeekDates,
     getSessionVolume: () => getSessionVolume,
@@ -131,7 +139,17 @@ var BlocEngine = (() => {
     nextCycleAdvicePlanMode: () => nextCycleAdvicePlanMode,
     normaliseState: () => normaliseState,
     parseRepsForVolume: () => parseRepsForVolume,
+    postProcessAdviceResponse: () => postProcessAdviceResponse,
+    postProcessChallengeResponse: () => postProcessChallengeResponse,
+    postProcessCycleReviewResponse: () => postProcessCycleReviewResponse,
+    postProcessNextCycleResponse: () => postProcessNextCycleResponse,
     recommendNextCycle: () => recommendNextCycle,
+    recordExerciseHistory: () => recordExerciseHistory,
+    renumberMacroGoalSteps: () => renumberMacroGoalSteps,
+    requestBlocAdvice: () => requestBlocAdvice,
+    requestBlocChallenge: () => requestBlocChallenge,
+    requestCycleReview: () => requestCycleReview,
+    requestNextCycleAdvice: () => requestNextCycleAdvice,
     resolveNextCycleOverride: () => resolveNextCycleOverride,
     resolveProgressMacro: () => resolveProgressMacro,
     roundToIncrement: () => roundToIncrement,
@@ -2686,6 +2704,691 @@ Write this cycle's review per the schema above.`;
       dropWeightPlaceholder,
       dropRepsPlaceholder
     };
+  }
+
+  // src/mutators.ts
+  function renumberMacroGoalSteps(goals, macroId) {
+    if (!goals || !macroId) return goals;
+    const macroGoals = goals.filter((g) => g.macroId === macroId);
+    macroGoals.sort((a, b) => a.startDate.localeCompare(b.startDate));
+    const labels = /* @__PURE__ */ new Map();
+    macroGoals.forEach((g, i) => {
+      const n = i + 1;
+      const suffix = String(g._blocLabel || "").replace(/^Step\s*\d+\s*-?\s*/i, "").trim();
+      labels.set(g, suffix ? `Step ${n} - ${suffix}` : `Step ${n}`);
+    });
+    return goals.map((g) => labels.has(g) ? { ...g, _blocLabel: labels.get(g) } : g);
+  }
+  function computeRollupEntries(s, ctx) {
+    const rollup = s.insightsRollup || { completedCycles: [] };
+    const today = ctx.today;
+    const archivedIds = new Set((rollup.completedCycles || []).map((r) => r.id));
+    const newlyCompleted = (s.macrocycles || []).filter((m) => {
+      if (archivedIds.has(m.id)) return false;
+      const end = getMacroEndDate(m, ctx);
+      return end && end < today;
+    });
+    if (!newlyCompleted.length) return [];
+    const dayMap = buildDayMap(s);
+    const entries = [];
+    for (const m of newlyCompleted) {
+      const endStr = getMacroEndDate(m, ctx);
+      const startStr = m.start || "";
+      const bwLogs = (s.bodyLogs || []).filter((l) => l.weight && l.date >= startStr && l.date <= endStr).sort((a, b) => a.date.localeCompare(b.date));
+      const startBw = bwLogs.length ? parseFloat(bwLogs[0].weight) : null;
+      const endBw = bwLogs.length ? parseFloat(bwLogs[bwLogs.length - 1].weight) : null;
+      const allDates = Object.keys(dayMap).filter((d) => d >= startStr && d <= endStr);
+      const nutrDates = allDates.filter((d) => dayMap[d].hasNutr);
+      const avgKcal = nutrDates.length ? Math.round(nutrDates.reduce((a, d) => a + dayMap[d].kcal, 0) / nutrDates.length) : null;
+      const avgProtein = nutrDates.length ? Math.round(nutrDates.reduce((a, d) => a + (dayMap[d].protein || 0), 0) / nutrDates.length) : null;
+      const avgCarbs = nutrDates.length ? Math.round(nutrDates.reduce((a, d) => a + (dayMap[d].carbs || 0), 0) / nutrDates.length) : null;
+      const measLogs = (s.bodyLogs || []).filter((l) => l.date >= startStr && l.date <= endStr && (l.waist || l.hip)).sort((a, b) => a.date.localeCompare(b.date));
+      const startWaist = measLogs.length ? measLogs[0].waist || null : null;
+      const endWaist = measLogs.length ? measLogs[measLogs.length - 1].waist || null : null;
+      const startHip = measLogs.length ? measLogs[0].hip || null : null;
+      const endHip = measLogs.length ? measLogs[measLogs.length - 1].hip || null : null;
+      const ins = computeWeeklyInsights(s, ctx, m);
+      const signals = [];
+      if (ins && !ins.insufficientData) {
+        if (ins.plateauWeeks >= 2) signals.push(`plateau-${ins.plateauWeeks}wk`);
+        if (ins.signal && ins.signal !== "on-track") signals.push(ins.signal);
+      }
+      entries.push({
+        id: m.id,
+        name: m.name,
+        goalType: m.goalType || "loss",
+        start: startStr,
+        end: endStr,
+        weeks: m.weeks,
+        startBw,
+        endBw,
+        targetBw: m.targetBw || null,
+        startWaist,
+        endWaist,
+        startHip,
+        endHip,
+        avgKcal,
+        avgProtein,
+        avgCarbs,
+        plateauWeeksDetected: ins ? ins.plateauWeeks : 0,
+        signals
+      });
+    }
+    return entries;
+  }
+  function recordExerciseHistory(s, ctx, macro, week, dayKey, ex) {
+    if (isDeloadUnit(s, macro, week, dayKey)) return null;
+    const nameNorm = (ex.name || "").trim().toLowerCase();
+    if (!nameNorm) return null;
+    const type = ex.type || "standard";
+    const key2 = macro.id + "_" + week + "_" + dayKey;
+    const logs = s.trainLogs;
+    const log0 = logs[key2 + "_" + ex.id + "_0"];
+    if (!log0 || !log0.weight) return null;
+    const plannedSets = getWeekSets(ex, week, macro.weeks);
+    let loggedSets = 0;
+    for (let i = 0; i < plannedSets; i++) {
+      if ((logs[key2 + "_" + ex.id + "_" + i] || {}).weight) loggedSets++;
+    }
+    return {
+      name: nameNorm,
+      type,
+      entry: {
+        sets: loggedSets || plannedSets,
+        reps: log0.reps || "",
+        weight: log0.weight || "",
+        dropWeight: log0.dropWeight || "",
+        dropReps: log0.dropReps || "",
+        date: ctx.today
+      },
+      trackingMode: ex.trackingMode
+    };
+  }
+
+  // src/advice.ts
+  function buildModelRequest(system, messages, maxTokens) {
+    return { model: "claude-sonnet-4-6", max_tokens: maxTokens, system, messages };
+  }
+  function getRpeSessionExercises(s, macro, dayKey) {
+    return (s.exercises[macro.id + "_1_" + dayKey] || []).filter((ex) => ex.category !== "cardio").slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+  }
+  function buildRpePromptSummary(s, cache, macroIn) {
+    const macro = macroIn;
+    if (!macro || !s.rpe) return "";
+    const days = macro.days || [];
+    const micros = macro.useMicrocycles !== false ? [1, 2] : [0];
+    const totalMesos = getMacroEffectiveMesoCount(macro);
+    const byName = {};
+    for (let w = 1; w <= totalMesos; w++) {
+      micros.forEach((mc) => {
+        if (!isMesoMicroValid(macro, w, mc)) return;
+        days.forEach((d) => {
+          const dayKey = mc === 0 ? d : d + "m" + mc;
+          getRpeSessionExercises(s, macro, dayKey).forEach((ex) => {
+            const r = s.rpe[getRpeKey(macro.id, w, dayKey, ex.id)];
+            if (!r) return;
+            const name = (ex.name || "").trim() || ex.id;
+            const agg = byName[name] || (byName[name] = { ratings: [], skipped: 0, hit: 0, judged: 0 });
+            if (typeof r.rpe === "number") {
+              agg.ratings.push(r.rpe);
+              if (w > 1 && !isDeloadUnit(s, macro, w, dayKey) && macro.goalType !== "maintenance") {
+                const c = getWeekComplianceResult(s, cache, macro, w, dayKey, ex);
+                if (c.fullyLogged) {
+                  agg.judged++;
+                  if (c.compliant) agg.hit++;
+                }
+              }
+            } else if (r.rpeSkipped) agg.skipped++;
+          });
+        });
+      });
+    }
+    const rows = Object.entries(byName).filter(([, a]) => a.ratings.length || a.skipped).map(([name, a]) => ({ name, a, avg: a.ratings.length ? a.ratings.reduce((x, y) => x + y, 0) / a.ratings.length : null })).sort((x, y) => (y.avg ?? -1) - (x.avg ?? -1)).slice(0, 12);
+    if (!rows.length) return "";
+    const lines = rows.map(({ name, a, avg }) => {
+      const parts = [];
+      if (avg !== null) parts.push(`avg RPE ${avg.toFixed(1)} over ${a.ratings.length} session${a.ratings.length === 1 ? "" : "s"} (latest ${a.ratings[a.ratings.length - 1]})`);
+      if (a.judged) parts.push(`hit target ${a.hit}/${a.judged}`);
+      if (a.skipped) parts.push(`${a.skipped} not rated`);
+      return `- ${name}: ${parts.join(", ")}`;
+    });
+    return `
+
+EFFORT RATINGS THIS CYCLE (RPE 1–10, 10 = nothing left; "not rated" means the user closed the rating and it counts as fine — never read it as a number):
+${lines.join("\n")}`;
+  }
+  function buildBlocAdvicePrompt(s, ctx, cache, macroIn) {
+    const macro = macroIn;
+    const ins = computeWeeklyInsights(s, ctx, macro);
+    const dynResult = calcDynamicTDEE(s, ctx);
+    const safetyFloor = computeSafetyFloor(s, ctx, macro);
+    const today = ctx.today;
+    const latestLog = [...s.bodyLogs || []].filter((l) => l.weight).sort((a, b) => b.date.localeCompare(a.date))[0];
+    const latestBw = latestLog ? parseFloat(latestLog.weight) : null;
+    const proteinFloor = latestBw ? Math.ceil(latestBw) : 150;
+    const nextMonday = getNextMonday(ctx);
+    const cycleEnd = getMacroEndDate(macro, ctx);
+    const measLogsThisCycle = [...s.bodyLogs || []].filter((l) => l.date >= (macro.start || "") && l.date <= today && (l.waist !== null && l.waist !== void 0 || l.hip !== null && l.hip !== void 0)).sort((a, b) => a.date.localeCompare(b.date));
+    const waistLogsThisCycle = measLogsThisCycle.filter((l) => l.waist !== null && l.waist !== void 0);
+    const hipLogsThisCycle = measLogsThisCycle.filter((l) => l.hip !== null && l.hip !== void 0);
+    const measTrendStr = (logs, unit) => {
+      if (logs.length >= 2) {
+        const first = logs[0], lastLog = logs[logs.length - 1];
+        const delta = (lastLog[unit] - first[unit]).toFixed(2);
+        return `${first[unit]}" (${first.date}) → ${lastLog[unit]}" (${lastLog.date}), Δ ${delta > 0 ? "+" : ""}${delta}"`;
+      }
+      if (logs.length === 1) return `only one reading so far — ${logs[0][unit]}" (${logs[0].date}), too sparse for a trend`;
+      return "not logged this cycle";
+    };
+    const waistTrendStr = measTrendStr(waistLogsThisCycle, "waist");
+    const hipTrendStr = measTrendStr(hipLogsThisCycle, "hip");
+    const systemPrompt = `You are BLOC, a personal training and nutrition coach embedded in a fitness tracking app. You analyse the user's real logged data and give direct, specific, evidence-based advice. Speak in second person. Never be vague. Reference actual numbers from the data.
+
+HARD CONSTRAINTS — never violate these:
+- No recommended kcal value may fall below ${safetyFloor} kcal/day
+- Protein must never be recommended below ${proteinFloor}g per day
+- All goal startDates must be Mondays, all endDates must be Sundays
+- Steps targets must always be multiples of 2000
+- Maximum 4 goals per recommendation path
+- Do NOT include a fats field — fats are calculated client-side
+- Every goal step must represent a single flat kcal/protein/carbs/steps target sustained across the full 7-day Monday–Sunday week. Do not describe or reference intra-week structure (e.g. specific higher-calorie days followed by lower-calorie days) anywhere — not in the goals array, and not in the narrative, rationale, or summary text. If a refeed or diet break is part of the recommendation, represent it as its own full-week goal step at the refeed's target kcal, not as a partial-week structure averaged into a different step.
+- When citing a specific week range (e.g. "your weight oscillated between X and Y across W7–W10"), the X/Y values MUST come only from rows literally labeled W7 through W10 in the WEEKLY DATA table below — never pull in a value from an adjacent week (e.g. W6) even if it was just discussed in the same paragraph for a different reason (like the plateau period). Re-check every week-range claim against the table before including it.
+- Respond ONLY with valid JSON matching the schema below — no preamble, no markdown, no text outside the JSON
+
+JSON SCHEMA:
+{
+  "signal": "one of: plateau-creep | plateau-adaptation | drift-warning | gain-deficit | gain-undereating | gain-excess | maint-stable | maint-unstable | on-track",
+  "headline": "max 12 words",
+  "narrative": "2-4 paragraphs referencing actual numbers from the data",
+  "primaryAction": "single most important action this week, one sentence",
+  "secondaryAction": "optional secondary action or null",
+  "recommendations": {
+    "sustainable": {
+      "label": "Sustainable",
+      "rationale": "one sentence explaining the logic of this path",
+      "summary": "plain English description of the full sequence",
+      "goals": [
+        {
+          "label": "short step name",
+          "startDate": "YYYY-MM-DD (must be a Monday)",
+          "endDate": "YYYY-MM-DD (must be the Sunday after startDate + weeks)",
+          "kcal": number,
+          "steps": number (multiple of 2000),
+          "protein": number (grams, must be >= ${proteinFloor}),
+          "carbs": number (grams)
+        }
+      ]
+    },
+    "aggressive": {
+      "label": "Aggressive",
+      "rationale": "one sentence",
+      "summary": "plain English description",
+      "goals": [ ... same shape ... ]
+    }
+  }
+}`;
+    const weekRows = (ins && ins.weekBuckets || []).map((b) => {
+      const deltaStr = b.delta !== null ? (b.delta > 0 ? "+" : "") + b.delta.toFixed(2) + " lbs" : "n/a (first week)";
+      const isBaseline = b.label === (ins.baselineWeekLabel || "W1") ? " [BASELINE]" : "";
+      const isPartial = b.bEnd >= today;
+      const partialNote = isPartial ? ` [IN PROGRESS — ${b.nutrDayCount} of 7 days logged so far, averages are provisional]` : "";
+      return `${b.label} (${b.bStart}–${b.bEnd}): avg weight ${b.avgWeight ? b.avgWeight.toFixed(1) + " lbs" : "n/a"} | delta ${deltaStr} | avg ${b.avgKcal ? b.avgKcal.toLocaleString() : "?"} kcal | ${b.avgProtein || "?"}g protein | ${b.avgCarbs || "?"}g carbs | avg ${b.avgSteps ? b.avgSteps.toLocaleString() : "?"} steps | ${b.nutrDayCount} logged days${isBaseline}${partialNote}`;
+    }).join("\n");
+    const periodsStr = formatSignalPeriodsForPrompt(ins);
+    let priorAdviceStr = "None — this is the first advice call for this cycle.";
+    if (s.blocAdvice && s.blocAdvice.macroId === macro.id && s.blocAdvice.response) {
+      const priorEntries = [...s.blocAdvice.priorAdviceThisCycle || []];
+      const currentEntry = condenseBlocAdviceEntry(s.blocAdvice);
+      if (currentEntry) priorEntries.push(currentEntry);
+      priorAdviceStr = priorEntries.map((e, i) => formatPriorAdviceEntry(e, i)).join("\n");
+    }
+    const cycles = s.insightsRollup?.completedCycles || [];
+    const cycleHistoryStr = cycles.length ? cycles.map((c) => {
+      const waistPart = c.startWaist != null && c.endWaist != null ? ` | waist ${c.startWaist}"→${c.endWaist}"` : "";
+      const hipPart = c.startHip != null && c.endHip != null ? ` | hip ${c.startHip}"→${c.endHip}"` : "";
+      return `${c.name} (${c.goalType}): ${c.start}–${c.end}, ${c.weeks}w | start ${c.startBw ? c.startBw.toFixed(1) : "?"} lbs → end ${c.endBw ? c.endBw.toFixed(1) : "?"} lbs (target ${c.targetBw || "?"})${waistPart}${hipPart} | avg ${c.avgKcal || "?"} kcal, ${c.avgProtein || "?"}g protein, ${c.avgCarbs || "?"}g carbs | plateau ${c.plateauWeeksDetected}w detected | signals: ${c.signals?.join(", ") || "none"}`;
+    }).join("\n") : "No completed cycles yet — this is the first macrocycle.";
+    const userMessage = `CURRENT CYCLE: ${macro.name}
+Goal type: ${macro.goalType} | Start: ${macro.start} | End: ${cycleEnd} | Duration: ${getMacroDurationWeeks(macro)} weeks${macro.extensionWeeks ? ` (base plan ${macro.weeks * (macro.weeksPerMeso || 1)}w, extended by ${macro.extensionWeeks}w — the extension repeats the final mesocycle at peak sets)` : ``}
+Current weight: ${latestBw ? latestBw.toFixed(1) + " lbs" : "unknown"} | Target: ${macro.targetBw ? macro.targetBw + " lbs" : "not set"}
+Remaining: ${latestBw && macro.targetBw ? Math.abs(latestBw - macro.targetBw).toFixed(1) + " lbs to target" : "unknown"}
+
+WEEKLY DATA (7-day average weight from daily weigh-ins):
+${weekRows || "No weekly data available."}
+
+FLAT/MOVING PERIODS THIS CYCLE (grouped, chronological — see note on which is currently flagged):
+${periodsStr}
+
+KEY METRICS:
+- Baseline avg intake (${ins?.baselineWeekLabel || "W1"}): ${ins?.avgKcalBaseline ? ins.avgKcalBaseline.toLocaleString() + " kcal/day" : "unknown"}
+- Recent avg intake (last 2 weeks): ${ins?.avgKcalRecent ? ins.avgKcalRecent.toLocaleString() + " kcal/day" : "unknown"}
+- Caloric drift from baseline: ${ins?.caloricDrift != null ? (ins.caloricDrift > 0 ? "+" : "") + ins.caloricDrift + " kcal/day" : "unknown"}
+- Estimated TDEE: ${dynResult ? "~" + dynResult.tdee.toLocaleString() + " kcal/day (log-based, " + dynResult.dataPoints + " data points)" : "insufficient data"}
+- Log-based BMR: ${dynResult ? "~" + dynResult.bmr.toLocaleString() + " kcal/day" : "unknown"}
+- Current deficit/surplus vs TDEE: ${ins?.deficitOrSurplus != null ? (ins.deficitOrSurplus > 0 ? "+" : "") + ins.deficitOrSurplus + " kcal/day" : "unknown"}
+- Currently flagged plateau: ${ins?.activePeriodWeeks || 0} weeks${ins?.activePeriod ? " (" + ins.activePeriod.startLabel + "–" + ins.activePeriod.endLabel + (ins.activePeriodIsOngoing ? ", ongoing" : ", ended — see periods above for how long ago") + ")" : ""}
+- Longest flat stretch this cycle (any time, historical max): ${ins?.plateauWeeks || 0} weeks
+- Current signal: ${ins?.signal || "unknown"}
+- Waist trend this cycle: ${waistTrendStr}
+- Hip trend this cycle: ${hipTrendStr}${buildRpePromptSummary(s, cache, macro)}
+
+CONSTRAINTS FOR YOUR RECOMMENDATIONS:
+- Minimum safe kcal floor: ${safetyFloor} kcal/day (log-based BMR × 0.80)
+- Minimum protein: ${proteinFloor}g/day (1g per lb current bodyweight)
+- First goal must start: ${nextMonday} (next Monday)
+- Cycle end date: ${cycleEnd} — note in narrative if plan extends beyond this
+
+PRIOR ADVICE THIS CYCLE:
+${priorAdviceStr}
+
+COMPLETED CYCLE HISTORY:
+${cycleHistoryStr}`;
+    return { systemPrompt, userMessage };
+  }
+  function buildBlocChallengePrompt(s, ctx, cache, macro, challengeText) {
+    const base = buildBlocAdvicePrompt(s, ctx, cache, macro);
+    const stored = s.blocAdvice;
+    const priorResponseForContext = stored && stored.response ? JSON.stringify({
+      headline: stored.response.headline,
+      narrative: stored.response.narrative,
+      primaryAction: stored.response.primaryAction,
+      secondaryAction: stored.response.secondaryAction,
+      recommendations: stored.response.recommendations
+    }) : "{}";
+    const challengeSystemPrompt = base.systemPrompt + `
+
+The user is challenging your most recent recommendation, shown to you as your prior assistant turn below. Respond directly to their specific concern.
+
+Respond ONLY with valid JSON matching this EXTENDED schema — no preamble, no markdown, no text outside the JSON:
+{
+  "acknowledgment": "1-2 sentences: either admit a mistake and explain what was wrong, or explain why you stand by the original advice — respond directly to what the user raised",
+  "isSignificantRevision": "true or false (as a JSON boolean, not a string) — true if this revision changes your fundamental read of the situation or overall strategy (e.g. switching from a refeed/diet-break recommendation to a steeper cut, or reversing which direction the plan should move); false if it's a minor correction within the same overall approach (e.g. adjusting one field like steps or protein on one step, tightening a number, fixing a data error) while your underlying reasoning stands. When false, the ORIGINAL headline/narrative stay visible in the UI and only your plans change — so only mark this true when the original narrative would now be actively misleading if left displayed alongside the new plans",
+  "headline": "max 12 words",
+  "narrative": "2-4 paragraphs referencing actual numbers from the data — do NOT include the acknowledgment text here, this is the normal reasoning only",
+  "primaryAction": "single most important action this week, one sentence",
+  "secondaryAction": "optional secondary action or null",
+  "recommendations": {
+    "sustainable": { "label": "Sustainable", "rationale": "one sentence", "summary": "plain English description", "goals": [ ...same shape as before... ] },
+    "aggressive": { "label": "Aggressive", "rationale": "one sentence", "summary": "plain English description", "goals": [ ...same shape as before... ] }
+  }
+}
+
+Both recommendation paths must always be fully present and fully revised (or reaffirmed unchanged if you stand by the original), regardless of whether the user had already picked a path.`;
+    return {
+      systemPrompt: challengeSystemPrompt,
+      messages: [
+        { role: "user", content: base.userMessage },
+        { role: "assistant", content: priorResponseForContext },
+        { role: "user", content: challengeText }
+      ]
+    };
+  }
+  function buildNextCycleAdvicePrompt(s, ctx, cache, macroIn, rec, userContext, priorResponse, nextCycleOverride) {
+    const macro = macroIn;
+    const ins = computeWeeklyInsights(s, ctx, macro);
+    const dynResult = rec.dynResult || calcDynamicTDEE(s, ctx);
+    const safetyFloorKcal = computeSafetyFloor(s, ctx, macro);
+    const proteinFloor = rec.latestBw ? Math.ceil(rec.latestBw) : 150;
+    const mode = nextCycleAdvicePlanMode(rec, nextCycleOverride);
+    const planRec = mode.planRec;
+    const isContinuationCase = !!(rec.isContinuation && rec.continuationAlternative);
+    const goalType = planRec.goalType;
+    const isCut = goalType === "loss";
+    const today = ctx.today;
+    const directionLabel = { loss: "cut", gain: "bulk", maintenance: "maintenance bridge" }[goalType] || goalType;
+    let forwardTaperStr = "n/a — this is a maintenance bridge, not a cut/bulk.";
+    if (goalType !== "maintenance" && planRec.newMacroStart && planRec.newMacroEnd && rec.latestBw) {
+      const totalWeeksGuess = Math.round(
+        ((/* @__PURE__ */ new Date(planRec.newMacroEnd + "T00:00:00") - /* @__PURE__ */ new Date(planRec.newMacroStart + "T00:00:00")) / 864e5 + 1) / 7
+      );
+      const fwdTaper = computeTaperCurve(rec.latestBw, totalWeeksGuess);
+      if (fwdTaper) {
+        const bottomPctLabel = totalWeeksGuess <= 10 ? "1%" : "0.5%";
+        forwardTaperStr = `Over ${totalWeeksGuess} weeks from ${rec.latestBw} lbs, the safe taper curve (1.5% week-1 tapering to ${bottomPctLabel}/week) allows a maximum total ${isCut ? "loss" : "gain"} of ~${fwdTaper.totalSafeChange} lbs across the cycle. This is a hard boundary — do not exceed it.`;
+      }
+    }
+    const range = rec.sustainableRange;
+    const rangeStr = range && range.floor != null ? `Floor ${range.floor} lbs / Ceiling ${range.ceiling} lbs (${range.source === "confirmed" ? "confirmed from past maintenance cycles" : "cold-start fallback — no confirmed maintenance cycle yet"}). A requested target beyond this boundary must never be honoured, regardless of pace.` : "Not yet established (insufficient history).";
+    let recalStr = "n/a — current cycle is not a maintenance bridge.";
+    if (macro.goalType === "maintenance") {
+      const recal = computeMaintenanceRecalibration(s, ctx, macro, ins);
+      recalStr = recal ? `Flagged — locally-implied TDEE (${recal.localImpliedTDEE} kcal) disagrees with the current target (${recal.currentTargetKcal} kcal) by ${recal.discrepancy > 0 ? "+" : ""}${recal.discrepancy} kcal. Factor this into how you size the next cycle's starting point.` : "Not flagged — no meaningful discrepancy detected.";
+    }
+    const override = nextCycleOverride || {};
+    const hasOverrideInput = !!(override.targetWeight || override.deadline);
+    const overrideStr = hasOverrideInput ? `Target weight: ${override.targetWeight || "not given"} | Deadline: ${override.deadline || "not given"}.` : "None given.";
+    const continuationContextStr = isContinuationCase ? `The deterministic engine's own default here is actually to EXTEND the current cycle rather than start a new one — NOT to switch to ${directionLabel === "maintenance bridge" ? "a maintenance bridge" : `a ${directionLabel}`}.
+Reasoning to extend: ${(rec.rationale || []).join(" ") || "none given"}
+The alternative you're being asked to plan for below (switching direction instead of extending) — deterministic reasoning: ${(planRec.rationale || []).join(" ") || "none given"}` : "n/a — this is a genuinely new cycle, not a continuation.";
+    let conflictStr = "None.";
+    if (mode.conflictTwoPlans) {
+      const c = planRec.overrideConflict;
+      conflictStr = `The deterministic engine flagged this request as unsafe: "${c.message}" Return exactly 2 plans, using EXACTLY these two keys:
+- "preserve-weight": keep the requested target weight (${override.targetWeight} lbs), but push the deadline out to the nearest safe date — ${c.altDate || "compute the nearest safe Sunday"}.
+- "preserve-date": keep the requested deadline (${override.deadline}), but adjust the target weight to the nearest safe figure — ${c.altWeight || "compute the nearest safe weight"} lbs.
+Each plan's goals[] must fill exactly from ${planRec.newMacroStart} to that plan's own end date above, with zero gaps.`;
+    }
+    const ucFreeText = (userContext && userContext.freeText || "").trim();
+    const ucIntended = userContext && userContext.intendedNext || "";
+    const intendedLabel = { loss: "a cut", gain: "a bulk", maintenance: "another maintenance block" }[ucIntended] || null;
+    const userContextStr = ucFreeText || intendedLabel ? `Free-text notes from the user: ${ucFreeText ? `"${ucFreeText}"` : "None given."}
+User's stated intention for AFTER this next cycle: ${intendedLabel || "Not stated."}` : "None given — user chose to skip this.";
+    const pastAdvice = (s.nextCycleAdviceHistory || []).slice(-2);
+    const historyStr = pastAdvice.length ? pastAdvice.map((h, i) => {
+      const hUc = h.userContext;
+      const hUcStr = hUc && (hUc.freeText || hUc.intendedNext) ? `User context then: ${hUc.freeText ? `"${hUc.freeText}"` : "none"}${hUc.intendedNext ? `; stated intention then: ${hUc.intendedNext}` : ""}` : "No user context given then.";
+      const chosenStr = h.chosenPlanKey ? `user chose plan "${h.chosenPlanKey}"` : "user has not chosen a plan from this yet (or chose to build the app's own recommendation directly instead)";
+      return `${i + 1}. ${h.date} — cycle ending: ${h.macroName} (${h.macroGoalType}), planned for: ${h.nextGoalType || "unknown"}. ${hUcStr} Your headline then: "${h.headline}" (signal: ${h.signal}). Outcome: ${chosenStr}.`;
+    }).join("\n") : "No past next-cycle advice calls on record — this is the first one.";
+    const stepsSchemaField = isCut ? `,
+          "steps": number (multiple of 2000)` : "";
+    const stepsConstraintLine = isCut ? `- Steps targets must always be multiples of 2000. You may vary steps between goal phases as an increasing lever during this cut — that's the only time BLOC ever uses steps as a lever.` : `- Do NOT include a "steps" field on any goal at all — ${goalType === "gain" ? "bulk" : "maintenance"} goals are always fixed at 8,000 steps/day and applied client-side, not something you recommend.`;
+    let planCountLine, weeksSchemaField = "", planLengthGuidanceBlock = "", fillConstraintLine;
+    if (mode.conflictTwoPlans) {
+      planCountLine = '- Return EXACTLY 2 plans in the "plans" array, keyed "preserve-weight" and "preserve-date" (see CONFLICT below for what each must do).';
+      fillConstraintLine = `- Every plan's goals[] must fully and exactly fill that plan's own end date given in CONFLICT below, from ${planRec.newMacroStart}, with zero gaps — no stopping early, no extending past it.`;
+    } else if (mode.directionTwoPlans) {
+      planCountLine = `- Return EXACTLY 2 plans in the "plans" array, keyed EXACTLY "sustainable" and "aggressive".`;
+      weeksSchemaField = `,
+      "weeks": number (this plan's own total duration in weeks — see PLAN LENGTH GUIDANCE below)`;
+      planLengthGuidanceBlock = `
+PLAN LENGTH GUIDANCE — no deadline was given, so you choose each plan's own length:
+- "sustainable": the safer, longer pace — typically 12-20 weeks.
+- "aggressive": ${isCut ? 'may run SHORTER than "sustainable" — typically 6-10 weeks — paired with a faster (but still safety-floor-respecting) kcal deficit.' : 'must run JUST AS LONG as "sustainable", never shorter — a bulk is never shortened to make it "aggressive" (minimizing fat gain requires patience regardless of pace). Only push the surplus modestly harder than "sustainable", never the timeline.'}
+- Each plan states its own duration via the required "weeks" field on the plan object.`;
+      fillConstraintLine = `- Each plan's goals[] must collectively span EXACTLY its own stated "weeks" field starting from ${planRec.newMacroStart}, with zero gaps — the final goal's endDate must be the Sunday exactly (weeks × 7 − 1) days after ${planRec.newMacroStart}. Never stop before or extend past your own stated duration.`;
+    } else if (mode.maintenanceFlex) {
+      planCountLine = '- Return EXACTLY 1 plan in the "plans" array.';
+      weeksSchemaField = `,
+      "weeks": number (this plan's own total bridge duration in weeks — see PLAN LENGTH GUIDANCE below)`;
+      const engineWeeks = planRec.bridge ? planRec.bridge.totalWeeks : null;
+      const engineClimbWeeks = planRec.bridge ? planRec.bridge.climbWeeks : null;
+      planLengthGuidanceBlock = `
+PLAN LENGTH GUIDANCE — this is a maintenance bridge. The deterministic engine's own default length is ${engineWeeks ? engineWeeks + " weeks" : "shown above"}${engineClimbWeeks ? ` (a ${engineClimbWeeks}-week reverse-diet climb to TDEE, plus its minimum hold)` : ""}. You may match that length, or propose a different one (typically longer, e.g. a slower climb and/or a longer hold) if the WEEKLY DATA, COMPLETED CYCLE HISTORY, or USER CONTEXT below give you good reason to — for example a user who reports repeated difficulty holding weight after past cuts is a real reason to run this bridge longer than the engine's own minimum, not just to hold it exactly. Never propose a bridge shorter than the reverse-diet climb itself needs (${engineClimbWeeks || "the climb duration above"} weeks) — that climb is a physiological floor, not a preference. State your chosen total via the required "weeks" field on the plan object.`;
+      fillConstraintLine = `- Your goals[] must collectively span EXACTLY your own stated "weeks" field starting from ${planRec.newMacroStart}, with zero gaps — the final goal's endDate must be the Sunday exactly (weeks × 7 − 1) days after ${planRec.newMacroStart}. Never stop before or extend past your own stated duration.`;
+    } else {
+      planCountLine = '- Return EXACTLY 1 plan in the "plans" array unless you have a genuinely compelling reason to offer an alternative.';
+      fillConstraintLine = `- Your goals[] must fill exactly from ${planRec.newMacroStart} to ${planRec.newMacroEnd || "the proposed end date above"}, with zero gaps and no early stop.`;
+    }
+    const maxGoalsPerPlan = mode.directionTwoPlans ? 6 : 5;
+    const systemPrompt = `You are BLOC, a personal training and nutrition coach embedded in a fitness tracking app. You are being asked to plan the user's NEXT training cycle — the current cycle (${macro.goalType}) is ending soon. A deterministic engine has already produced its own recommendation, given to you below purely as input data for you to weigh alongside everything else — your job is to reach your own independent judgment from the full picture, not to confirm or critique that recommendation. Speak in second person. Never be vague. Reference actual numbers from the data. Never reveal in your output that a deterministic recommendation was given to you at all — see the HARD CONSTRAINT below.
+
+${isContinuationCase ? `The deterministic engine's own default here is to EXTEND the current cycle rather than switch direction — but you are specifically being asked to plan for the ALTERNATIVE instead, in case switching now is actually the better call: ${goalType.toUpperCase()} (a ${directionLabel}). See CONTINUATION CONTEXT below for both sides of this, and weigh in on whether extending or switching is actually better based on the data itself — reasoned from the data, never by naming or citing the deterministic engine's own default as your reason (see the HARD CONSTRAINT below). Your plans[] must still represent the alternative (switching), since a plain extension isn't something this feature builds automatically.` : `This next cycle's direction has already been decided: ${goalType.toUpperCase()} (a ${directionLabel}). Do not change the direction — only the pacing, kcal levels, and phase structure${mode.maintenanceFlex ? " (and, for this maintenance bridge, its total length — see PLAN LENGTH GUIDANCE below)" : ""}.`}
+
+The user may have supplied free-text context and/or a stated intention for what they think comes AFTER this next cycle — see USER CONTEXT below. That stated future intention is NOT a request to change the direction decided above; it's a hint about where the user thinks they're headed next, useful for judging pacing/length of THIS cycle (e.g. a slower, longer maintenance bridge to prepare for a bulk the user is unsure they can sustain). Weigh in on it explicitly in your narrative, including if you think a different path than what they intend would serve them better — but never let it override the fixed direction above.
+
+HARD CONSTRAINTS — never violate these:
+- No recommended kcal value may fall below ${safetyFloorKcal} kcal/day
+- Protein must never be recommended below ${proteinFloor}g per day
+- All goal startDates must be Mondays, all endDates must be Sundays
+- The very first goal must start on ${planRec.newMacroStart} (the day after the current cycle ends)
+${stepsConstraintLine}
+- Minimum 2 goal phases per plan (a starting phase and at least one further phase — never a single flat block), maximum ${maxGoalsPerPlan}
+- Do NOT include a fats field — fats are calculated client-side
+- Every goal step must represent a single flat kcal/protein/carbs target sustained across its full date range. Do not describe or reference intra-week structure anywhere. Goal step granularity is NOT locked to one-week increments — if a bi-weekly or longer hold makes more sense, make one goal span that full range rather than repeating identical weekly goals.
+- When citing a specific week range from the WEEKLY DATA table (e.g. "weight oscillated between X and Y across W7–W10"), the X/Y values MUST come only from rows literally labeled within that range — never pull in a value from an adjacent week discussed elsewhere in the same narrative. Re-check every week-range claim against the table before including it.
+- The deterministic engine's own recommendation/reasoning below (see CONTINUATION CONTEXT and "DETERMINISTIC ENGINE'S OWN RECOMMENDATION") is given to you ONLY as input context, to help you reach your own independent judgment. Your "narrative" field must never mention it, agree or disagree with it, or refer to it in any way — no phrases like "the app's suggestion," "the deterministic engine," "the recommendation you were given," "confirming the original plan," etc. Write the narrative exactly as if you independently determined this plan from the raw data alone, with no prior guideline to react to.
+${priorResponse ? `- This is a REFRESH: you already gave the PRIOR RESPONSE below before the cycle review (see CYCLE REVIEW above) had come back. Only change anything if the cycle review's compliance/bodyfat/sticking-points verdict genuinely changes what you'd recommend — otherwise return your plans/narrative essentially unchanged. Never change anything just for the sake of it, and never mention that this is a refresh, that a prior response existed, or that anything was or wasn't changed anywhere in your narrative — write it exactly as a normal, fresh response either way.` : ""}
+${planCountLine}
+${fillConstraintLine}
+- Respond ONLY with valid JSON matching the schema below — no preamble, no markdown, no text outside the JSON
+${planLengthGuidanceBlock}
+JSON SCHEMA:
+{
+  "signal": "one of: on-track-continue | pace-too-fast | pace-too-slow | needs-longer-bridge | needs-shorter-bridge | conflict-resolution | extend-not-switch | switch-not-extend",
+  "headline": "max 12 words",
+  "narrative": "2-4 paragraphs referencing actual numbers from the data, presented as your own independent assessment — see the HARD CONSTRAINT above on never referencing the deterministic engine/recommendation itself${isContinuationCase ? " — including which of extending vs switching you'd actually recommend, and why (without naming the deterministic engine's own default as the reason)" : ""}",
+  "plans": [
+    {
+      "key": "short machine-safe id — see plan-count rule above for exact required keys when 2 plans are requested",
+      "label": "short human label, e.g. 'Recommended' or 'Sustainable'",
+      "rationale": "one sentence explaining the logic of this plan",
+      "summary": "plain English description of the full sequence",${weeksSchemaField}
+      "goals": [
+        {
+          "label": "short step name",
+          "startDate": "YYYY-MM-DD (must be a Monday)",
+          "endDate": "YYYY-MM-DD (must be the Sunday after startDate + weeks)",
+          "kcal": number,
+          "protein": number (grams, must be >= ${proteinFloor}),
+          "carbs": number (grams)${stepsSchemaField}
+        }
+      ]
+    }
+  ]
+}`;
+    const weekRows = (ins && ins.weekBuckets || []).map((b) => {
+      const deltaStr = b.delta !== null ? (b.delta > 0 ? "+" : "") + b.delta.toFixed(2) + " lbs" : "n/a (first week)";
+      const isBaseline = b.label === (ins.baselineWeekLabel || "W1") ? " [BASELINE]" : "";
+      const isPartial = b.bEnd >= today;
+      const partialNote = isPartial ? ` [IN PROGRESS — ${b.nutrDayCount} of 7 days logged so far, averages are provisional]` : "";
+      return `${b.label} (${b.bStart}–${b.bEnd}): avg weight ${b.avgWeight ? b.avgWeight.toFixed(1) + " lbs" : "n/a"} | delta ${deltaStr} | avg ${b.avgKcal ? b.avgKcal.toLocaleString() : "?"} kcal | ${b.avgProtein || "?"}g protein | ${b.avgCarbs || "?"}g carbs | avg ${b.avgSteps ? b.avgSteps.toLocaleString() : "?"} steps | ${b.nutrDayCount} logged days${isBaseline}${partialNote}`;
+    }).join("\n");
+    const cycles = s.insightsRollup?.completedCycles || [];
+    const cycleHistoryStr = cycles.length ? cycles.map((c) => {
+      const waistPart = c.startWaist != null && c.endWaist != null ? ` | waist ${c.startWaist}"→${c.endWaist}"` : "";
+      const hipPart = c.startHip != null && c.endHip != null ? ` | hip ${c.startHip}"→${c.endHip}"` : "";
+      return `${c.name} (${c.goalType}): ${c.start}–${c.end}, ${c.weeks}w | start ${c.startBw ? c.startBw.toFixed(1) : "?"} lbs → end ${c.endBw ? c.endBw.toFixed(1) : "?"} lbs (target ${c.targetBw || "?"})${waistPart}${hipPart} | avg ${c.avgKcal || "?"} kcal, ${c.avgProtein || "?"}g protein, ${c.avgCarbs || "?"}g carbs | plateau ${c.plateauWeeksDetected}w detected | signals: ${c.signals?.join(", ") || "none"}`;
+    }).join("\n") : "No completed cycles yet — this is the first macrocycle.";
+    const userMessage = `CURRENT CYCLE ENDING: ${macro.name} (${macro.goalType})
+Start: ${macro.start} | End: ${getMacroEndDate(macro, ctx)} | Duration: ${getMacroDurationWeeks(macro)} weeks${macro.extensionWeeks ? ` (base plan ${macro.weeks * (macro.weeksPerMeso || 1)}w, extended by ${macro.extensionWeeks}w)` : ``}
+Current weight: ${rec.latestBw ? rec.latestBw.toFixed(1) + " lbs" : "unknown"}
+
+WEEKLY DATA (7-day average weight from daily weigh-ins):
+${weekRows || "No weekly data available."}
+
+CONTINUATION CONTEXT: ${continuationContextStr}
+
+DETERMINISTIC ENGINE'S OWN RECOMMENDATION FOR THE PLAN BELOW (already computed — agree, refine, or override with reasoning):
+Direction${isContinuationCase ? " being planned for (the alternative, not the engine's own default of extending)" : " decided"}: ${goalType}
+Reasoning: ${(planRec.rationale || []).join(" ") || "none given"}
+Ramp start point: ${rec.rampStartKcal ? rec.rampStartKcal.toLocaleString() + " kcal (current cycle's last goal)" : "unknown"}
+Proposed next cycle window: ${planRec.newMacroStart} → ${planRec.newMacroEnd || "not yet resolved"}
+
+KEY METRICS:
+- Estimated TDEE: ${dynResult ? "~" + dynResult.tdee.toLocaleString() + " kcal/day (log-based, " + dynResult.dataPoints + " data points)" : "insufficient data"}
+- Log-based BMR: ${dynResult ? "~" + dynResult.bmr.toLocaleString() + " kcal/day" : "unknown"}
+- Currently flagged plateau (sticky — see mid-cycle logic): ${ins?.activePeriodWeeks || 0} weeks${ins?.activePeriod && !ins.activePeriodIsOngoing ? " (ended, not currently ongoing)" : ""}
+- Longest flat stretch this cycle (any time, historical max): ${ins?.plateauWeeks || 0} weeks
+- Current signal (current cycle): ${ins?.signal || "unknown"}${buildRpePromptSummary(s, cache, macro)}
+
+SAFE BOUNDARIES FOR THE NEXT CYCLE:
+- Minimum safe kcal floor: ${safetyFloorKcal} kcal/day
+- Minimum protein: ${proteinFloor}g/day
+- Sustainable weight floor/ceiling: ${rangeStr}
+- Forward taper limit for this cycle's likely length: ${forwardTaperStr}
+
+MAINTENANCE TDEE-DISCREPANCY FLAG (current cycle, if applicable): ${recalStr}
+
+USER-SUPPLIED TARGET/DEADLINE: ${overrideStr}
+CONFLICT: ${conflictStr}
+
+USER CONTEXT FOR THIS CYCLE: ${userContextStr}
+
+${(() => {
+      if (!macro.review) return "CYCLE REVIEW: Not yet generated for the cycle that's ending.";
+      const r = macro.review;
+      const bf = r.bodyfatEstimate || {};
+      return `CYCLE REVIEW (just completed for the cycle that's ending):
+Compliance score: ${r.complianceScore}/10
+Bodyfat-change estimate: ${bf.direction || "unclear"}${bf.note ? " — " + bf.note : ""}
+Headline: ${r.headline}
+Ran too long: ${r.ranTooLong ? "yes — " + r.ranTooLongNote : "no"}
+Sticking points: ${r.stickingPoints || "none noted"}`;
+    })()}
+
+COMPLETED CYCLE HISTORY:
+${cycleHistoryStr}
+
+RECENT NEXT-CYCLE ADVICE HISTORY (your own past calls, most recent last):
+${historyStr}
+
+${priorResponse ? `PRIOR RESPONSE (already given to the user, before the cycle review above was available — see the REFRESH instruction above):
+Headline: ${priorResponse.headline}
+Narrative: ${priorResponse.narrative}
+Plans: ${priorResponse.plans.map((p) => `"${p.label}" (${p.key}) — ${p.summary}`).join(" | ")}` : ""}`;
+    return { systemPrompt, userMessage };
+  }
+  function postProcessAdviceResponse(rawText, macro, ctx, askedOn) {
+    const today = askedOn || ctx.today;
+    const response = extractJsonObject(rawText);
+    if (!response) throw new Error("Response was not valid JSON");
+    if (!response.signal || !response.headline || !response.narrative || !response.recommendations?.sustainable?.goals || !response.recommendations?.aggressive?.goals) {
+      throw new Error("Response missing required fields");
+    }
+    const cycleEnd = getMacroEndDate(macro, ctx);
+    response.recommendations.sustainable.goals = materialiseDates(response.recommendations.sustainable.goals, macro, ctx);
+    response.recommendations.aggressive.goals = materialiseDates(response.recommendations.aggressive.goals, macro, ctx);
+    const twoWeeksOut = getMondayAfter(getSundayAfterWeeks(today, 2));
+    response.nextCheckIn = {
+      sustainable: twoWeeksOut,
+      aggressive: twoWeeksOut
+    };
+    const lastSust = response.recommendations.sustainable.goals.slice(-1)[0]?.endDate;
+    const lastAgg = response.recommendations.aggressive.goals.slice(-1)[0]?.endDate;
+    response._cycleEnd = cycleEnd;
+    response._sustainableExceedsCycle = lastSust && lastSust > cycleEnd;
+    response._aggressiveExceedsCycle = lastAgg && lastAgg > cycleEnd;
+    return response;
+  }
+  function postProcessChallengeResponse(rawText, macro, ctx) {
+    const revision = extractJsonObject(rawText);
+    if (!revision) throw new Error("Response was not valid JSON");
+    if (!revision.acknowledgment || !revision.headline || !revision.narrative || typeof revision.isSignificantRevision !== "boolean" || !revision.recommendations?.sustainable?.goals || !revision.recommendations?.aggressive?.goals) {
+      throw new Error("Response missing required fields");
+    }
+    const cycleEnd = getMacroEndDate(macro, ctx);
+    revision.recommendations.sustainable.goals = materialiseDates(revision.recommendations.sustainable.goals, macro, ctx);
+    revision.recommendations.aggressive.goals = materialiseDates(revision.recommendations.aggressive.goals, macro, ctx);
+    const today = ctx.today;
+    const twoWeeksOut = getMondayAfter(getSundayAfterWeeks(today, 2));
+    revision.nextCheckIn = { sustainable: twoWeeksOut, aggressive: twoWeeksOut };
+    const lastSust = revision.recommendations.sustainable.goals.slice(-1)[0]?.endDate;
+    const lastAgg = revision.recommendations.aggressive.goals.slice(-1)[0]?.endDate;
+    revision._cycleEnd = cycleEnd;
+    revision._sustainableExceedsCycle = lastSust && lastSust > cycleEnd;
+    revision._aggressiveExceedsCycle = lastAgg && lastAgg > cycleEnd;
+    return revision;
+  }
+  function acceptChallengeRevision(stored) {
+    const revision = stored.conversation.pendingRevision;
+    const originalSummary = condenseBlocAdvicePlans(stored.response);
+    const acknowledgment = revision.acknowledgment;
+    const significant = !!revision.isSignificantRevision;
+    const newResponse = significant ? {
+      ...stored.response,
+      headline: revision.headline,
+      narrative: revision.narrative,
+      primaryAction: revision.primaryAction,
+      secondaryAction: revision.secondaryAction,
+      recommendations: revision.recommendations,
+      nextCheckIn: revision.nextCheckIn,
+      _cycleEnd: revision._cycleEnd,
+      _sustainableExceedsCycle: revision._sustainableExceedsCycle,
+      _aggressiveExceedsCycle: revision._aggressiveExceedsCycle,
+      _revisionNote: null
+    } : {
+      ...stored.response,
+      recommendations: revision.recommendations,
+      nextCheckIn: revision.nextCheckIn,
+      _cycleEnd: revision._cycleEnd,
+      _sustainableExceedsCycle: revision._sustainableExceedsCycle,
+      _aggressiveExceedsCycle: revision._aggressiveExceedsCycle,
+      _revisionNote: acknowledgment
+    };
+    return { response: newResponse, revisionInfo: { originalSummary, acknowledgment } };
+  }
+  function postProcessNextCycleResponse(rawText, macro, rec, nextCycleOverride, ctx) {
+    const response = extractJsonObject(rawText);
+    if (!response) throw new Error("Response was not valid JSON");
+    if (!response.signal || !response.headline || !response.narrative || !Array.isArray(response.plans) || !response.plans.length) {
+      throw new Error("Response missing required fields");
+    }
+    const mode = nextCycleAdvicePlanMode(rec, nextCycleOverride);
+    const planRec = mode.planRec;
+    response.plans.forEach((p, i) => {
+      if (!p.key || !p.label || !Array.isArray(p.goals) || p.goals.length < 2) {
+        throw new Error(`Plan ${i + 1} is missing required fields or has fewer than 2 goal phases`);
+      }
+      let expectedEnd = null;
+      if (mode.directionTwoPlans || mode.maintenanceFlex) {
+        if (typeof p.weeks !== "number" || p.weeks < 1) {
+          throw new Error(`Plan ${i + 1} ("${p.label}") is missing its required "weeks" field`);
+        }
+        if (mode.maintenanceFlex && planRec.bridge && planRec.bridge.climbWeeks && p.weeks < planRec.bridge.climbWeeks) {
+          throw new Error(`Plan ${i + 1} ("${p.label}") is shorter (${p.weeks}w) than the required reverse-diet climb (${planRec.bridge.climbWeeks}w)`);
+        }
+        expectedEnd = getSundayAfterWeeks(planRec.newMacroStart, p.weeks);
+      } else if (planRec.newMacroEnd) {
+        expectedEnd = planRec.newMacroEnd;
+      }
+      if (expectedEnd) {
+        const lastGoalEnd = p.goals[p.goals.length - 1].endDate;
+        if (lastGoalEnd !== expectedEnd) {
+          throw new Error(`Plan ${i + 1} ("${p.label}") doesn't fill its cycle — goals end ${lastGoalEnd}, expected ${expectedEnd}`);
+        }
+      }
+    });
+    if (mode.directionTwoPlans && planRec.goalType === "gain") {
+      const sust = response.plans.find((p) => p.key === "sustainable");
+      const agg = response.plans.find((p) => p.key === "aggressive");
+      if (sust && agg && typeof sust.weeks === "number" && typeof agg.weeks === "number" && agg.weeks < sust.weeks) {
+        throw new Error(`"aggressive" bulk plan (${agg.weeks}w) is shorter than "sustainable" (${sust.weeks}w) — bulks must never be shortened to be "aggressive"`);
+      }
+    }
+    response.plans.forEach((p) => {
+      p.goals = p.goals.map((g) => {
+        const remainingKcal = Math.max(0, g.kcal - g.protein * 4 - g.carbs * 4);
+        const fats = Math.round(remainingKcal / 9);
+        const steps = planRec.goalType === "loss" ? parseInt(g.steps) || 8e3 : 8e3;
+        return { ...g, fats, steps };
+      });
+    });
+    response._cycleEnd = getMacroEndDate(macro, ctx);
+    return response;
+  }
+  function postProcessCycleReviewResponse(rawText, payload, beforePhotoCount, afterPhotoCount, ctx) {
+    const response = extractJsonObject(rawText);
+    if (!response) throw new Error("Response was not valid JSON");
+    if (!response.narrative || !response.headline || typeof response.complianceScore !== "number") {
+      throw new Error("Response missing required fields");
+    }
+    return {
+      storedAt: ctx.today,
+      complianceScore: response.complianceScore,
+      bodyfatEstimate: response.bodyfatEstimate || null,
+      headline: response.headline,
+      narrative: response.narrative,
+      highlights: response.highlights || [],
+      improvements: response.improvements || [],
+      stickingPoints: response.stickingPoints || "",
+      ranTooLong: !!response.ranTooLong,
+      ranTooLongNote: response.ranTooLongNote || "",
+      weightTargetDelta: payload.measurements.weightTargetDelta,
+      totalWeightChange: payload.measurements.totalWeightChange,
+      beforePhotoCount,
+      afterPhotoCount
+    };
+  }
+  async function requestBlocAdvice(prompt, macro, callModel, ctxAt, askedOn) {
+    const reply = await callModel(buildModelRequest(prompt.systemPrompt, [{ role: "user", content: prompt.userMessage }], 8e3));
+    return postProcessAdviceResponse(reply.text, macro, ctxAt(), askedOn);
+  }
+  async function requestBlocChallenge(built, macro, callModel, ctxAt) {
+    const reply = await callModel(buildModelRequest(built.systemPrompt, built.messages, 8e3));
+    return postProcessChallengeResponse(reply.text, macro, ctxAt());
+  }
+  async function requestNextCycleAdvice(prompt, macro, rec, callModel, ctxAt, overrideAt) {
+    const reply = await callModel(buildModelRequest(prompt.systemPrompt, [{ role: "user", content: prompt.userMessage }], 8e3));
+    return postProcessNextCycleResponse(reply.text, macro, rec, overrideAt(), ctxAt());
+  }
+  async function requestCycleReview(prompt, payload, beforePhotoCount, afterPhotoCount, callModel, ctxAt) {
+    const reply = await callModel(buildModelRequest(
+      prompt.systemPrompt,
+      [{ role: "user", content: [{ type: "text", text: prompt.userText }, ...prompt.imageBlocks] }],
+      4e3
+    ));
+    return postProcessCycleReviewResponse(reply.text, payload, beforePhotoCount, afterPhotoCount, ctxAt());
   }
   return __toCommonJS(index_exports);
 })();

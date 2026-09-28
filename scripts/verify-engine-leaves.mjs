@@ -47,7 +47,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
 import { mainScript, indexTopLevel, closure } from './golden/extract-engine.mjs';
-import { LEAF_CASES, CTX_LAST, STATE_CASES } from './engine-cases.mjs';
+import { LEAF_CASES, CTX_LAST, STATE_CASES, adviceReply, challengeReply, reviewReply, nextCycleReply } from './engine-cases.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, '..');
@@ -67,6 +67,12 @@ const VARIANTS = {
   // Home badge's "bad" mapped to the wrong colour (callers test the colour).
   staleGoal: s => s.replace('return BlocEngine.getActiveGoal(state, engineCtx());', "return BlocEngine.getActiveGoal(state, { today: '2000-01-03' });"),
   badColour: s => s.replace("bad: 'var(--red)' };", "bad: 'var(--green)' };"),
+  // v8.35 step 6 (§125): BLOC's AI transport losing one of the advice flow's
+  // console lines. The AI section compares every line, alert and request.
+  quietTransport: s => s.replace('    if (log.received) console.log(log.received);\n', ''),
+  // …and handing the engine the next-cycle override from the moment of
+  // asking, instead of reading it once the reply is in.
+  overrideAtAsk: s => s.replace('engineCtx, () => _nextCycleOverride);', 'engineCtx, (o => () => o)(_nextCycleOverride));'),
 };
 
 // ── Child: one timezone, one variant ─────────────────────────────────────
@@ -135,7 +141,7 @@ if (process.env.BLOC_LEAVES_CHILD) {
   // A control needs only the section its variant touches (a leaf shim or a
   // state reader's), so each runs just that one.
   const only = process.env.BLOC_LEAVES_ONLY || '';
-  if (only !== 'state') {
+  if (only === '' || only === 'leaves') {
   // 1. Every shared case. BLOC's macroRange/findMacroClash shims keep the old
   //    signature, so their ctx is dropped and becomes the clock's today.
   for (const [name, cases] of Object.entries(LEAF_CASES)) {
@@ -199,12 +205,15 @@ if (process.env.BLOC_LEAVES_CHILD) {
   };
   const buildStateSide = (src, engine) => {
     const { decls } = indexTopLevel(src);
-    const parts = closure(decls, stateNames, new Set(['save']));
+    // save() counts; renderProgress() (acceptBlocChallenge's re-render) is the
+    // whole Progress page, so it's stubbed and counted too.
+    const parts = closure(decls, stateNames, new Set(['save', 'renderProgress']));
     const have = new Set(parts.map(p => p.name));
     const handles = HANDLES.filter(h => have.has(h));
     const body = `
       let __saves = 0;
       function save() { __saves++; }
+      function renderProgress() { __saves += 1000; }
       ${parts.map(p => p.text).join('\n')}
       return {
         fns: { ${stateNames.join(', ')} },
@@ -256,7 +265,7 @@ if (process.env.BLOC_LEAVES_CHILD) {
   // each such move against the frozen target.
   const MISSED = /<span class="ex-done ex-done-missed">✓ done · ⚠ missed target<\/span>/g;
   const noBadge = str => str.replace(MISSED, '<span class="ex-done">✓ done</span>');
-  for (const [name, cases] of Object.entries(STATE_CASES)) {
+  for (const [name, cases] of only === 'ai' ? [] : Object.entries(STATE_CASES)) {
     if (!cases.length) {
       // A constant: the engine's value against v8.34's own declaration.
       const { decls } = indexTopLevel(mainScript(git34('index.html')));
@@ -290,9 +299,186 @@ if (process.env.BLOC_LEAVES_CHILD) {
     });
   }
 
+
+  {
+  // 5. v8.35 step 6 (§125): the AI flows, end to end, through a stubbed
+  //    network. v8.34's askBlocForAdvice / askBlocForChallenge /
+  //    askBlocForNextCycleAdvice / generateCycleReview and today's (whose
+  //    fetch-and-parse is now the engine's request*, through blocCallModel)
+  //    run the same scenarios: good replies, fenced ones, bad JSON, missing
+  //    fields, each next-cycle guard, HTTP errors, no API key. Compared: the
+  //    result or the error, the state afterwards, every save and render, the
+  //    request actually sent (URL, headers, body bytes), every console line,
+  //    alert and scheduled callback, and the error text the flow showed.
+  const AI_FNS = ['askBlocForAdvice', 'askBlocForChallenge', 'askBlocForNextCycleAdvice', 'generateCycleReview'];
+  const AI_HANDLES = ['state', 'progressViewMacroId', '_nextCycleOverride', '_nextCyclePreviewMacroId', '_blocAdviceLoading',
+    '_blocChallengeLoading', '_nextCycleAdviceLoading', '_blocChallengeInputOpen', '_tourAnchorDate'];
+  const env = { reply: null, out: [], timers: [], storage: {}, seed: 1 };
+  const ENV_ARGS = {
+    fetch: async (url, opts) => {
+      env.out.push(['fetch', url, opts.method, JSON.stringify(opts.headers), opts.body]);
+      const r = env.reply;
+      if (r.during) r.during(env.side); // something the person does while BLOC is thinking
+      return { ok: r.ok, status: r.status, json: async () => { if (r.bodyThrows) throw new Error('not json'); return r.body; } };
+    },
+    alert: msg => { env.out.push(['alert', msg]); },
+    setTimeout: fn => { env.timers.push(fn); },
+    console: { log: (...a) => env.out.push(['log', ...a.map(ser)]), // An Error from the engine comes from its own vm realm here (in the
+    // browser it shares the page's), so it is recognised by its tag, not instanceof.
+    error: (...a) => env.out.push(['error', ...a.map(x => Object.prototype.toString.call(x) === '[object Error]' ? 'Error: ' + x.message : ser(x))]),
+      warn: (...a) => env.out.push(['warn', ...a.map(ser)]) },
+    localStorage: { getItem: k => (k in env.storage ? env.storage[k] : null) },
+    Math: Object.assign(Object.create(Math), { random: () => { env.seed = (env.seed * 16807) % 2147483647; return env.seed / 2147483647; } }),
+  };
+  const buildAiSide = (src, engine, doc) => {
+    const { decls } = indexTopLevel(src);
+    const parts = closure(decls, AI_FNS, new Set(['save', 'renderProgress']));
+    const have = new Set(parts.map(p => p.name));
+    const handles = AI_HANDLES.filter(h => have.has(h));
+    const body = `
+      function save() { __out.push(['save']); }
+      function renderProgress() { __out.push(['render']); }
+      ${parts.map(p => p.text).join('\n')}
+      return {
+        fns: { ${AI_FNS.join(', ')} },
+        get: { ${handles.map(h => `${h}: () => ${h}`).join(', ')} },
+        set: { ${handles.map(h => `${h}: v => { ${h} = v; }`).join(', ')} },
+      };`;
+    return new Function('Date', 'document', 'BlocEngine', '__out', ...Object.keys(ENV_ARGS), body)(ClockDate, doc, engine, env.out, ...Object.values(ENV_ARGS));
+  };
+  const aiDoc = () => { const els = {}; return { els, body: { setAttribute() {} },
+    getElementById: id => (els[id] ||= { id, textContent: '', innerHTML: '', style: {} }) }; };
+  const docA = aiDoc(), docB = aiDoc();
+  // One shared `out` array per side: the closure captured env.out, so it is
+  // emptied in place between runs, never replaced.
+  const OLD_AI = buildAiSide(mainScript(git34('index.html')), OLD34_ENGINE, docA);
+  const NEW_AI = buildAiSide(newSrc, NEW_ENGINE, docB);
+  const demoText = readFileSync(join(repo, 'bloc-demo-data.json'), 'utf8');
+  const fresh = (edit = x => x) => { const s = JSON.parse(demoText); s.rpe = {}; s.nextCycleAdviceHistory = []; return edit(s); };
+  const ok = text => ({ ok: true, status: 200, body: { content: [{ type: 'thinking', text: 'hmm' }, { type: 'text', text }], stop_reason: 'end_turn' } });
+  const FAIL401 = { ok: false, status: 401, body: { error: { message: 'invalid x-api-key' } } };
+  const FAIL500 = { ok: false, status: 500, bodyThrows: true };
+  const runAi = async (side, doc, sc) => {
+    env.out.length = 0; env.timers.length = 0; env.seed = 1;
+    env.storage = sc.noKey ? {} : { bloc_api_key: 'sk-test' };
+    env.reply = sc.reply;
+    env.side = side;
+    for (const k of Object.keys(doc.els)) delete doc.els[k];
+    clock.ms = new RealDate(sc.today + 'T12:00:00').getTime();
+    side.set.state(sc.state());
+    for (const h of AI_HANDLES.slice(1)) if (side.set[h]) side.set[h](h.endsWith('Loading') || h === '_blocChallengeInputOpen' ? false : null);
+    for (const [g, v] of Object.entries(sc.globals || {})) side.set[g](v);
+    let result;
+    try { result = ser(await side.fns[sc.fn](...sc.args())); } catch (e) { result = `threw ${e.message}`; }
+    while (env.timers.length) { const f = env.timers.shift(); try { f(); } catch (e) { env.out.push(['timer threw', e.message]); } }
+    const shown = Object.values(doc.els).map(el => `${el.id}:${el.textContent}:${el.style.display || ''}`).join(' | ');
+    // Did this run end in an error the person saw (an alert, the flow's error
+    // text, or a throw), or in a stored result? Counted per flow below, so a
+    // scenario list that never reached one of the two can't pass.
+    const failed = result.startsWith('threw') || env.out.some(e => e[0] === 'alert' || e[0] === 'warn') || Object.values(doc.els).some(el => el.textContent);
+    const quiet = !failed && !env.out.some(e => e[0] === 'save');
+    side.outcome = failed ? 'failed' : quiet ? 'nothing' : 'stored';
+    return `${result} || ${JSON.stringify(side.get.state())} || ${JSON.stringify(env.out)} || ${shown}`;
+  };
+  const outcomes = {};
+  const E0 = NEW_ENGINE;
+  const macroOfS = s => s.macrocycles[0];
+  // A real next-cycle recommendation for the day, so a "good" reply really
+  // fills its plans to the dates the guards expect.
+  const goodNextCycle = (s, today, override, tweak = x => x) => {
+    const rec = E0.recommendNextCycle(s, { today }, macroOfS(s), override);
+    const mode = E0.nextCycleAdvicePlanMode(rec, override);
+    const pr = mode.planRec;
+    const keys = mode.returnTwoPlans ? ['sustainable', 'aggressive'] : ['plan'];
+    return nextCycleReply(keys.map((key, i) => {
+      const weeks = (mode.directionTwoPlans || mode.maintenanceFlex) ? Math.max(8 + i * 2, (pr.bridge && pr.bridge.climbWeeks) || 0) : null;
+      const end = weeks ? E0.getSundayAfterWeeks(pr.newMacroStart, weeks) : pr.newMacroEnd;
+      return tweak({ key, label: key, rationale: 'r', summary: 's', ...(weeks ? { weeks } : {}),
+        goals: [{ startDate: pr.newMacroStart, endDate: E0.getSundayAfterWeeks(pr.newMacroStart, 2), kcal: 2100, protein: 200, carbs: 200, steps: 11000 },
+          { startDate: '2026-10-01', endDate: end, kcal: 2200, protein: 205, carbs: 230 }] }, i);
+    }));
+  };
+  const withStored = (sig) => fresh(s => {
+    s.blocAdvice = { id: 'chk_1', macroId: s.macrocycles[0].id, storedAt: '2026-07-27', chosenPath: 'sustainable', chosenAt: '2026-07-28',
+      response: JSON.parse(adviceReply()), conversation: { replyUsed: false, pendingRevision: null }, priorAdviceThisCycle: [], revisionInfo: null };
+    void sig; return s;
+  });
+  const SCEN = [];
+  const adv = (label, reply, extra = {}) => SCEN.push({ label: 'advice · ' + label, fn: 'askBlocForAdvice', args: () => [], today: '2026-08-02', state: () => fresh(), reply, ...extra });
+  adv('good', ok(adviceReply()));
+  adv('fenced, with preamble', ok('Let me look.\n```json\n' + adviceReply() + '\n```'));
+  adv('replaces stored advice (history carried)', ok(adviceReply()), { state: () => withStored() });
+  adv('bad JSON', ok('no json here'));
+  adv('missing fields', ok(JSON.stringify({ signal: 'x', headline: 'h' })));
+  adv('HTTP 401', FAIL401);
+  adv('HTTP 500, no body', FAIL500);
+  adv('no API key', ok(adviceReply()), { noKey: true });
+  const chl = (label, reply, extra = {}) => SCEN.push({ label: 'challenge · ' + label, fn: 'askBlocForChallenge', args: () => ['Protein is too high.'], today: '2026-08-02', state: () => withStored(), reply, ...extra });
+  chl('minor revision', ok(challengeReply(false)));
+  chl('significant revision', ok(challengeReply(true)));
+  chl('missing isSignificantRevision', ok(adviceReply()));
+  chl('bad JSON', ok('{"acknowledgment":'));
+  chl('HTTP 500', FAIL500);
+  chl('empty text', ok(challengeReply()), { args: () => ['   '] });
+  const NC_DAYS = ['2026-09-01', '2026-09-08'];
+  for (const today of NC_DAYS) {
+    for (const override of [null, { targetWeight: 205 }, { deadline: '2026-12-27' }, { forcedDirection: 'gain' }]) {
+      const nc = (label, reply, extra = {}) => SCEN.push({ label: `next cycle ${today} ${JSON.stringify(override)} · ${label}`, fn: 'askBlocForNextCycleAdvice',
+        args: () => ['Holiday in week 2.', null], today, state: () => fresh(), reply, globals: { _nextCycleOverride: override && { ...override } }, ...extra });
+      const s0 = fresh();
+      nc('good', ok(goodNextCycle(s0, today, override)));
+      nc('stops short of its cycle', ok(goodNextCycle(s0, today, override, (p) => ({ ...p, goals: [p.goals[0], { ...p.goals[1], endDate: '2026-10-11' }] }))));
+      nc('no weeks field', ok(goodNextCycle(s0, today, override, (p) => { const { weeks, ...rest } = p; void weeks; return rest; })));
+      nc('aggressive bulk shorter', ok(goodNextCycle(s0, today, override, (p, i) => (typeof p.weeks === 'number' ? { ...p, weeks: i ? 4 : 12 } : p))));
+      nc('one goal only', ok(goodNextCycle(s0, today, override, (p) => ({ ...p, goals: [p.goals[0]] }))));
+      nc('bad JSON', ok('nope'));
+      nc('HTTP 401', FAIL401);
+    }
+  }
+  // The override replaced while BLOC is thinking ("back to the direction
+  // choice", a new preview): the plan mode the reply is validated against is
+  // the one standing when it arrives, as before (TECHNICAL §125).
+  for (const [from, to] of [[null, { targetWeight: 205, deadline: null, forcedDirection: null }], [{ deadline: '2026-12-27' }, { targetWeight: null, deadline: null, forcedDirection: null }]]) {
+    const s0 = fresh();
+    for (const [label, reply] of [['planned for the old override', goodNextCycle(s0, '2026-09-08', from)], ['planned for the new one', goodNextCycle(s0, '2026-09-08', to)]]) {
+      SCEN.push({ label: `next cycle · override replaced mid-request · ${label}`, fn: 'askBlocForNextCycleAdvice', args: () => [null, null], today: '2026-09-08',
+        state: () => fresh(), globals: { _nextCycleOverride: from && { ...from } },
+        reply: { ...ok(reply), during: side => side.set._nextCycleOverride({ ...to }) } });
+    }
+  }
+  SCEN.push({ label: 'next cycle · previewing another cycle', fn: 'askBlocForNextCycleAdvice', args: () => [null, null], today: '2026-09-08',
+    state: () => fresh(), reply: ok('{}'), globals: { _nextCyclePreviewMacroId: 'other' } });
+  const rev = (label, reply, extra = {}) => SCEN.push({ label: 'review · ' + label, fn: 'generateCycleReview', today: '2026-09-13', state: () => fresh(), reply,
+    args: () => [], ...extra });
+  // generateCycleReview(macro, before, after) is handed the state's own macro.
+  const withMacro = sc => ({ ...sc, args: null });
+  void withMacro;
+  for (const [label, reply, extra] of [['good', ok(reviewReply())], ['no complianceScore', ok(JSON.stringify({ headline: 'h', narrative: 'n' }))],
+    ['bad JSON', ok('nah')], ['HTTP 500', FAIL500], ['no API key', ok(reviewReply()), { noKey: true }]]) {
+    rev(label, reply, extra);
+  }
+  let aiRuns = 0;
+  for (const sc of SCEN) {
+    if (sc.fn === 'generateCycleReview') {
+      // The macro must be the state's own object on each side.
+      const scA = { ...sc, args: () => [OLD_AI.get.state().macrocycles[0], [{ mediaType: 'image/jpeg', base64: 'AAAA' }], []] };
+      const scB = { ...sc, args: () => [NEW_AI.get.state().macrocycles[0], [{ mediaType: 'image/jpeg', base64: 'AAAA' }], []] };
+      const o = await runAi(OLD_AI, docA, scA), n = await runAi(NEW_AI, docB, scB);
+      aiRuns++; runs++;
+      ((outcomes[sc.fn] ||= {})[NEW_AI.outcome] = ((outcomes[sc.fn] || {})[NEW_AI.outcome] || 0) + 1);
+      if (o !== n) { diffs++; if (firstDiffs.length < 3) { let k = 0; while (k < o.length && o[k] === n[k]) k++; firstDiffs.push(`AI ${sc.label} differs at ${k}\n      v8.34: …${o.slice(Math.max(0, k - 100), k + 160)}\n      now:   …${n.slice(Math.max(0, k - 100), k + 160)}`); } }
+      continue;
+    }
+    const o = await runAi(OLD_AI, docA, sc), n = await runAi(NEW_AI, docB, sc);
+    aiRuns++; runs++;
+    ((outcomes[sc.fn] ||= {})[NEW_AI.outcome] = ((outcomes[sc.fn] || {})[NEW_AI.outcome] || 0) + 1);
+    if (o !== n) { diffs++; if (firstDiffs.length < 3) { let k = 0; while (k < o.length && o[k] === n[k]) k++; firstDiffs.push(`AI ${sc.label} differs at ${k}\n      v8.34: …${o.slice(Math.max(0, k - 100), k + 160)}\n      now:   …${n.slice(Math.max(0, k - 100), k + 160)}`); } }
+  }
+  var aiCount = aiRuns, aiOutcomes = outcomes;
+  }
   }
 
-  console.log(JSON.stringify({ runs, diffs, firstDiffs, throws, firstThrows, h7Moved, badgeMoved }));
+  console.log(JSON.stringify({ runs, diffs, firstDiffs, throws, firstThrows, h7Moved, badgeMoved, aiRuns: typeof aiCount === 'number' ? aiCount : 0, aiOutcomes: typeof aiOutcomes === 'object' ? aiOutcomes : {} }));
   process.exit(0);
 }
 
@@ -319,12 +505,14 @@ function run(zone, variant, only = '') {
   });
 }
 
-const [zones, drop, wrong, stale, colour] = await Promise.all([
+const [zones, drop, wrong, stale, colour, quiet, atAsk] = await Promise.all([
   Promise.all(ZONES.map(zone => run(zone, 'current'))),
   run('Europe/London', 'dropArg', 'leaves'),
   run('Europe/London', 'wrongToday', 'leaves'),
   run('Europe/London', 'staleGoal', 'state'),
   run('Europe/London', 'badColour', 'state'),
+  run('Europe/London', 'quietTransport', 'ai'),
+  run('Europe/London', 'overrideAtAsk', 'ai'),
 ]);
 ZONES.forEach((zone, k) => {
   const r = zones[k];
@@ -333,11 +521,17 @@ ZONES.forEach((zone, k) => {
     r.error || (r.firstDiffs || []).join('\n    '));
   check(`${zone}: no run threw, on either side`, !r.error && r.throws === 0, (r.firstThrows || []).join('\n    '));
   check(`${zone}: Train's "missed target" badge moved on ${r.badgeMoved || 0} rendered sessions, and nothing else in Train did`, !r.error && r.badgeMoved > 0);
+  const oc = r.aiOutcomes || {};
+  const flows = ['askBlocForAdvice', 'askBlocForChallenge', 'askBlocForNextCycleAdvice', 'generateCycleReview'];
+  check(`${zone}: the AI flows match v8.34 end to end (${r.aiRuns || 0} scenarios), each reaching both a stored result and a shown error (${flows.map(f => `${f.replace(/^(askBlocFor|generate)/, '')} ${(oc[f] || {}).stored || 0}/${(oc[f] || {}).failed || 0}`).join(', ')})`,
+    !r.error && r.aiRuns >= 70 && flows.every(f => (oc[f] || {}).stored > 0 && (oc[f] || {}).failed > 0));
 });
 check(`control: a getWeekWeight shim that drops weightIncrement is caught (${drop.diffs || 0} runs differ)`, !drop.error && drop.diffs > 0, drop.error);
 check(`control: a macroRange shim given the wrong today is caught (${wrong.diffs || 0} runs differ)`, !wrong.error && wrong.diffs > 0, wrong.error);
 check(`control: a getActiveGoal shim given the wrong today is caught (${stale.diffs || 0} runs differ)`, !stale.error && stale.diffs > 0, stale.error);
 check(`control: Home's "bad" badge mapped to green is caught (${colour.diffs || 0} runs differ)`, !colour.error && colour.diffs > 0, colour.error);
+check(`control: a BLOC AI transport that drops one console line is caught (${quiet.diffs || 0} scenarios differ)`, !quiet.error && quiet.diffs > 0, quiet.error);
+check(`control: reading the next-cycle override when asked, not when the reply arrives, is caught (${atAsk.diffs || 0} scenarios differ)`, !atAsk.error && atAsk.diffs > 0, atAsk.error);
 
 // ── v8.35 H7 (§126): which cycle's training load counts ─────────────────
 // The rule, as a table: the date-active cycle; between cycles, the latest one

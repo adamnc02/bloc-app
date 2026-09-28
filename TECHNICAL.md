@@ -7758,6 +7758,85 @@ the target, so reading it back writes nothing.
 - To keep `verify-engine-leaves` near 15 seconds, fixture states are built once and copied, and
   the first run reuses the case it has already built.
 
+### Step 6: mutators as pure cores, and the AI flows
+
+**The mutators** (`engine/src/mutators.ts`) return what they used to write. BLOC's same-named
+function applies the change in the same order, with the same `save()`:
+
+| Engine core | Returns | BLOC applies |
+|---|---|---|
+| `renumberMacroGoalSteps(goals, macroId)` | the goals, that macro's relabelled "Step N" as **copies** (the step-3 carry-over) | copies each new `_blocLabel` onto its own goal object, because other code holds references to them |
+| `computeRollupEntries(s, ctx)` | the rollup entries for cycles that ended before today and aren't archived yet (deep dive H4) | `updateInsightsRollup()` appends them, caps at 10, saves |
+| `recordExerciseHistory(s, ctx, macro, week, dayKey, ex)` | `{ name, type, entry, trackingMode }`, or null (a deload week, no name, nothing on set 1) | writes `exerciseHistory[name][type]` and the tracking mode |
+| `acceptChallengeRevision(stored)` | the accepted response and `revisionInfo` | `acceptBlocChallenge()` writes them, clears `chosenPath`/`chosenAt`, consumes the pending revision, saves |
+
+**The AI flows** (`engine/src/advice.ts`, deep dive §1f).
+
+- **Prompts:** `buildRpePromptSummary` (with `getRpeSessionExercises`), `buildBlocAdvicePrompt`,
+  `buildBlocChallengePrompt` and `buildNextCycleAdvicePrompt`, which takes the override as a
+  parameter. The text was copied by script, and the golden file pins it.
+- **The engine never fetches and never holds a key.** Each request goes through a `callModel` the
+  caller injects: `(request) → Promise<{ text, stopReason }>`.
+- **The request functions:** `requestBlocAdvice`, `requestBlocChallenge`, `requestNextCycleAdvice`
+  and `requestCycleReview` build the Messages API body (`buildModelRequest`, `claude-sonnet-4-6`),
+  await `callModel`, then run the pure `postProcess*Response(rawText, …)`.
+- **The post-processors** keep every check and error message: "Response was not valid JSON",
+  "Response missing required fields", the next-cycle plan guards (fill-to-length, the reverse-diet
+  floor, bulk never shortened). They also do the same date work: `materialiseDates`,
+  `nextCheckIn`, the cycle-exceed flags, fats and the steps rule.
+- **BLOC's transport is `blocCallModel(apiKey, log)`:** the same browser `fetch` with the user's
+  own key. `log` carries each flow's console lines, which used to be inline.
+- **The `askBlocFor*` functions** keep their API-key check, loading flags, prompt-error handling,
+  storing, ids, `save()` and error display. Only their fetch-and-parse block became one engine
+  call. `generateCycleReview` does the same through `requestCycleReview`.
+
+🚨 **The traps.**
+- **"Today", twice.** The old code dated the goals and the cycle end from the day the reply
+  **arrived** (`materialiseDates` → `getNextMonday()` ran after the `await`). It started the
+  check-in's two-week cooldown from the day it was **asked** (`today`, read before the `await`).
+  - So the request functions take `ctxAt`, a function called once the reply is in (BLOC passes
+    `engineCtx`), and `requestBlocAdvice` also takes `askedOn`.
+  - Passing one `ctx` read before the `await` is the plausible wrong version. It only shows up for
+    a request that straddles midnight.
+- **The request body's key order is bytes on the wire:** `model, max_tokens, system, messages`,
+  as the inline `JSON.stringify` wrote it.
+- **The next-cycle override is read after the reply too.** The old code re-read the global
+  `_nextCycleOverride` once the reply arrived, to pick the plan mode it validated against. The
+  target/deadline inputs stay on screen while "BLOC is thinking", and "back to the direction
+  choice" or a new preview replaces the object. So `requestNextCycleAdvice` takes `overrideAt`,
+  called with `ctxAt`, and BLOC passes `() => _nextCycleOverride`. Handing it the override from the
+  moment of asking is the plausible wrong version.
+- **Not moved:** `startGoalQueue`, `chooseNextCyclePlan`, `acceptMaintenanceRecalibration` (UI
+  flows; the engine supplies the steps), `resetToDateActiveMacro` and `syncBlocCheckin` (BLOC-only,
+  deep dive §1e). **H8**, stamping `blocAdvice.id` in `normaliseState`, isn't done: an id needs
+  `Date.now()` and `Math.random()`, which the engine may not read. It belongs to Phase 4's
+  `client_state` upload, with the id passed in or stamped by BLOC before upload.
+
+**How it's checked.**
+- **Cases:** `STATE_CASES` covers the mutators, the prompts and the engine-only post-processors and
+  requests. The requests get a canned `callModel`, and `verify-engine-pure` now awaits a returned
+  promise, so a write or clock read after the `await` counts too.
+- **Mutators against v8.34:** `verify-engine-leaves` compares each mutator's BLOC call with v8.34:
+  the labels, the rollup and the exercise history written, and the saves.
+- **A new AI section, end to end:** it runs v8.34's four flows and today's through a stubbed
+  network, with the clock pinned and `Math.random` seeded. There are 80 scenarios:
+  - good replies and fenced ones;
+  - bad JSON and missing fields;
+  - each next-cycle guard, for four overrides on two days, with plans built from the day's real
+    recommendation;
+  - HTTP 401 and 500, no API key, and a cycle being previewed;
+  - the override replaced while BLOC is thinking.
+- **What must match:** the result or the error, the state afterwards, every save and render, the
+  request actually sent (URL, headers, body bytes), every console line, alert and scheduled
+  callback, and the error text shown.
+- **Both branches reached:** every flow must reach both a stored result and a shown error
+  (next-cycle: 15 and 46).
+- **Controls:** a transport missing one console line (5 scenarios differ), and the override read
+  when asked rather than when the reply arrives (2).
+- 🚨 **A harness trap:** the engine's errors come from its own `vm` realm there, so
+  `err instanceof Error` is false. The logger recognises them by their tag. In the browser the
+  engine shares the page's realm.
+
 ## §126 — v8.35: H7 — the activity multiplier follows the calendar, not the cycle you browsed
 
 **The one intended behaviour change in Phase 2** (deep dive §3, H7).
