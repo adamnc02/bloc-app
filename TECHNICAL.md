@@ -7566,3 +7566,396 @@ four constants:
 the demo. The in-memory state, the saved `localStorage` and all seven screens' HTML were identical,
 with no page errors, and each build fetched its own `engine/dist/bloc-engine.js?v=`. The golden file
 is unchanged. `sw.js` is unchanged.
+
+## §125 — v8.35: the state readers, the progression core and the mutators move into the engine (PROMPT-03 Phase 2, steps 4–6)
+
+**Why.** Coach runs BLOC's calculations over a client's uploaded state. Steps 1–3 (§122–§124)
+moved the parts that never touched `state`. These steps move the rest of deep dive §1b–§1f:
+everything that reads the state, everything that wrote while it read, and the AI prompt builders.
+BLOC behaves byte-identically, except for one deliberate change, H7, which has its own section
+(§126). All three steps ship in one PR (Adam, 2026-09-27), one commit each.
+
+**The shape every moved function takes.** What used to come from BLOC's globals now arrives as an
+argument:
+
+- the state as `s`;
+- "today" as `ctx` (§123);
+- what a page is showing as a named parameter: the Progress page's `progressViewMacroId`, the week
+  and session Train is showing (`state.currentWeek`/`currentDay`), and the cycle Card 3 is
+  previewing along with the target the person typed (`_nextCyclePreviewMacroId`,
+  `_nextCycleOverride`).
+
+BLOC's same-named shims pass `state`, `engineCtx()` and those globals, so no call site changed.
+Coach passes a client's state, the client's today, and whatever its own screen is showing.
+
+### Step 4: the state readers
+
+| File | Moved |
+|---|---|
+| `engine/src/cycles.ts` | `getDateActiveMacroId`, `getNextMacroStart`, `getActiveGoal`, `getGoalForDate`, `getGoalForDay`, `materialiseDates`, `isCycleReviewDue`, `isInFinalWeek`, `resolveProgressMacro(s, viewMacroId)` |
+| `engine/src/sessions.ts` | `isDeloadUnit`, `isFirstUnitAfterDeload`, `getSessionVolume`, `getMacroTotalVolume`, `getMacroVolumeSeries`, `getAllMacroSessions`, `getNextIncompleteSession`, `getSelectedTrainWeekDates(macro, week, dayKey)`, `getTrainAgendaUnits(s, ctx, macro, viewing)` (§115's week agenda, which Coach reuses) |
+| `engine/src/tdee.ts` | `buildDayMap`, `calcAge`, `getActivityMultiplier`, `calcMifflinBMR`, `calcTrendBasedTDEE`, `calcDynamicTDEE`, `calcDynamicTDEE_rawLogPair`, `getSustainableWeightRange` |
+| `engine/src/insights.ts` | `computeWeeklyInsights`, `computeSafetyFloor`, `computeMaintenanceRecalibration`, `computeCheckinState` |
+| `engine/src/nextcycle.ts` | `recommendNextCycle`, `buildNextCycleGoalSteps`, `isNextCycleAdviceEligible(ctx, macro, rec, previewMacroId)`, `nextCycleAdvicePlanMode(rec, override)` |
+| `engine/src/review.ts` | `computeCycleBestLifts`, `computeCycleWeeklySwings`, `computeCycleMeasurements`, `getPriorCycleReviews`, `computeCycleReviewPayload` |
+| `engine/src/home.ts` | `SAVE_DAY_TOLERANCE`, `HOME_STEPS_TOLERANCE`, `HOME_METRIC_POLARITY`, `getHomeMetricTolerance`, `getHomeMetricBadge`, and the new `computeHomeWeek(s, ctx, {weekClosed})` |
+
+**Home's badge says what it means, and BLOC picks the colour.** `getHomeMetricBadge` used to
+return a CSS colour, so "is this metric off target?" could only be answered by comparing against
+`'var(--red)'`. The engine returns `{ label, status: 'noData' | 'ok' | 'bad', weekOver }`. BLOC's
+shim maps the status through `HOME_BADGE_COLOURS` back to the `{ label, color }` every caller
+reads. `computeHomeWeek` is the orchestration that used to sit inside `renderHomeThisWeek` (deep
+dive §1d): the four metrics' averages, planned averages and badges for the week containing
+`ctx.today`. `renderHomeThisWeek` now renders it; the names, colours and number formats are BLOC's.
+
+**`weekClosed`** (deep dive §2b) judges a week as finished, from its Sunday, whatever `ctx.today`
+is. Coach needs it for a client's past weeks. Passing today = the Sunday isn't enough: with Sunday
+unlogged, `getWeeklyRequiredDaily` still counts Sunday as a day left, and the badge stays in pace
+mode. BLOC never passes it.
+
+🚨 **The traps.**
+- **Home's three colour strings are behaviour.** Home's "N of 4 on target" chip, the red bars and
+  Fuel's rest-of-week tiles all test `badge.color === 'var(--red)'`. `HOME_BADGE_COLOURS` in
+  `index.html` carries a 🚨 note, and `verify-engine-leaves`' control maps "bad" to green and must
+  fail (98 runs differ).
+- **An exported object is shared by every caller.** `SAVE_DAY_TOLERANCE` and
+  `HOME_METRIC_POLARITY` are `Object.freeze`d, and `index.html` reads
+  `const SAVE_DAY_TOLERANCE = BlocEngine.SAVE_DAY_TOLERANCE`. `verify-engine-build`'s export rule
+  now also allows a *frozen* table of numbers and strings, and nothing else. Its control refuses an
+  unfrozen object, a frozen object holding an object, a frozen array and `NaN`.
+  `HOME_STEPS_TOLERANCE` and `HOME_METRIC_POLARITY` are gone from `index.html`, because nothing
+  else there read them.
+- **Moved unchanged, including where the old code throws.** `getNextMacroStart` and
+  `resolveProgressMacro` read `s.macrocycles` with no `|| []`, as before, so a partial state still
+  throws where it did. `normaliseState` guarantees the field, and Coach must run it (H5).
+  `materialiseDates` still evaluates the cycle's end date that it never uses, so a missing macro
+  still throws there.
+- **An unstarted cycle and the time of day (§123's trap again).** `getMacroVolumeSeries` started an
+  unstarted cycle from `now()`, whose time of day every point's `Date` inherited. It now takes a
+  `startFallback` Date, which BLOC's shim fills with `now()`, one clock read for the date and the
+  time. **One place differs, and only in a state BLOC can't create**: a cycle with no `start`
+  (`createMacrocycle()` and `saveEditMacro()` refuse to save one that doesn't start on a Monday, §11). There,
+  `isNextCycleAdviceEligible` counted `daysToEnd` from the end date *with* the current time of day,
+  so after midday `Math.round` added a day. The engine counts from midnight.
+  `recommendNextCycle`'s cycle length can't change this way: its rounding is in weeks.
+- **The page's selection stays BLOC's write.** `resolveProgressMacro`'s shim still repoints
+  `progressViewMacroId` at `state.currentMacroId` when it names no cycle, then asks the engine.
+  `verify-engine-leaves` reads the global back afterwards.
+- **Controls that patch a moved function move with it (§123).** `verify-date-active-cycle`'s
+  control now breaks the date comparison **in the engine build**, and `cycles.ts` carries the 🚨
+  note. `verify-train-agenda` needed only an `engineCtx` stub.
+
+**How it's checked.** Beyond the golden file (§118, unchanged by this step):
+
+- `scripts/engine-cases.mjs` gains **`STATE_CASES`**: about 1,200 cases over the demo and ten
+  variants built from it. The variants are a gain cycle, a maintenance cycle with and without
+  history, a rollup with qualifying maintenance cycles, reviewed past cycles and a future one,
+  stored check-in advice with and without a chosen path, a drop set with extra deloads, an almost
+  empty state, a cycle with no start, and an unlogged final week. Each case gives the engine call
+  and the BLOC call it stands for.
+- `verify-engine-pure` runs every engine call under its write-trapping Proxy, with the clock
+  throwing.
+- `verify-engine-leaves` runs every BLOC call through **v8.34's real `index.html` and engine**
+  (`8c6451c`) and today's, each on a fresh state, on the real clock and on the Demo Tour's anchor.
+  The result, the state afterwards (as `save()` would write it), the `save()` count, the named page
+  globals and any HTML written must be identical: 2,367 runs in each of London, New York and
+  Auckland.
+- Two new controls: a `getActiveGoal` shim given the wrong today (20 runs differ), and "bad"
+  mapped to green (98). A `weekClosed` property check: a closed week, judged from any of its days,
+  equals Home's own Sunday judgment for all 8 demo weeks. Its control: with Sunday unlogged, Home's
+  Sunday is still in pace mode and `weekClosed` isn't.
+- The children now run in parallel, so the whole script takes about 8 seconds.
+
+**Checked beyond the sweep:** headless Chromium booted v8.34 and this step on localhost, seeded on
+four days (2 Aug, 29 Jul, 20 Sep, 1 Jun) and from empty storage. The in-memory state, the saved
+`localStorage` and all six screens' HTML were identical, with no page errors, and each build
+fetched its own engine `?v=`.
+
+🚨 **The local dev bypass loads `bloc-demo-data.dev.json` when it exists.** That file is
+untracked, and its `_devAnchorDate` (2026-09-10 on Adam's machine) moves "today". A comparison
+with a `git archive` of an older version, which lacks the file, shows every date-dependent screen
+"different". Copy the file into both trees before comparing.
+
+### Step 5: the progression core
+
+`engine/src/targets.ts` holds:
+- the effort-rating step (§104): `getRpeKey`, `isRpeOn`, `rpeDrivesProgression`,
+  `rpeStepFromKind`, `computeRpeStepKind`, `getRpeStep`, `getProgressionStep`, `bumpRepsBy`, and the
+  frozen `RPE_STEP_NONE` / `PROG_STEP_MAINTENANCE`;
+- the targets and the compliance check (§12): `computeRawSuggestedTargets`, `getWeekTargets`,
+  `getWeekComplianceResult`, `getLastCompliantWeek`;
+- two new cores: `computeLockTransition` and `computeExerciseProgression`.
+
+**No more writing while reading (deep dive H1–H3).**
+- **`getWeekTargets(s, cache, …)`.** It used to fill `state.progressionTargets` on a cache miss.
+  Every progression function now takes a `TargetCache` (`{ get(key), set(key, target) }`) after
+  the state. BLOC's `progressionTargetCache()` wraps the live `state.progressionTargets`, so BLOC
+  caches, freezes and saves exactly what it did before. Coach will pass an overlay: the client's
+  cached targets read first, and anything it computes kept in memory and never published.
+- **`computeLockTransition(s, cache, …)`.** It returns `null` (no change), `{ key, set }` or
+  `{ key, clear: true }`. This was `evaluateProgressionLock`'s body, which wrote the lock and
+  saved. BLOC's `evaluateProgressionLock()` now applies the transition and saves, only on a real
+  change, as before.
+- **`computeExerciseProgression(s, cache, macro, week, dayKey, ex, opts)`.** It's
+  `renderTrainDay`'s `exProgData()` lifted out, with the week and session as parameters.
+  - What wrote stays in BLOC's `exProgData()`, in the same order: the catch-up sweep over every
+    prior week, then this week's own evaluation.
+  - The core gets what the sweep knows through `opts`: `lockComingIn` (the lock as it stood before
+    this week's evaluation) and `prevWasLocked`.
+  - Without `opts` it reads the stored lock, and treats `prevWasLocked` as false.
+
+**Train's "⚠ missed target" is the lock's own decision now** (deep dive §1d; Adam, 2026-09-27: "Do
+the swap"). This was a third copy of the compliance comparison. It checked the logs against the
+*displayed* placeholders, which come live from last week's actuals. The lock checks them against
+the target frozen when the week was first judged. The two disagree only once a frozen target has
+drifted from the display: last week's sets edited afterwards, the route switched, or a lock set
+in a later week while you look back at an earlier one. The badge could then say "missed" while
+the lock said compliant, or stay quiet while the lock froze next week. `missedTarget` is now
+`getWeekComplianceResult(…).fullyLogged && !compliant`. By then this week's evaluation has cached
+the target, so reading it back writes nothing.
+
+- On the demo, 3 badges change. Lateral Raise weeks 3 and 4 lose a "missed": 10 × 15 logged
+  against a displayed 12.5, but a frozen 7.5. Lat Pull week 5 gains one: 50/50/42.5/42.5/42.5
+  against a frozen 47.5, and the lock did put it On hold.
+- The golden file doesn't record the badge, so it doesn't move.
+
+🚨 **The traps.**
+- **The order of writes is saved bytes.** `progressionTargets` keys are added in the order the
+  targets are first computed, and `save()` writes that order. So the wrapper keeps the old
+  sequence: the sweep, capture the lock, this week's evaluation, then the core. The core then
+  computes the post-deload target and the step in the old order.
+  - `verify-engine-leaves` renders `renderTrainDay` for every session of five progression states
+    against v8.34. The state afterwards and the `save()` count must match.
+  - The golden `targets` runs' 131, 132 and 359 saves are unchanged.
+- **`isLocked` reads the lock *coming into* the week.** This week's evaluation may replace the
+  lock object, and the old code kept using the one it read before. That's why the wrapper passes
+  `lockComingIn`. Reading `s.progressionLocks` inside the core after the evaluation would show a
+  lock created by this week's own logging.
+- **The old code created `progressionTargets` / `progressionLocks` on every call; the engine
+  doesn't.** `progressionTargetCache().set` and `evaluateProgressionLock` still create them when
+  writing, and nothing in BLOC removes either object after load (`normaliseState` and every reset
+  assign `{}`), so the difference can't be seen.
+- **The text checks moved with the code.** `verify-rpe-progression`'s checks on the progression
+  step, the deload 60% rounding and "no unscaled `+ weightJump`" now read
+  `computeExerciseProgression` in `engine/src/targets.ts`, and a new check requires
+  `renderTrainDay` to hand over to it. It also stops extracting the two constants. Its brace
+  extractor stops at the first `{`, so the core's options are a named type (`ProgressionOpts`),
+  not an inline one.
+
+**How it's checked.**
+- `STATE_CASES` gains about 3,000 cases over five progression states: the demo with its shipped
+  cache, cold, RPE on with ratings, maintenance, and the drop set with extra deloads. The first
+  three days × three exercises × weeks 1–7 run through every function. The lock runs through
+  BLOC's `evaluateProgressionLock`. Every session renders through `renderTrainDay`.
+- They carry `timeless: true`: nothing in them reads the clock or the activity multiplier, so
+  they skip the tour and H7 passes.
+- Train's HTML is compared with the missed-target badge normalised. The renders where only the
+  badge moved are counted (4 per timezone).
+- A survey of every finished session, in three states (the demo's cache, none, the demo's locks
+  alone), requires the badge to be the lock's decision. Wherever it differs from v8.34's rule, the
+  target the week is judged against must differ from the one Train displays (3 and 9 sessions).
+  Control: with every target computed from the logs, the two rules agree everywhere.
+- To keep `verify-engine-leaves` near 15 seconds, fixture states are built once and copied, and
+  the first run reuses the case it has already built.
+
+### Step 6: mutators as pure cores, and the AI flows
+
+**The mutators** (`engine/src/mutators.ts`) return what they used to write. BLOC's same-named
+function applies the change in the same order, with the same `save()`:
+
+| Engine core | Returns | BLOC applies |
+|---|---|---|
+| `renumberMacroGoalSteps(goals, macroId)` | the goals, that macro's relabelled "Step N" as **copies** (the step-3 carry-over) | copies each new `_blocLabel` onto its own goal object, because other code holds references to them |
+| `computeRollupEntries(s, ctx)` | the rollup entries for cycles that ended before today and aren't archived yet (deep dive H4) | `updateInsightsRollup()` appends them, caps at 10, saves |
+| `recordExerciseHistory(s, ctx, macro, week, dayKey, ex)` | `{ name, type, entry, trackingMode }`, or null (a deload week, no name, nothing on set 1) | writes `exerciseHistory[name][type]` and the tracking mode |
+| `acceptChallengeRevision(stored)` | the accepted response and `revisionInfo` | `acceptBlocChallenge()` writes them, clears `chosenPath`/`chosenAt`, consumes the pending revision, saves |
+
+**The AI flows** (`engine/src/advice.ts`, deep dive §1f).
+
+- **Prompts:** `buildRpePromptSummary` (with `getRpeSessionExercises`), `buildBlocAdvicePrompt`,
+  `buildBlocChallengePrompt` and `buildNextCycleAdvicePrompt`, which takes the override as a
+  parameter. The text was copied by script, and the golden file pins it.
+- **The engine never fetches and never holds a key.** Each request goes through a `callModel` the
+  caller injects: `(request) → Promise<{ text, stopReason }>`.
+- **The request functions:** `requestBlocAdvice`, `requestBlocChallenge`, `requestNextCycleAdvice`
+  and `requestCycleReview` build the Messages API body (`buildModelRequest`, `claude-sonnet-4-6`),
+  await `callModel`, then run the pure `postProcess*Response(rawText, …)`.
+- **The post-processors** keep every check and error message: "Response was not valid JSON",
+  "Response missing required fields", the next-cycle plan guards (fill-to-length, the reverse-diet
+  floor, bulk never shortened). They also do the same date work: `materialiseDates`,
+  `nextCheckIn`, the cycle-exceed flags, fats and the steps rule.
+- **BLOC's transport is `blocCallModel(apiKey, log)`:** the same browser `fetch` with the user's
+  own key. `log` carries each flow's console lines, which used to be inline.
+- **The `askBlocFor*` functions** keep their API-key check, loading flags, prompt-error handling,
+  storing, ids, `save()` and error display. Only their fetch-and-parse block became one engine
+  call. `generateCycleReview` does the same through `requestCycleReview`.
+
+🚨 **The traps.**
+- **"Today", twice.** The old code dated the goals and the cycle end from the day the reply
+  **arrived** (`materialiseDates` → `getNextMonday()` ran after the `await`). It started the
+  check-in's two-week cooldown from the day it was **asked** (`today`, read before the `await`).
+  - So the request functions take `ctxAt`, a function called once the reply is in (BLOC passes
+    `engineCtx`), and `requestBlocAdvice` also takes `askedOn`.
+  - Passing one `ctx` read before the `await` is the plausible wrong version. It only shows up for
+    a request that straddles midnight.
+- **The request body's key order is bytes on the wire:** `model, max_tokens, system, messages`,
+  as the inline `JSON.stringify` wrote it.
+- **The next-cycle override is read after the reply too.** The old code re-read the global
+  `_nextCycleOverride` once the reply arrived, to pick the plan mode it validated against. The
+  target/deadline inputs stay on screen while "BLOC is thinking", and "back to the direction
+  choice" or a new preview replaces the object. So `requestNextCycleAdvice` takes `overrideAt`,
+  called with `ctxAt`, and BLOC passes `() => _nextCycleOverride`. Handing it the override from the
+  moment of asking is the plausible wrong version.
+- **Not moved:** `startGoalQueue`, `chooseNextCyclePlan`, `acceptMaintenanceRecalibration` (UI
+  flows; the engine supplies the steps), `resetToDateActiveMacro` and `syncBlocCheckin` (BLOC-only,
+  deep dive §1e). **H8**, stamping `blocAdvice.id` in `normaliseState`, isn't done: an id needs
+  `Date.now()` and `Math.random()`, which the engine may not read. It belongs to Phase 4's
+  `client_state` upload, with the id passed in or stamped by BLOC before upload.
+
+**How it's checked.**
+- **Cases:** `STATE_CASES` covers the mutators, the prompts and the engine-only post-processors and
+  requests. The requests get a canned `callModel`, and `verify-engine-pure` now awaits a returned
+  promise, so a write or clock read after the `await` counts too.
+- **Mutators against v8.34:** `verify-engine-leaves` compares each mutator's BLOC call with v8.34:
+  the labels, the rollup and the exercise history written, and the saves.
+- **A new AI section, end to end:** it runs v8.34's four flows and today's through a stubbed
+  network, with the clock pinned and `Math.random` seeded. There are 80 scenarios:
+  - good replies and fenced ones;
+  - bad JSON and missing fields;
+  - each next-cycle guard, for four overrides on two days, with plans built from the day's real
+    recommendation;
+  - HTTP 401 and 500, no API key, and a cycle being previewed;
+  - the override replaced while BLOC is thinking.
+- **What must match:** the result or the error, the state afterwards, every save and render, the
+  request actually sent (URL, headers, body bytes), every console line, alert and scheduled
+  callback, and the error text shown.
+- **Both branches reached:** every flow must reach both a stored result and a shown error
+  (next-cycle: 15 and 46).
+- **Controls:** a transport missing one console line (5 scenarios differ), and the override read
+  when asked rather than when the reply arrives (2).
+- 🚨 **A harness trap:** the engine's errors come from its own `vm` realm there, so
+  `err instanceof Error` is false. The logger recognises them by their tag. In the browser the
+  engine shares the page's realm.
+
+## §126 — v8.35: H7 — the activity multiplier follows the calendar, not the cycle you browsed
+
+**The one intended behaviour change in Phase 2** (deep dive §3, H7).
+
+**What it was.** `getActivityMultiplier()` read `state.currentMacroId`: the cycle the person last
+picked with the cycle arrows, on Train, Plan or Progress. Its sessions per week, together with
+average steps, sets the multiplier. The multiplier divides the TDEE estimate into the BMR estimate,
+and the BMR sets the safety floor (log-based BMR × 0.80) that every AI prompt carries. So browsing
+back to an old, lighter cycle changed today's floor. And Coach, running the engine on a client's
+upload, would have reproduced whatever the client last tapped.
+
+**What it is.** `getActivityMacroId(s, ctx)` (`engine/src/tdee.ts`) picks the cycle whose training
+load counts, by the calendar:
+
+1. the date-active cycle, the one today falls inside (`getDateActiveMacroId`);
+2. otherwise the latest cycle whose start is on or before today, the one that just ended;
+3. otherwise none (no cycle has started yet), so 0 sessions a week.
+
+A cycle with no `start` never counts. `getActivityMultiplier(s, ctx)` reads that cycle, and both
+TDEE paths pass `ctx`.
+
+**Why "the latest started" between cycles** (Adam, 2026-09-27). Strictly date-active would read the
+gap between cycles as no cycle: 0 sessions a week, sedentary, 1.2. On the demo (4 sessions a week,
+about 10,071 average steps, 1.55) that raises the BMR estimate and the floor by about 29%, in exactly
+the week Next Cycle advice is asked for. Falling back to the last browsed cycle would keep the
+browse-dependence H7 exists to remove.
+
+**What moves.** Only for someone whose browsed cycle isn't the calendar's, and only these:
+
+- the multiplier and its label;
+- Progress's metabolism insight, "At your activity level (…), your total daily expenditure is …",
+  which is the profile (Mifflin-St Jeor) BMR × the multiplier;
+- the BMR estimate in `calcDynamicTDEE` / `calcTrendBasedTDEE` / `calcDynamicTDEE_rawLogPair`;
+- the safety floor;
+- two lines of every AI prompt: "Log-based BMR" and "Minimum safe kcal floor" / "No recommended
+  kcal value may fall below".
+
+The TDEE itself doesn't move. It comes from weight change and intake; the multiplier only turns it
+into a BMR.
+
+Also, before the first cycle has started, a cycle browsed ahead of its start no longer counts:
+nothing is being trained yet. On the demo on 1 Jun (its cycle starts 8 Jun), Progress's metabolism
+line read "moderately active … 3,012 kcal/day" and now reads "sedentary … 2,332 kcal/day". That
+was the one screen difference in the headless boot against v8.34. Every other day and screen was
+identical, the Settings version chip aside.
+
+**Worked example** (the golden file's `demo-browsed` scenario). The person browsed back to a
+finished 2-session cycle while the calendar is in the demo's 4-session cycle. On 2 Aug:
+
+| | Before (v8.34) | After (v8.35) |
+|---|---|---|
+| Multiplier | 1.375, lightly active | 1.55, moderately active |
+| Log-based BMR | ~1,463 kcal/day | ~1,297 kcal/day |
+| Safety floor (BMR × 0.80) | 1,170 kcal/day | 1,038 kcal/day |
+
+🚨 **The traps.**
+- **"Simplifying" it back to `currentMacroId`.** That's the bug. `tdee.ts` says so beside the
+  code, and `verify-engine-leaves`' control builds exactly that and must fail the rule's table.
+- **`resolveProgressMacro` still reads `currentMacroId`, correctly.** It's the cycle a *page*
+  falls back to showing, which is a different question.
+- **The golden file.** `--write` ran once, in H7's own commit. It added the `demo-browsed`
+  scenario's 9 runs (`nutrition`, `nextCycle`, `prompts` × 3 anchors), and the extraction's
+  `_source.closure` count changed from 134 to 103 because step 4 moved functions out of
+  `index.html`. Every existing run is byte-identical: the demo's only cycle is the calendar's
+  cycle at all three anchors, so H7 can't move them. Before writing, the new scenario was run
+  under the pre-H7 code and under H7, and every difference was checked. In `nutrition`: the
+  multiplier and label, the three BMRs and the floor. In `nextCycle`: the BMRs inside
+  `dynResult`/`trendResult`. In `prompts`: only the BMR and floor lines. Writes and `save()`
+  counts didn't change.
+
+**How it's checked** (`verify-engine-leaves`):
+
+- Every state case's BLOC call must equal **v8.34 run with `currentMacroId` pointed at the
+  calendar's cycle**, which is the exact claim "the only change is which cycle's load counts".
+  76 runs per timezone really do differ from plain v8.34, so H7 is exercised, not assumed.
+- The rule is checked as a table: eight days across three cycles and a cycle with no start, each
+  with five different browsed selections.
+- A 2-session cycle browsed back to no longer changes the multiplier.
+
+**UAT (at the end of the PR):** TDEE, BMR and the safety floor on a browsed, non-active cycle,
+with the Work account on a local `?auth=real` build.
+
+## §127 — v8.35: Home's "Planned this week avg" line, restored
+
+**What happened.** Before v8.16, each of Home's four "This week" cards had a grey line under its
+bar: **"Planned this week avg: X"**, where the week lands if the rest of it goes to plan
+(`computeWeekPlannedAvg`, §124). v8.16's rebuild of "This week" into one card of four rows left
+that line out of the row template (`830059d`, live 24 Sep).
+- The figure was still computed on every render and passed to each row as `weekPlannedAvg`.
+- The tap-info modal still explained it.
+- Nothing showed it. Adam lost sight of the week's planned meals, and every check passed, because
+  the numbers hadn't changed.
+
+**Restored (Adam, 2026-09-28).** A `.metric-planned` line sits under each row's bar, above the
+off-target note. It's laid out like the row's top line: "Planned this week avg" on the left in the
+note's type, and the figure on the right with tabular numbers, aligned with the bar's end. It
+shows whenever there's a planned figure, which means whenever there's an active goal, as before
+v8.16.
+
+**What the figure is** (unchanged since v7.72, the same words as the tap-info modal):
+- **Calories, protein, carbs:** every genuine logged day at its real number, including meals
+  **planned ahead** for a later day. A future day with nothing planned counts at target. A light,
+  partly-logged day (under target − 300 kcal) is left out, not counted as zero.
+- **Steps** (Adam: "this never had planned… any unlogged days take the goal"): a forecast. Days up
+  to today with steps logged use them. Every other day, a missed past day or a future day, uses the
+  goal's steps target. The label is still "Planned this week avg".
+
+**Checked against the old line.** The last pre-v8.16 build (`6e7b10c`) and today's engine were
+compared on the same data. That was the demo on four days of its week, a demo variant with meals
+planned ahead, and the UAT file. The figures were identical on all 9 days. Planning Friday's and
+Saturday's meals moved the kcal figure from 1,706 to 1,659, so planned meals are counted exactly as
+before.
+
+🚨 **The traps.**
+- **A display line has no number to guard it.** `scripts/verify-home-planned-line.mjs` runs the
+  real `renderHomeThisWeek` over three datasets × 7 days. Every row must show exactly the engine's
+  figure, with its unit, and no line without a goal (56 lines over 84 rows). The label must sit
+  left and the figure right. Control: the template without the line fails.
+- **The golden file records Home's HTML, so this moved it:** a second `--write` in Phase 2, in its
+  own commit, with Adam's agreement. Exactly the 7 `homeWeek` runs moved, by 4 added lines each.
+  With those lines removed, each is byte-identical to the file before, and no other run changed.
+  `_source.closure` 103 → 89 is extraction metadata (steps 5–6 moved functions out).

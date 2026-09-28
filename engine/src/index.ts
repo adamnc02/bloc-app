@@ -22,7 +22,7 @@
 //     source. CI rebuilds and fails if the committed bytes differ.
 // ═══════════════════════════════════════════════════════════════════════
 
-export type { BlocState, BlocProfile, BodyLog, DateStr, Macrocycle, SampleDayGroup } from './state.ts';
+export type { BlocState, BlocProfile, BodyLog, DateStr, Macrocycle, SampleDayGroup, GoalPeriod, NutritionLog, TrainLog, Loose } from './state.ts';
 export { normaliseState } from './state.ts';
 export type { EngineContext } from './dates.ts';
 export {
@@ -53,7 +53,57 @@ export {
   getHomeIsoDow, isCompleteNutritionDay, getWeeklyRequiredDaily, computeWeekPlannedAvg,
   formatAdviceSublabel, getHomeMetricSublabel, getReconciledMacroAdvice,
   RECONCILE_CARBS_FLOOR, RECONCILE_FATS_FLOOR, RECONCILE_PROTEIN_MAX_DROP, RECONCILE_KCAL_MAX_OVERSHOOT,
+  // v8.35 (§125): step 4, the badge's status, and the whole week as data
+  SAVE_DAY_TOLERANCE, HOME_STEPS_TOLERANCE, HOME_METRIC_POLARITY, getHomeMetricTolerance, getHomeMetricBadge,
+  computeHomeWeek,
 } from './home.ts';
+export type { HomeBadgeStatus, HomeMetricBadge, HomeWeek, HomeWeekMetric } from './home.ts';
 export type { Goal } from './clash.ts';
 export { macroRange, findMacroClash, buildGoalShiftPlan } from './clash.ts';
 export { isLocalDevHost } from './host.ts';
+
+// ── v8.35 (§125): step 4, the state readers. Each takes the state as `s` and,
+//    where it needs "today", an EngineContext; what BLOC read from a page's
+//    globals is a parameter. ────────────────────────────────────────────────
+export {
+  getDateActiveMacroId, getNextMacroStart, getActiveGoal, getGoalForDate, getGoalForDay,
+  materialiseDates, isCycleReviewDue, isInFinalWeek, resolveProgressMacro,
+} from './cycles.ts';
+export type { VolumePoint, MacroSession } from './sessions.ts';
+export {
+  isDeloadUnit, isFirstUnitAfterDeload, getSessionVolume, getMacroTotalVolume, getMacroVolumeSeries,
+  getAllMacroSessions, getNextIncompleteSession, getSelectedTrainWeekDates, getTrainAgendaUnits,
+} from './sessions.ts';
+export type { DayStats, TdeeResult } from './tdee.ts';
+export {
+  buildDayMap, calcAge, getActivityMacroId, getActivityMultiplier, calcMifflinBMR, calcTrendBasedTDEE, calcDynamicTDEE,
+  calcDynamicTDEE_rawLogPair, getSustainableWeightRange,
+} from './tdee.ts';
+export { computeWeeklyInsights, computeSafetyFloor, computeMaintenanceRecalibration, computeCheckinState } from './insights.ts';
+export { recommendNextCycle, buildNextCycleGoalSteps, isNextCycleAdviceEligible, nextCycleAdvicePlanMode } from './nextcycle.ts';
+export {
+  computeCycleBestLifts, computeCycleWeeklySwings, computeCycleMeasurements, getPriorCycleReviews,
+  computeCycleReviewPayload,
+} from './review.ts';
+
+// ── v8.35 (§125): step 5, the progression core. Targets are read and filled
+//    through a TargetCache; the lock is returned as a transition, never
+//    written. ───────────────────────────────────────────────────────────────
+export type { RpeStep, WeekTarget, TargetCache, RawTargets, ComplianceResult, LockEntry, LockTransition, ExerciseProgression, ProgressionOpts } from './targets.ts';
+export {
+  getRpeKey, isRpeOn, rpeDrivesProgression, RPE_STEP_NONE, rpeStepFromKind, computeRpeStepKind, getRpeStep,
+  PROG_STEP_MAINTENANCE, getProgressionStep, bumpRepsBy, getLastCompliantWeek, computeRawSuggestedTargets,
+  getWeekTargets, getWeekComplianceResult, computeLockTransition, computeExerciseProgression,
+} from './targets.ts';
+
+// ── v8.35 (§125): step 6, mutators as pure cores, and the AI flows. The engine
+//    returns what BLOC then writes; every model request goes through a
+//    `callModel` the caller injects (BLOC: its fetch, with the user's key). ──
+export { renumberMacroGoalSteps, computeRollupEntries, recordExerciseHistory } from './mutators.ts';
+export type { ModelRequest, ModelReply, CallModel } from './advice.ts';
+export {
+  buildModelRequest, getRpeSessionExercises, buildRpePromptSummary, buildBlocAdvicePrompt, buildBlocChallengePrompt,
+  buildNextCycleAdvicePrompt, postProcessAdviceResponse, postProcessChallengeResponse, acceptChallengeRevision,
+  postProcessNextCycleResponse, postProcessCycleReviewResponse, requestBlocAdvice, requestBlocChallenge,
+  requestNextCycleAdvice, requestCycleReview,
+} from './advice.ts';

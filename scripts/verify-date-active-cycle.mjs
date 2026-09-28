@@ -29,14 +29,24 @@
 // It extracts the REAL getDateActiveMacroId()/resetToDateActiveMacro() out of
 // index.html and runs them against stubs. A control at the end proves the suite
 // can fail.
+//
+// v8.35 (§125): getDateActiveMacroId() is a shim; the date comparison is the
+// engine's (engine/src/cycles.ts). So the harness runs the committed build, as
+// the browser does, and the control breaks the comparison IN THE BUILD: patching
+// the one-line shim would change nothing (§123's rule, "a control that patches a
+// moved function moves with it").
 // ═══════════════════════════════════════════════════════════════════════
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import vm from 'node:vm';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(here, '..', 'index.html'), 'utf8');
+const DIST = readFileSync(join(here, '..', 'engine', 'dist', 'bloc-engine.js'), 'utf8');
+const engineOf = dist => vm.runInNewContext(`${dist}\n;BlocEngine`, {});
+const ENGINE = engineOf(DIST);
 
 let failures = 0;
 function check(label, actual, expected) {
@@ -83,7 +93,7 @@ const sources = MARKERS.map(m => {
 // ── Harness ──────────────────────────────────────────────────────────────
 // Real helpers copied in only where they are pure date arithmetic with no app
 // state: toLocalDateStr and the end-date rule (start + weeks*7 - 1 day).
-function run(fnSources, world) {
+function run(fnSources, world, engine = ENGINE) {
   const prelude = `
     const state = ${JSON.stringify(world.state)};
     let progressViewMacroId = ${JSON.stringify(world.progressViewMacroId ?? null)};
@@ -98,6 +108,8 @@ function run(fnSources, world) {
       return d;
     };
     const save = () => { saveCalls++; };
+    const getLocalToday = () => toLocalDateStr(now());
+    const engineCtx = () => ({ today: getLocalToday() });
   `;
   const body = `
     ${prelude}
@@ -106,7 +118,7 @@ function run(fnSources, world) {
     resetToDateActiveMacro();
     return { activeId, currentMacroId: state.currentMacroId, progressViewMacroId, saveCalls };
   `;
-  return new Function(body)();
+  return new Function('BlocEngine', body)(engine);
 }
 
 // Two consecutive 4-week cycles, then a gap, then a third.
@@ -168,15 +180,17 @@ check('reset is NOT wired into renderProgress() — the cycle arrows depend on i
 // ── CONTROL ──────────────────────────────────────────────────────────────
 // Break the date comparison so every cycle looks active, and the suite must
 // start failing. Without this, every ✓ above could be vacuous.
-const mutated = sources.map(s => s.replace(
-  "m.start && today >= m.start && today <= toLocalDateStr(getMacroEndDate(m))", "!!m.start"));
-if (mutated.join('') === sources.join('')) {
+// 🚨 v8.35: in the ENGINE BUILD, where the comparison lives now (cycles.ts
+//    carries a note next to it).
+const COMPARISON = 'm.start && today >= m.start && today <= getMacroEndDate(m, ctx)';
+const mutatedDist = DIST.replace(COMPARISON, '!!m.start');
+if (mutatedDist === DIST) {
   console.log('✗ FAIL: control could not find the date comparison to break.');
   console.log('  getDateActiveMacroId() was reworded. Re-point this control at');
   console.log('  whatever now decides that today falls inside a cycle.');
   failures++;
 } else {
-  const ctrl = run(mutated, world('2026-08-15', 'B', 'B'));
+  const ctrl = run(sources, world('2026-08-15', 'B', 'B'), engineOf(mutatedDist));
   check('CONTROL: without the date comparison, the gap wrongly resolves to a cycle',
     ctrl.activeId, 'A');
 }

@@ -201,6 +201,17 @@ const SCENARIOS = {
   // No cached targets: every target is computed from the logs, not read back.
   'demo-cold': s => { s.progressionTargets = {}; s.progressionLocks = {}; return s; },
   'demo-rpe': s => { withRpe(s); s.progressionTargets = {}; s.progressionLocks = {}; return s; },
+  // v8.35 H7 (§126): the person has BROWSED back to an older, lighter cycle
+  // (2 sessions a week, finished in April), so state.currentMacroId points at
+  // it while the calendar is in the demo cycle. Before H7 the activity
+  // multiplier read the browsed cycle; now it reads the calendar's. Added in
+  // H7's own commit, with the one deliberate regeneration of this file.
+  'demo-browsed': s => {
+    s.macrocycles.push({ id: 'golden-past', name: 'Golden past', start: '2026-03-02', weeks: 3, weeksPerMeso: 2,
+      sessionsPerWeek: 2, goalType: 'gain', days: ['session0'], useMicrocycles: true });
+    s.currentMacroId = 'golden-past';
+    return s;
+  },
 };
 
 // ── The cases ────────────────────────────────────────────────────────────
@@ -229,7 +240,7 @@ const CASES = {
     return { changedOrAdded: changed, keys: Object.keys(s).sort(), hash: hash(canon(s)) };
   } },
 
-  nutrition: { run: E => {
+  nutrition: { scenarios: ['demo', 'demo-browsed'], run: E => {
     const m = macroOf(E);
     const ins = E.fns.computeWeeklyInsights(m);
     return {
@@ -245,7 +256,7 @@ const CASES = {
     };
   } },
 
-  nextCycle: { run: E => {
+  nextCycle: { scenarios: ['demo', 'demo-browsed'], run: E => {
     const m = macroOf(E);
     const rec = E.fns.recommendNextCycle(m);
     const out = { rec, eligible: E.fns.isNextCycleAdviceEligible(m, rec), planMode: E.fns.nextCycleAdvicePlanMode(rec),
@@ -272,7 +283,7 @@ const CASES = {
 
   // Every (week, day, exercise): the target, the compliance result and the
   // Train preview, in the order Train would reach them.
-  targets: { scenarios: Object.keys(SCENARIOS), anchors: [ANCHOR], run: E => {
+  targets: { scenarios: ['demo', 'demo-cold', 'demo-rpe'], anchors: [ANCHOR], run: E => {
     const m = macroOf(E);
     const s = E.get.state();
     const rows = {};
@@ -310,7 +321,7 @@ const CASES = {
     };
   } },
 
-  prompts: { run: E => {
+  prompts: { scenarios: ['demo', 'demo-browsed'], run: E => {
     const m = macroOf(E);
     const rec = E.fns.recommendNextCycle(m);
     const payload = E.fns.computeCycleReviewPayload(m);
