@@ -8683,9 +8683,16 @@ Coach does one or the other. That's Coach's to prompt (Phase 5), not BLOC's to t
 ### Home → Your next session (§11 Q23)
 
 In Coached mode the hero gains a two-line row (`homeNextSessionHTML()`):
-- "Your next session", then the earliest live booking **from today** (`nextCoachBooking()`), or "None
-  booked";
-- **Request a session** under it.
+- the wireframe's calendar icon and "Your next session", then the earliest live booking **from today**
+  (`nextCoachBooking()`) in the wireframe's **short form** (`coachShortWhen()`: "Wed 18:00" within the
+  coming week, "Mon 12 Oct 18:00" after that, "Today 18:00"), or "None booked";
+- "Weekly" for a repeating booking, and **Request a session**, on the second line.
+
+🚨 **Measured at 375pt:** the icon, the label and "Wed 30 Sep, 18:00 · weekly" don't fit on one line
+(it ran off the hero), hence the short form and the second line.
+
+**A repeating booking** is the booking payload's `kind: 'weekly'` (also read: `series`, `recurring`).
+That's the contract Coach's diary publish must meet; the allow-list has no separate recurring field.
 
 When a request has a time waiting for an answer, the row reads "{coach} suggested a time" with
 **Answer {coach}**. It's two lines because one line wrapped, and ran off the hero at 375pt.
@@ -8701,7 +8708,14 @@ Also in Settings → Coaching → Sessions. The client never sees the coach's di
   needs its start before its end.
 - **Send** inserts **only the columns `0024` grants a client**: `client_id`, `coach_id`,
   `preferences`, `notes`, `repeat_weekly`.
-- **Your requests** (open ones: pending, proposed, countered) sit at the top of the sheet:
+- **Your requests** sit at the top of the sheet: the open ones (pending, proposed, countered), plus those
+  **answered in the last 14 days**. An accepted request reads "✓ Confirmed · Wed 30 Sep, 18:00 ·
+  weekly", with "{coach} adds it to the diary; it shows as your next session once it's booked", or
+  "Booked" once a live booking at that time has arrived. A declined one reads "{coach} couldn't make
+  these times". 🚨 **Confirming doesn't make the booking**; the coach's diary does, and it arrives as a
+  `booking` publication. The first draft dropped a request the moment it was answered, so a confirmed
+  time vanished until then (Adam, UAT).
+- For the open ones:
   - **Withdraw** a pending one (it clears the coach's placeholder, §11);
   - **Confirm** the coach's suggested time: `status 'accepted'`;
   - **Suggest another time**: 🚨 **one** slot, a time or a window, in `counter`, with

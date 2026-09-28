@@ -3655,9 +3655,14 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 /* v8.42 (§136): Your next session (Home), Request a session, a session with the coach (Train). */
 .home-next-session { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--divider); font-size: 13.5px; }
 .home-next-session .row1 { display: flex; align-items: baseline; gap: 10px; }
-.home-next-session .lbl { color: var(--text2); white-space: nowrap; }
+.home-next-session .lbl { color: var(--text2); white-space: nowrap; display: inline-flex; align-items: center; gap: 8px; }
+.home-next-session .lbl svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.coach-req.is-done .coach-req-line { color: var(--text2); }
 .home-next-session b { margin-left: auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.home-next-session button { display: block; margin-top: 6px; background: none; border: none; color: var(--accent2); font: inherit; font-weight: 700; cursor: pointer; padding: 4px 0; }
+.home-next-session .row2 { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.home-next-session .row2 .sub { color: var(--text3); font-size: 12.5px; }
+.home-next-session button { margin-left: auto; background: none; border: none; color: var(--accent2); font: inherit; font-weight: 700; cursor: pointer; padding: 4px 0; white-space: nowrap; }
+.home-next-session .row2 .sub:empty + button { margin-left: 0; }
 .coach-req { padding: 12px 0; }
 .coach-req + .coach-req { border-top: 1px solid var(--divider); }
 .coach-req-line { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -15152,7 +15157,20 @@ function coachDateTimeFmt(date, startMin) {
   const d = coachDayFmt(date);
   return startMin != null ? `${d}, ${coachMinToHHMM(startMin)}` : d;
 }
+// Home's short form (the wireframe's "Tue 18:00"): day and time within the
+// coming week, day and date after that.
+function coachShortWhen(date, startMin) {
+  if (!date) return '';
+  const d = new Date(date + 'T00:00:00');
+  const days = Math.round((d - new Date(getLocalToday() + 'T00:00:00')) / 86400000);
+  const day = d.toLocaleDateString('en-GB', days >= 0 && days < 7 ? { weekday: 'short' } : { weekday: 'short', day: 'numeric', month: 'short' });
+  return (days === 0 ? 'Today' : day) + (startMin != null ? ' ' + coachMinToHHMM(startMin) : '');
+}
 function coachSessionWhen(b) { return `With your coach · ${coachDateTimeFmt(b && b.date, b && b.start_min)}`; }
+// A repeating booking (§136 contract: the booking payload's `kind` is 'weekly').
+function coachBookingWeekly(b) { return !!b && ['weekly', 'series', 'recurring'].includes(String(b.kind || '').toLowerCase()); }
+// The wireframe's calendar icon (HomeScreen's "Your next session").
+const COACH_ICO_CALENDAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 9.5h18M8 2.5v4M16 2.5v4"/></svg>';
 
 // ── The coach's session, read-only in Train ───────────────────────────────
 // 4e-4 adds a coach-LOGGED session to the same question.
@@ -15198,9 +15216,13 @@ function homeNextSessionHTML() {
   const link = `<button onclick="openCoachRequest()">${proposed ? 'Answer ' + coachEsc(coachFirstName()) : 'Request a session'}</button>`;
   // Two lines, so nothing wraps or runs off the hero at 375pt: what and when,
   // then the link.
+  // 🚨 Measured at 375pt: the icon, the label and "Wed 30 Sep, 18:00 · weekly"
+  // don't fit on one line, so the time is the wireframe's short form and
+  // "Weekly" sits on the second line with the link.
   return `<div class="home-next-session" id="home-next-session">
-      <div class="row1"><span class="lbl">${proposed ? `${coachEsc(coachFirstName())} suggested a time` : 'Your next session'}</span>
-      ${b && !proposed ? `<b>${coachEsc(coachDateTimeFmt(b.date, b.start_min))}</b>` : (proposed ? '' : '<b style="color:var(--text3);font-weight:500;">None booked</b>')}</div>${link}
+      <div class="row1"><span class="lbl">${COACH_ICO_CALENDAR}${proposed ? `${coachEsc(coachFirstName())} suggested a time` : 'Your next session'}</span>
+      ${b && !proposed ? `<b>${coachEsc(coachShortWhen(b.date, b.start_min))}</b>` : (proposed ? '' : '<b style="color:var(--text3);font-weight:500;">None booked</b>')}</div>
+      <div class="row2"><span class="sub">${b && !proposed && coachBookingWeekly(b) ? 'Weekly' : ''}</span>${link}</div>
     </div>`;
 }
 
@@ -15209,6 +15231,11 @@ let _coachRequests = null;   // the client's requests, newest first (server trut
 let _coachReqForm = null;    // the new-request form
 let _coachCounterFor = null; // {id, mode, date, time, from, to} while suggesting another time
 const COACH_REQ_OPEN = ['pending', 'proposed', 'countered'];
+// Answered requests stay visible for a fortnight (Adam, v8.42 UAT: a confirmed
+// time vanished from the sheet, and nothing showed it until the coach's booking
+// arrived). Confirming doesn't make the booking: the coach adds it to their diary,
+// and it arrives as a `booking` publication (then it's "Your next session").
+const COACH_REQ_RECENT_DAYS = 14;
 
 async function refreshSessionRequests() {
   if (!coachingAvailable() || !isCoachedMode()) { _coachRequests = []; return _coachRequests; }
@@ -15243,6 +15270,16 @@ function coachRequestItemHTML(r) {
   const prefs = (r.preferences || []).map(coachSlotLine).map(coachEsc);
   const asked = `You asked for ${prefs.join(' or ')}${r.repeat_weekly ? ', weekly' : ''}.`;
   let head, actions = '';
+  if (r.status === 'accepted') {
+    const slot = r.proposed || r.counter || (r.preferences || [])[0];
+    const booked = slot && Object.values(state.coachBookings || {}).some(b => b && b.status !== 'cancelled' && b.date === slot.date && b.start_min === slot.start_min);
+    return `<div class="coach-req is-done"><div class="coach-req-line">✓ Confirmed · ${coachEsc(coachSlotLine(slot))}${r.repeat_weekly ? ' · weekly' : ''}</div>
+      <div class="coach-req-sub">${booked ? 'Booked. It shows as your next session.' : `${first} adds it to the diary; it shows as your next session once it’s booked.`}</div></div>`;
+  }
+  if (r.status === 'declined') {
+    return `<div class="coach-req is-done"><div class="coach-req-line">${first} couldn’t make these times</div>
+      <div class="coach-req-sub">${asked} Send another request with different times.</div></div>`;
+  }
   if (r.status === 'proposed' && r.proposed) {
     head = `${first} suggested ${coachEsc(coachSlotLine(r.proposed))}`;
     actions = `<div class="coach-req-actions">
@@ -15282,7 +15319,9 @@ function renderCoachRequest() {
   if (!el || !f) return;
   const first = coachEsc(coachFirstName());
   const t = coachTomorrow();
-  const open = (_coachRequests || []).filter(r => COACH_REQ_OPEN.includes(r.status));
+  const since = new Date(Date.now() - COACH_REQ_RECENT_DAYS * 86400000).toISOString();
+  const open = (_coachRequests || []).filter(r => COACH_REQ_OPEN.includes(r.status)
+    || (['accepted', 'declined'].includes(r.status) && String(r.updated_at || r.created_at || '') >= since));
   const next = nextCoachBooking();
   const slots = f.mode === 'times'
     ? f.times.map((x, i) => `<div class="coach-slot">
@@ -15294,7 +15333,7 @@ function renderCoachRequest() {
     : `<div class="coach-slot window"><input type="date" min="${t}" value="${f.window.date}" aria-label="Date" onchange="_coachReqForm.window.date=this.value" style="grid-column:1 / -1;">
          <input type="time" step="900" value="${f.window.from}" aria-label="From" onchange="_coachReqForm.window.from=this.value">
          <input type="time" step="900" value="${f.window.to}" aria-label="To" onchange="_coachReqForm.window.to=this.value"></div>`;
-  el.innerHTML = `${next ? `<div class="coach-notice"><b>Your next session</b>${coachEsc(coachDateTimeFmt(next.date, next.start_min))}${next.duration_min ? ` · ${next.duration_min} min` : ''}${next.location ? ` · ${coachEsc(next.location)}` : ''}</div>` : ''}
+  el.innerHTML = `${next ? `<div class="coach-notice"><b>Your next session</b>${coachEsc(coachDateTimeFmt(next.date, next.start_min))}${next.duration_min ? ` · ${next.duration_min} min` : ''}${next.location ? ` · ${coachEsc(next.location)}` : ''}${coachBookingWeekly(next) ? ' · weekly' : ''}</div>` : ''}
     ${open.length ? `<div class="coach-section-title" style="margin-top:0;">Your requests</div><div class="card">${open.map(coachRequestItemHTML).join('')}</div>` : ''}
     <div class="coach-section-title"${open.length ? '' : ' style="margin-top:0;"'}>When suits you</div>
     <div class="modal-sub" style="margin:0 0 10px;">Pick up to three times, or a day with a free window. ${first} confirms one.</div>

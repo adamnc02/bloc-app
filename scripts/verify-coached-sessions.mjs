@@ -107,7 +107,7 @@ async function run(label, html, engineSrc) {
   let F = null;
   try {
     const seeds = ['homeNextSessionHTML', 'nextCoachBooking', 'coachReqSlots', 'sendCoachRequest', 'answerCoachRequest', 'sendCoachCounter',
-      'startCoachCounter', 'trainViewCoachOwned', 'coachSessionWhen', 'openCoachRequest'];
+      'startCoachCounter', 'trainViewCoachOwned', 'coachSessionWhen', 'openCoachRequest', 'coachRequestItemHTML'];
     for (const n of seeds) if (!decls.has(n)) throw new Error('missing ' + n);
     const stubs = ['state', 'coachLinkGet', 'coachingAvailable', 'isCoachedMode', 'supabase', '_authResolvedSession', 'getLocalToday',
       'renderHomeHero', 'openModal', 'document', 'getCoachAssignment', 'toLocalDateStr'];
@@ -148,9 +148,20 @@ async function run(label, html, engineSrc) {
     const G = mk(st);
     check('Your next session = the earliest live booking from today (past and cancelled ignored)', G.nextCoachBooking().booking_id, 'b1');
     const h = G.homeNextSessionHTML();
-    check('…shown as "Your next session · Wed 30 Sep, 18:00", with Request a session', [/Your next session/.test(h), /Wed 30 Sept?, 18:00/.test(h), /Request a session/.test(h)], [true, true, true]);
+    check('…shown in the wireframe\'s short form, "Your next session · Wed 18:00" (within the week), with Request a session', [/Your next session/.test(h), /<b>Wed 18:00<\/b>/.test(h), /Request a session/.test(h)], [true, true, true]);
     G.setRequests([{ id: 'r1', status: 'proposed', proposed: { date: '2026-10-01', start_min: 1080 }, preferences: [] }]);
     check('a proposed time due an answer: "{coach} suggested a time" and "Answer Sam"', [/Sam suggested a time/.test(G.homeNextSessionHTML()), /Answer Sam/.test(G.homeNextSessionHTML())], [true, true]);
+    const wk = mk({ macrocycles: [], coachBookings: { w: { booking_id: 'w', date: '2026-09-30', start_min: 1080, status: 'booked', kind: 'weekly' } } }).homeNextSessionHTML();
+    check('the row carries the wireframe\'s calendar icon, and a weekly booking says "Weekly" on its second line', [/<svg[^>]*>.*M3 6\.5a2 2/.test(wk), /<span class="sub">Weekly<\/span>/.test(wk)], [true, true]);
+    const I = mk({ macrocycles: [], coachBookings: {} });
+    const acc = I.coachRequestItemHTML({ id: 'a', status: 'accepted', proposed: { date: '2026-09-30', start_min: 1080 }, preferences: [{ date: '2026-10-01', start_min: 1080 }], repeat_weekly: true });
+    check('a confirmed request stays visible: "✓ Confirmed · Wed 30 Sep, 18:00 · weekly", and that the coach books it',
+      [/✓ Confirmed · Wed 30 Sept?, 18:00 · weekly/.test(acc), /adds it to the diary/.test(acc), /Withdraw|Confirm<\/button>/.test(acc)], [true, true, false]);
+    const I2 = mk({ macrocycles: [], coachBookings: { b: { booking_id: 'b', date: '2026-09-30', start_min: 1080, status: 'booked' } } });
+    check('…and says "Booked" once the coach\'s booking for that time has arrived',
+      /Booked\. It shows as your next session/.test(I2.coachRequestItemHTML({ id: 'a', status: 'accepted', proposed: { date: '2026-09-30', start_min: 1080 }, preferences: [] })), true);
+    check('a declined request says so, with no actions',
+      /couldn’t make these times/.test(I.coachRequestItemHTML({ id: 'd', status: 'declined', preferences: [{ date: '2026-10-01', start_min: 1080 }] })), true);
     const none = mk({ macrocycles: [], coachBookings: {} }).homeNextSessionHTML();
     check('nothing booked: "None booked", and Request a session', /None booked/.test(none) && /Request a session/.test(none), true);
 
