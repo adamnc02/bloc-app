@@ -82,6 +82,7 @@ function build(source) {
     const syncPublicationChannel = () => log.push(['channel']);
     const applyCoachedChrome = () => {};                   // v8.40 (§132)
     const afterCoachLinkEnded = () => log.push(['ended']); // v8.40 (§132): verify-coached-hides.mjs covers it
+    const redrawProgressUnderCoaching = () => log.push(['redraw']); // v8.41 (§135)
     const showConfirm = (t, m, ok, cb) => { log.push(['confirm', t]); env.confirmCb = cb; };
     const setTimeout = (fn) => fn();
     ${consts.join('\n')}
@@ -266,6 +267,8 @@ async function run(source, label) {
     L.set('supabase', fakeSupabase(e, { set_photo_consent: { data: null, error: { message: 'network' } } }, server));
     await L.setCoachPhotoConsent(true);
     check('a failed photo-consent save puts it back to off', L.coachLinkGet().photoConsent, false);
+    if (label === 'now') check('v8.41: …and Progress under the sheet is redrawn both times (the change, then the revert)',
+      e.log.filter(l => l[0] === 'redraw').length, 2);
     await new Promise(r => setImmediate(r));
     L.set('supabase', fakeSupabase(e, { set_photo_consent: { data: true, error: null }, revoke_coach: { data: true, error: null } }, server));
     await L.setCoachPhotoConsent(true);

@@ -8607,6 +8607,9 @@ photo options wired up for checkins"*. The first draft shipped them on Check in,
   Adam's ask): it closes the sheet, opens Settings → Coaching, and scrolls the photo switch
   (`#settings-coaching-photos`) into view after the slide-in. Consent withdrawn after picking sends
   nothing, and the error links there too.
+- 🚨 **A consent change redraws Progress under the sheet** (`redrawProgressUnderCoaching()`, on the
+  change and on a failed save's revert). Closing a sheet doesn't redraw what's under it, and in UAT
+  the Review tab still said "Photos are off" until Progress was left and re-entered.
 - 🚨 **A failed insert removes the photos it uploaded**, so nothing is left in the coach-readable
   bucket. The sheet stays open with the reason.
 

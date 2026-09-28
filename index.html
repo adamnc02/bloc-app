@@ -9944,11 +9944,20 @@ function renderSettingsCoaching() {
 }
 
 // Photo consent is the client's alone (0022's trigger refuses anyone else).
+// v8.41 (§135): the Coaching sheet opens over Progress (the review-photos
+// shortcut lands here), and closing a sheet doesn't redraw what's under it.
+// Found in UAT: the Review tab still said "Photos are off" until Progress was
+// left and re-entered. So every consent change redraws Progress if it's showing.
+function redrawProgressUnderCoaching() {
+  const p = document.getElementById('screen-progress');
+  if (p && p.classList.contains('active')) renderProgress();
+}
 async function setCoachPhotoConsent(on) {
   const l = coachLinkGet();
   if (!l || l.photoConsent === on) return;
   coachLinkSet(Object.assign({}, l, { photoConsent: on }));
   renderSettingsCoaching();
+  redrawProgressUnderCoaching();
   coachingStatus('Saving…');
   try {
     const { data, error } = await supabase.rpc('set_photo_consent', { p_coach_id: l.coachId, p_consent: on });
@@ -9958,6 +9967,7 @@ async function setCoachPhotoConsent(on) {
   } catch (err) {
     coachLinkSet(l); // put it back as it was
     renderSettingsCoaching();
+    redrawProgressUnderCoaching();
     coachingStatus('Couldn’t change it: ' + ((err && err.message) || 'try again'), true);
     refreshCoachLink().then(renderSettingsCoaching).catch(() => {});
   }
