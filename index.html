@@ -3653,16 +3653,19 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .coach-section-title { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--text2); margin: 20px 0 8px; }
 
 /* v8.42 (§136): Your next session (Home), Request a session, a session with the coach (Train). */
-.home-next-session { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--divider); font-size: 13.5px; }
-.home-next-session .row1 { display: flex; align-items: baseline; gap: 10px; }
+.home-next-session { display: block; width: 100%; text-align: left; background: none; border: 0; border-top: 1px solid var(--divider); border-radius: 0;
+  margin-top: 14px; padding: 12px 0 0; font: inherit; font-size: 13.5px; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.home-next-session .row1 { display: flex; align-items: center; gap: 10px; }
+.home-next-session .row1 .row-btn-chevron { margin-left: -4px; }
 .home-next-session .lbl { color: var(--text2); white-space: nowrap; display: inline-flex; align-items: center; gap: 8px; }
-.home-next-session .lbl svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.home-next-session .lbl svg { width: 18px; height: 18px; fill: none; stroke: var(--accent2); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
 .coach-req.is-done .coach-req-line { color: var(--text2); }
 .home-next-session b { margin-left: auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.home-next-session .row2 { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.home-next-session .row2 { display: block; margin: 4px 0 0 26px; }
 .home-next-session .row2 .sub { color: var(--text3); font-size: 12.5px; }
-.home-next-session button { margin-left: auto; background: none; border: none; color: var(--accent2); font: inherit; font-weight: 700; cursor: pointer; padding: 4px 0; white-space: nowrap; }
-.home-next-session .row2 .sub:empty + button { margin-left: 0; }
+.coach-rep-ico svg { width: 20px; height: 20px; fill: none; stroke: var(--accent2); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; display: block; }
+button.coach-reqrow.is-tap, .coach-reqrow.is-tap { width: 100%; text-align: left; background: none; border: 0; border-radius: 0; font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button.coach-reqrow.is-tap + .coach-reqrow, .coach-reqrow + button.coach-reqrow.is-tap { border-top: 1px solid var(--divider); }
 .coach-req { padding: 12px 0; }
 .coach-req + .coach-req { border-top: 1px solid var(--divider); }
 .coach-req-line { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -3697,7 +3700,6 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .coach-reqrow + .coach-reqrow { border-top: 1px solid var(--divider); }
 .coach-reqrow-main { flex: 1; min-width: 0; }
 .coach-reqrow-when { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.coach-reqrow-act { background: none; border: 0; padding: 4px 0 0; color: var(--accent2); font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
 .coach-reqrow .chip { flex-shrink: 0; }
 .coach-field-label { font-size: 12px; font-weight: 700; color: var(--text2); margin: 14px 0 6px; }
 .coach-inrow { display: flex; gap: 8px; align-items: center; }
@@ -5134,6 +5136,15 @@ try {
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-coach-sessions" data-pub-safe>
+  <div class="modal-sheet" data-modal="modal-coach-sessions" style="max-height:92dvh;display:flex;flex-direction:column;">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-coach-sessions')">✕</button>
+    </div>
+    <div class="modal-title" style="flex-shrink:0;">Your sessions</div>
+    <div id="coach-sessions-body" style="overflow-y:auto;flex:1;"></div>
+  </div>
+</div>
 <div class="modal-overlay" id="modal-coach-request" data-pub-safe>
   <div class="modal-sheet" data-modal="modal-coach-request" style="max-height:92dvh;display:flex;flex-direction:column;">
     <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div>
@@ -10016,8 +10027,16 @@ function renderSettingsCoaching() {
       <button class="toggle-btn${l.photoConsent ? ' active' : ''}" aria-pressed="${l.photoConsent}" onclick="setCoachPhotoConsent(true)">On</button>
     </div>
     <div class="coach-section-title">Sessions</div>
-    <div class="modal-sub" style="margin:0 0 8px;">Ask ${coachEsc(l.coachName)} for a session. You pick the times; they confirm one.</div>
-    <button class="btn btn-ghost btn-block" onclick="closeModal('modal-settings-coaching');openCoachRequest()">Request a session</button>
+    <div class="card">
+      <div class="settings-row settings-row-nav" onclick="closeModal('modal-settings-coaching');openCoachSessions()">
+        <div class="settings-row-icon">${COACH_ICO_CALENDAR}</div>
+        <div class="settings-row-text">Your sessions<div class="settings-row-sub">What ${coachEsc(l.coachName)} has booked with you.</div></div>
+      </div>
+      <div class="settings-row settings-row-nav" onclick="closeModal('modal-settings-coaching');openCoachRequest()">
+        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></div>
+        <div class="settings-row-text">Request a session<div class="settings-row-sub">Pick the times; ${coachEsc(l.coachName)} confirms one.</div></div>
+      </div>
+    </div>
     <div class="coach-section-title">Unlink</div>
     <div class="modal-sub" style="margin:0 0 8px;">Stop coaching and go back to Solo.</div>
     <button class="btn btn-danger btn-block" onclick="confirmUnlinkCoach()">Unlink from ${coachEsc(l.coachName)}</button>`;
@@ -10505,6 +10524,8 @@ function drainPublications() {
     // v8.42 (§136): the one sheet a publication may land under redraws too.
     const req = document.getElementById('modal-coach-request');
     if (req && req.classList.contains('open') && typeof renderCoachRequest === 'function') renderCoachRequest();
+    const ses = document.getElementById('modal-coach-sessions');
+    if (ses && ses.classList.contains('open') && typeof renderCoachSessions === 'function') renderCoachSessions();
   }
   return sendPendingAcks().then(() => 'applied');
 }
@@ -15277,15 +15298,17 @@ function nextCoachBooking() {
 function homeNextSessionHTML() {
   // Always "Your next session" (wireframe HomeScreen): a suggested time waiting
   // for an answer is the banner's job, above the hero (renderHomeCoachBanner).
+  // 🚨 The WHOLE row is the button (Adam, UAT: BLOC has no inline text
+  // buttons): accent calendar icon, chevron, and it opens Your sessions.
+  // Measured at 375pt: the time is the wireframe's short form, and "Weekly"
+  // sits on a second line, or it runs off the hero.
   const b = nextCoachBooking();
-  // 🚨 Measured at 375pt: the icon, the label and "Wed 30 Sep, 18:00 · weekly"
-  // don't fit on one line, so the time is the wireframe's short form and
-  // "Weekly" sits on the second line with the link.
-  return `<div class="home-next-session" id="home-next-session">
-      <div class="row1"><span class="lbl">${COACH_ICO_CALENDAR}Your next session</span>
-      ${b ? `<b>${coachEsc(coachShortWhen(b.date, b.start_min))}</b>` : '<b style="color:var(--text3);font-weight:500;">None booked</b>'}</div>
-      <div class="row2"><span class="sub">${b && coachBookingWeekly(b) ? 'Weekly' : ''}</span><button onclick="openCoachRequest()">Request a session</button></div>
-    </div>`;
+  return `<button class="home-next-session" id="home-next-session" onclick="openCoachSessions()" aria-label="Your sessions">
+      <span class="row1"><span class="lbl">${COACH_ICO_CALENDAR}Your next session</span>
+      ${b ? `<b>${coachEsc(coachShortWhen(b.date, b.start_min))}</b>` : '<b style="color:var(--text3);font-weight:500;">None booked</b>'}
+      <span class="row-btn-chevron">${icoChevron(18)}</span></span>
+      ${b && coachBookingWeekly(b) ? '<span class="row2"><span class="sub">Weekly</span></span>' : ''}
+    </button>`;
 }
 
 // ── Request a session ─────────────────────────────────────────────────────
@@ -15348,6 +15371,72 @@ function coachWaitingChip(r, first) {
   if (r.status === 'declined') return `<span class="chip" style="--chip-c:var(--red);">Declined</span>`;
   return `<span class="chip" style="--chip-c:var(--accent2);">Waiting for ${first}</span>`;
 }
+// ── Your sessions (v8.42, §136) ───────────────────────────────────────────
+// Adam, UAT: separate from Request a session; opened by Home's "Your next
+// session" row (the whole row is the button: accent calendar icon, chevron;
+// BLOC has no inline text buttons). From the top:
+//   · the next session as the hero card, shaped like Home's Up next card, with
+//     "Request a session" INSIDE it (Adam: "the button has to be in the hero
+//     card … matching the design of the up next card");
+//   · Weekly: each repeating booking once, "↻ Every Wed · 18:00" + a Weekly chip,
+//     its next date beneath (Adam: weekly was one missable word);
+//   · Upcoming: one-offs by date, the first three, then a Show all row.
+const COACH_ICO_REPEAT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></svg>';
+const COACH_ICO_SEND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>';
+const COACH_UPCOMING_SHOWN = 3;
+let _coachSessionsAll = false;
+function coachAssignedLabel(b) {
+  const a = b && b.assigned_session;
+  if (!a) return '';
+  const m = (state.macrocycles || []).find(x => x.id === a.macroId);
+  const base = String(a.dayKey || '').replace(/m[12]$/, '');
+  const name = (m && m.dayLabels && m.dayLabels[base]) || base;
+  return `With your coach · ${name}, week ${a.week}`;
+}
+function openCoachSessions() {
+  _coachSessionsAll = false;
+  renderCoachSessions();
+  openModal('modal-coach-sessions');
+}
+function renderCoachSessions() {
+  const el = document.getElementById('coach-sessions-body');
+  if (!el) return;
+  const today = getLocalToday();
+  const first = coachEsc(coachFirstName());
+  const next = nextCoachBooking();
+  const live = Object.values(state.coachBookings || {}).filter(b => b && b.status !== 'cancelled' && b.date);
+  const weekly = live.filter(coachBookingWeekly).map(b => Object.assign({}, b, { next: coachBookingNextDate(b, today) }))
+    .filter(b => b.next).sort((x, y) => (x.next + x.start_min).localeCompare(y.next + y.start_min));
+  const oneOffs = live.filter(b => !coachBookingWeekly(b) && b.date >= today && !(next && next.booking_id === b.booking_id))
+    .sort((x, y) => (x.date + String(x.start_min).padStart(5, '0')).localeCompare(y.date + String(y.start_min).padStart(5, '0')));
+  const bits = b => [b.duration_min ? `${b.duration_min} min` : '', b.location ? coachEsc(b.location) : ''].filter(Boolean).join(' · ');
+  const hero = `<div class="card coach-hero-card">
+      <div class="up-next-eyebrow">Your next session</div>
+      ${next ? `<div class="coach-display" style="margin-top:6px;">${coachEsc(coachSlotLine({ date: next.date, start_min: next.start_min }))}</div>
+        <div class="coach-hero-sub">${[bits(next), `with ${coachEsc(coachName())}`, coachBookingWeekly(next) ? 'weekly' : ''].filter(Boolean).join(' · ')}</div>
+        ${next.assigned_session ? `<div class="coach-hero-sub">${coachEsc(coachAssignedLabel(next))}</div>` : ''}`
+        : `<div class="coach-hero-sub" style="margin-top:6px;">Nothing booked with ${first} yet.</div>`}
+      <button class="btn btn-accent btn-block" style="margin-top:16px;" onclick="closeModal('modal-coach-sessions');openCoachRequest()">${icoPlus(16)} Request a session</button>
+    </div>`;
+  const weeklyHTML = weekly.length ? `<div class="coach-section-title">Weekly</div><div class="card coach-reqlist">${weekly.map(b => {
+      const day = new Date(b.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short' });
+      return `<div class="coach-reqrow"><span class="coach-rep-ico">${COACH_ICO_REPEAT}</span>
+        <div class="coach-reqrow-main"><div class="coach-reqrow-when">Every ${day} · ${coachMinToHHMM(b.start_min)}</div>
+          <div class="coach-req-sub" style="margin-top:2px;">Next ${coachEsc(coachDayFmt(b.next))}${bits(b) ? ' · ' + bits(b) : ''}</div></div>
+        <span class="chip" style="--chip-c:var(--accent2);">Weekly</span></div>`;
+    }).join('')}</div>` : '';
+  const shown = _coachSessionsAll ? oneOffs : oneOffs.slice(0, COACH_UPCOMING_SHOWN);
+  const upcomingHTML = oneOffs.length ? `<div class="coach-section-title">Upcoming</div><div class="card coach-reqlist">${shown.map(b => `
+      <div class="coach-reqrow"><div class="coach-reqrow-main"><div class="coach-reqrow-when">${coachEsc(coachSlotLine({ date: b.date, start_min: b.start_min }))}</div>
+        <div class="coach-req-sub" style="margin-top:2px;">${[bits(b), coachEsc(coachAssignedLabel(b))].filter(Boolean).join(' · ') || `with ${coachEsc(coachName())}`}</div></div></div>`).join('')}
+      ${oneOffs.length > COACH_UPCOMING_SHOWN ? `<button class="coach-reqrow is-tap" onclick="_coachSessionsAll=!_coachSessionsAll;renderCoachSessions()">
+        <div class="coach-reqrow-main"><div class="coach-reqrow-when" style="color:var(--accent2);">${_coachSessionsAll ? 'Show fewer' : `Show all (${oneOffs.length})`}</div></div>
+        <span class="row-btn-chevron">${_coachSessionsAll ? icoSvg('<path d="m6 15 6-6 6 6"/>', 20) : icoChevDown(20)}</span></button>` : ''}
+    </div>` : '';
+  el.innerHTML = hero + weeklyHTML + upcomingHTML
+    + `<div class="coach-caption">Sessions ${first} books appear here. To change one, ask ${first}.</div>`;
+}
+
 // ── The coach banner on Home (wireframe HomeScreen BannerSlot 'proposed') ──
 // 🚨 On HOME, above the hero, not in the sheet (Adam, v8.42 UAT: "the banner
 // needs to call my attention when I load the app"; the first rebuild put it at
@@ -15433,7 +15522,7 @@ function coachCounterFormHTML(r) {
         : `<div class="coach-inrow"><input type="date" min="${t}" value="${c.date}" aria-label="Date" onchange="_coachCounterFor.date=this.value"></div>
            <div class="coach-two"><div><div class="coach-field-label">Free from</div><input type="time" step="900" value="${c.from}" onchange="_coachCounterFor.from=this.value"></div>
            <div><div class="coach-field-label">Until</div><input type="time" step="900" value="${c.to}" onchange="_coachCounterFor.to=this.value"></div></div>`}
-      <button class="btn btn-accent btn-block" style="margin-top:14px;" onclick="sendCoachCounter()">Send new time</button>
+      <button class="btn btn-accent btn-block" style="margin-top:14px;" onclick="sendCoachCounter()">${COACH_ICO_SEND} Send new time</button>
       <button class="btn btn-ghost btn-block" style="margin-top:10px;" onclick="_coachCounterFor=null;renderCoachRequest()">Cancel</button>
     </div>`;
 }
@@ -15447,13 +15536,25 @@ function coachRequestLatest(r) {
   if (r.status === 'accepted') return coachSlotLine(r.proposed || r.counter || prefs[0]);
   return coachSlotLine(prefs[0]) + (prefs.length > 1 ? ` +${prefs.length - 1} more` : '');
 }
+// A request still waiting on the coach is a tappable row (chevron) that asks
+// before withdrawing (Adam, UAT: no inline text buttons in BLOC; "each request
+// row is a tappable row, which launches a modal asking to withdraw").
 function coachWaitingCardHTML(r) {
   const first = coachEsc(coachFirstName());
-  return `<div class="coach-reqrow">
-      <div class="coach-reqrow-main"><div class="coach-reqrow-when">${coachEsc(coachRequestLatest(r))}${r.repeat_weekly ? ' · weekly' : ''}</div>
-        ${['pending', 'countered'].includes(r.status) ? `<button class="coach-reqrow-act" onclick="answerCoachRequest('${r.id}','withdraw')">Withdraw</button>` : ''}</div>
-      ${coachWaitingChip(r, first)}
-    </div>`;
+  const when = `${coachEsc(coachRequestLatest(r))}${r.repeat_weekly ? ' · weekly' : ''}`;
+  if (['pending', 'countered'].includes(r.status)) {
+    return `<button class="coach-reqrow is-tap" onclick="confirmWithdrawCoachRequest('${r.id}')" aria-label="Withdraw this request">
+        <div class="coach-reqrow-main"><div class="coach-reqrow-when">${when}</div></div>
+        ${coachWaitingChip(r, first)}<span class="row-btn-chevron">${icoChevron(18)}</span>
+      </button>`;
+  }
+  return `<div class="coach-reqrow"><div class="coach-reqrow-main"><div class="coach-reqrow-when">${when}</div></div>${coachWaitingChip(r, first)}</div>`;
+}
+function confirmWithdrawCoachRequest(id) {
+  const r = (_coachRequests || []).find(x => x.id === id);
+  if (!r) return;
+  showConfirm('Withdraw this request?', `${coachRequestLatest(r)}${r.repeat_weekly ? ', weekly' : ''}. ${coachFirstName()} won’t see it any more.`, 'Withdraw',
+    () => answerCoachRequest(id, 'withdraw'));
 }
 function coachReqFormHTML(f) {
   const first = coachEsc(coachFirstName());
@@ -15492,7 +15593,7 @@ function coachReqFormHTML(f) {
       </div>
     </div>
     ${f.error ? `<div class="coach-err">${coachEsc(f.error)}</div>` : ''}
-    <button class="btn btn-accent btn-block" style="margin-top:20px;" ${f.busy ? 'disabled' : ''} onclick="sendCoachRequest()">${f.busy ? 'Sending…' : 'Send request'}</button>
+    <button class="btn btn-accent btn-block" style="margin-top:20px;" ${f.busy ? 'disabled' : ''} onclick="sendCoachRequest()">${f.busy ? 'Sending…' : COACH_ICO_SEND + ' Send request'}</button>
     <div class="coach-caption">${first} confirms a time or suggests another.</div>`;
 }
 function renderCoachRequest() {

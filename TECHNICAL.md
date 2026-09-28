@@ -8682,11 +8682,26 @@ Coach does one or the other. That's Coach's to prompt (Phase 5), not BLOC's to t
 
 ### Home → Your next session (§11 Q23)
 
-In Coached mode the hero gains a two-line row (`homeNextSessionHTML()`):
-- the wireframe's calendar icon and "Your next session", then the earliest live booking **from today**
-  (`nextCoachBooking()`) in the wireframe's **short form** (`coachShortWhen()`: "Wed 18:00" within the
-  coming week, "Mon 12 Oct 18:00" after that, "Today 18:00"), or "None booked";
-- "Weekly" for a repeating booking, and **Request a session**, on the second line.
+In Coached mode the hero gains a row (`homeNextSessionHTML()`), and 🚨 **the whole row is the button**:
+BLOC has no inline text buttons (Adam, UAT). It opens **Your sessions**. It shows:
+- the calendar icon **in accent**;
+- "Your next session", then the earliest live booking **from today** (`nextCoachBooking()`) in the
+  wireframe's **short form** (`coachShortWhen()`: "Wed 18:00" within the coming week, "Mon 12 Oct
+  18:00" after that, "Today 18:00"), or "None booked";
+- a chevron;
+- "Weekly" beneath, for a repeating booking.
+
+### Your sessions (`modal-coach-sessions`, `data-pub-safe`)
+
+Adam, UAT: separate from Request a session, and the row's label says what it opens.
+- **The hero card**, shaped like Home's Up next card: an eyebrow, the date and time large, "60 min ·
+  Studio · with {coach} · weekly", and for an assigned session "With your coach · Pull, week 7".
+  **Request a session is a full-width button inside it** (Adam: *"the button has to be in the hero card
+  … matching the design of the up next card"*).
+- **Weekly:** each repeating booking once, a repeat icon, "Every Wed · 18:00", "Next Wed 30 Sep · 60
+  min · Studio", and a **Weekly** chip.
+- **Upcoming:** one-offs by date, the first three, then a tappable **Show all (n)** row (chevron).
+- Settings → Coaching → Sessions has two rows: **Your sessions** and **Request a session**.
 
 🚨 **Measured at 375pt:** the icon, the label and "Wed 30 Sep, 18:00 · weekly" don't fit on one line
 (it ran off the hero), hence the short form and the second line.
@@ -8733,9 +8748,10 @@ is its own sheet, next), and on this one *"Show all that aren't booked"*. From t
   - the time is your counter if you countered, the time you confirmed if confirmed, otherwise your
     first choice "+N more", then "· weekly";
   - the chip is Waiting for {coach} (pending or countered), Confirmed, or Declined (for 14 days);
-  - a small **Withdraw** while it's waiting on {coach}: pending or countered. `0024` lets a client
-    withdraw any open request; an earlier draft offered it on pending only, and Adam asked why only one
-    row had it.
+  - 🚨 **a row still waiting on {coach}** (pending or countered) **is itself the button**: a chevron,
+    and tapping it asks "Withdraw this request? {time}. {coach} won't see it any more." in BLOC's own
+    confirm, with a red **Withdraw** (Adam's design: no inline text buttons). `0024` lets a client
+    withdraw any open request. Confirmed and declined rows aren't tappable.
 
   A confirmed request that's been **booked leaves this sheet** (`coachRequestBooked()`: a live
   booking at the confirmed time). It's a session now. 🚨 **Confirming doesn't make the booking**; the
@@ -8748,7 +8764,8 @@ is its own sheet, next), and on this one *"Show all that aren't booked"*. From t
   - Notes for {coach};
   - **Repeat weekly as an iOS-style switch** (`.coach-switch`, `role="switch"`; BLOC's first, where
     on/off is otherwise a `.toggle-row` (§129); Adam asked for it);
-  - Send request, and "{coach} confirms a time or suggests another."
+  - **Send request**, with the wireframe's paper-plane icon (as is Send new time), and "{coach}
+    confirms a time or suggests another."
 - **The slots** use the wireframe's format ("Wed 30 Sep · 17:30", "Thu 1 Oct · any time 17:00–20:00").
   They're exactly what `0024`'s `session_request_slots_ok()` accepts: `{date, start_min}` or
   `{date, start_min, end_min}`, 1–3, duplicates dropped, days from **tomorrow**.

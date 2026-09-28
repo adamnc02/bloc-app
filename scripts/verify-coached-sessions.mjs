@@ -107,10 +107,10 @@ async function run(label, html, engineSrc) {
   let F = null;
   try {
     const seeds = ['homeNextSessionHTML', 'nextCoachBooking', 'coachReqSlots', 'sendCoachRequest', 'answerCoachRequest', 'sendCoachCounter',
-      'startCoachCounter', 'trainViewCoachOwned', 'coachSessionWhen', 'openCoachRequest', 'coachWaitingCardHTML', 'coachProposedCardHTML', 'coachRequestBooked', 'coachSlotLine', 'coachReqFormHTML', 'renderHomeCoachBanner', 'dismissHomeCoachBanner'];
+      'startCoachCounter', 'trainViewCoachOwned', 'coachSessionWhen', 'openCoachRequest', 'coachWaitingCardHTML', 'coachProposedCardHTML', 'coachRequestBooked', 'coachSlotLine', 'coachReqFormHTML', 'renderHomeCoachBanner', 'dismissHomeCoachBanner', 'confirmWithdrawCoachRequest'];
     for (const n of seeds) if (!decls.has(n)) throw new Error('missing ' + n);
     const stubs = ['state', 'coachLinkGet', 'coachingAvailable', 'isCoachedMode', 'supabase', '_authResolvedSession', 'getLocalToday',
-      'renderHomeHero', 'openModal', 'document', 'getCoachAssignment', 'toLocalDateStr', 'coachedView', 'localStorage'];
+      'renderHomeHero', 'openModal', 'document', 'getCoachAssignment', 'toLocalDateStr', 'coachedView', 'localStorage', 'showConfirm'];
     const parts = closure(decls, seeds, new Set(stubs));
     F = env => new Function('env', `
       let state = env.state;
@@ -123,6 +123,7 @@ async function run(label, html, engineSrc) {
       const els = {};
       const document = { getElementById: id => (id === 'home-coach-banner' ? (els[id] ||= { innerHTML: '' }) : null) };
       const coachedView = () => true;
+      const showConfirm = (t, m, ok, cb) => { env.confirm = { t, m, ok, cb }; };
       const store = env.store || (env.store = new Map());
       const localStorage = { getItem: k => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)) };
       const getCoachAssignment = (m, w, d) => env.E.getCoachAssignment(state, m, w, d);
@@ -152,7 +153,8 @@ async function run(label, html, engineSrc) {
     const G = mk(st);
     check('Your next session = the earliest live booking from today (past and cancelled ignored)', G.nextCoachBooking().booking_id, 'b1');
     const h = G.homeNextSessionHTML();
-    check('…shown in the wireframe\'s short form, "Your next session · Wed 18:00" (within the week), with Request a session', [/Your next session/.test(h), /<b>Wed 18:00<\/b>/.test(h), /Request a session/.test(h)], [true, true, true]);
+    check('…shown in the wireframe\'s short form, "Your next session · Wed 18:00"; 🚨 the WHOLE row is the button (no inline link), opening Your sessions',
+      [/Your next session/.test(h), /<b>Wed 18:00<\/b>/.test(h), /^<button class="home-next-session"[^>]*onclick="openCoachSessions\(\)"/.test(h.trim()), /Request a session/.test(h)], [true, true, true, false]);
     G.setRequests([{ id: 'r1', status: 'proposed', proposed: { date: '2026-10-01', start_min: 1080 }, preferences: [] }]);
     check('a suggested time does NOT change the row (the banner above the hero says it): still "Your next session"',
       [/Your next session/.test(G.homeNextSessionHTML()), /suggested a time|Answer/.test(G.homeNextSessionHTML())], [true, false]);
@@ -192,6 +194,8 @@ async function run(label, html, engineSrc) {
     const pend = row({ id: 'w', status: 'pending', preferences: [{ date: '2026-10-01', start_min: 1080 }, { date: '2026-10-02', start_min: 420 }], notes: 'Knees' });
     check('pending: the first choice "+1 more", Waiting, and Withdraw; no notes',
       [/Thu 1 Oct · 18:00 \+1 more/.test(pend), /Waiting for Sam/.test(pend), /Withdraw/.test(pend), /Knees/.test(pend)], [true, true, true, false]);
+    check('🚨 a waiting row is ONE tappable row with a chevron (no inline Withdraw link), and a confirmed one is not tappable',
+      [/^<button class="coach-reqrow is-tap" onclick="confirmWithdrawCoachRequest\('w'\)"/.test(pend.trim()), /coach-reqrow-act/.test(pend), /<button/.test(acc)], [true, false, false]);
     check('declined: a Declined chip, no actions', [/>Declined</.test(row({ id: 'd', status: 'declined', preferences: [{ date: '2026-10-01', start_min: 1080 }] })), /<button/.test(row({ id: 'd', status: 'declined', preferences: [{ date: '2026-10-01', start_min: 1080 }] }))], [true, false]);
     const form = I.coachReqFormHTML({ mode: 'times', times: [{ date: '2026-10-01', time: '18:00' }], window: {}, notes: '', repeat: true, busy: false });
     check('the form: "Up to 3 times | A free window", "Choice 1", and Repeat weekly as an iOS-style switch, on',
@@ -201,7 +205,7 @@ async function run(label, html, engineSrc) {
       W.nextCoachBooking() && W.nextCoachBooking().date, '2026-09-30');
     check('…and a past one-off is gone', mk({ macrocycles: [], coachBookings: { o: { booking_id: 'o', date: '2026-09-02', start_min: 1080, status: 'booked' } } }).nextCoachBooking(), null);
     const none = mk({ macrocycles: [], coachBookings: {} }).homeNextSessionHTML();
-    check('nothing booked: "None booked", and Request a session', /None booked/.test(none) && /Request a session/.test(none), true);
+    check('nothing booked: "None booked", still the row-button to Your sessions', /None booked/.test(none) && /openCoachSessions\(\)/.test(none), true);
 
     check('slots: up to 3 times from tomorrow, duplicates dropped, as {date, start_min}',
       G.coachReqSlots('times', [{ date: '2026-09-29', time: '18:00' }, { date: '2026-09-29', time: '18:00' }, { date: '2026-09-30', time: '07:15' }], {}),
@@ -224,6 +228,14 @@ async function run(label, html, engineSrc) {
     await R.answerCoachRequest('r8', 'accept');
     check('Withdraw and Confirm set only the status', calls.filter(c => c[0] === 'update').map(c => [c[2], c[3]]),
       [[{ status: 'withdrawn' }, 'r9'], [{ status: 'accepted' }, 'r8']]);
+    const envC = { state: { macrocycles: [], coachBookings: {} }, E, supabase: { from: chain } };
+    const RC = F(envC);
+    RC.setRequests([{ id: 'r5', status: 'countered', counter: { date: '2026-10-07', start_min: 420, end_min: 540 }, preferences: [] }]);
+    RC.confirmWithdrawCoachRequest('r5');
+    check('tapping a waiting row asks first ("Withdraw this request?", the time, red Withdraw) and writes nothing yet',
+      [envC.confirm && envC.confirm.t, /Wed 7 Oct · any time 07:00–09:00/.test(envC.confirm && envC.confirm.m), envC.confirm && envC.confirm.ok, calls.filter(c => c[3] === 'r5').length], ['Withdraw this request?', true, 'Withdraw', 0]);
+    await envC.confirm.cb(); await new Promise(r => setTimeout(r, 0));
+    check('…and Withdraw on the confirm sets status withdrawn', calls.filter(c => c[0] === 'update' && c[3] === 'r5').map(c => c[2]), [{ status: 'withdrawn' }]);
     R.setCounter({ id: 'r7', mode: 'times', date: '2026-10-03', time: '09:30', from: '', to: '' });
     await R.sendCoachCounter();
     check('Suggest another time: ONE counter slot and status countered', calls.filter(c => c[0] === 'update').pop().slice(2),
