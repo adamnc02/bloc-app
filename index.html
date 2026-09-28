@@ -14710,7 +14710,8 @@ const COACH_TOOLS = [
 ];
 const COACH_FEELS = ['Great', 'Good', 'Okay', 'Tough'];
 const COACH_CHECKIN_MAX_PHOTOS = 3;
-let _fromCoachTab = null;   // null: the tool of the newest response
+let _fromCoachTab = null;   // null: the tool of the newest response in the viewed cycle
+let _fromCoachMacroId;      // the cycle the tab was chosen in; switching cycles resets it
 let _coachNoteFor = null;   // the coachAdvice entry a note is being written about
 let _coachCheckin = null;   // the open Check in form: {feel, note, photos[], busy, error}
 
@@ -14726,10 +14727,17 @@ function coachAdviceContent(a) {
   const paras = (Array.isArray(src) ? src : String(src || '').split(/\n\s*\n/)).map(x => String(x).trim()).filter(Boolean);
   return { headline: typeof c === 'string' ? '' : String(c.headline || ''), paras, kcal: c.kcal, steps: c.steps, compliance: c.compliance };
 }
-function latestCoachAdvice(tool) {
+// 🚨 A response belongs to ONE cycle (its macro_id), exactly as Solo's
+// check-in, cycle review and next-cycle advice do: Progress shows the ones for
+// the cycle it's viewing, and the hero's cycle switch changes them (Adam,
+// v8.41 UAT). One that names no cycle shows on every cycle, so it's never lost.
+function coachAdviceForMacro(macro) {
+  return (state.coachAdvice || []).filter(a => a && (!a.macroId || !macro || a.macroId === macro.id));
+}
+function latestCoachAdvice(tool, macro) {
   let best = null;
-  for (const a of (state.coachAdvice || [])) {
-    if (!a || coachToolKey(a.tool) !== tool) continue;
+  for (const a of coachAdviceForMacro(macro)) {
+    if (coachToolKey(a.tool) !== tool) continue;
     if (!best || (a.seq || 0) > (best.seq || 0)) best = a;
   }
   return best;
@@ -14784,13 +14792,15 @@ function coachNoteRowHTML(a) {
     + (reply ? `<div class="coach-reply"><b>${coachEsc(coachFirstName())} replied</b>${coachEsc(reply.text)}</div>` : '');
 }
 
-function renderProgressFromCoach(el) {
+function renderProgressFromCoach(el, macro) {
+  const macroId = macro ? macro.id : null;
+  if (_fromCoachMacroId !== macroId) { _fromCoachTab = null; _fromCoachMacroId = macroId; }
   if (!_fromCoachTab) {
-    const newest = (state.coachAdvice || []).reduce((b, a) => (a && (!b || (a.seq || 0) > (b.seq || 0)) ? a : b), null);
+    const newest = coachAdviceForMacro(macro).reduce((b, a) => (!b || (a.seq || 0) > (b.seq || 0) ? a : b), null);
     _fromCoachTab = newest ? coachToolKey(newest.tool) : 'check-in';
   }
   const tab = COACH_TOOLS.some(t => t.key === _fromCoachTab) ? _fromCoachTab : 'check-in';
-  const a = latestCoachAdvice(tab);
+  const a = latestCoachAdvice(tab, macro);
   const tabs = `<div class="toggle-row" role="tablist" aria-label="Response type">${COACH_TOOLS.map(t =>
     `<button class="toggle-btn${t.key === tab ? ' active' : ''}" role="tab" aria-selected="${t.key === tab}" onclick="setFromCoachTab('${t.key}')">${t.tab}</button>`).join('')}</div>`;
   let body;
@@ -14817,7 +14827,15 @@ function renderProgressFromCoach(el) {
 function setFromCoachTab(key) {
   _fromCoachTab = key;
   const el = document.getElementById('progress-checkin');
-  if (el) renderProgressFromCoach(el);
+  if (el) renderProgressFromCoach(el, resolveProgressMacro());
+}
+// "For Weight Loss 2026 · 22 Jun – 9 Aug": which cycle a response is about.
+function coachAdviceCycleLine(a) {
+  const m = a && a.macroId && (state.macrocycles || []).find(x => x.id === a.macroId);
+  if (!m) return '';
+  const f = d => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const range = m.start ? ` · ${f(m.start)} – ${f(toLocalDateStr(getMacroEndDate(m)))}` : '';
+  return `For ${m.name || 'this cycle'}${range}`;
 }
 function coachAdviceById(responseId) { return (state.coachAdvice || []).find(a => a && a.responseId === responseId) || null; }
 
@@ -14829,7 +14847,9 @@ function openCoachResponse(responseId) {
   const when = coachDayFmt(a.publishedAt || a.receivedAt);
   const t = document.querySelector('#modal-coach-response .modal-title');
   if (t) t.textContent = when ? `${coachToolMeta(a.tool).label} · ${when}` : coachToolMeta(a.tool).label;
-  el.innerHTML = coachBylineHTML(a)
+  const cycle = coachAdviceCycleLine(a);
+  el.innerHTML = (cycle ? `<div class="modal-sub" style="margin-top:0;">${coachEsc(cycle)}</div>` : '')
+    + coachBylineHTML(a)
     + (c.headline ? `<div class="ai-card-headline">${coachEsc(c.headline)}</div>` : '')
     + c.paras.map(p => `<p class="ai-card-summary coach-para">${coachEsc(p)}</p>`).join('')
     + coachScoresHTML(coachAdviceScores(a))

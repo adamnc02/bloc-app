@@ -7,6 +7,10 @@
 //     (check-in / review / next cycle), from state.coachAdvice (never
 //     blocAdvice, I5): byline, headline, first paragraph, scores, Read full,
 //     and a note back. Read-only: no signal chip, no Build / Challenge.
+//   · 🚨 A response belongs to ONE cycle (its macro_id), as Solo's check-in,
+//     review and next-cycle advice do: Progress shows the viewed cycle's, and
+//     the hero's cycle switch changes them (Adam, v8.41 UAT: it showed on
+//     every cycle). One with no macro_id shows on all. Read full names the cycle.
 //   · A republished response reads "Updated · …" (§11 Q10).
 //   · A note back is one client_submissions row, kind 'note_back', naming
 //     the response's publication; once sent the row says so, and the coach's
@@ -35,7 +39,7 @@ const STUBS = ['state', 'save', 'coachLinkGet', 'coachingAvailable', 'isCoachedM
 
 function build(src) {
   const { decls } = indexTopLevel(mainScript(src));
-  const seeds = ['renderProgressFromCoach', 'openCoachNote', 'sendCoachNote', 'openCoachCheckin', 'sendCoachCheckin',
+  const seeds = ['renderProgressFromCoach', 'openCoachResponse', 'openCoachNote', 'sendCoachNote', 'openCoachCheckin', 'sendCoachCheckin',
     'setCoachCheckinFeel', 'coachToolKey', 'coachAdviceContent', 'applyAiResponsePublication'];
   for (const s of seeds) if (!decls.has(s)) return null;
   const parts = closure(decls, seeds, new Set(STUBS));
@@ -56,7 +60,7 @@ function build(src) {
     const document = env.document;
     const atob = s => Buffer.from(s, 'base64').toString('binary');
     ${parts.map(p => p.text).join('\n')}
-    return { renderProgressFromCoach, openCoachNote, sendCoachNote, openCoachCheckin, sendCoachCheckin, setCoachCheckinFeel,
+    return { renderProgressFromCoach, openCoachResponse, openCoachNote, sendCoachNote, openCoachCheckin, sendCoachCheckin, setCoachCheckinFeel,
       coachToolKey, coachAdviceContent, applyAiResponsePublication, get checkin() { return _coachCheckin; } };`);
 }
 
@@ -122,7 +126,7 @@ async function run(label, src) {
       advice({ responseId: 'r2', tool: 'cycle_review', seq: 3, publicationId: 'pub-2', content: { headline: 'Review', narrative: ['r'] } })];
     const F = factory(env);
     const el = { innerHTML: '' };
-    F.renderProgressFromCoach(el);
+    F.renderProgressFromCoach(el, null);
     const h = el.innerHTML;
     check('it opens on the newest response\'s tool, showing that tool\'s LATEST response',
       [h.includes('Good week'), h.includes('Older check-in')], [true, false]);
@@ -133,13 +137,43 @@ async function run(label, src) {
 
     env.state.coachAdvice.push(advice({ responseId: 'rx', seq: 7, publicationId: 'pub-7', updated: true, content: { headline: '<img src=x onerror=alert(1)>', narrative: ['<b>x</b>'] } }));
     const F2 = factory(env); const el2 = { innerHTML: '' };
-    F2.renderProgressFromCoach(el2);
+    F2.renderProgressFromCoach(el2, null);
     check('a republished response reads "Updated · …"', el2.innerHTML.includes('Updated · Check-in'), true);
     check('🚨 the coach\'s text is escaped, never markup', [el2.innerHTML.includes('<img'), el2.innerHTML.includes('&lt;img')], [false, true]);
 
     const env3 = makeEnv(); const F3 = factory(env3); const el3 = { innerHTML: '' };
-    F3.renderProgressFromCoach(el3);
+    F3.renderProgressFromCoach(el3, null);
     check('nothing published: "Nothing shared yet."', el3.innerHTML.includes('Nothing shared yet.'), true);
+  }
+
+  // ── 2b. One cycle each ───────────────────────────────────────────────────
+  {
+    const A = { id: 'mA', name: 'Weight Loss 2026', start: '2026-06-22', weeks: 7 };
+    const B = { id: 'mB', name: 'UAT light', start: '2026-03-02', weeks: 3 };
+    const env = makeEnv();
+    env.state.macrocycles = [B, A];
+    env.state.coachAdvice = [
+      advice({ responseId: 'a1', macroId: 'mA', seq: 5, content: { headline: 'For A', narrative: ['a'] } }),
+      advice({ responseId: 'b1', macroId: 'mB', seq: 6, tool: 'cycle_review', content: { headline: 'For B', narrative: ['b'] } }),
+    ];
+    const F = factory(env);
+    const elA = { innerHTML: '' }; F.renderProgressFromCoach(elA, A);
+    const elB = { innerHTML: '' }; F.renderProgressFromCoach(elB, B);
+    check('🚨 viewing cycle A shows A\'s response and not B\'s; viewing B, the reverse',
+      [elA.innerHTML.includes('For A'), elA.innerHTML.includes('For B'), elB.innerHTML.includes('For B'), elB.innerHTML.includes('For A')], [true, false, true, false]);
+    check('…and each opens on its own newest tool (A: Check-in, B: Review), the tab resetting on the switch',
+      [/toggle-btn active[^>]*>Check-in/.test(elA.innerHTML), /toggle-btn active[^>]*>Review/.test(elB.innerHTML)], [true, true]);
+    F.openCoachResponse('a1');
+    check('Read full names the cycle: "For Weight Loss 2026 · 22 Jun – …"',
+      /For Weight Loss 2026 · 22 Jun – /.test(env.document.getElementById('coach-response-body').innerHTML), true);
+
+    const envN = makeEnv();
+    envN.state.macrocycles = [B, A];
+    envN.state.coachAdvice = [advice({ responseId: 'n1', macroId: null, seq: 1, content: { headline: 'No cycle named', narrative: ['n'] } })];
+    const N = factory(envN);
+    const nA = { innerHTML: '' }; N.renderProgressFromCoach(nA, A);
+    const nB = { innerHTML: '' }; N.renderProgressFromCoach(nB, B);
+    check('a response naming no cycle is never lost: it shows on every cycle', [nA.innerHTML.includes('No cycle named'), nB.innerHTML.includes('No cycle named')], [true, true]);
   }
 
   // ── 3. A note back ───────────────────────────────────────────────────────
@@ -158,7 +192,7 @@ async function run(label, src) {
       [env.state.coachNotesSent['pub-1'].submissionId, env.log.some(l => l[0] === 'save'), env.log.some(l => l[0] === 'close' && l[1] === 'modal-coach-note')],
       ['sub-1', true, true]);
     env.state.coachNoteReplies['sub-1'] = { text: 'Drop to 3 sets this week.' };
-    const el = { innerHTML: '' }; factory(env).renderProgressFromCoach(el);
+    const el = { innerHTML: '' }; factory(env).renderProgressFromCoach(el, null);
     check('once sent, the row says so, and the coach\'s reply shows under it',
       [el.innerHTML.includes('Note sent to Sam'), el.innerHTML.includes('openCoachNote('), el.innerHTML.includes('Drop to 3 sets this week.')], [true, false, true]);
 

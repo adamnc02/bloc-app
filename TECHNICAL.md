@@ -8542,8 +8542,17 @@ doesn't need a cycle on the phone. The section id is `progress-from-coach`. The 
 has a step for it where the check-in step was.
 
 **What it shows.** One tab per tool (Check-in / Review / Next cycle), each holding **that tool's latest
-response** (highest `seq`) from `state.coachAdvice` (§131, never `blocAdvice`, I5). It opens on the tool
-of the newest response. Each response shows:
+response** (highest `seq`) from `state.coachAdvice` (§131, never `blocAdvice`, I5), **for the cycle
+Progress is viewing**. It opens on the tool of that cycle's newest response.
+
+🚨 **A response belongs to one cycle (`macro_id`)**, exactly as Solo's check-in, cycle review and
+next-cycle advice do (`coachAdviceForMacro()`). The hero's cycle switch changes them. The first draft
+showed the newest responses on every cycle, and Adam caught it in UAT: *"checkins belong to a single
+macrocycle, and tapping changes what I see linked to the macrocycle"*. A response with no `macro_id`
+shows on every cycle, so it's never lost. Switching cycles resets the tab. **Read full** names the cycle
+under its title ("For Weight Loss 2026 · 22 Jun – 9 Aug").
+
+Each response shows:
 - a byline: the coach's initials and name, "Updated · " when republished (§11 Q10), the tool, and the
   **publication's** date (`publishedAt`, now kept from `created_at` by the applier; `receivedAt` for
   older entries);
