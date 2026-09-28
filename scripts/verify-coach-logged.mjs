@@ -49,7 +49,7 @@ const STUBS = ['state', 'save', 'coachLinkGet', 'coachingAvailable', 'isCoachedM
   'renderTrain', 'openModal', 'closeModal', 'showConfirm', 'fitListToKeyboard', 'showScreen', 'openCoachSessions', '_coachRequests',
   'engineCtx', 'supabase', '_authResolvedSession', 'expandedExercises', 'BlocEngine'];
 const SEEDS = ['applyPublications', 'queueStoredSessionLogs', 'chooseSwapToday', 'undoSwapToday', 'openSwapToday', 'renderSwapTodayList',
-  'swapTodayRowHTML', 'renderHomeCoachBanner', 'dismissCoachNotice', 'swapBodyPartOf', 'coachOwnedSession', 'trainCoachNoticeHTML',
+  'swapTodayRowHTML', 'renderHomeCoachBanner', 'dismissCoachNotice', 'swapBodyPartOf', 'coachCheckinGate', 'coachOwnedSession', 'trainCoachNoticeHTML',
   'coachGroupSessionsHTML'];
 function build(src) {
   const { decls } = indexTopLevel(mainScript(src));
@@ -311,6 +311,23 @@ async function run(label, html, engineSrc, quiet = false) {
     B.renderHomeCoachBanner();
     check('three waiting (a proposal, a booking, a response): the badge says 3', (home().match(/coach-banner-count[^>]*>(\d+)</) || [])[1], '3');
     check('Bench Press (not in the library, no bodyPart) is Chest; Machine Row is Back', [B.swapBodyPartOf({ name: 'Bench Press' }), B.swapBodyPartOf({ name: 'Machine Row' }), B.swapBodyPartOf({ name: 'Leg Curl' })], ['Chest', 'Back', 'Legs']);
+  }
+  // ── 7. Check in keeps Solo's rhythm (Adam, v8.43 UAT) ──────────────────
+  {
+    const env = envFor(E);
+    const B = factory(env);
+    const m = env.state.macrocycles[0];
+    check('no cycle: Check in is closed', B.coachCheckinGate(null).open, false);
+    check('enough data and nothing sent yet: open', B.coachCheckinGate(m).open, true);
+    env.state.coachCheckinsSent = [{ at: '2026-07-28T09:00:00Z', macroId: m.id }];
+    const g = B.coachCheckinGate(m);
+    check('sent Tue 28 Jul: closed for 14 days, until Tue 11 Aug (Solo\'s cooldown formula)', [g.open, g.until], [false, '2026-08-11']);
+    env.state.coachCheckinsSent = [{ at: '2026-07-10T09:00:00Z', macroId: m.id }];
+    check('…and open again once that\'s passed', B.coachCheckinGate(m).open, true);
+    env.state.coachCheckinsSent = [];
+    const thin = demo(); thin.bodyLogs = []; thin.nutritionLogs = []; thin.nutritionMeals = {};
+    const envT = envFor(E, { state: thin });
+    check('not enough data yet: closed, saying roughly how long', /Check in opens/.test(factory(envT).coachCheckinGate(thin.macrocycles[0]).why || ''), true);
   }
   return failures;
 }

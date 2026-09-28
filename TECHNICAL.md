@@ -8948,6 +8948,23 @@ the golden file).
 ⚠️ **Not covered:** a superset member or a cardio exercise can't be swapped (their cards are separate
 code). The coach sees the swap in `client_state` (`substitutions`), not as a publication.
 
+### From your coach, tightened in UAT (§135's card)
+
+Adam, v8.43 UAT:
+- **Every new button carries an icon left of its text** (`.coach-icon-btn`): **Read full …** has reading
+  glasses (`COACH_ICO_READ`), **Send a note back** a speech bubble (`COACH_ICO_BUBBLE`). 🚨 The pulsing ✦ row
+  (`aiActionRow`) is Solo's, and means "your next AI check-in or review is due"; the note back no longer uses it.
+- **Send a note back is in the full sheet only** (`openCoachResponse()`), with the "✓ Note sent" line and the
+  coach's reply. The Progress card keeps the byline, headline, first paragraph, numbers and Read full.
+- 🚨 **Check in keeps Solo's rhythm** (`coachCheckinGate()`). It opens once the cycle has enough data to judge
+  (`computeCheckinState().hasEnoughData`, Solo's baseline and comparison window), then no sooner than 14 days
+  after the last check-in on that cycle, the client's request or the coach's check-in response, whichever is
+  later, by Solo's own cooldown formula (`getMondayAfter(getSundayAfterWeeks(…, 2))`). Closed, the header button
+  is gone and the card says why ("Next check-in · Mon 12 Oct", or roughly how many more weeks of logs).
+  `openCoachCheckin()` refuses too. Solo's other gate, a signal that warrants an AI call, is Solo's cost control
+  and isn't applied: the coach decides. Sent check-ins now record their `macroId` (older ones count for every
+  cycle).
+
 ### The banners (wireframe `HomeScreen` `BannerSlot`; proposal §8)
 
 The appliers raise **notices** into `state.coachNotices` (one per publication, the last 30), so they survive a

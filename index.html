@@ -3533,6 +3533,8 @@ button.coach-reqrow.is-tap + .coach-reqrow, .coach-reqrow + button.coach-reqrow.
   font-size: 13px; line-height: 1.45; color: var(--text2); }
 .coach-banner b { display: block; color: var(--accent2); font-size: 14px; margin-bottom: 3px; }
 .coach-banner-home { margin: 18px 0 0; position: relative; }
+.coach-icon-btn { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.coach-icon-btn svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
 /* v8.43 (§137): how many banners are waiting, over the top-right corner (iOS-style), clear of the ✕ */
 .coach-banner-count { position: absolute; top: -9px; right: -7px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px;
   background: var(--red); color: #fff; font-size: 12px; font-weight: 700; line-height: 22px; text-align: center;
@@ -6795,7 +6797,7 @@ function buildProgressTourSteps(demo) {
         // v8.41 (§135): the check-in's place is From your coach's.
         ? { targetId: 'progress-from-coach', screen: 'progress', onEnter: onPage(),
             title: 'From your coach',
-            body: 'Your coach’s check-ins, cycle reviews and next-cycle plans land here. Send a note back if something doesn’t fit, or tap Check in to ask for one.' }
+            body: 'Your coach’s check-ins, cycle reviews and next-cycle plans land here. Open one in full to send a note back, or tap Check in to ask for one when it’s due.' }
         : st);
   }
   return steps;
@@ -14711,9 +14713,13 @@ function coachBylineHTML(a) {
     <b>${coachEsc(coachName())}</b><span>${a.updated ? 'Updated · ' : ''}${meta.label}${when ? ' · ' + when : ''}</span></div>`;
 }
 // The note back and, once it comes, the coach's reply (§11: the client sees it).
+// v8.43 (Adam, UAT): every new button carries an icon left of its text. The
+// pulsing ✦ row (aiActionRow) stays Solo's: "your next AI check-in is due".
+const COACH_ICO_READ = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6.5" cy="14.5" r="3.5"/><circle cx="17.5" cy="14.5" r="3.5"/><path d="M10 14.5c1.2-1 2.8-1 4 0M3 14.5 4.5 8.5A2 2 0 0 1 6.4 7H8M21 14.5l-1.5-6A2 2 0 0 0 17.6 7H16"/></svg>';
+const COACH_ICO_BUBBLE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>';
 function coachNoteRowHTML(a) {
   const sent = a.publicationId && state.coachNotesSent && state.coachNotesSent[a.publicationId];
-  if (!sent) return aiActionRow('Send a note back', `openCoachNote('${coachEsc(a.responseId)}')`, 'coach-note-btn');
+  if (!sent) return `<button class="btn btn-ghost btn-block coach-icon-btn" id="coach-note-btn" onclick="openCoachNote('${coachEsc(a.responseId)}')">${COACH_ICO_BUBBLE}Send a note back</button>`;
   const reply = sent.submissionId && state.coachNoteReplies && state.coachNoteReplies[sent.submissionId];
   return aiTimerRow(`Note sent to ${coachEsc(coachFirstName())} · ${coachDayFmt(sent.at)}`).replace('⏱ ', '✓ ')
     + (reply ? `<div class="coach-reply"><b>${coachEsc(coachFirstName())} replied</b>${coachEsc(reply.text)}</div>` : '');
@@ -14737,8 +14743,8 @@ function renderProgressFromCoach(el, macro) {
       + (c.headline ? `<div class="ai-card-headline">${coachEsc(c.headline)}</div>` : '')
       + (c.paras[0] ? `<div class="ai-card-summary">${coachEsc(c.paras[0])}</div>` : '')
       + coachScoresHTML(coachAdviceScores(a))
-      + `<button class="btn btn-ghost btn-block" style="margin-top:16px;" onclick="openCoachResponse('${coachEsc(a.responseId)}')">${coachToolMeta(a.tool).readFull}</button>`
-      + coachNoteRowHTML(a);
+      + `<button class="btn btn-ghost btn-block coach-icon-btn" style="margin-top:16px;" onclick="openCoachResponse('${coachEsc(a.responseId)}')">${COACH_ICO_READ}${coachToolMeta(a.tool).readFull}</button>`;
+    // v8.43 (Adam, UAT): the note back lives in the full sheet only (openCoachResponse).
   } else {
     body = `<div class="empty-inline" style="text-align:center;">${tab === 'next-cycle'
       ? `${coachEsc(coachFirstName())} hasn’t shared your next cycle yet. It appears here when it’s published.`
@@ -14746,11 +14752,39 @@ function renderProgressFromCoach(el, macro) {
   }
   if (tab === 'cycle-review') body += coachReviewPhotosRowHTML(macro);
   const last = (state.coachCheckinsSent || [])[(state.coachCheckinsSent || []).length - 1];
-  el.innerHTML = sectionHeader('From your coach', 'Your coach’s check-ins and reviews. Send a note back if something doesn’t fit.',
-      { id: 'progress-from-coach', slot: `<button class="btn btn-ghost btn-sm" id="coach-checkin-btn" onclick="openCoachCheckin()">Check in</button>` })
+  const gate = coachCheckinGate(macro);
+  el.innerHTML = sectionHeader('From your coach', 'Your coach’s check-ins and reviews. Open one in full to send a note back.',
+      { id: 'progress-from-coach', slot: gate.open ? `<button class="btn btn-ghost btn-sm" id="coach-checkin-btn" onclick="openCoachCheckin()">Check in</button>` : '' })
     + `<div class="card">${tabs}${body}</div>`
+    + (gate.open ? '' : `<div class="coach-last">${coachEsc(gate.why)}</div>`)
     + (last ? `<div class="coach-last">Last check-in sent ${coachDayFmt(last.at)}.</div>` : '')
     + sectionEnd();
+}
+// v8.43 (Adam, UAT): Check in keeps Solo's rhythm. It opens once the cycle has
+// enough data to judge (computeCheckinState's hasEnoughData: Solo's baseline
+// and comparison window), then no sooner than Solo's 14-day cooldown after the
+// last check-in on this cycle, the client's request or the coach's response,
+// whichever is later: 14 days on, by Solo's own fallback formula
+// (getMondayAfter(getSundayAfterWeeks(…, 2))). Solo's other
+// gate, a signal that warrants an AI call, is Solo's cost control and not
+// applied: the coach decides.
+function coachCheckinGate(macro) {
+  if (!macro) return { open: false, why: 'Check in opens once you have an active cycle.' };
+  const st = computeCheckinState(macro);
+  if (!st || !st.hasEnoughData) {
+    const weeksLogged = st && st.ins ? st.ins.weekBuckets.length : 0;
+    const weeksLeft = Math.max(0, ((macro.goalType || 'loss') === 'loss' ? 4 : 3) - weeksLogged);
+    return { open: false, why: weeksLeft > 0
+      ? `Check in opens after about ${weeksLeft} more week${weeksLeft === 1 ? '' : 's'} of weight and nutrition logs.`
+      : 'Check in opens once more days have both weight and nutrition logged.' };
+  }
+  const days = [];
+  for (const x of (state.coachCheckinsSent || [])) if (x && x.at && (!x.macroId || x.macroId === macro.id)) days.push(toLocalDateStr(new Date(x.at)));
+  for (const a of coachAdviceForMacro(macro)) if (coachToolKey(a.tool) === 'check-in' && (a.publishedAt || a.receivedAt)) days.push(toLocalDateStr(new Date(a.publishedAt || a.receivedAt)));
+  if (!days.length) return { open: true };
+  const lastDay = days.sort()[days.length - 1];
+  const until = getMondayAfter(getSundayAfterWeeks(lastDay, 2));
+  return getLocalToday() >= until ? { open: true } : { open: false, until, why: `Next check-in · ${coachDayFmt(until)}` };
 }
 function setFromCoachTab(key) {
   _fromCoachTab = key;
@@ -14831,6 +14865,7 @@ async function sendCoachNote() {
 
 // ── Check in ───────────────────────────────────────────────────────────────
 function openCoachCheckin() {
+  if (!coachCheckinGate(resolveProgressMacro()).open) return; // v8.43: Solo's rhythm (coachCheckinGate)
   _coachCheckin = { feel: null, note: '', busy: false, error: null };
   renderCoachCheckin();
   openModal('modal-coach-checkin');
@@ -14868,7 +14903,7 @@ async function sendCoachCheckin() {
     }).select('id').single();
     if (error) throw error;
     if (!Array.isArray(state.coachCheckinsSent)) state.coachCheckinsSent = [];
-    state.coachCheckinsSent.push({ submissionId: data.id, at: new Date().toISOString(), feel: f.feel });
+    state.coachCheckinsSent.push({ submissionId: data.id, at: new Date().toISOString(), feel: f.feel, macroId: (resolveProgressMacro() || {}).id || null });
     if (state.coachCheckinsSent.length > 20) state.coachCheckinsSent = state.coachCheckinsSent.slice(-20);
     save();
     _coachCheckin = null;
