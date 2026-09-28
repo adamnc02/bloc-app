@@ -3690,7 +3690,13 @@ html.auth-likely-signed-in #auth-gate { display: none; }
   font-size: 13px; line-height: 1.45; color: var(--text2); }
 .coach-banner b { display: block; color: var(--accent2); font-size: 14px; margin-bottom: 3px; }
 .coach-banner-ico svg { width: 20px; height: 20px; fill: none; stroke: var(--accent2); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.coach-req-card { margin-bottom: 12px; }
+.coach-reqlist { padding-top: 4px; padding-bottom: 4px; }
+.coach-reqrow { display: flex; align-items: center; gap: 10px; padding: 12px 0; }
+.coach-reqrow + .coach-reqrow { border-top: 1px solid var(--divider); }
+.coach-reqrow-main { flex: 1; min-width: 0; }
+.coach-reqrow-when { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.coach-reqrow-act { background: none; border: 0; padding: 4px 0 0; color: var(--accent2); font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.coach-reqrow .chip { flex-shrink: 0; }
 .coach-field-label { font-size: 12px; font-weight: 700; color: var(--text2); margin: 14px 0 6px; }
 .coach-inrow { display: flex; gap: 8px; align-items: center; }
 .coach-inrow input { flex: 1 1 auto; min-width: 0; box-sizing: border-box; }
@@ -15338,7 +15344,7 @@ function openCoachRequest() {
 function coachWaitingChip(r, first) {
   if (r.status === 'countered') return `<span class="chip" style="--chip-c:var(--accent2);">Waiting for ${first}</span>`;
   if (r.status === 'accepted') return `<span class="chip" style="--chip-c:var(--green-text);">Confirmed</span>`;
-  if (r.status === 'declined') return `<span class="chip" style="--chip-c:var(--red);">${first} couldn’t make it</span>`;
+  if (r.status === 'declined') return `<span class="chip" style="--chip-c:var(--red);">Declined</span>`;
   return `<span class="chip" style="--chip-c:var(--accent2);">Waiting for ${first}</span>`;
 }
 function coachRequestBooked(r) {
@@ -15392,20 +15398,22 @@ function coachCounterFormHTML(r) {
       <button class="btn btn-ghost btn-block" style="margin-top:10px;" onclick="_coachCounterFor=null;renderCoachRequest()">Cancel</button>
     </div>`;
 }
+// One row per request: its LATEST state and a status, never its history
+// (Adam, v8.42 UAT: "seeing the history of a request is not valuable
+// information at all"). The latest time is your counter if you countered, the
+// time you confirmed, otherwise your first choice (+ how many more).
+function coachRequestLatest(r) {
+  const prefs = r.preferences || [];
+  if (r.status === 'countered' && r.counter) return coachSlotLine(r.counter);
+  if (r.status === 'accepted') return coachSlotLine(r.proposed || r.counter || prefs[0]);
+  return coachSlotLine(prefs[0]) + (prefs.length > 1 ? ` +${prefs.length - 1} more` : '');
+}
 function coachWaitingCardHTML(r) {
   const first = coachEsc(coachFirstName());
-  const prefs = r.preferences || [];
-  const isWindow = prefs.length === 1 && prefs[0].end_min != null;
-  const extra = r.status === 'countered' && r.counter ? `<div class="coach-field-label">You suggested</div><div class="coach-req-line">${coachEsc(coachSlotLine(r.counter))}</div>`
-    : r.status === 'accepted' ? `<div class="coach-field-label">Confirmed</div><div class="coach-req-line">${coachEsc(coachSlotLine(r.proposed || prefs[0]))}</div>
-        <div class="coach-req-sub">${first} adds it to the diary. It moves to your sessions once it’s booked.</div>` : '';
-  return `<div class="card coach-req-card">
-      <div class="coach-hero-row"><span class="coach-field-label" style="margin:0;">${isWindow ? 'Free window' : 'Your choices'}</span>${coachWaitingChip(r, first)}</div>
-      ${prefs.map(p => `<div class="coach-req-line">${coachEsc(coachSlotLine(p))}</div>`).join('')}
-      ${r.notes ? `<div class="coach-field-label">Notes</div><div class="coach-req-sub" style="margin-top:0;">${coachEsc(r.notes)}</div>` : ''}
-      ${extra}
-      <div class="coach-caption" style="text-align:left;margin-top:10px;">${r.repeat_weekly ? 'Repeats weekly.' : 'One-off session.'}</div>
-      ${r.status === 'pending' ? `<button class="btn btn-ghost btn-block" style="margin-top:12px;" onclick="answerCoachRequest('${r.id}','withdraw')">Withdraw</button>` : ''}
+  return `<div class="coach-reqrow">
+      <div class="coach-reqrow-main"><div class="coach-reqrow-when">${coachEsc(coachRequestLatest(r))}${r.repeat_weekly ? ' · weekly' : ''}</div>
+        ${r.status === 'pending' ? `<button class="coach-reqrow-act" onclick="answerCoachRequest('${r.id}','withdraw')">Withdraw</button>` : ''}</div>
+      ${coachWaitingChip(r, first)}
     </div>`;
 }
 function coachReqFormHTML(f) {
@@ -15465,7 +15473,7 @@ function renderCoachRequest() {
   el.innerHTML = banner
     + coachNextSessionCardHTML()
     + proposed.map(coachProposedCardHTML).join('')
-    + (others.length ? `<div class="coach-section-title">Your requests</div><div class="modal-sub" style="margin:0 0 10px;">The times and notes you sent to ${first}.</div>${others.map(coachWaitingCardHTML).join('')}` : '')
+    + (others.length ? `<div class="coach-section-title">Your requests</div><div class="card coach-reqlist">${others.map(coachWaitingCardHTML).join('')}</div>` : '')
     + coachReqFormHTML(f);
 }
 function coachReqKeepNotes() { const n = document.getElementById('coach-req-notes'); if (n && _coachReqForm) _coachReqForm.notes = n.value; }

@@ -160,17 +160,21 @@ async function run(label, html, engineSrc) {
     const prop = I.coachProposedCardHTML({ id: 'p', status: 'proposed', proposed: { date: '2026-09-30', start_min: 1080 }, preferences: [{ date: '2026-10-01', start_min: 1080 }] });
     check('a suggested time is the eye-catching card: "{coach} proposed", "Needs your answer", "✓ Confirm Wed 18:00", Suggest another time',
       [/is-proposed/.test(prop), /Sam proposed/.test(prop), /Needs your answer/.test(prop), /✓ Confirm Wed 18:00/.test(prop), /Suggest another time/.test(prop), /You asked for Thu 1 Oct · 18:00/.test(prop)], [true, true, true, true, true, true]);
-    const acc = I.coachWaitingCardHTML({ id: 'a', status: 'accepted', proposed: { date: '2026-09-30', start_min: 1080 }, preferences: [{ date: '2026-10-01', start_min: 1080 }], repeat_weekly: true });
-    check('confirmed but not yet booked: a Confirmed chip, the time, and that the coach adds it; no buttons',
-      [/>Confirmed</.test(acc), /Wed 30 Sept? · 18:00/.test(acc), /adds it to the diary/.test(acc), /Repeats weekly/.test(acc), /<button/.test(acc)], [true, true, true, true, false]);
+    // One row per request: its latest state and a status (Adam, UAT: "seeing the history … is not valuable").
+    const row = r => I.coachWaitingCardHTML(r).replace(/\s+/g, ' ');
+    const acc = row({ id: 'a', status: 'accepted', proposed: { date: '2026-09-30', start_min: 1080 }, preferences: [{ date: '2026-10-01', start_min: 1080 }], repeat_weekly: true });
+    check('confirmed, not yet booked: ONE row, the confirmed time, weekly, a Confirmed chip; not what was first asked',
+      [/Wed 30 Sept? · 18:00 · weekly/.test(acc), />Confirmed</.test(acc), /Thu 1 Oct/.test(acc), (acc.match(/coach-reqrow"/g) || []).length], [true, true, false, 1]);
     const I2 = mk({ macrocycles: [], coachBookings: { b: { booking_id: 'b', date: '2026-09-30', start_min: 1080, status: 'booked' } } });
     check('🚨 a request that has been booked leaves this sheet (it is a session now)',
       [I2.coachRequestBooked({ status: 'accepted', proposed: { date: '2026-09-30', start_min: 1080 } }), I.coachRequestBooked({ status: 'accepted', proposed: { date: '2026-09-30', start_min: 1080 } })], [true, false]);
-    const pend = I.coachWaitingCardHTML({ id: 'w', status: 'pending', preferences: [{ date: '2026-10-05', start_min: 1020, end_min: 1200 }], notes: 'Knees' });
-    check('a waiting request: "Free window", the Waiting chip, its notes, One-off, and Withdraw',
-      [/Free window/.test(pend), /Waiting for Sam/.test(pend), /Knees/.test(pend), /One-off session/.test(pend), /Withdraw/.test(pend)], [true, true, true, true, true]);
-    check('a declined request says so, with no actions',
-      /couldn’t make it/.test(I.coachWaitingCardHTML({ id: 'd', status: 'declined', preferences: [{ date: '2026-10-01', start_min: 1080 }] })), true);
+    const ctr = row({ id: 'c', status: 'countered', proposed: { date: '2026-10-06', start_min: 1140 }, counter: { date: '2026-10-07', start_min: 420, end_min: 540 }, preferences: [{ date: '2026-10-06', start_min: 1080 }] });
+    check('countered: the row is YOUR latest time only (not your first ask, not the coach\'s), Waiting for {coach}, no Withdraw',
+      [/Wed 7 Oct · any time 07:00–09:00/.test(ctr), /Tue 6 Oct/.test(ctr), /Waiting for Sam/.test(ctr), /Withdraw/.test(ctr)], [true, false, true, false]);
+    const pend = row({ id: 'w', status: 'pending', preferences: [{ date: '2026-10-01', start_min: 1080 }, { date: '2026-10-02', start_min: 420 }], notes: 'Knees' });
+    check('pending: the first choice "+1 more", Waiting, and Withdraw; no notes',
+      [/Thu 1 Oct · 18:00 \+1 more/.test(pend), /Waiting for Sam/.test(pend), /Withdraw/.test(pend), /Knees/.test(pend)], [true, true, true, false]);
+    check('declined: a Declined chip, no actions', [/>Declined</.test(row({ id: 'd', status: 'declined', preferences: [{ date: '2026-10-01', start_min: 1080 }] })), /<button/.test(row({ id: 'd', status: 'declined', preferences: [{ date: '2026-10-01', start_min: 1080 }] }))], [true, false]);
     const form = I.coachReqFormHTML({ mode: 'times', times: [{ date: '2026-10-01', time: '18:00' }], window: {}, notes: '', repeat: true, busy: false });
     check('the form: "Up to 3 times | A free window", "Choice 1", and Repeat weekly as an iOS-style switch, on',
       [/Up to 3 times/.test(form), /Choice 1/.test(form), /role="switch" class="coach-switch" aria-checked="true"/.test(form)], [true, true, true]);

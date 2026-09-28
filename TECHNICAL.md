@@ -8713,12 +8713,14 @@ is its own sheet, next), and on this one *"Show all that aren't booked"*. From t
   **Needs your answer** chip, the time large, "You asked for …", a full-width **✓ Confirm Tue 19:00**
   and **Suggest another time**. The counter opens inside the card: 🚨 **one** time or one window
   (Adam: *"One time or window"*; `0024` keeps one `counter` slot, the wireframe offered three).
-- **Every other request that isn't booked yet**, one card each:
-  - "Your choices" or "Free window", with a chip: Waiting for {coach}, Confirmed, or {coach}
-    couldn't make it (declined, for 14 days);
-  - the times, the notes, "You suggested …" or "Confirmed …", and "Repeats weekly." / "One-off
-    session.";
-  - **Withdraw** on a pending one.
+- **Every other request that isn't booked yet**, in one list, 🚨 **one row per request: its latest
+  state and a status, never its history** (Adam, UAT: *"seeing the history of a request is not
+  valuable information at all"*; the first rebuild showed choices, counters and confirmations as
+  separate lines). `coachRequestLatest()`:
+  - the time is your counter if you countered, the time you confirmed if confirmed, otherwise your
+    first choice "+N more", then "· weekly";
+  - the chip is Waiting for {coach} (pending or countered), Confirmed, or Declined (for 14 days);
+  - a small **Withdraw** shows only while a request still waits for its first answer.
 
   A confirmed request that's been **booked leaves this sheet** (`coachRequestBooked()`: a live
   booking at the confirmed time). It's a session now. 🚨 **Confirming doesn't make the booking**; the
