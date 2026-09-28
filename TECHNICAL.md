@@ -8218,3 +8218,13 @@ exactly as `0023` does. It covers:
 - the wiring: saves, links, resume, and both erase handlers.
 
 **Control:** v8.37 (`05689a1`).
+
+**UAT, 2026-09-28** (in chat, Work account, local `?auth=real`, temporary `claude_ro` read policy on
+`client_state`, dropped and verified at 0 in the same session): 7/7 against the live project.
+- **Linking uploaded rev 1 at once:** 14,254 B gzipped, 130,042 B compact. The hash recomputed from
+  the gunzipped bytes equals the stored one. `v8.38`, `Europe/London`.
+- **Reconciled:** a backup exported from the app, compacted, is **byte-identical** to the upload.
+- **A change uploaded rev 2** about 60 s later. The only difference from rev 1 was that change
+  (today's steps 8,042 → 10,000).
+- **An unchanged reload sent nothing.**
+- **Unlinked:** a change sent nothing, while the mirror sync still ran.
