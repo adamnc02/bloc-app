@@ -3616,6 +3616,77 @@ html.auth-likely-signed-in #auth-gate { display: none; }
   color: var(--text); font-variant-numeric: tabular-nums;
 }
 
+/* ── Coaching (v8.37, PROMPT-03 Phase 4b, TECHNICAL §129) ─────────────────
+   The link flow (mode question → code → consent → splash → linked) and
+   Settings → Coaching. Visual reference: bloc-coach-wireframes'
+   WelcomeScreen / CoachingScreen / LinkSplash, rebuilt from BLOC's own
+   .card / .settings-row / .toggle-row parts. BLOC has no switch control:
+   on/off is a two-button .toggle-row everywhere, so photo consent is too. */
+.coach-pick { display: flex; gap: 14px; align-items: center; width: 100%; padding: 16px; text-align: left;
+  background: var(--surface2); border: 1.5px solid var(--border2); border-radius: var(--r-card, 16px);
+  color: var(--text); font-family: var(--font-body); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.coach-pick + .coach-pick { margin-top: 10px; }
+.coach-pick[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface2)); }
+.coach-pick b { display: block; font-size: 16px; }
+.coach-pick small { display: block; font-size: 13px; color: var(--text2); font-weight: 500; margin-top: 2px; line-height: 1.4; }
+.coach-pick .coach-pick-tick { margin-left: auto; color: var(--accent2); font-weight: 800; visibility: hidden; }
+.coach-pick[aria-pressed="true"] .coach-pick-tick { visibility: visible; }
+.coach-code-input { width: 100%; box-sizing: border-box; height: 56px; text-align: center; text-transform: uppercase;
+  font-family: var(--font-display); font-size: 24px; letter-spacing: .14em; border-radius: var(--r-sm);
+  border: 1px solid var(--border2); background: var(--surface2); color: var(--text); }
+.coach-code-input[aria-invalid="true"] { border-color: var(--red); }
+.coach-err { display: flex; gap: 8px; margin-top: 10px; font-size: 13.5px; color: var(--red); line-height: 1.4; }
+.coach-caption { font-size: 12.5px; color: var(--text2); text-align: center; margin-top: 10px; line-height: 1.4; }
+.coach-notice { padding: 12px 14px; border-radius: var(--r-sm); background: color-mix(in srgb, var(--accent) 12%, transparent);
+  font-size: 13.5px; line-height: 1.45; margin-bottom: 14px; }
+.coach-notice b { display: block; margin-bottom: 2px; }
+.coach-hero { display: flex; gap: 14px; align-items: center; }
+.coach-avatar { width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
+  background: var(--accent); color: var(--on-accent); font-family: var(--font-display); font-weight: 600; font-size: 18px; }
+.coach-name { font-family: var(--font-display); font-size: 19px; font-weight: 600; }
+.coach-biz { color: var(--text2); font-size: 13.5px; margin-top: 2px; }
+.coach-facts { list-style: none; margin: 0; padding: 0; }
+.coach-facts li { padding: 10px 0; font-size: 14px; line-height: 1.4; }
+.coach-facts li + li { border-top: 1px solid var(--divider); }
+.coach-facts li b { display: block; font-weight: 700; }
+.coach-facts li span { color: var(--text2); font-size: 13px; font-weight: 500; }
+.coach-section-title { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--text2); margin: 20px 0 8px; }
+
+/* The link splash: plays once, the moment the link succeeds. Tap to skip.
+   transform / opacity / stroke-dashoffset only. */
+.link-splash { position: fixed; inset: 0; z-index: 3000; background: var(--bg);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 36px; padding: 24px;
+  cursor: pointer; animation: ls-out .45s 2.35s ease-in both; }
+.ls-stage { position: relative; width: 300px; max-width: 100%; height: 180px; display: grid; place-items: center; }
+.ls-avatar { position: absolute; top: 50%; width: 56px; height: 56px; margin-top: -28px; border-radius: 50%; z-index: 2;
+  display: grid; place-items: center; font-family: var(--font-display); font-weight: 600; font-size: 19px; }
+.ls-client { left: 0; background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent2); animation: ls-in-l .6s cubic-bezier(.2,.8,.2,1) both; }
+.ls-coach { right: 0; background: var(--accent); color: var(--on-accent); animation: ls-in-r .6s cubic-bezier(.2,.8,.2,1) both; }
+.ls-link { position: absolute; left: 56px; right: 56px; top: 50%; height: 2px; margin-top: -1px; background: var(--accent2);
+  animation: ls-link .45s .45s cubic-bezier(.2,.8,.2,1) both; }
+.ls-ring { position: relative; z-index: 1; animation: ls-pop .5s .95s cubic-bezier(.2,.8,.2,1) both; }
+.ls-trk { fill: var(--bg); stroke: var(--surface3); stroke-width: 8; }
+.ls-arc { fill: none; stroke: var(--accent); stroke-width: 8; stroke-linecap: round; stroke-dasharray: 402.1; animation: ls-draw .6s .5s cubic-bezier(.3,.7,.2,1) both; }
+.ls-tick { fill: none; stroke: var(--accent2); stroke-width: 9; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; animation: ls-tick .4s 1s ease-out both; }
+.ls-block { position: absolute; left: 50%; top: 50%; width: 22px; height: 11px; margin: -5.5px 0 0 -11px; border-radius: 3px;
+  background: var(--text2); opacity: 0; transform: rotate(var(--a)) translateX(0);
+  animation: ls-burst .75s calc(1.05s + var(--k) * 12ms) cubic-bezier(.2,.7,.2,1) both; }
+.ls-block:nth-child(3n) { background: var(--accent); }
+.ls-copy { text-align: center; animation: rise .6s 1.2s cubic-bezier(.2,.8,.2,1) both; }
+.ls-title { font-family: var(--font-display); font-size: 30px; font-weight: 600; letter-spacing: -.02em; }
+.ls-sub { color: var(--text2); font-size: 15px; margin-top: 8px; }
+@keyframes ls-in-l { from { opacity: 0; transform: translateX(60px) scale(.6); } }
+@keyframes ls-in-r { from { opacity: 0; transform: translateX(-60px) scale(.6); } }
+@keyframes ls-link { from { transform: scaleX(0); } }
+@keyframes ls-draw { from { stroke-dashoffset: 402.1; } }
+@keyframes ls-tick { from { stroke-dashoffset: 1; } }
+@keyframes ls-pop { 0% { transform: scale(.85); } 60% { transform: scale(1.06); } 100% { transform: scale(1); } }
+@keyframes ls-burst { 0% { opacity: 0; transform: rotate(var(--a)) translateX(40px); } 30% { opacity: 1; } 100% { opacity: 0; transform: rotate(var(--a)) translateX(130px); } }
+@keyframes ls-out { to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .link-splash, .link-splash * { animation: none !important; }
+  .ls-block { display: none; }
+}
 </style>
 <script>
 // ── Real viewport height fix ───────────────────────────────────
@@ -4402,6 +4473,14 @@ try {
               <div class="settings-row-sub">A 07:00 reminder when measurements are due.</div>
             </div>
           </div>
+          <!-- v8.37 (§129) — Coaching: link to a coach with their code, photo
+               consent, Unlink. Its sub-line says who you're linked with. -->
+          <div class="settings-row settings-row-nav" id="settings-coaching-row" onclick="openSettingsCoaching()">
+            <div class="settings-row-icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 11.5l2 2 4-4"/></svg></div>
+            <div class="settings-row-text">Coaching
+              <div class="settings-row-sub" id="settings-coaching-sub">Link to a coach with their code.</div>
+            </div>
+          </div>
           <!-- 🚨 About me moved OUT of this list to the hero (see above); this
                row is App info, which the hero used to carry. The two swapped
                places rather than one being added. -->
@@ -4641,6 +4720,32 @@ try {
      no other channel: a device that can't receive push gets no reminder, so the
      sheet's job is to say so (Listly's rule). renderNotificationsSheet() fills
      it from decidePushState(). -->
+<!-- v8.37 (§129) — the link flow: the first-run mode question, the coach's
+     code, the consent screen ("What {coach} will see", with a separate
+     progress-photo choice) and "You're linked". One sheet, rendered per step by
+     renderCoachLink(). Every way out routes through closeCoachLink()
+     (MODAL_DISMISS_HANDLERS): on a first run, leaving it means Solo. -->
+<div class="modal-overlay" id="modal-coach-link">
+  <div class="modal-sheet" data-modal="modal-coach-link">
+    <div class="modal-handle-row"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeCoachLink()">&#10005;</button>
+    </div>
+    <div id="coach-link-body"></div>
+  </div>
+</div>
+
+<!-- v8.37 (§129) — Settings → Coaching. -->
+<div class="modal-overlay" id="modal-settings-coaching">
+  <div class="modal-sheet" data-modal="modal-settings-coaching">
+    <div class="modal-handle-row"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-settings-coaching')">&#10005;</button>
+    </div>
+    <div class="modal-title">Coaching</div>
+    <div id="settings-coaching-body"></div>
+    <div id="settings-coaching-status" style="font-size:13px;margin-top:12px;display:none;"></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-notifications">
   <div class="modal-sheet" data-modal="modal-notifications">
     <div class="modal-handle-row"><div class="modal-handle"></div>
@@ -8124,6 +8229,7 @@ function onAuthResolved(session) {
     maybeUploadSnapshotZero();
     maybeForceFullSyncOnSignIn();
     if (_syncDirty) flushSyncQueue();
+    maybeRefreshCoachLink(); // v8.37 (§129)
   } else {
     showAuthGate();
   }
@@ -8679,7 +8785,7 @@ function continueBootAfterAuth() {
     }
     return;
   }
-  fetchDemoDataIfNewUser(_isNewUserOnBoot);
+  startFirstRun(_isNewUserOnBoot); // v8.37 (§129): the mode question, an invite link, or the Demo Tour as before
   // A genuinely new user is handled entirely by the fetch above (Demo Tour
   // on success, openProfileGate() from its own .catch() on failure) — both
   // async, so checking here too would race the fetch and could pop the
@@ -9141,6 +9247,7 @@ function handleDeleteMyData() {
             localStorage.removeItem('bloc_snapshot_zero_pending');
             localStorage.removeItem('bloc_snapshot_zero_done');
             localStorage.removeItem('bloc_snapshot_autorestore_done');
+            coachLinkClear(); // v8.37 (§129): the erase ends the link
             location.reload();
           } catch (err) {
             if (statusEl) {
@@ -9199,6 +9306,7 @@ function handleCloseAccount() {
             localStorage.removeItem('bloc_snapshot_zero_pending');
             localStorage.removeItem('bloc_snapshot_zero_done');
             localStorage.removeItem('bloc_snapshot_autorestore_done');
+            coachLinkClear(); // v8.37 (§129)
             await supabase.auth.signOut();
             location.reload();
           } catch (err) {
@@ -9213,6 +9321,455 @@ function handleCloseAccount() {
     }
   );
 }
+
+// ════════════════════════════════════════════════════════════════════════
+// COACHING (v8.37, PROMPT-03 Phase 4b, TECHNICAL §129)
+// ════════════════════════════════════════════════════════════════════════
+// Linking to a coach: the first-run mode question, the coach's code (typed,
+// or from an invite link), the consent screen, and Settings → Coaching (photo
+// consent, Unlink). The server half is super-duper-octo-barnacle 0022
+// (redeem_invite, revoke_coach, set_photo_consent) and 0026 (peek_invite).
+//
+// 🚨 Who you're linked with is NOT in `state`. It's server truth
+// (coach_clients), cached in localStorage under COACH_LINK_KEY with the
+// account id, so a backup restore, an import or another account on this
+// device can never carry a link with it. coachLinkGet() ignores a cache
+// written for another account.
+//
+// 🚨 Nothing changes until redeem_invite() succeeds (proposal §4.1):
+// peek_invite() only reads, so the consent screen can name the coach before
+// the client agrees. Agree and link is the one call that links.
+const COACH_LINK_KEY = 'bloc_coach_link';
+const COACH_INVITE_KEY = 'bloc_pending_invite';
+const COACH_INVITE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // an invite lives 7 days (0022)
+// The invite link Coach shares (Phase 5 builds it): the live app with ?invite=.
+const COACH_INVITE_URL = 'https://adamnc02.github.io/bloc-app/?invite=';
+
+// What a linked coach sees (proposal §4.1). Shown on the consent screen and
+// in Settings → Coaching.
+const COACH_SHARED = [
+  ['Training', 'Sessions, sets, weights, effort ratings and swaps.'],
+  ['Nutrition', 'Food, calories, macros and steps.'],
+  ['Weight', 'Every weigh-in.'],
+  ['Measurements', 'Waist and hip.'],
+  ['Check-ins', 'What you send, and your notes back.'],
+];
+
+function coachNormaliseCode(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+function coachFormatCode(s) { const c = coachNormaliseCode(s); return c.length > 4 ? c.slice(0, 4) + '-' + c.slice(4, 8) : c; }
+function coachInitials(name) {
+  return String(name || '?').trim().split(/\s+/).map(p => p[0] || '').join('').slice(0, 2).toUpperCase() || '?';
+}
+function coachEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// ── The cached link ────────────────────────────────────────────────────────
+function coachLinkGet() {
+  let link = null;
+  try { link = JSON.parse(localStorage.getItem(COACH_LINK_KEY) || 'null'); } catch (e) { return null; }
+  if (!link || !link.coachId) return null;
+  const uid = _authResolvedSession && _authResolvedSession.user && _authResolvedSession.user.id;
+  if (!uid || link.userId !== uid) return null; // another account's link, never this one's
+  return link;
+}
+function coachLinkSet(link) { try { localStorage.setItem(COACH_LINK_KEY, JSON.stringify(link)); } catch (e) {} }
+function coachLinkClear() { try { localStorage.removeItem(COACH_LINK_KEY); } catch (e) {} }
+// The one question Phase 4's Coached mode asks. True only after a redeemed code.
+function isCoachedMode() { return !!coachLinkGet(); }
+
+function coachingAvailable() {
+  return !!(supabase && _authResolvedSession && _authResolvedSession.user) && !demoTourIsRunning();
+}
+
+// Reads the active link from the server and refreshes the cache. The coach
+// or the client may have ended it elsewhere (either side can, instantly).
+async function refreshCoachLink() {
+  if (!coachingAvailable()) return coachLinkGet();
+  const uid = _authResolvedSession.user.id;
+  const { data, error } = await supabase.from('coach_clients')
+    .select('coach_id, photo_consent, linked_at').eq('client_id', uid).eq('status', 'active').maybeSingle();
+  if (error) throw error;
+  if (!data) { coachLinkClear(); updateSettingsCoachingRow(); return null; }
+  const prev = coachLinkGet();
+  const { data: cp } = await supabase.from('coach_profiles')
+    .select('display_name, business_name').eq('coach_id', data.coach_id).maybeSingle();
+  const link = {
+    userId: uid, coachId: data.coach_id,
+    coachName: (cp && cp.display_name) || (prev && prev.coachId === data.coach_id && prev.coachName) || 'Your coach',
+    businessName: (cp && cp.business_name) || null,
+    linkedAt: data.linked_at, photoConsent: !!data.photo_consent,
+  };
+  coachLinkSet(link);
+  updateSettingsCoachingRow();
+  return link;
+}
+let _coachLinkRefreshedAt = 0;
+function maybeRefreshCoachLink() {
+  if (Date.now() - _coachLinkRefreshedAt < 60 * 1000) return;
+  _coachLinkRefreshedAt = Date.now();
+  refreshCoachLink().catch(err => console.warn('[coaching] could not check the coach link:', err && err.message));
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') maybeRefreshCoachLink(); });
+
+function updateSettingsCoachingRow() {
+  const el = document.getElementById('settings-coaching-sub');
+  if (!el) return;
+  const link = coachLinkGet();
+  el.textContent = link ? `Linked with ${link.coachName}.` : 'Link to a coach with their code.';
+}
+
+// ── Invite links (?invite=XXXX-XXXX) ───────────────────────────────────────
+// Captured at parse time, before sign-in, and taken out of the address bar so
+// a reload or a shared screenshot doesn't carry it. Held until it's used,
+// dismissed or 7 days old, so it survives the sign-in (and a restore's reload).
+function captureInviteFromUrl() {
+  let params;
+  try { params = new URLSearchParams(window.location.search); } catch (e) { return; }
+  const raw = params.get('invite');
+  if (raw === null) return;
+  const code = coachNormaliseCode(raw);
+  if (code.length >= 6 && code.length <= 12) {
+    try { localStorage.setItem(COACH_INVITE_KEY, JSON.stringify({ code, at: Date.now() })); } catch (e) {}
+  }
+  params.delete('invite');
+  const q = params.toString();
+  try { history.replaceState(null, '', window.location.pathname + (q ? '?' + q : '') + window.location.hash); } catch (e) {}
+}
+function pendingInviteGet() {
+  let inv = null;
+  try { inv = JSON.parse(localStorage.getItem(COACH_INVITE_KEY) || 'null'); } catch (e) { return null; }
+  if (!inv || !inv.code) return null;
+  if (!(Date.now() - (inv.at || 0) < COACH_INVITE_MAX_AGE_MS)) { pendingInviteClear(); return null; }
+  return inv;
+}
+function pendingInviteClear() { try { localStorage.removeItem(COACH_INVITE_KEY); } catch (e) {} }
+captureInviteFromUrl();
+
+// ── First run ──────────────────────────────────────────────────────────────
+// Replaces the bare fetchDemoDataIfNewUser() call in continueBootAfterAuth().
+// (Adam, 2026-09-28: "New accounts only".)
+//  · An invite link opens the code step, new device or not.
+//  · A returning device: nothing (link from Settings → Coaching).
+//  · A new device whose ACCOUNT has a cloud backup is an existing user on a
+//    new phone: unchanged — checkSnapshotZero() restores it, never asked.
+//  · A new device with no backup is a new account: the mode question, before
+//    the Demo Tour. Solo → the Demo Tour, as before. "I have a coach" → the
+//    code, consent and link, with no Solo Demo Tour.
+//  · Can't tell (the backup list failed): unchanged, the Demo Tour.
+async function startFirstRun(isNewUser) {
+  const invite = pendingInviteGet();
+  if (invite && coachingAvailable()) {
+    openCoachLink({ step: 'code', code: invite.code, fromLink: true, firstRun: isNewUser });
+    return;
+  }
+  if (!isNewUser) return;
+  let hasBackup = true;
+  try { hasBackup = (await listSnapshots()).length > 0; }
+  catch (err) { console.warn('[coaching] could not check for backups; starting the Demo Tour as before:', err && err.message); }
+  if (hasBackup || !coachingAvailable()) { fetchDemoDataIfNewUser(true); return; }
+  openCoachLink({ step: 'choice', firstRun: true });
+}
+
+// ── The link flow ──────────────────────────────────────────────────────────
+let _coachFlow = null;
+
+function openCoachLink(opts) {
+  _coachFlow = {
+    step: opts.step || 'choice', choice: null,
+    code: opts.code ? coachFormatCode(opts.code) : '', fromLink: !!opts.fromLink, firstRun: !!opts.firstRun,
+    error: null, busy: false, coach: null, photos: false, linked: null,
+  };
+  openModal('modal-coach-link');
+  renderCoachLink();
+}
+
+// Every way out of the sheet. On a first run, leaving before a link is made
+// means Solo: the Demo Tour starts, as it would have without the question.
+function closeCoachLink() {
+  const flow = _coachFlow;
+  _coachFlow = null;
+  closeModal('modal-coach-link');
+  if (!flow) return;
+  if (flow.fromLink && flow.step !== 'linked') pendingInviteClear(); // dismissed: don't reopen it every launch
+  if (flow.firstRun && flow.step !== 'linked') fetchDemoDataIfNewUser(true);
+  if (flow.firstRun && flow.step === 'linked') setTimeout(maybeOpenProfileGate, 0);
+}
+
+function coachFlowSet(patch) { Object.assign(_coachFlow, patch); renderCoachLink(); }
+
+function coachLinkErrorText(err) {
+  const msg = (err && err.message) || '';
+  if (/isn't valid/i.test(msg)) return 'That code isn’t valid or has expired. Ask your coach to send a new one.';
+  if (/already have a coach/i.test(msg)) return 'You already have a coach. Unlink first, in Settings → Coaching.';
+  return 'Couldn’t check that code. Check your connection and try again.';
+}
+
+// Step 2 → 3: read the coach's name without linking (0026).
+async function coachCheckCode() {
+  const f = _coachFlow;
+  if (!f || f.busy) return;
+  const code = coachNormaliseCode(f.code);
+  if (code.length < 8) return;
+  coachFlowSet({ busy: true, error: null });
+  try {
+    const { data, error } = await supabase.rpc('peek_invite', { p_code: code });
+    if (error) throw error;
+    if (_coachFlow !== f) return;
+    coachFlowSet({ busy: false, step: 'consent', coach: { id: data.coach_id, name: data.coach_name, business: data.business_name } });
+  } catch (err) {
+    if (_coachFlow !== f) return;
+    coachFlowSet({ busy: false, error: coachLinkErrorText(err) });
+  }
+}
+
+// Step 3: Agree and link. The ONE call that links (0022, the client's consent).
+async function coachAgreeAndLink() {
+  const f = _coachFlow;
+  if (!f || f.busy || !f.coach) return;
+  coachFlowSet({ busy: true, error: null });
+  try {
+    const { data, error } = await supabase.rpc('redeem_invite', { p_code: coachNormaliseCode(f.code), p_photo_consent: !!f.photos });
+    if (error) throw error;
+    const link = {
+      userId: _authResolvedSession.user.id, coachId: data.coach_id,
+      coachName: data.coach_name || f.coach.name, businessName: data.business_name || null,
+      linkedAt: new Date().toISOString(), photoConsent: !!f.photos,
+    };
+    coachLinkSet(link);
+    pendingInviteClear();
+    updateSettingsCoachingRow();
+    if (_coachFlow !== f) return;
+    coachFlowSet({ busy: false, step: 'linked', linked: link });
+    playLinkSplash(link);
+  } catch (err) {
+    if (_coachFlow !== f) return;
+    // A code that expired or was replaced between the peek and now: back to the code.
+    coachFlowSet({ busy: false, step: 'code', error: coachLinkErrorText(err) });
+  }
+}
+
+function renderCoachLink() {
+  const el = document.getElementById('coach-link-body');
+  const f = _coachFlow;
+  if (!el || !f) return;
+  const btn = (label, fn, cls, disabled) =>
+    `<button class="btn ${cls || 'btn-accent'} btn-block" style="margin-top:12px;" onclick="${fn}"${disabled ? ' disabled' : ''}>${label}</button>`;
+
+  if (f.step === 'choice') {
+    const pick = (key, title, sub) =>
+      `<button type="button" class="coach-pick" aria-pressed="${f.choice === key}" onclick="coachFlowSet({choice:'${key}'})">
+         <span><b>${title}</b><small>${sub}</small></span><span class="coach-pick-tick">&#10003;</span></button>`;
+    el.innerHTML = `<div class="modal-title">Are you training solo, or do you have a coach?</div>
+      <div role="group" aria-label="How you train">
+        ${pick('solo', 'Solo', 'You plan your own cycles, goals and sessions.')}
+        ${pick('coach', 'I have a coach', 'Your coach plans. You log, check in and book sessions.')}
+      </div>
+      ${btn('Continue', 'coachChoiceContinue()', 'btn-accent', !f.choice)}
+      <div class="coach-caption">You can link to a coach later in Settings.</div>`;
+    return;
+  }
+
+  if (f.step === 'code') {
+    const ready = coachNormaliseCode(f.code).length >= 8;
+    el.innerHTML = `<div class="modal-title">Enter your coach’s code</div>
+      <div class="modal-sub">It’s in the invite your coach sent you.</div>
+      ${f.fromLink ? '<div class="coach-notice"><b>Opened from your invite link</b>We’ve filled in the code for you.</div>' : ''}
+      <label class="label" for="coach-code-input">Coach’s code</label>
+      <input id="coach-code-input" class="coach-code-input" autocapitalize="characters" autocomplete="one-time-code" spellcheck="false"
+        maxlength="9" placeholder="ABCD-EFGH" value="${coachEsc(f.code)}" aria-invalid="${!!f.error}"
+        oninput="coachCodeInput(this)">
+      ${f.error ? `<div class="coach-err" role="alert">${coachEsc(f.error)}</div>` : ''}
+      ${btn(f.busy ? 'Checking…' : 'Link to coach', 'coachCheckCode()', 'btn-accent', !ready || f.busy)}
+      <div class="coach-caption">Nothing changes until your coach’s code is accepted.</div>`;
+    return;
+  }
+
+  if (f.step === 'consent') {
+    const c = f.coach;
+    el.innerHTML = `<div class="modal-title">What ${coachEsc(c.name)} will see</div>
+      <div class="card"><div class="coach-hero">
+        <span class="coach-avatar" aria-hidden="true">${coachEsc(coachInitials(c.name))}</span>
+        <div><div class="coach-name">${coachEsc(c.name)}</div>${c.business ? `<div class="coach-biz">${coachEsc(c.business)}</div>` : ''}</div>
+      </div></div>
+      <div class="coach-section-title">Shared with ${coachEsc(c.name)}</div>
+      <div class="modal-sub" style="margin:0 0 8px;">Everything you log, so your coach can plan around it.</div>
+      <div class="card"><ul class="coach-facts">${COACH_SHARED.map(([t, s]) => `<li><b>${t}</b><span>${s}</span></li>`).join('')}</ul></div>
+      <div class="coach-section-title">Progress photos</div>
+      <div class="modal-sub" style="margin:0 0 8px;">Asked separately. Off unless you turn it on. You can change this any time in Settings.</div>
+      <div class="toggle-row" role="group" aria-label="Share progress photos with your coach">
+        <button class="toggle-btn${f.photos ? '' : ' active'}" aria-pressed="${!f.photos}" onclick="coachFlowSet({photos:false})">Off</button>
+        <button class="toggle-btn${f.photos ? ' active' : ''}" aria-pressed="${f.photos}" onclick="coachFlowSet({photos:true})">On</button>
+      </div>
+      <div class="coach-notice"><b>Your current cycle keeps going</b>It runs unchanged until ${coachEsc(c.name)} publishes one.</div>
+      ${f.error ? `<div class="coach-err" role="alert">${coachEsc(f.error)}</div>` : ''}
+      ${btn(f.busy ? 'Linking…' : 'Agree and link', 'coachAgreeAndLink()', 'btn-accent', f.busy)}
+      ${btn('Cancel', "coachFlowSet({step:'code',coach:null,error:null})", 'btn-ghost', f.busy)}`;
+    return;
+  }
+
+  if (f.step === 'linked') {
+    const l = f.linked;
+    el.innerHTML = `<div class="modal-title">You’re linked with ${coachEsc(l.coachName)}</div>
+      <div class="card"><div class="coach-hero">
+        <span class="coach-avatar" aria-hidden="true">${coachEsc(coachInitials(l.coachName))}</span>
+        <div><div class="coach-name">${coachEsc(l.coachName)}</div><div class="coach-biz">now sees what you log, and plans your training and goals.</div></div>
+      </div></div>
+      <div class="card" style="margin-top:12px;"><ul class="coach-facts">
+        <li><b>Your current cycle keeps going</b><span>It runs unchanged until ${coachEsc(l.coachName)} publishes one.</span></li>
+        <li><b>Progress photos: ${l.photoConsent ? 'shared' : 'not shared'}</b><span>Change it any time in Settings → Coaching.</span></li>
+        <li><b>You can unlink any time</b><span>In Settings → Coaching. It takes effect straight away.</span></li>
+      </ul></div>
+      ${btn('Done', 'closeCoachLink()')}`;
+  }
+}
+
+function coachChoiceContinue() {
+  const f = _coachFlow;
+  if (!f || !f.choice) return;
+  if (f.choice === 'coach') { coachFlowSet({ step: 'code' }); return; }
+  closeCoachLink(); // Solo: on a first run, the Demo Tour starts as before
+}
+function coachCodeInput(input) {
+  const f = _coachFlow;
+  if (!f) return;
+  f.code = input.value.toUpperCase();
+  f.error = null;
+  // Only the button and the error depend on the code, so update those in place
+  // rather than re-rendering (which would drop the keyboard mid-typing).
+  input.setAttribute('aria-invalid', 'false');
+  const err = input.parentNode && input.parentNode.querySelector('.coach-err');
+  if (err) err.remove();
+  const b = input.parentNode && input.parentNode.querySelector('button.btn-accent');
+  if (b) b.disabled = coachNormaliseCode(f.code).length < 8;
+}
+
+function playLinkSplash(link) {
+  const prof = state.profile || {};
+  const me = prof.preferredName || prof.firstName || (_authResolvedSession && _authResolvedSession.user && _authResolvedSession.user.email) || 'Me';
+  const el = document.createElement('div');
+  el.className = 'link-splash';
+  el.setAttribute('role', 'status');
+  el.setAttribute('aria-live', 'assertive');
+  el.innerHTML = `<div class="ls-stage" aria-hidden="true">
+      <span class="ls-avatar ls-client">${coachEsc(coachInitials(me))}</span>
+      <span class="ls-avatar ls-coach">${coachEsc(coachInitials(link.coachName))}</span>
+      <span class="ls-link"></span>
+      <svg class="ls-ring" width="148" height="148" viewBox="0 0 148 148">
+        <circle cx="74" cy="74" r="64" class="ls-trk"/>
+        <circle cx="74" cy="74" r="64" class="ls-arc" transform="rotate(-90 74 74)"/>
+        <path d="M50 76l16 16 32-36" class="ls-tick" pathLength="1"/>
+      </svg>
+      ${Array.from({ length: 8 }, (_, k) => `<i class="ls-block" style="--a:${k * 45 + 22.5}deg;--k:${k}"></i>`).join('')}
+    </div>
+    <div class="ls-copy"><div class="ls-title">Linked with ${coachEsc(link.coachName)}</div>
+      <div class="ls-sub">${coachEsc(link.coachName)} now plans your training and goals.</div></div>`;
+  const done = () => { if (el.parentNode) el.parentNode.removeChild(el); };
+  el.addEventListener('click', done);
+  document.body.appendChild(el);
+  const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  setTimeout(done, reduced ? 1200 : 2800);
+}
+
+// ── Settings → Coaching ────────────────────────────────────────────────────
+function openSettingsCoaching() {
+  openModal('modal-settings-coaching');
+  coachingStatus('');
+  renderSettingsCoaching();
+  if (coachingAvailable()) {
+    refreshCoachLink().then(renderSettingsCoaching)
+      .catch(err => coachingStatus('Couldn’t check your coach link: ' + ((err && err.message) || 'try again'), true));
+  }
+}
+function coachingStatus(text, isError) {
+  const el = document.getElementById('settings-coaching-status');
+  if (!el) return;
+  el.textContent = text || '';
+  el.style.display = text ? 'block' : 'none';
+  el.style.color = isError ? 'var(--red)' : 'var(--text2)';
+}
+function renderSettingsCoaching() {
+  const el = document.getElementById('settings-coaching-body');
+  if (!el) return;
+  if (!coachingAvailable()) {
+    el.innerHTML = '<div class="modal-sub">Sign in to link to a coach. (Not available in local development or during the Demo Tour.)</div>';
+    return;
+  }
+  const l = coachLinkGet();
+  if (!l) {
+    el.innerHTML = `<div class="card">
+        <div class="coach-section-title" style="margin-top:0;">Training solo</div>
+        <div class="coach-name">No coach linked</div>
+        <div class="modal-sub" style="margin:6px 0 0;">You plan your own cycles and goals. Have a code from a coach? Add it to link.</div>
+      </div>
+      <button class="btn btn-accent btn-block" style="margin-top:16px;" onclick="closeModal('modal-settings-coaching');openCoachLink({step:'code'})">Enter a coach’s code</button>`;
+    return;
+  }
+  const since = l.linkedAt ? new Date(l.linkedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  el.innerHTML = `<div class="card"><div class="coach-hero">
+        <span class="coach-avatar" aria-hidden="true">${coachEsc(coachInitials(l.coachName))}</span>
+        <div style="flex:1;min-width:0;"><div class="coach-name">${coachEsc(l.coachName)}</div>${l.businessName ? `<div class="coach-biz">${coachEsc(l.businessName)}</div>` : ''}</div>
+        <span class="chip" style="--chip-c:var(--green-text);">Linked</span>
+      </div>${since ? `<div class="modal-sub" style="margin:12px 0 0;">Linked since ${coachEsc(since)}</div>` : ''}</div>
+    <div class="coach-section-title">What ${coachEsc(l.coachName)} sees</div>
+    <div class="card"><ul class="coach-facts">${COACH_SHARED.map(([t, s]) => `<li><b>${t}</b><span>${s}</span></li>`).join('')}</ul></div>
+    <div class="coach-section-title">Progress photos</div>
+    <div class="modal-sub" style="margin:0 0 8px;">${l.photoConsent
+      ? `${coachEsc(l.coachName)} can see photos you add to a check-in. Only you can change this.`
+      : `Off. ${coachEsc(l.coachName)} can’t see photos, and check-ins won’t ask for them.`}</div>
+    <div class="toggle-row" role="group" aria-label="Share progress photos with your coach">
+      <button class="toggle-btn${l.photoConsent ? '' : ' active'}" aria-pressed="${!l.photoConsent}" onclick="setCoachPhotoConsent(false)">Off</button>
+      <button class="toggle-btn${l.photoConsent ? ' active' : ''}" aria-pressed="${l.photoConsent}" onclick="setCoachPhotoConsent(true)">On</button>
+    </div>
+    <div class="coach-section-title">Unlink</div>
+    <div class="modal-sub" style="margin:0 0 8px;">Stop coaching and go back to Solo.</div>
+    <button class="btn btn-danger btn-block" onclick="confirmUnlinkCoach()">Unlink from ${coachEsc(l.coachName)}</button>`;
+}
+
+// Photo consent is the client's alone (0022's trigger refuses anyone else).
+async function setCoachPhotoConsent(on) {
+  const l = coachLinkGet();
+  if (!l || l.photoConsent === on) return;
+  coachLinkSet(Object.assign({}, l, { photoConsent: on }));
+  renderSettingsCoaching();
+  coachingStatus('Saving…');
+  try {
+    const { data, error } = await supabase.rpc('set_photo_consent', { p_coach_id: l.coachId, p_consent: on });
+    if (error) throw error;
+    if (data === false) throw new Error('This link has ended.');
+    coachingStatus(on ? 'Progress photos on.' : 'Progress photos off.');
+  } catch (err) {
+    coachLinkSet(l); // put it back as it was
+    renderSettingsCoaching();
+    coachingStatus('Couldn’t change it: ' + ((err && err.message) || 'try again'), true);
+    refreshCoachLink().then(renderSettingsCoaching).catch(() => {});
+  }
+}
+
+function confirmUnlinkCoach() {
+  const l = coachLinkGet();
+  if (!l) return;
+  showConfirm(
+    `Unlink from ${l.coachName}?`,
+    `You’ll return to Solo. ${l.coachName}’s plan and goal phases are removed, and ${l.coachName} loses access straight away. You keep your weigh-ins, food, measurements, recipes and food library, and training you did in ${l.coachName}’s cycles stays as read-only history.`,
+    'Unlink',
+    () => unlinkCoach(l)
+  );
+}
+async function unlinkCoach(l) {
+  coachingStatus('Unlinking…');
+  try {
+    const { error } = await supabase.rpc('revoke_coach', { p_coach_id: l.coachId });
+    if (error) throw error;
+    coachLinkClear();
+    updateSettingsCoachingRow();
+    renderSettingsCoaching();
+    coachingStatus('Unlinked. You’re back to Solo.');
+  } catch (err) {
+    coachingStatus('Couldn’t unlink: ' + ((err && err.message) || 'try again'), true);
+  }
+}
+
 
 // Populates and opens the restore picker with this account's dated
 // snapshots, newest first.
@@ -26813,11 +27370,12 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.36</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.37</span>`;
 }
 
 function renderSettings() {
   renderSettingsHero();
+  updateSettingsCoachingRow(); // v8.37 (§129)
   renderModeToggle();
   renderDistanceUnitToggle();
   const raw = localStorage.getItem(STATE_KEY) || '';
@@ -27669,7 +28227,7 @@ function onGoalFatSliderInput() {
 // leave a countdown ticking behind it with the icon still lit. Before v8.16 the
 // timer was simply excluded from initModal() altogether, which is the same bug
 // avoided by having no gesture at all.
-const MODAL_DISMISS_HANDLERS = { 'modal-timer': 'closeTimerModal', 'modal-rpe': 'closeRpeSheet' };
+const MODAL_DISMISS_HANDLERS = { 'modal-timer': 'closeTimerModal', 'modal-rpe': 'closeRpeSheet', 'modal-coach-link': 'closeCoachLink' };
 
 function initModal(overlayEl) {
   const sheet = overlayEl.querySelector('.modal-sheet');

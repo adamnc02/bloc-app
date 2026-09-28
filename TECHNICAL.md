@@ -8030,3 +8030,102 @@ v8.35 (`d789154`) must fail all eight targeted checks. For item 5 it runs the re
 follow-up; the follow-up sees the newer state; a failure doesn't block the queue), a control calling
 the push directly shows the overlap, and a source check allows no other caller. It reads that commit with `git show`, as
 `verify-version-single-source.mjs` does, which is why CI checks out full history.
+
+## §129 — v8.37: linking to a coach — the mode question, the code, consent, Settings → Coaching (PROMPT-03 Phase 4b)
+
+Proposal §4.1 and §4.4. **Needs migration `0026` (`peek_invite`) live.** The server half is `0022`
+(`redeem_invite`, `revoke_coach`, `set_photo_consent`), `super-duper-octo-barnacle/docs/SUPABASE.md` →
+"BLOC Coach: profiles, linking, invites, consent". Visual reference: the wireframes'
+`WelcomeScreen`, `CoachingScreen` and `LinkSplash`, rebuilt from BLOC's own `.card`, `.settings-row`
+and `.toggle-row` parts. BLOC has no switch control (on/off is a two-button `.toggle-row` everywhere),
+so photo consent is one too.
+
+**What this version does NOT do yet.** Linking records the link; nothing in the app changes with it.
+Hiding Plan, "From your coach", swaps and the rest of Coached mode follow in later Phase 4
+sub-phases, keyed on `isCoachedMode()`. Nobody can be invited in production until BLOC Coach
+(Phase 5) exists: only a coach profile can create a code.
+
+**The flow** (`openCoachLink()`, one sheet, `renderCoachLink()` per step):
+1. **The mode question**: "Are you training solo, or do you have a coach?" Solo carries on as before.
+2. **The code**: typed, or filled in from an invite link. `peek_invite()` checks it and returns the
+   coach's name. **It writes nothing** (`0026`).
+3. **Consent**: "What {coach} will see", the five shared things, and **progress photos, asked
+   separately, off unless turned on**.
+4. **Agree and link**: `redeem_invite(code, photo_consent)`. 🚨 **This is the one call that links**,
+   and it's the client's consent. A code that died between the peek and the tap goes back to the
+   code step with the plain message, not linked.
+5. The link splash (2.8 s, tap to skip, reduced motion: a still frame for 1.2 s), then "You're
+   linked with {coach}".
+
+Every refusal from the server reads **"That code isn't valid or has expired. Ask your coach to send a
+new one."**, or "You already have a coach. Unlink first, in Settings → Coaching." A network failure
+says so. A code shorter than 8 characters is never sent.
+
+**Who is asked, and when** (`startFirstRun()`, which replaces the bare `fetchDemoDataIfNewUser()` in
+`continueBootAfterAuth()`). Adam, 2026-09-28: *"New accounts only"*.
+- **An invite link** opens the code step, filled in, on any device, new or not.
+- **A returning device:** nothing. Link from Settings → Coaching.
+- **A new device whose account has a cloud backup** is an existing user on a new phone. **Unchanged:**
+  `checkSnapshotZero()` restores it (and the Demo Tour starts as it always did). Never asked.
+- **A new device with no backup** is a new account: the mode question, **before** the Demo Tour.
+  Solo → the Demo Tour. "I have a coach" → the code, consent and link, then the profile gate, with
+  **no Solo Demo Tour** (a Coached tour set is D11, later).
+- **Can't tell** (the backup list failed): unchanged, the Demo Tour.
+- 🚨 **On a first run, leaving the sheet without linking means Solo.** Every way out (✕, swipe,
+  backdrop, Solo, Cancel then ✕) routes through `closeCoachLink()` (`MODAL_DISMISS_HANDLERS`), which
+  starts the Demo Tour. Otherwise a new account that closed the question would land on an empty app
+  with no tour.
+
+**Invite links:** `https://adamnc02.github.io/bloc-app/?invite=XXXX-XXXX` (`COACH_INVITE_URL`; BLOC
+Coach builds these in Phase 5. The wireframes' `coach.bloc.app/join/…` was a placeholder).
+`captureInviteFromUrl()` runs at parse time, **before sign-in**: it stores the code under
+`bloc_pending_invite` and takes `invite` out of the address bar, keeping every other parameter
+(`?auth=real`) and the hash. The code survives the sign-in, and a restore's reload. It's cleared once
+it links or the sheet is dismissed, and dropped after 7 days (an invite's life, `0022`).
+
+**Where the link lives.** 🚨 **Not in `state`.** It's server truth (`coach_clients`, `status =
+'active'`), cached in localStorage under `bloc_coach_link` **with the account id**:
+- `coachLinkGet()` ignores a cache written for another account. A backup restore, an import, or a
+  second account on the same phone can never carry a link.
+- `refreshCoachLink()` re-reads it on sign-in, on opening Settings → Coaching, and on resume (at most
+  once a minute). Either side can end a link at any time, so the server wins: a link the coach ended
+  is forgotten on the next check.
+- Delete my data and Close my account clear it (the erase deletes the client's `coach_clients` rows).
+- `isCoachedMode()` is the one question the rest of Phase 4 asks.
+
+**Settings → Coaching** (`openSettingsCoaching()`), under Notifications. Its sub-line says "Linked with
+{coach}." or "Link to a coach with their code."
+- **Linked:** the coach, "Linked since", what they see, the progress-photo Off/On, and **Unlink from
+  {coach}**.
+- **Solo:** "No coach linked" and **Enter a coach's code**.
+- **Photo consent** is `set_photo_consent()`. Only the client can change it, which `0022`'s trigger
+  enforces. The switch moves at once; a failed save puts it back and re-reads the link.
+- **Unlink** asks first (the proposal §4.4 points, in one sentence), then `revoke_coach()` and
+  forgets the link. ⚠️ **The coach's plan and goal phases are removed once there are any to remove**:
+  publications arrive in Phase 4c, and removing them on unlink is part of that work.
+- Not available signed out, in the local dev bypass, or during the Demo Tour.
+
+🚨 **The traps:**
+- **A consent screen that links.** The name has to come from `peek_invite`, which can't link. Calling
+  `redeem_invite` to find out the name would give the coach access before the client agrees.
+- **Asking existing users.** "New device" isn't "new account": `_isNewUserOnBoot` is true for your
+  existing account on a new phone. The backup check is what tells them apart.
+- **`verify-dev-bypass-real-data.mjs` finds the end of the dev branch by the first call after it**,
+  which was `fetchDemoDataIfNewUser(` and is now `startFirstRun(`. Moving that call made the slice
+  run on into the production branch, and a guard check failed for the wrong reason. It now looks for
+  either.
+
+**Check:** `scripts/verify-coach-linking.mjs` (36 checks) runs the real functions against a fake
+Supabase and a fake document:
+- the invite capture (normalised, removed from the URL, `?auth=real` kept, 7-day expiry);
+- the per-account cache;
+- all six first-run cases;
+- Solo and dismissal starting the Demo Tour;
+- peek before consent, no link before Agree, one redeem with the photo choice;
+- the refusals;
+- photo consent reverting on failure;
+- Unlink;
+- a coach-ended link being forgotten.
+
+**Control:** v8.36 (`c2be73a`) has none of it. Driven in headless Chromium at 393pt: every step,
+the splash, Settings linked and unlinked, no console errors.

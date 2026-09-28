@@ -46,8 +46,12 @@ function extractDevBranch(source) {
   if (start === -1) return null;
   const branch = source.indexOf('if (IS_LOCAL_DEV) {', start);
   if (branch === -1) return null;
-  // Up to the non-dev path, which begins at fetchDemoDataIfNewUser().
-  const end = source.indexOf('fetchDemoDataIfNewUser(', branch);
+  // Up to the non-dev path, which begins at startFirstRun() since v8.37 (§129;
+  // it was a bare fetchDemoDataIfNewUser() before). 🚨 If that call moves again,
+  // the slice runs on into the production branch, which DOES read
+  // _isNewUserOnBoot, and the guard check below fails for the wrong reason.
+  const ends = ['startFirstRun(', 'fetchDemoDataIfNewUser('].map(m => source.indexOf(m, branch)).filter(i => i !== -1);
+  const end = ends.length ? Math.min(...ends) : -1;
   return end === -1 ? null : source.slice(branch, end);
 }
 
