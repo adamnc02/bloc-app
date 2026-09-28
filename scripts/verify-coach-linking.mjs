@@ -77,6 +77,7 @@ function build(source) {
     const demoTourIsRunning = () => env.tour;
     const listSnapshots = async () => { if (env.listFails) throw new Error('offline'); return env.snapshots; };
     const playLinkSplash = l => log.push(['splash', l.coachName]);
+    const requestClientStateUpload = r => log.push(['upload', r]); // v8.38 (§130)
     const showConfirm = (t, m, ok, cb) => { log.push(['confirm', t]); env.confirmCb = cb; };
     const setTimeout = (fn) => fn();
     ${consts.join('\n')}
@@ -223,6 +224,8 @@ async function run(source, label) {
     check('the link is cached for this account', link && [link.userId, link.coachId, link.coachName, link.photoConsent], ['u1', 'coach-1', 'Sam', true]);
     check('the invite is used up, the splash plays, and the flow shows "linked"',
       [e.store.has('bloc_pending_invite'), e.log.some(l => l[0] === 'splash'), L.flow().step], [false, true, 'linked']);
+    if (/requestClientStateUpload\(/.test(extract(source, 'async function coachAgreeAndLink(') || ''))
+      check('v8.38: a new link starts the client_state upload, once', e.log.filter(l => l[0] === 'upload'), [['upload', 'linked']]);
   }
 
   // ── Refusals
@@ -281,7 +284,7 @@ async function run(source, label) {
   return failures;
 }
 
-const failures = await run(current, 'v8.37');
+const failures = await run(current, 'now');
 
 // CONTROL: v8.36 has no linking at all.
 const control = execFileSync('git', ['show', 'c2be73a:index.html'], { cwd: repo, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });

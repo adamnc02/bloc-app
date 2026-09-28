@@ -7389,6 +7389,7 @@ const SYNC_DEBOUNCE_MS = 4000;
 
 function markSyncDirty() {
   _syncDirty = true;
+  scheduleClientStateUpload(); // v8.38 (§130): coached clients only, 60 s after the last save
   if (_syncTimer) clearTimeout(_syncTimer);
   _syncTimer = setTimeout(flushSyncQueue, SYNC_DEBOUNCE_MS);
 }
@@ -9248,6 +9249,7 @@ function handleDeleteMyData() {
             localStorage.removeItem('bloc_snapshot_zero_done');
             localStorage.removeItem('bloc_snapshot_autorestore_done');
             coachLinkClear(); // v8.37 (§129): the erase ends the link
+            localStorage.removeItem('bloc_client_state_meta'); // v8.38 (§130): and its client_state rows
             location.reload();
           } catch (err) {
             if (statusEl) {
@@ -9307,6 +9309,7 @@ function handleCloseAccount() {
             localStorage.removeItem('bloc_snapshot_zero_done');
             localStorage.removeItem('bloc_snapshot_autorestore_done');
             coachLinkClear(); // v8.37 (§129)
+            localStorage.removeItem('bloc_client_state_meta'); // v8.38 (§130)
             await supabase.auth.signOut();
             location.reload();
           } catch (err) {
@@ -9408,7 +9411,9 @@ let _coachLinkRefreshedAt = 0;
 function maybeRefreshCoachLink() {
   if (Date.now() - _coachLinkRefreshedAt < 60 * 1000) return;
   _coachLinkRefreshedAt = Date.now();
-  refreshCoachLink().catch(err => console.warn('[coaching] could not check the coach link:', err && err.message));
+  refreshCoachLink()
+    .then(() => requestClientStateUpload('resume')) // v8.38 (§130): after the link is known
+    .catch(err => console.warn('[coaching] could not check the coach link:', err && err.message));
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') maybeRefreshCoachLink(); });
 
@@ -9546,7 +9551,11 @@ async function coachAgreeAndLink() {
     if (_coachFlow !== f) return;
     // A code that expired or was replaced between the peek and now: back to the code.
     coachFlowSet({ busy: false, step: 'code', error: coachLinkErrorText(err) });
+    return;
   }
+  // v8.38 (§130): the coach sees the client straight away. Outside the try on
+  // purpose: nothing about the upload may make a link that worked look failed.
+  requestClientStateUpload('linked');
 }
 
 function renderCoachLink() {
@@ -9769,6 +9778,145 @@ async function unlinkCoach(l) {
     coachingStatus('Couldn’t unlink: ' + ((err && err.message) || 'try again'), true);
   }
 }
+
+// ════════════════════════════════════════════════════════════════════════
+// CLIENT STATE UPLOAD (v8.38, PROMPT-03 Phase 4c, TECHNICAL §130)
+// ════════════════════════════════════════════════════════════════════════
+// Client → coach (proposal §6.1). BLOC Coach runs BLOC's own engine on the
+// client's REAL state, so it needs the whole thing: the relational mirror is
+// lossy (deep dive §4a). One row per upload in `client_state` (0023): the
+// compact JSON, gzipped, its sha-256, a rising rev, the app version, the
+// device's IANA zone (Coach evaluates the client at THEIR local today) and a
+// device id. The server keeps the newest 7 and refuses a rev that doesn't rise.
+//
+// When: only while COACHED (isCoachedMode()) — nobody else reads it, so a Solo
+// user's state never leaves the device this way. 60 s after the last save();
+// on sign-in, resume and coming online (after the link is re-checked); and at
+// once when a link is made, so the coach sees the client straight away.
+//
+// 🚨 Never:
+//   · during the Demo Tour or while any pretend "today" is set (_tourAnchorDate);
+//   · from a device holding nothing (deviceHasRealData(), the §109 rule): a
+//     wiped or fresh device must not replace what the coach sees with nothing;
+//   · when nothing changed since the last upload (same hash);
+//   · two at once — clientStateSerialised(), the same one-at-a-time gate as
+//     the mirror push (§128). Two overlapping uploads would pick the same rev
+//     and the second would be refused.
+const CLIENT_STATE_META_KEY = 'bloc_client_state_meta';
+const CLIENT_STATE_DEVICE_KEY = 'bloc_device_id';
+const CLIENT_STATE_DEBOUNCE_MS = 60 * 1000;
+
+// The version this build is, read from the Settings hero chip's own source so
+// there is still exactly one place a release bumps it (§110,
+// verify-version-single-source.mjs).
+function blocAppVersion() {
+  const m = String(renderSettingsHero).match(/--chip-c:var\(--accent2\);">(v[0-9.]+)</);
+  return m ? m[1] : 'unknown';
+}
+function blocDeviceId() {
+  let id = null;
+  try { id = localStorage.getItem(CLIENT_STATE_DEVICE_KEY); } catch (e) {}
+  if (id) return id;
+  const b = new Uint8Array(12);
+  crypto.getRandomValues(b);
+  id = 'dev_' + Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
+  try { localStorage.setItem(CLIENT_STATE_DEVICE_KEY, id); } catch (e) {}
+  return id;
+}
+function blocDeviceTz() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) { return 'UTC'; }
+}
+function clientStateMetaGet(uid) {
+  try {
+    const m = JSON.parse(localStorage.getItem(CLIENT_STATE_META_KEY) || 'null');
+    return m && m.userId === uid ? m : null; // another account's: start again from the server's rev
+  } catch (e) { return null; }
+}
+function clientStateMetaSet(m) { try { localStorage.setItem(CLIENT_STATE_META_KEY, JSON.stringify(m)); } catch (e) {} }
+
+async function blocSha256Hex(text) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf), x => x.toString(16).padStart(2, '0')).join('');
+}
+async function blocGzip(text) {
+  const stream = new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+// PostgREST takes a bytea as its hex text form.
+function blocByteaHex(bytes) {
+  let s = '\\x';
+  for (let i = 0; i < bytes.length; i++) s += bytes[i].toString(16).padStart(2, '0');
+  return s;
+}
+
+async function clientStateNewestRev(uid) {
+  const { data, error } = await supabase.from('client_state').select('state_rev')
+    .eq('user_id', uid).order('state_rev', { ascending: false }).limit(1);
+  if (error) throw error;
+  return data && data[0] ? Number(data[0].state_rev) : 0;
+}
+
+// One upload, if one is due. Returns what it did, for the log and the tests.
+async function uploadClientStateOnce() {
+  if (!coachingAvailable() || !isCoachedMode()) return 'not-coached';
+  if (_tourAnchorDate) return 'tour';
+  if (!deviceHasRealData()) return 'empty-device';
+  if (typeof CompressionStream === 'undefined' || !(crypto && crypto.subtle)) return 'unsupported';
+  const uid = _authResolvedSession.user.id;
+  const json = JSON.stringify(state); // compact: no indentation
+  const hash = await blocSha256Hex(json);
+  const meta = clientStateMetaGet(uid);
+  if (meta && meta.hash === hash) return 'unchanged';
+  const gz = await blocGzip(json);
+  const row = {
+    user_id: uid, state_gz: blocByteaHex(gz), state_hash: hash,
+    app_version: blocAppVersion(), tz: blocDeviceTz(), device_id: blocDeviceId(),
+  };
+  // No local rev (a new device, a restore, another account before): ask the server.
+  let rev = (meta ? meta.rev : await clientStateNewestRev(uid)) + 1;
+  let { error } = await supabase.from('client_state').insert(Object.assign({ state_rev: rev }, row));
+  if (error && /newer state is already stored/.test(error.message || '')) {
+    // Another device (or a stale local rev) got there first: go one past the server.
+    rev = (await clientStateNewestRev(uid)) + 1;
+    ({ error } = await supabase.from('client_state').insert(Object.assign({ state_rev: rev }, row)));
+  }
+  if (error) throw new Error(`client_state: ${error.message}`);
+  clientStateMetaSet({ userId: uid, rev, hash, bytes: gz.length, at: Date.now() });
+  return 'uploaded';
+}
+
+let _clientStateRunning = null;
+let _clientStateQueued = null;
+function clientStateSerialised() {
+  if (_clientStateQueued) return _clientStateQueued;
+  const start = () => {
+    _clientStateRunning = uploadClientStateOnce().finally(() => { _clientStateRunning = null; });
+    return _clientStateRunning;
+  };
+  if (!_clientStateRunning) return start();
+  _clientStateQueued = _clientStateRunning.catch(() => {}).then(() => { _clientStateQueued = null; return start(); });
+  return _clientStateQueued;
+}
+// Fire and forget, for the triggers. A failure stays on the console and the
+// next trigger tries again: an upload is never allowed to interrupt the app.
+function requestClientStateUpload(reason) {
+  try {
+    if (!isCoachedMode()) return;
+    clientStateSerialised()
+      .then(r => { if (r === 'uploaded') console.info(`[client_state] uploaded (${reason})`); })
+      .catch(err => console.warn(`[client_state] upload failed (${reason}), will retry:`, err && err.message));
+  } catch (err) {
+    console.warn(`[client_state] upload not started (${reason}):`, err && err.message); // never throws to its caller
+  }
+}
+let _clientStateTimer = null;
+function scheduleClientStateUpload() {
+  if (!isCoachedMode()) return;
+  if (_clientStateTimer) clearTimeout(_clientStateTimer);
+  _clientStateTimer = setTimeout(() => { _clientStateTimer = null; requestClientStateUpload('saved'); }, CLIENT_STATE_DEBOUNCE_MS);
+}
+window.addEventListener('online', () => requestClientStateUpload('online'));
+
 
 
 // Populates and opens the restore picker with this account's dated
@@ -27370,7 +27518,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.37</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.38</span>`;
 }
 
 function renderSettings() {
