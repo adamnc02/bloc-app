@@ -8326,3 +8326,18 @@ with the built engine's clash rule. It covers:
 
 **Control:** v8.38 (`c5949c3`). `verify-coach-linking.mjs` also checks a new link pulls and opens the
 channel.
+
+**UAT, 2026-09-28** (in chat; Work account; the coach played by SQL as the Hotmail test coach;
+temporary `claude_ro` read policy on `publication_acks`, dropped and verified at 0): 9/9 after one fix.
+- **A plan and its goal phase** published while BLOC was open appeared within seconds, through Realtime.
+- **Receipts were refused** by `.upsert()`, above, and fixed. The two owed receipts then arrived on the
+  next pull.
+- **The client's own cycles were untouched.**
+- **The overlapping plan was held**, and its receipt read "Overlaps “Weight Loss 2026” (from
+  2026-06-22).". It was retried on every pull with no repeat receipt.
+- **A reply published under an open sheet** waited, then applied the moment the sheet closed.
+- **A reload re-applied nothing.**
+
+⚠️ **Observed once:** "Linking…" took ~60 s. The server side had completed, the console was clean,
+and the local tab had been open for over an hour. That's most likely an expired session refreshing
+before the request; later reloads were instant. Watch for it on a phone that resumes after an hour.
