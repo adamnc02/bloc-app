@@ -7501,7 +7501,7 @@ async function syncBlocCheckin(userId) {
     conversation: advice.conversation || null,
     prior_advice_this_cycle: advice.priorAdviceThisCycle || null,
     revision_info: advice.revisionInfo || null,
-  }, { onConflict: 'id' });
+  }, { onConflict: 'user_id,id' }); // v8.36 (§128): keyed (user_id, id) since migration 0025, which merges first — onConflict must name exactly the key's columns
   if (error) throw new Error(`bloc_checkins: ${error.message}`);
 }
 
@@ -7550,7 +7550,11 @@ function syncRowsMacrocycles(userId) {
     start_date: m.start, goal: m.goal || null, target_bw: m.targetBw ?? null,
     goal_type: m.goalType || null, weight_increment: m.weightIncrement ?? null,
     split_type: m.splitType, days: m.days, day_labels: m.dayLabels,
-    use_microcycles: !!m.useMicrocycles,
+    // v8.36 (§128): the app reads an unset useMicrocycles as ON (`!== false`),
+    // so `!!` mirrored every such cycle as off. And extension_weeks (0021) has
+    // a CHECK ≥ 0, so a restored file's odd value is clamped, never sent raw.
+    use_microcycles: m.useMicrocycles !== false,
+    extension_weeks: Math.max(0, parseInt(m.extensionWeeks, 10) || 0),
     // v8.20 — migration 0018. 🚨 That migration must be LIVE before this ships:
     // syncTable() deletes first, so an insert failing on an unknown column
     // would empty macrocycles and cascade away exercises and exercise_logs.
@@ -7595,7 +7599,10 @@ function syncRowsExerciseLogs(userId, exIdContext) {
     rows.push({
       user_id: userId, macrocycle_id: parsed.macroId, exercise_id: parsed.exerciseId,
       week: parsed.week, day_key: parsed.day + (parsed.microcycle || ''),
-      set_index: parsed.setIndex, weight: log.weight ?? null, reps: log.reps ?? null,
+      // v8.36 (§128): a cleared weight or reps box stores '', which `numeric`
+      // refuses, failing the whole exercise_logs push (the reps-as-integer bug's
+      // shape). reps is text since 0021, but '' is still "nothing logged".
+      set_index: parsed.setIndex, weight: syncNumOrNull(log.weight), reps: syncNumOrNull(log.reps),
       done: !!log.done,
     });
   }
@@ -7956,6 +7963,34 @@ async function deleteAllSnapshots(userId) {
   const paths = data.map(f => `bloc/${userId}/${f.name}`);
   const { error: removeError } = await supabase.storage.from('app-backups').remove(paths);
   if (removeError) throw removeError;
+}
+
+// v8.36 (§128) — the user's files in the private `client-media` bucket
+// (check-in and cycle-review photos a coach may see, migration 0024), at
+// `{uid}/…`, possibly in sub-folders. Same reason as deleteAllSnapshots():
+// Supabase refuses a SQL delete on storage.objects, so gdpr_erase_user_data
+// can't remove them (MIGRATION-LESSONS §70). Storage's list() isn't recursive
+// and returns a folder as an entry with no id, so this walks the folders.
+// 🚨 Runs BEFORE the erase: once the rows are gone nothing else would ever
+// remove these files.
+async function listClientMediaPaths(prefix) {
+  const paths = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await supabase.storage.from('client-media').list(prefix, { limit: 1000, offset });
+    if (error) throw error;
+    for (const f of (data || [])) {
+      if (f.id) paths.push(`${prefix}/${f.name}`);
+      else paths.push(...await listClientMediaPaths(`${prefix}/${f.name}`));
+    }
+    if (!data || data.length < 1000) return paths;
+  }
+}
+async function deleteAllClientMedia(userId) {
+  const paths = await listClientMediaPaths(userId);
+  for (let i = 0; i < paths.length; i += 1000) {
+    const { error } = await supabase.storage.from('client-media').remove(paths.slice(i, i + 1000));
+    if (error) throw error;
+  }
 }
 
 // Uploads the current state as a dated snapshot. Called: (a) once, right
@@ -9069,6 +9104,7 @@ function handleDeleteMyData() {
             // gone, backup files still sitting in Storage) is worse than
             // a clear error the person can just retry.
             await deleteAllSnapshots(userId);
+            await deleteAllClientMedia(userId); // v8.36 (§128)
             const { error } = await supabase.rpc('gdpr_erase_user_data', { target_user_id: userId });
             if (error) throw error;
             // Only the account-data mirror and its tracking flags — theme
@@ -9131,6 +9167,7 @@ function handleCloseAccount() {
             const { error: requestError } = await supabase.from('account_closure_requests').insert({ user_id: userId });
             if (requestError) throw requestError;
             await deleteAllSnapshots(userId);
+            await deleteAllClientMedia(userId); // v8.36 (§128)
             const { error: eraseError } = await supabase.rpc('gdpr_erase_user_data', { target_user_id: userId });
             if (eraseError) throw eraseError;
             localStorage.removeItem(STATE_KEY);
@@ -26752,7 +26789,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.35</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.36</span>`;
 }
 
 function renderSettings() {
