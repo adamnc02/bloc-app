@@ -19,6 +19,10 @@
 //      API (MIGRATION-LESSONS §70), and must be removed BEFORE the erase.
 //      Storage's list() is not recursive: a folder comes back as an entry
 //      with no id, so a flat list would miss every file in a sub-folder.
+//   5. One push at a time. Two overlapping pushes interleave their
+//      delete-then-insert per table: 409 "duplicate key … macrocycles_pkey"
+//      (found in the 4a UAT on a reload), and a late macrocycles delete
+//      cascades away the other push's freshly written children.
 //
 // Extracts the real functions from index.html. CONTROL: the same checks on
 // v8.35 (d789154), which must fail each of the four.
@@ -132,6 +136,58 @@ async function run(source, label) {
     check("only the 'client-media' bucket is used", [...new Set(fake.calls.map(c => c[1]))], ['client-media']);
     check('removes go in batches of at most 1000', fake.calls.filter(c => c[0] === 'remove').every(c => c[2] <= 1000), true);
   }
+  // 5. One push at a time (found in the 4a UAT: the sign-in full sync and a
+  // boot save()'s debounced flush overlapped, 409 on macrocycles_pkey).
+  const wrapper = extract(source, 'function pushStateSerialised(');
+  check('pushStateSerialised() exists', !!wrapper, true);
+  if (wrapper) {
+    const W = new Function(`
+      let active = 0, maxActive = 0, runs = 0, stateVersion = 0; const seen = [];
+      async function pushStateToSupabase(userId) {
+        active++; maxActive = Math.max(maxActive, active); runs++; seen.push(stateVersion);
+        await new Promise(r => setTimeout(r, 20));
+        active--; if (runs === 1 && globalThis.__failFirst) throw new Error('boom');
+      }
+      let _pushRunning = null, _pushQueued = null;
+      ${wrapper}
+      return { push: pushStateSerialised, bump: () => stateVersion++, stats: () => ({ maxActive, runs, seen }) };
+    `)();
+    const first = W.push('u1'); W.bump();
+    const queued = [W.push('u1'), W.push('u1'), W.push('u1')];
+    await Promise.all([first, ...queued]);
+    const st = W.stats();
+    check('overlapping requests never run two pushes at once', st.maxActive, 1);
+    check('three requests during a push share ONE follow-up push (2 runs in all)', st.runs, 2);
+    check('the follow-up reads the state as it is when it starts, not when it was asked for', st.seen, [0, 1]);
+    const after = W.push('u1'); await after;
+    check('a request after both finish starts a fresh push', W.stats().runs, 3);
+    // CONTROL: without the wrapper, the same timing overlaps.
+    const N = new Function(`
+      let active = 0, maxActive = 0;
+      async function pushStateToSupabase() { active++; maxActive = Math.max(maxActive, active); await new Promise(r => setTimeout(r, 20)); active--; }
+      return { push: pushStateToSupabase, max: () => maxActive };
+    `)();
+    await Promise.all([N.push(), N.push()]);
+    check('control: calling the push directly overlaps (what v8.35 did)', N.max(), 2);
+    // A failed push must not block the queue.
+    globalThis.__failFirst = true;
+    const F = new Function(`
+      let runs = 0;
+      async function pushStateToSupabase() { runs++; await new Promise(r => setTimeout(r, 5)); if (runs === 1) throw new Error('boom'); }
+      let _pushRunning = null, _pushQueued = null;
+      ${wrapper}
+      return { push: pushStateSerialised, runs: () => runs };
+    `)();
+    const f1 = F.push('u1').catch(e => e.message); const f2 = F.push('u1').then(() => 'ok', e => e.message);
+    check('a failed push reports its error, and the queued one still runs', [await f1, await f2, F.runs()], ['boom', 'ok', 2]);
+    delete globalThis.__failFirst;
+  }
+  // Code lines only: every comment that mentions it is a // line.
+  const directCalls = source.split('\n')
+    .filter(l => !l.trim().startsWith('//') && /(^|[^\w])pushStateToSupabase\(/.test(l)).length;
+  // One definition + the wrapper's call.
+  check('nothing calls pushStateToSupabase() except the wrapper', directCalls, 2);
+
   for (const fn of ['handleDeleteMyData', 'handleCloseAccount']) {
     const body = extract(source, `function ${fn}(`) || '';
     const media = body.indexOf('deleteAllClientMedia(userId)');
@@ -153,7 +209,7 @@ const control = execFileSync('git', ['show', 'd789154:index.html'], { cwd: repo,
   let cf;
   try { cf = await run(control, 'v8.35'); } finally { console.log = orig; }
   const failed = (re) => lines.some(l => l.startsWith('✗') && re.test(l));
-  const want = [/unset useMicrocycles/, /extension_weeks/, /cleared weight/, /user_id,id/, /deleteAllClientMedia\(\) exists/, /handleDeleteMyData removes/, /handleCloseAccount removes/];
+  const want = [/pushStateSerialised\(\) exists/, /unset useMicrocycles/, /extension_weeks/, /cleared weight/, /user_id,id/, /deleteAllClientMedia\(\) exists/, /handleDeleteMyData removes/, /handleCloseAccount removes/];
   const missed = want.filter(re => !failed(re));
   if (missed.length || !cf) { console.log(`✗ control: v8.35 did not fail ${missed.map(String).join(', ') || 'anything'}`); process.exitCode = 1; }
   else console.log(`✓ control: v8.35 fails all ${want.length} (${cf} checks in all)`);

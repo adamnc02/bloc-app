@@ -7960,7 +7960,7 @@ before.
   With those lines removed, each is byte-identical to the file before, and no other run changed.
   `_source.closure` 103 → 89 is extraction metadata (steps 5–6 moved functions out).
 
-## §128 — v8.36: four mirror fixes, and Delete my data removes coach-visible photos (PROMPT-03 Phase 4a)
+## §128 — v8.36: four mirror fixes, one push at a time, and Delete my data removes coach-visible photos (PROMPT-03 Phase 4a)
 
 Carried from Phase 3 (`super-duper-octo-barnacle/docs/SUPABASE.md` → "Keys are per user"). **Ships
 with migration `0025`, which merges FIRST** (see the trap below). Nothing on screen changes.
@@ -8005,8 +8005,28 @@ cross-account collision `0025` removes, until yet another migration.)
   empty folder and removes nothing. It's here first so no photo can ever be uploaded without a
   delete path.
 
+**5. One push at a time: `pushStateSerialised()`** (found in this phase's UAT, pre-existing).
+- **What happened.** On a reload of the Work account, the console showed 409 "duplicate key value
+  violates unique constraint `macrocycles_pkey`" (and `exercises_pkey`), after two clean Full syncs.
+  The sign-in full sync (`maybeForceFullSyncOnSignIn`) was still running when a boot `save()`'s 4 s
+  debounced `flushSyncQueue()` started a second push. Nothing kept them apart.
+- **Why it breaks.** `syncTable()` clears the user's rows, then re-inserts them. Two pushes
+  interleave: A clears, B clears, A inserts, B's insert hits A's rows. Worse, and silent: a late
+  clear of `macrocycles` cascades away the `exercises` and `exercise_logs` the other push had just
+  written, so the mirror can sit incomplete until the next change retries. It isn't new with `0025`:
+  under the old global keys the same race hit the same constraint.
+- **The fix.** `flushSyncQueue()` and `forceFullRelationalSync()` call `pushStateSerialised()`, never
+  `pushStateToSupabase()`. A push asked for while one runs waits for it. Any number of such requests
+  share **one** follow-up push, which reads `state` when it starts, so it sends the latest. A failed
+  push still reports its error, and the queued one still runs.
+- 🚨 **Phase 4c's `client_state` upload must go through the same kind of gate**, or the same race
+  returns as a `state_rev` refusal.
+
 **Check:** `scripts/verify-sync-mapping-fixes.mjs` runs the real functions: the four mappings, a
 fake Storage that answers `list()` one level at a time (sub-folders, a 1,203-file folder, another
 user's file that must survive), and the order inside both handlers. **Control:** the same checks on
-v8.35 (`d789154`) must fail all seven targeted checks. It reads that commit with `git show`, as
+v8.35 (`d789154`) must fail all eight targeted checks. For item 5 it runs the real
+`pushStateSerialised()` over a slow fake push (never two at once; three waiting requests make one
+follow-up; the follow-up sees the newer state; a failure doesn't block the queue), a control calling
+the push directly shows the overlap, and a source check allows no other caller. It reads that commit with `git show`, as
 `verify-version-single-source.mjs` does, which is why CI checks out full history.
