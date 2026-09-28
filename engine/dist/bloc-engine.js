@@ -2273,7 +2273,7 @@ Write this cycle's review per the schema above.`;
     return !!(macro && macro.rpe === true);
   }
   function rpeDrivesProgression(macro) {
-    return isRpeOn(macro);
+    return isRpeOn(macro) && !(macro && macro.publishedBy);
   }
   var RPE_STEP_NONE = Object.freeze({ kind: "none", weightMult: 1, repsInc: 1, giantInc: 10 });
   function rpeStepFromKind(kind, ex) {

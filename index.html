@@ -5709,7 +5709,7 @@ try {
         <div class="settings-row-icon"><svg viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="9" rx="0.5"/><rect x="10" y="7" width="4" height="14" rx="0.5"/><rect x="17" y="3" width="4" height="18" rx="0.5"/></svg></div>
         <div class="settings-row-text">Progress</div>
       </div>
-      <div class="settings-row settings-row-nav" onclick="startPlanMiniTour()">
+      <div class="settings-row settings-row-nav" id="tour-help-plan-row" onclick="startPlanMiniTour()">
         <div class="settings-row-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
         <div class="settings-row-text">Plan</div>
       </div>
@@ -6585,7 +6585,7 @@ try {
      same-named shims. ?v= is the first 12 hex of the file's SHA-256, so a phone never pairs a
      new index.html with an older engine from its HTTP cache; scripts/verify-engine-build.mjs
      fails if it is stale. Listed in scripts/publish-files.txt. -->
-<script src="engine/dist/bloc-engine.js?v=876d2d08e0ae"></script>
+<script src="engine/dist/bloc-engine.js?v=f5987f732d20"></script>
 <script>
 // ════════════════════════════════════════════════
 // DATE HELPERS
@@ -6942,7 +6942,7 @@ function buildProgressTourSteps(demo) {
   const onPage = (d = DEMO_TOUR_TODAY) => () => { _closeTourSheets(); setDay(d); renderProgress(); };
   const inCheckinSheet = () => { setDay(DEMO_TOUR_TODAY); openCheckinSheet(); };
 
-  return [
+  const steps = [
     { targetId: 'progress-hero-wrap', screen: 'progress', onEnter: onPage(),
       title: 'Your cycle at a glance',
       body: 'Your latest weigh-in against the cycle’s target, and whether you’re ahead or behind for how far through the cycle you are. Tap the card to look at another cycle.' },
@@ -6991,6 +6991,17 @@ function buildProgressTourSteps(demo) {
       title: 'The detail, day by day',
       body: 'Your last seven days, day by day. All-time stats and your macro split are one tap away.' },
   ];
+  // v8.40 (§132, deep dive D11): the Coached Progress tour. The check-in, last
+  // cycle and next cycle sections aren't there, and 🚨 their steps can't just
+  // be left for the engine to skip: the check-in steps' onEnter OPENS the
+  // check-in sheet, a Solo AI tool, before the engine looks for the target.
+  if (!demo && coachedView()) {
+    const solo = new Set(['progress-checkin', 'checkin-plan-sustainable', 'checkin-challenge-btn', 'progress-last-cycle', 'progress-next-cycle']);
+    return steps.filter(st => !solo.has(st.targetId)).map(st => st.targetId === 'progress-insights'
+      ? Object.assign({}, st, { body: 'No AI and no key needed: your weekly change, your best 7-day window, and what your logs say about your metabolism.' })
+      : st);
+  }
+  return steps;
 }
 
 function buildPlanTourSteps(demo) {
@@ -7069,7 +7080,9 @@ function buildTrainTourSteps(demo) {
       body: 'Miss last week’s target on any set and the exercise goes On hold: next week keeps the same target instead of adding more. Amber marks the sets that fell short.' },
     { targetId: 'train-tools', screen: 'train',
       title: 'Session tools',
-      body: 'Change session jumps to any other day in the cycle. Mark week as deload drops every weight to 60% for that week, and progression picks up again after it.' },
+      body: coachedView() // v8.40 (§132): no deload toggle when coached
+        ? 'Change session jumps to any other day in the cycle.'
+        : 'Change session jumps to any other day in the cycle. Mark week as deload drops every weight to 60% for that week, and progression picks up again after it.' },
   ];
 }
 
@@ -7173,8 +7186,9 @@ function _startMiniTour(screen, buildSteps) {
   // target is empty and the engine would skip them all — the tour would
   // end the moment it began, silently. Say why instead.
   if (['progress', 'plan', 'train'].includes(screen) && !(state.macrocycles || []).length) {
-    showConfirm('Nothing to tour yet',
-      'This tour walks through your own training cycle. Create one from Plan, then come back.', 'OK', null);
+    showConfirm('Nothing to tour yet', coachedView()
+      ? 'This tour walks through your training cycle. ' + coachPlanPendingText()
+      : 'This tour walks through your own training cycle. Create one from Plan, then come back.', 'OK', null);
     return;
   }
   showScreen(screen);
@@ -9381,6 +9395,96 @@ function coachLinkClear() { try { localStorage.removeItem(COACH_LINK_KEY); } cat
 // The one question Phase 4's Coached mode asks. True only after a redeemed code.
 function isCoachedMode() { return !!coachLinkGet(); }
 
+// ── v8.40 (§132): what Coached mode hides (proposal §4.2) ────────────────
+// The coach builds the plan and runs every AI tool, so a coached client has
+// no Plan page, no deload toggle, no Ask BLOC / Challenge / cycle review /
+// next-cycle advice, and no plateau signal to contradict the coach. Every
+// screen asks this one question. False during the Demo Tour: its data is the
+// demo's, and it walks the Solo app.
+function coachedView() { return isCoachedMode() && !demoTourIsRunning(); }
+// The empty state wherever Solo says "create one in Plan".
+function coachPlanPendingText() {
+  const l = coachLinkGet();
+  return `${(l && l.coachName) || 'Your coach'} hasn’t published your plan yet. It appears here once they do.`;
+}
+
+// The parts of the chrome that exist outside any one screen's render: the
+// Plan nav button and the Plan row in Help → Tours. Called on every
+// showScreen() and whenever the link changes (updateSettingsCoachingRow()).
+// 🚨 Plan's button is display:none, not removed: showScreen() and the nav
+// pill look buttons up by id, and Solo needs it back after an unlink.
+function applyCoachedNav() {
+  const coached = coachedView();
+  const navPlan = document.getElementById('nav-plan');
+  if (navPlan) navPlan.style.display = coached ? 'none' : '';
+  const tourPlan = document.getElementById('tour-help-plan-row');
+  if (tourPlan) tourPlan.style.display = coached ? 'none' : '';
+  return coached;
+}
+function applyCoachedChrome() {
+  const coached = applyCoachedNav();
+  // Linked while Plan was open (the link is made from Settings, but a
+  // resume's re-check can land anywhere): leave it for Home.
+  const planEl = document.getElementById('screen-plan');
+  if (coached && planEl && planEl.classList.contains('active')) showScreen('home');
+  else if (typeof positionNavPill === 'function') positionNavPill();
+}
+
+// 🚨 v8.40 (§132): unlinking removes the coach's plan (proposal §4.4). Adam,
+// 2026-09-28, chose both literal options: "Remove every coach cycle" and
+// "Remove them all" (goal phases). So every cycle and goal phase the coach
+// published (`publishedBy`, stamped by the funnel, §131) goes, with the
+// cycle's session templates, deloads, supersets, cached targets and locks.
+// 🚨 What STAYS is everything the client logged: trainLogs, effort ratings
+// and exercise history (the "last logged" figures). With no cycle left to
+// name them, the mirror push skips those logs as orphaned (syncParseTrainLogKey
+// finds no exercise), but they stay in `state`, in backups and in client_state.
+// The client's own Solo cycles and goals are untouched, and so is the
+// publication ledger: a later re-link pulls from where it left off.
+function removeCoachPlan() {
+  const gone = new Set((state.macrocycles || []).filter(m => m && m.publishedBy).map(m => m.id));
+  const goalsBefore = (state.goals || []).length;
+  state.goals = (state.goals || []).filter(g => !(g && (g.publishedBy || gone.has(g.macroId))));
+  const goalsRemoved = goalsBefore - state.goals.length;
+  if (!gone.size && !goalsRemoved) return { cycles: 0, goals: 0 };
+  // 🚨 A key belongs to the LONGEST cycle id it starts with. Plain
+  // startsWith(id + '_') would hand a Solo cycle "macro_c1_x"'s keys to a coach
+  // cycle "macro_c1" and delete them (deep dive I4: ids aren't prefix-free).
+  const allIds = (state.macrocycles || []).map(m => m.id).sort((a, b) => b.length - a.length);
+  const ofGone = key => { const owner = allIds.find(id => key.startsWith(id + '_')); return !!owner && gone.has(owner); };
+  state.macrocycles = state.macrocycles.filter(m => !gone.has(m.id));
+  const orphanSs = new Set();
+  for (const key of Object.keys(state.exercises || {})) {
+    if (!ofGone(key)) continue;
+    for (const ex of (state.exercises[key] || [])) if (ex && ex.supersetId) orphanSs.add(ex.supersetId);
+    delete state.exercises[key];
+  }
+  // A superset another (Solo) cycle still uses stays.
+  for (const list of Object.values(state.exercises || {})) for (const ex of (list || [])) if (ex && ex.supersetId) orphanSs.delete(ex.supersetId);
+  for (const id of orphanSs) if (state.supersets) delete state.supersets[id];
+  for (const bag of ['deloads', 'progressionTargets', 'progressionLocks']) {
+    for (const key of Object.keys(state[bag] || {})) if (ofGone(key)) delete state[bag][key];
+  }
+  // Bookings and in-person logs belong to the link that just ended.
+  state.coachBookings = {};
+  state.coachSessionLogs = [];
+  if (gone.has(state.currentMacroId)) {
+    const all = state.macrocycles;
+    state.currentMacroId = getDateActiveMacroId() || (all.length ? all[all.length - 1].id : null);
+    state.currentWeek = 1;
+  }
+  save();
+  return { cycles: gone.size, goals: goalsRemoved };
+}
+// After the link ends, from either side: remove the plan, then redraw
+// whatever is on screen (Plan comes back, the hides lift).
+function afterCoachLinkEnded() {
+  removeCoachPlan();
+  applyCoachedChrome();
+  const active = document.querySelector('.screen.active');
+  if (active && active.id && active.id !== 'screen-settings') showScreen(active.id.replace(/^screen-/, ''));
+}
+
 function coachingAvailable() {
   return !!(supabase && _authResolvedSession && _authResolvedSession.user) && !demoTourIsRunning();
 }
@@ -9393,7 +9497,14 @@ async function refreshCoachLink() {
   const { data, error } = await supabase.from('coach_clients')
     .select('coach_id, client_record_id, photo_consent, linked_at').eq('client_id', uid).eq('status', 'active').maybeSingle();
   if (error) throw error;
-  if (!data) { coachLinkClear(); updateSettingsCoachingRow(); return null; }
+  if (!data) {
+    // v8.40 (§132): either side can end it. If this phone still thought it
+    // was linked, the coach ended it: the same cleanup as the client's Unlink.
+    const wasLinked = !!coachLinkGet();
+    coachLinkClear(); updateSettingsCoachingRow();
+    if (wasLinked) afterCoachLinkEnded();
+    return null;
+  }
   const prev = coachLinkGet();
   const { data: cp } = await supabase.from('coach_profiles')
     .select('display_name, business_name').eq('coach_id', data.coach_id).maybeSingle();
@@ -9423,6 +9534,7 @@ function maybeRefreshCoachLink() {
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') maybeRefreshCoachLink(); });
 
 function updateSettingsCoachingRow() {
+  applyCoachedChrome(); // v8.40 (§132): every link change comes through here
   const el = document.getElementById('settings-coaching-sub');
   if (!el) return;
   const link = coachLinkGet();
@@ -9767,7 +9879,7 @@ function confirmUnlinkCoach() {
   if (!l) return;
   showConfirm(
     `Unlink from ${l.coachName}?`,
-    `You’ll return to Solo. ${l.coachName}’s plan and goal phases are removed, and ${l.coachName} loses access straight away. You keep your weigh-ins, food, measurements, recipes and food library, and training you did in ${l.coachName}’s cycles stays as read-only history.`,
+    `You’ll return to Solo with no active cycle. ${l.coachName}’s cycles and goal phases are removed, and ${l.coachName} loses access straight away. You keep your weigh-ins, food, measurements, recipes, food library and every set you logged.`,
     'Unlink',
     () => unlinkCoach(l)
   );
@@ -9779,6 +9891,7 @@ async function unlinkCoach(l) {
     if (error) throw error;
     coachLinkClear();
     syncPublicationChannel(); // v8.39 (§131): stop listening
+    afterCoachLinkEnded();    // v8.40 (§132): the coach's plan and goal phases go
     updateSettingsCoachingRow();
     renderSettingsCoaching();
     coachingStatus('Unlinked. You’re back to Solo.');
@@ -10415,6 +10528,12 @@ requestAnimationFrame(() => requestAnimationFrame(positionNavPill));
 // performance problem, and it avoids an entire category of "stale DOM"
 // bugs that partial updates would risk.
 function showScreen(name) {
+  // v8.40 (§132): Coached mode has no Plan page (proposal §4.2). This one
+  // guard covers every route into it (deep dive D2: Home's empty state, the
+  // upcoming-goal line, Progress's empty hero, the profile gate, the tours),
+  // so a route nobody found still lands somewhere real.
+  if (name === 'plan' && coachedView()) name = 'home';
+  applyCoachedNav();
   // Cycle Review card (Progress) collapses by default whenever the page is
   // left and come back to — see buildCycleReviewCardHTML()/dev notes §62.
   if (name !== 'progress') _cycleReviewCardOpen = {};
@@ -12821,6 +12940,7 @@ function isDeloadUnit(macro, week, dayKey) {
 // re-renders Train so the hero, week strip, and every day's suggestions
 // pick up the change immediately.
 function toggleDeloadWeek(macroId, week, dayKey) {
+  if (coachedView()) return; // v8.40 (§132)
   const macro = state.macrocycles.find(m => m.id === macroId);
   if (!macro) return;
   if (!state.deloads) state.deloads = {};
@@ -13013,9 +13133,10 @@ function isRpeOn(macro) {
   return BlocEngine.isRpeOn(macro); // v8.35 (§125): the engine's
 }
 
-// Whether ratings change targets. In Solo they do. 🚨 In Coached mode
-// (PROMPT-03) this must return false: the coach owns the plan, so ratings
-// only INFORM the coach there (Adam, 2026-09-27). This is the one switch.
+// Whether ratings change targets. In Solo they do. 🚨 On a coach's cycle
+// (`publishedBy`) they don't: ratings only INFORM the coach there (Adam,
+// 2026-09-27). v8.40 (§132): keyed on the cycle, not on the link, so BLOC
+// Coach running the same engine on client_state reaches the same targets.
 function rpeDrivesProgression(macro) {
   return BlocEngine.rpeDrivesProgression(macro); // v8.35 (§125): the engine's
 }
@@ -13537,6 +13658,7 @@ function buildWeightSparklineHtml(cycleLogs) {
 // can be read as.
 function buildProgressHeroHTML(macro) {
   if (!macro) {
+    if (coachedView()) return `<div class="card rise"><div class="empty-inline">${coachEsc(coachPlanPendingText())}</div></div>`; // v8.40 (§132)
     return `<div class="card rise" style="cursor:pointer;" onclick="showScreen('plan')">
       <div class="empty-inline">No cycle yet — tap to create one in Plan.</div>
     </div>`;
@@ -14412,6 +14534,10 @@ function renderProgressCheckin(macro) {
   const el = document.getElementById('progress-checkin');
   if (!el) return;
   if (!macro) { el.innerHTML = ''; return; }
+  // v8.40 (§132): the coach runs every AI tool (proposal §4.2). "Check in with
+  // BLOC", its plans and "Challenge this" are Solo's; From your coach replaces
+  // this section in Coached mode.
+  if (coachedView()) { el.innerHTML = ''; return; }
 
   const st = computeCheckinState(macro);
   const ins = st.ins;
@@ -14575,7 +14701,11 @@ function renderProgressInsights(macro) {
   }
 
   // ── The trend narrative and plateau detection ──
-  const trendHtml = buildInsightsCardHTML();
+  // v8.40 (§132): not in Coached mode. The plateau signal would contradict
+  // whatever the coach is saying about the same weeks (proposal §4.2), and so
+  // would BLOC's own calorie target (below) against the coach's goal phases.
+  const coached = coachedView();
+  const trendHtml = coached ? '' : buildInsightsCardHTML();
 
   // ── Metabolism ──
   const mifflinBmr = calcMifflinBMR();
@@ -14614,7 +14744,7 @@ function renderProgressInsights(macro) {
   // (§72). Maintenance is not a deficit or a surplus and has no target weight
   // to project toward; before v8.12 it fell through to the deficit branch by
   // accident, because isGainCycle is false for maintenance too.
-  const targetLine = (dynResult !== null && goalType !== 'maintenance')
+  const targetLine = (dynResult !== null && goalType !== 'maintenance' && !coached)
     ? (() => {
         const adj = isGainCycle ? 250 : -500;
         const t = dynResult.tdee + adj;
@@ -14646,6 +14776,7 @@ function renderProgressLastCycle(macro) {
   const el = document.getElementById('progress-last-cycle');
   if (!el) return;
   if (!macro) { el.innerHTML = ''; return; }
+  if (coachedView()) { el.innerHTML = ''; return; } // v8.40 (§132): the coach reviews the cycle
 
   const r = macro.review;
   const endStr = toLocalDateStr(getMacroEndDate(macro));
@@ -14726,6 +14857,7 @@ function renderProgressNextCycle(macro) {
   const el = document.getElementById('progress-next-cycle');
   if (!el) return;
   if (!macro) { el.innerHTML = ''; return; }
+  if (coachedView()) { el.innerHTML = ''; return; } // v8.40 (§132): the coach builds the next cycle
 
   const _previewMacro = _nextCyclePreviewMacroId
     ? (state.macrocycles || []).find(m => m.id === _nextCyclePreviewMacroId)
@@ -20047,7 +20179,9 @@ function buildHomeUpcomingGoalHTML() {
     changesStr = fieldsMeta.map(f => `${f.fmt(upcoming[f.key])}${f.unit}`).join(' \u00b7 ');
   }
 
-  return `<div class="home-goal-upcoming" id="home-goal-banner" onclick="goToPlanAndFlashGoal('${upcoming.macroGoalID}')">
+  // v8.40 (§132): coached, the line still says what's changing, but there's
+  // no Plan to open, so it isn't a button.
+  return `<div class="home-goal-upcoming" id="home-goal-banner"${coachedView() ? ' style="cursor:default;"' : ` onclick="goToPlanAndFlashGoal('${upcoming.macroGoalID}')"`}>
     <div class="home-goal-upcoming-head">${headline}</div>
     <div class="home-goal-upcoming-label">${stepPrefix}${labelText}</div>
     <div class="home-goal-upcoming-diff">${changesStr}</div>
@@ -20262,6 +20396,7 @@ function buildAdviceLineHtml(name, field, dayMap, weekStart, today, target, unit
 // goals section is expanded, navigates to Plan, then briefly flashes that
 // goal's row border once it's painted.
 function goToPlanAndFlashGoal(macroGoalID) {
+  if (coachedView()) return; // v8.40 (§132)
   const g = (state.goals || []).find(x => x.macroGoalID === macroGoalID);
   if (g) state.currentMacroId = g.macroId;
   showScreen('plan');
@@ -20592,10 +20727,12 @@ function renderHomeUpNext() {
   const macro = (state.macrocycles || []).find(m => m.id === state.currentMacroId);
 
   if (!macro) {
-    el.innerHTML = head + `<div class="card card-empty">
+    el.innerHTML = head + (coachedView() // v8.40 (§132): no Plan to go to
+      ? `<div class="card card-empty"><div class="empty-inline">${coachEsc(coachPlanPendingText())}</div></div>`
+      : `<div class="card card-empty">
         <div class="empty-inline">Create a macrocycle in the Plan tab first.</div>
         <button class="btn btn-ghost btn-block" style="margin-top:16px;" onclick="showScreen('plan')">${icoPlus()} Go to Plan</button>
-      </div>` + sectionEnd();
+      </div>`) + sectionEnd();
     return;
   }
 
@@ -20864,7 +21001,7 @@ function renderTrain(animate = false) {
     document.getElementById('train-header').innerHTML = '';
     document.getElementById('train-hero').innerHTML = '';
     document.getElementById('train-tools').innerHTML = '';
-    document.getElementById('train-session').innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24"><path d="M6 4v16M18 4v16M3 8h4M17 8h4M3 16h4M17 16h4"/></svg><p>Create a macrocycle in the Plan tab first.</p></div>`;
+    document.getElementById('train-session').innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24"><path d="M6 4v16M18 4v16M3 8h4M17 8h4M3 16h4M17 16h4"/></svg><p>${coachedView() ? coachEsc(coachPlanPendingText()) : 'Create a macrocycle in the Plan tab first.'}</p></div>`;
     return;
   }
 
@@ -21094,13 +21231,13 @@ function renderTrainTools(macro, allSessions, days, dayLabels, micros, useMicro)
           <span class="row-btn-chevron">${icoChevron()}</span>
         </div>`;
       })()}
-      <div class="row-plain" id="deload-toggle-${macro.id}" onclick="toggleDeloadWeek('${macro.id}',${state.currentWeek},'${dayKey}')">
+      ${coachedView() ? '' /* v8.40 (§132): the coach owns deloads (proposal §4.2) */ : `<div class="row-plain" id="deload-toggle-${macro.id}" onclick="toggleDeloadWeek('${macro.id}',${state.currentWeek},'${dayKey}')">
         <div class="row-btn-text">
           <div class="row-btn-title"${heroIsDeload ? ' style="color:var(--ice-blue);"' : ''}>${heroIsDeload ? 'Unmark deload' : 'Mark week as deload'}</div>
           <div class="row-btn-sub">${heroIsDeload ? 'Restores this week’s normal targets.' : 'Drops every weight to 60% for this week.'}</div>
         </div>
         <span class="row-btn-chevron">${icoChevron()}</span>
-      </div>
+      </div>`}
     </div>`
     + sectionEnd();
 }
@@ -21291,7 +21428,7 @@ function renderTrainDay(macro) {
   const el = document.getElementById('train-content');
 
   if (exercises.length === 0) {
-    el.innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg><p>No exercises for this day. Add them in the Plan tab.</p></div>`;
+    el.innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg><p>${coachedView() ? 'No exercises for this day yet.' : 'No exercises for this day. Add them in the Plan tab.'}</p></div>`;
     return;
   }
 
@@ -23205,7 +23342,9 @@ function maybeOpenProfileGate() {
 
 function openProfileGate() {
   _profileGateActive = true;
-  showScreen('plan');
+  // v8.40 (§132): a client who has just linked lands here too (§129), and
+  // has no Plan page. The gate is a sheet; what's behind it is Home.
+  showScreen(coachedView() ? 'home' : 'plan');
   openBodyProfile();
   const overlay = document.getElementById('modal-body-profile');
   if (overlay) overlay.classList.add('gate-active');
@@ -23403,7 +23542,7 @@ function saveBodyProfile() {
   // Macrocycle Creation Tour (Build Order step 7, below) walks them
   // straight into building their first one. Doesn't fire for an
   // ordinary Settings → About me edit on an existing account.
-  if (!state.macrocycles.length) startMacrocycleCreationTour();
+  if (!state.macrocycles.length && !coachedView()) startMacrocycleCreationTour(); // v8.40 (§132): the coach builds it
 }
 
 // ════════════════════════════════════════════════
@@ -23425,6 +23564,7 @@ function saveBodyProfile() {
 // createMacrocycle() itself pops up — handled below rather than left to
 // collide with the tour's own overlay.
 function startMacrocycleCreationTour() {
+  if (coachedView()) return; // v8.40 (§132): proposal §4.2
   showScreen('plan');
   requestAnimationFrame(() => setTimeout(() => {
     startTour(buildMacrocycleCreationTourSteps(), { allowSkip: true, finalLabel: 'Get Started' });
@@ -27876,7 +28016,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.39</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.40</span>`;
 }
 
 function renderSettings() {

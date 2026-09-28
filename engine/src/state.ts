@@ -16,6 +16,10 @@ export interface Macrocycle {
   start?: DateStr;
   weeks?: number;
   rpe?: boolean; // §104: absent = off
+  // v8.39 (§131): stamped by BLOC's publication funnel on a cycle the coach
+  // published. v8.40 (§132): it's what makes a cycle the coach's.
+  publishedBy?: string;
+  publishedSeq?: number;
   // v8.34 (§124): read by the moved progression and macro-shape helpers.
   weeksPerMeso?: number;
   extensionWeeks?: number;

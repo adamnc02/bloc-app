@@ -89,11 +89,17 @@ export function isRpeOn(macro: Macrocycle | null | undefined): boolean {
   return !!(macro && macro.rpe === true);
 }
 
-// Whether ratings change targets. In Solo they do. 🚨 In Coached mode
-// (PROMPT-03) this must return false: the coach owns the plan, so ratings
-// only INFORM the coach there (Adam, 2026-09-27). This is the one switch.
+// Whether ratings change targets. In Solo they do. 🚨 On a coach's cycle
+// they don't: the coach owns the plan, so ratings only INFORM the coach there
+// (Adam, 2026-09-27). This is the one switch.
+// 🚨 v8.40 (§132): "the coach's cycle" is `publishedBy`, which is IN the
+// data, never "is this phone linked" (that lives outside `state`, §129).
+// BLOC Coach runs this engine on the client's uploaded state and must reach
+// the same targets as the phone; a link check would split them. So a Solo
+// cycle still running after linking stays Solo until the coach replaces it
+// (Adam, 2026-09-28: "Coach's cycles only").
 export function rpeDrivesProgression(macro: Macrocycle | null | undefined): boolean {
-  return isRpeOn(macro);
+  return isRpeOn(macro) && !(macro && macro.publishedBy);
 }
 
 export const RPE_STEP_NONE: RpeStep = Object.freeze({ kind: 'none', weightMult: 1, repsInc: 1, giantInc: 10 });
