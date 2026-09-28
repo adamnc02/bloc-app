@@ -80,6 +80,7 @@ var BlocEngine = (() => {
     getActivityMacroId: () => getActivityMacroId,
     getActivityMultiplier: () => getActivityMultiplier,
     getAllMacroSessions: () => getAllMacroSessions,
+    getCoachAssignment: () => getCoachAssignment,
     getDateActiveMacroId: () => getDateActiveMacroId,
     getDayBefore: () => getDayBefore,
     getDeloadUnitKey: () => getDeloadUnitKey,
@@ -1375,9 +1376,23 @@ Write this cycle's review per the schema above.`;
     }
     return allSessions;
   }
+  function getCoachAssignment(s, macroId, week, dayKey) {
+    const all = s.coachBookings;
+    if (!all || typeof all !== "object") return null;
+    let hit = null;
+    for (const id of Object.keys(all)) {
+      const b = all[id];
+      const a = b && b.assigned_session;
+      if (!a || b.status === "cancelled") continue;
+      if (a.macroId !== macroId || Number(a.week) !== week || a.dayKey !== dayKey) continue;
+      const key = (x) => String(x.date || "") + String(x.start_min ?? "").padStart(5, "0");
+      if (!hit || key(b) < key(hit)) hit = b;
+    }
+    return hit;
+  }
   function getNextIncompleteSession(s, macro) {
     const allSessions = getAllMacroSessions(s, macro);
-    const next = allSessions.find((x) => !x.done);
+    const next = allSessions.find((x) => !x.done && !getCoachAssignment(s, macro.id, x.week, x.dayKey));
     return next || null;
   }
   function getSelectedTrainWeekDates(macro, week, dayKey) {
@@ -1421,6 +1436,7 @@ Write this cycle's review per the schema above.`;
           if (lg && lg.done) doneSets++;
         }
       });
+      const b = getCoachAssignment(s, macro.id, w, dayKey);
       return {
         week: w,
         dayKey,
@@ -1431,7 +1447,8 @@ Write this cycle's review per the schema above.`;
         done: sets > 0 && doneSets === sets,
         partial: doneSets > 0 && doneSets < sets,
         upNext: !!(next && next.week === w && next.dayKey === dayKey),
-        viewing: viewWeek === w && viewDay === dayKey
+        viewing: viewWeek === w && viewDay === dayKey,
+        ...b ? { withCoach: { date: b.date || null, start_min: b.start_min ?? null } } : {}
       };
     };
     const units = [];

@@ -8637,3 +8637,93 @@ Driven in headless Chromium at 375pt with a cached link and two injected respons
 - nothing overflows (the byline, scores and labels);
 - a send while not really linked (the bypass) says "You're not linked to a coach right now.";
 - no console errors.
+
+## §136 — v8.42: Your next session, Request a session, and a session with your coach (PROMPT-03 Phase 4e-3)
+
+Proposal §4.3, §5.6 and §11 Q23. The server half is `0023`'s `booking` publication (with
+`assigned_session`) and `0024`'s `session_requests`. No migration. Wireframe reference:
+`RequestScreen.tsx` and `HomeScreen.tsx`, rebuilt as a BLOC sheet from `.toggle-row`, `.card` and the
+coach parts.
+
+### A session the coach takes in person
+
+A `booking` publication (§131, `state.coachBookings`) can carry `assigned_session {macroId, week,
+dayKey}`. 🚨 **Assigning makes the session the coach's at once** (§5.6), not once logging starts:
+
+- **`getCoachAssignment(s, macroId, week, dayKey)`**, in the **engine**, returns the live booking a
+  session is assigned to. A **moved** booking keeps its session (same booking, new date). A
+  **cancelled** one (`status 'cancelled'`) releases it. With two live bookings on one session, the
+  earliest wins.
+- 🚨 **`getNextIncompleteSession()` steps over an assigned, unfinished session**, so Home's Up next,
+  Train's default session and the agenda's Up next all move on to the following one. It's in the
+  engine, not BLOC, because Phase 5's booking picker defaults to "the client's next unfinished
+  session" by running this same function on `client_state`. Both must agree.
+- **The agenda** (`getTrainAgendaUnits`) adds `withCoach {date, start_min}` to that session's row, only
+  when there is one. So every existing output, the golden file included, is byte-identical. The row's
+  meta line reads "With your coach · Thu 1 Oct, 18:00".
+- **Train is read-only on it** (`trainViewCoachOwned()`; 4e-4 adds a coach-logged session to
+  `coachOwnedSession()`):
+  - a notice above the cards;
+  - every input disabled, and every write control marked `data-locked` (`applyTrainCoachLock()`);
+  - 🚨 **every write handler refuses on its first line**: `logSet`, `logCardioField`, `toggleSetDone`,
+    `toggleCardioSetDone`, `fillSuggested`, `fillSuggestedDropset`, `clearExerciseLogs`,
+    `quickFillCompleteSuperset`, `selectProgType`, `recheckProgressionLockForKey`. They all act on the
+    session Train is showing, so one check covers them;
+  - no Effort ratings row (the coach rates their own session, §11 Q13);
+  - the cards still open, to see what's planned.
+
+⚠️ **A booking that passes without being logged or cancelled keeps its session** out of "next" until
+Coach does one or the other. That's Coach's to prompt (Phase 5), not BLOC's to time out.
+
+### Home → Your next session (§11 Q23)
+
+In Coached mode the hero gains a two-line row (`homeNextSessionHTML()`):
+- "Your next session", then the earliest live booking **from today** (`nextCoachBooking()`), or "None
+  booked";
+- **Request a session** under it.
+
+When a request has a time waiting for an answer, the row reads "{coach} suggested a time" with
+**Answer {coach}**. It's two lines because one line wrapped, and ran off the hero at 375pt.
+
+### Request a session (`modal-coach-request`)
+
+Also in Settings → Coaching → Sessions. The client never sees the coach's diary.
+
+- **The form:** up to three day-and-time choices, or one day with a free window; notes; one-off or
+  every week. Days start **tomorrow**.
+- **The slots** (`coachReqSlots()`) are exactly what `0024`'s `session_request_slots_ok()` accepts:
+  `{date, start_min}` or `{date, start_min, end_min}`, 1–3 of them, duplicates dropped. A window
+  needs its start before its end.
+- **Send** inserts **only the columns `0024` grants a client**: `client_id`, `coach_id`,
+  `preferences`, `notes`, `repeat_weekly`.
+- **Your requests** (open ones: pending, proposed, countered) sit at the top of the sheet:
+  - **Withdraw** a pending one (it clears the coach's placeholder, §11);
+  - **Confirm** the coach's suggested time: `status 'accepted'`;
+  - **Suggest another time**: 🚨 **one** slot, a time or a window, in `counter`, with
+    `status 'countered'`. `0024`'s CHECK keeps exactly one counter, not the wireframe's three.
+
+  The one-writer trigger refuses anything else a client tries.
+- 🚨 **Requests are server truth, never `state`** (`_coachRequests`, in memory). `refreshSessionRequests()`
+  reads the client's newest 20 on opening the sheet, on resume, and **live**: the publications channel
+  also listens to `session_requests` for this client. That's how a coach's proposal reaches Home and the
+  sheet without a reload.
+
+**Check:** `scripts/verify-coached-sessions.mjs` covers:
+- the engine: the skip, "exactly the next after", cancel, move, the earliest of two, the agenda's
+  `withCoach` and Up next, and no `withCoach` without bookings;
+- all ten Train handlers refusing, and the notice and lock;
+- Home's next booking (past and cancelled ignored), the proposed state and "None booked";
+- the slot rules;
+- the insert's columns, withdraw, confirm and the one-slot counter;
+- the Realtime listener.
+
+**Control:** v8.41 (`c67d610`) fails 14. `engine-cases.mjs` has `getCoachAssignment` cases;
+`verify-engine-leaves` stubs the Train hooks as Solo.
+
+Driven in Chromium at 375pt with a booking assigned to the next session:
+- Home's Up next moved from Pull to Legs, and the row shows "Your next session · Thu 10 Sep, 18:00";
+- Train on Pull showed the notice, with 0 editable inputs, and a direct `toggleSetDone()` changed
+  nothing;
+- the agenda shows "Pull · With your coach · …" and "Legs · … · Up next";
+- the request sheet renders;
+- nothing overflows, and there are no console errors.

@@ -210,7 +210,8 @@ if (process.env.BLOC_LEAVES_CHILD) {
     // v8.40 (§132): coachedView() is stubbed as Solo. This compares Solo
     // behaviour with v8.33/v8.34, which had no Coached mode; following it
     // would pull in the auth session and the dev-host check (window).
-    const parts = closure(decls, stateNames, new Set(['save', 'renderProgress', 'coachedView']));
+    // v8.42 (§136): the Train coach-session hooks, stubbed as Solo too.
+    const parts = closure(decls, stateNames, new Set(['save', 'renderProgress', 'coachedView', 'trainCoachNoticeHTML', 'applyTrainCoachLock', 'trainViewCoachOwned']));
     const have = new Set(parts.map(p => p.name));
     const handles = HANDLES.filter(h => have.has(h));
     const body = `
@@ -218,6 +219,9 @@ if (process.env.BLOC_LEAVES_CHILD) {
       function save() { __saves++; }
       function renderProgress() { __saves += 1000; }
       function coachedView() { return false; }
+      function trainCoachNoticeHTML() { return ''; }
+      function applyTrainCoachLock() {}
+      function trainViewCoachOwned() { return false; }
       ${parts.map(p => p.text).join('\n')}
       return {
         fns: { ${stateNames.join(', ')} },

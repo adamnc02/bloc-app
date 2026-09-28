@@ -3652,6 +3652,25 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .coach-facts li span { color: var(--text2); font-size: 13px; font-weight: 500; }
 .coach-section-title { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--text2); margin: 20px 0 8px; }
 
+/* v8.42 (§136): Your next session (Home), Request a session, a session with the coach (Train). */
+.home-next-session { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--divider); font-size: 13.5px; }
+.home-next-session .row1 { display: flex; align-items: baseline; gap: 10px; }
+.home-next-session .lbl { color: var(--text2); white-space: nowrap; }
+.home-next-session b { margin-left: auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.home-next-session button { display: block; margin-top: 6px; background: none; border: none; color: var(--accent2); font: inherit; font-weight: 700; cursor: pointer; padding: 4px 0; }
+.coach-req { padding: 12px 0; }
+.coach-req + .coach-req { border-top: 1px solid var(--divider); }
+.coach-req-line { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.coach-req-sub { font-size: 12.5px; color: var(--text2); margin-top: 3px; line-height: 1.4; }
+.coach-req-actions { display: flex; gap: 8px; margin-top: 10px; }
+.coach-req-actions .btn { flex: 1; }
+.coach-slot { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 36px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.coach-slot.window { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.coach-slot input { width: 100%; box-sizing: border-box; min-width: 0; }
+.coach-slot-x { height: 36px; border-radius: 50%; border: 1px solid var(--border2); background: var(--surface2); color: var(--text2); cursor: pointer; }
+.train-coach-notice { margin-bottom: 14px; }
+#train-session.train-locked [data-locked] { pointer-events: none; opacity: .45; }
+
 /* v8.41 (§135): Progress → From your coach, and its three sheets. */
 .coach-byline { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .coach-byline .coach-avatar { width: 28px; height: 28px; font-size: 11px; }
@@ -5067,6 +5086,15 @@ try {
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-coach-request">
+  <div class="modal-sheet" data-modal="modal-coach-request" style="max-height:92dvh;display:flex;flex-direction:column;">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-coach-request')">✕</button>
+    </div>
+    <div class="modal-title" style="flex-shrink:0;">Request a session</div>
+    <div id="coach-request-body" style="overflow-y:auto;flex:1;"></div>
+  </div>
+</div>
 <div class="modal-overlay" id="modal-coach-review-photos">
   <div class="modal-sheet" data-modal="modal-coach-review-photos" style="max-height:92dvh;display:flex;flex-direction:column;">
     <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div>
@@ -6643,7 +6671,7 @@ try {
      same-named shims. ?v= is the first 12 hex of the file's SHA-256, so a phone never pairs a
      new index.html with an older engine from its HTTP cache; scripts/verify-engine-build.mjs
      fails if it is stale. Listed in scripts/publish-files.txt. -->
-<script src="engine/dist/bloc-engine.js?v=f5987f732d20"></script>
+<script src="engine/dist/bloc-engine.js?v=cf76137cd850"></script>
 <script>
 // ════════════════════════════════════════════════
 // DATE HELPERS
@@ -9610,6 +9638,7 @@ function maybeRefreshCoachLink() {
     .then(() => {
       requestClientStateUpload('resume'); // v8.38 (§130): after the link is known
       requestPublicationPull('resume');   // v8.39 (§131)
+      refreshSessionRequests().catch(() => {}); // v8.42 (§136)
       syncPublicationChannel();
     })
     .catch(err => console.warn('[coaching] could not check the coach link:', err && err.message));
@@ -9938,6 +9967,9 @@ function renderSettingsCoaching() {
       <button class="toggle-btn${l.photoConsent ? '' : ' active'}" aria-pressed="${!l.photoConsent}" onclick="setCoachPhotoConsent(false)">Off</button>
       <button class="toggle-btn${l.photoConsent ? ' active' : ''}" aria-pressed="${l.photoConsent}" onclick="setCoachPhotoConsent(true)">On</button>
     </div>
+    <div class="coach-section-title">Sessions</div>
+    <div class="modal-sub" style="margin:0 0 8px;">Ask ${coachEsc(l.coachName)} for a session. You pick the times; they confirm one.</div>
+    <button class="btn btn-ghost btn-block" onclick="closeModal('modal-settings-coaching');openCoachRequest()">Request a session</button>
     <div class="coach-section-title">Unlink</div>
     <div class="modal-sub" style="margin:0 0 8px;">Stop coaching and go back to Solo.</div>
     <button class="btn btn-danger btn-block" onclick="confirmUnlinkCoach()">Unlink from ${coachEsc(l.coachName)}</button>`;
@@ -10491,6 +10523,9 @@ function syncPublicationChannel() {
     _pubChannel = supabase.channel('bloc-publications-' + card)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'publications', filter: 'client_record_id=eq.' + card },
         () => requestPublicationPull('realtime'))
+      // v8.42 (§136): the coach proposing, accepting or declining a request.
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'session_requests', filter: 'client_id=eq.' + _authResolvedSession.user.id },
+        () => refreshSessionRequests().catch(() => {}))
       .subscribe();
   } catch (err) {
     console.warn('[publications] realtime not started:', err && err.message);
@@ -15093,6 +15128,272 @@ async function sendCoachReviewPhotos() {
     f.busy = false;
     f.error = coachEsc('Couldn’t send them: ' + ((err && err.message) || 'check your connection and try again.'));
     renderCoachReviewPhotos();
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// YOUR NEXT SESSION, REQUEST A SESSION, A SESSION WITH YOUR COACH
+// (v8.42, PROMPT-03 Phase 4e-3, TECHNICAL §136)
+// ════════════════════════════════════════════════════════════════════════
+// Proposal §4.3 and §5.6, §11 Q23. Bookings arrive as `booking` publications
+// (state.coachBookings, §131). A booking can carry `assigned_session`
+// {macroId, week, dayKey}: from that moment the session is the coach's. The
+// client sees it read-only ("With your coach · Tue 29 Sep, 18:00"), and the
+// engine's getNextIncompleteSession() steps over it (so Home's Up next, Train's
+// default and the agenda's Up next move on). A cancelled booking hands it back.
+//
+// Requests are `session_requests` rows (0024), SERVER truth, never `state`:
+// the client writes the details once, then may only withdraw, accept the
+// coach's proposed time, or counter with one slot (a trigger enforces it).
+// The client never sees the coach's diary.
+function coachMinToHHMM(m) { const n = Math.max(0, Math.round(+m || 0)); return String(Math.floor(n / 60)).padStart(2, '0') + ':' + String(n % 60).padStart(2, '0'); }
+function coachHHMMToMin(t) { const m = /^(\d{1,2}):(\d{2})/.exec(String(t || '')); return m ? (+m[1]) * 60 + (+m[2]) : null; }
+function coachDateTimeFmt(date, startMin) {
+  const d = coachDayFmt(date);
+  return startMin != null ? `${d}, ${coachMinToHHMM(startMin)}` : d;
+}
+function coachSessionWhen(b) { return `With your coach · ${coachDateTimeFmt(b && b.date, b && b.start_min)}`; }
+
+// ── The coach's session, read-only in Train ───────────────────────────────
+// 4e-4 adds a coach-LOGGED session to the same question.
+function coachOwnedSession(macroId, week, dayKey) {
+  const b = getCoachAssignment(macroId, week, dayKey);
+  return b ? { kind: 'assigned', booking: b } : null;
+}
+function trainViewCoachOwned() {
+  return !!(state.currentMacroId && coachOwnedSession(state.currentMacroId, state.currentWeek, state.currentDay));
+}
+function trainCoachNoticeHTML(macro) {
+  const own = macro && coachOwnedSession(macro.id, state.currentWeek, state.currentDay);
+  if (!own) return '';
+  return `<div class="coach-notice train-coach-notice"><b>${coachEsc(coachSessionWhen(own.booking))}</b>${coachEsc(coachFirstName())} logs this session with you in person, so it’s read-only here. It fills in once it’s logged.</div>`;
+}
+// Every control that writes a log is inert (the handlers refuse too); the
+// cards still open, so the client can see what's planned.
+function applyTrainCoachLock() {
+  const el = document.getElementById('train-session');
+  if (!el) return;
+  const locked = trainViewCoachOwned();
+  el.classList.toggle('train-locked', locked);
+  if (!locked) return;
+  el.querySelectorAll('input, textarea, select').forEach(i => { i.disabled = true; });
+  el.querySelectorAll('[onclick*="toggleSetDone"], [onclick*="toggleCardioSetDone"], [onclick*="selectProgType"], [onclick*="fillSuggested"], [onclick*="clearExerciseLogs"], [onclick*="quickFillCompleteSuperset"]')
+    .forEach(b => { b.setAttribute('data-locked', ''); b.setAttribute('aria-disabled', 'true'); });
+}
+
+// ── Home: Your next session (§4.3, §11 Q23) ───────────────────────────────
+function nextCoachBooking() {
+  const today = getLocalToday();
+  let best = null;
+  for (const b of Object.values(state.coachBookings || {})) {
+    if (!b || b.status === 'cancelled' || !b.date || b.date < today) continue;
+    const k = b.date + String(b.start_min ?? '').padStart(5, '0');
+    if (!best || k < best.k) best = { k, b };
+  }
+  return best ? best.b : null;
+}
+function homeNextSessionHTML() {
+  const b = nextCoachBooking();
+  const proposed = (_coachRequests || []).find(r => r.status === 'proposed');
+  const link = `<button onclick="openCoachRequest()">${proposed ? 'Answer ' + coachEsc(coachFirstName()) : 'Request a session'}</button>`;
+  // Two lines, so nothing wraps or runs off the hero at 375pt: what and when,
+  // then the link.
+  return `<div class="home-next-session" id="home-next-session">
+      <div class="row1"><span class="lbl">${proposed ? `${coachEsc(coachFirstName())} suggested a time` : 'Your next session'}</span>
+      ${b && !proposed ? `<b>${coachEsc(coachDateTimeFmt(b.date, b.start_min))}</b>` : (proposed ? '' : '<b style="color:var(--text3);font-weight:500;">None booked</b>')}</div>${link}
+    </div>`;
+}
+
+// ── Request a session ─────────────────────────────────────────────────────
+let _coachRequests = null;   // the client's requests, newest first (server truth); null = not fetched
+let _coachReqForm = null;    // the new-request form
+let _coachCounterFor = null; // {id, mode, date, time, from, to} while suggesting another time
+const COACH_REQ_OPEN = ['pending', 'proposed', 'countered'];
+
+async function refreshSessionRequests() {
+  if (!coachingAvailable() || !isCoachedMode()) { _coachRequests = []; return _coachRequests; }
+  const { data, error } = await supabase.from('session_requests')
+    .select('id, status, preferences, notes, repeat_weekly, proposed, counter, created_at, updated_at')
+    .eq('client_id', _authResolvedSession.user.id).order('created_at', { ascending: false }).limit(20);
+  if (error) throw error;
+  _coachRequests = data || [];
+  const sheet = document.getElementById('modal-coach-request');
+  if (sheet && sheet.classList.contains('open')) renderCoachRequest();
+  const home = document.getElementById('screen-home');
+  if (home && home.classList.contains('active')) renderHomeHero();
+  return _coachRequests;
+}
+function coachTomorrow() { const d = new Date(getLocalToday() + 'T00:00:00'); d.setDate(d.getDate() + 1); return toLocalDateStr(d); }
+function coachSlotLine(p) {
+  if (!p) return '';
+  return p.end_min != null
+    ? `${coachDayFmt(p.date)}, any time ${coachMinToHHMM(p.start_min)}–${coachMinToHHMM(p.end_min)}`
+    : coachDateTimeFmt(p.date, p.start_min);
+}
+function openCoachRequest() {
+  const t = coachTomorrow();
+  _coachReqForm = { mode: 'times', times: [{ date: t, time: '18:00' }], window: { date: t, from: '17:00', to: '20:00' }, notes: '', repeat: false, busy: false, error: null };
+  _coachCounterFor = null;
+  renderCoachRequest();
+  openModal('modal-coach-request');
+  refreshSessionRequests().catch(err => { if (_coachReqForm) { _coachReqForm.error = 'Couldn’t load your requests: ' + ((err && err.message) || 'try again'); renderCoachRequest(); } });
+}
+function coachRequestItemHTML(r) {
+  const first = coachEsc(coachFirstName());
+  const prefs = (r.preferences || []).map(coachSlotLine).map(coachEsc);
+  const asked = `You asked for ${prefs.join(' or ')}${r.repeat_weekly ? ', weekly' : ''}.`;
+  let head, actions = '';
+  if (r.status === 'proposed' && r.proposed) {
+    head = `${first} suggested ${coachEsc(coachSlotLine(r.proposed))}`;
+    actions = `<div class="coach-req-actions">
+        <button class="btn btn-accent" onclick="answerCoachRequest('${r.id}','accept')">Confirm</button>
+        <button class="btn btn-ghost" onclick="startCoachCounter('${r.id}')">Suggest another time</button>
+      </div>`;
+  } else if (r.status === 'countered' && r.counter) {
+    head = `You suggested ${coachEsc(coachSlotLine(r.counter))}`;
+    actions = `<div class="coach-req-sub">Waiting for ${first}.</div>`;
+  } else {
+    head = `Waiting for ${first}`;
+    actions = `<div class="coach-req-actions"><button class="btn btn-ghost" onclick="answerCoachRequest('${r.id}','withdraw')">Withdraw</button></div>`;
+  }
+  const counter = _coachCounterFor && _coachCounterFor.id === r.id ? coachCounterFormHTML() : '';
+  return `<div class="coach-req"><div class="coach-req-line">${head}</div>
+      <div class="coach-req-sub">${asked}${r.notes ? ' “' + coachEsc(r.notes) + '”' : ''}</div>${counter || actions}</div>`;
+}
+function coachCounterFormHTML() {
+  const c = _coachCounterFor;
+  const t = coachTomorrow();
+  return `<div style="margin-top:10px;">
+      <div class="toggle-row" role="group" aria-label="One time or a free window">
+        <button class="toggle-btn${c.mode === 'times' ? ' active' : ''}" onclick="setCoachCounterMode('times')">A time</button>
+        <button class="toggle-btn${c.mode === 'window' ? ' active' : ''}" onclick="setCoachCounterMode('window')">A free window</button>
+      </div>
+      ${c.mode === 'times'
+        ? `<div class="coach-slot window"><input type="date" min="${t}" value="${c.date}" onchange="_coachCounterFor.date=this.value"><input type="time" step="900" value="${c.time}" onchange="_coachCounterFor.time=this.value"></div>`
+        : `<div class="coach-slot window"><input type="date" min="${t}" value="${c.date}" onchange="_coachCounterFor.date=this.value" style="grid-column:1 / -1;"><input type="time" step="900" value="${c.from}" onchange="_coachCounterFor.from=this.value"><input type="time" step="900" value="${c.to}" onchange="_coachCounterFor.to=this.value"></div>`}
+      <div class="coach-req-actions">
+        <button class="btn btn-accent" onclick="sendCoachCounter()">Send</button>
+        <button class="btn btn-ghost" onclick="_coachCounterFor=null;renderCoachRequest()">Cancel</button>
+      </div></div>`;
+}
+function renderCoachRequest() {
+  const el = document.getElementById('coach-request-body');
+  const f = _coachReqForm;
+  if (!el || !f) return;
+  const first = coachEsc(coachFirstName());
+  const t = coachTomorrow();
+  const open = (_coachRequests || []).filter(r => COACH_REQ_OPEN.includes(r.status));
+  const next = nextCoachBooking();
+  const slots = f.mode === 'times'
+    ? f.times.map((x, i) => `<div class="coach-slot">
+          <input type="date" min="${t}" value="${x.date}" aria-label="Choice ${i + 1}: date" onchange="_coachReqForm.times[${i}].date=this.value">
+          <input type="time" step="900" value="${x.time}" aria-label="Choice ${i + 1}: time" onchange="_coachReqForm.times[${i}].time=this.value">
+          ${f.times.length > 1 ? `<button class="coach-slot-x" aria-label="Remove choice ${i + 1}" onclick="removeCoachReqTime(${i})">✕</button>` : '<span></span>'}
+        </div>`).join('')
+      + (f.times.length < 3 ? `<button class="btn btn-ghost btn-block" onclick="addCoachReqTime()">+ Add another time</button>` : '')
+    : `<div class="coach-slot window"><input type="date" min="${t}" value="${f.window.date}" aria-label="Date" onchange="_coachReqForm.window.date=this.value" style="grid-column:1 / -1;">
+         <input type="time" step="900" value="${f.window.from}" aria-label="From" onchange="_coachReqForm.window.from=this.value">
+         <input type="time" step="900" value="${f.window.to}" aria-label="To" onchange="_coachReqForm.window.to=this.value"></div>`;
+  el.innerHTML = `${next ? `<div class="coach-notice"><b>Your next session</b>${coachEsc(coachDateTimeFmt(next.date, next.start_min))}${next.duration_min ? ` · ${next.duration_min} min` : ''}${next.location ? ` · ${coachEsc(next.location)}` : ''}</div>` : ''}
+    ${open.length ? `<div class="coach-section-title" style="margin-top:0;">Your requests</div><div class="card">${open.map(coachRequestItemHTML).join('')}</div>` : ''}
+    <div class="coach-section-title"${open.length ? '' : ' style="margin-top:0;"'}>When suits you</div>
+    <div class="modal-sub" style="margin:0 0 10px;">Pick up to three times, or a day with a free window. ${first} confirms one.</div>
+    <div class="toggle-row" role="group" aria-label="Times or a free window">
+      <button class="toggle-btn${f.mode === 'times' ? ' active' : ''}" onclick="setCoachReqMode('times')">Times</button>
+      <button class="toggle-btn${f.mode === 'window' ? ' active' : ''}" onclick="setCoachReqMode('window')">A free window</button>
+    </div>
+    ${slots}
+    <div class="coach-section-title">Notes</div>
+    <textarea id="coach-req-notes" rows="3" maxlength="1000" style="width:100%;box-sizing:border-box;" placeholder="What you’d like to work on." oninput="_coachReqForm.notes=this.value">${coachEsc(f.notes)}</textarea>
+    <div class="coach-section-title">Repeat weekly</div>
+    <div class="toggle-row" role="group" aria-label="Repeat weekly">
+      <button class="toggle-btn${f.repeat ? '' : ' active'}" onclick="_coachReqForm.repeat=false;renderCoachRequest()">One-off</button>
+      <button class="toggle-btn${f.repeat ? ' active' : ''}" onclick="_coachReqForm.repeat=true;renderCoachRequest()">Every week</button>
+    </div>
+    ${f.error ? `<div class="coach-err">${coachEsc(f.error)}</div>` : ''}
+    <button class="btn btn-accent btn-block" style="margin-top:18px;" ${f.busy ? 'disabled' : ''} onclick="sendCoachRequest()">${f.busy ? 'Sending…' : 'Send request'}</button>
+    <div class="coach-caption">${first} confirms a time or suggests another. ${first}’s diary stays private.</div>`;
+}
+function coachReqKeepNotes() { const n = document.getElementById('coach-req-notes'); if (n && _coachReqForm) _coachReqForm.notes = n.value; }
+function setCoachReqMode(m) { coachReqKeepNotes(); _coachReqForm.mode = m; renderCoachRequest(); }
+function addCoachReqTime() { coachReqKeepNotes(); const f = _coachReqForm; if (f.times.length < 3) f.times.push({ date: f.times[f.times.length - 1].date, time: '18:00' }); renderCoachRequest(); }
+function removeCoachReqTime(i) { coachReqKeepNotes(); _coachReqForm.times.splice(i, 1); renderCoachRequest(); }
+
+// The slots as 0024's `session_request_slots_ok()` wants them, or an error.
+function coachReqSlots(mode, times, win) {
+  const t = coachTomorrow();
+  if (mode === 'window') {
+    const a = coachHHMMToMin(win.from), b = coachHHMMToMin(win.to);
+    if (!win.date || win.date < t) return { error: 'Pick a day from tomorrow on.' };
+    if (a == null || b == null || b <= a) return { error: 'The window needs a start before its end.' };
+    return { slots: [{ date: win.date, start_min: a, end_min: b }] };
+  }
+  const slots = [];
+  for (const x of times) {
+    const m = coachHHMMToMin(x.time);
+    if (!x.date || m == null) continue;
+    if (x.date < t) return { error: 'Pick days from tomorrow on.' };
+    if (!slots.some(s => s.date === x.date && s.start_min === m)) slots.push({ date: x.date, start_min: m });
+  }
+  if (!slots.length) return { error: 'Add at least one day and time.' };
+  return { slots: slots.slice(0, 3) };
+}
+async function sendCoachRequest() {
+  const f = _coachReqForm;
+  if (!f || f.busy) return;
+  coachReqKeepNotes();
+  if (!coachingAvailable() || !isCoachedMode()) { f.error = 'You’re not linked to a coach right now.'; renderCoachRequest(); return; }
+  const v = coachReqSlots(f.mode, f.times, f.window);
+  if (v.error) { f.error = v.error; renderCoachRequest(); return; }
+  f.busy = true; f.error = null; renderCoachRequest();
+  try {
+    const { error } = await supabase.from('session_requests').insert({
+      client_id: _authResolvedSession.user.id, coach_id: coachLinkGet().coachId,
+      preferences: v.slots, notes: (f.notes || '').trim() || null, repeat_weekly: !!f.repeat,
+    });
+    if (error) throw error;
+    const t = coachTomorrow();
+    _coachReqForm = { mode: 'times', times: [{ date: t, time: '18:00' }], window: { date: t, from: '17:00', to: '20:00' }, notes: '', repeat: false, busy: false, error: null };
+    await refreshSessionRequests();
+    renderCoachRequest();
+  } catch (err) {
+    f.busy = false; f.error = 'Couldn’t send it: ' + ((err && err.message) || 'check your connection and try again.'); renderCoachRequest();
+  }
+}
+// Withdraw a pending request (it clears the coach's placeholder, §11), or
+// accept the time the coach suggested.
+async function answerCoachRequest(id, what) {
+  const f = _coachReqForm;
+  const status = what === 'accept' ? 'accepted' : 'withdrawn';
+  try {
+    const { error } = await supabase.from('session_requests').update({ status }).eq('id', id);
+    if (error) throw error;
+    await refreshSessionRequests();
+  } catch (err) {
+    if (f) { f.error = 'Couldn’t update it: ' + ((err && err.message) || 'try again.'); renderCoachRequest(); }
+  }
+}
+function startCoachCounter(id) {
+  coachReqKeepNotes();
+  const r = (_coachRequests || []).find(x => x.id === id);
+  const p = (r && r.proposed) || {};
+  _coachCounterFor = { id, mode: 'times', date: p.date || coachTomorrow(), time: coachMinToHHMM(p.start_min ?? 1080), from: '17:00', to: '20:00' };
+  renderCoachRequest();
+}
+function setCoachCounterMode(m) { _coachCounterFor.mode = m; renderCoachRequest(); }
+// 0024 keeps ONE counter slot: a time, or a day with a window.
+async function sendCoachCounter() {
+  const c = _coachCounterFor, f = _coachReqForm;
+  if (!c) return;
+  const v = coachReqSlots(c.mode, [{ date: c.date, time: c.time }], { date: c.date, from: c.from, to: c.to });
+  if (v.error) { if (f) { f.error = v.error; renderCoachRequest(); } return; }
+  try {
+    const { error } = await supabase.from('session_requests').update({ counter: v.slots[0], status: 'countered' }).eq('id', c.id);
+    if (error) throw error;
+    _coachCounterFor = null;
+    await refreshSessionRequests();
+  } catch (err) {
+    if (f) { f.error = 'Couldn’t send it: ' + ((err && err.message) || 'try again.'); renderCoachRequest(); }
   }
 }
 
@@ -20619,6 +20920,7 @@ function renderHomeHero() {
         ${subline}
       </div>
     </div>
+    ${coachedView() ? homeNextSessionHTML() : '' /* v8.42 (§136, proposal §4.3, §11 Q23) */}
   </div>`;
 }
 
@@ -21598,7 +21900,8 @@ function renderTrainSession(macro) {
   const el = document.getElementById('train-session');
   if (!el) return;
   const isDeload = isDeloadUnit(macro, state.currentWeek, state.currentDay);
-  const sub = isDeload
+  const sub = trainViewCoachOwned() ? 'Tap an exercise to see what’s planned.' // v8.42 (§136): the coach's session
+    : isDeload
     ? 'Deload targets shown. Progression resumes next week.'
     : 'Tap an exercise to log sets. The tick button completes every set at target.';
   el.innerHTML = sectionHeader('The session', sub)
@@ -21672,8 +21975,11 @@ function buildTrainPickerHTML(macro) {
       const dot = x.done ? '<span class="agenda-dot is-done">✓</span>' : x.partial ? '<span class="agenda-dot is-partial"></span>' : '<span class="agenda-dot"></span>';
       const meta = x.done ? `Done · ${x.sets} sets` : x.partial ? `${x.doneSets} of ${x.sets} sets logged` : `${x.exercises} exercise${x.exercises === 1 ? '' : 's'} · ${x.sets} sets`;
       const badge = x.viewing ? '<span class="agenda-badge is-viewing">Viewing</span>' : x.upNext ? '<span class="agenda-badge is-next">Up next</span>' : '';
+      // v8.42 (§136): a session the coach has taken for an in-person booking.
+      // It replaces the row's meta line; the dot still shows what's logged.
+      const rowMeta = x.withCoach && !x.done ? coachEsc(coachSessionWhen(x.withCoach)) : meta;
       return `<button class="agenda-row${x.viewing ? ' is-viewing' : ''}" onclick="selectTrainSession(${x.week},'${x.dayKey}')">
-          ${dot}<span class="agenda-row-text"><span class="agenda-row-name">${x.label}</span><span class="agenda-row-meta">${meta}</span></span>${badge}
+          ${dot}<span class="agenda-row-text"><span class="agenda-row-name">${x.label}</span><span class="agenda-row-meta">${rowMeta}</span></span>${badge}
         </button>`;
     }).join('')}</div>`;
     return `<div class="agenda-unit${u.isThisWeek ? ' is-this-week' : ''}${u.viewing ? ' is-viewing' : ''}">
@@ -21727,6 +22033,7 @@ function renderTrainTools(macro, allSessions, days, dayLabels, micros, useMicro)
         // v8.20 — reopen this session's effort sheet to rate or change a
         // rating (§104). Only when ratings are on, and not in a deload.
         if (!isRpeOn(macro) || heroIsDeload) return '';
+        if (trainViewCoachOwned()) return ''; // v8.42 (§136): the coach rates their own session (§11 Q13)
         if (!getRpeSessionExercises(macro, dayKey).length) return '';
         return `<div class="row-plain" onclick="openRpeSheet('${macro.id}',${state.currentWeek},'${dayKey}')">
           <div class="row-btn-text">
@@ -21786,6 +22093,7 @@ function getProgKey(macroId, week, day, exId) {
 // this week, driving which of the two input placeholders shows the boosted
 // suggested value (see exProgData's weightPlaceholder/repsPlaceholder).
 function selectProgType(macroId, week, day, exId, progType) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   const pk = getProgKey(macroId, week, day, exId);
   if (!state.trainLogs[pk]) state.trainLogs[pk] = {};
   state.trainLogs[pk].progType = progType;
@@ -21917,6 +22225,10 @@ function getAllMacroSessions(macro) {
 // Deliberately does NOT fall back to the last session the way renderTrain's
 // picker does — callers like the Home preview want to know unambiguously
 // whether there's anything left to do today.
+// v8.42 (§136): the live booking a session is assigned to (proposal §5.6).
+function getCoachAssignment(macroId, week, dayKey) {
+  return BlocEngine.getCoachAssignment(state, macroId, week, dayKey);
+}
 function getNextIncompleteSession(macro) {
   return BlocEngine.getNextIncompleteSession(state, macro); // v8.35 (§125): the engine's
 }
@@ -22751,8 +23063,9 @@ function renderTrainDay(macro) {
     }
   });
 
-  el.innerHTML = html;
+  el.innerHTML = trainCoachNoticeHTML(macro) + html; // v8.42 (§136)
   renderTrainHero(macro);
+  applyTrainCoachLock(); // v8.42 (§136)
 }
 
 // ════════════════════════════════════════════════
@@ -22780,6 +23093,7 @@ function getCardioLoggedSeconds(log) {
 // loggedDistance / speedLevel / resistanceLevel) — mirrors logSet() but
 // without reps-specific sanitization, since every cardio field is numeric.
 function logCardioField(key, field, value) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   if (!state.trainLogs[key]) state.trainLogs[key] = {};
   state.trainLogs[key][field] = value;
   save();
@@ -22880,6 +23194,7 @@ function buildCardioSetRowHtml(macro, ex, s, compact) {
 // cardio exercises simply aren't part of any of that (see the exProgData
 // guard above).
 function toggleCardioSetDone(key) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
   let ex = null;
   if (macro) {
@@ -23101,6 +23416,7 @@ function sanitizeReps(v) {
 // Writes a single field (weight or reps) of one logged set into
 // state.trainLogs, creating the entry if it doesn't exist yet.
 function logSet(key, field, value) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   if (!state.trainLogs[key]) state.trainLogs[key] = {};
   let v = value;
   if (field === 'reps' || field === 'dropReps') {
@@ -23120,6 +23436,7 @@ function logSet(key, field, value) {
 // numbers left on the page. Drop-set drop fields intentionally don't call
 // this (never part of the compliance check).
 function recheckProgressionLockForKey(key) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   const log = state.trainLogs[key];
   if (!log || !log.done) return; // only matters for sets already marked done
   const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
@@ -23141,6 +23458,7 @@ function recheckProgressionLockForKey(key) {
 // (see weightPlaceholders/repsPlaceholders in exProgData) — v6.09, replacing
 // the single flat value previously applied to every set.
 function fillSuggested(macroId, week, day, exId, sets, weight, reps) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   const baseKey = macroId + '_' + week + '_' + day;
   const weightList = String(weight).split('|');
   const repsList   = String(reps).split('|');
@@ -23193,6 +23511,7 @@ function fillSuggested(macroId, week, day, exId, sets, weight, reps) {
 // failure, so its rep count is only ever discovered live, never suggested.
 // weight/reps/dropWeight are '|'-delimited per-set suggestion lists.
 function fillSuggestedDropset(macroId, week, day, exId, sets, weight, reps, dropWeight) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   const baseKey = macroId + '_' + week + '_' + day;
   const weightList = String(weight).split('|');
   const repsList = String(reps).split('|');
@@ -23253,6 +23572,7 @@ function fillSuggestedDropset(macroId, week, day, exId, sets, weight, reps, drop
 // Clears every logged set for one exercise this week (weight, reps, and done
 // state), used by the 'Clear' button next to Fill Suggested.
 function clearExerciseLogs(macroId, week, day, exId, sets) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   const baseKey = macroId + '_' + week + '_' + day;
   for (let s = 0; s < sets; s++) {
     const logKey = baseKey + '_' + exId + '_' + s;
@@ -23367,6 +23687,7 @@ function quickFillCompleteDropset(event, macroId, week, day, exId, sets, weight,
 // fillArgsJson is a JSON array of [exId, sets, weightList, repsList] tuples,
 // where weightList/repsList are '|'-delimited per-set suggestions (v6.09).
 function quickFillCompleteSuperset(event, macroId, week, day, fillArgsJson) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   if (event) event.stopPropagation();
   let tuples;
   try { tuples = JSON.parse(fillArgsJson); } catch(e) { return; }
@@ -23411,6 +23732,7 @@ function quickFillCompleteSuperset(event, macroId, week, day, fillArgsJson) {
 // known exactly from current Train state. Used both to determine isDropSet
 // and to snapshot exerciseHistory the moment a set is completed.
 function toggleSetDone(key) {
+  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   const log = state.trainLogs[key] || {};
   const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
   let ex = null;
@@ -28521,7 +28843,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.41</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.42</span>`;
 }
 
 function renderSettings() {

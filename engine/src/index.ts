@@ -72,7 +72,7 @@ export {
 export type { VolumePoint, MacroSession } from './sessions.ts';
 export {
   isDeloadUnit, isFirstUnitAfterDeload, getSessionVolume, getMacroTotalVolume, getMacroVolumeSeries,
-  getAllMacroSessions, getNextIncompleteSession, getSelectedTrainWeekDates, getTrainAgendaUnits,
+  getAllMacroSessions, getCoachAssignment, getNextIncompleteSession, getSelectedTrainWeekDates, getTrainAgendaUnits,
 } from './sessions.ts';
 export type { DayStats, TdeeResult } from './tdee.ts';
 export {

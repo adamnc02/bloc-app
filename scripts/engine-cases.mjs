@@ -245,6 +245,21 @@ for (const st of [S.demo, S.training]) {
 }
 add('getNextIncompleteSession', [at(state(s => { for (const k of Object.keys(s.trainLogs)) s.trainLogs[k].done = true; return s; }), '2026-08-02',
   s => ({ engine: [s, m0(s)], bloc: { args: [m0(s)] } }))]);
+// v8.42 (§136): the coach's in-person assignment. No BLOC counterpart before
+// v8.42 (bloc: null); verify-coached-sessions.mjs checks what it decides.
+const withBooking = (b = {}) => state(s => {
+  s.coachBookings = { bk1: Object.assign({ booking_id: 'bk1', date: '2026-08-04', start_min: 1080, status: 'booked',
+    assigned_session: { macroId: m0(s).id, week: 7, dayKey: 'session0m1' } }, b) };
+  return s;
+});
+add('getCoachAssignment', [
+  at(withBooking(), '2026-08-02', s => ({ engine: [s, m0(s).id, 7, 'session0m1'], bloc: null })),
+  at(withBooking({ status: 'cancelled' }), '2026-08-02', s => ({ engine: [s, m0(s).id, 7, 'session0m1'], bloc: null })),
+  at(withBooking(), '2026-08-02', s => ({ engine: [s, m0(s).id, 6, 'session0m1'], bloc: null })),
+  at(S.demo, '2026-08-02', s => ({ engine: [s, m0(s).id, 7, 'session0m1'], bloc: null })),
+]);
+add('getNextIncompleteSession', [at(withBooking(), '2026-08-02', s => ({ engine: [s, m0(s)], bloc: null }))]);
+add('getTrainAgendaUnits', [at(withBooking(), '2026-08-02', (s, c) => ({ engine: [s, c, m0(s), null], bloc: null }))]);
 add('getMacroVolumeSeries', [S.demo, S.training, S.noStart].flatMap(st => ['2026-08-02', '2026-09-20'].map(d =>
   at(st, d, (s, c) => ({ engine: [s, m0(s), c], bloc: { args: [m0(s)] } })))));
 add('getSelectedTrainWeekDates', [[1, 'session0m1'], [1, 'session0m2'], [5, 'session2m2'], [7, 'session3m1']].map(([w, dk]) =>
