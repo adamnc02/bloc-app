@@ -208,6 +208,14 @@ async function run(label, html, engineSrc, quiet = false) {
     const bad = pub('session_log', { session_id: 'ses2', macro_id: MID, week: 5, day_key: DK, logs: { nope: [{ weight: 1, reps: 1 }] } });
     const before = JSON.stringify(B.state.trainLogs);
     check('an exercise this phone doesn\'t have: held, nothing written', [B.applyPublications([bad]).acks[0].status, JSON.stringify(B.state.trainLogs) === before], ['needs_attention', true]);
+    // 🚨 v8.40's unlink left coachSessionLogs as [] (found in the v8.43 UAT): a
+    // record keyed onto an array is dropped by JSON.stringify, so it never
+    // reached the saved state. It must survive a save after an unlink.
+    const envU = envFor(E); envU.state.coachSessionLogs = [];
+    const BU = factory(envU);
+    const su = pub('session_log', { session_id: 'sesU', macro_id: MID, week: 5, day_key: DK, kind: 'in_person', logs: { [EX(0)]: [{ weight: 60, reps: 8 }] } });
+    BU.applyPublications([su]);
+    check('after an unlink ([] left behind), the session\'s record survives a save', !!JSON.parse(JSON.stringify(BU.state)).coachSessionLogs[su.id], true);
     check('a cycle this phone doesn\'t have: held', B.applyPublications([pub('session_log', { session_id: 'ses3', macro_id: 'gone', week: 1, day_key: DK, logs: {} })]).acks[0].status, 'needs_attention');
   }
   {

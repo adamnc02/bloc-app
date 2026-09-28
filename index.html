@@ -9270,7 +9270,10 @@ function removeCoachPlan() {
   }
   // Bookings and in-person logs belong to the link that just ended.
   state.coachBookings = {};
-  state.coachSessionLogs = [];
+  // 🚨 An OBJECT, keyed by publication id. v8.40 set [] here, and a record added
+  // to an array by key is silently dropped by JSON.stringify: after an unlink,
+  // no coach session's record survived a save (found in the v8.43 UAT, §137).
+  state.coachSessionLogs = {};
   if (gone.has(state.currentMacroId)) {
     const all = state.macrocycles;
     state.currentMacroId = getDateActiveMacroId() || (all.length ? all[all.length - 1].id : null);
@@ -10173,7 +10176,9 @@ function applySessionLogPublication(pub) {
     for (let w = week + 1; w <= total && !later; w++) later = trainSetKeysFor(macro.id, w, dayKey, ex.id).length > 0;
     if (!later) recordExerciseHistory(macro, week, dayKey, ex);
   }
-  if (!state.coachSessionLogs || typeof state.coachSessionLogs !== 'object') state.coachSessionLogs = {};
+  // 🚨 Array.isArray: v8.40's unlink left [] behind (above, removeCoachPlan), and
+  // a keyed record on an array never reaches the saved JSON.
+  if (!state.coachSessionLogs || typeof state.coachSessionLogs !== 'object' || Array.isArray(state.coachSessionLogs)) state.coachSessionLogs = {};
   state.coachSessionLogs[pub.id] = { seq: pub.seq, payload: pubCopy(p), applied: true, loggedAt,
     ...(Object.keys(replaced).length ? { replacedClientLogs: replaced } : {}) };
   return { status: 'applied' };
@@ -10197,7 +10202,7 @@ function applyGroupSessionLog(pub) {
     state.substitutions[BlocEngine.getSubstitutionKey(at.macro.id, at.week, at.dayKey, ex.id)] = { kind: 'group', sessionId: p.session_id, at: loggedAt };
   }
   const b = p.booking_id && state.coachBookings && state.coachBookings[p.booking_id];
-  if (!state.coachExtraSessions || typeof state.coachExtraSessions !== 'object') state.coachExtraSessions = {};
+  if (!state.coachExtraSessions || typeof state.coachExtraSessions !== 'object' || Array.isArray(state.coachExtraSessions)) state.coachExtraSessions = {};
   state.coachExtraSessions[p.session_id] = { kind: 'group', seq: pub.seq, loggedAt,
     date: (b && b.date) || loggedAt.slice(0, 10), bookingId: p.booking_id || null,
     exercises: pubCopy(Array.isArray(p.logs) ? p.logs : []),

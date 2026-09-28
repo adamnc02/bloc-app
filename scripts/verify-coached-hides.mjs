@@ -140,7 +140,7 @@ function run(label, html, engineSrc) {
       [JSON.stringify(a.trainLogs) === JSON.stringify(before.trainLogs), JSON.stringify(a.rpe) === JSON.stringify(before.rpe),
         JSON.stringify(a.exerciseHistory) === JSON.stringify(before.exerciseHistory)], [true, true, true]);
     check('the link\'s bookings and stored in-person logs are cleared; advice and the ledger stay',
-      [a.coachBookings, a.coachSessionLogs, a.coachAdvice.length, keys(a.coachLedger)], [{}, [], 1, ['p1']]);
+      [a.coachBookings, a.coachSessionLogs, a.coachAdvice.length, keys(a.coachLedger)], [{}, {}, 1, ['p1']]); // v8.43: an object, never [] (§137)
     check('no active cycle: the viewed cycle moves off the removed one', a.currentMacroId !== coachId && a.currentMacroId !== undefined, true);
     check('it saves once', F.saves(), 1);
     F.removeCoachPlan();
