@@ -5667,7 +5667,7 @@ try {
   <div class="modal-sheet" data-modal="modal-tour-welcome">
     <!-- The ✕ is the explicit way to skip the tour. Swipe-down already
          dismissed this sheet, so the option existed but was invisible. -->
-    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-tour-welcome')">✕</button></div>
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="skipDemoTour()">✕</button></div>
     <div class="modal-title">Welcome to BLOC</div>
     <div class="modal-sub">We've loaded a few weeks of sample training and nutrition data so you can see exactly how BLOC works before setting up your own. Take a quick tour — it only takes a minute.</div>
     <button class="btn btn-accent btn-block" onclick="closeModal('modal-tour-welcome');beginDemoTourSteps();">Let's go &rarr;</button>
@@ -6855,6 +6855,16 @@ function startDemoTour() {
   requestAnimationFrame(() => setTimeout(() => {
     openModal('modal-tour-welcome');
   }, 400));
+}
+
+// 🚨 v8.40 (§133): every way out of the welcome sheet except "Let's go" (✕,
+// swipe, backdrop: MODAL_DISMISS_HANDLERS) is a skip, and a skip must leave
+// demo mode exactly as finishing does. Before, the ✕ only closed the sheet:
+// the demo data and its pinned "today" stayed for the whole session, with
+// every save() refused.
+function skipDemoTour() {
+  closeModal('modal-tour-welcome');
+  if (_tourAnchorDate) exitDemoMode();
 }
 
 // Called by the welcome modal's "Let's go →" button — the actual
@@ -8214,6 +8224,13 @@ async function restoreFromSnapshot(date) {
     throw new Error('Invalid backup file — does not look like a BLOC export.');
   }
   state = parsed;
+  // 🚨 v8.40 (§133): end any Demo Tour first, as importData() does. Since
+  // v8.30 (§120) save() refuses while the tour's anchor is set, so a restore
+  // that landed mid-tour (the new-device auto-restore racing the tour's own
+  // start) saved NOTHING, reloaded, and the "already restored" flag stopped
+  // it ever retrying: the account was left on the Demo Tour with no data.
+  if (typeof endTour === 'function' && typeof _tourState !== 'undefined' && _tourState) endTour();
+  setTourAnchorDate(null);
   save();
   location.reload();
 }
@@ -8703,10 +8720,13 @@ function deviceHasRealData() { return devBypassHasRealData(state); }
 // The newest cloud snapshot that actually holds data — skipping any empty
 // file (one written by the pre-v8.21 path above, say). Restores it through
 // the same path as the picker (restoreFromSnapshot: validate, save, reload).
-// Returns false if there is nothing worth restoring.
+// Returns false if there is nothing worth restoring. v8.40 (§133): 'none'
+// when the account has no backups at all, so the caller can tell "a new
+// account" (the mode question handles it) from "backups, all empty".
 async function restoreNewestRealSnapshot() {
   const userId = _authResolvedSession.user.id;
   const dates = await listSnapshots(); // newest first
+  if (!dates.length) return 'none';
   for (const date of dates) {
     const { data, error } = await supabase.storage.from('app-backups').download(snapshotPath(userId, date));
     if (error) continue;
@@ -9586,10 +9606,16 @@ async function startFirstRun(isNewUser) {
     return;
   }
   if (!isNewUser) return;
-  let hasBackup = true;
+  let hasBackup = null; // null: couldn't tell
   try { hasBackup = (await listSnapshots()).length > 0; }
   catch (err) { console.warn('[coaching] could not check for backups; starting the Demo Tour as before:', err && err.message); }
-  if (hasBackup || !coachingAvailable()) { fetchDemoDataIfNewUser(true); return; }
+  // 🚨 v8.40 (§133): an existing user on a new device gets their backup, not
+  // the Demo Tour. checkSnapshotZero() restores it and reloads. Starting the
+  // tour as well raced that restore (and, before restoreFromSnapshot() ended
+  // the tour, won: nothing restored). If no backup turns out to hold real
+  // data, checkSnapshotZero() starts the tour itself.
+  if (hasBackup === true) return;
+  if (hasBackup === null || !coachingAvailable()) { fetchDemoDataIfNewUser(true); return; }
   openCoachLink({ step: 'choice', firstRun: true });
 }
 
@@ -10472,7 +10498,10 @@ async function checkSnapshotZero() {
   if (!deviceHasRealData()) {
     localStorage.setItem('bloc_snapshot_autorestore_done', '1');
     try {
-      await restoreNewestRealSnapshot(); // reloads the page when it restores
+      const restored = await restoreNewestRealSnapshot(); // reloads the page when it restores
+      // v8.40 (§133): startFirstRun() left a new device with backups to this
+      // restore. If none held real data, it's a new user after all: the tour.
+      if (restored === false && _isNewUserOnBoot) fetchDemoDataIfNewUser(true);
     } catch (err) {
       console.warn('[sync] empty-device restore failed, will retry next launch:', err && err.message);
       localStorage.removeItem('bloc_snapshot_autorestore_done');
@@ -28873,7 +28902,8 @@ function onGoalFatSliderInput() {
 // leave a countdown ticking behind it with the icon still lit. Before v8.16 the
 // timer was simply excluded from initModal() altogether, which is the same bug
 // avoided by having no gesture at all.
-const MODAL_DISMISS_HANDLERS = { 'modal-timer': 'closeTimerModal', 'modal-rpe': 'closeRpeSheet', 'modal-coach-link': 'closeCoachLink' };
+const MODAL_DISMISS_HANDLERS = { 'modal-timer': 'closeTimerModal', 'modal-rpe': 'closeRpeSheet', 'modal-coach-link': 'closeCoachLink',
+  'modal-tour-welcome': 'skipDemoTour' }; // v8.40 (§133)
 
 function initModal(overlayEl) {
   const sheet = overlayEl.querySelector('.modal-sheet');

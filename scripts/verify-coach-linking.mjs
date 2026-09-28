@@ -179,7 +179,9 @@ async function run(source, label) {
   let r = await firstRun(e => { e.isNew = true; e.snapshots = []; });
   check('a new account (no backup): the mode question, and no Demo Tour yet', [r.step, r.log.some(l => l[0] === 'demo')], ['choice', false]);
   r = await firstRun(e => { e.isNew = true; e.snapshots = ['2026-09-27']; });
-  check('an existing account on a new phone (has a backup): not asked, the Demo Tour/restore as before', [r.step, r.log], [null, [['demo', true]]]);
+  // v8.40 (§133): no Demo Tour either. checkSnapshotZero()'s restore owns this
+  // case; a tour started alongside it raced the restore and could stop it saving.
+  check('an existing account on a new phone (has a backup): not asked, and no Demo Tour (the restore handles it)', [r.step, r.log], [null, []]);
   r = await firstRun(e => { e.isNew = true; e.listFails = true; });
   check("can't tell (backup list failed): not asked, as before", [r.step, r.log], [null, [['demo', true]]]);
   r = await firstRun(e => { e.isNew = false; });

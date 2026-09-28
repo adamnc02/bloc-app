@@ -8065,8 +8065,9 @@ says so. A code shorter than 8 characters is never sent.
 `continueBootAfterAuth()`). Adam, 2026-09-28: *"New accounts only"*.
 - **An invite link** opens the code step, filled in, on any device, new or not.
 - **A returning device:** nothing. Link from Settings → Coaching.
-- **A new device whose account has a cloud backup** is an existing user on a new phone. **Unchanged:**
-  `checkSnapshotZero()` restores it (and the Demo Tour starts as it always did). Never asked.
+- **A new device whose account has a cloud backup** is an existing user on a new phone.
+  `checkSnapshotZero()` restores it. Never asked. *(Since v8.40, no Demo Tour either: starting it
+  alongside the restore could stop the restore saving, §133.)*
 - **A new device with no backup** is a new account: the mode question, **before** the Demo Tour.
   Solo → the Demo Tour. "I have a coach" → the code, consent and link, then the profile gate, with
   **no Solo Demo Tour** (a Coached tour set is D11, later).
@@ -8442,3 +8443,53 @@ Driven in headless Chromium at 393pt on the dev fixture, with a link cached for 
   trainLogs, and brought Plan back with "No active cycle";
 - the empty states name the coach;
 - no console errors.
+
+## §133 — v8.40: a new device restores its backup instead of touring, and every way out of the Demo Tour leaves it
+
+Found in the v8.40 UAT (2026-09-28): the Work account signed in to a local `?auth=real` build for
+the first time on that address, saw the Demo Tour, closed it, and then showed Solo on the demo's
+data while linked to a coach.
+
+**Two bugs, both older than Coached mode:**
+
+1. 🚨 **A new device's restore could save nothing, for good.** On a new device whose account has a
+   backup, `startFirstRun()` started the Demo Tour **and** `checkSnapshotZero()` started the
+   auto-restore. The demo data is a local file, so it usually landed first. Since v8.30 (§120)
+   `save()` refuses while the tour's anchor is set, so the restore's `save()` did nothing. The page
+   reloaded with nothing saved, and `bloc_snapshot_autorestore_done` stopped it retrying: the
+   account sat on the Demo Tour with none of its data, on every launch. Anyone re-adding BLOC to a
+   Home Screen could hit this. Before v8.30 the restore's reload simply ended the tour, so nobody
+   ever saw the tour in this case anyway.
+2. **The welcome sheet's ✕ didn't skip anything.** The ✕, a swipe and a backdrop tap only closed the
+   sheet, so the demo data and its pinned "today" (`_tourAnchorDate`) stayed for the session, with
+   every `save()` refused. `coachedView()` reads the tour as Solo (§132), so a linked client showed
+   five tabs. `importData()` already carried a comment describing this gap.
+
+**The fixes:**
+- **A restore always saves.** `restoreFromSnapshot()` ends any tour and clears the anchor before its
+  `save()`, as `importData()` does.
+- **An account with backups restores and never tours.** `startFirstRun()` returns when the backup
+  list has entries. If every backup is empty, `checkSnapshotZero()` starts the tour itself
+  (`restoreNewestRealSnapshot()` now returns `'none'` for no backups at all, so a brand-new account,
+  which the mode question owns, never gets a tour started under that question). A failed backup
+  list still starts the tour, as before.
+- **Every way out of the welcome sheet except "Let's go" is `skipDemoTour()`**: the ✕, and swipe or
+  backdrop via `MODAL_DISMISS_HANDLERS`. It runs `exitDemoMode()`, the same wipe, save and profile
+  gate as finishing.
+
+**Check:** `scripts/verify-demo-tour-restore.mjs` covers:
+- a mid-tour restore saves the backup, ends the tour and unpins "today";
+- the four `checkSnapshotZero()` outcomes;
+- `'none'` for no backups;
+- all three ways out of the welcome sheet, and "Let's go" unchanged.
+
+**Control:** v8.39 (`31ec0b7`) fails 7, including the unsaved restore. `verify-coach-linking.mjs`'s
+"has a backup" case now expects no tour.
+
+Driven in Chromium with the local `?tour=demo`: the ✕ and a backdrop tap each left `_tourAnchorDate`
+null, `state` empty and the profile gate open, with no console errors.
+
+⚠️ **A device already stuck** (the flag set, nothing saved) isn't un-stuck by the update: its flag
+stays. Settings → Account & Data → Restore → Cloud now works on it (the first fix), or clearing
+`bloc_snapshot_autorestore_done` lets the next launch restore automatically.
+
