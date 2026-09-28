@@ -8792,11 +8792,10 @@ is its own sheet, next), and on this one *"Show all that aren't booked"*. From t
 
 ### Two Settings details, from the same UAT
 
-- **"Linked since" is the footer of both heroes**: Settings' own (`settingsHeroSinceHTML()`, the hero
-  now wraps), and Settings → Coaching's (`.coach-since`). Each has a divider, then "Linked since" on
-  the left and the date on the right, as the wireframe's coaching hero has it. Adam looked for it on
-  the Settings hero. The Settings hero's sub-line also adds "Coached by {coach}", as the wireframe's
-  does.
+- **Settings → Coaching's hero ends with the wireframe's footer**: a divider, then "Linked since" on the
+  left and the date on the right (`.coach-since`). The first build had it as a small grey line that
+  read as missing. It's in Coaching only (Adam, UAT); the Settings hero's sub-line adds "Coached by
+  {coach}", as the wireframe's does.
 - **Home → View body logs opens the sheet over Home.** It used to `showScreen('settings')` first, so
   closing it left you in Settings (Adam: mirror the photo-consent shortcut, which closes back where it
   opened). `saveBodyLog()` and `deleteBodyLog()` now also redraw Home when it's showing
