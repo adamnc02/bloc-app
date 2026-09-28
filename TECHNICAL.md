@@ -8722,8 +8722,14 @@ Request sheet.
 - **When:** a request has a suggested time. It shows "{coach} proposed a different time", "{time}
   instead of your choices." ("N more waiting." if several), **Review** (opens Request a session), and
   a ✕.
-- **Dismissing** is remembered per suggestion (request + time) and per account
-  (`bloc_coach_banner_dismissed`), so a new suggestion on the same request shows it again.
+- 🚨 **Dismissing lasts until the next cold start, never longer** (Adam: *"it genuinely requires an
+  action, that can't be ignored, so it needs to have a level of persistence"*). The dismissal is held
+  in memory (`_coachBannerDismissedThisRun`), never saved. So leaving Home and coming back keeps it
+  hidden, and every fresh load (the one that plays the splash) shows it again while the suggestion is
+  unanswered. A new time on the same request is a new suggestion and shows at once. The first draft
+  saved the dismissal, so an unanswered suggestion never came back.
+- 🚨 **It's the only banner that comes back.** 4e-4's other three (plan updated, goal phases changed,
+  session confirmed) are informational: their dismissal is permanent.
 - **It updates live** with the request (the `session_requests` listener), and goes once answered.
 - 4e-4 adds the other banner kinds (plan, goal phases, a response, a booking).
 

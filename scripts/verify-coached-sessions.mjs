@@ -186,7 +186,13 @@ async function run(label, html, engineSrc) {
     check('a suggested time puts the banner on Home: "{coach} proposed a different time", the time, Review, and ✕',
       [/Sam proposed a different time/.test(B.banner()), /Mon 12 Oct · 18:30 instead of your choices/.test(B.banner()), /openCoachRequest\(\)">Review/.test(B.banner()), /Dismiss/.test(B.banner())], [true, true, true, true]);
     B.dismissHomeCoachBanner();
-    check('✕ dismisses it', B.banner(), '');
+    B.renderHomeCoachBanner(); // leaving Home and coming back redraws it
+    check('✕ dismisses it, and it stays dismissed on returning to Home in the same run', B.banner(), '');
+    // 🚨 A cold start (a fresh load: the splash) shows it again, while unanswered.
+    const B2 = mk({ macrocycles: [], coachBookings: {} });
+    B2.setRequests([pr]); B2.renderHomeCoachBanner();
+    check('🚨 …but a cold start shows it again while it still needs an answer (never saved as dismissed)',
+      [/Sam proposed a different time/.test(B2.banner()), /localStorage\.setItem\(COACH_BANNER/.test(src)], [true, false]);
     B.setRequests([Object.assign({}, pr, { proposed: { date: '2026-10-13', start_min: 1110 } })]); B.renderHomeCoachBanner();
     check('…but a NEW suggested time on the same request brings it back', /Tue 13 Oct · 18:30/.test(B.banner()), true);
     B.setRequests([Object.assign({}, pr, { status: 'accepted' })]); B.renderHomeCoachBanner();

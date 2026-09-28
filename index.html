@@ -15447,17 +15447,17 @@ function renderCoachSessions() {
 // 🚨 On HOME, above the hero, not in the sheet (Adam, v8.42 UAT: "the banner
 // needs to call my attention when I load the app"; the first rebuild put it at
 // the top of the Request sheet, where the action already is). Dismissible;
-// "Review" opens Request a session. A dismissal is remembered per suggestion
-// (request + time) and per account, so the coach suggesting a new time shows
-// it again. 4e-4 adds the other banners (plan, phases, response, booking).
-const COACH_BANNER_DISMISSED_KEY = 'bloc_coach_banner_dismissed';
-function coachBannerDismissed() {
-  try {
-    const d = JSON.parse(localStorage.getItem(COACH_BANNER_DISMISSED_KEY) || 'null');
-    const uid = _authResolvedSession && _authResolvedSession.user && _authResolvedSession.user.id;
-    return d && d.userId === uid && Array.isArray(d.keys) ? d.keys : [];
-  } catch (e) { return []; }
-}
+// "Review" opens Request a session.
+// 🚨 A dismissal lasts until the next COLD START, never longer (Adam, v8.42
+// UAT: "it genuinely requires an action, that can't be ignored, so it needs
+// to have a level of persistence"). It's held in memory, so switching tabs
+// and coming back to Home keeps it hidden, and every fresh load (the one that
+// plays the splash) shows it again while the suggestion is unanswered. A new
+// time on the same request is a new suggestion and shows at once. This is the
+// ONLY banner that comes back: 4e-4's plan / goal phases / session confirmed
+// banners are informational, and their dismissal is permanent.
+const _coachBannerDismissedThisRun = new Set();
+function coachBannerDismissed() { return [..._coachBannerDismissedThisRun]; }
 function coachProposalKey(r) { return r.id + ':' + (r.proposed ? r.proposed.date + ':' + r.proposed.start_min : ''); }
 function renderHomeCoachBanner() {
   const el = document.getElementById('home-coach-banner');
@@ -15475,10 +15475,7 @@ function renderHomeCoachBanner() {
     </div>`;
 }
 function dismissHomeCoachBanner() {
-  const uid = _authResolvedSession && _authResolvedSession.user && _authResolvedSession.user.id;
-  const keys = coachBannerDismissed();
-  for (const r of (_coachRequests || [])) if (r.status === 'proposed' && r.proposed) keys.push(coachProposalKey(r));
-  try { localStorage.setItem(COACH_BANNER_DISMISSED_KEY, JSON.stringify({ userId: uid, keys: keys.slice(-50) })); } catch (e) {}
+  for (const r of (_coachRequests || [])) if (r.status === 'proposed' && r.proposed) _coachBannerDismissedThisRun.add(coachProposalKey(r));
   renderHomeCoachBanner();
 }
 function coachRequestBooked(r) {
