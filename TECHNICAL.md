@@ -6409,8 +6409,8 @@ Not compliant with a high rating changes nothing extra, because the lock already
 The card adds "Rated 9 · consider a lighter target".
 
 🚨 **`rpeDrivesProgression()` is the Coached-mode switch.** In Coached mode ratings only inform the
-coach (Adam). When PROMPT-03 builds Coached mode, this function returns false there, and nothing else
-needs to change.
+coach (Adam). Since v8.40 it returns false for any cycle the coach published (`macro.publishedBy`),
+in the engine, not the `index.html` shim: see §132 for why it's keyed on the cycle and not the link.
 
 ### Two call sites, one decision
 
@@ -8065,8 +8065,9 @@ says so. A code shorter than 8 characters is never sent.
 `continueBootAfterAuth()`). Adam, 2026-09-28: *"New accounts only"*.
 - **An invite link** opens the code step, filled in, on any device, new or not.
 - **A returning device:** nothing. Link from Settings → Coaching.
-- **A new device whose account has a cloud backup** is an existing user on a new phone. **Unchanged:**
-  `checkSnapshotZero()` restores it (and the Demo Tour starts as it always did). Never asked.
+- **A new device whose account has a cloud backup** is an existing user on a new phone.
+  `checkSnapshotZero()` restores it. Never asked. *(Since v8.40, no Demo Tour either: starting it
+  alongside the restore could stop the restore saving, §133.)*
 - **A new device with no backup** is a new account: the mode question, **before** the Demo Tour.
   Solo → the Demo Tour. "I have a coach" → the code, consent and link, then the profile gate, with
   **no Solo Demo Tour** (a Coached tour set is D11, later).
@@ -8101,8 +8102,7 @@ it links or the sheet is dismissed, and dropped after 7 days (an invite's life, 
 - **Photo consent** is `set_photo_consent()`. Only the client can change it, which `0022`'s trigger
   enforces. The switch moves at once; a failed save puts it back and re-reads the link.
 - **Unlink** asks first (the proposal §4.4 points, in one sentence), then `revoke_coach()` and
-  forgets the link. ⚠️ **The coach's plan and goal phases are removed once there are any to remove**:
-  publications arrive in Phase 4c, and removing them on unlink is part of that work.
+  forgets the link. Since v8.40 it also removes the coach's cycles and goal phases (§132).
 - Not available signed out, in the local dev bypass, or during the Demo Tour.
 
 🚨 **The traps:**
@@ -8300,9 +8300,8 @@ passed because its fake table accepted the upsert, a stand-in more permissive th
 - `stored` entries aren't acked yet, so the coach sees them as pending.
 
 After applying, BLOC `save()`s (so the mirror and `client_state` follow, §130) and re-renders the
-current screen. **Nothing in the UI marks the coach's cycle yet:** in v8.39 it's an ordinary cycle in
-Plan. Coached mode's hiding and "From your coach" come next, keyed on `publishedBy` and
-`coachAdvice`.
+current screen. In v8.39 the coach's cycle showed as an ordinary cycle in Plan; since v8.40 Coached
+mode hides Plan (§132). "From your coach" comes next, keyed on `coachAdvice`.
 
 ⚠️ **Open for Phase 5: replacing a running Solo cycle.** Proposal §4.1 says the client's Solo cycle
 "runs unchanged until the coach publishes one; they replace it". I10 says an overlapping plan is held,
@@ -8341,3 +8340,190 @@ temporary `claude_ro` read policy on `publication_acks`, dropped and verified at
 ⚠️ **Observed once:** "Linking…" took ~60 s. The server side had completed, the console was clean,
 and the local tab had been open for over an hour. That's most likely an expired session refreshing
 before the request; later reloads were instant. Watch for it on a phone that resumes after an hour.
+
+## §132 — v8.40: Coached mode's hides, the RPE rule, and unlink removing the coach's plan (PROMPT-03 Phase 4e-1)
+
+Proposal §4.2 and §4.4; deep dive D2 (the routes into Plan) and D11 (tours). No migration. The rest of
+Coached mode (From your coach, Request a session, Your next session, Swap for today, coach-logged
+sessions) follows in 4e-2 to 4e-4.
+
+**One question: `coachedView()`** = `isCoachedMode()` (§129) and not the Demo Tour. The Demo Tour
+walks the Solo app on the demo's data, whoever is watching it.
+
+**What a coached client doesn't see:**
+
+| Hidden | Where |
+|---|---|
+| The Plan tab | `applyCoachedNav()` sets `#nav-plan` to `display:none` (not removed: `showScreen()` and the nav pill find buttons by id, and Solo needs it back). Also Help → Tours → Plan (`#tour-help-plan-row`). |
+| Every route into Plan (D2) | 🚨 **one guard at the top of `showScreen()`**: `plan` becomes `home` when coached. A route nobody listed still lands somewhere real. The routes that had a Plan-shaped affordance also changed: Home's Up next empty state, Train's two empty states and Progress's empty hero read "{coach} hasn't published your plan yet." (`coachPlanPendingText()`); Home's upcoming-goal line is information only (`goToPlanAndFlashGoal()` returns); the profile gate opens over Home; the cycle-creation tour never starts; a mini-tour with no cycle says why. |
+| Mark week as deload | `renderTrainTools()`, and `toggleDeloadWeek()` refuses |
+| Check-in with BLOC (and its plans and Challenge), Last cycle, Build next cycle | `renderProgressCheckin/LastCycle/NextCycle()` draw nothing. The coach runs every AI tool; From your coach replaces the check-in section in 4e-2 |
+| The plateau signal | Insights drops `buildInsightsCardHTML()` (the trend and plateau narrative) **and BLOC's own "Calorie target"**, which would contradict the coach's goal phases the same way. Weekly change, best 7-day window, BMR and TDEE stay |
+| Tours pointing at any of it | The Coached Progress tour filters out the check-in, Last cycle and Next cycle steps; Train's Session tools step drops the deload sentence |
+
+Nothing else changed: the progress-route chips (↑ Weight / ↑ Reps) stay, because they're how the
+client logs the week, not a change to the programme, and BLOC has no lock override to hide.
+
+🚨 **The Coached Progress tour can't be left to the engine's "skip a missing target" (§33).** The
+check-in steps' `onEnter` **opens the check-in sheet** (a Solo AI tool) before the engine looks for
+the target. They're filtered out of `buildProgressTourSteps()` instead.
+
+**Linking or unlinking redraws at once.** Every link change goes through `updateSettingsCoachingRow()`,
+which now calls `applyCoachedChrome()`: the nav, and a move to Home if Plan was open.
+
+### The RPE rule: the coach's cycles, not the link
+
+Adam, 2026-09-28: *"Coach's cycles only"*. `rpeDrivesProgression(macro)` is
+`isRpeOn(macro) && !macro.publishedBy`, **in the engine** (`engine/src/targets.ts`).
+
+🚨 **Two traps, both avoided:**
+- **Changing only `index.html`'s shim.** `computeRpeStepKind()` is inside the engine and calls the
+  engine's own `rpeDrivesProgression()`. The shim isn't on that path.
+- **Keying it on the link.** The link lives outside `state` (§129). BLOC Coach runs this engine on the
+  client's uploaded `client_state`, which has no link in it, so a link rule would give the coach
+  different targets from the phone. `publishedBy` is in the data both sides read.
+
+So a Solo cycle still running after linking (§131: it runs until the coach replaces it) stays Solo,
+ratings and all. The golden outputs didn't move: the demo has no `publishedBy`.
+
+### Unlinking removes the coach's plan
+
+Adam, 2026-09-28, choosing the literal reading of proposal §4.4 both times: *"Remove every coach
+cycle"* and *"Remove them all"* (goal phases). `removeCoachPlan()` removes:
+- every cycle with `publishedBy`, with its session templates, deloads, cached targets and locks;
+- supersets only those templates used (a superset a Solo cycle shares stays);
+- **every** goal phase with `publishedBy`, and any goal left on a removed cycle;
+- the link's `coachBookings` and stored `coachSessionLogs`.
+
+**It keeps everything the client logged:** `trainLogs`, `rpe`, `exerciseHistory` (the "last logged"
+figures), and all of nutrition, body logs and recipes. It also keeps `coachAdvice`, the note replies
+and the ledger. A later re-link pulls from where the ledger left off.
+
+⚠️ **The logged sets outlive their cycle.** With no cycle to name them, Cycle history can't show that
+training, and the mirror push skips those `trainLogs` keys as orphaned (`syncParseTrainLogKey()` finds
+no exercise, so `exercise_logs` loses those rows on the next push). They stay in `state`, in every
+backup and in `client_state`. Adam chose this knowing it (the option said so).
+
+🚨 **Key ownership is the LONGEST cycle id a key starts with.** `startsWith(id + '_')` alone would hand
+a Solo cycle `macro_c1_x`'s keys to a coach cycle `macro_c1` and delete them (deep dive I4: ids aren't
+prefix-free).
+
+**Either side can unlink:**
+- the client's Unlink (`unlinkCoach()`) runs it;
+- so does `refreshCoachLink()` finding no active link **when this phone still held one** (the coach
+  ended it).
+
+A refresh on a phone that was never linked removes nothing, so a Solo user's cycles are never at
+risk from a failed or empty check. Both paths go through `afterCoachLinkEnded()`: remove the plan,
+put the nav back, redraw the current screen. The confirm now says "no active cycle", and "every set
+you logged" stays.
+
+⚠️ **Not covered:** restoring a backup taken while coached, after unlinking, brings the coach's
+cycles back as ordinary Solo-editable cycles. The cleanup runs only on the link's transition, never
+on "not coached but has coach cycles": that condition is also true while signed out.
+
+**Check:** `scripts/verify-coached-hides.mjs` covers:
+- the engine rule, end to end: the demo cycle rated 5 gives real "easy" steps as Solo and none once
+  published;
+- `removeCoachPlan()` on the demo plus a coach cycle: the prefix trap, shared supersets, all three
+  kinds of coach goal, logs kept, idempotent, a Solo account untouched and not saved;
+- the Coached Progress tour: no step opens the check-in sheet, and the Demo Tour stays Solo;
+- where each hide lives.
+
+**Control:** v8.39 (`31ec0b7`) fails 15. `verify-coach-linking.mjs` checks both unlink paths run the
+cleanup once, and a never-linked refresh doesn't. `verify-engine-leaves.mjs` stubs `coachedView()` as
+Solo: it compares against v8.33/v8.34, and following it pulls in the auth session and `window`.
+
+Driven in headless Chromium at 393pt on the dev fixture, with a link cached for `dev-local-user`:
+- Solo has 5 tabs, the deload row, and the three AI sections;
+- coached, `showScreen('plan')` lands on Home, with 4 tabs, no deload row, and Progress's three
+  sections, the plateau narrative and the calorie target gone;
+- Help's Plan row is hidden;
+- unlinking with the demo cycle marked as the coach's removed it and its goals, kept all 618
+  trainLogs, and brought Plan back with "No active cycle";
+- the empty states name the coach;
+- no console errors.
+
+## §133 — v8.40: a new device restores its backup instead of touring, and every way out of the Demo Tour leaves it
+
+Found in the v8.40 UAT (2026-09-28): the Work account signed in to a local `?auth=real` build for
+the first time on that address, saw the Demo Tour, closed it, and then showed Solo on the demo's
+data while linked to a coach.
+
+**Two bugs, both older than Coached mode:**
+
+1. 🚨 **A new device's restore could save nothing, for good.** On a new device whose account has a
+   backup, `startFirstRun()` started the Demo Tour **and** `checkSnapshotZero()` started the
+   auto-restore. The demo data is a local file, so it usually landed first. Since v8.30 (§120)
+   `save()` refuses while the tour's anchor is set, so the restore's `save()` did nothing. The page
+   reloaded with nothing saved, and `bloc_snapshot_autorestore_done` stopped it retrying: the
+   account sat on the Demo Tour with none of its data, on every launch. Anyone re-adding BLOC to a
+   Home Screen could hit this. Before v8.30 the restore's reload simply ended the tour, so nobody
+   ever saw the tour in this case anyway.
+2. **The welcome sheet's ✕ didn't skip anything.** The ✕, a swipe and a backdrop tap only closed the
+   sheet, so the demo data and its pinned "today" (`_tourAnchorDate`) stayed for the session, with
+   every `save()` refused. `coachedView()` reads the tour as Solo (§132), so a linked client showed
+   five tabs. `importData()` already carried a comment describing this gap.
+
+**The fixes:**
+- **A restore always saves.** `restoreFromSnapshot()` ends any tour and clears the anchor before its
+  `save()`, as `importData()` does.
+- **An account with backups restores and never tours.** `startFirstRun()` returns when the backup
+  list has entries. If every backup is empty, `checkSnapshotZero()` starts the tour itself
+  (`restoreNewestRealSnapshot()` now returns `'none'` for no backups at all, so a brand-new account,
+  which the mode question owns, never gets a tour started under that question). A failed backup
+  list still starts the tour, as before.
+- **Every way out of the welcome sheet except "Let's go" is `skipDemoTour()`**: the ✕, and swipe or
+  backdrop via `MODAL_DISMISS_HANDLERS`. It runs `exitDemoMode()`, the same wipe, save and profile
+  gate as finishing.
+
+**Check:** `scripts/verify-demo-tour-restore.mjs` covers:
+- a mid-tour restore saves the backup, ends the tour and unpins "today";
+- the four `checkSnapshotZero()` outcomes;
+- `'none'` for no backups;
+- all three ways out of the welcome sheet, and "Let's go" unchanged.
+
+**Control:** v8.39 (`31ec0b7`) fails 7, including the unsaved restore. `verify-coach-linking.mjs`'s
+"has a backup" case now expects no tour.
+
+Driven in Chromium with the local `?tour=demo`: the ✕ and a backdrop tap each left `_tourAnchorDate`
+null, `state` empty and the profile gate open, with no console errors.
+
+⚠️ **A device already stuck** (the flag set, nothing saved) isn't un-stuck by the update: its flag
+stays. Settings → Account & Data → Restore → Cloud now works on it (the first fix), or clearing
+`bloc_snapshot_autorestore_done` lets the next launch restore automatically.
+
+## §134 — v8.40: the coach's publications wait for a new device's restore
+
+Found in the same v8.40 UAT, straight after §133's fix, on the Work account (a test account; nobody
+real is coached yet).
+
+**What happened.** The local address held nothing, and the old "already restored" flag was still set,
+so no restore ran. The publication pull (§131) ran anyway: the ledger was empty, so it applied all four
+of the coach's publications onto the empty device. "Clashing block" applied too, because the Solo
+cycle it clashes with wasn't there.
+
+🚨 **Then the §109 guard stopped protecting the account.** Two coach cycles made the device "hold real
+data" (`deviceHasRealData()`), so:
+- the mirror push, delete-then-reinsert, removed the account's 602 set logs, its cycles and its
+  goals from the server copy;
+- the daily snapshot overwrote **today's** cloud backup with the coach-only state;
+- the next auto-restore then restored that.
+
+**The rule:** never apply publications onto an **empty** device whose account has backups. That device
+is waiting for its restore, and the backup carries the ledger (`state.coachLedger`, §131). Once
+restored, the pull resumes from the restored ledger and applies only what the backup lacks.
+`pullPublicationsOnce()` returns `'awaiting-restore'` before fetching anything when
+`!deviceHasRealData()` and the backup list has entries, **or can't be read** (waiting is safe, applying
+isn't).
+
+A brand-new coached account has no backups, so it still gets its plan the moment it links (§11 Q16).
+
+**Check:** `scripts/verify-demo-tour-restore.mjs` section 4: an empty device with backups fetches
+nothing; so does one whose backup list failed; a new account still pulls; a device with data pulls as
+before. The v8.39 control fails it.
+
+⚠️ **Recovering an account this hit:** Settings → Account & Data → Restore → Cloud, and pick a
+snapshot from **before** the day it happened (that day's file was overwritten). The pull then
+re-applies from that backup's ledger. The mirror is rebuilt by the next push.
+

@@ -80,6 +80,8 @@ function build(source) {
     const requestClientStateUpload = r => log.push(['upload', r]); // v8.38 (§130)
     const requestPublicationPull = r => log.push(['pull', r]); // v8.39 (§131)
     const syncPublicationChannel = () => log.push(['channel']);
+    const applyCoachedChrome = () => {};                   // v8.40 (§132)
+    const afterCoachLinkEnded = () => log.push(['ended']); // v8.40 (§132): verify-coached-hides.mjs covers it
     const showConfirm = (t, m, ok, cb) => { log.push(['confirm', t]); env.confirmCb = cb; };
     const setTimeout = (fn) => fn();
     ${consts.join('\n')}
@@ -177,7 +179,9 @@ async function run(source, label) {
   let r = await firstRun(e => { e.isNew = true; e.snapshots = []; });
   check('a new account (no backup): the mode question, and no Demo Tour yet', [r.step, r.log.some(l => l[0] === 'demo')], ['choice', false]);
   r = await firstRun(e => { e.isNew = true; e.snapshots = ['2026-09-27']; });
-  check('an existing account on a new phone (has a backup): not asked, the Demo Tour/restore as before', [r.step, r.log], [null, [['demo', true]]]);
+  // v8.40 (§133): no Demo Tour either. checkSnapshotZero()'s restore owns this
+  // case; a tour started alongside it raced the restore and could stop it saving.
+  check('an existing account on a new phone (has a backup): not asked, and no Demo Tour (the restore handles it)', [r.step, r.log], [null, []]);
   r = await firstRun(e => { e.isNew = true; e.listFails = true; });
   check("can't tell (backup list failed): not asked, as before", [r.step, r.log], [null, [['demo', true]]]);
   r = await firstRun(e => { e.isNew = false; });
@@ -272,6 +276,7 @@ async function run(source, label) {
     await e.confirmCb();
     check('…then revokes with the coach id and forgets the link',
       [e.calls.filter(c => c[0] === 'revoke_coach').map(c => c[1]), L.isCoachedMode()], [[{ p_coach_id: 'coach-1' }], false]);
+    if (label === 'now') check('v8.40: …and removes the coach\'s plan, once', e.log.filter(l => l[0] === 'ended').length, 1);
   }
 
   // ── The server wins: a link ended elsewhere is forgotten on refresh
@@ -284,6 +289,14 @@ async function run(source, label) {
     check('a link the coach ended is forgotten on the next check', L.isCoachedMode(), false);
     const q = e.calls.find(c => c[0] === 'from');
     check('…which asks only for this account\'s ACTIVE link', q && q[2], [['client_id', 'u1'], ['status', 'active']]);
+    if (label === 'now') check('v8.40: a link the coach ended removes the plan too, once', e.log.filter(l => l[0] === 'ended').length, 1);
+    // …but a phone that was never linked has nothing to remove: a Solo user's
+    // own cycles are never touched by a refresh.
+    const e2 = env(); const L2 = factory(e2);
+    L2.set('session', SESSION);
+    L2.set('supabase', fakeSupabase(e2, {}, { coach_clients: null }));
+    await L2.refreshCoachLink();
+    if (label === 'now') check('v8.40: an unlinked phone\'s refresh removes nothing', e2.log.filter(l => l[0] === 'ended').length, 0);
   }
   return failures;
 }

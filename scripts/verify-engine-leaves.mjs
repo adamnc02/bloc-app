@@ -207,13 +207,17 @@ if (process.env.BLOC_LEAVES_CHILD) {
     const { decls } = indexTopLevel(src);
     // save() counts; renderProgress() (acceptBlocChallenge's re-render) is the
     // whole Progress page, so it's stubbed and counted too.
-    const parts = closure(decls, stateNames, new Set(['save', 'renderProgress']));
+    // v8.40 (§132): coachedView() is stubbed as Solo. This compares Solo
+    // behaviour with v8.33/v8.34, which had no Coached mode; following it
+    // would pull in the auth session and the dev-host check (window).
+    const parts = closure(decls, stateNames, new Set(['save', 'renderProgress', 'coachedView']));
     const have = new Set(parts.map(p => p.name));
     const handles = HANDLES.filter(h => have.has(h));
     const body = `
       let __saves = 0;
       function save() { __saves++; }
       function renderProgress() { __saves += 1000; }
+      function coachedView() { return false; }
       ${parts.map(p => p.text).join('\n')}
       return {
         fns: { ${stateNames.join(', ')} },
@@ -339,12 +343,13 @@ if (process.env.BLOC_LEAVES_CHILD) {
   };
   const buildAiSide = (src, engine, doc) => {
     const { decls } = indexTopLevel(src);
-    const parts = closure(decls, AI_FNS, new Set(['save', 'renderProgress']));
+    const parts = closure(decls, AI_FNS, new Set(['save', 'renderProgress', 'coachedView'])); // v8.40: Solo, as above
     const have = new Set(parts.map(p => p.name));
     const handles = AI_HANDLES.filter(h => have.has(h));
     const body = `
       function save() { __out.push(['save']); }
       function renderProgress() { __out.push(['render']); }
+      function coachedView() { return false; }
       ${parts.map(p => p.text).join('\n')}
       return {
         fns: { ${AI_FNS.join(', ')} },
