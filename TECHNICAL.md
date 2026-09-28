@@ -8582,18 +8582,35 @@ coach's `note_reply` arrives (`state.coachNoteReplies[submissionId]`, §131), it
 
 **Check in** (`modal-coach-checkin`, the section's "Check in" button) is one `client_submissions` row:
 - `kind 'check_in'`;
-- `body {v, feel: Great|Good|Okay|Tough, note, photos: [paths], macro_id, sent_on}`.
+- `body {v, purpose: 'check_in', feel: Tough|Okay|Good|Great, note, macro_id, sent_on}`.
 
-Send is disabled until a feel is chosen. The sheet and the section say when the last one went
-(`state.coachCheckinsSent`, the last 20).
-- **Photos** (up to 3, downsized by the cycle review's `_downsizePhotoFileToBase64`, 1024px JPEG) go
-  to `client-media` at `{uid}/checkins/{folder}/{n}.jpg` **before** the row, and the row lists their
-  paths.
-- 🚨 **Only while photo consent is on, read from the link at SEND time**, not when they were picked.
-  With consent off the sheet says "Photos are off" and points to Settings → Coaching, and any photos
-  already picked are not uploaded.
-- 🚨 **A failed insert removes the photos it uploaded**, so a check-in that didn't send leaves nothing
-  behind in the coach-readable bucket. The form stays open with the reason.
+The feels read lowest to highest, left to right (Adam, UAT). Send is disabled until a feel is chosen.
+The sheet and the section say when the last one went (`state.coachCheckinsSent`, the last 20).
+
+🚨 **No photos on a check-in.** The proposal and the wireframe put photos on Check in. Adam, in the
+v8.41 UAT: *"progress photos were only ever used in the cycle review … the prompt to the LLM never had
+photo options wired up for checkins"*. The first draft shipped them on Check in, and they moved.
+
+**Photos for the cycle review** (Adam: *"Review tab, cycle's end"*):
+- **Where:** the Review tab shows **Send photos for your review** from the viewed cycle's **last 7 days**
+  and after it ends (`coachReviewPhotosDue()`), the window Solo's "Review this cycle" works in.
+- **The sheet** (`modal-coach-review-photos`) takes **Before** and **After** photos, up to 3 each, as
+  Solo's review does. They're downsized by `_downsizePhotoFileToBase64`, 1024px JPEG.
+- **Uploads:** to `client-media` at `{uid}/reviews/{folder}/{before|after}-{n}.jpg`, **then** one
+  `check_in` row with `body {v, purpose: 'cycle_review', macro_id, before: [paths], after: [paths], sent_on}`.
+  0023's CHECK allows only `check_in` / `note_back`, so the purpose is in the body, and **Coach
+  distinguishes the two by `body.purpose`**. No migration.
+- **Once per cycle:** `state.coachReviewPhotosSent[macroId]`, and the row then reads "✓ Photos sent to
+  {coach} for this review · {day}".
+- 🚨 **Only while photo consent is on, read from the link at SEND time.** With it off, the row reads
+  **"Photos are off · turn them on in Coaching…"**. It's a shortcut (`openCoachingPhotoConsent()`,
+  Adam's ask): it closes the sheet, opens Settings → Coaching, and scrolls the photo switch
+  (`#settings-coaching-photos`) into view after the slide-in. Consent withdrawn after picking sends
+  nothing, and the error links there too.
+- 🚨 **A failed insert removes the photos it uploaded**, so nothing is left in the coach-readable
+  bucket. The sheet stays open with the reason.
+
+Settings → Coaching's photo copy now says the photos are "for a cycle review".
 
 Neither send runs unless `coachingAvailable()` and linked. The server also refuses a submission to a
 coach the client isn't actively linked to (`is_my_active_coach`). Neither is queued offline: a failure
@@ -8604,8 +8621,9 @@ says so and keeps what was typed.
 - the card: the newest tool, the latest response per tool, the byline, first paragraph only, the
   scores, read-only, "Updated", escaping and the empty state;
 - the note: its row, the remembered state, the reply, a failure and unlinked;
-- Check in: no feel means nothing sent, the upload paths and the row, consent off at send time, and a
-  failed insert removing its uploads.
+- Check in: no feel means nothing sent, the feel order, no photos anywhere, and the row;
+- review photos: the last-7-days window, the consent-off shortcut, the upload paths and the row,
+  remembered per cycle, consent off at send time, and a failed insert removing its uploads.
 
 **Control:** v8.40 (`99273df`). `verify-coached-hides.mjs` now expects From your coach in the
 check-in's place, and in the tour.

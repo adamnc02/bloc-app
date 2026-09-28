@@ -5067,6 +5067,16 @@ try {
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-coach-review-photos">
+  <div class="modal-sheet" data-modal="modal-coach-review-photos" style="max-height:92dvh;display:flex;flex-direction:column;">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-coach-review-photos')">✕</button>
+    </div>
+    <div class="modal-title" style="flex-shrink:0;">Photos for your review</div>
+    <div id="coach-review-photos-body" style="overflow-y:auto;flex:1;"></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-cycle-review-full">
   <div class="modal-sheet" data-modal="modal-cycle-review-full" style="max-height:90dvh;display:flex;flex-direction:column;">
     <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div>
@@ -9922,9 +9932,9 @@ function renderSettingsCoaching() {
     <div class="card"><ul class="coach-facts">${COACH_SHARED.map(([t, s]) => `<li><b>${t}</b><span>${s}</span></li>`).join('')}</ul></div>
     <div class="coach-section-title">Progress photos</div>
     <div class="modal-sub" style="margin:0 0 8px;">${l.photoConsent
-      ? `${coachEsc(l.coachName)} can see photos you add to a check-in. Only you can change this.`
-      : `Off. ${coachEsc(l.coachName)} can’t see photos, and check-ins won’t ask for them.`}</div>
-    <div class="toggle-row" role="group" aria-label="Share progress photos with your coach">
+      ? `${coachEsc(l.coachName)} can see the photos you send for a cycle review. Only you can change this.`
+      : `Off. ${coachEsc(l.coachName)} can’t see photos, and cycle reviews won’t ask for them.`}</div>
+    <div class="toggle-row" id="settings-coaching-photos" role="group" aria-label="Share progress photos with your coach">
       <button class="toggle-btn${l.photoConsent ? '' : ' active'}" aria-pressed="${!l.photoConsent}" onclick="setCoachPhotoConsent(false)">Off</button>
       <button class="toggle-btn${l.photoConsent ? ' active' : ''}" aria-pressed="${l.photoConsent}" onclick="setCoachPhotoConsent(true)">On</button>
     </div>
@@ -14699,21 +14709,28 @@ function renderProgressCheckin(macro) {
 // shape BLOC reads (the contract Coach's publish must meet, §135):
 //   { headline, narrative: string[] | string, kcal?, steps?, compliance? }
 //
-// 🚨 Both things the client sends are `client_submissions` rows (0023): kind
-// 'note_back' (with the response's publication_id) or 'check_in'. Only to an
-// ACTIVE coach, which the server checks too. Photos go to `client-media` at
-// `{uid}/checkins/{folder}/{n}.jpg`, and only while photo consent is on.
+// 🚨 Everything the client sends is a `client_submissions` row (0023): kind
+// 'note_back' (with the response's publication_id) or 'check_in', whose
+// body.purpose is 'check_in' (feel + note) or 'cycle_review' (review photos).
+// Only to an ACTIVE coach, which the server checks too.
+// 🚨 Photos belong to the CYCLE REVIEW only, never a check-in (Adam, v8.41
+// UAT: in BLOC photos only ever fed the cycle review; the check-in prompt has
+// no images). They're sent from the Review tab in the cycle's last week or
+// after it ends, to `client-media` at `{uid}/reviews/{folder}/{before|after}-{n}.jpg`,
+// and only while photo consent is on.
 const COACH_TOOLS = [
   { key: 'check-in', tab: 'Check-in', label: 'Check-in', readFull: 'Read full check-in' },
   { key: 'cycle-review', tab: 'Review', label: 'Cycle review', readFull: 'Read full review' },
   { key: 'next-cycle', tab: 'Next cycle', label: 'Next cycle', readFull: 'Read full plan' },
 ];
-const COACH_FEELS = ['Great', 'Good', 'Okay', 'Tough'];
-const COACH_CHECKIN_MAX_PHOTOS = 3;
+const COACH_FEELS = ['Tough', 'Okay', 'Good', 'Great']; // lowest to highest, left to right (Adam, v8.41 UAT)
+const COACH_REVIEW_MAX_PHOTOS = 3;  // per side: before, after
+const COACH_REVIEW_PHOTOS_FROM_DAYS = 6; // the cycle's last 7 days, and after it ends
 let _fromCoachTab = null;   // null: the tool of the newest response in the viewed cycle
 let _fromCoachMacroId;      // the cycle the tab was chosen in; switching cycles resets it
 let _coachNoteFor = null;   // the coachAdvice entry a note is being written about
-let _coachCheckin = null;   // the open Check in form: {feel, note, photos[], busy, error}
+let _coachCheckin = null;   // the open Check in form: {feel, note, busy, error}
+let _coachReview = null;    // the open review-photos form: {macroId, before[], after[], busy, error}
 
 // 'check_in' and 'check-in' (and 'review') both name the same tool.
 function coachToolKey(t) {
@@ -14817,6 +14834,7 @@ function renderProgressFromCoach(el, macro) {
       ? `${coachEsc(coachFirstName())} hasn’t shared your next cycle yet. It appears here when it’s published.`
       : 'Nothing shared yet.'}</div>`;
   }
+  if (tab === 'cycle-review') body += coachReviewPhotosRowHTML(macro);
   const last = (state.coachCheckinsSent || [])[(state.coachCheckinsSent || []).length - 1];
   el.innerHTML = sectionHeader('From your coach', 'Your coach’s check-ins and reviews. Send a note back if something doesn’t fit.',
       { id: 'progress-from-coach', slot: `<button class="btn btn-ghost btn-sm" id="coach-checkin-btn" onclick="openCoachCheckin()">Check in</button>` })
@@ -14903,7 +14921,7 @@ async function sendCoachNote() {
 
 // ── Check in ───────────────────────────────────────────────────────────────
 function openCoachCheckin() {
-  _coachCheckin = { feel: null, note: '', photos: [], busy: false, error: null };
+  _coachCheckin = { feel: null, note: '', busy: false, error: null };
   renderCoachCheckin();
   openModal('modal-coach-checkin');
 }
@@ -14911,17 +14929,8 @@ function renderCoachCheckin() {
   const el = document.getElementById('coach-checkin-body');
   const f = _coachCheckin;
   if (!el || !f) return;
-  const l = coachLinkGet();
   const first = coachEsc(coachFirstName());
   const last = (state.coachCheckinsSent || [])[(state.coachCheckinsSent || []).length - 1];
-  const photos = l && l.photoConsent
-    ? `<div class="coach-photos">${Array.from({ length: COACH_CHECKIN_MAX_PHOTOS }, (_, k) => {
-        const p = f.photos[k];
-        return p
-          ? `<div class="coach-photo has" role="button" aria-label="Remove photo ${k + 1}" style="background-image:url(data:image/jpeg;base64,${p.base64})" onclick="removeCoachCheckinPhoto(${k})"></div>`
-          : `<label class="coach-photo" aria-label="Add photo ${k + 1}">+<input type="file" accept="image/*" style="display:none;" onchange="addCoachCheckinPhotos(event)"${k === f.photos.length ? '' : ' disabled'}></label>`;
-      }).join('')}</div><div class="coach-caption" style="text-align:left;">Only ${first} sees these. Tap a photo to remove it.</div>`
-    : `<div class="coach-notice"><b>Photos are off</b>You haven’t allowed progress photos. You can change this in Settings → Coaching.</div>`;
   el.innerHTML = `<div class="modal-sub" style="margin-top:0;">Tell ${first} how the week went. ${first} runs your check-in, and the response appears here in Progress.</div>
     ${last ? `<div class="coach-last" style="margin:0 0 12px;">Your last check-in went to ${first} on ${coachDayFmt(last.at)}.</div>` : ''}
     <div class="coach-section-title" style="margin-top:6px;">How did the week feel?</div>
@@ -14929,28 +14938,10 @@ function renderCoachCheckin() {
       `<button class="toggle-btn${f.feel === x ? ' active' : ''}" aria-pressed="${f.feel === x}" onclick="setCoachCheckinFeel('${x}')">${x}</button>`).join('')}</div>
     <div class="coach-section-title">Note</div>
     <textarea id="coach-checkin-note" rows="4" maxlength="2000" style="width:100%;box-sizing:border-box;" placeholder="Sleep, stress, sessions, food. Anything that shaped the week." oninput="_coachCheckin.note = this.value">${coachEsc(f.note)}</textarea>
-    <div class="coach-section-title">Progress photos</div>
-    ${photos}
     ${f.error ? `<div class="coach-err">${coachEsc(f.error)}</div>` : ''}
     <button class="btn btn-accent btn-block" style="margin-top:20px;" ${!f.feel || f.busy ? 'disabled' : ''} onclick="sendCoachCheckin()">${f.busy ? 'Sending…' : 'Send check-in'}</button>`;
 }
 function setCoachCheckinFeel(x) { if (!_coachCheckin || _coachCheckin.busy) return; _coachCheckin.feel = x; renderCoachCheckin(); }
-async function addCoachCheckinPhotos(event) {
-  const files = Array.from((event.target && event.target.files) || []);
-  if (event.target) event.target.value = '';
-  if (!_coachCheckin) return;
-  for (const file of files) {
-    if (_coachCheckin.photos.length >= COACH_CHECKIN_MAX_PHOTOS) break;
-    try { _coachCheckin.photos.push(await _downsizePhotoFileToBase64(file)); } catch (e) { /* skip unreadable file */ }
-  }
-  renderCoachCheckin();
-}
-function removeCoachCheckinPhoto(k) { if (!_coachCheckin || _coachCheckin.busy) return; _coachCheckin.photos.splice(k, 1); renderCoachCheckin(); }
-function coachBase64ToBlob(b64, type) {
-  const bin = atob(b64); const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return new Blob([bytes], { type });
-}
 async function sendCoachCheckin() {
   const f = _coachCheckin;
   if (!f || !f.feel || f.busy) return;
@@ -14960,35 +14951,138 @@ async function sendCoachCheckin() {
   f.busy = true; f.error = null; renderCoachCheckin();
   const uid = _authResolvedSession.user.id;
   const l = coachLinkGet();
-  // 🚨 Photos only while consent is on, read at send time, not when they were picked.
-  const photos = l.photoConsent ? f.photos.slice(0, COACH_CHECKIN_MAX_PHOTOS) : [];
-  const folder = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
-  const paths = [];
   try {
-    for (let i = 0; i < photos.length; i++) {
-      const path = `${uid}/checkins/${folder}/${i + 1}.jpg`;
-      const { error } = await supabase.storage.from('client-media').upload(path, coachBase64ToBlob(photos[i].base64, 'image/jpeg'), { contentType: 'image/jpeg', upsert: false });
-      if (error) throw error;
-      paths.push(path);
-    }
     const { data, error } = await supabase.from('client_submissions').insert({
       client_id: uid, coach_id: l.coachId, kind: 'check_in', publication_id: null,
-      body: { v: 1, feel: f.feel, note: (f.note || '').trim(), photos: paths, macro_id: state.currentMacroId || null, sent_on: getLocalToday() },
+      body: { v: 1, purpose: 'check_in', feel: f.feel, note: (f.note || '').trim(), macro_id: state.currentMacroId || null, sent_on: getLocalToday() },
     }).select('id').single();
     if (error) throw error;
     if (!Array.isArray(state.coachCheckinsSent)) state.coachCheckinsSent = [];
-    state.coachCheckinsSent.push({ submissionId: data.id, at: new Date().toISOString(), feel: f.feel, photos: paths.length });
+    state.coachCheckinsSent.push({ submissionId: data.id, at: new Date().toISOString(), feel: f.feel });
     if (state.coachCheckinsSent.length > 20) state.coachCheckinsSent = state.coachCheckinsSent.slice(-20);
     save();
     _coachCheckin = null;
     closeModal('modal-coach-checkin');
     renderProgress();
   } catch (err) {
-    // A check-in that didn't send leaves no orphan photos behind.
-    if (paths.length) supabase.storage.from('client-media').remove(paths).catch(() => {});
     f.busy = false;
     f.error = 'Couldn’t send it: ' + ((err && err.message) || 'check your connection and try again.');
     renderCoachCheckin();
+  }
+}
+
+// ── Photos for the cycle review (Review tab) ───────────────────────────────
+// From the cycle's last 7 days, and after it ends: the same window Solo's
+// "Review this cycle" works in, with before and after photos as Solo's review
+// asks for. Once per cycle; the row then says when they went.
+function coachReviewPhotosDue(macro) {
+  if (!macro || !macro.start) return false;
+  const end = new Date(toLocalDateStr(getMacroEndDate(macro)) + 'T00:00:00');
+  end.setDate(end.getDate() - COACH_REVIEW_PHOTOS_FROM_DAYS);
+  return getLocalToday() >= toLocalDateStr(end);
+}
+function coachReviewPhotosRowHTML(macro) {
+  if (!coachReviewPhotosDue(macro)) return '';
+  const sent = state.coachReviewPhotosSent && state.coachReviewPhotosSent[macro.id];
+  const first = coachEsc(coachFirstName());
+  if (sent) return aiTimerRow(`Photos sent to ${first} for this review · ${coachDayFmt(sent.at)}`).replace('⏱ ', '✓ ');
+  const l = coachLinkGet();
+  if (!l || !l.photoConsent) {
+    return `<button class="ai-timer-row" style="width:100%;border:none;cursor:pointer;font:inherit;" onclick="openCoachingPhotoConsent()">Photos are off · turn them on in Coaching to send ${first} photos for this review</button>`;
+  }
+  return aiActionRow('Send photos for your review', `openCoachReviewPhotos('${coachEsc(macro.id)}')`, 'coach-review-photos-btn');
+}
+// The "Photos are off" shortcut: Settings → Coaching, scrolled to the switch.
+function openCoachingPhotoConsent() {
+  document.querySelectorAll('.modal-overlay.open').forEach(o => closeModal(o.id));
+  openSettingsCoaching();
+  setTimeout(() => {
+    const t = document.getElementById('settings-coaching-photos');
+    if (t) t.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, 350); // after the sheet's slide-in, as §9's fit waits for
+}
+function openCoachReviewPhotos(macroId) {
+  _coachReview = { macroId, before: [], after: [], busy: false, error: null };
+  renderCoachReviewPhotos();
+  openModal('modal-coach-review-photos');
+}
+function renderCoachReviewPhotos() {
+  const el = document.getElementById('coach-review-photos-body');
+  const f = _coachReview;
+  if (!el || !f) return;
+  const m = (state.macrocycles || []).find(x => x.id === f.macroId);
+  const first = coachEsc(coachFirstName());
+  const grid = side => `<div class="coach-photos">${Array.from({ length: COACH_REVIEW_MAX_PHOTOS }, (_, k) => {
+      const p = f[side][k];
+      return p
+        ? `<div class="coach-photo has" role="button" aria-label="Remove ${side} photo ${k + 1}" style="background-image:url(data:image/jpeg;base64,${p.base64})" onclick="removeCoachReviewPhoto('${side}',${k})"></div>`
+        : `<label class="coach-photo" aria-label="Add ${side} photo ${k + 1}">+<input type="file" accept="image/*" multiple style="display:none;" onchange="addCoachReviewPhotos(event,'${side}')"${k === f[side].length ? '' : ' disabled'}></label>`;
+    }).join('')}</div>`;
+  const n = f.before.length + f.after.length;
+  el.innerHTML = `<div class="modal-sub" style="margin-top:0;">For ${coachEsc((m && m.name) || 'this cycle')}. ${first} uses them in your cycle review. Only ${first} sees them.</div>
+    <div class="coach-section-title" style="margin-top:6px;">Before · from the start of the cycle</div>${grid('before')}
+    <div class="coach-section-title">After · now</div>${grid('after')}
+    <div class="coach-caption" style="text-align:left;">Tap a photo to remove it.</div>
+    ${f.error ? `<div class="coach-err">${f.error}</div>` : ''}
+    <button class="btn btn-accent btn-block" style="margin-top:20px;" ${!n || f.busy ? 'disabled' : ''} onclick="sendCoachReviewPhotos()">${f.busy ? 'Sending…' : 'Send photos'}</button>`;
+}
+async function addCoachReviewPhotos(event, side) {
+  const files = Array.from((event.target && event.target.files) || []);
+  if (event.target) event.target.value = '';
+  if (!_coachReview || _coachReview.busy) return;
+  for (const file of files) {
+    if (_coachReview[side].length >= COACH_REVIEW_MAX_PHOTOS) break;
+    try { _coachReview[side].push(await _downsizePhotoFileToBase64(file)); } catch (e) { /* skip unreadable file */ }
+  }
+  renderCoachReviewPhotos();
+}
+function removeCoachReviewPhoto(side, k) { if (!_coachReview || _coachReview.busy) return; _coachReview[side].splice(k, 1); renderCoachReviewPhotos(); }
+function coachBase64ToBlob(b64, type) {
+  const bin = atob(b64); const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type });
+}
+async function sendCoachReviewPhotos() {
+  const f = _coachReview;
+  if (!f || f.busy || !(f.before.length + f.after.length)) return;
+  if (!coachingAvailable() || !isCoachedMode()) { f.error = 'You’re not linked to a coach right now.'; renderCoachReviewPhotos(); return; }
+  const l = coachLinkGet();
+  // 🚨 Consent is read at SEND time, not when the photos were picked.
+  if (!l.photoConsent) {
+    f.error = `Photos are off. <a href="#" onclick="openCoachingPhotoConsent();return false;" style="color:inherit;font-weight:700;">Turn them on in Coaching</a>.`;
+    renderCoachReviewPhotos(); return;
+  }
+  f.busy = true; f.error = null; renderCoachReviewPhotos();
+  const uid = _authResolvedSession.user.id;
+  const folder = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
+  const paths = { before: [], after: [] };
+  try {
+    for (const side of ['before', 'after']) {
+      for (let i = 0; i < f[side].length; i++) {
+        const path = `${uid}/reviews/${folder}/${side}-${i + 1}.jpg`;
+        const { error } = await supabase.storage.from('client-media').upload(path, coachBase64ToBlob(f[side][i].base64, 'image/jpeg'), { contentType: 'image/jpeg', upsert: false });
+        if (error) throw error;
+        paths[side].push(path);
+      }
+    }
+    const { data, error } = await supabase.from('client_submissions').insert({
+      client_id: uid, coach_id: l.coachId, kind: 'check_in', publication_id: null,
+      body: { v: 1, purpose: 'cycle_review', macro_id: f.macroId, before: paths.before, after: paths.after, sent_on: getLocalToday() },
+    }).select('id').single();
+    if (error) throw error;
+    if (!state.coachReviewPhotosSent || typeof state.coachReviewPhotosSent !== 'object') state.coachReviewPhotosSent = {};
+    state.coachReviewPhotosSent[f.macroId] = { submissionId: data.id, at: new Date().toISOString(), before: paths.before.length, after: paths.after.length };
+    save();
+    _coachReview = null;
+    closeModal('modal-coach-review-photos');
+    renderProgress();
+  } catch (err) {
+    // Photos that didn't make it into a submission don't stay in the coach-readable bucket.
+    const up = paths.before.concat(paths.after);
+    if (up.length) supabase.storage.from('client-media').remove(up).catch(() => {});
+    f.busy = false;
+    f.error = coachEsc('Couldn’t send them: ' + ((err && err.message) || 'check your connection and try again.'));
+    renderCoachReviewPhotos();
   }
 }
 
