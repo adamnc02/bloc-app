@@ -107,7 +107,7 @@ async function run(label, html, engineSrc) {
   let F = null;
   try {
     const seeds = ['homeNextSessionHTML', 'nextCoachBooking', 'coachReqSlots', 'sendCoachRequest', 'answerCoachRequest', 'sendCoachCounter',
-      'startCoachCounter', 'trainViewCoachOwned', 'coachSessionWhen', 'openCoachRequest', 'coachRequestItemHTML'];
+      'startCoachCounter', 'trainViewCoachOwned', 'coachSessionWhen', 'openCoachRequest', 'coachWaitingCardHTML', 'coachProposedCardHTML', 'coachRequestBooked', 'coachSlotLine', 'coachReqFormHTML'];
     for (const n of seeds) if (!decls.has(n)) throw new Error('missing ' + n);
     const stubs = ['state', 'coachLinkGet', 'coachingAvailable', 'isCoachedMode', 'supabase', '_authResolvedSession', 'getLocalToday',
       'renderHomeHero', 'openModal', 'document', 'getCoachAssignment', 'toLocalDateStr'];
@@ -154,14 +154,30 @@ async function run(label, html, engineSrc) {
     const wk = mk({ macrocycles: [], coachBookings: { w: { booking_id: 'w', date: '2026-09-30', start_min: 1080, status: 'booked', kind: 'weekly' } } }).homeNextSessionHTML();
     check('the row carries the wireframe\'s calendar icon, and a weekly booking says "Weekly" on its second line', [/<svg[^>]*>.*M3 6\.5a2 2/.test(wk), /<span class="sub">Weekly<\/span>/.test(wk)], [true, true]);
     const I = mk({ macrocycles: [], coachBookings: {} });
-    const acc = I.coachRequestItemHTML({ id: 'a', status: 'accepted', proposed: { date: '2026-09-30', start_min: 1080 }, preferences: [{ date: '2026-10-01', start_min: 1080 }], repeat_weekly: true });
-    check('a confirmed request stays visible: "✓ Confirmed · Wed 30 Sep, 18:00 · weekly", and that the coach books it',
-      [/✓ Confirmed · Wed 30 Sept?, 18:00 · weekly/.test(acc), /adds it to the diary/.test(acc), /Withdraw|Confirm<\/button>/.test(acc)], [true, true, false]);
+    // The rebuilt sheet (Adam, UAT: to the wireframe; "Show all that aren't booked").
+    check('the wireframe\'s slot format: "Wed 30 Sep · 18:00" / "Thu 1 Oct · any time 17:00–20:00"',
+      [/^Wed 30 Sept? · 18:00$/.test(I.coachSlotLine({ date: '2026-09-30', start_min: 1080 })), /^Thu 1 Oct · any time 17:00–20:00$/.test(I.coachSlotLine({ date: '2026-10-01', start_min: 1020, end_min: 1200 }))], [true, true]);
+    const prop = I.coachProposedCardHTML({ id: 'p', status: 'proposed', proposed: { date: '2026-09-30', start_min: 1080 }, preferences: [{ date: '2026-10-01', start_min: 1080 }] });
+    check('a suggested time is the eye-catching card: "{coach} proposed", "Needs your answer", "✓ Confirm Wed 18:00", Suggest another time',
+      [/is-proposed/.test(prop), /Sam proposed/.test(prop), /Needs your answer/.test(prop), /✓ Confirm Wed 18:00/.test(prop), /Suggest another time/.test(prop), /You asked for Thu 1 Oct · 18:00/.test(prop)], [true, true, true, true, true, true]);
+    const acc = I.coachWaitingCardHTML({ id: 'a', status: 'accepted', proposed: { date: '2026-09-30', start_min: 1080 }, preferences: [{ date: '2026-10-01', start_min: 1080 }], repeat_weekly: true });
+    check('confirmed but not yet booked: a Confirmed chip, the time, and that the coach adds it; no buttons',
+      [/>Confirmed</.test(acc), /Wed 30 Sept? · 18:00/.test(acc), /adds it to the diary/.test(acc), /Repeats weekly/.test(acc), /<button/.test(acc)], [true, true, true, true, false]);
     const I2 = mk({ macrocycles: [], coachBookings: { b: { booking_id: 'b', date: '2026-09-30', start_min: 1080, status: 'booked' } } });
-    check('…and its HEADER says "✓ Booked" once the coach\'s booking for that time has arrived',
-      /✓ Booked · Wed 30 Sept?, 18:00/.test(I2.coachRequestItemHTML({ id: 'a', status: 'accepted', proposed: { date: '2026-09-30', start_min: 1080 }, preferences: [] })), true);
+    check('🚨 a request that has been booked leaves this sheet (it is a session now)',
+      [I2.coachRequestBooked({ status: 'accepted', proposed: { date: '2026-09-30', start_min: 1080 } }), I.coachRequestBooked({ status: 'accepted', proposed: { date: '2026-09-30', start_min: 1080 } })], [true, false]);
+    const pend = I.coachWaitingCardHTML({ id: 'w', status: 'pending', preferences: [{ date: '2026-10-05', start_min: 1020, end_min: 1200 }], notes: 'Knees' });
+    check('a waiting request: "Free window", the Waiting chip, its notes, One-off, and Withdraw',
+      [/Free window/.test(pend), /Waiting for Sam/.test(pend), /Knees/.test(pend), /One-off session/.test(pend), /Withdraw/.test(pend)], [true, true, true, true, true]);
     check('a declined request says so, with no actions',
-      /couldn’t make these times/.test(I.coachRequestItemHTML({ id: 'd', status: 'declined', preferences: [{ date: '2026-10-01', start_min: 1080 }] })), true);
+      /couldn’t make it/.test(I.coachWaitingCardHTML({ id: 'd', status: 'declined', preferences: [{ date: '2026-10-01', start_min: 1080 }] })), true);
+    const form = I.coachReqFormHTML({ mode: 'times', times: [{ date: '2026-10-01', time: '18:00' }], window: {}, notes: '', repeat: true, busy: false });
+    check('the form: "Up to 3 times | A free window", "Choice 1", and Repeat weekly as an iOS-style switch, on',
+      [/Up to 3 times/.test(form), /Choice 1/.test(form), /role="switch" class="coach-switch" aria-checked="true"/.test(form)], [true, true, true]);
+    const W = mk({ macrocycles: [], coachBookings: { w: { booking_id: 'w', date: '2026-09-02', start_min: 1080, status: 'booked', kind: 'weekly' } } });
+    check('🚨 a weekly booking rolls forward: first dated Wed 2 Sep, "next" on 28 Sep is Wed 30 Sep',
+      W.nextCoachBooking() && W.nextCoachBooking().date, '2026-09-30');
+    check('…and a past one-off is gone', mk({ macrocycles: [], coachBookings: { o: { booking_id: 'o', date: '2026-09-02', start_min: 1080, status: 'booked' } } }).nextCoachBooking(), null);
     const none = mk({ macrocycles: [], coachBookings: {} }).homeNextSessionHTML();
     check('nothing booked: "None booked", and Request a session', /None booked/.test(none) && /Request a session/.test(none), true);
 

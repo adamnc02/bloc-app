@@ -8699,40 +8699,57 @@ When a request has a time waiting for an answer, the row reads "{coach} suggeste
 
 ### Request a session (`modal-coach-request`)
 
-Also in Settings → Coaching → Sessions. The client never sees the coach's diary.
+Also in Settings → Coaching → Sessions. The client never sees the coach's diary. 🚨 **Rebuilt to the
+wireframe** (`RequestScreen` / `SessionPrefs`) after Adam's UAT review: the first draft mixed the next
+session, requests and bookings in one list that would grow without end, and made "weekly" one easily
+missed word. Adam: *"separate my sessions and request a session into separate sheets"* (My sessions
+is its own sheet, next), and on this one *"Show all that aren't booked"*. From the top:
 
-- **The form:** up to three day-and-time choices, or one day with a free window; notes; one-off or
-  every week. Days start **tomorrow**.
-- **The slots** (`coachReqSlots()`) are exactly what `0024`'s `session_request_slots_ok()` accepts:
-  `{date, start_min}` or `{date, start_min, end_min}`, 1–3 of them, duplicates dropped. A window
-  needs its start before its end.
-- **Send** inserts **only the columns `0024` grants a client**: `client_id`, `coach_id`,
-  `preferences`, `notes`, `repeat_weekly`.
-- **Your requests** sit at the top of the sheet: the open ones (pending, proposed, countered), plus those
-  **answered in the last 14 days**. An accepted request reads "✓ Confirmed · Wed 30 Sep, 18:00 ·
-  weekly", with "{coach} adds it to the diary; it shows as your next session once it's booked". Once a
-  live booking at that time has arrived, the **header** changes to "✓ Booked · …" (Adam read the header
-  and missed a sub-line saying it). A declined one reads "{coach} couldn't make
-  these times". 🚨 **Confirming doesn't make the booking**; the coach's diary does, and it arrives as a
-  `booking` publication. The first draft dropped a request the moment it was answered, so a confirmed
-  time vanished until then (Adam, UAT).
-- For the open ones:
-  - **Withdraw** a pending one (it clears the coach's placeholder, §11);
-  - **Confirm** the coach's suggested time: `status 'accepted'`;
-  - **Suggest another time**: 🚨 **one** slot, a time or a window, in `counter`, with
-    `status 'countered'`. `0024`'s CHECK keeps exactly one counter, not the wireframe's three.
+- **A banner** when the coach has suggested a time (the wireframe's `CoachBanner` 'proposed'): a clock
+  icon, "{coach} proposed a different time", and "Tue 6 Oct · 19:00 instead of your choices".
+- **Your next session**, a card of its own: an eyebrow, the date and time large, then "60 min · Studio ·
+  with {coach} · weekly".
+- **Each suggested time**, the eye-catching card: accent-tinted, with "{coach} proposed", an amber
+  **Needs your answer** chip, the time large, "You asked for …", a full-width **✓ Confirm Tue 19:00**
+  and **Suggest another time**. The counter opens inside the card: 🚨 **one** time or one window
+  (Adam: *"One time or window"*; `0024` keeps one `counter` slot, the wireframe offered three).
+- **Every other request that isn't booked yet**, one card each:
+  - "Your choices" or "Free window", with a chip: Waiting for {coach}, Confirmed, or {coach}
+    couldn't make it (declined, for 14 days);
+  - the times, the notes, "You suggested …" or "Confirmed …", and "Repeats weekly." / "One-off
+    session.";
+  - **Withdraw** on a pending one.
 
-  The one-writer trigger refuses anything else a client tries.
-- 🚨 **A publication may land under this sheet** (`data-pub-safe`). §131's rule is "nothing applies
-  while a sheet is open", because an edit sheet's stale save would overwrite it. Request a session never
-  saves `state`, so `publicationsMustWait()` skips a `data-pub-safe` sheet, and `applyPublications()`
-  redraws it after applying. In UAT the coach's booking for a confirmed time waited until the sheet was
-  closed, so "Booked" needed a reload. It's the only sheet marked; anything that saves `state` must
-  never be.
+  A confirmed request that's been **booked leaves this sheet** (`coachRequestBooked()`: a live
+  booking at the confirmed time). It's a session now. 🚨 **Confirming doesn't make the booking**; the
+  coach's diary does, and it arrives as a `booking` publication.
+- **The form:**
+  - When suits you: **Up to 3 times | A free window**. Each time is a labelled "Choice 1–3" row
+    with a date, a time and ✕, then "+ Add another time", with "Up to 3 choices." / "That's three, the
+    most you can add." The window has Date, then Free from / Until, and "Any start time inside this
+    window works for you." (in red, "The end time needs to be after the start.");
+  - Notes for {coach};
+  - **Repeat weekly as an iOS-style switch** (`.coach-switch`, `role="switch"`; BLOC's first, where
+    on/off is otherwise a `.toggle-row` (§129); Adam asked for it);
+  - Send request, and "{coach} confirms a time or suggests another."
+- **The slots** use the wireframe's format ("Wed 30 Sep · 17:30", "Thu 1 Oct · any time 17:00–20:00").
+  They're exactly what `0024`'s `session_request_slots_ok()` accepts: `{date, start_min}` or
+  `{date, start_min, end_min}`, 1–3, duplicates dropped, days from **tomorrow**.
+- **What's sent:** Send inserts **only the columns `0024` grants a client**: `client_id`, `coach_id`,
+  `preferences`, `notes`, `repeat_weekly`. **Withdraw** and **Confirm** set only `status`
+  (`withdrawn` / `accepted`); **Suggest another time** sets `counter` and `status 'countered'`. The
+  one-writer trigger refuses anything else a client tries.
 - 🚨 **Requests are server truth, never `state`** (`_coachRequests`, in memory). `refreshSessionRequests()`
-  reads the client's newest 20 on opening the sheet, on resume, and **live**: the publications channel
-  also listens to `session_requests` for this client. That's how a coach's proposal reaches Home and the
-  sheet without a reload.
+  reads the newest 20 on opening the sheet, on resume, and **live**: the publications channel also
+  listens to `session_requests` for this client.
+- 🚨 **A publication may land under this sheet** (`data-pub-safe`). §131's rule is "nothing applies
+  while a sheet is open", because an edit sheet's stale save would overwrite it. This sheet never saves
+  `state`, so `publicationsMustWait()` skips it and `applyPublications()` redraws it. It's the only
+  sheet marked; anything that saves `state` must never be.
+
+**A weekly booking rolls forward** (`coachBookingNextDate()`): it's one booking dated its first
+occurrence, so "next" is the first weekly repeat on or after today. 🚨 Without it, a weekly session
+vanished from Your next session once its first date had passed.
 
 **Check:** `scripts/verify-coached-sessions.mjs` covers:
 - the engine: the skip, "exactly the next after", cancel, move, the earliest of two, the agenda's
