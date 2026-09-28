@@ -3641,6 +3641,11 @@ html.auth-likely-signed-in #auth-gate { display: none; }
   font-size: 13.5px; line-height: 1.45; margin-bottom: 14px; }
 .coach-notice b { display: block; margin-bottom: 2px; }
 .coach-hero { display: flex; gap: 14px; align-items: center; }
+/* v8.42: the wireframe CoachingScreen hero's footer: a divider, then "Linked since … date". */
+.coach-since { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-top: 18px; padding-top: 14px;
+  border-top: 1px solid var(--divider); font-size: 13.5px; }
+.coach-since span { color: var(--text2); }
+.coach-since b { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .coach-avatar { width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
   background: var(--accent); color: var(--on-accent); font-family: var(--font-display); font-weight: 600; font-size: 18px; }
 .coach-name { font-family: var(--font-display); font-size: 19px; font-weight: 600; }
@@ -10015,7 +10020,8 @@ function renderSettingsCoaching() {
         <span class="coach-avatar" aria-hidden="true">${coachEsc(coachInitials(l.coachName))}</span>
         <div style="flex:1;min-width:0;"><div class="coach-name">${coachEsc(l.coachName)}</div>${l.businessName ? `<div class="coach-biz">${coachEsc(l.businessName)}</div>` : ''}</div>
         <span class="chip" style="--chip-c:var(--green-text);">Linked</span>
-      </div>${since ? `<div class="modal-sub" style="margin:12px 0 0;">Linked since ${coachEsc(since)}</div>` : ''}</div>
+      </div>
+      <div class="coach-since"><span>Linked since</span><b>${coachEsc(since || '—')}</b></div></div>
     <div class="coach-section-title">What ${coachEsc(l.coachName)} sees</div>
     <div class="card"><ul class="coach-facts">${COACH_SHARED.map(([t, s]) => `<li><b>${t}</b><span>${s}</span></li>`).join('')}</ul></div>
     <div class="coach-section-title">Progress photos</div>
@@ -21662,7 +21668,7 @@ function renderHomeLogBoxes() {
   // meant a fresh day showed no route to the history at all — and the button
   // is a way IN to the logs, not a confirmation that something was logged.
   const bodyLogsBtn = `<button class="btn btn-ghost btn-block" id="home-body-logs-btn" style="margin-top:14px;"
-             onclick="showScreen('settings');openSettingsBodyLogs();">${icoList()} View body logs</button>`;
+             onclick="openSettingsBodyLogs();">${icoList()} View body logs</button>`;
 
   el.innerHTML = sectionHeader('Log today', "Two quick numbers. Measurements when they're due.")
     + `<div class="card">
@@ -24988,6 +24994,7 @@ function saveBodyLog() {
   save();
   closeModal('modal-body-log');
   renderBody();
+  redrawHomeIfShowing(); // v8.42
 }
 
 // ════════════════════════════════════════════════
@@ -25148,6 +25155,7 @@ function deleteBodyLog(date) {
     state.bodyLogs = state.bodyLogs.filter(l => l.date !== date);
     save();
     renderBody();
+  redrawHomeIfShowing(); // v8.42
   });
 }
 
@@ -25559,9 +25567,18 @@ function fillDayFromSample(groupId, sourceDate) {
 // via a nav tab. Stacks on top of whatever's open (e.g. modal-profile)
 // rather than closing it. Also used directly by the Home page's
 // "View logs" button on the steps progress card.
+// v8.42: opens over whatever is showing. Home's "View body logs" used to
+// switch to Settings first, so closing the sheet left you in Settings (Adam,
+// UAT: mirror the photo-consent shortcut, which closes back where it opened).
 function openSettingsBodyLogs() {
   renderBody();
   openModal('modal-settings-body-logs');
+}
+// A body log saved or deleted from that sheet while Home is showing redraws
+// Home (its weigh-in box and hero read the logs); Settings needed no redraw.
+function redrawHomeIfShowing() {
+  const h = document.getElementById('screen-home');
+  if (h && h.classList.contains('active')) renderHome();
 }
 
 function openProfileNutrition() {
@@ -29143,6 +29160,8 @@ function renderSettingsHero() {
   }
   if (prof.country) bits.push(prof.country);
   // Never an empty line: with no profile filled in, say what to do about it.
+  // v8.42: the wireframe's "… · Coached by {coach}" (SettingsScreen hero).
+  if (coachedView()) { const l = coachLinkGet(); bits.push(`Coached by ${coachEsc((l && l.coachName) || 'your coach')}`); }
   const sub = bits.length ? bits.join(' \u00b7 ') : 'Add your details in About me';
 
   el.innerHTML = `<span class="settings-hero-initials">${initials}</span>

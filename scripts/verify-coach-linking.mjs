@@ -275,6 +275,11 @@ async function run(source, label) {
     await L.setCoachPhotoConsent(true);
     check('a saved one sticks, sent with the coach id', [L.coachLinkGet().photoConsent, e.calls.filter(c => c[0] === 'set_photo_consent').pop()[1]],
       [true, { p_coach_id: 'coach-1', p_consent: true }]);
+    // v8.42: the wireframe CoachingScreen hero's footer, "Linked since … date".
+    e.store.set('bloc_coach_link', JSON.stringify(Object.assign(JSON.parse(e.store.get('bloc_coach_link')), { linkedAt: '2026-09-28T10:00:00Z' })));
+    L.renderSettingsCoaching();
+    if (label === 'now') check('v8.42: the Coaching hero ends with the "Linked since … 28 Sep 2026" row',
+      /class="coach-since"><span>Linked since<\/span><b>28 Sept? 2026<\/b>/.test(e.document.getElementById('settings-coaching-body').innerHTML), true);
     L.confirmUnlinkCoach();
     check('Unlink asks first', e.log.filter(l => l[0] === 'confirm').map(l => l[1]), ['Unlink from Sam?']);
     await e.confirmCb();

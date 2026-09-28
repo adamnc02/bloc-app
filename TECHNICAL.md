@@ -8781,6 +8781,16 @@ is its own sheet, next), and on this one *"Show all that aren't booked"*. From t
   `state`, so `publicationsMustWait()` skips it and `applyPublications()` redraws it. It's the only
   sheet marked; anything that saves `state` must never be.
 
+### Two Settings details, from the same UAT
+
+- **Settings → Coaching's hero ends with the wireframe's footer**: a divider, then "Linked since" on the
+  left and the date on the right (`.coach-since`). The first build had it as a small grey line that
+  read as missing. The Settings hero's sub-line adds "Coached by {coach}", as the wireframe's does.
+- **Home → View body logs opens the sheet over Home.** It used to `showScreen('settings')` first, so
+  closing it left you in Settings (Adam: mirror the photo-consent shortcut, which closes back where it
+  opened). `saveBodyLog()` and `deleteBodyLog()` now also redraw Home when it's showing
+  (`redrawHomeIfShowing()`), because Home's weigh-in box and hero read those logs.
+
 **A weekly booking rolls forward** (`coachBookingNextDate()`): it's one booking dated its first
 occurrence, so "next" is the first weekly repeat on or after today. 🚨 Without it, a weekly session
 vanished from Your next session once its first date had passed.

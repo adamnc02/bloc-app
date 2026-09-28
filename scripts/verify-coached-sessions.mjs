@@ -241,6 +241,11 @@ async function run(label, html, engineSrc) {
     check('Suggest another time: ONE counter slot and status countered', calls.filter(c => c[0] === 'update').pop().slice(2),
       [{ counter: { date: '2026-10-03', start_min: 570 }, status: 'countered' }, 'r7']);
   }
+  // v8.42 (Adam, UAT): Home's View body logs opens over Home and closes back to
+  // it (it used to switch to Settings first), and a save there redraws Home.
+  check('View body logs opens over Home, not via Settings; saving or deleting a log redraws Home',
+    [/onclick="showScreen\('settings'\);openSettingsBodyLogs\(\);"/.test(src), /onclick="openSettingsBodyLogs\(\);">/.test(src),
+      /redrawHomeIfShowing\(\)/.test((decls.get('saveBodyLog') || {}).text || ''), /redrawHomeIfShowing\(\)/.test((decls.get('deleteBodyLog') || {}).text || '')], [false, true, true, true]);
   check('the coach\'s answers arrive live: the Realtime channel also listens to session_requests',
     /table: 'session_requests', filter: 'client_id=eq\.'/.test((decls.get('syncPublicationChannel') || {}).text || ''), true);
   return failures;
