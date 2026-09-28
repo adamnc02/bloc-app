@@ -8493,3 +8493,37 @@ null, `state` empty and the profile gate open, with no console errors.
 stays. Settings → Account & Data → Restore → Cloud now works on it (the first fix), or clearing
 `bloc_snapshot_autorestore_done` lets the next launch restore automatically.
 
+## §134 — v8.40: the coach's publications wait for a new device's restore
+
+Found in the same v8.40 UAT, straight after §133's fix, on the Work account (a test account; nobody
+real is coached yet).
+
+**What happened.** The local address held nothing, and the old "already restored" flag was still set,
+so no restore ran. The publication pull (§131) ran anyway: the ledger was empty, so it applied all four
+of the coach's publications onto the empty device. "Clashing block" applied too, because the Solo
+cycle it clashes with wasn't there.
+
+🚨 **Then the §109 guard stopped protecting the account.** Two coach cycles made the device "hold real
+data" (`deviceHasRealData()`), so:
+- the mirror push, delete-then-reinsert, removed the account's 602 set logs, its cycles and its
+  goals from the server copy;
+- the daily snapshot overwrote **today's** cloud backup with the coach-only state;
+- the next auto-restore then restored that.
+
+**The rule:** never apply publications onto an **empty** device whose account has backups. That device
+is waiting for its restore, and the backup carries the ledger (`state.coachLedger`, §131). Once
+restored, the pull resumes from the restored ledger and applies only what the backup lacks.
+`pullPublicationsOnce()` returns `'awaiting-restore'` before fetching anything when
+`!deviceHasRealData()` and the backup list has entries, **or can't be read** (waiting is safe, applying
+isn't).
+
+A brand-new coached account has no backups, so it still gets its plan the moment it links (§11 Q16).
+
+**Check:** `scripts/verify-demo-tour-restore.mjs` section 4: an empty device with backups fetches
+nothing; so does one whose backup list failed; a new account still pulls; a device with data pulls as
+before. The v8.39 control fails it.
+
+⚠️ **Recovering an account this hit:** Settings → Account & Data → Restore → Cloud, and pick a
+snapshot from **before** the day it happened (that day's file was overwritten). The pull then
+re-applies from that backup's ledger. The mirror is rebuilt by the next push.
+

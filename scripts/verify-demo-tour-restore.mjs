@@ -20,7 +20,12 @@
 //     every backup is empty, the tour starts; with NO backups, nothing here
 //     starts it (the mode question owns a new account, §129);
 //   · every way out of the welcome sheet but "Let's go" leaves demo mode,
-//     exactly as finishing does.
+//     exactly as finishing does;
+//   · (§134) the coach's publications are never applied onto an EMPTY device
+//     whose account has backups. In the same UAT, the pull filled the empty
+//     device with the coach's two cycles, which made it "real", so the mirror
+//     push deleted the account's 602 set logs from the server and the daily
+//     snapshot was overwritten with the coach-only state.
 //
 // Control: v8.39 (31ec0b7) must fail.
 // ═══════════════════════════════════════════════════════════════════════
@@ -128,6 +133,32 @@ async function run(label, src) {
     check('…and so are its swipe and backdrop (MODAL_DISMISS_HANDLERS)', /'modal-tour-welcome': 'skipDemoTour'/.test(src), true);
     check('"Let\'s go" still starts the steps, not a skip', /closeModal\('modal-tour-welcome'\);beginDemoTourSteps\(\);/.test(welcome), true);
   }
+  // ── 4. §134: the pull waits for the restore ──────────────────────────────
+  {
+    const [pull] = need('async function pullPublicationsOnce(');
+    const pullRun = async (real, snapshots) => {
+      const log = [];
+      const f = new Function('env', `
+        const coachingAvailable = () => true, isCoachedMode = () => true;
+        const coachLinkGet = () => ({ clientRecordId: 'card-1' });
+        const refreshCoachLink = async () => {};
+        const deviceHasRealData = () => env.real;
+        const listSnapshots = async () => { env.log.push('list'); if (env.snapshots === 'fail') throw new Error('offline'); return env.snapshots; };
+        const publicationCursor = () => 0;
+        let _pubPending = [];
+        const drainPublications = async () => 'drained';
+        const chain = { select() { return chain; }, eq() { return chain; }, gt() { return chain; }, order() { return chain; }, async limit() { env.log.push('fetch'); return { data: [], error: null }; } };
+        const supabase = { from: () => chain };
+        ${pull}
+        return pullPublicationsOnce;`)({ real, snapshots, log });
+      const r = await f();
+      return [r, log.includes('fetch')];
+    };
+    check('an EMPTY device whose account has backups fetches nothing and waits for its restore', await pullRun(false, ['2026-09-27']), ['awaiting-restore', false]);
+    check('…and if it can\'t tell (the backup list failed), it waits too', await pullRun(false, 'fail'), ['awaiting-restore', false]);
+    check('a brand-new account (empty, no backups) still gets its plan at once', await pullRun(false, []), ['drained', true]);
+    check('a device with real data pulls as before, without listing backups', await pullRun(true, ['x']), ['drained', true]);
+  }
   return failures;
 }
 
@@ -140,9 +171,9 @@ try { cf = await run('v8.39', execFileSync('git', ['show', `${CONTROL}:index.htm
 catch (e) { cf = 99; lines.push('✗ threw: ' + e.message); }
 finally { console.log = orig; }
 const failed = lines.filter(l => l.startsWith('✗'));
-const want = [/is SAVED/, /skipDemoTour\(\) closes/];
+const want = [/is SAVED/, /skipDemoTour\(\) closes/, /fetches nothing and waits/];
 const missing = want.filter(re => !failed.some(l => re.test(l)));
-if (cf > 0 && !missing.length) console.log(`✓ control: v8.39 fails ${cf} checks, including the unsaved restore and the ✕ that didn't skip`);
+if (cf > 0 && !missing.length) console.log(`✓ control: v8.39 fails ${cf} checks, including the unsaved restore, the ✕ that didn't skip, and the pull onto an empty device`);
 else { console.log(`✗ control: v8.39 should fail the unsaved restore and the skip (${cf} failed; missing ${missing.join(', ')})`); process.exitCode = 1; }
 
 if (failures) { console.log(`\nFAIL: ${failures} check(s) failed.`); process.exit(1); }

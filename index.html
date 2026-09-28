@@ -10305,6 +10305,17 @@ let _pubRetryTimer = null;
 
 async function pullPublicationsOnce() {
   if (!coachingAvailable() || !isCoachedMode()) return 'not-coached';
+  // 🚨 v8.40 (§134): never apply onto an EMPTY device whose account has
+  // backups. That device is waiting for its restore, and the backup carries
+  // the ledger. Applying first made the coach's cycles its only data, so the
+  // §109 empty-device guard let the mirror push and the daily snapshot
+  // overwrite the account's real data with them (found in the v8.40 UAT). A
+  // brand-new account has no backups, so it still gets its plan at once.
+  if (!deviceHasRealData()) {
+    let backups = 1; // can't tell → treat as "has backups": waiting is safe, applying isn't
+    try { backups = (await listSnapshots()).length; } catch (e) { /* keep waiting */ }
+    if (backups > 0) return 'awaiting-restore';
+  }
   // The card id comes from coach_clients; a link made on this phone learns it here.
   if (!coachLinkGet().clientRecordId) await refreshCoachLink();
   const l2 = coachLinkGet();
