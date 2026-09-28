@@ -8988,7 +8988,7 @@ build put the response banner on Progress, above From your coach. **A count** (`
 iOS-style, sits over the banner's top-right corner when more than one is waiting: the proposed time, plus one
 per kind with anything undismissed (dismissing one clears its kind). It's above the ✕, never over it.
 
-**Check:** `scripts/verify-coach-logged.mjs` (59 checks) runs the built engine and the real functions on the
+**Check:** `scripts/verify-coach-logged.mjs` (64 checks) runs the built engine and the real functions on the
 demo dataset. It covers:
 - **D3:** the held target (with the unmarked substitute's 10 kg as the control inside), no lock, the walk
   past, Train on both weeks, history under the substitute's name, and nothing changing shape without a
