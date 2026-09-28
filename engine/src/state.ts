@@ -85,6 +85,11 @@ export interface TrainLog {
   dropWeight?: Loose;
   dropReps?: Loose;
   progType?: string;
+  // v8.43 (§137, deep dive I3): a set the coach logged in person. Absent on
+  // everything the client logs.
+  loggedBy?: 'coach';
+  loggedAt?: string;
+  sessionId?: string;
   [k: string]: unknown;
 }
 
@@ -125,6 +130,26 @@ export interface CoachBooking {
   [k: string]: unknown;
 }
 
+// v8.43 (§137): an exercise that isn't the planned one for ONE session, keyed
+// `${macroId}_${dayKey}_${exId}_w${week}` (the progression-target key). Deep dive
+// D3: the four progression sites skip the week, and the planned exercise's
+// target holds for the next one.
+//   · 'swap': the client's Swap for today (Coached mode, proposal §4.3). The
+//     substitute is logged in the planned exercise's own set-log slots, and
+//     filed in history under its own name.
+//   · 'group': a group session the coach marked as replacing this planned
+//     session (proposal §5.6, §11 Q21): counted as done, never scored.
+export interface Substitution {
+  kind: 'swap' | 'group';
+  name?: string;
+  bodyPart?: string;
+  type?: string;
+  trackingMode?: string;
+  at?: string;
+  sessionId?: string;
+  [k: string]: unknown;
+}
+
 export interface BlocState {
   macrocycles?: Macrocycle[];
   exercises?: Record<string, Loose[]>;
@@ -153,6 +178,8 @@ export interface BlocState {
   // v8.39 (§131): a coach's bookings, applied from `booking` publications.
   // v8.42 (§136): read by the engine for the in-person assignment (proposal §5.6).
   coachBookings?: Record<string, CoachBooking>;
+  // v8.43 (§137): Swap for today and a group session's "replaces" (D3).
+  substitutions?: Record<string, Substitution>;
   mode?: string;
   currentMacroId?: string | null;
   currentWeek?: number;

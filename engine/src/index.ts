@@ -22,7 +22,7 @@
 //     source. CI rebuilds and fails if the committed bytes differ.
 // ═══════════════════════════════════════════════════════════════════════
 
-export type { BlocState, BlocProfile, BodyLog, DateStr, Macrocycle, SampleDayGroup, GoalPeriod, NutritionLog, TrainLog, Loose } from './state.ts';
+export type { BlocState, BlocProfile, BodyLog, DateStr, Macrocycle, SampleDayGroup, GoalPeriod, NutritionLog, TrainLog, Loose, Substitution, CoachBooking } from './state.ts';
 export { normaliseState } from './state.ts';
 export type { EngineContext } from './dates.ts';
 export {
@@ -73,6 +73,7 @@ export type { VolumePoint, MacroSession } from './sessions.ts';
 export {
   isDeloadUnit, isFirstUnitAfterDeload, getSessionVolume, getMacroTotalVolume, getMacroVolumeSeries,
   getAllMacroSessions, getCoachAssignment, getNextIncompleteSession, getSelectedTrainWeekDates, getTrainAgendaUnits,
+  getSubstitutionKey, getSubstitution, isSubstitutedUnit, getCoachLoggedSession,
 } from './sessions.ts';
 export type { DayStats, TdeeResult } from './tdee.ts';
 export {
@@ -89,11 +90,11 @@ export {
 // ── v8.35 (§125): step 5, the progression core. Targets are read and filled
 //    through a TargetCache; the lock is returned as a transition, never
 //    written. ───────────────────────────────────────────────────────────────
-export type { RpeStep, WeekTarget, TargetCache, RawTargets, ComplianceResult, LockEntry, LockTransition, ExerciseProgression, ProgressionOpts } from './targets.ts';
+export type { RpeStep, WeekTarget, TargetCache, RawTargets, ComplianceResult, LockEntry, LockTransition, ExerciseProgression, ProgressionOpts, ProgressionReplay } from './targets.ts';
 export {
   getRpeKey, isRpeOn, rpeDrivesProgression, RPE_STEP_NONE, rpeStepFromKind, computeRpeStepKind, getRpeStep,
   PROG_STEP_MAINTENANCE, getProgressionStep, bumpRepsBy, getLastCompliantWeek, computeRawSuggestedTargets,
-  getWeekTargets, getWeekComplianceResult, computeLockTransition, computeExerciseProgression,
+  getWeekTargets, getWeekComplianceResult, computeLockTransition, computeExerciseProgression, replayProgressionAfterLog,
 } from './targets.ts';
 
 // ── v8.35 (§125): step 6, mutators as pure cores, and the AI flows. The engine

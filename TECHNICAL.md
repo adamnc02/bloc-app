@@ -8661,8 +8661,8 @@ dayKey}`. 🚨 **Assigning makes the session the coach's at once** (§5.6), not 
 - **The agenda** (`getTrainAgendaUnits`) adds `withCoach {date, start_min}` to that session's row, only
   when there is one. So every existing output, the golden file included, is byte-identical. The row's
   meta line reads "With your coach · Thu 1 Oct, 18:00".
-- **Train is read-only on it** (`trainViewCoachOwned()`; 4e-4 adds a coach-logged session to
-  `coachOwnedSession()`):
+- **Train is read-only on it** (`trainViewCoachOwned()`; §137 adds a coach-logged session and a
+  group-replaced one to `coachOwnedSession()`):
   - a notice above the cards;
   - every input disabled, and every write control marked `data-locked` (`applyTrainCoachLock()`);
   - 🚨 **every function that writes `trainLogs` or `rpe` refuses on its first line** (15 of them,
@@ -8734,7 +8734,7 @@ Request sheet.
 - 🚨 **It's the only banner that comes back.** 4e-4's other three (plan updated, goal phases changed,
   session confirmed) are informational: their dismissal is permanent.
 - **It updates live** with the request (the `session_requests` listener), and goes once answered.
-- 4e-4 adds the other banner kinds (plan, goal phases, a response, a booking).
+- 4e-4 adds the other banner kinds (plan, goal phases, a response, a booking): §137.
 
 ### Request a session (`modal-coach-request`)
 
@@ -8824,3 +8824,239 @@ Driven in Chromium at 375pt with a booking assigned to the next session:
 - the agenda shows "Pull · With your coach · …" and "Legs · … · Up next";
 - the request sheet renders;
 - nothing overflows, and there are no console errors.
+
+## §137 — v8.43: sessions the coach logs, Swap for today, group sessions and the banners (PROMPT-03 Phase 4e-4)
+
+Proposal §4.3, §5.6, §8 and §11 (Q13, Q21, Q24, Q26); deep dive I2, I3 and D3. The server half is `0023`'s
+`session_log` publication. No migration. This closes Coached mode in BLOC; Phase 5 is BLOC Coach.
+Wireframe reference: `TrainScreen.tsx` / `ExerciseCard.tsx` (`SwapSheet`, the swapped card, the read-only
+session) and `HomeScreen.tsx` (`BannerSlot`).
+
+### A session the coach logged in person (`applySessionLogPublication()`)
+
+4d stored `session_log` publications without applying them (§131). They now apply through the same
+funnel, and the ones 4d stored (their `seq` is below the cursor, so no pull brings them back) apply once
+from the stored copy (`queueStoredSessionLogs()`; `'stored'` no longer counts as settled).
+
+🚨 **The payload contract Coach's Start session must send** (0023 allow-lists the keys; this is what's
+inside them):
+
+```
+in person: {v, session_id, booking_id?, macro_id, week, day_key, kind: 'in_person',
+            logs: {exId: {sets: [{weight, reps, done?, dropWeight?, dropReps?}], progType?} | [sets]},
+            rpe?: {exId: 1–10 | 'skipped'}}
+group:     {v, session_id, booking_id, kind: 'group',
+            logs: [{name, sets: [{weight, reps}]}],
+            replaces?: {macroId, week, dayKey} | null}
+```
+
+`exId` is the client's exercise id in that session's template (`${macroId}_1_${dayKey}`). A set with no
+`done` is done. A republish with the same `session_id` (a correction, with `supersedes`) replaces the
+session. It's held (`needs_attention`) when the cycle isn't on the phone, the week isn't in it, the session
+has no template, or an exercise it logs or rates isn't in that session.
+
+**What it writes:**
+- **The sets** (deep dive I3): `trainLogs[${macroId}_${week}_${dayKey}_${exId}_${n}]`, the numbers as strings
+  as Train's inputs store them, stamped `{loggedBy: 'coach', loggedAt, sessionId}`. 🚨 **A coach's session
+  owns the whole (week, dayKey) session:** anything logged in it before is replaced. The client's own sets
+  are kept on the record (`coachSessionLogs[pubId].replacedClientLogs`), never lost. (Coach refuses to
+  assign a session the client has started, §5.6, so this is the rare case.)
+- **The ratings** (§11 Q13): `rpe[key] = {rpe, ratedBy: 'coach'}` or `{rpeSkipped: true, ratedBy: 'coach'}`.
+  The card's tag reads "RPE 8 · rated by coach". The mirror (`exercise_ratings`) maps only `rpe`/`skipped`.
+- 🚨 **The I2 replay** (`BlocEngine.replayProgressionAfterLog()`, pure, BLOC writes its result). The target
+  cache assumed logs only change on this device, so a coach week arriving after the phone had cached later
+  weeks' targets left them computed without it, frozen. For each exercise the coach logged:
+  1. targets for weeks **after** it that the client has **not logged** are dropped and recompute from the
+     coach's numbers. A week with any set logged keeps its target: **logged weeks never change** (§0, the
+     same rule as a changed plan, `invalidateUnloggedTargets()`, §131);
+  2. the lock is dropped and replayed from week 2, in order, through `computeLockTransition`: the sequence the
+     phone would have produced had the week been logged on it.
+- **History** (I3, the side effect `toggleSetDone` has): `recordExerciseHistory` for each exercise the coach
+  logged, **only when it's that exercise's latest logged week**, so an older week can't overwrite "last
+  logged".
+
+🚨 **`state.coachSessionLogs` is an OBJECT keyed by publication id** (found in UAT). v8.40's
+`removeCoachPlan()` reset it to `[]` on unlink, and a record keyed onto an array is dropped by
+`JSON.stringify`: on any account that had been unlinked, no session record (and none of the client's
+replaced sets) survived a save. The sets themselves were unaffected. Unlink now leaves `{}`, and the
+appliers treat an array as empty; `verify-coached-hides.mjs` had `[]` as its expected value.
+
+**Read-only.** `BlocEngine.getCoachLoggedSession()` finds a set with `loggedBy: 'coach'` in the session.
+It's read from the logs themselves, so it holds after a restore, after an unlink and in the `client_state`
+Coach reads. `coachOwnedSession()` returns `{kind: 'logged'}` for it, so every one of §136's Train guards
+applies (the 17 writers, the lock, no Effort ratings row). The notice is the wireframe's: **"Logged by your
+coach · in person"**, "{coach} logged this session with you on Tue 4 Aug. It's read-only." The agenda row reads
+"Logged by your coach · 4 of 17 sets". 🚨 **`getNextIncompleteSession()` also steps over a coach-logged
+session left unfinished** (in the engine, as for an assigned one): the client can't finish it, so it must
+never be their "next".
+
+`verify-coached-sessions.mjs` derives the Train writers from the code; the applier is the one exemption,
+**named** (`COACH_WRITES`), because it's what makes a session the coach's.
+
+### A group session (§5.6, §11 Q21)
+
+`kind: 'group'` never touches progression. It's an **extra session** on the client's record,
+`state.coachExtraSessions[session_id]` (dated by its booking), shown in **Your sessions → Group sessions**
+as "Group session · logged by coach". With `replaces`, the planned session that day is treated as swapped:
+a `'group'` substitution (below) on every exercise of it, so it **counts as done** with nothing logged,
+**isn't scored**, and its targets hold. Train shows it read-only: "Replaced by a group session", with each
+exercise under its **own** name and that tag (the first build treated the group marker as a swap and read
+"Another exercise", found in UAT); the week after says "Target held after a group session". A correction
+without `replaces` hands it back.
+
+### Swap for today (D3; §11 Q24, Q26)
+
+Coached only (Q24: Solo edits its own plan). Offered on a **solo, non-cardio exercise before its first set
+is done** (the wireframe), never on the coach's session. **Swap for today** opens `modal-swap-today`.
+
+🚨 **It's a search sheet, so it's §9's `.kb-pinned-sheet`, exactly** (the four parts; the search box is
+`oninput="renderSwapTodayList()"`, which `verify-kb-pinned-sheets.mjs` recognises; `swap-today-list-wrap` is in
+`measureAll()`). It shows the planned exercise and its target, then **the client's own library**,
+`getLibrary()` (Q26), without cardio or the planned exercise, **as divider rows** (the exercise library's
+`.lib-row`, not cards; Adam, UAT): **"Other {part} exercises"** first, then everything else in the library's
+own order (body part, then name). 🚨 **The part** (`swapBodyPartOf()`) is the planned exercise's library entry,
+else its own `bodyPart`, else a guess from its name (`SWAP_PART_WORDS`): a coach's plan can name an exercise
+the library doesn't have ("Bench Press"; the library says "Flat Press") with no `bodyPart`, and in UAT nothing
+came first. **Phase 5: Coach's plan exercises should carry `bodyPart`.** The sheet's height is the pinned
+pattern's, unchanged (Adam: *"if it's the same as the log food search modal, it needs to stay as it is"*); the
+gap under it in a laptop browser is how every pinned sheet looks there. **Tapping a row swaps**,
+the one-tap pattern of Log a recipe. The wireframe's pick-then-button would put the button behind the
+keyboard. **Back to {planned}** undoes it; with sets logged it asks first, then clears them.
+
+**The marker:** `state.substitutions[${macroId}_${dayKey}_${exId}_w${week}]` (the target key) =
+`{kind: 'swap', name, bodyPart, type, trackingMode, at}`. The substitute is logged **in the planned
+exercise's own set-log slots**, so the session's done state, volume and the mirror work unchanged. 🚨 **Every
+engine site that would read those logs as the planned exercise's skips the week** (deep dive D3; without it
+the next week fell back to the theoretical `startWeight + jump × (week − 1)`, the week locked as a miss, and
+history filed the substitute under the planned name):
+
+| Site | With the marker |
+|---|---|
+| `getWeekComplianceResult` | `{fullyLogged: false, substituted: true}`: nothing to judge, so the lock never moves on it (`computeLockTransition`), the week after gets no RPE step from it, and "missed target" never shows. Coach's compliance (D4) reads it as N/A |
+| `getLastCompliantWeek` | walks past it, as past a deload |
+| `getWeekTargets` (the week **after**) | **holds** the swapped week's target (a copy, without its `rpeStep`; recursive, so two swaps in a row hold the same number). A lock or a deload wins, as everywhere |
+| `computeExerciseProgression` | on the swapped week: no target, no last week (`isSwapped`); on the week after: the held target, with the substitute's sets hidden from "Last wk" (`heldAfterSwap`) |
+| `recordExerciseHistory` | files a swap under the **substitute's** name; a group replacement files nothing |
+| `getAllMacroSessions` / the agenda | a `'group'` replacement counts as done |
+
+The card: the substitute's name, "Instead of {planned}. Its target holds for next time.", **Swapped for
+today**, no target, no Fill suggested, no auto-complete; the week after shows "Target held after a swap". The
+effort sheet rates it under the substitute's name. Both flags appear on the engine's result **only when
+true**, and the card's extra markup is inline, so Solo's output is byte-identical (`verify-engine-leaves`,
+the golden file).
+
+⚠️ **Not covered:** a superset member or a cardio exercise can't be swapped (their cards are separate
+code). The coach sees the swap in `client_state` (`substitutions`), not as a publication.
+
+### From your coach, tightened in UAT (§135's card)
+
+Adam, v8.43 UAT:
+- **Every new button carries an icon left of its text** (`.coach-icon-btn`): **Read full …** has reading
+  glasses (`COACH_ICO_READ`), **Send a note back** a speech bubble (`COACH_ICO_BUBBLE`). 🚨 The pulsing ✦ row
+  (`aiActionRow`) is Solo's, and means "your next AI check-in or review is due"; the note back no longer uses it.
+- **Send a note back is in the full sheet only** (`openCoachResponse()`), with the "✓ Note sent" line and the
+  coach's reply. The Progress card keeps the byline, headline, first paragraph, numbers and Read full.
+- 🚨 **Check in keeps Solo's rhythm** (`coachCheckinGate()`). It opens once the cycle has enough data to judge
+  (`computeCheckinState().hasEnoughData`, Solo's baseline and comparison window), then no sooner than 14 days
+  after the last check-in on that cycle, the client's request or the coach's check-in response, whichever is
+  later, by Solo's own cooldown formula (`getMondayAfter(getSundayAfterWeeks(…, 2))`). Closed, the header button
+  is gone and the card says why ("Next check-in · Mon 12 Oct", or roughly how many more weeks of logs).
+  `openCoachCheckin()` refuses too. Solo's other gate, a signal that warrants an AI call, is Solo's cost control
+  and isn't applied: the coach decides. Sent check-ins now record their `macroId` (older ones count for every
+  cycle).
+
+### The banners (wireframe `HomeScreen` `BannerSlot`; proposal §8)
+
+The appliers raise **notices** into `state.coachNotices` (one per publication, the last 30), so they survive a
+restart and travel with the data:
+
+| Kind | Raised by | Where | Copy |
+|---|---|---|---|
+| `plan` | a `plan` | Home | "{coach} updated your plan": "“{cycle}” starts Mon 5 Oct." or "Changes to “{cycle}”." + **View** (Train) |
+| `phases` | `goal_phases`, or an `ai_response` with goal changes (§11 Q9) | Home | "Your goal phases changed": "“Cut 3” now starts on Mon 5 Oct at 1,600 kcal and 10,000 steps." |
+| `booking` | a new, moved or cancelled `booking` | Home | "Session confirmed" / "Session moved" / "Session cancelled" + **View** (Your sessions) |
+| `response` | an `ai_response` | Home | "New check-in from {coach}": the coach's headline + **View** (Progress, on the response's cycle, its full text open: `viewCoachResponse()`) |
+
+🚨 **Their ✕ is permanent** (Adam, v8.42 UAT: informational). `dismissCoachNotice()` saves `dismissed` on that
+notice **and every older one of its kind** (the same news, superseded). Only §136's "proposed a time" comes
+back after ✕. **One slot**, like the wireframe: the proposed time first (it needs an answer), then the newest
+undismissed notice; its ✕ shows the next. A publication re-applied after a restore raises nothing twice (a
+notice is keyed by its publication id).
+
+🚨 **Every banner is on Home** (Adam, v8.43 UAT: *"banners this deep in the app are pointless"*). The first
+build put the response banner on Progress, above From your coach. **A count** (`coachBannerCountHTML()`),
+iOS-style, sits over the banner's top-right corner when more than one is waiting: the proposed time, plus one
+per kind with anything undismissed (dismissing one clears its kind). It's above the ✕, never over it.
+
+**Check:** `scripts/verify-coach-logged.mjs` (64 checks) runs the built engine and the real functions on the
+demo dataset. It covers:
+- **D3:** the held target (with the unmarked substitute's 10 kg as the control inside), no lock, the walk
+  past, Train on both weeks, history under the substitute's name, and nothing changing shape without a
+  marker;
+- **group:** counted done, "next" moving on, the agenda, no history;
+- **I2:** a later unlogged week dropped and recomputed, a logged week unchanged, a started week kept, the
+  lock replayed, and the replay writing nothing itself;
+- **the applier:** the stamps, `done: false` kept, the session replaced with the client's sets kept on the
+  record, the coach's ratings, the notice, a correction, the two holds, a 4d-stored log applying once, a
+  group session and its "replaces";
+- **Swap for today:** the sheet, `getLibrary()`, the marker, Back to (with the confirm), when it's offered,
+  and the coach's session refusing;
+- **the banners:** all three kinds, the copy, one at a time, ✕ permanent, a move is news again, the
+  proposed time first, no duplicates, the response on Home with View, and the count.
+
+**Control:** v8.42 (`ee1a2b9`). `verify-publications-apply.mjs` now expects a `session_log` applied (4d
+stored it). `engine-cases.mjs` has cases for the five new engine exports.
+
+Driven in Chromium at 375pt on the dev fixture, coached:
+- the booking and goal-phases banners, one after the other, then none;
+- Swap for today's sheet pinned at the top (`top: 30`), filtering, and a tap making the swapped card;
+- a coach-logged week with the notice, 0 editable inputs, no swap offered, and the week-after "Target
+  held after a swap";
+- the agenda's "Logged by your coach · 4 of 17 sets";
+- Your sessions with the group session;
+- no console errors.
+
+🚨 **Sign Swap for today off in the Home Screen app after the merge** (§9: only the installed app freezes
+`--app-height` with the keyboard up).
+
+## §138 — v8.43: the new CSS splash, and no auto-complete on a first-session drop set
+
+Two changes for everyone, alongside Coached mode's §137 (Adam, 2026-09-28).
+
+### The splash
+
+Replaced with the `bloc-splash` design, ported exactly as its `PORTING.md` says (the design files live
+in the tracking folder, `bloc-app/bloc-splash/`, with BLOC Coach's version for Phase 5):
+1. **CSS:** the `BLOC SPLASH SCREEN` block, from its comment to the last `#splash` rule before
+   `v8.16 — MOTION SYSTEM`, is `bloc-splash.css`, with the `#app` / `#app.bloc-app-ready` gate at the top.
+2. **Markup:** `<div id="splash">` is one SVG with fixed coordinates (`viewBox="-8 -160 523.8 460"`), so
+   nothing is measured at runtime (§40's measurement bug can't recur).
+3. **Script:** straight after `#splash`, because it starts the clock there. The animation is pure CSS; the
+   script only times the hand-over: `SPLASH_MS` 7000 (`REDUCED_MS` 1400 with reduced motion), then
+   `fade-out` on `#splash` and `bloc-app-ready` on `#app`, from when the splash started, not from
+   `DOMContentLoaded`. The ✕ (`#splash-skip`) does the same at once. `qualifiesForSplash()` stays.
+
+Nothing else referred to the old ids. `whenAppReady()` (§111) waits on `.bloc-app-ready`, which the new
+script still adds. The Settings logo replay (`.settings-logo`, `blocLogoBar*`, §102) is separate and
+unchanged. To change the length, change `SPLASH_MS`; the CSS timeline doesn't move.
+
+🚨 **The palette split holds:** the splash's green is `--splash-brand` on the top bar, REPEAT and OVERCOME;
+the other bars are `--splash-block`; there's **no lavender** in it any more (v8.18's Train block is gone).
+`verify-brand-palette-split.mjs` now checks that shape.
+
+### A drop set's first session has no auto-complete
+
+A drop set's ✓ button (`quickFillCompleteDropset`) fills each set from its placeholders, including the drop
+portion. In a drop set's **first** session there's no drop weight or reps to carry over (the drop is never
+planned, only discovered live: §12 → "Drop Sets"), so the button ticked every set with the drop left blank. Now:
+- the button isn't drawn when **any** set's drop weight or drop reps placeholder is empty
+  (`dropUnknown` in `renderTrainDay`); those sets are logged by hand, and `toggleSetDone` already requires
+  both halves;
+- `quickFillCompleteDropset()` also refuses when any drop value is empty.
+
+From the second session the drop carries over from last week and the button is back. Supersets aren't
+affected: a drop set can't be a superset member (saving one into a superset makes it standard).
+
+**Check:** `verify-engine-leaves.mjs` counts the renders where only a first-session drop set's button went
+(3 per zone), and compares everything else with v8.34 as before.
+

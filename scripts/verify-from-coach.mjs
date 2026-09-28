@@ -41,7 +41,9 @@ const repo = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CONTROL = '99273df';
 
 const STUBS = ['state', 'save', 'coachLinkGet', 'coachingAvailable', 'isCoachedMode', 'supabase', '_authResolvedSession',
-  'renderProgress', 'openModal', 'closeModal', 'getLocalToday', '_downsizePhotoFileToBase64', 'document', 'engineCtx'];
+  'renderProgress', 'openModal', 'closeModal', 'getLocalToday', '_downsizePhotoFileToBase64', 'document', 'engineCtx',
+  'coachedView', // v8.43 (§137)
+  'coachCheckinGate']; // v8.43: Check in's rhythm is verify-coach-logged's; here it's open unless a test closes it
 
 function build(src) {
   const { decls } = indexTopLevel(mainScript(src));
@@ -55,6 +57,8 @@ function build(src) {
     const coachLinkGet = () => env.link;
     const coachingAvailable = () => env.available;
     const isCoachedMode = () => !!env.link;
+    const coachedView = () => !!env.link;
+    const coachCheckinGate = () => env.gate || { open: true };
     const supabase = env.supabase;
     const _authResolvedSession = { user: { id: 'u1' } };
     const renderProgress = () => env.log.push(['render']);
@@ -139,7 +143,15 @@ async function run(label, src) {
       [h.includes('Good week'), h.includes('Older check-in')], [true, false]);
     check('byline: the coach, the tool and the publication\'s date', h.includes('Sam Rivers') && /Check-in · Thu 24 Sept?/.test(h), true);
     check('first paragraph only on the card; kcal and steps as scores', [h.includes('First para.'), h.includes('Second para.'), h.includes('2,350'), h.includes('steps a day')], [true, false, true, true]);
-    check('Read full check-in, Send a note back, and Check in', [h.includes('Read full check-in'), h.includes('Send a note back'), h.includes('openCoachCheckin()')], [true, true, true]);
+    check('Read full check-in (with its icon) and Check in; the note back is NOT on the card (v8.43: the full sheet only)',
+      [/<svg[^>]*>[\s\S]*?<\/svg>Read full check-in/.test(h), h.includes('openCoachNote('), h.includes('openCoachCheckin()')], [true, false, true]);
+    F.openCoachResponse('r1');
+    check('…it\'s in the full sheet, with its speech-bubble icon, not the pulsing dot',
+      [/<svg[^>]*>[\s\S]*?<\/svg>Send a note back/.test(env.document.getElementById('coach-response-body').innerHTML), /ai-action-dot/.test(env.document.getElementById('coach-response-body').innerHTML)], [true, false]);
+    const envG = makeEnv({ gate: { open: false, why: 'Next check-in · Mon 12 Oct' } });
+    envG.state.coachAdvice = [advice()];
+    const elG = { innerHTML: '' }; factory(envG).renderProgressFromCoach(elG, null);
+    check('Check in closed: no button, and when it opens instead', [elG.innerHTML.includes('openCoachCheckin()'), elG.innerHTML.includes('Next check-in · Mon 12 Oct')], [false, true]);
     check('🚨 read-only: no signal chip, no Build, no Challenge, no Ask BLOC', /chip-c|Build this|Challenge|Ask BLOC/.test(h), false);
 
     env.state.coachAdvice.push(advice({ responseId: 'rx', seq: 7, publicationId: 'pub-7', updated: true, content: { headline: '<img src=x onerror=alert(1)>', narrative: ['<b>x</b>'] } }));
@@ -199,9 +211,10 @@ async function run(label, src) {
       [env.state.coachNotesSent['pub-1'].submissionId, env.log.some(l => l[0] === 'save'), env.log.some(l => l[0] === 'close' && l[1] === 'modal-coach-note')],
       ['sub-1', true, true]);
     env.state.coachNoteReplies['sub-1'] = { text: 'Drop to 3 sets this week.' };
-    const el = { innerHTML: '' }; factory(env).renderProgressFromCoach(el, null);
-    check('once sent, the row says so, and the coach\'s reply shows under it',
-      [el.innerHTML.includes('Note sent to Sam'), el.innerHTML.includes('openCoachNote('), el.innerHTML.includes('Drop to 3 sets this week.')], [true, false, true]);
+    factory(env).openCoachResponse('r1');
+    const sheet = env.document.getElementById('coach-response-body').innerHTML;
+    check('once sent, the full sheet says so, and the coach\'s reply shows under it',
+      [sheet.includes('Note sent to Sam'), sheet.includes('openCoachNote('), sheet.includes('Drop to 3 sets this week.')], [true, false, true]);
 
     const envF = makeEnv({ insertError: { message: 'network' } });
     envF.state.coachAdvice = [advice()];

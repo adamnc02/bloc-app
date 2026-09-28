@@ -1863,25 +1863,22 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .ss-set-check { font-size: 20px; color: var(--text3); cursor: pointer; flex-shrink: 0; }
 .ss-set-check.done { color: var(--accent); }
 /* ============================================================
-   BLOC SPLASH SCREEN
-   Plays on every fresh load of the app (real page parse/reload —
-   not on resume from background). All custom properties are
-   scoped to #splash so they can never leak into or collide with
-   the app's own --bg/--text/--surface theming above.
+   BLOC SPLASH SCREEN (v8.43: the new CSS splash, ported from bloc-splash/
+   PORTING.md). Scoped to #splash. TECHNICAL §138.
    ============================================================ */
-
+/* BLOC splash — v9 */
 #app { visibility: hidden; }
 #app.bloc-app-ready { visibility: visible; }
 
 #splash {
   --splash-bg: #161826;
-  --splash-surface: #2A2E47;
-  --splash-accent: #A79EE3;   /* the Train block — the app's own lavender, unchanged */
-  --splash-brand: #2fb98a;    /* the logo green: the top bar, the bar flashes, OVERCOME */
-  --splash-block: #3b4063;    /* v8.19 — the Rebuild logo's two neutral bars (on dark) */
-  --splash-ice: #D6E2F2;
+  --splash-brand: #2fb98a;
+  --splash-block: #3b4063;
+  --splash-flash: #7ff0c6;
+  --splash-flash-top: #bff7e2;
   --splash-text: #F2F2F2;
   --splash-dark-text: #161826;
+  --splash-muted: #8a8fa8;
 
   position: fixed;
   inset: 0;
@@ -1894,301 +1891,138 @@ html.auth-likely-signed-in #auth-gate { display: none; }
   transition: opacity 0.5s ease, visibility 0.5s ease;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
-
 #splash.fade-out {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
 }
-
 #splash .splash-skip {
   position: absolute;
   top: max(16px, env(safe-area-inset-top));
   right: max(16px, env(safe-area-inset-right));
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
+  width: 36px; height: 36px; border-radius: 50%;
   border: 0.5px solid rgba(242,242,242,0.25);
   background: rgba(255,255,255,0.06);
-  color: var(--splash-text);
-  font-size: 16px;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 1;
+  color: var(--splash-text); font-size: 16px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; z-index: 1;
   -webkit-tap-highlight-color: transparent;
-  transition: background 0.15s ease, opacity 0.5s ease, visibility 0.5s ease;
+  transition: background 0.15s ease;
 }
-
 #splash .splash-skip:active { background: rgba(255,255,255,0.16); }
 
-#splash .logo-stage {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  position: relative;
+/* The whole scene is one SVG: the mark, the type and the tagline share one
+   coordinate system, so every position below is a fixed number — nothing is
+   measured at runtime. Sits above centre. */
+#splash .splash-scene {
+  width: 340px; max-width: 86vw; height: auto; display: block; overflow: visible;
+  transform: translateY(-12vh);
 }
 
-/* ---------- 2x2 FLIP GRID + PILLAR LABELS ---------- */
-#splash .blocks-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 70px);
-  grid-template-rows: repeat(2, 70px);
-  gap: 16px;
-  perspective: 900px;
-  margin-bottom: 16px;
+/* ---- the mark: starts big and centred (inside the REPEAT loop), settles into the lock-up ---- */
+#splash .s-mark {
+  transform-box: view-box; transform-origin: 0 0;
+  animation: sMarkSettle 0.9s cubic-bezier(0.3, 0.9, 0.4, 1) 3.9s both;
+}
+@keyframes sMarkSettle {
+  from { transform: translate(253.9px, 80.05px) scale(3.35) translate(-52px, -50px); }
+  to   { transform: translate(0px, 0px) scale(1) translate(0px, 0px); }
 }
 
-#splash .block-wrap {
-  position: relative;
-  width: 70px;
-  height: 70px;
+/* ---- bars: slide in bottom → top, flash on landing, wave, then pulse ---- */
+#splash .s-bar { animation: sBarIn 0.5s ease-out both; }
+#splash .s-b1 { animation-delay: 0.3s; }
+#splash .s-b2 { animation-delay: 0.95s; }
+#splash .s-b3 { animation-delay: 1.6s; }
+@keyframes sBarIn {
+  0%   { opacity: 0; transform: translateX(-26px); }
+  55%  { opacity: 1; transform: translateX(3px); }
+  100% { opacity: 1; transform: none; }
 }
-
-/* ---------- DROP-IN ENTRANCE ---------- */
-#splash .block.pre-drop {
-  transform: translateY(-70vh);
-  transition: none;
+#splash .s-rect { fill: var(--splash-block); transform-box: fill-box; transform-origin: center; }
+#splash .s-r3 { fill: var(--splash-brand); }
+#splash .s-r1 { animation: sFlash 0.5s ease-out 0.3s, sWave 0.6s ease-in-out 2.6s, sPulse 1.6s ease-in-out 5.2s infinite; }
+#splash .s-r2 { animation: sFlash 0.5s ease-out 0.95s, sWave 0.6s ease-in-out 2.75s, sPulse 1.6s ease-in-out 5.38s infinite; }
+#splash .s-r3 { animation: sFlashTop 0.55s ease-out 1.6s, sWaveTop 0.6s ease-in-out 2.9s, sPulseTop 1.6s ease-in-out 5.56s infinite; }
+@keyframes sFlash {
+  0%, 100% { fill: var(--splash-block); transform: none; }
+  55%      { fill: var(--splash-flash); transform: scale(1.06); }
 }
-#splash .block.dropping {
-  /* steep gravity-style acceleration, not a gentle ease */
-  transition: transform 0.52s cubic-bezier(0.76, 0, 0.87, 0);
+@keyframes sFlashTop {
+  0%, 100% { fill: var(--splash-brand); transform: none; }
+  55%      { fill: var(--splash-flash-top); transform: scale(1.08); }
 }
-@keyframes blocSplashThud {
-  0%   { transform: scaleY(1) scaleX(1); }
-  20%  { transform: scaleY(0.6) scaleX(1.24); }
-  55%  { transform: scaleY(0.92) scaleX(1.05); }
-  100% { transform: scaleY(1) scaleX(1); }
+@keyframes sWave {
+  0%, 100% { fill: var(--splash-block); transform: none; }
+  40%      { fill: var(--splash-brand); transform: scale(1.05); }
 }
-#splash .block.impact {
-  animation: blocSplashThud 0.34s cubic-bezier(0.2, 0.9, 0.3, 1);
-  transform-origin: bottom center;
+@keyframes sWaveTop {
+  0%, 100% { fill: var(--splash-brand); transform: none; }
+  40%      { fill: var(--splash-flash); transform: scale(1.08); }
 }
-
-/* dust + ground shadow at the base of each block */
-#splash .impact-fx {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 66px;
-  height: 16px;
-  pointer-events: none;
-}
-#splash .impact-shadow {
-  position: absolute;
-  left: 50%;
-  top: 4px;
-  width: 54px;
-  height: 10px;
-  margin-left: -27px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.5);
-  opacity: 0;
-}
-#splash .dust {
-  position: absolute;
-  top: 2px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: rgba(210, 210, 220, 0.55);
-  opacity: 0;
-}
-#splash .dust.left { left: 10px; }
-#splash .dust.right { right: 10px; }
-
-@keyframes blocSplashShadowPulse {
-  0%   { opacity: 0; transform: scaleX(0.5); }
-  22%  { opacity: 0.65; transform: scaleX(1.2); }
-  100% { opacity: 0; transform: scaleX(0.85); }
-}
-@keyframes blocSplashDustLeft {
-  0%   { opacity: 0; transform: translate(0, 0) scale(0.4); }
-  20%  { opacity: 0.6; }
-  100% { opacity: 0; transform: translate(-24px, -8px) scale(1.4); }
-}
-@keyframes blocSplashDustRight {
-  0%   { opacity: 0; transform: translate(0, 0) scale(0.4); }
-  20%  { opacity: 0.6; }
-  100% { opacity: 0; transform: translate(24px, -8px) scale(1.4); }
-}
-#splash .block-wrap.impacting .impact-shadow { animation: blocSplashShadowPulse 0.5s ease-out; }
-#splash .block-wrap.impacting .dust.left { animation: blocSplashDustLeft 0.55s ease-out; }
-#splash .block-wrap.impacting .dust.right { animation: blocSplashDustRight 0.55s ease-out; }
-
-#splash .block {
-  width: 70px;
-  height: 70px;
-  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.7s ease;
-}
-
-#splash .block.lifted-top {
-  transform: translateY(-32px);
-}
-#splash .block.lifted-bottom {
-  transform: translateY(-16px);
-}
-
-/* defined AFTER lifted-top/lifted-bottom so scatter's transform always
-   wins the cascade once both classes are present on an element */
-#splash .block.scatter {
-  transform: translate(var(--sx), var(--sy)) rotate(var(--sr));
-  opacity: 0;
-}
-
-#splash .block-inner {
-  width: 100%;
-  height: 100%;
-  position: relative;
-  transform-style: preserve-3d;
-  transform: rotateY(0deg);
-  transition: transform 0.9s cubic-bezier(0.3, 1.4, 0.55, 1);
-}
-
-#splash .block-inner.flipped { transform: rotateY(180deg); }
-
-#splash .face {
-  position: absolute;
-  inset: 0;
-  backface-visibility: hidden;
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-#splash .face.back { transform: rotateY(180deg); }
-#splash .face svg { width: 36px; height: 36px; }
-
-#splash .c-train  { background: var(--splash-accent); color: var(--splash-text); }
-#splash .c-fuel   { background: var(--splash-surface); color: var(--splash-text); }
-#splash .c-over   { background: var(--splash-ice); color: var(--splash-dark-text); }
-#splash .c-repeat { background: var(--splash-surface); color: var(--splash-text); }
-
-/* ---------- WORDMARK (real logo image) ----------
-   Rises from a lower starting point (roughly where the blocks were)
-   up to its final resting position — set on the GROUP (not just the
-   image) so the tagline, as its child, rises the exact same distance
-   automatically, with no separate calculation needed. */
-#splash .wordmark-group {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  position: relative;
-  transform: translateY(160px);
-  transition: transform 0.9s cubic-bezier(0.3, 0.9, 0.4, 1);
-}
-#splash .wordmark-group.risen {
-  /* negative = finishes above the wordmark's original static position */
-  transform: translateY(-80px);
-}
-
-#splash #wordmark {
-  margin-top: 26px;
-  opacity: 0;
-  transition: opacity 0.9s ease;
-  position: relative;
-  /* v8.19 — kept from the bracket frame's 29px so the tagline below lands
-     where the rise timings expect it */
-  padding: 29px;
-}
-#splash #wordmark svg {
-  width: 300px;
-  max-width: 72vw;
-  height: auto;
-  display: block;
-  overflow: visible;
-}
-#splash #wordmark.show { opacity: 1; }
-#splash #wordmark .stype { fill: var(--splash-text); }
-
-/* ---------- BARS (the Rebuild logo's three blocks) — v8.19, §101 ----------
-   Replace v8.18's brackets. The type fades in with the rise; the bars stay
-   hidden, then BUILD bottom → top as it settles (.locked) — each slides in
-   and flashes green on arrival — and finally PULSE in the same order,
-   a wave of green running up the stack, until the splash fades (.pulsing).
-   Only transform / opacity / fill animate: CSS filter on SVG children is
-   not reliable in Safari. transform-box: fill-box makes each bar scale about
-   its own centre, not the SVG's origin. */
-#splash .sbar {
-  fill: var(--splash-block);
-  opacity: 0;
-  transform: translateX(-26px);
-  transform-box: fill-box;
-  transform-origin: center;
-}
-#splash .sb-3 { fill: var(--splash-brand); }
-
-@keyframes blocSplashBarIn {
-  0%   { opacity: 0; transform: translateX(-26px); fill: var(--splash-block); }
-  55%  { opacity: 1; transform: translateX(3px) scale(1.06); fill: #7ff0c6; }
-  100% { opacity: 1; transform: translateX(0) scale(1); fill: var(--splash-block); }
-}
-@keyframes blocSplashBarInTop {
-  0%   { opacity: 0; transform: translateX(-26px); fill: var(--splash-brand); }
-  55%  { opacity: 1; transform: translateX(3px) scale(1.08); fill: #bff7e2; }
-  100% { opacity: 1; transform: translateX(0) scale(1); fill: var(--splash-brand); }
-}
-#splash #wordmark.locked .sbar { opacity: 1; transform: translateX(0); }
-#splash #wordmark.locked .sb-1 { animation: blocSplashBarIn 0.5s ease-out 0s both; }
-#splash #wordmark.locked .sb-2 { animation: blocSplashBarIn 0.5s ease-out 0.16s both; }
-#splash #wordmark.locked .sb-3 { animation: blocSplashBarInTop 0.55s ease-out 0.32s both; }
-
-@keyframes blocSplashBarPulse {
-  0%, 40%, 100% { fill: var(--splash-block); transform: scale(1); }
+@keyframes sPulse {
+  0%, 40%, 100% { fill: var(--splash-block); transform: none; }
   14%           { fill: var(--splash-brand); transform: scale(1.05); }
 }
-@keyframes blocSplashBarPulseTop {
-  0%, 40%, 100% { fill: var(--splash-brand); transform: scale(1); }
-  14%           { fill: #7ff0c6; transform: scale(1.08); }
+@keyframes sPulseTop {
+  0%, 40%, 100% { fill: var(--splash-brand); transform: none; }
+  14%           { fill: var(--splash-flash); transform: scale(1.08); }
 }
-#splash #wordmark.pulsing .sb-1 { animation: blocSplashBarPulse 1.6s ease-in-out 0s infinite; }
-#splash #wordmark.pulsing .sb-2 { animation: blocSplashBarPulse 1.6s ease-in-out 0.18s infinite; }
-#splash #wordmark.pulsing .sb-3 { animation: blocSplashBarPulseTop 1.6s ease-in-out 0.36s infinite; }
+
+/* ---- REPEAT: a dashed loop wrapped round the whole stack, slanted to follow
+   the staircase. It closes in round the bars, its dashes keep travelling round
+   while the green wave runs up the stack, and it fades as the mark settles. ---- */
+#splash .s-loop {
+  transform-box: fill-box; transform-origin: center;
+  animation: sLoopIn 0.55s cubic-bezier(0.3, 0.9, 0.4, 1) 2.2s both, sOut 0.35s ease 3.9s forwards;
+}
+@keyframes sLoopIn {
+  from { opacity: 0; transform: scale(1.12); }
+  to   { opacity: 1; transform: none; }
+}
+#splash .s-loop-line {
+  fill: rgba(47, 185, 138, 0.05);
+  stroke: var(--splash-brand); stroke-width: 1px; stroke-dasharray: 3.2 2.2;
+  animation: sMarch 0.8s linear 2.2s infinite;
+}
+@keyframes sMarch { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -10.8; } }
+#splash .s-chip { fill: #1b1e2f; }
+#splash .s-loop-icon { transform-box: fill-box; transform-origin: center; animation: sSpin 0.9s cubic-bezier(0.4, 0, 0.2, 1) 2.6s; }
+#splash .s-rep-arc { fill: none; stroke: var(--splash-brand); stroke-width: 2.3px; stroke-linecap: round; }
+#splash .s-rep-head { fill: var(--splash-brand); }
+@keyframes sSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* ---- pillar icons inside the bars: gone once the mark settles ---- */
+#splash .s-icon { opacity: 0; fill: var(--splash-text); animation: sOut 0.3s ease 3.9s both; }
+#splash .s-icon-dark { fill: var(--splash-dark-text); }
+@keyframes sOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes sIn  { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---- BLOC type ---- */
+#splash .s-type { fill: var(--splash-text); animation: sTypeIn 0.7s cubic-bezier(0.3, 0.9, 0.4, 1) 4.25s both; }
+@keyframes sTypeIn { from { opacity: 0; transform: translateX(-18px); } to { opacity: 1; transform: none; } }
+
+/* ---- the four pillar words: labels in the bars / on the loop, then the tagline ---- */
+#splash .s-word {
+  font-size: 18px; font-weight: 700; text-anchor: middle;
+  fill: var(--splash-muted);
+  transform-box: fill-box; transform-origin: center;
+}
+#splash .s-w-over { fill: var(--splash-brand); font-weight: 800; }
+#splash .s-w-train  { animation: sIn 0.35s ease 0.75s both, sFlyTrain 0.9s cubic-bezier(0.3, 0.9, 0.4, 1) 3.9s both; }
+#splash .s-w-fuel   { animation: sIn 0.35s ease 1.4s both,  sFlyFuel 0.9s cubic-bezier(0.3, 0.9, 0.4, 1) 3.95s both; }
+#splash .s-w-over   { animation: sIn 0.35s ease 2.05s both, sFlyOver 0.9s cubic-bezier(0.3, 0.9, 0.4, 1) 4.0s both; }
+#splash .s-w-repeat { animation: sIn 0.35s ease 2.5s both,  sFlyRepeat 0.9s cubic-bezier(0.3, 0.9, 0.4, 1) 4.05s both; }
+@keyframes sFlyTrain  { from { transform: translate(175.8px, 54.8px) scale(0.97);     fill: var(--splash-text); } to { transform: none; fill: var(--splash-muted); } }
+@keyframes sFlyFuel   { from { transform: translate(115.5px, -63.8px) scale(0.97);    fill: var(--splash-text); } to { transform: none; fill: var(--splash-muted); } }
+@keyframes sFlyOver   { from { transform: translate(23.2px, -182.1px) scale(0.97);  fill: var(--splash-dark-text); } to { transform: none; fill: var(--splash-brand); } }
+@keyframes sFlyRepeat { from { transform: translate(-104.2px, -257.9px) scale(0.97); fill: var(--splash-brand); } to { transform: none; fill: var(--splash-muted); } }
+#splash .s-dot { font-size: 18px; text-anchor: middle; fill: var(--splash-muted); animation: sIn 0.4s ease 4.9s both; }
+
 @media (prefers-reduced-motion: reduce) {
-  #splash #wordmark.locked .sbar, #splash #wordmark.pulsing .sbar { animation: none; opacity: 1; transform: none; }
+  #splash * { animation: none !important; }
+  #splash .s-loop { opacity: 0; }
 }
-
-/* ---------- TAGLINE ----------
-   Sits in its normal, permanent position below the wordmark and never
-   moves. Each word IS the pillar label — no separate floating clone.
-   It starts displaced up/sideways (via --fx/--fy, set inline per word
-   to match where it's revealed under its block) and visible in the
-   muted colour; landing is simply that offset animating back to (0,0). */
-#splash .tagline {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 10px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 3px;
-}
-
-#splash .tword {
-  display: inline-block;
-  color: #8a8fa8;
-  opacity: 0;
-  transform: translate(var(--fx, 0px), var(--fy, 0px));
-  transition: opacity 0.4s ease, transform 0.9s cubic-bezier(0.3, 0.9, 0.4, 1);
-}
-#splash .tword.show { opacity: 1; }
-#splash .tword.landed { transform: translate(0, 0); }
-#splash .tword.landed-accent {
-  color: var(--splash-brand);
-  font-weight: 800;
-  transition: color 0.4s ease, font-weight 0.3s ease,
-              opacity 0.4s ease, transform 0.9s cubic-bezier(0.3, 0.9, 0.4, 1);
-}
-
-#splash .tbullet {
-  color: var(--splash-bg); /* invisible until the words have landed */
-  transition: color 0.4s ease;
-}
-#splash .tbullet.show { color: #8a8fa8; }
 /* ══════════════════════════════════════════════════════════════════════
    v8.16 — MOTION SYSTEM
    A screen assembles itself top to bottom as you reach it. setupScreenEntrance()
@@ -3698,7 +3532,25 @@ button.coach-reqrow.is-tap + .coach-reqrow, .coach-reqrow + button.coach-reqrow.
   background: color-mix(in srgb, var(--accent) 10%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
   font-size: 13px; line-height: 1.45; color: var(--text2); }
 .coach-banner b { display: block; color: var(--accent2); font-size: 14px; margin-bottom: 3px; }
-.coach-banner-home { margin: 18px 0 0; }
+.coach-banner-home { margin: 18px 0 0; position: relative; }
+.coach-icon-btn { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.coach-icon-btn svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+/* v8.43 (§137): how many banners are waiting, over the top-right corner (iOS-style), clear of the ✕ */
+.coach-banner-count { position: absolute; top: -9px; right: -7px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px;
+  background: var(--red); color: #fff; font-size: 12px; font-weight: 700; line-height: 22px; text-align: center;
+  font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--bg); pointer-events: none; }
+/* v8.43 (§137): Swap for today */
+.ex-swap-note { font-size: 12px; color: var(--text2); margin-top: 3px; }
+.ex-swap-btn { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; }
+.ex-swap-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.swap-planned { background: var(--surface2); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
+.swap-planned-cap { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; }
+.swap-planned-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 4px; }
+.swap-planned-row b { font-size: 15px; min-width: 0; }
+.swap-row { cursor: pointer; }
+.swap-group-label { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; padding: 14px 0 4px; }
+.swap-group-label:first-child { padding-top: 4px; }
+.swap-planned-row span { font-size: 13px; color: var(--text2); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .coach-banner-x { flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--surface2); color: var(--text2); cursor: pointer; font-size: 14px; }
 .coach-banner-ico svg { width: 20px; height: 20px; fill: none; stroke: var(--accent2); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .coach-reqlist { padding-top: 4px; padding-bottom: 4px; }
@@ -3926,6 +3778,7 @@ button.coach-reqrow.is-tap + .coach-reqrow, .coach-reqrow + button.coach-reqrow.
       fitListToKeyboard('food-lib-list-wrap');
       fitListToKeyboard('exercise-lib-list-wrap');
       fitListToKeyboard('recipe-pick-list-wrap');
+      fitListToKeyboard('swap-today-list-wrap'); // v8.43 (§137): Swap for today
     }
   }
 
@@ -3989,142 +3842,83 @@ try {
 
 <div id="splash">
   <button type="button" id="splash-skip" class="splash-skip" aria-label="Skip animation">&#10005;</button>
-  <div class="logo-stage">
-
-    <div class="blocks-grid">
-
-      <div class="block-wrap" id="wrap-train">
-        <div class="block pre-drop" id="block-1">
-          <div class="block-inner">
-            <div class="face front c-train"></div>
-            <div class="face back c-train">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <rect x="0.5" y="9" width="2.2" height="6" rx="1"/>
-                <rect x="3.4" y="6.5" width="3.4" height="11" rx="1.5"/>
-                <rect x="6.6" y="10.6" width="10.8" height="2.8" rx="1"/>
-                <rect x="17.2" y="6.5" width="3.4" height="11" rx="1.5"/>
-                <rect x="21.3" y="9" width="2.2" height="6" rx="1"/>
-              </svg>
-            </div>
-          </div>
-        </div>
-        <div class="impact-fx">
-          <div class="impact-shadow"></div>
-          <div class="dust left"></div>
-          <div class="dust right"></div>
-        </div>
-      </div>
-
-      <div class="block-wrap" id="wrap-fuel">
-        <div class="block pre-drop" id="block-2">
-          <div class="block-inner">
-            <div class="face front c-fuel"></div>
-            <div class="face back c-fuel">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <rect x="6.1" y="2" width="1" height="6.3" rx="0.5"/>
-                <rect x="7.5" y="2" width="1" height="6.3" rx="0.5"/>
-                <rect x="8.9" y="2" width="1" height="6.3" rx="0.5"/>
-                <rect x="6.1" y="7.6" width="3.8" height="1.8" rx="0.9"/>
-                <rect x="7.5" y="8.9" width="1" height="13.1" rx="0.5"/>
-                <path d="M15.2 2c1.9 0.4 2.7 2.5 2.3 4.9-0.3 1.7-1.1 3-2.1 3.4V22h-1.2V2z"/>
-              </svg>
-            </div>
-          </div>
-        </div>
-        <div class="impact-fx">
-          <div class="impact-shadow"></div>
-          <div class="dust left"></div>
-          <div class="dust right"></div>
-        </div>
-      </div>
-
-      <div class="block-wrap" id="wrap-over">
-        <div class="block pre-drop" id="block-3">
-          <div class="block-inner">
-            <div class="face front c-over"></div>
-            <div class="face back c-over">
-              <svg viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                <path d="M2 19L9 6l4 7 3-4.5 6 10.5z"/>
-              </svg>
-            </div>
-          </div>
-        </div>
-        <div class="impact-fx">
-          <div class="impact-shadow"></div>
-          <div class="dust left"></div>
-          <div class="dust right"></div>
-        </div>
-      </div>
-
-      <div class="block-wrap" id="wrap-repeat">
-        <div class="block pre-drop" id="block-4">
-          <div class="block-inner">
-            <div class="face front c-repeat"></div>
-            <div class="face back c-repeat">
-              <svg viewBox="0 0 24 24">
-                <path d="M4.5 9a7.5 7.5 0 0112.5-3.5" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/>
-                <path d="M19.5 15a7.5 7.5 0 01-12.5 3.5" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/>
-                <path d="M17.8 3.2L20.3 8.0L14.8 7.5Z" fill="currentColor"/>
-                <path d="M6.2 20.8L3.7 16.0L9.2 16.5Z" fill="currentColor"/>
-              </svg>
-            </div>
-          </div>
-        </div>
-        <div class="impact-fx">
-          <div class="impact-shadow"></div>
-          <div class="dust left"></div>
-          <div class="dust right"></div>
-        </div>
-      </div>
-
-    </div>
-
-    <div class="wordmark-group" id="wordmark-group">
-      <div id="wordmark">
-        <!-- v8.19 — the Rebuild lock-up, inline so its three bars can animate one
-             by one (§101). Geometry verbatim from bloc-brand-rebuild's
-             bloc-logo-on-dark.svg, minus its margin. Bottom → top: sb-1, sb-2, sb-3. -->
-        <svg viewBox="-8 -8 523.8 116" role="img" aria-label="BLOC">
-          <rect class="sbar sb-1" x="10" y="70.7" width="60" height="29.3" rx="7"/>
-          <rect class="sbar sb-2" x="22" y="35.3" width="60" height="29.3" rx="7"/>
-          <rect class="sbar sb-3" x="34" y="0" width="60" height="29.3" rx="7"/>
-          <g class="stype" transform="translate(136 0)"><path d="M0 100V0H47.2Q71.6 0 71.6 24.3V33Q71.6 38 68.7 41.4L63.6 47.5L69.7 52.6Q74.5 56.5 74.5 64.2V75.7Q74.5 100 50.1 100ZM20.9 81.2H49.3Q53.6 81.2 53.6 76.8V62.3Q53.6 58 49.3 58H20.9ZM20.9 39.1H46.4Q50.7 39.1 50.7 34.8V23.2Q50.7 18.8 46.4 18.8H20.9Z"/><path d="M102.5 100V0H123.4V81.2H166.6V100Z"/><path d="M188.5 75.7V24.3Q188.5 0 212.8 0H245.9Q270.2 0 270.2 24.3V75.7Q270.2 100 245.9 100H212.8Q188.5 100 188.5 75.7ZM209.3 76.8Q209.3 81.2 213.7 81.2H245Q249.3 81.2 249.3 76.8V23.2Q249.3 18.8 245 18.8H213.7Q209.3 18.8 209.3 23.2Z"/><path d="M299.1 75.7V24.3Q299.1 0 323.4 0H362.1L371.8 7.5V18.8H324.3Q319.9 18.8 319.9 23.2V76.8Q319.9 81.2 324.3 81.2H371.8V92.5L362.1 100H323.4Q299.1 100 299.1 75.7Z"/></g>
-        </svg>
-      </div>
-
-      <div class="tagline" id="tagline">
-        <span class="tword" id="target-train">TRAIN</span>
-        <span class="tbullet" id="bullet-1">&bull;</span>
-        <span class="tword" id="target-fuel">FUEL</span>
-        <span class="tbullet" id="bullet-2">&bull;</span>
-        <span class="tword" id="target-overcome">OVERCOME</span>
-        <span class="tbullet" id="bullet-3">&bull;</span>
-        <span class="tword" id="target-repeat">REPEAT</span>
-      </div>
-    </div>
-
-  </div>
+<svg class="splash-scene" viewBox="-8 -160 523.8 460" role="img" aria-label="BLOC — Train, Fuel, Overcome, Repeat">
+<g class="s-mark">
+<g class="s-loop">
+<rect class="s-loop-line" x="26" y="-8" width="86" height="116" rx="10" transform="skewX(-18.78)"></rect>
+<rect class="s-chip" x="50.05" y="-14" width="43.3" height="12" rx="6"></rect>
+<g transform="translate(53.05 -11.5) scale(0.2917)">
+<g class="s-loop-icon">
+<path class="s-rep-arc" d="M4.5 9a7.5 7.5 0 0112.5-3.5"></path>
+<path class="s-rep-arc" d="M19.5 15a7.5 7.5 0 01-12.5 3.5"></path>
+<path class="s-rep-head" d="M17.8 3.2L20.3 8.0L14.8 7.5Z"></path>
+<path class="s-rep-head" d="M6.2 20.8L3.7 16.0L9.2 16.5Z"></path>
+</g>
+</g>
+</g>
+<g class="s-bar s-b1">
+<rect class="s-rect s-r1" x="10" y="70.7" width="60" height="29.3" rx="7"></rect>
+<g class="s-icon" transform="translate(23.88 81.05) scale(0.3583)">
+<rect x="0.5" y="9" width="2.2" height="6" rx="1"></rect>
+<rect x="3.4" y="6.5" width="3.4" height="11" rx="1.5"></rect>
+<rect x="6.6" y="10.6" width="10.8" height="2.8" rx="1"></rect>
+<rect x="17.2" y="6.5" width="3.4" height="11" rx="1.5"></rect>
+<rect x="21.3" y="9" width="2.2" height="6" rx="1"></rect>
+</g>
+</g>
+<g class="s-bar s-b2">
+<rect class="s-rect s-r2" x="22" y="35.3" width="60" height="29.3" rx="7"></rect>
+<g class="s-icon" transform="translate(37.77 45.65) scale(0.3583)">
+<rect x="6.1" y="2" width="1" height="6.3" rx="0.5"></rect>
+<rect x="7.5" y="2" width="1" height="6.3" rx="0.5"></rect>
+<rect x="8.9" y="2" width="1" height="6.3" rx="0.5"></rect>
+<rect x="6.1" y="7.6" width="3.8" height="1.8" rx="0.9"></rect>
+<rect x="7.5" y="8.9" width="1" height="13.1" rx="0.5"></rect>
+<path d="M15.2 2c1.9 0.4 2.7 2.5 2.3 4.9-0.3 1.7-1.1 3-2.1 3.4V22h-1.2V2z"></path>
+</g>
+</g>
+<g class="s-bar s-b3">
+<rect class="s-rect s-r3" x="34" y="0" width="60" height="29.3" rx="7"></rect>
+<g class="s-icon s-icon-dark" transform="translate(38.62 10.35) scale(0.3583)">
+<path d="M2 19L9 6l4 7 3-4.5 6 10.5z"></path>
+</g>
+</g>
+</g>
+<g transform="translate(136 0)">
+<g class="s-type">
+<path d="M0 100V0H47.2Q71.6 0 71.6 24.3V33Q71.6 38 68.7 41.4L63.6 47.5L69.7 52.6Q74.5 56.5 74.5 64.2V75.7Q74.5 100 50.1 100ZM20.9 81.2H49.3Q53.6 81.2 53.6 76.8V62.3Q53.6 58 49.3 58H20.9ZM20.9 39.1H46.4Q50.7 39.1 50.7 34.8V23.2Q50.7 18.8 46.4 18.8H20.9Z"></path>
+<path d="M102.5 100V0H123.4V81.2H166.6V100Z"></path>
+<path d="M188.5 75.7V24.3Q188.5 0 212.8 0H245.9Q270.2 0 270.2 24.3V75.7Q270.2 100 245.9 100H212.8Q188.5 100 188.5 75.7ZM209.3 76.8Q209.3 81.2 213.7 81.2H245Q249.3 81.2 249.3 76.8V23.2Q249.3 18.8 245 18.8H213.7Q209.3 18.8 209.3 23.2Z"></path>
+<path d="M299.1 75.7V24.3Q299.1 0 323.4 0H362.1L371.8 7.5V18.8H324.3Q319.9 18.8 319.9 23.2V76.8Q319.9 81.2 324.3 81.2H371.8V92.5L362.1 100H323.4Q299.1 100 299.1 75.7Z"></path>
+</g>
+</g>
+<text class="s-word s-w-train" x="56.5" y="150" textLength="73" lengthAdjust="spacing">TRAIN</text>
+<text class="s-dot" x="110" y="150">&#8226;</text>
+<text class="s-word s-w-fuel" x="157" y="150" textLength="60" lengthAdjust="spacing">FUEL</text>
+<text class="s-dot" x="204" y="150">&#8226;</text>
+<text class="s-word s-w-over" x="289.5" y="150" textLength="137" lengthAdjust="spacing">OVERCOME</text>
+<text class="s-dot" x="375" y="150">&#8226;</text>
+<text class="s-word s-w-repeat" x="440" y="150" textLength="96" lengthAdjust="spacing">REPEAT</text>
+</svg>
 </div>
-
 <script>
-(function() {
+// BLOC splash — the animation itself is pure CSS and starts as soon as #splash
+// is painted. This script only times the hand-over (and the skip button).
+(function () {
+  var SPLASH_MS = 7000;   // matches the CSS timeline: final state held briefly, then fade
+  var REDUCED_MS = 1400;  // reduced motion: the finished logo, shown briefly
+  var startedAt = Date.now(); // this script runs straight after #splash is parsed
+
   function boot() {
     var splash = document.getElementById('splash');
+    if (!splash) return;
     var app = document.getElementById('app');
 
-    function revealApp() {
-      app.classList.add('bloc-app-ready');
-    }
+    function revealApp() { if (app) app.classList.add('bloc-app-ready'); }
 
-    // ---- Splash frequency: plays on every fresh load of the app ----
-    // (a real page parse — first open, force-quit + reopen, or the OS
-    // evicting it from memory — not on resuming a backgrounded session).
-    // No persistence check by design; kept as a named function so a
-    // different rule (e.g. once-per-day) can be swapped in later
-    // without touching anything else below.
-    function qualifiesForSplash() {
-      return true;
-    }
+    // Plays on every fresh load. Kept as a named function so a different rule
+    // (e.g. once per day) can be swapped in later.
+    function qualifiesForSplash() { return true; }
 
     if (!qualifiesForSplash()) {
       splash.style.display = 'none';
@@ -4132,190 +3926,29 @@ try {
       return;
     }
 
-    var blockInners = Array.from(splash.querySelectorAll('.block-inner'));
-    var blockEls = Array.from(splash.querySelectorAll('.block'));
-    var topBlocks = [document.getElementById('block-1'), document.getElementById('block-2')];
-    var bottomBlocks = [document.getElementById('block-3'), document.getElementById('block-4')];
-    var wordmarkGroup = document.getElementById('wordmark-group');
-    var wordmark = document.getElementById('wordmark');
-    var bullets = [
-      document.getElementById('bullet-1'),
-      document.getElementById('bullet-2'),
-      document.getElementById('bullet-3'),
-    ];
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var total = reduce ? REDUCED_MS : SPLASH_MS;
+    var done = false;
+    var timer;
 
-    // the tagline's own words ARE the pillar labels — no separate
-    // floating clone. Their starting position (under the blocks) is
-    // computed at runtime from the block-wrap rects — see wordBlockWraps below.
-    var words = [
-      { el: document.getElementById('target-train'),    accent: false },
-      { el: document.getElementById('target-fuel'),      accent: false },
-      { el: document.getElementById('target-overcome'),  accent: true  },
-      { el: document.getElementById('target-repeat'),    accent: false },
-    ];
-    // block-wrap never moves (only the .block child inside it does, via
-    // transform) — so measuring the wrap is always safe/stable, with zero
-    // dependency on transition timing. We add the KNOWN lift constant
-    // mathematically instead of trying to read a live, mid-transition value.
-    var wordBlockWraps = {
-      'target-train':    document.getElementById('wrap-train'),
-      'target-fuel':      document.getElementById('wrap-fuel'),
-      'target-overcome':  document.getElementById('wrap-over'),
-      'target-repeat':    document.getElementById('wrap-repeat'),
-    };
-    var TOP_ROW_WORDS = ['target-train', 'target-fuel'];
-    var LIFT_TOP = 32;    // must match .block.lifted-top translateY(-32px)
-    var LIFT_BOTTOM = 16; // must match .block.lifted-bottom translateY(-16px)
-    var BLOCK_SIZE = 70;  // must match .block width/height
-
-    // Tetris-style drop order: bottom-left, bottom-right, top-right, top-left
-    var dropOrder = [
-      document.getElementById('block-3'),
-      document.getElementById('block-4'),
-      document.getElementById('block-2'),
-      document.getElementById('block-1'),
-    ];
-    var dropWraps = {
-      'block-1': 'wrap-train', 'block-2': 'wrap-fuel',
-      'block-3': 'wrap-over',  'block-4': 'wrap-repeat',
-    };
-
-    var timeouts = [];
-    function after(ms, fn) { timeouts.push(setTimeout(fn, ms)); }
-
-    // Skip/cancel button — top-right corner, visible for the full
-    // splash duration. Clears every step still queued in `timeouts`
-    // (drops, flips, lift, scatter, rise, the eventual fade-out) rather
-    // than just hiding the splash on top of an animation that's still
-    // silently running underneath, then jumps straight to the same
-    // fade-out + revealApp() the natural sequence ends on, so the app
-    // becomes visible exactly the same way either path finishes.
-    var skipBtn = document.getElementById('splash-skip');
-    if (skipBtn) {
-      skipBtn.addEventListener('click', function() {
-        timeouts.forEach(clearTimeout);
-        splash.classList.add('fade-out');
-        revealApp();
-      });
-    }
-
-    // heavy landing thud once each block's fall transition finishes
-    blockEls.forEach(function(el) {
-      el.addEventListener('transitionend', function(e) {
-        if (e.propertyName === 'transform' && el.classList.contains('dropping')) {
-          el.classList.remove('dropping');
-          el.classList.add('impact');
-          var wrap = document.getElementById(dropWraps[el.id]);
-          wrap.classList.add('impacting');
-          setTimeout(function() { el.classList.remove('impact'); }, 340);
-          setTimeout(function() { wrap.classList.remove('impacting'); }, 560);
-        }
-      });
-    });
-
-    var DROP_STAGGER = 380;   // ms between each block starting its fall — slower, heavier cadence
-    var DROP_FALL_MS = 520;   // slower, more deliberate fall
-    var ENTRY_OFFSET = DROP_STAGGER * (dropOrder.length - 1) + DROP_FALL_MS + 400 + 150; // last drop start + fall + thud settle + breathing room
-    var RISE_MS = 900; // must match #wordmark / .tword transition duration
-
-    // 1) Tetris-style drop-in: bottom-left, bottom-right, top-right,
-    // top-left — heavy fall + hard thud on landing (no bounce)
-    dropOrder.forEach(function(el, i) {
-      after(i * DROP_STAGGER, function() {
-        el.classList.add('dropping');
-        el.classList.remove('pre-drop');
-      });
-    });
-
-    // 2) staggered block flips (icon only) — shifted to start once all
-    // blocks have landed
-    var flipDelays = [700, 1250, 1800, 2350].map(function(d) { return d + ENTRY_OFFSET; });
-    blockInners.forEach(function(b, i) { after(flipDelays[i], function() { b.classList.add('flipped'); }); });
-
-    // 3) pause ~1s after the last flip, then blocks lift — top row rises
-    // twice as far as bottom row — to reveal the pillar words tucked
-    // underneath them. Each word's starting position is computed
-    // analytically from the static block-wrap position + the known lift
-    // amount, so it lands exactly under its own block with no overlap.
-    var pauseUntil = 4250 + ENTRY_OFFSET;
-    var REVEAL_GAP = 8; // px between the lifted block's bottom edge and the word
-
-    after(pauseUntil, function() {
-      topBlocks.forEach(function(el) { el.classList.add('lifted-top'); });
-      bottomBlocks.forEach(function(el) { el.classList.add('lifted-bottom'); });
-
-      words.forEach(function(w) {
-        var isTopRow = TOP_ROW_WORDS.indexOf(w.el.id) !== -1;
-        var liftAmount = isTopRow ? LIFT_TOP : LIFT_BOTTOM;
-        var wrapRect = wordBlockWraps[w.el.id].getBoundingClientRect(); // block-wrap is static — always safe to measure
-        var blockCenterX = wrapRect.left + BLOCK_SIZE / 2;
-        var liftedBlockBottom = wrapRect.top + BLOCK_SIZE - liftAmount;
-        var wordRect = w.el.getBoundingClientRect(); // natural (un-offset) tagline position — stable, never moves
-        var dx = blockCenterX - (wordRect.left + wordRect.width / 2);
-        var dy = (liftedBlockBottom + REVEAL_GAP) - wordRect.top;
-        w.el.style.transition = 'none';
-        w.el.style.setProperty('--fx', dx + 'px');
-        w.el.style.setProperty('--fy', dy + 'px');
-      });
-      void words[0].el.offsetWidth; // commit the instant (non-animated) position
-      words.forEach(function(w) { w.el.style.transition = ''; }); // restore CSS transition for the later landing animation
-
-      words.forEach(function(w, i) { setTimeout(function() { w.el.classList.add('show'); }, i * 80); });
-    });
-
-    // 4) hold, then blocks scatter — on their own; the words stay
-    // exactly where they are, untouched
-    var scatterAt = pauseUntil + 2200;
-    after(scatterAt, function() {
-      blockEls.forEach(function(el, i) {
-        el.classList.remove('lifted-top', 'lifted-bottom');
-        var angle = Math.random() * Math.PI * 2;
-        var dist = 260 + Math.random() * 140;
-        el.style.setProperty('--sx', (Math.cos(angle) * dist) + 'px');
-        el.style.setProperty('--sy', (Math.sin(angle) * dist) + 'px');
-        el.style.setProperty('--sr', ((Math.random() * 240 - 120)) + 'deg');
-        setTimeout(function() { el.classList.add('scatter'); }, i * 70);
-      });
-    });
-
-    // 5) shortly after, BLOC rises to its resting position (roughly
-    // where the blocks were) and the words settle into the tagline at
-    // the same time, on the same duration, so they arrive together
-    var riseAt = scatterAt + 400;
-    after(riseAt, function() {
-      wordmarkGroup.classList.add('risen');
-      wordmark.classList.add('show');
-      words.forEach(function(w) { w.el.classList.add('landed'); });
-    });
-
-    // 6) once everything has landed: OVERCOME picks up weight + accent
-    // colour, and the bullets fade in around the now-settled words
-    after(riseAt + RISE_MS + 150, function() {
-      var overcome = words.filter(function(w) { return w.accent; })[0];
-      overcome.el.classList.add('landed-accent');
-      bullets.forEach(function(b) { b.classList.add('show'); });
-    });
-
-    // 6b) v8.19 — the logo's three bars build bottom → top as the wordmark
-    // settles, each flashing green as it lands, then a green pulse runs up
-    // the stack on a loop until the splash fades out (§101)
-    after(riseAt + RISE_MS - 200, function() { wordmark.classList.add('locked'); });
-    after(riseAt + RISE_MS + 1100, function() { wordmark.classList.add('pulsing'); });
-
-    // 7) whole splash fades, after a moment to hold on the final state —
-    // and the real app is revealed underneath at the same moment, so it
-    // crossfades in rather than appearing as a hard cut
-    after(riseAt + RISE_MS + 2600, function() {
+    function finish() {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
       splash.classList.add('fade-out');
       revealApp();
-    });
+    }
+
+    var skipBtn = document.getElementById('splash-skip');
+    if (skipBtn) skipBtn.addEventListener('click', finish);
+
+    // time from when the splash started, not from DOMContentLoaded, so a slow
+    // parse of the rest of the page doesn't stretch the splash
+    timer = setTimeout(finish, Math.max(0, total - (Date.now() - startedAt)));
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', boot);
-  } else {
-    boot();
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
 })();
 </script>
 
@@ -6736,7 +6369,7 @@ try {
      same-named shims. ?v= is the first 12 hex of the file's SHA-256, so a phone never pairs a
      new index.html with an older engine from its HTTP cache; scripts/verify-engine-build.mjs
      fails if it is stale. Listed in scripts/publish-files.txt. -->
-<script src="engine/dist/bloc-engine.js?v=cf76137cd850"></script>
+<script src="engine/dist/bloc-engine.js?v=472e944018f9"></script>
 <script>
 // ════════════════════════════════════════════════
 // DATE HELPERS
@@ -7164,7 +6797,7 @@ function buildProgressTourSteps(demo) {
         // v8.41 (§135): the check-in's place is From your coach's.
         ? { targetId: 'progress-from-coach', screen: 'progress', onEnter: onPage(),
             title: 'From your coach',
-            body: 'Your coach’s check-ins, cycle reviews and next-cycle plans land here. Send a note back if something doesn’t fit, or tap Check in to ask for one.' }
+            body: 'Your coach’s check-ins, cycle reviews and next-cycle plans land here. Open one in full to send a note back, or tap Check in to ask for one when it’s due.' }
         : st);
   }
   return steps;
@@ -9643,7 +9276,10 @@ function removeCoachPlan() {
   }
   // Bookings and in-person logs belong to the link that just ended.
   state.coachBookings = {};
-  state.coachSessionLogs = [];
+  // 🚨 An OBJECT, keyed by publication id. v8.40 set [] here, and a record added
+  // to an array by key is silently dropped by JSON.stringify: after an unlink,
+  // no coach session's record survived a save (found in the v8.43 UAT, §137).
+  state.coachSessionLogs = {};
   if (gone.has(state.currentMacroId)) {
     const all = state.macrocycles;
     state.currentMacroId = getDateActiveMacroId() || (all.length ? all[all.length - 1].id : null);
@@ -10319,6 +9955,7 @@ function applyPlanPublication(pub) {
   const p = pub.payload || {};
   const incoming = p.macrocycle && typeof p.macrocycle === 'object' ? p.macrocycle : null;
   const macroIds = new Set(state.macrocycles.map(m => m.id));
+  const macroIdsBefore = new Set(macroIds);
   let candidate = null;
   if (incoming) {
     if (typeof incoming.id !== 'string' || !incoming.id) return { status: 'needs_attention', note: 'The cycle has no id.' };
@@ -10355,6 +9992,12 @@ function applyPlanPublication(pub) {
   for (const id of (p.remove_superset_ids || [])) delete state.supersets[id];
   for (const [key, on] of Object.entries(p.deloads || {})) { if (on) state.deloads[key] = true; else delete state.deloads[key]; }
   invalidateUnloggedTargets(changedEx.concat([...removeEx].map(id => [null, id])));
+  // v8.43 (§137): the Home banner "{coach} updated your plan".
+  const named = candidate || state.macrocycles.find(m => Object.keys(p.exercises || {}).concat(Object.keys(p.deloads || {})).some(k => k.startsWith(m.id + '_')));
+  const isNew = incoming && !macroIdsBefore.has(incoming.id);
+  addCoachNotice(pub, 'plan', `${coachFirstName()} updated your plan`,
+    named ? (isNew && named.start ? `“${named.name || 'A new cycle'}” starts ${coachDayFmt(named.start)}. Train shows it when you get there.`
+      : `Changes to “${named.name || 'your cycle'}”. Train shows them when you get there.`) : 'Train shows the changes when you get there.');
   return { status: 'applied' };
 }
 
@@ -10393,8 +10036,11 @@ function applyGoalPhasesPublication(pub) {
   if (p.macro_id && !state.macrocycles.some(m => m.id === p.macro_id)) return { status: 'needs_attention', note: 'Its cycle isn’t on this phone yet.' };
   for (const g of (p.goals || [])) if (!g || !g.macroGoalID || !g.startDate || !g.endDate) return { status: 'needs_attention', note: 'A goal phase is missing its id or dates.' };
   applyGoalsPatch(p.goals, p.remove_goal_ids, pub, p.macro_id);
+  addGoalPhasesNotice(pub, p.goals);
   return { status: 'applied' };
 }
+// The response banner's line: the coach's headline, when there is one.
+function c0Headline(content) { return content && typeof content === 'object' && content.headline ? String(content.headline) : ''; }
 // I5: the coach's AI responses never go in blocAdvice (the client's own
 // check-in slot). One entry per response_id; a republished edit replaces it
 // and is marked updated ("Updated by {coach}", §11 Q10). Its goal changes,
@@ -10411,13 +10057,24 @@ function applyAiResponsePublication(pub) {
   const i = state.coachAdvice.findIndex(a => a.responseId === p.response_id);
   if (i >= 0) state.coachAdvice[i] = Object.assign(entry, { updated: true }); else state.coachAdvice.push(entry);
   if (gc) applyGoalsPatch(gc.goals, gc.remove_goal_ids, pub, p.macro_id);
+  // v8.43 (§137): Progress's "New check-in from {coach}", and Home's goal
+  // phases banner when the response changed them (§11 Q9: one Publish).
+  addCoachNotice(pub, 'response', `New ${coachToolMeta(p.tool).label.toLowerCase()} from ${coachFirstName()}`,
+    c0Headline(p.content) || 'It’s in Progress, under From your coach.', { responseId: p.response_id });
+  if (gc && ((gc.goals || []).length || (gc.remove_goal_ids || []).length)) addGoalPhasesNotice(Object.assign({}, pub, { id: pub.id + ':goals' }), gc.goals);
   return { status: 'applied' };
 }
 function applyBookingPublication(pub) {
   const p = pub.payload || {};
   if (!p.booking_id) return { status: 'needs_attention', note: 'The booking has no id.' };
   if (!state.coachBookings || typeof state.coachBookings !== 'object') state.coachBookings = {};
+  const before = state.coachBookings[p.booking_id];
   state.coachBookings[p.booking_id] = Object.assign(pubCopy(p), { seq: pub.seq });
+  // v8.43 (§137): "Session confirmed" (proposal §8: accepted, moved or cancelled).
+  const when = coachDateTimeFmt(p.date, p.start_min);
+  if (p.status === 'cancelled') { if (before && before.status !== 'cancelled') addCoachNotice(pub, 'booking', 'Session cancelled', `${when} with ${coachFirstName()} is off.`); }
+  else if (!before || before.status === 'cancelled') addCoachNotice(pub, 'booking', 'Session confirmed', `${coachFirstName()} booked you in: ${when}${coachBookingWeekly(p) ? ', weekly' : ''}.`);
+  else if (before.date !== p.date || before.start_min !== p.start_min) addCoachNotice(pub, 'booking', 'Session moved', `${coachFirstName()} moved it to ${when}.`);
   return { status: 'applied' };
 }
 function applyMeasurementPublication(pub) {
@@ -10437,14 +10094,129 @@ function applyNoteReplyPublication(pub) {
   state.coachNoteReplies[p.submission_id] = { text: p.text || '', seq: pub.seq, receivedAt: new Date().toISOString() };
   return { status: 'applied' };
 }
-// A coach-logged in-person session changes trainLogs, the progression locks
-// and history (deep dive I2/I3), with Train's read-only "Logged by your coach"
-// view. That lands with the Coached-mode Train work; until then the session is
-// KEPT (state.coachSessionLogs) and not acked, so the coach sees it as pending.
-function storeSessionLogPublication(pub) {
-  if (!state.coachSessionLogs || typeof state.coachSessionLogs !== 'object') state.coachSessionLogs = {};
-  state.coachSessionLogs[pub.id] = { seq: pub.seq, payload: pubCopy(pub.payload) };
-  return { status: 'stored' };
+// ── A session the coach logged (v8.43, §137; proposal §5.6, deep dive I2/I3) ──
+// The payload contract Coach's Start session must send (0023 allow-lists the
+// keys; this is what's inside them):
+//   in person: {v, session_id, booking_id?, macro_id, week, day_key,
+//               kind: 'in_person', logs: {exId: {sets: [{weight, reps, done?,
+//               dropWeight?, dropReps?}], progType?} | [sets]},
+//               rpe?: {exId: 1–10 | 'skipped'}}
+//   group:     {v, session_id, booking_id, kind: 'group',
+//               logs: [{name, sets: [{weight, reps}]}],
+//               replaces?: {macroId, week, dayKey} | null}
+// A republish with the same session_id (a correction, `supersedes`) replaces it.
+const COACH_LOG_NUM_FIELDS = ['weight', 'reps', 'dropWeight', 'dropReps'];
+// Set-log keys of one exercise-week (`…_${exId}_${n}`, never the progKey).
+function trainSetKeysFor(macroId, week, dayKey, exId) {
+  const p = `${macroId}_${week}_${dayKey}_${exId}_`;
+  return Object.keys(state.trainLogs || {}).filter(k => k.startsWith(p) && /^\d+$/.test(k.slice(p.length)));
+}
+function coachSessionPlace(macroId, week, dayKey) {
+  const macro = (state.macrocycles || []).find(m => m.id === macroId);
+  if (!macro) return { note: 'Its cycle isn’t on this phone.' };
+  const w = Number(week);
+  if (!Number.isInteger(w) || w < 1 || w > getMacroEffectiveMesoCount(macro)) return { note: `Week ${week} isn’t in “${macro.name || 'that cycle'}”.` };
+  const template = state.exercises[macro.id + '_1_' + dayKey] || [];
+  if (!template.length) return { note: `That session (${dayKey}) isn’t in “${macro.name || 'that cycle'}” on this phone.` };
+  return { macro, week: w, dayKey, template };
+}
+function applySessionLogPublication(pub) {
+  const p = pub.payload || {};
+  if (!p.session_id) return { status: 'needs_attention', note: 'The session has no id.' };
+  const kind = p.kind || 'in_person';
+  if (kind === 'group') return applyGroupSessionLog(pub);
+  if (kind !== 'in_person') return { status: 'needs_attention', note: `This version of BLOC can’t read a “${kind}” session.` };
+  const at = coachSessionPlace(p.macro_id, p.week, p.day_key);
+  if (at.note) return { status: 'needs_attention', note: at.note };
+  const { macro, week, dayKey, template } = at;
+  const logs = p.logs && typeof p.logs === 'object' && !Array.isArray(p.logs) ? p.logs : {};
+  const known = new Set(template.map(e => e.id));
+  for (const exId of Object.keys(logs).concat(Object.keys(p.rpe || {}))) {
+    if (!known.has(exId)) return { status: 'needs_attention', note: `An exercise it logs (${exId}) isn’t in that session on this phone.` };
+  }
+  const loggedAt = pub.created_at || new Date().toISOString();
+  // 🚨 I3: a coach-logged session owns the WHOLE (week, dayKey) session. What
+  // was logged in it before (the client's, or the coach's previous version)
+  // is replaced; the client's own sets are kept on the record, never lost.
+  const replaced = {};
+  for (const ex of template) for (const k of trainSetKeysFor(macro.id, week, dayKey, ex.id)) {
+    if (state.trainLogs[k] && state.trainLogs[k].loggedBy !== 'coach') replaced[k] = state.trainLogs[k];
+    delete state.trainLogs[k];
+  }
+  for (const [exId, entry] of Object.entries(logs)) {
+    const sets = Array.isArray(entry) ? entry : (entry && Array.isArray(entry.sets) ? entry.sets : []);
+    sets.forEach((st, i) => {
+      if (!st || typeof st !== 'object') return;
+      const rec = {};
+      for (const [f, v] of Object.entries(st)) {
+        if (v == null || typeof v === 'object' || ['loggedBy', 'loggedAt', 'sessionId', 'done'].includes(f)) continue;
+        rec[f] = COACH_LOG_NUM_FIELDS.includes(f) ? String(v) : v; // as Train's inputs store them
+      }
+      rec.done = st.done !== false;
+      Object.assign(rec, { loggedBy: 'coach', loggedAt, sessionId: p.session_id });
+      state.trainLogs[`${macro.id}_${week}_${dayKey}_${exId}_${i}`] = rec;
+    });
+    if (entry && (entry.progType === 'weight' || entry.progType === 'reps')) {
+      state.trainLogs[getProgKey(macro.id, week, dayKey, exId)] = { progType: entry.progType };
+    }
+  }
+  // §11 Q13: ratings in the coach's session are the coach's, marked so.
+  if (!state.rpe) state.rpe = {};
+  for (const [exId, r] of Object.entries(p.rpe || {})) {
+    const k = getRpeKey(macro.id, week, dayKey, exId);
+    const n = typeof r === 'number' ? r : (r && typeof r.rpe === 'number' ? r.rpe : null);
+    if (n != null && n >= 1 && n <= 10) state.rpe[k] = { rpe: Math.round(n), ratedBy: 'coach' };
+    else if (r === 'skipped' || (r && r.rpeSkipped)) state.rpe[k] = { rpeSkipped: true, ratedBy: 'coach' };
+  }
+  // 🚨 I2: later weeks the client hasn't logged recompute from the coach's
+  // numbers; logged weeks never change (§0). The lock replays from week 2.
+  const touched = template.filter(e => e.id in logs || Object.keys(replaced).some(k => k.startsWith(`${macro.id}_${week}_${dayKey}_${e.id}_`)));
+  const r = BlocEngine.replayProgressionAfterLog(state, progressionTargetCache(), macro, week, dayKey, touched);
+  if (!state.progressionTargets) state.progressionTargets = {};
+  for (const k of r.deleteTargets) delete state.progressionTargets[k];
+  Object.assign(state.progressionTargets, r.setTargets);
+  if (!state.progressionLocks) state.progressionLocks = {};
+  for (const [k, v] of Object.entries(r.locks)) { if (v) state.progressionLocks[k] = v; else delete state.progressionLocks[k]; }
+  // I3: the history side effect toggleSetDone has, but only when this is the
+  // exercise's latest logged week: an older week mustn't overwrite "last logged".
+  const total = getMacroEffectiveMesoCount(macro);
+  for (const ex of template.filter(e => e.id in logs)) {
+    let later = false;
+    for (let w = week + 1; w <= total && !later; w++) later = trainSetKeysFor(macro.id, w, dayKey, ex.id).length > 0;
+    if (!later) recordExerciseHistory(macro, week, dayKey, ex);
+  }
+  // 🚨 Array.isArray: v8.40's unlink left [] behind (above, removeCoachPlan), and
+  // a keyed record on an array never reaches the saved JSON.
+  if (!state.coachSessionLogs || typeof state.coachSessionLogs !== 'object' || Array.isArray(state.coachSessionLogs)) state.coachSessionLogs = {};
+  state.coachSessionLogs[pub.id] = { seq: pub.seq, payload: pubCopy(p), applied: true, loggedAt,
+    ...(Object.keys(replaced).length ? { replacedClientLogs: replaced } : {}) };
+  return { status: 'applied' };
+}
+// A group session (§5.6, §11 Q21): an EXTRA session in the client's record
+// ("Group session · logged by coach", in Your sessions), which never touches
+// progression. If the coach marked it as replacing the client's planned session
+// that day, that session is treated as swapped: counted as done, not scored,
+// its targets held (the 'group' substitution, D3).
+function applyGroupSessionLog(pub) {
+  const p = pub.payload || {};
+  let at = null;
+  if (p.replaces) {
+    at = coachSessionPlace(p.replaces.macroId, p.replaces.week, p.replaces.dayKey);
+    if (at.note) return { status: 'needs_attention', note: 'The session it replaces: ' + at.note };
+  }
+  if (!state.substitutions) state.substitutions = {};
+  for (const [k, x] of Object.entries(state.substitutions)) if (x && x.kind === 'group' && x.sessionId === p.session_id) delete state.substitutions[k];
+  const loggedAt = pub.created_at || new Date().toISOString();
+  if (at) for (const ex of at.template) {
+    state.substitutions[BlocEngine.getSubstitutionKey(at.macro.id, at.week, at.dayKey, ex.id)] = { kind: 'group', sessionId: p.session_id, at: loggedAt };
+  }
+  const b = p.booking_id && state.coachBookings && state.coachBookings[p.booking_id];
+  if (!state.coachExtraSessions || typeof state.coachExtraSessions !== 'object' || Array.isArray(state.coachExtraSessions)) state.coachExtraSessions = {};
+  state.coachExtraSessions[p.session_id] = { kind: 'group', seq: pub.seq, loggedAt,
+    date: (b && b.date) || loggedAt.slice(0, 10), bookingId: p.booking_id || null,
+    exercises: pubCopy(Array.isArray(p.logs) ? p.logs : []),
+    replaces: at ? { macroId: at.macro.id, week: at.week, dayKey: at.dayKey } : null };
+  return { status: 'applied' };
 }
 const PUB_APPLIERS = {
   plan: applyPlanPublication,
@@ -10453,7 +10225,7 @@ const PUB_APPLIERS = {
   booking: applyBookingPublication,
   measurement: applyMeasurementPublication,
   note_reply: applyNoteReplyPublication,
-  session_log: storeSessionLogPublication,
+  session_log: applySessionLogPublication,
 };
 
 // ── THE funnel ─────────────────────────────────────────────────────────────
@@ -10465,7 +10237,8 @@ function applyPublications(pubs) {
   let changed = false;
   for (const pub of pubs.slice().sort((a, b) => a.seq - b.seq)) {
     const done = ledger[pub.id];
-    if (done && done.status !== 'needs_attention') continue; // already settled: idempotent
+    // v8.43 (§137): 'stored' was 4d's "kept for later" (session_log); it now applies.
+    if (done && done.status !== 'needs_attention' && done.status !== 'stored') continue; // already settled: idempotent
     let r;
     if (superseded.has(pub.id)) r = { status: 'superseded' };
     else {
@@ -10516,6 +10289,7 @@ function drainPublications() {
   // Unlinked since they were fetched (a retry timer can outlive the link):
   // nothing from that coach may land now.
   if (!isCoachedMode()) { _pubPending = []; return Promise.resolve('not-coached'); }
+  queueStoredSessionLogs();
   if (!_pubPending.length) return sendPendingAcks().then(() => 'nothing-new');
   const wait = publicationsMustWait();
   if (wait) {
@@ -10535,6 +10309,17 @@ function drainPublications() {
     if (ses && ses.classList.contains('open') && typeof renderCoachSessions === 'function') renderCoachSessions();
   }
   return sendPendingAcks().then(() => 'applied');
+}
+
+// v8.43 (§137): session_logs that v8.39–v8.42 STORED (their seq is below the
+// cursor, so no pull brings them back) apply from the stored copy, once.
+function queueStoredSessionLogs() {
+  const ledger = coachLedger();
+  const pending = new Set(_pubPending.map(p => p.id));
+  for (const [id, e] of Object.entries(state.coachSessionLogs || {})) {
+    if (!e || e.applied || !e.payload || pending.has(id) || !ledger[id] || ledger[id].status !== 'stored') continue;
+    _pubPending.push({ id, seq: e.seq, coach_id: null, type: 'session_log', payload: e.payload, supersedes: null, created_at: null });
+  }
 }
 
 // Acks for every settled, un-acked ledger entry. Kept un-acked on failure and
@@ -13419,7 +13204,7 @@ function buildRpeTagsHtml(macro, week, dayKey, ex, isLocked, isDeloadSession) {
   if (!isRpeOn(macro) || !ex || ex.category === 'cardio') return '';
   const tags = [];
   const own = state.rpe && state.rpe[getRpeKey(macro.id, week, dayKey, ex.id)];
-  if (own && typeof own.rpe === 'number') tags.push(`<span class="ex-tag ex-tag-quiet">RPE ${own.rpe}</span>`);
+  if (own && typeof own.rpe === 'number') tags.push(`<span class="ex-tag ex-tag-quiet">RPE ${own.rpe}${own.ratedBy === 'coach' ? ' · rated by coach' : ''}</span>`); // §11 Q13
   else if (own && own.rpeSkipped) tags.push('<span class="ex-tag ex-tag-quiet">Not rated</span>');
   if (!isDeloadSession && !isLocked) {
     const step = getRpeStep(macro, week, dayKey, ex);
@@ -14928,9 +14713,13 @@ function coachBylineHTML(a) {
     <b>${coachEsc(coachName())}</b><span>${a.updated ? 'Updated · ' : ''}${meta.label}${when ? ' · ' + when : ''}</span></div>`;
 }
 // The note back and, once it comes, the coach's reply (§11: the client sees it).
+// v8.43 (Adam, UAT): every new button carries an icon left of its text. The
+// pulsing ✦ row (aiActionRow) stays Solo's: "your next AI check-in is due".
+const COACH_ICO_READ = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6.5" cy="14.5" r="3.5"/><circle cx="17.5" cy="14.5" r="3.5"/><path d="M10 14.5c1.2-1 2.8-1 4 0M3 14.5 4.5 8.5A2 2 0 0 1 6.4 7H8M21 14.5l-1.5-6A2 2 0 0 0 17.6 7H16"/></svg>';
+const COACH_ICO_BUBBLE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>';
 function coachNoteRowHTML(a) {
   const sent = a.publicationId && state.coachNotesSent && state.coachNotesSent[a.publicationId];
-  if (!sent) return aiActionRow('Send a note back', `openCoachNote('${coachEsc(a.responseId)}')`, 'coach-note-btn');
+  if (!sent) return `<button class="btn btn-ghost btn-block coach-icon-btn" id="coach-note-btn" onclick="openCoachNote('${coachEsc(a.responseId)}')">${COACH_ICO_BUBBLE}Send a note back</button>`;
   const reply = sent.submissionId && state.coachNoteReplies && state.coachNoteReplies[sent.submissionId];
   return aiTimerRow(`Note sent to ${coachEsc(coachFirstName())} · ${coachDayFmt(sent.at)}`).replace('⏱ ', '✓ ')
     + (reply ? `<div class="coach-reply"><b>${coachEsc(coachFirstName())} replied</b>${coachEsc(reply.text)}</div>` : '');
@@ -14954,8 +14743,8 @@ function renderProgressFromCoach(el, macro) {
       + (c.headline ? `<div class="ai-card-headline">${coachEsc(c.headline)}</div>` : '')
       + (c.paras[0] ? `<div class="ai-card-summary">${coachEsc(c.paras[0])}</div>` : '')
       + coachScoresHTML(coachAdviceScores(a))
-      + `<button class="btn btn-ghost btn-block" style="margin-top:16px;" onclick="openCoachResponse('${coachEsc(a.responseId)}')">${coachToolMeta(a.tool).readFull}</button>`
-      + coachNoteRowHTML(a);
+      + `<button class="btn btn-ghost btn-block coach-icon-btn" style="margin-top:16px;" onclick="openCoachResponse('${coachEsc(a.responseId)}')">${COACH_ICO_READ}${coachToolMeta(a.tool).readFull}</button>`;
+    // v8.43 (Adam, UAT): the note back lives in the full sheet only (openCoachResponse).
   } else {
     body = `<div class="empty-inline" style="text-align:center;">${tab === 'next-cycle'
       ? `${coachEsc(coachFirstName())} hasn’t shared your next cycle yet. It appears here when it’s published.`
@@ -14963,11 +14752,39 @@ function renderProgressFromCoach(el, macro) {
   }
   if (tab === 'cycle-review') body += coachReviewPhotosRowHTML(macro);
   const last = (state.coachCheckinsSent || [])[(state.coachCheckinsSent || []).length - 1];
-  el.innerHTML = sectionHeader('From your coach', 'Your coach’s check-ins and reviews. Send a note back if something doesn’t fit.',
-      { id: 'progress-from-coach', slot: `<button class="btn btn-ghost btn-sm" id="coach-checkin-btn" onclick="openCoachCheckin()">Check in</button>` })
+  const gate = coachCheckinGate(macro);
+  el.innerHTML = sectionHeader('From your coach', 'Your coach’s check-ins and reviews. Open one in full to send a note back.',
+      { id: 'progress-from-coach', slot: gate.open ? `<button class="btn btn-ghost btn-sm" id="coach-checkin-btn" onclick="openCoachCheckin()">Check in</button>` : '' })
     + `<div class="card">${tabs}${body}</div>`
+    + (gate.open ? '' : `<div class="coach-last">${coachEsc(gate.why)}</div>`)
     + (last ? `<div class="coach-last">Last check-in sent ${coachDayFmt(last.at)}.</div>` : '')
     + sectionEnd();
+}
+// v8.43 (Adam, UAT): Check in keeps Solo's rhythm. It opens once the cycle has
+// enough data to judge (computeCheckinState's hasEnoughData: Solo's baseline
+// and comparison window), then no sooner than Solo's 14-day cooldown after the
+// last check-in on this cycle, the client's request or the coach's response,
+// whichever is later: 14 days on, by Solo's own fallback formula
+// (getMondayAfter(getSundayAfterWeeks(…, 2))). Solo's other
+// gate, a signal that warrants an AI call, is Solo's cost control and not
+// applied: the coach decides.
+function coachCheckinGate(macro) {
+  if (!macro) return { open: false, why: 'Check in opens once you have an active cycle.' };
+  const st = computeCheckinState(macro);
+  if (!st || !st.hasEnoughData) {
+    const weeksLogged = st && st.ins ? st.ins.weekBuckets.length : 0;
+    const weeksLeft = Math.max(0, ((macro.goalType || 'loss') === 'loss' ? 4 : 3) - weeksLogged);
+    return { open: false, why: weeksLeft > 0
+      ? `Check in opens after about ${weeksLeft} more week${weeksLeft === 1 ? '' : 's'} of weight and nutrition logs.`
+      : 'Check in opens once more days have both weight and nutrition logged.' };
+  }
+  const days = [];
+  for (const x of (state.coachCheckinsSent || [])) if (x && x.at && (!x.macroId || x.macroId === macro.id)) days.push(toLocalDateStr(new Date(x.at)));
+  for (const a of coachAdviceForMacro(macro)) if (coachToolKey(a.tool) === 'check-in' && (a.publishedAt || a.receivedAt)) days.push(toLocalDateStr(new Date(a.publishedAt || a.receivedAt)));
+  if (!days.length) return { open: true };
+  const lastDay = days.sort()[days.length - 1];
+  const until = getMondayAfter(getSundayAfterWeeks(lastDay, 2));
+  return getLocalToday() >= until ? { open: true } : { open: false, until, why: `Next check-in · ${coachDayFmt(until)}` };
 }
 function setFromCoachTab(key) {
   _fromCoachTab = key;
@@ -15048,6 +14865,7 @@ async function sendCoachNote() {
 
 // ── Check in ───────────────────────────────────────────────────────────────
 function openCoachCheckin() {
+  if (!coachCheckinGate(resolveProgressMacro()).open) return; // v8.43: Solo's rhythm (coachCheckinGate)
   _coachCheckin = { feel: null, note: '', busy: false, error: null };
   renderCoachCheckin();
   openModal('modal-coach-checkin');
@@ -15085,7 +14903,7 @@ async function sendCoachCheckin() {
     }).select('id').single();
     if (error) throw error;
     if (!Array.isArray(state.coachCheckinsSent)) state.coachCheckinsSent = [];
-    state.coachCheckinsSent.push({ submissionId: data.id, at: new Date().toISOString(), feel: f.feel });
+    state.coachCheckinsSent.push({ submissionId: data.id, at: new Date().toISOString(), feel: f.feel, macroId: (resolveProgressMacro() || {}).id || null });
     if (state.coachCheckinsSent.length > 20) state.coachCheckinsSent = state.coachCheckinsSent.slice(-20);
     save();
     _coachCheckin = null;
@@ -15251,10 +15069,20 @@ const COACH_ICO_CLOCK = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx=
 const COACH_ICO_CALENDAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 9.5h18M8 2.5v4M16 2.5v4"/></svg>';
 
 // ── The coach's session, read-only in Train ───────────────────────────────
-// 4e-4 adds a coach-LOGGED session to the same question.
+// v8.43 (§137): …and a session the coach LOGGED in person (their sets carry
+// loggedBy 'coach', deep dive I3), and one a group session replaced (§5.6).
 function coachOwnedSession(macroId, week, dayKey) {
+  const macro = (state.macrocycles || []).find(m => m.id === macroId);
+  const logged = macro && BlocEngine.getCoachLoggedSession(state, macro, week, dayKey);
+  if (logged) return Object.assign({ kind: 'logged' }, logged);
+  const group = macro && coachGroupReplacing(macroId, week, dayKey);
+  if (group) return { kind: 'group', session: group };
   const b = getCoachAssignment(macroId, week, dayKey);
   return b ? { kind: 'assigned', booking: b } : null;
+}
+function coachGroupReplacing(macroId, week, dayKey) {
+  return Object.values(state.coachExtraSessions || {}).find(x => x && x.replaces
+    && x.replaces.macroId === macroId && Number(x.replaces.week) === week && x.replaces.dayKey === dayKey) || null;
 }
 function trainViewCoachOwned() {
   return !!(state.currentMacroId && coachOwnedSession(state.currentMacroId, state.currentWeek, state.currentDay));
@@ -15262,7 +15090,11 @@ function trainViewCoachOwned() {
 function trainCoachNoticeHTML(macro) {
   const own = macro && coachOwnedSession(macro.id, state.currentWeek, state.currentDay);
   if (!own) return '';
-  return `<div class="coach-notice train-coach-notice"><b>${coachEsc(coachSessionWhen(own.booking))}</b>${coachEsc(coachFirstName())} logs this session with you in person, so it’s read-only here. It fills in once it’s logged.</div>`;
+  const first = coachEsc(coachFirstName());
+  // v8.43 (§137): the wireframe's "Logged by your coach · in person".
+  if (own.kind === 'logged') return `<div class="coach-notice train-coach-notice"><b>Logged by your coach · in person</b>${first} logged this session with you${own.loggedAt ? ` on ${coachDayFmt(own.loggedAt.slice(0, 10))}` : ''}. It’s read-only.</div>`;
+  if (own.kind === 'group') return `<div class="coach-notice train-coach-notice"><b>Replaced by a group session</b>${first}’s group session on ${coachDayFmt(own.session.date)} took its place. It counts as done, and its targets hold for next time.</div>`;
+  return `<div class="coach-notice train-coach-notice"><b>${coachEsc(coachSessionWhen(own.booking))}</b>${first} logs this session with you in person, so it’s read-only here. It fills in once it’s logged.</div>`;
 }
 // Every control that writes a log is inert (the handlers refuse too); the
 // cards still open, so the client can see what's planned.
@@ -15275,6 +15107,136 @@ function applyTrainCoachLock() {
   el.querySelectorAll('input, textarea, select').forEach(i => { i.disabled = true; });
   el.querySelectorAll('[onclick*="toggleSetDone"], [onclick*="toggleCardioSetDone"], [onclick*="selectProgType"], [onclick*="fillSuggested"], [onclick*="clearExerciseLogs"], [onclick*="quickFill"], [onclick*="fillCardio"], .ex-auto-btn')
     .forEach(b => { b.setAttribute('data-locked', ''); b.setAttribute('aria-disabled', 'true'); });
+}
+
+// ── Swap for today (v8.43, §137; proposal §4.3, §11 Q24/Q26, deep dive D3) ──
+// Replace an exercise for THIS session only (the machine is busy). Coached
+// only (§11 Q24: Solo edits its own plan). The substitute comes from the
+// client's own library, getLibrary() (§11 Q26), and is logged in the planned
+// exercise's set-log slots, marked by state.substitutions; the engine skips
+// the week everywhere it would read those logs as the planned exercise's, and
+// the planned exercise holds its target for next time. Solo exercises only:
+// a superset member or a cardio exercise isn't offered it.
+const ICO_SWAP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4 3 8l4 4"/><path d="M3 8h14"/><path d="m17 20 4-4-4-4"/><path d="M21 16H7"/></svg>';
+let _swapToday = null;         // {macroId, week, dayKey, exId}
+let _swapTodayOptions = [];    // the rows on show, by index
+function getSubstitution(macroId, week, dayKey, exId) {
+  return BlocEngine.getSubstitution(state, macroId, week, dayKey, exId);
+}
+function swapTodayRowHTML(macro, ex, doneSets, isSwapped) {
+  if (!coachedView() || trainViewCoachOwned() || !ex || ex.category === 'cardio' || ex.supersetId) return '';
+  const a = `'${macro.id}',${state.currentWeek},'${state.currentDay}','${ex.id}'`;
+  if (isSwapped) return `<button class="btn btn-ghost btn-sm btn-block ex-swap-btn" onclick="undoSwapToday(${a})">${ICO_SWAP}Back to ${ex.name}</button>`;
+  if (doneSets > 0) return ''; // the wireframe: only before the first set is done
+  return `<button class="btn btn-ghost btn-sm btn-block ex-swap-btn" onclick="openSwapToday(${a})">${ICO_SWAP}Swap for today</button>`;
+}
+function swapTodayExercise(t) {
+  return t && (state.exercises[t.macroId + '_1_' + t.dayKey] || []).find(e => e.id === t.exId) || null;
+}
+function openSwapToday(macroId, week, dayKey, exId) {
+  if (trainViewCoachOwned()) return;
+  const macro = (state.macrocycles || []).find(m => m.id === macroId);
+  _swapToday = { macroId, week, dayKey, exId };
+  const ex = swapTodayExercise(_swapToday);
+  if (!macro || !ex) { _swapToday = null; return; }
+  const d = BlocEngine.computeExerciseProgression(state, progressionTargetCache(), macro, week, dayKey, ex);
+  const reps = String(d.repsPlaceholder || ex.reps || '').replace(/ reps$/, '');
+  document.getElementById('swap-today-planned').innerHTML = `<div class="swap-planned-cap">Planned</div>
+    <div class="swap-planned-row"><b>${ex.name}</b><span>${d.sets} × ${coachEsc(reps)}${d.weightPlaceholder ? ` · ${d.weightPlaceholder} kg` : ''}</span></div>`;
+  document.getElementById('swap-today-sub').textContent = `Pick something to do instead, just for this session. It’s logged under its own name, ${ex.name} holds its target for next time, and ${coachFirstName()} sees the swap.`;
+  document.getElementById('swap-today-search').value = '';
+  // The keyboard-safe sheet, set up exactly as openRecipePickerForLog() does (§9).
+  const listWrap = document.getElementById('swap-today-list-wrap');
+  if (listWrap) listWrap.style.maxHeight = '';
+  renderSwapTodayList();
+  openModal('modal-swap-today');
+  setTimeout(() => fitListToKeyboard('swap-today-list-wrap'), 320);
+}
+function renderSwapTodayList() {
+  const el = document.getElementById('swap-today-list');
+  const ex = swapTodayExercise(_swapToday);
+  if (!el || !ex) return;
+  const q = (document.getElementById('swap-today-search').value || '').trim().toLowerCase();
+  const planned = (ex.name || '').trim().toLowerCase();
+  const all = getLibrary(); // sorted body part, then name
+  const part = swapBodyPartOf(ex, all);
+  const lib = all.filter(e => getLibraryCategory(e) !== 'cardio' && e.name.trim().toLowerCase() !== planned
+    && (!q || e.name.toLowerCase().includes(q)));
+  // v8.43 (Adam, UAT): alternatives for the same body part first (Bench Press →
+  // the other chest exercises), then everything else in the library's own order.
+  const same = part ? lib.filter(e => e.bodyPart === part) : [];
+  const rest = lib.filter(e => !same.includes(e));
+  _swapTodayOptions = same.concat(rest);
+  if (!_swapTodayOptions.length) {
+    el.innerHTML = `<div class="lib-empty">No exercises match “${coachEsc(q)}”.</div>`;
+    return;
+  }
+  // The exercise library's rows (.lib-row: a divider between, no cards).
+  const row = (e, i) => `<div class="lib-row swap-row" onclick="chooseSwapToday(${i})">
+      <div class="lib-row-text"><div class="lib-row-name">${coachEsc(e.name)}</div><div class="lib-row-meta">${coachEsc(e.bodyPart || '')}</div></div>
+      <div class="lib-row-actions"><span class="row-btn-chevron">${icoChevron()}</span></div>
+    </div>`;
+  const label = t => `<div class="swap-group-label">${coachEsc(t)}</div>`;
+  el.innerHTML = (same.length ? label(`Other ${part.toLowerCase()} exercises`) + same.map(row).join('') : '')
+    + (rest.length ? (same.length ? label('Everything else') : '') + rest.map((e, i) => row(e, same.length + i)).join('') : '');
+}
+// The planned exercise's body part: its library entry, else its own bodyPart,
+// else a guess from its name. 🚨 A coach's plan can name an exercise BLOC's
+// library doesn't have ("Bench Press"; the library says "Flat Press") and carry
+// no bodyPart, so without the guess nothing came first (Adam, v8.43 UAT).
+const SWAP_PART_WORDS = [
+  ['Legs', /squat|lunge|leg press|leg ext|leg curl|hamstring|rdl|romanian|deadlift|glute|hip thrust|step.?up/],
+  ['Calves', /calf|calves/],
+  ['Chest', /bench|chest|fly|flye|pec|push.?up|dip\b|incline|decline/],
+  ['Back', /row|pull.?down|pull.?up|chin.?up|lat\b|lats|pullover/],
+  ['Shoulders', /shoulder|overhead|military|lateral raise|front raise|delt|arnold|upright/],
+  ['Triceps', /tricep|push.?down|skull|close.?grip|kickback/],
+  ['Biceps', /bicep|curl|hammer/],
+];
+function swapBodyPartOf(ex, lib) {
+  const name = String((ex && ex.name) || '').trim().toLowerCase();
+  const own = (lib || getLibrary()).find(e => e.name.trim().toLowerCase() === name);
+  if (own && own.bodyPart) return own.bodyPart;
+  if (ex && ex.bodyPart) return ex.bodyPart;
+  const hit = SWAP_PART_WORDS.find(([, re]) => re.test(name));
+  return hit ? hit[0] : null;
+}
+function chooseSwapToday(i) {
+  if (trainViewCoachOwned()) return;
+  const t = _swapToday, pick = _swapTodayOptions[i], ex = swapTodayExercise(t);
+  if (!t || !pick || !ex) return;
+  // The substitute starts blank: anything typed in for the planned exercise
+  // this session goes (nothing is done yet; the row isn't offered after).
+  for (const k of trainSetKeysFor(t.macroId, t.week, t.dayKey, t.exId)) delete state.trainLogs[k];
+  if (state.rpe) delete state.rpe[getRpeKey(t.macroId, t.week, t.dayKey, t.exId)];
+  if (!state.substitutions) state.substitutions = {};
+  state.substitutions[BlocEngine.getSubstitutionKey(t.macroId, t.week, t.dayKey, t.exId)] = {
+    kind: 'swap', name: pick.name, bodyPart: pick.bodyPart || null, type: ex.type || 'standard',
+    trackingMode: pick.trackingMode || ex.trackingMode || null, at: new Date().toISOString() };
+  expandedExercises[`${t.macroId}_${t.week}_${t.dayKey}_${t.exId}`] = true;
+  _swapToday = null;
+  save();
+  closeModal('modal-swap-today');
+  renderTrain();
+}
+// "Back to {planned}". What was logged for the substitute goes with it: those
+// sets were another exercise's, and would otherwise count as the planned one's.
+function undoSwapToday(macroId, week, dayKey, exId) {
+  if (trainViewCoachOwned()) return;
+  const t = { macroId, week, dayKey, exId };
+  const sub = getSubstitution(macroId, week, dayKey, exId), ex = swapTodayExercise(t);
+  if (!sub || !ex) return;
+  const keys = trainSetKeysFor(macroId, week, dayKey, exId);
+  const logged = keys.filter(k => { const l = state.trainLogs[k]; return l && (l.done || l.weight || l.reps); }).length;
+  const back = () => {
+    for (const k of keys) delete state.trainLogs[k];
+    if (state.rpe) delete state.rpe[getRpeKey(macroId, week, dayKey, exId)];
+    delete state.substitutions[BlocEngine.getSubstitutionKey(macroId, week, dayKey, exId)];
+    save();
+    renderTrain();
+  };
+  if (!logged) return back();
+  showConfirm(`Back to ${ex.name}?`, `This clears the ${logged} set${logged === 1 ? '' : 's'} you logged for ${sub.name} today.`, 'Clear and go back', back);
 }
 
 // ── Home: Your next session (§4.3, §11 Q23) ───────────────────────────────
@@ -15447,8 +15409,24 @@ function renderCoachSessions() {
         <div class="coach-reqrow-main"><div class="coach-reqrow-when" style="color:var(--accent2);">${_coachSessionsAll ? 'Show fewer' : `Show all (${rows.length})`}</div></div>
         <span class="row-btn-chevron">${_coachSessionsAll ? icoSvg('<path d="m6 15 6-6 6 6"/>', 20) : icoChevDown(20)}</span></button>` : ''}
     </div>` : '';
-  el.innerHTML = hero + upcomingHTML
+  el.innerHTML = hero + upcomingHTML + coachGroupSessionsHTML()
     + `<div class="coach-caption">Sessions ${first} books appear here. To change one, ask ${first}.</div>`;
+}
+
+// v8.43 (§137, §5.6): group sessions, the extra sessions in the client's
+// record. "Group session · logged by coach"; they never touch progression.
+function coachGroupSessionsHTML() {
+  const list = Object.values(state.coachExtraSessions || {}).filter(x => x && x.kind === 'group')
+    .sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 5);
+  if (!list.length) return '';
+  const row = x => {
+    const names = (x.exercises || []).map(e => e && e.name).filter(Boolean);
+    const rep = x.replaces ? coachAssignedLabel({ assigned_session: x.replaces }).replace(/^With your coach · /, 'In place of ') : '';
+    return `<div class="coach-reqrow"><span class="coach-rep-ico">${COACH_NOTICE_ICONS.plan}</span><div class="coach-reqrow-main">
+        <div class="coach-reqrow-when">Group session · logged by coach</div>
+        <div class="coach-req-sub" style="margin-top:2px;">${[coachEsc(coachDayFmt(x.date)), names.length ? coachEsc(names.join(', ')) : '', coachEsc(rep)].filter(Boolean).join(' · ')}</div></div></div>`;
+  };
+  return `<div class="coach-section-title">Group sessions</div><div class="card coach-reqlist">${list.map(row).join('')}</div>`;
 }
 
 // ── The coach banner on Home (wireframe HomeScreen BannerSlot 'proposed') ──
@@ -15467,14 +15445,100 @@ function renderCoachSessions() {
 const _coachBannerDismissedThisRun = new Set();
 function coachBannerDismissed() { return [..._coachBannerDismissedThisRun]; }
 function coachProposalKey(r) { return r.id + ':' + (r.proposed ? r.proposed.date + ':' + r.proposed.start_min : ''); }
+// ── v8.43 (§137): the other three Home banners (wireframe HomeScreen
+// BannerSlot 'plan' / 'phases' / 'booking') and Progress's 'response' ──────
+// Raised by the appliers (§131) into state.coachNotices, one per publication,
+// so they survive a restart and travel with the data. 🚨 Informational, so
+// their ✕ is PERMANENT (Adam, v8.42 UAT): `dismissed` is saved. Only the
+// proposed time comes back (above). One slot, like the wireframe: the proposed
+// time first (it needs an answer), then the newest undismissed notice; its ✕
+// shows the next.
+const COACH_NOTICE_KEEP = 30;
+const COACH_NOTICE_ICONS = {
+  plan: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5v11M17.5 6.5v11M3 9.5v5M21 9.5v5M6.5 12h11"/></svg>',
+  phases: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>',
+  booking: COACH_ICO_CALENDAR,
+  response: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>',
+};
+function addCoachNotice(pub, kind, title, body, extra) {
+  if (!Array.isArray(state.coachNotices)) state.coachNotices = [];
+  if (state.coachNotices.some(n => n.id === pub.id)) return; // re-applied after a restore: already raised
+  state.coachNotices.push(Object.assign({ id: pub.id, kind, seq: pub.seq, title, body, at: new Date().toISOString(), dismissed: false }, extra || {}));
+  if (state.coachNotices.length > COACH_NOTICE_KEEP) state.coachNotices = state.coachNotices.slice(-COACH_NOTICE_KEEP);
+}
+// "Cut 3 now starts on Mon 5 Oct at 1,600 kcal and 10,000 steps." (the wireframe)
+function addGoalPhasesNotice(pub, goals) {
+  const today = getLocalToday();
+  const g = (goals || []).filter(x => x && x.startDate).sort((a, b) => a.startDate.localeCompare(b.startDate))
+    .find(x => (x.endDate || x.startDate) >= today) || (goals || [])[0];
+  const name = g && (g._blocLabel || g.label || g.name);
+  const nums = g ? [g.kcal ? `${Number(g.kcal).toLocaleString('en-GB')} kcal` : '', g.steps ? `${Number(g.steps).toLocaleString('en-GB')} steps` : ''].filter(Boolean).join(' and ') : '';
+  addCoachNotice(pub, 'phases', 'Your goal phases changed', g && g.startDate
+    ? `${name ? `“${name}”` : 'A phase'} ${g.startDate > today ? 'now starts' : 'started'} on ${coachDayFmt(g.startDate)}${nums ? ` at ${nums}` : ''}.`
+    : `${coachFirstName()} changed your goal phases.`);
+}
+function nextCoachNotice(kinds) {
+  const due = (state.coachNotices || []).filter(n => n && !n.dismissed && kinds.includes(n.kind));
+  return due.length ? due.reduce((a, b) => ((b.seq || 0) > (a.seq || 0) ? b : a)) : null;
+}
+function coachNoticeBannerHTML(n, action, count) {
+  return `<div class="coach-banner coach-banner-home" role="status">${coachBannerCountHTML(count)}
+      <span class="coach-banner-ico">${COACH_NOTICE_ICONS[n.kind] || COACH_ICO_CLOCK}</span>
+      <div style="flex:1;min-width:0;"><b>${coachEsc(n.title)}</b><div>${coachEsc(n.body)}</div>
+        ${action ? `<button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="${action.onclick}">${action.label}</button>` : ''}</div>
+      <button class="coach-banner-x" aria-label="Dismiss" onclick="dismissCoachNotice('${coachEsc(n.id)}')">✕</button>
+    </div>`;
+}
+// 🚨 Permanent: the one dismissed, and every older one of its kind (they're
+// the same news, superseded).
+function dismissCoachNotice(id) {
+  const n = (state.coachNotices || []).find(x => x.id === id);
+  if (!n) return;
+  for (const x of state.coachNotices) if (x.kind === n.kind && (x.seq || 0) <= (n.seq || 0)) x.dismissed = true;
+  save();
+  renderHomeCoachBanner();
+}
+// 🚨 Every banner is on HOME (Adam, v8.43 UAT: "banners this deep in the app
+// are pointless"). The response one's View opens Progress on that response's
+// cycle and its full text.
+const HOME_NOTICE_KINDS = ['plan', 'phases', 'booking', 'response'];
+const HOME_NOTICE_ACTIONS = {
+  plan: () => ({ label: 'View', onclick: "showScreen('train')" }),
+  booking: () => ({ label: 'View', onclick: 'openCoachSessions()' }),
+  response: n => n.responseId ? { label: 'View', onclick: `viewCoachResponse('${coachEsc(n.responseId)}')` } : null,
+};
+function viewCoachResponse(responseId) {
+  const a = coachAdviceById(responseId);
+  showScreen('progress'); // resets the viewed cycle on entry, so set it after
+  if (a && a.macroId && (state.macrocycles || []).some(m => m.id === a.macroId)) progressViewMacroId = a.macroId;
+  if (a) _fromCoachTab = coachToolKey(a.tool);
+  renderProgress();
+  openCoachResponse(responseId);
+}
+// How many banners are waiting, counting the one on show (the proposed time,
+// then one per kind with anything undismissed: dismissing one clears its kind).
+function coachBannerQueueCount(proposedShowing) {
+  const kinds = new Set((state.coachNotices || []).filter(n => n && !n.dismissed && HOME_NOTICE_KINDS.includes(n.kind)).map(n => n.kind));
+  return (proposedShowing ? 1 : 0) + kinds.size;
+}
+// iOS-style: a count over the banner's top-right corner, only when more than
+// one is waiting (Adam, v8.43 UAT), clear of the ✕ below it.
+function coachBannerCountHTML(count) {
+  return count > 1 ? `<span class="coach-banner-count" aria-label="${count} notifications">${count}</span>` : '';
+}
+
 function renderHomeCoachBanner() {
   const el = document.getElementById('home-coach-banner');
   if (!el) return;
   const dismissed = coachBannerDismissed();
   const due = coachedView() ? (_coachRequests || []).filter(r => r.status === 'proposed' && r.proposed && !dismissed.includes(coachProposalKey(r))) : [];
-  if (!due.length) { el.innerHTML = ''; return; }
+  if (!due.length) {
+    const n = coachedView() ? nextCoachNotice(HOME_NOTICE_KINDS) : null;
+    el.innerHTML = n ? coachNoticeBannerHTML(n, HOME_NOTICE_ACTIONS[n.kind] ? HOME_NOTICE_ACTIONS[n.kind](n) : null, coachBannerQueueCount(false)) : '';
+    return;
+  }
   const r = due[0];
-  el.innerHTML = `<div class="coach-banner coach-banner-home" role="status">
+  el.innerHTML = `<div class="coach-banner coach-banner-home" role="status">${coachBannerCountHTML(coachBannerQueueCount(true))}
       <span class="coach-banner-ico">${COACH_ICO_CLOCK}</span>
       <div style="flex:1;min-width:0;"><b>${coachEsc(coachFirstName())} proposed a different time</b>
         <div>${coachEsc(coachSlotLine(r.proposed))} instead of your choices.${due.length > 1 ? ` ${due.length - 1} more waiting.` : ''}</div>
@@ -22278,7 +22342,10 @@ function buildTrainPickerHTML(macro) {
       const badge = x.viewing ? '<span class="agenda-badge is-viewing">Viewing</span>' : x.upNext ? '<span class="agenda-badge is-next">Up next</span>' : '';
       // v8.42 (§136): a session the coach has taken for an in-person booking.
       // It replaces the row's meta line; the dot still shows what's logged.
-      const rowMeta = x.withCoach && !x.done ? coachEsc(coachSessionWhen(x.withCoach)) : meta;
+      // v8.43 (§137): logged by the coach, or replaced by a group session.
+      const rowMeta = x.coachLogged ? `Logged by your coach · ${x.doneSets} of ${x.sets} sets`
+        : x.groupReplaced ? 'Replaced by a group session'
+        : x.withCoach && !x.done ? coachEsc(coachSessionWhen(x.withCoach)) : meta;
       return `<button class="agenda-row${x.viewing ? ' is-viewing' : ''}" onclick="selectTrainSession(${x.week},'${x.dayKey}')">
           ${dot}<span class="agenda-row-text"><span class="agenda-row-name">${x.label}</span><span class="agenda-row-meta">${rowMeta}</span></span>${badge}
         </button>`;
@@ -22648,6 +22715,15 @@ function renderTrainDay(macro) {
               isDeloadSession, isPostDeloadSession, isLocked, prevWasLocked,
               isDropSet, prevActualDropWeight, prevActualDropReps,
               recommendedDropWeight, recommendedDropReps, dropWeightPlaceholder, dropRepsPlaceholder } = d;
+      // v8.43 (§137): Swap for today. THIS session's exercise is another one
+      // (no target, no last week); or last session's was, and its target holds.
+      // isSwapped covers both kinds of substitution (no target either way); a
+      // GROUP replacement keeps the planned name (Adam, v8.43 UAT: the names
+      // read "Another exercise"), only a swap shows the substitute.
+      const isSwapped = !!d.isSwapped, heldAfterSwap = !!d.heldAfterSwap;
+      const swap = isSwapped ? getSubstitution(macro.id, state.currentWeek, state.currentDay, exId) : null;
+      const isGroup = !!(swap && swap.kind === 'group');
+      const prevSub = heldAfterSwap ? getSubstitution(macro.id, state.currentWeek - 1, state.currentDay, exId) : null;
       const key2 = macro.id + '_' + state.currentWeek + '_' + state.currentDay;
       const typeLabel = ex.type === 'standard' ? 'std' : ex.type === 'giant' ? 'giant set' : ex.type === 'pause' ? 'pause set' : 'drop set';
 
@@ -22668,7 +22744,7 @@ function renderTrainDay(macro) {
       // are untouched and still anchor to the actual previous week's log.
       const baseForDelta  = ex.startWeight || 0;
       let progressBadge = '';
-      if (!isDeloadSession && currentActualWeight !== null && currentActualWeight !== baseForDelta) {
+      if (!isDeloadSession && !isSwapped && currentActualWeight !== null && currentActualWeight !== baseForDelta) {
         const progressKg  = currentActualWeight - baseForDelta;
         const progressPct = ex.startWeight > 0 ? Math.round(((currentActualWeight - ex.startWeight) / ex.startWeight) * 100) : 0;
         const col = progressKg >= 0 ? 'var(--green-text)' : 'var(--red)';
@@ -22687,7 +22763,8 @@ function renderTrainDay(macro) {
       // Deload (and the single session right after one) show only the flat
       // computed sets/reps/weight — no last-week/suggested comparison, since
       // there's no progression decision being made either of those weeks.
-      const setsRepsText = (isDropSet && !allDone && !repsPlaceholder && lastReps === null && !recommendedReps)
+      const setsRepsText = isSwapped ? `${sets} sets${allDone ? ` · ${stripReps(summaryReps)} reps` : ''}`
+        : (isDropSet && !allDone && !repsPlaceholder && lastReps === null && !recommendedReps)
         ? `${sets} sets · to failure + drop`
         : allDone
         ? `${sets} sets · ${stripReps(summaryReps)} reps`
@@ -22701,7 +22778,8 @@ function renderTrainDay(macro) {
       // differently — the number in the display face, the unit small and muted.
       // summaryWeight already carries " kg", so it is stripped here rather than
       // changing what summaryWeight means (it is read elsewhere).
-      const weightRefValue = allDone
+      const weightRefValue = isSwapped ? (loggedWeights.length ? loggedWeights[0].toFixed(1) : '—')
+        : allDone
         ? summaryWeight.replace(/ kg$/, '')
         : (isDeloadSession || isPostDeloadSession) ? weightPlaceholder
         : isLocked ? weightPlaceholder
@@ -22732,14 +22810,23 @@ function renderTrainDay(macro) {
         ? 'Last wk: no progression'
         : '';
       const lastRouteHtml = lastRouteText ? `<span class="ex-tag ex-tag-quiet">${lastRouteText}</span>` : '';
-      const tagsHtml = [typeTagHtml, holdTagHtml, deloadTagHtml, lastRouteHtml,
-        buildRpeTagsHtml(macro, state.currentWeek, state.currentDay, ex, isLocked, isDeloadSession)].filter(Boolean).join('');
+      const rpeTagsHtml = buildRpeTagsHtml(macro, state.currentWeek, state.currentDay, ex, isLocked, isDeloadSession);
+      const tagsHtml = isGroup ? '<span class="ex-tag ex-tag-quiet">Replaced by a group session</span>'
+        : isSwapped
+        ? ['<span class="ex-tag" style="--tag-c:var(--accent);">Swapped for today</span>', rpeTagsHtml].filter(Boolean).join('')
+        : [typeTagHtml, holdTagHtml, deloadTagHtml, lastRouteHtml,
+          heldAfterSwap ? `<span class="ex-tag ex-tag-quiet">Target held after ${prevSub && prevSub.kind === 'group' ? 'a group session' : 'a swap'}</span>` : '',
+          rpeTagsHtml].filter(Boolean).join('');
 
       // The 40×40 auto-complete button — completes every set at target. It is
       // withheld only where there is nothing left to complete (already done) or
       // where completing at target is not the point (a locked exercise, whose
       // whole state is "these numbers are not moving yet").
-      const autoBtnHtml = (allDone || (isLocked && !isDeloadSession && !isPostDeloadSession))
+      // v8.43 (§138): a drop set with nothing to carry into a drop (its first session:
+      // no drop weight or reps last week) has no target to complete at. The
+      // button used to tick every set with the drop left blank (Adam, v8.43 UAT).
+      const dropUnknown = isDropSet && (dropWeightPlaceholders.some(v => !v) || dropRepsPlaceholders.some(v => !v));
+      const autoBtnHtml = (allDone || isSwapped || dropUnknown || (isLocked && !isDeloadSession && !isPostDeloadSession))
         ? ''
         : `<button class="ex-auto-btn" title="Complete every set at target"
              onclick="${isDropSet
@@ -22769,7 +22856,7 @@ function renderTrainDay(macro) {
         <div class="ex-head" onclick="toggleExercise('${expandKey}')">
           <div class="ex-idx">${slotIdx + 1}</div>
           <div class="ex-head-text">
-            <div class="ex-name">${ex.name}</div>
+            <div class="ex-name">${isSwapped && !isGroup ? coachEsc(swap.name || 'Another exercise') : ex.name}</div>${isSwapped && !isGroup ? `<div class="ex-swap-note">Instead of ${ex.name}. Its target holds for next time.</div>` : ''}
             ${tagsHtml ? `<div class="ex-tags">${tagsHtml}</div>` : ''}
           </div>
           ${doneStateHtml || autoBtnHtml}
@@ -22804,7 +22891,7 @@ function renderTrainDay(macro) {
       // 🚨 Keeps the `locked-notice-<macroId>-<exId>` id: the demo tour points a
       // step straight at it via an id-prefix lookup.
       let holdPanelHtml = '';
-      if (isLocked && !isDeloadSession && !isPostDeloadSession) {
+      if (isLocked && !isDeloadSession && !isPostDeloadSession && !isSwapped) {
         const lock = (state.progressionLocks || {})[getProgressionLockKey(macro.id, state.currentDay, exId)] || {};
         const lockW = lock.weightTargets || [];
         const lockR = lock.repsTargets || [];
@@ -22839,7 +22926,8 @@ function renderTrainDay(macro) {
 
       if (isExpanded) {
         let weightRec = '', repsRec = '';
-        const showProgSelector = state.currentWeek > 1 && !isDeloadSession && !isPostDeloadSession && !isMaintCycle && !isLocked;
+        const showProgSelector = state.currentWeek > 1 && !isDeloadSession && !isPostDeloadSession && !isMaintCycle && !isLocked
+          && !isSwapped && !heldAfterSwap; // v8.43 (§137): a swap has no route; a held target isn't a step
         if (showProgSelector) {
           const prevWLabel = prevActualWeight !== null ? prevActualWeight.toFixed(1) : getWeekWeight(ex, prevWeek2, 'weight', macro.goalType, macro.weightIncrement).toFixed(1);
           weightRec = `${prevWLabel} → ${recommendedWeight.toFixed(1)} kg`;
@@ -22871,9 +22959,9 @@ function renderTrainDay(macro) {
         let setRows = `<div class="ex-block-head">
           <div class="ex-block-label">Log sets</div>
           <div class="ex-block-actions">
-            <button class="btn-ghost btn-sm" id="fill-btn-${macro.id}-${exId}" onclick="${isDropSet
+            ${isSwapped ? '' : `<button class="btn-ghost btn-sm" id="fill-btn-${macro.id}-${exId}" onclick="${isDropSet
                 ? `fillSuggestedDropset('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholders.join('|')}','${repsPlaceholders.join('|')}','${dropWeightPlaceholders.join('|')}')`
-                : `fillSuggested('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholders.join('|')}','${repsPlaceholders.join('|')}')`}">Fill suggested</button>
+                : `fillSuggested('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholders.join('|')}','${repsPlaceholders.join('|')}')`}">Fill suggested</button>`}
             <button class="btn-danger btn-sm" onclick="clearExerciseLogs('${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets})">Clear</button>
           </div>
         </div>
@@ -22969,7 +23057,7 @@ function renderTrainDay(macro) {
         }
         html += `<div class="ex-body">
           ${progSelector}
-          ${setRows}
+          ${setRows}${swapTodayRowHTML(macro, ex, doneSets, isSwapped && !isGroup)}
         </div>`;
       }
       html += `</div>`;
@@ -23963,6 +24051,8 @@ function quickFillCompleteDropset(event, macroId, week, day, exId, sets, weight,
   const repsList = String(reps).split('|');
   const dropWeightList = String(dropWeight).split('|');
   const dropRepsList = String(dropReps).split('|');
+  // v8.43 (§138): never complete a drop set with its drop unknown (the button isn't drawn then either).
+  if (dropWeightList.some(v => !v) || dropRepsList.some(v => !v)) return;
   for (let s = 0; s < sets; s++) {
     const logKey = baseKey + '_' + exId + '_' + s;
     const wVal  = weightList[s] !== undefined ? weightList[s] : weightList[weightList.length - 1];
@@ -24169,12 +24259,15 @@ function renderRpeSheet() {
     const r = (state.rpe || {})[getRpeKey(macro.id, rpeSheetCtx.week, rpeSheetCtx.dayKey, ex.id)];
     const val = r && typeof r.rpe === 'number' ? r.rpe : null;
     const stateText = val !== null ? 'RPE ' + val : (r && r.rpeSkipped ? 'Not rated' : '');
+    // v8.43 (§137): a swapped exercise is rated under the substitute's name.
+    const sw = getSubstitution(macro.id, rpeSheetCtx.week, rpeSheetCtx.dayKey, ex.id);
+    const swapName = sw && sw.kind === 'swap' ? sw.name : null;
     let cells = '';
     for (let v = 1; v <= 10; v++) {
       cells += `<button class="toggle-btn${val === v ? ' active' : ''}" onclick="setRpeRating('${ex.id}',${v})">${v}</button>`;
     }
     return `<div class="rpe-row">
-        <div class="rpe-row-name"><span>${ex.name}</span><span class="rpe-row-state">${stateText}</span></div>
+        <div class="rpe-row-name"><span>${swapName ? coachEsc(swapName) : ex.name}</span><span class="rpe-row-state">${stateText}</span></div>
         <div class="toggle-row rpe-scale">${cells}</div>
         <div class="rpe-scale-ends"><span>1 · easy</span><span>10 · nothing left</span></div>
       </div>`;
@@ -29165,7 +29258,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.42</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.43</span>`;
 }
 
 function renderSettings() {
@@ -31919,6 +32012,22 @@ function deleteRecipe(id) {
     <input type="text" id="recipe-pick-search" placeholder="Search recipes…" oninput="renderRecipePickList()" style="margin-bottom:12px;flex-shrink:0;">
     <div id="recipe-pick-list-wrap" class="kb-list-wrap">
       <div id="recipe-pick-list" class="kb-list-inner" style="overscroll-behavior:contain;-webkit-overflow-scrolling:touch;"></div>
+      <div class="kb-list-fade"></div>
+    </div>
+  </div>
+</div>
+
+<!-- v8.43 (§137): Swap for today. A search sheet over the client's library, so
+     it's §9's .kb-pinned-sheet exactly (verify-kb-pinned-sheets.mjs). -->
+<div class="modal-overlay" id="modal-swap-today">
+  <div class="modal-sheet kb-pinned-sheet" data-modal="modal-swap-today">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-swap-today')">✕</button></div>
+    <div class="modal-title" style="flex-shrink:0;">Swap for today</div>
+    <div class="swap-planned" id="swap-today-planned" style="flex-shrink:0;"></div>
+    <div class="modal-sub" id="swap-today-sub" style="flex-shrink:0;"></div>
+    <input type="text" id="swap-today-search" placeholder="Search your exercise library" oninput="renderSwapTodayList()" style="margin-bottom:12px;flex-shrink:0;">
+    <div id="swap-today-list-wrap" class="kb-list-wrap">
+      <div id="swap-today-list" class="kb-list-inner" style="overscroll-behavior:contain;-webkit-overflow-scrolling:touch;"></div>
       <div class="kb-list-fade"></div>
     </div>
   </div>

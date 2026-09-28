@@ -69,14 +69,16 @@ check('dark + light accent tokens are the pre-v8.18 values', appAccentIsLavender
 const glowsOutsideSplash = source.split('#splash {')[0].match(/rgba\(47,\s*185,\s*138/g) || [];
 check('no green glow before the splash block (the 18 app glows stay lavender)', glowsOutsideSplash.length, 0);
 
-console.log('\nSplash — Train lavender, brand green on the top bar and OVERCOME');
+console.log('\nSplash — brand green on the top bar, REPEAT and OVERCOME; no lavender');
 const splash = block(source, '#splash');
-check('--splash-accent (the Train block) is the original lavender', token(splash, '--splash-accent'), '#A79EE3');
+// v8.43 (§138): the new CSS splash (bloc-splash/, Adam, 2026-09-28) has no
+// lavender Train block, so --splash-accent is gone; the split that remains is
+// green on the TOP bar only, the other two bars neutral.
 check('--splash-brand is the logo green', token(splash, '--splash-brand'), '#2fb98a');
-check('Train block paints with --splash-accent', /#splash \.c-train\s*\{[^}]*var\(--splash-accent\)/.test(source), true);
-check('top bar paints with --splash-brand', /#splash \.sb-3 \{ fill: var\(--splash-brand\); \}/.test(source), true);
-check('neutral bars paint with --splash-block', /#splash \.sbar \{[^}]*fill: var\(--splash-block\)/.test(source), true);
-check('three logo bars in the splash markup, bottom → top', (source.match(/<rect class="sbar sb-[123]"/g) || []).length, 3);
+check('the splash has no lavender (the app accent stays out of the logo)', /#A79EE3|--accent\b/i.test(splash), false);
+check('top bar paints with --splash-brand', /#splash \.s-r3 \{ fill: var\(--splash-brand\); \}/.test(source), true);
+check('bars paint with --splash-block by default', /#splash \.s-rect \{[^}]*fill: var\(--splash-block\)/.test(source), true);
+check('three logo bars in the splash markup, bottom → top', (source.match(/<rect class="s-rect s-r[123]"/g) || []).length, 3);
 check('no v8.18 bracket corners left', /class="brk /.test(source), false);
 
 console.log('\nApp icon — the Rebuild kit tile');

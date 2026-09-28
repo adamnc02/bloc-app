@@ -62,12 +62,21 @@ function extractConst(source, name) {
 }
 const FNS = ['coachLedger', 'publicationCursor', 'publicationsMustWait', 'pubCopy', 'applyPlanPublication', 'invalidateUnloggedTargets',
   'applyGoalsPatch', 'applyGoalPhasesPublication', 'applyAiResponsePublication', 'applyBookingPublication', 'applyMeasurementPublication',
-  'applyNoteReplyPublication', 'storeSessionLogPublication', 'applyPublications', 'drainPublications', 'sendPendingAcks'];
-const CONSTS = ['PUB_MACRO_FIELDS', 'PUB_APPLIERS'];
+  'applyNoteReplyPublication', 'applyPublications', 'drainPublications', 'sendPendingAcks',
+  // v8.43 (§137): a coach-logged session applies now, and the appliers raise the banners.
+  'trainSetKeysFor', 'coachSessionPlace', 'applySessionLogPublication', 'applyGroupSessionLog', 'queueStoredSessionLogs',
+  'addCoachNotice', 'addGoalPhasesNotice'];
+const CONSTS = ['PUB_MACRO_FIELDS', 'COACH_LOG_NUM_FIELDS', 'COACH_NOTICE_KEEP', 'PUB_APPLIERS'];
+// Absent from the older builds the controls run (bdb3f58, c5949c3): stubbed
+// there, so each control still fails only for the reason it exists.
+const OPTIONAL = new Set(['trainSetKeysFor', 'coachSessionPlace', 'applySessionLogPublication', 'applyGroupSessionLog',
+  'queueStoredSessionLogs', 'addCoachNotice', 'addGoalPhasesNotice', 'COACH_LOG_NUM_FIELDS', 'COACH_NOTICE_KEEP']);
 
 function build(source) {
-  const bodies = FNS.map(n => extract(source, n));
-  const consts = CONSTS.map(n => extractConst(source, n));
+  const bodies = FNS.map(n => extract(source, n) || (OPTIONAL.has(n) ? `function ${n}() {}` : null));
+  const consts = CONSTS.map(n => extractConst(source, n) || (OPTIONAL.has(n) ? `const ${n} = undefined;` : null));
+  const legacy = extract(source, 'storeSessionLogPublication'); // v8.39–v8.42's PUB_APPLIERS names it
+  if (legacy) bodies.push(legacy);
   if (bodies.some(b => !b) || consts.some(c => !c)) return null;
   // PUB_APPLIERS references the functions, so it goes after them.
   return new Function('env', `
@@ -78,9 +87,15 @@ function build(source) {
     const save = () => env.saves++, showScreen = n => env.rendered.push(n);
     const setTimeout = () => 0;
     const findMacroClash = (cand, macros, excludeId) => env.engine.findMacroClash(cand, macros, excludeId, { now: () => new Date('2026-09-28T12:00:00') });
-    ${consts[0]}
+    const BlocEngine = env.engine, getLocalToday = () => '2026-09-28', coachFirstName = () => 'Sam';
+    const coachDayFmt = d => String(d), coachDateTimeFmt = (d, m) => d + ' ' + m, coachBookingWeekly = b => !!b && b.kind === 'weekly';
+    const coachToolMeta = () => ({ label: 'Check-in' });
+    const getMacroEffectiveMesoCount = m => env.engine.getMacroEffectiveMesoCount(m), getProgKey = env.engine.getProgKey, getRpeKey = env.engine.getRpeKey;
+    const progressionTargetCache = () => ({ get: k => (state.progressionTargets || {})[k], set: (k, v) => { state.progressionTargets[k] = v; } });
+    const recordExerciseHistory = () => {};
+    ${consts.slice(0, 3).join('\n')}
     ${bodies.join('\n')}
-    ${consts[1]}
+    ${consts[3]}
     return {
       get state() { return state; }, set state(v) { state = v; },
       setGoalQueue: v => { _goalQueue = v; }, setAnchor: v => { _tourAnchorDate = v; },
@@ -251,9 +266,11 @@ async function run(source, label) {
     P.applyPublications([pub('note_reply', { submission_id: 's1', text: 'Nice work' })]);
     check('a reply to a note back is kept', P.state.coachNoteReplies.s1.text, 'Nice work');
 
-    const sl = pub('session_log', { session_id: 'sess1', week: 1, day_key: 'session0', logs: {} });
+    // v8.43 (§137): a coach-logged session now APPLIES (4d stored it). What it
+    // writes is verify-coach-logged.mjs's; here, only that the funnel takes it.
+    const sl = pub('session_log', { session_id: 'sess1', macro_id: DEMO_MACRO.id, week: 1, day_key: 'session0m1', kind: 'in_person', logs: {} });
     r = P.applyPublications([sl]);
-    check('a coach-logged session is STORED for the Train work, with no receipt yet', [P.state.coachSessionLogs[sl.id] != null, r.acks.length, P.coachLedger()[sl.id].status], [true, 0, 'stored']);
+    check('a coach-logged session applies, with its receipt (v8.43; 4d stored it)', [P.state.coachSessionLogs[sl.id].applied, r.acks.length, P.coachLedger()[sl.id].status], [true, 1, 'applied']);
     check('an unknown type is held, not dropped', P.applyPublications([pub('mystery', {})]).acks[0].status, 'needs_attention');
   }
 
