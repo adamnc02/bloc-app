@@ -5091,7 +5091,7 @@ try {
   </div>
 </div>
 
-<div class="modal-overlay" id="modal-coach-request">
+<div class="modal-overlay" id="modal-coach-request" data-pub-safe>
   <div class="modal-sheet" data-modal="modal-coach-request" style="max-height:92dvh;display:flex;flex-direction:column;">
     <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div>
       <button class="modal-close-btn" onclick="closeModal('modal-coach-request')">✕</button>
@@ -10231,7 +10231,10 @@ function publicationCursor() {
 // ── Can it apply now? ──────────────────────────────────────────────────────
 function publicationsMustWait() {
   if (_tourAnchorDate || demoTourIsRunning()) return 'tour';
-  if (document.querySelector('.modal-overlay.open')) return 'sheet-open';
+  // v8.42 (§136): a sheet marked data-pub-safe never saves `state` (Request a
+  // session writes only to the server), so a publication may land under it.
+  // Adam, UAT: a booking for his confirmed time waited until the sheet closed.
+  if (document.querySelector('.modal-overlay.open:not([data-pub-safe])')) return 'sheet-open';
   const a = document.activeElement;
   if (a && a.closest && a.closest('#screen-train') && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return 'train-input';
   if (typeof _goalQueue !== 'undefined' && _goalQueue) return 'goal-queue';
@@ -10456,6 +10459,9 @@ function drainPublications() {
   if (changed) {
     const active = document.querySelector('.screen.active');
     if (active && active.id) showScreen(active.id.replace(/^screen-/, ''));
+    // v8.42 (§136): the one sheet a publication may land under redraws too.
+    const req = document.getElementById('modal-coach-request');
+    if (req && req.classList.contains('open') && typeof renderCoachRequest === 'function') renderCoachRequest();
   }
   return sendPendingAcks().then(() => 'applied');
 }

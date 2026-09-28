@@ -8722,6 +8722,12 @@ Also in Settings → Coaching → Sessions. The client never sees the coach's di
     `status 'countered'`. `0024`'s CHECK keeps exactly one counter, not the wireframe's three.
 
   The one-writer trigger refuses anything else a client tries.
+- 🚨 **A publication may land under this sheet** (`data-pub-safe`). §131's rule is "nothing applies
+  while a sheet is open", because an edit sheet's stale save would overwrite it. Request a session never
+  saves `state`, so `publicationsMustWait()` skips a `data-pub-safe` sheet, and `applyPublications()`
+  redraws it after applying. In UAT the coach's booking for a confirmed time waited until the sheet was
+  closed, so "Booked" needed a reload. It's the only sheet marked; anything that saves `state` must
+  never be.
 - 🚨 **Requests are server truth, never `state`** (`_coachRequests`, in memory). `refreshSessionRequests()`
   reads the client's newest 20 on opening the sheet, on resume, and **live**: the publications channel
   also listens to `session_requests` for this client. That's how a coach's proposal reaches Home and the
