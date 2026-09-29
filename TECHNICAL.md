@@ -10281,6 +10281,8 @@ is one BLOC's `coachBookingWeekly()` rolls forward (`verify-coach-diary.mjs`, wi
   same button (under the mark) expands it. The choice is this device's, `blocCoach_railCollapsed` (`'1'` when
   collapsed). Below 1200 px the toggle is hidden and the rail is the icon rail. The laptop rules in `shell.css` are all
   `.coach-shell:not(.rail-collapsed)`, so collapsed is exactly the tablet's rules.
+  The icon rail's logo is Coach's own icon (`bloc-coach-icon-square.svg` from `coach/public`: the Home Screen art, COACH
+  under the mark), an `<img>` by a path relative to the page; never BLOC's bar mark.
 - **Review**: Findings and AI tools are one `.grid-2`, two columns from 1024 px, stacked below.
 
 ### Checks
