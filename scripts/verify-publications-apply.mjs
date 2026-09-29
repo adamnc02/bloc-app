@@ -67,13 +67,16 @@ const FNS = ['coachLedger', 'publicationCursor', 'publicationsMustWait', 'pubCop
   'trainSetKeysFor', 'coachSessionPlace', 'applySessionLogPublication', 'applyGroupSessionLog', 'queueStoredSessionLogs',
   'addCoachNotice', 'addGoalPhasesNotice',
   // v8.44 (§142): the coach's request for cycle-review photos.
-  'applyPhotoRequestPublication', 'dismissPhotoRequestNotices'];
+  'applyPhotoRequestPublication', 'dismissPhotoRequestNotices',
+  // v8.45: an overlap with the client's own running cycle is put to them as a replace.
+  'coachReplaceAsks', 'coachReplaceOffer', 'coachReplaceHold', 'shortenCycleForReplace'];
 const CONSTS = ['PUB_MACRO_FIELDS', 'COACH_LOG_NUM_FIELDS', 'COACH_NOTICE_KEEP', 'PUB_APPLIERS'];
 // Absent from the older builds the controls run (bdb3f58, c5949c3): stubbed
 // there, so each control still fails only for the reason it exists.
 const OPTIONAL = new Set(['trainSetKeysFor', 'coachSessionPlace', 'applySessionLogPublication', 'applyGroupSessionLog',
   'queueStoredSessionLogs', 'addCoachNotice', 'addGoalPhasesNotice', 'COACH_LOG_NUM_FIELDS', 'COACH_NOTICE_KEEP',
-  'applyPhotoRequestPublication', 'dismissPhotoRequestNotices']);
+  'applyPhotoRequestPublication', 'dismissPhotoRequestNotices',
+  'coachReplaceAsks', 'coachReplaceOffer', 'coachReplaceHold', 'shortenCycleForReplace']);
 
 function build(source) {
   const bodies = FNS.map(n => extract(source, n) || (OPTIONAL.has(n) ? `function ${n}() {}` : null));
@@ -91,6 +94,7 @@ function build(source) {
     const setTimeout = () => 0;
     const findMacroClash = (cand, macros, excludeId) => env.engine.findMacroClash(cand, macros, excludeId, { now: () => new Date('2026-09-28T12:00:00') });
     const BlocEngine = env.engine, getLocalToday = () => '2026-09-28', coachFirstName = () => 'Sam';
+    const engineCtx = () => ({ today: '2026-09-28' }), getMacroDurationWeeks = m => env.engine.getMacroDurationWeeks(m);
     const coachDayFmt = d => String(d), coachDateTimeFmt = (d, m) => d + ' ' + m, coachBookingWeekly = b => !!b && b.kind === 'weekly';
     const coachToolMeta = () => ({ label: 'Check-in' });
     const getMacroEffectiveMesoCount = m => env.engine.getMacroEffectiveMesoCount(m), getProgKey = env.engine.getProgKey, getRpeKey = env.engine.getRpeKey;

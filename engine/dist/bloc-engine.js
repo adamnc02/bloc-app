@@ -144,6 +144,7 @@ var BlocEngine = (() => {
     nextCycleAdvicePlanMode: () => nextCycleAdvicePlanMode,
     normaliseState: () => normaliseState,
     parseRepsForVolume: () => parseRepsForVolume,
+    planReplaceOffer: () => planReplaceOffer,
     postProcessAdviceResponse: () => postProcessAdviceResponse,
     postProcessChallengeResponse: () => postProcessChallengeResponse,
     postProcessCycleReviewResponse: () => postProcessCycleReviewResponse,
@@ -1265,6 +1266,58 @@ Write this cycle's review per the schema above.`;
       started: oldStart <= today,
       outOfRange: rows.filter((r) => r.daysPastEnd || r.daysBeforeStart),
       clashes: rows.filter((r) => r.clash)
+    };
+  }
+  function isMonday(d) {
+    return (/* @__PURE__ */ new Date(d + "T00:00:00")).getDay() === 1;
+  }
+  function replaceShape(clash, start, today) {
+    const calWeeks = dayDiff(clash.start, start) / 7;
+    const perMeso = clash.weeksPerMeso || 1;
+    const weeks = Math.floor(calWeeks / perMeso);
+    const extensionWeeks = calWeeks - weeks * perMeso;
+    const partialStarts = shiftDateStr(clash.start, weeks * perMeso * 7);
+    const ok = weeks >= 1 && (extensionWeeks === 0 || today < partialStarts);
+    return { ok, weeks, extensionWeeks };
+  }
+  function planReplaceOffer(candidate, macros, goals, ctx) {
+    const clash = findMacroClash(candidate, macros, candidate.id, ctx);
+    if (!clash || !candidate.start) return null;
+    const today = ctx.today;
+    const clashEnd = getMacroEndDate(clash, ctx);
+    const after = snapToNextMonday(shiftDateStr(clashEnd, 1));
+    const others = (macros || []).filter((m) => m.id !== clash.id);
+    const refuse = (reason) => {
+      let suggest = after;
+      if (reason !== "coach-cycle" && reason !== "not-running" && reason !== "other-clash") {
+        for (let s = snapToNextMonday(shiftDateStr(today, 1)); s <= clashEnd; s = shiftDateStr(s, 7)) {
+          if (s > clash.start && replaceShape(clash, s, today).ok && !findMacroClash(Object.assign({}, candidate, { start: s }), others, candidate.id, ctx)) {
+            suggest = s;
+            break;
+          }
+        }
+      }
+      return { kind: "blocked", clash, reason, suggest };
+    };
+    if (clash.publishedBy) return refuse("coach-cycle");
+    if (!(clash.start <= today && today <= clashEnd)) return refuse("not-running");
+    if (findMacroClash(candidate, others, candidate.id, ctx)) return refuse("other-clash");
+    if (!isMonday(candidate.start)) return refuse("not-monday");
+    if (candidate.start <= today || candidate.start <= clash.start) return refuse("too-soon");
+    const shape = replaceShape(clash, candidate.start, today);
+    if (!shape.ok) return refuse("mid-meso");
+    const newEnd = getDayBefore(candidate.start);
+    const mine = (goals || []).filter((g) => g.macroId === clash.id);
+    const label = (g) => String(g._blocLabel || g.label || g.name || "Goal");
+    return {
+      kind: "replace",
+      clash,
+      weeks: shape.weeks,
+      extensionWeeks: shape.extensionWeeks,
+      newEnd,
+      oldEnd: clashEnd,
+      trimGoals: mine.filter((g) => g.startDate <= newEnd && g.endDate > newEnd).map((g) => ({ macroGoalID: g.macroGoalID, label: label(g), oldEnd: g.endDate })),
+      removeGoals: mine.filter((g) => g.startDate > newEnd).map((g) => ({ macroGoalID: g.macroGoalID, label: label(g), startDate: g.startDate }))
     };
   }
 

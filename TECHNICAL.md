@@ -8303,11 +8303,9 @@ After applying, BLOC `save()`s (so the mirror and `client_state` follow, §130) 
 current screen. In v8.39 the coach's cycle showed as an ordinary cycle in Plan; since v8.40 Coached
 mode hides Plan (§132). "From your coach" comes next, keyed on `coachAdvice`.
 
-⚠️ **Open for Phase 5: replacing a running Solo cycle.** Proposal §4.1 says the client's Solo cycle
-"runs unchanged until the coach publishes one; they replace it". I10 says an overlapping plan is held,
-not forced. BLOC holds it, and the receipt names the clash. Coach must decide how it replaces a running
-cycle: start after it (§11 Q17's default) or an explicit "replace" that the client accepts. Don't
-loosen the hold in BLOC to make this easy.
+**Replacing a running Solo cycle** is a replace the client accepts (§143): an overlap with the client's own
+cycle running today is held as a question on Home, and the cycle is shortened only on their answer. Every
+other overlap is held as above. 🚨 Don't loosen the hold to make a replace easier.
 
 **Check:** `scripts/verify-publications-apply.mjs` (40 checks) runs the real funnel on the demo dataset
 with the built engine's clash rule. It covers:
@@ -9708,3 +9706,61 @@ insert still removes the photos it uploaded.
 it, answered never re-raised, no cycle held) and `verify-from-coach.mjs` §5 (no unprompted row; the request on
 the Review tab, with and without a viewed cycle; send with `request_id`; skip with consent off; consent withdrawn
 at send; a failed insert). Controls: v8.38 and v8.40, as before.
+
+## §143 — v8.45: a coach's cycle replacing the client's own running cycle
+
+**What it is.** A `plan` whose cycle overlaps another is held, never forced (§131, I10). One overlap is instead
+put to the client: their **own** cycle (no `publishedBy`), running at their today, which the coach's cycle,
+starting on a later Monday, would replace. The client answers on Home; nothing changes until they do. No
+migration, and nothing new in the payload: the ask is how BLOC holds that one kind of overlap.
+
+**The rule is the engine's** (`planReplaceOffer(candidate, macros, goals, ctx)`, `engine/src/clash.ts`), so BLOC
+(which asks) and BLOC Coach (which offers it, §144) decide the same way. It returns null (no overlap), a
+`replace` offer, or a refusal with a reason and a suggested start:
+
+| Refused | When | Suggested start |
+|---|---|---|
+| `coach-cycle` | the overlap is a coach's cycle | the Monday after it ends |
+| `not-running` | the overlapped cycle isn't running at the client's today | the Monday after it ends |
+| `other-clash` | the coach's cycle would overlap a second cycle too | the Monday after it ends |
+| `not-monday`, `too-soon` | the start isn't a Monday, or isn't after the client's today and the cycle's own start | the first start the rule accepts |
+| `mid-meso` | the cut would split a mesocycle the client has started | the first start the rule accepts |
+
+A `replace` offer carries the shortened shape (`weeks`, `extensionWeeks`), the new and old last days, and the
+cycle's goals to cut (`trimGoals`: the one running across the new end) and remove (`removeGoals`: every one
+starting after it).
+
+🚨 **A cycle's length is `weeks` mesocycles × `weeksPerMeso`, plus `extensionWeeks`** (§20). A cut that isn't on a
+mesocycle boundary becomes `weeks` whole mesocycles plus the remainder as extension weeks, which repeat the final
+mesocycle at peak sets. That's only allowed while the partial mesocycle hasn't begun: cutting inside one the client
+is training in would turn this week into an extension week and change its targets. 🚨 **`weeks` never becomes 0**
+(BLOC reads `weeks || 8`); a cut shorter than one mesocycle is always inside a started one, so it's refused.
+
+**BLOC's side** (`coachReplaceHold()`, called from `applyPlanPublication()`'s clash branch):
+- **Asked:** held as `needs_attention` with the note `Waiting for the client to end “{cycle}” early, on {date}.`,
+  and `state.coachReplaceAsks[pubId]` records what the sheet shows (the coach's cycle, its start and length, the
+  new and old end, the goals cut and removed). The coach's `goal_phases` for the new cycle are held with it
+  ("Its cycle isn't on this phone yet").
+- **Home** shows the ask in the one banner slot, after a proposed time and before the notices: "{coach}'s new plan
+  starts {date}" · **Review**. Like the proposed time it needs an answer, so its ✕ lasts until the next cold start.
+- **Start your coach's plan?** (`modal-coach-replace`, `data-pub-safe`: it holds no copy of state) lists the change
+  and offers **End my cycle early** or **Keep my cycle**. The answer is saved, then a pull runs.
+- **End my cycle early:** on that pull the held plan applies. First `shortenCycleForReplace()` re-shapes the client's
+  cycle (stamping `endedEarly: {from, to}`), ends the goal running across the new end on it, and removes the
+  cycle's later goals. Logs, deloads and targets are untouched. The goal phases apply in the same pull, after the
+  plan (seq order).
+- **Keep my cycle:** still held, with the note `The client kept “{cycle}” (to {date}).`, a new receipt. The coach can
+  republish the plan to start after the cycle ends; the old one is then superseded.
+- The offer is recomputed on every pull. An answer only counts for the cycle it was given about; if the client's
+  cycles have changed since, it's asked again or held as an ordinary overlap.
+- **Unlink** clears the asks (`removeCoachPlan()`).
+
+The client writes their own cycle and goals here, by their own answer, so every piece of data keeps one writer.
+
+**Check:** `scripts/verify-coach-replace.mjs`: the rule's branches on the demo (a replace with and without an
+extension week, the goals cut and removed, mid-mesocycle, too soon, not a Monday, a coach's cycle, not running,
+a second overlap, `weeks` never 0), then the real funnel: asked with nothing changed, the goal phases held with it,
+held again with no new receipt, Keep my cycle, End my cycle early (plan and phases in one pull, the cycle's new
+shape and end, its goals, logs untouched, no overlap left), a coach's cycle held as before, and the wiring.
+Control: v8.44 (`d909ae0`) never applies the plan. `planReplaceOffer` has cases in `engine-cases.mjs`, so
+`verify-engine-pure.mjs` covers it.

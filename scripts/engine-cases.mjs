@@ -662,3 +662,14 @@ function insightsLike(s) {
 }
 function weekOf(date) { const d = new Date(date + 'T12:00:00'); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.toLocaleDateString('en-CA'); }
 
+
+// v8.45: a coach's cycle replacing the client's own running cycle. No BLOC
+// counterpart before v8.45 (bloc: null); verify-coach-replace.mjs checks what
+// it decides. The demo's cycle runs 8 Jun – 13 Sep in 2-week mesocycles.
+const coachCycle = (start, extra = {}) => Object.assign({ id: 'coach1', name: 'Coach block', start, weeks: 3, weeksPerMeso: 2 }, extra);
+const asCoachs = state(s => { s.macrocycles[0].publishedBy = 'c1'; return s; });
+add('planReplaceOffer', [
+  ['2026-08-02', '2026-08-03', S.demo], ['2026-08-02', '2026-08-10', S.demo], ['2026-08-04', '2026-08-10', S.demo],
+  ['2026-08-04', '2026-08-03', S.demo], ['2026-08-02', '2026-08-05', S.demo], ['2026-08-02', '2026-08-10', asCoachs],
+  ['2026-06-01', '2026-06-15', S.demo], ['2026-08-02', '2026-09-14', S.demo], ['2026-08-02', '2026-08-10', S.history],
+].map(([today, start, st]) => at(st, today, (s, c) => ({ engine: [coachCycle(start), s.macrocycles, s.goals, c], bloc: null }))));
