@@ -9161,7 +9161,8 @@ the clients are built from **`bloc-demo-data.dev.json`** if the developer has on
 (`_devAnchorDate`, else 2 Aug 2026, §35), never the machine's date. The fixtures' "now" is the anchor at
 20:10 UTC, so Grace (Pacific/Auckland) is already on the next day: the case that exercises the
 client's-today rule. The set: Maya (the demo, a coach-published cycle), Tom (his own cycle two weeks
-behind, 60 h since sync), Grace (Auckland, week 1), Ben (linked, never synced), Sam (invited), Leah
+behind, 60 h since sync), Grace (Auckland, week 1), Priya (microcycles on with one-week mesocycles: each session's A and B in
+the same week), Ben (linked, never synced), Sam (invited), Leah
 (unlinked), Eileen (in person). Add, invite and profile edits change the page's memory only. Without a
 `.dev` file the console shows one 404: the fallback, as in BLOC.
 
@@ -9431,7 +9432,7 @@ threshold, on the bad side), and every goal phase. No deload shading: the chart 
   over 5 weeks · 1,852 kcal a day while flat", "Rising since W6", "−6.5 lbs since W1", or "Holding within
   1.2 lbs". Holding and dragging swaps it for the callout (`ScrubChart`'s `header`).
 - **The callout** has the date and week on one line (the phase name cut short, never wrapping the date),
-  the day's weight and **its week's average** ("wk avg"), the day's calories against that day's target
+  the day's weight and **its week's average** ("wk avg", right-aligned), the day's calories against that day's target
   and the week's average, and waist and hip on their own line. The nutrition chart's callout gives protein
   and steps a line each. 🚨 The week average is the week that **contains** the day (Mon–Sun from a Monday cycle
   start). Looking up "the latest average on or before the day", with each average drawn mid-week, gave
@@ -9443,13 +9444,13 @@ threshold, on the bad side), and every goal phase. No deload shading: the chart 
 
 **How the weeks went** (the hero): the same periods as sentences, one line each: the first weeks, then
 every flat or moving period with its weights, change and calories a day ("W4–W6 · flat · 215.3 → 215.1 lbs
-(−0.2) · 1,852 kcal a day · the stall behind the verdict"); a one-week period says "1 week so far: counts
-once it runs 2", because the engine confirms a period at 2 weeks. It's the weekly
+(−0.2) · 1,852 kcal a day · the stall behind the verdict"). The engine's flagged period is the one row
+with a label, on a lighter background. It's the weekly
 figures behind the verdict, told rather than tabled.
 
-**The evidence tiles** are six: waist, calories (a day against target), steps, training, weigh-ins, and
-**deficit or surplus against the engine's logged TDEE** (the last 3 weeks' intake, the real deficit behind
-a stall). They sit 6 across on a laptop, 3 by 2 on a tablet, 2 by 3 on a phone.
+**The evidence tiles** are six: waist, calories (a day against target), **deficit or surplus against the
+engine's logged TDEE** (the last 3 weeks' intake, the real deficit behind a stall; always beside calories),
+steps, training and weigh-ins, with the explaining input's tile first. They sit 6 across on a laptop, 3 by 2 on a tablet, 2 by 3 on a phone.
 
 🚨 **Tiles in a grid set `marginTop: 0`.** `ui.css` spaces stacked cards with `.card + .card { margin-top }`;
 in a grid that pushes every tile after the first down, so the first reads as taller.
@@ -9482,13 +9483,13 @@ refuse a linked card's name or contact change, as the trigger does.
 
 ### Checks
 
-- `coach/src/review/review.test.ts` (vitest, 29 cases): Maya's periods and the chart's header, the
+- `coach/src/review/review.test.ts` (vitest, 30 cases): Maya's periods and the chart's header, the
   callout's week being the one that contains the day; Maya at the demo's anchor (off track, flat W4–W6,
   explained by calories, written about her); the direction rule with the engine's own periods as the
   control, and its gain mirror; weight alone with no food logged; the waist rule (¾″ on track, ¼″ off);
   maintenance at 6/10 and 7/10 attendance and a 4 lb span; Grace at her Auckland date against the coach's
   London date; the Clients row's outcome; 14 calendar-week columns, rows split A/B with each A row blank in
-  exactly the B weeks, week 1, the deload and the session
+  exactly the B weeks, and Priya's one-week mesocycles filling both every week, week 1, the deload and the session
   after it not counted, a missed week scoring 0 and a half-done session scoring its exercises, a swapped
   week against the same cell passing, the client's state untouched; nutrition scored with 4 days and not
   under 4, the current week unscored.

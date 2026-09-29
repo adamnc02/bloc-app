@@ -65,10 +65,15 @@ export function buildFixtureClients(demo: Record<string, unknown>): { anchor: st
   // already HER today at the fixtures' now, so she's in week 1, not "next cycle".
   const grace = withCycle(demo, (s) => { for (const m of s.macrocycles || []) m.start = shiftDateStr(anchor, 1); });
 
+  // Priya: microcycles on with one-week mesocycles, so each session's A and B
+  // both fall in the same week (the grid's A/B rows, every week filled).
+  const priya = withCycle(demo, (s) => { for (const m of s.macrocycles || []) { m.weeksPerMeso = 1; m.useMicrocycles = true; m.publishedBy = FIXTURE_COACH.coachId; } });
+
   const clients: ClientBundle[] = [
     { ...base, card: card('maya', 'Maya Okafor', { phone: '07700 900111', notes: 'Shift work: trains early on weekdays.' }), link: linked('maya'), snapshot: snap(maya, 'Europe/London', 2) },
     { ...base, card: card('tom', 'Tom Hartley'), link: linked('tom'), snapshot: snap(tom, 'Europe/London', 60) },
     { ...base, card: card('grace', 'Grace Lin'), link: linked('grace'), snapshot: snap(grace, 'Pacific/Auckland', 5) },
+    { ...base, card: card('priya', 'Priya Shah'), link: linked('priya'), snapshot: snap(priya, 'Europe/London', 6) },
     { ...base, card: card('ben', 'Ben Carter'), link: linked('ben', hoursBefore(now, 3)), snapshot: null },
     { ...base, card: card('sam', 'Sam Whitfield'), link: null, snapshot: null,
       invite: { expiresAt: hoursBefore(now, -5 * 24), createdAt: hoursBefore(now, 2 * 24) } },

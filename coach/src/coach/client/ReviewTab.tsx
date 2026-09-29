@@ -183,13 +183,15 @@ function WeeksNarrative({ m }: { m: ReviewModel }) {
             ? (p.fromLbs != null && p.from !== p.to ? `${fmt.one(p.fromLbs)} → ${fmt.one(p.toLbs as number)} lbs` : p.toLbs != null ? `${fmt.one(p.toLbs)} lbs` : '')
             : p.fromLbs != null && p.toLbs != null ? `${fmt.one(p.fromLbs)} → ${fmt.one(p.toLbs)} lbs (${fmt.signed(p.toLbs - p.fromLbs, 1)})` : '';
           return (
-            <li key={p.from + p.kind} style={{ display: 'flex', gap: 10, padding: '6px 0', borderTop: '1px solid var(--divider)', fontSize: 13.5, alignItems: 'baseline' }}>
+            <li key={p.from + p.kind} style={{
+              display: 'flex', gap: 10, padding: '6px 8px', margin: '0 -8px', borderTop: '1px solid var(--divider)', fontSize: 13.5, alignItems: 'baseline',
+              ...(p.flagged && p.kind === 'flat' ? { background: 'color-mix(in srgb, var(--text) 7%, transparent)', borderRadius: 8 } : {}),
+            }}>
               <b className="num" style={{ minWidth: 58, whiteSpace: 'nowrap' }}>{range}</b>
               <span style={{ minWidth: 0 }}>
                 <span className={bad(p) ? 't-bad' : p.kind === 'moving' ? 't-good' : ''} style={{ fontWeight: 700 }}>{word(p)}</span>
                 {lbs && <> · {lbs}</>}
                 {p.avgKcal != null && <span className="muted"> · {fmt.int(p.avgKcal)} kcal a day</span>}
-                {!p.confirmed && p.kind !== 'start' && <span className="caption"> · 1 week so far: counts once it runs 2</span>}
                 {p.flagged && p.kind === 'flat' && <span className="caption"> · the stall behind the verdict</span>}
               </span>
             </li>
@@ -234,6 +236,10 @@ function EvidenceTiles({ m }: { m: ReviewModel }) {
     { key: 'tdee', label: vsTdee != null && vsTdee > 0 ? 'Surplus' : 'Deficit', value: vsTdee != null ? fmt.signedInt(vsTdee) : '—', sub: m.tdee != null ? `a day vs TDEE ${fmt.int(m.tdee)}, ${intake3.length || 3} wks` : 'No logged TDEE yet' },
   ];
   tiles.sort((a, b) => (a.key === lead ? -1 : b.key === lead ? 1 : 0));
+  // The deficit reads with calories: keep it right after them.
+  const di = tiles.findIndex((x) => x.key === 'tdee');
+  const [deficit] = tiles.splice(di, 1);
+  tiles.splice(tiles.findIndex((x) => x.key === 'calories') + 1, 0, deficit);
   return (
     <div style={{ display: 'grid', gridTemplateColumns: `repeat(${wide ? 6 : tablet ? 3 : 2}, minmax(0, 1fr))`, gap: 10, marginTop: 12 }}>
       {tiles.map((x) => {

@@ -79,8 +79,8 @@ export function StoryChart({ d, name }: { d: StoryData; name: string }) {
                   <b style={{ whiteSpace: 'nowrap' }}>{fmt.ddm(date)}</b>
                   <span className="caption" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{[kw?.label, phase && shortPhaseLabel(phase.label, 16)].filter(Boolean).join(' · ')}</span>
                 </div>
-                <div>Weight <b className="num">{wi ? fmt.one(wi.lbs) : '—'}</b> · wk avg <b className="num">{wk ? fmt.one(wk.lbs) : '—'}</b></div>
-                <div>Kcal <b className="num">{kd?.kcal != null ? fmt.int(kd.kcal) : '—'}</b> / {kd?.target != null ? fmt.int(kd.target) : '—'} · wk avg <b className="num">{kw?.avgKcal != null ? fmt.int(kw.avgKcal) : '—'}</b></div>
+                <div className="row"><span>Weight <b className="num">{wi ? fmt.one(wi.lbs) : '—'}</b></span><span>wk avg <b className="num">{wk ? fmt.one(wk.lbs) : '—'}</b></span></div>
+                <div className="row"><span>Kcal <b className="num">{kd?.kcal != null ? fmt.int(kd.kcal) : '—'}</b> / {kd?.target != null ? fmt.int(kd.target) : '—'}</span><span>wk avg <b className="num">{kw?.avgKcal != null ? fmt.int(kw.avgKcal) : '—'}</b></span></div>
                 <div className="caption">Waist <b>{waist ? fmt.inches(waist.waist as number) : '—'}</b> · hip <b>{hip ? fmt.inches(hip.hip as number) : '—'}</b>{waist && waist.date !== date ? ` · ${fmt.dm(waist.date)}` : ''}</div>
               </>
             ),

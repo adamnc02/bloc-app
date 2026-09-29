@@ -188,6 +188,18 @@ describe('training compliance (§7.1)', () => {
   });
 });
 
+describe('microcycles with one-week mesocycles (Priya)', () => {
+  const s = bundle('priya').snapshot!.state;
+  const m = s.macrocycles![0];
+  const t = computeTraining(s, m, '2026-09-20');
+  it('A and B share each week: one column per week, both rows filled every week', () => {
+    expect(t.cols.length).toBe(7);
+    expect(t.cols[0].sessions.map((x) => x.dayKey)).toEqual(['session0m1', 'session1m1', 'session2m1', 'session3m1', 'session0m2', 'session1m2', 'session2m2', 'session3m2']);
+    expect([...new Set(t.rows.map((r) => r.sessionLabel))]).toEqual(['Pull · A', 'Pull · B', 'Legs · A', 'Legs · B', 'Push · A', 'Push · B', 'Arms · A', 'Arms · B']);
+    expect(t.rows.every((r) => r.cells.every((c) => c.state !== 'none'))).toBe(true);
+  });
+});
+
 describe('nutrition compliance (§7.2)', () => {
   const s = bundle('maya').snapshot!.state;
   const m = s.macrocycles!.find((x) => x.id === MACRO)!;
