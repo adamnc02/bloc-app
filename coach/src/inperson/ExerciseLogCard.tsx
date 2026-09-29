@@ -49,7 +49,7 @@ export function ExerciseLogCard({ n, i, t, sets, onSets, expanded, onToggle, rea
                   {t.locked && <Tag tone="amber">On hold</Tag>}
                 </div>
               )}
-              {expanded && <div className="muted" style={{ marginTop: 4 }}>{t.sets} sets · {done}/{sets.length} done</div>}
+              {expanded && <div className="muted" style={{ marginTop: 4 }}>{t.sets} {t.sets === 1 ? 'set' : 'sets'} · {done}/{sets.length} done</div>}
             </button>
             {!readOnly && (
               <button type="button" className="icon-btn in-card" aria-label={`Complete every set of ${String(ex.name)} at target`} onClick={() => onSets?.(sets.map((s, k) => ({ ...s, kg: s.kg || t.weights[k] || '', reps: s.reps || t.reps[k] || '', done: true })))}>
@@ -60,7 +60,7 @@ export function ExerciseLogCard({ n, i, t, sets, onSets, expanded, onToggle, rea
           {!expanded && (
             <>
               <div className="row" style={{ marginTop: 6 }}>
-                <span className="muted" style={{ whiteSpace: 'nowrap' }}>{t.sets} sets · {t.reps[0] || String(ex.reps || '')} reps</span>
+                <span className="muted" style={{ whiteSpace: 'nowrap' }}>{t.sets} {t.sets === 1 ? 'set' : 'sets'} · {t.reps[0] || String(ex.reps || '')} reps</span>
                 {!cardio && <span className="num" style={{ whiteSpace: 'nowrap' }}><b className="display" style={{ fontSize: 17 }}>{t.weights[0] || '—'}</b> <span style={{ fontSize: 11.5, color: 'var(--text3)' }}>{unit}</span></span>}
               </div>
               <div className="row" style={{ marginTop: 12 }}>
