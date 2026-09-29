@@ -8086,11 +8086,15 @@ function stateOwnerGet() { try { return JSON.parse(localStorage.getItem(STATE_OW
 function stateOwnerSet(user) {
   try { localStorage.setItem(STATE_OWNER_KEY, JSON.stringify({ uid: user.id, at: new Date().toISOString() })); } catch (e) {}
 }
-// 'mine' | 'claim' (no owner yet, or nothing here to protect) | 'other'.
-function localOwnerVerdict(owner, uid, hasData) {
+// 'claim' (no owner recorded) | 'mine' | 'other'.
+// 🚨 Another owner ALWAYS switches, whatever is on the device. A device with
+//    no cycles or logs still holds that account's profile (name, height,
+//    birthday), its restore flags and its coach link: claiming it gave the
+//    next account the last one's name (found in UAT: a new account's profile
+//    only, then the test client signed in and took its name).
+function localOwnerVerdict(owner, uid) {
   if (!owner || !owner.uid) return 'claim';
-  if (owner.uid === uid) return 'mine';
-  return hasData ? 'other' : 'claim';
+  return owner.uid === uid ? 'mine' : 'other';
 }
 let _accountSwitch = null; // set from the moment another account's data is found until the reload
 function accountSwitchBlocks() { return !!_accountSwitch; }
@@ -8108,7 +8112,7 @@ function onAuthResolved(session) {
   // this session; the device loads the signed-in account's own data instead.
   if (session && !IS_LOCAL_DEV) {
     const owner = stateOwnerGet();
-    const verdict = localOwnerVerdict(owner, session.user.id, devBypassHasRealData(state));
+    const verdict = localOwnerVerdict(owner, session.user.id);
     if (verdict === 'other') {
       _accountSwitch = { user: session.user };
       performAccountSwitch();
