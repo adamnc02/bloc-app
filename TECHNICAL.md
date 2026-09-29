@@ -9985,6 +9985,13 @@ fills (`account-email-display`, `account-provider-display`, `account-change-pass
 **Account & Data is "My data"**: Backup (Export, Restore) and Data (Download my data, Delete my data, Clear all data,
 Close my account). Its id stays `modal-account`, referenced from the export and restore choice sheets.
 
-**Check:** `scripts/verify-splash-and-about-me.mjs`: the words on `view-box` with their own origins, the account in
+**The plan banner's View only when Train can show it.** "{coach} updated your plan" (§137) offered **View** (to Train)
+for a cycle that hadn't started yet, where Train shows nothing of it. The notice now records its cycle (`macroId`), and
+`HOME_NOTICE_ACTIONS.plan` offers View only once that cycle has started at the client's today
+(`coachPlanNoticeViewable()`). It's decided each time Home draws, so View appears on the day the cycle starts; a notice
+from before v8.46 names no cycle and keeps its View.
+
+**Check:** `scripts/verify-splash-and-about-me.mjs`: the View rule (a future cycle, a started one, a notice naming none,
+a removed cycle; control: a View that ignores the date), the words on `view-box` with their own origins, the account in
 About me with Sign out last, My data's title and no sign-out in it, the Settings row, and Sign out closing About me.
 Controls: a word left on `fill-box`, and a Sign out row left in My data.

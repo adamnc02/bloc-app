@@ -14,7 +14,12 @@
 //    full-width danger Sign out, as the sheet's last control (visible during
 //    the profile gate, so a new account can always leave). The sheet that
 //    held them is "My data" and no longer signs anyone out.
-// Controls: a word left on fill-box, and a Sign out row left in My data.
+// 3. THE PLAN BANNER'S VIEW ONLY WHEN TRAIN CAN SHOW IT. "{coach} updated your
+//    plan" offered View (to Train) for a cycle that hadn't started, where Train
+//    shows nothing of it. The notice names its cycle; View shows once the
+//    cycle has started, worked out each time Home draws.
+// Controls: a word left on fill-box, a Sign out row left in My data, and a
+// View that ignores the date.
 // ═══════════════════════════════════════════════════════════════════════
 
 import { readFileSync } from 'node:fs';
@@ -59,10 +64,22 @@ check('My data is titled "My data" and signs no one out', /<div class="modal-tit
 check('the Settings row reads "My data"', /<div class="settings-row-text">My data\s*<div/.test(html) && !/settings-row-text">Account &amp; Data/.test(html));
 check('Sign out closes About me as it goes', /closeModal\('modal-body-profile'\)/.test(html.slice(html.indexOf('async function signOutUser('), html.indexOf('async function signOutUser(') + 600)));
 
+// ── 3. The plan banner's View ─────────────────────────────────────────────
+const fnSrc = (name) => { const i = html.indexOf(`function ${name}(`); let d = 0; for (let j = html.indexOf('{', i); j < html.length; j++) { if (html[j] === '{') d++; else if (html[j] === '}' && --d === 0) return html.slice(i, j + 1); } return ''; };
+const viewable = (src) => new Function('state', 'getLocalToday', `${src}; return coachPlanNoticeViewable;`);
+const st = { macrocycles: [{ id: 'future', start: '2026-10-12' }, { id: 'now', start: '2026-09-28' }] };
+const v = viewable(fnSrc('coachPlanNoticeViewable'))(st, () => '2026-09-29');
+check('View is offered only once the changed cycle has started (and for an old notice naming none)',
+  v({ macroId: 'future' }) === false && v({ macroId: 'now' }) === true && v({}) === true && v({ macroId: 'gone' }) === false);
+check('the plan notice names its cycle, and Home asks before offering View',
+  /named \? \{ macroId: named\.id \} : undefined\);/.test(html) && /plan: n => \(coachPlanNoticeViewable\(n\) \?/.test(html));
+
 // ── Controls ──────────────────────────────────────────────────────────────
 console.log('\n— controls, which must be caught —');
 check('control: a word left on fill-box is caught', !splashWords(html.replace(/(#splash \.s-word \{[^}]*)transform-box: view-box;/, '$1transform-box: fill-box; transform-origin: center;')).viewBox);
 check('control: a Sign out left in My data is caught', /signOutUser/.test(data + '<div class="settings-row" onclick="signOutUser()">'));
+
+check('control: a View that ignores the date is caught', viewable('function coachPlanNoticeViewable() { return true; }')(st, () => '2026-09-29')({ macroId: 'future' }) === true);
 
 console.log(failures ? `\nFAIL: ${failures} check(s)` : '\nAll checks pass.');
 process.exit(failures ? 1 : 0);
