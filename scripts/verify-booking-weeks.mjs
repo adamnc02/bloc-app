@@ -124,7 +124,7 @@ function run(source) {
   P.applyBookingPublication(pub({ ...WEEKLY, booking_id: 'g1', date: '2026-10-10', start_min: 540, title: 'Saturday bootcamp', location: 'Park' }));
   check('added to a group: "Added to a group session", naming it', [last().title, last().body], ['Added to a group session', 'Rowan added you to Saturday bootcamp: Sat 10 Oct, 09:00, weekly.']);
   P.applyBookingPublication(pub({ ...WEEKLY, booking_id: 'g1', date: '2026-10-10', start_min: 540, title: 'Saturday bootcamp', location: 'Park', status: 'cancelled' }));
-  check('taken out of a group (or it ends): "Group session cancelled", naming it', last().title, 'Group session cancelled');
+  check('taken out of a group (or it ends): "Group session cancelled", naming it', [last().title, last().body], ['Group session cancelled', 'You have been removed from the Saturday bootcamp on Sat 10 Oct, 09:00 with Rowan.']);
   P.applyBookingPublication(pub({ ...WEEKLY, booking_id: 'g1', date: '2026-10-10', start_min: 540, title: 'Saturday bootcamp', location: 'Park' }));
   check('put back in a group: "Added to a group session" (not "back on")', last().title, 'Added to a group session');
   // Added to one week of a group they're not in ("just this one" with a new attendee): the new booking replaces a

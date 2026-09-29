@@ -10174,7 +10174,7 @@ function applyBookingPublication(pub) {
   const group = typeof p.title === 'string' && p.title ? p.title : null;
   if (p.status === 'cancelled') {
     if (before && before.status !== 'cancelled') addCoachNotice(pub, 'booking', group ? 'Group session cancelled' : 'Session cancelled',
-      group ? `${group} on ${when} with ${coach} is off for you.` : `${when} with ${coach} is off.`);
+      group ? `You have been removed from the ${group} on ${when} with ${coach}.` : `${when} with ${coach} is off.`);
   }
   else if (!before || before.status === 'cancelled') {
     // A group this client wasn't in (the session it replaces isn't theirs, or was cancelled for them): added, not changed.
