@@ -20,4 +20,6 @@ export const KEYS = {
   auth: 'blocCoach_auth',
   /** The coach's own Anthropic key for the AI tools (ai/transport.ts). Kept on sign-out. */
   aiKey: 'blocCoach_aiKey',
+  /** '1' when the laptop side rail is collapsed to its icon rail (CoachShell). This device only. */
+  railCollapsed: 'blocCoach_railCollapsed',
 } as const;

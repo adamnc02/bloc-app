@@ -5,6 +5,7 @@ import type { BlocState, CycleReviewImage, Loose } from '@engine';
 import type { AiData, AiDraft, AiEdit, AiOriginal, AiTool, CoachPublication } from '@/ai/types';
 import type { PlanDoc } from '@/plan/doc';
 import type { Template, TemplateBody } from '@/plan/templates';
+import type { Booking, DayOff, Diary, DiarySettings, SentBooking, Series, Slot, RequestStatus } from '@/diary/types';
 
 export interface CoachProfile {
   coachId: string;
@@ -88,8 +89,29 @@ export interface NewClient { name: string; contact: string; onApp: boolean }
 export interface CardPatch { firstName?: string; surname?: string | null; email?: string | null; phone?: string | null; notes?: string | null }
 export interface NewInvite { code: string; expiresAt: string }
 
+/** The Diary's reads and writes (0024's diary tables and `session_requests`; TECHNICAL §152). */
+export interface DiaryRepo {
+  loadDiary(): Promise<Diary>;
+  saveSettings(s: DiarySettings): Promise<void>;
+  addDayOff(o: Omit<DayOff, 'id'>): Promise<DayOff>;
+  deleteDayOff(id: string): Promise<void>;
+  createSeries(s: Omit<Series, 'id'>): Promise<Series>;
+  /** `clientIds` replaces the attendees. */
+  updateSeries(id: string, patch: Partial<Omit<Series, 'id'>>): Promise<void>;
+  createBooking(b: Omit<Booking, 'id'>): Promise<Booking>;
+  updateBooking(id: string, patch: Partial<Omit<Booking, 'id' | 'seriesId' | 'occursOn'>>): Promise<void>;
+  // 🚨 No delete for a series or a booking: a request names its booking (`on delete set null`), and a deleted row
+  // leaves the request unbooked, which autoBook books again. Cancel instead (diary/actions.ts).
+  /** The coach's half of a request (0024's trigger): propose a time, accept (naming the booking), or decline. */
+  updateRequest(id: string, patch: { status?: Extract<RequestStatus, 'proposed' | 'accepted' | 'declined'>; proposed?: Slot | null; bookingId?: string | null }): Promise<void>;
+  /** A `booking` publication to one card. */
+  publishBooking(cardId: string, payload: Record<string, unknown>, supersedes: string | null): Promise<SentBooking>;
+  /** Calls back when a client's request changes (Realtime); returns the unsubscribe. Fixtures: never. */
+  watchRequests(onChange: () => void): () => void;
+}
+
 /** Everything the screens built so far ask of a data source. */
-export interface CoachRepo {
+export interface CoachRepo extends DiaryRepo {
   kind: 'live' | 'fixture';
   /** The coach's "now". Fixtures pin it to the demo dataset's anchor; live is the clock. */
   now(): number;

@@ -44,6 +44,24 @@ export function navigate(path: string) {
   window.location.hash = path;
 }
 
+/**
+ * The page Settings was opened from, so its back link returns there and names it. In memory: Settings
+ * opened by a reload (or a typed address) goes back to Clients.
+ */
+let beforeSettings: string | null = null;
+let lastHash = typeof window !== 'undefined' ? window.location.hash : '';
+if (typeof window !== 'undefined') {
+  window.addEventListener('hashchange', () => {
+    const next = window.location.hash;
+    if (parseRoute(next).name === 'settings' && parseRoute(lastHash).name !== 'settings') beforeSettings = lastHash || `#${DEFAULT_PATH}`;
+    lastHash = next;
+  });
+}
+export function settingsBack(): { href: string; route: Route } {
+  const href = beforeSettings ?? `#${DEFAULT_PATH}`;
+  return { href, route: parseRoute(href) };
+}
+
 export function useRoute(): Route {
   const [route, setRoute] = useState(() => parseRoute(window.location.hash));
   useEffect(() => {

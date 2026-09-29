@@ -1,9 +1,12 @@
-import { useId, useState, type CSSProperties } from 'react';
+import { useEffect, useId, useMemo, useState, type CSSProperties } from 'react';
 import { CoachShell } from '@/coach/CoachShell';
 import { Button, Chip, Field, Hero, Icon, Notice, Page, PageHeader, RowButton, Section, Sheet, Toast, useEntering, useToast } from '@/components/ui';
 import { useCoach } from '@/app/App';
+import { settingsBack } from '@/app/router';
+import { displayName } from '@/data/summary';
 import { initials } from '@/lib/format';
 import { getAiKey, setAiKey } from '@/ai/transport';
+import { DiarySettingsSection } from '@/coach/diary/DiarySettings';
 
 declare const __COACH_VERSION__: string;
 /** Coach's version: coach/package.json, the one place a release bumps it (TECHNICAL §139). */
@@ -46,12 +49,23 @@ export function SettingsScreen() {
     }
   };
 
+  // Back to the page Settings was opened from, named (a client page: the client's name).
+  const back = useMemo(() => settingsBack(), []);
+  const [clientName, setClientName] = useState<string | null>(null);
+  useEffect(() => {
+    if (back.route.name !== 'client') return;
+    const id = back.route.id;
+    repo.loadClients().then((bs) => { const b = bs.find((x) => x.card.id === id); if (b) setClientName(displayName(b)); }).catch(() => {});
+  }, [back, repo]);
+  const backLabel = back.route.name === 'client' ? clientName ?? 'Client'
+    : back.route.name === 'today' ? 'Today' : back.route.name === 'diary' ? 'Diary' : back.route.name === 'library' ? 'Library' : 'Clients';
+
   return (
     <CoachShell tab="settings">
       <Page innerRef={ref}>
         <PageHeader
           eyebrow={<>
-            <a href="#/clients" className="eyebrow eyebrow-link phone-only"><Icon name="chevL" size={14} /> Clients</a>
+            <a href={back.href} className="eyebrow eyebrow-link phone-only"><Icon name="chevL" size={14} /> {backLabel}</a>
             <span className="wide-only">Account</span>
           </>}
           title="Settings"
@@ -79,22 +93,24 @@ export function SettingsScreen() {
             </div>
           </Section>
 
-          <Section i={4} title="AI tools" sub="Check-ins, cycle reviews and next-cycle advice run with your own Anthropic key.">
+          <DiarySettingsSection i={4} />
+
+          <Section i={5} title="AI tools" sub="Check-ins, cycle reviews and next-cycle advice run with your own Anthropic key.">
             <div className="card list">
               <RowButton lead="key" title="Anthropic API key" sub={hasKey ? 'Saved on this device' : 'Not set: the AI tools can’t run'} onClick={() => { setKeyInput(''); setSheet('ai'); }} />
             </div>
           </Section>
 
-          <Section i={5} title="About" sub="Which version of BLOC Coach this is.">
+          <Section i={6} title="About" sub="Which version of BLOC Coach this is.">
             <div className="card">
               <div className="ex"><span>Version</span><span className="num">{COACH_VERSION}</span></div>
-              <div className="ex"><span>Coming next</span><span>Plan, Diary and In person</span></div>
+              <div className="ex"><span>Coming next</span><span>In person and Today</span></div>
             </div>
           </Section>
         </div>
 
         {!fixture && (
-          <section className="sec rise" style={{ ['--i' as string]: 6 } as CSSProperties} aria-label="Sign out">
+          <section className="sec rise" style={{ ['--i' as string]: 7 } as CSSProperties} aria-label="Sign out">
             <Button variant="danger" icon="logout" onClick={() => setSheet('signout')}>Sign out</Button>
           </section>
         )}

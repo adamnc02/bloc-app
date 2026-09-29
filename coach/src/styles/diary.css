@@ -1,0 +1,188 @@
+/* =====================================================================
+   Diary (TECHNICAL §152). Tokens only. Bookings are lavender (accent),
+   "now" is ice, red only for a clash or a refused drop, requests are
+   dashed accent, days off a muted hatch.
+   ===================================================================== */
+
+/* ---------- hero ---------- */
+.dy-hero-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; text-align: center }
+.dy-hero-stats .big { font-size: 30px }
+.dy-hero-stats .muted { font-size: 12px; margin-top: 4px }
+.dy-hero-foot { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--divider); display: flex; justify-content: center; gap: 6px; align-items: center; color: var(--text3); font-size: 12.5px }
+
+/* ---------- week bar ---------- */
+.dy-bar { display: flex; align-items: center; gap: 8px; margin-top: var(--hero-gap) }
+.dy-range { flex: 1; min-width: 0; text-align: center }
+.dy-range b { display: block; font-family: var(--font-display); font-weight: 600; font-size: 16px }
+.dy-range small { display: block; color: var(--text3); font-size: 12px; margin-top: 2px }
+.dy-hint { margin: 10px 0 12px; text-align: center }
+
+/* No text selection or iOS callout: a long press in the Diary means pick up (a session) or book (an empty hour),
+   never "copy". The grid on every device; the whole page on touch. Sheets render outside the page, so their fields
+   still select. */
+.dg { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none }
+@media (hover: none), (pointer: coarse) { .diary-page { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none } }
+
+/* ---------- grid ---------- */
+.dg { --gw: 56px; --hour: 60px; position: relative; overflow-x: clip }
+.dg.is-narrow { --gw: 40px }
+.dg-head, .dg-body { display: grid; grid-template-columns: var(--gw) repeat(var(--cols), minmax(0, 1fr)) }
+.dg-head {
+  position: sticky; top: env(safe-area-inset-top); z-index: 6; background: var(--bg);
+  border-bottom: 1px solid var(--border); padding: 6px 0 8px;
+}
+.dg-corner { position: sticky; left: 0; background: var(--bg) }
+.dg-day {
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px; min-height: 58px; padding: 6px 2px;
+  border: 0; border-radius: 12px; background: transparent; color: var(--text); cursor: pointer; min-width: 0;
+}
+@media (hover: hover) { button.dg-day:hover { background: var(--surface) } }
+.dg-dow { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text3) }
+.dg-date { font-family: var(--font-display); font-size: 20px; font-weight: 600; line-height: 1.1 }
+.dg-flag { font-size: 10.5px; font-weight: 700; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100% }
+.dg-flag.is-today { color: var(--ice) }
+.dg-day.is-today .dg-date { color: var(--ice) }
+.dg-day.is-rest .dg-date, .dg-day.is-off .dg-date { color: var(--text3) }
+.dg-day.is-target { background: color-mix(in srgb, var(--accent) 16%, transparent) }
+
+.dg-body { position: relative; margin-top: 4px }
+.dg-gutter { position: sticky; left: 0; z-index: 3; background: var(--bg) }
+.dg-gutter > span {
+  position: absolute; right: 8px; font-size: 11px; font-weight: 600; color: var(--text3); transform: translateY(-50%);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.dg-gutter > span.is-first { transform: none }
+.dg-now-label { color: var(--ice) !important; background: var(--bg); padding: 0 2px; z-index: 1; font-weight: 700 !important }
+
+.dg-col {
+  position: relative; min-width: 0; border-left: 1px solid var(--divider);
+  background-image: repeating-linear-gradient(to bottom, var(--divider) 0 1px, transparent 1px var(--hour));
+}
+.dg-col.is-rest { background-color: color-mix(in srgb, var(--inset) 70%, transparent) }
+.dg-col.is-off {
+  background-image:
+    repeating-linear-gradient(135deg, color-mix(in srgb, var(--text) 5%, transparent) 0 6px, transparent 6px 14px),
+    repeating-linear-gradient(to bottom, var(--divider) 0 1px, transparent 1px var(--hour));
+}
+.dg-col.is-target { background-color: color-mix(in srgb, var(--accent) 8%, transparent) }
+.dg-col.is-target.is-refused { background-color: color-mix(in srgb, var(--red) 6%, transparent) }
+
+/* dotted empty-session outline: one hour, pushed along by off-hour bookings */
+.dg-empty {
+  position: absolute; left: 4px; right: 4px; border-radius: 10px; padding: 0; background: none; cursor: pointer;
+  border: 2px dotted color-mix(in srgb, var(--text) 13%, transparent);
+}
+.dg-empty:focus-visible { border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: color-mix(in srgb, var(--accent) 6%, transparent) }
+.dg.is-dragging .dg-empty { pointer-events: none }
+@media (hover: hover) { .dg-empty:hover { border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: color-mix(in srgb, var(--accent) 6%, transparent) } }
+
+/* now line (today only) */
+.dg-now { position: absolute; left: -1px; right: 0; height: 2px; background: var(--ice); z-index: 4; pointer-events: none; transform: translateY(-1px) }
+.dg-now::before { content: ""; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--ice) }
+
+/* day-off state */
+.dg-offnote {
+  position: absolute; top: 10px; left: 4px; right: 4px; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  text-align: center; padding: 12px 6px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border2); color: var(--text2);
+}
+.dg-offnote b { color: var(--text); font-size: 13px }
+.dg-offnote small { font-size: 11.5px; line-height: 1.3 }
+.dg.is-narrow .dg-offnote small { font-size: 10.5px }
+
+/* ---------- bookings ---------- */
+.bk {
+  position: absolute; z-index: 2; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; overflow: hidden;
+  padding: 5px 7px 5px 9px; border-radius: 10px; text-align: left; color: var(--text); cursor: grab;
+  background: color-mix(in srgb, var(--accent) 24%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: inset 3px 0 0 var(--accent);
+  touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}
+.bk:hover { background: color-mix(in srgb, var(--accent) 32%, var(--surface)) }
+.bk-name { display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; font-size: 13px; line-height: 1.2 }
+.bk-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 24px }
+.bk-name svg { flex-shrink: 0; color: var(--accent2) }
+.bk-name svg.t-bad { color: var(--red) }
+.bk-time { font-size: 11.5px; color: var(--text2); white-space: nowrap }
+.bk-sub { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100% }
+.bk-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 2px }
+.bk .tag { font-size: 10px; padding: 1px 5px; vertical-align: 0; flex-shrink: 0 }
+.bk.is-compact { padding: 4px 5px 4px 7px }
+.bk.is-compact .bk-name { font-size: 12px }
+.bk.is-compact .bk-time { font-size: 10.5px }
+.bk.is-short .bk-time { display: none }
+
+.bk-group { background: color-mix(in srgb, var(--accent) 16%, var(--surface2)); box-shadow: inset 3px 0 0 var(--accent2) }
+.bk-people { display: flex; align-items: center; margin-top: 3px }
+.bk-people i {
+  width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 8.5px; font-weight: 700;
+  background: color-mix(in srgb, var(--accent) 30%, var(--surface)); color: var(--accent2); border: 1.5px solid var(--surface); margin-left: -5px;
+}
+.bk-people i:first-child { margin-left: 0 }
+.bk-people small { font-size: 11px; color: var(--text2); margin-left: 5px; font-weight: 700 }
+.bk.is-compact .bk-people i:nth-child(n+3) { display: none }
+
+/* request placeholders: a dashed outline says whose move it is (the legend under the week bar).
+   Requested (the client's time, waiting on you): lavender. Offered (your time, waiting on them): green.
+   Confirmed but not booked (it clashes or has passed: move it): red. A surface fill covers the outline beneath. */
+.bk-request { background: var(--surface); border: 1.5px dashed var(--accent2); box-shadow: none; z-index: 3 }
+.bk-request.is-offered { border-color: var(--green); background: color-mix(in srgb, var(--green) 8%, var(--surface)) }
+.bk-request.is-confirmed { border-color: var(--red); background: color-mix(in srgb, var(--red) 8%, var(--surface)) }
+@media (hover: hover) { .bk-request:hover { filter: brightness(1.12) } }
+
+/* the legend */
+.dy-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 16px; margin: 0 0 12px; font-size: 12px; color: var(--text2) }
+.dy-legend span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap }
+.dy-legend i { width: 18px; height: 12px; border-radius: 4px; flex-shrink: 0 }
+.dy-legend .lg-booked { background: color-mix(in srgb, var(--accent) 30%, var(--surface)); box-shadow: inset 3px 0 0 var(--accent) }
+.dy-legend .lg-requested { border: 1.5px dashed var(--accent2) }
+.dy-legend .lg-offered { border: 1.5px dashed var(--green) }
+.dy-legend .lg-confirmed { border: 1.5px dashed var(--red) }
+
+.bk.is-lifted { opacity: .35 }
+.bk.is-floating {
+  z-index: 8; pointer-events: none; opacity: .95; cursor: grabbing;
+  transform: rotate(-1.5deg) scale(1.03); box-shadow: inset 3px 0 0 var(--accent), 0 14px 30px var(--scrim);
+}
+.bk-request.is-floating { box-shadow: 0 14px 30px var(--scrim) }
+.dg.is-dragging, .dg.is-dragging .bk { cursor: grabbing }
+
+/* landing indicator: where the drop will land, snapped to 15 minutes */
+.dg-land {
+  position: absolute; left: 3px; right: 3px; z-index: 9; border-radius: 10px; pointer-events: none;
+  border: 2px dashed var(--accent2); background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.dg-land-label {
+  position: absolute; left: 4px; top: -11px; display: inline-flex; align-items: center; gap: 4px; max-width: calc(100% + 40px);
+  font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: var(--accent); color: var(--on-accent); white-space: nowrap;
+}
+.dg-land.is-refused { border-color: var(--red); background: color-mix(in srgb, var(--red) 14%, transparent) }
+.dg-land.is-refused .dg-land-label { background: var(--red); color: var(--bg) }
+.dg.is-narrow .dg-land-label { white-space: normal; width: max-content; max-width: 150px }
+
+/* ---------- sheets ---------- */
+.es-who { display: flex; gap: 12px; align-items: center; margin-bottom: 18px }
+.es-name { display: block; font-size: 16px }
+.es-avatars { display: flex }
+.es-avatars .avatar + .avatar { margin-left: -10px; border: 2px solid var(--surface) }
+.tp-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 8px; align-items: center }
+.tp-row .seg button { padding: 0 4px }
+.rq-picks { display: grid; gap: 8px }
+.rq-picks .pick small { display: flex; align-items: center; gap: 4px }
+@media (hover: hover) { .scope-pick:hover { border-color: var(--accent) } .scope-pick.is-danger:hover { border-color: var(--red) } }
+.scope-pick.is-danger b { color: var(--red) }
+.rq-note { margin: 0 0 18px; padding: 12px 14px; border-radius: var(--r-tile); background: var(--surface2); color: var(--text2); font-size: 14px; border-left: 3px solid var(--accent) }
+.dy-refusal { display: flex; gap: 8px; align-items: flex-start; margin-top: 16px; color: var(--red); font-size: 13.5px; font-weight: 600 }
+.dy-refusal svg { flex-shrink: 0; margin-top: 1px }
+.do-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; min-height: 44px; cursor: pointer }
+.do-row + .do-row { border-top: 1px solid var(--divider) }
+.do-main { flex: 1; min-width: 0 }
+.do-main b { display: block; font-size: 14.5px }
+.do-main small { display: block; color: var(--text2); font-size: 12.5px; margin-top: 2px }
+.do-actions { display: grid; gap: 10px; margin-top: 20px }
+@media (min-width: 560px) { .do-actions { grid-template-columns: 1fr 1fr } }
+
+/* diary toast: like the shared toast, with a warning glyph when a drop is refused */
+.dy-toast { position: fixed; left: 50%; bottom: calc(100px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 200; background: var(--surface3); color: var(--text); border-radius: 12px; padding: 12px 16px; font-size: 14px; font-weight: 600; display: flex; gap: 10px; align-items: center; max-width: calc(100vw - 40px) }
+.dy-toast.is-bad svg { color: var(--red) }
+.dy-toast svg { color: var(--green-text); flex-shrink: 0 }
+@media (min-width: 768px) { .dy-toast { bottom: 32px } }
