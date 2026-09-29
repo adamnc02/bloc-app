@@ -10153,21 +10153,37 @@ function applyBookingPublication(pub) {
   if (!state.coachBookings || typeof state.coachBookings !== 'object') state.coachBookings = {};
   const before = state.coachBookings[p.booking_id];
   state.coachBookings[p.booking_id] = Object.assign(pubCopy(p), { seq: pub.seq });
-  // v8.43 (§137): "Session confirmed" (proposal §8: accepted, moved or cancelled).
-  // v8.47 (§151): `quiet` applies with no banner (the coach chose not to
+  // v8.43 (§137): "Session confirmed" for a new session, "Session cancelled".
+  // v8.47 (§151): any change to a session is "Session changed"; `quiet` applies with no banner (the coach chose not to
   // notify); a weekly booking's added or removed skip dates, and its `until`,
   // raise their own. One notice per publication.
   if (p.quiet === true) return { status: 'applied' };
   const coach = coachFirstName();
   const when = coachDateTimeFmt(p.date, p.start_min);
   const today = getLocalToday();
+  const nextWhen = coachDateTimeFmt(coachBookingNextDate(p, today) || p.date, p.start_min);
+  // v8.47 (§151, migration 0029): a NEW booking that `replaces` another (a week
+  // moved "just this one", a weekly session moved "all future") is the same
+  // session, changed: "Session changed", never "Session confirmed".
+  const replaced = p.replaces && typeof p.replaces === 'object' ? p.replaces : null;
+  const was = replaced && state.coachBookings[replaced.booking_id];
+  const wasWhen = replaced ? coachDateTimeFmt(replaced.date, was && was.start_min != null ? was.start_min : null) : '';
+  const dayName = d => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long' });
   if (p.status === 'cancelled') { if (before && before.status !== 'cancelled') addCoachNotice(pub, 'booking', 'Session cancelled', `${when} with ${coach} is off.`); }
-  else if (!before || before.status === 'cancelled') addCoachNotice(pub, 'booking', 'Session confirmed', `${coach} booked you in: ${coachDateTimeFmt(coachBookingNextDate(p, today) || p.date, p.start_min)}${coachBookingWeekly(p) ? ', weekly' : ''}.`);
-  else if (before.date !== p.date || before.start_min !== p.start_min) addCoachNotice(pub, 'booking', 'Session moved', `${coach} moved it to ${when}.`);
+  else if (!before || before.status === 'cancelled') {
+    if (replaced && coachBookingWeekly(p)) addCoachNotice(pub, 'booking', 'Session changed', `Your weekly session with ${coach} is now every ${dayName(p.date)} at ${coachMinToHHMM(p.start_min)}, from ${coachDayFmt(coachBookingNextDate(p, today) || p.date)}.`);
+    else if (replaced) addCoachNotice(pub, 'booking', 'Session changed', `${wasWhen} with ${coach} is now ${when}.`);
+    else addCoachNotice(pub, 'booking', 'Session confirmed', `${coach} booked you in: ${nextWhen}${coachBookingWeekly(p) ? ', weekly' : ''}.`);
+  }
+  else if (before.date !== p.date || before.start_min !== p.start_min) addCoachNotice(pub, 'booking', 'Session changed', `${coach} moved it to ${nextWhen}.`);
+  // …and a change of length, place or name, at the same time.
+  else if (before.duration_min !== p.duration_min || (before.location || '') !== (p.location || '') || (before.title || '') !== (p.title || '')) {
+    addCoachNotice(pub, 'booking', 'Session changed', `${nextWhen} with ${coach}: ${[p.title || '', p.duration_min ? `${p.duration_min} min` : '', p.location || ''].filter(Boolean).join(' · ')}.`);
+  }
   else if (coachBookingWeekly(p)) {
-    const was = coachBookingSkips(before), now = coachBookingSkips(p);
-    const off = [...now].filter(d => !was.has(d) && d >= today && (!p.until || d <= p.until)).sort();
-    const on = [...was].filter(d => !now.has(d) && d >= today && (!p.until || d <= p.until)).sort();
+    const skipped = coachBookingSkips(before), now = coachBookingSkips(p);
+    const off = [...now].filter(d => !skipped.has(d) && d >= today && (!p.until || d <= p.until)).sort();
+    const on = [...skipped].filter(d => !now.has(d) && d >= today && (!p.until || d <= p.until)).sort();
     const at = d => coachDateTimeFmt(d, p.start_min);
     if (off.length) addCoachNotice(pub, 'booking', off.length === 1 ? 'Session cancelled' : 'Sessions cancelled',
       off.length === 1 ? `${at(off[0])} with ${coach} is off.` : `${off.length} sessions with ${coach} are off, from ${at(off[0])}.`);

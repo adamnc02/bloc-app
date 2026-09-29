@@ -103,6 +103,20 @@ function run(source) {
   P.applyBookingPublication(pub({ ...WEEKLY, booking_id: 'b2', status: 'cancelled' }));
   check('a cancelled booking still says so', last().title, 'Session cancelled');
 
+  // Changes (0029): a moved week, an all-future move, a moved one-off, a new length.
+  P.applyBookingPublication(pub({ ...WEEKLY, booking_id: 'b3', date: '2026-10-07' }));
+  P.applyBookingPublication(pub({ ...WEEKLY, booking_id: 'b3', skip_dates: ['2026-10-14'], quiet: true }));
+  P.applyBookingPublication(pub({ booking_id: 'ov1', date: '2026-10-15', start_min: 1080, duration_min: 60, status: 'booked', kind: 'one_off', replaces: { booking_id: 'b3', date: '2026-10-14' } }));
+  check('a moved week (replaces): "Session changed", old time → new', [last().title, last().body], ['Session changed', 'Wed 14 Oct, 18:00 with Rowan is now Thu 15 Oct, 18:00.']);
+  P.applyBookingPublication(pub({ ...WEEKLY, booking_id: 'b4', date: '2026-10-22', start_min: 1020, replaces: { booking_id: 'b3', date: '2026-10-21' } }));
+  check('an all-future move (a new weekly that replaces): "Session changed"', [last().title, /every Thursday at 17:00/.test(last().body)], ['Session changed', true]);
+  P.applyBookingPublication(pub({ booking_id: 'o2', date: '2026-10-09', start_min: 600, duration_min: 60, status: 'booked', kind: 'one_off' }));
+  check('a new one-off with no replaces is still "Session confirmed"', last().title, 'Session confirmed');
+  P.applyBookingPublication(pub({ booking_id: 'o2', date: '2026-10-09', start_min: 660, duration_min: 60, status: 'booked', kind: 'one_off' }));
+  check('a one-off moved: "Session changed"', last().title, 'Session changed');
+  P.applyBookingPublication(pub({ booking_id: 'o2', date: '2026-10-09', start_min: 660, duration_min: 90, status: 'booked', kind: 'one_off', location: 'Park' }));
+  check('a new length and place: "Session changed", naming them', [last().title, last().body], ['Session changed', 'Fri 9 Oct, 11:00 with Rowan: 90 min · Park.']);
+
   const rows = extract(source, 'renderCoachSessions') || '';
   check('Your sessions shows a group session\'s title', /b\.title \? coachEsc\(b\.title\)/.test(rows), true);
   return out;
@@ -118,7 +132,7 @@ for (const r of run(current)) {
 const old = execFileSync('git', ['show', '5d08f66:index.html'], { cwd: repo, encoding: 'utf8', maxBuffer: 64 << 20 });
 const ctl = run(old);
 const ctlFails = ctl.filter((r) => !r.ok).map((r) => r.label);
-const mustFail = ['a skipped week is stepped over', 'until: after it, no next date', 'quiet on a new booking: no "Session confirmed"'];
+const mustFail = ['a skipped week is stepped over', 'until: after it, no next date', 'quiet on a new booking: no "Session confirmed"', 'a moved week (replaces): "Session changed", old time → new', 'a new length and place: "Session changed", naming them'];
 const ctlOk = mustFail.every((l) => ctlFails.includes(l));
 console.log(`${ctlOk ? '✓' : '✗'} control: v8.46 (5d08f66) fails ${ctlFails.length} rows, including skip, until and quiet`);
 if (!ctlOk) failures++;

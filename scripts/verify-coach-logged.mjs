@@ -292,7 +292,8 @@ async function run(label, html, engineSrc, quiet = false) {
     B.dismissCoachNotice(env.state.coachNotices[2].id);
     check('✕ is PERMANENT (saved), and the next one shows', [env.state.coachNotices[2].dismissed, /updated your plan|goal phases/.test(home())], [true, true]);
     B.applyPublications([pub('booking', { booking_id: 'bb', date: '2026-10-02', start_min: 1080, status: 'booked' })]);
-    check('a moved booking is news again', /Session moved/.test(home()) || env.state.coachNotices.some(n => n.title === 'Session moved' && !n.dismissed), true);
+    // "Session moved" until v8.47, "Session changed" since (TECHNICAL §151).
+    check('a moved booking is news again', /Session (moved|changed)/.test(home()) || env.state.coachNotices.some(n => /^Session (moved|changed)$/.test(n.title) && !n.dismissed), true);
     env.requests.push({ id: 'rq', status: 'proposed', proposed: { date: '2026-10-03', start_min: 600 }, preferences: [] });
     B.renderHomeCoachBanner();
     check('a proposed time still comes first (it needs an answer)', /proposed a different time/.test(home()), true);
