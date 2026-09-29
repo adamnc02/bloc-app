@@ -10314,8 +10314,10 @@ the message (control: `String()` of the raw error), one refresh and retry on an 
   **Offered**, green: the coach's time, waiting on the client; **Clash**, red: the client accepted the coach's time but it
   wasn't booked (it clashes, or has passed) and the coach moves it. Tags and status lines ("Request", "New time", "Also …",
   "Waiting for …") didn't fit a block and were cut off; the aria label still says the state.
-- **Settings has no bottom bar**: it isn't one of the four tabs (a phone reaches it from the gear, with ‹ Clients back), so
-  the bar showed with nothing selected.
+- **Settings has no bottom bar**: it isn't one of the four tabs (a phone reaches it from the gear), so the bar showed with
+  nothing selected. **Its back link returns to the page it was opened from, and names it** (Today, Clients, Diary, Library,
+  or the client's name): the router keeps the hash before Settings in memory (`settingsBack()`); Settings opened by a
+  reload goes back to Clients.
 - **Sheets** (`DiarySheets`): Session (edit), Book a session, Just this one / All future (two buttons that act at once; no
   Save), Let clients know? (one day or
   several; the sessions affected listed; "Don't tell them" / "Let … know"), the day off with Undo, and Session request.

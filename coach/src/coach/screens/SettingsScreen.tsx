@@ -1,7 +1,9 @@
-import { useId, useState, type CSSProperties } from 'react';
+import { useEffect, useId, useMemo, useState, type CSSProperties } from 'react';
 import { CoachShell } from '@/coach/CoachShell';
 import { Button, Chip, Field, Hero, Icon, Notice, Page, PageHeader, RowButton, Section, Sheet, Toast, useEntering, useToast } from '@/components/ui';
 import { useCoach } from '@/app/App';
+import { settingsBack } from '@/app/router';
+import { displayName } from '@/data/summary';
 import { initials } from '@/lib/format';
 import { getAiKey, setAiKey } from '@/ai/transport';
 import { DiarySettingsSection } from '@/coach/diary/DiarySettings';
@@ -47,12 +49,23 @@ export function SettingsScreen() {
     }
   };
 
+  // Back to the page Settings was opened from, named (a client page: the client's name).
+  const back = useMemo(() => settingsBack(), []);
+  const [clientName, setClientName] = useState<string | null>(null);
+  useEffect(() => {
+    if (back.route.name !== 'client') return;
+    const id = back.route.id;
+    repo.loadClients().then((bs) => { const b = bs.find((x) => x.card.id === id); if (b) setClientName(displayName(b)); }).catch(() => {});
+  }, [back, repo]);
+  const backLabel = back.route.name === 'client' ? clientName ?? 'Client'
+    : back.route.name === 'today' ? 'Today' : back.route.name === 'diary' ? 'Diary' : back.route.name === 'library' ? 'Library' : 'Clients';
+
   return (
     <CoachShell tab="settings">
       <Page innerRef={ref}>
         <PageHeader
           eyebrow={<>
-            <a href="#/clients" className="eyebrow eyebrow-link phone-only"><Icon name="chevL" size={14} /> Clients</a>
+            <a href={back.href} className="eyebrow eyebrow-link phone-only"><Icon name="chevL" size={14} /> {backLabel}</a>
             <span className="wide-only">Account</span>
           </>}
           title="Settings"
