@@ -8,7 +8,8 @@
 //    invite's expiry, "last synced".
 // ═══════════════════════════════════════════════════════════════════════
 import { dayDiff, getDateActiveMacroId, getMacroDurationWeeks, shiftDateStr, type BlocState, type Macrocycle } from '@engine';
-import type { LinkStatus } from '@/domain/types';
+import type { LinkStatus, OutcomeStatus } from '@/domain/types';
+import { reviewFor } from '@/review/model';
 import { fmt, initials as toInitials } from '@/lib/format';
 import { localDateIn } from '@/lib/clientState';
 import type { ClientBundle } from './types';
@@ -44,6 +45,8 @@ export interface ClientSummary {
   staleSync: boolean;
   photoConsent: boolean;
   problem: string | null;
+  /** The current cycle's outcome at their today (Review's model), whoever owns the cycle. */
+  outcome: { status: OutcomeStatus; reason: string };
 }
 
 export function linkStatusOf(b: ClientBundle): LinkStatus {
@@ -126,6 +129,12 @@ export function summarise(b: ClientBundle, nowMs: number): ClientSummary {
     targetLbs = m ? num((m as Macrocycle & { targetBw?: unknown }).targetBw) : null;
   }
 
+  let outcome: ClientSummary['outcome'] = { status: 'no-data', reason: cycleText };
+  if (snap && clientToday && cycle) {
+    const r = reviewFor(b.card.id, snap.hash, snap.state, cycle.macroId, clientToday, name.split(' ')[0]);
+    if (r) outcome = { status: r.outcome.status, reason: r.outcome.reason };
+  }
+
   return {
     id: b.card.id,
     name,
@@ -141,5 +150,6 @@ export function summarise(b: ClientBundle, nowMs: number): ClientSummary {
     staleSync: syncedHoursAgo != null && syncedHoursAgo >= STALE_SYNC_HOURS,
     photoConsent: !!b.link?.photoConsent && status === 'linked',
     problem: status === 'linked' ? b.snapshotError : null,
+    outcome,
   };
 }

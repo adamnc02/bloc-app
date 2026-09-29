@@ -48,7 +48,7 @@ export function buildFixtureClients(demo: Record<string, unknown>): { anchor: st
   const now = fixtureNow(anchor);
   const card = (id: string, name: string, extra: Partial<ClientCard> = {}): ClientCard => {
     const { first, surname } = splitName(name);
-    return { id, firstName: first, surname, email: `${id}@example.com`, phone: null, createdAt: '2026-06-01T09:00:00Z', ...extra };
+    return { id, firstName: first, surname, email: `${id}@example.com`, phone: null, notes: null, createdAt: '2026-06-01T09:00:00Z', ...extra };
   };
   const linked = (id: string, since = '2026-06-01T09:00:00Z') => ({ clientId: `user-${id}`, status: 'active' as const, photoConsent: id === 'maya', linkedAt: since, endedAt: null });
   const snap = (state: BlocState, tz: string, hoursAgo: number, rev = 12) => ({
@@ -65,10 +65,15 @@ export function buildFixtureClients(demo: Record<string, unknown>): { anchor: st
   // already HER today at the fixtures' now, so she's in week 1, not "next cycle".
   const grace = withCycle(demo, (s) => { for (const m of s.macrocycles || []) m.start = shiftDateStr(anchor, 1); });
 
+  // Priya: microcycles on with one-week mesocycles, so each session's A and B
+  // both fall in the same week (the grid's A/B rows, every week filled).
+  const priya = withCycle(demo, (s) => { for (const m of s.macrocycles || []) { m.weeksPerMeso = 1; m.useMicrocycles = true; m.publishedBy = FIXTURE_COACH.coachId; } });
+
   const clients: ClientBundle[] = [
-    { ...base, card: card('maya', 'Maya Okafor', { phone: '07700 900111' }), link: linked('maya'), snapshot: snap(maya, 'Europe/London', 2) },
+    { ...base, card: card('maya', 'Maya Okafor', { phone: '07700 900111', notes: 'Shift work: trains early on weekdays.' }), link: linked('maya'), snapshot: snap(maya, 'Europe/London', 2) },
     { ...base, card: card('tom', 'Tom Hartley'), link: linked('tom'), snapshot: snap(tom, 'Europe/London', 60) },
     { ...base, card: card('grace', 'Grace Lin'), link: linked('grace'), snapshot: snap(grace, 'Pacific/Auckland', 5) },
+    { ...base, card: card('priya', 'Priya Shah'), link: linked('priya'), snapshot: snap(priya, 'Europe/London', 6) },
     { ...base, card: card('ben', 'Ben Carter'), link: linked('ben', hoursBefore(now, 3)), snapshot: null },
     { ...base, card: card('sam', 'Sam Whitfield'), link: null, snapshot: null,
       invite: { expiresAt: hoursBefore(now, -5 * 24), createdAt: hoursBefore(now, 2 * 24) } },
@@ -100,7 +105,7 @@ export function createFixtureRepo(demo: Record<string, unknown>, onProfile: (p: 
       const contact = input.contact.trim();
       const c: ClientCard = {
         id: `new-${++n}`, firstName: first, surname,
-        email: contact.includes('@') ? contact : null, phone: contact.includes('@') ? null : contact,
+        email: contact.includes('@') ? contact : null, phone: contact.includes('@') ? null : contact, notes: null,
         createdAt: new Date(built.now).toISOString(),
       };
       clients.push({ card: c, link: null, invite: null, profileName: null, snapshot: null, snapshotError: null });
@@ -111,6 +116,20 @@ export function createFixtureRepo(demo: Record<string, unknown>, onProfile: (p: 
       const c = clients.find((x) => x.card.id === cardId);
       if (c) c.invite = { expiresAt, createdAt: new Date(built.now).toISOString() };
       return { code: formatInviteCode(fakeCode()), expiresAt };
+    },
+    async updateCard(cardId, patch) {
+      const c = clients.find((x) => x.card.id === cardId);
+      if (!c) throw new Error('No such client');
+      if (c.link?.status === 'active' && (patch.firstName !== undefined || patch.surname !== undefined || patch.email !== undefined || patch.phone !== undefined)) {
+        throw new Error('A linked client’s name and contact are theirs to change');
+      }
+      c.card = { ...c.card, ...patch };
+      return c.card;
+    },
+    async endLink(cardId) {
+      const c = clients.find((x) => x.card.id === cardId);
+      if (c?.link) c.link = { ...c.link, status: 'ended', photoConsent: false, endedAt: new Date(built.now).toISOString() };
+      if (c) c.snapshot = null;
     },
     async updateProfile(displayName, businessName) {
       const p = { ...FIXTURE_COACH, displayName, businessName };
