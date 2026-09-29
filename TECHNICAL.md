@@ -9995,3 +9995,26 @@ from before v8.46 names no cycle and keeps its View.
 a removed cycle; control: a View that ignores the date), the words on `view-box` with their own origins, the account in
 About me with Sign out last, My data's title and no sign-out in it, the Settings row, and Sign out closing About me.
 Controls: a word left on `fill-box`, and a Sign out row left in My data.
+
+## §147 — v8.46: an exercise that joins part-way through a cycle starts its progression there
+
+**The bug.** An exercise with no logs of its own gets the plan's theoretical targets: `getWeekWeight` is starting weight
++ one increment per mesocycle **since week 1**, and `getWeekSets` interpolates from starting to peak sets over the whole
+cycle. That's right for an exercise that was there from the start. For one that joins later (a coach swaps an exercise,
+or adds one, at mesocycle 5), its first target was 40 kg + 4 × 2.5 = 50 kg, and its sets were already part-way to peak.
+
+**The rule.** The exercise carries **`fromWeek`**, the mesocycle week it joined (BLOC's "week" in every key is a
+mesocycle number, §3). `exercisePlanWeek(ex, week)` (engine, `progression.ts`) makes that week its week 1, and every
+week-based leaf goes through it: `getWeekWeight`, `getWeekReps`, `getGiantSetProgression`, and `getWeekSets`, which runs
+the exercise's own starting-to-peak curve over the weeks it has (peak at the cycle's last original mesocycle). So its
+starting weight, reps and sets are its first targets and each increment counts from there. Once it's logged, it
+progresses from what was lifted, like any exercise. Train, the Plan preview, Home's Up next, compliance and BLOC Coach all
+read these leaves, so they agree. An exercise without `fromWeek` (or 1) is unchanged; the golden outputs don't move.
+
+Nothing else about a swap changes in BLOC: the new exercise is a new id, so the old one keeps its logs in history under
+its own id, and targets for weeks with nothing logged recompute (§131's §0 rule).
+
+**Check:** `scripts/verify-exercise-from-week.mjs`: the leaves (first week = starting weight, +1 increment a
+mesocycle after, starting-to-peak sets, reps and giant-set reps from there, unchanged without `fromWeek`), then Train's own
+`getWeekTargets` on the demo with a late exercise: 40 kg × 3 sets in its first week. Control: the same exercise without
+`fromWeek` gets 50 kg × 4.
