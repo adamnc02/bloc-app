@@ -213,7 +213,7 @@ export function PlanTab({ v, macro, intent }: { v: ClientView; macro: string | n
                 {!readOnly && <RowButton title="Edit cycle" sub={`Name, dates, length, goal and increment · effort ratings ${doc.macro.rpe ? 'on' : 'off'}`} trailing="edit" onClick={() => setSheet('edit')} />}
                 {!readOnly && <RowButton title={doc.macro.extensionWeeks ? `Extended by ${doc.macro.extensionWeeks} week${doc.macro.extensionWeeks === 1 ? '' : 's'}` : 'Extend cycle'} sub={`Ends ${fmt.ddm(cycle.end)}`} onClick={() => setSheet('extend')} />}
                 <RowButton title="Apply a Library template" sub={`A fresh copy for ${first}, from a start date you choose`} trailing="library" onClick={() => setSheet('tplCycle')} />
-                {cycle.coachOwned && <RowButton title="Save as template" sub="This cycle to the Library, without dates" trailing="library" onClick={() => setSheet('saveCycle')} />}
+                {cycle.coachOwned && <RowButton title="Save as template" sub="Save this cycle to the Library, without dates" trailing="library" onClick={() => setSheet('saveCycle')} />}
                 <RowButton title="New cycle" sub="Start a fresh macrocycle" trailing="plus" onClick={() => setSheet('new')} />
               </div>
             </Section>

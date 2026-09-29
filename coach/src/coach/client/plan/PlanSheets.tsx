@@ -279,7 +279,7 @@ export function SessionSheet({ open, label, micro, canRemove, onClose, onRename,
       <div className="card" style={{ padding: '4px 16px', marginTop: 18 }}>
         {micro > 0 && <RowButton title={`Copy from Microcycle ${micro === 1 ? 2 : 1}`} sub={`Replaces this session’s M${micro} exercises with M${micro === 1 ? 2 : 1}’s`} trailing="copy" onClick={onCopy} />}
         <RowButton title="Fill from a workout template" sub="Replaces this session’s exercises" trailing="library" onClick={onApplyWorkout} />
-        <RowButton title="Save as a workout template" sub="To the Library, without dates" trailing="library" onClick={onSaveWorkout} />
+        <RowButton title="Save as a workout template" sub="Save this session to the Library, without dates" trailing="library" onClick={onSaveWorkout} />
         {canRemove && (!confirm
           ? <RowButton title="Remove this session" sub="From every week of the cycle" trailing="trash" onClick={() => setConfirm(true)} />
           : <div style={{ padding: '12px 0' }}><Button variant="danger" size="card" icon="trash" onClick={onRemove}>Remove {label.replace(/ · M[12]$/, '')}{micro ? ' (M1 and M2)' : ''}</Button></div>)}

@@ -163,7 +163,7 @@ function TemplateCard({ t, i, onApply, onStar, onDelete }: { t: Template; i: num
         </div>
         <button type="button" className="icon-btn in-card" aria-pressed={t.starred} aria-label={t.starred ? `Unstar ${t.name}` : `Star ${t.name}`} onClick={onStar}
           style={{ color: t.starred ? 'var(--amber)' : 'var(--text3)' }}>
-          <Icon name="star" size={20} />
+          <Icon name={t.starred ? 'starFilled' : 'star'} size={20} />
         </button>
       </div>
       <p className="body-copy" style={{ marginTop: 10, flex: 1 }}>{t.summary}</p>
