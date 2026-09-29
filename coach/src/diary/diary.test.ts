@@ -258,7 +258,7 @@ describe('actions (fixture repo)', () => {
     expect(after.sent['grace|sr-new-1'].payload).toMatchObject({ kind: 'weekly', date: THU, start_min: 1020, skip_dates: [] });
     expect(occurrencesBetween(after, MON, addDays(MON, 6)).some((x) => x.key === 'r:rq-grace')).toBe(false);
   });
-  it('🚨 cancelling a booked weekly request’s first week keeps the request booked: nothing is re-booked (the live bug)', async () => {
+  it('🚨 cancelling a booked weekly request’s first week keeps the request booked: nothing is re-booked', async () => {
     const r = fresh();
     let d = await r.loadDiary();
     const g = d.requests.find((x) => x.id === 'rq-grace')!;
@@ -320,7 +320,7 @@ describe('actions (fixture repo)', () => {
     expect(['sam', 'leah'].map((c) => Object.entries(d.sent).find(([k]) => k.startsWith(`${c}|bk-`))![1].payload.title)).toEqual(['Group session', 'Group session']);
     expect(d.sent['maya|sr-maya'].payload.title).toBeNull();
   });
-  it('a weekly session whose weeks are all cancelled or moved has no next week (the stale row in UAT)', async () => {
+  it('a weekly session whose weeks are all cancelled or moved has no next week (it’s over, whatever its end date)', async () => {
     const r = fresh();
     let d = await r.loadDiary();
     d = await cancelSession(r, d, occ(d, `s:sr-tom@${THU}`), 'one');
