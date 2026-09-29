@@ -144,12 +144,26 @@ check('A over B’s data: the same (A → B → A)', WRITERS.every((w) => !p.cal
   && JSON.parse(dev.localStorage.getItem('bloc_state_owner')).uid === 'uid-A' && !dev.store.has('bloc_state'));
 check('the owner record holds a uid, never an email', !/@/.test(dev.localStorage.getItem('bloc_state_owner')));
 
-// ── An empty device with another owner: nothing to protect, claimed ──
-const empty = device();
-empty.localStorage.setItem('bloc_state_owner', JSON.stringify({ uid: 'uid-A' }));
-p = page(current, empty);
-p.api.onAuthResolved({ user: B });
-check('an empty device recorded for A is claimed by B without asking', BOOT.every((w) => p.calls.includes(w)) && JSON.parse(empty.localStorage.getItem('bloc_state_owner')).uid === 'uid-B');
+// ── A device holding only another account's profile (the UAT case): still switches ──
+const profileOnly = (source) => {
+  const d = device();
+  d.localStorage.setItem('bloc_state_owner', JSON.stringify({ uid: 'uid-A' }));
+  d.localStorage.setItem('bloc_state', JSON.stringify({ macrocycles: [], bodyLogs: [], nutritionLogs: [], trainLogs: {}, nutritionMeals: {}, profile: { firstName: 'Test', surname: 'S' } }));
+  const q = page(source, d);
+  q.api.onAuthResolved({ user: B });
+  return { d, q };
+};
+{
+  const { d, q } = profileOnly(current);
+  check('a device holding only A’s profile (no cycles or logs) switches too: B never gets A’s name',
+    WRITERS.every((w) => !q.calls.includes(w)) && q.calls.includes('reload') && !d.store.has('bloc_state') && JSON.parse(d.localStorage.getItem('bloc_state_owner')).uid === 'uid-B');
+}
+let prev = null;
+try { prev = execFileSync('git', ['-C', repo, 'show', '2fb95b2:index.html'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }); } catch { /* shallow clone */ }
+if (prev) {
+  const { q } = profileOnly(prev);
+  check('control: 2fb95b2 claimed that device for B, name and all', q.calls.includes('fullSync') && !q.calls.includes('reload'));
+}
 
 // ── Every writer refuses while the switch is pending ──
 const guarded = ['flushSyncQueue', 'forceFullRelationalSync', 'uploadSnapshot', 'maybeUploadOpportunisticSnapshot', 'pullPublicationsOnce', 'sendPendingAcks', 'uploadClientStateOnce', 'maybeRefreshCoachLink'];

@@ -9925,8 +9925,11 @@ before anything else runs for a session (`localOwnerVerdict()`):
 |---|---|---|
 | none | any | this account claims it (every install before v8.46, and a fresh one), then boots as before |
 | this account | any | boots as before |
-| another account | none (`devBypassHasRealData`) | claimed, boots as before: nothing to protect |
-| another account | yes | **it switches, with no screen**: nothing runs for the session (no full sync, snapshot, coach link check, so no `client_state` upload and no publication pull, no boot); `performAccountSwitch()` removes the account's own local keys (`ACCOUNT_LOCAL_KEYS`: the state, the snapshot and restore flags, the `client_state` meta, the coach link), records the new owner and reloads. The device is then empty for the signed-in account, and the new-device restore (§133) brings back its own newest backup, or it starts fresh. The device's own keys stay: its id, push registration, the AI key, theme |
+| another account | anything, even only a profile | **it switches, with no screen**: nothing runs for the session (no full sync, snapshot, coach link check, so no `client_state` upload and no publication pull, no boot); `performAccountSwitch()` removes the account's own local keys (`ACCOUNT_LOCAL_KEYS`: the state, the snapshot and restore flags, the `client_state` meta, the coach link), records the new owner and reloads. The device is then empty for the signed-in account, and the new-device restore (§133) brings back its own newest backup, or it starts fresh. The device's own keys stay: its id, push registration, the AI key, theme |
+
+🚨 **Another owner always switches, whatever is on the device.** A device with no cycles or logs still holds that
+account's profile (its name, height, birthday), its restore flags and its coach link. The first v8.46 claimed such a
+device for the next account, and the test client took a new account's name that way in UAT.
 
 🚨 **Automatic, and another account is never shown.** Signing in means "load this account's data"; the device's
 leftover data is ignored. The owner record holds a uid only.
@@ -9946,6 +9949,7 @@ the same page (boot already done, the old account's data still in memory) takes 
 
 **Check:** `scripts/verify-account-switch.mjs` drives A → B → A through the real functions: a device from before v8.46
 claimed; B over A's data runs nothing and switches at once, with no screen; the account's keys cleared and the
-device's kept, B recorded, reload; B then boots; A over B's data the same; the owner record holds no email; an empty
-device claimed; every writer guarded; sign-out backs up before signing out. Control: v8.45 (`85ddc8b`) runs B's full
+device's kept, B recorded, reload; B then boots; A over B's data the same; the owner record holds no email; a device
+holding only another account's profile switches too (control: `2fb95b2` claimed it); every writer guarded; sign-out
+backs up before signing out. Control: v8.45 (`85ddc8b`) runs B's full
 sync over A's data.
