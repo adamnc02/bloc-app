@@ -10148,7 +10148,7 @@ then, for a weekly booking whose date and time are unchanged, a skip date added 
 on is **Session cancelled** (or "N sessions … are off, from …"), one removed is **Session back on** (the coach
 undid a day off), and a new `until` from today on is **Weekly session ending**. Skip dates in the past raise
 nothing. A weekly series changed "all future" ends the old booking (`until`, sent quiet) and arrives as a new
-`booking_id`, so the client sees one "Session confirmed" for the new day and time.
+`booking_id` carrying `replaces` (`0029`), so the client sees one "Session changed" for the new day and time.
 
 🚨 **Without `skip_dates`, Your next session showed a week the coach had taken off.** The booking's keys before
 `0028` (`date`, `start_min`, `status`) describe the whole series, so there was nothing to say "not this week".
