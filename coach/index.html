@@ -151,8 +151,16 @@
 #splash .s-word {
   font-size: 18px; font-weight: 700; text-anchor: middle;
   fill: var(--splash-muted);
-  transform-box: fill-box; transform-origin: center;
+  /* 🚨 Each word scales about its own centre, given in the drawing's units
+     (view-box). With fill-box, WebKit centres SVG text somewhere else, so on
+     an iPhone each word started ~11 units left of where Chrome puts it, and
+     REPEAT sat on its spinning icon. */
+  transform-box: view-box;
 }
+#splash .s-w-train  { transform-origin: 56.5px 143px; }
+#splash .s-w-fuel   { transform-origin: 157px 143px; }
+#splash .s-w-over   { transform-origin: 289.5px 143px; }
+#splash .s-w-repeat { transform-origin: 440px 143px; }
 #splash .s-w-over { fill: var(--splash-brand); font-weight: 800; }
 #splash .s-w-train  { animation: sIn 0.35s ease 0.75s both, sFlyTrain 0.9s cubic-bezier(0.3, 0.9, 0.4, 1) 3.9s both, sWordOut 0.4s ease-in 5.9s forwards; }
 #splash .s-w-fuel   { animation: sIn 0.35s ease 1.4s both,  sFlyFuel 0.9s cubic-bezier(0.3, 0.9, 0.4, 1) 3.95s both, sWordOut 0.4s ease-in 6.0s forwards; }
