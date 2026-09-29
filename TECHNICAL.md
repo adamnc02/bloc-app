@@ -10152,3 +10152,151 @@ nothing. A weekly series changed "all future" ends the old booking (`until`, sen
 a skip after the roll-forward, `until` inclusive and after, a one-off unchanged; the four banners, a past skip
 silent, `quiet` on a change and on a new booking, and the title on the row. Control: v8.46 (`5d08f66`) fails 10
 rows, including skip, until and quiet.
+
+## §152 — Coach v0.5: the Diary, a client's Sessions, session requests, days off; the laptop rail and Review's columns
+
+**What it is.** BLOC Coach's **Diary**: the coach's week in real time slots, weekly (a 1-week pattern) and one-off
+sessions, one-to-one and group, days off and multi-day holidays, and clients' session requests as placeholders. A
+client's **Sessions** tab and **Settings → Diary** use the same data and actions. Everything the Diary books reaches
+the client as `booking` publications that BLOC reads (§136, §151). No new table: `0024`'s `coach_settings`,
+`coach_days_off`, `diary_series` (+ `_clients`), `diary_bookings` (+ `_clients`) and `session_requests`; migration
+`0028` widened the `booking` payload (§151).
+
+### Files
+
+| File | What |
+|---|---|
+| `coach/src/diary/types.ts` | the diary's shapes (0024, camel-cased); `DEFAULT_SETTINGS` (05:00–22:00, Mon–Sat, 60 min: 0024's column defaults, used when there's no `coach_settings` row) |
+| `coach/src/diary/slots.ts` | time maths: 15-minute snap, the empty-hour outlines, lanes for overlaps |
+| `coach/src/diary/model.ts` | occurrences: series expanded, overrides applied, days off, request placeholders; `PLACEHOLDER_EXPIRY_DAYS` |
+| `coach/src/diary/rules.ts` | the booking rules (below) |
+| `coach/src/diary/publish.ts` | the booking publications each card should hold, and the diff (below) |
+| `coach/src/diary/actions.ts` | every change as repo calls, each followed by `publishChanges()`; the refusals checked before saving |
+| `coach/src/data/liveDiary.ts`, `fixtureDiary.ts` | the `DiaryRepo`: Supabase, and the dev bypass's in-memory diary in the week after the demo anchor |
+| `coach/src/coach/diary/` | `DiaryScreen`, `DiaryGrid` and `BookingBlock` (the grid, drag and blocks), `DiarySheets`, `DiarySettings`, `useDiaryData` |
+| `coach/src/coach/client/SessionsTab.tsx` | Client → Sessions |
+
+### The model
+
+- **A series** (`diary_series`) occurs every `weekday` from `effective_from` to `effective_to` (inclusive), except its
+  `cancelled_dates` ("just this one" cancellations). 0 = Monday.
+- **An override** is a `diary_bookings` row with `series_id` + `occurs_on`: that one week, moved or changed. A one-off
+  has neither.
+- **A day off** (`coach_days_off`) is a date range: one day, or a holiday. It cancels every session on those days
+  (an occurrence's `cancelled`), **never the series**. Undo deletes the row, so the sessions are back.
+- **A placeholder** is an open request, at: a pending request's first choice; the coach's proposed time; the client's
+  counter; or, once the client has accepted and before it's booked, the accepted time. Its length is the coach's
+  session length. A placeholder is never cancelled by a day off and never blocks anything.
+- Occurrence keys are stable across moves: `s:{series}@{its own week's date}`, `b:{booking}`, `r:{request}`.
+
+**The Diary's today is the coach's own date** (`coachClock(repo.now())`): the diary is the coach's. The client's local
+date matters where the engine judges a client (§139); the Diary makes no engine call about a client.
+
+### The rules (`rules.ts`)
+
+- **Overlaps are refused, except group sessions.** Touching sessions don't overlap. A placeholder may clash (it shows a
+  ⚠ and the name it clashes with) and never blocks.
+- **A day off refuses** a session on it. **Working hours and days are a guide only**: the grid mutes non-working days
+  and shows the hours, and a booking outside them is allowed.
+- **A time already gone is refused** (`pastRefusal`), and no empty outline is drawn before now.
+- 🚨 **A new weekly session, and "All future", are checked over the next 26 weeks** (`SERIES_CHECK_WEEKS`), skipping
+  weeks that are days off, and skipping the series being replaced from the week it moves. Checking only the week on
+  screen let a weekly session land on another client's one-off three weeks later. `rules.ts` is the only overlap check:
+  a series' weeks exist only once expanded, so the database can't see a clash between a series and a one-off.
+
+### What the Diary publishes (`publish.ts`)
+
+🚨 **Derive, then diff; never publish from an action.** After every change, `publishChanges()` re-derives the `booking`
+publication each card should hold from the whole diary (`desiredBookings`), compares each with the last one that card
+was sent (`publications` of type `booking`, newest per `(card, booking_id)`), and sends only the differences
+(`bookingChanges`), each `supersedes` the last. So a publish that failed is sent by the next change, a change that makes
+no difference to a client sends nothing, and nothing is sent twice. `verify-coach-diary.mjs` checks that only
+`actions.ts` calls `publishBooking`, with `bookingChanges()`'s output.
+
+| Diary | Publication (per attendee's card; a group: one per card, one `booking_id`) |
+|---|---|
+| a series | `{booking_id: series id, kind: 'weekly', date: its first week, start_min, duration_min, status: 'booked', location, title, skip_dates, until}`. `skip_dates`: its cancelled weeks, its weeks moved by an override, and every day off falling on it (the latest 400); `until`: `effective_to` |
+| an override (a moved week) | its own one-off, `booking_id` = the override's id, `kind: 'one_off'`; cancelled while a day off covers it |
+| a one-off | `kind: 'one_off'`, `status` `cancelled` when it's cancelled or a day off covers it |
+| a card sent a booking it should no longer hold (a series deleted, a client taken out of a group) | that booking again, `status: 'cancelled'` |
+
+A cancelled booking a card was never sent is not sent. 🚨 **An override identical to its series week is no exception**
+(`overrideIsIdentity`): it's neither skipped nor published. It exists because `session_requests.booking_id` references
+`diary_bookings`, never a series, so booking a weekly request makes the series **and** an identical override for its
+first week for the request to name; without the rule the client would see a one-off plus a weekly with that week
+missing. `quiet: true` (no banner on the phone, §151) goes on every publication of a change when the coach chose not to
+tell the clients, or on named bookings: "All future" from a later week ends the old series (`until`) quietly and starts a
+new series, so the client gets one "Session confirmed" for the new day; a one-off made weekly replaces its one-off
+quietly.
+
+`assigned_session` is not sent yet (In person). `BOOKING_KEYS` are all on `0028`'s allow-list, and the series' `kind`
+is one BLOC's `coachBookingWeekly()` rolls forward (`verify-coach-diary.mjs`, with controls).
+
+### The actions (`actions.ts`)
+
+- **Edit or move** (drag, or the sheet): a one-off in place. A series week, **Just this one**: its override is updated,
+  or made. **All future** from the series' first week: the series itself changes (its `cancelled_dates` kept only when
+  the weekday is the same). From a later week: the series ends the day before (`effective_to`) and a new series starts
+  on the new day; that series' overrides from the week on are deleted.
+- **Cancel**: a one-off `status 'cancelled'`. A series week, **Just this one**: added to `cancelled_dates` (its override
+  deleted). **All future**: the series ends the day before, or is deleted when that's its first week.
+- **A day off / holiday**: `addDayOff(start, end, note, notify)`, `notified` stored. Undo publishes with `quiet` unless
+  the clients were told about the day off.
+- **Requests** (the coach's half; `0024`'s trigger refuses anything else): **book** one of the client's times (a window:
+  any start inside it; a weekly request: a series and its identical first-week override), then the request `accepted`
+  with `booking_id`; **propose** another time (`proposed`, status `proposed`: BLOC's banner, §136); **decline**. Dragging
+  a placeholder proposes the new time.
+- 🚨 **A client accepting the coach's time is booked automatically** (`autoBook`), whenever the diary loads: on open, on
+  return to the app, and when Realtime reports a `session_requests` change (`watchRequests`, filtered to the coach).
+  If the time now clashes it stays a placeholder ("Clashes: move it to book") and nothing is booked. BLOC's Request a
+  session leaves a request once a live booking at the confirmed time exists (§136), which this booking is.
+- **Placeholder expiry** is `PLACEHOLDER_EXPIRY_DAYS` in `model.ts`, `null` (never). A number hides a pending request
+  from the Diary that many days after it was sent; the request is untouched and still answerable from the client's
+  Sessions tab. `verify-coach-diary.mjs` checks it's `null`.
+
+### The screens
+
+- **The grid** (`DiaryGrid`): the full week at 768 px and wider, five days from the day in view on a phone. One hour is
+  60 px. **Drag**: a mouse moves at 4 px; touch holds 300 ms first, so a swipe still scrolls; the target day's header
+  and column light up, a landing box shows the snapped time or the refusal, and a drop outside the rules is refused with
+  its reason. **Tap** a session to edit it (a request: the request sheet), an **empty outline** to book there, a
+  **day's header** to mark it off (a day off: to undo it). Outlines are laid from the end of each session, so a session
+  off the hour moves the outlines after it along, one hour tall each. Compact blocks (a phone column, a shared lane)
+  carry no tag: "Request" didn't fit at 375 pt; the dashed outline marks a request and the aria label says its state.
+- **Sheets** (`DiarySheets`): Session (edit), Book a session, Just this one / All future, Let clients know? (one day or
+  several; the sessions affected listed; "Don't tell them" / "Let … know"), the day off with Undo, and Session request.
+  The client picker is a **SearchSheet** (one client, or several for a group). The request sheet opens on the client's
+  first time that's free.
+- **Client → Sessions**: next session, requests, weekly sessions, the next two weeks (a day off's cancellations shown
+  greyed), Book a session.
+- **Settings → Diary**: working hours (15-minute steps), working days, a new session's length, and the days off still to
+  come, each opening Undo.
+
+### Laptop: the side rail collapses; Review's findings beside the AI tools
+
+- **The rail** (`CoachShell`): at 1200 px and wider it's expanded by default (the full logo, labelled rows). The
+  **sidebar toggle** (`sidebar` icon, no border) beside the logo collapses it to the tablet's 92 px icon rail, and the
+  same button (under the mark) expands it. The choice is this device's, `blocCoach_railCollapsed` (`'1'` when
+  collapsed). Below 1200 px the toggle is hidden and the rail is the icon rail. The laptop rules in `shell.css` are all
+  `.coach-shell:not(.rail-collapsed)`, so collapsed is exactly the tablet's rules.
+- **Review**: Findings and AI tools are one `.grid-2`, two columns from 1024 px, stacked below.
+
+### Checks
+
+- `coach/src/diary/diary.test.ts` (vitest, 27 cases): outlines after a session off the hour, lanes; series dates, the
+  fixture week, a day off and a holiday, placeholder slots by status; overlaps, a group, touching sessions, a day off,
+  a weekly session clashing in its third week (control: none without the one-off); the publications: the series and the
+  group, every key on `0028`'s list (read from the migration), nothing when nothing changed, a day off quietly, a
+  removed attendee cancelled and a never-sent cancellation not sent, the identical override (control: moved 15 min, it's
+  an exception), 400 skip dates, quiet not counting as a change; the actions on the fixture repo: move just this one,
+  all future from a later week (the old series ending quietly), cancel then stop, a day off told and not told and its
+  undo, a new weekly session and a one-off made weekly, booking a weekly request, proposing, auto-booking (control: a
+  clashing acceptance is left), and the refusals.
+- `scripts/verify-coach-diary.mjs`: the allow-list, the weekly kind and BLOC's reading of the new keys, the one
+  publishing path, no clock in the model, expiry off; each with a control.
+- Driven in Chromium on the fixtures at 1440 × 1000 and 375 × 812: drag a weekly session (landing label, day
+  highlight, Just this one), book a weekly request's second time, a day off without telling and its undo, book from an
+  empty hour through the client SearchSheet; Sessions, the request sheet, Settings → Diary and the holiday sheet; the
+  rail collapsed, remembered over a reload, and expanded; Review's two columns at 1440 and 1100, one at 375. No
+  horizontal scroll, no console errors.
+

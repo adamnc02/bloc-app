@@ -21,7 +21,7 @@ export interface DragTarget {
 
 interface LiveDrag extends DragTarget {
   refusal: Refusal | null;
-  /** Floating copy's top-left in the grid body (px). Absent for the frozen demo. */
+  /** Floating copy's top-left in the grid body (px). */
   fx?: number;
   fy?: number;
 }
