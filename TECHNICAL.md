@@ -10284,7 +10284,8 @@ the message (control: `String()` of the raw error), one refresh and retry on an 
   "Waiting for …") didn't fit a block and were cut off; the aria label still says the state.
 - **Settings has no bottom bar**: it isn't one of the four tabs (a phone reaches it from the gear, with ‹ Clients back), so
   the bar showed with nothing selected.
-- **Sheets** (`DiarySheets`): Session (edit), Book a session, Just this one / All future, Let clients know? (one day or
+- **Sheets** (`DiarySheets`): Session (edit), Book a session, Just this one / All future (two buttons that act at once; no
+  Save), Let clients know? (one day or
   several; the sessions affected listed; "Don't tell them" / "Let … know"), the day off with Undo, and Session request.
   The client picker is a **SearchSheet** (one client, or several for a group). The request sheet opens on the client's
   first time that's free.

@@ -53,12 +53,11 @@ export function TimePicker({ date, start, duration, dayStart, dayEnd, onChange, 
   );
 }
 
-/** After changing (or cancelling) a weekly session: "Just this one" or "All future". */
-export function ScopeSheet({ title, intro, one, all, cta = 'Save', danger, onChoose, onClose }: {
-  title: string; intro: string; one: string; all: string; cta?: string; danger?: boolean;
+/** After changing (or cancelling) a weekly session: two buttons, "Just this one" and "All future"; either one acts at once. */
+export function ScopeSheet({ title, intro, one, all, danger, onChoose, onClose }: {
+  title: string; intro: string; one: string; all: string; danger?: boolean;
   onChoose: (scope: Scope) => void; onClose: () => void;
 }) {
-  const [scope, setScope] = useState<Scope>('one');
   const opts: { value: Scope; title: string; sub: string }[] = [
     { value: 'one', title: 'Just this one', sub: one },
     { value: 'all', title: 'All future', sub: all },
@@ -66,14 +65,13 @@ export function ScopeSheet({ title, intro, one, all, cta = 'Save', danger, onCho
   return (
     <Sheet open title={title} onClose={onClose}>
       <p className="muted" style={{ marginBottom: 16 }}>{intro}</p>
-      <div className="rq-picks" role="radiogroup" aria-label="Which sessions">
+      <div className="rq-picks">
         {opts.map((o) => (
-          <button key={o.value} type="button" role="radio" className="pick" aria-checked={scope === o.value} onClick={() => setScope(o.value)}>
+          <button key={o.value} type="button" className={`pick scope-pick${danger ? ' is-danger' : ''}`} onClick={() => onChoose(o.value)}>
             <b>{o.title}</b><small>{o.sub}</small>
           </button>
         ))}
       </div>
-      <div style={{ marginTop: 20 }}><Button variant={danger ? 'danger' : 'primary'} onClick={() => onChoose(scope)}>{cta}</Button></div>
     </Sheet>
   );
 }

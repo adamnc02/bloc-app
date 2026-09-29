@@ -164,7 +164,7 @@ export function DiaryScreen() {
       })()}
 
       {s?.type === 'cancel' && occ && (
-        <ScopeSheet title="Cancel" danger cta="Cancel sessions" intro={`${nameOf(occ)}’s session repeats every ${fmt.dayLong(occ.seriesDate ?? occ.date)}.`}
+        <ScopeSheet title="Cancel" danger intro={`${nameOf(occ)}’s session repeats every ${fmt.dayLong(occ.seriesDate ?? occ.date)}.`}
           one={`Only ${fmt.ddm(occ.date)} is cancelled. The weeks after carry on.`}
           all={`${fmt.ddm(occ.date)} and every week after are cancelled: the weekly session ends.`}
           onChoose={(scope) => void run((d) => cancelSession(repo, d, occ, scope), scope === 'all' ? `${nameOf(occ)}’s weekly session ends` : `${fmt.ddm(occ.date)} cancelled`).then((ok) => ok && setSheet(null))}
