@@ -10177,7 +10177,9 @@ function applyBookingPublication(pub) {
       group ? `${group} on ${when} with ${coach} is off for you.` : `${when} with ${coach} is off.`);
   }
   else if (!before || before.status === 'cancelled') {
-    if (replaced && coachBookingWeekly(p)) addCoachNotice(pub, 'booking', 'Session changed', `Your weekly session with ${coach} is now every ${dayName(p.date)} at ${coachMinToHHMM(p.start_min)}, from ${coachDayFmt(coachBookingNextDate(p, today) || p.date)}.`);
+    // A group this client wasn't in (the session it replaces isn't theirs, or was cancelled for them): added, not changed.
+    if (group && (!was || was.status === 'cancelled')) addCoachNotice(pub, 'booking', 'Added to a group session', `${coach} added you to ${group}: ${nextWhen}${coachBookingWeekly(p) ? ', weekly' : ''}.`);
+    else if (replaced && coachBookingWeekly(p)) addCoachNotice(pub, 'booking', 'Session changed', `Your weekly session with ${coach} is now every ${dayName(p.date)} at ${coachMinToHHMM(p.start_min)}, from ${coachDayFmt(coachBookingNextDate(p, today) || p.date)}.`);
     else if (replaced) addCoachNotice(pub, 'booking', 'Session changed', `${wasWhen} with ${coach} is now ${when}.`);
     // Put in (or back in) a group: "Added to a group session", naming it.
     else if (group) addCoachNotice(pub, 'booking', 'Added to a group session', `${coach} added you to ${group}: ${nextWhen}${coachBookingWeekly(p) ? ', weekly' : ''}.`);

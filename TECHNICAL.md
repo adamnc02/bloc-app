@@ -10146,7 +10146,8 @@ new session only, and **any change is "Session changed"**: a new booking carryin
 time ("{coach} moved it to …"), and its new length, place or name ("… : 90 min · Park"). A cancelled booking booked again
 is **"Session back on"**. A **group** (a booking with a `title`: BLOC Coach sends one for every group session and
 never for a one-to-one) is **"Added to a group session"** ("{coach} added you to Saturday bootcamp: …") and
-**"Group session cancelled"** when it ends or the client is taken out of it. Session cancelled as before (§137);
+**"Group session cancelled"** when it ends or the client is taken out of it; a group week that `replaces` a session the
+client wasn't in (cancelled for them, or never theirs) is "Added to a group session" too, never "Session changed". Session cancelled as before (§137);
 then, for a weekly booking whose date and time are unchanged, a skip date added from today
 on is **Session cancelled** (or "N sessions … are off, from …"), one removed is **Session back on** (a cancelled
 week reinstated; BLOC Coach's Undo of a day off never does this, §152), and a new `until` from today on is **Weekly session ending**. Skip dates in the past raise
