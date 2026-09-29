@@ -10094,9 +10094,11 @@ function applyPlanPublication(pub) {
   // v8.43 (§137): the Home banner "{coach} updated your plan".
   const named = candidate || state.macrocycles.find(m => Object.keys(p.exercises || {}).concat(Object.keys(p.deloads || {})).some(k => k.startsWith(m.id + '_')));
   const isNew = incoming && !macroIdsBefore.has(incoming.id);
+  // v8.46 (§146): the notice names its cycle, so Home offers View only once Train can show it.
   addCoachNotice(pub, 'plan', `${coachFirstName()} updated your plan`,
     named ? (isNew && named.start ? `“${named.name || 'A new cycle'}” starts ${coachDayFmt(named.start)}. Train shows it when you get there.`
-      : `Changes to “${named.name || 'your cycle'}”. Train shows them when you get there.`) : 'Train shows the changes when you get there.');
+      : `Changes to “${named.name || 'your cycle'}”. Train shows them when you get there.`) : 'Train shows the changes when you get there.',
+    named ? { macroId: named.id } : undefined);
   return { status: 'applied' };
 }
 
@@ -15768,11 +15770,19 @@ function dismissCoachNotice(id) {
 // cycle and its full text.
 const HOME_NOTICE_KINDS = ['plan', 'phases', 'booking', 'response', 'photos'];
 const HOME_NOTICE_ACTIONS = {
-  plan: () => ({ label: 'View', onclick: "showScreen('train')" }),
+  // v8.46 (§146): View only when Train can show the change: the cycle has
+  // started. Worked out each time Home draws, so it appears the day the cycle
+  // starts. A notice from before v8.46 names no cycle and keeps its View.
+  plan: n => (coachPlanNoticeViewable(n) ? { label: 'View', onclick: "showScreen('train')" } : null),
   booking: () => ({ label: 'View', onclick: 'openCoachSessions()' }),
   response: n => n.responseId ? { label: 'View', onclick: `viewCoachResponse('${coachEsc(n.responseId)}')` } : null,
   photos: n => n.requestId ? { label: 'Send photos', onclick: `openCoachPhotoRequest('${coachEsc(n.requestId)}')` } : null, // v8.44 (§142)
 };
+function coachPlanNoticeViewable(n) {
+  if (!n || !n.macroId) return true;
+  const m = (state.macrocycles || []).find(x => x.id === n.macroId);
+  return !!m && !!m.start && m.start <= getLocalToday();
+}
 function viewCoachResponse(responseId) {
   const a = coachAdviceById(responseId);
   showScreen('progress'); // resets the viewed cycle on entry, so set it after
