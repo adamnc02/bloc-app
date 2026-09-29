@@ -10147,6 +10147,8 @@ function applyAiResponsePublication(pub) {
   if (gc && ((gc.goals || []).length || (gc.remove_goal_ids || []).length)) addGoalPhasesNotice(Object.assign({}, pub, { id: pub.id + ':goals' }), gc.goals);
   return { status: 'applied' };
 }
+// v8.48: how far back a weekly booking's newly skipped week still raises a banner (BLOC Coach's missed-booking window).
+const COACH_PAST_SKIP_DAYS = 14;
 function applyBookingPublication(pub) {
   const p = pub.payload || {};
   if (!p.booking_id) return { status: 'needs_attention', note: 'The booking has no id.' };
@@ -10200,7 +10202,10 @@ function applyBookingPublication(pub) {
   }
   else if (coachBookingWeekly(p)) {
     const skipped = coachBookingSkips(before), now = coachBookingSkips(p);
-    const off = [...now].filter(d => !skipped.has(d) && d >= today && (!p.until || d <= p.until)).sort();
+    // v8.48: a week up to 14 days back counts too: BLOC Coach lists a session that wasn't logged for 14 days, and
+    // cancelling one of those is news to the client. Older skips raise nothing.
+    const recent = shiftDateStr(today, -COACH_PAST_SKIP_DAYS);
+    const off = [...now].filter(d => !skipped.has(d) && d >= recent && (!p.until || d <= p.until)).sort();
     const on = [...skipped].filter(d => !now.has(d) && d >= today && (!p.until || d <= p.until)).sort();
     const at = d => coachDateTimeFmt(d, p.start_min);
     // v8.48: a group's skipped week (a day off, a holiday, just this one) names the group.

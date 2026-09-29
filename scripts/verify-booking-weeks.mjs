@@ -64,6 +64,8 @@ function load(source) {
     const state = { coachNotices: [], coachBookings: {} };
     const COACH_NOTICE_KEEP = 20;
     const getLocalToday = () => TODAY;
+    const COACH_PAST_SKIP_DAYS = 14;
+    const shiftDateStr = (iso, n) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return toLocalDateStr(d); };
     const coachFirstName = () => 'Rowan';
     const toLocalDateStr = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     ${parts.join('\n')}
@@ -102,9 +104,11 @@ function run(source) {
   n = P.state.coachNotices.length;
   P.applyBookingPublication(pub({ ...WEEKLY, skip_dates: ['2026-10-21'], quiet: true }));
   check('quiet: applied, and no banner', [P.state.coachBookings.b1.skip_dates, P.state.coachNotices.length], [['2026-10-21'], n]);
-  P.applyBookingPublication(pub({ ...WEEKLY, skip_dates: ['2026-10-21', '2026-09-23'] }));
-  check('a skip date in the past raises nothing', P.state.coachNotices.length, n);
-  P.applyBookingPublication(pub({ ...WEEKLY, skip_dates: ['2026-10-21', '2026-09-23'], until: '2026-12-16' }));
+  P.applyBookingPublication(pub({ ...WEEKLY, skip_dates: ['2026-10-21', '2026-09-09'] }));
+  check('a skip date more than 14 days back raises nothing', P.state.coachNotices.length, n);
+  P.applyBookingPublication(pub({ ...WEEKLY, skip_dates: ['2026-10-21', '2026-09-09', '2026-09-23'] }));
+  check('a week up to 14 days back cancelled (a missed session): "Session cancelled", naming it', [last().title, /23 Sep/.test(last().body)], ['Session cancelled', true]);
+  P.applyBookingPublication(pub({ ...WEEKLY, skip_dates: ['2026-10-21', '2026-09-09', '2026-09-23'], until: '2026-12-16' }));
   check('until set: "Weekly session ending"', last().title, 'Weekly session ending');
   n = P.state.coachNotices.length;
   P.applyBookingPublication(pub({ ...WEEKLY, booking_id: 'b2', status: 'booked', quiet: true }));
@@ -177,7 +181,7 @@ if (!ctlOk) failures++;
 const v847 = execFileSync('git', ['show', '927edbb:index.html'], { cwd: repo, encoding: 'utf8', maxBuffer: 64 << 20 });
 const c2 = run(v847);
 const c2Fails = c2.filter((r) => !r.ok).map((r) => r.label);
-const must2 = ['a group cancelled for everyone: "Group session cancelled", naming it', 'removed from a group that carries on: "You have been removed …", the week to come',
+const must2 = ['a week up to 14 days back cancelled (a missed session): "Session cancelled", naming it', 'a group cancelled for everyone: "Group session cancelled", naming it', 'removed from a group that carries on: "You have been removed …", the week to come',
   'a group week skipped (a day off): "Group session cancelled", naming the group', 'a weekly booking\'s in-person session: "With your coach" on the week to come'];
 const c2Ok = must2.every((l) => c2Fails.includes(l)) && c2Fails.length === must2.length;
 console.log(`${c2Ok ? '✓' : '✗'} control: v8.47 (927edbb) fails exactly the ${must2.length} v8.48 rows${c2Ok ? '' : ` — got ${JSON.stringify(c2Fails)}`}`);
