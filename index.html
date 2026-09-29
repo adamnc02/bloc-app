@@ -1051,6 +1051,12 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   padding: 24px 20px calc(24px + var(--safe-bottom));
 }
 #auth-gate.hidden { display: none; }
+#account-switch {
+  position: fixed; inset: 0; z-index: 10001; background: var(--bg);
+  display: flex; align-items: center; justify-content: center; overflow-y: auto;
+  padding: 24px 20px calc(24px + var(--safe-bottom));
+}
+#account-switch.hidden { display: none; }
 /* Pre-paint optimistic hide (v8.07) — see the inline script right after
    <body> and TECHNICAL.md §60. onAuthResolved()'s real check is always
    asynchronous (getSession() returns a Promise even for a cached local
@@ -3961,6 +3967,8 @@ try {
      initSupabaseAuth() confirms a real session. Not a .modal-overlay:
      this has to block #app before load()/showScreen('home') even run,
      so it's wired directly rather than through the modal system. -->
+<!-- v8.46 (§145): another account's data is on this device (openAccountSwitch). Above the gate. -->
+<div id="account-switch" class="hidden"></div>
 <div id="auth-gate">
   <div class="auth-gate-inner">
     <div class="auth-gate-logo">BLOC</div>
@@ -7224,6 +7232,7 @@ window.addEventListener('online', () => { if (_syncDirty) flushSyncQueue(); });
 
 async function flushSyncQueue() {
   if (!_syncDirty) return;
+  if (accountSwitchBlocks()) return; // v8.46 (§145)
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return; // retried by the online listener above
   if (!supabase || !_authResolvedSession) return; // not signed in yet, or Supabase failed to init (see initSupabaseAuth())
   const userId = _authResolvedSession.user.id;
@@ -7252,6 +7261,7 @@ async function flushSyncQueue() {
 // push afterwards since this already did a superset of that work (v8.05).
 async function forceFullRelationalSync() {
   if (!supabase || !_authResolvedSession) throw new Error('Not signed in');
+  if (accountSwitchBlocks()) throw new Error('Another account’s data is on this device'); // v8.46 (§145)
   const userId = _authResolvedSession.user.id;
   await pushStateSerialised(userId);
   _syncDirty = false;
@@ -7958,6 +7968,7 @@ async function deleteAllClientMedia(userId) {
 // described (this function itself is unchanged; only what calls it grew).
 async function uploadSnapshot() {
   if (!supabase || !_authResolvedSession) throw new Error('Not signed in');
+  if (accountSwitchBlocks()) throw new Error('Another account’s data is on this device'); // v8.46 (§145)
   // v8.21 (§109): never upload an empty device — it would overwrite today's
   // real snapshot (one file per day, upsert).
   if (!deviceHasRealData()) throw new Error('Nothing on this device to back up yet.');
@@ -7991,6 +8002,7 @@ async function uploadSnapshot() {
 // every other backup path already calls.
 async function maybeUploadOpportunisticSnapshot() {
   if (!supabase || !_authResolvedSession) return;
+  if (accountSwitchBlocks()) return; // v8.46 (§145)
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
   const last = localStorage.getItem('bloc_last_snapshot_date');
   if (last === getLocalToday()) return; // already backed up today
@@ -8055,8 +8067,92 @@ async function maybeUploadSnapshotZero() {
   }
 }
 
+// ── v8.46 (§145): whose data is on this device ─────────────────────────────
+// BLOC keeps local data on sign-out, so the next account to sign in on the
+// same device used to adopt it: the sign-in full sync pushed it into that
+// account's mirror, a coached account uploaded it as client_state, and the
+// coach's publications were applied into it (and receipted from it).
+// The device now records the account its local data belongs to. A sign-in by
+// ANOTHER account, while that data is here, pushes, uploads, pulls and applies
+// nothing: the switch screen offers a copy of what's here, then clears this
+// account's local keys and reloads, and the new account's own newest backup
+// is restored exactly as on a new device (§133), or it starts fresh.
+// 🚨 A device with no owner recorded (every install before v8.46, and a fresh
+//    one) is claimed by the first account that signs in, as before: installs
+//    are signed in when they update, so the first v8.46 boot records the
+//    account already using them.
+const STATE_OWNER_KEY = IS_LOCAL_REAL_AUTH ? 'bloc_state_owner_authreal' : 'bloc_state_owner';
+// The keys that belong to the account whose data is local. The device's own
+// (its id, push registration, the AI key, theme) stay.
+const ACCOUNT_LOCAL_KEYS = [STATE_KEY, 'bloc_last_snapshot_date', 'bloc_snapshot_zero_pending', 'bloc_snapshot_zero_done',
+  'bloc_snapshot_autorestore_done', 'bloc_client_state_meta', 'bloc_coach_link'];
+function stateOwnerGet() { try { return JSON.parse(localStorage.getItem(STATE_OWNER_KEY) || 'null'); } catch (e) { return null; } }
+function stateOwnerSet(user) {
+  try { localStorage.setItem(STATE_OWNER_KEY, JSON.stringify({ uid: user.id, email: user.email || null, at: new Date().toISOString() })); } catch (e) {}
+}
+// 'mine' | 'claim' (no owner yet, or nothing here to protect) | 'other'.
+function localOwnerVerdict(owner, uid, hasData) {
+  if (!owner || !owner.uid) return 'claim';
+  if (owner.uid === uid) return 'mine';
+  return hasData ? 'other' : 'claim';
+}
+let _accountSwitch = null; // {owner, user} while another account's data is on the device
+function accountSwitchBlocks() { return !!_accountSwitch; }
+let _switchCopySaved = false;
+function openAccountSwitch() {
+  const el = document.getElementById('account-switch');
+  if (!el || !_accountSwitch) return;
+  const other = _accountSwitch.owner && _accountSwitch.owner.email ? _accountSwitch.owner.email : 'another account';
+  const me = _accountSwitch.user.email || 'this account';
+  el.innerHTML = `<div class="auth-gate-inner" style="max-width:420px;">
+      <div class="auth-gate-logo">BLOC</div>
+      <div class="auth-gate-tagline" style="margin-bottom:18px;">This device has someone else’s data</div>
+      <div class="card" style="text-align:left;font-size:14px;line-height:1.5;color:var(--text2);">
+        BLOC on this device holds <b style="color:var(--text);">${coachEsc(other)}</b>’s data. You’re signed in as
+        <b style="color:var(--text);">${coachEsc(me)}</b>. BLOC won’t mix them: switching replaces what’s here with
+        ${coachEsc(me)}’s own data, from its latest backup, or a fresh start if it has none.
+        Nothing of ${coachEsc(other)}’s leaves this device.
+      </div>
+      <button class="btn btn-ghost btn-block" style="margin-top:18px;" onclick="saveAccountSwitchCopy()">${_switchCopySaved ? '✓ Copy saved · save again' : 'Save a copy of this data first'}</button>
+      <button class="btn btn-accent btn-block" style="margin-top:10px;" onclick="performAccountSwitch()">Switch to ${coachEsc(me)}</button>
+      <button class="btn btn-ghost btn-block" style="margin-top:10px;" onclick="cancelAccountSwitch()">Sign out instead</button>
+    </div>`;
+  el.classList.remove('hidden');
+}
+async function saveAccountSwitchCopy() {
+  try { await exportData(); _switchCopySaved = true; } catch (e) { console.warn('[account] copy not saved:', e && e.message); }
+  openAccountSwitch();
+}
+function performAccountSwitch() {
+  if (!_accountSwitch) return;
+  for (const k of ACCOUNT_LOCAL_KEYS) { try { localStorage.removeItem(k); } catch (e) {} }
+  stateOwnerSet(_accountSwitch.user);
+  location.reload();
+}
+async function cancelAccountSwitch() {
+  const el = document.getElementById('account-switch');
+  if (el) el.classList.add('hidden');
+  try { await supabase.auth.signOut({ scope: 'local' }); } catch (e) { console.warn('[auth] sign-out failed:', e && e.message); }
+  _accountSwitch = null;
+  showAuthGate();
+}
+
 function onAuthResolved(session) {
   _authResolvedSession = session || null;
+  // v8.46 (§145): another account's data is on this device. Nothing may run
+  // for this session until the switch screen is answered.
+  if (session && !IS_LOCAL_DEV) {
+    const owner = stateOwnerGet();
+    const verdict = localOwnerVerdict(owner, session.user.id, devBypassHasRealData(state));
+    if (verdict === 'other') {
+      _accountSwitch = { owner, user: session.user };
+      hideAuthGate();
+      openAccountSwitch();
+      return;
+    }
+    _accountSwitch = null;
+    if (verdict === 'claim') stateOwnerSet(session.user);
+  }
   if (session) {
     hideAuthGate();
     updateAccountUI(session);
@@ -9349,6 +9445,7 @@ async function refreshCoachLink() {
 }
 let _coachLinkRefreshedAt = 0;
 function maybeRefreshCoachLink() {
+  if (accountSwitchBlocks()) return; // v8.46 (§145)
   if (Date.now() - _coachLinkRefreshedAt < 60 * 1000) return;
   _coachLinkRefreshedAt = Date.now();
   refreshCoachLink()
@@ -9837,6 +9934,7 @@ async function clientStateNewestRev(uid) {
 // One upload, if one is due. Returns what it did, for the log and the tests.
 async function uploadClientStateOnce() {
   if (!coachingAvailable() || !isCoachedMode()) return 'not-coached';
+  if (accountSwitchBlocks()) return 'account-switch'; // v8.46 (§145)
   if (_tourAnchorDate) return 'tour';
   if (!deviceHasRealData()) return 'empty-device';
   if (typeof CompressionStream === 'undefined' || !(crypto && crypto.subtle)) return 'unsupported';
@@ -10414,6 +10512,7 @@ let _pubRetryTimer = null;
 
 async function pullPublicationsOnce() {
   if (!coachingAvailable() || !isCoachedMode()) return 'not-coached';
+  if (accountSwitchBlocks()) return 'account-switch'; // v8.46 (§145): nothing lands in another account's data
   // 🚨 v8.40 (§134): never apply onto an EMPTY device whose account has
   // backups. That device is waiting for its restore, and the backup carries
   // the ledger. Applying first made the coach's cycles its only data, so the
@@ -10479,6 +10578,7 @@ function queueStoredSessionLogs() {
 // retried on the next pull, so the coach always hears eventually.
 async function sendPendingAcks() {
   if (!coachingAvailable() || !isCoachedMode()) return;
+  if (accountSwitchBlocks()) return; // v8.46 (§145)
   const ledger = coachLedger();
   const rows = Object.entries(ledger)
     .filter(([, e]) => e && !e.acked && e.status !== 'stored')
@@ -29461,7 +29561,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.45</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.46</span>`;
 }
 
 function renderSettings() {

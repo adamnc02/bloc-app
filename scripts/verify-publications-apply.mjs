@@ -86,6 +86,7 @@ function build(source) {
   if (bodies.some(b => !b) || consts.some(c => !c)) return null;
   // PUB_APPLIERS references the functions, so it goes after them.
   return new Function('env', `
+    const accountSwitchBlocks = () => false; // v8.46 (§145): no other account's data here
     let state = env.state, _tourAnchorDate = null, _goalQueue = null, supabase = env.supabase, _authResolvedSession = { user: { id: 'u1' } };
     const document = env.document, PUB_RETRY_MS = 1;
     let _pubPending = [], _pubRetryTimer = null;
