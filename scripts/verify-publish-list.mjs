@@ -34,8 +34,12 @@ function check(label, ok, detail) {
   if (!ok && detail) console.log(`    ${detail}`);
 }
 
-const parseList = text => text.split('\n').map(l => l.replace(/#.*/, '').trim()).filter(Boolean);
-const list = parseList(read('scripts/publish-files.txt'));
+const parseEntries = text => text.split('\n').map(l => l.replace(/#.*/, '').trim()).filter(Boolean);
+// Coach v0.1 (§139): `src/ => dest/` publishes every tracked file under src/ at dest/.
+const MAP = /^(\S+\/) => (\S+\/)$/;
+const entries = parseEntries(read('scripts/publish-files.txt'));
+const list = entries.filter(e => !e.includes(' => '));
+const maps = entries.filter(e => e.includes(' => ')).map(e => { const m = MAP.exec(e); return m ? { src: m[1], dest: m[2], line: e } : { bad: e }; });
 const DEV_ONLY = new Set(['bloc-demo-data.dev.json']); // fetched with a fallback; gitignored
 
 // ── What the app refers to ───────────────────────────────────────────────
@@ -78,8 +82,30 @@ const untracked = list.filter(f => !tracked.has(f));
 check('every listed file is tracked by git (so CI has it)', untracked.length === 0, untracked.join(', '));
 check('no file is listed twice', new Set(list).size === list.length);
 
+// ── 2b. Directory mappings (BLOC Coach's build, §139) ────────────────────
+check('every mapping line reads `src/ => dest/`', maps.every(m => !m.bad), maps.filter(m => m.bad).map(m => m.bad).join(', '));
+const good = maps.filter(m => !m.bad);
+// What a build's index.html loads from /bloc-app/… that the build doesn't hold.
+function missingRefs(html, src, dest, files) {
+  const refs = [...html.matchAll(/(?:src|href)="\/bloc-app\/([^"?#]+)"/g)].map(m => m[1]);
+  return { refs, missing: refs.filter(r => !r.startsWith(dest) || !files.includes(src + r.slice(dest.length))) };
+}
+for (const { src, dest } of good) {
+  const files = [...tracked].filter(f => f.startsWith(src));
+  check(`${src} → ${dest}: has tracked files, including index.html (${files.length})`, files.includes(src + 'index.html'));
+  // Nothing BLOC publishes may sit under the mapped destination: a Coach build must never replace a BLOC file.
+  const clash = list.filter(f => f.startsWith(dest));
+  check(`${dest} holds no BLOC file`, clash.length === 0 && dest !== '/' && dest !== '', clash.join(', '));
+  // Everything the build's index.html loads from its own base is in the build.
+  if (files.includes(src + 'index.html')) {
+    const { refs, missing } = missingRefs(read(src + 'index.html'), src, dest, files);
+    check(`${src}index.html loads only files in the build (${refs.length} referenced)`, refs.length > 0 && missing.length === 0, `missing: ${missing.join(', ')}`);
+  }
+}
+check('BLOC Coach is published at coach/ (Phase 5)', good.some(m => m.src === 'coach/dist/' && m.dest === 'coach/'));
+
 // ── 3. Never published ───────────────────────────────────────────────────
-const forbidden = list.filter(f => DEV_ONLY.has(f) || f.startsWith('.github/') || f.startsWith('scripts/')
+const forbidden = [...list, ...good.map(m => m.src)].filter(f => DEV_ONLY.has(f) || f.startsWith('.github/') || f.startsWith('scripts/')
   || f === 'README.md' || f === 'TECHNICAL.md' || f.startsWith('.') || f.endsWith('.md'));
 check('nothing dev-only, internal or documentation is published (dev fixture, .github, scripts, *.md, dotfiles)',
   forbidden.length === 0, forbidden.join(', '));
@@ -101,6 +127,15 @@ check('control: D7\'s original list (index.html, demo data only) fails coverage 
   ['sw.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-512-maskable.png'].every(f => missingFrom(['index.html', 'bloc-demo-data.json']).includes(f)));
 check('control: a list without the engine build fails coverage (v8.32)',
   missingFrom(list.filter(f => f !== 'engine/dist/bloc-engine.js')).includes('engine/dist/bloc-engine.js'));
+
+// Control (§139): the build's real index.html, naming one asset the build doesn't hold, must be caught.
+{
+  const files = [...tracked].filter(f => f.startsWith('coach/dist/'));
+  const html = files.includes('coach/dist/index.html') ? read('coach/dist/index.html') : '';
+  const doctored = html.replace('</head>', '<script type="module" src="/bloc-app/coach/assets/index-MISSING.js"></script></head>');
+  check('control: an index.html naming an asset missing from the build is caught',
+    missingRefs(doctored, 'coach/dist/', 'coach/', files).missing.includes('coach/assets/index-MISSING.js'));
+}
 
 console.log(failures ? `\n✗ ${failures} check(s) failed` : '\nAll checks passed.');
 process.exit(failures ? 1 : 0);

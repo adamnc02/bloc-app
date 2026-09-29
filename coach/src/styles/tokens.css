@@ -1,0 +1,112 @@
+/* =====================================================================
+   BLOC design tokens — "Night Shift" (redesign scope §2).
+   Shared by BLOC and BLOC Coach. Components read ONLY these variables.
+
+   Values in the DARK block are copied exactly from the scope's §2.1 table.
+   LIGHT block: BLOC's index.html [data-mode="light"] values (TECHNICAL §139).
+   ===================================================================== */
+
+:root {
+  /* ---- colour (§2.1) ---- */
+  --bg: #161826;
+  --surface: #1c1e2e;
+  --surface2: #232532;
+  --surface3: #2b2d3d;
+  --inset: #13141f;
+  --border: rgba(233, 233, 237, .08);
+  --border2: rgba(233, 233, 237, .12);
+  --divider: rgba(233, 233, 237, .07);
+  --text: #e9e9ed;
+  --text2: rgba(233, 233, 237, .65);
+  --text3: rgba(233, 233, 237, .55);
+  --accent: #9184d9;
+  --accent2: #b5abfc;
+  --on-accent: #161826;
+  --red: #E24B4A;  /* BLOC's --red (Train's "missed target"), the same in both modes */
+  --green: #1b9e75;
+  --green-text: #4cc59d;
+  --amber: #d9c48f;
+  --heat-amber: #d9a441;
+  --blue: #8fb3d9;
+  --ice: #9fd9d9;
+
+  /* ---- macro colour mapping (§2.1 colour rules: fixed everywhere) ---- */
+  --kcal: var(--accent);
+  --protein: var(--blue);
+  --carbs: var(--amber);
+  --fats: var(--red);
+  --steps: var(--ice);
+
+  /* ---- sheet scrim (§5) ---- */
+  --scrim: rgba(8, 9, 16, .72);
+
+  /* ---- brand marks only (bloc-brand / bloc-coach-brand README).
+         Never used for UI state: green UI state is --green / --green-text. ---- */
+  --brand-accent: #2fb98a;
+  --brand-neutral: #3b4063;
+  --brand-ink: #f2f2f2;
+
+  /* ---- typography (§2.2) ---- */
+  --font-display: 'Sora', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-body: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* ---- shape (§2.3) ---- */
+  --r-hero: 20px;
+  --r-card: 16px;
+  --r-tile: 12px;
+  --r-btn: 14px;
+  --r-btn-in-card: 12px;
+  --r-chip: 999px;
+  --r-tag: 6px;
+  --r-sheet: 26px;
+  --pad-hero: 22px;
+  --pad-card: 18px;
+  --h-btn: 52px;
+  --h-btn-in-card: 46px;
+  --h-btn-sm: 44px;
+  --touch: 44px;
+
+  /* ---- spacing (§1.2) ---- */
+  --gutter: 20px;
+  --header-top: 52px;
+  --hero-gap: 24px;
+  --section-gap: 44px;
+  --stack-gap: 12px;
+
+  /* ---- motion (§4) ---- */
+  --ease-rise: cubic-bezier(.2, .7, .2, 1);
+  --ease-sheet: cubic-bezier(.2, .8, .2, 1);
+  --stagger: 90ms;
+  --bar-stagger: 80ms;
+
+  color-scheme: dark;
+}
+
+[data-mode="light"] {
+  --bg: #e7edf4;                      /* exact: "keep existing #e7edf4" */
+  --surface: #f2f5f9;                 /* BLOC index.html [data-mode="light"] */
+  --surface2: #fafbfd;                /* BLOC */
+  --surface3: #ffffff;                /* BLOC */
+  --inset: #e3e8ef;                   /* exact */
+  --border: rgba(20, 40, 65, .10);    /* BLOC */
+  --border2: rgba(20, 40, 65, .18);   /* BLOC */
+  --divider: rgba(20, 40, 65, .08);   /* exact */
+  --text: #16222e;                    /* BLOC */
+  --text2: #51606e;                   /* BLOC */
+  --text3: #7c8a98;                   /* BLOC */
+  --accent: #9184d9;                  /* BLOC: not overridden in light */
+  --accent2: #6f5cc4;                 /* exact: "keep existing #6f5cc4" */
+  --on-accent: #161826;               /* BLOC: fixed, never themed */
+  --red: #E24B4A;                     /* BLOC: not overridden in light */
+  --green: #137359;                   /* BLOC */
+  --green-text: #137359;              /* exact */
+  --amber: #8a6a17;                   /* BLOC */
+  --heat-amber: #b07d12;              /* exact */
+  --blue: #3f6fa6;                    /* BLOC */
+  --ice: #2f7f84;                     /* exact */
+  --scrim: rgba(22, 24, 38, .45);     /* Coach's own: BLOC has no scrim token */
+  --brand-accent: #1b9e75;            /* brand README: accent on light */
+  --brand-neutral: #aab6c8;           /* brand README: neutral on light */
+  --brand-ink: #161826;
+  color-scheme: light;
+}

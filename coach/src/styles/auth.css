@@ -1,0 +1,84 @@
+/* =====================================================================
+   The sign-in screen: BLOC's #auth-gate, rule for rule from index.html
+   (the "AUTH GATE" block, plus the .btn / .btn-accent / .btn-block and
+   input rules it inherits there), scoped under .auth-gate. The logo is
+   the one difference. A change to BLOC's gate is made here too.
+   Values are BLOC's tokens (--r-sm 4px, --r-btn-sm 12px, --r-btn 14px).
+   ===================================================================== */
+.auth-gate {
+  /* Above the splash (9999), as BLOC's gate is: a signed-out person never
+     watches the splash play behind the sign-in screen. */
+  position: fixed; inset: 0; z-index: 10000;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  overflow-y: auto;
+  padding: 24px 20px calc(24px + env(safe-area-inset-bottom, 0px));
+  font-family: var(--font-body); font-size: 14px; color: var(--text);
+}
+.auth-gate-inner { width: 100%; max-width: 360px; margin: auto; }
+.auth-gate-logo { width: 100%; margin-bottom: 12px; } /* the one difference from BLOC: the Coach logo, as wide as the buttons */
+.auth-gate-tagline {
+  font-size: 13px; color: var(--text2); text-align: center;
+  margin: 6px 0 28px;
+}
+.auth-provider-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; padding: 12px; margin-bottom: 10px;
+  border-radius: 4px; border: 1px solid var(--border2);
+  background: var(--surface2); color: var(--text);
+  font-family: var(--font-display); font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s;
+}
+.auth-provider-btn:active { transform: scale(0.98); }
+.auth-provider-btn svg { flex-shrink: 0; }
+.auth-divider {
+  display: flex; align-items: center; gap: 10px;
+  margin: 18px 0; color: var(--text3); font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.auth-divider::before, .auth-divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--border2);
+}
+.auth-tabs {
+  display: flex; border: 1px solid var(--border2); border-radius: 4px;
+  overflow: hidden; margin-bottom: 18px;
+}
+.auth-tab {
+  flex: 1; padding: 9px; border: none; background: transparent;
+  color: var(--text2); font-family: var(--font-display); font-size: 13px;
+  font-weight: 600; cursor: pointer;
+}
+.auth-tab.active { background: var(--accent); color: var(--on-accent); }
+.auth-gate .form-group { margin-bottom: 12px; }
+.auth-gate input {
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 12px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 16px;
+  min-height: 48px;
+  padding: 10px 14px;
+  width: 100%;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.auth-gate input:focus { border-color: var(--accent); }
+.auth-submit {
+  display: inline-flex; align-items: center; gap: 6px;
+  width: 100%; justify-content: center; min-height: 52px; border-radius: 14px;
+  padding: 10px 16px; border: 1px solid var(--accent);
+  background: var(--accent); color: var(--on-accent);
+  font-family: var(--font-body); font-size: 14px; font-weight: 700;
+  cursor: pointer; transition: all 0.15s; letter-spacing: 0;
+}
+.auth-submit:active { transform: scale(0.97); background: color-mix(in srgb, var(--accent) 82%, #000); }
+.auth-submit:disabled { opacity: .6; }
+.auth-error { font-size: 12px; color: var(--red); text-align: center; margin-top: 8px; line-height: 1.5; }
+.auth-status { font-size: 12px; color: var(--text2); text-align: center; margin-top: 8px; line-height: 1.5; }
+.auth-forgot-row { text-align: center; margin-top: 14px; }
+.auth-forgot-row button {
+  font-size: 12px; color: var(--accent2); cursor: pointer;
+  background: none; border: 0; padding: 0; font-family: inherit;
+}

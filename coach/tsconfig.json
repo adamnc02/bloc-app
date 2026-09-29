@@ -1,0 +1,28 @@
+{
+  // Type-checking only: Vite (esbuild/oxc) emits the bundle. Strict, and the
+  // same erasable-syntax rules as engine/tsconfig.json, because Coach
+  // type-checks the engine's source it imports (`@engine`).
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "erasableSyntaxOnly": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "types": ["vite/client"],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@engine": ["../engine/src/index.ts"]
+    }
+  },
+  "include": ["src", "vite.config.ts"]
+}

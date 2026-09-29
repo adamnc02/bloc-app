@@ -299,6 +299,18 @@ Once you've linked to a coach (Settings → Coaching), your coach builds your tr
 - **Before your coach publishes anything,** Home, Train and Progress say "{coach} hasn't published your plan yet."
 - **Unlinking** (from either side) takes you straight back to Solo with **no active cycle**: every cycle and goal phase your coach published is removed. **Everything you logged stays**: every set, your effort ratings, your exercise history, weigh-ins, food, measurements, recipes and food library. The Plan tab comes back.
 
+### BLOC Coach (Coach v0.1, in development; `coach/`, `TECHNICAL.md` §139)
+BLOC Coach is the separate app a personal trainer uses to manage their clients. It lives in this repo's `coach/` folder and is served at **`/bloc-app/coach/`**. It has **no users yet**, and it gets its own version number (Coach v0.1, v0.2, …), so BLOC's version and files don't change when Coach does. v0.1 has:
+- **The Coach splash** (the BLOC splash with COACH drawing in) plays on every fresh load, 8.5 s, with ✕ to skip.
+- **Sign in** with the same account as BLOC (email and password, or Google), on the same sign-in screen as BLOC with the Coach logo. Coach keeps **its own session** on the device, so signing in or out of Coach never signs BLOC in or out. Signing up in Coach, by saving a **coach profile** (your name and business), is what makes you a coach; nothing in BLOC can.
+- **Clients**: every client's card, their link status (Linked, Invited, Unlinked, In person), their current cycle and week **at their own local date** (a client in Auckland is already on tomorrow), a five-week weight sparkline, and when their BLOC last synced (flagged after 48 hours). Filters: All, Invited, Not on the app.
+- **+ Add client**: a card for someone on BLOC (which makes a single-use **invite code and link**, valid 7 days and shown once) or someone you coach in person only. Tapping an invited client makes a new code if the old one was lost or expired.
+- **Settings**: your account, your coach profile, the version and Sign out.
+
+Today, Diary and Library are placeholders for now.
+
+**On a local build** (`npm run dev` in `coach/`), Coach skips sign-in and shows **fixture clients** built from BLOC's demo dataset, exactly like BLOC's local bypass; add `?auth=real` to sign in to the live project instead (a red **LIVE DATA** tag says so).
+
 ### Settings (redesigned in v8.16)
 A hidden page: it has no nav tab, shows no nav bar, and is reached from the account button on Home. The `‹ Home` back link is the only way out.
 
@@ -367,6 +379,7 @@ This same weight-jump formula is shared by the Plan page's progression preview a
 
 | Concern | Approach |
 |---|---|
+| BLOC Coach (Coach v0.1) | `coach/`: Vite + React + TypeScript, importing `engine/src` as source; its build, `coach/dist/`, is committed and served at `/bloc-app/coach/` (`TECHNICAL.md` §139) |
 | File structure | `index.html` — HTML, CSS, and JS in one file, one main `<script>` block (plus a separate `<script>` tag holding the bundled ZXing library) — and, since v8.32, `engine/dist/bloc-engine.js`, the shared engine BLOC Coach will also run: TypeScript in `engine/src/`, built to that one plain script and committed, so BLOC still needs no build step to run (`TECHNICAL.md` §122) |
 | Storage | `localStorage` (`bloc_state` key) — sole source of truth the app reads from. Supabase Postgres (relational mirror, v8.04) and Supabase Storage (JSON snapshots, v8.04) are write-only destinations — see TECHNICAL.md §57 |
 | Fonts | Google Fonts — Inter (all weights) |
@@ -387,7 +400,7 @@ A service worker (`sw.js`, v8.22) is registered for push notifications only; it 
 Since v8.31 the site is published by a GitHub Actions workflow (`.github/workflows/pages.yml`, `TECHNICAL.md` §121), not straight from the branch.
 
 1. Every pull request and every push to `main` runs the full verify sweep (`scripts/ci-verify.sh`).
-2. A push to `main` whose sweep passes publishes **only** the files listed in `scripts/publish-files.txt`: `index.html`, `sw.js`, `manifest.webmanifest`, the three icons, `bloc-demo-data.json` and (since v8.32) `engine/dist/bloc-engine.js`. Nothing else in the repo is served.
+2. A push to `main` whose sweep passes publishes **only** the files listed in `scripts/publish-files.txt`: `index.html`, `sw.js`, `manifest.webmanifest`, the three icons, `bloc-demo-data.json` and (since v8.32) `engine/dist/bloc-engine.js`, plus (since Coach v0.1) BLOC Coach's committed build, `coach/dist/`, at `coach/`. Nothing else in the repo is served.
 3. Repo Settings → Pages → Source must be **GitHub Actions**. The workflow does not deploy while it is still "Deploy from a branch".
 4. Visit your Pages URL and use your browser's **Add to Home Screen** option to install as a PWA.
 
@@ -431,6 +444,7 @@ Recent versions (v5.26 onward) reflect a page-by-page legacy audit pass — remo
 
 | Version | Notes |
 |---|---|
+| Coach v0.1 | **BLOC Coach's first version**, at `/bloc-app/coach/`: sign-in on its own session, the coach profile, **Clients** (link status, cycle and week at each client's own date, weight sparkline, last synced), **+ Add client** with an invite code and link, and Settings. See "BLOC Coach" above and `TECHNICAL.md` §139. **BLOC itself is unchanged: still v8.43, every file it serves byte-identical.** |
 | v8.43 | **Coached mode: sessions your coach logs, Swap for today, and banners** (BLOC Coach, last part in BLOC). A session your coach logs with you in person arrives **read-only**, "Logged by your coach · in person", and your later targets update from it. **Swap for today** replaces an exercise for one session while the planned one holds its target. Group sessions show in Your sessions, and banners tell you when your coach changes your plan, goal phases or a booking. See "Coached mode" above and `TECHNICAL.md` §137. **For everyone:** a **new splash**, and a drop set's auto-complete button no longer shows in its first session, where there's no drop weight or reps to fill in (it used to tick the sets with the drop blank). Log those sets by hand; from the next session the button carries last week's drop over. See §138. |
 | v8.42 | **Coached mode: your next session and session requests** (BLOC Coach, sixth part). Home shows **Your next session** with your coach, and **Request a session** lets you offer times or a free window, repeat weekly, and confirm or counter the time your coach suggests. A session your coach takes in person is **read-only** in Train and skipped as your next session until it's logged. See "Coached mode" above and `TECHNICAL.md` §136. **Solo: nothing changes.** |
 | v8.41 | **Coached mode: "From your coach" on Progress** (BLOC Coach, fifth part). Your coach's check-ins, cycle reviews and next-cycle plans appear there, read-only, and you can **send a note back** on any of them and see their reply. **Check in** sends your coach how the week felt and a note, and in a cycle's last week you can send before and after photos for your coach's review (only if you allow photos). See "Coached mode" above and `TECHNICAL.md` §135. **Solo: nothing changes.** |

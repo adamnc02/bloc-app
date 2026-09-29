@@ -7306,7 +7306,7 @@ except a person running them by hand.
 `icon-512-maskable.png` and `bloc-demo-data.json`. The legacy mode served the whole repo, and
 `README.md`, `TECHNICAL.md` and `scripts/` are no longer served (Adam agreed, 2026-09-28). They're
 public on GitHub, and the app never loads them. Phase 2 adds the engine build to the list, and
-Phase 5 adds `coach/dist`.
+BLOC Coach's build is published from `coach/dist` (§139: a `coach/dist/ => coach/` mapping line).
 
 🚨 **The traps.**
 - **A file the app loads but the list forgets is a 404 on the live site.** The deep dive's first
@@ -9060,3 +9060,238 @@ affected: a drop set can't be a superset member (saving one into a superset make
 **Check:** `verify-engine-leaves.mjs` counts the renders where only a first-session drop set's button went
 (3 per zone), and compares everything else with v8.34 as before.
 
+---
+
+## §139 — Coach v0.1: BLOC Coach's scaffold, sign-in, splash, dev bypass and Clients
+
+**What it is.** BLOC Coach is the coach's app, in `coach/`: Vite + React + TypeScript, **served at
+`/bloc-app/coach/`**. v0.1 has the splash, sign-in, the coach profile, the local-dev bypass with fixture
+clients, the Clients list with Add client and Invite, a single-client page, and Settings (account, coach
+profile, version, sign out). Today, Diary and Library are placeholders that say they're coming.
+
+### Versioning
+
+Coach has its own version, separate from BLOC's. **`coach/package.json`'s `version` is the one place it
+lives**; Vite writes it into the build as `__COACH_VERSION__` (the Settings chip). A Coach release leaves
+BLOC's version, and every file BLOC serves, unchanged. Branches are `feature/coach-v0.N`.
+`verify-coach-build.mjs` checks the build carries the package version.
+
+### The layout
+
+| Path | What |
+|---|---|
+| `coach/package.json`, `package-lock.json` | pinned: React 18.3.1, Vite 8.3.1, TypeScript 7.0.2 (the engine's), vitest 5.0.2, `@supabase/supabase-js` 2.117.2 |
+| `coach/vite.config.ts` | `base: '/bloc-app/coach/'`; `@engine` → `../engine/src/index.ts` (**source**, never `engine/dist`, which is BLOC's); `@` → `src`; a dev/preview middleware that serves the repo's `bloc-demo-data(.dev).json` at `/bloc-app/…`, so the fixtures never enter `dist` |
+| `coach/index.html` | the page, with the splash inline (below) |
+| `coach/src/styles` | tokens (dark and light, the light values equal to BLOC's `[data-mode="light"]`; `--red` is BLOC's `#E24B4A` in both modes, the red of Train's "missed target"; `--scrim` is Coach's own), `ui.css`, `motion.css`, `shell.css`, and `auth.css` (the sign-in screen) |
+| `coach/src/components/ui`, `components/brand`, `components/charts` | the shared primitives (page anatomy, cards, buttons, sheets, `Notice`, hooks), the brand marks, the weight sparkline |
+| `coach/src/lib/host.ts` | the dev bypass (below) |
+| `coach/src/lib/storage.ts` | every Coach localStorage key (below) |
+| `coach/src/lib/supabase.ts` | the client: BLOC's project, Coach's session |
+| `coach/src/lib/clientState.ts` | reading `client_state`, and a zone's calendar date |
+| `coach/src/data/` | `types.ts`; `live.ts` (Supabase); `fixtures.ts` (the bypass); `summary.ts` (one Clients row, pure) and its vitest |
+| `coach/src/app/` | `App.tsx` (the sign-in gate), `router.ts` (a hash router: Pages serves one `index.html`) |
+| `coach/src/coach/` | the shell and the screens |
+| `coach/dist/` | **committed**, the build the site serves (below) |
+
+### Published from the committed build
+
+`coach/dist/` is committed and served byte for byte, the engine's rule (§122) applied to Coach:
+`npm run build` in `coach/`, then commit `dist/` with the source. The build is deterministic (two builds
+give identical bytes) and embeds no local paths.
+
+- **`scripts/publish-files.txt` has a second form:** `src/ => dest/` publishes every **git-tracked** file
+  under `src/` at `dest/`. The line is `coach/dist/ => coach/`, so the site serves
+  `/bloc-app/coach/index.html` and `/bloc-app/coach/assets/…`. `ci-assemble-site.sh` copies from
+  `git ls-files`, so an untracked file in `dist/` is never published, and it fails if the mapping has no
+  tracked files.
+- **`verify-publish-list.mjs`** also checks the mapping's form, that it holds `index.html`, that no BLOC
+  file sits under `coach/`, and that every `/bloc-app/…` file the build's `index.html` loads is in the
+  build. Control: the real `index.html` with one extra asset tag.
+- **CI** runs `npm ci --prefix coach` before the sweep. The deploy job builds nothing; it publishes the
+  committed build the verify job proved current.
+
+🚨 **Editing `coach/src` without rebuilding** passes every other check while the site serves the old
+Coach. `scripts/verify-coach-build.mjs` type-checks `coach/` (strict, including the engine source it
+imports), runs the vitest cases, rebuilds into a temporary folder, and fails unless the files and bytes
+equal the committed `dist/` and every file there is committed. Control: the committed build with one byte
+changed. It needs `coach/node_modules`; a local sweep says `npm ci --prefix coach` if it's missing.
+
+🚨 **A Coach release leaves BLOC's 8 served files byte-identical.** Before the PR,
+`git diff --stat main -- index.html sw.js manifest.webmanifest engine/ bloc-demo-data.json '*.png'` is
+empty; after the merge, `curl` each against `git show main:<file>`, `sw.js` above all.
+
+### The splash
+
+Coach's splash is the `bloc-splash` design's Coach version (BLOC's is §138). It paints **before the React
+bundle loads**, so it isn't a component: `coach/index.html` holds its CSS inline in `<head>`, then the
+`#splash` markup and its script at the top of `<body>`, before `#root`. The animation is pure CSS: the
+bars build, the REPEAT loop closes, BLOC slides in, the tagline drops away and COACH draws in. The script
+only times the hand-over, **8.5 s** (`SPLASH_MS`; 1.4 s with reduced motion), wires the ✕, fades, then
+**removes `#splash` from the page**. It plays on every fresh load (`qualifiesForSplash()`). React renders
+underneath it.
+
+🚨 **The sign-in screen sits above the splash** (`.auth-gate` z-index 10000 over the splash's 9999), as
+BLOC's `#auth-gate` does, so a signed-out coach never watches the splash behind the sign-in form. Vite
+minifies the inline CSS; the timeline is unchanged. The splash's green is `--splash-brand`, never the
+app's lavender (§94, §138).
+
+`scripts/verify-coach-splash.mjs` checks, on the served `coach/dist/index.html`: styles inline in
+`<head>`, `#splash` before `#root` with its script straight after, 8.5 s / 1.4 s, the ✕ wired, the
+self-removal, the sign-in screen's z-index above the splash's, and the brand green with no lavender.
+Control: the splash moved after `#root`.
+
+### The dev bypass: BLOC's rule, BLOC's predicate
+
+Same hosts, same `?auth=real` (§82, §119). `isLocalDevHost()` is the engine's, imported as source.
+`isRealAuthRequested()` / `isDevBypassActive()` live in BLOC's `index.html`, not the engine, so `host.ts`
+**carries a copy** (moving them would change BLOC's served bytes).
+
+🚨 **The copy can't drift:** `scripts/verify-coach-host.mjs` strips `host.ts`'s types with the engine's
+esbuild and runs Coach's two functions against BLOC's (extracted from `index.html`) over 19 hosts × 11
+queries, and fails on any difference. It also checks Coach's page constants (bypass only on a local
+host; LIVE DATA only with `?auth=real` there), that **no Coach source reads `import.meta.env`** (never
+Vite's mode: a production build previewed on a LAN IP must still bypass), that `host.ts` imports the
+engine's predicate rather than defining one, and that `getSupabase()` returns null under the bypass.
+Controls: the two wrong switches from §119, and a file keying the bypass on `import.meta.env.DEV`.
+
+**Bypass on:** no Supabase client at all. The coach is the fixture `dev-local-coach` ("Rowan Price"), and
+the clients are built from **`bloc-demo-data.dev.json`** if the developer has one, else the tracked
+`bloc-demo-data.json` (BLOC's order). Every fixture is evaluated at the dataset's anchor
+(`_devAnchorDate`, else 2 Aug 2026, §35), never the machine's date. The fixtures' "now" is the anchor at
+20:10 UTC, so Grace (Pacific/Auckland) is already on the next day: the case that exercises the
+client's-today rule. The set: Maya (the demo, a coach-published cycle), Tom (his own cycle two weeks
+behind, 60 h since sync), Grace (Auckland, week 1), Ben (linked, never synced), Sam (invited), Leah
+(unlinked), Eileen (in person). Add, invite and profile edits change the page's memory only. Without a
+`.dev` file the console shows one 404: the fallback, as in BLOC.
+
+A tag at the top says which data a local build is on: **FIXTURE CLIENTS · LOCAL BUILD**, or BLOC's red
+**LIVE DATA · LOCAL BUILD** with `?auth=real`.
+
+### Sign-in: one account, Coach's own session
+
+🚨 **BLOC and Coach share one origin (`adamnc02.github.io`), so they share localStorage.** Three rules,
+all in `scripts/verify-coach-storage.mjs`:
+- **Coach's Supabase session has its own key, `blocCoach_auth`** (`createClient(…, { auth: { storageKey } })`).
+  supabase-js's default, `sb-pinfjcxwwbbbwfqppqsj-auth-token`, **is BLOC's session**: without the key,
+  signing in or out of Coach would sign BLOC in or out.
+- **The key must not even look like `sb-*-auth-token`.** BLOC's pre-paint check (§60) treats any such key
+  as "signed in to BLOC" and skips painting its sign-in gate. The verify reads that regex from
+  `index.html` and tests every Coach key and supabase-js's `-code-verifier` / `-user` companions against it.
+- **Every Coach key starts `blocCoach_`**, every storage call names a `KEYS` entry, no Coach code names a
+  `bloc_` key, and Coach never clears storage wholesale.
+
+🚨 **Sign-out is `scope: 'local'`.** supabase-js's default, `'global'`, revokes **every** session the
+account has, BLOC's on every phone included. `'local'` ends this device's Coach session only; BLOC stays
+signed in and nothing else on the device is cleared. The verify requires it on every `signOut` call.
+Control: a bare `signOut()`.
+
+- 🚨 **The sign-in screen is BLOC's**, with the Coach logo as the only difference. `SignInScreen.tsx` is
+  `index.html`'s `#auth-gate` in React: the logo (as wide as the buttons), "Sign in to continue",
+  Continue with Google (BLOC's Google mark), "or", Sign In / Sign Up tabs, Email, Password, "Sign In →",
+  Forgot password?, and the same error and status lines. `styles/auth.css` repeats BLOC's rules for it,
+  and the `.btn` / input rules it inherits there, value for value. **A change to BLOC's gate is made to
+  Coach's too.**
+- **Forgot password?** sends the reset link to **BLOC's** live URL: it's the same account, the link
+  signs you in to BLOC, and BLOC's Settings is where a password changes. Coach has no password screen.
+- **PKCE** (`flowType: 'pkce'`): Google and the confirmation email return with `?code=`, never in the
+  hash, which the router owns.
+- **Google comes back only to a URL on the project's Redirect URLs list** (Auth → URL Configuration);
+  otherwise Supabase sends it to the Site URL, BLOC. `https://adamnc02.github.io/bloc-app/coach/` must be
+  on that list for Google sign-in on the live Coach. A local build signs in by email (§119).
+- **The gate** (`App.tsx`): signed out → sign in; signed in with no coach profile → **Your coach
+  profile**, whose Continue calls `create_coach_profile()` (0022, idempotent). That call is what makes
+  someone a coach, and only Coach makes it. A profile that isn't `active` → a status screen; every coach
+  is created `active`.
+
+**Settings** is reached from the rail's foot on a tablet or laptop, and on a phone from the header's
+Settings button, **BLOC's gear icon** (index.html `#home-account-btn`'s path). Sign out is a full-width
+danger button.
+
+### Reading clients (`data/live.ts`)
+
+All reads are RLS-scoped to the coach (0022 `my_coach_id()`, 0023 `is_active_coach_of()`). The `coach_id`
+filters on `coach_clients` and `invite_codes` only stop a coach who is also someone's client from seeing
+their own link as a client's.
+
+- Cards (`client_records`, not archived), links (`coach_clients`; for a card with an ended link and a
+  re-invite, the active one wins), unused invites (`invite_codes`; the code itself is only ever a hash).
+- For active links: `profiles` (**once linked, the client's own name is shown**; Coach never writes a
+  linked card's name, and 0022's trigger refuses it) and the newest `client_state` per client. The
+  metadata comes first, then the `state_gz` of the newest rev only, decoded once per `(user, hash)`.
+- **Decoding** (`lib/clientState.ts`): PostgREST returns the bytea as `\x…` hex → `DecompressionStream('gzip')`
+  → the sha-256 of the text must equal `state_hash` (**an upload that doesn't match its hash is refused**,
+  never shown as the client) → `normaliseState()`, as BLOC's `load()` does.
+- 🚨 **`crypto.subtle` exists only on a secure origin** (https, or `localhost`). A dev build opened from a
+  phone at `http://<LAN-IP>:5173` has none, and the hash check threw on every client ("Sync unreadable").
+  `sha256Hex()` falls back to `lib/sha256.ts`, a plain-JS SHA-256 over UTF-8, when `crypto.subtle` is
+  missing; the vitest cases check it against Node's across block boundaries, non-ASCII text and a whole
+  demo state, and decode an upload with `crypto` stubbed empty. `DecompressionStream` needs no secure
+  origin.
+- **Freshness.** Clients and the client page load when opened, and again whenever the app comes back to
+  the front (`useOnResume()`: `visibilitychange` to visible, or window `focus`; a second trigger within
+  1 s is skipped), so a change made elsewhere (a client's new sync, a card removed) shows without leaving
+  the screen.
+- **Link status**, in this order: an active link → Linked; else an unused invite → Invited (expired or
+  not); else an ended link → Unlinked; else Not on the app. The "Not on the app" filter includes
+  Unlinked, as the hero does.
+
+**Initials** (avatars) take the first **letter** of up to two words (`lib/format.ts`), so
+"Work (test client)" is "WT"; a first-character version gives "W(".
+
+### The client's today
+
+🚨 **Every engine call about a client gets `{ today }` in the client's zone**, `localDateIn(tz, now)` from
+the `tz` BLOC uploads. The coach's own date is used only for the coach's own things: an invite's expiry,
+"last synced", an unlink date. `summary.test.ts`'s control: Grace judged at the coach's London date
+hasn't started her cycle, while at her own Auckland date she's in week 1.
+
+**A row** (`summarise()`): the cycle is the engine's `getDateActiveMacroId()` at that today, and its week
+is `floor(dayDiff(start, today) / 7) + 1`, capped at `getMacroDurationWeeks()`. A cycle the coach
+published (BLOC stamps `publishedBy`, §131) shows by name; otherwise "Own cycle" (a client's Solo cycle
+runs until the coach publishes one). With no active cycle: "Next cycle starts …" or "No active cycle".
+The sparkline is the weigh-ins in the 35 days to their today, with the cycle's `targetBw` dashed. **48 h**
+without a sync is flagged (`STALE_SYNC_HOURS`).
+
+v0.1 shows the **link status** where the row will show the outcome, and **"last synced"** where it will
+show the next session; the outcome and the "Off track" filter come with Review, the next session with the
+Diary.
+
+### Add client and Invite
+
+- **Add client** inserts a `client_records` row (the first word as `first_name`, the rest `surname`; an
+  `@` makes the contact an email, else a phone). "Yes, on BLOC" then calls `create_invite()`.
+- 🚨 **The code is shown once.** Only its hash is stored (0022), so the sheet says so, and tapping an
+  invited client offers **Make a new code**, which replaces the old one (one live code per card).
+- **The link is the live BLOC**, `https://adamnc02.github.io/bloc-app/?invite=XXXX-XXXX` (§129), even from
+  a local build: redeeming is the client's step, on their phone. BLOC normalises the code, so the dash is
+  fine.
+- Share text: "Link to me as your coach in BLOC. Your code is …". The client never uses Coach.
+
+### Sections carry no number badge
+
+A section is its title, an optional right slot, and its sublabel. **No Coach screen numbers its sections.**
+`Section` has **no `n` prop**, there is no `numberSections()`, and there is no `.sec-n` style, so a screen
+that passes a number fails the type-check. `scripts/verify-coach-no-section-numbers.mjs` fails if any of
+them appears in `coach/src` or the served build. Controls: a screen using `numberSections()` and
+`<Section n={…}>`, and `.sec-n` markup.
+
+### 375pt (§116)
+
+At 375 × 812 there's no horizontal scroll and no truncated row text. The stacked row gives the cycle line
+the row's full width (beside an 84px sparkline, "Weight Loss 2026 · week 8 of 14" lost its week), and the
+sparkline sits on the shorter "last synced" line. On a laptop the rows are a table (Client, Status, Weight
+trend, Cycle, Synced).
+
+### Checks
+
+- `verify-coach-build.mjs`: tsc, the vitest cases, rebuild == committed `dist/`, the version.
+- `verify-coach-host.mjs`: the bypass.
+- `verify-coach-storage.mjs`: the keys and sign-out.
+- `verify-coach-splash.mjs`: the splash.
+- `verify-coach-no-section-numbers.mjs`: no section badges.
+- `verify-publish-list.mjs`: the mapping.
+- `coach/src/data/summary.test.ts` (vitest, 16 cases): each fixture's row at the tracked anchor, the
+  client's-today control, link-status precedence, the client's own name once linked, and decoding with a
+  refused hash as the control, initials from letters only, and SHA-256 and decoding with no
+  `crypto.subtle`.

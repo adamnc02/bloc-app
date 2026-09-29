@@ -6,6 +6,10 @@
 #    app 404s on it. scripts/verify-publish-list.mjs fails if index.html,
 #    sw.js or the manifest reference a file missing from this list.
 # 🚨 Never add bloc-demo-data.dev.json (gitignored, developer-only) or .github/.
+#
+# Two forms (Coach v0.1, TECHNICAL §139):
+#   path                one file, published at the same path
+#   src/ => dest/       every git-tracked file under src/, published under dest/
 index.html
 sw.js
 manifest.webmanifest
@@ -15,3 +19,5 @@ icon-512-maskable.png
 bloc-demo-data.json
 # v8.32 (§122): the shared engine, built from engine/src/ and committed.
 engine/dist/bloc-engine.js
+# Coach v0.1 (§139): BLOC Coach's committed Vite build, served at /bloc-app/coach/.
+coach/dist/ => coach/

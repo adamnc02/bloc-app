@@ -43,6 +43,12 @@ jobs:
       # it publishes the committed build that this job proved current.
       - name: Install the engine toolchain
         run: npm ci --prefix engine
+      # Coach v0.1 (§139): BLOC Coach's toolchain, which verify-coach-build.mjs
+      # uses to type-check, unit-test and rebuild coach/src and compare it with
+      # the committed coach/dist/. Like the engine, deploy publishes the
+      # committed build this job proved current; it builds nothing.
+      - name: Install the Coach toolchain
+        run: npm ci --prefix coach
       - name: Full verify sweep (strict)
         run: bash scripts/ci-verify.sh
 
