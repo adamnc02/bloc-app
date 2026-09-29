@@ -30,18 +30,27 @@
     display: flex; flex-direction: column; align-items: center; gap: 6px; position: sticky; top: 0; height: 100dvh; max-height: 100vh;
     padding: calc(24px + env(safe-area-inset-top)) 10px 20px;
   }
+  .rail .rail-head { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 18px }
   .rail .rail-logo-full { display: none }
+  .rail .rail-toggle { display: none }
   .rail .navi { width: 72px; height: 64px; border-radius: 18px; font-size: 11px }
   .rail .rail-foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; align-items: center }
   .coach-main .page { padding-bottom: 60px }
 }
 @media (min-width: 1200px) {
-  .coach-shell { grid-template-columns: 240px minmax(0, 1fr) }
-  .coach-shell .rail { align-items: stretch; padding: 28px 16px 20px }
-  .rail .rail-logo-mark { display: none }
-  .rail .rail-logo-full { display: block; padding: 0 8px 22px }
-  .rail .navi { flex-direction: row; justify-content: flex-start; gap: 12px; width: 100%; height: 48px; padding: 0 14px; border-radius: 14px; font-size: 14px }
-  .rail .rail-foot { align-items: stretch }
+  /* The laptop rail: expanded by default; .rail-collapsed keeps the tablet's icon rail above. */
+  .rail .rail-toggle {
+    display: grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: 12px; padding: 0;
+    background: none; color: var(--text3); cursor: pointer; flex-shrink: 0;
+  }
+  .rail .rail-toggle:hover { color: var(--text) }
+  .coach-shell:not(.rail-collapsed) { grid-template-columns: 240px minmax(0, 1fr) }
+  .coach-shell:not(.rail-collapsed) .rail { align-items: stretch; padding: 28px 16px 20px }
+  .coach-shell:not(.rail-collapsed) .rail .rail-head { flex-direction: row; align-items: flex-start; justify-content: space-between; padding: 0 0 22px 8px; margin-bottom: 0 }
+  .coach-shell:not(.rail-collapsed) .rail .rail-logo-mark { display: none }
+  .coach-shell:not(.rail-collapsed) .rail .rail-logo-full { display: block }
+  .coach-shell:not(.rail-collapsed) .rail .navi { flex-direction: row; justify-content: flex-start; gap: 12px; width: 100%; height: 48px; padding: 0 14px; border-radius: 14px; font-size: 14px }
+  .coach-shell:not(.rail-collapsed) .rail .rail-foot { align-items: stretch }
 }
 
 .seg.auto { display: inline-flex }

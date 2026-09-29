@@ -102,16 +102,19 @@ function Review({ v, m, tz }: { v: ClientView; m: ReviewModel; tz: string }) {
         )}
       </div>
 
-      <Section i={6} title="Findings" sub="What stands out, each with the action that deals with it.">
-        <div className="stack">
-          {findings.map((f, k) => <FindingCard key={f.id} f={f} v={v} i={7 + k} onCheckin={() => openAi('check_in')} />)}
-        </div>
-      </Section>
-
-      <div ref={aiRef} style={{ scrollMarginTop: 20 }}>
-        <Section i={7 + findings.length} title="AI tools" sub={`Runs on this device with your key, on ${v.first}’s data at their date. Nothing reaches ${v.first} until you publish.`} slot={<AIBadge />}>
-          <AiPanel v={v} m={m} state={bundle.snapshot!.state} tool={aiTool} onTool={setAiTool} ai={ai} />
+      {/* Laptop: Findings and AI tools side by side, each in its own column (.grid-2, 1024px and wider). */}
+      <div className="grid-2">
+        <Section i={6} title="Findings" sub="What stands out, each with the action that deals with it.">
+          <div className="stack">
+            {findings.map((f, k) => <FindingCard key={f.id} f={f} v={v} i={7 + k} onCheckin={() => openAi('check_in')} />)}
+          </div>
         </Section>
+
+        <div ref={aiRef} style={{ scrollMarginTop: 20, minWidth: 0 }}>
+          <Section i={7 + findings.length} title="AI tools" sub={`Runs on this device with your key, on ${v.first}’s data at their date. Nothing reaches ${v.first} until you publish.`} slot={<AIBadge />}>
+            <AiPanel v={v} m={m} state={bundle.snapshot!.state} tool={aiTool} onTool={setAiTool} ai={ai} />
+          </Section>
+        </div>
       </div>
 
       <MealsSheet v={v} m={m} date={day} onClose={() => setDay(null)} state={bundle.snapshot!.state} />
