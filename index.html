@@ -6757,7 +6757,7 @@ function buildProgressTourSteps(demo) {
   const steps = [
     { targetId: 'progress-hero-wrap', screen: 'progress', onEnter: onPage(),
       title: 'Your cycle at a glance',
-      body: 'Your latest weigh-in against the cycle’s target, and whether you’re ahead or behind for how far through the cycle you are. Tap the card to look at another cycle.' },
+      body: 'What the cycle is for: how much you’ve lost (or gained) since it began, or the weight you’re holding on maintenance, and whether you’re ahead or behind for how far through the cycle you are. Tap the card to look at another cycle.' },
     { targetId: 'progress-checkin', screen: 'progress', onEnter: onPage(),
       title: 'A check-in with BLOC',
       body: demo
@@ -13940,6 +13940,9 @@ function buildProgressHeroHTML(macro) {
   const latestBw = cycleLogs.length ? parseFloat(cycleLogs[cycleLogs.length - 1].weight) : null;
   const startBw  = cycleLogs.length ? parseFloat(cycleLogs[0].weight) : null;
 
+  // ── v8.46 (§148): the callout is what the cycle is FOR ──
+  const callout = progressHeroCallout(goalType, startBw, latestBw, macro.targetBw);
+
   // ── The status line — the existing status logic and its colours ──
   let statusLine = '';
   if (isMaintenance && latestBw !== null && macro.targetBw) {
@@ -13981,14 +13984,34 @@ function buildProgressHeroHTML(macro) {
       <span class="chip" style="--chip-c:${statusColour};margin-left:auto;">${statusLabel}</span>
     </div>
     <div class="prog-hero-metric">
-      <div class="prog-hero-eyebrow">Body weight</div>
+      <div class="prog-hero-eyebrow">${callout.label}</div>
       <div class="prog-hero-week">${isFuture ? 'Not started' : `Week ${weekNo} of ${totalWks}`}</div>
     </div>
-    <div class="prog-hero-val digits">${latestBw !== null ? latestBw.toFixed(1) : '—'}<span class="prog-hero-unit"> lbs</span></div>
+    <div class="prog-hero-val digits">${callout.value}<span class="prog-hero-unit"> lbs</span></div>
     ${statusLine ? `<div class="prog-hero-status">${statusLine}</div>` : ''}
     ${buildProgressHeroChart(cycleLogs, macro.targetBw)}
     <div class="prog-hero-foot"><span>Tap to switch cycle</span></div>
   </div>`;
+}
+
+// v8.46 (§148): the Progress hero's main figure and its label, by the cycle's
+// goal. Body weight alone said nothing about the cycle:
+//   · a cut: the total lost since the cycle's first weigh-in ("Lost this cycle");
+//   · a gain cycle: the total gained ("Gained this cycle");
+//   · maintenance: the target it holds ("Maintenance weight"), else the latest weigh-in.
+// Moving the wrong way says so: a cut that has gained reads "Gained this cycle".
+function progressHeroCallout(goalType, startBw, latestBw, targetBw) {
+  const target = targetBw !== null && targetBw !== undefined && targetBw !== '' ? parseFloat(targetBw) : null;
+  if (goalType === 'maintenance') {
+    if (target !== null && !isNaN(target)) return { label: 'Maintenance weight', value: target.toFixed(1) };
+    return { label: 'Body weight', value: latestBw !== null ? latestBw.toFixed(1) : '—' };
+  }
+  if (startBw === null || latestBw === null) return { label: goalType === 'gain' || goalType === 'strength' ? 'Gained this cycle' : 'Lost this cycle', value: '—' };
+  const gainGoal = goalType === 'gain' || goalType === 'strength';
+  const toward = gainGoal ? latestBw - startBw : startBw - latestBw;
+  const lost = startBw - latestBw;
+  const label = toward >= 0 ? (gainGoal ? 'Gained this cycle' : 'Lost this cycle') : (lost > 0 ? 'Lost this cycle' : 'Gained this cycle');
+  return { label, value: Math.abs(latestBw - startBw).toFixed(1) };
 }
 
 // The weigh-in line, the target as a dashed ice-blue line, and the latest

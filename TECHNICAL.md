@@ -9867,3 +9867,22 @@ its own id, and targets for weeks with nothing logged recompute (§131's §0 rul
 mesocycle after, starting-to-peak sets, reps and giant-set reps from there, unchanged without `fromWeek`), then Train's own
 `getWeekTargets` on the demo with a late exercise: 40 kg × 3 sets in its first week. Control: the same exercise without
 `fromWeek` gets 50 kg × 4.
+
+## §148 — v8.46: the Progress hero's figure is what the cycle is for
+
+The Progress hero's main figure was the latest body weight, which says nothing about the cycle. It's now
+`progressHeroCallout(goalType, startBw, latestBw, targetBw)`, with its label:
+
+| Cycle | Label | Figure |
+|---|---|---|
+| a cut (`loss`) | Lost this cycle | first weigh-in in the cycle − latest |
+| a gain cycle (`gain`, or the old `strength`) | Gained this cycle | latest − first weigh-in |
+| maintenance, with a target | Maintenance weight | the target |
+| maintenance, no target | Body weight | the latest weigh-in |
+
+Moving the wrong way is said plainly: a cut that has gained reads "Gained this cycle", with the amount. No weigh-ins in
+the cycle: "—". The status line under it (ahead or behind, stable or drifting, the finish) and the chart are unchanged.
+The Progress tour's first step describes the new figure.
+
+**Check:** `scripts/verify-progress-hero-callout.mjs`: every row above, both wrong-way cases and no weigh-ins, and that the
+hero shows the label and figure. Control: the latest weigh-in, as before.
