@@ -1,0 +1,122 @@
+// The Diary's occurrences: every session on every day, expanded from the
+// weekly series, their "just this one" overrides, the one-offs, and the
+// session requests waiting on the coach (placeholders). Pure: no clock, the
+// dates are passed in.
+import type { ISODate } from '@/domain/types';
+import { addDays, daysBetween, weekday } from '@/lib/format';
+import type { Booking, DayOff, Diary, Series, SessionKind, SessionRequest, Slot } from './types';
+
+export type OccurrenceKind = SessionKind | 'request';
+
+export interface Occurrence {
+  /**
+   * Stable across moves: `s:{series}@{week's own date}` for a series week (its
+   * override too), `b:{booking}` for a one-off, `r:{request}` for a placeholder.
+   */
+  key: string;
+  kind: OccurrenceKind;
+  date: ISODate;
+  start: number;
+  duration: number;
+  title: string | null;
+  location: string | null;
+  clientIds: string[];
+  /** Part of a weekly series (edits ask "Just this one" or "All future"). */
+  recurring: boolean;
+  seriesId: string | null;
+  /** For a series week: the date it falls on in the series, before any move. */
+  seriesDate: ISODate | null;
+  bookingId: string | null;
+  /** Cancelled by a day off. The series carries on. */
+  cancelled: boolean;
+  request: SessionRequest | null;
+}
+
+export const isDayOff = (daysOff: DayOff[], date: ISODate) => daysOff.some((d) => date >= d.start && date <= d.end);
+export const dayOffOn = (daysOff: DayOff[], date: ISODate) => daysOff.find((d) => date >= d.start && date <= d.end) ?? null;
+
+/** The dates a series occurs on in `[from, to]`, before cancellations and overrides. */
+export function seriesDates(s: Series, from: ISODate, to: ISODate): ISODate[] {
+  const out: ISODate[] = [];
+  let first = from > s.from ? from : s.from;
+  first = addDays(first, (s.weekday - weekday(first) + 7) % 7);
+  const last = s.to && s.to < to ? s.to : to;
+  for (let d = first; d <= last; d = addDays(d, 7)) out.push(d);
+  return out;
+}
+
+/** An override that changes nothing about its week (the first week of a booked weekly request) isn't an exception. */
+export function overrideIsIdentity(b: Booking, s: Series): boolean {
+  return b.status === 'booked' && b.date === b.occursOn && b.start === s.start && b.duration === s.duration
+    && (b.location ?? null) === (s.location ?? null) && (b.title ?? null) === (s.title ?? null)
+    && [...b.clientIds].sort().join() === [...s.clientIds].sort().join();
+}
+
+/**
+ * The slot a placeholder sits on: what's waiting on the coach, or on the
+ * client. Pending: the first choice. Proposed: the coach's time. Countered:
+ * the client's counter. Accepted but not yet booked: the time accepted.
+ */
+export function requestSlot(r: SessionRequest): Slot | null {
+  if (r.status === 'pending') return r.preferences[0] ?? null;
+  if (r.status === 'proposed') return r.proposed;
+  if (r.status === 'countered') return r.counter ?? r.proposed;
+  if (r.status === 'accepted' && !r.bookingId) return r.proposed ?? r.counter ?? r.preferences[0] ?? null;
+  return null;
+}
+
+/** Requests the Diary shows: still open, or confirmed by the client and not booked yet. */
+export const openRequests = (d: Pick<Diary, 'requests'>) => d.requests.filter((r) => requestSlot(r) != null);
+/** Requests waiting on the coach (not on the client). */
+export const requestsNeedingCoach = (d: Pick<Diary, 'requests'>) =>
+  d.requests.filter((r) => r.status === 'pending' || r.status === 'countered' || (r.status === 'accepted' && !r.bookingId));
+
+/** Every session and placeholder whose date falls in `[from, to]`. */
+export function occurrencesBetween(d: Diary, from: ISODate, to: ISODate): Occurrence[] {
+  const out: Occurrence[] = [];
+  const overrides = new Map<string, Booking>();
+  for (const b of d.bookings) if (b.seriesId && b.occursOn) overrides.set(`${b.seriesId}@${b.occursOn}`, b);
+
+  for (const s of d.series) {
+    // A week moved into the window from outside it still shows: look a week either side.
+    for (const date of seriesDates(s, addDays(from, -7), addDays(to, 7))) {
+      if (s.cancelled.includes(date)) continue;
+      const ov = overrides.get(`${s.id}@${date}`);
+      if (ov && ov.status === 'cancelled') continue;
+      const at = ov ?? null;
+      const occ: Occurrence = {
+        key: `s:${s.id}@${date}`, kind: at?.kind ?? s.kind, date: at?.date ?? date, start: at?.start ?? s.start,
+        duration: at?.duration ?? s.duration, title: at ? at.title : s.title, location: at ? at.location : s.location,
+        clientIds: at?.clientIds ?? s.clientIds, recurring: true, seriesId: s.id, seriesDate: date,
+        bookingId: at?.id ?? null, cancelled: false, request: null,
+      };
+      if (occ.date < from || occ.date > to) continue;
+      occ.cancelled = isDayOff(d.daysOff, occ.date);
+      out.push(occ);
+    }
+  }
+  for (const b of d.bookings) {
+    if (b.seriesId || b.status !== 'booked' || b.date < from || b.date > to) continue;
+    out.push({
+      key: `b:${b.id}`, kind: b.kind, date: b.date, start: b.start, duration: b.duration, title: b.title, location: b.location,
+      clientIds: b.clientIds, recurring: false, seriesId: null, seriesDate: null, bookingId: b.id,
+      cancelled: isDayOff(d.daysOff, b.date), request: null,
+    });
+  }
+  for (const r of openRequests(d)) {
+    const slot = requestSlot(r)!;
+    if (slot.date < from || slot.date > to) continue;
+    out.push({
+      key: `r:${r.id}`, kind: 'request', date: slot.date, start: slot.start_min, duration: d.settings.sessionMinutes,
+      title: null, location: null, clientIds: r.cardId ? [r.cardId] : [], recurring: false, seriesId: null, seriesDate: null,
+      bookingId: null, cancelled: false, request: r,
+    });
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start);
+}
+
+/** The next `n` days from `from`, as dates. */
+export const daysFrom = (from: ISODate, n: number) => Array.from({ length: n }, (_, i) => addDays(from, i));
+
+/** "Sat 3 Oct – Sun 11 Oct" is 9 days. */
+export const dayCount = (o: DayOff) => daysBetween(o.start, o.end) + 1;

@@ -17,6 +17,7 @@ import type { Loose } from '@engine';
 import type { AiData, AiDraft, AiEdit, AiOriginal, AiTool, CoachPublication, Submission } from '@/ai/types';
 import type { CardPatch, ClientBundle, ClientCard, ClientSnapshot, CoachProfile, CoachRepo, NewClient, NewInvite, PlanDraft, PlanDraftBody } from './types';
 import type { Template, TemplateBody } from '@/plan/templates';
+import { liveDiary } from './liveDiary';
 
 const CARD_COLS = 'id, first_name, surname, email, phone, notes, created_at';
 
@@ -101,6 +102,7 @@ const decoded = new Map<string, ClientSnapshot['state']>();
 export function createLiveRepo(sb: SupabaseClient, profile: CoachProfile, onProfile: (p: CoachProfile) => void): CoachRepo {
   let current = profile;
   return {
+    ...liveDiary(sb, () => current.coachId),
     kind: 'live',
     now: () => Date.now(),
 

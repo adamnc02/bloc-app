@@ -18,6 +18,7 @@ import type { ClientBundle, ClientCard, CoachProfile, CoachRepo, NewInvite, Plan
 import { foldPlan } from '@/plan/fold';
 import { dayKeys } from '@/plan/doc';
 import { macroTemplateOf, workoutTemplateOf, type Template } from '@/plan/templates';
+import { fixtureDiary } from './fixtureDiary';
 
 /** bloc-demo-data.json's own "today" (BLOC TECHNICAL §35: Sunday 2 Aug 2026). */
 export const DEMO_ANCHOR = '2026-08-02';
@@ -106,6 +107,7 @@ export function createFixtureRepo(demo: Record<string, unknown>, onProfile: (p: 
   };
   const plan = { drafts: [] as PlanDraft[], templates: fixtureTemplates(clients.find((c) => c.card.id === 'maya'), built.now) };
   return {
+    ...fixtureDiary(built.anchor),
     kind: 'fixture',
     anchor: built.anchor,
     now: () => built.now,
