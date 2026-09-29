@@ -8591,9 +8591,10 @@ The sheet and the section say when the last one went (`state.coachCheckinsSent`,
 v8.41 UAT: *"progress photos were only ever used in the cycle review … the prompt to the LLM never had
 photo options wired up for checkins"*. The first draft shipped them on Check in, and they moved.
 
-**Photos for the cycle review** (Adam: *"Review tab, cycle's end"*):
-- **Where:** the Review tab shows **Send photos for your review** from the viewed cycle's **last 7 days**
-  and after it ends (`coachReviewPhotosDue()`), the window Solo's "Review this cycle" works in.
+**Photos for the cycle review** (v8.41–v8.43; **since v8.44 they're sent only in answer to the coach's
+request, §142**, and the unprompted row below is gone):
+- **Where:** the Review tab showed **Send photos for your review** from the viewed cycle's **last 7 days**
+  and after it ended (`coachReviewPhotosDue()`, removed in v8.44).
 - **The sheet** (`modal-coach-review-photos`) takes **Before** and **After** photos, up to 3 each, as
   Solo's review does. They're downsized by `_downsizePhotoFileToBase64`, 1024px JPEG.
 - **Uploads:** to `client-media` at `{uid}/reviews/{folder}/{before|after}-{n}.jpg`, **then** one
@@ -9667,3 +9668,42 @@ has one destination and logs nothing, and that no repo call, payload or data fil
   Cancel the request; no horizontal scroll, no console errors.
 - 🚨 **Fields side by side in a grid set no top margin** (`.tiles-2 > .field`), as tiles do (§140): `.field +
   .field` pushed the second field of each row lower than the first.
+## §142 — v8.44: the coach asks for cycle-review photos; the client sends them or skips
+
+**What it is.** Progress photos are part of a cycle review, so the coach asks for them **before** running it.
+BLOC Coach publishes a `photo_request` (migration `0027`: `{v, request_id, macro_id, cancelled?}`) to the
+client's card. BLOC applies it through the one funnel (§131, `applyPhotoRequestPublication`), raises a Home
+banner, "{coach} asked for photos for your review", whose **Send photos** opens the photo sheet for that cycle,
+and the client either sends photos or taps **Skip photos**. Coach runs the review once the answer is in
+(Coach, TECHNICAL §141). BLOC no longer offers photos unprompted.
+
+**State.** `state.coachPhotoRequests[request_id] = {macroId, seq, publishedAt, cancelled, answered}`, in the
+client's state like the ledger, so a restore keeps it. A repeat of the `request_id` with `cancelled: true`
+closes the request and dismisses its banner. An answered request is never raised again (a re-apply after a
+restore finds `answered` set). A request with no `request_id` or `macro_id` is held (`needs_attention`).
+
+**The banner** is a Home notice of kind `photos` (§137's one slot, count and permanent ✕), with the request id,
+and its action `openCoachPhotoRequest(requestId)`. The From your coach Review tab shows the open request too
+("{coach} asked for photos for your review"), for the viewed cycle, or for any cycle when Progress has none to
+view (a coached client whose running cycle isn't the coach's yet sees no cycle switch). Once answered, the row
+reads "✓ Photos sent to {coach} for this review · {day}" or "✓ You skipped photos for this review · {day}".
+
+**The sheet** (`modal-coach-review-photos`, §135's): before and after, up to 3 each, then **Send photos**; and
+**Skip photos** ("{coach} runs your review without them"). The answer is one `client_submissions` row, kind
+`check_in`, as before:
+- photos: `body {v, purpose: 'cycle_review', request_id, macro_id, before: [paths], after: [paths], sent_on}`;
+- skip: `body {v, purpose: 'cycle_review', request_id, macro_id, skipped: true, before: [], after: [], sent_on}`.
+
+Either marks the request answered, dismisses its banner, saves and closes the sheet (`answerPhotoRequest`).
+
+🚨 **Skip needs no photo consent; photos do.** With consent off the sheet shows "Photos are off · turn them on in
+Coaching…" (the §135 shortcut) in place of the photo grids and Send, and still offers Skip, so a client who
+doesn't want to share photos can still let the review go ahead. Consent is still read at send time, and a failed
+insert still removes the photos it uploaded.
+
+**No push yet.** Coach's notifications need BLOC's `sw.js` to route by tag, which is its own change (the iOS subscription risk, §112–§113); until then the banner is the way in.
+
+**Check:** `verify-publications-apply.mjs` (the applier: kept, banner raised naming the cycle, cancellation closes
+it, answered never re-raised, no cycle held) and `verify-from-coach.mjs` §5 (no unprompted row; the request on
+the Review tab, with and without a viewed cycle; send with `request_id`; skip with consent off; consent withdrawn
+at send; a failed insert). Controls: v8.38 and v8.40, as before.

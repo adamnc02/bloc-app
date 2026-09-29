@@ -65,12 +65,15 @@ const FNS = ['coachLedger', 'publicationCursor', 'publicationsMustWait', 'pubCop
   'applyNoteReplyPublication', 'applyPublications', 'drainPublications', 'sendPendingAcks',
   // v8.43 (§137): a coach-logged session applies now, and the appliers raise the banners.
   'trainSetKeysFor', 'coachSessionPlace', 'applySessionLogPublication', 'applyGroupSessionLog', 'queueStoredSessionLogs',
-  'addCoachNotice', 'addGoalPhasesNotice'];
+  'addCoachNotice', 'addGoalPhasesNotice',
+  // v8.44 (§142): the coach's request for cycle-review photos.
+  'applyPhotoRequestPublication', 'dismissPhotoRequestNotices'];
 const CONSTS = ['PUB_MACRO_FIELDS', 'COACH_LOG_NUM_FIELDS', 'COACH_NOTICE_KEEP', 'PUB_APPLIERS'];
 // Absent from the older builds the controls run (bdb3f58, c5949c3): stubbed
 // there, so each control still fails only for the reason it exists.
 const OPTIONAL = new Set(['trainSetKeysFor', 'coachSessionPlace', 'applySessionLogPublication', 'applyGroupSessionLog',
-  'queueStoredSessionLogs', 'addCoachNotice', 'addGoalPhasesNotice', 'COACH_LOG_NUM_FIELDS', 'COACH_NOTICE_KEEP']);
+  'queueStoredSessionLogs', 'addCoachNotice', 'addGoalPhasesNotice', 'COACH_LOG_NUM_FIELDS', 'COACH_NOTICE_KEEP',
+  'applyPhotoRequestPublication', 'dismissPhotoRequestNotices']);
 
 function build(source) {
   const bodies = FNS.map(n => extract(source, n) || (OPTIONAL.has(n) ? `function ${n}() {}` : null));
@@ -272,6 +275,21 @@ async function run(source, label) {
     r = P.applyPublications([sl]);
     check('a coach-logged session applies, with its receipt (v8.43; 4d stored it)', [P.state.coachSessionLogs[sl.id].applied, r.acks.length, P.coachLedger()[sl.id].status], [true, 1, 'applied']);
     check('an unknown type is held, not dropped', P.applyPublications([pub('mystery', {})]).acks[0].status, 'needs_attention');
+
+    // v8.44 (§142): a photo request is kept and raises a Home banner; a
+    // cancellation (same request_id) closes it; one with no cycle is held.
+    const pr = pub('photo_request', { request_id: 'pr1', macro_id: DEMO_MACRO.id });
+    r = P.applyPublications([pr]);
+    const bannerOf = id => (P.state.coachNotices || []).find(n => n.kind === 'photos' && n.requestId === id);
+    check('a photo request is kept, applied, and raises a "photos" Home banner naming the cycle',
+      [r.acks[0].status, P.state.coachPhotoRequests.pr1.macroId, P.state.coachPhotoRequests.pr1.cancelled, !!bannerOf('pr1'), (bannerOf('pr1') || {}).dismissed, /“.+”/.test((bannerOf('pr1') || {}).body || '')],
+      ['applied', DEMO_MACRO.id, false, true, false, true]);
+    P.applyPublications([pub('photo_request', { request_id: 'pr1', macro_id: DEMO_MACRO.id, cancelled: true })]);
+    check('…a cancellation closes it and its banner', [P.state.coachPhotoRequests.pr1.cancelled, bannerOf('pr1').dismissed], [true, true]);
+    P.state.coachPhotoRequests.pr2 = { macroId: DEMO_MACRO.id, answered: { skipped: true } };
+    P.applyPublications([pub('photo_request', { request_id: 'pr2', macro_id: DEMO_MACRO.id })]);
+    check('…an answered request is never raised again', !!bannerOf('pr2'), false);
+    check('…and one with no cycle is held', P.applyPublications([pub('photo_request', { request_id: 'pr3' })]).acks[0].status, 'needs_attention');
   }
 
   // ── supersedes

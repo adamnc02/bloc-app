@@ -19,11 +19,14 @@
 //     'check_in': feel (Tough · Okay · Good · Great, lowest on the left) and a
 //     note. 🚨 NO photos (Adam, v8.41 UAT: in BLOC photos only ever fed the
 //     cycle review; the check-in prompt has no images).
-//   · Review photos: from the cycle's last 7 days (and after), the Review tab
-//     offers "Send photos for your review": before/after to client-media,
-//     then one check_in row with purpose 'cycle_review'. 🚨 Only while photo
-//     consent is on, read at SEND time; with it off the row is a shortcut to
-//     Settings → Coaching; a failed insert removes what it uploaded.
+//   · Review photos (v8.44, §142): only in answer to the coach's request (a
+//     `photo_request`, verify-publications-apply.mjs), never unprompted. The
+//     sheet sends before/after to client-media, then one check_in row with
+//     purpose 'cycle_review' and the request_id; or Skip sends that row with
+//     `skipped: true` and no photos. Either answers the request and clears its
+//     banner. 🚨 Photos only while photo consent is on, read at SEND time;
+//     with it off the sheet links to Settings → Coaching and still offers
+//     Skip; a failed insert removes what it uploaded.
 //   · Everything the coach wrote is escaped: it's text, never markup.
 //
 // It lifts the real functions out of index.html (the golden extractor) and
@@ -43,12 +46,14 @@ const CONTROL = '99273df';
 const STUBS = ['state', 'save', 'coachLinkGet', 'coachingAvailable', 'isCoachedMode', 'supabase', '_authResolvedSession',
   'renderProgress', 'openModal', 'closeModal', 'getLocalToday', '_downsizePhotoFileToBase64', 'document', 'engineCtx',
   'coachedView', // v8.43 (§137)
-  'coachCheckinGate']; // v8.43: Check in's rhythm is verify-coach-logged's; here it's open unless a test closes it
+  'coachCheckinGate', // v8.43: Check in's rhythm is verify-coach-logged's; here it's open unless a test closes it
+  'renderHomeCoachBanner']; // v8.44
 
 function build(src) {
   const { decls } = indexTopLevel(mainScript(src));
   const seeds = ['renderProgressFromCoach', 'openCoachResponse', 'openCoachNote', 'sendCoachNote', 'openCoachCheckin', 'sendCoachCheckin',
-    'setCoachCheckinFeel', 'coachToolKey', 'coachAdviceContent', 'applyAiResponsePublication', 'openCoachReviewPhotos', 'sendCoachReviewPhotos'];
+    'setCoachCheckinFeel', 'coachToolKey', 'coachAdviceContent', 'applyAiResponsePublication', 'openCoachPhotoRequest', 'sendCoachReviewPhotos',
+    'skipCoachReviewPhotos']; // v8.44 (§142): photos only in answer to the coach's request
   for (const s of seeds) if (!decls.has(s)) return null;
   const parts = closure(decls, seeds, new Set(STUBS));
   return new Function('env', `
@@ -59,6 +64,7 @@ function build(src) {
     const isCoachedMode = () => !!env.link;
     const coachedView = () => !!env.link;
     const coachCheckinGate = () => env.gate || { open: true };
+    const renderHomeCoachBanner = () => env.log.push(['banner']);
     const supabase = env.supabase;
     const _authResolvedSession = { user: { id: 'u1' } };
     const renderProgress = () => env.log.push(['render']);
@@ -71,7 +77,7 @@ function build(src) {
     const atob = s => Buffer.from(s, 'base64').toString('binary');
     ${parts.map(p => p.text).join('\n')}
     return { renderProgressFromCoach, openCoachResponse, openCoachNote, sendCoachNote, openCoachCheckin, sendCoachCheckin, setCoachCheckinFeel,
-      coachToolKey, coachAdviceContent, applyAiResponsePublication, openCoachReviewPhotos, sendCoachReviewPhotos,
+      coachToolKey, coachAdviceContent, applyAiResponsePublication, openCoachPhotoRequest, sendCoachReviewPhotos, skipCoachReviewPhotos,
       get checkin() { return _coachCheckin; }, get review() { return _coachReview; } };`);
 }
 
@@ -251,54 +257,75 @@ async function run(label, src) {
       [env.state.coachCheckinsSent.length, env.log.some(l => l[0] === 'close' && l[1] === 'modal-coach-checkin')], [1, true]);
   }
 
-  // ── 5. Photos for the cycle review ───────────────────────────────────────
+  // ── 5. Photos for the cycle review: only in answer to a request (v8.44, §142)
   {
-    // today is 2026-09-28 (the stub). A 4-week cycle from 2026-09-07 ends
-    // 2026-10-04: its last 7 days began 2026-09-28. One from 2026-09-14 ends
-    // 2026-10-11: not yet.
     const ending = { id: 'mE', name: 'Ending', start: '2026-09-07', weeks: 4 };
-    const early = { id: 'mS', name: 'Early', start: '2026-09-14', weeks: 4 };
     const env = makeEnv();
-    env.state.macrocycles = [ending, early];
+    env.state.macrocycles = [ending];
+    env.state.coachNotices = [{ id: 'n1', kind: 'photos', requestId: 'pr1', dismissed: false }];
     const F = factory(env);
-    // Each cycle holds only review responses, so its card opens on the Review tab.
     const reviewTab = m => { const el = { innerHTML: '' }; F.renderProgressFromCoach(el, m); return el.innerHTML; };
-    env.state.coachAdvice = [advice({ responseId: 'rv', tool: 'cycle_review', macroId: 'mE', seq: 9 }), advice({ responseId: 'rv2', tool: 'cycle_review', macroId: 'mS', seq: 10 })];
-    const hE = reviewTab(ending), hS = reviewTab(early);
-    check('the Review tab offers "Send photos for your review" from the cycle\'s last 7 days, not before',
-      [hE.includes('Send photos for your review'), hS.includes('Send photos for your review')], [true, false]);
-    env.link.photoConsent = false;
-    const off = reviewTab(ending);
-    check('with photo consent off, the row is a shortcut to Settings → Coaching instead', [off.includes('Photos are off'), off.includes('openCoachingPhotoConsent()'), off.includes('Send photos for your review')], [true, true, false]);
-    env.link.photoConsent = true;
+    env.state.coachAdvice = [advice({ responseId: 'rv', tool: 'cycle_review', macroId: 'mE', seq: 9 })];
+    check('🚨 no request, no photo row: nothing is sent unprompted (v8.41–v8.43 offered it in the last 7 days)',
+      [/photos for your review|openCoachPhotoRequest|Send photos/.test(reviewTab(ending))], [false]);
+    env.state.coachPhotoRequests = { pr1: { macroId: 'mE', seq: 12, cancelled: false, answered: null } };
+    const asked = reviewTab(ending);
+    check('a request shows on the Review tab, opening the sheet for it', [asked.includes('Sam asked for photos for your review'), asked.includes("openCoachPhotoRequest('pr1')")], [true, true]);
+    check('…and with no cycle to view (a client whose cycles aren\'t the coach\'s), still shows', reviewTab(null).includes("openCoachPhotoRequest('pr1')"), true);
 
-    F.openCoachReviewPhotos('mE');
+    F.openCoachPhotoRequest('pr1');
+    const sheet = env.document.getElementById('coach-review-photos-body').innerHTML;
+    check('the sheet offers Send photos and Skip photos', [sheet.includes('sendCoachReviewPhotos()'), sheet.includes('skipCoachReviewPhotos()')], [true, true]);
     F.review.before.push({ base64: 'AAAA' }); F.review.after.push({ base64: 'BBBB' }, { base64: 'CCCC' });
     await F.sendCoachReviewPhotos();
     const up = env.calls.filter(c => c[0] === 'upload').map(c => c[2]);
     check('before/after go to client-media under {uid}/reviews/{folder}/', up.map(p => p.replace(/\/reviews\/[^/]+\//, '/reviews/F/')),
       ['u1/reviews/F/before-1.jpg', 'u1/reviews/F/after-1.jpg', 'u1/reviews/F/after-2.jpg']);
     const ins = env.calls.find(c => c[0] === 'insert');
-    check('…then one check_in row, purpose cycle_review, naming the cycle and the paths',
-      [ins[2].kind, ins[2].body.purpose, ins[2].body.macro_id, ins[2].body.before, ins[2].body.after], ['check_in', 'cycle_review', 'mE', up.slice(0, 1), up.slice(1)]);
-    check('…remembered per cycle, so the row then says they were sent', [!!env.state.coachReviewPhotosSent.mE, reviewTab(ending).includes('Photos sent to Sam for this review')], [true, true]);
+    check('…then one check_in row, purpose cycle_review, naming the request, the cycle and the paths',
+      [ins[2].kind, ins[2].body.purpose, ins[2].body.request_id, ins[2].body.macro_id, ins[2].body.before, ins[2].body.after, 'skipped' in ins[2].body],
+      ['check_in', 'cycle_review', 'pr1', 'mE', up.slice(0, 1), up.slice(1), false]);
+    check('…the request is answered, its banner gone, and the row says the photos went',
+      [!!env.state.coachPhotoRequests.pr1.answered, env.state.coachNotices[0].dismissed, reviewTab(ending).includes('Photos sent to Sam for this review'), env.log.some(l => l[0] === 'close' && l[1] === 'modal-coach-review-photos')],
+      [true, true, true, true]);
+    F.openCoachPhotoRequest('pr1');
+    check('an answered request doesn\'t open the sheet again', F.review, null);
+
+    // Skip: no consent needed, nothing uploaded.
+    const envS = makeEnv(); envS.state.macrocycles = [ending]; envS.link.photoConsent = false;
+    envS.state.coachPhotoRequests = { pr2: { macroId: 'mE', seq: 13, cancelled: false, answered: null } };
+    const S = factory(envS);
+    S.openCoachPhotoRequest('pr2');
+    const offSheet = envS.document.getElementById('coach-review-photos-body').innerHTML;
+    check('with photo consent off the sheet links to Coaching and still offers Skip, not Send',
+      [offSheet.includes('openCoachingPhotoConsent()'), offSheet.includes('skipCoachReviewPhotos()'), offSheet.includes('sendCoachReviewPhotos()')], [true, true, false]);
+    await S.skipCoachReviewPhotos();
+    const sk = envS.calls.find(c => c[0] === 'insert');
+    check('Skip sends one cycle_review row marked skipped, with no photos, and answers the request',
+      [envS.calls.filter(c => c[0] === 'upload').length, sk[2].body.purpose, sk[2].body.request_id, sk[2].body.skipped, sk[2].body.before, envS.state.coachPhotoRequests.pr2.answered.skipped],
+      [0, 'cycle_review', 'pr2', true, [], true]);
+    envS.state.coachAdvice = [advice({ responseId: 'rv', tool: 'cycle_review', macroId: 'mE', seq: 9 })];
+    const skEl = { innerHTML: '' }; S.renderProgressFromCoach(skEl, ending);
+    check('…and the row then says so', skEl.innerHTML.includes('You skipped photos for this review'), true);
 
     const envN = makeEnv(); envN.state.macrocycles = [ending];
+    envN.state.coachPhotoRequests = { pr3: { macroId: 'mE', seq: 14, cancelled: false, answered: null } };
     const N = factory(envN);
-    N.openCoachReviewPhotos('mE'); N.review.before.push({ base64: 'AAAA' });
+    N.openCoachPhotoRequest('pr3'); N.review.before.push({ base64: 'AAAA' });
     envN.link.photoConsent = false; // withdrawn after picking
     await N.sendCoachReviewPhotos();
     check('🚨 consent OFF at send time: nothing uploaded, nothing inserted, and the error links to Coaching',
       [envN.calls.length, /openCoachingPhotoConsent/.test(N.review.error)], [0, true]);
 
     const envE = makeEnv({ insertError: { message: 'not your coach' } }); envE.state.macrocycles = [ending];
+    envE.state.coachPhotoRequests = { pr4: { macroId: 'mE', seq: 15, cancelled: false, answered: null } };
     const E = factory(envE);
-    E.openCoachReviewPhotos('mE'); E.review.after.push({ base64: 'AAAA' });
+    E.openCoachPhotoRequest('pr4'); E.review.after.push({ base64: 'AAAA' });
     await E.sendCoachReviewPhotos();
     const up2 = envE.calls.filter(c => c[0] === 'upload').map(c => c[2]);
-    check('a failed insert removes the photos it uploaded, records nothing, and keeps the sheet open with the reason',
-      [envE.calls.filter(c => c[0] === 'remove').map(c => c[2])[0], envE.state.coachReviewPhotosSent, E.review && E.review.error.startsWith('Couldn’t send them')],
-      [up2, undefined, true]);
+    check('a failed insert removes the photos it uploaded, answers nothing, and keeps the sheet open with the reason',
+      [envE.calls.filter(c => c[0] === 'remove').map(c => c[2])[0], envE.state.coachPhotoRequests.pr4.answered, E.review && E.review.error.startsWith('Couldn’t send them')],
+      [up2, null, true]);
   }
   return failures;
 }
