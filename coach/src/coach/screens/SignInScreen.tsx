@@ -86,7 +86,7 @@ export function SignInScreen() {
   return (
     <div className="auth-gate">
       <div className="auth-gate-inner">
-        <div className="auth-gate-logo"><CoachLogo height={44} /></div>
+        <div className="auth-gate-logo"><CoachLogo fill /></div>
         <div className="auth-gate-tagline">Sign in to continue</div>
 
         <button type="button" className="auth-provider-btn" onClick={google}>{GOOGLE}<span>Continue with Google</span></button>

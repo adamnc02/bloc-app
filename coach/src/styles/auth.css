@@ -15,7 +15,7 @@
   font-family: var(--font-body); font-size: 14px; color: var(--text);
 }
 .auth-gate-inner { width: 100%; max-width: 360px; margin: auto; }
-.auth-gate-logo { display: flex; justify-content: center; }
+.auth-gate-logo { width: 100%; margin-bottom: 12px; } /* Coach's one difference: the logo, as wide as the buttons (Adam, 2026-09-29) */
 .auth-gate-tagline {
   font-size: 13px; color: var(--text2); text-align: center;
   margin: 6px 0 28px;

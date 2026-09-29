@@ -44,9 +44,15 @@ export function BlocLogo({ height = 28 }: { height?: number }) {
 }
 
 /** BLOC Coach lock-up: mark + BLOC + COACH in Dune hairline italic. */
-export function CoachLogo({ height = 40 }: { height?: number }) {
+/**
+ * `fill`: the artwork spans its container's full width, edge to edge (the
+ * padding is cropped to the artwork's measured bounds, 34 24 501.8 164), e.g. the sign-in screen, where the
+ * logo is as wide as the buttons below it (Adam, 2026-09-29).
+ */
+export function CoachLogo({ height = 40, fill }: { height?: number; fill?: boolean }) {
   return (
-    <svg height={height} viewBox="0 0 559.8 212" role="img" aria-label="BLOC Coach">
+    <svg {...(fill ? { width: '100%', style: { display: 'block', height: 'auto' } } : { height })}
+      viewBox={fill ? '34 24 501.8 164' : '0 0 559.8 212'} role="img" aria-label="BLOC Coach">
       <g transform="translate(24 24)">
         <g transform="translate(0 32)">{MARK}</g>
         <g transform="translate(140 0)">{BLOC_TYPE}{COACH_ITALIC}</g>
