@@ -10169,12 +10169,19 @@ function applyBookingPublication(pub) {
   const was = replaced && state.coachBookings[replaced.booking_id];
   const wasWhen = replaced ? coachDateTimeFmt(replaced.date, was && was.start_min != null ? was.start_min : null) : '';
   const dayName = d => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long' });
-  if (p.status === 'cancelled') { if (before && before.status !== 'cancelled') addCoachNotice(pub, 'booking', 'Session cancelled', `${when} with ${coach} is off.`); }
+  // v8.47 (§151): a booking with a `title` is a group session (Coach sends one for every group, never for a
+  // one-to-one); its banners name the group.
+  const group = typeof p.title === 'string' && p.title ? p.title : null;
+  if (p.status === 'cancelled') {
+    if (before && before.status !== 'cancelled') addCoachNotice(pub, 'booking', group ? 'Group session cancelled' : 'Session cancelled',
+      group ? `${group} on ${when} with ${coach} is off for you.` : `${when} with ${coach} is off.`);
+  }
   else if (!before || before.status === 'cancelled') {
     if (replaced && coachBookingWeekly(p)) addCoachNotice(pub, 'booking', 'Session changed', `Your weekly session with ${coach} is now every ${dayName(p.date)} at ${coachMinToHHMM(p.start_min)}, from ${coachDayFmt(coachBookingNextDate(p, today) || p.date)}.`);
     else if (replaced) addCoachNotice(pub, 'booking', 'Session changed', `${wasWhen} with ${coach} is now ${when}.`);
     // A booking that was cancelled and is booked again is back on, not new.
     else if (before) addCoachNotice(pub, 'booking', 'Session back on', `${nextWhen} with ${coach} is back on.`);
+    else if (group) addCoachNotice(pub, 'booking', 'Added to a group session', `${coach} added you to ${group}: ${nextWhen}${coachBookingWeekly(p) ? ', weekly' : ''}.`);
     else addCoachNotice(pub, 'booking', 'Session confirmed', `${coach} booked you in: ${nextWhen}${coachBookingWeekly(p) ? ', weekly' : ''}.`);
   }
   else if (before.date !== p.date || before.start_min !== p.start_min) addCoachNotice(pub, 'booking', 'Session changed', `${coach} moved it to ${nextWhen}.`);
