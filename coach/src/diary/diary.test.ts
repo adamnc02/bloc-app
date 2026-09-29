@@ -10,7 +10,7 @@ import { cancelledOn, occurrencesBetween, placeholderState, requestSlot, seriesD
 import { findClash, findSeriesClash, requestClashes } from './rules';
 import { BOOKING_KEYS, bookingChanges, canonical, desiredBookings, MAX_SKIP_DATES, type BookingPayload } from './publish';
 import {
-  addDayOff, autoBook, bookRequest, cancelSession, createSession, editRefusal, editSession, makeWeekly, newRefusal, proposeTime, undoDayOff,
+  addDayOff, autoBook, bookRequest, cancelSession, createSession, editRefusal, editSession, makeWeekly, newRefusal, proposeTime, removeFromGroup, undoDayOff,
 } from './actions';
 import { DEFAULT_SETTINGS, type Diary, type Series } from './types';
 
@@ -304,6 +304,21 @@ describe('actions (fixture repo)', () => {
     const d = await addDayOff(r, await r.loadDiary(), WED, WED, null, true);
     expect(cancelledOn(d, WED)).toEqual({ count: 2, clientIds: ['eileen', 'ben'] });
     expect(cancelledOn(d, THU).count).toBe(0);
+  });
+  it('taking one client out of a group: they’re sent a cancellation, the group carries on, the others are sent nothing', async () => {
+    const r = fresh();
+    let d = await r.loadDiary();
+    d = await removeFromGroup(r, d, occ(d, `s:sr-bootcamp@${SAT}`), 'grace');
+    expect(last(r)).toEqual(['grace sr-bootcamp cancelled']);
+    expect(d.sent['grace|sr-bootcamp'].payload.title).toBe('Saturday bootcamp');   // names the group on the phone
+    expect(occ(d, `s:sr-bootcamp@${SAT}`).clientIds).toEqual(['maya', 'priya']);
+    expect(occ(d, `s:sr-bootcamp@${addDays(SAT, 7)}`).clientIds).toEqual(['maya', 'priya']);
+  });
+  it('a group always carries a title to the phone ("Group session" when unnamed); a one-to-one never does', async () => {
+    const r = fresh();
+    const d = await createSession(r, await r.loadDiary(), { kind: 'group', weekly: false, date: FRI, start: 600, duration: 60, location: null, title: null, clientIds: ['sam', 'leah'] });
+    expect(['sam', 'leah'].map((c) => Object.entries(d.sent).find(([k]) => k.startsWith(`${c}|bk-`))![1].payload.title)).toEqual(['Group session', 'Group session']);
+    expect(d.sent['maya|sr-maya'].payload.title).toBeNull();
   });
   it('propose a time: the placeholder moves and waits for the client', async () => {
     const r = fresh();

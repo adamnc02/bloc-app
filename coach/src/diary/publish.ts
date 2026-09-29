@@ -61,7 +61,7 @@ function seriesPayload(d: Diary, s: Series): BookingPayload | null {
   const prev = predecessor(d, s);
   return {
     v: 1, booking_id: s.id, date: first, start_min: s.start, duration_min: s.duration, status: live ? 'booked' : 'cancelled', kind: 'weekly',
-    location: s.location, title: s.title, skip_dates: skip, until: s.to,
+    location: s.location, title: titleOf(s), skip_dates: skip, until: s.to,
     ...(prev ? { replaces: { booking_id: prev.id, date: addDays(prev.to!, 1) } } : {}),
   };
 }
@@ -81,9 +81,15 @@ export function predecessor(d: Pick<Diary, 'series'>, s: Series): Series | null 
 function oneOffPayload(b: Booking): BookingPayload {
   return {
     v: 1, booking_id: b.id, date: b.date, start_min: b.start, duration_min: b.duration,
-    status: b.status, kind: 'one_off', location: b.location, title: b.title,
+    status: b.status, kind: 'one_off', location: b.location, title: titleOf(b),
   };
 }
+
+/**
+ * A group session always has a title on the phone, and a one-to-one never does:
+ * BLOC reads a title as "a group session" ("Added to a group session", naming it).
+ */
+export const titleOf = (x: Pick<Booking, 'kind' | 'title'>) => (x.kind === 'group' ? x.title?.trim() || 'Group session' : null);
 
 /** Every card's bookings as they should be now, keyed `${cardId}|${booking_id}`. */
 export function desiredBookings(d: Diary): Map<string, { cardId: string; payload: BookingPayload }> {

@@ -45,7 +45,7 @@ export function TimePicker({ date, start, duration, dayStart, dayEnd, onChange, 
           <select id={`${id}-hour`} className="input" value={hour} onChange={(e) => onChange(date, fit(Number(e.target.value) + min))} aria-label="Hour">
             {hours.map((h) => <option key={h} value={h}>{fmt.hour(h)}</option>)}
           </select>
-          <Seg label="Minutes past the hour" value={String(min).padStart(2, '0') as (typeof MINUTES)[number]}
+          <Seg accent label="Minutes past the hour" value={String(min).padStart(2, '0') as (typeof MINUTES)[number]}
             options={MINUTES.map((m) => ({ value: m, label: `:${m}` }))} onChange={(m) => onChange(date, fit(hour + Number(m)))} />
         </div>
       </Field>
@@ -186,7 +186,7 @@ export function NewSessionSheet({ diary, who, bundles, date, start, clientId, on
   return (
     <Sheet open title="Book a session" onClose={onClose}>
       <Field label="Kind">
-        <Seg label="Kind" value={n.kind} onChange={(k: SessionKind) => set({ kind: k, clientIds: k === 'one_to_one' ? n.clientIds.slice(0, 1) : n.clientIds })}
+        <Seg accent label="Kind" value={n.kind} onChange={(k: SessionKind) => set({ kind: k, clientIds: k === 'one_to_one' ? n.clientIds.slice(0, 1) : n.clientIds })}
           options={[{ value: 'one_to_one', label: 'One-to-one' }, { value: 'group', label: 'Group' }]} />
       </Field>
       {group && (
@@ -200,7 +200,7 @@ export function NewSessionSheet({ diary, who, bundles, date, start, clientId, on
         <Stepper label="length" value={n.duration} min={15} max={480} step={15} format={lengthLabel} onChange={(v) => set({ duration: v, start: Math.min(n.start, 1440 - v) })} />
       </Field>
       <Field label="Repeats">
-        <Seg label="Repeats" value={n.weekly ? 'weekly' : 'one'} onChange={(v) => set({ weekly: v === 'weekly' })}
+        <Seg accent label="Repeats" value={n.weekly ? 'weekly' : 'one'} onChange={(v) => set({ weekly: v === 'weekly' })}
           options={[{ value: 'one', label: 'One-off' }, { value: 'weekly', label: `Every ${fmt.dayShort(n.date)}` }]} />
       </Field>
       <Field label="Location" htmlFor={`${id}-loc`}>
@@ -242,7 +242,7 @@ export function DayOffSheet({ diary, who, today, date, onConfirm, onClose }: {
   return (
     <Sheet open title={affected.length ? 'Let clients know?' : 'Mark a day off'} onClose={onClose}>
       <Field label="How long">
-        <Seg label="How long" value={several ? 'many' : 'one'} onChange={(v) => setSeveral(v === 'many')} options={[{ value: 'one', label: 'One day' }, { value: 'many', label: 'Several days' }]} />
+        <Seg accent label="How long" value={several ? 'many' : 'one'} onChange={(v) => setSeveral(v === 'many')} options={[{ value: 'one', label: 'One day' }, { value: 'many', label: 'Several days' }]} />
       </Field>
       <div className={several ? 'tiles-2' : undefined}>
         <Field label={several ? 'From' : 'Day'} htmlFor={`${id}-s`}>

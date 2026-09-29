@@ -118,6 +118,25 @@ export async function createSession(repo: DiaryRepo, d: Diary, n: NewSession): P
   return publishChanges(repo);
 }
 
+/**
+ * Take one client out of a group session, which carries on for everyone else:
+ * the weekly group from now on, or a one-off group. That client's card is sent
+ * the booking as cancelled ("Group session cancelled" on their phone); the
+ * others' bookings don't change, so nothing is sent to them.
+ */
+export async function removeFromGroup(repo: DiaryRepo, d: Diary, occ: Occurrence, cardId: string): Promise<Diary> {
+  const without = occ.clientIds.filter((c) => c !== cardId);
+  if (occ.recurring && occ.seriesId) {
+    const s = d.series.find((x) => x.id === occ.seriesId)!;
+    await repo.updateSeries(s.id, { clientIds: s.clientIds.filter((c) => c !== cardId) });
+    // Its weeks changed on their own carry the same group.
+    for (const b of d.bookings) if (b.seriesId === s.id && b.status === 'booked' && b.clientIds.includes(cardId)) await repo.updateBooking(b.id, { clientIds: b.clientIds.filter((c) => c !== cardId) });
+  } else {
+    await repo.updateBooking(occ.bookingId!, { clientIds: without });
+  }
+  return publishChanges(repo);
+}
+
 /** A one-off becomes a weekly session from its date (the one-off's own publication is replaced quietly). */
 export async function makeWeekly(repo: DiaryRepo, d: Diary, occ: Occurrence): Promise<Diary> {
   const wd = weekday(occ.date);

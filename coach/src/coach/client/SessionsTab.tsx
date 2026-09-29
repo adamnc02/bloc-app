@@ -16,7 +16,8 @@ import { navigate } from '@/app/router';
 import { addDays, fmt } from '@/lib/format';
 import { lengthLabel } from '@/diary/slots';
 import { occurrencesBetween, requestSlot, type Occurrence } from '@/diary/model';
-import { bookRequest, createSession, declineRequest, proposeTime } from '@/diary/actions';
+import { bookRequest, cancelSession, createSession, declineRequest, proposeTime, removeFromGroup } from '@/diary/actions';
+import { Sheet } from '@/components/ui/Sheet';
 import { prefLabel } from '@/coach/diary/BookingBlock';
 import { NewSessionSheet, RequestSheet } from '@/coach/diary/DiarySheets';
 import { useDiaryData } from '@/coach/diary/useDiaryData';
@@ -31,7 +32,7 @@ function KindTag({ o }: { o: Occurrence }) {
 
 export function SessionsTab({ v }: { v: ClientView }) {
   const { repo, diary, bundles, error, who, today, nowMin, run, toast } = useDiaryData();
-  const [sheet, setSheet] = useState<{ type: 'new' } | { type: 'request'; id: string } | null>(null);
+  const [sheet, setSheet] = useState<{ type: 'new' } | { type: 'request'; id: string } | { type: 'session'; key: string } | null>(null);
   const cardId = v.bundle.card.id;
   const first = v.first;
 
@@ -48,6 +49,10 @@ export function SessionsTab({ v }: { v: ClientView }) {
   const notOnApp = v.summary.status !== 'linked' && v.summary.status !== 'invited';
   const empty = !list.length && !requests.length && !weekly.length;
   const req = sheet?.type === 'request' ? diary.requests.find((r) => r.id === sheet.id) : undefined;
+  // A weekly row opens its next week; look past the two-week list for it.
+  const ahead = occurrencesBetween(diary, today, addDays(today, 90)).filter((o) => mine(o) && o.kind !== 'request');
+  const nextOf = (seriesId: string) => ahead.find((o) => o.seriesId === seriesId && o.recurring);
+  const acting = sheet?.type === 'session' ? ahead.find((o) => o.key === sheet.key) : undefined;
   const defaultStart = Math.min(Math.max(diary.settings.dayStart, Math.ceil((nowMin + 1) / 60) * 60), diary.settings.dayEnd - diary.settings.sessionMinutes);
 
   return (
@@ -106,7 +111,7 @@ export function SessionsTab({ v }: { v: ClientView }) {
         <Section i={3} title="Weekly" sub="Sessions that repeat every week. Move or stop one from the Diary.">
           <div className="card list">
             {weekly.map((s) => (
-              <div key={s.id} className="listrow" style={{ cursor: 'default' }}>
+              <button key={s.id} type="button" className="listrow" disabled={!nextOf(s.id)} onClick={() => { const n = nextOf(s.id); if (n) setSheet({ type: 'session', key: n.key }); }}>
                 <span className="icon-tile"><Icon name={s.kind === 'group' ? 'group' : 'sync'} size={18} /></span>
                 <span className="main">
                   <b className="num">{DAY_PLURAL[s.weekday]} · {fmt.time(s.start)}–{fmt.time(s.start + s.duration)}</b>
@@ -115,7 +120,8 @@ export function SessionsTab({ v }: { v: ClientView }) {
                   </small>
                 </span>
                 {s.kind === 'group' ? <Tag tone="blue">Group</Tag> : <Tag tone="neutral">Weekly</Tag>}
-              </div>
+                <Icon name="chevR" size={18} />
+              </button>
             ))}
           </div>
         </Section>
@@ -126,7 +132,7 @@ export function SessionsTab({ v }: { v: ClientView }) {
           {list.length ? (
             <div className="card list">
               {list.map((o) => (
-                <div key={o.key} className="listrow" style={{ cursor: 'default' }}>
+                <button key={o.key} type="button" className="listrow" onClick={() => setSheet({ type: 'session', key: o.key })}>
                   <span style={{ width: 44, textAlign: 'center', flexShrink: 0 }} aria-hidden="true">
                     <span className="caption" style={{ display: 'block', textTransform: 'uppercase', letterSpacing: '.1em', fontWeight: 700 }}>{fmt.dayShort(o.date)}</span>
                     <span className="display num" style={{ fontSize: 20 }}>{Number(o.date.slice(8))}</span>
@@ -138,7 +144,8 @@ export function SessionsTab({ v }: { v: ClientView }) {
                     </small>
                   </span>
                   <KindTag o={o} />
-                </div>
+                  <Icon name="chevR" size={18} />
+                </button>
               ))}
             </div>
           ) : <EmptyState>Nothing booked in the next two weeks.</EmptyState>}
@@ -156,6 +163,34 @@ export function SessionsTab({ v }: { v: ClientView }) {
           onPropose={(slot) => void run((_d) => proposeTime(repo, req, slot), `Proposed ${fmt.ddm(slot.date)}, ${fmt.time(slot.start_min)} · waiting for ${first}`).then((ok) => ok && setSheet(null))}
           onDecline={() => void run((_d) => declineRequest(repo, req), 'Request declined').then((ok) => ok && setSheet(null))} />
       )}
+      {acting && (() => {
+        const o = acting;
+        const when = `${fmt.ddm(o.date)}, ${fmt.time(o.start)}–${fmt.time(o.start + o.duration)}`;
+        const title = o.kind === 'group' ? o.title ?? 'Group session' : 'Session';
+        const others = o.clientIds.filter((c) => c !== cardId).length;
+        const close = (ok: boolean) => { if (ok) setSheet(null); };
+        return (
+          <Sheet open title={title} onClose={() => setSheet(null)}>
+            <p className="display num" style={{ fontSize: 20 }}>{when}</p>
+            <p className="muted" style={{ marginTop: 4 }}>{[o.recurring ? `every ${fmt.dayLong(o.date)}` : 'one-off', o.location].filter(Boolean).join(' · ')}</p>
+            <div className="stack" style={{ marginTop: 20 }}>
+              {o.kind === 'group' ? (
+                <>
+                  <Button variant="danger" onClick={() => void run((d) => removeFromGroup(repo, d, o, cardId), `${first} removed from ${title}`).then(close)}>Remove {first} from {title}</Button>
+                  <p className="caption">{title} carries on{others ? ` for the other ${others === 1 ? 'person' : `${others} people`}` : ''}{o.recurring ? `; ${first} is out of every week from now on` : ''}. {first} gets a banner.</p>
+                </>
+              ) : !o.recurring ? (
+                <Button variant="danger" onClick={() => void run((d) => cancelSession(repo, d, o, 'one'), `${fmt.ddm(o.date)} cancelled`).then(close)}>Cancel this session</Button>
+              ) : (
+                <>
+                  <Button variant="danger" onClick={() => void run((d) => cancelSession(repo, d, o, 'one'), `${fmt.ddm(o.date)} cancelled`).then(close)}>Cancel just {fmt.ddm(o.date)}</Button>
+                  <Button variant="danger" onClick={() => void run((d) => cancelSession(repo, d, o, 'all'), `${first}’s weekly session ends`).then(close)}>Stop the weekly session from {fmt.ddm(o.date)}</Button>
+                </>
+              )}
+            </div>
+          </Sheet>
+        );
+      })()}
       <Toast msg={toast.msg} />
     </>
   );

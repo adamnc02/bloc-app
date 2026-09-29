@@ -10238,6 +10238,7 @@ top-level-only sort made every moved week differ, so each diary change re-sent a
 | a series | `{booking_id: series id, kind: 'weekly', date: its first week, start_min, duration_min, status: 'booked', location, title, skip_dates, until}`. `skip_dates`: its cancelled weeks (a day off's included), and its weeks moved by an override (the latest 400); `until`: `effective_to`; **`replaces`** when it continues an ended series ("all future" from a later week: `predecessor()`, the same kind and clients, ended, this one starting within the week after), naming that series and the first week moved |
 | an override (a moved week) | its own one-off, `booking_id` = the override's id, `kind: 'one_off'`, **`replaces: {booking_id: the series, date: the week}`** (`0029`), so the phone says "Session changed" (BLOC §151) |
 | a one-off | `kind: 'one_off'`, its `status` (a day off sets it `cancelled`) |
+| `title` | a group's name, or "Group session" when it has none (`titleOf`); **never** on a one-to-one. BLOC reads a title as a group session ("Added to a group session", naming it, BLOC §151) |
 | a card sent a booking it should no longer hold (a series deleted, a client taken out of a group) | that booking again, `status: 'cancelled'` |
 
 A cancelled booking a card was never sent is not sent. 🚨 **An override identical to its series week is no exception**
@@ -10318,7 +10319,12 @@ the message (control: `String()` of the raw error), one refresh and retry on an 
   several; the sessions affected listed; "Don't tell them" / "Let … know"), the day off with Undo, and Session request.
   The client picker is a **SearchSheet** (one client, or several for a group). The request sheet opens on the client's
   first time that's free.
-- **Client → Sessions**: next session, requests, weekly sessions, the next two weeks, Book a session.
+- **Client → Sessions**: next session, requests, weekly sessions, the next two weeks, Book a session. Every session row has a
+  chevron and opens its actions (a weekly row, its next week): a one-off or detached week **Cancel this session**; a weekly
+  one **Cancel just {date}** or **Stop the weekly session from {date}**; a group **Remove {first} from {group}**
+  (`removeFromGroup`: out of the series and its changed weeks from now on; that card is sent the booking cancelled, the
+  others' bookings don't change so nothing is sent to them, and the group carries on).
+- **Toggles** in the Diary's sheets are `Seg accent`: the selected option is filled lavender.
 - **Settings → Diary**: working hours (15-minute steps), working days, a new session's length, and the days off still to
   come, each opening Undo.
 
