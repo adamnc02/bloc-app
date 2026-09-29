@@ -9915,6 +9915,8 @@ in Chromium at 375 × 812: top 30 px and height 782 px before and after typing).
 **Read full check-in** shows the goal change as Sustainable / Aggressive / No change, each with the goal periods it
 would set. The chosen one (✓) shows the coach's numbers, which is what Publish sends; the choice and the numbers are
 changed in ✎ Edit. The original reply, both plans as they came back, stays under "Original from BLOC".
+Every Read full sheet (check-in, cycle review, next-cycle advice) has ✎ Edit beside Close (`Sheet`'s `actions`): it
+closes the sheet and opens the edit form on the card.
 
 🚨 **A check-in's goal phases stop at the cycle's end** (`clipToCycle`, `coach/src/ai/tools.ts`): a phase running
 past it ends on it, and one starting after it is dropped. BLOC's check-in prompt lets a plan run past the end, and
