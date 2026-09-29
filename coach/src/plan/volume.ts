@@ -32,7 +32,7 @@ export function bodyPartVolume(doc: PlanDoc, lib: LibraryEntry[]): VolumeRow[] {
       const mult = ex.trackingMode === 'perSide' ? 2 : 1;
       const e = ex as unknown as Exercise;
       const baseReps = parseRepsForVolume(ex.reps);
-      for (let w = 1; w <= maxMeso; w++) {
+      for (let w = Number(ex.fromWeek) || 1; w <= maxMeso; w++) { // a late joiner counts from its week (§147)
         const sets = getWeekSets(e, w, doc.macro.weeks);
         const wt = getWeekWeight(e, w, 'weight', doc.macro.goalType, doc.macro.weightIncrement);
         t.w += sets * baseReps * wt * mult;
@@ -65,8 +65,8 @@ export function progressionPreview(doc: PlanDoc): PreviewBlock[] {
       label: sessionLabel(doc.macro, dk),
       exercises: list.map((ex) => ({
         name: ex.name,
-        weeks: Array.from({ length: Math.max(0, maxMeso - 1) }, (_, i) => {
-          const w = i + 2;
+        weeks: Array.from({ length: Math.max(0, maxMeso - Math.max(2, Number(ex.fromWeek) || 1) + 1) }, (_, i) => {
+          const w = i + Math.max(2, Number(ex.fromWeek) || 1); // a late joiner from its first week (§147)
           const e = ex as unknown as Exercise;
           if (ex.category === 'cardio') return { week: w, text: `${getWeekSets(e, w, doc.macro.weeks)} sets` };
           return { week: w, text: `${getWeekSets(e, w, doc.macro.weeks)} sets · ${ex.reps} · ${getWeekWeight(e, w, 'weight', doc.macro.goalType, doc.macro.weightIncrement).toFixed(1)}kg` };

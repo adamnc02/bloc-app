@@ -70,6 +70,8 @@ export interface ExerciseFields {
   distanceUnit?: string;
   speedLevel?: number | null;
   resistanceLevel?: number | null;
+  /** The mesocycle week it joined the plan (BLOC v8.46, §147): its progression starts there. Absent = from the start. */
+  fromWeek?: number;
 }
 
 /** A session-template exercise: its fields, and its place (order, superset). */
@@ -323,11 +325,12 @@ export function copyMicro(doc: PlanDoc, day: string, from: 1 | 2, ids: IdGen): P
 // ── Exercises ──────────────────────────────────────────────────────────────
 
 /** A new exercise at the end of the template, or at the end of a superset (BLOC's saveExercise). */
-export function addExercise(doc: PlanDoc, dayKey: string, fields: ExerciseFields, ids: IdGen, intoSuperset?: string): PlanDoc {
+export function addExercise(doc: PlanDoc, dayKey: string, fields: ExerciseFields, ids: IdGen, intoSuperset?: string, fromWeek?: number | null): PlanDoc {
   const next = clone(doc);
   const key = keyOf(next.macro.id, dayKey);
   const list = next.exercises[key] || (next.exercises[key] = []);
   const ex: PlanExercise = { ...normaliseFields(fields), id: ids.exercise(key), order: 0, supersetId: null, supersetOrder: null };
+  if (fromWeek && fromWeek > 1) ex.fromWeek = fromWeek; else delete ex.fromWeek;
   const members = intoSuperset ? list.filter((e) => e.supersetId === intoSuperset) : [];
   if (members.length) {
     ex.order = members[0].order;
@@ -351,6 +354,7 @@ export function updateExercise(doc: PlanDoc, dayKey: string, id: string, fields:
   const f = normaliseFields(fields);
   if (cur.supersetId && f.type === 'dropset') f.type = 'standard';
   list[i] = { ...f, id: cur.id, order: cur.order, supersetId: cur.supersetId, supersetOrder: cur.supersetOrder };
+  if (cur.fromWeek) list[i].fromWeek = cur.fromWeek; else delete list[i].fromWeek; // an edit never moves when it joined
   return next;
 }
 
@@ -477,23 +481,42 @@ function renumber(doc: PlanDoc, key: string): PlanDoc {
 }
 
 /**
- * Swap an exercise for good (proposal §5.3): a NEW exercise in the same place,
- * superset and set scheme, so the one it replaces keeps its logs in history
- * under its own id and the new one starts its own. The load starts from
- * `startWeight` (the client's last logged weight for that name, when known).
+ * Swap an exercise for good (proposal §5.3): a NEW exercise, filled in like
+ * any new one (every setting the coach's), in the old one's place and
+ * superset. The one it replaces keeps its logs in history under its own id;
+ * the new one starts its own. Part-way through a cycle it carries `fromWeek`
+ * (BLOC v8.46, §147), so the week it joins is its week 1: the starting weight
+ * the coach set is its first target.
  */
-export function swapExercise(doc: PlanDoc, dayKey: string, id: string, to: { name: string; bodyPart: string; category: 'weight' | 'cardio' }, startWeight: number, ids: IdGen): PlanDoc {
+export function swapExercise(doc: PlanDoc, dayKey: string, id: string, fields: ExerciseFields, ids: IdGen, fromWeek?: number | null): PlanDoc {
   const next = clone(doc);
   const key = keyOf(next.macro.id, dayKey);
   const list = next.exercises[key] || [];
   const i = list.findIndex((e) => e.id === id);
   if (i < 0) return doc;
   const cur = list[i];
-  const { id: _i, order: _o, supersetId: _s, supersetOrder: _so, ...own } = cur;
-  void _i; void _o; void _s; void _so;
-  const fields = normaliseFields({ ...(own as ExerciseFields), name: to.name, bodyPart: to.bodyPart, category: to.category, startWeight });
-  list[i] = { ...fields, id: ids.exercise(key), order: cur.order, supersetId: cur.supersetId, supersetOrder: cur.supersetOrder };
+  const f = normaliseFields(fields);
+  if (cur.supersetId && f.type === 'dropset') f.type = 'standard';
+  list[i] = { ...f, id: ids.exercise(key), order: cur.order, supersetId: cur.supersetId, supersetOrder: cur.supersetOrder };
+  if (fromWeek && fromWeek > 1) list[i].fromWeek = fromWeek; else delete list[i].fromWeek;
   return next;
+}
+
+/**
+ * The mesocycle week an exercise added or swapped in today joins at: the
+ * client's current mesocycle, or the next one if they've already done that
+ * session in it; null before the cycle starts (it's there from week 1).
+ * `trainLogs` is the client's (their upload); with none, the current one.
+ */
+export function joinWeek(m: PlanMacro, dayKey: string, today: string, trainLogs?: Record<string, { done?: unknown }> | null): number | null {
+  if (!m.start || today < m.start) return null;
+  const days = dayDiff(m.start, today);
+  const mesos = getMacroEffectiveMesoCount(m as unknown as Macrocycle);
+  const week = Math.min(mesos, Math.floor(days / ((m.weeksPerMeso || 1) * 7)) + 1);
+  const prefix = `${m.id}_${week}_${dayKey}_`;
+  const done = Object.entries(trainLogs || {}).some(([k, v]) => k.startsWith(prefix) && v && v.done);
+  const w = done ? Math.min(mesos, week + 1) : week;
+  return w > 1 ? w : null;
 }
 
 // ── Deloads ────────────────────────────────────────────────────────────────

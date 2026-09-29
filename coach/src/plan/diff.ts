@@ -114,12 +114,12 @@ export function diffPlan(base: PlanDoc | null, draft: PlanDoc): PlanDiff {
     for (const r of removed.slice()) {
       const s = added.find((x) => x.order === r.order && x.supersetId === r.supersetId && (x.supersetOrder ?? null) === (r.supersetOrder ?? null));
       if (s) {
-        add('Exercises', `${label}: ${r.name} → ${s.name} (swapped)`);
+        add('Exercises', `${label}: ${r.name} → ${s.name} (swapped${s.fromWeek && s.fromWeek > 1 ? `, week 1 of its progression from MC${s.fromWeek}` : ''})`);
         removed.splice(removed.indexOf(r), 1);
         added.splice(added.indexOf(s), 1);
       }
     }
-    for (const e of added) add('Exercises', `${label}: ${e.name} added`);
+    for (const e of added) add('Exercises', `${label}: ${e.name} added${e.fromWeek && e.fromWeek > 1 ? ` from MC${e.fromWeek}` : ''}`);
     for (const e of removed) add('Exercises', `${label}: ${e.name} removed`);
     for (const e of b) {
       const was = aIds.get(e.id);

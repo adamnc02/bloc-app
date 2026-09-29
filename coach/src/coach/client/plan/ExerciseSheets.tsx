@@ -80,7 +80,10 @@ export function ExercisePicker({ open, title, library, category, preferBodyPart,
 // ---------------------------------------------------------------- editor
 
 export interface ExerciseSheetContext {
-  mode: 'add' | 'edit';
+  /** 'swap': the new exercise for `exercise`, filled in from scratch like an added one. */
+  mode: 'add' | 'edit' | 'swap';
+  /** Swap: the exercise chosen to replace it. */
+  preset?: { name: string; bodyPart: string; category: 'weight' | 'cardio' };
   dayKey: string;
   sessionLabel: string;
   exercise?: PlanExercise;
@@ -112,7 +115,11 @@ export function ExerciseSheet({ ctx, library, distanceUnitPref, onClose, onSave,
   useEffect(() => {
     if (!ctx) return;
     setConfirm(false);
-    if (ctx.exercise) {
+    if (ctx.mode === 'swap' && ctx.preset) {
+      const b = blank(ctx.preset.category, distanceUnitPref === 'mi' ? 'mi' : 'km');
+      setF({ ...b, name: ctx.preset.name, bodyPart: ctx.preset.category === 'cardio' ? undefined : ctx.preset.bodyPart });
+      setPicking(false);
+    } else if (ctx.exercise) {
       const { id: _i, order: _o, supersetId: _s, supersetOrder: _so, ...own } = ctx.exercise;
       void _i; void _o; void _s; void _so;
       // An older exercise has no body part: the library's for its name, as BLOC's volume table reads it.
@@ -126,10 +133,12 @@ export function ExerciseSheet({ ctx, library, distanceUnitPref, onClose, onSave,
   }, [ctx, distanceUnitPref]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!ctx) return null;
   const set = <K extends keyof ExerciseFields>(k: K, v: ExerciseFields[K]) => setF((x) => ({ ...x, [k]: v }));
-  const ex = ctx.exercise;
-  const inSs = !!(ex?.supersetId || ctx.intoSuperset);
-  const members = ex?.supersetId ? ctx.list.filter((e) => e.supersetId === ex.supersetId).sort((a, b) => (a.supersetOrder || 0) - (b.supersetOrder || 0)) : [];
-  const nonLeader = members.length > 0 && members[0].id !== ex?.id;
+  const ex = ctx.mode === 'edit' ? ctx.exercise : undefined;
+  const swapping = ctx.mode === 'swap' ? ctx.exercise : undefined;
+  const inSs = !!(ex?.supersetId || swapping?.supersetId || ctx.intoSuperset);
+  const inGroup = ex ?? swapping;
+  const members = inGroup?.supersetId ? ctx.list.filter((e) => e.supersetId === inGroup.supersetId).sort((a, b) => (a.supersetOrder || 0) - (b.supersetOrder || 0)) : [];
+  const nonLeader = members.length > 0 && members[0].id !== inGroup?.id;
   const slots = slotsOf(ctx.list);
   const slotIdx = ex ? slots.findIndex((s) => s.some((e) => e.id === ex.id)) : -1;
   const pos = ex?.supersetId ? members.findIndex((e) => e.id === ex.id) : slotIdx;
@@ -142,8 +151,9 @@ export function ExerciseSheet({ ctx, library, distanceUnitPref, onClose, onSave,
 
   return (
     <>
-      <Sheet open={!!ctx && !picking} title={ctx.mode === 'add' ? 'Add exercise' : 'Edit exercise'} onClose={onClose}>
+      <Sheet open={!!ctx && !picking} title={ctx.mode === 'add' ? 'Add exercise' : ctx.mode === 'swap' ? 'Swap exercise' : 'Edit exercise'} onClose={onClose}>
         <p className="muted" style={{ marginBottom: 14 }}>{ctx.sessionLabel}{inSs ? ' · in a superset' : ''}</p>
+        {swapping && <p className="body-copy" style={{ margin: '-6px 0 14px' }}>Replaces {swapping.name} for good. Set it up as a new exercise: it starts at week 1 of its own progression, and {swapping.name} keeps its logs in history.</p>}
         {ctx.mode === 'add' && (
           <Field label="Category">
             <Seg<'weight' | 'cardio'> label="Category" value={f.category} onChange={(c) => { setF(blank(c, distanceUnitPref === 'mi' ? 'mi' : 'km')); setPicking(true); }}
@@ -180,7 +190,7 @@ export function ExerciseSheet({ ctx, library, distanceUnitPref, onClose, onSave,
                 </select>
               </Field>
               <Field label="Starting kg" htmlFor={`${id}-w`}>
-                <NumInput id={`${id}-w`} inputMode="decimal" step={0.5} min={0} className="input num" value={f.startWeight} onValue={(n) => set('startWeight', n ?? 0)} />
+                <NumInput id={`${id}-w`} inputMode="decimal" step={0.5} min={0} className="input num" placeholder="60" value={f.startWeight || null} empty={null} onValue={(n) => set('startWeight', n ?? 0)} />
               </Field>
             </div>
           </>
@@ -252,7 +262,7 @@ export function ExerciseSheet({ ctx, library, distanceUnitPref, onClose, onSave,
           </div>
         )}
         {!cardio && <p className="caption" style={{ marginTop: 6 }}>Heavy leg jumps 5 kg a mesocycle (10 kg on a gain cycle); per side counts double in volume.</p>}
-        <Button style={{ marginTop: 20 }} disabled={!ok} onClick={() => onSave({ ...f, name: f.name.trim() })}>{ctx.mode === 'add' ? 'Add exercise' : 'Save exercise'}</Button>
+        <Button style={{ marginTop: 20 }} icon={ctx.mode === 'swap' ? 'swap' : undefined} disabled={!ok} onClick={() => onSave({ ...f, name: f.name.trim() })}>{ctx.mode === 'add' ? 'Add exercise' : ctx.mode === 'swap' ? 'Swap in plan' : 'Save exercise'}</Button>
 
         {ctx.mode === 'edit' && ex && (
           <div className="card" style={{ marginTop: 18, padding: '4px 16px' }}>

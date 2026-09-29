@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import type { BlocState } from '@engine';
 import type { CoachPublication } from '@/ai/types';
 import {
-  addExercise, addSession, copyMicro, dayKeys, deloadUnits, dissolveSuperset, editSettings, keyOf, linkSuperset, moveInSuperset, moveSlot,
+  addExercise, addSession, copyMicro, dayKeys, joinWeek, deloadUnits, dissolveSuperset, editSettings, keyOf, linkSuperset, moveInSuperset, moveSlot,
   newCycle, removeExercise, removeGoal, removeSession, slotsOf, swapExercise, toggleDeload, unlinkExercise, updateExercise, upsertGoal,
   type ExerciseFields, type IdGen, type PlanDoc,
 } from './doc';
@@ -125,25 +125,31 @@ describe('publishing: the diff is the payload, and BLOC applying it gives the dr
     expect(d.groups.flatMap((g) => g.lines).join()).toMatch(/sets \d+–\d+ → \d+–\d+/);
     expect(applied(coached(), edited, payloadsOf(d))).toEqual(edited);
   });
-  it('a swap is a new exercise in the same place; the old id is gone from the plan, not from history', () => {
+  it('a swap is a new exercise, set up from scratch, in the same place; the old id is gone from the plan, not from history', () => {
     const base = baseDoc();
     const key = Object.keys(base.exercises).find((k) => base.exercises[k].length)!;
     const dk = key.slice(`${MACRO}_1_`.length);
     const old = base.exercises[key][0];
-    const sw = swapExercise(base, dk, old.id, { name: 'Incline Press', bodyPart: 'Chest', category: 'weight' }, 42.5, ids());
+    const sw = swapExercise(base, dk, old.id, weight('Incline Press', { reps: '8', setsStart: 2, setsEnd: 4, startWeight: 30, trackingMode: 'perSide' }), ids(), 5);
     const now = sw.exercises[key].find((e) => e.name === 'Incline Press')!;
     expect(now.id).not.toBe(old.id);
-    expect([now.order, now.setsStart, now.setsEnd, now.reps, now.supersetId, now.startWeight]).toEqual([old.order, old.setsStart, old.setsEnd, old.reps, old.supersetId, 42.5]);
-    expect(diffPlan(base, sw).groups[0].lines[0]).toMatch(/→ Incline Press \(swapped\)$/);
+    // Its place and superset carry over; every setting is the coach's new one.
+    expect([now.order, now.supersetId, now.reps, now.setsStart, now.setsEnd, now.startWeight, now.trackingMode, now.fromWeek]).toEqual([old.order, old.supersetId, '8', 2, 4, 30, 'perSide', 5]);
+    expect(diffPlan(base, sw).groups[0].lines[0]).toMatch(/→ Incline Press \(swapped, week 1 of its progression from MC5\)$/);
+    // Before the cycle has started there's no fromWeek: it's there from week 1.
+    expect(swapExercise(base, dk, old.id, weight('X'), ids(), null).exercises[key][0].fromWeek).toBeUndefined();
   });
-  it('every template sent has a line on the Publish sheet (control: a body part alone once listed nothing)', () => {
-    const base = baseDoc();
-    const key = Object.keys(base.exercises).find((k) => base.exercises[k].length)!;
-    const e = base.exercises[key][0];
-    const d = diffPlan(base, updateExercise(base, key.slice(`${MACRO}_1_`.length), e.id, { ...e, bodyPart: 'Back' }));
-    expect(d.plan!.exercises).toBeDefined();
-    expect(d.count).toBeGreaterThan(0);
-    expect(d.groups[0].lines[0]).toMatch(/body part Back/);
+  it('an exercise joins at the client’s mesocycle, or the next once they’ve done that session in it', () => {
+    const m = baseDoc().macro; // 8 Jun, 2-week mesocycles
+    expect(joinWeek(m, 'session0m1', '2026-06-01')).toBeNull();          // not started
+    expect(joinWeek(m, 'session0m1', '2026-06-10')).toBeNull();          // week 1: from the start
+    expect(joinWeek(m, 'session0m1', '2026-07-08')).toBe(3);             // 30 days in → mesocycle 3
+    expect(joinWeek(m, 'session0m1', '2026-07-08', { [`${MACRO}_3_session0m1_ex_1_0`]: { done: true } })).toBe(4); // done → the next
+    const added = addExercise(baseDoc(), 'session0m1', weight('New'), ids(), undefined, 4);
+    expect(added.exercises[keyOf(MACRO, 'session0m1')].find((e) => e.name === 'New')!.fromWeek).toBe(4);
+    // An edit never moves when it joined.
+    const e = added.exercises[keyOf(MACRO, 'session0m1')].find((x) => x.name === 'New')!;
+    expect(updateExercise(added, 'session0m1', e.id, { ...weight('New'), startWeight: 45 }).exercises[keyOf(MACRO, 'session0m1')].find((x) => x.id === e.id)!.fromWeek).toBe(4);
   });
   it('a removed session is sent as empty templates, so the phone drops it', () => {
     const base = baseDoc();

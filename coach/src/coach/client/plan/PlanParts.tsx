@@ -179,6 +179,7 @@ function ExerciseRow({ e, leader, readOnly, onEdit, onSwap, swapped }: { e: Plan
         {e.category === 'cardio' && <Tag tone="ice">Cardio</Tag>}
         {e.isHeavyLeg && <Tag tone="amber">Heavy</Tag>}
         {swapped && <Tag tone="acc">Changed</Tag>}
+        {!!e.fromWeek && e.fromWeek > 1 && <Tag tone="neutral">From MC{e.fromWeek}</Tag>}
       </div>
       <div className="muted num" style={{ fontSize: 12.5, marginTop: 3 }}>{exerciseLine(e, leader)}</div>
     </div>

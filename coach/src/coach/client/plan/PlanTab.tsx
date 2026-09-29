@@ -5,7 +5,7 @@ import { useCoach } from '@/app/App';
 import { fmt } from '@/lib/format';
 import {
   addExercise, addSession, copyMicro, dayKeys, dayOf, editSettings, keyOf, linkSuperset, microOf, moveInSuperset, moveSlot, newCycle,
-  removeExercise, removeGoal, removeSession, renameSession, sessionLabel, setExtension, slotsOf, swapExercise, toggleDeload, unlinkExercise,
+  joinWeek, removeExercise, removeGoal, removeSession, renameSession, sessionLabel, setExtension, slotsOf, swapExercise, toggleDeload, unlinkExercise,
   updateExercise, upsertGoal, type PlanDoc, type PlanExercise,
 } from '@/plan/doc';
 import { applyMacroTemplate, applyWorkoutTemplate, macroTemplateOf, workoutTemplateOf, type Template } from '@/plan/templates';
@@ -135,12 +135,6 @@ export function PlanTab({ v, macro, intent }: { v: ClientView; macro: string | n
     mode: ex ? 'edit' : 'add', dayKey: dk, sessionLabel: doc ? sessionLabel(doc.macro, dk) : '', exercise: ex, intoSuperset: into ?? null,
     list: doc?.exercises[keyOf(doc.macro.id, dk)] || [],
   });
-  const historyWeight = (name: string, type: string) => {
-    const h = p.history[name.trim().toLowerCase()];
-    const e = h?.[type] ?? (h ? Object.values(h)[0] : null);
-    const w = e ? parseFloat(String(e.weight)) : NaN;
-    return Number.isFinite(w) ? w : null;
-  };
 
   return (
     <>
@@ -282,7 +276,10 @@ export function PlanTab({ v, macro, intent }: { v: ClientView; macro: string | n
           <ExerciseSheet ctx={exCtx} library={p.library} distanceUnitPref={distanceUnitOf(v)} onClose={() => setExCtx(null)}
             onSave={(f) => {
               const c = exCtx!;
-              edit((d) => (c.mode === 'add' ? addExercise(d, c.dayKey, f, p.ids, c.intoSuperset ?? undefined) : updateExercise(d, c.dayKey, c.exercise!.id, f)), c.mode === 'add' ? `${f.name} added` : `${f.name} saved`);
+              // Part-way through a cycle, an added or swapped-in exercise joins at the client's week (§147).
+              const from = joinWeek(doc.macro, c.dayKey, today, p.trainLogs);
+              if (c.mode === 'swap') edit((d) => swapExercise(d, c.dayKey, c.exercise!.id, f, p.ids, from), `${c.exercise!.name} swapped for ${f.name}`);
+              else edit((d) => (c.mode === 'add' ? addExercise(d, c.dayKey, f, p.ids, c.intoSuperset ?? undefined, from) : updateExercise(d, c.dayKey, c.exercise!.id, f)), c.mode === 'add' ? `${f.name} added` : `${f.name} saved`);
               setOpenDays(new Set([...openDays, c.dayKey]));
               setExCtx(null);
             }}
@@ -309,11 +306,10 @@ export function PlanTab({ v, macro, intent }: { v: ClientView; macro: string | n
           <ExercisePicker open={!!swapAt} title={swapAt ? `Swap ${swapAt.ex.name}` : 'Swap'} library={p.library} category={swapAt?.ex.category ?? null}
             preferBodyPart={swapAt ? bodyPartFor(swapAt.ex, p.library) : null} exclude={swapAt?.ex.name} onClose={() => setSwapAt(null)}
             onPick={(e) => {
-              const s = swapAt!;
-              const w = historyWeight(e.name, s.ex.type) ?? s.ex.startWeight;
-              p.edit((d) => swapExercise(d, s.dayKey, s.ex.id, { name: e.name, bodyPart: e.bodyPart || bodyPartFor(s.ex, p.library), category: s.ex.category }, w, p.ids));
-              toast.show(`${s.ex.name} swapped for ${e.name} · draft`);
+              // A swap is set up like a new exercise: the editor opens on it with every setting to fill in.
+              const sw = swapAt!;
               setSwapAt(null);
+              setExCtx({ ...exSheetFor(sw.dayKey, sw.ex), mode: 'swap', preset: { name: e.name, bodyPart: e.bodyPart || '', category: sw.ex.category } });
             }} />
         </>
       )}

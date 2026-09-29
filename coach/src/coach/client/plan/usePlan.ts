@@ -162,6 +162,7 @@ export function usePlan(v: ClientView, wanted: string | null) {
 
   return {
     loading: !data && !error, error, reload: load, today, cycles, selected, doc, base, diff, overlap, library, ids,
+    trainLogs: (snap?.state as { trainLogs?: Record<string, { done?: unknown }> } | undefined)?.trainLogs ?? null,
     pick: setPick, edit, startNew, discard, publish, history: (snap?.state as { exerciseHistory?: Record<string, Record<string, { weight?: unknown }>> } | undefined)?.exerciseHistory ?? {},
   };
 }

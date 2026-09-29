@@ -9820,10 +9820,16 @@ The edits are BLOC's plan editor's rules (`index.html` `createMacrocycle`, `save
   removed). Checked as they are now, every phase of the replacing cycle was refused;
 - the exercise editor asks for a body part only for a name the library doesn't know.
 
-🚨 **Swap is a new exercise in the same place** (same order, superset, sets, reps, type), with a new id: the one it
-replaces keeps its logs in history under its own id, and the new one starts its own. Its starting weight is the
-client's last logged weight for that name (`exerciseHistory`), else the old one's. An edit keeps the id, so the
-logs stay attached.
+🚨 **Swap is a new exercise, set up from scratch**: pick it, and the exercise editor opens on it with every setting to
+fill in (set type, reps, starting kg, starting and peak sets, heavy leg, total or per side); only its place and
+superset carry over. It gets a new id: the one it replaces keeps its logs in history under its own id, and the new one
+starts its own. An edit keeps the id, so the logs stay attached.
+
+🚨 **An exercise swapped or added part-way through a cycle joins at the client's week** (`joinWeek`): the mesocycle
+they're in at their today, or the next once they've done that session in it; before the cycle starts, from week 1. It
+carries `fromWeek` (BLOC v8.46, §147), so that week is its week 1: the starting kg the coach set is its first target, and
+its sets run starting to peak over the weeks it has. The row shows "From MC n", the Publish line says so, and the volume
+and progression preview count only its weeks. An edit never moves `fromWeek`.
 
 🚨 **An exercise without `bodyPart`** (every plan before this, and the demo) gets the library's body part for its name
 when the editor opens, as BLOC's volume table reads it; only a name the library doesn't know asks for one. Saving
