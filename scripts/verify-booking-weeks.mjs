@@ -125,6 +125,8 @@ function run(source) {
   check('added to a group: "Added to a group session", naming it', [last().title, last().body], ['Added to a group session', 'Rowan added you to Saturday bootcamp: Sat 10 Oct, 09:00, weekly.']);
   P.applyBookingPublication(pub({ ...WEEKLY, booking_id: 'g1', date: '2026-10-10', start_min: 540, title: 'Saturday bootcamp', location: 'Park', status: 'cancelled' }));
   check('taken out of a group (or it ends): "Group session cancelled", naming it', last().title, 'Group session cancelled');
+  P.applyBookingPublication(pub({ ...WEEKLY, booking_id: 'g1', date: '2026-10-10', start_min: 540, title: 'Saturday bootcamp', location: 'Park' }));
+  check('put back in a group: "Added to a group session" (not "back on")', last().title, 'Added to a group session');
 
   const rows = extract(source, 'renderCoachSessions') || '';
   check('Your sessions shows a group session\'s title', /b\.title \? coachEsc\(b\.title\)/.test(rows), true);
