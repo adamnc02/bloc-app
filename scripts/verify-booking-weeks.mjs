@@ -89,7 +89,7 @@ function run(source) {
   P.applyBookingPublication(pub({ ...WEEKLY, skip_dates: ['2026-10-14'] }));
   check('a skip date added: "Session cancelled", naming the date', [last().title, /14 Oct/.test(last().body)], ['Session cancelled', true]);
   P.applyBookingPublication(pub({ ...WEEKLY, skip_dates: [] }));
-  check('the skip removed (a day off undone): "Session back on"', last().title, 'Session back on');
+  check('the skip removed (a cancelled session reinstated): "Session back on"', last().title, 'Session back on');
   n = P.state.coachNotices.length;
   P.applyBookingPublication(pub({ ...WEEKLY, skip_dates: ['2026-10-21'], quiet: true }));
   check('quiet: applied, and no banner', [P.state.coachBookings.b1.skip_dates, P.state.coachNotices.length], [['2026-10-21'], n]);
@@ -119,7 +119,7 @@ function run(source) {
 
   P.applyBookingPublication(pub({ booking_id: 'o2', date: '2026-10-09', start_min: 660, duration_min: 90, status: 'cancelled', kind: 'one_off', location: 'Park' }));
   P.applyBookingPublication(pub({ booking_id: 'o2', date: '2026-10-09', start_min: 660, duration_min: 90, status: 'booked', kind: 'one_off', location: 'Park' }));
-  check('a cancelled one-off booked again (a day off undone): "Session back on"', [last().title, last().body], ['Session back on', 'Fri 9 Oct, 11:00 with Rowan is back on.']);
+  check('a cancelled one-off booked again (a cancelled session reinstated): "Session back on"', [last().title, last().body], ['Session back on', 'Fri 9 Oct, 11:00 with Rowan is back on.']);
 
   const rows = extract(source, 'renderCoachSessions') || '';
   check('Your sessions shows a group session\'s title', /b\.title \? coachEsc\(b\.title\)/.test(rows), true);
@@ -136,7 +136,7 @@ for (const r of run(current)) {
 const old = execFileSync('git', ['show', '5d08f66:index.html'], { cwd: repo, encoding: 'utf8', maxBuffer: 64 << 20 });
 const ctl = run(old);
 const ctlFails = ctl.filter((r) => !r.ok).map((r) => r.label);
-const mustFail = ['a skipped week is stepped over', 'until: after it, no next date', 'quiet on a new booking: no "Session confirmed"', 'a moved week (replaces): "Session changed", old time → new', 'a new length and place: "Session changed", naming them', 'a cancelled one-off booked again (a day off undone): "Session back on"'];
+const mustFail = ['a skipped week is stepped over', 'until: after it, no next date', 'quiet on a new booking: no "Session confirmed"', 'a moved week (replaces): "Session changed", old time → new', 'a new length and place: "Session changed", naming them', 'a cancelled one-off booked again (a cancelled session reinstated): "Session back on"'];
 const ctlOk = mustFail.every((l) => ctlFails.includes(l));
 console.log(`${ctlOk ? '✓' : '✗'} control: v8.46 (5d08f66) fails ${ctlFails.length} rows, including skip, until and quiet`);
 if (!ctlOk) failures++;
