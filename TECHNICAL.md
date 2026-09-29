@@ -9222,6 +9222,12 @@ their own link as a client's.
 - **Decoding** (`lib/clientState.ts`): PostgREST returns the bytea as `\x…` hex → `DecompressionStream('gzip')`
   → the sha-256 of the text must equal `state_hash` (**an upload that doesn't match its hash is refused**,
   never shown as the client) → `normaliseState()`, as BLOC's `load()` does.
+- 🚨 **`crypto.subtle` exists only on a secure origin** (https, or `localhost`). A dev build opened from a
+  phone at `http://<LAN-IP>:5173` has none, and the hash check threw on every client ("Sync unreadable").
+  `sha256Hex()` falls back to `lib/sha256.ts`, a plain-JS SHA-256 over UTF-8, when `crypto.subtle` is
+  missing; the vitest cases check it against Node's across block boundaries, non-ASCII text and a whole
+  demo state, and decode an upload with `crypto` stubbed empty. `DecompressionStream` needs no secure
+  origin.
 - **Link status**, in this order: an active link → Linked; else an unused invite → Invited (expired or
   not); else an ended link → Unlinked; else Not on the app. The "Not on the app" filter includes
   Unlinked, as the hero does.
@@ -9281,6 +9287,7 @@ trend, Cycle, Synced).
 - `verify-coach-splash.mjs`: the splash.
 - `verify-coach-no-section-numbers.mjs`: no section badges.
 - `verify-publish-list.mjs`: the mapping.
-- `coach/src/data/summary.test.ts` (vitest, 13 cases): each fixture's row at the tracked anchor, the
+- `coach/src/data/summary.test.ts` (vitest, 16 cases): each fixture's row at the tracked anchor, the
   client's-today control, link-status precedence, the client's own name once linked, and decoding with a
-  refused hash as the control, and initials from letters only.
+  refused hash as the control, initials from letters only, and SHA-256 and decoding with no
+  `crypto.subtle`.

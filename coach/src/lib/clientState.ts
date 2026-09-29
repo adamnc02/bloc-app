@@ -12,6 +12,7 @@
 //    Monday is already over. Every engine call gets `{ today: clientToday }`.
 // ═══════════════════════════════════════════════════════════════════════
 import { normaliseState, type BlocState } from '@engine';
+import { sha256HexSync } from './sha256';
 
 export function hexToBytes(hex: string): Uint8Array {
   const h = hex.startsWith('\\x') ? hex.slice(2) : hex;
@@ -26,7 +27,9 @@ export async function gunzipText(bytes: Uint8Array): Promise<string> {
   return await new Response(stream).text();
 }
 
+/** SHA-256 hex. `crypto.subtle` only exists on a secure origin; a LAN-IP dev build uses the plain-JS version (sha256.ts). */
 export async function sha256Hex(text: string): Promise<string> {
+  if (typeof crypto === 'undefined' || !crypto.subtle) return sha256HexSync(text);
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return Array.from(new Uint8Array(buf), (x) => x.toString(16).padStart(2, '0')).join('');
 }

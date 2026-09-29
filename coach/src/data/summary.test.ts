@@ -89,3 +89,33 @@ describe('initials', async () => {
     expect(initials('  ')).toBe('');
   });
 });
+
+describe('SHA-256 without crypto.subtle (a LAN-IP dev build is not a secure origin)', async () => {
+  const { sha256HexSync } = await import('@/lib/sha256');
+  const node = (t: string) => createHash('sha256').update(t, 'utf8').digest('hex');
+  it('equals Node’s for empty, one-block, multi-block and non-ASCII input', () => {
+    for (const t of ['', 'abc', 'a'.repeat(55), 'a'.repeat(56), 'a'.repeat(64), 'x'.repeat(1000), 'Weight Loss 2026 · week 8 — ¼″ 🏋️', '{"bodyLogs":[{"weight":180}]}']) {
+      expect(sha256HexSync(t)).toBe(node(t));
+    }
+  });
+  it('a whole demo state hashes the same', () => {
+    const big = JSON.stringify(demo);
+    expect(sha256HexSync(big)).toBe(node(big));
+  });
+});
+
+describe('decoding on a page with no crypto.subtle (a phone on http://<LAN-IP>)', () => {
+  it('still inflates, checks the hash and refuses a bad one', async () => {
+    const { vi } = await import('vitest');
+    const json = JSON.stringify({ bodyLogs: [{ date: '2026-08-01', weight: 181 }] });
+    const hex = '\\x' + gzipSync(json).toString('hex');
+    const hash = createHash('sha256').update(json).digest('hex');
+    vi.stubGlobal('crypto', {});
+    try {
+      expect((await decodeClientState(hex, hash)).bodyLogs?.[0].weight).toBe(181);
+      await expect(decodeClientState(hex, '0'.repeat(64))).rejects.toThrow(/hash/);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
