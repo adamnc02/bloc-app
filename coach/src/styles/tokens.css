@@ -22,7 +22,7 @@
   --accent: #9184d9;
   --accent2: #b5abfc;
   --on-accent: #161826;
-  --red: #ff5f5d;
+  --red: #E24B4A;  /* BLOC's --red (Train's "missed target"), the same in both modes */
   --green: #1b9e75;
   --green-text: #4cc59d;
   --amber: #d9c48f;
@@ -97,7 +97,7 @@
   --accent: #9184d9;                  /* BLOC: not overridden in light */
   --accent2: #6f5cc4;                 /* exact: "keep existing #6f5cc4" */
   --on-accent: #161826;               /* BLOC: fixed, never themed */
-  --red: #d23c3a;                     /* exact */
+  --red: #E24B4A;                     /* BLOC: not overridden in light */
   --green: #137359;                   /* BLOC */
   --green-text: #137359;              /* exact */
   --amber: #8a6a17;                   /* BLOC */

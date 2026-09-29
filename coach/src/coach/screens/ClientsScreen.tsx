@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import {
-  Avatar, Button, Chip, EmptyState, Hero, Icon, IconButton, Notice, Page, PageHeader, Section, Seg, Toast, useEntering, useIsWide, useToast,
+  Avatar, Button, Chip, EmptyState, Hero, Icon, IconButton, Notice, Page, PageHeader, Section, Seg, Toast, useEntering, useIsWide, useOnResume, useToast,
 } from '@/components/ui';
 import { WeightSparkline } from '@/components/charts/Sparkline';
 import { CoachShell, AccountButton } from '@/coach/CoachShell';
@@ -68,6 +68,7 @@ export function ClientsScreen() {
     repo.loadClients().then(setBundles).catch((e) => setLoadError(e instanceof Error ? e.message : String(e)));
   }, [repo]);
   useEffect(load, [load]);
+  useOnResume(load); // back to the app: reload, so a change made elsewhere shows here
 
   const now = repo.now();
   const rows = useMemo(() => (bundles ?? []).map((b) => summarise(b, now)), [bundles, now]);

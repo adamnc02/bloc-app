@@ -9083,7 +9083,7 @@ BLOC's version, and every file BLOC serves, unchanged. Branches are `feature/coa
 | `coach/package.json`, `package-lock.json` | pinned: React 18.3.1, Vite 8.3.1, TypeScript 7.0.2 (the engine's), vitest 5.0.2, `@supabase/supabase-js` 2.117.2 |
 | `coach/vite.config.ts` | `base: '/bloc-app/coach/'`; `@engine` → `../engine/src/index.ts` (**source**, never `engine/dist`, which is BLOC's); `@` → `src`; a dev/preview middleware that serves the repo's `bloc-demo-data(.dev).json` at `/bloc-app/…`, so the fixtures never enter `dist` |
 | `coach/index.html` | the page, with the splash inline (below) |
-| `coach/src/styles` | tokens (dark and light, the light values equal to BLOC's `[data-mode="light"]`; `--scrim` is Coach's own), `ui.css`, `motion.css`, `shell.css`, and `auth.css` (the sign-in screen) |
+| `coach/src/styles` | tokens (dark and light, the light values equal to BLOC's `[data-mode="light"]`; `--red` is BLOC's `#E24B4A` in both modes, the red of Train's "missed target"; `--scrim` is Coach's own), `ui.css`, `motion.css`, `shell.css`, and `auth.css` (the sign-in screen) |
 | `coach/src/components/ui`, `components/brand`, `components/charts` | the shared primitives (page anatomy, cards, buttons, sheets, `Notice`, hooks), the brand marks, the weight sparkline |
 | `coach/src/lib/host.ts` | the dev bypass (below) |
 | `coach/src/lib/storage.ts` | every Coach localStorage key (below) |
@@ -9228,6 +9228,10 @@ their own link as a client's.
   missing; the vitest cases check it against Node's across block boundaries, non-ASCII text and a whole
   demo state, and decode an upload with `crypto` stubbed empty. `DecompressionStream` needs no secure
   origin.
+- **Freshness.** Clients and the client page load when opened, and again whenever the app comes back to
+  the front (`useOnResume()`: `visibilitychange` to visible, or window `focus`; a second trigger within
+  1 s is skipped), so a change made elsewhere (a client's new sync, a card removed) shows without leaving
+  the screen.
 - **Link status**, in this order: an active link → Linked; else an unused invite → Invited (expired or
   not); else an ended link → Unlinked; else Not on the app. The "Not on the app" filter includes
   Unlinked, as the hero does.

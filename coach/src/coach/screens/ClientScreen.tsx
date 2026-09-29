@@ -1,5 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { Avatar, Chip, EmptyState, Hero, Icon, Notice, Page, PageHeader, Section, useEntering } from '@/components/ui';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { Avatar, Chip, EmptyState, Hero, Icon, Notice, Page, PageHeader, Section, useEntering, useOnResume } from '@/components/ui';
 import { CoachShell } from '@/coach/CoachShell';
 import { useCoach } from '@/app/App';
 import { fmt } from '@/lib/format';
@@ -16,9 +16,11 @@ export function ClientScreen({ id }: { id: string }) {
   const ref = useEntering<HTMLDivElement>(`client-${id}`);
   const [bundle, setBundle] = useState<ClientBundle | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
+  const load = useCallback(() => {
     repo.loadClients().then((all) => setBundle(all.find((b) => b.card.id === id) ?? null)).catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, [repo, id]);
+  useEffect(load, [load]);
+  useOnResume(load); // back to the app: reload
 
   const back = <a href="#/clients" className="eyebrow eyebrow-link"><Icon name="chevL" size={14} /> Clients</a>;
   if (error || bundle === null) {

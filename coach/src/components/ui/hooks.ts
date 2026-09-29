@@ -108,3 +108,28 @@ export function useScrub(opts: { holdMs?: number } = {}) {
     },
   };
 }
+
+/**
+ * Runs `fn` whenever the app comes back to the front: the page becomes
+ * visible again (back from another app or tab, a phone unlocked) or the
+ * window regains focus. Screens that show server data reload with it, so a
+ * change made elsewhere shows without leaving the screen. Both events can
+ * fire together; a reload inside 1 s of the last is skipped.
+ */
+export function useOnResume(fn: () => void) {
+  const ref = useRef(fn);
+  ref.current = fn;
+  useEffect(() => {
+    let last = 0;
+    const run = () => {
+      if (document.visibilityState !== 'visible') return;
+      const now = performance.now();
+      if (now - last < 1000) return;
+      last = now;
+      ref.current();
+    };
+    document.addEventListener('visibilitychange', run);
+    window.addEventListener('focus', run);
+    return () => { document.removeEventListener('visibilitychange', run); window.removeEventListener('focus', run); };
+  }, []);
+}
