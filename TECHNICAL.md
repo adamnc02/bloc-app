@@ -9810,3 +9810,29 @@ device's kept, B recorded, reload; B then boots; A over B's data the same; the o
 holding only another account's profile switches too (control: `2fb95b2` claimed it); every writer guarded; sign-out
 backs up before signing out. Control: v8.45 (`85ddc8b`) runs B's full
 sync over A's data.
+
+## §146 — v8.46: the splash's words on an iPhone; the account in About me; My data
+
+**The splash's words scale about a fixed centre.** Each pillar word (TRAIN, FUEL, OVERCOME, REPEAT) flies from a
+start pose (`sFly*`: a translate plus `scale(0.97)`) to its place in the line. The scale's centre came from
+`transform-box: fill-box; transform-origin: center`, and 🚨 **WebKit takes a different centre for SVG text than
+Chrome**, so on an iPhone every word's start pose sat about 11 drawing units left (and ~2 up) of where Chrome puts
+it: REPEAT started on top of its spinning icon. Their text boxes, transforms and final positions were identical in
+both engines; only the transform centre differed. Now `#splash .s-word` is `transform-box: view-box` and each word
+has its own `transform-origin` in drawing units (its `x`, and `143px`, the text's middle), so no engine has to work
+out a text box. Measured at 390 px wide, 3.6 s in: REPEAT's centre is at 247.4 px in both Chromium and WebKit (WebKit
+was 239.9). The icon's spin (`sSpin`, on a `<g>`, `fill-box`) already matched in both and is unchanged. BLOC Coach's
+splash carries the same fix (§139: a change to one is made to both).
+
+**The account is in About me.** The signed-in email and provider, **Change password** (email accounts), and then
+**Sign out** as the sheet's last control: a full-width danger button, as in BLOC Coach. It shows during the profile
+gate too (About me is the gate), so a new account can always sign out; before, a new account had to complete its
+profile to reach Sign out. `signOutUser()` closes About me as well as the old sheet. The ids `updateAccountUI()`
+fills (`account-email-display`, `account-provider-display`, `account-change-password-btn`) moved with the markup.
+
+**Account & Data is "My data"**: Backup (Export, Restore) and Data (Download my data, Delete my data, Clear all data,
+Close my account). Its id stays `modal-account`, referenced from the export and restore choice sheets.
+
+**Check:** `scripts/verify-splash-and-about-me.mjs`: the words on `view-box` with their own origins, the account in
+About me with Sign out last, My data's title and no sign-out in it, the Settings row, and Sign out closing About me.
+Controls: a word left on `fill-box`, and a Sign out row left in My data.

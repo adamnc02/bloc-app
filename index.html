@@ -2006,8 +2006,16 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 #splash .s-word {
   font-size: 18px; font-weight: 700; text-anchor: middle;
   fill: var(--splash-muted);
-  transform-box: fill-box; transform-origin: center;
+  /* 🚨 Each word scales about its own centre, given in the drawing's units
+     (view-box). With fill-box, WebKit centres SVG text somewhere else, so on
+     an iPhone each word started ~11 units left of where Chrome puts it, and
+     REPEAT sat on its spinning icon. */
+  transform-box: view-box;
 }
+#splash .s-w-train  { transform-origin: 56.5px 143px; }
+#splash .s-w-fuel   { transform-origin: 157px 143px; }
+#splash .s-w-over   { transform-origin: 289.5px 143px; }
+#splash .s-w-repeat { transform-origin: 440px 143px; }
 #splash .s-w-over { fill: var(--splash-brand); font-weight: 800; }
 #splash .s-w-train  { animation: sIn 0.35s ease 0.75s both, sFlyTrain 0.9s cubic-bezier(0.3, 0.9, 0.4, 1) 3.9s both; }
 #splash .s-w-fuel   { animation: sIn 0.35s ease 1.4s both,  sFlyFuel 0.9s cubic-bezier(0.3, 0.9, 0.4, 1) 3.95s both; }
@@ -3368,7 +3376,7 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 
 /* ── Sheets ──────────────────────────────────────────────────────────── */
 /* Section headings inside a sheet: quieter than a page's .section-h2,
-   since a sheet is already one topic. Used by Account & Data's three
+   since a sheet is already one topic. Used by My data's
    sub-sections, which stay non-collapsible. */
 .sheet-sec {
   font-family: var(--font-display); font-size: 15px; font-weight: 600;
@@ -4217,7 +4225,7 @@ try {
             </div>
           </div>
           <!-- A weighing scale. It was a second person glyph, all but identical
-               to About me's and to Account &amp; Data's — three rows in one list
+               to About me's and to My data's — three rows in one list
                sharing one picture (v8.16 UAT). -->
           <div class="settings-row settings-row-nav" onclick="openSettingsBodyLogs()">
             <div class="settings-row-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M8 15a4 4 0 0 1 8 0"/><path d="M12 15l3-2.6"/></svg></div>
@@ -4239,8 +4247,8 @@ try {
                this modal from the old standalone Data & Backup section.-->
           <div class="settings-row settings-row-nav" onclick="openModal('modal-account')">
             <div class="settings-row-icon"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></div>
-            <div class="settings-row-text">Account &amp; Data
-              <div class="settings-row-sub">Sign in details, backup, restore and closing your account.</div>
+            <div class="settings-row-text">My data
+              <div class="settings-row-sub">Backup, restore, and downloading, deleting or clearing your data.</div>
             </div>
           </div>
         </div>
@@ -5455,6 +5463,27 @@ try {
 
     <button class="btn btn-accent btn-block" onclick="saveBodyProfile()">Save profile &rarr;</button>
     <div id="profile-gate-error" style="display:none;font-size:12px;color:var(--red);margin-top:10px;text-align:center;">Please fill in all three fields to continue.</div>
+
+    <!-- v8.46 (§146): the account lives with the person's own details. Sign out
+         is the sheet's last control, a full-width danger button as in BLOC
+         Coach, and it shows during the profile gate too: a new account can
+         always leave. -->
+    <div class="sheet-sec">Account</div>
+    <div class="card">
+      <div style="padding:4px 0 12px;">
+        <div style="font-family:var(--font-display);font-size:16px;font-weight:600;letter-spacing:-0.01em;" id="account-email-display">—</div>
+        <div class="settings-row-sub" id="account-provider-display"></div>
+      </div>
+      <!-- Email/password accounts only — OAuth accounts have no BLOC-side
+           password to change. Shown by updateAccountUI() when the provider is 'email'. -->
+      <div class="settings-row settings-row-nav" id="account-change-password-btn" style="display:none;" onclick="openChangePassword()">
+        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+        <div class="settings-row-text">Change password
+          <div class="settings-row-sub">Sets a new password for this email account.</div>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-danger btn-block" id="about-me-sign-out" style="margin-top:22px;display:flex;align-items:center;justify-content:center;gap:8px;" onclick="signOutUser()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 20H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h4M16 16l4-4-4-4M20 12H9"/></svg>Sign out</button>
   </div>
 </div>
 
@@ -6035,7 +6064,7 @@ try {
 <div class="modal-overlay" id="modal-account">
   <div class="modal-sheet" data-modal="modal-account">
     <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-account')">✕</button></div>
-    <div class="modal-title">Account &amp; Data</div>
+    <div class="modal-title">My data</div>
 
     <!-- Redesigned v8.09 to mirror the main Settings screen's own visual
          language exactly (grey-caps .section-title headers, .settings-row
@@ -6050,33 +6079,9 @@ try {
          irreversible-account actions); Download my data and Delete my data
          are plain rows like every other section, per Adam's explicit call. -->
 
-    <!-- ── Account ── -->
-    <div class="sheet-sec sheet-sec-first">Account</div>
-    <div class="card">
-      <div style="padding:4px 0 12px;">
-        <div style="font-family:var(--font-display);font-size:16px;font-weight:600;letter-spacing:-0.01em;" id="account-email-display">—</div>
-        <div class="settings-row-sub" id="account-provider-display"></div>
-      </div>
-      <!-- Email/password accounts only — OAuth accounts have no BLOC-side
-           password to change, Google/Apple/Microsoft manage that
-           themselves. Hidden by default; shown by updateAccountUI() when
-           the signed-in session's provider is 'email'. -->
-      <div class="settings-row settings-row-nav" id="account-change-password-btn" style="display:none;" onclick="openChangePassword()">
-        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
-        <div class="settings-row-text">Change password
-          <div class="settings-row-sub">Sets a new password for this email account.</div>
-        </div>
-      </div>
-      <div class="settings-row" onclick="signOutUser()">
-        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></div>
-        <div class="settings-row-text">Sign out
-          <div class="settings-row-sub">Leaves your data on this device.</div>
-        </div>
-      </div>
-    </div>
-
+    <!-- v8.46 (§146): the account (email, password, sign out) is in About me. -->
     <!-- ── Backup ── -->
-    <div class="sheet-sec">Backup</div>
+    <div class="sheet-sec sheet-sec-first">Backup</div>
     <div class="sheet-sec-sub">Save or restore a complete snapshot of all your plans, logs and nutrition data.</div>
     <div class="sheet-sec-note" id="account-last-backup-display">No cloud backup yet</div>
     <div class="card">
@@ -6144,8 +6149,8 @@ try {
 </div>
 
 <!-- Change Password (v8.06) — email/password accounts only, opened from
-     the "Change password" link in the Account & Data modal's account
-     card. Both fields are real type="password" inputs with
+     the "Change password" row in About me's Account
+     card (v8.46). Both fields are real type="password" inputs with
      autocomplete="new-password", the same hint used on Sign Up, so iOS
      offers its strong-password suggestion / Keychain save prompt here
      too rather than just masking the text. -->
@@ -6170,7 +6175,7 @@ try {
   </div>
 </div>
 
-<!-- Export choice (v8.05) — Settings → Account & Data → Backup → Export.
+<!-- Export choice (v8.05) — Settings → My data → Backup → Export.
      Local goes straight to exportData(); Cloud opens the second-level
      choice below (plain snapshot vs full sync). Mirrors the existing
      stacked-button pattern used by modal-linked-services. -->
@@ -6230,7 +6235,7 @@ try {
   </div>
 </div>
 
-<!-- Restore choice (v8.05) — Settings → Account & Data → Backup → Restore.
+<!-- Restore choice (v8.05) — Settings → My data → Backup → Restore.
      Local file keeps the existing importData() path and its status line
      (#import-status, unchanged element id) inline in this same modal
      rather than auto-closing, so feedback on a bad file is actually
@@ -7246,7 +7251,7 @@ async function flushSyncQueue() {
 // Forces an immediate, un-debounced full push of every table, bypassing
 // the _syncDirty gate entirely — used (a) once per fresh sign-in, silently
 // (see maybeForceFullSyncOnSignIn() below), and (b) on demand from
-// Settings → Account & Data → Backup → Export → Cloud → Full sync, paired there with
+// Settings → My data → Backup → Export → Cloud → Full sync, paired there with
 // uploadSnapshot() (see handleFullCloudSync()). Shares pushStateToSupabase()
 // with the debounced path rather than duplicating it — the only difference
 // is not waiting on the dirty flag/timer. Clears any pending debounced
@@ -8620,7 +8625,7 @@ function continueBootAfterAuth() {
     // 🚨 Real data on the device wins over the demo dataset, exactly as it
     // does in production (fetchDemoDataIfNewUser below seeds only a genuinely
     // new user). Without this the bypass seeded demo data on EVERY load, so a
-    // backup restored through Settings → Account & Data → Restore survived in
+    // backup restored through Settings → My data → Restore survived in
     // localStorage but was masked the moment you reloaded — load() had already
     // put it in `state` and enterDemoMode() replaced it.
     //
@@ -8916,6 +8921,7 @@ async function sendPasswordReset() {
 async function signOutUser() {
   if (!supabase) return;
   closeModal('modal-account');
+  closeModal('modal-body-profile'); // v8.46 (§146): Sign out is in About me
   // v8.46 (§145): back this account up while it can still write its own
   // backup. If another account signs in here next, this device loads that
   // account's data instead, and this one's latest changes are in the cloud.
@@ -8949,7 +8955,8 @@ function updateAccountUI(session) {
     const label = provider === 'email' ? 'Signed in with email' : 'Signed in with ' + provider.charAt(0).toUpperCase() + provider.slice(1);
     providerEl.textContent = label;
   }
-  if (changePwBtn) changePwBtn.style.display = provider === 'email' ? 'block' : 'none';
+  // v8.46 (§146): '' hands the row back to its own flex layout; 'block' stacked its icon over its text.
+  if (changePwBtn) changePwBtn.style.display = provider === 'email' ? '' : 'none';
   updateLastBackupDisplay();
 }
 
@@ -9014,7 +9021,7 @@ function updateLastBackupDisplay() {
   const text = last ? `Last cloud backup: ${formatDate(last)}` : 'No cloud backup yet';
   // Only account-last-backup-display remains as of v8.06 — the standalone
   // Settings-page copy (settings-last-cloud-backup) was removed when
-  // Backup/Data moved into the Account & Data modal.
+  // Backup/Data moved into the My data sheet (Account & Data until v8.46).
   const el = document.getElementById('account-last-backup-display');
   if (el) el.textContent = text;
 }
@@ -9048,7 +9055,7 @@ async function handleBackupNow(btnId, statusId) {
   }
 }
 
-// "Full sync" cloud export action (v8.05) — Settings → Account & Data →
+// "Full sync" cloud export action (v8.05) — Settings → My data →
 // Export → Cloud → Full sync. Pairs forceFullRelationalSync() (the
 // relational tables) with uploadSnapshot() (the dated backup file) so one
 // tap guarantees both are current, unlike the plain "Backup file" option
