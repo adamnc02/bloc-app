@@ -5,9 +5,9 @@ import { BoxSwatch, Legend, LineSwatch, ScrubChart, linear, niceRange } from './
 
 /** A week's calories count as off-goal when this far on the bad side of target (the engine's drift-warning threshold). */
 const KCAL_OFF_GOAL = 150;
-/** The callout: date and week, weight, calories, then waist and hip on their own line. */
+/** The callout: date and week; the day's weight and its week's average; the day's calories against its target and the week's average; waist and hip. */
 const CALLOUT_H = 84;
-const CALLOUT_W = 214;
+const CALLOUT_W = 224;
 /** Roughly one character of a 10px bold chart label. */
 const LABEL_CHAR_PX = 6.4;
 
@@ -70,6 +70,7 @@ export function StoryChart({ d, name }: { d: StoryData; name: string }) {
           const kw = d.kcalWeeks.find((k) => k.start <= date && k.end >= date);
           const waist = at(waistPts, date), hip = at(hipPts, date);
           const phase = at(d.phases, date);
+          const kd = d.kcalDays[date];
           return {
             at: x,
             body: (
@@ -78,8 +79,8 @@ export function StoryChart({ d, name }: { d: StoryData; name: string }) {
                   <b style={{ whiteSpace: 'nowrap' }}>{fmt.ddm(date)}</b>
                   <span className="caption" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{[kw?.label, phase && shortPhaseLabel(phase.label, 16)].filter(Boolean).join(' · ')}</span>
                 </div>
-                <div>Weight <b className="num">{wi ? fmt.one(wi.lbs) : '—'}</b> · week avg <b className="num">{wk ? fmt.one(wk.lbs) : '—'}</b></div>
-                <div>Kcal <b className="num">{kw?.avgKcal != null ? fmt.int(kw.avgKcal) : '—'}</b> a day / {kw?.targetKcal != null ? fmt.int(kw.targetKcal) : '—'}</div>
+                <div>Weight <b className="num">{wi ? fmt.one(wi.lbs) : '—'}</b> · wk avg <b className="num">{wk ? fmt.one(wk.lbs) : '—'}</b></div>
+                <div>Kcal <b className="num">{kd?.kcal != null ? fmt.int(kd.kcal) : '—'}</b> / {kd?.target != null ? fmt.int(kd.target) : '—'} · wk avg <b className="num">{kw?.avgKcal != null ? fmt.int(kw.avgKcal) : '—'}</b></div>
                 <div className="caption">Waist <b>{waist ? fmt.inches(waist.waist as number) : '—'}</b> · hip <b>{hip ? fmt.inches(hip.hip as number) : '—'}</b>{waist && waist.date !== date ? ` · ${fmt.dm(waist.date)}` : ''}</div>
               </>
             ),

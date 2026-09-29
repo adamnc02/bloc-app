@@ -4,8 +4,8 @@
 // Every judgement is the engine's, run on the client's uploaded state at the
 // client's local today:
 //   · the calendar weeks are the week agenda's units (getTrainAgendaUnits),
-//     which score each week and draw the sessions strip; the exercise grid's
-//     columns are mesocycles and its rows each session's template (A and B
+//     which score each week, draw the sessions strip and are the exercise
+//     grid's columns; the grid's rows are each session's template (A and B
 //     with microcycles), because each template progresses against its own
 //     previous mesocycle;
 //   · pass or fail is getWeekComplianceResult(): every set met or beat its
@@ -107,23 +107,22 @@ export interface WeekCol {
 }
 
 /**
- * A grid column: one mesocycle (the engine's week). With microcycles each
- * session has an A and a B template, each progressing against its own previous
- * mesocycle, so the rows split A/B and one column holds a mesocycle's weeks.
- * Without microcycles a mesocycle is one calendar week.
+ * A grid column: one calendar week. With microcycles the rows split into each
+ * session's A and B templates, so an A row is blank in the B weeks: they are
+ * different weeks, and each template progresses against its own previous
+ * mesocycle.
  */
 export interface GridCol {
   idx: number;
   week: number;
-  /** "W3" when the mesocycle is one calendar week, else "M2". */
+  /** "W3". */
   label: string;
-  /** Its calendar weeks, "W3–4", when it spans more than one. */
   sub: string | null;
   units: number[];
   isDeload: boolean;
   closed: boolean;
   current: boolean;
-  /** Mean of its finished calendar weeks' scores (attendance on maintenance). */
+  /** The week's score (attendance on maintenance), once it has ended. */
   score: number | null;
 }
 
@@ -132,7 +131,7 @@ export interface TrainingCompliance {
   scored: boolean;
   /** One per calendar week: the sessions strip and every week score. */
   cols: WeekCol[];
-  /** One per mesocycle: the exercise grid's columns. */
+  /** The exercise grid's columns: the same calendar weeks. */
   gridCols: GridCol[];
   rows: GridRow[];
   cycleScore: number | null;
@@ -227,18 +226,11 @@ export function computeTraining(s: BlocState, m: Macrocycle, today: string): Tra
     sessions: [], planned: 0, done: 0, score: null, attendance: null,
   }));
 
-  // Grid columns: one per mesocycle, holding its calendar weeks.
-  const weeks = [...new Set(cols.map((c) => c.week))].sort((a, b) => a - b);
-  const gridCols: GridCol[] = weeks.map((w, idx) => {
-    const us = cols.filter((c) => c.week === w);
-    const first = us[0].idx + 1, last = us[us.length - 1].idx + 1;
-    return {
-      idx, week: w, units: us.map((c) => c.idx),
-      label: us.length === 1 ? `W${first}` : `M${w}`, sub: us.length === 1 ? null : `W${first}–${last}`,
-      isDeload: us.every((c) => c.isDeload), closed: us.every((c) => c.closed), current: us.some((c) => c.current), score: null,
-    };
-  });
-  const gridIdx = new Map(weeks.map((w, i) => [w, i]));
+  // Grid columns: one per calendar week, so A and B read as the different weeks they are.
+  const gridCols: GridCol[] = cols.map((c) => ({
+    idx: c.idx, week: c.week, units: [c.idx], label: c.label, sub: null,
+    isDeload: c.isDeload, closed: c.closed, current: c.current, score: null,
+  }));
 
   // Rows: one per exercise in each session template, grouped by session in the
   // cycle's day order, A before B.
@@ -256,7 +248,7 @@ export function computeTraining(s: BlocState, m: Macrocycle, today: string): Tra
   const rowByKey = new Map<string, GridRow & { _o: number; _e: number }>();
   (units as Loose[]).forEach((u, idx) => {
     const col = cols[idx];
-    const gc = gridIdx.get(col.week) as number;
+    const gc = idx;
     for (const sess of u.sessions as Loose[]) {
       const exercises = ((s.exercises || {})[`${m.id}_1_${sess.dayKey}`] || []).slice().sort((a: Loose, b: Loose) => (a.order || 0) - (b.order || 0));
       const counted: number[] = [];

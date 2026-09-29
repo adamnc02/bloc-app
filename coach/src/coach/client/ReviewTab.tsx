@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { Card, Chip, Hero, Icon, Notice, OutcomeChip, Score, Section, Sheet, Tag, type IconName } from '@/components/ui';
+import { Card, Chip, Hero, Icon, Notice, OutcomeChip, Score, Section, Sheet, Tag, useIsTablet, useIsWide, type IconName } from '@/components/ui';
 import { ComplianceGrid, SessionsStrip } from '@/components/charts/ComplianceGrid';
 import { NutritionChart } from '@/components/charts/NutritionChart';
 import { RpeQuadrant } from '@/components/charts/RpeQuadrant';
@@ -189,8 +189,8 @@ function WeeksNarrative({ m }: { m: ReviewModel }) {
                 <span className={bad(p) ? 't-bad' : p.kind === 'moving' ? 't-good' : ''} style={{ fontWeight: 700 }}>{word(p)}</span>
                 {lbs && <> · {lbs}</>}
                 {p.avgKcal != null && <span className="muted"> · {fmt.int(p.avgKcal)} kcal a day</span>}
-                {!p.confirmed && p.kind !== 'start' && <span className="caption"> · 1 week, not confirmed yet</span>}
-                {p.flagged && p.kind === 'flat' && <span className="caption"> · flagged</span>}
+                {!p.confirmed && p.kind !== 'start' && <span className="caption"> · 1 week so far: counts once it runs 2</span>}
+                {p.flagged && p.kind === 'flat' && <span className="caption"> · the stall behind the verdict</span>}
               </span>
             </li>
           );
@@ -202,7 +202,9 @@ function WeeksNarrative({ m }: { m: ReviewModel }) {
 
 // ---------------------------------------------------------------- evidence tiles
 
+/** Six tiles: 6 across on a laptop, 3 by 2 on a tablet, 2 by 3 on a phone. */
 function EvidenceTiles({ m }: { m: ReviewModel }) {
+  const wide = useIsWide(), tablet = useIsTablet();
   const o = m.outcome;
   const lead = o.lead?.key;
   const flag = (k: DriverKey) => (o.status === 'off-track' ? o.lead?.key === k : false);
@@ -220,19 +222,23 @@ function EvidenceTiles({ m }: { m: ReviewModel }) {
   const meas = m.story.measurements.filter((x) => x.waist != null);
   const lastM = meas[meas.length - 1];
 
-  const tiles: { key: DriverKey | 'waist'; label: string; value: string; sub: string }[] = [
+  const intake3 = m.story.kcalWeeks.filter((w) => w.avgKcal != null).slice(-3);
+  const intake = intake3.length ? intake3.reduce((a, w) => a + (w.avgKcal as number), 0) / intake3.length : null;
+  const vsTdee = intake != null && m.tdee != null ? intake - m.tdee : null;
+  const tiles: { key: DriverKey | 'waist' | 'tdee'; label: string; value: string; sub: string }[] = [
     { key: 'waist', label: 'Waist', value: lastM?.waist != null ? fmt.inches(lastM.waist) : '—', sub: !lastM ? 'Not measured' : o.waist ? `${fmt.signed(o.waist.to - o.waist.from, 2)}″ since ${fmt.dm(o.waist.fromDate)}` : `Measured ${fmt.dm(lastM.date)}` },
     { key: 'calories', label: 'Calories', value: kcalDiff != null ? fmt.signedInt(kcalDiff) : '—', sub: `a day vs target, ${last3.length || 3} wks` },
     { key: 'steps', label: 'Steps', value: steps != null ? fmt.int(steps) : '—', sub: `a day, ${steps3.length || 3} wks` },
     { key: 'training', label: m.training.scored ? 'Training' : 'Attendance', value: outOf10(train), sub: `out of 10, ${closed.length || 3} wks` },
     { key: 'weigh-ins', label: 'Weigh-ins', value: String(weighIns), sub: `of the last ${span21} days` },
+    { key: 'tdee', label: vsTdee != null && vsTdee > 0 ? 'Surplus' : 'Deficit', value: vsTdee != null ? fmt.signedInt(vsTdee) : '—', sub: m.tdee != null ? `a day vs TDEE ${fmt.int(m.tdee)}, ${intake3.length || 3} wks` : 'No logged TDEE yet' },
   ];
   tiles.sort((a, b) => (a.key === lead ? -1 : b.key === lead ? 1 : 0));
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginTop: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${wide ? 6 : tablet ? 3 : 2}, minmax(0, 1fr))`, gap: 10, marginTop: 12 }}>
       {tiles.map((x) => {
-        const isLead = x.key !== 'waist' && flag(x.key);
-        const drifting = x.key !== 'waist' && drift(x.key);
+        const isLead = x.key !== 'waist' && x.key !== 'tdee' && flag(x.key);
+        const drifting = x.key !== 'waist' && x.key !== 'tdee' && drift(x.key);
         return (
           <div key={x.key} className="card" style={{ ...TILE, borderColor: isLead ? 'color-mix(in srgb, var(--red) 60%, transparent)' : undefined }}>
             <div className="row" style={{ minHeight: 22 }}><span className="muted" style={{ fontSize: 12 }}>{x.label}</span>{isLead && <Tag>Explains it</Tag>}</div>

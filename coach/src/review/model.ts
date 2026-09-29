@@ -10,7 +10,7 @@
 // the grid walk a whole year of logs, and a screen re-renders often.
 // ═══════════════════════════════════════════════════════════════════════
 import {
-  calcDynamicTDEE, getDateActiveMacroId, getMacroDurationWeeks, getMacroEndDate, shiftDateStr,
+  buildDayMap, calcDynamicTDEE, getDateActiveMacroId, getMacroDurationWeeks, getMacroEndDate, shiftDateStr,
   type BlocState, type GoalPeriod, type Macrocycle,
 } from '@engine';
 import { computeRpePoints, computeTraining, type RpePoint, type TrainingCompliance } from './training';
@@ -40,6 +40,8 @@ export interface StoryData {
   trend: { date: string; lbs: number; start: string; end: string }[];
   measurements: { date: string; waist: number | null; hip: number | null }[];
   kcalWeeks: { label: string; start: string; end: string; avgKcal: number | null; targetKcal: number | null }[];
+  /** Each day's logged calories and that day's goal target, for the callout. */
+  kcalDays: Record<string, { kcal: number | null; target: number | null }>;
   deloads: { start: string; end: string }[];
   /** Every goal phase of the cycle, in order; the first starts with the cycle. */
   phases: { date: string; label: string }[];
@@ -112,8 +114,14 @@ function storyData(s: BlocState, m: Macrocycle, cycle: CycleOption, today: strin
     }
     return k ? sum / k : null;
   };
+  const dayMap = buildDayMap(s);
+  const kcalDays: StoryData['kcalDays'] = {};
+  for (let d = cycle.start; d <= last; d = shiftDateStr(d, 1)) {
+    const g = goals.find((x) => x.startDate <= d && x.endDate >= d);
+    kcalDays[d] = { kcal: dayMap[d]?.hasNutr ? dayMap[d].kcal : null, target: num(g?.kcal) };
+  }
   return {
-    start: cycle.start, end: cycle.end, last,
+    start: cycle.start, end: cycle.end, last, kcalDays,
     weighIns: logs.filter((l) => num(l.weight) != null).map((l) => ({ date: l.date, lbs: num(l.weight)! })),
     trend: o.weeks.filter((w) => w.avg != null).map((w) => ({ date: [shiftDateStr(w.start, 3), last].sort()[0], lbs: w.avg as number, start: w.start, end: w.end })),
     measurements: logs.filter((l) => num(l.waist) != null || num(l.hip) != null).map((l) => ({ date: l.date, waist: num(l.waist), hip: num(l.hip) })),

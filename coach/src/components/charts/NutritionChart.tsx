@@ -53,6 +53,7 @@ export function NutritionChart({ days, weeks, bmr, tdee, goalType, onDay }: {
       </div>
       <ScrubChart
         height={H}
+        calloutH={76}
         label={`Calories ${mode === 'day' ? 'per day' : 'per week'} against target, with the protein share, logged TDEE and BMR${mode === 'day' ? ', weight and waist' : ''}.`}
         hint={mode === 'day' ? 'Hold and drag to read a day · tap a day for its meals' : 'Hold and drag to read a week'}
         onTap={mode === 'day' ? (w, x) => { const p = pts[at(w, x)]; if (p.kcal != null) onDay(p.date); } : undefined}
@@ -65,7 +66,8 @@ export function NutritionChart({ days, weeks, bmr, tdee, goalType, onDay }: {
               <>
                 <div className="row"><b>{mode === 'day' ? fmt.ddm(p.date) : `Week of ${fmt.dm(p.date)}`}</b>{p.lbs != null && <span className="num">{fmt.one(p.lbs)} lbs</span>}</div>
                 <div className="num">Kcal <b style={{ color: p.good ? 'var(--text)' : 'var(--red)' }}>{p.kcal != null ? fmt.int(p.kcal) : 'Not logged'}</b> / {p.target != null ? fmt.int(p.target) : '—'}</div>
-                <div className="num caption">P {p.protein != null ? `${Math.round(p.protein)}g (${fmt.int(p.protein * 4)} kcal)` : '—'} · {p.steps != null ? `${fmt.int(p.steps)} steps` : 'no steps'}</div>
+                <div className="num caption">Protein {p.protein != null ? `${Math.round(p.protein)}g (${fmt.int(p.protein * 4)} kcal)` : '—'}</div>
+                <div className="num caption">Steps {p.steps != null ? fmt.int(p.steps) : '—'}{mode === 'week' ? ' a day' : ''}</div>
               </>
             ),
           };

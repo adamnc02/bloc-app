@@ -9374,16 +9374,15 @@ since a verdict rests on weigh-ins.
 
 ### Training compliance (`training.ts`)
 
-- **Calendar weeks** are the week agenda's units (`getTrainAgendaUnits`, §115). They score the weeks and
-  draw the sessions strip, and a week is **scored only once it has ended** at the client's today; the
-  current week shows what's logged, "in progress".
-- **The grid's columns are mesocycles** (the engine's `week`), and **its rows are each session template's
-  exercises**: with microcycles every session has an A and a B template (`dayKey` `…m1` / `…m2`), each
-  progressing against its own previous mesocycle, so the rows split **"Pull · A" / "Pull · B"**, in the
-  cycle's day order, A before B. A column holds its mesocycle's calendar weeks ("M2", "W3–4"); without
-  microcycles, or with one-week mesocycles, a column is one week ("W3"). 🚨 Columns per calendar week with
-  rows merged by name leave every A row empty in the B weeks: the grid reads as gaps, not compliance. The
-  footer is each mesocycle's score, the mean of its finished weeks.
+- **Calendar weeks** are the week agenda's units (`getTrainAgendaUnits`, §115). They score the weeks, draw
+  the sessions strip and are **the grid's columns**, and a week is **scored only once it has ended** at the
+  client's today; the current week shows what's logged, "in progress".
+- **The grid's rows are each session template's exercises**: with microcycles every session has an A and a
+  B template (`dayKey` `…m1` / `…m2`), each progressing against its own previous mesocycle, so the rows
+  split **"Pull · A" / "Pull · B"**, in the cycle's day order, A before B. With two-week mesocycles an A
+  row is blank in the B weeks and the other way round: they are different weeks. 🚨 Merging A and B rows
+  by exercise name hides which template missed; stacking them under one mesocycle column reads as if both
+  happened in the same week. The footer is each week's score.
 - **A cell** is `getWeekComplianceResult()`: pass when every set met or beat its target, the lock's test.
   Targets come from the client's own `progressionTargets` first (`makeTargetCache`); what the engine
   computes beyond them stays in memory and **never reaches the client's state** (a vitest case checks it).
@@ -9432,8 +9431,9 @@ threshold, on the bad side), and every goal phase. No deload shading: the chart 
   over 5 weeks · 1,852 kcal a day while flat", "Rising since W6", "−6.5 lbs since W1", or "Holding within
   1.2 lbs". Holding and dragging swaps it for the callout (`ScrubChart`'s `header`).
 - **The callout** has the date and week on one line (the phase name cut short, never wrapping the date),
-  the day's weight and **its week's average**, the week's calories against target, and waist and hip on
-  their own line. 🚨 The week average is the week that **contains** the day (Mon–Sun from a Monday cycle
+  the day's weight and **its week's average** ("wk avg"), the day's calories against that day's target
+  and the week's average, and waist and hip on their own line. The nutrition chart's callout gives protein
+  and steps a line each. 🚨 The week average is the week that **contains** the day (Mon–Sun from a Monday cycle
   start). Looking up "the latest average on or before the day", with each average drawn mid-week, gave
   Monday to Wednesday the previous week's figure.
 - **Phase labels** are BLOC's own `shortPhaseLabel` ("Step 4 - Hard cut high steps" → "HCH Steps"), on two
@@ -9443,8 +9443,13 @@ threshold, on the bad side), and every goal phase. No deload shading: the chart 
 
 **How the weeks went** (the hero): the same periods as sentences, one line each: the first weeks, then
 every flat or moving period with its weights, change and calories a day ("W4–W6 · flat · 215.3 → 215.1 lbs
-(−0.2) · 1,852 kcal a day · flagged"); a one-week period says it isn't confirmed yet. It's the weekly
+(−0.2) · 1,852 kcal a day · the stall behind the verdict"); a one-week period says "1 week so far: counts
+once it runs 2", because the engine confirms a period at 2 weeks. It's the weekly
 figures behind the verdict, told rather than tabled.
+
+**The evidence tiles** are six: waist, calories (a day against target), steps, training, weigh-ins, and
+**deficit or surplus against the engine's logged TDEE** (the last 3 weeks' intake, the real deficit behind
+a stall). They sit 6 across on a laptop, 3 by 2 on a tablet, 2 by 3 on a phone.
 
 🚨 **Tiles in a grid set `marginTop: 0`.** `ui.css` spaces stacked cards with `.card + .card { margin-top }`;
 in a grid that pushes every tile after the first down, so the first reads as taller.
@@ -9482,8 +9487,8 @@ refuse a linked card's name or contact change, as the trigger does.
   explained by calories, written about her); the direction rule with the engine's own periods as the
   control, and its gain mirror; weight alone with no food logged; the waist rule (¾″ on track, ¼″ off);
   maintenance at 6/10 and 7/10 attendance and a 4 lb span; Grace at her Auckland date against the coach's
-  London date; the Clients row's outcome; 14 calendar weeks and 7 mesocycle columns, rows split A/B with no
-  gaps (the control), week 1, the deload and the session
+  London date; the Clients row's outcome; 14 calendar-week columns, rows split A/B with each A row blank in
+  exactly the B weeks, week 1, the deload and the session
   after it not counted, a missed week scoring 0 and a half-done session scoring its exercises, a swapped
   week against the same cell passing, the client's state untouched; nutrition scored with 4 days and not
   under 4, the current week unscored.
