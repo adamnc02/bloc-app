@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { fixtureDiary } from '@/data/fixtureDiary';
 import { addDays } from '@/lib/format';
 import { emptySlots, layoutLanes } from './slots';
-import { occurrencesBetween, requestSlot, seriesDates, type Occurrence } from './model';
+import { occurrencesBetween, placeholderState, requestSlot, seriesDates, type Occurrence } from './model';
 import { findClash, findSeriesClash, requestClashes } from './rules';
 import { BOOKING_KEYS, bookingChanges, canonical, desiredBookings, MAX_SKIP_DATES, type BookingPayload } from './publish';
 import {
@@ -59,6 +59,10 @@ describe('occurrences', () => {
     const o = occurrencesBetween(d, MON, addDays(MON, 6)).filter((x) => x.kind !== 'request');
     expect(o.filter((x) => x.cancelled).length).toBe(6);
     expect(o.find((x) => x.date === SAT)!.cancelled).toBe(false);
+  });
+  it('a placeholder’s state is whose move it is: requested (pending or countered), offered, clash (accepted, not booked)', () => {
+    const r = { id: 'r', clientId: 'u', cardId: 'c', preferences: [{ date: TUE, start_min: 600 }], notes: null, repeatWeekly: false, proposed: null, counter: null, bookingId: null, createdAt: '' };
+    expect((['pending', 'countered', 'proposed', 'accepted'] as const).map((status) => placeholderState({ ...r, status }))).toEqual(['requested', 'requested', 'offered', 'confirmed']);
   });
   it('no placeholder for a request that’s booked, declined or withdrawn', () => {
     const r = { id: 'r', clientId: 'u', cardId: 'c', preferences: [{ date: TUE, start_min: 600 }], notes: null, repeatWeekly: false, proposed: null, counter: null, bookingId: null, createdAt: '' };

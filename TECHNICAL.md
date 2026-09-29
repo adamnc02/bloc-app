@@ -10276,7 +10276,14 @@ the message (control: `String()` of the raw error), one refresh and retry on an 
   its reason. **Tap** a session to edit it (a request: the request sheet), an **empty outline** to book there, a
   **day's header** to mark it off (a day off: to undo it). Outlines are laid from the end of each session, so a session
   off the hour moves the outlines after it along, one hour tall each; past days keep theirs. Compact blocks (a phone column, a shared lane)
-  carry no tag: "Request" didn't fit at 375 pt; the dashed outline marks a request and the aria label says its state.
+  carry no tag. 🚨 **Every block shows only the name, the time and the repeat icon**; a placeholder's state is its dashed
+  outline (`placeholderState`), explained by a legend under the week bar (Booked · Requested · Offered · Clash):
+  **Requested**, lavender: the client's time, waiting on the coach (a new request, or the client suggesting another time);
+  **Offered**, green: the coach's time, waiting on the client; **Clash**, red: the client accepted the coach's time but it
+  wasn't booked (it clashes, or has passed) and the coach moves it. Tags and status lines ("Request", "New time", "Also …",
+  "Waiting for …") didn't fit a block and were cut off; the aria label still says the state.
+- **Settings has no bottom bar**: it isn't one of the four tabs (a phone reaches it from the gear, with ‹ Clients back), so
+  the bar showed with nothing selected.
 - **Sheets** (`DiarySheets`): Session (edit), Book a session, Just this one / All future, Let clients know? (one day or
   several; the sessions affected listed; "Don't tell them" / "Let … know"), the day off with Undo, and Session request.
   The client picker is a **SearchSheet** (one client, or several for a group). The request sheet opens on the client's

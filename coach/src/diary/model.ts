@@ -73,6 +73,20 @@ export function requestSlot(r: SessionRequest): Slot | null {
  */
 export const PLACEHOLDER_EXPIRY_DAYS: number | null = null;
 
+/**
+ * How a placeholder is drawn: `requested` (the client's time, waiting on the
+ * coach: a new request, or the client suggesting another time), `offered` (the
+ * coach's time, waiting on the client), `confirmed` (the client accepted the
+ * coach's time but it wasn't booked, because it clashes or has passed: the coach
+ * moves it).
+ */
+export type PlaceholderState = 'requested' | 'offered' | 'confirmed';
+export function placeholderState(r: SessionRequest): PlaceholderState {
+  if (r.status === 'proposed') return 'offered';
+  if (r.status === 'accepted') return 'confirmed';
+  return 'requested';
+}
+
 /** Requests the Diary shows: still open, or confirmed by the client and not booked yet. */
 export const openRequests = (d: Pick<Diary, 'requests'>, today?: ISODate) => d.requests.filter((r) => requestSlot(r) != null
   && (PLACEHOLDER_EXPIRY_DAYS == null || !today || r.status !== 'pending' || daysBetween(r.createdAt.slice(0, 10), today) <= PLACEHOLDER_EXPIRY_DAYS));

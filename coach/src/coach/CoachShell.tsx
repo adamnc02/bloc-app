@@ -54,13 +54,16 @@ export function CoachShell({ tab, children }: { tab: CoachTab; children: ReactNo
         </div>
       </nav></div>
       <main className="coach-main">{children}</main>
-      <nav className="bottom-nav" aria-label="BLOC Coach" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
-        {TABS.map((t) => (
-          <a key={t.key} href={`#${t.to}`} className="navi" aria-current={tab === t.key ? 'page' : undefined}>
-            <Icon name={t.icon} size={22} /><span>{t.label}</span>
-          </a>
-        ))}
-      </nav>
+{/* Not on Settings: it isn't one of the four tabs (on a phone it's the gear's page, with ‹ Clients back). */}
+      {tab !== 'settings' && (
+              <nav className="bottom-nav" aria-label="BLOC Coach" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
+          {TABS.map((t) => (
+            <a key={t.key} href={`#${t.to}`} className="navi" aria-current={tab === t.key ? 'page' : undefined}>
+              <Icon name={t.icon} size={22} /><span>{t.label}</span>
+            </a>
+          ))}
+        </nav>
+      )}
     </div>
   );
 }

@@ -115,12 +115,22 @@
 .bk-people small { font-size: 11px; color: var(--text2); margin-left: 5px; font-weight: 700 }
 .bk.is-compact .bk-people i:nth-child(n+3) { display: none }
 
-/* request placeholder: dashed accent, surface fill (covers the outline beneath) */
-.bk-request {
-  background: var(--surface); border: 1.5px dashed var(--accent2); box-shadow: none; z-index: 3;
-}
-.bk-request:hover { background: color-mix(in srgb, var(--accent) 10%, var(--surface)) }
-.bk-request.is-proposed { border-style: dashed; border-color: color-mix(in srgb, var(--accent2) 60%, transparent); background: color-mix(in srgb, var(--surface) 70%, transparent) }
+/* request placeholders: a dashed outline says whose move it is (the legend under the week bar).
+   Requested (the client's time, waiting on you): lavender. Offered (your time, waiting on them): green.
+   Confirmed but not booked (it clashes or has passed: move it): red. A surface fill covers the outline beneath. */
+.bk-request { background: var(--surface); border: 1.5px dashed var(--accent2); box-shadow: none; z-index: 3 }
+.bk-request.is-offered { border-color: var(--green); background: color-mix(in srgb, var(--green) 8%, var(--surface)) }
+.bk-request.is-confirmed { border-color: var(--red); background: color-mix(in srgb, var(--red) 8%, var(--surface)) }
+@media (hover: hover) { .bk-request:hover { filter: brightness(1.12) } }
+
+/* the legend */
+.dy-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 16px; margin: 0 0 12px; font-size: 12px; color: var(--text2) }
+.dy-legend span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap }
+.dy-legend i { width: 18px; height: 12px; border-radius: 4px; flex-shrink: 0 }
+.dy-legend .lg-booked { background: color-mix(in srgb, var(--accent) 30%, var(--surface)); box-shadow: inset 3px 0 0 var(--accent) }
+.dy-legend .lg-requested { border: 1.5px dashed var(--accent2) }
+.dy-legend .lg-offered { border: 1.5px dashed var(--green) }
+.dy-legend .lg-confirmed { border: 1.5px dashed var(--red) }
 
 .bk.is-lifted { opacity: .35 }
 .bk.is-floating {

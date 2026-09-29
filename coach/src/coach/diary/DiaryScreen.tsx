@@ -122,6 +122,12 @@ export function DiaryScreen() {
             <Button size="compact" variant="ghost" disabled={days.includes(today) && (wide || days[0] === today)} onClick={() => setAnchor(null)}>Today</Button>
           </div>
           <p className="caption dy-hint">{wide ? 'Click a session to edit it, or drag it to a new time. Click an empty hour to book it.' : 'Tap a session to edit it. Hold, then drag to move it. Tap an empty hour to book it.'}</p>
+          <div className="dy-legend" aria-label="What the outlines mean">
+            <span><i className="lg-booked" />Booked</span>
+            <span><i className="lg-requested" />Requested</span>
+            <span><i className="lg-offered" />Offered</span>
+            <span><i className="lg-confirmed" />Clash</span>
+          </div>
         </div>
 
         <div className="rise" style={{ ['--i' as string]: 3 }} aria-busy={busy}>
