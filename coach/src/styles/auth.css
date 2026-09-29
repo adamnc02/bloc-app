@@ -7,7 +7,9 @@
    Values are BLOC's tokens (--r-sm 4px, --r-btn-sm 12px, --r-btn 14px).
    ===================================================================== */
 .auth-gate {
-  position: fixed; inset: 0; z-index: 100;
+  /* Above the splash (9999), as BLOC's gate is: a signed-out person never
+     watches the splash play behind the sign-in screen. */
+  position: fixed; inset: 0; z-index: 10000;
   background: var(--bg);
   display: flex; align-items: center; justify-content: center;
   overflow-y: auto;

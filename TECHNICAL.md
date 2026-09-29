@@ -9240,6 +9240,29 @@ filter), the next session with the Diary (5e).
 - Share text: "Link to me as your coach in BLOC. Your code is …". The wireframe's "Join me on BLOC Coach"
   was wrong: the client never uses Coach.
 
+### The splash (the `bloc-splash` design, Coach version)
+
+Ported exactly as the design's `PORTING.md` says (the files live in the tracking folder,
+`bloc-app/bloc-splash/`, beside BLOC's version, §138). It must paint **before the React bundle loads**,
+so it isn't a component: `coach/index.html` has `bloc-coach-splash.css` inline in `<head>`, then the
+`#splash` markup and its script at the top of `<body>`, before `#root`. The animation is pure CSS (the
+bars build, the REPEAT loop, BLOC slides in, the tagline drops away, COACH draws in). The script only
+times the hand-over, **8.5 s** (`SPLASH_MS`; 1.4 s with reduced motion), wires the ✕, fades, then
+**removes `#splash` from the page**. It plays on every fresh load (`qualifiesForSplash()`, as BLOC). The
+app isn't held back behind it; React renders underneath.
+
+🚨 **The sign-in screen sits above the splash** (`.auth-gate` z-index 10000 over the splash's 9999), as
+BLOC's `#auth-gate` does, so a signed-out coach never watches the splash behind the sign-in form. Vite
+minifies the inline CSS; the timeline is unchanged. **The palette split holds** (§94, §138): the splash's
+green is `--splash-brand`, never the app's lavender.
+
+**Check:** `scripts/verify-coach-splash.mjs`, on the served `coach/dist/index.html`: styles inline in
+`<head>`, `#splash` before `#root` with its script straight after, 8.5 s / 1.4 s, the ✕ wired, the
+self-removal, the sign-in screen's z-index above the splash's, and the brand green with no lavender.
+Control: the splash moved after `#root`. Driven in Chromium: at 7 s the full COACH lock-up; at 9.7 s
+`#splash` is gone and Clients shows; ✕ removes it at once; with `?auth=real` the sign-in screen is
+topmost from the first second.
+
 ### No section number badges (Adam, 2026-09-29, for the whole Coach build)
 
 The wireframes number every section ("01", "02" in an outlined badge before the title). Adam: those were
@@ -9267,6 +9290,7 @@ laptop the rows are a table (Client, Status, Weight trend, Cycle, Synced).
 - `verify-coach-storage.mjs`: the keys and sign-out (above).
 - `verify-publish-list.mjs`: the mapping (above).
 - `verify-coach-no-section-numbers.mjs`: no section badges (above).
+- `verify-coach-splash.mjs`: the splash (above).
 - `coach/src/data/summary.test.ts` (vitest, 12 cases): each fixture's row at the tracked anchor, the
   client's-today control, link-status precedence, the client's own name once linked, and decoding with
   a refused hash as the control.
