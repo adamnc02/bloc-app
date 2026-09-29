@@ -1362,6 +1362,12 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .toggle-row { display: flex; background: var(--inset); border: 1px solid var(--border2); border-radius: var(--r-btn-sm); padding: 4px; gap: 4px; margin-bottom: 14px; }
 .toggle-btn { flex: 1; min-height: 40px; padding: 9px 8px; text-align: center; border-radius: 9px; border: none; background: transparent; color: var(--text2); font-family: var(--font-body); font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
 .toggle-btn.active { background: var(--accent); color: var(--on-accent); }
+/* v8.46 (§149): the New cycle sheet's split and microcycle choices are segments
+   that selectMacroOpt() marks with its old class. */
+.toggle-btn.macro-opt-selected { background: var(--accent); color: var(--on-accent); }
+.macro-stepper { display: flex; align-items: center; gap: 6px; }
+.macro-stepper input { text-align: center; min-width: 0; flex: 1; padding-left: 4px; padding-right: 4px; }
+.macro-step-btn { width: 40px; height: 40px; flex-shrink: 0; border-radius: 10px; border: 1px solid var(--border2); background: var(--surface2); color: var(--text); font-size: 20px; font-weight: 600; cursor: pointer; }
 
 /* ── LOG SET ROW (matches mockup's .set-row grid exactly) ─── */
 .set-row {
@@ -1587,20 +1593,6 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 }
 
 /* js-driven option cards */
-.macro-opt {
-  padding: 12px 14px;
-  background: var(--surface2);
-  border-radius: var(--r-sm);
-  border: 1px solid var(--border2);
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
-  -webkit-tap-highlight-color: transparent;
-}
-.macro-opt-selected {
-  border-color: var(--accent) !important;
-  background: color-mix(in srgb, var(--accent) 10%, transparent) !important;
-}
-
 /* ── Superset plan styles ─────────────────────────────── */
 .ss-group-wrap { margin-bottom: 4px; }
 .ss-group-swipe-wrap { position: relative; overflow: hidden; border-radius: 0 10px 10px 0; margin-bottom: 4px; }
@@ -4587,118 +4579,98 @@ try {
   </div>
 </div>
 
-<!-- Create Macrocycle -->
+<!-- Create Macrocycle
+     v8.46 (§149): BLOC Coach's New cycle layout. Every id the code reads is
+     kept (createMacrocycle, validateMacroPace, the clash and Monday checks, the
+     "Build this plan next" pre-fill): Weeks per mesocycle and Goal are hidden
+     inputs driven by segmented buttons, Mesocycles is the same input inside a
+     stepper, and the split and microcycle choices are segmented buttons with
+     their old ids. syncMacroForm() redraws the segments and the length line
+     whenever a value changes, from a tap or from code. Effort ratings (RPE)
+     stay in Plan ▸ Tools. -->
 <div class="modal-overlay" id="modal-macro">
   <div class="modal-sheet" data-modal="modal-macro">
     <div class="modal-handle-row"><div class="modal-handle"></div>
       <button class="modal-close-btn" onclick="closeModal('modal-macro')">✕</button>
     </div>
-    <div class="modal-title">New Macrocycle</div>
+    <div class="modal-title">New cycle</div>
     <div class="form-group">
       <div class="label">Name</div>
-      <input type="text" id="macro-name-input" placeholder="e.g. Weight Loss Phase 1">
+      <input type="text" id="macro-name-input" placeholder="e.g. Winter build">
     </div>
     <div class="form-group" id="macro-target-weeks-row" style="display:none;">
       <div class="label">Suggested cycle length (weeks)</div>
-      <input type="number" inputmode="numeric" id="macro-target-weeks-input" min="2" max="104" oninput="onMacroTargetWeeksChange()">
-      <div style="font-size:11px;color:var(--text3);margin-top:4px;">From the AI recommendation — edit if you want a different total, or adjust the split below and mesocycles will follow.</div>
+      <input type="number" inputmode="numeric" id="macro-target-weeks-input" min="2" max="104" oninput="onMacroTargetWeeksChange();syncMacroForm()">
+      <div class="field-hint">From the AI recommendation. Edit it for a different total, or change the weeks per mesocycle and the mesocycles follow.</div>
     </div>
-    <div class="input-row">
+    <div class="input-row" style="align-items:flex-start;">
+      <div>
+        <div class="label">Starts (a Monday)</div>
+        <input type="date" id="macro-start-input" oninput="syncMacroForm()">
+        <div class="field-hint" id="macro-start-hint"></div>
+      </div>
       <div>
         <div class="label">Mesocycles</div>
-        <input type="number" inputmode="numeric" id="macro-weeks-input" value="8" min="2" max="52" oninput="validateMacroPace('macro')">
-      </div>
-      <div>
-        <div class="label">Start Date</div>
-        <input type="date" id="macro-start-input">
+        <div class="macro-stepper">
+          <button type="button" class="macro-step-btn" aria-label="Fewer mesocycles" onclick="stepMacroMesos(-1)">−</button>
+          <input type="number" inputmode="numeric" id="macro-weeks-input" value="8" min="2" max="52" aria-label="Mesocycles" oninput="validateMacroPace('macro');syncMacroForm()">
+          <button type="button" class="macro-step-btn" aria-label="More mesocycles" onclick="stepMacroMesos(1)">+</button>
+        </div>
       </div>
     </div>
-    <div id="macro-start-error" style="display:none;font-size:12px;color:var(--red);margin:-6px 0 12px;">Macrocycles can only start on a Monday.</div>
+    <div id="macro-start-error" style="display:none;font-size:12px;color:var(--red);margin:-4px 0 12px;">Macrocycles can only start on a Monday.</div>
     <!-- v8.19 — cycles never overlap (§99) -->
-    <div id="macro-clash-error" style="display:none;font-size:12px;color:var(--red);margin:-6px 0 12px;line-height:1.5;"></div>
-    <div class="input-row">
+    <div id="macro-clash-error" style="display:none;font-size:12px;color:var(--red);margin:-4px 0 12px;line-height:1.5;"></div>
+    <div class="label">Weeks per mesocycle</div>
+    <input type="hidden" id="macro-weeks-per-meso-input" value="1">
+    <div class="toggle-row" role="group" aria-label="Weeks per mesocycle" style="margin-bottom:6px;">
+      <button type="button" class="toggle-btn" data-wpm="1" onclick="setMacroFormValue('macro-weeks-per-meso-input','1')">1 week</button>
+      <button type="button" class="toggle-btn" data-wpm="2" onclick="setMacroFormValue('macro-weeks-per-meso-input','2')">2 weeks</button>
+    </div>
+    <div class="field-hint" id="macro-length-line" style="margin:0 0 14px;"></div>
+    <div class="label">Goal</div>
+    <input type="hidden" id="macro-goal-type-input" value="loss">
+    <div class="toggle-row" role="group" aria-label="Goal" id="macro-goal-seg">
+      <button type="button" class="toggle-btn" data-goal="loss" onclick="setMacroFormValue('macro-goal-type-input','loss')">Lose</button>
+      <button type="button" class="toggle-btn" data-goal="gain" onclick="setMacroFormValue('macro-goal-type-input','gain')">Gain</button>
+      <button type="button" class="toggle-btn" data-goal="maintenance" onclick="setMacroFormValue('macro-goal-type-input','maintenance')">Maintain</button>
+    </div>
+    <div class="input-row" style="align-items:flex-start;">
       <div>
-        <div class="label">Weeks per mesocycle</div>
-        <select id="macro-weeks-per-meso-input" onchange="onMacroWeeksPerMesoChange('macro')">
-          <option value="1" selected>1 week</option>
-          <option value="2">2 weeks</option>
-        </select>
+        <div class="label">Goal weight lbs</div>
+        <input type="number" inputmode="decimal" id="macro-target-bw-input" placeholder="optional" step="0.1" oninput="validateMacroPace('macro')">
       </div>
-      <div>
-        <div class="label">Sessions per week</div>
-        <div id="macro-sessions-preview"
-          style="font-family:var(--font-display);font-size:15px;padding:8px 10px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text2);">3</div>
+      <div id="weight-increment-row">
+        <div class="label">Increment kg</div>
+        <input type="number" inputmode="decimal" id="macro-weight-increment-input" min="0.25" max="10" step="0.25" value="2.5">
       </div>
     </div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">Sessions per week is calculated automatically from the split you choose below</div>
+    <div id="macro-pace-warning" style="display:none;margin:-4px 0 10px;font-size:11px;color:var(--red);line-height:1.4;"></div>
+    <div class="field-hint" style="margin:-4px 0 14px;">The increment is for light exercises each mesocycle. Heavy leg is fixed: +5 kg on a cut, +10 kg on a gain cycle.</div>
     <div class="form-group">
-      <div class="label">Macrocycle Type</div>
-      <select id="macro-goal-type-input" onchange="onMacroGoalTypeChange('macro')">
-        <option value="loss">Weight Loss — conservative weight progression</option>
-        <option value="gain">Weight / Strength Gain — aggressive weight progression</option>
-        <option value="maintenance">Maintenance — hold weight, no load progression</option>
-      </select>
-    </div>
-
-    <div class="form-group" id="weight-increment-row">
-      <div class="label">Weight increment per session</div>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <input type="number" inputmode="decimal" id="macro-weight-increment-input" min="0.25" max="10" step="0.25" value="2.5"
-          style="width:70px;font-size:15px;padding:8px 10px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">
-        <span style="font-size:12px;color:var(--text3);">kg · light exercises. Heavy leg is fixed (+5 kg loss / +10 kg gain), unaffected by this setting.</span>
-      </div>
-      <div style="font-size:11px;color:var(--text3);margin-top:4px;">Common: 1.25 kg (1.25 kg plates) · 2.5 kg (2.5 kg plates)</div>
-    </div>
-    <div class="form-group">
-      <div class="label">Goal</div>
+      <div class="label">Goal line <span style="color:var(--text3);font-size:11px;">(optional)</span></div>
       <input type="text" id="macro-goal-input" placeholder="e.g. Cut to 200lbs">
     </div>
-    <div class="form-group">
-      <div class="label">Target body weight (lbs) <span style="color:var(--text3);font-size:11px;">— optional</span></div>
-      <input type="number" inputmode="decimal" id="macro-target-bw-input" placeholder="e.g. 180" step="0.1" oninput="validateMacroPace('macro')">
-      <div id="macro-pace-warning" style="display:none;margin-top:5px;font-size:11px;color:var(--red);line-height:1.4;"></div>
+    <div class="label">Training split</div>
+    <div class="toggle-row" role="group" aria-label="Training split" id="split-options">
+      <button type="button" class="toggle-btn macro-opt-selected" id="split-opt-ppl" onclick="selectMacroOpt('split','ppl')">Push/Pull/Legs</button>
+      <button type="button" class="toggle-btn" id="split-opt-fullbody" onclick="selectMacroOpt('split','fullbody')">Full body</button>
+      <button type="button" class="toggle-btn" id="split-opt-custom" onclick="selectMacroOpt('split','custom')">Custom</button>
     </div>
-
-    <div class="form-group">
-      <div class="label">Training Split</div>
-      <div style="display:flex;flex-direction:column;gap:8px;" id="split-options">
-        <div class="macro-opt macro-opt-selected" id="split-opt-ppl" onclick="selectMacroOpt('split','ppl')">
-          <div style="font-weight:500;font-size:13px;">Push / Pull / Legs</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px;">3 sessions — Push, Pull, Legs</div>
-        </div>
-        <div class="macro-opt" id="split-opt-fullbody" onclick="selectMacroOpt('split','fullbody')">
-          <div style="font-weight:500;font-size:13px;">Full Body Split</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px;">Choose the number of weekly sessions per body part(s)</div>
-        </div>
-        <div class="macro-opt" id="split-opt-custom" onclick="selectMacroOpt('split','custom')">
-          <div style="font-weight:500;font-size:13px;">Custom Split</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px;">Define your own session names</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Custom session builder — shown only when custom is selected -->
-    <div id="custom-split-builder" style="display:none;margin-bottom:14px;">
+    <!-- Custom / full-body session names — shown only for those splits -->
+    <div id="custom-split-builder" style="display:none;margin:-4px 0 14px;">
       <div class="label" id="custom-sessions-label">Sessions per microcycle</div>
       <div id="custom-sessions-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>
       <button class="btn btn-sm" onclick="addCustomSession()" style="width:100%;justify-content:center;">+ Add session</button>
     </div>
-
-    <div class="form-group">
-      <div class="label">Microcycles</div>
-      <div style="display:flex;flex-direction:column;gap:8px;">
-        <div class="macro-opt macro-opt-selected" id="micro-opt-yes" onclick="selectMacroOpt('micro','yes')">
-          <div style="font-weight:500;font-size:13px;">Use microcycles</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px;">Each week has 2 microcycles with slightly varied sessions</div>
-        </div>
-        <div class="macro-opt" id="micro-opt-no" onclick="selectMacroOpt('micro','no')">
-          <div style="font-weight:500;font-size:13px;">No microcycles</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px;">Same sessions each week — one set of exercises per mesocycle</div>
-        </div>
-      </div>
+    <div id="macro-sessions-preview" style="display:none;">3</div>
+    <div class="label">Microcycles</div>
+    <div class="toggle-row" role="group" aria-label="Microcycles" style="margin-bottom:6px;">
+      <button type="button" class="toggle-btn macro-opt-selected" id="micro-opt-yes" onclick="selectMacroOpt('micro','yes')">Use microcycles</button>
+      <button type="button" class="toggle-btn" id="micro-opt-no" onclick="selectMacroOpt('micro','no')">None</button>
     </div>
-
-    <button id="macro-create-btn" class="btn btn-accent btn-block" onclick="createMacrocycle()">Create Macrocycle →</button>
+    <div class="field-hint" id="macro-micro-line" style="margin:0 0 16px;">Two versions of each session (M1 and M2), with slightly varied exercises.</div>
+    <button id="macro-create-btn" class="btn btn-accent btn-block" onclick="createMacrocycle()">Create cycle</button>
   </div>
 </div>
 
@@ -11224,6 +11196,7 @@ function openModal(id) {
     document.getElementById('custom-split-builder').style.display = 'none';
     document.getElementById('custom-sessions-label').textContent = 'Sessions per microcycle';
     renderCustomSessions();
+    syncMacroForm(); // v8.46 (§149)
   }
   document.getElementById(id).classList.add('open');
 }
@@ -11760,6 +11733,7 @@ function selectMacroOpt(group, value) {
     if (lbl) lbl.textContent = value === 'no' ? 'Sessions per week' : 'Sessions per microcycle';
   }
   updateSessionsPerWeekPreview();
+  syncMacroForm(); // v8.46 (§149)
 }
 
 // Recomputes and displays the live "Sessions per week" preview in the New
@@ -11771,6 +11745,49 @@ function selectMacroOpt(group, value) {
 // count — M1 and M2 each represent a different real calendar week with
 // the same number of sessions, not double the sessions in one week.
 // Called whenever the split type or the custom session list changes.
+// v8.46 (§149): the New cycle sheet's segments, stepper and lines.
+function setMacroFormValue(id, value) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.value = value;
+  if (id === 'macro-goal-type-input') onMacroGoalTypeChange('macro');
+  if (id === 'macro-weeks-per-meso-input') onMacroWeeksPerMesoChange('macro');
+  syncMacroForm();
+}
+function stepMacroMesos(delta) {
+  const el = document.getElementById('macro-weeks-input');
+  if (!el) return;
+  el.value = Math.max(2, Math.min(52, (parseInt(el.value) || 8) + delta));
+  validateMacroPace('macro');
+  syncMacroForm();
+}
+// Redraws what follows from the values, however they were set (a tap, the
+// sheet's reset, the "Build this plan next" pre-fill).
+function syncMacroForm() {
+  const val = id => (document.getElementById(id) || {}).value || '';
+  const wpm = val('macro-weeks-per-meso-input') || '1';
+  const goal = val('macro-goal-type-input') || 'loss';
+  document.querySelectorAll('#modal-macro [data-wpm]').forEach(b => b.classList.toggle('active', b.dataset.wpm === wpm));
+  document.querySelectorAll('#modal-macro [data-goal]').forEach(b => b.classList.toggle('active', b.dataset.goal === goal));
+  const start = val('macro-start-input');
+  const fmt = d => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  const hint = document.getElementById('macro-start-hint');
+  if (hint) {
+    const ok = start && isMondayDateStr(start);
+    hint.textContent = !start ? '' : ok ? fmt(start) : 'Cycles start on a Monday.';
+    hint.style.color = start && !ok ? 'var(--red)' : '';
+  }
+  const weeks = (parseInt(val('macro-weeks-input')) || 0) * (parseInt(wpm) || 1);
+  const line = document.getElementById('macro-length-line');
+  if (line) {
+    const endStr = start && isMondayDateStr(start) ? shiftDateStr(start, weeks * 7 - 1) : null;
+    line.textContent = weeks ? `${weeks} weeks${endStr ? `, ${fmt(start)} – ${fmt(endStr)}` : ''}.${start && start < getLocalToday() ? ' It starts in the past.' : ''}` : '';
+  }
+  const micro = (state._macroForm && state._macroForm.micro) || 'yes';
+  const mline = document.getElementById('macro-micro-line');
+  if (mline) mline.textContent = micro === 'no' ? 'The same sessions every week.' : 'Two versions of each session (M1 and M2), with slightly varied exercises.';
+}
+
 function updateSessionsPerWeekPreview() {
   const el = document.getElementById('macro-sessions-preview');
   if (!el) return;
@@ -12142,7 +12159,7 @@ function createMacrocycle() {
     const free = firstFreeMacroStart(candidate, start, state.macrocycles, null);
     if (clashErrEl) {
       clashErrEl.innerHTML = `Overlaps ${escMacroText(clash.name)} (${formatDate(clash.start)} – ${formatDate(macroRange(clash).end)}). Cycles can't overlap.`
-        + (free ? ` <a href="#" style="color:var(--accent);font-weight:600;" onclick="event.preventDefault();document.getElementById('macro-start-input').value='${free}';document.getElementById('macro-clash-error').style.display='none';">Start ${formatDate(free)} instead</a>` : '');
+        + (free ? ` <a href="#" style="color:var(--accent);font-weight:600;" onclick="event.preventDefault();document.getElementById('macro-start-input').value='${free}';document.getElementById('macro-clash-error').style.display='none';syncMacroForm();">Start ${formatDate(free)} instead</a>` : '');
       clashErrEl.style.display = 'block';
     }
     startEl.style.borderColor = 'var(--red)';
@@ -18121,6 +18138,7 @@ function syncMacroMesocyclesFromGate() {
   const mesocycles = Math.max(2, Math.min(52, Math.round(_nextCycleGateWeeks / weeksPerMeso)));
   document.getElementById('macro-weeks-input').value = mesocycles;
   validateMacroPace('macro');
+  syncMacroForm(); // v8.46 (§149)
 }
 
 // Suggested-length gate itself being edited — still recomputes mesocycles
@@ -18157,6 +18175,7 @@ function fillNextCycleMacroModal(goalType, totalWeeks) {
   document.getElementById('macro-target-weeks-row').style.display = '';
   syncMacroMesocyclesFromGate();
   onMacroGoalTypeChange('macro');
+  syncMacroForm(); // v8.46 (§149): the goal and length segments follow the pre-fill
 }
 
 // Opens the New Macrocycle modal pre-filled from the current Next Cycle
@@ -25126,9 +25145,10 @@ function startMacrocycleCreationTour() {
 
 function buildMacrocycleCreationTourSteps() {
   return [
-    { targetId: 'macro-goal-type-input', screen: 'plan',
+    // v8.46 (§149): the goal is a row of segments now; its value is a hidden input with nothing to spotlight.
+    { targetId: 'macro-goal-seg', screen: 'plan',
       title: 'Start with your goal',
-      body: 'Weight Loss, Strength Gain, or Maintenance \u2014 this shapes every default that follows.',
+      body: 'Lose, Gain or Maintain \u2014 this shapes every default that follows.',
       onEnter: () => openModal('modal-macro') },
     { targetId: 'macro-start-input', screen: 'plan',
       title: 'Mondays only',
@@ -25141,7 +25161,7 @@ function buildMacrocycleCreationTourSteps() {
       body: 'Every calculation in BLOC \u2014 deload weeks, calendar weeks, mesocycles \u2014 assumes week 1 starts on a Monday, so BLOC blocks any other date until you pick one that lines up.' },
     { targetId: 'split-options', screen: 'plan',
       title: 'Build your split',
-      body: 'Choose PPL, Full Body, or build a fully custom split. Microcycles (below) let a mesocycle alternate between two different weeks (A/B) instead of repeating the same one.' },
+      body: 'Choose Push/Pull/Legs, Full body, or name your own sessions. Microcycles (below) give each session two versions (M1 and M2) instead of repeating the same one.' },
     // Not one of the scope doc's named steps — a necessary bridge the
     // doc didn't need to specify, since it only ever described WHAT to
     // explain, not how the tour hands off between two real, separately-

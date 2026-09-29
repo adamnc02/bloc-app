@@ -9886,3 +9886,28 @@ The Progress tour's first step describes the new figure.
 
 **Check:** `scripts/verify-progress-hero-callout.mjs`: every row above, both wrong-way cases and no weigh-ins, and that the
 hero shows the label and figure. Control: the latest weigh-in, as before.
+
+## §149 — v8.46: New cycle, in BLOC Coach's layout
+
+BLOC's New Macrocycle sheet (`modal-macro`) now has BLOC Coach's New cycle layout, titled **New cycle**: Name; Starts (a
+Monday, with the day or "Cycles start on a Monday." under it) beside Mesocycles (a − / + stepper); Weeks per mesocycle as
+1 week / 2 weeks, with a line giving the length and dates ("8 weeks, Mon 14 Sept – Sun 8 Nov."); Goal as Lose / Gain /
+Maintain; Goal weight beside Increment (the increment hides for maintenance, as before); Goal line; Training split as
+Push/Pull/Legs / Full body / Custom (with the session names for the last two); Microcycles as Use microcycles / None, with
+a line saying what that means; **Create cycle**. The AI's suggested length row, the pace warning and the Monday and clash
+errors (with "Start … instead") are unchanged. Effort ratings (RPE) stay in Plan ▸ Tools, where they're a setting of a
+running cycle (§104), not in this sheet.
+
+🚨 **Every id the code reads is kept** (`createMacrocycle`, `validateMacroPace`, the sheet's reset in `openModal`, and
+`fillNextCycleMacroModal`'s "Build this plan next" pre-fill). Weeks per mesocycle and Goal are **hidden inputs** behind
+segmented buttons (`setMacroFormValue`), so they're read exactly as the old selects were; Mesocycles is the same input
+inside the stepper (`stepMacroMesos`); the split and microcycle choices are segments carrying the old `split-opt-*` and
+`micro-opt-*` ids, marked by `selectMacroOpt()` as before. `syncMacroForm()` redraws the segments and lines from the
+values after any change, from a tap or from code (the reset and the pre-fill set values directly). The Macrocycle
+Creation Tour's first step spotlights the Goal segments (`macro-goal-seg`): a hidden input has nothing to spotlight. The
+old card styles (`.macro-opt`) are gone.
+
+**Check:** `scripts/verify-new-cycle-sheet.mjs`: every id those functions read is in the sheet (26), the two hidden
+inputs and their segments, no tour step on a hidden input, no RPE control, and the redraw after the reset and the
+pre-fill. Control: the sheet with a field removed. Driven in Chromium at 375 pt: the segments, the stepper, the length
+line, Create (9 × 2-week mesocycles, gain, PPL, microcycles saved) and the pre-fill (Gain, 12 weeks).
