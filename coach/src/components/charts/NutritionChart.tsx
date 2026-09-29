@@ -8,16 +8,18 @@ import { BoxSwatch, Legend, LineSwatch, ScrubChart, linear, niceRange } from './
 type Pt = { key: string; label: string; date: string; kcal: number | null; target: number | null; tdee: number | null; lbs: number | null; waist: number | null; protein: number | null; steps: number | null; good: boolean };
 
 /**
- * Nutrition, by day or by week: intake bars against target, with weight,
- * waist, the engine's logged TDEE and BMR on the same axis. Hold and drag
+ * Nutrition, by week (the default) or by day: intake bars against target,
+ * each with its protein share filled inside (protein g × 4 kcal), and the
+ * engine's current logged TDEE and BMR as labelled dashed lines across the
+ * whole chart; the day view adds weight and waist. Hold and drag
  * reads a day's totals; tap a day to see its meals. A bar is red when it's on
  * the bad side of target for the cycle's goal: by day, beyond Home's calorie
  * tolerance; by week, Home's closed-week verdict (review/nutrition.ts).
  */
-export function NutritionChart({ days, weeks, bmr, goalType, onDay }: {
-  days: NutritionDay[]; weeks: NutritionWeek[]; bmr: number | null; goalType: string; onDay: (date: string) => void;
+export function NutritionChart({ days, weeks, bmr, tdee, goalType, onDay }: {
+  days: NutritionDay[]; weeks: NutritionWeek[]; bmr: number | null; tdee: number | null; goalType: string; onDay: (date: string) => void;
 }) {
-  const [mode, setMode] = useState<'day' | 'week'>('day');
+  const [mode, setMode] = useState<'day' | 'week'>('week');
   const tol = getHomeMetricTolerance('kcal');
   const dayGood = (kcal: number | null, target: number | null) => {
     if (kcal == null || target == null) return true;
@@ -33,7 +35,7 @@ export function NutritionChart({ days, weeks, bmr, goalType, onDay }: {
       });
 
   if (!pts.length) return <p className="caption">Nothing logged in this cycle yet.</p>;
-  const kMax = Math.max(...pts.map((p) => Math.max(p.kcal ?? 0, p.target ?? 0, p.tdee ?? 0)), bmr ?? 0, 1) * 1.06;
+  const kMax = Math.max(...pts.map((p) => Math.max(p.kcal ?? 0, p.target ?? 0)), bmr ?? 0, tdee ?? 0, 1) * 1.06;
   const lbsVals = pts.map((p) => p.lbs).filter((x): x is number => x != null);
   const [lMin, lMax] = lbsVals.length ? niceRange(Math.min(...lbsVals), Math.max(...lbsVals), 0.3) : [0, 1];
   const H = 230, padL = 38, padR = 34, bottom = H - 18;
@@ -46,12 +48,12 @@ export function NutritionChart({ days, weeks, bmr, goalType, onDay }: {
   return (
     <div>
       <div className="row" style={{ marginBottom: 4 }}>
-        <Seg label="Nutrition view" value={mode} onChange={setMode} options={[{ value: 'day', label: 'Day' }, { value: 'week', label: 'Week' }]} className="auto" />
+        <Seg label="Nutrition view" value={mode} onChange={setMode} options={[{ value: 'week', label: 'Week' }, { value: 'day', label: 'Day' }]} className="auto" />
         <span className="caption">{mode === 'day' ? `Last ${days.length} days` : 'Whole cycle, Mon–Sun'}</span>
       </div>
       <ScrubChart
         height={H}
-        label={`Calories ${mode === 'day' ? 'per day' : 'per week'} against target${mode === 'day' ? ', with logged TDEE, BMR, weight and waist' : ''}.`}
+        label={`Calories ${mode === 'day' ? 'per day' : 'per week'} against target, with the protein share, logged TDEE and BMR${mode === 'day' ? ', weight and waist' : ''}.`}
         hint={mode === 'day' ? 'Hold and drag to read a day · tap a day for its meals' : 'Hold and drag to read a week'}
         onTap={mode === 'day' ? (w, x) => { const p = pts[at(w, x)]; if (p.kcal != null) onDay(p.date); } : undefined}
         callout={(w, x) => {
@@ -63,7 +65,7 @@ export function NutritionChart({ days, weeks, bmr, goalType, onDay }: {
               <>
                 <div className="row"><b>{mode === 'day' ? fmt.ddm(p.date) : `Week of ${fmt.dm(p.date)}`}</b>{p.lbs != null && <span className="num">{fmt.one(p.lbs)} lbs</span>}</div>
                 <div className="num">Kcal <b style={{ color: p.good ? 'var(--text)' : 'var(--red)' }}>{p.kcal != null ? fmt.int(p.kcal) : 'Not logged'}</b> / {p.target != null ? fmt.int(p.target) : '—'}</div>
-                <div className="num caption">{mode === 'day' ? `TDEE ${p.tdee != null ? fmt.int(p.tdee) : '—'} · ` : ''}P {p.protein != null ? Math.round(p.protein) : '—'}g · {p.steps != null ? `${fmt.int(p.steps)} steps` : 'no steps'}</div>
+                <div className="num caption">P {p.protein != null ? `${Math.round(p.protein)}g (${fmt.int(p.protein * 4)} kcal)` : '—'} · {p.steps != null ? `${fmt.int(p.steps)} steps` : 'no steps'}</div>
               </>
             ),
           };
@@ -74,7 +76,6 @@ export function NutritionChart({ days, weeks, bmr, goalType, onDay }: {
           const bw = (w - padL - padR) / pts.length;
           const cx = (i: number) => padL + (i + 0.5) * bw;
           const sel = sx != null ? at(w, sx) : -1;
-          const tdee = pts.map((p, i) => (p.tdee != null ? `${cx(i)},${Y(p.tdee)}` : null)).filter(Boolean).join(' ');
           const lbs = pts.map((p, i) => (p.lbs != null ? `${cx(i)},${YL(p.lbs)}` : null)).filter(Boolean).join(' ');
           return (
             <svg width={w} height={H} style={{ display: 'block' }} aria-hidden="true">
@@ -92,6 +93,9 @@ export function NutritionChart({ days, weeks, bmr, goalType, onDay }: {
                     {p.kcal != null
                       ? <rect className="vbar" style={{ ['--i' as string]: i }} x={bx} y={Y(p.kcal)} width={bwid} height={bottom - Y(p.kcal)} rx={Math.min(4, bwid / 3)} fill={p.good ? 'var(--accent)' : 'var(--red)'} opacity={i === sel ? 1 : p.good ? 0.6 : 0.85} />
                       : <rect x={bx} y={bottom - 3} width={bwid} height={3} rx="1.5" fill="var(--surface3)" />}
+                    {p.kcal != null && p.protein != null && p.protein > 0 && (
+                      <rect x={bx + bwid * 0.2} y={Y(Math.min(p.kcal, p.protein * 4))} width={bwid * 0.6} height={bottom - Y(Math.min(p.kcal, p.protein * 4))} rx={Math.min(3, bwid / 5)} fill="var(--protein)" opacity={0.85} />
+                    )}
                     {p.target != null && <line x1={bx - 2} x2={bx + bwid + 2} y1={Y(p.target)} y2={Y(p.target)} stroke="var(--ice)" strokeWidth="2" strokeLinecap="round" />}
                     {p.waist != null && <g transform={`translate(${cx(i)} ${bottom - 8})`}><rect x="-3.5" y="-3.5" width="7" height="7" transform="rotate(45)" fill="var(--text)" /></g>}
                     {i % labelEvery === 0 && <text x={cx(i)} y={H - 4} textAnchor="middle" fontSize="10" fill="var(--text3)">{p.label}</text>}
@@ -100,9 +104,12 @@ export function NutritionChart({ days, weeks, bmr, goalType, onDay }: {
               })}
               {bmr != null && <>
                 <line x1={padL} x2={w - padR} y1={Y(bmr)} y2={Y(bmr)} stroke="var(--text3)" strokeDasharray="3 4" />
-                <text x={w - padR + 4} y={Y(bmr) + 3} fontSize="10" fill="var(--text3)">BMR</text>
+                <text x={w - padR + 4} y={Y(bmr) + (tdee != null && Math.abs(Y(tdee) - Y(bmr)) < 11 && tdee > bmr ? 8 : 3)} fontSize="10" fill="var(--text3)">BMR</text>
               </>}
-              {tdee && <polyline points={tdee} fill="none" stroke="var(--text)" strokeOpacity=".8" strokeWidth="1.5" strokeLinejoin="round" />}
+              {tdee != null && <>
+                <line x1={padL} x2={w - padR} y1={Y(tdee)} y2={Y(tdee)} stroke="var(--amber)" strokeWidth="1.5" strokeDasharray="6 4" />
+                <text x={w - padR + 4} y={Y(tdee) + (bmr != null && Math.abs(Y(tdee) - Y(bmr)) < 11 && tdee > bmr ? -2 : 3)} fontSize="10" fill="var(--amber)" fontWeight="700">TDEE</text>
+              </>}
               {lbs && <polyline className="line" pathLength={1} points={lbs} fill="none" stroke="var(--accent2)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
               {lbsVals.length > 0 && <text x={w - padR + 4} y={YL(lbsVals[lbsVals.length - 1]) + 3} fontSize="10" fill="var(--accent2)">{fmt.one(lbsVals[lbsVals.length - 1])}</text>}
               {sel >= 0 && <rect x={padL + sel * bw} y={0} width={bw} height={bottom} fill="var(--text)" opacity=".06" />}
@@ -113,13 +120,14 @@ export function NutritionChart({ days, weeks, bmr, goalType, onDay }: {
       <Legend items={[
         { label: 'Kcal eaten', swatch: <BoxSwatch color="var(--accent)" opacity={0.6} /> },
         { label: 'Off-goal', swatch: <BoxSwatch color="var(--red)" /> },
+        { label: 'Protein kcal', swatch: <BoxSwatch color="var(--protein)" opacity={0.85} /> },
         { label: 'Target', swatch: <LineSwatch color="var(--ice)" /> },
+        ...(tdee != null ? [{ label: `Logged TDEE ${fmt.int(tdee)}`, swatch: <LineSwatch color="var(--amber)" dash="6 4" width={1.5} /> }] : []),
         ...(mode === 'day' ? [
-          { label: 'Logged TDEE', swatch: <LineSwatch color="var(--text)" width={1.5} /> },
           { label: 'Weight', swatch: <LineSwatch color="var(--accent2)" /> },
           { label: 'Waist measured', swatch: <svg width="10" height="10" aria-hidden="true"><rect x="2" y="2" width="6" height="6" transform="rotate(45 5 5)" fill="var(--text)" /></svg> },
         ] : []),
-        ...(bmr != null ? [{ label: 'BMR', swatch: <LineSwatch color="var(--text3)" dash="3 4" /> }] : []),
+        ...(bmr != null ? [{ label: `BMR ${fmt.int(bmr)}`, swatch: <LineSwatch color="var(--text3)" dash="3 4" /> }] : []),
       ]} />
       <div className="sr-only"><table>
         <caption>{mode === 'day' ? 'Calories by day' : 'Calories by week'}</caption>

@@ -64,9 +64,9 @@ function Review({ v, m, tz }: { v: ClientView; m: ReviewModel; tz: string }) {
 
       <Section i={3} title="Compliance" sub={t.scored ? 'From the whole cycle down to a single set. Tap a cell to see its sets.' : 'Maintenance cycles are scored on attendance. The grid still shows what was logged.'}>
         <div className="tiles-3">
-          <ScoreTile label={t.scored ? 'Cycle · training' : 'Cycle · attendance'} value={outOf10(t.scored ? t.cycleScore : t.cycleAttendance)} />
-          <ScoreTile label="Cycle · nutrition" value={outOf10(m.nutrition.cycleScore)} />
-          <ScoreTile label={lastScored ? `${lastScored.label} · ${t.scored ? 'training' : 'attendance'}` : 'Last week'} value={outOf10(lastScored ? (t.scored ? lastScored.score : lastScored.attendance) : null)} />
+          <ScoreTile scope="Cycle" label={t.scored ? 'Training' : 'Attendance'} value={outOf10(t.scored ? t.cycleScore : t.cycleAttendance)} />
+          <ScoreTile scope="Cycle" label="Nutrition" value={outOf10(m.nutrition.cycleScore)} />
+          <ScoreTile scope={lastScored ? lastScored.label : 'Last week'} label={t.scored ? 'Training' : 'Attendance'} value={outOf10(lastScored ? (t.scored ? lastScored.score : lastScored.attendance) : null)} />
         </div>
         <Card style={{ marginTop: 12 }}>
           <div className="row" style={{ marginBottom: 10 }}>
@@ -80,8 +80,8 @@ function Review({ v, m, tz }: { v: ClientView; m: ReviewModel; tz: string }) {
 
       <div className="grid-2">
         {m.hasNutrition && (
-          <Section i={4} title="Nutrition" sub="Intake against target, with weight, logged TDEE and BMR. Tap a day to see its meals.">
-            <Card><NutritionChart days={m.days} weeks={m.nutrition.weeks} bmr={m.bmr} goalType={m.cycle.goalType} onDay={setDay} /></Card>
+          <Section i={4} title="Nutrition" sub="Intake against target, with its protein share, logged TDEE and BMR. In the day view, tap a day to see its meals.">
+            <Card><NutritionChart days={m.days} weeks={m.nutrition.weeks} bmr={m.bmr} tdee={m.tdee} goalType={m.cycle.goalType} onDay={setDay} /></Card>
             <NutritionWeeks m={m} />
           </Section>
         )}
@@ -146,11 +146,57 @@ function VerdictHero({ m, tz }: { m: ReviewModel; tz: string }) {
         <div><div className={`stat ${good == null ? '' : good ? 't-good' : 't-bad'}`}>{change != null ? fmt.signed(change, 1) : '—'}</div><div className="caption">lbs over {recent.length} wks</div></div>
         <div><div className="stat">{m.story.targetLbs != null ? fmt.one(m.story.targetLbs) : '—'}</div><div className="caption">goal lbs</div></div>
       </div>
+      <WeeksNarrative m={m} />
       {staleDays != null && staleDays > STALE_WEIGH_IN_DAYS && (
         <p className="t-amber" style={{ marginTop: 14, fontSize: 13, fontWeight: 700 }}><Icon name="scale" size={14} /> Last weigh-in {fmt.ddm(lastWeighIn!)}, {staleDays} days ago</p>
       )}
       <p className="caption" style={{ marginTop: 14 }}><Icon name="clock" size={13} /> Judged at {fmt.ddm(m.today)}, their date ({tz})</p>
     </Hero>
+  );
+}
+
+// ---------------------------------------------------------------- how the weeks went
+
+/**
+ * The cycle as the engine groups it, one line per stretch: the first weeks,
+ * then each flat or moving period with its weights and calories. It's the
+ * weekly figures behind the verdict, told rather than tabled.
+ */
+function WeeksNarrative({ m }: { m: ReviewModel }) {
+  const ps = m.outcome.periods;
+  if (ps.length < 2) return null;
+  const gt = m.cycle.goalType;
+  const word = (p: (typeof ps)[number]) => {
+    if (p.kind === 'start') return 'start';
+    if (p.kind === 'flat') return 'flat';
+    const up = (p.toLbs ?? 0) > (p.fromLbs ?? 0);
+    return up ? 'gaining' : 'losing';
+  };
+  const bad = (p: (typeof ps)[number]) => p.kind === 'flat' ? gt !== 'maintenance' : p.kind === 'moving' && gt !== 'maintenance' && ((gt === 'gain') !== ((p.toLbs ?? 0) > (p.fromLbs ?? 0)));
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div className="eyebrow">How the weeks went</div>
+      <ul style={{ listStyle: 'none', padding: 0, margin: '6px 0 0' }}>
+        {ps.map((p) => {
+          const range = p.from === p.to ? p.from : `${p.from}–${p.to}`;
+          const lbs = p.kind === 'start'
+            ? (p.fromLbs != null && p.from !== p.to ? `${fmt.one(p.fromLbs)} → ${fmt.one(p.toLbs as number)} lbs` : p.toLbs != null ? `${fmt.one(p.toLbs)} lbs` : '')
+            : p.fromLbs != null && p.toLbs != null ? `${fmt.one(p.fromLbs)} → ${fmt.one(p.toLbs)} lbs (${fmt.signed(p.toLbs - p.fromLbs, 1)})` : '';
+          return (
+            <li key={p.from + p.kind} style={{ display: 'flex', gap: 10, padding: '6px 0', borderTop: '1px solid var(--divider)', fontSize: 13.5, alignItems: 'baseline' }}>
+              <b className="num" style={{ minWidth: 58, whiteSpace: 'nowrap' }}>{range}</b>
+              <span style={{ minWidth: 0 }}>
+                <span className={bad(p) ? 't-bad' : p.kind === 'moving' ? 't-good' : ''} style={{ fontWeight: 700 }}>{word(p)}</span>
+                {lbs && <> · {lbs}</>}
+                {p.avgKcal != null && <span className="muted"> · {fmt.int(p.avgKcal)} kcal a day</span>}
+                {!p.confirmed && p.kind !== 'start' && <span className="caption"> · 1 week, not confirmed yet</span>}
+                {p.flagged && p.kind === 'flat' && <span className="caption"> · flagged</span>}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 
@@ -188,8 +234,8 @@ function EvidenceTiles({ m }: { m: ReviewModel }) {
         const isLead = x.key !== 'waist' && flag(x.key);
         const drifting = x.key !== 'waist' && drift(x.key);
         return (
-          <div key={x.key} className="card" style={{ padding: 14, borderColor: isLead ? 'color-mix(in srgb, var(--red) 60%, transparent)' : undefined }}>
-            <div className="row"><span className="muted" style={{ fontSize: 12 }}>{x.label}</span>{isLead && <Tag>Explains it</Tag>}</div>
+          <div key={x.key} className="card" style={{ ...TILE, borderColor: isLead ? 'color-mix(in srgb, var(--red) 60%, transparent)' : undefined }}>
+            <div className="row" style={{ minHeight: 22 }}><span className="muted" style={{ fontSize: 12 }}>{x.label}</span>{isLead && <Tag>Explains it</Tag>}</div>
             <div className={`stat ${isLead ? 't-bad' : ''}`} style={{ marginTop: 6, whiteSpace: 'nowrap' }}>{x.value}</div>
             <div className="caption" style={{ marginTop: 4 }}>{drifting ? 'Drifting · goal on track' : x.sub}</div>
           </div>
@@ -205,10 +251,18 @@ const shiftBack = (iso: string, days: number) => {
   return d.toISOString().slice(0, 10);
 };
 
-function ScoreTile({ label, value }: { label: string; value: string }) {
+/**
+ * A tile in a grid of tiles. 🚨 `marginTop: 0`: ui.css spaces stacked cards
+ * with `.card + .card { margin-top }`, which in a grid pushes every tile after
+ * the first down, so the first reads as taller.
+ */
+const TILE = { padding: 14, marginTop: 0 } as const;
+
+function ScoreTile({ scope, label, value }: { scope: string; label: string; value: string }) {
   return (
-    <div className="card" style={{ padding: 14 }}>
-      <div className="muted" style={{ fontSize: 12 }}>{label}</div>
+    <div className="card" style={TILE}>
+      <div className="caption" style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{scope}</div>
+      <div className="muted" style={{ fontSize: 12, marginTop: 2, whiteSpace: 'nowrap' }}>{label}</div>
       <div style={{ marginTop: 6 }}><Score value={value} size={24} /></div>
     </div>
   );
@@ -275,7 +329,7 @@ function MealsSheet({ v, m, date, onClose, state }: { v: ClientView; m: ReviewMo
         <>
           <div className="tiles-3">
             <div className="tile"><div className="caption">Kcal</div><div className="stat">{d.kcal != null ? fmt.int(d.kcal) : '—'}</div><div className="caption">of {d.target.kcal != null ? fmt.int(d.target.kcal) : '—'}</div></div>
-            <div className="tile"><div className="caption">TDEE</div><div className="stat">{d.tdee != null ? fmt.int(d.tdee) : '—'}</div><div className="caption">BMR {m.bmr != null ? fmt.int(m.bmr) : '—'}</div></div>
+            <div className="tile"><div className="caption">TDEE now</div><div className="stat">{m.tdee != null ? fmt.int(m.tdee) : '—'}</div><div className="caption">BMR {m.bmr != null ? fmt.int(m.bmr) : '—'}</div></div>
             <div className="tile"><div className="caption">Steps</div><div className="stat">{d.steps != null ? fmt.int(d.steps) : '—'}</div><div className="caption">of {d.target.steps != null ? fmt.int(d.target.steps) : '—'}</div></div>
           </div>
           <p className="num caption" style={{ marginTop: 10 }}>

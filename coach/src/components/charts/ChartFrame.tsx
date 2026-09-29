@@ -25,8 +25,12 @@ export const CALLOUT_H = 58;
  * `render(width, scrubX)` draws the SVG; `callout(scrubX)` returns the
  * callout content (and the x it should anchor to) or null.
  */
-export function ScrubChart({ height, render, callout, label, hint = 'Hold and drag to read values', onTap }: {
+export function ScrubChart({ height, render, callout, label, hint = 'Hold and drag to read values', onTap, header, calloutH = CALLOUT_H, calloutW = 190 }: {
   height: number;
+  /** Shown above the plot while nobody is scrubbing; the callout takes its place. */
+  header?: ReactNode;
+  calloutH?: number;
+  calloutW?: number;
   /** Quick tap (no hold): e.g. open the day's meals. */
   onTap?: (width: number, x: number) => void;
   render: (width: number, x: number | null) => ReactNode;
@@ -38,15 +42,18 @@ export function ScrubChart({ height, render, callout, label, hint = 'Hold and dr
   const scrub = useScrub();
   const c = scrub.x != null ? callout(w, scrub.x) : null;
   return (
-    <div ref={ref} style={{ position: 'relative', paddingTop: CALLOUT_H, userSelect: 'none', WebkitUserSelect: 'none' }}>
-      <div aria-live="polite" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: CALLOUT_H - 8 }}>
+    <div ref={ref} style={{ position: 'relative', paddingTop: calloutH, userSelect: 'none', WebkitUserSelect: 'none' }}>
+      <div aria-live="polite" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: calloutH - 8 }}>
         {c ? (
           <div className="fade-in" style={{
-            position: 'absolute', bottom: 0, left: Math.max(0, Math.min(w - 190, c.at - 95)), width: 190,
+            position: 'absolute', bottom: 0, left: Math.max(0, Math.min(w - calloutW, c.at - calloutW / 2)), width: calloutW,
             background: 'var(--surface3)', borderRadius: 10, padding: '7px 10px', fontSize: 12, lineHeight: 1.35,
           }}>{c.body}</div>
         ) : (
-          <div className="caption" style={{ position: 'absolute', bottom: 4, left: 0 }}>{hint}</div>
+          <div style={{ position: 'absolute', bottom: 4, left: 0, right: 0 }}>
+            {header}
+            <div className="caption" style={{ marginTop: header ? 4 : 0 }}>{hint}</div>
+          </div>
         )}
       </div>
       <div

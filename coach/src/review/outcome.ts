@@ -65,8 +65,29 @@ export interface Driver {
 
 export interface WeightWeek { label: string; start: string; end: string; avg: number | null; delta: number | null; weighIns: number; avgKcal: number | null; avgSteps: number | null }
 
+/**
+ * A stretch of the cycle as the engine groups it: the starting week, then
+ * each flat or moving period (one week unconfirmed, two or more confirmed).
+ * "How the weeks went" in Review's hero, and the story chart's header.
+ */
+export interface Period {
+  kind: 'start' | 'flat' | 'moving';
+  from: string;
+  to: string;
+  start: string;
+  end: string;
+  /** Average weight the week before the period, and its last week. */
+  fromLbs: number | null;
+  toLbs: number | null;
+  avgKcal: number | null;
+  confirmed: boolean;
+  /** The engine's sticky flag is on this period. */
+  flagged: boolean;
+}
+
 export interface Outcome {
   status: OutcomeStatus;
+  periods: Period[];
   /** One or two sentences, plain words. */
   verdict: string;
   /** Short, for a list row. */
@@ -94,7 +115,7 @@ const inch = (x: number) => fmt.inches(Math.abs(x));
 const int = (x: number) => Math.round(x).toLocaleString('en-GB');
 
 function noOutcome(verdict: string, reason: string, weeks: WeightWeek[] = [], signal: string | null = null): Outcome {
-  return { status: 'no-data', verdict, reason, lead: null, context: [], unexplained: null, signal, weeks, window: null, waist: null, recomposition: false };
+  return { status: 'no-data', periods: [], verdict, reason, lead: null, context: [], unexplained: null, signal, weeks, window: null, waist: null, recomposition: false };
 }
 
 /** Waist on the last measurement on or before a date (any date before it), and the latest up to `end`. */
@@ -159,6 +180,27 @@ export function judgeOutcome(s: BlocState, m: Macrocycle, today: string, inputs:
   const last2 = deltas.slice(-2);
   const withW = weeks.filter((w) => w.avg != null);
   const lastW = withW[withW.length - 1];
+
+  // The stretches, for the narrative: the first week, then BLOC's periods.
+  const bucketIdx = (label: string) => weeks.findIndex((w) => w.label === label);
+  const out: Period[] = [];
+  const first = withW[0];
+  out.push({ kind: 'start', from: first.label, to: first.label, start: first.start, end: first.end, fromLbs: null, toLbs: first.avg, avgKcal: first.avgKcal, confirmed: true, flagged: false });
+  for (const p of periods.periods as Loose[]) {
+    const i = bucketIdx(p.startLabel);
+    const prev = [...weeks.slice(0, Math.max(0, i))].reverse().find((w) => w.avg != null);
+    const lastWk = [...(p.weeks as Loose[])].reverse().find((w) => w.avgWeight != null);
+    out.push({
+      kind: p.type, from: p.startLabel, to: p.endLabel, start: p.startDate, end: p.endDate,
+      fromLbs: prev?.avg ?? null, toLbs: lastWk?.avgWeight ?? null, avgKcal: p.avgKcalDuring ?? null,
+      confirmed: !!p.confirmed, flagged: p === active,
+    });
+  }
+  // Weeks between the first and the first period (the engine's baseline) join the start.
+  if (out.length > 1 && bucketIdx(out[1].from) - 1 > bucketIdx(first.label)) {
+    const lastBase = [...weeks.slice(0, bucketIdx(out[1].from))].reverse().find((w) => w.avg != null)!;
+    out[0] = { ...out[0], to: lastBase.label, end: lastBase.end, fromLbs: first.avg, toLbs: lastBase.avg };
+  }
 
   let off = false;
   let window: Outcome['window'] = null;
@@ -283,10 +325,10 @@ export function judgeOutcome(s: BlocState, m: Macrocycle, today: string, inputs:
     const lead = drivers.find((d) => d.bad) ?? null;
     const unexplained = lead ? null : signal === 'plateau-adaptation' ? String(ins.detail) : 'Nothing in the logs explains it.';
     return {
-      status: 'off-track', verdict, reason: lead ? lead.fact : 'Nothing in the logs explains it',
+      status: 'off-track', periods: out, verdict, reason: lead ? lead.fact : 'Nothing in the logs explains it',
       lead, context: drivers.filter((d) => d !== lead), unexplained, signal, weeks, window, waist, recomposition,
     };
   }
   const context = drivers.map((d) => (d.bad ? { ...d, fact: `${d.fact}, but the goal is on track. Nothing to act on.` } : d));
-  return { status: 'on-track', verdict, reason: recomposition ? 'Waist down, weight flat' : 'On track', lead: null, context, unexplained: null, signal, weeks, window, waist, recomposition };
+  return { status: 'on-track', periods: out, verdict, reason: recomposition ? 'Waist down, weight flat' : 'On track', lead: null, context, unexplained: null, signal, weeks, window, waist, recomposition };
 }

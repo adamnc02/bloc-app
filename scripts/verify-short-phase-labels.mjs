@@ -151,6 +151,40 @@ if (mutated === shortSrc) {
     new Set(DEPENDS_ON_NUMBER.map(n => broken(n))).size < 3, true);
 }
 
+// ── BLOC Coach's copy (coach/src/lib/phaseLabel.ts, TECHNICAL §140) ─────────
+// Coach labels its story chart's phase changes with the same rule. Its copy
+// must give exactly BLOC's answer for every name, at every width.
+{
+  const { join, dirname } = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const { readFileSync: read } = await import('node:fs');
+  const repo = join(dirname(fileURLToPath(import.meta.url)), '..');
+  let esbuild = null;
+  try { esbuild = await import(join(repo, 'engine', 'node_modules', 'esbuild', 'lib', 'main.js')); } catch { /* below */ }
+  if (!esbuild) {
+    console.log('✗ FAIL: engine/node_modules is missing (npm ci --prefix engine) — Coach\'s copy can\'t be checked.');
+    failures++;
+  } else {
+    const ts = read(join(repo, 'coach/src/lib/phaseLabel.ts'), 'utf8').replace(/^export /gm, '');
+    const js = (await esbuild.transform(ts, { loader: 'ts' })).code;
+    const coach = new Function(`${js}\nreturn shortPhaseLabel;`)();
+    const names = [
+      'Step 1 - Ramp Phase 1 — Gentle lift off', 'Step 4 - Maintenance Hold — Full TDEE', 'Step 4 - Hard cut high steps',
+      'Hard Cut Start', 'Aggressive Deficit Block 2', 'Supercalifragilistic', 'Step 2', 'Cut: phase two', '', 'Short',
+    ];
+    const diffs = [];
+    for (const n of names) for (const max of [undefined, 6, 11, 16]) {
+      if (coach(n, max) !== shortLabel(n, max)) diffs.push(`${JSON.stringify(n)} @${max}: coach ${JSON.stringify(coach(n, max))}, BLOC ${JSON.stringify(shortLabel(n, max))}`);
+    }
+    check(`Coach's copy matches BLOC's over ${names.length * 4} name × width cases`, diffs.length, 0);
+    if (diffs.length) console.log('    ' + diffs.slice(0, 5).join('\n    '));
+    const mutatedTs = ts.replace("return head.slice(0, max - 1) + '\\u2026';", 'return head.slice(0, max);');
+    const drifted = new Function(`${(await esbuild.transform(mutatedTs, { loader: 'ts' })).code}\nreturn shortPhaseLabel;`)();
+    check('control: the mutation applied', mutatedTs !== ts, true);
+    check('CONTROL: a copy that cuts without the ellipsis is caught', names.some(n => drifted(n, 6) !== shortLabel(n, 6)), true);
+  }
+}
+
 console.log('');
 if (failures) {
   console.log(`✗ ${failures} check(s) failed.`);

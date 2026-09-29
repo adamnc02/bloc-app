@@ -29,7 +29,7 @@ function synthetic(goalType: string, weekAvgs: number[], waist: Record<string, n
     bodyLogs,
   } as BlocState);
 }
-const noTraining: TrainingCompliance = { scored: true, cols: [], rows: [], cycleScore: null, cycleAttendance: null, rpeOn: false };
+const noTraining: TrainingCompliance = { scored: true, cols: [], gridCols: [], rows: [], cycleScore: null, cycleAttendance: null, rpeOn: false };
 const judge = (s: BlocState, today: string, training = noTraining) =>
   judgeOutcome(s, s.macrocycles![0], today, { training, nutrition: { weeks: [], cycleScore: null } });
 
@@ -43,6 +43,24 @@ describe('the outcome: Maya, the demo, at 2 Aug', () => {
     expect(r.outcome.signal).toBe('plateau-creep');
     expect(r.outcome.lead?.key).toBe('calories');
     expect(r.outcome.lead?.fact).not.toMatch(/\bYour\b/);
+  });
+});
+
+describe('how the weeks went, and the chart’s header (Maya at 2 Aug)', () => {
+  const r = computeReview(bundle('maya').snapshot!.state, MACRO, '2026-08-02', 'Maya')!;
+  it('one line per engine period, after the first week', () => {
+    expect(r.outcome.periods.map((p) => `${p.kind}:${p.from}-${p.to}:${p.confirmed ? 'c' : 'u'}${p.flagged ? 'F' : ''}`))
+      .toEqual(['start:W1-W1:c', 'moving:W2-W3:c', 'flat:W4-W6:cF', 'moving:W7-W7:u', 'flat:W8-W8:u']);
+    const flat = r.outcome.periods[2];
+    expect([flat.fromLbs?.toFixed(1), flat.toLbs?.toFixed(1)]).toEqual(['215.3', '215.1']);
+  });
+  it('the header says when progress stalled', () => {
+    expect(r.story.headline?.title).toBe('Stalled since W4');
+    expect(r.story.headline?.sub).toContain('215.3 → 214.3 lbs');
+  });
+  it('the callout’s week average is the week containing the day (Mon–Sun), not the week before', () => {
+    const w2 = r.story.trend.find((p) => p.start === '2026-06-15')!;
+    expect(['2026-06-15', '2026-06-17', '2026-06-21'].every((d) => r.story.trend.find((p) => p.start <= d && p.end >= d) === w2)).toBe(true);
   });
 });
 
@@ -122,15 +140,24 @@ describe('training compliance (§7.1)', () => {
   const s = bundle('maya').snapshot!.state;
   const m = s.macrocycles!.find((x) => x.id === MACRO)!;
   const t = computeTraining(s, m, '2026-09-20');
-  it('one column per calendar week', () => expect(t.cols.length).toBe(14));
-  it('week 1 is the baseline, not counted', () => {
-    expect(t.rows.flatMap((r) => r.cells.filter((c) => c.col === 0 && c.state !== 'none')).every((c) => c.state === 'excluded')).toBe(true);
+  it('one calendar week per agenda unit; one grid column per mesocycle', () => {
+    expect(t.cols.length).toBe(14);
+    expect(t.gridCols.map((c) => c.label)).toEqual(['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7']);
+    expect(t.gridCols[1].sub).toBe('W3–4');
   });
-  it('the deload week and the first session after it are not counted', () => {
-    const dl = t.cols.find((c) => c.isDeload)!;
-    const cells = t.rows.map((r) => r.cells[dl.idx]).filter((c) => c.state !== 'none');
-    expect(cells.length).toBeGreaterThan(0);
-    expect(cells.every((c) => c.reason === 'Deload week')).toBe(true);
+  it('rows split by microcycle, A before B, in the cycle’s day order', () => {
+    const groups = [...new Set(t.rows.map((r) => r.sessionLabel))];
+    expect(groups).toEqual(['Pull · A', 'Pull · B', 'Legs · A', 'Legs · B', 'Push · A', 'Push · B', 'Arms · A', 'Arms · B']);
+    // Control: every A row has a cell in every mesocycle (no alternate-week gaps).
+    expect(t.rows.filter((r) => r.sessionLabel.endsWith('A')).every((r) => r.cells.every((c) => c.state !== 'none'))).toBe(true);
+  });
+  it('week 1 is the baseline, not counted', () => {
+    expect(t.rows.map((r) => r.cells[0]).every((c) => c.state === 'excluded' && c.reason === 'Week 1 sets the baseline')).toBe(true);
+  });
+  it('the deload and the first session after it are not counted', () => {
+    const dl = t.rows.flatMap((r) => r.cells).filter((c) => c.reason === 'Deload week');
+    expect(dl.length).toBeGreaterThan(0);
+    expect(dl.every((c) => c.state === 'excluded' && t.cols[c.unit].isDeload)).toBe(true);
     expect(t.rows.some((r) => r.cells.some((c) => c.reason === 'First session after a deload'))).toBe(true);
   });
   it('planned sessions not done in a finished week are missed, and the week scores 0', () => {
@@ -138,7 +165,7 @@ describe('training compliance (§7.1)', () => {
     expect(w10.closed).toBe(true);
     expect(w10.done).toBe(0);
     expect(w10.score).toBe(0);
-    expect(t.rows.every((r) => ['missed', 'none'].includes(r.cells[9].state))).toBe(true);
+    expect(t.rows.flatMap((r) => r.cells).filter((c) => c.unit === 9).every((c) => c.state === 'missed')).toBe(true);
   });
   it('a half-done session in a finished week scores its exercises, the undone ones as misses', () => {
     const pull = t.cols[8].sessions.find((x) => x.label === 'Pull')!;
@@ -146,11 +173,11 @@ describe('training compliance (§7.1)', () => {
     expect(pull.score).toBeGreaterThan(0);
   });
   it('a swapped exercise-week is neither pass nor fail (control: the same cell passes)', () => {
-    const row = t.rows.find((r) => r.cells[2].state === 'pass')!;
-    const c = row.cells[2];
-    const exId = ((s.exercises || {})[`${MACRO}_1_${c.dayKey}`] as { id: string; name: string }[]).find((e) => e.name === row.name)!.id;
+    const row = t.rows.find((r) => r.cells[1].state === 'pass')!;
+    const c = row.cells[1];
+    const exId = row.key.split('|')[1];
     const swapped = { ...s, substitutions: { [`${MACRO}_${c.dayKey}_${exId}_w${c.week}`]: { kind: 'swap' as const, name: 'Other' } } };
-    expect(computeTraining(swapped, m, '2026-09-20').rows.find((r) => r.key === row.key)!.cells[2].state).toBe('swapped');
+    expect(computeTraining(swapped, m, '2026-09-20').rows.find((r) => r.key === row.key)!.cells[1].state).toBe('swapped');
   });
   it('never writes to the client’s state', () => {
     const before = JSON.stringify(s.progressionTargets);

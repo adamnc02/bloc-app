@@ -10,7 +10,7 @@
 // the grid walk a whole year of logs, and a screen re-renders often.
 // ═══════════════════════════════════════════════════════════════════════
 import {
-  getDateActiveMacroId, getMacroDurationWeeks, getMacroEndDate, shiftDateStr,
+  calcDynamicTDEE, getDateActiveMacroId, getMacroDurationWeeks, getMacroEndDate, shiftDateStr,
   type BlocState, type GoalPeriod, type Macrocycle,
 } from '@engine';
 import { computeRpePoints, computeTraining, type RpePoint, type TrainingCompliance } from './training';
@@ -36,17 +36,18 @@ export interface StoryData {
   /** The last day with data to show: the client's today, or the cycle's end. */
   last: string;
   weighIns: { date: string; lbs: number }[];
-  /** The engine's weekly averages, at each week's middle. */
-  trend: { date: string; lbs: number }[];
+  /** The engine's weekly averages, drawn at each week's middle; `start`–`end` is the week. */
+  trend: { date: string; lbs: number; start: string; end: string }[];
   measurements: { date: string; waist: number | null; hip: number | null }[];
   kcalWeeks: { label: string; start: string; end: string; avgKcal: number | null; targetKcal: number | null }[];
   deloads: { start: string; end: string }[];
-  phaseStarts: { date: string; label: string }[];
-  /** The first goal phase's label (the phases before the first change). */
-  firstPhase: string | null;
+  /** Every goal phase of the cycle, in order; the first starts with the cycle. */
+  phases: { date: string; label: string }[];
   startLbs: number | null;
   targetLbs: number | null;
   goalType: string;
+  /** The chart's header: when progress stalled or how it's moving, in numbers. */
+  headline: { title: string; sub: string } | null;
 }
 
 export interface ReviewModel {
@@ -63,6 +64,8 @@ export interface ReviewModel {
   /** The last 28 days to the client's yesterday (or the cycle's end), for the nutrition chart. */
   days: NutritionDay[];
   bmr: number | null;
+  /** The engine's logged TDEE at the client's today. */
+  tdee: number | null;
   hasNutrition: boolean;
 }
 
@@ -112,16 +115,49 @@ function storyData(s: BlocState, m: Macrocycle, cycle: CycleOption, today: strin
   return {
     start: cycle.start, end: cycle.end, last,
     weighIns: logs.filter((l) => num(l.weight) != null).map((l) => ({ date: l.date, lbs: num(l.weight)! })),
-    trend: o.weeks.filter((w) => w.avg != null).map((w) => ({ date: [shiftDateStr(w.start, 3), last].sort()[0], lbs: w.avg as number })),
+    trend: o.weeks.filter((w) => w.avg != null).map((w) => ({ date: [shiftDateStr(w.start, 3), last].sort()[0], lbs: w.avg as number, start: w.start, end: w.end })),
     measurements: logs.filter((l) => num(l.waist) != null || num(l.hip) != null).map((l) => ({ date: l.date, waist: num(l.waist), hip: num(l.hip) })),
     kcalWeeks: o.weeks.map((w) => ({ label: w.label, start: w.start, end: w.end, avgKcal: w.avgKcal, targetKcal: kcalTarget(w.start, [w.end, last].sort()[0]) })),
     deloads: t.cols.filter((c) => c.isDeload).map((c) => ({ start: c.start, end: c.end })),
-    phaseStarts: goals.slice(1).map((g, i) => ({ date: g.startDate, label: String(g._blocLabel || `Phase ${i + 2}`) })),
-    firstPhase: goals[0] ? String(goals[0]._blocLabel || 'Phase 1') : null,
+    phases: goals.map((g, i) => ({ date: g.startDate, label: String(g._blocLabel || `Phase ${i + 1}`) })),
     startLbs: o.weeks.find((w) => w.avg != null)?.avg ?? null,
     targetLbs: num((m as Macrocycle & { targetBw?: unknown }).targetBw),
     goalType: cycle.goalType,
+    headline: storyHeadline(o, cycle.goalType),
   };
+}
+
+const lb = (x: number) => x.toFixed(1);
+const sgn = (x: number) => `${x > 0 ? '+' : x < 0 ? '−' : ''}${Math.abs(x).toFixed(1)}`;
+
+/** The story chart's header, from the outcome's periods: the one thing to know first. */
+export function storyHeadline(o: Outcome, goalType: string): StoryData['headline'] {
+  const withW = o.weeks.filter((w) => w.avg != null);
+  if (withW.length < 2) return null;
+  const firstW = withW[0], lastW = withW[withW.length - 1];
+  const latest = lastW.avg as number;
+  const weeksSince = (label: string) => withW.length - withW.findIndex((w) => w.label === label);
+  if (goalType === 'maintenance') {
+    const avgs = withW.map((w) => w.avg as number);
+    return { title: `Holding within ${lb(Math.max(...avgs) - Math.min(...avgs))} lbs`, sub: `${lb(firstW.avg as number)} → ${lb(latest)} lbs, ${firstW.label}–${lastW.label}` };
+  }
+  const flagged = o.periods.find((p) => p.flagged && p.kind === 'flat');
+  if (o.status === 'off-track' && o.window && !flagged) {
+    const from = o.weeks.find((w) => w.start === o.window!.start) ?? withW[withW.length - 2];
+    const i = withW.indexOf(from);
+    const before = withW[Math.max(0, i - 1)];
+    return { title: `${goalType === 'gain' ? 'Falling' : 'Rising'} since ${from.label}`, sub: `${lb(before.avg as number)} → ${lb(latest)} lbs (${sgn(latest - (before.avg as number))})` };
+  }
+  if (flagged) {
+    const from = flagged.fromLbs ?? flagged.toLbs;
+    return {
+      title: `${o.recomposition ? 'Scale flat' : 'Stalled'} since ${flagged.from}`,
+      sub: `${from != null ? `${lb(from)} → ${lb(latest)} lbs` : `${lb(latest)} lbs`} over ${weeksSince(flagged.from)} weeks${flagged.avgKcal != null ? ` · ${flagged.avgKcal.toLocaleString('en-GB')} kcal a day while flat` : ''}`,
+    };
+  }
+  const change = latest - (firstW.avg as number);
+  const rate = change / Math.max(1, withW.length - 1);
+  return { title: `${sgn(change)} lbs since ${firstW.label}`, sub: `${lb(firstW.avg as number)} → ${lb(latest)} lbs · ${sgn(rate)} a week` };
 }
 
 export function computeReview(s: BlocState, macroId: string, today: string, firstName: string): ReviewModel | null {
@@ -137,13 +173,13 @@ export function computeReview(s: BlocState, macroId: string, today: string, firs
   const yesterday = shiftDateStr(today, -1);
   const to = cycle.end < yesterday ? cycle.end : yesterday;
   const from = [cycle.start, shiftDateStr(to, -27)].sort()[1];
-  const days = to >= from ? nutritionDays(s, from, to, true) : [];
+  const days = to >= from ? nutritionDays(s, from, to, false) : [];
   const cur = training.cols.find((c) => c.current);
   return {
     today, cycle, weekNow: cur ? cur.idx + 1 : null,
     outcome, training, nutrition, rpe, findings,
     story: storyData(s, m, cycle, today, outcome, training),
-    days, bmr: bmrAt(s, today),
+    days, bmr: bmrAt(s, today), tdee: calcDynamicTDEE(s, { today })?.tdee ?? null,
     hasNutrition: days.some((d) => d.logged) || nutrition.weeks.some((w) => w.countedDays > 0),
   };
 }

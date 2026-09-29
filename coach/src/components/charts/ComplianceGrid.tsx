@@ -7,9 +7,11 @@ import { Sheet } from '@/components/ui/Sheet';
 import { Chip, Tag } from '@/components/ui/display';
 
 /**
- * Exercise × week grid: one cell per exercise per calendar week, so a single
- * nagging exercise reads as one red row in a green grid. States differ by
- * glyph and fill, not hue alone. Tap a cell to see its sets against targets.
+ * Exercise × mesocycle grid: one cell per exercise per mesocycle, so a single
+ * nagging exercise reads as one red row in a green grid. With microcycles each
+ * session splits into its A and B templates, which progress separately, so no
+ * row has alternate-week gaps. States differ by glyph and fill, not hue alone.
+ * Tap a cell to see its sets against targets.
  */
 const CELL: Record<CellState, { bg: string; fg: string; glyph: string; label: string; border?: string }> = {
   pass: { bg: 'var(--green)', fg: 'var(--on-accent)', glyph: '', label: 'Every set on target' },
@@ -36,7 +38,11 @@ export function ComplianceGrid({ t }: { t: TrainingCompliance }) {
           <thead>
             <tr>
               <th scope="col" style={{ textAlign: 'left', position: 'sticky', left: 0, background: 'var(--surface)', zIndex: 1 }} className="caption">Exercise</th>
-              {t.cols.map((c) => <th key={c.idx} scope="col" className="caption" style={{ fontWeight: 700, minWidth: 26, color: c.current ? 'var(--accent2)' : undefined }}>{c.isDeload ? 'DL' : c.label}</th>)}
+              {t.gridCols.map((c) => (
+                <th key={c.idx} scope="col" className="caption" style={{ fontWeight: 700, minWidth: 26, lineHeight: 1.15, color: c.current ? 'var(--accent2)' : undefined }}>
+                  {c.label}{c.sub && <span style={{ display: 'block', fontWeight: 500, fontSize: 9.5, whiteSpace: 'nowrap' }}>{c.sub}</span>}
+                </th>
+              ))}
               {t.scored && <th scope="col" className="caption" style={{ paddingLeft: 8, textAlign: 'right' }}>/10</th>}
             </tr>
           </thead>
@@ -47,7 +53,7 @@ export function ComplianceGrid({ t }: { t: TrainingCompliance }) {
               const nagging = r.fails >= NAGGING_FAILS;
               return [
                 header && (
-                  <tr key={`${r.key}-h`}><th colSpan={t.cols.length + 2} scope="colgroup" style={{ textAlign: 'left', paddingTop: 10 }} className="eyebrow">{r.sessionLabel}</th></tr>
+                  <tr key={`${r.key}-h`}><th colSpan={t.gridCols.length + 2} scope="colgroup" style={{ textAlign: 'left', paddingTop: 10 }} className="eyebrow">{r.sessionLabel}</th></tr>
                 ),
                 <tr key={r.key}>
                   <th scope="row" title={r.name} style={{ textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap', paddingRight: 10, position: 'sticky', left: 0, background: 'var(--surface)', zIndex: 1, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', color: nagging ? 'var(--red)' : undefined }}>{r.name}</th>
@@ -58,8 +64,8 @@ export function ComplianceGrid({ t }: { t: TrainingCompliance }) {
                       <td key={c.col} style={{ padding: 0 }}>
                         {c.state === 'none' ? <span aria-hidden="true" style={{ display: 'block', width: 26, height: 26 }} /> : (
                           <button
-                            type="button" disabled={!clickable} onClick={() => setSel({ row: r, cell: c, col: t.cols[c.col] })}
-                            aria-label={`${r.name}, ${t.cols[c.col].label}: ${s.label}${c.reason ? `. ${c.reason}` : ''}`}
+                            type="button" disabled={!clickable} onClick={() => setSel({ row: r, cell: c, col: t.cols[c.unit] })}
+                            aria-label={`${r.name}, ${t.cols[c.unit].label}: ${s.label}${c.reason ? `. ${c.reason}` : ''}`}
                             style={{ width: 26, height: 26, borderRadius: 6, border: s.border ? `1.5px solid ${s.border}` : 0, background: s.bg, color: s.fg, fontWeight: 800, fontSize: 13, display: 'grid', placeItems: 'center', cursor: clickable ? 'pointer' : 'default', padding: 0, opacity: c.state === 'future' ? 0.6 : 1 }}
                           >{s.glyph}</button>
                         )}
@@ -71,11 +77,10 @@ export function ComplianceGrid({ t }: { t: TrainingCompliance }) {
               ];
             })}
             <tr>
-              <th scope="row" style={{ textAlign: 'left', paddingTop: 10, position: 'sticky', left: 0, background: 'var(--surface)' }} className="caption">{t.scored ? 'Week score' : 'Attendance'}</th>
-              {t.cols.map((c) => {
-                const v = t.scored ? c.score : c.attendance;
-                return <td key={c.idx} className="num caption" style={{ textAlign: 'center', paddingTop: 10, fontWeight: 700, color: v != null && v < 6 ? 'var(--red)' : undefined }}>{c.closed ? outOf10(v) : ''}</td>;
-              })}
+              <th scope="row" style={{ textAlign: 'left', paddingTop: 10, position: 'sticky', left: 0, background: 'var(--surface)' }} className="caption">{t.scored ? 'Score' : 'Attendance'}</th>
+              {t.gridCols.map((c) => (
+                <td key={c.idx} className="num caption" style={{ textAlign: 'center', paddingTop: 10, fontWeight: 700, color: c.score != null && c.score < 6 ? 'var(--red)' : undefined }}>{c.score != null ? outOf10(c.score) : ''}</td>
+              ))}
               {t.scored && <td />}
             </tr>
           </tbody>
@@ -132,6 +137,7 @@ function CellDetail({ row, cell, col }: { row: GridRow; cell: GridCell; col: Wee
 export function SessionsStrip({ t }: { t: TrainingCompliance }) {
   const most = Math.max(1, ...t.cols.map((c) => c.planned));
   return (
+    <>
     <div style={{ display: 'grid', gridTemplateColumns: `repeat(${t.cols.length}, minmax(0, 1fr))`, gap: 4 }} role="img" aria-label={`Sessions planned against done, per week: ${t.cols.filter((c) => !c.future).map((c) => `${c.label} ${c.done} of ${c.planned}`).join(', ')}`}>
       {t.cols.map((c) => (
         <div key={c.idx} style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'center' }}>
@@ -146,5 +152,20 @@ export function SessionsStrip({ t }: { t: TrainingCompliance }) {
         </div>
       ))}
     </div>
+    <div className="caption" style={{ textAlign: 'center', fontSize: 10.5, marginTop: 4 }}>Week of the cycle · one bar per planned session</div>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginTop: 10, fontSize: 11.5, color: 'var(--text2)' }}>
+      {STRIP_KEY.map((k) => (
+        <span key={k.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span aria-hidden="true" style={{ width: 16, height: 8, borderRadius: 3, background: k.bg, border: k.border }} />{k.label}
+        </span>
+      ))}
+    </div>
+    </>
   );
 }
+
+const STRIP_KEY = [
+  { label: 'Done', bg: 'var(--accent)', border: '0' },
+  { label: 'Not done', bg: 'transparent', border: '1.5px solid var(--red)' },
+  { label: 'This week or still to come', bg: 'transparent', border: '1px dashed var(--border2)' },
+];

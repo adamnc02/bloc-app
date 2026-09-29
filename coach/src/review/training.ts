@@ -3,9 +3,11 @@
 //
 // Every judgement is the engine's, run on the client's uploaded state at the
 // client's local today:
-//   · the columns are the week agenda's units (getTrainAgendaUnits): one per
-//     real calendar week, so a cycle whose mesocycles span two weeks shows
-//     both;
+//   · the calendar weeks are the week agenda's units (getTrainAgendaUnits),
+//     which score each week and draw the sessions strip; the exercise grid's
+//     columns are mesocycles and its rows each session's template (A and B
+//     with microcycles), because each template progresses against its own
+//     previous mesocycle;
 //   · pass or fail is getWeekComplianceResult(): every set met or beat its
 //     target, the test BLOC's progression lock uses;
 //   · the targets come from the client's own `progressionTargets` first
@@ -44,7 +46,10 @@ export interface SetRow {
 }
 
 export interface GridCell {
+  /** The grid column (a mesocycle). */
   col: number;
+  /** The calendar week (WeekCol index) this session fell in. */
+  unit: number;
   state: CellState;
   reason?: string;
   week: number;
@@ -59,7 +64,9 @@ export interface GridCell {
 export interface GridRow {
   key: string;
   name: string;
+  /** The session and, with microcycles, which one: "Pull · A". */
   sessionLabel: string;
+  dayKey: string;
   cells: GridCell[];
   /** Out of 10 over the counted cells of finished weeks; null with none. */
   score: number | null;
@@ -99,10 +106,34 @@ export interface WeekCol {
   attendance: number | null;
 }
 
+/**
+ * A grid column: one mesocycle (the engine's week). With microcycles each
+ * session has an A and a B template, each progressing against its own previous
+ * mesocycle, so the rows split A/B and one column holds a mesocycle's weeks.
+ * Without microcycles a mesocycle is one calendar week.
+ */
+export interface GridCol {
+  idx: number;
+  week: number;
+  /** "W3" when the mesocycle is one calendar week, else "M2". */
+  label: string;
+  /** Its calendar weeks, "W3–4", when it spans more than one. */
+  sub: string | null;
+  units: number[];
+  isDeload: boolean;
+  closed: boolean;
+  current: boolean;
+  /** Mean of its finished calendar weeks' scores (attendance on maintenance). */
+  score: number | null;
+}
+
 export interface TrainingCompliance {
   /** False on a maintenance cycle: no pass or fail, attendance only. */
   scored: boolean;
+  /** One per calendar week: the sessions strip and every week score. */
   cols: WeekCol[];
+  /** One per mesocycle: the exercise grid's columns. */
+  gridCols: GridCol[];
   rows: GridRow[];
   cycleScore: number | null;
   cycleAttendance: number | null;
@@ -154,9 +185,9 @@ function setRows(s: BlocState, cache: TargetCache, m: Macrocycle, week: number, 
   return out;
 }
 
-function judgeCell(s: BlocState, cache: TargetCache, m: Macrocycle, col: WeekCol, dayKey: string, ex: Loose): GridCell {
+function judgeCell(s: BlocState, cache: TargetCache, m: Macrocycle, col: WeekCol, gridCol: number, dayKey: string, ex: Loose): GridCell {
   const week = col.week;
-  const base = { col: col.idx, week, dayKey };
+  const base = { col: gridCol, unit: col.idx, week, dayKey };
   if (col.future) return { ...base, state: 'future' };
   const sub = getSubstitution(s, m.id, week, dayKey, ex.id);
   if (sub && sub.kind === 'group') return { ...base, state: 'group', reason: 'A group session replaced it: done, not scored' };
@@ -196,29 +227,56 @@ export function computeTraining(s: BlocState, m: Macrocycle, today: string): Tra
     sessions: [], planned: 0, done: 0, score: null, attendance: null,
   }));
 
-  const rowByKey = new Map<string, GridRow>();
-  const rows: GridRow[] = [];
+  // Grid columns: one per mesocycle, holding its calendar weeks.
+  const weeks = [...new Set(cols.map((c) => c.week))].sort((a, b) => a - b);
+  const gridCols: GridCol[] = weeks.map((w, idx) => {
+    const us = cols.filter((c) => c.week === w);
+    const first = us[0].idx + 1, last = us[us.length - 1].idx + 1;
+    return {
+      idx, week: w, units: us.map((c) => c.idx),
+      label: us.length === 1 ? `W${first}` : `M${w}`, sub: us.length === 1 ? null : `W${first}–${last}`,
+      isDeload: us.every((c) => c.isDeload), closed: us.every((c) => c.closed), current: us.some((c) => c.current), score: null,
+    };
+  });
+  const gridIdx = new Map(weeks.map((w, i) => [w, i]));
+
+  // Rows: one per exercise in each session template, grouped by session in the
+  // cycle's day order, A before B.
+  const useMicro = m.useMicrocycles !== false;
+  const days = (m.days as string[] | undefined) || ['push', 'pull', 'legs'];
+  const dayLabels = (m.dayLabels as Record<string, string> | undefined) || { push: 'Push', pull: 'Pull', legs: 'Legs' };
+  const baseOf = (dayKey: string) => dayKey.replace(/m[12]$/, '');
+  const groupLabel = (dayKey: string) => {
+    const b = baseOf(dayKey);
+    const name = dayLabels[b] || b;
+    return useMicro ? `${name} · ${dayKey.endsWith('m2') ? 'B' : 'A'}` : name;
+  };
+  const order = (dayKey: string) => days.indexOf(baseOf(dayKey)) * 3 + (dayKey.endsWith('m2') ? 2 : dayKey.endsWith('m1') ? 1 : 0);
+
+  const rowByKey = new Map<string, GridRow & { _o: number; _e: number }>();
   (units as Loose[]).forEach((u, idx) => {
     const col = cols[idx];
+    const gc = gridIdx.get(col.week) as number;
     for (const sess of u.sessions as Loose[]) {
       const exercises = ((s.exercises || {})[`${m.id}_1_${sess.dayKey}`] || []).slice().sort((a: Loose, b: Loose) => (a.order || 0) - (b.order || 0));
       const counted: number[] = [];
       let byCoach = false;
-      for (const ex of exercises) {
-        const cell = judgeCell(s, cache, m, col, sess.dayKey, ex);
+      exercises.forEach((ex: Loose, e: number) => {
+        const cell = judgeCell(s, cache, m, col, gc, sess.dayKey, ex);
         if (cell.byCoach) byCoach = true;
-        // One row per exercise within a session's label: a cycle whose mesocycles
-        // span two weeks has separate templates for them, under the same label.
-        const key = `${sess.label}|${ex.name}`;
+        const key = `${sess.dayKey}|${ex.id}`;
         let row = rowByKey.get(key);
         if (!row) {
-          row = { key, name: String(ex.name || 'Exercise'), sessionLabel: sess.label, cells: cols.map((c) => ({ col: c.idx, week: c.week, dayKey: sess.dayKey, state: 'none' as CellState })), score: null, passes: 0, fails: 0, missed: 0 };
+          row = {
+            key, name: String(ex.name || 'Exercise'), sessionLabel: groupLabel(sess.dayKey), dayKey: sess.dayKey,
+            cells: gridCols.map((c) => ({ col: c.idx, unit: c.units[0], week: c.week, dayKey: sess.dayKey, state: 'none' as CellState })),
+            score: null, passes: 0, fails: 0, missed: 0, _o: order(sess.dayKey), _e: e,
+          };
           rowByKey.set(key, row);
-          rows.push(row);
         }
-        row.cells[idx] = cell;
+        row.cells[gc] = cell;
         if (col.closed && COUNTED.includes(cell.state)) counted.push(cell.state === 'pass' ? 1 : 0);
-      }
+      });
       const sessionScore = counted.length ? (counted.reduce((a, b) => a + b, 0) / counted.length) * 10 : null;
       col.sessions.push({ dayKey: sess.dayKey, label: sess.label, done: !!sess.done, partial: !!sess.partial, groupReplaced: !!sess.groupReplaced, byCoach, score: col.closed && scored ? sessionScore : null });
     }
@@ -229,16 +287,14 @@ export function computeTraining(s: BlocState, m: Macrocycle, today: string): Tra
       col.score = scored ? mean(col.sessions.map((x) => x.score).filter((x): x is number => x != null)) : null;
     }
   });
-
-  // Rows grouped by session, in the order the sessions first appear: a cycle
-  // whose weeks alternate templates (A and B) adds B's own exercises to the
-  // same session, after A's.
-  const labelOrder = [...new Set(rows.map((r) => r.sessionLabel))];
-  rows.sort((a, b) => labelOrder.indexOf(a.sessionLabel) - labelOrder.indexOf(b.sessionLabel));
+  for (const g of gridCols) {
+    g.score = mean(g.units.map((i) => (scored ? cols[i].score : cols[i].attendance)).filter((x): x is number => x != null));
+  }
+  const rows: GridRow[] = [...rowByKey.values()].sort((a, b) => a._o - b._o || a._e - b._e).map(({ _o, _e, ...r }) => r);
 
   for (const r of rows) {
     for (const c of r.cells) {
-      if (!cols[c.col].closed) continue;
+      if (c.state === 'none' || !cols[c.unit].closed) continue;
       if (c.state === 'pass') r.passes++;
       else if (c.state === 'fail') r.fails++;
       else if (c.state === 'missed') r.missed++;
@@ -250,6 +306,7 @@ export function computeTraining(s: BlocState, m: Macrocycle, today: string): Tra
   return {
     scored,
     cols,
+    gridCols,
     rows,
     cycleScore: scored ? mean(cols.map((c) => c.score).filter((x): x is number => x != null)) : null,
     cycleAttendance: mean(cols.map((c) => c.attendance).filter((x): x is number => x != null)),
