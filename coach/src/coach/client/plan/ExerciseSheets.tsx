@@ -121,6 +121,7 @@ export function ExerciseSheet({ ctx, library, distanceUnitPref, onClose, onSave,
   const pos = ex?.supersetId ? members.findIndex((e) => e.id === ex.id) : slotIdx;
   const posMax = ex?.supersetId ? members.length - 1 : slots.length - 1;
   const cardio = f.category === 'cardio';
+  const known = library.some((e) => e.name.toLowerCase() === f.name.trim().toLowerCase() && e.bodyPart && e.bodyPart !== 'Other');
   const giant = !cardio && f.type === 'giant';
   const ok = f.name.trim() && (cardio || f.bodyPart) && (!cardio || (f.metricType === 'distance' ? (f.targetDistance ?? 0) > 0 : (f.targetSeconds ?? 0) > 0));
   const repOptions = REPS.includes(f.reps) || !f.reps ? REPS : [f.reps, ...REPS];
@@ -143,12 +144,13 @@ export function ExerciseSheet({ ctx, library, distanceUnitPref, onClose, onSave,
         </Field>
         {!cardio && (
           <>
-            <Field label="Body part" htmlFor={`${id}-bp`} hint="Swap for today lists this body part’s exercises first.">
+            {/* Only for a name the library doesn't know: a library exercise brings its own body part. */}
+            {!known && <Field label="Body part" htmlFor={`${id}-bp`} hint="A new exercise: which body part it works. Swap for today lists that body part’s exercises first.">
               <select id={`${id}-bp`} className="input" value={f.bodyPart || ''} onChange={(e) => set('bodyPart', e.target.value)}>
                 <option value="" disabled>Choose…</option>
                 {[...BODY_PARTS, 'Other'].map((b) => <option key={b} value={b}>{b}</option>)}
               </select>
-            </Field>
+            </Field>}
             <Field label="Set type" htmlFor={`${id}-t`} hint={f.type === 'dropset' ? 'Reps target the main set; the drop is logged to failure.' : giant ? 'A giant set is one set.' : undefined}>
               <select id={`${id}-t`} className="input" value={f.type} onChange={(e) => {
                 const t = e.target.value as SetType;

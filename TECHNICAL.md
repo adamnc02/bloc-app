@@ -9808,8 +9808,17 @@ The edits are BLOC's plan editor's rules (`index.html` `createMacrocycle`, `save
   group's) and the group sits at its earliest member's place; a superset left with one member dissolves;
 - a slot (a solo exercise or a whole superset) moves as one; orders are renumbered 0, 10, 20…;
 - a new start moves every goal phase by the same days (BLOC's goal shift); goal phases may not overlap;
-- fats are what's left of the calories, `(kcal − 4·protein − 4·carbs) / 9`; phases are relabelled "Step N - name"
-  by date (`renumberMacroGoalSteps`) on every save.
+- a goal phase's macros are BLOC's Goal Period sliders (`plan/macros.ts`, BLOC's `computeGoalMacroGrams` /
+  `initGoalMacroSliders`): protein in g per lb of the client's latest weigh-in (150 with none), 1.00–2.00; the
+  calories left after protein split between carbs (30–80%) and fats; a saved phase reopens at the positions its grams
+  imply, and one already started keeps its grams unless a slider moves. A vitest case runs BLOC's functions from
+  `index.html` over 192 combinations and requires the same grams. (A check-in plan's phases, §141, still derive fats
+  as `(kcal − 4·protein − 4·carbs) / 9`.) Phases are relabelled "Step N - name" by date (`renumberMacroGoalSteps`) on
+  every save;
+- 🚨 a goal phase may not overlap another cycle's, and when this cycle replaces the client's own running one, that
+  cycle's goals are checked **as they'll be once the client accepts** (the running one ends on the new end, later ones
+  removed). Checked as they are now, every phase of the replacing cycle was refused;
+- the exercise editor asks for a body part only for a name the library doesn't know.
 
 🚨 **Swap is a new exercise in the same place** (same order, superset, sets, reps, type), with a new id: the one it
 replaces keeps its logs in history under its own id, and the new one starts its own. Its starting weight is the

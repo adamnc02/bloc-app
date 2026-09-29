@@ -6,7 +6,7 @@ import { fmt } from '@/lib/format';
 import {
   addExercise, addSession, copyMicro, dayKeys, dayOf, editSettings, keyOf, linkSuperset, microOf, moveInSuperset, moveSlot, newCycle,
   removeExercise, removeGoal, removeSession, renameSession, sessionLabel, setExtension, slotsOf, swapExercise, toggleDeload, unlinkExercise,
-  updateExercise, upsertGoal, type PlanDoc, type PlanExercise, type PlanGoal,
+  updateExercise, upsertGoal, type PlanDoc, type PlanExercise,
 } from '@/plan/doc';
 import { applyMacroTemplate, applyWorkoutTemplate, macroTemplateOf, workoutTemplateOf, type Template } from '@/plan/templates';
 import { bodyPartFor } from '@/plan/library';
@@ -73,6 +73,19 @@ export function PlanTab({ v, macro, intent }: { v: ClientView; macro: string | n
   }, [intent, doc, readOnly, today]);
 
   const volume = useMemo(() => (doc ? bodyPartVolume(doc, p.library) : []), [doc, p.library]);
+  // Goal phases may not overlap any other cycle's. When this cycle replaces
+  // the client's own running one, that cycle's goals are checked as they'll
+  // be once the client accepts: the running one ends on the new end, the
+  // later ones are gone (§143). Checking them as they are now refused every
+  // phase of the new cycle.
+  const otherGoals = useMemo(() => {
+    const all = p.cycles.filter((c) => c.id !== cycle?.id && c.entry).flatMap((c) => c.entry!.doc.goals);
+    const o = p.overlap;
+    if (o?.kind !== 'replace') return all;
+    const removed = new Set(o.removeGoals.map((g) => g.macroGoalID));
+    const trimmed = new Set(o.trimGoals.map((g) => g.macroGoalID));
+    return all.filter((g) => !removed.has(g.macroGoalID)).map((g) => (trimmed.has(g.macroGoalID) ? { ...g, endDate: o.newEnd } : g));
+  }, [p.cycles, p.overlap, cycle?.id]);
   const preview = useMemo(() => (doc && sheet === 'preview' ? progressionPreview(doc) : []), [doc, sheet]);
   const changedIds = useMemo(() => {
     const s = new Set<string>();
@@ -225,7 +238,7 @@ export function PlanTab({ v, macro, intent }: { v: ClientView; macro: string | n
           <EditCycleSheet open={sheet === 'edit'} doc={doc} started={doc.macro.start <= today} onClose={close}
             onSave={(patch) => { edit((d) => editSettings(d, patch), 'Cycle saved'); close(); }} />
           <ExtendSheet open={sheet === 'extend'} doc={doc} onClose={close} onSave={(w) => { edit((d) => setExtension(d, w), w ? `Extended by ${w} week${w === 1 ? '' : 's'}` : 'Extension removed'); close(); }} />
-          <GoalSheet open={sheet === 'goal'} doc={doc} goal={goal} others={p.cycles.filter((c) => c.id !== cycle?.id && c.entry).flatMap((c) => c.entry!.doc.goals) as PlanGoal[]}
+          <GoalSheet open={sheet === 'goal'} doc={doc} goal={goal} others={otherGoals} today={today}
             bodyweight={latestWeight(v)} onClose={close}
             onSave={(id, g) => { edit((d) => upsertGoal(d, id, g, p.ids), id ? 'Goal phase saved' : 'Goal phase added'); close(); }}
             onRemove={(id) => { edit((d) => removeGoal(d, id), 'Goal phase removed'); close(); }} />

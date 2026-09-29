@@ -3,7 +3,10 @@ import type { ReplaceOffer, ReplaceRefusal } from '@engine';
 import { Button, Chip, Field, Icon, Notice, RowButton, SearchSheet, Seg, Sheet, Stepper, Switch } from '@/components/ui';
 import { addDays, fmt, startOfWeek } from '@/lib/format';
 import {
-  endOf, fatsFrom, isMonday, nextPhaseDates, overlappingGoal, phaseName, totalWeeks,
+  bwRounded, goalMacroGrams, shares, slidersFromGoal, CARB_DEFAULT, CARB_MAX, CARB_MIN, MACRO_COLOURS, PROTEIN_DEFAULT, PROTEIN_MAX, PROTEIN_MIN, PROTEIN_STEP,
+} from '@/plan/macros';
+import {
+  endOf, isMonday, nextPhaseDates, overlappingGoal, phaseName, totalWeeks,
   type GoalInput, type GoalType, type NewCycleInput, type PlanDoc, type PlanGoal, type SettingsPatch,
 } from '@/plan/doc';
 import type { PlanDiff } from '@/plan/diff';
@@ -22,57 +25,121 @@ function MondayHint({ date }: { date: string }) {
 
 // ---------------------------------------------------------------- goal phase
 
-/** A goal phase: name, dates, calories, steps, protein and carbs; fats are what's left of the calories. A draft change. */
-export function GoalSheet({ open, doc, goal, others, bodyweight, onClose, onSave, onRemove }: {
-  open: boolean; doc: PlanDoc; goal: PlanGoal | null; others: PlanGoal[]; bodyweight: number | null;
+/**
+ * A goal phase: BLOC's Goal Period sheet (index.html modal-add-goal): name,
+ * dates, daily kcal and steps, then protein per lb of bodyweight and the
+ * carb/fat split of what's left, as sliders beside the pie. A phase that has
+ * already started keeps its saved macros unless a slider is moved (BLOC's
+ * rule, so re-opening one never drifts its targets).
+ */
+export function GoalSheet({ open, doc, goal, others, bodyweight, today, onClose, onSave, onRemove }: {
+  open: boolean; doc: PlanDoc; goal: PlanGoal | null; others: { startDate: string; endDate: string; _blocLabel?: unknown }[]; bodyweight: number | null; today: string;
   onClose: () => void; onSave: (id: string | null, g: GoalInput) => void; onRemove: (id: string) => void;
 }) {
   const id = useId();
-  const [g, setG] = useState<GoalInput>({ label: '', startDate: '', endDate: '', kcal: 2000, steps: 10000, protein: 180, carbs: 200 });
+  const bw = bwRounded(bodyweight);
+  const [g, setG] = useState({ label: '', startDate: '', endDate: '', kcal: '' as number | '', steps: '' as number | '' });
+  const [sl, setSl] = useState({ proteinMult: PROTEIN_DEFAULT, carbPct: CARB_DEFAULT });
+  const [touched, setTouched] = useState(false);
   const [confirm, setConfirm] = useState(false);
   useEffect(() => {
     if (!open) return;
-    setConfirm(false);
-    if (goal) setG({ label: phaseName(goal), startDate: goal.startDate, endDate: goal.endDate, kcal: goal.kcal, steps: goal.steps, protein: goal.protein, carbs: goal.carbs });
-    else {
+    setConfirm(false); setTouched(false);
+    if (goal) {
+      setG({ label: phaseName(goal), startDate: goal.startDate, endDate: goal.endDate, kcal: goal.kcal || '', steps: goal.steps || '' });
+      setSl(slidersFromGoal(bw, goal));
+    } else {
       const last = doc.goals[doc.goals.length - 1];
-      setG({ label: '', ...nextPhaseDates(doc), kcal: last?.kcal ?? 2000, steps: last?.steps ?? 10000, protein: last?.protein ?? 180, carbs: last?.carbs ?? 200 });
+      setG({ label: '', ...nextPhaseDates(doc), kcal: last?.kcal || '', steps: last?.steps || '' });
+      setSl(slidersFromGoal(bw, last ? { kcal: last.kcal, protein: last.protein, carbs: last.carbs } : null));
     }
-  }, [open, goal, doc]);
-  const set = <K extends keyof GoalInput>(k: K, v: GoalInput[K]) => setG((x) => ({ ...x, [k]: v }));
-  const fats = fatsFrom(g.kcal, g.protein, g.carbs);
+  }, [open, goal, doc, bw]);
+  const set = <K extends keyof typeof g>(k: K, v: (typeof g)[K]) => setG((x) => ({ ...x, [k]: v }));
+  const kcal = Number(g.kcal) || 0;
+  const m = goalMacroGrams(bw, kcal, sl.proteinMult, sl.carbPct);
+  const locked = !!goal && goal.startDate <= today && !touched;
+  const grams = locked ? { p: goal!.protein, c: goal!.carbs, f: goal!.fats } : { p: m.proteinG, c: m.carbG, f: m.fatG };
+  const pct = shares(grams.p, grams.c, grams.f);
   const clash = g.startDate && g.endDate ? overlappingGoal(doc, g.startDate, g.endDate, goal?.macroGoalID ?? null, others) : null;
   const end = endOf(doc.macro);
   const outside = g.startDate && (g.startDate < doc.macro.start || g.endDate > end);
-  const ok = g.startDate && g.endDate && g.endDate >= g.startDate && !clash && g.kcal > 0 && g.steps >= 0 && g.protein * 4 + g.carbs * 4 <= g.kcal;
+  const ok = g.startDate && g.endDate && g.endDate >= g.startDate && !clash && kcal > 0 && g.steps !== '';
+  const touch = (next: Partial<typeof sl>) => { setTouched(true); setSl((x) => ({ ...x, ...next })); };
   return (
-    <Sheet open={open} title={goal ? 'Edit goal phase' : 'Add goal phase'} onClose={onClose}>
-      <Field label="Name (optional)" htmlFor={`${id}-n`} hint="Numbered “Step 1, 2…” by date, as in BLOC.">
-        <input id={`${id}-n`} className="input" value={g.label} onChange={(e) => set('label', e.target.value)} placeholder="e.g. Cut" />
-      </Field>
+    <Sheet open={open} title={goal ? 'Edit Goal Period' : 'New Goal Period'} onClose={onClose}>
+      <Field label="Macrocycle" htmlFor={`${id}-m`}><input id={`${id}-m`} className="input" value={doc.macro.name} readOnly aria-readonly="true" /></Field>
+      <Field label="Goal name (optional)" htmlFor={`${id}-n`}><input id={`${id}-n`} className="input" value={g.label} onChange={(e) => set('label', e.target.value)} placeholder="e.g. Hard Cut Start" /></Field>
       <div className="tiles-2" style={{ marginTop: 16 }}>
-        <Field label="Starts" htmlFor={`${id}-s`}><input id={`${id}-s`} type="date" className="input num" value={g.startDate} onChange={(e) => set('startDate', e.target.value)} /></Field>
-        <Field label="Ends" htmlFor={`${id}-e`}><input id={`${id}-e`} type="date" className="input num" min={g.startDate} value={g.endDate} onChange={(e) => set('endDate', e.target.value)} /></Field>
+        <Field label="Start date" htmlFor={`${id}-s`}><input id={`${id}-s`} type="date" className="input num" value={g.startDate} onChange={(e) => set('startDate', e.target.value)} /></Field>
+        <Field label="End date" htmlFor={`${id}-e`}><input id={`${id}-e`} type="date" className="input num" min={g.startDate} value={g.endDate} onChange={(e) => set('endDate', e.target.value)} /></Field>
       </div>
-      {clash && <p className="caption t-bad" style={{ marginTop: 6 }}>Overlaps {phaseName(clash) || 'another phase'} ({fmt.range(clash.startDate, clash.endDate)}). Goal phases can’t overlap.</p>}
+      {clash && <p className="caption t-bad" style={{ marginTop: 6 }}>Overlaps an existing goal period ({fmt.range(clash.startDate, clash.endDate)}). Adjust the dates to continue.</p>}
       {!clash && outside && <p className="caption" style={{ marginTop: 6 }}>Runs outside the cycle ({fmt.range(doc.macro.start, end)}).</p>}
       <div className="tiles-2" style={{ marginTop: 16 }}>
-        <Field label="Daily kcal" htmlFor={`${id}-k`}><input id={`${id}-k`} type="number" inputMode="numeric" step={25} className="input num" value={g.kcal || ''} onChange={(e) => set('kcal', parseInt(e.target.value) || 0)} /></Field>
-        <Field label="Daily steps" htmlFor={`${id}-st`}><input id={`${id}-st`} type="number" inputMode="numeric" step={500} className="input num" value={g.steps || ''} onChange={(e) => set('steps', parseInt(e.target.value) || 0)} /></Field>
+        <Field label="Daily kcal" htmlFor={`${id}-k`}><input id={`${id}-k`} type="number" inputMode="decimal" className="input num" placeholder="2000" value={g.kcal} onChange={(e) => set('kcal', e.target.value === '' ? '' : parseInt(e.target.value) || 0)} /></Field>
+        <Field label="Daily steps" htmlFor={`${id}-st`}><input id={`${id}-st`} type="number" inputMode="numeric" className="input num" placeholder="10000" value={g.steps} onChange={(e) => set('steps', e.target.value === '' ? '' : parseInt(e.target.value) || 0)} /></Field>
       </div>
-      <div className="tiles-2" style={{ marginTop: 16 }}>
-        <Field label="Protein g" htmlFor={`${id}-p`}><input id={`${id}-p`} type="number" inputMode="numeric" className="input num" value={g.protein || ''} onChange={(e) => set('protein', parseInt(e.target.value) || 0)} /></Field>
-        <Field label="Carbs g" htmlFor={`${id}-c`}><input id={`${id}-c`} type="number" inputMode="numeric" className="input num" value={g.carbs || ''} onChange={(e) => set('carbs', parseInt(e.target.value) || 0)} /></Field>
+      <div className="macro-cols">
+        <div className="macro-cols-left">
+          <MacroSlider letter="P" name="Protein" colour={MACRO_COLOURS.protein} min={PROTEIN_MIN} max={PROTEIN_MAX} step={PROTEIN_STEP} value={sl.proteinMult}
+            above={`${grams.p}g`} below={`${pct.protein}%`} onChange={(v) => touch({ proteinMult: v })} />
+          <div className="macro-sub">{(locked ? grams.p / bw : sl.proteinMult).toFixed(2)} g per lb bodyweight</div>
+          <MacroSlider letter="C" name="Carbs" colour={MACRO_COLOURS.carbs} min={CARB_MIN} max={CARB_MAX} step={1} value={sl.carbPct}
+            above={`${grams.c}g`} below={`${pct.carbs}%`} onChange={(v) => touch({ carbPct: v })} />
+          <MacroSlider letter="F" name="Fats" colour={MACRO_COLOURS.fats} min={100 - CARB_MAX} max={100 - CARB_MIN} step={1} value={100 - sl.carbPct}
+            above={`${grams.f}g`} below={`${pct.fats}%`} onChange={(v) => touch({ carbPct: 100 - v })} />
+        </div>
+        <div className="macro-cols-right">
+          <MacroPie p={grams.p} c={grams.c} f={grams.f} />
+          <div className="macro-legend">
+            {([['Protein', MACRO_COLOURS.protein, pct.protein], ['Carbs', MACRO_COLOURS.carbs, pct.carbs], ['Fats', MACRO_COLOURS.fats, pct.fats]] as const)
+              .map(([n, c, v]) => <div key={n}><span className="macro-dot" style={{ background: c }} />{n} {v}%</div>)}
+          </div>
+        </div>
       </div>
-      <p className="caption" style={{ marginTop: 8 }}>
-        Fats {fats}g, what’s left of the calories.{bodyweight ? ` Protein ${(g.protein / bodyweight).toFixed(2)} g per lb bodyweight.` : ''}
-        {g.protein * 4 + g.carbs * 4 > g.kcal && <span className="t-bad"> Protein and carbs are more than the calories.</span>}
-      </p>
-      <Button style={{ marginTop: 18 }} disabled={!ok} onClick={() => onSave(goal?.macroGoalID ?? null, g)}>{goal ? 'Save goal phase' : 'Add goal phase'}</Button>
+      <Button style={{ marginTop: 16 }} disabled={!ok} onClick={() => onSave(goal?.macroGoalID ?? null, {
+        label: g.label, startDate: g.startDate, endDate: g.endDate, kcal, steps: Number(g.steps) || 0, protein: grams.p, carbs: grams.c, fats: grams.f,
+      })}>Save Goal Period →</Button>
       {goal && (!confirm
-        ? <Button variant="danger" size="card" style={{ marginTop: 10 }} onClick={() => setConfirm(true)}>Remove this phase</Button>
-        : <Button variant="danger" size="card" icon="trash" style={{ marginTop: 10 }} onClick={() => onRemove(goal.macroGoalID)}>Remove {phaseName(goal) || 'it'} for good</Button>)}
+        ? <Button variant="danger" style={{ marginTop: 8 }} onClick={() => setConfirm(true)}>Delete Goal Period</Button>
+        : <Button variant="danger" icon="trash" style={{ marginTop: 8 }} onClick={() => onRemove(goal.macroGoalID)}>Delete {phaseName(goal) || 'it'} for good</Button>)}
     </Sheet>
+  );
+}
+
+/** One BLOC macro slider: the letter, the track in the macro's colour, grams above the thumb and the calorie share below. */
+function MacroSlider({ letter, name, colour, min, max, step, value, above, below, onChange }: {
+  letter: string; name: string; colour: string; min: number; max: number; step: number; value: number; above: string; below: string; onChange: (v: number) => void;
+}) {
+  const at = max > min ? (value - min) / (max - min) : 0;
+  const left = `calc(10px + ${at} * (100% - 20px))`; // 20px thumb, as BLOC's positionSliderTooltip
+  return (
+    <div className="macro-row">
+      <div className="macro-letter" aria-hidden="true">{letter}</div>
+      <div className="macro-wrap" style={{ ['--macro-c' as string]: colour }}>
+        <div className="macro-tip" style={{ left }}>{above}</div>
+        <input type="range" className="macro-slider" min={min} max={max} step={step} value={value} aria-label={`${name}: ${above}, ${below} of calories`}
+          onChange={(e) => onChange(parseFloat(e.target.value))} />
+        <div className="macro-tip below" style={{ left }}>{below}</div>
+      </div>
+    </div>
+  );
+}
+
+function MacroPie({ p, c, f }: { p: number; c: number; f: number }) {
+  const segs = [[p * 4, MACRO_COLOURS.protein], [c * 4, MACRO_COLOURS.carbs], [f * 9, MACRO_COLOURS.fats]] as const;
+  const total = segs.reduce((a, s) => a + s[0], 0) || 1;
+  const r = 40, circ = 2 * Math.PI * r;
+  let offset = 0;
+  return (
+    <svg viewBox="0 0 100 100" width="130" height="130" aria-hidden="true">
+      {segs.map(([cal, col], i) => {
+        const dash = (cal / total) * circ;
+        const el = <circle key={i} cx="50" cy="50" r={r} fill="none" style={{ stroke: col }} strokeWidth="16" strokeDasharray={`${dash} ${circ - dash}`} strokeDashoffset={-offset} transform="rotate(-90 50 50)" />;
+        offset += dash;
+        return el;
+      })}
+    </svg>
   );
 }
 

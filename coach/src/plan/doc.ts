@@ -506,7 +506,7 @@ export function toggleDeload(doc: PlanDoc, key: string): PlanDoc {
 
 // ── Goal phases ────────────────────────────────────────────────────────────
 
-export interface GoalInput { label: string; startDate: string; endDate: string; kcal: number; steps: number; protein: number; carbs: number }
+export interface GoalInput { label: string; startDate: string; endDate: string; kcal: number; steps: number; protein: number; carbs: number; fats?: number }
 
 /** Fats from what's left of the calories: (kcal − protein×4 − carbs×4) / 9, never below 0 (as Review's check-in plans send them). */
 export const fatsFrom = (kcal: number, protein: number, carbs: number) => Math.max(0, Math.round((kcal - protein * 4 - carbs * 4) / 9));
@@ -522,7 +522,7 @@ export function upsertGoal(doc: PlanDoc, id: string | null, input: GoalInput, id
   const g: PlanGoal = {
     macroId: next.macro.id, macroGoalID: id ?? ids.goal(next.macro.id),
     startDate: input.startDate, endDate: input.endDate, kcal: Math.round(input.kcal), steps: Math.round(input.steps),
-    protein: Math.round(input.protein), carbs: Math.round(input.carbs), fats: fatsFrom(input.kcal, input.protein, input.carbs),
+    protein: Math.round(input.protein), carbs: Math.round(input.carbs), fats: input.fats != null ? Math.round(input.fats) : fatsFrom(input.kcal, input.protein, input.carbs),
     _blocLabel: input.label.trim(),
   };
   const i = next.goals.findIndex((x) => x.macroGoalID === g.macroGoalID);

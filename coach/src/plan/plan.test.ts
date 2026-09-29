@@ -311,3 +311,37 @@ function shift(d: string, days: number) {
   x.setUTCDate(x.getUTCDate() + days);
   return x.toISOString().slice(0, 10);
 }
+
+describe('goal phase macros are BLOC’s (control: BLOC’s own functions from index.html)', () => {
+  const html = readFileSync(new URL('../../../index.html', import.meta.url), 'utf8');
+  const fn = (name: string) => { const i = html.indexOf(`function ${name}(`); let d = 0; for (let j = html.indexOf('{', i); j < html.length; j++) { if (html[j] === '{') d++; else if (html[j] === '}' && --d === 0) return html.slice(i, j + 1); } return ''; };
+  const bloc = new Function('els', 'bw', `
+    const document = { getElementById: (id) => els[id] || (els[id] = { value: '' }) };
+    const goalMacroSliderState = { bwRounded: 150, userTouched: false };
+    const getLatestBodyweightLbs = () => bw; const renderGoalMacros = () => {};
+    ${fn('computeGoalMacroGrams')}
+    ${fn('initGoalMacroSliders')}
+    return { computeGoalMacroGrams, initGoalMacroSliders, state: goalMacroSliderState };`);
+  it('grams from calories, protein per lb and the carb split, over a grid', async () => {
+    const { goalMacroGrams } = await import('./macros');
+    let n = 0;
+    for (const bw of [null, 142.6, 188, 231]) for (const kcal of [1400, 1900, 2650]) for (const pm of [1, 1.25, 1.6, 2]) for (const cp of [30, 50, 71, 80]) {
+      const els: Record<string, { value: string }> = { 'goal-kcal-input': { value: String(kcal) }, 'goal-protein-slider': { value: String(pm) }, 'goal-carb-slider': { value: String(cp) } };
+      const b = bloc(els, bw);
+      b.state.bwRounded = bw ? Math.round(bw) : 150;
+      const want = b.computeGoalMacroGrams();
+      const got = goalMacroGrams(bw ? Math.round(bw) : 150, kcal, pm, cp);
+      expect([got.proteinG, got.carbG, got.fatG]).toEqual([want.proteinG, want.carbG, want.fatG]);
+      n++;
+    }
+    expect(n).toBe(192);
+  });
+  it('a saved phase’s sliders are worked back exactly as BLOC does', async () => {
+    const { slidersFromGoal } = await import('./macros');
+    for (const bw of [150, 188]) for (const goal of [{ kcal: 1900, protein: 225, carbs: 150 }, { kcal: 2400, protein: 400, carbs: 40 }, { kcal: 1500, protein: 150, carbs: 500 }]) {
+      const els: Record<string, { value: string }> = { 'goal-kcal-input': { value: '' }, 'goal-protein-slider': { value: '' }, 'goal-carb-slider': { value: '' }, 'goal-fat-slider': { value: '' } };
+      bloc(els, bw).initGoalMacroSliders(goal);
+      expect(slidersFromGoal(bw, goal)).toEqual({ proteinMult: parseFloat(els['goal-protein-slider'].value), carbPct: parseFloat(els['goal-carb-slider'].value) });
+    }
+  });
+});
