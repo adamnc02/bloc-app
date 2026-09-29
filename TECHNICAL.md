@@ -9582,7 +9582,7 @@ either is a `check_in` submission with `body.purpose 'cycle_review'` and the `re
 |---|---|---|
 | none | no request, or the last one cancelled | Ask {first} for review photos first |
 | waiting | a request with no answer naming it | Waiting for {first}'s photos (**Cancel the request** republishes it with `cancelled: true`); once the cycle has ended and 3 days have passed since the request, **Run without photos** |
-| answered | the answer naming the latest request | Review {cycle} with BLOC · N photos, or · {first} skipped photos (after the cycle ends) |
+| answered | the answer naming the latest request | Review {cycle} with BLOC · N photos, or · {first} skipped photos (after the cycle ends); **Ask for photos again** publishes a new request, which the old answer doesn't answer |
 
 An answer to an older request never answers a newer one. Photos sent unprompted by BLOC v8.41–v8.43 (no
 `request_id`) count as the answer when nothing was asked. The caption under the tabs says what was asked, what

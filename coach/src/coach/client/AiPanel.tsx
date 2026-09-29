@@ -124,6 +124,9 @@ export function AiPanel({ v, m, state, tool, onTool, ai }: {
       {tool === 'cycle_review' && photos.status === 'waiting' && !running && (
         <Button variant="ghost" size="sm" style={{ marginTop: 8 }} onClick={() => askPhotos(true)}>Cancel the request</Button>
       )}
+      {tool === 'cycle_review' && photos.status === 'answered' && !running && (
+        <Button variant="ghost" size="sm" style={{ marginTop: 8 }} onClick={() => askPhotos()}>Ask for photos again</Button>
+      )}
       {request && <RequestTile r={request} first={first} />}
 
       {running && <p className="muted" style={{ marginTop: 16 }} role="status">Running with your key…</p>}
