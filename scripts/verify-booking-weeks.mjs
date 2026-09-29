@@ -127,6 +127,11 @@ function run(source) {
   check('taken out of a group (or it ends): "Group session cancelled", naming it', last().title, 'Group session cancelled');
   P.applyBookingPublication(pub({ ...WEEKLY, booking_id: 'g1', date: '2026-10-10', start_min: 540, title: 'Saturday bootcamp', location: 'Park' }));
   check('put back in a group: "Added to a group session" (not "back on")', last().title, 'Added to a group session');
+  // Added to one week of a group they're not in ("just this one" with a new attendee): the new booking replaces a
+  // session that was cancelled for them, so it's an addition, not a change.
+  P.applyBookingPublication(pub({ ...WEEKLY, booking_id: 'g1', date: '2026-10-10', start_min: 540, title: 'Saturday bootcamp', location: 'Park', status: 'cancelled' }));
+  P.applyBookingPublication(pub({ booking_id: 'g1w', date: '2026-10-10', start_min: 540, duration_min: 60, status: 'booked', kind: 'one_off', title: 'Saturday bootcamp', replaces: { booking_id: 'g1', date: '2026-10-10' } }));
+  check('added to one week of a group: "Added to a group session", not "Session changed"', [last().title, last().body], ['Added to a group session', 'Rowan added you to Saturday bootcamp: Sat 10 Oct, 09:00.']);
 
   const rows = extract(source, 'renderCoachSessions') || '';
   check('Your sessions shows a group session\'s title', /b\.title \? coachEsc\(b\.title\)/.test(rows), true);
