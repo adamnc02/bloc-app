@@ -55,14 +55,14 @@ export function ClientScreen({ id }: { id: string }) {
             {bundle.link?.linkedAt && fact('Linked since', fmt.ddm(bundle.link.linkedAt.slice(0, 10)))}
             {c.status === 'linked' && fact('Progress photos', c.photoConsent ? 'Shared with you' : 'Not shared')}
             {c.status === 'linked' && fact('Last synced', c.syncedHoursAgo == null ? 'Never' : fmt.ago(c.syncedHoursAgo).replace('Last synced ', ''))}
-            {bundle.snapshot && fact('Their BLOC', `${bundle.snapshot.appVersion ?? 'unknown'} · upload ${bundle.snapshot.rev}`)}
+            {bundle.snapshot?.appVersion && fact('BLOC version', bundle.snapshot.appVersion)}
           </div>
           {c.problem && <Notice icon="warning" tone="bad" title="Their latest sync couldn’t be read" style={{ marginTop: 12 }}>{c.problem}</Notice>}
           {c.staleSync && <Notice icon="warning" tone="amber" title={`Not synced for ${Math.round(c.syncedHoursAgo!)}h`} style={{ marginTop: 12 }}>Often the first sign of drop-off. Their BLOC uploads whenever it’s opened.</Notice>}
         </Section>
 
         {c.status === 'linked' && (
-          <Section i={3} title="Their cycle" sub="Worked out by BLOC’s own engine, at their local date.">
+          <Section i={3} title="Their cycle" sub="Where they are in the cycle today, and how often they’ve weighed in.">
             {c.cycle ? (
               <div className="card">
                 {fact('Cycle', c.cycle.coachOwned ? c.cycle.name : `${c.cycle.name} (their own)`)}
