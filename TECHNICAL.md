@@ -10143,7 +10143,8 @@ and the "Session confirmed" banner's date all come from `coachBookingNextDate()`
 new session only, and **any change is "Session changed"**: a new booking carrying `replaces: {booking_id, date}` (migration
 `0029`: a week moved "just this one", "Wed 14 Oct, 18:00 with {coach} is now Thu 15 Oct, 18:00"; or a weekly session moved
 "all future", "Your weekly session with {coach} is now every Thursday at 17:00, from …"), an existing booking's new date or
-time ("{coach} moved it to …"), and its new length, place or name ("… : 90 min · Park"). Session cancelled as before (§137);
+time ("{coach} moved it to …"), and its new length, place or name ("… : 90 min · Park"). A cancelled booking booked again
+(a day off undone) is **"Session back on"**. Session cancelled as before (§137);
 then, for a weekly booking whose date and time are unchanged, a skip date added from today
 on is **Session cancelled** (or "N sessions … are off, from …"), one removed is **Session back on** (the coach
 undid a day off), and a new `until` from today on is **Weekly session ending**. Skip dates in the past raise
@@ -10156,5 +10157,5 @@ nothing. A weekly series changed "all future" ends the old booking (`until`, sen
 **Check:** `scripts/verify-booking-weeks.mjs` runs the real functions: the roll-forward, one and two skipped weeks,
 a skip after the roll-forward, `until` inclusive and after, a one-off unchanged; the four banners, a past skip
 silent, `quiet` on a change and on a new booking, the title on the row; and the changes: a moved week and an all-future
-move (`replaces`), a new one-off still "confirmed", a moved one-off, a new length and place. Control: v8.46 (`5d08f66`)
-fails 14 rows, including skip, until, quiet and the changes.
+move (`replaces`), a new one-off still "confirmed", a moved one-off, a new length and place, a one-off back on. Control:
+v8.46 (`5d08f66`) fails 15 rows, including skip, until, quiet and the changes.
