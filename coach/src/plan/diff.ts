@@ -41,6 +41,8 @@ export function exerciseDelta(a: PlanExercise, b: PlanExercise): string[] {
   if (a.type !== b.type) out.push(`${a.type} → ${b.type}`);
   if (a.isHeavyLeg !== b.isHeavyLeg) out.push(b.isHeavyLeg ? 'heavy leg' : 'not heavy leg');
   if (a.trackingMode !== b.trackingMode) out.push(b.trackingMode === 'perSide' ? 'per side' : 'total weight');
+  if ((a.bodyPart || '') !== (b.bodyPart || '')) out.push(`body part ${b.bodyPart || 'none'}`);
+  if (a.speedLevel !== b.speedLevel || a.resistanceLevel !== b.resistanceLevel || a.distanceUnit !== b.distanceUnit) out.push('cardio levels changed');
   if (a.targetSeconds !== b.targetSeconds || a.targetDistance !== b.targetDistance || a.metricType !== b.metricType) out.push('cardio target changed');
   if ((a.order !== b.order || a.supersetId !== b.supersetId || a.supersetOrder !== b.supersetOrder) && !out.length) out.push('moved');
   return out;
@@ -100,8 +102,10 @@ export function diffPlan(base: PlanDoc | null, draft: PlanDoc): PlanDiff {
     if (same(a, b)) continue;
     if (!a.length && !b.length) continue;
     exercises[k] = b;
+    const before = groups.reduce((n, g) => n + g.lines.length, 0);
     const dk = k.slice(`${m.id}_1_`.length);
     const label = sessionLabel(m, dk) || dk;
+    if (!base) { if (b.length) add('Sessions', `${label}: ${b.length} exercise${b.length === 1 ? '' : 's'}`); continue; }
     const aIds = new Map(a.map((e) => [e.id, e]));
     const bIds = new Map(b.map((e) => [e.id, e]));
     const added = b.filter((e) => !aIds.has(e.id));
@@ -126,6 +130,8 @@ export function diffPlan(base: PlanDoc | null, draft: PlanDoc): PlanDiff {
     const aSs = slotsOf(a).filter((s) => s[0].supersetId).map((s) => s.map((e) => e.id).join());
     const bSs = slotsOf(b).filter((s) => s[0].supersetId).map((s) => s.map((e) => e.id).join());
     if (!same(aSs, bSs)) add('Exercises', `${label}: supersets changed`);
+    // 🚨 Every template that's sent is listed: a change with no line would publish with nothing shown.
+    if (groups.reduce((n, g) => n + g.lines.length, 0) === before) add('Exercises', `${label}: changed`);
   }
   if (Object.keys(exercises).length) { plan.exercises = exercises; planChanged = true; }
 

@@ -9,6 +9,7 @@ import { cycleOptions, defaultCycleId, type CycleOption } from '@/review/model';
 import type { ClientBundle } from '@/data/types';
 import { ReviewTab } from '@/coach/client/ReviewTab';
 import { ProfileTab } from '@/coach/client/ProfileTab';
+import { PlanTab, type PlanIntent } from '@/coach/client/plan/PlanTab';
 
 const TABS: { key: ClientTab; label: string }[] = [
   { key: 'review', label: 'Review' },
@@ -33,7 +34,7 @@ export interface ClientView {
  * switch button changes the client or the cycle for the whole view; it
  * defaults to the cycle that's running at the client's today.
  */
-export function ClientScreen({ id, tab, macro }: { id: string; tab: ClientTab; macro: string | null }) {
+export function ClientScreen({ id, tab, macro, intent }: { id: string; tab: ClientTab; macro: string | null; intent?: PlanIntent | null }) {
   const { repo } = useCoach();
   const ref = useEntering<HTMLDivElement>(`client-${id}-${tab}`);
   const [bundles, setBundles] = useState<ClientBundle[] | null>(null);
@@ -76,7 +77,7 @@ export function ClientScreen({ id, tab, macro }: { id: string; tab: ClientTab; m
   let body: ReactNode;
   if (tab === 'review') body = <ReviewTab v={view} />;
   else if (tab === 'profile') body = <ProfileTab v={view} />;
-  else if (tab === 'plan') body = <EmptyState>Macrocycles, goal phases and exercises, drafted here and published to {first}. Plan arrives in the next version of Coach.</EmptyState>;
+  else if (tab === 'plan') body = <PlanTab key={id} v={view} macro={macro} intent={intent ?? null} />;
   else body = <EmptyState>{first}’s bookings, recurring and one-off, and their session requests. Sessions arrives with the Diary.</EmptyState>;
 
   return (

@@ -26,6 +26,7 @@ import { ClientsScreen } from '@/coach/screens/ClientsScreen';
 import { ClientScreen } from '@/coach/screens/ClientScreen';
 import { SettingsScreen } from '@/coach/screens/SettingsScreen';
 import { ComingScreen } from '@/coach/screens/ComingScreen';
+import { LibraryScreen } from '@/coach/screens/LibraryScreen';
 
 export interface CoachSession {
   repo: CoachRepo;
@@ -124,11 +125,11 @@ function Screens() {
   const key = useMemo(() => JSON.stringify(route), [route]);
   switch (route.name) {
     case 'clients': return <ClientsScreen key={key} />;
-    case 'client': return <ClientScreen key={`client-${route.id}`} id={route.id} tab={route.tab} macro={route.macro} />;
+    case 'client': return <ClientScreen key={`client-${route.id}`} id={route.id} tab={route.tab} macro={route.macro} intent={route.intent} />;
     case 'settings': return <SettingsScreen key={key} />;
     case 'today': return <ComingScreen key={key} tab="today" title="Today" sub="Everything waiting on you, today’s sessions, who’s off track and what’s coming up. It arrives once Review, the Diary and In person are built." />;
     case 'diary': return <ComingScreen key={key} tab="diary" title="Diary" sub="Your week in real time slots, bookings, days off and session requests. It arrives with the Diary sub-phase." />;
-    case 'library': return <ComingScreen key={key} tab="library" title="Library" sub="Macrocycle and workout templates, applied to a client with a start date. It arrives with Plan." />;
+    case 'library': return <LibraryScreen key={key} />;
   }
 }
 

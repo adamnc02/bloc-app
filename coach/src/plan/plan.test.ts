@@ -122,6 +122,15 @@ describe('publishing: the diff is the payload, and BLOC applying it gives the dr
     expect([now.order, now.setsStart, now.setsEnd, now.reps, now.supersetId, now.startWeight]).toEqual([old.order, old.setsStart, old.setsEnd, old.reps, old.supersetId, 42.5]);
     expect(diffPlan(base, sw).groups[0].lines[0]).toMatch(/→ Incline Press \(swapped\)$/);
   });
+  it('every template sent has a line on the Publish sheet (control: a body part alone once listed nothing)', () => {
+    const base = baseDoc();
+    const key = Object.keys(base.exercises).find((k) => base.exercises[k].length)!;
+    const e = base.exercises[key][0];
+    const d = diffPlan(base, updateExercise(base, key.slice(`${MACRO}_1_`.length), e.id, { ...e, bodyPart: 'Back' }));
+    expect(d.plan!.exercises).toBeDefined();
+    expect(d.count).toBeGreaterThan(0);
+    expect(d.groups[0].lines[0]).toMatch(/body part Back/);
+  });
   it('a removed session is sent as empty templates, so the phone drops it', () => {
     const base = baseDoc();
     const day = base.macro.days[0];

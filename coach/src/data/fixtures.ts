@@ -14,7 +14,10 @@
 import { normaliseState, shiftDateStr, type BlocState } from '@engine';
 import { formatInviteCode, splitName } from './live';
 import type { AiDraft, CoachPublication, Submission } from '@/ai/types';
-import type { ClientBundle, ClientCard, CoachProfile, CoachRepo, NewInvite } from './types';
+import type { ClientBundle, ClientCard, CoachProfile, CoachRepo, NewInvite, PlanDraft } from './types';
+import { foldPlan } from '@/plan/fold';
+import { dayKeys } from '@/plan/doc';
+import { macroTemplateOf, workoutTemplateOf, type Template } from '@/plan/templates';
 
 /** bloc-demo-data.json's own "today" (BLOC TECHNICAL §35: Sunday 2 Aug 2026). */
 export const DEMO_ANCHOR = '2026-08-02';
@@ -55,7 +58,7 @@ export function buildFixtureClients(demo: Record<string, unknown>): { anchor: st
   const snap = (state: BlocState, tz: string, hoursAgo: number, rev = 12) => ({
     rev, hash: `fixture-${rev}`, tz, uploadedAt: hoursBefore(now, hoursAgo), appVersion: 'v8.43', state,
   });
-  const base = { invite: null, profileName: null, snapshotError: null };
+  const base = { invite: null, profileName: null, snapshotError: null, lastEndedAt: null };
 
   // Maya: the demo client as is, on a cycle her coach published, synced 2h ago.
   const maya = withCycle(demo, (s) => { for (const m of s.macrocycles || []) m.publishedBy = FIXTURE_COACH.coachId; });
@@ -78,7 +81,7 @@ export function buildFixtureClients(demo: Record<string, unknown>): { anchor: st
     { ...base, card: card('ben', 'Ben Carter'), link: linked('ben', hoursBefore(now, 3)), snapshot: null },
     { ...base, card: card('sam', 'Sam Whitfield'), link: null, snapshot: null,
       invite: { expiresAt: hoursBefore(now, -5 * 24), createdAt: hoursBefore(now, 2 * 24) } },
-    { ...base, card: card('leah', 'Leah Brooks'), snapshot: null,
+    { ...base, card: card('leah', 'Leah Brooks'), snapshot: null, lastEndedAt: hoursBefore(now, 72),
       link: { clientId: 'user-leah', status: 'ended', photoConsent: false, linkedAt: '2026-06-01T09:00:00Z', endedAt: hoursBefore(now, 72) } },
     { ...base, card: card('eileen', 'Eileen Moss', { email: null, phone: '01632 960 555' }), link: null, snapshot: null },
   ];
@@ -101,6 +104,7 @@ export function createFixtureRepo(demo: Record<string, unknown>, onProfile: (p: 
     pubs: [] as (CoachPublication & { cardId: string })[],
     subs: fixtureSubmissions(built.anchor, built.now),
   };
+  const plan = { drafts: [] as PlanDraft[], templates: fixtureTemplates(clients.find((c) => c.card.id === 'maya'), built.now) };
   return {
     kind: 'fixture',
     anchor: built.anchor,
@@ -114,7 +118,7 @@ export function createFixtureRepo(demo: Record<string, unknown>, onProfile: (p: 
         email: contact.includes('@') ? contact : null, phone: contact.includes('@') ? null : contact, notes: null,
         createdAt: new Date(built.now).toISOString(),
       };
-      clients.push({ card: c, link: null, invite: null, profileName: null, snapshot: null, snapshotError: null });
+      clients.push({ card: c, link: null, invite: null, profileName: null, snapshot: null, snapshotError: null, lastEndedAt: null });
       return c;
     },
     async createInvite(cardId): Promise<NewInvite> {
@@ -170,7 +174,51 @@ export function createFixtureRepo(demo: Record<string, unknown>, onProfile: (p: 
       return { ...p };
     },
     async loadPhotos() { return []; },
+
+    // Plan and Library: this page's memory only.
+    async loadPlan(cardId) {
+      return {
+        publications: ai.pubs.filter((p) => p.cardId === cardId && ['plan', 'goal_phases', 'ai_response'].includes(p.type)).map(({ cardId: _c, ...p }) => { void _c; return { ...p }; }),
+        drafts: plan.drafts.filter((d) => d.cardId === cardId).map((d) => structuredClone(d)),
+      };
+    },
+    async savePlanDraft(cardId, macroId, body) {
+      const at = new Date(built.now + ++tick * 1000).toISOString();
+      const d = plan.drafts.find((x) => x.cardId === cardId && x.macroId === macroId);
+      if (d) { d.body = structuredClone(body); d.updatedAt = at; return structuredClone(d); }
+      const nd: PlanDraft = { id: fakeId(), cardId, macroId, body: structuredClone(body), updatedAt: at };
+      plan.drafts.push(nd);
+      return structuredClone(nd);
+    },
+    async deletePlanDraft(id) { plan.drafts = plan.drafts.filter((d) => d.id !== id); },
+    async loadTemplates() { return plan.templates.map((t) => structuredClone(t)); },
+    async saveTemplate(t) {
+      const nt: Template = { ...structuredClone(t), id: fakeId(), starred: false, createdAt: new Date(built.now + ++tick * 1000).toISOString(), appliedCount: 0, appliedLast90: 0 };
+      plan.templates.push(nt);
+      return structuredClone(nt);
+    },
+    async starTemplate(id, starred) { const t = plan.templates.find((x) => x.id === id); if (t) t.starred = starred; },
+    async deleteTemplate(id) { plan.templates = plan.templates.filter((t) => t.id !== id); },
+    async recordApplication(templateId) {
+      const t = plan.templates.find((x) => x.id === templateId);
+      if (t) { t.appliedCount++; t.appliedLast90++; }
+    },
   };
+}
+
+/** Two templates to start from under the bypass: Maya's cycle, and its first session. */
+function fixtureTemplates(maya: ClientBundle | undefined, now: number): Template[] {
+  const st = maya?.snapshot?.state;
+  const c = st ? foldPlan({ state: st, publications: [], coachId: FIXTURE_COACH.coachId, since: null })[0] : null;
+  if (!c) return [];
+  const at = new Date(now - 30 * 86400000).toISOString();
+  const m = macroTemplateOf(c.doc);
+  const dk = dayKeys(c.doc.macro)[0];
+  const w = workoutTemplateOf(c.doc, dk, c.doc.macro.dayLabels[dk.replace(/m[12]$/, '')] || 'Session');
+  return [
+    { id: 'tpl-cycle', kind: 'macrocycle', name: 'Steady cut, 14 weeks', summary: m.summary, body: m.body, starred: true, createdAt: at, appliedCount: 3, appliedLast90: 2 },
+    { id: 'tpl-workout', kind: 'workout', name: `${w.body.label} session`, summary: w.summary, body: w.body, starred: false, createdAt: at, appliedCount: 1, appliedLast90: 1 },
+  ];
 }
 
 /** Maya asked for a check-in the day before the anchor (a `check_in` row, `body.purpose 'check_in'`, BLOC v8.41). */
