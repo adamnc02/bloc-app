@@ -20,6 +20,7 @@ const CELL: Record<CellState, { bg: string; fg: string; glyph: string; label: st
   swapped: { bg: 'color-mix(in srgb, var(--amber) 22%, transparent)', fg: 'var(--amber)', glyph: 'S', label: 'Swapped that day' },
   group: { bg: 'color-mix(in srgb, var(--accent) 20%, transparent)', fg: 'var(--accent2)', glyph: 'G', label: 'Group session instead' },
   excluded: { bg: 'var(--surface3)', fg: 'var(--text3)', glyph: '–', label: 'Not counted' },
+  skipped: { bg: 'transparent', fg: 'var(--text3)', glyph: '!', label: 'Not done · not counted', border: 'var(--text3)' },
   logged: { bg: 'color-mix(in srgb, var(--green) 40%, transparent)', fg: 'var(--text)', glyph: '✓', label: 'Done' },
   pending: { bg: 'transparent', fg: 'var(--text3)', glyph: '·', label: 'This week, in progress', border: 'var(--border2)' },
   future: { bg: 'transparent', fg: 'var(--text3)', glyph: '', label: 'Still to come', border: 'var(--border2)' },
@@ -29,7 +30,7 @@ const CELL: Record<CellState, { bg: string; fg: string; glyph: string; label: st
 export function ComplianceGrid({ t }: { t: TrainingCompliance }) {
   const [sel, setSel] = useState<{ row: GridRow; cell: GridCell; col: WeekCol } | null>(null);
   let lastSession = '';
-  const legend: CellState[] = t.scored ? ['pass', 'fail', 'missed', 'swapped', 'group', 'excluded'] : ['logged', 'missed', 'swapped', 'group'];
+  const legend: CellState[] = t.scored ? ['pass', 'fail', 'missed', 'skipped', 'swapped', 'group', 'excluded'] : ['logged', 'missed', 'swapped', 'group'];
   return (
     <>
       <div style={{ overflowX: 'auto', margin: '0 -4px', padding: '0 4px' }}>

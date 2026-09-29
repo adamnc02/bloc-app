@@ -156,10 +156,19 @@ describe('training compliance (§7.1)', () => {
     expect(firstMeso.every((c) => c.state === 'excluded' && c.reason === 'Week 1 sets the baseline')).toBe(true);
   });
   it('the deload and the first session after it are not counted', () => {
-    const dl = t.rows.flatMap((r) => r.cells).filter((c) => c.reason === 'Deload week');
+    const dl = t.rows.flatMap((r) => r.cells).filter((c) => c.reason?.startsWith('Deload week'));
     expect(dl.length).toBeGreaterThan(0);
-    expect(dl.every((c) => c.state === 'excluded' && t.cols[c.unit].isDeload)).toBe(true);
-    expect(t.rows.some((r) => r.cells.some((c) => c.reason === 'First session after a deload'))).toBe(true);
+    expect(dl.every((c) => (c.state === 'excluded' || c.state === 'skipped') && t.cols[c.unit].isDeload)).toBe(true);
+    expect(t.rows.some((r) => r.cells.some((c) => c.reason?.startsWith('First session after a deload')))).toBe(true);
+  });
+  it('an unscored week with nothing done shows as not done, and still isn’t scored (the deload, W12)', () => {
+    const w12 = t.cols.find((c) => c.isDeload)!;
+    const cells = t.rows.flatMap((r) => r.cells).filter((c) => c.unit === w12.idx && c.state !== 'none');
+    expect(w12.done).toBe(0);
+    expect(cells.every((c) => c.state === 'skipped' && c.reason === 'Deload week · not done')).toBe(true);
+    expect(w12.score).toBeNull();
+    // Control: week 1, where sessions were done, stays plain "not counted".
+    expect(t.rows.flatMap((r) => r.cells).filter((c) => c.week === 1 && c.state !== 'none').every((c) => c.state === 'excluded')).toBe(true);
   });
   it('planned sessions not done in a finished week are missed, and the week scores 0', () => {
     const w10 = t.cols[9]; // W9 holds a half-logged Pull session; W10 has nothing

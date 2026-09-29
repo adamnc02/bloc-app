@@ -15,7 +15,9 @@
 //
 // Not counted (never a pass or a fail): week 1 (the baseline), a deload, the
 // first occurrence of each session after a deload, a swapped exercise, and a
-// planned session a group session replaced (done, not scored). A maintenance
+// planned session a group session replaced (done, not scored). An excluded
+// week with nothing done is 'skipped': still not counted, but shown as not
+// done, as the sessions strip counts it. A maintenance
 // cycle has no pass or fail at all; it's scored on attendance.
 //
 // A column is scored only once its week is over at the client's today; the
@@ -30,6 +32,7 @@ import {
 export type CellState =
   | 'pass' | 'fail' | 'missed'          // counted
   | 'swapped' | 'group' | 'excluded'    // not counted
+  | 'skipped'                           // not counted, and not done (a deload, week 1, after a deload)
   | 'logged'                            // a maintenance cycle's done session (not scored)
   | 'pending' | 'future' | 'none';      // this week isn't over / not reached / not in this week
 
@@ -203,6 +206,9 @@ function judgeCell(s: BlocState, cache: TargetCache, m: Macrocycle, col: WeekCol
     return col.closed ? { ...base, ...extra, state: 'missed', reason: 'Planned session not done' } : { ...base, ...extra, state: 'pending' };
   }
   const why = excludedReason(s, m, week, dayKey);
+  // Not scored either way, but a week with nothing done says so: the sessions
+  // strip counts it as not done, and the grid mustn't look as if it was.
+  if (why && !anyDone) return col.closed ? { ...base, ...extra, state: 'skipped', reason: `${why} · not done` } : { ...base, ...extra, state: 'pending', reason: why };
   if (why) return { ...base, ...extra, state: 'excluded', reason: why };
 
   const res = getWeekComplianceResult(s, cache, m, week, dayKey, ex);

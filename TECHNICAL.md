@@ -9391,6 +9391,10 @@ since a verdict rests on weigh-ins.
   (`isFirstUnitAfterDeload`), a swapped exercise-week (`state.substitutions`, kind `swap`), and a planned
   session a group session replaced (kind `group`: done, not scored). A finished week's exercise with
   nothing done is **missed** (a miss); partly done is a **fail**.
+- 🚨 **An unscored week with nothing done is shown as not done** (a grey "!", "Deload week · not done"),
+  still left out of every score. The sessions strip counts attendance in every week; with the grey "–" of a
+  done-but-excluded week, an empty deload read as done in the grid while the strip showed it missed. In the
+  current week it's "in progress".
 - **Session** = passes ÷ counted exercises; **week** = the mean of its sessions (a planned session not done
   scores 0); **cycle** = the mean of its weeks, all weighted equally. Every level is out of 10.
 - **Maintenance** has no pass or fail: done sessions are "Done", and the score is **attendance**, sessions
@@ -9483,7 +9487,7 @@ refuse a linked card's name or contact change, as the trigger does.
 
 ### Checks
 
-- `coach/src/review/review.test.ts` (vitest, 30 cases): Maya's periods and the chart's header, the
+- `coach/src/review/review.test.ts` (vitest, 31 cases): Maya's periods and the chart's header, the
   callout's week being the one that contains the day; Maya at the demo's anchor (off track, flat W4–W6,
   explained by calories, written about her); the direction rule with the engine's own periods as the
   control, and its gain mirror; weight alone with no food logged; the waist rule (¾″ on track, ¼″ off);
