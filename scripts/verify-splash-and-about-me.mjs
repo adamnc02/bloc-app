@@ -66,11 +66,14 @@ check('Sign out closes About me as it goes', /closeModal\('modal-body-profile'\)
 
 // ── 3. The plan banner's View ─────────────────────────────────────────────
 const fnSrc = (name) => { const i = html.indexOf(`function ${name}(`); let d = 0; for (let j = html.indexOf('{', i); j < html.length; j++) { if (html[j] === '{') d++; else if (html[j] === '}' && --d === 0) return html.slice(i, j + 1); } return ''; };
-const viewable = (src) => new Function('state', 'getLocalToday', `${src}; return coachPlanNoticeViewable;`);
-const st = { macrocycles: [{ id: 'future', start: '2026-10-12' }, { id: 'now', start: '2026-09-28' }] };
-const v = viewable(fnSrc('coachPlanNoticeViewable'))(st, () => '2026-09-29');
-check('View is offered only once the changed cycle has started (and for an old notice naming none)',
-  v({ macroId: 'future' }) === false && v({ macroId: 'now' }) === true && v({}) === true && v({ macroId: 'gone' }) === false);
+const viewable = (src) => new Function('state', 'getLocalToday', 'getDateActiveMacroId', `${src}; return coachPlanNoticeViewable;`);
+const st = { macrocycles: [{ id: 'future', start: '2026-10-12', publishedBy: 'c' }, { id: 'now', start: '2026-09-28' }] };
+const v = viewable(fnSrc('coachPlanNoticeViewable'))(st, () => '2026-09-29', () => 'now');
+const vCoach = viewable(fnSrc('coachPlanNoticeViewable'))({ macrocycles: [{ id: 'c1', start: '2026-09-28', publishedBy: 'c' }] }, () => '2026-09-29', () => 'c1');
+check('View is offered only once the changed cycle has started',
+  v({ macroId: 'future' }) === false && v({ macroId: 'now' }) === true && v({ macroId: 'gone' }) === false);
+check('an old notice naming no cycle: View only when the running cycle is the coach’s (the UAT case: the client’s own is running)',
+  v({}) === false && vCoach({}) === true);
 check('the plan notice names its cycle, and Home asks before offering View',
   /named \? \{ macroId: named\.id \} : undefined\);/.test(html) && /plan: n => \(coachPlanNoticeViewable\(n\) \?/.test(html));
 
@@ -79,7 +82,7 @@ console.log('\n— controls, which must be caught —');
 check('control: a word left on fill-box is caught', !splashWords(html.replace(/(#splash \.s-word \{[^}]*)transform-box: view-box;/, '$1transform-box: fill-box; transform-origin: center;')).viewBox);
 check('control: a Sign out left in My data is caught', /signOutUser/.test(data + '<div class="settings-row" onclick="signOutUser()">'));
 
-check('control: a View that ignores the date is caught', viewable('function coachPlanNoticeViewable() { return true; }')(st, () => '2026-09-29')({ macroId: 'future' }) === true);
+check('control: a View that ignores the date is caught', viewable('function coachPlanNoticeViewable() { return true; }')(st, () => '2026-09-29', () => 'now')({ macroId: 'future' }) === true);
 
 console.log(failures ? `\nFAIL: ${failures} check(s)` : '\nAll checks pass.');
 process.exit(failures ? 1 : 0);

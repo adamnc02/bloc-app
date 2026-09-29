@@ -9836,8 +9836,9 @@ Close my account). Its id stays `modal-account`, referenced from the export and 
 **The plan banner's View only when Train can show it.** "{coach} updated your plan" (§137) offered **View** (to Train)
 for a cycle that hadn't started yet, where Train shows nothing of it. The notice now records its cycle (`macroId`), and
 `HOME_NOTICE_ACTIONS.plan` offers View only once that cycle has started at the client's today
-(`coachPlanNoticeViewable()`). It's decided each time Home draws, so View appears on the day the cycle starts; a notice
-from before v8.46 names no cycle and keeps its View.
+(`coachPlanNoticeViewable()`). It's decided each time Home draws, so View appears on the day the cycle starts. A notice
+raised by an earlier build names no cycle: View then only when the cycle running today is the coach's, which is what
+Train opens on (found in UAT: an update applied by a tab still on the old build kept its View).
 
 **Check:** `scripts/verify-splash-and-about-me.mjs`: the View rule (a future cycle, a started one, a notice naming none,
 a removed cycle; control: a View that ignores the date), the words on `view-box` with their own origins, the account in

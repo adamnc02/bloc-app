@@ -15772,14 +15772,22 @@ const HOME_NOTICE_KINDS = ['plan', 'phases', 'booking', 'response', 'photos'];
 const HOME_NOTICE_ACTIONS = {
   // v8.46 (§146): View only when Train can show the change: the cycle has
   // started. Worked out each time Home draws, so it appears the day the cycle
-  // starts. A notice from before v8.46 names no cycle and keeps its View.
+  // starts. A notice raised by an earlier build names no cycle: View then only
+  // when the cycle running today is the coach's.
   plan: n => (coachPlanNoticeViewable(n) ? { label: 'View', onclick: "showScreen('train')" } : null),
   booking: () => ({ label: 'View', onclick: 'openCoachSessions()' }),
   response: n => n.responseId ? { label: 'View', onclick: `viewCoachResponse('${coachEsc(n.responseId)}')` } : null,
   photos: n => n.requestId ? { label: 'Send photos', onclick: `openCoachPhotoRequest('${coachEsc(n.requestId)}')` } : null, // v8.44 (§142)
 };
 function coachPlanNoticeViewable(n) {
-  if (!n || !n.macroId) return true;
+  if (!n) return false;
+  // A notice raised before its cycle was recorded (earlier builds): View only
+  // when the cycle running today is the coach's, which is what Train opens on.
+  if (!n.macroId) {
+    const id = getDateActiveMacroId();
+    const active = id && (state.macrocycles || []).find(x => x.id === id);
+    return !!(active && active.publishedBy);
+  }
   const m = (state.macrocycles || []).find(x => x.id === n.macroId);
   return !!m && !!m.start && m.start <= getLocalToday();
 }
