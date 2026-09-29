@@ -21,6 +21,8 @@ import { Sheet } from '@/components/ui/Sheet';
 import { prefLabel } from '@/coach/diary/BookingBlock';
 import { NewSessionSheet, RequestSheet } from '@/coach/diary/DiarySheets';
 import { useDiaryData } from '@/coach/diary/useDiaryData';
+import { InPersonActions } from '@/inperson/InPersonActions';
+import { PastSessions } from '@/inperson/PastSessions';
 
 const WINDOW_DAYS = 14;
 const DAY_PLURAL = ['Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays', 'Sundays'];
@@ -40,9 +42,9 @@ export function SessionsTab({ v }: { v: ClientView }) {
   if (!diary || !bundles) return <div aria-busy="true" style={{ minHeight: 200 }} />;
 
   const mine = (o: Occurrence) => o.clientIds.includes(cardId);
-  const list = occurrencesBetween(diary, today, addDays(today, WINDOW_DAYS - 1))
-    .filter((o) => mine(o) && o.kind !== 'request' && !(o.date === today && o.start + o.duration <= nowMin));
-  const next = list[0];
+  // Today's sessions stay listed after they end (Start session runs to the end of the day); "next" is still to come.
+  const list = occurrencesBetween(diary, today, addDays(today, WINDOW_DAYS - 1)).filter((o) => mine(o) && o.kind !== 'request');
+  const next = list.find((o) => !(o.date === today && o.start + o.duration <= nowMin));
   // A weekly row opens its next week; look well past the two-week list for it.
   const ahead = occurrencesBetween(diary, today, addDays(today, 180)).filter((o) => mine(o) && o.kind !== 'request');
   const nextOf = (seriesId: string) => nextSeriesWeek(diary, seriesId, today);
@@ -154,6 +156,8 @@ export function SessionsTab({ v }: { v: ClientView }) {
         </Section>
       )}
 
+      <PastSessions bundle={v.bundle} first={first} i={5} />
+
       {sheet?.type === 'new' && (
         <NewSessionSheet diary={diary} who={who} bundles={bundles} date={today} start={defaultStart} clientId={cardId}
           onClose={() => setSheet(null)}
@@ -175,6 +179,7 @@ export function SessionsTab({ v }: { v: ClientView }) {
           <Sheet open title={title} onClose={() => setSheet(null)}>
             <p className="display num" style={{ fontSize: 20 }}>{when}</p>
             <p className="muted" style={{ marginTop: 4 }}>{[o.recurring ? `every ${fmt.dayLong(o.date)}` : 'one-off', o.location].filter(Boolean).join(' · ')}</p>
+            {o.kind === 'one_to_one' && <InPersonActions occ={o} cardId={cardId} diary={diary} bundles={bundles} today={today} nowMin={nowMin} run={run} />}
             <div className="stack" style={{ marginTop: 20 }}>
               {o.kind === 'group' ? (
                 <>

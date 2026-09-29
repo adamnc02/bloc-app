@@ -25,7 +25,8 @@ import { ProfileSetupScreen, StatusScreen } from '@/coach/screens/ProfileSetupSc
 import { ClientsScreen } from '@/coach/screens/ClientsScreen';
 import { ClientScreen } from '@/coach/screens/ClientScreen';
 import { SettingsScreen } from '@/coach/screens/SettingsScreen';
-import { ComingScreen } from '@/coach/screens/ComingScreen';
+import { TodayScreen } from '@/coach/screens/TodayScreen';
+import { InPersonScreen } from '@/inperson/InPersonScreen';
 import { LibraryScreen } from '@/coach/screens/LibraryScreen';
 import { DiaryScreen } from '@/coach/diary/DiaryScreen';
 
@@ -34,6 +35,10 @@ export interface CoachSession {
   profile: CoachProfile;
   /** The sign-in's email; null under the bypass. */
   email: string | null;
+  /** How the account signs in ('email', 'google'); null under the bypass. A Google sign-in has no password. */
+  provider: string | null;
+  /** Sets the account's password (the same account as BLOC, so BLOC's password changes too). */
+  changePassword: (password: string) => Promise<void>;
   /** Under the bypass: the demo dataset's anchor date, the fixtures' "today". */
   fixtureAnchor: string | null;
   signOut: () => Promise<void>;
@@ -76,6 +81,8 @@ export function App() {
     const sb = getSupabase()!;
     const s: CoachSession = {
       profile, email: session.user.email ?? null, fixtureAnchor: null,
+      provider: (session.user.app_metadata?.provider as string | undefined) ?? null,
+      changePassword: async (password) => { const { error } = await sb.auth.updateUser({ password }); if (error) throw new Error(error.message); },
       repo: createLiveRepo(sb, profile, (p) => setGate((g) => (g.k === 'ready' ? { k: 'ready', session: { ...g.session, profile: p } } : g))),
       signOut: async () => { await sb.auth.signOut({ scope: 'local' }); userRef.current = null; setGate({ k: 'signed-out' }); },
     };
@@ -88,7 +95,7 @@ export function App() {
       loadDemoData().then((demo) => {
         if (cancelled) return;
         const repo = createFixtureRepo(demo, (p) => setGate((g) => (g.k === 'ready' ? { k: 'ready', session: { ...g.session, profile: p } } : g)));
-        setGate({ k: 'ready', session: { repo, profile: FIXTURE_COACH, email: null, fixtureAnchor: repo.anchor, signOut: async () => {} } });
+        setGate({ k: 'ready', session: { repo, profile: FIXTURE_COACH, email: null, provider: null, fixtureAnchor: repo.anchor, signOut: async () => {}, changePassword: async () => {} } });
       }).catch((e) => { if (!cancelled) setGate({ k: 'error', msg: `Couldn’t load the demo dataset for the fixture clients: ${e.message}` }); });
       return () => { cancelled = true; };
     }
@@ -128,7 +135,8 @@ function Screens() {
     case 'clients': return <ClientsScreen key={key} />;
     case 'client': return <ClientScreen key={`client-${route.id}`} id={route.id} tab={route.tab} macro={route.macro} intent={route.intent} />;
     case 'settings': return <SettingsScreen key={key} />;
-    case 'today': return <ComingScreen key={key} tab="today" title="Today" sub="Everything waiting on you, today’s sessions, who’s off track and what’s coming up. It arrives once Review, the Diary and In person are built." />;
+    case 'today': return <TodayScreen key={key} />;
+    case 'session': return <InPersonScreen key={key} occKey={route.occKey} cardId={route.cardId} />;
     case 'diary': return <DiaryScreen key={key} />;
     case 'library': return <LibraryScreen key={key} />;
   }

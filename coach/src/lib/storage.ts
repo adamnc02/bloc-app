@@ -22,4 +22,6 @@ export const KEYS = {
   aiKey: 'blocCoach_aiKey',
   /** '1' when the laptop side rail is collapsed to its icon rail (CoachShell). This device only. */
   railCollapsed: 'blocCoach_railCollapsed',
+  /** In-person sessions being logged on this device and not yet finished, so a reload loses no set (inperson/draft.ts). */
+  inPerson: 'blocCoach_inPerson',
 } as const;

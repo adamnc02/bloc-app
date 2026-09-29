@@ -17,13 +17,14 @@ export function AddClientSheet({ open, onClose, onAdd, busy, error }: { open: bo
   const [name, setName] = useState('');
   const [contact, setContact] = useState('');
   const [onApp, setOnApp] = useState<boolean | null>(null);
-  const ready = name.trim().length > 1 && contact.trim().length > 4 && onApp != null && !busy;
+  // A client coached in person (not on BLOC) needs only a name; an invite needs somewhere to go.
+  const ready = name.trim().length > 1 && onApp != null && (onApp === false || contact.trim().length > 4) && !busy;
   return (
     <Sheet open={open} title="Add client" onClose={onClose}>
       <Field label="Name" htmlFor={`${id}-n`}>
         <input id={`${id}-n`} className="input box" autoComplete="off" maxLength={160} placeholder="First and last name" value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
-      <Field label="Email or phone" htmlFor={`${id}-c`}>
+      <Field label="Email or phone" htmlFor={`${id}-c`} hint={onApp === false ? 'Optional for a client you coach in person.' : undefined}>
         <input id={`${id}-c`} className="input box" autoComplete="off" inputMode="email" maxLength={254} placeholder="name@example.com or 07700 900000" value={contact} onChange={(e) => setContact(e.target.value)} />
       </Field>
       <Field label="On the app?">

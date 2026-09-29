@@ -8,6 +8,9 @@ import { localDateIn } from '@/lib/clientState';
 import type { CardPatch, NewInvite } from '@/data/types';
 import type { LinkStatus } from '@/domain/types';
 import type { ClientView } from '@/coach/screens/ClientScreen';
+import type { Loose } from '@engine';
+import { MeasurementsForm, type MeasurementPayload } from '@/inperson/Measurements';
+import { useRecord } from '@/inperson/useRecord';
 
 const STATUS: Record<LinkStatus, { label: string; tone: 'good' | 'acc' | 'neutral' | 'amber'; icon: IconName }> = {
   linked: { label: 'Linked', tone: 'good', icon: 'link' },
@@ -69,6 +72,8 @@ export function ProfileTab({ v }: { v: ClientView }) {
   const saveContact = () => run('contact', async () => { await repo.updateCard(card.id, patch); toast.show('Contact saved'); v.reload(); });
   const saveNotes = () => run('notes', async () => { await repo.updateCard(card.id, { notes: notes.trim() || null }); toast.show('Notes saved'); v.reload(); });
   const unlink = () => run('unlink', async () => { await repo.endLink(card.id); setSheet(null); toast.show(`${first} unlinked`); v.reload(); });
+  const record = useRecord(bundle);
+  const saveMeasurements = (p: MeasurementPayload) => run('measure', async () => { await repo.publish(card.id, 'measurement', p as unknown as Loose, null); record.reload(); toast.show('Measurements saved'); });
   const newInvite = () => run('invite', async () => { const inv = await repo.createInvite(card.id); setSheet(null); setInvite(inv); v.reload(); });
 
   const shownContact = linked ? [card.email, card.phone].filter(Boolean).join(' · ') : [contact.email, contact.phone].filter(Boolean).join(' · ');
@@ -148,6 +153,17 @@ export function ProfileTab({ v }: { v: ClientView }) {
             )}
           </div>
         </Section>
+
+        {c.status === 'not-on-app' && (
+          <Section i={4} title="Measurements" sub={`Weigh and measure ${first} in person. Saved to their record, and it comes across if they link to BLOC later.`}>
+            <div className="card">
+              {record.state
+                ? <MeasurementsForm state={record.state} date={localDateIn(Intl.DateTimeFormat().resolvedOptions().timeZone, repo.now())} busy={busy === 'measure'} onSave={saveMeasurements} />
+                : <div aria-busy="true" style={{ minHeight: 120 }} />}
+              {err?.where === 'measure' && <Notice icon="warning" tone="bad" title="Couldn’t save the measurements" style={{ marginTop: 14 }}>{err.msg}</Notice>}
+            </div>
+          </Section>
+        )}
 
         {c.status !== 'unlinked' && (
           <Section i={4} title="Photo consent" sub={`Only ${first} can change this. You can see it, not edit it.`} slot={<Icon name="lock" size={16} className="t-acc" />}>

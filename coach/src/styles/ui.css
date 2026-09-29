@@ -27,7 +27,9 @@ a { color: inherit }
 }
 .top {
   display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
-  padding-top: calc(var(--header-top) + env(safe-area-inset-top));
+  /* An installed iPhone app has a status-bar inset; below it the header sits 16px down, as BLOC's does
+     (#content: safe-top, .screen: 16px). --header-top on top of the inset left ~50px of dead space. */
+  padding-top: max(var(--header-top), calc(env(safe-area-inset-top) + 16px));
 }
 .top .titles { min-width: 0; flex: 1 }
 .top .actions { display: flex; gap: 8px; flex-shrink: 0 }
@@ -122,6 +124,8 @@ h2 { font-family: var(--font-display); font-size: 19px; font-weight: 600; letter
 .rowbtn small { display: block; font-size: 12.5px; color: var(--text2); margin-top: 3px }
 .rowbtn .chev { color: var(--text3); flex-shrink: 0 }
 .rowbtn + .rowbtn { border-top: 1px solid var(--divider) }
+.rowbtn.is-danger b { color: var(--red) }
+.rowbtn.is-danger .icon-tile { background: color-mix(in srgb, var(--red) 16%, transparent); color: var(--red) }
 .icon-tile { width: 36px; height: 36px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent2); display: grid; place-items: center; flex-shrink: 0 }
 
 /* AI action rows (§6.4 placement rule) */
@@ -159,6 +163,10 @@ h2 { font-family: var(--font-display); font-size: 19px; font-weight: 600; letter
 }
 textarea.input { height: auto; min-height: 96px; padding: 12px 14px; resize: vertical; line-height: 1.45 }
 .input::placeholder, .inrow input::placeholder, textarea.input::placeholder { color: var(--text3) }
+/* iOS draws a date or time input at its own width, ignoring width: 100%: beside a field it ran under its
+   neighbour, alone it ran past the sheet. Without the native appearance it takes the field's width. */
+input[type="date"].input, input[type="time"].input { -webkit-appearance: none; appearance: none; display: block; max-width: 100%; line-height: 42px; text-align: left }
+input[type="date"].input::-webkit-date-and-time-value, input[type="time"].input::-webkit-date-and-time-value { text-align: left; margin: 0 }
 .box { height: 48px }
 .unit { font-size: 13px; color: var(--text3); min-width: 26px }
 .seg { display: flex; background: var(--bg); border: 1px solid var(--border2); border-radius: 12px; padding: 4px; gap: 4px }
@@ -293,3 +301,14 @@ textarea.input { height: auto; min-height: 96px; padding: 12px 14px; resize: ver
 .macro-slider::-moz-range-thumb { box-sizing: border-box; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--surface); background: var(--macro-c); box-shadow: 0 1px 3px rgba(0,0,0,.35); cursor: pointer }
 .macro-legend { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 12px; font-size: 11px; color: var(--text2) }
 .macro-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: -1px }
+
+/* ---------- effort ratings: BLOC's end-of-session sheet (index.html .rpe-scale), ten across, five below 380px ---------- */
+.rpe-scale { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; margin-top: 10px }
+@media (max-width: 379px) { .rpe-scale { grid-template-columns: repeat(5, minmax(0, 1fr)) } }
+
+/* ---------- Today: sessions, then Needs you, Off track, Coming up; on a laptop Needs you is the right-hand column ---------- */
+.today-grid { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "sessions" "needs" "off" "coming"; column-gap: 28px }
+.tg-sessions { grid-area: sessions } .tg-needs { grid-area: needs } .tg-off { grid-area: off } .tg-coming { grid-area: coming }
+@media (min-width: 1024px) {
+  .today-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "sessions needs" "off needs" "coming needs"; grid-template-rows: auto auto 1fr; align-items: start }
+}

@@ -5,7 +5,7 @@
 //
 // THE TRAPS:
 //   · A booking publication's keys are allow-listed by the server (0023 +
-//     0028 + 0029's `publication_payload_ok`). A key outside the list makes the
+//     0028 + 0029 + 0030's `publication_payload_ok`). A key outside the list makes the
 //     server refuse the whole publication; Coach's BOOKING_KEYS must all be
 //     on the migration's list.
 //   · BLOC rolls a booking forward only when its `kind` is one it reads as
@@ -41,18 +41,18 @@ const strip = src => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])
 const walk = d => readdirSync(join(repo, d)).flatMap(f => statSync(join(repo, d, f)).isDirectory() ? walk(`${d}/${f}`) : [`${d}/${f}`]);
 
 // ── 1. The server's allow-list ───────────────────────────────────────────
-const migration = join(repo, '..', 'super-duper-octo-barnacle', 'supabase', 'migrations', '20260831000029_booking_replaces.sql');
+const migration = join(repo, '..', 'super-duper-octo-barnacle', 'supabase', 'migrations', '20260831000030_booking_removed.sql');
 let allowed = null;
 try {
   const m = /when 'booking'\s+then array\[([^\]]+)\]/.exec(readFileSync(migration, 'utf8'));
   allowed = m && [...m[1].matchAll(/'([a-z_]+)'/g)].map(x => x[1]);
 } catch { /* the migration repo isn't beside this one (CI): fall back to the documented list */ }
-if (!allowed) allowed = ['v', 'booking_id', 'date', 'start_min', 'duration_min', 'status', 'kind', 'location', 'assigned_session', 'skip_dates', 'until', 'title', 'quiet', 'replaces'];
+if (!allowed) allowed = ['v', 'booking_id', 'date', 'start_min', 'duration_min', 'status', 'kind', 'location', 'assigned_session', 'skip_dates', 'until', 'title', 'quiet', 'replaces', 'removed'];
 const publish = read('coach/src/diary/publish.ts');
 const keysOf = src => { const m = /export const BOOKING_KEYS = \[([^\]]+)\]/.exec(src); return m ? [...m[1].matchAll(/'([a-z_]+)'/g)].map(x => x[1]) : null; };
 const keys = keysOf(publish);
 const outside = (k, a) => (k ?? []).filter(x => !a.includes(x));
-check(`every booking key Coach sends is on 0029's allow-list (${keys?.length} keys)`, !!keys && keys.length >= 9 && outside(keys, allowed).length === 0, `outside: ${outside(keys, allowed)}`);
+check(`every booking key Coach sends is on 0030's allow-list (${keys?.length} keys)`, !!keys && keys.length >= 9 && outside(keys, allowed).length === 0, `outside: ${outside(keys, allowed)}`);
 const control1 = keysOf(publish.replace(/(export const BOOKING_KEYS = \[[^\]]*)\]/, "$1, 'notes']"));
 check('control: a key outside the list is caught', outside(control1, allowed).join() === 'notes');
 
@@ -66,6 +66,8 @@ check(`a series is sent with a kind BLOC rolls forward (${seriesKind(publish)} �
 check('control: a series sent as kind \'repeating\' is caught', !kindOk(publish.replaceAll("kind: 'weekly'", "kind: 'repeating'")));
 const blocReads = ['skip_dates', 'until', 'title', 'quiet'].filter(k => new RegExp(`\\b(b|p)\\.${k}\\b`).test(html));
 check(`BLOC reads skip_dates, until, title and quiet (v8.47): ${blocReads.join(', ')}`, blocReads.length === 4);
+check('BLOC reads removed (v8.48, 0030) on a cancelled group', /\bp\.removed === true\b/.test(html));
+check('BLOC reads assigned_session (the in-person session, §136)', /assigned_session/.test(html));
 
 // ── 3. One publishing path ───────────────────────────────────────────────
 const src = walk('coach/src').filter(f => /\.tsx?$/.test(f) && !/\.test\.ts$/.test(f));

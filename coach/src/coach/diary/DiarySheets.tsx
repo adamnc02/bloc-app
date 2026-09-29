@@ -2,11 +2,11 @@
 // day off or a holiday (and undo one), and answer a session request. Every
 // save is checked by the Diary's rules first (diary/actions.ts refusals), so a
 // clash is said in the sheet, never discovered after.
-import { useId, useMemo, useState } from 'react';
+import { useId, useMemo, useState, type ReactNode } from 'react';
 import type { ISODate } from '@/domain/types';
 import { Sheet } from '@/components/ui/Sheet';
 import { SearchSheet } from '@/components/ui/SearchSheet';
-import { Button, Checkbox, Field, RowButton, Seg, Stepper } from '@/components/ui/controls';
+import { Button, Checkbox, Field, RowButton, Seg, Stepper, SwitchRow } from '@/components/ui/controls';
 import { Avatar, Chip, Tag } from '@/components/ui/display';
 import { Icon } from '@/components/ui/Icon';
 import { addDays, daysBetween, fmt } from '@/lib/format';
@@ -124,9 +124,11 @@ function Attendees({ ids, who, bundles, multi, onChange }: { ids: string[]; who:
 
 // ---------------------------------------------------------------- edit
 
-export function EditSheet({ occ, diary, who, bundles, onSave, onCancelSession, onMakeWeekly, onClose }: {
+export function EditSheet({ occ, diary, who, bundles, onSave, onCancelSession, onMakeWeekly, onClose, extra }: {
   occ: Occurrence; diary: Diary; who: Who; bundles: ClientBundle[];
   onSave: (p: SessionPatch) => void; onCancelSession: () => void; onMakeWeekly: () => void; onClose: () => void;
+  /** In person's actions for a one-to-one (Start session, Tag a session), under the who and when. */
+  extra?: ReactNode;
 }) {
   const id = useId();
   const [p, setP] = useState<SessionPatch>({ date: occ.date, start: occ.start, duration: occ.duration, location: occ.location, title: occ.title, clientIds: occ.clientIds });
@@ -145,6 +147,7 @@ export function EditSheet({ occ, diary, who, bundles, onSave, onCancelSession, o
           <div className="muted num">{fmt.ddm(p.date)} · {fmt.time(p.start)}–{fmt.time(p.start + p.duration)}{occ.recurring ? ' · weekly' : ''}</div>
         </div>
       </div>
+      {extra && <div style={{ marginBottom: 18 }}>{extra}</div>}
       {group && (
         <>
           <Field label="Name" htmlFor={`${id}-title`}>
@@ -218,68 +221,59 @@ export function NewSessionSheet({ diary, who, bundles, date, start, clientId, on
 // ---------------------------------------------------------------- days off
 
 /**
- * A day off, or a holiday over several days. It cancels only those days'
- * sessions, never a series. If any are booked, the coach is asked whether to
- * let those clients know (a banner, and a push once pushes arrive); either way
- * the cancellation reaches their phone.
+ * Add a day off (the wireframe's sheet), from every entry point: Settings, the Diary's moon button, and a day's
+ * header in the Diary (that date as From and To). From / To, a Label the coach must give it (only the coach sees
+ * it: the Diary's day-off note and the Settings list), then the sessions booked in the range. 🚨 They're
+ * cancelled for good (Undo frees the days and brings nothing back, §152); "Notify these clients" is whether
+ * the clients also get a banner (off: `quiet`). Either way the cancellation reaches their phone.
  */
 export function DayOffSheet({ diary, who, today, date, onConfirm, onClose }: {
   diary: Diary; who: Who; today: ISODate; date: ISODate | null;
-  onConfirm: (start: ISODate, end: ISODate, note: string | null, notify: boolean) => void; onClose: () => void;
+  onConfirm: (start: ISODate, end: ISODate, label: string, notify: boolean) => void; onClose: () => void;
 }) {
   const id = useId();
-  const [several, setSeveral] = useState(false);
   const [start, setStart] = useState(date ?? today);
   const [end, setEnd] = useState(date ?? today);
-  const [note, setNote] = useState('');
-  const last = several && end >= start ? end : start;
+  const [label, setLabel] = useState('');
+  const [notify, setNotify] = useState(true);
+  const last = end < start ? start : end;
   const affected = occurrencesBetween(diary, start, last).filter((o) => o.kind !== 'request');
-  const people = [...new Set(affected.flatMap((o) => o.clientIds))];
+  const people = new Set(affected.flatMap((o) => o.clientIds)).size;
   const clash = diary.daysOff.find((o) => o.start <= last && o.end >= start);
-  const bad = clash ? `Already a day off: ${fmt.ddm(clash.start)}${clash.end !== clash.start ? ` – ${fmt.ddm(clash.end)}` : ''}` : several && end < start ? 'The last day is before the first' : null;
-  const span = daysBetween(start, last) + 1;
-  const ok = (notify: boolean) => onConfirm(start, last, note.trim() || null, notify);
+  const bad = clash ? `Already a day off: ${clash.note ?? 'Day off'}, ${fmt.ddm(clash.start)}${clash.end !== clash.start ? ` – ${fmt.ddm(clash.end)}` : ''}` : null;
+  const oneDay = start === last;
   return (
-    <Sheet open title={affected.length ? 'Let clients know?' : 'Mark a day off'} onClose={onClose}>
-      <Field label="How long">
-        <Seg accent label="How long" value={several ? 'many' : 'one'} onChange={(v) => setSeveral(v === 'many')} options={[{ value: 'one', label: 'One day' }, { value: 'many', label: 'Several days' }]} />
-      </Field>
-      <div className={several ? 'tiles-2' : undefined}>
-        <Field label={several ? 'From' : 'Day'} htmlFor={`${id}-s`}>
-          <input id={`${id}-s`} type="date" className="input" value={start} min={today} onChange={(e) => { if (e.target.value) { setStart(e.target.value); if (end < e.target.value) setEnd(e.target.value); } }} />
-        </Field>
-        {several && (
-          <Field label="Until" htmlFor={`${id}-e`}>
-            <input id={`${id}-e`} type="date" className="input" value={end} min={start} onChange={(e) => e.target.value && setEnd(e.target.value)} />
-          </Field>
-        )}
+    <Sheet open title="Add a day off" onClose={onClose}>
+      <div className="tiles-2">
+        <div><Field label="From" htmlFor={`${id}-s`}><input id={`${id}-s`} type="date" className="input num" min={today} value={start} onChange={(e) => { if (!e.target.value) return; setStart(e.target.value); if (e.target.value > end) setEnd(e.target.value); }} /></Field></div>
+        <div><Field label="To" htmlFor={`${id}-e`}><input id={`${id}-e`} type="date" className="input num" min={start} value={end} onChange={(e) => e.target.value && setEnd(e.target.value)} /></Field></div>
       </div>
-      <Field label="Note (for you)" htmlFor={`${id}-n`}>
-        <input id={`${id}-n`} className="input" maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} placeholder={several ? 'Holiday' : 'Optional'} />
-      </Field>
-      {bad && <p className="dy-refusal" role="alert"><Icon name="warning" size={16} /> {bad}.</p>}
+      <div style={{ marginTop: 16 }}>
+        <Field label="Label" htmlFor={`${id}-l`} hint="Only you see it.">
+          <input id={`${id}-l`} className="input" maxLength={200} placeholder="Holiday" value={label} onChange={(e) => setLabel(e.target.value)} />
+        </Field>
+      </div>
       {affected.length > 0 ? (
-        <>
-          <p className="muted" style={{ margin: '14px 0 10px' }}>
-            {span > 1 ? `These ${span} days` : fmt.long(start)} cancel{span > 1 ? '' : 's'} {affected.length} {affected.length === 1 ? 'session' : 'sessions'}, on {span > 1 ? 'those days' : 'that day'} only. Weekly sessions carry on after.
-          </p>
-          <div className="card list">
+        <div className="tile" style={{ marginTop: 18, padding: 14 }}>
+          <div className="row top-align">
+            <div>
+              <b className="t-amber" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Icon name="warning" size={16} /> {affected.length} {affected.length === 1 ? 'session is' : 'sessions are'} booked</b>
+              <div className="caption" style={{ marginTop: 4 }}>They’re cancelled for good. Removing the day off later frees {oneDay ? 'the day' : 'the days'} but doesn’t bring them back. Weekly sessions carry on after.</div>
+            </div>
+          </div>
+          <div style={{ marginTop: 10 }}>
             {affected.map((o) => (
-              <div key={o.key} className="do-row">
-                {o.clientIds[0] && <Avatar initials={who.initials(o.clientIds[0])} size={36} />}
-                <span className="do-main"><b>{who.name(o, true)}</b><small className="num">{fmt.ddm(o.date)} · {fmt.time(o.start)}–{fmt.time(o.start + o.duration)}</small></span>
-              </div>
+              <div key={o.key} className="ex"><span>{who.name(o, true)}</span><span className="num">{fmt.ddm(o.date)} · {fmt.time(o.start)}</span></div>
             ))}
           </div>
-          <p className="caption" style={{ marginTop: 10 }}>Either way the {affected.length === 1 ? 'session is' : 'sessions are'} cancelled and taken off their phone, for good: undoing the day off later won’t bring {affected.length === 1 ? 'it' : 'them'} back. Letting them know adds a “Session cancelled” banner.</p>
-          <div className="do-actions">
-            <Button variant="ghost" disabled={!!bad} onClick={() => ok(false)}>Don’t tell them</Button>
-            <Button disabled={!!bad} onClick={() => ok(true)}>Let {people.length === 1 ? who.name({ kind: 'one_to_one', title: null, clientIds: people }) : `${people.length} clients`} know</Button>
-          </div>
-        </>
+          <SwitchRow title={`Notify ${people === 1 ? 'this client' : `these ${people} clients`}`} sub="They get a banner that the session is cancelled." checked={notify} onChange={setNotify} label="Notify clients" />
+        </div>
       ) : (
-        <div style={{ marginTop: 20 }}><Button disabled={!!bad} onClick={() => ok(false)}>Mark {span > 1 ? `${span} days` : 'day'} off</Button></div>
+        <p className="caption" style={{ marginTop: 14 }}>No sessions are booked on {oneDay ? 'this day' : 'these days'}.</p>
       )}
+      {bad && <p className="dy-refusal" role="alert"><Icon name="warning" size={16} /> {bad}.</p>}
+      <Button style={{ marginTop: 20 }} icon="plus" disabled={!!bad || !label.trim()} onClick={() => onConfirm(start, last, label.trim(), affected.length > 0 && notify)}>Add day off</Button>
+      {!label.trim() && <p className="caption" style={{ marginTop: 8 }}>Give it a label to add it.</p>}
     </Sheet>
   );
 }

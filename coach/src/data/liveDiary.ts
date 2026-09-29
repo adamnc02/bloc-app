@@ -4,7 +4,7 @@
 // Everything here is the coach's own (RLS `coach_id = my_coach_id()`), except
 // session_requests, where the coach writes only their half (a 0024 trigger).
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { DEFAULT_SETTINGS, type Booking, type DayOff, type Diary, type Series, type SessionRequest, type SentBooking, type Slot } from '@/diary/types';
+import { DEFAULT_SETTINGS, type AssignedSession, type Booking, type DayOff, type Diary, type Series, type SessionRequest, type SentBooking, type Slot } from '@/diary/types';
 import type { DiaryRepo } from './types';
 
 type Row = Record<string, unknown>;
@@ -16,10 +16,11 @@ const toSeries = (r: Row, clients: string[]): Series => ({
   duration: num(r.duration_min), from: String(r.effective_from), to: str(r.effective_to),
   cancelled: Array.isArray(r.cancelled_dates) ? (r.cancelled_dates as string[]) : [], title: str(r.title), location: str(r.location), clientIds: clients,
 });
-const toBooking = (r: Row, clients: string[]): Booking => ({
+const toBooking = (r: Row, clients: string[], assigned: Record<string, AssignedSession> = {}): Booking => ({
   id: String(r.id), seriesId: str(r.series_id), occursOn: str(r.occurs_on), date: String(r.date), start: num(r.start_min),
   duration: num(r.duration_min), kind: r.kind === 'group' ? 'group' : 'one_to_one', status: r.status === 'cancelled' ? 'cancelled' : 'booked',
   title: str(r.title), location: str(r.location), clientIds: clients,
+  ...(Object.keys(assigned).length ? { assigned } : {}),
 });
 const toDayOff = (r: Row): DayOff => ({ id: String(r.id), start: String(r.start_date), end: String(r.end_date), note: str(r.note), notified: r.notified === true });
 const slot = (v: unknown): Slot | null => (v && typeof v === 'object' ? (v as Slot) : null);
@@ -53,9 +54,15 @@ function bookingRow(b: Partial<Omit<Booking, 'id' | 'clientIds'>>): Row {
 
 export function liveDiary(sb: SupabaseClient, coachId: () => string): DiaryRepo {
   const must = <T extends { error: unknown }>(r: T) => { if (r.error) throw r.error; return r; };
+  // 🚨 Only the attendees that changed: a booking attendee's row carries their assigned session, so deleting
+  //    and re-inserting everyone would drop it on any change to who's booked.
   const setClients = async (table: 'diary_series_clients' | 'diary_booking_clients', col: 'series_id' | 'booking_id', id: string, cards: string[]) => {
-    must(await sb.from(table).delete().eq(col, id));
-    if (cards.length) must(await sb.from(table).insert(cards.map((c) => ({ [col]: id, client_record_id: c }))));
+    const { data } = must(await sb.from(table).select('client_record_id').eq(col, id));
+    const now = new Set(((data ?? []) as Row[]).map((r) => String(r.client_record_id)));
+    const gone = [...now].filter((c) => !cards.includes(c));
+    const added = cards.filter((c) => !now.has(c));
+    if (gone.length) must(await sb.from(table).delete().eq(col, id).in('client_record_id', gone));
+    if (added.length) must(await sb.from(table).insert(added.map((c) => ({ [col]: id, client_record_id: c }))));
   };
   return {
     async loadDiary() {
@@ -65,7 +72,7 @@ export function liveDiary(sb: SupabaseClient, coachId: () => string): DiaryRepo 
         sb.from('diary_series').select('*').eq('coach_id', coachId()),
         sb.from('diary_series_clients').select('series_id, client_record_id'),
         sb.from('diary_bookings').select('*').eq('coach_id', coachId()),
-        sb.from('diary_booking_clients').select('booking_id, client_record_id'),
+        sb.from('diary_booking_clients').select('booking_id, client_record_id, assigned_session'),
         sb.from('session_requests').select('id, client_id, preferences, notes, repeat_weekly, status, proposed, counter, booking_id, created_at')
           .eq('coach_id', coachId()).order('created_at', { ascending: false }).limit(200),
         sb.from('coach_clients').select('client_id, client_record_id, status').eq('coach_id', coachId()),
@@ -79,6 +86,12 @@ export function liveDiary(sb: SupabaseClient, coachId: () => string): DiaryRepo 
       };
       const sClients = group((sc.data ?? []) as Row[], 'series_id');
       const bClients = group((bc.data ?? []) as Row[], 'booking_id');
+      const bAssigned = new Map<string, Record<string, AssignedSession>>();
+      for (const r of (bc.data ?? []) as Row[]) {
+        if (!r.assigned_session || typeof r.assigned_session !== 'object') continue;
+        const k = String(r.booking_id);
+        bAssigned.set(k, { ...(bAssigned.get(k) ?? {}), [String(r.client_record_id)]: r.assigned_session as AssignedSession });
+      }
       // A request names the client's sign-in; the active link (else the latest) gives their card.
       const cardOf = new Map<string, string>();
       for (const l of (links.data ?? []) as Row[]) if (!cardOf.has(String(l.client_id)) || l.status === 'active') cardOf.set(String(l.client_id), String(l.client_record_id));
@@ -93,7 +106,7 @@ export function liveDiary(sb: SupabaseClient, coachId: () => string): DiaryRepo 
         settings: st ? { dayStart: num(st.day_start_min), dayEnd: num(st.day_end_min), workingDays: (st.working_days as number[]).map(Number), sessionMinutes: num(st.session_minutes) } : DEFAULT_SETTINGS,
         daysOff: ((off.data ?? []) as Row[]).map(toDayOff),
         series: ((series.data ?? []) as Row[]).map((r) => toSeries(r, sClients.get(String(r.id)) ?? [])),
-        bookings: ((bookings.data ?? []) as Row[]).map((r) => toBooking(r, bClients.get(String(r.id)) ?? [])),
+        bookings: ((bookings.data ?? []) as Row[]).map((r) => toBooking(r, bClients.get(String(r.id)) ?? [], bAssigned.get(String(r.id)))),
         requests: ((reqs.data ?? []) as Row[]).map((r): SessionRequest => ({
           id: String(r.id), clientId: String(r.client_id), cardId: cardOf.get(String(r.client_id)) ?? null,
           preferences: Array.isArray(r.preferences) ? (r.preferences as Slot[]) : [], notes: str(r.notes), repeatWeekly: r.repeat_weekly === true,
@@ -138,6 +151,10 @@ export function liveDiary(sb: SupabaseClient, coachId: () => string): DiaryRepo 
       const row = bookingRow(patch);
       if (Object.keys(row).length) must(await sb.from('diary_bookings').update({ ...row, updated_at: new Date().toISOString() }).eq('id', id));
       if (patch.clientIds) await setClients('diary_booking_clients', 'booking_id', id, patch.clientIds);
+    },
+
+    async assignSession(bookingId, cardId, session) {
+      must(await sb.from('diary_booking_clients').update({ assigned_session: session }).eq('booking_id', bookingId).eq('client_record_id', cardId));
     },
 
     async updateRequest(id, patch) {

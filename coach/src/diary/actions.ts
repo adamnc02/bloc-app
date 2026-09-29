@@ -9,7 +9,7 @@ import { isDayOff, requestSlot, seriesDates, type Occurrence } from './model';
 import { findClash, findSeriesClash, type Refusal } from './rules';
 import { bookingChanges } from './publish';
 import { occurrencesBetween } from './model';
-import type { Diary, DiarySettings, Series, SessionKind, SessionRequest, Slot } from './types';
+import type { AssignedSession, Diary, DiarySettings, Series, SessionKind, SessionRequest, Slot } from './types';
 
 export type Scope = 'one' | 'all';
 
@@ -121,8 +121,9 @@ export async function createSession(repo: DiaryRepo, d: Diary, n: NewSession): P
 /**
  * Take one client out of a group session, which carries on for everyone else:
  * the weekly group from now on, or a one-off group. That client's card is sent
- * the booking as cancelled ("Group session cancelled" on their phone); the
- * others' bookings don't change, so nothing is sent to them.
+ * the booking as cancelled with `removed: true` (0030: "You have been removed
+ * from …" on their phone, never "Group session cancelled"); the others'
+ * bookings don't change, so nothing is sent to them.
  */
 export async function removeFromGroup(repo: DiaryRepo, d: Diary, occ: Occurrence, cardId: string): Promise<Diary> {
   const without = occ.clientIds.filter((c) => c !== cardId);
@@ -135,6 +136,31 @@ export async function removeFromGroup(repo: DiaryRepo, d: Diary, occ: Occurrence
     await repo.updateBooking(occ.bookingId!, { clientIds: without });
   }
   return publishChanges(repo);
+}
+
+/** The booking id a session reaches the phone under: its series for a week still in it, else its own booking. */
+export const publishedIdOf = (occ: Pick<Occurrence, 'recurring' | 'seriesId' | 'bookingId'>) => (occ.recurring && occ.seriesId ? occ.seriesId : occ.bookingId!);
+
+/**
+ * Assign the plan session a client does with the coach in person, or release it (null). On a one-off or a moved
+ * week it's that booking's attendee row. On a week still in its weekly series it's that week's identity override
+ * (made if there isn't one): a row identical to the week, so the week stays in the series and the phone still
+ * holds one weekly booking, now carrying `assigned_session`. Sent quietly: nothing about the time changed, and
+ * the client sees it in Train (BLOC §136).
+ */
+export async function assignSession(repo: DiaryRepo, d: Diary, occ: Occurrence, cardId: string, session: AssignedSession | null): Promise<Diary> {
+  let bookingId = occ.bookingId;
+  if (!bookingId) {
+    if (!session) return d;
+    const s = d.series.find((x) => x.id === occ.seriesId);
+    if (!s || !occ.seriesDate) throw new Error('That session isn’t in the diary any more.');
+    bookingId = (await repo.createBooking({
+      seriesId: s.id, occursOn: occ.seriesDate, date: occ.seriesDate, start: s.start, duration: s.duration, kind: s.kind,
+      status: 'booked', title: s.title, location: s.location, clientIds: s.clientIds,
+    })).id;
+  }
+  await repo.assignSession(bookingId, cardId, session);
+  return publishChanges(repo, { quietIds: new Set([publishedIdOf(occ)]) });
 }
 
 /** A one-off becomes a weekly session from its date (the one-off's own publication is replaced quietly). */

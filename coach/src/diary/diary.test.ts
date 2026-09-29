@@ -10,7 +10,7 @@ import { cancelledOn, nextSeriesWeek, occurrencesBetween, placeholderState, requ
 import { findClash, findSeriesClash, requestClashes } from './rules';
 import { BOOKING_KEYS, bookingChanges, canonical, desiredBookings, MAX_SKIP_DATES, type BookingPayload } from './publish';
 import {
-  addDayOff, autoBook, bookRequest, cancelSession, createSession, editRefusal, editSession, makeWeekly, newRefusal, proposeTime, removeFromGroup, undoDayOff,
+  addDayOff, assignSession, autoBook, bookRequest, cancelSession, createSession, editRefusal, editSession, makeWeekly, newRefusal, proposeTime, removeFromGroup, undoDayOff,
 } from './actions';
 import { DEFAULT_SETTINGS, type Diary, type Series } from './types';
 
@@ -97,12 +97,12 @@ describe('what the Diary publishes', () => {
     expect(['maya', 'priya', 'grace'].map((c) => want.get(`${c}|sr-bootcamp`)?.payload.title)).toEqual(['Saturday bootcamp', 'Saturday bootcamp', 'Saturday bootcamp']);
     expect(want.get('priya|bk-priya')!.payload.kind).toBe('one_off');
   });
-  it('every payload uses only 0023 + 0028 + 0029 booking keys (the migration’s allow-list)', async () => {
+  it('every payload uses only 0023 + 0028 + 0029 + 0030 booking keys (the migration’s allow-list)', async () => {
     // The migration repo sits beside this one locally; CI has only this repo, so it falls back to the documented list.
-    const file = new URL('../../../../super-duper-octo-barnacle/supabase/migrations/20260831000029_booking_replaces.sql', import.meta.url);
+    const file = new URL('../../../../super-duper-octo-barnacle/supabase/migrations/20260831000030_booking_removed.sql', import.meta.url);
     const list = existsSync(file)
       ? /when 'booking'\s+then array\[([^\]]+)\]/.exec(readFileSync(file, 'utf8'))![1].match(/'([a-z_]+)'/g)!.map((x) => x.slice(1, -1))
-      : ['v', 'booking_id', 'date', 'start_min', 'duration_min', 'status', 'kind', 'location', 'assigned_session', 'skip_dates', 'until', 'title', 'quiet', 'replaces'];
+      : ['v', 'booking_id', 'date', 'start_min', 'duration_min', 'status', 'kind', 'location', 'assigned_session', 'skip_dates', 'until', 'title', 'quiet', 'replaces', 'removed'];
     for (const k of BOOKING_KEYS) expect(list).toContain(k);
     const d = await fresh().loadDiary();
     d.daysOff.push({ id: 'o', start: TUE, end: TUE, note: null, notified: false });
@@ -149,7 +149,7 @@ describe('what the Diary publishes', () => {
     let d = await r.loadDiary();
     d = await editSession(r, d, occ(d, `s:sr-maya@${TUE}`), { date: WED, start: 1080, duration: 60, location: 'Studio', title: null, clientIds: ['maya'] }, 'one');
     // Stored as Postgres would return it.
-    const k = Object.keys(d.sent).find((x) => x.startsWith('maya|bk-'))!;
+    const k = Object.keys(d.sent).find((x) => x.startsWith('maya|bk-new-'))!;
     const rp = d.sent[k].payload.replaces as { booking_id: string; date: string };
     await r.publishBooking('maya', { ...d.sent[k].payload, replaces: { date: rp.date, booking_id: rp.booking_id } }, d.sent[k].id);
     const n = r.published.length;
@@ -311,8 +311,47 @@ describe('actions (fixture repo)', () => {
     d = await removeFromGroup(r, d, occ(d, `s:sr-bootcamp@${SAT}`), 'grace');
     expect(last(r)).toEqual(['grace sr-bootcamp cancelled']);
     expect(d.sent['grace|sr-bootcamp'].payload.title).toBe('Saturday bootcamp');   // names the group on the phone
+    expect(d.sent['grace|sr-bootcamp'].payload.removed).toBe(true);                // 0030: removed, not "cancelled for everyone"
     expect(occ(d, `s:sr-bootcamp@${SAT}`).clientIds).toEqual(['maya', 'priya']);
     expect(occ(d, `s:sr-bootcamp@${addDays(SAT, 7)}`).clientIds).toEqual(['maya', 'priya']);
+  });
+  it('a group stopped for everyone is cancelled with no `removed` (control for the one above)', async () => {
+    const r = fresh();
+    let d = await r.loadDiary();
+    d = await cancelSession(r, d, occ(d, `s:sr-bootcamp@${SAT}`), 'all');
+    for (const c of ['maya', 'priya', 'grace']) expect(d.sent[`${c}|sr-bootcamp`].payload.removed).toBeUndefined();
+  });
+  it('assigning a session on a one-off: that card’s booking carries it, quietly; releasing takes it off', async () => {
+    const r = fresh();
+    let d = await r.loadDiary();
+    const a = { macroId: 'm1', week: 3, dayKey: 'pull' };
+    d = await assignSession(r, d, occ(d, 'b:bk-priya'), 'priya', a);
+    expect(last(r)).toEqual(['priya bk-priya booked quiet']);
+    expect(d.sent['priya|bk-priya'].payload).toMatchObject({ assigned_session: a, quiet: true });
+    d = await assignSession(r, d, occ(d, 'b:bk-priya'), 'priya', null);
+    expect('assigned_session' in d.sent['priya|bk-priya'].payload).toBe(false);
+  });
+  it('assigning on a weekly week: an identity override carries it, the week stays in its series, and the weekly booking carries it', async () => {
+    const r = fresh();
+    let d = await r.loadDiary();
+    const a = { macroId: 'm1', week: 4, dayKey: 'legs' };
+    d = await assignSession(r, d, occ(d, `s:sr-maya@${TUE}`), 'maya', a);
+    expect(last(r)).toEqual(['maya sr-maya booked quiet']);                            // one publication: the weekly booking
+    expect(d.sent['maya|sr-maya'].payload).toMatchObject({ kind: 'weekly', assigned_session: a, quiet: true, skip_dates: [] });
+    const o = occ(d, `s:sr-maya@${TUE}`);
+    expect([o.recurring, !!o.bookingId]).toEqual([true, true]);                  // still the series, now with its row
+    expect(Object.keys(d.sent).filter((k) => k.startsWith('maya|bk-new-'))).toEqual([]); // never its own booking on the phone
+    // Cancelling that week releases it (a cancelled booking hands the session back, BLOC §136).
+    d = await cancelSession(r, d, o, 'one');
+    expect('assigned_session' in d.sent['maya|sr-maya'].payload).toBe(false);
+    expect(d.sent['maya|sr-maya'].payload.skip_dates).toEqual([TUE]);
+  });
+  it('changing who is in a group keeps the others’ assignments (attendee rows are diffed, not replaced)', async () => {
+    const r = fresh();
+    let d = await r.loadDiary();
+    d = await assignSession(r, d, occ(d, 'b:bk-ben'), 'ben', { macroId: 'm', week: 1, dayKey: 'push' });
+    await r.updateBooking('bk-ben', { clientIds: ['ben', 'sam'] });
+    expect((await r.loadDiary()).bookings.find((b) => b.id === 'bk-ben')!.assigned).toEqual({ ben: { macroId: 'm', week: 1, dayKey: 'push' } });
   });
   it('a group always carries a title to the phone ("Group session" when unnamed); a one-to-one never does', async () => {
     const r = fresh();

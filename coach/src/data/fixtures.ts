@@ -11,7 +11,7 @@
 // All names are fictional. Nothing here is ever
 // sent anywhere: add, invite and profile edits change this page's memory only.
 // ═══════════════════════════════════════════════════════════════════════
-import { normaliseState, shiftDateStr, type BlocState } from '@engine';
+import { normaliseState, shiftDateStr, type BlocState, type Loose } from '@engine';
 import { formatInviteCode, splitName } from './live';
 import type { AiDraft, CoachPublication, Submission } from '@/ai/types';
 import type { ClientBundle, ClientCard, CoachProfile, CoachRepo, NewInvite, PlanDraft } from './types';
@@ -106,8 +106,13 @@ export function createFixtureRepo(demo: Record<string, unknown>, onProfile: (p: 
     subs: fixtureSubmissions(built.anchor, built.now),
   };
   const plan = { drafts: [] as PlanDraft[], templates: fixtureTemplates(clients.find((c) => c.card.id === 'maya'), built.now) };
+  // Eileen (in person, not on the app): her plan and a measurement live only in publications to her card.
+  for (const [type, payload] of fixtureEileen(clients.find((c) => c.card.id === 'maya'), built.anchor)) {
+    ai.pubs.push({ cardId: 'eileen', id: fakeId(), seq: ++seq, type, payload, supersedes: null, createdAt: new Date(built.now - 20 * 86400000 + seq * 1000).toISOString(), ack: null });
+  }
+  const diaryRepo = fixtureDiary(built.anchor);
   return {
-    ...fixtureDiary(built.anchor),
+    ...diaryRepo,
     kind: 'fixture',
     anchor: built.anchor,
     now: () => built.now,
@@ -117,7 +122,7 @@ export function createFixtureRepo(demo: Record<string, unknown>, onProfile: (p: 
       const contact = input.contact.trim();
       const c: ClientCard = {
         id: `new-${++n}`, firstName: first, surname,
-        email: contact.includes('@') ? contact : null, phone: contact.includes('@') ? null : contact, notes: null,
+        email: contact.includes('@') ? contact : null, phone: contact.includes('@') ? null : contact || null, notes: null,
         createdAt: new Date(built.now).toISOString(),
       };
       clients.push({ card: c, link: null, invite: null, profileName: null, snapshot: null, snapshotError: null, lastEndedAt: null });
@@ -176,6 +181,19 @@ export function createFixtureRepo(demo: Record<string, unknown>, onProfile: (p: 
       return { ...p };
     },
     async loadPhotos() { return []; },
+    async loadCardPublications(cardId) {
+      const d = await diaryRepo.loadDiary();
+      const booking: CoachPublication[] = Object.values(d.sent).filter((x) => x.cardId === cardId)
+        .map((x) => ({ id: x.id, seq: x.seq, type: 'booking', payload: x.payload as Loose, supersedes: null, createdAt: new Date(built.now).toISOString(), ack: null }));
+      return [...booking, ...ai.pubs.filter((p) => p.cardId === cardId).map(({ cardId: _c, ...p }) => { void _c; return { ...p }; })].sort((a, b) => a.seq - b.seq);
+    },
+    async loadInbox() {
+      return {
+        submissions: ai.subs.map((x) => ({ ...x })),
+        drafts: ai.drafts.map((d) => ({ ...d })),
+        publications: ai.pubs.filter((p) => ['ai_response', 'note_reply', 'photo_request', 'session_log'].includes(p.type)).map((p) => ({ ...p })),
+      };
+    },
 
     // Plan and Library: this page's memory only.
     async loadPlan(cardId) {
@@ -220,6 +238,26 @@ function fixtureTemplates(maya: ClientBundle | undefined, now: number): Template
   return [
     { id: 'tpl-cycle', kind: 'macrocycle', name: 'Steady cut, 14 weeks', summary: m.summary, body: m.body, starred: true, createdAt: at, appliedCount: 3, appliedLast90: 2 },
     { id: 'tpl-workout', kind: 'workout', name: `${w.body.label} session`, summary: w.summary, body: w.body, starred: false, createdAt: at, appliedCount: 1, appliedLast90: 1 },
+  ];
+}
+
+/**
+ * Eileen's record: Maya's coach cycle published to her card (a client not on the app has nothing else), from the
+ * first Monday on or before the anchor minus 3 weeks, and a measurement taken in person.
+ */
+function fixtureEileen(maya: ClientBundle | undefined, anchor: string): [string, Loose][] {
+  const st = maya?.snapshot?.state;
+  const c = st ? foldPlan({ state: st, publications: [], coachId: FIXTURE_COACH.coachId, since: null })[0] : null;
+  if (!c) return [];
+  const start = shiftDateStr(anchor, -21 - ((new Date(`${anchor}T00:00:00Z`).getUTCDay() + 6) % 7));
+  const id = 'macro_eileen_1';
+  const exercises: Record<string, unknown[]> = {};
+  for (const [k, list] of Object.entries(c.doc.exercises)) exercises[k.replace(c.doc.macro.id, id)] = list.map((e) => ({ ...e, id: String(e.id).replace(c.doc.macro.id, id) }));
+  const { id: _i, start: _s, ...rest } = c.doc.macro;
+  void _i; void _s;
+  return [
+    ['plan', { v: 1, macrocycle: { ...rest, id, start, name: 'Strength block', rpe: true }, exercises }],
+    ['measurement', { v: 1, log_date: shiftDateStr(anchor, -7), weight: 164.5, waist: 31.25, hip: 38.5 }],
   ];
 }
 
