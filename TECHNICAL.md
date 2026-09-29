@@ -9550,9 +9550,10 @@ What Coach adds to the engine's prompts:
   mean, all Review's own scores, §140) and the schema line tells the model to return exactly the overall figure;
   the reply's `complianceScore` is then overwritten with it. BLOC's own prompt is unchanged (its golden file pins
   it).
-- **Photos** go to a cycle review only when the link's photo consent is on: the latest `cycle_review`
-  submission's `client-media` paths are downloaded (0024 `coach_may_view_media()` refuses them otherwise), sent
-  as image blocks, and not kept. `original.photos` records the counts.
+- **Photos** go to a cycle review only when they were sent in answer to the coach's request (below) and the
+  link's photo consent is still on: that answer's `client-media` paths are downloaded (0024
+  `coach_may_view_media()` refuses them otherwise), sent as image blocks, and not kept. `original.photos` records
+  the counts.
 
 🚨 **The paragraph is replaced by exact match.** If the engine's wording changes, the replacement silently stops
 and every client's review carries a paragraph about someone else. `verify-coach-ai.mjs` compares the two
@@ -9563,10 +9564,29 @@ strings, and a vitest case builds the real prompt and finds it.
 | Tool | Ready | Otherwise |
 |---|---|---|
 | Check-in | on the running cycle, with the engine's minimum data (`computeWeeklyInsights(...).insufficientData` false), and either an open request or 14 days since the last run (BLOC's cooldown, `getMondayAfter(getSundayAfterWeeks(run, 2))`) | inside the cooldown: "Next check-in · date · run early", still runnable |
-| Cycle review | `isCycleReviewDue` (the cycle has ended at the client's date) | "opens when it ends on …" |
+| Cycle review | **photos asked for first** (below); then `isCycleReviewDue` (the cycle has ended at the client's date) with the answer in: photos, or the client skipping | before the final week: "opens when it ends on …"; waiting: "Waiting for {first}'s photos", and from 3 days after the request (`PHOTO_WAIT_DAYS`) **Run without photos** |
 | Next cycle | `isNextCycleAdviceEligible` (21 days or fewer to the end, a recommendation with a direction) | the date it opens, or the reason |
 
-No key: every tool shows "Add your AI key in Settings" and links there.
+No key: a tool that would run shows "Add your AI key in Settings" and links there (`needsKey`); asking for photos
+needs no key.
+
+### Review photos are asked for first (`photoRequestState`)
+
+Photos are part of a cycle review, so the review waits for them. From the cycle's final week (`isInFinalWeek`),
+the Cycle review tab's row is **Ask {first} for review photos first**, which publishes a `photo_request`
+(migration `0027`: `{v, request_id, macro_id}`, `request_id` = `pr_{macroId}_{ms}`). BLOC (v8.44, BLOC TECHNICAL
+§142) raises a Home banner that opens its photo sheet, where the client sends photos or taps **Skip photos**;
+either is a `check_in` submission with `body.purpose 'cycle_review'` and the `request_id`.
+
+| State | From | Row |
+|---|---|---|
+| none | no request, or the last one cancelled | Ask {first} for review photos first |
+| waiting | a request with no answer naming it | Waiting for {first}'s photos (**Cancel the request** republishes it with `cancelled: true`); once the cycle has ended and 3 days have passed since the request, **Run without photos** |
+| answered | the answer naming the latest request | Review {cycle} with BLOC · N photos, or · {first} skipped photos (after the cycle ends) |
+
+An answer to an older request never answers a newer one. Photos sent unprompted by BLOC v8.41–v8.43 (no
+`request_id`) count as the answer when nothing was asked. The caption under the tabs says what was asked, what
+came back, and whether consent still lets photos through.
 
 ### Check-in requests and review photos: `body.purpose`
 
@@ -9636,11 +9656,14 @@ has one destination and logs nothing, and that no repo call, payload or data fil
   not (control); the goal queue mid-week, on a Monday, on a republish and with no plan; content and payload keys
   within 0023's allow-list; draft → published → edited since; the engine still holding the replaced paragraph,
   notes replacing it, none removing it; the calculated compliance given and imposed; `body.purpose` (a
-  review-photos row is never a request, a run answers a request); notes back with replies; eligibility.
+  review-photos row is never a request, a run answers a request); notes back with replies; eligibility, including the
+  photo request's none → waiting → answered or skipped, a cancellation, an older request's answer not counting,
+  asking without a key, and Run without photos after 3 days.
 - `scripts/verify-coach-ai.mjs`: the key, the prompt paragraph, no markup from a reply; each with a control.
 - `scripts/verify-coach-review-clock.mjs` now also covers `coach/src/ai/`, and checks the panel runs at `m.today`.
 - Driven in headless Chromium at 375pt and 1280px on the fixture bypass with the model call intercepted: the
   request finding and Run check-in, run, edit, publish (the goal lines), read full (original), edit and republish,
-  a second run built from the sent edit, the other tools' gates, Settings; no horizontal scroll, no console errors.
+  a second run built from the sent edit, the other tools' gates, Settings, and Ask for review photos → waiting →
+  Cancel the request; no horizontal scroll, no console errors.
 - 🚨 **Fields side by side in a grid set no top margin** (`.tiles-2 > .field`), as tiles do (§140): `.field +
   .field` pushed the second field of each row lower than the first.

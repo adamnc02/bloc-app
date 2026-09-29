@@ -15,7 +15,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 import {
   computeWeeklyInsights, getDayBefore, getMacroEndDate, getMondayAfter, getNextMonday, getSundayAfterWeeks,
-  isCycleReviewDue, isNextCycleAdviceEligible, recommendNextCycle, renumberMacroGoalSteps, shiftDateStr,
+  isCycleReviewDue, isInFinalWeek, isNextCycleAdviceEligible, recommendNextCycle, renumberMacroGoalSteps, shiftDateStr,
   type BlocState, type GoalPeriod, type Loose, type Macrocycle,
 } from '@engine';
 import type { AiDraft, AiEdit, AiOriginal, AiTool, CoachPublication, PhaseEdit, Submission } from './types';
@@ -313,6 +313,10 @@ export interface Eligibility {
   /** Tapping still runs it (a check-in run early). */
   runnable: boolean;
   text: string;
+  /** What tapping does instead of running: ask the client for review photos. */
+  action?: 'request';
+  /** It would run, but there's no key: the row links to Settings. */
+  needsKey?: true;
 }
 
 const purpose = (x: Submission) => (x.kind === 'check_in' ? String(x.body?.purpose || 'check_in') : null);
@@ -325,22 +329,70 @@ export function openRequest(subs: Submission[], drafts: AiDraft[], macroId: stri
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt)).pop() ?? null;
 }
 
-/** The client's photos for this cycle's review (`body.purpose 'cycle_review'`), the latest set. */
-export function reviewPhotos(subs: Submission[], macroId: string): { before: string[]; after: string[]; sentOn: string } | null {
-  const x = subs.filter((r) => purpose(r) === 'cycle_review' && r.body?.macro_id === macroId).sort((a, b) => a.createdAt.localeCompare(b.createdAt)).pop();
-  if (!x) return null;
-  const list = (v: unknown) => (Array.isArray(v) ? v.map(String).filter(Boolean) : []);
-  return { before: list(x.body.before), after: list(x.body.after), sentOn: String(x.body.sent_on || x.createdAt.slice(0, 10)) };
+// ---------------------------------------------------------------- review photos: asked for first
+
+/** The coach waits this long for an answer to a photo request before "Run without photos" is offered. */
+export const PHOTO_WAIT_DAYS = 3;
+
+export interface PhotoRequestState {
+  /** 'none': nothing asked (or the last request was cancelled); 'waiting': asked, no answer; 'answered': photos or a skip. */
+  status: 'none' | 'waiting' | 'answered';
+  request: CoachPublication | null;
+  /** The client's answer: a `check_in` row with `body.purpose 'cycle_review'` naming the request. */
+  answer: Submission | null;
+  skipped: boolean;
+  before: string[];
+  after: string[];
+  /** The client's date the request went (the publication's UTC date). */
+  askedOn: string | null;
 }
 
-export function eligibility(tool: AiTool, o: {
+const list = (v: unknown) => (Array.isArray(v) ? v.map(String).filter(Boolean) : []);
+
+/**
+ * Where this cycle's review photos stand. Photos are part of the review, so the
+ * coach asks first (`photo_request`, 0027) and the review waits for the answer:
+ * photos, or the client skipping. A cancellation (the same request_id with
+ * `cancelled: true`) puts it back to 'none'. Photos BLOC v8.41–v8.43 sent
+ * unprompted (no request_id) count as an answer when nothing was asked.
+ */
+export function photoRequestState(pubs: CoachPublication[], subs: Submission[], macroId: string): PhotoRequestState {
+  const reqs = pubs.filter((p) => p.type === 'photo_request' && p.payload?.macro_id === macroId).sort((a, b) => a.seq - b.seq);
+  const last = reqs[reqs.length - 1] ?? null;
+  const answers = subs.filter((x) => purpose(x) === 'cycle_review' && x.body?.macro_id === macroId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const none: PhotoRequestState = { status: 'none', request: null, answer: null, skipped: false, before: [], after: [], askedOn: null };
+  const of = (answer: Submission, request: CoachPublication | null): PhotoRequestState => ({
+    status: 'answered', request, answer, skipped: !!answer.body?.skipped, before: list(answer.body?.before), after: list(answer.body?.after),
+    askedOn: request ? request.createdAt.slice(0, 10) : null,
+  });
+  if (!last || last.payload?.cancelled) {
+    const legacy = answers.filter((x) => !x.body?.request_id).pop();
+    return legacy ? of(legacy, null) : none;
+  }
+  const id = last.payload.request_id;
+  const first = reqs.find((p) => p.payload?.request_id === id)!;
+  const answer = answers.filter((x) => x.body?.request_id === id).pop();
+  return answer ? of(answer, first) : { ...none, status: 'waiting', request: first, askedOn: first.createdAt.slice(0, 10) };
+}
+
+/** The `photo_request` payload (0027's allow-list: v, request_id, macro_id, cancelled). */
+export const photoRequestPayload = (requestId: string, macroId: string, cancelled = false) =>
+  (cancelled ? { v: 1, request_id: requestId, macro_id: macroId, cancelled: true } : { v: 1, request_id: requestId, macro_id: macroId });
+
+/** When a tool can run, and what its action row says. Running needs the key; asking for photos doesn't. */
+export function eligibility(tool: AiTool, o: EligibilityInput): Eligibility {
+  const e = gate(tool, o);
+  return e.runnable && !e.action && !o.hasKey ? { ready: false, runnable: false, needsKey: true, text: 'Add your AI key in Settings to run this' } : e;
+}
+type EligibilityInput = {
   s: BlocState; macro: Macrocycle; today: string; cycleStatus: 'past' | 'active' | 'upcoming'; hasKey: boolean;
   drafts: AiDraft[]; request: Submission | null; first: string; fmtDate: (iso: string) => string;
-}): Eligibility {
+  photos?: PhotoRequestState;
+};
+function gate(tool: AiTool, o: EligibilityInput): Eligibility {
   const { s, macro, today, first, fmtDate } = o;
   const ctx = { today };
   const blocked = (text: string): Eligibility => ({ ready: false, runnable: false, text });
-  if (!o.hasKey) return blocked('Add your AI key in Settings to run this');
   if (tool === 'check_in') {
     if (o.cycleStatus !== 'active') return blocked(o.cycleStatus === 'upcoming' ? `Check-ins start when this cycle does, ${fmtDate(macro.start as string)}` : 'Check-ins are for the cycle that’s running');
     const ins = computeWeeklyInsights(s, ctx, macro);
@@ -352,9 +404,22 @@ export function eligibility(tool: AiTool, o: {
     return { ready: false, runnable: true, text: `Next check-in · ${fmtDate(due)} · run early` };
   }
   if (tool === 'cycle_review') {
-    return isCycleReviewDue(macro, ctx)
-      ? { ready: true, runnable: true, text: `Review ${String(macro.name || 'this cycle')} with BLOC` }
-      : blocked(`Review this cycle · opens when it ends on ${fmtDate(getMacroEndDate(macro, ctx))}`);
+    const end = getMacroEndDate(macro, ctx);
+    const due = isCycleReviewDue(macro, ctx);
+    const ph = o.photos ?? { status: 'none' as const, askedOn: null, skipped: false, before: [], after: [] };
+    // Photos can be asked for from the cycle's final week, so they're in by its end.
+    if (!due && !isInFinalWeek(macro, ctx)) return blocked(`Review this cycle · opens when it ends on ${fmtDate(end)}`);
+    if (ph.status === 'none') return { ready: true, runnable: true, action: 'request', text: `Ask ${first} for review photos first` };
+    if (ph.status === 'waiting') {
+      if (!due) return blocked(`Waiting for ${first}’s photos · the review opens ${fmtDate(end)}`);
+      const from = shiftDateStr(ph.askedOn as string, PHOTO_WAIT_DAYS);
+      return today >= from
+        ? { ready: false, runnable: true, text: `Run without photos · no answer since ${fmtDate(ph.askedOn as string)}` }
+        : blocked(`Waiting for ${first}’s photos · asked ${fmtDate(ph.askedOn as string)} · run without them from ${fmtDate(from)}`);
+    }
+    if (!due) return blocked(`${ph.skipped ? `${first} skipped photos` : 'Photos in'} · the review opens ${fmtDate(end)}`);
+    const n = ph.before.length + ph.after.length;
+    return { ready: true, runnable: true, text: `Review ${String(macro.name || 'this cycle')} with BLOC · ${ph.skipped ? `${first} skipped photos` : n ? `${n} photo${n === 1 ? '' : 's'}` : 'no photos'}` };
   }
   const rec = recommendNextCycle(s, ctx, macro, null);
   const gate = isNextCycleAdviceEligible(ctx, macro, rec, null);

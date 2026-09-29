@@ -94,7 +94,7 @@ export interface Submission {
 
 export interface AiData {
   drafts: AiDraft[];
-  /** This card's `ai_response` and `note_reply` publications. */
+  /** This card's `ai_response`, `note_reply` and `photo_request` publications. */
   publications: CoachPublication[];
   submissions: Submission[];
 }

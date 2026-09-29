@@ -79,14 +79,14 @@ export interface CoachRepo {
   endLink(cardId: string): Promise<void>;
 
   // Review's AI tools (TECHNICAL §141).
-  /** The card's AI drafts, its `ai_response` / `note_reply` publications with their receipts, and the client's submissions. */
+  /** The card's AI drafts, its `ai_response` / `note_reply` / `photo_request` publications with their receipts, and the client's submissions. */
   loadAi(cardId: string, clientId: string | null): Promise<AiData>;
   /** Saves a reply exactly as it came back (`coach_ai_drafts.original`, which can't change afterwards). */
   saveAiDraft(cardId: string, tool: AiTool, macroId: string | null, original: AiOriginal): Promise<AiDraft>;
   /** Saves the coach's edit beside the original. */
   saveAiEdit(draftId: string, edited: AiEdit, publicationId?: string): Promise<AiDraft>;
   /** Appends a publication to the card (0023: append-only; a correction names what it `supersedes`). */
-  publish(cardId: string, type: 'ai_response' | 'note_reply', payload: Loose, supersedes: string | null): Promise<CoachPublication>;
+  publish(cardId: string, type: 'ai_response' | 'note_reply' | 'photo_request', payload: Loose, supersedes: string | null): Promise<CoachPublication>;
   /** The client's cycle-review photos (`client-media`), readable only while photo consent is on. */
   loadPhotos(paths: string[]): Promise<CycleReviewImage[]>;
 }

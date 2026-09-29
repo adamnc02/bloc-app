@@ -7,7 +7,7 @@ import { runTool } from '@/ai/run';
 import { coachCallModel, getAiKey } from '@/ai/transport';
 import {
   aiResponsePayload, contentOf, eligibility, goalChanges, isEdited, latestDraft, notesBack, openRequest, overallCompliance,
-  planChoices, priorPhaseIds, publishState, reviewPhotos, sentEdit, TOOL_LABEL, TOOLS, withPlan, type GoalChanges,
+  photoRequestPayload, photoRequestState, planChoices, priorPhaseIds, publishState, sentEdit, TOOL_LABEL, TOOLS, withPlan, type GoalChanges,
 } from '@/ai/tools';
 import type { AiData, AiDraft, AiEdit, AiTool, CoachPublication, Submission } from '@/ai/types';
 import type { ReviewModel } from '@/review/model';
@@ -67,18 +67,34 @@ export function AiPanel({ v, m, state, tool, onTool, ai }: {
   }
   const d = latestDraft(data.drafts, tool, macro.id);
   const request = tool === 'check_in' ? openRequest(data.submissions, data.drafts, macro.id) : null;
-  const el = eligibility(tool, { s: state, macro, today, cycleStatus: m.cycle.status, hasKey, drafts: data.drafts, request, first, fmtDate: fmt.ddm });
-  const photos = tool === 'cycle_review' ? reviewPhotos(data.submissions, macro.id) : null;
+  const photos = photoRequestState(data.publications, data.submissions, macro.id);
+  const el = eligibility(tool, { s: state, macro, today, cycleStatus: m.cycle.status, hasKey, drafts: data.drafts, request, first, fmtDate: fmt.ddm, photos });
   const consent = !!v.bundle.link?.photoConsent;
   const addDraft = (x: AiDraft) => ai.setData((p) => (p ? { ...p, drafts: [...p.drafts.filter((y) => y.id !== x.id), x] } : p));
   const addPub = (x: CoachPublication) => ai.setData((p) => (p ? { ...p, publications: [...p.publications, x] } : p));
 
+  // Photos are part of the review: the coach asks first (a photo_request, 0027),
+  // and BLOC raises a Home banner that opens the photo sheet with Skip (v8.44).
+  const askPhotos = async (cancel = false) => {
+    if (running) return;
+    setRunning(true); setError(null);
+    try {
+      const id = cancel && photos.request ? String(photos.request.payload.request_id) : `pr_${macro.id}_${repo.now()}`;
+      addPub(await repo.publish(card.id, 'photo_request', photoRequestPayload(id, macro.id, cancel), cancel && photos.request ? photos.request.id : null));
+    } catch (e) {
+      setError(msg(e));
+    } finally {
+      setRunning(false);
+    }
+  };
+
   const run = async () => {
+    if (el.action === 'request') { await askPhotos(); return; }
     const key = getAiKey();
     if (!key || running) return;
     setRunning(true); setError(null); setEditing(false);
     try {
-      const imgs = tool === 'cycle_review' && photos && consent
+      const imgs = tool === 'cycle_review' && photos.status === 'answered' && !photos.skipped && consent && photos.before.length + photos.after.length
         ? { before: await repo.loadPhotos(photos.before), after: await repo.loadPhotos(photos.after) } : null;
       const t = m.training;
       const training = t.scored ? t.cycleScore : t.cycleAttendance;
@@ -102,11 +118,11 @@ export function AiPanel({ v, m, state, tool, onTool, ai }: {
       {tool === 'cycle_review' && (
         <p className="caption" style={{ marginTop: 12, display: 'flex', gap: 6, alignItems: 'flex-start' }}>
           <Icon name={consent ? 'photo' : 'lock'} size={15} />
-          <span>{!consent
-            ? `Progress photos are off. Only ${first} can turn them on, in BLOC.`
-            : photos ? `${first} sent ${photos.before.length} before and ${photos.after.length} after photo${photos.after.length === 1 ? '' : 's'} on ${fmt.dm(photos.sentOn)}. They go to the model with the review, and aren’t kept.`
-              : `${first} has photos on, but hasn’t sent any for this cycle’s review. It runs on the numbers alone.`}</span>
+          <span>{photoCaption(photos, consent, first)}</span>
         </p>
+      )}
+      {tool === 'cycle_review' && photos.status === 'waiting' && !running && (
+        <Button variant="ghost" size="sm" style={{ marginTop: 8 }} onClick={() => askPhotos(true)}>Cancel the request</Button>
       )}
       {request && <RequestTile r={request} first={first} />}
 
@@ -119,7 +135,7 @@ export function AiPanel({ v, m, state, tool, onTool, ai }: {
       {error && <Notice icon="warning" tone="bad" title={`Couldn’t run the ${TOOL_LABEL[tool].noun}`} style={{ marginTop: 14 }}>{error}</Notice>}
       {!running && (
         <div style={{ marginTop: 14 }}>
-          {!hasKey
+          {el.needsKey
             ? <a href="#/settings" style={{ textDecoration: 'none' }}><ActionRow kind="timer">{el.text}</ActionRow></a>
             : <ActionRow kind={el.runnable ? 'ready' : 'timer'} onClick={run}>{el.text}</ActionRow>}
         </div>
@@ -133,6 +149,18 @@ export function AiPanel({ v, m, state, tool, onTool, ai }: {
       <ReplySheet note={reply} first={first} onClose={() => setReply(null)} onSent={(p) => { addPub(p); setReply(null); }} cardId={card.id} />
     </div>
   );
+}
+
+/** The Cycle review tab's photo line: what's been asked, what came back, and whether consent lets it through. */
+function photoCaption(p: ReturnType<typeof photoRequestState>, consent: boolean, first: string): string {
+  const photosOff = consent ? '' : ` Photos are off, so none can go: only ${first} can turn them on, in BLOC.`;
+  if (p.status === 'none') return `Photos are part of the review: ask ${first} for them first. They get a Home banner in BLOC and can send photos or skip.${photosOff}`;
+  if (p.status === 'waiting') return `Asked ${first} for review photos ${fmt.dm(p.askedOn as string)}. The review waits for their photos, or for them to skip.${photosOff}`;
+  if (p.skipped) return `${first} skipped photos${p.answer ? ` on ${fmt.dm(p.answer.createdAt.slice(0, 10))}` : ''}. The review runs on the numbers alone.`;
+  const n = p.before.length + p.after.length;
+  return consent
+    ? `${first} sent ${p.before.length} before and ${p.after.length} after photo${p.after.length === 1 ? '' : 's'}${p.answer ? ` on ${fmt.dm(p.answer.createdAt.slice(0, 10))}` : ''}. They go to the model with the review, and aren’t kept.`
+    : `${first} sent ${n} photo${n === 1 ? '' : 's'}, but has since turned photos off, so the review runs without them.`;
 }
 
 function RequestTile({ r, first }: { r: Submission; first: string }) {

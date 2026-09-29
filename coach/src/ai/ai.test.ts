@@ -7,7 +7,7 @@ import { buildFixtureClients } from '@/data/fixtures';
 import { runTool } from './run';
 import {
   aiResponsePayload, coachReviewPrompt, contentOf, editFromOriginal, eligibility, goalChanges, isEdited, notesBack,
-  openRequest, overallCompliance, PERSONAL_PHOTO_PARAGRAPH, priorPhaseIds, publishState, reviewPhotos, sentEdit, withPlan,
+  openRequest, overallCompliance, PERSONAL_PHOTO_PARAGRAPH, photoRequestPayload, photoRequestState, priorPhaseIds, publishState, sentEdit, withPlan,
 } from './tools';
 import type { AiDraft, CoachPublication, Submission } from './types';
 
@@ -217,7 +217,8 @@ describe('who asked for what: body.purpose', () => {
   it('a review-photos row is never a check-in request', () => {
     expect(openRequest(subs, [], MACRO)?.id).toBe('ask');
     expect(openRequest(subs.filter((x) => x.id !== 'ask'), [], MACRO)).toBeNull();
-    expect(reviewPhotos(subs, MACRO)).toEqual({ before: ['u/reviews/x/before-1.jpg'], after: ['u/reviews/x/after-1.jpg'], sentOn: '2026-08-04' });
+    // Sent unprompted (BLOC v8.41–v8.43, no request_id) and nothing asked: counts as the answer.
+    expect(photoRequestState([], subs, MACRO)).toMatchObject({ status: 'answered', skipped: false, before: ['u/reviews/x/before-1.jpg'], after: ['u/reviews/x/after-1.jpg'] });
   });
   it('a run after the request answers it', () => {
     expect(openRequest(subs, [draft({ createdAt: '2026-08-03T12:00:00Z' })], MACRO)).toBeNull();
@@ -228,11 +229,31 @@ describe('who asked for what: body.purpose', () => {
   });
 });
 
+describe('review photos are asked for first (0027 photo_request, BLOC v8.44)', () => {
+  const req = (id: string, seq: number, over: object = {}, at = '2026-09-10T08:00:00Z'): CoachPublication => ({ ...pub(`p-${id}-${seq}`, seq, { ...photoRequestPayload(id, MACRO), ...over }, at), type: 'photo_request' });
+  const answer = (id: string, body: object): Submission => ({ id: `a-${id}`, kind: 'check_in', publicationId: null, createdAt: '2026-09-11T08:00:00Z', body: { v: 1, purpose: 'cycle_review', request_id: id, macro_id: MACRO, before: [], after: [], ...body } });
+  it('the payload is 0027’s allow-list exactly', () => {
+    expect(Object.keys(photoRequestPayload('pr1', MACRO)).sort()).toEqual(['macro_id', 'request_id', 'v']);
+    expect(photoRequestPayload('pr1', MACRO, true)).toEqual({ v: 1, request_id: 'pr1', macro_id: MACRO, cancelled: true });
+  });
+  it('none → waiting → answered with photos, or skipped', () => {
+    expect(photoRequestState([], [], MACRO).status).toBe('none');
+    expect(photoRequestState([req('pr1', 1)], [], MACRO)).toMatchObject({ status: 'waiting', askedOn: '2026-09-10' });
+    expect(photoRequestState([req('pr1', 1)], [answer('pr1', { before: ['b.jpg'], after: ['a.jpg'] })], MACRO)).toMatchObject({ status: 'answered', skipped: false, before: ['b.jpg'] });
+    expect(photoRequestState([req('pr1', 1)], [answer('pr1', { skipped: true })], MACRO)).toMatchObject({ status: 'answered', skipped: true });
+  });
+  it('a cancelled request is back to none; an answer to an OLDER request doesn’t answer a new one', () => {
+    expect(photoRequestState([req('pr1', 1), req('pr1', 2, { cancelled: true })], [], MACRO).status).toBe('none');
+    expect(photoRequestState([req('pr1', 1), req('pr2', 3)], [answer('pr1', { skipped: true })], MACRO).status).toBe('waiting');
+  });
+});
+
 describe('when a tool can run', () => {
   const s = maya();
   const base = { s, macro: macroOf(s), today: '2026-08-05', cycleStatus: 'active' as const, hasKey: true, drafts: [], request: null, first: 'Maya', fmtDate: (x: string) => x };
   it('no key, nothing runs', () => {
-    expect(eligibility('check_in', { ...base, hasKey: false })).toMatchObject({ ready: false, runnable: false });
+    expect(eligibility('check_in', { ...base, hasKey: false })).toMatchObject({ ready: false, runnable: false, needsKey: true });
+    expect(eligibility('cycle_review', { ...base, hasKey: false }).needsKey).toBeUndefined(); // blocked for another reason: no Settings link
   });
   it('a check-in is due with no earlier run; asked for, it says so; inside the cooldown it can still run early', () => {
     expect(eligibility('check_in', base)).toMatchObject({ ready: true, text: 'Run check-in with BLOC' });
@@ -241,8 +262,18 @@ describe('when a tool can run', () => {
     const recent = draft({ original: { v: 1, raw: '', response: {}, today: '2026-08-03' } });
     expect(eligibility('check_in', { ...base, drafts: [recent] })).toEqual({ ready: false, runnable: true, text: 'Next check-in · 2026-08-17 · run early' });
   });
-  it('a cycle review opens when the cycle ends', () => {
-    expect(eligibility('cycle_review', base).runnable).toBe(false);
-    expect(eligibility('cycle_review', { ...base, today: '2026-09-27', cycleStatus: 'past' }).ready).toBe(true);
+  it('a cycle review: photos asked for first (from the final week), then run once answered, or without them after 3 days', () => {
+    const P = (over: object) => ({ status: 'none' as const, request: null, answer: null, skipped: false, before: [], after: [], askedOn: null, ...over });
+    expect(eligibility('cycle_review', base).runnable).toBe(false); // weeks before the end
+    const final = { ...base, today: '2026-09-10' }; // the demo cycle ends Sun 13 Sep
+    expect(eligibility('cycle_review', { ...final, photos: P({}) })).toMatchObject({ action: 'request', runnable: true });
+    expect(eligibility('cycle_review', { ...final, hasKey: false, photos: P({}) }).action).toBe('request'); // asking needs no key
+    expect(eligibility('cycle_review', { ...final, photos: P({ status: 'waiting', askedOn: '2026-09-10' }) }).runnable).toBe(false);
+    const ended = { ...base, cycleStatus: 'past' as const };
+    expect(eligibility('cycle_review', { ...ended, today: '2026-09-14', photos: P({ status: 'waiting', askedOn: '2026-09-12' }) }).runnable).toBe(false);
+    expect(eligibility('cycle_review', { ...ended, today: '2026-09-15', photos: P({ status: 'waiting', askedOn: '2026-09-12' }) }))
+      .toMatchObject({ runnable: true, text: 'Run without photos · no answer since 2026-09-12' });
+    expect(eligibility('cycle_review', { ...ended, today: '2026-09-14', photos: P({ status: 'answered', skipped: true }) })).toMatchObject({ ready: true, text: 'Review Weight Loss 2026 with BLOC · Maya skipped photos' });
+    expect(eligibility('cycle_review', { ...ended, today: '2026-09-14', hasKey: false, photos: P({ status: 'answered', before: ['b'], after: ['a'] }) }).text).toBe('Add your AI key in Settings to run this');
   });
 });

@@ -203,7 +203,7 @@ export function createLiveRepo(sb: SupabaseClient, profile: CoachProfile, onProf
     async loadAi(cardId: string, clientId: string | null): Promise<AiData> {
       const [drafts, pubs, subs] = await Promise.all([
         sb.from('coach_ai_drafts').select(DRAFT_COLS).eq('client_record_id', cardId).order('created_at'),
-        sb.from('publications').select('id, seq, type, payload, supersedes, created_at').eq('client_record_id', cardId).in('type', ['ai_response', 'note_reply']).order('seq'),
+        sb.from('publications').select('id, seq, type, payload, supersedes, created_at').eq('client_record_id', cardId).in('type', ['ai_response', 'note_reply', 'photo_request']).order('seq'),
         // A coach who is also someone's client sees their own submissions too: filter to this coach.
         clientId
           ? sb.from('client_submissions').select('id, kind, publication_id, body, created_at').eq('coach_id', current.coachId).eq('client_id', clientId).order('created_at')
