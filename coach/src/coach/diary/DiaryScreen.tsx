@@ -12,7 +12,7 @@ import { Icon } from '@/components/ui/Icon';
 import { Toast } from '@/components/ui/Sheet';
 import { useEntering, useIsTablet } from '@/components/ui/hooks';
 import { addDays, daysBetween, fmt, startOfWeek } from '@/lib/format';
-import { dayOffOn, occurrencesBetween, requestsNeedingCoach, type Occurrence } from '@/diary/model';
+import { cancelledOn, dayOffOn, occurrencesBetween, requestsNeedingCoach, type Occurrence } from '@/diary/model';
 import {
   addDayOff, bookRequest, cancelSession, createSession, declineRequest, editRefusal, editSession, makeWeekly, proposeTime, undoDayOff,
   type Scope, type SessionPatch,
@@ -139,6 +139,12 @@ export function DiaryScreen() {
             onRefused={(_o, reason) => toast.show(`Can’t move there. ${reason}.`)}
             onDay={(d) => { const off = dayOffOn(diary.daysOff, d); setSheet(off ? { type: 'undo', id: off.id } : { type: 'dayoff', date: d }); }}
             onEmpty={(d, start) => setSheet({ type: 'new', date: d, start })}
+            offNote={(d) => {
+              const c = cancelledOn(diary, d);
+              const names = c.clientIds.map((id) => who.name({ kind: 'one_to_one', title: null, clientIds: [id] }));
+              const list = names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+              return { cancelled: c.count, weekly: c.weekly, told: dayOffOn(diary.daysOff, d)?.notified && list ? `${list} notified` : 'No one notified' };
+            }}
           />
         </div>
       </Page>

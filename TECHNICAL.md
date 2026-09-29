@@ -10187,8 +10187,10 @@ the client as `booking` publications that BLOC reads (§136, §151). No new tabl
 
 - **A series** (`diary_series`) occurs every `weekday` from `effective_from` to `effective_to` (inclusive), except its
   `cancelled_dates` ("just this one" cancellations). 0 = Monday.
-- **An override** is a `diary_bookings` row with `series_id` + `occurs_on`: that one week, moved or changed. A one-off
-  has neither.
+- **An override** is a `diary_bookings` row with `series_id` + `occurs_on`: that one week, moved or changed. 🚨 **A week
+  changed on its own is detached**: from then on it's a one-off (`recurring: false`), edited and cancelled alone, with no
+  "Just this one / All future". Only an override identical to its week (a booked weekly request's first week) is still
+  the series. A one-off has neither.
 - **A day off** (`coach_days_off`) is a date range: one day, or a holiday. 🚨 **Marking it cancels the sessions on those
   days for good, at that moment** (`addDayOff`): a series week goes into the series' `cancelled_dates`, a one-off or a
   moved week gets `status 'cancelled'`; **never the series**. The row is then only a marker that refuses new bookings on
@@ -10249,12 +10251,19 @@ is one BLOC's `coachBookingWeekly()` rolls forward (`verify-coach-diary.mjs`, wi
 
 ### The actions (`actions.ts`)
 
-- **Edit or move** (drag, or the sheet): a one-off in place. A series week, **Just this one**: its override is updated,
+- 🚨 **Coach never deletes a booking or a series row** (the repo has no delete for either; `verify-coach-diary.mjs`
+  fails on one). `session_requests.booking_id` references `diary_bookings` `on delete set null`, and a series' rows
+  cascade: deleting the row a request names left the request accepted with no booking, and `autoBook` booked the whole
+  weekly request again, clashing with the series it already was. Everything is **cancelled** instead (`status`, a
+  series' `cancelled_dates` or `effective_to`).
+- **Edit or move** (drag, or the sheet): a one-off, or a detached week, in place. A series week, **Just this one**: its override is updated,
   or made. **All future** from the series' first week: the series itself changes (its `cancelled_dates` kept only when
   the weekday is the same). From a later week: the series ends the day before (`effective_to`) and a new series starts
-  on the new day; that series' overrides from the week on are deleted.
-- **Cancel**: a one-off `status 'cancelled'`. A series week, **Just this one**: added to `cancelled_dates` (its override
-  deleted). **All future**: the series ends the day before, or is deleted when that's its first week.
+  on the new day; the old series' overrides from that week on are cancelled.
+- **Cancel**: a one-off or a detached week `status 'cancelled'`. A series week, **Just this one**: its own row (a booked
+  request's first week) cancelled, else the date added to `cancelled_dates`. **All future**: its overrides from that week
+  cancelled, and the series ends the day before; from its first week it keeps its row, ending on its first week with that
+  week cancelled, and is published `status 'cancelled'` (no week left).
 - **A day off / holiday**: `addDayOff(diary, start, end, note, notify)` cancels the sessions on those days (above), stores
   `notified`, and publishes, `quiet` unless the coach chose to tell the clients. `undoDayOff(id)` deletes the row only and
   publishes nothing.
@@ -10288,7 +10297,9 @@ the message (control: `String()` of the raw error), one refresh and retry on an 
   60 px. **Drag**: a mouse moves at 4 px; touch holds 300 ms first, so a swipe still scrolls; the target day's header
   and column light up, a landing box shows the snapped time or the refusal, and a drop outside the rules is refused with
   its reason. **Tap** a session to edit it (a request: the request sheet), an **empty outline** to book there, a
-  **day's header** to mark it off (a day off: to undo it). Outlines are laid from the end of each session, so a session
+  **day's header** to mark it off (a day off: to undo it). A day off's column says how many sessions it cancelled, who was
+  told ("Casey notified" / "No one notified") and, on a wide screen, "Weekly sessions carry on." (`cancelledOn`: the
+  day's cancelled series weeks and bookings). Outlines are laid from the end of each session, so a session
   off the hour moves the outlines after it along, one hour tall each; past days keep theirs. Compact blocks (a phone column, a shared lane)
   carry no tag. 🚨 **Every block shows only the name, the time and the repeat icon**; a placeholder's state is its dashed
   outline (`placeholderState`), explained by a legend under the week bar (Booked · Requested · Offered · Clash):

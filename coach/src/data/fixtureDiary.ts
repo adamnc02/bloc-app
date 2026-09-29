@@ -47,10 +47,8 @@ export function fixtureDiary(anchor: string): DiaryRepo & { published: { cardId:
     async deleteDayOff(i) { d.daysOff = d.daysOff.filter((x) => x.id !== i); },
     async createSeries(s) { const x: Series = { ...copy(s), id: id('sr') }; d.series.push(x); return x; },
     async updateSeries(i, patch) { const x = d.series.find((s) => s.id === i); if (x) Object.assign(x, copy(patch)); },
-    async deleteSeries(i) { d.series = d.series.filter((s) => s.id !== i); d.bookings = d.bookings.filter((b) => b.seriesId !== i); },
     async createBooking(b) { const x: Booking = { ...copy(b), id: id('bk') }; d.bookings.push(x); return x; },
     async updateBooking(i, patch) { const x = d.bookings.find((b) => b.id === i); if (x) Object.assign(x, copy(patch)); },
-    async deleteBooking(i) { d.bookings = d.bookings.filter((b) => b.id !== i); },
     async updateRequest(i, patch) {
       const r = d.requests.find((x) => x.id === i);
       if (!r) return;

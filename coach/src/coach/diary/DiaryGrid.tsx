@@ -53,6 +53,8 @@ export interface DiaryGridProps {
   onDrop: (o: Occurrence, date: ISODate, start: number) => void;
   onRefused: (o: Occurrence, reason: string) => void;
   onDay: (date: ISODate) => void;
+  /** A day off's note: how many sessions it cancelled, who was told, and whether weekly sessions carry on. */
+  offNote: (date: ISODate) => { cancelled: number; told: string; weekly: boolean };
   /** Tap an empty outline: book a session there. */
   onEmpty: (date: ISODate, start: number) => void;
   who: Who;
@@ -251,13 +253,19 @@ export function DiaryGrid(p: DiaryGridProps) {
                   onClick={() => p.onEmpty(d, s.start)} aria-label={`Book a session, ${fmt.long(d)} at ${fmt.time(s.start)}`} />
               ))}
 
-              {off && (
-                <div className="dg-offnote">
-                  <Icon name="moon" size={16} />
-                  <b>Day off</b>
-                  {off.note && <small>{off.note}</small>}
-                </div>
-              )}
+              {off && (() => {
+                const note = p.offNote(d);
+                return (
+                  <div className="dg-offnote">
+                    <Icon name="moon" size={16} />
+                    <b>Day off</b>
+                    {note.cancelled > 0 && <small>{note.cancelled} {note.cancelled === 1 ? 'session' : 'sessions'} cancelled</small>}
+                    {note.cancelled > 0 && <small>{note.told}</small>}
+                    {!narrow && note.weekly && <small>Weekly sessions carry on.</small>}
+                    {off.note && <small>{off.note}</small>}
+                  </div>
+                );
+              })()}
 
               {placed.map(({ item: o, lane, lanes: n }) => {
                 const clashes = o.kind === 'request' ? requestClashes(o, dayOccs) : [];

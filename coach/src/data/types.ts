@@ -98,10 +98,10 @@ export interface DiaryRepo {
   createSeries(s: Omit<Series, 'id'>): Promise<Series>;
   /** `clientIds` replaces the attendees. */
   updateSeries(id: string, patch: Partial<Omit<Series, 'id'>>): Promise<void>;
-  deleteSeries(id: string): Promise<void>;
   createBooking(b: Omit<Booking, 'id'>): Promise<Booking>;
   updateBooking(id: string, patch: Partial<Omit<Booking, 'id' | 'seriesId' | 'occursOn'>>): Promise<void>;
-  deleteBooking(id: string): Promise<void>;
+  // 🚨 No delete for a series or a booking: a request names its booking (`on delete set null`), and a deleted row
+  // leaves the request unbooked, which autoBook books again. Cancel instead (diary/actions.ts).
   /** The coach's half of a request (0024's trigger): propose a time, accept (naming the booking), or decline. */
   updateRequest(id: string, patch: { status?: Extract<RequestStatus, 'proposed' | 'accepted' | 'declined'>; proposed?: Slot | null; bookingId?: string | null }): Promise<void>;
   /** A `booking` publication to one card. */

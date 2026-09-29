@@ -127,7 +127,6 @@ export function liveDiary(sb: SupabaseClient, coachId: () => string): DiaryRepo 
       if (Object.keys(row).length) must(await sb.from('diary_series').update({ ...row, updated_at: new Date().toISOString() }).eq('id', id));
       if (patch.clientIds) await setClients('diary_series_clients', 'series_id', id, patch.clientIds);
     },
-    async deleteSeries(id) { must(await sb.from('diary_series').delete().eq('id', id)); },
 
     async createBooking(b) {
       const { data } = must(await sb.from('diary_bookings').insert({ coach_id: coachId(), ...bookingRow(b) }).select('*').single());
@@ -140,7 +139,6 @@ export function liveDiary(sb: SupabaseClient, coachId: () => string): DiaryRepo 
       if (Object.keys(row).length) must(await sb.from('diary_bookings').update({ ...row, updated_at: new Date().toISOString() }).eq('id', id));
       if (patch.clientIds) await setClients('diary_booking_clients', 'booking_id', id, patch.clientIds);
     },
-    async deleteBooking(id) { must(await sb.from('diary_bookings').delete().eq('id', id)); },
 
     async updateRequest(id, patch) {
       const row: Row = {};

@@ -6,7 +6,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { fixtureDiary } from '@/data/fixtureDiary';
 import { addDays } from '@/lib/format';
 import { emptySlots, layoutLanes } from './slots';
-import { occurrencesBetween, placeholderState, requestSlot, seriesDates, type Occurrence } from './model';
+import { cancelledOn, occurrencesBetween, placeholderState, requestSlot, seriesDates, type Occurrence } from './model';
 import { findClash, findSeriesClash, requestClashes } from './rules';
 import { BOOKING_KEYS, bookingChanges, canonical, desiredBookings, MAX_SKIP_DATES, type BookingPayload } from './publish';
 import {
@@ -237,6 +237,53 @@ describe('actions (fixture repo)', () => {
     expect(last(r)).toEqual(['grace sr-new-1 booked']);
     expect(after.sent['grace|sr-new-1'].payload).toMatchObject({ kind: 'weekly', date: THU, start_min: 1020, skip_dates: [] });
     expect(occurrencesBetween(after, MON, addDays(MON, 6)).some((x) => x.key === 'r:rq-grace')).toBe(false);
+  });
+  it('🚨 cancelling a booked weekly request’s first week keeps the request booked: nothing is re-booked (the live bug)', async () => {
+    const r = fresh();
+    let d = await r.loadDiary();
+    const g = d.requests.find((x) => x.id === 'rq-grace')!;
+    d = await bookRequest(r, d, g, g.preferences[1]);
+    const first = occurrencesBetween(d, THU, THU).find((o) => o.clientIds.join() === 'grace' && o.recurring)!;
+    expect(first.bookingId).toBeTruthy();                                  // its identical first-week row
+    d = await cancelSession(r, d, first, 'one');
+    expect(d.bookings.find((b) => b.id === first.bookingId)!.status).toBe('cancelled'); // cancelled, never deleted
+    expect(d.requests.find((x) => x.id === 'rq-grace')!.bookingId).toBe(first.bookingId);
+    const before = r.published.filter((p) => p.cardId === 'grace').length;
+    const res = await autoBook(r, d, name, ANCHOR);                         // (Priya's confirmed time is booked, rightly)
+    expect(res.booked.map((x) => x.id)).not.toContain('rq-grace');         // the bug: Grace's whole weekly request re-booked
+    expect(r.published.filter((p) => p.cardId === 'grace').length).toBe(before);
+    d = res.diary;
+    expect(occurrencesBetween(d, THU, THU).some((o) => o.clientIds.join() === 'grace')).toBe(false);
+    expect(occ(d, `s:${first.seriesId}@${addDays(THU, 7)}`)).toBeTruthy(); // the weeks after carry on
+  });
+  it('a week changed on its own is detached: a one-off from then on, edited and cancelled alone', async () => {
+    const r = fresh();
+    let d = await r.loadDiary();
+    d = await editSession(r, d, occ(d, `s:sr-maya@${TUE}`), { date: WED, start: 1080, duration: 60, location: 'Studio', title: null, clientIds: ['maya'] }, 'one');
+    const moved = occ(d, `s:sr-maya@${TUE}`);
+    expect([moved.recurring, moved.date]).toEqual([false, WED]);
+    d = await editSession(r, d, moved, { date: WED, start: 1140, duration: 60, location: 'Studio', title: null, clientIds: ['maya'] }, 'all'); // scope ignored
+    expect(occ(d, `s:sr-maya@${TUE}`).start).toBe(1140);
+    expect(occ(d, `s:sr-maya@${addDays(TUE, 7)}`).start).toBe(1080);     // the series untouched
+    d = await cancelSession(r, d, occ(d, `s:sr-maya@${TUE}`), 'all');   // scope ignored
+    expect(occurrencesBetween(d, MON, addDays(MON, 6)).some((o) => o.clientIds.join() === 'maya' && o.kind === 'one_to_one')).toBe(false);
+    expect(occ(d, `s:sr-maya@${addDays(TUE, 7)}`)).toBeTruthy();
+    expect(d.series.find((x) => x.id === 'sr-maya')!.to).toBeNull();
+  });
+  it('stopping a weekly session from its first week keeps its row and sends it cancelled', async () => {
+    const r = fresh();
+    let d = await r.loadDiary();
+    d = await createSession(r, d, { kind: 'one_to_one', weekly: true, date: FRI, start: 600, duration: 60, location: null, title: null, clientIds: ['sam'] });
+    d = await cancelSession(r, d, occ(d, `s:sr-new-1@${FRI}`), 'all');
+    expect(d.series.some((x) => x.id === 'sr-new-1')).toBe(true);
+    expect(d.sent['sam|sr-new-1'].payload.status).toBe('cancelled');
+    expect(occurrencesBetween(d, FRI, addDays(FRI, 60)).some((o) => o.seriesId === 'sr-new-1')).toBe(false);
+  });
+  it('a day off’s note: the sessions it cancelled and whose', async () => {
+    const r = fresh();
+    const d = await addDayOff(r, await r.loadDiary(), WED, WED, null, true);
+    expect(cancelledOn(d, WED)).toEqual({ count: 2, clientIds: ['eileen', 'ben'], weekly: true });
+    expect(cancelledOn(d, THU).count).toBe(0);
   });
   it('propose a time: the placeholder moves and waits for the client', async () => {
     const r = fresh();

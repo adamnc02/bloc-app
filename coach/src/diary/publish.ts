@@ -16,7 +16,7 @@
 // re-derives every card's bookings and sends only what differs from the last
 // publication, so a publish that failed is sent by the next change, and a
 // change that makes no difference to a client sends nothing.
-import { addDays, daysBetween } from '@/lib/format';
+import { addDays, daysBetween, weekday } from '@/lib/format';
 import { overrideIsIdentity, seriesDates } from './model';
 import type { Booking, Diary, Series } from './types';
 
@@ -52,13 +52,15 @@ function seriesPayload(d: Diary, s: Series): BookingPayload | null {
   if (!first || (s.to && s.to < first)) return null;
   const skips = new Set<string>(s.cancelled.filter((x) => x >= first));
   for (const b of d.bookings) {
-    if (b.seriesId !== s.id || !b.occursOn || b.occursOn < first || (s.to && b.occursOn > s.to)) continue;
+    if (b.seriesId !== s.id || !b.occursOn || b.occursOn < first || (s.to && b.occursOn > s.to) || weekday(b.occursOn) !== s.weekday) continue;
     if (!overrideIsIdentity(b, s)) skips.add(b.occursOn);
   }
   const skip = [...skips].sort().slice(-MAX_SKIP_DATES);
+  // Every week cancelled or moved (a series stopped from its first week): nothing left to hold.
+  const live = s.to ? seriesDates(s, first, s.to).some((x) => !skips.has(x)) : true;
   const prev = predecessor(d, s);
   return {
-    v: 1, booking_id: s.id, date: first, start_min: s.start, duration_min: s.duration, status: 'booked', kind: 'weekly',
+    v: 1, booking_id: s.id, date: first, start_min: s.start, duration_min: s.duration, status: live ? 'booked' : 'cancelled', kind: 'weekly',
     location: s.location, title: s.title, skip_dates: skip, until: s.to,
     ...(prev ? { replaces: { booking_id: prev.id, date: addDays(prev.to!, 1) } } : {}),
   };

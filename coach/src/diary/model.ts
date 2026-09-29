@@ -28,7 +28,7 @@ export interface Occurrence {
   title: string | null;
   location: string | null;
   clientIds: string[];
-  /** Part of a weekly series (edits ask "Just this one" or "All future"). */
+  /** Part of a weekly series (edits ask "Just this one" or "All future"); false for a detached week. */
   recurring: boolean;
   seriesId: string | null;
   /** For a series week: the date it falls on in the series, before any move. */
@@ -112,10 +112,14 @@ export function occurrencesBetween(d: Diary, from: ISODate, to: ISODate, today?:
       const ov = overrides.get(`${s.id}@${date}`);
       if (ov && ov.status === 'cancelled') continue;
       const at = ov ?? null;
+      // 🚨 A week changed on its own is DETACHED: a one-off from then on (edits and cancels touch it alone, no
+      // "Just this one / All future"). An override identical to its week (a booked weekly request's first week)
+      // is still the series.
+      const detached = !!at && !overrideIsIdentity(at, s);
       const occ: Occurrence = {
         key: `s:${s.id}@${date}`, kind: at?.kind ?? s.kind, date: at?.date ?? date, start: at?.start ?? s.start,
         duration: at?.duration ?? s.duration, title: at ? at.title : s.title, location: at ? at.location : s.location,
-        clientIds: at?.clientIds ?? s.clientIds, recurring: true, seriesId: s.id, seriesDate: date,
+        clientIds: at?.clientIds ?? s.clientIds, recurring: !detached, seriesId: s.id, seriesDate: date,
         bookingId: at?.id ?? null, request: null,
       };
       if (occ.date < from || occ.date > to) continue;
@@ -139,6 +143,21 @@ export function occurrencesBetween(d: Diary, from: ISODate, to: ISODate, today?:
     });
   }
   return out.sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start);
+}
+
+/** The sessions cancelled on a day (a day off's, for its note): cancelled weeks of weekly sessions, and cancelled bookings. */
+export function cancelledOn(d: Pick<Diary, 'series' | 'bookings'>, date: ISODate): { count: number; clientIds: string[]; weekly: boolean } {
+  const ids = new Set<string>();
+  let count = 0, weekly = false;
+  for (const s of d.series) {
+    if (s.weekday !== weekday(date) || date < s.from || (s.to && date > s.to) || !s.cancelled.includes(date)) continue;
+    count++; weekly = true; s.clientIds.forEach((c) => ids.add(c));
+  }
+  for (const b of d.bookings) {
+    if (b.status !== 'cancelled' || b.date !== date) continue;
+    count++; if (b.seriesId) weekly = true; b.clientIds.forEach((c) => ids.add(c));
+  }
+  return { count, clientIds: [...ids], weekly };
 }
 
 /** The next `n` days from `from`, as dates. */

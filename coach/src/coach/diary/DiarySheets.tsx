@@ -163,7 +163,7 @@ export function EditSheet({ occ, diary, who, bundles, onSave, onCancelSession, o
       {refusal && <p className="dy-refusal" role="alert"><Icon name="warning" size={16} /> {refusal.reason}. Pick another time.</p>}
       <div style={{ marginTop: 20 }}><Button onClick={() => onSave(p)} disabled={!!refusal || (group && !p.clientIds.length)}>Save</Button></div>
       <div className="stack" style={{ marginTop: 12 }}>
-        {!occ.recurring && <Button variant="ghost" icon="sync" onClick={onMakeWeekly}>Repeat every {fmt.dayLong(occ.date)}</Button>}
+        {!occ.recurring && !occ.seriesId && <Button variant="ghost" icon="sync" onClick={onMakeWeekly}>Repeat every {fmt.dayLong(occ.date)}</Button>}
         <Button variant="danger" onClick={onCancelSession}>{occ.recurring ? 'Cancel…' : 'Cancel this session'}</Button>
       </div>
     </Sheet>

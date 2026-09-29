@@ -19,8 +19,10 @@
 //   · The diary model reads no clock: its dates are passed in.
 // The model, rules, diff and actions themselves are covered by
 // coach/src/diary/diary.test.ts, run by verify-coach-build.mjs.
-// Controls: a key outside the allow-list, a second publishBooking caller and
-// a kind BLOC doesn't read are all caught.
+//   · Coach never deletes a diary booking or series: a request names its booking
+//     (on delete set null), and a deleted one gets the whole request re-booked.
+// Controls: a key outside the allow-list, a second publishBooking caller, a kind
+// BLOC doesn't read and a delete are all caught.
 // ═══════════════════════════════════════════════════════════════════════
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -74,6 +76,15 @@ check('…and it publishes bookingChanges()’s output', /const out = bookingCha
 const diaryScreen = 'coach/src/coach/diary/DiaryScreen.tsx';
 const withSecond = (() => { const orig = read(diaryScreen); return [...src.filter(f => f !== diaryScreen), diaryScreen].filter(f => /\.publishBooking\(/.test(strip(f === diaryScreen ? `${orig}\nrepo.publishBooking(x, y, null);` : read(f)))); })();
 check('control: a second caller is caught', withSecond.length === 2);
+
+// ── 3b. Never delete a booking or a series ────────────────────────────────
+// session_requests.booking_id references diary_bookings ON DELETE SET NULL (and a
+// series' rows cascade), so a deleted booking leaves an accepted request unbooked and
+// autoBook books the whole request again. Coach cancels instead.
+const deletes = text => /deleteBooking|deleteSeries|from\('diary_(bookings|series)'\)\s*\.delete\(/.test(strip(text));
+const deleting = src.filter(f => deletes(read(f)));
+check('no Coach code deletes a diary booking or series (it cancels)', deleting.length === 0, deleting.join(', '));
+check('control: a delete of diary_bookings is caught', deletes(`${read('coach/src/data/liveDiary.ts')}\nsb.from('diary_bookings').delete().eq('id', x);`));
 
 // ── 4. No clock in the model ─────────────────────────────────────────────
 const model = walk('coach/src/diary').filter(f => f.endsWith('.ts') && !f.endsWith('.test.ts'));

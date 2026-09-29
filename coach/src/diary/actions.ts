@@ -50,7 +50,8 @@ export async function publishChanges(repo: DiaryRepo, opts: { quiet?: boolean; q
 /** Move or edit one session; for a series week, just this one or it and every later week. */
 export async function editSession(repo: DiaryRepo, d: Diary, occ: Occurrence, p: SessionPatch, scope: Scope): Promise<Diary> {
   const base = { date: p.date, start: p.start, duration: p.duration, location: p.location, title: p.title, clientIds: p.clientIds };
-  if (!occ.seriesId) {
+  // A one-off, or a detached week of a series: that booking alone.
+  if (!occ.recurring) {
     await repo.updateBooking(occ.bookingId!, base);
     return publishChanges(repo);
   }
@@ -62,8 +63,8 @@ export async function editSession(repo: DiaryRepo, d: Diary, occ: Occurrence, p:
     // The week leaves the series (a skip date) quietly: the client is told once, by the moved week's own booking.
     return publishChanges(repo, { quietIds: new Set([s.id]) });
   }
-  // All future: this week's own changes ("just this one") after it go, then the series moves from here.
-  for (const b of d.bookings) if (b.seriesId === s.id && b.occursOn && b.occursOn >= week) await repo.deleteBooking(b.id);
+  // All future: this week's own changes ("just this one") after it are cancelled, then the series moves from here.
+  await cancelOverridesFrom(repo, d, s.id, week);
   const next = { weekday: weekday(p.date), start: p.start, duration: p.duration, location: p.location, title: p.title, clientIds: p.clientIds };
   if (week <= s.from) {
     await repo.updateSeries(s.id, { ...next, from: p.date, cancelled: daysOffWeeks(d, { ...next, from: p.date, to: s.to }, next.weekday === s.weekday ? s.cancelled : []) });
@@ -78,21 +79,33 @@ export async function editSession(repo: DiaryRepo, d: Diary, occ: Occurrence, p:
 
 /** Cancel one session; for a series week, just this one, or stop the series from this week. */
 export async function cancelSession(repo: DiaryRepo, d: Diary, occ: Occurrence, scope: Scope): Promise<Diary> {
-  if (!occ.seriesId) {
+  // A one-off or a detached week: cancelled alone. A series week with its own row (a booked request's first
+  // week): that row cancelled. A plain series week: into the series' cancelled_dates.
+  if (!occ.recurring || (scope === 'one' && occ.bookingId)) {
     await repo.updateBooking(occ.bookingId!, { status: 'cancelled' });
     return publishChanges(repo);
   }
   const s = d.series.find((x) => x.id === occ.seriesId)!;
   const week = occ.seriesDate!;
   if (scope === 'one') {
-    if (occ.bookingId) await repo.deleteBooking(occ.bookingId);
     await repo.updateSeries(s.id, { cancelled: [...new Set([...s.cancelled, week])].sort() });
     return publishChanges(repo);
   }
-  for (const b of d.bookings) if (b.seriesId === s.id && b.occursOn && b.occursOn >= week) await repo.deleteBooking(b.id);
-  if (week <= s.from) await repo.deleteSeries(s.id);
+  await cancelOverridesFrom(repo, d, s.id, week);
+  // From its first week: the series keeps its row (a request may name one of its bookings) and occurs never.
+  if (week <= s.from) await repo.updateSeries(s.id, { to: s.from, cancelled: [...new Set([...s.cancelled, s.from])].sort() });
   else await repo.updateSeries(s.id, { to: addDays(week, -1) });
   return publishChanges(repo);
+}
+
+/**
+ * 🚨 Coach never deletes a booking row: `session_requests.booking_id` references it
+ * `on delete set null`, so deleting the row a request names leaves an accepted request
+ * with no booking, which autoBook then books again (the whole weekly request, clashing
+ * with the series it already is). Cancel instead.
+ */
+async function cancelOverridesFrom(repo: DiaryRepo, d: Diary, seriesId: string, week: string) {
+  for (const b of d.bookings) if (b.seriesId === seriesId && b.occursOn && b.occursOn >= week && b.status !== 'cancelled') await repo.updateBooking(b.id, { status: 'cancelled' });
 }
 
 export async function createSession(repo: DiaryRepo, d: Diary, n: NewSession): Promise<Diary> {
@@ -109,7 +122,7 @@ export async function createSession(repo: DiaryRepo, d: Diary, n: NewSession): P
 export async function makeWeekly(repo: DiaryRepo, d: Diary, occ: Occurrence): Promise<Diary> {
   const wd = weekday(occ.date);
   await repo.createSeries({ kind: occ.kind === 'group' ? 'group' : 'one_to_one', weekday: wd, start: occ.start, duration: occ.duration, from: occ.date, to: null, cancelled: daysOffWeeks(d, { weekday: wd, from: occ.date, to: null }), title: occ.title, location: occ.location, clientIds: occ.clientIds });
-  await repo.deleteBooking(occ.bookingId!);
+  await repo.updateBooking(occ.bookingId!, { status: 'cancelled' });
   return publishChanges(repo, { quietIds: new Set([occ.bookingId!]) });
 }
 
