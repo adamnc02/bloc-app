@@ -11,10 +11,12 @@
 // replaces whole session templates; `goal_phases` and a check-in's
 // `goal_changes` upsert goals by `macroGoalID`.
 //
-// 🚨 Only publications made AFTER the card's last unlink count. Unlinking
-//    removes every coach cycle and goal from the client's phone (§132), and
-//    BLOC's ledger keeps those publications settled, so they never come back.
-//    Folding them in would show the coach a plan the client doesn't have.
+// 🚨 Unlinking removes every coach cycle and goal from the client's phone
+//    (§132), and BLOC's ledger keeps those publications settled, so they never
+//    come back. With an upload, that ledger is what skips them here. Without
+//    one (an unlinked card), only publications after the link's `ended_at`
+//    count. Relinking reuses the link row and clears `ended_at`, so the
+//    cut-off can't be relied on once the card is linked again.
 // 🚨 A client's own cycle (no `publishedBy`) is theirs: shown, never edited.
 // ═══════════════════════════════════════════════════════════════════════
 import type { BlocState, Loose, Macrocycle } from '@engine';

@@ -9828,10 +9828,12 @@ superseded, in `seq` order, with BLOC's patch rules (§131): a publication made 
 or all of them for a client who hasn't linked or synced (invited clients get their plan when they link) or isn't
 on the app. A cycle with `publishedBy` is the coach's; any other is the client's own and read-only.
 
-🚨 **Only publications made after the card's last unlink count** (`ClientBundle.lastEndedAt`, the newest `ended_at`
-of any link on the card). Unlinking removes every coach cycle and goal from the phone (§132) and BLOC's ledger keeps
-those publications settled, so they never come back; folding them would show the coach a plan the client doesn't
-have.
+🚨 **Publications from before an unlink must not come back.** Unlinking removes every coach cycle and goal from the
+phone (§132), and BLOC's ledger keeps those publications settled, so they never re-apply. With an upload, that ledger
+skips them here too. Without one (an unlinked card), only publications after the link's `ended_at`
+(`ClientBundle.lastEndedAt`) count. Relinking reuses the `coach_clients` row and clears `ended_at`, so that cut-off
+holds only while the card is unlinked. A publication that was held on the phone is still retried after a relink,
+so it is rightly shown.
 
 Each coach cycle's status comes from its latest `plan` publication (else its latest goal row): **on their phone**
 (applied), **not on their phone yet** (not pulled, or no sync since), or **held** with BLOC's note (§143's "Waiting
