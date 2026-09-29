@@ -1,16 +1,19 @@
-import { useMemo, useState, type ReactNode } from 'react';
-import { Card, Chip, Hero, Icon, Notice, OutcomeChip, Score, Section, Sheet, Tag, useIsTablet, useIsWide, type IconName } from '@/components/ui';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { AIBadge, Button, Card, Chip, Hero, Icon, Notice, OutcomeChip, Score, Section, Sheet, Tag, useIsTablet, useIsWide, type IconName } from '@/components/ui';
 import { ComplianceGrid, SessionsStrip } from '@/components/charts/ComplianceGrid';
 import { NutritionChart } from '@/components/charts/NutritionChart';
 import { RpeQuadrant } from '@/components/charts/RpeQuadrant';
 import { StoryChart } from '@/components/charts/StoryChart';
 import { fmt } from '@/lib/format';
 import { reviewFor, type ReviewModel } from '@/review/model';
-import { AVAILABLE_ACTIONS, type Finding } from '@/review/findings';
+import { AVAILABLE_ACTIONS, requestFinding, type Finding } from '@/review/findings';
 import { mealsOn } from '@/review/nutrition';
 import { outOf10 } from '@/review/training';
 import type { DriverKey } from '@/review/outcome';
 import { goalLabel, type ClientView } from '@/coach/screens/ClientScreen';
+import { AiPanel, useAiData } from '@/coach/client/AiPanel';
+import { openRequest } from '@/ai/tools';
+import type { AiTool } from '@/ai/types';
 
 /** A verdict rests on weigh-ins: say so when the latest is older than this. */
 const STALE_WEIGH_IN_DAYS = 7;
@@ -51,6 +54,12 @@ export function ReviewTab({ v }: { v: ClientView }) {
 function Review({ v, m, tz }: { v: ClientView; m: ReviewModel; tz: string }) {
   const { bundle } = v;
   const [day, setDay] = useState<string | null>(null);
+  const ai = useAiData(v);
+  const [aiTool, setAiTool] = useState<AiTool>('check_in');
+  const aiRef = useRef<HTMLDivElement>(null);
+  const openAi = (tool: AiTool) => { setAiTool(tool); aiRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+  const request = ai.data ? openRequest(ai.data.submissions, ai.data.drafts, m.cycle.id) : null;
+  const findings = request ? [requestFinding(v.first, request.body?.feel, request.body?.note, fmt.dm(String(request.body?.sent_on || request.createdAt.slice(0, 10)))), ...m.findings.filter((f) => f.id !== 'none')] : m.findings;
   const t = m.training;
   const lastScored = [...t.cols].reverse().find((col) => col.closed && (t.scored ? col.score != null : col.attendance != null));
   return (
@@ -94,9 +103,15 @@ function Review({ v, m, tz }: { v: ClientView; m: ReviewModel; tz: string }) {
 
       <Section i={6} title="Findings" sub="What stands out, each with the action that deals with it.">
         <div className="stack">
-          {m.findings.map((f, k) => <FindingCard key={f.id} f={f} v={v} i={7 + k} />)}
+          {findings.map((f, k) => <FindingCard key={f.id} f={f} v={v} i={7 + k} onCheckin={() => openAi('check_in')} />)}
         </div>
       </Section>
+
+      <div ref={aiRef} style={{ scrollMarginTop: 20 }}>
+        <Section i={7 + findings.length} title="AI tools" sub={`Runs on this device with your key, on ${v.first}’s data at their date. Nothing reaches ${v.first} until you publish.`} slot={<AIBadge />}>
+          <AiPanel v={v} m={m} state={bundle.snapshot!.state} tool={aiTool} onTool={setAiTool} ai={ai} />
+        </Section>
+      </div>
 
       <MealsSheet v={v} m={m} date={day} onClose={() => setDay(null)} state={bundle.snapshot!.state} />
     </>
@@ -307,7 +322,7 @@ function NutritionWeeks({ m }: { m: ReviewModel }) {
 
 // ---------------------------------------------------------------- findings
 
-function FindingCard({ f, v, i }: { f: Finding; v: ClientView; i: number }) {
+function FindingCard({ f, v, i, onCheckin }: { f: Finding; v: ClientView; i: number; onCheckin: () => void }) {
   const tone = f.tone === 'bad' ? 'var(--red)' : f.tone === 'amber' ? 'var(--amber)' : 'var(--text3)';
   const card = v.bundle.card;
   const href = card.phone ? `sms:${card.phone.replace(/\s/g, '')}` : card.email ? `mailto:${card.email}` : null;
@@ -322,6 +337,7 @@ function FindingCard({ f, v, i }: { f: Finding; v: ClientView; i: number }) {
           {f.action === 'message' && available && (href
             ? <a className="btn-sm" style={{ marginTop: 12 }} href={href}><Icon name="message" size={16} /> Message {v.first}</a>
             : <p className="caption" style={{ marginTop: 10 }}>Add {v.first}’s phone or email in Profile to message them from here.</p>)}
+          {f.action === 'checkin' && available && <Button variant="ghost" size="sm" icon="sparkle" style={{ marginTop: 12 }} onClick={onCheckin}>Run check-in</Button>}
           {!f.action && <Chip tone="neutral" style={{ marginTop: 10 }}>No action needed</Chip>}
         </div>
       </div>

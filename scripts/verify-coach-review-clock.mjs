@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // ═══════════════════════════════════════════════════════════════════════
 // verify-coach-review-clock.mjs — Review judges a client at THEIR local
-// today, never a clock (Coach v0.2, TECHNICAL §140)
+// today, never a clock (Coach v0.2–v0.3, TECHNICAL §140, §141)
 //
-// THE RULE: everything in coach/src/review/ takes `today` as a parameter: the
+// THE RULE: everything in coach/src/review/ and coach/src/ai/ (the AI tools'
+// rules and runner) takes `today` as a parameter: the
 // client's calendar date from their uploaded `tz` (lib/clientState.ts →
 // localDateIn). The screens pass it in; the model never reads a clock.
 //
@@ -44,14 +45,17 @@ function clocks(src) {
   return hits;
 }
 
-const model = readdirSync(join(repo, dir)).filter(f => /\.ts$/.test(f) && !/\.test\.ts$/.test(f)).map(f => `${dir}/${f}`);
-check(`the review model has files to check (${model.length})`, model.length >= 5, model.join(', '));
+// ai/transport.ts is the browser's fetch and key, not a rule; it reads no clock either, so it's checked too.
+const model = [dir, 'coach/src/ai'].flatMap(d => readdirSync(join(repo, d)).filter(f => /\.ts$/.test(f) && !/\.test\.ts$/.test(f)).map(f => `${d}/${f}`));
+check(`the review model and the AI tools have files to check (${model.length})`, model.length >= 9, model.join(', '));
 const found = model.flatMap(f => clocks(readFileSync(join(repo, f), 'utf8')).map(h => `${f}: ${h}`));
-check('no review model file reads a clock or the coach\'s zone', found.length === 0, found.join('; '));
+check('no review model or AI tools file reads a clock or the coach\'s zone', found.length === 0, found.join('; '));
 
 // The screens hand the model the client's today, never the coach's.
 const review = readFileSync(join(repo, 'coach/src/coach/client/ReviewTab.tsx'), 'utf8');
 check('Review passes the client\'s today into the model (c.clientToday)', /reviewFor\([^)]*c\.clientToday/.test(review));
+const panel = readFileSync(join(repo, 'coach/src/coach/client/AiPanel.tsx'), 'utf8');
+check('the AI tools run at the Review model\'s today, the client\'s (today = m.today)', /const today = m\.today;/.test(panel) && /runTool\(\{[\s\S]*?\btoday\b/.test(panel) && !/runTool\(\{[^}]*repo\.now/.test(panel));
 const summary = readFileSync(join(repo, 'coach/src/data/summary.ts'), 'utf8');
 check('the Clients row judges at the client\'s today (localDateIn with their tz)', /localDateIn\(snap\.tz,\s*nowMs\)/.test(summary) && /reviewFor\([^)]*clientToday/.test(summary));
 

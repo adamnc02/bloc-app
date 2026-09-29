@@ -9506,6 +9506,169 @@ refuse a linked card's name or contact change, as the trigger does.
 - `scripts/verify-coach-review-clock.mjs`: no clock in the model; the client's date passed in.
 - At 375 × 812 Review and Profile have no horizontal scroll; the grid scrolls inside its card.
 
+## §141 — Coach v0.3: Review's AI tools, publishing a response, notes back and check-in requests
+
+**What it is.** At the foot of Review, **AI tools** runs BLOC's three AI flows on a client (Check-in, Cycle
+review, Next cycle) on the coach's device with the coach's own Anthropic key, on the client's uploaded state at
+the client's today. Each reply is saved exactly as it came back (`coach_ai_drafts.original`); the coach's edit
+sits beside it (`edited`); **Publish** sends the edit as an `ai_response` publication, which BLOC applies to
+`state.coachAdvice` and shows in Progress → From your coach (§131, §135). No migration: every write fits
+`0023` / `0024` as they are.
+
+### Files
+
+| File | What |
+|---|---|
+| `coach/src/ai/types.ts` | the draft, edit, publication and submission shapes |
+| `coach/src/ai/tools.ts` | the rules, pure: the default edit, the content, publish state, the goal change, the sent-history overlay, eligibility, `body.purpose`, the cycle-review prompt changes |
+| `coach/src/ai/run.ts` | `runTool()`: the engine's prompt builder, request and post-processing per tool, with `callModel` injected |
+| `coach/src/ai/transport.ts` | the coach's key (`KEYS.aiKey`, `blocCoach_aiKey`) and the browser's call to the Messages API, as BLOC's `blocCallModel` |
+| `coach/src/coach/client/AiPanel.tsx` | the panel: tool tabs, run, response card, edit, publish sheet, read full, reply to a note back |
+| `CoachRepo` | `loadAi`, `saveAiDraft`, `saveAiEdit`, `publish`, `loadPhotos` (live: Supabase; fixtures: memory) |
+
+### Running a tool
+
+The engine does the work, as BLOC Solo does (§125): `buildBlocAdvicePrompt` → `requestBlocAdvice`,
+`computeCycleReviewPayload` + `buildCycleReviewPrompt` → `requestCycleReview`, `recommendNextCycle` +
+`buildNextCycleAdvicePrompt` → `requestNextCycleAdvice`, all with `{ today }` = the client's date (Review's
+`m.today`), the target cache that never writes the client's state (§140), and Coach's `callModel`. The reply's
+text is captured verbatim into `original.raw` beside the engine's processed `response`; `original.today` records
+the client's date it ran at. The client's state is never changed: every Coach addition works on a copy.
+
+What Coach adds to the engine's prompts:
+- **Built from what was sent** (`overlayCoachAdvice`). The check-in prompt's PRIOR ADVICE reads `blocAdvice`, and
+  the next-cycle and cycle-review prompts read `macro.review`. On a copy of the state, the coach's **published**
+  check-ins on the cycle become `blocAdvice` (headline, narrative, the sent plan's phases, earlier ones in
+  `priorAdviceThisCycle`) and the coach's published cycle reviews become that cycle's `review` (the sent
+  headline, narrative and compliance). A draft never sent is never in it, and neither is the AI's original.
+  When a response was edited again after publishing, the version sent is read back from the publication.
+- **A client's request.** A check-in run while a request is open appends "THE CLIENT ASKED FOR THIS CHECK-IN
+  (date): feeling …. Their note: "…"" to the user message.
+- **The cycle review** (`coachReviewPrompt`): the engine's paragraph about one particular user's tattoos
+  (`PERSONAL_PHOTO_PARAGRAPH`) is replaced by the coach's private notes on the card, with the model told to use
+  only what bears on judging body composition and to ignore scheduling and preferences; with no notes the
+  paragraph is removed. The **calculated compliance** is given (training or attendance, nutrition, and their
+  mean, all Review's own scores, §140) and the schema line tells the model to return exactly the overall figure;
+  the reply's `complianceScore` is then overwritten with it. BLOC's own prompt is unchanged (its golden file pins
+  it).
+- **Photos** go to a cycle review only when they were sent in answer to the coach's request (below) and the
+  link's photo consent is still on: that answer's `client-media` paths are downloaded (0024
+  `coach_may_view_media()` refuses them otherwise), sent as image blocks, and not kept. `original.photos` records
+  the counts.
+
+🚨 **The paragraph is replaced by exact match.** If the engine's wording changes, the replacement silently stops
+and every client's review carries a paragraph about someone else. `verify-coach-ai.mjs` compares the two
+strings, and a vitest case builds the real prompt and finds it.
+
+### When a tool can run (`eligibility`)
+
+| Tool | Ready | Otherwise |
+|---|---|---|
+| Check-in | on the running cycle, with the engine's minimum data (`computeWeeklyInsights(...).insufficientData` false), and either an open request or 14 days since the last run (BLOC's cooldown, `getMondayAfter(getSundayAfterWeeks(run, 2))`) | inside the cooldown: "Next check-in · date · run early", still runnable |
+| Cycle review | **photos asked for first** (below); then `isCycleReviewDue` (the cycle has ended at the client's date) with the answer in: photos, or the client skipping | before the final week: "opens when it ends on …"; waiting: "Waiting for {first}'s photos", and from 3 days after the request (`PHOTO_WAIT_DAYS`) **Run without photos** |
+| Next cycle | `isNextCycleAdviceEligible` (21 days or fewer to the end, a recommendation with a direction) | the date it opens, or the reason |
+
+No key: a tool that would run shows "Add your AI key in Settings" and links there (`needsKey`); asking for photos
+needs no key.
+
+### Review photos are asked for first (`photoRequestState`)
+
+Photos are part of a cycle review, so the review waits for them. From the cycle's final week (`isInFinalWeek`),
+the Cycle review tab's row is **Ask {first} for review photos first**, which publishes a `photo_request`
+(migration `0027`: `{v, request_id, macro_id}`, `request_id` = `pr_{macroId}_{ms}`). BLOC (v8.44, BLOC TECHNICAL
+§142) raises a Home banner that opens its photo sheet, where the client sends photos or taps **Skip photos**;
+either is a `check_in` submission with `body.purpose 'cycle_review'` and the `request_id`.
+
+| State | From | Row |
+|---|---|---|
+| none | no request, or the last one cancelled | Ask {first} for review photos first |
+| waiting | a request with no answer naming it | Waiting for {first}'s photos (**Cancel the request** republishes it with `cancelled: true`); once the cycle has ended and 3 days have passed since the request, **Run without photos** |
+| answered | the answer naming the latest request | Review {cycle} with BLOC · N photos, or · {first} skipped photos (after the cycle ends); **Ask for photos again** publishes a new request, which the old answer doesn't answer |
+
+An answer to an older request never answers a newer one. Photos sent unprompted by BLOC v8.41–v8.43 (no
+`request_id`) count as the answer when nothing was asked. The caption under the tabs says what was asked, what
+came back, and whether consent still lets photos through.
+
+### Check-in requests and review photos: `body.purpose`
+
+A `client_submissions` row of kind `check_in` is one of two things (BLOC v8.41, §135). `purpose 'check_in'`
+(or none) is a request; `purpose 'cycle_review'` carries review photos and is **never** a request. A request is
+**open** until a check-in on that cycle is run after it. An open request shows in the panel (feel and note) and
+**leads the findings** ("{first} asked for a check-in") with **Run check-in**; the `checkin` action on any
+finding opens the AI tools on the check-in tab (`AVAILABLE_ACTIONS` now holds `message` and `checkin`).
+
+### The edit, and what the client gets
+
+- `editFromOriginal`: the reply as BLOC shows it. A check-in's narrative paragraphs plus "This week: {primaryAction}",
+  Sustainable chosen; a cycle review's narrative plus what went well, what to improve and sticking points, with the
+  calculated compliance; next-cycle's narrative with its first plan.
+- The coach edits the headline and paragraphs; a check-in's plan (Sustainable / Aggressive / No change) and each
+  phase's kcal, protein, carbs and steps; next-cycle's plan and its kcal and steps. Compliance isn't editable.
+- `content` is BLOC's contract (§135): `{headline, narrative: string[], kcal?, steps?, compliance?}`, text only.
+- **Publish state**: never sent (`publication_id` null); **published** when `edited.sentAs` equals the draft's
+  `publication_id` (Publish writes both in one update); **edited since publishing** otherwise. It's decided by that
+  stamp, not by comparing a client clock with the server's `created_at`.
+- **Republish**: a new publication with the same `response_id`, `updated: true` and `supersedes` the last one. BLOC
+  replaces its entry and shows "Updated" (§131, §135).
+- **Receipt**: the card shows the publication's `publication_acks` status (Delivered / Held on their phone with
+  BLOC's note / Not opened yet).
+
+### A check-in's goal change is BLOC's own goal queue (`goalChanges`)
+
+Publishing a check-in with a plan sends `goal_changes: {goals, remove_goal_ids}`, which BLOC applies with the
+response (§131). It is exactly what `startGoalQueue()` / `saveGoalAndAdvanceQueue()` do when a Solo user accepts
+a plan, at the client's today:
+- the goal running today ends the day before the plan's first Monday (`getDayBefore(getNextMonday())`), or is
+  removed if it started on or after that day;
+- this cycle's goals starting after today are removed;
+- the phases are added with `fats` derived (`(kcal − protein×4 − carbs×4) / 9`), then every goal of the cycle is
+  renumbered "Step N - …" (`renumberMacroGoalSteps`); only goals that changed are sent.
+
+The publish sheet lists every change (ends, removed, new, renamed) before Publish. A plan whose first phase
+starts before the client's today (a stale draft) is flagged there.
+
+🚨 **Phase ids stay the same across republishes**: `${macroId}_g{draft ms}{plan}{n}`, derived from the draft,
+not the clock. BLOC upserts goals by `macroGoalID`, so a republish replaces its phases even when the client hasn't
+synced since the first publish, when Coach's copy of their state doesn't show them yet. Phases an earlier publish
+sent that the new version drops are added to `remove_goal_ids` (`priorPhaseIds`); "No change" on a republish
+removes only those.
+
+Next-cycle advice sends no goal change: its goals belong to a cycle the client's phone doesn't have yet (BLOC
+would hold them). The cycle is built in Plan.
+
+### Notes back
+
+A `note_back` submission (`body.response_id`) shows under the response it's about, oldest first. **Reply**
+publishes `note_reply {v, submission_id, text}`, which BLOC shows under the client's note (§131, §135). A replied
+note shows the reply instead of the button.
+
+### The key
+
+The coach's Anthropic key is in localStorage as `blocCoach_aiKey` (Settings → AI tools), on this device only, and
+Coach's sign-out (`scope: 'local'`) keeps it. It goes to `api.anthropic.com` in the `x-api-key` header and nowhere
+else. `verify-coach-ai.mjs` checks that only the transport, the panel and Settings touch it, that the transport
+has one destination and logs nothing, and that no repo call, payload or data file names it.
+
+### Checks
+
+- `coach/src/ai/ai.test.ts` (vitest, 25 cases), on the real engine and the demo client: the reply kept verbatim
+  and processed as BLOC does; the prompt at the client's today (control: another date gives another first Monday);
+  the request's feel and note; the client's state unchanged; a published edit in the next prompt, an unsent draft
+  not (control); the goal queue mid-week, on a Monday, on a republish and with no plan; content and payload keys
+  within 0023's allow-list; draft → published → edited since; the engine still holding the replaced paragraph,
+  notes replacing it, none removing it; the calculated compliance given and imposed; `body.purpose` (a
+  review-photos row is never a request, a run answers a request); notes back with replies; eligibility, including the
+  photo request's none → waiting → answered or skipped, a cancellation, an older request's answer not counting,
+  asking without a key, and Run without photos after 3 days.
+- `scripts/verify-coach-ai.mjs`: the key, the prompt paragraph, no markup from a reply; each with a control.
+- `scripts/verify-coach-review-clock.mjs` now also covers `coach/src/ai/`, and checks the panel runs at `m.today`.
+- Driven in headless Chromium at 375pt and 1280px on the fixture bypass with the model call intercepted: the
+  request finding and Run check-in, run, edit, publish (the goal lines), read full (original), edit and republish,
+  a second run built from the sent edit, the other tools' gates, Settings, and Ask for review photos → waiting →
+  Cancel the request; no horizontal scroll, no console errors.
+- 🚨 **Fields side by side in a grid set no top margin** (`.tiles-2 > .field`), as tiles do (§140): `.field +
+  .field` pushed the second field of each row lower than the first.
+
 ## §142 — v8.44: the coach asks for cycle-review photos; the client sends them or skips
 
 **What it is.** Progress photos are part of a cycle review, so the coach asks for them **before** running it.

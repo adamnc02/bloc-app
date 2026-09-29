@@ -5,14 +5,14 @@
 //
 // `action` names what the coach would do. A card shows a button only for an
 // action Coach has built (AVAILABLE_ACTIONS); the rest arrive with their
-// screens (Run check-in with the AI tools, Adjust goals and Swap exercise
-// with Plan) on the same cards.
+// screens (Adjust goals and Swap exercise with Plan) on the same cards. Run
+// check-in opens the AI tools on the check-in tab.
 // ═══════════════════════════════════════════════════════════════════════
 import type { Outcome } from './outcome';
 import type { GridRow, RpePoint } from './training';
 
 export type FindingAction = 'adjust' | 'swap' | 'progress' | 'checkin' | 'message';
-export const AVAILABLE_ACTIONS: ReadonlySet<FindingAction> = new Set(['message']);
+export const AVAILABLE_ACTIONS: ReadonlySet<FindingAction> = new Set(['message', 'checkin']);
 
 export interface Finding {
   id: string;
@@ -78,4 +78,11 @@ export function buildFindings(first: string, o: Outcome, rows: GridRow[], rpe: R
   }
   if (!out.length) out.push({ id: 'none', tone: 'neutral', icon: 'check', title: 'Nothing needs you', body: o.status === 'no-data' ? 'There isn’t enough logged yet to judge this cycle.' : 'The outcome and the inputs behind it are on plan.', action: null });
   return out;
+}
+
+/** The client asked for a check-in (a `check_in` row with `body.purpose 'check_in'`): it leads the findings until a run answers it. */
+export function requestFinding(first: string, feel: unknown, note: unknown, sentOn: string): Finding {
+  const n = String(note || '').trim();
+  const f = feel ? `feeling ${String(feel).toLowerCase()}` : 'no feel given';
+  return { id: 'request', tone: 'amber', icon: 'message', title: `${first} asked for a check-in`, body: `${n ? `“${n}” · ` : ''}${f} · sent ${sentOn}`, action: 'checkin' };
 }
