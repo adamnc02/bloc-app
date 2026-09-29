@@ -10293,9 +10293,9 @@ the message (control: `String()` of the raw error), one refresh and retry on an 
   same button (under the mark) expands it. The choice is this device's, `blocCoach_railCollapsed` (`'1'` when
   collapsed). Below 1200 px the toggle is hidden and the rail is the icon rail. The laptop rules in `shell.css` are all
   `.coach-shell:not(.rail-collapsed)`, so collapsed is exactly the tablet's rules.
-  The icon rail's logo is Coach's mark with COACH under it, on no background (`bloc-coach-mark-with-coach-no-bg.svg` in
-  `coach/public`, from the brand kit's `icon/`), 72 px (the rail's full inner width), an `<img>` by a path relative to the
-  page; never BLOC's bar mark.
+  The icon rail's logo is Coach's mark with COACH under it, on no background: `bloc-coach-rail-mark.svg` in `coach/public`,
+  the brand kit's `icon/bloc-coach-mark-with-coach-no-bg.svg` with its view cropped to the artwork (`205 140 614 685`, the
+  drawing unchanged), shown 60 × 67 px; an `<img>` by a path relative to the page; never BLOC's bar mark.
   `coach/public`'s `apple-touch-icon.png`, `favicon.ico` and `bloc-coach-icon-square.svg` are the brand kit's current ones.
 - **Review**: Findings and AI tools are one `.grid-2`, two columns from 1024 px, stacked below.
 

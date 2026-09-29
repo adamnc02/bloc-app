@@ -32,7 +32,7 @@
   }
   .rail .rail-head { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 18px }
   .rail .rail-logo-full { display: none }
-  .rail .rail-icon { display: block; width: 72px; height: 72px }
+  .rail .rail-icon { display: block; width: 60px; height: 67px }
   .rail .rail-toggle { display: none }
   .rail .navi { width: 72px; height: 64px; border-radius: 18px; font-size: 11px }
   .rail .rail-foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; align-items: center }
