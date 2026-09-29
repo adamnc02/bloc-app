@@ -121,6 +121,11 @@ function run(source) {
   P.applyBookingPublication(pub({ booking_id: 'o2', date: '2026-10-09', start_min: 660, duration_min: 90, status: 'booked', kind: 'one_off', location: 'Park' }));
   check('a cancelled one-off booked again (a cancelled session reinstated): "Session back on"', [last().title, last().body], ['Session back on', 'Fri 9 Oct, 11:00 with Rowan is back on.']);
 
+  P.applyBookingPublication(pub({ ...WEEKLY, booking_id: 'g1', date: '2026-10-10', start_min: 540, title: 'Saturday bootcamp', location: 'Park' }));
+  check('added to a group: "Added to a group session", naming it', [last().title, last().body], ['Added to a group session', 'Rowan added you to Saturday bootcamp: Sat 10 Oct, 09:00, weekly.']);
+  P.applyBookingPublication(pub({ ...WEEKLY, booking_id: 'g1', date: '2026-10-10', start_min: 540, title: 'Saturday bootcamp', location: 'Park', status: 'cancelled' }));
+  check('taken out of a group (or it ends): "Group session cancelled", naming it', last().title, 'Group session cancelled');
+
   const rows = extract(source, 'renderCoachSessions') || '';
   check('Your sessions shows a group session\'s title', /b\.title \? coachEsc\(b\.title\)/.test(rows), true);
   return out;
@@ -136,7 +141,7 @@ for (const r of run(current)) {
 const old = execFileSync('git', ['show', '5d08f66:index.html'], { cwd: repo, encoding: 'utf8', maxBuffer: 64 << 20 });
 const ctl = run(old);
 const ctlFails = ctl.filter((r) => !r.ok).map((r) => r.label);
-const mustFail = ['a skipped week is stepped over', 'until: after it, no next date', 'quiet on a new booking: no "Session confirmed"', 'a moved week (replaces): "Session changed", old time → new', 'a new length and place: "Session changed", naming them', 'a cancelled one-off booked again (a cancelled session reinstated): "Session back on"'];
+const mustFail = ['a skipped week is stepped over', 'until: after it, no next date', 'quiet on a new booking: no "Session confirmed"', 'a moved week (replaces): "Session changed", old time → new', 'a new length and place: "Session changed", naming them', 'a cancelled one-off booked again (a cancelled session reinstated): "Session back on"', 'added to a group: "Added to a group session", naming it'];
 const ctlOk = mustFail.every((l) => ctlFails.includes(l));
 console.log(`${ctlOk ? '✓' : '✗'} control: v8.46 (5d08f66) fails ${ctlFails.length} rows, including skip, until and quiet`);
 if (!ctlOk) failures++;
