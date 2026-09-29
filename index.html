@@ -10173,7 +10173,7 @@ function applyBookingPublication(pub) {
   else if (!before || before.status === 'cancelled') {
     if (replaced && coachBookingWeekly(p)) addCoachNotice(pub, 'booking', 'Session changed', `Your weekly session with ${coach} is now every ${dayName(p.date)} at ${coachMinToHHMM(p.start_min)}, from ${coachDayFmt(coachBookingNextDate(p, today) || p.date)}.`);
     else if (replaced) addCoachNotice(pub, 'booking', 'Session changed', `${wasWhen} with ${coach} is now ${when}.`);
-    // A booking that was cancelled and is booked again (the coach undid a day off) is back on, not new.
+    // A booking that was cancelled and is booked again is back on, not new.
     else if (before) addCoachNotice(pub, 'booking', 'Session back on', `${nextWhen} with ${coach} is back on.`);
     else addCoachNotice(pub, 'booking', 'Session confirmed', `${coach} booked you in: ${nextWhen}${coachBookingWeekly(p) ? ', weekly' : ''}.`);
   }
