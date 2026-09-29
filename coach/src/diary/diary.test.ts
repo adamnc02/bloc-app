@@ -137,6 +137,26 @@ describe('what the Diary publishes', () => {
     expect(skip.length).toBe(MAX_SKIP_DATES);
     expect(skip[skip.length - 1]).toBe(addDays('2020-01-06', 449 * 7));
   });
+  it('🚨 a sent payload read back from Postgres (nested keys reordered) is no change (control: top-level sort only)', () => {
+    const want = { v: 1, booking_id: 'o', status: 'booked', replaces: { booking_id: 's', date: '2026-10-07' } };
+    const fromDb = { replaces: { date: '2026-10-07', booking_id: 's' }, status: 'booked', booking_id: 'o', v: 1 };
+    expect(canonical(fromDb)).toBe(canonical(want));
+    const topOnly = (p: Record<string, unknown>) => JSON.stringify(Object.keys(p).sort().map((k) => [k, p[k]]));
+    expect(topOnly(fromDb)).not.toBe(topOnly(want));
+  });
+  it('a moved week isn’t re-sent by the next, unrelated change', async () => {
+    const r = fresh();
+    let d = await r.loadDiary();
+    d = await editSession(r, d, occ(d, `s:sr-maya@${TUE}`), { date: WED, start: 1080, duration: 60, location: 'Studio', title: null, clientIds: ['maya'] }, 'one');
+    // Stored as Postgres would return it.
+    const k = Object.keys(d.sent).find((x) => x.startsWith('maya|bk-'))!;
+    const rp = d.sent[k].payload.replaces as { booking_id: string; date: string };
+    await r.publishBooking('maya', { ...d.sent[k].payload, replaces: { date: rp.date, booking_id: rp.booking_id } }, d.sent[k].id);
+    const n = r.published.length;
+    d = await r.loadDiary();
+    await createSession(r, d, { kind: 'one_to_one', weekly: false, date: FRI, start: 600, duration: 60, location: null, title: null, clientIds: ['sam'] });
+    expect(r.published.slice(n).map((p) => p.cardId)).toEqual(['sam']);
+  });
   it('quiet doesn’t count as a change', () => {
     const p = { v: 1, booking_id: 'x', status: 'booked' } as unknown as BookingPayload;
     expect(canonical({ ...p, quiet: true })).toBe(canonical(p as unknown as Record<string, unknown>));

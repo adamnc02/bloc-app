@@ -104,10 +104,18 @@ export function desiredBookings(d: Diary): Map<string, { cardId: string; payload
   return out;
 }
 
-/** JSON with sorted keys and no `quiet`: two payloads that say the same thing compare equal. */
+/**
+ * JSON with keys sorted at EVERY level, and no `quiet`: two payloads that say the
+ * same thing compare equal. 🚨 Postgres returns jsonb objects with their keys
+ * reordered (`replaces` comes back `{date, booking_id}`), so sorting only the top
+ * level made every sent `replaces` differ from the derived one, and each diary
+ * change re-sent every moved week.
+ */
 export function canonical(p: Record<string, unknown>): string {
   const { quiet: _q, ...rest } = p;
-  return JSON.stringify(Object.keys(rest).sort().map((k) => [k, rest[k]]));
+  const sortDeep = (v: unknown): unknown => Array.isArray(v) ? v.map(sortDeep)
+    : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v as object).sort().map((k) => [k, sortDeep((v as Record<string, unknown>)[k])])) : v;
+  return JSON.stringify(sortDeep(rest));
 }
 
 /**

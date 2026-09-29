@@ -10226,7 +10226,9 @@ date matters where the engine judges a client (§139); the Diary makes no engine
 publication each card should hold from the whole diary (`desiredBookings`), compares each with the last one that card
 was sent (`publications` of type `booking`, newest per `(card, booking_id)`), and sends only the differences
 (`bookingChanges`), each `supersedes` the last. So a publish that failed is sent by the next change, a change that makes
-no difference to a client sends nothing, and nothing is sent twice. `verify-coach-diary.mjs` checks that only
+no difference to a client sends nothing, and nothing is sent twice. 🚨 The comparison (`canonical`) sorts keys at **every**
+level: Postgres returns jsonb objects with their keys reordered (`replaces` comes back `{date, booking_id}`), and a
+top-level-only sort made every moved week differ, so each diary change re-sent all of them. `verify-coach-diary.mjs` checks that only
 `actions.ts` calls `publishBooking`, with `bookingChanges()`'s output.
 
 | Diary | Publication (per attendee's card; a group: one per card, one `booking_id`) |
