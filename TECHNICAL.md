@@ -9833,9 +9833,15 @@ of any link on the card). Unlinking removes every coach cycle and goal from the 
 those publications settled, so they never come back; folding them would show the coach a plan the client doesn't
 have.
 
-Each coach cycle's status comes from its latest publication: **on their phone** (applied), **not on their phone
-yet** (not pulled, or no sync since), or **held** with BLOC's note (§143's "Waiting for the client…" or "The client
-kept…", or an ordinary overlap).
+Each coach cycle's status comes from its latest `plan` publication (else its latest goal row): **on their phone**
+(applied), **not on their phone yet** (not pulled, or no sync since), or **held** with BLOC's note (§143's "Waiting
+for the client…" or "The client kept…", or an ordinary overlap). A later goal phase row about a held cycle only says
+"its cycle isn't on this phone", so it never names the reason.
+
+🚨 **With an upload, the phone's own ledger (`coachLedger`) decides, not the server's receipt.** BLOC sends a receipt
+once per ledger entry (`acked`). A state restored from another copy of the same account can carry a ledger that says
+"applied, receipt sent" while the server still holds an older copy's answer ("held: overlaps …"), and nothing ever
+corrects it. The receipt is read only when there is no upload.
 
 ### Drafts and publishing
 

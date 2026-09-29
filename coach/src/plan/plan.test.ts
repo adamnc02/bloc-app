@@ -72,6 +72,20 @@ describe('the baseline: the upload, plus publications it hasn’t applied', () =
     expect(c.coachOwned).toBe(true);
     expect(c.status).toMatchObject({ state: 'held', note: expect.stringMatching(/^Waiting for the client/) });
   });
+  it('the phone’s ledger wins over a stale server receipt, and the plan row names the reason (control: the receipt alone says held)', () => {
+    const doc = newCycle({ name: 'B', start: '2026-09-14', weeks: 2, weeksPerMeso: 1, goalType: 'gain', goal: '', targetBw: null, weightIncrement: '2.5', split: 'ppl', useMicrocycles: false, rpe: true }, ids());
+    const staleAck = { status: 'needs_attention' as const, note: 'Overlaps “Old” (from 2026-06-08).' };
+    const plan = pub('pl', 1, 'plan', diffPlan(null, doc).plan!, '2026-08-02T20:05:00Z', { ack: staleAck });
+    const phases = pub('gp', 2, 'goal_phases', { v: 1, macro_id: doc.macro.id, goals: [] }, '2026-08-02T20:05:00Z', { ack: { status: 'needs_attention', note: 'Its cycle isn’t on this phone yet.' } });
+    const onPhone = applied(fresh(), doc, [{ type: 'plan', payload: plan.payload }]); void onPhone;
+    const s = fresh() as BlocState & Record<string, unknown>;
+    s.macrocycles!.push({ ...(doc.macro as unknown as { id: string }), publishedBy: COACH } as never);
+    s.coachLedger = { pl: { status: 'applied' }, gp: { status: 'applied' } };
+    const c = foldPlan({ state: s, publications: [plan, phases], coachId: COACH, since: null }).find((x) => x.id === doc.macro.id)!;
+    expect(c.status!.state).toBe('applied');
+    const held = foldPlan({ state: null, publications: [plan, phases], coachId: COACH, since: null }).find((x) => x.id === doc.macro.id)!;
+    expect(held.status).toMatchObject({ state: 'held', note: staleAck.note }); // no upload: the receipt is all there is, and the plan row's reason leads
+  });
   it('a check-in’s goal changes are part of the baseline', () => {
     const g = { macroId: MACRO, macroGoalID: 'ci1', startDate: '2026-08-03', endDate: '2026-08-30', kcal: 1700, steps: 11000, protein: 190, carbs: 150, fats: 40, _blocLabel: 'Step 4 - Steady' };
     const p = pub('ai', 2, 'ai_response', { response_id: 'r', macro_id: MACRO, goal_changes: { goals: [g], remove_goal_ids: [`${MACRO}_g20260803`] } });

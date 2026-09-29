@@ -107,12 +107,13 @@ export function foldPlan({ state, publications, coachId, since }: FoldInput): Cy
     .sort((a, b) => a.seq - b.seq);
   const superseded = new Set(pubs.map((p) => p.supersedes).filter(Boolean) as string[]);
   const touched = new Map<string, CoachPublication>(); // macro id → its latest plan/goal publication
+  const planOf = new Map<string, CoachPublication>(); // macro id → its latest plan publication
 
   for (const p of pubs) {
     const pay = p.payload || {};
     const macroId = p.type === 'plan' ? ((pay.macrocycle as Loose)?.id as string) ?? firstMacroOfKeys(pay, s) : (pay.macro_id as string) ?? null;
     if (p.type === 'ai_response' && !(pay.goal_changes && typeof pay.goal_changes === 'object')) continue;
-    if (macroId) touched.set(macroId, p);
+    if (macroId) { touched.set(macroId, p); if (p.type === 'plan') planOf.set(macroId, p); }
     const settled = ledger[p.id]?.status;
     if (superseded.has(p.id) || settled === 'applied' || settled === 'superseded') continue;
     if (p.type === 'plan') applyPlan(s, pay, coachId);
@@ -126,14 +127,20 @@ export function foldPlan({ state, publications, coachId, since }: FoldInput): Cy
     .map((m): CycleEntry => {
       const doc = docOf(s, m, ids);
       const coachOwned = !!m.publishedBy;
-      const last = touched.get(m.id);
+      // The cycle's own (plan) publication says whether the phone has it; a
+      // later goal phase row only repeats "its cycle isn't on this phone".
+      const last = planOf.get(m.id) ?? touched.get(m.id);
       let status: CycleEntry['status'] = null;
       if (coachOwned && last) {
-        const l = ledger[last.id];
+        // 🚨 The upload's ledger is the phone's own record and wins over the
+        //    server's receipt. A receipt is sent once; a state restored from
+        //    another copy of the account can carry a ledger that says "sent"
+        //    while the server still holds an older answer.
+        const l = state ? ledger[last.id] : undefined;
         const ack = last.ack;
-        const held = (l && l.status === 'needs_attention') || ack?.status === 'needs_attention';
-        const applied = (l && l.status === 'applied') || ack?.status === 'applied';
-        status = held ? { state: 'held', note: (ack?.note ?? l?.note) || null, at: last.createdAt }
+        const held = l ? l.status === 'needs_attention' : ack?.status === 'needs_attention';
+        const applied = l ? l.status === 'applied' : ack?.status === 'applied';
+        status = held ? { state: 'held', note: (l ? l.note : ack?.note) || null, at: last.createdAt }
           : applied ? { state: 'applied', note: null, at: last.createdAt }
           : { state: 'waiting', note: null, at: last.createdAt };
       }
