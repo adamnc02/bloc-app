@@ -144,7 +144,7 @@ export function AiPanel({ v, m, state, tool, onTool, ai }: {
         </div>
       )}
 
-      {d && <FullSheet open={sheet === 'full'} d={d} data={data} first={first} onClose={() => setSheet(null)} />}
+      {d && <FullSheet open={sheet === 'full'} d={d} data={data} first={first} onClose={() => setSheet(null)} onEdit={() => { setSheet(null); setEditing(true); }} />}
       {d && sheet === 'publish' && (
         <PublishSheet d={d} data={data} state={state} today={today} first={first} onClose={() => setSheet(null)}
           onDone={(p, nd) => { addPub(p); addDraft(nd); setSheet(null); }} />
@@ -371,13 +371,14 @@ function PublishSheet({ d, data, state, today, first, onClose, onDone }: {
 
 // ---------------------------------------------------------------- full view
 
-function FullSheet({ open, d, data, first, onClose }: { open: boolean; d: AiDraft; data: AiData; first: string; onClose: () => void }) {
+function FullSheet({ open, d, data, first, onClose, onEdit }: { open: boolean; d: AiDraft; data: AiData; first: string; onClose: () => void; onEdit: () => void }) {
   const [show, setShow] = useState<'sent' | 'original'>('sent');
   const e = sentEdit(d);
   const { state: ps, pub } = publishState(d, data.publications);
   const r = d.original.response || {};
   return (
-    <Sheet open={open} onClose={onClose} title={`${TOOL_LABEL[d.tool].tab} · ${fmt.dm(d.createdAt.slice(0, 10))}`} wide>
+    <Sheet open={open} onClose={onClose} title={`${TOOL_LABEL[d.tool].tab} · ${fmt.dm(d.createdAt.slice(0, 10))}`} wide
+      actions={<IconButton icon="edit" label={`Edit ${TOOL_LABEL[d.tool].noun}`} round onClick={onEdit} />}>
       {isEdited(d) && (
         <Seg label="Version" value={show} onChange={setShow} options={[{ value: 'sent', label: ps === 'published' ? `What ${first} sees` : 'Your edit' }, { value: 'original', label: 'Original from BLOC' }]} />
       )}

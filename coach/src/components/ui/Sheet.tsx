@@ -5,10 +5,11 @@ import { Icon } from './Icon';
 /**
  * Bottom sheet (§5): scrim fades in, sheet slides up; handle, title row
  * (Sora 22 + 40px round close), content, primary action last.
- * Swipe down on the handle/title or tap the scrim to close.
+ * Swipe down on the handle/title or tap the scrim to close. `actions` sit
+ * beside the close button (round icon buttons, e.g. Edit).
  * On tablet/laptop the same component centres as a dialog.
  */
-export function Sheet({ open, title, onClose, children, wide, footer }: { open: boolean; title: ReactNode; onClose: () => void; children: ReactNode; wide?: boolean; footer?: ReactNode }) {
+export function Sheet({ open, title, onClose, children, wide, footer, actions }: { open: boolean; title: ReactNode; onClose: () => void; children: ReactNode; wide?: boolean; footer?: ReactNode; actions?: ReactNode }) {
   const [dy, setDy] = useState(0);
   const start = useRef<number | null>(null);
   const panel = useRef<HTMLDivElement>(null);
@@ -43,7 +44,10 @@ export function Sheet({ open, title, onClose, children, wide, footer }: { open: 
           <div className="handle" />
           <div className="sh-h">
             <h3>{title}</h3>
-            <button type="button" className="icon-btn round" aria-label="Close" onClick={onClose} onPointerDown={(e) => e.stopPropagation()}><Icon name="close" size={18} /></button>
+            <span style={{ display: 'flex', gap: 8, flexShrink: 0 }} onPointerDown={(e) => e.stopPropagation()}>
+              {actions}
+              <button type="button" className="icon-btn round" aria-label="Close" onClick={onClose}><Icon name="close" size={18} /></button>
+            </span>
           </div>
         </div>
         {children}
