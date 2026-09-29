@@ -50,7 +50,7 @@ export interface ClientBundle {
   card: ClientCard;
   link: ClientLink | null;
   invite: ClientInvite | null;
-  /** The client's own BLOC name, once linked (proposal §11 Q12: the client owns it). */
+  /** The client's own BLOC name, once linked: the client owns it. */
   profileName: { first: string | null; surname: string | null; preferred: string | null } | null;
   snapshot: ClientSnapshot | null;
   /** Why a linked client's upload couldn't be read, if it couldn't. */

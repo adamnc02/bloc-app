@@ -7,7 +7,7 @@
 // the bytea as its hex text form, `\x1f8b…`.
 //
 // 🚨 The coach evaluates a client at THE CLIENT'S local "today" (their `tz`),
-//    never the coach's own date (deep dive §2b; PROMPT-03 Phase 5). A coach
+//    never the coach's own date A coach
 //    in London at 08:00 on Monday is looking at a client in Auckland whose
 //    Monday is already over. Every engine call gets `{ today: clientToday }`.
 // ═══════════════════════════════════════════════════════════════════════

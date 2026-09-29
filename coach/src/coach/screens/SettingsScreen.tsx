@@ -9,12 +9,12 @@ declare const __COACH_VERSION__: string;
 export const COACH_VERSION = __COACH_VERSION__;
 
 /**
- * Settings (proposal §5.8; wireframe SettingsScreen), as far as Coach v0.1
+ * Settings, as far as Coach v0.1
  * goes: the account, the coach profile, the version and Sign out. Working
  * hours and days off come with the Diary, the AI key with the AI tools, and
- * notifications with Phase 6.
+ * notifications later.
  *
- * Sign out is Coach's only (proposal §11 Q15): `scope: 'local'` ends THIS
+ * Sign out is Coach's only: `scope: 'local'` ends THIS
  * device's Coach session and nothing else. The default, 'global', would
  * revoke every session of the account, BLOC's on every phone included.
  */

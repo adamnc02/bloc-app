@@ -17,10 +17,10 @@ const GOOGLE = (
 
 /**
  * Sign in: BLOC's sign-in screen (index.html #auth-gate), the same in every
- * part except the logo (Adam, 2026-09-29: "The login page should be the same
- * on both screens, except for the BLOC coach logo"). Same order: Continue
- * with Google, "or", Sign In / Sign Up tabs, email, password, "Sign In →",
- * Forgot password?. Styles: styles/auth.css, copied from BLOC's rules.
+ * part except the logo. Same order: Continue with Google, "or", Sign In /
+ * Sign Up tabs, email, password, "Sign In →", Forgot password?. Styles:
+ * styles/auth.css, which repeats BLOC's rules. A change to BLOC's gate is
+ * made here too.
  *
  * Coach keeps its OWN session on the device (lib/storage.ts), so signing in
  * here doesn't sign BLOC in, and signing out doesn't sign it out.

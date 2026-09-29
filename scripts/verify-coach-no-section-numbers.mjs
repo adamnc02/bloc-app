@@ -3,18 +3,15 @@
 // verify-coach-no-section-numbers.mjs — BLOC Coach's sections carry no
 // number badge (Coach v0.1, TECHNICAL §139)
 //
-// THE RULE (Adam, 2026-09-29, for the rest of the Coach build): the
-// wireframes' "01", "02" section badges were only there to document which
-// section was which. They are not part of the design, so no Coach screen
-// shows one.
+// THE RULE: a section is its title, an optional right slot and its sublabel.
+// No Coach screen numbers its sections ("01", "02" in an outlined badge).
 //
-// 🚨 THE TRAP: every wireframe screen still has them (`numberSections()`,
-//    `<Section n={n.list} …>`, a `.sec-n` span), and the build ports those
-//    screens' layouts (proposal §12). A screen copied across as it is would
-//    bring the badge back. So `Section` has no `n` prop and there is no
-//    `numberSections` to call, and this fails if either returns anywhere in
-//    coach/src, or if the `.sec-n` style or markup does.
-// Control: a wireframe-shaped screen and Section are caught.
+// 🚨 THE TRAP: a screen ported from a design that numbers its sections
+//    brings `numberSections()`, `<Section n={n.list} …>` and a `.sec-n` span
+//    with it. So `Section` has no `n` prop and there is no `numberSections`
+//    to call, and this fails if either returns anywhere in coach/src, or if
+//    the `.sec-n` style or markup does.
+// Control: a numbered screen and a numbered Section are caught.
 // ═══════════════════════════════════════════════════════════════════════
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -61,11 +58,11 @@ const dist = files('coach/dist', /\.(js|css)$/);
 const distHits = dist.filter(f => /\bsec-n\b/.test(read(f)));
 check(`the served build has no .sec-n (${dist.length} files)`, dist.length > 0 && distHits.length === 0, distHits.join(', '));
 
-// Control: the wireframes' shapes are caught.
-const wireframeScreen = `const n = numberSections(['list']);\n<Section n={n.list} i={2} title="Your clients" sub="…">`;
-const wireframeSection = `<span className="sec-n" aria-hidden="true">{String(n).padStart(2, '0')}</span><h2>{title}</h2> // Section`;
-check('control: a wireframe screen (numberSections, <Section n=…>) is caught', badges(wireframeScreen).length >= 2);
-check('control: the wireframe Section markup (.sec-n) is caught', badges(wireframeSection).includes('.sec-n'));
+// Control: the numbered shapes are caught.
+const numberedScreen = `const n = numberSections(['list']);\n<Section n={n.list} i={2} title="Your clients" sub="…">`;
+const numberedSection = `<span className="sec-n" aria-hidden="true">{String(n).padStart(2, '0')}</span><h2>{title}</h2> // Section`;
+check('control: a numbered screen (numberSections, <Section n=…>) is caught', badges(numberedScreen).length >= 2);
+check('control: numbered Section markup (.sec-n) is caught', badges(numberedSection).includes('.sec-n'));
 
 console.log(failures ? `\n✗ ${failures} check(s) failed` : '\nAll checks passed.');
 process.exit(failures ? 1 : 0);

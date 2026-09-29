@@ -6,11 +6,10 @@ import type { CoachProfile } from '@/data/types';
 import { initials } from '@/lib/format';
 
 /**
- * The coach profile (wireframe OnboardingScreen, step "profile"). Saving it
+ * The coach profile. Saving it
  * calls `create_coach_profile()` (0022): signing up in Coach is what makes
- * someone a coach, and nothing in BLOC can. The wireframes' later steps
- * (working hours, the AI key) come with the Diary and AI sub-phases; both
- * have defaults, so nothing is lost by skipping them now.
+ * someone a coach, and nothing in BLOC can. Working hours and the AI key
+ * have defaults and are set later, in Settings.
  */
 export function ProfileSetupScreen({ email, onDone }: { email: string; onDone: (p: CoachProfile) => void }) {
   const ref = useEntering<HTMLDivElement>('profile-setup');
@@ -60,9 +59,8 @@ export function ProfileSetupScreen({ email, onDone }: { email: string; onDone: (
 }
 
 /**
- * A coach profile that isn't active (wireframe OnboardingScreen, step
- * "pending"; proposal §11 Q18, "Status screen only"). v1 creates every coach
- * active, so this only holds the shape for the later approval step.
+ * A coach profile that isn't active (pending approval or suspended). Every
+ * coach is created active, so this holds the shape for a later approval step.
  */
 export function StatusScreen({ profile, email, onSignOut }: { profile: CoachProfile; email: string; onSignOut: () => void }) {
   const ref = useEntering<HTMLDivElement>('status');

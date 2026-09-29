@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// The dev bypass's clients (PROMPT-03 Phase 5; TECHNICAL §139).
+// The dev bypass's clients (TECHNICAL §139).
 //
 // Under the local-dev bypass (lib/host.ts) Coach has no Supabase client and
 // no account. Its clients are built here from BLOC's own demo dataset,
@@ -8,7 +8,7 @@
 // evaluated at the dataset's anchor date, never the machine's clock: the
 // demo's figures were engineered against that date (BLOC TECHNICAL §35).
 //
-// All names are fictional (the wireframes' fixtures). Nothing here is ever
+// All names are fictional. Nothing here is ever
 // sent anywhere: add, invite and profile edits change this page's memory only.
 // ═══════════════════════════════════════════════════════════════════════
 import { normaliseState, shiftDateStr, type BlocState } from '@engine';

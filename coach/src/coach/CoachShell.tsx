@@ -13,10 +13,10 @@ const TABS: { key: Exclude<CoachTab, null>; label: string; icon: IconName; to: s
 ];
 
 /**
- * Coach navigation (proposal §5): Today · Clients · Diary · Library.
+ * Coach navigation: Today · Clients · Diary · Library.
  * Bottom bar on a phone, side rail on a tablet or laptop.
  * Phone: Settings is reached from the account button, as in BLOC.
- * Tablet/laptop: Settings is its own item at the foot of the rail (§11).
+ * Tablet/laptop: Settings is its own item at the foot of the rail.
  */
 export function CoachShell({ tab, children }: { tab: CoachTab; children: ReactNode }) {
   return (

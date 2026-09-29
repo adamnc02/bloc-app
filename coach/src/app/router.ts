@@ -1,7 +1,6 @@
 // Coach's router: the hash, so GitHub Pages serves one index.html for every
 // screen (a path like /bloc-app/coach/clients would 404 there). Sign-in's
 // OAuth return uses PKCE's `?code=`, never the hash (lib/supabase.ts).
-// Replaces the wireframes' gallery router (proposal §12).
 import { useEffect, useState } from 'react';
 
 export type Route =

@@ -61,7 +61,7 @@ describe('link status and name', () => {
     expect(linkStatusOf({ ...base, link: { ...active, status: 'ended' }, invite })).toBe('invited');
     expect(linkStatusOf({ ...base, link: { ...active, status: 'ended' } })).toBe('unlinked');
   });
-  it('once linked, the client’s own BLOC name wins (§11 Q12)', () => {
+  it('once linked, the client’s own BLOC name wins', () => {
     const p = { first: 'Own', surname: 'Name', preferred: null };
     expect(displayName({ ...base, link: active, profileName: p })).toBe('Own Name');
     expect(displayName({ ...base, profileName: p })).toBe('Card Name');

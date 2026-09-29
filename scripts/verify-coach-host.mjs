@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // ═══════════════════════════════════════════════════════════════════════
 // verify-coach-host.mjs — BLOC Coach's dev bypass is BLOC's, exactly
-// (Coach v0.1, TECHNICAL §139; §82, §119; PROMPT-03 §0)
+// (Coach v0.1, TECHNICAL §139; §82, §119)
 //
 // THE RULE. Coach bypasses sign-in on the same hosts as BLOC, and `?auth=real`
 // turns it off the same way — never on. `isLocalDevHost()` is the engine's,

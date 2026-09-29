@@ -2,10 +2,8 @@ import type { CSSProperties, ReactNode } from 'react';
 import { Icon, type IconName } from './Icon';
 
 /**
- * Tinted notice panel, the shape of BLOC's Train deload banner (§6.2): icon,
- * bold title, one or two lines, optional trailing slot. Promoted from the
- * wireframes' two deliberate copies (coach/components/core/Notice and
- * bloc/components/bits), per COMPONENT-INVENTORY "Worth merging before the build".
+ * Tinted notice panel: icon, bold title, one or two lines, optional trailing
+ * slot. The same shape as BLOC's Train deload banner.
  */
 export function Notice({ icon, title, children, tone = 'acc', trailing, style }: {
   icon: IconName; title: ReactNode; children?: ReactNode; tone?: 'acc' | 'ice' | 'amber' | 'bad' | 'neutral'; trailing?: ReactNode; style?: CSSProperties;

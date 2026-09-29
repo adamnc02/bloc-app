@@ -8,9 +8,9 @@ import type { NewClient } from '@/data/types';
 const coachDay = (iso: string) => fmt.ddm(localDateIn(Intl.DateTimeFormat().resolvedOptions().timeZone, Date.parse(iso)));
 
 /**
- * + Add client (proposal §5.2; wireframe ClientSheets): creates the client's
+ * + Add client: creates the client's
  * card (`client_records`). "On the app?" decides what comes next: an invite
- * (code + link), or an in-person client the coach manages without the app (§5.7).
+ * (code + link), or an in-person client the coach manages without the app.
  */
 export function AddClientSheet({ open, onClose, onAdd, busy, error }: { open: boolean; onClose: () => void; onAdd: (c: NewClient) => void; busy?: boolean; error?: string | null }) {
   const id = useId();
@@ -49,7 +49,7 @@ async function copy(text: string) {
 }
 
 /**
- * Invite (proposal §5.2): a single-use code and a share link, both expiring
+ * Invite: a single-use code and a share link, both expiring
  * 7 days after they're made (0022 `create_invite`). The code is shown ONCE:
  * only its hash is stored, so it can never be read back. The link opens BLOC,
  * which asks for consent naming the coach (BLOC v8.37, TECHNICAL §129).

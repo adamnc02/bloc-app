@@ -1,8 +1,7 @@
 /**
- * Small weight sparkline for client rows (proposal §5.2): the client's
- * weigh-ins over the last 5 weeks up to THEIR today, with the cycle's target
- * as a dashed ice line. Rewritten from the wireframes' version, which read
- * the fixture clients directly (proposal §12): this one only draws points.
+ * Small weight sparkline for client rows: the client's weigh-ins over the
+ * last 5 weeks up to THEIR today, with the cycle's target as a dashed ice
+ * line. It only draws the points it's given.
  */
 export function WeightSparkline({ points, target, width = 96, height = 30 }: { points: { date: string; lbs: number }[]; target?: number | null; width?: number; height?: number }) {
   const pts = points.map((p) => p.lbs);

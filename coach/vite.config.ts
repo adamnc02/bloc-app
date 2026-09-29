@@ -1,5 +1,5 @@
 /// <reference types="vitest/config" />
-// BLOC Coach's build (PROMPT-03 Phase 5, TECHNICAL §139).
+// BLOC Coach's build (TECHNICAL §139).
 //
 //   · Served at /bloc-app/coach/: `base` below, and scripts/publish-files.txt
 //     maps coach/dist/ to coach/ on the live site.

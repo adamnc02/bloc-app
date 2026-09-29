@@ -3,10 +3,7 @@
    Shared by BLOC and BLOC Coach. Components read ONLY these variables.
 
    Values in the DARK block are copied exactly from the scope's §2.1 table.
-   LIGHT block: rows the scope gives a light value for are exact; the rows
-   the wireframes marked [PLACEHOLDER] ("keep existing") now carry BLOC's
-   real values from index.html's [data-mode="light"] block (PROMPT-03
-   proposal §12; Coach v0.1, TECHNICAL §139).
+   LIGHT block: BLOC's index.html [data-mode="light"] values (TECHNICAL §139).
    ===================================================================== */
 
 :root {

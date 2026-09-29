@@ -47,7 +47,7 @@ export function BlocLogo({ height = 28 }: { height?: number }) {
 /**
  * `fill`: the artwork spans its container's full width, edge to edge (the
  * padding is cropped to the artwork's measured bounds, 34 24 501.8 164), e.g. the sign-in screen, where the
- * logo is as wide as the buttons below it (Adam, 2026-09-29).
+ * logo is as wide as the buttons below it.
  */
 export function CoachLogo({ height = 40, fill }: { height?: number; fill?: boolean }) {
   return (

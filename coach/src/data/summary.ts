@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// One Clients-list row, worked out from a client's bundle (proposal §5.2).
+// One Clients-list row, worked out from a client's bundle.
 // Pure: "now" is a parameter, so the vitest cases and the fixtures pin it.
 //
 // 🚨 Every date about the CLIENT is the client's local date (clientState.ts
@@ -13,9 +13,9 @@ import { fmt, initials as toInitials } from '@/lib/format';
 import { localDateIn } from '@/lib/clientState';
 import type { ClientBundle } from './types';
 
-/** "Not synced for 48h": the first sign of drop-off (proposal §5.1). */
+/** "Not synced for 48h": often the first sign of drop-off. */
 export const STALE_SYNC_HOURS = 48;
-/** How far back the row's weight sparkline looks (the wireframes' 5 weeks). */
+/** How far back the row's weight sparkline looks: 5 weeks. */
 export const SPARKLINE_DAYS = 35;
 
 export interface CycleNow {

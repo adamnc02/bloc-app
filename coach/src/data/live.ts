@@ -6,8 +6,8 @@
 // `coach_id` filters only stop a coach who is ALSO someone's client from
 // seeing their own link as if it were a client's.
 //
-// 🚨 A client's name and contact belong to the client once linked (proposal
-//    §11 Q12; a 0022 trigger refuses the coach's change). Coach shows their
+// 🚨 A client's name and contact belong to the client once linked (a 0022
+//    trigger refuses the coach's change). Coach shows their
 //    BLOC profile's name then, and never writes the card's name fields for a
 //    linked client.
 // ═══════════════════════════════════════════════════════════════════════

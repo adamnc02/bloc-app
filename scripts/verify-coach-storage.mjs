@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // ═══════════════════════════════════════════════════════════════════════
 // verify-coach-storage.mjs — BLOC Coach never touches BLOC's storage
-// (Coach v0.1, TECHNICAL §139; deep dive D8; proposal §11 Q15)
+// (Coach v0.1, TECHNICAL §139)
 //
 // BLOC and BLOC Coach share one origin, adamnc02.github.io, so they share
 // localStorage. What this protects:

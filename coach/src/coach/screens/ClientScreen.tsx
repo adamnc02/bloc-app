@@ -9,7 +9,7 @@ import type { ClientBundle } from '@/data/types';
 /**
  * One client, as far as Coach v0.1 goes: who they are, their link, and the
  * cycle and week the engine finds at THEIR local today. Review, Plan,
- * Sessions and Profile (proposal §5.3) replace this page from 5b.
+ * Sessions and Profile replace this page.
  */
 export function ClientScreen({ id }: { id: string }) {
   const { repo } = useCoach();

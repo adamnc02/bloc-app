@@ -7306,7 +7306,7 @@ except a person running them by hand.
 `icon-512-maskable.png` and `bloc-demo-data.json`. The legacy mode served the whole repo, and
 `README.md`, `TECHNICAL.md` and `scripts/` are no longer served (Adam agreed, 2026-09-28). They're
 public on GitHub, and the app never loads them. Phase 2 adds the engine build to the list, and
-Phase 5 adds `coach/dist` (Coach v0.1, §139: a `coach/dist/ => coach/` mapping line).
+BLOC Coach's build is published from `coach/dist` (§139: a `coach/dist/ => coach/` mapping line).
 
 🚨 **The traps.**
 - **A file the app loads but the list forgets is a 404 on the live site.** The deep dive's first
@@ -9062,35 +9062,30 @@ affected: a drop set can't be a superset member (saving one into a superset make
 
 ---
 
-## §139 — Coach v0.1: BLOC Coach's scaffold, sign-in, dev bypass and Clients (PROMPT-03 Phase 5a)
+## §139 — Coach v0.1: BLOC Coach's scaffold, sign-in, splash, dev bypass and Clients
 
-**What it is.** BLOC Coach, the coach's app (proposal §5), in `coach/`: Vite + React + TypeScript,
-**served at `/bloc-app/coach/`**. This first version is the base every later sub-phase builds on:
-sign-in, the coach profile, the local-dev bypass with fixture clients, the Clients list with Add client
-and Invite, and a Settings shell. Today, Diary and Library are placeholders that say which sub-phase
-brings them.
+**What it is.** BLOC Coach is the coach's app, in `coach/`: Vite + React + TypeScript, **served at
+`/bloc-app/coach/`**. v0.1 has the splash, sign-in, the coach profile, the local-dev bypass with fixture
+clients, the Clients list with Add client and Invite, a single-client page, and Settings (account, coach
+profile, version, sign out). Today, Diary and Library are placeholders that say they're coming.
 
-**Phase 5's plan (Adam, 2026-09-28), one PR per sub-phase, Adam merges each:** 5a this; 5b the client
-frame and Review without AI, plus the outcome chip on Clients; 5c Review's AI tools and publishing
-`ai_response`; 5d Plan and Library (the first `SearchSheet`); 5e Diary and Sessions; 5f In person
-(the week-agenda picker, assigning, `session_log`); 5g Today and the rest of Settings.
+### Versioning
 
-### Versioning: Coach has its own number (Adam, 2026-09-28: "Coach v0.1, own number")
-
-Phase 0 let Coach PRs merge before Coach is released **only while BLOC's served bytes stay unchanged**
-(proposal §12). BLOC's version lives in `index.html`, so a BLOC bump would change them. So Coach is
-versioned on its own: **`coach/package.json`'s `version` is the one place**, and Vite writes it into
-the build (`__COACH_VERSION__`, the Settings chip). BLOC stays v8.43 through these PRs. Branches are
-`feature/coach-v0.N`. `verify-coach-build.mjs` checks the build carries the package version.
+Coach has its own version, separate from BLOC's. **`coach/package.json`'s `version` is the one place it
+lives**; Vite writes it into the build as `__COACH_VERSION__` (the Settings chip). A Coach release leaves
+BLOC's version, and every file BLOC serves, unchanged. Branches are `feature/coach-v0.N`.
+`verify-coach-build.mjs` checks the build carries the package version.
 
 ### The layout
 
 | Path | What |
 |---|---|
-| `coach/package.json`, `package-lock.json` | pinned: React 18.3.1 (the wireframes' version, so their components come across as is), Vite 8.3.1, TypeScript 7.0.2 (the engine's), vitest 5.0.2, `@supabase/supabase-js` 2.117.2 |
-| `coach/vite.config.ts` | `base: '/bloc-app/coach/'`; `@engine` → `../engine/src/index.ts` (**source**, never `engine/dist`, which is BLOC's); `@` → `src`; a dev/preview middleware that serves the repo's `bloc-demo-data(.dev).json` at `/bloc-app/…` so the fixtures never enter `dist` |
-| `coach/src/styles`, `components/ui`, `components/brand` | from the wireframes as they are (proposal §12), except `Section`'s number badge (below) and the sign-in screen, which is BLOC's (`styles/auth.css`). The 14 `[PLACEHOLDER]` light tokens now carry BLOC's real `[data-mode="light"]` values; `--scrim` is Coach's own. `Notice` is promoted into `components/ui` (inventory, "Worth merging") |
-| `coach/src/lib/host.ts` | the bypass (below) |
+| `coach/package.json`, `package-lock.json` | pinned: React 18.3.1, Vite 8.3.1, TypeScript 7.0.2 (the engine's), vitest 5.0.2, `@supabase/supabase-js` 2.117.2 |
+| `coach/vite.config.ts` | `base: '/bloc-app/coach/'`; `@engine` → `../engine/src/index.ts` (**source**, never `engine/dist`, which is BLOC's); `@` → `src`; a dev/preview middleware that serves the repo's `bloc-demo-data(.dev).json` at `/bloc-app/…`, so the fixtures never enter `dist` |
+| `coach/index.html` | the page, with the splash inline (below) |
+| `coach/src/styles` | tokens (dark and light, the light values equal to BLOC's `[data-mode="light"]`; `--scrim` is Coach's own), `ui.css`, `motion.css`, `shell.css`, and `auth.css` (the sign-in screen) |
+| `coach/src/components/ui`, `components/brand`, `components/charts` | the shared primitives (page anatomy, cards, buttons, sheets, `Notice`, hooks), the brand marks, the weight sparkline |
+| `coach/src/lib/host.ts` | the dev bypass (below) |
 | `coach/src/lib/storage.ts` | every Coach localStorage key (below) |
 | `coach/src/lib/supabase.ts` | the client: BLOC's project, Coach's session |
 | `coach/src/lib/clientState.ts` | reading `client_state`, and a zone's calendar date |
@@ -9102,54 +9097,73 @@ the build (`__COACH_VERSION__`, the Settings chip). BLOC stays v8.43 through the
 ### Published from the committed build
 
 `coach/dist/` is committed and served byte for byte, the engine's rule (§122) applied to Coach:
-`npm run build` in `coach/`, commit `dist/` with the source. The build was checked to be deterministic
-(two builds, identical bytes) and to embed no local paths.
+`npm run build` in `coach/`, then commit `dist/` with the source. The build is deterministic (two builds
+give identical bytes) and embeds no local paths.
 
-- **`scripts/publish-files.txt` has a second form:** `src/ => dest/` publishes every **git-tracked**
-  file under `src/` at `dest/`. The line is `coach/dist/ => coach/`, so the site serves
+- **`scripts/publish-files.txt` has a second form:** `src/ => dest/` publishes every **git-tracked** file
+  under `src/` at `dest/`. The line is `coach/dist/ => coach/`, so the site serves
   `/bloc-app/coach/index.html` and `/bloc-app/coach/assets/…`. `ci-assemble-site.sh` copies from
-  `git ls-files`, so an untracked file in `dist/` can never be published, and fails if the mapping has
-  no tracked files.
-- **`verify-publish-list.mjs`** also checks: the mapping's form; that it holds `index.html`; that no BLOC
-  file sits under `coach/`; and that every `/bloc-app/…` file the build's `index.html` loads is in the
-  build. Control: the real `index.html` with one extra asset tag is caught.
+  `git ls-files`, so an untracked file in `dist/` is never published, and it fails if the mapping has no
+  tracked files.
+- **`verify-publish-list.mjs`** also checks the mapping's form, that it holds `index.html`, that no BLOC
+  file sits under `coach/`, and that every `/bloc-app/…` file the build's `index.html` loads is in the
+  build. Control: the real `index.html` with one extra asset tag.
 - **CI** runs `npm ci --prefix coach` before the sweep. The deploy job builds nothing; it publishes the
   committed build the verify job proved current.
 
-🚨 **The trap is the engine's: editing `coach/src` without rebuilding.** Every other check would pass,
-and the site would serve the old Coach. `scripts/verify-coach-build.mjs` type-checks `coach/` (strict,
-including the engine source it imports), runs the vitest cases, rebuilds into a temporary folder, and
-fails unless the files and bytes equal the committed `dist/`, and unless every file there is
-committed. Control: the committed build with one byte changed. It needs `coach/node_modules`; a local
-sweep says `npm ci --prefix coach` if it's missing.
+🚨 **Editing `coach/src` without rebuilding** passes every other check while the site serves the old
+Coach. `scripts/verify-coach-build.mjs` type-checks `coach/` (strict, including the engine source it
+imports), runs the vitest cases, rebuilds into a temporary folder, and fails unless the files and bytes
+equal the committed `dist/` and every file there is committed. Control: the committed build with one byte
+changed. It needs `coach/node_modules`; a local sweep says `npm ci --prefix coach` if it's missing.
 
-🚨 **A Coach PR must leave BLOC's 8 served files byte-identical** (the Phase 0 condition). Check before
-the PR (`git diff --stat main -- index.html sw.js manifest.webmanifest engine/ bloc-demo-data.json '*.png'`
-is empty) and after the merge, by `curl` against `git show main:<file>`, `sw.js` above all.
+🚨 **A Coach release leaves BLOC's 8 served files byte-identical.** Before the PR,
+`git diff --stat main -- index.html sw.js manifest.webmanifest engine/ bloc-demo-data.json '*.png'` is
+empty; after the merge, `curl` each against `git show main:<file>`, `sw.js` above all.
+
+### The splash
+
+Coach's splash is the `bloc-splash` design's Coach version (BLOC's is §138). It paints **before the React
+bundle loads**, so it isn't a component: `coach/index.html` holds its CSS inline in `<head>`, then the
+`#splash` markup and its script at the top of `<body>`, before `#root`. The animation is pure CSS: the
+bars build, the REPEAT loop closes, BLOC slides in, the tagline drops away and COACH draws in. The script
+only times the hand-over, **8.5 s** (`SPLASH_MS`; 1.4 s with reduced motion), wires the ✕, fades, then
+**removes `#splash` from the page**. It plays on every fresh load (`qualifiesForSplash()`). React renders
+underneath it.
+
+🚨 **The sign-in screen sits above the splash** (`.auth-gate` z-index 10000 over the splash's 9999), as
+BLOC's `#auth-gate` does, so a signed-out coach never watches the splash behind the sign-in form. Vite
+minifies the inline CSS; the timeline is unchanged. The splash's green is `--splash-brand`, never the
+app's lavender (§94, §138).
+
+`scripts/verify-coach-splash.mjs` checks, on the served `coach/dist/index.html`: styles inline in
+`<head>`, `#splash` before `#root` with its script straight after, 8.5 s / 1.4 s, the ✕ wired, the
+self-removal, the sign-in screen's z-index above the splash's, and the brand green with no lavender.
+Control: the splash moved after `#root`.
 
 ### The dev bypass: BLOC's rule, BLOC's predicate
 
 Same hosts, same `?auth=real` (§82, §119). `isLocalDevHost()` is the engine's, imported as source.
-`isRealAuthRequested()` / `isDevBypassActive()` live in BLOC's `index.html`, not the engine, and
-moving them would change BLOC's served bytes, so `host.ts` **carries a copy**.
+`isRealAuthRequested()` / `isDevBypassActive()` live in BLOC's `index.html`, not the engine, so `host.ts`
+**carries a copy** (moving them would change BLOC's served bytes).
 
 🚨 **The copy can't drift:** `scripts/verify-coach-host.mjs` strips `host.ts`'s types with the engine's
 esbuild and runs Coach's two functions against BLOC's (extracted from `index.html`) over 19 hosts × 11
 queries, and fails on any difference. It also checks Coach's page constants (bypass only on a local
 host; LIVE DATA only with `?auth=real` there), that **no Coach source reads `import.meta.env`** (never
-Vite's mode: a production build previewed on a LAN IP must bypass), that `host.ts` imports the engine's
-predicate rather than defining one, and that `getSupabase()` returns null under the bypass. Controls:
-the two wrong switches from §119, and a file keying the bypass on `import.meta.env.DEV`.
+Vite's mode: a production build previewed on a LAN IP must still bypass), that `host.ts` imports the
+engine's predicate rather than defining one, and that `getSupabase()` returns null under the bypass.
+Controls: the two wrong switches from §119, and a file keying the bypass on `import.meta.env.DEV`.
 
-**Bypass on:** no Supabase client at all. The coach is the fixture `dev-local-coach` ("Rowan Price") and
-the clients are built from **`bloc-demo-data.dev.json`**, if the developer has one, else the tracked
-`bloc-demo-data.json` (the same order as BLOC). Every fixture is evaluated at the dataset's anchor
-(`_devAnchorDate`, else 2 Aug 2026, §35), never the machine's date. The fixtures' "now" is the anchor
-at 20:10 UTC, so Grace (Pacific/Auckland) is already on the next day. That's the case that proves the
+**Bypass on:** no Supabase client at all. The coach is the fixture `dev-local-coach` ("Rowan Price"), and
+the clients are built from **`bloc-demo-data.dev.json`** if the developer has one, else the tracked
+`bloc-demo-data.json` (BLOC's order). Every fixture is evaluated at the dataset's anchor
+(`_devAnchorDate`, else 2 Aug 2026, §35), never the machine's date. The fixtures' "now" is the anchor at
+20:10 UTC, so Grace (Pacific/Auckland) is already on the next day: the case that exercises the
 client's-today rule. The set: Maya (the demo, a coach-published cycle), Tom (his own cycle two weeks
 behind, 60 h since sync), Grace (Auckland, week 1), Ben (linked, never synced), Sam (invited), Leah
-(unlinked), Eileen (in person). Add, invite and profile edits change the page's memory only. The console
-shows one 404 under the bypass when there's no `.dev` file: the fallback, as in BLOC.
+(unlinked), Eileen (in person). Add, invite and profile edits change the page's memory only. Without a
+`.dev` file the console shows one 404: the fallback, as in BLOC.
 
 A tag at the top says which data a local build is on: **FIXTURE CLIENTS · LOCAL BUILD**, or BLOC's red
 **LIVE DATA · LOCAL BUILD** with `?auth=real`.
@@ -9165,133 +9179,101 @@ all in `scripts/verify-coach-storage.mjs`:
   as "signed in to BLOC" and skips painting its sign-in gate. The verify reads that regex from
   `index.html` and tests every Coach key and supabase-js's `-code-verifier` / `-user` companions against it.
 - **Every Coach key starts `blocCoach_`**, every storage call names a `KEYS` entry, no Coach code names a
-  `bloc_` key, and Coach never clears storage wholesale (deep dive D8).
+  `bloc_` key, and Coach never clears storage wholesale.
 
-🚨 **Sign-out is `scope: 'local'`.** supabase-js's default, `'global'`, revokes **every** session the account
-has, which is BLOC's on every phone. `'local'` ends this device's Coach session only (proposal §11 Q15:
-"Coach only; key kept"). The verify requires it on every `signOut` call. Control: a bare `signOut()`.
+🚨 **Sign-out is `scope: 'local'`.** supabase-js's default, `'global'`, revokes **every** session the
+account has, BLOC's on every phone included. `'local'` ends this device's Coach session only; BLOC stays
+signed in and nothing else on the device is cleared. The verify requires it on every `signOut` call.
+Control: a bare `signOut()`.
 
-- **PKCE** (`flowType: 'pkce'`): Google and the confirmation email return with `?code=`, never in the hash,
-  which the router owns.
-- **Email and password, or Google.** Google comes back only to a URL on the project's Redirect URLs list
-  (Auth → URL Configuration); otherwise Supabase sends it to the Site URL, BLOC. **`https://adamnc02.github.io/bloc-app/coach/`
-  must be on that list** before Google sign-in works on the live Coach (a local build signs in by email,
-  §119).
-- 🚨 **The sign-in screen IS BLOC's** (Adam, 2026-09-29: *"The login page should be the same on both
-  screens, except for the BLOC coach logo"*). `SignInScreen.tsx` is index.html's `#auth-gate` in React:
+- 🚨 **The sign-in screen is BLOC's**, with the Coach logo as the only difference. `SignInScreen.tsx` is
+  `index.html`'s `#auth-gate` in React: the logo (as wide as the buttons), "Sign in to continue",
   Continue with Google (BLOC's Google mark), "or", Sign In / Sign Up tabs, Email, Password, "Sign In →",
-  Forgot password?, the same error and status lines; only the logo is Coach's. `styles/auth.css` copies
-  BLOC's rules for it, and the `.btn` / input rules it inherits there, value for value. **Change BLOC's
-  gate, change Coach's too.** The first v0.1 build used the wireframes' page layout (a hero, numbered
-  sections, a separate unbranded Google button) and was rejected in UAT.
-- **Forgot password?** sends the reset link to **BLOC's** live URL, not Coach's: it's the same account,
-  the link signs you in to BLOC, and BLOC's Settings is where a password changes. Coach has no password
-  screen, so a link back to Coach would sign you in with no way to set one.
-- **The gate** (`App.tsx`): signed out → sign in; signed in with no coach profile → **Your coach profile**,
-  whose Continue calls `create_coach_profile()` (0022, idempotent). That's what makes someone a coach, and
-  only Coach calls it. A profile that isn't `active` → the status screen (§11 Q18); v1 creates every coach
-  active.
+  Forgot password?, and the same error and status lines. `styles/auth.css` repeats BLOC's rules for it,
+  and the `.btn` / input rules it inherits there, value for value. **A change to BLOC's gate is made to
+  Coach's too.**
+- **Forgot password?** sends the reset link to **BLOC's** live URL: it's the same account, the link
+  signs you in to BLOC, and BLOC's Settings is where a password changes. Coach has no password screen.
+- **PKCE** (`flowType: 'pkce'`): Google and the confirmation email return with `?code=`, never in the
+  hash, which the router owns.
+- **Google comes back only to a URL on the project's Redirect URLs list** (Auth → URL Configuration);
+  otherwise Supabase sends it to the Site URL, BLOC. `https://adamnc02.github.io/bloc-app/coach/` must be
+  on that list for Google sign-in on the live Coach. A local build signs in by email (§119).
+- **The gate** (`App.tsx`): signed out → sign in; signed in with no coach profile → **Your coach
+  profile**, whose Continue calls `create_coach_profile()` (0022, idempotent). That call is what makes
+  someone a coach, and only Coach makes it. A profile that isn't `active` → a status screen; every coach
+  is created `active`.
 
 ### Reading clients (`data/live.ts`)
 
-All reads are RLS-scoped to the coach (0022 `my_coach_id()`, 0023 `is_active_coach_of()`). The
-`coach_id` filters on `coach_clients` and `invite_codes` only stop a coach who is also someone's client
-from seeing their own link as a client's.
+All reads are RLS-scoped to the coach (0022 `my_coach_id()`, 0023 `is_active_coach_of()`). The `coach_id`
+filters on `coach_clients` and `invite_codes` only stop a coach who is also someone's client from seeing
+their own link as a client's.
 
 - Cards (`client_records`, not archived), links (`coach_clients`; for a card with an ended link and a
   re-invite, the active one wins), unused invites (`invite_codes`; the code itself is only ever a hash).
-- For active links: `profiles` (**once linked, the client's own name wins**, §11 Q12; Coach never writes a
-  linked card's name) and the newest `client_state` per client. The metadata comes first; the `state_gz`
-  of the newest rev only, decoded once per `(user, hash)`.
+- For active links: `profiles` (**once linked, the client's own name is shown**; Coach never writes a
+  linked card's name, and 0022's trigger refuses it) and the newest `client_state` per client. The
+  metadata comes first, then the `state_gz` of the newest rev only, decoded once per `(user, hash)`.
 - **Decoding** (`lib/clientState.ts`): PostgREST returns the bytea as `\x…` hex → `DecompressionStream('gzip')`
-  → sha-256 of the text must equal `state_hash` (**an upload that doesn't match its hash is refused**,
+  → the sha-256 of the text must equal `state_hash` (**an upload that doesn't match its hash is refused**,
   never shown as the client) → `normaliseState()`, as BLOC's `load()` does.
 - **Link status**, in this order: an active link → Linked; else an unused invite → Invited (expired or
-  not); else an ended link → Unlinked; else Not on the app. The "Not on the app" filter includes Unlinked,
-  as the hero does.
+  not); else an ended link → Unlinked; else Not on the app. The "Not on the app" filter includes
+  Unlinked, as the hero does.
 
 ### The client's today
 
 🚨 **Every engine call about a client gets `{ today }` in the client's zone**, `localDateIn(tz, now)` from
-the `tz` BLOC uploads (deep dive §2b). The coach's own date is used only for the coach's own things: an
-invite's expiry, "last synced", an unlink date. `summary.test.ts`'s control: Grace judged at the coach's
-London date hasn't started her cycle, while at her own Auckland date she's in week 1.
+the `tz` BLOC uploads. The coach's own date is used only for the coach's own things: an invite's expiry,
+"last synced", an unlink date. `summary.test.ts`'s control: Grace judged at the coach's London date
+hasn't started her cycle, while at her own Auckland date she's in week 1.
 
 **A row** (`summarise()`): the cycle is the engine's `getDateActiveMacroId()` at that today, and its week
 is `floor(dayDiff(start, today) / 7) + 1`, capped at `getMacroDurationWeeks()`. A cycle the coach
-published (BLOC stamps `publishedBy`, §131) shows by name; otherwise "Own cycle" (§4.1: a Solo cycle runs
-until the coach publishes one). With no active cycle: "Next cycle starts …" or "No active cycle". The
-sparkline is the weigh-ins in the 35 days to their today, with the cycle's `targetBw` dashed. **48 h**
-without a sync is flagged (`STALE_SYNC_HOURS`, proposal §5.1).
+published (BLOC stamps `publishedBy`, §131) shows by name; otherwise "Own cycle" (a client's Solo cycle
+runs until the coach publishes one). With no active cycle: "Next cycle starts …" or "No active cycle".
+The sparkline is the weigh-ins in the 35 days to their today, with the cycle's `targetBw` dashed. **48 h**
+without a sync is flagged (`STALE_SYNC_HOURS`).
 
-🔜 Where the wireframe row has the **outcome chip**, v0.1 shows the link status, and where it has the
-**next session**, "last synced". The outcome comes with Review (5b, which also adds the "Off track"
-filter), the next session with the Diary (5e).
+v0.1 shows the **link status** where the row will show the outcome, and **"last synced"** where it will
+show the next session; the outcome and the "Off track" filter come with Review, the next session with the
+Diary.
 
 ### Add client and Invite
 
-- **Add client** inserts a `client_records` row (first word as `first_name`, the rest `surname`; an `@`
-  makes the contact an email, else a phone). "Yes, on BLOC" then calls `create_invite()`.
+- **Add client** inserts a `client_records` row (the first word as `first_name`, the rest `surname`; an
+  `@` makes the contact an email, else a phone). "Yes, on BLOC" then calls `create_invite()`.
 - 🚨 **The code is shown once.** Only its hash is stored (0022), so the sheet says so, and tapping an
   invited client offers **Make a new code**, which replaces the old one (one live code per card).
 - **The link is the live BLOC**, `https://adamnc02.github.io/bloc-app/?invite=XXXX-XXXX` (§129), even from
-  a local build: redeeming is the client's step, on their phone. BLOC normalises the code, so the dash
-  is fine.
-- Share text: "Link to me as your coach in BLOC. Your code is …". The wireframe's "Join me on BLOC Coach"
-  was wrong: the client never uses Coach.
+  a local build: redeeming is the client's step, on their phone. BLOC normalises the code, so the dash is
+  fine.
+- Share text: "Link to me as your coach in BLOC. Your code is …". The client never uses Coach.
 
-### The splash (the `bloc-splash` design, Coach version)
+### Sections carry no number badge
 
-Ported exactly as the design's `PORTING.md` says (the files live in the tracking folder,
-`bloc-app/bloc-splash/`, beside BLOC's version, §138). It must paint **before the React bundle loads**,
-so it isn't a component: `coach/index.html` has `bloc-coach-splash.css` inline in `<head>`, then the
-`#splash` markup and its script at the top of `<body>`, before `#root`. The animation is pure CSS (the
-bars build, the REPEAT loop, BLOC slides in, the tagline drops away, COACH draws in). The script only
-times the hand-over, **8.5 s** (`SPLASH_MS`; 1.4 s with reduced motion), wires the ✕, fades, then
-**removes `#splash` from the page**. It plays on every fresh load (`qualifiesForSplash()`, as BLOC). The
-app isn't held back behind it; React renders underneath.
-
-🚨 **The sign-in screen sits above the splash** (`.auth-gate` z-index 10000 over the splash's 9999), as
-BLOC's `#auth-gate` does, so a signed-out coach never watches the splash behind the sign-in form. Vite
-minifies the inline CSS; the timeline is unchanged. **The palette split holds** (§94, §138): the splash's
-green is `--splash-brand`, never the app's lavender.
-
-**Check:** `scripts/verify-coach-splash.mjs`, on the served `coach/dist/index.html`: styles inline in
-`<head>`, `#splash` before `#root` with its script straight after, 8.5 s / 1.4 s, the ✕ wired, the
-self-removal, the sign-in screen's z-index above the splash's, and the brand green with no lavender.
-Control: the splash moved after `#root`. Driven in Chromium: at 7 s the full COACH lock-up; at 9.7 s
-`#splash` is gone and Clients shows; ✕ removes it at once; with `?auth=real` the sign-in screen is
-topmost from the first second.
-
-### No section number badges (Adam, 2026-09-29, for the whole Coach build)
-
-The wireframes number every section ("01", "02" in an outlined badge before the title). Adam: those were
-*"just illustrative, a way of documenting what each section was"*. **No Coach screen shows one.** A section
-is its title, an optional right slot, and its sublabel.
-
-🚨 **The trap is porting a wireframe screen as it is** (proposal §12 reuses every screen's layout), which
-brings `numberSections()` and `<Section n={…}>` with it. So the badge is gone at the source: `Section` has
-**no `n` prop**, `numberSections` doesn't exist, and `.sec-n` is out of `ui.css`. A ported screen that
-still passes `n` fails the type-check. `scripts/verify-coach-no-section-numbers.mjs` fails if any of them
-returns in `coach/src` or the served build. Controls: a wireframe screen and the wireframe `Section`
-markup.
+A section is its title, an optional right slot, and its sublabel. **No Coach screen numbers its sections.**
+`Section` has **no `n` prop**, there is no `numberSections()`, and there is no `.sec-n` style, so a screen
+that passes a number fails the type-check. `scripts/verify-coach-no-section-numbers.mjs` fails if any of
+them appears in `coach/src` or the served build. Controls: a screen using `numberSections()` and
+`<Section n={…}>`, and `.sec-n` markup.
 
 ### 375pt (§116)
 
-Measured in headless Chromium at 375 × 812 against the assembled site: no horizontal scroll and no
-truncated row text. The first layout lost the week ("Weight Loss 2026 · week…") beside the sparkline, so
-the cycle line takes the row's full width and the sparkline sits on the shorter "last synced" line. On a
-laptop the rows are a table (Client, Status, Weight trend, Cycle, Synced).
+At 375 × 812 there's no horizontal scroll and no truncated row text. The stacked row gives the cycle line
+the row's full width (beside an 84px sparkline, "Weight Loss 2026 · week 8 of 14" lost its week), and the
+sparkline sits on the shorter "last synced" line. On a laptop the rows are a table (Client, Status, Weight
+trend, Cycle, Synced).
 
 ### Checks
 
-- `verify-coach-build.mjs`: tsc, the vitest cases, rebuild == committed `dist/`, the version (above).
-- `verify-coach-host.mjs`: the bypass (above).
-- `verify-coach-storage.mjs`: the keys and sign-out (above).
-- `verify-publish-list.mjs`: the mapping (above).
-- `verify-coach-no-section-numbers.mjs`: no section badges (above).
-- `verify-coach-splash.mjs`: the splash (above).
+- `verify-coach-build.mjs`: tsc, the vitest cases, rebuild == committed `dist/`, the version.
+- `verify-coach-host.mjs`: the bypass.
+- `verify-coach-storage.mjs`: the keys and sign-out.
+- `verify-coach-splash.mjs`: the splash.
+- `verify-coach-no-section-numbers.mjs`: no section badges.
+- `verify-publish-list.mjs`: the mapping.
 - `coach/src/data/summary.test.ts` (vitest, 12 cases): each fixture's row at the tracked anchor, the
-  client's-today control, link-status precedence, the client's own name once linked, and decoding with
-  a refused hash as the control.
-
+  client's-today control, link-status precedence, the client's own name once linked, and decoding with a
+  refused hash as the control.

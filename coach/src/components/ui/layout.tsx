@@ -26,12 +26,11 @@ export function Hero({ children, onClick, label, style, className = '' }: { chil
 }
 
 /**
- * Section (§3): a title, an optional right slot, and a sublabel that is
- * always present.
- * 🚨 No number badge (Adam, 2026-09-29): the wireframes' "01", "02" badges were
- *    only there to document the sections, and are not part of the design.
- *    There is no `n` prop, so a screen ported from the wireframes can't carry
- *    one over; scripts/verify-coach-no-section-numbers.mjs checks it.
+ * Section: a title, an optional right slot, and a sublabel that is always
+ * present.
+ * 🚨 Sections carry no number badge. There is no `n` prop, so a screen that
+ *    passes one fails the type-check; scripts/verify-coach-no-section-numbers.mjs
+ *    checks it (TECHNICAL §139).
  */
 export function Section({ title, sub, slot, i, children, className = '', id }: {
   title: string; sub: ReactNode; slot?: ReactNode; i: number; children: ReactNode; className?: string; id?: string;

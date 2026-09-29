@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// BLOC Coach's local-dev bypass (TECHNICAL §82, §119, §139; PROMPT-03 §0).
+// BLOC Coach's local-dev bypass (TECHNICAL §82, §119, §139).
 //
 // The SAME rule as BLOC, on the SAME predicate:
 //   · isLocalDevHost() is the engine's (engine/src/host.ts), imported as

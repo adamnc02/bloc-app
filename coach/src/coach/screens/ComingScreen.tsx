@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import { EmptyState, Page, PageHeader, useEntering } from '@/components/ui';
 import { CoachShell, AccountButton, type CoachTab } from '@/coach/CoachShell';
 
-/** A tab that later sub-phases of PROMPT-03 Phase 5 build. Says so rather than pretending. */
+/** A tab not built yet. Says so rather than pretending. */
 export function ComingScreen({ tab, title, sub }: { tab: CoachTab; title: string; sub: string }) {
   const ref = useEntering<HTMLDivElement>(`coming-${title}`);
   return (

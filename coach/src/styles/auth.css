@@ -1,9 +1,8 @@
 /* =====================================================================
-   The sign-in screen: BLOC's #auth-gate, copied rule for rule from
-   index.html (the "AUTH GATE" block, plus the .btn / .btn-accent /
-   .btn-block and input rules it inherits there), scoped under .auth-gate.
-   🚨 Adam, 2026-09-29: "The login page should be the same on both screens,
-   except for the BLOC coach logo." Change BLOC's gate, change this too.
+   The sign-in screen: BLOC's #auth-gate, rule for rule from index.html
+   (the "AUTH GATE" block, plus the .btn / .btn-accent / .btn-block and
+   input rules it inherits there), scoped under .auth-gate. The logo is
+   the one difference. A change to BLOC's gate is made here too.
    Values are BLOC's tokens (--r-sm 4px, --r-btn-sm 12px, --r-btn 14px).
    ===================================================================== */
 .auth-gate {
@@ -17,7 +16,7 @@
   font-family: var(--font-body); font-size: 14px; color: var(--text);
 }
 .auth-gate-inner { width: 100%; max-width: 360px; margin: auto; }
-.auth-gate-logo { width: 100%; margin-bottom: 12px; } /* Coach's one difference: the logo, as wide as the buttons (Adam, 2026-09-29) */
+.auth-gate-logo { width: 100%; margin-bottom: 12px; } /* the one difference from BLOC: the Coach logo, as wide as the buttons */
 .auth-gate-tagline {
   font-size: 13px; color: var(--text2); text-align: center;
   margin: 6px 0 28px;

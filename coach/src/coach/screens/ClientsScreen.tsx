@@ -13,7 +13,7 @@ import { summarise, type ClientSummary } from '@/data/summary';
 import type { ClientBundle, NewClient, NewInvite } from '@/data/types';
 import type { LinkStatus } from '@/domain/types';
 
-// 🔜 5b adds "Off track" (proposal §5.2's full set), once Review's outcome model exists.
+// 🔜 "Off track" joins the filters once Review's outcome model exists.
 export type ClientFilter = 'all' | 'invited' | 'not-on-app';
 const FILTERS: { value: ClientFilter; label: string; test: (c: ClientSummary) => boolean }[] = [
   { value: 'all', label: 'All', test: () => true },
@@ -40,14 +40,14 @@ function syncText(c: ClientSummary): string {
 }
 
 /**
- * Clients (proposal §5.2; wireframe ClientsScreen). Each row: the client's
+ * Clients. Each row: the client's
  * name and link status, their cycle and week at THEIR local today, a 5-week
  * weight sparkline, and when they last synced. Table-like on a laptop,
  * stacked on a phone.
  *
- * 🔜 Coach v0.1 shows the link status where the wireframe has the outcome
- *    chip, and "last synced" where it has the next session: the outcome comes
- *    with Review (5b), the next session with the Diary (5e).
+ * 🔜 The link status stands where the outcome chip will go, and "last
+ *    synced" where the next session will: the outcome comes with Review, the
+ *    next session with the Diary.
  */
 export function ClientsScreen() {
   const { repo } = useCoach();

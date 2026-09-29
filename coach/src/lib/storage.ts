@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// Every key BLOC Coach keeps in localStorage (deep dive D8; TECHNICAL §139).
+// Every key BLOC Coach keeps in localStorage (TECHNICAL §139).
 //
 // 🚨 BLOC and BLOC Coach share ONE origin (adamnc02.github.io), so they share
 //    localStorage. Three rules, and scripts/verify-coach-storage.mjs checks
@@ -12,8 +12,7 @@
 //      BLOC's pre-paint check (index.html, §60) treats any such key as "signed
 //      in to BLOC" and would skip painting its sign-in gate.
 //    Signing out of Coach clears only Coach's session; BLOC on the same device
-//    stays signed in, and the coach's AI key stays for next time (proposal §11
-//    Q15, "Coach only; key kept").
+//    stays signed in, and the coach's AI key stays for next time.
 // ═══════════════════════════════════════════════════════════════════════
 
 export const KEYS = {
