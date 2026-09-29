@@ -9774,7 +9774,7 @@ publications were applied into it and receipted from it (§131). A test account 
 way; its coach's receipts still name that account's cycles (Coach reads the upload's own ledger first for this reason,
 §144).
 
-**The fix.** The device records the account its local data belongs to: `bloc_state_owner` = `{uid, email, at}`
+**The fix.** The device records the account its local data belongs to: `bloc_state_owner` = `{uid, at}`
 (`bloc_state_owner_authreal` on a local `?auth=real` build, beside its own state key, §119). In `onAuthResolved()`,
 before anything else runs for a session (`localOwnerVerdict()`):
 
@@ -9783,28 +9783,26 @@ before anything else runs for a session (`localOwnerVerdict()`):
 | none | any | this account claims it (every install before v8.46, and a fresh one), then boots as before |
 | this account | any | boots as before |
 | another account | none (`devBypassHasRealData`) | claimed, boots as before: nothing to protect |
-| another account | yes | **nothing runs**: no full sync, snapshot, coach link check (so no `client_state` upload and no publication pull), no boot. The switch screen opens |
+| another account | yes | **it switches, with no screen**: nothing runs for the session (no full sync, snapshot, coach link check, so no `client_state` upload and no publication pull, no boot); `performAccountSwitch()` removes the account's own local keys (`ACCOUNT_LOCAL_KEYS`: the state, the snapshot and restore flags, the `client_state` meta, the coach link), records the new owner and reloads. The device is then empty for the signed-in account, and the new-device restore (§133) brings back its own newest backup, or it starts fresh. The device's own keys stay: its id, push registration, the AI key, theme |
+
+🚨 **Automatic, and another account is never shown.** Signing in means "load this account's data"; the device's
+leftover data is ignored. The owner record holds a uid only.
+
+🚨 **Signing out backs the account up first** (`signOutUser()` calls `uploadSnapshot()` before `auth.signOut()`, while
+the session can still write its own backup), so a later sign-in by someone else on the device loses nothing of it.
+Best effort: an empty device, the Demo Tour or no connection skip it, and the daily backup (§57) still stands.
 
 🚨 **Installs are signed in when they update**, so the first v8.46 boot records the account already using the device.
 Only a device that was signed out before updating, holding someone's data, is claimed by whoever signs in next,
 exactly as before.
 
-**The switch screen** (`#account-switch`, above the sign-in gate): "This device has someone else's data", naming both
-accounts, then:
-- **Save a copy of this data first**: the normal backup file (`exportData()`), as often as wanted;
-- **Switch to {email}**: removes the account's own local keys (`ACCOUNT_LOCAL_KEYS`: the state, the snapshot and
-  restore flags, the `client_state` meta, the coach link), records the new owner and reloads. The device is then
-  empty for that account, and the new-device restore (§133) brings back its own newest backup, or it starts fresh.
-  The device's own keys stay: its id, its push registration, the AI key, theme;
-- **Sign out instead**: a local sign-out (`scope: 'local'`), and the data stays as it was.
-
-**Every writer refuses while the switch is pending** (`accountSwitchBlocks()`): `flushSyncQueue`,
-`forceFullRelationalSync`, `uploadSnapshot`, `maybeUploadOpportunisticSnapshot`, `pullPublicationsOnce`,
-`sendPendingAcks`, `uploadClientStateOnce`, `maybeRefreshCoachLink`. A sign-out and sign-in on the same page (boot
-already done, the old account's data still in memory) takes the same route.
+**Every writer refuses from the moment another account's data is found until the reload** (`accountSwitchBlocks()`):
+`flushSyncQueue`, `forceFullRelationalSync`, `uploadSnapshot`, `maybeUploadOpportunisticSnapshot`,
+`pullPublicationsOnce`, `sendPendingAcks`, `uploadClientStateOnce`, `maybeRefreshCoachLink`. A sign-out and sign-in on
+the same page (boot already done, the old account's data still in memory) takes the same route.
 
 **Check:** `scripts/verify-account-switch.mjs` drives A → B → A through the real functions: a device from before v8.46
-claimed; B over A's data runs nothing and opens the screen naming both; a token refresh changes nothing; Switch
-clears the account's keys and keeps the device's, records B and reloads; B then boots; A over B's data is blocked the
-same way; an empty device is claimed without asking; every writer guarded; the screen above the gate; a local
-sign-out. Control: v8.45 (`85ddc8b`) runs B's full sync over A's data.
+claimed; B over A's data runs nothing and switches at once, with no screen; the account's keys cleared and the
+device's kept, B recorded, reload; B then boots; A over B's data the same; the owner record holds no email; an empty
+device claimed; every writer guarded; sign-out backs up before signing out. Control: v8.45 (`85ddc8b`) runs B's full
+sync over A's data.

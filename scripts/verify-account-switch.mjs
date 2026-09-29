@@ -11,13 +11,18 @@
 //
 // THE RULES:
 //   · The device records whose data is local (bloc_state_owner).
-//   · A sign-in by ANOTHER account while that data is here runs nothing:
-//     no mirror push, no snapshot, no coach link refresh (so no client_state
-//     upload and no publication pull). The switch screen opens instead.
-//   · Switch clears only the account's local keys (state, snapshot flags,
-//     client_state meta, coach link), keeps the device's own (device id,
-//     push registration, the AI key), records the new owner and reloads, so
-//     the new-device restore (§133) brings back that account's own backup.
+//   · A sign-in by ANOTHER account while that data is here runs nothing (no
+//     mirror push, no snapshot, no coach link refresh, so no client_state
+//     upload and no publication pull) and switches AT ONCE, with no screen:
+//     only the account's local keys go (state, snapshot flags, client_state
+//     meta, coach link), the device's own stay (device id, push
+//     registration, the AI key), the new owner is recorded and the page
+//     reloads, so the new-device restore (§133) brings back that account's
+//     own backup.
+//   · Another account's identity is never shown or stored: the owner record
+//     is a uid.
+//   · Signing out backs the account up first, while it can still write its
+//     own backup, so nothing it changed on this device is lost.
 //   · No owner recorded (an install before v8.46, or a fresh one), or nothing
 //     on the device: the account signing in claims it, as before.
 //   · Every writer refuses while the switch is pending.
@@ -65,7 +70,7 @@ function extractConst(source, name) {
 }
 
 const FNS = ['onAuthResolved', 'devBypassHasRealData'];
-const NEW = ['stateOwnerGet', 'stateOwnerSet', 'localOwnerVerdict', 'accountSwitchBlocks', 'openAccountSwitch', 'performAccountSwitch'];
+const NEW = ['stateOwnerGet', 'stateOwnerSet', 'localOwnerVerdict', 'accountSwitchBlocks', 'performAccountSwitch'];
 
 /** One device: storage that survives "reloads", and a page whose functions are rebuilt from `source` each load. */
 function device() {
@@ -121,13 +126,8 @@ p.api.onAuthResolved(null);
 p.calls.length = 0;
 p.api.onAuthResolved({ user: B });
 check('B over A’s data: nothing runs (no full sync, snapshot, coach link, flush or boot)', WRITERS.every((w) => !p.calls.includes(w)), p.calls.join(', '));
-check('  the switch screen opens instead, naming both accounts', p.calls.includes('switchScreen') && /a@example\.com/.test(p.env.screen || '') && /b@example\.com/.test(p.env.screen || ''));
-check('  the owner is still A', JSON.parse(dev.localStorage.getItem('bloc_state_owner')).uid === 'uid-A');
-check('  a token refresh for B changes nothing', (() => { p.calls.length = 0; p.api.onAuthResolved({ user: B }); return WRITERS.every((w) => !p.calls.includes(w)); })());
-
-// ── Switch ──
-p.api.performAccountSwitch();
-check('Switch: the account’s keys go (state, snapshot flags); the device’s stay (device id, AI key); owner B; reload',
+check('  and no screen: it switches at once', !p.calls.includes('switchScreen') && !p.env.screen && p.calls.includes('reload'));
+check('The switch: the account’s keys go (state, snapshot flags); the device’s stay (device id, AI key); owner B; reload',
   !dev.store.has('bloc_state') && !dev.store.has('bloc_last_snapshot_date') && dev.store.get('bloc_device_id') === 'dev_1'
   && dev.store.get('bloc_api_key') === 'sk-test' && JSON.parse(dev.localStorage.getItem('bloc_state_owner')).uid === 'uid-B' && p.calls.includes('reload'));
 
@@ -140,7 +140,9 @@ check('after the reload B boots normally (the new-device restore takes it from h
 dev.localStorage.setItem('bloc_state', JSON.stringify({ ...aData, macrocycles: [{ id: 'm_b', name: 'B cycle' }] }));
 p = page(current, dev);
 p.api.onAuthResolved({ user: A });
-check('A over B’s data: blocked the same way (A → B → A)', WRITERS.every((w) => !p.calls.includes(w)) && p.calls.includes('switchScreen'));
+check('A over B’s data: the same (A → B → A)', WRITERS.every((w) => !p.calls.includes(w)) && p.calls.includes('reload')
+  && JSON.parse(dev.localStorage.getItem('bloc_state_owner')).uid === 'uid-A' && !dev.store.has('bloc_state'));
+check('the owner record holds a uid, never an email', !/@/.test(dev.localStorage.getItem('bloc_state_owner')));
 
 // ── An empty device with another owner: nothing to protect, claimed ──
 const empty = device();
@@ -153,8 +155,9 @@ check('an empty device recorded for A is claimed by B without asking', BOOT.ever
 const guarded = ['flushSyncQueue', 'forceFullRelationalSync', 'uploadSnapshot', 'maybeUploadOpportunisticSnapshot', 'pullPublicationsOnce', 'sendPendingAcks', 'uploadClientStateOnce', 'maybeRefreshCoachLink'];
 const unguarded = guarded.filter((n) => !/accountSwitchBlocks\(\)/.test((extract(current, n) || '').split('\n').slice(0, 5).join('\n')));
 check(`every writer refuses while another account’s data is here (${guarded.length})`, unguarded.length === 0, unguarded.join(', '));
-check('the switch screen sits above the sign-in gate', /#account-switch \{[^}]*z-index: 10001/.test(current) && /#auth-gate \{[^}]*z-index: 10000/.test(current));
-check('Sign out instead is local only (never every session of the account)', /signOut\(\{ scope: 'local' \}\)/.test(extract(current, 'cancelAccountSwitch') || ''));
+check('no switch screen: nothing in the page shows another account', !/account-switch"|openAccountSwitch/.test(current));
+const so = extract(current, 'signOutUser') || '';
+check('signing out backs the account up first, while its session can write its backup', so.indexOf('uploadSnapshot()') > -1 && so.indexOf('uploadSnapshot()') < so.indexOf('auth.signOut('));
 
 // ── Control ──
 console.log('\n— control: v8.45 (85ddc8b), which must fail —');
