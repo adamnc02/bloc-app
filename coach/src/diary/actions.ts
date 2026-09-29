@@ -45,7 +45,8 @@ export async function editSession(repo: DiaryRepo, d: Diary, occ: Occurrence, p:
   if (scope === 'one') {
     if (occ.bookingId) await repo.updateBooking(occ.bookingId, base);
     else await repo.createBooking({ ...base, seriesId: s.id, occursOn: week, kind: s.kind, status: 'booked' });
-    return publishChanges(repo);
+    // The week leaves the series (a skip date) quietly: the client is told once, by the moved week's own booking.
+    return publishChanges(repo, { quietIds: new Set([s.id]) });
   }
   // All future: this week's own changes ("just this one") after it go, then the series moves from here.
   for (const b of d.bookings) if (b.seriesId === s.id && b.occursOn && b.occursOn >= week) await repo.deleteBooking(b.id);

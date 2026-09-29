@@ -10225,7 +10225,8 @@ A cancelled booking a card was never sent is not sent. 🚨 **An override identi
 `diary_bookings`, never a series, so booking a weekly request makes the series **and** an identical override for its
 first week for the request to name; without the rule the client would see a one-off plus a weekly with that week
 missing. `quiet: true` (no banner on the phone, §151) goes on every publication of a change when the coach chose not to
-tell the clients, or on named bookings: "All future" from a later week ends the old series (`until`) quietly and starts a
+tell the clients, or on named bookings: a week moved "just this one" leaves its series quietly, so the client is told once,
+by the moved week's own "Session confirmed"; "All future" from a later week ends the old series (`until`) quietly and starts a
 new series, so the client gets one "Session confirmed" for the new day; a one-off made weekly replaces its one-off
 quietly.
 

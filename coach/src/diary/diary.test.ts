@@ -165,7 +165,7 @@ describe('actions (fixture repo)', () => {
     const d = await r.loadDiary();
     const o = occ(d, `s:sr-maya@${TUE}`);
     const after = await editSession(r, d, o, { date: WED, start: 1080, duration: 60, location: 'Studio', title: null, clientIds: ['maya'] }, 'one');
-    expect(r.published.map((p) => p.payload.booking_id).sort()).toEqual(['bk-new-1', 'sr-maya']);
+    expect(last(r).sort()).toEqual(['maya bk-new-1 booked', 'maya sr-maya booked quiet']); // one banner: the moved week's
     expect(after.sent['maya|sr-maya'].payload.skip_dates).toEqual([TUE]);
     expect(occ(after, `s:sr-maya@${TUE}`).date).toBe(WED);                   // the week, moved
     expect(occ(after, `s:sr-maya@${addDays(TUE, 7)}`).date).toBe(addDays(TUE, 7)); // the next, unchanged
