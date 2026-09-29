@@ -10249,7 +10249,8 @@ is one BLOC's `coachBookingWeekly()` rolls forward (`verify-coach-diary.mjs`, wi
   a placeholder proposes the new time.
 - 🚨 **A client accepting the coach's time is booked automatically** (`autoBook`), whenever the diary loads: on open, on
   return to the app, and when Realtime reports a `session_requests` change (`watchRequests`, filtered to the coach).
-  If the time now clashes it stays a placeholder ("Clashes: move it to book") and nothing is booked. BLOC's Request a
+  If the time now clashes it stays a placeholder ("Clashes: move it to book") and nothing is booked; so does a time
+  already gone (an old acceptance never booked is never booked into the past). BLOC's Request a
   session leaves a request once a live booking at the confirmed time exists (§136), which this booking is.
 - **Placeholder expiry** is `PLACEHOLDER_EXPIRY_DAYS` in `model.ts`, `null` (never). A number hides a pending request
   from the Diary that many days after it was sent; the request is untouched and still answerable from the client's

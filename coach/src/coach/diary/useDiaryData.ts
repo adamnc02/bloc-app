@@ -57,7 +57,7 @@ export function useDiaryData() {
       booking.current = true;
       try {
         const w = makeWho(b);
-        const { diary: after, booked } = await autoBook(repo, d, (o) => w.name(o));
+        const { diary: after, booked } = await autoBook(repo, d, (o) => w.name(o), coachClock(repo.now()).today);
         if (booked.length) {
           setDiary(after);
           show(booked.length === 1 ? `${w.name({ kind: 'one_to_one', title: null, clientIds: [booked[0].cardId!] })} confirmed your time: booked` : `${booked.length} confirmed times booked`);

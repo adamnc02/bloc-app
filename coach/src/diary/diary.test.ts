@@ -227,7 +227,7 @@ describe('actions (fixture repo)', () => {
   });
   it('the client accepted the coach’s time: booked automatically; a clash leaves it a placeholder', async () => {
     const r = fresh();
-    const { diary, booked } = await autoBook(r, await r.loadDiary(), name);
+    const { diary, booked } = await autoBook(r, await r.loadDiary(), name, ANCHOR);
     expect(booked.map((x) => x.id)).toEqual(['rq-priya']);
     expect(last(r)).toEqual(['priya bk-new-1 booked']);
     expect(diary.requests.find((x) => x.id === 'rq-priya')!.bookingId).toBe('bk-new-1');
@@ -236,7 +236,11 @@ describe('actions (fixture repo)', () => {
     const d2 = await r2.loadDiary();
     d2.requests.find((x) => x.id === 'rq-priya')!.proposed = { date: THU, start_min: 420 };
     await r2.updateRequest('rq-priya', { proposed: { date: THU, start_min: 420 } });
-    expect((await autoBook(r2, await r2.loadDiary(), name)).booked).toEqual([]);
+    expect((await autoBook(r2, await r2.loadDiary(), name, ANCHOR)).booked).toEqual([]);
+    // Control: a time already gone is never booked (the diary's today after Priya's Thursday).
+    const r3 = fresh();
+    expect((await autoBook(r3, await r3.loadDiary(), name, addDays(THU, 1))).booked).toEqual([]);
+    expect(r3.published).toEqual([]);
   });
   it('refusals before saving: all future checks the coming weeks, a new session needs a client', async () => {
     const r = fresh();

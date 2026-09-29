@@ -156,16 +156,17 @@ export function requestRefusal(d: Diary, r: SessionRequest, slot: Slot, name: (o
 
 /**
  * The client accepted the coach's time: book it now, unless it clashes, when
- * it stays a placeholder with the clash shown for the coach to resolve.
- * Returns the requests booked.
+ * it stays a placeholder with the clash shown for the coach to resolve; so does
+ * a time already gone. Returns the requests booked.
  */
-export async function autoBook(repo: DiaryRepo, d: Diary, name: (o: Occurrence) => string): Promise<{ diary: Diary; booked: SessionRequest[] }> {
+export async function autoBook(repo: DiaryRepo, d: Diary, name: (o: Occurrence) => string, today: ISODate): Promise<{ diary: Diary; booked: SessionRequest[] }> {
   const booked: SessionRequest[] = [];
   let cur = d;
   for (const r of d.requests) {
     if (r.status !== 'accepted' || r.bookingId || !r.cardId) continue;
     const slot = requestSlot(r);
-    if (!slot || requestRefusal(cur, r, slot, name)) continue;
+    // 🚨 Never a time already gone: an old acceptance that was never booked stays a placeholder for the coach.
+    if (!slot || slot.date < today || requestRefusal(cur, r, slot, name)) continue;
     cur = await bookRequest(repo, cur, r, slot);
     booked.push(r);
   }
