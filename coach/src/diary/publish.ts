@@ -6,7 +6,8 @@
 // which BLOC rolls forward itself (BLOC TECHNICAL §136). Its single weeks
 // travel on it (migration 0028, BLOC §151): `skip_dates` are its weeks
 // cancelled "just this one", its weeks moved "just this one" (each published
-// as its own one-off, with the override's id), and the days off that fall on
+// as its own one-off, with the override's id and `replaces` naming the series
+// and that week, 0029), and the days off that fall on
 // it; `until` is its last week. A one-off is its own booking, cancelled while
 // a day off covers it. A group session is one publication per attendee's
 // card, with the same `booking_id`.
@@ -15,15 +16,15 @@
 // re-derives every card's bookings and sends only what differs from the last
 // publication, so a publish that failed is sent by the next change, and a
 // change that makes no difference to a client sends nothing.
-import { addDays } from '@/lib/format';
+import { addDays, daysBetween } from '@/lib/format';
 import { isDayOff, overrideIsIdentity, seriesDates } from './model';
 import type { Booking, Diary, Series } from './types';
 
 /** 0028's `skip_dates` cap. */
 export const MAX_SKIP_DATES = 400;
 
-/** Exactly 0023's `booking` keys plus 0028's (`assigned_session` arrives with In person). */
-export const BOOKING_KEYS = ['v', 'booking_id', 'date', 'start_min', 'duration_min', 'status', 'kind', 'location', 'title', 'skip_dates', 'until', 'quiet'] as const;
+/** Exactly 0023's `booking` keys plus 0028's and 0029's (`assigned_session` arrives with In person). */
+export const BOOKING_KEYS = ['v', 'booking_id', 'date', 'start_min', 'duration_min', 'status', 'kind', 'location', 'title', 'skip_dates', 'until', 'quiet', 'replaces'] as const;
 
 export type BookingPayload = {
   v: 1;
@@ -38,6 +39,8 @@ export type BookingPayload = {
   skip_dates?: string[];
   until?: string | null;
   quiet?: true;
+  /** 0029: the session this new booking takes the place of, so the phone says "Session changed", not "confirmed". */
+  replaces?: { booking_id: string; date: string };
 };
 
 export interface Outgoing { cardId: string; payload: BookingPayload; supersedes: string | null }
@@ -57,10 +60,24 @@ function seriesPayload(d: Diary, s: Series): BookingPayload | null {
     for (const date of seriesDates(s, off.start > first ? off.start : first, off.end)) skips.add(date);
   }
   const skip = [...skips].sort().slice(-MAX_SKIP_DATES);
+  const prev = predecessor(d, s);
   return {
     v: 1, booking_id: s.id, date: first, start_min: s.start, duration_min: s.duration, status: 'booked', kind: 'weekly',
     location: s.location, title: s.title, skip_dates: skip, until: s.to,
+    ...(prev ? { replaces: { booking_id: prev.id, date: addDays(prev.to!, 1) } } : {}),
   };
+}
+
+/**
+ * The weekly series this one continues ("all future" from a later week ends
+ * the old series the day before that week and starts this one): the same kind
+ * and clients, ended, and this one starting within the week after. Derived
+ * from the diary, so every re-derivation gives the same `replaces`.
+ */
+export function predecessor(d: Pick<Diary, 'series'>, s: Series): Series | null {
+  const who = [...s.clientIds].sort().join();
+  return d.series.find((t) => t.id !== s.id && t.kind === s.kind && t.to != null && s.from > t.to
+    && daysBetween(t.to, s.from) <= 7 && [...t.clientIds].sort().join() === who) ?? null;
 }
 
 function oneOffPayload(d: Diary, b: Booking): BookingPayload {
@@ -85,7 +102,7 @@ export function desiredBookings(d: Diary): Map<string, { cardId: string; payload
     const s = series.get(b.seriesId);
     if (!s || !b.occursOn || b.occursOn < s.from || (s.to && b.occursOn > s.to) || s.cancelled.includes(b.occursOn)) continue;
     if (b.status === 'cancelled' || overrideIsIdentity(b, s)) continue;
-    put(b.clientIds, oneOffPayload(d, b));
+    put(b.clientIds, { ...oneOffPayload(d, b), replaces: { booking_id: s.id, date: b.occursOn } });
   }
   return out;
 }

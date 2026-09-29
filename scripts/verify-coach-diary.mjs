@@ -5,7 +5,7 @@
 //
 // THE TRAPS:
 //   · A booking publication's keys are allow-listed by the server (0023 +
-//     0028's `publication_payload_ok`). A key outside the list makes the
+//     0028 + 0029's `publication_payload_ok`). A key outside the list makes the
 //     server refuse the whole publication; Coach's BOOKING_KEYS must all be
 //     on the migration's list.
 //   · BLOC rolls a booking forward only when its `kind` is one it reads as
@@ -39,19 +39,19 @@ const strip = src => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])
 const walk = d => readdirSync(join(repo, d)).flatMap(f => statSync(join(repo, d, f)).isDirectory() ? walk(`${d}/${f}`) : [`${d}/${f}`]);
 
 // ── 1. The server's allow-list ───────────────────────────────────────────
-const migration = join(repo, '..', 'super-duper-octo-barnacle', 'supabase', 'migrations', '20260831000028_booking_exceptions.sql');
+const migration = join(repo, '..', 'super-duper-octo-barnacle', 'supabase', 'migrations', '20260831000029_booking_replaces.sql');
 let allowed = null;
 try {
   const m = /when 'booking'\s+then array\[([^\]]+)\]/.exec(readFileSync(migration, 'utf8'));
   allowed = m && [...m[1].matchAll(/'([a-z_]+)'/g)].map(x => x[1]);
 } catch { /* the migration repo isn't beside this one (CI): fall back to the documented list */ }
-if (!allowed) allowed = ['v', 'booking_id', 'date', 'start_min', 'duration_min', 'status', 'kind', 'location', 'assigned_session', 'skip_dates', 'until', 'title', 'quiet'];
+if (!allowed) allowed = ['v', 'booking_id', 'date', 'start_min', 'duration_min', 'status', 'kind', 'location', 'assigned_session', 'skip_dates', 'until', 'title', 'quiet', 'replaces'];
 const publish = read('coach/src/diary/publish.ts');
 const keysOf = src => { const m = /export const BOOKING_KEYS = \[([^\]]+)\]/.exec(src); return m ? [...m[1].matchAll(/'([a-z_]+)'/g)].map(x => x[1]) : null; };
 const keys = keysOf(publish);
 const outside = (k, a) => (k ?? []).filter(x => !a.includes(x));
-check(`every booking key Coach sends is on 0028's allow-list (${keys?.length} keys)`, !!keys && keys.length >= 9 && outside(keys, allowed).length === 0, `outside: ${outside(keys, allowed)}`);
-const control1 = keysOf(publish.replace("'quiet'] as const", "'quiet', 'notes'] as const"));
+check(`every booking key Coach sends is on 0029's allow-list (${keys?.length} keys)`, !!keys && keys.length >= 9 && outside(keys, allowed).length === 0, `outside: ${outside(keys, allowed)}`);
+const control1 = keysOf(publish.replace(/(export const BOOKING_KEYS = \[[^\]]*)\]/, "$1, 'notes']"));
 check('control: a key outside the list is caught', outside(control1, allowed).join() === 'notes');
 
 // ── 2. What BLOC reads ───────────────────────────────────────────────────

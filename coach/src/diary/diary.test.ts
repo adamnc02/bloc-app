@@ -2,7 +2,7 @@
 // and its actions, on the fixture diary. Each rule has a control that shows
 // what goes wrong without it.
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fixtureDiary } from '@/data/fixtureDiary';
 import { addDays } from '@/lib/format';
 import { emptySlots, layoutLanes } from './slots';
@@ -109,9 +109,12 @@ describe('what the Diary publishes', () => {
     expect(['maya', 'priya', 'grace'].map((c) => want.get(`${c}|sr-bootcamp`)?.payload.title)).toEqual(['Saturday bootcamp', 'Saturday bootcamp', 'Saturday bootcamp']);
     expect(want.get('priya|bk-priya')!.payload.kind).toBe('one_off');
   });
-  it('every payload uses only 0023 + 0028 booking keys (the migration’s allow-list)', async () => {
-    const sql = readFileSync(new URL('../../../../super-duper-octo-barnacle/supabase/migrations/20260831000028_booking_exceptions.sql', import.meta.url), 'utf8');
-    const list = /when 'booking'\s+then array\[([^\]]+)\]/.exec(sql)![1].match(/'([a-z_]+)'/g)!.map((x) => x.slice(1, -1));
+  it('every payload uses only 0023 + 0028 + 0029 booking keys (the migration’s allow-list)', async () => {
+    // The migration repo sits beside this one locally; CI has only this repo, so it falls back to the documented list.
+    const file = new URL('../../../../super-duper-octo-barnacle/supabase/migrations/20260831000029_booking_replaces.sql', import.meta.url);
+    const list = existsSync(file)
+      ? /when 'booking'\s+then array\[([^\]]+)\]/.exec(readFileSync(file, 'utf8'))![1].match(/'([a-z_]+)'/g)!.map((x) => x.slice(1, -1))
+      : ['v', 'booking_id', 'date', 'start_min', 'duration_min', 'status', 'kind', 'location', 'assigned_session', 'skip_dates', 'until', 'title', 'quiet', 'replaces'];
     for (const k of BOOKING_KEYS) expect(list).toContain(k);
     const d = await fresh().loadDiary();
     d.daysOff.push({ id: 'o', start: TUE, end: TUE, note: null, notified: false });
@@ -171,6 +174,7 @@ describe('actions (fixture repo)', () => {
     const after = await editSession(r, d, o, { date: WED, start: 1080, duration: 60, location: 'Studio', title: null, clientIds: ['maya'] }, 'one');
     expect(last(r).sort()).toEqual(['maya bk-new-1 booked', 'maya sr-maya booked quiet']); // one banner: the moved week's
     expect(after.sent['maya|sr-maya'].payload.skip_dates).toEqual([TUE]);
+    expect(after.sent['maya|bk-new-1'].payload.replaces).toEqual({ booking_id: 'sr-maya', date: TUE }); // "Session changed" on the phone
     expect(occ(after, `s:sr-maya@${TUE}`).date).toBe(WED);                   // the week, moved
     expect(occ(after, `s:sr-maya@${addDays(TUE, 7)}`).date).toBe(addDays(TUE, 7)); // the next, unchanged
   });
@@ -181,6 +185,11 @@ describe('actions (fixture repo)', () => {
     const after = await editSession(r, d, o, { date: THU, start: 1080, duration: 60, location: 'Studio', title: null, clientIds: ['maya'] }, 'all');
     expect(after.series.find((s) => s.id === 'sr-maya')!.to).toBe(MON);
     expect(last(r)).toEqual(['maya sr-maya booked quiet', 'maya sr-new-1 booked']);
+    expect(after.sent['maya|sr-new-1'].payload.replaces).toEqual({ booking_id: 'sr-maya', date: TUE });
+    // Control: a new weekly session for someone else replaces nothing.
+    const r2 = fresh();
+    const d2 = await createSession(r2, { kind: 'one_to_one', weekly: true, date: FRI, start: 600, duration: 60, location: null, title: null, clientIds: ['sam'] });
+    expect(d2.sent['sam|sr-new-1'].payload.replaces).toBeUndefined();
     expect(occurrencesBetween(after, MON, addDays(MON, 13)).filter((x) => x.clientIds.join() === 'maya' && x.kind === 'one_to_one').map((x) => x.date)).toEqual([THU, addDays(THU, 7)]);
   });
   it('cancel just this week, then stop the series from next week', async () => {

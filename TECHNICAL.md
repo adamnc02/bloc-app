@@ -10222,8 +10222,8 @@ no difference to a client sends nothing, and nothing is sent twice. `verify-coac
 
 | Diary | Publication (per attendee's card; a group: one per card, one `booking_id`) |
 |---|---|
-| a series | `{booking_id: series id, kind: 'weekly', date: its first week, start_min, duration_min, status: 'booked', location, title, skip_dates, until}`. `skip_dates`: its cancelled weeks, its weeks moved by an override, and every day off falling on it (the latest 400); `until`: `effective_to` |
-| an override (a moved week) | its own one-off, `booking_id` = the override's id, `kind: 'one_off'`; cancelled while a day off covers it |
+| a series | `{booking_id: series id, kind: 'weekly', date: its first week, start_min, duration_min, status: 'booked', location, title, skip_dates, until}`. `skip_dates`: its cancelled weeks, its weeks moved by an override, and every day off falling on it (the latest 400); `until`: `effective_to`; **`replaces`** when it continues an ended series ("all future" from a later week: `predecessor()`, the same kind and clients, ended, this one starting within the week after), naming that series and the first week moved |
+| an override (a moved week) | its own one-off, `booking_id` = the override's id, `kind: 'one_off'`, **`replaces: {booking_id: the series, date: the week}`** (`0029`), so the phone says "Session changed" (BLOC §151); cancelled while a day off covers it |
 | a one-off | `kind: 'one_off'`, `status` `cancelled` when it's cancelled or a day off covers it |
 | a card sent a booking it should no longer hold (a series deleted, a client taken out of a group) | that booking again, `status: 'cancelled'` |
 
@@ -10233,8 +10233,8 @@ A cancelled booking a card was never sent is not sent. 🚨 **An override identi
 first week for the request to name; without the rule the client would see a one-off plus a weekly with that week
 missing. `quiet: true` (no banner on the phone, §151) goes on every publication of a change when the coach chose not to
 tell the clients, or on named bookings: a week moved "just this one" leaves its series quietly, so the client is told once,
-by the moved week's own "Session confirmed"; "All future" from a later week ends the old series (`until`) quietly and starts a
-new series, so the client gets one "Session confirmed" for the new day; a one-off made weekly replaces its one-off
+by the moved week's own "Session changed"; "All future" from a later week ends the old series (`until`) quietly and starts a
+new series, so the client gets one "Session changed" for the new day; a one-off made weekly replaces its one-off
 quietly.
 
 `assigned_session` is not sent yet (In person). `BOOKING_KEYS` are all on `0028`'s allow-list, and the series' `kind`
