@@ -65,14 +65,23 @@ export function requestSlot(r: SessionRequest): Slot | null {
   return null;
 }
 
+/**
+ * Days after which a request still waiting on the coach leaves the Diary.
+ * `null`: placeholders never expire. To switch expiry on, set a number: it is
+ * the only thing that reads it, and the request itself is untouched (it can
+ * still be answered from the client's Sessions tab).
+ */
+export const PLACEHOLDER_EXPIRY_DAYS: number | null = null;
+
 /** Requests the Diary shows: still open, or confirmed by the client and not booked yet. */
-export const openRequests = (d: Pick<Diary, 'requests'>) => d.requests.filter((r) => requestSlot(r) != null);
+export const openRequests = (d: Pick<Diary, 'requests'>, today?: ISODate) => d.requests.filter((r) => requestSlot(r) != null
+  && (PLACEHOLDER_EXPIRY_DAYS == null || !today || r.status !== 'pending' || daysBetween(r.createdAt.slice(0, 10), today) <= PLACEHOLDER_EXPIRY_DAYS));
 /** Requests waiting on the coach (not on the client). */
 export const requestsNeedingCoach = (d: Pick<Diary, 'requests'>) =>
   d.requests.filter((r) => r.status === 'pending' || r.status === 'countered' || (r.status === 'accepted' && !r.bookingId));
 
-/** Every session and placeholder whose date falls in `[from, to]`. */
-export function occurrencesBetween(d: Diary, from: ISODate, to: ISODate): Occurrence[] {
+/** Every session and placeholder whose date falls in `[from, to]`; `today` applies PLACEHOLDER_EXPIRY_DAYS. */
+export function occurrencesBetween(d: Diary, from: ISODate, to: ISODate, today?: ISODate): Occurrence[] {
   const out: Occurrence[] = [];
   const overrides = new Map<string, Booking>();
   for (const b of d.bookings) if (b.seriesId && b.occursOn) overrides.set(`${b.seriesId}@${b.occursOn}`, b);
@@ -103,7 +112,7 @@ export function occurrencesBetween(d: Diary, from: ISODate, to: ISODate): Occurr
       cancelled: isDayOff(d.daysOff, b.date), request: null,
     });
   }
-  for (const r of openRequests(d)) {
+  for (const r of openRequests(d, today)) {
     const slot = requestSlot(r)!;
     if (slot.date < from || slot.date > to) continue;
     out.push({

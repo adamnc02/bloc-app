@@ -1,14 +1,16 @@
-// The dev bypass's Diary: an in-memory copy of 0024's tables around the demo
-// anchor (Sunday 2 Aug 2026), with the fixture clients. Every write changes
+// The dev bypass's Diary: an in-memory copy of 0024's tables in the week after
+// the demo anchor, with the fixture clients. Every write changes
 // the page's memory only. The publications already "sent" are the ones this
 // diary implies, so the first change publishes only what it changes.
-import { addDays } from '@/lib/format';
+import { addDays, weekday } from '@/lib/format';
 import { desiredBookings } from '@/diary/publish';
 import { DEFAULT_SETTINGS, type Booking, type DayOff, type Diary, type Series, type SessionRequest } from '@/diary/types';
 import type { DiaryRepo } from './types';
 
 export function fixtureDiary(anchor: string): DiaryRepo & { published: { cardId: string; payload: Record<string, unknown> }[] } {
-  const monday = addDays(anchor, 1); // Mon 3 Aug, the week after the anchor
+  // The Monday after the anchor (Mon 3 Aug for the tracked dataset), so each fixture keeps its weekday
+  // (Grace's first choice over Maya's Tuesday, Ben and Eileen on the same Wednesday) whatever the anchor.
+  const monday = addDays(anchor, 7 - weekday(anchor));
   const at = (n: number) => addDays(monday, n);
   const series: Series[] = [
     { id: 'sr-maya', kind: 'one_to_one', weekday: 1, start: 18 * 60, duration: 60, from: '2026-07-07', to: null, cancelled: [], title: null, location: 'Studio', clientIds: ['maya'] },

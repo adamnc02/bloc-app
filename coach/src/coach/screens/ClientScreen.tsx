@@ -10,6 +10,7 @@ import type { ClientBundle } from '@/data/types';
 import { ReviewTab } from '@/coach/client/ReviewTab';
 import { ProfileTab } from '@/coach/client/ProfileTab';
 import { PlanTab, type PlanIntent } from '@/coach/client/plan/PlanTab';
+import { SessionsTab } from '@/coach/client/SessionsTab';
 
 const TABS: { key: ClientTab; label: string }[] = [
   { key: 'review', label: 'Review' },
@@ -78,7 +79,7 @@ export function ClientScreen({ id, tab, macro, intent }: { id: string; tab: Clie
   if (tab === 'review') body = <ReviewTab v={view} />;
   else if (tab === 'profile') body = <ProfileTab v={view} />;
   else if (tab === 'plan') body = <PlanTab key={id} v={view} macro={macro} intent={intent ?? null} />;
-  else body = <EmptyState>{first}’s bookings, recurring and one-off, and their session requests. Sessions arrives with the Diary.</EmptyState>;
+  else body = <SessionsTab v={view} />;
 
   return (
     <CoachShell tab="clients">

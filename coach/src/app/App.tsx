@@ -27,6 +27,7 @@ import { ClientScreen } from '@/coach/screens/ClientScreen';
 import { SettingsScreen } from '@/coach/screens/SettingsScreen';
 import { ComingScreen } from '@/coach/screens/ComingScreen';
 import { LibraryScreen } from '@/coach/screens/LibraryScreen';
+import { DiaryScreen } from '@/coach/diary/DiaryScreen';
 
 export interface CoachSession {
   repo: CoachRepo;
@@ -128,7 +129,7 @@ function Screens() {
     case 'client': return <ClientScreen key={`client-${route.id}`} id={route.id} tab={route.tab} macro={route.macro} intent={route.intent} />;
     case 'settings': return <SettingsScreen key={key} />;
     case 'today': return <ComingScreen key={key} tab="today" title="Today" sub="Everything waiting on you, today’s sessions, who’s off track and what’s coming up. It arrives once Review, the Diary and In person are built." />;
-    case 'diary': return <ComingScreen key={key} tab="diary" title="Diary" sub="Your week in real time slots, bookings, days off and session requests. It arrives with the Diary sub-phase." />;
+    case 'diary': return <DiaryScreen key={key} />;
     case 'library': return <LibraryScreen key={key} />;
   }
 }

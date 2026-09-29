@@ -4,6 +4,7 @@ import { Button, Chip, Field, Hero, Icon, Notice, Page, PageHeader, RowButton, S
 import { useCoach } from '@/app/App';
 import { initials } from '@/lib/format';
 import { getAiKey, setAiKey } from '@/ai/transport';
+import { DiarySettingsSection } from '@/coach/diary/DiarySettings';
 
 declare const __COACH_VERSION__: string;
 /** Coach's version: coach/package.json, the one place a release bumps it (TECHNICAL §139). */
@@ -79,22 +80,24 @@ export function SettingsScreen() {
             </div>
           </Section>
 
-          <Section i={4} title="AI tools" sub="Check-ins, cycle reviews and next-cycle advice run with your own Anthropic key.">
+          <DiarySettingsSection i={4} />
+
+          <Section i={5} title="AI tools" sub="Check-ins, cycle reviews and next-cycle advice run with your own Anthropic key.">
             <div className="card list">
               <RowButton lead="key" title="Anthropic API key" sub={hasKey ? 'Saved on this device' : 'Not set: the AI tools can’t run'} onClick={() => { setKeyInput(''); setSheet('ai'); }} />
             </div>
           </Section>
 
-          <Section i={5} title="About" sub="Which version of BLOC Coach this is.">
+          <Section i={6} title="About" sub="Which version of BLOC Coach this is.">
             <div className="card">
               <div className="ex"><span>Version</span><span className="num">{COACH_VERSION}</span></div>
-              <div className="ex"><span>Coming next</span><span>Plan, Diary and In person</span></div>
+              <div className="ex"><span>Coming next</span><span>In person and Today</span></div>
             </div>
           </Section>
         </div>
 
         {!fixture && (
-          <section className="sec rise" style={{ ['--i' as string]: 6 } as CSSProperties} aria-label="Sign out">
+          <section className="sec rise" style={{ ['--i' as string]: 7 } as CSSProperties} aria-label="Sign out">
             <Button variant="danger" icon="logout" onClick={() => setSheet('signout')}>Sign out</Button>
           </section>
         )}

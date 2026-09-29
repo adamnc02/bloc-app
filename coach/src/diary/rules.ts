@@ -70,3 +70,8 @@ export function requestClashes(r: Occurrence, occurrences: Occurrence[]): Occurr
   return occurrences.filter((o) => o.key !== r.key && o.date === r.date && !o.cancelled && o.kind !== 'request'
     && overlaps(span, { start: o.start, end: o.start + o.duration }));
 }
+
+/** A session can't be booked or moved to a time already gone (the coach's own clock). */
+export function pastRefusal(date: ISODate, start: number, today: ISODate, nowMin: number): Refusal | null {
+  return date < today || (date === today && start < nowMin) ? { reason: 'That time has passed' } : null;
+}
