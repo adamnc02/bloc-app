@@ -34,7 +34,7 @@ export {
 export type { DayMap, DayMapEntry } from './state.ts';
 export type { Exercise, TrackUnit } from './progression.ts';
 export {
-  getMacroExtensionInfo, getMacroEffectiveMesoCount, isMesoMicroValid, getMacroSessionDayKeys,
+  getMacroExtensionInfo, getMacroEffectiveMesoCount, isMesoMicroValid, getMacroSessionDayKeys, exercisePlanWeek,
   getWeekSets, getWeekWeight, getWeekReps, getDeloadUnitKey, getPrevTrackUnit, roundToIncrement,
   getPrevCalendarWeek, getGiantSetProgression, getProgressionLockKey, getProgKey, parseRepsForVolume,
 } from './progression.ts';

@@ -673,3 +673,8 @@ add('planReplaceOffer', [
   ['2026-08-04', '2026-08-03', S.demo], ['2026-08-02', '2026-08-05', S.demo], ['2026-08-02', '2026-08-10', asCoachs],
   ['2026-06-01', '2026-06-15', S.demo], ['2026-08-02', '2026-09-14', S.demo], ['2026-08-02', '2026-08-10', S.history],
 ].map(([today, start, st]) => at(st, today, (s, c) => ({ engine: [coachCycle(start), s.macrocycles, s.goals, c], bloc: null }))));
+
+// v8.46 (§147): an exercise that joined at a later mesocycle week. No BLOC
+// counterpart before v8.46; verify-exercise-from-week.mjs checks what it decides.
+add('exercisePlanWeek', [[{ fromWeek: 5 }, 7], [{ fromWeek: 5 }, 3], [{}, 4], [{ fromWeek: 1 }, 2]]
+  .map(([ex, w]) => at(S.demo, '2026-08-02', () => ({ engine: [ex, w], bloc: null }))));
