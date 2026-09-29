@@ -5,11 +5,11 @@
 import type { ISODate } from '@/domain/types';
 import { addDays, weekday } from '@/lib/format';
 import type { DiaryRepo } from '@/data/types';
-import { isDayOff, requestSlot, type Occurrence } from './model';
+import { isDayOff, requestSlot, seriesDates, type Occurrence } from './model';
 import { findClash, findSeriesClash, type Refusal } from './rules';
 import { bookingChanges } from './publish';
 import { occurrencesBetween } from './model';
-import type { Diary, DiarySettings, SessionKind, SessionRequest, Slot } from './types';
+import type { Diary, DiarySettings, Series, SessionKind, SessionRequest, Slot } from './types';
 
 export type Scope = 'one' | 'all';
 
@@ -24,6 +24,20 @@ export interface SessionPatch {
 }
 
 export interface NewSession extends SessionPatch { kind: SessionKind; weekly: boolean }
+
+/**
+ * A new weekly session skips the days off already marked across it: those
+ * weeks go straight into its `cancelled_dates`, exactly as a day off marked
+ * later cancels them.
+ */
+export function daysOffWeeks(d: Pick<Diary, 'daysOff'>, s: Pick<Series, 'weekday' | 'from' | 'to'>, keep: string[] = []): string[] {
+  const out = new Set(keep);
+  for (const off of d.daysOff) {
+    if (s.to && off.start > s.to) continue;
+    for (const date of seriesDates({ ...s, id: '', kind: 'one_to_one', start: 0, duration: 0, cancelled: [], title: null, location: null, clientIds: [] }, off.start, off.end)) out.add(date);
+  }
+  return [...out].sort();
+}
 
 /** Re-derives and sends every card's booking changes; returns the diary as it now stands. */
 export async function publishChanges(repo: DiaryRepo, opts: { quiet?: boolean; quietIds?: Set<string> } = {}): Promise<Diary> {
@@ -52,13 +66,13 @@ export async function editSession(repo: DiaryRepo, d: Diary, occ: Occurrence, p:
   for (const b of d.bookings) if (b.seriesId === s.id && b.occursOn && b.occursOn >= week) await repo.deleteBooking(b.id);
   const next = { weekday: weekday(p.date), start: p.start, duration: p.duration, location: p.location, title: p.title, clientIds: p.clientIds };
   if (week <= s.from) {
-    await repo.updateSeries(s.id, { ...next, from: p.date, cancelled: next.weekday === s.weekday ? s.cancelled : [] });
+    await repo.updateSeries(s.id, { ...next, from: p.date, cancelled: daysOffWeeks(d, { ...next, from: p.date, to: s.to }, next.weekday === s.weekday ? s.cancelled : []) });
     return publishChanges(repo);
   }
   // The old series ends the day before this week; the new one starts on the new day. The old one's
   // end goes quietly: the client is told once, by the new series' "Session confirmed".
   await repo.updateSeries(s.id, { to: addDays(week, -1) });
-  await repo.createSeries({ ...next, kind: s.kind, from: p.date, to: s.to, cancelled: [] });
+  await repo.createSeries({ ...next, kind: s.kind, from: p.date, to: s.to, cancelled: daysOffWeeks(d, { ...next, from: p.date, to: s.to }) });
   return publishChanges(repo, { quietIds: new Set([s.id]) });
 }
 
@@ -81,9 +95,10 @@ export async function cancelSession(repo: DiaryRepo, d: Diary, occ: Occurrence, 
   return publishChanges(repo);
 }
 
-export async function createSession(repo: DiaryRepo, n: NewSession): Promise<Diary> {
+export async function createSession(repo: DiaryRepo, d: Diary, n: NewSession): Promise<Diary> {
   if (n.weekly) {
-    await repo.createSeries({ kind: n.kind, weekday: weekday(n.date), start: n.start, duration: n.duration, from: n.date, to: null, cancelled: [], title: n.title, location: n.location, clientIds: n.clientIds });
+    const wd = weekday(n.date);
+    await repo.createSeries({ kind: n.kind, weekday: wd, start: n.start, duration: n.duration, from: n.date, to: null, cancelled: daysOffWeeks(d, { weekday: wd, from: n.date, to: null }), title: n.title, location: n.location, clientIds: n.clientIds });
   } else {
     await repo.createBooking({ seriesId: null, occursOn: null, date: n.date, start: n.start, duration: n.duration, kind: n.kind, status: 'booked', title: n.title, location: n.location, clientIds: n.clientIds });
   }
@@ -91,22 +106,41 @@ export async function createSession(repo: DiaryRepo, n: NewSession): Promise<Dia
 }
 
 /** A one-off becomes a weekly session from its date (the one-off's own publication is replaced quietly). */
-export async function makeWeekly(repo: DiaryRepo, occ: Occurrence): Promise<Diary> {
-  await repo.createSeries({ kind: occ.kind === 'group' ? 'group' : 'one_to_one', weekday: weekday(occ.date), start: occ.start, duration: occ.duration, from: occ.date, to: null, cancelled: [], title: occ.title, location: occ.location, clientIds: occ.clientIds });
+export async function makeWeekly(repo: DiaryRepo, d: Diary, occ: Occurrence): Promise<Diary> {
+  const wd = weekday(occ.date);
+  await repo.createSeries({ kind: occ.kind === 'group' ? 'group' : 'one_to_one', weekday: wd, start: occ.start, duration: occ.duration, from: occ.date, to: null, cancelled: daysOffWeeks(d, { weekday: wd, from: occ.date, to: null }), title: occ.title, location: occ.location, clientIds: occ.clientIds });
   await repo.deleteBooking(occ.bookingId!);
   return publishChanges(repo, { quietIds: new Set([occ.bookingId!]) });
 }
 
-/** A day off, or a holiday. `notify` is the coach's answer to "Let clients know?": no means no banner. */
-export async function addDayOff(repo: DiaryRepo, start: ISODate, end: ISODate, note: string | null, notify: boolean): Promise<Diary> {
+/**
+ * A day off, or a holiday. 🚨 It CANCELS the sessions on those days for good,
+ * now: a series week goes into the series' `cancelled_dates`, a one-off or a
+ * moved week gets status 'cancelled'. `notify` is the coach's answer to "Let
+ * clients know?": no means no banner. The row itself is then only a marker
+ * that refuses new bookings on those days.
+ */
+export async function addDayOff(repo: DiaryRepo, d: Diary, start: ISODate, end: ISODate, note: string | null, notify: boolean): Promise<Diary> {
+  const weeks = new Map<string, Set<string>>();
+  for (const o of occurrencesBetween(d, start, end)) {
+    if (o.kind === 'request') continue;
+    if (o.bookingId) await repo.updateBooking(o.bookingId, { status: 'cancelled' });
+    else if (o.seriesId) weeks.set(o.seriesId, (weeks.get(o.seriesId) ?? new Set()).add(o.seriesDate!));
+  }
+  for (const [id, dates] of weeks) {
+    const s = d.series.find((x) => x.id === id)!;
+    await repo.updateSeries(id, { cancelled: [...new Set([...s.cancelled, ...dates])].sort() });
+  }
   await repo.addDayOff({ start, end, note, notified: notify });
   return publishChanges(repo, { quiet: !notify });
 }
-/** Undo a day off: its sessions come back. Clients told about it are told it's back on. */
-export async function undoDayOff(repo: DiaryRepo, d: Diary, id: string): Promise<Diary> {
-  const off = d.daysOff.find((x) => x.id === id);
+/**
+ * Undo a day off: the day is free again. 🚨 Nothing it cancelled comes back:
+ * the client was told (or not) and may have rebooked, so nothing is sent.
+ */
+export async function undoDayOff(repo: DiaryRepo, id: string): Promise<Diary> {
   await repo.deleteDayOff(id);
-  return publishChanges(repo, { quiet: !off?.notified });
+  return repo.loadDiary();
 }
 
 export async function saveSettings(repo: DiaryRepo, s: DiarySettings): Promise<Diary> {
@@ -128,7 +162,8 @@ export async function bookRequest(repo: DiaryRepo, d: Diary, r: SessionRequest, 
   const base = { date: slot.date, start: slot.start_min, duration: d.settings.sessionMinutes, kind: 'one_to_one' as const, status: 'booked' as const, title: null, location: null, clientIds: [r.cardId] };
   let bookingId: string;
   if (r.repeatWeekly) {
-    const s = await repo.createSeries({ kind: 'one_to_one', weekday: weekday(slot.date), start: slot.start_min, duration: base.duration, from: slot.date, to: null, cancelled: [], title: null, location: null, clientIds: [r.cardId] });
+    const wd = weekday(slot.date);
+    const s = await repo.createSeries({ kind: 'one_to_one', weekday: wd, start: slot.start_min, duration: base.duration, from: slot.date, to: null, cancelled: daysOffWeeks(d, { weekday: wd, from: slot.date, to: null }), title: null, location: null, clientIds: [r.cardId] });
     bookingId = (await repo.createBooking({ ...base, seriesId: s.id, occursOn: slot.date })).id;
   } else {
     bookingId = (await repo.createBooking({ ...base, seriesId: null, occursOn: null })).id;

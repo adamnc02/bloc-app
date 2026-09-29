@@ -233,7 +233,7 @@ export function DayOffSheet({ diary, who, today, date, onConfirm, onClose }: {
   const [end, setEnd] = useState(date ?? today);
   const [note, setNote] = useState('');
   const last = several && end >= start ? end : start;
-  const affected = occurrencesBetween(diary, start, last).filter((o) => o.kind !== 'request' && !o.cancelled);
+  const affected = occurrencesBetween(diary, start, last).filter((o) => o.kind !== 'request');
   const people = [...new Set(affected.flatMap((o) => o.clientIds))];
   const clash = diary.daysOff.find((o) => o.start <= last && o.end >= start);
   const bad = clash ? `Already a day off: ${fmt.ddm(clash.start)}${clash.end !== clash.start ? ` – ${fmt.ddm(clash.end)}` : ''}` : several && end < start ? 'The last day is before the first' : null;
@@ -271,7 +271,7 @@ export function DayOffSheet({ diary, who, today, date, onConfirm, onClose }: {
               </div>
             ))}
           </div>
-          <p className="caption" style={{ marginTop: 10 }}>Either way the session is taken off their phone. Letting them know adds a “Session cancelled” banner.</p>
+          <p className="caption" style={{ marginTop: 10 }}>Either way the {affected.length === 1 ? 'session is' : 'sessions are'} cancelled and taken off their phone, for good: undoing the day off later won’t bring {affected.length === 1 ? 'it' : 'them'} back. Letting them know adds a “Session cancelled” banner.</p>
           <div className="do-actions">
             <Button variant="ghost" disabled={!!bad} onClick={() => ok(false)}>Don’t tell them</Button>
             <Button disabled={!!bad} onClick={() => ok(true)}>Let {people.length === 1 ? who.name({ kind: 'one_to_one', title: null, clientIds: people }) : `${people.length} clients`} know</Button>
@@ -284,18 +284,15 @@ export function DayOffSheet({ diary, who, today, date, onConfirm, onClose }: {
   );
 }
 
-/** A day off that's already marked: what it cancelled, and Undo. */
-export function UndoDayOffSheet({ off, diary, onUndo, onClose }: { off: DayOff; diary: Diary; onUndo: () => void; onClose: () => void }) {
-  const n = occurrencesBetween(diary, off.start, off.end).filter((o) => o.cancelled).length;
+/** A day off that's already marked, and Undo: the day is free again; what it cancelled stays cancelled. */
+export function UndoDayOffSheet({ off, onUndo, onClose }: { off: DayOff; onUndo: () => void; onClose: () => void }) {
   const days = daysBetween(off.start, off.end) + 1;
   return (
     <Sheet open title={days > 1 ? 'Holiday' : 'Day off'} onClose={onClose}>
       <p className="display" style={{ fontSize: 20 }}>{days > 1 ? `${fmt.ddm(off.start)} – ${fmt.ddm(off.end)}` : fmt.long(off.start)}</p>
       {off.note && <p className="muted" style={{ marginTop: 6 }}>{off.note}</p>}
-      <p className="muted" style={{ marginTop: 12 }}>
-        {n ? `${n} ${n === 1 ? 'session is' : 'sessions are'} cancelled.` : 'Nothing was booked.'} {off.notified ? 'Clients were told.' : 'Clients weren’t told.'}
-      </p>
-      <p className="caption" style={{ marginTop: 10 }}>Undo brings the sessions back{off.notified ? ' and tells those clients it’s back on' : ', quietly'}.</p>
+      <p className="muted" style={{ marginTop: 12 }}>{off.notified ? 'Clients with sessions then were told.' : 'Clients with sessions then weren’t told.'}</p>
+      <p className="caption" style={{ marginTop: 10 }}>Undo frees {days > 1 ? 'these days' : 'the day'} for booking again. Sessions it cancelled stay cancelled, and nothing is sent to clients: they may have rebooked. Book again anyone you still want to see.</p>
       <div style={{ marginTop: 20 }}><Button variant="ghost" onClick={onUndo}>Undo {days > 1 ? 'holiday' : 'day off'}</Button></div>
     </Sheet>
   );

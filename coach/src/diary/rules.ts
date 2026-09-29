@@ -31,7 +31,7 @@ export function findClash(c: Candidate, occurrences: Occurrence[], daysOff: DayO
   if (c.kind === 'group') return null;
   const span = { start: c.start, end: c.start + c.duration };
   const hit = occurrences.find((o) =>
-    o.key !== c.key && o.date === c.date && !o.cancelled && o.kind !== 'request' && o.kind !== 'group'
+    o.key !== c.key && o.date === c.date && o.kind !== 'request' && o.kind !== 'group'
     && overlaps(span, { start: o.start, end: o.start + o.duration }));
   if (!hit) return null;
   return { reason: `Clashes with ${name(hit)} ${fmt.time(hit.start)}–${fmt.time(hit.start + hit.duration)}`, withKey: hit.key };
@@ -68,7 +68,7 @@ export const seriesHorizon = (from: ISODate) => {
 /** Sessions a placeholder overlaps (shown on it, never refused). */
 export function requestClashes(r: Occurrence, occurrences: Occurrence[]): Occurrence[] {
   const span = { start: r.start, end: r.start + r.duration };
-  return occurrences.filter((o) => o.key !== r.key && o.date === r.date && !o.cancelled && o.kind !== 'request'
+  return occurrences.filter((o) => o.key !== r.key && o.date === r.date && o.kind !== 'request'
     && overlaps(span, { start: o.start, end: o.start + o.duration }));
 }
 

@@ -81,7 +81,7 @@ export function DiaryScreen() {
   }
 
   // ---- hero numbers (days in view)
-  const inView = occs.filter((o) => days.includes(o.date) && !o.cancelled && o.kind !== 'request');
+  const inView = occs.filter((o) => days.includes(o.date) && o.kind !== 'request');
   const hours = inView.reduce((a, o) => a + o.duration, 0) / 60;
   const open = requestsNeedingCoach(diary).length;
   const weekDelta = Math.round(daysBetween(startOfWeek(today), startOfWeek(first)) / 7);
@@ -148,7 +148,7 @@ export function DiaryScreen() {
           onSave={(p) => { const changed = JSON.stringify(p) !== JSON.stringify({ date: occ.date, start: occ.start, duration: occ.duration, location: occ.location, title: occ.title, clientIds: occ.clientIds });
             if (!changed) setSheet(null); else if (occ.recurring) setSheet({ type: 'scope', key: occ.key, patch: p }); else void save(occ, p, 'one'); }}
           onCancelSession={() => { if (occ.recurring) setSheet({ type: 'cancel', key: occ.key }); else void run((d) => cancelSession(repo, d, occ, 'one'), `${nameOf(occ)}’s session on ${fmt.ddm(occ.date)} is cancelled`).then((ok) => ok && setSheet(null)); }}
-          onMakeWeekly={() => void run((_d) => makeWeekly(repo, occ), `${nameOf(occ)} now every ${fmt.dayLong(occ.date)}, ${fmt.time(occ.start)}`).then((ok) => ok && setSheet(null))}
+          onMakeWeekly={() => void run((d) => makeWeekly(repo, d, occ), `${nameOf(occ)} now every ${fmt.dayLong(occ.date)}, ${fmt.time(occ.start)}`).then((ok) => ok && setSheet(null))}
         />
       )}
 
@@ -173,18 +173,18 @@ export function DiaryScreen() {
 
       {s?.type === 'new' && (
         <NewSessionSheet diary={diary} who={who} bundles={bundles} date={s.date} start={s.start} onClose={() => setSheet(null)}
-          onBook={(n) => void run((_d) => createSession(repo, n), `Booked ${nameOf(n)}: ${fmt.ddm(n.date)}, ${fmt.time(n.start)}${n.weekly ? ', weekly' : ''}`).then((ok) => ok && setSheet(null))} />
+          onBook={(n) => void run((d) => createSession(repo, d, n), `Booked ${nameOf(n)}: ${fmt.ddm(n.date)}, ${fmt.time(n.start)}${n.weekly ? ', weekly' : ''}`).then((ok) => ok && setSheet(null))} />
       )}
 
       {s?.type === 'dayoff' && (
         <DayOffSheet diary={diary} who={who} today={today} date={s.date} onClose={() => setSheet(null)}
-          onConfirm={(a, b, note, notify) => void run((_d) => addDayOff(repo, a, b, note, notify),
+          onConfirm={(a, b, note, notify) => void run((d) => addDayOff(repo, d, a, b, note, notify),
             `${a === b ? fmt.long(a) : `${fmt.ddm(a)} – ${fmt.ddm(b)}`} off · ${notify ? 'clients told' : 'no one told'}`).then((ok) => ok && setSheet(null))} />
       )}
 
       {s?.type === 'undo' && offOf && (
-        <UndoDayOffSheet off={offOf} diary={diary} onClose={() => setSheet(null)}
-          onUndo={() => void run((d) => undoDayOff(repo, d, offOf.id), `Back on${offOf.notified ? ' · clients told' : ''}`).then((ok) => ok && setSheet(null))} />
+        <UndoDayOffSheet off={offOf} onClose={() => setSheet(null)}
+          onUndo={() => void run((_d) => undoDayOff(repo, offOf.id), 'Day off removed · cancelled sessions stay cancelled').then((ok) => ok && setSheet(null))} />
       )}
 
       {s?.type === 'request' && req && (

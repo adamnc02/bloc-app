@@ -7,9 +7,9 @@
 // travel on it (migration 0028, BLOC §151): `skip_dates` are its weeks
 // cancelled "just this one", its weeks moved "just this one" (each published
 // as its own one-off, with the override's id and `replaces` naming the series
-// and that week, 0029), and the days off that fall on
-// it; `until` is its last week. A one-off is its own booking, cancelled while
-// a day off covers it. A group session is one publication per attendee's
+// and that week, 0029), and the weeks a day off
+// cancelled (they're its `cancelled_dates`); `until` is its last week. A
+// one-off is its own booking. A group session is one publication per attendee's
 // card, with the same `booking_id`.
 //
 // 🚨 Derive, then diff; never publish from an action. Every diary change
@@ -17,7 +17,7 @@
 // publication, so a publish that failed is sent by the next change, and a
 // change that makes no difference to a client sends nothing.
 import { addDays, daysBetween } from '@/lib/format';
-import { isDayOff, overrideIsIdentity, seriesDates } from './model';
+import { overrideIsIdentity, seriesDates } from './model';
 import type { Booking, Diary, Series } from './types';
 
 /** 0028's `skip_dates` cap. */
@@ -55,10 +55,6 @@ function seriesPayload(d: Diary, s: Series): BookingPayload | null {
     if (b.seriesId !== s.id || !b.occursOn || b.occursOn < first || (s.to && b.occursOn > s.to)) continue;
     if (!overrideIsIdentity(b, s)) skips.add(b.occursOn);
   }
-  for (const off of d.daysOff) {
-    if (s.to && off.start > s.to) continue;
-    for (const date of seriesDates(s, off.start > first ? off.start : first, off.end)) skips.add(date);
-  }
   const skip = [...skips].sort().slice(-MAX_SKIP_DATES);
   const prev = predecessor(d, s);
   return {
@@ -80,11 +76,10 @@ export function predecessor(d: Pick<Diary, 'series'>, s: Series): Series | null 
     && daysBetween(t.to, s.from) <= 7 && [...t.clientIds].sort().join() === who) ?? null;
 }
 
-function oneOffPayload(d: Diary, b: Booking): BookingPayload {
-  const off = isDayOff(d.daysOff, b.date);
+function oneOffPayload(b: Booking): BookingPayload {
   return {
     v: 1, booking_id: b.id, date: b.date, start_min: b.start, duration_min: b.duration,
-    status: b.status === 'cancelled' || off ? 'cancelled' : 'booked', kind: 'one_off', location: b.location, title: b.title,
+    status: b.status, kind: 'one_off', location: b.location, title: b.title,
   };
 }
 
@@ -97,12 +92,12 @@ export function desiredBookings(d: Diary): Map<string, { cardId: string; payload
   const series = new Map(d.series.map((s) => [s.id, s]));
   for (const s of d.series) put(s.clientIds, seriesPayload(d, s));
   for (const b of d.bookings) {
-    if (!b.seriesId) { put(b.clientIds, oneOffPayload(d, b)); continue; }
+    if (!b.seriesId) { put(b.clientIds, oneOffPayload(b)); continue; }
     // A week of a series moved "just this one": its own one-off, while the week is still in its series.
     const s = series.get(b.seriesId);
     if (!s || !b.occursOn || b.occursOn < s.from || (s.to && b.occursOn > s.to) || s.cancelled.includes(b.occursOn)) continue;
     if (b.status === 'cancelled' || overrideIsIdentity(b, s)) continue;
-    put(b.clientIds, { ...oneOffPayload(d, b), replaces: { booking_id: s.id, date: b.occursOn } });
+    put(b.clientIds, { ...oneOffPayload(b), replaces: { booking_id: s.id, date: b.occursOn } });
   }
   return out;
 }

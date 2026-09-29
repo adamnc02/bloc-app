@@ -230,8 +230,7 @@ export function DiaryGrid(p: DiaryGridProps) {
           const off = dayOffOn(daysOff, d);
           const rest = !workingDays.includes(weekday(d));
           const dayOccs = occurrences.filter((o) => o.date === d);
-          const shown = dayOccs.filter((o) => !o.cancelled);
-          const cancelled = dayOccs.filter((o) => o.cancelled);
+          const shown = dayOccs;
           // Past days and hours keep their outlines: a session can be added after the fact.
           const outlines = off || rest ? [] : emptySlots(
             shown.filter((o) => o.kind !== 'request').map((o) => ({ start: o.start, end: o.start + o.duration })), dayStart, dayEnd);
@@ -256,9 +255,7 @@ export function DiaryGrid(p: DiaryGridProps) {
                 <div className="dg-offnote">
                   <Icon name="moon" size={16} />
                   <b>Day off</b>
-                  {cancelled.length > 0 && <small>{cancelled.length} {cancelled.length === 1 ? 'session' : 'sessions'} cancelled</small>}
-                  {cancelled.length > 0 && <small>{off.notified ? 'Clients told' : 'No one told'}</small>}
-                  {!narrow && cancelled.length > 0 && <small>Weekly sessions carry on.</small>}
+                  {off.note && <small>{off.note}</small>}
                 </div>
               )}
 

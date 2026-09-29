@@ -2,6 +2,13 @@
 // weekly series, their "just this one" overrides, the one-offs, and the
 // session requests waiting on the coach (placeholders). Pure: no clock, the
 // dates are passed in.
+//
+// 🚨 A day off is a marker, not a filter: marking one CANCELS its sessions for
+// good at that moment (actions.ts addDayOff: the series week into
+// `cancelled_dates`, a one-off or moved week to status 'cancelled'), and a
+// weekly session booked later across it skips its dates the same way. Undoing a
+// day off frees the day and brings nothing back: the client was told, and may
+// have rebooked.
 import type { ISODate } from '@/domain/types';
 import { addDays, daysBetween, weekday } from '@/lib/format';
 import type { Booking, DayOff, Diary, Series, SessionKind, SessionRequest, Slot } from './types';
@@ -27,8 +34,6 @@ export interface Occurrence {
   /** For a series week: the date it falls on in the series, before any move. */
   seriesDate: ISODate | null;
   bookingId: string | null;
-  /** Cancelled by a day off. The series carries on. */
-  cancelled: boolean;
   request: SessionRequest | null;
 }
 
@@ -111,10 +116,9 @@ export function occurrencesBetween(d: Diary, from: ISODate, to: ISODate, today?:
         key: `s:${s.id}@${date}`, kind: at?.kind ?? s.kind, date: at?.date ?? date, start: at?.start ?? s.start,
         duration: at?.duration ?? s.duration, title: at ? at.title : s.title, location: at ? at.location : s.location,
         clientIds: at?.clientIds ?? s.clientIds, recurring: true, seriesId: s.id, seriesDate: date,
-        bookingId: at?.id ?? null, cancelled: false, request: null,
+        bookingId: at?.id ?? null, request: null,
       };
       if (occ.date < from || occ.date > to) continue;
-      occ.cancelled = isDayOff(d.daysOff, occ.date);
       out.push(occ);
     }
   }
@@ -122,8 +126,7 @@ export function occurrencesBetween(d: Diary, from: ISODate, to: ISODate, today?:
     if (b.seriesId || b.status !== 'booked' || b.date < from || b.date > to) continue;
     out.push({
       key: `b:${b.id}`, kind: b.kind, date: b.date, start: b.start, duration: b.duration, title: b.title, location: b.location,
-      clientIds: b.clientIds, recurring: false, seriesId: null, seriesDate: null, bookingId: b.id,
-      cancelled: isDayOff(d.daysOff, b.date), request: null,
+      clientIds: b.clientIds, recurring: false, seriesId: null, seriesDate: null, bookingId: b.id, request: null,
     });
   }
   for (const r of openRequests(d, today)) {
@@ -132,7 +135,7 @@ export function occurrencesBetween(d: Diary, from: ISODate, to: ISODate, today?:
     out.push({
       key: `r:${r.id}`, kind: 'request', date: slot.date, start: slot.start_min, duration: d.settings.sessionMinutes,
       title: null, location: null, clientIds: r.cardId ? [r.cardId] : [], recurring: false, seriesId: null, seriesDate: null,
-      bookingId: null, cancelled: false, request: r,
+      bookingId: null, request: r,
     });
   }
   return out.sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start);

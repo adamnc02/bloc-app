@@ -41,7 +41,7 @@ export function SessionsTab({ v }: { v: ClientView }) {
   const mine = (o: Occurrence) => o.clientIds.includes(cardId);
   const list = occurrencesBetween(diary, today, addDays(today, WINDOW_DAYS - 1))
     .filter((o) => mine(o) && o.kind !== 'request' && !(o.date === today && o.start + o.duration <= nowMin));
-  const next = list.find((o) => !o.cancelled);
+  const next = list[0];
   const weekly = diary.series.filter((s) => s.clientIds.includes(cardId) && (!s.to || s.to >= today))
     .sort((a, b) => a.weekday - b.weekday || a.start - b.start);
   const requests = diary.requests.filter((r) => r.cardId === cardId && requestSlot(r));
@@ -126,7 +126,7 @@ export function SessionsTab({ v }: { v: ClientView }) {
           {list.length ? (
             <div className="card list">
               {list.map((o) => (
-                <div key={o.key} className="listrow" style={{ cursor: 'default', opacity: o.cancelled ? 0.55 : 1 }}>
+                <div key={o.key} className="listrow" style={{ cursor: 'default' }}>
                   <span style={{ width: 44, textAlign: 'center', flexShrink: 0 }} aria-hidden="true">
                     <span className="caption" style={{ display: 'block', textTransform: 'uppercase', letterSpacing: '.1em', fontWeight: 700 }}>{fmt.dayShort(o.date)}</span>
                     <span className="display num" style={{ fontSize: 20 }}>{Number(o.date.slice(8))}</span>
@@ -134,7 +134,7 @@ export function SessionsTab({ v }: { v: ClientView }) {
                   <span className="main">
                     <b className="num"><span className="sr-only">{fmt.ddm(o.date)}, </span>{fmt.time(o.start)}–{fmt.time(o.start + o.duration)}</b>
                     <small className="muted" style={{ display: 'block', fontSize: 12.5, marginTop: 3 }}>
-                      {o.cancelled ? 'Cancelled: a day off' : `${o.kind === 'group' ? o.title ?? 'Group session' : lengthLabel(o.duration)}${o.location ? ` · ${o.location}` : ''}`}
+                      {`${o.kind === 'group' ? o.title ?? 'Group session' : lengthLabel(o.duration)}${o.location ? ` · ${o.location}` : ''}`}
                     </small>
                   </span>
                   <KindTag o={o} />
@@ -148,7 +148,7 @@ export function SessionsTab({ v }: { v: ClientView }) {
       {sheet?.type === 'new' && (
         <NewSessionSheet diary={diary} who={who} bundles={bundles} date={today} start={defaultStart} clientId={cardId}
           onClose={() => setSheet(null)}
-          onBook={(n) => void run((_d) => createSession(repo, n), `Booked ${fmt.ddm(n.date)}, ${fmt.time(n.start)}${n.weekly ? ', weekly' : ''}`).then((ok) => ok && setSheet(null))} />
+          onBook={(n) => void run((d) => createSession(repo, d, n), `Booked ${fmt.ddm(n.date)}, ${fmt.time(n.start)}${n.weekly ? ', weekly' : ''}`).then((ok) => ok && setSheet(null))} />
       )}
       {req && (
         <RequestSheet r={req} diary={diary} who={who} today={today} onClose={() => setSheet(null)}

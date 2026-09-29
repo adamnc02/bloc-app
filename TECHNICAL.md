@@ -10189,8 +10189,14 @@ the client as `booking` publications that BLOC reads (§136, §151). No new tabl
   `cancelled_dates` ("just this one" cancellations). 0 = Monday.
 - **An override** is a `diary_bookings` row with `series_id` + `occurs_on`: that one week, moved or changed. A one-off
   has neither.
-- **A day off** (`coach_days_off`) is a date range: one day, or a holiday. It cancels every session on those days
-  (an occurrence's `cancelled`), **never the series**. Undo deletes the row, so the sessions are back.
+- **A day off** (`coach_days_off`) is a date range: one day, or a holiday. 🚨 **Marking it cancels the sessions on those
+  days for good, at that moment** (`addDayOff`): a series week goes into the series' `cancelled_dates`, a one-off or a
+  moved week gets `status 'cancelled'`; **never the series**. The row is then only a marker that refuses new bookings on
+  those days, and a weekly session booked later across it has those weeks in its `cancelled_dates` from the start
+  (`daysOffWeeks`). **Undo deletes the row and nothing else**: the cancelled sessions stay cancelled and nothing is sent.
+  The coach chose whether to tell the clients, and a client told may already have rebooked, so the phone must never get
+  a session back that way. (A day off derived at read time, "cancelled while the row exists", brought every session
+  back on undo.)
 - **A placeholder** is an open request, at: a pending request's first choice; the coach's proposed time; the client's
   counter; or, once the client has accepted and before it's booked, the accepted time. Its length is the coach's
   session length. A placeholder is never cancelled by a day off and never blocks anything.
@@ -10223,9 +10229,9 @@ no difference to a client sends nothing, and nothing is sent twice. `verify-coac
 
 | Diary | Publication (per attendee's card; a group: one per card, one `booking_id`) |
 |---|---|
-| a series | `{booking_id: series id, kind: 'weekly', date: its first week, start_min, duration_min, status: 'booked', location, title, skip_dates, until}`. `skip_dates`: its cancelled weeks, its weeks moved by an override, and every day off falling on it (the latest 400); `until`: `effective_to`; **`replaces`** when it continues an ended series ("all future" from a later week: `predecessor()`, the same kind and clients, ended, this one starting within the week after), naming that series and the first week moved |
-| an override (a moved week) | its own one-off, `booking_id` = the override's id, `kind: 'one_off'`, **`replaces: {booking_id: the series, date: the week}`** (`0029`), so the phone says "Session changed" (BLOC §151); cancelled while a day off covers it |
-| a one-off | `kind: 'one_off'`, `status` `cancelled` when it's cancelled or a day off covers it |
+| a series | `{booking_id: series id, kind: 'weekly', date: its first week, start_min, duration_min, status: 'booked', location, title, skip_dates, until}`. `skip_dates`: its cancelled weeks (a day off's included), and its weeks moved by an override (the latest 400); `until`: `effective_to`; **`replaces`** when it continues an ended series ("all future" from a later week: `predecessor()`, the same kind and clients, ended, this one starting within the week after), naming that series and the first week moved |
+| an override (a moved week) | its own one-off, `booking_id` = the override's id, `kind: 'one_off'`, **`replaces: {booking_id: the series, date: the week}`** (`0029`), so the phone says "Session changed" (BLOC §151) |
+| a one-off | `kind: 'one_off'`, its `status` (a day off sets it `cancelled`) |
 | a card sent a booking it should no longer hold (a series deleted, a client taken out of a group) | that booking again, `status: 'cancelled'` |
 
 A cancelled booking a card was never sent is not sent. 🚨 **An override identical to its series week is no exception**
@@ -10249,8 +10255,9 @@ is one BLOC's `coachBookingWeekly()` rolls forward (`verify-coach-diary.mjs`, wi
   on the new day; that series' overrides from the week on are deleted.
 - **Cancel**: a one-off `status 'cancelled'`. A series week, **Just this one**: added to `cancelled_dates` (its override
   deleted). **All future**: the series ends the day before, or is deleted when that's its first week.
-- **A day off / holiday**: `addDayOff(start, end, note, notify)`, `notified` stored. Undo publishes with `quiet` unless
-  the clients were told about the day off.
+- **A day off / holiday**: `addDayOff(diary, start, end, note, notify)` cancels the sessions on those days (above), stores
+  `notified`, and publishes, `quiet` unless the coach chose to tell the clients. `undoDayOff(id)` deletes the row only and
+  publishes nothing.
 - **Requests** (the coach's half; `0024`'s trigger refuses anything else): **book** one of the client's times (a window:
   any start inside it; a weekly request: a series and its identical first-week override), then the request `accepted`
   with `booking_id`; **propose** another time (`proposed`, status `proposed`: BLOC's banner, §136); **decline**. Dragging
@@ -10296,8 +10303,7 @@ the message (control: `String()` of the raw error), one refresh and retry on an 
   several; the sessions affected listed; "Don't tell them" / "Let … know"), the day off with Undo, and Session request.
   The client picker is a **SearchSheet** (one client, or several for a group). The request sheet opens on the client's
   first time that's free.
-- **Client → Sessions**: next session, requests, weekly sessions, the next two weeks (a day off's cancellations shown
-  greyed), Book a session.
+- **Client → Sessions**: next session, requests, weekly sessions, the next two weeks, Book a session.
 - **Settings → Diary**: working hours (15-minute steps), working days, a new session's length, and the days off still to
   come, each opening Undo.
 
@@ -10317,13 +10323,14 @@ the message (control: `String()` of the raw error), one refresh and retry on an 
 ### Checks
 
 - `coach/src/diary/diary.test.ts` (vitest, 27 cases): outlines after a session off the hour, lanes; series dates, the
-  fixture week, a day off and a holiday, placeholder slots by status; overlaps, a group, touching sessions, a day off,
+  fixture week, placeholder slots by status; overlaps, a group, touching sessions, a day off,
   a weekly session clashing in its third week (control: none without the one-off); the publications: the series and the
-  group, every key on `0028`'s list (read from the migration), nothing when nothing changed, a day off quietly, a
+  group, every key on `0028`'s list (read from the migration), nothing when nothing changed, a
   removed attendee cancelled and a never-sent cancellation not sent, the identical override (control: moved 15 min, it's
   an exception), 400 skip dates, quiet not counting as a change; the actions on the fixture repo: move just this one,
-  all future from a later week (the old series ending quietly), cancel then stop, a day off told and not told and its
-  undo, a new weekly session and a one-off made weekly, booking a weekly request, proposing, auto-booking (control: a
+  all future from a later week (the old series ending quietly), cancel then stop, a day off told and not told (stored as cancellations, the series
+  carrying on), a holiday, 🚨 undo bringing nothing back and sending nothing (the day free again), a weekly session booked
+  after a day off skipping it (control: none without), a new weekly session and a one-off made weekly, booking a weekly request, proposing, auto-booking (control: a
   clashing acceptance is left), and the refusals.
 - `scripts/verify-coach-diary.mjs`: the allow-list, the weekly kind and BLOC's reading of the new keys, the one
   publishing path, no clock in the model, expiry off; each with a control.

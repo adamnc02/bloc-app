@@ -48,18 +48,6 @@ describe('occurrences', () => {
       `r:rq-tom ${MON} 450`, `r:rq-grace ${TUE} 1080`, `r:rq-priya ${THU} 1140`,
     ]);
   });
-  it('a day off cancels that day’s sessions only; the series carries on', async () => {
-    const d = { ...(await fresh().loadDiary()), daysOff: [{ id: 'o', start: TUE, end: TUE, note: null, notified: false }] };
-    expect(occ(d, `s:sr-maya@${TUE}`).cancelled).toBe(true);
-    expect(occ(d, `s:sr-maya@${addDays(TUE, 7)}`).cancelled).toBe(false);
-    expect(occ(d, 'r:rq-grace').cancelled).toBe(false); // a placeholder is never cancelled
-  });
-  it('a holiday over several days cancels every day in it', async () => {
-    const d = { ...(await fresh().loadDiary()), daysOff: [{ id: 'o', start: MON, end: FRI, note: 'Holiday', notified: true }] };
-    const o = occurrencesBetween(d, MON, addDays(MON, 6)).filter((x) => x.kind !== 'request');
-    expect(o.filter((x) => x.cancelled).length).toBe(6);
-    expect(o.find((x) => x.date === SAT)!.cancelled).toBe(false);
-  });
   it('a placeholder’s state is whose move it is: requested (pending or countered), offered, clash (accepted, not booked)', () => {
     const r = { id: 'r', clientId: 'u', cardId: 'c', preferences: [{ date: TUE, start_min: 600 }], notes: null, repeatWeekly: false, proposed: null, counter: null, bookingId: null, createdAt: '' };
     expect((['pending', 'countered', 'proposed', 'accepted'] as const).map((status) => placeholderState({ ...r, status }))).toEqual(['requested', 'requested', 'offered', 'confirmed']);
@@ -123,15 +111,6 @@ describe('what the Diary publishes', () => {
   it('nothing is sent when nothing changed (the fixture starts with what it implies)', async () => {
     expect(bookingChanges(await fresh().loadDiary())).toEqual([]);
   });
-  it('a day off: the weekly skips that date, the one-off is cancelled; quiet when not notifying', async () => {
-    const d = await fresh().loadDiary();
-    d.daysOff.push({ id: 'o', start: WED, end: WED, note: null, notified: false });
-    const out = bookingChanges(d, { quiet: true });
-    expect(out.map((o) => `${o.cardId} ${o.payload.booking_id} ${o.payload.status} ${JSON.stringify(o.payload.skip_dates ?? null)} ${o.payload.quiet}`).sort()).toEqual([
-      'ben bk-ben cancelled null true', `eileen sr-eileen-wed booked ["${WED}"] true`,
-    ]);
-    expect(out.every((o) => o.supersedes)).toBe(true);
-  });
   it('a cancelled one-off nobody was sent is never sent; a card taken out of a group is sent a cancellation', async () => {
     const d = await fresh().loadDiary();
     d.bookings.push({ id: 'nb', seriesId: null, occursOn: null, date: WED, start: 900, duration: 60, kind: 'one_to_one', status: 'cancelled', title: null, location: null, clientIds: ['sam'] });
@@ -188,7 +167,7 @@ describe('actions (fixture repo)', () => {
     expect(after.sent['maya|sr-new-1'].payload.replaces).toEqual({ booking_id: 'sr-maya', date: TUE });
     // Control: a new weekly session for someone else replaces nothing.
     const r2 = fresh();
-    const d2 = await createSession(r2, { kind: 'one_to_one', weekly: true, date: FRI, start: 600, duration: 60, location: null, title: null, clientIds: ['sam'] });
+    const d2 = await createSession(r2, await r2.loadDiary(), { kind: 'one_to_one', weekly: true, date: FRI, start: 600, duration: 60, location: null, title: null, clientIds: ['sam'] });
     expect(d2.sent['sam|sr-new-1'].payload.replaces).toBeUndefined();
     expect(occurrencesBetween(after, MON, addDays(MON, 13)).filter((x) => x.clientIds.join() === 'maya' && x.kind === 'one_to_one').map((x) => x.date)).toEqual([THU, addDays(THU, 7)]);
   });
@@ -200,23 +179,52 @@ describe('actions (fixture repo)', () => {
     d = await cancelSession(r, d, occ(d, `s:sr-tom@${addDays(THU, 7)}`), 'all');
     expect(d.sent['tom|sr-tom'].payload.until).toBe(addDays(THU, 6));
   });
-  it('a day off with "notify" sends banners; without, quietly; undo tells only those told', async () => {
+  it('a day off cancels that day’s sessions for good: the weekly skips it, the one-off is cancelled; quiet unless telling', async () => {
     const r = fresh();
-    const batch = (from: number, to?: number) => last(r).slice(from, to).sort();
-    let d = await addDayOff(r, WED, WED, null, false);
-    expect(batch(0)).toEqual(['ben bk-ben cancelled quiet', 'eileen sr-eileen-wed booked quiet']);
-    d = await undoDayOff(r, d, d.daysOff[0].id);
-    expect(batch(2)).toEqual(['ben bk-ben booked quiet', 'eileen sr-eileen-wed booked quiet']);
-    d = await addDayOff(r, WED, WED, null, true);
-    expect(batch(4, 6)).toEqual(['ben bk-ben cancelled', 'eileen sr-eileen-wed booked']);
-    await undoDayOff(r, d, d.daysOff[0].id);
-    expect(batch(6)).toEqual(['ben bk-ben booked', 'eileen sr-eileen-wed booked']);
+    const d = await addDayOff(r, await r.loadDiary(), WED, WED, null, false);
+    expect(last(r).sort()).toEqual(['ben bk-ben cancelled quiet', 'eileen sr-eileen-wed booked quiet']);
+    expect(d.sent['eileen|sr-eileen-wed'].payload.skip_dates).toEqual([WED]);
+    expect(d.series.find((x) => x.id === 'sr-eileen-wed')!.cancelled).toEqual([WED]);           // stored, not derived
+    expect(d.bookings.find((x) => x.id === 'bk-ben')!.status).toBe('cancelled');
+    expect(occurrencesBetween(d, WED, WED).filter((o) => o.kind !== 'request')).toEqual([]);   // gone that day
+    expect(occ(d, `s:sr-eileen-wed@${addDays(WED, 7)}`)).toBeTruthy();                           // the series carries on
+    const told = fresh();
+    await addDayOff(told, await told.loadDiary(), WED, WED, null, true);
+    expect(last(told).sort()).toEqual(['ben bk-ben cancelled', 'eileen sr-eileen-wed booked']);
+  });
+  it('a holiday over several days cancels every session in it, and no placeholder', async () => {
+    const r = fresh();
+    const d = await addDayOff(r, await r.loadDiary(), MON, FRI, 'Holiday', true);
+    const week = occurrencesBetween(d, MON, addDays(MON, 6));
+    expect(week.filter((o) => o.kind !== 'request' && o.date <= FRI)).toEqual([]);
+    expect(week.filter((o) => o.kind !== 'request').map((o) => o.date)).toEqual([SAT]);
+    expect(week.filter((o) => o.kind === 'request').length).toBe(3);
+  });
+  it('🚨 undoing a day off brings nothing back and sends nothing (control: the day is free again)', async () => {
+    const r = fresh();
+    let d = await addDayOff(r, await r.loadDiary(), WED, WED, null, true);
+    const sent = r.published.length;
+    d = await undoDayOff(r, d.daysOff[0].id);
+    expect(r.published.length).toBe(sent);
+    expect(occurrencesBetween(d, WED, WED).filter((o) => o.kind !== 'request')).toEqual([]);
+    expect(d.bookings.find((x) => x.id === 'bk-ben')!.status).toBe('cancelled');
+    expect(d.series.find((x) => x.id === 'sr-eileen-wed')!.cancelled).toEqual([WED]);
+    expect(newRefusal(d, { kind: 'one_to_one', weekly: false, date: WED, start: 600, duration: 45, location: null, title: null, clientIds: ['eileen'] }, name)).toBeNull();
+  });
+  it('a weekly session booked after a day off skips it (control: none without the day off)', async () => {
+    const r = fresh();
+    let d = await addDayOff(r, await r.loadDiary(), addDays(FRI, 14), addDays(FRI, 14), null, false);
+    d = await createSession(r, d, { kind: 'one_to_one', weekly: true, date: FRI, start: 600, duration: 60, location: null, title: null, clientIds: ['sam'] });
+    expect(Object.entries(d.sent).find(([k]) => k.startsWith('sam|'))![1].payload.skip_dates).toEqual([addDays(FRI, 14)]);
+    const r2 = fresh();
+    const d2 = await createSession(r2, await r2.loadDiary(), { kind: 'one_to_one', weekly: true, date: FRI, start: 600, duration: 60, location: null, title: null, clientIds: ['sam'] });
+    expect(d2.sent['sam|sr-new-1'].payload.skip_dates).toEqual([]);
   });
   it('a new weekly session and a one-off made weekly', async () => {
     const r = fresh();
-    let d = await createSession(r, { kind: 'one_to_one', weekly: true, date: FRI, start: 600, duration: 60, location: null, title: null, clientIds: ['sam'] });
+    let d = await createSession(r, await r.loadDiary(), { kind: 'one_to_one', weekly: true, date: FRI, start: 600, duration: 60, location: null, title: null, clientIds: ['sam'] });
     expect(last(r)).toEqual(['sam sr-new-1 booked']);
-    d = await makeWeekly(r, occ(d, 'b:bk-ben'));
+    d = await makeWeekly(r, d, occ(d, 'b:bk-ben'));
     expect(last(r).slice(1).sort()).toEqual(['ben bk-ben cancelled quiet', 'ben sr-new-2 booked']);
   });
   it('booking a weekly request: a series and an identical first week, one weekly publication, the request names the booking', async () => {

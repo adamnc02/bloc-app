@@ -37,11 +37,11 @@ export function DiarySettingsSection({ i }: { i: number }) {
       {sheet === 'hours' && <HoursSheet s={s} onClose={() => setSheet(null)} onSave={(x) => void run((_d) => saveSettings(repo, x), 'Diary settings saved').then((ok) => ok && setSheet(null))} />}
       {sheet === 'off' && (
         <DayOffSheet diary={diary} who={who} today={today} date={null} onClose={() => setSheet(null)}
-          onConfirm={(a, b, note, notify) => void run((_d) => addDayOff(repo, a, b, note, notify), `${a === b ? fmt.long(a) : `${fmt.ddm(a)} – ${fmt.ddm(b)}`} off · ${notify ? 'clients told' : 'no one told'}`).then((ok) => ok && setSheet(null))} />
+          onConfirm={(a, b, note, notify) => void run((d) => addDayOff(repo, d, a, b, note, notify), `${a === b ? fmt.long(a) : `${fmt.ddm(a)} – ${fmt.ddm(b)}`} off · ${notify ? 'clients told' : 'no one told'}`).then((ok) => ok && setSheet(null))} />
       )}
       {undo && (
-        <UndoDayOffSheet off={undo} diary={diary} onClose={() => setSheet(null)}
-          onUndo={() => void run((d) => undoDayOff(repo, d, undo.id), `Back on${undo.notified ? ' · clients told' : ''}`).then((ok) => ok && setSheet(null))} />
+        <UndoDayOffSheet off={undo} onClose={() => setSheet(null)}
+          onUndo={() => void run((_d) => undoDayOff(repo, undo.id), 'Day off removed · cancelled sessions stay cancelled').then((ok) => ok && setSheet(null))} />
       )}
       <Toast msg={toast.msg} />
     </Section>
