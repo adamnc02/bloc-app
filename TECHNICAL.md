@@ -9765,6 +9765,188 @@ shape and end, its goals, logs untouched, no overlap left), a coach's cycle held
 Control: v8.44 (`d909ae0`) never applies the plan. `planReplaceOffer` has cases in `engine-cases.mjs`, so
 `verify-engine-pure.mjs` covers it.
 
+## §144 — Coach v0.4: a client's Plan, the Library, and SearchSheet
+
+**What it is.** Client → **Plan** edits a client's cycles as BLOC's own Plan does (goal phases, sessions,
+exercises, supersets, deloads, the cycle's settings and extension), as drafts, and **Publish** sends them as `plan`
+and `goal_phases` publications (§131). The **Library** keeps the coach's cycle and workout templates and applies
+them to clients as fresh copies. Review's **Adjust goals** and **Swap exercise** open Plan on that job. Every
+filtering list is a **SearchSheet**. No migration: `coach_plan_drafts`, `coach_templates` and
+`template_applications` are `0024`'s, and every payload fits `0023`'s allow-list.
+
+### Files
+
+| File | What |
+|---|---|
+| `coach/src/plan/doc.ts` | the plan document (`PlanDoc`) and every edit, pure |
+| `coach/src/plan/fold.ts` | the published baseline: the upload plus the coach's unapplied publications |
+| `coach/src/plan/diff.ts` | draft vs baseline → the Publish sheet's lines and the two payloads |
+| `coach/src/plan/templates.ts` | templates without dates or ids; applying one as a fresh copy |
+| `coach/src/plan/library.ts` | the exercise library: BLOC's built-in list (a copy), the client's own, new names |
+| `coach/src/plan/volume.ts` | volume by body part and the progression preview, on the engine's progression functions |
+| `coach/src/coach/client/plan/` | `usePlan` (state, drafts, publish), `PlanTab`, `PlanParts`, `PlanSheets`, `ExerciseSheets` |
+| `coach/src/coach/screens/LibraryScreen.tsx` | the Library, Apply and Save as template |
+| `coach/src/components/ui/SearchSheet.tsx`, `searchFit.ts` | the search sheet and its measurements |
+
+### The plan document
+
+A `PlanDoc` is one cycle in BLOC's own shapes, so publishing is a diff and never a translation:
+- `macro`: the macrocycle's coach-owned fields (`MACRO_FIELDS` = BLOC's `PUB_MACRO_FIELDS` + `id`);
+- `exercises`: session templates keyed `${macroId}_1_${dayKey}`, `dayKey` with `m1`/`m2` under microcycles;
+- `supersets`, `deloads` (`${macroId}_${week}` or `…_${week}_m${1|2}`), `goals` (BLOC's goal shape, `macroGoalID`).
+
+🚨 **BLOC's "week" in every key is a mesocycle number.** A cycle is `weeks` mesocycles × `weeksPerMeso` weeks, plus
+`extensionWeeks`. Microcycles and `weeksPerMeso` are independent: a 2-week mesocycle's M1 and M2 are its two calendar
+weeks, and a 1-week mesocycle's M1 and M2 fall in the same week. Each microcycle has its own templates.
+`deloadUnits()` follows `getDeloadUnitKey()` and skips the dropped M2 of a partial extension mesocycle
+(`isMesoMicroValid`).
+
+The edits are BLOC's plan editor's rules (`index.html` `createMacrocycle`, `saveExercise`, `confirmLink`,
+`unlinkExercise`, `reorderExercise`, `reorderSupersetExercise`, `saveGoal`):
+- a new cycle: PPL (`push/pull/legs`) or custom sessions (`session{n}`), `sessionsPerWeek` = its sessions, RPE on;
+- a giant set is one set; a drop set can't join a superset; the tapped exercise leads a superset (its sets are the
+  group's) and the group sits at its earliest member's place; a superset left with one member dissolves;
+- a slot (a solo exercise or a whole superset) moves as one; orders are renumbered 0, 10, 20…;
+- a new start moves every goal phase by the same days (BLOC's goal shift); goal phases may not overlap;
+- a goal phase's macros are BLOC's Goal Period sliders (`plan/macros.ts`, BLOC's `computeGoalMacroGrams` /
+  `initGoalMacroSliders`): protein in g per lb of the client's latest weigh-in (150 with none), 1.00–2.00; the
+  calories left after protein split between carbs (30–80%) and fats; a saved phase reopens at the positions its grams
+  imply, and one already started keeps its grams unless a slider moves. A vitest case runs BLOC's functions from
+  `index.html` over 192 combinations and requires the same grams. (A check-in plan's phases, §141, still derive fats
+  as `(kcal − 4·protein − 4·carbs) / 9`.) Phases are relabelled "Step N - name" by date (`renumberMacroGoalSteps`) on
+  every save;
+- 🚨 a goal phase may not overlap another cycle's, and when this cycle replaces the client's own running one, that
+  cycle's goals are checked **as they'll be once the client accepts** (the running one ends on the new end, later ones
+  removed). Checked as they are now, every phase of the replacing cycle was refused;
+- the exercise editor asks for a body part only for a name the library doesn't know.
+
+🚨 **Swap is a new exercise, set up from scratch**: pick it, and the exercise editor opens on it with every setting to
+fill in (set type, reps, starting kg, starting and peak sets, heavy leg, total or per side); only its place and
+superset carry over. It gets a new id: the one it replaces keeps its logs in history under its own id, and the new one
+starts its own. An edit keeps the id, so the logs stay attached.
+
+🚨 **An exercise swapped or added part-way through a cycle joins at the client's week** (`joinWeek`): the mesocycle
+they're in at their today, or the next once they've done that session in it; before the cycle starts, from week 1. It
+carries `fromWeek` (BLOC v8.46, §147), so that week is its week 1: the starting kg the coach set is its first target, and
+its sets run starting to peak over the weeks it has. The row shows "From MC n", the Publish line says so, and the volume
+and progression preview count only its weeks. An edit never moves `fromWeek`.
+
+🚨 **An exercise without `bodyPart`** (every plan before this, and the demo) gets the library's body part for its name
+when the editor opens, as BLOC's volume table reads it; only a name the library doesn't know asks for one. Saving
+it adds `bodyPart`, which BLOC's Swap for today uses (§137).
+
+### The published baseline (`foldPlan`)
+
+The client's newest upload is what their phone holds. On top of it go the card's own `plan`, `goal_phases` and
+`ai_response` (`goal_changes`) publications that the upload's `coachLedger` hasn't settled as applied or
+superseded, in `seq` order, with BLOC's patch rules (§131): a publication made a minute ago, one held on the phone,
+or all of them for a client who hasn't linked or synced (invited clients get their plan when they link) or isn't
+on the app. A cycle with `publishedBy` is the coach's; any other is the client's own and read-only.
+
+🚨 **Publications from before an unlink must not come back.** Unlinking removes every coach cycle and goal from the
+phone (§132), and BLOC's ledger keeps those publications settled, so they never re-apply. With an upload, that ledger
+skips them here too. Without one (an unlinked card), only publications after the link's `ended_at`
+(`ClientBundle.lastEndedAt`) count. Relinking reuses the `coach_clients` row and clears `ended_at`, so that cut-off
+holds only while the card is unlinked. A publication that was held on the phone is still retried after a relink,
+so it is rightly shown.
+
+Each coach cycle's status comes from its latest `plan` publication (else its latest goal row): **on their phone**
+(applied), **not on their phone yet** (not pulled, or no sync since), or **held** with BLOC's note (§143's "Waiting
+for the client…" or "The client kept…", or an ordinary overlap). A later goal phase row about a held cycle only says
+"its cycle isn't on this phone", so it never names the reason.
+
+🚨 **With an upload, the phone's own ledger (`coachLedger`) decides, not the server's receipt.** BLOC sends a receipt
+once per ledger entry (`acked`). A state restored from another copy of the same account can carry a ledger that says
+"applied, receipt sent" while the server still holds an older copy's answer ("held: overlaps …"), and nothing ever
+corrects it. The receipt is read only when there is no upload.
+
+### Drafts and publishing
+
+- **Drafts:** one `coach_plan_drafts` row per (card, cycle), `body = {v, doc, base}` (`base`: the published cycle
+  the draft started from, as JSON). Saved 0.7 s after the last edit; an edit back to what's published deletes it.
+  A draft whose `base` no longer matches the published cycle (a check-in's goal change, another device) says so, and
+  its changes are shown against what's published now. A new cycle is a draft with no published cycle.
+- **Publish** (`diffPlan` → `payloadsOf`): `plan` first, then `goal_phases`, because BLOC holds goal phases for a
+  cycle its phone doesn't have yet and applies in `seq` order.
+  - `plan`: `macrocycle` with `id` and the changed fields (a new cycle sends every field), `exercises` with every
+    changed template **whole** (BLOC replaces the list; a removed session is sent as `[]`), `supersets` new or
+    renamed, `remove_superset_ids`, `deloads` as `{key: bool}`.
+  - `goal_phases`: `{macro_id, goals: changed or new, remove_goal_ids}`.
+  - 🚨 Every template that's sent has a line on the Publish sheet (a changed template with no named change reads
+    "{session}: changed"): a change with no line would publish with nothing shown.
+  - A client not on the app gets **Save**: the same rows, which arrive if they ever link.
+- **Overlaps** (`planReplaceOffer`, §143, at the client's today): an overlap with the client's own running cycle is
+  published as a replace they're asked to accept; any other overlap can't be published, and the sheet offers the
+  first start that works.
+
+### Templates and the Library
+
+A template (`coach_templates.body`) has no dates and no ids: a cycle keeps its settings, each session's exercises
+(supersets as local refs), deload units and goal phases as day offsets from the start; a workout keeps one
+session. Applying one builds a fresh copy with every id new, so a template is never shared between clients:
+- a cycle from a start date (default: the day after the client's running cycle ends, else next Monday), as a new
+  draft cycle in their Plan;
+- a workout into one session of one of their cycles (M1 and M2 alike), replacing its exercises, or as a new session.
+
+Each application is a `template_applications` row; the Library ranks each kind by applications in the last 90 days
+(then all time) and shows the top 4, with View all, stars and a Starred filter. Save as template works from a
+client's Plan (Tools, or a session's ⋯) and from the Library.
+
+### The exercise library
+
+BLOC's 29 built-in exercises, the client's own `customLibrary`, and names used in this plan; one entry per name,
+sorted by body part then name, as BLOC's `getLibrary()`. 🚨 `BUILT_IN` is a copy of `index.html`'s
+`DEFAULT_LIBRARY` (moving it into the engine would change BLOC's served bytes); `verify-coach-plan.mjs` compares
+them entry by entry. Swap lists the planned body part's alternatives first.
+
+### SearchSheet
+
+BLOC's search sheet (§9 → "Search sheets", §117) as one component, so no screen can leave a part out: the sheet
+pinned under the safe area at a height frozen while the keyboard is open (standalone only), only the list wrap
+resizing, a sibling fade, the fit 320 ms after a 0.3 s slide-in, and a re-fit on every `visualViewport` resize
+(`max(80, viewport − list top + 28)`). Below 768 px only; wider, it's a centred dialog. It owns the search input:
+🚨 **no other Coach component renders a search box**, so a filtering list can't be built on `Sheet`.
+Used by the exercise picker (Add exercise, Swap), the template pickers and the Library's client picker. The keyboard
+behaviour shows only in an installed Coach; a browser tab shows the sheet staying pinned while filtering (checked
+in Chromium at 375 × 812: top 30 px and height 782 px before and after typing).
+
+### A check-in's goal change
+
+**Read full check-in** shows the goal change as Sustainable / Aggressive / No change, each with the goal periods it
+would set. The chosen one (✓) shows the coach's numbers, which is what Publish sends; the choice and the numbers are
+changed in ✎ Edit. The original reply, both plans as they came back, stays under "Original from BLOC".
+Every Read full sheet (check-in, cycle review, next-cycle advice) has ✎ Edit beside Close (`Sheet`'s `actions`): it
+closes the sheet and opens the edit form on the card.
+
+🚨 **A check-in's goal phases stop at the cycle's end** (`clipToCycle`, `coach/src/ai/tools.ts`): a phase running
+past it ends on it, and one starting after it is dropped. BLOC's check-in prompt lets a plan run past the end, and
+BLOC Solo only warns; from a coach, a goal past the end would sit over the next cycle's own goal phases (set in Plan),
+and a cycle ended early for a coach's cycle (§143) is the case where that next cycle exists. The plan in Edit and Read
+full is cut at the end the reply was given (`_cycleEnd`); `goalChanges` cuts again at the cycle's end as it is at
+publish. Both sheets say when the reply ran past it. `ai.test.ts` checks both, with controls (a longer cycle is sent
+whole; a reply without `_cycleEnd` isn't cut before publish).
+
+### Coach's icons
+
+The brand kit's (`bloc-coach-brand/icon/`): `apple-touch-icon.png` (180 px, the Home Screen icon), `favicon.ico` and
+`bloc-coach-icon-square.svg`, in `coach/public/`, which Vite copies into `coach/dist/` and links under Coach's base
+(`/bloc-app/coach/…`), with `apple-mobile-web-app-title` "BLOC Coach". Without them iOS shows Safari's default icon.
+BLOC's own icons are unchanged. `verify-coach-splash.mjs` checks the served page links all three and each is committed
+(Pages serves only committed files, §139).
+
+### Checks
+
+- `coach/src/plan/plan.test.ts` (vitest, 26 cases): the fold (own vs coach cycles, unapplied overlay, the ledger,
+  the unlink cut-off, held receipts, check-in goal changes); every payload **applied back through the fold's patch
+  rules equals the draft**; allow-listed keys only; plan before phases; whole templates with ids kept; swap; removed
+  sessions; goals (fats, labels, removal); the goal shift; BLOC's exercise and superset rules; microcycle copy;
+  deload units; templates (no ids or dates, fresh ids); the library; the figures.
+- `coach/src/components/ui/searchFit.test.ts` (5 cases): the keyboard test, the frozen height, the fit.
+- `scripts/verify-coach-plan.mjs`: the library copy, `MACRO_FIELDS` = `PUB_MACRO_FIELDS` + `id`, no clock in the plan
+  model, the client's today; controls.
+- `scripts/verify-coach-search-sheets.mjs`: no search box outside SearchSheet, its four parts, its users; control: a
+  search input in a plain Sheet.
+
 ## §145 — v8.46: a different account signing in doesn't take over the device's data
 
 **The bug.** BLOC keeps local data on sign-out (so a person signing back in finds everything as they left it), and

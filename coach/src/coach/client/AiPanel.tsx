@@ -7,7 +7,7 @@ import { runTool } from '@/ai/run';
 import { coachCallModel, getAiKey } from '@/ai/transport';
 import {
   aiResponsePayload, contentOf, eligibility, goalChanges, isEdited, latestDraft, notesBack, openRequest, overallCompliance,
-  photoRequestPayload, photoRequestState, planChoices, priorPhaseIds, publishState, sentEdit, TOOL_LABEL, TOOLS, withPlan, type GoalChanges,
+  photoRequestPayload, photoRequestState, phasesFor, planChoices, planRunsTo, priorPhaseIds, publishState, sentEdit, TOOL_LABEL, TOOLS, withPlan, type GoalChanges,
 } from '@/ai/tools';
 import type { AiData, AiDraft, AiEdit, AiTool, CoachPublication, Submission } from '@/ai/types';
 import type { ReviewModel } from '@/review/model';
@@ -144,7 +144,7 @@ export function AiPanel({ v, m, state, tool, onTool, ai }: {
         </div>
       )}
 
-      {d && <FullSheet open={sheet === 'full'} d={d} data={data} first={first} onClose={() => setSheet(null)} />}
+      {d && <FullSheet open={sheet === 'full'} d={d} data={data} first={first} onClose={() => setSheet(null)} onEdit={() => { setSheet(null); setEditing(true); }} />}
       {d && sheet === 'publish' && (
         <PublishSheet d={d} data={data} state={state} today={today} first={first} onClose={() => setSheet(null)}
           onDone={(p, nd) => { addPub(p); addDraft(nd); setSheet(null); }} />
@@ -266,6 +266,13 @@ function EditForm({ d, onCancel, onSave }: { d: AiDraft; onCancel: () => void; o
           <span className="label">Goal change</span>
           <Seg label="Goal change" value={e.planKey ?? 'none'} onChange={(k) => setE(withPlan(d, { ...e, planKey: k === 'none' ? null : k }))}
             options={[...plans.map((p) => ({ value: p.key, label: p.label })), { value: 'none', label: 'No change' }]} />
+          {(() => {
+            const end = d.original.response?._cycleEnd ? String(d.original.response._cycleEnd) : null;
+            const runsTo = planRunsTo(plans.find((p) => p.key === e.planKey)?.goals ?? []);
+            return end && runsTo && runsTo > end
+              ? <p className="caption" style={{ marginTop: 8 }}>The reply ran to {fmt.dm(runsTo)}. Goals stop at the cycle’s end, {fmt.dm(end)}; the next cycle’s are set in Plan.</p>
+              : null;
+          })()}
           {e.phases.map((p, i) => (
             <div key={p.id} className="tile" style={{ marginTop: 10 }}>
               <div className="row"><b>{p.label || `Phase ${i + 1}`}</b><span className="caption" style={{ whiteSpace: 'nowrap' }}>{fmt.range(p.startDate, p.endDate)}</span></div>
@@ -364,13 +371,14 @@ function PublishSheet({ d, data, state, today, first, onClose, onDone }: {
 
 // ---------------------------------------------------------------- full view
 
-function FullSheet({ open, d, data, first, onClose }: { open: boolean; d: AiDraft; data: AiData; first: string; onClose: () => void }) {
+function FullSheet({ open, d, data, first, onClose, onEdit }: { open: boolean; d: AiDraft; data: AiData; first: string; onClose: () => void; onEdit: () => void }) {
   const [show, setShow] = useState<'sent' | 'original'>('sent');
   const e = sentEdit(d);
   const { state: ps, pub } = publishState(d, data.publications);
   const r = d.original.response || {};
   return (
-    <Sheet open={open} onClose={onClose} title={`${TOOL_LABEL[d.tool].tab} · ${fmt.dm(d.createdAt.slice(0, 10))}`} wide>
+    <Sheet open={open} onClose={onClose} title={`${TOOL_LABEL[d.tool].tab} · ${fmt.dm(d.createdAt.slice(0, 10))}`} wide
+      actions={<IconButton icon="edit" label={`Edit ${TOOL_LABEL[d.tool].noun}`} round onClick={onEdit} />}>
       {isEdited(d) && (
         <Seg label="Version" value={show} onChange={setShow} options={[{ value: 'sent', label: ps === 'published' ? `What ${first} sees` : 'Your edit' }, { value: 'original', label: 'Original from BLOC' }]} />
       )}
@@ -378,8 +386,9 @@ function FullSheet({ open, d, data, first, onClose }: { open: boolean; d: AiDraf
         <>
           <div className="display" style={{ fontSize: 20, marginTop: 14, lineHeight: 1.3 }}>{e.headline}</div>
           {e.narrative.map((p, i) => <Para key={i}>{p}</Para>)}
-          {e.phases.length > 0 && <Phases rows={e.phases} />}
-          {e.phases.length === 0 && (e.kcal != null || e.steps != null) && (
+          {d.tool === 'check_in' && <PlanPreview key={e.planKey ?? 'none'} d={d} e={e} first={first} />}
+          {d.tool !== 'check_in' && e.phases.length > 0 && <Phases rows={e.phases} />}
+          {d.tool !== 'check_in' && e.phases.length === 0 && (e.kcal != null || e.steps != null) && (
             <div className="tiles-2" style={{ marginTop: 16 }}>
               <div className="tile"><div className="caption">Daily kcal</div><div className="stat">{e.kcal != null ? fmt.int(e.kcal) : '—'}</div></div>
               <div className="tile"><div className="caption">Daily steps</div><div className="stat">{e.steps != null ? fmt.int(e.steps) : '—'}</div></div>
@@ -393,6 +402,39 @@ function FullSheet({ open, d, data, first, onClose }: { open: boolean; d: AiDraf
         {pub ? `Published ${fmt.ddm(pub.createdAt.slice(0, 10))}. ${first} only ever sees your version.` : `Draft. Not sent to ${first}.`}
       </p>
     </Sheet>
+  );
+}
+
+/**
+ * A check-in's goal change in Read full: Sustainable, Aggressive and No change,
+ * each with the goal periods it would set. The chosen one shows the coach's
+ * numbers (what Publish sends); the choice and the numbers are changed in ✎ Edit.
+ */
+function PlanPreview({ d, e, first }: { d: AiDraft; e: AiEdit; first: string }) {
+  const plans = planChoices('check_in', d.original);
+  const chosen = e.planKey ?? 'none';
+  const [view, setView] = useState<string>(chosen);
+  const plan = plans.find((p) => p.key === view);
+  const rows = view === chosen ? e.phases : plan ? phasesFor(d.original, plan.key, d.macroId ?? 'macro', Date.parse(d.createdAt) || 0) : [];
+  const end = d.original.response?._cycleEnd ? String(d.original.response._cycleEnd) : null;
+  const runsTo = plan ? planRunsTo(plan.goals) : null;
+  return (
+    <div style={{ marginTop: 18 }}>
+      <span className="label">Goal change</span>
+      <Seg label="Goal change" value={view} onChange={setView}
+        options={[...plans.map((p) => { const name = p.key === 'aggressive' ? 'Aggressive' : 'Sustainable'; return { value: p.key, label: p.key === chosen ? `${name} ✓` : name }; }), { value: 'none', label: chosen === 'none' ? 'No change ✓' : 'No change' }]} />
+      {plan && (plan.label !== 'Sustainable' && plan.label !== 'Aggressive') && <p style={{ fontWeight: 700, marginTop: 12 }}>{plan.label}</p>}
+      {plan?.summary && <p className="caption" style={{ marginTop: 6 }}>{plan.summary}</p>}
+      {view === 'none'
+        ? <p className="caption" style={{ marginTop: 10 }}>{first}’s goals stay as they are.</p>
+        : rows.length > 0 && <Phases rows={rows} />}
+      {end && runsTo && runsTo > end && (
+        <p className="caption" style={{ marginTop: 8 }}>The reply ran to {fmt.dm(runsTo)}. Goals stop at the cycle’s end, {fmt.dm(end)}; the next cycle’s are set in Plan.</p>
+      )}
+      <p className="caption" style={{ marginTop: 8 }}>
+        {view === chosen ? (chosen === 'none' ? 'Chosen: publishing sends no goal change.' : 'Chosen: publishing sends these.') : 'Not chosen. Choose it, and change its numbers, in ✎ Edit.'}
+      </p>
+    </div>
   );
 }
 

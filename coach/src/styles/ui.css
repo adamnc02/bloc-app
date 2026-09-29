@@ -241,3 +241,55 @@ textarea.input { height: auto; min-height: 96px; padding: 12px 14px; resize: ver
 .modal h3 { font-family: var(--font-display); font-size: 21px; font-weight: 600; letter-spacing: -.01em; line-height: 1.25 }
 @keyframes modal-in { from { opacity: 0; transform: translateY(12px) scale(.94) } }
 .modal:focus, .sheet:focus { outline: none }
+
+/* ---------- search sheet: a search box over a list (TECHNICAL §144; BLOC §9 "Search sheets") ---------- */
+/* 🚨 Pinned below 768px: top fixed under the safe area, height set from the
+   frozen app height (SearchSheet.tsx), flex column, only the list shrinks. */
+.sheet.search-sheet { display: flex; flex-direction: column; overflow: hidden; animation-duration: .3s }
+.sheet.search-sheet.pinned {
+  position: fixed; left: 0; right: 0; margin: 0 auto; top: calc(env(safe-area-inset-top) + 30px); bottom: auto;
+  max-height: none; height: calc(100dvh - env(safe-area-inset-top) - 30px); padding-bottom: 0;
+}
+.search-sheet:not(.pinned) { max-height: min(720px, calc(100dvh - 48px)) }
+.ss-fixed { flex-shrink: 0 }
+.ss-foot { padding: 14px 0 calc(16px + env(safe-area-inset-bottom)) }
+.search-sheet:not(.pinned) .ss-foot { padding-bottom: 0 }
+.ss-search { position: relative; margin-bottom: 12px }
+.ss-search > svg { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--text3); pointer-events: none }
+.ss-search .input { padding-left: 40px; height: 46px }
+.ss-list-wrap { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column }
+.ss-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding-bottom: 24px }
+.ss-fade { position: absolute; left: 0; right: 0; bottom: 0; height: 32px; pointer-events: none; background: linear-gradient(to top, var(--surface), transparent) }
+.ss-group { font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--text3); font-weight: 700; padding: 14px 0 6px }
+.ss-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 10px 0; border: 0; border-top: 1px solid var(--divider); background: none; color: var(--text); text-align: left; cursor: pointer }
+.ss-group + .ss-row { border-top: 0 }
+.ss-row .main { flex: 1; min-width: 0 }
+.ss-row b { display: block; font-size: 15px; font-weight: 600 }
+.ss-row small { display: block; font-size: 12.5px; color: var(--text2); margin-top: 2px }
+.ss-row[aria-pressed="true"] b { color: var(--accent2) }
+
+/* ---------- Plan (TECHNICAL §144) ---------- */
+.deload-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px }
+.deload-grid .pick { min-width: 0 }
+@media (min-width: 768px) { .deload-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) } }
+.sess-block:first-child { border-top: 0 !important }
+
+/* ---------- goal phase macros: BLOC's sliders beside the pie (TECHNICAL §144) ---------- */
+.macro-cols { display: flex; gap: 16px; align-items: flex-start; margin-top: 10px }
+.macro-cols-left { flex: 0 0 60%; max-width: 60%; min-width: 0 }
+.macro-cols-right { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; padding-top: 4px }
+.macro-row { display: flex; align-items: center; gap: 10px }
+.macro-letter { flex: 0 0 16px; font-family: var(--font-display); font-weight: 600; font-size: 13px }
+.macro-sub { font-size: 10px; color: var(--text3); margin: -12px 0 10px 26px }
+.macro-wrap { position: relative; flex: 1; min-width: 0; padding: 22px 0 }
+.macro-tip { position: absolute; top: 0; transform: translateX(-50%); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 8px; white-space: nowrap; pointer-events: none; background: var(--macro-c); color: #fff; font-variant-numeric: tabular-nums }
+.macro-tip::after { content: ''; position: absolute; left: 50%; top: 100%; transform: translateX(-50%); border: 4px solid transparent; border-top-color: var(--macro-c) }
+.macro-tip.below { top: auto; bottom: 0; background: var(--surface3); color: var(--text2); font-weight: 600 }
+.macro-tip.below::after { top: auto; bottom: 100%; border-top-color: transparent; border-bottom-color: var(--surface3) }
+.macro-slider { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 20px; background: transparent; margin: 0; padding: 0; border: 0; outline: none }
+.macro-slider::-webkit-slider-runnable-track { height: 3px; border-radius: 1.5px; background: var(--surface3) }
+.macro-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; box-sizing: border-box; width: 20px; height: 20px; border-radius: 50%; background: var(--macro-c); border: 2px solid var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,.35); cursor: pointer; margin-top: -8.5px }
+.macro-slider::-moz-range-track { height: 3px; border-radius: 1.5px; background: var(--surface3) }
+.macro-slider::-moz-range-thumb { box-sizing: border-box; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--surface); background: var(--macro-c); box-shadow: 0 1px 3px rgba(0,0,0,.35); cursor: pointer }
+.macro-legend { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 12px; font-size: 11px; color: var(--text2) }
+.macro-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: -1px }

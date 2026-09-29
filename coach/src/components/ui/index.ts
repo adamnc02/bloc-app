@@ -6,3 +6,4 @@ export * from './Sheet';
 export * from './hooks';
 export * from './Modal';
 export * from './Notice';
+export * from './SearchSheet';

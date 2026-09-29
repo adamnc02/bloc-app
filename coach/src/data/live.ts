@@ -15,7 +15,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { decodeClientState } from '@/lib/clientState';
 import type { Loose } from '@engine';
 import type { AiData, AiDraft, AiEdit, AiOriginal, AiTool, CoachPublication, Submission } from '@/ai/types';
-import type { CardPatch, ClientBundle, ClientCard, ClientSnapshot, CoachProfile, CoachRepo, NewClient, NewInvite } from './types';
+import type { CardPatch, ClientBundle, ClientCard, ClientSnapshot, CoachProfile, CoachRepo, NewClient, NewInvite, PlanDraft, PlanDraftBody } from './types';
+import type { Template, TemplateBody } from '@/plan/templates';
 
 const CARD_COLS = 'id, first_name, surname, email, phone, notes, created_at';
 
@@ -77,6 +78,15 @@ function toPublication(r: Row, ack: Row | undefined): CoachPublication {
     ack: ack ? { status: ack.status as NonNullable<CoachPublication['ack']>['status'], note: str(ack.note) } : null,
   };
 }
+function toPlanDraft(r: Row): PlanDraft {
+  return { id: String(r.id), cardId: String(r.client_record_id), macroId: String(r.macro_id ?? ''), body: r.body as PlanDraftBody, updatedAt: String(r.updated_at) };
+}
+function toTemplate(r: Row, appliedCount: number, appliedLast90: number): Template {
+  return {
+    id: String(r.id), kind: r.kind as Template['kind'], name: String(r.name), summary: str(r.summary), body: r.body as TemplateBody,
+    starred: !!r.starred, createdAt: String(r.created_at), appliedCount, appliedLast90,
+  };
+}
 async function blobToBase64(b: Blob): Promise<string> {
   const bytes = new Uint8Array(await b.arrayBuffer());
   let bin = '';
@@ -103,7 +113,11 @@ export function createLiveRepo(sb: SupabaseClient, profile: CoachProfile, onProf
       for (const r of [cards, links, invites]) if (r.error) throw r.error;
 
       const linkByCard = new Map<string, Row>();
+      const endedByCard = new Map<string, string>();
       for (const l of (links.data ?? []) as Row[]) {
+        const e = str(l.ended_at);
+        const k = String(l.client_record_id);
+        if (e && (!endedByCard.has(k) || e > endedByCard.get(k)!)) endedByCard.set(k, e);
         // A card can have an ended link and, after a re-invite, an active one: the active wins.
         const prev = linkByCard.get(String(l.client_record_id));
         if (!prev || l.status === 'active') linkByCard.set(String(l.client_record_id), l);
@@ -161,6 +175,7 @@ export function createLiveRepo(sb: SupabaseClient, profile: CoachProfile, onProf
           profileName: p ? { first: str(p.first_name), surname: str(p.surname), preferred: str(p.preferred_name) } : null,
           snapshot: snap && typeof snap !== 'string' ? snap : null,
           snapshotError: typeof snap === 'string' ? snap : null,
+          lastEndedAt: endedByCard.get(card.id) ?? null,
         };
       });
     },
@@ -257,6 +272,82 @@ export function createLiveRepo(sb: SupabaseClient, profile: CoachProfile, onProf
         if (error || !data) throw new Error(`Couldn’t read a photo (${error?.message ?? 'no data'})`);
         return { mediaType: data.type || 'image/jpeg', base64: await blobToBase64(data) };
       }));
+    },
+
+    async loadPlan(cardId) {
+      const [pubs, drafts] = await Promise.all([
+        sb.from('publications').select('id, seq, type, payload, supersedes, created_at').eq('client_record_id', cardId).in('type', ['plan', 'goal_phases', 'ai_response']).order('seq'),
+        sb.from('coach_plan_drafts').select('id, client_record_id, macro_id, body, updated_at').eq('client_record_id', cardId),
+      ]);
+      for (const r of [pubs, drafts]) if (r.error) throw r.error;
+      const pubRows = (pubs.data ?? []) as Row[];
+      const acks = new Map<string, Row>();
+      if (pubRows.length) {
+        const a = await sb.from('publication_acks').select('publication_id, status, note').in('publication_id', pubRows.map((p) => String(p.id)));
+        if (a.error) throw a.error;
+        for (const r of (a.data ?? []) as Row[]) acks.set(String(r.publication_id), r);
+      }
+      return {
+        publications: pubRows.map((p) => toPublication(p, acks.get(String(p.id)))),
+        drafts: ((drafts.data ?? []) as Row[]).map(toPlanDraft),
+      };
+    },
+
+    async savePlanDraft(cardId, macroId, body) {
+      const at = new Date().toISOString();
+      const upd = await sb.from('coach_plan_drafts').update({ body, updated_at: at })
+        .eq('client_record_id', cardId).eq('macro_id', macroId).select('id, client_record_id, macro_id, body, updated_at');
+      if (upd.error) throw upd.error;
+      if (upd.data && upd.data.length) return toPlanDraft(upd.data[0] as Row);
+      const { data, error } = await sb.from('coach_plan_drafts')
+        .insert({ coach_id: current.coachId, client_record_id: cardId, macro_id: macroId, body, updated_at: at })
+        .select('id, client_record_id, macro_id, body, updated_at').single();
+      if (error) throw error;
+      return toPlanDraft(data as Row);
+    },
+
+    async deletePlanDraft(draftId) {
+      const { error } = await sb.from('coach_plan_drafts').delete().eq('id', draftId);
+      if (error) throw error;
+    },
+
+    async loadTemplates() {
+      const since = new Date(Date.now() - 90 * 86400000).toISOString();
+      const [t, a] = await Promise.all([
+        sb.from('coach_templates').select('id, kind, name, summary, body, starred, created_at').eq('coach_id', current.coachId).order('created_at'),
+        sb.from('template_applications').select('template_id, applied_at'),
+      ]);
+      for (const r of [t, a]) if (r.error) throw r.error;
+      const all = new Map<string, number>(), recent = new Map<string, number>();
+      for (const r of (a.data ?? []) as Row[]) {
+        const id = String(r.template_id);
+        all.set(id, (all.get(id) ?? 0) + 1);
+        if (String(r.applied_at) >= since) recent.set(id, (recent.get(id) ?? 0) + 1);
+      }
+      return ((t.data ?? []) as Row[]).map((r) => toTemplate(r, all.get(String(r.id)) ?? 0, recent.get(String(r.id)) ?? 0));
+    },
+
+    async saveTemplate(tpl) {
+      const { data, error } = await sb.from('coach_templates')
+        .insert({ coach_id: current.coachId, kind: tpl.kind, name: tpl.name, summary: tpl.summary, body: tpl.body })
+        .select('id, kind, name, summary, body, starred, created_at').single();
+      if (error) throw error;
+      return toTemplate(data as Row, 0, 0);
+    },
+
+    async starTemplate(id, starred) {
+      const { error } = await sb.from('coach_templates').update({ starred, updated_at: new Date().toISOString() }).eq('id', id);
+      if (error) throw error;
+    },
+
+    async deleteTemplate(id) {
+      const { error } = await sb.from('coach_templates').delete().eq('id', id);
+      if (error) throw error;
+    },
+
+    async recordApplication(templateId, cardId) {
+      const { error } = await sb.from('template_applications').insert({ template_id: templateId, client_record_id: cardId });
+      if (error) throw error;
     },
 
     async updateProfile(displayName: string, businessName: string | null) {

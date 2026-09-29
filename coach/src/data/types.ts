@@ -3,6 +3,8 @@
 // and `0023` tables, camel-cased.
 import type { BlocState, CycleReviewImage, Loose } from '@engine';
 import type { AiData, AiDraft, AiEdit, AiOriginal, AiTool, CoachPublication } from '@/ai/types';
+import type { PlanDoc } from '@/plan/doc';
+import type { Template, TemplateBody } from '@/plan/templates';
 
 export interface CoachProfile {
   coachId: string;
@@ -58,7 +60,28 @@ export interface ClientBundle {
   snapshot: ClientSnapshot | null;
   /** Why a linked client's upload couldn't be read, if it couldn't. */
   snapshotError: string | null;
+  /**
+   * When this card's most recent link ENDED (any link, even with a newer one
+   * active). Unlinking removes the coach's plan from the client's phone, so
+   * Plan ignores publications made before it (TECHNICAL §144).
+   */
+  lastEndedAt: string | null;
 }
+
+/** A plan draft (`coach_plan_drafts`): one cycle as the coach is editing it, before Publish. */
+export interface PlanDraftBody {
+  v: 1;
+  doc: PlanDoc;
+  /** The published cycle the draft started from (its JSON), to say when it has moved on since. */
+  base: string | null;
+}
+export interface PlanDraft { id: string; cardId: string; macroId: string; body: PlanDraftBody; updatedAt: string }
+export interface PlanData {
+  /** This card's `plan`, `goal_phases` and `ai_response` publications, with their receipts. */
+  publications: CoachPublication[];
+  drafts: PlanDraft[];
+}
+export interface NewTemplate { kind: Template['kind']; name: string; summary: string | null; body: TemplateBody }
 
 export interface NewClient { name: string; contact: string; onApp: boolean }
 /** A card edit. Name and contact only while the client isn't linked (0022's trigger refuses them after). */
@@ -86,7 +109,20 @@ export interface CoachRepo {
   /** Saves the coach's edit beside the original. */
   saveAiEdit(draftId: string, edited: AiEdit, publicationId?: string): Promise<AiDraft>;
   /** Appends a publication to the card (0023: append-only; a correction names what it `supersedes`). */
-  publish(cardId: string, type: 'ai_response' | 'note_reply' | 'photo_request', payload: Loose, supersedes: string | null): Promise<CoachPublication>;
+  publish(cardId: string, type: 'ai_response' | 'note_reply' | 'photo_request' | 'plan' | 'goal_phases', payload: Loose, supersedes: string | null): Promise<CoachPublication>;
   /** The client's cycle-review photos (`client-media`), readable only while photo consent is on. */
   loadPhotos(paths: string[]): Promise<CycleReviewImage[]>;
+
+  // Plan and Library (TECHNICAL §144).
+  loadPlan(cardId: string): Promise<PlanData>;
+  /** One draft per (card, cycle): updated if there is one, else inserted. */
+  savePlanDraft(cardId: string, macroId: string, body: PlanDraftBody): Promise<PlanDraft>;
+  deletePlanDraft(draftId: string): Promise<void>;
+  /** The coach's templates, with how often each was applied (all time, and in the last 90 days). */
+  loadTemplates(): Promise<Template[]>;
+  saveTemplate(t: NewTemplate): Promise<Template>;
+  starTemplate(id: string, starred: boolean): Promise<void>;
+  deleteTemplate(id: string): Promise<void>;
+  /** Records a template applied to a card (`template_applications`), for "most used". */
+  recordApplication(templateId: string, cardId: string): Promise<void>;
 }

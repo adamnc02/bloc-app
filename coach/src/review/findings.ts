@@ -4,15 +4,15 @@
 // input comes first; on track, a drifting input is context with no action.
 //
 // `action` names what the coach would do. A card shows a button only for an
-// action Coach has built (AVAILABLE_ACTIONS); the rest arrive with their
-// screens (Adjust goals and Swap exercise with Plan) on the same cards. Run
-// check-in opens the AI tools on the check-in tab.
+// action Coach has built (AVAILABLE_ACTIONS). Run check-in opens the AI tools
+// on the check-in tab; Adjust goals opens Plan's goal phase running today,
+// and Swap exercise opens Plan's swap for that exercise (TECHNICAL §144).
 // ═══════════════════════════════════════════════════════════════════════
 import type { Outcome } from './outcome';
 import type { GridRow, RpePoint } from './training';
 
 export type FindingAction = 'adjust' | 'swap' | 'progress' | 'checkin' | 'message';
-export const AVAILABLE_ACTIONS: ReadonlySet<FindingAction> = new Set(['message', 'checkin']);
+export const AVAILABLE_ACTIONS: ReadonlySet<FindingAction> = new Set(['message', 'checkin', 'adjust', 'swap']);
 
 export interface Finding {
   id: string;
@@ -21,6 +21,8 @@ export interface Finding {
   title: string;
   body: string;
   action: FindingAction | null;
+  /** Swap's exercise, as Plan finds it: `${dayKey}|${exerciseId}`. */
+  exercise?: string;
 }
 
 const ICON = { calories: 'fuel', steps: 'progress', training: 'train', 'weigh-ins': 'scale' } as const;
@@ -45,7 +47,7 @@ export function buildFindings(first: string, o: Outcome, rows: GridRow[], rpe: R
       id: `ex-${r.key}`, tone: 'bad', icon: 'train',
       title: `${r.name} keeps missing`,
       body: `${r.sessionLabel}: done but short of its target in ${r.fails} of ${r.passes + r.fails + r.missed} counted weeks${p ? `, rated RPE ${p.rpe.toFixed(1)}` : ''}. One exercise may need changing, not the plan.`,
-      action: 'swap',
+      action: 'swap', exercise: r.key,
     });
   }
   if (missedSessions > 0) {
@@ -58,7 +60,7 @@ export function buildFindings(first: string, o: Outcome, rows: GridRow[], rpe: R
   }
   for (const p of rpe.filter((x) => x.zone === 'too-hard')) {
     if (out.some((f) => f.id === `ex-${p.key}`)) continue;
-    out.push({ id: `hard-${p.key}`, tone: 'bad', icon: 'train', title: `${p.name} is too hard`, body: `Missing its target at RPE ${p.rpe.toFixed(1)}. Change it within days, not weeks.`, action: 'swap' });
+    out.push({ id: `hard-${p.key}`, tone: 'bad', icon: 'train', title: `${p.name} is too hard`, body: `Missing its target at RPE ${p.rpe.toFixed(1)}. Change it within days, not weeks.`, action: 'swap', exercise: p.key });
   }
   for (const p of rpe.filter((x) => x.zone === 'too-easy')) {
     out.push({ id: `easy-${p.key}`, tone: 'amber', icon: 'train', title: `${p.name} looks too easy`, body: `On target at RPE ${p.rpe.toFixed(1)}. It can progress faster.`, action: 'progress' });

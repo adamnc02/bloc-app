@@ -11,6 +11,7 @@ import { mealsOn } from '@/review/nutrition';
 import { outOf10 } from '@/review/training';
 import type { DriverKey } from '@/review/outcome';
 import { goalLabel, type ClientView } from '@/coach/screens/ClientScreen';
+import { clientPath } from '@/app/router';
 import { AiPanel, useAiData } from '@/coach/client/AiPanel';
 import { openRequest } from '@/ai/tools';
 import type { AiTool } from '@/ai/types';
@@ -338,6 +339,9 @@ function FindingCard({ f, v, i, onCheckin }: { f: Finding; v: ClientView; i: num
             ? <a className="btn-sm" style={{ marginTop: 12 }} href={href}><Icon name="message" size={16} /> Message {v.first}</a>
             : <p className="caption" style={{ marginTop: 10 }}>Add {v.first}’s phone or email in Profile to message them from here.</p>)}
           {f.action === 'checkin' && available && <Button variant="ghost" size="sm" icon="sparkle" style={{ marginTop: 12 }} onClick={onCheckin}>Run check-in</Button>}
+          {f.action === 'adjust' && available && v.cycle?.coachOwned && <a className="btn-sm" style={{ marginTop: 12 }} href={`#${clientPath(card.id, 'plan', v.cycle.id, { act: 'goal' })}`}><Icon name="target" size={16} /> Adjust goals</a>}
+          {f.action === 'swap' && available && v.cycle?.coachOwned && f.exercise && <a className="btn-sm" style={{ marginTop: 12 }} href={`#${clientPath(card.id, 'plan', v.cycle.id, { act: 'swap', ex: f.exercise })}`}><Icon name="swap" size={16} /> Swap exercise</a>}
+          {(f.action === 'adjust' || f.action === 'swap') && available && !v.cycle?.coachOwned && <p className="caption" style={{ marginTop: 10 }}>{v.first}’s own cycle: start one of yours in Plan to change it.</p>}
           {!f.action && <Chip tone="neutral" style={{ marginTop: 10 }}>No action needed</Chip>}
         </div>
       </div>

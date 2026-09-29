@@ -17,6 +17,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -55,6 +56,20 @@ const gateZ = Number((/\.auth-gate \{[\s\S]*?z-index:\s*(\d+)/.exec(read('coach/
 check(`the sign-in screen sits above the splash (${gateZ} > ${splashZ})`, gateZ > splashZ);
 
 const splashCss = (/<style>([\s\S]*?)<\/style>/.exec(built) || [])[1] || '';
+// §146: each word scales about its own centre in drawing units. With fill-box,
+// WebKit centres SVG text elsewhere and REPEAT started on its icon on an iPhone.
+const wordsOk = (css) => /\.s-word\{[^}]*transform-box:view-box/.test(css)
+  && [['train', '56.5'], ['fuel', '157'], ['over', '289.5'], ['repeat', '440']].every(([w, x]) => new RegExp(`\\.s-w-${w}\\{transform-origin:${x}px 143px\\}`).test(css));
+check('the splash words scale about their own centres (view-box, fixed origins), as in BLOC', wordsOk(built));
+check('control: fill-box words are caught', !wordsOk(built.replace(/(\.s-word\{[^}]*)transform-box:view-box/, '$1transform-box:fill-box')));
+// Coach's own icons (§144): the Home Screen icon, the tab icon and the SVG, from the brand kit, in the build.
+{
+  const links = [...built.matchAll(/<link rel="(apple-touch-icon|icon)" href="\/bloc-app\/coach\/([^"]+)"/g)].map((m) => m[2]);
+  const want = ['apple-touch-icon.png', 'favicon.ico', 'bloc-coach-icon-square.svg'];
+  const tracked = execFileSync('git', ['-C', repo, 'ls-files', 'coach/dist'], { encoding: 'utf8' }).split('\n');
+  check(`the served page links Coach's icons, each in the committed build (${want.join(', ')})`,
+    want.every((f) => links.includes(f) && tracked.includes(`coach/dist/${f}`)), `linked: ${links.join(', ')}`);
+}
 check('the splash uses the brand green, never the app lavender', /--splash-brand:\s*#2fb98a/i.test(splashCss) && !/#9184d9|#b5abfc/i.test(splashCss));
 
 // Control: the same page with the splash moved after #root.

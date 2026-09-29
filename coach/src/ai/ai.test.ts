@@ -7,7 +7,7 @@ import { buildFixtureClients } from '@/data/fixtures';
 import { runTool } from './run';
 import {
   aiResponsePayload, coachReviewPrompt, contentOf, editFromOriginal, eligibility, goalChanges, isEdited, notesBack,
-  openRequest, overallCompliance, PERSONAL_PHOTO_PARAGRAPH, photoRequestPayload, photoRequestState, priorPhaseIds, publishState, sentEdit, withPlan,
+  openRequest, overallCompliance, PERSONAL_PHOTO_PARAGRAPH, photoRequestPayload, photoRequestState, phasesFor, priorPhaseIds, publishState, sentEdit, withPlan,
 } from './tools';
 import type { AiDraft, CoachPublication, Submission } from './types';
 
@@ -119,6 +119,35 @@ describe('a check-in’s goal change is BLOC’s own goal queue', () => {
     const c = goalChanges(maya(), MACRO, '2026-08-05', phases, [`${MACRO}_g1`, `${MACRO}_g2`]);
     expect(c.remove_goal_ids).toContain(`${MACRO}_g2`);
     expect(c.remove_goal_ids).not.toContain(`${MACRO}_g1`);
+  });
+
+  it('phases stop at the cycle’s end: one running past it ends on it, one starting after it is dropped', () => {
+    // The demo cycle: 7 × 2 weeks from Mon 8 Jun, so it ends Sun 13 Sep.
+    const past = [
+      { ...phases[0], id: `${MACRO}_gA`, startDate: '2026-08-31', endDate: '2026-09-27' },
+      { ...phases[0], id: `${MACRO}_gB`, startDate: '2026-09-28', endDate: '2026-10-11' },
+    ];
+    const c = goalChanges(maya(), MACRO, '2026-08-26', past);
+    expect(c.goals.find((g) => g.macroGoalID === `${MACRO}_gA`)!.endDate).toBe('2026-09-13');
+    expect(c.goals.some((g) => g.macroGoalID === `${MACRO}_gB`)).toBe(false);
+    expect(c.goals.every((g) => g.endDate <= '2026-09-13')).toBe(true);
+    // Control: the same phases on the cycle extended by 4 weeks are sent whole.
+    const longer = maya();
+    macroOf(longer).extensionWeeks = 4;
+    const k = goalChanges(longer, MACRO, '2026-08-26', past);
+    expect(k.goals.find((g) => g.macroGoalID === `${MACRO}_gA`)!.endDate).toBe('2026-09-27');
+    expect(k.goals.some((g) => g.macroGoalID === `${MACRO}_gB`)).toBe(true);
+  });
+
+  it('the plan the coach edits is already cut at the cycle end the reply was given', () => {
+    const g = (label: string, startDate: string, endDate: string) => ({ label, startDate, endDate, kcal: 1700, steps: 12000, protein: 213, carbs: 89 });
+    const original = { v: 1, raw: '', today: '2026-09-29', response: { _cycleEnd: '2026-10-11', recommendations: {
+      sustainable: { label: 'Sustainable', goals: [g('Hold', '2026-10-05', '2026-10-25'), g('Break', '2026-10-26', '2026-11-01')] }, aggressive: { label: 'Aggressive', goals: [] } } } };
+    const ph = phasesFor(original as never, 'sustainable', MACRO, 1);
+    expect(ph.map((p) => [p.startDate, p.endDate])).toEqual([['2026-10-05', '2026-10-11']]);
+    // Control: without a cycle end (an older reply) nothing is cut here; goalChanges still cuts at publish.
+    const bare = { ...original, response: { ...original.response, _cycleEnd: undefined } };
+    expect(phasesFor(bare as never, 'sustainable', MACRO, 1)).toHaveLength(2);
   });
 
   it('no goal change leaves the goals alone', () => {

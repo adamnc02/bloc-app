@@ -61,12 +61,29 @@ export function phasesFor(o: AiOriginal, planKey: string | null, macroId: string
   const plans = planChoices('check_in', o);
   const pi = plans.findIndex((p) => p.key === planKey);
   if (pi < 0) return [];
-  return plans[pi].goals.map((g, i) => ({
+  const end = o.response?._cycleEnd ? String(o.response._cycleEnd) : null;
+  return clipToCycle(plans[pi].goals.map((g, i) => ({
     id: `${macroId}_g${draftMs}${pi}${i}`,
     label: String(g.label || ''),
     startDate: String(g.startDate), endDate: String(g.endDate),
     kcal: int(g.kcal) ?? 0, protein: int(g.protein) ?? 0, carbs: int(g.carbs) ?? 0, steps: int(g.steps) ?? 0,
-  }));
+  })), end);
+}
+
+/**
+ * A check-in's goal phases stop at the cycle's end: a phase starting after it
+ * is dropped, and one running past it ends on it. The reply may run on (BLOC's
+ * prompt allows a plan past the end), but a goal past the end would sit over
+ * the next cycle's own phases, which are set in Plan.
+ */
+export function clipToCycle<T extends { startDate: string; endDate: string }>(phases: T[], end: string | null): T[] {
+  if (!end) return phases;
+  return phases.filter((p) => p.startDate <= end).map((p) => (p.endDate > end ? { ...p, endDate: end } : p));
+}
+
+/** Where a check-in plan's own phases end: the last endDate, as the reply gave it. */
+export function planRunsTo(goals: { endDate?: unknown }[]): string | null {
+  return goals.map((g) => String(g.endDate || '')).filter(Boolean).sort().pop() ?? null;
 }
 
 /** What the coach sends if they don't edit: the reply, as BLOC would show it. */
@@ -152,10 +169,14 @@ const fatsOf = (p: Pick<PhaseEdit, 'kcal' | 'protein' | 'carbs'>) => Math.round(
  *     first Monday (getNextMonday), or is dropped if it started on or after that;
  *   · this cycle's goals starting after today are removed;
  *   · the plan's phases are added, fats derived, labels renumbered "Step N - …".
+ *   · the phases stop at the cycle's end (clipToCycle), as the cycle is now.
  * `priorIds` are phases an earlier publish of this response sent: any the new
  * version no longer has are removed too, in case the client hasn't synced yet.
  */
 export function goalChanges(s: BlocState, macroId: string, today: string, phases: PhaseEdit[], priorIds: string[] = [], fmtDate: (iso: string) => string = (x) => x): GoalChanges {
+  const macro = ((s.macrocycles || []) as Macrocycle[]).find((m) => m.id === macroId);
+  const cycleEnd = macro?.start ? getMacroEndDate(macro, { today }) : null;
+  phases = clipToCycle(phases, cycleEnd);
   const before = ((s.goals || []) as GoalPeriod[]).map((g) => ({ ...g }));
   const phaseIds = new Set(phases.map((p) => p.id));
   const remove = new Set<string>();
