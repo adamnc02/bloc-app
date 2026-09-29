@@ -10154,10 +10154,28 @@ function applyBookingPublication(pub) {
   const before = state.coachBookings[p.booking_id];
   state.coachBookings[p.booking_id] = Object.assign(pubCopy(p), { seq: pub.seq });
   // v8.43 (§137): "Session confirmed" (proposal §8: accepted, moved or cancelled).
+  // v8.47 (§151): `quiet` applies with no banner (the coach chose not to
+  // notify); a weekly booking's added or removed skip dates, and its `until`,
+  // raise their own. One notice per publication.
+  if (p.quiet === true) return { status: 'applied' };
+  const coach = coachFirstName();
   const when = coachDateTimeFmt(p.date, p.start_min);
-  if (p.status === 'cancelled') { if (before && before.status !== 'cancelled') addCoachNotice(pub, 'booking', 'Session cancelled', `${when} with ${coachFirstName()} is off.`); }
-  else if (!before || before.status === 'cancelled') addCoachNotice(pub, 'booking', 'Session confirmed', `${coachFirstName()} booked you in: ${when}${coachBookingWeekly(p) ? ', weekly' : ''}.`);
-  else if (before.date !== p.date || before.start_min !== p.start_min) addCoachNotice(pub, 'booking', 'Session moved', `${coachFirstName()} moved it to ${when}.`);
+  const today = getLocalToday();
+  if (p.status === 'cancelled') { if (before && before.status !== 'cancelled') addCoachNotice(pub, 'booking', 'Session cancelled', `${when} with ${coach} is off.`); }
+  else if (!before || before.status === 'cancelled') addCoachNotice(pub, 'booking', 'Session confirmed', `${coach} booked you in: ${coachDateTimeFmt(coachBookingNextDate(p, today) || p.date, p.start_min)}${coachBookingWeekly(p) ? ', weekly' : ''}.`);
+  else if (before.date !== p.date || before.start_min !== p.start_min) addCoachNotice(pub, 'booking', 'Session moved', `${coach} moved it to ${when}.`);
+  else if (coachBookingWeekly(p)) {
+    const was = coachBookingSkips(before), now = coachBookingSkips(p);
+    const off = [...now].filter(d => !was.has(d) && d >= today && (!p.until || d <= p.until)).sort();
+    const on = [...was].filter(d => !now.has(d) && d >= today && (!p.until || d <= p.until)).sort();
+    const at = d => coachDateTimeFmt(d, p.start_min);
+    if (off.length) addCoachNotice(pub, 'booking', off.length === 1 ? 'Session cancelled' : 'Sessions cancelled',
+      off.length === 1 ? `${at(off[0])} with ${coach} is off.` : `${off.length} sessions with ${coach} are off, from ${at(off[0])}.`);
+    else if (on.length) addCoachNotice(pub, 'booking', 'Session back on',
+      on.length === 1 ? `${at(on[0])} with ${coach} is back on.` : `${on.length} sessions with ${coach} are back on, from ${at(on[0])}.`);
+    else if (p.until && p.until !== before.until && p.until >= today)
+      addCoachNotice(pub, 'booking', 'Weekly session ending', `Your weekly session with ${coach} ends after ${coachDayFmt(p.until)}.`);
+  }
   return { status: 'applied' };
 }
 function applyMeasurementPublication(pub) {
@@ -15567,13 +15585,30 @@ function undoSwapToday(macroId, week, dayKey, exId) {
 // weekly booking (one booking dated its first occurrence, §136 contract) the
 // first weekly repeat from today. 🚨 Without the roll-forward a weekly session
 // vanished from "Your next session" once its first date had passed.
+// v8.47 (§151, migration 0028): a weekly booking's single weeks. `skip_dates`
+// are the dates it doesn't occur (a day off, a week cancelled or moved "just
+// this one", which arrives as its own one-off booking); `until` is the last
+// date it occurs, inclusive. 🚨 Without them the phone kept showing a week the
+// coach had cancelled.
+function coachBookingSkips(b) {
+  return new Set(Array.isArray(b && b.skip_dates) ? b.skip_dates.filter(d => typeof d === 'string') : []);
+}
 function coachBookingNextDate(b, today) {
   if (!b || !b.date) return null;
-  if (b.date >= today || !coachBookingWeekly(b)) return b.date >= today ? b.date : null;
+  if (!coachBookingWeekly(b)) return b.date >= today ? b.date : null;
   const d = new Date(b.date + 'T00:00:00');
-  const days = Math.round((new Date(today + 'T00:00:00') - d) / 86400000);
-  d.setDate(d.getDate() + Math.ceil(days / 7) * 7);
-  return toLocalDateStr(d);
+  if (b.date < today) {
+    const days = Math.round((new Date(today + 'T00:00:00') - d) / 86400000);
+    d.setDate(d.getDate() + Math.ceil(days / 7) * 7);
+  }
+  const skips = coachBookingSkips(b);
+  for (let i = 0; i <= skips.size; i++) {
+    const s = toLocalDateStr(d);
+    if (b.until && s > b.until) return null;
+    if (!skips.has(s)) return s;
+    d.setDate(d.getDate() + 7);
+  }
+  return null;
 }
 function nextCoachBooking() {
   const today = getLocalToday();
@@ -15700,7 +15735,8 @@ function renderCoachSessions() {
     .filter(b => b.next).sort((x, y) => (x.next + x.start_min).localeCompare(y.next + y.start_min));
   const oneOffs = live.filter(b => !coachBookingWeekly(b) && b.date >= today && !(next && next.booking_id === b.booking_id))
     .sort((x, y) => (x.date + String(x.start_min).padStart(5, '0')).localeCompare(y.date + String(y.start_min).padStart(5, '0')));
-  const bits = b => [b.duration_min ? `${b.duration_min} min` : '', b.location ? coachEsc(b.location) : ''].filter(Boolean).join(' · ');
+  // v8.47 (§151): a group session's name first.
+  const bits = b => [b.title ? coachEsc(b.title) : '', b.duration_min ? `${b.duration_min} min` : '', b.location ? coachEsc(b.location) : ''].filter(Boolean).join(' · ');
   const hero = `<div class="card coach-hero-card">
       <div class="up-next-eyebrow">Your next session</div>
       ${next ? `<div class="coach-display" style="margin-top:6px;">${coachEsc(coachSlotLine({ date: next.date, start_min: next.start_min }))}</div>
@@ -29619,7 +29655,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.46</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.47</span>`;
 }
 
 function renderSettings() {

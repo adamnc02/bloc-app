@@ -10121,3 +10121,34 @@ name through Custom Exercise, saving with no exercise, and the Heavy leg / Weigh
 sheet with a field removed. Driven in Chromium at 375 pt: the search pinned while filtering (top 30 px, height
 unchanged), choosing and saving (Machine Row at 42.5 kg), Add "Sled Push" through Custom Exercise (Legs, then chosen),
 closing an empty search, and Edit (no Category, no search).
+
+## §151 — v8.47: a weekly booking's single weeks, its end, a group's name, and no banner
+
+**What it is.** A weekly session is **one** `booking` publication dated its first occurrence (`kind: 'weekly'`),
+which BLOC rolls forward to the next date itself (§136). BLOC Coach's diary changes single weeks of a series, so
+migration `0028` adds four optional keys to the booking, and BLOC reads them:
+
+| Key | Means | BLOC |
+|---|---|---|
+| `skip_dates` | ISO dates the series doesn't occur: a day off or holiday, a week cancelled "just this one", or a week moved "just this one" (that week arrives as its **own one-off booking**) | `coachBookingNextDate()` steps over each, however many in a row |
+| `until` | the last date the series occurs, inclusive | no next date after it |
+| `title` | a group session's name | first on the session's row in Your sessions |
+| `quiet` | the coach chose not to notify | applied with **no** banner |
+
+`coachBookingSkips()` reads `skip_dates` (strings only). Home's Your next session, Your sessions' hero and rows,
+and the "Session confirmed" banner's date all come from `coachBookingNextDate()`, so they agree.
+
+**Banners** (`applyBookingPublication`, one notice per publication, none when `quiet`): cancelled, confirmed and
+moved as before (§137); then, for a weekly booking whose date and time are unchanged, a skip date added from today
+on is **Session cancelled** (or "N sessions … are off, from …"), one removed is **Session back on** (the coach
+undid a day off), and a new `until` from today on is **Weekly session ending**. Skip dates in the past raise
+nothing. A weekly series changed "all future" ends the old booking (`until`, sent quiet) and arrives as a new
+`booking_id`, so the client sees one "Session confirmed" for the new day and time.
+
+🚨 **Without `skip_dates`, Your next session showed a week the coach had taken off.** The booking's keys before
+`0028` (`date`, `start_min`, `status`) describe the whole series, so there was nothing to say "not this week".
+
+**Check:** `scripts/verify-booking-weeks.mjs` runs the real functions: the roll-forward, one and two skipped weeks,
+a skip after the roll-forward, `until` inclusive and after, a one-off unchanged; the four banners, a past skip
+silent, `quiet` on a change and on a new booking, and the title on the row. Control: v8.46 (`5d08f66`) fails 10
+rows, including skip, until and quiet.
