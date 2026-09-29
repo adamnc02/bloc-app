@@ -10299,9 +10299,9 @@ the message (control: `String()` of the raw error), one refresh and retry on an 
   60 px. **Drag**: a mouse moves at 4 px; touch holds 300 ms first, so a swipe still scrolls; the target day's header
   and column light up, a landing box shows the snapped time or the refusal, and a drop outside the rules is refused with
   its reason. **Tap** a session to edit it (a request: the request sheet), an **empty outline** to book there, a
-  **day's header** to mark it off (a day off: to undo it). A day off's column says how many sessions it cancelled, who was
-  told ("Casey notified" / "No one notified") and, on a wide screen, "Weekly sessions carry on." (`cancelledOn`: the
-  day's cancelled series weeks and bookings). Outlines are laid from the end of each session, so a session
+  **day's header** to mark it off (a day off: to undo it). A day off's column says how many sessions it cancelled and who was
+  told ("Casey notified" / "No one notified"), and nothing else (`cancelledOn`: the day's cancelled series weeks and
+  bookings). Outlines are laid from the end of each session, so a session
   off the hour moves the outlines after it along, one hour tall each; past days keep theirs. Compact blocks (a phone column, a shared lane)
   carry no tag. 🚨 **Every block shows only the name, the time and the repeat icon**; a placeholder's state is its dashed
   outline (`placeholderState`), explained by a legend under the week bar (Booked · Requested · Offered · Clash):

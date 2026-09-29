@@ -143,7 +143,7 @@ export function DiaryScreen() {
               const c = cancelledOn(diary, d);
               const names = c.clientIds.map((id) => who.name({ kind: 'one_to_one', title: null, clientIds: [id] }));
               const list = names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-              return { cancelled: c.count, weekly: c.weekly, told: dayOffOn(diary.daysOff, d)?.notified && list ? `${list} notified` : 'No one notified' };
+              return { cancelled: c.count, told: dayOffOn(diary.daysOff, d)?.notified && list ? `${list} notified` : 'No one notified' };
             }}
           />
         </div>

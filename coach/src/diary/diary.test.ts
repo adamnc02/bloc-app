@@ -302,7 +302,7 @@ describe('actions (fixture repo)', () => {
   it('a day off’s note: the sessions it cancelled and whose', async () => {
     const r = fresh();
     const d = await addDayOff(r, await r.loadDiary(), WED, WED, null, true);
-    expect(cancelledOn(d, WED)).toEqual({ count: 2, clientIds: ['eileen', 'ben'], weekly: true });
+    expect(cancelledOn(d, WED)).toEqual({ count: 2, clientIds: ['eileen', 'ben'] });
     expect(cancelledOn(d, THU).count).toBe(0);
   });
   it('propose a time: the placeholder moves and waits for the client', async () => {

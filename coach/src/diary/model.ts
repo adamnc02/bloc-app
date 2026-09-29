@@ -146,18 +146,18 @@ export function occurrencesBetween(d: Diary, from: ISODate, to: ISODate, today?:
 }
 
 /** The sessions cancelled on a day (a day off's, for its note): cancelled weeks of weekly sessions, and cancelled bookings. */
-export function cancelledOn(d: Pick<Diary, 'series' | 'bookings'>, date: ISODate): { count: number; clientIds: string[]; weekly: boolean } {
+export function cancelledOn(d: Pick<Diary, 'series' | 'bookings'>, date: ISODate): { count: number; clientIds: string[] } {
   const ids = new Set<string>();
-  let count = 0, weekly = false;
+  let count = 0;
   for (const s of d.series) {
     if (s.weekday !== weekday(date) || date < s.from || (s.to && date > s.to) || !s.cancelled.includes(date)) continue;
-    count++; weekly = true; s.clientIds.forEach((c) => ids.add(c));
+    count++; s.clientIds.forEach((c) => ids.add(c));
   }
   for (const b of d.bookings) {
     if (b.status !== 'cancelled' || b.date !== date) continue;
-    count++; if (b.seriesId) weekly = true; b.clientIds.forEach((c) => ids.add(c));
+    count++; b.clientIds.forEach((c) => ids.add(c));
   }
-  return { count, clientIds: [...ids], weekly };
+  return { count, clientIds: [...ids] };
 }
 
 /** The next `n` days from `from`, as dates. */
