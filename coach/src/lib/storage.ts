@@ -18,4 +18,6 @@
 export const KEYS = {
   /** supabase-js session storage for Coach (its `storageKey`, src/lib/supabase.ts). */
   auth: 'blocCoach_auth',
+  /** The coach's own Anthropic key for the AI tools (ai/transport.ts). Kept on sign-out. */
+  aiKey: 'blocCoach_aiKey',
 } as const;

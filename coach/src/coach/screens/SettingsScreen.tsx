@@ -3,16 +3,17 @@ import { CoachShell } from '@/coach/CoachShell';
 import { Button, Chip, Field, Hero, Icon, Notice, Page, PageHeader, RowButton, Section, Sheet, Toast, useEntering, useToast } from '@/components/ui';
 import { useCoach } from '@/app/App';
 import { initials } from '@/lib/format';
+import { getAiKey, setAiKey } from '@/ai/transport';
 
 declare const __COACH_VERSION__: string;
 /** Coach's version: coach/package.json, the one place a release bumps it (TECHNICAL §139). */
 export const COACH_VERSION = __COACH_VERSION__;
 
 /**
- * Settings, as far as Coach v0.1
- * goes: the account, the coach profile, the version and Sign out. Working
- * hours and days off come with the Diary, the AI key with the AI tools, and
- * notifications later.
+ * Settings: the account, the coach profile, the AI key, the version and Sign
+ * out. Working hours and days off come with the Diary, and notifications later.
+ *
+ * The AI key stays on this device (ai/transport.ts) and signing out keeps it.
  *
  * Sign out is Coach's only: `scope: 'local'` ends THIS
  * device's Coach session and nothing else. The default, 'global', would
@@ -23,7 +24,9 @@ export function SettingsScreen() {
   const ref = useEntering<HTMLDivElement>('settings');
   const toast = useToast();
   const id = useId();
-  const [sheet, setSheet] = useState<'profile' | 'signout' | null>(null);
+  const [sheet, setSheet] = useState<'profile' | 'signout' | 'ai' | null>(null);
+  const [hasKey, setHasKey] = useState(!!getAiKey());
+  const [keyInput, setKeyInput] = useState('');
   const [name, setName] = useState(profile.displayName);
   const [business, setBusiness] = useState(profile.businessName ?? '');
   const [busy, setBusy] = useState(false);
@@ -76,16 +79,22 @@ export function SettingsScreen() {
             </div>
           </Section>
 
-          <Section i={4} title="About" sub="Which version of BLOC Coach this is.">
+          <Section i={4} title="AI tools" sub="Check-ins, cycle reviews and next-cycle advice run with your own Anthropic key.">
+            <div className="card list">
+              <RowButton lead="key" title="Anthropic API key" sub={hasKey ? 'Saved on this device' : 'Not set: the AI tools can’t run'} onClick={() => { setKeyInput(''); setSheet('ai'); }} />
+            </div>
+          </Section>
+
+          <Section i={5} title="About" sub="Which version of BLOC Coach this is.">
             <div className="card">
               <div className="ex"><span>Version</span><span className="num">{COACH_VERSION}</span></div>
-              <div className="ex"><span>Coming next</span><span>Review, then AI tools, Plan, Diary and In person</span></div>
+              <div className="ex"><span>Coming next</span><span>Plan, Diary and In person</span></div>
             </div>
           </Section>
         </div>
 
         {!fixture && (
-          <section className="sec rise" style={{ ['--i' as string]: 5 } as CSSProperties} aria-label="Sign out">
+          <section className="sec rise" style={{ ['--i' as string]: 6 } as CSSProperties} aria-label="Sign out">
             <Button variant="danger" icon="logout" onClick={() => setSheet('signout')}>Sign out</Button>
           </section>
         )}
@@ -99,8 +108,17 @@ export function SettingsScreen() {
         <Button style={{ marginTop: 20 }} disabled={!name.trim() || busy} onClick={saveProfile}>Save profile</Button>
       </Sheet>
 
+      <Sheet open={sheet === 'ai'} onClose={() => setSheet(null)} title="Anthropic API key">
+        <p className="body-copy">The AI tools call Anthropic from this device with your key. It’s kept here only, never in your account or sent anywhere else, and signing out keeps it.</p>
+        <Field label={hasKey ? 'Replace the key' : 'Key'} htmlFor={`${id}-k`}>
+          <input id={`${id}-k`} className="input" type="password" autoComplete="off" spellCheck={false} placeholder="sk-ant-…" value={keyInput} onChange={(e) => setKeyInput(e.target.value)} />
+        </Field>
+        <Button style={{ marginTop: 20 }} disabled={!keyInput.trim()} onClick={() => { setAiKey(keyInput.trim()); setHasKey(true); setSheet(null); toast.show('AI key saved'); }}>Save key</Button>
+        {hasKey && <Button variant="ghost" style={{ marginTop: 10 }} onClick={() => { setAiKey(null); setHasKey(false); setSheet(null); toast.show('AI key removed'); }}>Remove the key</Button>}
+      </Sheet>
+
       <Sheet open={sheet === 'signout'} onClose={() => setSheet(null)} title="Sign out?">
-        <p className="body-copy">You’ll be signed out of BLOC Coach on this device. BLOC stays signed in, and your clients stay in your account.</p>
+        <p className="body-copy">You’ll be signed out of BLOC Coach on this device. BLOC stays signed in, your clients stay in your account, and your AI key stays on this device.</p>
         <div className="tile row" style={{ marginTop: 16, padding: 14 }}>
           <span className="muted">Signed in as</span><b>{email}</b>
         </div>

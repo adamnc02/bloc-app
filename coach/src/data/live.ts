@@ -13,6 +13,8 @@
 // ═══════════════════════════════════════════════════════════════════════
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { decodeClientState } from '@/lib/clientState';
+import type { Loose } from '@engine';
+import type { AiData, AiDraft, AiEdit, AiOriginal, AiTool, CoachPublication, Submission } from '@/ai/types';
 import type { CardPatch, ClientBundle, ClientCard, ClientSnapshot, CoachProfile, CoachRepo, NewClient, NewInvite } from './types';
 
 const CARD_COLS = 'id, first_name, surname, email, phone, notes, created_at';
@@ -58,6 +60,29 @@ export function splitName(name: string): { first: string; surname: string | null
 
 /** An invite code as the client types it: `XXXX-XXXX` (0022's 8 characters). */
 export const formatInviteCode = (code: string) => (code.length === 8 ? `${code.slice(0, 4)}-${code.slice(4)}` : code);
+
+const DRAFT_COLS = 'id, client_record_id, tool, macro_id, original, edited, edited_at, publication_id, created_at';
+
+export function toDraft(r: Row): AiDraft {
+  return {
+    id: String(r.id), cardId: String(r.client_record_id), tool: r.tool as AiTool, macroId: str(r.macro_id),
+    original: r.original as AiOriginal, edited: (r.edited ?? null) as AiEdit | null, editedAt: str(r.edited_at),
+    publicationId: str(r.publication_id), createdAt: String(r.created_at),
+  };
+}
+function toPublication(r: Row, ack: Row | undefined): CoachPublication {
+  return {
+    id: String(r.id), seq: Number(r.seq), type: String(r.type), payload: (r.payload ?? {}) as Loose, supersedes: str(r.supersedes),
+    createdAt: String(r.created_at),
+    ack: ack ? { status: ack.status as NonNullable<CoachPublication['ack']>['status'], note: str(ack.note) } : null,
+  };
+}
+async function blobToBase64(b: Blob): Promise<string> {
+  const bytes = new Uint8Array(await b.arrayBuffer());
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
 
 // A decoded upload, kept per (user, hash): the list reloads often and a
 // year of state is ~100 KB of gzip to inflate and hash each time.
@@ -173,6 +198,65 @@ export function createLiveRepo(sb: SupabaseClient, profile: CoachProfile, onProf
     async endLink(cardId: string) {
       const { error } = await sb.rpc('end_link', { p_client_record_id: cardId });
       if (error) throw error;
+    },
+
+    async loadAi(cardId: string, clientId: string | null): Promise<AiData> {
+      const [drafts, pubs, subs] = await Promise.all([
+        sb.from('coach_ai_drafts').select(DRAFT_COLS).eq('client_record_id', cardId).order('created_at'),
+        sb.from('publications').select('id, seq, type, payload, supersedes, created_at').eq('client_record_id', cardId).in('type', ['ai_response', 'note_reply']).order('seq'),
+        // A coach who is also someone's client sees their own submissions too: filter to this coach.
+        clientId
+          ? sb.from('client_submissions').select('id, kind, publication_id, body, created_at').eq('coach_id', current.coachId).eq('client_id', clientId).order('created_at')
+          : Promise.resolve({ data: [] as Row[], error: null }),
+      ]);
+      for (const r of [drafts, pubs, subs]) if (r.error) throw r.error;
+      const pubRows = (pubs.data ?? []) as Row[];
+      const acks = new Map<string, Row>();
+      if (pubRows.length) {
+        const a = await sb.from('publication_acks').select('publication_id, status, note').in('publication_id', pubRows.map((p) => String(p.id)));
+        if (a.error) throw a.error;
+        for (const r of (a.data ?? []) as Row[]) acks.set(String(r.publication_id), r);
+      }
+      return {
+        drafts: ((drafts.data ?? []) as Row[]).map(toDraft),
+        publications: pubRows.map((p) => toPublication(p, acks.get(String(p.id)))),
+        submissions: ((subs.data ?? []) as Row[]).map((r) => ({
+          id: String(r.id), kind: r.kind as Submission['kind'], publicationId: str(r.publication_id), body: (r.body ?? {}) as Loose, createdAt: String(r.created_at),
+        })),
+      };
+    },
+
+    async saveAiDraft(cardId, tool, macroId, original) {
+      const { data, error } = await sb.from('coach_ai_drafts')
+        .insert({ coach_id: current.coachId, client_record_id: cardId, tool, macro_id: macroId, original })
+        .select(DRAFT_COLS).single();
+      if (error) throw error;
+      return toDraft(data as Row);
+    },
+
+    async saveAiEdit(draftId, edited, publicationId) {
+      const row: Row = { edited, edited_at: new Date().toISOString() };
+      if (publicationId) row.publication_id = publicationId;
+      const { data, error } = await sb.from('coach_ai_drafts').update(row).eq('id', draftId).select(DRAFT_COLS).single();
+      if (error) throw error;
+      return toDraft(data as Row);
+    },
+
+    async publish(cardId, type, payload, supersedes) {
+      const { data, error } = await sb.from('publications')
+        .insert({ coach_id: current.coachId, client_record_id: cardId, type, payload, supersedes })
+        .select('id, seq, type, payload, supersedes, created_at').single();
+      if (error) throw error;
+      return toPublication(data as Row, undefined);
+    },
+
+    async loadPhotos(paths) {
+      // 0024 coach_may_view_media(): readable only while the link is active and consent is on.
+      return Promise.all(paths.map(async (path) => {
+        const { data, error } = await sb.storage.from('client-media').download(path);
+        if (error || !data) throw new Error(`Couldn’t read a photo (${error?.message ?? 'no data'})`);
+        return { mediaType: data.type || 'image/jpeg', base64: await blobToBase64(data) };
+      }));
     },
 
     async updateProfile(displayName: string, businessName: string | null) {

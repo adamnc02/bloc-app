@@ -13,6 +13,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 import { normaliseState, shiftDateStr, type BlocState } from '@engine';
 import { formatInviteCode, splitName } from './live';
+import type { AiDraft, CoachPublication, Submission } from '@/ai/types';
 import type { ClientBundle, ClientCard, CoachProfile, CoachRepo, NewInvite } from './types';
 
 /** bloc-demo-data.json's own "today" (BLOC TECHNICAL §35: Sunday 2 Aug 2026). */
@@ -94,7 +95,12 @@ function fakeCode(): string {
 export function createFixtureRepo(demo: Record<string, unknown>, onProfile: (p: CoachProfile) => void): CoachRepo & { anchor: string } {
   const built = buildFixtureClients(demo);
   const clients = built.clients;
-  let n = 0;
+  let n = 0, tick = 0, seq = 0;
+  const ai = {
+    drafts: [] as AiDraft[],
+    pubs: [] as (CoachPublication & { cardId: string })[],
+    subs: fixtureSubmissions(built.anchor, built.now),
+  };
   return {
     kind: 'fixture',
     anchor: built.anchor,
@@ -136,5 +142,48 @@ export function createFixtureRepo(demo: Record<string, unknown>, onProfile: (p: 
       onProfile(p);
       return p;
     },
+
+    // AI tools: this page's memory only; nothing is sent anywhere but the model.
+    async loadAi(cardId, clientId) {
+      return {
+        drafts: ai.drafts.filter((d) => d.cardId === cardId).map((d) => ({ ...d })),
+        publications: ai.pubs.filter((p) => p.cardId === cardId).map(({ cardId: _c, ...p }) => { void _c; return { ...p }; }),
+        submissions: clientId ? ai.subs.filter((x) => x.clientId === clientId).map(({ clientId: _c, ...x }) => { void _c; return { ...x }; }) : [],
+      };
+    },
+    async saveAiDraft(cardId, tool, macroId, original) {
+      const d: AiDraft = { id: fakeId(), cardId, tool, macroId, original, edited: null, editedAt: null, publicationId: null, createdAt: new Date(built.now + ++tick * 1000).toISOString() };
+      ai.drafts.push(d);
+      return { ...d };
+    },
+    async saveAiEdit(draftId, edited, publicationId) {
+      const d = ai.drafts.find((x) => x.id === draftId);
+      if (!d) throw new Error('No such draft');
+      d.edited = edited;
+      d.editedAt = new Date(built.now + ++tick * 1000).toISOString();
+      if (publicationId) d.publicationId = publicationId;
+      return { ...d };
+    },
+    async publish(cardId, type, payload, supersedes) {
+      const p = { cardId, id: fakeId(), seq: ++seq, type, payload, supersedes, createdAt: new Date(built.now + ++tick * 1000).toISOString(), ack: null };
+      ai.pubs.push(p);
+      return { ...p };
+    },
+    async loadPhotos() { return []; },
   };
+}
+
+/** Maya asked for a check-in the day before the anchor (a `check_in` row, `body.purpose 'check_in'`, BLOC v8.41). */
+function fixtureSubmissions(anchor: string, now: number): (Submission & { clientId: string })[] {
+  return [{
+    clientId: 'user-maya', id: 'sub-maya-checkin', kind: 'check_in', publicationId: null, createdAt: new Date(now - 26 * 3600000).toISOString(),
+    body: { v: 1, purpose: 'check_in', feel: 'Okay', note: 'Hungry in the evenings since the cut dropped. Sleep’s been poor this week.', macro_id: null, sent_on: shiftDateStr(anchor, -1) },
+  }];
+}
+
+function fakeId(): string {
+  const b = new Uint8Array(16);
+  crypto.getRandomValues(b);
+  const h = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }

@@ -220,6 +220,8 @@ textarea.input { height: auto; min-height: 96px; padding: 12px 14px; resize: ver
 .grid-2, .grid-3 { display: grid; gap: 0 28px; grid-template-columns: minmax(0, 1fr) }
 .tiles-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px }
 .tiles-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px }
+/* Fields side by side in a grid: no stacked-field margin, or every field after the first sits lower. */
+.tiles-2 > .field, .tiles-3 > .field { margin-top: 0 }
 @media (min-width: 768px) {
   :root { --gutter: 32px }
 }
