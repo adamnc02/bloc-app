@@ -15,11 +15,20 @@
 //     on", a new `until` "Weekly session ending"; skips in the past raise
 //     nothing. `title` names a group session on its row.
 //
+//
+// v8.48 (migration 0030): a cancelled group booking is one of two things.
+// `removed: true` is this client taken out of a group that carries on ("You
+// have been removed from …"); without it the group week itself is off
+// ("Group session cancelled: {group} on {when} with {coach} is cancelled.").
+// A group's week skipped by a day off names the group. A weekly booking's
+// in-person session reads the week to come, not the series' first date.
+//
 // 🚨 THE TRAP: without this, "Your next session" kept showing a week the coach
 // had taken off, and the client turned up.
 //
-// Runs the real functions from index.html. CONTROL: main before v8.47
-// (5d08f66) ignores skip_dates, until and quiet, and must fail.
+// Runs the real functions from index.html. CONTROLS: main before v8.47
+// (5d08f66) ignores skip_dates, until and quiet; v8.47 (927edbb) reads every
+// cancelled group as a removal. Both must fail.
 // ═══════════════════════════════════════════════════════════════════════
 
 import { readFileSync } from 'node:fs';
@@ -41,7 +50,7 @@ function extract(source, name) {
   return null;
 }
 const FNS = ['pubCopy', 'coachMinToHHMM', 'coachDayFmt', 'coachDateTimeFmt', 'coachBookingWeekly', 'coachBookingSkips',
-  'coachBookingNextDate', 'addCoachNotice', 'applyBookingPublication'];
+  'coachBookingNextDate', 'addCoachNotice', 'applyBookingPublication', 'coachSessionWhen'];
 const OPTIONAL = new Set(['coachBookingSkips']);
 
 function load(source) {
@@ -58,7 +67,7 @@ function load(source) {
     const coachFirstName = () => 'Rowan';
     const toLocalDateStr = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     ${parts.join('\n')}
-    return { state, coachBookingNextDate, applyBookingPublication, setToday: (t) => { TODAY = t; } };`;
+    return { state, coachBookingNextDate, applyBookingPublication, coachSessionWhen, setToday: (t) => { TODAY = t; } };`;
   return new Function(body)();
 }
 
@@ -124,7 +133,7 @@ function run(source) {
   P.applyBookingPublication(pub({ ...WEEKLY, booking_id: 'g1', date: '2026-10-10', start_min: 540, title: 'Saturday bootcamp', location: 'Park' }));
   check('added to a group: "Added to a group session", naming it', [last().title, last().body], ['Added to a group session', 'Rowan added you to Saturday bootcamp: Sat 10 Oct, 09:00, weekly.']);
   P.applyBookingPublication(pub({ ...WEEKLY, booking_id: 'g1', date: '2026-10-10', start_min: 540, title: 'Saturday bootcamp', location: 'Park', status: 'cancelled' }));
-  check('taken out of a group (or it ends): "Group session cancelled", naming it', [last().title, last().body], ['Group session cancelled', 'You have been removed from the Saturday bootcamp on Sat 10 Oct, 09:00 with Rowan.']);
+  check('a group cancelled for everyone: "Group session cancelled", naming it', [last().title, last().body], ['Group session cancelled', 'Saturday bootcamp on Sat 10 Oct, 09:00 with Rowan is cancelled.']);
   P.applyBookingPublication(pub({ ...WEEKLY, booking_id: 'g1', date: '2026-10-10', start_min: 540, title: 'Saturday bootcamp', location: 'Park' }));
   check('put back in a group: "Added to a group session" (not "back on")', last().title, 'Added to a group session');
   // Added to one week of a group they're not in ("just this one" with a new attendee): the new booking replaces a
@@ -132,6 +141,17 @@ function run(source) {
   P.applyBookingPublication(pub({ ...WEEKLY, booking_id: 'g1', date: '2026-10-10', start_min: 540, title: 'Saturday bootcamp', location: 'Park', status: 'cancelled' }));
   P.applyBookingPublication(pub({ booking_id: 'g1w', date: '2026-10-10', start_min: 540, duration_min: 60, status: 'booked', kind: 'one_off', title: 'Saturday bootcamp', replaces: { booking_id: 'g1', date: '2026-10-10' } }));
   check('added to one week of a group: "Added to a group session", not "Session changed"', [last().title, last().body], ['Added to a group session', 'Rowan added you to Saturday bootcamp: Sat 10 Oct, 09:00.']);
+
+  // 0030: taken out of a group that carries on.
+  P.applyBookingPublication(pub({ ...WEEKLY, booking_id: 'g2', date: '2026-09-26', start_min: 540, title: 'Saturday bootcamp', location: 'Park' }));
+  P.applyBookingPublication(pub({ ...WEEKLY, booking_id: 'g2', date: '2026-09-26', start_min: 540, title: 'Saturday bootcamp', location: 'Park', status: 'cancelled', removed: true }));
+  check('removed from a group that carries on: "You have been removed …", the week to come', [last().title, last().body], ['Removed from a group session', 'You have been removed from the Saturday bootcamp on Sat 3 Oct, 09:00 with Rowan.']);
+  P.applyBookingPublication(pub({ ...WEEKLY, booking_id: 'g3', date: '2026-10-10', start_min: 540, title: 'Saturday bootcamp', location: 'Park' }));
+  P.applyBookingPublication(pub({ ...WEEKLY, booking_id: 'g3', date: '2026-10-10', start_min: 540, title: 'Saturday bootcamp', location: 'Park', skip_dates: ['2026-10-17'] }));
+  check('a group week skipped (a day off): "Group session cancelled", naming the group', [last().title, last().body], ['Group session cancelled', 'Saturday bootcamp on Sat 17 Oct, 09:00 with Rowan is cancelled.']);
+  // The weekly booking's in-person session reads the week to come.
+  check('a weekly booking\'s in-person session: "With your coach" on the week to come', P.coachSessionWhen({ ...WEEKLY, date: '2026-09-23', assigned_session: { macroId: 'm', week: 3, dayKey: 'pull' } }), 'With your coach · Wed 7 Oct, 18:00');
+  check('a one-off\'s in-person session: its own date', P.coachSessionWhen({ booking_id: 'o9', date: '2026-10-09', start_min: 600, kind: 'one_off' }), 'With your coach · Fri 9 Oct, 10:00');
 
   const rows = extract(source, 'renderCoachSessions') || '';
   check('Your sessions shows a group session\'s title', /b\.title \? coachEsc\(b\.title\)/.test(rows), true);
@@ -152,6 +172,16 @@ const mustFail = ['a skipped week is stepped over', 'until: after it, no next da
 const ctlOk = mustFail.every((l) => ctlFails.includes(l));
 console.log(`${ctlOk ? '✓' : '✗'} control: v8.46 (5d08f66) fails ${ctlFails.length} rows, including skip, until and quiet`);
 if (!ctlOk) failures++;
+
+// CONTROL: v8.47 reads every cancelled group as a removal and a weekly assignment at its first date.
+const v847 = execFileSync('git', ['show', '927edbb:index.html'], { cwd: repo, encoding: 'utf8', maxBuffer: 64 << 20 });
+const c2 = run(v847);
+const c2Fails = c2.filter((r) => !r.ok).map((r) => r.label);
+const must2 = ['a group cancelled for everyone: "Group session cancelled", naming it', 'removed from a group that carries on: "You have been removed …", the week to come',
+  'a group week skipped (a day off): "Group session cancelled", naming the group', 'a weekly booking\'s in-person session: "With your coach" on the week to come'];
+const c2Ok = must2.every((l) => c2Fails.includes(l)) && c2Fails.length === must2.length;
+console.log(`${c2Ok ? '✓' : '✗'} control: v8.47 (927edbb) fails exactly the ${must2.length} v8.48 rows${c2Ok ? '' : ` — got ${JSON.stringify(c2Fails)}`}`);
+if (!c2Ok) failures++;
 
 console.log(failures ? `\n✗ ${failures} check(s) failed` : '\nAll checks passed.');
 process.exit(failures ? 1 : 0);

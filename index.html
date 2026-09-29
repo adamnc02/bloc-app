@@ -10173,8 +10173,14 @@ function applyBookingPublication(pub) {
   // one-to-one); its banners name the group.
   const group = typeof p.title === 'string' && p.title ? p.title : null;
   if (p.status === 'cancelled') {
-    if (before && before.status !== 'cancelled') addCoachNotice(pub, 'booking', group ? 'Group session cancelled' : 'Session cancelled',
-      group ? `You have been removed from the ${group} on ${when} with ${coach}.` : `${when} with ${coach} is off.`);
+    // v8.48 (migration 0030): `removed: true` is this client taken out of a group that carries on; without it the
+    // group itself is off. A weekly booking names the week that would have come next.
+    const offWhen = before && coachBookingWeekly(before) ? coachDateTimeFmt(coachBookingNextDate(before, today) || p.date, p.start_min) : when;
+    if (before && before.status !== 'cancelled') {
+      if (group && p.removed === true) addCoachNotice(pub, 'booking', 'Removed from a group session', `You have been removed from the ${group} on ${offWhen} with ${coach}.`);
+      else if (group) addCoachNotice(pub, 'booking', 'Group session cancelled', `${group} on ${offWhen} with ${coach} is cancelled.`);
+      else addCoachNotice(pub, 'booking', 'Session cancelled', `${offWhen} with ${coach} is off.`);
+    }
   }
   else if (!before || before.status === 'cancelled') {
     // A group this client wasn't in (the session it replaces isn't theirs, or was cancelled for them): added, not changed.
@@ -10197,7 +10203,10 @@ function applyBookingPublication(pub) {
     const off = [...now].filter(d => !skipped.has(d) && d >= today && (!p.until || d <= p.until)).sort();
     const on = [...skipped].filter(d => !now.has(d) && d >= today && (!p.until || d <= p.until)).sort();
     const at = d => coachDateTimeFmt(d, p.start_min);
-    if (off.length) addCoachNotice(pub, 'booking', off.length === 1 ? 'Session cancelled' : 'Sessions cancelled',
+    // v8.48: a group's skipped week (a day off, a holiday, just this one) names the group.
+    if (off.length && group) addCoachNotice(pub, 'booking', 'Group session cancelled',
+      off.length === 1 ? `${group} on ${at(off[0])} with ${coach} is cancelled.` : `${off.length} ${group} sessions with ${coach} are cancelled, from ${at(off[0])}.`);
+    else if (off.length) addCoachNotice(pub, 'booking', off.length === 1 ? 'Session cancelled' : 'Sessions cancelled',
       off.length === 1 ? `${at(off[0])} with ${coach} is off.` : `${off.length} sessions with ${coach} are off, from ${at(off[0])}.`);
     else if (on.length) addCoachNotice(pub, 'booking', 'Session back on',
       on.length === 1 ? `${at(on[0])} with ${coach} is back on.` : `${on.length} sessions with ${coach} are back on, from ${at(on[0])}.`);
@@ -15430,7 +15439,11 @@ function coachShortWhen(date, startMin) {
   const day = d.toLocaleDateString('en-GB', days >= 0 && days < 7 ? { weekday: 'short' } : { weekday: 'short', day: 'numeric', month: 'short' });
   return (days === 0 ? 'Today' : day) + (startMin != null ? ' ' + coachMinToHHMM(startMin) : '');
 }
-function coachSessionWhen(b) { return `With your coach · ${coachDateTimeFmt(b && b.date, b && b.start_min)}`; }
+// v8.48: a weekly booking's in-person session is the week to come (coachBookingNextDate), not the series' first date.
+function coachSessionWhen(b) {
+  const date = b && coachBookingWeekly(b) ? (coachBookingNextDate(b, getLocalToday()) || b.date) : b && b.date;
+  return `With your coach · ${coachDateTimeFmt(date, b && b.start_min)}`;
+}
 // A repeating booking (§136 contract: the booking payload's `kind` is 'weekly').
 function coachBookingWeekly(b) { return !!b && ['weekly', 'series', 'recurring'].includes(String(b.kind || '').toLowerCase()); }
 // The wireframe's calendar icon (HomeScreen's "Your next session").
@@ -22769,7 +22782,7 @@ function buildTrainPickerHTML(macro) {
       // v8.43 (§137): logged by the coach, or replaced by a group session.
       const rowMeta = x.coachLogged ? `Logged by your coach · ${x.doneSets} of ${x.sets} sets`
         : x.groupReplaced ? 'Replaced by a group session'
-        : x.withCoach && !x.done ? coachEsc(coachSessionWhen(x.withCoach)) : meta;
+        : x.withCoach && !x.done ? coachEsc(coachSessionWhen(getCoachAssignment(macro.id, x.week, x.dayKey) || x.withCoach)) : meta;
       return `<button class="agenda-row${x.viewing ? ' is-viewing' : ''}" onclick="selectTrainSession(${x.week},'${x.dayKey}')">
           ${dot}<span class="agenda-row-text"><span class="agenda-row-name">${x.label}</span><span class="agenda-row-meta">${rowMeta}</span></span>${badge}
         </button>`;
@@ -29683,7 +29696,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.47</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.48</span>`;
 }
 
 function renderSettings() {
