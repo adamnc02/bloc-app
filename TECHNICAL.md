@@ -9193,7 +9193,7 @@ Control: a bare `signOut()`.
   and the `.btn` / input rules it inherits there, value for value. **A change to BLOC's gate is made to
   Coach's too.**
 - **Forgot password?** sends the reset link to **BLOC's** live URL: it's the same account, the link
-  signs you in to BLOC, and BLOC's Settings is where a password changes. Coach has no password screen.
+  signs you in to BLOC. A signed-in coach changes the (shared) password in Coach's Settings → Account (§154).
 - **PKCE** (`flowType: 'pkce'`): Google and the confirmation email return with `?code=`, never in the
   hash, which the router owns.
 - **Google comes back only to a URL on the project's Redirect URLs list** (Auth → URL Configuration);
@@ -10253,7 +10253,7 @@ by the moved week's own "Session changed"; "All future" from a later week ends t
 new series, so the client gets one "Session changed" for the new day; a one-off made weekly replaces its one-off
 quietly.
 
-`assigned_session` is not sent yet (In person). `BOOKING_KEYS` are all on `0028`'s allow-list, and the series' `kind`
+`assigned_session` is sent by In person (§154). `BOOKING_KEYS` are all on `0028`'s allow-list, and the series' `kind`
 is one BLOC's `coachBookingWeekly()` rolls forward (`verify-coach-diary.mjs`, with controls).
 
 ### The actions (`actions.ts`)
@@ -10336,7 +10336,7 @@ the message (control: `String()` of the raw error), one refresh and retry on an 
   render outside the page, so their fields still select.
 - **Checkboxes** (`.check`, a `<button>`) set `padding: 0`: the browser's button padding left a 9 px content box, so the
   16 px tick sat off-centre.
-- **Settings → Diary**: working hours (15-minute steps), working days, a new session's length, and the days off still to
+- **Settings → Diary** (until v0.6; now Working hours and days, and Days off and holidays, §154): working hours (15-minute steps), working days, a new session's length, and the days off still to
   come, each opening Undo.
 
 ### Laptop: the side rail collapses; Review's findings beside the AI tools
@@ -10406,3 +10406,200 @@ Coach clears the marker.
 **Check:** `scripts/verify-booking-weeks.mjs`: a group cancelled for everyone, a client removed from one that carries
 on (the week to come), a group's skipped week naming it, a week 8 days back cancelled (a banner) and one 22 days back
 (none), and the weekly and one-off in-person dates. Control: v8.47 (`927edbb`) fails exactly those five rows.
+
+## §154 — Coach v0.6: In person, Today, Settings, Add a day off; a removed attendee; two iPhone layout fixes
+
+**What it is.** The coach logs a client's planned session with them (**In person**), **Today** is the hub the app
+opens on, **Settings** is laid out section by section with no badges, and one **Add a day off** sheet serves every
+entry point. BLOC reads what In person sends as it already did (§136, §137); BLOC v8.48 (§153) adds the group
+removal and the weekly in-person date. Migration `0030` adds `booking.removed`. Group sessions have no Start session
+in this version: planning and logging them, and effort ratings approving progression, come later.
+
+### Files
+
+| File | What |
+|---|---|
+| `coach/src/inperson/model.ts` | pure: the client's record (`recordState`), BLOC's session_log applier on a copy (`applySessionLog`), which cycle and which session, the week agenda, Train's targets, the `session_log` payload, what was logged, when Start shows |
+| `coach/src/inperson/InPersonScreen.tsx`, `SessionPicker.tsx`, `ExerciseLogCard.tsx`, `EffortSheet.tsx`, `Measurements.tsx`, `InPersonActions.tsx`, `PastSessions.tsx` | the screen, the week agenda, an exercise card, "How hard was it?", measurements, the booking sheet's actions, Sessions' past sessions |
+| `coach/src/inperson/useRecord.ts`, `draft.ts` | a card's publications folded over the upload, at the client's today; a session in progress kept on the device (`blocCoach_inPerson`) |
+| `coach/src/today/model.ts`, `coach/src/coach/screens/TodayScreen.tsx` | Today's four lists, pure; the screen |
+| `coach/src/lib/measurementStatus.ts` | BLOC's measurement due rule (`getMeasurementStatus`, §103), a copy |
+| `coach/src/coach/screens/SettingsScreen.tsx`, `coach/src/coach/diary/DiarySettings.tsx` | Settings; Working hours and days, and Days off and holidays |
+
+`CoachRepo` gains `loadCardPublications(cardId)` (every publication on a card, with receipts), `loadInbox()`
+(Today's inputs across every card: submissions, AI drafts, and `ai_response` / `note_reply` / `photo_request` /
+`session_log` publications) and `assignSession(bookingId, cardId, session | null)`; `publish` accepts `session_log`
+and `measurement`.
+
+### The client's record
+
+In person judges a client on their state as their phone will hold it once it has pulled everything the coach has
+sent (`recordState`): the upload (none for a client not on the app, or not synced yet) with the coach's plan, goal
+phases and check-in goal changes folded in as Plan folds them (`foldState`, §144), then the unapplied `booking`,
+`session_log` and `measurement` publications applied as BLOC applies them. "Unapplied" is the upload's own ledger
+(`coachLedger`), and publications from before the card's last unlink never count (`lastEndedAt`), exactly as Plan's
+fold. A correction (the same `session_id`) replaces the session it corrects.
+
+🚨 **`applySessionLog` is BLOC's `applySessionLogPublication`, on Coach's copy**: the whole (week, day) session
+becomes the coach's sets, stored as Train's inputs store them (strings, `done`, `loggedBy: 'coach'`), the ratings
+`ratedBy: 'coach'`, and the engine's `replayProgressionAfterLog` recomputes the targets and locks after it. Without
+the replay a later week's cached target stays computed without the session, and the next session's targets are
+wrong. `inperson.test.ts` runs BLOC's real applier (extracted from `index.html`) and Coach's on the same payloads and
+requires the same `trainLogs`, `rpe`, `progressionTargets` and `progressionLocks`; its control is a naive applier
+without the replay. Exercise history (BLOC's "last logged") isn't modelled: nothing in Coach reads it.
+
+**The client's today**: their upload's zone (§139). A client with no upload has no zone, so the coach's is used;
+the Diary's own dates (today's sessions, missed bookings) are always the coach's.
+
+### Which session
+
+A session of **a coach's cycle** (`publishedBy`): the one running at the client's today, else the one the booking's
+date falls in. A client's own cycle is theirs to log; the screen says there's no plan of the coach's to log
+against, and offers Plan.
+
+**Start session opens on** the session tagged for this booking while the client hasn't started it, else the
+client's next unfinished session: the engine's `getNextIncompleteSession`, which BLOC's own Up next uses, so they
+agree. **Choose another session** is the week agenda (§115's design, from `getTrainAgendaUnits` at the client's
+today): a card per calendar week (dates, This week, deload, a summary), opening into its sessions; "Go to up next".
+🚨 **A session the client has started (any set done), finished, already logged or replaced by a group can't be
+chosen** (`assignable`), because a coach's session replaces the whole session on the phone.
+
+### Assigning: a marker for one session
+
+Choosing the session **assigns** it: the booking publication carries `assigned_session {macroId, week, dayKey}`,
+so the client's Train shows it read-only, "with your coach", and their Up next moves on (BLOC §136). It's sent
+**quiet** (`quiet: true`), so no banner: nothing about the time changed. The session can be changed until a set is
+done. Once the session is logged, Finish **releases** it (the booking is republished without it, quietly): the
+session is coach-logged now, and the next week of a weekly booking starts from the default again. A cancelled
+booking releases it too (BLOC §136). **Tag a session** in a booking's sheet (the Diary's, a client's Sessions) sets
+the same marker ahead of time.
+
+🚨 **Where the marker lives.** 0024 keeps it per attendee, on `diary_booking_clients.assigned_session`; a weekly
+series' attendees (`diary_series_clients`) have no such column. So a week still in its weekly series carries it on
+its **identity override**: a `diary_bookings` row for that week, identical to it (`overrideIsIdentity`), made when
+the week is tagged. An identity override is still the series (not detached, never published as its own booking), so
+the phone still holds one weekly booking, which now carries `assigned_session` (`seriesAssignment`: the earliest
+tagged week's). A one-off or a moved week carries its own. `publish.ts` derives it per card, so the derive-then-diff
+publisher sends it like any other change.
+
+🚨 **Attendee rows are diffed, never replaced** (`liveDiary.ts` `setClients`): the row carries the assignment, so
+deleting and re-inserting every attendee on a change of who's booked would drop it.
+
+### Logging and Finish
+
+Each exercise shows the targets Train would show the client (`sessionTargets`): the lock swept over every earlier
+week first, on Coach's copy, then the engine's `computeExerciseProgression`, as BLOC's `exProgData` does. Sets start
+at those targets, not done; the tick completes every set at target; Fill suggested and Clear. The session in
+progress is kept in `blocCoach_inPerson` (one entry per diary week and client) until Finish, so a reload loses
+nothing; it's this device's only.
+
+**Finish** sends a `session_log` in BLOC's §137 contract: `{v, session_id, booking_id, macro_id, week, day_key, kind:
+'in_person', logs, rpe}`. Every set of an exercise with a set done goes (a set not done as `done: false`); an
+exercise with nothing done isn't sent, so it reads as not done. When the cycle has effort ratings on (`macro.rpe`),
+Finish first opens **How hard was it?**: BLOC's end-of-session sheet (one 1–10 per exercise done, tap again to clear,
+ten across and five below 380 px), sent as `rpe`, with anything left unrated sent as `'skipped'` (BLOC's rule: a skip
+is "Not rated", never a number).
+
+🚨 **The session id carries the booking and the day**: `ip:{booking id}:{date}:{stamp}`. 0023's `session_log`
+allow-list has no date key, and a weekly booking is one id for every week, so the id is how a logged session is
+matched to its diary week (`parseSessionId`, `loggedFor`): Today's logged state, missed bookings, and Sessions' past
+sessions all depend on it. `booking_id` is the id the booking reaches the phone under (`publishedIdOf`: the series
+for a week still in it, else the booking).
+
+A client **not on the app** gets the same, saved to their card ("Kept for {first}. It comes across if they link"),
+plus **Measurements** on the screen and in Profile: a `measurement` publication `{v, log_date, weight (lbs), waist,
+hip (inches, quarters)}` with only what was entered.
+
+### Today
+
+In the order a phone shows it; on a laptop (≥ 1024 px) Needs you is the right-hand column (`.today-grid` areas),
+the rest stacked on the left.
+
+- **Today's sessions**: the diary's sessions today. Start session on a one-to-one from 15 minutes before it starts
+  until the day ends (`canStart`; "Resume session" with a session in progress), "Logged" once logged.
+- **Needs you**, each item opening where it's dealt with and clearing once it is: session requests waiting on the
+  coach and a confirmed time that now clashes (the request sheet, in place); a check-in request (`openRequest`); a
+  note back with no reply; review photos sent or skipped with no review run since; and **a one-to-one booking from
+  the last 14 days (`MISSED_LOOKBACK_DAYS`) neither logged nor cancelled**, with **Log it** (In person, for that
+  day) and **Cancel** (that session, or that week of a weekly one: the client gets "Session cancelled", BLOC §153).
+  An assigned session stays out of the client's "next" until one or the other.
+- **Off track**: linked clients whose outcome is off track (§140), with its reason.
+- **Coming up**, over each client's next 7 days, at their today: a check-in due (14 days after the last run, BLOC's
+  cooldown, else after the cycle's start; not once they've asked, which is Needs you's), a cycle's final week,
+  measurements due (`getMeasurementStatus`), an app gone quiet (48 h).
+
+🚨 **`lib/measurementStatus.ts` is a copy of BLOC's `getMeasurementStatus`** (moving it into the engine would change
+BLOC's served bytes). `verify-coach-today.mjs` runs both over 320 cases.
+
+Today is the default route (`DEFAULT_PATH`).
+
+### Settings
+
+Hero (initials, name, "{business} · {email}", Coach's version chip); **Account** ("One sign-in for BLOC and BLOC
+Coach.": Sign-in, **Password**, **Sign out**, then the coach-ID caption); **Coach profile**; **Working hours and days**
+(day toggles, Day starts / Day ends on the hour, "{n} hours a day · {n} days a week. The diary shows these hours.",
+**Save hours**; a new session's length keeps its saved value, with no control); **Days off and holidays** (still to
+come: calendar icon for a day, sun for several, the label, "{range} · {n} sessions cancelled", a trash button that
+frees the days and brings nothing back, "No days off booked.", **＋ Add a day off**); **Linked services** (the
+Anthropic key: "Ends {last 4} · on this device", the key sheet with Replace, the "Kept on this device" notice, Remove
+key, Save key); **Notifications** (five switches, off and disabled: pushes come with the push release). No About.
+
+- **Password** is the account's (`supabase.auth.updateUser`), shared with BLOC, so the sheet says it changes both.
+  Hidden for a Google sign-in (`app_metadata.provider`), which has none.
+- **Sign out** is still `scope: 'local'` (§139), from a danger row in Account; the full-width button at the foot is
+  gone.
+- The back link keeps §152's behaviour, and names "In person" when opened from there.
+
+### Add a day off
+
+One sheet from every entry point: Settings, the Diary's moon button, and a day's header in the Diary (that date as
+From and To). From / To, a **Label that's required** (placeholder "Holiday"; only the coach sees it: it heads the day
+in the Diary and names it in Settings, `coach_days_off.note`), then the sessions booked in the range: "{n} sessions
+are booked", "They're cancelled for good…" (§152's rule), each listed, and **Notify these {n} clients** (on by
+default; off sends the cancellations `quiet`); or "No sessions are booked on this day." The button is **＋ Add day off**.
+
+### A client taken out of a group that carries on
+
+`bookingChanges` sends a card that should no longer hold a booking that booking cancelled; when the same `booking_id`
+is still booked for any other card (the group carries on), it also sends **`removed: true`** (migration `0030`), and
+BLOC says "You have been removed from …" instead of "Group session cancelled" (§153).
+
+### Add client
+
+A client coached in person needs only a name; an email or phone is still required for "Yes, on BLOC", because the
+invite needs somewhere to go.
+
+### Two iPhone layout fixes
+
+- 🚨 **The page header sat `--header-top` (52 px) below the status-bar inset**, on top of it, in an installed app: about
+  50 px of dead space above every title. `.top` is now `max(--header-top, safe-area-inset-top + 16px)`, so the
+  installed app sits 16 px under the status bar as BLOC does (`#content`'s safe-top plus `.screen`'s 16 px), and a
+  browser, with no inset, keeps 52 px.
+- 🚨 **iOS draws `<input type="date">` at its own width**, ignoring `width: 100%`: beside another field it ran under it
+  (Book a session's Day under Start), alone it ran past the sheet (the day-off sheet). Date and time inputs drop the
+  native appearance (`appearance: none`, `display: block`, `max-width: 100%`), as BLOC does for every input. Desktop
+  WebKit and Chromium don't reproduce either, so both are checked on an iPhone.
+
+### Checks
+
+- `coach/src/inperson/inperson.test.ts` (vitest, 19): Coach's applier equal to BLOC's real one on two weeks (control:
+  no replay); the ledger and a correction; a client not on the app from publications alone; the unlink cut-off; a
+  coach's cycle only; the default session, a tagged one and a started one; assignable; Train's week-1 target and the
+  week after a logged week (control: unlogged); the payload's keys, sets and ratings; the session id; past sessions;
+  Start's window; the 14-day lookback.
+- `coach/src/today/today.test.ts` (vitest, 8): Start's window and a logged session; missed bookings (17 days back and
+  a logged one as controls; no groups); every Needs you kind, and each clearing once dealt with; Off track; Coming up's
+  quiet app (control: 2 h); the measurement rule.
+- `coach/src/diary/diary.test.ts` adds: `removed` on a removal and not on a group stopped for everyone; assigning on a
+  one-off and on a weekly week (one publication, the week still in its series, released by cancelling it); an
+  attendee change keeping another's assignment; every key on `0030`'s allow-list.
+- `scripts/verify-coach-today.mjs`: the measurement rule against BLOC's (control: due a day late); `session_log` keys
+  on 0023's list, and the payload builder writing only those (controls); no clock in Today's or In person's models
+  (control).
+- `scripts/verify-coach-diary.mjs` reads `0030`'s allow-list and checks BLOC reads `removed` and `assigned_session`.
+- Driven in headless Chromium on the fixtures (Europe/London) at 375 × 812 and 1440 × 1000: Today (the four lists,
+  in that order; Needs you on the right at 1440), Start session on Maya's session today through the chooser, the
+  week agenda, owning the session (Change session gone), the tick, Finish and "Session sent", then "Logged" on Today;
+  Eileen (not on the app) through Log it, Measurements, "How hard was it?" (five across at 375) and "Session saved",
+  her past session opening read-only; Profile's measurements; Settings' sections; Add a day off (label required,
+  listed with its sessions cancelled); a day's header opening it; no horizontal scroll, no console errors.
