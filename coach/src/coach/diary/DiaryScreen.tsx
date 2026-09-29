@@ -94,7 +94,7 @@ export function DiaryScreen() {
 
   return (
     <CoachShell tab="diary">
-      <Page innerRef={ref}>
+      <Page innerRef={ref} className="diary-page">
         <PageHeader
           eyebrow={fmt.range(days[0], last)}
           title="Diary"

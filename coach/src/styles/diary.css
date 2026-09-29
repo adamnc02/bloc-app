@@ -17,6 +17,12 @@
 .dy-range small { display: block; color: var(--text3); font-size: 12px; margin-top: 2px }
 .dy-hint { margin: 10px 0 12px; text-align: center }
 
+/* No text selection or iOS callout: a long press in the Diary means pick up (a session) or book (an empty hour),
+   never "copy". The grid on every device; the whole page on touch. Sheets render outside the page, so their fields
+   still select. */
+.dg { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none }
+@media (hover: none), (pointer: coarse) { .diary-page { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none } }
+
 /* ---------- grid ---------- */
 .dg { --gw: 56px; --hour: 60px; position: relative; overflow-x: clip }
 .dg.is-narrow { --gw: 40px }

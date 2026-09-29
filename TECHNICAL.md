@@ -10329,6 +10329,9 @@ the message (control: `String()` of the raw error), one refresh and retry on an 
   🚨 **Weekly lists only sessions with a week still to come** (`nextSeriesWeek`): one whose weeks are all cancelled, moved
   (detached) or past is over whatever its end date says, and its row had nothing to act on, so it couldn't be tapped.
 - **Toggles** in the Diary's sheets are `Seg accent`: the selected option is filled lavender.
+- **No text selection in the Diary**: the grid never selects or shows the iOS long-press callout, and on touch devices the
+  whole Diary page doesn't either (`.diary-page`), so a long press on an empty hour doesn't start copying the page. Sheets
+  render outside the page, so their fields still select.
 - **Checkboxes** (`.check`, a `<button>`) set `padding: 0`: the browser's button padding left a 9 px content box, so the
   16 px tick sat off-centre.
 - **Settings → Diary**: working hours (15-minute steps), working days, a new session's length, and the days off still to
