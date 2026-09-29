@@ -86,7 +86,7 @@ export function SettingsScreen() {
 
         {!fixture && (
           <section className="sec rise" style={{ ['--i' as string]: 5 } as CSSProperties} aria-label="Sign out">
-            <Button style={{ maxWidth: 420 }} variant="danger" icon="logout" onClick={() => setSheet('signout')}>Sign out</Button>
+            <Button variant="danger" icon="logout" onClick={() => setSheet('signout')}>Sign out</Button>
           </section>
         )}
       </Page>

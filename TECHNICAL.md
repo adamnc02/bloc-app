@@ -9204,6 +9204,10 @@ Control: a bare `signOut()`.
   someone a coach, and only Coach makes it. A profile that isn't `active` → a status screen; every coach
   is created `active`.
 
+**Settings** is reached from the rail's foot on a tablet or laptop, and on a phone from the header's
+Settings button, **BLOC's gear icon** (index.html `#home-account-btn`'s path). Sign out is a full-width
+danger button.
+
 ### Reading clients (`data/live.ts`)
 
 All reads are RLS-scoped to the coach (0022 `my_coach_id()`, 0023 `is_active_coach_of()`). The `coach_id`
@@ -9221,6 +9225,9 @@ their own link as a client's.
 - **Link status**, in this order: an active link → Linked; else an unused invite → Invited (expired or
   not); else an ended link → Unlinked; else Not on the app. The "Not on the app" filter includes
   Unlinked, as the hero does.
+
+**Initials** (avatars) take the first **letter** of up to two words (`lib/format.ts`), so
+"Work (test client)" is "WT"; a first-character version gives "W(".
 
 ### The client's today
 
@@ -9274,6 +9281,6 @@ trend, Cycle, Synced).
 - `verify-coach-splash.mjs`: the splash.
 - `verify-coach-no-section-numbers.mjs`: no section badges.
 - `verify-publish-list.mjs`: the mapping.
-- `coach/src/data/summary.test.ts` (vitest, 12 cases): each fixture's row at the tracked anchor, the
+- `coach/src/data/summary.test.ts` (vitest, 13 cases): each fixture's row at the tracked anchor, the
   client's-today control, link-status precedence, the client's own name once linked, and decoding with a
-  refused hash as the control.
+  refused hash as the control, and initials from letters only.

@@ -45,11 +45,11 @@ export function CoachShell({ tab, children }: { tab: CoachTab; children: ReactNo
   );
 }
 
-/** Account button for page headers on phone (the rail carries Settings on wider screens). */
+/** The Settings button for page headers on a phone (the rail carries Settings on wider screens): BLOC's gear. */
 export function AccountButton() {
   return (
-    <button type="button" className="icon-btn phone-only" aria-label="Account and settings" onClick={() => navigate('/settings')}>
-      <Icon name="account" size={22} />
+    <button type="button" className="icon-btn phone-only" aria-label="Settings" onClick={() => navigate('/settings')}>
+      <Icon name="settings" size={22} />
     </button>
   );
 }

@@ -80,3 +80,12 @@ describe('decoding an upload', () => {
     await expect(decodeClientState(hex, '0'.repeat(64))).rejects.toThrow(/hash/);
   });
 });
+
+describe('initials', async () => {
+  const { initials } = await import('@/lib/format');
+  it('take the first letter of each word, skipping punctuation', () => {
+    expect(initials('Work (test client)')).toBe('WT');
+    expect(initials('Maya Okafor')).toBe('MO');
+    expect(initials('  ')).toBe('');
+  });
+});
