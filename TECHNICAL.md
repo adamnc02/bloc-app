@@ -9911,3 +9911,31 @@ old card styles (`.macro-opt`) are gone.
 inputs and their segments, no tour step on a hidden input, no RPE control, and the redraw after the reset and the
 pre-fill. Control: the sheet with a field removed. Driven in Chromium at 375 pt: the segments, the stepper, the length
 line, Create (9 × 2-week mesocycles, gain, PPL, microcycles saved) and the pre-fill (Gain, 12 weeks).
+
+## §150 — v8.46: Add exercise, in BLOC Coach's shape
+
+BLOC's Add / Edit exercise sheet (`modal-exercise`) now works as BLOC Coach's does:
+- **The exercise is chosen in a search sheet**, `modal-ex-pick` ("Choose an exercise", or "Choose cardio"), instead of a
+  long select. It lists the library (`getLibrary()`, the category's entries) grouped by body part, filtered as you type.
+  It's §9's `.kb-pinned-sheet` exactly: `openExPick()` clears and fits the list after the slide-in, and `measureAll()`
+  re-fits `ex-pick-list-wrap` (`verify-kb-pinned-sheets.mjs` checks all four parts).
+- **A name the library doesn't have** shows "Add “…”", which opens Custom Exercise with that name. That's the one place
+  a body part is asked (cardio has none). Saving it adds it to the library and chooses it.
+- **Adding starts on the search** (`openAddExercise`, `openAddExerciseToSuperset`). Closing the search with nothing
+  chosen closes the sheet too, and saving with no exercise opens the search. The Macrocycle Creation Tour opens the sheet
+  without it (`{ pick: false }`), because its steps spotlight the sheet itself.
+- **Category shows when adding only.** Switching category while adding reopens the search for that category.
+- **Coach's labels:** Starting kg, Starting sets, Peak sets, and **Heavy leg** ("No, light" / "Yes, heavy") beside
+  **Weight is** ("Total" / "Per side"), with the increments spelled out once under them ("Light exercises go up 2.5 kg a
+  mesocycle, heavy leg 5 kg. Per side counts double in volume.", `updateLegSelectLabels`, from the cycle's own figures).
+
+🚨 **The exercise's name is still `ex-name-input`**, now a hidden input that `populateExerciseSelect()` sets and the
+button shows, so `saveExercise`, `openEditExercise`, the last-logged note and the history defaults read it exactly as
+they read the select. The select's "Custom…" entry and `onExNameChange` are gone.
+
+**Check:** `scripts/verify-exercise-sheet.mjs`: every id the sheet's code reads is in it (33), the hidden name behind
+the button, adding on the search (and the tour without), Category on adding only, no body part in the search and a new
+name through Custom Exercise, saving with no exercise, and the Heavy leg / Weight is pair with its line. Control: the
+sheet with a field removed. Driven in Chromium at 375 pt: the search pinned while filtering (top 30 px, height
+unchanged), choosing and saving (Machine Row at 42.5 kg), Add "Sled Push" through Custom Exercise (Legs, then chosen),
+closing an empty search, and Edit (no Category, no search).

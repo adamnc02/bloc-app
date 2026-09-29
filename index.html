@@ -1365,6 +1365,10 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 /* v8.46 (§149): the New cycle sheet's split and microcycle choices are segments
    that selectMacroOpt() marks with its old class. */
 .toggle-btn.macro-opt-selected { background: var(--accent); color: var(--on-accent); }
+/* v8.46 (§150): the exercise sheet's exercise button (opens modal-ex-pick). */
+.ex-name-btn { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; min-height: 48px; padding: 10px 14px; border-radius: var(--r-btn-sm); border: 1px solid var(--border2); background: var(--bg); color: var(--text); font-family: var(--font-mono); font-size: 16px; cursor: pointer; }
+.ex-name-btn.is-empty #ex-name-label { color: var(--text3); }
+.ex-name-btn svg { color: var(--text3); flex-shrink: 0; }
 .macro-stepper { display: flex; align-items: center; gap: 6px; }
 .macro-stepper input { text-align: center; min-width: 0; flex: 1; padding-left: 4px; padding-right: 4px; }
 .macro-step-btn { width: 40px; height: 40px; flex-shrink: 0; border-radius: 10px; border: 1px solid var(--border2); background: var(--surface2); color: var(--text); font-size: 20px; font-weight: 600; cursor: pointer; }
@@ -3779,6 +3783,7 @@ button.coach-reqrow.is-tap + .coach-reqrow, .coach-reqrow + button.coach-reqrow.
       fitListToKeyboard('exercise-lib-list-wrap');
       fitListToKeyboard('recipe-pick-list-wrap');
       fitListToKeyboard('swap-today-list-wrap'); // v8.43 (§137): Swap for today
+      fitListToKeyboard('ex-pick-list-wrap');    // v8.46 (§150): choosing an exercise
     }
   }
 
@@ -5176,20 +5181,24 @@ try {
     <div class="modal-handle-row"><div class="modal-handle"></div>
       <button class="modal-close-btn" onclick="closeModal('modal-exercise')">✕</button>
     </div>
-    <div class="modal-title" id="modal-ex-title">Add Exercise</div>
+    <div class="modal-title" id="modal-ex-title">Add exercise</div>
 
-    <div class="form-group">
+    <!-- v8.46 (§150): BLOC Coach's exercise sheet. The exercise is chosen in a
+         search sheet (modal-ex-pick) instead of a long select; its name is the
+         hidden ex-name-input every reader already uses. Category shows when
+         adding only. -->
+    <div class="form-group" id="ex-category-group">
       <div class="label">Category</div>
       <div class="toggle-row" id="ex-category-toggle">
-        <button type="button" class="toggle-btn active" data-cat="weight" onclick="selectExCategory('weight')">Weight</button>
-        <button type="button" class="toggle-btn" data-cat="cardio" onclick="selectExCategory('cardio')">Cardio</button>
+        <button type="button" class="toggle-btn active" data-cat="weight" onclick="selectExCategory('weight');openExPick()">Weight</button>
+        <button type="button" class="toggle-btn" data-cat="cardio" onclick="selectExCategory('cardio');openExPick()">Cardio</button>
       </div>
     </div>
 
     <div class="form-group">
       <div class="label">Exercise</div>
-      <select id="ex-name-input" onchange="onExNameChange(this);updateLastLoggedPreview();applyExerciseHistoryDefaults();">
-      </select>
+      <input type="hidden" id="ex-name-input" value="">
+      <button type="button" class="ex-name-btn" id="ex-name-btn" onclick="openExPick()"><span id="ex-name-label">Choose an exercise</span><span class="row-btn-chevron"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg></span></button>
       <div id="ex-last-logged-note" style="display:none;font-size:11px;color:var(--text3);margin-top:6px;line-height:1.5;"></div>
     </div>
 
@@ -5221,7 +5230,7 @@ try {
         </select>
       </div>
       <div>
-        <div class="label">Starting Weight (kg)</div>
+        <div class="label">Starting kg</div>
         <input type="number" inputmode="decimal" id="ex-weight-input" placeholder="60" step="0.5">
       </div>
     </div>
@@ -5266,7 +5275,7 @@ try {
 
     <div class="input-row" id="ex-sets-row">
       <div>
-        <div class="label">Starting Sets</div>
+        <div class="label">Starting sets</div>
         <select id="ex-sets-start-input">
           <option value="1">1</option><option value="2" selected>2</option><option value="3">3</option>
           <option value="4">4</option><option value="5">5</option><option value="6">6</option>
@@ -5276,7 +5285,7 @@ try {
         </select>
       </div>
       <div>
-        <div class="label">Peak Sets</div>
+        <div class="label">Peak sets</div>
         <select id="ex-sets-end-input">
           <option value="1">1</option><option value="2">2</option><option value="3">3</option>
           <option value="4">4</option><option value="5" selected>5</option><option value="6">6</option>
@@ -5299,24 +5308,25 @@ try {
     </div>
 
     <!-- Weight-only fields (continued) -->
-    <div class="form-group" id="ex-weight-leg-group">
-      <div class="label">Is this a heavy leg exercise?</div>
-      <select id="ex-leg-select">
-        <option value="0">No — light exercise</option>
-        <option value="1">Yes — heavy leg / compound</option>
-      </select>
+    <div class="input-row" id="ex-weight-leg-group" style="align-items:flex-start;">
+      <div>
+        <div class="label">Heavy leg</div>
+        <select id="ex-leg-select">
+          <option value="0">No, light</option>
+          <option value="1">Yes, heavy</option>
+        </select>
+      </div>
+      <div id="ex-weight-tracking-group">
+        <div class="label">Weight is</div>
+        <select id="ex-tracking-select">
+          <option value="total">Total</option>
+          <option value="perSide">Per side</option>
+        </select>
+      </div>
     </div>
+    <div class="field-hint" id="ex-leg-caption" style="margin:-4px 0 14px;"></div>
 
-    <div class="form-group" id="ex-weight-tracking-group">
-      <div class="label">How do you track the weight?</div>
-      <select id="ex-tracking-select">
-        <option value="total">Total weight on the bar / machine</option>
-        <option value="perSide">Weight per side (e.g. per dumbbell)</option>
-      </select>
-      <div style="font-size:11px;color:var(--text3);margin-top:4px;">Per-side tracking doubles the weight when calculating volume.</div>
-    </div>
-
-    <button class="btn btn-accent btn-block" onclick="saveExercise()">Save Exercise →</button>
+    <button class="btn btn-accent btn-block" id="ex-save-btn" onclick="saveExercise()">Save exercise</button>
   </div>
 </div>
 
@@ -12413,14 +12423,14 @@ function setSelectValue(id, val) {
 // number that will apply. Light ("No") exercises use the macrocycle's
 // user-configurable weightIncrement regardless of goal type; heavy ("Yes")
 // exercises use the fixed jump for the cycle's goal type — see getWeekWeight().
+// v8.46 (§150): Heavy leg and Weight is sit side by side with short options,
+// so the increments are spelled out once, under them.
 function updateLegSelectLabels() {
   const activeMacro = state.macrocycles.find(m => m.id === state.currentMacroId);
   const isGain = activeMacro && activeMacro.goalType === 'gain';
   const lightInc = parseFloat((activeMacro && activeMacro.weightIncrement) || '2.5');
-  const legSel = document.getElementById('ex-leg-select');
-  if (!legSel) return;
-  legSel.options[0].text = 'No (' + lightInc + ' kg per mesocycle)';
-  legSel.options[1].text = isGain ? 'Yes (10 kg per mesocycle)' : 'Yes (5 kg per mesocycle)';
+  const cap = document.getElementById('ex-leg-caption');
+  if (cap) cap.textContent = `Light exercises go up ${lightInc} kg a mesocycle, heavy leg ${isGain ? 10 : 5} kg. Per side counts double in volume.`;
 }
 
 // Drag-to-reorder handler for the Week-1 template's exercise list. Treats
@@ -12677,9 +12687,10 @@ function resetExCardioFields() {
   setSelectValue('ex-distance-unit-select', getDistanceUnitPref() === 'mi' ? 'km' : getDistanceUnitPref());
 }
 
-function openAddExercise(week, day) {
+function openAddExercise(week, day, opts) {
   state.currentEditContext = { week, day, editIdx: null };
-  document.getElementById('modal-ex-title').textContent = 'Add Exercise';
+  document.getElementById('modal-ex-title').textContent = 'Add exercise';
+  document.getElementById('ex-category-group').style.display = '';
   setSelectValue('ex-reps-input', '10');
   setSelectValue('ex-sets-start-input', '2');
   setSelectValue('ex-sets-end-input', '5');
@@ -12699,12 +12710,15 @@ function openAddExercise(week, day) {
   applyExerciseHistoryDefaults();
   updateLegSelectLabels();
   openModal('modal-exercise');
+  // v8.46 (§150): adding starts on the exercise search, as in BLOC Coach.
+  if (!opts || opts.pick !== false) openExPick();
 }
 
 // Opens the add-exercise modal pre-configured to join an existing superset on save
 function openAddExerciseToSuperset(day, ssId) {
   state.currentEditContext = { week: 1, day, editIdx: null, pendingSupersetId: ssId };
   document.getElementById('modal-ex-title').textContent = 'Add to superset';
+  document.getElementById('ex-category-group').style.display = '';
   setSelectValue('ex-reps-input', '10');
   setSelectValue('ex-sets-start-input', '2');
   setSelectValue('ex-sets-end-input', '5');
@@ -12722,6 +12736,7 @@ function openAddExerciseToSuperset(day, ssId) {
   applyExerciseHistoryDefaults();
   updateLegSelectLabels();
   openModal('modal-exercise');
+  openExPick(); // v8.46 (§150)
 }
 
 // Opens the exercise modal pre-filled for editing an existing exercise.
@@ -12735,7 +12750,8 @@ function openEditExercise(week, day, idx) {
   // Find the real index in the unsorted array so saveExercise can update it
   const realIdx = (state.exercises[key] || []).findIndex(e => e.id === ex.id);
   state.currentEditContext = { week, day, editIdx: realIdx };
-  document.getElementById('modal-ex-title').textContent = 'Edit Exercise';
+  document.getElementById('modal-ex-title').textContent = 'Edit exercise';
+  document.getElementById('ex-category-group').style.display = 'none'; // v8.46 (§150): adding only, as in BLOC Coach
   const exCategory = ex.category === 'cardio' ? 'cardio' : 'weight';
   // Apply category visibility BEFORE populating the select, so the list is
   // already filtered to this exercise's own category when we select it by
@@ -12794,6 +12810,7 @@ function openEditExercise(week, day, idx) {
 function saveExercise() {
   const ctx = state.currentEditContext;
   if (!ctx || !state.currentMacroId) return;
+  if (!document.getElementById('ex-name-input').value.trim()) { openExPick(); return; } // v8.46 (§150): choose one first
   const key = state.currentMacroId + '_' + ctx.week + '_' + ctx.day;
   if (!state.exercises[key]) state.exercises[key] = [];
   const category = document.querySelector('#ex-category-toggle .toggle-btn.active').dataset.cat;
@@ -25186,7 +25203,7 @@ function buildMacrocycleCreationTourSteps() {
         const confirmOverlay = document.getElementById('modal-confirm');
         if (confirmOverlay && confirmOverlay.classList.contains('open') && cancelBtn) cancelBtn.click();
         const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
-        if (macro) openAddExercise(1, macro.days[0]);
+        if (macro) openAddExercise(1, macro.days[0], { pick: false }); // v8.46 (§150): the tour spotlights the sheet itself
       } },
     { targetId: 'ex-type-select', screen: 'plan',
       title: 'Standard, Giant Set, Pause Set, Drop Set',
@@ -29829,32 +29846,79 @@ function getLibrary() {
 // lists never mix (a weight exercise never appears while in Cardio mode,
 // and vice versa). Custom exercises appear in whichever list matches their
 // own saved category.
+// v8.46 (§150): the exercise is chosen in a search sheet (modal-ex-pick); the
+// sheet's exercise is the hidden ex-name-input every reader already uses, and
+// the button shows it.
 function populateExerciseSelect(selectedName) {
-  const sel = document.getElementById('ex-name-input');
-  if (!sel) return;
-  const categoryBtn = document.querySelector('#ex-category-toggle .toggle-btn.active');
-  const category = categoryBtn && categoryBtn.dataset.cat === 'cardio' ? 'cardio' : 'weight';
-  const lib = getLibrary().filter(e => getLibraryCategory(e) === category);
-  const bodyParts = [...new Set(lib.map(e => e.bodyPart))];
-  sel.innerHTML = '';
-  bodyParts.forEach(bp => {
-    const og = document.createElement('optgroup');
-    og.label = bp;
-    lib.filter(e => e.bodyPart === bp).forEach(e => {
-      const opt = document.createElement('option');
-      opt.value = e.name;
-      opt.textContent = e.name;
-      if (e.name === selectedName) opt.selected = true;
-      og.appendChild(opt);
-    });
-    sel.appendChild(og);
+  const input = document.getElementById('ex-name-input');
+  if (!input) return;
+  input.value = selectedName || '';
+  const label = document.getElementById('ex-name-label');
+  if (label) label.textContent = selectedName || 'Choose an exercise';
+  const btn = document.getElementById('ex-name-btn');
+  if (btn) btn.classList.toggle('is-empty', !selectedName);
+}
+function exPickCategory() {
+  const b = document.querySelector('#ex-category-toggle .toggle-btn.active');
+  return b && b.dataset.cat === 'cardio' ? 'cardio' : 'weight';
+}
+let _exPickOptions = [];
+function openExPick() {
+  document.getElementById('ex-pick-search').value = '';
+  document.getElementById('ex-pick-title').textContent = exPickCategory() === 'cardio' ? 'Choose cardio' : 'Choose an exercise';
+  // The keyboard-safe sheet (§9, §117): clear the last fit, then fit once the
+  // 0.3s slide-in has settled.
+  const wrap = document.getElementById('ex-pick-list-wrap');
+  if (wrap) wrap.style.maxHeight = '';
+  renderExPickList();
+  openModal('modal-ex-pick');
+  setTimeout(() => fitListToKeyboard('ex-pick-list-wrap'), 320);
+}
+// Closing the search with nothing chosen while adding closes the exercise sheet too.
+function closeExPick() {
+  closeModal('modal-ex-pick');
+  const ctx = state.currentEditContext;
+  if (ctx && ctx.editIdx === null && !document.getElementById('ex-name-input').value) closeModal('modal-exercise');
+}
+function renderExPickList() {
+  const el = document.getElementById('ex-pick-list');
+  if (!el) return;
+  const raw = (document.getElementById('ex-pick-search').value || '').trim();
+  const q = raw.toLowerCase();
+  const cat = exPickCategory();
+  const all = getLibrary().filter(e => getLibraryCategory(e) === cat); // sorted body part, then name
+  _exPickOptions = all.filter(e => !q || e.name.toLowerCase().includes(q));
+  const exact = all.some(e => e.name.trim().toLowerCase() === q);
+  // A name the library doesn't have: add it through Custom Exercise, which asks its body part.
+  const addRow = q && !exact ? `<div class="lib-row swap-row" onclick="addExPickCustom()">
+      <div class="lib-row-text"><div class="lib-row-name">Add “${coachEsc(raw)}”</div><div class="lib-row-meta">A new exercise in your library</div></div>
+      <div class="lib-row-actions"><span class="row-btn-chevron">${icoPlus(18)}</span></div>
+    </div>` : '';
+  if (!_exPickOptions.length) { el.innerHTML = addRow || `<div class="lib-empty">Nothing in the library yet.</div>`; return; }
+  let html = addRow, last = null;
+  _exPickOptions.forEach((e, i) => {
+    if (e.bodyPart !== last) { html += `<div class="swap-group-label">${coachEsc(e.bodyPart || 'Other')}</div>`; last = e.bodyPart; }
+    html += `<div class="lib-row swap-row" onclick="chooseExPick(${i})">
+      <div class="lib-row-text"><div class="lib-row-name">${coachEsc(e.name)}</div></div>
+      <div class="lib-row-actions"><span class="row-btn-chevron">${icoChevron()}</span></div>
+    </div>`;
   });
-  // Add custom option at bottom
-  const customOpt = document.createElement('option');
-  customOpt.value = '__custom__';
-  customOpt.textContent = 'Custom…';
-  sel.appendChild(customOpt);
-  if (!selectedName) sel.selectedIndex = 0;
+  el.innerHTML = html;
+}
+function chooseExPick(i) {
+  const e = _exPickOptions[i];
+  if (!e) return;
+  populateExerciseSelect(e.name);
+  closeModal('modal-ex-pick');
+  updateLastLoggedPreview();
+  applyExerciseHistoryDefaults();
+}
+function addExPickCustom() {
+  const name = (document.getElementById('ex-pick-search').value || '').trim();
+  document.getElementById('custom-ex-name-input').value = name;
+  // Cardio custom exercises always get bodyPart 'Cardio' (saveCustomExercise), so no picker.
+  document.getElementById('custom-ex-bodypart-group').style.display = exPickCategory() === 'cardio' ? 'none' : '';
+  document.getElementById('modal-custom-exercise').classList.add('open');
 }
 
 // Handles picking '__custom__' from the exercise name select — opens the
@@ -29862,23 +29926,6 @@ function populateExerciseSelect(selectedName) {
 // selection is already guaranteed to match the active category, since
 // populateExerciseSelect() only ever lists exercises from that category —
 // nothing further to sync here.
-function onExNameChange(sel) {
-  if (sel.value === '__custom__') {
-    sel.selectedIndex = 0;
-    // Use requestAnimationFrame to let the current event cycle finish before opening
-    requestAnimationFrame(() => {
-      document.getElementById('custom-ex-name-input').value = '';
-      // Cardio custom exercises always get bodyPart 'Cardio' (see
-      // saveCustomExercise()) — the picker is pointless and confusing for
-      // them, since 'Cardio' isn't even one of its options, so hide it
-      // entirely rather than offer a choice that's silently overridden.
-      const categoryBtn = document.querySelector('#ex-category-toggle .toggle-btn.active');
-      const isCardio = categoryBtn && categoryBtn.dataset.cat === 'cardio';
-      document.getElementById('custom-ex-bodypart-group').style.display = isCardio ? 'none' : '';
-      document.getElementById('modal-custom-exercise').classList.add('open');
-    });
-  }
-}
 
 // Saves a new custom exercise (name + required body part) into
 // state.customLibrary, then re-selects it in the picker it was opened from.
@@ -29912,7 +29959,9 @@ function saveCustomExercise() {
   // selected — no need to re-apply category visibility, and doing so via
   // selectExCategory() would repopulate with a blank selection instead.
   populateExerciseSelect(name);
+  closeModal('modal-ex-pick'); // v8.46 (§150): added from the search, so it's chosen
   updateLastLoggedPreview();
+  applyExerciseHistoryDefaults();
 }
 
 // Downloads the merged exercise library as a JSON file.
@@ -32356,6 +32405,22 @@ function deleteRecipe(id) {
     <input type="text" id="recipe-pick-search" placeholder="Search recipes…" oninput="renderRecipePickList()" style="margin-bottom:12px;flex-shrink:0;">
     <div id="recipe-pick-list-wrap" class="kb-list-wrap">
       <div id="recipe-pick-list" class="kb-list-inner" style="overscroll-behavior:contain;-webkit-overflow-scrolling:touch;"></div>
+      <div class="kb-list-fade"></div>
+    </div>
+  </div>
+</div>
+
+<!-- v8.46 (§150): choosing an exercise for Add / Edit exercise. A search sheet
+     over the library, so §9's .kb-pinned-sheet exactly (verify-kb-pinned-sheets.mjs).
+     A name the library doesn't have is added through Custom Exercise, the one
+     place a body part is asked. -->
+<div class="modal-overlay" id="modal-ex-pick">
+  <div class="modal-sheet kb-pinned-sheet" data-modal="modal-ex-pick">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeExPick()">✕</button></div>
+    <div class="modal-title" id="ex-pick-title" style="flex-shrink:0;">Choose an exercise</div>
+    <input type="text" id="ex-pick-search" placeholder="Search exercises…" oninput="renderExPickList()" style="margin-bottom:12px;flex-shrink:0;">
+    <div id="ex-pick-list-wrap" class="kb-list-wrap">
+      <div id="ex-pick-list" class="kb-list-inner" style="overscroll-behavior:contain;-webkit-overflow-scrolling:touch;"></div>
       <div class="kb-list-fade"></div>
     </div>
   </div>
