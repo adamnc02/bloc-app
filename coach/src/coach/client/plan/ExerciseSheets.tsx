@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState, type InputHTMLAttributes } from 'react';
 import { Button, Checkbox, Field, Icon, SearchSheet, Seg, Sheet } from '@/components/ui';
 import { BODY_PARTS, categoryOf, type LibraryEntry } from '@/plan/library';
 import { slotsOf, type ExerciseFields, type PlanExercise, type SetType } from '@/plan/doc';
@@ -9,6 +9,20 @@ const SETS = Array.from({ length: 15 }, (_, i) => i + 1);
 const TYPES: { value: SetType; label: string }[] = [
   { value: 'standard', label: 'Standard' }, { value: 'giant', label: 'Giant set' }, { value: 'pause', label: 'Pause set' }, { value: 'dropset', label: 'Drop set' },
 ];
+
+/**
+ * A number box that keeps what's typed. A plain controlled `value={n}` put the
+ * 0 straight back when the box was emptied, so it couldn't be cleared to type
+ * a new number. The text is its own state; the number follows it (empty → `empty`).
+ */
+function NumInput({ value, onValue, empty = 0, ...rest }: { value: number | null | undefined; onValue: (n: number | null) => void; empty?: number | null } & Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'>) {
+  const [text, setText] = useState(value == null ? '' : String(value));
+  useEffect(() => {
+    const cur = text.trim() === '' ? empty : parseFloat(text);
+    if (value !== cur && !(value == null && text === '')) setText(value == null ? '' : String(value));
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+  return <input type="number" {...rest} value={text} onChange={(e) => { setText(e.target.value); const n = parseFloat(e.target.value); onValue(e.target.value.trim() === '' || !Number.isFinite(n) ? empty : n); }} />;
+}
 
 // ---------------------------------------------------------------- picker
 
@@ -166,8 +180,7 @@ export function ExerciseSheet({ ctx, library, distanceUnitPref, onClose, onSave,
                 </select>
               </Field>
               <Field label="Starting kg" htmlFor={`${id}-w`}>
-                <input id={`${id}-w`} type="number" inputMode="decimal" step={0.5} min={0} className="input num" value={Number.isFinite(f.startWeight) ? f.startWeight : ''}
-                  onChange={(e) => set('startWeight', parseFloat(e.target.value) || 0)} />
+                <NumInput id={`${id}-w`} inputMode="decimal" step={0.5} min={0} className="input num" value={f.startWeight} onValue={(n) => set('startWeight', n ?? 0)} />
               </Field>
             </div>
           </>
@@ -181,19 +194,18 @@ export function ExerciseSheet({ ctx, library, distanceUnitPref, onClose, onSave,
             {(f.metricType ?? 'time') === 'time' ? (
               <div className="tiles-2" style={{ marginTop: 16 }}>
                 <Field label="Minutes" htmlFor={`${id}-mn`}>
-                  <input id={`${id}-mn`} type="number" inputMode="numeric" min={0} className="input num" value={Math.floor((f.targetSeconds ?? 0) / 60)}
-                    onChange={(e) => set('targetSeconds', (parseInt(e.target.value) || 0) * 60 + ((f.targetSeconds ?? 0) % 60))} />
+                  <NumInput id={`${id}-mn`} inputMode="numeric" min={0} className="input num" value={Math.floor((f.targetSeconds ?? 0) / 60)}
+                    onValue={(n) => set('targetSeconds', Math.max(0, Math.floor(n ?? 0)) * 60 + ((f.targetSeconds ?? 0) % 60))} />
                 </Field>
                 <Field label="Seconds" htmlFor={`${id}-sc`}>
-                  <input id={`${id}-sc`} type="number" inputMode="numeric" min={0} max={59} className="input num" value={(f.targetSeconds ?? 0) % 60}
-                    onChange={(e) => set('targetSeconds', Math.floor((f.targetSeconds ?? 0) / 60) * 60 + Math.min(59, parseInt(e.target.value) || 0))} />
+                  <NumInput id={`${id}-sc`} inputMode="numeric" min={0} max={59} className="input num" value={(f.targetSeconds ?? 0) % 60}
+                    onValue={(n) => set('targetSeconds', Math.floor((f.targetSeconds ?? 0) / 60) * 60 + Math.min(59, Math.max(0, Math.floor(n ?? 0))))} />
                 </Field>
               </div>
             ) : (
               <div className="tiles-2" style={{ marginTop: 16 }}>
                 <Field label="Distance" htmlFor={`${id}-d`}>
-                  <input id={`${id}-d`} type="number" inputMode="decimal" step={0.01} min={0} className="input num" value={f.targetDistance ?? ''}
-                    onChange={(e) => set('targetDistance', parseFloat(e.target.value) || 0)} />
+                  <NumInput id={`${id}-d`} inputMode="decimal" step={0.01} min={0} className="input num" value={f.targetDistance} empty={null} onValue={(n) => set('targetDistance', n)} />
                 </Field>
                 <Field label="Unit" htmlFor={`${id}-u`}>
                   {distanceUnitPref === 'mi'
