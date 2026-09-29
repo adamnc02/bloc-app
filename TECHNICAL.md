@@ -9253,9 +9253,8 @@ runs until the coach publishes one). With no active cycle: "Next cycle starts �
 The sparkline is the weigh-ins in the 35 days to their today, with the cycle's `targetBw` dashed. **48 h**
 without a sync is flagged (`STALE_SYNC_HOURS`).
 
-v0.1 shows the **link status** where the row will show the outcome, and **"last synced"** where it will
-show the next session; the outcome and the "Off track" filter come with Review, the next session with the
-Diary.
+A linked client's row shows the **outcome** of that cycle (§140), anyone else's the **link status**; **"last
+synced"** stands where the next session will go, with the Diary.
 
 ### Add client and Invite
 
@@ -9295,3 +9294,168 @@ trend, Cycle, Synced).
   client's-today control, link-status precedence, the client's own name once linked, and decoding with a
   refused hash as the control, initials from letters only, and SHA-256 and decoding with no
   `crypto.subtle`.
+
+## §140 — Coach v0.2: a client's Review and Profile, and the outcome on Clients
+
+**What it is.** A client opens in four tabs, **Review · Plan · Sessions · Profile** (Plan and Sessions are
+placeholders), under a header whose switch button changes the client or the cycle for the whole view.
+Review judges the cycle with BLOC's own engine, on the client's uploaded state, at the client's local today.
+The same judgement puts an outcome chip on every linked row of Clients, and an **Off track** filter.
+
+### Routes
+
+`#/clients/{card id}/{review|plan|sessions|profile}`, plus `?macro={cycle id}` when the view is on a cycle
+other than the one it opens on: the date-active cycle (`getDateActiveMacroId`), else the latest that has
+started, else the next (`defaultCycleId`). The client screen is keyed by card id, so switching tabs keeps
+its loaded data. A linked client opens on Review; a client who isn't linked, on Profile (an invited client
+still opens the invite sheet).
+
+### The model: `coach/src/review/`
+
+Pure functions, no React, no clock. `computeReview(state, macroId, today, firstName)` returns everything
+Review shows; `reviewFor()` memoises it per (client, upload hash, cycle, today): the insights and the grid
+walk a whole state, about 10 ms for the demo.
+
+| File | What |
+|---|---|
+| `outcome.ts` | the verdict and what explains it (below) |
+| `training.ts` | compliance from the cycle to the set, and the RPE points |
+| `nutrition.ts` | nutrition compliance by Home week, the chart's days, BMR, a day's meals |
+| `findings.ts` | the findings and their actions |
+| `model.ts` | the cycles at the client's today, the story chart's data, the memo |
+
+🚨 **`today` is always the client's**: `localDateIn(tz, now)` from the upload (§139). Nothing in
+`review/` reads a clock or the coach's zone; `scripts/verify-coach-review-clock.mjs` fails on `Date.now()`,
+`new Date()`, `performance.now()` or `resolvedOptions().timeZone` there, and checks Review and the Clients
+row pass the client's date in. Control: each clock read is caught. A clock inside the model would judge a
+client in Auckland on the coach's London date, so their week, the finished weeks and the verdict would all
+be a day out, and the vitest cases, which pin the date, can't see it.
+
+### The outcome (`outcome.ts`)
+
+It comes from the engine's `computeWeeklyInsights()`: weekly buckets from the cycle's start (average weight,
+the change from the week before, calories, steps) and BLOC's flat/moving periods (`buildSignalPeriods`: a
+week is flat when its average moved 0.5 lb or less, a period confirms at 2 weeks, and the flag is sticky
+until a confirmed period of the other kind). The same judgement decides when the client's phone offers a
+check-in (`computeCheckinState`), so Coach and BLOC agree.
+
+| Status | When |
+|---|---|
+| **No outcome yet** | fewer than 2 cycle weeks with a weigh-in; the cycle hasn't started at the client's today |
+| **Off track**, loss | the flat flag is up, **or** each of the last 2 weeks rose more than 0.5 lb |
+| **Off track**, gain | the flat flag is up, or each of the last 2 weeks fell more than 0.5 lb |
+| **Off track**, maintenance | weekly averages span more than 3 lb (the engine's `maint-unstable`), or attendance under **7/10** over the last 2 finished weeks |
+| **On track** | otherwise; and a **loss** cycle flagged flat whose waist is down at least **0.5″** since the last measurement on or before the flat period's start (recomposition) |
+
+🚨 **The direction rule.** The engine's "moving" has no direction: a loss client gaining a pound a week is a
+confirmed moving period and the engine's own signal would read "on-track". The last-2-weeks rule closes it.
+The vitest control shows the engine's periods calling those weeks `moving`.
+
+🚨 **Weight alone decides.** The engine returns `insufficientData` until a baseline week has 4 days of food
+logged, and then has no periods. Coach groups the same buckets with `buildSignalPeriods(buckets, 0)`, from
+week 1, so a client who weighs in but doesn't log food still gets an outcome.
+
+**What explains it** (off track), the first that applies, over the verdict's window (the flat period, the
+last 2 weeks, or the 2 attendance weeks, to the client's today):
+1. **Calories**: the engine's signal is `plateau-creep`, `drift-warning`, `gain-deficit` or
+   `gain-undereating` (maintenance: Home's calorie verdict was bad in both of the last 2 finished weeks).
+   The line is built from the engine's own figures, about the client (`calorieFact`): its headline is
+   written to the client's phone ("Your deficit had narrowed…").
+2. **Weigh-ins**: under 4 a week in the window.
+3. **Steps**: the window's average more than Home's 500 (`HOME_STEPS_TOLERANCE`) under the goal phase's
+   target, day by day (`getGoalForDate`).
+4. **Training**: compliance under 6/10 over the window's finished weeks (maintenance: attendance under 7/10).
+5. None: "Nothing in the logs explains it", with the engine's `plateau-adaptation` detail when that's its
+   signal.
+
+**On track**, the same checks run and a failing one is **context** ("…, but the goal is on track. Nothing to
+act on."), never a flag or a red tile. The hero also says when the latest weigh-in is more than 7 days old,
+since a verdict rests on weigh-ins.
+
+### Training compliance (`training.ts`)
+
+- **Columns are the week agenda's units** (`getTrainAgendaUnits`, §115): one per real calendar week, so a
+  cycle whose mesocycles span two weeks shows both. A column is **scored only once its week has ended** at
+  the client's today; the current week shows what's logged, "in progress".
+- **Rows** are one per exercise within a session label, grouped by session in the order they first appear:
+  alternating A/B templates add B's own exercises under the same session.
+- **A cell** is `getWeekComplianceResult()`: pass when every set met or beat its target, the lock's test.
+  Targets come from the client's own `progressionTargets` first (`makeTargetCache`); what the engine
+  computes beyond them stays in memory and **never reaches the client's state** (a vitest case checks it).
+- **Not counted:** week 1 (the baseline), a deload, the first occurrence of a session after a deload
+  (`isFirstUnitAfterDeload`), a swapped exercise-week (`state.substitutions`, kind `swap`), and a planned
+  session a group session replaced (kind `group`: done, not scored). A finished week's exercise with
+  nothing done is **missed** (a miss); partly done is a **fail**.
+- **Session** = passes ÷ counted exercises; **week** = the mean of its sessions (a planned session not done
+  scores 0); **cycle** = the mean of its weeks, all weighted equally. Every level is out of 10.
+- **Maintenance** has no pass or fail: done sessions are "Done", and the score is **attendance**, sessions
+  done ÷ planned, per week and for the cycle.
+- **Tap a cell** for its sets against their targets, the rating, and "Logged by you, in person" for a coach's
+  set (`loggedBy: 'coach'`).
+
+**RPE** (only when the cycle has RPE on): per exercise, its last 3 counted weeks that carry a rating or a
+skip; compliance from them, and their mean RPE with a skip counted as 5.5. Zones use BLOC's own bands
+(`computeRpeStepKind`): compliant (7/10 and up) at RPE 9–10 is **at the limit**, not compliant at 9–10 is
+**too hard**, compliant at 6 or under is **too easy**.
+
+### Nutrition compliance (`nutrition.ts`)
+
+A week is Home's Mon–Sun week, judged by the engine's `computeHomeWeek(…, { weekClosed })`: exactly the four
+This-week verdicts the client saw on Home (calories, protein, carbs, steps). Coach adds only which side is
+good for the goal: calories under target is good on a loss cycle, over on a gain cycle, only on target on
+maintenance; protein and steps are bad under, carbs bad over (Home's polarity). A week counts with **4 or
+more complete days** (no more than 300 kcal short, `isCompleteNutritionDay`); 🚨 on a **gain** cycle every
+logged day counts and the calorie verdict is taken over all of them, short days included, because eating
+too little is how a gain cycle fails. Score: the share of good verdicts, out of 10; finished weeks only.
+
+The chart has the last 28 days to the client's yesterday (or the cycle's end), with the engine's logged
+TDEE as of each day (`calcDynamicTDEE`) and BMR (`calcMifflinBMR`, else the engine's log-based figure), or
+the whole cycle by week. A day's bar is red beyond Home's calorie tolerance on the goal's bad side. Tapping
+a day opens its meals (`nutritionMeals`), or says it was logged as daily totals.
+
+### The story chart
+
+One axis for the cycle: daily weigh-ins, the engine's **weekly averages** (the line the outcome is judged
+on), a goal band from the first week's average to `targetBw`, waist and hip, weekly calories against the
+average goal target (red when more than 150 kcal, the engine's drift threshold, on the bad side), deload
+weeks, and goal-phase changes. A phase label is drawn only where it fits before the next change; the
+callout names the phase. Every chart carries a screen-reader table of its numbers.
+
+### Findings (`findings.ts`)
+
+The explaining input first, then: an exercise **done but short of its target** in 2 or more finished weeks
+(one finding each: one exercise may need changing, not the plan); the number of **planned sessions not
+done** (one finding, not one per exercise); RPE too hard or too easy; skipped ratings; patchy weigh-ins; on
+track, each drifting input as context. `action` names what the coach would do (`adjust`, `swap`,
+`progress`, `checkin`, `message`); a card shows a button only for an action in `AVAILABLE_ACTIONS`. Today
+that's **Message**, an `sms:` or `mailto:` link from the card's phone or email.
+
+### Profile
+
+- **Contact**: first name, surname, email, phone, editable while the client isn't linked. Only changed
+  fields are sent. 🚨 **Once linked, they're read-only**: the client's own BLOC profile owns the name (the
+  header shows it) and 0022's trigger refuses the coach's change to name or contact.
+- **Link status**: linked (since, last synced and BLOC version, the client's date and zone, **Unlink**),
+  invited (expiry, **Make a new code**), or not on the app / unlinked (**Invite**, which makes a code and
+  shows it once, §139).
+- **Unlink** calls `end_link(client_record_id)`: the link ends for both sides and photo consent turns off
+  (0022). BLOC removes the coach's cycles and goal phases and keeps every log (§132).
+- **Photo consent** is read-only: only the client sets it.
+- **Private notes** (`client_records.notes`) are the coach's; no policy lets the client read the card.
+- `rate_pence` is stored and not shown.
+
+`CoachRepo` gains `updateCard(cardId, patch)` and `endLink(cardId)`; the fixtures do both in memory and
+refuse a linked card's name or contact change, as the trigger does.
+
+### Checks
+
+- `coach/src/review/review.test.ts` (vitest, 24 cases): Maya at the demo's anchor (off track, flat W4–W6,
+  explained by calories, written about her); the direction rule with the engine's own periods as the
+  control, and its gain mirror; weight alone with no food logged; the waist rule (¾″ on track, ¼″ off);
+  maintenance at 6/10 and 7/10 attendance and a 4 lb span; Grace at her Auckland date against the coach's
+  London date; the Clients row's outcome; 14 calendar-week columns, week 1, the deload and the session
+  after it not counted, a missed week scoring 0 and a half-done session scoring its exercises, a swapped
+  week against the same cell passing, the client's state untouched; nutrition scored with 4 days and not
+  under 4, the current week unscored.
+- `scripts/verify-coach-review-clock.mjs`: no clock in the model; the client's date passed in.
+- At 375 × 812 Review and Profile have no horizontal scroll; the grid scrolls inside its card.
