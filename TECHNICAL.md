@@ -9910,6 +9910,14 @@ Used by the exercise picker (Add exercise, Swap), the template pickers and the L
 behaviour shows only in an installed Coach; a browser tab shows the sheet staying pinned while filtering (checked
 in Chromium at 375 × 812: top 30 px and height 782 px before and after typing).
 
+### Coach's icons
+
+The brand kit's (`bloc-coach-brand/icon/`): `apple-touch-icon.png` (180 px, the Home Screen icon), `favicon.ico` and
+`bloc-coach-icon-square.svg`, in `coach/public/`, which Vite copies into `coach/dist/` and links under Coach's base
+(`/bloc-app/coach/…`), with `apple-mobile-web-app-title` "BLOC Coach". Without them iOS shows Safari's default icon.
+BLOC's own icons are unchanged. `verify-coach-splash.mjs` checks the served page links all three and each is committed
+(Pages serves only committed files, §139).
+
 ### Checks
 
 - `coach/src/plan/plan.test.ts` (vitest, 26 cases): the fold (own vs coach cycles, unapplied overlay, the ledger,

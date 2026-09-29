@@ -302,7 +302,7 @@ Once you've linked to a coach (Settings → Coaching), your coach builds your tr
 
 ### BLOC Coach (Coach v0.4, in development; `coach/`, `TECHNICAL.md` §139–§141, §144)
 BLOC Coach is the separate app a personal trainer uses to manage their clients. It lives in this repo's `coach/` folder and is served at **`/bloc-app/coach/`**. It has **no users yet**, and it gets its own version number (Coach v0.1, v0.2, …), so BLOC's version and files don't change when Coach does. It has:
-- **The Coach splash** (the BLOC splash with COACH drawing in) plays on every fresh load, 8.5 s, with ✕ to skip.
+- **The Coach splash** (the BLOC splash with COACH drawing in) plays on every fresh load, 8.5 s, with ✕ to skip. Coach has **its own icon** on the Home Screen and in the browser tab (v0.4), from the BLOC Coach brand kit.
 - **Sign in** with the same account as BLOC (email and password, or Google), on the same sign-in screen as BLOC with the Coach logo. Coach keeps **its own session** on the device, so signing in or out of Coach never signs BLOC in or out. Signing up in Coach, by saving a **coach profile** (your name and business), is what makes you a coach; nothing in BLOC can.
 - **Clients**: every client's card, with the **outcome** of a linked client's current cycle (**On track**, **Off track** or **No outcome yet**; the link status for anyone else), their current cycle and week **at their own local date** (a client in Auckland is already on tomorrow), a five-week weight sparkline, and when their BLOC last synced (flagged after 48 hours). Filters: All, Off track, Invited, Not on the app.
 - **A client** (v0.2), in four tabs, with a switch button to change client or cycle (it opens on the cycle running at their date):
