@@ -1,26 +1,53 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Avatar, Chip, EmptyState, Hero, Icon, Notice, Page, PageHeader, Section, useEntering, useOnResume } from '@/components/ui';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Avatar, Chip, EmptyState, IconButton, OutcomeChip, Page, PageHeader, Sheet, Icon, useEntering, useOnResume } from '@/components/ui';
 import { CoachShell } from '@/coach/CoachShell';
 import { useCoach } from '@/app/App';
+import { clientPath, navigate, type ClientTab } from '@/app/router';
 import { fmt } from '@/lib/format';
 import { summarise, type ClientSummary } from '@/data/summary';
+import { cycleOptions, defaultCycleId, type CycleOption } from '@/review/model';
 import type { ClientBundle } from '@/data/types';
+import { ReviewTab } from '@/coach/client/ReviewTab';
+import { ProfileTab } from '@/coach/client/ProfileTab';
+
+const TABS: { key: ClientTab; label: string }[] = [
+  { key: 'review', label: 'Review' },
+  { key: 'plan', label: 'Plan' },
+  { key: 'sessions', label: 'Sessions' },
+  { key: 'profile', label: 'Profile' },
+];
+
+export interface ClientView {
+  bundle: ClientBundle;
+  summary: ClientSummary;
+  /** The client's cycles at their today (linked with an upload), oldest first. */
+  cycles: CycleOption[];
+  /** The cycle the view is on: `?macro=` or the one Review opens on. */
+  cycle: CycleOption | null;
+  first: string;
+  reload: () => void;
+}
 
 /**
- * One client, as far as Coach v0.1 goes: who they are, their link, and the
- * cycle and week the engine finds at THEIR local today. Review, Plan,
- * Sessions and Profile replace this page.
+ * A client, in four tabs: Review, Plan, Sessions, Profile. The header's
+ * switch button changes the client or the cycle for the whole view; it
+ * defaults to the cycle that's running at the client's today.
  */
-export function ClientScreen({ id }: { id: string }) {
+export function ClientScreen({ id, tab, macro }: { id: string; tab: ClientTab; macro: string | null }) {
   const { repo } = useCoach();
-  const ref = useEntering<HTMLDivElement>(`client-${id}`);
-  const [bundle, setBundle] = useState<ClientBundle | null | undefined>(undefined);
+  const ref = useEntering<HTMLDivElement>(`client-${id}-${tab}`);
+  const [bundles, setBundles] = useState<ClientBundle[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pick, setPick] = useState(false);
   const load = useCallback(() => {
-    repo.loadClients().then((all) => setBundle(all.find((b) => b.card.id === id) ?? null)).catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  }, [repo, id]);
+    repo.loadClients().then(setBundles).catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  }, [repo]);
   useEffect(load, [load]);
   useOnResume(load); // back to the app: reload
+
+  const now = repo.now();
+  const summaries = useMemo(() => (bundles ?? []).map((b) => summarise(b, now)), [bundles, now]);
+  const bundle = bundles?.find((b) => b.card.id === id) ?? (bundles ? null : undefined);
 
   const back = <a href="#/clients" className="eyebrow eyebrow-link"><Icon name="chevL" size={14} /> Clients</a>;
   if (error || bundle === null) {
@@ -33,49 +60,78 @@ export function ClientScreen({ id }: { id: string }) {
   }
   if (!bundle) return <CoachShell tab="clients"><div className="page" aria-busy="true" /></CoachShell>;
 
-  const c: ClientSummary = summarise(bundle, repo.now());
-  const fact = (label: string, value: ReactNode) => (
-    <div className="ex"><span>{label}</span><span style={{ textAlign: 'right' }}>{value}</span></div>
-  );
+  const summary = summaries.find((s) => s.id === id)!;
+  const snap = summary.status === 'linked' ? bundle.snapshot : null;
+  const cycles = snap && summary.clientToday ? cycleOptions(snap.state, summary.clientToday) : [];
+  const defId = snap && summary.clientToday ? defaultCycleId(snap.state, summary.clientToday) : null;
+  const cycle = cycles.find((c) => c.id === macro) ?? cycles.find((c) => c.id === defId) ?? null;
+  const first = summary.name.split(' ')[0] || summary.name;
+  const view: ClientView = { bundle, summary, cycles, cycle, first, reload: load };
+  const macroParam = cycle && cycle.id !== defId ? cycle.id : null;
+
+  const sub: ReactNode = cycle
+    ? <>{cycle.name}{cycle.coachOwned ? '' : ' (their own)'} · {cycle.status === 'past' ? `ended ${fmt.dm(cycle.end)}` : cycle.status === 'upcoming' ? `starts ${fmt.dm(cycle.start)}` : summary.cycle ? `week ${summary.cycle.week} of ${summary.cycle.weeks}` : `${fmt.dm(cycle.start)} – ${fmt.dm(cycle.end)}`}</>
+    : summary.cycleText;
+
+  let body: ReactNode;
+  if (tab === 'review') body = <ReviewTab v={view} />;
+  else if (tab === 'profile') body = <ProfileTab v={view} />;
+  else if (tab === 'plan') body = <EmptyState>Macrocycles, goal phases and exercises, drafted here and published to {first}. Plan arrives in the next version of Coach.</EmptyState>;
+  else body = <EmptyState>{first}’s bookings, recurring and one-off, and their session requests. Sessions arrives with the Diary.</EmptyState>;
+
   return (
     <CoachShell tab="clients">
       <Page innerRef={ref}>
-        <PageHeader eyebrow={back} title={c.name} />
-        <Hero style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-          <Avatar initials={c.initials} size={56} solid />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="display" style={{ fontSize: 18 }}>{c.cycleText}</div>
-            <div className="muted" style={{ marginTop: 4 }}>
-              {c.clientToday ? `It’s ${fmt.ddm(c.clientToday)} for them (${c.tz})` : bundle.card.email || bundle.card.phone || ' '}
-            </div>
-          </div>
-        </Hero>
-
-        <Section i={2} title="Link" sub="What they share with you, and how recently.">
-          <div className="card">
-            {fact('Status', <Chip tone={c.status === 'linked' ? 'good' : c.status === 'invited' ? 'acc' : 'neutral'}>{{ linked: 'Linked', invited: 'Invited', unlinked: 'Unlinked', 'not-on-app': 'Not on the app' }[c.status]}</Chip>)}
-            {bundle.link?.linkedAt && fact('Linked since', fmt.ddm(bundle.link.linkedAt.slice(0, 10)))}
-            {c.status === 'linked' && fact('Progress photos', c.photoConsent ? 'Shared with you' : 'Not shared')}
-            {c.status === 'linked' && fact('Last synced', c.syncedHoursAgo == null ? 'Never' : fmt.ago(c.syncedHoursAgo).replace('Last synced ', ''))}
-            {bundle.snapshot?.appVersion && fact('BLOC version', bundle.snapshot.appVersion)}
-          </div>
-          {c.problem && <Notice icon="warning" tone="bad" title="Their latest sync couldn’t be read" style={{ marginTop: 12 }}>{c.problem}</Notice>}
-          {c.staleSync && <Notice icon="warning" tone="amber" title={`Not synced for ${Math.round(c.syncedHoursAgo!)}h`} style={{ marginTop: 12 }}>Often the first sign of drop-off. Their BLOC uploads whenever it’s opened.</Notice>}
-        </Section>
-
-        {c.status === 'linked' && (
-          <Section i={3} title="Their cycle" sub="Where they are in the cycle today, and how often they’ve weighed in.">
-            {c.cycle ? (
-              <div className="card">
-                {fact('Cycle', c.cycle.coachOwned ? c.cycle.name : `${c.cycle.name} (their own)`)}
-                {fact('Week', `${c.cycle.week} of ${c.cycle.weeks}`)}
-                {fact('Weigh-ins, last 5 weeks', String(c.weights.length))}
-              </div>
-            ) : <EmptyState>{c.cycleText}.</EmptyState>}
-            <p className="caption" style={{ marginTop: 12 }}>Review, Plan, Sessions and Profile arrive in the next versions of Coach.</p>
-          </Section>
-        )}
+        <PageHeader
+          eyebrow={back}
+          title={summary.name}
+          sub={<>{sub}{summary.status === 'linked' && <span className="caption"> · {fmt.ago(summary.syncedHoursAgo)}</span>}</>}
+          actions={<IconButton icon="swap" label="Switch client or cycle" onClick={() => setPick(true)} />}
+        />
+        <div className="tabs rise" style={{ ['--i' as string]: 0 }} role="tablist" aria-label="Client views">
+          {TABS.map((t) => (
+            <a key={t.key} role="tab" aria-selected={t.key === tab} href={`#${clientPath(id, t.key, macroParam)}`}>{t.label}</a>
+          ))}
+        </div>
+        {body}
       </Page>
+
+      <Sheet open={pick} onClose={() => setPick(false)} title="Switch view">
+        {cycles.length > 0 && <>
+          <span className="label">{first}’s cycles</span>
+          {[...cycles].reverse().map((c) => {
+            const on = c.id === cycle?.id;
+            return (
+              <button key={c.id} type="button" className="card" onClick={() => { setPick(false); navigate(clientPath(id, tab, c.id === defId ? null : c.id)); }}
+                style={{ width: '100%', textAlign: 'left', marginBottom: 10, cursor: 'pointer', borderColor: on ? 'var(--accent)' : undefined }} aria-pressed={on}>
+                <div className="row">
+                  <div style={{ minWidth: 0 }}>
+                    <div className="display" style={{ fontSize: 17 }}>{c.name}</div>
+                    <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>{fmt.range(c.start, c.end)} · {goalLabel(c.goalType)}{c.coachOwned ? '' : ' · their own'}</div>
+                  </div>
+                  <Chip tone={c.status === 'past' ? 'neutral' : c.status === 'upcoming' ? 'acc' : 'good'}>{c.status === 'past' ? 'Past' : c.status === 'upcoming' ? 'Upcoming' : 'Active'}</Chip>
+                </div>
+              </button>
+            );
+          })}
+        </>}
+        {summaries.length > 1 && <>
+          <span className="label" style={{ marginTop: 18 }}>Other clients</span>
+          <div className="card list">
+            {summaries.filter((c) => c.id !== id).map((c) => (
+              <button key={c.id} type="button" className="listrow" onClick={() => { setPick(false); navigate(clientPath(c.id, tab)); }}>
+                <Avatar initials={c.initials} size={34} />
+                <span className="main"><b>{c.name}</b></span>
+                {c.status === 'linked' ? <OutcomeChip status={c.outcome.status} /> : <Chip tone="neutral">{LINK_LABEL[c.status]}</Chip>}
+              </button>
+            ))}
+          </div>
+        </>}
+      </Sheet>
     </CoachShell>
   );
 }
+
+export const LINK_LABEL = { linked: 'Linked', invited: 'Invited', unlinked: 'Unlinked', 'not-on-app': 'In person' } as const;
+
+export const goalLabel = (g: string) => (g === 'gain' ? 'Gain weight' : g === 'maintenance' ? 'Maintain weight' : 'Lose weight');

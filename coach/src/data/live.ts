@@ -13,7 +13,9 @@
 // ═══════════════════════════════════════════════════════════════════════
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { decodeClientState } from '@/lib/clientState';
-import type { ClientBundle, ClientCard, ClientSnapshot, CoachProfile, CoachRepo, NewClient, NewInvite } from './types';
+import type { CardPatch, ClientBundle, ClientCard, ClientSnapshot, CoachProfile, CoachRepo, NewClient, NewInvite } from './types';
+
+const CARD_COLS = 'id, first_name, surname, email, phone, notes, created_at';
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (typeof v === 'string' ? v : null);
@@ -44,7 +46,7 @@ export async function createMyProfile(sb: SupabaseClient, displayName: string, b
 function toCard(r: Row): ClientCard {
   return {
     id: String(r.id), firstName: String(r.first_name ?? ''), surname: str(r.surname),
-    email: str(r.email), phone: str(r.phone), createdAt: String(r.created_at ?? ''),
+    email: str(r.email), phone: str(r.phone), notes: str(r.notes), createdAt: String(r.created_at ?? ''),
   };
 }
 
@@ -69,7 +71,7 @@ export function createLiveRepo(sb: SupabaseClient, profile: CoachProfile, onProf
 
     async loadClients() {
       const [cards, links, invites] = await Promise.all([
-        sb.from('client_records').select('id, first_name, surname, email, phone, created_at').is('archived_at', null).order('created_at'),
+        sb.from('client_records').select(CARD_COLS).is('archived_at', null).order('created_at'),
         sb.from('coach_clients').select('client_id, client_record_id, status, photo_consent, linked_at, ended_at').eq('coach_id', current.coachId),
         sb.from('invite_codes').select('client_record_id, expires_at, created_at').eq('coach_id', current.coachId).is('used_at', null),
       ]);
@@ -144,7 +146,7 @@ export function createLiveRepo(sb: SupabaseClient, profile: CoachProfile, onProf
       const isEmail = contact.includes('@');
       const { data, error } = await sb.from('client_records')
         .insert({ coach_id: current.coachId, first_name: first, surname, email: isEmail ? contact : null, phone: isEmail ? null : contact || null })
-        .select('id, first_name, surname, email, phone, created_at').single();
+        .select(CARD_COLS).single();
       if (error) throw error;
       return toCard(data as Row);
     },
@@ -154,6 +156,23 @@ export function createLiveRepo(sb: SupabaseClient, profile: CoachProfile, onProf
       if (error) throw error;
       const r = data as Row;
       return { code: formatInviteCode(String(r.code)), expiresAt: String(r.expires_at) };
+    },
+
+    async updateCard(cardId: string, patch: CardPatch) {
+      const row: Row = {};
+      if (patch.firstName !== undefined) row.first_name = patch.firstName;
+      if (patch.surname !== undefined) row.surname = patch.surname;
+      if (patch.email !== undefined) row.email = patch.email;
+      if (patch.phone !== undefined) row.phone = patch.phone;
+      if (patch.notes !== undefined) row.notes = patch.notes;
+      const { data, error } = await sb.from('client_records').update(row).eq('id', cardId).select(CARD_COLS).single();
+      if (error) throw error;
+      return toCard(data as Row);
+    },
+
+    async endLink(cardId: string) {
+      const { error } = await sb.rpc('end_link', { p_client_record_id: cardId });
+      if (error) throw error;
     },
 
     async updateProfile(displayName: string, businessName: string | null) {

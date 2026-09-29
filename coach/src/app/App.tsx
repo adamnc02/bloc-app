@@ -124,7 +124,7 @@ function Screens() {
   const key = useMemo(() => JSON.stringify(route), [route]);
   switch (route.name) {
     case 'clients': return <ClientsScreen key={key} />;
-    case 'client': return <ClientScreen key={key} id={route.id} />;
+    case 'client': return <ClientScreen key={`client-${route.id}`} id={route.id} tab={route.tab} macro={route.macro} />;
     case 'settings': return <SettingsScreen key={key} />;
     case 'today': return <ComingScreen key={key} tab="today" title="Today" sub="Everything waiting on you, today’s sessions, who’s off track and what’s coming up. It arrives once Review, the Diary and In person are built." />;
     case 'diary': return <ComingScreen key={key} tab="diary" title="Diary" sub="Your week in real time slots, bookings, days off and session requests. It arrives with the Diary sub-phase." />;

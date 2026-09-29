@@ -53,7 +53,7 @@ describe('rows at the anchor', () => {
 });
 
 describe('link status and name', () => {
-  const base: ClientBundle = { card: { id: 'x', firstName: 'Card', surname: 'Name', email: null, phone: null, createdAt: '' }, link: null, invite: null, profileName: null, snapshot: null, snapshotError: null };
+  const base: ClientBundle = { card: { id: 'x', firstName: 'Card', surname: 'Name', email: null, phone: null, notes: null, createdAt: '' }, link: null, invite: null, profileName: null, snapshot: null, snapshotError: null };
   const active = { clientId: 'u', status: 'active' as const, photoConsent: false, linkedAt: null, endedAt: null };
   const invite = { expiresAt: '2026-08-09T00:00:00Z', createdAt: '2026-08-02T00:00:00Z' };
   it('active beats a live invite; an invite beats an ended link', () => {

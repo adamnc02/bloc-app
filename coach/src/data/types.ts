@@ -18,6 +18,8 @@ export interface ClientCard {
   surname: string | null;
   email: string | null;
   phone: string | null;
+  /** The coach's private notes: never shown to the client (no policy admits them to the card). */
+  notes: string | null;
   createdAt: string;
 }
 
@@ -58,6 +60,8 @@ export interface ClientBundle {
 }
 
 export interface NewClient { name: string; contact: string; onApp: boolean }
+/** A card edit. Name and contact only while the client isn't linked (0022's trigger refuses them after). */
+export interface CardPatch { firstName?: string; surname?: string | null; email?: string | null; phone?: string | null; notes?: string | null }
 export interface NewInvite { code: string; expiresAt: string }
 
 /** Everything the screens built so far ask of a data source. */
@@ -69,4 +73,7 @@ export interface CoachRepo {
   addClient(input: NewClient): Promise<ClientCard>;
   createInvite(cardId: string): Promise<NewInvite>;
   updateProfile(displayName: string, businessName: string | null): Promise<CoachProfile>;
+  updateCard(cardId: string, patch: CardPatch): Promise<ClientCard>;
+  /** Ends an active link (0022 `end_link`): consent goes off, the client's app returns to Solo. */
+  endLink(cardId: string): Promise<void>;
 }

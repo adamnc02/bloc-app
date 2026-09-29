@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import {
-  Avatar, Button, Chip, EmptyState, Hero, Icon, IconButton, Notice, Page, PageHeader, Section, Seg, Toast, useEntering, useIsWide, useOnResume, useToast,
+  Avatar, Button, Chip, EmptyState, OutcomeChip, Hero, Icon, IconButton, Notice, Page, PageHeader, Section, Seg, Toast, useEntering, useIsWide, useOnResume, useToast,
 } from '@/components/ui';
 import { WeightSparkline } from '@/components/charts/Sparkline';
 import { CoachShell, AccountButton } from '@/coach/CoachShell';
 import { AddClientSheet, InviteSheet, InviteStatusSheet } from '@/coach/components/ClientSheets';
-import { navigate } from '@/app/router';
+import { clientPath, navigate } from '@/app/router';
 import { useCoach } from '@/app/App';
 import { BLOC_INVITE_BASE } from '@/lib/supabase';
 import { fmt } from '@/lib/format';
@@ -13,10 +13,10 @@ import { summarise, type ClientSummary } from '@/data/summary';
 import type { ClientBundle, NewClient, NewInvite } from '@/data/types';
 import type { LinkStatus } from '@/domain/types';
 
-// 🔜 "Off track" joins the filters once Review's outcome model exists.
-export type ClientFilter = 'all' | 'invited' | 'not-on-app';
+export type ClientFilter = 'all' | 'off-track' | 'invited' | 'not-on-app';
 const FILTERS: { value: ClientFilter; label: string; test: (c: ClientSummary) => boolean }[] = [
   { value: 'all', label: 'All', test: () => true },
+  { value: 'off-track', label: 'Off track', test: (c) => c.status === 'linked' && c.outcome.status === 'off-track' },
   { value: 'invited', label: 'Invited', test: (c) => c.status === 'invited' },
   // Unlinked clients count as not on the app, as the hero does: the coach can't see their data either way.
   { value: 'not-on-app', label: 'Not on the app', test: (c) => c.status === 'not-on-app' || c.status === 'unlinked' },
@@ -40,14 +40,12 @@ function syncText(c: ClientSummary): string {
 }
 
 /**
- * Clients. Each row: the client's
- * name and link status, their cycle and week at THEIR local today, a 5-week
- * weight sparkline, and when they last synced. Table-like on a laptop,
- * stacked on a phone.
+ * Clients. Each row: the client's name and outcome (Review's verdict on their
+ * current cycle, at THEIR local today; the link status for a client whose
+ * data Coach can't see), their cycle and week, a 5-week weight sparkline, and
+ * when they last synced. Table-like on a laptop, stacked on a phone.
  *
- * 🔜 The link status stands where the outcome chip will go, and "last
- *    synced" where the next session will: the outcome comes with Review, the
- *    next session with the Diary.
+ * 🔜 "Last synced" stands where the next session will go, with the Diary.
  */
 export function ClientsScreen() {
   const { repo } = useCoach();
@@ -78,7 +76,7 @@ export function ClientsScreen() {
 
   const open = (c: ClientSummary) => {
     if (c.status === 'invited') { setSheetError(null); setStatusFor(c); }
-    else navigate(`/clients/${encodeURIComponent(c.id)}`);
+    else navigate(clientPath(c.id, c.status === 'linked' ? 'review' : 'profile'));
   };
 
   const add = async (nc: NewClient) => {
@@ -194,7 +192,12 @@ function Seg_({ grow, bg, i }: { grow: number; bg: string; i: number }) {
   return <div className="bar" style={{ flex: grow, height: 10, margin: 0, borderRadius: 5, background: 'transparent' }}><i style={{ background: bg, ['--i' as string]: i } as CSSProperties} /></div>;
 }
 
-const statusChip = (c: ClientSummary) => <Chip tone={STATUS[c.status].tone}>{STATUS[c.status].label}</Chip>;
+/** Linked: the outcome. Otherwise the link status: there's no data to judge. */
+const statusChip = (c: ClientSummary) => (c.status === 'linked'
+  ? <OutcomeChip status={c.outcome.status} />
+  : <Chip tone={STATUS[c.status].tone}>{STATUS[c.status].label}</Chip>);
+const statusText = (c: ClientSummary) => (c.status === 'linked' ? OUTCOME_TEXT[c.outcome.status] : STATUS[c.status].label);
+const OUTCOME_TEXT = { 'on-track': 'On track', 'off-track': 'Off track', 'no-data': 'No outcome yet' } as const;
 const clip: CSSProperties = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 
 // 375pt (BLOC TECHNICAL §116): the cycle line gets the row's full width (at
@@ -202,7 +205,7 @@ const clip: CSSProperties = { overflow: 'hidden', textOverflow: 'ellipsis', whit
 // sparkline), so the sparkline sits on the shorter "last synced" line instead.
 function ClientRowStacked({ r, onOpen }: { r: ClientSummary; onOpen: (c: ClientSummary) => void }) {
   return (
-    <button type="button" className="listrow" onClick={() => onOpen(r)} style={{ alignItems: 'flex-start' }} aria-label={`${r.name}, ${STATUS[r.status].label}, ${r.cycleText}, ${syncText(r)}`}>
+    <button type="button" className="listrow" onClick={() => onOpen(r)} style={{ alignItems: 'flex-start' }} aria-label={`${r.name}, ${statusText(r)}, ${r.cycleText}, ${syncText(r)}`}>
       <Avatar initials={r.initials} />
       <span className="main" style={{ minWidth: 0 }}>
         <span className="row" style={{ alignItems: 'center', gap: 8 }}>
@@ -227,11 +230,11 @@ function ClientTable({ rows, onOpen }: { rows: ClientSummary[]; onOpen: (c: Clie
   return (
     <div className="card" style={{ padding: '4px 18px' }}>
       <div aria-hidden="true" style={{ display: 'grid', gridTemplateColumns: COLS, gap: 16, padding: '12px 0', borderBottom: '1px solid var(--divider)' }} className="caption">
-        {['Client', 'Status', 'Weight trend', 'Cycle', 'Synced', ''].map((h, k) => <span key={k} style={{ fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', fontSize: 11 }}>{h}</span>)}
+        {['Client', 'Outcome', 'Weight trend', 'Cycle', 'Synced', ''].map((h, k) => <span key={k} style={{ fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', fontSize: 11 }}>{h}</span>)}
       </div>
       {rows.map((r) => (
         <button
-          key={r.id} type="button" aria-label={`${r.name}, ${STATUS[r.status].label}, ${r.cycleText}, ${syncText(r)}`} onClick={() => onOpen(r)} className="listrow"
+          key={r.id} type="button" aria-label={`${r.name}, ${statusText(r)}, ${r.cycleText}, ${syncText(r)}`} onClick={() => onOpen(r)} className="listrow"
           style={{ display: 'grid', gridTemplateColumns: COLS, gap: 16, alignItems: 'center', padding: '12px 0' }}
         >
           <span style={{ display: 'flex', gap: 12, alignItems: 'center', minWidth: 0 }}>
