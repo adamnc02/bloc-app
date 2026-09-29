@@ -3,7 +3,7 @@ import type { ISODate } from '@/domain/types';
 import { Icon } from '@/components/ui/Icon';
 import { fmt, weekday } from '@/lib/format';
 import { emptySlots, layoutLanes, snap, clamp } from '@/diary/slots';
-import { findClash, pastRefusal, requestClashes, type Refusal } from '@/diary/rules';
+import { findClash, requestClashes, type Refusal } from '@/diary/rules';
 import { dayOffOn, type Occurrence } from '@/diary/model';
 import type { DayOff } from '@/diary/types';
 import { BookingBlock, type Who } from './BookingBlock';
@@ -80,8 +80,7 @@ export function DiaryGrid(p: DiaryGridProps) {
 
   // A placeholder dropped anywhere is a proposed time, refused only on a day off or a clash.
   function refusalFor(o: Occurrence, date: ISODate, start: number) {
-    return pastRefusal(date, start, today, nowMin)
-      ?? findClash({ key: o.key, kind: o.kind === 'request' ? 'one_to_one' : o.kind, date, start, duration: o.duration }, occurrences, daysOff, who.name);
+    return findClash({ key: o.key, kind: o.kind === 'request' ? 'one_to_one' : o.kind, date, start, duration: o.duration }, occurrences, daysOff, who.name);
   }
 
   // Stop the page scrolling under a finger that has picked a session up (iOS needs a non-passive touchmove).
@@ -233,10 +232,9 @@ export function DiaryGrid(p: DiaryGridProps) {
           const dayOccs = occurrences.filter((o) => o.date === d);
           const shown = dayOccs.filter((o) => !o.cancelled);
           const cancelled = dayOccs.filter((o) => o.cancelled);
-          // No outlines (nothing to book) on a day, or an hour, already gone.
-          const outlines = off || rest || d < today ? [] : emptySlots(
-            shown.filter((o) => o.kind !== 'request').map((o) => ({ start: o.start, end: o.start + o.duration })), dayStart, dayEnd)
-            .filter((sl) => d > today || sl.start >= nowMin);
+          // Past days and hours keep their outlines: a session can be added after the fact.
+          const outlines = off || rest ? [] : emptySlots(
+            shown.filter((o) => o.kind !== 'request').map((o) => ({ start: o.start, end: o.start + o.duration })), dayStart, dayEnd);
           // Bookings share lanes when they overlap (group sessions may). Request placeholders sit on
           // top at full width, inset so a booking they clash with still shows its edge and name.
           const placed = [

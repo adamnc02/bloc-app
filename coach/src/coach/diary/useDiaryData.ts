@@ -47,12 +47,15 @@ export function useDiaryData() {
   const toast = useToast(3200);
   const show = toast.show;
   const booking = useRef(false);
+  const loaded = useRef(false);
 
   const load = useCallback(async () => {
     try {
       const [d, b] = await Promise.all([repo.loadDiary(), repo.loadClients()]);
       setBundles(b);
       setDiary(d);
+      loaded.current = true;
+      setError(null);
       if (booking.current) return;
       booking.current = true;
       try {
@@ -64,7 +67,10 @@ export function useDiaryData() {
         }
       } finally { booking.current = false; }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      // Already showing the diary: keep it, say so. Only a first load that fails replaces the screen.
+      if (loaded.current) show(`Couldn’t refresh: ${msg}`);
+      else setError(msg);
     }
   }, [repo, show]);
 

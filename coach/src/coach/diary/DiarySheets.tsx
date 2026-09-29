@@ -15,7 +15,6 @@ import { displayName } from '@/data/summary';
 import { initials } from '@/lib/format';
 import { lengthLabel } from '@/diary/slots';
 import { occurrencesBetween, requestSlot, type Occurrence } from '@/diary/model';
-import { pastRefusal } from '@/diary/rules';
 import { editRefusal, newRefusal, requestRefusal, type NewSession, type Scope, type SessionPatch } from '@/diary/actions';
 import type { DayOff, Diary, SessionKind, SessionRequest, Slot } from '@/diary/types';
 import type { Who } from './BookingBlock';
@@ -127,8 +126,8 @@ function Attendees({ ids, who, bundles, multi, onChange }: { ids: string[]; who:
 
 // ---------------------------------------------------------------- edit
 
-export function EditSheet({ occ, diary, who, bundles, today, nowMin, onSave, onCancelSession, onMakeWeekly, onClose }: {
-  occ: Occurrence; diary: Diary; who: Who; bundles: ClientBundle[]; today: ISODate; nowMin: number;
+export function EditSheet({ occ, diary, who, bundles, onSave, onCancelSession, onMakeWeekly, onClose }: {
+  occ: Occurrence; diary: Diary; who: Who; bundles: ClientBundle[];
   onSave: (p: SessionPatch) => void; onCancelSession: () => void; onMakeWeekly: () => void; onClose: () => void;
 }) {
   const id = useId();
@@ -136,8 +135,7 @@ export function EditSheet({ occ, diary, who, bundles, today, nowMin, onSave, onC
   const set = (x: Partial<SessionPatch>) => setP((cur) => ({ ...cur, ...x }));
   const group = occ.kind === 'group';
   // The week itself; "All future" is checked again once chosen.
-  const moved = p.date !== occ.date || p.start !== occ.start;
-  const refusal = (moved ? pastRefusal(p.date, p.start, today, nowMin) : null) ?? editRefusal(diary, occ, p, 'one', who.name);
+  const refusal = editRefusal(diary, occ, p, 'one', who.name);
   const { dayStart, dayEnd } = diary.settings;
   return (
     <Sheet open title={group ? 'Group session' : 'Session'} onClose={onClose}>
@@ -157,7 +155,7 @@ export function EditSheet({ occ, diary, who, bundles, today, nowMin, onSave, onC
           <Attendees ids={p.clientIds} who={who} bundles={bundles} multi onChange={(clientIds) => set({ clientIds })} />
         </>
       )}
-      <TimePicker date={p.date} start={p.start} duration={p.duration} dayStart={dayStart} dayEnd={dayEnd} minDate={today} onChange={(date, start) => set({ date, start })} />
+      <TimePicker date={p.date} start={p.start} duration={p.duration} dayStart={dayStart} dayEnd={dayEnd} onChange={(date, start) => set({ date, start })} />
       <Field label="Length" hint={`Sessions are ${lengthLabel(diary.settings.sessionMinutes)} as standard.`}>
         <Stepper label="length" value={p.duration} min={15} max={480} step={15} format={lengthLabel} onChange={(v) => set({ duration: v, start: Math.min(p.start, 1440 - v) })} />
       </Field>
@@ -176,8 +174,8 @@ export function EditSheet({ occ, diary, who, bundles, today, nowMin, onSave, onC
 
 // ---------------------------------------------------------------- new
 
-export function NewSessionSheet({ diary, who, bundles, date, start, clientId, today, nowMin, onBook, onClose }: {
-  diary: Diary; who: Who; bundles: ClientBundle[]; date: ISODate; start: number; clientId?: string | null; today: ISODate; nowMin: number;
+export function NewSessionSheet({ diary, who, bundles, date, start, clientId, onBook, onClose }: {
+  diary: Diary; who: Who; bundles: ClientBundle[]; date: ISODate; start: number; clientId?: string | null;
   onBook: (n: NewSession) => void; onClose: () => void;
 }) {
   const id = useId();
@@ -185,7 +183,7 @@ export function NewSessionSheet({ diary, who, bundles, date, start, clientId, to
     kind: 'one_to_one', weekly: false, date, start, duration: diary.settings.sessionMinutes, location: null, title: null, clientIds: clientId ? [clientId] : [],
   });
   const set = (x: Partial<NewSession>) => setN((cur) => ({ ...cur, ...x }));
-  const refusal = (n.clientIds.length ? pastRefusal(n.date, n.start, today, nowMin) : null) ?? newRefusal(diary, n, who.name);
+  const refusal = newRefusal(diary, n, who.name);
   const group = n.kind === 'group';
   return (
     <Sheet open title="Book a session" onClose={onClose}>
@@ -199,7 +197,7 @@ export function NewSessionSheet({ diary, who, bundles, date, start, clientId, to
         </Field>
       )}
       <Attendees ids={n.clientIds} who={who} bundles={bundles} multi={group} onChange={(clientIds) => set({ clientIds })} />
-      <TimePicker date={n.date} start={n.start} duration={n.duration} dayStart={diary.settings.dayStart} dayEnd={diary.settings.dayEnd} minDate={today} onChange={(d, s) => set({ date: d, start: s })} />
+      <TimePicker date={n.date} start={n.start} duration={n.duration} dayStart={diary.settings.dayStart} dayEnd={diary.settings.dayEnd} onChange={(d, s) => set({ date: d, start: s })} />
       <Field label="Length">
         <Stepper label="length" value={n.duration} min={15} max={480} step={15} format={lengthLabel} onChange={(v) => set({ duration: v, start: Math.min(n.start, 1440 - v) })} />
       </Field>

@@ -146,7 +146,7 @@ export function SessionsTab({ v }: { v: ClientView }) {
       )}
 
       {sheet?.type === 'new' && (
-        <NewSessionSheet diary={diary} who={who} bundles={bundles} date={today} start={defaultStart} clientId={cardId} today={today} nowMin={nowMin}
+        <NewSessionSheet diary={diary} who={who} bundles={bundles} date={today} start={defaultStart} clientId={cardId}
           onClose={() => setSheet(null)}
           onBook={(n) => void run((_d) => createSession(repo, n), `Booked ${fmt.ddm(n.date)}, ${fmt.time(n.start)}${n.weekly ? ', weekly' : ''}`).then((ok) => ok && setSheet(null))} />
       )}

@@ -2,6 +2,7 @@
 // - Overlapping sessions are refused, except group sessions.
 // - Request placeholders never block anything (they may clash by design).
 // - Nothing can land on a day off. Non-working days and hours are a guide only.
+// - A past time is allowed: a session can be added after the fact.
 // 🚨 These rules are the ONLY overlap check: a series' weeks exist only once
 //    expanded, so the database can't see a clash between a series and a one-off.
 import type { ISODate } from '@/domain/types';
@@ -71,7 +72,3 @@ export function requestClashes(r: Occurrence, occurrences: Occurrence[]): Occurr
     && overlaps(span, { start: o.start, end: o.start + o.duration }));
 }
 
-/** A session can't be booked or moved to a time already gone (the coach's own clock). */
-export function pastRefusal(date: ISODate, start: number, today: ISODate, nowMin: number): Refusal | null {
-  return date < today || (date === today && start < nowMin) ? { reason: 'That time has passed' } : null;
-}

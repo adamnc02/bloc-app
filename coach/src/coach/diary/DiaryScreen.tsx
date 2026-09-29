@@ -138,7 +138,7 @@ export function DiaryScreen() {
       </Page>
 
       {s?.type === 'edit' && occ && (
-        <EditSheet occ={occ} diary={diary} who={who} bundles={bundles} today={today} nowMin={nowMin} onClose={() => setSheet(null)}
+        <EditSheet occ={occ} diary={diary} who={who} bundles={bundles} onClose={() => setSheet(null)}
           onSave={(p) => { const changed = JSON.stringify(p) !== JSON.stringify({ date: occ.date, start: occ.start, duration: occ.duration, location: occ.location, title: occ.title, clientIds: occ.clientIds });
             if (!changed) setSheet(null); else if (occ.recurring) setSheet({ type: 'scope', key: occ.key, patch: p }); else void save(occ, p, 'one'); }}
           onCancelSession={() => { if (occ.recurring) setSheet({ type: 'cancel', key: occ.key }); else void run((d) => cancelSession(repo, d, occ, 'one'), `${nameOf(occ)}’s session on ${fmt.ddm(occ.date)} is cancelled`).then((ok) => ok && setSheet(null)); }}
@@ -166,7 +166,7 @@ export function DiaryScreen() {
       )}
 
       {s?.type === 'new' && (
-        <NewSessionSheet diary={diary} who={who} bundles={bundles} date={s.date} start={s.start} today={today} nowMin={nowMin} onClose={() => setSheet(null)}
+        <NewSessionSheet diary={diary} who={who} bundles={bundles} date={s.date} start={s.start} onClose={() => setSheet(null)}
           onBook={(n) => void run((_d) => createSession(repo, n), `Booked ${nameOf(n)}: ${fmt.ddm(n.date)}, ${fmt.time(n.start)}${n.weekly ? ', weekly' : ''}`).then((ok) => ok && setSheet(null))} />
       )}
 

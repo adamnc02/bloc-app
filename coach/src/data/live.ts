@@ -99,7 +99,57 @@ async function blobToBase64(b: Blob): Promise<string> {
 // year of state is ~100 KB of gzip to inflate and hash each time.
 const decoded = new Map<string, ClientSnapshot['state']>();
 
+/**
+ * Supabase's errors are plain objects (`{code, message, details, hint}`), so a
+ * screen's `e instanceof Error ? e.message : String(e)` showed "[object Object]".
+ * Every repo call throws a real Error with the server's message.
+ */
+export function toError(e: unknown): Error {
+  if (e instanceof Error) return e;
+  if (e && typeof e === 'object') {
+    const o = e as { message?: unknown; code?: unknown; details?: unknown };
+    const msg = [o.message, o.details].filter((x) => typeof x === 'string' && x).join(': ');
+    const err = new Error(msg || JSON.stringify(e));
+    (err as Error & { code?: unknown }).code = o.code;
+    return err;
+  }
+  return new Error(String(e));
+}
+/** PostgREST's "JWT expired" / "invalid JWT" (PGRST301 / PGRST303), or any 401. */
+const isAuthError = (e: unknown) => {
+  const o = (e ?? {}) as { code?: unknown; status?: unknown; message?: unknown };
+  return o.code === 'PGRST301' || o.code === 'PGRST303' || o.status === 401 || (typeof o.message === 'string' && /JWT|401/i.test(o.message));
+};
+
+/**
+ * 🚨 A tab left in the background past the access token's hour came back with
+ * every request refused (401): the reload on return ran before supabase-js
+ * refreshed the token. Every call first asks for the session (getSession
+ * refreshes an expired token), and an auth error refreshes and retries once.
+ */
+export function hardened(sb: Pick<SupabaseClient, "auth">, repo: CoachRepo): CoachRepo {
+  const out: Record<string, unknown> = { ...repo };
+  for (const [k, v] of Object.entries(repo)) {
+    if (typeof v !== 'function' || k === 'now' || k === 'watchRequests') continue;
+    out[k] = async (...args: unknown[]) => {
+      await sb.auth.getSession();
+      try {
+        return await (v as (...a: unknown[]) => Promise<unknown>)(...args);
+      } catch (e) {
+        if (!isAuthError(e)) throw toError(e);
+        await sb.auth.refreshSession();
+        try { return await (v as (...a: unknown[]) => Promise<unknown>)(...args); } catch (e2) { throw toError(e2); }
+      }
+    };
+  }
+  return out as unknown as CoachRepo;
+}
+
 export function createLiveRepo(sb: SupabaseClient, profile: CoachProfile, onProfile: (p: CoachProfile) => void): CoachRepo {
+  return hardened(sb, createLiveRepoInner(sb, profile, onProfile));
+}
+
+function createLiveRepoInner(sb: SupabaseClient, profile: CoachProfile, onProfile: (p: CoachProfile) => void): CoachRepo {
   let current = profile;
   return {
     ...liveDiary(sb, () => current.coachId),

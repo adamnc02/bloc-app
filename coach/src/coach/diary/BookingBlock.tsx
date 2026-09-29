@@ -62,7 +62,7 @@ export function BookingBlock({ occ, style, compact, clashNames = [], lifted, flo
         {occ.kind === 'group' && <Icon name="group" size={13} />}
         {clash && <Icon name="warning" size={12} className="t-bad" title={`Clashes with ${clashNames.join(' and ')}`} />}
         <b>{who.name(occ)}</b>
-        {occ.recurring && occ.kind !== 'request' && !compact && <Icon name="sync" size={11} className="bk-rec" title="Weekly" />}
+        {occ.recurring && occ.kind !== 'request' && <Icon name="sync" size={11} className="bk-rec" title="Weekly" />}
         {req && !compact && reqTag}
       </span>
       <span className="bk-time num">

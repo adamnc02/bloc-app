@@ -10198,7 +10198,8 @@ date matters where the engine judges a client (§139); the Diary makes no engine
   ⚠ and the name it clashes with) and never blocks.
 - **A day off refuses** a session on it. **Working hours and days are a guide only**: the grid mutes non-working days
   and shows the hours, and a booking outside them is allowed.
-- **A time already gone is refused** (`pastRefusal`), and no empty outline is drawn before now.
+- **A past time is allowed**, and past days and hours keep their outlines: a session can be added after the fact. Only
+  the request side refuses one (proposing a time already gone, and auto-booking, below).
 - 🚨 **A new weekly session, and "All future", are checked over the next 26 weeks** (`SERIES_CHECK_WEEKS`), skipping
   weeks that are days off, and skipping the series being replaced from the week it moves. Checking only the week on
   screen let a weekly session land on another client's one-off three weeks later. `rules.ts` is the only overlap check:
@@ -10256,6 +10257,17 @@ is one BLOC's `coachBookingWeekly()` rolls forward (`verify-coach-diary.mjs`, wi
   from the Diary that many days after it was sent; the request is untouched and still answerable from the client's
   Sessions tab. `verify-coach-diary.mjs` checks it's `null`.
 
+### The live repo: readable errors, and a token that expired in the background
+
+`createLiveRepo()` wraps every call (`hardened()`, `data/live.ts`): it first asks supabase-js for the session
+(`getSession()` refreshes an expired access token), and a call refused for its token (PostgREST `PGRST301` /
+`PGRST303`, or a 401) refreshes the session and is retried once. Every error it throws is a real `Error` with the server's
+message (`toError`). 🚨 Supabase's errors are plain objects, so every screen's `e instanceof Error ? e.message :
+String(e)` showed "[object Object]"; and a Coach tab left in the background past the token's hour reloaded on return
+before the token was refreshed, so the Diary's reload failed with a 401. A diary reload that fails while the Diary is
+showing keeps it and says so in a toast; only a first load that fails replaces the screen. `data/live.test.ts` (3 cases):
+the message (control: `String()` of the raw error), one refresh and retry on an expired token, no retry otherwise.
+
 ### The screens
 
 - **The grid** (`DiaryGrid`): the full week at 768 px and wider, five days from the day in view on a phone. One hour is
@@ -10263,7 +10275,7 @@ is one BLOC's `coachBookingWeekly()` rolls forward (`verify-coach-diary.mjs`, wi
   and column light up, a landing box shows the snapped time or the refusal, and a drop outside the rules is refused with
   its reason. **Tap** a session to edit it (a request: the request sheet), an **empty outline** to book there, a
   **day's header** to mark it off (a day off: to undo it). Outlines are laid from the end of each session, so a session
-  off the hour moves the outlines after it along, one hour tall each. Compact blocks (a phone column, a shared lane)
+  off the hour moves the outlines after it along, one hour tall each; past days keep theirs. Compact blocks (a phone column, a shared lane)
   carry no tag: "Request" didn't fit at 375 pt; the dashed outline marks a request and the aria label says its state.
 - **Sheets** (`DiarySheets`): Session (edit), Book a session, Just this one / All future, Let clients know? (one day or
   several; the sessions affected listed; "Don't tell them" / "Let … know"), the day off with Undo, and Session request.
@@ -10281,8 +10293,10 @@ is one BLOC's `coachBookingWeekly()` rolls forward (`verify-coach-diary.mjs`, wi
   same button (under the mark) expands it. The choice is this device's, `blocCoach_railCollapsed` (`'1'` when
   collapsed). Below 1200 px the toggle is hidden and the rail is the icon rail. The laptop rules in `shell.css` are all
   `.coach-shell:not(.rail-collapsed)`, so collapsed is exactly the tablet's rules.
-  The icon rail's logo is Coach's own icon (`bloc-coach-icon-square.svg` from `coach/public`: the Home Screen art, COACH
-  under the mark), an `<img>` by a path relative to the page; never BLOC's bar mark.
+  The icon rail's logo is Coach's mark with COACH under it, on no background (`bloc-coach-mark-with-coach-no-bg.svg` in
+  `coach/public`, from the brand kit's `icon/`), 72 px (the rail's full inner width), an `<img>` by a path relative to the
+  page; never BLOC's bar mark.
+  `coach/public`'s `apple-touch-icon.png`, `favicon.ico` and `bloc-coach-icon-square.svg` are the brand kit's current ones.
 - **Review**: Findings and AI tools are one `.grid-2`, two columns from 1024 px, stacked below.
 
 ### Checks
