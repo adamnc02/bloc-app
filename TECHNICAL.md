@@ -10326,6 +10326,8 @@ the message (control: `String()` of the raw error), one refresh and retry on an 
   (`removeFromGroup`: out of the series and its changed weeks from now on; that card is sent the booking cancelled, the
   others' bookings don't change so nothing is sent to them, and the group carries on).
 - **Toggles** in the Diary's sheets are `Seg accent`: the selected option is filled lavender.
+- **Checkboxes** (`.check`, a `<button>`) set `padding: 0`: the browser's button padding left a 9 px content box, so the
+  16 px tick sat off-centre.
 - **Settings → Diary**: working hours (15-minute steps), working days, a new session's length, and the days off still to
   come, each opening Undo.
 

@@ -170,7 +170,7 @@ textarea.input { height: auto; min-height: 96px; padding: 12px 14px; resize: ver
 .switch[aria-checked="true"] { background: var(--accent) }
 .switch[aria-checked="true"]::after { transform: translateX(20px); background: var(--on-accent) }
 .switch[disabled] { opacity: .5; cursor: not-allowed }
-.check { width: 24px; height: 24px; border-radius: 7px; border: 1.5px solid var(--border2); display: grid; place-items: center; background: transparent; flex-shrink: 0 }
+.check { width: 24px; height: 24px; padding: 0; border-radius: 7px; border: 1.5px solid var(--border2); display: grid; place-items: center; background: transparent; flex-shrink: 0 }
 .check[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent) }
 .pickgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px }
 .pick { min-height: 56px; border-radius: 14px; border: 1px solid var(--border2); background: var(--surface2); text-align: left; padding: 12px 14px; cursor: pointer; color: var(--text) }
