@@ -13,28 +13,29 @@
 //   · the targets come from the client's own `progressionTargets` first
 //     (makeTargetCache), so Coach judges against the numbers the client saw.
 //
-// Not counted (never a pass or a fail): week 1 (the baseline), a deload, the
-// first occurrence of each session after a deload, a swapped exercise, and a
-// planned session a group session replaced (done, not scored). An excluded
-// week with nothing done is 'skipped': still not counted, but shown as not
-// done, as the sessions strip counts it. A maintenance
-// cycle has no pass or fail at all; it's scored on attendance.
+// Every planned exercise-week is judged, week 1 and the session after a deload
+// included: pass, fail (done, a target missed, or not every set done) or
+// missed (nothing done). A deload that was done shows as a deload and scores
+// like a pass; a deload not done is missed and scores 0. Only a swapped
+// exercise and a planned session a group session replaced go unscored. A
+// maintenance cycle has no pass or fail; it's scored on attendance.
 //
-// A column is scored only once its week is over at the client's today; the
-// current week shows what's logged but stays "in progress".
+// A week is judged only once it's over at the client's today: until then a
+// cell is "this week or still to come", unless it's already fully logged.
 // ═══════════════════════════════════════════════════════════════════════
 import {
   getRpeKey, getSubstitution, getTrainAgendaUnits, getWeekComplianceResult, getWeekSets, getWeekTargets,
-  isDeloadUnit, isFirstUnitAfterDeload, isRpeOn, parseRepsForVolume,
+  isDeloadUnit, isRpeOn, parseRepsForVolume,
   type BlocState, type Loose, type Macrocycle, type TargetCache, type WeekTarget,
 } from '@engine';
 
 export type CellState =
-  | 'pass' | 'fail' | 'missed'          // counted
-  | 'swapped' | 'group' | 'excluded'    // not counted
-  | 'skipped'                           // not counted, and not done (a deload, week 1, after a deload)
-  | 'logged'                            // a maintenance cycle's done session (not scored)
-  | 'pending' | 'future' | 'none';      // this week isn't over / not reached / not in this week
+  | 'pass' | 'fail' | 'missed'            // scored
+  | 'deload' | 'deload-missed'           // scored: a deload done scores like a pass, not done 0
+  | 'swapped' | 'group'                    // not scored
+  | 'logged'                               // a maintenance cycle's done session
+  | 'upcoming'                             // this week or still to come
+  | 'none';                                // no session that week
 
 export interface SetRow {
   n: number;
@@ -158,14 +159,6 @@ export function makeTargetCache(s: BlocState): TargetCache {
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 
-/** Why an exercise-week isn't counted, or null when it is. */
-function excludedReason(s: BlocState, m: Macrocycle, week: number, dayKey: string): string | null {
-  if (week <= 1) return 'Week 1 sets the baseline';
-  if (isDeloadUnit(s, m, week, dayKey)) return 'Deload week';
-  if (isFirstUnitAfterDeload(s, m, week, dayKey)) return 'First session after a deload';
-  return null;
-}
-
 const str = (v: unknown): string | null => (v === undefined || v === null || v === '' ? null : String(v));
 
 function setRows(s: BlocState, cache: TargetCache, m: Macrocycle, week: number, dayKey: string, ex: Loose): SetRow[] {
@@ -190,7 +183,7 @@ function setRows(s: BlocState, cache: TargetCache, m: Macrocycle, week: number, 
 function judgeCell(s: BlocState, cache: TargetCache, m: Macrocycle, col: WeekCol, gridCol: number, dayKey: string, ex: Loose): GridCell {
   const week = col.week;
   const base = { col: gridCol, unit: col.idx, week, dayKey };
-  if (col.future) return { ...base, state: 'future' };
+  if (col.future) return { ...base, state: 'upcoming' };
   const sub = getSubstitution(s, m.id, week, dayKey, ex.id);
   if (sub && sub.kind === 'group') return { ...base, state: 'group', reason: 'A group session replaced it: done, not scored' };
   const sets = setRows(s, cache, m, week, dayKey, ex);
@@ -201,25 +194,25 @@ function judgeCell(s: BlocState, cache: TargetCache, m: Macrocycle, col: WeekCol
   const extra = { sets: anyDone ? sets : undefined, byCoach: sets.some((x) => x.byCoach) || undefined, ...rating };
   if (sub) return { ...base, ...extra, sets, state: 'swapped', swappedTo: sub.name, reason: `Swapped for ${sub.name || 'another exercise'} that day (target held)` };
 
+  const missed = { ...base, ...extra, state: 'missed' as const, reason: 'Planned session not done' };
+  const upcoming = { ...base, ...extra, state: 'upcoming' as const, reason: 'This week isn’t over yet' };
   if (m.goalType === 'maintenance') {
     if (allDone) return { ...base, ...extra, state: 'logged', reason: 'Maintenance cycles are scored on attendance' };
-    return col.closed ? { ...base, ...extra, state: 'missed', reason: 'Planned session not done' } : { ...base, ...extra, state: 'pending' };
+    return col.closed ? missed : upcoming;
   }
-  const why = excludedReason(s, m, week, dayKey);
-  // Not scored either way, but a week with nothing done says so: the sessions
-  // strip counts it as not done, and the grid mustn't look as if it was.
-  if (why && !anyDone) return col.closed ? { ...base, ...extra, state: 'skipped', reason: `${why} · not done` } : { ...base, ...extra, state: 'pending', reason: why };
-  if (why) return { ...base, ...extra, state: 'excluded', reason: why };
-
+  if (isDeloadUnit(s, m, week, dayKey)) {
+    if (anyDone) return { ...base, ...extra, sets, state: 'deload', reason: 'Deload week, done' };
+    return col.closed ? { ...missed, state: 'deload-missed', reason: 'Deload week, not done' } : upcoming;
+  }
   const res = getWeekComplianceResult(s, cache, m, week, dayKey, ex);
   if (res.fullyLogged) return { ...base, ...extra, sets, state: res.compliant ? 'pass' : 'fail', reason: res.compliant ? undefined : 'Missed a target' };
-  if (!col.closed) return { ...base, ...extra, state: 'pending', reason: 'This week isn’t over yet' };
-  return anyDone
-    ? { ...base, ...extra, sets, state: 'fail', reason: 'Not every set was done' }
-    : { ...base, ...extra, state: 'missed', reason: 'Planned session not done' };
+  if (!col.closed) return upcoming;
+  return anyDone ? { ...base, ...extra, sets, state: 'fail', reason: 'Not every set was done' } : missed;
 }
 
-const COUNTED: CellState[] = ['pass', 'fail', 'missed'];
+const COUNTED: CellState[] = ['pass', 'fail', 'missed', 'deload', 'deload-missed'];
+/** A scored cell's value: done as planned (a pass, or a deload done) is 1. */
+const scoreOf = (s: CellState) => (s === 'pass' || s === 'deload' ? 1 : 0);
 
 /** The whole grid for a cycle, judged at the client's today. */
 export function computeTraining(s: BlocState, m: Macrocycle, today: string): TrainingCompliance {
@@ -273,7 +266,7 @@ export function computeTraining(s: BlocState, m: Macrocycle, today: string): Tra
           rowByKey.set(key, row);
         }
         row.cells[gc] = cell;
-        if (col.closed && COUNTED.includes(cell.state)) counted.push(cell.state === 'pass' ? 1 : 0);
+        if (col.closed && COUNTED.includes(cell.state)) counted.push(scoreOf(cell.state));
       });
       const sessionScore = counted.length ? (counted.reduce((a, b) => a + b, 0) / counted.length) * 10 : null;
       col.sessions.push({ dayKey: sess.dayKey, label: sess.label, done: !!sess.done, partial: !!sess.partial, groupReplaced: !!sess.groupReplaced, byCoach, score: col.closed && scored ? sessionScore : null });
@@ -293,9 +286,9 @@ export function computeTraining(s: BlocState, m: Macrocycle, today: string): Tra
   for (const r of rows) {
     for (const c of r.cells) {
       if (c.state === 'none' || !cols[c.unit].closed) continue;
-      if (c.state === 'pass') r.passes++;
+      if (c.state === 'pass' || c.state === 'deload') r.passes++;
       else if (c.state === 'fail') r.fails++;
-      else if (c.state === 'missed') r.missed++;
+      else if (c.state === 'missed' || c.state === 'deload-missed') r.missed++;
     }
     const n = r.passes + r.fails + r.missed;
     r.score = scored && n ? (r.passes / n) * 10 : null;

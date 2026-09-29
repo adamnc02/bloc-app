@@ -150,25 +150,29 @@ describe('training compliance (§7.1)', () => {
     const a = t.rows.filter((r) => r.sessionLabel.endsWith('A'));
     expect(a.every((r) => r.cells.every((c, i) => (i % 2 === 1) === (c.state === 'none')))).toBe(true);
   });
-  it('week 1 is the baseline, not counted', () => {
-    const firstMeso = t.rows.flatMap((r) => r.cells.filter((c) => c.week === 1 && c.state !== 'none'));
-    expect(firstMeso.length).toBe(t.rows.length);
-    expect(firstMeso.every((c) => c.state === 'excluded' && c.reason === 'Week 1 sets the baseline')).toBe(true);
+  it('week 1 is judged like any other week', () => {
+    const w1 = t.rows.flatMap((r) => r.cells.filter((c) => c.unit === 0 && c.state !== 'none'));
+    expect(w1.length).toBeGreaterThan(0);
+    expect(w1.every((c) => ['pass', 'fail', 'missed'].includes(c.state))).toBe(true);
+    expect(t.cols[0].score).not.toBeNull();
   });
-  it('the deload and the first session after it are not counted', () => {
-    const dl = t.rows.flatMap((r) => r.cells).filter((c) => c.reason?.startsWith('Deload week'));
-    expect(dl.length).toBeGreaterThan(0);
-    expect(dl.every((c) => (c.state === 'excluded' || c.state === 'skipped') && t.cols[c.unit].isDeload)).toBe(true);
-    expect(t.rows.some((r) => r.cells.some((c) => c.reason?.startsWith('First session after a deload')))).toBe(true);
-  });
-  it('an unscored week with nothing done shows as not done, and still isn’t scored (the deload, W12)', () => {
+  it('a deload not done is its own miss (ice) and scores 0; the session after it is judged normally', () => {
     const w12 = t.cols.find((c) => c.isDeload)!;
     const cells = t.rows.flatMap((r) => r.cells).filter((c) => c.unit === w12.idx && c.state !== 'none');
     expect(w12.done).toBe(0);
-    expect(cells.every((c) => c.state === 'skipped' && c.reason === 'Deload week · not done')).toBe(true);
-    expect(w12.score).toBeNull();
-    // Control: week 1, where sessions were done, stays plain "not counted".
-    expect(t.rows.flatMap((r) => r.cells).filter((c) => c.week === 1 && c.state !== 'none').every((c) => c.state === 'excluded')).toBe(true);
+    expect(cells.every((c) => c.state === 'deload-missed' && c.reason === 'Deload week, not done')).toBe(true);
+    expect(w12.score).toBe(0);
+    const w13 = t.rows.flatMap((r) => r.cells).filter((c) => c.unit === w12.idx + 1 && c.state !== 'none');
+    expect(w13.every((c) => c.state === 'missed')).toBe(true);
+  });
+  it('a deload that was done shows as a deload and scores like a pass (control: the same week unmarked)', () => {
+    const w3 = t.cols[2];
+    expect(w3.score).not.toBeNull();
+    const marked = { ...s, deloads: { ...(s.deloads || {}), [`${MACRO}_${w3.week}_m1`]: true } };
+    const t2 = computeTraining(marked, m, '2026-09-20');
+    const cells = t2.rows.flatMap((r) => r.cells).filter((c) => c.unit === 2 && c.state !== 'none');
+    expect(cells.every((c) => c.state === 'deload')).toBe(true);
+    expect(t2.cols[2].score).toBe(10);
   });
   it('planned sessions not done in a finished week are missed, and the week scores 0', () => {
     const w10 = t.cols[9]; // W9 holds a half-logged Pull session; W10 has nothing

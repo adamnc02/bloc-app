@@ -9377,7 +9377,7 @@ since a verdict rests on weigh-ins.
 
 - **Calendar weeks** are the week agenda's units (`getTrainAgendaUnits`, §115). They score the weeks, draw
   the sessions strip and are **the grid's columns**, and a week is **scored only once it has ended** at the
-  client's today; the current week shows what's logged, "in progress".
+  client's today.
 - **The grid's rows are each session template's exercises**: with microcycles every session has an A and a
   B template (`dayKey` `…m1` / `…m2`), each progressing against its own previous mesocycle, so the rows
   split **"Pull · A" / "Pull · B"**, in the cycle's day order, A before B. With two-week mesocycles an A
@@ -9387,15 +9387,19 @@ since a verdict rests on weigh-ins.
 - **A cell** is `getWeekComplianceResult()`: pass when every set met or beat its target, the lock's test.
   Targets come from the client's own `progressionTargets` first (`makeTargetCache`); what the engine
   computes beyond them stays in memory and **never reaches the client's state** (a vitest case checks it).
-- **Not counted:** week 1 (the baseline), a deload, the first occurrence of a session after a deload
-  (`isFirstUnitAfterDeload`), a swapped exercise-week (`state.substitutions`, kind `swap`), and a planned
-  session a group session replaced (kind `group`: done, not scored). A finished week's exercise with
-  nothing done is **missed** (a miss); partly done is a **fail**.
-- 🚨 **An unscored week with nothing done is shown as not done** (a grey "!", "Deload week · not done"),
-  still left out of every score. The sessions strip counts attendance in every week; with the grey "–" of a
-  done-but-excluded week, an empty deload read as done in the grid while the strip showed it missed. In the
-  current week it's "in progress".
-- **Session** = passes ÷ counted exercises; **week** = the mean of its sessions (a planned session not done
+- **Every planned exercise-week is judged**, week 1 and the first session after a deload included:
+  **pass**, **fail** (done, a target missed, or not every set done) or **missed** (nothing done). 🚨 **A
+  deload** is its own state: done, it's green with **DL** and scores like a pass (the plan was followed);
+  not done, it's an ice-bordered "!" and scores 0. Only a swapped exercise-week (`state.substitutions`, kind
+  `swap`) and a planned session a group session replaced (kind `group`) go unscored. There is no "not
+  counted" cell: a grey cell that meant "done but excluded" read the same as an empty deload, while the
+  sessions strip showed that week not done.
+- **Until a week ends** its cells are the dashed "This week or still to come" (as the sessions strip draws
+  it), unless already fully logged. A blank cell is "No session that week" (the other template's week).
+- **The legend** is exactly: Hit every target, Done, a target missed, Not done, Deload, done, Deload, not
+  done, Swapped that day, Group session instead, and This week or still to come; a blank needs no key.
+  Maintenance shows Done and Not done in place of the first five.
+- **Session** = passes (and deloads done) ÷ scored exercises; **week** = the mean of its sessions (a planned session not done
   scores 0); **cycle** = the mean of its weeks, all weighted equally. Every level is out of 10.
 - **Maintenance** has no pass or fail: done sessions are "Done", and the score is **attendance**, sessions
   done ÷ planned, per week and for the cycle.
@@ -9493,9 +9497,10 @@ refuse a linked card's name or contact change, as the trigger does.
   control, and its gain mirror; weight alone with no food logged; the waist rule (¾″ on track, ¼″ off);
   maintenance at 6/10 and 7/10 attendance and a 4 lb span; Grace at her Auckland date against the coach's
   London date; the Clients row's outcome; 14 calendar-week columns, rows split A/B with each A row blank in
-  exactly the B weeks, and Priya's one-week mesocycles filling both every week, week 1, the deload and the session
-  after it not counted, a missed week scoring 0 and a half-done session scoring its exercises, a swapped
-  week against the same cell passing, the client's state untouched; nutrition scored with 4 days and not
-  under 4, the current week unscored.
+  exactly the B weeks, and Priya's one-week mesocycles filling both every week; week 1 judged like any week;
+  a deload not done scoring 0 with the session after it judged normally; a deload done scoring like a pass
+  (control: the same week unmarked); a missed week scoring 0 and a half-done session scoring its exercises;
+  a swapped week against the same cell passing; the client's state untouched; nutrition scored with 4 days
+  and not under 4, the current week unscored.
 - `scripts/verify-coach-review-clock.mjs`: no clock in the model; the client's date passed in.
 - At 375 × 812 Review and Profile have no horizontal scroll; the grid scrolls inside its card.

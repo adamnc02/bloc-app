@@ -14,23 +14,25 @@ import { Chip, Tag } from '@/components/ui/display';
  * Tap a cell to see its sets against targets.
  */
 const CELL: Record<CellState, { bg: string; fg: string; glyph: string; label: string; border?: string }> = {
-  pass: { bg: 'var(--green)', fg: 'var(--on-accent)', glyph: '', label: 'Every set on target' },
-  fail: { bg: 'var(--red)', fg: 'var(--on-accent)', glyph: '×', label: 'Missed a target' },
-  missed: { bg: 'transparent', fg: 'var(--red)', glyph: '!', label: 'Planned session not done', border: 'var(--red)' },
+  pass: { bg: 'var(--green)', fg: 'var(--on-accent)', glyph: '', label: 'Hit every target' },
+  fail: { bg: 'var(--red)', fg: 'var(--on-accent)', glyph: '×', label: 'Done, a target missed' },
+  missed: { bg: 'transparent', fg: 'var(--red)', glyph: '!', label: 'Not done', border: 'var(--red)' },
+  deload: { bg: 'var(--green)', fg: 'var(--on-accent)', glyph: 'DL', label: 'Deload, done' },
+  'deload-missed': { bg: 'transparent', fg: 'var(--ice)', glyph: '!', label: 'Deload, not done', border: 'var(--ice)' },
   swapped: { bg: 'color-mix(in srgb, var(--amber) 22%, transparent)', fg: 'var(--amber)', glyph: 'S', label: 'Swapped that day' },
   group: { bg: 'color-mix(in srgb, var(--accent) 20%, transparent)', fg: 'var(--accent2)', glyph: 'G', label: 'Group session instead' },
-  excluded: { bg: 'var(--surface3)', fg: 'var(--text3)', glyph: '–', label: 'Not counted' },
-  skipped: { bg: 'transparent', fg: 'var(--text3)', glyph: '!', label: 'Not done · not counted', border: 'var(--text3)' },
-  logged: { bg: 'color-mix(in srgb, var(--green) 40%, transparent)', fg: 'var(--text)', glyph: '✓', label: 'Done' },
-  pending: { bg: 'transparent', fg: 'var(--text3)', glyph: '·', label: 'This week, in progress', border: 'var(--border2)' },
-  future: { bg: 'transparent', fg: 'var(--text3)', glyph: '', label: 'Still to come', border: 'var(--border2)' },
-  none: { bg: 'transparent', fg: 'transparent', glyph: '', label: 'Not in this week' },
+  logged: { bg: 'var(--green)', fg: 'var(--on-accent)', glyph: '✓', label: 'Done' },
+  upcoming: { bg: 'transparent', fg: 'transparent', glyph: '', label: 'This week or still to come', border: 'var(--border2)' },
+  none: { bg: 'transparent', fg: 'transparent', glyph: '', label: 'No session that week' },
 };
 
 export function ComplianceGrid({ t }: { t: TrainingCompliance }) {
   const [sel, setSel] = useState<{ row: GridRow; cell: GridCell; col: WeekCol } | null>(null);
   let lastSession = '';
-  const legend: CellState[] = t.scored ? ['pass', 'fail', 'missed', 'skipped', 'swapped', 'group', 'excluded'] : ['logged', 'missed', 'swapped', 'group'];
+  const legend: CellState[] = [
+    ...(t.scored ? ['pass', 'fail', 'missed', 'deload', 'deload-missed'] as CellState[] : ['logged', 'missed'] as CellState[]),
+    'swapped', 'group', 'upcoming',
+  ];
   return (
     <>
       <div style={{ overflowX: 'auto', margin: '0 -4px', padding: '0 4px' }}>
@@ -67,7 +69,7 @@ export function ComplianceGrid({ t }: { t: TrainingCompliance }) {
                           <button
                             type="button" disabled={!clickable} onClick={() => setSel({ row: r, cell: c, col: t.cols[c.unit] })}
                             aria-label={`${r.name}, ${t.cols[c.unit].label}: ${s.label}${c.reason ? `. ${c.reason}` : ''}`}
-                            style={{ width: 26, height: 26, borderRadius: 6, border: s.border ? `1.5px solid ${s.border}` : 0, background: s.bg, color: s.fg, fontWeight: 800, fontSize: 13, display: 'grid', placeItems: 'center', cursor: clickable ? 'pointer' : 'default', padding: 0, opacity: c.state === 'future' ? 0.6 : 1 }}
+                            style={{ width: 26, height: 26, borderRadius: 6, border: s.border ? `1.5px ${c.state === 'upcoming' ? 'dashed' : 'solid'} ${s.border}` : 0, background: s.bg, color: s.fg, fontWeight: 800, fontSize: s.glyph.length > 1 ? 10 : 13, display: 'grid', placeItems: 'center', cursor: clickable ? 'pointer' : 'default', padding: 0 }}
                           >{s.glyph}</button>
                         )}
                       </td>
@@ -90,7 +92,7 @@ export function ComplianceGrid({ t }: { t: TrainingCompliance }) {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginTop: 12, fontSize: 11.5, color: 'var(--text2)' }}>
         {legend.map((k) => (
           <span key={k} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <span aria-hidden="true" style={{ width: 14, height: 14, borderRadius: 4, background: CELL[k].bg, border: CELL[k].border ? `1.5px solid ${CELL[k].border}` : 0, color: CELL[k].fg, fontSize: 10, fontWeight: 800, display: 'grid', placeItems: 'center' }}>{CELL[k].glyph}</span>
+            <span aria-hidden="true" style={{ width: 16, height: 16, borderRadius: 4, background: CELL[k].bg, border: k === 'none' ? '1px dotted var(--divider)' : CELL[k].border ? `1.5px ${k === 'upcoming' ? 'dashed' : 'solid'} ${CELL[k].border}` : 0, color: CELL[k].fg, fontSize: CELL[k].glyph.length > 1 ? 7.5 : 10, fontWeight: 800, display: 'grid', placeItems: 'center' }}>{CELL[k].glyph}</span>
             {CELL[k].label}
           </span>
         ))}
@@ -108,7 +110,7 @@ function CellDetail({ row, cell, col }: { row: GridRow; cell: GridCell; col: Wee
   return (
     <div>
       <div className="row">
-        <Chip tone={cell.state === 'pass' || cell.state === 'logged' ? 'good' : cell.state === 'fail' || cell.state === 'missed' ? 'bad' : cell.state === 'swapped' ? 'amber' : 'neutral'}>{s.label}</Chip>
+        <Chip tone={cell.state === 'pass' || cell.state === 'logged' ? 'good' : cell.state === 'fail' || cell.state === 'missed' ? 'bad' : cell.state === 'deload-missed' ? 'ice' : cell.state === 'swapped' ? 'amber' : cell.state === 'deload' ? 'ice' : 'neutral'}>{s.label}</Chip>
         <span className="caption">{row.sessionLabel} · {fmt.range(col.start, col.end)}</span>
       </div>
       {cell.reason && <p className="muted" style={{ marginTop: 10 }}>{cell.reason}</p>}
