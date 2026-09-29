@@ -1,6 +1,6 @@
 import { useId, useState, type CSSProperties } from 'react';
 import { CoachShell } from '@/coach/CoachShell';
-import { Button, Chip, Field, Hero, Icon, Notice, Page, PageHeader, RowButton, Section, Sheet, Toast, numberSections, useEntering, useToast } from '@/components/ui';
+import { Button, Chip, Field, Hero, Icon, Notice, Page, PageHeader, RowButton, Section, Sheet, Toast, useEntering, useToast } from '@/components/ui';
 import { useCoach } from '@/app/App';
 import { initials } from '@/lib/format';
 
@@ -29,7 +29,6 @@ export function SettingsScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fixture = repo.kind === 'fixture';
-  const n = numberSections(['account', 'profile', 'about']);
 
   const saveProfile = async () => {
     setBusy(true); setError(null);
@@ -64,20 +63,20 @@ export function SettingsScreen() {
         </Hero>
 
         <div className="grid-2">
-          <Section n={n.account} i={2} title="Account" sub="One sign-in for BLOC and BLOC Coach.">
+          <Section i={2} title="Account" sub="One sign-in for BLOC and BLOC Coach.">
             <div className="card list">
               <RowButton lead="account" title="Sign-in" sub={fixture ? 'Local build · fixture clients, no account' : `${email} · the same account as BLOC`} trailing="check" />
             </div>
             <p className="caption" style={{ marginTop: 10 }}>Clients, diary and templates are kept under your coach ID, separate from your own training in BLOC.</p>
           </Section>
 
-          <Section n={n.profile} i={3} title="Coach profile" sub="How clients see you when they link.">
+          <Section i={3} title="Coach profile" sub="How clients see you when they link.">
             <div className="card list">
               <RowButton lead="edit" title={profile.displayName} sub={profile.businessName || 'No business name'} onClick={() => { setError(null); setSheet('profile'); }} />
             </div>
           </Section>
 
-          <Section n={n.about} i={4} title="About" sub="Which version of BLOC Coach this is.">
+          <Section i={4} title="About" sub="Which version of BLOC Coach this is.">
             <div className="card">
               <div className="ex"><span>Version</span><span className="num">{COACH_VERSION}</span></div>
               <div className="ex"><span>Coming next</span><span>Review, then AI tools, Plan, Diary and In person</span></div>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import {
-  Avatar, Button, Chip, EmptyState, Hero, Icon, IconButton, Notice, Page, PageHeader, Section, Seg, Toast, numberSections, useEntering, useIsWide, useToast,
+  Avatar, Button, Chip, EmptyState, Hero, Icon, IconButton, Notice, Page, PageHeader, Section, Seg, Toast, useEntering, useIsWide, useToast,
 } from '@/components/ui';
 import { WeightSparkline } from '@/components/charts/Sparkline';
 import { CoachShell, AccountButton } from '@/coach/CoachShell';
@@ -50,7 +50,7 @@ function syncText(c: ClientSummary): string {
  *    with Review (5b), the next session with the Diary (5e).
  */
 export function ClientsScreen() {
-  const { repo, profile } = useCoach();
+  const { repo } = useCoach();
   const ref = useEntering<HTMLDivElement>('clients');
   const wide = useIsWide();
   const toast = useToast();
@@ -74,7 +74,6 @@ export function ClientsScreen() {
   const shown = rows.filter((r) => FILTERS.find((f) => f.value === filter)!.test(r));
   const count = (f: ClientFilter) => rows.filter(FILTERS.find((x) => x.value === f)!.test).length;
   const by = (s: LinkStatus) => rows.filter((r) => r.status === s).length;
-  const n = numberSections(['list']);
 
   const open = (c: ClientSummary) => {
     if (c.status === 'invited') { setSheetError(null); setStatusFor(c); }
@@ -121,7 +120,6 @@ export function ClientsScreen() {
     <CoachShell tab="clients">
       <Page innerRef={ref}>
         <PageHeader
-          eyebrow={profile.businessName || profile.displayName}
           title="Clients"
           actions={<><IconButton icon="userPlus" label="Add client" onClick={() => { setSheetError(null); setAdding(true); }} /><AccountButton /></>}
         />
@@ -146,7 +144,7 @@ export function ClientsScreen() {
           </div>
         </Hero>
 
-        <Section n={n.list} i={2} title="Your clients" sub="Each client at their own local date. Tap a client to open them.">
+        <Section i={2} title="Your clients" sub="Each client at their own local date. Tap a client to open them.">
           <div style={{ overflowX: 'auto', margin: '0 calc(-1 * var(--gutter))', padding: '0 var(--gutter) 4px', scrollbarWidth: 'none' }}>
             <Seg
               className="auto" label="Filter clients" value={filter} onChange={setFilter}

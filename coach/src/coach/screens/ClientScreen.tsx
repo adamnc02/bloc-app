@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Avatar, Chip, EmptyState, Hero, Icon, Notice, Page, PageHeader, Section, numberSections, useEntering } from '@/components/ui';
+import { Avatar, Chip, EmptyState, Hero, Icon, Notice, Page, PageHeader, Section, useEntering } from '@/components/ui';
 import { CoachShell } from '@/coach/CoachShell';
 import { useCoach } from '@/app/App';
 import { fmt } from '@/lib/format';
@@ -32,7 +32,6 @@ export function ClientScreen({ id }: { id: string }) {
   if (!bundle) return <CoachShell tab="clients"><div className="page" aria-busy="true" /></CoachShell>;
 
   const c: ClientSummary = summarise(bundle, repo.now());
-  const n = numberSections(['link', c.status === 'linked' && 'training']);
   const fact = (label: string, value: ReactNode) => (
     <div className="ex"><span>{label}</span><span style={{ textAlign: 'right' }}>{value}</span></div>
   );
@@ -50,7 +49,7 @@ export function ClientScreen({ id }: { id: string }) {
           </div>
         </Hero>
 
-        <Section n={n.link} i={2} title="Link" sub="What they share with you, and how recently.">
+        <Section i={2} title="Link" sub="What they share with you, and how recently.">
           <div className="card">
             {fact('Status', <Chip tone={c.status === 'linked' ? 'good' : c.status === 'invited' ? 'acc' : 'neutral'}>{{ linked: 'Linked', invited: 'Invited', unlinked: 'Unlinked', 'not-on-app': 'Not on the app' }[c.status]}</Chip>)}
             {bundle.link?.linkedAt && fact('Linked since', fmt.ddm(bundle.link.linkedAt.slice(0, 10)))}
@@ -63,7 +62,7 @@ export function ClientScreen({ id }: { id: string }) {
         </Section>
 
         {c.status === 'linked' && (
-          <Section n={n.training} i={3} title="Their cycle" sub="Worked out by BLOC’s own engine, at their local date.">
+          <Section i={3} title="Their cycle" sub="Worked out by BLOC’s own engine, at their local date.">
             {c.cycle ? (
               <div className="card">
                 {fact('Cycle', c.cycle.coachOwned ? c.cycle.name : `${c.cycle.name} (their own)`)}

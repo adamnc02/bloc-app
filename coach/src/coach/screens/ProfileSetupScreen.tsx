@@ -1,5 +1,5 @@
 import { useId, useState, type ReactNode } from 'react';
-import { Button, Chip, Field, Hero, Icon, Notice, Page, PageHeader, Section, numberSections, useEntering, type IconName } from '@/components/ui';
+import { Button, Chip, Field, Hero, Icon, Notice, Page, PageHeader, Section, useEntering, type IconName } from '@/components/ui';
 import { getSupabase } from '@/lib/supabase';
 import { createMyProfile } from '@/data/live';
 import type { CoachProfile } from '@/data/types';
@@ -19,7 +19,6 @@ export function ProfileSetupScreen({ email, onDone }: { email: string; onDone: (
   const [business, setBusiness] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const n = numberSections(['main']);
 
   const save = async () => {
     setBusy(true); setError(null);
@@ -42,7 +41,7 @@ export function ProfileSetupScreen({ email, onDone }: { email: string; onDone: (
             <div className="muted" style={{ marginTop: 2 }}>{business || 'Coach'}</div>
           </div>
         </Hero>
-        <Section n={n.main} i={2} title="Coach profile" sub="How clients see you when they link.">
+        <Section i={2} title="Coach profile" sub="How clients see you when they link.">
           <form className="card" onSubmit={(e) => { e.preventDefault(); if (name.trim()) save(); }}>
             <Field label="Your name" htmlFor={`${id}-n`}>
               <input id={`${id}-n`} className="input" autoComplete="name" maxLength={80} value={name} onChange={(e) => setName(e.target.value)} />
@@ -67,7 +66,6 @@ export function ProfileSetupScreen({ email, onDone }: { email: string; onDone: (
  */
 export function StatusScreen({ profile, email, onSignOut }: { profile: CoachProfile; email: string; onSignOut: () => void }) {
   const ref = useEntering<HTMLDivElement>('status');
-  const n = numberSections(['main']);
   const pending = profile.status === 'pending_approval';
   const row = (icon: IconName, title: string, sub: string, chip: ReactNode) => (
     <div className="listrow" style={{ cursor: 'default' }}>
@@ -87,7 +85,7 @@ export function StatusScreen({ profile, email, onSignOut }: { profile: CoachProf
             {pending ? 'Coach accounts are approved by hand. Clients can link to you once your account is approved.' : 'Your clients can’t be reached from here while it’s paused. Your own BLOC training is unaffected.'}
           </p>
         </Hero>
-        <Section n={n.main} i={2} title="Your account" sub="What’s set up, and what’s still being checked.">
+        <Section i={2} title="Your account" sub="What’s set up, and what’s still being checked.">
           <div className="card list">
             {row('account', 'Account and profile', `${profile.displayName} · ${email}`, <Chip tone="good" icon="check">Done</Chip>)}
             {row('shield', 'Qualifications', pending ? 'Being checked' : 'Paused', <Chip tone="amber" icon="clock">{pending ? 'Checking' : 'Paused'}</Chip>)}

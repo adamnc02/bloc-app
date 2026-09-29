@@ -9089,7 +9089,7 @@ the build (`__COACH_VERSION__`, the Settings chip). BLOC stays v8.43 through the
 |---|---|
 | `coach/package.json`, `package-lock.json` | pinned: React 18.3.1 (the wireframes' version, so their components come across as is), Vite 8.3.1, TypeScript 7.0.2 (the engine's), vitest 5.0.2, `@supabase/supabase-js` 2.117.2 |
 | `coach/vite.config.ts` | `base: '/bloc-app/coach/'`; `@engine` → `../engine/src/index.ts` (**source**, never `engine/dist`, which is BLOC's); `@` → `src`; a dev/preview middleware that serves the repo's `bloc-demo-data(.dev).json` at `/bloc-app/…` so the fixtures never enter `dist` |
-| `coach/src/styles`, `components/ui`, `components/brand` | from the wireframes as they are (proposal §12). The 14 `[PLACEHOLDER]` light tokens now carry BLOC's real `[data-mode="light"]` values; `--scrim` is Coach's own. `Notice` is promoted into `components/ui` (inventory, "Worth merging") |
+| `coach/src/styles`, `components/ui`, `components/brand` | from the wireframes as they are (proposal §12), except `Section`'s number badge (below) and the sign-in screen, which is BLOC's (`styles/auth.css`). The 14 `[PLACEHOLDER]` light tokens now carry BLOC's real `[data-mode="light"]` values; `--scrim` is Coach's own. `Notice` is promoted into `components/ui` (inventory, "Worth merging") |
 | `coach/src/lib/host.ts` | the bypass (below) |
 | `coach/src/lib/storage.ts` | every Coach localStorage key (below) |
 | `coach/src/lib/supabase.ts` | the client: BLOC's project, Coach's session |
@@ -9176,7 +9176,17 @@ has, which is BLOC's on every phone. `'local'` ends this device's Coach session 
 - **Email and password, or Google.** Google comes back only to a URL on the project's Redirect URLs list
   (Auth → URL Configuration); otherwise Supabase sends it to the Site URL, BLOC. **`https://adamnc02.github.io/bloc-app/coach/`
   must be on that list** before Google sign-in works on the live Coach (a local build signs in by email,
-  §119). Password reset isn't in Coach: it's the same account, so the sign-in screen points to BLOC's.
+  §119).
+- 🚨 **The sign-in screen IS BLOC's** (Adam, 2026-09-29: *"The login page should be the same on both
+  screens, except for the BLOC coach logo"*). `SignInScreen.tsx` is index.html's `#auth-gate` in React:
+  Continue with Google (BLOC's Google mark), "or", Sign In / Sign Up tabs, Email, Password, "Sign In →",
+  Forgot password?, the same error and status lines; only the logo is Coach's. `styles/auth.css` copies
+  BLOC's rules for it, and the `.btn` / input rules it inherits there, value for value. **Change BLOC's
+  gate, change Coach's too.** The first v0.1 build used the wireframes' page layout (a hero, numbered
+  sections, a separate unbranded Google button) and was rejected in UAT.
+- **Forgot password?** sends the reset link to **BLOC's** live URL, not Coach's: it's the same account,
+  the link signs you in to BLOC, and BLOC's Settings is where a password changes. Coach has no password
+  screen, so a link back to Coach would sign you in with no way to set one.
 - **The gate** (`App.tsx`): signed out → sign in; signed in with no coach profile → **Your coach profile**,
   whose Continue calls `create_coach_profile()` (0022, idempotent). That's what makes someone a coach, and
   only Coach calls it. A profile that isn't `active` → the status screen (§11 Q18); v1 creates every coach
@@ -9230,6 +9240,19 @@ filter), the next session with the Diary (5e).
 - Share text: "Link to me as your coach in BLOC. Your code is …". The wireframe's "Join me on BLOC Coach"
   was wrong: the client never uses Coach.
 
+### No section number badges (Adam, 2026-09-29, for the whole Coach build)
+
+The wireframes number every section ("01", "02" in an outlined badge before the title). Adam: those were
+*"just illustrative, a way of documenting what each section was"*. **No Coach screen shows one.** A section
+is its title, an optional right slot, and its sublabel.
+
+🚨 **The trap is porting a wireframe screen as it is** (proposal §12 reuses every screen's layout), which
+brings `numberSections()` and `<Section n={…}>` with it. So the badge is gone at the source: `Section` has
+**no `n` prop**, `numberSections` doesn't exist, and `.sec-n` is out of `ui.css`. A ported screen that
+still passes `n` fails the type-check. `scripts/verify-coach-no-section-numbers.mjs` fails if any of them
+returns in `coach/src` or the served build. Controls: a wireframe screen and the wireframe `Section`
+markup.
+
 ### 375pt (§116)
 
 Measured in headless Chromium at 375 × 812 against the assembled site: no horizontal scroll and no
@@ -9243,6 +9266,7 @@ laptop the rows are a table (Client, Status, Weight trend, Cycle, Synced).
 - `verify-coach-host.mjs`: the bypass (above).
 - `verify-coach-storage.mjs`: the keys and sign-out (above).
 - `verify-publish-list.mjs`: the mapping (above).
+- `verify-coach-no-section-numbers.mjs`: no section badges (above).
 - `coach/src/data/summary.test.ts` (vitest, 12 cases): each fixture's row at the tracked anchor, the
   client's-today control, link-status precedence, the client's own name once linked, and decoding with
   a refused hash as the control.

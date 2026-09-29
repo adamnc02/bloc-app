@@ -26,18 +26,20 @@ export function Hero({ children, onClick, label, style, className = '' }: { chil
 }
 
 /**
- * Numbered section (§3). Numbering is passed in, never hard-coded, so a
- * hidden section never leaves a gap: use `numberSections()` to assign.
- * The sublabel is required: sections never drop it.
+ * Section (§3): a title, an optional right slot, and a sublabel that is
+ * always present.
+ * 🚨 No number badge (Adam, 2026-09-29): the wireframes' "01", "02" badges were
+ *    only there to document the sections, and are not part of the design.
+ *    There is no `n` prop, so a screen ported from the wireframes can't carry
+ *    one over; scripts/verify-coach-no-section-numbers.mjs checks it.
  */
-export function Section({ n, title, sub, slot, i, children, className = '', id }: {
-  n: number; title: string; sub: ReactNode; slot?: ReactNode; i: number; children: ReactNode; className?: string; id?: string;
+export function Section({ title, sub, slot, i, children, className = '', id }: {
+  title: string; sub: ReactNode; slot?: ReactNode; i: number; children: ReactNode; className?: string; id?: string;
 }) {
   const hid = id ?? `sec-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
   return (
     <section className={`sec rise ${className}`} style={idx(i)} aria-labelledby={hid}>
       <div className="sec-h">
-        <span className="sec-n" aria-hidden="true">{String(n).padStart(2, '0')}</span>
         <h2 id={hid}>{title}</h2>
         {slot && <div className="sec-slot">{slot}</div>}
       </div>
@@ -45,17 +47,6 @@ export function Section({ n, title, sub, slot, i, children, className = '', id }
       {children}
     </section>
   );
-}
-
-/**
- * Assign gap-free numbers to the sections that are shown.
- * `const n = numberSections(['week', showFood && 'food', 'next'])` → n.week === 1…
- */
-export function numberSections<K extends string>(keys: (K | false | null | undefined)[]): Record<K, number> {
-  const out = {} as Record<K, number>;
-  let k = 0;
-  keys.forEach((key) => { if (key) out[key] = ++k; });
-  return out;
 }
 
 export function Page({ children, innerRef, className = '' }: { children: ReactNode; innerRef?: Ref<HTMLDivElement>; className?: string }) {
