@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { KEYS } from '@/lib/storage';
 import { Icon, type IconName } from '@/components/ui/Icon';
-import { BlocMark, CoachLogo } from '@/components/brand/Brand';
+import { CoachLogo } from '@/components/brand/Brand';
 import { navigate } from '@/app/router';
 
 export type CoachTab = 'today' | 'clients' | 'diary' | 'library' | 'settings' | null;
@@ -36,7 +36,8 @@ export function CoachShell({ tab, children }: { tab: CoachTab; children: ReactNo
     <div className={`coach-shell${collapsed ? ' rail-collapsed' : ''}`}>
       <div className="rail-col"><nav className="rail" aria-label="BLOC Coach">
         <div className="rail-head">
-          <div className="rail-logo-mark"><BlocMark size={40} /></div>
+          {/* The icon rail (tablet, or a collapsed laptop rail): Coach's own icon, the Home Screen art, served beside index.html. */}
+          <div className="rail-logo-mark"><img className="rail-icon" src="bloc-coach-icon-square.svg" alt="BLOC Coach" width={48} height={48} /></div>
           <div className="rail-logo-full"><CoachLogo height={46} /></div>
           <button type="button" className="rail-toggle" onClick={toggle} aria-expanded={!collapsed}
             aria-label={collapsed ? 'Expand the side bar' : 'Collapse the side bar'} title={collapsed ? 'Expand' : 'Collapse'}>
