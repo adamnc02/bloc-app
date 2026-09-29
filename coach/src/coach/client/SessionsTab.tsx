@@ -15,7 +15,7 @@ import { Toast } from '@/components/ui/Sheet';
 import { navigate } from '@/app/router';
 import { addDays, fmt } from '@/lib/format';
 import { lengthLabel } from '@/diary/slots';
-import { occurrencesBetween, requestSlot, type Occurrence } from '@/diary/model';
+import { nextSeriesWeek, occurrencesBetween, requestSlot, type Occurrence } from '@/diary/model';
 import { bookRequest, cancelSession, createSession, declineRequest, proposeTime, removeFromGroup } from '@/diary/actions';
 import { Sheet } from '@/components/ui/Sheet';
 import { prefLabel } from '@/coach/diary/BookingBlock';
@@ -43,15 +43,17 @@ export function SessionsTab({ v }: { v: ClientView }) {
   const list = occurrencesBetween(diary, today, addDays(today, WINDOW_DAYS - 1))
     .filter((o) => mine(o) && o.kind !== 'request' && !(o.date === today && o.start + o.duration <= nowMin));
   const next = list[0];
-  const weekly = diary.series.filter((s) => s.clientIds.includes(cardId) && (!s.to || s.to >= today))
+  // A weekly row opens its next week; look well past the two-week list for it.
+  const ahead = occurrencesBetween(diary, today, addDays(today, 180)).filter((o) => mine(o) && o.kind !== 'request');
+  const nextOf = (seriesId: string) => nextSeriesWeek(diary, seriesId, today);
+  // 🚨 Only weekly sessions with a week still to come: one whose weeks are all cancelled, moved (detached) or past is
+  // over (its moved weeks are one-offs, under Coming up), and a row with nothing to act on can't be tapped.
+  const weekly = diary.series.filter((s) => s.clientIds.includes(cardId) && !!nextOf(s.id))
     .sort((a, b) => a.weekday - b.weekday || a.start - b.start);
   const requests = diary.requests.filter((r) => r.cardId === cardId && requestSlot(r));
   const notOnApp = v.summary.status !== 'linked' && v.summary.status !== 'invited';
   const empty = !list.length && !requests.length && !weekly.length;
   const req = sheet?.type === 'request' ? diary.requests.find((r) => r.id === sheet.id) : undefined;
-  // A weekly row opens its next week; look past the two-week list for it.
-  const ahead = occurrencesBetween(diary, today, addDays(today, 90)).filter((o) => mine(o) && o.kind !== 'request');
-  const nextOf = (seriesId: string) => ahead.find((o) => o.seriesId === seriesId && o.recurring);
   const acting = sheet?.type === 'session' ? ahead.find((o) => o.key === sheet.key) : undefined;
   const defaultStart = Math.min(Math.max(diary.settings.dayStart, Math.ceil((nowMin + 1) / 60) * 60), diary.settings.dayEnd - diary.settings.sessionMinutes);
 
@@ -111,7 +113,7 @@ export function SessionsTab({ v }: { v: ClientView }) {
         <Section i={3} title="Weekly" sub="Sessions that repeat every week. Move or stop one from the Diary.">
           <div className="card list">
             {weekly.map((s) => (
-              <button key={s.id} type="button" className="listrow" disabled={!nextOf(s.id)} onClick={() => { const n = nextOf(s.id); if (n) setSheet({ type: 'session', key: n.key }); }}>
+              <button key={s.id} type="button" className="listrow" onClick={() => setSheet({ type: 'session', key: nextOf(s.id)!.key })}>
                 <span className="icon-tile"><Icon name={s.kind === 'group' ? 'group' : 'sync'} size={18} /></span>
                 <span className="main">
                   <b className="num">{DAY_PLURAL[s.weekday]} · {fmt.time(s.start)}–{fmt.time(s.start + s.duration)}</b>

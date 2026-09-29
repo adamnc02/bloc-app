@@ -10326,6 +10326,8 @@ the message (control: `String()` of the raw error), one refresh and retry on an 
   one **Cancel just {date}** or **Stop the weekly session from {date}**; a group **Remove {first} from {group}**
   (`removeFromGroup`: out of the series and its changed weeks from now on; that card is sent the booking cancelled, the
   others' bookings don't change so nothing is sent to them, and the group carries on).
+  🚨 **Weekly lists only sessions with a week still to come** (`nextSeriesWeek`): one whose weeks are all cancelled, moved
+  (detached) or past is over whatever its end date says, and its row had nothing to act on, so it couldn't be tapped.
 - **Toggles** in the Diary's sheets are `Seg accent`: the selected option is filled lavender.
 - **Checkboxes** (`.check`, a `<button>`) set `padding: 0`: the browser's button padding left a 9 px content box, so the
   16 px tick sat off-centre.

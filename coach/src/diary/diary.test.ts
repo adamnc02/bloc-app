@@ -6,7 +6,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { fixtureDiary } from '@/data/fixtureDiary';
 import { addDays } from '@/lib/format';
 import { emptySlots, layoutLanes } from './slots';
-import { cancelledOn, occurrencesBetween, placeholderState, requestSlot, seriesDates, type Occurrence } from './model';
+import { cancelledOn, nextSeriesWeek, occurrencesBetween, placeholderState, requestSlot, seriesDates, type Occurrence } from './model';
 import { findClash, findSeriesClash, requestClashes } from './rules';
 import { BOOKING_KEYS, bookingChanges, canonical, desiredBookings, MAX_SKIP_DATES, type BookingPayload } from './publish';
 import {
@@ -319,6 +319,17 @@ describe('actions (fixture repo)', () => {
     const d = await createSession(r, await r.loadDiary(), { kind: 'group', weekly: false, date: FRI, start: 600, duration: 60, location: null, title: null, clientIds: ['sam', 'leah'] });
     expect(['sam', 'leah'].map((c) => Object.entries(d.sent).find(([k]) => k.startsWith(`${c}|bk-`))![1].payload.title)).toEqual(['Group session', 'Group session']);
     expect(d.sent['maya|sr-maya'].payload.title).toBeNull();
+  });
+  it('a weekly session whose weeks are all cancelled or moved has no next week (the stale row in UAT)', async () => {
+    const r = fresh();
+    let d = await r.loadDiary();
+    d = await cancelSession(r, d, occ(d, `s:sr-tom@${THU}`), 'one');
+    d = await editSession(r, d, occ(d, `s:sr-tom@${addDays(THU, 7)}`), { date: addDays(FRI, 7), start: 420, duration: 60, location: null, title: null, clientIds: ['tom'] }, 'one');
+    await r.updateSeries('sr-tom', { to: addDays(THU, 7) });
+    d = await r.loadDiary();
+    expect(nextSeriesWeek(d, 'sr-tom', MON)).toBeNull();                        // nothing left to act on
+    expect(occ(d, `s:sr-tom@${addDays(THU, 7)}`).recurring).toBe(false);        // its moved week is a one-off
+    expect(nextSeriesWeek(d, 'sr-maya', MON)!.date).toBe(TUE);                   // control
   });
   it('propose a time: the placeholder moves and waits for the client', async () => {
     const r = fresh();

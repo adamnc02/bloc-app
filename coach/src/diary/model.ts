@@ -160,6 +160,14 @@ export function cancelledOn(d: Pick<Diary, 'series' | 'bookings'>, date: ISODate
   return { count, clientIds: [...ids] };
 }
 
+/**
+ * A weekly session's next week still in the series (not cancelled, not moved on its own), within the next half year;
+ * null when it has none left: it's over, whatever its end date says (its moved weeks are one-offs).
+ */
+export function nextSeriesWeek(d: Diary, seriesId: string, today: ISODate): Occurrence | null {
+  return occurrencesBetween(d, today, addDays(today, 180)).find((o) => o.seriesId === seriesId && o.recurring) ?? null;
+}
+
 /** The next `n` days from `from`, as dates. */
 export const daysFrom = (from: ISODate, n: number) => Array.from({ length: n }, (_, i) => addDays(from, i));
 
