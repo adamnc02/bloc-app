@@ -59,7 +59,8 @@ export {
 } from './home.ts';
 export type { HomeBadgeStatus, HomeMetricBadge, HomeWeek, HomeWeekMetric } from './home.ts';
 export type { Goal } from './clash.ts';
-export { macroRange, findMacroClash, buildGoalShiftPlan } from './clash.ts';
+export { macroRange, findMacroClash, buildGoalShiftPlan, planReplaceOffer } from './clash.ts';
+export type { ReplaceOffer, ReplaceRefusal, ReplaceBlock } from './clash.ts';
 export { isLocalDevHost } from './host.ts';
 
 // ── v8.35 (§125): step 4, the state readers. Each takes the state as `s` and,

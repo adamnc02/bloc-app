@@ -4803,6 +4803,19 @@ try {
   </div>
 </div>
 
+<!-- v8.45: the coach's plan would replace the client's own running cycle. It
+     holds no copy of state (the answer is one field), so a publication may
+     land under it. -->
+<div class="modal-overlay" id="modal-coach-replace" data-pub-safe>
+  <div class="modal-sheet" data-modal="modal-coach-replace" style="max-height:92dvh;display:flex;flex-direction:column;">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-coach-replace')">✕</button>
+    </div>
+    <div class="modal-title" style="flex-shrink:0;">Start your coach’s plan?</div>
+    <div id="coach-replace-body" style="overflow-y:auto;flex:1;"></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-cycle-review-full">
   <div class="modal-sheet" data-modal="modal-cycle-review-full" style="max-height:90dvh;display:flex;flex-direction:column;">
     <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div>
@@ -6369,7 +6382,7 @@ try {
      same-named shims. ?v= is the first 12 hex of the file's SHA-256, so a phone never pairs a
      new index.html with an older engine from its HTTP cache; scripts/verify-engine-build.mjs
      fails if it is stale. Listed in scripts/publish-files.txt. -->
-<script src="engine/dist/bloc-engine.js?v=472e944018f9"></script>
+<script src="engine/dist/bloc-engine.js?v=c2d875f21c8f"></script>
 <script>
 // ════════════════════════════════════════════════
 // DATE HELPERS
@@ -9255,7 +9268,10 @@ function removeCoachPlan() {
   const goalsBefore = (state.goals || []).length;
   state.goals = (state.goals || []).filter(g => !(g && (g.publishedBy || gone.has(g.macroId))));
   const goalsRemoved = goalsBefore - state.goals.length;
-  if (!gone.size && !goalsRemoved) return { cycles: 0, goals: 0 };
+  // v8.45: nothing from that coach is waiting for an answer now.
+  const hadAsks = Object.keys(state.coachReplaceAsks || {}).length > 0;
+  if (hadAsks) state.coachReplaceAsks = {};
+  if (!gone.size && !goalsRemoved) { if (hadAsks) save(); return { cycles: 0, goals: 0 }; }
   // 🚨 A key belongs to the LONGEST cycle id it starts with. Plain
   // startsWith(id + '_') would hand a Solo cycle "macro_c1_x"'s keys to a coach
   // cycle "macro_c1" and delete them (deep dive I4: ids aren't prefix-free).
@@ -9965,7 +9981,12 @@ function applyPlanPublication(pub) {
     candidate = Object.assign({}, existing || { id: incoming.id }, patch);
     if (!candidate.start) return { status: 'needs_attention', note: 'The cycle has no start date.' };
     const clash = findMacroClash(candidate, state.macrocycles, candidate.id);
-    if (clash) return { status: 'needs_attention', note: `Overlaps “${clash.name || 'another cycle'}” (from ${clash.start}).` };
+    if (clash) {
+      // v8.45: an overlap with the client's own running cycle is a replace
+      // the client answers (coachReplaceHold); any other overlap is held.
+      const held = coachReplaceHold(pub, candidate);
+      if (held) return held;
+    }
     macroIds.add(candidate.id);
   }
   // Every exercise list and deload must belong to a cycle the client holds (or
@@ -10108,6 +10129,115 @@ function applyPhotoRequestPublication(pub) {
 }
 function dismissPhotoRequestNotices(requestId) {
   for (const n of (state.coachNotices || [])) if (n && n.kind === 'photos' && n.requestId === requestId) n.dismissed = true;
+}
+// ── v8.45: the coach's cycle replacing the client's own running cycle ───────
+// A plan whose cycle overlaps another is held, never forced (§131, I10). One
+// overlap is instead put to the client: their OWN cycle running today, which
+// the coach's (starting a later Monday) would replace. The engine's
+// planReplaceOffer() decides it, the same rule BLOC Coach offers from. The
+// client answers on Home:
+//   · End my cycle early: on the next pull the held plan applies, and its own
+//     cycle ends the Sunday before the coach's starts (weeks / extensionWeeks
+//     re-shaped). The goal running across that day ends on it; the cycle's
+//     later goals are removed; logs are untouched.
+//   · Keep my cycle: the plan stays held, and the receipt says so. The coach
+//     can republish it to start after the cycle ends.
+// The ask and the answer live in state.coachReplaceAsks[pubId], so they
+// travel with the ledger (I8). The client writes their own cycle and goals
+// here, by their own answer, so each piece of data still has one writer.
+function coachReplaceAsks() {
+  if (!state.coachReplaceAsks || typeof state.coachReplaceAsks !== 'object' || Array.isArray(state.coachReplaceAsks)) state.coachReplaceAsks = {};
+  return state.coachReplaceAsks;
+}
+function coachReplaceOffer(candidate) {
+  return BlocEngine.planReplaceOffer(candidate, state.macrocycles, state.goals, engineCtx());
+}
+// Null when the plan may apply (no clash, or the client accepted and their
+// cycle is now shortened); otherwise the hold's {status, note}.
+function coachReplaceHold(pub, candidate) {
+  const offer = coachReplaceOffer(candidate);
+  if (!offer) return null;
+  const asks = coachReplaceAsks();
+  const clash = offer.clash;
+  const cname = clash.name || 'another cycle';
+  if (offer.kind !== 'replace') {
+    delete asks[pub.id];
+    return { status: 'needs_attention', note: `Overlaps “${cname}” (from ${clash.start}).` };
+  }
+  const prev = asks[pub.id];
+  if (prev && prev.answer === 'accepted' && prev.clashId === clash.id) {
+    shortenCycleForReplace(offer);
+    prev.done = true;
+    return findMacroClash(candidate, state.macrocycles, candidate.id)
+      ? { status: 'needs_attention', note: `Overlaps “${cname}” (from ${clash.start}).` } : null;
+  }
+  if (prev && prev.answer === 'declined' && prev.clashId === clash.id) {
+    return { status: 'needs_attention', note: `The client kept “${cname}” (to ${offer.oldEnd}).` };
+  }
+  asks[pub.id] = {
+    seq: pub.seq, macroId: candidate.id, name: candidate.name || null, start: candidate.start,
+    weeks: getMacroDurationWeeks(candidate), clashId: clash.id, clashName: clash.name || null,
+    newEnd: offer.newEnd, oldEnd: offer.oldEnd, trim: offer.trimGoals, remove: offer.removeGoals,
+    askedAt: (prev && prev.askedAt) || new Date().toISOString(), answer: null,
+  };
+  return { status: 'needs_attention', note: `Waiting for the client to end “${cname}” early, on ${offer.newEnd}.` };
+}
+// The client's own cycle ends on offer.newEnd. Only its length and its goals
+// change; its logs stay.
+function shortenCycleForReplace(offer) {
+  const m = state.macrocycles.find(x => x.id === offer.clash.id);
+  if (!m) return;
+  m.weeks = offer.weeks;
+  if (offer.extensionWeeks) m.extensionWeeks = offer.extensionWeeks; else delete m.extensionWeeks;
+  m.endedEarly = { from: offer.oldEnd, to: offer.newEnd };
+  state.goals = (state.goals || []).filter(g => !(g && g.macroId === m.id && g.startDate > offer.newEnd));
+  for (const g of state.goals) if (g && g.macroId === m.id && g.endDate > offer.newEnd) g.endDate = offer.newEnd;
+}
+// The asks still waiting for an answer, oldest first. An ask whose plan has
+// since applied, been superseded or stopped clashing is no longer waiting.
+function pendingCoachReplaceAsks() {
+  const ledger = state.coachLedger || {};
+  return Object.entries(state.coachReplaceAsks || {})
+    .filter(([id, a]) => a && !a.answer && ledger[id] && ledger[id].status === 'needs_attention' && /^Waiting for the client/.test(ledger[id].note || ''))
+    .map(([id, a]) => Object.assign({ id }, a)).sort((a, b) => (a.seq || 0) - (b.seq || 0));
+}
+let _coachReplaceOpen = null;
+function openCoachReplace(id) {
+  const a = (state.coachReplaceAsks || {})[id];
+  if (!a || a.answer) { renderHomeCoachBanner(); return; }
+  _coachReplaceOpen = id;
+  renderCoachReplace();
+  openModal('modal-coach-replace');
+}
+function renderCoachReplace() {
+  const el = document.getElementById('coach-replace-body');
+  const a = _coachReplaceOpen && (state.coachReplaceAsks || {})[_coachReplaceOpen];
+  if (!el || !a) return;
+  const first = coachEsc(coachFirstName());
+  const nm = x => coachEsc(x || 'your cycle');
+  const rows = [
+    `<b>“${nm(a.name)}”</b> starts ${coachEsc(coachDayFmt(a.start))} · ${a.weeks} week${a.weeks === 1 ? '' : 's'}`,
+    `Your cycle <b>“${nm(a.clashName)}”</b> ends ${coachEsc(coachDayFmt(a.newEnd))} instead of ${coachEsc(coachDayFmt(a.oldEnd))}`,
+    ...(a.trim || []).map(g => `Your goal <b>“${coachEsc(g.label)}”</b> ends ${coachEsc(coachDayFmt(a.newEnd))} too`),
+    ...((a.remove || []).length ? [`${a.remove.length} later goal phase${a.remove.length === 1 ? ' is' : 's are'} removed: ${a.remove.map(g => `“${coachEsc(g.label)}”`).join(', ')}`] : []),
+    'Everything you’ve logged stays',
+  ];
+  el.innerHTML = `<div class="modal-sub" style="margin-top:0;">${first} has a new plan for you. It starts while your own cycle is still running, so your cycle would end early.</div>
+    <div class="card" style="padding:4px 16px;">${rows.map((r, i) => `<div style="padding:12px 0;${i ? 'border-top:1px solid var(--border);' : ''}font-size:14px;line-height:1.45;">${r}</div>`).join('')}</div>
+    <button class="btn btn-accent btn-block" style="margin-top:20px;" onclick="answerCoachReplace('accepted')">End my cycle early</button>
+    <button class="btn btn-ghost btn-block" style="margin-top:10px;" onclick="answerCoachReplace('declined')">Keep my cycle</button>
+    <div class="coach-caption" style="text-align:left;margin-top:8px;">If you keep it, ${first} is told, and can start the plan after your cycle ends.</div>`;
+}
+function answerCoachReplace(answer) {
+  const a = _coachReplaceOpen && (state.coachReplaceAsks || {})[_coachReplaceOpen];
+  if (!a) return;
+  a.answer = answer;
+  a.answeredAt = new Date().toISOString();
+  save();
+  closeModal('modal-coach-replace');
+  _coachReplaceOpen = null;
+  renderHomeCoachBanner();
+  requestPublicationPull('replace-' + answer); // the held plan is fetched again and settles
 }
 function applyNoteReplyPublication(pub) {
   const p = pub.payload || {};
@@ -15575,7 +15705,10 @@ function viewCoachResponse(responseId) {
 // then one per kind with anything undismissed: dismissing one clears its kind).
 function coachBannerQueueCount(proposedShowing) {
   const kinds = new Set((state.coachNotices || []).filter(n => n && !n.dismissed && HOME_NOTICE_KINDS.includes(n.kind)).map(n => n.kind));
-  return (proposedShowing ? 1 : 0) + kinds.size;
+  // v8.45: each replace waiting for an answer (not hidden this run) counts.
+  const dismissed = coachBannerDismissed();
+  const asks = coachedView() ? pendingCoachReplaceAsks().filter(a => !dismissed.includes('replace:' + a.id)).length : 0;
+  return (proposedShowing ? 1 : 0) + kinds.size + asks;
 }
 // iOS-style: a count over the banner's top-right corner, only when more than
 // one is waiting (Adam, v8.43 UAT), clear of the ✕ below it.
@@ -15589,6 +15722,20 @@ function renderHomeCoachBanner() {
   const dismissed = coachBannerDismissed();
   const due = coachedView() ? (_coachRequests || []).filter(r => r.status === 'proposed' && r.proposed && !dismissed.includes(coachProposalKey(r))) : [];
   if (!due.length) {
+    // v8.45: a replace waiting for an answer comes next. Like the proposed
+    // time it needs one, so its ✕ lasts until the next cold start.
+    const ask = coachedView() ? pendingCoachReplaceAsks().find(a => !dismissed.includes('replace:' + a.id)) : null;
+    if (ask) {
+      const first = coachEsc(coachFirstName());
+      el.innerHTML = `<div class="coach-banner coach-banner-home" role="status">${coachBannerCountHTML(coachBannerQueueCount(false))}
+          <span class="coach-banner-ico">${COACH_NOTICE_ICONS.plan}</span>
+          <div style="flex:1;min-width:0;"><b>${first}’s new plan starts ${coachEsc(coachDayFmt(ask.start))}</b>
+            <div>Your own cycle “${coachEsc(ask.clashName || 'your cycle')}” would end early, on ${coachEsc(coachDayFmt(ask.newEnd))}.</div>
+            <button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="openCoachReplace('${coachEsc(ask.id)}')">Review</button></div>
+          <button class="coach-banner-x" aria-label="Dismiss" onclick="_coachBannerDismissedThisRun.add('replace:${coachEsc(ask.id)}');renderHomeCoachBanner()">✕</button>
+        </div>`;
+      return;
+    }
     const n = coachedView() ? nextCoachNotice(HOME_NOTICE_KINDS) : null;
     el.innerHTML = n ? coachNoticeBannerHTML(n, HOME_NOTICE_ACTIONS[n.kind] ? HOME_NOTICE_ACTIONS[n.kind](n) : null, coachBannerQueueCount(false)) : '';
     return;
@@ -29314,7 +29461,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.44</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.45</span>`;
 }
 
 function renderSettings() {
