@@ -8973,7 +8973,7 @@ restart and travel with the data:
 |---|---|---|---|
 | `plan` | a `plan` | Home | "{coach} updated your plan": "“{cycle}” starts Mon 5 Oct." or "Changes to “{cycle}”." + **View** (Train) |
 | `phases` | `goal_phases`, or an `ai_response` with goal changes (§11 Q9) | Home | "Your goal phases changed": "“Cut 3” now starts on Mon 5 Oct at 1,600 kcal and 10,000 steps." |
-| `booking` | a new, moved or cancelled `booking` | Home | "Session confirmed" / "Session moved" / "Session cancelled" + **View** (Your sessions) |
+| `booking` | a new, changed or cancelled `booking` | Home | "Session confirmed" / "Session changed" (v8.47; "Session moved" before, §151) / "Session cancelled" + **View** (Your sessions) |
 | `response` | an `ai_response` | Home | "New check-in from {coach}": the coach's headline + **View** (Progress, on the response's cycle, its full text open: `viewCoachResponse()`) |
 
 🚨 **Their ✕ is permanent** (Adam, v8.42 UAT: informational). `dismissCoachNotice()` saves `dismissed` on that
@@ -10121,3 +10121,45 @@ name through Custom Exercise, saving with no exercise, and the Heavy leg / Weigh
 sheet with a field removed. Driven in Chromium at 375 pt: the search pinned while filtering (top 30 px, height
 unchanged), choosing and saving (Machine Row at 42.5 kg), Add "Sled Push" through Custom Exercise (Legs, then chosen),
 closing an empty search, and Edit (no Category, no search).
+
+## §151 — v8.47: a weekly booking's single weeks, its end, a group's name, no banner, and "Session changed"
+
+**What it is.** A weekly session is **one** `booking` publication dated its first occurrence (`kind: 'weekly'`),
+which BLOC rolls forward to the next date itself (§136). BLOC Coach's diary changes single weeks of a series, so
+migrations `0028` and `0029` add optional keys to the booking, and BLOC reads them:
+
+| Key | Means | BLOC |
+|---|---|---|
+| `skip_dates` | ISO dates the series doesn't occur: a day off or holiday, a week cancelled "just this one", or a week moved "just this one" (that week arrives as its **own one-off booking**) | `coachBookingNextDate()` steps over each, however many in a row |
+| `until` | the last date the series occurs, inclusive | no next date after it |
+| `title` | a group session's name | first on the session's row in Your sessions |
+| `quiet` | the coach chose not to notify | applied with **no** banner |
+| `replaces` (`0029`) | `{booking_id, date}`: the session this new booking takes the place of | "Session changed" (old → new), not "Session confirmed" |
+
+`coachBookingSkips()` reads `skip_dates` (strings only). Home's Your next session, Your sessions' hero and rows,
+and the "Session confirmed" banner's date all come from `coachBookingNextDate()`, so they agree.
+
+**Banners** (`applyBookingPublication`, one notice per publication, none when `quiet`): **Session confirmed** is for a
+new session only, and **any change is "Session changed"**: a new booking carrying `replaces: {booking_id, date}` (migration
+`0029`: a week moved "just this one", "Wed 14 Oct, 18:00 with {coach} is now Thu 15 Oct, 18:00"; or a weekly session moved
+"all future", "Your weekly session with {coach} is now every Thursday at 17:00, from …"), an existing booking's new date or
+time ("{coach} moved it to …"), and its new length, place or name ("… : 90 min · Park"). A cancelled booking booked again
+is **"Session back on"**. A **group** (a booking with a `title`: BLOC Coach sends one for every group session and
+never for a one-to-one) is **"Added to a group session"** ("{coach} added you to Saturday bootcamp: …") and
+**"Group session cancelled"** ("You have been removed from the Saturday bootcamp on Sat 10 Oct, 09:00 with {coach}.") when
+the client is taken out of it or it ends for them; a group week that `replaces` a session the
+client wasn't in (cancelled for them, or never theirs) is "Added to a group session" too, never "Session changed". Session cancelled as before (§137);
+then, for a weekly booking whose date and time are unchanged, a skip date added from today
+on is **Session cancelled** (or "N sessions … are off, from …"), one removed is **Session back on** (a cancelled
+week reinstated; BLOC Coach's Undo of a day off never does this, §152), and a new `until` from today on is **Weekly session ending**. Skip dates in the past raise
+nothing. A weekly series changed "all future" ends the old booking (`until`, sent quiet) and arrives as a new
+`booking_id` carrying `replaces` (`0029`), so the client sees one "Session changed" for the new day and time.
+
+🚨 **Without `skip_dates`, Your next session showed a week the coach had taken off.** The booking's keys before
+`0028` (`date`, `start_min`, `status`) describe the whole series, so there was nothing to say "not this week".
+
+**Check:** `scripts/verify-booking-weeks.mjs` runs the real functions: the roll-forward, one and two skipped weeks,
+a skip after the roll-forward, `until` inclusive and after, a one-off unchanged; the four banners, a past skip
+silent, `quiet` on a change and on a new booking, the title on the row; and the changes: a moved week and an all-future
+move (`replaces`), a new one-off still "confirmed", a moved one-off, a new length and place, a one-off back on. Control:
+v8.46 (`5d08f66`) fails 15 rows, including skip, until, quiet and the changes.
