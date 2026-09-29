@@ -9668,6 +9668,7 @@ has one destination and logs nothing, and that no repo call, payload or data fil
   Cancel the request; no horizontal scroll, no console errors.
 - 🚨 **Fields side by side in a grid set no top margin** (`.tiles-2 > .field`), as tiles do (§140): `.field +
   .field` pushed the second field of each row lower than the first.
+
 ## §142 — v8.44: the coach asks for cycle-review photos; the client sends them or skips
 
 **What it is.** Progress photos are part of a cycle review, so the coach asks for them **before** running it.
