@@ -65,6 +65,7 @@ async function run(label, src) {
       'function demoTourIsRunning()', 'function setTourAnchorDate(');
     const store = new Map(); const log = [];
     const f = new Function('env', `
+    const accountSwitchBlocks = () => false; // v8.46 (§145): no other account's data here
       const STATE_KEY = 'bloc_state_authreal', IS_LOCAL_DEV = false;
       let state = { demo: true }, _tourAnchorDate = '2026-08-02', _tourState = { step: 1 };
       const localStorage = { setItem: (k, v) => env.store.set(k, v) };
@@ -88,6 +89,7 @@ async function run(label, src) {
     const zero = async (result, isNew = true) => {
       const log = []; const store = new Map();
       const g = new Function('env', `
+    const accountSwitchBlocks = () => false; // v8.46 (§145): no other account's data here
         const localStorage = { getItem: k => env.store.get(k) || null, setItem: (k, v) => env.store.set(k, v), removeItem: k => env.store.delete(k) };
         const deviceHasRealData = () => false;
         const restoreNewestRealSnapshot = async () => env.result;
@@ -106,6 +108,7 @@ async function run(label, src) {
   {
     const [rnrs] = need('async function restoreNewestRealSnapshot(');
     const h = new Function(`
+    const accountSwitchBlocks = () => false; // v8.46 (§145): no other account's data here
       const _authResolvedSession = { user: { id: 'u1' } };
       const listSnapshots = async () => [];
       ${rnrs}
@@ -120,6 +123,7 @@ async function run(label, src) {
     if (skip) {
       const log = [];
       new Function('env', `
+    const accountSwitchBlocks = () => false; // v8.46 (§145): no other account's data here
         const _tourAnchorDate = '2026-08-02';
         const closeModal = id => env.log.push(['close', id]);
         const exitDemoMode = () => env.log.push(['exit']);
@@ -139,6 +143,7 @@ async function run(label, src) {
     const pullRun = async (real, snapshots) => {
       const log = [];
       const f = new Function('env', `
+    const accountSwitchBlocks = () => false; // v8.46 (§145): no other account's data here
         const coachingAvailable = () => true, isCoachedMode = () => true;
         const coachLinkGet = () => ({ clientRecordId: 'card-1' });
         const refreshCoachLink = async () => {};

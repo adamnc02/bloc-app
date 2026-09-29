@@ -22,7 +22,24 @@ export interface Exercise {
   setsStart: number;
   setsEnd: number;
   isHeavyLeg?: boolean;
+  /**
+   * v8.46: the mesocycle week the exercise joined the plan (a coach's swap or
+   * an exercise added part-way through a cycle). Its progression starts
+   * there: that week is its week 1. Absent (or 1) = it's been there from the start.
+   */
+  fromWeek?: number;
   [k: string]: unknown;
+}
+
+// v8.46 (§147): an exercise that joined the plan at mesocycle week `fromWeek`
+// progresses as if that week were its week 1: its starting weight, reps and
+// sets are that week's targets, and each increment counts from there. Every
+// week-based leaf below goes through this, so Train, the Plan preview, Home's
+// Up next, compliance and BLOC Coach all agree. An exercise without fromWeek
+// is unchanged (the golden outputs don't move).
+export function exercisePlanWeek(ex: Exercise, week: number): number {
+  const from = Number(ex.fromWeek) || 1;
+  return from > 1 ? Math.max(1, week - from + 1) : week;
 }
 
 export interface TrackUnit {
@@ -110,6 +127,9 @@ export function getMacroSessionDayKeys(macro: Macrocycle): string[] {
 // week's interpolation would silently reflow.
 export function getWeekSets(ex: Exercise, week: number, totalWeeks: number): number {
   if (week > totalWeeks) return ex.setsEnd;
+  // v8.46 (§147): a late joiner runs its own starting-to-peak curve over the weeks it has.
+  const from = Number(ex.fromWeek) || 1;
+  if (from > 1) { totalWeeks = Math.max(1, totalWeeks - from + 1); week = exercisePlanWeek(ex, week); }
   // Linearly scale from setsStart to setsEnd
   const t = totalWeeks > 1 ? (week - 1) / (totalWeeks - 1) : 0;
   return Math.round(ex.setsStart + t * (ex.setsEnd - ex.setsStart));
@@ -126,6 +146,7 @@ export function getWeekSets(ex: Exercise, week: number, totalWeeks: number): num
 //    that expression changes, update the control in verify-engine-golden.mjs.
 export function getWeekWeight(ex: Exercise, week: number, progType: string, goalType: string, weightIncrement?: string | number): number {
   if (progType !== 'weight') return ex.startWeight;
+  week = exercisePlanWeek(ex, week); // v8.46 (§147)
   // v8.20 — a maintenance cycle has no progression, so its look-ahead must not
   // climb either. Before this, every week with no log to build on (Train
   // looking ahead, the Plan preview, Home's Up next) showed startWeight +
@@ -152,6 +173,7 @@ export function getWeekWeight(ex: Exercise, week: number, progType: string, goal
 export function getWeekReps(ex: Exercise, week: number, progType: string, goalType: string): string | number {
   if (progType !== 'reps') return ex.reps;
   if (goalType === 'maintenance') return ex.reps; // v8.20 — no progression, see getWeekWeight
+  week = exercisePlanWeek(ex, week); // v8.46 (§147)
   const match = ex.reps.match(/(\d+)/);
   if (!match) return ex.reps;
   const base = parseInt(match[1]);
@@ -227,6 +249,7 @@ export function getGiantSetProgression(ex: Exercise, week: number, goalType: str
   // none on a maintenance cycle (v8.20, see getWeekWeight).
   const add = goalType === 'maintenance' ? 0 : 10;
   const base = parseInt(ex.reps.match(/\d+/)?.[0] as string) || 20;
+  week = exercisePlanWeek(ex, week); // v8.46 (§147)
   return String(base + add * (week - 1));
 }
 

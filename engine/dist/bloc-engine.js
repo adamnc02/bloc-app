@@ -70,6 +70,7 @@ var BlocEngine = (() => {
     condenseBlocAdviceEntry: () => condenseBlocAdviceEntry,
     condenseBlocAdvicePlans: () => condenseBlocAdvicePlans,
     dayDiff: () => dayDiff,
+    exercisePlanWeek: () => exercisePlanWeek,
     extractJsonObject: () => extractJsonObject,
     findMacroClash: () => findMacroClash,
     findPeakWindow: () => findPeakWindow,
@@ -280,6 +281,10 @@ var BlocEngine = (() => {
   }
 
   // src/progression.ts
+  function exercisePlanWeek(ex, week) {
+    const from = Number(ex.fromWeek) || 1;
+    return from > 1 ? Math.max(1, week - from + 1) : week;
+  }
   function getMacroExtensionInfo(macro) {
     const extWeeks = macro.extensionWeeks || 0;
     const wpm = macro.weeksPerMeso || 1;
@@ -311,11 +316,17 @@ var BlocEngine = (() => {
   }
   function getWeekSets(ex, week, totalWeeks) {
     if (week > totalWeeks) return ex.setsEnd;
+    const from = Number(ex.fromWeek) || 1;
+    if (from > 1) {
+      totalWeeks = Math.max(1, totalWeeks - from + 1);
+      week = exercisePlanWeek(ex, week);
+    }
     const t = totalWeeks > 1 ? (week - 1) / (totalWeeks - 1) : 0;
     return Math.round(ex.setsStart + t * (ex.setsEnd - ex.setsStart));
   }
   function getWeekWeight(ex, week, progType, goalType, weightIncrement) {
     if (progType !== "weight") return ex.startWeight;
+    week = exercisePlanWeek(ex, week);
     if (goalType === "maintenance") return ex.startWeight;
     const isGain = goalType === "gain";
     const userInc = parseFloat(weightIncrement || "2.5");
@@ -325,6 +336,7 @@ var BlocEngine = (() => {
   function getWeekReps(ex, week, progType, goalType) {
     if (progType !== "reps") return ex.reps;
     if (goalType === "maintenance") return ex.reps;
+    week = exercisePlanWeek(ex, week);
     const match = ex.reps.match(/(\d+)/);
     if (!match) return ex.reps;
     const base = parseInt(match[1]);
@@ -363,6 +375,7 @@ var BlocEngine = (() => {
     }
     const add = goalType === "maintenance" ? 0 : 10;
     const base = parseInt(ex.reps.match(/\d+/)?.[0]) || 20;
+    week = exercisePlanWeek(ex, week);
     return String(base + add * (week - 1));
   }
   function getProgressionLockKey(macroId, dayKey, exId) {

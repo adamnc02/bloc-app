@@ -55,6 +55,7 @@ function build(source) {
   const bodies = FNS.map(n => extract(source, n));
   if (bodies.some(b => !b)) return null;
   return new Function('env', `
+    const accountSwitchBlocks = () => false; // v8.46 (§145): no other account's data here
     const localStorage = env.localStorage;
     let supabase = env.supabase, _authResolvedSession = env.session, state = env.state, _tourAnchorDate = env.anchor;
     const coachingAvailable = () => env.available;

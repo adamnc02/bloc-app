@@ -61,6 +61,7 @@ function build(src, withNew) {
       extractFrom(src, 'async function restoreNewestRealSnapshot('));
   }
   return new Function(`
+    const accountSwitchBlocks = () => false; // v8.46 (§145): no other account's data here
     let state = null, snapshots = {}, ls = {};
     const log = { restored: [], uploaded: [], pushed: 0, modal: [] };
     const localStorage = { getItem: k => (k in ls ? ls[k] : null), setItem: (k, v) => { ls[k] = String(v); }, removeItem: k => { delete ls[k]; } };

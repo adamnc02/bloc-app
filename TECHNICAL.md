@@ -9764,3 +9764,178 @@ held again with no new receipt, Keep my cycle, End my cycle early (plan and phas
 shape and end, its goals, logs untouched, no overlap left), a coach's cycle held as before, and the wiring.
 Control: v8.44 (`d909ae0`) never applies the plan. `planReplaceOffer` has cases in `engine-cases.mjs`, so
 `verify-engine-pure.mjs` covers it.
+
+## §145 — v8.46: a different account signing in doesn't take over the device's data
+
+**The bug.** BLOC keeps local data on sign-out (so a person signing back in finds everything as they left it), and
+nothing recorded whose it was. The next account to sign in on the device adopted it: `maybeForceFullSyncOnSignIn()`
+pushed it into that account's mirror, a coached account uploaded it as `client_state` (§130), and its coach's
+publications were applied into it and receipted from it (§131). A test account received a real account's data this
+way; its coach's receipts still name that account's cycles (Coach reads the upload's own ledger first for this reason,
+§144).
+
+**The fix.** The device records the account its local data belongs to: `bloc_state_owner` = `{uid, at}`
+(`bloc_state_owner_authreal` on a local `?auth=real` build, beside its own state key, §119). In `onAuthResolved()`,
+before anything else runs for a session (`localOwnerVerdict()`):
+
+| Owner recorded | Data on the device | What happens |
+|---|---|---|
+| none | any | this account claims it (every install before v8.46, and a fresh one), then boots as before |
+| this account | any | boots as before |
+| another account | anything, even only a profile | **it switches, with no screen**: nothing runs for the session (no full sync, snapshot, coach link check, so no `client_state` upload and no publication pull, no boot); `performAccountSwitch()` removes the account's own local keys (`ACCOUNT_LOCAL_KEYS`: the state, the snapshot and restore flags, the `client_state` meta, the coach link), records the new owner and reloads. The device is then empty for the signed-in account, and the new-device restore (§133) brings back its own newest backup, or it starts fresh. The device's own keys stay: its id, push registration, the AI key, theme |
+
+🚨 **Another owner always switches, whatever is on the device.** A device with no cycles or logs still holds that
+account's profile (its name, height, birthday), its restore flags and its coach link. The first v8.46 claimed such a
+device for the next account, and the test client took a new account's name that way in UAT.
+
+🚨 **Automatic, and another account is never shown.** Signing in means "load this account's data"; the device's
+leftover data is ignored. The owner record holds a uid only.
+
+🚨 **Signing out backs the account up first** (`signOutUser()` calls `uploadSnapshot()` before `auth.signOut()`, while
+the session can still write its own backup), so a later sign-in by someone else on the device loses nothing of it.
+Best effort: an empty device, the Demo Tour or no connection skip it, and the daily backup (§57) still stands.
+
+🚨 **Installs are signed in when they update**, so the first v8.46 boot records the account already using the device.
+Only a device that was signed out before updating, holding someone's data, is claimed by whoever signs in next,
+exactly as before.
+
+**Every writer refuses from the moment another account's data is found until the reload** (`accountSwitchBlocks()`):
+`flushSyncQueue`, `forceFullRelationalSync`, `uploadSnapshot`, `maybeUploadOpportunisticSnapshot`,
+`pullPublicationsOnce`, `sendPendingAcks`, `uploadClientStateOnce`, `maybeRefreshCoachLink`. A sign-out and sign-in on
+the same page (boot already done, the old account's data still in memory) takes the same route.
+
+**Check:** `scripts/verify-account-switch.mjs` drives A → B → A through the real functions: a device from before v8.46
+claimed; B over A's data runs nothing and switches at once, with no screen; the account's keys cleared and the
+device's kept, B recorded, reload; B then boots; A over B's data the same; the owner record holds no email; a device
+holding only another account's profile switches too (control: `2fb95b2` claimed it); every writer guarded; sign-out
+backs up before signing out. Control: v8.45 (`85ddc8b`) runs B's full
+sync over A's data.
+
+## §146 — v8.46: the splash's words on an iPhone; the account in About me; My data
+
+**The splash's words scale about a fixed centre.** Each pillar word (TRAIN, FUEL, OVERCOME, REPEAT) flies from a
+start pose (`sFly*`: a translate plus `scale(0.97)`) to its place in the line. The scale's centre came from
+`transform-box: fill-box; transform-origin: center`, and 🚨 **WebKit takes a different centre for SVG text than
+Chrome**, so on an iPhone every word's start pose sat about 11 drawing units left (and ~2 up) of where Chrome puts
+it: REPEAT started on top of its spinning icon. Their text boxes, transforms and final positions were identical in
+both engines; only the transform centre differed. Now `#splash .s-word` is `transform-box: view-box` and each word
+has its own `transform-origin` in drawing units (its `x`, and `143px`, the text's middle), so no engine has to work
+out a text box. Measured at 390 px wide, 3.6 s in: REPEAT's centre is at 247.4 px in both Chromium and WebKit (WebKit
+was 239.9). The icon's spin (`sSpin`, on a `<g>`, `fill-box`) already matched in both and is unchanged. BLOC Coach's
+splash carries the same fix (§139: a change to one is made to both).
+
+**The account is in About me.** The signed-in email and provider, **Change password** (email accounts), and then
+**Sign out** as the sheet's last control: a full-width danger button, as in BLOC Coach. It shows during the profile
+gate too (About me is the gate), so a new account can always sign out; before, a new account had to complete its
+profile to reach Sign out. `signOutUser()` closes About me as well as the old sheet. The ids `updateAccountUI()`
+fills (`account-email-display`, `account-provider-display`, `account-change-password-btn`) moved with the markup.
+
+**Account & Data is "My data"**: Backup (Export, Restore) and Data (Download my data, Delete my data, Clear all data,
+Close my account). Its id stays `modal-account`, referenced from the export and restore choice sheets.
+
+**The plan banner's View only when Train can show it.** "{coach} updated your plan" (§137) offered **View** (to Train)
+for a cycle that hadn't started yet, where Train shows nothing of it. The notice now records its cycle (`macroId`), and
+`HOME_NOTICE_ACTIONS.plan` offers View only once that cycle has started at the client's today
+(`coachPlanNoticeViewable()`). It's decided each time Home draws, so View appears on the day the cycle starts. A notice
+raised by an earlier build names no cycle: View then only when the cycle running today is the coach's, which is what
+Train opens on (found in UAT: an update applied by a tab still on the old build kept its View).
+
+**Check:** `scripts/verify-splash-and-about-me.mjs`: the View rule (a future cycle, a started one, a notice naming none,
+a removed cycle; control: a View that ignores the date), the words on `view-box` with their own origins, the account in
+About me with Sign out last, My data's title and no sign-out in it, the Settings row, and Sign out closing About me.
+Controls: a word left on `fill-box`, and a Sign out row left in My data.
+
+## §147 — v8.46: an exercise that joins part-way through a cycle starts its progression there
+
+**The bug.** An exercise with no logs of its own gets the plan's theoretical targets: `getWeekWeight` is starting weight
++ one increment per mesocycle **since week 1**, and `getWeekSets` interpolates from starting to peak sets over the whole
+cycle. That's right for an exercise that was there from the start. For one that joins later (a coach swaps an exercise,
+or adds one, at mesocycle 5), its first target was 40 kg + 4 × 2.5 = 50 kg, and its sets were already part-way to peak.
+
+**The rule.** The exercise carries **`fromWeek`**, the mesocycle week it joined (BLOC's "week" in every key is a
+mesocycle number, §3). `exercisePlanWeek(ex, week)` (engine, `progression.ts`) makes that week its week 1, and every
+week-based leaf goes through it: `getWeekWeight`, `getWeekReps`, `getGiantSetProgression`, and `getWeekSets`, which runs
+the exercise's own starting-to-peak curve over the weeks it has (peak at the cycle's last original mesocycle). So its
+starting weight, reps and sets are its first targets and each increment counts from there. Once it's logged, it
+progresses from what was lifted, like any exercise. Train, the Plan preview, Home's Up next, compliance and BLOC Coach all
+read these leaves, so they agree. An exercise without `fromWeek` (or 1) is unchanged; the golden outputs don't move.
+
+Nothing else about a swap changes in BLOC: the new exercise is a new id, so the old one keeps its logs in history under
+its own id, and targets for weeks with nothing logged recompute (§131's §0 rule).
+
+**Check:** `scripts/verify-exercise-from-week.mjs`: the leaves (first week = starting weight, +1 increment a
+mesocycle after, starting-to-peak sets, reps and giant-set reps from there, unchanged without `fromWeek`), then Train's own
+`getWeekTargets` on the demo with a late exercise: 40 kg × 3 sets in its first week. Control: the same exercise without
+`fromWeek` gets 50 kg × 4.
+
+## §148 — v8.46: the Progress hero's figure is what the cycle is for
+
+The Progress hero's main figure was the latest body weight, which says nothing about the cycle. It's now
+`progressHeroCallout(goalType, startBw, latestBw, targetBw)`, with its label:
+
+| Cycle | Label | Figure |
+|---|---|---|
+| a cut (`loss`) | Lost this cycle | first weigh-in in the cycle − latest |
+| a gain cycle (`gain`, or the old `strength`) | Gained this cycle | latest − first weigh-in |
+| maintenance, with a target | Maintenance weight | the target |
+| maintenance, no target | Body weight | the latest weigh-in |
+
+Moving the wrong way is said plainly: a cut that has gained reads "Gained this cycle", with the amount. No weigh-ins in
+the cycle: "—". The status line under it (ahead or behind, stable or drifting, the finish) and the chart are unchanged.
+The Progress tour's first step describes the new figure.
+
+**Check:** `scripts/verify-progress-hero-callout.mjs`: every row above, both wrong-way cases and no weigh-ins, and that the
+hero shows the label and figure. Control: the latest weigh-in, as before.
+
+## §149 — v8.46: New cycle, in BLOC Coach's layout
+
+BLOC's New Macrocycle sheet (`modal-macro`) now has BLOC Coach's New cycle layout, titled **New cycle**: Name; Starts (a
+Monday, with the day or "Cycles start on a Monday." under it) beside Mesocycles (a − / + stepper); Weeks per mesocycle as
+1 week / 2 weeks, with a line giving the length and dates ("8 weeks, Mon 14 Sept – Sun 8 Nov."); Goal as Lose / Gain /
+Maintain; Goal weight beside Increment (the increment hides for maintenance, as before); Goal line; Training split as
+Push/Pull/Legs / Full body / Custom (with the session names for the last two); Microcycles as Use microcycles / None, with
+a line saying what that means; **Create cycle**. The AI's suggested length row, the pace warning and the Monday and clash
+errors (with "Start … instead") are unchanged. Effort ratings (RPE) stay in Plan ▸ Tools, where they're a setting of a
+running cycle (§104), not in this sheet.
+
+🚨 **Every id the code reads is kept** (`createMacrocycle`, `validateMacroPace`, the sheet's reset in `openModal`, and
+`fillNextCycleMacroModal`'s "Build this plan next" pre-fill). Weeks per mesocycle and Goal are **hidden inputs** behind
+segmented buttons (`setMacroFormValue`), so they're read exactly as the old selects were; Mesocycles is the same input
+inside the stepper (`stepMacroMesos`); the split and microcycle choices are segments carrying the old `split-opt-*` and
+`micro-opt-*` ids, marked by `selectMacroOpt()` as before. `syncMacroForm()` redraws the segments and lines from the
+values after any change, from a tap or from code (the reset and the pre-fill set values directly). The Macrocycle
+Creation Tour's first step spotlights the Goal segments (`macro-goal-seg`): a hidden input has nothing to spotlight. The
+old card styles (`.macro-opt`) are gone.
+
+**Check:** `scripts/verify-new-cycle-sheet.mjs`: every id those functions read is in the sheet (26), the two hidden
+inputs and their segments, no tour step on a hidden input, no RPE control, and the redraw after the reset and the
+pre-fill. Control: the sheet with a field removed. Driven in Chromium at 375 pt: the segments, the stepper, the length
+line, Create (9 × 2-week mesocycles, gain, PPL, microcycles saved) and the pre-fill (Gain, 12 weeks).
+
+## §150 — v8.46: Add exercise, in BLOC Coach's shape
+
+BLOC's Add / Edit exercise sheet (`modal-exercise`) now works as BLOC Coach's does:
+- **The exercise is chosen in a search sheet**, `modal-ex-pick` ("Choose an exercise", or "Choose cardio"), instead of a
+  long select. It lists the library (`getLibrary()`, the category's entries) grouped by body part, filtered as you type.
+  It's §9's `.kb-pinned-sheet` exactly: `openExPick()` clears and fits the list after the slide-in, and `measureAll()`
+  re-fits `ex-pick-list-wrap` (`verify-kb-pinned-sheets.mjs` checks all four parts).
+- **A name the library doesn't have** shows "Add “…”", which opens Custom Exercise with that name. That's the one place
+  a body part is asked (cardio has none). Saving it adds it to the library and chooses it.
+- **Adding starts on the search** (`openAddExercise`, `openAddExerciseToSuperset`). Closing the search with nothing
+  chosen closes the sheet too, and saving with no exercise opens the search. The Macrocycle Creation Tour opens the sheet
+  without it (`{ pick: false }`), because its steps spotlight the sheet itself.
+- **Category shows when adding only.** Switching category while adding reopens the search for that category.
+- **Coach's labels:** Starting kg, Starting sets, Peak sets, and **Heavy leg** ("No, light" / "Yes, heavy") beside
+  **Weight is** ("Total" / "Per side"), with the increments spelled out once under them ("Light exercises go up 2.5 kg a
+  mesocycle, heavy leg 5 kg. Per side counts double in volume.", `updateLegSelectLabels`, from the cycle's own figures).
+
+🚨 **The exercise's name is still `ex-name-input`**, now a hidden input that `populateExerciseSelect()` sets and the
+button shows, so `saveExercise`, `openEditExercise`, the last-logged note and the history defaults read it exactly as
+they read the select. The select's "Custom…" entry and `onExNameChange` are gone.
+
+**Check:** `scripts/verify-exercise-sheet.mjs`: every id the sheet's code reads is in it (33), the hidden name behind
+the button, adding on the search (and the tour without), Category on adding only, no body part in the search and a new
+name through Custom Exercise, saving with no exercise, and the Heavy leg / Weight is pair with its line. Control: the
+sheet with a field removed. Driven in Chromium at 375 pt: the search pinned while filtering (top 30 px, height
+unchanged), choosing and saving (Machine Row at 42.5 kg), Add "Sled Push" through Custom Exercise (Legs, then chosen),
+closing an empty search, and Edit (no Category, no search).
