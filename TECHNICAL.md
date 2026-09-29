@@ -9910,6 +9910,20 @@ Used by the exercise picker (Add exercise, Swap), the template pickers and the L
 behaviour shows only in an installed Coach; a browser tab shows the sheet staying pinned while filtering (checked
 in Chromium at 375 × 812: top 30 px and height 782 px before and after typing).
 
+### A check-in's goal change
+
+**Read full check-in** shows the goal change as Sustainable / Aggressive / No change, each with the goal periods it
+would set. The chosen one (✓) shows the coach's numbers, which is what Publish sends; the choice and the numbers are
+changed in ✎ Edit. The original reply, both plans as they came back, stays under "Original from BLOC".
+
+🚨 **A check-in's goal phases stop at the cycle's end** (`clipToCycle`, `coach/src/ai/tools.ts`): a phase running
+past it ends on it, and one starting after it is dropped. BLOC's check-in prompt lets a plan run past the end, and
+BLOC Solo only warns; from a coach, a goal past the end would sit over the next cycle's own goal phases (set in Plan),
+and a cycle ended early for a coach's cycle (§143) is the case where that next cycle exists. The plan in Edit and Read
+full is cut at the end the reply was given (`_cycleEnd`); `goalChanges` cuts again at the cycle's end as it is at
+publish. Both sheets say when the reply ran past it. `ai.test.ts` checks both, with controls (a longer cycle is sent
+whole; a reply without `_cycleEnd` isn't cut before publish).
+
 ### Coach's icons
 
 The brand kit's (`bloc-coach-brand/icon/`): `apple-touch-icon.png` (180 px, the Home Screen icon), `favicon.ico` and
