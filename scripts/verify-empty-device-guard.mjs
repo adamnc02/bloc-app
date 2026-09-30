@@ -80,6 +80,9 @@ function build(src, withNew) {
     // v8.30: push/upload also refuse while the Demo Tour runs (§120). Not this
     // script's subject — verify-demo-tour-no-sync.mjs tests it — so: no tour.
     const demoTourIsRunning = () => false;
+    // uploadSnapshot also refuses for a BLOC Coach demo account. Not this
+    // script's subject either (verify-demo-no-backup.mjs): a normal account.
+    const isDemoAccount = () => false;
     ${fns.join('\n')}
     return {
       set: (s, snaps = {}, flags = {}) => { state = s; snapshots = snaps; ls = { ...flags }; log.restored = []; log.uploaded = []; log.pushed = 0; log.modal = []; },
