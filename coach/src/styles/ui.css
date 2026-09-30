@@ -312,3 +312,5 @@ input[type="date"].input::-webkit-date-and-time-value, input[type="time"].input:
 @media (min-width: 1024px) {
   .today-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "sessions needs" "off needs" "coming needs"; grid-template-rows: auto auto 1fr; align-items: start }
 }
+/* Tiles in a grid: no stacked-card margin, or every tile after the first sits lower (§140). */
+.tiles-3.no-stack > .card, .tiles-2.no-stack > .card { margin-top: 0 }

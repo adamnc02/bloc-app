@@ -13,6 +13,8 @@ import type { DriverKey } from '@/review/outcome';
 import { goalLabel, type ClientView } from '@/coach/screens/ClientScreen';
 import { clientPath } from '@/app/router';
 import { AiPanel, useAiData } from '@/coach/client/AiPanel';
+import { InPersonReview } from '@/coach/client/InPersonReview';
+import { StrengthSection } from '@/coach/client/StrengthSection';
 import { openRequest } from '@/ai/tools';
 import type { AiTool } from '@/ai/types';
 
@@ -34,11 +36,12 @@ export function ReviewTab({ v }: { v: ClientView }) {
     [snap, cycle, c.clientToday, bundle.card.id, first],
   );
 
+  // A client not on the app: their record is what you publish and take in person (TECHNICAL §155).
+  if (c.status === 'not-on-app') return <InPersonReview v={v} />;
   if (c.status !== 'linked' || !snap || !c.clientToday || !cycle || !model) {
     let text: ReactNode;
     if (c.status === 'invited') text = `Invite sent. ${first}’s review starts once they link and their BLOC syncs.`;
     else if (c.status === 'unlinked') text = `${first} is no longer linked, so their data isn’t shared with you.`;
-    else if (c.status === 'not-on-app') text = `${first} isn’t on BLOC, so there’s no app data to review.`;
     else if (c.problem) text = 'Their latest sync couldn’t be read.';
     else if (!snap) text = `Linked. Waiting for ${first}’s first sync: their BLOC uploads whenever it’s opened.`;
     else text = `${first} has no cycle yet.`;
@@ -117,6 +120,8 @@ function Review({ v, m, tz }: { v: ClientView; m: ReviewModel; tz: string }) {
           </Section>
         )}
       </div>
+
+      <StrengthSection t={m.training} i={5} first={v.first} />
 
       {/* Laptop: Findings and AI tools side by side, each in its own column (.grid-2, 1024px and wider). */}
       <div className="grid-2">
