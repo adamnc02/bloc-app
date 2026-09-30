@@ -28,7 +28,7 @@
 .dg.is-narrow { --gw: 40px }
 .dg-head, .dg-body { display: grid; grid-template-columns: var(--gw) repeat(var(--cols), minmax(0, 1fr)) }
 .dg-head {
-  position: sticky; top: env(safe-area-inset-top); z-index: 6; background: var(--bg);
+  position: sticky; top: var(--safe-top, env(safe-area-inset-top)); z-index: 6; background: var(--bg);
   border-bottom: 1px solid var(--border); padding: 6px 0 8px;
 }
 .dg-corner { position: sticky; left: 0; background: var(--bg) }

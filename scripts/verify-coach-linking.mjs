@@ -84,6 +84,7 @@ function build(source) {
     const afterCoachLinkEnded = () => log.push(['ended']); // v8.40 (§132): verify-coached-hides.mjs covers it
     const redrawProgressUnderCoaching = () => log.push(['redraw']); // v8.41 (§135)
     const COACH_ICO_CALENDAR = '<svg></svg>'; // v8.42 (§136): Settings → Coaching → Sessions rows
+    const COACH_ICO_CLOCK = '<svg></svg>';    // v8.50 (§160): Settings → Coaching → Your requests
     const showConfirm = (t, m, ok, cb) => { log.push(['confirm', t]); env.confirmCb = cb; };
     const setTimeout = (fn) => fn();
     ${consts.join('\n')}

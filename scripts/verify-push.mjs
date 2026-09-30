@@ -244,6 +244,7 @@ function page(noteBody) {
       const pullPublicationsOnce = async () => { log.push('pull'); state.coachNotices.push(...${JSON.stringify(afterPull)}); return 'applied'; };
       const refreshSessionRequests = async () => { log.push('refresh'); _coachRequests = env.requests; return _coachRequests; };
       const openCoachRequest = () => log.push('openCoachRequest');
+      const openCoachRequests = () => log.push('openCoachRequests');
       const showScreen = s => log.push('showScreen:' + s);
       const openCoachSessions = () => log.push('openCoachSessions');
       const viewCoachResponse = id => log.push('viewCoachResponse:' + id);
@@ -268,7 +269,7 @@ function page(noteBody) {
   check('coach:pub that raised no banner: pulls, then stays on Home', c.log, ['pull']);
   const d = mk({ requests: [{ id: 'rq_1', status: 'proposed' }] });
   await d.fns.openCoachIntent('coach:request:rq_1');
-  check('coach:request: refreshes the requests, then opens them', d.log, ['refresh', 'openCoachRequest']);
+  check('coach:request: refreshes the requests, then opens Your requests (v8.50, §160), never the form', d.log, ['refresh', 'openCoachRequests']);
   const e = mk({ coached: false, afterPull: [resp] });
   await e.fns.openCoachIntent('coach:pub:p1');
   check('not coached any more: nothing but Home', e.log, []);

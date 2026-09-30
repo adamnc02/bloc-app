@@ -10912,3 +10912,57 @@ clients has no server, so the section says so and everything in it is disabled.
 
 **Can only be tested on the live https site:** turning on, a real push, a tap. In local dev the bypass has no
 server. The test coach (Hotmail) is Coach on the iPhone's Home Screen; Casey is BLOC in a desktop browser.
+
+## §159 — Coach v0.9.4: safe areas as BLOC's, on an installed iPhone app
+
+**What it was.** Added to an iPhone's Home Screen, Coach's page started ~28pt lower than BLOC's, its bottom bar sat 20px
+higher, and scrolled content ran under the clock with no fade.
+
+**Why, and the fix, piece by piece (BLOC's way, §5):**
+- 🚨 **`<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">`** (`coach/index.html`).
+  Without it, iOS gives a Home Screen app an opaque status bar and starts the page **below** it, and Coach's header
+  rule ("inset + …") is added on top: the gap. With it the page draws under the bar, as BLOC's does.
+- **The insets are measured**, not trusted: an inline script in `coach/index.html` runs BLOC's `measureEnv()` probe (an
+  element with `height: env(safe-area-inset-*)` set directly) and sets `--safe-top` / `--safe-bottom` in pixels,
+  re-measured at 100 ms–2 s and on resize, rotation and `visualViewport` resize. WebKit can hand a stale or wrong
+  `env()` through a custom property on an installed app. CSS uses `var(--safe-top, env(…))`.
+- **Header:** `.top` is `max(--header-top, safe-top + 24px)`: BLOC's `#content` (inset) + `.screen` (16) + `.page-head`
+  (8).
+- **Nav:** `.bottom-nav` is `bottom: max(8px, safe-bottom − 6px)`, BLOC's `#nav`. The 8px floor keeps a margin on
+  a screen with no inset (a laptop window).
+- **Edge fades:** `.edge-fade-top` / `.edge-fade-bottom`, fixed strips the height of the **top** inset (both, as BLOC's),
+  `--bg` to `--bg` at 0% (never `transparent`, which darkens mid-gradient), z 45: under the nav (50), sheets (100)
+  and toasts (200), and they never take a tap. On a laptop they're 0 high.
+
+**Checked:** Chromium with the safe-area insets emulated (`Emulation.setSafeAreaInsetsOverride`, 59/34) at 390×844, BLOC
+and Coach side by side. The date line is 83 / 83 from the top, the nav gap 28 / 28 from the bottom, and the fades
+59,59 / 59,59. Before: the date line was 8px higher and the bottom fade 34.
+
+## §160 — v8.50: Your requests, its own sheet
+
+**What it is.** A client's session requests were inside **Request a session**, above its form, so reviewing a
+proposed time meant opening the form. Now:
+- **Request a session** (`modal-coach-request`, `renderCoachRequest()`) is **the form only**. Sending closes it and
+  opens Your requests with the new request waiting.
+- **Your requests** (`modal-coach-requests`, `openCoachRequests()`, `renderCoachRequests()`) lists
+  `coachOpenRequests()`: `proposed` (the "Needs your answer" card: Confirm, Suggest another time with its counter form),
+  `pending` and `countered` ("Waiting for {coach}", tap to withdraw), and `declined` from the last 14 days. **Never
+  `accepted`**: a confirmed request is a booking, shown in Your sessions. **Never `withdrawn`.** Empty: a line saying
+  where requests go and where booked ones are. A **Request a session** button at the foot.
+- **The way in:** Your sessions' hero, a second full-width button under Request a session, `btn-ghost` (hollow,
+  lavender border) with the clock icon, "Your requests (n)" when any are open. Also Settings → Coaching → Your
+  requests. The Home **"… proposed a different time"** banner's **Review** and a tapped push `coach:request:<id>`
+  (`openCoachIntent()`, §157) open it.
+- Errors in answering, withdrawing or countering show in the sheet (`_coachReqsError`). `refreshSessionRequests()`
+  redraws it if open, and Your sessions too (its count); an applied publication redraws it (a booking moves a request
+  out).
+
+**Checks:** `verify-coached-sessions.mjs`:
+- what's listed (proposed, pending, countered, declined this fortnight; never accepted, withdrawn or an old decline);
+- the sheet has the proposal, "Waiting for", Request a session, and no form;
+- the form has no proposal or list; the empty state;
+- Send request closes the form and opens Your requests;
+- the hero's hollow clock button;
+- the push route; the Home banner's Review.
+
+`verify-push.mjs`: `coach:request` opens Your requests, never the form.

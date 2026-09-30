@@ -4778,6 +4778,16 @@ try {
     <div id="coach-request-body" style="overflow-y:auto;flex:1;"></div>
   </div>
 </div>
+<!-- v8.50 (§160): the client's requests that aren't confirmed, apart from the form. -->
+<div class="modal-overlay" id="modal-coach-requests" data-pub-safe>
+  <div class="modal-sheet" data-modal="modal-coach-requests" style="max-height:92dvh;display:flex;flex-direction:column;">
+    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-coach-requests')">✕</button>
+    </div>
+    <div class="modal-title" style="flex-shrink:0;">Your requests</div>
+    <div id="coach-requests-body" style="overflow-y:auto;flex:1;"></div>
+  </div>
+</div>
 <div class="modal-overlay" id="modal-coach-review-photos">
   <div class="modal-sheet" data-modal="modal-coach-review-photos" style="max-height:92dvh;display:flex;flex-direction:column;">
     <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div>
@@ -8558,7 +8568,7 @@ async function openCoachIntent(target) {
     if ((state.coachNotices || []).some(n => n.id === id)) runHomeNoticeAction(id);
   } else if (kind === 'request') {
     await within(refreshSessionRequests());
-    if ((_coachRequests || []).some(r => r.id === id)) openCoachRequest();
+    if ((_coachRequests || []).some(r => r.id === id)) openCoachRequests(); // v8.50 (§160): the proposal is in Your requests
   }
 }
 let _openIntentBusy = false;
@@ -9784,6 +9794,10 @@ function renderSettingsCoaching() {
         <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></div>
         <div class="settings-row-text">Request a session<div class="settings-row-sub">Pick the times; ${coachEsc(l.coachName)} confirms one.</div></div>
       </div>
+      <div class="settings-row settings-row-nav" onclick="closeModal('modal-settings-coaching');openCoachRequests()">
+        <div class="settings-row-icon">${COACH_ICO_CLOCK}</div>
+        <div class="settings-row-text">Your requests<div class="settings-row-sub">Times ${coachEsc(l.coachName)} proposed, and requests waiting.</div></div>
+      </div>
     </div>
     <div class="coach-section-title">Unlink</div>
     <div class="modal-sub" style="margin:0 0 8px;">Stop coaching and go back to Solo.</div>
@@ -10611,6 +10625,8 @@ function drainPublications() {
     // v8.42 (§136): the one sheet a publication may land under redraws too.
     const req = document.getElementById('modal-coach-request');
     if (req && req.classList.contains('open') && typeof renderCoachRequest === 'function') renderCoachRequest();
+    const reqs = document.getElementById('modal-coach-requests'); // v8.50 (§160)
+    if (reqs && reqs.classList.contains('open') && typeof renderCoachRequests === 'function') renderCoachRequests();
     const ses = document.getElementById('modal-coach-sessions');
     if (ses && ses.classList.contains('open') && typeof renderCoachSessions === 'function') renderCoachSessions();
   }
@@ -15731,8 +15747,10 @@ async function refreshSessionRequests() {
     .eq('client_id', _authResolvedSession.user.id).order('created_at', { ascending: false }).limit(20);
   if (error) throw error;
   _coachRequests = data || [];
-  const sheet = document.getElementById('modal-coach-request');
-  if (sheet && sheet.classList.contains('open')) renderCoachRequest();
+  const sheet = document.getElementById('modal-coach-requests');
+  if (sheet && sheet.classList.contains('open')) renderCoachRequests();
+  const ses = document.getElementById('modal-coach-sessions');
+  if (ses && ses.classList.contains('open')) renderCoachSessions(); // its Your requests (n)
   const home = document.getElementById('screen-home');
   if (home && home.classList.contains('active')) { renderHomeCoachBanner(); renderHomeHero(); }
   return _coachRequests;
@@ -15748,10 +15766,8 @@ function coachSlotLine(p) {
 function openCoachRequest() {
   const t = coachTomorrow();
   _coachReqForm = { mode: 'times', times: [{ date: t, time: '18:00' }], window: { date: t, from: '17:00', to: '20:00' }, notes: '', repeat: false, busy: false, error: null };
-  _coachCounterFor = null;
   renderCoachRequest();
   openModal('modal-coach-request');
-  refreshSessionRequests().catch(err => { if (_coachReqForm) { _coachReqForm.error = 'Couldn’t load your requests: ' + ((err && err.message) || 'try again'); renderCoachRequest(); } });
 }
 // ── Request a session: the sheet, rebuilt to the wireframe (RequestScreen /
 // SessionPrefs) after Adam's UAT review. From the top:
@@ -15820,6 +15836,7 @@ function renderCoachSessions() {
         ${next.assigned_session ? `<div class="coach-hero-sub">${coachEsc(coachAssignedLabel(next))}</div>` : ''}`
         : `<div class="coach-hero-sub" style="margin-top:6px;">Nothing booked with ${first} yet.</div>`}
       <button class="btn btn-accent btn-block" style="margin-top:16px;" onclick="closeModal('modal-coach-sessions');openCoachRequest()">${icoPlus(16)} Request a session</button>
+      <button class="btn btn-ghost btn-block" style="margin-top:10px;" onclick="closeModal('modal-coach-sessions');openCoachRequests()">${COACH_ICO_CLOCK} Your requests${coachOpenRequests().length ? ` (${coachOpenRequests().length})` : ''}</button>
     </div>`;
   // One card for everything upcoming, weekly and one-off together, by next date
   // (Adam, UAT: separate Weekly and Upcoming cards were overkill; the repeat
@@ -16019,7 +16036,7 @@ function renderHomeCoachBanner() {
       <span class="coach-banner-ico">${COACH_ICO_CLOCK}</span>
       <div style="flex:1;min-width:0;"><b>${coachEsc(coachFirstName())} proposed a different time</b>
         <div>${coachEsc(coachSlotLine(r.proposed))} instead of your choices.${due.length > 1 ? ` ${due.length - 1} more waiting.` : ''}</div>
-        <button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="openCoachRequest()">Review</button></div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="openCoachRequests()">Review</button></div>
       <button class="coach-banner-x" aria-label="Dismiss" onclick="dismissHomeCoachBanner()">✕</button>
     </div>`;
 }
@@ -16065,7 +16082,7 @@ function coachCounterFormHTML(r) {
            <div class="coach-two"><div><div class="coach-field-label">Free from</div><input type="time" step="900" value="${c.from}" onchange="_coachCounterFor.from=this.value"></div>
            <div><div class="coach-field-label">Until</div><input type="time" step="900" value="${c.to}" onchange="_coachCounterFor.to=this.value"></div></div>`}
       <button class="btn btn-accent btn-block" style="margin-top:14px;" onclick="sendCoachCounter()">${COACH_ICO_SEND} Send new time</button>
-      <button class="btn btn-ghost btn-block" style="margin-top:10px;" onclick="_coachCounterFor=null;renderCoachRequest()">Cancel</button>
+      <button class="btn btn-ghost btn-block" style="margin-top:10px;" onclick="_coachCounterFor=null;renderCoachRequests()">Cancel</button>
     </div>`;
 }
 // One row per request: its LATEST state and a status, never its history
@@ -16142,18 +16159,39 @@ function renderCoachRequest() {
   const el = document.getElementById('coach-request-body');
   const f = _coachReqForm;
   if (!el || !f) return;
-  const first = coachEsc(coachFirstName());
+  // v8.50 (§160): the form only. Proposals and requests waiting are in Your requests.
+  el.innerHTML = coachReqFormHTML(f);
+}
+// v8.50 (§160): the requests that aren't confirmed. A confirmed request is a
+// booking, shown in Your sessions, so it isn't listed: a time your coach
+// proposed (to confirm or answer), one waiting on your coach (tap to withdraw),
+// and one declined in the last fortnight.
+function coachOpenRequests() {
   const since = new Date(Date.now() - COACH_REQ_RECENT_DAYS * 86400000).toISOString();
-  const shown = (_coachRequests || []).filter(r => COACH_REQ_OPEN.includes(r.status)
-    || (r.status === 'accepted' && !coachRequestBooked(r))
+  return (_coachRequests || []).filter(r => COACH_REQ_OPEN.includes(r.status)
     || (r.status === 'declined' && String(r.updated_at || r.created_at || '') >= since));
+}
+let _coachReqsError = null;
+function openCoachRequests() {
+  _coachCounterFor = null;
+  _coachReqsError = null;
+  renderCoachRequests();
+  openModal('modal-coach-requests');
+  refreshSessionRequests().catch(err => { _coachReqsError = 'Couldn’t load your requests: ' + ((err && err.message) || 'try again'); renderCoachRequests(); });
+}
+function renderCoachRequests() {
+  const el = document.getElementById('coach-requests-body');
+  if (!el) return;
+  const first = coachEsc(coachFirstName());
+  const shown = coachOpenRequests();
   const proposed = shown.filter(r => r.status === 'proposed' && r.proposed);
   const others = shown.filter(r => !(r.status === 'proposed' && r.proposed));
-  // v8.42 (Adam, UAT): no next-session card here; Your sessions, the sheet
-  // this opens from, already shows it.
-  el.innerHTML = proposed.map(coachProposedCardHTML).join('')
-    + (others.length ? `<div class="coach-section-title">Your requests</div><div class="card coach-reqlist">${others.map(coachWaitingCardHTML).join('')}</div>` : '')
-    + coachReqFormHTML(f);
+  const err = _coachReqsError ? `<div class="coach-err">${coachEsc(_coachReqsError)}</div>` : '';
+  if (_coachRequests === null) { el.innerHTML = err || '<div class="coach-caption">Loading…</div>'; return; }
+  el.innerHTML = err + proposed.map(coachProposedCardHTML).join('')
+    + (others.length ? `<div class="coach-section-title">Waiting for ${first}</div><div class="card coach-reqlist">${others.map(coachWaitingCardHTML).join('')}</div>` : '')
+    + (!shown.length ? `<div class="coach-caption" style="text-align:left;">No requests waiting. Requests you send appear here until ${first} books them; then they’re in Your sessions.</div>` : '')
+    + `<button class="btn btn-accent btn-block" style="margin-top:20px;" onclick="closeModal('modal-coach-requests');openCoachRequest()">${icoPlus(16)} Request a session</button>`;
 }
 function coachReqKeepNotes() { const n = document.getElementById('coach-req-notes'); if (n && _coachReqForm) _coachReqForm.notes = n.value; }
 function setCoachReqMode(m) { coachReqKeepNotes(); _coachReqForm.mode = m; renderCoachRequest(); }
@@ -16195,8 +16233,8 @@ async function sendCoachRequest() {
     if (error) throw error;
     const t = coachTomorrow();
     _coachReqForm = { mode: 'times', times: [{ date: t, time: '18:00' }], window: { date: t, from: '17:00', to: '20:00' }, notes: '', repeat: false, busy: false, error: null };
-    await refreshSessionRequests();
-    renderCoachRequest();
+    closeModal('modal-coach-request');
+    openCoachRequests(); // v8.50 (§160): the new request, waiting for the coach
   } catch (err) {
     f.busy = false; f.error = 'Couldn’t send it: ' + ((err && err.message) || 'check your connection and try again.'); renderCoachRequest();
   }
@@ -16204,37 +16242,36 @@ async function sendCoachRequest() {
 // Withdraw a pending request (it clears the coach's placeholder, §11), or
 // accept the time the coach suggested.
 async function answerCoachRequest(id, what) {
-  const f = _coachReqForm;
   const status = what === 'accept' ? 'accepted' : 'withdrawn';
   try {
     const { error } = await supabase.from('session_requests').update({ status }).eq('id', id);
     if (error) throw error;
     await refreshSessionRequests();
   } catch (err) {
-    if (f) { f.error = 'Couldn’t update it: ' + ((err && err.message) || 'try again.'); renderCoachRequest(); }
+    _coachReqsError = 'Couldn’t update it: ' + ((err && err.message) || 'try again.'); renderCoachRequests();
   }
 }
 function startCoachCounter(id) {
-  coachReqKeepNotes();
+  _coachReqsError = null;
   const r = (_coachRequests || []).find(x => x.id === id);
   const p = (r && r.proposed) || {};
   _coachCounterFor = { id, mode: 'times', date: p.date || coachTomorrow(), time: coachMinToHHMM(p.start_min ?? 1080), from: '17:00', to: '20:00' };
-  renderCoachRequest();
+  renderCoachRequests();
 }
-function setCoachCounterMode(m) { _coachCounterFor.mode = m; renderCoachRequest(); }
+function setCoachCounterMode(m) { _coachCounterFor.mode = m; renderCoachRequests(); }
 // 0024 keeps ONE counter slot: a time, or a day with a window.
 async function sendCoachCounter() {
-  const c = _coachCounterFor, f = _coachReqForm;
+  const c = _coachCounterFor;
   if (!c) return;
   const v = coachReqSlots(c.mode, [{ date: c.date, time: c.time }], { date: c.date, from: c.from, to: c.to });
-  if (v.error) { if (f) { f.error = v.error; renderCoachRequest(); } return; }
+  if (v.error) { _coachReqsError = v.error; renderCoachRequests(); return; }
   try {
     const { error } = await supabase.from('session_requests').update({ counter: v.slots[0], status: 'countered' }).eq('id', c.id);
     if (error) throw error;
     _coachCounterFor = null;
     await refreshSessionRequests();
   } catch (err) {
-    if (f) { f.error = 'Couldn’t send it: ' + ((err && err.message) || 'try again.'); renderCoachRequest(); }
+    _coachReqsError = 'Couldn’t send it: ' + ((err && err.message) || 'try again.'); renderCoachRequests();
   }
 }
 
@@ -29738,7 +29775,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.49</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.50</span>`;
 }
 
 function renderSettings() {

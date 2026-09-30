@@ -27,9 +27,12 @@ a { color: inherit }
 }
 .top {
   display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
-  /* An installed iPhone app has a status-bar inset; below it the header sits 16px down, as BLOC's does
-     (#content: safe-top, .screen: 16px). --header-top on top of the inset left ~50px of dead space. */
-  padding-top: max(var(--header-top), calc(env(safe-area-inset-top) + 16px));
+  /* An installed iPhone app has a status-bar inset; below it the header sits 24px down, as BLOC's does
+     (#content: safe-top, .screen: 16px, .page-head: 8px; measured with the same insets emulated: both 83px at a
+     59px inset). --header-top on top of the inset left ~50px of dead space.
+     🚨 This only lines up with BLOC when the page draws UNDER the status bar (black-translucent, index.html, §159).
+     --safe-top is the measured inset (index.html); env() is its fallback before the script runs. */
+  padding-top: max(var(--header-top), calc(var(--safe-top, env(safe-area-inset-top)) + 24px));
 }
 .top .titles { min-width: 0; flex: 1 }
 .top .actions { display: flex; gap: 8px; flex-shrink: 0 }
@@ -314,3 +317,12 @@ input[type="date"].input::-webkit-date-and-time-value, input[type="time"].input:
 }
 /* Tiles in a grid: no stacked-card margin, or every tile after the first sits lower (§140). */
 .tiles-3.no-stack > .card, .tiles-2.no-stack > .card { margin-top: 0 }
+
+/* ---------- §159: BLOC's edge fades ---------- */
+/* Pinned strips the height of the measured TOP inset, both of them, exactly as BLOC's (.edge-fade: var(--safe-top)): scrolling content fades into the background at the top (under
+   the clock) and bottom (past the home indicator) instead of being cut at the safe-area edge. Under the nav (50) and
+   every sheet; they never take a tap. The transparent end is --bg at 0%, never the `transparent` keyword, so the
+   gradient doesn't darken in the middle. */
+.edge-fade { position: fixed; left: 0; right: 0; pointer-events: none; z-index: 45 }
+.edge-fade-top { top: 0; height: var(--safe-top, 0px); background: linear-gradient(to bottom, var(--bg) 0%, color-mix(in srgb, var(--bg) 0%, transparent) 100%) }
+.edge-fade-bottom { bottom: 0; height: var(--safe-top, 0px); background: linear-gradient(to top, var(--bg) 0%, color-mix(in srgb, var(--bg) 0%, transparent) 100%) }
