@@ -4,23 +4,26 @@
 // Everything here is the coach's own (RLS `coach_id = my_coach_id()`), except
 // session_requests, where the coach writes only their half (a 0024 trigger).
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { DEFAULT_SETTINGS, type AssignedSession, type Booking, type DayOff, type Diary, type Series, type SessionRequest, type SentBooking, type Slot } from '@/diary/types';
+import { DEFAULT_SETTINGS, type AssignedSession, type Booking, type DayOff, type Diary, type PlannedWorkout, type Series, type SessionRequest, type SentBooking, type Slot } from '@/diary/types';
 import type { DiaryRepo } from './types';
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (typeof v === 'string' ? v : null);
 const num = (v: unknown) => Number(v);
+const workoutOf = (v: unknown): PlannedWorkout | null => (v && typeof v === 'object' && !Array.isArray(v) ? (v as PlannedWorkout) : null);
 
 const toSeries = (r: Row, clients: string[]): Series => ({
   id: String(r.id), kind: r.kind === 'group' ? 'group' : 'one_to_one', weekday: num(r.weekday), start: num(r.start_min),
   duration: num(r.duration_min), from: String(r.effective_from), to: str(r.effective_to),
   cancelled: Array.isArray(r.cancelled_dates) ? (r.cancelled_dates as string[]) : [], title: str(r.title), location: str(r.location), clientIds: clients,
+  ...(workoutOf(r.workout) ? { workout: workoutOf(r.workout) } : {}),
 });
 const toBooking = (r: Row, clients: string[], assigned: Record<string, AssignedSession> = {}): Booking => ({
   id: String(r.id), seriesId: str(r.series_id), occursOn: str(r.occurs_on), date: String(r.date), start: num(r.start_min),
   duration: num(r.duration_min), kind: r.kind === 'group' ? 'group' : 'one_to_one', status: r.status === 'cancelled' ? 'cancelled' : 'booked',
   title: str(r.title), location: str(r.location), clientIds: clients,
   ...(Object.keys(assigned).length ? { assigned } : {}),
+  ...(workoutOf(r.workout) ? { workout: workoutOf(r.workout) } : {}),
 });
 const toDayOff = (r: Row): DayOff => ({ id: String(r.id), start: String(r.start_date), end: String(r.end_date), note: str(r.note), notified: r.notified === true });
 const slot = (v: unknown): Slot | null => (v && typeof v === 'object' ? (v as Slot) : null);
@@ -36,6 +39,7 @@ function seriesRow(s: Partial<Omit<Series, 'id' | 'clientIds'>>): Row {
   if (s.cancelled !== undefined) r.cancelled_dates = s.cancelled;
   if (s.title !== undefined) r.title = s.title;
   if (s.location !== undefined) r.location = s.location;
+  if (s.workout !== undefined) r.workout = s.workout;
   return r;
 }
 function bookingRow(b: Partial<Omit<Booking, 'id' | 'clientIds'>>): Row {
@@ -49,6 +53,7 @@ function bookingRow(b: Partial<Omit<Booking, 'id' | 'clientIds'>>): Row {
   if (b.status !== undefined) r.status = b.status;
   if (b.title !== undefined) r.title = b.title;
   if (b.location !== undefined) r.location = b.location;
+  if (b.workout !== undefined) r.workout = b.workout;
   return r;
 }
 

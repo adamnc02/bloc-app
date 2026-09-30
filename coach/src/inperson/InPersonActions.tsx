@@ -4,7 +4,7 @@
 //   · Tag a session: the plan session this booking is for, when it isn't the client's next one (they may ask to
 //     do a different session). Tagging makes it the coach's and read-only on their phone at once, quietly;
 //     Start session then opens on it. A session the client has started can't be tagged.
-// Group sessions have neither in this version.
+// A group booking has its own (group/GroupActions.tsx, §162).
 import { useState } from 'react';
 import { useCoach } from '@/app/App';
 import { navigate, sessionPath } from '@/app/router';

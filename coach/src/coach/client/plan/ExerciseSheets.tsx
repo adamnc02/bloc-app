@@ -103,8 +103,10 @@ const blank = (cat: 'weight' | 'cardio', unit: string): ExerciseFields => ({
  * or distance target and levels), plus its body part. Editing also moves,
  * links, unlinks and removes it.
  */
-export function ExerciseSheet({ ctx, library, distanceUnitPref, onClose, onSave, onMove, onLink, onUnlink, onRemove }: {
+export function ExerciseSheet({ ctx, library, distanceUnitPref, onClose, onSave, onMove, onLink, onUnlink, onRemove, noSupersets }: {
   ctx: ExerciseSheetContext | null; library: LibraryEntry[]; distanceUnitPref: 'km' | 'mi';
+  /** Library → New workout builds a plain list: no superset rows (§162). */
+  noSupersets?: boolean;
   onClose: () => void; onSave: (f: ExerciseFields) => void;
   onMove: (dir: -1 | 1) => void; onLink: () => void; onUnlink: () => void; onRemove: () => void;
 }) {
@@ -273,8 +275,8 @@ export function ExerciseSheet({ ctx, library, distanceUnitPref, onClose, onSave,
                 <button type="button" className="icon-btn in-card" aria-label="Move down" disabled={pos >= posMax} onClick={() => onMove(1)} style={{ opacity: pos >= posMax ? 0.4 : 1 }}><Icon name="chevD" size={20} /></button>
               </span>
             </div>
-            {ex.type !== 'dropset' && <button type="button" className="rowbtn" onClick={onLink}><span><b>{ex.supersetId ? 'Change the superset' : 'Link into a superset'}</b><small>{ex.supersetId ? 'Add or drop exercises' : 'Pick the exercises to pair it with; this one leads'}</small></span><span className="chev"><Icon name="link" size={20} /></span></button>}
-            {ex.supersetId && <button type="button" className="rowbtn" onClick={onUnlink}><span><b>Take out of the superset</b><small>It becomes a separate exercise</small></span><span className="chev"><Icon name="chevR" size={20} /></span></button>}
+            {!noSupersets && ex.type !== 'dropset' && <button type="button" className="rowbtn" onClick={onLink}><span><b>{ex.supersetId ? 'Change the superset' : 'Link into a superset'}</b><small>{ex.supersetId ? 'Add or drop exercises' : 'Pick the exercises to pair it with; this one leads'}</small></span><span className="chev"><Icon name="link" size={20} /></span></button>}
+            {!noSupersets && ex.supersetId && <button type="button" className="rowbtn" onClick={onUnlink}><span><b>Take out of the superset</b><small>It becomes a separate exercise</small></span><span className="chev"><Icon name="chevR" size={20} /></span></button>}
             {!confirm
               ? <button type="button" className="rowbtn" onClick={() => setConfirm(true)} style={{ color: 'var(--red)' }}><span><b>Remove exercise</b><small>From this session’s plan. Logs already made stay in {`history`}.</small></span><span className="chev" style={{ color: 'var(--red)' }}><Icon name="trash" size={20} /></span></button>
               : <div style={{ padding: '12px 0' }}><Button variant="danger" size="card" icon="trash" onClick={onRemove}>Remove {ex.name}</Button></div>}

@@ -1,6 +1,8 @@
 // Client → Sessions (TECHNICAL §152): this client's next session, their
 // requests, their weekly sessions, and the next two weeks, from the same
-// diary as the Diary (useDiaryData), with Book a session. Answering a request
+// diary as the Diary (useDiaryData), with Book a session. A client not on the
+// app also has On their own (§162): their plan printed or shared, and a session
+// they did on their own recorded from the sheet. Answering a request
 // or booking here is the Diary's own action, so it reaches the client the same
 // way and clears from the Diary too.
 import { useState } from 'react';
@@ -12,7 +14,9 @@ import { Chip, EmptyState, Tag } from '@/components/ui/display';
 import { Notice } from '@/components/ui/Notice';
 import { Icon } from '@/components/ui/Icon';
 import { Toast } from '@/components/ui/Sheet';
-import { navigate } from '@/app/router';
+import { navigate, printPath, sessionPath } from '@/app/router';
+import { Field } from '@/components/ui/controls';
+import { ownKey } from '@/inperson/model';
 import { addDays, fmt } from '@/lib/format';
 import { lengthLabel } from '@/diary/slots';
 import { nextSeriesWeek, occurrencesBetween, requestSlot, type Occurrence } from '@/diary/model';
@@ -22,6 +26,7 @@ import { prefLabel } from '@/coach/diary/BookingBlock';
 import { NewSessionSheet, RequestSheet } from '@/coach/diary/DiarySheets';
 import { useDiaryData } from '@/coach/diary/useDiaryData';
 import { InPersonActions } from '@/inperson/InPersonActions';
+import { GroupActions } from '@/group/GroupActions';
 import { PastSessions } from '@/inperson/PastSessions';
 
 const WINDOW_DAYS = 14;
@@ -34,7 +39,8 @@ function KindTag({ o }: { o: Occurrence }) {
 
 export function SessionsTab({ v }: { v: ClientView }) {
   const { repo, diary, bundles, error, who, today, nowMin, run, toast } = useDiaryData();
-  const [sheet, setSheet] = useState<{ type: 'new' } | { type: 'request'; id: string } | { type: 'session'; key: string } | null>(null);
+  const [sheet, setSheet] = useState<{ type: 'new' } | { type: 'request'; id: string } | { type: 'session'; key: string } | { type: 'own' } | null>(null);
+  const [ownDate, setOwnDate] = useState<string | null>(null);
   const cardId = v.bundle.card.id;
   const first = v.first;
 
@@ -156,7 +162,26 @@ export function SessionsTab({ v }: { v: ClientView }) {
         </Section>
       )}
 
-      <PastSessions bundle={v.bundle} first={first} i={5} />
+      {v.summary.status !== 'linked' && (
+        <Section i={5} title="On their own" sub={`${first} isn’t on the app. Print their sessions for the sessions they do alone, then record what they did from the sheet.`}>
+          <div className="stack" style={{ maxWidth: 420 }}>
+            <Button variant="ghost" icon="send" onClick={() => navigate(printPath(cardId))}>Print or share their plan</Button>
+            <Button variant="ghost" icon="edit" onClick={() => { setOwnDate(today); setSheet({ type: 'own' }); }}>Record a session they did</Button>
+          </div>
+        </Section>
+      )}
+
+      <PastSessions bundle={v.bundle} first={first} i={6} />
+
+      {sheet?.type === 'own' && (
+        <Sheet open title="Record a session" onClose={() => setSheet(null)}>
+          <p className="muted">The day {first} did it. Next, choose the session and fill in their sets.</p>
+          <Field label="Day" htmlFor="own-date">
+            <input id="own-date" type="date" className="input" max={today} value={ownDate ?? today} onChange={(e) => setOwnDate(e.target.value || today)} />
+          </Field>
+          <Button style={{ marginTop: 18 }} icon="chevR" onClick={() => navigate(sessionPath(ownKey(ownDate ?? today), cardId))}>Choose the session</Button>
+        </Sheet>
+      )}
 
       {sheet?.type === 'new' && (
         <NewSessionSheet diary={diary} who={who} bundles={bundles} date={today} start={defaultStart} clientId={cardId}
@@ -180,6 +205,7 @@ export function SessionsTab({ v }: { v: ClientView }) {
             <p className="display num" style={{ fontSize: 20 }}>{when}</p>
             <p className="muted" style={{ marginTop: 4 }}>{[o.recurring ? `every ${fmt.dayLong(o.date)}` : 'one-off', o.location].filter(Boolean).join(' · ')}</p>
             {o.kind === 'one_to_one' && <InPersonActions occ={o} cardId={cardId} diary={diary} bundles={bundles} today={today} nowMin={nowMin} run={run} />}
+            {o.kind === 'group' && <GroupActions occ={o} diary={diary} bundles={bundles} today={today} nowMin={nowMin} run={run} />}
             <div className="stack" style={{ marginTop: 20 }}>
               {o.kind === 'group' ? (
                 <>

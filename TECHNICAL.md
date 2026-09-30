@@ -10416,8 +10416,8 @@ on (the week to come), a group's skipped week naming it, a week 8 days back canc
 **What it is.** The coach logs a client's planned session with them (**In person**), **Today** is the hub the app
 opens on, **Settings** is laid out section by section with no badges, and one **Add a day off** sheet serves every
 entry point. BLOC reads what In person sends as it already did (§136, §137); BLOC v8.48 (§153) adds the group
-removal and the weekly in-person date. Migration `0030` adds `booking.removed`. Group sessions have no Start session
-in this version: planning and logging them, and effort ratings approving progression, come later.
+removal and the weekly in-person date. Migration `0030` adds `booking.removed`. A group session is §162's; effort
+ratings drive a coach's cycle as Solo's (§161).
 
 ### Files
 
@@ -11042,3 +11042,131 @@ a coach's cycle the double step; history (week 3's 55 kg and its walk back) equa
 readers in `index.html`. Control: v8.51 (`6352acc`) fails the reset and coach-step rows, and an exercise with no reset
 gives identical targets and lock decisions in both engines for weeks 2–6. `verify-coached-hides.mjs` now expects a
 coach's cycle to take exactly Solo's steps. `engine-cases.mjs` has cases for the two new exports.
+
+## §162 — Coach v0.10: group sessions planned and logged; clients not on the app training on their own
+
+**What it is.** Three things, in BLOC Coach only (BLOC reads what they send as it already did, §137):
+
+- a group session runs a **planned workout** and is logged for each person;
+- a client not on the app gets their plan **printed or shared**, and the coach **records** the sessions they did on
+  their own;
+- adding a client to a group "all future" tells only the new client.
+
+Migration `0033` (super-duper-octo-barnacle) adds the planned workout. Everything else fits the existing contracts.
+
+### Library → New workout (`coach/src/coach/library/WorkoutBuilder.tsx`)
+
+A workout template built from scratch, with no client. The builder is a one-session plan document, edited with the
+Plan tab's own exercise sheet (`ExerciseSheet`, with `noSupersets`) and saved with `workoutTemplateOf`, so it is
+exactly the shape of a workout saved from a client's Plan. Any workout template can run a group, or go into a client's
+cycle as before.
+
+### A group's planned workout (`0033`)
+
+`diary_series.workout` (every week of a weekly group) and `diary_bookings.workout` (a one-off group, or one week of a
+series, over the series') hold a **copy** of a Library workout template: `{v: 1, template_id?, name, exercises,
+supersets?}` (`plannedFromTemplate`). A copy, so editing or deleting the template never changes a session already
+planned. Group rows only: `0033` refuses one on a one-to-one.
+
+- **Planning** (`planWorkout`, `diary/actions.ts`): from a group booking's sheet (the Diary, a client's Sessions:
+  `group/GroupActions.tsx`) or from the group session's own screen. A weekly group asks **Just {date}** (that week's
+  identity override, made if there isn't one, as `assignSession` makes one) or **Every {day}** (the series; a week with
+  its own keeps it). `Occurrence.workout` is the week's own, else its series'.
+- 🚨 **Never published.** `workout` is not a booking key (`BOOKING_KEYS`; `verify-coach-today.mjs` fails if it becomes
+  one), and `overrideIsIdentity` doesn't compare it, so a week with its own workout stays in its series and no phone is
+  sent anything.
+
+### A group session, logged (`coach/src/group/`)
+
+`#/session/{occurrence key}` with no card (`groupSessionPath`) opens `GroupSessionScreen`: Start session on Today, a
+group booking's sheet, or **Log it** on a missed group week.
+
+1. **The workout**: the one planned, else "No workout planned" and **Plan a workout**. Start fixes it for the session
+   (the draft keeps its copy).
+2. **Attendees**: per person, **Replaces {session}**, off by default. The session is the person's next unfinished session
+   of their coach's cycle (`defaultSession`, only if it can be taken: `assignable`), or one chosen with **Choose another
+   session** (In person's week agenda). With no coach's cycle: "Counted as an extra session".
+3. **The circuit**: **Logging for** switches person; each exercise is In person's `ExerciseLogCard` ("Last time", not
+   "Last wk"). 🚨 A group's exercises are the workout's, not the client's plan's, so they're matched **by name**: each
+   person starts from their last group session with that exercise (`seedSets`), else the workout's numbers.
+4. **Finish**: each person with a set done gets their own `session_log`, BLOC §137's group contract:
+   `{v, session_id, booking_id, kind: 'group', logs: [{name, sets: [{weight, reps}]}], replaces?}` (`groupPayload`:
+   only the sets done, no exercise with none). Nobody with nothing done is sent anything. `replaces: {macroId, week,
+   dayKey}` only when switched on.
+
+🚨 **The session id carries the booking and the day**: `gp:{booking id}:{date}:{stamp}`, the same on every attendee's copy.
+It is how a group week is matched as logged (`groupLoggedFor`: on any attendee's card), as In person's `ip:` id is. The
+session in progress is this device's (`blocCoach_groupSession`, `group/draft.ts`) until Finish.
+
+**Coach's copy of the client** (`recordState`, §154) now applies a group `session_log`'s `replaces` as BLOC does
+(`applyGroupLog`: the `'group'` substitution on every exercise of that session), so for a client not on the app the
+replaced session is done, not scored, and no longer "up next". `group.test.ts` holds it equal to BLOC's real
+`applyGroupSessionLog`.
+
+**Today**: a group session has Start session like a one-to-one (`TodaySession.group`). A group week from the last 14 days
+not logged or cancelled is **Needs you → Group not logged** (`missedGroups`), with **Log it** and **Cancel**, which
+cancels that week for everyone ("Group session cancelled" on each phone, BLOC §153). **Past sessions** lists a card's
+group sessions with the rest, tagged **Group**.
+
+### A client added to a group "all future"
+
+"All future" from a later week ends the series and starts a new one (§152). With a client added, `predecessor()` didn't
+find the old series (it wanted the same clients), so the others were sent the new series as a new group, with a
+banner. Now:
+
+- **The new series names the old one.** For a group, `predecessor()` needs one person in common, not the same people,
+  so the new series carries `replaces`. BLOC says "Added to a group session" to a client new to it (§151).
+- **Unchanged members hear nothing.** When day, time, length, place and name are unchanged, the new series goes quiet
+  to the people already in it (`quietCards`, per card and booking). A new time still tells everyone ("Session changed").
+- `diary.test.ts` checks both, with the new time as the control.
+
+### A client not on the app, training on their own
+
+Client → Sessions → **On their own** (a client not linked):
+
+- **Print or share their plan** (`#/print/{card id}`, `print/PrintScreen.tsx`, `print/model.ts`):
+  - One mesocycle of their coach's cycle, the one holding their next unfinished session.
+  - Each calendar week (M1 and M2 of a two-week mesocycle), each session with a date line, each exercise with its
+    target per set (`sessionTargets`, Train's own).
+  - A write-in "____ kg × ____" and a tick box per set, and "How hard?" 1–10 to circle per exercise (not cardio).
+  - A mesocycle's targets are all exact: targets step once a mesocycle, from the mesocycle before. The next sheet is
+    printed once this one is recorded.
+  - On screen it's a preview with **Print or share**. Printed, `styles/print.css` shows the sheet alone (A4 landscape,
+    black on white, a session never split across pages, the toolbar, nav and local-build tag hidden). On an iPhone,
+    Print's preview shares to Mail or Files as a PDF, which is how it's emailed.
+- **Record a session they did**: the day, then In person on `own:{date}` (`ownKey`):
+  - Nothing is assigned or released (there's no booking).
+  - **Done as planned** completes every set at target in one tap. Sets can be edited as usual.
+  - How hard was it? takes the circled ratings.
+  - It's sent as a `session_log` `kind: 'in_person'` with **no `booking_id`** and the id `own:{date}:{stamp}`
+    (`ownSessionIdFor`). `0023` checks keys only, and `booking_id` is optional.
+  - To BLOC it's the coach's record of the client's session and progresses like any other (ratings included, §161).
+    Only Coach tells it apart, by the id: Past sessions tags it **On their own**, and Review's compliance grid and
+    Strength don't mark it "in person" (`engine/src/review/training.ts`: `byCoach` excludes `own:`; BLOC's bundle
+    doesn't contain `review/`, so it is unchanged).
+
+### Checks
+
+- `coach/src/group/group.test.ts` (vitest, 10):
+  - the workout's order and numbers, and the payload (only done sets, `replaces` only when set);
+  - every key on `0023`'s `session_log` list (read from the migration, else the documented list in CI);
+  - attended, the id round trip, and the logged list (groups only);
+  - logged on any card (control: another day), and the seed from the last group sets by name (control: none, the
+    workout's);
+  - Coach's `applyGroupLog` equal to BLOC's real `applyGroupSessionLog`, and the replaced session no longer up next
+    (control: no `replaces`).
+- `today.test.ts`: a group week startable, then logged on another attendee's card (control: logged another week); a
+  missed group week raised once (controls: 15 days back, logged).
+- `inperson.test.ts`: an own session's id, its payload with no `booking_id` (control: an in-person one has it), and its
+  listing as on their own.
+- `diary.test.ts`: the group "all future" addition above.
+- `scripts/verify-coach-today.mjs`: the group keys on the allow-list, the workout never a booking key, and no clock in the
+  group and print models, each with a control.
+- Driven in headless Chromium on the fixtures (Europe/London) at 375 × 812 and 1440 × 1000:
+  - Today's missed bootcamp → Log it → Start Bootcamp circuit → two people ticked → "Finish and send to 2 people" →
+    Sent, each "Extra";
+  - Library → New workout (picker, exercise sheet, list, Save to Library);
+  - Eileen → On their own → Print (screen and print media) → Record a session they did → Done as planned → How hard
+    was it? → saved → Past sessions "On their own".
+  - No horizontal scroll, no console errors.
+

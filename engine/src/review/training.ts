@@ -175,7 +175,10 @@ function setRows(s: BlocState, cache: TargetCache, m: Macrocycle, week: number, 
     const w = lg && lg.weight ? parseFloat(lg.weight) : null;
     const r = lg && lg.reps !== undefined && lg.reps !== null ? String(lg.reps).trim() : '';
     const hit = done ? (w !== null && tw !== undefined && w - parseFloat(tw) > -0.01) && tr !== undefined && parseRepsForVolume(r) >= parseRepsForVolume(tr) : null;
-    out.push({ n: i + 1, targetKg: str(tw), targetReps: str(tr), kg: str(lg?.weight), reps: str(lg?.reps), done, hit, byCoach: lg?.loggedBy === 'coach' });
+    // "In person" is a set the coach took with the client. A session the client did on their own, which the
+    // coach recorded from their printed sheet (an `own:` session id, Coach §162), is theirs, so it isn't marked.
+    out.push({ n: i + 1, targetKg: str(tw), targetReps: str(tr), kg: str(lg?.weight), reps: str(lg?.reps), done, hit,
+      byCoach: lg?.loggedBy === 'coach' && !String(lg?.sessionId ?? '').startsWith('own:') });
   }
   return out;
 }

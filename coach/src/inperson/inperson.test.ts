@@ -7,7 +7,7 @@ import type { BlocState, Loose } from '@engine';
 import type { CoachPublication } from '@/ai/types';
 import {
   agendaOf, applySessionLog, canStart, cycleForSession, defaultSession, loggedFor, loggedSessions, parseSessionId, recordState,
-  SESSION_LOG_KEYS, sessionIdFor, sessionLogPayload, sessionTargets, missedFrom, type SetEntry,
+  SESSION_LOG_KEYS, sessionIdFor, sessionLogPayload, sessionTargets, missedFrom, ownDateOf, ownKey, ownSessionIdFor, parseOwnSessionId, type SetEntry,
 } from './model';
 
 const DEMO = readFileSync(new URL('../../../bloc-demo-data.json', import.meta.url), 'utf8');
@@ -203,5 +203,26 @@ describe('when Start session shows', () => {
   });
   it('a missed booking is raised for 14 days', () => {
     expect(missedFrom('2026-08-15')).toBe('2026-08-01');
+  });
+});
+
+describe('a session a client not on the app did on their own (§162)', () => {
+  it('has no booking: its id carries the day, and the payload has no booking_id (control: an in-person one does)', () => {
+    const id = ownSessionIdFor('2026-08-05', 'k');
+    expect(parseOwnSessionId(id)).toEqual({ date: '2026-08-05' });
+    expect(parseSessionId(id)).toBeNull();
+    expect(ownDateOf(ownKey('2026-08-05'))).toBe('2026-08-05');
+    const sets = { e1: [{ kg: '40', reps: '10', done: true }] };
+    const own = sessionLogPayload({ sessionId: id, bookingId: null, macroId: MID, week: 2, dayKey: 'd', sets, rpe: null });
+    expect('booking_id' in own).toBe(false);
+    expect(own.kind).toBe('in_person');
+    expect(sessionLogPayload({ sessionId: 'ip:b:2026-08-05:k', bookingId: 'b', macroId: MID, week: 2, dayKey: 'd', sets, rpe: null }).booking_id).toBe('b');
+  });
+  it('is listed as on their own, on its day (control: an in-person one isn\'t)', () => {
+    const l = loggedSessions([
+      pub('o1', 1, 'session_log', { session_id: ownSessionIdFor('2026-08-05', 'k'), kind: 'in_person', macro_id: MID, week: 2, day_key: 'd', logs: {} }),
+      pub('i1', 2, 'session_log', { session_id: sessionIdFor('bk', '2026-08-06', 'k'), kind: 'in_person', macro_id: MID, week: 2, day_key: 'd', logs: {} }),
+    ]);
+    expect(l.map((x) => [x.date, x.own, x.bookingId])).toEqual([['2026-08-06', false, 'bk'], ['2026-08-05', true, null]]);
   });
 });

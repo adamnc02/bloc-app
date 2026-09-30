@@ -8,8 +8,9 @@ import { summarise } from '@/data/summary';
 import type { Inbox } from '@/data/types';
 import type { CoachPublication, Submission } from '@/ai/types';
 import { sessionIdFor } from '@/inperson/model';
+import { groupSessionId } from '@/group/model';
 import { getMeasurementStatus } from '@/lib/measurementStatus';
-import { comingUp, missedBookings, needsItemOpen, needsYou, offTrack, pushAction, todaySessions } from './model';
+import { comingUp, missedBookings, missedGroups, needsItemOpen, needsYou, offTrack, pushAction, todaySessions } from './model';
 
 const demo = JSON.parse(readFileSync(new URL('../../../bloc-demo-data.json', import.meta.url), 'utf8')) as Record<string, unknown>;
 const built = buildFixtureClients(demo);
@@ -37,6 +38,30 @@ describe("Today's sessions", () => {
   });
 });
 
+describe('group sessions (§162)', () => {
+  it('a group week today can be started; once logged on any attendee\'s card, it can\'t', async () => {
+    const d = await fixtureDiary(ANCHOR).loadDiary();
+    const sat = '2026-08-08';
+    const at = (inbox: Inbox) => todaySessions(d, inbox, sat, 9 * 60).find((x) => x.occ.key === `s:sr-bootcamp@${sat}`)!;
+    expect([at(empty()).group, at(empty()).canStart, at(empty()).logged]).toEqual([true, true, false]);
+    const logged = { ...empty(), publications: [pub('priya', 'g1', 1, 'session_log', { session_id: groupSessionId('sr-bootcamp', sat, 'x'), booking_id: 'sr-bootcamp', kind: 'group', logs: [] })] };
+    expect([at(logged).canStart, at(logged).logged]).toEqual([false, true]);
+    // Control: logged for another week, this one is still to do.
+    const other = { ...empty(), publications: [pub('priya', 'g1', 1, 'session_log', { session_id: groupSessionId('sr-bootcamp', '2026-08-01', 'x'), booking_id: 'sr-bootcamp', kind: 'group', logs: [] })] };
+    expect(at(other).logged).toBe(false);
+  });
+  it('a group week from the last 14 days not logged is Needs you\'s, once (control: logged, it isn\'t)', async () => {
+    const d = await fixtureDiary(ANCHOR).loadDiary();
+    const keys = missedGroups(d, empty(), ANCHOR).map((o) => o.key);
+    expect(keys).toContain('s:sr-bootcamp@2026-08-01');
+    expect(keys.some((k) => k.endsWith('@2026-07-18'))).toBe(false);          // 15 days back: not raised
+    const logged = { ...empty(), publications: [pub('grace', 'g1', 1, 'session_log', { session_id: groupSessionId('sr-bootcamp', '2026-08-01', 'x'), booking_id: 'sr-bootcamp', kind: 'group', logs: [] })] };
+    expect(missedGroups(d, logged, ANCHOR).map((o) => o.key)).not.toContain('s:sr-bootcamp@2026-08-01');
+    const items = needsYou(d, empty(), built.clients, summaries, ANCHOR).filter((x) => x.kind === 'missedGroup');
+    expect(items.filter((x) => x.occ.key === 's:sr-bootcamp@2026-08-01')).toHaveLength(1);
+  });
+});
+
 describe('Needs you', () => {
   it('a booking from the last 14 days that wasn’t logged or cancelled; logged or older, it isn’t', async () => {
     const d = await fixtureDiary(ANCHOR).loadDiary();
@@ -45,7 +70,7 @@ describe('Needs you', () => {
     expect(missed.some((k) => k.endsWith('@2026-07-16'))).toBe(false);          // 17 days back: not raised
     const logged = { ...empty(), publications: [pub('tom', 'p1', 1, 'session_log', { session_id: sessionIdFor('sr-tom', '2026-07-30', 'x'), kind: 'in_person', logs: {} })] };
     expect(missedBookings(d, logged, ANCHOR).map((m) => m.occ.key)).not.toContain('s:sr-tom@2026-07-30');
-    expect(missed.every((k) => !k.startsWith('s:sr-bootcamp'))).toBe(true);      // group sessions aren't logged in person yet
+    expect(missed.every((k) => !k.startsWith('s:sr-bootcamp'))).toBe(true);      // a group week is missedGroups', not this list's
   });
   it('requests waiting on the coach, a check-in request, an unanswered note back and answered review photos; each clears once dealt with', async () => {
     const d = await fixtureDiary(ANCHOR).loadDiary();

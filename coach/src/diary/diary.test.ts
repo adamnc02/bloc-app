@@ -197,6 +197,23 @@ describe('actions (fixture repo)', () => {
     expect(d2.sent['sam|sr-new-1'].payload.replaces).toBeUndefined();
     expect(occurrencesBetween(after, MON, addDays(MON, 13)).filter((x) => x.clientIds.join() === 'maya' && x.kind === 'one_to_one').map((x) => x.date)).toEqual([THU, addDays(THU, 7)]);
   });
+  it('a client added to a group all future from a later week: only they are told (control: a new time tells everyone)', async () => {
+    const add = async (start: number) => {
+      const r = fresh();
+      const d = await r.loadDiary();
+      const o = occ(d, `s:sr-bootcamp@${SAT}`);
+      const after = await editSession(r, d, o, { date: SAT, start, duration: 90, location: 'Park', title: 'Saturday bootcamp', clientIds: ['maya', 'priya', 'grace', 'tom'] }, 'all');
+      return { r, after };
+    };
+    const { r, after } = await add(540);
+    expect(last(r)).toEqual(['maya sr-bootcamp booked quiet', 'priya sr-bootcamp booked quiet', 'grace sr-bootcamp booked quiet',
+      'maya sr-new-1 booked quiet', 'priya sr-new-1 booked quiet', 'grace sr-new-1 booked quiet', 'tom sr-new-1 booked']);
+    // The group continues: the new series names the old one, so a new client hears "Added to a group session".
+    expect(after.sent['tom|sr-new-1'].payload.replaces).toEqual({ booking_id: 'sr-bootcamp', date: SAT });
+    // Control: moved to 10:00 as well, the members are told too ("Session changed").
+    const moved = await add(600);
+    expect(last(moved.r).filter((x) => x.includes('sr-new-1'))).toEqual(['maya sr-new-1 booked', 'priya sr-new-1 booked', 'grace sr-new-1 booked', 'tom sr-new-1 booked']);
+  });
   it('cancel just this week, then stop the series from next week', async () => {
     const r = fresh();
     let d = await r.loadDiary();

@@ -11,7 +11,7 @@
 // have rebooked.
 import type { ISODate } from '@/domain/types';
 import { addDays, daysBetween, weekday } from '@/lib/format';
-import type { Booking, DayOff, Diary, Series, SessionKind, SessionRequest, Slot } from './types';
+import type { Booking, DayOff, Diary, PlannedWorkout, Series, SessionKind, SessionRequest, Slot } from './types';
 
 export type OccurrenceKind = SessionKind | 'request';
 
@@ -35,6 +35,8 @@ export interface Occurrence {
   seriesDate: ISODate | null;
   bookingId: string | null;
   request: SessionRequest | null;
+  /** A group's planned workout: the week's own (its override), else its series', else a one-off's (0033). */
+  workout: PlannedWorkout | null;
 }
 
 export const isDayOff = (daysOff: DayOff[], date: ISODate) => daysOff.some((d) => date >= d.start && date <= d.end);
@@ -50,7 +52,11 @@ export function seriesDates(s: Series, from: ISODate, to: ISODate): ISODate[] {
   return out;
 }
 
-/** An override that changes nothing about its week (the first week of a booked weekly request) isn't an exception. */
+/**
+ * An override that changes nothing about its week (the first week of a booked weekly request, a tagged week, a week
+ * with its own workout) isn't an exception. The assignment and the workout aren't compared: neither is part of the
+ * booking the phone holds.
+ */
 export function overrideIsIdentity(b: Booking, s: Series): boolean {
   return b.status === 'booked' && b.date === b.occursOn && b.start === s.start && b.duration === s.duration
     && (b.location ?? null) === (s.location ?? null) && (b.title ?? null) === (s.title ?? null)
@@ -132,7 +138,7 @@ export function occurrencesBetween(d: Diary, from: ISODate, to: ISODate, today?:
         key: `s:${s.id}@${date}`, kind: at?.kind ?? s.kind, date: at?.date ?? date, start: at?.start ?? s.start,
         duration: at?.duration ?? s.duration, title: at ? at.title : s.title, location: at ? at.location : s.location,
         clientIds: at?.clientIds ?? s.clientIds, recurring: !detached, seriesId: s.id, seriesDate: date,
-        bookingId: at?.id ?? null, request: null,
+        bookingId: at?.id ?? null, request: null, workout: at?.workout ?? s.workout ?? null,
       };
       if (occ.date < from || occ.date > to) continue;
       out.push(occ);
@@ -142,7 +148,7 @@ export function occurrencesBetween(d: Diary, from: ISODate, to: ISODate, today?:
     if (b.seriesId || b.status !== 'booked' || b.date < from || b.date > to) continue;
     out.push({
       key: `b:${b.id}`, kind: b.kind, date: b.date, start: b.start, duration: b.duration, title: b.title, location: b.location,
-      clientIds: b.clientIds, recurring: false, seriesId: null, seriesDate: null, bookingId: b.id, request: null,
+      clientIds: b.clientIds, recurring: false, seriesId: null, seriesDate: null, bookingId: b.id, request: null, workout: b.workout ?? null,
     });
   }
   for (const r of openRequests(d, today)) {
@@ -151,7 +157,7 @@ export function occurrencesBetween(d: Diary, from: ISODate, to: ISODate, today?:
     out.push({
       key: `r:${r.id}`, kind: 'request', date: slot.date, start: slot.start_min, duration: d.settings.sessionMinutes,
       title: null, location: null, clientIds: r.cardId ? [r.cardId] : [], recurring: false, seriesId: null, seriesDate: null,
-      bookingId: null, request: r,
+      bookingId: null, request: r, workout: null,
     });
   }
   return out.sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start);

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { AccountButton, CoachShell } from '@/coach/CoachShell';
 import { Avatar, Button, Card, Chip, EmptyState, Hero, Icon, OutcomeChip, Page, PageHeader, RowButton, Section, Sheet, Tag, Toast, useEntering, useOnResume, type IconName } from '@/components/ui';
 import { useCoach } from '@/app/App';
-import { clientPath, navigate, sessionPath, useRoute } from '@/app/router';
+import { clientPath, groupSessionPath, navigate, sessionPath, useRoute } from '@/app/router';
 import { summarise } from '@/data/summary';
 import type { Inbox } from '@/data/types';
 import { fmt, initials } from '@/lib/format';
@@ -16,6 +16,7 @@ import { useDiaryData } from '@/coach/diary/useDiaryData';
 import { RequestSheet } from '@/coach/diary/DiarySheets';
 import { prefLabel } from '@/coach/diary/BookingBlock';
 import { loadDraft } from '@/inperson/draft';
+import { loadGroupDraft } from '@/group/draft';
 import { comingUp, needsItemOpen, needsYou, offTrack, pushAction, todaySessions, type ComingKind, type NeedsItem, type NeedsOpen, type TodaySession } from '@/today/model';
 
 /** A Needs you item's destination: a path, or (a request) handled by Today's own sheet, so only paths go here. */
@@ -62,7 +63,7 @@ export function TodayScreen() {
   const { repo, diary, bundles, error, who, today, nowMin, run, toast } = useDiaryData();
   const [inbox, setInbox] = useState<Inbox | null>(null);
   const [inboxError, setInboxError] = useState<string | null>(null);
-  const [sheet, setSheet] = useState<{ type: 'request'; id: string } | { type: 'cancel'; item: Extract<NeedsItem, { kind: 'missed' }> } | null>(null);
+  const [sheet, setSheet] = useState<{ type: 'request'; id: string } | { type: 'cancel'; item: Extract<NeedsItem, { kind: 'missed' | 'missedGroup' }> } | null>(null);
   const loadInbox = useCallback(() => { repo.loadInbox().then((x) => { setInbox(x); setInboxError(null); }).catch((e) => setInboxError(e instanceof Error ? e.message : String(e))); }, [repo]);
   useEffect(loadInbox, [loadInbox]);
   useOnResume(loadInbox);
@@ -137,7 +138,7 @@ export function TodayScreen() {
               <div className="stack">
                 {items.map((it, k) => (
                   <Card key={it.key} i={4 + k}>
-                    <NeedsBody it={it} name={it.cardId ? nameOf(it.cardId) : 'A client'} first={firstOf(it.cardId)} who={who}
+                    <NeedsBody it={it} name={it.kind === 'missedGroup' ? titleOf(it.occ) : it.cardId ? nameOf(it.cardId) : 'A client'} first={firstOf(it.cardId)} who={who}
                       onRequest={(id) => setSheet({ type: 'request', id })} onCancel={(x) => setSheet({ type: 'cancel', item: x })} />
                   </Card>
                 ))}
@@ -190,7 +191,18 @@ export function TodayScreen() {
           onPropose={(slot) => void run((_d) => proposeTime(repo, req, slot), `Proposed ${fmt.ddm(slot.date)}, ${fmt.time(slot.start_min)} · waiting for them`).then(after)}
           onDecline={() => void run((_d) => declineRequest(repo, req), 'Request declined').then(after)} />
       )}
-      {sheet?.type === 'cancel' && (() => {
+      {sheet?.type === 'cancel' && sheet.item.kind === 'missedGroup' && (() => {
+        const { occ } = sheet.item;
+        const title = titleOf(occ);
+        return (
+          <Sheet open title="Cancel the group session?" onClose={() => setSheet(null)}>
+            <p className="body-copy">{title} on {fmt.ddm(occ.date)}, {fmt.time(occ.start)} wasn’t logged. Cancelling it cancels it for everyone booked.</p>
+            <p className="caption" style={{ marginTop: 10 }}>Everyone booked gets a “Group session cancelled” banner.{occ.recurring ? ' Only this week is cancelled; the weekly group carries on.' : ''}</p>
+            <Button variant="danger" style={{ marginTop: 20 }} onClick={() => void run((d) => cancelSession(repo, d, occ, 'one'), `${title} on ${fmt.ddm(occ.date)} cancelled`).then(after)}>Cancel the group session</Button>
+          </Sheet>
+        );
+      })()}
+      {sheet?.type === 'cancel' && sheet.item.kind === 'missed' && (() => {
         const { occ, cardId } = sheet.item;
         const first = firstOf(cardId);
         return (
@@ -208,7 +220,8 @@ export function TodayScreen() {
 
 function SessionRow({ s, title, notOnApp }: { s: TodaySession; title: string; notOnApp: boolean }) {
   const o = s.occ;
-  const resume = !!s.cardId && !!loadDraft(o.key, s.cardId);
+  const resume = s.group ? !!loadGroupDraft(o.key) : !!s.cardId && !!loadDraft(o.key, s.cardId);
+  const open = () => navigate(s.group ? groupSessionPath(o.key) : sessionPath(o.key, s.cardId!));
   return (
     <div className="listrow" style={{ cursor: 'default', flexWrap: 'wrap', opacity: s.past && !s.canStart ? 0.62 : 1 }}>
       <div style={{ width: 56, flexShrink: 0 }}>
@@ -223,9 +236,9 @@ function SessionRow({ s, title, notOnApp }: { s: TodaySession; title: string; no
       </span>
       {s.logged && <Chip tone="good" icon="check">Logged</Chip>}
       {!s.logged && s.next && !s.past && <Chip tone="acc" icon="clock">Next</Chip>}
-      {s.canStart && s.cardId && (
+      {s.canStart && (
         <div style={{ flexBasis: '100%' }}>
-          <Button size="card" icon="play" pulse={s.next && !resume} onClick={() => navigate(sessionPath(o.key, s.cardId!))}>{resume ? 'Resume session' : 'Start session'}</Button>
+          <Button size="card" icon="play" pulse={s.next && !resume} onClick={open}>{resume ? 'Resume session' : 'Start session'}</Button>
         </div>
       )}
     </div>
@@ -234,7 +247,7 @@ function SessionRow({ s, title, notOnApp }: { s: TodaySession; title: string; no
 
 function NeedsBody({ it, name, first, who, onRequest, onCancel }: {
   it: NeedsItem; name: string; first: string; who: ReturnType<typeof useDiaryData>['who'];
-  onRequest: (id: string) => void; onCancel: (x: Extract<NeedsItem, { kind: 'missed' }>) => void;
+  onRequest: (id: string) => void; onCancel: (x: Extract<NeedsItem, { kind: 'missed' | 'missedGroup' }>) => void;
 }) {
   const ago = (iso: string) => fmt.ddm(iso.slice(0, 10));
   switch (it.kind) {
@@ -282,6 +295,18 @@ function NeedsBody({ it, name, first, who, onRequest, onCancel }: {
         <div className="btnrow">
           <Button variant="ghost" size="card" onClick={() => onCancel(it)}>Cancel</Button>
           <Button size="card" icon="edit" onClick={() => navigate(sessionPath(o.key, it.cardId))}>Log it</Button>
+        </div>
+      </>;
+    }
+    case 'missedGroup': {
+      const o = it.occ;
+      return <>
+        <CardHead icon="warning" eyebrow="Group not logged" name={name} when={fmt.ddm(o.date)} />
+        <p className="body-copy" style={{ marginTop: 12 }}>{name} on {fmt.dayLong(o.date)} wasn’t logged.</p>
+        <p className="caption" style={{ marginTop: 4 }}>{fmt.ddm(o.date)}, {fmt.time(o.start)}–{fmt.time(o.start + o.duration)}{o.location ? ` · ${o.location}` : ''} · {o.clientIds.length} {o.clientIds.length === 1 ? 'person' : 'people'}.</p>
+        <div className="btnrow">
+          <Button variant="ghost" size="card" onClick={() => onCancel(it)}>Cancel</Button>
+          <Button size="card" icon="edit" onClick={() => navigate(groupSessionPath(o.key))}>Log it</Button>
         </div>
       </>;
     }

@@ -6,7 +6,8 @@
 //   Needs you         everything waiting on the coach, each clearing once dealt with: session requests (and a
 //                     confirmed time that now clashes), check-in requests, notes back not replied to, review
 //                     photos answered and not yet reviewed, and bookings from the last 14 days that weren't
-//                     logged or cancelled (BLOC keeps an assigned session out of "next" until one or the other).
+//                     logged or cancelled (BLOC keeps an assigned session out of "next" until one or the other),
+//                     group weeks included (§162: Log it opens the group session, Cancel cancels it for everyone).
 //   Off track         linked clients whose outcome is off track (Review's judgement), with its one reason.
 //   Coming up         check-ins due, cycles in their final week, measurements due, and apps gone quiet.
 //
@@ -23,13 +24,15 @@ import { occurrencesBetween, requestsNeedingCoach, type Occurrence } from '@/dia
 import { publishedIdOf } from '@/diary/actions';
 import type { Diary, SessionRequest } from '@/diary/types';
 import { canStart, loggedFor, loggedSessions, missedFrom } from '@/inperson/model';
+import { groupLoggedFor } from '@/group/model';
 import { getMeasurementStatus } from '@/lib/measurementStatus';
 import { clientPath } from '@/app/router';
 
 export interface TodaySession {
   occ: Occurrence;
-  /** One-to-one: the client's card. */
+  /** One-to-one: the client's card. A group has none: it's everyone booked (§162). */
   cardId: string | null;
+  group: boolean;
   canStart: boolean;
   logged: boolean;
   /** It has ended (by the coach's clock). */
@@ -43,7 +46,8 @@ export type NeedsItem =
   | { kind: 'checkin'; key: string; at: string; cardId: string; submission: Submission }
   | { kind: 'note'; key: string; at: string; cardId: string; submission: Submission; headline: string | null; tool: string | null; macroId: string | null }
   | { kind: 'photos'; key: string; at: string; cardId: string; macroId: string; skipped: boolean; count: number }
-  | { kind: 'missed'; key: string; at: string; cardId: string; occ: Occurrence };
+  | { kind: 'missed'; key: string; at: string; cardId: string; occ: Occurrence }
+  | { kind: 'missedGroup'; key: string; at: string; cardId: null; occ: Occurrence };
 
 export type ComingKind = 'check-in' | 'final-week' | 'measurements' | 'no-sync';
 export interface ComingItem { key: string; kind: ComingKind; cardId: string; detail: string; tab: 'review' | 'profile' | 'plan'; at: string }
@@ -56,16 +60,26 @@ function loggedOf(inbox: Inbox) {
   return cards.flatMap((c) => loggedSessions(byCard(inbox.publications, c)).map((l) => ({ ...l, cardId: c })));
 }
 
+/** Whether a group week is logged: on any attendee's card (§162). */
+const groupLogged = (inbox: Inbox, o: Occurrence) => groupLoggedFor(o.clientIds.map((c) => byCard(inbox.publications, c)), publishedIdOf(o), o.date);
+
 export function todaySessions(d: Diary, inbox: Inbox, today: string, nowMin: number): TodaySession[] {
   const logged = loggedOf(inbox);
   const list = occurrencesBetween(d, today, today).filter((o) => o.kind !== 'request');
   const nextKey = list.find((o) => o.start + o.duration > nowMin)?.key ?? null;
   return list.map((occ) => {
-    const cardId = occ.kind === 'one_to_one' ? occ.clientIds[0] ?? null : null;
-    const isLogged = !!cardId && !!loggedFor(logged.filter((l) => l.cardId === cardId), publishedIdOf(occ), occ.date);
-    return { occ, cardId, logged: isLogged, past: occ.start + occ.duration <= nowMin, next: occ.key === nextKey,
-      canStart: !!cardId && !isLogged && canStart(occ.date, occ.start, today, nowMin) };
+    const group = occ.kind === 'group';
+    const cardId = group ? null : occ.clientIds[0] ?? null;
+    const isLogged = group ? groupLogged(inbox, occ) : !!cardId && !!loggedFor(logged.filter((l) => l.cardId === cardId), publishedIdOf(occ), occ.date);
+    return { occ, cardId, group, logged: isLogged, past: occ.start + occ.duration <= nowMin, next: occ.key === nextKey,
+      canStart: (group ? occ.clientIds.length > 0 : !!cardId) && !isLogged && canStart(occ.date, occ.start, today, nowMin) };
   });
+}
+
+/** Group weeks from the last 14 days, before today, not logged or cancelled (§162). */
+export function missedGroups(d: Diary, inbox: Inbox, today: string): Occurrence[] {
+  return occurrencesBetween(d, missedFrom(today), addDays(today, -1))
+    .filter((o) => o.kind === 'group' && o.clientIds.length > 0 && !groupLogged(inbox, o));
 }
 
 /** One-to-one bookings from the last 14 days, before today, neither logged nor cancelled (cancelled ones aren't occurrences). */
@@ -107,7 +121,9 @@ export function needsYou(d: Diary, inbox: Inbox, bundles: ClientBundle[], summar
       if (!ran) out.push({ kind: 'photos', key: `p:${st.answer.id}`, at: st.answer.createdAt, cardId, macroId: m, skipped: st.skipped, count: st.before.length + st.after.length });
     }
   }
-  for (const { occ, cardId } of missedBookings(d, inbox, today)) out.push({ kind: 'missed', key: `m:${occ.key}`, at: `${occ.date}T${String(Math.floor(occ.start / 60)).padStart(2, '0')}:${String(occ.start % 60).padStart(2, '0')}`, cardId, occ });
+  const atOf = (occ: Occurrence) => `${occ.date}T${String(Math.floor(occ.start / 60)).padStart(2, '0')}:${String(occ.start % 60).padStart(2, '0')}`;
+  for (const { occ, cardId } of missedBookings(d, inbox, today)) out.push({ kind: 'missed', key: `m:${occ.key}`, at: atOf(occ), cardId, occ });
+  for (const occ of missedGroups(d, inbox, today)) out.push({ kind: 'missedGroup', key: `g:${occ.key}`, at: atOf(occ), cardId: null, occ });
   return out.sort((a, z) => a.at.localeCompare(z.at));
 }
 

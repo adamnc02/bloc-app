@@ -14,6 +14,7 @@ import { foldPlan } from '@/plan/fold';
 import { dayKeys, endOf, makeIds, sessionLabel, type PlanDoc } from '@/plan/doc';
 import { applyMacroTemplate, applyWorkoutTemplate, macroTemplateOf, workoutTemplateOf, type Template } from '@/plan/templates';
 import { ApplyCycleSheet } from '@/coach/client/plan/PlanSheets';
+import { WorkoutBuilder } from '@/coach/library/WorkoutBuilder';
 
 const TOP = 4;
 type Kind = Template['kind'];
@@ -51,6 +52,7 @@ export function LibraryScreen() {
   const [showAll, setShowAll] = useState<Record<Kind, boolean>>({ macrocycle: false, workout: false });
   const [applying, setApplying] = useState<Template | null>(null);
   const [saving, setSaving] = useState(false);
+  const [building, setBuilding] = useState(false);
   const [deleting, setDeleting] = useState<Template | null>(null);
   const load = useCallback(() => {
     Promise.all([repo.loadTemplates(), repo.loadClients()])
@@ -114,7 +116,10 @@ export function LibraryScreen() {
           <Seg label="Show templates" value={filter} onChange={setFilter} accent options={[{ value: 'all', label: 'All templates' }, { value: 'starred', label: `Starred (${starred})` }]} />
         </div>
         <Section i={2} title="Cycle templates" sub="Whole cycles, saved without dates. Apply one to a client from a start date." slot={slot('macrocycle')}>{section('macrocycle', 'cycle templates')}</Section>
-        <Section i={3} title="Workout templates" sub="Single sessions. Apply one into a session of a client’s cycle, or as a new session." slot={slot('workout')}>{section('workout', 'workout templates')}</Section>
+        <Section i={3} title="Workout templates" sub="Single sessions. Run one with a group, or apply it into a session of a client’s cycle." slot={slot('workout')}>
+          {section('workout', 'workout templates')}
+          <Button size="card" variant="ghost" icon="plus" style={{ marginTop: 12, maxWidth: 420 }} onClick={() => setBuilding(true)}>New workout</Button>
+        </Section>
         <Section i={4} title="Save as template" sub="Turn a client’s cycle, or one of its sessions, into a template. Dates and logs stay behind.">
           <Button style={{ maxWidth: 420 }} variant="ghost" icon="library" onClick={() => setSaving(true)}>Save as template</Button>
         </Section>
@@ -124,6 +129,7 @@ export function LibraryScreen() {
         <ApplyFlow key={applying.id} template={applying} clients={clients} repo={repo} coachId={profile.coachId} now={now} onClose={() => setApplying(null)}
           onDone={(cardId, macroId, msg) => { setApplying(null); load(); toast.show(msg); navigate(clientPath(cardId, 'plan', macroId)); }} />
       )}
+      {building && <WorkoutBuilder onClose={() => setBuilding(false)} onSaved={(t) => { setBuilding(false); setLib([...list, t]); toast.show(`${t.name} saved to Library`); }} />}
       {saving && (
         <SaveFlow clients={clients} repo={repo} coachId={profile.coachId} now={now} onClose={() => setSaving(false)}
           onSaved={(t) => { setSaving(false); setLib([...list, t]); toast.show(`${t.name} saved to Library`); }} />

@@ -94,14 +94,18 @@ const withAssigned = (p: BookingPayload, a: AssignedSession | null): BookingPayl
 
 /**
  * The weekly series this one continues ("all future" from a later week ends
- * the old series the day before that week and starts this one): the same kind
- * and clients, ended, and this one starting within the week after. Derived
- * from the diary, so every re-derivation gives the same `replaces`.
+ * the old series the day before that week and starts this one): the same kind,
+ * ended, this one starting within the week after, and the same client (a
+ * one-to-one) or at least one of the same people (a group: "all future" can
+ * change who's in it too). Derived from the diary, so every re-derivation gives
+ * the same `replaces`. A client new to the group hears it as "Added to a group
+ * session" (BLOC §151: a group week replacing one they weren't in).
  */
 export function predecessor(d: Pick<Diary, 'series'>, s: Series): Series | null {
   const who = [...s.clientIds].sort().join();
+  const same = (t: Series) => (s.kind === 'group' ? t.clientIds.some((c) => s.clientIds.includes(c)) : [...t.clientIds].sort().join() === who);
   return d.series.find((t) => t.id !== s.id && t.kind === s.kind && t.to != null && s.from > t.to
-    && daysBetween(t.to, s.from) <= 7 && [...t.clientIds].sort().join() === who) ?? null;
+    && daysBetween(t.to, s.from) <= 7 && same(t)) ?? null;
 }
 
 function oneOffPayload(b: Booking): BookingPayload {
@@ -157,15 +161,16 @@ export function canonical(p: Record<string, unknown>): string {
  * cancelled booking a card was never sent is not sent. `quiet` (the coach
  * chose not to notify) goes on every publication, or only on `quietIds`.
  */
-export function bookingChanges(d: Diary, opts: { quiet?: boolean; quietIds?: Set<string> } = {}): Outgoing[] {
+export function bookingChanges(d: Diary, opts: { quiet?: boolean; quietIds?: Set<string>; quietCards?: Set<string> } = {}): Outgoing[] {
   const desired = desiredBookings(d);
   const out: Outgoing[] = [];
-  const quietFor = (id: string) => opts.quiet === true || !!opts.quietIds?.has(id);
+  // `quietCards` holds `${cardId}|${booking_id}`: quiet for those cards only (a group's continuing members, §162).
+  const quietFor = (id: string, cardId?: string) => opts.quiet === true || !!opts.quietIds?.has(id) || (!!cardId && !!opts.quietCards?.has(keyOf(cardId, id)));
   for (const [k, { cardId, payload }] of desired) {
     const sent = d.sent[k];
     if (!sent && payload.status === 'cancelled') continue;
     if (sent && canonical(sent.payload) === canonical(payload)) continue;
-    out.push({ cardId, payload: quietFor(payload.booking_id) ? { ...payload, quiet: true } : payload, supersedes: sent?.id ?? null });
+    out.push({ cardId, payload: quietFor(payload.booking_id, cardId) ? { ...payload, quiet: true } : payload, supersedes: sent?.id ?? null });
   }
   // A booking still on for someone else (a group carrying on): the card left is told it was removed.
   const liveIds = new Set([...desired.values()].filter((x) => x.payload.status === 'booked').map((x) => x.payload.booking_id));
