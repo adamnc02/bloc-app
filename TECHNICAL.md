@@ -10460,7 +10460,8 @@ against, and offers Plan.
 **Start session opens on** the session tagged for this booking while the client hasn't started it, else the
 client's next unfinished session: the engine's `getNextIncompleteSession`, which BLOC's own Up next uses, so they
 agree. **Choose another session** is the week agenda (§115's design, from `getTrainAgendaUnits` at the client's
-today): a card per calendar week (dates, This week, deload, a summary), opening into its sessions; "Go to up next".
+today): a card per calendar week (dates, This week, deload, a summary), opening into its sessions, and opening scrolled to
+the week holding the chosen session (else up next), so it's at the top even mid-cycle.
 🚨 **A session the client has started (any set done), finished, already logged or replaced by a group can't be
 chosen** (`assignable`), because a coach's session replaces the whole session on the phone.
 
@@ -10508,7 +10509,8 @@ for a week still in it, else the booking).
 
 A client **not on the app** gets the same, saved to their card ("Kept for {first}. It comes across if they link"),
 plus **Measurements** on the screen and in Profile: a `measurement` publication `{v, log_date, weight (lbs), waist,
-hip (inches, quarters)}` with only what was entered.
+hip (inches, quarters)}` with only what was entered. The form opens on the latest values and keeps what was saved;
+Save measurements is off until something changes (an emptied form after a save read as "not saved").
 
 ### Today
 
@@ -10599,7 +10601,7 @@ invite needs somewhere to go.
 - `scripts/verify-coach-diary.mjs` reads `0030`'s allow-list and checks BLOC reads `removed` and `assigned_session`.
 - Driven in headless Chromium on the fixtures (Europe/London) at 375 × 812 and 1440 × 1000: Today (the four lists,
   in that order; Needs you on the right at 1440), Start session on Maya's session today through the chooser, the
-  week agenda, owning the session (Change session gone), the tick, Finish and "Session sent", then "Logged" on Today;
+  week agenda (opening on the week to come, no Go to up next), owning the session (Change session gone), the tick, Finish and "Session sent", then "Logged" on Today;
   Eileen (not on the app) through Log it, Measurements, "How hard was it?" (five across at 375) and "Session saved",
   her past session opening read-only; Profile's measurements; Settings' sections; Add a day off (label required,
   listed with its sessions cancelled); a day's header opening it; no horizontal scroll, no console errors.

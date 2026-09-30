@@ -1,9 +1,9 @@
 // Which session the coach takes with a client in person: the week agenda (BLOC §115's design, which the
 // wireframes' picker gives way to). One card per calendar week of the coach's cycle, with its dates, "This week",
-// deload and a summary; it opens into its sessions with their state. "Go to up next" opens the week holding the
-// client's next unfinished session. One tap chooses. A session the client has started, or that's already logged,
+// deload and a summary; it opens into its sessions with their state, scrolled to the week holding the chosen (or
+// up-next) session. One tap chooses. A session the client has started, or that's already logged,
 // can't be chosen (and says why).
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Macrocycle } from '@engine';
 import { Sheet } from '@/components/ui/Sheet';
 import { Button } from '@/components/ui/controls';
@@ -42,18 +42,23 @@ export function SessionPicker({ title, macro, units, first, current, tagged, onP
   const currentUnit = units.find((u) => u.sessions.some((x) => sameSession({ macroId: macro.id, ...x }, current))) ?? null;
   const [open, setOpen] = useState<Set<string>>(() => new Set([currentUnit?.key, upNextUnit?.key, units.find((u) => u.isThisWeek)?.key].filter(Boolean) as string[]));
   const total = useMemo(() => Math.max(0, ...units.map((u) => u.week)), [units]);
+  // The sheet opens on the week holding the chosen session (else up next), so it's at the top of the list even
+  // mid-cycle, with the finished weeks above it.
+  const startKey = currentUnit?.key ?? upNextUnit?.key ?? null;
+  useEffect(() => {
+    if (!startKey) return;
+    const t = setTimeout(() => document.querySelector(`[data-unit="${startKey}"]`)?.scrollIntoView({ block: 'start' }), 60);
+    return () => clearTimeout(t);
+  }, [startKey]);
   const toggle = (k: string) => setOpen((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   return (
     <Sheet open title={title} onClose={onClose}>
       <p className="muted" style={{ marginBottom: 12 }}>{String((macro as { name?: string }).name || 'Cycle')} · {total} mesocycles. Tap a session to choose it. {first} sees it read-only, “with your coach”.</p>
-      {upNextUnit && (
-        <Button size="card" variant="ghost" icon="target" style={{ marginBottom: 12 }} onClick={() => setOpen((s) => new Set([...s, upNextUnit.key]))}>Go to up next</Button>
-      )}
       <div className="stack">
         {units.map((u) => {
           const isOpen = open.has(u.key);
           return (
-            <div key={u.key} className="card" style={{ padding: 0, borderColor: u.isThisWeek ? 'color-mix(in srgb, var(--accent) 45%, transparent)' : undefined }}>
+            <div key={u.key} data-unit={u.key} className="card" style={{ padding: 0, scrollMarginTop: 8, borderColor: u.isThisWeek ? 'color-mix(in srgb, var(--accent) 45%, transparent)' : undefined }}>
               <button type="button" className="rowbtn" style={{ padding: '14px 16px' }} aria-expanded={isOpen} onClick={() => toggle(u.key)}>
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <b className="num">{u.start && u.end ? `${fmt.ddm(u.start)} – ${fmt.ddm(u.end)}` : `MC ${u.week}`}</b>

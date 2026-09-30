@@ -52,28 +52,35 @@ export function measurementPayload(date: string, lbs: string, waist: number, hip
   return p;
 }
 
-/** Weight, waist and hip, and Save measurements. */
+/**
+ * Weight, waist and hip, filled with the latest values (the wireframe's form), and Save measurements, which stays
+ * off until something is changed. After a save the fields keep what was saved.
+ */
 export function MeasurementsForm({ state, date, busy, onSave }: { state: BlocState | null; date: string; busy?: boolean; onSave: (p: MeasurementPayload) => void }) {
   const id = useId();
   const last = latestBody(state);
-  const [lbs, setLbs] = useState('');
-  const [waist, setWaist] = useState(0);
-  const [hip, setHip] = useState(0);
+  const [lbs, setLbs] = useState(last.weight ? last.weight.lbs.toFixed(1) : '');
+  const [waist, setWaist] = useState(last.tape?.waist ?? 0);
+  const [hip, setHip] = useState(last.tape?.hip ?? 0);
+  const [saved, setSaved] = useState<string | null>(null);
   const p = measurementPayload(date, lbs, waist, hip);
+  const key = JSON.stringify([p.weight ?? null, p.waist ?? null, p.hip ?? null]);
+  const unchanged = saved != null ? key === saved
+    : (p.weight ?? null) === (last.weight ? Math.round(last.weight.lbs * 10) / 10 : null) && (p.waist ?? null) === (last.tape?.waist ?? null) && (p.hip ?? null) === (last.tape?.hip ?? null);
   const empty = p.weight == null && p.waist == null && p.hip == null;
   return (
     <>
       <div className="field">
         <label htmlFor={`${id}-w`}>Weight{last.weight && <span className="caption" style={{ fontWeight: 500 }}> · last {last.weight.lbs.toFixed(1)} lbs, {fmt.dm(last.weight.date)}</span>}</label>
         <div className="inrow">
-          <input id={`${id}-w`} className="input num box" inputMode="decimal" style={{ maxWidth: 120, textAlign: 'center' }} placeholder={last.weight ? last.weight.lbs.toFixed(1) : ''} value={lbs} onChange={(e) => setLbs(e.target.value.replace(/[^0-9.]/g, ''))} />
+          <input id={`${id}-w`} className="input num box" inputMode="decimal" style={{ maxWidth: 120, textAlign: 'center' }} value={lbs} onChange={(e) => setLbs(e.target.value.replace(/[^0-9.]/g, ''))} />
           <span className="unit">lbs</span>
         </div>
       </div>
       <QuarterField label="Waist" value={waist} onChange={setWaist} last={last.tape?.waist} />
       <QuarterField label="Hip" value={hip} onChange={setHip} last={last.tape?.hip} />
       {last.tape && <p className="caption" style={{ marginTop: 12 }}>Last measured {fmt.ddm(last.tape.date)}.</p>}
-      <Button size="card" style={{ marginTop: 16 }} disabled={empty || busy} onClick={() => { onSave(p); setLbs(''); setWaist(0); setHip(0); }}>Save measurements</Button>
+      <Button size="card" style={{ marginTop: 16 }} disabled={empty || unchanged || busy} onClick={() => { onSave(p); setSaved(key); }}>Save measurements</Button>
     </>
   );
 }
