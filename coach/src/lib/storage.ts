@@ -26,10 +26,8 @@ export const KEYS = {
   inPerson: 'blocCoach_inPerson',
   /** This device's push registration id, so one iOS dropped can be healed (push/push.ts, §158). Cleared by Turn off. */
   pushDevice: 'blocCoach_pushDevice',
-  /** Temporary (v0.9.1): which route last opened Coach from a notification, for Settings → Notifications (§158). */
+  /** The last notification tap delivered, by any route, so route 4 doesn't reopen it (push/intent.ts, §158). */
   lastOpen: 'blocCoach_lastOpen',
-  /** Temporary (v0.9.2): the page's log of notification taps, for Settings → Notifications (§158). */
-  pushLog: 'blocCoach_pushLog',
   /** The newest push_outbox row id this device has handled (route 4, push/intent.ts, §158). */
   pushSeen: 'blocCoach_pushSeen',
 } as const;
