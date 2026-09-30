@@ -10525,6 +10525,9 @@ the rest stacked on the left.
   the last 14 days (`MISSED_LOOKBACK_DAYS`) neither logged nor cancelled**, with **Log it** (In person, for that
   day) and **Cancel** (that session, or that week of a weekly one: the client gets "Session cancelled", BLOC §153).
   An assigned session stays out of the client's "next" until one or the other.
+  **Run check-in**, **Reply in Review** and **Run the review** open the client's Review scrolled to the AI tools, on
+  that tool, or to the note back itself (`?at=ai|note&note=&tool=`, `ReviewFocus`); a note back sits at the foot of
+  Review under its response, a long scroll on a phone.
 - **Off track**: linked clients whose outcome is off track (§140), with its reason.
 - **Coming up**, over each client's next 7 days, at their today: a check-in due (14 days after the last run, BLOC's
   cooldown, else after the cycle's start; not once they've asked, which is Needs you's), a cycle's final week,

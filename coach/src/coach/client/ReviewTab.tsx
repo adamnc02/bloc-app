@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AIBadge, Button, Card, Chip, Hero, Icon, Notice, OutcomeChip, Score, Section, Sheet, Tag, useIsTablet, useIsWide, type IconName } from '@/components/ui';
 import { ComplianceGrid, SessionsStrip } from '@/components/charts/ComplianceGrid';
 import { NutritionChart } from '@/components/charts/NutritionChart';
@@ -56,7 +56,18 @@ function Review({ v, m, tz }: { v: ClientView; m: ReviewModel; tz: string }) {
   const { bundle } = v;
   const [day, setDay] = useState<string | null>(null);
   const ai = useAiData(v);
-  const [aiTool, setAiTool] = useState<AiTool>('check_in');
+  const [aiTool, setAiTool] = useState<AiTool>(() => (['check_in', 'cycle_review', 'next_cycle'].includes(v.focus?.tool ?? '') ? v.focus!.tool as AiTool : 'check_in'));
+  // From Today's Needs you: once the AI tools have loaded, scroll to the note back (else the AI tools), once.
+  const focused = useRef(false);
+  useEffect(() => {
+    if (!v.focus || focused.current || !ai.data) return;
+    focused.current = true;
+    const t = setTimeout(() => {
+      const el = (v.focus!.note && document.querySelector(`[data-note="${CSS.escape(v.focus!.note)}"]`)) || document.getElementById('review-ai');
+      el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 250);
+    return () => clearTimeout(t);
+  }, [v.focus, ai.data]);
   const aiRef = useRef<HTMLDivElement>(null);
   const openAi = (tool: AiTool) => { setAiTool(tool); aiRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
   const request = ai.data ? openRequest(ai.data.submissions, ai.data.drafts, m.cycle.id) : null;
@@ -111,7 +122,7 @@ function Review({ v, m, tz }: { v: ClientView; m: ReviewModel; tz: string }) {
         </Section>
 
         <div ref={aiRef} style={{ scrollMarginTop: 20, minWidth: 0 }}>
-          <Section i={7 + findings.length} title="AI tools" sub={`Runs on this device with your key, on ${v.first}’s data at their date. Nothing reaches ${v.first} until you publish.`} slot={<AIBadge />}>
+          <Section id="review-ai" i={7 + findings.length} title="AI tools" sub={`Runs on this device with your key, on ${v.first}’s data at their date. Nothing reaches ${v.first} until you publish.`} slot={<AIBadge />}>
             <AiPanel v={v} m={m} state={bundle.snapshot!.state} tool={aiTool} onTool={setAiTool} ai={ai} />
           </Section>
         </div>

@@ -133,7 +133,7 @@ function Screens() {
   const key = useMemo(() => JSON.stringify(route), [route]);
   switch (route.name) {
     case 'clients': return <ClientsScreen key={key} />;
-    case 'client': return <ClientScreen key={`client-${route.id}`} id={route.id} tab={route.tab} macro={route.macro} intent={route.intent} />;
+    case 'client': return <ClientScreen key={`client-${route.id}`} id={route.id} tab={route.tab} macro={route.macro} intent={route.intent} focus={route.focus} />;
     case 'settings': return <SettingsScreen key={key} />;
     case 'today': return <TodayScreen key={key} />;
     case 'session': return <InPersonScreen key={key} occKey={route.occKey} cardId={route.cardId} />;

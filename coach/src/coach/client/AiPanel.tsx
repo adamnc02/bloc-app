@@ -219,7 +219,7 @@ function ResponseCard({ d, data, first, onEdit, onPublish, onFull, onReply }: {
         {d.original.photos && (d.original.photos.before || d.original.photos.after) ? ` · ${d.original.photos.before + d.original.photos.after} photos` : ''}
       </p>
       {notes.map(({ note, reply }) => (
-        <div key={note.id} className="tile" style={{ marginTop: 12 }}>
+        <div key={note.id} data-note={note.id} className="tile" style={{ marginTop: 12 }}>
           <span className="label" style={{ marginBottom: 4 }}>Note back from {first} · {fmt.dm(note.createdAt.slice(0, 10))}</span>
           <p style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{String(note.body?.text || '')}</p>
           {reply

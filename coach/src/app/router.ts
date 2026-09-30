@@ -10,11 +10,14 @@
 // diary occurrence (`s:{series}@{week}` or `b:{booking}`) and the client.
 import { useEffect, useState } from 'react';
 
+/** Where Review opens scrolled to, from Today's Needs you: the AI tools on a tool, or one note back (`?at=ai|note`). */
+export interface ReviewFocus { at: 'ai' | 'note'; note: string | null; tool: string | null }
+
 export type ClientTab = 'review' | 'plan' | 'sessions' | 'profile';
 export const CLIENT_TABS: ClientTab[] = ['review', 'plan', 'sessions', 'profile'];
 
 export type Route =
-  | { name: 'today' } | { name: 'clients' } | { name: 'client'; id: string; tab: ClientTab; macro: string | null; intent: { act: 'swap' | 'goal'; ex: string | null } | null }
+  | { name: 'today' } | { name: 'clients' } | { name: 'client'; id: string; tab: ClientTab; macro: string | null; intent: { act: 'swap' | 'goal'; ex: string | null } | null; focus: ReviewFocus | null }
   | { name: 'diary' } | { name: 'library' } | { name: 'settings' }
   | { name: 'session'; occKey: string; cardId: string };
 
@@ -31,7 +34,9 @@ export function parseRoute(hash: string): Route {
     const act = q.get('act');
     // A Review finding's action opens Plan on its job (TECHNICAL §144).
     const intent = act === 'swap' || act === 'goal' ? { act, ex: q.get('ex') } as const : null;
-    return { name: 'client', id: decodeURIComponent(b), tab, macro: q.get('macro'), intent };
+    const at = q.get('at');
+    const focus = at === 'ai' || at === 'note' ? { at, note: q.get('note'), tool: q.get('tool') } as const : null;
+    return { name: 'client', id: decodeURIComponent(b), tab, macro: q.get('macro'), intent, focus };
   }
   if (a === 'session' && b) return { name: 'session', occKey: decodeURIComponent(b), cardId: new URLSearchParams(query).get('card') ?? '' };
   if (a === 'today' || a === 'clients' || a === 'diary' || a === 'library' || a === 'settings') return { name: a };
@@ -40,10 +45,11 @@ export function parseRoute(hash: string): Route {
 
 export const sessionPath = (occKey: string, cardId: string) => `/session/${encodeURIComponent(occKey)}?card=${encodeURIComponent(cardId)}`;
 
-export function clientPath(id: string, tab: ClientTab = 'review', macro?: string | null, intent?: { act: 'swap' | 'goal'; ex?: string | null } | null) {
+export function clientPath(id: string, tab: ClientTab = 'review', macro?: string | null, intent?: { act: 'swap' | 'goal'; ex?: string | null } | null, focus?: Partial<ReviewFocus> & { at: ReviewFocus['at'] }) {
   const q = new URLSearchParams();
   if (macro) q.set('macro', macro);
   if (intent) { q.set('act', intent.act); if (intent.ex) q.set('ex', intent.ex); }
+  if (focus) { q.set('at', focus.at); if (focus.note) q.set('note', focus.note); if (focus.tool) q.set('tool', focus.tool); }
   const qs = q.toString();
   return `/clients/${encodeURIComponent(id)}/${tab}${qs ? `?${qs}` : ''}`;
 }

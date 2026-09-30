@@ -40,7 +40,7 @@ export interface TodaySession {
 export type NeedsItem =
   | { kind: 'request'; key: string; at: string; cardId: string | null; request: SessionRequest }
   | { kind: 'checkin'; key: string; at: string; cardId: string; submission: Submission }
-  | { kind: 'note'; key: string; at: string; cardId: string; submission: Submission; headline: string | null }
+  | { kind: 'note'; key: string; at: string; cardId: string; submission: Submission; headline: string | null; tool: string | null; macroId: string | null }
   | { kind: 'photos'; key: string; at: string; cardId: string; macroId: string; skipped: boolean; count: number }
   | { kind: 'missed'; key: string; at: string; cardId: string; occ: Occurrence };
 
@@ -95,7 +95,8 @@ export function needsYou(d: Diary, inbox: Inbox, bundles: ClientBundle[], summar
     const responses = [...new Set(subs.filter((x) => x.kind === 'note_back').map((x) => String(x.body?.response_id ?? '')))];
     for (const rid of responses) {
       const resp = pubs.filter((p) => p.type === 'ai_response' && p.payload?.response_id === rid).sort((a, z) => z.seq - a.seq)[0];
-      for (const n of notesBack(subs, pubs, rid)) if (!n.reply) out.push({ kind: 'note', key: `n:${n.note.id}`, at: n.note.createdAt, cardId, submission: n.note, headline: (resp?.payload?.content as Loose | undefined)?.headline ?? null });
+      for (const n of notesBack(subs, pubs, rid)) if (!n.reply) out.push({ kind: 'note', key: `n:${n.note.id}`, at: n.note.createdAt, cardId, submission: n.note,
+        headline: (resp?.payload?.content as Loose | undefined)?.headline ?? null, tool: (resp?.payload?.tool as string | undefined) ?? null, macroId: (resp?.payload?.macro_id as string | undefined) ?? null });
     }
     // Review photos answered (sent or skipped) and no review run since.
     for (const m of [...new Set(pubs.filter((p) => p.type === 'photo_request').map((p) => String(p.payload?.macro_id ?? '')))].filter(Boolean)) {

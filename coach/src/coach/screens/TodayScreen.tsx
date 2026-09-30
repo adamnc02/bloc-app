@@ -240,7 +240,7 @@ function NeedsBody({ it, name, first, who, onRequest, onCancel }: {
         <CardHead icon="message" eyebrow="Check-in asked for" name={name} when={ago(it.submission.createdAt)} />
         <div className="muted" style={{ marginTop: 12 }}>Feeling <b style={{ color: 'var(--text)' }}>{String(b.feel || 'okay').toLowerCase()}</b></div>
         {b.note && <Quote>{String(b.note)}</Quote>}
-        <div className="btnrow"><Button size="card" icon="sparkle" onClick={() => navigate(clientPath(it.cardId, 'review'))}>Run check-in</Button></div>
+        <div className="btnrow"><Button size="card" icon="sparkle" onClick={() => navigate(clientPath(it.cardId, 'review', null, null, { at: 'ai', tool: 'check_in' }))}>Run check-in</Button></div>
       </>;
     }
     case 'note':
@@ -248,13 +248,13 @@ function NeedsBody({ it, name, first, who, onRequest, onCancel }: {
         <CardHead icon="send" eyebrow="Note back" name={name} when={ago(it.submission.createdAt)} />
         {it.headline && <div className="muted" style={{ marginTop: 12 }}>On “{it.headline}”</div>}
         <Quote>{String(it.submission.body?.text ?? '')}</Quote>
-        <div className="btnrow"><Button size="card" icon="message" onClick={() => navigate(clientPath(it.cardId, 'review'))}>Reply in Review</Button></div>
+        <div className="btnrow"><Button size="card" icon="message" onClick={() => navigate(clientPath(it.cardId, 'review', it.macroId, null, { at: 'note', note: it.submission.id, tool: it.tool }))}>Reply in Review</Button></div>
       </>;
     case 'photos':
       return <>
         <CardHead icon="photo" eyebrow={it.skipped ? 'Review photos skipped' : 'Review photos in'} name={name} when={ago(it.at)} />
         <p className="muted" style={{ marginTop: 12 }}>{it.skipped ? `${first} skipped photos for the cycle review. It can run without them.` : `${first} sent ${it.count} ${it.count === 1 ? 'photo' : 'photos'} for the cycle review.`}</p>
-        <div className="btnrow"><Button size="card" icon="sparkle" onClick={() => navigate(clientPath(it.cardId, 'review'))}>Run the review</Button></div>
+        <div className="btnrow"><Button size="card" icon="sparkle" onClick={() => navigate(clientPath(it.cardId, 'review', it.macroId, null, { at: 'ai', tool: 'cycle_review' }))}>Run the review</Button></div>
       </>;
     case 'missed': {
       const o = it.occ;
