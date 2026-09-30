@@ -70,24 +70,6 @@ export async function takeOpenNote(now = Date.now()): Promise<string | null> {
 //    is held until Coach is ready (watchOpenIntents).
 export type OpenVia = 'url' | 'message' | 'note' | 'recent';
 
-// ── Temporary (v0.9.2): what the page saw of a notification tap ──────────
-// A phone has no console. Settings → Notifications lists these, so a tap on a
-// closed Coach shows whether iOS ran the worker's click handler at all (a note
-// or a message arrives) or launched Coach without it. Removed before Phase 6
-// closes, with the v0.9.1 readout.
-const LOG_MAX = 16;
-export function pushLog(ev: string): void {
-  try {
-    const now = new Date();
-    const t = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-    const list = JSON.parse(localStorage.getItem(KEYS.pushLog) || '[]') as string[];
-    list.push(`${t} ${ev}`);
-    localStorage.setItem(KEYS.pushLog, JSON.stringify(list.slice(-LOG_MAX)));
-  } catch { /* private mode */ }
-}
-export function readPushLog(): string[] {
-  try { return JSON.parse(localStorage.getItem(KEYS.pushLog) || '[]') as string[]; } catch { return []; }
-}
 /** When to re-read the note after page load, ready, or a return to the front, ms. */
 export const RECHECK_MS = [0, 500, 1500, 3000, 6000, 10000];
 
@@ -111,18 +93,14 @@ async function check(): Promise<void> {
       const u = new URL(window.location.href);
       u.searchParams.delete('open');
       history.replaceState(null, '', u.pathname + u.search + u.hash);
-      pushLog(`url ${fromUrl.slice(0, 24)}`);
       hand(fromUrl, 'url');
       await takeOpenNote(); // the same tap: consume its note too
       return;
     }
-    const note = await takeOpenNote();
-    if (note) pushLog(`note ${note.slice(0, 24)}`);
-    hand(note, 'note');
+    hand(await takeOpenNote(), 'note');
   } finally { busy = false; }
 }
 function burst(why: string) {
-  pushLog(`checks (${why})`);
   for (const t of timers) clearTimeout(t);
   timers = RECHECK_MS.map((ms) => setTimeout(() => void check(), ms));
   if (why !== 'load') scheduleRecent();
@@ -173,10 +151,9 @@ async function checkRecent(): Promise<void> {
     const row = await source();
     const target = recentToOpen(row, seenGet(), lastOpen(), Date.now());
     if (row && row.id > seenGet()) seenSet(row.id);
-    pushLog(target ? `recent ${target.slice(0, 24)}` : `recent none${row ? ` (newest ${row.tag.slice(0, 16)})` : ''}`);
     hand(target, 'recent');
-  } catch (e) {
-    pushLog(`recent error ${e instanceof Error ? e.message.slice(0, 40) : ''}`);
+  } catch {
+    // no connection: the next focus or visible tries again
   }
 }
 
@@ -189,11 +166,8 @@ async function checkRecent(): Promise<void> {
 export function listenForOpenMessages(): void {
   if (typeof window === 'undefined') return;
   const sw = 'serviceWorker' in navigator ? navigator.serviceWorker : null;
-  pushLog(`boot ${location.pathname}${location.search}${location.hash} · worker ${sw?.controller ? 'yes' : 'no'} · ${document.visibilityState}`);
-  sw?.getRegistrations().then((regs) => pushLog(`workers ${regs.map((r) => new URL(r.scope).pathname).join(', ') || 'none'} · controller ${sw.controller ? new URL(sw.controller.scriptURL).pathname : 'none'}`)).catch(() => {});
   sw?.addEventListener('message', (e: MessageEvent) => {
     const d = e.data as { type?: unknown; open?: unknown } | null;
-    pushLog(`message ${d && typeof d.type === 'string' ? d.type : '?'} ${d && typeof d.open === 'string' ? d.open.slice(0, 24) : ''}`);
     if (d && d.type === OPEN_MESSAGE) void takeOpenNote().finally(() => hand(openTarget(d.open), 'message'));
   });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') burst('visible'); });
@@ -202,7 +176,7 @@ export function listenForOpenMessages(): void {
   burst('load');
 }
 
-/** Temporary readout (Settings → Notifications): which route last opened Coach from a notification. */
+/** The last tap delivered (any route): route 4 won't reopen a push already delivered (recentToOpen). */
 export interface LastOpen { at: number; via: OpenVia; target: string; path: string | null }
 export function lastOpen(): LastOpen | null {
   try { return JSON.parse(localStorage.getItem(KEYS.lastOpen) || 'null'); } catch { return null; }
@@ -217,7 +191,6 @@ export function watchOpenIntents(go: (path: string) => void, recent?: () => Prom
   recentSource = recent ?? null;
   deliver = (target, via) => {
     const path = pushRoute(target);
-    pushLog(`open via ${via} → ${path ?? 'stay'}`);
     try { localStorage.setItem(KEYS.lastOpen, JSON.stringify({ at: Date.now(), via, target, path } satisfies LastOpen)); } catch { /* private mode */ }
     if (path) go(path);
   };

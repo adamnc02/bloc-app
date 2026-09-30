@@ -8,7 +8,6 @@ import { initials } from '@/lib/format';
 import { getAiKey, setAiKey } from '@/ai/transport';
 import { DiarySettingsSections } from '@/coach/diary/DiarySettings';
 import { getSupabase } from '@/lib/supabase';
-import { lastOpen, readPushLog } from '@/push/intent';
 import { currentPushState, DEFAULT_PREFS, loadPrefs, registerPushHere, savePref, sendTestPush, turnOffPushHere, type PrefKey, type Prefs, type PushState } from '@/push/push';
 
 declare const __COACH_VERSION__: string;
@@ -71,8 +70,6 @@ export function SettingsScreen() {
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushMsg, setPushMsg] = useState<{ text: string; bad: boolean } | null>(null);
-  const last = lastOpen();
-  const log = readPushLog();
   const refreshPush = useCallback(async () => {
     if (!sb) return;
     try { setPush(await currentPushState(sb)); setPrefs(await loadPrefs(sb, profile.coachId)); }
@@ -183,10 +180,6 @@ export function SettingsScreen() {
                   </>}
                 </div>
                 {pushMsg && <p className={pushMsg.bad ? 't-bad' : 'muted'} role="status" style={{ marginTop: 10 }}>{pushMsg.text}</p>}
-                {/* Temporary (v0.9.1): which route last opened Coach from a notification; removed before Phase 6 closes. */}
-                {last && <p className="caption" style={{ marginTop: 10 }}>Last opened from a notification: {new Date(last.at).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit' })} · via {last.via} → {last.path ?? 'stayed'}</p>}
-                {/* Temporary (v0.9.2): the page's own log of notification taps, newest last. */}
-                {log.length > 0 && <pre className="caption" style={{ marginTop: 10, whiteSpace: 'pre-wrap', fontSize: 11, lineHeight: 1.45 }}>{log.join('\n')}</pre>}
               </div>
             )}
             <div className="card list">

@@ -164,6 +164,10 @@ check("route 4: once ready, Coach asks the server for its newest coach push from
   /from\('push_outbox'\)\.select\('id, tag, created_at'\)\.eq\('app', 'coach'\)/.test(app) && /RECENT_MS/.test(app) && /watchOpenIntents\(navigate, sb \?/.test(app), true);
 check('route 4 runs on every burst but the load one, remembers what it opened (KEYS.pushSeen), and never reopens a delivered push',
   /if \(why !== 'load'\) scheduleRecent\(\)/.test(intent) && /KEYS\.pushSeen/.test(intent) && /last\.target === target && last\.at >= Date\.parse\(row\.createdAt\)/.test(intent), true);
+// v0.9.5: the notification debugging (v0.9.1's readout, v0.9.2's log) is gone and must stay gone, as BLOC's did (§114).
+const settings = read('coach/src/coach/screens/SettingsScreen.tsx');
+check('no notification debugging in Settings or intent.ts (no "Last opened from a notification", no push log)',
+  [/Last opened from a notification/.test(settings), /readPushLog|pushLog\(/.test(settings + intent), /pushLog:/.test(read('coach/src/lib/storage.ts'))], [false, false, false]);
 check("Coach registers app 'coach', never 'bloc'", /app: 'coach'/.test(push) && !/app: 'bloc'/.test(push), true);
 
 console.log(failures ? `\n✗ ${failures} check(s) failed` : '\nALL CHECKS PASS');

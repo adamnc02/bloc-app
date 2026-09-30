@@ -10858,8 +10858,8 @@ its first render, before anything else. Now all three routes are read **from pag
 `focus` and `pageshow`. The destination is held until `watchOpenIntents()` (at ready) delivers it, and re-reads
 once more. **Temporary log:** Settings → Notifications lists the page's last 16 notification events (`KEYS.pushLog`:
 "boot {address} · worker yes/no", "checks (load|ready|visible|focus|pageshow)", "note …", "message …",
-"open via … → …"). One closed-app tap then shows whether iOS ran the worker's click handler at all. The log is
-removed with the v0.9.1 readout before Phase 6 closes.
+"open via … → …"). One closed-app tap then shows whether iOS ran the worker's click handler at all. Both the log and the v0.9.1 readout were
+removed in v0.9.5; `verify-coach-push.mjs` checks they stay gone. `KEYS.lastOpen` stays: route 4 reads it.
 
 **v0.9.3: route 4, the server.** The v0.9.2 log settled it. On the iPhone, **Coach's worker never passes a tap to the
 page**: no message and no note, with Coach closed, in the background, or **on screen**. Three test taps were logged,
@@ -10933,6 +10933,13 @@ higher, and scrolled content ran under the clock with no fade.
 - **Edge fades:** `.edge-fade-top` / `.edge-fade-bottom`, fixed strips the height of the **top** inset (both, as BLOC's),
   `--bg` to `--bg` at 0% (never `transparent`, which darkens mid-gradient), z 45: under the nav (50), sheets (100)
   and toasts (200), and they never take a tap. On a laptop they're 0 high.
+
+🚨 **iOS reads the status-bar style only when the app is ADDED to the Home Screen.** A Coach icon added before v0.9.4
+kept its opaque bar: the page still started below it, so the measured top inset was **0**. The header then fell back to its
+52px, and both fades (sized by the top inset) were 0px high, while the nav (the bottom inset, still 34) moved. The fix on
+a phone is to **delete the icon and add Coach to the Home Screen again**, then sign in and turn notifications on again: a
+re-added app is a new install, with its own storage and push subscription. The old subscription's row is pruned when Apple
+answers 410 (`record_push_result`, `0019`).
 
 **Checked:** Chromium with the safe-area insets emulated (`Emulation.setSafeAreaInsetsOverride`, 59/34) at 390×844, BLOC
 and Coach side by side. The date line is 83 / 83 from the top, the nav gap 28 / 28 from the bottom, and the fades
