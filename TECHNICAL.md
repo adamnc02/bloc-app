@@ -10149,9 +10149,9 @@ never for a one-to-one) is **"Added to a group session"** ("{coach} added you to
 **"Group session cancelled"** ("You have been removed from the Saturday bootcamp on Sat 10 Oct, 09:00 with {coach}.") when
 the client is taken out of it or it ends for them; a group week that `replaces` a session the
 client wasn't in (cancelled for them, or never theirs) is "Added to a group session" too, never "Session changed". Session cancelled as before (§137);
-then, for a weekly booking whose date and time are unchanged, a skip date added from today
-on is **Session cancelled** (or "N sessions … are off, from …"), one removed is **Session back on** (a cancelled
-week reinstated; BLOC Coach's Undo of a day off never does this, §152), and a new `until` from today on is **Weekly session ending**. Skip dates in the past raise
+then, for a weekly booking whose date and time are unchanged, a skip date added from 14 days back
+on (v8.48, §153) is **Session cancelled** (or "N sessions … are off, from …"), one removed is **Session back on** (a cancelled
+week reinstated; BLOC Coach's Undo of a day off never does this, §152), and a new `until` from today on is **Weekly session ending**. Older skip dates raise
 nothing. A weekly series changed "all future" ends the old booking (`until`, sent quiet) and arrives as a new
 `booking_id` carrying `replaces` (`0029`), so the client sees one "Session changed" for the new day and time.
 
@@ -10372,3 +10372,37 @@ the message (control: `String()` of the raw error), one refresh and retry on an 
   rail collapsed, remembered over a reload, and expanded; Review's two columns at 1440 and 1100, one at 375. No
   horizontal scroll, no console errors.
 
+## §153 — v8.48: a cancelled group session, or a client removed from one; a missed week cancelled; a weekly booking's in-person week
+
+**A cancelled group booking is one of two things.** A group reaches each attendee's phone as its own `booking`
+publication (one per card, one `booking_id`, with a `title`, §151). The whole group week called off and one client
+taken out of a group that carries on both send that client's card the booking `status: 'cancelled'`. Migration `0030`
+adds **`removed`** (a boolean) to the booking allow-list, and BLOC Coach sends `removed: true` only for the second
+(Coach TECHNICAL §154). `applyBookingPublication()`:
+
+| Booking | Banner |
+|---|---|
+| a group, cancelled, `removed: true` | **Removed from a group session**: "You have been removed from the {group} on {when} with {coach}." |
+| a group, cancelled, no `removed` | **Group session cancelled**: "{group} on {when} with {coach} is cancelled." |
+| a group's weekly skip date added (a day off, a holiday, just this one) | **Group session cancelled**: "{group} on {when} with {coach} is cancelled." (or "N {group} sessions … are cancelled, from …") |
+| a one-to-one, cancelled | **Session cancelled**, as before |
+
+**A missed week cancelled is news.** BLOC Coach lists a session that wasn't logged or cancelled for 14 days, and
+cancelling one adds that past week to the weekly booking's `skip_dates`. A newly skipped week from 14 days back on
+(`COACH_PAST_SKIP_DAYS`) raises **Session cancelled** like a week to come; an older one raises nothing, so a series
+republished with its old cancelled weeks stays quiet. A one-off cancelled was already news whatever its date.
+
+For a weekly booking `{when}` is the week that would have come next (`coachBookingNextDate()` on the booking as it
+was), never the series' first date, which is usually in the past.
+
+**A weekly booking's in-person session reads the week to come.** The coach marks a plan session for their next
+in-person session by putting `assigned_session` on the booking (§136). On a weekly booking that is the series' one
+row, so `coachSessionWhen()` (Train's notice, the agenda row) now rolls it forward like every other weekly date
+(`coachBookingNextDate()`): "With your coach · Wed 7 Oct, 18:00", not the series' first Wednesday. The agenda reads
+the booking itself (`getCoachAssignment()`), because the engine's `withCoach` carries only the date and time. The
+marker names one plan session and never repeats: once the coach logs it, the session is coach-logged (§137) and
+Coach clears the marker.
+
+**Check:** `scripts/verify-booking-weeks.mjs`: a group cancelled for everyone, a client removed from one that carries
+on (the week to come), a group's skipped week naming it, a week 8 days back cancelled (a banner) and one 22 days back
+(none), and the weekly and one-off in-person dates. Control: v8.47 (`927edbb`) fails exactly those five rows.
