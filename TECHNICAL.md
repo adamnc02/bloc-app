@@ -10861,6 +10861,21 @@ once more. **Temporary log:** Settings → Notifications lists the page's last 1
 "open via … → …"). One closed-app tap then shows whether iOS ran the worker's click handler at all. The log is
 removed with the v0.9.1 readout before Phase 6 closes.
 
+**v0.9.3: route 4, the server.** The v0.9.2 log settled it. On the iPhone, **Coach's worker never passes a tap to the
+page**: no message and no note, with Coach closed, in the background, or **on screen**. Three test taps were logged,
+and BLOC's worker, with the same design on the same phone, passed its tap. The one structural difference is that
+Coach's scope (`/bloc-app/coach/`) sits inside BLOC's (`/bloc-app/`); that's the suspected cause (the boot line now
+logs the registrations and the controller to test it). Coach therefore no longer depends on the click reaching the page:
+- every push to a coach is a `push_outbox` row (`0031`), which the coach can read (RLS: own rows);
+- once Coach is ready, and on every burst after that (focus, visible, pageshow: a tap always gives Coach focus), it reads
+  the **newest coach push from the last 15 minutes** (`RECENT_MS`). `recentToOpen()` opens it if this device hasn't
+  handled it yet (`KEYS.pushSeen`, the newest row id handled) and routes 1–3 haven't already delivered it (`lastOpen`
+  names the same target at or after the push). The test notification and non-destinations never move Coach.
+- 🚨 **The consequence, on purpose:** opening Coach **by its icon** within 15 minutes of a push also goes to that item.
+  A push that arrives while Coach is on screen moves nothing until it's tapped.
+- The digest isn't a `push_outbox` row (it's sent directly), so its tap opens Today, which is where the digest points
+  anyway.
+
 ### Settings → Notifications (`src/push/push.ts`)
 
 BLOC's push code (§111–§113), ported to TypeScript for `app: 'coach'`:
@@ -10883,7 +10898,7 @@ and supabase-js's upsert asks for UPDATE on `coach_id` too (MIGRATION-LESSONS §
 clients has no server, so the section says so and everything in it is disabled.
 
 **Checks:**
-- `scripts/verify-coach-push.mjs` (36) runs the real worker in a simulated scope:
+- `scripts/verify-coach-push.mjs` (39) runs the real worker in a simulated scope:
   - a cold tap (the note and the URL) and a warm one (the tag beats data; the message);
   - a BLOC window not reused; BLOC's tag and a URL in `data` both opening Today; no tag;
   - the unreadable push; the pin;

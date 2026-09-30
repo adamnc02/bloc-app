@@ -158,6 +158,12 @@ check('from page load: the message, the note burst, and a re-burst on visibility
   /addEventListener\('message'/.test(load) && /burst\('load'\)/.test(load) && /addEventListener\('visibilitychange'/.test(load) && /addEventListener\('focus'/.test(load) && /addEventListener\('pageshow'/.test(load), true);
 check('once ready, anything held is delivered and the note re-read', /if \(pending\)/.test(intent) && /burst\('ready'\)/.test(intent), true);
 check('control: v0.9 read the note once and listened only once ready', (() => { try { const old = execFileSync('git', ['show', 'bb7f3a0:coach/src/push/intent.ts'], { cwd: repo, encoding: 'utf8' }); return !/RECHECK_MS/.test(old) && !/listenForOpenMessages/.test(old); } catch { return false; } })(), true);
+// v0.9.3: on the iPhone Coach's worker never passes a tap to the page (UAT, three test taps), so Coach reads its
+// newest push from push_outbox (route 4) on ready and on every focus / visible.
+check("route 4: once ready, Coach asks the server for its newest coach push from the last RECENT_MS",
+  /from\('push_outbox'\)\.select\('id, tag, created_at'\)\.eq\('app', 'coach'\)/.test(app) && /RECENT_MS/.test(app) && /watchOpenIntents\(navigate, sb \?/.test(app), true);
+check('route 4 runs on every burst but the load one, remembers what it opened (KEYS.pushSeen), and never reopens a delivered push',
+  /if \(why !== 'load'\) scheduleRecent\(\)/.test(intent) && /KEYS\.pushSeen/.test(intent) && /last\.target === target && last\.at >= Date\.parse\(row\.createdAt\)/.test(intent), true);
 check("Coach registers app 'coach', never 'bloc'", /app: 'coach'/.test(push) && !/app: 'bloc'/.test(push), true);
 
 console.log(failures ? `\n✗ ${failures} check(s) failed` : '\nALL CHECKS PASS');

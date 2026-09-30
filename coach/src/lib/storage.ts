@@ -30,4 +30,6 @@ export const KEYS = {
   lastOpen: 'blocCoach_lastOpen',
   /** Temporary (v0.9.2): the page's log of notification taps, for Settings → Notifications (§158). */
   pushLog: 'blocCoach_pushLog',
+  /** The newest push_outbox row id this device has handled (route 4, push/intent.ts, §158). */
+  pushSeen: 'blocCoach_pushSeen',
 } as const;
