@@ -25,7 +25,7 @@
 import type { BlocState, Loose, Macrocycle } from './state.ts';
 import {
   getWeekSets, getWeekWeight, getWeekReps, getGiantSetProgression, getProgressionLockKey, getProgKey,
-  parseRepsForVolume, roundToIncrement, getMacroEffectiveMesoCount,
+  parseRepsForVolume, roundToIncrement, getMacroEffectiveMesoCount, progressionStartWeek, lockAppliesFrom,
 } from './progression.ts';
 import { isDeloadUnit, isFirstUnitAfterDeload, isSubstitutedUnit } from './sessions.ts';
 
@@ -91,17 +91,15 @@ export function isRpeOn(macro: Macrocycle | null | undefined): boolean {
   return !!(macro && macro.rpe === true);
 }
 
-// Whether ratings change targets. In Solo they do. 🚨 On a coach's cycle
-// they don't: the coach owns the plan, so ratings only INFORM the coach there
-// (Adam, 2026-09-27). This is the one switch.
-// 🚨 v8.40 (§132): "the coach's cycle" is `publishedBy`, which is IN the
-// data, never "is this phone linked" (that lives outside `state`, §129).
-// BLOC Coach runs this engine on the client's uploaded state and must reach
-// the same targets as the phone; a link check would split them. So a Solo
-// cycle still running after linking stays Solo until the coach replaces it
-// (Adam, 2026-09-28: "Coach's cycles only").
+// Whether ratings change targets: whenever the cycle has ratings on, a
+// coach's cycle (`publishedBy`) included. v8.52 (§161): a coach's cycle
+// follows the same rule as Solo; the coach steps in only when an exercise is
+// rated 9+ two weeks running (BLOC Coach's Needs you), by resetting it
+// (`fromWeek`, progressionStartWeek). From v8.40 to v8.51 a coach's cycle
+// never drove progression. Both apps run this one function, so the phone and
+// BLOC Coach reach the same targets.
 export function rpeDrivesProgression(macro: Macrocycle | null | undefined): boolean {
-  return isRpeOn(macro) && !(macro && macro.publishedBy);
+  return isRpeOn(macro);
 }
 
 export const RPE_STEP_NONE: RpeStep = Object.freeze({ kind: 'none', weightMult: 1, repsInc: 1, giantInc: 10 });
@@ -128,7 +126,7 @@ export function rpeStepFromKind(kind: string, ex: Loose): RpeStep {
 export function computeRpeStepKind(s: BlocState, cache: TargetCache, macro: Macrocycle, week: number, dayKey: string, ex: Loose): 'none' | 'easy' | 'hold' {
   if (!rpeDrivesProgression(macro)) return 'none';
   if (!ex || ex.category === 'cardio' || macro.goalType === 'maintenance') return 'none';
-  if (week <= 1) return 'none';
+  if (week <= progressionStartWeek(ex)) return 'none'; // week 1, or a reset's first week (§161)
   if (isDeloadUnit(s, macro, week, dayKey) || isFirstUnitAfterDeload(s, macro, week, dayKey)
       || isDeloadUnit(s, macro, week - 1, dayKey)) return 'none';
   const r: Loose = s.rpe && s.rpe[getRpeKey(macro.id, week - 1, dayKey, ex.id)];
@@ -181,15 +179,20 @@ export function bumpRepsBy(reps: Loose, inc: number): string | null {
 // exercise's genuine starting point — so the walk stops there
 // unconditionally if nothing else qualifies first.
 export function getLastCompliantWeek(s: BlocState, cache: TargetCache, macro: Macrocycle, dayKey: string, ex: Loose, beforeWeek: number): number {
+  // v8.52 (§161): the floor is the exercise's progression start, which is
+  // week 1 unless it was reset (or joined late); nothing before it counts.
+  // A week before the start (history) keeps week 1 as its floor.
+  const start = progressionStartWeek(ex);
+  const floor = beforeWeek > start ? start : 1;
   let w = beforeWeek - 1;
-  while (w > 1) {
+  while (w > floor) {
     // v8.43 (§137, D3): a swapped week is skipped exactly like a deload.
     if (isDeloadUnit(s, macro, w, dayKey) || isSubstitutedUnit(s, macro, w, dayKey, ex.id)) { w--; continue; }
     const result = getWeekComplianceResult(s, cache, macro, w, dayKey, ex);
     if (result.fullyLogged && result.compliant) return w;
     w--;
   }
-  return 1;
+  return floor;
 }
 
 // Recomputes the per-set weight/reps target this week WOULD suggest under
@@ -291,7 +294,13 @@ export function getWeekTargets(s: BlocState, cache: TargetCache, macro: Macrocyc
   if (cached) return cached;
 
   let raw: Loose;
-  if (week === 1) {
+  if (week > 1 && week === progressionStartWeek(ex)) {
+    // v8.52 (§161): the first week of a reset (or of an exercise that joined
+    // late) is its week 1: the starting numbers, whatever was lifted before,
+    // any lock and any deload before it.
+    const sets = getWeekSets(ex, week, macro.weeks as number);
+    raw = { weightTargets: Array(sets).fill(ex.startWeight.toFixed(1)), repsTargets: Array(sets).fill(ex.reps) };
+  } else if (week === 1) {
     // Week 1 is the exercise's genuine starting point — not part of the
     // lock/compliance pipeline at all, so its "target" is simply its own
     // configured starting numbers, same as exProgData's week-1 display.
@@ -301,7 +310,10 @@ export function getWeekTargets(s: BlocState, cache: TargetCache, macro: Macrocyc
     const refWeek = getLastCompliantWeek(s, cache, macro, dayKey, ex, week);
     raw = getWeekTargets(s, cache, macro, refWeek, dayKey, ex);
   } else {
-    const existingLock: Loose = s.progressionLocks && s.progressionLocks[lockKey];
+    const lockHere: Loose = s.progressionLocks && s.progressionLocks[lockKey];
+    // A week before a reset is history and keeps any lock; after it, a lock
+    // from before the reset no longer applies (§161).
+    const existingLock: Loose = week < progressionStartWeek(ex) || lockAppliesFrom(lockHere, ex) ? lockHere : null;
     if (existingLock) {
       raw = { weightTargets: existingLock.weightTargets, repsTargets: existingLock.repsTargets };
     } else if (isSubstitutedUnit(s, macro, week - 1, dayKey, ex.id)) {
@@ -392,13 +404,19 @@ export function computeLockTransition(s: BlocState, cache: TargetCache, macro: M
   if (!macro || !ex) return null;
   if (macro.goalType === 'maintenance') return null;
   if (week <= 1) return null;
+  // v8.52 (§161): a reset's first week is its week 1, so nothing to judge.
+  const start = progressionStartWeek(ex);
+  if (week === start) return null;
   if (isDeloadUnit(s, macro, week, dayKey)) return null;
 
   const lockKey = getProgressionLockKey(macro.id, dayKey, ex.id);
   const result = getWeekComplianceResult(s, cache, macro, week, dayKey, ex);
   if (!result.fullyLogged) return null; // session not fully logged yet — wait
 
-  const existingLock: Loose = s.progressionLocks && s.progressionLocks[lockKey];
+  // After a reset, a lock from before it doesn't count: a miss sets a fresh
+  // lock rather than "already locked" (§161). Weeks before it are unchanged.
+  const lockHere: Loose = s.progressionLocks && s.progressionLocks[lockKey];
+  const existingLock: Loose = week < start || lockAppliesFrom(lockHere, ex) ? lockHere : null;
   const isPostDeload = isFirstUnitAfterDeload(s, macro, week, dayKey);
 
   if (!result.compliant) {
@@ -412,7 +430,7 @@ export function computeLockTransition(s: BlocState, cache: TargetCache, macro: M
     // Already locked on an ordinary week — target stays frozen exactly as
     // first set; nothing to update.
     return null;
-  } else if (existingLock) {
+  } else if (existingLock || (week > start && lockHere)) {
     return { key: lockKey, clear: true };
   }
   return null;
@@ -508,8 +526,14 @@ export function computeExerciseProgression(s: BlocState, cache: TargetCache, mac
   // number, even if one exists. Either way, this exercise's own
   // evaluation below (which now runs for post-deload weeks too) is
   // what decides whether NEXT week sees a lock — never this render.
-  const isLocked = !isDeloadSession && !isPostDeloadSession
-    && !!progLock && (progLock.lockedAtWeek || 0) < week;
+  // v8.52 (§161): the first week of a reset is shown as week 1 is (the
+  // starting numbers, no last week), and a lock from before the reset no
+  // longer applies after it.
+  const progStart = progressionStartWeek(ex);
+  const isStart = progStart > 1 && week === progStart;
+  const isLocked = !isDeloadSession && !isPostDeloadSession && !isStart
+    && !!progLock && (progLock.lockedAtWeek || 0) < week
+    && (week < progStart || lockAppliesFrom(progLock, ex));
   // (BLOC evaluates THIS week's own compliance between capturing the lock
   // above and calling this, so it only ever affects what NEXT week sees.)
   const postDeloadTarget = isPostDeloadSession
@@ -522,10 +546,10 @@ export function computeExerciseProgression(s: BlocState, cache: TargetCache, mac
   // week shows its reset target, with last week's (the substitute's) numbers
   // hidden. A lock or a deload wins over either, as they do everywhere.
   const isSwapped = isSubstitutedUnit(s, macro, week, dayKey, exId);
-  const heldAfterSwap = !isSwapped && !isDeloadSession && !isPostDeloadSession && !isLocked
+  const heldAfterSwap = !isSwapped && !isDeloadSession && !isPostDeloadSession && !isLocked && !isStart
     && week > 1 && isSubstitutedUnit(s, macro, week - 1, dayKey, exId);
   const heldTarget = heldAfterSwap ? getWeekTargets(s, cache, macro, week, dayKey, ex) : null;
-  const hidePrev = isSwapped || heldAfterSwap;
+  const hidePrev = isSwapped || heldAfterSwap || isStart;
   // v8.20 — the effort-rating step, the SAME one computeRawSuggestedTargets
   // uses (getRpeStep; frozen with the cached target once there is one), so
   // what Train shows and what the week is judged against cannot disagree.
@@ -668,7 +692,7 @@ export function computeExerciseProgression(s: BlocState, cache: TargetCache, mac
     : postDeloadTarget !== null ? postDeloadTarget.weightTargets[0]
     : heldTarget !== null ? heldTarget.weightTargets[0]
     : lockWeightPlaceholder !== null ? lockWeightPlaceholder
-    : week === 1
+    : week === 1 || isStart
     ? ex.startWeight.toFixed(1)
     : progType === 'weight' ? recommendedWeight.toFixed(1)
       : (prevActualWeight !== null ? prevActualWeight.toFixed(1) : ex.startWeight.toFixed(1));
@@ -677,7 +701,7 @@ export function computeExerciseProgression(s: BlocState, cache: TargetCache, mac
     : postDeloadTarget !== null ? postDeloadTarget.repsTargets[0]
     : heldTarget !== null ? heldTarget.repsTargets[0]
     : lockRepsPlaceholder !== null ? lockRepsPlaceholder
-    : week === 1
+    : week === 1 || isStart
     ? ex.reps
     : progType === 'reps' ? recommendedReps
       : (prevActualReps !== null ? prevActualReps : ex.reps);
@@ -685,11 +709,11 @@ export function computeExerciseProgression(s: BlocState, cache: TargetCache, mac
   // just with no week-1 (or otherwise-no-prior-data) fallback target —
   // blank means "nothing to suggest yet, log it live".
   const dropWeightPlaceholder = !isDropSet ? '' : deloadDropWeightPlaceholder !== null ? deloadDropWeightPlaceholder
-    : week === 1 ? ''
+    : week === 1 || isStart ? ''
     : progType === 'weight' ? (recommendedDropWeight !== null ? recommendedDropWeight.toFixed(1) : '')
       : (prevActualDropWeight !== null ? prevActualDropWeight.toFixed(1) : '');
   const dropRepsPlaceholder = !isDropSet ? '' : deloadDropRepsPlaceholder !== null ? deloadDropRepsPlaceholder
-    : week === 1 ? ''
+    : week === 1 || isStart ? ''
     : progType === 'reps' ? recommendedDropReps
       : (prevActualDropReps !== null ? prevActualDropReps : '');
 
@@ -741,7 +765,7 @@ export function computeExerciseProgression(s: BlocState, cache: TargetCache, mac
       dropRepsPlaceholders.push('');
       continue;
     }
-    if (week === 1) {
+    if (week === 1 || isStart) {
       weightPlaceholders.push(ex.startWeight.toFixed(1));
       repsPlaceholders.push(ex.reps);
       dropWeightPlaceholders.push('');
@@ -840,7 +864,7 @@ export function computeExerciseProgression(s: BlocState, cache: TargetCache, mac
   // this week by now (BLOC's exProgData() evaluates it before calling this),
   // so its target is cached and this reads it back: no new write.
   let missedTarget = false;
-  if (allDone && !isDeloadSession && !isMaintenance && week > 1) {
+  if (allDone && !isDeloadSession && !isMaintenance && week > 1 && !isStart) {
     const c = getWeekComplianceResult(s, cache, macro, week, dayKey, ex);
     missedTarget = c.fullyLogged && !c.compliant;
   }
@@ -853,7 +877,9 @@ export function computeExerciseProgression(s: BlocState, cache: TargetCache, mac
            isDropSet, prevActualDropWeight, prevActualDropReps,
            recommendedDropWeight, recommendedDropReps, dropWeightPlaceholder, dropRepsPlaceholder,
            // v8.43 (§137): only when true, so every existing output is unchanged.
-           ...(isSwapped ? { isSwapped: true } : {}), ...(heldAfterSwap ? { heldAfterSwap: true } : {}) };
+           ...(isSwapped ? { isSwapped: true } : {}), ...(heldAfterSwap ? { heldAfterSwap: true } : {}),
+           // v8.52 (§161): only when true, likewise.
+           ...(isStart ? { progressionStart: true } : {}) };
 }
 
 // ── v8.43 (§137): the I2 replay, after the coach logs a session ───────────
