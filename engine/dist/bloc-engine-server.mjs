@@ -117,6 +117,15 @@ function exercisePlanWeek(ex, week) {
   const from = Number(ex.fromWeek) || 1;
   return from > 1 ? Math.max(1, week - from + 1) : week;
 }
+function progressionStartWeek(ex) {
+  const from = ex ? Number(ex.fromWeek) || 1 : 1;
+  return from > 1 ? Math.floor(from) : 1;
+}
+function lockAppliesFrom(lock, ex) {
+  if (!lock) return false;
+  const start = progressionStartWeek(ex);
+  return start === 1 || (lock.lockedAtWeek || 0) >= start;
+}
 function getMacroExtensionInfo(macro) {
   const extWeeks = macro.extensionWeeks || 0;
   const wpm = macro.weeksPerMeso || 1;
@@ -2227,7 +2236,7 @@ function isRpeOn(macro) {
   return !!(macro && macro.rpe === true);
 }
 function rpeDrivesProgression(macro) {
-  return isRpeOn(macro) && !(macro && macro.publishedBy);
+  return isRpeOn(macro);
 }
 var RPE_STEP_NONE = Object.freeze({ kind: "none", weightMult: 1, repsInc: 1, giantInc: 10 });
 function rpeStepFromKind(kind, ex) {
@@ -2238,7 +2247,7 @@ function rpeStepFromKind(kind, ex) {
 function computeRpeStepKind(s, cache, macro, week, dayKey, ex) {
   if (!rpeDrivesProgression(macro)) return "none";
   if (!ex || ex.category === "cardio" || macro.goalType === "maintenance") return "none";
-  if (week <= 1) return "none";
+  if (week <= progressionStartWeek(ex)) return "none";
   if (isDeloadUnit(s, macro, week, dayKey) || isFirstUnitAfterDeload(s, macro, week, dayKey) || isDeloadUnit(s, macro, week - 1, dayKey)) return "none";
   const r = s.rpe && s.rpe[getRpeKey(macro.id, week - 1, dayKey, ex.id)];
   if (!r || typeof r.rpe !== "number") return "none";
@@ -2265,8 +2274,10 @@ function bumpRepsBy(reps, inc) {
   return m[2] ? lo + "–" + (parseInt(m[2]) + inc) : String(lo);
 }
 function getLastCompliantWeek(s, cache, macro, dayKey, ex, beforeWeek) {
+  const start = progressionStartWeek(ex);
+  const floor = beforeWeek > start ? start : 1;
   let w = beforeWeek - 1;
-  while (w > 1) {
+  while (w > floor) {
     if (isDeloadUnit(s, macro, w, dayKey) || isSubstitutedUnit(s, macro, w, dayKey, ex.id)) {
       w--;
       continue;
@@ -2275,7 +2286,7 @@ function getLastCompliantWeek(s, cache, macro, dayKey, ex, beforeWeek) {
     if (result.fullyLogged && result.compliant) return w;
     w--;
   }
-  return 1;
+  return floor;
 }
 function computeRawSuggestedTargets(s, cache, macro, week, dayKey, ex) {
   const isGain = macro.goalType === "gain";
@@ -2331,14 +2342,18 @@ function getWeekTargets(s, cache, macro, week, dayKey, ex) {
   const cached = cache.get(targetKey);
   if (cached) return cached;
   let raw;
-  if (week === 1) {
+  if (week > 1 && week === progressionStartWeek(ex)) {
+    const sets = getWeekSets(ex, week, macro.weeks);
+    raw = { weightTargets: Array(sets).fill(ex.startWeight.toFixed(1)), repsTargets: Array(sets).fill(ex.reps) };
+  } else if (week === 1) {
     const sets = getWeekSets(ex, 1, macro.weeks);
     raw = { weightTargets: Array(sets).fill(ex.startWeight.toFixed(1)), repsTargets: Array(sets).fill(ex.reps) };
   } else if (isFirstUnitAfterDeload(s, macro, week, dayKey)) {
     const refWeek = getLastCompliantWeek(s, cache, macro, dayKey, ex, week);
     raw = getWeekTargets(s, cache, macro, refWeek, dayKey, ex);
   } else {
-    const existingLock = s.progressionLocks && s.progressionLocks[lockKey];
+    const lockHere = s.progressionLocks && s.progressionLocks[lockKey];
+    const existingLock = week < progressionStartWeek(ex) || lockAppliesFrom(lockHere, ex) ? lockHere : null;
     if (existingLock) {
       raw = { weightTargets: existingLock.weightTargets, repsTargets: existingLock.repsTargets };
     } else if (isSubstitutedUnit(s, macro, week - 1, dayKey, ex.id)) {
@@ -2386,11 +2401,14 @@ function computeLockTransition(s, cache, macro, week, dayKey, ex) {
   if (!macro || !ex) return null;
   if (macro.goalType === "maintenance") return null;
   if (week <= 1) return null;
+  const start = progressionStartWeek(ex);
+  if (week === start) return null;
   if (isDeloadUnit(s, macro, week, dayKey)) return null;
   const lockKey = getProgressionLockKey(macro.id, dayKey, ex.id);
   const result = getWeekComplianceResult(s, cache, macro, week, dayKey, ex);
   if (!result.fullyLogged) return null;
-  const existingLock = s.progressionLocks && s.progressionLocks[lockKey];
+  const lockHere = s.progressionLocks && s.progressionLocks[lockKey];
+  const existingLock = week < start || lockAppliesFrom(lockHere, ex) ? lockHere : null;
   const isPostDeload = isFirstUnitAfterDeload(s, macro, week, dayKey);
   if (!result.compliant) {
     if (!existingLock || isPostDeload) {
@@ -2402,7 +2420,7 @@ function computeLockTransition(s, cache, macro, week, dayKey, ex) {
       } };
     }
     return null;
-  } else if (existingLock) {
+  } else if (existingLock || week > start && lockHere) {
     return { key: lockKey, clear: true };
   }
   return null;
@@ -2472,12 +2490,14 @@ function computeExerciseProgression(s, cache, macro, week, dayKey, ex, opts) {
   const prevProgLog = logsOf[prevPk] || {};
   const prevKey2 = macro.id + "_" + prevWeek2 + "_" + dayKey;
   const progLock = opts && "lockComingIn" in opts ? opts.lockComingIn : s.progressionLocks && s.progressionLocks[getProgressionLockKey(macro.id, dayKey, exId)];
-  const isLocked = !isDeloadSession && !isPostDeloadSession && !!progLock && (progLock.lockedAtWeek || 0) < week;
+  const progStart = progressionStartWeek(ex);
+  const isStart = progStart > 1 && week === progStart;
+  const isLocked = !isDeloadSession && !isPostDeloadSession && !isStart && !!progLock && (progLock.lockedAtWeek || 0) < week && (week < progStart || lockAppliesFrom(progLock, ex));
   const postDeloadTarget = isPostDeloadSession ? getWeekTargets(s, cache, macro, week, dayKey, ex) : null;
   const isSwapped = isSubstitutedUnit(s, macro, week, dayKey, exId);
-  const heldAfterSwap = !isSwapped && !isDeloadSession && !isPostDeloadSession && !isLocked && week > 1 && isSubstitutedUnit(s, macro, week - 1, dayKey, exId);
+  const heldAfterSwap = !isSwapped && !isDeloadSession && !isPostDeloadSession && !isLocked && !isStart && week > 1 && isSubstitutedUnit(s, macro, week - 1, dayKey, exId);
   const heldTarget = heldAfterSwap ? getWeekTargets(s, cache, macro, week, dayKey, ex) : null;
-  const hidePrev = isSwapped || heldAfterSwap;
+  const hidePrev = isSwapped || heldAfterSwap || isStart;
   const rpeStep = getProgressionStep(s, cache, macro, week, dayKey, ex);
   const rpeJump = weightJump * rpeStep.weightMult;
   let prevLoggedSets = [];
@@ -2556,10 +2576,10 @@ function computeExerciseProgression(s, cache, macro, week, dayKey, ex, opts) {
   }
   const lockWeightPlaceholder = isLocked ? progLock.weightTargets[0] !== void 0 ? progLock.weightTargets[0] : progLock.weightTargets[progLock.weightTargets.length - 1] : null;
   const lockRepsPlaceholder = isLocked ? progLock.repsTargets[0] !== void 0 ? progLock.repsTargets[0] : progLock.repsTargets[progLock.repsTargets.length - 1] : null;
-  const weightPlaceholder = isSwapped ? "" : deloadWeightPlaceholder !== null ? deloadWeightPlaceholder : postDeloadTarget !== null ? postDeloadTarget.weightTargets[0] : heldTarget !== null ? heldTarget.weightTargets[0] : lockWeightPlaceholder !== null ? lockWeightPlaceholder : week === 1 ? ex.startWeight.toFixed(1) : progType === "weight" ? recommendedWeight.toFixed(1) : prevActualWeight !== null ? prevActualWeight.toFixed(1) : ex.startWeight.toFixed(1);
-  const repsPlaceholder = isSwapped ? "" : deloadRepsPlaceholder !== null ? deloadRepsPlaceholder : postDeloadTarget !== null ? postDeloadTarget.repsTargets[0] : heldTarget !== null ? heldTarget.repsTargets[0] : lockRepsPlaceholder !== null ? lockRepsPlaceholder : week === 1 ? ex.reps : progType === "reps" ? recommendedReps : prevActualReps !== null ? prevActualReps : ex.reps;
-  const dropWeightPlaceholder = !isDropSet ? "" : deloadDropWeightPlaceholder !== null ? deloadDropWeightPlaceholder : week === 1 ? "" : progType === "weight" ? recommendedDropWeight !== null ? recommendedDropWeight.toFixed(1) : "" : prevActualDropWeight !== null ? prevActualDropWeight.toFixed(1) : "";
-  const dropRepsPlaceholder = !isDropSet ? "" : deloadDropRepsPlaceholder !== null ? deloadDropRepsPlaceholder : week === 1 ? "" : progType === "reps" ? recommendedDropReps : prevActualDropReps !== null ? prevActualDropReps : "";
+  const weightPlaceholder = isSwapped ? "" : deloadWeightPlaceholder !== null ? deloadWeightPlaceholder : postDeloadTarget !== null ? postDeloadTarget.weightTargets[0] : heldTarget !== null ? heldTarget.weightTargets[0] : lockWeightPlaceholder !== null ? lockWeightPlaceholder : week === 1 || isStart ? ex.startWeight.toFixed(1) : progType === "weight" ? recommendedWeight.toFixed(1) : prevActualWeight !== null ? prevActualWeight.toFixed(1) : ex.startWeight.toFixed(1);
+  const repsPlaceholder = isSwapped ? "" : deloadRepsPlaceholder !== null ? deloadRepsPlaceholder : postDeloadTarget !== null ? postDeloadTarget.repsTargets[0] : heldTarget !== null ? heldTarget.repsTargets[0] : lockRepsPlaceholder !== null ? lockRepsPlaceholder : week === 1 || isStart ? ex.reps : progType === "reps" ? recommendedReps : prevActualReps !== null ? prevActualReps : ex.reps;
+  const dropWeightPlaceholder = !isDropSet ? "" : deloadDropWeightPlaceholder !== null ? deloadDropWeightPlaceholder : week === 1 || isStart ? "" : progType === "weight" ? recommendedDropWeight !== null ? recommendedDropWeight.toFixed(1) : "" : prevActualDropWeight !== null ? prevActualDropWeight.toFixed(1) : "";
+  const dropRepsPlaceholder = !isDropSet ? "" : deloadDropRepsPlaceholder !== null ? deloadDropRepsPlaceholder : week === 1 || isStart ? "" : progType === "reps" ? recommendedDropReps : prevActualDropReps !== null ? prevActualDropReps : "";
   const weightPlaceholders = [], repsPlaceholders = [], dropWeightPlaceholders = [], dropRepsPlaceholders = [];
   for (let i = 0; i < sets; i++) {
     if (isSwapped) {
@@ -2594,7 +2614,7 @@ function computeExerciseProgression(s, cache, macro, week, dayKey, ex, opts) {
       dropRepsPlaceholders.push("");
       continue;
     }
-    if (week === 1) {
+    if (week === 1 || isStart) {
       weightPlaceholders.push(ex.startWeight.toFixed(1));
       repsPlaceholders.push(ex.reps);
       dropWeightPlaceholders.push("");
@@ -2650,7 +2670,7 @@ function computeExerciseProgression(s, cache, macro, week, dayKey, ex, opts) {
   }
   const allDone = doneSets === sets && sets > 0;
   let missedTarget = false;
-  if (allDone && !isDeloadSession && !isMaintenance && week > 1) {
+  if (allDone && !isDeloadSession && !isMaintenance && week > 1 && !isStart) {
     const c = getWeekComplianceResult(s, cache, macro, week, dayKey, ex);
     missedTarget = c.fullyLogged && !c.compliant;
   }
@@ -2690,7 +2710,9 @@ function computeExerciseProgression(s, cache, macro, week, dayKey, ex, opts) {
     dropRepsPlaceholder,
     // v8.43 (§137): only when true, so every existing output is unchanged.
     ...isSwapped ? { isSwapped: true } : {},
-    ...heldAfterSwap ? { heldAfterSwap: true } : {}
+    ...heldAfterSwap ? { heldAfterSwap: true } : {},
+    // v8.52 (§161): only when true, likewise.
+    ...isStart ? { progressionStart: true } : {}
   };
 }
 function replayProgressionAfterLog(s, cache, macro, week, dayKey, exercises) {
@@ -3448,7 +3470,16 @@ function setRows(s, cache, m, week, dayKey, ex) {
     const w = lg && lg.weight ? parseFloat(lg.weight) : null;
     const r = lg && lg.reps !== void 0 && lg.reps !== null ? String(lg.reps).trim() : "";
     const hit = done ? w !== null && tw !== void 0 && w - parseFloat(tw) > -0.01 && tr !== void 0 && parseRepsForVolume(r) >= parseRepsForVolume(tr) : null;
-    out.push({ n: i + 1, targetKg: str(tw), targetReps: str(tr), kg: str(lg?.weight), reps: str(lg?.reps), done, hit, byCoach: lg?.loggedBy === "coach" });
+    out.push({
+      n: i + 1,
+      targetKg: str(tw),
+      targetReps: str(tr),
+      kg: str(lg?.weight),
+      reps: str(lg?.reps),
+      done,
+      hit,
+      byCoach: lg?.loggedBy === "coach" && !String(lg?.sessionId ?? "").startsWith("own:")
+    });
   }
   return out;
 }
@@ -4117,6 +4148,7 @@ export {
   isSubstitutedUnit,
   judgeOutcome,
   localDateIn,
+  lockAppliesFrom,
   macroRange,
   makeTargetCache,
   materialiseDates,
@@ -4131,6 +4163,7 @@ export {
   postProcessChallengeResponse,
   postProcessCycleReviewResponse,
   postProcessNextCycleResponse,
+  progressionStartWeek,
   recommendNextCycle,
   recordExerciseHistory,
   renumberMacroGoalSteps,

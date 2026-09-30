@@ -80,10 +80,21 @@ const written = (src) => { const o = /const out: Loose = \{([^}]*)\}/.exec(src);
 check(`the payload builder writes only those keys (${written(payloadFn).join(', ')})`, written(payloadFn).length >= 8 && outside(written(payloadFn)).length === 0);
 check('control: a builder writing a key outside it is caught', outside(written(payloadFn.replace('out.rpe = rpe', 'out.rpe = rpe; out.date = 1'))).join() === 'date');
 
+// ── 2b. A group session (Coach v0.10, §162) ──────────────────────────────
+const group = read('coach/src/group/model.ts');
+const groupKeys = (src) => { const m = /export const GROUP_LOG_KEYS = \[([^\]]+)\]/.exec(src); return m ? [...m[1].matchAll(/'([a-z_]+)'/g)].map((x) => x[1]) : []; };
+check(`a group session_log's keys are on the allow-list (${groupKeys(group).join(', ')})`, groupKeys(group).length === 6 && outside(groupKeys(group)).length === 0, outside(groupKeys(group)).join());
+check('control: a group key outside it is caught', outside(groupKeys(group.replace(/(export const GROUP_LOG_KEYS = \[[^\]]*)\]/, "$1, 'workout']"))).join() === 'workout');
+// 🚨 A group's planned workout (0033) stays on the diary: it's never a booking key, so no phone is sent it.
+const publish = read('coach/src/diary/publish.ts');
+const bookingKeys = (src) => { const m = /export const BOOKING_KEYS = \[([^\]]+)\]/.exec(src); return m ? [...m[1].matchAll(/'([a-z_]+)'/g)].map((x) => x[1]) : []; };
+check('the planned workout is never a booking key', bookingKeys(publish).length > 0 && !bookingKeys(publish).includes('workout'));
+check('control: a workout booking key is caught', bookingKeys(publish.replace(/(export const BOOKING_KEYS = \[[^\]]*)\]/, "$1, 'workout']")).includes('workout'));
+
 // ── 3. No clock in the models ─────────────────────────────────────────────
 const strip = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1');
 const clock = (src) => /\bDate\.now\(|\bnew Date\(\s*\)|performance\.now\(|resolvedOptions\(\)\.timeZone/.test(strip(src));
-for (const f of ['coach/src/inperson/model.ts', 'coach/src/today/model.ts', 'coach/src/lib/measurementStatus.ts']) check(`${f} reads no clock`, !clock(read(f)));
+for (const f of ['coach/src/inperson/model.ts', 'coach/src/today/model.ts', 'coach/src/lib/measurementStatus.ts', 'coach/src/group/model.ts', 'coach/src/print/model.ts']) check(`${f} reads no clock`, !clock(read(f)));
 check('control: a Date.now() is caught', clock(`${read('coach/src/today/model.ts')}\nconst t = Date.now();`));
 
 console.log(failures ? `\n✗ ${failures} check(s) failed` : '\nAll checks passed.');

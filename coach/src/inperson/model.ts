@@ -23,7 +23,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 import {
   computeExerciseProgression, computeLockTransition, getMacroEffectiveMesoCount, getNextIncompleteSession, getProgressionLockKey,
-  getRpeKey, getTrainAgendaUnits, getWeekSets, isRpeOn, replayProgressionAfterLog, shiftDateStr, macroRange,
+  getRpeKey, getSubstitutionKey, getTrainAgendaUnits, getWeekSets, isRpeOn, replayProgressionAfterLog, shiftDateStr, macroRange,
   type BlocState, type Loose, type Macrocycle, type TargetCache,
 } from '@engine';
 import type { CoachPublication } from '@/ai/types';
@@ -76,6 +76,7 @@ export function recordState(input: RecordInput): BlocState {
     const pay = (p.payload || {}) as Loose;
     if (p.type === 'booking' && typeof pay.booking_id === 'string') s.coachBookings[pay.booking_id] = copy(pay);
     else if (p.type === 'session_log' && logs.has(p.id) && (pay.kind || 'in_person') === 'in_person') applySessionLog(s as BlocState, pay, p.createdAt);
+    else if (p.type === 'session_log' && logs.has(p.id) && pay.kind === 'group') applyGroupLog(s as BlocState, pay, p.createdAt);
     else if (p.type === 'measurement') applyMeasurement(s as BlocState, pay);
   }
   return s as BlocState;
@@ -139,6 +140,22 @@ export function applySessionLog(s: BlocState, p: Loose, loggedAt: string): boole
   const locks = st.progressionLocks as Record<string, Loose>;
   for (const [k, v] of Object.entries(r.locks)) { if (v) locks[k] = v; else delete locks[k]; }
   return true;
+}
+
+/**
+ * BLOC's `applyGroupSessionLog`, the part that changes the plan: a group session marked as replacing a planned session
+ * puts BLOC's 'group' substitution on every exercise of it (done, not scored, targets held). Its earlier markers
+ * (a correction) go first. The extra session itself isn't modelled: nothing in Coach reads it from the state.
+ */
+export function applyGroupLog(s: BlocState, p: Loose, loggedAt: string): void {
+  const st = s as Loose;
+  if (!st.substitutions || typeof st.substitutions !== 'object') st.substitutions = {};
+  const subs = st.substitutions as Record<string, Loose>;
+  for (const [k, x] of Object.entries(subs)) if (x && x.kind === 'group' && x.sessionId === p.session_id) delete subs[k];
+  const r = p.replaces as Loose | null | undefined;
+  if (!r || typeof r.macroId !== 'string') return;
+  const template = ((st.exercises as Record<string, Loose[]>)[`${r.macroId}_1_${r.dayKey}`] || []);
+  for (const ex of template) subs[getSubstitutionKey(r.macroId, Number(r.week), String(r.dayKey), ex.id)] = { kind: 'group', sessionId: p.session_id, at: loggedAt };
 }
 
 /** BLOC's `applyMeasurementPublication`: into that day's body log, keeping its steps. */
@@ -285,6 +302,20 @@ export function parseSessionId(id: unknown): { bookingId: string; date: string }
   return m ? { bookingId: m[1], date: m[2] } : null;
 }
 
+/**
+ * A session a client not on the app did on their own, which the coach records from the sheet they filled in (§162):
+ * no booking, so the id carries only the day. It's `kind: 'in_person'` to BLOC (it's the coach's record of the
+ * client's session, and progresses the same way); only Coach tells the two apart, by this id.
+ */
+export const ownSessionIdFor = (date: string, stamp: string) => `own:${date}:${stamp}`;
+export function parseOwnSessionId(id: unknown): { date: string } | null {
+  const m = /^own:(\d{4}-\d{2}-\d{2}):[^:]+$/.exec(String(id ?? ''));
+  return m ? { date: m[1] } : null;
+}
+/** The diary key an own session's screen is opened on: `own:{date}` (no booking). */
+export const ownKey = (date: string) => `own:${date}`;
+export const ownDateOf = (occKey: string) => (/^own:(\d{4}-\d{2}-\d{2})$/.exec(occKey)?.[1] ?? null);
+
 /** Exactly 0023's `session_log` keys. */
 export const SESSION_LOG_KEYS = ['v', 'session_id', 'booking_id', 'macro_id', 'week', 'day_key', 'kind', 'replaces', 'logs', 'rpe'] as const;
 
@@ -293,13 +324,15 @@ export const SESSION_LOG_KEYS = ['v', 'session_id', 'booking_id', 'macro_id', 'w
  * ("unfinished sets count as not done"); an exercise with nothing done isn't sent, so it reads as not done.
  * Ratings go for the exercises sent, 'skipped' where the coach left one unrated.
  */
-export function sessionLogPayload(o: { sessionId: string; bookingId: string; macroId: string; week: number; dayKey: string; sets: Record<string, SetEntry[]>; rpe: Ratings | null }): Loose {
+export function sessionLogPayload(o: { sessionId: string; bookingId: string | null; macroId: string; week: number; dayKey: string; sets: Record<string, SetEntry[]>; rpe: Ratings | null }): Loose {
   const logs: Record<string, { sets: { weight: string; reps: string; done: boolean }[] }> = {};
   for (const [exId, sets] of Object.entries(o.sets)) {
     if (!sets.some((x) => x.done)) continue;
     logs[exId] = { sets: sets.map((x) => ({ weight: x.kg.trim(), reps: x.reps.trim(), done: x.done })) };
   }
-  const out: Loose = { v: 1, session_id: o.sessionId, booking_id: o.bookingId, macro_id: o.macroId, week: o.week, day_key: o.dayKey, kind: 'in_person', logs };
+  const out: Loose = { v: 1, session_id: o.sessionId, macro_id: o.macroId, week: o.week, day_key: o.dayKey, kind: 'in_person', logs };
+  // A session done on their own has no booking (§162).
+  if (o.bookingId) out.booking_id = o.bookingId;
   if (o.rpe) {
     const rpe: Ratings = {};
     for (const exId of Object.keys(logs)) rpe[exId] = o.rpe[exId] ?? 'skipped';
@@ -324,6 +357,8 @@ export interface LoggedSession {
   dayKey: string;
   setsDone: number;
   sets: number;
+  /** Recorded for a client who trained on their own (`own:` id), not taken in person. */
+  own: boolean;
 }
 
 /** The in-person sessions logged on a card, newest first (a correction replaces the one it corrects). */
@@ -333,11 +368,12 @@ export function loggedSessions(pubs: CoachPublication[]): LoggedSession[] {
     .map((p) => {
       const pay = p.payload as Loose;
       const at = parseSessionId(pay.session_id);
+      const own = parseOwnSessionId(pay.session_id);
       const all = Object.values((pay.logs as Record<string, Loose>) || {}).flatMap((e) => (Array.isArray(e) ? e : (e?.sets as Loose[]) || []));
       return {
         pub: p, sessionId: String(pay.session_id), bookingId: at?.bookingId ?? (typeof pay.booking_id === 'string' ? pay.booking_id : null),
-        date: at?.date ?? p.createdAt.slice(0, 10), macroId: String(pay.macro_id ?? ''), week: Number(pay.week) || 0, dayKey: String(pay.day_key ?? ''),
-        setsDone: all.filter((x) => x && x.done !== false).length, sets: all.length,
+        date: at?.date ?? own?.date ?? p.createdAt.slice(0, 10), macroId: String(pay.macro_id ?? ''), week: Number(pay.week) || 0, dayKey: String(pay.day_key ?? ''),
+        setsDone: all.filter((x) => x && x.done !== false).length, sets: all.length, own: !!own,
       };
     })
     .sort((a, b) => b.date.localeCompare(a.date) || b.pub.seq - a.pub.seq);

@@ -6,11 +6,11 @@
 //   · A coached client has no Plan page. One guard in showScreen() sends
 //     every route there to Home, and the nav button hides; the deload toggle,
 //     Check-in with BLOC, Last cycle, Next cycle and the plateau narrative go.
-//   · Effort ratings never move targets on a coach's cycle. 🚨 The rule is
-//     `publishedBy` on the cycle, in the ENGINE, not "is this phone linked":
-//     the engine calls rpeDrivesProgression() itself, and BLOC Coach runs the
-//     same engine on client_state, which holds no link (Adam, 2026-09-28:
-//     "Coach's cycles only").
+//   · Effort ratings move targets on a coach's cycle exactly as on a Solo one
+//     (v8.52, §161; from v8.40 to v8.51 they never did). The rule is in the
+//     ENGINE: it calls rpeDrivesProgression() itself, and BLOC Coach runs the
+//     same engine on client_state, so both reach the same targets.
+//     verify-progression-reset.mjs holds the v8.51 control for this rule.
 //   · Unlinking (either side) removes every coach cycle and every coach goal
 //     phase (Adam: "Remove every coach cycle", "Remove them all"), with their
 //     templates, deloads, supersets, cached targets and locks, and NOTHING the
@@ -56,10 +56,10 @@ function run(label, html, engineSrc) {
 
   // ── 1. The engine's RPE rule ─────────────────────────────────────────────
   check('rpeDrivesProgression: a Solo cycle with ratings on drives', E.rpeDrivesProgression({ id: 'm', rpe: true }), true);
-  check('rpeDrivesProgression: a coach\'s cycle never drives', E.rpeDrivesProgression({ id: 'm', rpe: true, publishedBy: 'coach-1' }), false);
+  check('rpeDrivesProgression: a coach\'s cycle with ratings on drives, as Solo', E.rpeDrivesProgression({ id: 'm', rpe: true, publishedBy: 'coach-1' }), true);
   check('rpeDrivesProgression: ratings off never drive', E.rpeDrivesProgression({ id: 'm' }), false);
   // End to end, through computeRpeStepKind: the demo cycle rated 5 everywhere
-  // gives real "easy" steps as Solo, and none once the coach published it.
+  // gives real "easy" steps as Solo, and the same once the coach published it.
   const kinds = publishedBy => {
     const s = clone(demo);
     const m = s.macrocycles[0];
@@ -76,7 +76,7 @@ function run(label, html, engineSrc) {
   };
   const solo = kinds(null), coached = kinds('coach-1');
   check('the demo cycle rated 5 gives "easy" steps as Solo (so the next check means something)', solo.easy > 0, true);
-  check('…and not one once the coach published it', [coached.easy, coached.hold], [0, 0]);
+  check('…and exactly the same steps once the coach published it', coached, solo);
 
   // ── 2. removeCoachPlan() ─────────────────────────────────────────────────
   let fns;
@@ -213,10 +213,10 @@ const orig = console.log; const lines = []; console.log = s => lines.push(String
 let cf;
 try { cf = run('v8.39', git('index.html'), git('engine/dist/bloc-engine.js')); } finally { console.log = orig; }
 const failed = lines.filter(l => l.startsWith('✗'));
-const want = [/a coach's cycle never drives/, /removeCoachPlan\(\) exists/, /showScreen\(\) sends Plan to Home/, /no check-in, Last cycle/];
+const want = [/removeCoachPlan\(\) exists/, /showScreen\(\) sends Plan to Home/, /no check-in, Last cycle/];
 const missing = want.filter(re => !failed.some(l => re.test(l)));
-if (cf > 0 && !missing.length) console.log(`✓ control: v8.39 fails ${cf} checks, including the RPE rule, the cleanup, the Plan guard and the tour`);
-else { console.log(`✗ control: v8.39 should fail the RPE rule, the cleanup, the Plan guard and the tour (${cf} failed; missing ${missing.join(', ')})`); process.exitCode = 1; }
+if (cf > 0 && !missing.length) console.log(`✓ control: v8.39 fails ${cf} checks, including the cleanup, the Plan guard and the tour`);
+else { console.log(`✗ control: v8.39 should fail the cleanup, the Plan guard and the tour (${cf} failed; missing ${missing.join(', ')})`); process.exitCode = 1; }
 
 if (failures) { console.log(`\nFAIL: ${failures} check(s) failed.`); process.exit(1); }
 console.log('\nAll checks passed.');

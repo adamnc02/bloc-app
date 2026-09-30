@@ -6408,9 +6408,9 @@ Compliance is `getWeekComplianceResult()`, the same test the lock uses. The step
 Not compliant with a high rating changes nothing extra, because the lock already freezes the target.
 The card adds "Rated 9 · consider a lighter target".
 
-🚨 **`rpeDrivesProgression()` is the Coached-mode switch.** In Coached mode ratings only inform the
-coach (Adam). Since v8.40 it returns false for any cycle the coach published (`macro.publishedBy`),
-in the engine, not the `index.html` shim: see §132 for why it's keyed on the cycle and not the link.
+🚨 **`rpeDrivesProgression()` is `isRpeOn(macro)`**, on a coach's cycle as on a Solo one (v8.52, §161). From
+v8.40 to v8.51 it returned false for any cycle the coach published (`macro.publishedBy`). It lives in the
+engine, not the `index.html` shim (§132), so BLOC Coach reaches the same targets as the phone.
 
 ### Two call sites, one decision
 
@@ -8371,8 +8371,9 @@ which now calls `applyCoachedChrome()`: the nav, and a move to Home if Plan was 
 
 ### The RPE rule: the coach's cycles, not the link
 
-Adam, 2026-09-28: *"Coach's cycles only"*. `rpeDrivesProgression(macro)` is
-`isRpeOn(macro) && !macro.publishedBy`, **in the engine** (`engine/src/targets.ts`).
+From v8.40 to v8.51 `rpeDrivesProgression(macro)` was `isRpeOn(macro) && !macro.publishedBy`, **in the
+engine** (`engine/src/targets.ts`). Since v8.52 it is `isRpeOn(macro)`: a coach's cycle follows the Solo
+rule (§161). The traps below still hold for any rule the engine keys on the cycle.
 
 🚨 **Two traps, both avoided:**
 - **Changing only `index.html`'s shim.** `computeRpeStepKind()` is inside the engine and calls the
@@ -10045,6 +10046,9 @@ read these leaves, so they agree. An exercise without `fromWeek` (or 1) is uncha
 Nothing else about a swap changes in BLOC: the new exercise is a new id, so the old one keeps its logs in history under
 its own id, and targets for weeks with nothing logged recompute (§131's §0 rule).
 
+Since v8.52 `fromWeek` is also where the exercise's **progression** starts, which is how a coach resets an exercise that
+already has logs (§161).
+
 **Check:** `scripts/verify-exercise-from-week.mjs`: the leaves (first week = starting weight, +1 increment a
 mesocycle after, starting-to-peak sets, reps and giant-set reps from there, unchanged without `fromWeek`), then Train's own
 `getWeekTargets` on the demo with a late exercise: 40 kg × 3 sets in its first week. Control: the same exercise without
@@ -10412,8 +10416,8 @@ on (the week to come), a group's skipped week naming it, a week 8 days back canc
 **What it is.** The coach logs a client's planned session with them (**In person**), **Today** is the hub the app
 opens on, **Settings** is laid out section by section with no badges, and one **Add a day off** sheet serves every
 entry point. BLOC reads what In person sends as it already did (§136, §137); BLOC v8.48 (§153) adds the group
-removal and the weekly in-person date. Migration `0030` adds `booking.removed`. Group sessions have no Start session
-in this version: planning and logging them, and effort ratings approving progression, come later.
+removal and the weekly in-person date. Migration `0030` adds `booking.removed`. A group session is §162's; effort
+ratings drive a coach's cycle as Solo's (§161).
 
 ### Files
 
@@ -10987,3 +10991,275 @@ it grew to fill the button, drawn in the default black fill. The button now uses
 inside a `.btn`: it must be sized by itself (width, height, `fill="none"`), or by a CSS rule for one of its button's
 classes (`.coach-icon-btn svg`). Its control is v8.50's unsized clock in a plain `btn-ghost`. Checked in Chromium: a
 52px button with a 16px lavender outline clock and no fill.
+
+## §161 — v8.52 + Coach v0.9.7: effort ratings drive a coach's cycle; a coach resets an exercise with `fromWeek`
+
+**What it is.** Two engine rules, which BLOC and BLOC Coach both run.
+
+### A coach's cycle follows the Solo rule
+
+`rpeDrivesProgression(macro)` is `isRpeOn(macro)`. A cycle a coach published (`publishedBy`) with ratings on (a coach's
+cycle starts with them on) takes §104's step from each rating: rated 6 or lower and compliant, a double step; 9–10 and
+compliant, a hold for one mesocycle. Ratings the coach gives in person (`ratedBy: 'coach'`, §137) count the same. From
+v8.40 to v8.51 a coach's cycle never took a step. A week whose target was already cached keeps its frozen step (§104), so
+switching the rule changed no week already judged.
+
+The coach steps in only when one exercise on one track is rated 9 or 10 two weeks running (BLOC Coach's Needs you),
+by resetting it.
+
+### A reset: `fromWeek` is where progression starts
+
+The coach sends the exercise (same id) with new starting numbers (`startWeight`, `reps`, `setsStart`/`setsEnd`) and
+`fromWeek` = the next week of that session with nothing logged. Nothing new in the payload: `plan.exercises` carries it,
+and BLOC's plan apply already drops unlogged weeks' cached targets (§131), so they recompute.
+
+`progressionStartWeek(ex)` (engine, `progression.ts`) is `fromWeek` when above 1, else 1. From that week on:
+
+| Where | Rule |
+|---|---|
+| `getWeekTargets` | the start week's target is the starting numbers, as week 1's is (before any lock, deload walk or last week's lift) |
+| `computeLockTransition` | the start week is never judged; after it, a lock from an earlier week doesn't count (`lockAppliesFrom`), so a miss sets a fresh lock at that week and a compliant week clears the stale one |
+| `getLastCompliantWeek` | the walk back stops at the start week |
+| `computeRpeStepKind` | the start week gets no step (the week before it is another program) |
+| `computeExerciseProgression` | the start week shows the starting numbers, no last week, not locked, and `progressionStart: true` (only when true, so every other output is unchanged) |
+| Home's next-session target (`getSessionPreviewTarget`) | the same two rules as Train: the start week's numbers, and no stale lock |
+
+🚨 **Weeks before the start are history and don't change**: their lock, their walk back to week 1 and their targets are
+exactly v8.51's. 🚨 **§147's `fromWeek` alone was not a reset**: an exercise with logs progresses from what was lifted,
+so new starting numbers were ignored and the old lock kept its target. An exercise that joined part-way through has no
+logs before its `fromWeek`, so for it nothing changes.
+
+**The card** in the start week of a coach's cycle says **"New starting point from {coach}"** (accent tag).
+
+**Coach v0.9.7** is the same engine rebuilt into Coach's bundle: Review, In person and Plan show the targets the phone
+will show. 🚨 **`bloc-push` imports the server engine at a pinned commit** (§156), so the digest judges coach cycles by
+the v8.51 rule until that pin moves.
+
+**Check:** `scripts/verify-progression-reset.mjs`: a coach's cycle with an exercise locked at 55 kg in week 3, reset at
+week 4 to 40 kg × 12 over 2 sets: the week-4 target and card, week 4 never judged, week 5 at 42.5 (not 55), the walk
+back stopping at 4, a fresh lock on a miss and the stale one cleared on a pass, no step into week 4, a rating of 5 giving
+a coach's cycle the double step; history (week 3's 55 kg and its walk back) equal to v8.51; Home's and the card's
+readers in `index.html`. Control: v8.51 (`6352acc`) fails the reset and coach-step rows, and an exercise with no reset
+gives identical targets and lock decisions in both engines for weeks 2–6. `verify-coached-hides.mjs` now expects a
+coach's cycle to take exactly Solo's steps. `engine-cases.mjs` has cases for the two new exports.
+
+## §162 — Coach v0.10: group sessions planned and logged; clients not on the app training on their own
+
+**What it is.** Three things, in BLOC Coach only (BLOC reads what they send as it already did, §137):
+
+- a group session runs a **planned workout** and is logged for each person;
+- a client not on the app gets their plan **printed or shared**, and the coach **records** the sessions they did on
+  their own;
+- adding a client to a group "all future" tells only the new client.
+
+Migration `0033` (super-duper-octo-barnacle) adds the planned workout. Everything else fits the existing contracts.
+
+### Library → New workout (`coach/src/coach/library/WorkoutBuilder.tsx`)
+
+A workout template built from scratch, with no client. The builder is a one-session plan document, edited with the
+Plan tab's own exercise sheet (`ExerciseSheet`, with `noSupersets`) and saved with `workoutTemplateOf`, so it is
+exactly the shape of a workout saved from a client's Plan. Any workout template can run a group, or go into a client's
+cycle as before.
+
+### A group's planned workout (`0033`)
+
+`diary_series.workout` (every week of a weekly group) and `diary_bookings.workout` (a one-off group, or one week of a
+series, over the series') hold a **copy** of a Library workout template: `{v: 1, template_id?, name, exercises,
+supersets?}` (`plannedFromTemplate`). A copy, so editing or deleting the template never changes a session already
+planned. Group rows only: `0033` refuses one on a one-to-one.
+
+- **Planning** (`planWorkout`, `diary/actions.ts`): from a group booking's sheet (the Diary, a client's Sessions:
+  `group/GroupActions.tsx`) or from the group session's own screen. A weekly group asks **Just {date}** (that week's
+  identity override, made if there isn't one, as `assignSession` makes one) or **Every {day}** (the series; a week with
+  its own keeps it). `Occurrence.workout` is the week's own, else its series'.
+- 🚨 **Never published.** `workout` is not a booking key (`BOOKING_KEYS`; `verify-coach-today.mjs` fails if it becomes
+  one), and `overrideIsIdentity` doesn't compare it, so a week with its own workout stays in its series and no phone is
+  sent anything.
+
+### A group session, logged (`coach/src/group/`)
+
+`#/session/{occurrence key}` with no card (`groupSessionPath`) opens `GroupSessionScreen`: Start session on Today, a
+group booking's sheet, or **Log it** on a missed group week.
+
+1. **The workout**: the one planned, else "No workout planned" and **Plan a workout**. Start fixes it for the session
+   (the draft keeps its copy).
+2. **Attendees**: per person, **Replaces {session}**, off by default. The session is the person's next unfinished session
+   of their coach's cycle (`defaultSession`, only if it can be taken: `assignable`), or one chosen with **Choose another
+   session** (In person's week agenda). With no coach's cycle: "Counted as an extra session".
+3. **The circuit**: **Logging for** switches person; each exercise is In person's `ExerciseLogCard` ("Last time", not
+   "Last wk"). 🚨 A group's exercises are the workout's, not the client's plan's, so they're matched **by name**: each
+   person starts from their last group session with that exercise (`seedSets`), else the workout's numbers.
+4. **Finish**: each person with a set done gets their own `session_log`, BLOC §137's group contract:
+   `{v, session_id, booking_id, kind: 'group', logs: [{name, sets: [{weight, reps}]}], replaces?}` (`groupPayload`:
+   only the sets done, no exercise with none). Nobody with nothing done is sent anything. `replaces: {macroId, week,
+   dayKey}` only when switched on.
+
+🚨 **The session id carries the booking and the day**: `gp:{booking id}:{date}:{stamp}`, the same on every attendee's copy.
+It is how a group week is matched as logged (`groupLoggedFor`: on any attendee's card), as In person's `ip:` id is. The
+session in progress is this device's (`blocCoach_groupSession`, `group/draft.ts`) until Finish.
+
+**Coach's copy of the client** (`recordState`, §154) now applies a group `session_log`'s `replaces` as BLOC does
+(`applyGroupLog`: the `'group'` substitution on every exercise of that session), so for a client not on the app the
+replaced session is done, not scored, and no longer "up next". `group.test.ts` holds it equal to BLOC's real
+`applyGroupSessionLog`.
+
+**Today**: a group session has Start session like a one-to-one (`TodaySession.group`). A group week from the last 14 days
+not logged or cancelled is **Needs you → Group not logged** (`missedGroups`), with **Log it** and **Cancel**, which
+cancels that week for everyone ("Group session cancelled" on each phone, BLOC §153). **Past sessions** lists a card's
+group sessions with the rest, tagged **Group**.
+
+### A client added to a group "all future"
+
+"All future" from a later week ends the series and starts a new one (§152). With a client added, `predecessor()` didn't
+find the old series (it wanted the same clients), so the others were sent the new series as a new group, with a
+banner. Now:
+
+- **The new series names the old one.** For a group, `predecessor()` needs one person in common, not the same people,
+  so the new series carries `replaces`. BLOC says "Added to a group session" to a client new to it (§151).
+- **Unchanged members hear nothing.** When day, time, length, place and name are unchanged, the new series goes quiet
+  to the people already in it (`quietCards`, per card and booking). A new time still tells everyone ("Session changed").
+- `diary.test.ts` checks both, with the new time as the control.
+
+### A client not on the app, training on their own
+
+Client → Sessions → **On their own** (a client not linked):
+
+- **Print or share their plan** (`#/print/{card id}`, `print/PrintScreen.tsx`, `print/model.ts`):
+  - One mesocycle of their coach's cycle, the one holding their next unfinished session.
+  - Each calendar week (M1 and M2 of a two-week mesocycle), each session with a date line, each exercise with its
+    target per set (`sessionTargets`, Train's own).
+  - A write-in "____ kg × ____" and a tick box per set, and "How hard?" 1–10 to circle per exercise (not cardio).
+  - A mesocycle's targets are all exact: targets step once a mesocycle, from the mesocycle before. The next sheet is
+    printed once this one is recorded.
+  - On screen it's a preview with **Print or share**. Printed, `styles/print.css` shows the sheet alone (A4 landscape,
+    black on white, a session never split across pages, the toolbar, nav and local-build tag hidden). On an iPhone,
+    Print's preview shares to Mail or Files as a PDF, which is how it's emailed.
+- **Record a session they did**: the day, then In person on `own:{date}` (`ownKey`):
+  - Nothing is assigned or released (there's no booking).
+  - **Done as planned** completes every set at target in one tap. Sets can be edited as usual.
+  - How hard was it? takes the circled ratings.
+  - It's sent as a `session_log` `kind: 'in_person'` with **no `booking_id`** and the id `own:{date}:{stamp}`
+    (`ownSessionIdFor`). `0023` checks keys only, and `booking_id` is optional.
+  - To BLOC it's the coach's record of the client's session and progresses like any other (ratings included, §161).
+    Only Coach tells it apart, by the id: Past sessions tags it **On their own**, and Review's compliance grid and
+    Strength don't mark it "in person" (`engine/src/review/training.ts`: `byCoach` excludes `own:`; BLOC's bundle
+    doesn't contain `review/`, so it is unchanged).
+
+### Checks
+
+- `coach/src/group/group.test.ts` (vitest, 10):
+  - the workout's order and numbers, and the payload (only done sets, `replaces` only when set);
+  - every key on `0023`'s `session_log` list (read from the migration, else the documented list in CI);
+  - attended, the id round trip, and the logged list (groups only);
+  - logged on any card (control: another day), and the seed from the last group sets by name (control: none, the
+    workout's);
+  - Coach's `applyGroupLog` equal to BLOC's real `applyGroupSessionLog`, and the replaced session no longer up next
+    (control: no `replaces`).
+- `today.test.ts`: a group week startable, then logged on another attendee's card (control: logged another week); a
+  missed group week raised once (controls: 15 days back, logged).
+- `inperson.test.ts`: an own session's id, its payload with no `booking_id` (control: an in-person one has it), and its
+  listing as on their own.
+- `diary.test.ts`: the group "all future" addition above.
+- `scripts/verify-coach-today.mjs`: the group keys on the allow-list, the workout never a booking key, and no clock in the
+  group and print models, each with a control.
+- Driven in headless Chromium on the fixtures (Europe/London) at 375 × 812 and 1440 × 1000:
+  - Today's missed bootcamp → Log it → Start Bootcamp circuit → two people ticked → "Finish and send to 2 people" →
+    Sent, each "Extra";
+  - Library → New workout (picker, exercise sheet, list, Save to Library);
+  - Eileen → On their own → Print (screen and print media) → Record a session they did → Done as planned → How hard
+    was it? → saved → Past sessions "On their own".
+  - No horizontal scroll, no console errors.
+
+
+## §164 — v8.53 + Coach v0.12: demo clients, rebuilt to this week
+
+**What it is.** Fictional clients on the demo coach (the Hotmail test account), with real sign-ins, links and data
+in Supabase, so BLOC Coach can be shown live from a phone: Maya, Tom, Grace, Priya (on the app, with data), Ben
+(linked, no data yet), Hannah (link ended), Sam (invited), Eileen (not on the app) and Casey, the existing test
+client. **Rebuild** puts every one back to the same point in their story, dated the current week. Nothing about it
+is automatic: the coach presses Rebuild before a demo. Supabase side: `super-duper-octo-barnacle` docs/SUPABASE.md →
+"Demo accounts" (the `bloc-demo` Edge Function, the flags, the registry).
+
+### The clients' BLOC states: a simulation, not a backup (`engine/src/demo/`)
+
+`buildDemoState(persona, today)` runs the client's story from its first day to `today`, one day at a time, and logs
+every set through the engine's own progression: `computeExerciseProgression` for what Train suggests,
+`computeLockTransition` for the lock, `recordExerciseHistory` for the history. So a stall, a lock, a deload or a
+missed week reads in BLOC and in Coach exactly as a real client's does. `personas.ts` holds the stories (bodyweight
+in lbs, lifts in kg, waist and hip in inches, as BLOC stores them); `sessionSchedule` gives the day each session is
+done (Eileen's in-person sessions); `stampLedger` adds BLOC's receipt for the coach's plans (below).
+
+🚨 **Everything is placed from the Monday of the client's week** (`getHomeWeekStart(today)`: today itself on a
+Monday). Cycles and goal phases start a whole number of weeks from it, so every cycle and phase starts on a Monday
+and ends on a Sunday, whatever day it is built. A client is always at the same point: Maya in week 5 of 8.
+
+🚨 **Every random choice is seeded by the persona and the day's place in the story, never the calendar date**, so
+the same weekday of any week builds the same client with every date moved by whole weeks. There is no date shifter:
+nothing is ever moved, it is rebuilt.
+
+🚨 **Today is the morning**: a weigh-in only, no food, steps or session yet, so there is something to log live.
+
+🚨 **A skipped session in the running cycle stays BLOC's "next"** (`getNextIncompleteSession`), so Train would open
+weeks back: only finished cycles skip sessions (`skipRate`), the running one only where the story says so
+(`skipRateNow`).
+
+The stories, as Coach's judgement (`clientOutcome`, at the client's own today) reads them:
+
+| Client | Where they are |
+|---|---|
+| Maya | the coach's cut, week 5 of 8, on track; the previous cycle reviewed |
+| Tom | his own gain cycle, week 4 of 6: weight flat for two weeks, Flat Press on hold, few weigh-ins, the app not opened for 3 days: off track |
+| Grace | Pacific/Auckland, week 1 of maintenance after a reviewed cut: no outcome yet |
+| Priya | week 6 of 6, weekly A/B microcycles: the scale flat, the waist still falling: on track (recomposition) |
+| Casey | the deload week of a cut, eating ~500 kcal over the goal for three weeks: off track, calories leading |
+| Eileen | not on the app: Tuesdays and Fridays at 07:00 in person; her sessions and measurements are the coach's publications |
+
+🚨 **The engine blames calories only when intake during the flat stretch is within 200 kcal of the estimated TDEE**
+(`plateau-creep`), which it works out from the client's own loss rate. A stall at 250 kcal over the goal still reads
+as adaptation; Casey's story eats at maintenance so the verdict is the one it tells.
+🚨 **A flat period confirms only after two whole weeks**, so Tom is in week 4: in week 3 the first days read "on
+track".
+
+### The coach's side (`coach/src/demo/`)
+
+`buildDemoRows(ids, now)` builds everything a Rebuild writes, **with Coach's own builders**, so every payload is
+what Coach itself sends: the diary's bookings from `desiredBookings()` (Maya on Wednesdays, Eileen on Tuesdays and
+Fridays, the Saturday Circuits group, one-offs for Tom and Ben), Eileen's sessions from `sessionLogPayload()` with
+her Tuesday measurements, Priya's photo request from `photoRequestPayload()`, Casey's check-in reply, note back and
+session request, and Maya's check-in request. Pure: ids come from fixed seeds (`demoId`) and `now` comes in.
+`cards.ts` holds the cards (`@example.com` addresses; Ofcom's drama phone range).
+
+🚨 **Each card's `plan` and `goal_phases` publications come first**, so they hold the card's lowest `seq`s. The
+state written for that client marks exactly those as applied (`stampLedger`: in `coachLedger`, and the coach's
+cycles and goals stamped with their `seq`), because the simulator already built their content. BLOC pulls
+everything above the highest applied `seq` (`publicationCursor`) when the account is opened, so the bookings,
+replies and photo request arrive and apply as a real client's would. Without the receipt, Coach reads every plan as
+"waiting for the phone".
+
+**A Rebuild is two calls** to `bloc-demo`: the coach's side (its publications come back with their `seq`s), then
+each client's state with those plans stamped, one client a call. Each state is written as `client_state` one past
+the newest rev (`device_id 'demo-rebuild'`) and as today's backup, named by the client's own date.
+
+### Settings → Demo data (`DemoGate.tsx`, `DemoSection.tsx`)
+
+Shown only when this sign-in's `app_metadata.demo_admin` is true (only the service role writes `app_metadata`);
+`bloc-demo` checks the flag again, fresh from `auth.users`, so hiding the section isn't the lock. `DemoGate` reads
+the flag and only then loads `DemoSection`, **its own chunk**: it carries the engine's client simulator, which no
+other coach needs. **Set up** asks which linked client is Casey, then sets up and rebuilds; **Rebuild**;
+**Remove** (with a confirm).
+
+### BLOC: a demo account never writes its own backup (`isDemoAccount`, `uploadSnapshot`)
+
+The Rebuild writes today's backup and a demo is shown by restoring it (Settings → My data → Restore). Backups are
+one file a day, so the device's first open after a Rebuild (the daily backup, §58) or a sign-out (which backs up
+first, §145) would replace that fresh backup with the device's old data. `uploadSnapshot()`, the only writer of a
+backup file, refuses for a session whose `app_metadata.demo === true` (exactly `true`), with a reason Settings shows
+on a manual backup. `client_state` uploads carry on, so the coach still sees a demo client's changes live.
+
+**Checks:** `scripts/verify-demo-clients.mjs` (each story on a Monday, a Wednesday and a Sunday, 1, 5 and 30 weeks
+on: the same state with every date moved by whole weeks, every cycle and phase Monday to Sunday, nothing logged
+after this morning, Coach's verdict as the story intends; controls: a differently seeded story differs, a cycle off
+Monday is caught); `scripts/verify-demo-no-backup.mjs` (control: without the line, the demo account uploads);
+`coach/src/demo/demo.test.ts` (the allow-lists, plans first on each card, stable ids, the diary a week on, Eileen
+read back through `foldPlan` and `loggedSessions`, Maya's plans applied once receipted, control: waiting without);
+`coach/src/demo/dump-rows.ts` writes a Rebuild's rows for super-duper-octo-barnacle's `behaviour-bloc-demo.mjs`.

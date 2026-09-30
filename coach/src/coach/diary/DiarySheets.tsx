@@ -127,7 +127,7 @@ function Attendees({ ids, who, bundles, multi, onChange }: { ids: string[]; who:
 export function EditSheet({ occ, diary, who, bundles, onSave, onCancelSession, onMakeWeekly, onClose, extra }: {
   occ: Occurrence; diary: Diary; who: Who; bundles: ClientBundle[];
   onSave: (p: SessionPatch) => void; onCancelSession: () => void; onMakeWeekly: () => void; onClose: () => void;
-  /** In person's actions for a one-to-one (Start session, Tag a session), under the who and when. */
+  /** In person's actions for a one-to-one (Start session, Tag a session), or a group's (Start session, its workout), under the who and when. */
   extra?: ReactNode;
 }) {
   const id = useId();

@@ -1,0 +1,37 @@
+/* The printed plan (print/PrintScreen.tsx, §162). On screen: a white sheet in the page, with a toolbar. Printed:
+   the sheet alone, black on white, each session kept together. */
+.pp-screen { min-height: 100vh; padding: calc(var(--safe-top, env(safe-area-inset-top)) + 16px) 16px calc(var(--safe-bottom, env(safe-area-inset-bottom)) + 24px); background: var(--bg); }
+.pp-toolbar { max-width: 900px; margin: 0 auto 16px; display: grid; gap: 10px; }
+.pp-toolbar .eyebrow-link { background: none; border: 0; padding: 0; cursor: pointer; justify-self: start; }
+.pp-sheet { max-width: 900px; margin: 0 auto; background: #fff; color: #111; border-radius: 14px; padding: 24px; font: 13px/1.35 -apple-system, system-ui, sans-serif; overflow-x: auto; }
+.pp-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; border-bottom: 2px solid #111; padding-bottom: 10px; }
+.pp-head h1 { font-size: 20px; margin: 0; }
+.pp-head p { margin: 4px 0 0; }
+.pp-coach { text-align: right; color: #444; }
+.pp-how { margin: 12px 0; color: #333; }
+.pp-week h2 { font-size: 15px; margin: 18px 0 6px; }
+.pp-session { margin: 14px 0; break-inside: avoid; page-break-inside: avoid; }
+.pp-session h3 { font-size: 14px; margin: 0 0 6px; display: flex; align-items: center; gap: 8px; }
+.pp-date { margin-left: auto; font-weight: 400; color: #444; }
+.pp-sheet table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.pp-sheet th, .pp-sheet td { border: 1px solid #999; padding: 6px; vertical-align: top; text-align: left; }
+.pp-sheet th { background: #f2f2f2; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.pp-ex { width: 30%; }
+.pp-ex b, .pp-ex span { display: block; }
+.pp-ex span { color: #444; font-size: 12px; margin-top: 2px; }
+.pp-rpe i { font-style: normal; display: inline-block; min-width: 1.6em; text-align: center; border: 1px solid #bbb; border-radius: 50%; margin: 3px 2px 0 0; font-size: 11px; line-height: 1.6em; }
+.pp-set span { display: block; }
+.pp-target { font-weight: 700; }
+.pp-write { color: #666; margin: 8px 0 6px; white-space: nowrap; }
+.pp-tick { color: #444; font-size: 12px; display: flex !important; align-items: center; gap: 6px; }
+.pp-none { background: #fafafa; }
+.pp-box { display: inline-block; width: 14px; height: 14px; border: 1.5px solid #111; border-radius: 3px; flex-shrink: 0; }
+.pp-foot { margin-top: 16px; color: #555; font-size: 12px; }
+
+@media print {
+  @page { size: A4 landscape; margin: 12mm; }
+  html, body, #root, .pp-screen { background: #fff !important; }
+  .pp-screen { padding: 0; min-height: 0; }
+  .pp-toolbar, .bottom-nav, .edge-fade-top, .edge-fade-bottom, .local-build-tag { display: none !important; }
+  .pp-sheet { max-width: none; border-radius: 0; padding: 0; overflow: visible; }
+}

@@ -24,6 +24,8 @@ export const KEYS = {
   railCollapsed: 'blocCoach_railCollapsed',
   /** In-person sessions being logged on this device and not yet finished, so a reload loses no set (inperson/draft.ts). */
   inPerson: 'blocCoach_inPerson',
+  /** A group session being logged on this device (group/draft.ts, §162), one entry per diary week. */
+  groupSession: 'blocCoach_groupSession',
   /** This device's push registration id, so one iOS dropped can be healed (push/push.ts, §158). Cleared by Turn off. */
   pushDevice: 'blocCoach_pushDevice',
   /** The last notification tap delivered, by any route, so route 4 doesn't reopen it (push/intent.ts, §158). */

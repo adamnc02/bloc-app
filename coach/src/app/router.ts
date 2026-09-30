@@ -7,7 +7,9 @@
 // or `?act=goal` when a Review finding opens Plan on its job.
 //
 // An in-person session is `#/session/{occurrence key}?card={card id}`: the
-// diary occurrence (`s:{series}@{week}` or `b:{booking}`) and the client.
+// diary occurrence (`s:{series}@{week}` or `b:{booking}`) and the client. A group
+// session is `#/session/{occurrence key}` with no card (everyone booked). A session a
+// client not on the app did on their own is `#/session/own:{date}?card={card id}`.
 import { useEffect, useState } from 'react';
 
 /** Where Review opens scrolled to, from Today's Needs you: the AI tools on a tool, or one note back (`?at=ai|note`). */
@@ -19,7 +21,8 @@ export const CLIENT_TABS: ClientTab[] = ['review', 'plan', 'sessions', 'profile'
 export type Route =
   | { name: 'today'; push: string | null } | { name: 'clients' } | { name: 'client'; id: string; tab: ClientTab; macro: string | null; intent: { act: 'swap' | 'goal'; ex: string | null } | null; focus: ReviewFocus | null }
   | { name: 'diary' } | { name: 'library' } | { name: 'settings' }
-  | { name: 'session'; occKey: string; cardId: string };
+  | { name: 'session'; occKey: string; cardId: string }
+  | { name: 'print'; cardId: string };
 
 /** Today is the hub: where the app opens. */
 export const DEFAULT_PATH = '/today';
@@ -38,6 +41,7 @@ export function parseRoute(hash: string): Route {
     const focus = at === 'ai' || at === 'note' ? { at, note: q.get('note'), tool: q.get('tool') } as const : null;
     return { name: 'client', id: decodeURIComponent(b), tab, macro: q.get('macro'), intent, focus };
   }
+  if (a === 'print' && b) return { name: 'print', cardId: decodeURIComponent(b) };
   if (a === 'session' && b) return { name: 'session', occKey: decodeURIComponent(b), cardId: new URLSearchParams(query).get('card') ?? '' };
   // Today can carry a tapped push's tag (`?push=`, TECHNICAL §158).
   if (a === 'today' || !a) return { name: 'today', push: new URLSearchParams(query).get('push') };
@@ -46,6 +50,10 @@ export function parseRoute(hash: string): Route {
 }
 
 export const sessionPath = (occKey: string, cardId: string) => `/session/${encodeURIComponent(occKey)}?card=${encodeURIComponent(cardId)}`;
+/** A client's plan, printed (§162). */
+export const printPath = (cardId: string) => `/print/${encodeURIComponent(cardId)}`;
+/** A group session: everyone booked on that diary week (§162). */
+export const groupSessionPath = (occKey: string) => `/session/${encodeURIComponent(occKey)}`;
 
 export function clientPath(id: string, tab: ClientTab = 'review', macro?: string | null, intent?: { act: 'swap' | 'goal'; ex?: string | null } | null, focus?: Partial<ReviewFocus> & { at: ReviewFocus['at'] }) {
   const q = new URLSearchParams();

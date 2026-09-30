@@ -4,8 +4,21 @@
 // diary implies, so the first change publishes only what it changes.
 import { addDays, weekday } from '@/lib/format';
 import { desiredBookings } from '@/diary/publish';
-import { DEFAULT_SETTINGS, type Booking, type DayOff, type Diary, type Series, type SessionRequest } from '@/diary/types';
+import { DEFAULT_SETTINGS, type Booking, type DayOff, type Diary, type PlannedWorkout, type Series, type SessionRequest } from '@/diary/types';
 import type { DiaryRepo } from './types';
+
+/** The fixture bootcamp's planned workout, as a Library workout template's copy (0033). */
+const station = (name: string, bodyPart: string, sets: number, reps: string, startWeight: number) => ({
+  name, bodyPart, category: 'weight', type: 'standard', reps, setsStart: sets, setsEnd: sets, startWeight, isHeavyLeg: false, trackingMode: 'total', order: 0, supersetOrder: null, ss: null,
+});
+export const BOOTCAMP_CIRCUIT: PlannedWorkout = {
+  v: 1, template_id: null, name: 'Bootcamp circuit',
+  exercises: [
+    station('Kettlebell Swing', 'Legs', 4, '15', 16), station('Goblet Squat', 'Legs', 4, '12', 14),
+    station('Press-up', 'Chest', 4, '12', 0), station('TRX Row', 'Back', 4, '12', 0),
+  ].map((e, i) => ({ ...e, order: i })),
+  supersets: {},
+};
 
 export function fixtureDiary(anchor: string): DiaryRepo & { published: { cardId: string; payload: Record<string, unknown> }[] } {
   // The Monday after the anchor (Mon 3 Aug for the tracked dataset), so each fixture keeps its weekday
@@ -17,7 +30,8 @@ export function fixtureDiary(anchor: string): DiaryRepo & { published: { cardId:
     { id: 'sr-tom', kind: 'one_to_one', weekday: 3, start: 7 * 60, duration: 60, from: '2026-07-02', to: null, cancelled: [], title: null, location: 'Studio', clientIds: ['tom'] },
     { id: 'sr-eileen-mon', kind: 'one_to_one', weekday: 0, start: 10 * 60, duration: 45, from: '2026-06-01', to: null, cancelled: [], title: null, location: 'Her home', clientIds: ['eileen'] },
     { id: 'sr-eileen-wed', kind: 'one_to_one', weekday: 2, start: 10 * 60, duration: 45, from: '2026-06-03', to: null, cancelled: [], title: null, location: 'Her home', clientIds: ['eileen'] },
-    { id: 'sr-bootcamp', kind: 'group', weekday: 5, start: 9 * 60, duration: 90, from: '2026-07-04', to: null, cancelled: [], title: 'Saturday bootcamp', location: 'Park', clientIds: ['maya', 'priya', 'grace'] },
+    { id: 'sr-bootcamp', kind: 'group', weekday: 5, start: 9 * 60, duration: 90, from: '2026-07-04', to: null, cancelled: [], title: 'Saturday bootcamp', location: 'Park', clientIds: ['maya', 'priya', 'grace'],
+      workout: BOOTCAMP_CIRCUIT },
   ];
   const bookings: Booking[] = [
     { id: 'bk-priya', seriesId: null, occursOn: null, date: at(4), start: 17 * 60 + 30, duration: 60, kind: 'one_to_one', status: 'booked', title: null, location: 'Studio', clientIds: ['priya'] },

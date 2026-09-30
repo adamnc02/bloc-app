@@ -28,6 +28,22 @@ export interface DayOff {
 export type SessionKind = 'one_to_one' | 'group';
 
 /**
+ * A group session's planned workout (migration 0033: `diary_series.workout`, `diary_bookings.workout`): a COPY of a
+ * Library workout template, so editing or deleting the template never changes a session already planned. On a
+ * series it's every week's; on a booking (a one-off, or one week of a series) it's that session's, and a week's own
+ * wins over its series'. Group rows only (0033 refuses one on a one-to-one). Never published: each attendee
+ * receives what they did as a `session_log` (`kind: 'group'`).
+ */
+export interface PlannedWorkout {
+  v: 1;
+  template_id?: string | null;
+  name: string;
+  /** Coach's workout-template exercise shape (plan/templates.ts), 1–40. */
+  exercises: Record<string, unknown>[];
+  supersets?: Record<string, string | null>;
+}
+
+/**
  * The plan session a coach will take with a client in person (0023 `booking.assigned_session`, 0024
  * `diary_booking_clients.assigned_session`): once the client's phone has it, the session is the coach's and
  * read-only there (BLOC §136). A marker for one session: it never repeats, and it's cleared once logged.
@@ -49,6 +65,8 @@ export interface Series {
   location: string | null;
   /** Card ids (`diary_series_clients`). */
   clientIds: string[];
+  /** A group's workout for every week (0033). */
+  workout?: PlannedWorkout | null;
 }
 
 /**
@@ -72,6 +90,8 @@ export interface Booking {
    * carries one on its identity override: a row identical to that week, so the week stays in its series.
    */
   assigned?: Record<string, AssignedSession>;
+  /** A group's workout for this session, over its series' (0033). */
+  workout?: PlannedWorkout | null;
 }
 
 /** A time a request names: a start, or a window when `end_min` is set (0024 `session_request_slots_ok`). */

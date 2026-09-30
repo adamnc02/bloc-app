@@ -6379,7 +6379,7 @@ try {
      same-named shims. ?v= is the first 12 hex of the file's SHA-256, so a phone never pairs a
      new index.html with an older engine from its HTTP cache; scripts/verify-engine-build.mjs
      fails if it is stale. Listed in scripts/publish-files.txt. -->
-<script src="engine/dist/bloc-engine.js?v=9981611a03b9"></script>
+<script src="engine/dist/bloc-engine.js?v=cec0be1d50e3"></script>
 <script>
 // ════════════════════════════════════════════════
 // DATE HELPERS
@@ -13538,10 +13538,9 @@ function isRpeOn(macro) {
   return BlocEngine.isRpeOn(macro); // v8.35 (§125): the engine's
 }
 
-// Whether ratings change targets. In Solo they do. 🚨 On a coach's cycle
-// (`publishedBy`) they don't: ratings only INFORM the coach there (Adam,
-// 2026-09-27). v8.40 (§132): keyed on the cycle, not on the link, so BLOC
-// Coach running the same engine on client_state reaches the same targets.
+// Whether ratings change targets: whenever the cycle has ratings on, a
+// coach's cycle included (v8.52, §161). The engine decides, so BLOC Coach
+// running the same engine on client_state reaches the same targets.
 function rpeDrivesProgression(macro) {
   return BlocEngine.rpeDrivesProgression(macro); // v8.35 (§125): the engine's
 }
@@ -22406,6 +22405,9 @@ function getSessionPreviewTarget(macro, week, dayKey, ex) {
       : getWeekWeight(ex, week, 'weight', macro.goalType, macro.weightIncrement);
     return { weight: roundToIncrement(baseW * 0.6, weightJump).toFixed(1), reps: prevDone && prevDone.reps ? prevDone.reps : ex.reps };
   }
+  // v8.52 (§161): the first week of a reset (or of a late exercise) is its week 1.
+  const progStart = BlocEngine.progressionStartWeek(ex);
+  if (progStart > 1 && week === progStart) return { weight: ex.startWeight.toFixed(1), reps: ex.reps };
   if (isFirstUnitAfterDeload(macro, week, dayKey)) {
     const t = getWeekTargets(macro, week, dayKey, ex);
     return { weight: first(t.weightTargets), reps: first(t.repsTargets) };
@@ -22416,7 +22418,9 @@ function getSessionPreviewTarget(macro, week, dayKey, ex) {
   // once opened, shows On hold. Idempotent; saves only on a real change.
   for (let w = 2; w < week; w++) evaluateProgressionLock(macro, w, dayKey, ex);
   const lock = state.progressionLocks && state.progressionLocks[getProgressionLockKey(macro.id, dayKey, ex.id)];
-  if (lock && (lock.lockedAtWeek || 0) < week) return { weight: first(lock.weightTargets), reps: first(lock.repsTargets) };
+  if (lock && (lock.lockedAtWeek || 0) < week && (week < progStart || BlocEngine.lockAppliesFrom(lock, ex))) {
+    return { weight: first(lock.weightTargets), reps: first(lock.repsTargets) };
+  }
   if (week === 1) return { weight: ex.startWeight.toFixed(1), reps: ex.reps };
   const t = computeRawSuggestedTargets(macro, week, dayKey, ex);
   return { weight: first(t.weightTargets), reps: first(t.repsTargets) };
@@ -23349,6 +23353,8 @@ function renderTrainDay(macro) {
         ? ['<span class="ex-tag" style="--tag-c:var(--accent);">Swapped for today</span>', rpeTagsHtml].filter(Boolean).join('')
         : [typeTagHtml, holdTagHtml, deloadTagHtml, lastRouteHtml,
           heldAfterSwap ? `<span class="ex-tag ex-tag-quiet">Target held after ${prevSub && prevSub.kind === 'group' ? 'a group session' : 'a swap'}</span>` : '',
+          // v8.52 (§161): the first week of a coach's reset (or of an exercise the coach added part-way through).
+          d.progressionStart && macro.publishedBy ? `<span class="ex-tag" style="--tag-c:var(--accent);">New starting point from ${coachEsc(coachFirstName())}</span>` : '',
           rpeTagsHtml].filter(Boolean).join('');
 
       // The 40×40 auto-complete button — completes every set at target. It is
@@ -29792,7 +29798,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.51</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.53</span>`;
 }
 
 function renderSettings() {
