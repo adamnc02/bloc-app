@@ -288,7 +288,18 @@ async function run(label, html, engineSrc) {
       [(envT.closed || []).includes('modal-coach-request'), (envT.opened || []).slice(-1)[0]], [true, 'modal-coach-requests']);
     const hero = (src.match(/const hero = `<div class="card coach-hero-card">[\s\S]*?<\/div>`;/) || [''])[0];
     check('Your sessions: a hollow lavender (btn-ghost) full-width "Your requests" button with the clock icon, under Request a session',
-      /Request a session<\/button>\s*<button class="btn btn-ghost btn-block"[^>]*openCoachRequests\(\)">\$\{COACH_ICO_CLOCK\} Your requests/.test(hero), true);
+      /Request a session<\/button>\s*<button class="btn btn-ghost btn-block"[^>]*openCoachRequests\(\)">\$\{COACH_ICO_CLOCK_BTN\} Your requests/.test(hero), true);
+    // v8.51: an icon with no size of its own filled the whole button black (UAT). Every COACH_ICO_* inside a .btn must
+    // carry width, height and fill="none"; the banner and row icons are sized by their containers' CSS instead.
+    const icoConst = (name) => (src.match(new RegExp(`const ${name} = '([^']*)'`)) || [])[1] || '';
+    // A button whose class has a CSS rule sizing its svg (e.g. .coach-icon-btn svg) is sized by that instead.
+    const cssSized = (cls) => cls.split(/\s+/).some((c) => new RegExp(`\\.${c} svg\\s*\\{[^}]*width`).test(html)); // the CSS is in the page, not the script
+    const uses = [...src.matchAll(/<button class="(btn[^"]*)"[^>]*>[^<]*\$\{(COACH_ICO_\w+)\}/g)].map((m) => ({ cls: m[1], n: m[2] }));
+    const inButtons = [...new Set(uses.map((u) => u.n))];
+    const unsized = [...new Set(uses.filter((u) => !cssSized(u.cls)).map((u) => u.n)
+      .filter((n) => !/width="\d+"/.test(icoConst(n)) || !/height="\d+"/.test(icoConst(n)) || !/fill="none"/.test(icoConst(n))))];
+    check(`every COACH_ICO_* inside a .btn is sized: by itself (width, height, fill="none") or by its button's CSS (${inButtons.join(', ')})`, [inButtons.length > 0, unsized], [true, []]);
+    check('control: the v8.50 clock (no size) would be caught', /width="\d+"/.test(icoConst('COACH_ICO_CLOCK')), false);
     check('a tapped push about a proposal opens Your requests, not the form', /openCoachRequests\(\); \/\/ v8\.50/.test(src), true);
   }
   // v8.42 (Adam, UAT): Home's View body logs opens over Home and closes back to
