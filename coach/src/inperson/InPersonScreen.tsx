@@ -11,14 +11,17 @@
 //    `session_log` publication, and the assignment released (the session is coach-logged now). A client not on
 //    the app has it kept on their card, and it comes across if they link.
 // A client not on the app also has Measurements here.
-// Group sessions have no Start session in this version.
+// A session a client not on the app did ON THEIR OWN (from a printed sheet, §162) opens here too, on `own:{date}`:
+// no booking, so nothing is assigned or released; Done as planned completes every set at target in one tap; it's
+// saved as their session, labelled "On their own" in Coach.
+// A group session has its own screen (group/GroupSessionScreen.tsx, §162).
 // ═══════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { BlocState, Loose, Macrocycle } from '@engine';
 import { CoachShell } from '@/coach/CoachShell';
 import { Bar, Button, Card, EmptyState, Hero, Icon, Notice, Page, PageHeader, Section, Tag, Toast, useEntering } from '@/components/ui';
 import { useCoach } from '@/app/App';
-import { clientPath, navigate, sessionBack } from '@/app/router';
+import { clientPath, groupSessionPath, navigate, sessionBack } from '@/app/router';
 import { displayName, linkStatusOf } from '@/data/summary';
 import { addDays, fmt } from '@/lib/format';
 import { occurrencesBetween, type Occurrence } from '@/diary/model';
@@ -27,7 +30,7 @@ import { seriesAssignment } from '@/diary/publish';
 import type { AssignedSession, Diary } from '@/diary/types';
 import { useDiaryData } from '@/coach/diary/useDiaryData';
 import {
-  agendaOf, cycleForSession, defaultSession, loggedFor, ratingsOn, sameSession, sessionIdFor, sessionLogPayload, sessionTargets,
+  agendaOf, cycleForSession, defaultSession, loggedFor, ownDateOf, ownSessionIdFor, ratingsOn, sameSession, sessionIdFor, sessionLogPayload, sessionTargets,
   type ExerciseTarget, type Ratings, type SetEntry,
 } from './model';
 import { dropDraft, loadDraft, saveDraft, type InPersonDraft } from './draft';
@@ -71,7 +74,12 @@ export function InPersonScreen({ occKey, cardId }: { occKey: string; cardId: str
   const [sent, setSent] = useState<{ sets: Record<string, SetEntry[]>; names: Record<string, string> } | null>(null);
   useEffect(() => { if (draft) saveDraft(occKey, cardId, draft); }, [draft, occKey, cardId]);
 
-  const occ = diary ? findOccurrence(diary, occKey, coachToday) : null;
+  // A session done on their own has no diary week: `own:{date}` stands in for one (no booking, no time).
+  const ownDate = ownDateOf(occKey);
+  const found = diary && !ownDate ? findOccurrence(diary, occKey, coachToday) : null;
+  const occ: Occurrence | null = ownDate
+    ? { key: occKey, kind: 'one_to_one', date: ownDate, start: 0, duration: 0, title: null, location: null, clientIds: [cardId], recurring: false, seriesId: null, seriesDate: null, bookingId: null, request: null, workout: null }
+    : found;
   const macro: Macrocycle | null = rec.state && occ ? cycleForSession(rec.state, rec.today, occ.date) : null;
   const units = useMemo(() => (rec.state && macro ? agendaOf(rec.state, macro, rec.today) : []), [rec.state, macro, rec.today]);
   const targets = useMemo<ExerciseTarget[]>(() => (rec.state && macro && draft && draft.macroId === macro.id
@@ -87,8 +95,9 @@ export function InPersonScreen({ occKey, cardId }: { occKey: string; cardId: str
   if (error || rec.error) return shell(<EmptyState>Couldn’t load the session: {error ?? rec.error}</EmptyState>);
   if (!diary || !bundles || !rec.state) return <CoachShell tab="today"><div className="page" aria-busy="true" /></CoachShell>;
   if (!occ || !bundle || !occ.clientIds.includes(cardId)) return shell(<EmptyState>That session isn’t in the diary any more.</EmptyState>);
-  if (occ.kind === 'group') return shell(<EmptyState>Group sessions are logged in a later version.</EmptyState>);
-  const sub = `${name} · in person · ${fmt.ddm(occ.date)}, ${fmt.time(occ.start)}`;
+  if (occ.kind === 'group') { navigate(groupSessionPath(occKey)); return null; }
+  if (ownDate && !notOnApp) return shell(<EmptyState>{first} is on BLOC and logs their own sessions there.</EmptyState>);
+  const sub = ownDate ? `${name} · on their own · ${fmt.ddm(occ.date)}` : `${name} · in person · ${fmt.ddm(occ.date)}, ${fmt.time(occ.start)}`;
   if (!macro) {
     return shell(
       <div style={{ marginTop: 24 }}><EmptyState action={<Button size="card" variant="ghost" onClick={() => navigate(clientPath(cardId, 'plan'))}>Open {first}’s plan</Button>}>
@@ -96,9 +105,9 @@ export function InPersonScreen({ occKey, cardId }: { occKey: string; cardId: str
       </EmptyState></div>, name, sub);
   }
 
-  const bookingId = publishedIdOf(occ);
-  const tagged = assignedFor(diary, occ, cardId);
-  const already = loggedFor(rec.logged, bookingId, occ.date);
+  const bookingId = ownDate ? null : publishedIdOf(occ);
+  const tagged = ownDate ? null : assignedFor(diary, occ, cardId);
+  const already = bookingId ? loggedFor(rec.logged, bookingId, occ.date) : null;
   const label = (s: AssignedSession) => units.flatMap((u) => u.sessions).find((x) => x.week === s.week && x.dayKey === s.dayKey)?.label ?? s.dayKey;
   const owned = !!draft && Object.values(draft.sets).some((xs) => xs.some((x) => x.done));
   const current = draft ? { macroId: draft.macroId, week: draft.week, dayKey: draft.dayKey } : defaultSession(rec.state, macro, rec.today, tagged);
@@ -106,13 +115,13 @@ export function InPersonScreen({ occKey, cardId }: { occKey: string; cardId: str
   /** Choose (or change) the session: assign it on the booking, quietly, then start its sets from Train's targets. */
   const choose = async (s: AssignedSession) => {
     setPicking(false);
-    if (!sameSession(s, tagged)) {
+    if (!ownDate && !sameSession(s, tagged)) {
       const ok = await run((d) => assignSession(repo, d, occ, cardId, s), notOnApp ? null : `${label(s)} is ${first}’s session with you: read-only on their phone`);
       if (!ok) return;
     }
     const t = sessionTargets(structuredClone(rec.state!) as BlocState, macro, s.week, s.dayKey);
     setDraft({
-      sessionId: draft?.sessionId ?? sessionIdFor(bookingId, occ.date, Date.now().toString(36)),
+      sessionId: draft?.sessionId ?? (bookingId ? sessionIdFor(bookingId, occ.date, Date.now().toString(36)) : ownSessionIdFor(occ.date, Date.now().toString(36))),
       macroId: s.macroId, week: s.week, dayKey: s.dayKey, rpe: {},
       sets: Object.fromEntries(t.map((x) => [String(x.ex.id), blankSets(x)])),
     });
@@ -126,7 +135,7 @@ export function InPersonScreen({ occKey, cardId }: { occKey: string; cardId: str
       const payload = sessionLogPayload({ sessionId: draft.sessionId, bookingId, macroId: draft.macroId, week: draft.week, dayKey: draft.dayKey, sets: draft.sets, rpe });
       await repo.publish(cardId, 'session_log', payload as Loose, null);
       // The session is the coach's for good now (logged); the marker is done with.
-      if (assignedFor(diary, occ, cardId)) await run((d) => assignSession(repo, d, occ, cardId, null), null);
+      if (!ownDate && assignedFor(diary, occ, cardId)) await run((d) => assignSession(repo, d, occ, cardId, null), null);
       setSent({ sets: draft.sets, names: Object.fromEntries(targets.map((t) => [String(t.ex.id), String(t.ex.name)])) });
       dropDraft(occKey, cardId);
       setDraft(null);
@@ -157,13 +166,13 @@ export function InPersonScreen({ occKey, cardId }: { occKey: string; cardId: str
           <span className="icon-tile" style={{ width: 44, height: 44, borderRadius: 14 }}><Icon name="check" size={24} /></span>
           <div>
             <div className="display" style={{ fontSize: 20 }}>Session {notOnApp ? 'saved' : 'sent'}</div>
-            <div className="muted">{notOnApp ? `On ${first}’s record, logged by you in person.` : `On ${first}’s phone as if they’d logged it.`}</div>
+            <div className="muted">{ownDate ? `On ${first}’s record: their session on their own, recorded by you.` : notOnApp ? `On ${first}’s record, logged by you in person.` : `On ${first}’s phone as if they’d logged it.`}</div>
           </div>
         </div>
       </Hero>
       <Section i={2} title={notOnApp ? 'On their record' : 'What they see'} sub={notOnApp ? `Kept for ${first}. It comes across if they link to BLOC later.` : `How the session shows in ${first}’s Train. It counts towards progression like any other.`}>
         <Card i={3}>
-          <Notice icon="lock" title="Logged by your coach · in person">{notOnApp ? `Read-only. ${first} isn’t on the app yet.` : `Read-only for ${first}. Only you can change it.`}</Notice>
+          <Notice icon="lock" title={ownDate ? 'On their own · recorded by you' : 'Logged by your coach · in person'}>{notOnApp ? `Read-only. ${first} isn’t on the app yet.` : `Read-only for ${first}. Only you can change it.`}</Notice>
           <div style={{ marginTop: 14 }}>{lines.map(([n, v]) => <div key={n} className="ex"><span>{n}</span><span className="num">{v}</span></div>)}</div>
         </Card>
         <Button style={{ marginTop: 16 }} onClick={() => navigate('/today')}>Back to Today</Button>
@@ -179,10 +188,10 @@ export function InPersonScreen({ occKey, cardId }: { occKey: string; cardId: str
         <Notice icon="account" tone="neutral" title={current ? `${first}’s ${label(current)} · MC ${current.week}` : `${first} has nothing left in this cycle`}>
           {current
             ? (tagged && sameSession(current, tagged) ? `You tagged this session for today. ` : `${first}’s next unfinished session. `)
-              + (notOnApp ? `${first} isn’t on the app: what you log is kept on their record.` : `Starting it makes it yours: ${first} sees it read-only.`)
+              + (ownDate ? `Record what ${first} did on their own on ${fmt.ddm(occ.date)}, from their sheet.` : notOnApp ? `${first} isn’t on the app: what you log is kept on their record.` : `Starting it makes it yours: ${first} sees it read-only.`)
             : 'Every session of the cycle is done or logged.'}
         </Notice>
-        {current && <Button icon="play" style={{ marginTop: 18 }} onClick={() => void choose(current)}>Start {label(current)}</Button>}
+        {current && <Button icon={ownDate ? 'edit' : 'play'} style={{ marginTop: 18 }} onClick={() => void choose(current)}>{ownDate ? `Record ${label(current)}` : `Start ${label(current)}`}</Button>}
         <Button variant="ghost" icon="list" style={{ marginTop: 10 }} onClick={() => setPicking(true)}>Choose another session</Button>
       </Hero>
       {picking && <SessionPicker title="Which session?" macro={macro} units={units} first={first} current={current} tagged={tagged} onPick={(s) => void choose(s)} onClose={() => setPicking(false)} />}
@@ -198,8 +207,8 @@ export function InPersonScreen({ occKey, cardId }: { occKey: string; cardId: str
     <Hero>
       <div role="status" style={{ marginBottom: 18 }}>
         {owned ? (
-          <Notice icon="lock" title="This session is yours now">
-            {notOnApp ? `You’re logging for ${first}. It’s kept on their record, marked logged by coach, in person.` : `${first} sees it read-only, marked ‘Logged by your coach · in person’. Sets reach their phone exactly as if they’d logged them.`}
+          <Notice icon="lock" title={ownDate ? `Recording ${first}’s session` : 'This session is yours now'}>
+            {ownDate ? `What ${first} did on their own. It’s kept on their record and counts towards progression like any other.` : notOnApp ? `You’re logging for ${first}. It’s kept on their record, marked logged by coach, in person.` : `${first} sees it read-only, marked ‘Logged by your coach · in person’. Sets reach their phone exactly as if they’d logged them.`}
           </Notice>
         ) : (
           <Notice icon="account" tone="neutral" title={`${first}’s ${label(draft)} · MC ${draft.week}`}>
@@ -214,7 +223,10 @@ export function InPersonScreen({ occKey, cardId }: { occKey: string; cardId: str
         <div><div className="big num" style={{ fontSize: 30 }}>{fmt.int(volumeOf(draft.sets))}<span style={{ fontSize: 14, color: 'var(--text3)' }}> kg</span></div><div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Volume</div></div>
       </div>
       <div style={{ marginTop: 8 }}><Bar value={all.length ? Math.max(0.03, done / all.length) : 0} label={`${done} of ${all.length} sets done`} /></div>
-      {!owned && <Button size="card" variant="ghost" icon="swap" style={{ marginTop: 16 }} onClick={() => setPicking(true)}>Change session</Button>}
+      {ownDate && <Button size="card" icon="checkbox" style={{ marginTop: 16 }}
+        onClick={() => setDraft({ ...draft, sets: Object.fromEntries(targets.map((t) => [String(t.ex.id), (draft.sets[String(t.ex.id)] ?? blankSets(t)).map((x, k) => ({ kg: x.kg || t.weights[k] || '', reps: x.reps || t.reps[k] || '', done: true }))])) })}>
+        Done as planned</Button>}
+      {!owned && <Button size="card" variant="ghost" icon="swap" style={{ marginTop: ownDate ? 10 : 16 }} onClick={() => setPicking(true)}>Change session</Button>}
     </Hero>
 
     <Section i={2} title="The session" sub={deload ? 'Deload targets shown.' : 'Tap an exercise to log sets. The tick button completes every set at target.'} slot={owned ? <Tag tone="acc">Logged by you</Tag> : undefined}>
@@ -230,7 +242,7 @@ export function InPersonScreen({ occKey, cardId }: { occKey: string; cardId: str
       </div>
     </Section>
 
-    {notOnApp && (
+    {notOnApp && !ownDate && (
       <Section i={3 + targets.length} title="Measurements" sub={`Weigh and measure ${first} while you’re together. Saved to their record.`}>
         <Card><MeasurementsForm state={rec.state} date={occ.date} onSave={(p) => void saveMeasurements(p)} /></Card>
       </Section>

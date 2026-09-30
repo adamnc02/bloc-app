@@ -29,6 +29,8 @@ import { ClientScreen } from '@/coach/screens/ClientScreen';
 import { SettingsScreen } from '@/coach/screens/SettingsScreen';
 import { TodayScreen } from '@/coach/screens/TodayScreen';
 import { InPersonScreen } from '@/inperson/InPersonScreen';
+import { GroupSessionScreen } from '@/group/GroupSessionScreen';
+import { PrintScreen } from '@/print/PrintScreen';
 import { LibraryScreen } from '@/coach/screens/LibraryScreen';
 import { DiaryScreen } from '@/coach/diary/DiaryScreen';
 
@@ -157,7 +159,8 @@ function Screens() {
     case 'client': return <ClientScreen key={`client-${route.id}`} id={route.id} tab={route.tab} macro={route.macro} intent={route.intent} focus={route.focus} />;
     case 'settings': return <SettingsScreen key={key} />;
     case 'today': return <TodayScreen key={key} />;
-    case 'session': return <InPersonScreen key={key} occKey={route.occKey} cardId={route.cardId} />;
+    case 'print': return <PrintScreen key={key} cardId={route.cardId} />;
+    case 'session': return route.cardId ? <InPersonScreen key={key} occKey={route.occKey} cardId={route.cardId} /> : <GroupSessionScreen key={key} occKey={route.occKey} />;
     case 'diary': return <DiaryScreen key={key} />;
     case 'library': return <LibraryScreen key={key} />;
   }
@@ -202,7 +205,7 @@ function LocalBuildTag() {
   if (!IS_LOCAL_DEV && !IS_LOCAL_REAL_AUTH) return null;
   const live = IS_LOCAL_REAL_AUTH;
   return (
-    <div role="status" style={{
+    <div role="status" className="local-build-tag" style={{
       position: 'fixed', top: 'calc(6px + env(safe-area-inset-top))', left: '50%', transform: 'translateX(-50%)', zIndex: 200, pointerEvents: 'none',
       padding: '4px 10px', borderRadius: 999, whiteSpace: 'nowrap', fontSize: 10.5, fontWeight: 800, letterSpacing: '.08em',
       background: live ? 'var(--red)' : 'color-mix(in srgb, var(--amber) 85%, transparent)', color: live ? '#fff' : 'var(--on-accent)',

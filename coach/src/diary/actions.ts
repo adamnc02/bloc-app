@@ -9,7 +9,7 @@ import { isDayOff, requestSlot, seriesDates, type Occurrence } from './model';
 import { findClash, findSeriesClash, type Refusal } from './rules';
 import { bookingChanges } from './publish';
 import { occurrencesBetween } from './model';
-import type { AssignedSession, Diary, DiarySettings, Series, SessionKind, SessionRequest, Slot } from './types';
+import type { AssignedSession, Diary, DiarySettings, PlannedWorkout, Series, SessionKind, SessionRequest, Slot } from './types';
 
 export type Scope = 'one' | 'all';
 
@@ -40,7 +40,7 @@ export function daysOffWeeks(d: Pick<Diary, 'daysOff'>, s: Pick<Series, 'weekday
 }
 
 /** Re-derives and sends every card's booking changes; returns the diary as it now stands. */
-export async function publishChanges(repo: DiaryRepo, opts: { quiet?: boolean; quietIds?: Set<string> } = {}): Promise<Diary> {
+export async function publishChanges(repo: DiaryRepo, opts: { quiet?: boolean; quietIds?: Set<string>; quietCards?: Set<string> } = {}): Promise<Diary> {
   const d = await repo.loadDiary();
   const out = bookingChanges(d, opts);
   for (const o of out) await repo.publishBooking(o.cardId, o.payload, o.supersedes);
@@ -71,10 +71,18 @@ export async function editSession(repo: DiaryRepo, d: Diary, occ: Occurrence, p:
     return publishChanges(repo);
   }
   // The old series ends the day before this week; the new one starts on the new day. The old one's
-  // end goes quietly: the client is told once, by the new series' "Session confirmed".
+  // end goes quietly: the client is told once, by the new series' "Session changed".
   await repo.updateSeries(s.id, { to: addDays(week, -1) });
-  await repo.createSeries({ ...next, kind: s.kind, from: p.date, to: s.to, cancelled: daysOffWeeks(d, { ...next, from: p.date, to: s.to }) });
-  return publishChanges(repo, { quietIds: new Set([s.id]) });
+  const created = await repo.createSeries({ ...next, kind: s.kind, from: p.date, to: s.to, cancelled: daysOffWeeks(d, { ...next, from: p.date, to: s.to }) });
+  // 🚨 A group changed only in who's in it (someone added "all future"): the people already in it hear nothing,
+  //    because nothing changed for them; only a new client is told ("Added to a group session"). Without this every
+  //    member got a banner about a session that hadn't changed (§162).
+  const quietCards = new Set<string>();
+  if (s.kind === 'group' && next.weekday === s.weekday && next.start === s.start && next.duration === s.duration
+    && (next.location ?? null) === (s.location ?? null) && (next.title ?? null) === (s.title ?? null)) {
+    for (const c of s.clientIds) if (next.clientIds.includes(c)) quietCards.add(`${c}|${created.id}`);
+  }
+  return publishChanges(repo, { quietIds: new Set([s.id]), quietCards });
 }
 
 /** Cancel one session; for a series week, just this one, or stop the series from this week. */
@@ -161,6 +169,33 @@ export async function assignSession(repo: DiaryRepo, d: Diary, occ: Occurrence, 
   }
   await repo.assignSession(bookingId, cardId, session);
   return publishChanges(repo, { quietIds: new Set([publishedIdOf(occ)]) });
+}
+
+/**
+ * Plan a group session's workout (0033), or clear it (null). A weekly group: every week (`'all'`, on the series; a
+ * week with its own keeps it), or just this week (`'one'`: the week's identity override, made if there isn't one, as
+ * assignSession does, so the week stays in its series). A one-off or a detached week: its own row. Nothing is
+ * published: the workout never reaches a phone.
+ */
+export async function planWorkout(repo: DiaryRepo, d: Diary, occ: Occurrence, workout: PlannedWorkout | null, scope: Scope): Promise<Diary> {
+  if (occ.kind !== 'group') throw new Error('Only a group session has a planned workout.');
+  if (occ.recurring && occ.seriesId && scope === 'all') {
+    await repo.updateSeries(occ.seriesId, { workout });
+    return repo.loadDiary();
+  }
+  let bookingId = occ.bookingId;
+  if (!bookingId) {
+    if (!workout) return d;
+    const s = d.series.find((x) => x.id === occ.seriesId);
+    if (!s || !occ.seriesDate) throw new Error('That session isn’t in the diary any more.');
+    bookingId = (await repo.createBooking({
+      seriesId: s.id, occursOn: occ.seriesDate, date: occ.seriesDate, start: s.start, duration: s.duration, kind: s.kind,
+      status: 'booked', title: s.title, location: s.location, clientIds: s.clientIds, workout,
+    })).id;
+    return repo.loadDiary();
+  }
+  await repo.updateBooking(bookingId, { workout });
+  return repo.loadDiary();
 }
 
 /** A one-off becomes a weekly session from its date (the one-off's own publication is replaced quietly). */

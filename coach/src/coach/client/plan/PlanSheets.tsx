@@ -339,20 +339,20 @@ export function PreviewSheet({ open, blocks, onClose }: { open: boolean; blocks:
 // ---------------------------------------------------------------- templates
 
 /** Picking a Library template: a search over the coach's templates of one kind. */
-export function TemplatePicker({ open, kind, templates, onClose, onPick }: { open: boolean; kind: Template['kind']; templates: Template[]; onClose: () => void; onPick: (t: Template) => void }) {
+export function TemplatePicker({ open, kind, templates, onClose, onPick, title }: { open: boolean; kind: Template['kind']; templates: Template[]; onClose: () => void; onPick: (t: Template) => void; title?: string }) {
   const [q, setQ] = useState('');
   useEffect(() => { if (open) setQ(''); }, [open]);
   const list = useMemo(() => templates.filter((t) => t.kind === kind && (!q.trim() || t.name.toLowerCase().includes(q.trim().toLowerCase())))
     .sort((a, b) => Number(b.starred) - Number(a.starred) || b.appliedLast90 - a.appliedLast90 || a.name.localeCompare(b.name)), [templates, kind, q]);
   return (
-    <SearchSheet open={open} title={kind === 'macrocycle' ? 'Apply a cycle template' : 'Apply a workout template'} onClose={onClose} query={q} onQuery={setQ} placeholder="Search templates">
+    <SearchSheet open={open} title={title ?? (kind === 'macrocycle' ? 'Apply a cycle template' : 'Apply a workout template')} onClose={onClose} query={q} onQuery={setQ} placeholder="Search templates">
       {list.map((t) => (
         <button key={t.id} type="button" className="ss-row" onClick={() => onPick(t)}>
           <span className="main"><b>{t.starred ? '★ ' : ''}{t.name}</b><small>{t.summary}</small></span>
           <span style={{ color: 'var(--text3)' }}><Icon name="chevR" size={18} /></span>
         </button>
       ))}
-      {!list.length && <p className="muted" style={{ padding: '14px 0' }}>{q ? 'No template matches.' : `No ${kind === 'macrocycle' ? 'cycle' : 'workout'} templates yet. Save one from a client’s Plan.`}</p>}
+      {!list.length && <p className="muted" style={{ padding: '14px 0' }}>{q ? 'No template matches.' : `No ${kind === 'macrocycle' ? 'cycle' : 'workout'} templates yet. ${kind === 'workout' ? 'Build one in Library → New workout, or save' : 'Save'} one from a client’s Plan.`}</p>}
     </SearchSheet>
   );
 }

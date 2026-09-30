@@ -20,8 +20,10 @@ const TYPE_TAG: Record<string, { text: string; tone: 'acc' | 'amber' | 'blue' | 
 /** The sets a card starts with: each at Train's suggestion, not done. */
 export const blankSets = (t: ExerciseTarget): SetEntry[] => Array.from({ length: t.sets }, (_, i) => ({ kg: t.weights[i] ?? '', reps: t.reps[i] ?? '', done: false }));
 
-export function ExerciseLogCard({ n, i, t, sets, onSets, expanded, onToggle, readOnly }: {
+export function ExerciseLogCard({ n, i, t, sets, onSets, expanded, onToggle, readOnly, lastLabel = 'Last wk' }: {
   n: number; i: number; t: ExerciseTarget; sets: SetEntry[]; onSets?: (s: SetEntry[]) => void; expanded: boolean; onToggle: () => void; readOnly?: boolean;
+  /** A group session's last time is its last group session, not last week (§162). */
+  lastLabel?: string;
 }) {
   const bodyId = useId();
   const ex = t.ex;
@@ -67,7 +69,7 @@ export function ExerciseLogCard({ n, i, t, sets, onSets, expanded, onToggle, rea
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }} role="img" aria-label={`${done} of ${sets.length} sets done`}>
                   {sets.map((s, k) => <i key={k} style={{ width: 22, height: 22, borderRadius: '50%', display: 'block', border: s.done ? 0 : '1.5px solid color-mix(in srgb, var(--text) 22%, transparent)', background: s.done ? 'var(--accent)' : 'transparent' }} />)}
                 </div>
-                <span style={{ fontSize: 11.5, color: 'var(--text3)', whiteSpace: 'nowrap' }}>Last wk {lastText}</span>
+                <span style={{ fontSize: 11.5, color: 'var(--text3)', whiteSpace: 'nowrap' }}>{lastLabel} {lastText}</span>
               </div>
             </>
           )}
@@ -86,7 +88,7 @@ export function ExerciseLogCard({ n, i, t, sets, onSets, expanded, onToggle, rea
             )}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: GRID, gap: 8, marginTop: 12, ...lbl }} aria-hidden="true">
-            <span>#</span><span>Last wk</span><span style={{ textAlign: 'center' }}>{cardio ? 'Min' : 'kg'}</span><span style={{ textAlign: 'center' }}>Reps</span><span style={{ textAlign: 'center' }}>✓</span>
+            <span>#</span><span>{lastLabel}</span><span style={{ textAlign: 'center' }}>{cardio ? 'Min' : 'kg'}</span><span style={{ textAlign: 'center' }}>Reps</span><span style={{ textAlign: 'center' }}>✓</span>
           </div>
           {sets.map((s, k) => {
             const prev = t.last[k];

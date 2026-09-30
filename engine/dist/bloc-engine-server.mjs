@@ -3470,7 +3470,16 @@ function setRows(s, cache, m, week, dayKey, ex) {
     const w = lg && lg.weight ? parseFloat(lg.weight) : null;
     const r = lg && lg.reps !== void 0 && lg.reps !== null ? String(lg.reps).trim() : "";
     const hit = done ? w !== null && tw !== void 0 && w - parseFloat(tw) > -0.01 && tr !== void 0 && parseRepsForVolume(r) >= parseRepsForVolume(tr) : null;
-    out.push({ n: i + 1, targetKg: str(tw), targetReps: str(tr), kg: str(lg?.weight), reps: str(lg?.reps), done, hit, byCoach: lg?.loggedBy === "coach" });
+    out.push({
+      n: i + 1,
+      targetKg: str(tw),
+      targetReps: str(tr),
+      kg: str(lg?.weight),
+      reps: str(lg?.reps),
+      done,
+      hit,
+      byCoach: lg?.loggedBy === "coach" && !String(lg?.sessionId ?? "").startsWith("own:")
+    });
   }
   return out;
 }
