@@ -10829,6 +10829,28 @@ which a Coach tab also has, so a BLOC notification tapped in a browser that has 
 can focus the Coach tab. On a phone each Home Screen app is isolated, so this can't happen there. Coach's worker
 matches `/bloc-app/coach/`, so a Coach tap never reuses a BLOC window.
 
+### v0.9.1: a tap on a closed Coach (a cold start)
+
+🚨 **In v0.9, a tap on a notification while Coach was closed** (swiped away, phone locked) opened Coach on the
+last page it had shown, not where the push pointed. On a cold start iOS opens the app on the page it remembers,
+so route 1 (`?open=`) is lost. v0.9 attached the message listener only once sign-in had finished, and read
+the note **once**, at that moment. The worker writes its note when iOS hands it the click, which can be after
+that single read, so the note sat unread and nothing moved. Chromium reproduces it with a note written after
+Coach is ready (v0.9 stays on Settings; v0.9.1 opens the request sheet).
+
+Now:
+- `listenForOpenMessages()` runs in `main.tsx` **before React renders**. A message that arrives while Coach is
+  still signing in is held (`pending`), then delivered once Coach is ready.
+- The note is re-read in a **burst**, `RECHECK_MS` = 0, 0.5, 1.5, 3, 6 and 10 s, after ready and on every
+  `visibilitychange` to visible, `focus` and `pageshow`. The note is deleted when read, so the burst can't open
+  anything twice, and Today's `?push=` runs its action once (`pushDone`).
+- **Temporary readout.** Settings → Notifications shows "Last opened from a notification: {day time} · via
+  {url|message|note} → {path}" (`KEYS.lastOpen`). A phone has no console, and this is the only way to see which
+  route worked. It is removed before Phase 6 closes, as BLOC's were in v8.25 (§114).
+
+`verify-coach-push.mjs` checks that the listener comes before `createRoot`, that the burst reaches 10 s, and that it
+runs on the three events. Its control is v0.9's `intent.ts` (`bb7f3a0`), which has neither.
+
 ### Settings → Notifications (`src/push/push.ts`)
 
 BLOC's push code (§111–§113), ported to TypeScript for `app: 'coach'`:
@@ -10851,7 +10873,7 @@ and supabase-js's upsert asks for UPDATE on `coach_id` too (MIGRATION-LESSONS §
 clients has no server, so the section says so and everything in it is disabled.
 
 **Checks:**
-- `scripts/verify-coach-push.mjs` (32) runs the real worker in a simulated scope:
+- `scripts/verify-coach-push.mjs` (36) runs the real worker in a simulated scope:
   - a cold tap (the note and the URL) and a warm one (the tag beats data; the message);
   - a BLOC window not reused; BLOC's tag and a URL in `data` both opening Today; no tag;
   - the unreadable push; the pin;

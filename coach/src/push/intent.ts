@@ -15,6 +15,7 @@
 // an unlink to that client's Profile; the test notification nowhere.
 // ═══════════════════════════════════════════════════════════════════════
 import { clientPath } from '@/app/router';
+import { KEYS } from '@/lib/storage';
 
 export const OPEN_INTENT_CACHE = 'bloc-coach-open-intent';
 export const OPEN_INTENT_PATH = '__open-intent';
@@ -57,13 +58,56 @@ export async function takeOpenNote(now = Date.now()): Promise<string | null> {
   } catch { return null; }
 }
 
+// ── Wiring (v0.9.1) ──────────────────────────────────────────────────────
+// 🚨 A tap on a CLOSED app (swiped away, phone locked) is a cold start: iOS
+//    opens Coach on the last page it remembers, so route 1 is lost, and the
+//    worker's message can arrive before sign-in has finished. In v0.9 the
+//    listener was attached only once Coach was ready, and the note was read
+//    once, so both could be missed and Coach stayed on the page it opened on.
+//    Now the message listener is attached at page load (listenForOpenMessages,
+//    main.tsx) and holds the destination until Coach is ready, and the note is
+//    re-read in a short burst after ready and after every return to the front.
+export type OpenVia = 'url' | 'message' | 'note';
+/** When to re-read the note after Coach is ready or comes to the front, ms. */
+export const RECHECK_MS = [0, 500, 1500, 3000, 6000, 10000];
+
+let pending: { target: string; via: OpenVia } | null = null;
+let deliver: ((target: string, via: OpenVia) => void) | null = null;
+function hand(target: string | null, via: OpenVia) {
+  if (!target) return;
+  if (deliver) deliver(target, via);
+  else pending = { target, via };
+}
+
+/** At page load, before React: route 2 is never missed while Coach is still signing in. */
+export function listenForOpenMessages(): void {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.addEventListener('message', (e: MessageEvent) => {
+    const d = e.data as { type?: unknown; open?: unknown } | null;
+    if (d && d.type === OPEN_MESSAGE) void takeOpenNote().finally(() => hand(openTarget(d.open), 'message'));
+  });
+}
+
+/** Temporary readout (Settings → Notifications): which route last opened Coach from a notification. */
+export interface LastOpen { at: number; via: OpenVia; target: string; path: string | null }
+export function lastOpen(): LastOpen | null {
+  try { return JSON.parse(localStorage.getItem(KEYS.lastOpen) || 'null'); } catch { return null; }
+}
+
 /**
- * Wires the three routes. `go` gets a hash path. Runs on start, when Coach
- * comes to the front, and on the worker's message. Returns the unsubscribe.
+ * Once Coach is ready: `go` gets a hash path. Takes anything held since page
+ * load, reads route 1, and re-reads the note (RECHECK_MS) now and whenever
+ * Coach comes to the front. Returns the unsubscribe.
  */
 export function watchOpenIntents(go: (path: string) => void): () => void {
+  deliver = (target, via) => {
+    const path = pushRoute(target);
+    try { localStorage.setItem(KEYS.lastOpen, JSON.stringify({ at: Date.now(), via, target, path } satisfies LastOpen)); } catch { /* private mode */ }
+    if (path) go(path);
+  };
+  if (pending) { const p = pending; pending = null; deliver(p.target, p.via); }
+  let timers: ReturnType<typeof setTimeout>[] = [];
   let busy = false;
-  const apply = (target: string | null) => { const path = target ? pushRoute(target) : null; if (path) go(path); };
   const check = async () => {
     if (busy) return;
     busy = true;
@@ -74,21 +118,24 @@ export function watchOpenIntents(go: (path: string) => void): () => void {
         const u = new URL(window.location.href);
         u.searchParams.delete('open');
         history.replaceState(null, '', u.pathname + u.search + u.hash);
+        hand(fromUrl, 'url');
+        await takeOpenNote(); // the same tap: consume its note too
+        return;
       }
-      const fromNote = await takeOpenNote();
-      apply(fromUrl || fromNote);
+      hand(await takeOpenNote(), 'note');
     } finally { busy = false; }
   };
-  const onMessage = (e: MessageEvent) => {
-    const d = e.data as { type?: unknown; open?: unknown } | null;
-    if (d && d.type === OPEN_MESSAGE) void takeOpenNote().finally(() => apply(openTarget(d.open)));
-  };
-  const onVisible = () => { if (document.visibilityState === 'visible') void check(); };
-  if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', onMessage);
+  const burst = () => { for (const t of timers) clearTimeout(t); timers = RECHECK_MS.map((ms) => setTimeout(() => void check(), ms)); };
+  const onVisible = () => { if (document.visibilityState === 'visible') burst(); };
   document.addEventListener('visibilitychange', onVisible);
-  void check();
+  window.addEventListener('focus', burst);
+  window.addEventListener('pageshow', burst);
+  burst();
   return () => {
-    if ('serviceWorker' in navigator) navigator.serviceWorker.removeEventListener('message', onMessage);
+    deliver = null;
+    for (const t of timers) clearTimeout(t);
     document.removeEventListener('visibilitychange', onVisible);
+    window.removeEventListener('focus', burst);
+    window.removeEventListener('pageshow', burst);
   };
 }
