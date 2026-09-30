@@ -22,7 +22,8 @@
     "paths": {
       "@/*": ["./src/*"],
       "@engine": ["../engine/src/index.ts"],
-      "@engine/review": ["../engine/src/review/index.ts"]
+      "@engine/review": ["../engine/src/review/index.ts"],
+      "@engine/demo": ["../engine/src/demo/index.ts"]
     }
   },
   "include": ["src", "vite.config.ts"]

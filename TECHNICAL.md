@@ -9162,7 +9162,7 @@ the clients are built from **`bloc-demo-data.dev.json`** if the developer has on
 20:10 UTC, so Grace (Pacific/Auckland) is already on the next day: the case that exercises the
 client's-today rule. The set: Maya (the demo, a coach-published cycle), Tom (his own cycle two weeks
 behind, 60 h since sync), Grace (Auckland, week 1), Priya (microcycles on with one-week mesocycles: each session's A and B in
-the same week), Ben (linked, never synced), Sam (invited), Leah
+the same week), Ben (linked, never synced), Sam (invited), Hannah
 (unlinked), Eileen (in person). Add, invite and profile edits change the page's memory only. Without a
 `.dev` file the console shows one 404: the fallback, as in BLOC.
 
@@ -11170,3 +11170,96 @@ Client → Sessions → **On their own** (a client not linked):
     was it? → saved → Past sessions "On their own".
   - No horizontal scroll, no console errors.
 
+
+## §164 — v8.53 + Coach v0.12: demo clients, rebuilt to this week
+
+**What it is.** Fictional clients on the demo coach (the Hotmail test account), with real sign-ins, links and data
+in Supabase, so BLOC Coach can be shown live from a phone: Maya, Tom, Grace, Priya (on the app, with data), Ben
+(linked, no data yet), Hannah (link ended), Sam (invited), Eileen (not on the app) and Casey, the existing test
+client. **Rebuild** puts every one back to the same point in their story, dated the current week. Nothing about it
+is automatic: the coach presses Rebuild before a demo. Supabase side: `super-duper-octo-barnacle` docs/SUPABASE.md →
+"Demo accounts" (the `bloc-demo` Edge Function, the flags, the registry).
+
+### The clients' BLOC states: a simulation, not a backup (`engine/src/demo/`)
+
+`buildDemoState(persona, today)` runs the client's story from its first day to `today`, one day at a time, and logs
+every set through the engine's own progression: `computeExerciseProgression` for what Train suggests,
+`computeLockTransition` for the lock, `recordExerciseHistory` for the history. So a stall, a lock, a deload or a
+missed week reads in BLOC and in Coach exactly as a real client's does. `personas.ts` holds the stories (bodyweight
+in lbs, lifts in kg, waist and hip in inches, as BLOC stores them); `sessionSchedule` gives the day each session is
+done (Eileen's in-person sessions); `stampLedger` adds BLOC's receipt for the coach's plans (below).
+
+🚨 **Everything is placed from the Monday of the client's week** (`getHomeWeekStart(today)`: today itself on a
+Monday). Cycles and goal phases start a whole number of weeks from it, so every cycle and phase starts on a Monday
+and ends on a Sunday, whatever day it is built. A client is always at the same point: Maya in week 5 of 8.
+
+🚨 **Every random choice is seeded by the persona and the day's place in the story, never the calendar date**, so
+the same weekday of any week builds the same client with every date moved by whole weeks. There is no date shifter:
+nothing is ever moved, it is rebuilt.
+
+🚨 **Today is the morning**: a weigh-in only, no food, steps or session yet, so there is something to log live.
+
+🚨 **A skipped session in the running cycle stays BLOC's "next"** (`getNextIncompleteSession`), so Train would open
+weeks back: only finished cycles skip sessions (`skipRate`), the running one only where the story says so
+(`skipRateNow`).
+
+The stories, as Coach's judgement (`clientOutcome`, at the client's own today) reads them:
+
+| Client | Where they are |
+|---|---|
+| Maya | the coach's cut, week 5 of 8, on track; the previous cycle reviewed |
+| Tom | his own gain cycle, week 4 of 6: weight flat for two weeks, Flat Press on hold, few weigh-ins, the app not opened for 3 days: off track |
+| Grace | Pacific/Auckland, week 1 of maintenance after a reviewed cut: no outcome yet |
+| Priya | week 6 of 6, weekly A/B microcycles: the scale flat, the waist still falling: on track (recomposition) |
+| Casey | the deload week of a cut, eating ~500 kcal over the goal for three weeks: off track, calories leading |
+| Eileen | not on the app: Tuesdays and Fridays at 07:00 in person; her sessions and measurements are the coach's publications |
+
+🚨 **The engine blames calories only when intake during the flat stretch is within 200 kcal of the estimated TDEE**
+(`plateau-creep`), which it works out from the client's own loss rate. A stall at 250 kcal over the goal still reads
+as adaptation; Casey's story eats at maintenance so the verdict is the one it tells.
+🚨 **A flat period confirms only after two whole weeks**, so Tom is in week 4: in week 3 the first days read "on
+track".
+
+### The coach's side (`coach/src/demo/`)
+
+`buildDemoRows(ids, now)` builds everything a Rebuild writes, **with Coach's own builders**, so every payload is
+what Coach itself sends: the diary's bookings from `desiredBookings()` (Maya on Wednesdays, Eileen on Tuesdays and
+Fridays, the Saturday Circuits group, one-offs for Tom and Ben), Eileen's sessions from `sessionLogPayload()` with
+her Tuesday measurements, Priya's photo request from `photoRequestPayload()`, Casey's check-in reply, note back and
+session request, and Maya's check-in request. Pure: ids come from fixed seeds (`demoId`) and `now` comes in.
+`cards.ts` holds the cards (`@example.com` addresses; Ofcom's drama phone range).
+
+🚨 **Each card's `plan` and `goal_phases` publications come first**, so they hold the card's lowest `seq`s. The
+state written for that client marks exactly those as applied (`stampLedger`: in `coachLedger`, and the coach's
+cycles and goals stamped with their `seq`), because the simulator already built their content. BLOC pulls
+everything above the highest applied `seq` (`publicationCursor`) when the account is opened, so the bookings,
+replies and photo request arrive and apply as a real client's would. Without the receipt, Coach reads every plan as
+"waiting for the phone".
+
+**A Rebuild is two calls** to `bloc-demo`: the coach's side (its publications come back with their `seq`s), then
+each client's state with those plans stamped, one client a call. Each state is written as `client_state` one past
+the newest rev (`device_id 'demo-rebuild'`) and as today's backup, named by the client's own date.
+
+### Settings → Demo data (`DemoGate.tsx`, `DemoSection.tsx`)
+
+Shown only when this sign-in's `app_metadata.demo_admin` is true (only the service role writes `app_metadata`);
+`bloc-demo` checks the flag again, fresh from `auth.users`, so hiding the section isn't the lock. `DemoGate` reads
+the flag and only then loads `DemoSection`, **its own chunk**: it carries the engine's client simulator, which no
+other coach needs. **Set up** asks which linked client is Casey, then sets up and rebuilds; **Rebuild**;
+**Remove** (with a confirm).
+
+### BLOC: a demo account never writes its own backup (`isDemoAccount`, `uploadSnapshot`)
+
+The Rebuild writes today's backup and a demo is shown by restoring it (Settings → My data → Restore). Backups are
+one file a day, so the device's first open after a Rebuild (the daily backup, §58) or a sign-out (which backs up
+first, §145) would replace that fresh backup with the device's old data. `uploadSnapshot()`, the only writer of a
+backup file, refuses for a session whose `app_metadata.demo === true` (exactly `true`), with a reason Settings shows
+on a manual backup. `client_state` uploads carry on, so the coach still sees a demo client's changes live.
+
+**Checks:** `scripts/verify-demo-clients.mjs` (each story on a Monday, a Wednesday and a Sunday, 1, 5 and 30 weeks
+on: the same state with every date moved by whole weeks, every cycle and phase Monday to Sunday, nothing logged
+after this morning, Coach's verdict as the story intends; controls: a differently seeded story differs, a cycle off
+Monday is caught); `scripts/verify-demo-no-backup.mjs` (control: without the line, the demo account uploads);
+`coach/src/demo/demo.test.ts` (the allow-lists, plans first on each card, stable ids, the diary a week on, Eileen
+read back through `foldPlan` and `loggedSessions`, Maya's plans applied once receipted, control: waiting without);
+`coach/src/demo/dump-rows.ts` writes a Rebuild's rows for super-duper-octo-barnacle's `behaviour-bloc-demo.mjs`.

@@ -82,8 +82,8 @@ export function buildFixtureClients(demo: Record<string, unknown>): { anchor: st
     { ...base, card: card('ben', 'Ben Carter'), link: linked('ben', hoursBefore(now, 3)), snapshot: null },
     { ...base, card: card('sam', 'Sam Whitfield'), link: null, snapshot: null,
       invite: { expiresAt: hoursBefore(now, -5 * 24), createdAt: hoursBefore(now, 2 * 24) } },
-    { ...base, card: card('leah', 'Leah Brooks'), snapshot: null, lastEndedAt: hoursBefore(now, 72),
-      link: { clientId: 'user-leah', status: 'ended', photoConsent: false, linkedAt: '2026-06-01T09:00:00Z', endedAt: hoursBefore(now, 72) } },
+    { ...base, card: card('hannah', 'Hannah Brooks'), snapshot: null, lastEndedAt: hoursBefore(now, 72),
+      link: { clientId: 'user-hannah', status: 'ended', photoConsent: false, linkedAt: '2026-06-01T09:00:00Z', endedAt: hoursBefore(now, 72) } },
     { ...base, card: card('eileen', 'Eileen Moss', { email: null, phone: '01632 960 555' }), link: null, snapshot: null },
   ];
   return { anchor, now, clients };

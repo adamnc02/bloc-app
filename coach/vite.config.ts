@@ -49,6 +49,7 @@ export default defineConfig({
     // Exact matches: a string '@engine' would also catch '@engine/review' as a prefix.
     alias: [
       { find: /^@engine\/review$/, replacement: fileURLToPath(new URL('../engine/src/review/index.ts', import.meta.url)) },
+      { find: /^@engine\/demo$/, replacement: fileURLToPath(new URL('../engine/src/demo/index.ts', import.meta.url)) },
       { find: /^@engine$/, replacement: fileURLToPath(new URL('../engine/src/index.ts', import.meta.url)) },
       { find: /^@\//, replacement: fileURLToPath(new URL('./src/', import.meta.url)) },
     ],

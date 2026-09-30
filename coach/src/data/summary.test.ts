@@ -47,7 +47,7 @@ describe('rows at the anchor', () => {
   it('the rest: waiting, invited, unlinked, in person', () => {
     expect(row('ben').cycleText).toBe('Linked · waiting for their first sync');
     expect(row('sam').status).toBe('invited');
-    expect(row('leah').status).toBe('unlinked');
+    expect(row('hannah').status).toBe('unlinked');
     expect(row('eileen').status).toBe('not-on-app');
   });
 });

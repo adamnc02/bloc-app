@@ -7948,6 +7948,14 @@ async function deleteAllClientMedia(userId) {
   }
 }
 
+// A BLOC Coach demo account (the bloc-demo Edge Function's Set up flags it):
+// `app_metadata` is written by the service role only, so no account can make
+// itself one.
+function isDemoAccount() {
+  const u = _authResolvedSession && _authResolvedSession.user;
+  return !!(u && u.app_metadata && u.app_metadata.demo === true);
+}
+
 // Uploads the current state as a dated snapshot. Called: (a) once, right
 // after Phase 6 sign-in, to finish the "snapshot zero" flow Phase 5 left
 // pending (see bloc_snapshot_zero_pending below); (b) on a "Back up now" /
@@ -7962,6 +7970,12 @@ async function uploadSnapshot() {
   // real snapshot (one file per day, upsert).
   if (!deviceHasRealData()) throw new Error('Nothing on this device to back up yet.');
   if (demoTourIsRunning()) throw new Error('The Demo Tour is running; its data is not backed up.'); // v8.30 (§120)
+  // 🚨 A BLOC Coach demo account never writes its own backups: the demo
+  // Rebuild writes today's, and Restore brings it in. Backups are one file a
+  // day, so this device's first open after a Rebuild (the daily backup) or a
+  // sign-out would otherwise replace that fresh backup with this device's old
+  // data. Its client_state uploads carry on, so the coach still sees changes.
+  if (isDemoAccount()) throw new Error('This is a demo account: its backups come from the demo Rebuild.');
   const userId = _authResolvedSession.user.id;
   const date = getLocalToday();
   const payload = JSON.stringify(state, null, 2);
@@ -29784,7 +29798,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.52</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.53</span>`;
 }
 
 function renderSettings() {
