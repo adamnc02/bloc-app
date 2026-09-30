@@ -112,10 +112,12 @@ async function run(label, html, engineSrc) {
   let F = null;
   try {
     const seeds = ['homeNextSessionHTML', 'nextCoachBooking', 'coachReqSlots', 'sendCoachRequest', 'answerCoachRequest', 'sendCoachCounter',
-      'startCoachCounter', 'trainViewCoachOwned', 'coachSessionWhen', 'openCoachRequest', 'coachWaitingCardHTML', 'coachProposedCardHTML', 'coachRequestBooked', 'coachSlotLine', 'coachReqFormHTML', 'renderHomeCoachBanner', 'dismissHomeCoachBanner', 'confirmWithdrawCoachRequest'];
+      'startCoachCounter', 'trainViewCoachOwned', 'coachSessionWhen', 'openCoachRequest', 'coachWaitingCardHTML', 'coachProposedCardHTML', 'coachRequestBooked', 'coachSlotLine', 'coachReqFormHTML', 'renderHomeCoachBanner', 'dismissHomeCoachBanner', 'confirmWithdrawCoachRequest',
+      // v8.50 (§160): Your requests, apart from the form.
+      'openCoachRequests', 'renderCoachRequests', 'coachOpenRequests', 'renderCoachRequest'];
     for (const n of seeds) if (!decls.has(n)) throw new Error('missing ' + n);
     const stubs = ['state', 'coachLinkGet', 'coachingAvailable', 'isCoachedMode', 'supabase', '_authResolvedSession', 'getLocalToday',
-      'renderHomeHero', 'openModal', 'document', 'getCoachAssignment', 'toLocalDateStr', 'coachedView', 'localStorage', 'showConfirm',
+      'renderHomeHero', 'openModal', 'closeModal', 'document', 'getCoachAssignment', 'toLocalDateStr', 'coachedView', 'localStorage', 'showConfirm',
       // v8.49 (§157): the banners' destinations, now called by reference (HOME_NOTICE_ACTIONS' `go`), not named in onclick text.
       'showScreen', 'openCoachSessions', 'viewCoachResponse', 'openCoachPhotoRequest'];
     const parts = closure(decls, seeds, new Set(stubs));
@@ -126,10 +128,10 @@ async function run(label, html, engineSrc) {
       const supabase = env.supabase;
       const _authResolvedSession = { user: { id: 'u1' } };
       const getLocalToday = () => '2026-09-28';
-      const renderHomeHero = () => {}, openModal = () => {};
+      const renderHomeHero = () => {}, openModal = (id) => { (env.opened ||= []).push(id); }, closeModal = (id) => { (env.closed ||= []).push(id); };
       const showScreen = () => {}, openCoachSessions = () => {}, viewCoachResponse = () => {}, openCoachPhotoRequest = () => {};
       const els = {};
-      const document = { getElementById: id => (id === 'home-coach-banner' ? (els[id] ||= { innerHTML: '' }) : null) };
+      const document = { getElementById: id => (['home-coach-banner', 'coach-requests-body', 'coach-request-body'].includes(id) ? (els[id] ||= { innerHTML: '', classList: { contains: () => false } }) : null) };
       const coachedView = () => true;
       const showConfirm = (t, m, ok, cb) => { env.confirm = { t, m, ok, cb }; };
       const store = env.store || (env.store = new Map());
@@ -137,7 +139,7 @@ async function run(label, html, engineSrc) {
       const getCoachAssignment = (m, w, d) => env.E.getCoachAssignment(state, m, w, d);
       const toLocalDateStr = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
       ${parts.map(p => p.text).join('\n')}
-      return { ${seeds.join(', ')}, setRequests: r => { _coachRequests = r; }, form: () => _coachReqForm, setCounter: c => { _coachCounterFor = c; }, banner: () => (els['home-coach-banner'] || {}).innerHTML || '' };`)(env);
+      return { ${seeds.join(', ')}, setRequests: r => { _coachRequests = r; }, form: () => _coachReqForm, setCounter: c => { _coachCounterFor = c; }, banner: () => (els['home-coach-banner'] || {}).innerHTML || '', body: (id) => (els[id] || {}).innerHTML || '' };`)(env);
   } catch (e) { F = null; }
   check('the Home row and Request a session exist', !!F, true);
   if (F) {
@@ -192,7 +194,7 @@ async function run(label, html, engineSrc) {
     const pr = { id: 'p9', status: 'proposed', proposed: { date: '2026-10-12', start_min: 1110 }, preferences: [{ date: '2026-10-12', start_min: 960, end_min: 1200 }] };
     B.setRequests([pr]); B.renderHomeCoachBanner();
     check('a suggested time puts the banner on Home: "{coach} proposed a different time", the time, Review, and ✕',
-      [/Sam proposed a different time/.test(B.banner()), /Mon 12 Oct · 18:30 instead of your choices/.test(B.banner()), /openCoachRequest\(\)">Review/.test(B.banner()), /Dismiss/.test(B.banner())], [true, true, true, true]);
+      [/Sam proposed a different time/.test(B.banner()), /Mon 12 Oct · 18:30 instead of your choices/.test(B.banner()), /openCoachRequests\(\)">Review/.test(B.banner()), /Dismiss/.test(B.banner())], [true, true, true, true]);
     B.dismissHomeCoachBanner();
     B.renderHomeCoachBanner(); // leaving Home and coming back redraws it
     check('✕ dismisses it, and it stays dismissed on returning to Home in the same run', B.banner(), '');
@@ -254,6 +256,40 @@ async function run(label, html, engineSrc) {
     await R.sendCoachCounter();
     check('Suggest another time: ONE counter slot and status countered', calls.filter(c => c[0] === 'update').pop().slice(2),
       [{ counter: { date: '2026-10-03', start_min: 570 }, status: 'countered' }, 'r7']);
+
+    // ── v8.50 (§160): Your requests is its own sheet ──
+    const envS = { state: { macrocycles: [], coachBookings: {} }, E, supabase: { from: chain } };
+    const S = F(envS);
+    const recent = new Date(Date.now() - 2 * 86400000).toISOString(), old = new Date(Date.now() - 30 * 86400000).toISOString();
+    const P = [{ date: '2026-10-01', start_min: 1080 }];
+    S.setRequests([
+      { id: 'q-prop', status: 'proposed', proposed: { date: '2026-10-02', start_min: 1110 }, preferences: P },
+      { id: 'q-pend', status: 'pending', preferences: P }, { id: 'q-ctr', status: 'countered', counter: P[0], preferences: P },
+      { id: 'q-acc', status: 'accepted', proposed: P[0], preferences: P }, { id: 'q-wd', status: 'withdrawn', preferences: P },
+      { id: 'q-dec', status: 'declined', preferences: P, updated_at: recent }, { id: 'q-dec-old', status: 'declined', preferences: P, updated_at: old },
+    ]);
+    check('Your requests lists only what isn\'t confirmed: proposed, waiting (pending, countered), declined this fortnight; never accepted or withdrawn',
+      S.coachOpenRequests().map((r) => r.id), ['q-prop', 'q-pend', 'q-ctr', 'q-dec']);
+    S.renderCoachRequests();
+    const lst = S.body('coach-requests-body');
+    check('the Your requests sheet: the proposal to confirm or answer, "Waiting for Sam", a Request a session button, and no form',
+      [/Sam proposed/.test(lst), /✓ Confirm/.test(lst), /Waiting for Sam/.test(lst), /openCoachRequest\(\)">.*Request a session/.test(lst), /Up to 3 times/.test(lst)], [true, true, true, true, false]);
+    S.openCoachRequest();
+    const frm = S.body('coach-request-body');
+    check('Request a session is the form only: no proposal and no list, even with requests open',
+      [/Up to 3 times/.test(frm), /Sam proposed/.test(frm), /Waiting for Sam/.test(frm)], [true, false, false]);
+    S.setRequests([]); S.renderCoachRequests();
+    check('nothing open: a line saying where requests go, and where booked ones are', /No requests waiting/.test(S.body('coach-requests-body')) && /Your sessions/.test(S.body('coach-requests-body')), true);
+    const envT = { state: { macrocycles: [], coachBookings: {} }, E, supabase: { from: chain } };
+    const T = F(envT);
+    T.openCoachRequest(); const tf = T.form(); tf.times = [{ date: '2026-09-30', time: '18:00' }];
+    await T.sendCoachRequest(); await new Promise((r) => setTimeout(r, 0));
+    check('after Send request, the form closes and Your requests opens (the new one waiting)',
+      [(envT.closed || []).includes('modal-coach-request'), (envT.opened || []).slice(-1)[0]], [true, 'modal-coach-requests']);
+    const hero = (src.match(/const hero = `<div class="card coach-hero-card">[\s\S]*?<\/div>`;/) || [''])[0];
+    check('Your sessions: a hollow lavender (btn-ghost) full-width "Your requests" button with the clock icon, under Request a session',
+      /Request a session<\/button>\s*<button class="btn btn-ghost btn-block"[^>]*openCoachRequests\(\)">\$\{COACH_ICO_CLOCK\} Your requests/.test(hero), true);
+    check('a tapped push about a proposal opens Your requests, not the form', /openCoachRequests\(\); \/\/ v8\.50/.test(src), true);
   }
   // v8.42 (Adam, UAT): Home's View body logs opens over Home and closes back to
   // it (it used to switch to Settings first), and a save there redraws Home.
