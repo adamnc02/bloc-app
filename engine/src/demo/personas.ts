@@ -233,4 +233,32 @@ export const CASEY: DemoPersona = {
   ],
 };
 
+/** The clients on the app: each has a BLOC state. */
 export const DEMO_PERSONAS: DemoPersona[] = [MAYA, TOM, GRACE, PRIYA, CASEY];
+
+/**
+ * Eileen is NOT on the app: trained in person, Tuesdays and Fridays at 07:00.
+ * Her simulated state is never uploaded. Coach's side turns its sessions into
+ * the coach's `session_log` publications and her Tuesday weigh-ins into
+ * `measurement` publications, which is all a client not on the app has.
+ */
+export const EILEEN: DemoPersona = {
+  key: 'eileen', tz: 'Europe/London',
+  profile: { gender: 'female', heightCm: 163, birthday: '1967-06-30' },
+  weekdays: [1, 4], historyWeeks: 7,
+  startLbs: 162.4, lbsPerWeek: [0, -0.3, -0.2, -0.3, 0, -0.2, -0.1, 0],
+  startWaist: 34, startHip: 42, waistPerWeek: [0, 0, -0.25, 0, 0, -0.25, 0, 0],
+  steps: { base: 7000, spread: 2000 }, weighInRate: 1, foodLogRate: 0, kcalBias: [0],
+  skipRate: 0, missRate: 0.08,
+  cycles: [
+    {
+      key: 'c1', name: 'Strength and Balance', goal: 'Stronger legs, steadier on the stairs', goalType: 'maintenance', targetBw: 160,
+      startOffsetWeeks: -6, weeks: 10, weeksPerMeso: 1, useMicrocycles: false, published: true, deloadWeeks: [6],
+      sessions: [
+        { label: 'Session A', exercises: [ex('Leg Press', '12', 2, 3, 50, { isHeavyLeg: true }), ex('Lat Pulldown', '12', 2, 3, 25), ex('Split Squat', '10', 2, 3, 4, { trackingMode: 'perSide' }), ex('Calf Raises', '15', 2, 3, 20)] },
+        { label: 'Session B', exercises: [ex('Leg Extension', '12', 2, 3, 20), ex('Machine Row', '12', 2, 3, 20), ex('Hamstring Curl', '12', 2, 3, 15), ex('Lateral Raise', '15', 2, 3, 2, { trackingMode: 'perSide' })] },
+      ],
+      goals: [],
+    },
+  ],
+};

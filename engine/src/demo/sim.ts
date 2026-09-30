@@ -174,6 +174,68 @@ function goalsFor(cycle: DemoCycle, macro: Macrocycle): Loose[] {
   });
 }
 
+/** Which session each cycle holds on each date: one training day per session, on the persona's weekdays in order. */
+function scheduleOf(persona: DemoPersona, macros: Macrocycle[]): Record<string, { m: Macrocycle; week: number; dayKey: string }> {
+  const out: Record<string, { m: Macrocycle; week: number; dayKey: string }> = {};
+  for (const m of macros) {
+    const calWeeks = (m.weeks as number) * ((m.weeksPerMeso as number) || 1);
+    for (let c = 0; c < calWeeks; c++) {
+      const weekMonday = shiftDateStr(m.start as string, c * 7);
+      sessionsInWeek(m, c).forEach((u, i) => {
+        out[shiftDateStr(weekMonday, persona.weekdays[i % persona.weekdays.length])] = { m, ...u };
+      });
+    }
+  }
+  return out;
+}
+
+/** A session's place: its date, and the cycle, mesocycle week and day key it is in the plan. */
+export interface DemoSession { date: string; macroId: string; week: number; dayKey: string }
+
+/**
+ * Every planned session of the persona's cycles (published ones included, even
+ * if they start after today), with the date the story does it on. Coach's side
+ * uses it for the in-person client (Eileen): her sessions are the diary's.
+ */
+export function sessionSchedule(persona: DemoPersona, today: string, opts: DemoBuildOptions = {}): DemoSession[] {
+  const monday = getHomeWeekStart(today);
+  const macros = persona.cycles.map(c => macroFor(c, persona, monday, opts.coachId ?? null));
+  return Object.entries(scheduleOf(persona, macros))
+    .map(([date, u]) => ({ date, macroId: u.m.id, week: u.week, dayKey: u.dayKey }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** A publication as inserted: what `stampLedger` needs of it. */
+export interface DemoPublication { id: string; seq: number; type: string; coachId: string; createdAt: string; payload: Loose }
+
+/**
+ * The state as BLOC holds it once it has applied these `plan` and
+ * `goal_phases` publications: each in `coachLedger` as applied and acked, and
+ * the coach's cycles and goals stamped with the publication's `seq`
+ * (BLOC's applyPublications, TECHNICAL §131). The simulator already built
+ * their content, so only the receipt is added. Returns a new state.
+ *
+ * 🚨 BLOC pulls publications with a `seq` above the highest in its ledger, so
+ *    these must be the card's LOWEST seqs: anything published after them
+ *    (bookings, replies, photo requests) is left for BLOC to pull and apply
+ *    itself when the account is opened.
+ */
+export function stampLedger(state: BlocState, pubs: DemoPublication[]): BlocState {
+  const s: Loose = JSON.parse(JSON.stringify(state));
+  if (!s.coachLedger || typeof s.coachLedger !== 'object') s.coachLedger = {};
+  for (const p of pubs.filter(x => x.type === 'plan' || x.type === 'goal_phases').sort((a, b) => a.seq - b.seq)) {
+    s.coachLedger[p.id] = { seq: p.seq, type: p.type, status: 'applied', note: null, at: p.createdAt, acked: true };
+    if (p.type === 'plan') {
+      const m = (s.macrocycles as Loose[]).find(x => x.id === p.payload?.macrocycle?.id);
+      if (m) { m.publishedBy = p.coachId; m.publishedSeq = p.seq; }
+    } else {
+      const ids = new Set(((p.payload?.goals || []) as Loose[]).map(g => g.macroGoalID));
+      for (const g of s.goals as Loose[]) if (ids.has(g.macroGoalID)) { g.publishedBy = p.coachId; g.publishedSeq = p.seq; }
+    }
+  }
+  return s;
+}
+
 /** The client's BLOC state on `today` (their local date), as their phone would hold it that morning. */
 export function buildDemoState(persona: DemoPersona, today: string, opts: DemoBuildOptions = {}): BlocState {
   const monday = getHomeWeekStart(today);
@@ -208,18 +270,8 @@ export function buildDemoState(persona: DemoPersona, today: string, opts: DemoBu
   const goalOn = (d: string) => (s.goals as Loose[]).find(g => g.startDate <= d && d <= g.endDate)
     || (s.goals as Loose[]).filter(g => g.endDate < d).sort((a, b) => a.endDate.localeCompare(b.endDate)).pop() || null;
 
-  // Which session each cycle holds on each date.
   const sessionOn: Record<string, { m: Macrocycle; week: number; dayKey: string }> = {};
-  for (const m of s.macrocycles as Macrocycle[]) {
-    const calWeeks = (m.weeks as number) * ((m.weeksPerMeso as number) || 1);
-    for (let c = 0; c < calWeeks; c++) {
-      const weekMonday = shiftDateStr(m.start as string, c * 7);
-      // One training day per session: a persona trains on as many weekdays as its cycles have sessions a week.
-      sessionsInWeek(m, c).forEach((u, i) => {
-        sessionOn[shiftDateStr(weekMonday, persona.weekdays[i % persona.weekdays.length])] = { m, ...u };
-      });
-    }
-  }
+  for (const [d, u] of Object.entries(scheduleOf(persona, s.macrocycles as Macrocycle[]))) sessionOn[d] = u;
 
   const lockBefore: Record<string, boolean> = {};
   let lbs = persona.startLbs;
