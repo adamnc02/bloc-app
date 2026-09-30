@@ -21,7 +21,7 @@ import type { CoachProfile, CoachRepo } from '@/data/types';
 import { EmptyState, Button, Sheet } from '@/components/ui';
 import { navigate, useRoute } from './router';
 import { checkPushHealth, forgetThisPushDevice, registerCoachServiceWorker, registerPushHere } from '@/push/push';
-import { watchOpenIntents } from '@/push/intent';
+import { RECENT_MS, watchOpenIntents } from '@/push/intent';
 import { SignInScreen } from '@/coach/screens/SignInScreen';
 import { ProfileSetupScreen, StatusScreen } from '@/coach/screens/ProfileSetupScreen';
 import { ClientsScreen } from '@/coach/screens/ClientsScreen';
@@ -96,7 +96,19 @@ export function App() {
   // notification opens where it points, once the app is showing.
   useEffect(() => { registerCoachServiceWorker(); }, []);
   const ready = gate.k === 'ready';
-  useEffect(() => (ready ? watchOpenIntents(navigate) : undefined), [ready]);
+  // Route 4 (§158): the newest coach push from the server, for when iOS doesn't pass the tap on.
+  const live = ready && gate.k === 'ready' && gate.session.repo.kind === 'live';
+  useEffect(() => {
+    if (!ready) return undefined;
+    const sb = live ? getSupabase() : null;
+    return watchOpenIntents(navigate, sb ? async () => {
+      const { data, error } = await sb.from('push_outbox').select('id, tag, created_at').eq('app', 'coach')
+        .gte('created_at', new Date(Date.now() - RECENT_MS).toISOString()).order('id', { ascending: false }).limit(1);
+      if (error) throw new Error(error.message);
+      const r = (data ?? [])[0] as { id: number; tag: string; created_at: string } | undefined;
+      return r ? { id: Number(r.id), tag: r.tag, createdAt: r.created_at } : null;
+    } : undefined);
+  }, [ready, live]);
 
   useEffect(() => {
     let cancelled = false;

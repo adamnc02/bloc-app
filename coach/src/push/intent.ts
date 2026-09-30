@@ -68,7 +68,7 @@ export async function takeOpenNote(now = Date.now()): Promise<string | null> {
 //    are read from page load (listenForOpenMessages, main.tsx), the note in a
 //    burst that repeats whenever Coach comes to the front, and the destination
 //    is held until Coach is ready (watchOpenIntents).
-export type OpenVia = 'url' | 'message' | 'note';
+export type OpenVia = 'url' | 'message' | 'note' | 'recent';
 
 // ── Temporary (v0.9.2): what the page saw of a notification tap ──────────
 // A phone has no console. Settings → Notifications lists these, so a tap on a
@@ -125,6 +125,59 @@ function burst(why: string) {
   pushLog(`checks (${why})`);
   for (const t of timers) clearTimeout(t);
   timers = RECHECK_MS.map((ms) => setTimeout(() => void check(), ms));
+  if (why !== 'load') scheduleRecent();
+}
+
+// ── Route 4 (v0.9.3): the newest push, from the server ───────────────────
+// 🚨 On the iPhone, Coach's worker never passes a tap to the page: no message
+//    and no note, with Coach closed, in the background, or on screen (UAT,
+//    three test taps), while BLOC's worker, the same design, does. Coach's
+//    scope (/bloc-app/coach/) sits inside BLOC's (/bloc-app/); that is the one
+//    structural difference, and the suspected cause. So Coach doesn't rely on
+//    the click reaching the page: every push to a coach is a push_outbox row
+//    (0031), which the coach can read. On start and whenever Coach comes to
+//    the front or gets focus (a tap always gives it focus), the newest coach
+//    push from the last RECENT_MS that this device hasn't opened yet is opened.
+//    KEYS.pushSeen holds the newest row id handled, so nothing opens twice; a
+//    push one of routes 1–3 already delivered is marked seen, not reopened.
+//    Consequence: opening Coach by its icon within RECENT_MS of a push also
+//    goes to it. A push arriving while Coach is on screen moves nothing until
+//    it's tapped (the tap is the focus).
+export const RECENT_MS = 15 * 60 * 1000;
+export interface RecentPush { id: number; tag: string; createdAt: string }
+let recentSource: (() => Promise<RecentPush | null>) | null = null;
+let recentTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleRecent() {
+  if (!recentSource) return;
+  if (recentTimer) clearTimeout(recentTimer);
+  recentTimer = setTimeout(() => void checkRecent(), 300); // one check per burst of focus/visible events
+}
+const seenGet = (): number => { try { return Number(localStorage.getItem(KEYS.pushSeen) || '0') || 0; } catch { return 0; } };
+const seenSet = (id: number) => { try { localStorage.setItem(KEYS.pushSeen, String(id)); } catch { /* private mode */ } };
+
+/** Pure: whether the newest push is one to open now. */
+export function recentToOpen(row: RecentPush | null, seen: number, last: LastOpen | null, now: number): string | null {
+  if (!row || row.id <= seen) return null;
+  if (now - Date.parse(row.createdAt) > RECENT_MS) return null;
+  const target = openTarget(row.tag);
+  if (!target || target === 'today' || target === 'coach-test') return null;
+  // Already delivered by the worker's routes since it was sent.
+  if (last && last.target === target && last.at >= Date.parse(row.createdAt)) return null;
+  return target;
+}
+
+async function checkRecent(): Promise<void> {
+  const source = recentSource;
+  if (!source) return;
+  try {
+    const row = await source();
+    const target = recentToOpen(row, seenGet(), lastOpen(), Date.now());
+    if (row && row.id > seenGet()) seenSet(row.id);
+    pushLog(target ? `recent ${target.slice(0, 24)}` : `recent none${row ? ` (newest ${row.tag.slice(0, 16)})` : ''}`);
+    hand(target, 'recent');
+  } catch (e) {
+    pushLog(`recent error ${e instanceof Error ? e.message.slice(0, 40) : ''}`);
+  }
 }
 
 /**
@@ -137,6 +190,7 @@ export function listenForOpenMessages(): void {
   if (typeof window === 'undefined') return;
   const sw = 'serviceWorker' in navigator ? navigator.serviceWorker : null;
   pushLog(`boot ${location.pathname}${location.search}${location.hash} · worker ${sw?.controller ? 'yes' : 'no'} · ${document.visibilityState}`);
+  sw?.getRegistrations().then((regs) => pushLog(`workers ${regs.map((r) => new URL(r.scope).pathname).join(', ') || 'none'} · controller ${sw.controller ? new URL(sw.controller.scriptURL).pathname : 'none'}`)).catch(() => {});
   sw?.addEventListener('message', (e: MessageEvent) => {
     const d = e.data as { type?: unknown; open?: unknown } | null;
     pushLog(`message ${d && typeof d.type === 'string' ? d.type : '?'} ${d && typeof d.open === 'string' ? d.open.slice(0, 24) : ''}`);
@@ -159,7 +213,8 @@ export function lastOpen(): LastOpen | null {
  * page load, and re-reads the note once more (a tap during a slow sign-in).
  * Returns the unsubscribe.
  */
-export function watchOpenIntents(go: (path: string) => void): () => void {
+export function watchOpenIntents(go: (path: string) => void, recent?: () => Promise<RecentPush | null>): () => void {
+  recentSource = recent ?? null;
   deliver = (target, via) => {
     const path = pushRoute(target);
     pushLog(`open via ${via} → ${path ?? 'stay'}`);
@@ -168,5 +223,5 @@ export function watchOpenIntents(go: (path: string) => void): () => void {
   };
   if (pending) { const p = pending; pending = null; deliver(p.target, p.via); }
   burst('ready');
-  return () => { deliver = null; };
+  return () => { deliver = null; recentSource = null; };
 }

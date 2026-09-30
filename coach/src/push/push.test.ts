@@ -1,7 +1,7 @@
 // Coach v0.9 (TECHNICAL §158): the pure parts of Coach's push, as BLOC's verify-push.mjs holds BLOC's.
 import { describe, expect, it } from 'vitest';
 import { decidePushHealth, decidePushState, pushIdFor } from './push';
-import { openTarget, pushRoute } from './intent';
+import { openTarget, pushRoute, recentToOpen } from './intent';
 
 describe('decidePushState: six honest states', () => {
   const base = { ios: true, standalone: true, supported: true, permission: 'granted' as NotificationPermission, hereId: 'ps_x', registeredIds: ['ps_x'] };
@@ -58,5 +58,28 @@ describe('where a tap goes', () => {
     expect(openTarget('coach:pub:abc')).toBeNull();   // BLOC's, never Coach's
     expect(openTarget('request:../../x')).toBeNull();
     expect(openTarget(42)).toBeNull();
+  });
+});
+
+describe('route 4: the newest push from the server (v0.9.3)', () => {
+  const now = Date.parse('2026-09-30T19:10:00Z');
+  const row = (over: Partial<{ id: number; tag: string; createdAt: string }> = {}) => ({ id: 42, tag: 'request:rq-1', createdAt: '2026-09-30T19:05:00Z', ...over });
+  it('a push this device hasn\'t opened, from the last 15 minutes, opens', () => {
+    expect(recentToOpen(row(), 41, null, now)).toBe('request:rq-1');
+  });
+  it('one already handled, or older than 15 minutes, doesn\'t', () => {
+    expect(recentToOpen(row(), 42, null, now)).toBeNull();
+    expect(recentToOpen(row({ createdAt: '2026-09-30T18:50:00Z' }), 0, null, now)).toBeNull();
+    expect(recentToOpen(null, 0, null, now)).toBeNull();
+  });
+  it('the test notification, and anything that isn\'t a destination, never moves Coach', () => {
+    expect(recentToOpen(row({ tag: 'coach-test' }), 0, null, now)).toBeNull();
+    expect(recentToOpen(row({ tag: 'coach:pub:x' }), 0, null, now)).toBeNull();
+  });
+  it('a push the worker\'s routes already delivered isn\'t opened again', () => {
+    const last = { at: Date.parse('2026-09-30T19:06:00Z'), via: 'message' as const, target: 'request:rq-1', path: '/today?push=request%3Arq-1' };
+    expect(recentToOpen(row(), 0, last, now)).toBeNull();
+    expect(recentToOpen(row({ tag: 'note:s2' }), 0, last, now)).toBe('note:s2');                   // a different push
+    expect(recentToOpen(row(), 0, { ...last, at: Date.parse('2026-09-30T19:00:00Z') }, now)).toBe('request:rq-1'); // delivered before this one was sent
   });
 });
