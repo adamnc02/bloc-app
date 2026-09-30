@@ -152,8 +152,11 @@ const main = read('coach/src/main.tsx');
 check('the message listener is attached at page load, before React renders', main.indexOf('listenForOpenMessages();') > -1 && main.indexOf('listenForOpenMessages();') < main.indexOf('createRoot('), true);
 const recheck = (intent.match(/export const RECHECK_MS = \[([^\]]+)\]/) || [])[1];
 const recheckMs = recheck ? recheck.split(',').map(Number) : [];
-check('the note is re-read in a burst reaching 10 s after ready or a return to the front', recheckMs[0] === 0 && Math.max(...recheckMs) >= 10000, true);
-check('the burst runs on visibilitychange, focus and pageshow', /addEventListener\('visibilitychange', onVisible\)/.test(intent) && /addEventListener\('focus', burst\)/.test(intent) && /addEventListener\('pageshow', burst\)/.test(intent), true);
+check('the note is re-read in a burst reaching 10 s', recheckMs[0] === 0 && Math.max(...recheckMs) >= 10000, true);
+const load = (intent.match(/export function listenForOpenMessages\(\)[\s\S]*?\n}\n/) || [''])[0];
+check('from page load: the message, the note burst, and a re-burst on visibilitychange, focus and pageshow (as Listly reads its note on first render)',
+  /addEventListener\('message'/.test(load) && /burst\('load'\)/.test(load) && /addEventListener\('visibilitychange'/.test(load) && /addEventListener\('focus'/.test(load) && /addEventListener\('pageshow'/.test(load), true);
+check('once ready, anything held is delivered and the note re-read', /if \(pending\)/.test(intent) && /burst\('ready'\)/.test(intent), true);
 check('control: v0.9 read the note once and listened only once ready', (() => { try { const old = execFileSync('git', ['show', 'bb7f3a0:coach/src/push/intent.ts'], { cwd: repo, encoding: 'utf8' }); return !/RECHECK_MS/.test(old) && !/listenForOpenMessages/.test(old); } catch { return false; } })(), true);
 check("Coach registers app 'coach', never 'bloc'", /app: 'coach'/.test(push) && !/app: 'bloc'/.test(push), true);
 

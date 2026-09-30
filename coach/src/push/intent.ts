@@ -58,17 +58,37 @@ export async function takeOpenNote(now = Date.now()): Promise<string | null> {
   } catch { return null; }
 }
 
-// ── Wiring (v0.9.1) ──────────────────────────────────────────────────────
+// ── Wiring ───────────────────────────────────────────────────────────────
 // 🚨 A tap on a CLOSED app (swiped away, phone locked) is a cold start: iOS
-//    opens Coach on the last page it remembers, so route 1 is lost, and the
-//    worker's message can arrive before sign-in has finished. In v0.9 the
-//    listener was attached only once Coach was ready, and the note was read
-//    once, so both could be missed and Coach stayed on the page it opened on.
-//    Now the message listener is attached at page load (listenForOpenMessages,
-//    main.tsx) and holds the destination until Coach is ready, and the note is
-//    re-read in a short burst after ready and after every return to the front.
+//    opens Coach at its start or on the last page it remembers, so route 1 can
+//    be lost, and the message and the note can arrive while Coach is still
+//    signing in. v0.9 attached the listener once Coach was ready and read the
+//    note once; v0.9.1 listened from page load but read the note only after
+//    sign-in. Now, as Listly's App does on its first render, all three routes
+//    are read from page load (listenForOpenMessages, main.tsx), the note in a
+//    burst that repeats whenever Coach comes to the front, and the destination
+//    is held until Coach is ready (watchOpenIntents).
 export type OpenVia = 'url' | 'message' | 'note';
-/** When to re-read the note after Coach is ready or comes to the front, ms. */
+
+// ── Temporary (v0.9.2): what the page saw of a notification tap ──────────
+// A phone has no console. Settings → Notifications lists these, so a tap on a
+// closed Coach shows whether iOS ran the worker's click handler at all (a note
+// or a message arrives) or launched Coach without it. Removed before Phase 6
+// closes, with the v0.9.1 readout.
+const LOG_MAX = 16;
+export function pushLog(ev: string): void {
+  try {
+    const now = new Date();
+    const t = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+    const list = JSON.parse(localStorage.getItem(KEYS.pushLog) || '[]') as string[];
+    list.push(`${t} ${ev}`);
+    localStorage.setItem(KEYS.pushLog, JSON.stringify(list.slice(-LOG_MAX)));
+  } catch { /* private mode */ }
+}
+export function readPushLog(): string[] {
+  try { return JSON.parse(localStorage.getItem(KEYS.pushLog) || '[]') as string[]; } catch { return []; }
+}
+/** When to re-read the note after page load, ready, or a return to the front, ms. */
 export const RECHECK_MS = [0, 500, 1500, 3000, 6000, 10000];
 
 let pending: { target: string; via: OpenVia } | null = null;
@@ -79,13 +99,53 @@ function hand(target: string | null, via: OpenVia) {
   else pending = { target, via };
 }
 
-/** At page load, before React: route 2 is never missed while Coach is still signing in. */
+let timers: ReturnType<typeof setTimeout>[] = [];
+let busy = false;
+/** Routes 1 and 3: the URL (stripped once read) and the note (deleted once read). */
+async function check(): Promise<void> {
+  if (busy) return;
+  busy = true;
+  try {
+    const fromUrl = parseOpenParam(window.location.href);
+    if (fromUrl) {
+      const u = new URL(window.location.href);
+      u.searchParams.delete('open');
+      history.replaceState(null, '', u.pathname + u.search + u.hash);
+      pushLog(`url ${fromUrl.slice(0, 24)}`);
+      hand(fromUrl, 'url');
+      await takeOpenNote(); // the same tap: consume its note too
+      return;
+    }
+    const note = await takeOpenNote();
+    if (note) pushLog(`note ${note.slice(0, 24)}`);
+    hand(note, 'note');
+  } finally { busy = false; }
+}
+function burst(why: string) {
+  pushLog(`checks (${why})`);
+  for (const t of timers) clearTimeout(t);
+  timers = RECHECK_MS.map((ms) => setTimeout(() => void check(), ms));
+}
+
+/**
+ * At page load, before React and before sign-in, as Listly's App does on its
+ * first render: all three routes are read from the first moment, and the
+ * destination is HELD until Coach is ready (watchOpenIntents). v0.9.1 started
+ * reading only once sign-in had finished.
+ */
 export function listenForOpenMessages(): void {
-  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
-  navigator.serviceWorker.addEventListener('message', (e: MessageEvent) => {
+  if (typeof window === 'undefined') return;
+  const sw = 'serviceWorker' in navigator ? navigator.serviceWorker : null;
+  pushLog(`boot ${location.pathname}${location.search}${location.hash} · worker ${sw?.controller ? 'yes' : 'no'} · ${document.visibilityState}`);
+  sw?.addEventListener('message', (e: MessageEvent) => {
     const d = e.data as { type?: unknown; open?: unknown } | null;
+    pushLog(`message ${d && typeof d.type === 'string' ? d.type : '?'} ${d && typeof d.open === 'string' ? d.open.slice(0, 24) : ''}`);
     if (d && d.type === OPEN_MESSAGE) void takeOpenNote().finally(() => hand(openTarget(d.open), 'message'));
   });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') burst('visible'); });
+  window.addEventListener('focus', () => burst('focus'));
+  window.addEventListener('pageshow', () => burst('pageshow'));
+  burst('load');
 }
 
 /** Temporary readout (Settings → Notifications): which route last opened Coach from a notification. */
@@ -95,47 +155,18 @@ export function lastOpen(): LastOpen | null {
 }
 
 /**
- * Once Coach is ready: `go` gets a hash path. Takes anything held since page
- * load, reads route 1, and re-reads the note (RECHECK_MS) now and whenever
- * Coach comes to the front. Returns the unsubscribe.
+ * Once Coach is ready: `go` gets a hash path. Delivers anything held since
+ * page load, and re-reads the note once more (a tap during a slow sign-in).
+ * Returns the unsubscribe.
  */
 export function watchOpenIntents(go: (path: string) => void): () => void {
   deliver = (target, via) => {
     const path = pushRoute(target);
+    pushLog(`open via ${via} → ${path ?? 'stay'}`);
     try { localStorage.setItem(KEYS.lastOpen, JSON.stringify({ at: Date.now(), via, target, path } satisfies LastOpen)); } catch { /* private mode */ }
     if (path) go(path);
   };
   if (pending) { const p = pending; pending = null; deliver(p.target, p.via); }
-  let timers: ReturnType<typeof setTimeout>[] = [];
-  let busy = false;
-  const check = async () => {
-    if (busy) return;
-    busy = true;
-    try {
-      // Route 1, stripped so a reload doesn't open it again.
-      const fromUrl = parseOpenParam(window.location.href);
-      if (fromUrl) {
-        const u = new URL(window.location.href);
-        u.searchParams.delete('open');
-        history.replaceState(null, '', u.pathname + u.search + u.hash);
-        hand(fromUrl, 'url');
-        await takeOpenNote(); // the same tap: consume its note too
-        return;
-      }
-      hand(await takeOpenNote(), 'note');
-    } finally { busy = false; }
-  };
-  const burst = () => { for (const t of timers) clearTimeout(t); timers = RECHECK_MS.map((ms) => setTimeout(() => void check(), ms)); };
-  const onVisible = () => { if (document.visibilityState === 'visible') burst(); };
-  document.addEventListener('visibilitychange', onVisible);
-  window.addEventListener('focus', burst);
-  window.addEventListener('pageshow', burst);
-  burst();
-  return () => {
-    deliver = null;
-    for (const t of timers) clearTimeout(t);
-    document.removeEventListener('visibilitychange', onVisible);
-    window.removeEventListener('focus', burst);
-    window.removeEventListener('pageshow', burst);
-  };
+  burst('ready');
+  return () => { deliver = null; };
 }

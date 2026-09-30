@@ -28,4 +28,6 @@ export const KEYS = {
   pushDevice: 'blocCoach_pushDevice',
   /** Temporary (v0.9.1): which route last opened Coach from a notification, for Settings → Notifications (§158). */
   lastOpen: 'blocCoach_lastOpen',
+  /** Temporary (v0.9.2): the page's log of notification taps, for Settings → Notifications (§158). */
+  pushLog: 'blocCoach_pushLog',
 } as const;

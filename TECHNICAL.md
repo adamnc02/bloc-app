@@ -10851,6 +10851,16 @@ Now:
 `verify-coach-push.mjs` checks that the listener comes before `createRoot`, that the burst reaches 10 s, and that it
 runs on the three events. Its control is v0.9's `intent.ts` (`bb7f3a0`), which has neither.
 
+**v0.9.2.** v0.9.1 still failed on the iPhone: Coach opened at its start page, and nothing was delivered by any
+route. v0.9.1 read the note only once sign-in had finished. Listly, whose cold-start taps work, reads its note on
+its first render, before anything else. Now all three routes are read **from page load**:
+`listenForOpenMessages()` attaches the message listener, runs the note burst, and re-bursts on `visibilitychange`,
+`focus` and `pageshow`. The destination is held until `watchOpenIntents()` (at ready) delivers it, and re-reads
+once more. **Temporary log:** Settings → Notifications lists the page's last 16 notification events (`KEYS.pushLog`:
+"boot {address} · worker yes/no", "checks (load|ready|visible|focus|pageshow)", "note …", "message …",
+"open via … → …"). One closed-app tap then shows whether iOS ran the worker's click handler at all. The log is
+removed with the v0.9.1 readout before Phase 6 closes.
+
 ### Settings → Notifications (`src/push/push.ts`)
 
 BLOC's push code (§111–§113), ported to TypeScript for `app: 'coach'`:
