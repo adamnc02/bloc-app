@@ -7,7 +7,8 @@
 //                     confirmed time that now clashes), check-in requests, notes back not replied to, review
 //                     photos answered and not yet reviewed, and bookings from the last 14 days that weren't
 //                     logged or cancelled (BLOC keeps an assigned session out of "next" until one or the other),
-//                     group weeks included (§162: Log it opens the group session, Cancel cancels it for everyone).
+//                     group weeks included (§162: Log it opens the group session, Cancel cancels it for everyone),
+//                     and an exercise rated 9+ two weeks running on a coach's cycle (§163: Reset it opens it in Plan).
 //   Off track         linked clients whose outcome is off track (Review's judgement), with its one reason.
 //   Coming up         check-ins due, cycles in their final week, measurements due, and apps gone quiet.
 //
@@ -23,7 +24,8 @@ import { addDays, fmt } from '@/lib/format';
 import { occurrencesBetween, requestsNeedingCoach, type Occurrence } from '@/diary/model';
 import { publishedIdOf } from '@/diary/actions';
 import type { Diary, SessionRequest } from '@/diary/types';
-import { canStart, loggedFor, loggedSessions, missedFrom } from '@/inperson/model';
+import { canStart, cycleForSession, loggedFor, loggedSessions, missedFrom, recordState } from '@/inperson/model';
+import { highRatingStreaks, type HighStreak } from '@/review/effort';
 import { groupLoggedFor } from '@/group/model';
 import { getMeasurementStatus } from '@/lib/measurementStatus';
 import { clientPath } from '@/app/router';
@@ -47,7 +49,8 @@ export type NeedsItem =
   | { kind: 'note'; key: string; at: string; cardId: string; submission: Submission; headline: string | null; tool: string | null; macroId: string | null }
   | { kind: 'photos'; key: string; at: string; cardId: string; macroId: string; skipped: boolean; count: number }
   | { kind: 'missed'; key: string; at: string; cardId: string; occ: Occurrence }
-  | { kind: 'missedGroup'; key: string; at: string; cardId: null; occ: Occurrence };
+  | { kind: 'missedGroup'; key: string; at: string; cardId: null; occ: Occurrence }
+  | { kind: 'effort'; key: string; at: string; cardId: string; streak: HighStreak };
 
 export type ComingKind = 'check-in' | 'final-week' | 'measurements' | 'no-sync';
 export interface ComingItem { key: string; kind: ComingKind; cardId: string; detail: string; tab: 'review' | 'profile' | 'plan'; at: string }
@@ -91,7 +94,27 @@ export function missedBookings(d: Diary, inbox: Inbox, today: string): { occ: Oc
     .map((occ) => ({ occ, cardId: occ.clientIds[0] }));
 }
 
-export function needsYou(d: Diary, inbox: Inbox, bundles: ClientBundle[], summaries: ClientSummary[], today: string): NeedsItem[] {
+/**
+ * Exercises rated 9 or 10 two weeks running on each client's running coach's cycle (§163), on their record as their
+ * phone holds it: the upload (a linked client) with every plan and session_log publication folded in, so a client not on
+ * the app, whose ratings the coach gives, is judged the same way. At the client's today.
+ */
+export function effortFlags(inbox: Inbox, bundles: ClientBundle[], summaries: ClientSummary[], coachId: string, today: string): { cardId: string; streak: HighStreak }[] {
+  const out: { cardId: string; streak: HighStreak }[] = [];
+  for (const b of bundles) {
+    const sum = summaries.find((x) => x.id === b.card.id);
+    if (!sum || sum.status === 'unlinked') continue;
+    const snap = b.link?.status === 'active' ? b.snapshot : null;
+    const state = recordState({ state: snap?.state ?? null, publications: byCard(inbox.publications, b.card.id), coachId, since: b.lastEndedAt });
+    const t = sum.clientToday ?? today;
+    const macro = cycleForSession(state, t, t);
+    if (!macro) continue;
+    for (const streak of highRatingStreaks(state, macro)) out.push({ cardId: b.card.id, streak });
+  }
+  return out;
+}
+
+export function needsYou(d: Diary, inbox: Inbox, bundles: ClientBundle[], summaries: ClientSummary[], today: string, coachId = 'coach'): NeedsItem[] {
   const out: NeedsItem[] = [];
   for (const r of requestsNeedingCoach(d)) out.push({ kind: 'request', key: `r:${r.id}`, at: r.createdAt, cardId: r.cardId, request: r });
 
@@ -124,6 +147,9 @@ export function needsYou(d: Diary, inbox: Inbox, bundles: ClientBundle[], summar
   const atOf = (occ: Occurrence) => `${occ.date}T${String(Math.floor(occ.start / 60)).padStart(2, '0')}:${String(occ.start % 60).padStart(2, '0')}`;
   for (const { occ, cardId } of missedBookings(d, inbox, today)) out.push({ kind: 'missed', key: `m:${occ.key}`, at: atOf(occ), cardId, occ });
   for (const occ of missedGroups(d, inbox, today)) out.push({ kind: 'missedGroup', key: `g:${occ.key}`, at: atOf(occ), cardId: null, occ });
+  for (const { cardId, streak: x } of effortFlags(inbox, bundles, summaries, coachId, today)) {
+    out.push({ kind: 'effort', key: `e:${cardId}:${x.macroId}:${x.dayKey}:${x.exId}:${x.weeks[1]}`, at: today, cardId, streak: x });
+  }
   return out.sort((a, z) => a.at.localeCompare(z.at));
 }
 

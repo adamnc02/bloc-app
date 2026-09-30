@@ -80,7 +80,7 @@ export function TodayScreen() {
     if (!push || pushDone.current === push || !diary || !bundles || !inbox) return;
     pushDone.current = push;
     history.replaceState(null, '', `${window.location.pathname}${window.location.search}#/today`);
-    const a = pushAction(push, needsYou(diary, inbox, bundles, summaries, today));
+    const a = pushAction(push, needsYou(diary, inbox, bundles, summaries, today, profile.coachId));
     if (a?.kind === 'request') setSheet({ type: 'request', id: a.id });
     else go(a);
   }, [push, diary, bundles, inbox, summaries, today]);
@@ -93,7 +93,7 @@ export function TodayScreen() {
   if (!diary || !bundles || !inbox) return <CoachShell tab="today"><div className="page" aria-busy="true" /></CoachShell>;
 
   const sessions = todaySessions(diary, inbox, today, nowMin);
-  const items = needsYou(diary, inbox, bundles, summaries, today);
+  const items = needsYou(diary, inbox, bundles, summaries, today, profile.coachId);
   const off = offTrack(summaries);
   const coming = comingUp(bundles, summaries, inbox);
   const next = sessions.find((s) => s.next && !s.past) ?? null;
@@ -296,6 +296,15 @@ function NeedsBody({ it, name, first, who, onRequest, onCancel }: {
           <Button variant="ghost" size="card" onClick={() => onCancel(it)}>Cancel</Button>
           <Button size="card" icon="edit" onClick={() => navigate(sessionPath(o.key, it.cardId))}>Log it</Button>
         </div>
+      </>;
+    }
+    case 'effort': {
+      const x = it.streak;
+      return <>
+        <CardHead icon="warning" eyebrow="Rated too hard" name={name} when={`MC ${x.weeks[0]} and ${x.weeks[1]}`} />
+        <p className="body-copy" style={{ marginTop: 12 }}>{first} rated <b>{x.name}</b> {x.ratings[0]}, then {x.ratings[1]}.</p>
+        <p className="caption" style={{ marginTop: 4 }}>Its target holds while it’s rated 9 or 10. Reset it to start again from numbers {first} can manage: from the next week they haven’t logged.</p>
+        <div className="btnrow"><Button size="card" icon="edit" onClick={() => navigate(clientPath(it.cardId, 'plan', x.macroId, { act: 'reset', ex: `${x.dayKey}|${x.exId}` }))}>Reset it</Button></div>
       </>;
     }
     case 'missedGroup': {

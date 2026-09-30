@@ -92,7 +92,8 @@ export interface Inbox {
   submissions: (Submission & { clientId: string })[];
   /** `coach_ai_drafts`, every card. */
   drafts: AiDraft[];
-  /** `ai_response`, `note_reply`, `photo_request` and `session_log` publications, every card. */
+  /** `plan`, `ai_response`, `note_reply`, `photo_request` and `session_log` publications, every card (a client not on the
+   *  app has a plan only here, which Needs you's effort check folds, §163). */
   publications: (CoachPublication & { cardId: string })[];
 }
 /** A card edit. Name and contact only while the client isn't linked (0022's trigger refuses them after). */

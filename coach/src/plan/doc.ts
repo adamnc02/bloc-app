@@ -519,6 +519,25 @@ export function joinWeek(m: PlanMacro, dayKey: string, today: string, trainLogs?
   return w > 1 ? w : null;
 }
 
+/**
+ * The week a coach's reset of an exercise starts (BLOC §161, §163): the next week of that session with nothing logged,
+ * and never before the client's current week. Its progression starts again there (`fromWeek`): that week's target is
+ * the new numbers, and nothing logged before it counts. Null when the session has no week left.
+ */
+export function resetWeek(m: PlanMacro, dayKey: string, today: string, trainLogs?: Record<string, { done?: unknown }> | null): number | null {
+  const mesos = getMacroEffectiveMesoCount(m as unknown as Macrocycle);
+  const cal = !m.start || today < m.start ? 1 : Math.min(mesos, Math.floor(dayDiff(m.start, today) / ((m.weeksPerMeso || 1) * 7)) + 1);
+  let last = 0;
+  for (const [k, v] of Object.entries(trainLogs || {})) {
+    if (!v || !v.done || !k.startsWith(`${m.id}_`)) continue;
+    const rest = k.slice(m.id.length + 1);
+    const w = parseInt(rest, 10);
+    if (Number.isInteger(w) && rest.startsWith(`${w}_${dayKey}_`)) last = Math.max(last, w);
+  }
+  const w = Math.max(cal, last + 1);
+  return w <= mesos ? w : null;
+}
+
 // ── Deloads ────────────────────────────────────────────────────────────────
 
 export function toggleDeload(doc: PlanDoc, key: string): PlanDoc {

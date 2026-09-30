@@ -81,7 +81,9 @@ export function ExercisePicker({ open, title, library, category, preferBodyPart,
 
 export interface ExerciseSheetContext {
   /** 'swap': the new exercise for `exercise`, filled in from scratch like an added one. */
-  mode: 'add' | 'edit' | 'swap';
+  /** 'reset' (§163): the same exercise, new starting numbers from `resetFrom`, where its progression starts again. */
+  mode: 'add' | 'edit' | 'swap' | 'reset';
+  resetFrom?: number | null;
   /** Swap: the exercise chosen to replace it. */
   preset?: { name: string; bodyPart: string; category: 'weight' | 'cardio' };
   dayKey: string;
@@ -153,8 +155,11 @@ export function ExerciseSheet({ ctx, library, distanceUnitPref, onClose, onSave,
 
   return (
     <>
-      <Sheet open={!!ctx && !picking} title={ctx.mode === 'add' ? 'Add exercise' : ctx.mode === 'swap' ? 'Swap exercise' : 'Edit exercise'} onClose={onClose}>
+      <Sheet open={!!ctx && !picking} title={ctx.mode === 'add' ? 'Add exercise' : ctx.mode === 'swap' ? 'Swap exercise' : ctx.mode === 'reset' ? `Reset ${f.name || 'exercise'}` : 'Edit exercise'} onClose={onClose}>
         <p className="muted" style={{ marginBottom: 14 }}>{ctx.sessionLabel}{inSs ? ' · in a superset' : ''}</p>
+        {ctx.mode === 'reset' && (ctx.resetFrom
+          ? <p className="body-copy" style={{ margin: '-6px 0 14px' }}>Rated too hard two weeks running. Set new starting numbers: from MC {ctx.resetFrom} (its next unlogged week) its target is these, and its progression starts again from there. Earlier weeks keep their logs. Publish to send it.</p>
+          : <p className="body-copy" style={{ margin: '-6px 0 14px' }}>This session has no week left in the cycle to reset from.</p>)}
         {swapping && <p className="body-copy" style={{ margin: '-6px 0 14px' }}>Replaces {swapping.name} for good. Set it up as a new exercise: it starts at week 1 of its own progression, and {swapping.name} keeps its logs in history.</p>}
         {ctx.mode === 'add' && (
           <Field label="Category">
@@ -264,7 +269,7 @@ export function ExerciseSheet({ ctx, library, distanceUnitPref, onClose, onSave,
           </div>
         )}
         {!cardio && <p className="caption" style={{ marginTop: 6 }}>Heavy leg jumps 5 kg a mesocycle (10 kg on a gain cycle); per side counts double in volume.</p>}
-        <Button style={{ marginTop: 20 }} icon={ctx.mode === 'swap' ? 'swap' : undefined} disabled={!ok} onClick={() => onSave({ ...f, name: f.name.trim() })}>{ctx.mode === 'add' ? 'Add exercise' : ctx.mode === 'swap' ? 'Swap in plan' : 'Save exercise'}</Button>
+        <Button style={{ marginTop: 20 }} icon={ctx.mode === 'swap' ? 'swap' : undefined} disabled={!ok || (ctx.mode === 'reset' && !ctx.resetFrom)} onClick={() => onSave({ ...f, name: f.name.trim() })}>{ctx.mode === 'add' ? 'Add exercise' : ctx.mode === 'swap' ? 'Swap in plan' : ctx.mode === 'reset' ? `Reset from MC ${ctx.resetFrom ?? ''}` : 'Save exercise'}</Button>
 
         {ctx.mode === 'edit' && ex && (
           <div className="card" style={{ marginTop: 18, padding: '4px 16px' }}>

@@ -191,7 +191,7 @@ export function createFixtureRepo(demo: Record<string, unknown>, onProfile: (p: 
       return {
         submissions: ai.subs.map((x) => ({ ...x })),
         drafts: ai.drafts.map((d) => ({ ...d })),
-        publications: ai.pubs.filter((p) => ['ai_response', 'note_reply', 'photo_request', 'session_log'].includes(p.type)).map((p) => ({ ...p })),
+        publications: ai.pubs.filter((p) => ['plan', 'ai_response', 'note_reply', 'photo_request', 'session_log'].includes(p.type)).map((p) => ({ ...p })),
       };
     },
 
