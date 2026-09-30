@@ -115,7 +115,9 @@ async function run(label, html, engineSrc) {
       'startCoachCounter', 'trainViewCoachOwned', 'coachSessionWhen', 'openCoachRequest', 'coachWaitingCardHTML', 'coachProposedCardHTML', 'coachRequestBooked', 'coachSlotLine', 'coachReqFormHTML', 'renderHomeCoachBanner', 'dismissHomeCoachBanner', 'confirmWithdrawCoachRequest'];
     for (const n of seeds) if (!decls.has(n)) throw new Error('missing ' + n);
     const stubs = ['state', 'coachLinkGet', 'coachingAvailable', 'isCoachedMode', 'supabase', '_authResolvedSession', 'getLocalToday',
-      'renderHomeHero', 'openModal', 'document', 'getCoachAssignment', 'toLocalDateStr', 'coachedView', 'localStorage', 'showConfirm'];
+      'renderHomeHero', 'openModal', 'document', 'getCoachAssignment', 'toLocalDateStr', 'coachedView', 'localStorage', 'showConfirm',
+      // v8.49 (§157): the banners' destinations, now called by reference (HOME_NOTICE_ACTIONS' `go`), not named in onclick text.
+      'showScreen', 'openCoachSessions', 'viewCoachResponse', 'openCoachPhotoRequest'];
     const parts = closure(decls, seeds, new Set(stubs));
     F = env => new Function('env', `
       let state = env.state;
@@ -125,6 +127,7 @@ async function run(label, html, engineSrc) {
       const _authResolvedSession = { user: { id: 'u1' } };
       const getLocalToday = () => '2026-09-28';
       const renderHomeHero = () => {}, openModal = () => {};
+      const showScreen = () => {}, openCoachSessions = () => {}, viewCoachResponse = () => {}, openCoachPhotoRequest = () => {};
       const els = {};
       const document = { getElementById: id => (id === 'home-coach-banner' ? (els[id] ||= { innerHTML: '' }) : null) };
       const coachedView = () => true;
