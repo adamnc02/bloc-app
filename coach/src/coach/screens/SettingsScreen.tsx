@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { CoachShell } from '@/coach/CoachShell';
 import { Button, Chip, Field, Hero, Icon, Notice, Page, PageHeader, RowButton, Section, Sheet, SwitchRow, Toast, useEntering, useToast } from '@/components/ui';
 import { useCoach } from '@/app/App';
@@ -7,19 +7,31 @@ import { displayName } from '@/data/summary';
 import { initials } from '@/lib/format';
 import { getAiKey, setAiKey } from '@/ai/transport';
 import { DiarySettingsSections } from '@/coach/diary/DiarySettings';
+import { getSupabase } from '@/lib/supabase';
+import { currentPushState, DEFAULT_PREFS, loadPrefs, registerPushHere, savePref, sendTestPush, turnOffPushHere, type PrefKey, type Prefs, type PushState } from '@/push/push';
 
 declare const __COACH_VERSION__: string;
 /** Coach's version: coach/package.json, the one place a release bumps it (TECHNICAL §139). */
 export const COACH_VERSION = __COACH_VERSION__;
 
-/** The wireframe's five notifications. They're switched on in the release that sends pushes; until then they show off. */
-const NOTIFICATIONS: { key: string; title: string; sub: string }[] = [
-  { key: 'request', title: 'Session requests', sub: 'As soon as a client asks for a session.' },
-  { key: 'check-in', title: 'Check-ins submitted', sub: 'When a client sends a check-in for you to run.' },
-  { key: 'note-back', title: 'Notes back', sub: 'When a client replies to advice you published.' },
-  { key: 'unlinked', title: 'Client unlinked', sub: 'When a client leaves coaching.' },
-  { key: 'digest', title: 'Daily digest', sub: 'Clients newly off track, once a day.' },
+/** The wireframe's five notifications: coach_notification_prefs (0031), per coach, every device (§158). */
+const NOTIFICATIONS: { key: PrefKey; title: string; sub: string }[] = [
+  { key: 'session_requests', title: 'Session requests', sub: 'As soon as a client asks for a session, or suggests another time.' },
+  { key: 'check_ins', title: 'Check-ins submitted', sub: 'When a client sends a check-in for you to run.' },
+  { key: 'notes_back', title: 'Notes back', sub: 'When a client replies to advice you published.' },
+  { key: 'client_unlinked', title: 'Client unlinked', sub: 'When a client leaves coaching.' },
+  { key: 'daily_digest', title: 'Daily digest', sub: 'Clients newly off track, at 07:00.' },
 ];
+
+/** What each device state says, and what it offers (§158; BLOC's six states, §111). */
+const PUSH_TEXT: Record<PushState, string> = {
+  'needs-install': 'Add BLOC Coach to your Home Screen (Share → Add to Home Screen), then open it from there to turn notifications on.',
+  unsupported: 'This browser can’t show notifications.',
+  denied: 'Notifications are blocked for this site. Turn them on in iPhone Settings → Notifications → BLOC Coach.',
+  ask: 'Get notified about requests, check-ins, notes back and your clients, on this device.',
+  off: 'Off on this device.',
+  on: 'On for this device.',
+};
 
 type SheetKey = 'profile' | 'password' | 'ai' | 'signout' | null;
 
@@ -51,6 +63,39 @@ export function SettingsScreen() {
   const fixture = repo.kind === 'fixture';
   const hasPassword = !fixture && provider !== 'google';
   const close = () => { setSheet(null); setError(null); };
+
+  // Notifications (§158). A local build on the fixture clients has no server, so no push.
+  const sb = fixture ? null : getSupabase();
+  const [push, setPush] = useState<PushState | null>(null);
+  const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushMsg, setPushMsg] = useState<{ text: string; bad: boolean } | null>(null);
+  const refreshPush = useCallback(async () => {
+    if (!sb) return;
+    try { setPush(await currentPushState(sb)); setPrefs(await loadPrefs(sb, profile.coachId)); }
+    catch (e) { setPushMsg({ text: e instanceof Error ? e.message : String(e), bad: true }); }
+  }, [sb, profile.coachId]);
+  useEffect(() => { void refreshPush(); }, [refreshPush]);
+  const pushAct = async (fn: () => Promise<string | void>) => {
+    setPushBusy(true); setPushMsg(null);
+    try { const m = await fn(); await refreshPush(); if (m) setPushMsg({ text: m, bad: false }); }
+    catch (e) { setPushMsg({ text: e instanceof Error ? e.message : String(e), bad: true }); }
+    finally { setPushBusy(false); }
+  };
+  const turnOn = () => pushAct(async () => {
+    const { data } = await sb!.auth.getUser();
+    if (!data.user) throw new Error('Sign in again, then retry.');
+    await registerPushHere(sb!, data.user.id, true);
+  });
+  const test = () => pushAct(async () => {
+    const r = await sendTestPush(sb!);
+    if (!r.sent) throw new Error(r.devices ? 'It couldn’t be delivered. Try turning notifications off and on again.' : 'No devices are registered.');
+    return `Sent to ${r.sent} device${r.sent === 1 ? '' : 's'}.`;
+  });
+  const flip = (key: PrefKey, value: boolean) => {
+    setPrefs((p) => ({ ...p, [key]: value }));
+    savePref(sb!, profile.coachId, key, value).catch((e) => { setPrefs((p) => ({ ...p, [key]: !value })); setPushMsg({ text: e instanceof Error ? e.message : String(e), bad: true }); });
+  };
 
   const act = async (fn: () => Promise<void>) => {
     setBusy(true); setError(null);
@@ -122,11 +167,25 @@ export function SettingsScreen() {
             </div>
           </Section>
 
-          <Section i={7} title="Notifications" sub="Push and in-app alerts about your clients. They arrive in the next update, so they’re off for now.">
+          <Section i={7} title="Notifications" sub={sb ? 'Pushes about your clients, on this device. The switches apply to every device you use.' : 'Not in a local build on the fixture clients.'}
+            slot={push === 'on' ? <Chip tone="good" icon="check">On</Chip> : sb ? <Chip tone="neutral">Off</Chip> : null}>
+            {sb && push && (
+              <div className="card" style={{ marginBottom: 12 }}>
+                <p className="body-copy">{PUSH_TEXT[push]}</p>
+                <div className="btnrow">
+                  {(push === 'ask' || push === 'off') && <Button size="card" icon="bell" disabled={pushBusy} onClick={() => void turnOn()}>Turn on</Button>}
+                  {push === 'on' && <>
+                    <Button variant="ghost" size="card" disabled={pushBusy} onClick={() => void pushAct(() => turnOffPushHere(sb))}>Turn off</Button>
+                    <Button size="card" icon="bell" disabled={pushBusy} onClick={() => void test()}>Send a test</Button>
+                  </>}
+                </div>
+                {pushMsg && <p className={pushMsg.bad ? 't-bad' : 'muted'} role="status" style={{ marginTop: 10 }}>{pushMsg.text}</p>}
+              </div>
+            )}
             <div className="card list">
               {NOTIFICATIONS.map((x, k) => (
                 <div key={x.key} style={k ? { borderTop: '1px solid var(--divider)' } : undefined}>
-                  <SwitchRow title={x.title} sub={x.sub} checked={false} label={x.title} disabled />
+                  <SwitchRow title={x.title} sub={x.sub} checked={!!sb && prefs[x.key]} label={x.title} disabled={!sb || push !== 'on'} onChange={(v: boolean) => flip(x.key, v)} />
                 </div>
               ))}
             </div>

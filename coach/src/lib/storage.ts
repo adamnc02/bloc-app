@@ -24,4 +24,6 @@ export const KEYS = {
   railCollapsed: 'blocCoach_railCollapsed',
   /** In-person sessions being logged on this device and not yet finished, so a reload loses no set (inperson/draft.ts). */
   inPerson: 'blocCoach_inPerson',
+  /** This device's push registration id, so one iOS dropped can be healed (push/push.ts, §158). Cleared by Turn off. */
+  pushDevice: 'blocCoach_pushDevice',
 } as const;

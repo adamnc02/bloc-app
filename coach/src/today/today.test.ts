@@ -9,7 +9,7 @@ import type { Inbox } from '@/data/types';
 import type { CoachPublication, Submission } from '@/ai/types';
 import { sessionIdFor } from '@/inperson/model';
 import { getMeasurementStatus } from '@/lib/measurementStatus';
-import { comingUp, missedBookings, needsYou, offTrack, todaySessions } from './model';
+import { comingUp, missedBookings, needsItemOpen, needsYou, offTrack, pushAction, todaySessions } from './model';
 
 const demo = JSON.parse(readFileSync(new URL('../../../bloc-demo-data.json', import.meta.url), 'utf8')) as Record<string, unknown>;
 const built = buildFixtureClients(demo);
@@ -60,6 +60,17 @@ describe('Needs you', () => {
     };
     const kinds = needsYou(d, inbox, built.clients, summaries, ANCHOR).map((x) => x.kind);
     for (const k of ['request', 'checkin', 'note', 'photos', 'missed']) expect(kinds).toContain(k);
+    // Coach v0.9 (§158): a tapped push does what its item's button does. The push's tag carries the id in the item's key.
+    const items = needsYou(d, inbox, built.clients, summaries, ANCHOR);
+    const tagOf = (key: string) => ({ r: 'request', c: 'checkin', n: 'note' } as Record<string, string>)[key[0]] + ':' + key.slice(2);
+    const pushable = items.filter((x) => x.kind === 'request' || x.kind === 'checkin' || x.kind === 'note');
+    expect([...new Set(pushable.map((x) => x.kind))].sort()).toEqual(['checkin', 'note', 'request']);
+    for (const it of pushable) expect(pushAction(tagOf(it.key), items)).toEqual(needsItemOpen(it));
+    expect(pushAction('checkin:not-an-item', items)).toBeNull();          // dealt with already: stay on Today
+    expect(pushAction('digest:2026-08-02', items)).toBeNull();
+    const note = pushable.find((x) => x.kind === 'note')!;
+    expect(needsItemOpen(note)).toEqual({ kind: 'path', path: expect.stringContaining('?') });
+    expect((needsItemOpen(note) as { path: string }).path).toMatch(/^\/clients\/maya\/review\?.*at=note/);
     // Dealt with: the note replied to, the check-in and the review run after.
     const done: Inbox = {
       ...inbox,

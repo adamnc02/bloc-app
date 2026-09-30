@@ -17,7 +17,7 @@ export type ClientTab = 'review' | 'plan' | 'sessions' | 'profile';
 export const CLIENT_TABS: ClientTab[] = ['review', 'plan', 'sessions', 'profile'];
 
 export type Route =
-  | { name: 'today' } | { name: 'clients' } | { name: 'client'; id: string; tab: ClientTab; macro: string | null; intent: { act: 'swap' | 'goal'; ex: string | null } | null; focus: ReviewFocus | null }
+  | { name: 'today'; push: string | null } | { name: 'clients' } | { name: 'client'; id: string; tab: ClientTab; macro: string | null; intent: { act: 'swap' | 'goal'; ex: string | null } | null; focus: ReviewFocus | null }
   | { name: 'diary' } | { name: 'library' } | { name: 'settings' }
   | { name: 'session'; occKey: string; cardId: string };
 
@@ -39,8 +39,10 @@ export function parseRoute(hash: string): Route {
     return { name: 'client', id: decodeURIComponent(b), tab, macro: q.get('macro'), intent, focus };
   }
   if (a === 'session' && b) return { name: 'session', occKey: decodeURIComponent(b), cardId: new URLSearchParams(query).get('card') ?? '' };
-  if (a === 'today' || a === 'clients' || a === 'diary' || a === 'library' || a === 'settings') return { name: a };
-  return { name: 'today' };
+  // Today can carry a tapped push's tag (`?push=`, TECHNICAL §158).
+  if (a === 'today' || !a) return { name: 'today', push: new URLSearchParams(query).get('push') };
+  if (a === 'clients' || a === 'diary' || a === 'library' || a === 'settings') return { name: a };
+  return { name: 'today', push: null };
 }
 
 export const sessionPath = (occKey: string, cardId: string) => `/session/${encodeURIComponent(occKey)}?card=${encodeURIComponent(cardId)}`;

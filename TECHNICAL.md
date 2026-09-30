@@ -10781,3 +10781,87 @@ worker's hash in the same change.
   coached; goal phases; and `runHomeNoticeAction` shared with the banner.
 Control: v8.48's worker (`9c3e902`) opens Measurements for a coach push. `verify-coach-logged.mjs` checks the
 banner's button now calls `runHomeNoticeAction`.
+
+## §158 — Coach v0.9: notifications (a manifest, a push-only worker, the switches)
+
+**What it is.** BLOC Coach's half of Phase 6's pushes. The server is migration `0031` and the Edge Function
+`bloc-push` (super-duper-octo-barnacle `docs/SUPABASE.md` → Coach pushes). BLOC's half is v8.49 (§157).
+
+### A Home Screen app of its own
+
+`coach/public/manifest.webmanifest` ("BLOC Coach", `start_url` and `scope` `./`, standalone, 192/512/maskable icons
+rendered from `bloc-coach-icon-square.svg`), linked from `coach/index.html` with `apple-mobile-web-app-capable`.
+iOS offers push only to a Home Screen web app with a manifest. Vite copies `public/` into `dist/`, so the
+publish list's `coach/dist/ => coach/` serves them at `/bloc-app/coach/`.
+
+### The worker, `coach/public/sw.js`
+
+- Push only, **no `fetch` handler**, always shows a notification (an unreadable push shows "BLOC Coach").
+- Registered on every start by `registerCoachServiceWorker()` with scope `./` = `/bloc-app/coach/`. That's inside
+  BLOC's scope (`/bloc-app/`), and the more specific scope wins, so Coach's pages and Coach's subscriptions are
+  Coach's worker's.
+- 🚨 **Pinned** (`verify-coach-push.mjs`'s `SW_SHA256`), as BLOC's is: on iOS a changed worker can split a
+  subscription (MIGRATION-LESSONS §69). Change it only with a planned re-registration.
+
+**Where a tap goes.** The worker passes the push's **tag** to the page (the tag decides before `data`, §112):
+
+| Tag (set by `bloc-push`) | Opens (`pushRoute()`, `src/push/intent.ts`) |
+|---|---|
+| `request:<id>` | Today, then the request's Answer sheet |
+| `checkin:<submission id>` | Today, then Review's AI tools on Check-in (Run check-in) |
+| `note:<submission id>` | Today, then Review on that note (Reply in Review) |
+| `unlinked:<card id>` | the client's Profile |
+| `digest:<day>`, anything else | Today |
+| `coach-test` | stays where Coach is |
+
+The first three go to `#/today?push=<tag>`. Today waits until its data has loaded, then `pushAction()`
+(`today/model.ts`) finds the Needs you item whose key carries the same id (`r:`, `c:`, `n:`) and does exactly what
+its button does. The button and the push share `needsItemOpen()`. If the item has already been dealt with, Coach
+stays on Today. The `?push=` is dropped from the address once used, so a reload doesn't repeat it.
+
+The three routes are BLOC's (§111): `?open=<tag>`, a `coach:open` message, and a Cache Storage note
+(`bloc-coach-open-intent/__open-intent`, read and deleted, ignored after 5 minutes). 🚨 **The names are Coach's,
+never BLOC's.** The two apps share an origin, so a shared note or message type would open one app's destination in
+the other. `verify-coach-push.mjs` checks that they differ, and that they agree between `sw.js` and `intent.ts`.
+
+⚠️ **One browser, both apps open.** BLOC's worker (pinned, v8.49) matches its windows by URL prefix `/bloc-app/`,
+which a Coach tab also has, so a BLOC notification tapped in a browser that has a Coach tab open (and no BLOC tab)
+can focus the Coach tab. On a phone each Home Screen app is isolated, so this can't happen there. Coach's worker
+matches `/bloc-app/coach/`, so a Coach tap never reuses a BLOC window.
+
+### Settings → Notifications (`src/push/push.ts`)
+
+BLOC's push code (§111–§113), ported to TypeScript for `app: 'coach'`:
+- **Six states** (`decidePushState`). "Needs install" is decided before "unsupported", and "on" requires the
+  **server's** row.
+- **Turn on** is the only place that raises the permission prompt (`registerPushHere(…, true)`). It subscribes with
+  **BLOC's VAPID public key** (one pair per project, MIGRATION-LESSONS §61; `bloc-push` signs with it) and registers
+  `push_subscriptions` with `app 'coach'`, the device's zone (the digest's 07:00 is the coach's) and a `ps_`+sha256 id.
+- **Send a test** calls `bloc-push` `{"mode":"test"}` with the coach's JWT, which sends to their Coach devices only.
+- **Turn off** deletes the row and unsubscribes.
+- **Health check.** `checkPushHealth()` runs on every signed-in start (`PushHealth` in `App.tsx`). A registration iOS
+  dropped is re-made quietly while permission holds; when iOS wants to ask again, a sheet offers **Turn on** once.
+- **Sign-out unregisters this device first** (`forgetThisPushDevice`), while the session still passes RLS.
+- 🚨 **Permission is per origin** (§55): a phone that allowed BLOC or Listly shows no prompt here.
+
+**The five switches** (`coach_notification_prefs`, per coach, for every device) can be changed while this device is
+on; otherwise they're shown disabled. **No row means every switch is on.** 🚨 A switch is saved by an
+update, then an insert if there was no row, **never `.upsert()`**: `0031` grants UPDATE on the switch columns only,
+and supabase-js's upsert asks for UPDATE on `coach_id` too (MIGRATION-LESSONS §72). A local build on the fixture
+clients has no server, so the section says so and everything in it is disabled.
+
+**Checks:**
+- `scripts/verify-coach-push.mjs` (32) runs the real worker in a simulated scope:
+  - a cold tap (the note and the URL) and a warm one (the tag beats data; the message);
+  - a BLOC window not reused; BLOC's tag and a URL in `data` both opening Today; no tag;
+  - the unreadable push; the pin;
+  - the names agree between the files and differ from BLOC's;
+  - the key equals BLOC's and `bloc-push`'s (locally; skipped in CI, where the sibling repo is absent);
+  - the manifest and its icon sizes; `dist` carrying `public`'s files byte for byte;
+  - one permission prompt; the sign-out order; registration on start; no `.upsert()` of the switches; `app 'coach'`.
+- Coach's vitest: `push/push.test.ts` (the states, the health verdicts, the id, `pushRoute`, `openTarget`), and
+  `today.test.ts`: for every request, check-in and note back in the fixtures, `pushAction(tag)` equals
+  `needsItemOpen(item)`.
+
+**Can only be tested on the live https site:** turning on, a real push, a tap. In local dev the bypass has no
+server. The test coach (Hotmail) is Coach on the iPhone's Home Screen; Casey is BLOC in a desktop browser.
