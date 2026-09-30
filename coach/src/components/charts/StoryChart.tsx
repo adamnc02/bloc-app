@@ -21,8 +21,10 @@ const LABEL_CHAR_PX = 6.4;
  *    two alternating rows so neighbours don't collide.
  * The header says the one thing to know first (when progress stalled, or how
  * it's moving); holding and dragging swaps it for the day's callout.
+ * `noKcal` (a client not on the app, whose food isn't logged): no calorie bars or targets, and no calories in the
+ * callout, legend or table.
  */
-export function StoryChart({ d, name }: { d: StoryData; name: string }) {
+export function StoryChart({ d, name, noKcal }: { d: StoryData; name: string; noKcal?: boolean }) {
   const totalDays = daysBetween(d.start, d.end) + 1;
   const weekOf = (date: string) => d.trend.find((p) => p.start <= date && p.end >= date) ?? null;
   const startLbs = d.startLbs ?? d.weighIns[0]?.lbs ?? d.targetLbs ?? 0;
@@ -40,7 +42,8 @@ export function StoryChart({ d, name }: { d: StoryData; name: string }) {
   const offGoal = (avg: number, tgt: number) => (d.goalType === 'gain' ? avg < tgt - KCAL_OFF_GOAL : maint ? Math.abs(avg - tgt) > KCAL_OFF_GOAL : avg > tgt + KCAL_OFF_GOAL);
   const weekCount = Math.ceil(totalDays / 7);
 
-  const H = 312, topH = 184, gap = 26, padL = 34, padR = 36;
+  const topH = 184, gap = 26, padL = 34, padR = 36;
+  const H = noKcal ? topH + 22 : 312;
   const waistPts = d.measurements.filter((m) => m.waist != null);
   const hipPts = d.measurements.filter((m) => m.hip != null);
   const at = <T extends { date: string }>(xs: T[], date: string) => [...xs].reverse().find((x) => x.date <= date);
@@ -57,9 +60,9 @@ export function StoryChart({ d, name }: { d: StoryData; name: string }) {
       <ScrubChart
         height={H}
         header={header}
-        calloutH={CALLOUT_H}
+        calloutH={noKcal ? CALLOUT_H - 20 : CALLOUT_H}
         calloutW={CALLOUT_W}
-        label={`Story chart for ${name}: weekly average weight against the goal band, waist and hip, weekly calories against target, and the goal phases.`}
+        label={`Story chart for ${name}: weekly average weight against the goal band, waist and hip${noKcal ? '' : ', weekly calories against target'}, and the goal phases.`}
         callout={(w, x) => {
           const X = linear(0, totalDays - 1, padL, w - padR);
           const day = Math.round(X.invert(x));
@@ -80,7 +83,7 @@ export function StoryChart({ d, name }: { d: StoryData; name: string }) {
                   <span className="caption" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{[kw?.label, phase && shortPhaseLabel(phase.label, 16)].filter(Boolean).join(' · ')}</span>
                 </div>
                 <div className="row"><span>Weight <b className="num">{wi ? fmt.one(wi.lbs) : '—'}</b></span><span>wk avg <b className="num">{wk ? fmt.one(wk.lbs) : '—'}</b></span></div>
-                <div className="row"><span>Kcal <b className="num">{kd?.kcal != null ? fmt.int(kd.kcal) : '—'}</b> / {kd?.target != null ? fmt.int(kd.target) : '—'}</span><span>wk avg <b className="num">{kw?.avgKcal != null ? fmt.int(kw.avgKcal) : '—'}</b></span></div>
+                {!noKcal && <div className="row"><span>Kcal <b className="num">{kd?.kcal != null ? fmt.int(kd.kcal) : '—'}</b> / {kd?.target != null ? fmt.int(kd.target) : '—'}</span><span>wk avg <b className="num">{kw?.avgKcal != null ? fmt.int(kw.avgKcal) : '—'}</b></span></div>}
                 <div className="caption">Waist <b>{waist ? fmt.inches(waist.waist as number) : '—'}</b> · hip <b>{hip ? fmt.inches(hip.hip as number) : '—'}</b>{waist && waist.date !== date ? ` · ${fmt.dm(waist.date)}` : ''}</div>
               </>
             ),
@@ -135,8 +138,8 @@ export function StoryChart({ d, name }: { d: StoryData; name: string }) {
               {d.weighIns.map((p) => <circle key={p.date} cx={dx(p.date)} cy={Y(p.lbs)} r="1.6" fill="var(--accent2)" opacity=".35" />)}
               {d.trend.length > 1 && <polyline className="line" pathLength={1} points={d.trend.map((p) => `${dx(p.date)},${Y(p.lbs)}`).join(' ')} fill="none" stroke="var(--accent2)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />}
               {d.trend.length > 0 && <circle className="dot" cx={dx(d.trend[d.trend.length - 1].date)} cy={Y(d.trend[d.trend.length - 1].lbs)} r="5" fill="var(--accent2)" stroke="var(--surface)" strokeWidth="3" />}
-              <text x={padL - 6} y={botTop + 8} textAnchor="end" fontSize="10" fill="var(--text3)">kcal</text>
-              {d.kcalWeeks.map((wk, i) => {
+              {!noKcal && <text x={padL - 6} y={botTop + 8} textAnchor="end" fontSize="10" fill="var(--text3)">kcal</text>}
+              {!noKcal && d.kcalWeeks.map((wk, i) => {
                 const x0 = X(daysBetween(d.start, wk.start) + 3.5) - wkW / 2;
                 const bad = wk.avgKcal != null && wk.targetKcal != null && offGoal(wk.avgKcal, wk.targetKcal);
                 return (
@@ -160,25 +163,24 @@ export function StoryChart({ d, name }: { d: StoryData; name: string }) {
         ...(d.targetLbs != null ? [{ label: 'Goal band', swatch: <BoxSwatch color="var(--ice)" opacity={0.35} /> }] : []),
         ...(waistPts.length > 1 ? [{ label: 'Waist', swatch: <LineSwatch color="var(--text)" dash="5 3" /> }] : []),
         ...(hipPts.length > 1 ? [{ label: 'Hip', swatch: <LineSwatch color="var(--text2)" dash="1.5 3" /> }] : []),
-        { label: 'Kcal vs target', swatch: <BoxSwatch color="var(--accent)" opacity={0.55} /> },
-        { label: 'Off-goal week', swatch: <BoxSwatch color="var(--red)" /> },
+        ...(noKcal ? [] : [{ label: 'Kcal vs target', swatch: <BoxSwatch color="var(--accent)" opacity={0.55} /> }, { label: 'Off-goal week', swatch: <BoxSwatch color="var(--red)" /> }]),
         ...(d.phases.length > 1 ? [{ label: 'Goal phase change', swatch: <LineSwatch color="var(--text3)" dash="2 4" width={1} /> }] : []),
       ]} />
-      <StoryTable d={d} />
+      <StoryTable d={d} noKcal={noKcal} />
     </div>
   );
 }
 
 /** Every chart has a data-table fallback (screen readers; also a plain read of the numbers). */
-function StoryTable({ d }: { d: StoryData }) {
+function StoryTable({ d, noKcal }: { d: StoryData; noKcal?: boolean }) {
   return (
     <div className="sr-only"><table>
       <caption>Week by week</caption>
-      <thead><tr><th scope="col">Week</th><th scope="col">Average weight, lbs</th><th scope="col">Kcal a day</th><th scope="col">Kcal target</th></tr></thead>
+      <thead><tr><th scope="col">Week</th><th scope="col">Average weight, lbs</th>{!noKcal && <><th scope="col">Kcal a day</th><th scope="col">Kcal target</th></>}</tr></thead>
       <tbody>
         {d.kcalWeeks.map((w) => {
           const t = d.trend.find((p) => p.start === w.start);
-          return <tr key={w.start}><th scope="row">{w.label}</th><td>{t ? fmt.one(t.lbs) : '—'}</td><td>{w.avgKcal ?? '—'}</td><td>{w.targetKcal != null ? Math.round(w.targetKcal) : '—'}</td></tr>;
+          return <tr key={w.start}><th scope="row">{w.label}</th><td>{t ? fmt.one(t.lbs) : '—'}</td>{!noKcal && <><td>{w.avgKcal ?? '—'}</td><td>{w.targetKcal != null ? Math.round(w.targetKcal) : '—'}</td></>}</tr>;
         })}
       </tbody>
     </table></div>

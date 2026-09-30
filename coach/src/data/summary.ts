@@ -101,7 +101,7 @@ export function summarise(b: ClientBundle, nowMs: number): ClientSummary {
     const exp = coachDate(Date.parse(b.invite.expiresAt));
     cycleText = Date.parse(b.invite.expiresAt) > nowMs ? `Invite expires ${fmt.ddm(exp)}` : `Invite expired ${fmt.ddm(exp)}`;
   } else if (status === 'not-on-app') {
-    cycleText = 'In person · no plan yet';
+    cycleText = 'In person';
   } else if (status === 'unlinked') {
     const ended = b.link?.endedAt ? coachDate(Date.parse(b.link.endedAt)) : null;
     cycleText = ended ? `Unlinked ${fmt.ddm(ended)}` : 'Unlinked';

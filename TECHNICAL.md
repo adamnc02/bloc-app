@@ -10617,3 +10617,45 @@ invite needs somewhere to go.
   Eileen (not on the app) through Log it, Measurements, "How hard was it?" (five across at 375) and "Session saved",
   her past session opening read-only; Profile's measurements; Settings' sections; Add a day off (label required,
   listed with its sessions cancelled); a day's header opening it; no horizontal scroll, no console errors.
+
+## §155 — Coach v0.7: Review for a client not on the app, and Strength
+
+**What it is.** A client not on the app has a Review: their weight and measurements on the story chart without
+calories, and **Strength**. Strength is also in every linked client's Review, after nutrition and effort.
+
+### Review for a client not on the app (`coach/src/coach/client/InPersonReview.tsx`)
+
+Their record is what the coach publishes and takes in person: `recordState` (§154) folds the card's plan, goal
+phases, `measurement` and `session_log` publications into a state, and Review's own model (`computeReview`, §140)
+runs on it. They have no zone, so it's judged at the coach's date (the hero says so). The cycle is Review's default
+(running, else the latest started, else the next), with a switch when there are several.
+
+- **Hero:** the cycle, its week and dates; Weight (lbs), Waist and Hip tiles, each the latest in the cycle with the
+  change since the cycle's first (a tile is a third of the width at 375pt, so the unit is in the label and the sub
+  is the change alone); "Last weighed …, outside this cycle" when the only weigh-in is older.
+- **Weight and measurements:** `StoryChart` with `noKcal`: weigh-ins, the weekly average against the goal band,
+  waist and hip, the goal phases; no calorie bars or targets, and none in the callout, legend or table (no food is
+  logged). The chart is shorter without its calorie band.
+- **Strength**, below.
+
+A client with no cycle gets "{first} has no cycle yet" and Open plan. The Clients row and the header read "In
+person".
+
+### Strength (`coach/src/review/strength.ts`, `coach/src/coach/client/StrengthSection.tsx`, `components/charts/StrengthChart.tsx`)
+
+Each exercise's **heaviest set done**, week by week, against **its target** (the one Train showed for that set),
+from Review's compliance grid (`computeTraining`, §140): the same cells, so Strength and the grid always agree. A
+week counts as hit exactly when the grid passed it (or a deload done). An exercise with nothing logged (or no weight:
+cardio, bodyweight) has no row. With A and B templates each is its own row.
+
+- **The list:** the name; "52.5 kg × 8 · +12.5 kg" (the latest top set and the change since the first); a 96px
+  sparkline: the top set as a line, the target dashed in ice, each week's dot lavender when every set hit target
+  and red when not. The first 8 show, then **Show all (n)** (a cycle with A and B templates runs to 40 or more).
+- **An exercise's sheet:** the same chart full width with week labels (W1…), the legend, and each week: top set ×
+  reps, target, ✓ or ✗, and "in person" for a session the coach logged.
+
+**Checks:** `coach/src/review/strength.test.ts` (vitest, 4): each week's point is the heaviest done set; hit equals
+the grid's pass; the target is that set's; an exercise with nothing logged has no row (control: one set logged makes
+one). Driven in Chromium on the fixtures at 375 × 812: Eileen's Review before and after logging a session in person
+(the hero, the chart without calories, Strength's rows and an exercise's sheet), Maya's Strength; no horizontal
+scroll, no console errors.
