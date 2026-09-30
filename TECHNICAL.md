@@ -9161,7 +9161,7 @@ the clients are built from **`bloc-demo-data.dev.json`** if the developer has on
 20:10 UTC, so Grace (Pacific/Auckland) is already on the next day: the case that exercises the
 client's-today rule. The set: Maya (the demo, a coach-published cycle), Tom (his own cycle two weeks
 behind, 60 h since sync), Grace (Auckland, week 1), Priya (microcycles on with one-week mesocycles: each session's A and B in
-the same week), Ben (linked, never synced), Sam (invited), Leah
+the same week), Ben (linked, never synced), Sam (invited), Hannah
 (unlinked), Eileen (in person). Add, invite and profile edits change the page's memory only. Without a
 `.dev` file the console shows one 404: the fallback, as in BLOC.
 

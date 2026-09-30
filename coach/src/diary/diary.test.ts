@@ -371,8 +371,8 @@ describe('actions (fixture repo)', () => {
   });
   it('a group always carries a title to the phone ("Group session" when unnamed); a one-to-one never does', async () => {
     const r = fresh();
-    const d = await createSession(r, await r.loadDiary(), { kind: 'group', weekly: false, date: FRI, start: 600, duration: 60, location: null, title: null, clientIds: ['sam', 'leah'] });
-    expect(['sam', 'leah'].map((c) => Object.entries(d.sent).find(([k]) => k.startsWith(`${c}|bk-`))![1].payload.title)).toEqual(['Group session', 'Group session']);
+    const d = await createSession(r, await r.loadDiary(), { kind: 'group', weekly: false, date: FRI, start: 600, duration: 60, location: null, title: null, clientIds: ['sam', 'hannah'] });
+    expect(['sam', 'hannah'].map((c) => Object.entries(d.sent).find(([k]) => k.startsWith(`${c}|bk-`))![1].payload.title)).toEqual(['Group session', 'Group session']);
     expect(d.sent['maya|sr-maya'].payload.title).toBeNull();
   });
   it('a weekly session whose weeks are all cancelled or moved has no next week (it’s over, whatever its end date)', async () => {
