@@ -678,3 +678,12 @@ add('planReplaceOffer', [
 // counterpart before v8.46; verify-exercise-from-week.mjs checks what it decides.
 add('exercisePlanWeek', [[{ fromWeek: 5 }, 7], [{ fromWeek: 5 }, 3], [{}, 4], [{ fromWeek: 1 }, 2]]
   .map(([ex, w]) => at(S.demo, '2026-08-02', () => ({ engine: [ex, w], bloc: null }))));
+
+// v8.52 (§161): where an exercise's progression starts, and whether a lock
+// still applies after a reset. No BLOC counterpart before v8.52;
+// verify-progression-reset.mjs checks what they decide.
+add('progressionStartWeek', [[{ fromWeek: 5 }], [{ fromWeek: 1 }], [{}], [null], [{ fromWeek: '3' }], [{ fromWeek: 4.6 }]]
+  .map(args => at(S.demo, '2026-08-02', () => ({ engine: args, bloc: null }))));
+add('lockAppliesFrom', [[{ lockedAtWeek: 3 }, { fromWeek: 5 }], [{ lockedAtWeek: 6 }, { fromWeek: 5 }], [{}, {}],
+  [{}, { fromWeek: 5 }], [null, {}], [{ lockedAtWeek: 2 }, {}]]
+  .map(args => at(S.demo, '2026-08-02', () => ({ engine: args, bloc: null }))));

@@ -37,6 +37,7 @@ export {
   getMacroExtensionInfo, getMacroEffectiveMesoCount, isMesoMicroValid, getMacroSessionDayKeys, exercisePlanWeek,
   getWeekSets, getWeekWeight, getWeekReps, getDeloadUnitKey, getPrevTrackUnit, roundToIncrement,
   getPrevCalendarWeek, getGiantSetProgression, getProgressionLockKey, getProgKey, parseRepsForVolume,
+  progressionStartWeek, lockAppliesFrom,
 } from './progression.ts';
 export type { TaperCurve } from './nutrition.ts';
 export {

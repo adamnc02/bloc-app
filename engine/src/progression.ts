@@ -42,6 +42,27 @@ export function exercisePlanWeek(ex: Exercise, week: number): number {
   return from > 1 ? Math.max(1, week - from + 1) : week;
 }
 
+// v8.52 (§161): `fromWeek` is also where the exercise's PROGRESSION starts.
+// A coach resets an exercise by sending new starting numbers with `fromWeek`
+// set to the next unlogged week, so nothing logged before it counts: that
+// week's target is the starting numbers (as week 1's is), the walk back to a
+// compliant week stops there, a lock from an earlier week is ignored, and the
+// week before it gives no RPE step. An exercise that joined part-way through
+// has no logs before `fromWeek`, so none of this changes anything for it.
+export function progressionStartWeek(ex: Exercise | null | undefined): number {
+  const from = ex ? Number(ex.fromWeek) || 1 : 1;
+  return from > 1 ? Math.floor(from) : 1;
+}
+
+// A lock set in a week before the exercise's progression start is about
+// numbers the reset replaced, so it no longer applies. With no reset every
+// lock applies, including an old one with no `lockedAtWeek`.
+export function lockAppliesFrom(lock: { lockedAtWeek?: number } | null | undefined, ex: Exercise | null | undefined): boolean {
+  if (!lock) return false;
+  const start = progressionStartWeek(ex);
+  return start === 1 || (lock.lockedAtWeek || 0) >= start;
+}
+
 export interface TrackUnit {
   week: number;
   dayKey: string;

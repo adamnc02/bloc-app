@@ -6408,9 +6408,9 @@ Compliance is `getWeekComplianceResult()`, the same test the lock uses. The step
 Not compliant with a high rating changes nothing extra, because the lock already freezes the target.
 The card adds "Rated 9 · consider a lighter target".
 
-🚨 **`rpeDrivesProgression()` is the Coached-mode switch.** In Coached mode ratings only inform the
-coach (Adam). Since v8.40 it returns false for any cycle the coach published (`macro.publishedBy`),
-in the engine, not the `index.html` shim: see §132 for why it's keyed on the cycle and not the link.
+🚨 **`rpeDrivesProgression()` is `isRpeOn(macro)`**, on a coach's cycle as on a Solo one (v8.52, §161). From
+v8.40 to v8.51 it returned false for any cycle the coach published (`macro.publishedBy`). It lives in the
+engine, not the `index.html` shim (§132), so BLOC Coach reaches the same targets as the phone.
 
 ### Two call sites, one decision
 
@@ -8371,8 +8371,9 @@ which now calls `applyCoachedChrome()`: the nav, and a move to Home if Plan was 
 
 ### The RPE rule: the coach's cycles, not the link
 
-Adam, 2026-09-28: *"Coach's cycles only"*. `rpeDrivesProgression(macro)` is
-`isRpeOn(macro) && !macro.publishedBy`, **in the engine** (`engine/src/targets.ts`).
+From v8.40 to v8.51 `rpeDrivesProgression(macro)` was `isRpeOn(macro) && !macro.publishedBy`, **in the
+engine** (`engine/src/targets.ts`). Since v8.52 it is `isRpeOn(macro)`: a coach's cycle follows the Solo
+rule (§161). The traps below still hold for any rule the engine keys on the cycle.
 
 🚨 **Two traps, both avoided:**
 - **Changing only `index.html`'s shim.** `computeRpeStepKind()` is inside the engine and calls the
@@ -10045,6 +10046,9 @@ read these leaves, so they agree. An exercise without `fromWeek` (or 1) is uncha
 Nothing else about a swap changes in BLOC: the new exercise is a new id, so the old one keeps its logs in history under
 its own id, and targets for weeks with nothing logged recompute (§131's §0 rule).
 
+Since v8.52 `fromWeek` is also where the exercise's **progression** starts, which is how a coach resets an exercise that
+already has logs (§161).
+
 **Check:** `scripts/verify-exercise-from-week.mjs`: the leaves (first week = starting weight, +1 increment a
 mesocycle after, starting-to-peak sets, reps and giant-set reps from there, unchanged without `fromWeek`), then Train's own
 `getWeekTargets` on the demo with a late exercise: 40 kg × 3 sets in its first week. Control: the same exercise without
@@ -10987,3 +10991,54 @@ it grew to fill the button, drawn in the default black fill. The button now uses
 inside a `.btn`: it must be sized by itself (width, height, `fill="none"`), or by a CSS rule for one of its button's
 classes (`.coach-icon-btn svg`). Its control is v8.50's unsized clock in a plain `btn-ghost`. Checked in Chromium: a
 52px button with a 16px lavender outline clock and no fill.
+
+## §161 — v8.52 + Coach v0.9.7: effort ratings drive a coach's cycle; a coach resets an exercise with `fromWeek`
+
+**What it is.** Two engine rules, which BLOC and BLOC Coach both run.
+
+### A coach's cycle follows the Solo rule
+
+`rpeDrivesProgression(macro)` is `isRpeOn(macro)`. A cycle a coach published (`publishedBy`) with ratings on (a coach's
+cycle starts with them on) takes §104's step from each rating: rated 6 or lower and compliant, a double step; 9–10 and
+compliant, a hold for one mesocycle. Ratings the coach gives in person (`ratedBy: 'coach'`, §137) count the same. From
+v8.40 to v8.51 a coach's cycle never took a step. A week whose target was already cached keeps its frozen step (§104), so
+switching the rule changed no week already judged.
+
+The coach steps in only when one exercise on one track is rated 9 or 10 two weeks running (BLOC Coach's Needs you),
+by resetting it.
+
+### A reset: `fromWeek` is where progression starts
+
+The coach sends the exercise (same id) with new starting numbers (`startWeight`, `reps`, `setsStart`/`setsEnd`) and
+`fromWeek` = the next week of that session with nothing logged. Nothing new in the payload: `plan.exercises` carries it,
+and BLOC's plan apply already drops unlogged weeks' cached targets (§131), so they recompute.
+
+`progressionStartWeek(ex)` (engine, `progression.ts`) is `fromWeek` when above 1, else 1. From that week on:
+
+| Where | Rule |
+|---|---|
+| `getWeekTargets` | the start week's target is the starting numbers, as week 1's is (before any lock, deload walk or last week's lift) |
+| `computeLockTransition` | the start week is never judged; after it, a lock from an earlier week doesn't count (`lockAppliesFrom`), so a miss sets a fresh lock at that week and a compliant week clears the stale one |
+| `getLastCompliantWeek` | the walk back stops at the start week |
+| `computeRpeStepKind` | the start week gets no step (the week before it is another program) |
+| `computeExerciseProgression` | the start week shows the starting numbers, no last week, not locked, and `progressionStart: true` (only when true, so every other output is unchanged) |
+| Home's next-session target (`getSessionPreviewTarget`) | the same two rules as Train: the start week's numbers, and no stale lock |
+
+🚨 **Weeks before the start are history and don't change**: their lock, their walk back to week 1 and their targets are
+exactly v8.51's. 🚨 **§147's `fromWeek` alone was not a reset**: an exercise with logs progresses from what was lifted,
+so new starting numbers were ignored and the old lock kept its target. An exercise that joined part-way through has no
+logs before its `fromWeek`, so for it nothing changes.
+
+**The card** in the start week of a coach's cycle says **"New starting point from {coach}"** (accent tag).
+
+**Coach v0.9.7** is the same engine rebuilt into Coach's bundle: Review, In person and Plan show the targets the phone
+will show. 🚨 **`bloc-push` imports the server engine at a pinned commit** (§156), so the digest judges coach cycles by
+the v8.51 rule until that pin moves.
+
+**Check:** `scripts/verify-progression-reset.mjs`: a coach's cycle with an exercise locked at 55 kg in week 3, reset at
+week 4 to 40 kg × 12 over 2 sets: the week-4 target and card, week 4 never judged, week 5 at 42.5 (not 55), the walk
+back stopping at 4, a fresh lock on a miss and the stale one cleared on a pass, no step into week 4, a rating of 5 giving
+a coach's cycle the double step; history (week 3's 55 kg and its walk back) equal to v8.51; Home's and the card's
+readers in `index.html`. Control: v8.51 (`6352acc`) fails the reset and coach-step rows, and an exercise with no reset
+gives identical targets and lock decisions in both engines for weeks 2–6. `verify-coached-hides.mjs` now expects a
+coach's cycle to take exactly Solo's steps. `engine-cases.mjs` has cases for the two new exports.
