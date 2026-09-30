@@ -1,11 +1,11 @@
 // Today (the wireframe's TodayScreen; TECHNICAL §154): the hub. Today's sessions first, then Needs you, Off
 // track and Coming up; on a laptop Needs you is the right-hand column and the other three stack on the left.
 // Every Needs you item opens where it's dealt with, and clears once it is. The model is today/model.ts.
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AccountButton, CoachShell } from '@/coach/CoachShell';
 import { Avatar, Button, Card, Chip, EmptyState, Hero, Icon, OutcomeChip, Page, PageHeader, RowButton, Section, Sheet, Tag, Toast, useEntering, useOnResume, type IconName } from '@/components/ui';
 import { useCoach } from '@/app/App';
-import { clientPath, navigate, sessionPath } from '@/app/router';
+import { clientPath, navigate, sessionPath, useRoute } from '@/app/router';
 import { summarise } from '@/data/summary';
 import type { Inbox } from '@/data/types';
 import { fmt, initials } from '@/lib/format';
@@ -16,7 +16,10 @@ import { useDiaryData } from '@/coach/diary/useDiaryData';
 import { RequestSheet } from '@/coach/diary/DiarySheets';
 import { prefLabel } from '@/coach/diary/BookingBlock';
 import { loadDraft } from '@/inperson/draft';
-import { comingUp, needsYou, offTrack, todaySessions, type ComingKind, type NeedsItem, type TodaySession } from '@/today/model';
+import { comingUp, needsItemOpen, needsYou, offTrack, pushAction, todaySessions, type ComingKind, type NeedsItem, type NeedsOpen, type TodaySession } from '@/today/model';
+
+/** A Needs you item's destination: a path, or (a request) handled by Today's own sheet, so only paths go here. */
+const go = (o: NeedsOpen | null) => { if (o?.kind === 'path') navigate(o.path); };
 
 const greeting = (min: number) => (min < 12 * 60 ? 'Morning' : min < 18 * 60 ? 'Afternoon' : 'Evening');
 const COMING: Record<ComingKind, { tag: string; tone: 'amber' | 'acc' | 'neutral'; icon: IconName }> = {
@@ -64,8 +67,22 @@ export function TodayScreen() {
   useEffect(loadInbox, [loadInbox]);
   useOnResume(loadInbox);
 
+  // A tapped push (§158): once the data it needs has loaded, do what that item's button does, once. The
+  // parameter is dropped from the address so a reload doesn't repeat it.
+  const route = useRoute();
+  const push = route.name === 'today' ? route.push : null;
+  const pushDone = useRef<string | null>(null);
+
   const now = repo.now();
   const summaries = useMemo(() => (bundles ?? []).map((b) => summarise(b, now)), [bundles, now]);
+  useEffect(() => {
+    if (!push || pushDone.current === push || !diary || !bundles || !inbox) return;
+    pushDone.current = push;
+    history.replaceState(null, '', `${window.location.pathname}${window.location.search}#/today`);
+    const a = pushAction(push, needsYou(diary, inbox, bundles, summaries, today));
+    if (a?.kind === 'request') setSheet({ type: 'request', id: a.id });
+    else go(a);
+  }, [push, diary, bundles, inbox, summaries, today]);
   const nameOf = (id: string | null) => summaries.find((s) => s.id === id)?.name ?? 'Client';
   const firstOf = (id: string | null) => nameOf(id).split(' ')[0];
   const coachFirst = profile.displayName.split(' ')[0] || profile.displayName;
@@ -240,7 +257,7 @@ function NeedsBody({ it, name, first, who, onRequest, onCancel }: {
         <CardHead icon="message" eyebrow="Check-in asked for" name={name} when={ago(it.submission.createdAt)} />
         <div className="muted" style={{ marginTop: 12 }}>Feeling <b style={{ color: 'var(--text)' }}>{String(b.feel || 'okay').toLowerCase()}</b></div>
         {b.note && <Quote>{String(b.note)}</Quote>}
-        <div className="btnrow"><Button size="card" icon="sparkle" onClick={() => navigate(clientPath(it.cardId, 'review', null, null, { at: 'ai', tool: 'check_in' }))}>Run check-in</Button></div>
+        <div className="btnrow"><Button size="card" icon="sparkle" onClick={() => go(needsItemOpen(it))}>Run check-in</Button></div>
       </>;
     }
     case 'note':
@@ -248,7 +265,7 @@ function NeedsBody({ it, name, first, who, onRequest, onCancel }: {
         <CardHead icon="send" eyebrow="Note back" name={name} when={ago(it.submission.createdAt)} />
         {it.headline && <div className="muted" style={{ marginTop: 12 }}>On “{it.headline}”</div>}
         <Quote>{String(it.submission.body?.text ?? '')}</Quote>
-        <div className="btnrow"><Button size="card" icon="message" onClick={() => navigate(clientPath(it.cardId, 'review', it.macroId, null, { at: 'note', note: it.submission.id, tool: it.tool }))}>Reply in Review</Button></div>
+        <div className="btnrow"><Button size="card" icon="message" onClick={() => go(needsItemOpen(it))}>Reply in Review</Button></div>
       </>;
     case 'photos':
       return <>

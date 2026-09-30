@@ -18,8 +18,10 @@ import { getSupabase } from '@/lib/supabase';
 import { createFixtureRepo, FIXTURE_COACH, loadDemoData } from '@/data/fixtures';
 import { createLiveRepo, loadMyProfile } from '@/data/live';
 import type { CoachProfile, CoachRepo } from '@/data/types';
-import { EmptyState, Button } from '@/components/ui';
-import { useRoute } from './router';
+import { EmptyState, Button, Sheet } from '@/components/ui';
+import { navigate, useRoute } from './router';
+import { checkPushHealth, forgetThisPushDevice, registerCoachServiceWorker, registerPushHere } from '@/push/push';
+import { watchOpenIntents } from '@/push/intent';
 import { SignInScreen } from '@/coach/screens/SignInScreen';
 import { ProfileSetupScreen, StatusScreen } from '@/coach/screens/ProfileSetupScreen';
 import { ClientsScreen } from '@/coach/screens/ClientsScreen';
@@ -84,10 +86,17 @@ export function App() {
       provider: (session.user.app_metadata?.provider as string | undefined) ?? null,
       changePassword: async (password) => { const { error } = await sb.auth.updateUser({ password }); if (error) throw new Error(error.message); },
       repo: createLiveRepo(sb, profile, (p) => setGate((g) => (g.k === 'ready' ? { k: 'ready', session: { ...g.session, profile: p } } : g))),
-      signOut: async () => { await sb.auth.signOut({ scope: 'local' }); userRef.current = null; setGate({ k: 'signed-out' }); },
+      // §158: this device stops getting this coach's pushes first, while the session still passes RLS.
+      signOut: async () => { await forgetThisPushDevice(sb); await sb.auth.signOut({ scope: 'local' }); userRef.current = null; setGate({ k: 'signed-out' }); },
     };
     return { k: 'ready', session: s };
   }
+
+  // §158: the push worker registers on every start (so a changed sw.js reaches every device), and a tapped
+  // notification opens where it points, once the app is showing.
+  useEffect(() => { registerCoachServiceWorker(); }, []);
+  const ready = gate.k === 'ready';
+  useEffect(() => (ready ? watchOpenIntents(navigate) : undefined), [ready]);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,7 +132,7 @@ export function App() {
   else if (gate.k === 'signed-out') body = <SignInScreen />;
   else if (gate.k === 'no-profile') body = <ProfileSetupScreen email={gate.session.user.email ?? ''} onDone={(p) => setGate(p.status === 'active' ? readyLive(gate.session, p) : { k: 'not-active', session: gate.session, profile: p })} />;
   else if (gate.k === 'not-active') body = <StatusScreen profile={gate.profile} email={gate.session.user.email ?? ''} onSignOut={async () => { await getSupabase()!.auth.signOut({ scope: 'local' }); userRef.current = null; setGate({ k: 'signed-out' }); }} />;
-  else body = <Ctx.Provider value={gate.session}><Screens /></Ctx.Provider>;
+  else body = <Ctx.Provider value={gate.session}><Screens /><PushHealth /></Ctx.Provider>;
 
   return <>{body}<LocalBuildTag /></>;
 }
@@ -140,6 +149,36 @@ function Screens() {
     case 'diary': return <DiaryScreen key={key} />;
     case 'library': return <LibraryScreen key={key} />;
   }
+}
+
+/**
+ * §158 (BLOC's §113): on each signed-in start, a registration iOS dropped is re-made quietly while permission
+ * holds. When iOS wants to ask again, Coach offers one tap, once; declining doesn't ask on every start.
+ */
+function PushHealth() {
+  const { repo } = useCoach();
+  const [ask, setAsk] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    const sb = repo.kind === 'live' ? getSupabase() : null;
+    if (!sb) return;
+    let cancelled = false;
+    sb.auth.getUser().then(({ data }) => (data.user ? checkPushHealth(sb, data.user.id) : null)).then((v) => { if (!cancelled && v === 'ask') setAsk(true); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [repo]);
+  const turnOn = async () => {
+    const sb = getSupabase();
+    const { data } = sb ? await sb.auth.getUser() : { data: { user: null } };
+    if (!sb || !data.user) return;
+    try { await registerPushHere(sb, data.user.id, true); setAsk(false); } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+  };
+  return (
+    <Sheet open={ask} onClose={() => setAsk(false)} title="Notifications were switched off"
+      footer={<div className="btnrow"><Button variant="ghost" size="card" onClick={() => setAsk(false)}>Not now</Button><Button size="card" icon="bell" onClick={() => void turnOn()}>Turn on</Button></div>}>
+      <p className="body-copy">An update switched off BLOC Coach’s notifications on this device. Turn them back on?</p>
+      {error && <p className="t-bad" style={{ marginTop: 10 }}>{error}</p>}
+    </Sheet>
+  );
 }
 
 /**

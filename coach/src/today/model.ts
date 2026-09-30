@@ -24,6 +24,7 @@ import { publishedIdOf } from '@/diary/actions';
 import type { Diary, SessionRequest } from '@/diary/types';
 import { canStart, loggedFor, loggedSessions, missedFrom } from '@/inperson/model';
 import { getMeasurementStatus } from '@/lib/measurementStatus';
+import { clientPath } from '@/app/router';
 
 export interface TodaySession {
   occ: Occurrence;
@@ -138,4 +139,28 @@ export function comingUp(bundles: ClientBundle[], summaries: ClientSummary[], in
     if (ms.nextDueDate <= soon && (!ms.lastDate || ms.lastDate < today)) out.push({ key: `w:${s.id}`, kind: 'measurements', cardId: s.id, detail: ms.due ? (ms.lastDate ? `Measurements due · last ${fmt.ddm(ms.lastDate)}` : 'No measurements yet') : `Measurements due ${fmt.ddm(ms.nextDueDate)}`, tab: 'review', at: ms.nextDueDate });
   }
   return out.sort((a, z) => (a.at || '').localeCompare(z.at || ''));
+}
+
+// ── A Needs you item's button, and a tapped push about it (TECHNICAL §158) ──
+export type NeedsOpen = { kind: 'request'; id: string } | { kind: 'path'; path: string };
+
+/** Where a request, a check-in or a note back is dealt with: the button on its card, and a tapped push. */
+export function needsItemOpen(it: NeedsItem): NeedsOpen | null {
+  switch (it.kind) {
+    case 'request': return { kind: 'request', id: it.request.id };
+    case 'checkin': return { kind: 'path', path: clientPath(it.cardId, 'review', null, null, { at: 'ai', tool: 'check_in' }) };
+    case 'note': return { kind: 'path', path: clientPath(it.cardId, 'review', it.macroId, null, { at: 'note', note: it.submission.id, tool: it.tool }) };
+    default: return null;
+  }
+}
+
+/**
+ * A push's tag ('request:<id>', 'checkin:<submission id>', 'note:<submission id>') to its item's
+ * action. The item's key carries the same id. None (it was dealt with already): Today, as it is.
+ */
+export function pushAction(tag: string, items: NeedsItem[]): NeedsOpen | null {
+  const [kind, id] = tag.split(':');
+  const prefix = kind === 'request' ? 'r' : kind === 'checkin' ? 'c' : kind === 'note' ? 'n' : null;
+  const it = prefix && id ? items.find((x) => x.key === `${prefix}:${id}`) : undefined;
+  return it ? needsItemOpen(it) : null;
 }
