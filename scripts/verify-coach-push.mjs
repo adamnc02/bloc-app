@@ -25,6 +25,7 @@
 
 import { readFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -145,6 +146,15 @@ const signOut = (app.match(/signOut: async \(\) => \{[^\n]*\}/) || [''])[0];
 check('sign-out unregisters this device BEFORE signing out', signOut.indexOf('forgetThisPushDevice(sb)') > -1 && signOut.indexOf('forgetThisPushDevice(sb)') < signOut.indexOf('auth.signOut('), true);
 check('the worker is registered on every start, scope ./', /registerCoachServiceWorker\(\)/.test(app) && constIn(push, 'COACH_SW_SCOPE') === './', true);
 check("the switches are never .upsert()ed (0031 grants UPDATE on the switch columns only, §72)", /coach_notification_prefs'\)\.upsert/.test(push), false);
+// v0.9.1: a tap on a CLOSED Coach (a cold start) was missed. The message listener waited for sign-in, and the
+// note was read once, before the worker had written it (iPhone UAT; reproduced in Chromium with a late note).
+const main = read('coach/src/main.tsx');
+check('the message listener is attached at page load, before React renders', main.indexOf('listenForOpenMessages();') > -1 && main.indexOf('listenForOpenMessages();') < main.indexOf('createRoot('), true);
+const recheck = (intent.match(/export const RECHECK_MS = \[([^\]]+)\]/) || [])[1];
+const recheckMs = recheck ? recheck.split(',').map(Number) : [];
+check('the note is re-read in a burst reaching 10 s after ready or a return to the front', recheckMs[0] === 0 && Math.max(...recheckMs) >= 10000, true);
+check('the burst runs on visibilitychange, focus and pageshow', /addEventListener\('visibilitychange', onVisible\)/.test(intent) && /addEventListener\('focus', burst\)/.test(intent) && /addEventListener\('pageshow', burst\)/.test(intent), true);
+check('control: v0.9 read the note once and listened only once ready', (() => { try { const old = execFileSync('git', ['show', 'bb7f3a0:coach/src/push/intent.ts'], { cwd: repo, encoding: 'utf8' }); return !/RECHECK_MS/.test(old) && !/listenForOpenMessages/.test(old); } catch { return false; } })(), true);
 check("Coach registers app 'coach', never 'bloc'", /app: 'coach'/.test(push) && !/app: 'bloc'/.test(push), true);
 
 console.log(failures ? `\n✗ ${failures} check(s) failed` : '\nALL CHECKS PASS');
