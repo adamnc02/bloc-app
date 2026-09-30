@@ -10712,3 +10712,72 @@ super-duper-octo-barnacle, or the digest keeps judging by the old rule.
   frozen demo state with `Date.now()` and `new Date()` throwing.
 - `scripts/verify-coach-review-clock.mjs` checks `engine/src/review/` for clock reads, as well as `coach/src/review/`
   and `coach/src/ai/`.
+
+## §157 — v8.49: `sw.js` routes pushes about the coach; the planned re-registration
+
+**What it is.** BLOC's service worker's second change (the first was v8.23, §112). It gets BLOC ready for BLOC
+Coach's pushes (sent by `bloc-push`, super-duper-octo-barnacle). It has to ship **before** any of them are sent:
+v8.48's worker sent every tag it didn't know to **Measurements** (§112's default), so a coach push tapped on it
+opened the wrong sheet. `verify-push.mjs` keeps that worker as its control.
+
+### Where a tap goes (`openFor()` in `sw.js`)
+
+| The notification | Opens |
+|---|---|
+| tag `coach:<kind>:<id>` (`COACH_OPEN`, `/^coach:[a-z_]{1,24}:[A-Za-z0-9_-]{1,64}$/`) | that target, **passed through as it is** |
+| tag `measurements:<device>:<day>` or `bloc-test` | `measurements` |
+| no known tag, `data.open` a valid target | `data.open` |
+| anything else | `home` (was Measurements) |
+
+🚨 **The tag decides first** (§112: iOS can hand a click an empty `notification.data`). And the worker doesn't know
+the coach kinds: it passes any well-formed `coach:` tag to the page, which does. **A new kind of coach push needs no
+worker change**, so it needs no re-registration. `index.html` copies the pattern as `BLOC_COACH_OPEN`, and
+`verify-push.mjs` fails if they differ.
+
+Also in this change:
+- `via` is gone from the note and the message (§114). The page never read it.
+- An unreadable push shows **"BLOC / Open BLOC to see what's new."**, not "Measurements due".
+- The URL is still built from the scope, so a coach target travels as `?open=coach%3Apub%3A…`. `parseOpenIntent()`
+  decodes it and `openIntentTarget()` accepts only `measurements`, `home` or a `COACH_OPEN` match.
+
+### The page acts on it (`openCoachIntent()`)
+
+`applyOpenIntent()` shows Home first, then:
+
+| Target | Sent for | What BLOC does |
+|---|---|---|
+| `coach:pub:<publication id>` | a plan, goal phases, a response, a booking, a photo request | pulls publications unless that notice is already on the phone (a notice's `id` **is** its publication's id), then `runHomeNoticeAction(id)` |
+| `coach:request:<request id>` | the coach proposed another time | `refreshSessionRequests()`, then the Session requests sheet |
+
+🚨 **The push arrives before the publication does.** The tap therefore pulls first (`pullPublicationsOnce()`, given
+8 s, `COACH_INTENT_PULL_MS`), and only then looks for the notice. If there's no notice (the publication raised no
+banner, it's still waiting to apply, or the phone isn't coached any more), BLOC simply stays on Home, where the banner
+appears once it applies.
+
+**`runHomeNoticeAction(id)` is the banner's button too.** `HOME_NOTICE_ACTIONS` entries return `{label, go}`, and the
+Home banner's button calls `runHomeNoticeAction('<notice id>')`. The button and the push go to one destination
+worked out in one place. A notice with no button (goal phases) opens Home only.
+
+### The re-registration (MIGRATION-LESSONS §69, §113)
+
+On iOS a changed `sw.js` can leave a phone with a subscription that shows banners but whose taps reach no page, and
+`checkPushHealth()` can't see it (§113 addendum). So, after v8.49 is live, **everyone with notifications on** does
+this once, on the Home Screen app:
+
+1. Settings → Notifications → **Turn off**.
+2. **Turn on** (allow again if asked; no prompt is normal when the origin already has permission, §55).
+3. **Send a test**, tap it: it opens the Measurements sheet.
+
+The README's v8.49 row tells users. The pin in `verify-push.mjs` (`SW_SHA256`) moved from `faa71eba…` to this
+worker's hash in the same change.
+
+**Checks:** `scripts/verify-push.mjs` runs the real worker in a simulated worker scope:
+- a coach tag cold (note and URL) and warm (the message), the tag beating `data`, `data.open` used with no tag,
+  and a malformed tag and an unknown target both opening Home;
+- the unreadable push, and a coach push's title, tag and target;
+- `via` absent, and the pattern equal in both files;
+- the page's parsing of a coach target from the URL and the note;
+- `openCoachIntent()` with stubs: pull, then open; already applied, so no pull; no banner, so Home; a request; not
+  coached; goal phases; and `runHomeNoticeAction` shared with the banner.
+Control: v8.48's worker (`9c3e902`) opens Measurements for a coach push. `verify-coach-logged.mjs` checks the
+banner's button now calls `runHomeNoticeAction`.

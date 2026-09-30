@@ -1,6 +1,7 @@
 /*
  * BLOC's service worker — push notifications and nothing else.
- * (v8.22, TECHNICAL §111; modelled on Listly's public/sw.js.)
+ * (v8.22, TECHNICAL §111; modelled on Listly's public/sw.js. Coach pushes
+ * and their routes: v8.49, §157.)
  *
  * 🚨 THERE IS NO `fetch` HANDLER, AND THERE MUST NEVER BE ONE WITHOUT A PLAN.
  * A caching service worker is how a single-file app deployed by merge gets
@@ -17,6 +18,11 @@
  * `skipWaiting` + `clients.claim` so a changed sw.js takes over at once rather
  * than waiting for every BLOC window to close, which on an installed iPhone
  * app can be days.
+ *
+ * 🚨 PINNED: scripts/verify-push.mjs fails if this file's SHA-256 changes. On
+ * iOS a changed worker can split a phone's push subscription (banners that
+ * no tap reaches; MIGRATION-LESSONS §69, TECHNICAL §113). Change it only with
+ * a planned re-registration: Settings → Notifications → Turn off, Turn on.
  */
 
 self.addEventListener('install', () => self.skipWaiting())
@@ -32,71 +38,74 @@ self.addEventListener('push', (event) => {
   } catch {
     data = {}
   }
-  const title = typeof data.title === 'string' && data.title ? data.title : 'Measurements due'
+  const title = typeof data.title === 'string' && data.title ? data.title : 'BLOC'
   event.waitUntil(
     self.registration.showNotification(title, {
-      body: typeof data.body === 'string' ? data.body : 'Log your waist and hip today.',
+      body: typeof data.body === 'string' ? data.body : 'Open BLOC to see what’s new.',
       tag: typeof data.tag === 'string' ? data.tag : undefined,
       icon: 'icon-192.png',
-      data: {
-        url: typeof data.url === 'string' ? data.url : self.registration.scope,
-        open: data.open === 'measurements' ? 'measurements' : null,
-      },
+      data: { open: openTarget(data.open) },
     }),
   )
 })
 
-// Tapping opens BLOC on the Measurements sheet. 🚨 THE DESTINATION TRAVELS
-// THREE WAYS, because on an iPhone any single one can be lost (Listly, UAT
-// 2026-09-25):
-//   1. the URL (?open=measurements) — lost when iOS cold-starts the app at
-//      its start_url instead of the URL openWindow() asked for;
+// Tapping opens BLOC where the notification points. 🚨 THE DESTINATION
+// TRAVELS THREE WAYS, because on an iPhone any single one can be lost
+// (TECHNICAL §111):
+//   1. the URL (?open=…) — lost when iOS cold-starts the app at its
+//      start_url instead of the URL openWindow() asked for;
 //   2. a 'bloc:open' message to an open window — missed by a suspended page;
 //   3. a note in Cache Storage that the page reads AND DELETES on start and
 //      whenever it comes to the front. A notepad, not a page cache: still no
 //      fetch handler.
-// The cache name, the note's path and the message type are copied in
-// index.html (BLOC_OPEN_INTENT_*); scripts/verify-push.mjs proves they agree.
+// The cache name, the note's path, the message type and COACH_OPEN are
+// copied in index.html (BLOC_OPEN_INTENT_*, BLOC_COACH_OPEN);
+// scripts/verify-push.mjs proves they agree.
 const OPEN_INTENT_CACHE = 'bloc-open-intent'
 const OPEN_INTENT_PATH = '__open-intent'
 
-// 🚨 v8.23 (§112): the destination must NOT depend on notification.data. In
-// v8.22 it did, and on Adam's iPhone a tap — from the banner with BLOC open,
-// and from Notification Centre — opened BLOC on Home with no sheet: every
-// route came out empty, consistent with iOS handing the click an empty
-// `data`. So: `data.open` if it is there, else the TAG (every BLOC push is
-// tagged 'measurements:<device>:<day>' or 'bloc-test' — Listly also routes on
-// its tag), else Measurements anyway, because until BLOC sends a second kind
-// of notification (BLOC Coach, PROMPT-03) every one of them is a measurements
-// reminder. `via` records which it was, for the Settings → About readout.
+// Where a tap goes (TECHNICAL §157):
+//   'measurements'       the 07:00 reminder and the test notification
+//   'coach:<kind>:<id>'  a push about the coach (BLOC Coach): passed to the
+//                        page as it is, which knows each kind; a new kind
+//                        needs no change here
+//   'home'               anything else
+// 🚨 The TAG decides first (§112): iOS can hand a click an empty
+// notification.data, and every push BLOC sends is tagged
+// ('measurements:<device>:<day>', 'bloc-test', 'coach:<kind>:<id>').
+const COACH_OPEN = /^coach:[a-z_]{1,24}:[A-Za-z0-9_-]{1,64}$/
+
+function openTarget(value) {
+  if (value === 'measurements' || value === 'home') return value
+  return typeof value === 'string' && COACH_OPEN.test(value) ? value : null
+}
+
 function openFor(notification) {
-  const data = notification.data || null
-  if (data && data.open === 'measurements') return { open: 'measurements', via: 'data' }
   const tag = notification.tag || ''
-  if (/^measurements:/.test(tag) || tag === 'bloc-test') return { open: 'measurements', via: 'tag' }
-  return { open: 'measurements', via: 'default' }
+  if (COACH_OPEN.test(tag)) return tag
+  if (/^measurements:/.test(tag) || tag === 'bloc-test') return 'measurements'
+  const data = notification.data || null
+  return (data && openTarget(data.open)) || 'home'
 }
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const scope = self.registration.scope
-  const { open, via } = openFor(event.notification)
-  // Built from the scope, never from data.url: only ever somewhere inside BLOC.
+  const open = openFor(event.notification)
+  // Built from the scope, never from the payload: only ever somewhere inside BLOC.
   const inside = new URL(scope)
   inside.searchParams.set('open', open)
   const url = inside.href
 
-  const note = open
-    ? caches
-        .open(OPEN_INTENT_CACHE)
-        .then((c) =>
-          c.put(
-            new URL(OPEN_INTENT_PATH, scope).href,
-            new Response(JSON.stringify({ open, via, at: Date.now() }), { headers: { 'Content-Type': 'application/json' } }),
-          ),
-        )
-        .catch(() => {})
-    : Promise.resolve()
+  const note = caches
+    .open(OPEN_INTENT_CACHE)
+    .then((c) =>
+      c.put(
+        new URL(OPEN_INTENT_PATH, scope).href,
+        new Response(JSON.stringify({ open, at: Date.now() }), { headers: { 'Content-Type': 'application/json' } }),
+      ),
+    )
+    .catch(() => {})
 
   event.waitUntil(
     note
@@ -104,7 +113,7 @@ self.addEventListener('notificationclick', (event) => {
       .then((windows) => {
         for (const w of windows) {
           if (w.url.startsWith(scope)) {
-            if (open) w.postMessage({ type: 'bloc:open', open, via })
+            w.postMessage({ type: 'bloc:open', open })
             return w.focus()
           }
         }

@@ -8188,6 +8188,9 @@ const BLOC_SW_SCOPE = './';
 const BLOC_OPEN_INTENT_CACHE = 'bloc-open-intent';
 const BLOC_OPEN_INTENT_PATH = '__open-intent';
 const BLOC_OPEN_INTENT_MAX_AGE_MS = 5 * 60 * 1000;
+// sw.js's COACH_OPEN, copied (verify-push.mjs proves they agree): a tap on a
+// push about the coach opens 'coach:<kind>:<id>' (§157).
+const BLOC_COACH_OPEN = /^coach:[a-z_]{1,24}:[A-Za-z0-9_-]{1,64}$/;
 // v8.24 (§113): which server row is THIS phone's, so a registration iOS drops
 // can be detected, healed, and its dead row removed instead of left behind.
 const BLOC_PUSH_LOCAL_KEY = 'bloc_push_device';
@@ -8492,13 +8495,19 @@ async function handleTestPush() {
   } catch (e) { notifStatus(e.message, true); }
 }
 
-// ── Opening Measurements from a notification: three routes ─────────────────
-// 🚨 On an iPhone any single route can be lost (Listly, UAT 2026-09-25): the
-// URL (a cold start opens start_url), the message (a suspended page misses
-// it), so the worker ALSO leaves a note in Cache Storage that is read and
-// deleted here on start and whenever BLOC comes to the front.
+// ── Opening BLOC from a notification: three routes ────────────────────────
+// 🚨 On an iPhone any single route can be lost (§111): the URL (a cold start
+// opens start_url), the message (a suspended page misses it), so the worker
+// ALSO leaves a note in Cache Storage that is read and deleted here on start
+// and whenever BLOC comes to the front.
+// A target is 'measurements', 'home' or 'coach:<kind>:<id>' (§157); anything
+// else is ignored.
+function openIntentTarget(v) {
+  if (v === 'measurements' || v === 'home') return v;
+  return typeof v === 'string' && BLOC_COACH_OPEN.test(v) ? v : null;
+}
 function parseOpenIntent(url) {
-  try { return new URL(url, window.location.href).searchParams.get('open') === 'measurements' ? 'measurements' : null; }
+  try { return openIntentTarget(new URL(url, window.location.href).searchParams.get('open')); }
   catch (e) { return null; }
 }
 async function takePendingOpenIntent(now = Date.now()) {
@@ -8510,10 +8519,9 @@ async function takePendingOpenIntent(now = Date.now()) {
     if (!hit) return null;
     await cache.delete(key);
     const body = await hit.json();
-    if (body.open !== 'measurements' || typeof body.at !== 'number') return null;
-    // Returns { open }. (sw.js also writes `via`, left from the v8.23 debugging
-    // readout removed in v8.25 — harmless, and sw.js is pinned, §113.)
-    return now - body.at <= BLOC_OPEN_INTENT_MAX_AGE_MS ? { open: 'measurements' } : null;
+    const open = openIntentTarget(body.open);
+    if (!open || typeof body.at !== 'number') return null;
+    return now - body.at <= BLOC_OPEN_INTENT_MAX_AGE_MS ? { open } : null;
   } catch (e) { return null; }
 }
 // Waits until the app is actually showing (the splash has handed over and the
@@ -8525,11 +8533,33 @@ function whenAppReady(fn, tries = 0) {
   setTimeout(() => whenAppReady(fn, tries + 1), 200);
 }
 function applyOpenIntent(target) {
-  if (target !== 'measurements') return;
+  const open = openIntentTarget(target);
+  if (!open) return;
   whenAppReady(() => {
     showScreen('home');
-    openHomeMeasurements();
+    if (open === 'measurements') openHomeMeasurements();
+    else if (open !== 'home') openCoachIntent(open).catch(() => {}); // Home, with its banners, whatever happens
   });
+}
+// v8.49 (§157): a push about the coach arrives BEFORE the publication it's
+// about has reached this phone. So the tap pulls first, then finds the notice
+// that publication raised (a notice's id is its publication's id) and does
+// what its banner's button does. When there's none (it raised no banner, or
+// the phone isn't coached any more), BLOC stays on Home.
+//   coach:pub:<publication id>    plan, goal phases, a response, a booking, photos
+//   coach:request:<request id>    the coach proposed another time
+const COACH_INTENT_PULL_MS = 8000;
+async function openCoachIntent(target) {
+  const [, kind, id] = target.split(':');
+  if (!coachedView()) return;
+  const within = p => Promise.race([p.catch(() => {}), new Promise(r => setTimeout(r, COACH_INTENT_PULL_MS))]);
+  if (kind === 'pub') {
+    if (!(state.coachNotices || []).some(n => n.id === id)) await within(pullPublicationsOnce());
+    if ((state.coachNotices || []).some(n => n.id === id)) runHomeNoticeAction(id);
+  } else if (kind === 'request') {
+    await within(refreshSessionRequests());
+    if ((_coachRequests || []).some(r => r.id === id)) openCoachRequest();
+  }
 }
 let _openIntentBusy = false;
 async function checkOpenIntents() {
@@ -15891,7 +15921,7 @@ function coachNoticeBannerHTML(n, action, count) {
   return `<div class="coach-banner coach-banner-home" role="status">${coachBannerCountHTML(count)}
       <span class="coach-banner-ico">${COACH_NOTICE_ICONS[n.kind] || COACH_ICO_CLOCK}</span>
       <div style="flex:1;min-width:0;"><b>${coachEsc(n.title)}</b><div>${coachEsc(n.body)}</div>
-        ${action ? `<button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="${action.onclick}">${action.label}</button>` : ''}</div>
+        ${action ? `<button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="runHomeNoticeAction('${coachEsc(n.id)}')">${action.label}</button>` : ''}</div>
       <button class="coach-banner-x" aria-label="Dismiss" onclick="dismissCoachNotice('${coachEsc(n.id)}')">✕</button>
     </div>`;
 }
@@ -15913,11 +15943,18 @@ const HOME_NOTICE_ACTIONS = {
   // started. Worked out each time Home draws, so it appears the day the cycle
   // starts. A notice raised by an earlier build names no cycle: View then only
   // when the cycle running today is the coach's.
-  plan: n => (coachPlanNoticeViewable(n) ? { label: 'View', onclick: "showScreen('train')" } : null),
-  booking: () => ({ label: 'View', onclick: 'openCoachSessions()' }),
-  response: n => n.responseId ? { label: 'View', onclick: `viewCoachResponse('${coachEsc(n.responseId)}')` } : null,
-  photos: n => n.requestId ? { label: 'Send photos', onclick: `openCoachPhotoRequest('${coachEsc(n.requestId)}')` } : null, // v8.44 (§142)
+  plan: n => (coachPlanNoticeViewable(n) ? { label: 'View', go: () => showScreen('train') } : null),
+  booking: () => ({ label: 'View', go: () => openCoachSessions() }),
+  response: n => n.responseId ? { label: 'View', go: () => viewCoachResponse(n.responseId) } : null,
+  photos: n => n.requestId ? { label: 'Send photos', go: () => openCoachPhotoRequest(n.requestId) } : null, // v8.44 (§142)
 };
+// The banner's button, and a tapped push about the same publication (§157):
+// one destination per notice, worked out when it's used.
+function runHomeNoticeAction(id) {
+  const n = (state.coachNotices || []).find(x => x.id === id);
+  const a = n && HOME_NOTICE_ACTIONS[n.kind] ? HOME_NOTICE_ACTIONS[n.kind](n) : null;
+  if (a) a.go();
+}
 function coachPlanNoticeViewable(n) {
   if (!n) return false;
   // A notice raised before its cycle was recorded (earlier builds): View only
@@ -29701,7 +29738,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.48</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.49</span>`;
 }
 
 function renderSettings() {

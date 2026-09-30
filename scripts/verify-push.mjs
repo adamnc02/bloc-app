@@ -9,9 +9,12 @@
 //   · The Settings sheet must tell the truth: 'on' ONLY when the server has
 //     this device's row (a pruned or remotely-removed row reminds nobody), and
 //     'needs-install' BEFORE 'unsupported' on an iPhone in a Safari tab.
-//   · A tapped notification must reach the Measurements sheet by THREE routes
-//     — the URL, a message, a Cache Storage note — because on an iPhone any one
-//     can be lost. The note is read AND deleted, and a stale one is ignored.
+//   · A tapped notification must reach its destination by THREE routes — the
+//     URL, a message, a Cache Storage note — because on an iPhone any one can
+//     be lost. The note is read AND deleted, and a stale one is ignored.
+//   · v8.49 (§157): a push about the coach is tagged 'coach:<kind>:<id>' and
+//     must reach the page as that target, never Measurements (v8.48's worker
+//     sent every unknown tag there). The tag decides before notification.data.
 //   · The worker must never get a fetch handler (a caching worker pins a
 //     single-file app to an old build) and must always show a notification.
 //   · The row id is 'ps_' + the FULL sha256 (migration 0019's CHECK); Listly's
@@ -137,7 +140,7 @@ check('cold tap: the note is written (route 3) with open=measurements and a time
 check('cold tap: opens BLOC at ?open=measurements (route 1)', cold.opened, ['https://adamnc02.github.io/bloc-app/?open=measurements']);
 const warm = await runClick({ windows: ['https://adamnc02.github.io/bloc-app/'], data: { url: 'https://adamnc02.github.io/bloc-app/?open=measurements', open: 'measurements' } });
 check('warm tap: messages the open window (route 2) and focuses it, no second window',
-  [warm.messages, warm.focused, warm.opened], [[{ type: 'bloc:open', open: 'measurements', via: 'data' }], 1, []]);
+  [warm.messages, warm.focused, warm.opened], [[{ type: 'bloc:open', open: 'measurements' }], 1, []]);
 const other = await runClick({ windows: ['https://adamnc02.github.io/listly/'], data: { url: 'https://adamnc02.github.io/bloc-app/?open=measurements', open: 'measurements' } });
 check('a Listly window on the same origin is NOT reused; BLOC opens its own', [other.messages.length, other.opened.length], [0, 1]);
 const evil = await runClick({ windows: [], data: { url: 'https://evil.example/', open: 'measurements' } });
@@ -146,14 +149,43 @@ check('a URL outside BLOC is replaced by BLOC\'s own', evil.opened, ['https://ad
 // notification.data is EMPTY. The destination must come from the tag, or the
 // default, on every route.
 const noDataCold = await runClick({ windows: [], data: null, tag: 'measurements:ps_x:2026-09-28' });
-check('empty data, measurements tag, cold: note written via the tag, opens ?open=measurements',
-  [noDataCold.notes[0]?.body.open, noDataCold.notes[0]?.body.via, noDataCold.opened], ['measurements', 'tag', ['https://adamnc02.github.io/bloc-app/?open=measurements']]);
+check('empty data, measurements tag, cold: note written from the tag, opens ?open=measurements',
+  [noDataCold.notes[0]?.body.open, noDataCold.opened], ['measurements', ['https://adamnc02.github.io/bloc-app/?open=measurements']]);
 const noDataWarm = await runClick({ windows: ['https://adamnc02.github.io/bloc-app/'], data: undefined, tag: 'bloc-test' });
-check('empty data, test-notification tag, warm: messages the window via the tag',
-  noDataWarm.messages, [{ type: 'bloc:open', open: 'measurements', via: 'tag' }]);
+check('empty data, test-notification tag, warm: messages the window from the tag',
+  noDataWarm.messages, [{ type: 'bloc:open', open: 'measurements' }]);
 const nothing = await runClick({ windows: [], data: null, tag: '' });
-check('empty data AND no tag: still opens Measurements (the only kind BLOC sends), via default',
-  [nothing.notes[0]?.body.via, nothing.opened], ['default', ['https://adamnc02.github.io/bloc-app/?open=measurements']]);
+check('empty data AND no tag: opens Home (v8.49; BLOC now sends more than one kind)',
+  [nothing.notes[0]?.body.open, nothing.opened], ['home', ['https://adamnc02.github.io/bloc-app/?open=home']]);
+check('the worker no longer writes `via` (the v8.23 debugging field, §114)', /\bvia\b/.test(sw.replace(/\/\/.*$/gm, '')), false);
+
+// ── v8.49 (§157): pushes about the coach ─────────────────────────────────
+const PUB = 'coach:pub:3f2a9c1e-7b4d-4e8a-9c2f-1a2b3c4d5e6f';
+const coachCold = await runClick({ windows: [], data: null, tag: PUB });
+check('coach tag, empty data, cold: the note and the URL carry coach:pub:<id>',
+  [coachCold.notes[0]?.body.open, coachCold.opened], [PUB, ['https://adamnc02.github.io/bloc-app/?open=' + encodeURIComponent(PUB)]]);
+const coachWarm = await runClick({ windows: ['https://adamnc02.github.io/bloc-app/'], data: { open: 'measurements' }, tag: 'coach:request:rq_1' });
+check('coach tag, warm: the TAG wins over data, and the window gets coach:request:<id>', coachWarm.messages, [{ type: 'bloc:open', open: 'coach:request:rq_1' }]);
+const dataOnly = await runClick({ windows: [], data: { open: PUB }, tag: '' });
+check('no tag but data.open is a coach target: data is used', dataOnly.notes[0]?.body.open, PUB);
+const junkTag = await runClick({ windows: [], data: { open: 'admin' }, tag: 'coach:../../x' });
+check('a malformed coach tag and an unknown data.open open Home, never a path', [junkTag.notes[0]?.body.open, junkTag.opened], ['home', ['https://adamnc02.github.io/bloc-app/?open=home']]);
+// CONTROL: v8.48's worker (the pinned faa71eba…) sent a coach push to Measurements.
+const v848 = execFileSync('git', ['show', '9c3e902:sw.js'], { cwd: repo, encoding: 'utf8' });
+const oldCoach = await runClick({ windows: [], data: null, tag: PUB, swSrc: v848 });
+check('CONTROL: v8.48\'s worker opened Measurements for a coach push (the bug)', oldCoach.notes[0]?.body.open, 'measurements');
+check('COACH_OPEN is the same pattern in sw.js and index.html',
+  (sw.match(/const COACH_OPEN = (\/.+\/);?$/m) || [])[1], (html.match(/const BLOC_COACH_OPEN = (\/.+\/);/) || [])[1]);
+{
+  // A push the worker can't read still shows something, and doesn't claim to be a measurements reminder.
+  const listeners = {}; const shown = [];
+  new Function('self', 'caches', 'Response', 'URL', sw)({ registration: { scope: 'https://adamnc02.github.io/bloc-app/', showNotification: async (t, o) => shown.push([t, o]) },
+    clients: {}, skipWaiting: () => {}, addEventListener: (t, fn) => { listeners[t] = fn; } }, {}, class {}, URL);
+  let w; listeners.push({ data: { json: () => { throw new Error('not json'); } }, waitUntil: p => { w = p; } }); await w;
+  let w2; listeners.push({ data: { json: () => ({ title: 'Sam updated your plan', body: 'b', tag: PUB, open: PUB }) }, waitUntil: p => { w2 = p; } }); await w2;
+  check('an unreadable push shows "BLOC", not "Measurements due"', [shown[0][0], shown[0][1].data.open], ['BLOC', null]);
+  check('a coach push keeps its title, tag and open target', [shown[1][0], shown[1][1].tag, shown[1][1].data.open], ['Sam updated your plan', PUB, PUB]);
+}
 // CONTROL: the v8.22 worker, given the same empty-data click, opened no sheet.
 const v822 = execFileSync('git', ['show', 'be2c045:sw.js'], { cwd: repo, encoding: 'utf8' });
 const oldCold = await runClick({ windows: [], data: null, tag: 'measurements:ps_x:2026-09-28', swSrc: v822 });
@@ -167,6 +199,8 @@ const pageFns = new Function('window', 'caches', 'Date', `
   const BLOC_OPEN_INTENT_CACHE = ${JSON.stringify(constLine('BLOC_OPEN_INTENT_CACHE'))};
   const BLOC_OPEN_INTENT_PATH = ${JSON.stringify(constLine('BLOC_OPEN_INTENT_PATH'))};
   const BLOC_OPEN_INTENT_MAX_AGE_MS = ${constLine('BLOC_OPEN_INTENT_MAX_AGE_MS')};
+  const BLOC_COACH_OPEN = ${(html.match(/const BLOC_COACH_OPEN = (\/.+\/);/) || [])[1]};
+  ${extract(html, 'function openIntentTarget(')}
   ${extract(html, 'function parseOpenIntent(')}
   ${extract(html, 'async function takePendingOpenIntent(')}
   return { parseOpenIntent, takePendingOpenIntent };`);
@@ -182,6 +216,8 @@ function page(noteBody) {
   const { fns } = page();
   check('route 1: ?open=measurements is read', fns.parseOpenIntent('https://adamnc02.github.io/bloc-app/?open=measurements'), 'measurements');
   check('route 1: anything else is ignored', fns.parseOpenIntent('https://adamnc02.github.io/bloc-app/?open=admin'), null);
+  check('route 1: a coach target survives the URL encoding', fns.parseOpenIntent('https://adamnc02.github.io/bloc-app/?open=' + encodeURIComponent(PUB)), PUB);
+  check('route 1: home is read', fns.parseOpenIntent('https://adamnc02.github.io/bloc-app/?open=home'), 'home');
 }
 {
   const now = Date.now();
@@ -193,6 +229,59 @@ function page(noteBody) {
   check('route 3: …and deleted anyway', stale.key in stale.store, false);
   const junk = page({ open: 'somewhere', at: now });
   check('route 3: a note for anything else is ignored', await junk.fns.takePendingOpenIntent(now), null);
+  const coachNote = page({ open: PUB, at: now });
+  check('route 3: a coach note opens its target', await coachNote.fns.takePendingOpenIntent(now), { open: PUB });
+}
+
+// ── v8.49 (§157): the page acts on a coach target ────────────────────────
+{
+  const mk = ({ notices = [], afterPull = [], requests = [], coached = true }) => {
+    const log = [];
+    const env = { state: { coachNotices: notices.slice() }, requests };
+    const f = new Function('env', 'log', `
+      const state = env.state; let _coachRequests = null;
+      const coachedView = () => ${coached};
+      const pullPublicationsOnce = async () => { log.push('pull'); state.coachNotices.push(...${JSON.stringify(afterPull)}); return 'applied'; };
+      const refreshSessionRequests = async () => { log.push('refresh'); _coachRequests = env.requests; return _coachRequests; };
+      const openCoachRequest = () => log.push('openCoachRequest');
+      const showScreen = s => log.push('showScreen:' + s);
+      const openCoachSessions = () => log.push('openCoachSessions');
+      const viewCoachResponse = id => log.push('viewCoachResponse:' + id);
+      const openCoachPhotoRequest = id => log.push('openCoachPhotoRequest:' + id);
+      const coachPlanNoticeViewable = () => true;
+      ${html.match(/const COACH_INTENT_PULL_MS = \d+;/)[0]}
+      ${extract(html, 'const HOME_NOTICE_ACTIONS = {')};
+      ${extract(html, 'function runHomeNoticeAction(')}
+      ${extract(html, 'async function openCoachIntent(')}
+      return { openCoachIntent, runHomeNoticeAction };`);
+    return { fns: f(env, log), log };
+  };
+  const resp = { id: 'p1', kind: 'response', responseId: 'r10' };
+  const a = mk({ afterPull: [resp] });
+  await a.fns.openCoachIntent('coach:pub:p1');
+  check('coach:pub, not yet on the phone: pulls, then opens what the banner opens', a.log, ['pull', 'viewCoachResponse:r10']);
+  const b = mk({ notices: [{ id: 'p2', kind: 'booking' }] });
+  await b.fns.openCoachIntent('coach:pub:p2');
+  check('coach:pub, already applied: no pull, straight to its destination', b.log, ['openCoachSessions']);
+  const c = mk({ afterPull: [] });
+  await c.fns.openCoachIntent('coach:pub:p3');
+  check('coach:pub that raised no banner: pulls, then stays on Home', c.log, ['pull']);
+  const d = mk({ requests: [{ id: 'rq_1', status: 'proposed' }] });
+  await d.fns.openCoachIntent('coach:request:rq_1');
+  check('coach:request: refreshes the requests, then opens them', d.log, ['refresh', 'openCoachRequest']);
+  const e = mk({ coached: false, afterPull: [resp] });
+  await e.fns.openCoachIntent('coach:pub:p1');
+  check('not coached any more: nothing but Home', e.log, []);
+  const f = mk({ notices: [{ id: 'p4', kind: 'phases' }] });
+  await f.fns.openCoachIntent('coach:pub:p4');
+  check('a notice with no button (goal phases): stays on Home', f.log, []);
+  const g = mk({ notices: [{ id: 'p5', kind: 'photos', requestId: 'ph1' }] });
+  g.fns.runHomeNoticeAction('p5');
+  check('the banner button and the tap share runHomeNoticeAction', g.log, ['openCoachPhotoRequest:ph1']);
+  check('the Home banner\'s button calls runHomeNoticeAction with the notice id',
+    /onclick="runHomeNoticeAction\('\$\{coachEsc\(n\.id\)\}'\)"/.test(extract(html, 'function coachNoticeBannerHTML(')), true);
+  check('applyOpenIntent sends coach targets to openCoachIntent after showing Home',
+    /showScreen\('home'\);[\s\S]*openCoachIntent\(open\)/.test(extract(html, 'function applyOpenIntent(')), true);
 }
 
 // ── The due date the server reads ────────────────────────────────────────
@@ -227,8 +316,10 @@ check('no "Registered devices" debug list (removed in v8.25; Turn off/on is the 
 // them again). checkPushHealth() now heals that, but only when the person next
 // opens BLOC — and may have to ask. So sw.js changes only on purpose: if you
 // change it, update this hash in the same commit and say why in TECHNICAL §113.
+// Changes so far: v8.23 (§112, faa71eba…); v8.49 (§157: coach targets, Home
+// as the default, `via` removed), with a re-registration for every phone.
 const { createHash } = await import('node:crypto');
-const SW_SHA256 = 'faa71eba1c059a9560d2d47658ed7951494af6490ee8f87d3a069d145e605d27';
+const SW_SHA256 = '4a9bb320a34c9f87277670592e9acbb2e76bd209f613eeade4a8025fb7991b28';
 check('TRIPWIRE: sw.js is unchanged (changing it can switch off reminders on every iPhone — update this hash deliberately)',
   createHash('sha256').update(sw).digest('hex'), SW_SHA256);
 
