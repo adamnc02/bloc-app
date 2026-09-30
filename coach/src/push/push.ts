@@ -43,6 +43,25 @@ export function decidePushHealth(f: { supported: boolean; localId: string | null
   return f.permission === 'granted' ? 'resubscribe' : 'ask';
 }
 
+/**
+ * Pure: this account's OTHER Coach registrations of the same device type as this one, to delete (v0.9.6, §158).
+ * Deleting a Home Screen app deletes its storage, so a re-added Coach can't name its old registration, and Apple
+ * can go on accepting pushes to it ("Sent to 2 devices", one banner). Only once THIS device's own row is on the
+ * server, so the clean-up can never leave the account with no device. One account on two devices of the same type
+ * keeps the one opened last.
+ */
+export function staleSameDevice(rows: { id: string; device_label: string | null }[], hereId: string | null, label: string): string[] {
+  if (!hereId || !rows.some((r) => r.id === hereId)) return [];
+  return rows.filter((r) => r.id !== hereId && r.device_label === label).map((r) => r.id);
+}
+
+async function pruneSameDevice(sb: SupabaseClient, hereId: string): Promise<void> {
+  const { data, error } = await sb.from('push_subscriptions').select('id, device_label').eq('app', 'coach');
+  if (error) return;
+  const stale = staleSameDevice((data ?? []) as { id: string; device_label: string | null }[], hereId, deviceLabel());
+  if (stale.length) await sb.from('push_subscriptions').delete().in('id', stale).then(() => {}, () => {});
+}
+
 export async function pushIdFor(endpoint: string): Promise<string> {
   const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(endpoint)));
   return 'ps_' + Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
@@ -147,6 +166,7 @@ export async function registerPushHere(sb: SupabaseClient, userId: string, ask: 
   const prev = localGet();
   if (prev && prev.id && prev.id !== newId) await sb.from('push_subscriptions').delete().eq('id', prev.id).then(() => {}, () => {});
   localSet(newId);
+  await pruneSameDevice(sb, newId); // v0.9.6: one a deleted Home Screen app left behind
 }
 
 export async function turnOffPushHere(sb: SupabaseClient): Promise<void> {
@@ -184,7 +204,8 @@ export async function checkPushHealth(sb: SupabaseClient, userId: string): Promi
       hereOnServer = !!(data && data.length);
     }
     const verdict = decidePushHealth({ supported: true, localId: local?.id ?? null, hereId, hereOnServer, permission: Notification.permission });
-    if (verdict === 'adopt' && hereId) { localSet(hereId); return null; }
+    if (verdict === 'adopt' && hereId) { localSet(hereId); await pruneSameDevice(sb, hereId); return null; }
+    if (verdict === 'ok' && hereId) { await pruneSameDevice(sb, hereId); return null; } // v0.9.6
     if (verdict === 'none' || verdict === 'ok') return null;
     await sb.from('push_subscriptions').delete().eq('id', local!.id).then(() => {}, () => {});
     if (verdict === 'resubscribe') {

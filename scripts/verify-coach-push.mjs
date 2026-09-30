@@ -168,6 +168,9 @@ check('route 4 runs on every burst but the load one, remembers what it opened (K
 const settings = read('coach/src/coach/screens/SettingsScreen.tsx');
 check('no notification debugging in Settings or intent.ts (no "Last opened from a notification", no push log)',
   [/Last opened from a notification/.test(settings), /readPushLog|pushLog\(/.test(settings + intent), /pushLog:/.test(read('coach/src/lib/storage.ts'))], [false, false, false]);
+// v0.9.6: a registration left behind by a deleted Home Screen app is removed (same device type, only once this device's row is on the server).
+check('the same-device clean-up runs on Turn on and on every healthy start',
+  /localSet\(newId\);\s*await pruneSameDevice\(sb, newId\)/.test(push) && /verdict === 'ok' && hereId\) \{ await pruneSameDevice\(sb, hereId\)/.test(push) && /verdict === 'adopt' && hereId\) \{ localSet\(hereId\); await pruneSameDevice/.test(push), true);
 check("Coach registers app 'coach', never 'bloc'", /app: 'coach'/.test(push) && !/app: 'bloc'/.test(push), true);
 
 console.log(failures ? `\n✗ ${failures} check(s) failed` : '\nALL CHECKS PASS');

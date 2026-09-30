@@ -1,6 +1,6 @@
 // Coach v0.9 (TECHNICAL §158): the pure parts of Coach's push, as BLOC's verify-push.mjs holds BLOC's.
 import { describe, expect, it } from 'vitest';
-import { decidePushHealth, decidePushState, pushIdFor } from './push';
+import { decidePushHealth, decidePushState, pushIdFor, staleSameDevice } from './push';
 import { openTarget, pushRoute, recentToOpen } from './intent';
 
 describe('decidePushState: six honest states', () => {
@@ -81,5 +81,20 @@ describe('route 4: the newest push from the server (v0.9.3)', () => {
     expect(recentToOpen(row(), 0, last, now)).toBeNull();
     expect(recentToOpen(row({ tag: 'note:s2' }), 0, last, now)).toBe('note:s2');                   // a different push
     expect(recentToOpen(row(), 0, { ...last, at: Date.parse('2026-09-30T19:00:00Z') }, now)).toBe('request:rq-1'); // delivered before this one was sent
+  });
+});
+
+describe('v0.9.6: a registration left by a deleted Home Screen app', () => {
+  const rows = [
+    { id: 'ps_new', device_label: 'iPhone' }, { id: 'ps_old', device_label: 'iPhone' },
+    { id: 'ps_ipad', device_label: 'iPad' }, { id: 'ps_mac', device_label: 'Mac' },
+  ];
+  it('the other registrations of this device type go; other types stay', () => {
+    expect(staleSameDevice(rows, 'ps_new', 'iPhone')).toEqual(['ps_old']);
+    expect(staleSameDevice(rows, 'ps_ipad', 'iPad')).toEqual([]);
+  });
+  it('nothing goes unless THIS device\'s own row is on the server', () => {
+    expect(staleSameDevice(rows, null, 'iPhone')).toEqual([]);
+    expect(staleSameDevice(rows, 'ps_unknown', 'iPhone')).toEqual([]);
   });
 });

@@ -10938,8 +10938,14 @@ higher, and scrolled content ran under the clock with no fade.
 kept its opaque bar: the page still started below it, so the measured top inset was **0**. The header then fell back to its
 52px, and both fades (sized by the top inset) were 0px high, while the nav (the bottom inset, still 34) moved. The fix on
 a phone is to **delete the icon and add Coach to the Home Screen again**, then sign in and turn notifications on again: a
-re-added app is a new install, with its own storage and push subscription. The old subscription's row is pruned when Apple
-answers 410 (`record_push_result`, `0019`).
+re-added app is a new install, with its own storage and push subscription. Apple doesn't reliably refuse the old subscription (the
+test said "Sent to 2 devices" after a re-add), so since **v0.9.6** Coach removes it itself: on Turn on and on every
+signed-in start where this device's registration is healthy (`checkPushHealth` → `ok` / `adopt`), `pruneSameDevice()`
+deletes this account's **other** Coach registrations with the **same device type** (`device_label`, "iPhone").
+`staleSameDevice()` is pure: it returns nothing unless this device's own row is on the server, so the account can never
+be left with no device. The trade-off, on purpose: one account signed in on two devices of the same type keeps the one
+opened last (an iPhone and an iPad are different types). Listly keeps a manual "Your devices" list instead (TECHNICAL
+§22 there), and BLOC briefly had one (§113, removed in §114); Coach does it automatically. BLOC is unchanged.
 
 **Checked:** Chromium with the safe-area insets emulated (`Emulation.setSafeAreaInsetsOverride`, 59/34) at 390×844, BLOC
 and Coach side by side. The date line is 83 / 83 from the top, the nav gap 28 / 28 from the bottom, and the fades
