@@ -1,7 +1,7 @@
 {
   "name": "bloc-engine",
   "private": true,
-  "description": "BLOC's shared engine: built to dist/bloc-engine.js for BLOC, imported as source by BLOC Coach. TECHNICAL §122.",
+  "description": "BLOC's shared engine: built to dist/bloc-engine.js for BLOC and dist/bloc-engine-server.mjs for the bloc-push Edge Function, imported as source by BLOC Coach. TECHNICAL §122, §156.",
   "type": "module",
   "scripts": {
     "build": "node build.mjs",

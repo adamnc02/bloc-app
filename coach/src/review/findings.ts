@@ -8,8 +8,7 @@
 // on the check-in tab; Adjust goals opens Plan's goal phase running today,
 // and Swap exercise opens Plan's swap for that exercise (TECHNICAL §144).
 // ═══════════════════════════════════════════════════════════════════════
-import type { Outcome } from './outcome';
-import type { GridRow, RpePoint } from './training';
+import type { GridRow, Outcome, RpePoint } from '@engine/review';
 
 export type FindingAction = 'adjust' | 'swap' | 'progress' | 'checkin' | 'message';
 export const AVAILABLE_ACTIONS: ReadonlySet<FindingAction> = new Set(['message', 'checkin', 'adjust', 'swap']);

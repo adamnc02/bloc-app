@@ -46,12 +46,5 @@ export async function decodeClientState(stateGzHex: string, stateHash: string): 
   return normaliseState(JSON.parse(json));
 }
 
-/** A zone's calendar date at an instant, 'YYYY-MM-DD'. An unknown zone falls back to UTC. */
-export function localDateIn(tz: string | null | undefined, atMs: number): string {
-  const fmt = (zone: string) => {
-    const parts = new Intl.DateTimeFormat('en-GB', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(atMs));
-    const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
-    return `${get('year')}-${get('month')}-${get('day')}`;
-  };
-  try { return fmt(tz || 'UTC'); } catch { return fmt('UTC'); }
-}
+/** One copy, in the engine: the digest on the server judges clients at the same date. */
+export { localDateIn } from '@engine/review';

@@ -13,9 +13,10 @@ import {
   buildDayMap, calcDynamicTDEE, getDateActiveMacroId, getMacroDurationWeeks, getMacroEndDate, shiftDateStr,
   type BlocState, type GoalPeriod, type Macrocycle,
 } from '@engine';
-import { computeRpePoints, computeTraining, type RpePoint, type TrainingCompliance } from './training';
-import { bmrAt, computeNutrition, nutritionDays, type NutritionCompliance, type NutritionDay } from './nutrition';
-import { judgeOutcome, type Outcome } from './outcome';
+import {
+  bmrAt, computeNutrition, computeRpePoints, computeTraining, judgeOutcome, nutritionDays,
+  type NutritionCompliance, type NutritionDay, type Outcome, type RpePoint, type TrainingCompliance,
+} from '@engine/review';
 import { buildFindings, type Finding } from './findings';
 
 export type CycleStatus = 'past' | 'active' | 'upcoming';

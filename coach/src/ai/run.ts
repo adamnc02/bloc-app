@@ -18,7 +18,7 @@ import {
   recommendNextCycle, requestBlocAdvice, requestCycleReview, requestNextCycleAdvice,
   type BlocState, type CallModel, type CycleReviewImage, type Macrocycle,
 } from '@engine';
-import { makeTargetCache } from '@/review/training';
+import { makeTargetCache } from '@engine/review';
 import { coachReviewPrompt, overlayCoachAdvice, requestNote } from './tools';
 import type { AiDraft, AiOriginal, AiTool, CalcCompliance, CoachPublication, Submission } from './types';
 

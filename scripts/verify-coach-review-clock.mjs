@@ -3,10 +3,12 @@
 // verify-coach-review-clock.mjs — Review judges a client at THEIR local
 // today, never a clock (Coach v0.2–v0.3, TECHNICAL §140, §141)
 //
-// THE RULE: everything in coach/src/review/ and coach/src/ai/ (the AI tools'
-// rules and runner) takes `today` as a parameter: the
-// client's calendar date from their uploaded `tz` (lib/clientState.ts →
-// localDateIn). The screens pass it in; the model never reads a clock.
+// THE RULE: everything in coach/src/review/, engine/src/review/ (Review's
+// compliance and outcome, shared with the bloc-push digest since Coach v0.8,
+// §156) and coach/src/ai/ (the AI tools' rules and runner) takes `today` as a
+// parameter: the client's calendar date from their uploaded `tz`
+// (localDateIn, engine/src/review/index.ts). The screens pass it in; the
+// model never reads a clock.
 //
 // 🚨 THE TRAP: `new Date()` or `Date.now()` inside the model gives the coach's
 //    date. A coach in London at 08:00 on Monday is looking at a client in
@@ -46,7 +48,7 @@ function clocks(src) {
 }
 
 // ai/transport.ts is the browser's fetch and key, not a rule; it reads no clock either, so it's checked too.
-const model = [dir, 'coach/src/ai'].flatMap(d => readdirSync(join(repo, d)).filter(f => /\.ts$/.test(f) && !/\.test\.ts$/.test(f)).map(f => `${d}/${f}`));
+const model = [dir, 'engine/src/review', 'coach/src/ai'].flatMap(d => readdirSync(join(repo, d)).filter(f => /\.ts$/.test(f) && !/\.test\.ts$/.test(f)).map(f => `${d}/${f}`));
 check(`the review model and the AI tools have files to check (${model.length})`, model.length >= 9, model.join(', '));
 const found = model.flatMap(f => clocks(readFileSync(join(repo, f), 'utf8')).map(h => `${f}: ${h}`));
 check('no review model or AI tools file reads a clock or the coach\'s zone', found.length === 0, found.join('; '));

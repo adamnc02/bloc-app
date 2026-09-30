@@ -18,7 +18,7 @@ import {
   buildDayMap, calcDynamicTDEE, calcMifflinBMR, computeHomeWeek, getGoalForDay, getHomeMetricTolerance, getHomeWeekStart,
   getMacroEndDate, getWeekDates, isCompleteNutritionDay, shiftDateStr,
   type BlocState, type DayMap, type Macrocycle,
-} from '@engine';
+} from '../index.ts';
 
 export type Field = 'kcal' | 'protein' | 'carbs' | 'steps';
 export const MIN_COUNTED_DAYS = 4;
