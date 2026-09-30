@@ -93,8 +93,18 @@ export interface FoldInput {
   since: string | null;
 }
 
-/** Every cycle the coach can see for this client, oldest first. */
-export function foldPlan({ state, publications, coachId, since }: FoldInput): CycleEntry[] {
+/**
+ * The client's state as their phone will hold it once it has pulled what the coach has sent: the upload (or,
+ * for a client with none, an empty state) with the unapplied `plan`, `goal_phases` and check-in goal changes
+ * patched in, as BLOC applies them. A copy: the upload is never changed.
+ */
+export function foldState(input: FoldInput): BlocState {
+  const { s } = foldMini(input);
+  const st = (input.state || {}) as Loose;
+  return { ...(copy(st) as BlocState), macrocycles: s.macrocycles, exercises: s.exercises, supersets: s.supersets, deloads: s.deloads, goals: s.goals } as BlocState;
+}
+
+function foldMini({ state, publications, coachId, since }: FoldInput) {
   const st = (state || {}) as Loose;
   const s: Mini = {
     macrocycles: copy((st.macrocycles as Macrocycle[]) || []),
@@ -122,6 +132,13 @@ export function foldPlan({ state, publications, coachId, since }: FoldInput): Cy
     else if (p.type === 'goal_phases') applyGoals(s, pay.goals, pay.remove_goal_ids, pay.macro_id);
     else { const gc = pay.goal_changes as Loose; applyGoals(s, gc.goals, gc.remove_goal_ids, pay.macro_id); }
   }
+  return { s, ledger, touched, planOf };
+}
+
+/** Every cycle the coach can see for this client, oldest first. */
+export function foldPlan(input: FoldInput): CycleEntry[] {
+  const { state } = input;
+  const { s, ledger, touched, planOf } = foldMini(input);
 
   const ids = s.macrocycles.map((m) => m.id);
   return s.macrocycles

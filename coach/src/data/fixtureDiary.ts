@@ -22,6 +22,8 @@ export function fixtureDiary(anchor: string): DiaryRepo & { published: { cardId:
   const bookings: Booking[] = [
     { id: 'bk-priya', seriesId: null, occursOn: null, date: at(4), start: 17 * 60 + 30, duration: 60, kind: 'one_to_one', status: 'booked', title: null, location: 'Studio', clientIds: ['priya'] },
     { id: 'bk-ben', seriesId: null, occursOn: null, date: at(2), start: 12 * 60 + 15, duration: 60, kind: 'one_to_one', status: 'booked', title: null, location: 'Studio', clientIds: ['ben'] },
+    // On the anchor itself, starting 5 minutes after the fixtures' now (21:10 London): Today's session, with Start session.
+    { id: 'bk-maya-today', seriesId: null, occursOn: null, date: anchor, start: 21 * 60 + 15, duration: 60, kind: 'one_to_one', status: 'booked', title: null, location: 'Studio', clientIds: ['maya'] },
   ];
   const created = (h: number) => new Date(Date.parse(`${anchor}T20:10:00Z`) - h * 3600000).toISOString();
   const requests: SessionRequest[] = [
@@ -48,7 +50,20 @@ export function fixtureDiary(anchor: string): DiaryRepo & { published: { cardId:
     async createSeries(s) { const x: Series = { ...copy(s), id: id('sr') }; d.series.push(x); return x; },
     async updateSeries(i, patch) { const x = d.series.find((s) => s.id === i); if (x) Object.assign(x, copy(patch)); },
     async createBooking(b) { const x: Booking = { ...copy(b), id: id('bk') }; d.bookings.push(x); return x; },
-    async updateBooking(i, patch) { const x = d.bookings.find((b) => b.id === i); if (x) Object.assign(x, copy(patch)); },
+    async updateBooking(i, patch) {
+      const x = d.bookings.find((b) => b.id === i);
+      if (!x) return;
+      Object.assign(x, copy(patch));
+      // As live: an attendee taken off loses their row, and with it their assigned session.
+      if (x.assigned) for (const c of Object.keys(x.assigned)) if (!x.clientIds.includes(c)) delete x.assigned[c];
+    },
+    async assignSession(i, cardId, session) {
+      const x = d.bookings.find((b) => b.id === i);
+      if (!x || !x.clientIds.includes(cardId)) return;
+      const a = { ...(x.assigned ?? {}) };
+      if (session) a[cardId] = copy(session); else delete a[cardId];
+      if (Object.keys(a).length) x.assigned = a; else delete x.assigned;
+    },
     async updateRequest(i, patch) {
       const r = d.requests.find((x) => x.id === i);
       if (!r) return;

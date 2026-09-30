@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AIBadge, Button, Card, Chip, Hero, Icon, Notice, OutcomeChip, Score, Section, Sheet, Tag, useIsTablet, useIsWide, type IconName } from '@/components/ui';
 import { ComplianceGrid, SessionsStrip } from '@/components/charts/ComplianceGrid';
 import { NutritionChart } from '@/components/charts/NutritionChart';
@@ -56,7 +56,23 @@ function Review({ v, m, tz }: { v: ClientView; m: ReviewModel; tz: string }) {
   const { bundle } = v;
   const [day, setDay] = useState<string | null>(null);
   const ai = useAiData(v);
-  const [aiTool, setAiTool] = useState<AiTool>('check_in');
+  const [aiTool, setAiTool] = useState<AiTool>(() => (['check_in', 'cycle_review', 'next_cycle'].includes(v.focus?.tool ?? '') ? v.focus!.tool as AiTool : 'check_in'));
+  // From Today's Needs you: once the AI tools have loaded, scroll to the note back (else the AI tools), once.
+  const focused = useRef(false);
+  // 🚨 Marked done only when the scroll happens: a second load of the AI data (or React's development double-run)
+  //    cancels a pending timer, and a flag set up front stopped the retry, so Review stayed at the top.
+  useEffect(() => {
+    if (!v.focus || focused.current || !ai.data) return;
+    const t = setTimeout(() => {
+      if (focused.current) return;
+      const note = v.focus!.note ? document.querySelector<HTMLElement>(`[data-note="${CSS.escape(v.focus!.note)}"]`) : null;
+      const el = (note && note.offsetParent ? note : null) ?? document.getElementById('review-ai');
+      if (!el) return;
+      focused.current = true;
+      el.scrollIntoView({ block: note && note.offsetParent ? 'center' : 'start', behavior: 'smooth' });
+    }, 300);
+    return () => clearTimeout(t);
+  });
   const aiRef = useRef<HTMLDivElement>(null);
   const openAi = (tool: AiTool) => { setAiTool(tool); aiRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
   const request = ai.data ? openRequest(ai.data.submissions, ai.data.drafts, m.cycle.id) : null;
@@ -111,7 +127,7 @@ function Review({ v, m, tz }: { v: ClientView; m: ReviewModel; tz: string }) {
         </Section>
 
         <div ref={aiRef} style={{ scrollMarginTop: 20, minWidth: 0 }}>
-          <Section i={7 + findings.length} title="AI tools" sub={`Runs on this device with your key, on ${v.first}’s data at their date. Nothing reaches ${v.first} until you publish.`} slot={<AIBadge />}>
+          <Section id="review-ai" i={7 + findings.length} title="AI tools" sub={`Runs on this device with your key, on ${v.first}’s data at their date. Nothing reaches ${v.first} until you publish.`} slot={<AIBadge />}>
             <AiPanel v={v} m={m} state={bundle.snapshot!.state} tool={aiTool} onTool={setAiTool} ai={ai} />
           </Section>
         </div>

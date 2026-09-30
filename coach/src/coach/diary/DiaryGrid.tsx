@@ -258,10 +258,9 @@ export function DiaryGrid(p: DiaryGridProps) {
                 return (
                   <div className="dg-offnote">
                     <Icon name="moon" size={16} />
-                    <b>Day off</b>
+                    <b>{off.note || 'Day off'}</b>
                     {note.cancelled > 0 && <small>{note.cancelled} {note.cancelled === 1 ? 'session' : 'sessions'} cancelled</small>}
                     {note.cancelled > 0 && <small>{note.told}</small>}
-                    {off.note && <small>{off.note}</small>}
                   </div>
                 );
               })()}

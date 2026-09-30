@@ -27,6 +27,13 @@ export interface DayOff {
 
 export type SessionKind = 'one_to_one' | 'group';
 
+/**
+ * The plan session a coach will take with a client in person (0023 `booking.assigned_session`, 0024
+ * `diary_booking_clients.assigned_session`): once the client's phone has it, the session is the coach's and
+ * read-only there (BLOC §136). A marker for one session: it never repeats, and it's cleared once logged.
+ */
+export interface AssignedSession { macroId: string; week: number; dayKey: string }
+
 /** A weekly session (`diary_series`): every `weekday` from `from` to `to` (inclusive). */
 export interface Series {
   id: string;
@@ -60,6 +67,11 @@ export interface Booking {
   title: string | null;
   location: string | null;
   clientIds: string[];
+  /**
+   * Card id → the session assigned to that attendee (`diary_booking_clients`). A weekly session's week
+   * carries one on its identity override: a row identical to that week, so the week stays in its series.
+   */
+  assigned?: Record<string, AssignedSession>;
 }
 
 /** A time a request names: a start, or a window when `end_min` is set (0024 `session_request_slots_ok`). */

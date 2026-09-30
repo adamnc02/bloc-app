@@ -20,6 +20,7 @@ import {
 import { DiaryGrid } from './DiaryGrid';
 import { DayOffSheet, EditSheet, NewSessionSheet, RequestSheet, ScopeSheet, UndoDayOffSheet } from './DiarySheets';
 import { useDiaryData } from './useDiaryData';
+import { InPersonActions } from '@/inperson/InPersonActions';
 
 type SheetState =
   | { type: 'edit'; key: string }
@@ -151,6 +152,7 @@ export function DiaryScreen() {
 
       {s?.type === 'edit' && occ && (
         <EditSheet occ={occ} diary={diary} who={who} bundles={bundles} onClose={() => setSheet(null)}
+          extra={occ.kind === 'one_to_one' && occ.clientIds[0] ? <InPersonActions occ={occ} cardId={occ.clientIds[0]} diary={diary} bundles={bundles} today={today} nowMin={nowMin} run={run} /> : undefined}
           onSave={(p) => { const changed = JSON.stringify(p) !== JSON.stringify({ date: occ.date, start: occ.start, duration: occ.duration, location: occ.location, title: occ.title, clientIds: occ.clientIds });
             if (!changed) setSheet(null); else if (occ.recurring) setSheet({ type: 'scope', key: occ.key, patch: p }); else void save(occ, p, 'one'); }}
           onCancelSession={() => { if (occ.recurring) setSheet({ type: 'cancel', key: occ.key }); else void run((d) => cancelSession(repo, d, occ, 'one'), `${nameOf(occ)}’s session on ${fmt.ddm(occ.date)} is cancelled`).then((ok) => ok && setSheet(null)); }}
@@ -184,8 +186,8 @@ export function DiaryScreen() {
 
       {s?.type === 'dayoff' && (
         <DayOffSheet diary={diary} who={who} today={today} date={s.date} onClose={() => setSheet(null)}
-          onConfirm={(a, b, note, notify) => void run((d) => addDayOff(repo, d, a, b, note, notify),
-            `${a === b ? fmt.long(a) : `${fmt.ddm(a)} – ${fmt.ddm(b)}`} off · ${notify ? 'clients told' : 'no one told'}`).then((ok) => ok && setSheet(null))} />
+          onConfirm={(a, b, label, notify) => void run((d) => addDayOff(repo, d, a, b, label, notify),
+            `${label}: ${a === b ? fmt.long(a) : `${fmt.ddm(a)} – ${fmt.ddm(b)}`} off${notify ? ' · clients notified' : ''}`).then((ok) => ok && setSheet(null))} />
       )}
 
       {s?.type === 'undo' && offOf && (

@@ -58,6 +58,18 @@ export function overrideIsIdentity(b: Booking, s: Series): boolean {
 }
 
 /**
+ * Whether a week is still its series: an identical override is (a booked weekly request's first week, a tagged
+ * week), unless it has already reached a phone as its own booking. 🚨 A week that was detached (a different group
+ * that week, a new time) and later matches its series again (the series changed around it: a client taken out of
+ * the whole group) stays detached; folding it back in re-sent the series with that week restored and cancelled the
+ * week's own booking, two banners about a session that hadn't changed.
+ */
+export function stillInSeries(d: Pick<Diary, 'sent'>, b: Booking, s: Series): boolean {
+  if (!overrideIsIdentity(b, s)) return false;
+  return !Object.entries(d.sent).some(([k, x]) => k.endsWith(`|${b.id}`) && x.payload.status === 'booked');
+}
+
+/**
  * The slot a placeholder sits on: what's waiting on the coach, or on the
  * client. Pending: the first choice. Proposed: the coach's time. Countered:
  * the client's counter. Accepted but not yet booked: the time accepted.
@@ -115,7 +127,7 @@ export function occurrencesBetween(d: Diary, from: ISODate, to: ISODate, today?:
       // 🚨 A week changed on its own is DETACHED: a one-off from then on (edits and cancels touch it alone, no
       // "Just this one / All future"). An override identical to its week (a booked weekly request's first week)
       // is still the series.
-      const detached = !!at && !overrideIsIdentity(at, s);
+      const detached = !!at && !stillInSeries(d, at, s);
       const occ: Occurrence = {
         key: `s:${s.id}@${date}`, kind: at?.kind ?? s.kind, date: at?.date ?? date, start: at?.start ?? s.start,
         duration: at?.duration ?? s.duration, title: at ? at.title : s.title, location: at ? at.location : s.location,

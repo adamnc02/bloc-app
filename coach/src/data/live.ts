@@ -317,6 +317,36 @@ function createLiveRepoInner(sb: SupabaseClient, profile: CoachProfile, onProfil
       return toPublication(data as Row, undefined);
     },
 
+    async loadCardPublications(cardId) {
+      const pubs = await sb.from('publications').select('id, seq, type, payload, supersedes, created_at').eq('client_record_id', cardId).order('seq');
+      if (pubs.error) throw pubs.error;
+      const rows = (pubs.data ?? []) as Row[];
+      const acks = new Map<string, Row>();
+      if (rows.length) {
+        const a = await sb.from('publication_acks').select('publication_id, status, note').in('publication_id', rows.map((p) => String(p.id)));
+        if (a.error) throw a.error;
+        for (const r of (a.data ?? []) as Row[]) acks.set(String(r.publication_id), r);
+      }
+      return rows.map((p) => toPublication(p, acks.get(String(p.id))));
+    },
+
+    async loadInbox() {
+      const [subs, drafts, pubs] = await Promise.all([
+        sb.from('client_submissions').select('id, client_id, kind, publication_id, body, created_at').eq('coach_id', current.coachId).order('created_at'),
+        sb.from('coach_ai_drafts').select(DRAFT_COLS).eq('coach_id', current.coachId).order('created_at'),
+        sb.from('publications').select('id, seq, client_record_id, type, payload, supersedes, created_at').eq('coach_id', current.coachId)
+          .in('type', ['ai_response', 'note_reply', 'photo_request', 'session_log']).order('seq'),
+      ]);
+      for (const r of [subs, drafts, pubs]) if (r.error) throw r.error;
+      return {
+        submissions: ((subs.data ?? []) as Row[]).map((r) => ({
+          id: String(r.id), clientId: String(r.client_id), kind: r.kind as Submission['kind'], publicationId: str(r.publication_id), body: (r.body ?? {}) as Loose, createdAt: String(r.created_at),
+        })),
+        drafts: ((drafts.data ?? []) as Row[]).map(toDraft),
+        publications: ((pubs.data ?? []) as Row[]).map((p) => ({ ...toPublication(p, undefined), cardId: String(p.client_record_id) })),
+      };
+    },
+
     async loadPhotos(paths) {
       // 0024 coach_may_view_media(): readable only while the link is active and consent is on.
       return Promise.all(paths.map(async (path) => {

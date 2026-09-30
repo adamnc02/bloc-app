@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { Avatar, Chip, EmptyState, IconButton, OutcomeChip, Page, PageHeader, Sheet, Icon, useEntering, useOnResume } from '@/components/ui';
 import { CoachShell } from '@/coach/CoachShell';
 import { useCoach } from '@/app/App';
-import { clientPath, navigate, type ClientTab } from '@/app/router';
+import { clientPath, navigate, type ClientTab, type ReviewFocus } from '@/app/router';
 import { fmt } from '@/lib/format';
 import { summarise, type ClientSummary } from '@/data/summary';
 import { cycleOptions, defaultCycleId, type CycleOption } from '@/review/model';
@@ -28,6 +28,8 @@ export interface ClientView {
   cycle: CycleOption | null;
   first: string;
   reload: () => void;
+  /** Review opens scrolled to the AI tools or a note back (from Today's Needs you). */
+  focus: ReviewFocus | null;
 }
 
 /**
@@ -35,7 +37,7 @@ export interface ClientView {
  * switch button changes the client or the cycle for the whole view; it
  * defaults to the cycle that's running at the client's today.
  */
-export function ClientScreen({ id, tab, macro, intent }: { id: string; tab: ClientTab; macro: string | null; intent?: PlanIntent | null }) {
+export function ClientScreen({ id, tab, macro, intent, focus }: { id: string; tab: ClientTab; macro: string | null; intent?: PlanIntent | null; focus?: ReviewFocus | null }) {
   const { repo } = useCoach();
   const ref = useEntering<HTMLDivElement>(`client-${id}-${tab}`);
   const [bundles, setBundles] = useState<ClientBundle[] | null>(null);
@@ -68,7 +70,7 @@ export function ClientScreen({ id, tab, macro, intent }: { id: string; tab: Clie
   const defId = snap && summary.clientToday ? defaultCycleId(snap.state, summary.clientToday) : null;
   const cycle = cycles.find((c) => c.id === macro) ?? cycles.find((c) => c.id === defId) ?? null;
   const first = summary.name.split(' ')[0] || summary.name;
-  const view: ClientView = { bundle, summary, cycles, cycle, first, reload: load };
+  const view: ClientView = { bundle, summary, cycles, cycle, first, reload: load, focus: focus ?? null };
   const macroParam = cycle && cycle.id !== defId ? cycle.id : null;
 
   const sub: ReactNode = cycle

@@ -2,10 +2,10 @@
 // bypass's fixtures.ts). Column names are super-duper-octo-barnacle's `0022`
 // and `0023` tables, camel-cased.
 import type { BlocState, CycleReviewImage, Loose } from '@engine';
-import type { AiData, AiDraft, AiEdit, AiOriginal, AiTool, CoachPublication } from '@/ai/types';
+import type { AiData, AiDraft, AiEdit, AiOriginal, AiTool, CoachPublication, Submission } from '@/ai/types';
 import type { PlanDoc } from '@/plan/doc';
 import type { Template, TemplateBody } from '@/plan/templates';
-import type { Booking, DayOff, Diary, DiarySettings, SentBooking, Series, Slot, RequestStatus } from '@/diary/types';
+import type { AssignedSession, Booking, DayOff, Diary, DiarySettings, SentBooking, Series, Slot, RequestStatus } from '@/diary/types';
 
 export interface CoachProfile {
   coachId: string;
@@ -85,6 +85,16 @@ export interface PlanData {
 export interface NewTemplate { kind: Template['kind']; name: string; summary: string | null; body: TemplateBody }
 
 export interface NewClient { name: string; contact: string; onApp: boolean }
+
+/** What Today reads across every card (TECHNICAL §154). */
+export interface Inbox {
+  /** `client_submissions` to this coach, with the sign-in that sent them. */
+  submissions: (Submission & { clientId: string })[];
+  /** `coach_ai_drafts`, every card. */
+  drafts: AiDraft[];
+  /** `ai_response`, `note_reply`, `photo_request` and `session_log` publications, every card. */
+  publications: (CoachPublication & { cardId: string })[];
+}
 /** A card edit. Name and contact only while the client isn't linked (0022's trigger refuses them after). */
 export interface CardPatch { firstName?: string; surname?: string | null; email?: string | null; phone?: string | null; notes?: string | null }
 export interface NewInvite { code: string; expiresAt: string }
@@ -99,7 +109,9 @@ export interface DiaryRepo {
   /** `clientIds` replaces the attendees. */
   updateSeries(id: string, patch: Partial<Omit<Series, 'id'>>): Promise<void>;
   createBooking(b: Omit<Booking, 'id'>): Promise<Booking>;
-  updateBooking(id: string, patch: Partial<Omit<Booking, 'id' | 'seriesId' | 'occursOn'>>): Promise<void>;
+  updateBooking(id: string, patch: Partial<Omit<Booking, 'id' | 'seriesId' | 'occursOn' | 'assigned'>>): Promise<void>;
+  /** The session assigned to one attendee of a booking, or null to release it (`diary_booking_clients.assigned_session`). */
+  assignSession(bookingId: string, cardId: string, session: AssignedSession | null): Promise<void>;
   // 🚨 No delete for a series or a booking: a request names its booking (`on delete set null`), and a deleted row
   // leaves the request unbooked, which autoBook books again. Cancel instead (diary/actions.ts).
   /** The coach's half of a request (0024's trigger): propose a time, accept (naming the booking), or decline. */
@@ -131,7 +143,11 @@ export interface CoachRepo extends DiaryRepo {
   /** Saves the coach's edit beside the original. */
   saveAiEdit(draftId: string, edited: AiEdit, publicationId?: string): Promise<AiDraft>;
   /** Appends a publication to the card (0023: append-only; a correction names what it `supersedes`). */
-  publish(cardId: string, type: 'ai_response' | 'note_reply' | 'photo_request' | 'plan' | 'goal_phases', payload: Loose, supersedes: string | null): Promise<CoachPublication>;
+  publish(cardId: string, type: 'ai_response' | 'note_reply' | 'photo_request' | 'plan' | 'goal_phases' | 'session_log' | 'measurement', payload: Loose, supersedes: string | null): Promise<CoachPublication>;
+  /** Every publication on a card, oldest first, with receipts: In person folds them over the client's upload (inperson/model.ts). */
+  loadCardPublications(cardId: string): Promise<CoachPublication[]>;
+  /** Today's inputs across every card: the client submissions, the AI drafts, and the publications Today reads. */
+  loadInbox(): Promise<Inbox>;
   /** The client's cycle-review photos (`client-media`), readable only while photo consent is on. */
   loadPhotos(paths: string[]): Promise<CycleReviewImage[]>;
 
