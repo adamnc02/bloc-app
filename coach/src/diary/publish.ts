@@ -25,7 +25,7 @@
 // publication, so a publish that failed is sent by the next change, and a
 // change that makes no difference to a client sends nothing.
 import { addDays, daysBetween, weekday } from '@/lib/format';
-import { overrideIsIdentity, seriesDates } from './model';
+import { seriesDates, stillInSeries } from './model';
 import type { AssignedSession, Booking, Diary, Series } from './types';
 
 /** 0028's `skip_dates` cap. */
@@ -65,7 +65,7 @@ function seriesPayload(d: Diary, s: Series): BookingPayload | null {
   const skips = new Set<string>(s.cancelled.filter((x) => x >= first));
   for (const b of d.bookings) {
     if (b.seriesId !== s.id || !b.occursOn || b.occursOn < first || (s.to && b.occursOn > s.to) || weekday(b.occursOn) !== s.weekday) continue;
-    if (!overrideIsIdentity(b, s)) skips.add(b.occursOn);
+    if (!stillInSeries(d, b, s)) skips.add(b.occursOn);
   }
   const skip = [...skips].sort().slice(-MAX_SKIP_DATES);
   // Every week cancelled or moved (a series stopped from its first week): nothing left to hold.
@@ -85,8 +85,8 @@ const assignedOn = (b: Booking | undefined, cardId: string): AssignedSession | n
  * A weekly session's assignment for one card: from the identity override (a row identical to its week) that
  * carries one, the earliest week first. A moved week carries its own, on its own one-off.
  */
-export function seriesAssignment(d: Pick<Diary, 'bookings'>, s: Series, cardId: string): AssignedSession | null {
-  const rows = d.bookings.filter((b) => b.seriesId === s.id && b.occursOn && b.status === 'booked' && overrideIsIdentity(b, s) && assignedOn(b, cardId))
+export function seriesAssignment(d: Pick<Diary, 'bookings' | 'sent'>, s: Series, cardId: string): AssignedSession | null {
+  const rows = d.bookings.filter((b) => b.seriesId === s.id && b.occursOn && b.status === 'booked' && stillInSeries(d, b, s) && assignedOn(b, cardId))
     .sort((a, b) => a.occursOn!.localeCompare(b.occursOn!));
   return assignedOn(rows[0], cardId);
 }
@@ -130,7 +130,7 @@ export function desiredBookings(d: Diary): Map<string, { cardId: string; payload
     // A week of a series moved "just this one": its own one-off, while the week is still in its series.
     const s = series.get(b.seriesId);
     if (!s || !b.occursOn || b.occursOn < s.from || (s.to && b.occursOn > s.to) || s.cancelled.includes(b.occursOn)) continue;
-    if (b.status === 'cancelled' || overrideIsIdentity(b, s)) continue;
+    if (b.status === 'cancelled' || stillInSeries(d, b, s)) continue;
     put(b.clientIds, { ...oneOffPayload(b), replaces: { booking_id: s.id, date: b.occursOn } }, (c) => assignedOn(b, c));
   }
   return out;

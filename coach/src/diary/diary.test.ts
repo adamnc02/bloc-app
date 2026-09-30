@@ -163,6 +163,12 @@ describe('what the Diary publishes', () => {
   });
 });
 
+/** One week of a group without one client, "just this one" (the Diary's edit). */
+async function removeFromGroupWeek(r: ReturnType<typeof fresh>, d: Diary, key: string, cardId: string) {
+  const o = occ(d, key);
+  return editSession(r, d, o, { date: o.date, start: o.start, duration: o.duration, location: o.location, title: o.title, clientIds: o.clientIds.filter((c) => c !== cardId) }, 'one');
+}
+
 describe('actions (fixture repo)', () => {
   const last = (r: ReturnType<typeof fresh>) => r.published.map((p) => `${p.cardId} ${String(p.payload.booking_id)} ${String(p.payload.status)}${p.payload.quiet ? ' quiet' : ''}`);
 
@@ -314,6 +320,16 @@ describe('actions (fixture repo)', () => {
     expect(d.sent['grace|sr-bootcamp'].payload.removed).toBe(true);                // 0030: removed, not "cancelled for everyone"
     expect(occ(d, `s:sr-bootcamp@${SAT}`).clientIds).toEqual(['maya', 'priya']);
     expect(occ(d, `s:sr-bootcamp@${addDays(SAT, 7)}`).clientIds).toEqual(['maya', 'priya']);
+  });
+  it('taking a client out of a group whose week was already theirs alone sends the others nothing (control: that week folding back into the series)', async () => {
+    const r = fresh();
+    let d = await r.loadDiary();
+    // Grace out of one week only: that week becomes its own booking for Maya and Priya.
+    d = await removeFromGroupWeek(r, d, `s:sr-bootcamp@${SAT}`, 'grace');
+    const before = r.published.length;
+    // Then Grace out of the whole series: the week alone now matches the series again.
+    d = await removeFromGroup(r, d, occ(d, `s:sr-bootcamp@${addDays(SAT, 7)}`), 'grace');
+    expect(r.published.slice(before).map((p) => `${p.cardId} ${String(p.payload.booking_id).slice(0, 9)} ${p.payload.status}`)).toEqual(['grace sr-bootca cancelled']);
   });
   it('a group stopped for everyone is cancelled with no `removed` (control for the one above)', async () => {
     const r = fresh();

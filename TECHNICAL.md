@@ -10566,6 +10566,15 @@ default; off sends the cancellations `quiet`); or "No sessions are booked on thi
 is still booked for any other card (the group carries on), it also sends **`removed: true`** (migration `0030`), and
 BLOC says "You have been removed from …" instead of "Group session cancelled" (§153).
 
+🚨 **A week that has reached the phone as its own booking stays its own booking** (`stillInSeries`, `diary/model.ts`).
+An override identical to its series week is the series (§152), but "identical" can become true after the fact: one
+client out of one week of a group makes that week its own booking for the others; taking the same client out of the
+whole series later makes the week match the series again. Folded back in, the series was re-sent with that week
+restored and the week's own booking cancelled: two banners for the others ("Session back on", "Group session
+cancelled") about a session that hadn't changed. So an identical override counts as the series only while no card
+holds it as its own booked publication. `diary.test.ts` drives exactly that sequence and expects only the removed
+client's cancellation.
+
 ### Add client
 
 A client coached in person needs only a name; an email or phone is still required for "Yes, on BLOC", because the
