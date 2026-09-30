@@ -9,6 +9,7 @@ import { getAiKey, setAiKey } from '@/ai/transport';
 import { DiarySettingsSections } from '@/coach/diary/DiarySettings';
 import { getSupabase } from '@/lib/supabase';
 import { currentPushState, DEFAULT_PREFS, loadPrefs, registerPushHere, savePref, sendTestPush, turnOffPushHere, type PrefKey, type Prefs, type PushState } from '@/push/push';
+import { DemoGate } from '@/demo/DemoGate';
 
 declare const __COACH_VERSION__: string;
 /** Coach's version: coach/package.json, the one place a release bumps it (TECHNICAL §139). */
@@ -190,6 +191,8 @@ export function SettingsScreen() {
               ))}
             </div>
           </Section>
+
+          {sb && <DemoGate sb={sb} i={8} loadClients={() => repo.loadClients()} />}
         </div>
       </Page>
 
