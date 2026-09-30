@@ -6,7 +6,9 @@
 
 /* ---------- bottom pill nav (BLOC reference) ---------- */
 .bottom-nav {
-  position: fixed; left: 14px; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom)); z-index: 50;
+  /* §159: BLOC's height, 6px into the home-indicator inset (BLOC: bottom: calc(var(--safe-bottom) - 6px)); never
+     under 8px, so a screen with no inset (a laptop window) keeps a margin. --safe-bottom is measured (index.html). */
+  position: fixed; left: 14px; right: 14px; bottom: max(8px, calc(var(--safe-bottom, env(safe-area-inset-bottom)) - 6px)); z-index: 50;
   height: 66px; border-radius: 33px; background: var(--surface); border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
   display: grid; align-items: center; padding: 0 6px; max-width: 520px; margin: 0 auto;
 }

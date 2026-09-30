@@ -12,6 +12,35 @@
     <!-- Coach v0.9 (TECHNICAL §158): iOS only offers push to a Home Screen web app with a manifest. -->
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!-- §159: draw under the status bar, as BLOC does. Without it iOS gives an installed app an opaque status bar and
+         starts the page BELOW it, and the header's "safe inset + 16px" is added on top: a ~28pt gap over BLOC's. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <script>
+    // §159: the safe-area insets, MEASURED (BLOC's index.html, TECHNICAL §5). On an installed iPhone app WebKit can
+    // hand a stale or wrong env(safe-area-inset-*) through a CSS custom property, so a probe element with the env()
+    // set directly is read, and --safe-top / --safe-bottom are set in pixels. Re-measured over the first seconds (the
+    // standalone launch settles late) and on every resize and rotation.
+    (function () {
+      function measureEnv(prop) {
+        var el = document.createElement('div');
+        el.style.cssText = 'position:fixed;top:0;left:0;width:0;height:env(' + prop + ', 0px);visibility:hidden;pointer-events:none;';
+        document.documentElement.appendChild(el);
+        var v = el.offsetHeight;
+        document.documentElement.removeChild(el);
+        return v;
+      }
+      function setSafeAreaVars() {
+        var r = document.documentElement.style;
+        r.setProperty('--safe-top', measureEnv('safe-area-inset-top') + 'px');
+        r.setProperty('--safe-bottom', measureEnv('safe-area-inset-bottom') + 'px');
+      }
+      setSafeAreaVars();
+      [100, 300, 600, 1000, 2000].forEach(function (ms) { setTimeout(setSafeAreaVars, ms); });
+      window.addEventListener('resize', setSafeAreaVars);
+      window.addEventListener('orientationchange', function () { setTimeout(setSafeAreaVars, 300); });
+      if (window.visualViewport) window.visualViewport.addEventListener('resize', setSafeAreaVars);
+    })();
+    </script>
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" href="/bloc-coach-icon-square.svg" type="image/svg+xml" />
     <meta name="apple-mobile-web-app-title" content="BLOC Coach" />
@@ -338,6 +367,10 @@
 })();
 </script>
     <div id="root"></div>
+    <!-- §159: BLOC's edge fades. Content scrolling under the status bar and past the home indicator fades into the
+         background instead of running under the clock. Both are the height of the measured top inset, as BLOC's: nothing on a laptop. -->
+    <div class="edge-fade edge-fade-top" aria-hidden="true"></div>
+    <div class="edge-fade edge-fade-bottom" aria-hidden="true"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
