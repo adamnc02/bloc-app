@@ -10966,3 +10966,11 @@ proposed time meant opening the form. Now:
 - the push route; the Home banner's Review.
 
 `verify-push.mjs`: `coach:request` opens Your requests, never the form.
+
+**v8.51.** 🚨 v8.50 put `COACH_ICO_CLOCK` in the Your requests button. That SVG has no size, fill or stroke of its own:
+the banner (`.coach-banner-ico svg`) and the Settings row (`.settings-row-icon svg`) give it those. Inside a plain `.btn`
+it grew to fill the button, drawn in the default black fill. The button now uses `COACH_ICO_CLOCK_BTN` (16px, `fill="none"`,
+`currentColor` stroke, the shape of `COACH_ICO_SEND`). `verify-coached-sessions.mjs` checks **every** `COACH_ICO_*`
+inside a `.btn`: it must be sized by itself (width, height, `fill="none"`), or by a CSS rule for one of its button's
+classes (`.coach-icon-btn svg`). Its control is v8.50's unsized clock in a plain `btn-ghost`. Checked in Chromium: a
+52px button with a 16px lavender outline clock and no fill.

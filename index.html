@@ -15499,6 +15499,9 @@ function coachSessionWhen(b) {
 function coachBookingWeekly(b) { return !!b && ['weekly', 'series', 'recurring'].includes(String(b.kind || '').toLowerCase()); }
 // The wireframe's calendar icon (HomeScreen's "Your next session").
 const COACH_ICO_CLOCK = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+// v8.51: the clock for a button. COACH_ICO_CLOCK has no size or stroke of its own (the banner's CSS gives them), so
+// inside a .btn it filled the whole button black. Every icon in a button carries its size (verify-coached-sessions).
+const COACH_ICO_CLOCK_BTN = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
 const COACH_ICO_CALENDAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 9.5h18M8 2.5v4M16 2.5v4"/></svg>';
 
 // ── The coach's session, read-only in Train ───────────────────────────────
@@ -15836,7 +15839,7 @@ function renderCoachSessions() {
         ${next.assigned_session ? `<div class="coach-hero-sub">${coachEsc(coachAssignedLabel(next))}</div>` : ''}`
         : `<div class="coach-hero-sub" style="margin-top:6px;">Nothing booked with ${first} yet.</div>`}
       <button class="btn btn-accent btn-block" style="margin-top:16px;" onclick="closeModal('modal-coach-sessions');openCoachRequest()">${icoPlus(16)} Request a session</button>
-      <button class="btn btn-ghost btn-block" style="margin-top:10px;" onclick="closeModal('modal-coach-sessions');openCoachRequests()">${COACH_ICO_CLOCK} Your requests${coachOpenRequests().length ? ` (${coachOpenRequests().length})` : ''}</button>
+      <button class="btn btn-ghost btn-block" style="margin-top:10px;" onclick="closeModal('modal-coach-sessions');openCoachRequests()">${COACH_ICO_CLOCK_BTN} Your requests${coachOpenRequests().length ? ` (${coachOpenRequests().length})` : ''}</button>
     </div>`;
   // One card for everything upcoming, weekly and one-off together, by next date
   // (Adam, UAT: separate Weekly and Upcoming cards were overkill; the repeat
@@ -29775,7 +29778,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.50</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.51</span>`;
 }
 
 function renderSettings() {
