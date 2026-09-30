@@ -59,15 +59,20 @@ function Review({ v, m, tz }: { v: ClientView; m: ReviewModel; tz: string }) {
   const [aiTool, setAiTool] = useState<AiTool>(() => (['check_in', 'cycle_review', 'next_cycle'].includes(v.focus?.tool ?? '') ? v.focus!.tool as AiTool : 'check_in'));
   // From Today's Needs you: once the AI tools have loaded, scroll to the note back (else the AI tools), once.
   const focused = useRef(false);
+  // 🚨 Marked done only when the scroll happens: a second load of the AI data (or React's development double-run)
+  //    cancels a pending timer, and a flag set up front stopped the retry, so Review stayed at the top.
   useEffect(() => {
     if (!v.focus || focused.current || !ai.data) return;
-    focused.current = true;
     const t = setTimeout(() => {
-      const el = (v.focus!.note && document.querySelector(`[data-note="${CSS.escape(v.focus!.note)}"]`)) || document.getElementById('review-ai');
-      el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    }, 250);
+      if (focused.current) return;
+      const note = v.focus!.note ? document.querySelector<HTMLElement>(`[data-note="${CSS.escape(v.focus!.note)}"]`) : null;
+      const el = (note && note.offsetParent ? note : null) ?? document.getElementById('review-ai');
+      if (!el) return;
+      focused.current = true;
+      el.scrollIntoView({ block: note && note.offsetParent ? 'center' : 'start', behavior: 'smooth' });
+    }, 300);
     return () => clearTimeout(t);
-  }, [v.focus, ai.data]);
+  });
   const aiRef = useRef<HTMLDivElement>(null);
   const openAi = (tool: AiTool) => { setAiTool(tool); aiRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
   const request = ai.data ? openRequest(ai.data.submissions, ai.data.drafts, m.cycle.id) : null;
