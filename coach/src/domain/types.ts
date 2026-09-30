@@ -6,5 +6,5 @@ export type ISODate = string; // 'YYYY-MM-DD'
 /** A client's link, as the coach sees it. */
 export type LinkStatus = 'linked' | 'invited' | 'unlinked' | 'not-on-app';
 
-/** The outcome every client list leads with. Computed from Review's model. */
-export type OutcomeStatus = 'on-track' | 'off-track' | 'no-data';
+/** The outcome every client list leads with. Computed from Review's model, in the engine. */
+export type { OutcomeStatus } from '@engine/review';

@@ -10659,3 +10659,56 @@ the grid's pass; the target is that set's; an exercise with nothing logged has n
 one). Driven in Chromium on the fixtures at 375 × 812: Eileen's Review before and after logging a session in person
 (the hero, the chart without calories, Strength's rows and an exercise's sheet), Maya's Strength; no horizontal
 scroll, no console errors.
+
+## §156 — Coach v0.8: Review's verdict moves into the engine, with a server build
+
+**What it is.** Review's judgement of a client (training compliance, nutrition compliance and the outcome, §140) is
+in the engine, `engine/src/review/`, so the `bloc-push` Edge Function (super-duper-octo-barnacle) can send the coach's
+daily digest of clients newly off track from the same code Coach's screens run. Nothing Coach shows changes.
+
+| Now in `engine/src/review/` | Was |
+|---|---|
+| `training.ts`, `nutrition.ts`, `outcome.ts` | `coach/src/review/` |
+| `localDateIn(tz, atMs)` (`index.ts`) | `coach/src/lib/clientState.ts`, which re-exports it |
+| `formatInches(n)` (`outcome.ts`) | `coach/src/lib/format.ts`'s `fmt.inches`, which calls it |
+| `OutcomeStatus` (`outcome.ts`) | `coach/src/domain/types.ts`, which re-exports it |
+| **`clientOutcome(state, clientToday)`** (`index.ts`), new | Coach's `summarise()` → `reviewFor()` |
+
+Coach imports it as **`@engine/review`** (`coach/vite.config.ts` and `tsconfig.json`). The aliases are exact matches:
+a plain `'@engine'` alias also catches `'@engine/review'` as a prefix and resolves it inside `index.ts`.
+`coach/src/review/` keeps what only Coach's screens use: `model.ts` (the story chart, the memo), `findings.ts` and
+`strength.ts`. The gzip-and-hash decoding of a `client_state` row (`decodeClientState()`) stays in Coach, because it
+needs `Blob`, `DecompressionStream` and `crypto.subtle`, which the engine's ES2020, no-DOM type-check doesn't allow.
+The server does the same three steps with Deno's built-ins, then `normaliseState()` from the engine.
+
+### `clientOutcome()` is what Today, Clients and the digest read
+
+It judges the **date-active** cycle (`getDateActiveMacroId`) at the **client's** date, exactly as `summarise()` does
+for Today's Off track list and the Clients chip: `computeTraining` + `computeNutrition` → `judgeOutcome`, returning
+`{status, reason, macroId}`. With no cycle running it is `no-data` with `macroId: null` (Coach shows its own
+cycle text there instead of the reason). 🚨 **`summarise()` still goes through `reviewFor()`**, whose memo Review
+reuses when the client is opened, so there are two call paths into one rule. `coach/src/review/outcome-parity.test.ts`
+holds them equal on every fixture client (Maya, Tom, Grace in Auckland, Priya, …) at five instants a week apart:
+the status always, the reason whenever a cycle runs. Control: judging training at another date fails it.
+
+### Two builds from one source (`engine/build.mjs`)
+
+| File | From | Format | Loaded by |
+|---|---|---|---|
+| `engine/dist/bloc-engine.js` | `src/index.ts` | classic script, `BlocEngine` global | BLOC (`index.html`), published |
+| `engine/dist/bloc-engine-server.mjs` | `src/server.ts` (= `index.ts` + `review/`) | ES module, `platform: 'neutral'` | `bloc-push`, **not** published by Pages |
+
+🚨 **BLOC's bundle doesn't include `review/`.** BLOC never judges itself this way, and keeping it out means this
+change left `bloc-engine.js` byte-identical, so BLOC's cache-busting `?v=` and its golden file didn't move. `build.mjs
+--check` compares both outputs with their committed files. The server module isn't in `scripts/publish-files.txt`:
+the Edge Function imports it from the repo at a pinned commit, so **changing the verdict needs that pin moved** in
+super-duper-octo-barnacle, or the digest keeps judging by the old rule.
+
+**Checks:**
+- `scripts/verify-engine-server.mjs`: the module is committed and a fresh build; it reads no `window`, `document`,
+  `localStorage`, `sessionStorage` or `navigator` (a control proves the scan works); it's an ES module exporting
+  every name BLOC's bundle exports, plus `clientOutcome`, `localDateIn`, `judgeOutcome`, `computeTraining`,
+  `computeNutrition` and `formatInches`; BLOC's bundle carries none of Review's; and `clientOutcome()` runs on the
+  frozen demo state with `Date.now()` and `new Date()` throwing.
+- `scripts/verify-coach-review-clock.mjs` checks `engine/src/review/` for clock reads, as well as `coach/src/review/`
+  and `coach/src/ai/`.

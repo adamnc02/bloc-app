@@ -36,11 +36,12 @@
 import {
   HOME_STEPS_TOLERANCE, buildSignalPeriods, computeWeeklyInsights, getGoalForDate, getMacroEndDate, shiftDateStr,
   type BlocState, type Loose, type Macrocycle,
-} from '@engine';
-import type { OutcomeStatus } from '@/domain/types';
-import { fmt } from '@/lib/format';
-import type { TrainingCompliance } from './training';
-import type { NutritionCompliance } from './nutrition';
+} from '../index.ts';
+import type { TrainingCompliance } from './training.ts';
+import type { NutritionCompliance } from './nutrition.ts';
+
+/** The outcome every client list leads with. */
+export type OutcomeStatus = 'on-track' | 'off-track' | 'no-data';
 
 /** The engine's flat threshold (buildSignalPeriods): a weekly change within ±0.5 lb is flat. */
 export const FLAT_LBS = 0.5;
@@ -111,7 +112,13 @@ const num = (v: unknown): number | null => {
 };
 const lbs = (x: number) => x.toFixed(1);
 const signed = (x: number) => `${x > 0 ? '+' : x < 0 ? '−' : ''}${Math.abs(x).toFixed(1)}`;
-const inch = (x: number) => fmt.inches(Math.abs(x));
+const inch = (x: number) => formatInches(Math.abs(x));
+/** Inches with quarter fractions: 32.25 → 32¼″ */
+export function formatInches(n: number): string {
+  const whole = Math.floor(n + 1e-6), q = Math.round((n - whole) * 4);
+  const fr = ['', '¼', '½', '¾'][q] ?? '';
+  return `${whole === 0 && fr ? '' : whole}${fr}″`;
+}
 const int = (x: number) => Math.round(x).toLocaleString('en-GB');
 
 function noOutcome(verdict: string, reason: string, weeks: WeightWeek[] = [], signal: string | null = null): Outcome {

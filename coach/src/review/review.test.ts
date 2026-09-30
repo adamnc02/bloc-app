@@ -8,9 +8,7 @@ import { buildFixtureClients } from '@/data/fixtures';
 import { summarise } from '@/data/summary';
 import { localDateIn } from '@/lib/clientState';
 import { computeReview, defaultCycleId } from './model';
-import { judgeOutcome } from './outcome';
-import { computeTraining, type TrainingCompliance, type WeekCol } from './training';
-import { computeNutrition } from './nutrition';
+import { computeNutrition, computeTraining, judgeOutcome, type TrainingCompliance, type WeekCol } from '@engine/review';
 
 const demo = JSON.parse(readFileSync(new URL('../../../bloc-demo-data.json', import.meta.url), 'utf8'));
 const { now, clients } = buildFixtureClients(demo);

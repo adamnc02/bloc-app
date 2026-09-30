@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import type { BlocState, Loose } from '@engine';
-import { computeTraining } from './training';
+import { computeTraining } from '@engine/review';
 import { strengthRows } from './strength';
 
 const demo = JSON.parse(readFileSync(new URL('../../../bloc-demo-data.json', import.meta.url), 'utf8')) as BlocState;

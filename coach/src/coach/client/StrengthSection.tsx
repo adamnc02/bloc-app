@@ -11,7 +11,7 @@ import { Legend, LineSwatch } from '@/components/charts/ChartFrame';
 import { StrengthChart, StrengthSpark } from '@/components/charts/StrengthChart';
 import { fmt } from '@/lib/format';
 import { strengthRows, type StrengthRow } from '@/review/strength';
-import type { TrainingCompliance } from '@/review/training';
+import type { TrainingCompliance } from '@engine/review';
 
 /** A cycle with A and B templates has many exercises: the first this many show, then Show all. */
 const SHOW_FIRST = 8;

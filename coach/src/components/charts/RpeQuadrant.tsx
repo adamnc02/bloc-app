@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MID_RPE, RPE_COMPLIANT_FROM, RPE_EASY_MAX, RPE_HIGH_MIN, type RpePoint, type RpeZone } from '@/review/training';
+import { MID_RPE, RPE_COMPLIANT_FROM, RPE_EASY_MAX, RPE_HIGH_MIN, type RpePoint, type RpeZone } from '@engine/review';
 import { useWidth, linear } from './ChartFrame';
 
 export const zoneCopy: Record<RpeZone, string> = {

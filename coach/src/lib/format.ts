@@ -1,3 +1,4 @@
+import { formatInches } from '@engine/review';
 import type { ISODate } from '@/domain/types';
 
 const DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -57,12 +58,8 @@ export const fmt = {
   one: (n: number) => n.toFixed(1),
   signed: (n: number, digits = 0) => { const r = Number(n.toFixed(digits)); return `${r > 0 ? '+' : r < 0 ? '−' : ''}${Math.abs(r).toFixed(digits)}`; },
   signedInt: (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(Math.round(n)).toLocaleString('en-GB')}`,
-  /** Inches with quarter fractions: 32.25 → 32¼″ */
-  inches: (n: number) => {
-    const whole = Math.floor(n + 1e-6), q = Math.round((n - whole) * 4);
-    const fr = ['', '¼', '½', '¾'][q] ?? '';
-    return `${whole === 0 && fr ? '' : whole}${fr}″`;
-  },
+  /** Inches with quarter fractions: 32.25 → 32¼″ (the engine's, so Review's outcome text and Coach's screens agree). */
+  inches: (n: number) => formatInches(n),
   kg: (n: number) => n.toFixed(1),
   ago: (hours: number | null) => {
     if (hours == null) return 'Never synced';

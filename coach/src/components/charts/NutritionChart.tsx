@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { getHomeMetricTolerance } from '@engine';
-import type { NutritionDay, NutritionWeek } from '@/review/nutrition';
+import type { NutritionDay, NutritionWeek } from '@engine/review';
 import { fmt } from '@/lib/format';
 import { Seg } from '@/components/ui/controls';
 import { BoxSwatch, Legend, LineSwatch, ScrubChart, linear, niceRange } from './ChartFrame';
@@ -14,7 +14,7 @@ type Pt = { key: string; label: string; date: string; kcal: number | null; targe
  * whole chart; the day view adds weight and waist. Hold and drag
  * reads a day's totals; tap a day to see its meals. A bar is red when it's on
  * the bad side of target for the cycle's goal: by day, beyond Home's calorie
- * tolerance; by week, Home's closed-week verdict (review/nutrition.ts).
+ * tolerance; by week, Home's closed-week verdict (engine/src/review/nutrition.ts).
  */
 export function NutritionChart({ days, weeks, bmr, tdee, goalType, onDay }: {
   days: NutritionDay[]; weeks: NutritionWeek[]; bmr: number | null; tdee: number | null; goalType: string; onDay: (date: string) => void;

@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import type { CellState, GridCell, GridRow, TrainingCompliance, WeekCol } from '@/review/training';
-import { MID_RPE, outOf10 } from '@/review/training';
+import { MID_RPE, outOf10, type CellState, type GridCell, type GridRow, type TrainingCompliance, type WeekCol } from '@engine/review';
 import { NAGGING_FAILS } from '@/review/findings';
 import { fmt } from '@/lib/format';
 import { Sheet } from '@/components/ui/Sheet';

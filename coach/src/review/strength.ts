@@ -3,7 +3,7 @@
 //
 // A week's point is its heaviest set done (its reps with it) and that set's target, the number Train showed. A
 // week with nothing done has no point. An exercise with no weight logged (cardio, bodyweight) has no row.
-import type { CellState, TrainingCompliance } from './training';
+import type { CellState, TrainingCompliance } from '@engine/review';
 
 export interface StrengthPoint {
   /** The grid column (a calendar week) and its label, "W3". */

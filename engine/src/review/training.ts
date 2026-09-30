@@ -27,7 +27,7 @@ import {
   getRpeKey, getSubstitution, getTrainAgendaUnits, getWeekComplianceResult, getWeekSets, getWeekTargets,
   isDeloadUnit, isRpeOn, parseRepsForVolume,
   type BlocState, type Loose, type Macrocycle, type TargetCache, type WeekTarget,
-} from '@engine';
+} from '../index.ts';
 
 export type CellState =
   | 'pass' | 'fail' | 'missed'            // scored

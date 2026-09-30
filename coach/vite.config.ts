@@ -46,10 +46,12 @@ export default defineConfig({
   plugins: [react(), blocDemoData()],
   define: { __COACH_VERSION__: JSON.stringify(`v${pkg.version}`) },
   resolve: {
-    alias: {
-      '@engine': fileURLToPath(new URL('../engine/src/index.ts', import.meta.url)),
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
-    },
+    // Exact matches: a string '@engine' would also catch '@engine/review' as a prefix.
+    alias: [
+      { find: /^@engine\/review$/, replacement: fileURLToPath(new URL('../engine/src/review/index.ts', import.meta.url)) },
+      { find: /^@engine$/, replacement: fileURLToPath(new URL('../engine/src/index.ts', import.meta.url)) },
+      { find: /^@\//, replacement: fileURLToPath(new URL('./src/', import.meta.url)) },
+    ],
   },
   server: { port: 5173, strictPort: true, fs: { allow: [repoRoot] } },
   preview: { port: 4173, strictPort: true },
