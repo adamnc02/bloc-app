@@ -335,7 +335,7 @@ function createLiveRepoInner(sb: SupabaseClient, profile: CoachProfile, onProfil
         sb.from('client_submissions').select('id, client_id, kind, publication_id, body, created_at').eq('coach_id', current.coachId).order('created_at'),
         sb.from('coach_ai_drafts').select(DRAFT_COLS).eq('coach_id', current.coachId).order('created_at'),
         sb.from('publications').select('id, seq, client_record_id, type, payload, supersedes, created_at').eq('coach_id', current.coachId)
-          .in('type', ['ai_response', 'note_reply', 'photo_request', 'session_log']).order('seq'),
+          .in('type', ['plan', 'ai_response', 'note_reply', 'photo_request', 'session_log']).order('seq'),
       ]);
       for (const r of [subs, drafts, pubs]) if (r.error) throw r.error;
       return {

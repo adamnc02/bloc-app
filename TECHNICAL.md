@@ -11170,6 +11170,57 @@ Client → Sessions → **On their own** (a client not linked):
     was it? → saved → Past sessions "On their own".
   - No horizontal scroll, no console errors.
 
+## §163 — Coach v0.13: an exercise rated 9+ two weeks running, and its reset
+
+**What it is.** A coach's cycle follows BLOC's RPE rule by itself (§161): a 9 or 10 holds next week's target. The coach
+steps in only when that isn't enough, and Coach says when.
+
+### The flag (`coach/src/review/effort.ts`, `highRatingStreaks`)
+
+The same exercise on the same track (a session's dayKey, so M1 and M2 apart) rated **9 or 10 in two consecutive weeks of
+that track**, deloads skipped, whether or not the target was hit. Only the latest two rated weeks are looked at, so it
+clears by itself:
+
+- a later rating of 8 or lower;
+- a week rated "skipped" after them;
+- a reset (ratings before the exercise's progression start, `progressionStartWeek`, don't count).
+
+A cycle with ratings off raises nothing. Ratings the coach gives in person, or records from a client's sheet, count the
+same as the client's.
+
+**Where it shows.** Today → Needs you → **Rated too hard** ("{first} rated {exercise} 9, then 10", the two weeks), with
+**Reset it**. `effortFlags()` judges each client's running coach's cycle on their record as their phone holds it
+(`recordState`: the upload, with every plan and session_log publication folded in), at the client's today. A client not
+on the app is judged the same way. 🚨 That is why `loadInbox` now includes `plan` publications: a client not on the app
+has a plan only there, and without it they had no cycle to judge.
+
+### The reset
+
+**Reset it** opens the client's Plan on that cycle (`?act=reset&ex={dayKey}|{exId}`) with the exercise sheet in **reset**
+mode:
+
+- The sheet says why, and from which week.
+- The coach sets new starting numbers, and **Reset from MC {n}** saves the same exercise with `fromWeek` = n, a draft to
+  publish.
+- On the phone, BLOC §161 then makes that week its week 1: those numbers, no old lock, nothing before it counted.
+  Earlier weeks keep their logs.
+
+`resetWeek()` (`plan/doc.ts`) is the next week of that session with nothing logged (after the last week with a set done),
+and never before the client's current week. With no week left in the cycle the sheet says so and can't save. 🚨 Not
+`joinWeek()`, which is the calendar week: a client who has already logged the calendar week's session would have had it
+reset under them.
+
+### Checks
+
+- `coach/src/review/effort.test.ts` (vitest, 9):
+  - 9 then 10 raises it (controls: one week, a later 8, a skipped week, a gap);
+  - a deload between them is skipped (control: the gap without it);
+  - ratings before a reset don't count, and ratings off raise nothing (each with a control);
+  - `resetWeek`: the current week, after the last logged week of that session (control: another session's logs), none
+    left;
+  - `effortFlags` on a linked fixture client made a coach's cycle, rated 9 then 10 (control: 9 then 7).
+- Driven in headless Chromium on the fixtures at 375 × 812, from Today to Eileen's reset link: "Reset Lat Pull Machine",
+  the explanation, **Reset from MC 2**, and the draft saved ("resets from MC 2 · draft"). No console errors.
 
 ## §164 — v8.53 + Coach v0.12: demo clients, rebuilt to this week
 

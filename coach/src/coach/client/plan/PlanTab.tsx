@@ -5,7 +5,7 @@ import { useCoach } from '@/app/App';
 import { fmt } from '@/lib/format';
 import {
   addExercise, addSession, copyMicro, dayKeys, dayOf, editSettings, keyOf, linkSuperset, microOf, moveInSuperset, moveSlot, newCycle,
-  joinWeek, removeExercise, removeGoal, removeSession, renameSession, sessionLabel, setExtension, slotsOf, swapExercise, toggleDeload, unlinkExercise,
+  joinWeek, removeExercise, resetWeek, removeGoal, removeSession, renameSession, sessionLabel, setExtension, slotsOf, swapExercise, toggleDeload, unlinkExercise,
   updateExercise, upsertGoal, type PlanDoc, type PlanExercise,
 } from '@/plan/doc';
 import { applyMacroTemplate, applyWorkoutTemplate, macroTemplateOf, workoutTemplateOf, type Template } from '@/plan/templates';
@@ -23,7 +23,7 @@ import {
 type SheetKind = 'cycle' | 'new' | 'edit' | 'extend' | 'goal' | 'publish' | 'preview' | 'tplCycle' | 'applyCycle' | 'tplWorkout' | 'saveCycle' | 'saveWorkout' | 'session' | 'link' | null;
 
 /** What Review asked Plan to open (a finding's action): `?act=swap&ex={dayKey}|{exId}`, or `?act=goal`. */
-export interface PlanIntent { act: 'swap' | 'goal'; ex?: string | null }
+export interface PlanIntent { act: 'swap' | 'goal' | 'reset'; ex?: string | null }
 
 /**
  * Client → Plan (proposal §5.3; TECHNICAL §144): the cycle's goal phases,
@@ -67,8 +67,14 @@ export function PlanTab({ v, macro, intent }: { v: ClientView; macro: string | n
       setSheet('goal');
     } else if (intent.ex) {
       const [dk, id] = intent.ex.split('|');
-      const ex = (doc.exercises[keyOf(doc.macro.id, dk)] || []).find((e) => e.id === id);
-      if (ex) { setMicro((microOf(dk) || 1) as 1 | 2); setOpenDays(new Set([dk])); setSwapAt({ dayKey: dk, ex }); }
+      const list = doc.exercises[keyOf(doc.macro.id, dk)] || [];
+      const ex = list.find((e) => e.id === id);
+      if (ex) {
+        setMicro((microOf(dk) || 1) as 1 | 2); setOpenDays(new Set([dk]));
+        // Rated 9+ two weeks running (§163): its reset, straight away.
+        if (intent.act === 'reset') setExCtx({ mode: 'reset', dayKey: dk, sessionLabel: sessionLabel(doc.macro, dk), exercise: ex, list, resetFrom: resetWeek(doc.macro, dk, today, p.trainLogs) });
+        else setSwapAt({ dayKey: dk, ex });
+      }
     }
   }, [intent, doc, readOnly, today]);
 
@@ -279,6 +285,8 @@ export function PlanTab({ v, macro, intent }: { v: ClientView; macro: string | n
               // Part-way through a cycle, an added or swapped-in exercise joins at the client's week (§147).
               const from = joinWeek(doc.macro, c.dayKey, today, p.trainLogs);
               if (c.mode === 'swap') edit((d) => swapExercise(d, c.dayKey, c.exercise!.id, f, p.ids, from), `${c.exercise!.name} swapped for ${f.name}`);
+              // A reset (§163): the same exercise, new starting numbers from the next unlogged week (BLOC §161).
+              else if (c.mode === 'reset') edit((d) => updateExercise(d, c.dayKey, c.exercise!.id, { ...f, fromWeek: c.resetFrom ?? undefined }), `${f.name} resets from MC ${c.resetFrom}`);
               else edit((d) => (c.mode === 'add' ? addExercise(d, c.dayKey, f, p.ids, c.intoSuperset ?? undefined, from) : updateExercise(d, c.dayKey, c.exercise!.id, f)), c.mode === 'add' ? `${f.name} added` : `${f.name} saved`);
               setOpenDays(new Set([...openDays, c.dayKey]));
               setExCtx(null);
