@@ -11,6 +11,10 @@ import { SESSION_LOG_KEYS, parseSessionId, loggedSessions } from '@/inperson/mod
 import { foldPlan } from '@/plan/fold';
 import { weekday } from '@/lib/format';
 import type { CoachPublication } from '@/ai/types';
+import { missedBookings, missedGroups } from '@/today/model';
+import type { Diary } from '@/diary/types';
+import { DEFAULT_SETTINGS } from '@/diary/types';
+import { localDateIn } from '@engine/review';
 
 const NOW = Date.parse('2026-10-07T09:00:00Z'); // a Wednesday
 const IDS: DemoIds = {
@@ -110,5 +114,25 @@ describe('demo rows', () => {
       const today = new Intl.DateTimeFormat('en-CA', { timeZone: s.tz }).format(new Date(NOW));
       expect([s.client, clientOutcome(s.state, today).status]).toEqual([s.client, want[s.client]]);
     }
+  });
+
+  it('Needs you: no session in the last 14 days is left unlogged (Maya’s Wednesdays, Eileen’s sessions, Saturday Circuits)', () => {
+    const cardOf = Object.fromEntries(Object.entries(IDS.cards).map(([k, v]) => [k, v]));
+    const diary: Diary = {
+      settings: DEFAULT_SETTINGS, daysOff: [], requests: [], sent: {},
+      series: rows.series.map((x) => ({ id: x.id, kind: x.kind, weekday: x.weekday, start: x.start_min, duration: x.duration_min, from: x.effective_from, to: x.effective_to,
+        cancelled: [], title: x.title, location: x.location, workout: x.workout, clientIds: rows.seriesClients.filter((c) => c.series_id === x.id).map((c) => cardOf[c.card]) })),
+      bookings: rows.bookings.map((b) => ({ id: b.id, seriesId: null, occursOn: null, date: b.date, start: b.start_min, duration: b.duration_min, kind: b.kind, status: b.status,
+        title: b.title, location: b.location, clientIds: rows.bookingClients.filter((c) => c.booking_id === b.id).map((c) => cardOf[c.card]) })),
+    };
+    const inbox = (pubs: typeof rows.publications) => ({ submissions: [], drafts: [],
+      publications: pubs.map((p, i) => ({ id: p.id, seq: i + 1, type: p.type, payload: p.payload, supersedes: null, createdAt: p.createdAt, ack: null, cardId: cardOf[p.card] })) });
+    const today = localDateIn('Europe/London', NOW);
+    expect(missedBookings(diary, inbox(rows.publications), today).map((m) => m.occ.date)).toEqual([]);
+    expect(missedGroups(diary, inbox(rows.publications), today).map((o) => o.date)).toEqual([]);
+    // CONTROL: without the session logs, Maya's Wednesdays and the circuits weeks come back as "Not logged".
+    const noLogs = rows.publications.filter((p) => p.type !== 'session_log');
+    expect(missedBookings(diary, inbox(noLogs), today).length).toBeGreaterThan(0);
+    expect(missedGroups(diary, inbox(noLogs), today).length).toBeGreaterThan(0);
   });
 });

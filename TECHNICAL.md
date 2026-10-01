@@ -11286,6 +11286,14 @@ what Coach itself sends: the diary's bookings from `desiredBookings()` (Maya on 
 Fridays, the Saturday Circuits group, one-offs for Tom and Ben), Eileen's sessions from `sessionLogPayload()` with
 her Tuesday measurements, Priya's photo request from `photoRequestPayload()`, Casey's check-in reply, note back and
 session request, and Maya's check-in request. Pure: ids come from fixed seeds (`demoId`) and `now` comes in.
+
+🚨 **Every session that has passed is logged** (Coach v0.13.2). Since Coach v0.10 a booking or group week from the last
+14 days with no `session_log` sits in Needs you as "Not logged", so the demo logs what a real coach would: Maya's
+Wednesday plan session, taken in person (`inPersonLog`, the same payload as Eileen's: `sessionLogPayload`, id
+`ip:{series}:{date}:{stamp}`), and each Saturday Circuits week for both attendees (`groupPayload`, id
+`gp:{series}:{date}:{stamp}`, the group's planned workout `CIRCUITS`, no `replaces`: an extra session). Maya trains
+Mon, **Wed**, Thu and Sat so her Wednesday session is the one done with the coach. `demo.test.ts` runs Coach's own
+`missedBookings` and `missedGroups` over the rows: none left (CONTROL: without the logs they come back).
 `cards.ts` holds the cards (`@example.com` addresses; Ofcom's drama phone range).
 
 🚨 **Each card's `plan` and `goal_phases` publications come first**, so they hold the card's lowest `seq`s. The
