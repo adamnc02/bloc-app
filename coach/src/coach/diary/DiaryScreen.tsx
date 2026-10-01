@@ -6,7 +6,7 @@ import { useState } from 'react';
 import type { ISODate } from '@/domain/types';
 import { CoachShell, AccountButton } from '@/coach/CoachShell';
 import { Hero, Page, PageHeader } from '@/components/ui/layout';
-import { Button, IconButton } from '@/components/ui/controls';
+import { IconButton } from '@/components/ui/controls';
 import { EmptyState } from '@/components/ui/display';
 import { Icon } from '@/components/ui/Icon';
 import { Toast } from '@/components/ui/Sheet';
@@ -88,6 +88,7 @@ export function DiaryScreen() {
   const hours = inView.reduce((a, o) => a + o.duration, 0) / 60;
   const open = requestsNeedingCoach(diary).length;
   const weekDelta = Math.round(daysBetween(startOfWeek(today), startOfWeek(first)) / 7);
+  const atToday = days.includes(today) && (wide || days[0] === today);
   const rel = weekDelta === 0 ? 'This week' : weekDelta === 1 ? 'Next week' : weekDelta === -1 ? 'Last week' : `Week of ${fmt.dm(startOfWeek(first))}`;
 
   const s = sheet;
@@ -118,19 +119,23 @@ export function DiaryScreen() {
         </Hero>
 
         <div className="rise" style={{ ['--i' as string]: 2 }}>
+          {/* Symmetric: ‹ and › at the edges, the range centred between them. "Back to today" takes the
+              relative line's place only once the view has moved off today, so nothing sits beside an arrow. */}
           <div className="dy-bar">
             <IconButton icon="chevL" label={wide ? 'Previous week' : 'Previous 5 days'} onClick={() => setAnchor(addDays(first, -count))} />
-            <div className="dy-range" aria-live="polite"><b className="num">{fmt.range(days[0], last)}</b><small>{rel}</small></div>
+            <div className="dy-range" aria-live="polite">
+              <b className="num">{fmt.range(days[0], last)}</b>
+              {atToday ? <small>{rel}</small> : <button type="button" className="dy-today" onClick={() => setAnchor(null)}>{rel} · Back to today</button>}
+            </div>
             <IconButton icon="chevR" label={wide ? 'Next week' : 'Next 5 days'} onClick={() => setAnchor(addDays(first, count))} />
-            <Button size="compact" variant="ghost" disabled={days.includes(today) && (wide || days[0] === today)} onClick={() => setAnchor(null)}>Today</Button>
           </div>
-          <p className="caption dy-hint">{wide ? 'Click a session to edit it, or drag it to a new time. Click an empty hour to book it.' : 'Tap a session to edit it. Hold, then drag to move it. Tap an empty hour to book it.'}</p>
           <div className="dy-legend" aria-label="What the outlines mean">
             <span><i className="lg-booked" />Booked</span>
             <span><i className="lg-requested" />Requested</span>
             <span><i className="lg-offered" />Offered</span>
             <span><i className="lg-confirmed" />Clash</span>
           </div>
+          <p className="caption dy-hint">{wide ? 'Click a session to edit it, or drag it to a new time. Click an empty hour to book it.' : 'Tap to edit · hold and drag to move · tap an empty hour to book'}</p>
         </div>
 
         <div className="rise" style={{ ['--i' as string]: 3 }} aria-busy={busy}>
