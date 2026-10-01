@@ -19,8 +19,8 @@ import {
   type BlocState, type CallModel, type CycleReviewImage, type Macrocycle,
 } from '@engine';
 import { makeTargetCache } from '@engine/review';
-import { coachReviewPrompt, overlayCoachAdvice, requestNote } from './tools';
-import type { AiDraft, AiOriginal, AiTool, CalcCompliance, CoachPublication, Submission } from './types';
+import { coachReviewPrompt, overlayCoachAdvice } from './tools';
+import type { AiDraft, AiOriginal, AiTool, CalcCompliance, CoachPublication } from './types';
 
 export interface RunInput {
   tool: AiTool;
@@ -32,8 +32,6 @@ export interface RunInput {
   /** This client's drafts and publications: the sent history the prompt is built from. */
   drafts: AiDraft[];
   publications: CoachPublication[];
-  /** Check-in: the client's open request, if any. */
-  request?: Submission | null;
   /** Cycle review: the coach's private notes on the card, the calculated scores, and the consented photos. */
   notes?: string | null;
   compliance?: CalcCompliance | null;
@@ -49,8 +47,8 @@ export async function runTool(i: RunInput): Promise<AiOriginal> {
 
   if (i.tool === 'check_in') {
     const prompt = buildBlocAdvicePrompt(s, ctx, makeTargetCache(s), macro);
-    const response = await requestBlocAdvice({ ...prompt, userMessage: prompt.userMessage + requestNote(i.request ?? null) }, macro, callModel, () => ctx, i.today);
-    return { v: 1, raw, response, today: i.today, requestId: i.request?.id ?? null };
+    const response = await requestBlocAdvice(prompt, macro, callModel, () => ctx, i.today);
+    return { v: 1, raw, response, today: i.today };
   }
   if (i.tool === 'cycle_review') {
     const before = i.photos?.before ?? [], after = i.photos?.after ?? [];

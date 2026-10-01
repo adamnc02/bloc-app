@@ -7,7 +7,7 @@ import { buildFixtureClients } from '@/data/fixtures';
 import { runTool } from './run';
 import {
   aiResponsePayload, coachReviewPrompt, contentOf, editFromOriginal, eligibility, goalChanges, isEdited, notesBack,
-  openRequest, overallCompliance, PERSONAL_PHOTO_PARAGRAPH, photoRequestPayload, photoRequestState, phasesFor, priorPhaseIds, publishState, sentEdit, withPlan,
+  overallCompliance, PERSONAL_PHOTO_PARAGRAPH, photoRequestPayload, photoRequestState, phasesFor, priorPhaseIds, publishState, sentEdit, withPlan,
 } from './tools';
 import type { AiDraft, CoachPublication, Submission } from './types';
 
@@ -55,12 +55,11 @@ describe('running a check-in: BLOC’s engine, the client’s today, the reply k
     expect(userText(b.sent[0])).toContain('First goal must start: 2026-08-03');
   });
 
-  it('carries the client’s request: their feel and note', async () => {
+  it('carries no client request: a client never asks for a check-in (v0.16)', async () => {
     const { callModel, sent } = stub(checkinReply('2026-08-10', '2026-08-23'));
-    const request: Submission = { id: 's1', kind: 'check_in', publicationId: null, createdAt: '2026-08-04T09:00:00Z', body: { purpose: 'check_in', feel: 'Tough', note: 'Starving at night', sent_on: '2026-08-04' } };
-    const o = await runTool({ tool: 'check_in', state: maya(), macro: macroOf(maya()), today: '2026-08-05', callModel, drafts: [], publications: [], request });
-    expect(userText(sent[0])).toContain('THE CLIENT ASKED FOR THIS CHECK-IN (2026-08-04): feeling tough. Their note: "Starving at night"');
-    expect(o.requestId).toBe('s1');
+    const o = await runTool({ tool: 'check_in', state: maya(), macro: macroOf(maya()), today: '2026-08-05', callModel, drafts: [], publications: [] });
+    expect(userText(sent[0])).not.toContain('THE CLIENT ASKED');
+    expect(o.requestId).toBeUndefined();
   });
 
   it('never changes the client’s state', async () => {
@@ -243,14 +242,10 @@ describe('who asked for what: body.purpose', () => {
     { id: 'ask', kind: 'check_in', publicationId: null, createdAt: '2026-08-03T10:00:00Z', body: { purpose: 'check_in', feel: 'Good', macro_id: MACRO } },
     { id: 'note', kind: 'note_back', publicationId: 'p1', createdAt: '2026-08-05T10:00:00Z', body: { response_id: 'd1', text: 'Thanks' } },
   ];
-  it('a review-photos row is never a check-in request', () => {
-    expect(openRequest(subs, [], MACRO)?.id).toBe('ask');
-    expect(openRequest(subs.filter((x) => x.id !== 'ask'), [], MACRO)).toBeNull();
+  it('an old check-in request row is never taken for review photos', () => {
+    expect(photoRequestState([], subs.filter((x) => x.id !== 'photos'), MACRO).status).toBe('none');
     // Sent unprompted (BLOC v8.41–v8.43, no request_id) and nothing asked: counts as the answer.
     expect(photoRequestState([], subs, MACRO)).toMatchObject({ status: 'answered', skipped: false, before: ['u/reviews/x/before-1.jpg'], after: ['u/reviews/x/after-1.jpg'] });
-  });
-  it('a run after the request answers it', () => {
-    expect(openRequest(subs, [draft({ createdAt: '2026-08-03T12:00:00Z' })], MACRO)).toBeNull();
   });
   it('notes back attach to their response, with the coach’s reply', () => {
     const reply: CoachPublication = { ...pub('r1', 2, { submission_id: 'note', text: 'Good' }), type: 'note_reply' };
@@ -279,17 +274,21 @@ describe('review photos are asked for first (0027 photo_request, BLOC v8.44)', (
 
 describe('when a tool can run', () => {
   const s = maya();
-  const base = { s, macro: macroOf(s), today: '2026-08-05', cycleStatus: 'active' as const, hasKey: true, drafts: [], request: null, first: 'Maya', fmtDate: (x: string) => x };
+  const base = { s, macro: macroOf(s), today: '2026-08-05', cycleStatus: 'active' as const, hasKey: true, drafts: [], publications: [] as CoachPublication[], first: 'Maya', fmtDate: (x: string) => x };
   it('no key, nothing runs', () => {
     expect(eligibility('check_in', { ...base, hasKey: false })).toMatchObject({ ready: false, runnable: false, needsKey: true });
     expect(eligibility('cycle_review', { ...base, hasKey: false }).needsKey).toBeUndefined(); // blocked for another reason: no Settings link
   });
-  it('a check-in is due with no earlier run; asked for, it says so; inside the cooldown it can still run early', () => {
-    expect(eligibility('check_in', base)).toMatchObject({ ready: true, text: 'Run check-in with BLOC' });
-    const asked: Submission = { id: 'a', kind: 'check_in', publicationId: null, createdAt: '2026-08-04T10:00:00Z', body: { purpose: 'check_in' } };
-    expect(eligibility('check_in', { ...base, request: asked }).text).toBe('Run check-in · Maya asked 2026-08-04');
+  it('a check-in is due on the schedule: first one with enough data; then 14 days after one PUBLISHED; a run never published doesn’t count', () => {
+    expect(eligibility('check_in', base)).toMatchObject({ ready: true, text: 'First check-in due · run it with BLOC' });
+    const sent = { ...pub('p-ci', 1, { tool: 'check_in', macro_id: MACRO }, '2026-08-03T18:00:00Z') };
+    expect(eligibility('check_in', { ...base, publications: [sent] })).toEqual({ ready: false, runnable: true, text: 'Next check-in · 2026-08-17 · run early' });
+    expect(eligibility('check_in', { ...base, today: '2026-08-17', publications: [sent] })).toMatchObject({ ready: true, text: 'Check-in due · run it with BLOC' });
+    // control: a draft run on the 3rd but never published leaves the check-in due
     const recent = draft({ original: { v: 1, raw: '', response: {}, today: '2026-08-03' } });
-    expect(eligibility('check_in', { ...base, drafts: [recent] })).toEqual({ ready: false, runnable: true, text: 'Next check-in · 2026-08-17 · run early' });
+    expect(eligibility('check_in', { ...base, drafts: [recent] }).ready).toBe(true);
+    // another cycle's publication doesn't count
+    expect(eligibility('check_in', { ...base, publications: [{ ...sent, payload: { tool: 'check_in', macro_id: 'other' } }] }).ready).toBe(true);
   });
   it('a cycle review: photos asked for first (from the final week), then run once answered, or without them after 3 days', () => {
     const P = (over: object) => ({ status: 'none' as const, request: null, answer: null, skipped: false, before: [], after: [], askedOn: null, ...over });

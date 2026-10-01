@@ -6,7 +6,7 @@ import { fmt } from '@/lib/format';
 import { runTool } from '@/ai/run';
 import { coachCallModel, getAiKey } from '@/ai/transport';
 import {
-  aiResponsePayload, contentOf, eligibility, goalChanges, isEdited, latestDraft, notesBack, openRequest, overallCompliance,
+  aiResponsePayload, contentOf, eligibility, goalChanges, isEdited, latestDraft, notesBack, overallCompliance,
   photoRequestPayload, photoRequestState, phasesFor, planChoices, planRunsTo, priorPhaseIds, publishState, sentEdit, TOOL_LABEL, TOOLS, withPlan, type GoalChanges,
 } from '@/ai/tools';
 import type { AiData, AiDraft, AiEdit, AiTool, CoachPublication, Submission } from '@/ai/types';
@@ -66,9 +66,8 @@ export function AiPanel({ v, m, state, tool, onTool, ai }: {
     return ai.error ? <Notice icon="warning" tone="bad" title="Couldn’t load the AI tools">{ai.error}</Notice> : <div className="card" aria-busy="true" style={{ minHeight: 120 }} />;
   }
   const d = latestDraft(data.drafts, tool, macro.id);
-  const request = tool === 'check_in' ? openRequest(data.submissions, data.drafts, macro.id) : null;
   const photos = photoRequestState(data.publications, data.submissions, macro.id);
-  const el = eligibility(tool, { s: state, macro, today, cycleStatus: m.cycle.status, hasKey, drafts: data.drafts, request, first, fmtDate: fmt.ddm, photos });
+  const el = eligibility(tool, { s: state, macro, today, cycleStatus: m.cycle.status, hasKey, drafts: data.drafts, publications: data.publications, first, fmtDate: fmt.ddm, photos });
   const consent = !!v.bundle.link?.photoConsent;
   const addDraft = (x: AiDraft) => ai.setData((p) => (p ? { ...p, drafts: [...p.drafts.filter((y) => y.id !== x.id), x] } : p));
   const addPub = (x: CoachPublication) => ai.setData((p) => (p ? { ...p, publications: [...p.publications, x] } : p));
@@ -99,7 +98,7 @@ export function AiPanel({ v, m, state, tool, onTool, ai }: {
       const t = m.training;
       const training = t.scored ? t.cycleScore : t.cycleAttendance;
       const original = await runTool({
-        tool, state, macro, today, callModel: coachCallModel(key), drafts: data.drafts, publications: data.publications, request,
+        tool, state, macro, today, callModel: coachCallModel(key), drafts: data.drafts, publications: data.publications,
         notes: card.notes, photos: imgs,
         compliance: { training, attendance: !t.scored, nutrition: m.nutrition.cycleScore, overall: overallCompliance(training, m.nutrition.cycleScore) },
       });
@@ -127,7 +126,6 @@ export function AiPanel({ v, m, state, tool, onTool, ai }: {
       {tool === 'cycle_review' && photos.status === 'answered' && !running && (
         <Button variant="ghost" size="sm" style={{ marginTop: 8 }} onClick={() => askPhotos()}>Ask for photos again</Button>
       )}
-      {request && <RequestTile r={request} first={first} />}
 
       {running && <p className="muted" style={{ marginTop: 16 }} role="status">Running with your key…</p>}
       {!running && !d && <p className="muted" style={{ marginTop: 16 }}>No {TOOL_LABEL[tool].noun} for {m.cycle.name} yet.</p>}
@@ -164,20 +162,6 @@ function photoCaption(p: ReturnType<typeof photoRequestState>, consent: boolean,
   return consent
     ? `${first} sent ${p.before.length} before and ${p.after.length} after photo${p.after.length === 1 ? '' : 's'}${p.answer ? ` on ${fmt.dm(p.answer.createdAt.slice(0, 10))}` : ''}. They go to the model with the review, and aren’t kept.`
     : `${first} sent ${n} photo${n === 1 ? '' : 's'}, but has since turned photos off, so the review runs without them.`;
-}
-
-function RequestTile({ r, first }: { r: Submission; first: string }) {
-  const note = String(r.body?.note || '').trim();
-  return (
-    <div className="tile" style={{ marginTop: 14, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-      <span className="t-acc" style={{ marginTop: 1 }}><Icon name="message" size={18} /></span>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontWeight: 700 }}>{first} asked for a check-in · {fmt.dm(String(r.body?.sent_on || r.createdAt.slice(0, 10)))}</div>
-        <div className="muted" style={{ marginTop: 2 }}>{r.body?.feel ? `Feeling ${String(r.body.feel).toLowerCase()}` : 'No feel given'}{note ? `: “${note}”` : ''}</div>
-        <div className="caption" style={{ marginTop: 4 }}>Their feel and note go into the check-in.</div>
-      </div>
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------- the response card

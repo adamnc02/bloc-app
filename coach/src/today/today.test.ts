@@ -72,11 +72,10 @@ describe('Needs you', () => {
     expect(missedBookings(d, logged, ANCHOR).map((m) => m.occ.key)).not.toContain('s:sr-tom@2026-07-30');
     expect(missed.every((k) => !k.startsWith('s:sr-bootcamp'))).toBe(true);      // a group week is missedGroups', not this list's
   });
-  it('requests waiting on the coach, a check-in request, an unanswered note back and answered review photos; each clears once dealt with', async () => {
+  it('requests waiting on the coach, a check-in due, an unanswered note back and answered review photos; each clears once dealt with', async () => {
     const d = await fixtureDiary(ANCHOR).loadDiary();
     const inbox: Inbox = {
       submissions: [
-        sub('user-maya', 's1', 'check_in', { purpose: 'check_in', feel: 'Okay', note: 'Hungry', macro_id: null }),
         sub('user-maya', 's2', 'note_back', { response_id: 'r1', text: 'Thanks!' }),
         sub('user-maya', 's3', 'check_in', { purpose: 'cycle_review', request_id: 'pr1', macro_id: 'macro_1780859905961', skipped: true, before: [], after: [] }),
       ],
@@ -85,27 +84,40 @@ describe('Needs you', () => {
     };
     const kinds = needsYou(d, inbox, built.clients, summaries, ANCHOR).map((x) => x.kind);
     for (const k of ['request', 'checkin', 'note', 'photos', 'missed']) expect(kinds).toContain(k);
+    // The check-in is due on the schedule, with no client request (v0.16): an old request row changes nothing.
+    const withOldAsk: Inbox = { ...inbox, submissions: [...inbox.submissions, sub('user-maya', 's1', 'check_in', { purpose: 'check_in', feel: 'Okay', macro_id: null })] };
+    expect(needsYou(d, withOldAsk, built.clients, summaries, ANCHOR).filter((x) => x.kind === 'checkin' || x.kind === 'photos').map((x) => x.key))
+      .toEqual(needsYou(d, inbox, built.clients, summaries, ANCHOR).filter((x) => x.kind === 'checkin' || x.kind === 'photos').map((x) => x.key));
     // Coach v0.9 (§158): a tapped push does what its item's button does. The push's tag carries the id in the item's key.
     const items = needsYou(d, inbox, built.clients, summaries, ANCHOR);
-    const tagOf = (key: string) => ({ r: 'request', c: 'checkin', n: 'note' } as Record<string, string>)[key[0]] + ':' + key.slice(2);
-    const pushable = items.filter((x) => x.kind === 'request' || x.kind === 'checkin' || x.kind === 'note');
-    expect([...new Set(pushable.map((x) => x.kind))].sort()).toEqual(['checkin', 'note', 'request']);
+    const tagOf = (key: string) => ({ r: 'request', p: 'photos', n: 'note' } as Record<string, string>)[key[0]] + ':' + key.slice(2);
+    const pushable = items.filter((x) => x.kind === 'request' || x.kind === 'photos' || x.kind === 'note');
+    expect([...new Set(pushable.map((x) => x.kind))].sort()).toEqual(['note', 'photos', 'request']);
+    // Review photos open the client's Review on the cycle review tool.
+    expect((needsItemOpen(pushable.find((x) => x.kind === 'photos')!) as { path: string }).path).toMatch(/^\/clients\/maya\/review\?.*tool=cycle_review/);
     for (const it of pushable) expect(pushAction(tagOf(it.key), items)).toEqual(needsItemOpen(it));
     expect(pushAction('checkin:not-an-item', items)).toBeNull();          // dealt with already: stay on Today
     expect(pushAction('digest:2026-08-02', items)).toBeNull();
     const note = pushable.find((x) => x.kind === 'note')!;
     expect(needsItemOpen(note)).toEqual({ kind: 'path', path: expect.stringContaining('?') });
     expect((needsItemOpen(note) as { path: string }).path).toMatch(/^\/clients\/maya\/review\?.*at=note/);
-    // Dealt with: the note replied to, the check-in and the review run after.
+    // Dealt with: the note replied to, a check-in PUBLISHED, and the review run after.
+    const runOnly: Inbox = {
+      ...inbox,
+      drafts: [{ id: 'd1', cardId: 'maya', tool: 'check_in', macroId: 'macro_1780859905961', original: {} as never, edited: null, editedAt: null, publicationId: null, createdAt: `${ANCHOR}T12:00:00.000Z` }],
+    };
+    // control: a run never published leaves the check-in due
+    expect(needsYou(d, runOnly, built.clients, summaries, ANCHOR).filter((x) => x.cardId === 'maya').map((x) => x.kind)).toContain('checkin');
     const done: Inbox = {
       ...inbox,
-      publications: [...inbox.publications, pub('maya', 'n1', 3, 'note_reply', { submission_id: 's2', text: 'You’re welcome' })],
+      publications: [...inbox.publications, pub('maya', 'n1', 3, 'note_reply', { submission_id: 's2', text: 'You’re welcome' }),
+        pub('maya', 'c1', 4, 'ai_response', { tool: 'check_in', response_id: 'd1', macro_id: 'macro_1780859905961', content: { headline: 'Keep going' } })],
       drafts: [
-        { id: 'd1', cardId: 'maya', tool: 'check_in', macroId: 'macro_1780859905961', original: {} as never, edited: null, editedAt: null, publicationId: null, createdAt: `${ANCHOR}T12:00:00.000Z` },
         { id: 'd2', cardId: 'maya', tool: 'cycle_review', macroId: 'macro_1780859905961', original: {} as never, edited: null, editedAt: null, publicationId: null, createdAt: `${ANCHOR}T12:00:00.000Z` },
       ],
     };
-    const after = needsYou(d, done, built.clients, summaries, ANCHOR).map((x) => x.kind);
+    // Maya's only: other linked clients may have their own check-ins due on the schedule.
+    const after = needsYou(d, done, built.clients, summaries, ANCHOR).filter((x) => x.cardId === 'maya').map((x) => x.kind);
     expect(after.filter((k) => ['checkin', 'note', 'photos'].includes(k))).toEqual([]);
   });
 });

@@ -83,6 +83,7 @@ export {
   calcDynamicTDEE_rawLogPair, getSustainableWeightRange,
 } from './tdee.ts';
 export { computeWeeklyInsights, computeSafetyFloor, computeMaintenanceRecalibration, computeCheckinState } from './insights.ts';
+export { coachCheckinSchedule, coachTabsReady, checkinDueAfter, type CoachCheckinSchedule, type CoachTabsReady } from './coach.ts';
 export { recommendNextCycle, buildNextCycleGoalSteps, isNextCycleAdviceEligible, nextCycleAdvicePlanMode } from './nextcycle.ts';
 export {
   computeCycleBestLifts, computeCycleWeeklySwings, computeCycleMeasurements, getPriorCycleReviews,

@@ -272,12 +272,9 @@ function fixtureEileen(maya: ClientBundle | undefined, anchor: string): [string,
   ];
 }
 
-/** Maya asked for a check-in the day before the anchor (a `check_in` row, `body.purpose 'check_in'`, BLOC v8.41). */
-function fixtureSubmissions(anchor: string, now: number): (Submission & { clientId: string })[] {
-  return [{
-    clientId: 'user-maya', id: 'sub-maya-checkin', kind: 'check_in', publicationId: null, createdAt: new Date(now - 26 * 3600000).toISOString(),
-    body: { v: 1, purpose: 'check_in', feel: 'Okay', note: 'Hungry in the evenings since the cut dropped. Sleep’s been poor this week.', macro_id: null, sent_on: shiftDateStr(anchor, -1) },
-  }];
+/** No client submissions: a check-in comes due on the schedule (engine coach.ts), never a client's request. */
+function fixtureSubmissions(_anchor: string, _now: number): (Submission & { clientId: string })[] {
+  return [];
 }
 
 function fakeId(): string {

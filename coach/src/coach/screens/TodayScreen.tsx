@@ -134,7 +134,7 @@ export function TodayScreen() {
 
           <div className="tg-needs">
             <Section i={3} title="Needs you" sub="Everything waiting on you, in one list. Each item clears once it’s dealt with." slot={items.length ? <Chip tone="acc">{items.length} waiting</Chip> : undefined}>
-              {items.length === 0 && <EmptyState>Nothing waiting on you. Requests, check-ins, notes back and sessions to log land here.</EmptyState>}
+              {items.length === 0 && <EmptyState>Nothing waiting on you. Session requests, check-ins due, notes back and sessions to log land here.</EmptyState>}
               <div className="stack">
                 {items.map((it, k) => (
                   <Card key={it.key} i={4 + k}>
@@ -272,15 +272,12 @@ function NeedsBody({ it, name, first, who, onRequest, onCancel, onLeave }: {
         <div className="btnrow"><Button size="card" icon="calendar" onClick={() => onRequest(r.id)}>{clash ? 'Move it' : 'Answer'}</Button></div>
       </>;
     }
-    case 'checkin': {
-      const b = it.submission.body || {};
+    case 'checkin':
       return <>
-        <CardHead icon="message" eyebrow="Check-in asked for" name={name} when={ago(it.submission.createdAt)} />
-        <div className="muted" style={{ marginTop: 12 }}>Feeling <b style={{ color: 'var(--text)' }}>{String(b.feel || 'okay').toLowerCase()}</b></div>
-        {b.note && <Quote>{String(b.note)}</Quote>}
+        <CardHead icon="sparkle" eyebrow={it.first ? 'First check-in due' : 'Check-in due'} name={name} when={it.dueOn ? fmt.ddm(it.dueOn) : 'now'} />
+        <p className="muted" style={{ marginTop: 12 }}>{it.first ? `${first}’s cycle has enough logs for a first check-in.` : `Two weeks since ${first}’s last check-in.`} Run it with BLOC, edit, then publish.</p>
         <div className="btnrow"><Button size="card" icon="sparkle" onClick={() => go(needsItemOpen(it))}>Run check-in</Button></div>
       </>;
-    }
     case 'note':
       return <>
         <CardHead icon="send" eyebrow="Note back" name={name} when={ago(it.submission.createdAt)} />

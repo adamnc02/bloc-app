@@ -55,7 +55,7 @@ export interface AiOriginal {
   today: string;
   compliance?: CalcCompliance | null;
   photos?: { before: number; after: number } | null;
-  /** The check-in request (`client_submissions.id`) this run answered. */
+  /** Drafts run before v0.16 may name the client's check-in request (`client_submissions.id`) they answered; clients no longer send one. */
   requestId?: string | null;
 }
 

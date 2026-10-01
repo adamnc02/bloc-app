@@ -4,21 +4,23 @@
 //   Today's sessions  the diary's sessions today (the coach's date), with Start session on a one-to-one from
 //                     15 minutes before it starts until the day ends, unless it's already logged.
 //   Needs you         everything waiting on the coach, each clearing once dealt with: session requests (and a
-//                     confirmed time that now clashes), check-in requests, notes back not replied to, review
+//                     confirmed time that now clashes), check-ins due (the engine's coachCheckinSchedule, the one BLOC
+//                     shows: a client never asks for one), notes back not replied to, review
 //                     photos answered and not yet reviewed, and bookings from the last 14 days that weren't
 //                     logged or cancelled (BLOC keeps an assigned session out of "next" until one or the other),
 //                     group weeks included (§162: Log it opens the group session, Cancel cancels it for everyone),
 //                     and an exercise rated 9+, or missing its target, two weeks running on a coach's cycle (§163:
 //                     Reset it opens it in Plan; Leave keeps BLOC's hold, until a further week the same way).
 //   Off track         linked clients whose outcome is off track (Review's judgement), with its one reason.
-//   Coming up         check-ins due, cycles in their final week, measurements due, and apps gone quiet.
+//   Coming up         check-ins coming due in the next 7 days, cycles in their final week, measurements due, and apps
+//                     gone quiet.
 //
 // 🚨 Anything judged about a client is at the client's today (their upload's zone): check-ins, cycle ends and
 //    measurements. The diary's own dates (today's sessions, missed bookings) are the coach's.
 // ═══════════════════════════════════════════════════════════════════════
-import { getMacroEndDate, shiftDateStr, dayDiff, type Loose, type Macrocycle } from '@engine';
+import { coachCheckinSchedule, getMacroEndDate, shiftDateStr, dayDiff, type BlocState, type Loose, type Macrocycle } from '@engine';
 import type { AiDraft, CoachPublication, Submission } from '@/ai/types';
-import { checkinDueAfter, notesBack, openRequest, photoRequestState } from '@/ai/tools';
+import { notesBack, photoRequestState, publishedCheckinDates } from '@/ai/tools';
 import type { ClientBundle, Inbox } from '@/data/types';
 import type { ClientSummary } from '@/data/summary';
 import { addDays, fmt } from '@/lib/format';
@@ -46,7 +48,7 @@ export interface TodaySession {
 
 export type NeedsItem =
   | { kind: 'request'; key: string; at: string; cardId: string | null; request: SessionRequest }
-  | { kind: 'checkin'; key: string; at: string; cardId: string; submission: Submission }
+  | { kind: 'checkin'; key: string; at: string; cardId: string; macroId: string; dueOn: string | null; first: boolean }
   | { kind: 'note'; key: string; at: string; cardId: string; submission: Submission; headline: string | null; tool: string | null; macroId: string | null }
   | { kind: 'photos'; key: string; at: string; cardId: string; macroId: string; skipped: boolean; count: number }
   | { kind: 'missed'; key: string; at: string; cardId: string; occ: Occurrence }
@@ -125,11 +127,11 @@ export function needsYou(d: Diary, inbox: Inbox, bundles: ClientBundle[], summar
     const subs = inbox.submissions.filter((x) => x.clientId === b.link!.clientId);
     const drafts: AiDraft[] = inbox.drafts.filter((x) => x.cardId === cardId);
     const pubs: CoachPublication[] = byCard(inbox.publications, cardId);
-    const macroId = summaries.find((s) => s.id === cardId)?.cycle?.macroId ?? null;
-    if (macroId) {
-      const req = openRequest(subs, drafts, macroId);
-      if (req) out.push({ kind: 'checkin', key: `c:${req.id}`, at: req.createdAt, cardId, submission: req });
-    }
+    // A check-in due on the schedule (at the client's today). Its key names the due date, so a dismissal, or a run
+    // and publish, clears this one and the next due date is a new item.
+    const sum = summaries.find((s) => s.id === cardId);
+    const due = checkinDue(b.snapshot?.state ?? null, sum, pubs);
+    if (due) out.push({ kind: 'checkin', key: `c:${cardId}:${due.macroId}:${due.dueOn ?? 'first'}`, at: due.dueOn ?? sum!.clientToday!, cardId, macroId: due.macroId, dueOn: due.dueOn, first: !due.dueOn });
     // Notes back with no reply yet: every response on the card.
     const responses = [...new Set(subs.filter((x) => x.kind === 'note_back').map((x) => String(x.body?.response_id ?? '')))];
     for (const rid of responses) {
@@ -154,6 +156,15 @@ export function needsYou(d: Diary, inbox: Inbox, bundles: ClientBundle[], summar
   return out.sort((a, z) => a.at.localeCompare(z.at));
 }
 
+/** A linked client's check-in due today on the schedule, on the cycle Review judges (the running one), at their today. */
+export function checkinDue(state: BlocState | null, sum: ClientSummary | undefined, pubs: CoachPublication[]): { macroId: string; dueOn: string | null } | null {
+  if (!state || !sum || sum.status !== 'linked' || !sum.clientToday || !sum.cycle) return null;
+  const m = (state.macrocycles || []).find((x) => x.id === sum.cycle!.macroId) as Macrocycle | undefined;
+  if (!m) return null;
+  const sch = coachCheckinSchedule(state, { today: sum.clientToday }, m, publishedCheckinDates(pubs, m.id));
+  return sch.due ? { macroId: m.id, dueOn: sch.dueOn } : null;
+}
+
 export const offTrack = (summaries: ClientSummary[]) => summaries.filter((s) => s.status === 'linked' && s.outcome.status === 'off-track');
 
 /** Coming up, for linked clients with an upload, at each client's today; within the next 7 days. */
@@ -171,12 +182,11 @@ export function comingUp(bundles: ClientBundle[], summaries: ClientSummary[], in
     if (m && s.cycle) {
       const end = getMacroEndDate(m, { today });
       if (end >= today && end <= soon) out.push({ key: `f:${s.id}`, kind: 'final-week', cardId: s.id, detail: `${s.cycle.name} ends ${end === today ? 'today' : `in ${dayDiff(today, end)} ${dayDiff(today, end) === 1 ? 'day' : 'days'}`}`, tab: 'plan', at: end });
-      const runs = inbox.drafts.filter((x) => x.cardId === s.id && x.tool === 'check_in' && x.macroId === m.id).map((x) => x.original?.today || x.createdAt.slice(0, 10)).sort();
-      const due = checkinDueAfter(runs.length ? runs[runs.length - 1] : String(m.start));
-      // A check-in the client has asked for is Needs you's, not this list's.
-      const asked = inbox.submissions.some((x) => x.clientId === b!.link?.clientId && x.kind === 'check_in' && String(x.body?.purpose || 'check_in') === 'check_in'
-        && x.createdAt.slice(0, 10) >= (runs[runs.length - 1] ?? ''));
-      if (!asked && due <= soon && due <= end) out.push({ key: `k:${s.id}`, kind: 'check-in', cardId: s.id, detail: due <= today ? `Check-in due since ${fmt.ddm(due)}` : `Check-in due ${fmt.ddm(due)}`, tab: 'review', at: due });
+      // Coming due within the week; once due it's Needs you's.
+      const sch = coachCheckinSchedule(st as BlocState, { today }, m, publishedCheckinDates(byCard(inbox.publications, s.id), m.id));
+      if (!sch.due && sch.enoughData && sch.dueOn && sch.dueOn > today && sch.dueOn <= soon && sch.dueOn <= end) {
+        out.push({ key: `k:${s.id}`, kind: 'check-in', cardId: s.id, detail: `Check-in due ${fmt.ddm(sch.dueOn)}`, tab: 'review', at: sch.dueOn });
+      }
     }
     const ms = getMeasurementStatus(st.bodyLogs as Loose[], st.macrocycles as Loose[], today);
     if (ms.nextDueDate <= soon && (!ms.lastDate || ms.lastDate < today)) out.push({ key: `w:${s.id}`, kind: 'measurements', cardId: s.id, detail: ms.due ? (ms.lastDate ? `Measurements due · last ${fmt.ddm(ms.lastDate)}` : 'No measurements yet') : `Measurements due ${fmt.ddm(ms.nextDueDate)}`, tab: 'review', at: ms.nextDueDate });
@@ -191,19 +201,20 @@ export type NeedsOpen = { kind: 'request'; id: string } | { kind: 'path'; path: 
 export function needsItemOpen(it: NeedsItem): NeedsOpen | null {
   switch (it.kind) {
     case 'request': return { kind: 'request', id: it.request.id };
-    case 'checkin': return { kind: 'path', path: clientPath(it.cardId, 'review', null, null, { at: 'ai', tool: 'check_in' }) };
+    case 'checkin': return { kind: 'path', path: clientPath(it.cardId, 'review', it.macroId, null, { at: 'ai', tool: 'check_in' }) };
+    case 'photos': return { kind: 'path', path: clientPath(it.cardId, 'review', it.macroId, null, { at: 'ai', tool: 'cycle_review' }) };
     case 'note': return { kind: 'path', path: clientPath(it.cardId, 'review', it.macroId, null, { at: 'note', note: it.submission.id, tool: it.tool }) };
     default: return null;
   }
 }
 
 /**
- * A push's tag ('request:<id>', 'checkin:<submission id>', 'note:<submission id>') to its item's
+ * A push's tag ('request:<id>', 'photos:<submission id>', 'note:<submission id>') to its item's
  * action. The item's key carries the same id. None (it was dealt with already): Today, as it is.
  */
 export function pushAction(tag: string, items: NeedsItem[]): NeedsOpen | null {
   const [kind, id] = tag.split(':');
-  const prefix = kind === 'request' ? 'r' : kind === 'checkin' ? 'c' : kind === 'note' ? 'n' : null;
+  const prefix = kind === 'request' ? 'r' : kind === 'photos' ? 'p' : kind === 'note' ? 'n' : null;
   const it = prefix && id ? items.find((x) => x.key === `${prefix}:${id}`) : undefined;
   return it ? needsItemOpen(it) : null;
 }
