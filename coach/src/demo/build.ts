@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// Everything a demo Rebuild writes (PROMPT-04), built with Coach's own
+// Everything a demo Rebuild writes (TECHNICAL §164), built with Coach's own
 // builders so each row is exactly what Coach would have sent: the diary's
 // bookings from desiredBookings(), Eileen's sessions from sessionLogPayload(),
 // Priya's photo request from photoRequestPayload(). The clients' BLOC states

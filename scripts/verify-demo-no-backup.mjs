@@ -2,7 +2,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 // verify-demo-no-backup.mjs — a demo account never writes its own backup
 //
-// THE BUG IT PREVENTS: the BLOC Coach demo Rebuild (PROMPT-04) writes each
+// THE BUG IT PREVENTS: the BLOC Coach demo Rebuild (TECHNICAL §164) writes each
 // demo client's backup for today, and the demo is shown by restoring it
 // (Settings → My data → Restore). Backups are one file a day, named by the
 // date. So the device's first open after a Rebuild (the daily backup,

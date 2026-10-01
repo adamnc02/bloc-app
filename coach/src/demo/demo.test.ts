@@ -1,11 +1,11 @@
-// The demo Rebuild's rows (PROMPT-04), held to what Coach and 0023's
+// The demo Rebuild's rows (TECHNICAL §164), held to what Coach and 0023's
 // allow-lists accept, and to the order stampLedger depends on.
 import { describe, expect, it } from 'vitest';
 import { getHomeWeekStart, shiftDateStr, type Loose } from '@engine';
 import { clientOutcome } from '@engine/review';
 import { stampLedger } from '@engine/demo';
 import { buildDemoRows, demoId, type DemoIds } from './build';
-import { DEMO_CARDS, type DemoCardKey } from './cards';
+import { DEMO_CARDS, isSetUp, type DemoCardKey } from './cards';
 import { BOOKING_KEYS } from '@/diary/publish';
 import { SESSION_LOG_KEYS, parseSessionId, loggedSessions } from '@/inperson/model';
 import { foldPlan } from '@/plan/fold';
@@ -167,5 +167,11 @@ describe('demo rows', () => {
     expect(doc.macro.start).toBe('2026-10-12');
     expect(rows.series.find((x) => x.title === 'Saturday Circuits')!.workout!.template_id).toBe(CIRCUITS_TEMPLATE_ID);
     expect(rows.templates.find((t) => t.name === 'Saturday Circuits')!.id).toBe(CIRCUITS_TEMPLATE_ID);
+  });
+
+  it('Demo data reads "set up" only with every demo card registered', () => {
+    expect(isSetUp(IDS.cards)).toBe(true);
+    expect(isSetUp({ casey: IDS.cards.casey })).toBe(false); // Casey's card alone, after a Remove that stopped part-way
+    expect(isSetUp({})).toBe(false);
   });
 });

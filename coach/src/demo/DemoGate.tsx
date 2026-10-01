@@ -1,4 +1,4 @@
-// Settings → Demo data, loaded only for the demo coach (PROMPT-04). The section
+// Settings → Demo data, loaded only for the demo coach (TECHNICAL §164). The section
 // carries the engine's client simulator; every other coach would download it
 // for nothing, so it is its own chunk, fetched once this sign-in's
 // app_metadata.demo_admin is seen. (bloc-demo checks the flag again itself.)

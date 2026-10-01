@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// Settings → Demo data (PROMPT-04): the demo clients on this coach, set up,
+// Settings → Demo data (TECHNICAL §164): the demo clients on this coach, set up,
 // rebuilt to this week, or removed. Shown ONLY when this coach's sign-in has
 // app_metadata.demo_admin, which only the service role can set (DemoGate
 // checks, then loads this chunk); the bloc-demo Edge Function checks it again
@@ -16,7 +16,7 @@ import { Button, Chip, Notice, RowButton, Section, Sheet } from '@/components/ui
 import type { ClientBundle } from '@/data/types';
 import { displayName } from '@/data/summary';
 import { buildDemoRows } from './build';
-import { DEMO_CARDS, type DemoCardKey } from './cards';
+import { DEMO_CARDS, isSetUp, type DemoCardKey } from './cards';
 
 interface Registry { cards: Partial<Record<DemoCardKey, string>>; users: Partial<Record<DemoCardKey, string>> }
 interface Status { registry: Registry; coachId: string; passwordSet: boolean }
@@ -56,7 +56,7 @@ export function DemoSection({ sb, i, loadClients }: { sb: SupabaseClient; i: num
   const refresh = useCallback(async () => { setStatus(await call<Status>(sb, { action: 'status' })); }, [sb]);
   useEffect(() => { refresh().catch((e) => setMsg({ text: e instanceof Error ? e.message : String(e), bad: true })); }, [refresh]);
 
-  const setUp = Object.keys(status?.registry.cards ?? {}).length > 0;
+  const setUp = isSetUp(status?.registry.cards ?? {});
   const act = async (label: string, fn: () => Promise<string>) => {
     setBusy(label); setMsg(null);
     try { setMsg({ text: await fn(), bad: false }); await refresh(); }
