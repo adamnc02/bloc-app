@@ -10,7 +10,8 @@ import type { CoachPublication, Submission } from '@/ai/types';
 import { sessionIdFor } from '@/inperson/model';
 import { groupSessionId } from '@/group/model';
 import { getMeasurementStatus } from '@/lib/measurementStatus';
-import { comingUp, missedBookings, missedGroups, needsItemOpen, needsYou, offTrack, pushAction, todaySessions } from './model';
+import { comingUp, isDismissed, missedBookings, missedGroups, needsItemOpen, needsYou, offTrack, pushAction, todaySessions } from './model';
+import { checkinDueAfter } from '@engine';
 
 const demo = JSON.parse(readFileSync(new URL('../../../bloc-demo-data.json', import.meta.url), 'utf8')) as Record<string, unknown>;
 const built = buildFixtureClients(demo);
@@ -119,6 +120,32 @@ describe('Needs you', () => {
     // Maya's only: other linked clients may have their own check-ins due on the schedule.
     const after = needsYou(d, done, built.clients, summaries, ANCHOR).filter((x) => x.cardId === 'maya').map((x) => x.kind);
     expect(after.filter((k) => ['checkin', 'note', 'photos'].includes(k))).toEqual([]);
+  });
+});
+
+describe('Needs you: dismissing (0036, §169)', () => {
+  it('a dismissed note back stays gone; a dismissed check-in comes back after the cooldown if still due; others untouched', async () => {
+    const d = await fixtureDiary(ANCHOR).loadDiary();
+    const base: Inbox = {
+      submissions: [sub('user-maya', 's2', 'note_back', { response_id: 'r1', text: 'Thanks!' })],
+      drafts: [],
+      publications: [pub('maya', 'a1', 1, 'ai_response', { response_id: 'r1', content: { headline: 'Steady' } })],
+    };
+    const items = needsYou(d, base, built.clients, summaries, ANCHOR);
+    const note = items.find((x) => x.kind === 'note')!;
+    const ci = items.find((x) => x.kind === 'checkin' && x.cardId === 'maya')!;
+    expect(note && ci).toBeTruthy();
+    const at = `${ANCHOR}T12:00:00.000Z`;
+    const dismissed: Inbox = { ...base, dismissed: [{ cardId: 'maya', key: note.key, at }, { cardId: 'maya', key: ci.key, at }] };
+    const after = needsYou(d, dismissed, built.clients, summaries, ANCHOR).map((x) => x.key);
+    expect(after).not.toContain(note.key);
+    expect(after).not.toContain(ci.key);
+    // control: everything else is still there
+    expect(after.length).toBe(items.length - 2);
+    // a fortnight on (the cooldown after the dismissal), the still-due check-in is back; the note back isn't
+    expect(isDismissed(dismissed, ci.key, checkinDueAfter(ANCHOR))).toBe(false);
+    expect(isDismissed(dismissed, ci.key, ANCHOR)).toBe(true);
+    expect(isDismissed(dismissed, note.key, null)).toBe(true);
   });
 });
 

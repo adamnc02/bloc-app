@@ -16,7 +16,7 @@ import { formatInviteCode, splitName } from './live';
 import type { FlagLeave } from '@/review/effort';
 import type { LibraryEntry } from '@/plan/library';
 import type { AiDraft, CoachPublication, Submission } from '@/ai/types';
-import type { ClientBundle, ClientCard, CoachProfile, CoachRepo, NewInvite, PlanDraft } from './types';
+import type { ClientBundle, ClientCard, CoachProfile, CoachRepo, NeedsDismissal, NewInvite, PlanDraft } from './types';
 import { foldPlan } from '@/plan/fold';
 import { dayKeys } from '@/plan/doc';
 import { macroTemplateOf, workoutTemplateOf, type Template } from '@/plan/templates';
@@ -103,6 +103,8 @@ export function createFixtureRepo(demo: Record<string, unknown>, onProfile: (p: 
   const clients = built.clients;
   // The flags the coach left (0034): this page's memory only.
   const leaves: FlagLeave[] = [];
+  // The Needs you items dismissed (0036): this page's memory only.
+  const dismissed: NeedsDismissal[] = [];
   const exercises: LibraryEntry[] = [];
   let n = 0, tick = 0, seq = 0;
   const ai = {
@@ -193,9 +195,15 @@ export function createFixtureRepo(demo: Record<string, unknown>, onProfile: (p: 
       return [...booking, ...ai.pubs.filter((p) => p.cardId === cardId).map(({ cardId: _c, ...p }) => { void _c; return { ...p }; })].sort((a, b) => a.seq - b.seq);
     },
     async leaveFlag(l) { if (!leaves.some((x) => JSON.stringify(x) === JSON.stringify(l))) leaves.push({ ...l }); },
+    async dismissNeeds(cardId, key) {
+      const i = dismissed.findIndex((x) => x.key === key);
+      if (i >= 0) dismissed.splice(i, 1);
+      dismissed.push({ cardId, key, at: new Date(built.now + tick++).toISOString() });
+    },
     async loadInbox() {
       return {
         leaves: leaves.map((x) => ({ ...x })),
+        dismissed: dismissed.map((x) => ({ ...x })),
         submissions: ai.subs.map((x) => ({ ...x })),
         drafts: ai.drafts.map((d) => ({ ...d })),
         publications: ai.pubs.filter((p) => ['plan', 'ai_response', 'note_reply', 'photo_request', 'session_log'].includes(p.type)).map((p) => ({ ...p })),

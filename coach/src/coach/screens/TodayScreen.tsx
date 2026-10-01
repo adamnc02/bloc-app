@@ -2,6 +2,7 @@
 // track and Coming up; on a laptop Needs you is the right-hand column and the other three stack on the left.
 // Every Needs you item opens where it's dealt with, and clears once it is. The model is today/model.ts.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { checkinDueAfter } from '@engine';
 import { AccountButton, CoachShell } from '@/coach/CoachShell';
 import { Avatar, Button, Card, Chip, EmptyState, Hero, Icon, OutcomeChip, Page, PageHeader, RowButton, Section, Sheet, Tag, Toast, useEntering, useOnResume, type IconName } from '@/components/ui';
 import { useCoach } from '@/app/App';
@@ -145,6 +146,12 @@ export function TodayScreen() {
                         repo.leaveFlag({ cardId: x.cardId, macroId: k.macroId, dayKey: k.dayKey, exId: k.exId, kind: k.kind, throughWeek: k.weeks[1] })
                           .then(() => { loadInbox(); toast.show(`${k.name} left as it is`); })
                           .catch((e) => toast.show(`Couldn’t leave it: ${e instanceof Error ? e.message : String(e)}`));
+                      }}
+                      onDismiss={(x) => {
+                        // 0036: the coach's own record; nothing reaches the client.
+                        repo.dismissNeeds(x.cardId, x.key)
+                          .then(() => { loadInbox(); toast.show(x.kind === 'checkin' ? `Dismissed. If it’s still due, it’s back ${fmt.ddm(checkinDueAfter(today))}` : 'Dismissed'); })
+                          .catch((e) => toast.show(`Couldn’t dismiss it: ${e instanceof Error ? e.message : String(e)}`));
                       }} />
                   </Card>
                 ))}
@@ -251,11 +258,13 @@ function SessionRow({ s, title, notOnApp }: { s: TodaySession; title: string; no
   );
 }
 
-function NeedsBody({ it, name, first, who, onRequest, onCancel, onLeave }: {
+function NeedsBody({ it, name, first, who, onRequest, onCancel, onLeave, onDismiss }: {
   it: NeedsItem; name: string; first: string; who: ReturnType<typeof useDiaryData>['who'];
   onRequest: (id: string) => void; onCancel: (x: Extract<NeedsItem, { kind: 'missed' | 'missedGroup' }>) => void;
   /** Leave a flag (§163, 0034): BLOC's hold stands. */
   onLeave: (x: Extract<NeedsItem, { kind: 'effort' }>) => void;
+  /** Dismiss a note back or a check-in due (0036): the coach's own record; the client is never told. */
+  onDismiss: (x: Extract<NeedsItem, { kind: 'note' | 'checkin' }>) => void;
 }) {
   const ago = (iso: string) => fmt.ddm(iso.slice(0, 10));
   switch (it.kind) {
@@ -276,14 +285,20 @@ function NeedsBody({ it, name, first, who, onRequest, onCancel, onLeave }: {
       return <>
         <CardHead icon="sparkle" eyebrow={it.first ? 'First check-in due' : 'Check-in due'} name={name} when={it.dueOn ? fmt.ddm(it.dueOn) : 'now'} />
         <p className="muted" style={{ marginTop: 12 }}>{it.first ? `${first}’s cycle has enough logs for a first check-in.` : `Two weeks since ${first}’s last check-in.`} Run it with BLOC, edit, then publish.</p>
-        <div className="btnrow"><Button size="card" icon="sparkle" onClick={() => go(needsItemOpen(it))}>Run check-in</Button></div>
+        <div className="btnrow">
+          <Button size="card" icon="sparkle" onClick={() => go(needsItemOpen(it))}>Run check-in</Button>
+          <Button size="card" variant="ghost" onClick={() => onDismiss(it)}>Dismiss</Button>
+        </div>
       </>;
     case 'note':
       return <>
         <CardHead icon="send" eyebrow="Note back" name={name} when={ago(it.submission.createdAt)} />
         {it.headline && <div className="muted" style={{ marginTop: 12 }}>On “{it.headline}”</div>}
         <Quote>{String(it.submission.body?.text ?? '')}</Quote>
-        <div className="btnrow"><Button size="card" icon="message" onClick={() => go(needsItemOpen(it))}>Reply in Review</Button></div>
+        <div className="btnrow">
+          <Button size="card" icon="message" onClick={() => go(needsItemOpen(it))}>Reply in Review</Button>
+          <Button size="card" variant="ghost" onClick={() => onDismiss(it)}>Dismiss</Button>
+        </div>
       </>;
     case 'photos':
       return <>

@@ -19,7 +19,8 @@ export const COACH_VERSION = __COACH_VERSION__;
 /** The five notifications: coach_notification_prefs (0031), per coach, every device (§158). */
 const NOTIFICATIONS: { key: PrefKey; title: string; sub: string }[] = [
   { key: 'session_requests', title: 'Session requests', sub: 'As soon as a client asks for a session, or suggests another time.' },
-  { key: 'check_ins', title: 'Check-ins submitted', sub: 'When a client sends a check-in for you to run.' },
+  // The column is still check_ins (0031); since 0036 it gates only review photos: clients no longer send check-ins.
+  { key: 'check_ins', title: 'Review photos', sub: 'When a client sends or skips photos for a cycle review.' },
   { key: 'notes_back', title: 'Notes back', sub: 'When a client replies to advice you published.' },
   { key: 'client_unlinked', title: 'Client unlinked', sub: 'When a client leaves coaching.' },
   { key: 'daily_digest', title: 'Daily digest', sub: 'Clients newly off track, at 07:00.' },
