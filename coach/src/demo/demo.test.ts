@@ -1,4 +1,4 @@
-// The demo Rebuild's rows (PROMPT-04), held to what Coach and 0023's
+// The demo Rebuild's rows (TECHNICAL §164), held to what Coach and 0023's
 // allow-lists accept, and to the order stampLedger depends on.
 import { describe, expect, it } from 'vitest';
 import { getHomeWeekStart, shiftDateStr, type Loose } from '@engine';

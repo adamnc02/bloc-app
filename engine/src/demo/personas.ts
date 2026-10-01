@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// The demo clients (PROMPT-04). Every name, number and word is fictional.
+// The demo clients (TECHNICAL §164). Every name, number and word is fictional.
 //
 // Weeks are counted from the Monday of today's week: `startOffsetWeeks: -4`
 // started four Mondays ago, so that client is always in week 5 of that cycle.

@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// The demo clients' cards on the demo coach (PROMPT-04). Every name, address
+// The demo clients' cards on the demo coach (TECHNICAL §164). Every name, address
 // and number is fictional: emails are on example.com, which is reserved and
 // can never reach anyone, and phone numbers are Ofcom's drama range.
 //

@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// The demo clients' BLOC states, simulated (PROMPT-04).
+// The demo clients' BLOC states, simulated (TECHNICAL §164).
 //
 // buildDemoState(persona, today) runs a client's story from its first day to
 // `today`, one day at a time, and logs every set through the engine's own

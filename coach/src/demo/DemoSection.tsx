@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// Settings → Demo data (PROMPT-04): the demo clients on this coach, set up,
+// Settings → Demo data (TECHNICAL §164): the demo clients on this coach, set up,
 // rebuilt to this week, or removed. Shown ONLY when this coach's sign-in has
 // app_metadata.demo_admin, which only the service role can set (DemoGate
 // checks, then loads this chunk); the bloc-demo Edge Function checks it again

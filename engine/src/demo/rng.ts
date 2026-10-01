@@ -1,4 +1,4 @@
-// A seeded random source for the demo clients (PROMPT-04): the same seed gives
+// A seeded random source for the demo clients (TECHNICAL §164): the same seed gives
 // the same numbers on every run, in every runtime. Seeds are strings such as
 // `maya:37` (persona and day of the story), never a calendar date.
 
