@@ -329,16 +329,31 @@ input[type="date"].input::-webkit-date-and-time-value, input[type="time"].input:
 
 /* ---------- the way back, pinned (BackBar) ----------
    Sticky just under the top inset while the page scrolls, so ‹ Clients (etc.) is always in reach, the same way the
-   Diary's day header sticks (diary.css .dg-head); the top edge fade covers the inset above it. Not fixed: it keeps its
-   place in the flow, and its margin-top puts the link exactly where the header's eyebrow sat (.top's padding, less the
-   inset and the bar's own 8px). The solid --bg hides what scrolls under it, carried across the gutters by the
-   negative side margins. */
+   Diary's day header sticks (diary.css .dg-head). Not fixed: it keeps its place in the flow, and its margin-top puts
+   the link exactly where the header's eyebrow sat (.top's padding, less the bar's own 8px).
+   🚨 Not less the inset as well: the page starts at the top of the screen, under the status bar (§159), so .top's
+   padding is measured from there. Taking the inset off too put the bar 59px higher than the header it replaces; it
+   then stuck at the inset, on top of the page title, which was hidden behind it on an installed iPhone. A browser
+   with no inset (desktop Chromium) can't show this.
+   The solid --bg hides what scrolls under it, carried across the gutters by the negative side margins; ::before fills
+   the inset above the bar with the same solid --bg (the top edge fade alone let the page show through there), and
+   ::after is that edge fade moved to the bar's lower edge, shown once the page has scrolled (.is-stuck, BackBar). */
 .backbar {
   position: sticky; top: var(--safe-top, env(safe-area-inset-top)); z-index: 30;
-  margin: calc(max(var(--header-top), calc(var(--safe-top, env(safe-area-inset-top)) + 24px)) - var(--safe-top, env(safe-area-inset-top)) - 8px) calc(-1 * var(--gutter)) 0;
+  margin: calc(max(var(--header-top), calc(var(--safe-top, env(safe-area-inset-top)) + 24px)) - 8px) calc(-1 * var(--gutter)) 0;
   padding: 8px var(--gutter) 4px;
   background: var(--bg);
 }
+.backbar::before {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 100%;
+  height: var(--safe-top, env(safe-area-inset-top)); background: var(--bg); pointer-events: none;
+}
+.backbar::after {
+  content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 16px; pointer-events: none;
+  background: linear-gradient(to bottom, var(--bg) 0%, color-mix(in srgb, var(--bg) 0%, transparent) 100%);
+  opacity: 0; transition: opacity .15s;
+}
+.backbar.is-stuck::after { opacity: 1 }
 .backbar .eyebrow-link { min-height: 32px }
 .top.top-after-back { padding-top: 2px }
 .backbar:has(.settings-logo) + .top.top-after-back { padding-top: 12px }   /* clear of the logo's COACH line */

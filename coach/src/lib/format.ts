@@ -69,6 +69,19 @@ export const fmt = {
   },
 };
 
+/**
+ * A set's weight as Train shows it (BLOC index.html fmtKg): whole numbers without a decimal point (25, not 25.0),
+ * anything else to its own precision (22.5, 23.75). Display only: the engine's targets ("25.0") and what's logged
+ * keep their own strings. Anything that isn't a complete number ("", "—", "25." mid-typing) comes back as it is.
+ * Train's set weights only; fmt.kg (one decimal) is unchanged everywhere else.
+ */
+export function setKg(v: string | number | null | undefined): string {
+  if (v == null) return '';
+  if (typeof v === 'number') return Number.isFinite(v) ? String(Math.round(v * 100) / 100) : '';
+  const t = v.trim();
+  return /^-?\d+(\.\d+)?$/.test(t) ? String(Math.round(parseFloat(t) * 100) / 100) : t;
+}
+
 /** Up to two initials, from the first LETTER of each word: "Work (test client)" is "WT", never "W(". */
 export function initials(name: string): string {
   return name.split(/\s+/).map((p) => (p.match(/\p{L}/u) ?? [''])[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();

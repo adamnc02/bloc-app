@@ -2198,6 +2198,22 @@ html.auth-likely-signed-in #auth-gate { display: none; }
   margin: 0 -16px; padding: 0 16px;
   background: var(--bg);
 }
+/* v8.57 — the bar sticks below the status bar, so the page scrolling under it
+   came out again in the inset above it, where the top edge fade only half hides
+   it. ::before fills the inset solid; ::after is the edge fade moved to the bar's
+   lower edge, where the page now goes under. The fade shows only once the page
+   has scrolled (.is-stuck, set by initSettingsTopbarFade), so at rest it never
+   dims the eyebrow below the bar. */
+.settings-topbar::before {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 100%;
+  height: var(--safe-top); background: var(--bg); pointer-events: none;
+}
+.settings-topbar::after {
+  content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 16px;
+  background: linear-gradient(to bottom, rgba(var(--bg-rgb), 1) 0%, rgba(var(--bg-rgb), 0) 100%);
+  pointer-events: none; opacity: 0; transition: opacity .15s;
+}
+.settings-topbar.is-stuck::after { opacity: 1; }
 .settings-logo {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   /* 44px = the back-link row's own height, so it fills the row without
@@ -2647,6 +2663,13 @@ html.auth-likely-signed-in #auth-gate { display: none; }
   text-align: center; color: var(--text); width: 100%;
   font-family: var(--font-display); font-variant-numeric: tabular-nums;
 }
+/* v8.57 — 🚨 the base field rule (input:not([type=range]):not([type=file]), 0,2,1)
+   outranks .set-input (0,1,0), so its 14px side padding applied here and left
+   32px for the figure in a 62px column: "50.0" (35px) was cut off. This
+   selector matches the base rule's specificity and comes later, so the box keeps
+   4px a side (52px for the figure). The base rule's 16px font stays: below 16px
+   iOS zooms the page when the field is focused. */
+input.set-input:not([type=range]) { padding: 0 4px; }
 /* 42px square, accent fill with a dark tick when done. */
 .check-done, .check-empty {
   width: 42px; height: 42px; border-radius: var(--r-btn-sm);
@@ -15596,7 +15619,7 @@ function openSwapToday(macroId, week, dayKey, exId) {
   const d = BlocEngine.computeExerciseProgression(state, progressionTargetCache(), macro, week, dayKey, ex);
   const reps = String(d.repsPlaceholder || ex.reps || '').replace(/ reps$/, '');
   document.getElementById('swap-today-planned').innerHTML = `<div class="swap-planned-cap">Planned</div>
-    <div class="swap-planned-row"><b>${ex.name}</b><span>${d.sets} × ${coachEsc(reps)}${d.weightPlaceholder ? ` · ${d.weightPlaceholder} kg` : ''}</span></div>`;
+    <div class="swap-planned-row"><b>${ex.name}</b><span>${d.sets} × ${coachEsc(reps)}${d.weightPlaceholder ? ` · ${fmtKg(d.weightPlaceholder)} kg` : ''}</span></div>`;
   document.getElementById('swap-today-sub').textContent = `Pick something to do instead, just for this session. It’s logged under its own name, ${ex.name} holds its target for next time, and ${coachFirstName()} sees the swap.`;
   document.getElementById('swap-today-search').value = '';
   // The keyboard-safe sheet, set up exactly as openRecipePickerForLog() does (§9).
@@ -23279,7 +23302,7 @@ function renderTrainDay(macro) {
         const progressKg  = currentActualWeight - baseForDelta;
         const progressPct = ex.startWeight > 0 ? Math.round(((currentActualWeight - ex.startWeight) / ex.startWeight) * 100) : 0;
         const col = progressKg >= 0 ? 'var(--green-text)' : 'var(--red)';
-        progressBadge = `<div class="ex-since-start" style="color:${col};">${progressKg >= 0 ? '+' : ''}${progressKg.toFixed(1)}kg · ${progressPct >= 0 ? '+' : ''}${progressPct}% since week 1</div>`;
+        progressBadge = `<div class="ex-since-start" style="color:${col};">${progressKg >= 0 ? '+' : ''}${fmtKg(progressKg)}kg · ${progressPct >= 0 ? '+' : ''}${progressPct}% since week 1</div>`;
       }
       // v8.16 — the exercise's flags are tags under its name rather than
       // badges inline with it. Colours are fixed by meaning: drop set red,
@@ -23309,14 +23332,14 @@ function renderTrainDay(macro) {
       // differently — the number in the display face, the unit small and muted.
       // summaryWeight already carries " kg", so it is stripped here rather than
       // changing what summaryWeight means (it is read elsewhere).
-      const weightRefValue = isSwapped ? (loggedWeights.length ? loggedWeights[0].toFixed(1) : '—')
+      const weightRefValue = isSwapped ? (loggedWeights.length ? fmtKg(loggedWeights[0]) : '—')
         : allDone
-        ? summaryWeight.replace(/ kg$/, '')
-        : (isDeloadSession || isPostDeloadSession) ? weightPlaceholder
-        : isLocked ? weightPlaceholder
-        : isMaintCycle ? weightPlaceholder
-        : lastWeight !== null ? `${lastWeight} / ${recommendedWeight.toFixed(1)}`
-        : weightPlaceholder;
+        ? fmtKg(summaryWeight.replace(/ kg$/, ''))
+        : (isDeloadSession || isPostDeloadSession) ? fmtKg(weightPlaceholder)
+        : isLocked ? fmtKg(weightPlaceholder)
+        : isMaintCycle ? fmtKg(weightPlaceholder)
+        : lastWeight !== null ? `${fmtKg(lastWeight)} / ${fmtKg(recommendedWeight)}`
+        : fmtKg(weightPlaceholder);
       // Per-side doubles the volume as well as changing the label, so the unit
       // says so rather than leaving the weight ambiguous (see getSessionVolume).
       const unitLabel = ex.trackingMode === 'perSide' ? 'kg per side' : 'kg';
@@ -23444,13 +23467,13 @@ function renderTrainDay(macro) {
           // parseRepsForVolume's lower-bound read so ranges compare sensibly.
           const wOk = aW !== null && !isNaN(tW) && (aW - tW > -0.01);
           const rOk = parseRepsForVolume(String(prevSet.reps || '')) >= parseRepsForVolume(String(tR));
-          const label = `${aW !== null ? aW.toFixed(1) : '—'}${isPauseSet ? '' : ` × ${stripReps(prevSet.reps || '—')}`}`;
+          const label = `${aW !== null ? fmtKg(aW) : '—'}${isPauseSet ? '' : ` × ${stripReps(prevSet.reps || '—')}`}`;
           pills += `<span class="ex-hold-pill${(wOk && rOk) ? '' : ' ex-hold-pill-miss'}">${label}</span>`;
         }
         const heldW = atSet(lockW, 0, weightPlaceholder);
         const heldR = stripReps(atSet(lockR, 0, repsPlaceholder));
         holdPanelHtml = `<div class="ex-hold" id="locked-notice-${macro.id}-${exId}">
-          <div class="ex-hold-head">Hit ${heldW} kg${isPauseSet ? '' : ` × ${heldR} reps`} on every set to unlock progression</div>
+          <div class="ex-hold-head">Hit ${fmtKg(heldW)} kg${isPauseSet ? '' : ` × ${heldR} reps`} on every set to unlock progression</div>
           <div class="ex-hold-label">Last wk</div>
           <div class="ex-hold-pills">${pills}</div>
         </div>`;
@@ -23463,7 +23486,7 @@ function renderTrainDay(macro) {
           && !isSwapped && !heldAfterSwap; // v8.43 (§137): a swap has no route; a held target isn't a step
         if (showProgSelector) {
           const prevWLabel = prevActualWeight !== null ? prevActualWeight.toFixed(1) : getWeekWeight(ex, prevWeek2, 'weight', macro.goalType, macro.weightIncrement).toFixed(1);
-          weightRec = `${prevWLabel} → ${recommendedWeight.toFixed(1)} kg`;
+          weightRec = `${fmtKg(prevWLabel)} → ${fmtKg(recommendedWeight)} kg`;
           if (ex.type === 'giant') {
             const prevRLabelGiant = prevActualReps !== null ? prevActualReps : getGiantSetProgression(ex, prevWeek2, macro.goalType);
             repsRec = `${stripReps(prevRLabelGiant)} → ${stripReps(recommendedReps)} reps`;
@@ -23514,10 +23537,10 @@ function renderTrainDay(macro) {
             const log     = state.trainLogs[logKey] || {};
             const prevSet = prevWeek2 >= 1 ? (prevLoggedSets[s] || null) : null;
             const lastWkMainCell = prevWeek2 < 1 ? '' : prevSet
-              ? (prevSet.weight ? prevSet.weight + 'kg' : '—') + ` × ${prevSet.reps || '—'}`
+              ? (prevSet.weight ? fmtKg(prevSet.weight) + 'kg' : '—') + ` × ${prevSet.reps || '—'}`
               : '—';
             const lastWkDropCell = prevWeek2 < 1 ? '' : prevSet
-              ? (prevSet.dropWeight ? prevSet.dropWeight + 'kg' : '—') + ` × ${prevSet.dropReps || '—'}`
+              ? (prevSet.dropWeight ? fmtKg(prevSet.dropWeight) + 'kg' : '—') + ` × ${prevSet.dropReps || '—'}`
               : '—';
             const setWeightPh  = weightPlaceholders[s] !== undefined ? weightPlaceholders[s] : weightPlaceholder;
             const setRepsPh    = repsPlaceholders[s] !== undefined ? repsPlaceholders[s] : repsPlaceholder;
@@ -23532,7 +23555,7 @@ function renderTrainDay(macro) {
               <div class="set-row" style="border-bottom:none;padding:3px 0;">
                 <span class="set-num">Main</span>
                 <span class="set-suggested">${lastWkMainCell}</span>
-                <input class="set-input" type="number" inputmode="decimal" step="0.5" placeholder="${setWeightPh}" value="${log.weight || ''}"
+                <input class="set-input" type="number" inputmode="decimal" step="0.5" placeholder="${fmtKg(setWeightPh)}" value="${fmtKg(log.weight || '')}"
                   oninput="logSet('${logKey}','weight',this.value)" id="inp-w-${logKey}"
                   onblur="recheckProgressionLockForKey('${logKey}')"
                   onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('inp-r-${logKey}')?.focus();}">
@@ -23547,7 +23570,7 @@ function renderTrainDay(macro) {
               <div class="set-row" style="border-bottom:none;padding:3px 0;">
                 <span class="set-num">Drop</span>
                 <span class="set-suggested">${lastWkDropCell}</span>
-                <input class="set-input" type="number" inputmode="decimal" step="0.5" placeholder="${dropWeightHint}" value="${log.dropWeight || ''}"
+                <input class="set-input" type="number" inputmode="decimal" step="0.5" placeholder="${fmtKg(dropWeightHint)}" value="${fmtKg(log.dropWeight || '')}"
                   oninput="logSet('${logKey}','dropWeight',this.value)" id="inp-dw-${logKey}"
                   onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('inp-dr-${logKey}')?.focus();}">
                 <input class="set-input" type="text" inputmode="numeric" placeholder="${dropRepsHint}" value="${log.dropReps || ''}"
@@ -23567,14 +23590,14 @@ function renderTrainDay(macro) {
           // since the suggestion is already visible in the input placeholder.
           const prevSet = prevWeek2 >= 1 ? (prevLoggedSets[s] || null) : null;
           const lastWkCell = prevWeek2 < 1 ? '' : prevSet
-            ? (prevSet.weight ? prevSet.weight + 'kg' : '—') + (isPauseSet ? '' : ` × ${prevSet.reps || '—'}`)
+            ? (prevSet.weight ? fmtKg(prevSet.weight) + 'kg' : '—') + (isPauseSet ? '' : ` × ${prevSet.reps || '—'}`)
             : '—';
           const setWeightPh = weightPlaceholders[s] !== undefined ? weightPlaceholders[s] : weightPlaceholder;
           const setRepsPh   = repsPlaceholders[s] !== undefined ? repsPlaceholders[s] : repsPlaceholder;
           setRows += `<div class="set-row">
             <span class="set-num">${s + 1}</span>
             <span class="set-suggested">${lastWkCell}</span>
-            <input class="set-input" type="number" inputmode="decimal" step="0.5" placeholder="${setWeightPh}" value="${log.weight || ''}"
+            <input class="set-input" type="number" inputmode="decimal" step="0.5" placeholder="${fmtKg(setWeightPh)}" value="${fmtKg(log.weight || '')}"
               oninput="logSet('${logKey}','weight',this.value)" id="inp-w-${logKey}"
               onblur="recheckProgressionLockForKey('${logKey}')"
               onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('inp-r-${logKey}')?.focus();}">
@@ -23679,7 +23702,7 @@ function renderTrainDay(macro) {
           if (lg.weight) mLoggedW.push(parseFloat(lg.weight));
           if (lg.reps)   mLoggedR.push(lg.reps);
         }
-        const mSummaryW = mLoggedW.length > 0 ? mLoggedW[0].toFixed(1) + ' kg' : md.weightPlaceholder + ' kg';
+        const mSummaryW = mLoggedW.length > 0 ? fmtKg(mLoggedW[0]) + ' kg' : fmtKg(md.weightPlaceholder) + ' kg';
         const mSummaryR = mLoggedR.length > 0 ? mLoggedR[0] : md.repsPlaceholder;
         const mLastReps   = md.prevActualReps   !== null ? md.prevActualReps : null;
         const mLastWeight = md.prevActualWeight !== null ? md.prevActualWeight.toFixed(1) : null;
@@ -23701,14 +23724,14 @@ function renderTrainDay(macro) {
         const mWeightRefText = mAllDone
           ? mSummaryW
           : (md.isDeloadSession || md.isPostDeloadSession)
-            ? md.weightPlaceholder + ' kg'
+            ? fmtKg(md.weightPlaceholder) + ' kg'
           : md.isLocked
-            ? md.weightPlaceholder + ' kg'
+            ? fmtKg(md.weightPlaceholder) + ' kg'
           : isMaintCycle
-            ? md.weightPlaceholder + ' kg'
+            ? fmtKg(md.weightPlaceholder) + ' kg'
           : mLastWeight !== null
-            ? mLastWeight + ' / ' + md.recommendedWeight.toFixed(1) + ' kg'
-            : md.weightPlaceholder + ' kg';
+            ? fmtKg(mLastWeight) + ' / ' + fmtKg(md.recommendedWeight) + ' kg'
+            : fmtKg(md.weightPlaceholder) + ' kg';
         // v8.16 dropped the since-week-1 delta from superset member rows. It is
         // still on solo cards (.ex-since-start), where it has a line of its own
         // and a label; squeezed unlabelled into a row already carrying sets,
@@ -23803,14 +23826,14 @@ function renderTrainDay(macro) {
               progToggles += '<div class="ex-hold" id="locked-notice-' + macro.id + '-' + m.id + '">' +
                 '<div class="ex-hold-head">' + m.name + ' — hit ' + ssStrip(md.repsPlaceholder) + ' on every set to unlock progression</div>' +
                 '<div class="ex-hold-label">Held at</div>' +
-                '<div class="ex-hold-pills"><span class="ex-hold-pill">' + md.weightPlaceholder + ' kg</span><span class="ex-hold-pill">' + ssStrip(md.repsPlaceholder) + ' reps</span></div>' +
+                '<div class="ex-hold-pills"><span class="ex-hold-pill">' + fmtKg(md.weightPlaceholder) + ' kg</span><span class="ex-hold-pill">' + ssStrip(md.repsPlaceholder) + ' reps</span></div>' +
               '</div>';
               return;
             }
             const pt = md.progType;
             const isPauseSet = m.type === 'pause';
             const prevWLabel = md.prevActualWeight !== null ? md.prevActualWeight.toFixed(1) : getWeekWeight(m, md.prevWeek2, 'weight', macro.goalType, macro.weightIncrement).toFixed(1);
-            const mWeightRec = prevWLabel + ' → ' + md.recommendedWeight.toFixed(1) + ' kg';
+            const mWeightRec = fmtKg(prevWLabel) + ' → ' + fmtKg(md.recommendedWeight) + ' kg';
             let mRepsRec = '';
             if (m.type === 'giant') {
               const mPrevRLabel = md.prevActualReps !== null ? md.prevActualReps : getGiantSetProgression(m, md.prevWeek2, macro.goalType);
@@ -23826,7 +23849,7 @@ function renderTrainDay(macro) {
               if (md.prevActualWeight === null && md.prevActualReps === null) return 'Last wk: no sets logged';
               const setsCount = md.prevLoggedSets.length;
               const repsPart  = isPauseSet ? '' : (md.prevActualReps || '—') + ' reps · ';
-              const weightPart = md.prevActualWeight !== null ? md.prevActualWeight.toFixed(1) + 'kg' : '—';
+              const weightPart = md.prevActualWeight !== null ? fmtKg(md.prevActualWeight) + 'kg' : '—';
               return `Last wk: ${setsCount} sets · ${repsPart}${weightPart}`;
             })();
             const mTypeLabel = m.type === 'standard' ? '' : m.type === 'giant' ? 'giant set' : 'pause set';
@@ -23933,7 +23956,7 @@ function renderTrainDay(macro) {
             const mSetRepsPh   = md.repsPlaceholders[s] !== undefined ? md.repsPlaceholders[s] : md.repsPlaceholder;
             exRows += `<div class="ss-set-ex-row">
               <span class="ss-set-ex-name">${m.name}</span>
-              <input class="ss-set-inp" type="number" inputmode="decimal" step="0.5" placeholder="${mSetWeightPh}" value="${log.weight || ''}"
+              <input class="ss-set-inp" type="number" inputmode="decimal" step="0.5" placeholder="${fmtKg(mSetWeightPh)}" value="${fmtKg(log.weight || '')}"
                 oninput="logSet('${logKey}','weight',this.value)" id="inp-w-${logKey}" onblur="recheckProgressionLockForKey('${logKey}')" style="margin-left:auto;">
               <span class="ss-set-x">×</span>
               <input class="ss-set-inp" type="text" inputmode="numeric" placeholder="${mSetRepsPh}" value="${log.reps || ''}"
@@ -24380,6 +24403,19 @@ function recheckProgressionLockForKey(key) {
 // the filled inputs. weight/reps are '|'-delimited per-set suggestion lists
 // (see weightPlaceholders/repsPlaceholders in exProgData) — v6.09, replacing
 // the single flat value previously applied to every set.
+// A weight as Train shows it: whole numbers without a decimal point (25, not
+// 25.0), anything else to its own precision (22.5, 23.75). Display only: the
+// engine's targets and the logged values keep their own strings ("25.0" is a
+// lock value, a Fill suggested value and a golden output), so this is applied
+// where a weight is drawn and never where one is stored or compared. Anything
+// that isn't a complete number ("", "—", "25." mid-typing) is returned as is.
+function fmtKg(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'number') return isFinite(v) ? String(Math.round(v * 100) / 100) : '';
+  const t = String(v).trim();
+  return /^-?\d+(\.\d+)?$/.test(t) ? String(Math.round(parseFloat(t) * 100) / 100) : t;
+}
+
 function fillSuggested(macroId, week, day, exId, sets, weight, reps) {
   if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
   const baseKey = macroId + '_' + week + '_' + day;
@@ -24395,7 +24431,7 @@ function fillSuggested(macroId, week, day, exId, sets, weight, reps) {
     const wEl = document.getElementById('inp-w-' + logKey);
     const rEl = document.getElementById('inp-r-' + logKey);
     if (wEl) {
-      wEl.value = wVal;
+      wEl.value = fmtKg(wVal);
       // Force reflow so animation restarts even if called again
       wEl.classList.remove('input-flash');
       void wEl.offsetWidth;
@@ -24448,7 +24484,7 @@ function fillSuggestedDropset(macroId, week, day, exId, sets, weight, reps, drop
     state.trainLogs[logKey].weight = wVal;
     const wEl = document.getElementById('inp-w-' + logKey);
     if (wEl) {
-      wEl.value = wVal;
+      wEl.value = fmtKg(wVal);
       wEl.classList.remove('input-flash');
       void wEl.offsetWidth;
       wEl.classList.add('input-flash');
@@ -24467,7 +24503,7 @@ function fillSuggestedDropset(macroId, week, day, exId, sets, weight, reps, drop
       state.trainLogs[logKey].dropWeight = dwVal;
       const dwEl = document.getElementById('inp-dw-' + logKey);
       if (dwEl) {
-        dwEl.value = dwVal;
+        dwEl.value = fmtKg(dwVal);
         dwEl.classList.remove('input-flash');
         void dwEl.offsetWidth;
         dwEl.classList.add('input-flash');
@@ -28746,6 +28782,20 @@ function initSettingsLogoAnimation() {
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initSettingsLogoAnimation);
 else initSettingsLogoAnimation();
 
+// v8.57 — the fade under Settings' pinned back-link row shows only while the
+// page is scrolled, i.e. while something is going under the bar (.is-stuck,
+// see .settings-topbar::after). #content is the one scroller for every screen.
+function initSettingsTopbarFade() {
+  const bar = document.querySelector('.settings-topbar');
+  const content = document.getElementById('content');
+  if (!bar || !content) return;
+  const sync = () => bar.classList.toggle('is-stuck', content.scrollTop > 0);
+  content.addEventListener('scroll', sync, { passive: true });
+  sync();
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initSettingsTopbarFade);
+else initSettingsTopbarFade();
+
 // Hands a generated file to the native Share Sheet (iOS: AirDrop, Save to
 // Files, Messages…), falling back to a plain download where sharing files
 // isn't available (desktop browsers, older iOS/Android). v8.19 (§100): a
@@ -29790,7 +29840,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.56</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.57</span>`;
 }
 
 function renderSettings() {

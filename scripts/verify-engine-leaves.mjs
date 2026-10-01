@@ -121,7 +121,7 @@ if (process.env.BLOC_LEAVES_CHILD) {
     try { return ser(typeof f === 'function' ? f(...args) : f); } catch (e) { return `threw ${e.constructor.name}: ${e.message}`; }
   };
 
-  let runs = 0, diffs = 0, throws = 0, h7Moved = 0, badgeMoved = 0, plannedAdded = 0, dropBtnGone = 0;
+  let runs = 0, diffs = 0, throws = 0, h7Moved = 0, badgeMoved = 0, plannedAdded = 0, dropBtnGone = 0, kgTrimmed = 0;
   const firstDiffs = [], firstThrows = [];
   const compare = (label, name, mkArgs, today = '2026-08-02') => {
     const D = fixedAt(today);
@@ -285,6 +285,12 @@ if (process.env.BLOC_LEAVES_CHILD) {
   // keeps its button, and must still match.
   const DROP_BTN = /<button class="ex-auto-btn" title="Complete every set at target"\s*onclick="quickFillCompleteDropset\(event,'[^']*',\d+,'[^']*','[^']*',\d+,'[^']*','[^']*','([^']*)','([^']*)'\)">[\s\S]*?<\/button>/g;
   const noBlankDropBtn = str => str.replace(DROP_BTN, (m, dw, dr) => (dw.split('|').some(v => !v) || dr.split('|').some(v => !v) ? '' : m));
+  // v8.57 (§172): Train draws its weights through fmtKg, so a whole number
+  // loses its ".0" (25.0 → 25; 22.5 stays). Train's HTML is compared with every
+  // "<digit>.0" not followed by a digit read as "<digit>" on both sides, and
+  // the renders where the v8.34 side had one are counted. Anything else that
+  // differs still fails. verify-train-kg checks fmtKg itself.
+  const noPointZero = str => str.replace(/(\d)\.0(?!\d)/g, '$1');
   for (const [name, cases] of only === 'ai' ? [] : Object.entries(STATE_CASES)) {
     if (!cases.length) {
       // A constant: the engine's value against v8.34's own declaration.
@@ -305,6 +311,7 @@ if (process.env.BLOC_LEAVES_CHILD) {
         let o = runState(O34, docOld, name, first, tour, !H7_EXEMPT.has(name) && !timeless);
         let n = runState(N34, docNew, name, mk(), tour);
         if (!H7_EXEMPT.has(name) && !timeless && runState(O34, docOld, name, mk(), tour) !== n) h7Moved++;
+        if (first.bloc.fn === 'renderTrainDay' && o !== n && noPointZero(o) !== o) { kgTrimmed++; o = noPointZero(o); n = noPointZero(n); }
         if (first.bloc.fn === 'renderTrainDay' && o !== n && noBlankDropBtn(o) !== o && noBlankDropBtn(o) === n) { dropBtnGone++; o = noBlankDropBtn(o); }
         if (first.bloc.fn === 'renderTrainDay' && o !== n && noBadge(o) === noBadge(n)) { badgeMoved++; o = noBadge(o); n = noBadge(n); }
         if (first.bloc.fn === 'renderHomeThisWeek' && o !== n && o === noPlanned(n)) { plannedAdded++; n = noPlanned(n); }
@@ -501,7 +508,7 @@ if (process.env.BLOC_LEAVES_CHILD) {
   }
   }
 
-  console.log(JSON.stringify({ runs, diffs, firstDiffs, throws, firstThrows, h7Moved, badgeMoved, plannedAdded, dropBtnGone, aiRuns: typeof aiCount === 'number' ? aiCount : 0, aiOutcomes: typeof aiOutcomes === 'object' ? aiOutcomes : {} }));
+  console.log(JSON.stringify({ runs, diffs, firstDiffs, throws, firstThrows, h7Moved, badgeMoved, plannedAdded, dropBtnGone, kgTrimmed, aiRuns: typeof aiCount === 'number' ? aiCount : 0, aiOutcomes: typeof aiOutcomes === 'object' ? aiOutcomes : {} }));
   process.exit(0);
 }
 
@@ -546,6 +553,7 @@ ZONES.forEach((zone, k) => {
   check(`${zone}: Train's "missed target" badge moved on ${r.badgeMoved || 0} rendered sessions, and nothing else in Train did`, !r.error && r.badgeMoved > 0);
   check(`${zone}: Home's "Planned this week avg" line was added on ${r.plannedAdded || 0} renders, and nothing else on Home moved`, !r.error && r.plannedAdded > 0);
   check(`${zone}: a first-session drop set lost its auto-complete button on ${r.dropBtnGone || 0} renders (v8.43, §138), and nothing else did`, !r.error && r.dropBtnGone > 0);
+  check(`${zone}: Train's weights lost a trailing .0 on ${r.kgTrimmed || 0} renders (v8.57, §172), and nothing else did`, !r.error && r.kgTrimmed > 0);
   const oc = r.aiOutcomes || {};
   const flows = ['askBlocForAdvice', 'askBlocForChallenge', 'askBlocForNextCycleAdvice', 'generateCycleReview'];
   check(`${zone}: the AI flows match v8.34 end to end (${r.aiRuns || 0} scenarios), each reaching both a stored result and a shown error (${flows.map(f => `${f.replace(/^(askBlocFor|generate)/, '')} ${(oc[f] || {}).stored || 0}/${(oc[f] || {}).failed || 0}`).join(', ')})`,

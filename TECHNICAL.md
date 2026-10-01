@@ -11576,3 +11576,41 @@ original; minor vs significant; same phase ids; the record never in the payload;
 - **The Diary's week bar** is ‹, the range, ›; "Back to today" replaces the relative line only once the view has moved
   off today. The legend is four even columns (two by two at 380 px and below, at most 460 px wide).
 
+
+## §172 — v8.57 + Coach v0.17: a pinned bar never covers the title or shows the page above it; Train's set weights
+
+- **Coach's back bar sits below its page title's place, never on it.** `.backbar`'s margin-top is `.top`'s padding
+  (`max(--header-top, safe-top + 24px)`) less the bar's own 8px, so the link lands where the header's eyebrow sat (83 at
+  a 59px inset). 🚨 Not less the inset as well: Coach draws under the status bar (black-translucent, §159), so `.top`'s
+  padding is measured from the top of the screen. With the inset taken off too, the bar's own place was 16px down; being
+  sticky at the inset, it sat at 59–103, over the H1 at 78, and Settings, a client, In person, Group session and Print
+  showed no title on an installed iPhone. Desktop Chromium has no inset, so it can't show this: emulate one
+  (`Emulation.setSafeAreaInsetsOverride`, or `html { --safe-top: 59px !important }`, which outlasts the inset script's
+  re-measuring).
+- **Nothing shows above a pinned bar.** BLOC's `.settings-topbar` and Coach's `.backbar` both stick below the status
+  bar, and the top edge fade (§159; README → Edge Fades) only half hides what scrolls up into the inset. Each bar has a
+  `::before` the height of the inset in solid `--bg` above it, and its edge fade as an `::after` along its lower edge,
+  16px, `--bg` to `--bg` at 0%. The fade shows only while the page is scrolled (`.is-stuck`: BLOC's
+  `initSettingsTopbarFade` from `#content`'s scroll, Coach's `BackBar` from the window's), so at rest it never dims the
+  header below the bar.
+- **Train's set box keeps room for its figure.** 🚨 BLOC's base field rule, `input:not([type=range]):not([type=file])`
+  (specificity 0,2,1), outranks `.set-input` (0,1,0), so its 14px side padding applied to every Train set box and left
+  32px for the figure in the 62px column: "50.0" (35px at 16px Manrope 600) was cut off. `input.set-input:not([type=range])`
+  matches the base rule's specificity and comes after it, so the box keeps 4px a side: 52px, enough for "102.5" (40px)
+  and "failure" (49px). The base rule's 16px font stays: below 16px, iOS zooms the page when a field is focused. A
+  `.set-input` rule with only a class selector will never win against the base rule.
+- **Train's set weights read as numbers: 25, not 25.0; 22.5 stays 22.5.** BLOC's `fmtKg` and Coach's `setKg`
+  (`coach/src/lib/format.ts`) format a weight where Train draws it: the set boxes' placeholders and values, last week's
+  sets, the On hold panel and its pills, the progression chips, the card's figure and its since-week-1 badge, a
+  superset's rows, and Swap for today's planned line (BLOC); the session card's set table and summary (Coach). They are
+  display only. 🚨 The engine's targets stay strings with one decimal ("25.0" is a lock value, a Fill suggested value and
+  a golden output), and what's logged keeps what was typed or filled, so a formatter is applied where a weight is drawn
+  and never where one is stored or compared. A value that isn't a complete number ("", "—", "25." while typing) is
+  returned unchanged, which keeps a half-typed figure intact. Fill suggested shows the formatted figure in the box and
+  stores the engine's; Coach's Fill suggested and set ticks store the formatted one, the same number. `fmt.kg` (one
+  decimal) is unchanged everywhere else in Coach, as are body weights in BLOC.
+- **Checks:** `scripts/verify-train-kg.mjs` (which rule's padding wins on a set box, against v8.56's as a control;
+  `fmtKg` and `setKg` over one table, against a `toFixed(1)` control; every weight box drawn through them) and
+  `scripts/verify-pinned-bars.mjs` (Coach's bar place evaluated from `ui.css` at insets 0–59, against v0.16's as a
+  control; both bars' `::before`, `::after` and `.is-stuck`). `verify-engine-leaves.mjs` compares Train's HTML with v8.34's with a
+  trailing ".0" read as nothing on both sides, counts the renders where only that moved, and still fails on anything else.

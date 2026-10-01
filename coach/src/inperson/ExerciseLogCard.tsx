@@ -9,6 +9,7 @@ import { useId } from 'react';
 import { Card, Tag } from '@/components/ui/display';
 import { Button } from '@/components/ui/controls';
 import { Icon } from '@/components/ui/Icon';
+import { setKg } from '@/lib/format';
 import type { ExerciseTarget, SetEntry } from './model';
 
 const lbl = { fontSize: 10.5, letterSpacing: '.1em', textTransform: 'uppercase' as const, color: 'var(--text3)', fontWeight: 700 };
@@ -31,7 +32,7 @@ export function ExerciseLogCard({ n, i, t, sets, onSets, expanded, onToggle, rea
   const cardio = ex.category === 'cardio';
   const unit = ex.trackingMode === 'perSide' ? 'kg per side' : 'kg';
   const tag = TYPE_TAG[String(ex.type)];
-  const lastText = t.last.find((l) => l.weight != null) ? `${t.last.find((l) => l.weight != null)!.weight} × ${t.last.find((l) => l.weight != null)!.reps}` : '—';
+  const lastText = t.last.find((l) => l.weight != null) ? `${setKg(t.last.find((l) => l.weight != null)!.weight)} × ${t.last.find((l) => l.weight != null)!.reps}` : '—';
   const set = (k: number, patch: Partial<SetEntry>) => onSets?.(sets.map((s, j) => (j === k ? { ...s, ...patch } : s)));
   const cell = { height: 42, textAlign: 'center' as const, padding: 0 };
   return (
@@ -54,7 +55,7 @@ export function ExerciseLogCard({ n, i, t, sets, onSets, expanded, onToggle, rea
               {expanded && <div className="muted" style={{ marginTop: 4 }}>{t.sets} {t.sets === 1 ? 'set' : 'sets'} · {done}/{sets.length} done</div>}
             </button>
             {!readOnly && (
-              <button type="button" className="icon-btn in-card" aria-label={`Complete every set of ${String(ex.name)} at target`} onClick={() => onSets?.(sets.map((s, k) => ({ ...s, kg: s.kg || t.weights[k] || '', reps: s.reps || t.reps[k] || '', done: true })))}>
+              <button type="button" className="icon-btn in-card" aria-label={`Complete every set of ${String(ex.name)} at target`} onClick={() => onSets?.(sets.map((s, k) => ({ ...s, kg: s.kg || setKg(t.weights[k]), reps: s.reps || t.reps[k] || '', done: true })))}>
                 <Icon name="checkbox" size={20} />
               </button>
             )}
@@ -63,7 +64,7 @@ export function ExerciseLogCard({ n, i, t, sets, onSets, expanded, onToggle, rea
             <>
               <div className="row" style={{ marginTop: 6 }}>
                 <span className="muted" style={{ whiteSpace: 'nowrap' }}>{t.sets} {t.sets === 1 ? 'set' : 'sets'} · {t.reps[0] || String(ex.reps || '')} reps</span>
-                {!cardio && <span className="num" style={{ whiteSpace: 'nowrap' }}><b className="display" style={{ fontSize: 17 }}>{t.weights[0] || '—'}</b> <span style={{ fontSize: 11.5, color: 'var(--text3)' }}>{unit}</span></span>}
+                {!cardio && <span className="num" style={{ whiteSpace: 'nowrap' }}><b className="display" style={{ fontSize: 17 }}>{setKg(t.weights[0]) || '—'}</b> <span style={{ fontSize: 11.5, color: 'var(--text3)' }}>{unit}</span></span>}
               </div>
               <div className="row" style={{ marginTop: 12 }}>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }} role="img" aria-label={`${done} of ${sets.length} sets done`}>
@@ -82,7 +83,7 @@ export function ExerciseLogCard({ n, i, t, sets, onSets, expanded, onToggle, rea
             <span style={{ ...lbl, fontSize: 11.5, letterSpacing: '.12em' }}>{readOnly ? 'Logged sets' : 'Log sets'}</span>
             {!readOnly && (
               <span style={{ display: 'flex', gap: 8 }}>
-                <Button size="compact" variant="ghost" icon="sparkle" onClick={() => onSets?.(sets.map((s, k) => ({ ...s, kg: t.weights[k] ?? s.kg, reps: t.reps[k] ?? s.reps })))}>Fill suggested</Button>
+                <Button size="compact" variant="ghost" icon="sparkle" onClick={() => onSets?.(sets.map((s, k) => ({ ...s, kg: t.weights[k] != null ? setKg(t.weights[k]) : s.kg, reps: t.reps[k] ?? s.reps })))}>Fill suggested</Button>
                 <Button size="compact" variant="danger" onClick={() => onSets?.(sets.map((s) => ({ ...s, done: false })))}>Clear</Button>
               </span>
             )}
@@ -95,10 +96,10 @@ export function ExerciseLogCard({ n, i, t, sets, onSets, expanded, onToggle, rea
             return (
               <div key={k} style={{ display: 'grid', gridTemplateColumns: GRID, gap: 8, alignItems: 'center', padding: '8px 0', borderTop: '1px solid var(--divider)' }}>
                 <span className="muted" style={{ fontSize: 13 }}>{k + 1}</span>
-                <span className="num" style={{ fontSize: 12.5, color: 'var(--text3)', whiteSpace: 'nowrap', overflow: 'hidden' }}>{prev && prev.weight != null ? `${prev.weight} × ${prev.reps}` : '—'}</span>
+                <span className="num" style={{ fontSize: 12.5, color: 'var(--text3)', whiteSpace: 'nowrap', overflow: 'hidden' }}>{prev && prev.weight != null ? `${setKg(prev.weight)} × ${prev.reps}` : '—'}</span>
                 {readOnly ? (
                   <>
-                    <span className="num tile" style={{ ...cell, display: 'grid', placeItems: 'center', fontWeight: 700 }}>{s.kg || '—'}</span>
+                    <span className="num tile" style={{ ...cell, display: 'grid', placeItems: 'center', fontWeight: 700 }}>{setKg(s.kg) || '—'}</span>
                     <span className="num tile" style={{ ...cell, display: 'grid', placeItems: 'center', fontWeight: 700 }}>{s.reps || '—'}</span>
                     <span style={{ width: 42, height: 42, borderRadius: 12, display: 'grid', placeItems: 'center', background: s.done ? 'color-mix(in srgb, var(--accent) 22%, transparent)' : 'transparent', color: 'var(--accent2)' }} role="img" aria-label={s.done ? 'Done' : 'Not done'}>
                       {s.done && <Icon name="check" size={18} />}
@@ -106,9 +107,9 @@ export function ExerciseLogCard({ n, i, t, sets, onSets, expanded, onToggle, rea
                   </>
                 ) : (
                   <>
-                    <input className="input num" style={cell} inputMode="decimal" placeholder={t.weights[k] ?? ''} aria-label={`${String(ex.name)} set ${k + 1} kg`} value={s.kg} onChange={(e) => set(k, { kg: e.target.value.replace(/[^0-9.]/g, '') })} />
+                    <input className="input num" style={cell} inputMode="decimal" placeholder={setKg(t.weights[k])} aria-label={`${String(ex.name)} set ${k + 1} kg`} value={s.kg} onChange={(e) => set(k, { kg: e.target.value.replace(/[^0-9.]/g, '') })} />
                     <input className="input num" style={cell} inputMode="numeric" placeholder={t.reps[k] ?? ''} aria-label={`${String(ex.name)} set ${k + 1} reps`} value={s.reps} onChange={(e) => set(k, { reps: e.target.value })} />
-                    <button type="button" aria-pressed={s.done} aria-label={`Set ${k + 1} done`} onClick={() => set(k, { done: !s.done, kg: s.kg || t.weights[k] || '', reps: s.reps || t.reps[k] || '' })}
+                    <button type="button" aria-pressed={s.done} aria-label={`Set ${k + 1} done`} onClick={() => set(k, { done: !s.done, kg: s.kg || setKg(t.weights[k]), reps: s.reps || t.reps[k] || '' })}
                       style={{ width: 42, height: 42, borderRadius: 12, border: `1.5px solid ${s.done ? 'var(--accent)' : 'color-mix(in srgb, var(--text) 20%, transparent)'}`, background: s.done ? 'var(--accent)' : 'transparent', color: 'var(--on-accent)', display: 'grid', placeItems: 'center', cursor: 'pointer', padding: 0 }}>
                       {s.done && <Icon name="check" size={18} />}
                     </button>
