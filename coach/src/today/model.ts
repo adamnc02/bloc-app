@@ -4,9 +4,7 @@
 //   Today's sessions  the diary's sessions today (the coach's date), with Start session on a one-to-one from
 //                     15 minutes before it starts until the day ends, unless it's already logged.
 //   Needs you         everything waiting on the coach, each clearing once dealt with: session requests (and a
-//                     confirmed time that now clashes), the AI tools once DUE (aiSchedule: a check-in, a cycle review,
-//                     next-cycle advice; each clears when published, never dismissed), notes back not replied to (on a
-//                     check-in, a challenge), review
+//                     confirmed time that now clashes), notes back not replied to (on a check-in, a challenge), review
 //                     photos answered and not yet reviewed, and bookings from the last 14 days that weren't
 //                     logged or cancelled (BLOC keeps an assigned session out of "next" until one or the other),
 //                     group weeks included (§162: Log it opens the group session, Cancel cancels it for everyone),
@@ -15,8 +13,9 @@
 //                     Only a CHALLENGE (a note back on a check-in) can be dismissed (§169, 0036), on every device; the
 //                     client is never told.
 //   Off track         linked clients whose outcome is off track (Review's judgement), with its one reason.
-//   Coming up         the AI tools coming due in the next 7 days (a check-in, a cycle's final week, next-cycle advice
-//                     opening): once due they move to Needs you; measurements due, and apps gone quiet.
+//   Coming up         the AI tools due now or in the next 7 days (aiSchedule: a check-in, a cycle review, next-cycle
+//                     advice; each clears when published; never in Needs you, never dismissed), measurements due, and
+//                     apps gone quiet.
 //
 // 🚨 Anything judged about a client is at the client's today (their upload's zone): check-ins, cycle ends and
 //    measurements. The diary's own dates (today's sessions, missed bookings) are the coach's.
@@ -51,7 +50,6 @@ export interface TodaySession {
 
 export type NeedsItem =
   | { kind: 'request'; key: string; at: string; cardId: string | null; request: SessionRequest }
-  | { kind: 'ai'; key: string; at: string; cardId: string; tool: AiTool; macroId: string; title: string; detail: string }
   | { kind: 'note'; key: string; at: string; cardId: string; submission: Submission; headline: string | null; tool: string | null; macroId: string | null }
   | { kind: 'photos'; key: string; at: string; cardId: string; macroId: string; skipped: boolean; count: number }
   | { kind: 'missed'; key: string; at: string; cardId: string; occ: Occurrence }
@@ -130,13 +128,6 @@ export function needsYou(d: Diary, inbox: Inbox, bundles: ClientBundle[], summar
     const subs = inbox.submissions.filter((x) => x.clientId === b.link!.clientId);
     const drafts: AiDraft[] = inbox.drafts.filter((x) => x.cardId === cardId);
     const pubs: CoachPublication[] = byCard(inbox.publications, cardId);
-    // The AI tools, once due (aiSchedule): never dismissable; each clears when it's published.
-    const sum = summaries.find((s) => s.id === cardId);
-    if (b.snapshot?.state && sum?.status === 'linked' && sum.clientToday) {
-      for (const x of aiSchedule(b.snapshot.state, sum.clientToday, sum.cycle?.macroId ?? null, pubs, subs).due) {
-        out.push({ kind: 'ai', key: `a:${x.tool}:${cardId}:${x.macroId}:${x.stamp}`, at: x.at, cardId, tool: x.tool, macroId: x.macroId, title: x.title, detail: x.detail });
-      }
-    }
     // Notes back with no reply yet: every response on the card.
     const responses = [...new Set(subs.filter((x) => x.kind === 'note_back').map((x) => String(x.body?.response_id ?? '')))];
     for (const rid of responses) {
@@ -170,8 +161,8 @@ const published = (pubs: CoachPublication[], tool: AiTool, macroId: string) =>
   pubs.some((p) => p.type === 'ai_response' && String(p.payload?.tool) === tool && p.payload?.macro_id === macroId);
 
 /**
- * When each AI tool is DUE (Needs you) or COMING (Coming up, the next 7 days), at the client's today. None is ever
- * dismissed: each clears when the coach publishes it.
+ * When each AI tool is DUE or COMING (the next 7 days), at the client's today: both are Coming up's rows. None is ever
+ * in Needs you or dismissed: each clears when the coach publishes it.
  *   · Check-in, on the running cycle: the engine's schedule (coachCheckinSchedule, §168).
  *   · Cycle review, on any cycle from its final week to 14 days after its end, until one is published: due when the
  *     coach has the next move (no photos asked yet; or asked, the cycle over, and PHOTO_WAIT_DAYS without an answer).
@@ -187,12 +178,12 @@ export function aiSchedule(state: BlocState, today: string, runningMacroId: stri
   if (running?.start) {
     const end = getMacroEndDate(running, ctx);
     const sch = coachCheckinSchedule(state, ctx, running, publishedCheckinDates(pubs, running.id));
-    if (sch.due) due.push({ tool: 'check_in', macroId: running.id, at: sch.dueOn ?? today, stamp: sch.dueOn ?? 'first', title: sch.dueOn ? 'Check-in due' : 'First check-in due',
-      detail: sch.dueOn ? 'Two weeks since the last check-in.' : 'BLOC’s read of their trend calls for a first check-in.' });
+    if (sch.due) due.push({ tool: 'check_in', macroId: running.id, at: sch.dueOn ?? today, stamp: sch.dueOn ?? 'first', title: sch.dueOn ? `Check-in due since ${fmt.ddm(sch.dueOn)}` : 'First check-in due',
+      detail: sch.dueOn ? 'two weeks since the last' : 'their trend calls for one' });
     else if (sch.enoughData && sch.dueOn && sch.dueOn <= soon && sch.dueOn <= end) coming.push({ tool: 'check_in', macroId: running.id, at: sch.dueOn, detail: `Check-in due ${fmt.ddm(sch.dueOn)}` });
     const opens = shiftDateStr(end, -21);
     if (!published(pubs, 'next_cycle', running.id)) {
-      if (today >= opens && today <= end) due.push({ tool: 'next_cycle', macroId: running.id, at: opens, stamp: 'open', title: 'Next cycle due', detail: `${String(running.name || 'This cycle')} ends ${fmt.ddm(end)}: build the next cycle’s advice.` });
+      if (today >= opens && today <= end) due.push({ tool: 'next_cycle', macroId: running.id, at: opens, stamp: 'open', title: 'Next cycle due', detail: `cycle ends ${fmt.ddm(end)}` });
       else if (opens > today && opens <= soon) coming.push({ tool: 'next_cycle', macroId: running.id, at: opens, detail: `Next cycle advice from ${fmt.ddm(opens)}` });
     }
   }
@@ -204,9 +195,9 @@ export function aiSchedule(state: BlocState, today: string, runningMacroId: stri
     if (today >= finalWeek && today <= shiftDateStr(end, 14)) {
       const ph = photoRequestState(pubs, subs, m.id);
       if (ph.status === 'none') due.push({ tool: 'cycle_review', macroId: m.id, at: finalWeek, stamp: 'ask', title: 'Cycle review due',
-        detail: `${name} ${today > end ? 'has ended' : `ends ${fmt.ddm(end)}`}: ask for review photos first.` });
+        detail: `${name} ${today > end ? 'ended' : 'ends'} ${fmt.ddm(end)}: ask for photos first` });
       else if (ph.status === 'waiting' && today > end && ph.askedOn && today >= shiftDateStr(ph.askedOn, PHOTO_WAIT_DAYS)) due.push({ tool: 'cycle_review', macroId: m.id, at: shiftDateStr(ph.askedOn, PHOTO_WAIT_DAYS), stamp: 'nophotos', title: 'Cycle review due',
-        detail: `No review photos since ${fmt.ddm(ph.askedOn)}: run it without them.` });
+        detail: `no photos since ${fmt.ddm(ph.askedOn)}: run it without them` });
     } else if (finalWeek > today && finalWeek <= soon) {
       coming.push({ tool: 'cycle_review', macroId: m.id, at: finalWeek, detail: `${name}: final week from ${fmt.ddm(finalWeek)}, then its review` });
     }
@@ -232,12 +223,12 @@ export function comingUp(bundles: ClientBundle[], summaries: ClientSummary[], in
     if (!st || !s.clientToday) continue;
     const today = s.clientToday;
     const soon = shiftDateStr(today, 7);
-    // The AI tools coming due within the week; once due they're Needs you's (aiSchedule).
+    // The AI tools, due now or coming due within the week (aiSchedule): this list's only.
     const subs = inbox.submissions.filter((x) => x.clientId === b?.link?.clientId);
     const KIND: Record<AiTool, ComingKind> = { check_in: 'check-in', cycle_review: 'final-week', next_cycle: 'next-cycle' };
-    for (const x of aiSchedule(st as BlocState, today, s.cycle?.macroId ?? null, byCard(inbox.publications, s.id), subs).coming) {
-      out.push({ key: `${KIND[x.tool]}:${s.id}:${x.macroId}`, kind: KIND[x.tool], cardId: s.id, detail: x.detail, tab: 'review', at: x.at });
-    }
+    const ai = aiSchedule(st as BlocState, today, s.cycle?.macroId ?? null, byCard(inbox.publications, s.id), subs);
+    for (const x of ai.due) out.push({ key: `${KIND[x.tool]}:${s.id}:${x.macroId}`, kind: KIND[x.tool], cardId: s.id, detail: `${x.title} · ${x.detail}`, tab: 'review', at: x.at });
+    for (const x of ai.coming) out.push({ key: `${KIND[x.tool]}:${s.id}:${x.macroId}`, kind: KIND[x.tool], cardId: s.id, detail: x.detail, tab: 'review', at: x.at });
     const ms = getMeasurementStatus(st.bodyLogs as Loose[], st.macrocycles as Loose[], today);
     if (ms.nextDueDate <= soon && (!ms.lastDate || ms.lastDate < today)) out.push({ key: `w:${s.id}`, kind: 'measurements', cardId: s.id, detail: ms.due ? (ms.lastDate ? `Measurements due · last ${fmt.ddm(ms.lastDate)}` : 'No measurements yet') : `Measurements due ${fmt.ddm(ms.nextDueDate)}`, tab: 'review', at: ms.nextDueDate });
   }
@@ -252,7 +243,6 @@ export function needsItemOpen(it: NeedsItem): NeedsOpen | null {
   switch (it.kind) {
     case 'request': return { kind: 'request', id: it.request.id };
     case 'photos': return { kind: 'path', path: clientPath(it.cardId, 'review', it.macroId, null, { at: 'ai', tool: 'cycle_review' }) };
-    case 'ai': return { kind: 'path', path: clientPath(it.cardId, 'review', it.macroId, null, { at: 'ai', tool: it.tool }) };
     case 'note': return { kind: 'path', path: clientPath(it.cardId, 'review', it.macroId, null, { at: 'note', note: it.submission.id, tool: it.tool }) };
     default: return null;
   }

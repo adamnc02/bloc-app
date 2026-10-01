@@ -135,7 +135,7 @@ export function TodayScreen() {
 
           <div className="tg-needs">
             <Section i={3} title="Needs you" sub="Everything waiting on you, in one list. Each item clears once it’s dealt with." slot={items.length ? <Chip tone="acc">{items.length} waiting</Chip> : undefined}>
-              {items.length === 0 && <EmptyState>Nothing waiting on you. Session requests, check-ins, reviews and next cycles once due, challenges and notes back, and sessions to log land here.</EmptyState>}
+              {items.length === 0 && <EmptyState>Nothing waiting on you. Session requests, challenges and notes back, review photos and sessions to log land here.</EmptyState>}
               <div className="stack">
                 {items.map((it, k) => (
                   <Card key={it.key} i={4 + k}>
@@ -184,7 +184,7 @@ export function TodayScreen() {
           </div>
 
           <div className="tg-coming">
-            <Section i={5} title="Coming up" sub="Check-ins, cycle reviews and next cycles coming due (once due they move to Needs you), measurements and apps gone quiet, over the next week." slot={coming.length ? <Chip>{coming.length} items</Chip> : undefined}>
+            <Section i={5} title="Coming up" sub="Check-ins, cycle reviews and next cycles due now or this week, measurements and apps gone quiet." slot={coming.length ? <Chip>{coming.length} items</Chip> : undefined}>
               {coming.length ? (
                 <div className="card list">
                   {coming.map((u) => (
@@ -281,13 +281,6 @@ function NeedsBody({ it, name, first, who, onRequest, onCancel, onLeave, onDismi
         <div className="btnrow"><Button size="card" icon="calendar" onClick={() => onRequest(r.id)}>{clash ? 'Move it' : 'Answer'}</Button></div>
       </>;
     }
-    case 'ai':
-      // Due AI work (aiSchedule): no Dismiss; it clears when it's published.
-      return <>
-        <CardHead icon="sparkle" eyebrow={it.title} name={name} when={fmt.ddm(it.at.slice(0, 10))} />
-        <p className="muted" style={{ marginTop: 12 }}>{it.detail}</p>
-        <div className="btnrow"><Button size="card" icon="sparkle" onClick={() => go(needsItemOpen(it))}>{it.tool === 'check_in' ? 'Run check-in' : it.tool === 'cycle_review' ? 'Open cycle review' : 'Build next cycle'}</Button></div>
-      </>;
     case 'note':
       return <>
         <CardHead icon="send" eyebrow={it.tool === 'check_in' ? 'Check-in challenged' : 'Note back'} name={name} when={ago(it.submission.createdAt)} />

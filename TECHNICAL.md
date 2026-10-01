@@ -11467,11 +11467,13 @@ which BLOC and BLOC Coach both read:
 **Coach.** The AI panel's Check-in row reads the schedule ("First check-in due", "Check-in due", "Next check-in · {date} ·
 run early", "No check-in needed yet" for a client on track, or how many weeks of logs until the first). Check-ins are
 **Coming up's only**: due now ("First check-in due", "Check-in due since {date}") or coming due within 7 days, at the
-client's today. Coming up holds one coming due in the next 7 days; once due it moves to **Needs you**. 🚨 It's never
-dismissable: a due check-in clears only by publishing one.
+client's today, in **Coming up**, due now or within 7 days. 🚨 Never in Needs you and never dismissable: Needs you is
+what clients sent (challenges, notes back, review photos), requests, unlogged sessions and effort flags; a due check-in
+clears only by publishing one.
 
-**All three AI tools follow that pattern: `aiSchedule()` (`today/model.ts`)** returns each client's `due` (Needs you,
-an `ai` card with the tool's one button, no Dismiss) and `coming` (Coming up, the next 7 days):
+**All three AI tools: `aiSchedule()` (`today/model.ts`)** returns each client's `due` and `coming` (the next 7 days);
+both are Coming up rows ("First check-in due · their trend calls for one", "Cycle review due · … ask for photos first",
+"Next cycle due · cycle ends …"):
 - **Check-in**, on the running cycle: the schedule above.
 - **Cycle review**, on any cycle from its final week to 14 days after its end, until one is published: due when the
   coach has the next move: no photos asked yet ("ask for review photos first"), or asked, the cycle over and
@@ -11494,7 +11496,7 @@ shown never disappears, on that device. No tab ready: the card says when the fir
 
 **Checks:** `coach/src/ai/schedule.test.ts` (the schedule and the tabs on the demo client, with 0 and 1 weigh-ins);
 `ai.test.ts` (eligibility: an unpublished run leaves it due, another cycle's doesn't count); `today.test.ts` (Needs you
-a due check-in there, out of Coming up, cleared only by a publish, control: a run alone; `aiSchedule` for the review's
+no AI work in Needs you; Coming up's check-in cleared only by a publish, control: a run alone; `aiSchedule` for the review's
 and next cycle's windows, each with its edges; an old request row changes nothing); `verify-coach-logged.mjs` §7 (BLOC's own functions, including a
 tab kept on a thin day); `verify-from-coach.mjs` (no Check in, no `purpose 'check_in'` row, only ready tabs, the line
 under Check-in only); `engine-cases.mjs` covers the new exports.
@@ -11502,8 +11504,8 @@ under Check-in only); `engine-cases.mjs` covers the new exports.
 ## §169 — Coach v0.16: dismissing a note back from Needs you (migration `0036`)
 
 Only a **challenge** (a note back on a check-in) has **Dismiss** on its Needs you card, left of its action. A note on a
-cycle review or next-cycle advice, and the due AI work (§168), can't be dismissed: the model honours a dismissal only for
-a challenge. The dismissal is
+cycle review or next-cycle advice can't be dismissed, and the AI work is Coming up's (§168): the model honours a
+dismissal only for a challenge. The dismissal is
 a `coach_needs_dismissals` row (card, `item_key` = the item's key `n:<submission id>`, `created_at`), so every device
 agrees, and it's for good (`isDismissed()` in `today/model.ts`). Check-ins are never dismissed (§168: they're Coming up's).
 The table takes any key up to 300 characters; Coach writes only `n:` keys. A repeat dismissal deletes the old row and
@@ -11517,7 +11519,7 @@ inserts a new one (no update grant).
 review photos", tag `photos:<submission id>`, which opens Needs you's photos item, key `p:<id>`, on Review → Cycle review).
 Coach's switch (column `check_ins`) is labelled **Review photos**.
 
-**Checks:** `today.test.ts` (a dismissed challenge gone; dismissal rows naming a review's note or the due AI work change nothing);
+**Checks:** `today.test.ts` (a dismissed challenge gone; dismissal rows naming a review's note or Coming up's check-in change nothing);
 super-duper-octo-barnacle's `0036` check file and behaviour test.
 
 ## §170 — v8.56 + Coach v0.16: notes back as a thread; Challenge with BLOC on a check-in

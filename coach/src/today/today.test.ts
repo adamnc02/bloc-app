@@ -72,7 +72,7 @@ describe('Needs you', () => {
     expect(missedBookings(d, logged, ANCHOR).map((m) => m.occ.key)).not.toContain('s:sr-tom@2026-07-30');
     expect(missed.every((k) => !k.startsWith('s:sr-bootcamp'))).toBe(true);      // a group week is missedGroups', not this list's
   });
-  it('requests waiting on the coach, a due check-in, an unanswered note back and answered review photos; each clears once dealt with', async () => {
+  it('requests waiting on the coach, an unanswered note back and answered review photos, never the AI work; each clears once dealt with', async () => {
     const d = await fixtureDiary(ANCHOR).loadDiary();
     const inbox: Inbox = {
       submissions: [
@@ -83,10 +83,10 @@ describe('Needs you', () => {
       publications: [pub('maya', 'a1', 1, 'ai_response', { response_id: 'r1', content: { headline: 'Steady' } }), pub('maya', 'q1', 2, 'photo_request', { request_id: 'pr1', macro_id: 'macro_1780859905961' })],
     };
     const kinds = needsYou(d, inbox, built.clients, summaries, ANCHOR).map((x) => x.kind);
-    for (const k of ['request', 'ai', 'note', 'photos', 'missed']) expect(kinds).toContain(k);
-    // Maya's first check-in is due, so it's Needs you's, and no longer in Coming up.
-    expect(needsYou(d, inbox, built.clients, summaries, ANCHOR).some((x) => x.kind === 'ai' && x.tool === 'check_in' && x.cardId === 'maya')).toBe(true);
-    expect(comingUp(built.clients, summaries, inbox).some((x) => x.kind === 'check-in' && x.cardId === 'maya')).toBe(false);
+    for (const k of ['request', 'note', 'photos', 'missed']) expect(kinds).toContain(k);
+    // Maya's first check-in is due: it's Coming up's (as live), never Needs you's.
+    expect(kinds.some((k) => /check|ai/.test(k))).toBe(false);
+    expect(comingUp(built.clients, summaries, inbox).find((x) => x.kind === 'check-in' && x.cardId === 'maya')?.detail).toMatch(/^First check-in due/);
     // An old client request row changes nothing.
     const withOldAsk: Inbox = { ...inbox, submissions: [...inbox.submissions, sub('user-maya', 's1', 'check_in', { purpose: 'check_in', feel: 'Okay', macro_id: null })] };
     expect(needsYou(d, withOldAsk, built.clients, summaries, ANCHOR).map((x) => x.key)).toEqual(needsYou(d, inbox, built.clients, summaries, ANCHOR).map((x) => x.key));
@@ -118,19 +118,18 @@ describe('Needs you', () => {
 
   it('a due check-in clears by PUBLISHING one (control: a run never published leaves it due)', async () => {
     const d = await fixtureDiary(ANCHOR).loadDiary();
-    const maya = (i: Inbox) => needsYou(d, i, built.clients, summaries, ANCHOR).find((x) => x.kind === 'ai' && x.tool === 'check_in' && x.cardId === 'maya');
-    expect(maya(empty())).toMatchObject({ title: 'First check-in due' });
+    void d;
+    const maya = (i: Inbox) => comingUp(built.clients, summaries, i).find((x) => x.kind === 'check-in' && x.cardId === 'maya');
+    expect(maya(empty())?.detail).toMatch(/^First check-in due/);
     const runOnly: Inbox = { ...empty(), drafts: [{ id: 'd1', cardId: 'maya', tool: 'check_in', macroId: 'macro_1780859905961', original: {} as never, edited: null, editedAt: null, publicationId: null, createdAt: `${ANCHOR}T12:00:00.000Z` }] };
-    expect(maya(runOnly)).toMatchObject({ title: 'First check-in due' });
+    expect(maya(runOnly)?.detail).toMatch(/^First check-in due/);
     const published: Inbox = { ...empty(), publications: [pub('maya', 'c1', 4, 'ai_response', { tool: 'check_in', response_id: 'd1', macro_id: 'macro_1780859905961', content: { headline: 'Keep going' } })] };
-    expect(maya(published)).toBeUndefined();
-    // …and the next one isn't in Coming up yet either: due two weeks on, outside the 7 days.
-    expect(comingUp(built.clients, summaries, published).some((x) => x.kind === 'check-in' && x.cardId === 'maya')).toBe(false);
+    expect(maya(published)).toBeUndefined();   // the next is two weeks on, outside the 7 days
   });
 });
 
 describe('Needs you: dismissing (0036, §169)', () => {
-  it('only a challenge (a note on a check-in) is dismissed; a note on a review and the due AI work are not', async () => {
+  it('only a challenge (a note on a check-in) is dismissed; a note on a review is not, nor is Coming up\'s AI work', async () => {
     const d = await fixtureDiary(ANCHOR).loadDiary();
     const base: Inbox = {
       submissions: [sub('user-maya', 's2', 'note_back', { response_id: 'r1', text: 'Not sure about this' }), sub('user-maya', 's3', 'note_back', { response_id: 'r2', text: 'Thanks!' })],
@@ -140,15 +139,17 @@ describe('Needs you: dismissing (0036, §169)', () => {
     };
     const items = needsYou(d, base, built.clients, summaries, ANCHOR);
     const challenge = items.find((x) => x.key === 'n:s2')!, reviewNote = items.find((x) => x.key === 'n:s3')!;
-    const ai = items.filter((x) => x.kind === 'ai');
-    expect(challenge && reviewNote && ai.length).toBeTruthy();
+    expect(challenge && reviewNote).toBeTruthy();
+    const coming = comingUp(built.clients, summaries, empty()).filter((x) => x.cardId === 'maya' && x.kind === 'check-in');
+    expect(coming.length).toBeGreaterThan(0);
     const at = `${ANCHOR}T12:00:00.000Z`;
-    const dismissed: Inbox = { ...base, dismissed: [challenge, reviewNote, ...ai].map((x) => ({ cardId: 'maya', key: x.key, at })) };
+    const dismissed: Inbox = { ...base, dismissed: [challenge.key, reviewNote.key, ...coming.map((x) => x.key)].map((key) => ({ cardId: 'maya', key, at })) };
     const after = needsYou(d, dismissed, built.clients, summaries, ANCHOR).map((x) => x.key);
     expect(after).not.toContain('n:s2');
     expect(after).toContain('n:s3');                                    // a review's note: not dismissable
-    for (const x of ai) expect(after).toContain(x.key);                 // the AI work: never dismissable
     expect(after.length).toBe(items.length - 1);
+    // A dismissal row naming Coming up's check-in changes nothing there.
+    expect(comingUp(built.clients, summaries, { ...empty(), dismissed: dismissed.dismissed }).filter((x) => x.cardId === 'maya' && x.kind === 'check-in').map((x) => x.key)).toEqual(coming.map((x) => x.key));
   });
 });
 
@@ -162,7 +163,7 @@ describe('aiSchedule: due (Needs you) and coming (Coming up), at the client\'s t
     const at = (today: string, pubs: CoachPublication[] = [], subs: Submission[] = []) => aiSchedule(s, today, MID, pubs, subs);
     expect(at(shiftDateStr(end, -10)).coming.some((x) => x.tool === 'cycle_review')).toBe(true);
     expect(at(shiftDateStr(end, -10)).due.some((x) => x.tool === 'cycle_review')).toBe(false);
-    expect(at(shiftDateStr(end, -6)).due.find((x) => x.tool === 'cycle_review')?.detail).toMatch(/ask for review photos/);
+    expect(at(shiftDateStr(end, -6)).due.find((x) => x.tool === 'cycle_review')?.detail).toMatch(/ask for photos first/);
     expect(at(shiftDateStr(end, -5), [photoReq(shiftDateStr(end, -5))]).due.some((x) => x.tool === 'cycle_review')).toBe(false);
     expect(at(shiftDateStr(end, 1), [photoReq(shiftDateStr(end, -2))]).due.find((x) => x.tool === 'cycle_review')?.detail).toMatch(/without them/);
     // published: gone; more than 14 days after the end: gone (control for the window)
