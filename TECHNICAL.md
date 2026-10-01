@@ -11440,3 +11440,13 @@ sessions are done.
   - The Diary sheet's Save dull, then live after a change.
   - No console errors.
 
+## §166 — v8.54: the exercise picker's "Add" row matches BLOC Coach's
+
+The exercise picker's **Add "…"** row (a name the library doesn't have) leads with the ＋ in a tile on the left
+(`.lib-add-ico`, the same 36 px, 10 px-radius, accent-tinted tile as BLOC Coach's `.icon-tile`), with no trailing icon;
+it was a small ＋ on the right, where every other row has its chevron. Choosing it is unchanged: Custom Exercise asks its
+body part and saves it into the library at once (`saveCustomExercise()` → `state.customLibrary`), with the exercise
+chosen.
+
+**Check:** `verify-exercise-sheet.mjs`: the row leads with the tile and has no trailing icon (control: v8.53's row).
+

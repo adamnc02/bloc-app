@@ -3424,6 +3424,13 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 }
 .lib-row:last-child { border-bottom: none; }
 .lib-row-text { flex: 1; min-width: 0; }
+/* v8.54 (§166): the exercise picker's "Add “…”" row leads with the ＋ in a tile, as BLOC Coach's does (its .icon-tile). */
+.lib-add-ico {
+  width: 36px; height: 36px; flex-shrink: 0; border-radius: 10px;
+  display: grid; place-items: center;
+  background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent2);
+}
+.lib-add-ico svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
 .lib-row-name {
   font-size: 14px; font-weight: 700; color: var(--text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -29798,7 +29805,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.53</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.54</span>`;
 }
 
 function renderSettings() {
@@ -30069,9 +30076,10 @@ function renderExPickList() {
   _exPickOptions = all.filter(e => !q || e.name.toLowerCase().includes(q));
   const exact = all.some(e => e.name.trim().toLowerCase() === q);
   // A name the library doesn't have: add it through Custom Exercise, which asks its body part.
-  const addRow = q && !exact ? `<div class="lib-row swap-row" onclick="addExPickCustom()">
+  // v8.54 (§166): the ＋ leads, in a tile, as BLOC Coach's "Add" row does; saved into the library at once (saveCustomExercise).
+  const addRow = q && !exact ? `<div class="lib-row swap-row lib-add-row" onclick="addExPickCustom()">
+      <span class="lib-add-ico" aria-hidden="true">${icoPlus(18)}</span>
       <div class="lib-row-text"><div class="lib-row-name">Add “${coachEsc(raw)}”</div><div class="lib-row-meta">A new exercise in your library</div></div>
-      <div class="lib-row-actions"><span class="row-btn-chevron">${icoPlus(18)}</span></div>
     </div>` : '';
   if (!_exPickOptions.length) { el.innerHTML = addRow || `<div class="lib-empty">Nothing in the library yet.</div>`; return; }
   let html = addRow, last = null;
