@@ -16,6 +16,8 @@
 //     every date moved by exactly N weeks and nothing else changed.
 //   · Every cycle starts on a Monday; every goal phase starts on a Monday
 //     and ends on a Sunday.
+//   · The state carries the client's name (BLOC syncs it to `profiles`, null
+//     when missing: a nameless state, restored, wiped Casey's name in Coach).
 //   · Nothing is logged after today; today holds a weigh-in only (no food,
 //     no steps, no session: the day has just started).
 //   · Coach's judgement (clientOutcome) reads each client as the story
@@ -81,6 +83,8 @@ for (const p of DEMO_PERSONAS) {
     ];
     check(`${p.key}, ${dayName}: nothing logged after this morning`, !late.length, late.slice(0, 5).join(', '));
 
+    // The name is in the state: BLOC syncs it to `profiles` (null when missing), and that's the name Coach shows.
+    check(`${p.key}, ${dayName}: the state carries the client's name`, !!a.profile.firstName && !!a.profile.surname, JSON.stringify(a.profile));
     const o = clientOutcome(a, base);
     const want = EXPECT[p.key];
     let ok = o.status === want.status, detail = `${o.status}: ${o.reason}`;
@@ -103,6 +107,8 @@ for (const p of DEMO_PERSONAS) {
   const off = { ...p, cycles: p.cycles.map((c, i) => (i === 0 ? { ...c, startOffsetWeeks: c.startOffsetWeeks + 0.5 } : c)) };
   const s = buildDemoState(off, BASES.Monday, { coachId: COACH });
   check('control: a cycle half a week off Monday is caught', s.macrocycles.some((m) => !isMonday(m.start)));
+  const casey = DEMO_PERSONAS.find((x) => x.key === 'casey');
+  check('Casey is Casey Morgan', buildDemoState(casey, BASES.Monday, { coachId: COACH }).profile.surname === 'Morgan');
 }
 
 if (failures) { console.log(`\n✗ ${failures} failed`); process.exit(1); }

@@ -69,7 +69,12 @@ export interface DemoCycle {
 export interface DemoPersona {
   key: string;
   tz: string;
-  profile: { gender: 'male' | 'female'; heightCm: number; birthday: string };
+  /**
+   * 🚨 The name lives in BLOC's state (Settings → About me), and BLOC's syncProfile() copies it to `profiles`,
+   * null when missing, which is the name Coach shows for a linked client. A state with no name, restored, wipes it:
+   * Casey showed as his card's old "Work (test client)" after the first Restore.
+   */
+  profile: { firstName: string; surname: string; gender: 'male' | 'female'; heightCm: number; birthday: string };
   /** Training weekdays, 0 = Monday. Session n of a calendar week goes on weekdays[n]. */
   weekdays: number[];
   /** Weeks of story before the Monday of today's week. */

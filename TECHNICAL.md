@@ -11258,6 +11258,11 @@ nothing is ever moved, it is rebuilt.
 
 🚨 **Today is the morning**: a weigh-in only, no food, steps or session yet, so there is something to log live.
 
+🚨 **Each state carries the client's name** (`profile.firstName` / `surname`; Coach v0.13.3). BLOC keeps the name in
+its state (Settings → About me) and `syncProfile()` copies it to `profiles`, **null when missing**, and that's the name
+Coach shows for a linked client. A nameless demo state, restored on Casey's laptop, nulled his name and Coach fell back
+to his card's old "Work (test client)". `verify-demo-clients.mjs` fails on a state without one.
+
 🚨 **A skipped session in the running cycle stays BLOC's "next"** (`getNextIncompleteSession`), so Train would open
 weeks back: only finished cycles skip sessions (`skipRate`), the running one only where the story says so
 (`skipRateNow`).
