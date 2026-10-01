@@ -9439,6 +9439,14 @@ threshold, on the bad side), and every goal phase. No deload shading: the chart 
 - **The header** (`storyHeadline`) says the one thing to know first: "Stalled since W4 · 215.3 → 214.3 lbs
   over 5 weeks · 1,852 kcal a day while flat", "Rising since W6", "−6.5 lbs since W1", or "Holding within
   1.2 lbs". Holding and dragging swaps it for the callout (`ScrubChart`'s `header`).
+- **Holding and dragging keeps the page still** (both Review charts: `ScrubChart`, `useScrub` in
+  `components/ui/hooks.ts`, Coach v0.13.1). 🚨 iOS Safari fixes a touch's `touch-action` when the finger lands, so
+  switching it from `pan-y` to `none` once the 280 ms hold engages changed nothing: a drag with any vertical part
+  scrolled the page, iOS cancelled the pointer, and the callout vanished mid-read. The hit area carries a native,
+  **non-passive** `touchmove` listener (React's are passive) that calls `preventDefault()` while the scrub is
+  engaged; after a still hold no scroll has begun, so iOS honours it. A quick swipe never engages and scrolls as
+  before. Proved in Chromium with real touch events (it applies the same rule): hold then drag diagonally, the
+  page stays put and the callout stays; the old code scrolled 132 px and lost it; a swipe still scrolls.
 - **The callout** has the date and week on one line (the phase name cut short, never wrapping the date),
   the day's weight and **its week's average** ("wk avg", right-aligned), the day's calories against that day's target
   and the week's average, and waist and hip on their own line. The nutrition chart's callout gives protein
