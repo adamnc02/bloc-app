@@ -4,8 +4,8 @@
 //
 // THE RULE THIS PROTECTS (v8.19, TECHNICAL §99): macrocycles never overlap.
 //
-// Before v8.19 nothing checked it. Found in UAT 2026-09-26: moving UAT B three
-// weeks later ran it a week into UAT C; only the goal-period clash showed.
+// Before v8.19 nothing checked it. On 2026-09-26, moving cycle B three
+// weeks later ran it a week into cycle C; only the goal-period clash showed.
 //
 // Covers the pure planning behind the four-option clash sheet and the
 // goal-fit sheet:
@@ -79,7 +79,7 @@ function check(name, got, want) {
   else { console.log(`✗ FAIL: ${name} — expected ${w}, got ${g}`); failures++; }
 }
 
-// The UAT shape: B 14 Sep (8 wk → 8 Nov), C 23 Nov (4 wk → 20 Dec), D 21 Dec (6 wk → 31 Jan).
+// The shape: B 14 Sep (8 wk → 8 Nov), C 23 Nov (4 wk → 20 Dec), D 21 Dec (6 wk → 31 Jan).
 const mk = (id, start, weeks, weeksPerMeso = 1) => ({ id, name: id, start, weeks, weeksPerMeso });
 const B = mk('B', '2026-09-14', 8), C = mk('C', '2026-11-23', 4), D = mk('D', '2026-12-21', 6);
 const macros = [B, C, D];

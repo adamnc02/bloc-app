@@ -2,7 +2,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 // verify-sync-mapping-fixes.mjs
 //
-// WHAT IT PROTECTS (v8.36, TECHNICAL §128; PROMPT-03 Phase 4a, with
+// WHAT IT PROTECTS (v8.36, TECHNICAL §128, with
 // migration 0025): four things the mirror got wrong, each silent.
 //   1. macrocycles.use_microcycles — the app reads an unset useMicrocycles
 //      as ON (`!== false`); the sync sent `!!`, mirroring it as OFF.
@@ -21,7 +21,7 @@
 //      with no id, so a flat list would miss every file in a sub-folder.
 //   5. One push at a time. Two overlapping pushes interleave their
 //      delete-then-insert per table: 409 "duplicate key … macrocycles_pkey"
-//      (found in the 4a UAT on a reload), and a late macrocycles delete
+//      (on a reload), and a late macrocycles delete
 //      cascades away the other push's freshly written children.
 //
 // Extracts the real functions from index.html. CONTROL: the same checks on
@@ -136,7 +136,7 @@ async function run(source, label) {
     check("only the 'client-media' bucket is used", [...new Set(fake.calls.map(c => c[1]))], ['client-media']);
     check('removes go in batches of at most 1000', fake.calls.filter(c => c[0] === 'remove').every(c => c[2] <= 1000), true);
   }
-  // 5. One push at a time (found in the 4a UAT: the sign-in full sync and a
+  // 5. One push at a time (the sign-in full sync and a
   // boot save()'s debounced flush overlapped, 409 on macrocycles_pkey).
   const wrapper = extract(source, 'function pushStateSerialised(');
   check('pushStateSerialised() exists', !!wrapper, true);

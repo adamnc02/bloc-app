@@ -62,7 +62,7 @@ const make = (a, b) => new Function(`${a}\n${b}\nreturn shortPhaseLabel;`)();
 const shortLabel = make(shortSrc, stripSrc);
 const MAX = 11;
 
-// ── The real names from Adam's own cycle ─────────────────────────────────
+// ── Real names from a real cycle ─────────────────────────────────────────
 check('Ramp Phase 1 → Ramp 1',  shortLabel('Step 1 - Ramp Phase 1 — Gentle lift off'), 'Ramp 1');
 check('Ramp Phase 2 → Ramp 2',  shortLabel('Step 2 - Ramp Phase 2 — Mid-climb to maintenance'), 'Ramp 2');
 check('Ramp Phase 3 → Ramp 3',  shortLabel('Step 3 - Ramp Phase 3 — Final climb'), 'Ramp 3');

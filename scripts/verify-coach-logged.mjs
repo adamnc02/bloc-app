@@ -2,7 +2,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 // verify-coach-logged.mjs
 //
-// WHAT IT PROTECTS (v8.43, TECHNICAL §137; PROMPT-03 Phase 4e-4): the last of
+// WHAT IT PROTECTS (v8.43, TECHNICAL §137): the last of
 // Coached mode. A session the coach logged in person, Swap for today, a group
 // session that replaces a planned one, and the three informational banners.
 //
@@ -128,7 +128,7 @@ async function run(label, html, engineSrc, quiet = false) {
     check('no marker: nothing about the card changes shape', ['isSwapped', 'heldAfterSwap'].some(k => k in E.computeExerciseProgression(plain, cacheOf(plain), plain.macrocycles[0], 4, DK, ex)), false);
   }
 
-  // ── 2. A group session replacing a planned one (§11 Q21) ─────────────────
+  // ── 2. A group session replacing a planned one ─────────────────
   {
     const s = demo(), m = s.macrocycles[0];
     const first = E.getNextIncompleteSession(s, m);
@@ -197,18 +197,18 @@ async function run(label, html, engineSrc, quiet = false) {
     check('done:false from the coach is kept', B.state.trainLogs[setKey(5, 2, 0)].done, false);
     check('I3: the whole session is the coach\'s: the client\'s set in it is replaced…', B.state.trainLogs[setKey(5, 1, 0)], undefined);
     check('…and kept on the record', B.state.coachSessionLogs[sl.id].replacedClientLogs[setKey(5, 1, 0)].weight, '99');
-    check('§11 Q13: the coach\'s ratings are marked', [B.state.rpe[`${MID}_5_${DK}_${EX(0)}`], B.state.rpe[`${MID}_5_${DK}_${EX(2)}`]],
+    check('the coach\'s ratings are marked', [B.state.rpe[`${MID}_5_${DK}_${EX(0)}`], B.state.rpe[`${MID}_5_${DK}_${EX(2)}`]],
       [{ rpe: 8, ratedBy: 'coach' }, { rpeSkipped: true, ratedBy: 'coach' }]);
     check('Train reads it as the coach\'s session', B.coachOwnedSession(MID, 5, DK).kind, 'logged');
     Object.assign(B.state, { currentMacroId: MID, currentWeek: 5, currentDay: DK });
-    check('…with the wireframe\'s notice', /<b>Logged by your coach · in person<\/b>Sam logged this session with you on Tue 4 Aug/.test(B.trainCoachNoticeHTML(B.state.macrocycles[0])), true);
+    check('…with its notice', /<b>Logged by your coach · in person<\/b>Sam logged this session with you on Tue 4 Aug/.test(B.trainCoachNoticeHTML(B.state.macrocycles[0])), true);
     const again = pub('session_log', Object.assign({}, sl.payload, { logs: { [EX(0)]: [{ weight: 65, reps: 8 }] } }), { supersedes: sl.id });
     B.applyPublications([again]);
     check('a correction (same session) replaces the coach\'s sets', [B.state.trainLogs[setKey(5, 0, 0)].weight, B.state.trainLogs[setKey(5, 0, 1)]], ['65', undefined]);
     const bad = pub('session_log', { session_id: 'ses2', macro_id: MID, week: 5, day_key: DK, logs: { nope: [{ weight: 1, reps: 1 }] } });
     const before = JSON.stringify(B.state.trainLogs);
     check('an exercise this phone doesn\'t have: held, nothing written', [B.applyPublications([bad]).acks[0].status, JSON.stringify(B.state.trainLogs) === before], ['needs_attention', true]);
-    // 🚨 v8.40's unlink left coachSessionLogs as [] (found in the v8.43 UAT): a
+    // 🚨 v8.40's unlink left coachSessionLogs as []: a
     // record keyed onto an array is dropped by JSON.stringify, so it never
     // reached the saved state. It must survive a save after an unlink.
     const envU = envFor(E); envU.state.coachSessionLogs = [];
@@ -285,7 +285,7 @@ async function run(label, html, engineSrc, quiet = false) {
     B.applyPublications([pub('booking', { booking_id: 'bb', date: '2026-10-01', start_min: 1080, status: 'booked' })]);
     const kinds = (env.state.coachNotices || []).map(n => n.kind);
     check('plan, goal phases and a booking each raise a notice', kinds, ['plan', 'phases', 'booking']);
-    check('the goal phases copy is the wireframe\'s', env.state.coachNotices[1].body, '“Cut 3” now starts on Mon 5 Oct at 1,600 kcal and 10,000 steps.');
+    check('the goal phases copy', env.state.coachNotices[1].body, '“Cut 3” now starts on Mon 5 Oct at 1,600 kcal and 10,000 steps.');
     B.renderHomeCoachBanner();
     const home = () => env.els.get('home-coach-banner').innerHTML;
     check('Home shows one: the newest', /Session confirmed/.test(home()), true);
@@ -315,7 +315,7 @@ async function run(label, html, engineSrc, quiet = false) {
     check('three waiting (a proposal, a booking, a response): the badge says 3', (home().match(/coach-banner-count[^>]*>(\d+)</) || [])[1], '3');
     check('Bench Press (not in the library, no bodyPart) is Chest; Machine Row is Back', [B.swapBodyPartOf({ name: 'Bench Press' }), B.swapBodyPartOf({ name: 'Machine Row' }), B.swapBodyPartOf({ name: 'Leg Curl' })], ['Chest', 'Back', 'Legs']);
   }
-  // ── 7. Check in keeps Solo's rhythm (Adam, v8.43 UAT) ──────────────────
+  // ── 7. Check in keeps Solo's rhythm ─────────────────────────────────────
   {
     const env = envFor(E);
     const B = factory(env);

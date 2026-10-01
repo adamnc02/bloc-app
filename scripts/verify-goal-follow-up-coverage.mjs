@@ -7,7 +7,7 @@
 // has no goal, with "N weeks still unaccounted for · cycle ends …" in red.
 //
 // Before v8.19 a 4-week cycle given one 2-week goal simply closed the sheet,
-// with nothing to say two weeks had no targets (UAT 2026-09-26).
+// with nothing to say two weeks had no targets.
 //
 // 🚨 The failure worth a script is the chain that NEVER ENDS: coverage must
 // count goals from every cycle. A day held by another cycle's goal can never
@@ -67,7 +67,7 @@ function check(name, got, want) {
   else { console.log(`✗ FAIL: ${name} — expected ${w}, got ${g}`); failures++; }
 }
 
-// UAT C: 9 Nov 2026, 4 × 1wk → ends 6 Dec.
+// Cycle C: 9 Nov 2026, 4 × 1wk → ends 6 Dec.
 const C = { id: 'C', start: '2026-11-09', weeks: 4, weeksPerMeso: 1 };
 const g = (macroId, s, e) => ({ macroId, startDate: s, endDate: e });
 

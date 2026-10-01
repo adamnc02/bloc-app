@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════════════════
 // Home's weekly pace: which days count as logged, the catch-up rate for the
 // rest of the week, the planned average, and the reconciled macro advice
-// (deep dive §1a, §10 step 3; TECHNICAL §124).
+// (TECHNICAL §124).
 //
 // Moved from index.html in v8.34, UNCHANGED, behind same-named shims. Pure:
 // `today` is already a parameter here, as it always was.
 //
 // v8.35 (§125, step 4) added the badge, split into a status and BLOC's
-// colour (deep dive §1a SCOPE), its tolerance and polarity, and
+// colour, its tolerance and polarity, and
 // computeHomeWeek: the whole "This week" card as data.
 //
 // The casts only satisfy the type-checker and are erased.
@@ -279,7 +279,7 @@ export function getReconciledMacroAdvice(dayMap: DayMap, weekStart: DateStr, tod
   };
 }
 
-// ── v8.35 (§125, deep dive §10 step 4): the badge, and the week it sits in ─
+// ── v8.35 (§125): the badge, and the week it sits in ─
 
 // The tolerance bands the Home badges judge against. SAVE_DAY_TOLERANCE is
 // also the band a logged day must fall inside to "save" (index.html's
@@ -313,7 +313,7 @@ export function getHomeMetricTolerance(field: string): number {
 
 // What a badge MEANS. BLOC maps it to a colour (its getHomeMetricBadge shim:
 // noData → --text3, ok → --green, bad → --red); Coach will score compliance
-// from it (deep dive D4). Before v8.35 the badge returned the CSS colour
+// from it. Before v8.35 the badge returned the CSS colour
 // itself, so "is this metric off target" could only be answered by comparing
 // strings against 'var(--red)'.
 export type HomeBadgeStatus = 'noData' | 'ok' | 'bad';
@@ -327,7 +327,7 @@ export interface HomeMetricBadge {
 // days average and the goal's target. avg may be null (nothing logged yet
 // this week) — shown as a neutral "No data" badge rather than guessing.
 //
-// `weekClosed` (v8.35, deep dive §2b SCOPE) judges the week as finished
+// `weekClosed` (v8.35) judges the week as finished
 // whatever `today` is. Passing today = the week's Sunday is NOT enough: if
 // Sunday has no log, getWeeklyRequiredDaily still counts Sunday as a day
 // left (daysRemaining = 1) and the badge stays in pace mode. Coach needs it
@@ -408,10 +408,10 @@ export interface HomeWeek {
 }
 
 // Home's "This week" card as data: the four badges, averages and planned
-// averages, for the calendar week containing ctx.today (deep dive §1d: this
+// averages, for the calendar week containing ctx.today (this
 // was renderHomeThisWeek's own orchestration). BLOC's renderHomeThisWeek()
 // renders it; Coach judges a client's week with it, the client's nutrition
-// compliance (D4).
+// compliance.
 //
 // `weekClosed`: the week is over — judge it as of its Sunday, as a finished
 // week (see getHomeMetricBadge). Coach passes it for any week before the

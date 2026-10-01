@@ -1,6 +1,5 @@
-// Which session the coach takes with a client in person: the week agenda (BLOC §115's design, which the
-// wireframes' picker gives way to). One card per calendar week of the coach's cycle, with its dates, "This week",
-// deload and a summary; it opens into its sessions with their state, scrolled to the week holding the chosen (or
+// Which session the coach takes with a client in person: the week agenda (BLOC §115's design).
+// One card per calendar week of the coach's cycle, with its dates, "This week", deload and a summary; it opens into its sessions with their state, scrolled to the week holding the chosen (or
 // up-next) session. One tap chooses. A session the client has started, or that's already logged,
 // can't be chosen (and says why).
 import { useEffect, useMemo, useState } from 'react';

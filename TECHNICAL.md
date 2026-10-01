@@ -11412,3 +11412,21 @@ chosen.
 
 **Check:** `verify-exercise-sheet.mjs`: the row leads with the tile and has no trailing icon (control: v8.53's row).
 
+## §167 — v8.55: the documentation states facts
+
+Nothing in the app changes. `TECHNICAL.md`, `README.md`, the comments in `index.html`, `engine/src` and `coach/src`,
+and the verify scripts' headers say what the app does, why it has to, and the traps, as facts. They name no person,
+quote no one, and point at no working file outside the repo: a build round's working files (its prompt, design
+notes and mockups) are deleted when the round ships, so a pointer to one leads nowhere. Where a comment cited one for a reason, the reason
+is now in the comment; where it cited a section, it cites the `TECHNICAL.md` § that covers it.
+
+The engine's labels H1–H8 stay (§125 defines them), as do the I- and D-labels in `verify-publications-apply.mjs` and
+`verify-coach-logged.mjs`, which each file's header defines. The built engine (`bloc-engine.js`,
+`bloc-engine-server.mjs`) and `coach/dist` are byte-identical: esbuild and Vite drop comments.
+
+One name stays, because it's the fact: Close my account's confirmation says who processes the request.
+
+**Check:** `verify-docs-are-facts.mjs` scans every tracked text file (built output and the golden data excepted) for a
+person's name or a pointer to a build round's working files, with an allow-list for that one line. Its controls:
+v8.54's `TECHNICAL.md` fails, a planted line is caught in code and in the README, the allowance holds for its own file
+only, and the `adamnc02.github.io` host isn't read as a name.

@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════
 // Training reads: deload weeks, volume, the list of sessions, and the week
-// agenda (deep dive §1b, §10 step 4; TECHNICAL §125, and §115 for the agenda).
+// agenda (TECHNICAL §125, and §115 for the agenda).
 //
 // Moved from index.html in v8.35, UNCHANGED apart from their inputs, behind
 // same-named shims. `s` is the state; the week and session a page is VIEWING
@@ -23,7 +23,7 @@ export function isDeloadUnit(s: BlocState, macro: Macrocycle, week: number, dayK
   return !!(s.deloads && s.deloads[getDeloadUnitKey(macro, week, dayKey)]);
 }
 
-// ── v8.43 (§137): a substituted exercise-week (deep dive D3) ─────────────
+// ── v8.43 (§137): a substituted exercise-week ─────────────
 // `state.substitutions` is keyed like a progression target,
 // `${macroId}_${dayKey}_${exId}_w${week}`. A swap or a group session's
 // "replaces" marks the week; everything that reads a week's logs as the
@@ -42,7 +42,7 @@ export function isSubstitutedUnit(s: BlocState, macro: Macrocycle, week: number,
   return !!getSubstitution(s, macro.id, week, dayKey, exId);
 }
 
-// v8.43 (§137, deep dive I3): the session the coach logged in person, or
+// v8.43 (§137): the session the coach logged in person, or
 // null. Read from the set logs themselves (`loggedBy: 'coach'`), so it holds
 // after a restore, an unlink, and in the client_state Coach reads: a coach's
 // set in the session makes the whole session the coach's.
@@ -192,7 +192,7 @@ export function getAllMacroSessions(s: BlocState, macro: Macrocycle): MacroSessi
         if (exercises.length === 0) return;
         let allDone = true;
         exercises.forEach(ex => {
-          // v8.43 (§137, §11 Q21): a planned session a group session replaced
+          // v8.43 (§137): a planned session a group session replaced
           // counts as done, with nothing logged against it.
           const sub = getSubstitution(s, macro.id, w, dayKey, ex.id);
           if (sub && sub.kind === 'group') return;
@@ -210,7 +210,7 @@ export function getAllMacroSessions(s: BlocState, macro: Macrocycle): MacroSessi
   return allSessions;
 }
 
-// v8.42 (§136, proposal §5.6): the live booking a session is assigned to, or
+// v8.42 (§136): the live booking a session is assigned to, or
 // null. Assigning hands the session to the coach at once: the client sees it
 // read-only ("With your coach · Tue 18:00") and it's never their "next". A
 // MOVED booking keeps its session (same booking, new date); a CANCELLED one
@@ -256,7 +256,7 @@ export function getNextIncompleteSession(s: BlocState, macro: Macrocycle): Macro
 // weeks (2, when microcycles represent each real week), fanned out from the
 // macro's start date. Returns null if the macro has no start date set.
 //
-// The only week→date mapping for sessions (deep dive §2b: sessions carry no
+// The only week→date mapping for sessions (sessions carry no
 // date). `week`/`dayKey` were state.currentWeek/currentDay — the session
 // Train is showing; BLOC's shim still passes those.
 export function getSelectedTrainWeekDates(macro: Macrocycle | null | undefined, week: number, dayKey: string): { start: DateStr; end: DateStr } | null {

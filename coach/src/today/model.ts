@@ -156,7 +156,7 @@ export function needsYou(d: Diary, inbox: Inbox, bundles: ClientBundle[], summar
 
 export const offTrack = (summaries: ClientSummary[]) => summaries.filter((s) => s.status === 'linked' && s.outcome.status === 'off-track');
 
-/** The wireframe's Coming up, for linked clients with an upload, at each client's today; within the next 7 days. */
+/** Coming up, for linked clients with an upload, at each client's today; within the next 7 days. */
 export function comingUp(bundles: ClientBundle[], summaries: ClientSummary[], inbox: Inbox): ComingItem[] {
   const out: ComingItem[] = [];
   for (const s of summaries) {

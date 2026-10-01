@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// Library templates (proposal §5.5; `coach_templates.body`, TECHNICAL §144).
+// Library templates (`coach_templates.body`, TECHNICAL §144).
 //
 // A template is saved WITHOUT dates and without ids:
 //   macrocycle  {v, kind, macro: the cycle's settings, sessions: {dayKey:
@@ -9,7 +9,7 @@
 //   workout     {v, kind, label, exercises, supersets}: one session.
 // Applying one builds a FRESH copy for one client, every id new, so a
 // template is never shared between clients and editing a copy never touches
-// the template or anyone else's (§5.5).
+// the template or anyone else's.
 // ═══════════════════════════════════════════════════════════════════════
 import { dayDiff, shiftDateStr } from '@engine';
 import {
@@ -137,7 +137,7 @@ export function applyMacroTemplate(body: MacroTemplateBody, start: string, ids: 
 }
 
 /**
- * A workout template into one of a cycle's sessions (§11 Q17): it fills that
+ * A workout template into one of a cycle's sessions: it fills that
  * session (replacing its exercises), or `'new'` adds a session named after it.
  * Under microcycles it fills the session's M1 and M2 alike.
  */

@@ -144,7 +144,7 @@ check('A over B’s data: the same (A → B → A)', WRITERS.every((w) => !p.cal
   && JSON.parse(dev.localStorage.getItem('bloc_state_owner')).uid === 'uid-A' && !dev.store.has('bloc_state'));
 check('the owner record holds a uid, never an email', !/@/.test(dev.localStorage.getItem('bloc_state_owner')));
 
-// ── A device holding only another account's profile (the UAT case): still switches ──
+// ── A device holding only another account's profile : still switches ──
 const profileOnly = (source) => {
   const d = device();
   d.localStorage.setItem('bloc_state_owner', JSON.stringify({ uid: 'uid-A' }));

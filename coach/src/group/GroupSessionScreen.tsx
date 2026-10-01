@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// A group session (the wireframe's InPersonScreen `Group`; TECHNICAL §162): Start session on a group booking.
+// A group session (TECHNICAL §162): Start session on a group booking.
 //
 // 1. The workout: the one planned for this week (0033), else the coach plans one here from the Library. Fixed once
 //    started.

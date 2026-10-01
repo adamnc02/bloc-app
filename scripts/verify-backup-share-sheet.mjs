@@ -8,7 +8,7 @@
 //
 // A bare `<a download>` click is what iOS Safari renders as Quick Look.
 // `navigator.share({ files: [file] })` opens the Share Sheet — the mechanism
-// personal-ledger's backup uses, proven on Adam's phone.
+// personal-ledger's backup uses, proven on an iPhone.
 //
 // Checks: shareOrDownloadFile() shares when it can; a dismissed sheet
 // (AbortError) does NOT also download; any other failure, or no file

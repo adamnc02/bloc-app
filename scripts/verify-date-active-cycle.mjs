@@ -8,8 +8,7 @@
 // again. Nothing re-derives it from the calendar. So the day a cycle ends, every
 // one of those three pages keeps opening on the finished cycle, and the only way
 // to see the cycle you are actually in is to step the cycle arrows forward by
-// hand — reported in the v8.16 UAT as "no longer correctly resets default cycle
-// to the currently active cycle, same bug on train and plan pages".
+// hand, on Progress, Train and Plan alike.
 //
 // 🚨 TWO DIFFERENT THINGS ARE BOTH CALLED "the current cycle". Confusing them is
 // the plausible wrong fix:

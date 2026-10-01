@@ -1,6 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// Progression leaves and a macrocycle's shape (deep dive §1a, §10 step 3;
-// TECHNICAL §124).
+// Progression leaves and a macrocycle's shape (TECHNICAL §124).
 //
 // Moved from index.html in v8.34, UNCHANGED: each keeps a same-named global
 // shim there, so none of BLOC's call sites change. Pure: the arguments are

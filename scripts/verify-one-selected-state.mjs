@@ -4,8 +4,7 @@
 //
 // THE RULE THIS HOLDS: there is exactly ONE way to say "this one is selected".
 //
-// Adam, v8.16 UAT: "do a full sweep for toggles/switches and use the same
-// design for all." Before that sweep the app had four different answers — a
+// v8.16: every toggle and switch uses the same design. Before that sweep the app had four different answers — a
 // --surface3 fill, a solid --accent fill, a 20%-accent tint with an accent
 // border, and an outline-only accent — spread across .toggle-btn, .week-pill,
 // .day-tab and .step-btn. Each looked deliberate on its own screen.

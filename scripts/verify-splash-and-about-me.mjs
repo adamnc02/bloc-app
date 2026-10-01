@@ -72,7 +72,7 @@ const v = viewable(fnSrc('coachPlanNoticeViewable'))(st, () => '2026-09-29', () 
 const vCoach = viewable(fnSrc('coachPlanNoticeViewable'))({ macrocycles: [{ id: 'c1', start: '2026-09-28', publishedBy: 'c' }] }, () => '2026-09-29', () => 'c1');
 check('View is offered only once the changed cycle has started',
   v({ macroId: 'future' }) === false && v({ macroId: 'now' }) === true && v({ macroId: 'gone' }) === false);
-check('an old notice naming no cycle: View only when the running cycle is the coach’s (the UAT case: the client’s own is running)',
+check('an old notice naming no cycle: View only when the running cycle is the coach’s (the client’s own is running)',
   v({}) === false && vCoach({}) === true);
 check('the plan notice names its cycle, and Home asks before offering View',
   /named \? \{ macroId: named\.id \} : undefined\);/.test(html) && /plan: n => \(coachPlanNoticeViewable\(n\) \?/.test(html));

@@ -2,7 +2,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 // verify-measurement-due.mjs
 //
-// THE RULE THIS PROTECTS (v8.20, Adam 2026-09-27): waist/hip measurements are
+// THE RULE THIS PROTECTS (v8.20): waist/hip measurements are
 // due on DAY 1 OF EVERY MACROCYCLE, then EVERY 7 DAYS from the last log. It
 // replaced a flat "4 days since the last log" rule.
 //
@@ -13,7 +13,7 @@
 // log — a measurement only satisfies a cycle if it is on or after its start.
 //
 // 🚨 getMeasurementStatus() is the only copy of this rule. The push reminders
-// (PROMPT-02) upload its nextDueDate and the server just compares dates, so
+// (§111) upload its nextDueDate and the server just compares dates, so
 // a second copy anywhere (SQL included) is how the tag and the push drift.
 //
 // It extracts the REAL getMeasurementStatus() out of index.html. A control at

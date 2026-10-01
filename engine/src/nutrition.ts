@@ -1,7 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════
 // Nutrition and next-cycle leaves: day-map averages, the peak week, the
-// safe-pace taper, and the kcal ramps (deep dive §1a, §10 step 3;
-// TECHNICAL §124).
+// safe-pace taper, and the kcal ramps (TECHNICAL §124).
 //
 // Moved from index.html in v8.34, UNCHANGED, behind same-named shims. Pure.
 // The type casts below only satisfy the type-checker; esbuild erases them,

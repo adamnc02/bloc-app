@@ -2,7 +2,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 // verify-rpe-progression.mjs
 //
-// THE RULES THIS PROTECTS (v8.20, TECHNICAL §104, Adam 2026-09-27):
+// THE RULES THIS PROTECTS (v8.20, TECHNICAL §104):
 //   · compliant + RPE ≤ 6 → next mesocycle's step is doubled (2× increment,
 //     heavy-leg 1.5×, +2 reps, giant +20);
 //   · compliant + RPE 9–10 → next mesocycle holds (no step), for one
@@ -363,7 +363,7 @@ check('loss: giant look-ahead still +10/week', E.getGiantSetProgression(giant, 3
   check('summary counts skips as "not rated", not as a number', txt.includes('- Squat: 1 not rated'), true);
 }
 
-// ── Home Up next matches Train (v8.20, Adam: "Home should match train") ──
+// ── Home Up next matches Train (v8.20) ──
 {
   const prev = (logs, goalType = 'loss', extra = {}) => makeState({ goalType, exs: [bench, squat], logs, ...extra });
   const up = (st, week, ex) => { E.setState(st); return E.getSessionPreviewTarget(macroOf(st), week, 'push', ex); };
@@ -410,10 +410,10 @@ check('renderTrainDay\'s exProgData() hands the calculation to the engine', /Blo
 const homeUp = extractFrom(source, 'function renderHomeUpNext(');
 check('renderHomeUpNext reads getSessionPreviewTarget (Home matches Train)', /getSessionPreviewTarget\(macro, next\.week, next\.dayKey, ex\)/.test(homeUp), true);
 check('renderHomeUpNext prints the target reps, not ex.reps', /\$\{sets\} \\u00d7 \$\{reps\}/.test(homeUp), true);
-check('rating refreshes the Session tools row (UAT step 6)', /refreshTrainRpeRowSub\(/.test(extractFrom(source, 'function setRpeRating(')), true);
-check('closing the sheet refreshes the Session tools row (UAT step 6)', /refreshTrainRpeRowSub\(/.test(extractFrom(source, 'function closeRpeSheet(')), true);
+check('rating refreshes the Session tools row', /refreshTrainRpeRowSub\(/.test(extractFrom(source, 'function setRpeRating(')), true);
+check('closing the sheet refreshes the Session tools row', /refreshTrainRpeRowSub\(/.test(extractFrom(source, 'function closeRpeSheet(')), true);
 check('the row and the refresh share one text function', /id="train-rpe-row-sub">\$\{rpeRowSubText\(/.test(source), true);
-check('no per-exercise Deload tag anywhere in Train (the hero banner says it; v8.20 UAT)', />Deload<\/span>/.test(extractFrom(source, 'function renderTrainDay(')), false);
+check('no per-exercise Deload tag anywhere in Train (the hero banner says it)', />Deload<\/span>/.test(extractFrom(source, 'function renderTrainDay(')), false);
 check('the RPE sheet routes every dismissal through closeRpeSheet', /'modal-rpe': 'closeRpeSheet'/.test(source), true);
 
 console.log(failures ? `\n✗ ${failures} check(s) failed` : '\nALL CHECKS PASS');

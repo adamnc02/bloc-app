@@ -2,7 +2,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 // verify-push.mjs
 //
-// WHAT IT PROTECTS (v8.22, TECHNICAL §111 — PROMPT-02 B1/B4): BLOC's push
+// WHAT IT PROTECTS (v8.22, TECHNICAL §111): BLOC's push
 // notifications, the browser half.
 //
 // 🚨 THE TRAPS:
@@ -82,7 +82,7 @@ for (const [facts, want, label] of [
   [H, 'ok', 'still holds the registration it made → ok'],
   [{ ...H, hereId: 'ps_new' }, 'resubscribe', 'iOS replaced it, permission still granted → re-register quietly'],
   [{ ...H, hereId: null }, 'resubscribe', 'iOS dropped it entirely, permission granted → re-register quietly'],
-  [{ ...H, hereId: null, permission: 'default' }, 'ask', 'dropped AND permission reset (Adam, v8.23) → ask with one tap'],
+  [{ ...H, hereId: null, permission: 'default' }, 'ask', 'dropped AND permission reset (v8.23) → ask with one tap'],
   [{ ...H, hereId: null, permission: 'denied' }, 'ask', 'dropped and denied → ask (the sheet then explains iPhone Settings)'],
   [{ ...H, supported: false }, 'none', 'no push support → none'],
 ]) check(label, decidePushHealth(facts), want);
@@ -145,7 +145,7 @@ const other = await runClick({ windows: ['https://adamnc02.github.io/listly/'], 
 check('a Listly window on the same origin is NOT reused; BLOC opens its own', [other.messages.length, other.opened.length], [0, 1]);
 const evil = await runClick({ windows: [], data: { url: 'https://evil.example/', open: 'measurements' } });
 check('a URL outside BLOC is replaced by BLOC\'s own', evil.opened, ['https://adamnc02.github.io/bloc-app/?open=measurements']);
-// 🚨 v8.23 (§112): the case that broke on Adam's iPhone — a click whose
+// 🚨 v8.23 (§112): the case that broke on an iPhone — a click whose
 // notification.data is EMPTY. The destination must come from the tag, or the
 // default, on every route.
 const noDataCold = await runClick({ windows: [], data: null, tag: 'measurements:ps_x:2026-09-28' });
@@ -313,8 +313,8 @@ check('turning off forgets this phone\'s registration', /pushLocalClear\(\)/.tes
 check('no "Registered devices" debug list (removed in v8.25; Turn off/on is the recovery, §113)', /Registered devices|removePushDevice|listPushDevices/.test(html), false);
 
 // 🚨 TRIPWIRE (v8.24, §113). On iOS, changing sw.js can DROP every phone's
-// push subscription (v8.23 UAT: Adam had to turn notifications on and allow
-// them again). checkPushHealth() now heals that, but only when the person next
+// push subscription (after v8.23 a phone had to turn notifications on and
+// allow them again). checkPushHealth() now heals that, but only when the person next
 // opens BLOC — and may have to ask. So sw.js changes only on purpose: if you
 // change it, update this hash in the same commit and say why in TECHNICAL §113.
 // Changes so far: v8.23 (§112, faa71eba…); v8.49 (§157: coach targets, Home

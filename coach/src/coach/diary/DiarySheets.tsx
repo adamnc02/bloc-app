@@ -226,7 +226,7 @@ export function NewSessionSheet({ diary, who, bundles, date, start, clientId, on
 // ---------------------------------------------------------------- days off
 
 /**
- * Add a day off (the wireframe's sheet), from every entry point: Settings, the Diary's moon button, and a day's
+ * Add a day off, from every entry point: Settings, the Diary's moon button, and a day's
  * header in the Diary (that date as From and To). From / To, a Label the coach must give it (only the coach sees
  * it: the Diary's day-off note and the Settings list), then the sessions booked in the range. 🚨 They're
  * cancelled for good (Undo frees the days and brings nothing back, §152); "Notify these clients" is whether

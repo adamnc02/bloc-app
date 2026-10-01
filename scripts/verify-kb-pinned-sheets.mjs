@@ -2,10 +2,10 @@
 // ═══════════════════════════════════════════════════════════════════════
 // verify-kb-pinned-sheets.mjs
 //
-// WHAT IT PROTECTS (v8.28, TECHNICAL §117 — Adam, 2026-09-28): every sheet
+// WHAT IT PROTECTS (v8.28, TECHNICAL §117): every sheet
 // with a search box that filters a list stays pinned to the top of the
-// screen while the keyboard is up. Only the list inside resizes. Adam: the
-// Add food sheet "took HOURS to get right".
+// screen while the keyboard is up. Only the list inside resizes. The
+// Add food sheet took the longest to get right.
 //
 // 🚨 THE BUG IT PREVENTS: Fuel › Shortcuts › Recipes (modal-recipe-pick) was a
 // plain .modal-sheet. A plain sheet is anchored to the bottom and sized by its

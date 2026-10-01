@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════════════════
-// Dates, and "today" (deep dive §2, §10 step 2; TECHNICAL §123).
+// Dates, and "today" (TECHNICAL §123).
 //
 // 🚨 The engine never reads the clock. "Today" arrives in an EngineContext:
 //   · BLOC passes `{ today: getLocalToday() }` (index.html's engineCtx()),
 //     which still honours the Demo Tour anchor (§35).
-//   · Coach will pass the CLIENT's local date, from the timezone BLOC uploads
-//     (deep dive §2b), never the coach's own.
+//   · Coach will pass the CLIENT's local date, from the timezone BLOC uploads,
+//     never the coach's own.
 // verify-engine-pure.mjs runs every export with `new Date()` and `Date.now()`
 // throwing.
 //
@@ -96,7 +96,7 @@ export function getMacroEndDate(macro: Macrocycle, ctx: EngineContext): DateStr 
   return toLocalDateStr(endDate);
 }
 
-// ── Moved in v8.34 (§124, deep dive §10 step 3): pure date arithmetic ─────
+// ── Moved in v8.34 (§124): pure date arithmetic ─────
 
 // Rolls a date string forward to the next Monday (or returns it unchanged
 // if it's already a Monday).

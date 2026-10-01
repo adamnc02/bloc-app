@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════════════════
-// The day map, BMR and TDEE (deep dive §1b, §10 step 4; TECHNICAL §125).
+// The day map, BMR and TDEE (TECHNICAL §125).
 //
 // Moved from index.html in v8.35, UNCHANGED apart from their inputs, behind
 // same-named shims: the state as `s`, "today" as `ctx` (§123).
 //
 // 🚨 Units are imperial, as everywhere in the engine: body weight in lbs
-//    (÷ 2.2046 for Mifflin-St Jeor's kg), 3,500 kcal ≈ 1 lb (deep dive §2b).
+//    (÷ 2.2046 for Mifflin-St Jeor's kg), 3,500 kcal ≈ 1 lb.
 // ═══════════════════════════════════════════════════════════════════════
 
 import type { BlocState, DateStr, Loose, Macrocycle } from './state.ts';
@@ -85,10 +85,10 @@ export function calcAge(birthdayStr: DateStr | null | undefined, ctx: EngineCont
 // 🚨 Before v8.35 this was s.currentMacroId: whichever cycle the person last
 //    BROWSED with the cycle arrows. Looking at an old, lighter cycle changed
 //    today's BMR estimate, and with it the safety floor and every AI prompt's
-//    floor (deep dive §3, H7), and Coach would have reproduced whatever the
+//    floor, and Coach would have reproduced whatever the
 //    client last clicked. Don't "simplify" it back to currentMacroId.
 //
-// Between cycles (Adam, 2026-09-27: "Most recent started cycle"): the cycle
+// Between cycles: the most recent started cycle, the one
 // that just ended. Strictly date-active would read as no cycle, 0 sessions a
 // week, sedentary: a ~29% jump in the BMR estimate and the floor in exactly
 // the week Next Cycle advice is asked for. Only before any cycle has started

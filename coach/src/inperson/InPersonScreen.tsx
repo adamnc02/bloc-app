@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// In person (the wireframe's InPersonScreen, one-to-one; TECHNICAL §154): Start session on a booking.
+// In person (one-to-one; TECHNICAL §154): Start session on a booking.
 //
 // 1. Which session: the week agenda, on the one the coach tagged for this booking or else the client's next
 //    unfinished one. Choosing it assigns it (a quiet `booking` publication with `assigned_session`), so the

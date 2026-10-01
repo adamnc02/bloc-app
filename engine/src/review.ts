@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 // The cycle review's deterministic inputs: best lifts, weekly swings,
-// measurements, prior reviews, and the payload that carries them (deep dive
-// §1b, §10 step 4; TECHNICAL §125). buildCycleReviewPrompt (prompts.ts) turns
+// measurements, prior reviews, and the payload that carries them
+// (TECHNICAL §125). buildCycleReviewPrompt (prompts.ts) turns
 // the payload into the prompt.
 //
 // Moved from index.html in v8.35, UNCHANGED apart from their inputs, behind

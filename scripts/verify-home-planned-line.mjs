@@ -8,7 +8,7 @@
 // the "Planned this week avg" line that sat under each bar, although the
 // figure was still computed on every render and the tap-info modal still
 // explained it. Nothing noticed for four days: every check compared numbers,
-// and the numbers hadn't changed. Adam lost sight of the week's planned meals.
+// and the numbers hadn't changed. The week's planned meals went out of sight.
 // Restored in v8.35 (TECHNICAL §127).
 //
 // It runs the REAL renderHomeThisWeek() out of index.html (with the committed

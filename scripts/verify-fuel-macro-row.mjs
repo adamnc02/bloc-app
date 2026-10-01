@@ -2,8 +2,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 // verify-fuel-macro-row.mjs
 //
-// WHAT IT PROTECTS (v8.27, TECHNICAL §116 — Adam, 2026-09-27, option A of the
-// mockups): the Fuel hero's three macro mini-bars. Each top row carries ONLY
+// WHAT IT PROTECTS (v8.27, TECHNICAL §116): the Fuel hero's three macro mini-bars. Each top row carries ONLY
 // the label and the logged figure ("Protein ··· 141g"), on one line; the
 // target sits under the bar ("of 211g").
 //
@@ -78,7 +77,7 @@ function macros(out) {
   });
 }
 
-// Adam's screenshot, 2026-09-28: 1,632 kcal, P 141/211, C 165/129, F 44/30.
+// A real day, 2026-09-28: 1,632 kcal, P 141/211, C 165/129, F 44/30.
 const goal = { kcal: 1625, protein: 211, carbs: 129, fats: 30 };
 const totals = { kcal: 1632, p: 141, c: 165, f: 44 };
 const m = macros(render(html, goal, totals));

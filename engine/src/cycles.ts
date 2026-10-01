@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════
 // Which cycle and which goal: by the calendar, by a date, or by what a page
-// is showing (deep dive §1b/§1c, §10 step 4; TECHNICAL §125).
+// is showing (TECHNICAL §125).
 //
 // Moved from index.html in v8.35, UNCHANGED apart from their inputs, behind
 // same-named shims. What they used to read from BLOC's globals now arrives as

@@ -1,8 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 // The progression core: the effort-rating step, each week's target, the
-// compliance check, the lock, and what Train suggests for an exercise (deep
-// dive §1e/§1d, §3 H1–H3, §10 step 5; TECHNICAL §125, and §12/§104 for the
-// rules themselves).
+// compliance check, the lock, and what Train suggests for an exercise (TECHNICAL
+// §125, and §12/§104 for the rules themselves).
 //
 // Moved from index.html in v8.35, UNCHANGED apart from their inputs, behind
 // same-named shims. Two of them wrote while they read, and no longer do:
@@ -52,7 +51,7 @@ export interface TargetCache {
 
 export interface RawTargets { sets: number; weightTargets: Loose[]; repsTargets: Loose[]; progType: string; rpeStep: string }
 // `substituted` (v8.43, §137): the week was swapped or replaced by a group
-// session, so there is nothing to judge (D4: N/A, never a miss).
+// session, so there is nothing to judge (N/A, never a miss).
 export interface ComplianceResult { fullyLogged: boolean; compliant: boolean; weightTargets: Loose[] | null; repsTargets: Loose[] | null; sets: number; substituted?: boolean }
 
 // A progression lock, as stored under state.progressionLocks[lockKey].
@@ -75,8 +74,8 @@ export interface ProgressionOpts { lockComingIn?: Loose; prevWasLocked?: boolean
 // the m1/m2 microcycle and each track's rating only ever steers that same
 // track, the way computeRawSuggestedTargets' prevKey already works.
 //
-// 🚨 Closing the sheet stores { rpeSkipped: true }, NEVER a number. Adam:
-// "Option to close assumes it was fine" — so a skip is neutral here (no
+// 🚨 Closing the sheet stores { rpeSkipped: true }, NEVER a number. Closing
+// means it was fine, so a skip is neutral here (no
 // speed-up, no hold) and the coach sees "Not rated". Do not "simplify" it
 // into a default rating: a fake 6 or 7 is indistinguishable from an answer.
 export function getRpeKey(macroId: string, week: number, dayKey: string, exId: string): string {
@@ -84,8 +83,8 @@ export function getRpeKey(macroId: string, week: number, dayKey: string, exId: s
 }
 
 // 🚨 Off unless explicitly true. Existing cycles have no `rpe` field and
-// must read as OFF (Adam, 2026-09-27: existing and new Solo cycles default
-// off; only coach-created cycles default on). Reading absent as on would
+// must read as OFF (existing and new Solo cycles default off; only
+// coach-created cycles default on). Reading absent as on would
 // switch ratings on for every existing cycle on first load.
 export function isRpeOn(macro: Macrocycle | null | undefined): boolean {
   return !!(macro && macro.rpe === true);
@@ -105,8 +104,8 @@ export function rpeDrivesProgression(macro: Macrocycle | null | undefined): bool
 export const RPE_STEP_NONE: RpeStep = Object.freeze({ kind: 'none', weightMult: 1, repsInc: 1, giantInc: 10 });
 
 // The step a rating asks for. 'easy' (compliant + RPE ≤ 6): a double step —
-// 2× weightIncrement, heavy-leg 1.5× (Adam: "don't exclude heavy leg.
-// Instead do 1.5x multiplier"), +2 reps, giant +20. 'hold' (compliant +
+// 2× weightIncrement, heavy-leg 1.5× (heavy leg is included, at a
+// smaller multiplier), +2 reps, giant +20. 'hold' (compliant +
 // RPE 9–10): no step at all for one mesocycle — not a lock; it releases on
 // its own the week after, because the week after reads its own rating.
 export function rpeStepFromKind(kind: string, ex: Loose): RpeStep {
@@ -118,7 +117,7 @@ export function rpeStepFromKind(kind: string, ex: Loose): RpeStep {
 // Decides the step for `week` from the rating given in `week - 1` on the
 // same dayKey track. Only ever called for an ordinary week — never for week
 // 1, a deload, the session after a deload, or when the week before was a
-// deload (Adam: deloads and the session after are exempt, as the
+// deload (deloads and the session after are exempt, as the
 // compliance guard already exempts them). Cardio and maintenance have no
 // step to change. A rating of 7–8, a skip, or a non-compliant week → none
 // (not compliant + high RPE is already frozen by the lock; it adds a hint,
@@ -186,7 +185,7 @@ export function getLastCompliantWeek(s: BlocState, cache: TargetCache, macro: Ma
   const floor = beforeWeek > start ? start : 1;
   let w = beforeWeek - 1;
   while (w > floor) {
-    // v8.43 (§137, D3): a swapped week is skipped exactly like a deload.
+    // v8.43 (§137): a swapped week is skipped exactly like a deload.
     if (isDeloadUnit(s, macro, w, dayKey) || isSubstitutedUnit(s, macro, w, dayKey, ex.id)) { w--; continue; }
     const result = getWeekComplianceResult(s, cache, macro, w, dayKey, ex);
     if (result.fullyLogged && result.compliant) return w;
@@ -317,8 +316,8 @@ export function getWeekTargets(s: BlocState, cache: TargetCache, macro: Macrocyc
     if (existingLock) {
       raw = { weightTargets: existingLock.weightTargets, repsTargets: existingLock.repsTargets };
     } else if (isSubstitutedUnit(s, macro, week - 1, dayKey, ex.id)) {
-      // 🚨 v8.43 (§137, D3): the week after a swap HOLDS the swapped week's
-      // target: not penalised, and no jump ahead (proposal §4.3). Without this,
+      // 🚨 v8.43 (§137): the week after a swap HOLDS the swapped week's
+      // target: not penalised, and no jump ahead. Without this,
       // computeRawSuggestedTargets found no done sets for the planned exercise
       // last week and fell back to the THEORETICAL getWeekWeight
       // (startWeight + jump × (week − 1)). Copied without its rpeStep: that
@@ -347,7 +346,7 @@ export function getWeekTargets(s: BlocState, cache: TargetCache, macro: Macrocyc
 // is only meaningful when fullyLogged is true.
 export function getWeekComplianceResult(s: BlocState, cache: TargetCache, macro: Macrocycle, week: number, dayKey: string, ex: Loose): ComplianceResult {
   const sets = getWeekSets(ex, week, macro.weeks as number);
-  // v8.43 (§137, D3/D4): a swapped week's logs are another exercise's, so
+  // v8.43 (§137): a swapped week's logs are another exercise's, so
   // there's nothing to judge. Not "fully logged", so the lock never moves on
   // it (computeLockTransition), the week after gets no RPE step from it
   // (computeRpeStepKind), and "missed target" never shows.
@@ -480,7 +479,7 @@ export function computeExerciseProgression(s: BlocState, cache: TargetCache, mac
   // evaluateProgressionLock() before calling this, noting whether a lock
   // stood just before the last week was evaluated (`prevWasLocked`), and
   // passes the lock as it stood coming into this week (`lockComingIn`).
-  // Those sweeps WRITE progressionLocks and save() (deep dive H1/H3), so
+  // Those sweeps WRITE progressionLocks and save(), so
   // they stay in BLOC; Coach runs computeLockTransition on its own copy.
   // Without opts: the lock stored in `s`, and prevWasLocked false.
   const prevWasLocked = !!(opts && opts.prevWasLocked);
@@ -539,7 +538,7 @@ export function computeExerciseProgression(s: BlocState, cache: TargetCache, mac
   const postDeloadTarget = isPostDeloadSession
     ? getWeekTargets(s, cache, macro, week, dayKey, ex)
     : null;
-  // v8.43 (§137, D3). THIS week swapped for another exercise: nothing the
+  // v8.43 (§137). THIS week swapped for another exercise: nothing the
   // planned exercise did or should do applies to the card, so no last week,
   // no suggestion and no target. The week AFTER a swap: its held target
   // (getWeekTargets carries the swapped week's), shown the way a post-deload
@@ -853,7 +852,7 @@ export function computeExerciseProgression(s: BlocState, cache: TargetCache, mac
   // getLastCompliantWeek reference, and missing it is exactly as real
   // as missing any other week's.
   //
-  // v8.35 (§125, deep dive §1d): this IS the lock's own decision,
+  // v8.35 (§125): this IS the lock's own decision,
   // getWeekComplianceResult, not a third copy of the comparison. Until v8.35
   // it re-compared the logs against the DISPLAYED placeholders, which are
   // computed live from last week's actuals and so can drift from the target
@@ -882,8 +881,8 @@ export function computeExerciseProgression(s: BlocState, cache: TargetCache, mac
            ...(isStart ? { progressionStart: true } : {}) };
 }
 
-// ── v8.43 (§137): the I2 replay, after the coach logs a session ───────────
-// Deep dive I2: the target cache assumed logs only change on this device. A
+// ── v8.43 (§137): the replay, after the coach logs a session ──────────────
+// The target cache assumed logs only change on this device. A
 // coach-logged week w arriving AFTER the client's phone evaluated later weeks
 // would leave those weeks' targets and the lock computed without it, frozen
 // for good. So, per exercise the coach logged:

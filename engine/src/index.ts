@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// BLOC's shared engine (PROMPT-03 Phase 2, TECHNICAL §122).
+// BLOC's shared engine (TECHNICAL §122).
 //
 // One source for both apps:
 //   · BLOC loads the committed build, dist/bloc-engine.js, as a classic

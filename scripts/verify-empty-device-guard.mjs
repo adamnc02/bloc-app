@@ -11,7 +11,7 @@
 //     snapshot (one file per day, upsert), overwriting the real one;
 //   · nothing restored the device, because checkSnapshotZero() only ran for
 //     devices that already had data.
-// Push notifications need a Home Screen install with a manifest (PROMPT-02);
+// Push notifications need a Home Screen install with a manifest (§108);
 // if existing installs have to be re-added, this is the path every one of
 // them would take.
 //

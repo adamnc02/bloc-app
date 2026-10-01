@@ -26,7 +26,7 @@
 // 🚨 This runs the REAL function, rather than keeping its own copy of the
 // logic. A copy would pass forever while the shipped code drifted away.
 //
-// v8.34 (TECHNICAL §124, deep dive §8): the function lives in the shared
+// v8.34 (TECHNICAL §124): the function lives in the shared
 // engine now, so BLOC and BLOC Coach key their bypass on ONE predicate. This
 // runs it from the COMMITTED build (engine/dist/bloc-engine.js, the file the
 // live site serves), and checks that index.html's isLocalDevHost is only a
@@ -71,7 +71,7 @@ const shouldBypass = [
   ['::1',                  'IPv6 loopback'],
   ['[::1]',                'IPv6 loopback, bracketed as a URL host'],
   ['LOCALHOST',            'case must not matter'],
-  ['192.168.0.42',         "Adam's laptop on the home network — the whole point"],
+  ['192.168.0.42',         "a laptop on the home network — the whole point"],
   ['192.168.1.255',        'anywhere in 192.168/16'],
   ['10.0.0.5',             '10/8'],
   ['172.16.0.1',           'bottom of 172.16/12'],

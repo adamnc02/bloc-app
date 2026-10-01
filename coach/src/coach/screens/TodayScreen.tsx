@@ -1,4 +1,4 @@
-// Today (the wireframe's TodayScreen; TECHNICAL §154): the hub. Today's sessions first, then Needs you, Off
+// Today (TECHNICAL §154): the hub. Today's sessions first, then Needs you, Off
 // track and Coming up; on a laptop Needs you is the right-hand column and the other three stack on the left.
 // Every Needs you item opens where it's dealt with, and clears once it is. The model is today/model.ts.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';

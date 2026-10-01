@@ -13,8 +13,8 @@
 // own ordinary content along that curve, permanently. In the Measurements sheet
 // the first thing inside is the "WAIST (IN)" label, sitting in the top-left
 // corner — and the top-left of the W was sliced off. Nothing in the label's own
-// styling could explain it, because nothing in the label was wrong. Adam's
-// words: "a really quiet bug".
+// styling could explain it, because nothing in the label was wrong: a
+// really quiet bug.
 //
 // 🚨 BOTH HALVES OF THE FIX ARE INVISIBLE IN NORMAL USE, which is why they are
 // tested rather than trusted:

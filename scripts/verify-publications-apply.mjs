@@ -2,11 +2,11 @@
 // ═══════════════════════════════════════════════════════════════════════
 // verify-publications-apply.mjs
 //
-// WHAT IT PROTECTS (v8.39, TECHNICAL §131; PROMPT-03 Phase 4d): the coach →
+// WHAT IT PROTECTS (v8.39, TECHNICAL §131): the coach →
 // client path. Every change a coach makes reaches the client's `state`
 // through applyPublications(), the one funnel.
 //
-// 🚨 THE TRAPS (deep dive §5):
+// 🚨 THE TRAPS:
 //   · I6 — a publication is a PATCH. The client's own fields on a cycle
 //     (its `review`, …) must survive a coach's plan.
 //   · I10 — a plan whose cycle would overlap another is HELD
@@ -21,7 +21,7 @@
 //   · Unlinked: nothing queued may land afterwards.
 //   · Receipts are INSERT-or-UPDATE, never .upsert(): 0023 grants UPDATE on
 //     status/note/acked_at only, and an upsert SETs every column (refused
-//     live in the 4d UAT). The fake table below refuses an upsert the same way.
+//     live). The fake table below refuses an upsert the same way.
 //
 // Runs the real functions from index.html on the demo dataset. CONTROL:
 // v8.38 (c5949c3) has no funnel.
@@ -137,7 +137,7 @@ function envFor(eng, over = {}) {
   e.document = doc(over);
   // publication_acks as 0023 grants it: INSERT, and UPDATE of status/note/acked_at
   // only. An upsert (ON CONFLICT DO UPDATE SET every column) is REFUSED, exactly
-  // as live refused it in the 4d UAT — a fake that accepted it hid the bug.
+  // as live refuses it — a fake that accepted it hid the bug.
   const table = new Map();
   e.acksTable = table;
   e.supabase = { from: () => {
@@ -261,7 +261,7 @@ async function run(source, label) {
       goal_changes: { goals: [{ macroGoalID: 'g_ai', startDate: DEMO_MACRO.start, endDate: DEMO_MACRO.start }] } })]);
     check('I5: the coach\'s response goes to coachAdvice, never blocAdvice', [P.state.coachAdvice.length, P.state.coachAdvice[0].content.headline, P.state.coachAdvice[0].updated, JSON.stringify(P.state.blocAdvice) === blocBefore],
       [1, 'Edited', true, true]);
-    check('…and its goal change lands with it (§11 Q9)', P.state.goals.some(x => x.macroGoalID === 'g_ai'), true);
+    check('…and its goal change lands with it', P.state.goals.some(x => x.macroGoalID === 'g_ai'), true);
 
     P.applyPublications([pub('booking', { booking_id: 'b1', date: '2026-10-02', start_min: 1080, duration_min: 60, status: 'booked', assigned_session: { macroId: DEMO_MACRO.id, week: 3, dayKey: 'session0' } })]);
     check('a booking is kept with its assigned session', P.state.coachBookings.b1.assigned_session.week, 3);

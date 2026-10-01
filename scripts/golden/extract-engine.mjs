@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 // scripts/golden/extract-engine.mjs — lift REAL functions out of index.html
 //
-// Used by verify-engine-golden.mjs (PROMPT-03 Phase 1a, TECHNICAL §118).
+// Used by verify-engine-golden.mjs (TECHNICAL §118).
 //
 // The other verify scripts extract a handful of functions with a plain brace
 // counter. That is fine for five functions and wrong for eighty: a `{` inside a

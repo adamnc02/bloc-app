@@ -147,7 +147,7 @@ check('sign-out unregisters this device BEFORE signing out', signOut.indexOf('fo
 check('the worker is registered on every start, scope ./', /registerCoachServiceWorker\(\)/.test(app) && constIn(push, 'COACH_SW_SCOPE') === './', true);
 check("the switches are never .upsert()ed (0031 grants UPDATE on the switch columns only, §72)", /coach_notification_prefs'\)\.upsert/.test(push), false);
 // v0.9.1: a tap on a CLOSED Coach (a cold start) was missed. The message listener waited for sign-in, and the
-// note was read once, before the worker had written it (iPhone UAT; reproduced in Chromium with a late note).
+// note was read once, before the worker had written it (on an iPhone; reproduced in Chromium with a late note).
 const main = read('coach/src/main.tsx');
 check('the message listener is attached at page load, before React renders', main.indexOf('listenForOpenMessages();') > -1 && main.indexOf('listenForOpenMessages();') < main.indexOf('createRoot('), true);
 const recheck = (intent.match(/export const RECHECK_MS = \[([^\]]+)\]/) || [])[1];
@@ -158,7 +158,7 @@ check('from page load: the message, the note burst, and a re-burst on visibility
   /addEventListener\('message'/.test(load) && /burst\('load'\)/.test(load) && /addEventListener\('visibilitychange'/.test(load) && /addEventListener\('focus'/.test(load) && /addEventListener\('pageshow'/.test(load), true);
 check('once ready, anything held is delivered and the note re-read', /if \(pending\)/.test(intent) && /burst\('ready'\)/.test(intent), true);
 check('control: v0.9 read the note once and listened only once ready', (() => { try { const old = execFileSync('git', ['show', 'bb7f3a0:coach/src/push/intent.ts'], { cwd: repo, encoding: 'utf8' }); return !/RECHECK_MS/.test(old) && !/listenForOpenMessages/.test(old); } catch { return false; } })(), true);
-// v0.9.3: on the iPhone Coach's worker never passes a tap to the page (UAT, three test taps), so Coach reads its
+// v0.9.3: on the iPhone Coach's worker never passes a tap to the page, so Coach reads its
 // newest push from push_outbox (route 4) on ready and on every focus / visible.
 check("route 4: once ready, Coach asks the server for its newest coach push from the last RECENT_MS",
   /from\('push_outbox'\)\.select\('id, tag, created_at'\)\.eq\('app', 'coach'\)/.test(app) && /RECENT_MS/.test(app) && /watchOpenIntents\(navigate, sb \?/.test(app), true);

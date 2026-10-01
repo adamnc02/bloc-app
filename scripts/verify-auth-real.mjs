@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ═══════════════════════════════════════════════════════════════════════
-// verify-auth-real.mjs — `?auth=real` (v8.30, TECHNICAL §119, PROMPT-03 1b)
+// verify-auth-real.mjs — `?auth=real` (v8.30, TECHNICAL §119)
 //
 // WHAT IT PROTECTS. On a local host, `?auth=real` turns the §82 dev bypass
 // OFF, so the dev server signs in to BLOC's live Supabase project. The rule

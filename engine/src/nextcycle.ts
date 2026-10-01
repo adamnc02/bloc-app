@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════════════════
 // The next-cycle recommendation, its goal steps, and when the AI may be asked
-// about it (deep dive §1b/§1c, §10 step 4; TECHNICAL §125).
+// about it (TECHNICAL §125).
 //
 // Moved from index.html in v8.35, UNCHANGED apart from their inputs, behind
 // same-named shims: the state as `s`, "today" as `ctx` (§123), and the two
-// UI globals the deep dive's §1c names as parameters: the cycle Card 3 is
+// UI globals as parameters: the cycle Card 3 is
 // previewing (`_nextCyclePreviewMacroId`) and the target/deadline the person
 // typed (`_nextCycleOverride`).
 // ═══════════════════════════════════════════════════════════════════════

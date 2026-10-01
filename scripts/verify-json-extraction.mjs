@@ -10,7 +10,7 @@
 // that request carries the web_search tool. A search turn interleaves the
 // model's own narration as additional text blocks — "No published nutrition
 // data for…", "Let me search…" — and the join glued that prose onto the JSON.
-// On iOS (JavaScriptCore) the result was the error Adam saw on 2026-09-21:
+// On iOS (JavaScriptCore) the result was this error, seen on 2026-09-21:
 //
 //     JSON Parse error: Unexpected identifier "No"
 //

@@ -2,8 +2,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 // verify-train-agenda.mjs
 //
-// WHAT IT PROTECTS (v8.26, TECHNICAL §115 — Adam, 2026-09-27, option A of the
-// mockups): Train → Change session as a WEEK AGENDA, and Edit cycle living in
+// WHAT IT PROTECTS (v8.26, TECHNICAL §115): Train → Change session as a WEEK AGENDA, and Edit cycle living in
 // Plan → Tools instead of the page header.
 //
 // 🚨 THE TRAPS:
