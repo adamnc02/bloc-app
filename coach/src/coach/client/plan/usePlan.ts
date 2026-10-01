@@ -21,6 +21,7 @@ import { endOf, makeIds, type IdGen, type PlanDoc } from '@/plan/doc';
 import { buildLibrary, type LibraryEntry } from '@/plan/library';
 import type { PlanData, PlanDraft } from '@/data/types';
 import type { ClientView } from '@/coach/screens/ClientScreen';
+import { useRecord } from '@/inperson/useRecord';
 
 export interface PlanCycle {
   id: string;
@@ -49,6 +50,11 @@ export function usePlan(v: ClientView, wanted: string | null) {
   useOnResume(load);
 
   const snap = v.summary.status === 'linked' ? v.bundle.snapshot : null;
+  // 🚨 What the client has logged is their RECORD (In person's recordState: the upload with every session_log the coach
+  //    has sent folded in), never the upload alone. A client not on the app has no upload: their sessions exist only as
+  //    the coach's publications, so the upload's logs read as "nothing logged" and a reset landed on the calendar week,
+  //    on top of weeks already logged (§163). A linked client's phone may not have applied the latest one either.
+  const record = useRecord(v.bundle);
   const today = v.summary.clientToday ?? localDateIn(Intl.DateTimeFormat().resolvedOptions().timeZone, repo.now());
   const ids = useMemo<IdGen>(() => makeIds(() => Date.now()), []);
 
@@ -162,7 +168,9 @@ export function usePlan(v: ClientView, wanted: string | null) {
 
   return {
     loading: !data && !error, error, reload: load, today, cycles, selected, doc, base, diff, overlap, library, ids,
-    trainLogs: (snap?.state as { trainLogs?: Record<string, { done?: unknown }> } | undefined)?.trainLogs ?? null,
+    /** The record (and so `trainLogs`) has loaded: a reset or a late exercise's week is only worked out after it. */
+    trainLogsReady: !!record.state,
+    trainLogs: ((record.state ?? snap?.state) as { trainLogs?: Record<string, { done?: unknown }> } | null | undefined)?.trainLogs ?? null,
     pick: setPick, edit, startNew, discard, publish, history: (snap?.state as { exerciseHistory?: Record<string, Record<string, { weight?: unknown }>> } | undefined)?.exerciseHistory ?? {},
   };
 }

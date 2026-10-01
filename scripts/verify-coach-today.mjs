@@ -91,6 +91,18 @@ const bookingKeys = (src) => { const m = /export const BOOKING_KEYS = \[([^\]]+)
 check('the planned workout is never a booking key', bookingKeys(publish).length > 0 && !bookingKeys(publish).includes('workout'));
 check('control: a workout booking key is caught', bookingKeys(publish.replace(/(export const BOOKING_KEYS = \[[^\]]*)\]/, "$1, 'workout']")).includes('workout'));
 
+// ── 2c. A reset's week reads the client's record (Coach v0.13.6, §163) ─────
+// 🚨 A client not on the app has no upload: Plan's logs must be the record (upload + the coach's session_logs), and a
+//    reset (or a late exercise) only worked out once it has loaded, or it lands on the calendar week over logged weeks.
+const usePlanSrc = read('coach/src/coach/client/plan/usePlan.ts');
+const planTabSrc = read('coach/src/coach/client/plan/PlanTab.tsx');
+const fromRecord = (src) => /useRecord\(v\.bundle\)/.test(src) && /trainLogs: \(\(record\.state \?\? snap\?\.state\)/.test(src);
+const waits = (src) => /intent\.act === 'reset' && !p\.trainLogsReady/.test(src);
+check("Plan's logs are the client's record, not the upload alone", fromRecord(usePlanSrc));
+check('control: logs from the upload alone are caught', !fromRecord(usePlanSrc.replace('(record.state ?? snap?.state)', '(snap?.state)')));
+check('the reset waits for the record before working out its week', waits(planTabSrc));
+check('control: a reset that doesn\'t wait is caught', !waits(planTabSrc.replace("(intent.act === 'reset' && !p.trainLogsReady)", 'false')));
+
 // ── 3. No clock in the models ─────────────────────────────────────────────
 const strip = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1');
 const clock = (src) => /\bDate\.now\(|\bnew Date\(\s*\)|performance\.now\(|resolvedOptions\(\)\.timeZone/.test(strip(src));

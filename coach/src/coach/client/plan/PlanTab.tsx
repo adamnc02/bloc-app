@@ -59,7 +59,8 @@ export function PlanTab({ v, macro, intent }: { v: ClientView; macro: string | n
   // Review's finding opened Plan on a job: do it once the cycle is on screen.
   const done = useRef(false);
   useEffect(() => {
-    if (!intent || done.current || !doc || readOnly) return;
+    // A reset's week comes from what's logged (§163), so it waits for the client's record, not just the plan.
+    if (!intent || done.current || !doc || readOnly || (intent.act === 'reset' && !p.trainLogsReady)) return;
     done.current = true;
     if (intent.act === 'goal') {
       const cur = doc.goals.find((g) => g.startDate <= today && g.endDate >= today) ?? doc.goals[doc.goals.length - 1] ?? null;
@@ -76,7 +77,7 @@ export function PlanTab({ v, macro, intent }: { v: ClientView; macro: string | n
         else setSwapAt({ dayKey: dk, ex });
       }
     }
-  }, [intent, doc, readOnly, today]);
+  }, [intent, doc, readOnly, today, p.trainLogsReady, p.trainLogs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const volume = useMemo(() => (doc ? bodyPartVolume(doc, p.library) : []), [doc, p.library]);
   // Goal phases may not overlap any other cycle's. When this cycle replaces
