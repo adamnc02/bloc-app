@@ -27,7 +27,6 @@ const COMING: Record<ComingKind, { tag: string; tone: 'amber' | 'acc' | 'neutral
   'check-in': { tag: 'Check-in', tone: 'neutral', icon: 'message' },
   'final-week': { tag: 'Cycle review', tone: 'acc', icon: 'flag' },
   'next-cycle': { tag: 'Next cycle', tone: 'neutral', icon: 'sparkle' },
-  measurements: { tag: 'Measurements', tone: 'neutral', icon: 'tape' },
   'no-sync': { tag: 'No sync', tone: 'amber', icon: 'sync' },
 };
 
@@ -184,7 +183,7 @@ export function TodayScreen() {
           </div>
 
           <div className="tg-coming">
-            <Section i={5} title="Coming up" sub="Check-ins, cycle reviews and next cycles due now or this week, measurements and apps gone quiet." slot={coming.length ? <Chip>{coming.length} items</Chip> : undefined}>
+            <Section i={5} title="Coming up" sub="Check-ins, cycle reviews and next cycles due now or this week, and apps gone quiet." slot={coming.length ? <Chip>{coming.length} items</Chip> : undefined}>
               {coming.length ? (
                 <div className="card list">
                   {coming.map((u) => (

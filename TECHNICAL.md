@@ -11471,6 +11471,8 @@ client's today, in **Coming up**, due now or within 7 days. 🚨 Never in Needs 
 what clients sent (challenges, notes back, review photos), requests, unlogged sessions and effort flags; a due check-in
 clears only by publishing one.
 
+Coming up holds no measurements: they're the client's own, due each Monday in BLOC (`today.test.ts` checks none appear).
+
 **All three AI tools: `aiSchedule()` (`today/model.ts`)** returns each client's `due` and `coming` (the next 7 days);
 both are Coming up rows ("First check-in due · their trend calls for one", "Cycle review due · … ask for photos first",
 "Next cycle due · cycle ends …"):

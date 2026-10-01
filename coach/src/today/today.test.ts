@@ -189,6 +189,9 @@ describe('Off track and Coming up', () => {
     expect(c.some((x) => x.kind === 'no-sync' && x.cardId === 'tom')).toBe(true);
     expect(c.some((x) => x.kind === 'no-sync' && x.cardId === 'maya')).toBe(false);
   });
+  it('no measurements in Coming up: the client owns them (due each Monday in BLOC)', () => {
+    expect(comingUp(built.clients, summaries, empty()).some((x) => /measure/i.test(x.kind + x.detail))).toBe(false);
+  });
   it('Coach’s measurement rule: due 7 days after the last, or at the next cycle start if sooner', () => {
     expect(getMeasurementStatus([{ date: '2026-07-27', waist: 32 }], [], '2026-08-02').due).toBe(false);
     expect(getMeasurementStatus([{ date: '2026-07-27', waist: 32 }], [], '2026-08-03').due).toBe(true);

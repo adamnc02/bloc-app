@@ -14,11 +14,11 @@
 //                     client is never told.
 //   Off track         linked clients whose outcome is off track (Review's judgement), with its one reason.
 //   Coming up         the AI tools due now or in the next 7 days (aiSchedule: a check-in, a cycle review, next-cycle
-//                     advice; each clears when published; never in Needs you, never dismissed), measurements due, and
+//                     advice; each clears when published; never in Needs you, never dismissed), and
 //                     apps gone quiet.
 //
-// 🚨 Anything judged about a client is at the client's today (their upload's zone): check-ins, cycle ends and
-//    measurements. The diary's own dates (today's sessions, missed bookings) are the coach's.
+// 🚨 Anything judged about a client is at the client's today (their upload's zone): check-ins and cycle ends.
+//    The diary's own dates (today's sessions, missed bookings) are the coach's.
 // ═══════════════════════════════════════════════════════════════════════
 import { coachCheckinSchedule, getMacroEndDate, shiftDateStr, type BlocState, type Loose, type Macrocycle } from '@engine';
 import type { AiDraft, AiTool, CoachPublication, Submission } from '@/ai/types';
@@ -32,7 +32,6 @@ import type { Diary, SessionRequest } from '@/diary/types';
 import { canStart, cycleForSession, loggedFor, loggedSessions, missedFrom, recordState } from '@/inperson/model';
 import { highRatingStreaks, isLeft, type HighStreak } from '@/review/effort';
 import { groupLoggedFor } from '@/group/model';
-import { getMeasurementStatus } from '@/lib/measurementStatus';
 import { clientPath } from '@/app/router';
 
 export interface TodaySession {
@@ -56,7 +55,7 @@ export type NeedsItem =
   | { kind: 'missedGroup'; key: string; at: string; cardId: null; occ: Occurrence }
   | { kind: 'effort'; key: string; at: string; cardId: string; streak: HighStreak };
 
-export type ComingKind = 'check-in' | 'final-week' | 'next-cycle' | 'measurements' | 'no-sync';
+export type ComingKind = 'check-in' | 'final-week' | 'next-cycle' | 'no-sync';
 export interface ComingItem { key: string; kind: ComingKind; cardId: string; detail: string; tab: 'review' | 'profile' | 'plan'; at: string }
 
 const byCard = <T extends { cardId: string }>(xs: T[], id: string) => xs.filter((x) => x.cardId === id);
@@ -222,15 +221,12 @@ export function comingUp(bundles: ClientBundle[], summaries: ClientSummary[], in
     if (s.staleSync) out.push({ key: `q:${s.id}`, kind: 'no-sync', cardId: s.id, detail: `No sync for ${Math.round((s.syncedHoursAgo ?? 0) / 24)} days`, tab: 'profile', at: '' });
     if (!st || !s.clientToday) continue;
     const today = s.clientToday;
-    const soon = shiftDateStr(today, 7);
     // The AI tools, due now or coming due within the week (aiSchedule): this list's only.
     const subs = inbox.submissions.filter((x) => x.clientId === b?.link?.clientId);
     const KIND: Record<AiTool, ComingKind> = { check_in: 'check-in', cycle_review: 'final-week', next_cycle: 'next-cycle' };
     const ai = aiSchedule(st as BlocState, today, s.cycle?.macroId ?? null, byCard(inbox.publications, s.id), subs);
     for (const x of ai.due) out.push({ key: `${KIND[x.tool]}:${s.id}:${x.macroId}`, kind: KIND[x.tool], cardId: s.id, detail: `${x.title} · ${x.detail}`, tab: 'review', at: x.at });
     for (const x of ai.coming) out.push({ key: `${KIND[x.tool]}:${s.id}:${x.macroId}`, kind: KIND[x.tool], cardId: s.id, detail: x.detail, tab: 'review', at: x.at });
-    const ms = getMeasurementStatus(st.bodyLogs as Loose[], st.macrocycles as Loose[], today);
-    if (ms.nextDueDate <= soon && (!ms.lastDate || ms.lastDate < today)) out.push({ key: `w:${s.id}`, kind: 'measurements', cardId: s.id, detail: ms.due ? (ms.lastDate ? `Measurements due · last ${fmt.ddm(ms.lastDate)}` : 'No measurements yet') : `Measurements due ${fmt.ddm(ms.nextDueDate)}`, tab: 'review', at: ms.nextDueDate });
   }
   return out.sort((a, z) => (a.at || '').localeCompare(z.at || ''));
 }
