@@ -12,6 +12,11 @@ import { foldPlan } from '@/plan/fold';
 import { weekday } from '@/lib/format';
 import type { CoachPublication } from '@/ai/types';
 import { missedBookings, missedGroups } from '@/today/model';
+import { latestDraft, notesBack, sentEdit } from '@/ai/tools';
+import type { AiDraft } from '@/ai/types';
+import { applyMacroTemplate, type MacroTemplateBody } from '@/plan/templates';
+import { makeIds } from '@/plan/doc';
+import { CIRCUITS_TEMPLATE_ID } from './build';
 import type { Diary } from '@/diary/types';
 import { DEFAULT_SETTINGS } from '@/diary/types';
 import { localDateIn } from '@engine/review';
@@ -134,5 +139,33 @@ describe('demo rows', () => {
     const noLogs = rows.publications.filter((p) => p.type !== 'session_log');
     expect(missedBookings(diary, inbox(noLogs), today).length).toBeGreaterThan(0);
     expect(missedGroups(diary, inbox(noLogs), today).length).toBeGreaterThan(0);
+  });
+
+  it('Review: Casey’s check-in reply shows through its draft, and his note back attaches to it', () => {
+    const drafts: AiDraft[] = rows.drafts.map((d) => ({ id: d.id, cardId: IDS.cards[d.card], tool: d.tool, macroId: d.macro_id, original: d.original, edited: d.edited,
+      editedAt: d.edited_at, publicationId: d.publication_id, createdAt: d.created_at }));
+    const pubs = asCoach('casey');
+    const subs = rows.submissions.filter((x) => x.client === 'casey').map((x) => ({ id: x.id, kind: x.kind, publicationId: x.publication_id, body: x.body, createdAt: x.created_at }));
+    const d = latestDraft(drafts, 'check_in', 'macro_demo_casey_c2');
+    expect(d?.publicationId).toBe(rows.publications.find((p) => p.type === 'ai_response' && p.card === 'casey')!.id);
+    expect(sentEdit(d!).headline).toBe('Weight has stalled: it’s the weekends');
+    expect(notesBack(subs, pubs, d!.id).map((n) => n.note.body.text)).toEqual([expect.stringContaining('Takeaways on Friday')]);
+    // What Casey's phone receives is built from that draft.
+    expect(pubs.find((p) => p.type === 'ai_response')!.payload.response_id).toBe(d!.id);
+    // CONTROL: with no draft, Review has no reply to show the note under.
+    expect(latestDraft([], 'check_in', 'macro_demo_casey_c2')).toBeNull();
+  });
+
+  it('the Library: two cycles and two workouts; a cycle applies as Coach applies one; the group runs the circuits template', () => {
+    expect(rows.templates.map((t) => [t.kind, t.name])).toEqual([
+      ['macrocycle', 'Upper / Lower cut, 8 weeks'], ['macrocycle', 'Push / Pull / Legs size block, 6 weeks'],
+      ['workout', 'Strength and Balance A'], ['workout', 'Saturday Circuits'],
+    ]);
+    const ul = rows.templates[0].body as MacroTemplateBody;
+    const doc = applyMacroTemplate(ul, '2026-10-12', makeIds(() => 1), 'New client cut');
+    expect(Object.values(doc.exercises).flat().length).toBeGreaterThan(10);
+    expect(doc.macro.start).toBe('2026-10-12');
+    expect(rows.series.find((x) => x.title === 'Saturday Circuits')!.workout!.template_id).toBe(CIRCUITS_TEMPLATE_ID);
+    expect(rows.templates.find((t) => t.name === 'Saturday Circuits')!.id).toBe(CIRCUITS_TEMPLATE_ID);
   });
 });

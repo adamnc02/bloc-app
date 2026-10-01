@@ -23,7 +23,10 @@ import { desiredBookings } from '@/diary/publish';
 import { DEFAULT_SETTINGS, type Booking, type Diary, type PlannedWorkout, type Series } from '@/diary/types';
 import { groupPayload, groupSessionId, workoutExercises, type GroupSet } from '@/group/model';
 import { sessionIdFor, sessionLogPayload, type SetEntry } from '@/inperson/model';
-import { photoRequestPayload } from '@/ai/tools';
+import { aiResponsePayload, photoRequestPayload } from '@/ai/tools';
+import type { AiDraft, AiEdit } from '@/ai/types';
+import { foldPlan } from '@/plan/fold';
+import { macroTemplateOf, workoutTemplateOf, type TemplateBody } from '@/plan/templates';
 import { weekday } from '@/lib/format';
 import type { DemoCardKey } from './cards';
 
@@ -64,11 +67,22 @@ export interface DemoRows {
   bookingClients: { booking_id: string; card: DemoCardKey }[];
   submissions: { id: string; client: DemoCardKey; kind: 'check_in' | 'note_back'; publication_id: string | null; body: Loose; created_at: string }[];
   requests: { id: string; client: DemoCardKey; preferences: Loose[]; notes: string | null; repeat_weekly: boolean; created_at: string }[];
+  /** The coach's Library (`coach_templates`): a demo coach's whole Library, replaced every Rebuild. */
+  templates: { id: string; kind: 'macrocycle' | 'workout'; name: string; summary: string | null; body: TemplateBody; starred: boolean; created_at: string }[];
+  /**
+   * `coach_ai_drafts` for the AI replies the demo published. Review shows a reply, and the notes back on it, through
+   * its draft (`latestDraft`, `notesBack(…, draft.id)`), so a published reply with no draft shows nothing there.
+   * Written after the publications: `publication_id` names one.
+   */
+  drafts: { id: string; card: DemoCardKey; tool: 'check_in' | 'cycle_review' | 'next_cycle'; macro_id: string; original: Loose; edited: Loose; edited_at: string; publication_id: string; created_at: string }[];
   /** Each on-app client's state (before stampLedger), their zone and when it was "uploaded". */
   states: { client: DemoCardKey; state: BlocState; tz: string; uploadedAt: string }[];
 }
 
 const at = (date: string, hhmm: string) => `${date}T${hhmm}:00.000Z`;
+
+/** The Saturday Circuits workout in the Library; the group's planned workout is a copy of it (0033). */
+export const CIRCUITS_TEMPLATE_ID = demoId('template:circuits');
 
 /** Saturday Circuits' planned workout (0033): a copy of a Library workout, in Coach's template exercise shape. */
 export const CIRCUITS: PlannedWorkout = {
@@ -135,7 +149,7 @@ function planPubs(card: DemoCardKey, persona: DemoPersona, s: BlocState): DemoPu
 export function buildDemoRows(ids: DemoIds, now: number): DemoRows {
   const coachToday = localDateIn('Europe/London', now);
   const monday = getHomeWeekStart(coachToday);
-  const rows: DemoRows = { publications: [], series: [], seriesClients: [], bookings: [], bookingClients: [], submissions: [], requests: [], states: [] };
+  const rows: DemoRows = { publications: [], series: [], seriesClients: [], bookings: [], bookingClients: [], submissions: [], requests: [], templates: [], drafts: [], states: [] };
 
   // ── The clients on the app: their states, and the coach's plans first ──
   const stateOf: Partial<Record<DemoCardKey, BlocState>> = {};
@@ -171,7 +185,7 @@ export function buildDemoRows(ids: DemoIds, now: number): DemoRows {
   const tue = addSeries('eileen-tue', { kind: 'one_to_one', weekday: 1, start: 420, duration: 60, from: shiftDateStr(monday, -6 * 7 + 1), to: null, title: null, location: 'Studio', clientIds: [card('eileen')] });
   const fri = addSeries('eileen-fri', { kind: 'one_to_one', weekday: 4, start: 420, duration: 60, from: shiftDateStr(monday, -6 * 7 + 4), to: null, title: null, location: 'Studio', clientIds: [card('eileen')] });
   // Saturday Circuits: a group, Maya and Priya, with its planned workout.
-  const circuits = addSeries('sat-circuits', { kind: 'group', weekday: 5, start: 540, duration: 45, from: shiftDateStr(monday, -3 * 7 + 5), to: null, title: 'Saturday Circuits', location: 'Riverside Park', clientIds: [card('maya'), card('priya')], workout: CIRCUITS });
+  const circuits = addSeries('sat-circuits', { kind: 'group', weekday: 5, start: 540, duration: 45, from: shiftDateStr(monday, -3 * 7 + 5), to: null, title: 'Saturday Circuits', location: 'Riverside Park', clientIds: [card('maya'), card('priya')], workout: { ...CIRCUITS, template_id: CIRCUITS_TEMPLATE_ID } });
   // Tom: a one-off review session on Friday; Ben: his first session next Monday.
   const oneOffs: Booking[] = [
     { id: demoId('booking:tom-review'), seriesId: null, occursOn: null, date: shiftDateStr(monday, 4), start: 750, duration: 45, kind: 'one_to_one', status: 'booked', title: null, location: 'Studio', clientIds: [card('tom')] },
@@ -235,15 +249,42 @@ export function buildDemoRows(ids: DemoIds, now: number): DemoRows {
       payload: photoRequestPayload(demoId('priya:photo-request'), 'macro_demo_priya_c1') });
   }
   if (ids.users.casey && stateOf.casey) {
-    // Last week's check-in reply, Casey's note back on it, and a session request for next week.
+    // Last week's check-in reply (its draft, and the publication Coach builds from it), Casey's note back on it,
+    // and a session request for next week.
     const replyId = demoId('casey:reply');
-    rows.publications.push({ id: replyId, card: 'casey', type: 'ai_response', createdAt: at(shiftDateStr(monday, -5), '18:30'),
-      payload: { v: 1, tool: 'check_in', response_id: demoId('casey:reply-draft'), macro_id: 'macro_demo_casey_c2',
-        content: { headline: 'Weight has stalled: it’s the weekends', narrative: ['Your weekday calories are close to target, but Friday to Sunday are running 800–1,000 over, which is enough to cancel the week’s deficit.', 'Training is solid, and next week is a planned deload anyway. Let’s use it to get the weekends back under control rather than cutting harder.'], kcal: 2000, steps: 10000 } } });
+    const draftAt = at(shiftDateStr(monday, -5), '18:20');
+    const narrative = ['Your weekday calories are close to target, but Friday to Sunday are running 800–1,000 over, which is enough to cancel the week’s deficit.', 'Training is solid, and next week is a planned deload anyway. Let’s use it to get the weekends back under control rather than cutting harder.'];
+    const draft: AiDraft = {
+      id: demoId('casey:reply-draft'), cardId: card('casey'), tool: 'check_in', macroId: 'macro_demo_casey_c2', createdAt: draftAt,
+      original: { v: 1, raw: JSON.stringify({ headline: 'Weight has stalled: it’s the weekends', narrative: narrative.join('\n\n') }),
+        response: { headline: 'Weight has stalled: it’s the weekends', narrative: narrative.join('\n\n') }, today: shiftDateStr(monday, -5) },
+      edited: null, editedAt: null, publicationId: replyId,
+    };
+    const edit: AiEdit = { headline: 'Weight has stalled: it’s the weekends', narrative, kcal: 2000, steps: 10000, compliance: null, planKey: null, phases: [], sentAs: replyId };
+    rows.publications.push({ id: replyId, card: 'casey', type: 'ai_response', createdAt: at(shiftDateStr(monday, -5), '18:30'), payload: aiResponsePayload(draft, edit, null, false) });
+    rows.drafts.push({ id: draft.id, card: 'casey', tool: 'check_in', macro_id: draft.macroId!, original: draft.original, edited: edit, edited_at: at(shiftDateStr(monday, -5), '18:28'), publication_id: replyId, created_at: draftAt });
     rows.submissions.push({ id: demoId('casey:note'), client: 'casey', kind: 'note_back', publication_id: replyId, created_at: at(shiftDateStr(monday, -4), '08:10'),
       body: { v: 1, response_id: demoId('casey:reply-draft'), tool: 'check_in', text: 'Fair. Takeaways on Friday and Saturday are the problem. I’ll plan the weekend meals in advance.' } });
     rows.requests.push({ id: demoId('casey:request'), client: 'casey', notes: 'Could we do a session on my squat form? Knees cave in on the last few reps.', repeat_weekly: false, created_at: at(yesterday, '12:20'),
       preferences: [{ date: shiftDateStr(monday, 7), start_min: 450 }, { date: shiftDateStr(monday, 8), start_min: 720, end_min: 840 }] });
   }
+
+  // ── The Library: two cycles and two workouts, as Coach saves them (macroTemplateOf / workoutTemplateOf) ──
+  const cycleDoc = (st: BlocState | undefined, macroId: string) =>
+    st ? foldPlan({ state: st, publications: [], coachId: ids.coachId, since: null }).find((c) => c.id === macroId)?.doc ?? null : null;
+  const lib = (key: string, kind: 'macrocycle' | 'workout', name: string, t: { body: TemplateBody; summary: string } | null, starred: boolean, daysAgo: number) => {
+    if (t) rows.templates.push({ id: key === 'circuits' ? CIRCUITS_TEMPLATE_ID : demoId(`template:${key}`), kind, name, summary: t.summary, body: t.body, starred, created_at: at(shiftDateStr(monday, -daysAgo), '20:00') });
+  };
+  const mayaDoc = cycleDoc(stateOf.maya ?? buildDemoState(MAYA, coachToday, { coachId: ids.coachId }), 'macro_demo_maya_c2');
+  const tomDoc = cycleDoc(stateOf.tom ?? buildDemoState(DEMO_PERSONAS[1], coachToday, { coachId: ids.coachId }), 'macro_demo_tom_c2');
+  const eileenDoc = cycleDoc(eileen, 'macro_demo_eileen_c1');
+  lib('upper-lower', 'macrocycle', 'Upper / Lower cut, 8 weeks', mayaDoc ? macroTemplateOf(mayaDoc) : null, true, 40);
+  lib('ppl', 'macrocycle', 'Push / Pull / Legs size block, 6 weeks', tomDoc ? macroTemplateOf(tomDoc) : null, false, 60);
+  lib('strength-balance-a', 'workout', 'Strength and Balance A', eileenDoc ? workoutTemplateOf(eileenDoc, 'session0', 'Strength and Balance A') : null, false, 50);
+  lib('circuits', 'workout', 'Saturday Circuits', {
+    body: { v: 1, kind: 'workout', label: 'Saturday Circuits', supersets: {},
+      exercises: CIRCUITS.exercises.map(({ id: _id, ...e }) => { void _id; return { ...e, ss: null }; }) as never },
+    summary: `${CIRCUITS.exercises.length} exercises · circuits`,
+  }, true, 25);
   return rows;
 }

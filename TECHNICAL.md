@@ -11292,6 +11292,13 @@ Fridays, the Saturday Circuits group, one-offs for Tom and Ben), Eileen's sessio
 her Tuesday measurements, Priya's photo request from `photoRequestPayload()`, Casey's check-in reply, note back and
 session request, and Maya's check-in request. Pure: ids come from fixed seeds (`demoId`) and `now` comes in.
 
+🚨 **An AI reply is published with its draft** (Coach v0.13.4). Review shows a reply, and the notes back on it,
+through its `coach_ai_drafts` row (`latestDraft`, `notesBack(…, draft.id)`), so the demo writes Casey's check-in draft and
+builds the publication from it with Coach's own `aiResponsePayload` (the edit stamped `sentAs` the publication).
+**The Library** is the demo's: "Upper / Lower cut, 8 weeks" (Maya's cycle) and "Push / Pull / Legs size block, 6 weeks"
+(Tom's), by `macroTemplateOf`; "Strength and Balance A" (Eileen's) and "Saturday Circuits", whose template the group's
+planned workout names. A Rebuild replaces the demo coach's whole workspace (super-duper-octo-barnacle SUPABASE.md).
+
 🚨 **Every session that has passed is logged** (Coach v0.13.2). Since Coach v0.10 a booking or group week from the last
 14 days with no `session_log` sits in Needs you as "Not logged", so the demo logs what a real coach would: Maya's
 Wednesday plan session, taken in person (`inPersonLog`, the same payload as Eileen's: `sessionLogPayload`, id
