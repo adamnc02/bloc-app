@@ -11612,4 +11612,5 @@ original; minor vs significant; same phase ids; the record never in the payload;
 - **Checks:** `scripts/verify-train-kg.mjs` (which rule's padding wins on a set box, against v8.56's as a control;
   `fmtKg` and `setKg` over one table, against a `toFixed(1)` control; every weight box drawn through them) and
   `scripts/verify-pinned-bars.mjs` (Coach's bar place evaluated from `ui.css` at insets 0–59, against v0.16's as a
-  control; both bars' `::before`, `::after` and `.is-stuck`).
+  control; both bars' `::before`, `::after` and `.is-stuck`). `verify-engine-leaves.mjs` compares Train's HTML with v8.34's with a
+  trailing ".0" read as nothing on both sides, counts the renders where only that moved, and still fails on anything else.
