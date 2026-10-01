@@ -12,7 +12,7 @@ import { summarise, type ClientSummary } from '@/data/summary';
 import type { ClientBundle, CoachRepo } from '@/data/types';
 import { foldPlan } from '@/plan/fold';
 import { dayKeys, endOf, makeIds, sessionLabel, type PlanDoc } from '@/plan/doc';
-import { applyMacroTemplate, applyWorkoutTemplate, macroTemplateOf, workoutTemplateOf, type Template } from '@/plan/templates';
+import { applyMacroTemplate, applyWorkoutTemplate, audienceOf, macroTemplateOf, workoutTemplateOf, type Template } from '@/plan/templates';
 import { ApplyCycleSheet } from '@/coach/client/plan/PlanSheets';
 import { WorkoutBuilder } from '@/coach/library/WorkoutBuilder';
 
@@ -72,6 +72,16 @@ export function LibraryScreen() {
     if (filter === 'starred') return l.filter((t) => t.starred);
     return showAll[k] ? l : l.slice(0, TOP);
   };
+  // A workout template's Group / Client type (§165): the whole body saved back with it.
+  const setAudience = async (t: Template, a: 'group' | 'client') => {
+    if (t.body.kind !== 'workout' || audienceOf(t) === a) return;
+    const { audience: _a, ...rest } = t.body;
+    void _a;
+    const body = a === 'group' ? { ...rest, audience: 'group' as const } : rest;
+    setLib(list.map((x) => (x.id === t.id ? { ...x, body } : x)));
+    try { await repo.updateTemplateBody(t.id, body); toast.show(`${t.name} is a ${a === 'group' ? 'group' : 'client'} workout`); }
+    catch (e) { toast.show(e instanceof Error ? e.message : String(e)); load(); }
+  };
   const star = async (t: Template) => {
     setLib(list.map((x) => (x.id === t.id ? { ...x, starred: !x.starred } : x)));
     try { await repo.starTemplate(t.id, !t.starred); toast.show(t.starred ? `${t.name} unstarred` : `${t.name} starred`); } catch (e) { toast.show(e instanceof Error ? e.message : String(e)); load(); }
@@ -85,7 +95,8 @@ export function LibraryScreen() {
           <EmptyState>{filter === 'starred' ? `No starred ${noun} yet. Tap the star on a template to keep it here.` : `No ${noun} yet. Save one from a client’s Plan, or below.`}</EmptyState>
         ) : (
           <div className="grid-2" style={{ gap: 12 }}>
-            {v.map((t, i) => <div key={t.id}><TemplateCard t={t} i={3 + i} onApply={() => setApplying(t)} onStar={() => star(t)} onDelete={() => setDeleting(t)} /></div>)}
+            {v.map((t, i) => <div key={t.id}><TemplateCard t={t} i={3 + i} onApply={() => setApplying(t)} onStar={() => star(t)} onDelete={() => setDeleting(t)}
+              onAudience={t.body.kind === 'workout' ? (a) => void setAudience(t, a) : undefined} /></div>)}
           </div>
         )}
         {filter === 'all' && count(k) > TOP && (
@@ -153,7 +164,7 @@ function Stat({ value, label }: { value: number; label: string }) {
 
 const GOAL = { loss: ['acc', 'Lose weight'], gain: ['good', 'Gain weight'], maintenance: ['neutral', 'Maintain'] } as const;
 
-function TemplateCard({ t, i, onApply, onStar, onDelete }: { t: Template; i: number; onApply: () => void; onStar: () => void; onDelete: () => void }) {
+function TemplateCard({ t, i, onApply, onStar, onDelete, onAudience }: { t: Template; i: number; onApply: () => void; onStar: () => void; onDelete: () => void; onAudience?: (a: 'group' | 'client') => void }) {
   const m = t.body.kind === 'macrocycle' ? t.body.macro : null;
   const facts = m ? [`${m.weeks * m.weeksPerMeso + (m.extensionWeeks || 0)} weeks`, `${m.days.length} sessions a week`] : [`${t.body.kind === 'workout' ? t.body.exercises.length : 0} exercises`];
   const goal = m ? GOAL[m.goalType] : null;
@@ -163,7 +174,7 @@ function TemplateCard({ t, i, onApply, onStar, onDelete }: { t: Template; i: num
         <div style={{ minWidth: 0 }}>
           <div className="display" style={{ fontSize: 17 }}>{t.name}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
-            {goal ? <Chip tone={goal[0]}>{goal[1]}</Chip> : <Chip tone="neutral" icon="train">Workout</Chip>}
+            {goal ? <Chip tone={goal[0]}>{goal[1]}</Chip> : <Chip tone={audienceOf(t) === 'group' ? 'blue' : 'neutral'} icon={audienceOf(t) === 'group' ? 'group' : 'train'}>{audienceOf(t) === 'group' ? 'Group workout' : 'Client workout'}</Chip>}
             <span className="caption num">{facts.join(' · ')}</span>
           </div>
         </div>
@@ -173,6 +184,12 @@ function TemplateCard({ t, i, onApply, onStar, onDelete }: { t: Template; i: num
         </button>
       </div>
       <p className="body-copy" style={{ marginTop: 10, flex: 1 }}>{t.summary}</p>
+      {t.body.kind === 'workout' && onAudience && (
+        <div style={{ marginTop: 10 }}>
+          <Seg<'group' | 'client'> label={`${t.name} is for`} value={audienceOf(t)} onChange={onAudience} accent className="auto"
+            options={[{ value: 'client', label: 'Client' }, { value: 'group', label: 'Group' }]} />
+        </div>
+      )}
       <div className="row" style={{ marginTop: 14 }}>
         <span className="caption">{t.appliedLast90} in 90 days · {t.appliedCount} all time</span>
         <span style={{ display: 'flex', gap: 8 }}>

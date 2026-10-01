@@ -1,7 +1,9 @@
 // ═══════════════════════════════════════════════════════════════════════
 // The exercise library Coach picks from (Plan → Add exercise, Swap exercise;
 // TECHNICAL §144): BLOC's built-in list, the client's own custom exercises
-// (`customLibrary`, which the client owns), and names the coach adds.
+// (`customLibrary`, which the client owns), the coach's own library
+// (`coach_exercises`, 0035, §165: every exercise the coach has added by name), and
+// the names in the plan being edited.
 //
 // 🚨 BUILT_IN is a COPY of index.html's DEFAULT_LIBRARY: moving that list into
 //    the engine would change BLOC's served bytes in a Coach release.
@@ -14,8 +16,8 @@ export interface LibraryEntry {
   bodyPart: string;
   /** 'cardio' for cardio; absent means weight (BLOC's getLibraryCategory). */
   category?: 'weight' | 'cardio';
-  /** Where it came from, for the picker's label. */
-  source?: 'bloc' | 'client' | 'coach';
+  /** Where it came from, for the picker's label: BLOC's, the client's, the coach's library ('mine'), this plan's. */
+  source?: 'bloc' | 'client' | 'mine' | 'coach';
 }
 
 export const BUILT_IN: readonly LibraryEntry[] = [

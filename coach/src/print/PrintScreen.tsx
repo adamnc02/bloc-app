@@ -1,7 +1,7 @@
 // Print or share a client's plan (§162): one mesocycle of their coach's cycle, for a client not on the app who
 // trains on their own between sessions. `#/print/{card id}`. On screen: a preview and Print; printed: the sheet
 // alone (styles/print.css). On an iPhone, Print's preview shares to Mail or Files as a PDF: that is how it's emailed.
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import type { Loose } from '@engine';
 import { useCoach } from '@/app/App';
 import { clientPath, navigate } from '@/app/router';
@@ -24,6 +24,17 @@ export function PrintScreen({ cardId }: { cardId: string }) {
   const name = bundle ? displayName(bundle) : 'Client';
   const first = name.split(' ')[0] || name;
   const back = () => navigate(clientPath(cardId, 'sessions'));
+  // The PDF a print saves or shares is named after the page's title (iOS, every browser): the client, the mesocycle
+  // and its dates, never "BLOC Coach". Put back when the page closes.
+  const fileTitle = plan && plan.weeks.length
+    ? `${name} · MC ${plan.mesocycle} · ${[plan.weeks[0].start, plan.weeks[plan.weeks.length - 1].end].filter(Boolean).map((d) => fmt.ddm(d!)).join(' – ')}`
+    : null;
+  useEffect(() => {
+    if (!fileTitle) return;
+    const before = document.title;
+    document.title = fileTitle;
+    return () => { document.title = before; };
+  }, [fileTitle]);
 
   const toolbar = (
     <div className="pp-toolbar">

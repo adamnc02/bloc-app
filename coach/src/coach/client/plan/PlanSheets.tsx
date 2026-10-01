@@ -339,7 +339,7 @@ export function PreviewSheet({ open, blocks, onClose }: { open: boolean; blocks:
 // ---------------------------------------------------------------- templates
 
 /** Picking a Library template: a search over the coach's templates of one kind. */
-export function TemplatePicker({ open, kind, templates, onClose, onPick, title }: { open: boolean; kind: Template['kind']; templates: Template[]; onClose: () => void; onPick: (t: Template) => void; title?: string }) {
+export function TemplatePicker({ open, kind, templates, onClose, onPick, title, empty }: { open: boolean; kind: Template['kind']; templates: Template[]; onClose: () => void; onPick: (t: Template) => void; title?: string; empty?: string }) {
   const [q, setQ] = useState('');
   useEffect(() => { if (open) setQ(''); }, [open]);
   const list = useMemo(() => templates.filter((t) => t.kind === kind && (!q.trim() || t.name.toLowerCase().includes(q.trim().toLowerCase())))
@@ -352,7 +352,7 @@ export function TemplatePicker({ open, kind, templates, onClose, onPick, title }
           <span style={{ color: 'var(--text3)' }}><Icon name="chevR" size={18} /></span>
         </button>
       ))}
-      {!list.length && <p className="muted" style={{ padding: '14px 0' }}>{q ? 'No template matches.' : `No ${kind === 'macrocycle' ? 'cycle' : 'workout'} templates yet. ${kind === 'workout' ? 'Build one in Library → New workout, or save' : 'Save'} one from a client’s Plan.`}</p>}
+      {!list.length && <p className="muted" style={{ padding: '14px 0' }}>{q ? 'No template matches.' : empty ? empty : `No ${kind === 'macrocycle' ? 'cycle' : 'workout'} templates yet. ${kind === 'workout' ? 'Build one in Library → New workout, or save' : 'Save'} one from a client’s Plan.`}</p>}
     </SearchSheet>
   );
 }

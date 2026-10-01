@@ -14,6 +14,7 @@
 import { normaliseState, shiftDateStr, type BlocState, type Loose } from '@engine';
 import { formatInviteCode, splitName } from './live';
 import type { FlagLeave } from '@/review/effort';
+import type { LibraryEntry } from '@/plan/library';
 import type { AiDraft, CoachPublication, Submission } from '@/ai/types';
 import type { ClientBundle, ClientCard, CoachProfile, CoachRepo, NewInvite, PlanDraft } from './types';
 import { foldPlan } from '@/plan/fold';
@@ -102,6 +103,7 @@ export function createFixtureRepo(demo: Record<string, unknown>, onProfile: (p: 
   const clients = built.clients;
   // The flags the coach left (0034): this page's memory only.
   const leaves: FlagLeave[] = [];
+  const exercises: LibraryEntry[] = [];
   let n = 0, tick = 0, seq = 0;
   const ai = {
     drafts: [] as AiDraft[],
@@ -224,6 +226,10 @@ export function createFixtureRepo(demo: Record<string, unknown>, onProfile: (p: 
     },
     async starTemplate(id, starred) { const t = plan.templates.find((x) => x.id === id); if (t) t.starred = starred; },
     async deleteTemplate(id) { plan.templates = plan.templates.filter((t) => t.id !== id); },
+    async updateTemplateBody(id, body) { const t = plan.templates.find((x) => x.id === id); if (t) t.body = structuredClone(body); },
+    // The coach's own exercise library (0035): this page's memory only.
+    async loadExercises() { return exercises.map((x) => ({ ...x })); },
+    async saveExercise(e) { if (!exercises.some((x) => x.name.trim().toLowerCase() === e.name.trim().toLowerCase())) exercises.push({ name: e.name.trim(), bodyPart: e.bodyPart, category: e.category === 'cardio' ? 'cardio' : 'weight', source: 'mine' }); },
     async recordApplication(templateId) {
       const t = plan.templates.find((x) => x.id === templateId);
       if (t) { t.appliedCount++; t.appliedLast90++; }

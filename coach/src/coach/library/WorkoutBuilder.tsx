@@ -1,15 +1,17 @@
-// Library → New workout (§162): a workout template built from scratch, with no client. What a group session runs
-// (0033), and like any workout template it can also go into a client's cycle. The same exercise editor as a
+// Library → New workout (§162): a workout template built from scratch, with no client. It asks first who it's for
+// (§165): a Group workout (what a group session runs, 0033: sets, reps and weight only, no progression) or a Client
+// workout (into a client's cycle). The same exercise editor as a
 // client's Plan: the builder is a one-session plan document, saved with workoutTemplateOf, so a workout built here
 // is exactly the shape of one saved from a Plan.
 import { useMemo, useState } from 'react';
-import { Button, EmptyState, Field, Icon, Sheet } from '@/components/ui';
+import { Button, EmptyState, Field, Icon, Seg, Sheet } from '@/components/ui';
 import { useCoach } from '@/app/App';
 import { buildLibrary } from '@/plan/library';
 import {
   addExercise, keyOf, makeIds, moveSlot, removeExercise, slotsOf, updateExercise, type ExerciseFields, type PlanDoc,
 } from '@/plan/doc';
 import { workoutTemplateOf, type Template } from '@/plan/templates';
+import { useCoachExercises } from '@/plan/useCoachExercises';
 import { ExerciseSheet, type ExerciseSheetContext } from '@/coach/client/plan/ExerciseSheets';
 
 const DAY = 'w';
@@ -28,19 +30,21 @@ function blankDoc(): PlanDoc {
 export function WorkoutBuilder({ onClose, onSaved }: { onClose: () => void; onSaved: (t: Template) => void }) {
   const { repo } = useCoach();
   const ids = useMemo(() => makeIds(() => repo.now()), [repo]);
-  const library = useMemo(() => buildLibrary(null), []);
+  const coachLib = useCoachExercises();
+  const library = useMemo(() => buildLibrary(null, coachLib.mine), [coachLib.mine]);
   const [doc, setDoc] = useState<PlanDoc>(blankDoc);
   const [name, setName] = useState('');
+  const [audience, setAudience] = useState<'group' | 'client' | null>(null);
   const [ctx, setCtx] = useState<ExerciseSheetContext | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const list = doc.exercises[keyOf(doc.macro.id, DAY)] || [];
   const slots = slotsOf(list);
-  const ready = !!name.trim() && list.length > 0 && list.length <= 40;
+  const ready = !!audience && !!name.trim() && list.length > 0 && list.length <= 40;
   const save = async () => {
     setBusy(true); setError(null);
     try {
-      const t = workoutTemplateOf(doc, DAY, name.trim());
+      const t = workoutTemplateOf(doc, DAY, name.trim(), audience ?? 'client');
       onSaved(await repo.saveTemplate({ kind: 'workout', name: name.trim(), summary: t.summary, body: t.body }));
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
   };
@@ -48,7 +52,12 @@ export function WorkoutBuilder({ onClose, onSaved }: { onClose: () => void; onSa
   return (
     <>
       <Sheet open title="New workout" onClose={onClose}>
-        <p className="muted">A single session for your Library. Run it with a group, or apply it to a client’s cycle.</p>
+        <p className="muted">A single session for your Library.</p>
+        <Field label="For">
+          <Seg<'group' | 'client'> label="Who it's for" value={(audience ?? '') as 'group' | 'client'} onChange={setAudience} accent
+            options={[{ value: 'client', label: 'A client' }, { value: 'group', label: 'A group' }]} />
+        </Field>
+        {audience && <p className="caption" style={{ marginTop: 6 }}>{audience === 'group' ? 'Run with a group session: sets, reps and weight, no progression.' : 'Applied into a client’s cycle, where it progresses like any session.'}</p>}
         <Field label="Name" htmlFor="wb-name">
           <input id="wb-name" className="input" maxLength={80} value={name} onChange={(e) => setName(e.target.value)} placeholder="Bootcamp circuit" />
         </Field>
@@ -72,9 +81,9 @@ export function WorkoutBuilder({ onClose, onSaved }: { onClose: () => void; onSa
         <Button variant="ghost" icon="plus" style={{ marginTop: 12 }} onClick={() => setCtx({ ...base, mode: 'add' })} disabled={list.length >= 40}>Add exercise</Button>
         {error && <p className="dy-refusal" role="alert"><Icon name="warning" size={16} /> {error}</p>}
         <Button icon="library" style={{ marginTop: 18 }} disabled={!ready || busy} onClick={() => void save()}>Save to Library</Button>
-        {!ready && <p className="caption" style={{ marginTop: 8 }}>Give it a name and at least one exercise.</p>}
+        {!ready && <p className="caption" style={{ marginTop: 8 }}>{audience ? 'Give it a name and at least one exercise.' : 'Choose who it’s for, give it a name and at least one exercise.'}</p>}
       </Sheet>
-      <ExerciseSheet ctx={ctx} library={library} distanceUnitPref="km" noSupersets onClose={() => setCtx(null)}
+      <ExerciseSheet ctx={ctx} library={library} distanceUnitPref="km" noSupersets group={audience === 'group'} onNewExercise={coachLib.remember} onClose={() => setCtx(null)}
         onSave={(f: ExerciseFields) => {
           const c = ctx!;
           setDoc((d) => (c.mode === 'edit' ? updateExercise(d, DAY, c.exercise!.id, f) : addExercise(d, DAY, f, ids)));

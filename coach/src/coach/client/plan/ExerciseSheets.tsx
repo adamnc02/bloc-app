@@ -58,7 +58,7 @@ export function ExercisePicker({ open, title, library, category, preferBodyPart,
       {query && !exact && (
         <button type="button" className="ss-row" onClick={() => onPick({ name: q.trim(), bodyPart: category === 'cardio' ? 'Cardio' : '', category: category ?? 'weight', source: 'coach' })}>
           <span className="icon-tile"><Icon name="plus" size={18} /></span>
-          <span className="main"><b>Add “{q.trim()}”</b><small>A new exercise. Pick its body part next.</small></span>
+          <span className="main"><b>Add “{q.trim()}”</b><small>A new exercise in your library. Pick its body part next.</small></span>
         </button>
       )}
       {groups.map((g) => (
@@ -66,7 +66,7 @@ export function ExercisePicker({ open, title, library, category, preferBodyPart,
           <div className="ss-group">{g.title}</div>
           {g.items.map((e) => (
             <button key={e.name} type="button" className="ss-row" onClick={() => onPick(e)}>
-              <span className="main"><b>{e.name}</b><small>{e.bodyPart}{e.source === 'client' ? ' · their library' : e.source === 'coach' ? ' · in this plan' : ''}</small></span>
+              <span className="main"><b>{e.name}</b><small>{e.bodyPart}{e.source === 'client' ? ' · their library' : e.source === 'mine' ? ' · your library' : e.source === 'coach' ? ' · in this plan' : ''}</small></span>
               <span style={{ color: 'var(--text3)' }}><Icon name="chevR" size={18} /></span>
             </button>
           ))}
@@ -105,8 +105,12 @@ const blank = (cat: 'weight' | 'cardio', unit: string): ExerciseFields => ({
  * or distance target and levels), plus its body part. Editing also moves,
  * links, unlinks and removes it.
  */
-export function ExerciseSheet({ ctx, library, distanceUnitPref, onClose, onSave, onMove, onLink, onUnlink, onRemove, noSupersets }: {
+export function ExerciseSheet({ ctx, library, distanceUnitPref, onClose, onSave, onMove, onLink, onUnlink, onRemove, noSupersets, onNewExercise, group }: {
   ctx: ExerciseSheetContext | null; library: LibraryEntry[]; distanceUnitPref: 'km' | 'mi';
+  /** An exercise the library doesn't have yet, saved: it goes into the coach's own library (0035, §165), no extra step. */
+  onNewExercise?: (e: LibraryEntry) => void;
+  /** A Group workout (§165): no progression runs on a group, so sets, reps and weight only (no peak sets, no heavy leg). */
+  group?: boolean;
   /** Library → New workout builds a plain list: no superset rows (§162). */
   noSupersets?: boolean;
   onClose: () => void; onSave: (f: ExerciseFields) => void;
@@ -196,7 +200,7 @@ export function ExerciseSheet({ ctx, library, distanceUnitPref, onClose, onSave,
                   {repOptions.map((r) => <option key={r} value={r}>{r}</option>)}
                 </select>
               </Field>
-              <Field label="Starting kg" htmlFor={`${id}-w`}>
+              <Field label={group ? 'Weight (kg)' : 'Starting kg'} htmlFor={`${id}-w`}>
                 <NumInput id={`${id}-w`} inputMode="decimal" step={0.5} min={0} className="input num" placeholder="60" value={f.startWeight || null} empty={null} onValue={(n) => set('startWeight', n ?? 0)} />
               </Field>
             </div>
@@ -242,25 +246,25 @@ export function ExerciseSheet({ ctx, library, distanceUnitPref, onClose, onSave,
           </>
         )}
         <div className="tiles-2" style={{ marginTop: 16, opacity: giant || nonLeader ? 0.45 : 1 }}>
-          <Field label="Starting sets" htmlFor={`${id}-s1`}>
-            <select id={`${id}-s1`} className="input num" disabled={giant || nonLeader} value={f.setsStart} onChange={(e) => { const n = Number(e.target.value); setF((x) => ({ ...x, setsStart: n, setsEnd: Math.max(n, x.setsEnd) })); }}>
+          <Field label={group ? 'Sets' : 'Starting sets'} htmlFor={`${id}-s1`}>
+            <select id={`${id}-s1`} className="input num" disabled={giant || nonLeader} value={f.setsStart} onChange={(e) => { const n = Number(e.target.value); setF((x) => ({ ...x, setsStart: n, setsEnd: group ? n : Math.max(n, x.setsEnd) })); }}>
               {SETS.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </Field>
-          <Field label="Peak sets" htmlFor={`${id}-s2`}>
+          {!group && <Field label="Peak sets" htmlFor={`${id}-s2`}>
             <select id={`${id}-s2`} className="input num" disabled={giant || nonLeader} value={f.setsEnd} onChange={(e) => set('setsEnd', Number(e.target.value))}>
               {SETS.filter((n) => n >= f.setsStart).map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
-          </Field>
+          </Field>}
         </div>
         {nonLeader && <p className="caption" style={{ marginTop: 6 }}>Sets follow {members[0].name}, the superset’s leader.</p>}
         {!cardio && (
           <div className="tiles-2" style={{ marginTop: 16 }}>
-            <Field label="Heavy leg" htmlFor={`${id}-l`}>
+            {!group && <Field label="Heavy leg" htmlFor={`${id}-l`}>
               <select id={`${id}-l`} className="input" value={f.isHeavyLeg ? '1' : '0'} onChange={(e) => set('isHeavyLeg', e.target.value === '1')}>
                 <option value="0">No, light</option><option value="1">Yes, heavy</option>
               </select>
-            </Field>
+            </Field>}
             <Field label="Weight is" htmlFor={`${id}-tr`}>
               <select id={`${id}-tr`} className="input" value={f.trackingMode} onChange={(e) => set('trackingMode', e.target.value as 'total' | 'perSide')}>
                 <option value="total">Total</option><option value="perSide">Per side</option>
@@ -268,8 +272,15 @@ export function ExerciseSheet({ ctx, library, distanceUnitPref, onClose, onSave,
             </Field>
           </div>
         )}
-        {!cardio && <p className="caption" style={{ marginTop: 6 }}>Heavy leg jumps 5 kg a mesocycle (10 kg on a gain cycle); per side counts double in volume.</p>}
-        <Button style={{ marginTop: 20 }} icon={ctx.mode === 'swap' ? 'swap' : undefined} disabled={!ok || (ctx.mode === 'reset' && !ctx.resetFrom)} onClick={() => onSave({ ...f, name: f.name.trim() })}>{ctx.mode === 'add' ? 'Add exercise' : ctx.mode === 'swap' ? 'Swap in plan' : ctx.mode === 'reset' ? `Reset from MC ${ctx.resetFrom ?? ''}` : 'Save exercise'}</Button>
+        {!cardio && !group && <p className="caption" style={{ marginTop: 6 }}>Heavy leg jumps 5 kg a mesocycle (10 kg on a gain cycle); per side counts double in volume.</p>}
+        <Button style={{ marginTop: 20 }} icon={ctx.mode === 'swap' ? 'swap' : undefined} disabled={!ok || (ctx.mode === 'reset' && !ctx.resetFrom)} onClick={() => {
+          const name = f.name.trim();
+          if (onNewExercise && !library.some((e) => e.name.trim().toLowerCase() === name.toLowerCase())) {
+            onNewExercise({ name, bodyPart: f.category === 'cardio' ? 'Cardio' : (f.bodyPart || 'Other'), category: f.category });
+          }
+          // A group workout's sets are what's done each time: no peak, no heavy-leg jump.
+          onSave(group ? { ...f, name, setsEnd: f.setsStart, isHeavyLeg: false } : { ...f, name });
+        }}>{ctx.mode === 'add' ? 'Add exercise' : ctx.mode === 'swap' ? 'Swap in plan' : ctx.mode === 'reset' ? `Reset from MC ${ctx.resetFrom ?? ''}` : 'Save exercise'}</Button>
 
         {ctx.mode === 'edit' && ex && (
           <div className="card" style={{ marginTop: 18, padding: '4px 16px' }}>

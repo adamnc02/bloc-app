@@ -131,7 +131,12 @@ export function EditSheet({ occ, diary, who, bundles, onSave, onCancelSession, o
   extra?: ReactNode;
 }) {
   const id = useId();
-  const [p, setP] = useState<SessionPatch>({ date: occ.date, start: occ.start, duration: occ.duration, location: occ.location, title: occ.title, clientIds: occ.clientIds });
+  const initial: SessionPatch = { date: occ.date, start: occ.start, duration: occ.duration, location: occ.location, title: occ.title, clientIds: occ.clientIds };
+  const [p, setP] = useState<SessionPatch>(initial);
+  // Save is for a change to the form (§165): unchanged, it's dull. Planning a workout or tagging a session saves at once.
+  const same = (a: SessionPatch, b: SessionPatch) => a.date === b.date && a.start === b.start && a.duration === b.duration
+    && (a.location ?? null) === (b.location ?? null) && (a.title ?? null) === (b.title ?? null) && [...a.clientIds].sort().join() === [...b.clientIds].sort().join();
+  const changed = !same(p, initial);
   const set = (x: Partial<SessionPatch>) => setP((cur) => ({ ...cur, ...x }));
   const group = occ.kind === 'group';
   // The week itself; "All future" is checked again once chosen.
@@ -164,7 +169,7 @@ export function EditSheet({ occ, diary, who, bundles, onSave, onCancelSession, o
         <input id={`${id}-loc`} className="input" maxLength={120} value={p.location ?? ''} onChange={(e) => set({ location: e.target.value || null })} placeholder="Studio" />
       </Field>
       {refusal && <p className="dy-refusal" role="alert"><Icon name="warning" size={16} /> {refusal.reason}. Pick another time.</p>}
-      <div style={{ marginTop: 20 }}><Button onClick={() => onSave(p)} disabled={!!refusal || (group && !p.clientIds.length)}>Save</Button></div>
+      <div style={{ marginTop: 20 }}><Button onClick={() => onSave(p)} disabled={!changed || !!refusal || (group && !p.clientIds.length)}>Save</Button></div>
       <div className="stack" style={{ marginTop: 12 }}>
         {!occ.recurring && !occ.seriesId && <Button variant="ghost" icon="sync" onClick={onMakeWeekly}>Repeat every {fmt.dayLong(occ.date)}</Button>}
         <Button variant="danger" onClick={onCancelSession}>{occ.recurring ? 'Cancel…' : 'Cancel this session'}</Button>

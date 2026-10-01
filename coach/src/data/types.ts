@@ -5,6 +5,7 @@ import type { BlocState, CycleReviewImage, Loose } from '@engine';
 import type { AiData, AiDraft, AiEdit, AiOriginal, AiTool, CoachPublication, Submission } from '@/ai/types';
 import type { PlanDoc } from '@/plan/doc';
 import type { Template, TemplateBody } from '@/plan/templates';
+import type { LibraryEntry } from '@/plan/library';
 import type { FlagLeave } from '@/review/effort';
 import type { AssignedSession, Booking, DayOff, Diary, DiarySettings, SentBooking, Series, Slot, RequestStatus } from '@/diary/types';
 
@@ -167,6 +168,12 @@ export interface CoachRepo extends DiaryRepo {
   saveTemplate(t: NewTemplate): Promise<Template>;
   starTemplate(id: string, starred: boolean): Promise<void>;
   deleteTemplate(id: string): Promise<void>;
+  /** A workout template's body replaced (its Group / Client type, §165). */
+  updateTemplateBody(id: string, body: TemplateBody): Promise<void>;
+  /** The coach's own exercise library (`coach_exercises`, 0035), as library entries (`source: 'mine'`). */
+  loadExercises(): Promise<LibraryEntry[]>;
+  /** Adds one to it; a name already there (whatever its case) is left as it is. */
+  saveExercise(e: LibraryEntry): Promise<void>;
   /** Records a template applied to a card (`template_applications`), for "most used". */
   recordApplication(templateId: string, cardId: string): Promise<void>;
 }

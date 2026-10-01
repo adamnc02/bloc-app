@@ -214,6 +214,16 @@ export function agendaOf(s: BlocState, macro: Macrocycle, today: string): PickUn
   }));
 }
 
+/** Where a session of the agenda stands, in words, and its tag's tone (Sessions → This cycle, §165). */
+export function sessionStatus(x: PickSession): { text: string; tone: 'good' | 'acc' | 'blue' | 'amber' | 'neutral' } {
+  if (x.groupReplaced) return { text: 'Replaced by a group', tone: 'blue' };
+  if (x.coachLogged) return { text: 'Logged by you', tone: 'acc' };
+  if (x.done) return { text: 'Done', tone: 'good' };
+  if (x.partial || x.doneSets > 0) return { text: `Part done · ${x.doneSets}/${x.sets} sets`, tone: 'amber' };
+  if (x.upNext) return { text: 'Up next', tone: 'acc' };
+  return { text: 'To do', tone: 'neutral' };
+}
+
 export const sameSession = (a: Pick<AssignedSession, 'macroId' | 'week' | 'dayKey'> | null | undefined, b: Pick<AssignedSession, 'macroId' | 'week' | 'dayKey'> | null | undefined) =>
   !!a && !!b && a.macroId === b.macroId && Number(a.week) === Number(b.week) && a.dayKey === b.dayKey;
 

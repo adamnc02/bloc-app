@@ -22,6 +22,7 @@ import { buildLibrary, type LibraryEntry } from '@/plan/library';
 import type { PlanData, PlanDraft } from '@/data/types';
 import type { ClientView } from '@/coach/screens/ClientScreen';
 import { useRecord } from '@/inperson/useRecord';
+import { useCoachExercises } from '@/plan/useCoachExercises';
 
 export interface PlanCycle {
   id: string;
@@ -163,11 +164,14 @@ export function usePlan(v: ClientView, wanted: string | null) {
   const overlap = useMemo<ReplaceOffer | ReplaceRefusal | null>(() => (doc
     ? planReplaceOffer(doc.macro as unknown as Macrocycle, others, otherGoals, { today }) : null), [doc, others, otherGoals, today]);
 
+  // BLOC's, the client's, the coach's own library (0035, §165), then this plan's names.
+  const coachLib = useCoachExercises();
   const library = useMemo<LibraryEntry[]>(() => buildLibrary((snap?.state as { customLibrary?: unknown } | undefined)?.customLibrary,
-    doc ? Object.values(doc.exercises).flat().filter((e) => e.bodyPart).map((e) => ({ name: e.name, bodyPart: e.bodyPart!, category: e.category })) : []), [snap, doc]);
+    [...coachLib.mine, ...(doc ? Object.values(doc.exercises).flat().filter((e) => e.bodyPart).map((e) => ({ name: e.name, bodyPart: e.bodyPart!, category: e.category })) : [])]),
+  [snap, doc, coachLib.mine]);
 
   return {
-    loading: !data && !error, error, reload: load, today, cycles, selected, doc, base, diff, overlap, library, ids,
+    loading: !data && !error, error, reload: load, today, cycles, selected, doc, base, diff, overlap, library, ids, rememberExercise: coachLib.remember,
     /** The record (and so `trainLogs`) has loaded: a reset or a late exercise's week is only worked out after it. */
     trainLogsReady: !!record.state,
     trainLogs: ((record.state ?? snap?.state) as { trainLogs?: Record<string, { done?: unknown }> } | null | undefined)?.trainLogs ?? null,

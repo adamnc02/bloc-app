@@ -280,7 +280,7 @@ export function PlanTab({ v, macro, intent }: { v: ClientView; macro: string | n
 
       {doc && (
         <>
-          <ExerciseSheet ctx={exCtx} library={p.library} distanceUnitPref={distanceUnitOf(v)} onClose={() => setExCtx(null)}
+          <ExerciseSheet ctx={exCtx} library={p.library} distanceUnitPref={distanceUnitOf(v)} onClose={() => setExCtx(null)} onNewExercise={p.rememberExercise}
             onSave={(f) => {
               const c = exCtx!;
               // Part-way through a cycle, an added or swapped-in exercise joins at the client's week (§147).

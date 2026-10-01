@@ -223,7 +223,8 @@ export function InPersonScreen({ occKey, cardId }: { occKey: string; cardId: str
         <div><div className="big num" style={{ fontSize: 30 }}>{fmt.int(volumeOf(draft.sets))}<span style={{ fontSize: 14, color: 'var(--text3)' }}> kg</span></div><div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Volume</div></div>
       </div>
       <div style={{ marginTop: 8 }}><Bar value={all.length ? Math.max(0.03, done / all.length) : 0} label={`${done} of ${all.length} sets done`} /></div>
-      {ownDate && <Button size="card" icon="checkbox" style={{ marginTop: 16 }}
+      {/* Once every set is done there's nothing left for it to complete, so it goes (§165). */}
+      {ownDate && done < all.length && <Button size="card" icon="checkbox" style={{ marginTop: 16 }}
         onClick={() => setDraft({ ...draft, sets: Object.fromEntries(targets.map((t) => [String(t.ex.id), (draft.sets[String(t.ex.id)] ?? blankSets(t)).map((x, k) => ({ kg: x.kg || t.weights[k] || '', reps: x.reps || t.reps[k] || '', done: true }))])) })}>
         Done as planned</Button>}
       {!owned && <Button size="card" variant="ghost" icon="swap" style={{ marginTop: ownDate ? 10 : 16 }} onClick={() => setPicking(true)}>Change session</Button>}
