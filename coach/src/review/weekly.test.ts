@@ -21,7 +21,7 @@ describe('Weekly compliance explainer', () => {
   });
   it('gives the engine’s minimum counted days, and the client’s name', () => {
     const t = weeklyComplianceSub('loss', 'Maya');
-    expect(t).toContain(`at least ${MIN_COUNTED_DAYS} days logged in full`);
-    expect(t).toContain('Maya’s Home');
+    expect(t).toContain(`${MIN_COUNTED_DAYS} full days logged`);
+    expect(t).toContain('Maya’s weekly averages');
   });
 });

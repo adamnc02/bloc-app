@@ -8,7 +8,6 @@ import { MIN_COUNTED_DAYS } from '@engine/review';
  */
 export function weeklyComplianceSub(goalType: string | null | undefined, first: string): string {
   const kcal = goalType === 'gain' ? 'calories at or over target' : goalType === 'maintenance' ? 'calories on target' : 'calories at or under target';
-  return `Each Monday–Sunday week, on the four averages ${first}’s Home shows: calories, protein, carbs and steps. `
-    + `✓ is the right side of target for this cycle (${kcal}; protein and steps at or over; carbs at or under), × the wrong side. `
-    + `The score is the share of ticks out of 10 (3 of 4 is 7.5). A week is scored once it’s over, with at least ${MIN_COUNTED_DAYS} days logged in full; the cycle’s Nutrition score above is the average of those weeks.`;
+  return `${first}’s weekly averages against target. ✓ on target, × off it (${kcal}, carbs at or under, protein and steps at or over). `
+    + `Score: ticks out of 10. A week counts once it’s over, with ${MIN_COUNTED_DAYS} full days logged.`;
 }
