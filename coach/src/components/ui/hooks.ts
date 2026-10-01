@@ -50,7 +50,16 @@ export function useToast(ms = 2600) {
  * Tap-and-hold, then drag (Part 1 §9, ported from personal-ledger's TrendChart).
  * Touch: hold 280ms to engage, then drag scrubs; a quick swipe still scrolls.
  * Mouse/pen: hover scrubs immediately. Returns the scrub x (px in the element)
- * or null, plus props to spread on the chart's hit area.
+ * or null, plus props (with a `ref`) to spread on the chart's hit area.
+ *
+ * 🚨 iOS Safari fixes a touch's `touch-action` when the finger lands, so
+ *    switching to 'none' once the hold engages changes nothing: the page still
+ *    owned vertical movement, a drag with any vertical part scrolled it, iOS
+ *    cancelled the pointer and the callout vanished mid-read. What iOS does
+ *    honour is preventDefault() on `touchmove` from a NON-passive listener
+ *    (React's are passive, so it's attached natively through `ref`), and after
+ *    a still hold no scroll has begun, so blocking it there keeps the page put
+ *    for as long as the scrub lasts. A quick swipe never engages, and scrolls.
  */
 export function useScrub(opts: { holdMs?: number } = {}) {
   const holdMs = opts.holdMs ?? 280;
@@ -60,6 +69,17 @@ export function useScrub(opts: { holdMs?: number } = {}) {
   const start = useRef<{ x: number; y: number; id: number } | null>(null);
   const el = useRef<HTMLElement | null>(null);
   const wasScrub = useRef(false);
+  const engagedRef = useRef(false);
+  const detach = useRef<() => void>();
+  /** The hit area: a native, non-passive touchmove that holds the page still while a scrub is engaged. */
+  const ref = useCallback((node: HTMLElement | null) => {
+    detach.current?.();
+    detach.current = undefined;
+    if (!node) return;
+    const hold = (e: TouchEvent) => { if (engagedRef.current && e.cancelable) e.preventDefault(); };
+    node.addEventListener('touchmove', hold, { passive: false });
+    detach.current = () => node.removeEventListener('touchmove', hold);
+  }, []);
 
   const localX = (e: RPointerEvent) => {
     const r = (el.current ?? (e.currentTarget as HTMLElement)).getBoundingClientRect();
@@ -72,6 +92,7 @@ export function useScrub(opts: { holdMs?: number } = {}) {
     start.current = { x: e.clientX, y: e.clientY, id: e.pointerId };
     const lx = localX(e);
     timer.current = window.setTimeout(() => {
+      engagedRef.current = true;
       setEngaged(true);
       wasScrub.current = true;
       setX(lx);
@@ -91,6 +112,7 @@ export function useScrub(opts: { holdMs?: number } = {}) {
   const end = () => {
     window.clearTimeout(timer.current);
     start.current = null;
+    engagedRef.current = false;
     setEngaged(false);
     setX(null);
   };
@@ -101,10 +123,11 @@ export function useScrub(opts: { holdMs?: number } = {}) {
     engaged,
     consumeScrubClick,
     bind: {
-      onPointerDown, onPointerMove,
+      ref, onPointerDown, onPointerMove,
       onPointerUp: end, onPointerCancel: end,
       onPointerLeave: (e: RPointerEvent) => { if (e.pointerType === 'mouse') end(); },
-      style: { touchAction: engaged ? 'none' : 'pan-y' } as CSSProperties,
+      // No long-press callout over the chart (the hold is the scrub).
+      style: { touchAction: engaged ? 'none' : 'pan-y', WebkitTouchCallout: 'none' } as CSSProperties,
     },
   };
 }
