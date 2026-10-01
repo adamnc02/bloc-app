@@ -11465,9 +11465,10 @@ which BLOC and BLOC Coach both read:
   catch it and read it as "not enough data yet", so a new client never breaks Progress or Today through this path.
 
 **Coach.** The AI panel's Check-in row reads the schedule ("First check-in due", "Check-in due", "Next check-in · {date} ·
-run early", or how many weeks of logs until the first). Today's **Needs you** has a due check-in (`checkinDue()`, at the
-client's today, on Review's cycle), keyed `c:{card}:{macro}:{dueOn | first}`: publishing one moves `dueOn`, so the item
-clears and the next is a new key. **Coming up** lists one coming due in the next 7 days. The request's finding, tile,
+run early", "No check-in needed yet" for a client on track, or how many weeks of logs until the first). Check-ins are
+**Coming up's only**: due now ("First check-in due", "Check-in due since {date}") or coming due within 7 days, at the
+client's today. 🚨 Never in Needs you and never dismissable: Needs you is for what a client sent (challenges, notes back),
+and a due check-in clears only by publishing one. The request's finding, tile,
 prompt line ("THE CLIENT ASKED…") and Needs you card are gone; old drafts may still carry `original.requestId`.
 
 **BLOC.** The Check in button, sheet (`modal-coach-checkin`) and their `check_in` row are removed; `state.coachCheckinsSent`
@@ -11483,19 +11484,17 @@ shown never disappears, on that device. No tab ready: the card says when the fir
 
 **Checks:** `coach/src/ai/schedule.test.ts` (the schedule and the tabs on the demo client, with 0 and 1 weigh-ins);
 `ai.test.ts` (eligibility: an unpublished run leaves it due, another cycle's doesn't count); `today.test.ts` (Needs you
-from the schedule; an old request row changes nothing); `verify-coach-logged.mjs` §7 (BLOC's own functions, including a
+never has a check-in; Coming up's clears only on a publish, control: a run alone; an old request row changes nothing); `verify-coach-logged.mjs` §7 (BLOC's own functions, including a
 tab kept on a thin day); `verify-from-coach.mjs` (no Check in, no `purpose 'check_in'` row, only ready tabs, the line
 under Check-in only); `engine-cases.mjs` covers the new exports.
 
-## §169 — Coach v0.16: dismissing a Needs you item (migration `0036`)
+## §169 — Coach v0.16: dismissing a note back from Needs you (migration `0036`)
 
-A **note back** or a **check-in due** has **Dismiss** on its Needs you card. The dismissal is a
-`coach_needs_dismissals` row (card, `item_key` = the item's key, `created_at`), so every device agrees.
-
-- A note back stays dismissed. A check-in comes back once `checkinDueAfter(dismissal date)` has passed at the client's
-  today, if it's still due (`isDismissed()` in `today/model.ts`): a check-in skipped and never published is raised again
-  a fortnight later rather than never.
-- A repeat dismissal deletes the old row and inserts a new one (no update grant), so the new date counts.
+A **note back** (on a check-in, a challenge) has **Dismiss** on its Needs you card, left of its action. The dismissal is
+a `coach_needs_dismissals` row (card, `item_key` = the item's key `n:<submission id>`, `created_at`), so every device
+agrees, and it's for good (`isDismissed()` in `today/model.ts`). Check-ins are never dismissed (§168: they're Coming up's).
+The table takes any key up to 300 characters; Coach writes only `n:` keys. A repeat dismissal deletes the old row and
+inserts a new one (no update grant).
 - 🚨 **Nothing reaches the client**: no publication, no push, no client policy. `behaviour-needs-dismissals.mjs` checks
   no push is queued.
 - Before `0036` is on the project, the dismissals read fails on its own and Today draws with none (`live.ts` reads it
@@ -11505,7 +11504,7 @@ A **note back** or a **check-in due** has **Dismiss** on its Needs you card. The
 review photos", tag `photos:<submission id>`, which opens Needs you's photos item, key `p:<id>`, on Review → Cycle review).
 Coach's switch (column `check_ins`) is labelled **Review photos**.
 
-**Checks:** `today.test.ts` (dismissed items gone, everything else kept, the check-in back after the cooldown);
+**Checks:** `today.test.ts` (a dismissed note gone, everything else kept, a row naming Coming up's check-in changing nothing);
 super-duper-octo-barnacle's `0036` check file and behaviour test.
 
 ## §170 — v8.56 + Coach v0.16: notes back as a thread; Challenge with BLOC on a check-in

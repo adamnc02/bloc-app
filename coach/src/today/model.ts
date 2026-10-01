@@ -4,24 +4,22 @@
 //   Today's sessions  the diary's sessions today (the coach's date), with Start session on a one-to-one from
 //                     15 minutes before it starts until the day ends, unless it's already logged.
 //   Needs you         everything waiting on the coach, each clearing once dealt with: session requests (and a
-//                     confirmed time that now clashes), check-ins due (the engine's coachCheckinSchedule, the one BLOC
-//                     shows: a client never asks for one), notes back not replied to, review
+//                     confirmed time that now clashes), notes back not replied to (on a check-in, a challenge), review
 //                     photos answered and not yet reviewed, and bookings from the last 14 days that weren't
 //                     logged or cancelled (BLOC keeps an assigned session out of "next" until one or the other),
 //                     group weeks included (§162: Log it opens the group session, Cancel cancels it for everyone),
 //                     and an exercise rated 9+, or missing its target, two weeks running on a coach's cycle (§163:
 //                     Reset it opens it in Plan; Leave keeps BLOC's hold, until a further week the same way).
-//                     A note back or a check-in due can be DISMISSED (§169, 0036): a note back for good, a check-in
-//                     until the cooldown after the dismissal (checkinDueAfter) if it's still due then. The client is
-//                     never told.
+//                     A note back can be DISMISSED (§169, 0036), on every device; the client is never told.
 //   Off track         linked clients whose outcome is off track (Review's judgement), with its one reason.
-//   Coming up         check-ins coming due in the next 7 days, cycles in their final week, measurements due, and apps
-//                     gone quiet.
+//   Coming up         check-ins due now or in the next 7 days (the engine's coachCheckinSchedule, the one BLOC shows: a
+//                     client never asks for one; never in Needs you, never dismissed), cycles in their final week,
+//                     measurements due, and apps gone quiet.
 //
 // 🚨 Anything judged about a client is at the client's today (their upload's zone): check-ins, cycle ends and
 //    measurements. The diary's own dates (today's sessions, missed bookings) are the coach's.
 // ═══════════════════════════════════════════════════════════════════════
-import { checkinDueAfter, coachCheckinSchedule, getMacroEndDate, shiftDateStr, dayDiff, type BlocState, type Loose, type Macrocycle } from '@engine';
+import { coachCheckinSchedule, getMacroEndDate, shiftDateStr, dayDiff, type BlocState, type Loose, type Macrocycle } from '@engine';
 import type { AiDraft, CoachPublication, Submission } from '@/ai/types';
 import { notesBack, photoRequestState, publishedCheckinDates } from '@/ai/tools';
 import type { ClientBundle, Inbox } from '@/data/types';
@@ -51,7 +49,6 @@ export interface TodaySession {
 
 export type NeedsItem =
   | { kind: 'request'; key: string; at: string; cardId: string | null; request: SessionRequest }
-  | { kind: 'checkin'; key: string; at: string; cardId: string; macroId: string; dueOn: string | null; first: boolean }
   | { kind: 'note'; key: string; at: string; cardId: string; submission: Submission; headline: string | null; tool: string | null; macroId: string | null }
   | { kind: 'photos'; key: string; at: string; cardId: string; macroId: string; skipped: boolean; count: number }
   | { kind: 'missed'; key: string; at: string; cardId: string; occ: Occurrence }
@@ -130,16 +127,11 @@ export function needsYou(d: Diary, inbox: Inbox, bundles: ClientBundle[], summar
     const subs = inbox.submissions.filter((x) => x.clientId === b.link!.clientId);
     const drafts: AiDraft[] = inbox.drafts.filter((x) => x.cardId === cardId);
     const pubs: CoachPublication[] = byCard(inbox.publications, cardId);
-    // A check-in due on the schedule (at the client's today). Its key names the due date, so a dismissal, or a run
-    // and publish, clears this one and the next due date is a new item.
-    const sum = summaries.find((s) => s.id === cardId);
-    const due = checkinDue(b.snapshot?.state ?? null, sum, pubs);
-    if (due && !isDismissed(inbox, `c:${cardId}:${due.macroId}:${due.dueOn ?? 'first'}`, sum!.clientToday!)) out.push({ kind: 'checkin', key: `c:${cardId}:${due.macroId}:${due.dueOn ?? 'first'}`, at: due.dueOn ?? sum!.clientToday!, cardId, macroId: due.macroId, dueOn: due.dueOn, first: !due.dueOn });
     // Notes back with no reply yet: every response on the card.
     const responses = [...new Set(subs.filter((x) => x.kind === 'note_back').map((x) => String(x.body?.response_id ?? '')))];
     for (const rid of responses) {
       const resp = pubs.filter((p) => p.type === 'ai_response' && p.payload?.response_id === rid).sort((a, z) => z.seq - a.seq)[0];
-      for (const n of notesBack(subs, pubs, rid)) if (!n.reply && !isDismissed(inbox, `n:${n.note.id}`, null)) out.push({ kind: 'note', key: `n:${n.note.id}`, at: n.note.createdAt, cardId, submission: n.note,
+      for (const n of notesBack(subs, pubs, rid)) if (!n.reply && !isDismissed(inbox, `n:${n.note.id}`)) out.push({ kind: 'note', key: `n:${n.note.id}`, at: n.note.createdAt, cardId, submission: n.note,
         headline: (resp?.payload?.content as Loose | undefined)?.headline ?? null, tool: (resp?.payload?.tool as string | undefined) ?? null, macroId: (resp?.payload?.macro_id as string | undefined) ?? null });
     }
     // Review photos answered (sent or skipped) and no review run since.
@@ -159,24 +151,9 @@ export function needsYou(d: Diary, inbox: Inbox, bundles: ClientBundle[], summar
   return out.sort((a, z) => a.at.localeCompare(z.at));
 }
 
-/**
- * Whether the coach dismissed a Needs you item (0036). A note back (`clientToday` null) stays dismissed. A check-in due
- * comes back once the cooldown after the dismissal has passed (checkinDueAfter of its date, at the client's today), so a
- * check-in skipped and never published is raised again a fortnight later rather than never.
- */
-export function isDismissed(inbox: Inbox, key: string, clientToday: string | null): boolean {
-  const d = (inbox.dismissed ?? []).filter((x) => x.key === key).map((x) => x.at.slice(0, 10)).sort().pop();
-  if (!d) return false;
-  return clientToday == null || clientToday < checkinDueAfter(d);
-}
-
-/** A linked client's check-in due today on the schedule, on the cycle Review judges (the running one), at their today. */
-export function checkinDue(state: BlocState | null, sum: ClientSummary | undefined, pubs: CoachPublication[]): { macroId: string; dueOn: string | null } | null {
-  if (!state || !sum || sum.status !== 'linked' || !sum.clientToday || !sum.cycle) return null;
-  const m = (state.macrocycles || []).find((x) => x.id === sum.cycle!.macroId) as Macrocycle | undefined;
-  if (!m) return null;
-  const sch = coachCheckinSchedule(state, { today: sum.clientToday }, m, publishedCheckinDates(pubs, m.id));
-  return sch.due ? { macroId: m.id, dueOn: sch.dueOn } : null;
+/** Whether the coach dismissed a Needs you item (0036): a note back, for good. */
+export function isDismissed(inbox: Inbox, key: string): boolean {
+  return (inbox.dismissed ?? []).some((x) => x.key === key);
 }
 
 export const offTrack = (summaries: ClientSummary[]) => summaries.filter((s) => s.status === 'linked' && s.outcome.status === 'off-track');
@@ -196,9 +173,12 @@ export function comingUp(bundles: ClientBundle[], summaries: ClientSummary[], in
     if (m && s.cycle) {
       const end = getMacroEndDate(m, { today });
       if (end >= today && end <= soon) out.push({ key: `f:${s.id}`, kind: 'final-week', cardId: s.id, detail: `${s.cycle.name} ends ${end === today ? 'today' : `in ${dayDiff(today, end)} ${dayDiff(today, end) === 1 ? 'day' : 'days'}`}`, tab: 'plan', at: end });
-      // Coming due within the week; once due it's Needs you's.
+      // Due now (the first when the engine calls for it; later ones 14 days after the last published), or coming due
+      // within the week. Check-ins are this list's only: never Needs you, never dismissed.
       const sch = coachCheckinSchedule(st as BlocState, { today }, m, publishedCheckinDates(byCard(inbox.publications, s.id), m.id));
-      if (!sch.due && sch.enoughData && sch.dueOn && sch.dueOn > today && sch.dueOn <= soon && sch.dueOn <= end) {
+      if (sch.due) {
+        out.push({ key: `k:${s.id}`, kind: 'check-in', cardId: s.id, detail: sch.dueOn ? `Check-in due since ${fmt.ddm(sch.dueOn)}` : 'First check-in due', tab: 'review', at: sch.dueOn ?? today });
+      } else if (sch.enoughData && sch.dueOn && sch.dueOn <= soon && sch.dueOn <= end) {
         out.push({ key: `k:${s.id}`, kind: 'check-in', cardId: s.id, detail: `Check-in due ${fmt.ddm(sch.dueOn)}`, tab: 'review', at: sch.dueOn });
       }
     }
@@ -215,7 +195,6 @@ export type NeedsOpen = { kind: 'request'; id: string } | { kind: 'path'; path: 
 export function needsItemOpen(it: NeedsItem): NeedsOpen | null {
   switch (it.kind) {
     case 'request': return { kind: 'request', id: it.request.id };
-    case 'checkin': return { kind: 'path', path: clientPath(it.cardId, 'review', it.macroId, null, { at: 'ai', tool: 'check_in' }) };
     case 'photos': return { kind: 'path', path: clientPath(it.cardId, 'review', it.macroId, null, { at: 'ai', tool: 'cycle_review' }) };
     case 'note': return { kind: 'path', path: clientPath(it.cardId, 'review', it.macroId, null, { at: 'note', note: it.submission.id, tool: it.tool }) };
     default: return null;

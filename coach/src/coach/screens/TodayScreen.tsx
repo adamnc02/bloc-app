@@ -2,7 +2,6 @@
 // track and Coming up; on a laptop Needs you is the right-hand column and the other three stack on the left.
 // Every Needs you item opens where it's dealt with, and clears once it is. The model is today/model.ts.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { checkinDueAfter } from '@engine';
 import { AccountButton, CoachShell } from '@/coach/CoachShell';
 import { Avatar, Button, Card, Chip, EmptyState, Hero, Icon, OutcomeChip, Page, PageHeader, RowButton, Section, Sheet, Tag, Toast, useEntering, useOnResume, type IconName } from '@/components/ui';
 import { useCoach } from '@/app/App';
@@ -135,7 +134,7 @@ export function TodayScreen() {
 
           <div className="tg-needs">
             <Section i={3} title="Needs you" sub="Everything waiting on you, in one list. Each item clears once it’s dealt with." slot={items.length ? <Chip tone="acc">{items.length} waiting</Chip> : undefined}>
-              {items.length === 0 && <EmptyState>Nothing waiting on you. Session requests, check-ins due, notes back and sessions to log land here.</EmptyState>}
+              {items.length === 0 && <EmptyState>Nothing waiting on you. Session requests, challenges and notes back, and sessions to log land here.</EmptyState>}
               <div className="stack">
                 {items.map((it, k) => (
                   <Card key={it.key} i={4 + k}>
@@ -150,7 +149,7 @@ export function TodayScreen() {
                       onDismiss={(x) => {
                         // 0036: the coach's own record; nothing reaches the client.
                         repo.dismissNeeds(x.cardId, x.key)
-                          .then(() => { loadInbox(); toast.show(x.kind === 'checkin' ? `Dismissed. If it’s still due, it’s back ${fmt.ddm(checkinDueAfter(today))}` : 'Dismissed'); })
+                          .then(() => { loadInbox(); toast.show('Dismissed'); })
                           .catch((e) => toast.show(`Couldn’t dismiss it: ${e instanceof Error ? e.message : String(e)}`));
                       }} />
                   </Card>
@@ -263,8 +262,8 @@ function NeedsBody({ it, name, first, who, onRequest, onCancel, onLeave, onDismi
   onRequest: (id: string) => void; onCancel: (x: Extract<NeedsItem, { kind: 'missed' | 'missedGroup' }>) => void;
   /** Leave a flag (§163, 0034): BLOC's hold stands. */
   onLeave: (x: Extract<NeedsItem, { kind: 'effort' }>) => void;
-  /** Dismiss a note back or a check-in due (0036): the coach's own record; the client is never told. */
-  onDismiss: (x: Extract<NeedsItem, { kind: 'note' | 'checkin' }>) => void;
+  /** Dismiss a note back (0036): the coach's own record; the client is never told. */
+  onDismiss: (x: Extract<NeedsItem, { kind: 'note' }>) => void;
 }) {
   const ago = (iso: string) => fmt.ddm(iso.slice(0, 10));
   switch (it.kind) {
@@ -281,15 +280,6 @@ function NeedsBody({ it, name, first, who, onRequest, onCancel, onLeave, onDismi
         <div className="btnrow"><Button size="card" icon="calendar" onClick={() => onRequest(r.id)}>{clash ? 'Move it' : 'Answer'}</Button></div>
       </>;
     }
-    case 'checkin':
-      return <>
-        <CardHead icon="sparkle" eyebrow={it.first ? 'First check-in due' : 'Check-in due'} name={name} when={it.dueOn ? fmt.ddm(it.dueOn) : 'now'} />
-        <p className="muted" style={{ marginTop: 12 }}>{it.first ? `BLOC’s read of ${first}’s trend calls for a first check-in.` : `Two weeks since ${first}’s last check-in.`} Run it with BLOC, edit, then publish.</p>
-        <div className="btnrow">
-          <Button size="card" variant="ghost" onClick={() => onDismiss(it)}>Dismiss</Button>
-          <Button size="card" icon="sparkle" onClick={() => go(needsItemOpen(it))}>Run check-in</Button>
-        </div>
-      </>;
     case 'note':
       return <>
         <CardHead icon="send" eyebrow={it.tool === 'check_in' ? 'Check-in challenged' : 'Note back'} name={name} when={ago(it.submission.createdAt)} />

@@ -11,7 +11,6 @@ import { sessionIdFor } from '@/inperson/model';
 import { groupSessionId } from '@/group/model';
 import { getMeasurementStatus } from '@/lib/measurementStatus';
 import { comingUp, isDismissed, missedBookings, missedGroups, needsItemOpen, needsYou, offTrack, pushAction, todaySessions } from './model';
-import { checkinDueAfter } from '@engine';
 
 const demo = JSON.parse(readFileSync(new URL('../../../bloc-demo-data.json', import.meta.url), 'utf8')) as Record<string, unknown>;
 const built = buildFixtureClients(demo);
@@ -73,7 +72,7 @@ describe('Needs you', () => {
     expect(missedBookings(d, logged, ANCHOR).map((m) => m.occ.key)).not.toContain('s:sr-tom@2026-07-30');
     expect(missed.every((k) => !k.startsWith('s:sr-bootcamp'))).toBe(true);      // a group week is missedGroups', not this list's
   });
-  it('requests waiting on the coach, a check-in due, an unanswered note back and answered review photos; each clears once dealt with', async () => {
+  it('requests waiting on the coach, an unanswered note back and answered review photos; never a check-in; each clears once dealt with', async () => {
     const d = await fixtureDiary(ANCHOR).loadDiary();
     const inbox: Inbox = {
       submissions: [
@@ -84,11 +83,13 @@ describe('Needs you', () => {
       publications: [pub('maya', 'a1', 1, 'ai_response', { response_id: 'r1', content: { headline: 'Steady' } }), pub('maya', 'q1', 2, 'photo_request', { request_id: 'pr1', macro_id: 'macro_1780859905961' })],
     };
     const kinds = needsYou(d, inbox, built.clients, summaries, ANCHOR).map((x) => x.kind);
-    for (const k of ['request', 'checkin', 'note', 'photos', 'missed']) expect(kinds).toContain(k);
-    // The check-in is due on the schedule, with no client request (v0.16): an old request row changes nothing.
+    for (const k of ['request', 'note', 'photos', 'missed']) expect(kinds).toContain(k);
+    // Check-ins are Coming up's only (v0.16), though Maya's is due (control: it's in Coming up, below).
+    expect(kinds.some((k) => /check/.test(k))).toBe(false);
+    expect(comingUp(built.clients, summaries, inbox).some((x) => x.kind === 'check-in' && x.cardId === 'maya')).toBe(true);
+    // An old client request row changes nothing.
     const withOldAsk: Inbox = { ...inbox, submissions: [...inbox.submissions, sub('user-maya', 's1', 'check_in', { purpose: 'check_in', feel: 'Okay', macro_id: null })] };
-    expect(needsYou(d, withOldAsk, built.clients, summaries, ANCHOR).filter((x) => x.kind === 'checkin' || x.kind === 'photos').map((x) => x.key))
-      .toEqual(needsYou(d, inbox, built.clients, summaries, ANCHOR).filter((x) => x.kind === 'checkin' || x.kind === 'photos').map((x) => x.key));
+    expect(needsYou(d, withOldAsk, built.clients, summaries, ANCHOR).map((x) => x.key)).toEqual(needsYou(d, inbox, built.clients, summaries, ANCHOR).map((x) => x.key));
     // Coach v0.9 (§158): a tapped push does what its item's button does. The push's tag carries the id in the item's key.
     const items = needsYou(d, inbox, built.clients, summaries, ANCHOR);
     const tagOf = (key: string) => ({ r: 'request', p: 'photos', n: 'note' } as Record<string, string>)[key[0]] + ':' + key.slice(2);
@@ -102,13 +103,7 @@ describe('Needs you', () => {
     const note = pushable.find((x) => x.kind === 'note')!;
     expect(needsItemOpen(note)).toEqual({ kind: 'path', path: expect.stringContaining('?') });
     expect((needsItemOpen(note) as { path: string }).path).toMatch(/^\/clients\/maya\/review\?.*at=note/);
-    // Dealt with: the note replied to, a check-in PUBLISHED, and the review run after.
-    const runOnly: Inbox = {
-      ...inbox,
-      drafts: [{ id: 'd1', cardId: 'maya', tool: 'check_in', macroId: 'macro_1780859905961', original: {} as never, edited: null, editedAt: null, publicationId: null, createdAt: `${ANCHOR}T12:00:00.000Z` }],
-    };
-    // control: a run never published leaves the check-in due
-    expect(needsYou(d, runOnly, built.clients, summaries, ANCHOR).filter((x) => x.cardId === 'maya').map((x) => x.kind)).toContain('checkin');
+    // Dealt with: the note replied to, and the review run after.
     const done: Inbox = {
       ...inbox,
       publications: [...inbox.publications, pub('maya', 'n1', 3, 'note_reply', { submission_id: 's2', text: 'You’re welcome' }),
@@ -117,14 +112,22 @@ describe('Needs you', () => {
         { id: 'd2', cardId: 'maya', tool: 'cycle_review', macroId: 'macro_1780859905961', original: {} as never, edited: null, editedAt: null, publicationId: null, createdAt: `${ANCHOR}T12:00:00.000Z` },
       ],
     };
-    // Maya's only: other linked clients may have their own check-ins due on the schedule.
     const after = needsYou(d, done, built.clients, summaries, ANCHOR).filter((x) => x.cardId === 'maya').map((x) => x.kind);
-    expect(after.filter((k) => ['checkin', 'note', 'photos'].includes(k))).toEqual([]);
+    expect(after.filter((k) => ['note', 'photos'].includes(k))).toEqual([]);
+  });
+
+  it('Coming up: a check-in due now, cleared by PUBLISHING one (control: a run never published leaves it due)', () => {
+    const maya = (i: Inbox) => comingUp(built.clients, summaries, i).find((x) => x.kind === 'check-in' && x.cardId === 'maya');
+    expect(maya(empty())?.detail).toBe('First check-in due');
+    const runOnly: Inbox = { ...empty(), drafts: [{ id: 'd1', cardId: 'maya', tool: 'check_in', macroId: 'macro_1780859905961', original: {} as never, edited: null, editedAt: null, publicationId: null, createdAt: `${ANCHOR}T12:00:00.000Z` }] };
+    expect(maya(runOnly)?.detail).toBe('First check-in due');
+    const published: Inbox = { ...empty(), publications: [pub('maya', 'c1', 4, 'ai_response', { tool: 'check_in', response_id: 'd1', macro_id: 'macro_1780859905961', content: { headline: 'Keep going' } })] };
+    expect(maya(published)).toBeUndefined();   // next due two weeks on: outside the 7 days
   });
 });
 
 describe('Needs you: dismissing (0036, §169)', () => {
-  it('a dismissed note back stays gone; a dismissed check-in comes back after the cooldown if still due; others untouched', async () => {
+  it('a dismissed note back is gone for good; everything else stays, and a check-in is never dismissable', async () => {
     const d = await fixtureDiary(ANCHOR).loadDiary();
     const base: Inbox = {
       submissions: [sub('user-maya', 's2', 'note_back', { response_id: 'r1', text: 'Thanks!' })],
@@ -133,19 +136,14 @@ describe('Needs you: dismissing (0036, §169)', () => {
     };
     const items = needsYou(d, base, built.clients, summaries, ANCHOR);
     const note = items.find((x) => x.kind === 'note')!;
-    const ci = items.find((x) => x.kind === 'checkin' && x.cardId === 'maya')!;
-    expect(note && ci).toBeTruthy();
-    const at = `${ANCHOR}T12:00:00.000Z`;
-    const dismissed: Inbox = { ...base, dismissed: [{ cardId: 'maya', key: note.key, at }, { cardId: 'maya', key: ci.key, at }] };
+    expect(note).toBeTruthy();
+    const dismissed: Inbox = { ...base, dismissed: [{ cardId: 'maya', key: note.key, at: `${ANCHOR}T12:00:00.000Z` }, { cardId: 'maya', key: 'k:maya', at: `${ANCHOR}T12:00:00.000Z` }] };
     const after = needsYou(d, dismissed, built.clients, summaries, ANCHOR).map((x) => x.key);
     expect(after).not.toContain(note.key);
-    expect(after).not.toContain(ci.key);
-    // control: everything else is still there
-    expect(after.length).toBe(items.length - 2);
-    // a fortnight on (the cooldown after the dismissal), the still-due check-in is back; the note back isn't
-    expect(isDismissed(dismissed, ci.key, checkinDueAfter(ANCHOR))).toBe(false);
-    expect(isDismissed(dismissed, ci.key, ANCHOR)).toBe(true);
-    expect(isDismissed(dismissed, note.key, null)).toBe(true);
+    expect(after.length).toBe(items.length - 1);     // control: everything else is still there
+    expect(isDismissed(dismissed, note.key)).toBe(true);
+    // A dismissal row naming Coming up's check-in changes nothing there.
+    expect(comingUp(built.clients, summaries, dismissed).some((x) => x.key === 'k:maya')).toBe(true);
   });
 });
 
