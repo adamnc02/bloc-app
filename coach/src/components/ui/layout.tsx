@@ -6,15 +6,16 @@ const idx = (i: number) => ({ '--i': i }) as CSSProperties;
 /**
  * A page's way back (‹ Clients), pinned to the top of the screen while the page scrolls. It sits in the eyebrow's
  * place above the H1 and stays in reach however far down the page is. `className` adds a show/hide class
- * (Settings' is phone-only).
+ * (Settings' is phone-only); `children` sit in the same row (Settings' animated logo, centred).
  */
-export function BackBar({ label, href, onClick, className = '' }: { label: ReactNode; href?: string; onClick?: () => void; className?: string }) {
+export function BackBar({ label, href, onClick, className = '', children }: { label: ReactNode; href?: string; onClick?: () => void; className?: string; children?: ReactNode }) {
   const inner = <><Icon name="chevL" size={14} /> {label}</>;
   return (
     <div className={`backbar ${className}`}>
       {href != null
         ? <a href={href} className="eyebrow eyebrow-link">{inner}</a>
         : <button type="button" className="eyebrow eyebrow-link" onClick={onClick}>{inner}</button>}
+      {children}
     </div>
   );
 }

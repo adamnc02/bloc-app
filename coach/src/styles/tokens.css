@@ -45,6 +45,7 @@
   --brand-accent: #2fb98a;
   --brand-neutral: #3b4063;
   --brand-ink: #f2f2f2;
+  --brand-flash: #7ff0c6;             /* the bars' landing flash (the splash's, BLOC's --logo-flash) */
 
   /* ---- typography (§2.2) ---- */
   --font-display: 'Sora', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -108,5 +109,6 @@
   --brand-accent: #1b9e75;            /* brand README: accent on light */
   --brand-neutral: #aab6c8;           /* brand README: neutral on light */
   --brand-ink: #161826;
+  --brand-flash: #45d19d;             /* BLOC's on-light --logo-flash: a lighter flash vanishes on the light page */
   color-scheme: light;
 }
