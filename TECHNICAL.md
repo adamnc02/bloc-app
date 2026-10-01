@@ -11430,6 +11430,7 @@ One name stays, because it's the fact: Close my account's confirmation says who 
 (§57, §133) and the pushes (§157) as they are.
 
 **Check:** `verify-docs-are-facts.mjs` scans every tracked text file (built output and the golden data excepted) for a
-person's name or a pointer to a build round's working files, with an allow-list for that one line. Its controls:
-v8.54's `TECHNICAL.md` fails, a planted line is caught in code and in the README, the allowance holds for its own file
+person's name or a pointer to a build round's working files, with an allow-list for that one line. It scans its own file too, so it
+builds its phrases from parts. Its controls: v8.54's `TECHNICAL.md` fails, a planted line is caught in code and in the
+README, a planted design-note pointer is caught, the allowance holds for its own file
 only, and the `adamnc02.github.io` host isn't read as a name.
