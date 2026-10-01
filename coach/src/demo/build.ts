@@ -18,11 +18,13 @@
 // ═══════════════════════════════════════════════════════════════════════
 import { getHomeWeekStart, shiftDateStr, type BlocState, type Loose } from '@engine';
 import { localDateIn } from '@engine/review';
-import { buildDemoState, sessionSchedule, rng, DEMO_PERSONAS, EILEEN, type DemoPersona } from '@engine/demo';
+import { buildDemoState, sessionSchedule, rng, DEMO_PERSONAS, EILEEN, MAYA, type DemoPersona } from '@engine/demo';
 import { desiredBookings } from '@/diary/publish';
-import { DEFAULT_SETTINGS, type Booking, type Diary, type Series } from '@/diary/types';
+import { DEFAULT_SETTINGS, type Booking, type Diary, type PlannedWorkout, type Series } from '@/diary/types';
+import { groupPayload, groupSessionId, workoutExercises, type GroupSet } from '@/group/model';
 import { sessionIdFor, sessionLogPayload, type SetEntry } from '@/inperson/model';
 import { photoRequestPayload } from '@/ai/tools';
+import { weekday } from '@/lib/format';
 import type { DemoCardKey } from './cards';
 
 /** A uuid-shaped id from a seed: the same seed, the same id. */
@@ -56,7 +58,7 @@ export interface DemoPub { id: string; card: DemoCardKey; type: string; payload:
 export interface DemoRows {
   /** In insert order: per card, plans and goal phases before anything else. */
   publications: DemoPub[];
-  series: { id: string; kind: 'one_to_one' | 'group'; weekday: number; start_min: number; duration_min: number; effective_from: string; effective_to: string | null; title: string | null; location: string | null; created_at: string }[];
+  series: { id: string; kind: 'one_to_one' | 'group'; weekday: number; start_min: number; duration_min: number; effective_from: string; effective_to: string | null; title: string | null; location: string | null; workout: PlannedWorkout | null; created_at: string }[];
   seriesClients: { series_id: string; card: DemoCardKey }[];
   bookings: { id: string; date: string; start_min: number; duration_min: number; kind: 'one_to_one' | 'group'; status: 'booked'; title: string | null; location: string | null; created_at: string }[];
   bookingClients: { booking_id: string; card: DemoCardKey }[];
@@ -67,6 +69,37 @@ export interface DemoRows {
 }
 
 const at = (date: string, hhmm: string) => `${date}T${hhmm}:00.000Z`;
+
+/** Saturday Circuits' planned workout (0033): a copy of a Library workout, in Coach's template exercise shape. */
+export const CIRCUITS: PlannedWorkout = {
+  v: 1, template_id: null, name: 'Saturday Circuits',
+  exercises: [
+    { name: 'Walking Lunge', reps: '12', setsStart: 3, setsEnd: 3, startWeight: 8, type: 'standard', trackingMode: 'perSide', bodyPart: 'Legs', id: 'circ_0', order: 0 },
+    { name: 'Low Row', reps: '15', setsStart: 3, setsEnd: 3, startWeight: 30, type: 'standard', trackingMode: 'total', bodyPart: 'Back', id: 'circ_1', order: 10 },
+    { name: 'Calf Raises', reps: '20', setsStart: 3, setsEnd: 3, startWeight: 40, type: 'standard', trackingMode: 'total', bodyPart: 'Calves', id: 'circ_2', order: 20 },
+    { name: 'Lateral Raise', reps: '15', setsStart: 3, setsEnd: 3, startWeight: 4, type: 'standard', trackingMode: 'perSide', bodyPart: 'Shoulders', id: 'circ_3', order: 30 },
+  ],
+};
+
+/**
+ * One plan session done with the coach, as In person sends it (sessionLogPayload): every set the simulator logged
+ * for it. Null when nothing was logged (a missed session stays missed).
+ */
+function inPersonLog(s: BlocState, x: { date: string; macroId: string; week: number; dayKey: string }, bookingId: string, stampSeed: string): Loose | null {
+  const tpl = ((s.exercises as Record<string, Loose[]>)[`${x.macroId}_1_${x.dayKey}`] || []);
+  const sets: Record<string, SetEntry[]> = {};
+  for (const e of tpl) {
+    const list: SetEntry[] = [];
+    for (let i = 0; ; i++) {
+      const l = (s.trainLogs as Loose)[`${x.macroId}_${x.week}_${x.dayKey}_${e.id}_${i}`];
+      if (!l) break;
+      list.push({ kg: String(l.weight), reps: String(l.reps), done: true });
+    }
+    if (list.length) sets[e.id] = list;
+  }
+  if (!Object.keys(sets).length) return null;
+  return sessionLogPayload({ sessionId: sessionIdFor(bookingId, x.date, demoId(stampSeed).slice(0, 8)), bookingId, macroId: x.macroId, week: x.week, dayKey: x.dayKey, sets, rpe: null });
+}
 const hoursBefore = (now: number, h: number) => new Date(now - h * 3600000).toISOString();
 
 /** The plan publication for one of the client's cycles: its fields, session templates (with body parts) and deloads. */
@@ -125,19 +158,20 @@ export function buildDemoRows(ids: DemoIds, now: number): DemoRows {
   const addSeries = (key: string, s: Omit<Series, 'id' | 'cancelled'>) => {
     const one: Series = { id: demoId(`series:${key}`), cancelled: [], ...s };
     series.push(one);
-    rows.series.push({ id: one.id, kind: one.kind, weekday: one.weekday, start_min: one.start, duration_min: one.duration, effective_from: one.from, effective_to: one.to, title: one.title, location: one.location, created_at: at(shiftDateStr(one.from, -3), '12:00') });
+    rows.series.push({ id: one.id, kind: one.kind, weekday: one.weekday, start_min: one.start, duration_min: one.duration, effective_from: one.from, effective_to: one.to, title: one.title, location: one.location, workout: one.workout ?? null, created_at: at(shiftDateStr(one.from, -3), '12:00') });
     for (const c of one.clientIds) rows.seriesClients.push({ series_id: one.id, card: back(c) });
     return one;
   };
   const card = (k: DemoCardKey) => ids.cards[k];
   /** A card id back to its key. */
   const back = (cardId: string) => Object.entries(ids.cards).find(([, v]) => v === cardId)![0] as DemoCardKey;
-  // Maya: Wednesdays at 18:00 since her cut started. Eileen: Tuesdays and Fridays at 07:00.
-  addSeries('maya-wed', { kind: 'one_to_one', weekday: 2, start: 1080, duration: 60, from: shiftDateStr(monday, -4 * 7 + 2), to: null, title: null, location: 'Studio', clientIds: [card('maya')] });
+  // Maya: Wednesdays at 18:00 since her cut started (her Wednesday plan session, done with the coach). Eileen:
+  // Tuesdays and Fridays at 07:00.
+  const mayaWed = addSeries('maya-wed', { kind: 'one_to_one', weekday: 2, start: 1080, duration: 60, from: shiftDateStr(monday, -4 * 7 + 2), to: null, title: null, location: 'Studio', clientIds: [card('maya')] });
   const tue = addSeries('eileen-tue', { kind: 'one_to_one', weekday: 1, start: 420, duration: 60, from: shiftDateStr(monday, -6 * 7 + 1), to: null, title: null, location: 'Studio', clientIds: [card('eileen')] });
   const fri = addSeries('eileen-fri', { kind: 'one_to_one', weekday: 4, start: 420, duration: 60, from: shiftDateStr(monday, -6 * 7 + 4), to: null, title: null, location: 'Studio', clientIds: [card('eileen')] });
-  // Saturday Circuits: a group, Maya and Priya.
-  addSeries('sat-circuits', { kind: 'group', weekday: 5, start: 540, duration: 45, from: shiftDateStr(monday, -3 * 7 + 5), to: null, title: 'Saturday Circuits', location: 'Riverside Park', clientIds: [card('maya'), card('priya')] });
+  // Saturday Circuits: a group, Maya and Priya, with its planned workout.
+  const circuits = addSeries('sat-circuits', { kind: 'group', weekday: 5, start: 540, duration: 45, from: shiftDateStr(monday, -3 * 7 + 5), to: null, title: 'Saturday Circuits', location: 'Riverside Park', clientIds: [card('maya'), card('priya')], workout: CIRCUITS });
   // Tom: a one-off review session on Friday; Ben: his first session next Monday.
   const oneOffs: Booking[] = [
     { id: demoId('booking:tom-review'), seriesId: null, occursOn: null, date: shiftDateStr(monday, 4), start: 750, duration: 45, kind: 'one_to_one', status: 'booked', title: null, location: 'Studio', clientIds: [card('tom')] },
@@ -154,29 +188,39 @@ export function buildDemoRows(ids: DemoIds, now: number): DemoRows {
     rows.publications.push({ id: demoId(`${c}:booking:${payload.booking_id}`), card: c, type: 'booking', payload, createdAt: from });
   }
 
-  // ── Eileen's sessions, logged in person, and her Tuesday measurements ──
+  // ── Sessions the coach took, logged: Eileen's (in person, with her Tuesday measurements) and Maya's Wednesdays ──
   for (const x of sessionSchedule(EILEEN, coachToday).filter((x) => x.date < coachToday)) {
-    const tpl = ((eileen.exercises as Record<string, Loose[]>)[`${x.macroId}_1_${x.dayKey}`] || []);
-    const sets: Record<string, SetEntry[]> = {};
-    for (const e of tpl) {
-      const list: SetEntry[] = [];
-      for (let i = 0; ; i++) {
-        const l = (eileen.trainLogs as Loose)[`${x.macroId}_${x.week}_${x.dayKey}_${e.id}_${i}`];
-        if (!l) break;
-        list.push({ kg: String(l.weight), reps: String(l.reps), done: true });
-      }
-      if (list.length) sets[e.id] = list;
-    }
-    if (!Object.keys(sets).length) continue;
     const booking = x.dayKey === 'session0' ? tue : fri;
-    const sessionId = sessionIdFor(booking.id, x.date, demoId(`eileen:${x.date}`).slice(0, 8));
-    rows.publications.push({ id: demoId(`eileen:log:${x.date}`), card: 'eileen', type: 'session_log', createdAt: at(x.date, '08:05'),
-      payload: sessionLogPayload({ sessionId, bookingId: booking.id, macroId: x.macroId, week: x.week, dayKey: x.dayKey, sets, rpe: null }) });
+    const payload = inPersonLog(eileen, x, booking.id, `eileen:${x.date}`);
+    if (!payload) continue;
+    rows.publications.push({ id: demoId(`eileen:log:${x.date}`), card: 'eileen', type: 'session_log', createdAt: at(x.date, '08:05'), payload });
     if (x.dayKey === 'session0') {
       const w = (eileen.bodyLogs as Loose[]).find((l) => l.date === x.date)?.weight;
       const mon = (eileen.bodyLogs as Loose[]).find((l) => l.date === shiftDateStr(x.date, -1));
       if (w) rows.publications.push({ id: demoId(`eileen:measure:${x.date}`), card: 'eileen', type: 'measurement', createdAt: at(x.date, '08:06'),
         payload: { v: 1, log_date: x.date, weight: w, ...(mon?.waist ? { waist: mon.waist, hip: mon.hip } : {}) } });
+    }
+  }
+  if (ids.users.maya && stateOf.maya) {
+    const mayaToday = localDateIn(MAYA.tz, now);
+    for (const x of sessionSchedule(MAYA, mayaToday).filter((x) => x.date >= mayaWed.from && x.date < mayaToday && weekday(x.date) === mayaWed.weekday)) {
+      const payload = inPersonLog(stateOf.maya, x, mayaWed.id, `maya:${x.date}`);
+      if (payload) rows.publications.push({ id: demoId(`maya:log:${x.date}`), card: 'maya', type: 'session_log', createdAt: at(x.date, '19:05'), payload });
+    }
+  }
+  // Saturday Circuits, each week before today, logged for both: the planned workout, each at their own weights,
+  // a little heavier each week. An extra session for each (no `replaces`): it never touches their plan.
+  const group = workoutExercises(CIRCUITS);
+  for (let d = circuits.from, w = 0; d < coachToday; d = shiftDateStr(d, 7), w++) {
+    const sessionId = groupSessionId(circuits.id, d, demoId(`circuits:${d}`).slice(0, 8));
+    for (const [who, scale] of [['maya', 1], ['priya', 0.85]] as const) {
+      const sets: Record<string, GroupSet[]> = {};
+      for (const ex of group) {
+        const kg = Math.round((ex.weight * scale + w * (ex.weight >= 20 ? 2.5 : 1)) * 2) / 2;
+        sets[ex.key] = Array.from({ length: ex.sets }, () => ({ kg: String(kg), reps: ex.reps, done: true }));
+      }
+      rows.publications.push({ id: demoId(`${who}:circuits:${d}`), card: who, type: 'session_log', createdAt: at(d, '10:00'),
+        payload: groupPayload({ sessionId, bookingId: circuits.id, exercises: group, sets, replaces: null }) });
     }
   }
 

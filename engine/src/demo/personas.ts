@@ -6,7 +6,8 @@
 // Bodyweight in lbs, lifts in kg, waist and hip in inches, as BLOC stores them.
 //
 // Where each one stands (what a coach sees):
-//   Maya   coach's cycle, week 5 of 8, fat loss on track; last cycle reviewed
+//   Maya   coach's cycle, week 5 of 8, fat loss on track; last cycle reviewed;
+//          Wednesdays in person with the coach, Saturday Circuits
 //   Tom    his own cycle, week 4 of 6, building; weight flat for 2 weeks,
 //          bench stalled, few weigh-ins, phone not opened for 3 days: off track
 //   Grace  Auckland, week 1 of a maintenance cycle after a reviewed cut
@@ -23,7 +24,8 @@ const ex = (name: string, reps: string, setsStart: number, setsEnd: number, star
 export const MAYA: DemoPersona = {
   key: 'maya', tz: 'Europe/London',
   profile: { gender: 'female', heightCm: 165, birthday: '1992-03-14' },
-  weekdays: [0, 1, 3, 5], historyWeeks: 14,
+  // Mon, Wed (with her coach, in person: Coach logs it), Thu, Sat.
+  weekdays: [0, 2, 3, 5], historyWeeks: 14,
   startLbs: 158.4, lbsPerWeek: [0, -1.1, -0.9, -0.8, -0.8, -0.7, -0.6, -0.7, -0.5, 0.3, -0.9, -0.8, -0.7, -0.7, -0.6],
   startWaist: 31, startHip: 40.5, waistPerWeek: [0, -0.25, -0.25, 0, -0.25, 0, -0.25, 0, -0.25, 0, -0.25, 0, -0.25, 0, -0.25],
   steps: { base: 10000, spread: 2600 }, weighInRate: 0.93, foodLogRate: 0.92, kcalBias: [20],
