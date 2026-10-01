@@ -5,7 +5,7 @@ import { useEffect, useMemo } from 'react';
 import type { Loose } from '@engine';
 import { useCoach } from '@/app/App';
 import { clientPath, navigate } from '@/app/router';
-import { Button, EmptyState, Icon } from '@/components/ui';
+import { BackBar, Button, EmptyState } from '@/components/ui';
 import { displayName } from '@/data/summary';
 import { fmt } from '@/lib/format';
 import { useRecord } from '@/inperson/useRecord';
@@ -36,12 +36,16 @@ export function PrintScreen({ cardId }: { cardId: string }) {
     return () => { document.title = before; };
   }, [fileTitle]);
 
+  // The way back is a direct child of .pp-screen so it stays pinned the length of the sheet (a sticky element only
+  // sticks within its parent).
   const toolbar = (
+    <>
+    <BackBar onClick={back} label={`${first}’s sessions`} />
     <div className="pp-toolbar">
-      <button type="button" className="eyebrow eyebrow-link" onClick={back}><Icon name="chevL" size={14} /> {first}’s sessions</button>
       {plan && <Button size="card" icon="send" onClick={() => window.print()}>Print or share</Button>}
       {plan && <p className="caption">On an iPhone, Print opens a preview: share it to Mail or Files as a PDF.</p>}
     </div>
+    </>
   );
   if (error || rec.error) return <div className="pp-screen">{toolbar}<EmptyState>Couldn’t load the plan: {error ?? rec.error}</EmptyState></div>;
   if (!bundles || !rec.state) return <div className="pp-screen" aria-busy="true" />;

@@ -14,7 +14,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Loose } from '@engine';
 import { CoachShell } from '@/coach/CoachShell';
-import { Avatar, Button, Card, EmptyState, Hero, Icon, Notice, Page, PageHeader, Section, Seg, SwitchRow, Tag, Toast, useEntering } from '@/components/ui';
+import { Avatar, BackBar, Button, Card, EmptyState, Hero, Icon, Notice, Page, PageHeader, Section, Seg, SwitchRow, Tag, Toast, useEntering } from '@/components/ui';
 import { useCoach } from '@/app/App';
 import { navigate, sessionBack } from '@/app/router';
 import { displayName, linkStatusOf } from '@/data/summary';
@@ -65,7 +65,7 @@ export function GroupSessionScreen({ occKey }: { occKey: string }) {
   const { diary, bundles, error, run, today: coachToday, toast } = useDiaryData();
   const back = useMemo(() => sessionBack(), []);
   const backLabel = back.route.name === 'diary' ? 'Diary' : back.route.name === 'client' ? 'Client' : 'Today';
-  const eyebrow = <a href={back.href} className="eyebrow eyebrow-link"><Icon name="chevL" size={14} /> {backLabel}</a>;
+  const backBar = <BackBar href={back.href} label={backLabel} />;
 
   const occ = diary ? findOccurrence(diary, occKey, coachToday) : null;
   const ids = occ?.clientIds.join('|') ?? '';
@@ -84,7 +84,7 @@ export function GroupSessionScreen({ occKey }: { occKey: string }) {
   useEffect(() => { if (planning && !templates) repo.loadTemplates().then(setTemplates).catch(() => setTemplates([])); }, [planning, templates, repo]);
 
   const shell = (body: ReactNode, title = 'Group session', sub?: string) => (
-    <CoachShell tab="today"><Page innerRef={ref}><PageHeader eyebrow={eyebrow} title={title} sub={sub} />{body}</Page><Toast msg={toast.msg} /></CoachShell>
+    <CoachShell tab="today"><Page innerRef={ref}><PageHeader back={backBar} title={title} sub={sub} />{body}</Page><Toast msg={toast.msg} /></CoachShell>
   );
   if (error || recError) return shell(<EmptyState>Couldn’t load the session: {error ?? recError}</EmptyState>);
   if (!diary || !bundles) return <CoachShell tab="today"><div className="page" aria-busy="true" /></CoachShell>;

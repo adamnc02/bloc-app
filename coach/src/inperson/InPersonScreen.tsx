@@ -19,7 +19,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { BlocState, Loose, Macrocycle } from '@engine';
 import { CoachShell } from '@/coach/CoachShell';
-import { Bar, Button, Card, EmptyState, Hero, Icon, Notice, Page, PageHeader, Section, Tag, Toast, useEntering } from '@/components/ui';
+import { BackBar, Bar, Button, Card, EmptyState, Hero, Icon, Notice, Page, PageHeader, Section, Tag, Toast, useEntering } from '@/components/ui';
 import { useCoach } from '@/app/App';
 import { clientPath, groupSessionPath, navigate, sessionBack } from '@/app/router';
 import { displayName, linkStatusOf } from '@/data/summary';
@@ -64,7 +64,7 @@ export function InPersonScreen({ occKey, cardId }: { occKey: string; cardId: str
   const rec = useRecord(bundle);
   const back = useMemo(() => sessionBack(), []);
   const backLabel = back.route.name === 'diary' ? 'Diary' : back.route.name === 'client' ? 'Client' : back.route.name === 'clients' ? 'Clients' : 'Today';
-  const eyebrow = <a href={back.href} className="eyebrow eyebrow-link"><Icon name="chevL" size={14} /> {backLabel}</a>;
+  const backBar = <BackBar href={back.href} label={backLabel} />;
 
   const [draft, setDraft] = useState<InPersonDraft | null>(() => loadDraft(occKey, cardId));
   const [picking, setPicking] = useState(false);
@@ -89,7 +89,7 @@ export function InPersonScreen({ occKey, cardId }: { occKey: string; cardId: str
   const first = name.split(' ')[0] || name;
   const notOnApp = !!bundle && linkStatusOf(bundle) !== 'linked';
   const shell = (body: ReactNode, title = 'In person', sub?: string) => (
-    <CoachShell tab="today"><Page innerRef={ref}><PageHeader eyebrow={eyebrow} title={title} sub={sub} />{body}</Page><Toast msg={toast.msg} /></CoachShell>
+    <CoachShell tab="today"><Page innerRef={ref}><PageHeader back={backBar} title={title} sub={sub} />{body}</Page><Toast msg={toast.msg} /></CoachShell>
   );
 
   if (error || rec.error) return shell(<EmptyState>Couldn’t load the session: {error ?? rec.error}</EmptyState>);

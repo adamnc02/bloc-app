@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { CoachShell } from '@/coach/CoachShell';
-import { Button, Chip, Field, Hero, Icon, Notice, Page, PageHeader, RowButton, Section, Sheet, SwitchRow, Toast, useEntering, useToast } from '@/components/ui';
+import { BackBar, Button, Chip, Field, Hero, Icon, Notice, Page, PageHeader, RowButton, Section, Sheet, SwitchRow, Toast, useEntering, useToast } from '@/components/ui';
 import { useCoach } from '@/app/App';
 import { settingsBack } from '@/app/router';
 import { displayName } from '@/data/summary';
@@ -123,10 +123,8 @@ export function SettingsScreen() {
     <CoachShell tab="settings">
       <Page innerRef={ref}>
         <PageHeader
-          eyebrow={<>
-            <a href={back.href} className="eyebrow eyebrow-link phone-only"><Icon name="chevL" size={14} /> {backLabel}</a>
-            <span className="wide-only">Account</span>
-          </>}
+          back={<BackBar className="phone-only" href={back.href} label={backLabel} />}
+          eyebrow={<span className="wide-only">Account</span>}
           title="Settings"
         />
         <Hero style={{ display: 'flex', gap: 16, alignItems: 'center' }}>

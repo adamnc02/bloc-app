@@ -706,7 +706,7 @@ h3 {
   background: none; border: none; cursor: pointer;
   padding: 10px 0; min-height: 44px;
   font-family: var(--font-body); font-size: 13.5px; font-weight: 700;
-  letter-spacing: .02em; color: var(--accent2);
+  letter-spacing: .02em; color: var(--text3);   /* v8.56: BLOC Coach's back-link colour (its .eyebrow-link) */
 }
 .back-link:active { opacity: 0.7; }
 
@@ -2187,7 +2187,17 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 .page-head .icon-btn { margin-left: auto; }
 /* v8.18, v8.19 — the logo (Bracket, now Rebuild), centred on the page in Settings' back-link row
    and vertically centred on it. See the markup comment for why not the H1 row. */
-.settings-topbar { position: relative; }
+/* v8.56 — the back-link row is pinned to the top of #content while the page
+   scrolls, so the way out is always in reach. Sticky, not fixed: it keeps its
+   place in the flow (nothing below moves) and sticks at #content's padding
+   edge, just under the status bar. The solid --bg hides what scrolls under it;
+   the negative side margins carry that background across the screen's 16px
+   gutters. */
+.settings-topbar {
+  position: sticky; top: 0; z-index: 20;
+  margin: 0 -16px; padding: 0 16px;
+  background: var(--bg);
+}
 .settings-logo {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   /* 44px = the back-link row's own height, so it fills the row without

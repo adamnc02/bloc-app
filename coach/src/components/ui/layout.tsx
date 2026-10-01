@@ -1,18 +1,38 @@
 import type { CSSProperties, ReactNode, Ref } from 'react';
+import { Icon } from './Icon';
 
 const idx = (i: number) => ({ '--i': i }) as CSSProperties;
 
-/** Page header (§1.2): eyebrow over H1, one 44×44 action where the page needs one. */
-export function PageHeader({ eyebrow, title, sub, actions }: { eyebrow?: ReactNode; title: ReactNode; sub?: ReactNode; actions?: ReactNode }) {
+/**
+ * A page's way back (‹ Clients), pinned to the top of the screen while the page scrolls. It sits in the eyebrow's
+ * place above the H1 and stays in reach however far down the page is. `className` adds a show/hide class
+ * (Settings' is phone-only).
+ */
+export function BackBar({ label, href, onClick, className = '' }: { label: ReactNode; href?: string; onClick?: () => void; className?: string }) {
+  const inner = <><Icon name="chevL" size={14} /> {label}</>;
   return (
-    <header className="top rise" style={idx(0)}>
-      <div className="titles">
-        {eyebrow != null && <div className="eyebrow">{eyebrow}</div>}
-        <h1>{title}</h1>
-        {sub != null && <p className="sub">{sub}</p>}
-      </div>
-      {actions && <div className="actions">{actions}</div>}
-    </header>
+    <div className={`backbar ${className}`}>
+      {href != null
+        ? <a href={href} className="eyebrow eyebrow-link">{inner}</a>
+        : <button type="button" className="eyebrow eyebrow-link" onClick={onClick}>{inner}</button>}
+    </div>
+  );
+}
+
+/** Page header (§1.2): eyebrow over H1, one 44×44 action where the page needs one. `back` (a BackBar) goes above it, pinned. */
+export function PageHeader({ eyebrow, title, sub, actions, back }: { eyebrow?: ReactNode; title: ReactNode; sub?: ReactNode; actions?: ReactNode; back?: ReactNode }) {
+  return (
+    <>
+      {back}
+      <header className={`top rise${back ? ' top-after-back' : ''}`} style={idx(0)}>
+        <div className="titles">
+          {eyebrow != null && <div className="eyebrow">{eyebrow}</div>}
+          <h1>{title}</h1>
+          {sub != null && <p className="sub">{sub}</p>}
+        </div>
+        {actions && <div className="actions">{actions}</div>}
+      </header>
+    </>
   );
 }
 
