@@ -86,7 +86,7 @@ function load(srcs, state, engine = globalThis.BlocEngine) {
   return { api: factory(...names.map(n => scope[n])), calls };
 }
 
-// Adam's shape: a new cycle, six goal periods back to back, then the NEXT
+// A real shape: a new cycle, six goal periods back to back, then the NEXT
 // cycle's first goal starting the Monday after this cycle ends.
 // Cycle A: 2026-10-05 (Mon), 8 × 1wk = 8 weeks → ends 2026-11-29 (Sun).
 function world() {

@@ -15,7 +15,7 @@ declare const __COACH_VERSION__: string;
 /** Coach's version: coach/package.json, the one place a release bumps it (TECHNICAL §139). */
 export const COACH_VERSION = __COACH_VERSION__;
 
-/** The wireframe's five notifications: coach_notification_prefs (0031), per coach, every device (§158). */
+/** The five notifications: coach_notification_prefs (0031), per coach, every device (§158). */
 const NOTIFICATIONS: { key: PrefKey; title: string; sub: string }[] = [
   { key: 'session_requests', title: 'Session requests', sub: 'As soon as a client asks for a session, or suggests another time.' },
   { key: 'check_ins', title: 'Check-ins submitted', sub: 'When a client sends a check-in for you to run.' },
@@ -37,7 +37,7 @@ const PUSH_TEXT: Record<PushState, string> = {
 type SheetKey = 'profile' | 'password' | 'ai' | 'signout' | null;
 
 /**
- * Settings (the wireframe's SettingsScreen, without section badges): the account (sign-in, password, sign out),
+ * Settings (no section badges): the account (sign-in, password, sign out),
  * the coach profile, working hours and days, days off and holidays, linked services (the AI key) and
  * notifications.
  *

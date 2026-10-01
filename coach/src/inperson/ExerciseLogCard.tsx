@@ -1,4 +1,4 @@
-// One exercise in an in-person session (the wireframe's ExerciseCard, for the coach): its targets (Train's, at the
+// One exercise in an in-person session (for the coach): its targets (Train's, at the
 // client's date), set dots and last week collapsed; open, the set table (# · Last wk · kg · Reps · ✓), Fill
 // suggested, Clear, and the tick that completes every set at target. The session's effort ratings are asked once,
 // at Finish (BLOC's end-of-session sheet), not per card.

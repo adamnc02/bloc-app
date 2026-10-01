@@ -6,7 +6,7 @@
 // own publications that the upload hasn't applied yet (not in its
 // `coachLedger` as applied or superseded): a plan published a minute ago, one
 // held on the phone, or everything, for a client who hasn't linked or synced
-// yet (§11 Q16) or isn't on the app (Q19). They're applied as BLOC's funnel
+// yet or isn't on the app. They're applied as BLOC's funnel
 // applies them (§131): a `plan` patches the coach's macrocycle fields and
 // replaces whole session templates; `goal_phases` and a check-in's
 // `goal_changes` upsert goals by `macroGoalID`.

@@ -11,7 +11,7 @@
 //     literal (the prompts are behaviour: §118);
 //   · the new EngineContext not reaching macroRange/findMacroClash, so an
 //     unstarted cycle's range ends from the wrong "today".
-// v8.34 (TECHNICAL §124, PROMPT-03 Phase 2 step 3) moved 43 functions and
+// v8.34 (TECHNICAL §124) moved 43 functions and
 // four constants behind
 // same-named shims. The golden harness (§118) reaches most of them only
 // through larger functions, and not every branch (a partial extension
@@ -31,7 +31,7 @@
 // Controls (London), each must move an output: the getWeekWeight shim
 // without weightIncrement, and a macroRange shim given the wrong today.
 //
-// v8.35 (§125, PROMPT-03 Phase 2 steps 4–6): the functions that READ THE STATE
+// v8.35 (§125): the functions that READ THE STATE
 // moved too, and BLOC's shims pass `state` and engineCtx(). For those, the
 // "before" is v8.34 (8c6451c), and every STATE_CASES entry in
 // engine-cases.mjs runs through BLOC's own call on both sides, on a fresh
@@ -264,7 +264,7 @@ if (process.env.BLOC_LEAVES_CHILD) {
     const html = Object.values(doc.els).map(el => `${el.id}=${el.innerHTML}`).join(' | ');
     return `${out} || state ${after} || saves ${E.saves()} || read ${reads} || html ${html}`;
   };
-  // v8.35 step 5 (§125, Adam 2026-09-27: "Do the swap"): Train's "missed
+  // v8.35 (§125): Train's "missed
   // target" badge is now the lock's own decision (getWeekComplianceResult),
   // not a third comparison against the displayed placeholders. It may
   // differ from v8.34 only where a frozen target has drifted from the

@@ -9,7 +9,7 @@
 //
 // 🚨 A changed session template is sent WHOLE: BLOC replaces `exercises[key]`
 //    with the list it's given. An unchanged exercise keeps its id inside it,
-//    so its logs stay attached (proposal §5.3); a removed session is sent as
+//    so its logs stay attached; a removed session is sent as
 //    an empty list.
 // 🚨 A new cycle sends every macrocycle field, and never a field outside
 //    0023's allow-list (the CHECK refuses the whole row).

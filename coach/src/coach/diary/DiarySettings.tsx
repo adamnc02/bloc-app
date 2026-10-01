@@ -1,4 +1,4 @@
-// Settings → Working hours and days, and Days off and holidays (the wireframe's SettingsScreen). Working hours
+// Settings → Working hours and days, and Days off and holidays. Working hours
 // and days are a guide in the Diary's grid, never a block. A day off cancels its sessions for good when it's
 // added; removing it frees the days and brings nothing back (§152).
 import { useId, useState } from 'react';
@@ -26,7 +26,7 @@ function cancelledIn(d: Pick<Diary, 'series' | 'bookings'>, o: Pick<DayOff, 'sta
   return n;
 }
 
-/** Seven day toggles, each a real toggle button with its full day name (the wireframe's DayToggles). */
+/** Seven day toggles, each a real toggle button with its full day name. */
 function DayToggles({ value, onChange }: { value: number[]; onChange: (days: number[]) => void }) {
   return (
     <div role="group" aria-label="Working days" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 6 }}>
@@ -58,7 +58,7 @@ function TimeSelect({ id, value, from, to, onChange }: { id: string; value: numb
   );
 }
 
-/** The wireframe's WorkingHoursEditor: working days, the day's start and end, and what that comes to. */
+/** Working hours: working days, the day's start and end, and what that comes to. */
 function WorkingHoursEditor({ value, onChange }: { value: Settings; onChange: (v: Settings) => void }) {
   const id = useId();
   const hours = (value.dayEnd - value.dayStart) / 60;

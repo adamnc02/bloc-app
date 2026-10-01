@@ -481,7 +481,7 @@ function renumber(doc: PlanDoc, key: string): PlanDoc {
 }
 
 /**
- * Swap an exercise for good (proposal §5.3): a NEW exercise, filled in like
+ * Swap an exercise for good: a NEW exercise, filled in like
  * any new one (every setting the coach's), in the old one's place and
  * superset. The one it replaces keeps its logs in history under its own id;
  * the new one starts its own. Part-way through a cycle it carries `fromWeek`

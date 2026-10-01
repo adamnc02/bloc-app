@@ -691,7 +691,7 @@ The body log modal (`modal-body-log`) is the canonical reference for this behavi
 
 **Search sheets: a filterable list with the keyboard up (`.kb-pinned-sheet`).**
 
-🚨 **Adam, 2026-09-28: the Add food sheet "took HOURS to get right". Copy this pattern exactly for any
+🚨 **The Add food sheet took a long time to get right on an iPhone. Copy this pattern exactly for any
 new sheet with a search box over a list, and don't simplify it.** It's used by `modal-nutr-add` (Add
 food), `modal-food-lib-editor`, `modal-exercise-lib-editor` and, since v8.28, `modal-recipe-pick`
 (Fuel › Shortcuts › Recipes, §117). *(Rewritten 2026-09-28. This subsection used to describe an
@@ -3392,7 +3392,7 @@ Only a true deload week (the flat 60%-of-last-actual figure) and the progression
 - **`exProgData`** — `isLocked` now also suppresses outright during deload/post-deload (previously only during deload), since a post-deload week's display always shows the fresh reset target regardless of any inherited lock. A new `postDeloadTarget` (resolved once via `getWeekTargets`) feeds both the single-value and per-set placeholder chains, replacing the old raw-history lookup (`getLastNonDeloadUnit`, now dead code and removed) with a genuinely per-set reset target rather than one flat figure repeated across every set.
 - **Superset-level checks** (`anySSLocked`, the progression-toggles gate) simplified back down from v7.98's per-member carve-out — since `isLocked` now uniformly encodes deload/post-deload suppression for every member, no day-level guard is needed at all.
 
-### Verified against Adam's confirmed design tables
+### Verified against the design tables
 
 Built a synthetic harness reproducing the exact worked examples confirmed during design (a 1-week mesocycle with two deloads and a chain of misses between them; a 2-week mesocycle with independent M1/M2 tracks; the standalone chest-press reset-without-jump example) and ran them through the real functions extracted verbatim from the shipped code — not reimplemented by hand. All three reproduced exactly:
 - 1-week table: MC2 compliant → MC3 miss → MC4 deload → MC5 (post-deload, walks back past MC3's miss to MC2) resets to MC2's exact target, itself misses → locks at MC5's target → MC6–8 stay frozen there → MC9 deload → MC10 (post-deload) walks back through the entire MC5–8/MC4/MC3 chain all the way to MC2 again.
@@ -3422,13 +3422,13 @@ A fourth option on the meal ellipsis menu (`showMealMenuSheet`), alongside the e
   state.nutritionMeals[tgtDate][tgtMeal] = srcItems;
   ```
   This works correctly even when `srcDate === tgtDate` (swapping two meals on the same day), since the two meal keys are independent properties on the same date object.
-- **No-op guard (confirmed with Adam):** if the chosen target is the exact same date + meal as the source, the modal closes silently with no state change and no re-render — there's nothing to swap with.
+- **No-op guard:** if the chosen target is the exact same date + meal as the source, the modal closes silently with no state change and no re-render — there's nothing to swap with.
 - **Whole-meal only:** `srcIdx` is always `-1` here (swap is only reachable via the meal-level ellipsis menu, never a single-item row), so no single-item swap path exists or was built.
 - Both meals are re-synced to the legacy log (`syncNutrLegacyLog`) and the daily view re-rendered after a successful swap, matching existing copy/move behaviour.
 
 ### Save & Log
 
-A second button in the recipe builder's ingredients step (`modal-recipe-ingredients`), alongside the existing "Save recipe →". Confirmed with Adam that this is offered **only** when the recipe builder was opened from Settings → My Recipes (no pre-existing date/meal context) — **not** when opened via a meal's "Save meal as recipe…" ellipsis action, since that flow's ingredients are already logged individually on the source date/meal, and logging the new recipe immediately afterward would double-count those calories.
+A second button in the recipe builder's ingredients step (`modal-recipe-ingredients`), alongside the existing "Save recipe →". It's offered **only** when the recipe builder was opened from Settings → My Recipes (no pre-existing date/meal context) — **not** when opened via a meal's "Save meal as recipe…" ellipsis action, since that flow's ingredients are already logged individually on the source date/meal, and logging the new recipe immediately afterward would double-count those calories.
 
 - **Eligibility flag:** `_recipeLogEligible` (module-level bool) is set `true` at the top of `openRecipeBuilder()` (both the "+ Create new" and "Edit" paths off My Recipes) and `false` at the top of `saveMealAsRecipe()`. `recipeGoToIngredients()` — the single hand-off point from step 1 to step 2, shared by both entry paths — reads the flag once and toggles `#recipe-savelog-btn`'s visibility (`style.display`) accordingly. No other call site needed to change.
 - **Shared persistence — `_persistRecipe()`:** the validation + save-to-`state.recipes` + `addToFoodLibrary()` body previously inline in `saveRecipe()` was extracted verbatim into a new helper returning the saved recipe object (or `null` on an invalid form — no name / no ingredients). `saveRecipe()` now calls this then does its existing modal/navigation handling (return to My Recipes); `saveRecipeAndLog()` calls the same helper then routes to the new log-target picker instead. Keeping this as one function (rather than the same logic maintained in two places) directly follows the "duplicate logic is a liability" principle.
@@ -3453,7 +3453,7 @@ No real backup JSON was uploaded this session (Phase 1 is pure Nutrition-page UI
 
 Phase 3 of the OAuth/Backend/Food-Data/AI development plan, following Phase 2's food-library migration (which added `servingName`/`unit`/`packQuantityRaw`/`packQuantity` fields to existing library items retroactively — see the dev plan's Phase 2 completion notes). This session made those fields a live, permanent part of *every future* barcode scan rather than a one-off migration artefact: the old `(RSS - Xg)` name-suffix hack is gone, unit (g vs ml) is captured and threaded through instead of assumed, and the logging-time quantity field became a proper serving picker.
 
-Both barcode-scan entry points were in scope (confirmed with Adam) — the Nutrition diary's own scanner and the Recipe Builder's ingredient scanner, which previously ran two separate, near-identical fetch implementations. Text-search fallback for barcodeless items (mentioned in the dev plan's lookup-mechanics section) was explicitly deferred to a follow-up pass, to keep this session's scope to the confirmation flow, unit threading, pack guards, and library editor.
+Both barcode-scan entry points use it — the Nutrition diary's own scanner and the Recipe Builder's ingredient scanner, which previously ran two separate, near-identical fetch implementations. Text-search fallback for barcodeless items (mentioned in the dev plan's lookup-mechanics section) isn't built: a barcodeless item is searched by name or entered by hand.
 
 Before writing any code, the OFF v3 API schema was checked live (via `world.openfoodfacts.org/files/redocly/api-v3.redoc-static.html`) to confirm `product_quantity_unit` and `serving_quantity_unit` are real, current fields — the dev plan's assumptions held.
 
@@ -3494,7 +3494,7 @@ Shown after every successful OFF lookup, before anything is written to the food 
 - **`cancelScanConfirm()`** — discards `scanConfirmData`/`scanConfirmCtx`, no library write.
 - **Stacking:** `#modal-scan-confirm { z-index: 300; }`, matching `modal-nutr-add`/`modal-nutr-serving` — it needs to render above `modal-recipe-ingredients` when reached via the Recipe Builder context, not just above the plain Nutrition page, for the same reason those two already carry that boost (see the existing z-index comment block).
 
-### Logging-time serving picker — redesigned twice mid-session per Adam's feedback
+### Logging-time serving picker
 
 The first implementation (a row of tappable "chips": Serving Name / 100(unit) / 1 Pack / Custom, shown only when `servingName` was set, otherwise falling back to the pre-existing direct-entry grams field) was replaced, in order, by:
 
@@ -3528,7 +3528,7 @@ Saved recipes logged as a whole meal (`isRecipe` in `openNutrServingModal`, unre
 
 ### Places deliberately left untouched this session
 
-Scoped explicitly with Adam:
+Not covered:
 - **Text-search fallback** for barcodeless/unbranded items — deferred to a follow-up pass; only barcode lookups route through `fetchOFFProduct()` this session.
 - **Historical Nutrition diary meal-log row display** — already-logged entries continue to show grams with no unit suffix; `unit` is not retroactively added to `nutritionMeals` entries. Unit-awareness this session is confined to the four places explicitly scoped: the confirmation popup, the logging-time picker, the food library list, and the food library edit modal.
 - The Nutrition Add Food search list (`renderNutrAddList`)'s `"Xg"` amount label is likewise untouched — not one of the four scoped places.
@@ -3556,9 +3556,7 @@ Playwright against the real backup (`bloc-backup-final-2026-08-29.json`, post-Ph
 
 Phase 4 of the OAuth/Backend/Food-Data/AI development plan. No real backup JSON was needed/uploaded this session — like Phase 1, this is a UI/API feature with no training or progression data involved — so verification ran via Playwright driving the real shipped functions against synthetic seed data in a live browser, per the dev plan's own note that Phase 4 doesn't require the 216-exercise-week harness.
 
-Two scope corrections from Adam during the session, both acted on immediately:
-1. Save & Log should be offered on the review screen (matching Phase 1's precedent), not "Save as recipe only" per the spec's literal wording.
-2. That was then superseded by a bigger correction once the entry point was actually built: since Photo is launched from *inside* `modal-nutr-add` — already scoped to a specific date and meal via `nutrSelectedDate`/`nutrActiveMeal` — there's no need for a target-picker or servings-modal detour at all. The review screen **is** the confirmation step; a single **Save** button logs the reviewed amounts straight into the already-known meal and silently persists the same data as a recipe in the background. This is simpler than both Phase 1's Save & Log and the dev plan's literal "auto-saved as a recipe" — no separate log action needed, because the log destination was never ambiguous to begin with.
+How the flow saves: Photo is launched from *inside* `modal-nutr-add`, already scoped to a specific date and meal via `nutrSelectedDate`/`nutrActiveMeal`, so there's no target-picker or servings-modal detour. The review screen **is** the confirmation step; a single **Save** button logs the reviewed amounts straight into the already-known meal and persists the same data as a recipe in the background. No separate log action is needed, because the log destination is never ambiguous.
 
 ### Entry point — Add Food actions row becomes a 2x2 grid
 
@@ -3585,7 +3583,7 @@ Expected schema: `{"items":[{"item","estimated_grams","calories","protein","carb
 
 ### Food-library cross-reference — suggestion only, never automatic
 
-`findFoodLibraryMatch(itemName)` — confirmed explicitly with Adam this session to be suggest-and-confirm, not auto-substitute, since name-based matching between an AI-guessed item name and a library entry is inherently uncertain. Simple Jaccard-style overlap: both strings are reduced to their significant words (`[a-z]{3,}`, lowercased, a small stopword list removed), and the library entry with the highest overlap-ratio ≥ 0.4 against `state.foodLibrary` wins, or `null` if nothing clears that bar. Run once per detected item at analysis time (not live on the review screen) and attached as `suggestedMatch`; `matchStatus` starts `'pending'` and moves to `'accepted'` or `'dismissed'` via the review screen's Use it/Dismiss buttons. Editing an item's numbers by hand also sets `matchStatus: 'dismissed'` — a manual correction supersedes a pending suggestion rather than leaving a stale chip against numbers the person has already overridden.
+`findFoodLibraryMatch(itemName)` — suggest-and-confirm, never auto-substitute, since name-based matching between an AI-guessed item name and a library entry is inherently uncertain. Simple Jaccard-style overlap: both strings are reduced to their significant words (`[a-z]{3,}`, lowercased, a small stopword list removed), and the library entry with the highest overlap-ratio ≥ 0.4 against `state.foodLibrary` wins, or `null` if nothing clears that bar. Run once per detected item at analysis time (not live on the review screen) and attached as `suggestedMatch`; `matchStatus` starts `'pending'` and moves to `'accepted'` or `'dismissed'` via the review screen's Use it/Dismiss buttons. Editing an item's numbers by hand also sets `matchStatus: 'dismissed'` — a manual correction supersedes a pending suggestion rather than leaving a stale chip against numbers the person has already overridden.
 
 ### Review screen — `modal-nutr-photo-review`
 
@@ -3625,13 +3623,13 @@ Playwright against synthetic seed data in a live browser (no real backup needed 
 
 ### Background
 
-Phase 5 of the OAuth/Backend/Food-Data/AI development plan. Setup (Supabase project, Google provider, email confirmation on, Data API/RLS defaults) was already done by Adam before this session — this session wires `signInWithOAuth`/email auth into the actual app code. Apple and Microsoft are explicitly deferred (Apple: $99/yr Developer Program cost; Microsoft: Azure tenant setup friction), so the whole sign-in screen is built to render its OAuth buttons from a config array (`AUTH_PROVIDERS`) rather than hardcoding "exactly these two buttons" — adding either later is a one-line array entry, not a markup or logic change. No real backup JSON was needed this session (auth/UI work, no training or nutrition data involved) — same precedent as Phase 1 and Phase 4.
+Phase 5 of the OAuth/Backend/Food-Data/AI development plan. Setup (Supabase project, Google provider, email confirmation on, Data API/RLS defaults) is done in the Supabase dashboard; the app wires `signInWithOAuth`/email auth into the actual app code. Apple and Microsoft are explicitly deferred (Apple: $99/yr Developer Program cost; Microsoft: Azure tenant setup friction), so the whole sign-in screen is built to render its OAuth buttons from a config array (`AUTH_PROVIDERS`) rather than hardcoding "exactly these two buttons" — adding either later is a one-line array entry, not a markup or logic change. No real backup JSON was needed this session (auth/UI work, no training or nutrition data involved) — same precedent as Phase 1 and Phase 4.
 
 Phase 6 (the actual Supabase tables) doesn't exist yet. That constrains this session's scope in one specific way: the dev plan's "detect existing local data and offer to upload it as snapshot zero" step has nothing to upload *to* yet, so it's built as detection + flagging only (see Snapshot zero below) — the actual upload is Phase 6's job to pick up.
 
 ### Config — `SUPABASE_URL` / `SUPABASE_ANON_KEY`
 
-Two placeholder constants near the top of the AUTH section, left unfilled since this file is generated without Adam's real project credentials — **fill these in from Supabase dashboard → Settings → API (Project URL + anon/publishable key) before this ships.** The anon key is safe to ship client-side by design (Supabase's RLS policies are what actually gate data access, not key secrecy).
+Two constants near the top of the AUTH section hold the project's URL and publishable key — **fill these in from Supabase dashboard → Settings → API (Project URL + anon/publishable key) before this ships.** The anon key is safe to ship client-side by design (Supabase's RLS policies are what actually gate data access, not key secrecy).
 
 ### `@supabase/supabase-js` — loaded via dynamic `import()`, not a `<script type="module">`
 
@@ -3662,7 +3660,7 @@ Pre-Phase-5, boot ran unconditionally and synchronously: `load(); fetchDemoDataI
 
 ### Email/password — `submitEmailAuth()`, `sendPasswordReset()`
 
-A single Sign In/Sign Up tab toggle (`setAuthMode()`) swaps the submit button's label and behaviour rather than two separate forms. Sign-up: `supabase.auth.signUp({ email, password })` — since email confirmation is on (per Adam's User Signups config), a successful sign-up returns no session yet, so the UI shows a "check your email" status message and flips back to the Sign In tab rather than waiting on a session that isn't coming. Sign-in: `supabase.auth.signInWithPassword(...)`; a real session triggers the same `onAuthStateChange` path OAuth uses, so there's exactly one success path for every auth method to converge on. `sendPasswordReset()` calls `resetPasswordForEmail` with the current page as `redirectTo`.
+A single Sign In/Sign Up tab toggle (`setAuthMode()`) swaps the submit button's label and behaviour rather than two separate forms. Sign-up: `supabase.auth.signUp({ email, password })` — since email confirmation is on (Supabase's User Signups setting), a successful sign-up returns no session yet, so the UI shows a "check your email" status message and flips back to the Sign In tab rather than waiting on a session that isn't coming. Sign-in: `supabase.auth.signInWithPassword(...)`; a real session triggers the same `onAuthStateChange` path OAuth uses, so there's exactly one success path for every auth method to converge on. `sendPasswordReset()` calls `resetPasswordForEmail` with the current page as `redirectTo`.
 
 ### Sign out — `signOutUser()`
 
@@ -3687,7 +3685,7 @@ Full Playwright pass against a live-rendered page (no real backup JSON needed �
 - Settings → Profile shows the new **Account** row in the correct position; opening it shows the correct email/provider (`Signed in with email`) and a working Sign Out button.
 - Zero browser console/page errors from app code across every check above.
 
-Not independently testable without real Supabase credentials and a live network: the actual OAuth redirect round-trip, `signUp`/`signInWithPassword` against a real project, and the `onAuthStateChange` listener's live behavior on token refresh. Flagged for Adam to verify once `SUPABASE_URL`/`SUPABASE_ANON_KEY` are filled in — same category of gap Phase 4 left for its own live-API-key verification.
+Not independently testable without real Supabase credentials and a live network: the actual OAuth redirect round-trip, `signUp`/`signInWithPassword` against a real project, and the `onAuthStateChange` listener's live behavior on token refresh. Verified on the live project once `SUPABASE_URL`/`SUPABASE_ANON_KEY` were set — same category of gap Phase 4 left for its own live-API-key verification.
 
 ---
 
@@ -3697,9 +3695,9 @@ Not independently testable without real Supabase credentials and a live network:
 
 Phase 6 of the OAuth/Backend/Food-Data/AI development plan — the largest session in the plan, by design. Builds on Phase 5's auth gate (real `SUPABASE_URL`/anon key were already in the file; `_authResolvedSession` from §56 is reused directly).
 
-Three architecture questions were resolved with Adam before any code was written, and they shape everything below:
+Three architecture decisions shape everything below:
 
-1. **The app never reads from the relational tables during normal use.** BLOC is local-first — `localStorage`/`state` is the only thing the UI ever reads. The only genuine read scenarios are (a) a brand-new/wiped device's first hydration, and (b) the explicit snapshot/restore flow — and Adam's call was that even (a) should go through a full JSON snapshot restore, never a reconstruction from the tables, because the relational schema can't be guaranteed to capture every field the way the app's own `JSON.stringify(state)` export always can by definition. This eliminates the need for any pull-sync/read path entirely.
+1. **The app never reads from the relational tables during normal use.** BLOC is local-first — `localStorage`/`state` is the only thing the UI ever reads. The only genuine read scenarios are (a) a brand-new/wiped device's first hydration, and (b) the explicit snapshot/restore flow — and even (a) goes through a full JSON snapshot restore, never a reconstruction from the tables, because the relational schema can't be guaranteed to capture every field the way the app's own `JSON.stringify(state)` export always can by definition. This eliminates the need for any pull-sync/read path entirely.
 2. **DIY sync over PowerSync.** Given (1), PowerSync's core value — a synced local SQLite mirror for reads — isn't needed. A push-only debounced queue extending the existing `save()` pattern was chosen instead: simpler, no new external SDK/account dependency, smaller trust surface.
 3. **`macrocycle_id` backfill is `null`, not nearest-match, for logs outside every macrocycle's date range.** A "nearest cycle" link would fabricate a relationship the source data doesn't actually contain (see the header comment in `migration 0002_rls_policies.sql`).
 
@@ -3731,11 +3729,11 @@ using (
 
 For solo users this is functionally identical to strict `auth.uid() = user_id` isolation today, since `coach_clients` starts empty. Written once as a `do $$ ... $$` loop over the table-name array rather than copy-pasted per table, so the policy shape can't drift between tables. `coach_clients`/`invite_codes`/`plans` get their own hand-written policies (two-party access, not a single owner) since the generic loop's shape doesn't fit them.
 
-Adam's admin/owner access uses the `service_role` key from the dashboard/CLI (bypasses RLS by design) — never an in-app admin flag, and the key is never shipped client-side.
+Owner/admin access uses the `service_role` key from the dashboard/CLI (bypasses RLS by design) — never an in-app admin flag, and the key is never shipped client-side.
 
 ### Storage & snapshots — `supabase/migrations/0003_storage_and_backups.sql`
 
-**Deliberate deviation from the plan's original wording**, agreed with Adam this session: the plan described a scheduled Edge Function + `pg_cron` job that *exports the relational tables* into timestamped JSON snapshots. That's dropped in favour of a **client-side upload of the exact same payload `exportData()` already produces** (`JSON.stringify(state, null, 2)`), uploaded directly to Storage — see "Local-first sync layer" below. `pg_cron`'s only remaining job is retention pruning (deleting old snapshot *files*, not deriving anything from the tables): nightly for ~7 days, then one kept per calendar month beyond that, via `prune_old_backups()`.
+**Deliberate deviation from the plan's original wording**: the plan described a scheduled Edge Function + `pg_cron` job that *exports the relational tables* into timestamped JSON snapshots. That's dropped in favour of a **client-side upload of the exact same payload `exportData()` already produces** (`JSON.stringify(state, null, 2)`), uploaded directly to Storage — see "Local-first sync layer" below. `pg_cron`'s only remaining job is retention pruning (deleting old snapshot *files*, not deriving anything from the tables): nightly for ~7 days, then one kept per calendar month beyond that, via `prune_old_backups()`.
 
 Storage path convention: `app-backups` bucket, object path `{app_slug}/{user_id}/{date}.json` (e.g. `bloc/3fa8.../2026-08-31.json`). Per-user isolation — required since family members share this Supabase project — is enforced by `storage.foldername(name)[2]` matching `auth.uid()`, same pattern as the plan's original spec.
 
@@ -3752,7 +3750,7 @@ Storage path convention: `app-backups` bucket, object path `{app_slug}/{user_id}
 ### Snapshot backup/restore UI
 
 Two entry points, both calling the same underlying functions (`uploadSnapshot`, `listSnapshots`, `restoreFromSnapshot`, `handleBackupNow(btnId, statusId)`, `openRestorePicker`) — kept as one shared implementation rather than duplicated:
-- **Settings → Backup** — the primary surface, per Adam's request that local-JSON and cloud options both be directly available on every backup/restore action, not only reachable via Account. Two buttons each for backing up (**Download JSON file** / **Save to cloud**) and restoring (**Import JSON file** / **Restore from cloud…**, the latter moved into Danger Zone since a cloud restore is exactly as destructive as a local one).
+- **Settings → Backup** — the primary surface: local-JSON and cloud options are both directly available on every backup/restore action, not only reachable via Account. Two buttons each for backing up (**Download JSON file** / **Save to cloud**) and restoring (**Import JSON file** / **Restore from cloud…**, the latter moved into Danger Zone since a cloud restore is exactly as destructive as a local one).
 - **Settings → Account → Cloud Backups** — a convenience card (Back up now / Restore from a snapshot…) alongside Sign Out, using the same functions with its own element ids passed in.
 
 `handleBackupNow(btnId, statusId)` takes explicit element ids (rather than hardcoding one) specifically so both surfaces can trigger it independently — note it swaps `btn.innerHTML` (not `textContent`) during the "Backing up…" state, since these buttons contain an SVG icon that `textContent` would silently delete.
@@ -3767,8 +3765,8 @@ Two entry points, both calling the same underlying functions (`uploadSnapshot`, 
 
 ### Bundled bug fixes this session
 
-Two small pre-existing bugs, unrelated to Phase 6 but fixed in the same session at Adam's request:
-- **"Analyze" → "Analyse"** — the Phase 4 AI Meal Photo feature had a few remaining American spellings, including in internal identifiers (`analyzeMealPhoto` → `analyseMealPhoto`, `_photoAnalyzing` → `_photoAnalysing`, `photo-analyze-btn`/`photo-analyze-error` → `photo-analyse-*`). Earlier sessions had established a convention of user-facing-text-only for British spelling fixes; Adam explicitly asked this time for the identifiers to be renamed too, so this session's fix is broader than that precedent — flagged here since it's a deliberate one-off widening, not a silent convention change.
+Two small pre-existing bugs, unrelated to Phase 6, fixed in the same release:
+- **"Analyze" → "Analyse"** — the Phase 4 AI Meal Photo feature had a few remaining American spellings, including in internal identifiers (`analyzeMealPhoto` → `analyseMealPhoto`, `_photoAnalyzing` → `_photoAnalysing`, `photo-analyze-btn`/`photo-analyze-error` → `photo-analyse-*`). British spelling now covers internal identifiers too, not only user-facing text (a deliberate widening of the earlier convention).
 - **Restaurant/Home-cooked control** — was a plain, unstyled checkbox with no clear checked/unchecked affordance. Replaced with the app's existing `.toggle-row`/`.toggle-btn` segmented-control pattern (same one used for Mode, Exercise Category, etc. — `setPhotoSource('restaurant' | 'homeCooked')`), functionally identical to before: Home-cooked greys out and clears the restaurant name so it's never sent to the LLM.
 
 ### Verification
@@ -3778,16 +3776,16 @@ Two small pre-existing bugs, unrelated to Phase 6 but fixed in the same session 
 - Visual verification via Playwright screenshots: the Restaurant/Home-cooked toggle in both states, the Settings → Account Cloud Backups card, the Settings → Backup section and Danger Zone with both local/cloud options visible, and the interactive ERD's hover/filter behaviour.
 - One test-harness-only issue was hit and diagnosed, not shipped: `#app` stays `visibility: hidden` until the *complete* natural boot sequence resolves, which needs a real network round-trip this sandbox can't make (no `supabase.co` in the sandbox's network allowlist) — screenshots of screen-level UI (as opposed to modals, which sit outside `#app`) needed `#app`'s visibility forced in the test harness only. Not a product bug; confirmed by inspecting the fully-correct underlying DOM (text, computed styles, positions) before finding the cause.
 
-**Left for Adam to verify with real infrastructure** (same category of gap Phase 4/5 left for their own live-credential verification):
-- The migration files haven't been applied to the live Supabase project from this session — delivered as files (`supabase/migrations/*.sql`) for Adam to run via the Supabase CLI/dashboard, per his preference this session.
+**Verified later, on the live project** (the same category of gap Phase 4/5 left for live-credential verification):
+- The migration files haven't been applied to the live Supabase project from this session — delivered as files (`supabase/migrations/*.sql`), applied through the Supabase CLI/dashboard.
 - Real network push/upload round-trips (RLS enforcement against a live project, actual Storage upload/list/download, `pg_cron`/extension availability) aren't testable without them.
-- The service role key was deliberately not requested or handled in this session — Adam noted he was advised not to provide it, which matches the architecture decision that it's dashboard/CLI-only, never client-side.
+- The service role key is never handled by the app or its development tooling: it's dashboard/CLI-only, never client-side.
 
 ## §58 — GDPR export/erasure, forced full sync, opportunistic daily backup, Data & Backup redesign (v8.05)
 
-Follow-up session to §57, working from pre-deployment questions Adam raised before running the test suite. Three threads: two real gaps found by auditing what §57's Phase 6 code actually does versus what its own comments claimed; a new GDPR compliance surface; and a full redesign of where all of this lives in Settings.
+Follow-up to §57, from pre-deployment questions raised before running the test suite. Three threads: two real gaps found by auditing what §57's Phase 6 code actually does versus what its own comments claimed; a new GDPR compliance surface; and a full redesign of where all of this lives in Settings.
 
-### Audit findings from Adam's questions
+### Audit findings
 
 Two things §57 documented as intended behaviour but never actually wired up — found by tracing the real call graph rather than trusting the existing comments:
 
@@ -3801,14 +3799,14 @@ Both are now real, addressed by the additions below rather than patched around.
 `forceFullRelationalSync()` — new function, sits alongside the existing debounced path (`flushSyncQueue()`/`markSyncDirty()`) rather than replacing it. Calls the same `pushStateToSupabase(userId)` the debounced path already uses, just without waiting on `_syncDirty`/the 4s timer, then clears both so a debounce that was already pending doesn't fire redundantly afterward.
 
 Two callers:
-- **`maybeForceFullSyncOnSignIn()`**, called from `onAuthResolved()` alongside `maybeUploadSnapshotZero()`. Guarded by `_fullSyncTriggeredThisBoot` so it fires once per fresh sign-in, not on every token-refresh re-fire of `onAuthResolved()` within the same page load — and the guard is released on failure so the *next* auth event (not the next full page reload) gets a retry. Silent — no UI — per Adam's explicit call this session that this is background hygiene, not something worth interrupting boot for.
+- **`maybeForceFullSyncOnSignIn()`**, called from `onAuthResolved()` alongside `maybeUploadSnapshotZero()`. Guarded by `_fullSyncTriggeredThisBoot` so it fires once per fresh sign-in, not on every token-refresh re-fire of `onAuthResolved()` within the same page load — and the guard is released on failure so the *next* auth event (not the next full page reload) gets a retry. Silent — no UI: it's background hygiene, not something worth interrupting boot for.
 - **`handleFullCloudSync(btnId, statusId)`**, the manual "Full sync" action in the new Export → Cloud menu (see below), which pairs it with `uploadSnapshot()` so one tap guarantees both the relational mirror and the backup file are current.
 
 ### Opportunistic daily backup — the real implementation
 
-`maybeUploadOpportunisticSnapshot()` replaces the stale comment. Adam's original ask was a fixed 3am schedule; ruled out for an architectural reason, not a difficulty one — the snapshot's source of truth (`state`) only exists in the browser, so it can only ever be produced client-side while the app is running, and a server-side `pg_cron` job could only export from the relational tables, which §57 already established aren't fidelity-guaranteed for restore. Separately, iOS suspends a backgrounded/locked PWA almost immediately — no Background Sync or Periodic Background Sync API in iOS Safari — so a `setTimeout` scheduled for a clock time won't fire unless the app is already open then regardless.
+`maybeUploadOpportunisticSnapshot()` replaces the stale comment. A fixed 3am schedule is ruled out for an architectural reason, not a difficulty one — the snapshot's source of truth (`state`) only exists in the browser, so it can only ever be produced client-side while the app is running, and a server-side `pg_cron` job could only export from the relational tables, which §57 already established aren't fidelity-guaranteed for restore. Separately, iOS suspends a backgrounded/locked PWA almost immediately — no Background Sync or Periodic Background Sync API in iOS Safari — so a `setTimeout` scheduled for a clock time won't fire unless the app is already open then regardless.
 
-Landed instead: a "has it been a calendar day since `bloc_last_snapshot_date`?" check, called from two points the app already talks to Supabase while online — `continueBootAfterAuth()` (covers a day where the app is opened but nothing else triggers a sync) and the success branch of `flushSyncQueue()` (covers an actively-used day). Silent, matching the sign-in full sync; a failed check just logs and retries at the next opportunity rather than surfacing anything. On success it calls `updateLastBackupDisplay()`, so the "Last cloud backup" label in Settings and the Account modal reflects it immediately — confirmed with Adam this was expected, not just a side effect worth mentioning.
+Landed instead: a "has it been a calendar day since `bloc_last_snapshot_date`?" check, called from two points the app already talks to Supabase while online — `continueBootAfterAuth()` (covers a day where the app is opened but nothing else triggers a sync) and the success branch of `flushSyncQueue()` (covers an actively-used day). Silent, matching the sign-in full sync; a failed check just logs and retries at the next opportunity rather than surfacing anything. On success it calls `updateLastBackupDisplay()`, so the "Last cloud backup" label in Settings and the Account modal reflects it immediately, by design.
 
 ### GDPR: SARS export & RTBF erasure
 
@@ -3819,14 +3817,14 @@ Two new migrations, `0004_gdpr_sars_export.sql` / `0005_gdpr_rtbf_erasure.sql`, 
 
 Both are `authenticated`/`service_role`-executable via RPC, with the authorization check (`auth.uid() = target_user_id` or `auth.role() = 'service_role'`) inside the function body rather than relied on grants alone.
 
-Wired into the app: `handleDownloadMyData()` calls the export RPC and triggers a browser download of the JSON (`bloc-account-data-{date}.json`, distinct from `exportData()`'s local-state export — this is the server-side record). `handleDeleteMyData()` calls the erasure RPC behind the same two-step `showConfirm()` chain `clearAllData()` already uses (title → "Are you really sure?" → destructive action), then clears `bloc_state` and the snapshot-tracking flags (not theme or the locally-held Anthropic API key — those were never uploaded to Supabase, so they're outside this erasure's scope, same reasoning `clearAllData()` already applies to appearance prefs) and reloads. Per Adam's explicit choice this session, this does **not** sign the person out — the account isn't closed, only emptied, so a plain reload with `bloc_state` gone lands on the same `_isNewUserOnBoot` fresh-start path (demo tour / profile gate) a genuine new sign-up gets, rather than bouncing to the auth gate.
+Wired into the app: `handleDownloadMyData()` calls the export RPC and triggers a browser download of the JSON (`bloc-account-data-{date}.json`, distinct from `exportData()`'s local-state export — this is the server-side record). `handleDeleteMyData()` calls the erasure RPC behind the same two-step `showConfirm()` chain `clearAllData()` already uses (title → "Are you really sure?" → destructive action), then clears `bloc_state` and the snapshot-tracking flags (not theme or the locally-held Anthropic API key — those were never uploaded to Supabase, so they're outside this erasure's scope, same reasoning `clearAllData()` already applies to appearance prefs) and reloads. This does **not** sign the person out — the account isn't closed, only emptied, so a plain reload with `bloc_state` gone lands on the same `_isNewUserOnBoot` fresh-start path (demo tour / profile gate) a genuine new sign-up gets, rather than bouncing to the auth gate.
 
 ### Settings → Profile → Data & Backup redesign
 
-Consolidates what was previously split across an inline "Backup" block, a collapsible "Danger Zone" box, and the separate Account modal's "Cloud Backups" card, into one section at the bottom of Profile, per Adam's spec this session:
+Consolidates what was previously split across an inline "Backup" block, a collapsible "Danger Zone" box, and the separate Account modal's "Cloud Backups" card, into one section at the bottom of Profile:
 
 - **Backup** (always visible — not destructive on its own): **Export** and **Restore** buttons, each opening a local-vs-cloud choice modal (`modal-backup-export-choice` / `modal-backup-restore-choice`, mirroring the existing `modal-linked-services` stacked-button pattern). Choosing Cloud on Export opens a second-level choice (`modal-backup-export-cloud-choice`) between **Backup file** (`handleBackupNow`, unchanged) and **Full sync** (`handleFullCloudSync`, new). Choosing Cloud on Restore hands off to the existing `openRestorePicker()`, which now shows the last cloud backup's date at the top of the snapshot list. Choosing Local on either goes straight to the pre-existing `exportData()`/`importData()` — the local file input's `#import-status` status element moved into the restore-choice modal (not auto-closed on selection) so a bad-file error is actually visible rather than reported into a closed modal.
-- **Data** (kept inside the same red-bordered, collapsed-by-default box the old "Danger Zone" used — `toggleSettingsCard('dangerZone')`, id deliberately unchanged so the existing expanded-by-default-except-`dangerZone` logic needed no changes): **Download my data**, **Delete my data** (both new, described above), and **Clear all data** — wired exactly as before, unchanged, per Adam's explicit instruction not to touch it.
+- **Data** (kept inside the same red-bordered, collapsed-by-default box the old "Danger Zone" used — `toggleSettingsCard('dangerZone')`, id deliberately unchanged so the existing expanded-by-default-except-`dangerZone` logic needed no changes): **Download my data**, **Delete my data** (both new, described above), and **Clear all data** — wired exactly as before, unchanged.
 
 `modal-account`'s "Cloud Backups" card is simplified to a read-only last-backup display pointing to the new Settings location, rather than duplicating the action buttons in two places.
 
@@ -3839,15 +3837,15 @@ Consolidates what was previously split across an inline "Backup" block, a collap
 - Headless Playwright load against the modified file — zero console errors on boot.
 - RPC name cross-check: `gdpr_export_user_data`/`gdpr_erase_user_data` calls in `index.html` match the function names defined in `0004`/`0005` exactly.
 
-**Left for Adam to verify with real infrastructure**, same category of gap as §57:
+**Verified later, on the live project**, the same category of gap as §57:
 - Migrations `0004`/`0005` haven't been applied to the live Supabase project from this session.
 - The forced-sync/opportunistic-backup/GDPR RPC round-trips aren't testable without a live session and real credentials — this session's verification covers syntax, wiring, and structural correctness, not live network behaviour.
-- Whether iOS actually behaves as described (PWA suspension timing) is standard, well-documented WebKit behaviour, not something re-verified against Adam's specific device this session.
+- Whether iOS actually behaves as described (PWA suspension timing) is standard, well-documented WebKit behaviour, not something re-verified on a specific device.
 
 
 ## §59 — Live deployment shakedown: RLS/GRANT/storage-policy gaps, sync race condition, schema/app id mismatches, Account & Data consolidation (v8.06)
 
-The first session where migrations `0001`–`0005` (and everything added this session, `0006`–`0011`) were actually applied to a live Supabase project and exercised with real data, rather than delivered as files and verified only for syntax/wiring correctness (the explicit "left for Adam" gap both §57 and §58 closed with each other). Several real bugs only exist at this seam — reading the migration files or `index.html` in isolation wouldn't have surfaced any of them, since each one is a mismatch *between* the schema, the RLS policies, and the app's actual sync behaviour, not a defect visible in any single file. Working order below follows the order they were actually hit during testing, since several later fixes only became visible once an earlier one was in place.
+The first session where migrations `0001`–`0005` (and everything added this session, `0006`–`0011`) were actually applied to a live Supabase project and exercised with real data, rather than delivered as files and verified only for syntax/wiring correctness (the explicit "verify on the live project" gap §57 and §58 left). Several real bugs only exist at this seam — reading the migration files or `index.html` in isolation wouldn't have surfaced any of them, since each one is a mismatch *between* the schema, the RLS policies, and the app's actual sync behaviour, not a defect visible in any single file. Working order below follows the order they were actually hit during testing, since several later fixes only became visible once an earlier one was in place.
 
 ### RLS policies existed; the underlying GRANT didn't
 
@@ -3906,7 +3904,7 @@ if (failures.length) throw new Error(failures.join('; '));
 
 Once tables synced in the correct order, two further failures surfaced that the race condition had been masking (or that simply hadn't been reached yet because everything upstream of them was failing first):
 
-- **`exercises.category`** sent through raw (`category: ex.category`) — `not null` in the schema, but some real exercises (pre-dating a validation tightening, per Adam) have no `category` field in local state at all. Fixed to mirror the fallback the app itself already uses elsewhere (`buildExerciseCard()`, ~L7192): `category: ex.category === 'cardio' ? 'cardio' : 'weight'`.
+- **`exercises.category`** sent through raw (`category: ex.category`) — `not null` in the schema, but some real exercises (pre-dating a validation tightening) have no `category` field in local state at all. Fixed to mirror the fallback the app itself already uses elsewhere (`buildExerciseCard()`, ~L7192): `category: ex.category === 'cardio' ? 'cardio' : 'weight'`.
 - **`exercise_history`**'s numeric fields (`sets`/`reps`/`weight`/`dropWeight`/`dropReps`) used `h.sets ?? null` — `??` only substitutes for `null`/`undefined`, not `''`, and some legacy history entries have `''` rather than a real number. Postgres rejects `''` for an integer/numeric column outright (`invalid input syntax for type integer: ""`). Added a small `syncNumOrNull()` helper (`v === '' || v === null || v === undefined ? null : v`) and applied it to all five fields.
 
 ### `meals.id`: a genuine schema/app mismatch, not a sync bug
@@ -3928,10 +3926,10 @@ Separately from any of the above, `profiles` never received a row for any accoun
 
 ### `custom_library` gets real ids; `profiles` gets name fields (`0011`)
 
-Two unrelated changes landed in one migration since Adam asked for them together, each with its own reasoning:
+Two unrelated changes landed in one migration, each with its own reasoning:
 
 - **`custom_library.id`: `uuid` → `text`.** Custom exercise library entries in local `state` had no stable id of their own at all until this session — every edit/delete matched by name, which breaks on rename or a duplicate name. `index.html`'s `saveCustomExercise()`/`saveExerciseLibEntry()`/`deleteExerciseLibEntry()`/`importExerciseLibrary()` now generate/preserve/backfill a `'custom_' + Date.now()` id (the same convention as every other id-generating function in the file), and `syncRowsCustomLibrary()` now sends it as the row's `id`. The schema needed to follow: `custom_library` was otherwise the one exception to the app-owned-text-id pattern every sibling table (`macrocycles`/`exercises`/`foods`/`recipes`/`sample_days`) already used, inventing a fresh `uuid` on every sync instead. Nothing references `custom_library.id` via FK, so this was a clean retype with no cascade concerns — `alter table custom_library alter column id drop default; alter table custom_library alter column id type text;`. A small incidental fix landed alongside this: `saveExerciseLibEntry()` was silently dropping a cardio custom exercise's `category` field on every edit (rebuilding the entry as `{name, bodyPart}` with no `category` key) — since that exact object was already being rebuilt to add the id, preserving `category` too was a one-line addition rather than a fresh regression in code just touched.
-- **`profiles.first_name` / `surname` / `preferred_name`** — three new nullable `text` columns, added to About me as three separate stacked rows (not a side-by-side layout, per Adam's preference), none part of the profile-entry gate's required-field validation. `preferred_name` is the only one surfaced elsewhere in the UI so far — Home's "Welcome back" heading now reads "Welcome back, {name}!" when set, plain "Welcome back" otherwise.
+- **`profiles.first_name` / `surname` / `preferred_name`** — three new nullable `text` columns, added to About me as three separate stacked rows (stacked, not side by side), none part of the profile-entry gate's required-field validation. `preferred_name` is the only one surfaced elsewhere in the UI so far — Home's "Welcome back" heading now reads "Welcome back, {name}!" when set, plain "Welcome back" otherwise.
 
 ### Pre-deploy validation tooling
 
@@ -3940,7 +3938,7 @@ Two standalone Node scripts, `validate-sync.mjs` and `validate-sync-offline.mjs`
 - **`validate-sync.mjs`** — live comparison, via `@supabase/supabase-js` and a `service_role` key (never leaves the machine it's run on).
 - **`validate-sync-offline.mjs`** — the same comparison against a `gdpr_export_user_data()` JSON dump instead, so no credentials need to leave the Supabase dashboard at all; the person runs one SQL query, exports the result, and both files get handed over for an entirely offline diff.
 
-Both key each table's rows by whatever field actually identifies a row for that table (id for most; composite keys like `exercise_id|week|set_index` for tables with no id of their own; `macro_goal_id` for goals; `log_date` for the two date-keyed singleton tables) and report missing/unexpected/mismatched rows per table. Run against Adam's real account this session — 2,209 rows across 19 tables — with two false positives found and fixed in the *validator itself*, not the app: a numeric-string-vs-number comparison bug (Postgres numeric columns can come back as either JSON numbers or strings depending on the source, and a local backup can itself hold a numeric value as a string) and a `JSON.stringify()`-based object comparison that broke on `jsonb` columns not preserving their original key insertion order through Postgres. Both replaced with a proper type-coercing, order-independent `deepEqual()`. Final run: clean pass, zero issues, at full production scale.
+Both key each table's rows by whatever field actually identifies a row for that table (id for most; composite keys like `exercise_id|week|set_index` for tables with no id of their own; `macro_goal_id` for goals; `log_date` for the two date-keyed singleton tables) and report missing/unexpected/mismatched rows per table. Run against a real account — 2,209 rows across 19 tables — with two false positives found and fixed in the *validator itself*, not the app: a numeric-string-vs-number comparison bug (Postgres numeric columns can come back as either JSON numbers or strings depending on the source, and a local backup can itself hold a numeric value as a string) and a `JSON.stringify()`-based object comparison that broke on `jsonb` columns not preserving their original key insertion order through Postgres. Both replaced with a proper type-coercing, order-independent `deepEqual()`. Final run: clean pass, zero issues, at full production scale.
 
 ### Deployment-process lessons (not code changes)
 
@@ -3962,13 +3960,13 @@ Two things learned about the deployment pipeline itself, worth recording since t
 - `node --check` on all four extracted `<script>` blocks after every edit in this session, not just once at the end.
 - Grep for duplicate top-level function declarations across every new/changed function this session (`pushStateToSupabase`, `syncRowsExercises`, `syncRowsExerciseHistory`, `syncNumOrNull`, `syncProfile`, `saveCustomExercise`, `saveExerciseLibEntry`, `deleteExerciseLibEntry`, `importExerciseLibrary`, `syncRowsCustomLibrary`, `openChangePassword`, `submitChangePassword`, `setAuthMode`, `updateAccountUI`) — one declaration each throughout.
 - `<div>`/`</div>` balance re-checked after every markup change (splash button, About me fields, Account & Data modal rebuild, Change Password modal) — the pre-existing whole-file off-by-one predates this session (confirmed against the same-count baseline before any v8.06 edit) and was neither introduced nor worsened by any change here.
-- `validate-sync-offline.mjs` run against Adam's real account and a real `gdpr_export_user_data()` export — 2,209 rows across 19 tables, zero issues, at the end of this session (i.e. against the final state of everything above, not a partial version).
+- `validate-sync-offline.mjs` run against a real account and a real `gdpr_export_user_data()` export — 2,209 rows across 19 tables, zero issues, at the end of this session (i.e. against the final state of everything above, not a partial version).
 - Migration application itself verified against the live deploy log for every one of `0006`–`0011` (not just delivered as files, per this section's own opening point) — each showed a clean `Applying migration...` with no `ERROR` line, or, for the one genuine failure (`0003`'s first `pg_cron` attempt), a full retry that completed clean once the underlying dashboard issue was fixed.
 
-**Left for Adam / follow-up work, not gaps in this session's own scope:**
+**Follow-up work, outside this release's scope:**
 - Apple and Microsoft OAuth remain deferred (Apple: paid Developer Program cost; Microsoft: Azure app registration friction) — unchanged from §56.
 - Phase 7 (the coach app) is still unbuilt; `coach_clients`/`invite_codes`/`plans` remain empty scaffolding, unaffected by anything in this session.
-- A PWA migration/reuse document — covering which of this session's Supabase Auth/sync/backup patterns carry over to Adam's other PWAs (My Dream Clean, Personal-F, Personal-Ledger-Balance), sharing one Supabase project across apps with app-name-prefixed storage paths — is the explicit next piece of work, not started in this session.
+- A PWA migration/reuse document — covering which of this session's Supabase Auth/sync/backup patterns carry over to the developer's other PWAs (My Dream Clean, Personal-F, Personal-Ledger-Balance), sharing one Supabase project across apps with app-name-prefixed storage paths — is the explicit next piece of work, not started in this session.
 
 ## §60 — Hotfix: signUp() confirmation-email redirect + Ella's stuck-sync backup (no version bump)
 
@@ -3986,10 +3984,10 @@ Two separate failure modes were stacked here: the wrong dashboard value at send-
 
 Ella's uploaded backup (`bloc-backup-2026-08-31.json`) threw on "Full sync": duplicate-key errors on `foods`/`recipes`/`meals`, a foreign-key violation on `recipe_ingredients` (a child of the failed `recipes` insert), and a not-null violation on `goals.macro_goal_id`. Two distinct root causes, not one:
 
-- **Nutrition data.** Per Adam, Ella doesn't use the Nutrition module yet, so the safe fix was removing it from her backup rather than debugging why these particular rows were colliding server-side: `foodLibrary`, `recipes`, `nutritionMeals`, and `nutritionLogs` all cleared to their empty state (`[]`/`{}` as appropriate) in the backup file before restore. `customLibrary` (custom **exercise** entries — Push Press, Pressup, Kettlebell Swing, Renegade Row, Russian Twists) is unrelated to Nutrition and was left untouched.
+- **Nutrition data.** That account didn't use the Nutrition module, so the safe fix was removing it from her backup rather than debugging why these particular rows were colliding server-side: `foodLibrary`, `recipes`, `nutritionMeals`, and `nutritionLogs` all cleared to their empty state (`[]`/`{}` as appropriate) in the backup file before restore. `customLibrary` (custom **exercise** entries — Push Press, Pressup, Kettlebell Swing, Renegade Row, Russian Twists) is unrelated to Nutrition and was left untouched.
 - **`goals.macro_goal_id`.** `macroGoalID` is a real, permanent per-goal identifier the app has generated at creation time since the goal-flashing/sample-day-linking features were added (`generateMacroGoalID()`, `` `${macroId}_g${Date.now()}` ``) — but Ella's one goal object predates that feature and simply never had the field written to it, so the sync layer sent `null` straight into a `not null` column. This is a genuine old-data gap, not a bug to fix in `index.html` — backfilled a `macroGoalID` directly onto that goal object in the backup file, following the app's own generation format.
 
-Delivered back as a corrected `bloc-backup-2026-08-31.json` for Adam to restore onto Ella's device via Settings → Account & Data → Restore → local file, then re-attempt Full sync.
+Delivered back as a corrected `bloc-backup-2026-08-31.json`, restored onto the device via Settings → Account & Data → Restore → local file, then re-attempt Full sync.
 
 ## §61 — Three real-use bug fixes: Sunday off-target sign inversion, password-autofill leak, splash/gate flash (v8.07)
 
@@ -4001,7 +3999,7 @@ Three unrelated bugs found through real daily use of the app, all with genuine r
 
 That correspondence breaks on the week's last day once today is already logged (`daysRemaining <= 0`): `getWeeklyRequiredDaily()` has nothing left to "require," so its `daysRemaining <= 0` branch just returns the actual final average instead (`requiredDaily = loggedSoFar / daysTrackedSoFar`). `getHomeMetricBadge()` kept applying the *same* comparison direction to that number regardless — but "paceValue above target" now means the week **actually finished over target** (a surplus), not "still needs more to catch up from a deficit." The two branches of `getWeeklyRequiredDaily()` return numbers with opposite relationships to `target`, and the badge code was blind to which branch it was looking at.
 
-Reported symptom, from Adam's own Sunday screenshots: protein finishing at 243g against a 222g target (an overshoot — harmless for protein, whose `HOME_METRIC_POLARITY` is `'underBad'`, meaning only falling short is bad) showed a **red "Falling behind"** badge; carbs finishing at 103g against a 191g target (a shortfall — harmless for carbs, `'overBad'`, meaning only exceeding is bad) showed a **red "Exceeding"** badge. Both exactly backwards.
+Reported symptom, from real Sunday screenshots: protein finishing at 243g against a 222g target (an overshoot — harmless for protein, whose `HOME_METRIC_POLARITY` is `'underBad'`, meaning only falling short is bad) showed a **red "Falling behind"** badge; carbs finishing at 103g against a 191g target (a shortfall — harmless for carbs, `'overBad'`, meaning only exceeding is bad) showed a **red "Exceeding"** badge. Both exactly backwards.
 
 **Fix:** `getHomeMetricBadge()` now tracks whether `getWeeklyRequiredDaily()` returned a real catch-up rate or the terminal actual-average via a `weekOver` flag, and flips the `behindPace`/`aheadPace` comparison direction specifically for that case:
 
@@ -4010,7 +4008,7 @@ const behindPace = weekOver ? (paceValue < target - tol) : (paceValue > target +
 const aheadPace  = weekOver ? (paceValue > target + tol) : (paceValue < target - tol);
 ```
 
-`getWeeklyRequiredDaily()` itself is untouched — its return value is also consumed directly by `getHomeMetricSublabel()` (the "adjust by X" advice text) and `getReconciledMacroAdvice()`, both of which display the actual figure rather than classify it, so changing its output shape there would have been the wrong fix. Verified with a standalone harness reproducing Adam's exact numbers (protein 243/222, carbs 103/191, both correctly green afterward) plus a mid-week case (protein needing to eat more, carbs already over target) confirming the non-Sunday path is byte-for-byte unchanged.
+`getWeeklyRequiredDaily()` itself is untouched — its return value is also consumed directly by `getHomeMetricSublabel()` (the "adjust by X" advice text) and `getReconciledMacroAdvice()`, both of which display the actual figure rather than classify it, so changing its output shape there would have been the wrong fix. Verified with a standalone harness reproducing the reported numbers (protein 243/222, carbs 103/191, both correctly green afterward) plus a mid-week case (protein needing to eat more, carbs already over target) confirming the non-Sunday path is byte-for-byte unchanged.
 
 ### Log Steps numeric field occasionally showed iOS's Passwords/Keychain AutoFill bar
 
@@ -4096,7 +4094,7 @@ macro.review = {
 - **Prior reviews** — `getPriorCycleReviews(excludeMacroId)`: the last 2 *other* cycles that have a `.review`, most recent first, condensed to compliance/bodyfat-direction/weight-target-delta/highlights/improvements — sent with every call so BLOC can compare against its own prior verdicts, per the dev notes' "always include last 2 reviews in each call."
 - **Final-day steps caveat** — steps is always the last thing logged in a day, so if the review is generated on the cycle's actual last day and that day has no steps logged yet, `finalDayStepsPending` is set and the prompt is told to assume the daily steps goal was met for that day rather than scoring it a miss.
 
-**Photos** (`index.html`, `modal-cycle-review`): two tiles, Before and After, each with a "📷 Take" (`<input type="file" accept="image/*" capture="environment">`) and "🖼 Upload" (`<input type="file" accept="image/*" multiple>`) button, allowing multiple photos per side. Each selected file is downsized client-side to the same `1024`px-longest-edge / `0.82`-quality JPEG base64 that `analyseMealPhoto()`'s meal-photo flow already uses (constants duplicated as `CYCLE_REVIEW_PHOTO_MAX_DIMENSION`/`_QUALITY` rather than referencing the meal-photo ones directly, since those are declared with `const` later in the file and referencing them earlier would hit the temporal dead zone) and held in two module-level arrays (`_cycleReviewBeforeImages`/`_cycleReviewAfterImages`) — **never** written to `state` or `localStorage`. The system prompt explicitly instructs BLOC to judge visual body composition past tattoos (Adam is heavily tattooed) rather than mistaking ink for shadow/discoloration. On both success and failure the in-memory image arrays are discarded; only `beforePhotoCount`/`afterPhotoCount` (how many were attached) persist on `macro.review`.
+**Photos** (`index.html`, `modal-cycle-review`): two tiles, Before and After, each with a "📷 Take" (`<input type="file" accept="image/*" capture="environment">`) and "🖼 Upload" (`<input type="file" accept="image/*" multiple>`) button, allowing multiple photos per side. Each selected file is downsized client-side to the same `1024`px-longest-edge / `0.82`-quality JPEG base64 that `analyseMealPhoto()`'s meal-photo flow already uses (constants duplicated as `CYCLE_REVIEW_PHOTO_MAX_DIMENSION`/`_QUALITY` rather than referencing the meal-photo ones directly, since those are declared with `const` later in the file and referencing them earlier would hit the temporal dead zone) and held in two module-level arrays (`_cycleReviewBeforeImages`/`_cycleReviewAfterImages`) — **never** written to `state` or `localStorage`. The system prompt explicitly instructs BLOC to judge visual body composition past tattoos (the reviewed photos can be heavily tattooed) rather than mistaking ink for shadow/discoloration. On both success and failure the in-memory image arrays are discarded; only `beforePhotoCount`/`afterPhotoCount` (how many were attached) persist on `macro.review`.
 
 **The call** (`runCycleReview()`): identical plumbing to `askBlocForAdvice()`/`analyseMealPhoto()` — same BYO key (`getApiKey()`), same endpoint/headers (`x-api-key`, `anthropic-dangerous-direct-browser-access`), same model (`claude-sonnet-4-6`), direct browser → `api.anthropic.com` fetch, no proxy. The message content is the deterministic text prompt followed by each photo as an `image` block, each preceded by its own `text` block label (`BEFORE PHOTO 1:`, etc.) since the Messages API has no per-image caption field. On a valid JSON response, `macro.review` is set, `save()`d, the modal closes, and the card renders open (`_cycleReviewCardOpen[macro.id] = true`) so the result is immediately visible.
 
@@ -4127,7 +4125,7 @@ Two unrelated pieces of work, no feature code changed in the first.
 
 ### `SUPABASE.md` / `bloc-erd.html` brought up to date with migrations `0013`–`0015`
 
-These three migrations (`bloc_checkins`, `bloc_next_cycle_advice`, `cycle_reviews`, `account_closure_requests`) were drafted in an earlier session directly into this `BLOC V8.09` working folder's `supabase/migrations/`, per `CHECKINS-AND-CYCLE-REVIEW-SYNC-SCOPE.md` and `ACCOUNT-CLOSURE-SCOPE.md` — but neither the Mermaid ERD in `SUPABASE.md` nor the interactive `bloc-erd.html` had been updated to reflect them, and both are the "source of truth" documents Adam and future sessions read to understand the schema. This session added:
+These three migrations (`bloc_checkins`, `bloc_next_cycle_advice`, `cycle_reviews`, `account_closure_requests`) were drafted in an earlier session directly into this `BLOC V8.09` working folder's `supabase/migrations/`, per `CHECKINS-AND-CYCLE-REVIEW-SYNC-SCOPE.md` and `ACCOUNT-CLOSURE-SCOPE.md` — but neither the Mermaid ERD in `SUPABASE.md` nor the interactive `bloc-erd.html` had been updated to reflect them, and both are the "source of truth" documents for understanding the schema. This session added:
 
 - Four new entities to `SUPABASE.md`'s Mermaid diagram and a "Tables by module" write-up for each, explicitly calling out `bloc_checkins`' hardened insert/update-only RLS (the one table in the whole schema with no delete policy for `authenticated`) and the still-open app-side gaps (no stable id on `state.blocAdvice` yet, no `syncBlocCheckin()` push path, no closure-request insert UI) — matching the scope docs' own "Not yet built" sections rather than overstating progress.
 - Updated the GDPR section's table counts (22 → 25) and the migration list, including a new "restricted" legend colour and per-table tooltip note in `bloc-erd.html` for the two tables (`bloc_checkins`, `account_closure_requests`) that break the schema's otherwise-universal select/insert/update/delete RLS shape.
@@ -4137,20 +4135,20 @@ No schema, RLS, or `index.html` sync-layer changes were made — this was docume
 
 ### Password-autofill/Keychain bug: still not fixed — added in-app debug logging instead of a third guess
 
-Per the dev notes (item 1) and `TECHNICAL.md` §61/§62: Adam confirmed §62's DOM mount/unmount fix (physically removing every `type="password"` field from the DOM rather than merely CSS-hiding it) did **not** stop the Log Steps box from occasionally showing iOS's Keychain/AutoFill bar. Two theories were already tried and disproven this way; rather than propose a third without evidence, this session adds instrumentation instead of a fix:
+Per `TECHNICAL.md` §61/§62: §62's DOM mount/unmount fix (physically removing every `type="password"` field from the DOM rather than merely CSS-hiding it) did **not** stop the Log Steps box from occasionally showing iOS's Keychain/AutoFill bar. Two theories were already tried and disproven this way; rather than propose a third without evidence, this session adds instrumentation instead of a fix:
 
 - `mountPasswordField()`/`unmountPasswordField()` (the §62 helpers) now call `blocDebugLog()` on every mount/unmount/skip, so the panel shows a timestamped history of exactly when each of the three password fields (auth gate, Change Password, API key) entered and left the DOM during the session.
 - A `document`-level `focusin` listener logs a full DOM scan (`blocScanPasswordFields()`) the instant Log Steps — or, as a control, the weight box, never implicated in this bug — is focused: every `type="password"` input currently in the document, whether it's actually connected/visible, and (via `blocDescribeEl()`) whether any ancestor is `display:none` or carries `.hidden`, since a merely-hidden-but-still-mounted field was the exact §62 theory.
-- Both render into a new `#home-debug-panel` at the bottom of the Home screen (`renderHomeDebugPanel()`, called from `renderHome()`), plain readable text sized for a screenshot — no remote logging, since the bug only reproduces on Adam's own device.
+- Both render into a new `#home-debug-panel` at the bottom of the Home screen (`renderHomeDebugPanel()`, called from `renderHome()`), plain readable text sized for a screenshot — no remote logging, since the bug only reproduces on one real device.
 - A synchronous pre-paint log line was also added to the existing inline `<script>` right after `<body>` (§60/§62's `_hasCachedSupabaseSession` check) recording whether the static `auth-password-input` markup was found and removed before first paint, since `blocDebugLog()` itself isn't defined yet that early in page load.
 
-All of this is explicitly marked temporary in-code (`TEMP DEBUG (v8.09)` comments at each of the four call sites: the pre-paint script, the two mount/unmount helpers, `renderHome()`, and the `#home-debug-panel` div itself) so it's trivial to strip out once Adam sends a screenshot of the panel from a reproduction and the actual root cause is found.
+All of this is explicitly marked temporary in-code (`TEMP DEBUG (v8.09)` comments at each of the four call sites: the pre-paint script, the two mount/unmount helpers, `renderHome()`, and the `#home-debug-panel` div itself) so it's trivial to strip out once a screenshot of the panel from a reproduction finds the actual root cause.
 
 ## §65 — Account & Data modal: corrected which rows are red
 
 A prior pass had already rebuilt `modal-account` to mirror the main Settings screen's own visual language (`.section-title` grey-caps headers, `.settings-row` tappable rows, no bordered `<button>` elements, nothing collapsible — Account/Backup/Data, all three sections always expanded) — its own in-code comment describes this design correctly. What it got wrong: every row in the Data section (Download my data, Delete my data, Clear all data, Close my account) was styled red, both text and icon.
 
-Adam's instruction this session was that only the two truly irreversible-on-this-device/irreversible-account actions — **Clear all data** and **Close my account** — should read in red; **Download my data** and **Delete my data** should look like any other row. Fixed by dropping the `color:var(--red)` inline style and the `stroke:var(--red)` on those two rows' `<svg>` icons (back to the same `stroke:var(--text3)` every other row uses), leaving Clear all data/Close my account untouched. Updated the section's own in-code comment to match.
+Only the two truly irreversible-on-this-device/irreversible-account actions — **Clear all data** and **Close my account** — should read in red; **Download my data** and **Delete my data** should look like any other row. Fixed by dropping the `color:var(--red)` inline style and the `stroke:var(--red)` on those two rows' `<svg>` icons (back to the same `stroke:var(--text3)` every other row uses), leaving Clear all data/Close my account untouched. Updated the section's own in-code comment to match.
 
 **Found in passing, not fixed this session:** the "Close my account" row's `onclick="handleCloseAccount()"` has no matching function definition anywhere in `index.html` — tapping it today throws a `ReferenceError`. Its neighbouring code comment describes the full intended flow (insert into `account_closure_requests`, erase via `gdpr_erase_user_data()`, reset the device) as if built, but only the comment/markup exists; the actual function was never written. This matches `ACCOUNT-CLOSURE-SCOPE.md`'s own "Not yet built" section (the client-side insert path), so the design intent is documented correctly — it just hasn't been implemented. Left for a dedicated pass since it wasn't part of this session's ask.
 
@@ -4162,14 +4160,14 @@ Implemented the function §65 flagged as missing, following `ACCOUNT-CLOSURE-SCO
 
 - **Q2 (does closure also erase immediately?) → yes.** `handleCloseAccount()` inserts a bare `{ user_id }` row into `account_closure_requests` first — deliberately before anything else, so the request is on record even if a later step throws — then calls `deleteAllSnapshots()` and `gdpr_erase_user_data()`, the same two calls `handleDeleteMyData()` already makes.
 - **Q3 (post-request device behaviour) → land on the auth gate, not a fresh-account state.** This is the one place `handleCloseAccount()` genuinely diverges from `handleDeleteMyData()`'s shape: after clearing the same local flags (`bloc_state`, `bloc_last_snapshot_date`, `bloc_snapshot_zero_pending`/`_done`, and the new `bloc_snapshot_autorestore_done` — see below), it also calls `supabase.auth.signOut()` before `location.reload()`. `handleDeleteMyData()` deliberately skips sign-out (its own comment: the account isn't closed, just emptied) — but a closure request means the account is *supposed* to stop being usable, and the scope doc's own reasoning was that landing on a working home screen mid-request would be confusing, so this one signs out.
-- **Q4 (copy)** handled inline in both `showConfirm()` dialogs — spelling out that data is erased immediately but the account itself closes only once Adam processes the request separately.
-- Q1 (processing latency) and Q7 (processing tooling) have no code-side answer — genuinely just "how Adam works the queue," left open.
+- **Q4 (copy)** handled inline in both `showConfirm()` dialogs — spelling out that data is erased immediately but the account itself closes only once the request is processed separately.
+- Q1 (processing latency) and Q7 (processing tooling) have no code-side answer — genuinely just how the queue is worked, left open.
 
 Two-step `showConfirm()` chain, same shape and same `settings-data-zone-status` error element as `handleDeleteMyData()`, so a failure at any step (insert, snapshot delete, or the erase RPC) surfaces the same way. **Not yet functional against a live project** — `account_closure_requests` (migration `0014`) still needs copying into the real repo and applying before the insert has a table to land in; see `SUPABASE.md`.
 
 ### Second-device / repeat-test sign-in no longer offers the "keep local data" choice when the account already has cloud backups
 
-Reported directly from Adam's own testing workflow: signing into an account that already has real cloud data, from a device/browser profile that happens to have *some* local data sitting in it (leftover test data, an old demo dataset, anything), triggered the exact same "Existing data found… it'll automatically become this account's starting dataset" notice (`checkSnapshotZero()`/`modal-snapshot-zero`) a genuinely first-ever migration gets. That framing is actively wrong there — the next relational sync push (`syncTable()`'s delete-then-reinsert, `SUPABASE.md`) would silently overwrite the account's real data with whatever this device happens to have.
+Reported from a real testing workflow: signing into an account that already has real cloud data, from a device/browser profile that happens to have *some* local data sitting in it (leftover test data, an old demo dataset, anything), triggered the exact same "Existing data found… it'll automatically become this account's starting dataset" notice (`checkSnapshotZero()`/`modal-snapshot-zero`) a genuinely first-ever migration gets. That framing is actively wrong there — the next relational sync push (`syncTable()`'s delete-then-reinsert, `SUPABASE.md`) would silently overwrite the account's real data with whatever this device happens to have.
 
 **Fix:** `checkSnapshotZero()` is now `async` and, before showing that notice, calls `listSnapshots()` to check whether the account already has *any* cloud backup. If it does, the notice is skipped entirely and `restoreFromSnapshot()` pulls the newest one down instead (`listSnapshots()` already sorts newest-first) — no prompt, matching how re-signing into an existing account should behave. The original notice only still fires when the account genuinely has zero cloud snapshots. Guarded per-device by a new `bloc_snapshot_autorestore_done` localStorage flag (same pattern as the existing `bloc_snapshot_zero_pending`/`_done` — its own key, not swept into `state`/export, cleared by both `handleDeleteMyData()` and `handleCloseAccount()`), so this only fires once per device rather than re-restoring on every boot.
 
@@ -4181,9 +4179,9 @@ The §61/§62 debug instrumentation (§64) paid off immediately: the debug panel
 
 ### What was actually happening
 
-The full-screen prompt Adam screenshotted (*"Sign in to 'github.io' with your password 'OpenRouteService API Key' for 'sleepy_hed_cox@hotmail.co.uk'"*) named a different site entirely and a different email than BLOC's. Root cause: browsers (and iOS Keychain) scope saved credentials by **origin** — scheme+host+port — not by path. BLOC is deployed at `https://adamnc02.github.io/bloc-app/` (`TECHNICAL.md` §60); every other project of Adam's on GitHub Pages shares that exact same origin, just a different path. A stray Keychain entry from an unrelated project (an OpenRouteService API key, tested on some other `adamnc02.github.io/...` project) was therefore offered on *any* page under that origin, BLOC included — nothing to do with BLOC's own password fields at all. Adam deleted that entry from iOS Settings → Passwords and the full-screen prompt stopped.
+The full-screen prompt (*"Sign in to 'github.io' with your password 'OpenRouteService API Key' for …"*) named a different site entirely and a different email than BLOC's. Root cause: browsers (and iOS Keychain) scope saved credentials by **origin** — scheme+host+port — not by path. BLOC is deployed at `https://adamnc02.github.io/bloc-app/` (`TECHNICAL.md` §60); every other project on the same GitHub Pages account shares that exact same origin, just a different path. A stray Keychain entry from an unrelated project (an OpenRouteService API key, tested on some other `adamnc02.github.io/...` project) was therefore offered on *any* page under that origin, BLOC included — nothing to do with BLOC's own password fields at all. Deleting that entry from iOS Settings → Passwords stopped the full-screen prompt.
 
-A second, milder symptom remained: a small "Passwords"/"Autofill Contact" QuickType chip above the keyboard, appearing inconsistently across several unrelated fields (Log Steps, the food search/filter box, serving-size pickers) and changing which suggestion type it offered depending on recent navigation. This is a separate, later iOS behavior change — Apple's own release notes for iOS 17: *"In Safari and apps, you can use AutoFill to enter your saved passwords in any text field, not just password fields."* Once a page's origin has **any** saved credential in Keychain anywhere, Safari offers it as a QuickType suggestion on every editable field on that origin, regardless of the field's own type or autocomplete value — there is no web API to disable this per-field. Notably, Adam signed into BLOC itself via Google OAuth, which never creates a Keychain password entry for the origin — so even this remaining chip isn't caused by BLOC's own sign-in credential; it's almost certainly one more Keychain entry, scoped specifically to `adamnc02.github.io` itself (not the generic `github.io` display name Adam already checked), left behind by a *different* project of his sharing the same GitHub Pages account/origin (MyDreamClean is the likeliest candidate — another PWA of Adam's, referenced elsewhere in this file, that unlike BLOC has a real email/password login). Worth checking iOS Settings → Passwords for entries against `adamnc02.github.io` specifically.
+A second, milder symptom remained: a small "Passwords"/"Autofill Contact" QuickType chip above the keyboard, appearing inconsistently across several unrelated fields (Log Steps, the food search/filter box, serving-size pickers) and changing which suggestion type it offered depending on recent navigation. This is a separate, later iOS behavior change — Apple's own release notes for iOS 17: *"In Safari and apps, you can use AutoFill to enter your saved passwords in any text field, not just password fields."* Once a page's origin has **any** saved credential in Keychain anywhere, Safari offers it as a QuickType suggestion on every editable field on that origin, regardless of the field's own type or autocomplete value — there is no web API to disable this per-field. Notably, a Google OAuth sign-in to BLOC which never creates a Keychain password entry for the origin — so even this remaining chip isn't caused by BLOC's own sign-in credential; it's almost certainly one more Keychain entry, scoped specifically to `adamnc02.github.io` itself (not the generic `github.io` display name), left behind by a *different* project sharing the same GitHub Pages account/origin (MyDreamClean is the likeliest candidate — another PWA on the same account, referenced elsewhere in this file, that unlike BLOC has a real email/password login). Worth checking iOS Settings → Passwords for entries against `adamnc02.github.io` specifically.
 
 ### What was done about it
 
@@ -4203,7 +4201,7 @@ Applied to every `<input>` in the app except the four that genuinely want real c
 
 **Not a guaranteed fix** — `autocomplete="off"` is a hint iOS is documented to sometimes override for this specific feature, and the underlying cause (shared GitHub Pages origin, plus whatever other project's credential is still triggering it) isn't something `index.html` can resolve on its own. The structural fix, if this doesn't fully resolve it, is either finding and removing the specific `adamnc02.github.io`-scoped Keychain entry from the other project, or moving BLOC to its own custom domain so its origin can never share Keychain scope with an unrelated project again.
 
-The debug panel/instrumentation from §64 was intentionally left in place rather than removed this session — it already proved decisive once and costs nothing to keep around if Adam needs to verify whether the suppression pass actually reduced the chip's frequency.
+The debug panel/instrumentation from §64 was intentionally left in place rather than removed this session — it already proved decisive once and costs nothing to keep around for verifying whether the suppression pass actually reduced the chip's frequency.
 
 ## §68 — v8.10: "Build this plan next" mesocycle/weeks-per-meso gate, and a duplicate-build guard
 
@@ -4228,8 +4226,8 @@ See `bloc-app/2026-09-08/UAT-RETEST-SCRIPT-2026-09-08.md` for the retest script.
 
 Second half of the 2026-09-08 bug report: "the new tables for bloc advice/checkins/cycle review are not populating in supabase." Investigated in three parts before touching any code:
 
-1. **Ruled out PowerSync entirely.** The bug report mentioned "a forced manual sync in PowerSync," which pointed straight at PowerSync's sync-rules/publication config as a suspect. But `index.html` has zero references to PowerSync anywhere — BLOC talks directly to Supabase via `@supabase/supabase-js` (`createClient()`, ~line 5039). Adam confirmed the phrase was a mix-up with BLOC's own "Force full sync" button (Settings → Account & Data) — PowerSync is used only by the separate personal-finance-ledger app that happens to share this same Supabase project (see `BLOC-INFO.md`'s warning about that sharing). A YAML Adam pasted from the PowerSync dashboard, checked directly, was entirely `personal_finance.*` tables — confirming it belonged to that other app, not BLOC.
-2. **Confirmed the tables already existed live** — Adam checked Supabase Table Editor directly; `bloc_checkins`/`bloc_next_cycle_advice`/`cycle_reviews` were already there before this session (migrations `0013`–`0015` had already been applied to the live database, just never given the table-level `grant` — see `super-duper-octo-barnacle`'s migration `0016` and `docs/SUPABASE.md`).
+1. **Ruled out PowerSync entirely.** The bug report mentioned "a forced manual sync in PowerSync," which pointed straight at PowerSync's sync-rules/publication config as a suspect. But `index.html` has zero references to PowerSync anywhere — BLOC talks directly to Supabase via `@supabase/supabase-js` (`createClient()`, ~line 5039). The phrase was a mix-up with BLOC's own "Force full sync" button (Settings → Account & Data) — PowerSync is used only by the separate personal-finance-ledger app that happens to share this same Supabase project (see `BLOC-INFO.md`'s warning about that sharing). The PowerSync dashboard's YAML, checked directly, was entirely `personal_finance.*` tables — confirming it belonged to that other app, not BLOC.
+2. **Confirmed the tables already existed live** — the Supabase Table Editor showed `bloc_checkins`/`bloc_next_cycle_advice`/`cycle_reviews` already there before this session (migrations `0013`–`0015` had already been applied to the live database, just never given the table-level `grant` — see `super-duper-octo-barnacle`'s migration `0016` and `docs/SUPABASE.md`).
 3. **That left exactly the gap `CHECKINS-AND-CYCLE-REVIEW-SYNC-SCOPE.md` (2026-09-07) had already identified and left unbuilt:** `index.html` never wrote to any of the three tables at all. Confirmed directly — zero occurrences of `bloc_checkins`, `bloc_next_cycle_advice`, `cycle_reviews`, or `syncBlocCheckin` anywhere in the file before this session.
 
 ### Fix
@@ -4237,15 +4235,15 @@ Second half of the 2026-09-08 bug report: "the new tables for bloc advice/checki
 - `askBlocForAdvice()` now stamps a stable `id` onto `state.blocAdvice` at creation (`'chk_' + Date.now() + '_' + Math.random().toString(36).slice(2,8)`, same pattern `askBlocForNextCycleAdvice()` already used for `adviceId`) — carried through every later mutation of that same check-in (chosen path, a "Challenge this advice" revision).
 - `syncBlocCheckin(userId)` (next to `syncProfile()`) upserts `state.blocAdvice` by that id, run outside the generic `jobs` array in `pushStateToSupabase()` — exactly like `profiles`, and for the same reason `syncTable()` can't be used: `state.blocAdvice` is a single object overwritten on every new check-in, so a delete-then-reinsert would wipe every previously-synced check-in on every routine sync. Legacy local state saved before this fix (no `id` field yet) gets one stamped in on its first sync rather than being silently dropped.
 - `bloc_next_cycle_advice`/`cycle_reviews` were added as ordinary `jobs` array entries (`syncRowsBlocNextCycleAdvice()`, `syncRowsCycleReviews()`) — safe to reconcile the standard way since local state (`nextCycleAdviceHistory[]`, `macro.review`) is already a durable, never-trimmed history for both.
-- Supabase side: migration `20260831000016_grant_bloc_and_closure_table_privileges.sql` (drafted and merged to `main` in `super-duper-octo-barnacle` this session, with Adam's sign-off) grants the table-level privileges `0013`/`0014` never issued — without this, even the correctly-built sync above would fail with `permission denied for table bloc_checkins`. Also fixes the same gap for `account_closure_requests`, which had been silently broken since v8.09 for the same reason.
+- Supabase side: migration `20260831000016_grant_bloc_and_closure_table_privileges.sql` (drafted and merged to `main` in `super-duper-octo-barnacle` this session) grants the table-level privileges `0013`/`0014` never issued — without this, even the correctly-built sync above would fail with `permission denied for table bloc_checkins`. Also fixes the same gap for `account_closure_requests`, which had been silently broken since v8.09 for the same reason.
 
 Not covered by any UAT retest script yet — needs a real check-in / next-cycle-advice / cycle review generated and a forced sync, then confirming rows actually appear in Supabase Table Editor.
 
 ## §70 — v8.10 follow-up: deterministic recommendation stayed visible after choosing a BLOC plan
 
-Adam retested §68's UAT step 8 ("Build this plan next" should disappear once a plan is built) and it still showed the button — but investigation showed §68's actual fix (pointing `progressViewMacroId` at the newly created macro in `createMacrocycle()`) was sound and confirmed live (curled the deployed site directly, verified the fix code was present and the version tag read v8.10). Traced every write site of `state.currentMacroId`/`progressViewMacroId` (`createMacrocycle()`, `selectCycle()`, `copyMacrocycle()`, `deleteMacrocycle()`, one Home-page goal-banner handler) — nothing resets either back to the old macro after a build. The screenshot Adam sent showed the *original* macro still listed as "(active)" in Card 3's preview dropdown with a second macrocycle now selectable alongside it, i.e. a macro genuinely had been created but the app was still resolving the old one as active — the exact mechanism was never fully pinned down (a live retest with the goal-queue flow followed all the way through, vs. aborted partway, would be the next thing to isolate it).
+A retest of §68's UAT step 8 ("Build this plan next" should disappear once a plan is built) and it still showed the button — but investigation showed §68's actual fix (pointing `progressViewMacroId` at the newly created macro in `createMacrocycle()`) was sound and confirmed live (curled the deployed site directly, verified the fix code was present and the version tag read v8.10). Traced every write site of `state.currentMacroId`/`progressViewMacroId` (`createMacrocycle()`, `selectCycle()`, `copyMacrocycle()`, `deleteMacrocycle()`, one Home-page goal-banner handler) — nothing resets either back to the old macro after a build. The screenshot showed the *original* macro still listed as "(active)" in Card 3's preview dropdown with a second macrocycle now selectable alongside it, i.e. a macro genuinely had been created but the app was still resolving the old one as active — the exact mechanism was never fully pinned down (a live retest with the goal-queue flow followed all the way through, vs. aborted partway, would be the next thing to isolate it).
 
-Rather than keep chasing that, Adam proposed a simpler, more direct signal: hide the deterministic recommendation block entirely once `state.nextCycleAdvice.chosenPlanKey` is set for the currently active macro (i.e. once the "🌱 Selected plan" section in BLOC's advice appears) — this doesn't depend on `currentMacroId`/`progressViewMacroId` at all, and reflects the moment the person has actually committed to a plan rather than waiting for the macrocycle object to exist.
+Rather than keep chasing that, a simpler, more direct signal: hide the deterministic recommendation block entirely once `state.nextCycleAdvice.chosenPlanKey` is set for the currently active macro (i.e. once the "🌱 Selected plan" section in BLOC's advice appears) — this doesn't depend on `currentMacroId`/`progressViewMacroId` at all, and reflects the moment the person has actually committed to a plan rather than waiting for the macrocycle object to exist.
 
 ### Fix
 
@@ -4322,7 +4320,7 @@ Pre-seeded `bloc-demo-data.json` with a `nextCycleAdvice` response and a complet
 
 The system prompt did say "no preamble, no commentary", and for a plain single-turn call that holds, which is why the other four AI features never hit this and why the feature worked in testing without a restaurant name. An instruction is not a guarantee, and it is weakest exactly where the model has just done something (a search) it is inclined to report on.
 
-**The fix — `extractJsonObject(rawText)`** (declared just above `getApiKey()`, so all five AI call sites can reach it). Strips fences *wherever* they appear, then walks the first balanced `{…}` object and parses that, ignoring anything before or after it. Brace counting is string- and escape-aware — a brace or an escaped quote inside a food name ("Chips {large}", `Pineapple \"ring\"`) must not end the object early. Returns `null` rather than throwing when there is no object at all, so each caller raises its own message instead of leaking a raw `JSON.parse` error into the UI, which is what Adam saw.
+**The fix — `extractJsonObject(rawText)`** (declared just above `getApiKey()`, so all five AI call sites can reach it). Strips fences *wherever* they appear, then walks the first balanced `{…}` object and parses that, ignoring anything before or after it. Brace counting is string- and escape-aware — a brace or an escaped quote inside a food name ("Chips {large}", `Pineapple \"ring\"`) must not end the object early. Returns `null` rather than throwing when there is no object at all, so each caller raises its own message instead of leaking a raw `JSON.parse` error into the UI, which is what the report showed.
 
 Applied to all five call sites — `askBlocForAdvice()`, the challenge/revision call, `generateCycleReview()`, the next-cycle advice call, and `analyseMealPhoto()`. It is a strict superset of the old behaviour (every string the old code parsed, this parses identically), so the four tool-free callers lose nothing and gain the same tolerance.
 
@@ -4335,7 +4333,7 @@ Applied to all five call sites — `askBlocForAdvice()`, the challenge/revision 
 
 **Check:** `scripts/verify-json-extraction.mjs` (plain `node`, no dependencies — it reads the real function out of `index.html` rather than copying it, so it cannot drift). Covers the narration-before-JSON case that caused this bug, narration after, fences anywhere, braces and escaped quotes inside strings, nested objects, and the four cases that must return `null` instead of throwing (prose-only, truncated JSON, empty, null). The last check is a **control**: it runs the v8.12 parser against the narration case and asserts that it *does* fail — proof the script would have caught this bug rather than passing vacuously. *(v8.34: the function lives in the shared engine, `engine/src/prompts.ts`, behind a shim; the script runs the build and checks the shim. §124.)*
 
-**Not reproduced live.** No Anthropic API key exists in the dev environment (the app is BYO-key, held in Adam's browser `localStorage`), so the diagnosis is from the response shape and the error string, and the fix is verified against synthesised responses in the script above. Confirmation is UAT: the same photo, the same restaurant name.
+**Not reproduced live.** No Anthropic API key exists in the dev environment (the app is BYO-key, held in the user's browser `localStorage`), so the diagnosis is from the response shape and the error string, and the fix is verified against synthesised responses in the script above. Confirmation is UAT: the same photo, the same restaurant name.
 
 ---
 
@@ -4365,7 +4363,7 @@ Request, 2026-09-21 (after v8.14's UAT passed): *"when I edit the ingredient lis
 
 `modal-nutr-add` was already a shared component with a `nutrAddContext` switch (`'meal'` | `'recipe'`): §55-era code, plus `openRecipeIngredientSearch()` which reuses the same sheet to add a library item as a *recipe ingredient* rather than a log entry. Adding `'photo'` follows that seam exactly rather than building a second search UI — one list, one search box, one set of keyboard-fitting behaviour (`fitListToKeyboard`), three destinations. The context is read in five places, all of which already had a `'recipe'` branch to mirror: `quickAddFromList()`, `selectFromAddList()`→`confirmServing()`, `cancelNutrServing()`, `openNutrServingModal()`'s title, and `closeModal()`'s hand-back.
 
-**Scope — asked and answered.** Adam's call was **library + manual only**: the Recipes filter, Scan barcode and AI Photo buttons are hidden in this context. AI Photo would reopen the flow you are already inside; Scan was offered and declined (it can be added later — the barcode flow already ends at `confirmServing`, which now branches). Recipes still appear in the unfiltered list, so a saved recipe is selectable without the filter button.
+**Scope: library + manual only.** The Recipes filter, Scan barcode and AI Photo buttons are hidden in this context. AI Photo would reopen the flow you are already inside; Scan was offered and declined (it can be added later — the barcode flow already ends at `confirmServing`, which now branches). Recipes still appear in the unfiltered list, so a saved recipe is selectable without the filter button.
 
 `setNutrAddActions({recipes, manual, scan, photo})` replaces the two ad-hoc `actionsRow.style.display` assignments that previously toggled the row wholesale; each context now names the subset it wants. It preserves the pre-existing trap `openNutrAdd()` documents in a comment: the row must be restored to `'flex'` explicitly, never cleared to `''`, or the buttons stack vertically (each is itself `display:flex`, a block-level box).
 
@@ -4378,11 +4376,11 @@ After either, the search list stays open (`_nutrReturnToAddList`) so several ite
 
 **Modal stacking.** `#modal-nutr-photo-review` is `z-index: 320`, above `#modal-nutr-add`/`#modal-nutr-serving` at 300. So the review screen is **closed on the way in and reopened on the way out**, mirroring how recipe-ingredient search hands back to `modal-recipe-ingredients` — not stacked on top of it. Leaving it open would put the search sheet behind it.
 
-**`aiEstimated` is now per-item, and that is the part worth keeping.** `confirmPhotoItems()` hardcoded `source: 'ai_photo'` and `aiEstimated: true` on every saved ingredient, which was true when the model was the only thing that could put a row on that screen. It no longer is. `aiEstimated` drives the purple **AI est.** badge on the recipe ingredients screen and the `ai_estimated` column the sync layer writes, so leaving it hardcoded would have labelled Adam's own library picks as guesses. Each review row now carries its own `source`/`aiEstimated` (`ai_photo`/true, `library`/false, `recipe`/false, `manual`/false), the confidence badge is suppressed for non-AI rows, and the logged entry's own flag is `ingredients.some(i => i.aiEstimated)` — a meal whose every row was replaced by hand is not an AI-estimated meal. Rows created before this version have neither field, so the defaulting is deliberately asymmetric: `it.source || 'ai_photo'` and `it.aiEstimated !== false`, i.e. **missing means AI**, never library.
+**`aiEstimated` is now per-item, and that is the part worth keeping.** `confirmPhotoItems()` hardcoded `source: 'ai_photo'` and `aiEstimated: true` on every saved ingredient, which was true when the model was the only thing that could put a row on that screen. It no longer is. `aiEstimated` drives the purple **AI est.** badge on the recipe ingredients screen and the `ai_estimated` column the sync layer writes, so leaving it hardcoded would have labelled the user's own library picks as guesses. Each review row now carries its own `source`/`aiEstimated` (`ai_photo`/true, `library`/false, `recipe`/false, `manual`/false), the confidence badge is suppressed for non-AI rows, and the logged entry's own flag is `ingredients.some(i => i.aiEstimated)` — a meal whose every row was replaced by hand is not an AI-estimated meal. Rows created before this version have neither field, so the defaulting is deliberately asymmetric: `it.source || 'ai_photo'` and `it.aiEstimated !== false`, i.e. **missing means AI**, never library.
 
 **Check:** `scripts/verify-photo-review-items.mjs` — plain `node`, no dependencies; extracts the real `pushPhotoItemFromLibrary()` and `confirmPhotoItems()` out of `index.html` and runs them against DOM/state stubs, so it cannot drift from what ships. 11 checks covering the flag matrix (AI vs library vs manual vs pre-§78 rows, individually and mixed), the recipe-collapses-to-grams-1 convention, the grams floor `confirmPhotoItems` divides by, and that totals/per-gram rates are unchanged.
 
-**Superseded by §79:** this section originally shipped with a known hole — dismissing `modal-nutr-serving` by swipe-down or backdrop tap dropped you back to the Nutrition page instead of returning to the review screen. Adam's answer on seeing it flagged: *"i cannot lose the review screen without having to make the api call again, which costs"*. Fixed below, for both contexts.
+**Superseded by §79:** this section originally shipped with a known hole — dismissing `modal-nutr-serving` by swipe-down or backdrop tap dropped you back to the Nutrition page instead of returning to the review screen. Losing the review screen means paying for the API call again, so it's fixed below, for both contexts.
 
 ---
 
@@ -5563,8 +5561,7 @@ survive on the other fifty-five.
 
 ### The Plan page's chevron rule
 
-Adam, 2026-09-24: *"everything on the plan page with a chevron loads a modal, no exceptions on the
-plan page."* Two things moved, and in both cases only the **container** changed:
+On the Plan page, everything with a chevron opens a sheet, with no exceptions. Two things moved, and in both cases only the **container** changed:
 
 - **Weekly sessions** is one `.card-rows` with a row per session day. `buildPlanDayBodyHTML()` holds
   the editable exercise list — lifted verbatim, every handler name, drag attribute and swipe
@@ -5581,7 +5578,7 @@ log sets, and a sheet between you and the set table would be in the way. Train's
 did move to a sheet (`modal-train-session`), because the panel it replaced pushed the rest of the
 page down as you reached for it.
 
-### A fifth silent failure, found in the retest: a sheet that opened empty
+### A fifth silent failure: a sheet that opened empty
 
 Plan ▸ Weekly sessions → tap a session opened `modal-plan-session` with **nothing in it** — no
 exercise list, no way to add one — and logged no error, because nothing threw. It looked like the
@@ -5605,7 +5602,7 @@ its own neighbours.**
 
 ### One selected state, everywhere
 
-Adam, in the retest: *"do a full sweep for toggles/switches and use the same design for all."* The
+Every toggle and switch uses one design. The
 app had **four** answers to "which one is selected" — a `--surface3` fill on `.toggle-btn.active`,
 a solid `--accent` fill on `.step-btn-on` and on the `.acc` toggle variant, a 20%-accent tint with
 an accent border on `.week-pill`/`.day-tab`, and an outline-only accent in the legacy rules beneath
@@ -5711,7 +5708,7 @@ number.
 person typed; an ellipsis is the last resort and is a visible admission that the label was cut.
 
 🚨 **The last word alone is not the answer.** It reads beautifully for "Maintenance Hold" → "Hold"
-and is a disaster one row down: Adam's own cycle has "Hard Cut Start" and "Hard Cut High Steps",
+and is a disaster one row down: a real cycle has "Hard Cut Start" and "Hard Cut High Steps",
 which become "Start" and "Steps" — two labels sharing no visible relationship even though the
 phases do, and one of them the name of a metric charted three buttons away. Leading words are
 initialised instead: "HC Start", "HCH Steps". A phase family still looks like a family.
@@ -5815,7 +5812,7 @@ arrive on any of them from the moved date. Plan, Train and Fuel read their own w
 - 🚨 **A target replaced mid-settle is looked up again.** Plan's step chart repaints itself every 2s
   with `outerHTML` (§88), so the node `_renderTourStep()` captured can be detached by the time the
   220ms settle delay ends. A detached node measures 0×0 at (0,0), so the ring sat in the screen's
-  top-left corner and the mask covered the chart. Found in UAT, not in the Playwright walks,
+  top-left corner and the mask covered the chart. The Playwright walks didn't catch it,
   because it only happens when a repaint lands inside that window. `_positionTourStep()` now
   re-resolves by id when `!target.isConnected`. Any future self-repainting element is covered
   as long as it keeps its id.
@@ -5878,8 +5875,8 @@ skipped sheet steps.
 
 A design experiment, `index-green.html`, recoloured the whole app green **and** introduced a new
 logo: viewfinder brackets around the BLOC wordmark (the "Bracket" mark, Oxanium Bold, in the
-`bloc-brand` kit). Adam kept the logo and rejected the recolour: *"The logo stays green, but the app
-accent colours remain as they are."* v8.18 is exactly the logo half.
+`bloc-brand` kit). The logo changed and the recolour didn't: the logo is green, and the app's
+accent colours are as they were. v8.18 is exactly the logo half.
 
 | Taken | Left behind |
 |---|---|
@@ -5894,8 +5891,8 @@ the 21 dropped hunks reproduces `index-green.html` byte for byte.
 ### Two splash tokens, not one
 
 🚨 `--splash-accent` used to paint three things: the Train block, the OVERCOME word as it lands, and
-(in the experiment) the brackets. Adam asked for the Train block back in its original lavender after
-reviewing the green, so the token is split:
+(in the experiment) the brackets. The Train block keeps its original lavender, not the green,
+so the token is split:
 
 - **`--splash-accent: #A79EE3`** — the Train block. Unchanged from v8.17.
 - **`--splash-brand: #2fb98a`** — the brackets and OVERCOME. The logo's green.
@@ -5919,15 +5916,14 @@ follows Dark/Light mode: the letters take `--text` and the corners `--logo-brack
 `#1b9e75` light, the kit's own on-dark/on-light bracket greens. `aria-hidden`, since it is decoration
 beside a page that already says what it is.
 
-🚨 **It sits in the back-link row, not the title row.** Adam asked for it "in line with the header —
-centred". Centred in `.page-head`, it was measured in Chromium at 375px: `Settings` at 34px runs to
+🚨 **It sits in the back-link row, not the title row**, centred. Centred in `.page-head` instead, it was measured in Chromium at 375px: `Settings` at 34px runs to
 x=157 and the logo started at x=150, and at 320px it covered the word entirely. The `‹ Home` row
 ends at x=67, so its centre is empty at every width. The logo is absolutely centred there and
 vertically centred on the back link, so the back link keeps its 44px tap target and the title and
 Help button do not move.
 
 It is **44px tall — the row's own height** (x=132–243 at 375px, x=104–216 at 320px). It shipped at
-30px and read too small on Adam's phone; 44px is the largest it can be without spilling out of the
+30px and read too small on an iPhone; 44px is the largest it can be without spilling out of the
 row onto the eyebrow below.
 
 The corners are drawn at `stroke-width: 10`, not the kit's 6: at this size a 6-unit stroke renders at
@@ -6015,8 +6011,8 @@ an `edits` object, `buildGoalShiftPlan()` plans the move, and the **Move goal pe
 - an amber note if the cycle has **already started** (`oldStart <= today`), because moving its goals
   moves the targets of days already logged: `getGoalForDay` finds a day's goal **by date**;
 - any goal that would fall outside the new cycle dates, in red, with how far ("ends 1 week (7 days)
-  after the cycle"), and listed as ones to review after saving. **Flagged, not blocked**, per Adam's
-  choice. This matches the extend/crop flow (§42), which already allows goals past the cycle end;
+  after the cycle"), and listed as ones to review after saving. **Flagged, not blocked**.
+  This matches the extend/crop flow (§42), which already allows goals past the cycle end;
 - any goal that would **overlap a goal in another macrocycle**, in red with the goal it hits.
   **This one blocks** "Move goals & save": goal periods never overlap (`findOverlappingGoal`).
 
@@ -6024,13 +6020,13 @@ an `edits` object, `buildGoalShiftPlan()` plans the move, and the **Move goal pe
 `applyEditMacro(id, edits, null)`, the pre-v8.19 behaviour; **✕** saves nothing. Nothing touches
 `state` until a button is pressed; the pending edit lives in `_macroShiftPending`.
 
-Asked alternatives, and why not (Adam, 2026-09-26): moving the goals automatically with no sheet
+Alternatives, and why not: moving the goals automatically with no sheet
 (you never see the new dates first); for a started cycle, moving only its future goals (leaves a
 gap or an overlap at the join) or not offering the move (back to hand-editing).
 
 ### 🚨 The trap: last-to-first order is not the mechanism
 
-Adam's manual method, the last goal first, working backwards, is a workaround for the goal
+The manual method, the last goal first, working backwards, is a workaround for the goal
 sheet checking each **single** save against the goals not yet moved. Copying it into code (a loop
 that saves one goal at a time through the overlap gate) is the plausible wrong implementation. It
 would pass for a push later and fail in the other direction, where first-to-last is the order that
@@ -6130,17 +6126,16 @@ Nov): the sheet reopened with "2 weeks…" from 23 Nov, then "1 week…" from 30
 ### New Macrocycle carried over the last cycle's name
 
 `openModal('modal-macro')` reset the dates, split, goal type and target weight but never
-`#macro-name-input` or `#macro-goal-input`, so a second cycle opened with the first one's name
-(found in the same UAT). Both are now cleared on open. `fillNextCycleMacroModal()` sets its own name
+`#macro-name-input` or `#macro-goal-input`, so a second cycle opened with the first one's name.
+Both are now cleared on open. `fillNextCycleMacroModal()` sets its own name
 *after* `openModal` returns, so the Next Cycle flow's "Cut 2026" default is unaffected.
 
 ## §99 — v8.19 UAT: macrocycles never overlap
 
 ### Why
 
-Found in the v8.19 UAT (2026-09-26): moving UAT B three weeks later ran it a week into UAT C, and the
-only signal was §96's goal-period clash. Adam: *"we also need a higher level check, which is
-macrocycle clash checks. We should not have the option for clashing macrocycles."* Before v8.19
+Moving one cycle three weeks later could run it a week into the next, and the only signal was §96's
+goal-period clash. Macrocycles must never overlap, so there's a cycle-level check. Before v8.19
 **nothing** checked cycle overlap. Creating, re-dating, adding mesocycles and Extend could all do it.
 
 ### The rule and where it is enforced
@@ -6163,7 +6158,7 @@ had untangled it.
 ### The clash sheet (`modal-macro-clash`) — `planMacroClash(macro, edits, macros)`
 
 It opens **on top of** the edit sheet, which stays open, so **Cancel** (option 4) loses nothing
-typed and saves nothing. Adam's four options, when the move runs into a **later** cycle
+typed and saves nothing. The four options, when the move runs into a **later** cycle
 (`direction: 'next'`):
 
 1. **fit**: start = next cycle's start − the cycle's length, so it ends the day before. Continues
@@ -6171,7 +6166,7 @@ typed and saves nothing. Adam's four options, when the move runs into a **later*
 2. **cut**: keep the requested start, with `weeks = mesosThatFit(...)`. Whole mesocycles, so with
    2-week mesocycles it can end a week early. Not offered if fewer than 2 would remain (the edit
    sheet's minimum).
-3. **both**: *"Pick a start, auto-cut the rest"* (Adam's choice over a split-the-weeks stepper).
+3. **both**: *"Pick a start, auto-cut the rest"* (rather than a split-the-weeks stepper).
    Every Monday strictly between the fit start and the requested start, each with its own cut, in a
    `<select>`. Empty when the overlap is under 2 weeks, since any in-between start would then be
    option 1 or 2.
@@ -6190,8 +6185,8 @@ back from the cycle start**, so they cannot overlap each other and the first kep
 to the start. Row status is shown as a green or red dot, and the slider's colour: `over` (past the
 cycle end, which outranks `clash` because it is the cause), `clash` (hits another cycle's goal),
 `gap` (the last kept goal, when the total is short), `deleted` (0 weeks: the name is struck through,
-"Will be deleted", per Adam), `ok`. **Save is enabled only when `ok`**: total exactly the cycle
-length, at least one goal kept, no clash (Adam: *"only when all green"*). Save deletes the 0-week
+"Will be deleted"), `ok`. **Save is enabled only when `ok`**: total exactly the cycle
+length, at least one goal kept, no clash: only when every row is green. Save deletes the 0-week
 goals, writes the rest, renumbers the Step names, then `applyEditMacro` saves the cycle. ✕ and Cancel
 save nothing.
 
@@ -6239,7 +6234,7 @@ it (a new one would be a new Quick Look path). Its control restores the old `exp
 
 ## §101 — v8.19: the Rebuild logo — icon, splash bars and Settings
 
-Adam supplied the **Rebuild · Green** kit (`bloc-brand-rebuild-CHOSEN/`, in the tracking folder,
+The logo is the **Rebuild · Green** kit (`bloc-brand-rebuild-CHOSEN/`, in the tracking folder,
 not in git): three stacked bars, the top one green, beside an Oxanium Bold BLOC converted to
 outlines. It replaces §94's Bracket logo in the three places that one went:
 
@@ -6249,7 +6244,7 @@ outlines. It replaces §94's Bracket logo in the three places that one went:
 | Settings `.settings-logo` | inline SVG, geometry from `logo/bloc-logo-on-dark.svg` minus its margin (`viewBox 0 0 507.8 100`). Bars `--logo-block`, the top one `--logo-accent`, and the type `--text`: dark `#3b4063`/`#2fb98a`, light `#aab6c8`/`#1b9e75`, the kit's on-dark and on-light values. It replaces `--logo-bracket`. **28px tall** (~142px wide): the lock-up is 5:1, so at the Bracket logo's 44px it would be 223px wide. At 320px it spans x=89–231, clear of the back link (ends x=67) |
 | Splash `#wordmark` | the same lock-up **inline** instead of a PNG, so the bars can animate individually. The type is `--splash-text`, the bars `--splash-block` (new) and `--splash-brand` |
 
-**The splash animation** (Adam: *"add some similar bar-by-bar flash/pulse animation to the bars"*)
+**The splash animation** (a bar-by-bar flash and pulse)
 replaces the four bracket corners and keeps their two hooks and timings in the splash script:
 
 - `.locked` (as the wordmark settles): bars `sb-1` → `sb-3` **build bottom to top**, 0.16s apart.
@@ -6273,8 +6268,7 @@ re-adding.
 
 ## §102 — v8.19 UAT: the splash bar animation replays on the Settings logo
 
-Adam, after seeing §101's splash: *"add that same animation to the logo in the settings page, so
-every time the page loads / the logo comes back into view, the same animation triggers."*
+The Settings logo runs §101's splash animation every time the page loads or the logo comes back into view.
 
 The Settings logo's bars are `lb-1` → `lb-3`, bottom to top. With `.animate` on the `<svg>`, each
 bar runs **two** animations: the build (`blocLogoBarIn`, fill-mode `both` so it starts hidden),
@@ -6296,9 +6290,8 @@ remove → reflow → add order.
 
 ## §103 — v8.20: measurements are due on day 1 of every macrocycle, then every 7 days
 
-Adam, 2026-09-27: *"force it to be required on day 1 of every macrocycle, and then every 7 days
-from each last log (currently it's every 4 days since last log)."* This replaced both the 4-day rule
-and an earlier, never-built plan for "due every Monday".
+Measurements are required on day 1 of every macrocycle, and then every 7 days from each last log.
+This replaced both the earlier 4-days-since-the-last-log rule and a never-built plan for "due every Monday".
 
 `getMeasurementStatus(bodyLogs, macrocycles, today)` is pure and returns
 `{ due, nextDueDate, lastDate }`:
@@ -6312,11 +6305,11 @@ and an earlier, never-built plan for "due every Monday".
 otherwise.
 
 🚨 **Day 1 is forced, and it is compared as a date.** A measurement taken the Friday before a
-Monday start does **not** count for that cycle (Adam: every cycle gets a fresh baseline). The
+Monday start does **not** count for that cycle: every cycle gets a fresh baseline. The
 plausible wrong version is *"due if 7+ days OR today is day 1"*. It clears the tag on day 2 whether
 or not anything was logged, and it lets the Friday log stand in as the baseline.
 
-🚨 **This is the only copy of the rule.** The push reminders (PROMPT-02, BLOC's first push) upload
+🚨 **This is the only copy of the rule.** The push reminders (§111, BLOC's first push) upload
 `nextDueDate` from this function, and the server only compares dates. A second copy, in SQL or
 anywhere else, is how the tag and the push end up disagreeing.
 
@@ -6335,23 +6328,23 @@ rule fails it.
 
 ## §104 — v8.20: effort ratings (RPE) and the progression step
 
-From PROMPT-01, decided with Adam on 2026-09-27. RPE is built into BLOC itself, for Solo users first.
-The future BLOC Coach app only reads it (proposal §7.3).
+RPE is built into BLOC itself, for Solo users first. BLOC Coach reads it, and a coach's cycle takes the same
+step from it (§161).
 
 ### The switch
 
 `macro.rpe` is a boolean, set in **Plan → Tools** by `setMacroRpe()`. `isRpeOn(macro)` is true only
 for `rpe === true`.
 
-🚨 **An absent `macro.rpe` is off.** Adam: existing cycles start off, and new Solo cycles are off too.
-Only a cycle that a coach creates (PROMPT-03) will start on. Reading absent as on would switch ratings
+🚨 **An absent `macro.rpe` is off.** Existing cycles start off, and new Solo cycles are off too.
+Only a cycle that a coach creates starts on. Reading absent as on would switch ratings
 on for every existing cycle on the first load. `createMacrocycle()` writes no `rpe` field, so a new
 cycle is off.
 
 Turning ratings off keeps every rating already given. It stops Train asking, and it stops ratings
 changing targets for weeks that haven't been judged yet.
 
-### The data (PROMPT-03 reads this shape)
+### The data (BLOC Coach reads this shape)
 
 `state.rpe[getRpeKey(macroId, week, dayKey, exId)]` is `{ rpe: 1–10 }` or `{ rpeSkipped: true }`:
 one entry per exercise, per session, per mesocycle. The key is a set-log key without the set index,
@@ -6359,14 +6352,13 @@ so `dayKey` carries `m1`/`m2`, and each microcycle track only ever steers itself
 pairing `computeRawSuggestedTargets()`'s `prevKey` already uses. Deleting a macrocycle deletes its
 ratings. `ensureStateDefaults()` and both reset objects carry `rpe: {}`.
 
-🚨 **A skip is stored as `{ rpeSkipped: true }`, never as a number.** Adam: "Option to close assumes it
-was fine." A skip is neutral (no step change), and a coach will see "Not rated". A default number
+🚨 **A skip is stored as `{ rpeSkipped: true }`, never as a number.** Closing the sheet assumes it
+was fine: a skip is neutral (no step change), and a coach will see "Not rated". A default number
 would be indistinguishable from an answer. Don't "simplify" it into one.
 
 ### The sheet
 
-There's one sheet per session (`modal-rpe`). Adam's worry was that a per-exercise prompt "gets
-boring quickly — I would probably ignore it myself".
+There's one sheet per session (`modal-rpe`): a prompt per exercise would get boring quickly and be ignored.
 
 - **When it opens:** `maybeOpenRpeSheet()` runs at the end of all four completion paths:
   `toggleSetDone()`, `quickFillComplete()`, `quickFillCompleteDropset()` and
@@ -6385,7 +6377,7 @@ boring quickly — I would probably ignore it myself".
   🚨 **The Session tools section is drawn once per Train render**, and rating or closing the sheet
   redraws only the cards (`renderTrainDay`). So `setRpeRating()` and `closeRpeSheet()` call
   `refreshTrainRpeRowSub()`, which updates that line's text in place. Re-rendering the section would
-  replay its entrance animation. Before this fix (found in UAT) the row kept its pre-rating text.
+  replay its entrance animation. Before this fix the row kept its pre-rating text.
 
 ### The step
 
@@ -6393,7 +6385,7 @@ The step for week *W* on a track depends on *W − 1*'s rating on that same trac
 
 | *W − 1* on the same track | Step for *W* |
 |---|---|
-| compliant and rated ≤ 6 | `easy`: weight jump × 2 (heavy-leg **× 1.5**, as Adam asked instead of excluding them), +2 reps, giant +20 |
+| compliant and rated ≤ 6 | `easy`: weight jump × 2 (heavy-leg **× 1.5**, rather than excluded), +2 reps, giant +20 |
 | compliant and rated 9–10 | `hold`: no step for one mesocycle. It isn't a lock, and it releases on its own |
 | 7–8, skipped, not compliant, or no rating | none |
 
@@ -6480,11 +6472,10 @@ next mesocycle shows "Felt easy · bigger step" at 45.0 → 50.0, and there are 
 
 ## §105 — v8.20: maintenance cycles no longer climb when looking ahead
 
-Adam, 2026-09-27: *"in maintenance cycle there is no progression, but when looking ahead, suggested
-values actually mimic the progression logic."*
+A maintenance cycle has no progression, yet looking ahead, its suggested values followed the progression logic.
 
 **Where it came from.** A logged week was already correct: `weightJump` is 0 on maintenance, so next
-week's suggestion is last week's actual + 0. That also answers Adam's second question: a weight
+week's suggestion is last week's actual + 0. A weight
 raised by hand **carries forward**, and doesn't reset to the plan. The fallbacks for a week with
 nothing to build on were not maintenance-aware:
 
@@ -6517,7 +6508,7 @@ fixed separately, in §106.
 
 ## §106 — v8.20: Home's Up next shows what Train will suggest
 
-Adam, 2026-09-27: *"Home should match train with the up next."* `renderHomeUpNext()` printed
+Home's Up next must match Train. `renderHomeUpNext()` printed
 `getWeekWeight()`, the plan's formula (`startWeight + increment × (week − 1)`), and `ex.reps`. So a
 weight raised by hand, a lock, a deload, or an RPE step showed on Train and not on Home.
 
@@ -6560,18 +6551,18 @@ with Home rendered first. `scripts/verify-rpe-progression.mjs` checks:
 v8.16's UAT removed the per-card **Deload** tag. A deload belongs to the week, and the hero's banner
 already says so once (`deloadTagHtml` is deliberately empty, §85). The superset card builds its
 member rows' tags separately (`mTags`), and that branch still returned an ice-blue "Deload" tag for
-every member. Adam found it in the v8.20 UAT. The member rows now return nothing in a deload, the same
+every member. The member rows now return nothing in a deload, the same
 as a solo card. The README's Train section still said "Replaced by a Deload tag"; that line is fixed
 too. `scripts/verify-rpe-progression.mjs` asserts that no `>Deload</span>` remains anywhere in
 `renderTrainDay()`, and the previous commit fails that check.
 
 ## §108 — v8.21: the web app manifest, shipped alone
 
-PROMPT-02 Part A. iOS Web Push works only for a Home Screen install **that has a manifest**
+iOS Web Push works only for a Home Screen install **that has a manifest**
 (`display: standalone`), and BLOC had never had one: only `apple-mobile-web-app-capable`. Nobody knew
 whether an existing install, added without a manifest, picks one up when it appears, or has to be
 removed and re-added. A re-add creates a fresh, **empty** storage container on iOS, so that answer
-decides whether every existing install (Adam's and Ella's) needs a backup-and-restore before push
+decides whether every existing install needs a backup-and-restore before push
 can work. v8.21 ships the manifest and nothing else, so the on-device test changes exactly one
 thing.
 
@@ -6591,10 +6582,10 @@ could never answer the question.
 - `<link rel="manifest">` in `index.html`.
 
 🚨 **Scope is relative.** `start_url` and `scope` are `"./"`, which resolve against the manifest's
-own URL to `/bloc-app/`. Every one of Adam's apps is on `adamnc02.github.io`, and `"/"` would claim
-Listly, the ledgers and everything else on the origin. BLOC Coach (`/bloc-app/coach/`, PROMPT-03)
-will carry its own manifest and service worker, and the more specific scope wins. The same decision
-applies to BLOC's service worker when it arrives in PROMPT-02 B1.
+own URL to `/bloc-app/`. Several apps share `adamnc02.github.io`, and `"/"` would claim
+Listly, the ledgers and everything else on the origin. BLOC Coach (`/bloc-app/coach/`) carries its own
+manifest and service worker, and the more specific scope wins (§158). BLOC's service worker (§111) uses
+the same scope.
 
 🚨 **There is no service worker in v8.21, and there will never be a caching one.** A fetch handler
 on a single-file app that deploys by merge is how a device gets stuck on an old build (Listly's
@@ -6621,14 +6612,13 @@ with the rows on the **existing** install is the test. The rows are read-only: t
 permission, subscribe nothing and register nothing (the verify script asserts that). A desktop
 browser tab reports push available, which is correct for desktop.
 
-**Result, 2026-09-27: the existing install picked it up, with no re-add.** On Adam's everyday
+**Result, 2026-09-27: the existing install picked it up, with no re-add.** On an everyday
 Home Screen icon, installed long before v8.21, after a force-quit and reopen, the version chip read
 v8.21, and Settings → About read *Opened from Home Screen: Yes · Display mode: standalone · Push
-available on this install: Yes*. So existing installs, Ella's included, should not need
-re-adding for push. The final proof, subscribing and receiving a notification, comes with the
-service worker in PROMPT-02 B1–B4. If a device ever does need re-adding, §109 makes the fresh
+available on this install: Yes*. So existing installs don't need
+re-adding for push. Subscribing and receiving a notification were then proven with the service worker (§111). If a device ever does need re-adding, §109 makes the fresh
 install restore its newest real backup instead of overwriting the cloud. **That was proven on the same
-day:** Adam made a fresh install and signed in, his data appeared exactly as before, and the mirror's
+day:** a fresh install signed in, its data appeared exactly as before, and the mirror's
 row counts were unchanged from the pre-flight reading (3 macrocycles, 1,208 set logs, 194 body
 entries, 338 meals). The fresh device's first sync, after restoring, pushed real data.
 
@@ -6685,8 +6675,7 @@ uploaded an empty snapshot, and pushed.
 
 ## §110 — v8.22: the Settings hero chip is the app's only version
 
-Adam, 2026-09-27: *"the sub label text at the top of the app info modal still stuck on v8.19, remove
-any trace of the app version here to avoid future issues, just keep the badge in the hero card."*
+The app info sheet's subtitle still said v8.19 a release later. The version now shows only in the Settings hero's badge, so there's one place to bump.
 
 Version strings drift because nothing checks them. The hero chip sat at v8.16 through v8.17–v8.19,
 and the App info sheet (`modal-about`'s subtitle) still said "BLOC Training App, version 8.19" in
@@ -6710,7 +6699,7 @@ comment and swallowed everything up to the next `*/`. It reported a clean app wh
 of the file. The control caught it: the script runs v8.21's `index.html`, which must fail on
 "version 8.19".
 
-## §111 — v8.22: push notifications, the browser half (PROMPT-02 B1/B4)
+## §111 — v8.22: push notifications, the browser half
 
 The 07:00 measurements reminder. The server half is in `super-duper-octo-barnacle`: migration `0019`
 (`push_subscriptions`, `measurement_status`, `reminder_log`, the claim and the hourly schedule) and
@@ -6718,7 +6707,7 @@ the `bloc-reminders` Edge Function. See that repo's `docs/SUPABASE.md` → Notif
 from Listly (TECHNICAL §22 there), with two deliberate differences, both marked in the code: the row
 id is the **full** SHA-256, and the device's **time zone** travels with the subscription.
 
-**Decisions (Adam, 2026-09-27):**
+**Decisions:**
 
 - **Timing.** 07:00 local, every morning from the due date until measurements are saved.
 - **Rule.** Due on day 1 of every macrocycle, then 7 days after the last log (§103).
@@ -6809,7 +6798,7 @@ it on, the test notification, a tap opening Measurements, and the real 07:00 nag
 
 ## §112 — v8.23 UAT: a tapped notification must not depend on `notification.data`
 
-The v8.22 UAT on Adam's iPhone: turning on and the test notification worked (the server held one
+The v8.22 UAT on an iPhone: turning on and the test notification worked (the server held one
 `push_subscriptions` row and one `measurement_status` row). But **tapping the notification opened
 BLOC on Home without the Measurements sheet**, from the banner with BLOC open, and from Notification
 Centre.
@@ -6826,11 +6815,11 @@ its important value on the notification's **tag**, not on `data`.
 1. `data.open`, if it's there;
 2. otherwise the **tag**: every BLOC push is tagged `measurements:<device>:<local day>` by the claim,
    or `bloc-test`;
-3. otherwise **Measurements anyway**, because until BLOC sends a second kind of notification (BLOC
-   Coach, PROMPT-03), every one of them is a measurements reminder.
+3. otherwise **Measurements anyway**, because until BLOC received a second kind of notification (BLOC
+   Coach's, §157), every one of them was a measurements reminder.
 
-The URL is built from the scope, never from `data.url`. 🚨 **When PROMPT-03 adds coach pushes,
-route them by tag prefix and change the default.** A default of Measurements would then be wrong.
+The URL is built from the scope, never from `data.url`. 🚨 **Coach pushes are routed by tag prefix, and
+the default is Home (§157).** A default of Measurements would be wrong for them.
 
 **Evidence on the phone.** A note and a message carry `via` (`data` / `tag` / `default`), and
 `applyOpenIntent()` records `{route, via, at}` in `localStorage.bloc_last_open_intent`. Settings →
@@ -6849,7 +6838,7 @@ route now also deletes the Cache Storage note, so it can't open the sheet a seco
 
 ## §113 — v8.24: a push registration iOS drops is healed, and its dead row removed
 
-**What happened (v8.23 UAT, 2026-09-27).** After updating from v8.22 to v8.23, Adam had to **turn
+**What happened (v8.23 UAT, 2026-09-27).** After updating from v8.22 to v8.23, the phone had to **turn
 notifications on and allow them again**. `sw.js` changed between those two releases (§112).
 Afterwards the test button said **"Sent to 2 devices"** while one banner arrived:
 
@@ -6880,7 +6869,7 @@ reminders until they reopen Settings. For Ella, that's a reminder that just stop
   - **resubscribe:** the registration was replaced or dropped, but permission is still granted, so the
     dead row is deleted and BLOC re-registers **without a prompt** (`registerPushHere(false)` reads
     `Notification.permission` and never calls `requestPermission`);
-  - **ask:** it was dropped and iOS reset the permission (Adam's case), so the dead row is deleted
+  - **ask:** it was dropped and iOS reset the permission (the v8.23 case), so the dead row is deleted
     and BLOC asks **once**: "Reminders were switched off / An update switched off measurement
     reminders on this phone. Turn them back on?". The local record is cleared first, so declining
     doesn't nag on every launch.
@@ -6888,7 +6877,7 @@ reminders until they reopen Settings. For Ella, that's a reminder that just stop
   as a second "device".
 - **Settings → Notifications lists every registered device:** the label, "this device", when it was
   added and when it was last sent to, with **Remove** for any device that isn't this phone. That's how
-  Adam's existing dead row gets cleared: v8.23 had no local record, so it can't be identified
+  a dead row left by v8.23 gets cleared: v8.23 had no local record, so it can't be identified
   automatically.
 
 The permission prompt is still raised in exactly one place, `registerPushHere(true)`, via
@@ -6897,7 +6886,7 @@ falls through to the one-tap prompt.
 
 ### §113 addendum: what v8.24's UAT showed (2026-09-27, 17:05–17:30)
 
-- **The update itself was fine.** v8.24 left `sw.js` byte-identical, and Adam got **no** re-allow
+- **The update itself was fine.** v8.24 left `sw.js` byte-identical, and there was **no** re-allow
   prompt. That supports the tripwire's premise: it's `sw.js` changes that hurt, not app updates.
 - **The damage from the v8.23 `sw.js` change hadn't gone away.** Banners arrived, but **no tap reached
   the page**: from the Notifications sheet, from Home, or from Notification Centre. Settings → About
@@ -6909,19 +6898,19 @@ falls through to the one-tap prompt.
 - 🚨 **`checkPushHealth()` can't see this state.** The phone still holds a subscription and the server
   still has its row, so it reads as healthy. After an iOS `sw.js` update, a phone can be left with a
   subscription that **shows** notifications while its clicks go to a worker that doesn't reach the
-  page. The device list also showed both of Adam's rows as looking like "this device", consistent
+  page. The device list also showed both of that phone's rows as looking like "this device", consistent
   with two subscriptions on one phone.
 - **So the rules are:**
   1. **Don't change `sw.js` without a reason worth the cost.** The tripwire enforces this.
-  2. **If a change is ever needed, plan a re-registration.** Tell users, Ella included, to go to
+  2. **If a change is ever needed, plan a re-registration.** Tell every user with notifications on to go to
      Settings → Notifications → Turn off, then Turn on, and test a tap.
   3. **If taps stop opening Measurements, apply the same recovery.**
 
-  PROMPT-03's coach pushes will need a `sw.js` change (tag routing, §112): apply rule 2 then.
+  BLOC Coach's pushes needed a `sw.js` change (tag routing, §157), and rule 2 was applied to it.
 
 ## §114 — v8.25: the notifications round's debugging readouts, removed
 
-Adam, 2026-09-27: *"clean up any debugging steps visible in the app from this round"*. All three
+The debugging aids visible in the app were removed. All three
 existed only to diagnose the push round on a phone, which has no console:
 
 | Removed | Added in | It was for |
@@ -6934,19 +6923,16 @@ Kept, because they're how the feature works: the six-state Notifications sheet, 
 routes, and `checkPushHealth()`. The recovery for a phone whose taps stop reaching the page is
 **Turn off, then Turn on** (§113 addendum), which replaces the device list's Remove.
 
-🚨 **`sw.js` still writes `via` into its note and message.** The page now ignores it. It stays because
+🚨 **`sw.js` wrote `via` into its note and message until v8.49.** The page ignored it. It stayed because
 `sw.js` is pinned by the §113 tripwire, and changing it could split every iPhone's registration
-again, which is far too high a price for tidying one field. Remove it the next time `sw.js` has to
-change for a real reason (PROMPT-03's coach pushes).
+again, too high a price for tidying one field. It went with the next real `sw.js` change (§157).
 
 `verify-manifest.mjs` and `verify-push.mjs` now assert that all three readouts are **absent**, so
 they can't creep back unnoticed.
 
 ## §115 — v8.26: Change session is a week agenda; Edit cycle lives in Plan → Tools
 
-Adam, 2026-09-27, choosing option A of the mockups (the "BLOC Change session" design canvas). Both
-changes **supersede the BLOC Coach wireframes** where they differ. Everything else in the
-wireframes stands (PROMPT-03).
+Both changes are the chosen design (option A of the "BLOC Change session" mockups).
 
 ### Train → Change session
 
@@ -6993,8 +6979,7 @@ of Tools (`#plan-edit-cycle-row` → `openEditMacro()`), labelled "Name, goal, s
 increments", above Extend cycle, New cycle and Effort ratings. The Tools sublabel and its tour step
 ("Edit, extend, or start again") say so.
 
-**BLOC Coach** already puts Edit cycle in its client Plan tab's Tools card, so it conforms. The
-BLOC Solo wireframe's header pencil (`PlanSoloScreen`) is what this supersedes.
+**BLOC Coach** puts Edit cycle in its client Plan tab's Tools card, the same way. There's no header pencil.
 
 `scripts/verify-train-agenda.mjs` covers:
 
@@ -7012,7 +6997,7 @@ there's no header button, and there are no console errors.
 
 ## §116 — v8.27: Fuel's macro mini-bars keep to one line
 
-**The bug (Adam, 2026-09-28, on a 440pt iPhone).** Fuel's hero showed each macro as one line,
+**The bug (on a 440pt iPhone).** Fuel's hero showed each macro as one line,
 `Protein 141 / 211g`, over a 6px bar, in three equal columns (`.fuel-macros`, `renderNutrHero()`).
 Nothing stopped that line wrapping. It wrapped after the slash, so Protein's bar sat lower than
 Carbs' and Fats'.
@@ -7030,7 +7015,7 @@ phone, ~98px at 402, ~93px at 393, ~88px at 375.** So the line overflowed by a f
 on the widest iPhone, and by up to 22px on a standard one. Any spacing tweak that fixes the 440pt
 case still leaves every standard iPhone wrapping.
 
-**The fix (option A of four mockups, Adam's choice).**
+**The fix (option A of four mockups).**
 
 - The top row is **only the label and the logged figure**, `Protein ··· 141g`, with
   `white-space: nowrap`. The widest, `Protein 888g`, is ~80px, which fits every column down to 375pt.
@@ -7044,26 +7029,26 @@ case still leaves every standard iPhone wrapping.
 - **Shrinking the type to fit.** It needs ~20% smaller type at 375pt, so the target would be ~9px.
 - **Option B** (figure on its own line under the label) and **option C** (figures above the bar,
   name below, centred).
-- **One-letter labels (P / C / F).** They fit today's layout exactly (the widest is 77px). Adam
-  preferred A. Three-letter labels (`Pro` / `Carb` / `Fat`, up to 96px) still wrap on a standard
+- **One-letter labels (P / C / F).** They fit today's layout exactly (the widest is 77px), but
+  A reads better. Three-letter labels (`Pro` / `Carb` / `Fat`, up to 96px) still wrap on a standard
   iPhone.
 - **Today's layout on 430–440pt phones only**, with a container query switching to another layout
   below. It needs two layouts, and has 1px to spare at 440.
 
 🚨 **The trap:** putting the target back on the top row "because there's room". There is on the
 widest phone, by less than a pixel. **Any label-and-figure row in a third-width column must be
-measured at 375pt.** BLOC Coach's three-column rows follow the same rule (PROMPT-03).
+measured at 375pt.** BLOC Coach's three-column rows follow the same rule.
 
-`scripts/verify-fuel-macro-row.mjs` runs the real `renderNutrHero()` on Adam's reported day, the
+`scripts/verify-fuel-macro-row.mjs` runs the real `renderNutrHero()` on the reported day, the
 three-digit worst case and a day with no goal. It checks the top rows, the `of …g` lines and the
 no-wrap CSS. A control shows v8.26 (`8b79a54`) put the target on the top row.
 
 ## §117 — v8.28: Log a recipe stays pinned above the keyboard, like Add food
 
-**The bug (Adam, 2026-09-28).** Fuel › Shortcuts › Recipes (`modal-recipe-pick`, v8.16) was a plain
+**The bug.** Fuel › Shortcuts › Recipes (`modal-recipe-pick`, v8.16) was a plain
 `.modal-sheet` whose list was capped at `max-height: 60vh`. Typing in its search box filtered the
 list, the sheet shrank to fit, and its top edge dropped behind the keyboard. Add food, the sheet
-Adam compared it with, never moves.
+it was compared with, never moves.
 
 **The fix.** `modal-recipe-pick` now uses the Add food pattern exactly (§9 → "Search sheets"):
 `.kb-pinned-sheet`, a `.kb-list-wrap` / `.kb-list-inner` / `.kb-list-fade` list,
@@ -7092,23 +7077,23 @@ verify script names it as unreachable.
 opens, and checks all four parts of the pattern on each. Controls show v8.27's `modal-recipe-pick`
 fails and v8.27's `modal-nutr-add` passes.
 
-## §118 — v8.29: the engine's golden outputs (PROMPT-03 Phase 1a)
+## §118 — v8.29: the engine's golden outputs
 
-**Why it exists.** BLOC Coach runs BLOC's engine over each client's uploaded state. PROMPT-03
-Phase 2 therefore lifts about 90 functions out of `index.html` into a shared TypeScript `engine/`.
+**Why it exists.** BLOC Coach runs BLOC's engine over each client's uploaded state. The engine
+extraction (§122–§127) therefore lifts about 90 functions out of `index.html` into a shared TypeScript `engine/`.
 BLOC must behave **byte-identically** while that happens, and nothing else would notice a small
 drift: every other verify script tests a handful of rules, not the whole output. A target 2.5 lb
 off, a Home badge turning red a day early, or a prompt losing a line would all pass.
 
 **What it does.** `scripts/verify-engine-golden.mjs` extracts the real functions from `index.html`,
 runs them over `bloc-demo-data.json`, and compares every output with
-`scripts/golden/engine-golden.json`. `--write` regenerates that file. It covers the deep dive's §10
-step 0 list, plus the RPE rules (§104) and the measurement due rule (§103), which Coach will call
+`scripts/golden/engine-golden.json`. `--write` regenerates that file. It covers every engine function BLOC Coach reads,
+plus the RPE rules (§104) and the measurement due rule (§103), which Coach will call
 for "Measurements not in". 30 runs, grouped into cases:
 
 | Case | Runs | What's recorded |
 |---|---|---|
-| `normalise` | 1 | what `ensureStateDefaults()` adds to the demo state (Phase 2's `normaliseState`, H5) |
+| `normalise` | 1 | what `ensureStateDefaults()` adds to the demo state (`normaliseState`, §122, H5) |
 | `nutrition` | 3 anchors | `buildDayMap`, all three TDEE paths, BMR, age, activity multiplier, weekly insights, safety floor, maintenance recalibration, sustainable range, peak windows |
 | `nextCycle` | 3 anchors | `recommendNextCycle` (default and three overrides), eligibility, plan mode, goal steps |
 | `homeWeek` | 7 days | `renderHomeThisWeek()`'s own badges (read back from `_homeHeroCache`) and its HTML for each day, Mon 27 Jul to Sun 2 Aug, plus the reconciled advice, sub-labels and catch-up rates |
@@ -7136,7 +7121,7 @@ its own, and no two may overlap. Only `save()` and `document` are stubbed.
 
 🚨 **The traps.**
 - **Regenerating to make it pass.** `--write` is only for an intended behaviour change, named in the
-  PR. The one Phase 2 plans is H7: `getActivityMultiplier` reading the date-active cycle, which moves
+  PR. The engine move's one was H7 (§126): `getActivityMultiplier` reading the date-active cycle, which moves
   the `nutrition` and `prompts` runs. Anything else that moves is a regression until proven
   otherwise.
 - **A pass that proves nothing.** Two controls must change the output, or the run fails:
@@ -7147,15 +7132,15 @@ its own, and no two may overlap. Only `save()` and `document` are stubbed.
   A tampered golden file fails with the exact path, e.g.
   `homeWeek · demo · 2026-07-27 → .value.cache.badges.0.m.name`.
 - **Engine reads that write.** `getWeekTargets` and `getWeekComplianceResult` fill
-  `progressionTargets` and `progressionLocks` and call `save()` (deep dive H1–H3). So every run
+  `progressionTargets` and `progressionLocks` and call `save()`. So every run
   starts from a fresh copy of the state, and records which top-level keys it changed (`mutates`) and
-  how many saves it made (`saves`). Phase 2's pure cores must leave BLOC's wrappers writing exactly
+  how many saves it made (`saves`). The engine's pure cores leave BLOC's wrappers writing exactly
   that. Today only the `targets` runs mutate: 131, 132 and 359 saves.
 - **The clock.** `new Date()` with no arguments and `Date.now()` are pinned to noon on the anchor,
   `_tourAnchorDate` is set as the Demo Tour sets it, and `TZ` is forced to `Europe/London`. The
   file comes out the same in UTC, New York and Auckland (checked), so it will also match in CI (1c).
 - **Key order and lost values.** Outputs are compared in canonical form: sorted keys, with
-  `undefined`, `NaN`, `Infinity`, `Date`, `Set` and `Map` spelled out. Phase 2's TypeScript can
+  `undefined`, `NaN`, `Infinity`, `Date`, `Set` and `Map` spelled out. The engine's TypeScript can
   build objects in a different order without failing, but can't turn an `undefined` into a `null`
   unnoticed.
 - **Real data.** The golden file comes from the demo dataset only, and this repo is public. It
@@ -7164,11 +7149,11 @@ its own, and no two may overlap. Only `save()` and `document` are stubbed.
 **Size.** The golden file is 2.0 MB, about 110 KB gzipped: one line per run, so a git diff still
 names the runs that moved. Nothing in the app loads it.
 
-## §119 — v8.30: `?auth=real` signs a local build in to the live project (PROMPT-03 Phase 1b)
+## §119 — v8.30: `?auth=real` signs a local build in to the live project
 
 **Why.** The §82 bypass switches Supabase off on every local host, so none of BLOC Coach's linking,
-publishing or Realtime flows could be tested on the dev server. Adam chose `?auth=real` in PROMPT-03
-Phase 0 (proposal §12). BLOC Coach uses the same rule when it's built.
+publishing or Realtime flows could be tested on the dev server. `?auth=real` is the switch, and BLOC Coach
+uses the same rule.
 
 **The rule.** On a local host, `?auth=real` turns the bypass **off**, and the build signs in to BLOC's
 live Supabase project like the deployed app. Without it nothing changes: the bypass, the demo
@@ -7207,8 +7192,8 @@ console warns on load. A local build on live data otherwise looks identical to t
 
 **Using it.**
 - `http://localhost:8000/?auth=real`, or `http://<LAN-IP>:8000/?auth=real` from a phone.
-- ⚠️ **Every edit is real.** It syncs to the live mirror and the cloud backups, and from Phase 4
-  it reaches a linked coach. Every UAT that uses it opens by saying so.
+- ⚠️ **Every edit is real.** It syncs to the live mirror and the cloud backups, and it reaches a linked
+  coach. Every UAT that uses it opens by saying so.
 - **Sign in with email and password.** Google sign-in redirects, and Supabase sends it back only to a
   URL on the project's Redirect URLs list (Auth → URL Configuration). A local URL that isn't listed
   lands on the Site URL, the live app. The param survives only if the local URL is listed:
@@ -7241,16 +7226,15 @@ No request other than a GET went to Supabase, and there were no console errors.
 
 Its controls are the two wrong switches above, plus v8.29's literal key.
 
-## §120 — v8.30: the Demo Tour's data never leaves memory (deep dive D6)
+## §120 — v8.30: the Demo Tour's data never leaves memory
 
-**The bug (found in the v8.30 UAT, 2026-09-28).** The first sign-in of the test client account
+**The bug.** The first sign-in of the test client account
 (a brand-new account) started the Demo Tour, and the live write counters moved by exactly the demo
 dataset's shape: `body_logs` +56 inserted, then −56 +56 (the demo has 56 weigh-ins),
 `nutrition_quick_log` 55, `exercise_tracking_mode` 27, `goals` 6, one macrocycle. So the demo
 dataset was synced into the new account's live mirror: once by the sign-in full sync, then again
 by a debounced flush. It may also have been uploaded as that day's cloud backup. This is how the
-live app behaved for **every new sign-up**, not something `?auth=real` introduced. The deep dive
-had flagged it (D6) and PROMPT-03 had it down for Phase 4. Adam chose to fix it in v8.30.
+live app behaved for **every new sign-up**, not something `?auth=real` introduced. Fixed in v8.30.
 
 **Why it happened.** `enterDemoMode()`'s comment promises the dataset is "memory-only — never
 save()'d". It wasn't true. Entering Progress, Plan or Train runs `resetToDateActiveMacro()`, which
@@ -7286,9 +7270,9 @@ Supabase, and §91 relies on its saves. So it keeps its v8.29 behaviour exactly.
   direct `save()`. Nothing was stored, no sync was queued, and no request reached Supabase.
   `exitDemoMode()` then wrote the empty state.
 
-## §121 — v8.31: Pages publishes from a GitHub Actions workflow, and BLOC has CI (PROMPT-03 Phase 1c)
+## §121 — v8.31: Pages publishes from a GitHub Actions workflow, and BLOC has CI
 
-**Why.** BLOC Coach will be built with Vite and published at `/bloc-app/coach/`, and the Phase 2
+**Why.** BLOC Coach will be built with Vite and published at `/bloc-app/coach/`, and the
 engine is built too. Neither can come from GitHub Pages' "serve `main` as it is" mode (build type
 `legacy`). The switch also gives BLOC its **first CI**: before this, nothing ran the verify scripts
 except a person running them by hand.
@@ -7304,16 +7288,16 @@ except a person running them by hand.
 **What is published: the files the app needs, byte-identical, and nothing else.** That means
 `index.html`, `sw.js`, `manifest.webmanifest`, `icon-192.png`, `icon-512.png`,
 `icon-512-maskable.png` and `bloc-demo-data.json`. The legacy mode served the whole repo, and
-`README.md`, `TECHNICAL.md` and `scripts/` are no longer served (Adam agreed, 2026-09-28). They're
-public on GitHub, and the app never loads them. Phase 2 adds the engine build to the list, and
+`README.md`, `TECHNICAL.md` and `scripts/` are no longer served. They're
+public on GitHub, and the app never loads them. The engine build is on the list, and
 BLOC Coach's build is published from `coach/dist` (§139: a `coach/dist/ => coach/` mapping line).
 
 🚨 **The traps.**
-- **A file the app loads but the list forgets is a 404 on the live site.** The deep dive's first
-  list (D7, at v8.19) would have dropped `sw.js`, the manifest and the icons, which means every
+- **A file the app loads but the list forgets is a 404 on the live site.** An early
+  list (at v8.19) would have dropped `sw.js`, the manifest and the icons, which means every
   phone's 07:00 push and the Home Screen install. `scripts/verify-publish-list.mjs` finds every
   same-origin file that `index.html`, `sw.js` and the manifest name, requires each one on the list,
-  and fails on D7's list and on a list without `sw.js`. **Add a new asset to the list in the same
+  and fails on that early list and on a list without `sw.js`. **Add a new asset to the list in the same
   change that first references it.** It skips comment lines only, because a code comment citing
   `scripts/…` isn't a load.
 - **Never published:** `bloc-demo-data.dev.json` (gitignored, dev-only), `.github/`, `scripts/`,
@@ -7328,7 +7312,7 @@ BLOC Coach's build is published from `coach/dist` (§139: a `coach/dist/ => coac
 - **Merge is no longer automatically deploy.** A merge whose sweep fails is **not** published. Read
   the run, don't assume.
 - **The workflow never deploys while Pages is still `legacy`.** So it was safe to merge before
-  Adam flipped the setting: the `deploy` job doesn't run at all.
+  the setting was flipped: the `deploy` job doesn't run at all.
 
 **The switch (done once, 2026-09-28).** GitHub doesn't document what a site serves between
 changing the source and the first Actions deployment. The evidence says the last deployment keeps
@@ -7337,7 +7321,7 @@ the `github-pages` environment, whose one allowed branch is `main`), and the set
 which workflow deploys. The order, planned for a gap anyway:
 1. Merge the workflow. Legacy publishes that merge as before, and the workflow's `verify` runs and
    its `deploy` is skipped.
-2. Adam: **Settings → Pages → Build and deployment → Source → GitHub Actions**. Only that: no
+2. **Settings → Pages → Build and deployment → Source → GitHub Actions** (the repo owner). Only that: no
    suggested workflow is needed.
 3. Run the workflow at once: `gh workflow run pages.yml --ref main`, or Actions → Verify and deploy
    → Run workflow.
@@ -7348,17 +7332,17 @@ which workflow deploys. The order, planned for a gap anyway:
      (`application/manifest+json`) unchanged;
    - `README.md` and `scripts/…` now 404;
    - re-check after a minute.
-5. Adam opens BLOC from the Home Screen: notifications still on (push can't be tested off the live
+5. Open BLOC from the Home Screen: notifications still on (push can't be tested off the live
    https app, §111).
 
 **Rollback:** Settings → Pages → Source → **Deploy from a branch**, `main`, `/ (root)`. Legacy
 rebuilds from `main` within a minute or two.
 
-## §122 — v8.32: the shared engine, `engine/` (PROMPT-03 Phase 2, scaffold)
+## §122 — v8.32: the shared engine, `engine/`
 
 **Why.** BLOC Coach runs BLOC's calculations over each client's uploaded state, so those
-calculations need one home both apps load. Phase 2 moves them out of `index.html`, one step at a
-time (deep dive §10 steps 1–6), into a TypeScript `engine/`. BLOC must behave **byte-identically**
+calculations need one home both apps load. They moved out of `index.html`, one step at a
+time, into a TypeScript `engine/`, and BLOC had to behave **byte-identically**
 at every step except the one planned change, H7. This first step builds the machinery and moves
 one function through it, end to end.
 
@@ -7372,14 +7356,14 @@ one function through it, end to end.
 | `engine/package.json`, `package-lock.json` | pinned `typescript` 7.0.2 and `esbuild` 0.28.2. `npm ci --prefix engine` installs them; `npm run build` / `npm run check` in `engine/` |
 | `engine/tsconfig.json` | type-checking only, strict. `erasableSyntaxOnly`, so the source is plain JS once types are stripped: Coach (Vite) and Node can load it directly |
 
-**How BLOC loads it (decided with Adam, 2026-09-28: commit the build, CI rebuilds and compares).**
+**How BLOC loads it (the build is committed; CI rebuilds and compares).**
 `index.html` has `<script src="engine/dist/bloc-engine.js?v=<hash>">` immediately before the main
 script. For every moved function, `index.html` keeps a **same-named global shim** that calls
 `BlocEngine.<name>`, so none of its call sites change. The build is committed, so the phone, a
 local `python -m http.server`, and the verify scripts all run the same file with no build step.
-It's on `scripts/publish-files.txt`. Coach will import `engine/src/index.ts` as source (Phase 5).
+It's on `scripts/publish-files.txt`. Coach imports `engine/src/index.ts` as source (§139).
 
-**Moved in v8.32: `ensureStateDefaults()` → `normaliseState(raw)`** (deep dive H5). It used to
+**Moved in v8.32: `ensureStateDefaults()` → `normaliseState(raw)`**. It used to
 fill the global `state` in place. Now it returns a new object and never writes to its input, and
 untouched fields are shared, not deep-copied. The shim is `state = BlocEngine.normaliseState(state)`,
 then the `data-mode` attribute, which stays BLOC's. Its only callers, `load()` and
@@ -7413,7 +7397,7 @@ then the `data-mode` attribute, which stays BLOC's. Its only callers, `load()` a
 - **"Never reads the clock" is checked by the same cases.** Each one also runs against the build
   loaded in a context where `new Date()` (no arguments) and `Date.now()` throw, so "today" can only
   arrive as a parameter. Otherwise Coach would judge a client in New York by the coach's London
-  date (deep dive §2b). `new Date(str)` stays real, because parsing a date string is arithmetic,
+  date. `new Date(str)` stays real, because parsing a date string is arithmetic,
   not a clock read. Control: a build whose `normaliseState` calls `new Date()` is caught.
 - **Key order is saved bytes.** The golden harness compares with sorted keys, but `save()` writes
   `JSON.stringify(state)` as it stands. `normaliseState` repeats the old tests, **in the old order,
@@ -7431,19 +7415,19 @@ then the `data-mode` attribute, which stays BLOC's. Its only callers, `load()` a
 - **`sw.js` is untouched.** It has no fetch handler and caches nothing (§111), so a new script needs
   no worker change. Keep it that way (§112–§113).
 
-**What's next (Phase 2, one PR per step, Adam merges each):** the clock (`EngineContext { today }`
-and the date helpers, deep dive §10 step 2), then the pure leaves including `isLocalDevHost`
+**The steps that followed (§123–§127):** the clock (`EngineContext { today }`
+and the date helpers), then the pure leaves including `isLocalDevHost`
 (step 3, which re-points the five verify scripts that brace-extract engine functions from
 `index.html`), the state readers with the H7 change (step 4, the one deliberate regeneration of the
 golden file), the progression core (step 5), and the mutators (step 6). When a function the
 golden harness's code control patches (`getWeekWeight`) moves, that control must move to the
 engine source with it.
 
-## §123 — v8.33: "today" is a parameter — the engine's date helpers (PROMPT-03 Phase 2, clock)
+## §123 — v8.33: "today" is a parameter — the engine's date helpers
 
 **Why.** Coach will evaluate a client's week from the **client's** local date. If the engine read
 the clock, a coach in London at 02:00 would see a client in New York a day ahead: wrong goal, wrong
-day-of-week, wrong Home badges (deep dive §2b). So from this step on, "today" only reaches the
+day-of-week, wrong Home badges. So from this step on, "today" only reaches the
 engine as a parameter.
 
 **`EngineContext = { today: 'YYYY-MM-DD' }`** (`engine/src/dates.ts`). In BLOC, `engineCtx()` in
@@ -7481,10 +7465,10 @@ Coach will build its own context from the timezone BLOC uploads.
   check the real object. Dates pass through unwrapped, and a `setDate` on an argument is caught by
   the before/after JSON comparison.
 
-## §124 — v8.34: the pure leaves move into the engine (PROMPT-03 Phase 2, step 3)
+## §124 — v8.34: the pure leaves move into the engine
 
 **Why.** Coach needs BLOC's calculations, not a copy of them. Step 3 moves the functions that were
-already pure (deep dive §1a): they read only their arguments, so they move unchanged, with no new
+already pure: they read only their arguments, so they move unchanged, with no new
 parameters except where §123's `EngineContext` reaches them. BLOC behaves byte-identically.
 
 **Moved, each behind a same-named shim in `index.html`** (so no call site changes), 43 functions and
@@ -7498,7 +7482,7 @@ four constants:
 | `engine/src/prompts.ts` | `buildSignalPeriods`, `formatSignalPeriodsForPrompt`, `extractJsonObject`, `condenseBlocAdvicePlans`, `condenseBlocAdviceEntry`, `formatPriorAdviceEntry`, `buildCycleReviewPrompt` |
 | `engine/src/home.ts` | `getHomeIsoDow`, `isCompleteNutritionDay`, `getWeeklyRequiredDaily`, `computeWeekPlannedAvg`, `formatAdviceSublabel`, `getHomeMetricSublabel`, `getReconciledMacroAdvice`, and `RECONCILE_CARBS_FLOOR`/`_FATS_FLOOR`/`_PROTEIN_MAX_DROP`/`_KCAL_MAX_OVERSHOOT` |
 | `engine/src/clash.ts` | `macroRange`, `findMacroClash`, `buildGoalShiftPlan` |
-| `engine/src/host.ts` | `isLocalDevHost` (deep dive §8: BLOC and Coach share one predicate) |
+| `engine/src/host.ts` | `isLocalDevHost` |
 
 **Not moved, though §1a lists them.** Since v8.19 two have stopped being pure leaves:
 - `getHomeMetricBadge` returns a CSS colour. Step 4 splits its status from its colour and adds
@@ -7525,8 +7509,7 @@ four constants:
   `Date − Date` stays as it was, with `as unknown as number` casts that esbuild erases. Unused
   parameters (`getPrevTrackUnit`'s `macro`, `buildCycleReviewPrompt`'s `macro`) keep their places,
   renamed `_macro`. The prompt text was copied from `index.html` by script, not retyped. Number
-  formatting still uses `toLocaleString()`, so Coach will format numbers in the coach's locale, and
-  that's a Phase 5 decision, not this step's. esbuild drops comments from `dist/`, so the 🚨 notes
+  formatting still uses `toLocaleString()`, so Coach formats numbers in the coach's locale. esbuild drops comments from `dist/`, so the 🚨 notes
   are in `src/` only.
 - **A control that patches a moved function moves with it (§123).** Three did:
   - the golden harness's `getWeekWeight` edit (§118);
@@ -7536,13 +7519,13 @@ four constants:
   Each now patches the function **in the engine build** and loads that patched copy. Patching the
   one-line shim in `index.html` would change nothing, and the control would fail as "could not
   apply", or worse, pass vacuously. The source carries a 🚨 note next to each patched expression.
-- **Re-pointed at the engine (deep dive §8):** `verify-local-dev-hosts` and
+- **Re-pointed at the engine:** `verify-local-dev-hosts` and
   `verify-json-extraction` run the committed build. They also fail unless `index.html`'s function
   is exactly one shim handing its argument over, so BLOC can't quietly decide the bypass with a
   different predicate from the tested one. Control: a local copy in place of the shim is refused.
   `verify-auth-real` and `verify-rpe-progression` extract shims, so they import
-  `scripts/engine-global.mjs`. 🚨 **`verify-dev-bypass-real-data` needed nothing.** Deep dive §8
-  assumed it extracted `isLocalDevHost`, but it tests the boot branch (`continueBootAfterAuth`,
+  `scripts/engine-global.mjs`. 🚨 **`verify-dev-bypass-real-data` needed nothing.** It looked as if it
+  extracted `isLocalDevHost`, but it tests the boot branch (`continueBootAfterAuth`,
   `devBypassHasRealData`, `clearAllData`, `importData`), all of which stay in BLOC.
 - **Pure is not the same as unchanged.** `verify-engine-pure` proves the engine never writes to
   its input or reads the clock; it doesn't compare answers. The golden harness compares answers,
@@ -7567,13 +7550,13 @@ the demo. The in-memory state, the saved `localStorage` and all seven screens' H
 with no page errors, and each build fetched its own `engine/dist/bloc-engine.js?v=`. The golden file
 is unchanged. `sw.js` is unchanged.
 
-## §125 — v8.35: the state readers, the progression core and the mutators move into the engine (PROMPT-03 Phase 2, steps 4–6)
+## §125 — v8.35: the state readers, the progression core and the mutators move into the engine
 
 **Why.** Coach runs BLOC's calculations over a client's uploaded state. Steps 1–3 (§122–§124)
-moved the parts that never touched `state`. These steps move the rest of deep dive §1b–§1f:
+moved the parts that never touched `state`. These steps move the rest:
 everything that reads the state, everything that wrote while it read, and the AI prompt builders.
 BLOC behaves byte-identically, except for one deliberate change, H7, which has its own section
-(§126). All three steps ship in one PR (Adam, 2026-09-27), one commit each.
+(§126). All three steps ship in one PR, one commit each.
 
 **The shape every moved function takes.** What used to come from BLOC's globals now arrives as an
 argument:
@@ -7608,7 +7591,7 @@ reads. `computeHomeWeek` is the orchestration that used to sit inside `renderHom
 dive §1d): the four metrics' averages, planned averages and badges for the week containing
 `ctx.today`. `renderHomeThisWeek` now renders it; the names, colours and number formats are BLOC's.
 
-**`weekClosed`** (deep dive §2b) judges a week as finished, from its Sunday, whatever `ctx.today`
+**`weekClosed`** judges a week as finished, from its Sunday, whatever `ctx.today`
 is. Coach needs it for a client's past weeks. Passing today = the Sunday isn't enough: with Sunday
 unlogged, `getWeeklyRequiredDaily` still counts Sunday as a day left, and the badge stays in pace
 mode. BLOC never passes it.
@@ -7672,7 +7655,7 @@ four days (2 Aug, 29 Jul, 20 Sep, 1 Jun) and from empty storage. The in-memory s
 fetched its own engine `?v=`.
 
 🚨 **The local dev bypass loads `bloc-demo-data.dev.json` when it exists.** That file is
-untracked, and its `_devAnchorDate` (2026-09-10 on Adam's machine) moves "today". A comparison
+untracked, and its `_devAnchorDate` (2026-09-10 on the developer's machine) moves "today". A comparison
 with a `git archive` of an older version, which lacks the file, shows every date-dependent screen
 "different". Copy the file into both trees before comparing.
 
@@ -7686,7 +7669,7 @@ with a `git archive` of an older version, which lacks the file, shows every date
   `getWeekComplianceResult`, `getLastCompliantWeek`;
 - two new cores: `computeLockTransition` and `computeExerciseProgression`.
 
-**No more writing while reading (deep dive H1–H3).**
+**No more writing while reading.**
 - **`getWeekTargets(s, cache, …)`.** It used to fill `state.progressionTargets` on a cache miss.
   Every progression function now takes a `TargetCache` (`{ get(key), set(key, target) }`) after
   the state. BLOC's `progressionTargetCache()` wraps the live `state.progressionTargets`, so BLOC
@@ -7704,8 +7687,7 @@ with a `git archive` of an older version, which lacks the file, shows every date
     this week's evaluation) and `prevWasLocked`.
   - Without `opts` it reads the stored lock, and treats `prevWasLocked` as false.
 
-**Train's "⚠ missed target" is the lock's own decision now** (deep dive §1d; Adam, 2026-09-27: "Do
-the swap"). This was a third copy of the compliance comparison. It checked the logs against the
+**Train's "⚠ missed target" is the lock's own decision now.** This was a third copy of the compliance comparison. It checked the logs against the
 *displayed* placeholders, which come live from last week's actuals. The lock checks them against
 the target frozen when the week was first judged. The two disagree only once a frozen target has
 drifted from the display: last week's sets edited afterwards, the route switched, or a lock set
@@ -7766,11 +7748,11 @@ function applies the change in the same order, with the same `save()`:
 | Engine core | Returns | BLOC applies |
 |---|---|---|
 | `renumberMacroGoalSteps(goals, macroId)` | the goals, that macro's relabelled "Step N" as **copies** (the step-3 carry-over) | copies each new `_blocLabel` onto its own goal object, because other code holds references to them |
-| `computeRollupEntries(s, ctx)` | the rollup entries for cycles that ended before today and aren't archived yet (deep dive H4) | `updateInsightsRollup()` appends them, caps at 10, saves |
+| `computeRollupEntries(s, ctx)` | the rollup entries for cycles that ended before today and aren't archived yet | `updateInsightsRollup()` appends them, caps at 10, saves |
 | `recordExerciseHistory(s, ctx, macro, week, dayKey, ex)` | `{ name, type, entry, trackingMode }`, or null (a deload week, no name, nothing on set 1) | writes `exerciseHistory[name][type]` and the tracking mode |
 | `acceptChallengeRevision(stored)` | the accepted response and `revisionInfo` | `acceptBlocChallenge()` writes them, clears `chosenPath`/`chosenAt`, consumes the pending revision, saves |
 
-**The AI flows** (`engine/src/advice.ts`, deep dive §1f).
+**The AI flows** (`engine/src/advice.ts`).
 
 - **Prompts:** `buildRpePromptSummary` (with `getRpeSessionExercises`), `buildBlocAdvicePrompt`,
   `buildBlocChallengePrompt` and `buildNextCycleAdvicePrompt`, which takes the override as a
@@ -7807,9 +7789,9 @@ function applies the change in the same order, with the same `save()`:
   called with `ctxAt`, and BLOC passes `() => _nextCycleOverride`. Handing it the override from the
   moment of asking is the plausible wrong version.
 - **Not moved:** `startGoalQueue`, `chooseNextCyclePlan`, `acceptMaintenanceRecalibration` (UI
-  flows; the engine supplies the steps), `resetToDateActiveMacro` and `syncBlocCheckin` (BLOC-only,
-  deep dive §1e). **H8**, stamping `blocAdvice.id` in `normaliseState`, isn't done: an id needs
-  `Date.now()` and `Math.random()`, which the engine may not read. It belongs to Phase 4's
+  flows; the engine supplies the steps), `resetToDateActiveMacro` and `syncBlocCheckin` (BLOC-only).
+  **H8**, stamping `blocAdvice.id` in `normaliseState`, isn't done: an id needs
+  `Date.now()` and `Math.random()`, which the engine may not read. It belongs to the
   `client_state` upload, with the id passed in or stamped by BLOC before upload.
 
 **How it's checked.**
@@ -7839,7 +7821,7 @@ function applies the change in the same order, with the same `save()`:
 
 ## §126 — v8.35: H7 — the activity multiplier follows the calendar, not the cycle you browsed
 
-**The one intended behaviour change in Phase 2** (deep dive §3, H7).
+**The one intended behaviour change in the engine move**.
 
 **What it was.** `getActivityMultiplier()` read `state.currentMacroId`: the cycle the person last
 picked with the cycle arrows, on Train, Plan or Progress. Its sessions per week, together with
@@ -7858,7 +7840,7 @@ load counts, by the calendar:
 A cycle with no `start` never counts. `getActivityMultiplier(s, ctx)` reads that cycle, and both
 TDEE paths pass `ctx`.
 
-**Why "the latest started" between cycles** (Adam, 2026-09-27). Strictly date-active would read the
+**Why "the latest started" between cycles.** Strictly date-active would read the
 gap between cycles as no cycle: 0 sessions a week, sedentary, 1.2. On the demo (4 sessions a week,
 about 10,071 average steps, 1.55) that raises the BMR estimate and the floor by about 29%, in exactly
 the week Next Cycle advice is asked for. Falling back to the last browsed cycle would keep the
@@ -7927,10 +7909,10 @@ bar: **"Planned this week avg: X"**, where the week lands if the rest of it goes
 that line out of the row template (`830059d`, live 24 Sep).
 - The figure was still computed on every render and passed to each row as `weekPlannedAvg`.
 - The tap-info modal still explained it.
-- Nothing showed it. Adam lost sight of the week's planned meals, and every check passed, because
+- Nothing showed it. The week's planned meals disappeared from Home, and every check passed, because
   the numbers hadn't changed.
 
-**Restored (Adam, 2026-09-28).** A `.metric-planned` line sits under each row's bar, above the
+**Restored.** A `.metric-planned` line sits under each row's bar, above the
 off-target note. It's laid out like the row's top line: "Planned this week avg" on the left in the
 note's type, and the figure on the right with tabular numbers, aligned with the bar's end. It
 shows whenever there's a planned figure, which means whenever there's an active goal, as before
@@ -7940,7 +7922,7 @@ v8.16.
 - **Calories, protein, carbs:** every genuine logged day at its real number, including meals
   **planned ahead** for a later day. A future day with nothing planned counts at target. A light,
   partly-logged day (under target − 300 kcal) is left out, not counted as zero.
-- **Steps** (Adam: "this never had planned… any unlogged days take the goal"): a forecast. Days up
+- **Steps** (steps are never planned, so any unlogged day takes the goal): a forecast. Days up
   to today with steps logged use them. Every other day, a missed past day or a future day, uses the
   goal's steps target. The label is still "Planned this week avg".
 
@@ -7955,14 +7937,14 @@ before.
   real `renderHomeThisWeek` over three datasets × 7 days. Every row must show exactly the engine's
   figure, with its unit, and no line without a goal (56 lines over 84 rows). The label must sit
   left and the figure right. Control: the template without the line fails.
-- **The golden file records Home's HTML, so this moved it:** a second `--write` in Phase 2, in its
-  own commit, with Adam's agreement. Exactly the 7 `homeWeek` runs moved, by 4 added lines each.
+- **The golden file records Home's HTML, so this moved it:** a second `--write` in the engine extraction, in its
+  own commit. Exactly the 7 `homeWeek` runs moved, by 4 added lines each.
   With those lines removed, each is byte-identical to the file before, and no other run changed.
   `_source.closure` 103 → 89 is extraction metadata (steps 5–6 moved functions out).
 
-## §128 — v8.36: four mirror fixes, one push at a time, and Delete my data removes coach-visible photos (PROMPT-03 Phase 4a)
+## §128 — v8.36: four mirror fixes, one push at a time, and Delete my data removes coach-visible photos
 
-Carried from Phase 3 (`super-duper-octo-barnacle/docs/SUPABASE.md` → "Keys are per user"). **Ships
+The server half is `super-duper-octo-barnacle/docs/SUPABASE.md` → "Keys are per user". **Ships
 with migration `0025`, which merges FIRST** (see the trap below). Nothing on screen changes.
 
 **1. `syncRowsMacrocycles()`.**
@@ -8001,11 +7983,10 @@ cross-account collision `0025` removes, until yet another migration.)
 - 🚨 **Storage's `list()` is not recursive.** A folder comes back as an entry with `id: null`, so a
   flat list like `deleteAllSnapshots()`'s would miss every photo in `{uid}/checkins/<date>/`.
   `listClientMediaPaths()` walks the folders and pages by 1000. `remove()` goes in batches of 1000.
-- BLOC doesn't upload to `client-media` yet (Phase 4's check-in form will), so today this lists an
-  empty folder and removes nothing. It's here first so no photo can ever be uploaded without a
-  delete path.
+- BLOC uploads nothing to `client-media` (a check-in has no photos, §135), so this lists an empty
+  folder and removes nothing. It's there so no photo can ever be uploaded without a delete path.
 
-**5. One push at a time: `pushStateSerialised()`** (found in this phase's UAT, pre-existing).
+**5. One push at a time: `pushStateSerialised()`** (a pre-existing race).
 - **What happened.** On a reload of the Work account, the console showed 409 "duplicate key value
   violates unique constraint `macrocycles_pkey`" (and `exercises_pkey`), after two clean Full syncs.
   The sign-in full sync (`maybeForceFullSyncOnSignIn`) was still running when a boot `save()`'s 4 s
@@ -8019,7 +8000,7 @@ cross-account collision `0025` removes, until yet another migration.)
   `pushStateToSupabase()`. A push asked for while one runs waits for it. Any number of such requests
   share **one** follow-up push, which reads `state` when it starts, so it sends the latest. A failed
   push still reports its error, and the queued one still runs.
-- 🚨 **Phase 4c's `client_state` upload must go through the same kind of gate**, or the same race
+- 🚨 **The `client_state` upload (§130) goes through the same kind of gate**, or the same race
   returns as a `state_rev` refusal.
 
 **Check:** `scripts/verify-sync-mapping-fixes.mjs` runs the real functions: the four mappings, a
@@ -8031,19 +8012,17 @@ follow-up; the follow-up sees the newer state; a failure doesn't block the queue
 the push directly shows the overlap, and a source check allows no other caller. It reads that commit with `git show`, as
 `verify-version-single-source.mjs` does, which is why CI checks out full history.
 
-## §129 — v8.37: linking to a coach — the mode question, the code, consent, Settings → Coaching (PROMPT-03 Phase 4b)
+## §129 — v8.37: linking to a coach — the mode question, the code, consent, Settings → Coaching
 
-Proposal §4.1 and §4.4. **Needs migration `0026` (`peek_invite`) live.** The server half is `0022`
+**Needs migration `0026` (`peek_invite`) live.** The server half is `0022`
 (`redeem_invite`, `revoke_coach`, `set_photo_consent`), `super-duper-octo-barnacle/docs/SUPABASE.md` →
-"BLOC Coach: profiles, linking, invites, consent". Visual reference: the wireframes'
-`WelcomeScreen`, `CoachingScreen` and `LinkSplash`, rebuilt from BLOC's own `.card`, `.settings-row`
+"BLOC Coach: profiles, linking, invites, consent". The screens (Welcome, Coaching, the link splash) are built from BLOC's own `.card`, `.settings-row`
 and `.toggle-row` parts. BLOC has no switch control (on/off is a two-button `.toggle-row` everywhere),
 so photo consent is one too.
 
 **What this version does NOT do yet.** Linking records the link; nothing in the app changes with it.
-Hiding Plan, "From your coach", swaps and the rest of Coached mode follow in later Phase 4
-sub-phases, keyed on `isCoachedMode()`. Nobody can be invited in production until BLOC Coach
-(Phase 5) exists: only a coach profile can create a code.
+Hiding Plan, "From your coach", swaps and the rest of Coached mode are §132–§137, keyed on
+`isCoachedMode()`. Only a coach profile (BLOC Coach) can create a code.
 
 **The flow** (`openCoachLink()`, one sheet, `renderCoachLink()` per step):
 1. **The mode question**: "Are you training solo, or do you have a coach?" Solo carries on as before.
@@ -8062,7 +8041,7 @@ new one."**, or "You already have a coach. Unlink first, in Settings → Coachin
 says so. A code shorter than 8 characters is never sent.
 
 **Who is asked, and when** (`startFirstRun()`, which replaces the bare `fetchDemoDataIfNewUser()` in
-`continueBootAfterAuth()`). Adam, 2026-09-28: *"New accounts only"*.
+`continueBootAfterAuth()`). Only a new account is asked.
 - **An invite link** opens the code step, filled in, on any device, new or not.
 - **A returning device:** nothing. Link from Settings → Coaching.
 - **A new device whose account has a cloud backup** is an existing user on a new phone.
@@ -8078,7 +8057,7 @@ says so. A code shorter than 8 characters is never sent.
   with no tour.
 
 **Invite links:** `https://adamnc02.github.io/bloc-app/?invite=XXXX-XXXX` (`COACH_INVITE_URL`; BLOC
-Coach builds these in Phase 5. The wireframes' `coach.bloc.app/join/…` was a placeholder).
+Coach builds these).
 `captureInviteFromUrl()` runs at parse time, **before sign-in**: it stores the code under
 `bloc_pending_invite` and takes `invite` out of the address bar, keeping every other parameter
 (`?auth=real`) and the hash. The code survives the sign-in, and a restore's reload. It's cleared once
@@ -8092,7 +8071,7 @@ it links or the sheet is dismissed, and dropped after 7 days (an invite's life, 
   once a minute). Either side can end a link at any time, so the server wins: a link the coach ended
   is forgotten on the next check.
 - Delete my data and Close my account clear it (the erase deletes the client's `coach_clients` rows).
-- `isCoachedMode()` is the one question the rest of Phase 4 asks.
+- `isCoachedMode()` is the one question the rest of Coached mode asks.
 
 **Settings → Coaching** (`openSettingsCoaching()`), under Notifications. Its sub-line says "Linked with
 {coach}." or "Link to a coach with their code."
@@ -8101,7 +8080,7 @@ it links or the sheet is dismissed, and dropped after 7 days (an invite's life, 
 - **Solo:** "No coach linked" and **Enter a coach's code**.
 - **Photo consent** is `set_photo_consent()`. Only the client can change it, which `0022`'s trigger
   enforces. The switch moves at once; a failed save puts it back and re-reads the link.
-- **Unlink** asks first (the proposal §4.4 points, in one sentence), then `revoke_coach()` and
+- **Unlink** asks first, in one sentence, then `revoke_coach()` and
   forgets the link. Since v8.40 it also removes the coach's cycles and goal phases (§132).
 - Not available signed out, in the local dev bypass, or during the Demo Tour.
 
@@ -8139,17 +8118,16 @@ server write was the expected one, read from `pg_stat_user_tables`:
 - a used code wrote nothing;
 - Unlink made one update and no delete.
 
-⚠️ **The first-run mode question was not run on a real new account** (Adam: *"Skip, ship on the
-checks"*). It needs an account with no cloud backup. The verify script covers all six cases, and the
+⚠️ **The first-run mode question was not run on a real new account**; it shipped on the checks. It needs an account with no cloud backup. The verify script covers all six cases, and the
 headless run covered every screen.
 
-## §130 — v8.38: the client → coach state upload, `client_state` (PROMPT-03 Phase 4c)
+## §130 — v8.38: the client → coach state upload, `client_state`
 
-Proposal §6.1, deep dive §4c. The server half is `0023` (`super-duper-octo-barnacle/docs/SUPABASE.md`
+The server half is `0023` (`super-duper-octo-barnacle/docs/SUPABASE.md`
 → "BLOC Coach: how the two apps talk").
 
 **Why a whole-state upload.** BLOC Coach runs BLOC's own engine (`engine/`) on the client's real state.
-The relational mirror is lossy (deep dive §4a): no per-set RPE history, no progression cache, no
+The relational mirror is lossy: no per-set RPE history, no progression cache, no
 recipes-as-typed. So Coach reads what BLOC holds, byte for byte.
 
 **What is sent** (`uploadClientStateOnce()`), one `client_state` row per upload:
@@ -8229,9 +8207,9 @@ exactly as `0023` does. It covers:
 - **An unchanged reload sent nothing.**
 - **Unlinked:** a change sent nothing, while the mirror sync still ran.
 
-## §131 — v8.39: the coach → client publications — pull, apply, acknowledge (PROMPT-03 Phase 4d)
+## §131 — v8.39: the coach → client publications — pull, apply, acknowledge
 
-Proposal §6.2, deep dive §5 and §6. The server half is `0023` (`publications`, `publication_acks`,
+The server half is `0023` (`publications`, `publication_acks`,
 Realtime; `super-duper-octo-barnacle/docs/SUPABASE.md` → "BLOC Coach: how the two apps talk"). No
 migration.
 
@@ -8240,7 +8218,7 @@ client's card (`client_record_id`, now cached with the link, §129), `seq > curs
 runs:
 - on sign-in and on resume, once the link is re-checked;
 - on coming online;
-- at once on linking (anything the coach published before the link arrives then, §11 Q16);
+- at once on linking (anything the coach published before the link arrives then);
 - every 5 minutes while the app is visible.
 
 **Realtime is only a hint.** While the app is open, a `postgres_changes` INSERT on this card triggers
@@ -8248,14 +8226,14 @@ a pull (`syncPublicationChannel()`, which closes on unlink). iOS drops the socke
 is backgrounded, and that's fine because the resume pull covers it. Pulls go one at a time
 (`publicationsSerialised()`, the §128 pattern).
 
-**One funnel: `applyPublications()`.** Each publication is a **field-level patch** (deep dive I6), with
+**One funnel: `applyPublications()`.** Each publication is a **field-level patch**, with
 the per-type allow-list the server enforces in a CHECK. Each type has an applier:
 
 | Type | What BLOC does | Held (needs_attention) when |
 |---|---|---|
-| `plan` | `macrocycle`: creates the cycle, or **patches only the coach's fields** (`PUB_MACRO_FIELDS`, the server's list), so the client's own fields (`review`, …) survive. It stamps `publishedBy` / `publishedSeq`. `exercises: {key: Exercise[]}` replaces that session template (`key` exactly as `state.exercises` holds it: `${macroId}_1_${dayKey}`, plus `m1`/`m2` with microcycles). `supersets: {id: {name}}`, `deloads: {key: bool}` (false removes it), `remove_exercise_ids`, `remove_superset_ids` | the cycle **overlaps another** (`findMacroClash`, the §99 rule, deep dive I10; the note names it); it has no id or start; an exercise list or deload names a cycle the phone doesn't hold |
+| `plan` | `macrocycle`: creates the cycle, or **patches only the coach's fields** (`PUB_MACRO_FIELDS`, the server's list), so the client's own fields (`review`, …) survive. It stamps `publishedBy` / `publishedSeq`. `exercises: {key: Exercise[]}` replaces that session template (`key` exactly as `state.exercises` holds it: `${macroId}_1_${dayKey}`, plus `m1`/`m2` with microcycles). `supersets: {id: {name}}`, `deloads: {key: bool}` (false removes it), `remove_exercise_ids`, `remove_superset_ids` | the cycle **overlaps another** (`findMacroClash`, the §99 rule; the note names it); it has no id or start; an exercise list or deload names a cycle the phone doesn't hold |
 | `goal_phases` | upserts goals by `macroGoalID` (stamped `publishedBy`), removes `remove_goal_ids` | its `macro_id` isn't on the phone; a goal has no id or dates |
-| `ai_response` | **`state.coachAdvice[]`, never `blocAdvice`** (I5), one entry per `response_id`. A republish replaces it, marked `updated` (§11 Q10). Its `goal_changes: {goals, remove_goal_ids}` apply with it (§11 Q9) | no `response_id`; a goal change has no id or dates |
+| `ai_response` | **`state.coachAdvice[]`, never `blocAdvice`** (I5), one entry per `response_id`. A republish replaces it, marked `updated`. Its `goal_changes: {goals, remove_goal_ids}` apply with it | no `response_id`; a goal change has no id or dates |
 | `booking` | `state.coachBookings[booking_id]`, including `assigned_session` | no `booking_id` |
 | `measurement` | merges weight / waist / hip into that date's body log, keeping the client's steps; `measuredByCoach` | no `log_date` |
 | `note_reply` | `state.coachNoteReplies[submission_id]` | no `submission_id` |
@@ -8269,14 +8247,14 @@ cached targets (`progressionTargets`, `${macroId}_${dayKey}_${exId}_w${week}`) o
 no set logged** (`invalidateUnloggedTargets()`). They recompute from the new template; logged weeks
 keep theirs. Progression locks are left alone.
 
-🚨 **It waits** (deep dive I7, `publicationsMustWait()`): never while a sheet is open, a Train input
+🚨 **It waits**`): never while a sheet is open, a Train input
 has focus, the goal queue is running, or the Demo Tour / any pretend "today" is active. A publication
 landing under an open edit sheet would be overwritten by that sheet's stale save. Fetched
 publications stay queued, retried every 3 s. **A queue that outlives its link is dropped**, so nothing
 from an unlinked coach lands.
 
 🚨 **The ledger lives in `state`** (`state.coachLedger`: `{pubId: {seq, type, status, note, acked}}`), so it
-travels with the data it describes (deep dive I8):
+travels with the data it describes:
 - **A restore, an import or a clear** brings back an older ledger, or none. The next pull starts from
   there (`publicationCursor()`) and re-applies what that state lacks, with no special case in any of
   those paths.
@@ -8287,7 +8265,7 @@ travels with the data it describes (deep dive I8):
 **Receipts** (`publication_acks`, `sendPendingAcks()`): `applied` / `needs_attention` (with the
 reason) / `superseded`, for every settled, un-acked entry.
 
-🚨 **Update, then insert; never `.upsert()`** (found in this phase's UAT: every receipt was refused).
+🚨 **Update, then insert; never `.upsert()`** (an upsert had every receipt refused).
 supabase-js's upsert is `INSERT … ON CONFLICT DO UPDATE SET` **every column**, and `0023` grants the
 client UPDATE on `status`, `note` and `acked_at` only, so Postgres refused the whole statement ("permission
 denied for table publication_acks"). The grant is right: a client must not move a receipt to another
@@ -8339,11 +8317,11 @@ temporary `claude_ro` read policy on `publication_acks`, dropped and verified at
 and the local tab had been open for over an hour. That's most likely an expired session refreshing
 before the request; later reloads were instant. Watch for it on a phone that resumes after an hour.
 
-## §132 — v8.40: Coached mode's hides, the RPE rule, and unlink removing the coach's plan (PROMPT-03 Phase 4e-1)
+## §132 — v8.40: Coached mode's hides, the RPE rule, and unlink removing the coach's plan
 
-Proposal §4.2 and §4.4; deep dive D2 (the routes into Plan) and D11 (tours). No migration. The rest of
+No migration. The rest of
 Coached mode (From your coach, Request a session, Your next session, Swap for today, coach-logged
-sessions) follows in 4e-2 to 4e-4.
+sessions) is §135–§137.
 
 **One question: `coachedView()`** = `isCoachedMode()` (§129) and not the Demo Tour. The Demo Tour
 walks the Solo app on the demo's data, whoever is watching it.
@@ -8355,7 +8333,7 @@ walks the Solo app on the demo's data, whoever is watching it.
 | The Plan tab | `applyCoachedNav()` sets `#nav-plan` to `display:none` (not removed: `showScreen()` and the nav pill find buttons by id, and Solo needs it back). Also Help → Tours → Plan (`#tour-help-plan-row`). |
 | Every route into Plan (D2) | 🚨 **one guard at the top of `showScreen()`**: `plan` becomes `home` when coached. A route nobody listed still lands somewhere real. The routes that had a Plan-shaped affordance also changed: Home's Up next empty state, Train's two empty states and Progress's empty hero read "{coach} hasn't published your plan yet." (`coachPlanPendingText()`); Home's upcoming-goal line is information only (`goToPlanAndFlashGoal()` returns); the profile gate opens over Home; the cycle-creation tour never starts; a mini-tour with no cycle says why. |
 | Mark week as deload | `renderTrainTools()`, and `toggleDeloadWeek()` refuses |
-| Check-in with BLOC (and its plans and Challenge), Last cycle, Build next cycle | `renderProgressCheckin/LastCycle/NextCycle()` draw nothing. The coach runs every AI tool; From your coach replaces the check-in section in 4e-2 |
+| Check-in with BLOC (and its plans and Challenge), Last cycle, Build next cycle | `renderProgressCheckin/LastCycle/NextCycle()` draw nothing. The coach runs every AI tool; From your coach replaces the check-in section (§135) |
 | The plateau signal | Insights drops `buildInsightsCardHTML()` (the trend and plateau narrative) **and BLOC's own "Calorie target"**, which would contradict the coach's goal phases the same way. Weekly change, best 7-day window, BMR and TDEE stay |
 | Tours pointing at any of it | The Coached Progress tour filters out the check-in, Last cycle and Next cycle steps; Train's Session tools step drops the deload sentence |
 
@@ -8387,8 +8365,7 @@ ratings and all. The golden outputs didn't move: the demo has no `publishedBy`.
 
 ### Unlinking removes the coach's plan
 
-Adam, 2026-09-28, choosing the literal reading of proposal §4.4 both times: *"Remove every coach
-cycle"* and *"Remove them all"* (goal phases). `removeCoachPlan()` removes:
+Unlinking removes every coach cycle and every coach goal phase. `removeCoachPlan()` removes:
 - every cycle with `publishedBy`, with its session templates, deloads, cached targets and locks;
 - supersets only those templates used (a superset a Solo cycle shares stays);
 - **every** goal phase with `publishedBy`, and any goal left on a removed cycle;
@@ -8401,11 +8378,11 @@ and the ledger. A later re-link pulls from where the ledger left off.
 ⚠️ **The logged sets outlive their cycle.** With no cycle to name them, Cycle history can't show that
 training, and the mirror push skips those `trainLogs` keys as orphaned (`syncParseTrainLogKey()` finds
 no exercise, so `exercise_logs` loses those rows on the next push). They stay in `state`, in every
-backup and in `client_state`. Adam chose this knowing it (the option said so).
+backup and in `client_state`, by design.
 
 🚨 **Key ownership is the LONGEST cycle id a key starts with.** `startsWith(id + '_')` alone would hand
-a Solo cycle `macro_c1_x`'s keys to a coach cycle `macro_c1` and delete them (deep dive I4: ids aren't
-prefix-free).
+a Solo cycle `macro_c1_x`'s keys to a coach cycle `macro_c1` and delete them: ids aren't
+prefix-free.
 
 **Either side can unlink:**
 - the client's Unlink (`unlinkCoach()`) runs it;
@@ -8516,7 +8493,7 @@ restored, the pull resumes from the restored ledger and applies only what the ba
 `!deviceHasRealData()` and the backup list has entries, **or can't be read** (waiting is safe, applying
 isn't).
 
-A brand-new coached account has no backups, so it still gets its plan the moment it links (§11 Q16).
+A brand-new coached account has no backups, so it still gets its plan the moment it links.
 
 **Check:** `scripts/verify-demo-tour-restore.mjs` section 4: an empty device with backups fetches
 nothing; so does one whose backup list failed; a new account still pulls; a device with data pulls as
@@ -8527,11 +8504,10 @@ snapshot from **before** the day it happened (that day's file was overwritten). 
 re-applies from that backup's ledger. The mirror is rebuilt by the next push.
 
 
-## §135 — v8.41: Progress → From your coach, a note back, and Check in (PROMPT-03 Phase 4e-2)
+## §135 — v8.41: Progress → From your coach, a note back, and Check in
 
-Proposal §4.3 and §11 (the note-back reply and "when the last check-in was sent" suggestions). The
-server half is `0023`'s `client_submissions` and `0024`'s `client-media` bucket. No migration. Visual
-reference: the wireframes' `FromCoach.tsx`, rebuilt from BLOC's own AI-card parts (`.ai-card-headline`,
+The
+server half is `0023`'s `client_submissions` and `0024`'s `client-media` bucket. No migration. Built from BLOC's own AI-card parts (`.ai-card-headline`,
 `.ai-card-summary`, `aiReadFullButton` shape, `aiActionRow` / `aiTimerRow`) and a `.toggle-row` for the
 tabs.
 
@@ -8545,14 +8521,13 @@ response** (highest `seq`) from `state.coachAdvice` (§131, never `blocAdvice`, 
 Progress is viewing**. It opens on the tool of that cycle's newest response.
 
 🚨 **A response belongs to one cycle (`macro_id`)**, exactly as Solo's check-in, cycle review and
-next-cycle advice do (`coachAdviceForMacro()`). The hero's cycle switch changes them. The first draft
-showed the newest responses on every cycle, and Adam caught it in UAT: *"checkins belong to a single
-macrocycle, and tapping changes what I see linked to the macrocycle"*. A response with no `macro_id`
+next-cycle advice do (`coachAdviceForMacro()`). The hero's cycle switch changes them. A check-in belongs to one
+macrocycle, so switching cycles changes what's shown. A response with no `macro_id`
 shows on every cycle, so it's never lost. Switching cycles resets the tab. **Read full** names the cycle
 under its title ("For Weight Loss 2026 · 22 Jun – 9 Aug").
 
 Each response shows:
-- a byline: the coach's initials and name, "Updated · " when republished (§11 Q10), the tool, and the
+- a byline: the coach's initials and name, "Updated · " when republished, the tool, and the
   **publication's** date (`publishedAt`, now kept from `created_at` by the applier; `receivedAt` for
   older entries);
 - the headline, the first paragraph, and up to three numbers;
@@ -8566,7 +8541,7 @@ It's **read-only**: no signal chip, no Build this plan, no Challenge.
 - The tool accepts `check_in`, `check-in`, `cycle_review`, `review` and `next_cycle`.
 - The numbers are `kcal` → "kcal a day" and `steps` → "steps a day". A cycle review also gets the
   weight and waist change across its cycle, from the client's own body logs, plus `compliance` →
-  "/10 compliance" (the deterministic score is Coach's to compute, proposal §7).
+  "/10 compliance" (the deterministic score is Coach's to compute).
 - **Everything the coach wrote is escaped** (`coachEsc`): it's text, never markup.
 
 **A note back** (`modal-coach-note`, replaces Challenge this advice): one `client_submissions` row:
@@ -8583,11 +8558,10 @@ coach's `note_reply` arrives (`state.coachNoteReplies[submissionId]`, §131), it
 - `kind 'check_in'`;
 - `body {v, purpose: 'check_in', feel: Tough|Okay|Good|Great, note, macro_id, sent_on}`.
 
-The feels read lowest to highest, left to right (Adam, UAT). Send is disabled until a feel is chosen.
+The feels read lowest to highest, left to right. Send is disabled until a feel is chosen.
 The sheet and the section say when the last one went (`state.coachCheckinsSent`, the last 20).
 
-🚨 **No photos on a check-in.** The proposal and the wireframe put photos on Check in. Adam, in the
-v8.41 UAT: *"progress photos were only ever used in the cycle review … the prompt to the LLM never had
+🚨 **No photos on a check-in.** Progress photos are only ever used in the cycle review: the check-in prompt never had
 photo options wired up for checkins"*. The first draft shipped them on Check in, and they moved.
 
 **Photos for the cycle review** (v8.41–v8.43; **since v8.44 they're sent only in answer to the coach's
@@ -8603,12 +8577,12 @@ request, §142**, and the unprompted row below is gone):
 - **Once per cycle:** `state.coachReviewPhotosSent[macroId]`, and the row then reads "✓ Photos sent to
   {coach} for this review · {day}".
 - 🚨 **Only while photo consent is on, read from the link at SEND time.** With it off, the row reads
-  **"Photos are off · turn them on in Coaching…"**. It's a shortcut (`openCoachingPhotoConsent()`,
-  Adam's ask): it closes the sheet, opens Settings → Coaching, and scrolls the photo switch
+  **"Photos are off · turn them on in Coaching…"**. It's a shortcut (`openCoachingPhotoConsent()`):
+  it closes the sheet, opens Settings → Coaching, and scrolls the photo switch
   (`#settings-coaching-photos`) into view after the slide-in. Consent withdrawn after picking sends
   nothing, and the error links there too.
 - 🚨 **A consent change redraws Progress under the sheet** (`redrawProgressUnderCoaching()`, on the
-  change and on a failed save's revert). Closing a sheet doesn't redraw what's under it, and in UAT
+  change and on a failed save's revert). Closing a sheet doesn't redraw what's under it, and without this
   the Review tab still said "Photos are off" until Progress was left and re-entered.
 - 🚨 **A failed insert removes the photos it uploaded**, so nothing is left in the coach-readable
   bucket. The sheet stays open with the reason.
@@ -8638,11 +8612,10 @@ Driven in headless Chromium at 375pt with a cached link and two injected respons
 - a send while not really linked (the bypass) says "You're not linked to a coach right now.";
 - no console errors.
 
-## §136 — v8.42: Your next session, Request a session, and a session with your coach (PROMPT-03 Phase 4e-3)
+## §136 — v8.42: Your next session, Request a session, and a session with your coach
 
-Proposal §4.3, §5.6 and §11 Q23. The server half is `0023`'s `booking` publication (with
-`assigned_session`) and `0024`'s `session_requests`. No migration. Wireframe reference:
-`RequestScreen.tsx` and `HomeScreen.tsx`, rebuilt as a BLOC sheet from `.toggle-row`, `.card` and the
+The server half is `0023`'s `booking` publication (with
+`assigned_session`) and `0024`'s `session_requests`. No migration. Built as a BLOC sheet from `.toggle-row`, `.card` and the
 coach parts.
 
 ### A session the coach takes in person
@@ -8656,7 +8629,7 @@ dayKey}`. 🚨 **Assigning makes the session the coach's at once** (§5.6), not 
   earliest wins.
 - 🚨 **`getNextIncompleteSession()` steps over an assigned, unfinished session**, so Home's Up next,
   Train's default session and the agenda's Up next all move on to the following one. It's in the
-  engine, not BLOC, because Phase 5's booking picker defaults to "the client's next unfinished
+  engine, not BLOC, because BLOC Coach's booking picker defaults to "the client's next unfinished
   session" by running this same function on `client_state`. Both must agree.
 - **The agenda** (`getTrainAgendaUnits`) adds `withCoach {date, start_min}` to that session's row, only
   when there is one. So every existing output, the golden file included, is byte-identical. The row's
@@ -8669,39 +8642,38 @@ dayKey}`. 🚨 **Assigning makes the session the coach's at once** (§5.6), not 
     including `quickFillComplete`, the card's ✓, and the effort sheet's `setRpeRating` /
     `closeRpeSheet`). They all act on the session Train is showing, so one check covers them.
     **The first draft guarded a hand-made list of ten and missed the ✓**, whose `onclick` is built
-    inside a template expression; Adam ticked a coach's session complete in UAT. The verify script
+    inside a template expression, so a coach's session could still be ticked complete. The verify script
     now **derives** the list from the code, with the pre-fix commit as a control, so a new writer that
     skips the guard fails the sweep;
   - `closeRpeSheet()` is also the sheet's dismiss handler, so on the coach's session it writes nothing
     but still closes;
-  - no Effort ratings row (the coach rates their own session, §11 Q13);
+  - no Effort ratings row (the coach rates their own session);
   - the cards still open, to see what's planned.
 
 ⚠️ **A booking that passes without being logged or cancelled keeps its session** out of "next" until
-Coach does one or the other. That's Coach's to prompt (Phase 5), not BLOC's to time out.
+Coach does one or the other. That's Coach's to prompt (§154's Needs you), not BLOC's to time out.
 
-### Home → Your next session (§11 Q23)
+### Home → Your next session
 
 In Coached mode the hero gains a row (`homeNextSessionHTML()`), and 🚨 **the whole row is the button**:
-BLOC has no inline text buttons (Adam, UAT). It opens **Your sessions**. It shows:
+BLOC has no inline text buttons. It opens **Your sessions**. It shows:
 - the calendar icon **in accent**;
 - "Your next session", then the earliest live booking **from today** (`nextCoachBooking()`) in the
-  wireframe's **short form** (`coachShortWhen()`: "Wed 18:00" within the coming week, "Mon 12 Oct
+  **short form** (`coachShortWhen()`: "Wed 18:00" within the coming week, "Mon 12 Oct
   18:00" after that, "Today 18:00"), or "None booked";
 - a chevron.
 
-Just the time, no "Weekly": Adam, *"next session is a fact, I don't need details"*. Your sessions says
+Just the time, no "Weekly": the next session is a fact, without details. Your sessions says
 whether it repeats.
 
 ### Your sessions (`modal-coach-sessions`, `data-pub-safe`)
 
-Adam, UAT: separate from Request a session, and the row's label says what it opens.
+It's separate from Request a session, and the row's label says what it opens.
 - **The hero card**, shaped like Home's Up next card: an eyebrow, the date and time large, "60 min ·
   Studio · with {coach} · weekly", and for an assigned session "With your coach · Pull, week 7".
-  **Request a session is a full-width button inside it** (Adam: *"the button has to be in the hero card
-  … matching the design of the up next card"*).
-- **Upcoming:** 🚨 **one card for everything**, weekly and one-off together, by next date (Adam:
-  separate Weekly and Upcoming cards were *"overkill"*). A weekly booking is **one row**: a repeat
+  **Request a session is a full-width button inside it**, matching the Up next card's design.
+- **Upcoming:** 🚨 **one card for everything**, weekly and one-off together, by next date (separate
+  Weekly and Upcoming cards were too much). A weekly booking is **one row**: a repeat
   icon, "Every Wed · 18:00", "Next Wed 30 Sep · 60 min · Studio", and a **Weekly** chip. A one-off row
   is indented to line up with it. The first three show, then a tappable **Show all (n)** row (chevron).
 - Settings → Coaching → Sessions has two rows: **Your sessions** and **Request a session**.
@@ -8712,54 +8684,49 @@ Adam, UAT: separate from Request a session, and the row's label says what it ope
 **A repeating booking** is the booking payload's `kind: 'weekly'` (also read: `series`, `recurring`).
 That's the contract Coach's diary publish must meet; the allow-list has no separate recurring field.
 
-It always reads "Your next session" (wireframe `HomeScreen`). A suggested time waiting for an answer is
+It always reads "Your next session". A suggested time waiting for an answer is
 the **banner's** job. It's two lines because one line wrapped, and ran off the hero at 375pt.
 
 ### The coach banner on Home (`renderHomeCoachBanner()`)
 
-🚨 **On Home, above the hero, not inside the sheet** (wireframe `HomeScreen` → `BannerSlot` 'proposed').
-Adam, UAT: *"There's no use that banner being at the top of a modal where I drive the action from, the
-banner needs to call my attention when I load the app."* The first rebuild put it at the top of the
+🚨 **On Home, above the hero, not inside the sheet.** A banner at the top of the sheet that answers it is no use:
+it has to catch the client's attention when the app opens. The first rebuild put it at the top of the
 Request sheet.
 
 - **When:** a request has a suggested time. It shows "{coach} proposed a different time", "{time}
   instead of your choices." ("N more waiting." if several), **Review** (opens Request a session), and
   a ✕.
-- 🚨 **Dismissing lasts until the next cold start, never longer** (Adam: *"it genuinely requires an
-  action, that can't be ignored, so it needs to have a level of persistence"*). The dismissal is held
+- 🚨 **Dismissing lasts until the next cold start, never longer**: it needs an
+  action, so it can't be dismissed for good. The dismissal is held
   in memory (`_coachBannerDismissedThisRun`), never saved. So leaving Home and coming back keeps it
   hidden, and every fresh load (the one that plays the splash) shows it again while the suggestion is
   unanswered. A new time on the same request is a new suggestion and shows at once. The first draft
   saved the dismissal, so an unanswered suggestion never came back.
-- 🚨 **It's the only banner that comes back.** 4e-4's other three (plan updated, goal phases changed,
+- 🚨 **It's the only banner that comes back.** §137's other three (plan updated, goal phases changed,
   session confirmed) are informational: their dismissal is permanent.
 - **It updates live** with the request (the `session_requests` listener), and goes once answered.
-- 4e-4 adds the other banner kinds (plan, goal phases, a response, a booking): §137.
+- The other banner kinds (plan, goal phases, a response, a booking) are §137's.
 
 ### Request a session (`modal-coach-request`)
 
-Also in Settings → Coaching → Sessions. The client never sees the coach's diary. 🚨 **Rebuilt to the
-wireframe** (`RequestScreen` / `SessionPrefs`) after Adam's UAT review: the first draft mixed the next
-session, requests and bookings in one list that would grow without end, and made "weekly" one easily
-missed word. Adam: *"separate my sessions and request a session into separate sheets"* (My sessions
-is its own sheet, next), and on this one *"Show all that aren't booked"*. From the top:
+Also in Settings → Coaching → Sessions. The client never sees the coach's diary. 🚨 **Your sessions and Request a session are separate sheets.** One list of the next session, requests and
+bookings would grow without end, and made "weekly" one easily missed word. This sheet shows every request
+that isn't booked. From the top:
 
-- **No next-session card** (Adam: Your sessions, the sheet this opens from, already shows it). The
-  wireframe's `RequestScreen` had one because it was a page of its own.
+- **No next-session card**: Your sessions, the sheet this opens from, already shows it.
 - **Each suggested time**, the eye-catching card: accent-tinted, with "{coach} proposed", an amber
   **Needs your answer** chip, the time large, "You asked for …", a full-width **✓ Confirm Tue 19:00**
   and **Suggest another time**. The counter opens inside the card: 🚨 **one** time or one window
-  (Adam: *"One time or window"*; `0024` keeps one `counter` slot, the wireframe offered three).
+  (`0024` keeps one `counter` slot).
 - **Every other request that isn't booked yet**, in one list, 🚨 **one row per request: its latest
-  state and a status, never its history** (Adam, UAT: *"seeing the history of a request is not
-  valuable information at all"*; the first rebuild showed choices, counters and confirmations as
+  state and a status, never its history** (a request's history isn't useful; showing choices, counters and confirmations as
   separate lines). `coachRequestLatest()`:
   - the time is your counter if you countered, the time you confirmed if confirmed, otherwise your
     first choice "+N more", then "· weekly";
   - the chip is Waiting for {coach} (pending or countered), Confirmed, or Declined (for 14 days);
   - 🚨 **a row still waiting on {coach}** (pending or countered) **is itself the button**: a chevron,
     and tapping it asks "Withdraw this request? {time}. {coach} won't see it any more." in BLOC's own
-    confirm, with a red **Withdraw** (Adam's design: no inline text buttons). `0024` lets a client
+    confirm, with a red **Withdraw** (no inline text buttons). `0024` lets a client
     withdraw any open request. Confirmed and declined rows aren't tappable.
 
   A confirmed request that's been **booked leaves this sheet** (`coachRequestBooked()`: a live
@@ -8772,10 +8739,10 @@ is its own sheet, next), and on this one *"Show all that aren't booked"*. From t
     window works for you." (in red, "The end time needs to be after the start.");
   - Notes for {coach};
   - **Repeat weekly as an iOS-style switch** (`.coach-switch`, `role="switch"`; BLOC's first, where
-    on/off is otherwise a `.toggle-row` (§129); Adam asked for it);
-  - **Send request**, with the wireframe's paper-plane icon (as is Send new time), and "{coach}
+    on/off is otherwise a `.toggle-row` (§129));
+  - **Send request**, with a paper-plane icon (as is Send new time), and "{coach}
     confirms a time or suggests another."
-- **The slots** use the wireframe's format ("Wed 30 Sep · 17:30", "Thu 1 Oct · any time 17:00–20:00").
+- **The slots** read like this ("Wed 30 Sep · 17:30", "Thu 1 Oct · any time 17:00–20:00").
   They're exactly what `0024`'s `session_request_slots_ok()` accepts: `{date, start_min}` or
   `{date, start_min, end_min}`, 1–3, duplicates dropped, days from **tomorrow**.
 - **What's sent:** Send inserts **only the columns `0024` grants a client**: `client_id`, `coach_id`,
@@ -8792,13 +8759,13 @@ is its own sheet, next), and on this one *"Show all that aren't booked"*. From t
 
 ### Two Settings details, from the same UAT
 
-- **Settings → Coaching's hero ends with the wireframe's footer**: a divider, then "Linked since" on the
+- **Settings → Coaching's hero ends with a footer**: a divider, then "Linked since" on the
   left and the date on the right (`.coach-since`). The first build had it as a small grey line that
-  read as missing. It's in Coaching only (Adam, UAT); the Settings hero's sub-line adds "Coached by
-  {coach}", as the wireframe's does.
+  read as missing. It's in Coaching only; the Settings hero's sub-line adds "Coached by
+  {coach}".
 - **Home → View body logs opens the sheet over Home.** It used to `showScreen('settings')` first, so
-  closing it left you in Settings (Adam: mirror the photo-consent shortcut, which closes back where it
-  opened). `saveBodyLog()` and `deleteBodyLog()` now also redraw Home when it's showing
+  closing it left you in Settings; like the photo-consent shortcut, it now closes back where it
+  opened. `saveBodyLog()` and `deleteBodyLog()` now also redraw Home when it's showing
   (`redrawHomeIfShowing()`), because Home's weigh-in box and hero read those logs.
 
 **A weekly booking rolls forward** (`coachBookingNextDate()`): it's one booking dated its first
@@ -8825,12 +8792,10 @@ Driven in Chromium at 375pt with a booking assigned to the next session:
 - the request sheet renders;
 - nothing overflows, and there are no console errors.
 
-## §137 — v8.43: sessions the coach logs, Swap for today, group sessions and the banners (PROMPT-03 Phase 4e-4)
+## §137 — v8.43: sessions the coach logs, Swap for today, group sessions and the banners
 
-Proposal §4.3, §5.6, §8 and §11 (Q13, Q21, Q24, Q26); deep dive I2, I3 and D3. The server half is `0023`'s
-`session_log` publication. No migration. This closes Coached mode in BLOC; Phase 5 is BLOC Coach.
-Wireframe reference: `TrainScreen.tsx` / `ExerciseCard.tsx` (`SwapSheet`, the swapped card, the read-only
-session) and `HomeScreen.tsx` (`BannerSlot`).
+The server half is `0023`'s
+`session_log` publication. No migration. This closes Coached mode in BLOC; BLOC Coach is §139 on.
 
 ### A session the coach logged in person (`applySessionLogPublication()`)
 
@@ -8856,12 +8821,12 @@ session. It's held (`needs_attention`) when the cycle isn't on the phone, the we
 has no template, or an exercise it logs or rates isn't in that session.
 
 **What it writes:**
-- **The sets** (deep dive I3): `trainLogs[${macroId}_${week}_${dayKey}_${exId}_${n}]`, the numbers as strings
+- **The sets**: `trainLogs[${macroId}_${week}_${dayKey}_${exId}_${n}]`, the numbers as strings
   as Train's inputs store them, stamped `{loggedBy: 'coach', loggedAt, sessionId}`. 🚨 **A coach's session
   owns the whole (week, dayKey) session:** anything logged in it before is replaced. The client's own sets
   are kept on the record (`coachSessionLogs[pubId].replacedClientLogs`), never lost. (Coach refuses to
   assign a session the client has started, §5.6, so this is the rare case.)
-- **The ratings** (§11 Q13): `rpe[key] = {rpe, ratedBy: 'coach'}` or `{rpeSkipped: true, ratedBy: 'coach'}`.
+- **The ratings**: `rpe[key] = {rpe, ratedBy: 'coach'}` or `{rpeSkipped: true, ratedBy: 'coach'}`.
   The card's tag reads "RPE 8 · rated by coach". The mirror (`exercise_ratings`) maps only `rpe`/`skipped`.
 - 🚨 **The I2 replay** (`BlocEngine.replayProgressionAfterLog()`, pure, BLOC writes its result). The target
   cache assumed logs only change on this device, so a coach week arriving after the phone had cached later
@@ -8875,7 +8840,7 @@ has no template, or an exercise it logs or rates isn't in that session.
   logged, **only when it's that exercise's latest logged week**, so an older week can't overwrite "last
   logged".
 
-🚨 **`state.coachSessionLogs` is an OBJECT keyed by publication id** (found in UAT). v8.40's
+🚨 **`state.coachSessionLogs` is an OBJECT keyed by publication id.** v8.40's
 `removeCoachPlan()` reset it to `[]` on unlink, and a record keyed onto an array is dropped by
 `JSON.stringify`: on any account that had been unlinked, no session record (and none of the client's
 replaced sets) survived a save. The sets themselves were unaffected. Unlink now leaves `{}`, and the
@@ -8884,7 +8849,7 @@ appliers treat an array as empty; `verify-coached-hides.mjs` had `[]` as its exp
 **Read-only.** `BlocEngine.getCoachLoggedSession()` finds a set with `loggedBy: 'coach'` in the session.
 It's read from the logs themselves, so it holds after a restore, after an unlink and in the `client_state`
 Coach reads. `coachOwnedSession()` returns `{kind: 'logged'}` for it, so every one of §136's Train guards
-applies (the 17 writers, the lock, no Effort ratings row). The notice is the wireframe's: **"Logged by your
+applies (the 17 writers, the lock, no Effort ratings row). The notice: **"Logged by your
 coach · in person"**, "{coach} logged this session with you on Tue 4 Aug. It's read-only." The agenda row reads
 "Logged by your coach · 4 of 17 sets". 🚨 **`getNextIncompleteSession()` also steps over a coach-logged
 session left unfinished** (in the engine, as for an assigned one): the client can't finish it, so it must
@@ -8893,7 +8858,7 @@ never be their "next".
 `verify-coached-sessions.mjs` derives the Train writers from the code; the applier is the one exemption,
 **named** (`COACH_WRITES`), because it's what makes a session the coach's.
 
-### A group session (§5.6, §11 Q21)
+### A group session
 
 `kind: 'group'` never touches progression. It's an **extra session** on the client's record,
 `state.coachExtraSessions[session_id]` (dated by its booking), shown in **Your sessions → Group sessions**
@@ -8901,32 +8866,32 @@ as "Group session · logged by coach". With `replaces`, the planned session that
 a `'group'` substitution (below) on every exercise of it, so it **counts as done** with nothing logged,
 **isn't scored**, and its targets hold. Train shows it read-only: "Replaced by a group session", with each
 exercise under its **own** name and that tag (the first build treated the group marker as a swap and read
-"Another exercise", found in UAT); the week after says "Target held after a group session". A correction
+"Another exercise"); the week after says "Target held after a group session". A correction
 without `replaces` hands it back.
 
-### Swap for today (D3; §11 Q24, Q26)
+### Swap for today
 
 Coached only (Q24: Solo edits its own plan). Offered on a **solo, non-cardio exercise before its first set
-is done** (the wireframe), never on the coach's session. **Swap for today** opens `modal-swap-today`.
+is done**, never on the coach's session. **Swap for today** opens `modal-swap-today`.
 
 🚨 **It's a search sheet, so it's §9's `.kb-pinned-sheet`, exactly** (the four parts; the search box is
 `oninput="renderSwapTodayList()"`, which `verify-kb-pinned-sheets.mjs` recognises; `swap-today-list-wrap` is in
 `measureAll()`). It shows the planned exercise and its target, then **the client's own library**,
 `getLibrary()` (Q26), without cardio or the planned exercise, **as divider rows** (the exercise library's
-`.lib-row`, not cards; Adam, UAT): **"Other {part} exercises"** first, then everything else in the library's
+`.lib-row`, not cards): **"Other {part} exercises"** first, then everything else in the library's
 own order (body part, then name). 🚨 **The part** (`swapBodyPartOf()`) is the planned exercise's library entry,
 else its own `bodyPart`, else a guess from its name (`SWAP_PART_WORDS`): a coach's plan can name an exercise
-the library doesn't have ("Bench Press"; the library says "Flat Press") with no `bodyPart`, and in UAT nothing
-came first. **Phase 5: Coach's plan exercises should carry `bodyPart`.** The sheet's height is the pinned
-pattern's, unchanged (Adam: *"if it's the same as the log food search modal, it needs to stay as it is"*); the
+the library doesn't have ("Bench Press"; the library says "Flat Press") with no `bodyPart`, and nothing
+came first. **BLOC Coach's plan exercises carry `bodyPart`.** The sheet's height is the pinned
+pattern's, unchanged, as the Add food sheet's is; the
 gap under it in a laptop browser is how every pinned sheet looks there. **Tapping a row swaps**,
-the one-tap pattern of Log a recipe. The wireframe's pick-then-button would put the button behind the
+the one-tap pattern of Log a recipe. A pick-then-button design would put the button behind the
 keyboard. **Back to {planned}** undoes it; with sets logged it asks first, then clears them.
 
 **The marker:** `state.substitutions[${macroId}_${dayKey}_${exId}_w${week}]` (the target key) =
 `{kind: 'swap', name, bodyPart, type, trackingMode, at}`. The substitute is logged **in the planned
 exercise's own set-log slots**, so the session's done state, volume and the mirror work unchanged. 🚨 **Every
-engine site that would read those logs as the planned exercise's skips the week** (deep dive D3; without it
+engine site that would read those logs as the planned exercise's skips the week** (without it
 the next week fell back to the theoretical `startWeight + jump × (week − 1)`, the week locked as a miss, and
 history filed the substitute under the planned name):
 
@@ -8948,9 +8913,8 @@ the golden file).
 ⚠️ **Not covered:** a superset member or a cardio exercise can't be swapped (their cards are separate
 code). The coach sees the swap in `client_state` (`substitutions`), not as a publication.
 
-### From your coach, tightened in UAT (§135's card)
+### From your coach (§135's card), tightened
 
-Adam, v8.43 UAT:
 - **Every new button carries an icon left of its text** (`.coach-icon-btn`): **Read full …** has reading
   glasses (`COACH_ICO_READ`), **Send a note back** a speech bubble (`COACH_ICO_BUBBLE`). 🚨 The pulsing ✦ row
   (`aiActionRow`) is Solo's, and means "your next AI check-in or review is due"; the note back no longer uses it.
@@ -8965,7 +8929,7 @@ Adam, v8.43 UAT:
   and isn't applied: the coach decides. Sent check-ins now record their `macroId` (older ones count for every
   cycle).
 
-### The banners (wireframe `HomeScreen` `BannerSlot`; proposal §8)
+### The banners
 
 The appliers raise **notices** into `state.coachNotices` (one per publication, the last 30), so they survive a
 restart and travel with the data:
@@ -8973,18 +8937,17 @@ restart and travel with the data:
 | Kind | Raised by | Where | Copy |
 |---|---|---|---|
 | `plan` | a `plan` | Home | "{coach} updated your plan": "“{cycle}” starts Mon 5 Oct." or "Changes to “{cycle}”." + **View** (Train) |
-| `phases` | `goal_phases`, or an `ai_response` with goal changes (§11 Q9) | Home | "Your goal phases changed": "“Cut 3” now starts on Mon 5 Oct at 1,600 kcal and 10,000 steps." |
+| `phases` | `goal_phases`, or an `ai_response` with goal changes | Home | "Your goal phases changed": "“Cut 3” now starts on Mon 5 Oct at 1,600 kcal and 10,000 steps." |
 | `booking` | a new, changed or cancelled `booking` | Home | "Session confirmed" / "Session changed" (v8.47; "Session moved" before, §151) / "Session cancelled" + **View** (Your sessions) |
 | `response` | an `ai_response` | Home | "New check-in from {coach}": the coach's headline + **View** (Progress, on the response's cycle, its full text open: `viewCoachResponse()`) |
 
-🚨 **Their ✕ is permanent** (Adam, v8.42 UAT: informational). `dismissCoachNotice()` saves `dismissed` on that
+🚨 **Their ✕ is permanent**: they're informational. `dismissCoachNotice()` saves `dismissed` on that
 notice **and every older one of its kind** (the same news, superseded). Only §136's "proposed a time" comes
-back after ✕. **One slot**, like the wireframe: the proposed time first (it needs an answer), then the newest
+back after ✕. **One slot**: the proposed time first (it needs an answer), then the newest
 undismissed notice; its ✕ shows the next. A publication re-applied after a restore raises nothing twice (a
 notice is keyed by its publication id).
 
-🚨 **Every banner is on Home** (Adam, v8.43 UAT: *"banners this deep in the app are pointless"*). The first
-build put the response banner on Progress, above From your coach. **A count** (`coachBannerCountHTML()`),
+🚨 **Every banner is on Home**: a banner deeper in the app goes unseen. **A count** (`coachBannerCountHTML()`),
 iOS-style, sits over the banner's top-right corner when more than one is waiting: the proposed time, plus one
 per kind with anything undismissed (dismissing one clears its kind). It's above the ✕, never over it.
 
@@ -9021,12 +8984,11 @@ Driven in Chromium at 375pt on the dev fixture, coached:
 
 ## §138 — v8.43: the new CSS splash, and no auto-complete on a first-session drop set
 
-Two changes for everyone, alongside Coached mode's §137 (Adam, 2026-09-28).
+Two changes for everyone, alongside Coached mode's §137.
 
 ### The splash
 
-Replaced with the `bloc-splash` design, ported exactly as its `PORTING.md` says (the design files live
-in the tracking folder, `bloc-app/bloc-splash/`, with BLOC Coach's version for Phase 5):
+Replaced with the `bloc-splash` design, ported exactly from the `bloc-splash` design (BLOC Coach has its own version):
 1. **CSS:** the `BLOC SPLASH SCREEN` block, from its comment to the last `#splash` rule before
    `v8.16 — MOTION SYSTEM`, is `bloc-splash.css`, with the `#app` / `#app.bloc-app-ready` gate at the top.
 2. **Markup:** `<div id="splash">` is one SVG with fixed coordinates (`viewBox="-8 -160 523.8 460"`), so
@@ -9976,8 +9938,8 @@ before anything else runs for a session (`localOwnerVerdict()`):
 | another account | anything, even only a profile | **it switches, with no screen**: nothing runs for the session (no full sync, snapshot, coach link check, so no `client_state` upload and no publication pull, no boot); `performAccountSwitch()` removes the account's own local keys (`ACCOUNT_LOCAL_KEYS`: the state, the snapshot and restore flags, the `client_state` meta, the coach link), records the new owner and reloads. The device is then empty for the signed-in account, and the new-device restore (§133) brings back its own newest backup, or it starts fresh. The device's own keys stay: its id, push registration, the AI key, theme |
 
 🚨 **Another owner always switches, whatever is on the device.** A device with no cycles or logs still holds that
-account's profile (its name, height, birthday), its restore flags and its coach link. The first v8.46 claimed such a
-device for the next account, and the test client took a new account's name that way in UAT.
+account's profile (its name, height, birthday), its restore flags and its coach link. Without that, the
+device is claimed for the next account, which then takes the old account's name.
 
 🚨 **Automatic, and another account is never shown.** Signing in means "load this account's data"; the device's
 leftover data is ignored. The owner record holds a uid only.
@@ -10029,7 +9991,7 @@ for a cycle that hadn't started yet, where Train shows nothing of it. The notice
 `HOME_NOTICE_ACTIONS.plan` offers View only once that cycle has started at the client's today
 (`coachPlanNoticeViewable()`). It's decided each time Home draws, so View appears on the day the cycle starts. A notice
 raised by an earlier build names no cycle: View then only when the cycle running today is the coach's, which is what
-Train opens on (found in UAT: an update applied by a tab still on the old build kept its View).
+Train opens on (an update applied by a tab still on the old build otherwise kept its View).
 
 **Check:** `scripts/verify-splash-and-about-me.mjs`: the View rule (a future cycle, a started one, a notice naming none,
 a removed cycle; control: a View that ignores the date), the words on `view-box` with their own origins, the account in
@@ -10796,7 +10758,7 @@ banner's button now calls `runHomeNoticeAction`.
 
 ## §158 — Coach v0.9: notifications (a manifest, a push-only worker, the switches)
 
-**What it is.** BLOC Coach's half of Phase 6's pushes. The server is migration `0031` and the Edge Function
+**What it is.** BLOC Coach's half of the pushes. The server is migration `0031` and the Edge Function
 `bloc-push` (super-duper-octo-barnacle `docs/SUPABASE.md` → Coach pushes). BLOC's half is v8.49 (§157).
 
 ### A Home Screen app of its own
@@ -10858,7 +10820,7 @@ Now:
   anything twice, and Today's `?push=` runs its action once (`pushDone`).
 - **Temporary readout.** Settings → Notifications shows "Last opened from a notification: {day time} · via
   {url|message|note} → {path}" (`KEYS.lastOpen`). A phone has no console, and this is the only way to see which
-  route worked. It is removed before Phase 6 closes, as BLOC's were in v8.25 (§114).
+  route worked. It's temporary, as BLOC's were until v8.25 (§114): it comes out once Coach's notification routes are signed off.
 
 `verify-coach-push.mjs` checks that the listener comes before `createRoot`, that the burst reaches 10 s, and that it
 runs on the three events. Its control is v0.9's `intent.ts` (`bb7f3a0`), which has neither.
@@ -11368,7 +11330,7 @@ read back through `foldPlan` and `loggedSessions`, Maya's plans applied once rec
 
 ## §165 — Coach v0.15: the coach's exercise library, Group and Client workouts, This cycle, and five fixes
 
-**What it is.** BLOC Coach's after-UAT batch for PROMPT-03 Phase 5h. Migration `0035` (super-duper-octo-barnacle) adds
+**What it is.** BLOC Coach's library, template audiences and This cycle. Migration `0035` (super-duper-octo-barnacle) adds
 the coach's library. BLOC is unchanged.
 
 ### The coach's exercise library (`0035` `coach_exercises`)
@@ -11450,3 +11412,21 @@ chosen.
 
 **Check:** `verify-exercise-sheet.mjs`: the row leads with the tile and has no trailing icon (control: v8.53's row).
 
+## §167 — v8.55: the documentation states facts
+
+Nothing in the app changes. `TECHNICAL.md`, `README.md`, the comments in `index.html`, `engine/src` and `coach/src`,
+and the verify scripts' headers say what the app does, why it has to, and the traps, as facts. They name no person,
+quote no one, and point at no working file outside the repo: a build round's working files (its prompt, design
+notes and mockups) are deleted when the round ships, so a pointer to one leads nowhere. Where a comment cited one for a reason, the reason
+is now in the comment; where it cited a section, it cites the `TECHNICAL.md` § that covers it.
+
+The engine's labels H1–H8 stay (§125 defines them), as do the I- and D-labels in `verify-publications-apply.mjs` and
+`verify-coach-logged.mjs`, which each file's header defines. The built engine (`bloc-engine.js`,
+`bloc-engine-server.mjs`) and `coach/dist` are byte-identical: esbuild and Vite drop comments.
+
+One name stays, because it's the fact: Close my account's confirmation says who processes the request.
+
+**Check:** `verify-docs-are-facts.mjs` scans every tracked text file (built output and the golden data excepted) for a
+person's name or a pointer to a build round's working files, with an allow-list for that one line. Its controls:
+v8.54's `TECHNICAL.md` fails, a planted line is caught in code and in the README, the allowance holds for its own file
+only, and the `adamnc02.github.io` host isn't read as a name.

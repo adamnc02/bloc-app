@@ -3,9 +3,9 @@
 // verify-engine-golden.mjs — the engine's characterisation harness
 //
 // THE BUG THIS PREVENTS: an engine extraction that "only moves code" and
-// quietly changes a number. PROMPT-03 Phase 2 lifts ~90 functions out of
+// quietly changes a number. The engine move (§122) lifted ~90 functions out of
 // index.html into a shared TypeScript engine/ that BLOC and BLOC Coach both
-// run, and BLOC's behaviour must stay byte-identical while it happens. Nothing
+// run, and BLOC's behaviour had to stay byte-identical while it happened. Nothing
 // else would notice a target that moved by 2.5 lb, a Home badge that turned
 // red a day early, or a prompt that lost a line: every existing verify script
 // tests a handful of rules, not the whole output.
@@ -30,7 +30,7 @@
 //   · Real data. The golden file is generated from the demo dataset ONLY —
 //     this repo is public. Never point it at a backup.
 //   · Order. Several engine reads WRITE (getWeekTargets fills
-//     progressionTargets, H2 in the deep dive). Each case group runs on a
+//     progressionTargets, H2 in §125). Each case group runs on a
 //     fresh copy of the state, and records which top-level state keys it
 //     changed ("mutates"), so Phase 2's pure cores can prove the BLOC
 //     wrappers still write exactly what they wrote before.
@@ -71,9 +71,8 @@ function check(label, ok, detail) {
 }
 
 // ── The engine ───────────────────────────────────────────────────────────
-// Seeds: the deep dive §10 step 0 list, PROMPT-03 1a's additions (RPE, the
-// measurement due rule), and the rest of the deep dive §1 inventory that
-// Phase 2 moves. The extractor pulls in everything they call.
+// Seeds: the engine's functions, the RPE and measurement-due rules, and
+// everything else the engine move took. The extractor pulls in everything they call.
 const SEEDS = [
   'ensureStateDefaults',
   // nutrition, TDEE, insights

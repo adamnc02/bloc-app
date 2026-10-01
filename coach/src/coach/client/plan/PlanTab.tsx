@@ -26,7 +26,7 @@ type SheetKind = 'cycle' | 'new' | 'edit' | 'extend' | 'goal' | 'publish' | 'pre
 export interface PlanIntent { act: 'swap' | 'goal' | 'reset'; ex?: string | null }
 
 /**
- * Client → Plan (proposal §5.3; TECHNICAL §144): the cycle's goal phases,
+ * Client → Plan (TECHNICAL §144): the cycle's goal phases,
  * weekly sessions, deloads, volume and tools, as BLOC's own Plan edits them.
  * Every edit is a draft until Publish (Save for a client not on the app). A
  * client's own cycle is read-only: the coach replaces it.
@@ -102,7 +102,7 @@ export function PlanTab({ v, macro, intent }: { v: ClientView; macro: string | n
     return s;
   }, [doc, p.base]);
 
-  // The day after the running cycle ends, else next Monday (§11 Q17's default).
+  // The day after the running cycle ends, else next Monday.
   const running = p.cycles.find((c) => c.status === 'active' && !c.isNew);
   const defaultStart = running ? shiftDateStr(running.end, 1) : getNextMonday({ today: shiftDateStr(today, 1) });
 

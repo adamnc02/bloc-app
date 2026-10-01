@@ -35,7 +35,7 @@ async function editableCycles(repo: CoachRepo, b: ClientBundle, coachId: string,
 }
 
 /**
- * Library (proposal §5.5; TECHNICAL §144): macrocycle templates (whole
+ * Library (TECHNICAL §144): macrocycle templates (whole
  * cycles, no dates) and workout templates (one session). Applying one gives
  * that client a fresh copy as a Plan draft. Each section shows the 4 most
  * used (applications in the last 90 days), with View all; Starred shows every

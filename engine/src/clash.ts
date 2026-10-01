@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════════════════
 // Cycle date ranges: overlaps, and moving goals with a cycle's start
-// (deep dive §1a, §10 step 3; TECHNICAL §124, and §108's no-overlap rule).
+// (TECHNICAL §124, and §108's no-overlap rule).
 //
-// Moved from index.html in v8.34 behind same-named shims. The deep dive
-// names these the model for the engine's shape: explicit collections and an
-// explicit "today", no `state`. Coach's applyPublication (step 7) validates a
+// Moved from index.html in v8.34 behind same-named shims. They're the
+// model for the engine's shape: explicit collections and an explicit
+// "today", no `state`. Coach's applyPublication validates a
 // coach's edit through findMacroClash and buildGoalShiftPlan.
 //
 // `ctx` is only consulted for a macro with no `start`, which getMacroEndDate

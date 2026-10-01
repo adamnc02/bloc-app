@@ -27,7 +27,7 @@
 //      be advanced;
 //   5. the engine re-finds a target replaced during its 220ms settle delay —
 //      Plan's step chart repaints via outerHTML every 2s, and the detached
-//      node measured 0×0, ringing the screen's top-left corner (v8.17 UAT).
+//      node measured 0×0, ringing the screen's top-left corner (v8.17).
 //
 // 🚨 Reads the REAL source. The controls at the end break each property and
 // assert the suite then FAILS. A check that cannot fail proves nothing.

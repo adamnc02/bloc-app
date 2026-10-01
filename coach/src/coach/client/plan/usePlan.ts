@@ -5,7 +5,7 @@
 // Every edit is a draft (`coach_plan_drafts`, one row per card and cycle),
 // saved a moment after the coach stops, so it survives a reload or another
 // device; an edit that brings the cycle back to what's published removes
-// the draft. Nothing reaches the client until Publish (proposal §6.2).
+// the draft. Nothing reaches the client until Publish.
 //
 // 🚨 The client's today (their `tz`) decides which cycle is running and
 //    whether a replace can be offered; the coach's own date never does.

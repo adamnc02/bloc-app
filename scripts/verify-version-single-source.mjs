@@ -4,9 +4,8 @@
 //
 // THE BUG THIS PREVENTS: a version number nobody remembers to bump. The
 // Settings hero chip sat at v8.16 through v8.17–v8.19, and the App info
-// sheet's subtitle still read "version 8.19" in v8.21 (Adam, 2026-09-27:
-// "remove any trace of the app version here to avoid future issues, just
-// keep the badge in the hero card").
+// sheet's subtitle still read "version 8.19" in v8.21. The version
+// appears in one place only, the hero's badge.
 //
 // The rule: the Settings hero chip is the ONLY version the app shows, and it
 // must equal the README badge and the newest Version History row — the three

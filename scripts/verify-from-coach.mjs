@@ -1,23 +1,23 @@
 #!/usr/bin/env node
 // ═══════════════════════════════════════════════════════════════════════
-// verify-from-coach.mjs — v8.41, PROMPT-03 Phase 4e-2, TECHNICAL §135
+// verify-from-coach.mjs — v8.41, TECHNICAL §135
 //
-// THE RULES THIS PROTECTS (proposal §4.3, §11):
+// THE RULES THIS PROTECTS:
 //   · Progress → From your coach shows the coach's LATEST response per tool
 //     (check-in / review / next cycle), from state.coachAdvice (never
 //     blocAdvice, I5): byline, headline, first paragraph, scores, Read full,
 //     and a note back. Read-only: no signal chip, no Build / Challenge.
 //   · 🚨 A response belongs to ONE cycle (its macro_id), as Solo's check-in,
 //     review and next-cycle advice do: Progress shows the viewed cycle's, and
-//     the hero's cycle switch changes them (Adam, v8.41 UAT: it showed on
+//     the hero's cycle switch changes them (it must not show on
 //     every cycle). One with no macro_id shows on all. Read full names the cycle.
-//   · A republished response reads "Updated · …" (§11 Q10).
+//   · A republished response reads "Updated · …".
 //   · A note back is one client_submissions row, kind 'note_back', naming
 //     the response's publication; once sent the row says so, and the coach's
 //     reply (a note_reply publication) shows under it.
 //   · Check in is one client_submissions row, kind 'check_in', purpose
 //     'check_in': feel (Tough · Okay · Good · Great, lowest on the left) and a
-//     note. 🚨 NO photos (Adam, v8.41 UAT: in BLOC photos only ever fed the
+//     note. 🚨 NO photos (in BLOC photos only ever fed the
 //     cycle review; the check-in prompt has no images).
 //   · Review photos (v8.44, §142): only in answer to the coach's request (a
 //     `photo_request`, verify-publications-apply.mjs), never unprompted. The

@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════
 // Mutators, as pure cores: what each one would write, returned instead of
-// written (deep dive §1e, §3 H4, §10 step 6; TECHNICAL §125).
+// written (TECHNICAL §125).
 //
 // Each was a BLOC function that changed `state` (and some saved). The engine
 // computes the change; BLOC's same-named function applies it, in the same
@@ -44,7 +44,7 @@ export function renumberMacroGoalSteps(goals: GoalPeriod[] | null | undefined, m
 // yet. Each is computed once and frozen thereafter; BLOC appends them, caps
 // the list at the last 10 and saves.
 //
-// 🚨 Deep dive H4: an archive is computed with the archiver's today and data.
+// 🚨 An archive is computed with the archiver's today and data.
 //    Coach must use the client's stored rollup verbatim, and use this only as
 //    a provisional overlay for cycles the client hasn't archived yet.
 //
@@ -137,8 +137,8 @@ export function computeRollupEntries(s: BlocState, ctx: EngineContext): Loose[] 
 export function recordExerciseHistory(s: BlocState, ctx: EngineContext, macro: Macrocycle, week: number, dayKey: string, ex: Loose):
   { name: string; type: string; entry: Loose; trackingMode: Loose } | null {
   if (isDeloadUnit(s, macro, week, dayKey)) return null;
-  // v8.43 (§137, D3): a swapped week is filed under the SUBSTITUTE's name
-  // (the proposal: "logged under its own exercise"), never the planned one's,
+  // v8.43 (§137): a swapped week is filed under the SUBSTITUTE's name
+  // (logged under its own exercise), never the planned one's,
   // whose "last logged" figures it would otherwise overwrite. A group session
   // replacing the planned one leaves the planned exercise's history alone.
   const sub = getSubstitution(s, macro.id, week, dayKey, ex.id);

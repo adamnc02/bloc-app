@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // ═══════════════════════════════════════════════════════════════════════
 // verify-demo-tour-no-sync.mjs — the Demo Tour's data never leaves memory
-// (v8.30, TECHNICAL §120; deep dive D6)
+// (v8.30, TECHNICAL §120)
 //
 // THE BUG THIS PREVENTS. A brand-new account's first sign-in starts the Demo
 // Tour, which swaps `state` for bloc-demo-data.json. enterDemoMode() promised

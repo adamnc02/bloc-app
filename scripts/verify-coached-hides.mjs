@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // ═══════════════════════════════════════════════════════════════════════
-// verify-coached-hides.mjs — v8.40, PROMPT-03 Phase 4e-1, TECHNICAL §132
+// verify-coached-hides.mjs — v8.40, TECHNICAL §132
 //
-// THE RULES THIS PROTECTS (proposal §4.2 and §4.4):
+// THE RULES THIS PROTECTS:
 //   · A coached client has no Plan page. One guard in showScreen() sends
 //     every route there to Home, and the nav button hides; the deload toggle,
 //     Check-in with BLOC, Last cycle, Next cycle and the plateau narrative go.
@@ -12,7 +12,7 @@
 //     same engine on client_state, so both reach the same targets.
 //     verify-progression-reset.mjs holds the v8.51 control for this rule.
 //   · Unlinking (either side) removes every coach cycle and every coach goal
-//     phase (Adam: "Remove every coach cycle", "Remove them all"), with their
+//     phase, with their
 //     templates, deloads, supersets, cached targets and locks, and NOTHING the
 //     client logged: trainLogs, ratings and exercise history stay.
 //

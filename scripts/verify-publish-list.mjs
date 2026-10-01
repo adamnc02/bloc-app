@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // ═══════════════════════════════════════════════════════════════════════
 // verify-publish-list.mjs — the live site publishes every file the app loads
-// (v8.31, TECHNICAL §121, PROMPT-03 Phase 1c)
+// (v8.31, TECHNICAL §121)
 //
 // THE BUG THIS PREVENTS. Since v8.31 GitHub Pages publishes ONLY the files in
 // scripts/publish-files.txt (the Actions workflow), not the whole repo. A file
-// the app loads but the list forgets is a 404 on the live site — and the
-// deep dive's first draft of that list (D7, written at v8.19) would have
+// the app loads but the list forgets is a 404 on the live site — and a
+// first draft of that list (written at v8.19) would have
 // dropped sw.js, the manifest and the icons: every phone's 07:00 push and the
 // Home Screen install.
 //
@@ -123,7 +123,7 @@ check('it can be run by hand (workflow_dispatch) for the first deploy after the 
 
 // ── Controls: each must FAIL coverage ────────────────────────────────────
 check('control: a list without sw.js fails coverage', missingFrom(list.filter(f => f !== 'sw.js')).includes('sw.js'));
-check('control: D7\'s original list (index.html, demo data only) fails coverage on sw.js, the manifest and the icons',
+check('control: the first draft\'s list (index.html, demo data only) fails coverage on sw.js, the manifest and the icons',
   ['sw.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-512-maskable.png'].every(f => missingFrom(['index.html', 'bloc-demo-data.json']).includes(f)));
 check('control: a list without the engine build fails coverage (v8.32)',
   missingFrom(list.filter(f => f !== 'engine/dist/bloc-engine.js')).includes('engine/dist/bloc-engine.js'));

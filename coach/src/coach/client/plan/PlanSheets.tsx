@@ -357,7 +357,7 @@ export function TemplatePicker({ open, kind, templates, onClose, onPick, title, 
   );
 }
 
-/** The start date for a cycle template: the day after the running cycle ends, else next Monday (§11 Q17). */
+/** The start date for a cycle template: the day after the running cycle ends, else next Monday. */
 export function ApplyCycleSheet({ open, template, defaultStart, first, onClose, onApply }: { open: boolean; template: Template | null; defaultStart: string; first: string; onClose: () => void; onApply: (start: string, name: string) => void }) {
   const id = useId();
   const [start, setStart] = useState(defaultStart);

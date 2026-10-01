@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // ═══════════════════════════════════════════════════════════════════════
-// verify-coached-sessions.mjs — v8.42, PROMPT-03 Phase 4e-3, TECHNICAL §136
+// verify-coached-sessions.mjs — v8.42, TECHNICAL §136
 //
-// THE RULES THIS PROTECTS (proposal §4.3, §5.6, §11 Q23):
+// THE RULES THIS PROTECTS:
 //   · A session assigned to a coach's booking is the COACH'S from that
 //     moment: read-only in Train, and never the client's "next": the
 //     engine's getNextIncompleteSession() steps over it (so Home's Up next,
@@ -37,8 +37,8 @@ const engineOf = src => { const c = {}; vm.runInNewContext(src + '\n;this.BlocEn
 // 🚨 The Train writers are DERIVED from the code, never listed by hand: every
 // top-level function that writes state.trainLogs or state.rpe (plus the lock
 // recheck that runs on blur). A hand list missed quickFillComplete, the card's
-// ✓ button, whose onclick is built inside a template expression; Adam ticked a
-// coach's session complete in the v8.42 UAT. Plan's delete functions are
+// ✓ button, whose onclick is built inside a template expression, so a coach's
+// session could still be ticked complete. Plan's delete functions are
 // excluded: Plan doesn't exist in Coached mode (§132).
 const PLAN_ONLY = new Set(['deleteExercise', 'deleteSupersetGroup', 'deleteMacrocycle']);
 // v8.43 (§137): the coach's own writer. applySessionLogPublication() is the
@@ -163,21 +163,21 @@ async function run(label, html, engineSrc) {
     const G = mk(st);
     check('Your next session = the earliest live booking from today (past and cancelled ignored)', G.nextCoachBooking().booking_id, 'b1');
     const h = G.homeNextSessionHTML();
-    check('…shown in the wireframe\'s short form, "Your next session · Wed 18:00"; 🚨 the WHOLE row is the button (no inline link), opening Your sessions',
+    check('…shown in the short form, "Your next session · Wed 18:00"; 🚨 the WHOLE row is the button (no inline link), opening Your sessions',
       [/Your next session/.test(h), /<b>Wed 18:00<\/b>/.test(h), /^<button class="home-next-session"[^>]*onclick="openCoachSessions\(\)"/.test(h.trim()), /Request a session/.test(h)], [true, true, true, false]);
     G.setRequests([{ id: 'r1', status: 'proposed', proposed: { date: '2026-10-01', start_min: 1080 }, preferences: [] }]);
     check('a suggested time does NOT change the row (the banner above the hero says it): still "Your next session"',
       [/Your next session/.test(G.homeNextSessionHTML()), /suggested a time|Answer/.test(G.homeNextSessionHTML())], [true, false]);
     const wk = mk({ macrocycles: [], coachBookings: { w: { booking_id: 'w', date: '2026-09-30', start_min: 1080, status: 'booked', kind: 'weekly' } } }).homeNextSessionHTML();
-    check('the row carries the wireframe\'s calendar icon, and just the time: no "Weekly" (Adam: "next session is a fact")', [/<svg[^>]*>.*M3 6\.5a2 2/.test(wk), /Weekly/.test(wk), /<b>Wed 18:00<\/b>/.test(wk)], [true, false, true]);
+    check('the row carries the calendar icon, and just the time: no "Weekly"', [/<svg[^>]*>.*M3 6\.5a2 2/.test(wk), /Weekly/.test(wk), /<b>Wed 18:00<\/b>/.test(wk)], [true, false, true]);
     const I = mk({ macrocycles: [], coachBookings: {} });
-    // The rebuilt sheet (Adam, UAT: to the wireframe; "Show all that aren't booked").
-    check('the wireframe\'s slot format: "Wed 30 Sep · 18:00" / "Thu 1 Oct · any time 17:00–20:00"',
+    // The sheet: every request that isn't booked.
+    check('the slot format: "Wed 30 Sep · 18:00" / "Thu 1 Oct · any time 17:00–20:00"',
       [/^Wed 30 Sept? · 18:00$/.test(I.coachSlotLine({ date: '2026-09-30', start_min: 1080 })), /^Thu 1 Oct · any time 17:00–20:00$/.test(I.coachSlotLine({ date: '2026-10-01', start_min: 1020, end_min: 1200 }))], [true, true]);
     const prop = I.coachProposedCardHTML({ id: 'p', status: 'proposed', proposed: { date: '2026-09-30', start_min: 1080 }, preferences: [{ date: '2026-10-01', start_min: 1080 }] });
     check('a suggested time is the eye-catching card: "{coach} proposed", "Needs your answer", "✓ Confirm Wed 18:00", Suggest another time',
       [/is-proposed/.test(prop), /Sam proposed/.test(prop), /Needs your answer/.test(prop), /✓ Confirm Wed 18:00/.test(prop), /Suggest another time/.test(prop), /You asked for Thu 1 Oct · 18:00/.test(prop)], [true, true, true, true, true, true]);
-    // One row per request: its latest state and a status (Adam, UAT: "seeing the history … is not valuable").
+    // One row per request: its latest state and a status (never its history).
     const row = r => I.coachWaitingCardHTML(r).replace(/\s+/g, ' ');
     const acc = row({ id: 'a', status: 'accepted', proposed: { date: '2026-09-30', start_min: 1080 }, preferences: [{ date: '2026-10-01', start_min: 1080 }], repeat_weekly: true });
     check('confirmed, not yet booked: ONE row, the confirmed time, weekly, a Confirmed chip; not what was first asked',
@@ -189,7 +189,7 @@ async function run(label, html, engineSrc) {
     check('countered: the row is YOUR latest time only (not your first ask, not the coach\'s), Waiting for {coach}, and Withdraw',
       [/Wed 7 Oct · any time 07:00–09:00/.test(ctr), /Tue 6 Oct/.test(ctr), /Waiting for Sam/.test(ctr), /Withdraw/.test(ctr)], [true, false, true, true]);
 
-    // The banner, on HOME (Adam, UAT: it must call attention when the app loads).
+    // The banner, on HOME, where it catches attention when the app opens.
     const B = mk({ macrocycles: [], coachBookings: {} });
     const pr = { id: 'p9', status: 'proposed', proposed: { date: '2026-10-12', start_min: 1110 }, preferences: [{ date: '2026-10-12', start_min: 960, end_min: 1200 }] };
     B.setRequests([pr]); B.renderHomeCoachBanner();
@@ -289,7 +289,7 @@ async function run(label, html, engineSrc) {
     const hero = (src.match(/const hero = `<div class="card coach-hero-card">[\s\S]*?<\/div>`;/) || [''])[0];
     check('Your sessions: a hollow lavender (btn-ghost) full-width "Your requests" button with the clock icon, under Request a session',
       /Request a session<\/button>\s*<button class="btn btn-ghost btn-block"[^>]*openCoachRequests\(\)">\$\{COACH_ICO_CLOCK_BTN\} Your requests/.test(hero), true);
-    // v8.51: an icon with no size of its own filled the whole button black (UAT). Every COACH_ICO_* inside a .btn must
+    // v8.51: an icon with no size of its own filled the whole button black. Every COACH_ICO_* inside a .btn must
     // carry width, height and fill="none"; the banner and row icons are sized by their containers' CSS instead.
     const icoConst = (name) => (src.match(new RegExp(`const ${name} = '([^']*)'`)) || [])[1] || '';
     // A button whose class has a CSS rule sizing its svg (e.g. .coach-icon-btn svg) is sized by that instead.
@@ -302,7 +302,7 @@ async function run(label, html, engineSrc) {
     check('control: the v8.50 clock (no size) would be caught', /width="\d+"/.test(icoConst('COACH_ICO_CLOCK')), false);
     check('a tapped push about a proposal opens Your requests, not the form', /openCoachRequests\(\); \/\/ v8\.50/.test(src), true);
   }
-  // v8.42 (Adam, UAT): Home's View body logs opens over Home and closes back to
+  // v8.42: Home's View body logs opens over Home and closes back to
   // it (it used to switch to Settings first), and a save there redraws Home.
   check('View body logs opens over Home, not via Settings; saving or deleting a log redraws Home',
     [/onclick="showScreen\('settings'\);openSettingsBodyLogs\(\);"/.test(src), /onclick="openSettingsBodyLogs\(\);">/.test(src),

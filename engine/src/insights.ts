@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════
 // Weekly insights, the safety floor, the maintenance recalibration and the
-// check-in's state (deep dive §1b, §10 step 4; TECHNICAL §125).
+// check-in's state (TECHNICAL §125).
 //
 // Moved from index.html in v8.35, UNCHANGED apart from their inputs, behind
 // same-named shims: the state as `s`, "today" as `ctx` (§123). Every AI

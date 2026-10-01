@@ -4,7 +4,7 @@
 //
 // WHAT IT PROTECTS (v8.45, TECHNICAL §143): a coach's cycle replacing the
 // client's own running cycle. BLOC holds a plan whose cycle overlaps another
-// (§131, I10). When the only overlap is the client's OWN cycle running today,
+// (§131). When the only overlap is the client's OWN cycle running today,
 // and the coach's starts on a later Monday, the hold becomes a question on
 // Home; the client ends their cycle early or keeps it.
 //

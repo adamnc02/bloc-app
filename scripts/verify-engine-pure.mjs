@@ -5,10 +5,10 @@
 //
 // THE BUGS THIS PREVENTS: Coach running BLOC's engine over a client's
 // uploaded state and quietly changing it; and Coach evaluating a client in
-// New York against the COACH's "today" in London (deep dive §2b).
+// New York against the COACH's "today" in London.
 //
-// The first: Before PROMPT-03 Phase 2 the
-// engine wrote while it read (deep dive §3, H1–H8): getWeekTargets filled
+// The first: Before the engine move (§122) the
+// engine wrote while it read: getWeekTargets filled
 // progressionTargets on first read, evaluateProgressionLock wrote locks and
 // saved, ensureStateDefaults filled `state` in place. In BLOC that is how the
 // app works; in Coach it would invent targets and locks the client never

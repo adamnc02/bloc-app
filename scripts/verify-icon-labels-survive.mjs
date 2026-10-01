@@ -4,7 +4,7 @@
 //
 // THE BUG THIS PREVENTS: an icon that vanishes on the first tap.
 //
-// v8.16's UAT replaced text characters used as icons (›, +, ✕) with real inline
+// v8.16 replaced text characters used as icons (›, +, ✕) with real inline
 // SVGs. That is safe right up until some other code writes `el.textContent =
 // 'Pause'` on the same element — which REPLACES every child, icon included. The
 // icon is there on load, disappears the first time the state changes, and never

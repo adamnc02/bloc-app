@@ -3,20 +3,20 @@
 // verify-manifest.mjs
 //
 // WHAT IT PROTECTS (v8.21, TECHNICAL §108): the web app manifest that iOS
-// Web Push needs (PROMPT-02). iOS only offers push to a Home Screen install
+// Web Push needs. iOS only offers push to a Home Screen install
 // that HAS a manifest, and whether an existing install picks one up is the
 // on-device question v8.21 exists to answer.
 //
 // 🚨 THE TRAPS:
-//   · Scope. Every one of Adam's apps is on adamnc02.github.io. start_url and
+//   · Scope. Every app on adamnc02.github.io shares one origin. start_url and
 //     scope must be RELATIVE ("./" → /bloc-app/), never "/" — an absolute
 //     root scope would claim Listly, the ledgers and every other app on the
 //     origin. BLOC Coach (/bloc-app/coach/) will carry its own, narrower
 //     manifest and service worker; the more specific scope wins.
-//   · The icons must be the icon already on Adam's Home Screen (generated
+//   · The icons must be the icon already on the Home Screen (generated
 //     from index.html's embedded apple-touch-icon), or the test changes two
 //     things at once.
-//   · No caching service worker, ever (Listly's rule, PROMPT-02 Q3): a
+//   · No caching service worker, ever (Listly's rule too): a
 //     single-file app merged-to-deploy gets stuck on an old build behind a
 //     fetch handler. If a sw.js exists it must have no 'fetch' listener.
 //

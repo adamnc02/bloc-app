@@ -7,7 +7,7 @@
 // golden file pins it, §118). What changed is where the network is:
 //
 //   · The engine never fetches and never holds a key. Every request goes
-//     through a `callModel` the caller injects (deep dive §1f SCOPE): BLOC's
+//     through a `callModel` the caller injects: BLOC's
 //     is its browser fetch with the user's own key (BYOK); Coach's will be
 //     its own. `callModel(request)` resolves to the reply's text.
 //   · request* = build the request, await callModel, post-process. The
@@ -67,8 +67,8 @@ export function getRpeSessionExercises(s: BlocState, macro: Macrocycle, dayKey: 
 // Constructs the system prompt and user message for the Anthropic API call.
 // All constraints (safety floor, protein minimum) are computed here client-side
 // and injected as hard rules so the LLM cannot produce unsafe values.
-// v8.20 — effort ratings for the AI prompts (§104; Adam, 2026-09-27: "yes,
-// short summary"). One bounded line per rated exercise, never the raw
+// v8.20 — effort ratings for the AI prompts (§104), as a short
+// summary. One bounded line per rated exercise, never the raw
 // per-session data: average RPE, how many sessions it covers, the latest,
 // how often the rated sessions hit target, and how many were skipped. At
 // most 12 lines, hardest first. Returns '' when the cycle has no ratings,

@@ -4,12 +4,12 @@
 // The shape is the `let state = {…}` literal in index.html and TECHNICAL §3,
 // whose comments are the field-by-field spec. It is deliberately LOOSE where
 // the app is loose: every field is optional (old backups, and old clients'
-// uploads to Coach, carry partial states — deep dive H5), and every record
+// uploads to Coach, carry partial states), and every record
 // type keeps an index signature, because the stored JSON carries fields no
 // type here names. Tighten a field only when the code that reads it moves in.
 // ═══════════════════════════════════════════════════════════════════════
 
-export type DateStr = string; // 'YYYY-MM-DD', a client-LOCAL calendar date (deep dive §2b)
+export type DateStr = string; // 'YYYY-MM-DD', a client-LOCAL calendar date
 
 export interface Macrocycle {
   id: string;
@@ -85,7 +85,7 @@ export interface TrainLog {
   dropWeight?: Loose;
   dropReps?: Loose;
   progType?: string;
-  // v8.43 (§137, deep dive I3): a set the coach logged in person. Absent on
+  // v8.43 (§137): a set the coach logged in person. Absent on
   // everything the client logs.
   loggedBy?: 'coach';
   loggedAt?: string;
@@ -118,7 +118,7 @@ export interface GoalPeriod {
 }
 
 // A coach's booking with the client (§131's `booking` payload). `assigned_session`
-// hands that session to the coach from the moment it's assigned (proposal §5.6).
+// hands that session to the coach from the moment it's assigned.
 export interface CoachBooking {
   booking_id?: string;
   date?: DateStr;
@@ -131,14 +131,14 @@ export interface CoachBooking {
 }
 
 // v8.43 (§137): an exercise that isn't the planned one for ONE session, keyed
-// `${macroId}_${dayKey}_${exId}_w${week}` (the progression-target key). Deep dive
-// D3: the four progression sites skip the week, and the planned exercise's
+// `${macroId}_${dayKey}_${exId}_w${week}` (the progression-target key). The
+// four progression sites skip the week, and the planned exercise's
 // target holds for the next one.
-//   · 'swap': the client's Swap for today (Coached mode, proposal §4.3). The
+//   · 'swap': the client's Swap for today (Coached mode). The
 //     substitute is logged in the planned exercise's own set-log slots, and
 //     filed in history under its own name.
 //   · 'group': a group session the coach marked as replacing this planned
-//     session (proposal §5.6, §11 Q21): counted as done, never scored.
+//     session: counted as done, never scored.
 export interface Substitution {
   kind: 'swap' | 'group';
   name?: string;
@@ -176,9 +176,9 @@ export interface BlocState {
   nextCycleAdvice?: Loose;
   nextCycleAdviceHistory?: Loose[];
   // v8.39 (§131): a coach's bookings, applied from `booking` publications.
-  // v8.42 (§136): read by the engine for the in-person assignment (proposal §5.6).
+  // v8.42 (§136): read by the engine for the in-person assignment.
   coachBookings?: Record<string, CoachBooking>;
-  // v8.43 (§137): Swap for today and a group session's "replaces" (D3).
+  // v8.43 (§137): Swap for today and a group session's "replaces".
   substitutions?: Record<string, Substitution>;
   mode?: string;
   currentMacroId?: string | null;
@@ -190,7 +190,7 @@ export interface BlocState {
 // ── normaliseState ───────────────────────────────────────────────────────
 // Was ensureStateDefaults() (index.html, before v8.32), which filled the
 // missing fields of the global `state` IN PLACE. This returns a new object and
-// never writes to its input (deep dive H5; checked by
+// never writes to its input (checked by
 // scripts/verify-engine-pure.mjs), so Coach can run it on every
 // uploaded blob. BLOC's ensureStateDefaults() is now a shim:
 // `state = BlocEngine.normaliseState(state)`, then the theme attribute.

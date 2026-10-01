@@ -2,7 +2,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 // verify-coach-linking.mjs
 //
-// WHAT IT PROTECTS (v8.37, TECHNICAL §129; PROMPT-03 Phase 4b, with
+// WHAT IT PROTECTS (v8.37, TECHNICAL §129, with
 // migration 0026): linking to a coach, the only door from a client's data
 // to someone else.
 //
@@ -13,7 +13,7 @@
 //     photo choice made on that screen (off unless turned on).
 //   · The link is cached per ACCOUNT, outside `state`. A cache written for
 //     another account (or restored with a backup) must read as "no coach".
-//   · The mode question is for NEW ACCOUNTS only (Adam, 2026-09-28): a new
+//   · The mode question is for NEW ACCOUNTS only: a new
 //     device whose account has a cloud backup is an existing user on a new
 //     phone and restores silently, as before; if the backup list fails, it
 //     falls back to the Demo Tour, as before. An invite link always opens
@@ -276,7 +276,7 @@ async function run(source, label) {
     await L.setCoachPhotoConsent(true);
     check('a saved one sticks, sent with the coach id', [L.coachLinkGet().photoConsent, e.calls.filter(c => c[0] === 'set_photo_consent').pop()[1]],
       [true, { p_coach_id: 'coach-1', p_consent: true }]);
-    // v8.42: the wireframe CoachingScreen hero's footer, "Linked since … date".
+    // v8.42: the Coaching hero's footer, "Linked since … date".
     e.store.set('bloc_coach_link', JSON.stringify(Object.assign(JSON.parse(e.store.get('bloc_coach_link')), { linkedAt: '2026-09-28T10:00:00Z' })));
     L.renderSettingsCoaching();
     if (label === 'now') check('v8.42: the Coaching hero ends with the "Linked since … 28 Sep 2026" row',

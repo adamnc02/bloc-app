@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 // Prompt text and model-response parsing: the plateau periods, the prior
 // check-in history, the cycle review prompt, and pulling the JSON object out
-// of a reply (deep dive §1a, §10 step 3; TECHNICAL §124).
+// of a reply (TECHNICAL §124).
 //
 // Moved from index.html in v8.34, UNCHANGED, behind same-named shims. Pure:
 // no network. The transport (callModel) is injected in step 6, with the

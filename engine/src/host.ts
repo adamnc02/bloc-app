@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// Which hosts get the local-dev auth bypass (deep dive §8; TECHNICAL §82,
+// Which hosts get the local-dev auth bypass (TECHNICAL §82,
 // §91, §119, §124). Moved from index.html in v8.34 behind a same-named shim,
 // so BLOC and BLOC Coach share ONE predicate: Coach keys its own bypass on
 // this, never on import.meta.env.DEV (a Vite build previewed on a LAN IP

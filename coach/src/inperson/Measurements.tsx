@@ -8,7 +8,7 @@ import { fmt } from '@/lib/format';
 
 type Q = '0' | '1' | '2' | '3';
 
-/** Inches as a whole number plus ¼ ½ ¾ (the wireframe's QuarterField), so a tape reading takes one thumb. */
+/** Inches as a whole number plus ¼ ½ ¾, so a tape reading takes one thumb. */
 export function QuarterField({ label, value, onChange, last }: { label: string; value: number; onChange: (v: number) => void; last?: number | null }) {
   const id = useId();
   const whole = Math.floor(value + 1e-6);
@@ -53,7 +53,7 @@ export function measurementPayload(date: string, lbs: string, waist: number, hip
 }
 
 /**
- * Weight, waist and hip, filled with the latest values (the wireframe's form), and Save measurements, which stays
+ * Weight, waist and hip, filled with the latest values, and Save measurements, which stays
  * off until something is changed. After a save the fields keep what was saved.
  */
 export function MeasurementsForm({ state, date, busy, onSave }: { state: BlocState | null; date: string; busy?: boolean; onSave: (p: MeasurementPayload) => void }) {

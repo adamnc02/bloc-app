@@ -54,7 +54,7 @@ export function Switch({ checked, onChange, label, disabled }: { checked: boolea
   return <button type="button" role="switch" className="switch" aria-checked={checked} aria-label={label} disabled={disabled} onClick={() => onChange?.(!checked)} />;
 }
 
-/** A labelled switch row (the wireframe's SwitchRow): bold title, small sub-line, the switch on the right. */
+/** A labelled switch row: bold title, small sub-line, the switch on the right. */
 export function SwitchRow({ title, sub, checked, onChange, label, disabled }: { title: ReactNode; sub?: ReactNode; checked: boolean; onChange?: (v: boolean) => void; label: string; disabled?: boolean }) {
   return (
     <div className="row" style={{ minHeight: 44, padding: '12px 0' }}>

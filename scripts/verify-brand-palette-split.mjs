@@ -6,15 +6,15 @@
 // lavender leaking back into the logo.
 //
 // v8.18 took HALF of a design experiment (index-green.html): the green Bracket
-// logo, app icon and splash — but NOT its app-wide recolour. Adam's call: "The
-// logo stays green, but the app accent colours remain as they are." That
+// logo, app icon and splash — but NOT its app-wide recolour: the
+// logo is green, and the app's accent colours stay as they are. That
 // experiment changed one token and eighteen hard-coded rgba() glows, so the
 // two halves sit a few lines apart and look alike. Two ways it breaks:
 //
 //   1. Someone "finishes" the green by re-applying the rest of the experiment
 //      (--accent → #2fb98a). The app turns green. Nothing errors.
 //   2. Someone "tidies" the splash back onto one token. --splash-accent paints
-//      the Train block, which Adam asked to keep lavender; the brackets and
+//      the Train block, which stays lavender; the brackets and
 //      OVERCOME use --splash-brand. Collapse them and one side is wrong.
 //
 // v8.19 swapped the Bracket logo for the Rebuild kit (three stacked bars, the
@@ -71,7 +71,7 @@ check('no green glow before the splash block (the 18 app glows stay lavender)', 
 
 console.log('\nSplash — brand green on the top bar, REPEAT and OVERCOME; no lavender');
 const splash = block(source, '#splash');
-// v8.43 (§138): the new CSS splash (bloc-splash/, Adam, 2026-09-28) has no
+// v8.43 (§138): the new CSS splash has no
 // lavender Train block, so --splash-accent is gone; the split that remains is
 // green on the TOP bar only, the other two bars neutral.
 check('--splash-brand is the logo green', token(splash, '--splash-brand'), '#2fb98a');

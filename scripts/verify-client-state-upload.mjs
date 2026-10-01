@@ -2,7 +2,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 // verify-client-state-upload.mjs
 //
-// WHAT IT PROTECTS (v8.38, TECHNICAL §130; PROMPT-03 Phase 4c): the
+// WHAT IT PROTECTS (v8.38, TECHNICAL §130): the
 // client → coach upload. BLOC Coach runs BLOC's engine on exactly what
 // arrives here, so a wrong byte is a wrong number on the coach's screen.
 //

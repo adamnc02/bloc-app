@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════
 // scripts/engine-cases.mjs — the inputs every step-3 engine export is run
-// over (PROMPT-03 Phase 2, TECHNICAL §124). Not a verify script itself (the
+// over (TECHNICAL §124). Not a verify script itself (the
 // sweep's glob is verify*.mjs); imported by:
 //   · verify-engine-pure.mjs   — the engine never writes to them, never reads
 //                                the clock;
@@ -479,7 +479,7 @@ for (const [reps, inc] of [['8', 2], ['8', 1], ['8–10', 2], ['8-10', 1], ['AMR
 }
 add('RPE_STEP_NONE', []); add('PROG_STEP_MAINTENANCE', []);
 
-// v8.43 (§137): Swap for today / a group's "replaces" (the D3 marker) and a
+// v8.43 (§137): Swap for today / a group's "replaces" (the substitution marker) and a
 // session the coach logged. Engine only (bloc: null); verify-coach-logged.mjs
 // checks what they decide.
 const withSwap = (kind = 'swap', w = 3) => state(s => {
