@@ -11218,6 +11218,14 @@ and never before the client's current week. With no week left in the cycle the s
 `joinWeek()`, which is the calendar week: a client who has already logged the calendar week's session would have had it
 reset under them.
 
+🚨 **"Logged" is the client's record, not their upload** (v0.13.6). Plan's `trainLogs` (`usePlan`) are `recordState`'s:
+the upload with every `session_log` the coach has sent folded in (`useRecord`). A client not on the app has no upload,
+so their sessions exist only as the coach's publications; read from the upload alone, a reset for a client logged up to
+MC 9 landed on the calendar week (MC 7), on top of weeks already logged. A linked client's phone may not have applied the
+newest one either. The reset (and a late exercise's `joinWeek`) waits for the record to load (`trainLogsReady`).
+`effort.test.ts` holds it on a client not on the app logged to week 3 in calendar week 2 (week 4; control: the upload
+alone gives 2); `verify-coach-today.mjs` checks the wiring (controls: the upload alone, a reset that doesn't wait).
+
 ### Checks
 
 - `coach/src/review/effort.test.ts` (vitest, 9):

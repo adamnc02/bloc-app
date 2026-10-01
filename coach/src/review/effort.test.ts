@@ -6,6 +6,8 @@ import { buildFixtureClients } from '@/data/fixtures';
 import { summarise } from '@/data/summary';
 import { effortFlags } from '@/today/model';
 import { resetWeek, type PlanMacro } from '@/plan/doc';
+import { recordState } from '@/inperson/model';
+import type { CoachPublication } from '@/ai/types';
 import { highRatingStreaks } from './effort';
 
 const DEMO = readFileSync(new URL('../../../bloc-demo-data.json', import.meta.url), 'utf8');
@@ -92,5 +94,23 @@ describe('Needs you, on a client\'s record', () => {
     };
     expect(make(10).length).toBeGreaterThan(0);
     expect(make(7)).toHaveLength(0);
+  });
+});
+
+describe('a reset reads the client\'s record, not the upload alone (v0.13.6)', () => {
+  // A client not on the app: no upload. Their coach's plan and three in-person sessions exist only as publications.
+  const MID = 'macro_np';
+  const ex = { id: 'ex_np_0', name: 'Leg Press', category: 'weight', type: 'standard', reps: '10', setsStart: 2, setsEnd: 2, startWeight: 40, isHeavyLeg: false, trackingMode: 'total', order: 0, supersetId: null, supersetOrder: null };
+  const macro = { id: MID, name: 'Strength', start: '2026-09-07', weeks: 8, weeksPerMeso: 1, sessionsPerWeek: 1, goal: '', targetBw: null, goalType: 'maintenance', splitType: 'custom', days: ['session0'], dayLabels: { session0: 'Session A' }, useMicrocycles: false, weightIncrement: '2.5', rpe: true };
+  const pub = (seq: number, type: string, payload: object): CoachPublication => ({ id: `p${seq}`, seq, type, payload: { v: 1, ...payload } as Loose, supersedes: null, createdAt: '2026-09-15T08:00:00.000Z', ack: null });
+  const pubs = [
+    pub(1, 'plan', { macrocycle: macro, exercises: { [`${MID}_1_session0`]: [ex] } }),
+    ...[1, 2, 3].map((w) => pub(1 + w, 'session_log', { session_id: `own:2026-09-1${w}:s${w}`, macro_id: MID, week: w, day_key: 'session0', kind: 'in_person', logs: { ex_np_0: { sets: [{ weight: '40', reps: '10' }, { weight: '40', reps: '10' }] } } })),
+  ];
+  const today = '2026-09-15'; // calendar week 2
+  it('lands after the last week logged (4), on the record (control: the upload alone, nothing logged, gives the calendar week 2)', () => {
+    const rec = recordState({ state: null, publications: pubs, coachId: 'coach-1', since: null }) as Loose;
+    expect(resetWeek(macro as unknown as PlanMacro, 'session0', today, rec.trainLogs)).toBe(4);
+    expect(resetWeek(macro as unknown as PlanMacro, 'session0', today, null)).toBe(2);
   });
 });
