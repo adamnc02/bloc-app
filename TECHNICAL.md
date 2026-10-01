@@ -11467,8 +11467,18 @@ which BLOC and BLOC Coach both read:
 **Coach.** The AI panel's Check-in row reads the schedule ("First check-in due", "Check-in due", "Next check-in · {date} ·
 run early", "No check-in needed yet" for a client on track, or how many weeks of logs until the first). Check-ins are
 **Coming up's only**: due now ("First check-in due", "Check-in due since {date}") or coming due within 7 days, at the
-client's today. 🚨 Never in Needs you and never dismissable: Needs you is for what a client sent (challenges, notes back),
-and a due check-in clears only by publishing one. The request's finding, tile,
+client's today. Coming up holds one coming due in the next 7 days; once due it moves to **Needs you**. 🚨 It's never
+dismissable: a due check-in clears only by publishing one.
+
+**All three AI tools follow that pattern: `aiSchedule()` (`today/model.ts`)** returns each client's `due` (Needs you,
+an `ai` card with the tool's one button, no Dismiss) and `coming` (Coming up, the next 7 days):
+- **Check-in**, on the running cycle: the schedule above.
+- **Cycle review**, on any cycle from its final week to 14 days after its end, until one is published: due when the
+  coach has the next move: no photos asked yet ("ask for review photos first"), or asked, the cycle over and
+  `PHOTO_WAIT_DAYS` without an answer ("run it without them"). Asked and waiting is the client's move; answered is the
+  "Review photos in" card. Coming the week before the final week.
+- **Next cycle**, on the running cycle: due from 21 days before its end (BLOC's tab window) to the end, until advice for
+  it is published; coming the week before. The request's finding, tile,
 prompt line ("THE CLIENT ASKED…") and Needs you card are gone; old drafts may still carry `original.requestId`.
 
 **BLOC.** The Check in button, sheet (`modal-coach-checkin`) and their `check_in` row are removed; `state.coachCheckinsSent`
@@ -11484,13 +11494,16 @@ shown never disappears, on that device. No tab ready: the card says when the fir
 
 **Checks:** `coach/src/ai/schedule.test.ts` (the schedule and the tabs on the demo client, with 0 and 1 weigh-ins);
 `ai.test.ts` (eligibility: an unpublished run leaves it due, another cycle's doesn't count); `today.test.ts` (Needs you
-never has a check-in; Coming up's clears only on a publish, control: a run alone; an old request row changes nothing); `verify-coach-logged.mjs` §7 (BLOC's own functions, including a
+a due check-in there, out of Coming up, cleared only by a publish, control: a run alone; `aiSchedule` for the review's
+and next cycle's windows, each with its edges; an old request row changes nothing); `verify-coach-logged.mjs` §7 (BLOC's own functions, including a
 tab kept on a thin day); `verify-from-coach.mjs` (no Check in, no `purpose 'check_in'` row, only ready tabs, the line
 under Check-in only); `engine-cases.mjs` covers the new exports.
 
 ## §169 — Coach v0.16: dismissing a note back from Needs you (migration `0036`)
 
-A **note back** (on a check-in, a challenge) has **Dismiss** on its Needs you card, left of its action. The dismissal is
+Only a **challenge** (a note back on a check-in) has **Dismiss** on its Needs you card, left of its action. A note on a
+cycle review or next-cycle advice, and the due AI work (§168), can't be dismissed: the model honours a dismissal only for
+a challenge. The dismissal is
 a `coach_needs_dismissals` row (card, `item_key` = the item's key `n:<submission id>`, `created_at`), so every device
 agrees, and it's for good (`isDismissed()` in `today/model.ts`). Check-ins are never dismissed (§168: they're Coming up's).
 The table takes any key up to 300 characters; Coach writes only `n:` keys. A repeat dismissal deletes the old row and
@@ -11504,7 +11517,7 @@ inserts a new one (no update grant).
 review photos", tag `photos:<submission id>`, which opens Needs you's photos item, key `p:<id>`, on Review → Cycle review).
 Coach's switch (column `check_ins`) is labelled **Review photos**.
 
-**Checks:** `today.test.ts` (a dismissed note gone, everything else kept, a row naming Coming up's check-in changing nothing);
+**Checks:** `today.test.ts` (a dismissed challenge gone; dismissal rows naming a review's note or the due AI work change nothing);
 super-duper-octo-barnacle's `0036` check file and behaviour test.
 
 ## §170 — v8.56 + Coach v0.16: notes back as a thread; Challenge with BLOC on a check-in
