@@ -11185,19 +11185,30 @@ steps in only when that isn't enough, and Coach says when.
 
 ### The flag (`coach/src/review/effort.ts`, `highRatingStreaks`)
 
-The same exercise on the same track (a session's dayKey, so M1 and M2 apart) rated **9 or 10 in two consecutive weeks of
-that track**, deloads skipped, whether or not the target was hit. Only the latest two rated weeks are looked at, so it
-clears by itself:
+The same exercise on the same track (a session's dayKey, so M1 and M2 apart), two consecutive weeks of that track, deloads
+and swapped weeks skipped, one of two ways (`kind`):
+
+- **`too_hard`**: rated **9 or 10** both weeks, whether or not the target was hit (a cycle with ratings on);
+- **`missed`** (v0.14): **the target missed** both weeks: every set logged and short of it (BLOC's own
+  `getWeekComplianceResult`; the progression start week is never judged, as BLOC's lock).
+
+BLOC already holds the target in both cases (the RPE hold, the lock), so the coach chooses: **Reset it**, or **Leave** it
+as it is. Only the latest two weeks are looked at, so it clears by itself:
 
 - a later rating of 8 or lower;
 - a week rated "skipped" after them;
 - a reset (ratings before the exercise's progression start, `progressionStartWeek`, don't count).
 
-A cycle with ratings off raises nothing. Ratings the coach gives in person, or records from a client's sheet, count the
-same as the client's.
+A cycle with ratings off raises no `too_hard`. Ratings the coach gives in person, or records from a client's sheet, count
+the same as the client's. A missed-target run also clears on a week that hits the target.
 
-**Where it shows.** Today → Needs you → **Rated too hard** ("{first} rated {exercise} 9, then 10", the two weeks), with
-**Reset it**. `effortFlags()` judges each client's running coach's cycle on their record as their phone holds it
+**Leave** (v0.14, migration `0034` `coach_flag_dismissals`, on the server so every device agrees): a row for that run
+(card, exercise on its track, kind, `throughWeek` = the run's last week). It hides that run only: a third week the same
+way is a new run ending a week later, and comes back (`isLeft`). The inbox carries the coach's Leaves (`loadInbox`), and
+`effortFlags` drops a run that was left.
+
+**Where it shows.** Today → Needs you → **Rated too hard** ("{first} rated {exercise} 9, then 10") or **Missed target**
+("{first} missed {exercise}'s target two weeks running"), the two weeks, with **Leave** and **Reset it**. `effortFlags()` judges each client's running coach's cycle on their record as their phone holds it
 (`recordState`: the upload, with every plan and session_log publication folded in), at the client's today. A client not
 on the app is judged the same way. 🚨 That is why `loadInbox` now includes `plan` publications: a client not on the app
 has a plan only there, and without it they had no cycle to judge.
@@ -11208,8 +11219,11 @@ has a plan only there, and without it they had no cycle to judge.
 mode:
 
 - The sheet says why, and from which week.
-- The coach sets new starting numbers, and **Reset from MC {n}** saves the same exercise with `fromWeek` = n, a draft to
-  publish.
+- The coach sets new starting numbers, and **Reset from MC {n}** saves the same exercise with `fromWeek` = n
+  (`resetExercise`), a draft to publish; the publish summary says "reset from MC{n}". 🚨 Not `updateExercise`: it keeps an
+  exercise's existing `fromWeek` on purpose (an edit never moves when it joined), so a reset through it (v0.13 to v0.13.6)
+  published the new numbers without the week, the phone carried on from what was lifted, and the flag stayed.
+  `effort.test.ts` checks the saved exercise, the summary and the plan publication itself (control: `updateExercise`).
 - On the phone, BLOC §161 then makes that week its week 1: those numbers, no old lock, nothing before it counted.
   Earlier weeks keep their logs.
 
