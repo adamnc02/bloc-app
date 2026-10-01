@@ -4,9 +4,9 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { buildCycleReviewPrompt, computeCycleReviewPayload, type BlocState, type CallModel, type ModelRequest } from '@engine';
 import { buildFixtureClients } from '@/data/fixtures';
-import { runTool } from './run';
+import { runChallenge, runTool } from './run';
 import {
-  aiResponsePayload, coachReviewPrompt, contentOf, editFromOriginal, eligibility, goalChanges, isEdited, notesBack,
+  aiResponsePayload, challengeEdit, coachReviewPrompt, contentOf, editFromOriginal, eligibility, goalChanges, isEdited, notesBack,
   overallCompliance, PERSONAL_PHOTO_PARAGRAPH, photoRequestPayload, photoRequestState, phasesFor, priorPhaseIds, publishState, sentEdit, withPlan,
 } from './tools';
 import type { AiDraft, CoachPublication, Submission } from './types';
@@ -303,5 +303,62 @@ describe('when a tool can run', () => {
       .toMatchObject({ runnable: true, text: 'Run without photos · no answer since 2026-09-12' });
     expect(eligibility('cycle_review', { ...ended, today: '2026-09-14', photos: P({ status: 'answered', skipped: true }) })).toMatchObject({ ready: true, text: 'Review Weight Loss 2026 with BLOC · Maya skipped photos' });
     expect(eligibility('cycle_review', { ...ended, today: '2026-09-14', hasKey: false, photos: P({ status: 'answered', before: ['b'], after: ['a'] }) }).text).toBe('Add your AI key in Settings to run this');
+  });
+});
+
+// §170: a check-in challenged with BLOC. The prior turn is what the client was SENT; the reply is kept verbatim; a
+// minor revision keeps the sent words and changes only the plan, a significant one replaces the words.
+describe('challenging a published check-in with BLOC', () => {
+  const challengeReply = (significant: boolean, kcal = 1700) => JSON.stringify({
+    acknowledgment: 'Fair point: evenings are tough at that number, so the floor goes up.', isSignificantRevision: significant,
+    headline: 'Ease the deficit a little', narrative: 'New para one.\n\nNew para two.', primaryAction: 'Add 100 kcal at dinner.', secondaryAction: null,
+    recommendations: {
+      sustainable: { label: 'Sustainable', rationale: 'r', summary: 's', goals: [{ label: 'Steady+', startDate: '2026-08-10', endDate: '2026-08-23', kcal, steps: 11000, protein: 190, carbs: 140 }] },
+      aggressive: { label: 'Aggressive', rationale: 'r', summary: 's', goals: [{ label: 'Push', startDate: '2026-08-10', endDate: '2026-08-23', kcal: 1500, steps: 12000, protein: 190, carbs: 110 }] },
+    },
+  });
+  const note: Submission = { id: 'nb1', kind: 'note_back', publicationId: 'p-sent', createdAt: '2026-08-04T19:00:00Z', body: { response_id: 'd1', text: 'Starving every evening' } };
+  async function published() {
+    const { callModel } = stub(checkinReply('2026-08-10', '2026-08-23', 'Sent headline'));
+    const original = await runTool({ tool: 'check_in', state: maya(), macro: macroOf(maya()), today: '2026-08-05', callModel, drafts: [], publications: [] });
+    const d = draft({ original, publicationId: 'p-sent' });
+    const sentEdit0 = { ...sentEdit(d), headline: 'Coach’s sent headline' };
+    const d2: AiDraft = { ...d, edited: { ...sentEdit0, sentAs: 'p-sent' } };
+    const p = pub('p-sent', 3, aiResponsePayload(d2, sentEdit0, null, false), '2026-08-05T09:00:00Z');
+    return { d: d2, pubs: [p], sent: sentEdit0 };
+  }
+
+  it('the prior turn is the version sent, the coach’s text is the challenge, and the reply is kept verbatim', async () => {
+    const { d, pubs } = await published();
+    const text = challengeReply(false);
+    const { callModel, sent } = stub(text);
+    const { record } = await runChallenge({ state: maya(), macro: macroOf(maya()), today: '2026-08-06', callModel, drafts: [d], publications: pubs, note, text: ' Starving every evening, and work is busy ' });
+    const all = JSON.stringify(sent[0]);
+    expect(all).toContain('Coach’s sent headline');                 // what was sent, not the AI's original headline
+    expect(all).not.toContain('Sent headline"');                      // control: the original is never the prior turn
+    expect(all).toContain('Starving every evening, and work is busy');
+    expect(record).toMatchObject({ submissionId: 'nb1', text: 'Starving every evening, and work is busy', raw: text, significant: false, today: '2026-08-06' });
+    expect(record.acknowledgment).toMatch(/^Fair point/);
+  });
+
+  it('a minor revision keeps the words sent and changes the plan, with the same phase ids; a significant one replaces the words', async () => {
+    const { d, pubs, sent: s0 } = await published();
+    const minor = await runChallenge({ state: maya(), macro: macroOf(maya()), today: '2026-08-06', callModel: stub(challengeReply(false)).callModel, drafts: [d], publications: pubs, note, text: 'x' });
+    const e1 = challengeEdit(d, s0, minor.revision, minor.record);
+    expect(e1.headline).toBe('Coach’s sent headline');
+    expect(e1.kcal).toBe(1700);
+    expect(e1.phases.map((p: { id: string }) => p.id)).toEqual(s0.phases.map((p: { id: string }) => p.id));
+    expect(e1.challenge?.submissionId).toBe('nb1');
+    expect(contentOf(e1)).not.toHaveProperty('challenge');            // never sent to the client
+    expect(JSON.stringify(aiResponsePayload(d, e1, null, true))).not.toContain('Fair point');
+    const major = await runChallenge({ state: maya(), macro: macroOf(maya()), today: '2026-08-06', callModel: stub(challengeReply(true)).callModel, drafts: [d], publications: pubs, note, text: 'x' });
+    const e2 = challengeEdit(d, s0, major.revision, major.record);
+    expect(e2.headline).toBe('Ease the deficit a little');
+    expect(e2.narrative).toEqual(['New para one.', 'New para two.', 'This week: Add 100 kcal at dinner.']);
+  });
+
+  it('nothing published on the cycle: there is nothing to challenge', async () => {
+    await expect(runChallenge({ state: maya(), macro: macroOf(maya()), today: '2026-08-06', callModel: stub('{}').callModel, drafts: [], publications: [], note, text: 'x' }))
+      .rejects.toThrow(/no published check-in/);
   });
 });

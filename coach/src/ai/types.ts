@@ -33,6 +33,28 @@ export interface AiEdit {
   phases: PhaseEdit[];
   /** The publication that sent exactly this version. A later edit drops it, so the draft reads as unsent. */
   sentAs?: string;
+  /** Check-in: the challenge this version came from (§170), kept as it came back. Never sent to the client. */
+  challenge?: ChallengeRecord;
+}
+
+/**
+ * A check-in challenged with BLOC (§170): the client's note back, as the coach sent it to the engine's challenge call
+ * (their words, perhaps edited), and the reply verbatim. Only check-ins have a challenge (BLOC Solo's "Challenge this
+ * advice"); a cycle review or next-cycle advice has none.
+ */
+export interface ChallengeRecord {
+  /** The note back (`client_submissions.id`) it answers. */
+  submissionId: string;
+  /** What was sent as the challenge. */
+  text: string;
+  /** The reply's text, exactly as it came back. */
+  raw: string;
+  /** The model's 1-2 sentences to the client: the coach's reply starts from it. */
+  acknowledgment: string;
+  /** The model's own call: true replaces the headline and narrative, false changes only the plan. */
+  significant: boolean;
+  /** The client's date it ran at. */
+  today: string;
 }
 
 /** The calculated compliance a cycle review is given, out of 10 (Review's own scores). */

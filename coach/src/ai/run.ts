@@ -6,7 +6,8 @@
 // client's uploaded state at THEIR today. Coach changes only what the engine
 // can't know:
 //   · the history it builds from is what the coach SENT (overlayCoachAdvice);
-//   · a check-in the client asked for carries their feel and note;
+//   · a check-in challenged (§170) runs the engine's challenge call against
+//     the version the client was SENT, with the coach's text;
 //   · a cycle review gets the calculated compliance and the coach's notes on
 //     the client in place of a paragraph about one particular user
 //     (coachReviewPrompt), and its score is the calculated one.
@@ -14,13 +15,13 @@
 // (transport.ts), a stub in the tests. The reply text is kept verbatim.
 // ═══════════════════════════════════════════════════════════════════════
 import {
-  buildBlocAdvicePrompt, buildCycleReviewPrompt, buildNextCycleAdvicePrompt, computeCycleReviewPayload,
-  recommendNextCycle, requestBlocAdvice, requestCycleReview, requestNextCycleAdvice,
-  type BlocState, type CallModel, type CycleReviewImage, type Macrocycle,
+  buildBlocAdvicePrompt, buildBlocChallengePrompt, buildCycleReviewPrompt, buildNextCycleAdvicePrompt, computeCycleReviewPayload,
+  recommendNextCycle, requestBlocAdvice, requestBlocChallenge, requestCycleReview, requestNextCycleAdvice,
+  type BlocState, type CallModel, type CycleReviewImage, type Loose, type Macrocycle,
 } from '@engine';
 import { makeTargetCache } from '@engine/review';
-import { coachReviewPrompt, overlayCoachAdvice } from './tools';
-import type { AiDraft, AiOriginal, AiTool, CalcCompliance, CoachPublication } from './types';
+import { coachReviewPrompt, overlayCoachAdvice, publishedCheckinDates } from './tools';
+import type { AiDraft, AiOriginal, AiTool, CalcCompliance, ChallengeRecord, CoachPublication, Submission } from './types';
 
 export interface RunInput {
   tool: AiTool;
@@ -62,4 +63,39 @@ export async function runTool(i: RunInput): Promise<AiOriginal> {
   const prompt = buildNextCycleAdvicePrompt(s, ctx, makeTargetCache(s), macro, rec, null, null, null);
   const response = await requestNextCycleAdvice(prompt, macro, rec, callModel, () => ctx, () => null);
   return { v: 1, raw, response, today: i.today };
+}
+
+export interface ChallengeInput {
+  state: BlocState;
+  macro: Macrocycle;
+  /** The client's local date (their tz). */
+  today: string;
+  callModel: CallModel;
+  drafts: AiDraft[];
+  publications: CoachPublication[];
+  /** The note back being answered, and the text to challenge with (the client's words, as the coach left them). */
+  note: Submission;
+  text: string;
+}
+
+/**
+ * Challenge a check-in with BLOC (§170): the engine's own challenge call (BLOC Solo's "Challenge this advice"), whose
+ * prior turn is the check-in the client was SENT (overlayCoachAdvice's blocAdvice), never a draft or the AI's original.
+ * Returns the reply verbatim and processed; challengeEdit() turns it into the next version of the draft.
+ */
+export async function runChallenge(i: ChallengeInput): Promise<{ record: ChallengeRecord; revision: Loose }> {
+  const ctx = { today: i.today };
+  // 🚨 Only a check-in the COACH published: a client's Solo history leaves its own blocAdvice in the state, which
+  // overlayCoachAdvice keeps when the coach has sent none, and a challenge must never answer that.
+  if (!publishedCheckinDates(i.publications, i.macro.id).length) throw new Error('There’s no published check-in on this cycle to challenge');
+  const s = overlayCoachAdvice(i.state, i.macro.id, i.drafts, i.publications);
+  const macro = (s.macrocycles || []).find((m) => m.id === i.macro.id) ?? i.macro;
+  let raw = '';
+  const callModel: CallModel = async (req) => { const r = await i.callModel(req); raw = r.text; return r; };
+  const built = buildBlocChallengePrompt(s, ctx, makeTargetCache(s), macro, i.text.trim());
+  const revision = await requestBlocChallenge(built, macro, callModel, () => ctx);
+  return {
+    revision,
+    record: { submissionId: i.note.id, text: i.text.trim(), raw, acknowledgment: String(revision.acknowledgment || ''), significant: !!revision.isSignificantRevision, today: i.today },
+  };
 }

@@ -3,10 +3,10 @@ import type { BlocState, Loose } from '@engine';
 import { ActionRow, Button, Chip, Field, Icon, IconButton, Notice, Seg, Sheet, useOnResume } from '@/components/ui';
 import { useCoach } from '@/app/App';
 import { fmt } from '@/lib/format';
-import { runTool } from '@/ai/run';
+import { runChallenge, runTool } from '@/ai/run';
 import { coachCallModel, getAiKey } from '@/ai/transport';
 import {
-  aiResponsePayload, contentOf, eligibility, goalChanges, isEdited, latestDraft, notesBack, overallCompliance,
+  aiResponsePayload, challengeEdit, contentOf, eligibility, goalChanges, isEdited, latestDraft, notesBack, overallCompliance,
   photoRequestPayload, photoRequestState, phasesFor, planChoices, planRunsTo, priorPhaseIds, publishState, sentEdit, TOOL_LABEL, TOOLS, withPlan, type GoalChanges,
 } from '@/ai/tools';
 import type { AiData, AiDraft, AiEdit, AiTool, CoachPublication, Submission } from '@/ai/types';
@@ -57,7 +57,8 @@ export function AiPanel({ v, m, state, tool, onTool, ai }: {
   const [running, setRunning] = useState(false);
   const [editing, setEditing] = useState(false);
   const [sheet, setSheet] = useState<null | 'full' | 'publish'>(null);
-  const [reply, setReply] = useState<Submission | null>(null);
+  const [reply, setReply] = useState<{ note: Submission; text: string } | null>(null);
+  const [challenge, setChallenge] = useState<Submission | null>(null);
   const [error, setError] = useState<string | null>(null);
   const hasKey = !!getAiKey();
 
@@ -131,7 +132,8 @@ export function AiPanel({ v, m, state, tool, onTool, ai }: {
       {!running && !d && <p className="muted" style={{ marginTop: 16 }}>No {TOOL_LABEL[tool].noun} for {m.cycle.name} yet.</p>}
       {!running && d && (editing
         ? <EditForm d={d} onCancel={() => setEditing(false)} onSave={async (e) => { addDraft(await repo.saveAiEdit(d.id, e)); setEditing(false); }} />
-        : <ResponseCard d={d} data={data} first={first} onEdit={() => setEditing(true)} onPublish={() => setSheet('publish')} onFull={() => setSheet('full')} onReply={setReply} />)}
+        : <ResponseCard d={d} data={data} first={first} onEdit={() => setEditing(true)} onPublish={() => setSheet('publish')} onFull={() => setSheet('full')}
+            onReply={(note) => setReply({ note, text: '' })} onChallenge={setChallenge} />)}
 
       {error && <Notice icon="warning" tone="bad" title={`Couldn’t run the ${TOOL_LABEL[tool].noun}`} style={{ marginTop: 14 }}>{error}</Notice>}
       {!running && (
@@ -147,7 +149,12 @@ export function AiPanel({ v, m, state, tool, onTool, ai }: {
         <PublishSheet d={d} data={data} state={state} today={today} first={first} onClose={() => setSheet(null)}
           onDone={(p, nd) => { addPub(p); addDraft(nd); setSheet(null); }} />
       )}
-      <ReplySheet note={reply} first={first} onClose={() => setReply(null)} onSent={(p) => { addPub(p); setReply(null); }} cardId={card.id} />
+      <ReplySheet note={reply?.note ?? null} initial={reply?.text ?? ''} first={first} onClose={() => setReply(null)} onSent={(p) => { addPub(p); setReply(null); }} cardId={card.id} />
+      {d && challenge && (
+        <ChallengeSheet note={challenge} d={d} data={data} state={state} first={first} today={today}
+          onClose={() => setChallenge(null)}
+          onUsed={(nd, ack) => { addDraft(nd); setChallenge(null); setReply({ note: challenge, text: ack }); }} />
+      )}
     </div>
   );
 }
@@ -166,8 +173,10 @@ function photoCaption(p: ReturnType<typeof photoRequestState>, consent: boolean,
 
 // ---------------------------------------------------------------- the response card
 
-function ResponseCard({ d, data, first, onEdit, onPublish, onFull, onReply }: {
+function ResponseCard({ d, data, first, onEdit, onPublish, onFull, onReply, onChallenge }: {
   d: AiDraft; data: AiData; first: string; onEdit: () => void; onPublish: () => void; onFull: () => void; onReply: (s: Submission) => void;
+  /** Check-ins only: challenge with BLOC (§170). Cycle reviews and next-cycle advice have no challenge. */
+  onChallenge: (s: Submission) => void;
 }) {
   const e = sentEdit(d);
   const { state: ps, pub } = publishState(d, data.publications);
@@ -203,12 +212,14 @@ function ResponseCard({ d, data, first, onEdit, onPublish, onFull, onReply }: {
         {d.original.photos && (d.original.photos.before || d.original.photos.after) ? ` · ${d.original.photos.before + d.original.photos.after} photos` : ''}
       </p>
       {notes.map(({ note, reply }) => (
-        <div key={note.id} data-note={note.id} className="tile" style={{ marginTop: 12 }}>
-          <span className="label" style={{ marginBottom: 4 }}>Note back from {first} · {fmt.dm(note.createdAt.slice(0, 10))}</span>
-          <p style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{String(note.body?.text || '')}</p>
-          {reply
-            ? <p className="caption" style={{ marginTop: 8 }}><Icon name="check" size={13} /> You replied {fmt.dm(reply.createdAt.slice(0, 10))}: “{String(reply.payload?.text || '')}”</p>
-            : <Button variant="ghost" size="sm" icon="message" style={{ marginTop: 10 }} onClick={() => onReply(note)}>Reply to {first}</Button>}
+        <div key={note.id} data-note={note.id} style={{ marginTop: 14 }}>
+          <NoteThread first={first} note={note} reply={reply} challenged={d.edited?.challenge?.submissionId === note.id} />
+          {!reply && (
+            <div className="btnrow" style={{ marginTop: 10 }}>
+              {d.tool === 'check_in' && <Button variant="ghost" size="sm" icon="sparkle" onClick={() => onChallenge(note)}>Challenge with BLOC</Button>}
+              <Button variant="ghost" size="sm" icon="message" onClick={() => onReply(note)}>Reply to {first}</Button>
+            </div>
+          )}
         </div>
       ))}
       {ps !== 'published' && <Button size="card" icon="send" style={{ marginTop: 14 }} onClick={onPublish}>{ps === 'changed' ? `Publish the update to ${first}` : `Publish to ${first}`}</Button>}
@@ -468,13 +479,94 @@ function Original({ d, r }: { d: AiDraft; r: Loose }) {
 
 // ---------------------------------------------------------------- reply to a note back
 
-function ReplySheet({ note, first, cardId, onClose, onSent }: { note: Submission | null; first: string; cardId: string; onClose: () => void; onSent: (p: CoachPublication) => void }) {
+/**
+ * A note back and the coach's reply as a two-bubble thread (§170): the client's on the left, the coach's on the right,
+ * as a phone's messages read. Never more than the note and one reply: it's an answer to a response, not a chat.
+ */
+export function NoteThread({ first, note, reply, challenged }: { first: string; note: Submission; reply: CoachPublication | null; challenged?: boolean }) {
+  return (
+    <div className="thread" aria-label={`${first}’s note back${reply ? ' and your reply' : ''}`}>
+      <div className="bubble-meta">{first} · {fmt.dm(note.createdAt.slice(0, 10))}</div>
+      <div className="bubble them">{String(note.body?.text || '')}</div>
+      {challenged && !reply && <div className="bubble-meta me"><Icon name="sparkle" size={12} /> Challenged with BLOC: the check-in’s next version is in Edit</div>}
+      {reply && <>
+        <div className="bubble-meta me">You · {fmt.dm(reply.createdAt.slice(0, 10))}</div>
+        <div className="bubble me">{String(reply.payload?.text || '')}</div>
+      </>}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- challenge a check-in (§170)
+
+/**
+ * Challenge with BLOC: the client's note goes to the engine's challenge call (BLOC Solo's "Challenge this advice")
+ * against the check-in they were sent. The coach can edit the words first. The result becomes the draft's next version
+ * (Publish the update sends it), and its acknowledgment starts the reply.
+ */
+function ChallengeSheet({ note, d, data, state, first, today, onClose, onUsed }: {
+  note: Submission; d: AiDraft; data: AiData; state: BlocState; first: string; today: string;
+  onClose: () => void; onUsed: (d: AiDraft, acknowledgment: string) => void;
+}) {
+  const { repo } = useCoach();
+  const id = useId();
+  const [text, setText] = useState(String(note.body?.text || ''));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{ edit: AiEdit; ack: string } | null>(null);
+  const macro = (state.macrocycles || []).find((x) => x.id === d.macroId);
+  const key = getAiKey();
+  const run = async () => {
+    if (!key || !macro) return;
+    setBusy(true); setError(null);
+    try {
+      const { revision, record } = await runChallenge({ state, macro, today, callModel: coachCallModel(key), drafts: data.drafts, publications: data.publications, note, text });
+      setResult({ edit: challengeEdit(d, sentEdit(d), revision, record), ack: record.acknowledgment });
+    } catch (x) { setError(msg(x)); }
+    finally { setBusy(false); }
+  };
+  const use = async () => {
+    if (!result) return;
+    setBusy(true); setError(null);
+    try { onUsed(await repo.saveAiEdit(d.id, result.edit), result.ack); }
+    catch (x) { setError(msg(x)); setBusy(false); }
+  };
+  const before = sentEdit(d);
+  return (
+    <Sheet open onClose={onClose} title="Challenge with BLOC">
+      <p className="muted">BLOC answers the challenge against the check-in {first} was sent, then revises the plan, or the whole check-in if it changes its read. Nothing reaches {first} until you publish.</p>
+      <Field label={`The challenge (${first}’s note, edit it if you like)`} htmlFor={`${id}-t`}>
+        <textarea id={`${id}-t`} className="input" rows={4} maxLength={2000} value={text} onChange={(x) => { setText(x.target.value); setResult(null); }} />
+      </Field>
+      {!key && <p className="caption" style={{ marginTop: 8 }}>Add your AI key in Settings to run it.</p>}
+      {result && (
+        <div className="tile" style={{ marginTop: 14 }}>
+          <span className="label">BLOC’s answer</span>
+          <p style={{ fontSize: 14, marginTop: 4 }}>{result.ack}</p>
+          <p className="caption" style={{ marginTop: 10 }}>
+            {result.edit.challenge?.significant ? `A new read: the headline becomes “${result.edit.headline}”.` : 'The words stay as sent; only the plan changes.'}
+            {result.edit.kcal != null && ` First phase ${fmt.int(result.edit.kcal)} kcal${before.kcal != null && before.kcal !== result.edit.kcal ? ` (was ${fmt.int(before.kcal)})` : ''}${result.edit.steps != null ? `, ${fmt.int(result.edit.steps)} steps` : ''}.`}
+          </p>
+        </div>
+      )}
+      {error && <Notice icon="warning" tone="bad" title="Couldn’t run the challenge" style={{ marginTop: 14 }}>{error}</Notice>}
+      {result
+        ? <>
+            <Button style={{ marginTop: 18 }} icon="check" disabled={busy} onClick={use}>{busy ? 'Saving…' : 'Use this version, then reply'}</Button>
+            <div className="btnrow" style={{ marginTop: 8 }}><Button variant="ghost" size="card" disabled={busy} onClick={run}>Run it again</Button></div>
+          </>
+        : <Button style={{ marginTop: 18 }} icon="sparkle" disabled={busy || !key || !text.trim() || !macro} onClick={run}>{busy ? 'Running with your key…' : 'Run the challenge'}</Button>}
+    </Sheet>
+  );
+}
+
+function ReplySheet({ note, initial, first, cardId, onClose, onSent }: { note: Submission | null; initial: string; first: string; cardId: string; onClose: () => void; onSent: (p: CoachPublication) => void }) {
   const { repo } = useCoach();
   const id = useId();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { setText(''); setError(null); setBusy(false); }, [note?.id]);
+  useEffect(() => { setText(initial); setError(null); setBusy(false); }, [note?.id, initial]);
   if (!note) return null;
   const send = async () => {
     setBusy(true); setError(null);
@@ -483,9 +575,9 @@ function ReplySheet({ note, first, cardId, onClose, onSent }: { note: Submission
   };
   return (
     <Sheet open onClose={onClose} title={`Reply to ${first}`}>
-      <div className="tile"><span className="caption">{first} wrote</span><p style={{ fontSize: 14, marginTop: 4, whiteSpace: 'pre-wrap' }}>{String(note.body?.text || '')}</p></div>
+      <NoteThread first={first} note={note} reply={null} />
       <Field label="Your reply" htmlFor={`${id}-r`}><textarea id={`${id}-r`} className="input" maxLength={2000} value={text} onChange={(x) => setText(x.target.value)} /></Field>
-      <p className="caption" style={{ marginTop: 8 }}>{first} sees it under their note, in Progress.</p>
+      <p className="caption" style={{ marginTop: 8 }}>{first} sees it under their note, in Progress.{initial ? ' It starts from BLOC’s answer to the challenge: change it as you like.' : ''}</p>
       {error && <Notice icon="warning" tone="bad" title="Couldn’t send" style={{ marginTop: 14 }}>{error}</Notice>}
       <Button style={{ marginTop: 18 }} icon="send" disabled={busy || !text.trim()} onClick={send}>{busy ? 'Sending…' : 'Send reply'}</Button>
     </Sheet>

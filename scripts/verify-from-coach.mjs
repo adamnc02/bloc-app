@@ -157,8 +157,11 @@ async function run(label, src) {
     check('Read full check-in (with its icon); no Check in button (v8.56); the note back is NOT on the card (v8.43: the full sheet only)',
       [/<svg[^>]*>[\s\S]*?<\/svg>Read full check-in/.test(h), h.includes('openCoachNote('), /CoachCheckin|>Check in</.test(h)], [true, false, false]);
     F.openCoachResponse('r1');
-    check('…it\'s in the full sheet, with its speech-bubble icon, not the pulsing dot',
-      [/<svg[^>]*>[\s\S]*?<\/svg>Send a note back/.test(env.document.getElementById('coach-response-body').innerHTML), /ai-action-dot/.test(env.document.getElementById('coach-response-body').innerHTML)], [true, false]);
+    check('…it\'s in the full sheet, with its speech-bubble icon, not the pulsing dot; on a check-in it\'s Challenge this (v8.56, §170)',
+      [/<svg[^>]*>[\s\S]*?<\/svg>Challenge this/.test(env.document.getElementById('coach-response-body').innerHTML), /ai-action-dot/.test(env.document.getElementById('coach-response-body').innerHTML)], [true, false]);
+    const envV = makeEnv(); envV.state.coachAdvice = [advice({ responseId: 'rv', tool: 'cycle_review', publicationId: 'pub-v' })];
+    factory(envV).openCoachResponse('rv');
+    check('…a cycle review has no challenge: Send a note back (control)', [envV.document.getElementById('coach-response-body').innerHTML.includes('Send a note back'), envV.document.getElementById('coach-response-body').innerHTML.includes('Challenge this')], [true, false]);
     const envG = makeEnv({ line: 'Next check-in · Mon 12 Oct' });
     envG.state.coachAdvice = [advice()];
     const elG = { innerHTML: '' }; factory(envG).renderProgressFromCoach(elG, null);
@@ -237,8 +240,15 @@ async function run(label, src) {
     env.state.coachNoteReplies['sub-1'] = { text: 'Drop to 3 sets this week.' };
     factory(env).openCoachResponse('r1');
     const sheet = env.document.getElementById('coach-response-body').innerHTML;
-    check('once sent, the full sheet says so, and the coach\'s reply shows under it',
-      [sheet.includes('Note sent to Sam'), sheet.includes('openCoachNote('), sheet.includes('Drop to 3 sets this week.')], [true, false, true]);
+    check('once sent, the full sheet shows the thread: your note on the right, the coach\'s reply on the left, and no second button',
+      [/coach-bubble me">Knees sore on squats</.test(sheet), /coach-bubble them">Drop to 3 sets this week.</.test(sheet), sheet.includes('openCoachNote(')], [true, true, false]);
+    // One per response (v8.56, §170): the coach's update (a new publication, the same responseId) doesn't open another.
+    env.state.coachAdvice = [advice({ publicationId: 'pub-2', seq: 6, updated: true })];
+    factory(env).openCoachResponse('r1');
+    check('…an updated version still shows the thread, not a new Challenge this', env.document.getElementById('coach-response-body').innerHTML.includes('openCoachNote('), false);
+    const G2 = factory(env); G2.openCoachNote('r1'); env.document.getElementById('coach-note-text').value = 'again';
+    const before = env.calls.length; await G2.sendCoachNote();
+    check('…and a second note on the same response is refused, nothing sent', env.calls.length, before);
 
     const envF = makeEnv({ insertError: { message: 'network' } });
     envF.state.coachAdvice = [advice()];

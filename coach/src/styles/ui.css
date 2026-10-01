@@ -378,3 +378,13 @@ input[type="date"].input::-webkit-date-and-time-value, input[type="time"].input:
 .settings-logo.animate .lb-2 { animation: coachLogoBarIn .5s ease-out .16s both, coachLogoBarPulse 1.6s ease-in-out 1.43s 2 }
 .settings-logo.animate .lb-3 { animation: coachLogoBarInTop .55s ease-out .32s both, coachLogoBarPulseTop 1.6s ease-in-out 1.61s 2 }
 @media (prefers-reduced-motion: reduce) { .settings-logo.animate .logo-bar { animation: none } }
+
+/* ---------- a note back and its reply, as a phone's messages (§170) ----------
+   The client's bubble on the left, the coach's on the right, each with a tail corner. Two bubbles at most: an answer
+   to a response, not a chat. */
+.thread { display: flex; flex-direction: column; gap: 4px }
+.bubble { max-width: 82%; padding: 9px 13px; border-radius: 18px; font-size: 14.5px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere }
+.bubble.them { align-self: flex-start; background: var(--surface3); color: var(--text); border-bottom-left-radius: 6px }
+.bubble.me { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 6px }
+.bubble-meta { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text3); margin: 6px 4px 0 }
+.bubble-meta.me { align-self: flex-end }

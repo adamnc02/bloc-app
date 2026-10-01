@@ -18,7 +18,7 @@ import {
   isCycleReviewDue, isInFinalWeek, isNextCycleAdviceEligible, recommendNextCycle, renumberMacroGoalSteps, shiftDateStr,
   type BlocState, type GoalPeriod, type Loose, type Macrocycle,
 } from '@engine';
-import type { AiDraft, AiEdit, AiOriginal, AiTool, CoachPublication, PhaseEdit, Submission } from './types';
+import type { AiDraft, AiEdit, AiOriginal, AiTool, ChallengeRecord, CoachPublication, PhaseEdit, Submission } from './types';
 
 export const TOOLS: AiTool[] = ['check_in', 'cycle_review', 'next_cycle'];
 export const TOOL_LABEL: Record<AiTool, { tab: string; run: string; read: string; noun: string }> = {
@@ -128,6 +128,22 @@ export function withPlan(d: Pick<AiDraft, 'tool' | 'original' | 'macroId' | 'cre
     return { ...e, kcal: int(g?.kcal), steps: int(g?.steps) };
   }
   return e;
+}
+
+/**
+ * The next version of a challenged check-in (§170), as BLOC Solo's acceptChallengeRevision decides: a significant
+ * revision replaces the headline and narrative; otherwise the words the client was sent stay and only the plan changes.
+ * The plan is the revision's, on the plan the sent version chose (Sustainable when it chose none), with the same phase
+ * ids, so a republish replaces the phases on the client's phone. The record is kept on the edit, never sent.
+ */
+export function challengeEdit(d: AiDraft, sent: AiEdit, revision: Loose, record: ChallengeRecord): AiEdit {
+  const words = record.significant
+    ? { headline: String(revision.headline || ''), narrative: [...paragraphs(revision.narrative), ...(revision.primaryAction ? [`This week: ${String(revision.primaryAction)}`] : [])] }
+    : { headline: sent.headline, narrative: sent.narrative };
+  const planKey = sent.planKey ?? 'sustainable';
+  const o: AiOriginal = { ...d.original, response: { ...(d.original.response || {}), recommendations: revision.recommendations, _cycleEnd: revision._cycleEnd ?? d.original.response?._cycleEnd } };
+  const phases = phasesFor(o, planKey, d.macroId ?? 'macro', Date.parse(d.createdAt) || 0);
+  return { ...sent, ...words, planKey: phases.length ? planKey : null, phases, kcal: phases[0]?.kcal ?? null, steps: phases[0]?.steps ?? null, challenge: record };
 }
 
 const bare = (e: AiEdit): AiEdit => { const { sentAs: _s, ...rest } = e; void _s; return rest; };

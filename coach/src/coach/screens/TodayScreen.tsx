@@ -292,11 +292,11 @@ function NeedsBody({ it, name, first, who, onRequest, onCancel, onLeave, onDismi
       </>;
     case 'note':
       return <>
-        <CardHead icon="send" eyebrow="Note back" name={name} when={ago(it.submission.createdAt)} />
+        <CardHead icon="send" eyebrow={it.tool === 'check_in' ? 'Check-in challenged' : 'Note back'} name={name} when={ago(it.submission.createdAt)} />
         {it.headline && <div className="muted" style={{ marginTop: 12 }}>On “{it.headline}”</div>}
         <Quote>{String(it.submission.body?.text ?? '')}</Quote>
         <div className="btnrow">
-          <Button size="card" icon="message" onClick={() => go(needsItemOpen(it))}>Reply in Review</Button>
+          <Button size="card" icon={it.tool === 'check_in' ? 'sparkle' : 'message'} onClick={() => go(needsItemOpen(it))}>{it.tool === 'check_in' ? 'Answer the challenge' : 'Reply in Review'}</Button>
           <Button size="card" variant="ghost" onClick={() => onDismiss(it)}>Dismiss</Button>
         </div>
       </>;
