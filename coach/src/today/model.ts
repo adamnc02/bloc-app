@@ -8,7 +8,8 @@
 //                     photos answered and not yet reviewed, and bookings from the last 14 days that weren't
 //                     logged or cancelled (BLOC keeps an assigned session out of "next" until one or the other),
 //                     group weeks included (§162: Log it opens the group session, Cancel cancels it for everyone),
-//                     and an exercise rated 9+ two weeks running on a coach's cycle (§163: Reset it opens it in Plan).
+//                     and an exercise rated 9+, or missing its target, two weeks running on a coach's cycle (§163:
+//                     Reset it opens it in Plan; Leave keeps BLOC's hold, until a further week the same way).
 //   Off track         linked clients whose outcome is off track (Review's judgement), with its one reason.
 //   Coming up         check-ins due, cycles in their final week, measurements due, and apps gone quiet.
 //
@@ -25,7 +26,7 @@ import { occurrencesBetween, requestsNeedingCoach, type Occurrence } from '@/dia
 import { publishedIdOf } from '@/diary/actions';
 import type { Diary, SessionRequest } from '@/diary/types';
 import { canStart, cycleForSession, loggedFor, loggedSessions, missedFrom, recordState } from '@/inperson/model';
-import { highRatingStreaks, type HighStreak } from '@/review/effort';
+import { highRatingStreaks, isLeft, type HighStreak } from '@/review/effort';
 import { groupLoggedFor } from '@/group/model';
 import { getMeasurementStatus } from '@/lib/measurementStatus';
 import { clientPath } from '@/app/router';
@@ -109,7 +110,7 @@ export function effortFlags(inbox: Inbox, bundles: ClientBundle[], summaries: Cl
     const t = sum.clientToday ?? today;
     const macro = cycleForSession(state, t, t);
     if (!macro) continue;
-    for (const streak of highRatingStreaks(state, macro)) out.push({ cardId: b.card.id, streak });
+    for (const streak of highRatingStreaks(state, macro)) if (!isLeft(inbox.leaves ?? [], b.card.id, streak)) out.push({ cardId: b.card.id, streak });
   }
   return out;
 }
@@ -148,7 +149,7 @@ export function needsYou(d: Diary, inbox: Inbox, bundles: ClientBundle[], summar
   for (const { occ, cardId } of missedBookings(d, inbox, today)) out.push({ kind: 'missed', key: `m:${occ.key}`, at: atOf(occ), cardId, occ });
   for (const occ of missedGroups(d, inbox, today)) out.push({ kind: 'missedGroup', key: `g:${occ.key}`, at: atOf(occ), cardId: null, occ });
   for (const { cardId, streak: x } of effortFlags(inbox, bundles, summaries, coachId, today)) {
-    out.push({ kind: 'effort', key: `e:${cardId}:${x.macroId}:${x.dayKey}:${x.exId}:${x.weeks[1]}`, at: today, cardId, streak: x });
+    out.push({ kind: 'effort', key: `e:${x.kind}:${cardId}:${x.macroId}:${x.dayKey}:${x.exId}:${x.weeks[1]}`, at: today, cardId, streak: x });
   }
   return out.sort((a, z) => a.at.localeCompare(z.at));
 }

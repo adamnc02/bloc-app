@@ -9,7 +9,8 @@ import { resetExercise, resetWeek, updateExercise, type PlanDoc, type PlanMacro 
 import { diffPlan, payloadsOf } from '@/plan/diff';
 import { recordState } from '@/inperson/model';
 import type { CoachPublication } from '@/ai/types';
-import { highRatingStreaks } from './effort';
+import { highRatingStreaks, isLeft } from './effort';
+import { getWeekSets } from '@engine';
 
 const DEMO = readFileSync(new URL('../../../bloc-demo-data.json', import.meta.url), 'utf8');
 const MID = 'macro_1780859905961';
@@ -29,7 +30,7 @@ function world(rated: Record<number, number | 'skip'>, opts: { rpe?: boolean; de
   for (const [w, r] of Object.entries(rated)) (s as Loose).rpe[getRpeKey(MID, Number(w), dayKey, ex.id)] = r === 'skip' ? { rpeSkipped: true } : { rpe: r };
   return { s, m, dayKey, ex };
 }
-const flags = (w: ReturnType<typeof world>) => highRatingStreaks(w.s, w.m).filter((x) => x.dayKey === w.dayKey && x.exId === w.ex.id);
+const flags = (w: ReturnType<typeof world>) => highRatingStreaks(w.s, w.m).filter((x) => x.dayKey === w.dayKey && x.exId === w.ex.id && x.kind === 'too_hard');
 
 describe('rated 9 or 10 two weeks running', () => {
   it('two consecutive weeks rated 9 then 10 raise it, naming the weeks and ratings', () => {
@@ -76,7 +77,7 @@ describe('where a reset starts', () => {
 describe('Needs you, on a client\'s record', () => {
   it('raises it for a fixture client with a coach\'s cycle rated 9+ twice (control: rated 7 the second time)', () => {
     const demo = JSON.parse(DEMO) as Record<string, unknown>;
-    const make = (second: number) => {
+    const make = (second: number, leave = false) => {
       const built = buildFixtureClients(demo);
       // A linked fixture client whose cycles are all made a coach's, with ratings on: whichever runs at their today is judged.
       const b = built.clients.find((x) => x.link?.status === 'active' && (x.snapshot?.state?.macrocycles || []).length > 0)!;
@@ -91,10 +92,13 @@ describe('Needs you, on a client\'s record', () => {
       st.rpe = { [getRpeKey(macro.id, 2, dayKey, ex.id)]: { rpe: 9 }, [getRpeKey(macro.id, 3, dayKey, ex.id)]: { rpe: second } };
       st.deloads = {};
       const sums = built.clients.map((c) => summarise(c, built.now));
-      return effortFlags({ submissions: [], drafts: [], publications: [] }, built.clients, sums, 'coach-1', built.anchor).filter((x) => x.cardId === b.card.id);
+      const leaves = leave ? [{ cardId: b.card.id, macroId: String(macro.id), dayKey, exId: String(ex.id), kind: 'too_hard' as const, throughWeek: 3 }] : [];
+      return effortFlags({ submissions: [], drafts: [], publications: [], leaves }, built.clients, sums, 'coach-1', built.anchor).filter((x) => x.cardId === b.card.id && x.streak.kind === 'too_hard');
     };
     expect(make(10).length).toBeGreaterThan(0);
     expect(make(7)).toHaveLength(0);
+    // Left (0034): that run is gone from Needs you.
+    expect(make(10, true)).toHaveLength(0);
   });
 });
 
@@ -136,5 +140,46 @@ describe('the reset is saved with its week (v0.13.7)', () => {
     // Control: an edit keeps the exercise's own fromWeek (none), so the week is lost: what v0.13.6 published.
     const u = updateExercise(doc, 'session0', 'ex_r_0', { ...next, fromWeek: 10 });
     expect(u.exercises[`${MID}_1_session0`][0].fromWeek).toBeUndefined();
+  });
+});
+
+describe('missed its target two weeks running (v0.14)', () => {
+  // The track cleared, then weeks logged: `hit` well above any target (100 kg more each week), `miss` below it (0 kg).
+  function missWorld(logged: Record<number, 'hit' | 'miss'>) {
+    const w = world({}, { rpe: false });
+    const st = w.s as Loose;
+    for (const k of Object.keys(st.trainLogs)) if (k.startsWith(`${MID}_`) && k.includes(`_${w.dayKey}_${w.ex.id}_`)) delete st.trainLogs[k];
+    st.progressionTargets = {}; st.progressionLocks = {};
+    for (const [wk, how] of Object.entries(logged)) {
+      const n = getWeekSets(w.ex, Number(wk), w.m.weeks as number);
+      for (let i = 0; i < n; i++) st.trainLogs[`${MID}_${wk}_${w.dayKey}_${w.ex.id}_${i}`] = { weight: how === 'hit' ? String(100 * Number(wk)) : '0', reps: how === 'hit' ? '99' : '0', done: true };
+    }
+    return { ...w, missed: () => highRatingStreaks(w.s, w.m).filter((x) => x.dayKey === w.dayKey && x.exId === w.ex.id && x.kind === 'missed') };
+  }
+  it('two weeks running short of the target raise it, ratings off or on', () => {
+    const w = missWorld({ 1: 'hit', 2: 'hit', 3: 'miss', 4: 'miss' });
+    expect(w.missed().map((x) => x.weeks)).toEqual([[3, 4]]);
+  });
+  it('controls: one miss, a miss then a hit, or a gap between them, don\'t', () => {
+    expect(missWorld({ 1: 'hit', 2: 'hit', 3: 'miss' }).missed()).toHaveLength(0);
+    expect(missWorld({ 1: 'hit', 2: 'miss', 3: 'miss', 4: 'hit' }).missed()).toHaveLength(0);
+    expect(missWorld({ 1: 'hit', 2: 'miss', 4: 'miss' }).missed()).toHaveLength(0);
+  });
+});
+
+describe('Leave (v0.14, 0034)', () => {
+  const x = { kind: 'too_hard' as const, macroId: MID, dayKey: 'd', exId: 'e', name: 'Leg Press', weeks: [3, 4] as [number, number], ratings: [9, 10] as [number, number] };
+  const left = [{ cardId: 'c1', macroId: MID, dayKey: 'd', exId: 'e', kind: 'too_hard' as const, throughWeek: 4 }];
+  it('a Leave hides that run only (controls: a third week is a new run; the other kind, another card, are their own)', () => {
+    expect(isLeft(left, 'c1', x)).toBe(true);
+    expect(isLeft(left, 'c1', { ...x, weeks: [4, 5] })).toBe(false);
+    expect(isLeft(left, 'c1', { ...x, kind: 'missed' })).toBe(false);
+    expect(isLeft(left, 'c2', x)).toBe(false);
+  });
+  it('a third week rated 9+ raises a new run after a Leave', () => {
+    const w = world({ 3: 9, 4: 10, 5: 9 });
+    const f = flags(w);
+    expect(f.map((y) => y.weeks)).toEqual([[4, 5]]);
+    expect(isLeft([{ cardId: 'c', macroId: MID, dayKey: w.dayKey, exId: String(w.ex.id), kind: 'too_hard', throughWeek: 4 }], 'c', f[0])).toBe(false);
   });
 });

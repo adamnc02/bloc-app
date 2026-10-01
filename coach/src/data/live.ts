@@ -331,20 +331,33 @@ function createLiveRepoInner(sb: SupabaseClient, profile: CoachProfile, onProfil
     },
 
     async loadInbox() {
-      const [subs, drafts, pubs] = await Promise.all([
+      const [subs, drafts, pubs, leaves] = await Promise.all([
         sb.from('client_submissions').select('id, client_id, kind, publication_id, body, created_at').eq('coach_id', current.coachId).order('created_at'),
         sb.from('coach_ai_drafts').select(DRAFT_COLS).eq('coach_id', current.coachId).order('created_at'),
         sb.from('publications').select('id, seq, client_record_id, type, payload, supersedes, created_at').eq('coach_id', current.coachId)
           .in('type', ['plan', 'ai_response', 'note_reply', 'photo_request', 'session_log']).order('seq'),
+        sb.from('coach_flag_dismissals').select('client_record_id, macro_id, day_key, ex_id, kind, through_week').eq('coach_id', current.coachId),
       ]);
-      for (const r of [subs, drafts, pubs]) if (r.error) throw r.error;
+      for (const r of [subs, drafts, pubs, leaves]) if (r.error) throw r.error;
       return {
         submissions: ((subs.data ?? []) as Row[]).map((r) => ({
           id: String(r.id), clientId: String(r.client_id), kind: r.kind as Submission['kind'], publicationId: str(r.publication_id), body: (r.body ?? {}) as Loose, createdAt: String(r.created_at),
         })),
         drafts: ((drafts.data ?? []) as Row[]).map(toDraft),
         publications: ((pubs.data ?? []) as Row[]).map((p) => ({ ...toPublication(p, undefined), cardId: String(p.client_record_id) })),
+        leaves: ((leaves.data ?? []) as Row[]).map((r) => ({
+          cardId: String(r.client_record_id), macroId: String(r.macro_id), dayKey: String(r.day_key), exId: String(r.ex_id),
+          kind: r.kind === 'missed' ? 'missed' : 'too_hard', throughWeek: Number(r.through_week),
+        })),
       };
+    },
+
+    async leaveFlag(l) {
+      const { error } = await sb.from('coach_flag_dismissals').insert({
+        coach_id: current.coachId, client_record_id: l.cardId, macro_id: l.macroId, day_key: l.dayKey, ex_id: l.exId, kind: l.kind, through_week: l.throughWeek,
+      });
+      // Left already (the unique run): nothing to do.
+      if (error && error.code !== '23505') throw error;
     },
 
     async loadPhotos(paths) {

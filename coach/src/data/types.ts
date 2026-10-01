@@ -5,6 +5,7 @@ import type { BlocState, CycleReviewImage, Loose } from '@engine';
 import type { AiData, AiDraft, AiEdit, AiOriginal, AiTool, CoachPublication, Submission } from '@/ai/types';
 import type { PlanDoc } from '@/plan/doc';
 import type { Template, TemplateBody } from '@/plan/templates';
+import type { FlagLeave } from '@/review/effort';
 import type { AssignedSession, Booking, DayOff, Diary, DiarySettings, SentBooking, Series, Slot, RequestStatus } from '@/diary/types';
 
 export interface CoachProfile {
@@ -95,6 +96,8 @@ export interface Inbox {
   /** `plan`, `ai_response`, `note_reply`, `photo_request` and `session_log` publications, every card (a client not on the
    *  app has a plan only here, which Needs you's effort check folds, §163). */
   publications: (CoachPublication & { cardId: string })[];
+  /** The flags the coach left (`coach_flag_dismissals`, 0034, §163). Absent: none. */
+  leaves?: FlagLeave[];
 }
 /** A card edit. Name and contact only while the client isn't linked (0022's trigger refuses them after). */
 export interface CardPatch { firstName?: string; surname?: string | null; email?: string | null; phone?: string | null; notes?: string | null }
@@ -149,6 +152,8 @@ export interface CoachRepo extends DiaryRepo {
   loadCardPublications(cardId: string): Promise<CoachPublication[]>;
   /** Today's inputs across every card: the client submissions, the AI drafts, and the publications Today reads. */
   loadInbox(): Promise<Inbox>;
+  /** Leave a Needs you flag (0034): BLOC's hold stands; a further week the same way raises it again. */
+  leaveFlag(l: FlagLeave): Promise<void>;
   /** The client's cycle-review photos (`client-media`), readable only while photo consent is on. */
   loadPhotos(paths: string[]): Promise<CycleReviewImage[]>;
 

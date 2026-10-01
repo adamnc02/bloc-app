@@ -139,7 +139,13 @@ export function TodayScreen() {
                 {items.map((it, k) => (
                   <Card key={it.key} i={4 + k}>
                     <NeedsBody it={it} name={it.kind === 'missedGroup' ? titleOf(it.occ) : it.cardId ? nameOf(it.cardId) : 'A client'} first={firstOf(it.cardId)} who={who}
-                      onRequest={(id) => setSheet({ type: 'request', id })} onCancel={(x) => setSheet({ type: 'cancel', item: x })} />
+                      onRequest={(id) => setSheet({ type: 'request', id })} onCancel={(x) => setSheet({ type: 'cancel', item: x })}
+                      onLeave={(x) => {
+                        const k = x.streak;
+                        repo.leaveFlag({ cardId: x.cardId, macroId: k.macroId, dayKey: k.dayKey, exId: k.exId, kind: k.kind, throughWeek: k.weeks[1] })
+                          .then(() => { loadInbox(); toast.show(`${k.name} left as it is`); })
+                          .catch((e) => toast.show(`Couldn’t leave it: ${e instanceof Error ? e.message : String(e)}`));
+                      }} />
                   </Card>
                 ))}
               </div>
@@ -245,9 +251,11 @@ function SessionRow({ s, title, notOnApp }: { s: TodaySession; title: string; no
   );
 }
 
-function NeedsBody({ it, name, first, who, onRequest, onCancel }: {
+function NeedsBody({ it, name, first, who, onRequest, onCancel, onLeave }: {
   it: NeedsItem; name: string; first: string; who: ReturnType<typeof useDiaryData>['who'];
   onRequest: (id: string) => void; onCancel: (x: Extract<NeedsItem, { kind: 'missed' | 'missedGroup' }>) => void;
+  /** Leave a flag (§163, 0034): BLOC's hold stands. */
+  onLeave: (x: Extract<NeedsItem, { kind: 'effort' }>) => void;
 }) {
   const ago = (iso: string) => fmt.ddm(iso.slice(0, 10));
   switch (it.kind) {
@@ -301,10 +309,17 @@ function NeedsBody({ it, name, first, who, onRequest, onCancel }: {
     case 'effort': {
       const x = it.streak;
       return <>
-        <CardHead icon="warning" eyebrow="Rated too hard" name={name} when={`MC ${x.weeks[0]} and ${x.weeks[1]}`} />
-        <p className="body-copy" style={{ marginTop: 12 }}>{first} rated <b>{x.name}</b> {x.ratings[0]}, then {x.ratings[1]}.</p>
-        <p className="caption" style={{ marginTop: 4 }}>Its target holds while it’s rated 9 or 10. Reset it to start again from numbers {first} can manage: from the next week they haven’t logged.</p>
-        <div className="btnrow"><Button size="card" icon="edit" onClick={() => navigate(clientPath(it.cardId, 'plan', x.macroId, { act: 'reset', ex: `${x.dayKey}|${x.exId}` }))}>Reset it</Button></div>
+        <CardHead icon="warning" eyebrow={x.kind === 'missed' ? 'Missed target' : 'Rated too hard'} name={name} when={`MC ${x.weeks[0]} and ${x.weeks[1]}`} />
+        <p className="body-copy" style={{ marginTop: 12 }}>
+          {x.kind === 'missed' ? <>{first} missed <b>{x.name}</b>’s target two weeks running.</> : <>{first} rated <b>{x.name}</b> {x.ratings?.[0]}, then {x.ratings?.[1]}.</>}
+        </p>
+        <p className="caption" style={{ marginTop: 4 }}>
+          {x.kind === 'missed' ? 'BLOC holds the target until it’s hit.' : 'Its target holds while it’s rated 9 or 10.'} Reset it to start again from numbers {first} can manage, from the next week they haven’t logged, or leave it as it is. If it carries on another week, it comes back.
+        </p>
+        <div className="btnrow">
+          <Button variant="ghost" size="card" onClick={() => onLeave(it)}>Leave</Button>
+          <Button size="card" icon="edit" onClick={() => navigate(clientPath(it.cardId, 'plan', x.macroId, { act: 'reset', ex: `${x.dayKey}|${x.exId}` }))}>Reset it</Button>
+        </div>
       </>;
     }
     case 'missedGroup': {

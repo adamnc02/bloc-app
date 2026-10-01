@@ -13,6 +13,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 import { normaliseState, shiftDateStr, type BlocState, type Loose } from '@engine';
 import { formatInviteCode, splitName } from './live';
+import type { FlagLeave } from '@/review/effort';
 import type { AiDraft, CoachPublication, Submission } from '@/ai/types';
 import type { ClientBundle, ClientCard, CoachProfile, CoachRepo, NewInvite, PlanDraft } from './types';
 import { foldPlan } from '@/plan/fold';
@@ -99,6 +100,8 @@ function fakeCode(): string {
 export function createFixtureRepo(demo: Record<string, unknown>, onProfile: (p: CoachProfile) => void): CoachRepo & { anchor: string } {
   const built = buildFixtureClients(demo);
   const clients = built.clients;
+  // The flags the coach left (0034): this page's memory only.
+  const leaves: FlagLeave[] = [];
   let n = 0, tick = 0, seq = 0;
   const ai = {
     drafts: [] as AiDraft[],
@@ -187,8 +190,10 @@ export function createFixtureRepo(demo: Record<string, unknown>, onProfile: (p: 
         .map((x) => ({ id: x.id, seq: x.seq, type: 'booking', payload: x.payload as Loose, supersedes: null, createdAt: new Date(built.now).toISOString(), ack: null }));
       return [...booking, ...ai.pubs.filter((p) => p.cardId === cardId).map(({ cardId: _c, ...p }) => { void _c; return { ...p }; })].sort((a, b) => a.seq - b.seq);
     },
+    async leaveFlag(l) { if (!leaves.some((x) => JSON.stringify(x) === JSON.stringify(l))) leaves.push({ ...l }); },
     async loadInbox() {
       return {
+        leaves: leaves.map((x) => ({ ...x })),
         submissions: ai.subs.map((x) => ({ ...x })),
         drafts: ai.drafts.map((d) => ({ ...d })),
         publications: ai.pubs.filter((p) => ['plan', 'ai_response', 'note_reply', 'photo_request', 'session_log'].includes(p.type)).map((p) => ({ ...p })),
