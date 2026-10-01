@@ -14,8 +14,14 @@
 //     PUBLISHED on the cycle (Solo's fallback cooldown: the Monday after two
 //     weeks on), whatever the signal. A run the coach never published doesn't
 //     count: the client got nothing.
+//   · Never in the cycle's FINAL WEEK or after its end: the final week belongs
+//     to the cycle review, as Solo's final-week card replaces the mid-cycle
+//     check-in (isInFinalWeek). A check-in that would fall due then is simply
+//     not shown (`nextOn` null): the review comes next.
 // 🚨 Data alone is not the first gate: that made every client with enough logs
 //    due, on track or not.
+// 🚨 Without the final-week cut-off, a check-in 14 days after one published
+//    late in a cycle came due after the cycle had ended, beside its review.
 //   · Published dates are the only input both apps can see: BLOC has the
 //     responses it received, Coach the publications it sent.
 // 🚨 computeWeeklyInsights() throws on a running cycle with 0 or 1 weigh-ins
@@ -23,7 +29,7 @@
 //    data yet, never as a broken screen.
 // ═══════════════════════════════════════════════════════════════════════
 import type { BlocState, DateStr, Macrocycle } from './state.ts';
-import { type EngineContext, getMacroEndDate, getMondayAfter, getSundayAfterWeeks } from './dates.ts';
+import { type EngineContext, getMacroEndDate, getMondayAfter, getSundayAfterWeeks, shiftDateStr } from './dates.ts';
 import { computeCheckinState } from './insights.ts';
 import { isCycleReviewDue, isInFinalWeek } from './cycles.ts';
 
@@ -37,8 +43,13 @@ export interface CoachCheckinSchedule {
   signalWarrants: boolean;
   /** A check-in is due today: the cycle is running, has the data, and 14 days have passed since the last one published. */
   due: boolean;
-  /** When the next one is due (after a published check-in), or null (none published yet). */
+  /** 14 days after the last published (Solo's cooldown), or null (none published yet): the raw date, which may fall in
+   *  the final week or after the end. Show `nextOn`. */
   dueOn: DateStr | null;
+  /** The next check-in's date if it falls before the final week, else null (the cycle review comes next). */
+  nextOn: DateStr | null;
+  /** The last day a check-in can be due on this cycle: the day before its final week. */
+  checkinsUntil: DateStr | null;
   /** The newest published check-in's date on this cycle, or null. */
   lastOn: DateStr | null;
   /** About how many more weeks of logs before the first one, while there isn't enough data (0 once there is). */
@@ -54,17 +65,21 @@ export const checkinDueAfter = (on: DateStr): DateStr => getMondayAfter(getSunda
 export function coachCheckinSchedule(s: BlocState, ctx: EngineContext, macro: Macrocycle | null | undefined, publishedOn: DateStr[]): CoachCheckinSchedule {
   const lastOn = [...publishedOn].filter(Boolean).sort().pop() ?? null;
   const dueOn = lastOn ? checkinDueAfter(lastOn) : null;
-  if (!macro || !macro.start) return { enoughData: false, signalWarrants: false, due: false, dueOn, lastOn, weeksToData: 0 };
+  if (!macro || !macro.start) return { enoughData: false, signalWarrants: false, due: false, dueOn, nextOn: null, checkinsUntil: null, lastOn, weeksToData: 0 };
   let st = null;
   try { st = computeCheckinState(s, ctx, macro); } catch { st = null; }
   const enoughData = !!(st && st.hasEnoughData);
-  const running = ctx.today >= macro.start && ctx.today <= getMacroEndDate(macro, ctx);
+  const end = getMacroEndDate(macro, ctx);
+  const checkinsUntil = shiftDateStr(end, -7);
+  // Running and before the final week: the only days a check-in can be due.
+  const running = ctx.today >= macro.start && ctx.today <= checkinsUntil;
   const signalWarrants = !!(st && st.signalWarrants);
   // First: the engine's deterministic call (data AND signal). After: the 14-day cooldown.
   const due = running && enoughData && (dueOn ? ctx.today >= dueOn : signalWarrants);
   const weeksLogged = st && st.ins && Array.isArray(st.ins.weekBuckets) ? st.ins.weekBuckets.length : 0;
   const weeksToData = enoughData ? 0 : Math.max(0, ((macro.goalType || 'loss') === 'loss' ? 4 : 3) - weeksLogged);
-  return { enoughData, signalWarrants, due, dueOn, lastOn, weeksToData };
+  const nextOn = dueOn && dueOn <= checkinsUntil ? dueOn : null;
+  return { enoughData, signalWarrants, due, dueOn, nextOn, checkinsUntil, lastOn, weeksToData };
 }
 
 export interface CoachTabsReady { checkIn: boolean; cycleReview: boolean; nextCycle: boolean }

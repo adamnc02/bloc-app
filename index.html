@@ -6390,7 +6390,7 @@ try {
      same-named shims. ?v= is the first 12 hex of the file's SHA-256, so a phone never pairs a
      new index.html with an older engine from its HTTP cache; scripts/verify-engine-build.mjs
      fails if it is stale. Listed in scripts/publish-files.txt. -->
-<script src="engine/dist/bloc-engine.js?v=b227c816fc27"></script>
+<script src="engine/dist/bloc-engine.js?v=a8a7b6a84aa6"></script>
 <script>
 // ════════════════════════════════════════════════
 // DATE HELPERS
@@ -15221,7 +15221,9 @@ function coachCheckinLine(macro) {
   const sch = coachCheckinScheduleFor(macro);
   const coach = coachFirstName();
   if (sch.due) return `${sch.lastOn ? 'Your next' : 'Your first'} check-in is due. ${coach} will send it.`;
-  if (sch.dueOn) return `Next check-in · ${coachDayFmt(sch.dueOn)}`;
+  if (sch.nextOn) return `Next check-in · ${coachDayFmt(sch.nextOn)}`;
+  // The final week is the cycle review's: no check-in comes due in it (§168).
+  if (sch.checkinsUntil && (today > sch.checkinsUntil || sch.dueOn)) return `Your cycle review from ${coach} comes next.`;
   return '';
 }
 // Which tabs a cycle shows (the engine's coachTabsReady), remembered per cycle

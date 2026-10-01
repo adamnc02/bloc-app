@@ -11451,6 +11451,11 @@ which BLOC and BLOC Coach both read:
   an unstable maintenance weight…). **After the first**, every `checkinDueAfter(last)` (the Monday after two weeks on,
   Solo's fallback cooldown) from the newest check-in the coach **published** on the cycle, whatever the signal. Returns
   `{ enoughData, signalWarrants, due, dueOn, lastOn, weeksToData }`.
+- **Never in the cycle's final week or after its end** (`checkinsUntil`: the day before the final week). The final week
+  belongs to the cycle review, as Solo's final-week card replaces the mid-cycle check-in. `nextOn` is the next date only
+  if it falls before then; otherwise null, and Coach says "the cycle review comes next", BLOC "Your cycle review from
+  {coach} comes next." 🚨 Without it, a check-in published 11 days before the end came due 3 days after it, beside the
+  review.
 - 🚨 **Data alone is not the first gate.** With it, every client with enough logs was due, on track or not.
   `schedule.test.ts` has the control: Maya's weigh-ins rewritten as a steady loss read as on track, and no first
   check-in is due.

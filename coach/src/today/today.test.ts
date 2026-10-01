@@ -170,6 +170,13 @@ describe('aiSchedule: due (Needs you) and coming (Coming up), at the client\'s t
     expect(at(shiftDateStr(end, 1), [pub('maya', 'r9', 9, 'ai_response', { tool: 'cycle_review', macro_id: MID })]).due.some((x) => x.tool === 'cycle_review')).toBe(false);
     expect(at(shiftDateStr(end, 15)).due.some((x) => x.tool === 'cycle_review')).toBe(false);
   });
+  it('check-in: one that would fall due after the end (published 11 days before it) is not in Coming up beside the review', () => {
+    const s = maya(); const end = endOf(s);
+    const late = pub('maya', 'c9', 9, 'ai_response', { tool: 'check_in', macro_id: MID }, `${shiftDateStr(end, -11)}T10:00:00.000Z`);
+    const r = aiSchedule(s, shiftDateStr(end, -4), MID, [late], []);
+    expect([...r.due, ...r.coming].some((x) => x.tool === 'check_in')).toBe(false);
+    expect(r.due.some((x) => x.tool === 'cycle_review')).toBe(true);   // the review is what's due
+  });
   it('next cycle: coming the week before its 21-day window; due inside it until published', () => {
     const s = maya(); const end = endOf(s);
     expect(aiSchedule(s, shiftDateStr(end, -25), MID, [], []).coming.some((x) => x.tool === 'next_cycle')).toBe(true);

@@ -1897,7 +1897,7 @@ Write this cycle's review per the schema above.`;
   function coachCheckinSchedule(s, ctx, macro, publishedOn) {
     const lastOn = [...publishedOn].filter(Boolean).sort().pop() ?? null;
     const dueOn = lastOn ? checkinDueAfter(lastOn) : null;
-    if (!macro || !macro.start) return { enoughData: false, signalWarrants: false, due: false, dueOn, lastOn, weeksToData: 0 };
+    if (!macro || !macro.start) return { enoughData: false, signalWarrants: false, due: false, dueOn, nextOn: null, checkinsUntil: null, lastOn, weeksToData: 0 };
     let st = null;
     try {
       st = computeCheckinState(s, ctx, macro);
@@ -1905,12 +1905,15 @@ Write this cycle's review per the schema above.`;
       st = null;
     }
     const enoughData = !!(st && st.hasEnoughData);
-    const running = ctx.today >= macro.start && ctx.today <= getMacroEndDate(macro, ctx);
+    const end = getMacroEndDate(macro, ctx);
+    const checkinsUntil = shiftDateStr(end, -7);
+    const running = ctx.today >= macro.start && ctx.today <= checkinsUntil;
     const signalWarrants = !!(st && st.signalWarrants);
     const due = running && enoughData && (dueOn ? ctx.today >= dueOn : signalWarrants);
     const weeksLogged = st && st.ins && Array.isArray(st.ins.weekBuckets) ? st.ins.weekBuckets.length : 0;
     const weeksToData = enoughData ? 0 : Math.max(0, ((macro.goalType || "loss") === "loss" ? 4 : 3) - weeksLogged);
-    return { enoughData, signalWarrants, due, dueOn, lastOn, weeksToData };
+    const nextOn = dueOn && dueOn <= checkinsUntil ? dueOn : null;
+    return { enoughData, signalWarrants, due, dueOn, nextOn, checkinsUntil, lastOn, weeksToData };
   }
   function coachTabsReady(s, ctx, macro, had) {
     if (!macro || !macro.start) return { checkIn: had.checkIn, cycleReview: had.cycleReview, nextCycle: had.nextCycle };

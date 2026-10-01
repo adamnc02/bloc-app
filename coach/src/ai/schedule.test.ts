@@ -56,6 +56,21 @@ describe('coachCheckinSchedule', () => {
     const after = shiftDateStr(getMacroEndDate(m, { today: mid }), 1);
     expect(coachCheckinSchedule(s, { today: after }, m, []).due).toBe(false);
   });
+  it('🚨 never in the final week: a check-in that would fall due then (or after the end) isn\'t shown; the review comes next', () => {
+    const end = getMacroEndDate(m, { today: mid });
+    // Published 11 days before the end: 14 days on is 3 days AFTER the end (the case this guards).
+    const late = shiftDateStr(end, -11);
+    const r = coachCheckinSchedule(s, { today: shiftDateStr(end, -4) }, m, [late]);
+    expect([r.due, r.nextOn, r.dueOn! > end, r.checkinsUntil]).toEqual([false, null, true, shiftDateStr(end, -7)]);
+    // In the final week with an old check-in long overdue: still not due (control: the day before the final week it is).
+    const old = shiftDateStr(end, -40);
+    expect(coachCheckinSchedule(s, { today: shiftDateStr(end, -6) }, m, [old]).due).toBe(false);
+    expect(coachCheckinSchedule(s, { today: shiftDateStr(end, -7) }, m, [old]).due).toBe(true);
+    // A next date before the final week is kept.
+    const ok = coachCheckinSchedule(s, { today: shiftDateStr(end, -25) }, m, [shiftDateStr(end, -25)]);
+    expect(ok.nextOn).toBe(ok.dueOn);
+    expect(ok.nextOn! <= ok.checkinsUntil!).toBe(true);
+  });
   it('0 or 1 weigh-ins reads as not enough data, never a throw (BACKLOG P1)', () => {
     for (const keep of [0, 1]) {
       const t = maya(); t.bodyLogs = (t.bodyLogs || []).slice(0, keep);

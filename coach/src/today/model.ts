@@ -162,7 +162,7 @@ const published = (pubs: CoachPublication[], tool: AiTool, macroId: string) =>
 /**
  * When each AI tool is DUE or COMING (the next 7 days), at the client's today: both are Coming up's rows. None is ever
  * in Needs you or dismissed: each clears when the coach publishes it.
- *   · Check-in, on the running cycle: the engine's schedule (coachCheckinSchedule, §168).
+ *   · Check-in, on the running cycle: the engine's schedule (coachCheckinSchedule, §168), never in the final week.
  *   · Cycle review, on any cycle from its final week to 14 days after its end, until one is published: due when the
  *     coach has the next move (no photos asked yet; or asked, the cycle over, and PHOTO_WAIT_DAYS without an answer).
  *     Asked and waiting is the client's move; answered is Needs you's "Review photos in" card.
@@ -179,7 +179,8 @@ export function aiSchedule(state: BlocState, today: string, runningMacroId: stri
     const sch = coachCheckinSchedule(state, ctx, running, publishedCheckinDates(pubs, running.id));
     if (sch.due) due.push({ tool: 'check_in', macroId: running.id, at: sch.dueOn ?? today, stamp: sch.dueOn ?? 'first', title: sch.dueOn ? `Check-in due since ${fmt.ddm(sch.dueOn)}` : 'First check-in due',
       detail: sch.dueOn ? 'two weeks since the last' : 'their trend calls for one' });
-    else if (sch.enoughData && sch.dueOn && sch.dueOn <= soon && sch.dueOn <= end) coming.push({ tool: 'check_in', macroId: running.id, at: sch.dueOn, detail: `Check-in due ${fmt.ddm(sch.dueOn)}` });
+    // nextOn: only a date before the final week (that week is the review's).
+    else if (sch.enoughData && sch.nextOn && sch.nextOn <= soon) coming.push({ tool: 'check_in', macroId: running.id, at: sch.nextOn, detail: `Check-in due ${fmt.ddm(sch.nextOn)}` });
     const opens = shiftDateStr(end, -21);
     if (!published(pubs, 'next_cycle', running.id)) {
       if (today >= opens && today <= end) due.push({ tool: 'next_cycle', macroId: running.id, at: opens, stamp: 'open', title: 'Next cycle due', detail: `cycle ends ${fmt.ddm(end)}` });
