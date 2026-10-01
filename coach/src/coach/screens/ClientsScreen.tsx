@@ -76,7 +76,8 @@ export function ClientsScreen() {
 
   const open = (c: ClientSummary) => {
     if (c.status === 'invited') { setSheetError(null); setStatusFor(c); }
-    else navigate(clientPath(c.id, c.status === 'linked' ? 'review' : 'profile'));
+    // A client not on the app has a Review of their own (§155); invited or unlinked have nothing to review yet.
+    else navigate(clientPath(c.id, c.status === 'linked' || c.status === 'not-on-app' ? 'review' : 'profile'));
   };
 
   const add = async (nc: NewClient) => {

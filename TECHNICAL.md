@@ -11365,3 +11365,78 @@ Monday is caught); `scripts/verify-demo-no-backup.mjs` (control: without the lin
 `coach/src/demo/demo.test.ts` (the allow-lists, plans first on each card, stable ids, the diary a week on, Eileen
 read back through `foldPlan` and `loggedSessions`, Maya's plans applied once receipted, control: waiting without);
 `coach/src/demo/dump-rows.ts` writes a Rebuild's rows for super-duper-octo-barnacle's `behaviour-bloc-demo.mjs`.
+
+## §165 — Coach v0.15: the coach's exercise library, Group and Client workouts, This cycle, and five fixes
+
+**What it is.** BLOC Coach's after-UAT batch for PROMPT-03 Phase 5h. Migration `0035` (super-duper-octo-barnacle) adds
+the coach's library. BLOC is unchanged.
+
+### The coach's exercise library (`0035` `coach_exercises`)
+
+An exercise the coach adds by name (Library → New workout, a client's Plan: the picker's **Add "…"** row) is saved into
+the coach's own library as it's added, with no extra step: `ExerciseSheet` calls `onNewExercise` when the saved name is
+in no list it was given, and `useCoachExercises().remember` stores it (`repo.saveExercise`; a name already there,
+whatever its case, is left as it is). Every Coach picker then lists it, labelled "your library" (`source: 'mine'`):
+`buildLibrary(customLibrary, [coach's, then this plan's names])`, so BLOC's built-in list and the client's own come
+first and a name appears once. An exercise still reaches a phone inside a plan. (BLOC's own Plan already saves a new
+exercise into the client's `customLibrary` as it's added: `saveCustomExercise()`.)
+
+### Group and Client workout templates
+
+A workout template's body carries `audience: 'group'` for a Group workout; absent is a Client workout, which every
+template from before reads as (`audienceOf`). Every workout card in Library shows its type and a **Client / Group**
+switch (`repo.updateTemplateBody`); **New workout** asks **For: A client / A group** first, and saves nothing until it's
+chosen.
+
+- 🚨 **A group session is planned with a Group workout only**: Plan a workout (a group booking's sheet, the group
+  session) lists Group workouts, and says how to make one when there are none.
+- **A Group workout has no progression**, so its exercise sheet (`ExerciseSheet` `group`) has **Sets**, reps and
+  **Weight (kg)** only: no peak sets, no heavy leg (saved with `setsEnd = setsStart`, `isHeavyLeg: false`).
+- A Client workout is applied into a client's cycle as before.
+
+### Client → Sessions → This cycle (`inperson/ThisCycle.tsx`)
+
+Every session of the client's running cycle (the coach's, else their own date-active one), week by week: In person's
+week agenda (`agendaOf` at the client's today), read-only, for every client, on the app or not. Each week is a card
+("Mon 17 Aug – Sun 23 Aug", MC, "n of m done", This week, Deload), open on this week. Each session's state is
+`sessionStatus()`:
+
+- **Replaced by a group**;
+- **Logged by you**;
+- **Done**;
+- **Part done · n/m sets**;
+- **Up next**;
+- **To do**.
+
+A session opens its logged sets and ratings from the client's record. The section's line says how many of the cycle's
+sessions are done.
+
+### Five fixes
+
+- **Save is dull until the form changes** (the Diary's session sheet). Planning a workout or tagging a session saves at
+  once and isn't a form change.
+- **A client not on the app opens on Review** from Clients (they've had one since §155). Invited and unlinked clients,
+  with nothing to review, open on Profile.
+- 🚨 **A session's sheet opens with its final content** (`ActionsGate`). The Diary's and a client's Sessions sheet
+  (In person's and a group's actions) loaded the attendees' records after the sheet started opening. Until they arrived,
+  a logged group week showed **Start session** and then lost it, and **Tag a session** appeared once the sheet was
+  already rising, so it jumped half way up the screen. The records now load first (`useRecords`) and are handed to the
+  actions (`record`, `records`).
+- **The printed PDF is named after the client, the mesocycle and its dates** ("Eileen Moss · MC 1 · Mon 17 Aug – Sun 30
+  Aug"): iOS and browsers name it from the page title, which the print page sets while it's open (it was "BLOC Coach").
+- **Done as planned goes once every set is done**: there's nothing left for it to complete.
+
+### Checks
+
+- `coach/src/plan/v015.test.ts` (vitest, 3):
+  - a Group workout's audience (control: a Client one and an old one read Client);
+  - the coach's library in `buildLibrary` (theirs labelled "mine", a name once; control: a built-in name stays BLOC's);
+  - every `sessionStatus` state.
+- Driven in headless Chromium on the fixtures (375 × 812, 1440 × 1000):
+  - New workout: Save off until "A group" is chosen; the Group sheet with "Sets" and no Peak sets or Heavy leg; "Add
+    'Sled Pull'"; saved as a Group workout. Sled Pull then listed as "your library" in the next picker.
+  - A card switched to Group; Eileen opening on Review; This cycle on her Sessions ("0 of 56", the fixture having no
+    sessions logged); the print page titled "Eileen Moss · MC 1 · Mon 17 Aug – Sun 30 Aug".
+  - The Diary sheet's Save dull, then live after a change.
+  - No console errors.
+

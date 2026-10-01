@@ -32,6 +32,11 @@ export interface MacroTemplateBody {
 export interface WorkoutTemplateBody {
   v: 1;
   kind: 'workout';
+  /**
+   * Who it's for (§165): 'group' for a group session (no progression: sets, reps and weight only; the only kind a group
+   * session can be planned with), else a client's session. Absent: 'client' (every template from before).
+   */
+  audience?: 'group' | 'client';
   label: string;
   exercises: TplExercise[];
   supersets: Record<string, string | null>;
@@ -85,12 +90,15 @@ export function macroTemplateOf(doc: PlanDoc): { body: MacroTemplateBody; summar
   return { body: { v: 1, kind: 'macrocycle', macro: JSON.parse(JSON.stringify(macro)), sessions, supersets, deloads, goals }, summary };
 }
 
+/** A workout template's audience: 'group' only when it says so (§165). */
+export const audienceOf = (t: Pick<Template, 'body'>): 'group' | 'client' => (t.body.kind === 'workout' && t.body.audience === 'group' ? 'group' : 'client');
+
 /** One session as a template. */
-export function workoutTemplateOf(doc: PlanDoc, dayKey: string, label: string): { body: WorkoutTemplateBody; summary: string } {
+export function workoutTemplateOf(doc: PlanDoc, dayKey: string, label: string, audience: 'group' | 'client' = 'client'): { body: WorkoutTemplateBody; summary: string } {
   const refs = new Map<string, string>();
   const supersets: Record<string, string | null> = {};
   const exercises = stripList(doc.exercises[keyOf(doc.macro.id, dayKey)] || [], doc.supersets, refs, supersets);
-  return { body: { v: 1, kind: 'workout', label, exercises, supersets }, summary: exercises.map((e) => e.name).join(', ') };
+  return { body: { v: 1, kind: 'workout', ...(audience === 'group' ? { audience } : {}), label, exercises, supersets }, summary: exercises.map((e) => e.name).join(', ') };
 }
 
 function freshList(list: TplExercise[], key: string, ids: IdGen, ssNames: Record<string, string | null>, doc: PlanDoc, map: Map<string, string>): PlanExercise[] {

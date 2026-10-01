@@ -15,18 +15,22 @@ import { displayName } from '@/data/summary';
 import type { Occurrence } from '@/diary/model';
 import { assignSession, publishedIdOf } from '@/diary/actions';
 import type { AssignedSession, Diary } from '@/diary/types';
-import { agendaOf, canStart, cycleForSession, loggedFor, missedFrom } from './model';
+import { agendaOf, canStart, cycleForSession, loggedFor, loggedSessions, missedFrom } from './model';
+import type { AttendeeRecord } from '@/group/useRecords';
 import { useRecord } from './useRecord';
 import { SessionPicker } from './SessionPicker';
 import { assignedFor } from './InPersonScreen';
 
-export function InPersonActions({ occ, cardId, diary, bundles, today, nowMin, run }: {
+export function InPersonActions({ occ, cardId, diary, bundles, today, nowMin, run, record }: {
   occ: Occurrence; cardId: string; diary: Diary; bundles: ClientBundle[]; today: string; nowMin: number;
   run: (fn: (d: Diary) => Promise<Diary>, ok: string | null) => Promise<boolean>;
+  /** The client's record, loaded before the sheet opened (ActionsGate, §165); else it's loaded here. */
+  record?: AttendeeRecord;
 }) {
   const { repo } = useCoach();
   const bundle = bundles.find((b) => b.card.id === cardId) ?? null;
-  const rec = useRecord(bundle);
+  const own = useRecord(record ? null : bundle);
+  const rec = record ? { state: record.state, today: record.today, logged: loggedSessions(record.pubs) } : own;
   const [picking, setPicking] = useState(false);
   if (occ.kind !== 'one_to_one' || !bundle) return null;
   const first = displayName(bundle).split(' ')[0];

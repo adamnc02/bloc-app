@@ -440,6 +440,23 @@ function createLiveRepoInner(sb: SupabaseClient, profile: CoachProfile, onProfil
       if (error) throw error;
     },
 
+    async updateTemplateBody(id, body) {
+      const { error } = await sb.from('coach_templates').update({ body, updated_at: new Date().toISOString() }).eq('id', id);
+      if (error) throw error;
+    },
+
+    async loadExercises() {
+      const { data, error } = await sb.from('coach_exercises').select('name, body_part, category').eq('coach_id', current.coachId).order('name');
+      if (error) throw error;
+      return ((data ?? []) as Row[]).map((r) => ({ name: String(r.name), bodyPart: String(r.body_part), category: r.category === 'cardio' ? 'cardio' : 'weight', source: 'mine' }));
+    },
+
+    async saveExercise(e) {
+      const { error } = await sb.from('coach_exercises').insert({ coach_id: current.coachId, name: e.name.trim(), body_part: (e.bodyPart || 'Other').trim(), category: e.category === 'cardio' ? 'cardio' : 'weight' });
+      // Already in the library (the unique name): nothing to do.
+      if (error && error.code !== '23505') throw error;
+    },
+
     async recordApplication(templateId, cardId) {
       const { error } = await sb.from('template_applications').insert({ template_id: templateId, client_record_id: cardId });
       if (error) throw error;

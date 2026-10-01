@@ -14,19 +14,22 @@ import { planWorkout, publishedIdOf, type Scope } from '@/diary/actions';
 import type { Diary, PlannedWorkout } from '@/diary/types';
 import { canStart, missedFrom } from '@/inperson/model';
 import { TemplatePicker } from '@/coach/client/plan/PlanSheets';
-import type { Template } from '@/plan/templates';
+import { audienceOf, type Template } from '@/plan/templates';
 import { fmt } from '@/lib/format';
 import { plannedFromTemplate, workoutExercises } from './model';
-import { useRecords } from './useRecords';
+import { useRecords, type AttendeeRecord } from './useRecords';
 
-export function GroupActions({ occ, bundles, today, nowMin, run }: {
+export function GroupActions({ occ, bundles, today, nowMin, run, records: preloaded }: {
   occ: Occurrence; diary: Diary; bundles: ClientBundle[]; today: string; nowMin: number;
   run: (fn: (d: Diary) => Promise<Diary>, ok: string | null) => Promise<boolean>;
+  /** The attendees' records, loaded before the sheet opened (ActionsGate, §165); else they're loaded here. */
+  records?: Record<string, AttendeeRecord>;
 }) {
   const { repo } = useCoach();
   const ids = occ.clientIds.join('|');
   const people = useMemo(() => (ids ? ids.split('|').map((c) => bundles.find((b) => b.card.id === c)).filter((b): b is ClientBundle => !!b) : []), [bundles, ids]);
-  const { records } = useRecords(people);
+  const loaded = useRecords(preloaded ? [] : people);
+  const records = preloaded ?? loaded.records;
   const [picking, setPicking] = useState(false);
   const [templates, setTemplates] = useState<Template[] | null>(null);
   const [scopeFor, setScopeFor] = useState<PlannedWorkout | null>(null);
@@ -60,7 +63,9 @@ export function GroupActions({ occ, bundles, today, nowMin, run }: {
             onClick={() => setPicking(true)} />
         </div>
       )}
-      {picking && <TemplatePicker open kind="workout" title={w ? 'Change workout' : 'Plan a workout'} templates={templates ?? []} onClose={() => setPicking(false)} onPick={pick} />}
+      {/* A group runs a Group workout only (§165). */}
+      {picking && <TemplatePicker open kind="workout" title={w ? 'Change workout' : 'Plan a workout'} templates={(templates ?? []).filter((t) => audienceOf(t) === 'group')}
+        empty={'No group workouts yet. Build one in Library → New workout (for a group), or switch a workout to Group on its card.'} onClose={() => setPicking(false)} onPick={pick} />}
       {scopeFor && (
         <Sheet open title={`Plan ${scopeFor.name}`} onClose={() => setScopeFor(null)}>
           <p className="muted">{occ.title ?? 'This group'} is weekly. Plan it for this week, or for every week from now on? A week with its own workout keeps it.</p>

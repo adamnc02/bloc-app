@@ -27,7 +27,7 @@ import { agendaOf, cycleForSession, defaultSession, type ExerciseTarget } from '
 import { ExerciseLogCard } from '@/inperson/ExerciseLogCard';
 import { SessionPicker } from '@/inperson/SessionPicker';
 import { TemplatePicker } from '@/coach/client/plan/PlanSheets';
-import type { Template } from '@/plan/templates';
+import { audienceOf, type Template } from '@/plan/templates';
 import { attended, groupPayload, groupSessionId, plannedFromTemplate, seedSets, workoutExercises, type GroupExercise } from './model';
 import { dropGroupDraft, loadGroupDraft, saveGroupDraft, type GroupDraft } from './draft';
 import { useRecords, type AttendeeRecord } from './useRecords';
@@ -206,7 +206,8 @@ export function GroupSessionScreen({ occKey }: { occKey: string }) {
         {w && <Button icon="play" style={{ marginTop: 18 }} onClick={start}>Start {w.name}</Button>}
         <Button variant="ghost" icon="library" style={{ marginTop: 10 }} onClick={() => setPlanning(true)}>{w ? 'Change workout' : 'Plan a workout'}</Button>
       </Hero>
-      {planning && <TemplatePicker open kind="workout" title="Plan a workout" templates={templates ?? []} onClose={() => setPlanning(false)} onPick={(t) => void plan(t)} />}
+      {planning && <TemplatePicker open kind="workout" title="Plan a workout" templates={(templates ?? []).filter((t) => audienceOf(t) === 'group')}
+        empty={'No group workouts yet. Build one in Library → New workout (for a group), or switch a workout to Group on its card.'} onClose={() => setPlanning(false)} onPick={(t) => void plan(t)} />}
     </>, title, sub);
   }
 

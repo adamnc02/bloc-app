@@ -27,7 +27,9 @@ import { NewSessionSheet, RequestSheet } from '@/coach/diary/DiarySheets';
 import { useDiaryData } from '@/coach/diary/useDiaryData';
 import { InPersonActions } from '@/inperson/InPersonActions';
 import { GroupActions } from '@/group/GroupActions';
+import { ActionsGate } from '@/group/ActionsGate';
 import { PastSessions } from '@/inperson/PastSessions';
+import { ThisCycle } from '@/inperson/ThisCycle';
 
 const WINDOW_DAYS = 14;
 const DAY_PLURAL = ['Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays', 'Sundays'];
@@ -171,7 +173,9 @@ export function SessionsTab({ v }: { v: ClientView }) {
         </Section>
       )}
 
-      <PastSessions bundle={v.bundle} first={first} i={6} />
+      <ThisCycle bundle={v.bundle} first={first} i={6} />
+
+      <PastSessions bundle={v.bundle} first={first} i={7} />
 
       {sheet?.type === 'own' && (
         <Sheet open title="Record a session" onClose={() => setSheet(null)}>
@@ -194,7 +198,7 @@ export function SessionsTab({ v }: { v: ClientView }) {
           onPropose={(slot) => void run((_d) => proposeTime(repo, req, slot), `Proposed ${fmt.ddm(slot.date)}, ${fmt.time(slot.start_min)} · waiting for ${first}`).then((ok) => ok && setSheet(null))}
           onDecline={() => void run((_d) => declineRequest(repo, req), 'Request declined').then((ok) => ok && setSheet(null))} />
       )}
-      {acting && (() => {
+      {acting && <ActionsGate occ={acting} bundles={bundles}>{(records) => (() => {
         const o = acting;
         const when = `${fmt.ddm(o.date)}, ${fmt.time(o.start)}–${fmt.time(o.start + o.duration)}`;
         const title = o.kind === 'group' ? o.title ?? 'Group session' : 'Session';
@@ -204,8 +208,8 @@ export function SessionsTab({ v }: { v: ClientView }) {
           <Sheet open title={title} onClose={() => setSheet(null)}>
             <p className="display num" style={{ fontSize: 20 }}>{when}</p>
             <p className="muted" style={{ marginTop: 4 }}>{[o.recurring ? `every ${fmt.dayLong(o.date)}` : 'one-off', o.location].filter(Boolean).join(' · ')}</p>
-            {o.kind === 'one_to_one' && <InPersonActions occ={o} cardId={cardId} diary={diary} bundles={bundles} today={today} nowMin={nowMin} run={run} />}
-            {o.kind === 'group' && <GroupActions occ={o} diary={diary} bundles={bundles} today={today} nowMin={nowMin} run={run} />}
+            {o.kind === 'one_to_one' && <InPersonActions occ={o} cardId={cardId} diary={diary} bundles={bundles} today={today} nowMin={nowMin} run={run} record={records[cardId]} />}
+            {o.kind === 'group' && <GroupActions occ={o} diary={diary} bundles={bundles} today={today} nowMin={nowMin} run={run} records={records} />}
             <div className="stack" style={{ marginTop: 20 }}>
               {o.kind === 'group' ? (
                 <>
@@ -223,7 +227,7 @@ export function SessionsTab({ v }: { v: ClientView }) {
             </div>
           </Sheet>
         );
-      })()}
+      })()}</ActionsGate>}
       <Toast msg={toast.msg} />
     </>
   );
