@@ -11208,8 +11208,11 @@ has a plan only there, and without it they had no cycle to judge.
 mode:
 
 - The sheet says why, and from which week.
-- The coach sets new starting numbers, and **Reset from MC {n}** saves the same exercise with `fromWeek` = n, a draft to
-  publish.
+- The coach sets new starting numbers, and **Reset from MC {n}** saves the same exercise with `fromWeek` = n
+  (`resetExercise`), a draft to publish; the publish summary says "reset from MC{n}". 🚨 Not `updateExercise`: it keeps an
+  exercise's existing `fromWeek` on purpose (an edit never moves when it joined), so a reset through it (v0.13 to v0.13.6)
+  published the new numbers without the week, the phone carried on from what was lifted, and the flag stayed.
+  `effort.test.ts` checks the saved exercise, the summary and the plan publication itself (control: `updateExercise`).
 - On the phone, BLOC §161 then makes that week its week 1: those numbers, no old lock, nothing before it counted.
   Earlier weeks keep their logs.
 

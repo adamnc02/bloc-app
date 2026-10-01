@@ -5,7 +5,8 @@ import { getDeloadUnitKey, getRpeKey, type BlocState, type Loose, type Macrocycl
 import { buildFixtureClients } from '@/data/fixtures';
 import { summarise } from '@/data/summary';
 import { effortFlags } from '@/today/model';
-import { resetWeek, type PlanMacro } from '@/plan/doc';
+import { resetExercise, resetWeek, updateExercise, type PlanDoc, type PlanMacro } from '@/plan/doc';
+import { diffPlan, payloadsOf } from '@/plan/diff';
 import { recordState } from '@/inperson/model';
 import type { CoachPublication } from '@/ai/types';
 import { highRatingStreaks } from './effort';
@@ -112,5 +113,28 @@ describe('a reset reads the client\'s record, not the upload alone (v0.13.6)', (
     const rec = recordState({ state: null, publications: pubs, coachId: 'coach-1', since: null }) as Loose;
     expect(resetWeek(macro as unknown as PlanMacro, 'session0', today, rec.trainLogs)).toBe(4);
     expect(resetWeek(macro as unknown as PlanMacro, 'session0', today, null)).toBe(2);
+  });
+});
+
+describe('the reset is saved with its week (v0.13.7)', () => {
+  const MID = 'macro_r';
+  const ex = { id: 'ex_r_0', name: 'Leg Press', category: 'weight' as const, type: 'standard' as const, reps: '12', setsStart: 2, setsEnd: 3, startWeight: 50, isHeavyLeg: true, trackingMode: 'total' as const, order: 0, supersetId: null, supersetOrder: null, bodyPart: 'Legs' };
+  const doc: PlanDoc = {
+    macro: { id: MID, name: 'S', start: '2026-08-17', weeks: 10, weeksPerMeso: 1, sessionsPerWeek: 1, goal: '', targetBw: null, goalType: 'maintenance', splitType: 'custom', days: ['session0'], dayLabels: { session0: 'Session A' }, useMicrocycles: false, weightIncrement: '2.5', rpe: true },
+    exercises: { [`${MID}_1_session0`]: [ex] }, supersets: {}, deloads: {}, goals: [],
+  };
+  const { id: _i, order: _o, supersetId: _s, supersetOrder: _so, ...fields } = ex;
+  const next = { ...fields, startWeight: 40 };
+  it('resetExercise saves the new numbers WITH fromWeek, and the publish summary says so (control: updateExercise drops it)', () => {
+    const r = resetExercise(doc, 'session0', 'ex_r_0', next, 10);
+    expect(r.exercises[`${MID}_1_session0`][0]).toMatchObject({ startWeight: 40, fromWeek: 10, id: 'ex_r_0' });
+    const lines = diffPlan(doc, r).groups.flatMap((g) => g.lines).join(' | ');
+    expect(lines).toContain('reset from MC10');
+    // What reaches the phone: the plan publication's exercise carries fromWeek.
+    const plan = payloadsOf(diffPlan(doc, r)).find((x) => x.type === 'plan')!.payload as Loose;
+    expect(plan.exercises[`${MID}_1_session0`][0]).toMatchObject({ id: 'ex_r_0', startWeight: 40, fromWeek: 10 });
+    // Control: an edit keeps the exercise's own fromWeek (none), so the week is lost: what v0.13.6 published.
+    const u = updateExercise(doc, 'session0', 'ex_r_0', { ...next, fromWeek: 10 });
+    expect(u.exercises[`${MID}_1_session0`][0].fromWeek).toBeUndefined();
   });
 });

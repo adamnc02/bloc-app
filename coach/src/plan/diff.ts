@@ -125,6 +125,8 @@ export function diffPlan(base: PlanDoc | null, draft: PlanDoc): PlanDiff {
       const was = aIds.get(e.id);
       if (!was) continue;
       const d = exerciseDelta(was, e);
+      // A reset (§163): its progression starts again from that week.
+      if ((e.fromWeek ?? 1) > 1 && e.fromWeek !== was.fromWeek) d.push(`reset from MC${e.fromWeek}`);
       if (d.length) add('Exercises', `${label}: ${e.name}, ${d.join(', ')}`);
     }
     const aSs = slotsOf(a).filter((s) => s[0].supersetId).map((s) => s.map((e) => e.id).join());

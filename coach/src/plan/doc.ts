@@ -520,6 +520,21 @@ export function joinWeek(m: PlanMacro, dayKey: string, today: string, trainLogs?
 }
 
 /**
+ * A coach's reset of an exercise (§163): the same exercise with new starting numbers, its progression starting again at
+ * `fromWeek` (BLOC §161). 🚨 Not `updateExercise`, which keeps the exercise's `fromWeek` on purpose (an edit never moves
+ * when it joined): a reset through it published the new numbers without the week, so the phone kept progressing from
+ * what was lifted and the flag stayed.
+ */
+export function resetExercise(doc: PlanDoc, dayKey: string, id: string, fields: ExerciseFields, fromWeek: number): PlanDoc {
+  const next = updateExercise(doc, dayKey, id, fields);
+  const list = next.exercises[keyOf(next.macro.id, dayKey)] || [];
+  const ex = list.find((e) => e.id === id);
+  if (!ex || next === doc) return doc;
+  ex.fromWeek = fromWeek;
+  return next;
+}
+
+/**
  * The week a coach's reset of an exercise starts (BLOC §161, §163): the next week of that session with nothing logged,
  * and never before the client's current week. Its progression starts again there (`fromWeek`): that week's target is
  * the new numbers, and nothing logged before it counts. Null when the session has no week left.

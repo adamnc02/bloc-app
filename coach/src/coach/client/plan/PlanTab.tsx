@@ -5,7 +5,7 @@ import { useCoach } from '@/app/App';
 import { fmt } from '@/lib/format';
 import {
   addExercise, addSession, copyMicro, dayKeys, dayOf, editSettings, keyOf, linkSuperset, microOf, moveInSuperset, moveSlot, newCycle,
-  joinWeek, removeExercise, resetWeek, removeGoal, removeSession, renameSession, sessionLabel, setExtension, slotsOf, swapExercise, toggleDeload, unlinkExercise,
+  joinWeek, removeExercise, resetExercise, resetWeek, removeGoal, removeSession, renameSession, sessionLabel, setExtension, slotsOf, swapExercise, toggleDeload, unlinkExercise,
   updateExercise, upsertGoal, type PlanDoc, type PlanExercise,
 } from '@/plan/doc';
 import { applyMacroTemplate, applyWorkoutTemplate, macroTemplateOf, workoutTemplateOf, type Template } from '@/plan/templates';
@@ -287,7 +287,7 @@ export function PlanTab({ v, macro, intent }: { v: ClientView; macro: string | n
               const from = joinWeek(doc.macro, c.dayKey, today, p.trainLogs);
               if (c.mode === 'swap') edit((d) => swapExercise(d, c.dayKey, c.exercise!.id, f, p.ids, from), `${c.exercise!.name} swapped for ${f.name}`);
               // A reset (§163): the same exercise, new starting numbers from the next unlogged week (BLOC §161).
-              else if (c.mode === 'reset') edit((d) => updateExercise(d, c.dayKey, c.exercise!.id, { ...f, fromWeek: c.resetFrom ?? undefined }), `${f.name} resets from MC ${c.resetFrom}`);
+              else if (c.mode === 'reset' && c.resetFrom) edit((d) => resetExercise(d, c.dayKey, c.exercise!.id, f, c.resetFrom!), `${f.name} resets from MC ${c.resetFrom}`);
               else edit((d) => (c.mode === 'add' ? addExercise(d, c.dayKey, f, p.ids, c.intoSuperset ?? undefined, from) : updateExercise(d, c.dayKey, c.exercise!.id, f)), c.mode === 'add' ? `${f.name} added` : `${f.name} saved`);
               setOpenDays(new Set([...openDays, c.dayKey]));
               setExCtx(null);
