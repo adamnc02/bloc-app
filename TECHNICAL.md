@@ -11445,10 +11445,15 @@ only, and the `adamnc02.github.io` host isn't read as a name.
 A coached client never asks for a check-in. It comes due on **one schedule, in the engine** (`engine/src/coach.ts`),
 which BLOC and BLOC Coach both read:
 
-- **`coachCheckinSchedule(s, ctx, macro, publishedOn)`**: due while the cycle runs, once it has the engine's minimum
-  data (`computeCheckinState(...).hasEnoughData`, Solo's baseline and comparison window), then again
-  `checkinDueAfter(last)` (the Monday after two weeks on, Solo's fallback cooldown) after the newest check-in the coach
-  **published** on the cycle. Returns `{ enoughData, due, dueOn, lastOn, weeksToData }`.
+- **`coachCheckinSchedule(s, ctx, macro, publishedOn)`**, while the cycle runs. **The first check-in is the engine's
+  call**, as Solo's is (`computeCheckinState(...).eligible`): the cycle has the minimum data (`hasEnoughData`, Solo's
+  baseline and comparison window) **and** its signal warrants one (`signalWarrants`: a plateau, a deficit on a gain cycle,
+  an unstable maintenance weight…). **After the first**, every `checkinDueAfter(last)` (the Monday after two weeks on,
+  Solo's fallback cooldown) from the newest check-in the coach **published** on the cycle, whatever the signal. Returns
+  `{ enoughData, signalWarrants, due, dueOn, lastOn, weeksToData }`.
+- 🚨 **Data alone is not the first gate.** With it, every client with enough logs was due, on track or not.
+  `schedule.test.ts` has the control: Maya's weigh-ins rewritten as a steady loss read as on track, and no first
+  check-in is due.
 - `publishedOn` is the only input both apps can see: BLOC passes the dates of the check-ins it received
   (`state.coachAdvice`, `coachPublishedCheckinDays`), Coach the `ai_response` publications with `tool 'check_in'` on the
   cycle (`publishedCheckinDates`). Coach uses the publication's UTC date; BLOC the client's own: they differ only for one
@@ -11469,7 +11474,7 @@ prompt line ("THE CLIENT ASKED…") and Needs you card are gone; old drafts may 
 is no longer read or written. Under the Check-in tab, `coachCheckinLine()` says when the next one is due, read-only, while
 the cycle runs.
 
-**Which tabs show: `coachTabsReady(s, ctx, macro, had)`.** Check-in once the cycle has had the data or one was published;
+**Which tabs show: `coachTabsReady(s, ctx, macro, had)`.** Check-in once the engine has called for the first (data and signal) or one was published;
 Review from the final week (when the coach asks for review photos) or once one is published or photos were asked for; Next
 cycle from 21 days before the end (`isNextCycleAdviceEligible`'s window) or once one is published. Every condition only
 becomes true as the cycle goes on. 🚨 `hasEnoughData` can in principle turn false again (a client who stops logging), so

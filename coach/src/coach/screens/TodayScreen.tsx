@@ -284,10 +284,10 @@ function NeedsBody({ it, name, first, who, onRequest, onCancel, onLeave, onDismi
     case 'checkin':
       return <>
         <CardHead icon="sparkle" eyebrow={it.first ? 'First check-in due' : 'Check-in due'} name={name} when={it.dueOn ? fmt.ddm(it.dueOn) : 'now'} />
-        <p className="muted" style={{ marginTop: 12 }}>{it.first ? `${first}’s cycle has enough logs for a first check-in.` : `Two weeks since ${first}’s last check-in.`} Run it with BLOC, edit, then publish.</p>
+        <p className="muted" style={{ marginTop: 12 }}>{it.first ? `BLOC’s read of ${first}’s trend calls for a first check-in.` : `Two weeks since ${first}’s last check-in.`} Run it with BLOC, edit, then publish.</p>
         <div className="btnrow">
-          <Button size="card" icon="sparkle" onClick={() => go(needsItemOpen(it))}>Run check-in</Button>
           <Button size="card" variant="ghost" onClick={() => onDismiss(it)}>Dismiss</Button>
+          <Button size="card" icon="sparkle" onClick={() => go(needsItemOpen(it))}>Run check-in</Button>
         </div>
       </>;
     case 'note':
@@ -296,8 +296,8 @@ function NeedsBody({ it, name, first, who, onRequest, onCancel, onLeave, onDismi
         {it.headline && <div className="muted" style={{ marginTop: 12 }}>On “{it.headline}”</div>}
         <Quote>{String(it.submission.body?.text ?? '')}</Quote>
         <div className="btnrow">
-          <Button size="card" icon={it.tool === 'check_in' ? 'sparkle' : 'message'} onClick={() => go(needsItemOpen(it))}>{it.tool === 'check_in' ? 'Answer the challenge' : 'Reply in Review'}</Button>
           <Button size="card" variant="ghost" onClick={() => onDismiss(it)}>Dismiss</Button>
+          <Button size="card" icon={it.tool === 'check_in' ? 'sparkle' : 'message'} onClick={() => go(needsItemOpen(it))}>{it.tool === 'check_in' ? 'Answer the challenge' : 'Reply in Review'}</Button>
         </div>
       </>;
     case 'photos':

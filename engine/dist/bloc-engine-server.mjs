@@ -1724,7 +1724,7 @@ var checkinDueAfter = (on) => getMondayAfter(getSundayAfterWeeks(on, 2));
 function coachCheckinSchedule(s, ctx, macro, publishedOn) {
   const lastOn = [...publishedOn].filter(Boolean).sort().pop() ?? null;
   const dueOn = lastOn ? checkinDueAfter(lastOn) : null;
-  if (!macro || !macro.start) return { enoughData: false, due: false, dueOn, lastOn, weeksToData: 0 };
+  if (!macro || !macro.start) return { enoughData: false, signalWarrants: false, due: false, dueOn, lastOn, weeksToData: 0 };
   let st = null;
   try {
     st = computeCheckinState(s, ctx, macro);
@@ -1733,23 +1733,24 @@ function coachCheckinSchedule(s, ctx, macro, publishedOn) {
   }
   const enoughData = !!(st && st.hasEnoughData);
   const running = ctx.today >= macro.start && ctx.today <= getMacroEndDate(macro, ctx);
-  const due = running && enoughData && (!dueOn || ctx.today >= dueOn);
+  const signalWarrants = !!(st && st.signalWarrants);
+  const due = running && enoughData && (dueOn ? ctx.today >= dueOn : signalWarrants);
   const weeksLogged = st && st.ins && Array.isArray(st.ins.weekBuckets) ? st.ins.weekBuckets.length : 0;
   const weeksToData = enoughData ? 0 : Math.max(0, ((macro.goalType || "loss") === "loss" ? 4 : 3) - weeksLogged);
-  return { enoughData, due, dueOn, lastOn, weeksToData };
+  return { enoughData, signalWarrants, due, dueOn, lastOn, weeksToData };
 }
 function coachTabsReady(s, ctx, macro, had) {
   if (!macro || !macro.start) return { checkIn: had.checkIn, cycleReview: had.cycleReview, nextCycle: had.nextCycle };
-  let enough = false;
+  let called = false;
   try {
-    enough = !!computeCheckinState(s, ctx, macro)?.hasEnoughData;
+    called = !!computeCheckinState(s, ctx, macro)?.eligible;
   } catch {
-    enough = false;
+    called = false;
   }
   const end = getMacroEndDate(macro, ctx);
   const daysToEnd = Math.round((Date.parse(end + "T00:00:00Z") - Date.parse(ctx.today + "T00:00:00Z")) / 864e5);
   return {
-    checkIn: had.checkIn || enough,
+    checkIn: had.checkIn || called,
     cycleReview: had.cycleReview || had.photosAsked || isInFinalWeek(macro, ctx) || isCycleReviewDue(macro, ctx),
     nextCycle: had.nextCycle || ctx.today >= macro.start && daysToEnd <= NEXT_CYCLE_WINDOW_DAYS
   };

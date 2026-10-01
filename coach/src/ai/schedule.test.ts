@@ -1,5 +1,7 @@
 // The coached check-in schedule (engine coach.ts, TECHNICAL §168), on the real demo client. A client never asks for
-// a check-in: it's due once the cycle has the data, then 14 days after each one the coach published.
+// a check-in. The FIRST is the engine's call (enough data AND a signal that warrants one); after it, every 14 days from
+// the last one the coach published. Maya's demo cycle is a plateau (warrants one); onTrack() rewrites her weigh-ins as
+// a steady loss, which the engine reads as on track (warrants none).
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { coachCheckinSchedule, coachTabsReady, getMacroEndDate, shiftDateStr, type BlocState } from '@engine';
@@ -11,15 +13,29 @@ const maya = () => structuredClone(clients.find((c) => c.card.id === 'maya')!.sn
 const MACRO = 'macro_1780859905961';
 const macroOf = (s: BlocState) => s.macrocycles!.find((m) => m.id === MACRO)!;
 const none = { checkIn: false, cycleReview: false, nextCycle: false, photosAsked: false };
+const onTrack = () => {
+  const s = maya(); const t0 = Date.parse(String(macroOf(s).start));
+  for (const l of s.bodyLogs || []) l.weight = String((221 - 0.15 * (Date.parse(l.date) - t0) / 86400000).toFixed(1));
+  return s;
+};
 
 describe('coachCheckinSchedule', () => {
   const s = maya(); const m = macroOf(s);
   const mid = shiftDateStr(String(m.start), 42);
-  it('due with enough data and nothing published yet', () => {
+  it('the first is due when the data is there AND the signal warrants one (Maya: a plateau)', () => {
     const r = coachCheckinSchedule(s, { today: mid }, m, []);
-    expect(r.enoughData).toBe(true);
-    expect(r.due).toBe(true);
-    expect(r.dueOn).toBeNull();
+    expect([r.enoughData, r.signalWarrants, r.due, r.dueOn]).toEqual([true, true, true, null]);
+  });
+  it('🚨 on track with enough data: no first check-in (control: data alone was the old, wrong gate)', () => {
+    const t = onTrack();
+    const r = coachCheckinSchedule(t, { today: mid }, macroOf(t), []);
+    expect([r.enoughData, r.signalWarrants, r.due]).toEqual([true, false, false]);
+  });
+  it('after the first, every 14 days whatever the signal: on track and a check-in published, due again two weeks on', () => {
+    const t = onTrack(); const pub = shiftDateStr(mid, -3);
+    const r = coachCheckinSchedule(t, { today: mid }, macroOf(t), [pub]);
+    expect(r.due).toBe(false);
+    expect(coachCheckinSchedule(t, { today: r.dueOn! }, macroOf(t), [pub]).due).toBe(true);
   });
   it('not due inside the 14-day cooldown after a published check-in, due from the Monday after two weeks', () => {
     const pub = shiftDateStr(mid, -3);
@@ -55,7 +71,12 @@ describe('coachTabsReady', () => {
   it('a new cycle shows no tab', () => {
     expect(coachTabsReady(s, { today: shiftDateStr(String(m.start), 2) }, m, none)).toEqual({ checkIn: false, cycleReview: false, nextCycle: false });
   });
-  it('check-in once there is data; next cycle from 21 days out; review from the final week', () => {
+  it('on track: no Check-in tab until the first is called for or one is published', () => {
+    const t = onTrack();
+    expect(coachTabsReady(t, { today: shiftDateStr(String(m.start), 42) }, macroOf(t), none).checkIn).toBe(false);
+    expect(coachTabsReady(t, { today: shiftDateStr(String(m.start), 42) }, macroOf(t), { ...none, checkIn: true }).checkIn).toBe(true);
+  });
+  it('check-in once the first is called for; next cycle from 21 days out; review from the final week', () => {
     expect(coachTabsReady(s, { today: shiftDateStr(String(m.start), 42) }, m, none).checkIn).toBe(true);
     expect(coachTabsReady(s, { today: shiftDateStr(end, -22) }, m, none).nextCycle).toBe(false);
     expect(coachTabsReady(s, { today: shiftDateStr(end, -21) }, m, none).nextCycle).toBe(true);

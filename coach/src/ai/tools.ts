@@ -441,7 +441,9 @@ function gate(tool: AiTool, o: EligibilityInput): Eligibility {
       ? `Opens after about ${sch.weeksToData} more week${sch.weeksToData === 1 ? '' : 's'} of ${first}’s weight and food logs`
       : `Opens once more days have both weight and food logged`);
     if (sch.due) return { ready: true, runnable: true, text: sch.lastOn ? 'Check-in due · run it with BLOC' : 'First check-in due · run it with BLOC' };
-    return { ready: false, runnable: true, text: `Next check-in · ${fmtDate(sch.dueOn!)} · run early` };
+    // No check-in yet and the engine's signal doesn't call for one (on track): not due, but the coach may run one.
+    if (!sch.dueOn) return { ready: false, runnable: true, text: `No check-in needed yet: ${first}’s trend doesn’t call for one · run early` };
+    return { ready: false, runnable: true, text: `Next check-in · ${fmtDate(sch.dueOn)} · run early` };
   }
   if (tool === 'cycle_review') {
     const end = getMacroEndDate(macro, ctx);
