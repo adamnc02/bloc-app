@@ -339,6 +339,8 @@ function createLiveRepoInner(sb: SupabaseClient, profile: CoachProfile, onProfil
         sb.from('coach_flag_dismissals').select('client_record_id, macro_id, day_key, ex_id, kind, through_week').eq('coach_id', current.coachId),
       ]);
       for (const r of [subs, drafts, pubs, leaves]) if (r.error) throw r.error;
+      // Read on its own: before 0036 is on the project the table is missing, and Today still draws (no dismissals).
+      const dis = await sb.from('coach_needs_dismissals').select('client_record_id, item_key, created_at').eq('coach_id', current.coachId);
       return {
         submissions: ((subs.data ?? []) as Row[]).map((r) => ({
           id: String(r.id), clientId: String(r.client_id), kind: r.kind as Submission['kind'], publicationId: str(r.publication_id), body: (r.body ?? {}) as Loose, createdAt: String(r.created_at),
@@ -349,6 +351,7 @@ function createLiveRepoInner(sb: SupabaseClient, profile: CoachProfile, onProfil
           cardId: String(r.client_record_id), macroId: String(r.macro_id), dayKey: String(r.day_key), exId: String(r.ex_id),
           kind: r.kind === 'missed' ? 'missed' : 'too_hard', throughWeek: Number(r.through_week),
         })),
+        dismissed: dis.error ? [] : ((dis.data ?? []) as Row[]).map((r) => ({ cardId: String(r.client_record_id), key: String(r.item_key), at: String(r.created_at) })),
       };
     },
 
@@ -357,6 +360,15 @@ function createLiveRepoInner(sb: SupabaseClient, profile: CoachProfile, onProfil
         coach_id: current.coachId, client_record_id: l.cardId, macro_id: l.macroId, day_key: l.dayKey, ex_id: l.exId, kind: l.kind, through_week: l.throughWeek,
       });
       // Left already (the unique run): nothing to do.
+      if (error && error.code !== '23505') throw error;
+    },
+
+    async dismissNeeds(cardId, key) {
+      // One row per item: a repeat (a check-in dismissed again once it came back) replaces the old row, so the new date
+      // counts (no update grant, 0036: delete, then insert).
+      const del = await sb.from('coach_needs_dismissals').delete().eq('coach_id', current.coachId).eq('item_key', key);
+      if (del.error) throw del.error;
+      const { error } = await sb.from('coach_needs_dismissals').insert({ coach_id: current.coachId, client_record_id: cardId, item_key: key });
       if (error && error.code !== '23505') throw error;
     },
 

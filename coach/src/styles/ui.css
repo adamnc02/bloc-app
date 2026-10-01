@@ -326,3 +326,65 @@ input[type="date"].input::-webkit-date-and-time-value, input[type="time"].input:
 .edge-fade { position: fixed; left: 0; right: 0; pointer-events: none; z-index: 45 }
 .edge-fade-top { top: 0; height: var(--safe-top, 0px); background: linear-gradient(to bottom, var(--bg) 0%, color-mix(in srgb, var(--bg) 0%, transparent) 100%) }
 .edge-fade-bottom { bottom: 0; height: var(--safe-top, 0px); background: linear-gradient(to top, var(--bg) 0%, color-mix(in srgb, var(--bg) 0%, transparent) 100%) }
+
+/* ---------- the way back, pinned (BackBar) ----------
+   Sticky just under the top inset while the page scrolls, so ‹ Clients (etc.) is always in reach, the same way the
+   Diary's day header sticks (diary.css .dg-head); the top edge fade covers the inset above it. Not fixed: it keeps its
+   place in the flow, and its margin-top puts the link exactly where the header's eyebrow sat (.top's padding, less the
+   inset and the bar's own 8px). The solid --bg hides what scrolls under it, carried across the gutters by the
+   negative side margins. */
+.backbar {
+  position: sticky; top: var(--safe-top, env(safe-area-inset-top)); z-index: 30;
+  margin: calc(max(var(--header-top), calc(var(--safe-top, env(safe-area-inset-top)) + 24px)) - var(--safe-top, env(safe-area-inset-top)) - 8px) calc(-1 * var(--gutter)) 0;
+  padding: 8px var(--gutter) 4px;
+  background: var(--bg);
+}
+.backbar .eyebrow-link { min-height: 32px }
+.top.top-after-back { padding-top: 2px }
+.backbar:has(.settings-logo) + .top.top-after-back { padding-top: 12px }   /* clear of the logo's COACH line */
+/* A phone-only bar (Settings) is hidden on a laptop, where the header keeps its usual top. */
+@media (min-width: 768px) { .backbar.phone-only + .top.top-after-back { padding-top: max(var(--header-top), calc(var(--safe-top, env(safe-area-inset-top)) + 24px)) } }
+
+/* ---------- Settings' animated logo (Brand.tsx AnimatedCoachLogo) ----------
+   BLOC's Settings logo (BLOC index.html .settings-logo): centred on the page in the back row, the splash's bar
+   animation replayed each time it comes into view; same timings, theme tokens instead of the splash's fixed colours.
+   Absolutely positioned, so the back link keeps its tap target and nothing else moves. */
+.backbar .settings-logo {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  height: 44px; width: auto; aspect-ratio: 501.8 / 164; pointer-events: none;
+}
+.settings-logo .logo-bar { fill: var(--brand-neutral); transform-box: fill-box; transform-origin: center }
+.settings-logo .logo-bar-top { fill: var(--brand-accent) }
+@keyframes coachLogoBarIn {
+  0%   { opacity: 0; transform: translateX(-26px); fill: var(--brand-neutral) }
+  55%  { opacity: 1; transform: translateX(3px) scale(1.06); fill: var(--brand-flash) }
+  100% { opacity: 1; transform: none; fill: var(--brand-neutral) }
+}
+@keyframes coachLogoBarInTop {
+  0%   { opacity: 0; transform: translateX(-26px); fill: var(--brand-accent) }
+  55%  { opacity: 1; transform: translateX(3px) scale(1.08); fill: var(--brand-flash) }
+  100% { opacity: 1; transform: none; fill: var(--brand-accent) }
+}
+@keyframes coachLogoBarPulse {
+  0%, 40%, 100% { fill: var(--brand-neutral); transform: none }
+  14%           { fill: var(--brand-accent); transform: scale(1.05) }
+}
+@keyframes coachLogoBarPulseTop {
+  0%, 40%, 100% { fill: var(--brand-accent); transform: none }
+  14%           { fill: var(--brand-flash); transform: scale(1.08) }
+}
+/* The build (fill-mode both, so it starts hidden), then two pulses from 1.25s: the splash's lock → pulse gap. */
+.settings-logo.animate .lb-1 { animation: coachLogoBarIn .5s ease-out 0s both, coachLogoBarPulse 1.6s ease-in-out 1.25s 2 }
+.settings-logo.animate .lb-2 { animation: coachLogoBarIn .5s ease-out .16s both, coachLogoBarPulse 1.6s ease-in-out 1.43s 2 }
+.settings-logo.animate .lb-3 { animation: coachLogoBarInTop .55s ease-out .32s both, coachLogoBarPulseTop 1.6s ease-in-out 1.61s 2 }
+@media (prefers-reduced-motion: reduce) { .settings-logo.animate .logo-bar { animation: none } }
+
+/* ---------- a note back and its reply, as a phone's messages (§170) ----------
+   The client's bubble on the left, the coach's on the right, each with a tail corner. Two bubbles at most: an answer
+   to a response, not a chat. */
+.thread { display: flex; flex-direction: column; gap: 4px }
+.bubble { max-width: 82%; padding: 9px 13px; border-radius: 18px; font-size: 14.5px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere }
+.bubble.them { align-self: flex-start; background: var(--surface3); color: var(--text); border-bottom-left-radius: 6px }
+.bubble.me { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 6px }
+.bubble-meta { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text3); margin: 6px 4px 0 }
+.bubble-meta.me { align-self: flex-end }

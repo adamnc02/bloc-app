@@ -14,11 +14,11 @@
 //     (index.html startGoalQueue) does when a Solo user accepts a plan.
 // ═══════════════════════════════════════════════════════════════════════
 import {
-  computeWeeklyInsights, getDayBefore, getMacroEndDate, getMondayAfter, getNextMonday, getSundayAfterWeeks,
+  checkinDueAfter, coachCheckinSchedule, getDayBefore, getMacroEndDate, getNextMonday,
   isCycleReviewDue, isInFinalWeek, isNextCycleAdviceEligible, recommendNextCycle, renumberMacroGoalSteps, shiftDateStr,
   type BlocState, type GoalPeriod, type Loose, type Macrocycle,
 } from '@engine';
-import type { AiDraft, AiEdit, AiOriginal, AiTool, CoachPublication, PhaseEdit, Submission } from './types';
+import type { AiDraft, AiEdit, AiOriginal, AiTool, ChallengeRecord, CoachPublication, PhaseEdit, Submission } from './types';
 
 export const TOOLS: AiTool[] = ['check_in', 'cycle_review', 'next_cycle'];
 export const TOOL_LABEL: Record<AiTool, { tab: string; run: string; read: string; noun: string }> = {
@@ -27,8 +27,18 @@ export const TOOL_LABEL: Record<AiTool, { tab: string; run: string; read: string
   next_cycle: { tab: 'Next cycle', run: 'Build next cycle', read: 'Read full advice', noun: 'next-cycle advice' },
 };
 
-/** BLOC's check-in cooldown: the Monday after 2 weeks from the run (the engine's postProcessAdviceResponse). */
-export const checkinDueAfter = (runOn: string) => getMondayAfter(getSundayAfterWeeks(runOn, 2));
+/** BLOC's check-in cooldown: the Monday after 2 weeks on (the engine's, coach.ts). */
+export { checkinDueAfter };
+
+/**
+ * The client's dates of the check-ins the coach published on a cycle: the input to the engine's coachCheckinSchedule,
+ * the schedule BLOC reads too. A run never published doesn't count. (The publication's UTC date: BLOC reads the same
+ * publication on the client's own date, which differs only for one published within an hour of midnight in summer.)
+ */
+export function publishedCheckinDates(pubs: CoachPublication[], macroId: string): string[] {
+  return pubs.filter((p) => p.type === 'ai_response' && String(p.payload?.tool) === 'check_in' && p.payload?.macro_id === macroId)
+    .map((p) => p.createdAt.slice(0, 10));
+}
 
 const paragraphs = (t: unknown): string[] =>
   (Array.isArray(t) ? t.map(String) : String(t ?? '').split(/\n\s*\n/)).map((p) => p.trim()).filter(Boolean);
@@ -118,6 +128,22 @@ export function withPlan(d: Pick<AiDraft, 'tool' | 'original' | 'macroId' | 'cre
     return { ...e, kcal: int(g?.kcal), steps: int(g?.steps) };
   }
   return e;
+}
+
+/**
+ * The next version of a challenged check-in (§170), as BLOC Solo's acceptChallengeRevision decides: a significant
+ * revision replaces the headline and narrative; otherwise the words the client was sent stay and only the plan changes.
+ * The plan is the revision's, on the plan the sent version chose (Sustainable when it chose none), with the same phase
+ * ids, so a republish replaces the phases on the client's phone. The record is kept on the edit, never sent.
+ */
+export function challengeEdit(d: AiDraft, sent: AiEdit, revision: Loose, record: ChallengeRecord): AiEdit {
+  const words = record.significant
+    ? { headline: String(revision.headline || ''), narrative: [...paragraphs(revision.narrative), ...(revision.primaryAction ? [`This week: ${String(revision.primaryAction)}`] : [])] }
+    : { headline: sent.headline, narrative: sent.narrative };
+  const planKey = sent.planKey ?? 'sustainable';
+  const o: AiOriginal = { ...d.original, response: { ...(d.original.response || {}), recommendations: revision.recommendations, _cycleEnd: revision._cycleEnd ?? d.original.response?._cycleEnd } };
+  const phases = phasesFor(o, planKey, d.macroId ?? 'macro', Date.parse(d.createdAt) || 0);
+  return { ...sent, ...words, planKey: phases.length ? planKey : null, phases, kcal: phases[0]?.kcal ?? null, steps: phases[0]?.steps ?? null, challenge: record };
 }
 
 const bare = (e: AiEdit): AiEdit => { const { sentAs: _s, ...rest } = e; void _s; return rest; };
@@ -342,13 +368,6 @@ export interface Eligibility {
 
 const purpose = (x: Submission) => (x.kind === 'check_in' ? String(x.body?.purpose || 'check_in') : null);
 
-/** The client's check-in request this cycle that no run has answered yet (`body.purpose 'check_in'`, after the last run). */
-export function openRequest(subs: Submission[], drafts: AiDraft[], macroId: string): Submission | null {
-  const lastRun = drafts.filter((d) => d.tool === 'check_in' && d.macroId === macroId).map((d) => d.createdAt).sort().pop() ?? '';
-  return subs
-    .filter((x) => purpose(x) === 'check_in' && (!x.body?.macro_id || x.body.macro_id === macroId) && x.createdAt > lastRun)
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt)).pop() ?? null;
-}
 
 // ---------------------------------------------------------------- review photos: asked for first
 
@@ -407,7 +426,7 @@ export function eligibility(tool: AiTool, o: EligibilityInput): Eligibility {
 }
 type EligibilityInput = {
   s: BlocState; macro: Macrocycle; today: string; cycleStatus: 'past' | 'active' | 'upcoming'; hasKey: boolean;
-  drafts: AiDraft[]; request: Submission | null; first: string; fmtDate: (iso: string) => string;
+  drafts: AiDraft[]; publications: CoachPublication[]; first: string; fmtDate: (iso: string) => string;
   photos?: PhotoRequestState;
 };
 function gate(tool: AiTool, o: EligibilityInput): Eligibility {
@@ -416,13 +435,18 @@ function gate(tool: AiTool, o: EligibilityInput): Eligibility {
   const blocked = (text: string): Eligibility => ({ ready: false, runnable: false, text });
   if (tool === 'check_in') {
     if (o.cycleStatus !== 'active') return blocked(o.cycleStatus === 'upcoming' ? `Check-ins start when this cycle does, ${fmtDate(macro.start as string)}` : 'Check-ins are for the cycle that’s running');
-    const ins = computeWeeklyInsights(s, ctx, macro);
-    if (!ins || ins.insufficientData) return blocked(`Needs a baseline week: 4 days of food and weigh-ins logged`);
-    if (o.request) return { ready: true, runnable: true, text: `Run check-in · ${first} asked ${fmtDate(o.request.createdAt.slice(0, 10))}` };
-    const last = o.drafts.filter((d) => d.tool === 'check_in' && d.macroId === macro.id).map((d) => d.original.today).sort().pop();
-    const due = last ? checkinDueAfter(last) : null;
-    if (!due || today >= due) return { ready: true, runnable: true, text: 'Run check-in with BLOC' };
-    return { ready: false, runnable: true, text: `Next check-in · ${fmtDate(due)} · run early` };
+    // The client never asks: a check-in is due on the engine's schedule, the one BLOC shows (coachCheckinSchedule).
+    const sch = coachCheckinSchedule(s, ctx, macro, publishedCheckinDates(o.publications, macro.id));
+    if (!sch.enoughData) return blocked(sch.weeksToData > 0
+      ? `Opens after about ${sch.weeksToData} more week${sch.weeksToData === 1 ? '' : 's'} of ${first}’s weight and food logs`
+      : `Opens once more days have both weight and food logged`);
+    if (sch.due) return { ready: true, runnable: true, text: sch.lastOn ? 'Check-in due · run it with BLOC' : 'First check-in due · run it with BLOC' };
+    // The final week is the cycle review's (Solo's final-week card): no check-in comes due in it.
+    if (sch.checkinsUntil && today > sch.checkinsUntil) return { ready: false, runnable: true, text: 'Final week: the cycle review comes next · run early' };
+    // No check-in yet and the engine's signal doesn't call for one (on track): not due, but the coach may run one.
+    if (!sch.dueOn) return { ready: false, runnable: true, text: `No check-in needed yet: ${first}’s trend doesn’t call for one · run early` };
+    if (!sch.nextOn) return { ready: false, runnable: true, text: 'No more check-ins this cycle: the cycle review comes next · run early' };
+    return { ready: false, runnable: true, text: `Next check-in · ${fmtDate(sch.nextOn)} · run early` };
   }
   if (tool === 'cycle_review') {
     const end = getMacroEndDate(macro, ctx);
@@ -492,13 +516,6 @@ export function overallCompliance(training: number | null, nutrition: number | n
   return xs.length ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 10) / 10 : null;
 }
 
-/** A client's check-in request, as a line the check-in prompt carries. */
-export function requestNote(r: Submission | null): string {
-  if (!r) return '';
-  const feel = r.body?.feel ? `feeling ${String(r.body.feel).toLowerCase()}` : 'no feel given';
-  const note = String(r.body?.note || '').trim();
-  return `\n\nTHE CLIENT ASKED FOR THIS CHECK-IN (${String(r.body?.sent_on || r.createdAt.slice(0, 10))}): ${feel}${note ? `. Their note: "${note}"` : ''}`;
-}
 
 // ---------------------------------------------------------------- notes back
 

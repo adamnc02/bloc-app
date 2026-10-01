@@ -99,7 +99,11 @@ export interface Inbox {
   publications: (CoachPublication & { cardId: string })[];
   /** The flags the coach left (`coach_flag_dismissals`, 0034, §163). Absent: none. */
   leaves?: FlagLeave[];
+  /** The Needs you items the coach dismissed (`coach_needs_dismissals`, 0036, §169). Absent: none. */
+  dismissed?: NeedsDismissal[];
 }
+/** A dismissed Needs you item: its key in today/model.ts, and when (UTC). The client is never told. */
+export interface NeedsDismissal { cardId: string; key: string; at: string }
 /** A card edit. Name and contact only while the client isn't linked (0022's trigger refuses them after). */
 export interface CardPatch { firstName?: string; surname?: string | null; email?: string | null; phone?: string | null; notes?: string | null }
 export interface NewInvite { code: string; expiresAt: string }
@@ -155,6 +159,8 @@ export interface CoachRepo extends DiaryRepo {
   loadInbox(): Promise<Inbox>;
   /** Leave a Needs you flag (0034): BLOC's hold stands; a further week the same way raises it again. */
   leaveFlag(l: FlagLeave): Promise<void>;
+  /** Dismiss a Needs you item (0036): a note back or a check-in due. Nothing reaches the client. */
+  dismissNeeds(cardId: string, key: string): Promise<void>;
   /** The client's cycle-review photos (`client-media`), readable only while photo consent is on. */
   loadPhotos(paths: string[]): Promise<CycleReviewImage[]>;
 

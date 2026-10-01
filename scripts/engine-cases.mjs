@@ -393,6 +393,18 @@ for (const st of [S.demo, S.gain, S.empty, state(s => { s.goals = []; return s; 
 }
 add('SAVE_DAY_TOLERANCE', []); add('HOME_STEPS_TOLERANCE', []); add('HOME_METRIC_POLARITY', []); // constants: nothing to call
 
+// v8.56 (engine coach.ts, TECHNICAL §168): a coached client's check-in schedule and From your coach's tabs. Engine only
+// (bloc: null): BLOC calls them directly. Before the data, mid-cycle with none / one published, the final week, after
+// the end, no cycle; and 0 weigh-ins, where computeWeeklyInsights throws and the schedule must not.
+add('checkinDueAfter', [at(S.demo, '2026-08-02', () => ({ engine: ['2026-08-02'], bloc: null })), at(S.demo, '2026-08-02', () => ({ engine: ['2026-08-05'], bloc: null }))]);
+for (const d of ['2026-06-16', '2026-07-20', '2026-08-02', '2026-09-10', '2026-09-20']) {
+  add('coachCheckinSchedule', [at(S.demo, d, (s, c) => ({ engine: [s, c, m0(s), []], bloc: null })), at(S.demo, d, (s, c) => ({ engine: [s, c, m0(s), ['2026-07-27']], bloc: null }))]);
+  add('coachTabsReady', [at(S.demo, d, (s, c) => ({ engine: [s, c, m0(s), { checkIn: false, cycleReview: false, nextCycle: false, photosAsked: false }], bloc: null }))]);
+}
+add('coachCheckinSchedule', [at(S.demo, '2026-08-02', (s, c) => ({ engine: [s, c, null, []], bloc: null })),
+  at(state(s => { s.bodyLogs = []; return s; }), '2026-08-02', (s, c) => ({ engine: [s, c, m0(s), []], bloc: null }))]);
+add('coachTabsReady', [at(S.demo, '2026-08-02', (s, c) => ({ engine: [s, c, null, { checkIn: true, cycleReview: false, nextCycle: false, photosAsked: false }], bloc: null }))]);
+
 // ── Step 5 (§125): the progression core ───────────────────────────────────
 // The engine reads and fills targets through a TargetCache. The cases pass
 // Coach's kind: the state's own cached targets read first, anything computed

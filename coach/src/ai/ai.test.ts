@@ -4,10 +4,10 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { buildCycleReviewPrompt, computeCycleReviewPayload, type BlocState, type CallModel, type ModelRequest } from '@engine';
 import { buildFixtureClients } from '@/data/fixtures';
-import { runTool } from './run';
+import { runChallenge, runTool } from './run';
 import {
-  aiResponsePayload, coachReviewPrompt, contentOf, editFromOriginal, eligibility, goalChanges, isEdited, notesBack,
-  openRequest, overallCompliance, PERSONAL_PHOTO_PARAGRAPH, photoRequestPayload, photoRequestState, phasesFor, priorPhaseIds, publishState, sentEdit, withPlan,
+  aiResponsePayload, challengeEdit, coachReviewPrompt, contentOf, editFromOriginal, eligibility, goalChanges, isEdited, notesBack,
+  overallCompliance, PERSONAL_PHOTO_PARAGRAPH, photoRequestPayload, photoRequestState, phasesFor, priorPhaseIds, publishState, sentEdit, withPlan,
 } from './tools';
 import type { AiDraft, CoachPublication, Submission } from './types';
 
@@ -55,12 +55,11 @@ describe('running a check-in: BLOC’s engine, the client’s today, the reply k
     expect(userText(b.sent[0])).toContain('First goal must start: 2026-08-03');
   });
 
-  it('carries the client’s request: their feel and note', async () => {
+  it('carries no client request: a client never asks for a check-in (v0.16)', async () => {
     const { callModel, sent } = stub(checkinReply('2026-08-10', '2026-08-23'));
-    const request: Submission = { id: 's1', kind: 'check_in', publicationId: null, createdAt: '2026-08-04T09:00:00Z', body: { purpose: 'check_in', feel: 'Tough', note: 'Starving at night', sent_on: '2026-08-04' } };
-    const o = await runTool({ tool: 'check_in', state: maya(), macro: macroOf(maya()), today: '2026-08-05', callModel, drafts: [], publications: [], request });
-    expect(userText(sent[0])).toContain('THE CLIENT ASKED FOR THIS CHECK-IN (2026-08-04): feeling tough. Their note: "Starving at night"');
-    expect(o.requestId).toBe('s1');
+    const o = await runTool({ tool: 'check_in', state: maya(), macro: macroOf(maya()), today: '2026-08-05', callModel, drafts: [], publications: [] });
+    expect(userText(sent[0])).not.toContain('THE CLIENT ASKED');
+    expect(o.requestId).toBeUndefined();
   });
 
   it('never changes the client’s state', async () => {
@@ -243,14 +242,10 @@ describe('who asked for what: body.purpose', () => {
     { id: 'ask', kind: 'check_in', publicationId: null, createdAt: '2026-08-03T10:00:00Z', body: { purpose: 'check_in', feel: 'Good', macro_id: MACRO } },
     { id: 'note', kind: 'note_back', publicationId: 'p1', createdAt: '2026-08-05T10:00:00Z', body: { response_id: 'd1', text: 'Thanks' } },
   ];
-  it('a review-photos row is never a check-in request', () => {
-    expect(openRequest(subs, [], MACRO)?.id).toBe('ask');
-    expect(openRequest(subs.filter((x) => x.id !== 'ask'), [], MACRO)).toBeNull();
+  it('an old check-in request row is never taken for review photos', () => {
+    expect(photoRequestState([], subs.filter((x) => x.id !== 'photos'), MACRO).status).toBe('none');
     // Sent unprompted (BLOC v8.41–v8.43, no request_id) and nothing asked: counts as the answer.
     expect(photoRequestState([], subs, MACRO)).toMatchObject({ status: 'answered', skipped: false, before: ['u/reviews/x/before-1.jpg'], after: ['u/reviews/x/after-1.jpg'] });
-  });
-  it('a run after the request answers it', () => {
-    expect(openRequest(subs, [draft({ createdAt: '2026-08-03T12:00:00Z' })], MACRO)).toBeNull();
   });
   it('notes back attach to their response, with the coach’s reply', () => {
     const reply: CoachPublication = { ...pub('r1', 2, { submission_id: 'note', text: 'Good' }), type: 'note_reply' };
@@ -279,17 +274,21 @@ describe('review photos are asked for first (0027 photo_request, BLOC v8.44)', (
 
 describe('when a tool can run', () => {
   const s = maya();
-  const base = { s, macro: macroOf(s), today: '2026-08-05', cycleStatus: 'active' as const, hasKey: true, drafts: [], request: null, first: 'Maya', fmtDate: (x: string) => x };
+  const base = { s, macro: macroOf(s), today: '2026-08-05', cycleStatus: 'active' as const, hasKey: true, drafts: [], publications: [] as CoachPublication[], first: 'Maya', fmtDate: (x: string) => x };
   it('no key, nothing runs', () => {
     expect(eligibility('check_in', { ...base, hasKey: false })).toMatchObject({ ready: false, runnable: false, needsKey: true });
     expect(eligibility('cycle_review', { ...base, hasKey: false }).needsKey).toBeUndefined(); // blocked for another reason: no Settings link
   });
-  it('a check-in is due with no earlier run; asked for, it says so; inside the cooldown it can still run early', () => {
-    expect(eligibility('check_in', base)).toMatchObject({ ready: true, text: 'Run check-in with BLOC' });
-    const asked: Submission = { id: 'a', kind: 'check_in', publicationId: null, createdAt: '2026-08-04T10:00:00Z', body: { purpose: 'check_in' } };
-    expect(eligibility('check_in', { ...base, request: asked }).text).toBe('Run check-in · Maya asked 2026-08-04');
+  it('a check-in is due on the schedule: first one with enough data; then 14 days after one PUBLISHED; a run never published doesn’t count', () => {
+    expect(eligibility('check_in', base)).toMatchObject({ ready: true, text: 'First check-in due · run it with BLOC' });
+    const sent = { ...pub('p-ci', 1, { tool: 'check_in', macro_id: MACRO }, '2026-08-03T18:00:00Z') };
+    expect(eligibility('check_in', { ...base, publications: [sent] })).toEqual({ ready: false, runnable: true, text: 'Next check-in · 2026-08-17 · run early' });
+    expect(eligibility('check_in', { ...base, today: '2026-08-17', publications: [sent] })).toMatchObject({ ready: true, text: 'Check-in due · run it with BLOC' });
+    // control: a draft run on the 3rd but never published leaves the check-in due
     const recent = draft({ original: { v: 1, raw: '', response: {}, today: '2026-08-03' } });
-    expect(eligibility('check_in', { ...base, drafts: [recent] })).toEqual({ ready: false, runnable: true, text: 'Next check-in · 2026-08-17 · run early' });
+    expect(eligibility('check_in', { ...base, drafts: [recent] }).ready).toBe(true);
+    // another cycle's publication doesn't count
+    expect(eligibility('check_in', { ...base, publications: [{ ...sent, payload: { tool: 'check_in', macro_id: 'other' } }] }).ready).toBe(true);
   });
   it('a cycle review: photos asked for first (from the final week), then run once answered, or without them after 3 days', () => {
     const P = (over: object) => ({ status: 'none' as const, request: null, answer: null, skipped: false, before: [], after: [], askedOn: null, ...over });
@@ -304,5 +303,62 @@ describe('when a tool can run', () => {
       .toMatchObject({ runnable: true, text: 'Run without photos · no answer since 2026-09-12' });
     expect(eligibility('cycle_review', { ...ended, today: '2026-09-14', photos: P({ status: 'answered', skipped: true }) })).toMatchObject({ ready: true, text: 'Review Weight Loss 2026 with BLOC · Maya skipped photos' });
     expect(eligibility('cycle_review', { ...ended, today: '2026-09-14', hasKey: false, photos: P({ status: 'answered', before: ['b'], after: ['a'] }) }).text).toBe('Add your AI key in Settings to run this');
+  });
+});
+
+// §170: a check-in challenged with BLOC. The prior turn is what the client was SENT; the reply is kept verbatim; a
+// minor revision keeps the sent words and changes only the plan, a significant one replaces the words.
+describe('challenging a published check-in with BLOC', () => {
+  const challengeReply = (significant: boolean, kcal = 1700) => JSON.stringify({
+    acknowledgment: 'Fair point: evenings are tough at that number, so the floor goes up.', isSignificantRevision: significant,
+    headline: 'Ease the deficit a little', narrative: 'New para one.\n\nNew para two.', primaryAction: 'Add 100 kcal at dinner.', secondaryAction: null,
+    recommendations: {
+      sustainable: { label: 'Sustainable', rationale: 'r', summary: 's', goals: [{ label: 'Steady+', startDate: '2026-08-10', endDate: '2026-08-23', kcal, steps: 11000, protein: 190, carbs: 140 }] },
+      aggressive: { label: 'Aggressive', rationale: 'r', summary: 's', goals: [{ label: 'Push', startDate: '2026-08-10', endDate: '2026-08-23', kcal: 1500, steps: 12000, protein: 190, carbs: 110 }] },
+    },
+  });
+  const note: Submission = { id: 'nb1', kind: 'note_back', publicationId: 'p-sent', createdAt: '2026-08-04T19:00:00Z', body: { response_id: 'd1', text: 'Starving every evening' } };
+  async function published() {
+    const { callModel } = stub(checkinReply('2026-08-10', '2026-08-23', 'Sent headline'));
+    const original = await runTool({ tool: 'check_in', state: maya(), macro: macroOf(maya()), today: '2026-08-05', callModel, drafts: [], publications: [] });
+    const d = draft({ original, publicationId: 'p-sent' });
+    const sentEdit0 = { ...sentEdit(d), headline: 'Coach’s sent headline' };
+    const d2: AiDraft = { ...d, edited: { ...sentEdit0, sentAs: 'p-sent' } };
+    const p = pub('p-sent', 3, aiResponsePayload(d2, sentEdit0, null, false), '2026-08-05T09:00:00Z');
+    return { d: d2, pubs: [p], sent: sentEdit0 };
+  }
+
+  it('the prior turn is the version sent, the coach’s text is the challenge, and the reply is kept verbatim', async () => {
+    const { d, pubs } = await published();
+    const text = challengeReply(false);
+    const { callModel, sent } = stub(text);
+    const { record } = await runChallenge({ state: maya(), macro: macroOf(maya()), today: '2026-08-06', callModel, drafts: [d], publications: pubs, note, text: ' Starving every evening, and work is busy ' });
+    const all = JSON.stringify(sent[0]);
+    expect(all).toContain('Coach’s sent headline');                 // what was sent, not the AI's original headline
+    expect(all).not.toContain('Sent headline"');                      // control: the original is never the prior turn
+    expect(all).toContain('Starving every evening, and work is busy');
+    expect(record).toMatchObject({ submissionId: 'nb1', text: 'Starving every evening, and work is busy', raw: text, significant: false, today: '2026-08-06' });
+    expect(record.acknowledgment).toMatch(/^Fair point/);
+  });
+
+  it('a minor revision keeps the words sent and changes the plan, with the same phase ids; a significant one replaces the words', async () => {
+    const { d, pubs, sent: s0 } = await published();
+    const minor = await runChallenge({ state: maya(), macro: macroOf(maya()), today: '2026-08-06', callModel: stub(challengeReply(false)).callModel, drafts: [d], publications: pubs, note, text: 'x' });
+    const e1 = challengeEdit(d, s0, minor.revision, minor.record);
+    expect(e1.headline).toBe('Coach’s sent headline');
+    expect(e1.kcal).toBe(1700);
+    expect(e1.phases.map((p: { id: string }) => p.id)).toEqual(s0.phases.map((p: { id: string }) => p.id));
+    expect(e1.challenge?.submissionId).toBe('nb1');
+    expect(contentOf(e1)).not.toHaveProperty('challenge');            // never sent to the client
+    expect(JSON.stringify(aiResponsePayload(d, e1, null, true))).not.toContain('Fair point');
+    const major = await runChallenge({ state: maya(), macro: macroOf(maya()), today: '2026-08-06', callModel: stub(challengeReply(true)).callModel, drafts: [d], publications: pubs, note, text: 'x' });
+    const e2 = challengeEdit(d, s0, major.revision, major.record);
+    expect(e2.headline).toBe('Ease the deficit a little');
+    expect(e2.narrative).toEqual(['New para one.', 'New para two.', 'This week: Add 100 kcal at dinner.']);
+  });
+
+  it('nothing published on the cycle: there is nothing to challenge', async () => {
+    await expect(runChallenge({ state: maya(), macro: macroOf(maya()), today: '2026-08-06', callModel: stub('{}').callModel, drafts: [], publications: [], note, text: 'x' }))
+      .rejects.toThrow(/no published check-in/);
   });
 });

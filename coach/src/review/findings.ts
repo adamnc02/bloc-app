@@ -81,9 +81,3 @@ export function buildFindings(first: string, o: Outcome, rows: GridRow[], rpe: R
   return out;
 }
 
-/** The client asked for a check-in (a `check_in` row with `body.purpose 'check_in'`): it leads the findings until a run answers it. */
-export function requestFinding(first: string, feel: unknown, note: unknown, sentOn: string): Finding {
-  const n = String(note || '').trim();
-  const f = feel ? `feeling ${String(feel).toLowerCase()}` : 'no feel given';
-  return { id: 'request', tone: 'amber', icon: 'message', title: `${first} asked for a check-in`, body: `${n ? `“${n}” · ` : ''}${f} · sent ${sentOn}`, action: 'checkin' };
-}

@@ -47,9 +47,9 @@ const setKey = (w, n, i) => `${MID}_${w}_${DK}_${EX(n)}_${i}`;
 // The BLOC side: the real functions, their closure, and small stubs.
 const STUBS = ['state', 'save', 'coachLinkGet', 'coachingAvailable', 'isCoachedMode', 'coachedView', 'getLocalToday', 'document',
   'renderTrain', 'openModal', 'closeModal', 'showConfirm', 'fitListToKeyboard', 'showScreen', 'openCoachSessions', '_coachRequests',
-  'engineCtx', 'supabase', '_authResolvedSession', 'expandedExercises', 'BlocEngine'];
+  'engineCtx', 'supabase', '_authResolvedSession', 'expandedExercises', 'BlocEngine', 'localStorage'];
 const SEEDS = ['applyPublications', 'queueStoredSessionLogs', 'chooseSwapToday', 'undoSwapToday', 'openSwapToday', 'renderSwapTodayList',
-  'swapTodayRowHTML', 'renderHomeCoachBanner', 'dismissCoachNotice', 'swapBodyPartOf', 'coachCheckinGate', 'coachOwnedSession', 'trainCoachNoticeHTML',
+  'swapTodayRowHTML', 'renderHomeCoachBanner', 'dismissCoachNotice', 'swapBodyPartOf', 'coachCheckinScheduleFor', 'coachCheckinLine', 'coachTabsShown', 'coachOwnedSession', 'trainCoachNoticeHTML',
   'coachGroupSessionsHTML'];
 function build(src) {
   const { decls } = indexTopLevel(mainScript(src));
@@ -68,6 +68,7 @@ function build(src) {
     const showConfirm = (t, m, ok, cb) => { env.confirms.push([t, m]); if (env.confirmYes) cb(); };
     let _coachRequests = env.requests || [];
     const expandedExercises = {};
+    const localStorage = { getItem: k => (env.ls || (env.ls = {}))[k] ?? null, setItem: (k, v) => { (env.ls || (env.ls = {}))[k] = String(v); } };
     const supabase = null, _authResolvedSession = { user: { id: 'u1' } };
     ${parts.map(p => p.text).join('\n')}
     return { get state() { return state; }, ${SEEDS.join(', ')}, coachLedger };`);
@@ -315,22 +316,33 @@ async function run(label, html, engineSrc, quiet = false) {
     check('three waiting (a proposal, a booking, a response): the badge says 3', (home().match(/coach-banner-count[^>]*>(\d+)</) || [])[1], '3');
     check('Bench Press (not in the library, no bodyPart) is Chest; Machine Row is Back', [B.swapBodyPartOf({ name: 'Bench Press' }), B.swapBodyPartOf({ name: 'Machine Row' }), B.swapBodyPartOf({ name: 'Leg Curl' })], ['Chest', 'Back', 'Legs']);
   }
-  // ── 7. Check in keeps Solo's rhythm ─────────────────────────────────────
+  // ── 7. v8.56 (§168): check-ins come due on the engine's schedule; the client never asks ──
   {
     const env = envFor(E);
     const B = factory(env);
     const m = env.state.macrocycles[0];
-    check('no cycle: Check in is closed', B.coachCheckinGate(null).open, false);
-    check('enough data and nothing sent yet: open', B.coachCheckinGate(m).open, true);
-    env.state.coachCheckinsSent = [{ at: '2026-07-28T09:00:00Z', macroId: m.id }];
-    const g = B.coachCheckinGate(m);
-    check('sent Tue 28 Jul: closed for 14 days, until Tue 11 Aug (Solo\'s cooldown formula)', [g.open, g.until], [false, '2026-08-11']);
-    env.state.coachCheckinsSent = [{ at: '2026-07-10T09:00:00Z', macroId: m.id }];
-    check('…and open again once that\'s passed', B.coachCheckinGate(m).open, true);
-    env.state.coachCheckinsSent = [];
+    const ci = (at) => ({ responseId: 'r-' + at, tool: 'check_in', macroId: m.id, publicationId: 'p-' + at, seq: 1, content: { headline: 'h' }, publishedAt: at });
+    check('no cycle: nothing due, no line', [B.coachCheckinScheduleFor(null).due, B.coachCheckinLine(null)], [false, '']);
+    check('enough data and nothing published yet: the first is due, and the line says the coach will send it',
+      [B.coachCheckinScheduleFor(m).due, B.coachCheckinLine(m)], [true, 'Your first check-in is due. Sam will send it.']);
+    env.state.coachAdvice = [ci('2026-07-28T09:00:00Z')];
+    const due = E.checkinDueAfter('2026-07-28');
+    check(`published Tue 28 Jul: not due until ${due} (Solo's cooldown formula), and the line says when`,
+      [B.coachCheckinScheduleFor(m).due, B.coachCheckinScheduleFor(m).dueOn, B.coachCheckinLine(m).startsWith('Next check-in · ')], [false, due, true]);
+    env.state.coachAdvice = [ci('2026-07-10T09:00:00Z')];
+    check('…and due again once that has passed', [B.coachCheckinScheduleFor(m).due, B.coachCheckinLine(m)], [true, 'Your next check-in is due. Sam will send it.']);
+    env.state.coachAdvice = [{ ...ci('2026-07-31T09:00:00Z'), macroId: 'another-cycle' }];
+    check('control: another cycle\'s check-in doesn\'t count', B.coachCheckinScheduleFor(m).due, true);
+    env.state.coachAdvice = [];
+    check('tabs on the demo cycle mid-way (6 weeks to go): Check-in only', B.coachTabsShown(m).map(t => t.key), ['check-in']);
     const thin = demo(); thin.bodyLogs = []; thin.nutritionLogs = []; thin.nutritionMeals = {};
     const envT = envFor(E, { state: thin });
-    check('not enough data yet: closed, saying roughly how long', /Check in opens/.test(factory(envT).coachCheckinGate(thin.macrocycles[0]).why || ''), true);
+    const T = factory(envT);
+    check('not enough data: nothing due, about how many weeks to go, and no tab',
+      [T.coachCheckinScheduleFor(thin.macrocycles[0]).due, T.coachCheckinScheduleFor(thin.macrocycles[0]).weeksToData > 0, T.coachTabsShown(thin.macrocycles[0]).length], [false, true, 0]);
+    envT.ls = env.ls; // this device already showed the cycle's Check-in tab
+    check('🚨 a tab once shown stays for the rest of the cycle, even when a later day reads as too little data',
+      T.coachTabsShown(thin.macrocycles[0]).map(t => t.key), ['check-in']);
   }
   return failures;
 }

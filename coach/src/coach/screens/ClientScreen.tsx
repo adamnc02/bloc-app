@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Avatar, Chip, EmptyState, IconButton, OutcomeChip, Page, PageHeader, Sheet, Icon, useEntering, useOnResume } from '@/components/ui';
+import { Avatar, BackBar, Chip, EmptyState, IconButton, OutcomeChip, Page, PageHeader, Sheet, useEntering, useOnResume } from '@/components/ui';
 import { CoachShell } from '@/coach/CoachShell';
 import { useCoach } from '@/app/App';
 import { clientPath, navigate, type ClientTab, type ReviewFocus } from '@/app/router';
@@ -53,11 +53,11 @@ export function ClientScreen({ id, tab, macro, intent, focus }: { id: string; ta
   const summaries = useMemo(() => (bundles ?? []).map((b) => summarise(b, now)), [bundles, now]);
   const bundle = bundles?.find((b) => b.card.id === id) ?? (bundles ? null : undefined);
 
-  const back = <a href="#/clients" className="eyebrow eyebrow-link"><Icon name="chevL" size={14} /> Clients</a>;
+  const back = <BackBar href="#/clients" label="Clients" />;
   if (error || bundle === null) {
     return (
       <CoachShell tab="clients"><Page innerRef={ref}>
-        <PageHeader eyebrow={back} title="Client" />
+        <PageHeader back={back} title="Client" />
         <EmptyState>{error ? `Couldn’t load this client: ${error}` : 'This client isn’t on your list.'}</EmptyState>
       </Page></CoachShell>
     );
@@ -87,7 +87,7 @@ export function ClientScreen({ id, tab, macro, intent, focus }: { id: string; ta
     <CoachShell tab="clients">
       <Page innerRef={ref}>
         <PageHeader
-          eyebrow={back}
+          back={back}
           title={summary.name}
           sub={<>{sub}{summary.status === 'linked' && <span className="caption"> · {fmt.ago(summary.syncedHoursAgo)}</span>}</>}
           actions={<IconButton icon="swap" label="Switch client or cycle" onClick={() => setPick(true)} />}

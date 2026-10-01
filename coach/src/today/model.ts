@@ -4,21 +4,25 @@
 //   Today's sessions  the diary's sessions today (the coach's date), with Start session on a one-to-one from
 //                     15 minutes before it starts until the day ends, unless it's already logged.
 //   Needs you         everything waiting on the coach, each clearing once dealt with: session requests (and a
-//                     confirmed time that now clashes), check-in requests, notes back not replied to, review
+//                     confirmed time that now clashes), notes back not replied to (on a check-in, a challenge), review
 //                     photos answered and not yet reviewed, and bookings from the last 14 days that weren't
 //                     logged or cancelled (BLOC keeps an assigned session out of "next" until one or the other),
 //                     group weeks included (§162: Log it opens the group session, Cancel cancels it for everyone),
 //                     and an exercise rated 9+, or missing its target, two weeks running on a coach's cycle (§163:
 //                     Reset it opens it in Plan; Leave keeps BLOC's hold, until a further week the same way).
+//                     Only a CHALLENGE (a note back on a check-in) can be dismissed (§169, 0036), on every device; the
+//                     client is never told.
 //   Off track         linked clients whose outcome is off track (Review's judgement), with its one reason.
-//   Coming up         check-ins due, cycles in their final week, measurements due, and apps gone quiet.
+//   Coming up         the AI tools due now or in the next 7 days (aiSchedule: a check-in, a cycle review, next-cycle
+//                     advice; each clears when published; never in Needs you, never dismissed), and
+//                     apps gone quiet.
 //
-// 🚨 Anything judged about a client is at the client's today (their upload's zone): check-ins, cycle ends and
-//    measurements. The diary's own dates (today's sessions, missed bookings) are the coach's.
+// 🚨 Anything judged about a client is at the client's today (their upload's zone): check-ins and cycle ends.
+//    The diary's own dates (today's sessions, missed bookings) are the coach's.
 // ═══════════════════════════════════════════════════════════════════════
-import { getMacroEndDate, shiftDateStr, dayDiff, type Loose, type Macrocycle } from '@engine';
-import type { AiDraft, CoachPublication, Submission } from '@/ai/types';
-import { checkinDueAfter, notesBack, openRequest, photoRequestState } from '@/ai/tools';
+import { coachCheckinSchedule, getMacroEndDate, shiftDateStr, type BlocState, type Loose, type Macrocycle } from '@engine';
+import type { AiDraft, AiTool, CoachPublication, Submission } from '@/ai/types';
+import { notesBack, PHOTO_WAIT_DAYS, photoRequestState, publishedCheckinDates } from '@/ai/tools';
 import type { ClientBundle, Inbox } from '@/data/types';
 import type { ClientSummary } from '@/data/summary';
 import { addDays, fmt } from '@/lib/format';
@@ -28,7 +32,6 @@ import type { Diary, SessionRequest } from '@/diary/types';
 import { canStart, cycleForSession, loggedFor, loggedSessions, missedFrom, recordState } from '@/inperson/model';
 import { highRatingStreaks, isLeft, type HighStreak } from '@/review/effort';
 import { groupLoggedFor } from '@/group/model';
-import { getMeasurementStatus } from '@/lib/measurementStatus';
 import { clientPath } from '@/app/router';
 
 export interface TodaySession {
@@ -46,14 +49,13 @@ export interface TodaySession {
 
 export type NeedsItem =
   | { kind: 'request'; key: string; at: string; cardId: string | null; request: SessionRequest }
-  | { kind: 'checkin'; key: string; at: string; cardId: string; submission: Submission }
   | { kind: 'note'; key: string; at: string; cardId: string; submission: Submission; headline: string | null; tool: string | null; macroId: string | null }
   | { kind: 'photos'; key: string; at: string; cardId: string; macroId: string; skipped: boolean; count: number }
   | { kind: 'missed'; key: string; at: string; cardId: string; occ: Occurrence }
   | { kind: 'missedGroup'; key: string; at: string; cardId: null; occ: Occurrence }
   | { kind: 'effort'; key: string; at: string; cardId: string; streak: HighStreak };
 
-export type ComingKind = 'check-in' | 'final-week' | 'measurements' | 'no-sync';
+export type ComingKind = 'check-in' | 'final-week' | 'next-cycle' | 'no-sync';
 export interface ComingItem { key: string; kind: ComingKind; cardId: string; detail: string; tab: 'review' | 'profile' | 'plan'; at: string }
 
 const byCard = <T extends { cardId: string }>(xs: T[], id: string) => xs.filter((x) => x.cardId === id);
@@ -125,16 +127,13 @@ export function needsYou(d: Diary, inbox: Inbox, bundles: ClientBundle[], summar
     const subs = inbox.submissions.filter((x) => x.clientId === b.link!.clientId);
     const drafts: AiDraft[] = inbox.drafts.filter((x) => x.cardId === cardId);
     const pubs: CoachPublication[] = byCard(inbox.publications, cardId);
-    const macroId = summaries.find((s) => s.id === cardId)?.cycle?.macroId ?? null;
-    if (macroId) {
-      const req = openRequest(subs, drafts, macroId);
-      if (req) out.push({ kind: 'checkin', key: `c:${req.id}`, at: req.createdAt, cardId, submission: req });
-    }
     // Notes back with no reply yet: every response on the card.
     const responses = [...new Set(subs.filter((x) => x.kind === 'note_back').map((x) => String(x.body?.response_id ?? '')))];
     for (const rid of responses) {
       const resp = pubs.filter((p) => p.type === 'ai_response' && p.payload?.response_id === rid).sort((a, z) => z.seq - a.seq)[0];
-      for (const n of notesBack(subs, pubs, rid)) if (!n.reply) out.push({ kind: 'note', key: `n:${n.note.id}`, at: n.note.createdAt, cardId, submission: n.note,
+      // Only a challenge (a note on a check-in) can be dismissed (§169).
+      const challenge = String(resp?.payload?.tool ?? '') === 'check_in';
+      for (const n of notesBack(subs, pubs, rid)) if (!n.reply && !(challenge && isDismissed(inbox, `n:${n.note.id}`))) out.push({ kind: 'note', key: `n:${n.note.id}`, at: n.note.createdAt, cardId, submission: n.note,
         headline: (resp?.payload?.content as Loose | undefined)?.headline ?? null, tool: (resp?.payload?.tool as string | undefined) ?? null, macroId: (resp?.payload?.macro_id as string | undefined) ?? null });
     }
     // Review photos answered (sent or skipped) and no review run since.
@@ -154,6 +153,63 @@ export function needsYou(d: Diary, inbox: Inbox, bundles: ClientBundle[], summar
   return out.sort((a, z) => a.at.localeCompare(z.at));
 }
 
+export interface AiDue { tool: AiTool; macroId: string; at: string; title: string; detail: string; stamp: string }
+export interface AiComing { tool: AiTool; macroId: string; at: string; detail: string }
+
+const published = (pubs: CoachPublication[], tool: AiTool, macroId: string) =>
+  pubs.some((p) => p.type === 'ai_response' && String(p.payload?.tool) === tool && p.payload?.macro_id === macroId);
+
+/**
+ * When each AI tool is DUE or COMING (the next 7 days), at the client's today: both are Coming up's rows. None is ever
+ * in Needs you or dismissed: each clears when the coach publishes it.
+ *   · Check-in, on the running cycle: the engine's schedule (coachCheckinSchedule, §168), never in the final week.
+ *   · Cycle review, on any cycle from its final week to 14 days after its end, until one is published: due when the
+ *     coach has the next move (no photos asked yet; or asked, the cycle over, and PHOTO_WAIT_DAYS without an answer).
+ *     Asked and waiting is the client's move; answered is Needs you's "Review photos in" card.
+ *   · Next cycle, on the running cycle: from 21 days before its end (BLOC's tab window, coachTabsReady) to the end,
+ *     until advice for it is published.
+ */
+export function aiSchedule(state: BlocState, today: string, runningMacroId: string | null, pubs: CoachPublication[], subs: Submission[]): { due: AiDue[]; coming: AiComing[] } {
+  const due: AiDue[] = [], coming: AiComing[] = [];
+  const soon = shiftDateStr(today, 7);
+  const ctx = { today };
+  const running = runningMacroId ? (state.macrocycles || []).find((x) => x.id === runningMacroId) as Macrocycle | undefined : undefined;
+  if (running?.start) {
+    const end = getMacroEndDate(running, ctx);
+    const sch = coachCheckinSchedule(state, ctx, running, publishedCheckinDates(pubs, running.id));
+    if (sch.due) due.push({ tool: 'check_in', macroId: running.id, at: sch.dueOn ?? today, stamp: sch.dueOn ?? 'first', title: sch.dueOn ? `Check-in due since ${fmt.ddm(sch.dueOn)}` : 'First check-in due',
+      detail: sch.dueOn ? 'two weeks since the last' : 'their trend calls for one' });
+    // nextOn: only a date before the final week (that week is the review's).
+    else if (sch.enoughData && sch.nextOn && sch.nextOn <= soon) coming.push({ tool: 'check_in', macroId: running.id, at: sch.nextOn, detail: `Check-in due ${fmt.ddm(sch.nextOn)}` });
+    const opens = shiftDateStr(end, -21);
+    if (!published(pubs, 'next_cycle', running.id)) {
+      if (today >= opens && today <= end) due.push({ tool: 'next_cycle', macroId: running.id, at: opens, stamp: 'open', title: 'Next cycle due', detail: `cycle ends ${fmt.ddm(end)}` });
+      else if (opens > today && opens <= soon) coming.push({ tool: 'next_cycle', macroId: running.id, at: opens, detail: `Next cycle advice from ${fmt.ddm(opens)}` });
+    }
+  }
+  for (const m of (state.macrocycles || []) as Macrocycle[]) {
+    if (!m.start || published(pubs, 'cycle_review', m.id)) continue;
+    const end = getMacroEndDate(m, ctx);
+    const finalWeek = shiftDateStr(end, -6);
+    const name = String(m.name || 'The cycle');
+    if (today >= finalWeek && today <= shiftDateStr(end, 14)) {
+      const ph = photoRequestState(pubs, subs, m.id);
+      if (ph.status === 'none') due.push({ tool: 'cycle_review', macroId: m.id, at: finalWeek, stamp: 'ask', title: 'Cycle review due',
+        detail: `${name} ${today > end ? 'ended' : 'ends'} ${fmt.ddm(end)}: ask for photos first` });
+      else if (ph.status === 'waiting' && today > end && ph.askedOn && today >= shiftDateStr(ph.askedOn, PHOTO_WAIT_DAYS)) due.push({ tool: 'cycle_review', macroId: m.id, at: shiftDateStr(ph.askedOn, PHOTO_WAIT_DAYS), stamp: 'nophotos', title: 'Cycle review due',
+        detail: `no photos since ${fmt.ddm(ph.askedOn)}: run it without them` });
+    } else if (finalWeek > today && finalWeek <= soon) {
+      coming.push({ tool: 'cycle_review', macroId: m.id, at: finalWeek, detail: `${name}: final week from ${fmt.ddm(finalWeek)}, then its review` });
+    }
+  }
+  return { due, coming };
+}
+
+/** Whether the coach dismissed a Needs you item (0036): a note back, for good. */
+export function isDismissed(inbox: Inbox, key: string): boolean {
+  return (inbox.dismissed ?? []).some((x) => x.key === key);
+}
+
 export const offTrack = (summaries: ClientSummary[]) => summaries.filter((s) => s.status === 'linked' && s.outcome.status === 'off-track');
 
 /** Coming up, for linked clients with an upload, at each client's today; within the next 7 days. */
@@ -166,20 +222,12 @@ export function comingUp(bundles: ClientBundle[], summaries: ClientSummary[], in
     if (s.staleSync) out.push({ key: `q:${s.id}`, kind: 'no-sync', cardId: s.id, detail: `No sync for ${Math.round((s.syncedHoursAgo ?? 0) / 24)} days`, tab: 'profile', at: '' });
     if (!st || !s.clientToday) continue;
     const today = s.clientToday;
-    const soon = shiftDateStr(today, 7);
-    const m = s.cycle ? (st.macrocycles || []).find((x) => x.id === s.cycle!.macroId) as Macrocycle | undefined : undefined;
-    if (m && s.cycle) {
-      const end = getMacroEndDate(m, { today });
-      if (end >= today && end <= soon) out.push({ key: `f:${s.id}`, kind: 'final-week', cardId: s.id, detail: `${s.cycle.name} ends ${end === today ? 'today' : `in ${dayDiff(today, end)} ${dayDiff(today, end) === 1 ? 'day' : 'days'}`}`, tab: 'plan', at: end });
-      const runs = inbox.drafts.filter((x) => x.cardId === s.id && x.tool === 'check_in' && x.macroId === m.id).map((x) => x.original?.today || x.createdAt.slice(0, 10)).sort();
-      const due = checkinDueAfter(runs.length ? runs[runs.length - 1] : String(m.start));
-      // A check-in the client has asked for is Needs you's, not this list's.
-      const asked = inbox.submissions.some((x) => x.clientId === b!.link?.clientId && x.kind === 'check_in' && String(x.body?.purpose || 'check_in') === 'check_in'
-        && x.createdAt.slice(0, 10) >= (runs[runs.length - 1] ?? ''));
-      if (!asked && due <= soon && due <= end) out.push({ key: `k:${s.id}`, kind: 'check-in', cardId: s.id, detail: due <= today ? `Check-in due since ${fmt.ddm(due)}` : `Check-in due ${fmt.ddm(due)}`, tab: 'review', at: due });
-    }
-    const ms = getMeasurementStatus(st.bodyLogs as Loose[], st.macrocycles as Loose[], today);
-    if (ms.nextDueDate <= soon && (!ms.lastDate || ms.lastDate < today)) out.push({ key: `w:${s.id}`, kind: 'measurements', cardId: s.id, detail: ms.due ? (ms.lastDate ? `Measurements due · last ${fmt.ddm(ms.lastDate)}` : 'No measurements yet') : `Measurements due ${fmt.ddm(ms.nextDueDate)}`, tab: 'review', at: ms.nextDueDate });
+    // The AI tools, due now or coming due within the week (aiSchedule): this list's only.
+    const subs = inbox.submissions.filter((x) => x.clientId === b?.link?.clientId);
+    const KIND: Record<AiTool, ComingKind> = { check_in: 'check-in', cycle_review: 'final-week', next_cycle: 'next-cycle' };
+    const ai = aiSchedule(st as BlocState, today, s.cycle?.macroId ?? null, byCard(inbox.publications, s.id), subs);
+    for (const x of ai.due) out.push({ key: `${KIND[x.tool]}:${s.id}:${x.macroId}`, kind: KIND[x.tool], cardId: s.id, detail: `${x.title} · ${x.detail}`, tab: 'review', at: x.at });
+    for (const x of ai.coming) out.push({ key: `${KIND[x.tool]}:${s.id}:${x.macroId}`, kind: KIND[x.tool], cardId: s.id, detail: x.detail, tab: 'review', at: x.at });
   }
   return out.sort((a, z) => (a.at || '').localeCompare(z.at || ''));
 }
@@ -191,19 +239,19 @@ export type NeedsOpen = { kind: 'request'; id: string } | { kind: 'path'; path: 
 export function needsItemOpen(it: NeedsItem): NeedsOpen | null {
   switch (it.kind) {
     case 'request': return { kind: 'request', id: it.request.id };
-    case 'checkin': return { kind: 'path', path: clientPath(it.cardId, 'review', null, null, { at: 'ai', tool: 'check_in' }) };
+    case 'photos': return { kind: 'path', path: clientPath(it.cardId, 'review', it.macroId, null, { at: 'ai', tool: 'cycle_review' }) };
     case 'note': return { kind: 'path', path: clientPath(it.cardId, 'review', it.macroId, null, { at: 'note', note: it.submission.id, tool: it.tool }) };
     default: return null;
   }
 }
 
 /**
- * A push's tag ('request:<id>', 'checkin:<submission id>', 'note:<submission id>') to its item's
+ * A push's tag ('request:<id>', 'photos:<submission id>', 'note:<submission id>') to its item's
  * action. The item's key carries the same id. None (it was dealt with already): Today, as it is.
  */
 export function pushAction(tag: string, items: NeedsItem[]): NeedsOpen | null {
   const [kind, id] = tag.split(':');
-  const prefix = kind === 'request' ? 'r' : kind === 'checkin' ? 'c' : kind === 'note' ? 'n' : null;
+  const prefix = kind === 'request' ? 'r' : kind === 'photos' ? 'p' : kind === 'note' ? 'n' : null;
   const it = prefix && id ? items.find((x) => x.key === `${prefix}:${id}`) : undefined;
   return it ? needsItemOpen(it) : null;
 }

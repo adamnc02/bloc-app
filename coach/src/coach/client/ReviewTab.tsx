@@ -6,14 +6,14 @@ import { RpeQuadrant } from '@/components/charts/RpeQuadrant';
 import { StoryChart } from '@/components/charts/StoryChart';
 import { fmt } from '@/lib/format';
 import { reviewFor, type ReviewModel } from '@/review/model';
-import { AVAILABLE_ACTIONS, requestFinding, type Finding } from '@/review/findings';
+import { AVAILABLE_ACTIONS, type Finding } from '@/review/findings';
 import { mealsOn, outOf10, type DriverKey } from '@engine/review';
+import { weeklyComplianceSub } from '@/review/weekly';
 import { goalLabel, type ClientView } from '@/coach/screens/ClientScreen';
 import { clientPath } from '@/app/router';
 import { AiPanel, useAiData } from '@/coach/client/AiPanel';
 import { InPersonReview } from '@/coach/client/InPersonReview';
 import { StrengthSection } from '@/coach/client/StrengthSection';
-import { openRequest } from '@/ai/tools';
 import type { AiTool } from '@/ai/types';
 
 /** A verdict rests on weigh-ins: say so when the latest is older than this. */
@@ -76,8 +76,7 @@ function Review({ v, m, tz }: { v: ClientView; m: ReviewModel; tz: string }) {
   });
   const aiRef = useRef<HTMLDivElement>(null);
   const openAi = (tool: AiTool) => { setAiTool(tool); aiRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
-  const request = ai.data ? openRequest(ai.data.submissions, ai.data.drafts, m.cycle.id) : null;
-  const findings = request ? [requestFinding(v.first, request.body?.feel, request.body?.note, fmt.dm(String(request.body?.sent_on || request.createdAt.slice(0, 10)))), ...m.findings.filter((f) => f.id !== 'none')] : m.findings;
+  const findings = m.findings;
   const t = m.training;
   const lastScored = [...t.cols].reverse().find((col) => col.closed && (t.scored ? col.score != null : col.attendance != null));
   return (
@@ -109,6 +108,10 @@ function Review({ v, m, tz }: { v: ClientView; m: ReviewModel; tz: string }) {
         {m.hasNutrition && (
           <Section i={4} title="Nutrition" sub="Intake against target, with its protein share, logged TDEE and BMR. In the day view, tap a day to see its meals.">
             <Card><NutritionChart days={m.days} weeks={m.nutrition.weeks} bmr={m.bmr} tdee={m.tdee} goalType={m.cycle.goalType} onDay={setDay} /></Card>
+          </Section>
+        )}
+        {m.hasNutrition && (
+          <Section i={4} title="Weekly compliance" sub={weeklyComplianceSub(m.cycle.goalType, v.first)}>
             <NutritionWeeks m={m} />
           </Section>
         )}
@@ -326,7 +329,7 @@ const FIELD_LABEL = { kcal: 'Kcal', protein: 'Protein', carbs: 'Carbs', steps: '
 function NutritionWeeks({ m }: { m: ReviewModel }) {
   const weeks = [...m.nutrition.weeks].reverse().slice(0, 4);
   return (
-    <div className="card list" style={{ marginTop: 12 }}>
+    <div className="card list">
       {weeks.map((w) => (
         <div key={w.start} className="ex" style={{ alignItems: 'flex-start' }}>
           <span>

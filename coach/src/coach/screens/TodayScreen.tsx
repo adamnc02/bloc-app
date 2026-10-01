@@ -25,8 +25,8 @@ const go = (o: NeedsOpen | null) => { if (o?.kind === 'path') navigate(o.path); 
 const greeting = (min: number) => (min < 12 * 60 ? 'Morning' : min < 18 * 60 ? 'Afternoon' : 'Evening');
 const COMING: Record<ComingKind, { tag: string; tone: 'amber' | 'acc' | 'neutral'; icon: IconName }> = {
   'check-in': { tag: 'Check-in', tone: 'neutral', icon: 'message' },
-  'final-week': { tag: 'Final week', tone: 'acc', icon: 'flag' },
-  measurements: { tag: 'Measurements', tone: 'neutral', icon: 'tape' },
+  'final-week': { tag: 'Cycle review', tone: 'acc', icon: 'flag' },
+  'next-cycle': { tag: 'Next cycle', tone: 'neutral', icon: 'sparkle' },
   'no-sync': { tag: 'No sync', tone: 'amber', icon: 'sync' },
 };
 
@@ -134,7 +134,7 @@ export function TodayScreen() {
 
           <div className="tg-needs">
             <Section i={3} title="Needs you" sub="Everything waiting on you, in one list. Each item clears once it’s dealt with." slot={items.length ? <Chip tone="acc">{items.length} waiting</Chip> : undefined}>
-              {items.length === 0 && <EmptyState>Nothing waiting on you. Requests, check-ins, notes back and sessions to log land here.</EmptyState>}
+              {items.length === 0 && <EmptyState>Nothing waiting on you. Session requests, challenges and notes back, review photos and sessions to log land here.</EmptyState>}
               <div className="stack">
                 {items.map((it, k) => (
                   <Card key={it.key} i={4 + k}>
@@ -145,6 +145,12 @@ export function TodayScreen() {
                         repo.leaveFlag({ cardId: x.cardId, macroId: k.macroId, dayKey: k.dayKey, exId: k.exId, kind: k.kind, throughWeek: k.weeks[1] })
                           .then(() => { loadInbox(); toast.show(`${k.name} left as it is`); })
                           .catch((e) => toast.show(`Couldn’t leave it: ${e instanceof Error ? e.message : String(e)}`));
+                      }}
+                      onDismiss={(x) => {
+                        // 0036: the coach's own record; nothing reaches the client.
+                        repo.dismissNeeds(x.cardId, x.key)
+                          .then(() => { loadInbox(); toast.show('Dismissed'); })
+                          .catch((e) => toast.show(`Couldn’t dismiss it: ${e instanceof Error ? e.message : String(e)}`));
                       }} />
                   </Card>
                 ))}
@@ -177,7 +183,7 @@ export function TodayScreen() {
           </div>
 
           <div className="tg-coming">
-            <Section i={5} title="Coming up" sub="Check-ins due, cycles ending, measurements due and apps gone quiet, over the next week." slot={coming.length ? <Chip>{coming.length} items</Chip> : undefined}>
+            <Section i={5} title="Coming up" sub="Check-ins, cycle reviews and next cycles due now or this week, and apps gone quiet." slot={coming.length ? <Chip>{coming.length} items</Chip> : undefined}>
               {coming.length ? (
                 <div className="card list">
                   {coming.map((u) => (
@@ -251,11 +257,13 @@ function SessionRow({ s, title, notOnApp }: { s: TodaySession; title: string; no
   );
 }
 
-function NeedsBody({ it, name, first, who, onRequest, onCancel, onLeave }: {
+function NeedsBody({ it, name, first, who, onRequest, onCancel, onLeave, onDismiss }: {
   it: NeedsItem; name: string; first: string; who: ReturnType<typeof useDiaryData>['who'];
   onRequest: (id: string) => void; onCancel: (x: Extract<NeedsItem, { kind: 'missed' | 'missedGroup' }>) => void;
   /** Leave a flag (§163, 0034): BLOC's hold stands. */
   onLeave: (x: Extract<NeedsItem, { kind: 'effort' }>) => void;
+  /** Dismiss a challenge (0036): the coach's own record; the client is never told. */
+  onDismiss: (x: Extract<NeedsItem, { kind: 'note' }>) => void;
 }) {
   const ago = (iso: string) => fmt.ddm(iso.slice(0, 10));
   switch (it.kind) {
@@ -272,21 +280,16 @@ function NeedsBody({ it, name, first, who, onRequest, onCancel, onLeave }: {
         <div className="btnrow"><Button size="card" icon="calendar" onClick={() => onRequest(r.id)}>{clash ? 'Move it' : 'Answer'}</Button></div>
       </>;
     }
-    case 'checkin': {
-      const b = it.submission.body || {};
-      return <>
-        <CardHead icon="message" eyebrow="Check-in asked for" name={name} when={ago(it.submission.createdAt)} />
-        <div className="muted" style={{ marginTop: 12 }}>Feeling <b style={{ color: 'var(--text)' }}>{String(b.feel || 'okay').toLowerCase()}</b></div>
-        {b.note && <Quote>{String(b.note)}</Quote>}
-        <div className="btnrow"><Button size="card" icon="sparkle" onClick={() => go(needsItemOpen(it))}>Run check-in</Button></div>
-      </>;
-    }
     case 'note':
       return <>
-        <CardHead icon="send" eyebrow="Note back" name={name} when={ago(it.submission.createdAt)} />
+        <CardHead icon="send" eyebrow={it.tool === 'check_in' ? 'Check-in challenged' : 'Note back'} name={name} when={ago(it.submission.createdAt)} />
         {it.headline && <div className="muted" style={{ marginTop: 12 }}>On “{it.headline}”</div>}
         <Quote>{String(it.submission.body?.text ?? '')}</Quote>
-        <div className="btnrow"><Button size="card" icon="message" onClick={() => go(needsItemOpen(it))}>Reply in Review</Button></div>
+        <div className="btnrow">
+          {/* Only a challenge (a note on a check-in) can be dismissed (§169). */}
+          {it.tool === 'check_in' && <Button size="card" variant="ghost" onClick={() => onDismiss(it)}>Dismiss</Button>}
+          <Button size="card" icon={it.tool === 'check_in' ? 'sparkle' : 'message'} onClick={() => go(needsItemOpen(it))}>{it.tool === 'check_in' ? 'Answer the challenge' : 'Reply in Review'}</Button>
+        </div>
       </>;
     case 'photos':
       return <>

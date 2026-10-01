@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 /**
  * Brand marks, from bloc-brand-rebuild (BLOC) and bloc-coach-1-rebuild-dune-italic
  * (Coach). Paths are the supplied outlines; fills read brand tokens so the
@@ -55,6 +56,48 @@ export function CoachLogo({ height = 40, fill }: { height?: number; fill?: boole
       viewBox={fill ? '34 24 501.8 164' : '0 0 559.8 212'} role="img" aria-label="BLOC Coach">
       <g transform="translate(24 24)">
         <g transform="translate(0 32)">{MARK}</g>
+        <g transform="translate(140 0)">{BLOC_TYPE}{COACH_ITALIC}</g>
+      </g>
+    </svg>
+  );
+}
+
+/** The mark's three bars with the classes the Settings animation targets (lb-1 bottom … lb-3 top, as BLOC's). */
+const MARK_ANIMATED = (
+  <>
+    <rect className="logo-bar lb-1" x="10" y="70.7" width="60" height="29.3" rx="7" />
+    <rect className="logo-bar lb-2" x="22" y="35.3" width="60" height="29.3" rx="7" />
+    <rect className="logo-bar logo-bar-top lb-3" x="34" y="0" width="60" height="29.3" rx="7" />
+  </>
+);
+
+/**
+ * The Coach lock-up in Settings' back row (phone), with BLOC's Settings logo animation (BLOC index.html
+ * .settings-logo, initSettingsLogoAnimation): the bars build bottom → top with a flash on landing, then two green
+ * pulses up the stack, replayed each time the logo comes into view. Cropped to the artwork (as `fill`), 44px tall:
+ * the height of BLOC's back row, which draws the BLOC letters within a pixel of BLOC's own 28px logo. Decorative.
+ */
+export function AnimatedCoachLogo() {
+  const ref = useRef<SVGSVGElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !('IntersectionObserver' in window)) return;
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        // Remove → reflow → add, or the browser treats the re-add as no change and nothing replays.
+        el.classList.remove('animate');
+        void el.getBoundingClientRect();
+        el.classList.add('animate');
+      }
+    }, { threshold: 0.6 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return (
+    <svg ref={ref} className="settings-logo" viewBox="34 24 501.8 164" aria-hidden="true" focusable="false">
+      <g transform="translate(24 24)">
+        <g transform="translate(0 32)">{MARK_ANIMATED}</g>
         <g transform="translate(140 0)">{BLOC_TYPE}{COACH_ITALIC}</g>
       </g>
     </svg>
