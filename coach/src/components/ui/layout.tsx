@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode, Ref } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode, type Ref } from 'react';
 import { Icon } from './Icon';
 
 const idx = (i: number) => ({ '--i': i }) as CSSProperties;
@@ -10,8 +10,17 @@ const idx = (i: number) => ({ '--i': i }) as CSSProperties;
  */
 export function BackBar({ label, href, onClick, className = '', children }: { label: ReactNode; href?: string; onClick?: () => void; className?: string; children?: ReactNode }) {
   const inner = <><Icon name="chevL" size={14} /> {label}</>;
+  // The fade under the bar (ui.css .backbar::after) shows only while the page is scrolled, i.e. while something is
+  // going under it; at rest it would dim the header below.
+  const [stuck, setStuck] = useState(false);
+  useEffect(() => {
+    const sync = () => setStuck(window.scrollY > 0);
+    sync();
+    window.addEventListener('scroll', sync, { passive: true });
+    return () => window.removeEventListener('scroll', sync);
+  }, []);
   return (
-    <div className={`backbar ${className}`}>
+    <div className={`backbar ${className}${stuck ? ' is-stuck' : ''}`}>
       {href != null
         ? <a href={href} className="eyebrow eyebrow-link">{inner}</a>
         : <button type="button" className="eyebrow eyebrow-link" onClick={onClick}>{inner}</button>}
