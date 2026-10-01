@@ -43,6 +43,15 @@ check('adding starts on the search; the creation tour opens it without, to spotl
 check('Category shows when adding only', /ex-category-group'\)\.style\.display = 'none'/.test(fn('openEditExercise')) && /ex-category-group'\)\.style\.display = ''/.test(fn('openAddExercise')));
 const pick = sheetOf(html, 'modal-ex-pick');
 check('the search asks no body part; a new name goes through Custom Exercise, which does', !/bodypart/i.test(pick) && /modal-custom-exercise/.test(fn('addExPickCustom')) && /closeModal\('modal-ex-pick'\)/.test(fn('saveCustomExercise')));
+
+// v8.54 (§166): the "Add “…”" row leads with the ＋ in a tile, as BLOC Coach's does; no trailing icon.
+const addRowSrc = fn('renderExPickList');
+const addRowLeads = (src) => /class="lib-row swap-row lib-add-row"[^`]*?<span class="lib-add-ico"[^>]*>\$\{icoPlus\(18\)\}<\/span>\s*<div class="lib-row-text">/.test(src) && !/A new exercise in your library<\/div><\/div>\s*<div class="lib-row-actions">/.test(src);
+check('the "Add" row leads with the ＋ in a tile (as Coach\'s), with no trailing icon', addRowLeads(addRowSrc));
+check('control: v8.53\'s row (the ＋ trailing on the right) is caught', !addRowLeads(`const addRow = q && !exact ? \`<div class="lib-row swap-row" onclick="addExPickCustom()">
+      <div class="lib-row-text"><div class="lib-row-name">Add</div><div class="lib-row-meta">A new exercise in your library</div></div>
+      <div class="lib-row-actions"><span class="row-btn-chevron">\${icoPlus(18)}</span></div>
+    </div>\` : '';`));
 check('saving with no exercise chosen opens the search instead', /if \(!document\.getElementById\('ex-name-input'\)\.value\.trim\(\)\) \{ openExPick\(\); return; \}/.test(fn('saveExercise')));
 check('Heavy leg and Weight is sit side by side, with the increments spelled out under them', /id="ex-weight-leg-group"[\s\S]{0,400}id="ex-weight-tracking-group"/.test(sheet) && /id="ex-leg-caption"/.test(sheet) && /ex-leg-caption/.test(fn('updateLegSelectLabels')));
 
