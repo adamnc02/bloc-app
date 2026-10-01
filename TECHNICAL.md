@@ -9563,6 +9563,8 @@ came back, and whether consent still lets photos through.
 
 ### Check-in requests and review photos: `body.purpose`
 
+**Since v8.56 / Coach v0.16 (§168) a client never sends a check-in request**: BLOC has no Check in, and Coach ignores a `purpose 'check_in'` row (an older BLOC's). What follows about requests describes Coach v0.3–v0.15; `purpose 'cycle_review'` is unchanged.
+
 A `client_submissions` row of kind `check_in` is one of two things (BLOC v8.41, §135). `purpose 'check_in'`
 (or none) is a request; `purpose 'cycle_review'` carries review photos and is **never** a request. A request is
 **open** until a check-in on that cycle is run after it. An open request shows in the panel (feel and note) and
@@ -11437,3 +11439,114 @@ person's name or a pointer to a build round's working files, with an allow-list 
 builds its phrases from parts. Its controls: v8.54's `TECHNICAL.md` fails, a planted line is caught in code and in the
 README, a planted design-note pointer is caught, the allowance holds for its own file
 only, and the `adamnc02.github.io` host isn't read as a name.
+
+## §168 — v8.56 + Coach v0.16: check-ins come due on one schedule; From your coach shows each tab once ready
+
+A coached client never asks for a check-in. It comes due on **one schedule, in the engine** (`engine/src/coach.ts`),
+which BLOC and BLOC Coach both read:
+
+- **`coachCheckinSchedule(s, ctx, macro, publishedOn)`**: due while the cycle runs, once it has the engine's minimum
+  data (`computeCheckinState(...).hasEnoughData`, Solo's baseline and comparison window), then again
+  `checkinDueAfter(last)` (the Monday after two weeks on, Solo's fallback cooldown) after the newest check-in the coach
+  **published** on the cycle. Returns `{ enoughData, due, dueOn, lastOn, weeksToData }`.
+- `publishedOn` is the only input both apps can see: BLOC passes the dates of the check-ins it received
+  (`state.coachAdvice`, `coachPublishedCheckinDays`), Coach the `ai_response` publications with `tool 'check_in'` on the
+  cycle (`publishedCheckinDates`). Coach uses the publication's UTC date; BLOC the client's own: they differ only for one
+  published within an hour of midnight in summer.
+- 🚨 **A run the coach never published doesn't count.** Before v0.16 Coach timed the cooldown from its last *run*, so an
+  unpublished draft hid a check-in the client never got. And there were three rules: BLOC's, the AI panel's (runs, or a
+  client request), and Coming up's, which had no data check at all.
+- 🚨 **`computeWeeklyInsights()` throws on a running cycle with 0 or 1 weigh-ins** (BACKLOG P1). Both engine functions
+  catch it and read it as "not enough data yet", so a new client never breaks Progress or Today through this path.
+
+**Coach.** The AI panel's Check-in row reads the schedule ("First check-in due", "Check-in due", "Next check-in · {date} ·
+run early", or how many weeks of logs until the first). Today's **Needs you** has a due check-in (`checkinDue()`, at the
+client's today, on Review's cycle), keyed `c:{card}:{macro}:{dueOn | first}`: publishing one moves `dueOn`, so the item
+clears and the next is a new key. **Coming up** lists one coming due in the next 7 days. The request's finding, tile,
+prompt line ("THE CLIENT ASKED…") and Needs you card are gone; old drafts may still carry `original.requestId`.
+
+**BLOC.** The Check in button, sheet (`modal-coach-checkin`) and their `check_in` row are removed; `state.coachCheckinsSent`
+is no longer read or written. Under the Check-in tab, `coachCheckinLine()` says when the next one is due, read-only, while
+the cycle runs.
+
+**Which tabs show: `coachTabsReady(s, ctx, macro, had)`.** Check-in once the cycle has had the data or one was published;
+Review from the final week (when the coach asks for review photos) or once one is published or photos were asked for; Next
+cycle from 21 days before the end (`isNextCycleAdviceEligible`'s window) or once one is published. Every condition only
+becomes true as the cycle goes on. 🚨 `hasEnoughData` can in principle turn false again (a client who stops logging), so
+BLOC also remembers each cycle's shown tabs in `localStorage` **`bloc_coachTabsSeen`** (`coachTabsShown()`): a tab once
+shown never disappears, on that device. No tab ready: the card says when the first check-in comes.
+
+**Checks:** `coach/src/ai/schedule.test.ts` (the schedule and the tabs on the demo client, with 0 and 1 weigh-ins);
+`ai.test.ts` (eligibility: an unpublished run leaves it due, another cycle's doesn't count); `today.test.ts` (Needs you
+from the schedule; an old request row changes nothing); `verify-coach-logged.mjs` §7 (BLOC's own functions, including a
+tab kept on a thin day); `verify-from-coach.mjs` (no Check in, no `purpose 'check_in'` row, only ready tabs, the line
+under Check-in only); `engine-cases.mjs` covers the new exports.
+
+## §169 — Coach v0.16: dismissing a Needs you item (migration `0036`)
+
+A **note back** or a **check-in due** has **Dismiss** on its Needs you card. The dismissal is a
+`coach_needs_dismissals` row (card, `item_key` = the item's key, `created_at`), so every device agrees.
+
+- A note back stays dismissed. A check-in comes back once `checkinDueAfter(dismissal date)` has passed at the client's
+  today, if it's still due (`isDismissed()` in `today/model.ts`): a check-in skipped and never published is raised again
+  a fortnight later rather than never.
+- A repeat dismissal deletes the old row and inserts a new one (no update grant), so the new date counts.
+- 🚨 **Nothing reaches the client**: no publication, no push, no client policy. `behaviour-needs-dismissals.mjs` checks
+  no push is queued.
+- Before `0036` is on the project, the dismissals read fails on its own and Today draws with none (`live.ts` reads it
+  separately from the inbox's other queries).
+
+`0036` also changes the coach's submission push: a `check_in` row pushes only as **review photos** ("{first} sent / skipped
+review photos", tag `photos:<submission id>`, which opens Needs you's photos item, key `p:<id>`, on Review → Cycle review).
+Coach's switch (column `check_ins`) is labelled **Review photos**.
+
+**Checks:** `today.test.ts` (dismissed items gone, everything else kept, the check-in back after the cooldown);
+super-duper-octo-barnacle's `0036` check file and behaviour test.
+
+## §170 — v8.56 + Coach v0.16: notes back as a thread; Challenge with BLOC on a check-in
+
+**One note per response, and one reply.** BLOC's note back is keyed by the response (`coachNoteSentFor()`: the
+publication, or any sent note with the same `responseId`), so the coach's update (a new publication, same response)
+doesn't open another, and `sendCoachNote()` refuses a second. Both apps draw the note and the reply as a two-bubble
+thread (BLOC: yours right, `.coach-bubble`; Coach: the client left, `NoteThread`, `.bubble`). It answers a response; it
+isn't a chat.
+
+**Only a check-in has a challenge**, as in Solo ("Challenge this advice", `buildBlocChallengePrompt` /
+`requestBlocChallenge`). Cycle reviews and next-cycle advice have none, so their note takes a reply only. In BLOC a
+check-in's note is **Challenge this**.
+
+**Coach: Challenge with BLOC** (`runChallenge()` in `ai/run.ts`, `ChallengeSheet`):
+- The text starts as the client's note; the coach can edit it.
+- The prior turn is the check-in the client was **sent** (`overlayCoachAdvice`'s `blocAdvice`), never a draft or the AI's
+  original. 🚨 It runs only when the coach has published a check-in on the cycle: with none, `overlayCoachAdvice` keeps
+  the client's own Solo `blocAdvice`, and a challenge would answer that.
+- `challengeEdit()` applies the revision as Solo's `acceptChallengeRevision` does: `isSignificantRevision` replaces the
+  headline and narrative (plus "This week: …"); otherwise the words sent stay and only the plan changes. The plan is the
+  revision's, on the plan the sent version chose (Sustainable if none), with **the same phase ids**
+  (`phasesFor`: `${macroId}_g{draft ms}{plan}{n}`), so republishing replaces the phases on the phone.
+- The run is kept verbatim on the edit, `edited.challenge` (`ChallengeRecord`: submission, text, raw reply,
+  acknowledgment, significant, the client's date). `contentOf()` never sends it.
+- **Use this version, then reply** saves the edit (the draft reads "Edited since publishing": **Publish the update**) and
+  opens the reply with BLOC's acknowledgment, which the coach edits before sending.
+- Needs you names a note on a check-in **Check-in challenged**, and **Answer the challenge** opens Review on the check-in
+  tool at that note.
+
+**Checks:** `ai.test.ts` "challenging a published check-in" (the prior turn is the sent version, control: never the
+original; minor vs significant; same phase ids; the record never in the payload; nothing published refuses);
+`verify-from-coach.mjs` (Challenge this on a check-in, a note on a review (control), the thread, one per response).
+
+## §171 — v8.56 + Coach v0.16: pinned back links, Settings' logo, Weekly compliance, the Diary's week bar
+
+- **Back links stay at the top.** BLOC's Settings `.settings-topbar` is `position: sticky` at `#content`'s padding edge,
+  with a solid `--bg` carried across the gutters; its link is `--text3`, BLOC Coach's back-link colour. Coach's five back
+  links (a client, Settings on a phone, In person, Group session, Print) are one `BackBar`, rendered by `PageHeader`'s
+  `back`, sticky under the top inset as the Diary's day header is. 🚨 A sticky element only sticks within its parent: the
+  bar must be a direct child of the page (Print's sits outside `.pp-toolbar` for that reason), never inside the header.
+- **Coach Settings' logo** (phone): `AnimatedCoachLogo` in the back row, centred and 44 px tall (the BLOC letters match
+  BLOC's 28 px Settings logo), with BLOC's build-and-pulse animation (`--brand-flash`), replayed each time it comes into
+  view.
+- **Weekly compliance** is its own Review section after Nutrition; its explainer (`review/weekly.ts`) is built from the
+  engine's rules (`isGoodLabel`, `MIN_COUNTED_DAYS`), and `review/weekly.test.ts` holds it to them.
+- **The Diary's week bar** is ‹, the range, ›; "Back to today" replaces the relative line only once the view has moved
+  off today. The legend is four even columns (two by two at 380 px and below, at most 460 px wide).
+
