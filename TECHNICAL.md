@@ -2191,11 +2191,11 @@ See §3's callout for the full story — `range.proteinMax` was stored as the re
 
 | Area | Limitation |
 |---|---|
-| **Offline** | No service worker. Google Fonts require a network connection on first load. |
-| **Cross-device sync** | Data is device-local. No sync between devices or browsers. |
+| **Offline** | The service worker (`sw.js`, §111) is for push only and caches nothing, so the first load needs a network connection, for Google Fonts too. |
+| **Cross-device sync** | Each device works on its own `localStorage` copy. Signed in, it pushes to the relational mirror and the cloud backups (§57); a new device restores the latest backup (§133). Two devices in use at once aren't synced live. |
 | **Bundle size** | The ZXing barcode library adds ~336KB to the file. Loaded once and cached by the browser. |
 | **Camera permissions** | iOS Safari requires explicit camera permission per site. If denied, the manual barcode entry field remains as a fallback. |
-| **Push notifications** | No background timer alerts when the app is backgrounded or screen is locked. |
+| **Push notifications** | Push carries the measurement reminder (§111) and the coach's updates (§157), but the rest timer can't alert while the app is backgrounded or the screen is locked. |
 | **Storage limit** | `localStorage` capped at 5–10 MB. Extremely large libraries or years of logs could approach this. |
 | **Undo** | No undo mechanism. Deletes are confirmed but irreversible. |
 | **Body weight units** | Body weight is lbs-only (training weight elsewhere is kg-only); no unit toggle exists for either, unlike height which has one. Confirmed intentional, not planned to change. Waist/hip measurements (v6.12) are the exception — they do have an inches/cm input toggle, though storage is always inches regardless of which unit was used to enter a given value. |
@@ -2224,13 +2224,13 @@ See §3's callout for the full story — `range.proteinMax` was stored as the re
 ### Architecture Considerations for Future Development
 
 **Service Worker / Offline-first**
-A cache-first service worker for fonts would make the app fully offline-capable. A `manifest.json` with `start_url`, `display: standalone`, and icon assets would improve the PWA install experience on Android.
+The manifest (§108) and a push-only service worker (§111) exist. A cache for the fonts would make the first load work offline, but it must never cache `index.html`: a single-file app published on merge would stay stuck on an old build.
 
 **Local-first Sync**
-Supabase + PowerSync has been considered as a sync layer. Would require refactoring `state` into a normalised schema and replacing `localStorage` with a PowerSync-managed SQLite store.
+BLOC syncs to Supabase without PowerSync (§57). PowerSync would only be considered for live multi-device editing, and would mean replacing `localStorage` with a PowerSync-managed SQLite store.
 
 **Native App**
-Capacitor wrapping is compatible with the single-file architecture with minimal changes. Main additions: native push notifications for timer alerts, native camera API for barcode scanning.
+Capacitor wrapping is compatible with the single-file architecture with minimal changes. Main additions: native rest-timer alerts, native camera API for barcode scanning.
 
 **Data Model Evolution**
 The dual nutrition log format (`nutritionLogs` legacy + `nutritionMeals`/`nutritionQuickLog` current) is technical debt — `nutritionLogs` is still actively written by `syncNutrLegacyLog()` after every change, it's just no longer the primary source of truth for anything in the current UI. A pass to identify which (if any) remaining reads actually need it, migrate them onto `nutritionMeals`/`nutritionQuickLog`, and then retire `syncNutrLegacyLog()` and the array entirely would remove this permanently — worth doing deliberately rather than assuming it's already inert, since it isn't.
@@ -11426,7 +11426,11 @@ The engine's labels H1–H8 stay (§125 defines them), as do the I- and D-labels
 
 One name stays, because it's the fact: Close my account's confirmation says who processes the request.
 
+§29's Current Limitations rows for offline, sync and push describe the service worker (§111), the mirror and backups
+(§57, §133) and the pushes (§157) as they are.
+
 **Check:** `verify-docs-are-facts.mjs` scans every tracked text file (built output and the golden data excepted) for a
-person's name or a pointer to a build round's working files, with an allow-list for that one line. Its controls:
-v8.54's `TECHNICAL.md` fails, a planted line is caught in code and in the README, the allowance holds for its own file
+person's name or a pointer to a build round's working files, with an allow-list for that one line. It scans its own file too, so it
+builds its phrases from parts. Its controls: v8.54's `TECHNICAL.md` fails, a planted line is caught in code and in the
+README, a planted design-note pointer is caught, the allowance holds for its own file
 only, and the `adamnc02.github.io` host isn't read as a name.
