@@ -8,6 +8,7 @@ import { fmt } from '@/lib/format';
 import { reviewFor, type ReviewModel } from '@/review/model';
 import { AVAILABLE_ACTIONS, requestFinding, type Finding } from '@/review/findings';
 import { mealsOn, outOf10, type DriverKey } from '@engine/review';
+import { weeklyComplianceSub } from '@/review/weekly';
 import { goalLabel, type ClientView } from '@/coach/screens/ClientScreen';
 import { clientPath } from '@/app/router';
 import { AiPanel, useAiData } from '@/coach/client/AiPanel';
@@ -109,6 +110,10 @@ function Review({ v, m, tz }: { v: ClientView; m: ReviewModel; tz: string }) {
         {m.hasNutrition && (
           <Section i={4} title="Nutrition" sub="Intake against target, with its protein share, logged TDEE and BMR. In the day view, tap a day to see its meals.">
             <Card><NutritionChart days={m.days} weeks={m.nutrition.weeks} bmr={m.bmr} tdee={m.tdee} goalType={m.cycle.goalType} onDay={setDay} /></Card>
+          </Section>
+        )}
+        {m.hasNutrition && (
+          <Section i={4} title="Weekly compliance" sub={weeklyComplianceSub(m.cycle.goalType, v.first)}>
             <NutritionWeeks m={m} />
           </Section>
         )}
@@ -326,7 +331,7 @@ const FIELD_LABEL = { kcal: 'Kcal', protein: 'Protein', carbs: 'Carbs', steps: '
 function NutritionWeeks({ m }: { m: ReviewModel }) {
   const weeks = [...m.nutrition.weeks].reverse().slice(0, 4);
   return (
-    <div className="card list" style={{ marginTop: 12 }}>
+    <div className="card list">
       {weeks.map((w) => (
         <div key={w.start} className="ex" style={{ alignItems: 'flex-start' }}>
           <span>
