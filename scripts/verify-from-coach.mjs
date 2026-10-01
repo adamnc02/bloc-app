@@ -15,10 +15,11 @@
 //   · A note back is one client_submissions row, kind 'note_back', naming
 //     the response's publication; once sent the row says so, and the coach's
 //     reply (a note_reply publication) shows under it.
-//   · Check in is one client_submissions row, kind 'check_in', purpose
-//     'check_in': feel (Tough · Okay · Good · Great, lowest on the left) and a
-//     note. 🚨 NO photos (in BLOC photos only ever fed the
-//     cycle review; the check-in prompt has no images).
+//   · 🚨 A client never asks for a check-in (v8.56, §168): no Check in
+//     button, sheet or `check_in` row with purpose 'check_in'. It comes due
+//     on the engine's schedule; the Check-in tab says when, read-only.
+//   · Only the tabs ready on the cycle show (coachTabsShown, whose rules are
+//     verify-coach-logged's); none ready, the card says when the first comes.
 //   · Review photos (v8.44, §142): only in answer to the coach's request (a
 //     `photo_request`, verify-publications-apply.mjs), never unprompted. The
 //     sheet sends before/after to client-media, then one check_in row with
@@ -46,13 +47,12 @@ const CONTROL = '99273df';
 const STUBS = ['state', 'save', 'coachLinkGet', 'coachingAvailable', 'isCoachedMode', 'supabase', '_authResolvedSession',
   'renderProgress', 'openModal', 'closeModal', 'getLocalToday', '_downsizePhotoFileToBase64', 'document', 'engineCtx',
   'coachedView', // v8.43 (§137)
-  'coachCheckinGate', // v8.43: Check in's rhythm is verify-coach-logged's; here it's open unless a test closes it
+  'coachTabsShown', 'coachCheckinLine', 'coachCheckinScheduleFor', // v8.56: their rules are verify-coach-logged's; here the env sets them
   'renderHomeCoachBanner']; // v8.44
 
 function build(src) {
   const { decls } = indexTopLevel(mainScript(src));
-  const seeds = ['renderProgressFromCoach', 'openCoachResponse', 'openCoachNote', 'sendCoachNote', 'openCoachCheckin', 'sendCoachCheckin',
-    'setCoachCheckinFeel', 'coachToolKey', 'coachAdviceContent', 'applyAiResponsePublication', 'openCoachPhotoRequest', 'sendCoachReviewPhotos',
+  const seeds = ['renderProgressFromCoach', 'openCoachResponse', 'openCoachNote', 'sendCoachNote', 'coachToolKey', 'coachAdviceContent', 'applyAiResponsePublication', 'openCoachPhotoRequest', 'sendCoachReviewPhotos',
     'skipCoachReviewPhotos']; // v8.44 (§142): photos only in answer to the coach's request
   for (const s of seeds) if (!decls.has(s)) return null;
   const parts = closure(decls, seeds, new Set(STUBS));
@@ -63,7 +63,12 @@ function build(src) {
     const coachingAvailable = () => env.available;
     const isCoachedMode = () => !!env.link;
     const coachedView = () => !!env.link;
-    const coachCheckinGate = () => env.gate || { open: true };
+    const TOOLS3 = [{ key: 'check-in', tab: 'Check-in', label: 'Check-in', readFull: 'Read full check-in' },
+      { key: 'cycle-review', tab: 'Review', label: 'Cycle review', readFull: 'Read full review' },
+      { key: 'next-cycle', tab: 'Next cycle', label: 'Next cycle', readFull: 'Read full plan' }];
+    const coachTabsShown = () => TOOLS3.filter(t => !env.tabs || env.tabs.includes(t.key));
+    const coachCheckinLine = () => env.line || '';
+    const coachCheckinScheduleFor = () => ({ weeksToData: env.weeksToData || 0 });
     const renderHomeCoachBanner = () => env.log.push(['banner']);
     const supabase = env.supabase;
     const _authResolvedSession = { user: { id: 'u1' } };
@@ -76,9 +81,9 @@ function build(src) {
     const document = env.document;
     const atob = s => Buffer.from(s, 'base64').toString('binary');
     ${parts.map(p => p.text).join('\n')}
-    return { renderProgressFromCoach, openCoachResponse, openCoachNote, sendCoachNote, openCoachCheckin, sendCoachCheckin, setCoachCheckinFeel,
+    return { renderProgressFromCoach, openCoachResponse, openCoachNote, sendCoachNote,
       coachToolKey, coachAdviceContent, applyAiResponsePublication, openCoachPhotoRequest, sendCoachReviewPhotos, skipCoachReviewPhotos,
-      get checkin() { return _coachCheckin; }, get review() { return _coachReview; } };`);
+      get review() { return _coachReview; } };`);
 }
 
 function makeEnv(over = {}) {
@@ -149,15 +154,28 @@ async function run(label, src) {
       [h.includes('Good week'), h.includes('Older check-in')], [true, false]);
     check('byline: the coach, the tool and the publication\'s date', h.includes('Sam Rivers') && /Check-in · Thu 24 Sept?/.test(h), true);
     check('first paragraph only on the card; kcal and steps as scores', [h.includes('First para.'), h.includes('Second para.'), h.includes('2,350'), h.includes('steps a day')], [true, false, true, true]);
-    check('Read full check-in (with its icon) and Check in; the note back is NOT on the card (v8.43: the full sheet only)',
-      [/<svg[^>]*>[\s\S]*?<\/svg>Read full check-in/.test(h), h.includes('openCoachNote('), h.includes('openCoachCheckin()')], [true, false, true]);
+    check('Read full check-in (with its icon); no Check in button (v8.56); the note back is NOT on the card (v8.43: the full sheet only)',
+      [/<svg[^>]*>[\s\S]*?<\/svg>Read full check-in/.test(h), h.includes('openCoachNote('), /CoachCheckin|>Check in</.test(h)], [true, false, false]);
     F.openCoachResponse('r1');
     check('…it\'s in the full sheet, with its speech-bubble icon, not the pulsing dot',
       [/<svg[^>]*>[\s\S]*?<\/svg>Send a note back/.test(env.document.getElementById('coach-response-body').innerHTML), /ai-action-dot/.test(env.document.getElementById('coach-response-body').innerHTML)], [true, false]);
-    const envG = makeEnv({ gate: { open: false, why: 'Next check-in · Mon 12 Oct' } });
+    const envG = makeEnv({ line: 'Next check-in · Mon 12 Oct' });
     envG.state.coachAdvice = [advice()];
     const elG = { innerHTML: '' }; factory(envG).renderProgressFromCoach(elG, null);
-    check('Check in closed: no button, and when it opens instead', [elG.innerHTML.includes('openCoachCheckin()'), elG.innerHTML.includes('Next check-in · Mon 12 Oct')], [false, true]);
+    check('the Check-in tab says when the next one is due, read-only', elG.innerHTML.includes('Next check-in · Mon 12 Oct'), true);
+    const envR = makeEnv({ line: 'Next check-in · Mon 12 Oct' });
+    envR.state.coachAdvice = [advice({ tool: 'cycle_review', seq: 9 })];
+    const elR = { innerHTML: '' }; factory(envR).renderProgressFromCoach(elR, null);
+    check('…only under the Check-in tab (control: on Review it isn\'t)', elR.innerHTML.includes('Next check-in'), false);
+    const envT = makeEnv({ tabs: ['check-in'] });
+    envT.state.coachAdvice = [advice()];
+    const elT = { innerHTML: '' }; factory(envT).renderProgressFromCoach(elT, null);
+    check('only the tabs ready on the cycle show (control: Review and Next cycle absent)',
+      [elT.innerHTML.includes('setFromCoachTab(\'check-in\')'), elT.innerHTML.includes('setFromCoachTab(\'cycle-review\')'), elT.innerHTML.includes('setFromCoachTab(\'next-cycle\')')], [true, false, false]);
+    const envN = makeEnv({ tabs: [], weeksToData: 2 });
+    const elN = { innerHTML: '' }; factory(envN).renderProgressFromCoach(elN, { id: 'm1', start: '2026-09-21', weeks: 8 });
+    check('no tab ready yet: no tabs, and when the first check-in comes',
+      [elN.innerHTML.includes('setFromCoachTab('), elN.innerHTML.includes('first check-in comes after about 2 more weeks')], [false, true]);
     check('🚨 read-only: no signal chip, no Build, no Challenge, no Ask BLOC', /chip-c|Build this|Challenge|Ask BLOC/.test(h), false);
 
     env.state.coachAdvice.push(advice({ responseId: 'rx', seq: 7, publicationId: 'pub-7', updated: true, content: { headline: '<img src=x onerror=alert(1)>', narrative: ['<b>x</b>'] } }));
@@ -235,26 +253,12 @@ async function run(label, src) {
     check('unlinked: nothing is sent', envU.calls.length, 0);
   }
 
-  // ── 4. Check in: a feel and a note, no photos ───────────────────────────
+  // ── 4. 🚨 A client never sends a check-in (v8.56, §168) ─────────────────
   {
-    const env = makeEnv();
-    const F = factory(env);
-    F.openCoachCheckin();
-    await F.sendCoachCheckin();
-    check('no feel chosen: nothing sent', env.calls.length, 0);
-    const html = env.document.getElementById('coach-checkin-body').innerHTML;
-    check('the feels read lowest to highest, left to right: Tough · Okay · Good · Great',
-      [...html.matchAll(/setCoachCheckinFeel\('([A-Za-z]+)'\)/g)].map(m => m[1]), ['Tough', 'Okay', 'Good', 'Great']);
-    check('🚨 the Check in sheet has no photos', /type="file"|Progress photos|coach-photo/.test(html), false);
-    F.setCoachCheckinFeel('Tough');
-    env.document.getElementById('coach-checkin-note').value = ' Slept badly '; // the textarea is what's sent
-    await F.sendCoachCheckin();
-    const ins = env.calls.find(c => c[0] === 'insert');
-    check('one check_in row (purpose check_in): the feel and the trimmed note, nothing uploaded, no photos field',
-      [env.calls.filter(c => c[0] === 'upload').length, ins[2].kind, ins[2].coach_id, ins[2].body.purpose, ins[2].body.feel, ins[2].body.note, 'photos' in ins[2].body],
-      [0, 'check_in', 'coach-1', 'check_in', 'Tough', 'Slept badly', false]);
-    check('…recorded (for "Last check-in sent"), saved, and closed',
-      [env.state.coachCheckinsSent.length, env.log.some(l => l[0] === 'close' && l[1] === 'modal-coach-checkin')], [1, true]);
+    check('no Check in sheet or send: no openCoachCheckin / sendCoachCheckin, no modal-coach-checkin',
+      /function (open|send)CoachCheckin|modal-coach-checkin/.test(src), false);
+    check('…and no check_in row with purpose \'check_in\' is ever built (review photos\' purpose is cycle_review)',
+      /purpose: 'check_in'/.test(src), false);
   }
 
   // ── 5. Photos for the cycle review: only in answer to a request (v8.44, §142)

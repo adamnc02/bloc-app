@@ -4763,15 +4763,6 @@ try {
     <div id="coach-note-body"></div>
   </div>
 </div>
-<div class="modal-overlay" id="modal-coach-checkin">
-  <div class="modal-sheet" data-modal="modal-coach-checkin" style="max-height:92dvh;display:flex;flex-direction:column;">
-    <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div>
-      <button class="modal-close-btn" onclick="closeModal('modal-coach-checkin')">✕</button>
-    </div>
-    <div class="modal-title" style="flex-shrink:0;">Check in</div>
-    <div id="coach-checkin-body" style="overflow-y:auto;flex:1;"></div>
-  </div>
-</div>
 
 <div class="modal-overlay" id="modal-coach-sessions" data-pub-safe>
   <div class="modal-sheet" data-modal="modal-coach-sessions" style="max-height:92dvh;display:flex;flex-direction:column;">
@@ -15051,12 +15042,10 @@ const COACH_TOOLS = [
   { key: 'cycle-review', tab: 'Review', label: 'Cycle review', readFull: 'Read full review' },
   { key: 'next-cycle', tab: 'Next cycle', label: 'Next cycle', readFull: 'Read full plan' },
 ];
-const COACH_FEELS = ['Tough', 'Okay', 'Good', 'Great']; // lowest to highest, left to right
 const COACH_REVIEW_MAX_PHOTOS = 3;  // per side: before, after
 let _fromCoachTab = null;   // null: the tool of the newest response in the viewed cycle
 let _fromCoachMacroId;      // the cycle the tab was chosen in; switching cycles resets it
 let _coachNoteFor = null;   // the coachAdvice entry a note is being written about
-let _coachCheckin = null;   // the open Check in form: {feel, note, busy, error}
 let _coachReview = null;    // the open review-photos form: {requestId, macroId, before[], after[], busy, error}
 
 // 'check_in' and 'check-in' (and 'review') both name the same tool.
@@ -15147,9 +15136,25 @@ function renderProgressFromCoach(el, macro) {
     const newest = coachAdviceForMacro(macro).reduce((b, a) => (!b || (a.seq || 0) > (b.seq || 0) ? a : b), null);
     _fromCoachTab = newest ? coachToolKey(newest.tool) : 'check-in';
   }
-  const tab = COACH_TOOLS.some(t => t.key === _fromCoachTab) ? _fromCoachTab : 'check-in';
+  // v8.56 (§168): a tab appears once its tool is ready on this cycle, and stays (coachTabsShown).
+  const shown = coachTabsShown(macro);
+  if (!shown.length) {
+    const sch = coachCheckinScheduleFor(macro);
+    const coach = coachEsc(coachFirstName());
+    el.innerHTML = sectionHeader('From your coach', 'Your coach’s check-ins and reviews. Open one in full to send a note back.', { id: 'progress-from-coach' })
+      + `<div class="card"><div class="empty-inline" style="text-align:center;">${macro && sch.weeksToData > 0
+        ? `${coach}’s first check-in comes after about ${sch.weeksToData} more week${sch.weeksToData === 1 ? '' : 's'} of weight and food logs.`
+        : `${coach}’s check-ins and reviews appear here once they’re due.`}</div></div>`
+      + sectionEnd();
+    return;
+  }
+  if (!shown.some(t => t.key === _fromCoachTab)) {
+    const newest = coachAdviceForMacro(macro).filter(a => shown.some(t => t.key === coachToolKey(a.tool))).reduce((b, a) => (!b || (a.seq || 0) > (b.seq || 0) ? a : b), null);
+    _fromCoachTab = newest ? coachToolKey(newest.tool) : shown[0].key;
+  }
+  const tab = _fromCoachTab;
   const a = latestCoachAdvice(tab, macro);
-  const tabs = `<div class="toggle-row" role="tablist" aria-label="Response type">${COACH_TOOLS.map(t =>
+  const tabs = `<div class="toggle-row" role="tablist" aria-label="Response type">${shown.map(t =>
     `<button class="toggle-btn${t.key === tab ? ' active' : ''}" role="tab" aria-selected="${t.key === tab}" onclick="setFromCoachTab('${t.key}')">${t.tab}</button>`).join('')}</div>`;
   let body;
   if (a) {
@@ -15166,40 +15171,54 @@ function renderProgressFromCoach(el, macro) {
       : 'Nothing shared yet.'}</div>`;
   }
   if (tab === 'cycle-review') body += coachReviewPhotosRowHTML(macro);
-  const last = (state.coachCheckinsSent || [])[(state.coachCheckinsSent || []).length - 1];
-  const gate = coachCheckinGate(macro);
-  el.innerHTML = sectionHeader('From your coach', 'Your coach’s check-ins and reviews. Open one in full to send a note back.',
-      { id: 'progress-from-coach', slot: gate.open ? `<button class="btn btn-ghost btn-sm" id="coach-checkin-btn" onclick="openCoachCheckin()">Check in</button>` : '' })
+  const next = tab === 'check-in' ? coachCheckinLine(macro) : '';
+  el.innerHTML = sectionHeader('From your coach', 'Your coach’s check-ins and reviews. Open one in full to send a note back.', { id: 'progress-from-coach' })
     + `<div class="card">${tabs}${body}</div>`
-    + (gate.open ? '' : `<div class="coach-last">${coachEsc(gate.why)}</div>`)
-    + (last ? `<div class="coach-last">Last check-in sent ${coachDayFmt(last.at)}.</div>` : '')
+    + (next ? `<div class="coach-last">${coachEsc(next)}</div>` : '')
     + sectionEnd();
 }
-// v8.43: Check in keeps Solo's rhythm. It opens once the cycle has
-// enough data to judge (computeCheckinState's hasEnoughData: Solo's baseline
-// and comparison window), then no sooner than Solo's 14-day cooldown after the
-// last check-in on this cycle, the client's request or the coach's response,
-// whichever is later: 14 days on, by Solo's own fallback formula
-// (getMondayAfter(getSundayAfterWeeks(…, 2))). Solo's other
-// gate, a signal that warrants an AI call, is Solo's cost control and not
-// applied: the coach decides.
-function coachCheckinGate(macro) {
-  if (!macro) return { open: false, why: 'Check in opens once you have an active cycle.' };
-  const st = computeCheckinState(macro);
-  if (!st || !st.hasEnoughData) {
-    const weeksLogged = st && st.ins ? st.ins.weekBuckets.length : 0;
-    const weeksLeft = Math.max(0, ((macro.goalType || 'loss') === 'loss' ? 4 : 3) - weeksLogged);
-    return { open: false, why: weeksLeft > 0
-      ? `Check in opens after about ${weeksLeft} more week${weeksLeft === 1 ? '' : 's'} of weight and nutrition logs.`
-      : 'Check in opens once more days have both weight and nutrition logged.' };
-  }
+// v8.56 (§168): a client never asks for a check-in. It comes due on the
+// engine's schedule (coachCheckinSchedule), the one BLOC Coach reads: once the
+// running cycle has the minimum data to judge, then 14 days after each
+// check-in the coach published on it. The client sees when, read-only.
+function coachPublishedCheckinDays(macro) {
   const days = [];
-  for (const x of (state.coachCheckinsSent || [])) if (x && x.at && (!x.macroId || x.macroId === macro.id)) days.push(toLocalDateStr(new Date(x.at)));
   for (const a of coachAdviceForMacro(macro)) if (coachToolKey(a.tool) === 'check-in' && (a.publishedAt || a.receivedAt)) days.push(toLocalDateStr(new Date(a.publishedAt || a.receivedAt)));
-  if (!days.length) return { open: true };
-  const lastDay = days.sort()[days.length - 1];
-  const until = getMondayAfter(getSundayAfterWeeks(lastDay, 2));
-  return getLocalToday() >= until ? { open: true } : { open: false, until, why: `Next check-in · ${coachDayFmt(until)}` };
+  return days;
+}
+function coachCheckinScheduleFor(macro) {
+  return BlocEngine.coachCheckinSchedule(state, engineCtx(), macro || null, macro ? coachPublishedCheckinDays(macro) : []);
+}
+// The line under the Check-in tab: what comes next, while the cycle runs.
+function coachCheckinLine(macro) {
+  if (!macro || !macro.start) return '';
+  const today = getLocalToday();
+  if (today < macro.start || today > toLocalDateStr(getMacroEndDate(macro))) return '';
+  const sch = coachCheckinScheduleFor(macro);
+  const coach = coachFirstName();
+  if (sch.due) return `${sch.lastOn ? 'Your next' : 'Your first'} check-in is due. ${coach} will send it.`;
+  if (sch.dueOn) return `Next check-in · ${coachDayFmt(sch.dueOn)}`;
+  return '';
+}
+// Which tabs a cycle shows (the engine's coachTabsReady), remembered per cycle
+// on this device (localStorage bloc_coachTabsSeen) so a tab that has appeared
+// never disappears, even if a later day reads as too little data.
+const COACH_TABS_SEEN_KEY = 'bloc_coachTabsSeen';
+function coachTabsShown(macro) {
+  const advice = coachAdviceForMacro(macro);
+  const had = k => advice.some(a => coachToolKey(a.tool) === k);
+  const photosAsked = !!macro && Object.values(state.coachPhotoRequests || {}).some(r => r && r.macroId === macro.id);
+  const r = BlocEngine.coachTabsReady(state, engineCtx(), macro || null,
+    { checkIn: had('check-in'), cycleReview: had('cycle-review'), nextCycle: had('next-cycle'), photosAsked });
+  let seen = {};
+  try { seen = JSON.parse(localStorage.getItem(COACH_TABS_SEEN_KEY) || '{}') || {}; } catch (e) { seen = {}; }
+  const prev = (macro && seen[macro.id]) || {};
+  const now = { 'check-in': r.checkIn || !!prev['check-in'], 'cycle-review': r.cycleReview || !!prev['cycle-review'], 'next-cycle': r.nextCycle || !!prev['next-cycle'] };
+  if (macro && COACH_TOOLS.some(t => now[t.key] !== !!prev[t.key])) {
+    seen[macro.id] = now;
+    try { localStorage.setItem(COACH_TABS_SEEN_KEY, JSON.stringify(seen)); } catch (e) { /* private browsing: recomputed next time */ }
+  }
+  return COACH_TOOLS.filter(t => now[t.key]);
 }
 function setFromCoachTab(key) {
   _fromCoachTab = key;
@@ -15275,59 +15294,6 @@ async function sendCoachNote() {
     renderProgress();
   } catch (err) {
     fail('Couldn’t send it: ' + ((err && err.message) || 'check your connection and try again.'));
-  }
-}
-
-// ── Check in ───────────────────────────────────────────────────────────────
-function openCoachCheckin() {
-  if (!coachCheckinGate(resolveProgressMacro()).open) return; // v8.43: Solo's rhythm (coachCheckinGate)
-  _coachCheckin = { feel: null, note: '', busy: false, error: null };
-  renderCoachCheckin();
-  openModal('modal-coach-checkin');
-}
-function renderCoachCheckin() {
-  const el = document.getElementById('coach-checkin-body');
-  const f = _coachCheckin;
-  if (!el || !f) return;
-  const first = coachEsc(coachFirstName());
-  const last = (state.coachCheckinsSent || [])[(state.coachCheckinsSent || []).length - 1];
-  el.innerHTML = `<div class="modal-sub" style="margin-top:0;">Tell ${first} how the week went. ${first} runs your check-in, and the response appears here in Progress.</div>
-    ${last ? `<div class="coach-last" style="margin:0 0 12px;">Your last check-in went to ${first} on ${coachDayFmt(last.at)}.</div>` : ''}
-    <div class="coach-section-title" style="margin-top:6px;">How did the week feel?</div>
-    <div class="toggle-row" role="group" aria-label="How did the week feel?">${COACH_FEELS.map(x =>
-      `<button class="toggle-btn${f.feel === x ? ' active' : ''}" aria-pressed="${f.feel === x}" onclick="setCoachCheckinFeel('${x}')">${x}</button>`).join('')}</div>
-    <div class="coach-section-title">Note</div>
-    <textarea id="coach-checkin-note" rows="4" maxlength="2000" style="width:100%;box-sizing:border-box;" placeholder="Sleep, stress, sessions, food. Anything that shaped the week." oninput="_coachCheckin.note = this.value">${coachEsc(f.note)}</textarea>
-    ${f.error ? `<div class="coach-err">${coachEsc(f.error)}</div>` : ''}
-    <button class="btn btn-accent btn-block" style="margin-top:20px;" ${!f.feel || f.busy ? 'disabled' : ''} onclick="sendCoachCheckin()">${f.busy ? 'Sending…' : 'Send check-in'}</button>`;
-}
-function setCoachCheckinFeel(x) { if (!_coachCheckin || _coachCheckin.busy) return; _coachCheckin.feel = x; renderCoachCheckin(); }
-async function sendCoachCheckin() {
-  const f = _coachCheckin;
-  if (!f || !f.feel || f.busy) return;
-  if (!coachingAvailable() || !isCoachedMode()) { f.error = 'You’re not linked to a coach right now.'; renderCoachCheckin(); return; }
-  const noteEl = document.getElementById('coach-checkin-note');
-  if (noteEl) f.note = noteEl.value;
-  f.busy = true; f.error = null; renderCoachCheckin();
-  const uid = _authResolvedSession.user.id;
-  const l = coachLinkGet();
-  try {
-    const { data, error } = await supabase.from('client_submissions').insert({
-      client_id: uid, coach_id: l.coachId, kind: 'check_in', publication_id: null,
-      body: { v: 1, purpose: 'check_in', feel: f.feel, note: (f.note || '').trim(), macro_id: state.currentMacroId || null, sent_on: getLocalToday() },
-    }).select('id').single();
-    if (error) throw error;
-    if (!Array.isArray(state.coachCheckinsSent)) state.coachCheckinsSent = [];
-    state.coachCheckinsSent.push({ submissionId: data.id, at: new Date().toISOString(), feel: f.feel, macroId: (resolveProgressMacro() || {}).id || null });
-    if (state.coachCheckinsSent.length > 20) state.coachCheckinsSent = state.coachCheckinsSent.slice(-20);
-    save();
-    _coachCheckin = null;
-    closeModal('modal-coach-checkin');
-    renderProgress();
-  } catch (err) {
-    f.busy = false;
-    f.error = 'Couldn’t send it: ' + ((err && err.message) || 'check your connection and try again.');
-    renderCoachCheckin();
   }
 }
 
