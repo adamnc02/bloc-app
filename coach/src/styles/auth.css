@@ -6,9 +6,13 @@
    Values are BLOC's tokens (--r-sm 4px, --r-btn-sm 12px, --r-btn 14px).
    ===================================================================== */
 .auth-gate {
-  /* Above the splash (9999), as BLOC's gate is: a signed-out person never
-     watches the splash play behind the sign-in screen. */
-  position: fixed; inset: 0; z-index: 10000;
+  /* BELOW the splash (9999): a signed-out person sees the splash play first,
+     then it fades to reveal the sign-in screen (its skip button still ends it
+     early). Above the splash, the gate hid the splash completely, so the only
+     splash a coach ever saw was the one after a Google sign-in's redirect.
+     A signed-in coach never meets the gate (App.tsx draws nothing while the
+     session resolves), so the splash plays over the app as before. */
+  position: fixed; inset: 0; z-index: 9000;
   background: var(--bg);
   display: flex; align-items: center; justify-content: center;
   overflow-y: auto;

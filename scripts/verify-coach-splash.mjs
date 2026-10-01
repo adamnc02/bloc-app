@@ -9,8 +9,9 @@
 //     #root with its script straight after it: the splash paints before the
 //     app's bundle has even loaded, and the script starts the clock there.
 //   · The hand-over is 8.5 s (1.4 s with reduced motion), with the skip button.
-//   · The sign-in screen sits ABOVE the splash (z-index), as BLOC's gate does:
-//     a signed-out person never watches the splash behind the sign-in form.
+//   · The sign-in screen sits BELOW the splash (z-index): a signed-out coach
+//     sees the splash first and it fades to reveal sign-in. Above it, the
+//     splash was never seen until after a Google sign-in's redirect.
 //   · The palette split (BLOC TECHNICAL §94, §138): the splash's green is the
 //     brand's, never the app's lavender.
 // Control: the markup moved after #root is caught.
@@ -53,7 +54,8 @@ check('#splash removes itself after the fade', /removeChild\(splash\)/.test(buil
 
 const splashZ = Number((/#splash\s*\{[^}]*?z-index:\s*(\d+)/.exec(built) || [])[1]);
 const gateZ = Number((/\.auth-gate \{[\s\S]*?z-index:\s*(\d+)/.exec(read('coach/src/styles/auth.css')) || [])[1]);
-check(`the sign-in screen sits above the splash (${gateZ} > ${splashZ})`, gateZ > splashZ);
+check(`the sign-in screen sits below the splash (${gateZ} < ${splashZ})`, gateZ > 0 && splashZ > 0 && gateZ < splashZ);
+check('control: a gate at 10000 (above the splash) is caught', !(10000 < splashZ));
 
 const splashCss = (/<style>([\s\S]*?)<\/style>/.exec(built) || [])[1] || '';
 // §146: each word scales about its own centre in drawing units. With fill-box,

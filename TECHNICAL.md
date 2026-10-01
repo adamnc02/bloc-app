@@ -9093,15 +9093,18 @@ only times the hand-over, **8.5 s** (`SPLASH_MS`; 1.4 s with reduced motion), wi
 **removes `#splash` from the page**. It plays on every fresh load (`qualifiesForSplash()`). React renders
 underneath it.
 
-🚨 **The sign-in screen sits above the splash** (`.auth-gate` z-index 10000 over the splash's 9999), as
-BLOC's `#auth-gate` does, so a signed-out coach never watches the splash behind the sign-in form. Vite
+🚨 **The sign-in screen sits below the splash** (`.auth-gate` z-index 9000 under the splash's 9999): a
+signed-out coach sees the splash first, and it fades to reveal the sign-in screen (the ✕ ends it early). With
+the gate above the splash (BLOC's `#auth-gate` order, 10000), the splash played unseen behind the form and the
+only splash a coach saw was the one after a Google sign-in's redirect reloaded the page. A signed-in coach never
+meets the gate: `App.tsx` draws nothing while the session resolves, so the splash plays over the app. Vite
 minifies the inline CSS; the timeline is unchanged. The splash's green is `--splash-brand`, never the
 app's lavender (§94, §138).
 
 `scripts/verify-coach-splash.mjs` checks, on the served `coach/dist/index.html`: styles inline in
 `<head>`, `#splash` before `#root` with its script straight after, 8.5 s / 1.4 s, the ✕ wired, the
-self-removal, the sign-in screen's z-index above the splash's, and the brand green with no lavender.
-Control: the splash moved after `#root`.
+self-removal, the sign-in screen's z-index below the splash's, and the brand green with no lavender.
+Controls: the splash moved after `#root`; a gate at 10000.
 
 ### The dev bypass: BLOC's rule, BLOC's predicate
 
