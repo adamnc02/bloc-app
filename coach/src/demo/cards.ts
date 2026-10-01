@@ -36,3 +36,9 @@ export const DEMO_CARDS: DemoCard[] = [
   { key: 'hannah', firstName: 'Hannah', surname: 'Brooks', email: 'hannah.brooks@example.com', phone: '07700 900888', notes: 'Moved away; may come back in the new year.', ratePence: 4500, account: 'new', link: 'ended', photoConsent: false },
   { key: 'eileen', firstName: 'Eileen', surname: 'Moss', email: null, phone: '01632 960555', notes: 'Not on the app: I log everything in person. Mild osteoarthritis, both knees.', ratePence: 4000, account: null, link: 'none', photoConsent: false },
 ];
+
+/**
+ * Whether the demo is set up: EVERY demo card is registered. Casey's card outlives a Remove (his account stays), so
+ * "any card" read a half-removed demo as set up and hid Set up, the one action that repairs it.
+ */
+export const isSetUp = (cards: Partial<Record<DemoCardKey, string>>) => DEMO_CARDS.every((c) => !!cards[c.key]);

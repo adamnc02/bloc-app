@@ -11325,7 +11325,8 @@ Shown only when this sign-in's `app_metadata.demo_admin` is true (only the servi
 `bloc-demo` checks the flag again, fresh from `auth.users`, so hiding the section isn't the lock. `DemoGate` reads
 the flag and only then loads `DemoSection`, **its own chunk**: it carries the engine's client simulator, which no
 other coach needs. **Set up** asks which linked client is Casey, then sets up and rebuilds; **Rebuild**;
-**Remove** (with a confirm).
+**Remove** (with a confirm). The section reads **set up** only when **every** demo card is registered (`isSetUp`): Casey's card
+outlives a Remove, so "any card" read a half-removed demo as set up and hid Set up, the one action that repairs it.
 
 ### BLOC: a demo account never writes its own backup (`isDemoAccount`, `uploadSnapshot`)
 
