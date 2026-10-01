@@ -23,7 +23,7 @@ const ex = (name: string, reps: string, setsStart: number, setsEnd: number, star
 
 export const MAYA: DemoPersona = {
   key: 'maya', tz: 'Europe/London',
-  profile: { gender: 'female', heightCm: 165, birthday: '1992-03-14' },
+  profile: { firstName: 'Maya', surname: 'Okafor', gender: 'female', heightCm: 165, birthday: '1992-03-14' },
   // Mon, Wed (with her coach, in person: Coach logs it), Thu, Sat.
   weekdays: [0, 2, 3, 5], historyWeeks: 14,
   startLbs: 158.4, lbsPerWeek: [0, -1.1, -0.9, -0.8, -0.8, -0.7, -0.6, -0.7, -0.5, 0.3, -0.9, -0.8, -0.7, -0.7, -0.6],
@@ -73,7 +73,7 @@ export const MAYA: DemoPersona = {
 
 export const TOM: DemoPersona = {
   key: 'tom', tz: 'Europe/London',
-  profile: { gender: 'male', heightCm: 182, birthday: '1997-07-02' },
+  profile: { firstName: 'Tom', surname: 'Hartley', gender: 'male', heightCm: 182, birthday: '1997-07-02' },
   weekdays: [0, 2, 4], historyWeeks: 11,
   startLbs: 171.2, lbsPerWeek: [0, 0.6, 0.5, 0.7, 0.4, 0.5, 0.6, 0.3, 0.3, 0, -0.1, 0],
   startWaist: 33, startHip: 38.5, waistPerWeek: [0, 0.25, 0, 0, 0.25, 0, 0, 0, 0.25, 0, 0],
@@ -115,7 +115,7 @@ export const TOM: DemoPersona = {
 
 export const GRACE: DemoPersona = {
   key: 'grace', tz: 'Pacific/Auckland',
-  profile: { gender: 'female', heightCm: 160, birthday: '1985-11-23' },
+  profile: { firstName: 'Grace', surname: 'Lin', gender: 'female', heightCm: 160, birthday: '1985-11-23' },
   weekdays: [0, 2, 4], historyWeeks: 10,
   startLbs: 149.6, lbsPerWeek: [0, -1.0, -0.9, -0.9, -0.6, -0.8, -0.7, -0.6, -0.5, 0.2, 0],
   startWaist: 32.5, startHip: 41, waistPerWeek: [0, -0.25, -0.25, 0, -0.25, -0.25, 0, -0.25, 0, 0],
@@ -159,7 +159,7 @@ export const GRACE: DemoPersona = {
 
 export const PRIYA: DemoPersona = {
   key: 'priya', tz: 'Europe/London',
-  profile: { gender: 'female', heightCm: 168, birthday: '1999-05-08' },
+  profile: { firstName: 'Priya', surname: 'Shah', gender: 'female', heightCm: 168, birthday: '1999-05-08' },
   weekdays: [0, 1, 3, 4], historyWeeks: 6,
   startLbs: 146.8, lbsPerWeek: [0, -1.2, -1.0, -0.8, 0.1, -0.1, 0.1],
   startWaist: 29.5, startHip: 39, waistPerWeek: [0, -0.25, -0.25, 0, -0.25, -0.25, -0.25],
@@ -187,7 +187,7 @@ export const PRIYA: DemoPersona = {
 
 export const CASEY: DemoPersona = {
   key: 'casey', tz: 'Europe/London',
-  profile: { gender: 'male', heightCm: 178, birthday: '1993-01-19' },
+  profile: { firstName: 'Casey', surname: 'Morgan', gender: 'male', heightCm: 178, birthday: '1993-01-19' },
   weekdays: [0, 1, 3, 4], historyWeeks: 15,
   startLbs: 204.5, lbsPerWeek: [0, -1.4, -1.2, -1.0, -1.1, -0.9, -0.8, -0.6, -0.9, 0.3, 0.2, -1.3, -1.1, 0.2, -0.1, 0.1],
   startWaist: 37.5, startHip: 41.5, waistPerWeek: [0, -0.25, -0.25, 0, -0.25, 0, -0.25, 0, -0.25, 0, 0, -0.25, -0.25, 0, 0, 0],
@@ -246,7 +246,7 @@ export const DEMO_PERSONAS: DemoPersona[] = [MAYA, TOM, GRACE, PRIYA, CASEY];
  */
 export const EILEEN: DemoPersona = {
   key: 'eileen', tz: 'Europe/London',
-  profile: { gender: 'female', heightCm: 163, birthday: '1967-06-30' },
+  profile: { firstName: 'Eileen', surname: 'Moss', gender: 'female', heightCm: 163, birthday: '1967-06-30' },
   weekdays: [1, 4], historyWeeks: 7,
   startLbs: 162.4, lbsPerWeek: [0, -0.3, -0.2, -0.3, 0, -0.2, -0.1, 0],
   startWaist: 34, startHip: 42, waistPerWeek: [0, 0, -0.25, 0, 0, -0.25, 0, 0],
