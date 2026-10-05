@@ -11614,3 +11614,20 @@ original; minor vs significant; same phase ids; the record never in the payload;
   `scripts/verify-pinned-bars.mjs` (Coach's bar place evaluated from `ui.css` at insets 0–59, against v0.16's as a
   control; both bars' `::before`, `::after` and `.is-stuck`). `verify-engine-leaves.mjs` compares Train's HTML with v8.34's with a
   trailing ".0" read as nothing on both sides, counts the renders where only that moved, and still fails on anything else.
+
+## §173 — v8.58: an action on a sheet's title line sits clear of the ✕
+
+- **The ✕ is on the title line, and the space for it is reserved by whoever sits at the right edge.** `.modal-close-btn`
+  is absolutely positioned at the sheet's right edge, 40px wide, level with the title (v8.16). `.modal-title` keeps
+  `padding-right: 52px` (40px + 12px) so a long title wraps before reaching it. 🚨 That padding is inside the title only.
+  My Recipes put its title and **+ Create new** in an inline-styled `space-between` row with the title at `margin: 0`,
+  so the button was pushed to the row's right edge and the ✕ covered its last 40px; the ✕ paints above it (positioned),
+  so a tap on the button's right side closed the sheet. Measured in Chromium at 320, 390 and 430px: v8.57's button ran
+  40px under the ✕; v8.58's ends 12px before it.
+- **`.modal-title-row`** is the row for a title that shares its line with an action: `display: flex`,
+  `space-between`, `gap: 12px` and the 52px `padding-right`; a `.modal-title` inside it drops its own padding-right and
+  margin, and a `.btn` in it does not shrink. My Recipes is the only sheet (of 85 `.modal-title`s) with an action on
+  its title line. A new one uses this class, not an inline flex row.
+- **Check:** `scripts/verify-sheet-title-actions.mjs`: the row's reservation exceeds the ✕'s width, every
+  `.modal-title` whose row is a flex row is in `.modal-title-row`, and My Recipes' title and button share one. Control:
+  v8.57's `index.html` (commit `40ade94`) fails, on the inline row at My Recipes.
