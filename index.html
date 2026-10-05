@@ -1268,6 +1268,15 @@ html.auth-likely-signed-in #auth-gate { display: none; }
    ABOVE the title — the "staggered" ✕ reported on all 67 sheets. */
 .modal-close-btn { position: absolute; right: 0; top: calc(100% + 10px); transform: none; background: var(--surface3); border: none; color: var(--text2); width: 40px; height: 40px; border-radius: 50%; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; }
 .modal-title { font-family: var(--font-display); font-size: 22px; font-weight: 600; letter-spacing: -0.015em; margin-bottom: 18px; min-height: 40px; display: flex; align-items: center; padding-right: 52px; }
+/* v8.58 — a title that shares its line with an action (My Recipes' + Create new)
+   sits in .modal-title-row, which takes over the 52px the ✕ needs (its 40px +
+   12px). 🚨 The title's own padding-right reserves room inside the TITLE only:
+   in a space-between row the action is pushed to the row's right edge, under
+   the ✕, and a tap on its right side closed the sheet. A title sharing a flex
+   row with anything uses this class (scripts/verify-sheet-title-actions.mjs). */
+.modal-title-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-right: 52px; margin-bottom: 16px; }
+.modal-title-row .modal-title { margin: 0; padding-right: 0; min-width: 0; }
+.modal-title-row > .btn { flex-shrink: 0; }
 /* A short explanatory line under a sheet title — sentence case, full stop.
    Same voice as the section sublabel. */
 .modal-sub { font-family: var(--font-body); font-size: 13.5px; font-weight: 500; color: var(--text2); line-height: 1.45; margin: -10px 0 16px; }
@@ -29840,7 +29849,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.57</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.58</span>`;
 }
 
 function renderSettings() {
@@ -32572,8 +32581,8 @@ function deleteRecipe(id) {
 <div class="modal-overlay" id="modal-recipe-list">
   <div class="modal-sheet" data-modal="modal-recipe-list" style="max-height:85dvh;display:flex;flex-direction:column;">
     <div class="modal-handle-row" style="flex-shrink:0;"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-recipe-list')">✕</button></div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-shrink:0;">
-      <div class="modal-title" style="margin:0;">My Recipes</div>
+    <div class="modal-title-row" style="flex-shrink:0;">
+      <div class="modal-title">My Recipes</div>
       <button class="btn btn-accent btn-sm" onclick="_recipeListReturnPending=true;closeModal('modal-recipe-list');requestAnimationFrame(()=>openRecipeBuilder())">+ Create new</button>
     </div>
     <div id="recipe-list-content" style="overflow-y:auto;flex:1;"></div>
