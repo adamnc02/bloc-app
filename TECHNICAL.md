@@ -6494,7 +6494,8 @@ its collapsed line) was last week's reps + 1.
 
 **The fix is at the source.** All three helpers take the cycle's `goalType` and return the starting
 numbers on maintenance, and every caller now passes `macro.goalType`. `getProgressionStep()` returns
-a zero step on maintenance, so the logged path adds no reps either.
+a zero step on maintenance, so the logged path adds no reps either (since v8.59, except after an easy rating
+with effort ratings on: §174).
 
 Home's Up next printed the plan's formula weight on every cycle type, not just maintenance. That is
 fixed separately, in §106.
@@ -11666,7 +11667,15 @@ original; minor vs significant; same phase ids; the record never in the payload;
   exercise and is now finished (a superset: every member, every set). `renderTrainDay` clears `_trainJustTicked`
   before writing its HTML, so only the tick that finishes a card closes it: reopening a finished card, typing, an
   un-tick or any other redraw leaves it as it is.
-- **Next week's weight, on a maintenance cycle.** A maintenance cycle suggests last week's actual (§105), so it had no
+- **Effort ratings drive a maintenance cycle's easy step.** With ratings on (`rpeDrivesProgression`), a maintenance
+  exercise that hit every target and was rated 6 or lower takes the cut/gain easy step: `computeRpeStepKind` no longer
+  returns "none" for maintenance, and `getProgressionStep` passes an `easy` step through (anything else is still
+  `PROG_STEP_MAINTENANCE`). The step multiplies `maintenanceStepBase()`: the cycle's increment, or 5 kg heavy-leg, so
+  +2× the increment, or 7.5 kg heavy-leg. On the weight route (maintenance has no route chips) reps stay as logged. A
+  9+ is "none" on maintenance, not "hold": the week is flat either way, and a Holding tag would say nothing. 🚨 The
+  base is for the step only: a maintenance cycle's `weightJump` stays 0, because the deload's 60% rounds to it. With
+  ratings off, maintenance is flat as before (§105), and existing data is unchanged.
+- **Next week's weight, on a maintenance cycle without ratings.** A maintenance cycle suggests last week's actual (§105), so it had no
   way to move a weight on. An expanded card's filled accent button (`nextWeightButtonHTML`; one per weight member at
   the foot of a superset, each naming it) opens `#modal-next-weight`: one weight, saved by `saveNextWeight()` as a
   string on the **next session's** progression entry, `trainLogs[getProgKey(macroId, week + 1, dayKey, exId)]
@@ -11678,6 +11687,8 @@ original; minor vs significant; same phase ids; the record never in the payload;
   held week, and week 1 or a reset win over it, as they win over last week's actual. After that week, its logged
   actual carries on as usual. "" or a non-number is none; 0 is a weight. BLOC Coach runs the same engine on the
   client's state, so it suggests the same figure; it has no button of its own.
+  - **Not with ratings on.** The ratings move the weight then, so `getPlannedWeight()` returns null whenever
+    `rpeDrivesProgression(macro)` and `nextWeightTarget()` draws no button.
   - **Where the button is.** `nextWeightTarget()` offers it only where it would be read: maintenance, not cardio, not
     a swapped session, a next session that exists (`week + 1` ≤ `getMacroEffectiveMesoCount`), neither this nor the
     next session a deload, no set of the next session logged yet, and not the coach's own logged session (read-only).
@@ -11693,7 +11704,9 @@ original; minor vs significant; same phase ids; the record never in the payload;
   v8.58's), `scripts/verify-train-cards.mjs` (drop sets on three cycle types in weeks 1 and 3, the maintenance
   superset, the round dots, and closing by box, by ✓, for a superset and a drop set), and
   `scripts/verify-next-week-weight.mjs` (the engine's three paths and Home agreeing, compliance against the planned
-  weight, the week after, invalid values, a loss cycle, a deload; the button's conditions, the sheet, the cache drop).
+  weight, the week after, invalid values, a loss cycle, a deload; ratings on maintenance: the easy step light and heavy-leg,
+  7–8, 9+, a skip, a miss and ratings off flat, the planned weight ignored and no button; the button's conditions, the
+  sheet, the cache drop).
   The last two run BLOC's own functions through `scripts/train-harness.mjs`. Control for all three: v8.58's
   `index.html` and engine (commit `9fae4d3`) fail. `verify-engine-leaves.mjs` compares Train's HTML with v8.34's with
   every drop set's ✓ removed from the v8.34 side.

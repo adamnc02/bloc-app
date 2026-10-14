@@ -6517,7 +6517,7 @@ try {
      same-named shims. ?v= is the first 12 hex of the file's SHA-256, so a phone never pairs a
      new index.html with an older engine from its HTTP cache; scripts/verify-engine-build.mjs
      fails if it is stale. Listed in scripts/publish-files.txt. -->
-<script src="engine/dist/bloc-engine.js?v=cafa7eac9894"></script>
+<script src="engine/dist/bloc-engine.js?v=44cb8d8a056e"></script>
 <script>
 // ════════════════════════════════════════════════
 // DATE HELPERS
@@ -24782,13 +24782,17 @@ function quickFillCompleteSuperset(event, macroId, week, day, fillArgsJson) {
 // Train, Home's Up next, the week's compliance target and BLOC Coach all
 // suggest it on every set, in place of last week's actual. Reps don't change.
 //
-// Where it would never be read, it isn't offered: cardio (no weight), a swap
+// Not with effort ratings on (Plan → Tools): on a maintenance cycle an easy
+// rating takes the cut/gain easy step, so the ratings move the weight and the
+// engine ignores a stored planned weight. Where it would never be read
+// otherwise, it isn't offered either: cardio (no weight), a swap
 // (the week after holds its target), the last session of the cycle, a next
 // session that is a deload (the deload wins) or is the session after this one's
 // deload, and a next session already logged. The coach's own logged session
 // is read-only, so it has none either.
 function nextWeightTarget(macro, ex, isSwapped) {
   if (!macro || macro.goalType !== 'maintenance' || !ex || ex.category === 'cardio' || isSwapped) return null;
+  if (rpeDrivesProgression(macro)) return null; // ratings on: an easy rating moves the weight (§174)
   if (trainViewCoachOwned()) return null;
   const week = state.currentWeek, dayKey = state.currentDay, next = week + 1;
   if (next > getMacroEffectiveMesoCount(macro)) return null;

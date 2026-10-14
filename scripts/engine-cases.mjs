@@ -455,6 +455,11 @@ for (const [label, st] of Object.entries(P)) {
   });
   void label;
 }
+// v8.59 (§174): the weight a maintenance cycle's easy step multiplies.
+add('maintenanceStepBase', [false, true].flatMap(heavy => ['2.5', '5', 1.25, undefined].map(inc => () => {
+  const s = P.maint(); const m = m0(s); m.weightIncrement = inc;
+  return { s, today: '2026-08-02', engine: [m, { id: 'x', isHeavyLeg: heavy }], bloc: null };
+})));
 // v8.59 (§174): next week's weight, read from a session's progression entry on
 // a maintenance cycle. Engine only: BLOC calls BlocEngine.getPlannedWeight
 // directly, so there is no v8.34 function to compare with. A real value, a

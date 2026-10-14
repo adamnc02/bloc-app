@@ -96,7 +96,7 @@ export {
 export type { RpeStep, WeekTarget, TargetCache, RawTargets, ComplianceResult, LockEntry, LockTransition, ExerciseProgression, ProgressionOpts, ProgressionReplay } from './targets.ts';
 export {
   getRpeKey, isRpeOn, rpeDrivesProgression, RPE_STEP_NONE, rpeStepFromKind, computeRpeStepKind, getRpeStep,
-  PROG_STEP_MAINTENANCE, getProgressionStep, bumpRepsBy, getLastCompliantWeek, computeRawSuggestedTargets, getPlannedWeight,
+  PROG_STEP_MAINTENANCE, getProgressionStep, bumpRepsBy, getLastCompliantWeek, computeRawSuggestedTargets, getPlannedWeight, maintenanceStepBase,
   getWeekTargets, getWeekComplianceResult, computeLockTransition, computeExerciseProgression, replayProgressionAfterLog,
 } from './targets.ts';
 

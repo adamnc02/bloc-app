@@ -146,6 +146,7 @@ var BlocEngine = (() => {
     isSubstitutedUnit: () => isSubstitutedUnit,
     lockAppliesFrom: () => lockAppliesFrom,
     macroRange: () => macroRange,
+    maintenanceStepBase: () => maintenanceStepBase,
     materialiseDates: () => materialiseDates,
     nextCycleAdvicePlanMode: () => nextCycleAdvicePlanMode,
     normaliseState: () => normaliseState,
@@ -2461,7 +2462,7 @@ Write this cycle's review per the schema above.`;
   }
   function computeRpeStepKind(s, cache, macro, week, dayKey, ex) {
     if (!rpeDrivesProgression(macro)) return "none";
-    if (!ex || ex.category === "cardio" || macro.goalType === "maintenance") return "none";
+    if (!ex || ex.category === "cardio") return "none";
     if (week <= progressionStartWeek(ex)) return "none";
     if (isDeloadUnit(s, macro, week, dayKey) || isFirstUnitAfterDeload(s, macro, week, dayKey) || isDeloadUnit(s, macro, week - 1, dayKey)) return "none";
     const r = s.rpe && s.rpe[getRpeKey(macro.id, week - 1, dayKey, ex.id)];
@@ -2469,7 +2470,7 @@ Write this cycle's review per the schema above.`;
     if (r.rpe > 6 && r.rpe < 9) return "none";
     const prev = getWeekComplianceResult(s, cache, macro, week - 1, dayKey, ex);
     if (!prev.fullyLogged || !prev.compliant) return "none";
-    return r.rpe <= 6 ? "easy" : "hold";
+    return r.rpe <= 6 ? "easy" : macro.goalType === "maintenance" ? "none" : "hold";
   }
   function getRpeStep(s, cache, macro, week, dayKey, ex) {
     if (!macro || !ex) return RPE_STEP_NONE;
@@ -2479,8 +2480,14 @@ Write this cycle's review per the schema above.`;
   }
   var PROG_STEP_MAINTENANCE = Object.freeze({ kind: "maintenance", weightMult: 0, repsInc: 0, giantInc: 0 });
   function getProgressionStep(s, cache, macro, week, dayKey, ex) {
-    if (macro && macro.goalType === "maintenance") return PROG_STEP_MAINTENANCE;
+    if (macro && macro.goalType === "maintenance") {
+      const step = getRpeStep(s, cache, macro, week, dayKey, ex);
+      return step.kind === "easy" ? step : PROG_STEP_MAINTENANCE;
+    }
     return getRpeStep(s, cache, macro, week, dayKey, ex);
+  }
+  function maintenanceStepBase(macro, ex) {
+    return ex && ex.isHeavyLeg ? 5 : parseFloat(macro.weightIncrement || "2.5");
   }
   function bumpRepsBy(reps, inc) {
     const m = String(reps).match(/^(\d+)(?:–(\d+))?$/);
@@ -2505,6 +2512,7 @@ Write this cycle's review per the schema above.`;
   }
   function getPlannedWeight(s, macro, week, dayKey, exId) {
     if (!macro || macro.goalType !== "maintenance" || week < 2) return null;
+    if (rpeDrivesProgression(macro)) return null;
     const entry = s.trainLogs[getProgKey(macro.id, week, dayKey, exId)];
     const raw = entry && entry.plannedWeight;
     if (raw === void 0 || raw === null || String(raw).trim() === "") return null;
@@ -2517,7 +2525,7 @@ Write this cycle's review per the schema above.`;
     const lightJump = isMaintenance ? 0 : parseFloat(macro.weightIncrement || "2.5");
     const heavyJump = isMaintenance ? 0 : isGain ? 10 : 5;
     const rpeStep = getProgressionStep(s, cache, macro, week, dayKey, ex);
-    const weightJump = (ex.isHeavyLeg ? heavyJump : lightJump) * rpeStep.weightMult;
+    const weightJump = (isMaintenance ? maintenanceStepBase(macro, ex) : ex.isHeavyLeg ? heavyJump : lightJump) * rpeStep.weightMult;
     const sets = getWeekSets(ex, week, macro.weeks);
     const pk = getProgKey(macro.id, week, dayKey, ex.id);
     const progLog = s.trainLogs[pk] || {};
@@ -2723,7 +2731,7 @@ Write this cycle's review per the schema above.`;
     const heldTarget = heldAfterSwap ? getWeekTargets(s, cache, macro, week, dayKey, ex) : null;
     const hidePrev = isSwapped || heldAfterSwap || isStart;
     const rpeStep = getProgressionStep(s, cache, macro, week, dayKey, ex);
-    const rpeJump = weightJump * rpeStep.weightMult;
+    const rpeJump = (isMaintenance ? maintenanceStepBase(macro, ex) : weightJump) * rpeStep.weightMult;
     const plannedWeight = !isSwapped && !heldAfterSwap && !isStart && !isDeloadSession && !isPostDeloadSession && !isLocked ? getPlannedWeight(s, macro, week, dayKey, exId) : null;
     let prevLoggedSets = [];
     if (prevWeek2 >= 1) {

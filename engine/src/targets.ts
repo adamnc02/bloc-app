@@ -118,13 +118,16 @@ export function rpeStepFromKind(kind: string, ex: Loose): RpeStep {
 // same dayKey track. Only ever called for an ordinary week — never for week
 // 1, a deload, the session after a deload, or when the week before was a
 // deload (deloads and the session after are exempt, as the
-// compliance guard already exempts them). Cardio and maintenance have no
-// step to change. A rating of 7–8, a skip, or a non-compliant week → none
+// compliance guard already exempts them). Cardio has no step to change.
+// v8.59 (§174): on a maintenance cycle an easy rating is the same easy step
+// (getProgressionStep), and 9+ is none, because a maintenance week is already
+// flat: a "hold" there would change nothing and its tag would say nothing.
+// A rating of 7–8, a skip, or a non-compliant week → none
 // (not compliant + high RPE is already frozen by the lock; it adds a hint,
 // never a second target change).
 export function computeRpeStepKind(s: BlocState, cache: TargetCache, macro: Macrocycle, week: number, dayKey: string, ex: Loose): 'none' | 'easy' | 'hold' {
   if (!rpeDrivesProgression(macro)) return 'none';
-  if (!ex || ex.category === 'cardio' || macro.goalType === 'maintenance') return 'none';
+  if (!ex || ex.category === 'cardio') return 'none';
   if (week <= progressionStartWeek(ex)) return 'none'; // week 1, or a reset's first week (§161)
   if (isDeloadUnit(s, macro, week, dayKey) || isFirstUnitAfterDeload(s, macro, week, dayKey)
       || isDeloadUnit(s, macro, week - 1, dayKey)) return 'none';
@@ -133,7 +136,7 @@ export function computeRpeStepKind(s: BlocState, cache: TargetCache, macro: Macr
   if (r.rpe > 6 && r.rpe < 9) return 'none';
   const prev = getWeekComplianceResult(s, cache, macro, week - 1, dayKey, ex);
   if (!prev.fullyLogged || !prev.compliant) return 'none';
-  return r.rpe <= 6 ? 'easy' : 'hold';
+  return r.rpe <= 6 ? 'easy' : macro.goalType === 'maintenance' ? 'none' : 'hold';
 }
 
 // The step `week` uses, for BOTH the target the week is judged against
@@ -155,9 +158,24 @@ export function getRpeStep(s: BlocState, cache: TargetCache, macro: Macrocycle |
 
 
 export const PROG_STEP_MAINTENANCE: RpeStep = Object.freeze({ kind: 'maintenance', weightMult: 0, repsInc: 0, giantInc: 0 });
+// On a maintenance cycle: no step at all, unless ratings are on and last week
+// was rated easy (v8.59, §174), which takes the cut/gain easy step on the
+// maintenance base (maintenanceStepBase).
 export function getProgressionStep(s: BlocState, cache: TargetCache, macro: Macrocycle | null | undefined, week: number, dayKey: string, ex: Loose): RpeStep {
-  if (macro && macro.goalType === 'maintenance') return PROG_STEP_MAINTENANCE;
+  if (macro && macro.goalType === 'maintenance') {
+    const step = getRpeStep(s, cache, macro, week, dayKey, ex);
+    return step.kind === 'easy' ? step : PROG_STEP_MAINTENANCE;
+  }
   return getRpeStep(s, cache, macro, week, dayKey, ex);
+}
+
+// The weight a maintenance cycle's easy step multiplies (v8.59, §174): the
+// cycle's increment, or 5 kg on a heavy-leg exercise (a cut's), so the easy
+// step is 2× the increment, or 7.5 kg heavy-leg, as on a cut. 🚨 For the step
+// only: a maintenance cycle's weightJump stays 0, because the deload's 60%
+// rounds to it (roundToIncrement) and that must not change.
+export function maintenanceStepBase(macro: Macrocycle, ex: Loose): number {
+  return ex && ex.isHeavyLeg ? 5 : parseFloat((macro.weightIncrement as string) || '2.5');
 }
 
 // "8" → "10" and "8–10" → "10–12" for inc 2; the +1 everywhere else in the
@@ -200,7 +218,9 @@ export function getLastCompliantWeek(s: BlocState, cache: TargetCache, macro: Ma
 // progression entry (getProgKey for week + 1, same dayKey track) as
 // `plannedWeight`, the way that week's chosen route is stored as `progType`.
 // That session then suggests it on every set, in place of last week's actual;
-// reps are untouched. It is read only on a maintenance cycle and only where
+// reps are untouched. Not with effort ratings on: they move a maintenance
+// weight themselves (an easy rating's step, getProgressionStep), so a stored
+// value is ignored and Train offers no button. It is read only on a maintenance cycle and only where
 // last week's actual would have been the source (an ordinary week): a deload,
 // the session after one, a lock, a swap or its held week, and week 1 / a reset
 // all win over it, exactly as they win over last week's actual.
@@ -208,6 +228,7 @@ export function getLastCompliantWeek(s: BlocState, cache: TargetCache, macro: Ma
 // isn't a number means none. 0 is a real weight.
 export function getPlannedWeight(s: BlocState, macro: Macrocycle, week: number, dayKey: string, exId: string): number | null {
   if (!macro || macro.goalType !== 'maintenance' || week < 2) return null;
+  if (rpeDrivesProgression(macro)) return null; // ratings move the weight instead
   const entry: Loose = (s.trainLogs as Loose)[getProgKey(macro.id, week, dayKey, exId)];
   const raw = entry && entry.plannedWeight;
   if (raw === undefined || raw === null || String(raw).trim() === '') return null;
@@ -234,7 +255,7 @@ export function computeRawSuggestedTargets(s: BlocState, cache: TargetCache, mac
   const heavyJump = isMaintenance ? 0 : (isGain ? 10 : 5);
   // v8.20: the RPE step scales the jump (2×, heavy-leg 1.5×, or 0 on a hold).
   const rpeStep = getProgressionStep(s, cache, macro, week, dayKey, ex);
-  const weightJump = (ex.isHeavyLeg ? heavyJump : lightJump) * rpeStep.weightMult;
+  const weightJump = (isMaintenance ? maintenanceStepBase(macro, ex) : (ex.isHeavyLeg ? heavyJump : lightJump)) * rpeStep.weightMult;
   const sets = getWeekSets(ex, week, macro.weeks as number);
   const pk = getProgKey(macro.id, week, dayKey, ex.id);
   const progLog: Loose = (s.trainLogs as Loose)[pk] || {};
@@ -579,7 +600,7 @@ export function computeExerciseProgression(s: BlocState, cache: TargetCache, mac
   // 🚨 rpeJump is for progression only. The deload 60% rounding below keeps
   // using the plain weightJump — a double step must not change deload maths.
   const rpeStep = getProgressionStep(s, cache, macro, week, dayKey, ex);
-  const rpeJump = weightJump * rpeStep.weightMult;
+  const rpeJump = (isMaintenance ? maintenanceStepBase(macro, ex) : weightJump) * rpeStep.weightMult;
   // v8.59 (§174): next week's weight, set on a maintenance cycle the session
   // before. Only on an ordinary week: everything that wins over last week's
   // actual wins over it too (see getPlannedWeight).
