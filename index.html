@@ -2234,11 +2234,13 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 }
 .settings-logo .logo-bar { fill: var(--logo-block); }
 .settings-logo .logo-bar-top { fill: var(--logo-accent); }
+.scroll-head-logo .logo-bar { fill: var(--logo-block); }
+.scroll-head-logo .logo-bar-top { fill: var(--logo-accent); }
 /* v8.19 — the splash's bar animation, replayed each time the logo comes into
    view (initSettingsLogoAnimation, §102): build bottom → top with a flash on
    landing, then two green pulses up the stack, then rest. Same timings as
    the splash; theme tokens instead of the splash's fixed dark colours. */
-.settings-logo .logo-bar { transform-box: fill-box; transform-origin: center; }
+.settings-logo .logo-bar, .scroll-head-logo .logo-bar { transform-box: fill-box; transform-origin: center; }
 @keyframes blocLogoBarIn {
   0%   { opacity: 0; transform: translateX(-26px); fill: var(--logo-block); }
   55%  { opacity: 1; transform: translateX(3px) scale(1.06); fill: var(--logo-flash); }
@@ -2260,13 +2262,63 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 /* Two animations per bar: the build (fill-mode both, so it starts hidden),
    then the pulse from 1.25s — the splash's lock → pulse gap. The later one
    in the list wins while it runs; afterwards the build's end state holds. */
-.settings-logo.animate .lb-1 { animation: blocLogoBarIn 0.5s ease-out 0s both, blocLogoBarPulse 1.6s ease-in-out 1.25s 2; }
-.settings-logo.animate .lb-2 { animation: blocLogoBarIn 0.5s ease-out 0.16s both, blocLogoBarPulse 1.6s ease-in-out 1.43s 2; }
-.settings-logo.animate .lb-3 { animation: blocLogoBarInTop 0.55s ease-out 0.32s both, blocLogoBarPulseTop 1.6s ease-in-out 1.61s 2; }
+.settings-logo.animate .lb-1, .scroll-head-logo.animate .lb-1 { animation: blocLogoBarIn 0.5s ease-out 0s both, blocLogoBarPulse 1.6s ease-in-out 1.25s 2; }
+.settings-logo.animate .lb-2, .scroll-head-logo.animate .lb-2 { animation: blocLogoBarIn 0.5s ease-out 0.16s both, blocLogoBarPulse 1.6s ease-in-out 1.43s 2; }
+.settings-logo.animate .lb-3, .scroll-head-logo.animate .lb-3 { animation: blocLogoBarInTop 0.55s ease-out 0.32s both, blocLogoBarPulseTop 1.6s ease-in-out 1.61s 2; }
 @media (prefers-reduced-motion: reduce) {
-  .settings-logo.animate .logo-bar { animation: none; }
+  .settings-logo.animate .logo-bar, .scroll-head-logo.animate .logo-bar { animation: none; }
 }
-.settings-logo .logo-type { fill: var(--text); }
+.settings-logo .logo-type, .scroll-head-logo .logo-type { fill: var(--text); }
+/* v8.59 — the scroll header (#scroll-head, initScrollHeader). Over #content,
+   not in it: absolutely placed in #app (position: relative), so it covers the
+   status-bar inset and a 44px row below it, the same place and height as
+   Settings' pinned row, and the page under it never moves. Above the edge
+   fades (50), below the nav (100) and every sheet (200+).
+   Hidden, it takes no taps (pointer-events) and is out of the accessibility
+   tree (visibility), so the page's own header controls underneath stay usable
+   at the top. The inset fill fades; the row flips about its horizontal centre
+   line, -90° (edge on, unseen) to 0, like a card turning over. Its lower edge
+   carries Settings' 16px fade (§172), so the page goes under it softly. */
+.scroll-head {
+  position: absolute; left: 0; right: 0; top: 0; z-index: 60;
+  padding-top: var(--safe-top);
+  pointer-events: none; visibility: hidden;
+  transition: visibility 0s linear .32s;
+}
+.scroll-head::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: var(--safe-top);
+  background: var(--bg); opacity: 0; transition: opacity .2s;
+}
+.scroll-head-row {
+  position: relative; height: 44px; padding: 0 16px;
+  display: flex; align-items: center; justify-content: flex-end;
+  background: var(--bg);
+  transform-origin: 50% 50%;
+  transform: perspective(700px) rotateX(-90deg); opacity: 0;
+  transition: transform .32s cubic-bezier(.4, 0, .6, 1), opacity .2s ease-out .1s;
+}
+.scroll-head-row::after {
+  content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 16px;
+  background: linear-gradient(to bottom, rgba(var(--bg-rgb), 1) 0%, rgba(var(--bg-rgb), 0) 100%);
+  pointer-events: none;
+}
+.scroll-head.is-shown { pointer-events: auto; visibility: visible; transition: visibility 0s; }
+.scroll-head.is-shown::before { opacity: 1; }
+.scroll-head.is-shown .scroll-head-row {
+  transform: perspective(700px) rotateX(0deg); opacity: 1;
+  transition: transform .45s cubic-bezier(.2, .9, .3, 1.15), opacity .15s ease-out;
+}
+.scroll-head-logo {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  height: 28px; width: auto; aspect-ratio: 507.8 / 100; pointer-events: none;
+}
+.scroll-head-gear { position: relative; }
+@media (prefers-reduced-motion: reduce) {
+  .scroll-head-row, .scroll-head.is-shown .scroll-head-row { transform: none; transition: opacity .15s; }
+}
+/* While the header is up, anything scrolled into view (a tour step, a
+   focused field) stops below it rather than under it. */
+#content.has-scroll-head { scroll-padding-top: 60px; }
 .page-eyebrow {
   font-family: var(--font-body); font-size: 11.5px; font-weight: 700;
   letter-spacing: .14em; text-transform: uppercase; color: var(--text3);
@@ -2692,13 +2744,13 @@ input.set-input:not([type=range]) { padding: 0 4px; }
 .check-done svg, .check-empty svg { width: 16px; height: 16px; fill: none; stroke-width: 2.5; }
 
 /* ── Superset card ──────────────────────────────────────────────────── */
-/* An accent-tinted border is the group's only frame — it is the one card that
-   holds more than one exercise, and it carries no title to say so. */
+/* An accent-tinted border marks the one card that holds more than one
+   exercise. */
 .ex-card-ss { border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
-/* The head is just the tag and the auto-complete button: no index tile (it
-   belongs beside the rows it numbers) and no name. */
-.ex-head-ss { align-items: center; }
-.ss-body { display: flex; gap: 12px; margin-top: 10px; cursor: pointer; }
+/* v8.59 — the head is a solo card's (.ex-head: tile, name, tag, ✓). The member
+   rows line up under the name: 42px = .ex-idx's 30px + .ex-head's 12px gap,
+   the same as .ex-target. */
+.ss-body { margin-top: 14px; padding-left: 42px; cursor: pointer; }
 .ss-rows { flex: 1; min-width: 0; }
 /* 🚨 Dividers go BETWEEN members, never after the last one. This was
    `border-bottom` plus `.ss-row:last-child { border-bottom: none }`, and the
@@ -3592,6 +3644,8 @@ button.coach-reqrow.is-tap + .coach-reqrow, .coach-reqrow + button.coach-reqrow.
 /* v8.43 (§137): Swap for today */
 .ex-swap-note { font-size: 12px; color: var(--text2); margin-top: 3px; }
 .ex-swap-btn { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; }
+.ex-next-wt-btn { margin-top: 14px; }
+.ex-next-wt-btn + .ex-next-wt-btn { margin-top: 10px; }
 .ex-swap-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .swap-planned { background: var(--surface2); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
 .swap-planned-cap { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; }
@@ -4085,6 +4139,25 @@ try {
 <div id="app">
 <div class="edge-fade edge-fade-top"></div>
 <div class="edge-fade edge-fade-bottom"></div>
+<!-- v8.59 (TECHNICAL §174) — the scroll header. Pinned to the top of every
+     tabbed page (Home, Train, Fuel, Progress, Plan) once the page scrolls, and
+     gone again at the top: the animated logo centred, the settings gear at the
+     right. It flips into place as the page starts to move, and the logo builds
+     each time it does. Settings keeps its own pinned back-link row and never
+     shows this one. One element for every page, outside #content, so no page's
+     markup carries it and nothing in the page moves when it appears. Driven by
+     initScrollHeader(). -->
+<div class="scroll-head" id="scroll-head">
+  <div class="scroll-head-row">
+    <svg class="scroll-head-logo" viewBox="0 0 507.8 100" aria-hidden="true" focusable="false">
+      <rect class="logo-bar lb-1" x="10" y="70.7" width="60" height="29.3" rx="7"/><rect class="logo-bar lb-2" x="22" y="35.3" width="60" height="29.3" rx="7"/><rect class="logo-bar logo-bar-top lb-3" x="34" y="0" width="60" height="29.3" rx="7"/>
+          <g class="logo-type" transform="translate(136 0)"><path d="M0 100V0H47.2Q71.6 0 71.6 24.3V33Q71.6 38 68.7 41.4L63.6 47.5L69.7 52.6Q74.5 56.5 74.5 64.2V75.7Q74.5 100 50.1 100ZM20.9 81.2H49.3Q53.6 81.2 53.6 76.8V62.3Q53.6 58 49.3 58H20.9ZM20.9 39.1H46.4Q50.7 39.1 50.7 34.8V23.2Q50.7 18.8 46.4 18.8H20.9Z"/><path d="M102.5 100V0H123.4V81.2H166.6V100Z"/><path d="M188.5 75.7V24.3Q188.5 0 212.8 0H245.9Q270.2 0 270.2 24.3V75.7Q270.2 100 245.9 100H212.8Q188.5 100 188.5 75.7ZM209.3 76.8Q209.3 81.2 213.7 81.2H245Q249.3 81.2 249.3 76.8V23.2Q249.3 18.8 245 18.8H213.7Q209.3 18.8 209.3 23.2Z"/><path d="M299.1 75.7V24.3Q299.1 0 323.4 0H362.1L371.8 7.5V18.8H324.3Q319.9 18.8 319.9 23.2V76.8Q319.9 81.2 324.3 81.2H371.8V92.5L362.1 100H323.4Q299.1 100 299.1 75.7Z"/></g>
+    </svg>
+    <button class="icon-btn scroll-head-gear" id="scroll-head-gear" onclick="showScreen('settings')" aria-label="Settings" tabindex="-1">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
+</div>
 
   <div id="content">
 
@@ -4556,6 +4629,28 @@ try {
     <div class="modal-sub">Rate each exercise from 1 to 10. Anything you leave counts as fine.</div>
     <div id="rpe-sheet-list"></div>
     <button class="btn btn-accent btn-block" style="margin-top:16px;" onclick="closeRpeSheet()">Done</button>
+  </div>
+</div>
+
+<!-- Next week's weight (v8.59, TECHNICAL §174): a maintenance cycle's only way
+     to move a weight on ahead of time. Opened from the button at the foot of an
+     expanded Train card (nextWeightButtonHTML); one figure for every set of the
+     exercise's next session. Saved by saveNextWeight(), into that session's
+     progression entry as `plannedWeight`. -->
+<div class="modal-overlay" id="modal-next-weight">
+  <div class="modal-sheet" data-modal="modal-next-weight">
+    <div class="modal-handle-row"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-next-weight')">&#10005;</button>
+    </div>
+    <div class="modal-title">Next week's weight</div>
+    <div class="modal-sub" id="next-weight-sub"></div>
+    <div class="form-group">
+      <div class="label" id="next-weight-label">Weight (kg)</div>
+      <input type="number" inputmode="decimal" step="0.5" min="0" id="next-weight-input"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();saveNextWeight();}">
+    </div>
+    <button class="btn btn-accent btn-block" style="margin-top:16px;" onclick="saveNextWeight()">Save</button>
+    <button class="btn btn-ghost btn-block" id="next-weight-clear" style="margin-top:10px;" onclick="clearNextWeight()">Use last week's weight instead</button>
   </div>
 </div>
 
@@ -6422,7 +6517,7 @@ try {
      same-named shims. ?v= is the first 12 hex of the file's SHA-256, so a phone never pairs a
      new index.html with an older engine from its HTTP cache; scripts/verify-engine-build.mjs
      fails if it is stale. Listed in scripts/publish-files.txt. -->
-<script src="engine/dist/bloc-engine.js?v=a8a7b6a84aa6"></script>
+<script src="engine/dist/bloc-engine.js?v=44cb8d8a056e"></script>
 <script>
 // ════════════════════════════════════════════════
 // DATE HELPERS
@@ -10950,6 +11045,7 @@ function showScreen(name) {
   if (contentEl) contentEl.classList.toggle('no-nav', !navBtn);
   animateNavPill();
   updateNavPillColor(name);
+  syncScrollHeader(); // v8.59: never on Settings; a tab change keeps the scroll
   if (name === 'home') renderHome(true);
   // Progress, Train and Plan all open on the cycle today falls inside, however
   // far the person browsed last time. See resetToDateActiveMacro().
@@ -13316,6 +13412,25 @@ function getSupersetDisplayName(ssId, members) {
   return members[0].name + ' + ' + members[1].name + ' + ' + (members.length - 2) + ' more';
 }
 
+// v8.59 — the superset's name on its Train card: a name given in Plan, else
+// its members' body parts, each once, in member order, joined "A & B" /
+// "A, B & C" ("Back & Biceps", "Legs"). A member's body part is its library
+// entry's, else its own, else a guess from its name (swapBodyPartOf); cardio is
+// "Cardio"; one with none at all is named by its exercise. Train only: Plan
+// and BLOC Coach keep getSupersetDisplayName's "A + B".
+function getSupersetBodyPartName(ssId, members) {
+  const stored = state.supersets && state.supersets[ssId] && state.supersets[ssId].name;
+  if (stored) return stored;
+  const lib = getLibrary();
+  const parts = [];
+  for (const m of members) {
+    const p = m.category === 'cardio' ? 'Cardio' : (swapBodyPartOf(m, lib) || m.name);
+    if (p && !parts.includes(p)) parts.push(p);
+  }
+  if (!parts.length) return 'Superset';
+  return parts.length === 1 ? parts[0] : parts.slice(0, -1).join(', ') + ' & ' + parts[parts.length - 1];
+}
+
 // Return the SS/3S/4S badge label for a superset of n exercises
 function getSupersetBadge(n) {
   if (n === 2) return 'SS';
@@ -13795,7 +13910,7 @@ let trainManualSelect = false;
 // Opens the Change-session sheet and fills it. Replaces the in-card panel
 // that used to expand under the row.
 function openTrainSessionPicker() {
-  trainAgendaOpen = null; // re-derive: the viewed week, this week and up next start open
+  trainAgendaOpen = null; // re-derive: the viewed week starts open (else up next's, else this week)
   renderTrainSessionPicker();
   openModal('modal-train-session');
   // Land on the week being viewed, not the top of a 14-week list — by
@@ -13803,8 +13918,7 @@ function openTrainSessionPicker() {
   // stay in view (scrollIntoView scrolled the whole sheet).
   requestAnimationFrame(() => {
     const list = document.getElementById('train-session-picker');
-    const el = list && list.querySelector('.agenda-unit.is-viewing');
-    if (el) list.scrollTop = Math.max(0, el.offsetTop - list.offsetTop - 8);
+    if (list && trainAgendaOpen) scrollAgendaUnitToTop(list, trainAgendaOpen);
   });
 }
 // Builds the sheet's body from current state. Called on open and again
@@ -22864,7 +22978,11 @@ function renderTrainSession(macro) {
 // 2-week mesocycle (m1 = its first week, m2 its second) — the same rule as
 // getSelectedTrainWeekDates() and the old day-tab grouping. Otherwise one
 // unit spans the whole mesocycle, with both microcycles' sessions in it.
-let trainAgendaOpen = null; // Set of unit keys expanded in the sheet; null = derive on render
+// v8.59: the ONE week open in the sheet (its unit key), '' for none, null =
+// derive on render (the week being viewed, else up next's, else this week).
+// One at a time: opening a week closes the one before, so the sheet never shows
+// two weeks' sessions at once with nothing to say which is which.
+let trainAgendaOpen = null;
 
 function getTrainAgendaUnits(macro) {
   return BlocEngine.getTrainAgendaUnits(state, engineCtx(), macro, { week: state.currentWeek, dayKey: state.currentDay }); // v8.35 (§125): the engine's
@@ -22876,8 +22994,9 @@ function trainAgendaDate(iso) {
 
 function buildTrainPickerHTML(macro) {
   const { units, next, total } = getTrainAgendaUnits(macro);
-  if (!trainAgendaOpen) {
-    trainAgendaOpen = new Set(units.filter(u => u.viewing || u.isThisWeek || u.hasUpNext).map(u => u.key));
+  if (trainAgendaOpen === null) {
+    const first = units.find(u => u.viewing) || units.find(u => u.hasUpNext) || units.find(u => u.isThisWeek);
+    trainAgendaOpen = first ? first.key : '';
   }
   const sub = document.getElementById('train-session-picker-sub');
   if (sub) sub.textContent = `${macro.name} · MC ${state.currentWeek} of ${total}. Tap a session to open it.`;
@@ -22890,7 +23009,7 @@ function buildTrainPickerHTML(macro) {
     }
   }
   const cards = units.map(u => {
-    const open = trainAgendaOpen.has(u.key);
+    const open = trainAgendaOpen === u.key;
     const dates = u.start ? `${trainAgendaDate(u.start)} – ${trainAgendaDate(u.end)}` : `MC ${u.week}`;
     const when = u.isThisWeek ? '<span class="agenda-when">This week</span>' : '';
     const subLine = `MC ${u.week}${u.weekOfMeso ? ' · week ' + u.weekOfMeso + ' of 2' : ''}${u.isDeload ? ' · Deload' : ''}`;
@@ -22913,7 +23032,7 @@ function buildTrainPickerHTML(macro) {
           ${dot}<span class="agenda-row-text"><span class="agenda-row-name">${x.label}</span><span class="agenda-row-meta">${rowMeta}</span></span>${badge}
         </button>`;
     }).join('')}</div>`;
-    return `<div class="agenda-unit${u.isThisWeek ? ' is-this-week' : ''}${u.viewing ? ' is-viewing' : ''}">
+    return `<div class="agenda-unit${u.isThisWeek ? ' is-this-week' : ''}${u.viewing ? ' is-viewing' : ''}" data-unit="${u.key}">
         <button class="agenda-head" onclick="toggleTrainAgendaUnit('${u.key}')" aria-expanded="${open}">
           <span class="agenda-head-text"><span class="agenda-dates">${dates}${when}</span><span class="agenda-sub">${subLine}</span></span>
           ${summary}<span class="agenda-chev">${open ? '▾' : '▸'}</span>
@@ -22925,10 +23044,48 @@ function buildTrainPickerHTML(macro) {
   return `${upNextHtml}<div class="train-agenda" id="train-session-picker">${cards}</div>`;
 }
 
+// v8.59: opening a week closes the one that was open, and brings the opened
+// week's header to the top of the week list; closing it leaves the list where
+// it was. 🚨 renderTrainSessionPicker() rebuilds the sheet's body, so the list
+// element is new and its scrollTop starts at 0: before v8.59 every tap on a
+// week threw the list back to its first week. The old list's position is
+// carried over, then the opened week is scrolled to.
 function toggleTrainAgendaUnit(key) {
-  if (!trainAgendaOpen) trainAgendaOpen = new Set();
-  if (trainAgendaOpen.has(key)) trainAgendaOpen.delete(key); else trainAgendaOpen.add(key);
+  const before = document.getElementById('train-session-picker');
+  const kept = before ? before.scrollTop : 0;
+  trainAgendaOpen = trainAgendaOpen === key ? '' : key;
   renderTrainSessionPicker();
+  const list = document.getElementById('train-session-picker');
+  if (!list) return;
+  list.scrollTop = kept;
+  if (trainAgendaOpen) scrollAgendaUnitToTop(list, trainAgendaOpen, true);
+}
+
+// Puts a week's header at the top of the week list. A week near the end has
+// too little list below it to scroll that far, so the list's bottom padding
+// grows by exactly the shortfall (it is rebuilt, and so reset, on every render).
+// `smooth` (a tapped week): glides there in 250ms (MS), easing out, from
+// where the list was. Opening the sheet lands at once. Reduced motion: at once.
+// 🚨 Not scrollTo({ behavior: 'smooth' }): its speed is the browser's, and on
+// iOS it is slow. A tap during the glide rebuilds the list, so a glide whose
+// list has left the page stops.
+function scrollAgendaUnitToTop(list, key, smooth) {
+  const MS = 250;
+  const el = list.querySelector(`.agenda-unit[data-unit="${key}"]`);
+  if (!el) return;
+  const target = Math.max(0, el.offsetTop - list.offsetTop);
+  const short = target - (list.scrollHeight - list.clientHeight);
+  if (short > 0) list.style.paddingBottom = (8 + short) + 'px';
+  const from = list.scrollTop;
+  if (!smooth || prefersReducedMotion() || Math.abs(target - from) < 2) { list.scrollTop = target; return; }
+  const t0 = performance.now();
+  const step = t => {
+    if (list.isConnected === false) return;
+    const k = Math.min(1, (t - t0) / MS);
+    list.scrollTop = from + (target - from) * (1 - Math.pow(1 - k, 3));
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
 
 // One tap: the week AND the session (the old sheet took two, week then day).
@@ -23045,6 +23202,20 @@ function toggleExercise(expandKey) {
   expandedExercises[expandKey] = !expandedExercises[expandKey];
   const macro = state.macrocycles.find(m => m.id === state.currentMacroId);
   if (macro) renderTrainDay(macro);
+}
+
+// v8.59: a card closes itself when its last set is ticked. The tick handlers
+// (toggleSetDone, toggleCardioSetDone, quickFillComplete,
+// quickFillCompleteSuperset) name the exercise they just marked done here, and
+// the next renderTrainDay closes the card holding it if that card is now
+// finished, using the card's own done rule (a superset: every member, every
+// round). It is cleared after every render, so only the tick that finished a
+// card closes it: opening a finished card, un-ticking a set, typing in a box,
+// or any other redraw leaves it as it is.
+let _trainJustTicked = null;
+function trainCollapseIfFinished(expandKey, exIds, finished) {
+  if (finished && _trainJustTicked && exIds.includes(_trainJustTicked)) expandedExercises[expandKey] = false;
+  return !!expandedExercises[expandKey];
 }
 
 // Train hero card: session overview (exercises, sets done, volume, progress).
@@ -23262,7 +23433,7 @@ function renderTrainDay(macro) {
       const ex   = slot.ex;
       const exId = ex.id;
       const expandKey = macro.id + '_' + state.currentWeek + '_' + state.currentDay + '_' + exId;
-      const isExpanded = !!expandedExercises[expandKey];
+      let isExpanded = !!expandedExercises[expandKey];
       // Cardio exercises get their own dedicated card (buildCardioTrainCard)
       // — no progression, no compliance lock, unaffected by deload; see the
       // CARDIO EXERCISES — TRAIN LOGGING section below renderTrainDay.
@@ -23284,6 +23455,7 @@ function renderTrainDay(macro) {
       // GROUP replacement keeps the planned name (otherwise the names
       // read "Another exercise"), only a swap shows the substitute.
       const isSwapped = !!d.isSwapped, heldAfterSwap = !!d.heldAfterSwap;
+      isExpanded = trainCollapseIfFinished(expandKey, [exId], allDone);
       const swap = isSwapped ? getSubstitution(macro.id, state.currentWeek, state.currentDay, exId) : null;
       const isGroup = !!(swap && swap.kind === 'group');
       const prevSub = heldAfterSwap ? getSubstitution(macro.id, state.currentWeek - 1, state.currentDay, exId) : null;
@@ -23387,16 +23559,14 @@ function renderTrainDay(macro) {
       // withheld only where there is nothing left to complete (already done) or
       // where completing at target is not the point (a locked exercise, whose
       // whole state is "these numbers are not moving yet").
-      // v8.43 (§138): a drop set with nothing to carry into a drop (its first session:
-      // no drop weight or reps last week) has no target to complete at. The
-      // button used to tick every set with the drop left blank.
-      const dropUnknown = isDropSet && (dropWeightPlaceholders.some(v => !v) || dropRepsPlaceholders.some(v => !v));
-      const autoBtnHtml = (allDone || isSwapped || dropUnknown || (isLocked && !isDeloadSession && !isPostDeloadSession))
+      // v8.59: a drop set never has one, on any cycle type. Its drop is taken to
+      // failure, so its reps are only known once lifted and are always typed by
+      // hand; a one-tap complete would log a suggested drop instead of the real
+      // one. (v8.43 had withheld it only in a drop set's first session, §138.)
+      const autoBtnHtml = (allDone || isSwapped || isDropSet || (isLocked && !isDeloadSession && !isPostDeloadSession))
         ? ''
         : `<button class="ex-auto-btn" title="Complete every set at target"
-             onclick="${isDropSet
-               ? `quickFillCompleteDropset(event,'${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholders.join('|')}','${repsPlaceholders.join('|')}','${dropWeightPlaceholders.join('|')}','${dropRepsPlaceholders.join('|')}')`
-               : `quickFillComplete(event,'${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholders.join('|')}','${repsPlaceholders.join('|')}')`}">
+             onclick="quickFillComplete(event,'${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholders.join('|')}','${repsPlaceholders.join('|')}')">
              <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
            </button>`;
 
@@ -23622,7 +23792,7 @@ function renderTrainDay(macro) {
         }
         html += `<div class="ex-body">
           ${progSelector}
-          ${setRows}${swapTodayRowHTML(macro, ex, doneSets, isSwapped && !isGroup)}
+          ${setRows}${swapTodayRowHTML(macro, ex, doneSets, isSwapped && !isGroup)}${nextWeightButtonHTML(macro, ex, isSwapped)}
         </div>`;
       }
       html += `</div>`;
@@ -23636,8 +23806,6 @@ function renderTrainDay(macro) {
       const ssName   = getSupersetDisplayName(ssId, members);
       const key2     = macro.id + '_' + state.currentWeek + '_' + state.currentDay;
       const expandKey= macro.id + '_ss_' + state.currentWeek + '_' + state.currentDay + '_' + ssId;
-      const isExpanded = !!expandedExercises[expandKey];
-
       // Per-member progression data
       const memberData = members.map(m => exProgData(m));
 
@@ -23649,6 +23817,7 @@ function renderTrainDay(macro) {
         totalSets += md.sets;
       });
       const allSSDone = totalDone === totalSets && totalSets > 0;
+      const isExpanded = trainCollapseIfFinished(expandKey, members.map(m => m.id), allSSDone);
       // Whether any member's own session missed its target once fully
       // done — mirrors solo exercises' missedTarget, shown next to the
       // combined done badge below.
@@ -23662,6 +23831,15 @@ function renderTrainDay(macro) {
       // false during both, so this is naturally correct with no
       // conjunctions to keep in sync.
       const anySSLocked = memberData.some(md => md.isLocked);
+      // v8.59: one dot per ROUND, the superset's own counter, as a solo card has
+      // one per set. A round is done when every member has that set ticked (the
+      // set card's own "✓ done" rule below), so a half-done round stays empty.
+      let ssDotsHtml = '', roundsDone = 0;
+      for (let s = 0; s < sets; s++) {
+        const roundDone = members.every(m => (state.trainLogs[key2 + '_' + m.id + '_' + s] || {}).done);
+        if (roundDone) roundsDone++;
+        ssDotsHtml += `<span class="ex-dot${roundDone ? ' ex-dot-on' : ''}"></span>`;
+      }
 
       // Collapsed preview rows — mirror normal exercise layout:
       // Left: name, then sets·reps on next line, then progress badge below (session 2+)
@@ -23789,19 +23967,15 @@ function renderTrainDay(macro) {
       })).replace(/"/g, '&quot;');
 
       // One card for the whole group, with ONE auto-complete button that fills
-      // every member.
-      //
-      // 🚨 The group has NO TITLE. It used to print "<A> + <B>" as the card's
-      // name, which for a three-member superset ran to two lines and repeated
-      // names the member rows list immediately below it. The lavender
-      // "Superset · N rounds" tag IS the heading. ssName is still
-      // computed — the expanded view and the logging sheet use it.
-      //
-      // The index tile therefore drops out of the head and sits beside the
-      // MEMBER ROWS, which is what it numbers.
+      // every member. v8.59: its head is a solo card's: the index tile, then
+      // the name (getSupersetBodyPartName: "Back & Biceps") with the lavender
+      // "Superset · N rounds" tag under it, then the ✓. The member rows sit
+      // under the name, as a solo card's target line does (.ss-body's 42px).
       html += `<div class="card ex-card ex-card-ss${isExpanded ? ' ex-card-open' : ''}">
-        <div class="ex-head ex-head-ss" onclick="toggleExercise('${expandKey}')">
+        <div class="ex-head" onclick="toggleExercise('${expandKey}')">
+          <div class="ex-idx">${slotIdx + 1}</div>
           <div class="ex-head-text">
+            <div class="ex-name">${coachEsc(getSupersetBodyPartName(ssId, members))}</div>
             <div class="ex-tags"><span class="ex-tag" style="--tag-c:var(--accent2);">Superset · ${sets} round${sets === 1 ? '' : 's'}</span></div>
           </div>
           <div class="ex-head-right" onclick="event.stopPropagation()">
@@ -23817,14 +23991,20 @@ function renderTrainDay(macro) {
           </div>
         </div>
         <div class="ss-body" onclick="toggleExercise('${expandKey}')">
-          <div class="ex-idx">${slotIdx + 1}</div>
           <div class="ss-rows">${previewRows}</div>
+        </div>
+        <div class="ex-dots-row" onclick="toggleExercise('${expandKey}')">
+          <div class="ex-dots">${ssDotsHtml}</div>
+          <span class="ex-lastwk">${roundsDone}/${sets} rounds</span>
         </div>`;
 
       if (isExpanded) {
         // Progression toggles — per exercise, full-width cards matching normal exercise style
         let progToggles = '';
-        if (state.currentWeek > 1 && !isDeloadSession && !isPostDeloadSession && members.some(m => m.category !== 'cardio')) {
+        // v8.59: no route to choose on a maintenance cycle, the same rule as a
+        // solo card's showProgSelector (maintenance has no progression, §105).
+        // The ↑ Weight / ↑ Reps pair was drawn here on every cycle type.
+        if (state.currentWeek > 1 && !isDeloadSession && !isPostDeloadSession && !isMaintCycle && members.some(m => m.category !== 'cardio')) {
           progToggles = '<div class="ss-prog-toggles"><div class="ex-block-label">Progress this week</div>';
           members.forEach((m, mi) => {
             // Cardio members never get a progression-type toggle — there's
@@ -24009,7 +24189,7 @@ function renderTrainDay(macro) {
         html += `<div class="ex-body">
           ${progToggles}
           ${ssFillBtns}
-          <div class="ss-set-cards">${setCards}</div>
+          <div class="ss-set-cards">${setCards}</div>${members.map(m => nextWeightButtonHTML(macro, m, false, true)).join('')}
         </div>`;
       }
 
@@ -24017,6 +24197,7 @@ function renderTrainDay(macro) {
     }
   });
 
+  _trainJustTicked = null; // v8.59: one render per tick (trainCollapseIfFinished)
   el.innerHTML = trainCoachNoticeHTML(macro) + html; // v8.42 (§136)
   renderTrainHero(macro);
   applyTrainCoachLock(); // v8.42 (§136)
@@ -24177,6 +24358,7 @@ function toggleCardioSetDone(key) {
   }
   if (!state.trainLogs[key]) state.trainLogs[key] = {};
   state.trainLogs[key].done = !state.trainLogs[key].done;
+  if (state.trainLogs[key].done && ex) _trainJustTicked = ex.id; // v8.59
   save();
   if (macro) renderTrainDay(macro);
 }
@@ -24296,6 +24478,7 @@ function buildCardioTrainCard(macro, ex, expandKey, isExpanded, slotIdx) {
     if ((state.trainLogs[key2 + '_' + ex.id + '_' + s] || {}).done) doneCount++;
   }
   const allDone = doneCount === sets && sets > 0;
+  isExpanded = trainCollapseIfFinished(expandKey, [ex.id], allDone); // v8.59
   const deltaBadge = buildCardioDeltaBadge(macro, ex);
   const isTimeTarget = ex.metricType !== 'distance';
   const targetPart = isTimeTarget
@@ -24594,6 +24777,7 @@ function quickFillComplete(event, macroId, week, day, exId, sets, weight, reps) 
     state.trainLogs[logKey].reps   = rVal;
     state.trainLogs[logKey].done   = true;
   }
+  _trainJustTicked = exId; // v8.59
   const macro = state.macrocycles.find(m => m.id === macroId);
   if (macro) {
     const ex = (state.exercises[macro.id + '_1_' + day] || []).find(e => e.id === exId);
@@ -24607,55 +24791,6 @@ function quickFillComplete(event, macroId, week, day, exId, sets, weight, reps) 
   maybeOpenRpeSheet(macro, week, day, wasComplete);
 }
 
-// Quick fill + complete for a drop-set exercise: used on a COLLAPSED
-// exercise card to fill EVERY field (main weight/reps, drop weight/reps)
-// with its suggestion and mark all sets done, in one tap — matching
-// quickFillComplete's behavior for every other exercise type (v6.09).
-// Unlike the "Fill suggested" button (fillSuggestedDropset, left
-// untouched), which deliberately leaves the drop's reps blank so you can
-// log the real failure count each week, this overhead shortcut fills
-// every field including drop reps — same "log what was suggested" logic
-// used everywhere else, not a strict completeness check. You can still
-// edit the drop reps afterward via the expanded card if what you actually
-// hit differs. weight/reps/dropWeight/dropReps are '|'-delimited per-set
-// suggestion lists.
-function quickFillCompleteDropset(event, macroId, week, day, exId, sets, weight, reps, dropWeight, dropReps) {
-  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
-  if (event) event.stopPropagation();
-  const rpeMacro = state.macrocycles.find(m => m.id === macroId);
-  const wasComplete = rpeMacro ? isTrainSessionComplete(rpeMacro, week, day) : true;
-  const baseKey = macroId + '_' + week + '_' + day;
-  const weightList = String(weight).split('|');
-  const repsList = String(reps).split('|');
-  const dropWeightList = String(dropWeight).split('|');
-  const dropRepsList = String(dropReps).split('|');
-  // v8.43 (§138): never complete a drop set with its drop unknown (the button isn't drawn then either).
-  if (dropWeightList.some(v => !v) || dropRepsList.some(v => !v)) return;
-  for (let s = 0; s < sets; s++) {
-    const logKey = baseKey + '_' + exId + '_' + s;
-    const wVal  = weightList[s] !== undefined ? weightList[s] : weightList[weightList.length - 1];
-    const rVal  = sanitizeReps(repsList[s] !== undefined ? repsList[s] : repsList[repsList.length - 1]);
-    const dwVal = dropWeightList[s] !== undefined ? dropWeightList[s] : dropWeightList[dropWeightList.length - 1];
-    const drVal = sanitizeReps(dropRepsList[s] !== undefined ? dropRepsList[s] : dropRepsList[dropRepsList.length - 1]);
-    if (!state.trainLogs[logKey]) state.trainLogs[logKey] = {};
-    state.trainLogs[logKey].weight = wVal;
-    if (rVal) state.trainLogs[logKey].reps = rVal;
-    if (dwVal) state.trainLogs[logKey].dropWeight = dwVal;
-    if (drVal) state.trainLogs[logKey].dropReps = drVal;
-    state.trainLogs[logKey].done = true;
-  }
-  const macro = state.macrocycles.find(m => m.id === macroId);
-  if (macro) {
-    const ex = (state.exercises[macro.id + '_1_' + day] || []).find(e => e.id === exId);
-    if (ex) {
-      recordExerciseHistory(macro, week, day, ex);
-      evaluateProgressionLock(macro, week, day, ex);
-    }
-  }
-  save();
-  if (macro) renderTrainDay(macro);
-  maybeOpenRpeSheet(macro, week, day, wasComplete);
-}
 // fillArgsJson is a JSON array of [exId, sets, weightList, repsList] tuples,
 // where weightList/repsList are '|'-delimited per-set suggestions (v6.09).
 function quickFillCompleteSuperset(event, macroId, week, day, fillArgsJson) {
@@ -24667,6 +24802,7 @@ function quickFillCompleteSuperset(event, macroId, week, day, fillArgsJson) {
   const macro = state.macrocycles.find(m => m.id === macroId);
   const wasComplete = macro ? isTrainSessionComplete(macro, week, day) : true;
   const templateExercises = macro ? (state.exercises[macro.id + '_1_' + day] || []) : [];
+  if (tuples.length) _trainJustTicked = tuples[0][0]; // v8.59
   tuples.forEach(([exId, sets, weightStr, repsStr]) => {
     const weightList = String(weightStr).split('|');
     const repsList   = String(repsStr).split('|');
@@ -24691,6 +24827,111 @@ function quickFillCompleteSuperset(event, macroId, week, day, fillArgsJson) {
   if (macro) renderTrainDay(macro);
   maybeOpenRpeSheet(macro, week, day, wasComplete);
 }
+
+// ── Next week's weight (v8.59, TECHNICAL §174) ──────────────────────────
+// A maintenance cycle has no progression: next session suggests what was
+// logged this one. So an exercise that turned out too easy had nowhere to say
+// "more next time" until this button. It sits at the foot of an expanded card
+// (each weight member's own on a superset), on maintenance only, and stores
+// one weight on the NEXT session's progression entry (same dayKey track,
+// week + 1) as `plannedWeight`. The engine's getPlannedWeight reads it there:
+// Train, Home's Up next, the week's compliance target and BLOC Coach all
+// suggest it on every set, in place of last week's actual. Reps don't change.
+//
+// Not with effort ratings on (Plan → Tools): on a maintenance cycle an easy
+// rating takes the cut/gain easy step, so the ratings move the weight and the
+// engine ignores a stored planned weight. Where it would never be read
+// otherwise, it isn't offered either: cardio (no weight), a swap
+// (the week after holds its target), the last session of the cycle, a next
+// session that is a deload (the deload wins) or is the session after this one's
+// deload, and a next session already logged. The coach's own logged session
+// is read-only, so it has none either.
+function nextWeightTarget(macro, ex, isSwapped) {
+  if (!macro || macro.goalType !== 'maintenance' || !ex || ex.category === 'cardio' || isSwapped) return null;
+  if (rpeDrivesProgression(macro)) return null; // ratings on: an easy rating moves the weight (§174)
+  if (trainViewCoachOwned()) return null;
+  const week = state.currentWeek, dayKey = state.currentDay, next = week + 1;
+  if (next > getMacroEffectiveMesoCount(macro)) return null;
+  if (isDeloadUnit(macro, week, dayKey) || isDeloadUnit(macro, next, dayKey)) return null;
+  const sets = getWeekSets(ex, next, macro.weeks);
+  for (let s = 0; s < sets; s++) {
+    if ((state.trainLogs[macro.id + '_' + next + '_' + dayKey + '_' + ex.id + '_' + s] || {}).done) return null;
+  }
+  return { week: next, dayKey, pk: getProgKey(macro.id, next, dayKey, ex.id) };
+}
+
+function nextWeightButtonHTML(macro, ex, isSwapped, inSuperset) {
+  const t = nextWeightTarget(macro, ex, isSwapped);
+  if (!t) return '';
+  const planned = BlocEngine.getPlannedWeight(state, macro, t.week, t.dayKey, ex.id);
+  const who = inSuperset ? ` · ${ex.name}` : '';
+  const unit = ex.trackingMode === 'perSide' ? 'kg per side' : 'kg';
+  const label = planned !== null ? `Next week: ${fmtKg(planned)} ${unit}${who}` : `Set next week's weight${who}`;
+  return `<button class="btn btn-accent btn-block ex-next-wt-btn" id="next-wt-btn-${macro.id}-${ex.id}"
+    onclick="event.stopPropagation();openNextWeightSheet('${macro.id}','${ex.id}')">${label}</button>`;
+}
+
+let _nextWeightCtx = null;
+function openNextWeightSheet(macroId, exId) {
+  const macro = state.macrocycles.find(m => m.id === macroId);
+  const ex = macro && (state.exercises[macro.id + '_1_' + state.currentDay] || []).find(e => e.id === exId);
+  const t = nextWeightTarget(macro, ex, false);
+  if (!t) return;
+  _nextWeightCtx = { macroId, exId, week: t.week, dayKey: t.dayKey, pk: t.pk };
+  const planned = BlocEngine.getPlannedWeight(state, macro, t.week, t.dayKey, ex.id);
+  // The box's hint is this week's set-1 weight, as logged or as suggested.
+  const now = state.trainLogs[macro.id + '_' + state.currentWeek + '_' + state.currentDay + '_' + ex.id + '_0'] || {};
+  const hint = now.weight ? now.weight : (getSessionPreviewTarget(macro, state.currentWeek, state.currentDay, ex) || {}).weight;
+  const perSide = ex.trackingMode === 'perSide';
+  document.getElementById('next-weight-sub').textContent =
+    `${ex.name}. Next time you do this session, Train suggests this on every set${perSide ? ' (per side)' : ''}. Reps stay as they are.`;
+  document.getElementById('next-weight-label').textContent = perSide ? 'Weight (kg per side)' : 'Weight (kg)';
+  const input = document.getElementById('next-weight-input');
+  input.value = planned !== null ? fmtKg(planned) : '';
+  input.placeholder = hint ? fmtKg(hint) : '';
+  document.getElementById('next-weight-clear').style.display = planned !== null ? '' : 'none';
+  openModal('modal-next-weight');
+}
+
+// 🚨 A week's target, once in state.progressionTargets, is never recomputed
+// (getWeekTargets reads the cache first). One can exist for next week before
+// any weight is planned: the demo data ships them, a post-deload walk-back
+// writes them, and so does visiting the week on a cycle that was loss or gain.
+// A planned weight saved over one would be suggested but not judged against,
+// so the cached entry for that week is dropped with it; nextWeightTarget
+// already guarantees nothing has been logged against it.
+function writeNextWeight(value) {
+  if (trainViewCoachOwned()) return; // the coach's session, read-only (§136)
+  const c = _nextWeightCtx;
+  if (!c) return;
+  const macro = state.macrocycles.find(m => m.id === c.macroId);
+  if (!macro) return;
+  if (!state.trainLogs[c.pk]) state.trainLogs[c.pk] = {};
+  if (value === null) delete state.trainLogs[c.pk].plannedWeight;
+  else state.trainLogs[c.pk].plannedWeight = value;
+  if (!Object.keys(state.trainLogs[c.pk]).length) delete state.trainLogs[c.pk];
+  const cacheKey = getProgressionLockKey(macro.id, c.dayKey, c.exId) + '_w' + c.week;
+  if (state.progressionTargets && state.progressionTargets[cacheKey]) delete state.progressionTargets[cacheKey];
+  save();
+  _nextWeightCtx = null;
+  closeModal('modal-next-weight');
+  renderTrainDay(macro);
+}
+
+function saveNextWeight() {
+  const input = document.getElementById('next-weight-input');
+  const raw = String(input.value || '').trim();
+  if (raw === '') { writeNextWeight(null); return; }
+  const n = parseFloat(raw);
+  if (!Number.isFinite(n) || n < 0 || n > 999) {
+    input.style.borderColor = 'var(--red)';
+    setTimeout(() => { input.style.borderColor = ''; }, 1500);
+    return;
+  }
+  writeNextWeight(String(n));
+}
+
+function clearNextWeight() { writeNextWeight(null); }
 
 // Flips a single set's done flag. If weight or reps is missing when marking
 // done, briefly flashes the empty input's border red instead of allowing it —
@@ -24750,6 +24991,7 @@ function toggleSetDone(key) {
   if (!state.trainLogs[key]) state.trainLogs[key] = {};
   state.trainLogs[key].done = !state.trainLogs[key].done;
   if (state.trainLogs[key].done && macro && ex) {
+    _trainJustTicked = ex.id; // v8.59
     recordExerciseHistory(macro, state.currentWeek, state.currentDay, ex);
     evaluateProgressionLock(macro, state.currentWeek, state.currentDay, ex);
   }
@@ -28805,6 +29047,45 @@ function initSettingsTopbarFade() {
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initSettingsTopbarFade);
 else initSettingsTopbarFade();
 
+// v8.59 — the scroll header (#scroll-head). Shown on any page but Settings once
+// #content (the one scroller for every screen) has moved more than 8px
+// (SHOW_PX), and hidden again only when it is back at the very top,
+// so a small bounce near the threshold doesn't flip it back and forth. Each
+// time it is shown, the logo's build-and-pulse replays (remove the class,
+// force a reflow, add it, as initSettingsLogoAnimation does). showScreen()
+// calls syncScrollHeader(), because a tab change keeps #content's scroll
+// position and Settings must never show it.
+// 🚨 No top-level const for the threshold: showScreen() runs during start-up,
+// before this line of the script has executed, and would throw on it.
+function syncScrollHeader() {
+  const SHOW_PX = 8;
+  const head = document.getElementById('scroll-head');
+  const content = document.getElementById('content');
+  if (!head || !content) return;
+  const active = document.querySelector('.screen.active');
+  const allowed = !!active && active.id !== 'screen-settings';
+  const shown = head.classList.contains('is-shown');
+  const y = content.scrollTop;
+  const want = allowed && (shown ? y > 0 : y > SHOW_PX);
+  if (want === shown) return;
+  head.classList.toggle('is-shown', want);
+  content.classList.toggle('has-scroll-head', want);
+  const gear = document.getElementById('scroll-head-gear');
+  if (gear) gear.tabIndex = want ? 0 : -1;
+  if (want) {
+    const logo = head.querySelector('.scroll-head-logo');
+    if (logo) { logo.classList.remove('animate'); void logo.getBoundingClientRect(); logo.classList.add('animate'); }
+  }
+}
+function initScrollHeader() {
+  const content = document.getElementById('content');
+  if (!content) return;
+  content.addEventListener('scroll', syncScrollHeader, { passive: true });
+  syncScrollHeader();
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initScrollHeader);
+else initScrollHeader();
+
 // Hands a generated file to the native Share Sheet (iOS: AirDrop, Save to
 // Files, Messages…), falling back to a plain download where sharing files
 // isn't available (desktop browsers, older iOS/Android). v8.19 (§100): a
@@ -29849,7 +30130,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.58</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.59</span>`;
 }
 
 function renderSettings() {

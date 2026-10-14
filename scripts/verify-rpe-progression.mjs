@@ -217,7 +217,17 @@ check('rpe absent on the cycle, rated 5 → normal', w0(target(E, makeState({ rp
   check('the session after a deload → no step', E.getProgressionStep(macroOf(st), 3, 'push', bench).kind, 'none');
   const m = makeState({ goalType: 'maintenance', exs: [bench], logs: logEx({}, 1, 'push', bench, 60, 8), ratings: { mc_1_push_bench: { rpe: 5 } } });
   E.setState(m);
-  check('maintenance → no RPE step at all', E.getRpeStep(macroOf(m), 2, 'push', bench).kind, 'none');
+  // v8.59 (§174): with ratings on, a maintenance cycle takes an easy rating's
+  // step; a 9+ is none there (the week is flat either way), and ratings off is
+  // flat as before.
+  check('maintenance, rated 5 and compliant → the easy step (v8.59)', E.getProgressionStep(macroOf(m), 2, 'push', bench).kind, 'easy');
+  const m9 = makeState({ goalType: 'maintenance', exs: [bench], logs: logEx({}, 1, 'push', bench, 60, 8), ratings: { mc_1_push_bench: { rpe: 9 } } });
+  E.setState(m9);
+  check('maintenance, rated 9 → no step, not a hold', [E.getRpeStep(macroOf(m9), 2, 'push', bench).kind, E.getProgressionStep(macroOf(m9), 2, 'push', bench).kind], ['none', 'maintenance']);
+  const mOff = makeState({ goalType: 'maintenance', exs: [bench], logs: logEx({}, 1, 'push', bench, 60, 8), ratings: { mc_1_push_bench: { rpe: 5 } } });
+  macroOf(mOff).rpe = false;
+  E.setState(mOff);
+  check('maintenance, ratings off → no step at all', E.getProgressionStep(macroOf(mOff), 2, 'push', bench).kind, 'maintenance');
   const c = makeState({ exs: [bike], logs: logEx({}, 1, 'push', bike, 0, 0), ratings: { mc_1_push_bike: { rpe: 3 } } });
   E.setState(c);
   check('cardio → no step', E.getRpeStep(macroOf(c), 2, 'push', bike).kind, 'none');
@@ -393,7 +403,7 @@ check('loss: giant look-ahead still +10/week', E.getGiantSetProgression(giant, 3
 }
 
 // ── Wiring ───────────────────────────────────────────────────────────────
-for (const fn of ['function quickFillComplete(', 'function quickFillCompleteDropset(', 'function quickFillCompleteSuperset(', 'function toggleSetDone(']) {
+for (const fn of ['function quickFillComplete(', 'function quickFillCompleteSuperset(', 'function toggleSetDone(']) {
   const body = extractFrom(source, fn);
   check(`${fn.replace('function ', '').replace('(', '()')} opens the sheet (quick-fill must not skip it)`,
     /maybeOpenRpeSheet\(/.test(body) && /isTrainSessionComplete\(/.test(body), true);

@@ -279,12 +279,11 @@ if (process.env.BLOC_LEAVES_CHILD) {
   // are counted.
   const PLANNED = /\n      <div class="metric-planned">.*?<\/div>/g;
   const noPlanned = str => str.replace(PLANNED, '');
-  // v8.43 (§138): a drop set's auto-complete button is gone where the drop has
-  // nothing to carry over (its first session: an empty drop weight or reps). Only
-  // THOSE buttons are removed from the v8.34 side; a drop set with its drop known
-  // keeps its button, and must still match.
-  const DROP_BTN = /<button class="ex-auto-btn" title="Complete every set at target"\s*onclick="quickFillCompleteDropset\(event,'[^']*',\d+,'[^']*','[^']*',\d+,'[^']*','[^']*','([^']*)','([^']*)'\)">[\s\S]*?<\/button>/g;
-  const noBlankDropBtn = str => str.replace(DROP_BTN, (m, dw, dr) => (dw.split('|').some(v => !v) || dr.split('|').some(v => !v) ? '' : m));
+  // v8.59 (§174): a drop set has no auto-complete button on any cycle (v8.43,
+  // §138, had removed it only where the drop had nothing to carry over). Every
+  // drop set's button is removed from the v8.34 side; nothing else may differ.
+  const DROP_BTN = /<button class="ex-auto-btn" title="Complete every set at target"\s*onclick="quickFillCompleteDropset\([^"]*\)">[\s\S]*?<\/button>/g;
+  const noDropBtn = str => str.replace(DROP_BTN, '');
   // v8.57 (§172): Train draws its weights through fmtKg, so a whole number
   // loses its ".0" (25.0 → 25; 22.5 stays). Train's HTML is compared with every
   // "<digit>.0" not followed by a digit read as "<digit>" on both sides, and
@@ -312,7 +311,7 @@ if (process.env.BLOC_LEAVES_CHILD) {
         let n = runState(N34, docNew, name, mk(), tour);
         if (!H7_EXEMPT.has(name) && !timeless && runState(O34, docOld, name, mk(), tour) !== n) h7Moved++;
         if (first.bloc.fn === 'renderTrainDay' && o !== n && noPointZero(o) !== o) { kgTrimmed++; o = noPointZero(o); n = noPointZero(n); }
-        if (first.bloc.fn === 'renderTrainDay' && o !== n && noBlankDropBtn(o) !== o && noBlankDropBtn(o) === n) { dropBtnGone++; o = noBlankDropBtn(o); }
+        if (first.bloc.fn === 'renderTrainDay' && o !== n && noDropBtn(o) !== o && noDropBtn(o) === n) { dropBtnGone++; o = noDropBtn(o); }
         if (first.bloc.fn === 'renderTrainDay' && o !== n && noBadge(o) === noBadge(n)) { badgeMoved++; o = noBadge(o); n = noBadge(n); }
         if (first.bloc.fn === 'renderHomeThisWeek' && o !== n && o === noPlanned(n)) { plannedAdded++; n = noPlanned(n); }
         runs++;
@@ -552,7 +551,7 @@ ZONES.forEach((zone, k) => {
   check(`${zone}: no run threw, on either side`, !r.error && r.throws === 0, (r.firstThrows || []).join('\n    '));
   check(`${zone}: Train's "missed target" badge moved on ${r.badgeMoved || 0} rendered sessions, and nothing else in Train did`, !r.error && r.badgeMoved > 0);
   check(`${zone}: Home's "Planned this week avg" line was added on ${r.plannedAdded || 0} renders, and nothing else on Home moved`, !r.error && r.plannedAdded > 0);
-  check(`${zone}: a first-session drop set lost its auto-complete button on ${r.dropBtnGone || 0} renders (v8.43, §138), and nothing else did`, !r.error && r.dropBtnGone > 0);
+  check(`${zone}: a drop set lost its auto-complete button on ${r.dropBtnGone || 0} renders (v8.59, §174), and nothing else did`, !r.error && r.dropBtnGone > 0);
   check(`${zone}: Train's weights lost a trailing .0 on ${r.kgTrimmed || 0} renders (v8.57, §172), and nothing else did`, !r.error && r.kgTrimmed > 0);
   const oc = r.aiOutcomes || {};
   const flows = ['askBlocForAdvice', 'askBlocForChallenge', 'askBlocForNextCycleAdvice', 'generateCycleReview'];

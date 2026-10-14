@@ -16,6 +16,12 @@
 //     next gives — and a part-logged session is NOT done.
 //   · One tap selects week AND session and closes the sheet (the old sheet
 //     took two taps, and the first kept the sheet open).
+//   · v8.59 (§174): ONE week open at a time. The viewed week starts open (else
+//     up next's, else this week's), opening a week closes the one before, and
+//     the opened week's header goes to the top of the week list. The list is
+//     rebuilt on every toggle, so its scroll position resets to 0 unless it is
+//     carried over: before v8.59 each tap threw the list back to its first
+//     week, with several weeks left open. Control: v8.58's toggle (9fae4d3).
 //
 // Extracts the real functions from index.html. A control shows the v8.25
 // builder (d7d70cf) is the old pill strip with no dates.
@@ -105,7 +111,7 @@ const done = (logs, w, k, n = 2) => { for (let s = 0; s < n; s++) logs[`mc_${w}_
   E.set(st, '2026-06-24');
   const out = E.buildTrainPickerHTML(macro);
   check('the sheet shows real dates and the week-of-mesocycle line', /22 Jun – 28 Jun/.test(out) && /MC 2 · week 1 of 2/.test(out), true);
-  check('the viewed week, this week and up next start open; others closed', (out.match(/aria-expanded="true"/g) || []).length, 1);
+  check('one week starts open: the viewed one', (out.match(/aria-expanded="true"/g) || []).length, 1);
   check('no old pill strip or M1/M2 tabs', /week-pill|day-tab| M1<| M2</.test(out), false);
 }
 
@@ -132,6 +138,77 @@ const done = (logs, w, k, n = 2) => { for (let s = 0; s < n; s++) logs[`mc_${w}_
   E.set(st, '2026-06-09');
   const { units, total } = E.getTrainAgendaUnits(macro);
   check('a 1-week extension on 2-week mesocycles adds MC 3 week 1 only', [total, units.map(u => u.key)], [3, ['1-1', '1-2', '2-1', '2-2', '3-1']]);
+}
+
+// ── v8.59: one week open, and the opened week at the top of the list ─────
+{
+  // Viewing MC 3 week 1, this week MC 2 week 1, up next MC 1: three different weeks.
+  const { macro, st } = mkState({ cw: 3, cd: 'pullm1' });
+  E.set(st, '2026-06-24');
+  const out = E.buildTrainPickerHTML(macro);
+  const opened = [...out.matchAll(/data-unit="([^"]+)">\s*<button class="agenda-head"[^>]*aria-expanded="true"/g)].map(m => m[1]);
+  check('viewing, this week and up next all differ: only the viewed week starts open', opened, ['3-1']);
+}
+function agendaToggle(src) {
+  // The list is a stub: 6 units 100px apart (an open one 200px taller), 400px
+  // of list showing, scrollTop clamped as a browser clamps it, and rebuilt
+  // (scrollTop 0, padding reset) by every render, as the real innerHTML is.
+  const UNITS = ['1-1', '1-2', '2-1', '2-2', '3-1', '3-2'];
+  const fresh = () => ({ _top: 0, clientHeight: 400, offsetTop: 40, style: {},
+    get scrollHeight() { return 600 + (parseInt(this.style.paddingBottom) || 0) + (this._open ? 200 : 0); },
+    get scrollTop() { return this._top; },
+    set scrollTop(v) { this._top = Math.max(0, Math.min(v, this.scrollHeight - this.clientHeight)); },
+    querySelector(sel) { const m = sel.match(/data-unit="([^"]+)"/); const i = m ? UNITS.indexOf(m[1]) : -1;
+      return i < 0 ? null : { offsetTop: 40 + i * 100 + (this._open && UNITS.indexOf(this._open) < i ? 200 : 0) }; } });
+  let list = fresh();
+  const body = ['toggleTrainAgendaUnit', 'scrollAgendaUnitToTop'].filter(n => src.includes(`function ${n}(`)).map(n => extract(src, `function ${n}(`)).join('\n');
+  // A stub clock: requestAnimationFrame queues a frame 16ms on; frames() runs
+  // the queue, recording where the list was at each one.
+  const api = new Function('document', 'requestAnimationFrame', 'performance', 'prefersReducedMotion', `
+    let trainAgendaOpen = null, renders = 0;
+    const renderTrainSessionPicker = () => { renders++; __rebuild(); };
+    ${body}
+    return { toggle: k => toggleTrainAgendaUnit(k), open: () => trainAgendaOpen, set: v => { trainAgendaOpen = v; }, renders: () => renders };`);
+  const doc = { getElementById: id => (id === 'train-session-picker' ? list : null) };
+  globalThis.__rebuild = () => { const o = api0.open(); list = fresh(); list._open = o instanceof Set ? [...o][0] : o; };
+  let clock = 1000, queue = [];
+  const raf = cb => { queue.push(cb); };
+  const reduced = { on: false };
+  const api0 = api(doc, raf, { now: () => clock }, () => reduced.on);
+  const frames = () => { const seen = []; let n = 0; while (queue.length && n++ < 200) { clock += 16; const q = queue; queue = []; q.forEach(cb => cb(clock)); seen.push(list.scrollTop); } return seen; };
+  return { api: api0, list: () => list, frames, reduced, clockAt: () => clock };
+}
+for (const [label, src, expectPass] of [['now', html, true], ['v8.58 (control)', execFileSync('git', ['show', '9fae4d3:index.html'], { cwd: repo, encoding: 'utf8', maxBuffer: 64 << 20 }), false]]) {
+  const { api, list, frames, reduced } = agendaToggle(src);
+  const isNew = typeof api.set === 'function' && /scrollAgendaUnitToTop/.test(src);
+  api.set(isNew ? '2-1' : new Set(['2-1']));
+  list().scrollTop = 120;
+  api.toggle('3-1');
+  const startAt = list().scrollTop;
+  const seen = frames();
+  const o1 = api.open(); const openNow = o1 instanceof Set ? [...o1] : [o1];
+  const r = [openNow, list().scrollTop];
+  api.toggle('3-1'); frames();
+  const o2 = api.open(); const r2 = [o2 instanceof Set ? [...o2] : [o2], list().scrollTop];
+  api.toggle('3-2'); frames();
+  const r3 = [list().scrollTop, parseInt(list().style.paddingBottom) || 0];
+  reduced.on = true; api.toggle('1-2'); const reducedAt = list().scrollTop; frames();
+  if (expectPass) {
+    const rising = seen.every((v, i) => i === 0 || v >= seen[i - 1]);
+    const firstStep = seen[0] - startAt, lastStep = seen.at(-1) - seen.at(-2);
+    check('a tapped week glides there: it starts from where the list was (120), not from the top or the end', startAt, 120);
+    check('…in about 250ms (16 frames of 16ms), always moving towards it', [seen.length >= 15 && seen.length <= 17, rising], [true, true]);
+    check('…quick then easing out (first frame moves further than the last)', firstStep > lastStep * 3, true);
+    check('reduced motion: the week is at the top at once, no glide', reducedAt, 100);
+  }
+  const ok = JSON.stringify(r) === JSON.stringify([['3-1'], 400]) && JSON.stringify(r2) === JSON.stringify([[''], 200]) && JSON.stringify(r3) === JSON.stringify([500, 108]);
+  if (expectPass) {
+    check('opening MC 3 week 1 (scrolled to 120) closes MC 2 week 1 and puts its header at the top of the list (400)', r, [['3-1'], 400]);
+    check('closing it again closes all and keeps the list where it was, as far as the shorter list allows (400 → its new bottom, 200)', r2, [[''], 200]);
+    check('the last week reaches the top too: the 100px shortfall becomes bottom padding (8 + 100), scrollTop 500', r3, [500, 108]);
+  } else {
+    check('CONTROL: v8.58\'s toggle keeps several weeks open and resets the list to the top', ok, false);
+  }
 }
 
 // ── One tap: week + session, sheet closes ────────────────────────────────
