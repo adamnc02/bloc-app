@@ -3592,6 +3592,8 @@ button.coach-reqrow.is-tap + .coach-reqrow, .coach-reqrow + button.coach-reqrow.
 /* v8.43 (§137): Swap for today */
 .ex-swap-note { font-size: 12px; color: var(--text2); margin-top: 3px; }
 .ex-swap-btn { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; }
+.ex-next-wt-btn { margin-top: 14px; }
+.ex-next-wt-btn + .ex-next-wt-btn { margin-top: 10px; }
 .ex-swap-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .swap-planned { background: var(--surface2); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
 .swap-planned-cap { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; }
@@ -4556,6 +4558,28 @@ try {
     <div class="modal-sub">Rate each exercise from 1 to 10. Anything you leave counts as fine.</div>
     <div id="rpe-sheet-list"></div>
     <button class="btn btn-accent btn-block" style="margin-top:16px;" onclick="closeRpeSheet()">Done</button>
+  </div>
+</div>
+
+<!-- Next week's weight (v8.59, TECHNICAL §174): a maintenance cycle's only way
+     to move a weight on ahead of time. Opened from the button at the foot of an
+     expanded Train card (nextWeightButtonHTML); one figure for every set of the
+     exercise's next session. Saved by saveNextWeight(), into that session's
+     progression entry as `plannedWeight`. -->
+<div class="modal-overlay" id="modal-next-weight">
+  <div class="modal-sheet" data-modal="modal-next-weight">
+    <div class="modal-handle-row"><div class="modal-handle"></div>
+      <button class="modal-close-btn" onclick="closeModal('modal-next-weight')">&#10005;</button>
+    </div>
+    <div class="modal-title">Next week's weight</div>
+    <div class="modal-sub" id="next-weight-sub"></div>
+    <div class="form-group">
+      <div class="label" id="next-weight-label">Weight (kg)</div>
+      <input type="number" inputmode="decimal" step="0.5" min="0" id="next-weight-input"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();saveNextWeight();}">
+    </div>
+    <button class="btn btn-accent btn-block" style="margin-top:16px;" onclick="saveNextWeight()">Save</button>
+    <button class="btn btn-ghost btn-block" id="next-weight-clear" style="margin-top:10px;" onclick="clearNextWeight()">Use last week's weight instead</button>
   </div>
 </div>
 
@@ -23635,7 +23659,7 @@ function renderTrainDay(macro) {
         }
         html += `<div class="ex-body">
           ${progSelector}
-          ${setRows}${swapTodayRowHTML(macro, ex, doneSets, isSwapped && !isGroup)}
+          ${setRows}${swapTodayRowHTML(macro, ex, doneSets, isSwapped && !isGroup)}${nextWeightButtonHTML(macro, ex, isSwapped)}
         </div>`;
       }
       html += `</div>`;
@@ -24037,7 +24061,7 @@ function renderTrainDay(macro) {
         html += `<div class="ex-body">
           ${progToggles}
           ${ssFillBtns}
-          <div class="ss-set-cards">${setCards}</div>
+          <div class="ss-set-cards">${setCards}</div>${members.map(m => nextWeightButtonHTML(macro, m, false, true)).join('')}
         </div>`;
       }
 
@@ -24675,6 +24699,104 @@ function quickFillCompleteSuperset(event, macroId, week, day, fillArgsJson) {
   if (macro) renderTrainDay(macro);
   maybeOpenRpeSheet(macro, week, day, wasComplete);
 }
+
+// ── Next week's weight (v8.59, TECHNICAL §174) ──────────────────────────
+// A maintenance cycle has no progression: next session suggests what was
+// logged this one. So an exercise that turned out too easy had nowhere to say
+// "more next time" until this button. It sits at the foot of an expanded card
+// (each weight member's own on a superset), on maintenance only, and stores
+// one weight on the NEXT session's progression entry (same dayKey track,
+// week + 1) as `plannedWeight`. The engine's getPlannedWeight reads it there:
+// Train, Home's Up next, the week's compliance target and BLOC Coach all
+// suggest it on every set, in place of last week's actual. Reps don't change.
+//
+// Where it would never be read, it isn't offered: cardio (no weight), a swap
+// (the week after holds its target), the last session of the cycle, a next
+// session that is a deload (the deload wins) or is the session after this one's
+// deload, and a next session already logged. The coach's own logged session
+// is read-only, so it has none either.
+function nextWeightTarget(macro, ex, isSwapped) {
+  if (!macro || macro.goalType !== 'maintenance' || !ex || ex.category === 'cardio' || isSwapped) return null;
+  if (trainViewCoachOwned()) return null;
+  const week = state.currentWeek, dayKey = state.currentDay, next = week + 1;
+  if (next > getMacroEffectiveMesoCount(macro)) return null;
+  if (isDeloadUnit(macro, week, dayKey) || isDeloadUnit(macro, next, dayKey)) return null;
+  const sets = getWeekSets(ex, next, macro.weeks);
+  for (let s = 0; s < sets; s++) {
+    if ((state.trainLogs[macro.id + '_' + next + '_' + dayKey + '_' + ex.id + '_' + s] || {}).done) return null;
+  }
+  return { week: next, dayKey, pk: getProgKey(macro.id, next, dayKey, ex.id) };
+}
+
+function nextWeightButtonHTML(macro, ex, isSwapped, inSuperset) {
+  const t = nextWeightTarget(macro, ex, isSwapped);
+  if (!t) return '';
+  const planned = BlocEngine.getPlannedWeight(state, macro, t.week, t.dayKey, ex.id);
+  const who = inSuperset ? ` · ${ex.name}` : '';
+  const unit = ex.trackingMode === 'perSide' ? 'kg per side' : 'kg';
+  const label = planned !== null ? `Next week: ${fmtKg(planned)} ${unit}${who}` : `Set next week's weight${who}`;
+  return `<button class="btn btn-accent btn-block ex-next-wt-btn" id="next-wt-btn-${macro.id}-${ex.id}"
+    onclick="event.stopPropagation();openNextWeightSheet('${macro.id}','${ex.id}')">${label}</button>`;
+}
+
+let _nextWeightCtx = null;
+function openNextWeightSheet(macroId, exId) {
+  const macro = state.macrocycles.find(m => m.id === macroId);
+  const ex = macro && (state.exercises[macro.id + '_1_' + state.currentDay] || []).find(e => e.id === exId);
+  const t = nextWeightTarget(macro, ex, false);
+  if (!t) return;
+  _nextWeightCtx = { macroId, exId, week: t.week, dayKey: t.dayKey, pk: t.pk };
+  const planned = BlocEngine.getPlannedWeight(state, macro, t.week, t.dayKey, ex.id);
+  // The box's hint is this week's set-1 weight, as logged or as suggested.
+  const now = state.trainLogs[macro.id + '_' + state.currentWeek + '_' + state.currentDay + '_' + ex.id + '_0'] || {};
+  const hint = now.weight ? now.weight : (getSessionPreviewTarget(macro, state.currentWeek, state.currentDay, ex) || {}).weight;
+  const perSide = ex.trackingMode === 'perSide';
+  document.getElementById('next-weight-sub').textContent =
+    `${ex.name}. Next time you do this session, Train suggests this on every set${perSide ? ' (per side)' : ''}. Reps stay as they are.`;
+  document.getElementById('next-weight-label').textContent = perSide ? 'Weight (kg per side)' : 'Weight (kg)';
+  const input = document.getElementById('next-weight-input');
+  input.value = planned !== null ? fmtKg(planned) : '';
+  input.placeholder = hint ? fmtKg(hint) : '';
+  document.getElementById('next-weight-clear').style.display = planned !== null ? '' : 'none';
+  openModal('modal-next-weight');
+}
+
+// 🚨 Visiting next week on Train freezes its target (getWeekTargets caches it
+// the first time that week is evaluated). A planned weight changed after that
+// would be suggested but not judged against, so the cached entry for that
+// week is dropped with it; nextWeightTarget already guarantees nothing has
+// been logged against it.
+function writeNextWeight(value) {
+  const c = _nextWeightCtx;
+  if (!c) return;
+  const macro = state.macrocycles.find(m => m.id === c.macroId);
+  if (!macro) return;
+  if (!state.trainLogs[c.pk]) state.trainLogs[c.pk] = {};
+  if (value === null) delete state.trainLogs[c.pk].plannedWeight;
+  else state.trainLogs[c.pk].plannedWeight = value;
+  if (!Object.keys(state.trainLogs[c.pk]).length) delete state.trainLogs[c.pk];
+  const cacheKey = getProgressionLockKey(macro.id, c.dayKey, c.exId) + '_w' + c.week;
+  if (state.progressionTargets && state.progressionTargets[cacheKey]) delete state.progressionTargets[cacheKey];
+  save();
+  _nextWeightCtx = null;
+  closeModal('modal-next-weight');
+  renderTrainDay(macro);
+}
+
+function saveNextWeight() {
+  const input = document.getElementById('next-weight-input');
+  const raw = String(input.value || '').trim();
+  if (raw === '') { writeNextWeight(null); return; }
+  const n = parseFloat(raw);
+  if (!Number.isFinite(n) || n < 0 || n > 999) {
+    input.style.borderColor = 'var(--red)';
+    setTimeout(() => { input.style.borderColor = ''; }, 1500);
+    return;
+  }
+  writeNextWeight(String(n));
+}
+
+function clearNextWeight() { writeNextWeight(null); }
 
 // Flips a single set's done flag. If weight or reps is missing when marking
 // done, briefly flashes the empty input's border red instead of allowing it —

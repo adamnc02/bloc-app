@@ -194,6 +194,27 @@ export function getLastCompliantWeek(s: BlocState, cache: TargetCache, macro: Ma
   return floor;
 }
 
+// ── Next week's weight, on a maintenance cycle (v8.59, TECHNICAL §174) ──
+// A maintenance cycle has no progression, so Train's expanded card offers
+// "Set next week's weight": one figure, stored on the NEXT session's own
+// progression entry (getProgKey for week + 1, same dayKey track) as
+// `plannedWeight`, the way that week's chosen route is stored as `progType`.
+// That session then suggests it on every set, in place of last week's actual;
+// reps are untouched. It is read only on a maintenance cycle and only where
+// last week's actual would have been the source (an ordinary week): a deload,
+// the session after one, a lock, a swap or its held week, and week 1 / a reset
+// all win over it, exactly as they win over last week's actual.
+// 🚨 The figure is a string, as Train's boxes store weights; "" or a value that
+// isn't a number means none. 0 is a real weight.
+export function getPlannedWeight(s: BlocState, macro: Macrocycle, week: number, dayKey: string, exId: string): number | null {
+  if (!macro || macro.goalType !== 'maintenance' || week < 2) return null;
+  const entry: Loose = (s.trainLogs as Loose)[getProgKey(macro.id, week, dayKey, exId)];
+  const raw = entry && entry.plannedWeight;
+  if (raw === undefined || raw === null || String(raw).trim() === '') return null;
+  const n = parseFloat(String(raw));
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
 // Recomputes the per-set weight/reps target this week WOULD suggest under
 // normal progression rules — no lock applied. Used by the compliance check
 // to know what should have been hit when no lock currently exists yet.
@@ -237,6 +258,8 @@ export function computeRawSuggestedTargets(s: BlocState, cache: TargetCache, mac
     }
   }
   const weightTargets: string[] = [], repsTargets: Loose[] = [];
+  // v8.59: a planned weight replaces last week's actual as the source.
+  const plannedWeight = getPlannedWeight(s, macro, week, dayKey, ex.id);
   for (let i = 0; i < sets; i++) {
     const srcSet = i < prevLoggedSets.length
       ? prevLoggedSets[i]
@@ -261,7 +284,8 @@ export function computeRawSuggestedTargets(s: BlocState, cache: TargetCache, mac
       }
       return getWeekReps(ex, week, 'reps', macro.goalType);
     })();
-    weightTargets.push(progType === 'weight'
+    weightTargets.push(plannedWeight !== null ? plannedWeight.toFixed(1)
+      : progType === 'weight'
       ? setRecWeight.toFixed(1)
       : (setActualWeight !== null ? setActualWeight.toFixed(1) : ex.startWeight.toFixed(1)));
     repsTargets.push(progType === 'reps'
@@ -556,6 +580,11 @@ export function computeExerciseProgression(s: BlocState, cache: TargetCache, mac
   // using the plain weightJump — a double step must not change deload maths.
   const rpeStep = getProgressionStep(s, cache, macro, week, dayKey, ex);
   const rpeJump = weightJump * rpeStep.weightMult;
+  // v8.59 (§174): next week's weight, set on a maintenance cycle the session
+  // before. Only on an ordinary week: everything that wins over last week's
+  // actual wins over it too (see getPlannedWeight).
+  const plannedWeight = (!isSwapped && !heldAfterSwap && !isStart && !isDeloadSession && !isPostDeloadSession && !isLocked)
+    ? getPlannedWeight(s, macro, week, dayKey, exId) : null;
 
   // Same done-check as computeRawSuggestedTargets() above — a set that's
   // been typed but not yet confirmed must never seed a target, here or
@@ -614,6 +643,7 @@ export function computeExerciseProgression(s: BlocState, cache: TargetCache, mac
     }
   }
   const recommendedWeight = heldTarget ? parseFloat(heldTarget.weightTargets[0])
+    : plannedWeight !== null ? plannedWeight
     : prevActualWeight !== null
     ? prevActualWeight + rpeJump
     : getWeekWeight(ex, week, 'weight', macro.goalType, macro.weightIncrement);
@@ -693,6 +723,7 @@ export function computeExerciseProgression(s: BlocState, cache: TargetCache, mac
     : lockWeightPlaceholder !== null ? lockWeightPlaceholder
     : week === 1 || isStart
     ? ex.startWeight.toFixed(1)
+    : plannedWeight !== null ? plannedWeight.toFixed(1)
     : progType === 'weight' ? recommendedWeight.toFixed(1)
       : (prevActualWeight !== null ? prevActualWeight.toFixed(1) : ex.startWeight.toFixed(1));
   const repsPlaceholder = isSwapped ? ''
@@ -820,7 +851,8 @@ export function computeExerciseProgression(s: BlocState, cache: TargetCache, mac
       weightPlaceholders.push(lockW);
       repsPlaceholders.push(lockR);
     } else {
-      weightPlaceholders.push(progType === 'weight'
+      weightPlaceholders.push(plannedWeight !== null ? plannedWeight.toFixed(1)
+        : progType === 'weight'
         ? setRecWeight.toFixed(1)
         : (setActualWeight !== null ? setActualWeight.toFixed(1) : ex.startWeight.toFixed(1)));
       repsPlaceholders.push(progType === 'reps'
