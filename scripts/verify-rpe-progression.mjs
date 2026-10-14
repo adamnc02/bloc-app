@@ -393,7 +393,7 @@ check('loss: giant look-ahead still +10/week', E.getGiantSetProgression(giant, 3
 }
 
 // ── Wiring ───────────────────────────────────────────────────────────────
-for (const fn of ['function quickFillComplete(', 'function quickFillCompleteDropset(', 'function quickFillCompleteSuperset(', 'function toggleSetDone(']) {
+for (const fn of ['function quickFillComplete(', 'function quickFillCompleteSuperset(', 'function toggleSetDone(']) {
   const body = extractFrom(source, fn);
   check(`${fn.replace('function ', '').replace('(', '()')} opens the sheet (quick-fill must not skip it)`,
     /maybeOpenRpeSheet\(/.test(body) && /isTrainSessionComplete\(/.test(body), true);

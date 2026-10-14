@@ -23047,6 +23047,20 @@ function toggleExercise(expandKey) {
   if (macro) renderTrainDay(macro);
 }
 
+// v8.59: a card closes itself when its last set is ticked. The tick handlers
+// (toggleSetDone, toggleCardioSetDone, quickFillComplete,
+// quickFillCompleteSuperset) name the exercise they just marked done here, and
+// the next renderTrainDay closes the card holding it if that card is now
+// finished, using the card's own done rule (a superset: every member, every
+// round). It is cleared after every render, so only the tick that finished a
+// card closes it: opening a finished card, un-ticking a set, typing in a box,
+// or any other redraw leaves it as it is.
+let _trainJustTicked = null;
+function trainCollapseIfFinished(expandKey, exIds, finished) {
+  if (finished && _trainJustTicked && exIds.includes(_trainJustTicked)) expandedExercises[expandKey] = false;
+  return !!expandedExercises[expandKey];
+}
+
 // Train hero card: session overview (exercises, sets done, volume, progress).
 // Standalone so it can be refreshed both from renderTrain() and from
 // renderTrainDay() (called whenever a set is logged/toggled/cleared).
@@ -23262,7 +23276,7 @@ function renderTrainDay(macro) {
       const ex   = slot.ex;
       const exId = ex.id;
       const expandKey = macro.id + '_' + state.currentWeek + '_' + state.currentDay + '_' + exId;
-      const isExpanded = !!expandedExercises[expandKey];
+      let isExpanded = !!expandedExercises[expandKey];
       // Cardio exercises get their own dedicated card (buildCardioTrainCard)
       // — no progression, no compliance lock, unaffected by deload; see the
       // CARDIO EXERCISES — TRAIN LOGGING section below renderTrainDay.
@@ -23284,6 +23298,7 @@ function renderTrainDay(macro) {
       // GROUP replacement keeps the planned name (otherwise the names
       // read "Another exercise"), only a swap shows the substitute.
       const isSwapped = !!d.isSwapped, heldAfterSwap = !!d.heldAfterSwap;
+      isExpanded = trainCollapseIfFinished(expandKey, [exId], allDone);
       const swap = isSwapped ? getSubstitution(macro.id, state.currentWeek, state.currentDay, exId) : null;
       const isGroup = !!(swap && swap.kind === 'group');
       const prevSub = heldAfterSwap ? getSubstitution(macro.id, state.currentWeek - 1, state.currentDay, exId) : null;
@@ -23387,16 +23402,14 @@ function renderTrainDay(macro) {
       // withheld only where there is nothing left to complete (already done) or
       // where completing at target is not the point (a locked exercise, whose
       // whole state is "these numbers are not moving yet").
-      // v8.43 (§138): a drop set with nothing to carry into a drop (its first session:
-      // no drop weight or reps last week) has no target to complete at. The
-      // button used to tick every set with the drop left blank.
-      const dropUnknown = isDropSet && (dropWeightPlaceholders.some(v => !v) || dropRepsPlaceholders.some(v => !v));
-      const autoBtnHtml = (allDone || isSwapped || dropUnknown || (isLocked && !isDeloadSession && !isPostDeloadSession))
+      // v8.59: a drop set never has one, on any cycle type. Its drop is taken to
+      // failure, so its reps are only known once lifted and are always typed by
+      // hand; a one-tap complete would log a suggested drop instead of the real
+      // one. (v8.43 had withheld it only in a drop set's first session, §138.)
+      const autoBtnHtml = (allDone || isSwapped || isDropSet || (isLocked && !isDeloadSession && !isPostDeloadSession))
         ? ''
         : `<button class="ex-auto-btn" title="Complete every set at target"
-             onclick="${isDropSet
-               ? `quickFillCompleteDropset(event,'${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholders.join('|')}','${repsPlaceholders.join('|')}','${dropWeightPlaceholders.join('|')}','${dropRepsPlaceholders.join('|')}')`
-               : `quickFillComplete(event,'${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholders.join('|')}','${repsPlaceholders.join('|')}')`}">
+             onclick="quickFillComplete(event,'${macro.id}',${state.currentWeek},'${state.currentDay}','${exId}',${sets},'${weightPlaceholders.join('|')}','${repsPlaceholders.join('|')}')">
              <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
            </button>`;
 
@@ -23636,8 +23649,6 @@ function renderTrainDay(macro) {
       const ssName   = getSupersetDisplayName(ssId, members);
       const key2     = macro.id + '_' + state.currentWeek + '_' + state.currentDay;
       const expandKey= macro.id + '_ss_' + state.currentWeek + '_' + state.currentDay + '_' + ssId;
-      const isExpanded = !!expandedExercises[expandKey];
-
       // Per-member progression data
       const memberData = members.map(m => exProgData(m));
 
@@ -23649,6 +23660,7 @@ function renderTrainDay(macro) {
         totalSets += md.sets;
       });
       const allSSDone = totalDone === totalSets && totalSets > 0;
+      const isExpanded = trainCollapseIfFinished(expandKey, members.map(m => m.id), allSSDone);
       // Whether any member's own session missed its target once fully
       // done — mirrors solo exercises' missedTarget, shown next to the
       // combined done badge below.
@@ -23662,6 +23674,15 @@ function renderTrainDay(macro) {
       // false during both, so this is naturally correct with no
       // conjunctions to keep in sync.
       const anySSLocked = memberData.some(md => md.isLocked);
+      // v8.59: one dot per ROUND, the superset's own counter, as a solo card has
+      // one per set. A round is done when every member has that set ticked (the
+      // set card's own "✓ done" rule below), so a half-done round stays empty.
+      let ssDotsHtml = '', roundsDone = 0;
+      for (let s = 0; s < sets; s++) {
+        const roundDone = members.every(m => (state.trainLogs[key2 + '_' + m.id + '_' + s] || {}).done);
+        if (roundDone) roundsDone++;
+        ssDotsHtml += `<span class="ex-dot${roundDone ? ' ex-dot-on' : ''}"></span>`;
+      }
 
       // Collapsed preview rows — mirror normal exercise layout:
       // Left: name, then sets·reps on next line, then progress badge below (session 2+)
@@ -23819,12 +23840,19 @@ function renderTrainDay(macro) {
         <div class="ss-body" onclick="toggleExercise('${expandKey}')">
           <div class="ex-idx">${slotIdx + 1}</div>
           <div class="ss-rows">${previewRows}</div>
+        </div>
+        <div class="ex-dots-row" onclick="toggleExercise('${expandKey}')">
+          <div class="ex-dots">${ssDotsHtml}</div>
+          <span class="ex-lastwk">${roundsDone}/${sets} rounds</span>
         </div>`;
 
       if (isExpanded) {
         // Progression toggles — per exercise, full-width cards matching normal exercise style
         let progToggles = '';
-        if (state.currentWeek > 1 && !isDeloadSession && !isPostDeloadSession && members.some(m => m.category !== 'cardio')) {
+        // v8.59: no route to choose on a maintenance cycle, the same rule as a
+        // solo card's showProgSelector (maintenance has no progression, §105).
+        // The ↑ Weight / ↑ Reps pair was drawn here on every cycle type.
+        if (state.currentWeek > 1 && !isDeloadSession && !isPostDeloadSession && !isMaintCycle && members.some(m => m.category !== 'cardio')) {
           progToggles = '<div class="ss-prog-toggles"><div class="ex-block-label">Progress this week</div>';
           members.forEach((m, mi) => {
             // Cardio members never get a progression-type toggle — there's
@@ -24017,6 +24045,7 @@ function renderTrainDay(macro) {
     }
   });
 
+  _trainJustTicked = null; // v8.59: one render per tick (trainCollapseIfFinished)
   el.innerHTML = trainCoachNoticeHTML(macro) + html; // v8.42 (§136)
   renderTrainHero(macro);
   applyTrainCoachLock(); // v8.42 (§136)
@@ -24177,6 +24206,7 @@ function toggleCardioSetDone(key) {
   }
   if (!state.trainLogs[key]) state.trainLogs[key] = {};
   state.trainLogs[key].done = !state.trainLogs[key].done;
+  if (state.trainLogs[key].done && ex) _trainJustTicked = ex.id; // v8.59
   save();
   if (macro) renderTrainDay(macro);
 }
@@ -24296,6 +24326,7 @@ function buildCardioTrainCard(macro, ex, expandKey, isExpanded, slotIdx) {
     if ((state.trainLogs[key2 + '_' + ex.id + '_' + s] || {}).done) doneCount++;
   }
   const allDone = doneCount === sets && sets > 0;
+  isExpanded = trainCollapseIfFinished(expandKey, [ex.id], allDone); // v8.59
   const deltaBadge = buildCardioDeltaBadge(macro, ex);
   const isTimeTarget = ex.metricType !== 'distance';
   const targetPart = isTimeTarget
@@ -24594,6 +24625,7 @@ function quickFillComplete(event, macroId, week, day, exId, sets, weight, reps) 
     state.trainLogs[logKey].reps   = rVal;
     state.trainLogs[logKey].done   = true;
   }
+  _trainJustTicked = exId; // v8.59
   const macro = state.macrocycles.find(m => m.id === macroId);
   if (macro) {
     const ex = (state.exercises[macro.id + '_1_' + day] || []).find(e => e.id === exId);
@@ -24607,55 +24639,6 @@ function quickFillComplete(event, macroId, week, day, exId, sets, weight, reps) 
   maybeOpenRpeSheet(macro, week, day, wasComplete);
 }
 
-// Quick fill + complete for a drop-set exercise: used on a COLLAPSED
-// exercise card to fill EVERY field (main weight/reps, drop weight/reps)
-// with its suggestion and mark all sets done, in one tap — matching
-// quickFillComplete's behavior for every other exercise type (v6.09).
-// Unlike the "Fill suggested" button (fillSuggestedDropset, left
-// untouched), which deliberately leaves the drop's reps blank so you can
-// log the real failure count each week, this overhead shortcut fills
-// every field including drop reps — same "log what was suggested" logic
-// used everywhere else, not a strict completeness check. You can still
-// edit the drop reps afterward via the expanded card if what you actually
-// hit differs. weight/reps/dropWeight/dropReps are '|'-delimited per-set
-// suggestion lists.
-function quickFillCompleteDropset(event, macroId, week, day, exId, sets, weight, reps, dropWeight, dropReps) {
-  if (trainViewCoachOwned()) return; // v8.42 (§136): the coach's session, read-only
-  if (event) event.stopPropagation();
-  const rpeMacro = state.macrocycles.find(m => m.id === macroId);
-  const wasComplete = rpeMacro ? isTrainSessionComplete(rpeMacro, week, day) : true;
-  const baseKey = macroId + '_' + week + '_' + day;
-  const weightList = String(weight).split('|');
-  const repsList = String(reps).split('|');
-  const dropWeightList = String(dropWeight).split('|');
-  const dropRepsList = String(dropReps).split('|');
-  // v8.43 (§138): never complete a drop set with its drop unknown (the button isn't drawn then either).
-  if (dropWeightList.some(v => !v) || dropRepsList.some(v => !v)) return;
-  for (let s = 0; s < sets; s++) {
-    const logKey = baseKey + '_' + exId + '_' + s;
-    const wVal  = weightList[s] !== undefined ? weightList[s] : weightList[weightList.length - 1];
-    const rVal  = sanitizeReps(repsList[s] !== undefined ? repsList[s] : repsList[repsList.length - 1]);
-    const dwVal = dropWeightList[s] !== undefined ? dropWeightList[s] : dropWeightList[dropWeightList.length - 1];
-    const drVal = sanitizeReps(dropRepsList[s] !== undefined ? dropRepsList[s] : dropRepsList[dropRepsList.length - 1]);
-    if (!state.trainLogs[logKey]) state.trainLogs[logKey] = {};
-    state.trainLogs[logKey].weight = wVal;
-    if (rVal) state.trainLogs[logKey].reps = rVal;
-    if (dwVal) state.trainLogs[logKey].dropWeight = dwVal;
-    if (drVal) state.trainLogs[logKey].dropReps = drVal;
-    state.trainLogs[logKey].done = true;
-  }
-  const macro = state.macrocycles.find(m => m.id === macroId);
-  if (macro) {
-    const ex = (state.exercises[macro.id + '_1_' + day] || []).find(e => e.id === exId);
-    if (ex) {
-      recordExerciseHistory(macro, week, day, ex);
-      evaluateProgressionLock(macro, week, day, ex);
-    }
-  }
-  save();
-  if (macro) renderTrainDay(macro);
-  maybeOpenRpeSheet(macro, week, day, wasComplete);
-}
 // fillArgsJson is a JSON array of [exId, sets, weightList, repsList] tuples,
 // where weightList/repsList are '|'-delimited per-set suggestions (v6.09).
 function quickFillCompleteSuperset(event, macroId, week, day, fillArgsJson) {
@@ -24667,6 +24650,7 @@ function quickFillCompleteSuperset(event, macroId, week, day, fillArgsJson) {
   const macro = state.macrocycles.find(m => m.id === macroId);
   const wasComplete = macro ? isTrainSessionComplete(macro, week, day) : true;
   const templateExercises = macro ? (state.exercises[macro.id + '_1_' + day] || []) : [];
+  if (tuples.length) _trainJustTicked = tuples[0][0]; // v8.59
   tuples.forEach(([exId, sets, weightStr, repsStr]) => {
     const weightList = String(weightStr).split('|');
     const repsList   = String(repsStr).split('|');
@@ -24750,6 +24734,7 @@ function toggleSetDone(key) {
   if (!state.trainLogs[key]) state.trainLogs[key] = {};
   state.trainLogs[key].done = !state.trainLogs[key].done;
   if (state.trainLogs[key].done && macro && ex) {
+    _trainJustTicked = ex.id; // v8.59
     recordExerciseHistory(macro, state.currentWeek, state.currentDay, ex);
     evaluateProgressionLock(macro, state.currentWeek, state.currentDay, ex);
   }

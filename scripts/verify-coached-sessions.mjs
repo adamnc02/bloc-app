@@ -100,7 +100,7 @@ async function run(label, html, engineSrc) {
   // ── 2. Train is read-only on the coach's session ─────────────────────────
   const writers = trainWriters(decls);
   check('the Train writers found in the code include the card ✓ (quickFillComplete) and the effort sheet',
-    ['quickFillComplete', 'quickFillCompleteDropset', 'setRpeRating', 'closeRpeSheet', 'toggleSetDone', 'logSet'].every(n => writers.includes(n)), true);
+    ['quickFillComplete', 'setRpeRating', 'closeRpeSheet', 'toggleSetDone', 'logSet'].every(n => writers.includes(n)), true);
   for (const fn of writers) {
     const d = decls.get(fn);
     check(`${fn}() refuses on the coach's session`, !!d && /^[^{]*\{\s*(\/\/[^\n]*\n\s*)*if \(trainViewCoachOwned\(\)\)/.test(d.text), true);
