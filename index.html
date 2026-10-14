@@ -23058,19 +23058,34 @@ function toggleTrainAgendaUnit(key) {
   const list = document.getElementById('train-session-picker');
   if (!list) return;
   list.scrollTop = kept;
-  if (trainAgendaOpen) scrollAgendaUnitToTop(list, trainAgendaOpen);
+  if (trainAgendaOpen) scrollAgendaUnitToTop(list, trainAgendaOpen, true);
 }
 
 // Puts a week's header at the top of the week list. A week near the end has
 // too little list below it to scroll that far, so the list's bottom padding
 // grows by exactly the shortfall (it is rebuilt, and so reset, on every render).
-function scrollAgendaUnitToTop(list, key) {
+// `smooth` (a tapped week): glides there in 250ms (MS), easing out, from
+// where the list was. Opening the sheet lands at once. Reduced motion: at once.
+// 🚨 Not scrollTo({ behavior: 'smooth' }): its speed is the browser's, and on
+// iOS it is slow. A tap during the glide rebuilds the list, so a glide whose
+// list has left the page stops.
+function scrollAgendaUnitToTop(list, key, smooth) {
+  const MS = 250;
   const el = list.querySelector(`.agenda-unit[data-unit="${key}"]`);
   if (!el) return;
   const target = Math.max(0, el.offsetTop - list.offsetTop);
   const short = target - (list.scrollHeight - list.clientHeight);
   if (short > 0) list.style.paddingBottom = (8 + short) + 'px';
-  list.scrollTop = target;
+  const from = list.scrollTop;
+  if (!smooth || prefersReducedMotion() || Math.abs(target - from) < 2) { list.scrollTop = target; return; }
+  const t0 = performance.now();
+  const step = t => {
+    if (list.isConnected === false) return;
+    const k = Math.min(1, (t - t0) / MS);
+    list.scrollTop = from + (target - from) * (1 - Math.pow(1 - k, 3));
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
 
 // One tap: the week AND the session (the old sheet took two, week then day).

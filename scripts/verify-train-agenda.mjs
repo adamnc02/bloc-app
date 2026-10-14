@@ -162,28 +162,45 @@ function agendaToggle(src) {
       return i < 0 ? null : { offsetTop: 40 + i * 100 + (this._open && UNITS.indexOf(this._open) < i ? 200 : 0) }; } });
   let list = fresh();
   const body = ['toggleTrainAgendaUnit', 'scrollAgendaUnitToTop'].filter(n => src.includes(`function ${n}(`)).map(n => extract(src, `function ${n}(`)).join('\n');
-  const api = new Function('document', `
+  // A stub clock: requestAnimationFrame queues a frame 16ms on; frames() runs
+  // the queue, recording where the list was at each one.
+  const api = new Function('document', 'requestAnimationFrame', 'performance', 'prefersReducedMotion', `
     let trainAgendaOpen = null, renders = 0;
     const renderTrainSessionPicker = () => { renders++; __rebuild(); };
     ${body}
     return { toggle: k => toggleTrainAgendaUnit(k), open: () => trainAgendaOpen, set: v => { trainAgendaOpen = v; }, renders: () => renders };`);
   const doc = { getElementById: id => (id === 'train-session-picker' ? list : null) };
   globalThis.__rebuild = () => { const o = api0.open(); list = fresh(); list._open = o instanceof Set ? [...o][0] : o; };
-  const api0 = api(doc);
-  return { api: api0, list: () => list };
+  let clock = 1000, queue = [];
+  const raf = cb => { queue.push(cb); };
+  const reduced = { on: false };
+  const api0 = api(doc, raf, { now: () => clock }, () => reduced.on);
+  const frames = () => { const seen = []; let n = 0; while (queue.length && n++ < 200) { clock += 16; const q = queue; queue = []; q.forEach(cb => cb(clock)); seen.push(list.scrollTop); } return seen; };
+  return { api: api0, list: () => list, frames, reduced, clockAt: () => clock };
 }
 for (const [label, src, expectPass] of [['now', html, true], ['v8.58 (control)', execFileSync('git', ['show', '9fae4d3:index.html'], { cwd: repo, encoding: 'utf8', maxBuffer: 64 << 20 }), false]]) {
-  const { api, list } = agendaToggle(src);
+  const { api, list, frames, reduced } = agendaToggle(src);
   const isNew = typeof api.set === 'function' && /scrollAgendaUnitToTop/.test(src);
   api.set(isNew ? '2-1' : new Set(['2-1']));
   list().scrollTop = 120;
   api.toggle('3-1');
+  const startAt = list().scrollTop;
+  const seen = frames();
   const o1 = api.open(); const openNow = o1 instanceof Set ? [...o1] : [o1];
   const r = [openNow, list().scrollTop];
-  api.toggle('3-1');
+  api.toggle('3-1'); frames();
   const o2 = api.open(); const r2 = [o2 instanceof Set ? [...o2] : [o2], list().scrollTop];
-  api.toggle('3-2');
+  api.toggle('3-2'); frames();
   const r3 = [list().scrollTop, parseInt(list().style.paddingBottom) || 0];
+  reduced.on = true; api.toggle('1-2'); const reducedAt = list().scrollTop; frames();
+  if (expectPass) {
+    const rising = seen.every((v, i) => i === 0 || v >= seen[i - 1]);
+    const firstStep = seen[0] - startAt, lastStep = seen.at(-1) - seen.at(-2);
+    check('a tapped week glides there: it starts from where the list was (120), not from the top or the end', startAt, 120);
+    check('…in about 250ms (16 frames of 16ms), always moving towards it', [seen.length >= 15 && seen.length <= 17, rising], [true, true]);
+    check('…quick then easing out (first frame moves further than the last)', firstStep > lastStep * 3, true);
+    check('reduced motion: the week is at the top at once, no glide', reducedAt, 100);
+  }
   const ok = JSON.stringify(r) === JSON.stringify([['3-1'], 400]) && JSON.stringify(r2) === JSON.stringify([[''], 200]) && JSON.stringify(r3) === JSON.stringify([500, 108]);
   if (expectPass) {
     check('opening MC 3 week 1 (scrolled to 120) closes MC 2 week 1 and puts its header at the top of the list (400)', r, [['3-1'], 400]);

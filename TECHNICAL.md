@@ -11653,7 +11653,10 @@ original; minor vs significant; same phase ids; the record never in the payload;
 - **Change session: one week open, at the top of the list.** `trainAgendaOpen` is one unit key ('' for none; null =
   derive on render: the viewed week, else up next's, else this week). `toggleTrainAgendaUnit()` opens the tapped week and
   so closes the one before (a second tap closes it), then puts that week's header (`.agenda-unit[data-unit]`) at the top
-  of the week list (`scrollAgendaUnitToTop`); the sheet's opening does the same for the viewed week. 🚨
+  of the week list (`scrollAgendaUnitToTop`); the sheet's opening does the same for the viewed week, at once. A tapped
+  week glides there from where the list was, in 250ms with a cubic ease-out, by requestAnimationFrame (not
+  `scrollTo({ behavior: 'smooth' })`, whose speed is the browser's and slow on iOS); with reduced motion it is at once,
+  and a glide stops if its list has been rebuilt by another tap. 🚨
   `renderTrainSessionPicker()` rebuilds the body, so `#train-session-picker` is a new element whose `scrollTop` is 0:
   before v8.59 every tap threw the list back to its first week, with each week tapped left open. The old list's
   `scrollTop` is carried over before scrolling. A week near the end has too little list below it to reach the top, so
