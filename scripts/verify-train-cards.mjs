@@ -15,13 +15,18 @@
 //   · A superset card with no round counter. Every other card shows one dot per
 //     set; the superset showed none. It now shows one per ROUND, filled only
 //     when every member has that set ticked, and "n/N rounds".
+//   · A superset card unlike every other card: its "Superset · N rounds" tag
+//     sat above the index tile and there was no name. Its head is now a solo
+//     card's (tile, name, tag under the name, ✓), and its name is a name given
+//     in Plan, else its members' body parts, each once: "Back & Biceps",
+//     "Back, Biceps & Shoulders", "Legs".
 //   · A finished card left open. Ticking the last set of an exercise or a
 //     superset (a box, or the card's ✓) closes it. Only the tick that finishes
 //     it: reopening a finished card, a redraw, or un-ticking leaves it alone.
 //
 // Each check runs on BLOC's own renderTrainDay and tick handlers, extracted
 // from index.html, over the demo data. Control: v8.58's index.html and engine
-// (commit 9fae4d3) must fail every one of the four.
+// (commit 9fae4d3) must fail every one of the five.
 // ═══════════════════════════════════════════════════════════════════════
 
 import { readFileSync } from 'node:fs';
@@ -115,6 +120,28 @@ function run(label, html, engineSrc) {
     check('a round with every member ticked fills one dot', dots(), [rounds, 1, `1/${rounds}`]);
   }
 
+  // ── 3b. A superset's head and name ────────────────────────────────────
+  {
+    const { s, macro, list } = fresh('loss');
+    const head = () => { const c = ssCard(); const m = c.match(/^<div class="card ex-card ex-card-ss[^"]*">\s*<div class="ex-head"[^>]*>\s*<div class="ex-idx">(\d+)<\/div>\s*<div class="ex-head-text">\s*<div class="ex-name">([^<]*)<\/div>\s*<div class="ex-tags"><span class="ex-tag"[^>]*>(Superset · \d+ rounds?)<\/span>/); return m ? ['tile ' + /^\d+$/.test(m[1]), m[2], m[3]] : null; };
+    const rounds = T.E.getWeekSets(list[0], 3, macro.weeks);
+    list[0].name = 'Lat Pulldown'; list[1].name = 'Cable Curls';
+    fns.renderTrainDay(macro);
+    check('superset head: tile, then the name, then "Superset · N rounds" under it', head(), ['tile true', 'Back &amp; Biceps', `Superset · ${rounds} rounds`]);
+    list[1].name = 'Machine Row';
+    fns.renderTrainDay(macro);
+    check('two members of one body part: named once ("Back")', head() && head()[1], 'Back');
+    list[1].name = 'Lateral Raise';
+    list.find(e => e.id !== list[0].id && e.id !== list[1].id && !e.supersetId && e.type === 'standard').supersetId = 'ss_v';
+    const third = list.find(e => e.supersetId === 'ss_v' && e.id !== list[0].id && e.id !== list[1].id);
+    third.supersetOrder = 20; third.name = 'Cable Curls';
+    fns.renderTrainDay(macro);
+    check('three body parts: "Back, Shoulders & Biceps" (member order)', head() && head()[1], 'Back, Shoulders &amp; Biceps');
+    s.supersets.ss_v.name = 'Pull Finisher';
+    fns.renderTrainDay(macro);
+    check('a name given in Plan wins', head() && head()[1], 'Pull Finisher');
+  }
+
   // ── 4. A card closes on its last set ─────────────────────────────────
   {
     const { s, macro, list } = fresh('loss');
@@ -178,10 +205,10 @@ const orig = console.log; const lines = []; console.log = s => lines.push(String
 let cf;
 try { cf = run('v8.58', git('index.html'), git('engine/dist/bloc-engine.js')); } finally { console.log = orig; }
 const failed = lines.filter(l => l.startsWith('✗'));
-const want = [/drop set, maintenance cycle, week 3/, /superset, maintenance cycle/, /superset collapsed/, /solo: open through set/];
+const want = [/drop set, maintenance cycle, week 3/, /superset, maintenance cycle/, /superset collapsed/, /superset head/, /solo: open through set/];
 const missing = want.filter(re => !failed.some(l => re.test(l)));
-if (cf > 0 && !missing.length) console.log(`✓ control: v8.58 fails ${cf} checks, including all four rules`);
-else { console.log(`✗ control: v8.58 should fail all four rules (${cf} failed; missing ${missing.join(', ')})`); process.exitCode = 1; }
+if (cf > 0 && !missing.length) console.log(`✓ control: v8.58 fails ${cf} checks, including all five rules`);
+else { console.log(`✗ control: v8.58 should fail all five rules (${cf} failed; missing ${missing.join(', ')})`); process.exitCode = 1; }
 
 if (failures) { console.log(`\nFAIL: ${failures} check(s) failed.`); process.exit(1); }
 console.log('\nAll checks passed.');

@@ -2744,13 +2744,13 @@ input.set-input:not([type=range]) { padding: 0 4px; }
 .check-done svg, .check-empty svg { width: 16px; height: 16px; fill: none; stroke-width: 2.5; }
 
 /* ── Superset card ──────────────────────────────────────────────────── */
-/* An accent-tinted border is the group's only frame — it is the one card that
-   holds more than one exercise, and it carries no title to say so. */
+/* An accent-tinted border marks the one card that holds more than one
+   exercise. */
 .ex-card-ss { border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
-/* The head is just the tag and the auto-complete button: no index tile (it
-   belongs beside the rows it numbers) and no name. */
-.ex-head-ss { align-items: center; }
-.ss-body { display: flex; gap: 12px; margin-top: 10px; cursor: pointer; }
+/* v8.59 — the head is a solo card's (.ex-head: tile, name, tag, ✓). The member
+   rows line up under the name: 42px = .ex-idx's 30px + .ex-head's 12px gap,
+   the same as .ex-target. */
+.ss-body { margin-top: 14px; padding-left: 42px; cursor: pointer; }
 .ss-rows { flex: 1; min-width: 0; }
 /* 🚨 Dividers go BETWEEN members, never after the last one. This was
    `border-bottom` plus `.ss-row:last-child { border-bottom: none }`, and the
@@ -13412,6 +13412,25 @@ function getSupersetDisplayName(ssId, members) {
   return members[0].name + ' + ' + members[1].name + ' + ' + (members.length - 2) + ' more';
 }
 
+// v8.59 — the superset's name on its Train card: a name given in Plan, else
+// its members' body parts, each once, in member order, joined "A & B" /
+// "A, B & C" ("Back & Biceps", "Legs"). A member's body part is its library
+// entry's, else its own, else a guess from its name (swapBodyPartOf); cardio is
+// "Cardio"; one with none at all is named by its exercise. Train only: Plan
+// and BLOC Coach keep getSupersetDisplayName's "A + B".
+function getSupersetBodyPartName(ssId, members) {
+  const stored = state.supersets && state.supersets[ssId] && state.supersets[ssId].name;
+  if (stored) return stored;
+  const lib = getLibrary();
+  const parts = [];
+  for (const m of members) {
+    const p = m.category === 'cardio' ? 'Cardio' : (swapBodyPartOf(m, lib) || m.name);
+    if (p && !parts.includes(p)) parts.push(p);
+  }
+  if (!parts.length) return 'Superset';
+  return parts.length === 1 ? parts[0] : parts.slice(0, -1).join(', ') + ' & ' + parts[parts.length - 1];
+}
+
 // Return the SS/3S/4S badge label for a superset of n exercises
 function getSupersetBadge(n) {
   if (n === 2) return 'SS';
@@ -13891,7 +13910,7 @@ let trainManualSelect = false;
 // Opens the Change-session sheet and fills it. Replaces the in-card panel
 // that used to expand under the row.
 function openTrainSessionPicker() {
-  trainAgendaOpen = null; // re-derive: the viewed week, this week and up next start open
+  trainAgendaOpen = null; // re-derive: the viewed week starts open (else up next's, else this week)
   renderTrainSessionPicker();
   openModal('modal-train-session');
   // Land on the week being viewed, not the top of a 14-week list — by
@@ -13899,8 +13918,7 @@ function openTrainSessionPicker() {
   // stay in view (scrollIntoView scrolled the whole sheet).
   requestAnimationFrame(() => {
     const list = document.getElementById('train-session-picker');
-    const el = list && list.querySelector('.agenda-unit.is-viewing');
-    if (el) list.scrollTop = Math.max(0, el.offsetTop - list.offsetTop - 8);
+    if (list && trainAgendaOpen) scrollAgendaUnitToTop(list, trainAgendaOpen);
   });
 }
 // Builds the sheet's body from current state. Called on open and again
@@ -22960,7 +22978,11 @@ function renderTrainSession(macro) {
 // 2-week mesocycle (m1 = its first week, m2 its second) — the same rule as
 // getSelectedTrainWeekDates() and the old day-tab grouping. Otherwise one
 // unit spans the whole mesocycle, with both microcycles' sessions in it.
-let trainAgendaOpen = null; // Set of unit keys expanded in the sheet; null = derive on render
+// v8.59: the ONE week open in the sheet (its unit key), '' for none, null =
+// derive on render (the week being viewed, else up next's, else this week).
+// One at a time: opening a week closes the one before, so the sheet never shows
+// two weeks' sessions at once with nothing to say which is which.
+let trainAgendaOpen = null;
 
 function getTrainAgendaUnits(macro) {
   return BlocEngine.getTrainAgendaUnits(state, engineCtx(), macro, { week: state.currentWeek, dayKey: state.currentDay }); // v8.35 (§125): the engine's
@@ -22972,8 +22994,9 @@ function trainAgendaDate(iso) {
 
 function buildTrainPickerHTML(macro) {
   const { units, next, total } = getTrainAgendaUnits(macro);
-  if (!trainAgendaOpen) {
-    trainAgendaOpen = new Set(units.filter(u => u.viewing || u.isThisWeek || u.hasUpNext).map(u => u.key));
+  if (trainAgendaOpen === null) {
+    const first = units.find(u => u.viewing) || units.find(u => u.hasUpNext) || units.find(u => u.isThisWeek);
+    trainAgendaOpen = first ? first.key : '';
   }
   const sub = document.getElementById('train-session-picker-sub');
   if (sub) sub.textContent = `${macro.name} · MC ${state.currentWeek} of ${total}. Tap a session to open it.`;
@@ -22986,7 +23009,7 @@ function buildTrainPickerHTML(macro) {
     }
   }
   const cards = units.map(u => {
-    const open = trainAgendaOpen.has(u.key);
+    const open = trainAgendaOpen === u.key;
     const dates = u.start ? `${trainAgendaDate(u.start)} – ${trainAgendaDate(u.end)}` : `MC ${u.week}`;
     const when = u.isThisWeek ? '<span class="agenda-when">This week</span>' : '';
     const subLine = `MC ${u.week}${u.weekOfMeso ? ' · week ' + u.weekOfMeso + ' of 2' : ''}${u.isDeload ? ' · Deload' : ''}`;
@@ -23009,7 +23032,7 @@ function buildTrainPickerHTML(macro) {
           ${dot}<span class="agenda-row-text"><span class="agenda-row-name">${x.label}</span><span class="agenda-row-meta">${rowMeta}</span></span>${badge}
         </button>`;
     }).join('')}</div>`;
-    return `<div class="agenda-unit${u.isThisWeek ? ' is-this-week' : ''}${u.viewing ? ' is-viewing' : ''}">
+    return `<div class="agenda-unit${u.isThisWeek ? ' is-this-week' : ''}${u.viewing ? ' is-viewing' : ''}" data-unit="${u.key}">
         <button class="agenda-head" onclick="toggleTrainAgendaUnit('${u.key}')" aria-expanded="${open}">
           <span class="agenda-head-text"><span class="agenda-dates">${dates}${when}</span><span class="agenda-sub">${subLine}</span></span>
           ${summary}<span class="agenda-chev">${open ? '▾' : '▸'}</span>
@@ -23021,10 +23044,33 @@ function buildTrainPickerHTML(macro) {
   return `${upNextHtml}<div class="train-agenda" id="train-session-picker">${cards}</div>`;
 }
 
+// v8.59: opening a week closes the one that was open, and brings the opened
+// week's header to the top of the week list; closing it leaves the list where
+// it was. 🚨 renderTrainSessionPicker() rebuilds the sheet's body, so the list
+// element is new and its scrollTop starts at 0: before v8.59 every tap on a
+// week threw the list back to its first week. The old list's position is
+// carried over, then the opened week is scrolled to.
 function toggleTrainAgendaUnit(key) {
-  if (!trainAgendaOpen) trainAgendaOpen = new Set();
-  if (trainAgendaOpen.has(key)) trainAgendaOpen.delete(key); else trainAgendaOpen.add(key);
+  const before = document.getElementById('train-session-picker');
+  const kept = before ? before.scrollTop : 0;
+  trainAgendaOpen = trainAgendaOpen === key ? '' : key;
   renderTrainSessionPicker();
+  const list = document.getElementById('train-session-picker');
+  if (!list) return;
+  list.scrollTop = kept;
+  if (trainAgendaOpen) scrollAgendaUnitToTop(list, trainAgendaOpen);
+}
+
+// Puts a week's header at the top of the week list. A week near the end has
+// too little list below it to scroll that far, so the list's bottom padding
+// grows by exactly the shortfall (it is rebuilt, and so reset, on every render).
+function scrollAgendaUnitToTop(list, key) {
+  const el = list.querySelector(`.agenda-unit[data-unit="${key}"]`);
+  if (!el) return;
+  const target = Math.max(0, el.offsetTop - list.offsetTop);
+  const short = target - (list.scrollHeight - list.clientHeight);
+  if (short > 0) list.style.paddingBottom = (8 + short) + 'px';
+  list.scrollTop = target;
 }
 
 // One tap: the week AND the session (the old sheet took two, week then day).
@@ -23906,19 +23952,15 @@ function renderTrainDay(macro) {
       })).replace(/"/g, '&quot;');
 
       // One card for the whole group, with ONE auto-complete button that fills
-      // every member.
-      //
-      // 🚨 The group has NO TITLE. It used to print "<A> + <B>" as the card's
-      // name, which for a three-member superset ran to two lines and repeated
-      // names the member rows list immediately below it. The lavender
-      // "Superset · N rounds" tag IS the heading. ssName is still
-      // computed — the expanded view and the logging sheet use it.
-      //
-      // The index tile therefore drops out of the head and sits beside the
-      // MEMBER ROWS, which is what it numbers.
+      // every member. v8.59: its head is a solo card's: the index tile, then
+      // the name (getSupersetBodyPartName: "Back & Biceps") with the lavender
+      // "Superset · N rounds" tag under it, then the ✓. The member rows sit
+      // under the name, as a solo card's target line does (.ss-body's 42px).
       html += `<div class="card ex-card ex-card-ss${isExpanded ? ' ex-card-open' : ''}">
-        <div class="ex-head ex-head-ss" onclick="toggleExercise('${expandKey}')">
+        <div class="ex-head" onclick="toggleExercise('${expandKey}')">
+          <div class="ex-idx">${slotIdx + 1}</div>
           <div class="ex-head-text">
+            <div class="ex-name">${coachEsc(getSupersetBodyPartName(ssId, members))}</div>
             <div class="ex-tags"><span class="ex-tag" style="--tag-c:var(--accent2);">Superset · ${sets} round${sets === 1 ? '' : 's'}</span></div>
           </div>
           <div class="ex-head-right" onclick="event.stopPropagation()">
@@ -23934,7 +23976,6 @@ function renderTrainDay(macro) {
           </div>
         </div>
         <div class="ss-body" onclick="toggleExercise('${expandKey}')">
-          <div class="ex-idx">${slotIdx + 1}</div>
           <div class="ss-rows">${previewRows}</div>
         </div>
         <div class="ex-dots-row" onclick="toggleExercise('${expandKey}')">
