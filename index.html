@@ -2232,8 +2232,10 @@ html.auth-likely-signed-in #auth-gate { display: none; }
      back link (ends x=67) at 320px. The Bracket logo was 44px, 2.5:1. */
   height: 28px; width: auto; aspect-ratio: 507.8 / 100; pointer-events: none;
 }
-.settings-logo .logo-bar, .scroll-head-logo .logo-bar { fill: var(--logo-block); }
-.settings-logo .logo-bar-top, .scroll-head-logo .logo-bar-top { fill: var(--logo-accent); }
+.settings-logo .logo-bar { fill: var(--logo-block); }
+.settings-logo .logo-bar-top { fill: var(--logo-accent); }
+.scroll-head-logo .logo-bar { fill: var(--logo-block); }
+.scroll-head-logo .logo-bar-top { fill: var(--logo-accent); }
 /* v8.19 — the splash's bar animation, replayed each time the logo comes into
    view (initSettingsLogoAnimation, §102): build bottom → top with a flash on
    landing, then two green pulses up the stack, then rest. Same timings as
@@ -6515,7 +6517,7 @@ try {
      same-named shims. ?v= is the first 12 hex of the file's SHA-256, so a phone never pairs a
      new index.html with an older engine from its HTTP cache; scripts/verify-engine-build.mjs
      fails if it is stale. Listed in scripts/publish-files.txt. -->
-<script src="engine/dist/bloc-engine.js?v=a8a7b6a84aa6"></script>
+<script src="engine/dist/bloc-engine.js?v=cafa7eac9894"></script>
 <script>
 // ════════════════════════════════════════════════
 // DATE HELPERS
@@ -24831,12 +24833,15 @@ function openNextWeightSheet(macroId, exId) {
   openModal('modal-next-weight');
 }
 
-// 🚨 Visiting next week on Train freezes its target (getWeekTargets caches it
-// the first time that week is evaluated). A planned weight changed after that
-// would be suggested but not judged against, so the cached entry for that
-// week is dropped with it; nextWeightTarget already guarantees nothing has
-// been logged against it.
+// 🚨 A week's target, once in state.progressionTargets, is never recomputed
+// (getWeekTargets reads the cache first). One can exist for next week before
+// any weight is planned: the demo data ships them, a post-deload walk-back
+// writes them, and so does visiting the week on a cycle that was loss or gain.
+// A planned weight saved over one would be suggested but not judged against,
+// so the cached entry for that week is dropped with it; nextWeightTarget
+// already guarantees nothing has been logged against it.
 function writeNextWeight(value) {
+  if (trainViewCoachOwned()) return; // the coach's session, read-only (§136)
   const c = _nextWeightCtx;
   if (!c) return;
   const macro = state.macrocycles.find(m => m.id === c.macroId);
@@ -30065,7 +30070,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.58</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.59</span>`;
 }
 
 function renderSettings() {

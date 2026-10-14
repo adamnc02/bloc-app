@@ -455,6 +455,19 @@ for (const [label, st] of Object.entries(P)) {
   });
   void label;
 }
+// v8.59 (§174): next week's weight, read from a session's progression entry on
+// a maintenance cycle. Engine only: BLOC calls BlocEngine.getPlannedWeight
+// directly, so there is no v8.34 function to compare with. A real value, a
+// cleared one, a non-number, 0, and the same values on a loss cycle (none).
+{
+  const planned = { 3: '62.5', 4: '', 5: 'abc', 6: '0' };
+  for (const st of [P.maint, P.demo]) {
+    const withPlans = () => { const s = st(); const m = m0(s); const ex = exsOf(s, 'session0m1')[0];
+      for (const [w, v] of Object.entries(planned)) s.trainLogs[`${m.id}_prog_${w}_session0m1_${ex.id}`] = { progType: 'weight', plannedWeight: v };
+      return { s, m, ex }; };
+    for (const w of [1, 2, 3, 4, 5, 6, 7]) add('getPlannedWeight', [() => { const { s, m, ex } = withPlans(); return { s, today: '2026-08-02', engine: [s, m, w, 'session0m1', ex.id], bloc: null }; }]);
+  }
+}
 add('computeLockTransition', [atP(S.demo, '2026-08-02', s => ({ engine: [s, overlay(s), null, 2, 'x', null], bloc: { fn: 'evaluateProgressionLock', args: [null, 2, 'x', null] } }))]);
 add('getRpeStep', [atP(S.demo, '2026-08-02', s => ({ engine: [s, overlay(s), null, 2, 'x', null], bloc: { args: [null, 2, 'x', null] } }))]);
 add('getProgressionStep', [atP(P.maint, '2026-08-02', s => ({ engine: [s, overlay(s), m0(s), 3, 'session0m1', null], bloc: { args: [m0(s), 3, 'session0m1', null] } }))]);

@@ -9016,7 +9016,8 @@ planned, only discovered live: §12 → "Drop Sets"), so the button ticked every
   both halves;
 - `quickFillCompleteDropset()` also refuses when any drop value is empty.
 
-From the second session the drop carries over from last week and the button is back. Supersets aren't
+From the second session the drop carries over from last week and the button is back (until v8.59, which removed
+it from every drop set: §174). Supersets aren't
 affected: a drop set can't be a superset member (saving one into a superset makes it standard).
 
 **Check:** `verify-engine-leaves.mjs` counts the renders where only a first-session drop set's button went
@@ -11631,3 +11632,68 @@ original; minor vs significant; same phase ids; the record never in the payload;
 - **Check:** `scripts/verify-sheet-title-actions.mjs`: the row's reservation exceeds the ✕'s width, every
   `.modal-title` whose row is a flex row is in `.modal-title-row`, and My Recipes' title and button share one. Control:
   v8.57's `index.html` (commit `40ade94`) fails, on the inline row at My Recipes.
+
+## §174 — v8.59: the scroll header; Train's drop sets, maintenance supersets, round dots, closing cards; next week's weight
+
+- **The scroll header (`#scroll-head`).** One element in `#app`, before `#content`, absolutely placed at the top: the
+  status-bar inset and a 44px row, the height of Settings' pinned row. The row holds the Settings logo (the same SVG,
+  `.scroll-head-logo`, sharing `.settings-logo`'s fills and build-and-pulse animation) centred, and a gear
+  (`#scroll-head-gear`, `showScreen('settings')`) at the right. `syncScrollHeader()` shows it (`.is-shown`) when the
+  active screen isn't Settings and `#content.scrollTop` is past 8px, and hides it only at 0, so a bounce near the
+  threshold doesn't flip it back and forth. `initScrollHeader()` runs it on `#content`'s scroll; `showScreen()` runs it
+  on every tab change, because `#content` is the one scroller for every screen and keeps its position across tabs.
+  Showing it replays the logo (`.animate` removed, reflow, added). The row flips about its horizontal centre line,
+  `rotateX(-90deg)` to `0`; the inset strip fades in solid; its `::after` is Settings' 16px lower-edge fade (§172).
+  While it's up, `#content.has-scroll-head` sets `scroll-padding-top: 60px`, so `scrollIntoView` and a focused field
+  stop below it. z-index 60: over the edge fades (50), under the nav (100) and every sheet (200+). Reduced motion: no
+  flip. 🚨 Hidden, it is `pointer-events: none` and `visibility: hidden` (the gear also leaves the tab order): it
+  covers the top of every page, so a hidden bar that still took taps would swallow each page's header row, Home's own
+  gear included. 🚨 No top-level `const` for its threshold: `showScreen()` runs during start-up, before a top-level
+  `const` further down the script has been initialised, and would throw. Settings' `.settings-topbar` is unchanged.
+- **A drop set has no ✓ (auto-complete) on any cycle type.** Its drop is taken to failure, so the drop's reps are only
+  known once lifted; the ✓ filled them from last week's. `renderTrainDay` draws no `.ex-auto-btn` for `isDropSet`, and
+  `quickFillCompleteDropset` is removed. Fill suggested (`fillSuggestedDropset`) still fills main weight, main reps
+  and drop weight, never the drop's reps. Supersets are unaffected: a drop set can't be a member. (v8.43 had withheld
+  the ✓ only in a drop set's first session, §138.)
+- **A maintenance superset has no route chips.** The superset's "Progress this week" block now checks `!isMaintCycle`,
+  the same rule as a solo card's `showProgSelector` (§105): a cycle with no progression has no route to choose.
+- **A superset's round dots.** Under the member rows, one `.ex-dot` per round (the leader's set count) and
+  `{done}/{n} rounds`. A round is filled only when every member has that set ticked, the set card's own "✓ done"
+  rule; one member's tick leaves it empty.
+- **A card closes on its last set.** The tick handlers (`toggleSetDone`, `toggleCardioSetDone`, `quickFillComplete`,
+  `quickFillCompleteSuperset`) set `_trainJustTicked` to the exercise they marked done, and the next `renderTrainDay`
+  passes each card through `trainCollapseIfFinished(expandKey, exIds, finished)`, which closes it if it holds that
+  exercise and is now finished (a superset: every member, every set). `renderTrainDay` clears `_trainJustTicked`
+  before writing its HTML, so only the tick that finishes a card closes it: reopening a finished card, typing, an
+  un-tick or any other redraw leaves it as it is.
+- **Next week's weight, on a maintenance cycle.** A maintenance cycle suggests last week's actual (§105), so it had no
+  way to move a weight on. An expanded card's filled accent button (`nextWeightButtonHTML`; one per weight member at
+  the foot of a superset, each naming it) opens `#modal-next-weight`: one weight, saved by `saveNextWeight()` as a
+  string on the **next session's** progression entry, `trainLogs[getProgKey(macroId, week + 1, dayKey, exId)]
+  .plannedWeight`, beside that week's `progType`. The same dayKey carries the microcycle, so the next session is the
+  same track's. The engine's `getPlannedWeight()` reads it, on maintenance only and only on an ordinary week: in
+  `computeRawSuggestedTargets` (so `getWeekTargets`, the week's compliance target, and Home's Up next through
+  `getSessionPreviewTarget`) and in `computeExerciseProgression` (Train's set boxes, the card's figure,
+  `recommendedWeight`). Every set gets it; reps are untouched. A deload, the session after one, a lock, a swap or its
+  held week, and week 1 or a reset win over it, as they win over last week's actual. After that week, its logged
+  actual carries on as usual. "" or a non-number is none; 0 is a weight. BLOC Coach runs the same engine on the
+  client's state, so it suggests the same figure; it has no button of its own.
+  - **Where the button is.** `nextWeightTarget()` offers it only where it would be read: maintenance, not cardio, not
+    a swapped session, a next session that exists (`week + 1` ≤ `getMacroEffectiveMesoCount`), neither this nor the
+    next session a deload, no set of the next session logged yet, and not the coach's own logged session (read-only).
+    It shows on a coach's cycle as on a Solo one.
+  - 🚨 **Saving drops next week's cached target.** A week's target, once in `state.progressionTargets`, is never
+    recomputed (§125). One can exist before any weight is planned (the demo data ships them; a post-deload walk-back
+    writes them; visiting a loss or gain week does), and a planned weight saved over it would be suggested but not
+    judged against. `writeNextWeight()` deletes `${lockKey}_w${week + 1}`; nothing has been logged against it.
+  - The mirror (`exercise_logs`) carries set logs only, so `plannedWeight` lives in `state`, backups and `client_state`.
+- **Checks:** `scripts/verify-scroll-header.mjs` (`syncScrollHeader` run against a stub DOM on all five pages and
+  Settings: the 8px / 0 rule, a tab change, one logo replay per appearance; the markup outside `#content`, the logo's
+  shapes equal to Settings', the layers, the hidden bar taking no taps, the flip; Settings' row byte-identical to
+  v8.58's), `scripts/verify-train-cards.mjs` (drop sets on three cycle types in weeks 1 and 3, the maintenance
+  superset, the round dots, and closing by box, by ✓, for a superset and a drop set), and
+  `scripts/verify-next-week-weight.mjs` (the engine's three paths and Home agreeing, compliance against the planned
+  weight, the week after, invalid values, a loss cycle, a deload; the button's conditions, the sheet, the cache drop).
+  The last two run BLOC's own functions through `scripts/train-harness.mjs`. Control for all three: v8.58's
+  `index.html` and engine (commit `9fae4d3`) fail. `verify-engine-leaves.mjs` compares Train's HTML with v8.34's with
+  every drop set's ✓ removed from the v8.34 side.
