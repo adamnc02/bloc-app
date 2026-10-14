@@ -2232,13 +2232,13 @@ html.auth-likely-signed-in #auth-gate { display: none; }
      back link (ends x=67) at 320px. The Bracket logo was 44px, 2.5:1. */
   height: 28px; width: auto; aspect-ratio: 507.8 / 100; pointer-events: none;
 }
-.settings-logo .logo-bar { fill: var(--logo-block); }
-.settings-logo .logo-bar-top { fill: var(--logo-accent); }
+.settings-logo .logo-bar, .scroll-head-logo .logo-bar { fill: var(--logo-block); }
+.settings-logo .logo-bar-top, .scroll-head-logo .logo-bar-top { fill: var(--logo-accent); }
 /* v8.19 — the splash's bar animation, replayed each time the logo comes into
    view (initSettingsLogoAnimation, §102): build bottom → top with a flash on
    landing, then two green pulses up the stack, then rest. Same timings as
    the splash; theme tokens instead of the splash's fixed dark colours. */
-.settings-logo .logo-bar { transform-box: fill-box; transform-origin: center; }
+.settings-logo .logo-bar, .scroll-head-logo .logo-bar { transform-box: fill-box; transform-origin: center; }
 @keyframes blocLogoBarIn {
   0%   { opacity: 0; transform: translateX(-26px); fill: var(--logo-block); }
   55%  { opacity: 1; transform: translateX(3px) scale(1.06); fill: var(--logo-flash); }
@@ -2260,13 +2260,63 @@ html.auth-likely-signed-in #auth-gate { display: none; }
 /* Two animations per bar: the build (fill-mode both, so it starts hidden),
    then the pulse from 1.25s — the splash's lock → pulse gap. The later one
    in the list wins while it runs; afterwards the build's end state holds. */
-.settings-logo.animate .lb-1 { animation: blocLogoBarIn 0.5s ease-out 0s both, blocLogoBarPulse 1.6s ease-in-out 1.25s 2; }
-.settings-logo.animate .lb-2 { animation: blocLogoBarIn 0.5s ease-out 0.16s both, blocLogoBarPulse 1.6s ease-in-out 1.43s 2; }
-.settings-logo.animate .lb-3 { animation: blocLogoBarInTop 0.55s ease-out 0.32s both, blocLogoBarPulseTop 1.6s ease-in-out 1.61s 2; }
+.settings-logo.animate .lb-1, .scroll-head-logo.animate .lb-1 { animation: blocLogoBarIn 0.5s ease-out 0s both, blocLogoBarPulse 1.6s ease-in-out 1.25s 2; }
+.settings-logo.animate .lb-2, .scroll-head-logo.animate .lb-2 { animation: blocLogoBarIn 0.5s ease-out 0.16s both, blocLogoBarPulse 1.6s ease-in-out 1.43s 2; }
+.settings-logo.animate .lb-3, .scroll-head-logo.animate .lb-3 { animation: blocLogoBarInTop 0.55s ease-out 0.32s both, blocLogoBarPulseTop 1.6s ease-in-out 1.61s 2; }
 @media (prefers-reduced-motion: reduce) {
-  .settings-logo.animate .logo-bar { animation: none; }
+  .settings-logo.animate .logo-bar, .scroll-head-logo.animate .logo-bar { animation: none; }
 }
-.settings-logo .logo-type { fill: var(--text); }
+.settings-logo .logo-type, .scroll-head-logo .logo-type { fill: var(--text); }
+/* v8.59 — the scroll header (#scroll-head, initScrollHeader). Over #content,
+   not in it: absolutely placed in #app (position: relative), so it covers the
+   status-bar inset and a 44px row below it, the same place and height as
+   Settings' pinned row, and the page under it never moves. Above the edge
+   fades (50), below the nav (100) and every sheet (200+).
+   Hidden, it takes no taps (pointer-events) and is out of the accessibility
+   tree (visibility), so the page's own header controls underneath stay usable
+   at the top. The inset fill fades; the row flips about its horizontal centre
+   line, -90° (edge on, unseen) to 0, like a card turning over. Its lower edge
+   carries Settings' 16px fade (§172), so the page goes under it softly. */
+.scroll-head {
+  position: absolute; left: 0; right: 0; top: 0; z-index: 60;
+  padding-top: var(--safe-top);
+  pointer-events: none; visibility: hidden;
+  transition: visibility 0s linear .32s;
+}
+.scroll-head::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: var(--safe-top);
+  background: var(--bg); opacity: 0; transition: opacity .2s;
+}
+.scroll-head-row {
+  position: relative; height: 44px; padding: 0 16px;
+  display: flex; align-items: center; justify-content: flex-end;
+  background: var(--bg);
+  transform-origin: 50% 50%;
+  transform: perspective(700px) rotateX(-90deg); opacity: 0;
+  transition: transform .32s cubic-bezier(.4, 0, .6, 1), opacity .2s ease-out .1s;
+}
+.scroll-head-row::after {
+  content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 16px;
+  background: linear-gradient(to bottom, rgba(var(--bg-rgb), 1) 0%, rgba(var(--bg-rgb), 0) 100%);
+  pointer-events: none;
+}
+.scroll-head.is-shown { pointer-events: auto; visibility: visible; transition: visibility 0s; }
+.scroll-head.is-shown::before { opacity: 1; }
+.scroll-head.is-shown .scroll-head-row {
+  transform: perspective(700px) rotateX(0deg); opacity: 1;
+  transition: transform .45s cubic-bezier(.2, .9, .3, 1.15), opacity .15s ease-out;
+}
+.scroll-head-logo {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  height: 28px; width: auto; aspect-ratio: 507.8 / 100; pointer-events: none;
+}
+.scroll-head-gear { position: relative; }
+@media (prefers-reduced-motion: reduce) {
+  .scroll-head-row, .scroll-head.is-shown .scroll-head-row { transform: none; transition: opacity .15s; }
+}
+/* While the header is up, anything scrolled into view (a tour step, a
+   focused field) stops below it rather than under it. */
+#content.has-scroll-head { scroll-padding-top: 60px; }
 .page-eyebrow {
   font-family: var(--font-body); font-size: 11.5px; font-weight: 700;
   letter-spacing: .14em; text-transform: uppercase; color: var(--text3);
@@ -4087,6 +4137,25 @@ try {
 <div id="app">
 <div class="edge-fade edge-fade-top"></div>
 <div class="edge-fade edge-fade-bottom"></div>
+<!-- v8.59 (TECHNICAL §174) — the scroll header. Pinned to the top of every
+     tabbed page (Home, Train, Fuel, Progress, Plan) once the page scrolls, and
+     gone again at the top: the animated logo centred, the settings gear at the
+     right. It flips into place as the page starts to move, and the logo builds
+     each time it does. Settings keeps its own pinned back-link row and never
+     shows this one. One element for every page, outside #content, so no page's
+     markup carries it and nothing in the page moves when it appears. Driven by
+     initScrollHeader(). -->
+<div class="scroll-head" id="scroll-head">
+  <div class="scroll-head-row">
+    <svg class="scroll-head-logo" viewBox="0 0 507.8 100" aria-hidden="true" focusable="false">
+      <rect class="logo-bar lb-1" x="10" y="70.7" width="60" height="29.3" rx="7"/><rect class="logo-bar lb-2" x="22" y="35.3" width="60" height="29.3" rx="7"/><rect class="logo-bar logo-bar-top lb-3" x="34" y="0" width="60" height="29.3" rx="7"/>
+          <g class="logo-type" transform="translate(136 0)"><path d="M0 100V0H47.2Q71.6 0 71.6 24.3V33Q71.6 38 68.7 41.4L63.6 47.5L69.7 52.6Q74.5 56.5 74.5 64.2V75.7Q74.5 100 50.1 100ZM20.9 81.2H49.3Q53.6 81.2 53.6 76.8V62.3Q53.6 58 49.3 58H20.9ZM20.9 39.1H46.4Q50.7 39.1 50.7 34.8V23.2Q50.7 18.8 46.4 18.8H20.9Z"/><path d="M102.5 100V0H123.4V81.2H166.6V100Z"/><path d="M188.5 75.7V24.3Q188.5 0 212.8 0H245.9Q270.2 0 270.2 24.3V75.7Q270.2 100 245.9 100H212.8Q188.5 100 188.5 75.7ZM209.3 76.8Q209.3 81.2 213.7 81.2H245Q249.3 81.2 249.3 76.8V23.2Q249.3 18.8 245 18.8H213.7Q209.3 18.8 209.3 23.2Z"/><path d="M299.1 75.7V24.3Q299.1 0 323.4 0H362.1L371.8 7.5V18.8H324.3Q319.9 18.8 319.9 23.2V76.8Q319.9 81.2 324.3 81.2H371.8V92.5L362.1 100H323.4Q299.1 100 299.1 75.7Z"/></g>
+    </svg>
+    <button class="icon-btn scroll-head-gear" id="scroll-head-gear" onclick="showScreen('settings')" aria-label="Settings" tabindex="-1">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
+</div>
 
   <div id="content">
 
@@ -10974,6 +11043,7 @@ function showScreen(name) {
   if (contentEl) contentEl.classList.toggle('no-nav', !navBtn);
   animateNavPill();
   updateNavPillColor(name);
+  syncScrollHeader(); // v8.59: never on Settings; a tab change keeps the scroll
   if (name === 'home') renderHome(true);
   // Progress, Train and Plan all open on the cycle today falls inside, however
   // far the person browsed last time. See resetToDateActiveMacro().
@@ -28911,6 +28981,45 @@ function initSettingsTopbarFade() {
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initSettingsTopbarFade);
 else initSettingsTopbarFade();
+
+// v8.59 — the scroll header (#scroll-head). Shown on any page but Settings once
+// #content (the one scroller for every screen) has moved more than 8px
+// (SHOW_PX), and hidden again only when it is back at the very top,
+// so a small bounce near the threshold doesn't flip it back and forth. Each
+// time it is shown, the logo's build-and-pulse replays (remove the class,
+// force a reflow, add it, as initSettingsLogoAnimation does). showScreen()
+// calls syncScrollHeader(), because a tab change keeps #content's scroll
+// position and Settings must never show it.
+// 🚨 No top-level const for the threshold: showScreen() runs during start-up,
+// before this line of the script has executed, and would throw on it.
+function syncScrollHeader() {
+  const SHOW_PX = 8;
+  const head = document.getElementById('scroll-head');
+  const content = document.getElementById('content');
+  if (!head || !content) return;
+  const active = document.querySelector('.screen.active');
+  const allowed = !!active && active.id !== 'screen-settings';
+  const shown = head.classList.contains('is-shown');
+  const y = content.scrollTop;
+  const want = allowed && (shown ? y > 0 : y > SHOW_PX);
+  if (want === shown) return;
+  head.classList.toggle('is-shown', want);
+  content.classList.toggle('has-scroll-head', want);
+  const gear = document.getElementById('scroll-head-gear');
+  if (gear) gear.tabIndex = want ? 0 : -1;
+  if (want) {
+    const logo = head.querySelector('.scroll-head-logo');
+    if (logo) { logo.classList.remove('animate'); void logo.getBoundingClientRect(); logo.classList.add('animate'); }
+  }
+}
+function initScrollHeader() {
+  const content = document.getElementById('content');
+  if (!content) return;
+  content.addEventListener('scroll', syncScrollHeader, { passive: true });
+  syncScrollHeader();
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initScrollHeader);
+else initScrollHeader();
 
 // Hands a generated file to the native Share Sheet (iOS: AirDrop, Save to
 // Files, Messages…), falling back to a plain download where sharing files
