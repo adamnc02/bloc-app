@@ -63,11 +63,12 @@ function Review({ v, m, tz }: { v: ClientView; m: ReviewModel; tz: string }) {
   // 🚨 Marked done only when the scroll happens: a second load of the AI data (or React's development double-run)
   //    cancels a pending timer, and a flag set up front stopped the retry, so Review stayed at the top.
   useEffect(() => {
-    if (!v.focus || focused.current || !ai.data) return;
+    if (!v.focus || focused.current || (!ai.data && v.focus.at !== 'findings')) return;
     const t = setTimeout(() => {
       if (focused.current) return;
       const note = v.focus!.note ? document.querySelector<HTMLElement>(`[data-note="${CSS.escape(v.focus!.note)}"]`) : null;
-      const el = (note && note.offsetParent ? note : null) ?? document.getElementById('review-ai');
+      // v8.60 (§175): Needs you's recalibration opens Findings.
+      const el = (note && note.offsetParent ? note : null) ?? document.getElementById(v.focus!.at === 'findings' ? 'review-findings' : 'review-ai');
       if (!el) return;
       focused.current = true;
       el.scrollIntoView({ block: note && note.offsetParent ? 'center' : 'start', behavior: 'smooth' });
@@ -126,7 +127,7 @@ function Review({ v, m, tz }: { v: ClientView; m: ReviewModel; tz: string }) {
 
       {/* Laptop: Findings and AI tools side by side, each in its own column (.grid-2, 1024px and wider). */}
       <div className="grid-2">
-        <Section i={6} title="Findings" sub="What stands out, each with the action that deals with it.">
+        <Section id="review-findings" i={6} title="Findings" sub="What stands out, each with the action that deals with it.">
           <div className="stack">
             {findings.map((f, k) => <FindingCard key={f.id} f={f} v={v} i={7 + k} onCheckin={() => openAi('check_in')} />)}
           </div>
@@ -153,7 +154,10 @@ function VerdictHero({ m, tz }: { m: ReviewModel; tz: string }) {
   const recent = withW.slice(-3);
   const change = recent.length > 1 ? (recent[recent.length - 1].avg as number) - (recent[0].avg as number) : null;
   const gt = m.cycle.goalType;
-  const good = change == null ? null : gt === 'gain' ? change > 0 : gt === 'maintenance' ? Math.abs(change) <= 1 : change < 0;
+  // v8.60 (§175): maintenance is judged against its baseline, as BLOC judges it.
+  const ms = m.story.maintState;
+  const good = gt === 'maintenance' ? (ms === 'stable' ? true : ms === 'slipping' || ms === 'drifting' ? false : null)
+    : change == null ? null : gt === 'gain' ? change > 0 : change < 0;
   const drifting = o.status === 'on-track' ? o.context.find((d) => d.bad) : undefined;
   const lastWeighIn = m.story.weighIns[m.story.weighIns.length - 1]?.date ?? null;
   const staleDays = lastWeighIn ? Math.round((Date.parse(`${m.story.last}T00:00:00Z`) - Date.parse(`${lastWeighIn}T00:00:00Z`)) / 86400000) : null;
@@ -185,7 +189,7 @@ function VerdictHero({ m, tz }: { m: ReviewModel; tz: string }) {
       <div className="tiles-3" style={{ marginTop: 16 }}>
         <div><div className="stat">{lastAvg != null ? fmt.one(lastAvg) : '—'}</div><div className="caption">lbs, latest week</div></div>
         <div><div className={`stat ${good == null ? '' : good ? 't-good' : 't-bad'}`}>{change != null ? fmt.signed(change, 1) : '—'}</div><div className="caption">lbs over {recent.length} wks</div></div>
-        <div><div className="stat">{m.story.targetLbs != null ? fmt.one(m.story.targetLbs) : '—'}</div><div className="caption">goal lbs</div></div>
+        <div><div className="stat">{m.story.targetLbs != null ? fmt.one(m.story.targetLbs) : '—'}</div><div className="caption">{gt === 'maintenance' ? 'baseline lbs' : 'goal lbs'}</div></div>
       </div>
       <WeeksNarrative m={m} />
       {staleDays != null && staleDays > STALE_WEIGH_IN_DAYS && (
@@ -365,8 +369,9 @@ function FindingCard({ f, v, i, onCheckin }: { f: Finding; v: ClientView; i: num
             : <p className="caption" style={{ marginTop: 10 }}>Add {v.first}’s phone or email in Profile to message them from here.</p>)}
           {f.action === 'checkin' && available && <Button variant="ghost" size="sm" icon="sparkle" style={{ marginTop: 12 }} onClick={onCheckin}>Run check-in</Button>}
           {f.action === 'adjust' && available && v.cycle?.coachOwned && <a className="btn-sm" style={{ marginTop: 12 }} href={`#${clientPath(card.id, 'plan', v.cycle.id, { act: 'goal' })}`}><Icon name="target" size={16} /> Adjust goals</a>}
+          {f.action === 'recalibrate' && available && v.cycle?.coachOwned && <a className="btn-sm" style={{ marginTop: 12 }} href={`#${clientPath(card.id, 'plan', v.cycle.id, { act: 'recal' })}`}><Icon name="target" size={16} /> Recalibrate</a>}
           {f.action === 'swap' && available && v.cycle?.coachOwned && f.exercise && <a className="btn-sm" style={{ marginTop: 12 }} href={`#${clientPath(card.id, 'plan', v.cycle.id, { act: 'swap', ex: f.exercise })}`}><Icon name="swap" size={16} /> Swap exercise</a>}
-          {(f.action === 'adjust' || f.action === 'swap') && available && !v.cycle?.coachOwned && <p className="caption" style={{ marginTop: 10 }}>{v.first}’s own cycle: start one of yours in Plan to change it.</p>}
+          {(f.action === 'adjust' || f.action === 'swap' || f.action === 'recalibrate') && available && !v.cycle?.coachOwned && <p className="caption" style={{ marginTop: 10 }}>{v.first}’s own cycle: start one of yours in Plan to change it.</p>}
           {!f.action && <Chip tone="neutral" style={{ marginTop: 10 }}>No action needed</Chip>}
         </div>
       </div>

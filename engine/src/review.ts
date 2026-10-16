@@ -14,6 +14,7 @@ import { getWeekSets, getMacroSessionDayKeys, getMacroEffectiveMesoCount, isMeso
 import { buildDayMap } from './tdee.ts';
 import { getGoalForDate } from './cycles.ts';
 import { computeWeeklyInsights } from './insights.ts';
+import { getCycleReferenceLbs } from './maintenance.ts';
 
 // Best 5 exercises by % increase in top logged set weight from the first
 // week they were logged in this macro to the last — a simple, deterministic
@@ -137,6 +138,7 @@ export function computeCycleMeasurements(s: BlocState, ctx: EngineContext, macro
   const hipLogs    = bodyLogs.filter(l => l.hip    !== null && l.hip    !== undefined && inRange(l));
   const startWeight = weightLogs.length ? weightLogs[0].weight : null;
   const endWeight    = weightLogs.length ? weightLogs[weightLogs.length - 1].weight : null;
+  const ref = macro.goalType === 'maintenance' ? getCycleReferenceLbs(s, macro, ctx) : ((macro.targetBw as number) || null);
   return {
     startWeight, endWeight,
     totalWeightChange: (startWeight !== null && endWeight !== null) ? parseFloat((endWeight - startWeight).toFixed(1)) : null,
@@ -144,8 +146,9 @@ export function computeCycleMeasurements(s: BlocState, ctx: EngineContext, macro
     endWaist:   waistLogs.length ? waistLogs[waistLogs.length - 1].waist : null,
     startHip:   hipLogs.length ? hipLogs[0].hip : null,
     endHip:     hipLogs.length ? hipLogs[hipLogs.length - 1].hip : null,
-    targetWeight: macro.targetBw || null,
-    weightTargetDelta: (endWeight !== null && macro.targetBw) ? parseFloat((endWeight - (macro.targetBw as number)).toFixed(1)) : null,
+    // v8.60 (§175): a maintenance cycle's reference is its baseline, week 1's average.
+    targetWeight: ref,
+    weightTargetDelta: (endWeight !== null && ref) ? parseFloat((endWeight - ref).toFixed(1)) : null,
   };
 }
 

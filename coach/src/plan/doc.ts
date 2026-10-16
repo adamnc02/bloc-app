@@ -21,7 +21,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 import {
   getDayBefore, getMacroDurationWeeks, getMacroEffectiveMesoCount, getMacroEndDate, isMesoMicroValid, renumberMacroGoalSteps, shiftDateStr, dayDiff,
-  type Macrocycle,
+  type Loose, type Macrocycle,
 } from '@engine';
 
 export type GoalType = 'loss' | 'gain' | 'maintenance';
@@ -232,7 +232,8 @@ export function newCycle(input: NewCycleInput, ids: IdGen): PlanDoc {
   return {
     macro: {
       id, name: input.name.trim() || 'Macrocycle', start: input.start, weeks: input.weeks, weeksPerMeso: input.weeksPerMeso,
-      sessionsPerWeek: days.length, goal: input.goal.trim(), targetBw: input.targetBw, goalType: input.goalType, splitType,
+      // v8.60 (§175): a maintenance cycle has no goal weight, only its baseline.
+      sessionsPerWeek: days.length, goal: input.goal.trim(), targetBw: input.goalType === 'maintenance' ? null : input.targetBw, goalType: input.goalType, splitType,
       days, dayLabels, useMicrocycles: input.useMicrocycles, weightIncrement: input.weightIncrement || '2.5', rpe: input.rpe,
     },
     exercises: {}, supersets: {}, deloads: {}, goals: [],
@@ -251,6 +252,8 @@ export type SettingsPatch = Partial<Pick<PlanMacro, 'name' | 'goal' | 'targetBw'
 export function editSettings(doc: PlanDoc, patch: SettingsPatch): PlanDoc {
   const next = clone(doc);
   Object.assign(next.macro, patch);
+  // v8.60 (§175): a maintenance cycle has no goal weight, only its baseline.
+  if (next.macro.goalType === 'maintenance') next.macro.targetBw = null;
   if (patch.start && patch.start !== doc.macro.start) {
     const delta = dayDiff(doc.macro.start, patch.start);
     next.goals = next.goals.map((g) => ({ ...g, startDate: shiftDateStr(g.startDate, delta), endDate: shiftDateStr(g.endDate, delta) }));
@@ -563,7 +566,7 @@ export function toggleDeload(doc: PlanDoc, key: string): PlanDoc {
 
 // ── Goal phases ────────────────────────────────────────────────────────────
 
-export interface GoalInput { label: string; startDate: string; endDate: string; kcal: number; steps: number; protein: number; carbs: number; fats?: number }
+export interface GoalInput { label: string; startDate: string; endDate: string; kcal: number; steps: number; protein: number; carbs: number; fats?: number; hold?: boolean }
 
 /** Fats from what's left of the calories: (kcal − protein×4 − carbs×4) / 9, never below 0 (as Review's check-in plans send them). */
 export const fatsFrom = (kcal: number, protein: number, carbs: number) => Math.max(0, Math.round((kcal - protein * 4 - carbs * 4) / 9));
@@ -583,7 +586,27 @@ export function upsertGoal(doc: PlanDoc, id: string | null, input: GoalInput, id
     _blocLabel: input.label.trim(),
   };
   const i = next.goals.findIndex((x) => x.macroGoalID === g.macroGoalID);
-  if (i >= 0) next.goals[i] = { ...next.goals[i], ...g }; else next.goals.push(g);
+  const saved = i >= 0 ? (next.goals[i] = { ...next.goals[i], ...g }) : (next.goals.push(g), g);
+  // v8.60 (§175): the hold, on a maintenance cycle only — what a recalibration finds.
+  if (next.macro.goalType === 'maintenance' && input.hold) saved.hold = true; else delete saved.hold;
+  return withStepLabels(next);
+}
+
+/**
+ * A maintenance recalibration (v8.60, §175), the engine's plan applied to the draft: its goals upserted by id
+ * (the running one trimmed to the Sunday before), the goals it replaces removed, and the extension set when the
+ * +125 choice lengthens the cycle. The same plan BLOC applies itself, so the two can't differ.
+ */
+export function applyRecalibration(doc: PlanDoc, plan: { goals: Loose[]; removeGoalIds: string[]; extensionWeeks: number | null }): PlanDoc {
+  const next = clone(doc);
+  const remove = new Set(plan.removeGoalIds);
+  next.goals = next.goals.filter((g) => !remove.has(g.macroGoalID));
+  for (const g of plan.goals) {
+    const i = next.goals.findIndex((x) => x.macroGoalID === g.macroGoalID);
+    const goal = { ...g } as PlanGoal;
+    if (i >= 0) next.goals[i] = goal; else next.goals.push(goal);
+  }
+  if (plan.extensionWeeks != null) next.macro.extensionWeeks = plan.extensionWeeks;
   return withStepLabels(next);
 }
 

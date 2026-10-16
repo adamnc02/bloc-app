@@ -33,8 +33,11 @@ const cases = [
   ['a cut that has gained, 200 → 201.5: "Gained this cycle" 1.5', ['loss', 200, 201.5, 190], { label: 'Gained this cycle', value: '1.5' }],
   ['a gain cycle, 170 → 173.2: gained 3.2', ['gain', 170, 173.2, 180], { label: 'Gained this cycle', value: '3.2' }],
   ['a gain cycle that has lost: "Lost this cycle"', ['gain', 170, 168, 180], { label: 'Lost this cycle', value: '2.0' }],
-  ['maintenance with a target: the target', ['maintenance', 182, 183.4, 182], { label: 'Maintenance weight', value: '182.0' }],
-  ['maintenance with no target: the latest weigh-in', ['maintenance', 182, 183.4, null], { label: 'Body weight', value: '183.4' }],
+  // v8.60 (§175): maintenance shows its baseline (week 1's average), never a goal weight.
+  ['maintenance, baseline fixed: "Baseline"', ['maintenance', 182, 183.4, null, { baseline: { lbs: 182.6, locked: true } }], { label: 'Baseline', value: '182.6' }],
+  ['maintenance in week 1: "Baseline so far"', ['maintenance', 182, 183.4, null, { baseline: { lbs: 182.9, locked: false } }], { label: 'Baseline so far', value: '182.9' }],
+  ['maintenance with an old goal weight and no baseline yet: the latest weigh-in, never the goal weight', ['maintenance', 182, 183.4, 182, { baseline: null }], { label: 'Body weight', value: '183.4' }],
+  ['maintenance with no baseline: the latest weigh-in', ['maintenance', 182, 183.4, null, null], { label: 'Body weight', value: '183.4' }],
   ['no weigh-ins yet on a cut: "—"', ['loss', null, null, 190], { label: 'Lost this cycle', value: '—' }],
 ];
 check('progressHeroCallout() exists', !!src);

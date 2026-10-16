@@ -51,6 +51,8 @@ export type NeedsItem =
   | { kind: 'request'; key: string; at: string; cardId: string | null; request: SessionRequest }
   | { kind: 'note'; key: string; at: string; cardId: string; submission: Submission; headline: string | null; tool: string | null; macroId: string | null }
   | { kind: 'photos'; key: string; at: string; cardId: string; macroId: string; skipped: boolean; count: number }
+  // v8.60 (§175): the client's running maintenance cycle needs recalibrating. Clears itself once it no longer does.
+  | { kind: 'recal'; key: string; at: string; cardId: string; macroId: string; reason: string }
   | { kind: 'missed'; key: string; at: string; cardId: string; occ: Occurrence }
   | { kind: 'missedGroup'; key: string; at: string; cardId: null; occ: Occurrence }
   | { kind: 'effort'; key: string; at: string; cardId: string; streak: HighStreak };
@@ -147,6 +149,9 @@ export function needsYou(d: Diary, inbox: Inbox, bundles: ClientBundle[], summar
   const atOf = (occ: Occurrence) => `${occ.date}T${String(Math.floor(occ.start / 60)).padStart(2, '0')}:${String(occ.start % 60).padStart(2, '0')}`;
   for (const { occ, cardId } of missedBookings(d, inbox, today)) out.push({ kind: 'missed', key: `m:${occ.key}`, at: atOf(occ), cardId, occ });
   for (const occ of missedGroups(d, inbox, today)) out.push({ kind: 'missedGroup', key: `g:${occ.key}`, at: atOf(occ), cardId: null, occ });
+  for (const s of summaries) {
+    if (s.status === 'linked' && s.recal) out.push({ kind: 'recal', key: `c:${s.id}:${s.recal.macroId}`, at: today, cardId: s.id, macroId: s.recal.macroId, reason: s.recal.reason });
+  }
   for (const { cardId, streak: x } of effortFlags(inbox, bundles, summaries, coachId, today)) {
     out.push({ kind: 'effort', key: `e:${x.kind}:${cardId}:${x.macroId}:${x.dayKey}:${x.exId}:${x.weeks[1]}`, at: today, cardId, streak: x });
   }
@@ -241,6 +246,7 @@ export function needsItemOpen(it: NeedsItem): NeedsOpen | null {
     case 'request': return { kind: 'request', id: it.request.id };
     case 'photos': return { kind: 'path', path: clientPath(it.cardId, 'review', it.macroId, null, { at: 'ai', tool: 'cycle_review' }) };
     case 'note': return { kind: 'path', path: clientPath(it.cardId, 'review', it.macroId, null, { at: 'note', note: it.submission.id, tool: it.tool }) };
+    case 'recal': return { kind: 'path', path: clientPath(it.cardId, 'review', it.macroId, null, { at: 'findings' }) };
     default: return null;
   }
 }

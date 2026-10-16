@@ -24,7 +24,15 @@ var BlocEngine = (() => {
   __export(index_exports, {
     HOME_METRIC_POLARITY: () => HOME_METRIC_POLARITY,
     HOME_STEPS_TOLERANCE: () => HOME_STEPS_TOLERANCE,
+    MAINT_CLIMB_STEP_KCAL: () => MAINT_CLIMB_STEP_KCAL,
+    MAINT_DRIFT_LBS: () => MAINT_DRIFT_LBS,
+    MAINT_MIN_WEIGH_INS: () => MAINT_MIN_WEIGH_INS,
+    MAINT_STABLE_LBS: () => MAINT_STABLE_LBS,
     PROG_STEP_MAINTENANCE: () => PROG_STEP_MAINTENANCE,
+    RECAL_MAX_WEEKS: () => RECAL_MAX_WEEKS,
+    RECAL_MIN_FRACTION: () => RECAL_MIN_FRACTION,
+    RECAL_MIN_KCAL: () => RECAL_MIN_KCAL,
+    RECAL_MIN_WEEKS: () => RECAL_MIN_WEEKS,
     RECONCILE_CARBS_FLOOR: () => RECONCILE_CARBS_FLOOR,
     RECONCILE_FATS_FLOOR: () => RECONCILE_FATS_FLOOR,
     RECONCILE_KCAL_MAX_OVERSHOOT: () => RECONCILE_KCAL_MAX_OVERSHOOT,
@@ -39,6 +47,7 @@ var BlocEngine = (() => {
     buildDayMap: () => buildDayMap,
     buildDirectionSteppedRamp: () => buildDirectionSteppedRamp,
     buildGoalShiftPlan: () => buildGoalShiftPlan,
+    buildMaintenanceRecalibrationPlan: () => buildMaintenanceRecalibrationPlan,
     buildModelRequest: () => buildModelRequest,
     buildNextCycleAdvicePrompt: () => buildNextCycleAdvicePrompt,
     buildNextCycleGoalSteps: () => buildNextCycleGoalSteps,
@@ -86,6 +95,7 @@ var BlocEngine = (() => {
     getAllMacroSessions: () => getAllMacroSessions,
     getCoachAssignment: () => getCoachAssignment,
     getCoachLoggedSession: () => getCoachLoggedSession,
+    getCycleReferenceLbs: () => getCycleReferenceLbs,
     getDateActiveMacroId: () => getDateActiveMacroId,
     getDayBefore: () => getDayBefore,
     getDeloadUnitKey: () => getDeloadUnitKey,
@@ -105,6 +115,8 @@ var BlocEngine = (() => {
     getMacroSessionDayKeys: () => getMacroSessionDayKeys,
     getMacroTotalVolume: () => getMacroTotalVolume,
     getMacroVolumeSeries: () => getMacroVolumeSeries,
+    getMaintenanceBaseline: () => getMaintenanceBaseline,
+    getMaintenanceHold: () => getMaintenanceHold,
     getMondayAfter: () => getMondayAfter,
     getNextIncompleteSession: () => getNextIncompleteSession,
     getNextMacroStart: () => getNextMacroStart,
@@ -144,6 +156,7 @@ var BlocEngine = (() => {
     isNextCycleAdviceEligible: () => isNextCycleAdviceEligible,
     isRpeOn: () => isRpeOn,
     isSubstitutedUnit: () => isSubstitutedUnit,
+    judgeMaintenanceStability: () => judgeMaintenanceStability,
     lockAppliesFrom: () => lockAppliesFrom,
     macroRange: () => macroRange,
     maintenanceStepBase: () => maintenanceStepBase,
@@ -1607,13 +1620,236 @@ Write this cycle's review per the schema above.`;
     return { units, next, total };
   }
 
+  // src/maintenance.ts
+  var MAINT_STABLE_LBS = 2;
+  var MAINT_DRIFT_LBS = 5;
+  var MAINT_MIN_WEIGH_INS = 2;
+  var MAINT_CLIMB_STEP_KCAL = 125;
+  var RECAL_MIN_WEEKS = 2;
+  var RECAL_MAX_WEEKS = 4;
+  var RECAL_MIN_KCAL = 150;
+  var RECAL_MIN_FRACTION = 0.07;
+  var r1 = (n) => Math.round(n * 10) / 10;
+  var r2 = (n) => Math.round(n * 100) / 100;
+  var lbsOf = (v) => {
+    const n = parseFloat(String(v));
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+  var isMaint = (m) => !!m && m.goalType === "maintenance";
+  function getMaintenanceBaseline(s, macro, ctx) {
+    if (!macro || !isMaint(macro) || !macro.start) return null;
+    const start = macro.start;
+    const end = shiftDateStr(start, 6);
+    const upTo = end < ctx.today ? end : ctx.today;
+    const ws = (s.bodyLogs || []).filter((l) => l.date >= start && l.date <= upTo).map((l) => lbsOf(l.weight)).filter((n) => n !== null);
+    if (!ws.length) return null;
+    return { lbs: r1(ws.reduce((a, b) => a + b, 0) / ws.length), days: ws.length, locked: ctx.today > end, start, end };
+  }
+  function getCycleReferenceLbs(s, macro, ctx) {
+    if (!macro) return null;
+    if (isMaint(macro)) return getMaintenanceBaseline(s, macro, ctx)?.lbs ?? null;
+    return lbsOf(macro.targetBw);
+  }
+  function judgeMaintenanceStability(s, macro, ctx) {
+    if (!macro || !isMaint(macro) || !macro.start) return null;
+    const baseline = getMaintenanceBaseline(s, macro, ctx);
+    if (!baseline) {
+      return { state: "none", baseline: null, week: null, diff: null, reason: "No weigh-in in the first 7 days of the cycle yet, so there is no baseline." };
+    }
+    const cycleEnd = getMacroEndDate(macro, ctx);
+    let week = null;
+    for (let n = 2; ; n++) {
+      const ws = shiftDateStr(macro.start, (n - 1) * 7);
+      const we = shiftDateStr(ws, 6);
+      if (we >= ctx.today || ws > cycleEnd) break;
+      const lbs = (s.bodyLogs || []).filter((l) => l.date >= ws && l.date <= we).map((l) => lbsOf(l.weight)).filter((x) => x !== null);
+      if (lbs.length >= MAINT_MIN_WEIGH_INS) week = { n, start: ws, end: we, lbs: r1(lbs.reduce((a, b) => a + b, 0) / lbs.length), weighIns: lbs.length };
+    }
+    const base = `${baseline.lbs} lbs baseline (week 1's average${baseline.locked ? "" : ` so far, ${baseline.days} weigh-in${baseline.days === 1 ? "" : "s"}`})`;
+    if (!week) {
+      return {
+        state: "forming",
+        baseline,
+        week: null,
+        diff: null,
+        reason: `${base}. Stability is judged from the first complete week after week 1 with ${MAINT_MIN_WEIGH_INS} or more weigh-ins.`
+      };
+    }
+    const diff = r1(week.lbs - baseline.lbs);
+    const abs = Math.abs(diff);
+    const state = abs <= MAINT_STABLE_LBS ? "stable" : abs <= MAINT_DRIFT_LBS ? "slipping" : "drifting";
+    const rel = abs === 0 ? "level with" : `${abs.toFixed(1)} lbs ${diff > 0 ? "above" : "below"}`;
+    const band = state === "stable" ? `within ${MAINT_STABLE_LBS} lbs is stable` : state === "slipping" ? `${MAINT_STABLE_LBS}–${MAINT_DRIFT_LBS} lbs is slipping` : `more than ${MAINT_DRIFT_LBS} lbs is drifting`;
+    return {
+      state,
+      baseline,
+      week,
+      diff,
+      reason: `Week ${week.n} averaged ${week.lbs} lbs over ${week.weighIns} weigh-ins, ${rel} the ${base}; ${band}.`
+    };
+  }
+  function getMaintenanceHold(goals, macro) {
+    if (!macro || !isMaint(macro)) return null;
+    const mine = (goals || []).filter((g) => g.macroId === macro.id && g.startDate && g.endDate).slice().sort((a, b) => a.startDate.localeCompare(b.startDate));
+    if (!mine.length) return null;
+    const flagged = mine.some((g) => g.hold === true);
+    const run = [];
+    const lastKcal = parseInt(mine[mine.length - 1].kcal);
+    for (let i = mine.length - 1; i >= 0; i--) {
+      const g = mine[i];
+      if (flagged ? g.hold === true : parseInt(g.kcal) === lastKcal) run.unshift(g);
+      else break;
+    }
+    if (!run.length) return null;
+    const kcal = parseInt(run[run.length - 1].kcal);
+    if (!kcal) return null;
+    const start = run[0].startDate, end = run[run.length - 1].endDate;
+    return { goals: run, kcal, start, end, weeks: Math.round((dayDiff(start, end) + 1) / 7), flagged };
+  }
+  function computeMaintenanceRecalibration(s, ctx, macro, ins) {
+    if (!macro || !isMaint(macro) || !ins) return null;
+    const today = ctx.today;
+    const cycleEnd = getMacroEndDate(macro, ctx);
+    if (today < (macro.start || today) || today > cycleEnd) return null;
+    const complete = (ins.weekBuckets || []).filter((b) => b.bEnd < today && b.avgWeight !== null && b.nutrDayCount >= 4 && b.avgKcal).slice(-RECAL_MAX_WEEKS);
+    if (complete.length < RECAL_MIN_WEEKS) return null;
+    const n = complete.length;
+    const xs = complete.map((_b, i) => i);
+    const ys = complete.map((b) => b.avgWeight);
+    const mx = (n - 1) / 2;
+    const my = ys.reduce((a, b) => a + b, 0) / n;
+    const sxx = xs.reduce((a, x) => a + (x - mx) ** 2, 0);
+    const slope = xs.reduce((a, x, i) => a + (x - mx) * (ys[i] - my), 0) / sxx;
+    const avgKcal = Math.round(complete.reduce((a, b) => a + b.avgKcal, 0) / n);
+    const estimate = Math.round(avgKcal - slope * 500);
+    if (estimate < 800 || estimate > 6e3) return null;
+    const hold = getMaintenanceHold(s.goals, macro);
+    if (!hold) return null;
+    const effectiveFrom = getNextMonday(ctx);
+    if (effectiveFrom > cycleEnd) return null;
+    const discrepancy = estimate - hold.kcal;
+    if (Math.abs(discrepancy) < RECAL_MIN_KCAL && Math.abs(discrepancy / hold.kcal) < RECAL_MIN_FRACTION) return null;
+    const trendLbsPerWeek = r2(slope);
+    const first = complete[0].label, last = complete[n - 1].label;
+    const trendText = Math.abs(trendLbsPerWeek) < 0.05 ? "weight level" : `weight ${trendLbsPerWeek > 0 ? "rising" : "falling"} ${Math.abs(trendLbsPerWeek).toFixed(2)} lbs/week`;
+    const reason = `Complete weeks ${first}–${last} averaged ${avgKcal.toLocaleString("en-GB")} kcal/day with ${trendText}, which puts maintenance near ${estimate.toLocaleString("en-GB")} kcal/day: ${Math.abs(discrepancy).toLocaleString("en-GB")} kcal ${discrepancy > 0 ? "above" : "below"} the plan's hold of ${hold.kcal.toLocaleString("en-GB")} kcal.`;
+    return {
+      estimate,
+      avgKcal,
+      trendLbsPerWeek,
+      weeksUsed: complete.map((b) => b.label),
+      hold: { kcal: hold.kcal, start: hold.start, end: hold.end, weeks: hold.weeks, flagged: hold.flagged },
+      discrepancy,
+      direction: discrepancy > 0 ? "higher" : "lower",
+      climbStart: Math.min(avgKcal, estimate),
+      effectiveFrom,
+      reason
+    };
+  }
+  function buildMaintenanceRecalibrationPlan(s, ctx, macro, recal, choice) {
+    if (!isMaint(macro) || !recal) return null;
+    const hold = getMaintenanceHold(s.goals, macro);
+    if (!hold) return null;
+    const from = recal.effectiveFrom;
+    const target = recal.estimate;
+    const startKcal = recal.climbStart;
+    const cycleEnd = getMacroEndDate(macro, ctx);
+    const weeksLeft = Math.round((dayDiff(from, cycleEnd) + 1) / 7);
+    let climb = [];
+    let stepKcal = 0;
+    let extra = 0;
+    if (choice === "step") {
+      climb = startKcal < target ? buildReverseDietRows(startKcal, target, MAINT_CLIMB_STEP_KCAL).map((r) => r.kcal) : [];
+      stepKcal = climb.length ? MAINT_CLIMB_STEP_KCAL : 0;
+      const needed = climb.length ? climb.length - 1 + hold.weeks : hold.weeks;
+      extra = Math.max(0, needed - weeksLeft);
+    } else {
+      const before = hold.start > from ? Math.round(dayDiff(from, hold.start) / 7) : 0;
+      if (before > 0 && startKcal < target) {
+        stepKcal = Math.round((target - startKcal) / (before + 1));
+        climb = Array.from({ length: before }, (_, i) => Math.round(startKcal + (target - startKcal) * (i + 1) / (before + 1)));
+      } else if (before > 0) {
+        climb = Array.from({ length: before }, () => target);
+      }
+    }
+    const totalWeeks = weeksLeft + extra;
+    const rows = [];
+    for (let w = 0; w < totalWeeks; w++) {
+      const kcal = w < climb.length ? climb[w] : target;
+      rows.push({ start: shiftDateStr(from, w * 7), kcal, hold: kcal === target });
+    }
+    const holdFrom = choice === "schedule" && hold.start > from && startKcal < target ? hold.start : from;
+    for (let i = rows.length - 1, inRun = true; i >= 0; i--) {
+      inRun = inRun && rows[i].kcal === target && rows[i].start >= holdFrom;
+      rows[i].hold = inRun;
+    }
+    const newEnd = shiftDateStr(from, totalWeeks * 7 - 1);
+    let blocked = null;
+    const extensionWeeks = extra ? (macro.extensionWeeks || 0) + extra : null;
+    if (extensionWeeks !== null) {
+      const clash = findMacroClash(Object.assign({}, macro, { extensionWeeks }), s.macrocycles, macro.id, ctx);
+      if (clash) blocked = `Extending to ${newEnd} runs into ${String(clash.name || "the next cycle")} (starts ${clash.start}). Cycles can't overlap.`;
+    }
+    const groups = [];
+    for (const r of rows) {
+      const g = groups[groups.length - 1];
+      if (g && g.kcal === r.kcal && g.hold === r.hold) g.end = shiftDateStr(r.start, 6);
+      else groups.push({ start: r.start, end: shiftDateStr(r.start, 6), kcal: r.kcal, hold: r.hold });
+    }
+    const mine = (s.goals || []).filter((g) => g.macroId === macro.id).slice().sort((a, b) => a.startDate.localeCompare(b.startDate));
+    const holdGoal = hold.goals[hold.goals.length - 1];
+    const hc = parseFloat(holdGoal.carbs) || 0, hf = parseFloat(holdGoal.fats) || 0;
+    const carbShare = hc * 4 + hf * 9 > 0 ? hc * 4 / (hc * 4 + hf * 9) : 0.5;
+    const proteinOn = (d) => {
+      const g = mine.find((x) => x.startDate <= d && x.endDate >= d) || holdGoal;
+      return parseInt(g.protein) || parseInt(holdGoal.protein) || 0;
+    };
+    let climbN = 0;
+    const fresh = groups.map((g) => {
+      const protein = proteinOn(g.start);
+      const rest = Math.max(0, g.kcal - protein * 4);
+      const label = g.hold ? "Recalibrated hold" : `Recalibrated climb ${++climbN}`;
+      return {
+        macroId: macro.id,
+        macroGoalID: `${macro.id}_g${g.start.replace(/-/g, "")}`,
+        startDate: g.start,
+        endDate: g.end,
+        kcal: g.kcal,
+        protein,
+        carbs: Math.round(rest * carbShare / 4),
+        fats: Math.round(rest * (1 - carbShare) / 9),
+        steps: holdGoal.steps ?? 8e3,
+        hold: g.hold,
+        _blocLabel: label
+      };
+    });
+    const out = [];
+    const running = mine.find((g) => g.startDate < from && g.endDate >= from);
+    if (running) out.push({ ...running, endDate: getDayBefore(from) });
+    out.push(...fresh);
+    const rewritten = new Set(out.map((g) => g.macroGoalID));
+    const removeGoalIds = mine.filter((g) => g.startDate >= from && !rewritten.has(g.macroGoalID)).map((g) => g.macroGoalID).filter(Boolean);
+    return {
+      choice,
+      rows,
+      goals: out,
+      removeGoalIds,
+      stepKcal,
+      climbWeeks: rows.filter((r) => !r.hold).length,
+      holdWeeks: rows.filter((r) => r.hold).length,
+      extensionWeeks,
+      newEnd,
+      blocked
+    };
+  }
+
   // src/insights.ts
   function computeWeeklyInsights(s, ctx, macro) {
     if (!macro) return null;
     const goalType = macro.goalType || "loss";
     const isLoss = goalType === "loss";
     const isGain = goalType === "gain";
-    const isMaint = goalType === "maintenance";
+    const isMaint2 = goalType === "maintenance";
     const dayMap = buildDayMap(s);
     const allDates = Object.keys(dayMap).sort();
     if (allDates.length < 2) return null;
@@ -1725,7 +1961,8 @@ Write this cycle's review per the schema above.`;
     const deficitDuringActive = estimatedTDEE ? Math.round(avgKcalDuringActive - estimatedTDEE) : deficitOrSurplus;
     const hasPlateauSignal = isLoss && stuckSignal;
     let maintVariance = null;
-    if (isMaint && macro.targetBw) {
+    const maintStability = isMaint2 ? judgeMaintenanceStability(s, macro, ctx) : null;
+    if (isMaint2) {
       const wksWithWeight = weekBuckets.filter((b) => b.avgWeight !== null);
       if (wksWithWeight.length >= 2) {
         const weights = wksWithWeight.map((b) => b.avgWeight);
@@ -1776,18 +2013,23 @@ Write this cycle's review per the schema above.`;
         detail = `You're averaging ${Math.round(avgKcalRecent).toLocaleString()} kcal/day${deficitOrSurplus !== null ? ` — a ~${deficitOrSurplus} kcal surplus vs estimated TDEE` : ""}. ${weightRising ? "Weight is trending upward, consistent with lean gain." : "Keep monitoring weight weekly to confirm the surplus is sufficient."}`;
       }
     } else {
-      if (maintVariance !== null && maintVariance > 3) {
-        signal = "maint-unstable";
-        headline = `Weight varying ${maintVariance} lbs — more than expected for maintenance`;
-        detail = `Maintenance targets ±1–2 lbs variance around goal weight. A ${maintVariance} lb range may indicate inconsistent intake${macro.targetBw ? ` relative to your ${macro.targetBw} lbs target` : ""}. Check if calorie intake is fluctuating significantly week-to-week.`;
-      } else if (maintVariance !== null) {
-        signal = "maint-stable";
-        headline = `Weight is stable — maintenance on track`;
-        detail = `Weight range across logged weeks is ${maintVariance} lbs${macro.targetBw ? ` around your ${macro.targetBw} lbs target` : ""}. That's within the expected variance for maintenance. Focus on keeping training performance steady.`;
-      } else {
+      const st = maintStability;
+      if (!st || st.state === "none") {
         signal = "maint-nodata";
-        headline = "Log more weigh-ins to track stability";
-        detail = "Maintenance insights need at least 2 weeks of body weight data to detect variance trends.";
+        headline = "Log a weigh-in to set your baseline";
+        detail = st ? st.reason : "Maintenance insights need a weigh-in in the first week of the cycle.";
+      } else if (st.state === "forming") {
+        signal = "maint-stable";
+        headline = `Baseline ${st.baseline.lbs} lbs${st.baseline.locked ? "" : " so far"}`;
+        detail = st.reason;
+      } else if (st.state === "stable") {
+        signal = "maint-stable";
+        headline = "Weight is stable — maintenance on track";
+        detail = st.reason;
+      } else {
+        signal = "maint-unstable";
+        headline = `Weight is ${Math.abs(st.diff).toFixed(1)} lbs ${st.diff > 0 ? "above" : "below"} your baseline`;
+        detail = `${st.reason} Check whether intake has moved week to week.`;
       }
     }
     return {
@@ -1810,6 +2052,8 @@ Write this cycle's review per the schema above.`;
       // true if activePeriod is also the most recent period (i.e. still happening now)
       baselineWeekLabel: weekBuckets[baselineIdx] ? weekBuckets[baselineIdx].label : "W1",
       maintVariance,
+      ...isMaint2 ? { maintStability } : {},
+      // v8.60 (§175): maintenance cycles only
       signal,
       headline,
       detail,
@@ -1827,35 +2071,6 @@ Write this cycle's review per the schema above.`;
       if (bestLossWeek) return Math.max(1400, bestLossWeek.avgKcal - 175);
     }
     return 1400;
-  }
-  function computeMaintenanceRecalibration(s, ctx, macro, ins) {
-    if (!macro || macro.goalType !== "maintenance") return null;
-    const today = ctx.today;
-    const macroEnd = getMacroEndDate(macro, ctx);
-    if (today < (macro.start || today) || today > macroEnd) return null;
-    const qualifying = (ins.weekBuckets || []).filter((b) => b.avgWeight !== null && b.nutrDayCount >= 4);
-    if (qualifying.length < 3) return null;
-    const recent = qualifying.slice(-3);
-    const deltas = recent.slice(1).map((b, i) => b.avgWeight - recent[i].avgWeight);
-    const avgWeeklyDelta = deltas.reduce((a, b) => a + b, 0) / deltas.length;
-    if (Math.abs(avgWeeklyDelta) <= 0.5) return null;
-    const w1 = recent[recent.length - 2], w2 = recent[recent.length - 1];
-    const weightChangeLbs = w2.avgWeight - w1.avgWeight;
-    const localImpliedTDEE = Math.round(w2.avgKcal - weightChangeLbs * 3500 / 7);
-    if (localImpliedTDEE < 800 || localImpliedTDEE > 6e3) return null;
-    const affectedGoals = (s.goals || []).filter((g) => g.macroId === macro.id && g.endDate >= today).sort((a, b) => a.startDate.localeCompare(b.startDate));
-    if (!affectedGoals.length) return null;
-    const currentTargetKcal = parseInt(affectedGoals[0].kcal) || null;
-    if (!currentTargetKcal) return null;
-    const discrepancy = localImpliedTDEE - currentTargetKcal;
-    if (Math.abs(discrepancy) < 150 && Math.abs(discrepancy / currentTargetKcal) < 0.07) return null;
-    return {
-      localImpliedTDEE,
-      currentTargetKcal,
-      discrepancy,
-      direction: avgWeeklyDelta > 0 ? "gaining" : "losing",
-      affectedGoals
-    };
   }
   function computeCheckinState(s, ctx, macro) {
     if (!macro) return null;
@@ -2232,7 +2447,7 @@ Write this cycle's review per the schema above.`;
         const startDate = toLocalDateStr(cursor);
         const endDate = toLocalDateStr(addDays(cursor, weeksSpanned * 7 - 1));
         const label = gr.startWeek === gr.endWeek ? `Wk ${gr.startWeek}${gr.isHoldWeek ? " (hold)" : ""}` : `Wk ${gr.startWeek}-${gr.endWeek}${gr.isHoldWeek ? " (hold)" : ""}`;
-        steps.push({ label, startDate, endDate, kcal: gr.kcal, steps: stepsTarget, ...macrosFor(gr.kcal) });
+        steps.push({ label, startDate, endDate, kcal: gr.kcal, steps: stepsTarget, ...macrosFor(gr.kcal), ...gr.isHoldWeek ? { hold: true } : {} });
         cursor = addDays(cursor, weeksSpanned * 7);
       });
     } else if (rec.directionRamp && rec.directionRamp.length) {
@@ -2383,6 +2598,7 @@ Write this cycle's review per the schema above.`;
     const hipLogs = bodyLogs.filter((l) => l.hip !== null && l.hip !== void 0 && inRange(l));
     const startWeight = weightLogs.length ? weightLogs[0].weight : null;
     const endWeight = weightLogs.length ? weightLogs[weightLogs.length - 1].weight : null;
+    const ref = macro.goalType === "maintenance" ? getCycleReferenceLbs(s, macro, ctx) : macro.targetBw || null;
     return {
       startWeight,
       endWeight,
@@ -2391,8 +2607,9 @@ Write this cycle's review per the schema above.`;
       endWaist: waistLogs.length ? waistLogs[waistLogs.length - 1].waist : null,
       startHip: hipLogs.length ? hipLogs[0].hip : null,
       endHip: hipLogs.length ? hipLogs[hipLogs.length - 1].hip : null,
-      targetWeight: macro.targetBw || null,
-      weightTargetDelta: endWeight !== null && macro.targetBw ? parseFloat((endWeight - macro.targetBw).toFixed(1)) : null
+      // v8.60 (§175): a maintenance cycle's reference is its baseline, week 1's average.
+      targetWeight: ref,
+      weightTargetDelta: endWeight !== null && ref ? parseFloat((endWeight - ref).toFixed(1)) : null
     };
   }
   function getPriorCycleReviews(s, ctx, excludeMacroId) {
@@ -3234,10 +3451,13 @@ JSON SCHEMA:
       const hipPart = c.startHip != null && c.endHip != null ? ` | hip ${c.startHip}"→${c.endHip}"` : "";
       return `${c.name} (${c.goalType}): ${c.start}–${c.end}, ${c.weeks}w | start ${c.startBw ? c.startBw.toFixed(1) : "?"} lbs → end ${c.endBw ? c.endBw.toFixed(1) : "?"} lbs (target ${c.targetBw || "?"})${waistPart}${hipPart} | avg ${c.avgKcal || "?"} kcal, ${c.avgProtein || "?"}g protein, ${c.avgCarbs || "?"}g carbs | plateau ${c.plateauWeeksDetected}w detected | signals: ${c.signals?.join(", ") || "none"}`;
     }).join("\n") : "No completed cycles yet — this is the first macrocycle.";
+    const maintBase = getMaintenanceBaseline(s, macro, ctx);
+    const targetLines = macro.goalType === "maintenance" ? `Current weight: ${latestBw ? latestBw.toFixed(1) + " lbs" : "unknown"} | Baseline: ${maintBase ? `${maintBase.lbs} lbs (week 1's average${maintBase.locked ? "" : ", so far"})` : "not set yet"}
+Change from baseline: ${latestBw && maintBase ? `${latestBw - maintBase.lbs > 0 ? "+" : ""}${(latestBw - maintBase.lbs).toFixed(1)} lbs` : "unknown"}` : `Current weight: ${latestBw ? latestBw.toFixed(1) + " lbs" : "unknown"} | Target: ${macro.targetBw ? macro.targetBw + " lbs" : "not set"}
+Remaining: ${latestBw && macro.targetBw ? Math.abs(latestBw - macro.targetBw).toFixed(1) + " lbs to target" : "unknown"}`;
     const userMessage = `CURRENT CYCLE: ${macro.name}
 Goal type: ${macro.goalType} | Start: ${macro.start} | End: ${cycleEnd} | Duration: ${getMacroDurationWeeks(macro)} weeks${macro.extensionWeeks ? ` (base plan ${macro.weeks * (macro.weeksPerMeso || 1)}w, extended by ${macro.extensionWeeks}w — the extension repeats the final mesocycle at peak sets)` : ``}
-Current weight: ${latestBw ? latestBw.toFixed(1) + " lbs" : "unknown"} | Target: ${macro.targetBw ? macro.targetBw + " lbs" : "not set"}
-Remaining: ${latestBw && macro.targetBw ? Math.abs(latestBw - macro.targetBw).toFixed(1) + " lbs to target" : "unknown"}
+${targetLines}
 
 WEEKLY DATA (7-day average weight from daily weigh-ins):
 ${weekRows || "No weekly data available."}
@@ -3338,7 +3558,7 @@ Both recommendation paths must always be fully present and fully revised (or rea
     let recalStr = "n/a — current cycle is not a maintenance bridge.";
     if (macro.goalType === "maintenance") {
       const recal = computeMaintenanceRecalibration(s, ctx, macro, ins);
-      recalStr = recal ? `Flagged — locally-implied TDEE (${recal.localImpliedTDEE} kcal) disagrees with the current target (${recal.currentTargetKcal} kcal) by ${recal.discrepancy > 0 ? "+" : ""}${recal.discrepancy} kcal. Factor this into how you size the next cycle's starting point.` : "Not flagged — no meaningful discrepancy detected.";
+      recalStr = recal ? `Flagged — ${recal.reason} Factor this into how you size the next cycle's starting point.` : "Not flagged — no meaningful discrepancy detected.";
     }
     const override = nextCycleOverride || {};
     const hasOverrideInput = !!(override.targetWeight || override.deadline);
@@ -3368,6 +3588,10 @@ User's stated intention for AFTER this next cycle: ${intendedLabel || "Not state
     }).join("\n") : "No past next-cycle advice calls on record — this is the first one.";
     const stepsSchemaField = isCut ? `,
           "steps": number (multiple of 2000)` : "";
+    const holdSchemaField = goalType === "maintenance" ? `,
+          "hold": boolean (true on the maintenance-level hold goals only — see HARD CONSTRAINTS)` : "";
+    const holdConstraintLine = goalType === "maintenance" ? `
+- Every goal must carry "hold": true or false. The hold is the final stretch held at maintenance-level kcal: mark it true on that goal (or those consecutive goals, which must be the LAST goals of the plan) and false on every climb goal before it. A plan with no hold goal, or a hold goal followed by a non-hold goal, is rejected.` : "";
     const stepsConstraintLine = isCut ? `- Steps targets must always be multiples of 2000. You may vary steps between goal phases as an increasing lever during this cut — that's the only time BLOC ever uses steps as a lever.` : `- Do NOT include a "steps" field on any goal at all — ${goalType === "gain" ? "bulk" : "maintenance"} goals are always fixed at 8,000 steps/day and applied client-side, not something you recommend.`;
     let planCountLine, weeksSchemaField = "", planLengthGuidanceBlock = "", fillConstraintLine;
     if (mode.conflictTwoPlans) {
@@ -3408,7 +3632,7 @@ HARD CONSTRAINTS — never violate these:
 - Protein must never be recommended below ${proteinFloor}g per day
 - All goal startDates must be Mondays, all endDates must be Sundays
 - The very first goal must start on ${planRec.newMacroStart} (the day after the current cycle ends)
-${stepsConstraintLine}
+${stepsConstraintLine}${holdConstraintLine}
 - Minimum 2 goal phases per plan (a starting phase and at least one further phase — never a single flat block), maximum ${maxGoalsPerPlan}
 - Do NOT include a fats field — fats are calculated client-side
 - Every goal step must represent a single flat kcal/protein/carbs target sustained across its full date range. Do not describe or reference intra-week structure anywhere. Goal step granularity is NOT locked to one-week increments — if a bi-weekly or longer hold makes more sense, make one goal span that full range rather than repeating identical weekly goals.
@@ -3437,7 +3661,7 @@ JSON SCHEMA:
           "endDate": "YYYY-MM-DD (must be the Sunday after startDate + weeks)",
           "kcal": number,
           "protein": number (grams, must be >= ${proteinFloor}),
-          "carbs": number (grams)${stepsSchemaField}
+          "carbs": number (grams)${stepsSchemaField}${holdSchemaField}
         }
       ]
     }
@@ -3607,6 +3831,16 @@ Plans: ${priorResponse.plans.map((p) => `"${p.label}" (${p.key}) — ${p.summary
         expectedEnd = getSundayAfterWeeks(planRec.newMacroStart, p.weeks);
       } else if (planRec.newMacroEnd) {
         expectedEnd = planRec.newMacroEnd;
+      }
+      if (planRec.goalType === "maintenance") {
+        const flags = p.goals.map((g) => g.hold === true);
+        const firstHold = flags.indexOf(true);
+        if (p.goals.some((g) => typeof g.hold !== "boolean")) {
+          throw new Error(`Plan ${i + 1} ("${p.label}") has a goal without its required "hold" field`);
+        }
+        if (firstHold < 0 || flags.slice(firstHold).some((f) => !f)) {
+          throw new Error(`Plan ${i + 1} ("${p.label}") must end with its hold goal(s), marked "hold": true`);
+        }
       }
       if (expectedEnd) {
         const lastGoalEnd = p.goals[p.goals.length - 1].endDate;

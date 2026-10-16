@@ -115,6 +115,11 @@ const CASES = {
   // `engine` argument list, the state among them; verify-engine-leaves.mjs
   // runs the same cases' `bloc` calls against v8.34.
   ...Object.fromEntries(Object.entries(STATE_CASES).map(([n, cs]) => [n, cs.map(mk => () => mk().engine)])),
+
+  // v8.60 (§175): constants new in v8.60, so not in STATE_CASES (whose
+  // constants verify-engine-leaves compares with v8.34's declarations).
+  ...Object.fromEntries(['MAINT_STABLE_LBS', 'MAINT_DRIFT_LBS', 'MAINT_MIN_WEIGH_INS', 'MAINT_CLIMB_STEP_KCAL',
+    'RECAL_MIN_WEEKS', 'RECAL_MAX_WEEKS', 'RECAL_MIN_KCAL', 'RECAL_MIN_FRACTION'].map(n => [n, []])),
 };
 
 const exported = Object.keys(E).sort();

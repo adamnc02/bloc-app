@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { getDayBefore, getNextMonday, shiftDateStr } from '@engine';
+import { getCycleReferenceLbs, getDayBefore, getNextMonday, shiftDateStr, type BlocState, type Macrocycle } from '@engine';
 import { Button, EmptyState, Notice, RowButton, Section, Toast, useToast } from '@/components/ui';
 import { useCoach } from '@/app/App';
 import { fmt } from '@/lib/format';
 import {
   addExercise, addSession, copyMicro, dayKeys, dayOf, editSettings, keyOf, linkSuperset, microOf, moveInSuperset, moveSlot, newCycle,
   joinWeek, removeExercise, resetExercise, resetWeek, removeGoal, removeSession, renameSession, sessionLabel, setExtension, slotsOf, swapExercise, toggleDeload, unlinkExercise,
-  updateExercise, upsertGoal, type PlanDoc, type PlanExercise,
+  updateExercise, upsertGoal, applyRecalibration, type PlanDoc, type PlanExercise,
 } from '@/plan/doc';
 import { applyMacroTemplate, applyWorkoutTemplate, macroTemplateOf, workoutTemplateOf, type Template } from '@/plan/templates';
 import { bodyPartFor } from '@/plan/library';
@@ -16,14 +16,14 @@ import { usePlan } from './usePlan';
 import { DeloadGrid, DraftBar, MicroToggle, PhaseRow, PlanHero, SessionBlock, StepChart, VolumeCard } from './PlanParts';
 import { ExercisePicker, ExerciseSheet, LinkSheet, type ExerciseSheetContext } from './ExerciseSheets';
 import {
-  ApplyCycleSheet, ChooseCycleSheet, EditCycleSheet, ExtendSheet, GoalSheet, NewCycleSheet, PreviewSheet, PublishSheet, SaveTemplateSheet,
+  ApplyCycleSheet, ChooseCycleSheet, EditCycleSheet, ExtendSheet, GoalSheet, NewCycleSheet, PreviewSheet, PublishSheet, RecalSheet, SaveTemplateSheet,
   SessionSheet, TemplatePicker,
 } from './PlanSheets';
 
-type SheetKind = 'cycle' | 'new' | 'edit' | 'extend' | 'goal' | 'publish' | 'preview' | 'tplCycle' | 'applyCycle' | 'tplWorkout' | 'saveCycle' | 'saveWorkout' | 'session' | 'link' | null;
+type SheetKind = 'cycle' | 'new' | 'edit' | 'extend' | 'goal' | 'recal' | 'publish' | 'preview' | 'tplCycle' | 'applyCycle' | 'tplWorkout' | 'saveCycle' | 'saveWorkout' | 'session' | 'link' | null;
 
 /** What Review asked Plan to open (a finding's action): `?act=swap&ex={dayKey}|{exId}`, or `?act=goal`. */
-export interface PlanIntent { act: 'swap' | 'goal' | 'reset'; ex?: string | null }
+export interface PlanIntent { act: 'swap' | 'goal' | 'reset' | 'recal'; ex?: string | null }
 
 /**
  * Client → Plan (TECHNICAL §144): the cycle's goal phases,
@@ -62,7 +62,9 @@ export function PlanTab({ v, macro, intent }: { v: ClientView; macro: string | n
     // A reset's week comes from what's logged (§163), so it waits for the client's record, not just the plan.
     if (!intent || done.current || !doc || readOnly || (intent.act === 'reset' && !p.trainLogsReady)) return;
     done.current = true;
-    if (intent.act === 'goal') {
+    if (intent.act === 'recal') {
+      setSheet('recal');
+    } else if (intent.act === 'goal') {
       const cur = doc.goals.find((g) => g.startDate <= today && g.endDate >= today) ?? doc.goals[doc.goals.length - 1] ?? null;
       setGoalId(cur?.macroGoalID ?? null);
       setSheet('goal');
@@ -177,7 +179,8 @@ export function PlanTab({ v, macro, intent }: { v: ClientView; macro: string | n
         </>
       ) : (
         <>
-          <PlanHero doc={doc} cycle={cycle} today={today} first={first} status={statusLine} onOpen={() => setSheet('cycle')} />
+          <PlanHero doc={doc} cycle={cycle} today={today} first={first} status={statusLine} onOpen={() => setSheet('cycle')}
+            baseline={v.bundle.snapshot ? getCycleReferenceLbs(v.bundle.snapshot.state as BlocState, doc.macro as unknown as Macrocycle, { today }) : null} />
           <div className="grid-2">
             {!notOnApp && (
               <Section i={2} title="Goal phases" sub={readOnly ? 'Read-only.' : 'Tap a phase to edit it. Calories, steps and macros for each stretch of the cycle.'}>
@@ -243,6 +246,8 @@ export function PlanTab({ v, macro, intent }: { v: ClientView; macro: string | n
             bodyweight={latestWeight(v)} onClose={close}
             onSave={(id, g) => { edit((d) => upsertGoal(d, id, g, p.ids), id ? 'Goal phase saved' : 'Goal phase added'); close(); }}
             onRemove={(id) => { edit((d) => removeGoal(d, id), 'Goal phase removed'); close(); }} />
+          <RecalSheet open={sheet === 'recal'} doc={doc} state={(v.bundle.snapshot?.state as BlocState | undefined) ?? null} today={today} onClose={close}
+            onApply={(plan) => { edit((d) => applyRecalibration(d, plan), 'Recalibrated'); setSheet('publish'); }} />
           <PreviewSheet open={sheet === 'preview'} blocks={preview} onClose={close} />
           <PublishSheet open={sheet === 'publish'} diff={p.diff} first={first} save={notOnApp} overlap={p.overlap} today={today} busy={busy} error={pubError}
             onClose={close} onPublish={publish} onMoveStart={(s) => edit((d) => editSettings(d, { start: s }), `Starts ${fmt.ddm(s)}`)} />

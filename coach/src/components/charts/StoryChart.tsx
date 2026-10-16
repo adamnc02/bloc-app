@@ -129,7 +129,7 @@ export function StoryChart({ d, name, noKcal }: { d: StoryData; name: string; no
                 <polygon points={[...bandTop, ...bandBot].join(' ')} fill="var(--ice)" opacity=".12" />
                 <polyline points={bandTop.join(' ')} fill="none" stroke="var(--ice)" strokeOpacity=".55" strokeDasharray="4 5" strokeWidth="1.2" />
                 <polyline points={bandBot.join(' ').split(' ').reverse().join(' ')} fill="none" stroke="var(--ice)" strokeOpacity=".55" strokeDasharray="4 5" strokeWidth="1.2" />
-                <text x={w - padR} y={Y(band(totalDays - 1) - bandHalf) + 14} textAnchor="end" fontSize="10.5" fill="var(--ice)">Target {fmt.one(d.targetLbs)}</text>
+                <text x={w - padR} y={Y(band(totalDays - 1) - bandHalf) + 14} textAnchor="end" fontSize="10.5" fill="var(--ice)">{d.goalType === 'maintenance' ? 'Baseline' : 'Target'} {fmt.one(d.targetLbs)}</text>
               </>}
               {waistPts.length > 1 && <polyline points={waistPts.map((m) => `${dx(m.date)},${YI(m.waist as number)}`).join(' ')} fill="none" stroke="var(--text)" strokeOpacity=".75" strokeWidth="1.4" strokeDasharray="5 3" />}
               {hipPts.length > 1 && <polyline points={hipPts.map((m) => `${dx(m.date)},${YI(m.hip as number)}`).join(' ')} fill="none" stroke="var(--text2)" strokeWidth="1.4" strokeDasharray="1.5 3" strokeLinecap="round" />}
@@ -160,7 +160,7 @@ export function StoryChart({ d, name, noKcal }: { d: StoryData; name: string; no
       />
       <Legend items={[
         { label: 'Weekly average', swatch: <LineSwatch color="var(--accent2)" width={2.4} /> },
-        ...(d.targetLbs != null ? [{ label: 'Goal band', swatch: <BoxSwatch color="var(--ice)" opacity={0.35} /> }] : []),
+        ...(d.targetLbs != null ? [{ label: d.goalType === 'maintenance' ? 'Baseline band' : 'Goal band', swatch: <BoxSwatch color="var(--ice)" opacity={0.35} /> }] : []),
         ...(waistPts.length > 1 ? [{ label: 'Waist', swatch: <LineSwatch color="var(--text)" dash="5 3" /> }] : []),
         ...(hipPts.length > 1 ? [{ label: 'Hip', swatch: <LineSwatch color="var(--text2)" dash="1.5 3" /> }] : []),
         ...(noKcal ? [] : [{ label: 'Kcal vs target', swatch: <BoxSwatch color="var(--accent)" opacity={0.55} /> }, { label: 'Off-goal week', swatch: <BoxSwatch color="var(--red)" /> }]),

@@ -15,9 +15,10 @@
 //                   no direction: without this rule a loss client gaining a
 //                   pound a week reads as on track.
 //   Gain            the mirror: flat, or each of the last 2 weeks fell > 0.5 lb
-//   Maintenance     weekly averages spanning more than 3 lb (the engine's
-//                   maint-unstable), OR attendance under 7/10 over the last 2
-//                   finished weeks
+//   Maintenance     the latest complete week's average more than 2 lb from the
+//                   baseline, week 1's average (v8.60, §175: the engine's
+//                   judgeMaintenanceStability, slipping or drifting), OR
+//                   attendance under 7/10 over the last 2 finished weeks
 //   Waist           a loss cycle flagged flat is ON track when the waist is down
 //                   at least 0.5″ since the last measurement on or before the
 //                   flat period's start (recomposition: the scale stalls while
@@ -34,7 +35,7 @@
 // outcome is on track the same checks are context, never flags.
 // ═══════════════════════════════════════════════════════════════════════
 import {
-  HOME_STEPS_TOLERANCE, buildSignalPeriods, computeWeeklyInsights, getGoalForDate, getMacroEndDate, shiftDateStr,
+  HOME_STEPS_TOLERANCE, MAINT_STABLE_LBS, buildSignalPeriods, computeWeeklyInsights, getGoalForDate, getMacroEndDate, judgeMaintenanceStability, shiftDateStr,
   type BlocState, type Loose, type Macrocycle,
 } from '../index.ts';
 import type { TrainingCompliance } from './training.ts';
@@ -45,8 +46,6 @@ export type OutcomeStatus = 'on-track' | 'off-track' | 'no-data';
 
 /** The engine's flat threshold (buildSignalPeriods): a weekly change within ±0.5 lb is flat. */
 export const FLAT_LBS = 0.5;
-/** The engine's maint-unstable threshold: weekly averages spanning more than this. */
-export const MAINT_SPAN_LBS = 3;
 /** Maintenance: attendance under this, out of 10, over the last 2 finished weeks is off track. */
 export const MAINT_ATTENDANCE_MIN = 7;
 /** A loss cycle's flat stretch is recomposition when the waist is down at least this much. */
@@ -217,22 +216,25 @@ export function judgeOutcome(s: BlocState, m: Macrocycle, today: string, inputs:
   const signal: string | null = ins.insufficientData ? null : ins.signal ?? null;
 
   if (goalType === 'maintenance') {
-    const avgs = withW.map((w) => w.avg as number);
-    const span = Math.max(...avgs) - Math.min(...avgs);
+    // v8.60 (§175): judged against the baseline, as BLOC judges it.
+    const st = judgeMaintenanceStability(s, m, { today });
+    const base = st?.baseline ? `the ${lbs(st.baseline.lbs)} lbs baseline (week 1's average)` : 'the baseline';
+    const rel = (d: number) => (d === 0 ? 'level with' : `${Math.abs(d).toFixed(1)} lbs ${d > 0 ? 'above' : 'below'}`);
     const closed = inputs.training.cols.filter((c) => c.closed && c.attendance != null).slice(-2);
     const planned = closed.reduce((a, c) => a + c.planned, 0), done = closed.reduce((a, c) => a + c.done, 0);
     const att = closed.length ? closed.reduce((a, c) => a + (c.attendance as number), 0) / closed.length : null;
-    if (span > MAINT_SPAN_LBS) {
+    if (st?.week && (st.state === 'slipping' || st.state === 'drifting')) {
       off = true;
-      window = { start: withW[0].start, end };
-      verdict = `Off track. Weight has varied ${span.toFixed(1)} lbs across the cycle, more than the ${MAINT_SPAN_LBS} lbs maintenance allows.`;
+      window = { start: m.start, end: st.week.end };
+      verdict = `Off track. Week ${st.week.n} averaged ${lbs(st.week.lbs)} lbs, ${rel(st.diff!)} ${base}; maintenance allows ${MAINT_STABLE_LBS} lbs.`;
     } else if (att != null && att < MAINT_ATTENDANCE_MIN) {
       off = true;
       window = { start: closed[0].start, end: closed[closed.length - 1].end };
       verdict = `Off track. ${done} of ${planned} planned sessions done in the last ${closed.length === 1 ? 'week' : '2 weeks'}.`;
     } else {
       window = { start: withW[Math.max(0, withW.length - 3)].start, end };
-      verdict = `On track. Weight is holding within ${span.toFixed(1)} lbs${num(m.targetBw) ? ` around ${lbs(num(m.targetBw)!)}` : ''}${att != null ? `, and ${done} of ${planned} sessions were done in the last 2 weeks` : ''}.`;
+      const held = st?.week ? `Week ${st.week.n} averaged ${lbs(st.week.lbs)} lbs, ${rel(st.diff!)} ${base}` : `Weight is being judged against ${base} from the first complete week after week 1`;
+      verdict = `On track. ${held}${att != null ? `, and ${done} of ${planned} sessions were done in the last 2 weeks` : ''}.`;
     }
   } else {
     const gain = goalType === 'gain';

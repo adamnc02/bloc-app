@@ -33,7 +33,8 @@ import { getMacroEffectiveMesoCount, isMesoMicroValid } from './progression.ts';
 import { computeTaperCurve } from './nutrition.ts';
 import { condenseBlocAdviceEntry, condenseBlocAdvicePlans, extractJsonObject, formatPriorAdviceEntry, formatSignalPeriodsForPrompt } from './prompts.ts';
 import { calcDynamicTDEE } from './tdee.ts';
-import { computeMaintenanceRecalibration, computeSafetyFloor, computeWeeklyInsights } from './insights.ts';
+import { computeSafetyFloor, computeWeeklyInsights } from './insights.ts';
+import { computeMaintenanceRecalibration, getMaintenanceBaseline } from './maintenance.ts';
 import { nextCycleAdvicePlanMode } from './nextcycle.ts';
 import { materialiseDates } from './cycles.ts';
 import { isDeloadUnit } from './sessions.ts';
@@ -253,12 +254,19 @@ JSON SCHEMA:
       }).join('\n')
     : 'No completed cycles yet — this is the first macrocycle.';
 
+  // v8.60 (§175): a maintenance cycle has no target, only its baseline.
+  const maintBase = getMaintenanceBaseline(s, macro, ctx);
+  const targetLines = macro.goalType === 'maintenance'
+    ? `Current weight: ${latestBw ? latestBw.toFixed(1) + ' lbs' : 'unknown'} | Baseline: ${maintBase ? `${maintBase.lbs} lbs (week 1's average${maintBase.locked ? '' : ', so far'})` : 'not set yet'}
+Change from baseline: ${latestBw && maintBase ? `${latestBw - maintBase.lbs > 0 ? '+' : ''}${(latestBw - maintBase.lbs).toFixed(1)} lbs` : 'unknown'}`
+    : `Current weight: ${latestBw ? latestBw.toFixed(1) + ' lbs' : 'unknown'} | Target: ${macro.targetBw ? macro.targetBw + ' lbs' : 'not set'}
+Remaining: ${latestBw && macro.targetBw ? Math.abs(latestBw - macro.targetBw).toFixed(1) + ' lbs to target' : 'unknown'}`;
+
   // ── User message ──
   const userMessage =
 `CURRENT CYCLE: ${macro.name}
 Goal type: ${macro.goalType} | Start: ${macro.start} | End: ${cycleEnd} | Duration: ${getMacroDurationWeeks(macro)} weeks${macro.extensionWeeks ? ` (base plan ${macro.weeks * (macro.weeksPerMeso||1)}w, extended by ${macro.extensionWeeks}w — the extension repeats the final mesocycle at peak sets)` : ``}
-Current weight: ${latestBw ? latestBw.toFixed(1) + ' lbs' : 'unknown'} | Target: ${macro.targetBw ? macro.targetBw + ' lbs' : 'not set'}
-Remaining: ${latestBw && macro.targetBw ? Math.abs(latestBw - macro.targetBw).toFixed(1) + ' lbs to target' : 'unknown'}
+${targetLines}
 
 WEEKLY DATA (7-day average weight from daily weigh-ins):
 ${weekRows || 'No weekly data available.'}
@@ -401,7 +409,7 @@ export function buildNextCycleAdvicePrompt(s: BlocState, ctx: EngineContext, cac
   if (macro.goalType === 'maintenance') {
     const recal = computeMaintenanceRecalibration(s, ctx, macro, ins);
     recalStr = recal
-      ? `Flagged — locally-implied TDEE (${recal.localImpliedTDEE} kcal) disagrees with the current target (${recal.currentTargetKcal} kcal) by ${recal.discrepancy > 0 ? '+' : ''}${recal.discrepancy} kcal. Factor this into how you size the next cycle's starting point.`
+      ? `Flagged — ${recal.reason} Factor this into how you size the next cycle's starting point.`
       : 'Not flagged — no meaningful discrepancy detected.';
   }
 
@@ -470,6 +478,11 @@ User's stated intention for AFTER this next cycle: ${intendedLabel || 'Not state
 
   // ── Steps schema/constraint — omitted entirely unless this is a cut ──
   const stepsSchemaField = isCut ? `,\n          "steps": number (multiple of 2000)` : '';
+  // v8.60 (§175): a maintenance plan names its hold, so a recalibration can find it.
+  const holdSchemaField = goalType === 'maintenance' ? `,\n          "hold": boolean (true on the maintenance-level hold goals only — see HARD CONSTRAINTS)` : '';
+  const holdConstraintLine = goalType === 'maintenance'
+    ? `\n- Every goal must carry "hold": true or false. The hold is the final stretch held at maintenance-level kcal: mark it true on that goal (or those consecutive goals, which must be the LAST goals of the plan) and false on every climb goal before it. A plan with no hold goal, or a hold goal followed by a non-hold goal, is rejected.`
+    : '';
   const stepsConstraintLine = isCut
     ? `- Steps targets must always be multiples of 2000. You may vary steps between goal phases as an increasing lever during this cut — that's the only time BLOC ever uses steps as a lever.`
     : `- Do NOT include a "steps" field on any goal at all — ${goalType === 'gain' ? 'bulk' : 'maintenance'} goals are always fixed at 8,000 steps/day and applied client-side, not something you recommend.`;
@@ -518,7 +531,7 @@ HARD CONSTRAINTS — never violate these:
 - Protein must never be recommended below ${proteinFloor}g per day
 - All goal startDates must be Mondays, all endDates must be Sundays
 - The very first goal must start on ${planRec.newMacroStart} (the day after the current cycle ends)
-${stepsConstraintLine}
+${stepsConstraintLine}${holdConstraintLine}
 - Minimum 2 goal phases per plan (a starting phase and at least one further phase — never a single flat block), maximum ${maxGoalsPerPlan}
 - Do NOT include a fats field — fats are calculated client-side
 - Every goal step must represent a single flat kcal/protein/carbs target sustained across its full date range. Do not describe or reference intra-week structure anywhere. Goal step granularity is NOT locked to one-week increments — if a bi-weekly or longer hold makes more sense, make one goal span that full range rather than repeating identical weekly goals.
@@ -547,7 +560,7 @@ JSON SCHEMA:
           "endDate": "YYYY-MM-DD (must be the Sunday after startDate + weeks)",
           "kcal": number,
           "protein": number (grams, must be >= ${proteinFloor}),
-          "carbs": number (grams)${stepsSchemaField}
+          "carbs": number (grams)${stepsSchemaField}${holdSchemaField}
         }
       ]
     }
@@ -825,6 +838,18 @@ export function postProcessNextCycleResponse(rawText: string, macro: Macrocycle,
       expectedEnd = getSundayAfterWeeks(planRec.newMacroStart, p.weeks);
     } else if (planRec.newMacroEnd) {
       expectedEnd = planRec.newMacroEnd;
+    }
+    // v8.60 (§175): a maintenance plan's hold is the trailing run of goals
+    // marked hold: true, and there must be one.
+    if (planRec.goalType === 'maintenance') {
+      const flags = p.goals.map((g: Loose) => g.hold === true);
+      const firstHold = flags.indexOf(true);
+      if (p.goals.some((g: Loose) => typeof g.hold !== 'boolean')) {
+        throw new Error(`Plan ${i + 1} ("${p.label}") has a goal without its required "hold" field`);
+      }
+      if (firstHold < 0 || flags.slice(firstHold).some((f: boolean) => !f)) {
+        throw new Error(`Plan ${i + 1} ("${p.label}") must end with its hold goal(s), marked "hold": true`);
+      }
     }
     if (expectedEnd) {
       const lastGoalEnd = p.goals[p.goals.length - 1].endDate;

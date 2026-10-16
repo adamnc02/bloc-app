@@ -82,7 +82,14 @@ export {
   buildDayMap, calcAge, getActivityMacroId, getActivityMultiplier, calcMifflinBMR, calcTrendBasedTDEE, calcDynamicTDEE,
   calcDynamicTDEE_rawLogPair, getSustainableWeightRange,
 } from './tdee.ts';
-export { computeWeeklyInsights, computeSafetyFloor, computeMaintenanceRecalibration, computeCheckinState } from './insights.ts';
+export { computeWeeklyInsights, computeSafetyFloor, computeCheckinState } from './insights.ts';
+// v8.60 (§175): maintenance cycles' baseline, stability, hold and recalibration
+export type { MaintenanceBaseline, MaintenanceStability, MaintenanceStabilityState, MaintenanceHold, RecalibrationChoice, RecalibrationPlan } from './maintenance.ts';
+export {
+  MAINT_STABLE_LBS, MAINT_DRIFT_LBS, MAINT_MIN_WEIGH_INS, MAINT_CLIMB_STEP_KCAL, RECAL_MIN_WEEKS, RECAL_MAX_WEEKS, RECAL_MIN_KCAL, RECAL_MIN_FRACTION,
+  getMaintenanceBaseline, getCycleReferenceLbs, judgeMaintenanceStability, getMaintenanceHold,
+  computeMaintenanceRecalibration, buildMaintenanceRecalibrationPlan,
+} from './maintenance.ts';
 export { coachCheckinSchedule, coachTabsReady, checkinDueAfter, type CoachCheckinSchedule, type CoachTabsReady } from './coach.ts';
 export { recommendNextCycle, buildNextCycleGoalSteps, isNextCycleAdviceEligible, nextCycleAdvicePlanMode } from './nextcycle.ts';
 export {

@@ -57,11 +57,13 @@ function extractUnique(marker) {
 
 const openEditSrc = extractUnique('function openEditGoal(macroGoalID) {');
 const saveGoalSrc = extractUnique('function saveGoal() {');
+// v8.60 (§175): the goal's Phase (hold) on a maintenance cycle.
+const holdSrc = ['function setGoalHold(v) {', 'function syncGoalHoldRow() {', 'function goalHoldFromForm(macroId) {'].map(extractUnique);
 const openModalAt = source.indexOf('function openModal(id) {');
 // The first goal block after openModal's signature is openModal's own;
 // closeModal has a second one further down.
 const goalBlockSrc = openModalAt === -1 ? null : extractFrom("if (id === 'modal-add-goal') {", openModalAt);
-for (const [name, s] of [['openEditGoal', openEditSrc], ['saveGoal', saveGoalSrc], ["openModal's modal-add-goal block", goalBlockSrc]]) {
+for (const [name, s] of [['openEditGoal', openEditSrc], ['saveGoal', saveGoalSrc], ['the goal Phase helpers', holdSrc.every(Boolean) ? 'ok' : null], ["openModal's modal-add-goal block", goalBlockSrc]]) {
   if (!s) {
     console.error(`✗ FAIL: ${name} not found in index.html.`);
     console.error('  It was renamed or restructured. Update this script deliberately — do not delete the check.');
@@ -92,12 +94,12 @@ function editAndSave(goalBlock, { goalId, changeMacroTo, kcal } = {}) {
     macrocycles: [
       { id: 'm1', name: 'Cut A' },
       { id: 'm2', name: 'Cut B' },
-      { id: 'm3', name: 'Maintain' },
+      { id: 'm3', name: 'Maintain', goalType: 'maintenance' },
     ],
     goals: [
       { macroId: 'm1', macroGoalID: 'm1_g1', startDate: '2026-07-01', endDate: '2026-07-31', kcal: 1800, steps: 9000, protein: 180, carbs: 150, fats: 55, _blocLabel: 'Step 1 - A' },
       { macroId: 'm2', macroGoalID: 'm2_g1', startDate: '2026-09-01', endDate: '2026-09-30', kcal: 1600, steps: 10000, protein: 170, carbs: 120, fats: 50, _blocLabel: 'Step 1 - B' },
-      { macroId: 'm3', macroGoalID: 'm3_g1', startDate: '2026-11-01', endDate: '2026-11-30', kcal: 2200, steps: 8000, protein: 170, carbs: 250, fats: 70, _blocLabel: 'Step 1 - M' },
+      { macroId: 'm3', macroGoalID: 'm3_g1', startDate: '2026-11-01', endDate: '2026-11-30', kcal: 2200, steps: 8000, protein: 170, carbs: 250, fats: 70, _blocLabel: 'Step 1 - M', hold: true },
     ],
   };
   const els = {};
@@ -105,7 +107,7 @@ function editAndSave(goalBlock, { goalId, changeMacroTo, kcal } = {}) {
   const renumbered = [];
   const scope = {
     state,
-    document: { getElementById: el },
+    document: { getElementById: el, querySelectorAll: () => [] },
     today: '2026-09-26',
     getLocalToday: () => '2026-09-26',
     toLocalDateStr: (d) => d.toISOString().slice(0, 10),
@@ -126,7 +128,7 @@ function editAndSave(goalBlock, { goalId, changeMacroTo, kcal } = {}) {
   const openModalSrc = `function openModal(id) {\n${goalBlock}\n}`;
   const names = Object.keys(scope);
   // eslint-disable-next-line no-new-func
-  const factory = new Function(...names, `${openModalSrc}\n${openEditSrc}\n${saveGoalSrc}\nreturn { openEditGoal, saveGoal };`);
+  const factory = new Function(...names, `${openModalSrc}\n${openEditSrc}\n${saveGoalSrc}\n${holdSrc.join('\n')}\nreturn { openEditGoal, saveGoal };`);
   const api = factory(...names.map((n) => scope[n]));
 
   el('modal-add-goal');
@@ -157,6 +159,10 @@ function suite(goalBlock, quiet = false) {
   check('…no goal added or lost', r.count, 3);
   r = editAndSave(goalBlock, { goalId: 'm3_g1' });
   check('edit a goal in the 3rd macrocycle, save unchanged: still m3', r.saved.macroId, 'm3');
+  // v8.60 (§175): a recalibration finds the hold by this flag, so an edit must keep it.
+  check('…a maintenance hold goal is still marked hold after an edit', r.saved.hold, true);
+  r = editAndSave(goalBlock, { goalId: 'm3_g1', changeMacroTo: 'm2' });
+  check('…moved to a cut, it carries no hold flag', r.saved.hold, undefined);
   r = editAndSave(goalBlock, { goalId: 'm1_g1' });
   check('edit a goal in the 1st macrocycle: still m1 (the case that always looked fine)', r.saved.macroId, 'm1');
   // A deliberate move is still allowed, and both macros get renumbered.

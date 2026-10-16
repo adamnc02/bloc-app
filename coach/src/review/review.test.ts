@@ -115,8 +115,21 @@ describe('maintenance: stability, and attendance under 7/10', () => {
   const training = (att: number): TrainingCompliance => ({ ...noTraining, scored: false, cols: [col(3, '2026-06-22', att), col(4, '2026-06-29', att)] });
   it('attendance 6/10 is off track', () => expect(judge(s, '2026-07-06', training(6)).status).toBe('off-track'));
   it('attendance 7/10 is on track', () => expect(judge(s, '2026-07-06', training(7)).status).toBe('on-track'));
-  it('weekly averages spanning more than 3 lb are off track', () => {
-    expect(judge(synthetic('maintenance', [190, 192, 194]), '2026-06-21').verdict).toContain('varied');
+  // v8.60 (§175): the latest complete week against the baseline, week 1's average.
+  it('a complete week more than 2 lb from the baseline is off track, and says so against the baseline', () => {
+    const o = judge(synthetic('maintenance', [190, 192, 194]), '2026-06-22');
+    expect(o.status).toBe('off-track');
+    expect(o.verdict).toContain('Week 3 averaged 194.0 lbs, 4.0 lbs above the 190.0 lbs baseline');
+  });
+  it('within 2 lb of the baseline is on track, whatever the old goal weight', () => {
+    const s2 = synthetic('maintenance', [190, 191.5, 191.8]);
+    s2.macrocycles![0].targetBw = 180;
+    const o = judge(s2, '2026-06-22');
+    expect(o.status).toBe('on-track');
+    expect(o.verdict).toContain('190.0 lbs baseline');
+  });
+  it('an unfinished week is not judged: week 3 on its Sunday still reads week 2', () => {
+    expect(judge(synthetic('maintenance', [190, 191, 196]), '2026-06-21').verdict).toContain('Week 2 averaged');
   });
 });
 
