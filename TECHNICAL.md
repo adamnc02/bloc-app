@@ -11789,6 +11789,12 @@ cycle the same way.
     `${macroId}_g${yyyymmdd}`, so a second recalibration from the same Monday rewrites the same goals.
   With no climb (`climbStart` = estimate: weight level or rising at that intake), both choices are the hold from
   `effectiveFrom`; a falling estimate never steps down week by week.
+- **Edit cycle (`#modal-edit-macro`) is New cycle's sheet.** The same layout and controls: Starts (a Monday) with its
+  date hint, the Mesocycles stepper (`stepEditMacroMesos`), Weeks per mesocycle and Goal as toggle buttons, Goal
+  weight beside Increment, the same hints. The weeks-per-meso and goal-type fields are hidden inputs with their old ids,
+  set by `setMacroFormValue` (which routes `edit-macro-*` ids to `syncEditMacroForm`), so `openEditMacro` and
+  `saveEditMacro` read and write them as before. The split is fixed once a cycle exists, so it shows the session count
+  in its place, and there is no AI-suggested length row.
 - **BLOC.** The Insights card's maintenance block (`buildMaintRecalHTML`) states the estimate and its reason, then
   **Recalibrate →** opens `modal-maint-recalibration`: the reason, the two choices (**Keep +125 a week** / **Reach
   the hold on schedule**), a line on what each does, every goal it writes with its macros, and Accept, disabled when
