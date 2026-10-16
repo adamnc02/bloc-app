@@ -2598,6 +2598,7 @@ Write this cycle's review per the schema above.`;
     const hipLogs = bodyLogs.filter((l) => l.hip !== null && l.hip !== void 0 && inRange(l));
     const startWeight = weightLogs.length ? weightLogs[0].weight : null;
     const endWeight = weightLogs.length ? weightLogs[weightLogs.length - 1].weight : null;
+    const ref = macro.goalType === "maintenance" ? getCycleReferenceLbs(s, macro, ctx) : macro.targetBw || null;
     return {
       startWeight,
       endWeight,
@@ -2606,8 +2607,9 @@ Write this cycle's review per the schema above.`;
       endWaist: waistLogs.length ? waistLogs[waistLogs.length - 1].waist : null,
       startHip: hipLogs.length ? hipLogs[0].hip : null,
       endHip: hipLogs.length ? hipLogs[hipLogs.length - 1].hip : null,
-      targetWeight: macro.targetBw || null,
-      weightTargetDelta: endWeight !== null && macro.targetBw ? parseFloat((endWeight - macro.targetBw).toFixed(1)) : null
+      // v8.60 (§175): a maintenance cycle's reference is its baseline, week 1's average.
+      targetWeight: ref,
+      weightTargetDelta: endWeight !== null && ref ? parseFloat((endWeight - ref).toFixed(1)) : null
     };
   }
   function getPriorCycleReviews(s, ctx, excludeMacroId) {

@@ -176,7 +176,7 @@ export function diffPlan(base: PlanDoc | null, draft: PlanDoc): PlanDiff {
   return { groups, count, plan: planChanged ? plan : null, goalPhases };
 }
 
-const pickGoal = (g: PlanGoal) => ({ s: g.startDate, e: g.endDate, k: g.kcal, st: g.steps, p: g.protein, c: g.carbs, f: g.fats, l: g._blocLabel });
+const pickGoal = (g: PlanGoal) => ({ s: g.startDate, e: g.endDate, k: g.kcal, st: g.steps, p: g.protein, c: g.carbs, f: g.fats, l: g._blocLabel, h: g.hold === true });
 function goalDelta(a: PlanGoal, b: PlanGoal): string[] {
   const d: string[] = [];
   if (phaseName(a) !== phaseName(b)) d.push(`renamed ${phaseName(b)}`);
@@ -184,6 +184,7 @@ function goalDelta(a: PlanGoal, b: PlanGoal): string[] {
   if (a.kcal !== b.kcal) d.push(`${fmtInt(a.kcal)} → ${fmtInt(b.kcal)} kcal`);
   if (a.steps !== b.steps) d.push(`${fmtInt(a.steps)} → ${fmtInt(b.steps)} steps`);
   if (a.protein !== b.protein || a.carbs !== b.carbs || a.fats !== b.fats) d.push(`P ${b.protein}g · C ${b.carbs}g · F ${b.fats}g`);
+  if ((a.hold === true) !== (b.hold === true)) d.push(b.hold === true ? 'now the hold' : 'no longer the hold');
   if (!d.length) d.push('renumbered');
   return d;
 }

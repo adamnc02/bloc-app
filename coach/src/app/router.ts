@@ -13,13 +13,13 @@
 import { useEffect, useState } from 'react';
 
 /** Where Review opens scrolled to, from Today's Needs you: the AI tools on a tool, or one note back (`?at=ai|note`). */
-export interface ReviewFocus { at: 'ai' | 'note'; note: string | null; tool: string | null }
+export interface ReviewFocus { at: 'ai' | 'note' | 'findings'; note: string | null; tool: string | null }
 
 export type ClientTab = 'review' | 'plan' | 'sessions' | 'profile';
 export const CLIENT_TABS: ClientTab[] = ['review', 'plan', 'sessions', 'profile'];
 
 export type Route =
-  | { name: 'today'; push: string | null } | { name: 'clients' } | { name: 'client'; id: string; tab: ClientTab; macro: string | null; intent: { act: 'swap' | 'goal' | 'reset'; ex: string | null } | null; focus: ReviewFocus | null }
+  | { name: 'today'; push: string | null } | { name: 'clients' } | { name: 'client'; id: string; tab: ClientTab; macro: string | null; intent: { act: 'swap' | 'goal' | 'reset' | 'recal'; ex: string | null } | null; focus: ReviewFocus | null }
   | { name: 'diary' } | { name: 'library' } | { name: 'settings' }
   | { name: 'session'; occKey: string; cardId: string }
   | { name: 'print'; cardId: string };
@@ -37,9 +37,10 @@ export function parseRoute(hash: string): Route {
     const act = q.get('act');
     // A Review finding's action opens Plan on its job (TECHNICAL §144).
     // `reset`: Needs you's exercise rated 9+ two weeks running opens its reset (§163).
-    const intent = act === 'swap' || act === 'goal' || act === 'reset' ? { act, ex: q.get('ex') } as const : null;
+    // `recal`: a maintenance recalibration (v8.60, §175).
+    const intent = act === 'swap' || act === 'goal' || act === 'reset' || act === 'recal' ? { act, ex: q.get('ex') } as const : null;
     const at = q.get('at');
-    const focus = at === 'ai' || at === 'note' ? { at, note: q.get('note'), tool: q.get('tool') } as const : null;
+    const focus = at === 'ai' || at === 'note' || at === 'findings' ? { at, note: q.get('note'), tool: q.get('tool') } as const : null;
     return { name: 'client', id: decodeURIComponent(b), tab, macro: q.get('macro'), intent, focus };
   }
   if (a === 'print' && b) return { name: 'print', cardId: decodeURIComponent(b) };
@@ -56,7 +57,7 @@ export const printPath = (cardId: string) => `/print/${encodeURIComponent(cardId
 /** A group session: everyone booked on that diary week (§162). */
 export const groupSessionPath = (occKey: string) => `/session/${encodeURIComponent(occKey)}`;
 
-export function clientPath(id: string, tab: ClientTab = 'review', macro?: string | null, intent?: { act: 'swap' | 'goal' | 'reset'; ex?: string | null } | null, focus?: Partial<ReviewFocus> & { at: ReviewFocus['at'] }) {
+export function clientPath(id: string, tab: ClientTab = 'review', macro?: string | null, intent?: { act: 'swap' | 'goal' | 'reset' | 'recal'; ex?: string | null } | null, focus?: Partial<ReviewFocus> & { at: ReviewFocus['at'] }) {
   const q = new URLSearchParams();
   if (macro) q.set('macro', macro);
   if (intent) { q.set('act', intent.act); if (intent.ex) q.set('ex', intent.ex); }

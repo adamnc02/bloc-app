@@ -194,8 +194,12 @@ function run(label, html, engineSrc) {
   // with no cycle (the coach's responses don't need one). v8.40 drew nothing.
   check('renderProgressCheckin() draws From your coach when coached, before the no-cycle return (no Solo check-in)',
     /if \(coachedView\(\)\) \{ renderProgressFromCoach\(el, macro\); return; \}\s*if \(!macro\)/.test(body('renderProgressCheckin')), true);
-  check('Insights drops the plateau narrative and BLOC\'s calorie target when coached',
-    /const trendHtml = coached \? '' : buildInsightsCardHTML\(\)/.test(body('renderProgressInsights')) && /!coached\)/.test(body('renderProgressInsights')), true);
+  // v8.60 (§175): coached, the Insights card is still gone; a maintenance
+  // cycle shows only the recalibration's facts (factsOnly: no climb, no button).
+  check('Insights drops the plateau narrative and BLOC\'s calorie target when coached; a maintenance cycle keeps only the recalibration facts',
+    /const trendHtml = coached \? buildCoachedMaintFactsHTML\(\) : buildInsightsCardHTML\(\)/.test(body('renderProgressInsights')) && /!coached\)/.test(body('renderProgressInsights'))
+      && /goalType !== 'maintenance'\) return '';/.test(body('buildCoachedMaintFactsHTML')) && /buildMaintRecalHTML\(macro, ins, true\)/.test(body('buildCoachedMaintFactsHTML'))
+      && /if \(factsOnly\) return facts;/.test(body('buildMaintRecalHTML')), true);
   check('Train\'s deload row is Solo-only, and the toggle refuses when coached',
     /coachedView\(\) \? ''[\s\S]{0,120}deload-toggle-/.test(body('renderTrainTools')) && /^function toggleDeloadWeek[^{]*\{\s*if \(coachedView\(\)\) return;/.test(body('toggleDeloadWeek')), true);
   check('the profile gate opens over Home, and never starts the cycle-creation tour, when coached',

@@ -13,8 +13,8 @@ import type { PlanCycle } from './usePlan';
 // ---------------------------------------------------------------- hero
 
 /** Mesocycle pills across the cycle, then three figures (BLOC's Plan hero). The card opens Choose cycle. */
-export function PlanHero({ doc, cycle, today, first, status, onOpen }: {
-  doc: PlanDoc; cycle: PlanCycle; today: string; first: string; status: ReactNode; onOpen: () => void;
+export function PlanHero({ doc, cycle, today, first, status, onOpen, baseline = null }: {
+  doc: PlanDoc; cycle: PlanCycle; today: string; first: string; status: ReactNode; onOpen: () => void; baseline?: number | null;
 }) {
   const m = doc.macro;
   const count = getMacroEffectiveMesoCount(m as unknown as Macrocycle);
@@ -43,7 +43,10 @@ export function PlanHero({ doc, cycle, today, first, status, onOpen }: {
       </div>
       <div className="divider" />
       <div className="tiles-3" style={{ textAlign: 'center' }}>
-        <HeroStat value={m.targetBw ? String(m.targetBw) : '—'} label="goal lbs" />
+        {/* v8.60 (§175): a maintenance cycle shows its baseline, never a goal weight */}
+        {m.goalType === 'maintenance'
+          ? <HeroStat value={baseline != null ? baseline.toFixed(1) : '—'} label="baseline lbs" />
+          : <HeroStat value={m.targetBw ? String(m.targetBw) : '—'} label="goal lbs" />}
         <HeroStat value={String(m.days.length * totalWeeks(m))} label="sessions" />
         <HeroStat value={String(doc.goals.length)} label={`phase${doc.goals.length === 1 ? '' : 's'}`} />
       </div>

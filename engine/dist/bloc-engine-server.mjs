@@ -2410,6 +2410,7 @@ function computeCycleMeasurements(s, ctx, macro) {
   const hipLogs = bodyLogs.filter((l) => l.hip !== null && l.hip !== void 0 && inRange(l));
   const startWeight = weightLogs.length ? weightLogs[0].weight : null;
   const endWeight = weightLogs.length ? weightLogs[weightLogs.length - 1].weight : null;
+  const ref = macro.goalType === "maintenance" ? getCycleReferenceLbs(s, macro, ctx) : macro.targetBw || null;
   return {
     startWeight,
     endWeight,
@@ -2418,8 +2419,9 @@ function computeCycleMeasurements(s, ctx, macro) {
     endWaist: waistLogs.length ? waistLogs[waistLogs.length - 1].waist : null,
     startHip: hipLogs.length ? hipLogs[0].hip : null,
     endHip: hipLogs.length ? hipLogs[hipLogs.length - 1].hip : null,
-    targetWeight: macro.targetBw || null,
-    weightTargetDelta: endWeight !== null && macro.targetBw ? parseFloat((endWeight - macro.targetBw).toFixed(1)) : null
+    // v8.60 (§175): a maintenance cycle's reference is its baseline, week 1's average.
+    targetWeight: ref,
+    weightTargetDelta: endWeight !== null && ref ? parseFloat((endWeight - ref).toFixed(1)) : null
   };
 }
 function getPriorCycleReviews(s, ctx, excludeMacroId) {
@@ -4027,7 +4029,6 @@ function mealsOn(s, date) {
 
 // src/review/outcome.ts
 var FLAT_LBS = 0.5;
-var MAINT_SPAN_LBS = 3;
 var MAINT_ATTENDANCE_MIN = 7;
 var WAIST_RECOMP_IN = 0.5;
 var MIN_WEIGH_INS_PER_WEEK = 4;
@@ -4139,22 +4140,24 @@ function judgeOutcome(s, m, today, inputs) {
   let recomposition = false;
   const signal = ins.insufficientData ? null : ins.signal ?? null;
   if (goalType === "maintenance") {
-    const avgs = withW.map((w) => w.avg);
-    const span = Math.max(...avgs) - Math.min(...avgs);
+    const st = judgeMaintenanceStability(s, m, { today });
+    const base = st?.baseline ? `the ${lbs(st.baseline.lbs)} lbs baseline (week 1's average)` : "the baseline";
+    const rel = (d) => d === 0 ? "level with" : `${Math.abs(d).toFixed(1)} lbs ${d > 0 ? "above" : "below"}`;
     const closed = inputs.training.cols.filter((c) => c.closed && c.attendance != null).slice(-2);
     const planned = closed.reduce((a, c) => a + c.planned, 0), done = closed.reduce((a, c) => a + c.done, 0);
     const att = closed.length ? closed.reduce((a, c) => a + c.attendance, 0) / closed.length : null;
-    if (span > MAINT_SPAN_LBS) {
+    if (st?.week && (st.state === "slipping" || st.state === "drifting")) {
       off = true;
-      window = { start: withW[0].start, end };
-      verdict = `Off track. Weight has varied ${span.toFixed(1)} lbs across the cycle, more than the ${MAINT_SPAN_LBS} lbs maintenance allows.`;
+      window = { start: m.start, end: st.week.end };
+      verdict = `Off track. Week ${st.week.n} averaged ${lbs(st.week.lbs)} lbs, ${rel(st.diff)} ${base}; maintenance allows ${MAINT_STABLE_LBS} lbs.`;
     } else if (att != null && att < MAINT_ATTENDANCE_MIN) {
       off = true;
       window = { start: closed[0].start, end: closed[closed.length - 1].end };
       verdict = `Off track. ${done} of ${planned} planned sessions done in the last ${closed.length === 1 ? "week" : "2 weeks"}.`;
     } else {
       window = { start: withW[Math.max(0, withW.length - 3)].start, end };
-      verdict = `On track. Weight is holding within ${span.toFixed(1)} lbs${num(m.targetBw) ? ` around ${lbs(num(m.targetBw))}` : ""}${att != null ? `, and ${done} of ${planned} sessions were done in the last 2 weeks` : ""}.`;
+      const held = st?.week ? `Week ${st.week.n} averaged ${lbs(st.week.lbs)} lbs, ${rel(st.diff)} ${base}` : `Weight is being judged against ${base} from the first complete week after week 1`;
+      verdict = `On track. ${held}${att != null ? `, and ${done} of ${planned} sessions were done in the last 2 weeks` : ""}.`;
     }
   } else {
     const gain = goalType === "gain";
@@ -4293,7 +4296,6 @@ export {
   MAINT_CLIMB_STEP_KCAL,
   MAINT_DRIFT_LBS,
   MAINT_MIN_WEIGH_INS,
-  MAINT_SPAN_LBS,
   MAINT_STABLE_LBS,
   MID_RPE,
   MIN_COUNTED_DAYS,

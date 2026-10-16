@@ -10,8 +10,8 @@
 // the grid walk a whole year of logs, and a screen re-renders often.
 // ═══════════════════════════════════════════════════════════════════════
 import {
-  buildDayMap, calcDynamicTDEE, getDateActiveMacroId, getMacroDurationWeeks, getMacroEndDate, shiftDateStr,
-  type BlocState, type GoalPeriod, type Macrocycle,
+  buildDayMap, calcDynamicTDEE, computeMaintenanceRecalibration, computeWeeklyInsights, getCycleReferenceLbs, getDateActiveMacroId, getMacroDurationWeeks, getMacroEndDate, judgeMaintenanceStability, shiftDateStr,
+  type BlocState, type Loose, type MaintenanceStabilityState, type GoalPeriod, type Macrocycle,
 } from '@engine';
 import {
   bmrAt, computeNutrition, computeRpePoints, computeTraining, judgeOutcome, nutritionDays,
@@ -47,7 +47,10 @@ export interface StoryData {
   /** Every goal phase of the cycle, in order; the first starts with the cycle. */
   phases: { date: string; label: string }[];
   startLbs: number | null;
+  /** The goal weight; on a maintenance cycle the baseline, week 1's average (v8.60, §175). */
   targetLbs: number | null;
+  /** Maintenance only: the baseline judgement (stable / slipping / drifting…). */
+  maintState: MaintenanceStabilityState | null;
   goalType: string;
   /** The chart's header: when progress stalled or how it's moving, in numbers. */
   headline: { title: string; sub: string } | null;
@@ -63,6 +66,8 @@ export interface ReviewModel {
   nutrition: NutritionCompliance;
   rpe: RpePoint[];
   findings: Finding[];
+  /** The engine's maintenance recalibration (v8.60, §175), or null. */
+  recal: Loose;
   story: StoryData;
   /** The last 28 days to the client's yesterday (or the cycle's end), for the nutrition chart. */
   days: NutritionDay[];
@@ -130,7 +135,8 @@ function storyData(s: BlocState, m: Macrocycle, cycle: CycleOption, today: strin
     deloads: t.cols.filter((c) => c.isDeload).map((c) => ({ start: c.start, end: c.end })),
     phases: goals.map((g, i) => ({ date: g.startDate, label: String(g._blocLabel || `Phase ${i + 1}`) })),
     startLbs: o.weeks.find((w) => w.avg != null)?.avg ?? null,
-    targetLbs: num((m as Macrocycle & { targetBw?: unknown }).targetBw),
+    targetLbs: getCycleReferenceLbs(s, m, { today }),
+    maintState: judgeMaintenanceStability(s, m, { today })?.state ?? null,
     goalType: cycle.goalType,
     headline: storyHeadline(o, cycle.goalType),
   };
@@ -178,7 +184,8 @@ export function computeReview(s: BlocState, macroId: string, today: string, firs
   const outcome = judgeOutcome(s, m, today, { training, nutrition });
   const rpe = computeRpePoints(training);
   const missed = training.cols.filter((c) => c.closed).reduce((a, c) => a + c.sessions.filter((x) => !x.done).length, 0);
-  const findings = buildFindings(firstName, outcome, training.rows, rpe, missed);
+  const recal = m.goalType === 'maintenance' ? computeMaintenanceRecalibration(s, { today }, m, computeWeeklyInsights(s, { today }, m)) : null;
+  const findings = buildFindings(firstName, outcome, training.rows, rpe, missed, recal);
   const yesterday = shiftDateStr(today, -1);
   const to = cycle.end < yesterday ? cycle.end : yesterday;
   const from = [cycle.start, shiftDateStr(to, -27)].sort()[1];
@@ -186,7 +193,7 @@ export function computeReview(s: BlocState, macroId: string, today: string, firs
   const cur = training.cols.find((c) => c.current);
   return {
     today, cycle, weekNow: cur ? cur.idx + 1 : null,
-    outcome, training, nutrition, rpe, findings,
+    outcome, training, nutrition, rpe, findings, recal,
     story: storyData(s, m, cycle, today, outcome, training),
     days, bmr: bmrAt(s, today), tdee: calcDynamicTDEE(s, { today })?.tdee ?? null,
     hasNutrition: days.some((d) => d.logged) || nutrition.weeks.some((w) => w.countedDays > 0),

@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState, type ReactNode } from 'react';
-import type { ReplaceOffer, ReplaceRefusal } from '@engine';
+import { buildMaintenanceRecalibrationPlan, computeMaintenanceRecalibration, computeWeeklyInsights, type BlocState, type Loose, type Macrocycle, type RecalibrationChoice, type ReplaceOffer, type ReplaceRefusal } from '@engine';
 import { Button, Chip, Field, Icon, Notice, RowButton, SearchSheet, Seg, Sheet, Stepper, Switch } from '@/components/ui';
 import { addDays, fmt, startOfWeek } from '@/lib/format';
 import {
@@ -38,7 +38,7 @@ export function GoalSheet({ open, doc, goal, others, bodyweight, today, onClose,
 }) {
   const id = useId();
   const bw = bwRounded(bodyweight);
-  const [g, setG] = useState({ label: '', startDate: '', endDate: '', kcal: '' as number | '', steps: '' as number | '' });
+  const [g, setG] = useState({ label: '', startDate: '', endDate: '', kcal: '' as number | '', steps: '' as number | '', hold: false });
   const [sl, setSl] = useState({ proteinMult: PROTEIN_DEFAULT, carbPct: CARB_DEFAULT });
   const [touched, setTouched] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -46,11 +46,11 @@ export function GoalSheet({ open, doc, goal, others, bodyweight, today, onClose,
     if (!open) return;
     setConfirm(false); setTouched(false);
     if (goal) {
-      setG({ label: phaseName(goal), startDate: goal.startDate, endDate: goal.endDate, kcal: goal.kcal || '', steps: goal.steps || '' });
+      setG({ label: phaseName(goal), startDate: goal.startDate, endDate: goal.endDate, kcal: goal.kcal || '', steps: goal.steps || '', hold: goal.hold === true });
       setSl(slidersFromGoal(bw, goal));
     } else {
       const last = doc.goals[doc.goals.length - 1];
-      setG({ label: '', ...nextPhaseDates(doc), kcal: last?.kcal || '', steps: last?.steps || '' });
+      setG({ label: '', ...nextPhaseDates(doc), kcal: last?.kcal || '', steps: last?.steps || '', hold: false });
       setSl(slidersFromGoal(bw, last ? { kcal: last.kcal, protein: last.protein, carbs: last.carbs } : null));
     }
   }, [open, goal, doc, bw]);
@@ -79,6 +79,12 @@ export function GoalSheet({ open, doc, goal, others, bodyweight, today, onClose,
         <Field label="Daily kcal" htmlFor={`${id}-k`}><input id={`${id}-k`} type="number" inputMode="decimal" className="input num" placeholder="2000" value={g.kcal} onChange={(e) => set('kcal', e.target.value === '' ? '' : parseInt(e.target.value) || 0)} /></Field>
         <Field label="Daily steps" htmlFor={`${id}-st`}><input id={`${id}-st`} type="number" inputMode="numeric" className="input num" placeholder="10000" value={g.steps} onChange={(e) => set('steps', e.target.value === '' ? '' : parseInt(e.target.value) || 0)} /></Field>
       </div>
+      {doc.macro.goalType === 'maintenance' && (
+        <Field label="Phase" hint="The hold is the weeks at maintenance kcal. A recalibration moves it.">
+          <Seg<'climb' | 'hold'> label="Phase" value={g.hold ? 'hold' : 'climb'} onChange={(v) => set('hold', v === 'hold')}
+            options={[{ value: 'climb', label: 'Climb' }, { value: 'hold', label: 'Hold' }]} />
+        </Field>
+      )}
       <div className="macro-cols">
         <div className="macro-cols-left">
           <MacroSlider letter="P" name="Protein" colour={MACRO_COLOURS.protein} min={PROTEIN_MIN} max={PROTEIN_MAX} step={PROTEIN_STEP} value={sl.proteinMult}
@@ -98,7 +104,7 @@ export function GoalSheet({ open, doc, goal, others, bodyweight, today, onClose,
         </div>
       </div>
       <Button style={{ marginTop: 16 }} disabled={!ok} onClick={() => onSave(goal?.macroGoalID ?? null, {
-        label: g.label, startDate: g.startDate, endDate: g.endDate, kcal, steps: Number(g.steps) || 0, protein: grams.p, carbs: grams.c, fats: grams.f,
+        label: g.label, startDate: g.startDate, endDate: g.endDate, kcal, steps: Number(g.steps) || 0, protein: grams.p, carbs: grams.c, fats: grams.f, hold: g.hold,
       })}>Save Goal Period →</Button>
       {goal && (!confirm
         ? <Button variant="danger" style={{ marginTop: 8 }} onClick={() => setConfirm(true)}>Delete Goal Period</Button>
@@ -173,7 +179,8 @@ export function NewCycleSheet({ open, today, defaultStart, onClose, onCreate }: 
       <p className="caption" style={{ marginTop: 6 }}>{weeks} weeks{c.start && isMonday(c.start) ? `, ${fmt.range(c.start, addDays(c.start, weeks * 7 - 1))}` : ''}.{c.start && c.start < today ? ' It starts in the past.' : ''}</p>
       <Field label="Goal"><Seg<GoalType> label="Goal" value={c.goalType} onChange={(g) => set('goalType', g)} options={GOALS} /></Field>
       <div className="tiles-2" style={{ marginTop: 16 }}>
-        <Field label="Goal weight lbs" htmlFor={`${id}-bw`}><input id={`${id}-bw`} type="number" inputMode="decimal" step={0.1} className="input num" value={c.targetBw ?? ''} placeholder="optional" onChange={(e) => set('targetBw', e.target.value ? parseFloat(e.target.value) : null)} /></Field>
+        {/* v8.60 (§175): no goal weight on a maintenance cycle, only its baseline */}
+        {c.goalType !== 'maintenance' && <Field label="Goal weight lbs" htmlFor={`${id}-bw`}><input id={`${id}-bw`} type="number" inputMode="decimal" step={0.1} className="input num" value={c.targetBw ?? ''} placeholder="optional" onChange={(e) => set('targetBw', e.target.value ? parseFloat(e.target.value) : null)} /></Field>}
         <Field label="Increment kg" htmlFor={`${id}-inc`}><input id={`${id}-inc`} type="number" inputMode="decimal" step={0.25} min={0.25} max={10} className="input num" value={c.weightIncrement} onChange={(e) => set('weightIncrement', e.target.value)} /></Field>
       </div>
       <Field label="Goal line (optional)" htmlFor={`${id}-g`}><input id={`${id}-g`} className="input" value={c.goal} placeholder="e.g. Cut to 200lbs" onChange={(e) => set('goal', e.target.value)} /></Field>
@@ -235,12 +242,70 @@ export function EditCycleSheet({ open, doc, started, onClose, onSave }: { open: 
       {started && p.weeksPerMeso !== m.weeksPerMeso && <p className="caption t-amber" style={{ marginTop: 6 }}>The cycle has started: this renumbers its weeks from the start.</p>}
       <Field label="Goal"><Seg<GoalType> label="Goal" value={p.goalType} onChange={(g) => set('goalType', g)} options={GOALS} /></Field>
       <div className="tiles-2" style={{ marginTop: 16 }}>
-        <Field label="Goal weight lbs" htmlFor={`${id}-bw`}><input id={`${id}-bw`} type="number" inputMode="decimal" step={0.1} className="input num" value={p.targetBw ?? ''} onChange={(e) => set('targetBw', e.target.value ? parseFloat(e.target.value) : null)} /></Field>
+        {/* v8.60 (§175): no goal weight on a maintenance cycle, only its baseline */}
+        {p.goalType !== 'maintenance' && <Field label="Goal weight lbs" htmlFor={`${id}-bw`}><input id={`${id}-bw`} type="number" inputMode="decimal" step={0.1} className="input num" value={p.targetBw ?? ''} onChange={(e) => set('targetBw', e.target.value ? parseFloat(e.target.value) : null)} /></Field>}
         <Field label="Increment kg" htmlFor={`${id}-inc`}><input id={`${id}-inc`} type="number" inputMode="decimal" step={0.25} className="input num" value={p.weightIncrement} onChange={(e) => set('weightIncrement', e.target.value)} /></Field>
       </div>
       <Field label="Goal line (optional)" htmlFor={`${id}-g`}><input id={`${id}-g`} className="input" value={p.goal} onChange={(e) => set('goal', e.target.value)} /></Field>
       <RpeRow value={p.rpe} onChange={(v) => set('rpe', v)} />
       <Button style={{ marginTop: 18 }} disabled={!ok} onClick={() => onSave({ ...p, name: p.name.trim(), goal: p.goal.trim() })}>Save cycle</Button>
+    </Sheet>
+  );
+}
+
+/**
+ * Recalibrate a maintenance hold (v8.60, §175), from Review's finding. The engine's recalibration, run on the
+ * client's logs and this cycle's draft goals, with BLOC's two choices: +125 a week (extending by whole weeks for
+ * the cycle's own hold length) or reaching the hold on its planned date. Apply writes it into the draft; Publish
+ * sends it, as every Plan change.
+ */
+export function RecalSheet({ open, doc, state, today, onClose, onApply }: {
+  open: boolean; doc: PlanDoc; state: BlocState | null; today: string; onClose: () => void; onApply: (plan: Loose) => void;
+}) {
+  const [choice, setChoice] = useState<RecalibrationChoice>('step');
+  const r = useMemo(() => {
+    if (!open || !state) return null;
+    const macro = doc.macro as unknown as Macrocycle;
+    // The client's logs, with this cycle as the draft has it.
+    const s: BlocState = { ...state, goals: [...(state.goals || []).filter((g) => g.macroId !== macro.id), ...doc.goals],
+      macrocycles: [...(state.macrocycles || []).filter((m) => m.id !== macro.id), macro] };
+    const ctx = { today };
+    const recal = computeMaintenanceRecalibration(s, ctx, macro, computeWeeklyInsights(s, ctx, macro));
+    if (!recal) return null;
+    return { recal, step: buildMaintenanceRecalibrationPlan(s, ctx, macro, recal, 'step'), schedule: buildMaintenanceRecalibrationPlan(s, ctx, macro, recal, 'schedule') };
+  }, [open, state, doc, today]);
+  useEffect(() => { if (open && r) setChoice(r.step && !r.step.blocked ? 'step' : 'schedule'); }, [open, r]);
+  const plan = r ? r[choice] : null;
+  const was = (id: string) => doc.goals.find((g) => g.macroGoalID === id);
+  return (
+    <Sheet open={open} title="Recalibrate maintenance kcal" onClose={onClose}>
+      {!r || !plan ? <p className="muted">Nothing to recalibrate: the hold matches what the logs show.</p> : <>
+        <p className="muted" style={{ lineHeight: 1.5 }}>{r.recal.reason}</p>
+        <Field label="Reaching the new hold">
+          <Seg<RecalibrationChoice> label="Reaching the new hold" value={choice} onChange={setChoice}
+            options={[{ value: 'step', label: 'Keep +125 a week' }, { value: 'schedule', label: 'Reach the hold on schedule' }]} />
+        </Field>
+        <p className="caption" style={{ marginTop: 6 }}>
+          {plan.climbWeeks ? `${plan.climbWeeks} climb week${plan.climbWeeks === 1 ? '' : 's'} of ${choice === 'step' ? '' : 'about '}${plan.stepKcal} kcal, then ${plan.holdWeeks} weeks at ${fmt.int(r.recal.estimate)} kcal.`
+            : `No climb: ${fmt.int(r.recal.estimate)} kcal from ${fmt.ddm(r.recal.effectiveFrom)} for ${plan.holdWeeks} weeks.`}
+          {plan.extensionWeeks != null ? ` Extends the cycle to ${fmt.ddm(plan.newEnd)}.` : ' The cycle\u2019s length doesn\u2019t change.'}
+        </p>
+        <div className="stack" style={{ marginTop: 12 }}>
+          {plan.goals.map((g: Loose) => {
+            const old = was(g.macroGoalID);
+            const trimmed = old && old.kcal === g.kcal && old.endDate !== g.endDate;
+            return (
+              <div key={g.macroGoalID} className="row">
+                <span className="caption">{fmt.range(g.startDate, g.endDate)}{g.hold ? ' · hold' : ''}</span>
+                <span className="num" style={trimmed ? { color: 'var(--text3)' } : { fontWeight: 700 }}>{fmt.int(g.kcal)} kcal{trimmed ? ' (unchanged)' : ''}</span>
+              </div>
+            );
+          })}
+        </div>
+        {plan.blocked && <p className="caption t-bad" style={{ marginTop: 10 }}>{plan.blocked}</p>}
+        <Button style={{ marginTop: 16 }} disabled={!!plan.blocked} onClick={() => onApply(plan)}>Apply to the plan</Button>
+        <p className="caption" style={{ marginTop: 8 }}>Nothing reaches the client until you publish.</p>
+      </>}
     </Sheet>
   );
 }

@@ -7,11 +7,13 @@
 // action Coach has built (AVAILABLE_ACTIONS). Run check-in opens the AI tools
 // on the check-in tab; Adjust goals opens Plan's goal phase running today,
 // and Swap exercise opens Plan's swap for that exercise (TECHNICAL §144).
+// Recalibrate (v8.60, §175) opens Plan's recalibration of a maintenance hold.
 // ═══════════════════════════════════════════════════════════════════════
 import type { GridRow, Outcome, RpePoint } from '@engine/review';
+import type { Loose } from '@engine';
 
-export type FindingAction = 'adjust' | 'swap' | 'progress' | 'checkin' | 'message';
-export const AVAILABLE_ACTIONS: ReadonlySet<FindingAction> = new Set(['message', 'checkin', 'adjust', 'swap']);
+export type FindingAction = 'adjust' | 'swap' | 'progress' | 'checkin' | 'message' | 'recalibrate';
+export const AVAILABLE_ACTIONS: ReadonlySet<FindingAction> = new Set(['message', 'checkin', 'adjust', 'swap', 'recalibrate']);
 
 export interface Finding {
   id: string;
@@ -28,8 +30,16 @@ const ICON = { calories: 'fuel', steps: 'progress', training: 'train', 'weigh-in
 /** An exercise done but short of its target in this many finished weeks is a finding of its own. */
 export const NAGGING_FAILS = 2;
 
-export function buildFindings(first: string, o: Outcome, rows: GridRow[], rpe: RpePoint[], missedSessions: number): Finding[] {
+export function buildFindings(first: string, o: Outcome, rows: GridRow[], rpe: RpePoint[], missedSessions: number, recal: Loose = null): Finding[] {
   const out: Finding[] = [];
+  // v8.60 (§175): the engine's maintenance recalibration, the same one BLOC runs.
+  if (recal) {
+    out.push({
+      id: 'recal', tone: 'amber', icon: 'fuel',
+      title: `Maintenance looks ${recal.direction === 'higher' ? 'higher' : 'lower'} than the plan’s hold`,
+      body: recal.reason, action: 'recalibrate',
+    });
+  }
   if (o.status === 'off-track') {
     if (o.lead) {
       out.push({

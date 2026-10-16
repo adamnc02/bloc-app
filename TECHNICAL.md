@@ -1847,7 +1847,7 @@ Added in v7.00. The Progress page now includes two additional cards below the ex
 
 **`buildInsightsCardHTML()`** renders the signal pill, headline, detail narrative, goalType-specific stat tiles, and (for loss cycles with meaningful drift) a three-column drift visualisation showing baseline avg, delta arrow, and recent avg. Shows a "available in ~N more weeks" empty state when `insufficientData` is true.
 
-**Schedule-status pill (Phase 0 audit, v7.00):** `buildActiveCycleHeroSlideHtml` was audited for direction-awareness across all three goal types. The pill now has a dedicated maintenance branch: success = staying within ±2 lbs of target (green), 2–5 lbs off (amber), >5 lbs off (red). Loss and gain cycle pill logic is unchanged. The unrealistic-pace flag (`validateMacroPace`) guards against the pill showing permanently red for a cycle whose target implies a physiologically implausible rate.
+**Schedule-status pill (Phase 0 audit, v7.00):** `buildActiveCycleHeroSlideHtml` was audited for direction-awareness across all three goal types. The pill now has a dedicated maintenance branch: since v8.60 (§175) it is the latest complete week's average against the baseline (week 1's average weigh-in), within 2 lbs green, 2–5 amber, over 5 red, never a single weigh-in against a goal weight. Loss and gain cycle pill logic is unchanged. The unrealistic-pace flag (`validateMacroPace`) guards against the pill showing permanently red for a cycle whose target implies a physiologically implausible rate.
 
 ### Historical rollup
 
@@ -2067,15 +2067,15 @@ Both ramps start from **`rampStartKcal`** — the current cycle's *last planned 
 
 Returns `{ weeks, endDate, conflict }` — `conflict` is `null` when safe, otherwise `{ type: 'boundary'|'pace', message, altDate, altWeight }`.
 
-### Phase 3 — Maintenance TDEE-discrepancy recalibration
+### Phase 3 — Maintenance recalibration
 
-**`computeMaintenanceRecalibration(macro, ins)`** — only fires for the *currently active* maintenance macro (never a past cycle's finished goals). Distinct from the whole-history `calcTrendBasedTDEE()`/`calcDynamicTDEE()`, which is deliberately slow-moving — this is a locally-scoped check for "the body is doing something different right now, mid-bridge."
-
-Trigger requires **both**: a genuine directional trend over the last 3 qualifying weeks (avg weekly delta >0.5 lbs in either direction, same stability threshold used elsewhere — not just noise), **and** the resulting locally-implied TDEE (from just the two most recent qualifying weeks, via the same 3,500-kcal-per-lb rule) disagreeing with the current/future goals' actual kcal target by >150 kcal or >7%.
-
-Surfaces as a "Start recalibration →" button on the existing Phase 1 trend-insights card (`buildInsightsCardHTML()`), not a new card. Opens `modal-maint-recalibration`, previewing the new kcal/macros and every affected goal (today's + not-yet-started) with old→new shown. **Steps are never touched** — maintenance goals are always 8,000 flat, a rule enforced globally in `buildNextCycleGoalSteps()` regardless of what the current active goal happens to be.
-
-**`acceptMaintenanceRecalibration()`** batch-updates every affected goal, matched by `macroId` + `startDate` (goal objects have no `id` field — matching by `g.id` would silently update zero goals).
+Rebuilt in v8.60: **§175** has the mechanism and its traps. In short: `computeMaintenanceRecalibration()`
+(engine/src/maintenance.ts) runs only on the active maintenance cycle; it reads complete weeks only (2 to 4, with
+weight and 4+ days of food), estimates maintenance as their average intake minus the least-squares weight trend × 500,
+and compares that with the **hold's** kcal, never the current ramp step. The card's **Recalibrate →** opens
+`modal-maint-recalibration` with two plans from `buildMaintenanceRecalibrationPlan()`: +125 a week to the new hold
+(extending the cycle by whole weeks for its own hold length) or an even climb that keeps the hold's planned start.
+Steps are never touched.
 
 ### Phase 4 — LLM second-opinion layer
 
@@ -2203,7 +2203,7 @@ See §3's callout for the full story — `range.proteinMax` was stored as the re
 | **AI advice emoji icons** | The goal summary blocks in the AI advice card use emoji (🔥 kcal, 👟 steps, 💪 protein, 🌾 carbs) rather than the app's SVG iconography. A dedicated icon audit pass is planned to replace these with inline SVG icons using `currentColor`, consistent with the rest of the app's visual language. |
 | **AI goal label matching** | `_blocLabel` is only written to goals created via the AI queue flow (v7.00 onward). Goals saved before this version, or edited outside the queue, fall back to date-proximity matching in `goalSummaryBlock`. If a user manually edits goal dates such that they no longer overlap the LLM's original dates, the card may not reflect the edited dates until a new advice call is made. |
 | **Drop-set theoretical volume (partially resolved in v6.09)** | The Plan page's *theoretical* (pre-logged) volume projections — the Week-1 session summary and the body-part volume table — now include a drop-set exercise's main-set contribution, since `ex.reps` holds a real target for it as of v6.09 (previously always `''`, contributing 0). The **drop portion** still contributes 0 to these projections, correctly — it never has a plan-time target, only ever discovered live, so there's nothing to project. Real logged volume (`getSessionVolume()`, used everywhere in Train/Progress) was never affected either way and correctly includes both portions. |
-| **Maintenance recalibration flag (Phase 3, §27) — not yet click-tested live** | `computeMaintenanceRecalibration()` is logic-tested against synthetic scenarios matching real data and verified against the actual live functions, but hasn't been exercised in the live app yet, since it only fires during an active maintenance bridge and testing so far has happened outside of one. Treated as working; flag if anything looks off once genuinely tested against a live maintenance cycle. |
+| **Maintenance recalibration (§175)** | Checked by `verify-maintenance-recalibration.mjs` on synthetic logs, with a control reproducing the v8.59 formula. It only fires on an active maintenance cycle, so a live check needs one running. |
 | **Sample Day Library — formal links never expire (§28)** | `group.linkedGoalIds` only ever grows (a goal is added the moment a day is saved under it) — there's no path that removes an id from it, even if that goal's targets are later edited to fall well outside the group's `range`. In practice this is rarely visible, since `getEffectiveLinkedGoalIds()` still shows it as a linked pill either way (formally-linked ids are unconditionally included), but it means a formal link is permanent even after the underlying similarity that justified it is gone. |
 | **Progression Compliance Guard — whole-exercise, not per-set lock granularity (§12)** | If 3 of 4 sets hit the target but one didn't, the entire exercise locks, not just the offending set — a deliberate simplification agreed during design rather than tracking per-set lock state, which would add real complexity for a corner case (per-set targets already vary week to week via the v6.09 per-set carry-forward). Revisit only if per-set locking is explicitly requested. |
 | **Cardio has no progression model at all (§12, new ~v7.60–v7.68)** | Deliberate, not a gap — cardio exercises never get a computed suggestion, only last week's logged value as a placeholder. There is no plan for a "suggested pace/distance" feature; cardio is intentionally treated as free-form conditioning work rather than a progressively-overloaded lift. |
@@ -9311,7 +9311,7 @@ check-in (`computeCheckinState`), so Coach and BLOC agree.
 | **No outcome yet** | fewer than 2 cycle weeks with a weigh-in; the cycle hasn't started at the client's today |
 | **Off track**, loss | the flat flag is up, **or** each of the last 2 weeks rose more than 0.5 lb |
 | **Off track**, gain | the flat flag is up, or each of the last 2 weeks fell more than 0.5 lb |
-| **Off track**, maintenance | weekly averages span more than 3 lb (the engine's `maint-unstable`), or attendance under **7/10** over the last 2 finished weeks |
+| **Off track**, maintenance | the latest complete week's average more than 2 lb from the baseline, week 1's average (`judgeMaintenanceStability`, §175), or attendance under **7/10** over the last 2 finished weeks |
 | **On track** | otherwise; and a **loss** cycle flagged flat whose waist is down at least **0.5″** since the last measurement on or before the flat period's start (recomposition) |
 
 🚨 **The direction rule.** The engine's "moving" has no direction: a loss client gaining a pound a week is a
@@ -10033,14 +10033,15 @@ mesocycle after, starting-to-peak sets, reps and giant-set reps from there, unch
 ## §148 — v8.46: the Progress hero's figure is what the cycle is for
 
 The Progress hero's main figure was the latest body weight, which says nothing about the cycle. It's now
-`progressHeroCallout(goalType, startBw, latestBw, targetBw)`, with its label:
+`progressHeroCallout(goalType, startBw, latestBw, targetBw, maintStab)`, with its label:
 
 | Cycle | Label | Figure |
 |---|---|---|
 | a cut (`loss`) | Lost this cycle | first weigh-in in the cycle − latest |
 | a gain cycle (`gain`, or the old `strength`) | Gained this cycle | latest − first weigh-in |
-| maintenance, with a target | Maintenance weight | the target |
-| maintenance, no target | Body weight | the latest weigh-in |
+| maintenance, baseline fixed (day 8 on) | Baseline | week 1's average weigh-in (§175) |
+| maintenance, in week 1 | Baseline so far | the average of week 1's weigh-ins to date |
+| maintenance, no weigh-in in week 1 | Body weight | the latest weigh-in (a `targetBw` on a maintenance cycle is ignored) |
 
 Moving the wrong way is said plainly: a cut that has gained reads "Gained this cycle", with the amount. No weigh-ins in
 the cycle: "—". The status line under it (ahead or behind, stable or drifting, the finish) and the chart are unchanged.
@@ -11727,3 +11728,90 @@ original; minor vs significant; same phase ids; the record never in the payload;
   and closing, against v8.58's toggle. Control for the three new scripts: v8.58's
   `index.html` and engine (commit `9fae4d3`) fail. `verify-engine-leaves.mjs` compares Train's HTML with v8.34's with
   every drop set's ✓ removed from the v8.34 side.
+
+## §175 — v8.60 + Coach v0.18: a maintenance cycle's baseline, stability, hold and recalibration
+
+All of it is in `engine/src/maintenance.ts`, so BLOC, BLOC Coach and the `bloc-push` digest judge a maintenance
+cycle the same way.
+
+- **No goal weight on a maintenance cycle.** BLOC's New and Edit macrocycle forms hide the goal-weight field when the
+  goal is Maintain and save `targetBw: null`; so do Coach's New cycle and Edit cycle sheets (`newCycle`,
+  `editSettings`). A `targetBw` an older maintenance cycle carries is ignored wherever a reference weight is read
+  (`getCycleReferenceLbs`). Loss and gain cycles keep `targetBw` as the user's input, untouched.
+- **The baseline: week 1's average weigh-in.** `getMaintenanceBaseline(s, macro, ctx)` averages the weigh-ins dated
+  `start … start+6` up to today, to 0.1 lb: `{ lbs, days, locked }`, `locked` once today is past day 7; null before
+  the first weigh-in. It is shown from the first weigh-in ("Baseline so far"). 🚨 Derived on every read, never stored
+  on the macro: a cycle created before it starts has no weigh-in, and BLOC and Coach would both write it. The 7-day
+  window is what fixes it; a weigh-in back-filled into week 1 still moves it, correctly.
+- **Stability: a complete week's average against the baseline.** `judgeMaintenanceStability` takes the latest week
+  after week 1 that has ended (Sunday before today) with 2+ weigh-ins: within `MAINT_STABLE_LBS` (2) stable, up to
+  `MAINT_DRIFT_LBS` (5) slipping, beyond drifting; 'forming' until such a week exists, 'none' before a weigh-in. It
+  returns the one-sentence `reason` every surface shows. 🚨 Never a single weigh-in: one high-carb or salty day moves
+  the scale 3–6 lbs, which read "Slipping" on a week whose average hadn't moved. Its readers:
+  `computeWeeklyInsights` (`maintStability`, and `maint-stable` / `maint-unstable` / `maint-nodata`; the key exists
+  on maintenance cycles only), the Progress hero's status line and callout (§148), the Plan tile and Home's goal
+  line ("hold near 184.6 lbs"), the AI prompts ("Baseline: … / Change from baseline: …" where a target stood), the
+  cycle review payload (`targetWeight` = the baseline), and Coach's outcome (§140: slipping or drifting is off track),
+  Review hero, story chart ("Baseline" band) and client sparkline. `maintVariance` (the spread of weekly averages)
+  stays for the Insights tile only.
+- **The hold, marked.** A goal is the hold when it carries `hold: true`; `getMaintenanceHold(goals, macro)` returns
+  the trailing run of those, or, for goals written before the flag, the trailing run at the cycle's final kcal.
+  Writers: the bridge builder (`buildNextCycleGoalSteps` marks its hold group); a maintenance AI plan, whose schema
+  and HARD CONSTRAINTS require `"hold"` on every goal, the true ones last, and which `postProcessNextCycleResponse`
+  rejects otherwise; BLOC's goal form (**Phase: Climb / Hold**, maintenance cycles only, `goalHoldFromForm`) and
+  Coach's goal sheet (the same switch, `upsertGoal`), both of which drop the flag on any other cycle. 🚨 Every goal
+  save rebuilds the goal object, so both forms carry `hold` explicitly; an edit that dropped it would make the next
+  recalibration fall back to the kcal rule. Coach's publish diff names a hold change ("now the hold"). The `goals`
+  mirror table has no column for it; the JSON backup and `client_state` carry it.
+- **The recalibration.** `computeMaintenanceRecalibration(s, ctx, macro, ins)`, on the active maintenance cycle only:
+  complete weeks (`bEnd < today`) with a weigh-in and 4+ days of food, the latest `RECAL_MAX_WEEKS` (4), at least
+  `RECAL_MIN_WEEKS` (2). Estimate = their average intake − the least-squares weight trend (lbs/week) × 500. It fires
+  when the estimate differs from the **hold's** kcal by 150+ kcal or 7%+, and returns the estimate, the trend, the
+  hold, `climbStart` = min(average intake, estimate), `effectiveFrom` (the next Monday, today if a Monday) and the
+  `reason`. 🚨 The traps it replaces: v8.59 took the latest week's average even when that week was unfinished,
+  added 500 kcal/day per pound of ONE week's change (mostly water: a 1 lb dip in a part-week read as +500
+  kcal/day), fired off that one change, compared with the current ramp step (below maintenance on purpose during a
+  climb, so a loss there is expected), and wrote one kcal into every remaining goal, flattening the climb.
+- **The two plans.** `buildMaintenanceRecalibrationPlan(s, ctx, macro, recal, choice)`:
+  - `'step'`: `buildReverseDietRows(climbStart, estimate, 125)`, whose last week lands on the hold and counts as its
+    first week (the bridge builder's rule), then hold weeks for the cycle's own hold length (`hold.weeks`). When that
+    runs past the cycle's end, `extensionWeeks` grows by the whole weeks needed, as Extend cycle stores them (§99:
+    weeks, not mesocycles, so a part mesocycle is fine), and the hold runs to the new end. Refused (`blocked`) when
+    the longer cycle would overlap another (`findMacroClash`).
+  - `'schedule'`: the hold keeps its planned start; the gap is divided evenly over the weeks before it, the last of
+    them landing on the hold (still a climb week: the hold starts on its date). No length change. A hold already under
+    way changes from `effectiveFrom`.
+  - Weeks at the same kcal and phase are grouped into one goal. Each new goal keeps the protein of the goal it
+    replaces on that date (the hold's beyond the old end), the hold goal's steps, and splits the rest of its kcal
+    between carbs and fats in the hold goal's ratio. The goal running across `effectiveFrom` ends the Sunday before,
+    same id; goals starting on or after it are replaced (`removeGoalIds`); earlier goals never change. New ids are
+    `${macroId}_g${yyyymmdd}`, so a second recalibration from the same Monday rewrites the same goals.
+  With no climb (`climbStart` = estimate: weight level or rising at that intake), both choices are the hold from
+  `effectiveFrom`; a falling estimate never steps down week by week.
+- **BLOC.** The Insights card's maintenance block (`buildMaintRecalHTML`) states the estimate and its reason, then
+  **Recalibrate →** opens `modal-maint-recalibration`: the reason, the two choices (**Keep +125 a week** / **Reach
+  the hold on schedule**), a line on what each does, every goal it writes with its macros, and Accept, disabled when
+  the choice is blocked. `acceptMaintenanceRecalibration()` upserts by `macroGoalID`, removes the replaced goals, sets
+  `extensionWeeks`, and renumbers. **A coached client** (§132 hides the Insights card) sees only
+  `buildCoachedMaintFactsHTML()`: the estimate and its reason, with no climb, plan or button.
+- **BLOC Coach.** Review's model runs the same recalibration on the client's data at their today; a non-null result
+  is a finding (`recal`, action `recalibrate`, the engine's reason) and the Clients summary's `recal`, which raises a
+  **Needs you** item ("Maintenance off the plan", key `c:<card>:<macro>`). It opens Review at Findings
+  (`?at=findings`, scrolled to `#review-findings`); it is not dismissible and clears once the plan no longer needs it.
+  The finding's **Recalibrate** opens Plan with `act=recal` (on the coach's own cycle; the client's own cycle shows the
+  usual "start one of yours" caption): `RecalSheet` runs the engine on the client's logs with this cycle as the
+  draft has it, offers the same two choices, and **Apply to the plan** writes it into the draft
+  (`applyRecalibration`) and opens Publish, so it reaches the client as `goal_phases` (and a `plan` patch with
+  `extensionWeeks` for the +125 choice) like any other Plan change.
+- 🚨 **The digest.** `engine/src/review/outcome.ts` changed (maintenance off track = slipping or drifting), so
+  `bloc-push/engine.ts`'s pinned engine build must move to this commit and the function be redeployed (§156), or the
+  07:00 digest keeps judging maintenance clients by the v8.59 span rule.
+- **Checks.** `verify-maintenance-baseline.mjs` (the baseline over days 1–8, the reference weight per goal type,
+  stability bands, a one-weigh-in week skipped, insights agreeing; control: the old latest-weigh-in rule calls a
+  stable week "Slipping") and `verify-maintenance-recalibration.mjs` (complete weeks only, the hold not the step, the
+  fallback and flagged hold, both plans, extension and its clash refusal, trimming, macros, a rising weight; control:
+  the v8.59 formula offers 3,550 on the same logs). `verify-goal-edit-keeps-macro.mjs` checks an edit keeps `hold`.
+  `verify-engine-leaves.mjs` names each change against v8.34 (the maintenance judgement in insights and check-in
+  state, the bridge's `hold: true`, the maintenance prompts' baseline lines and hold requirement); the golden file
+  was regenerated for the hold flag and the hold requirement only. Coach: `src/review/recal.test.ts`, and
+  `review.test.ts`'s maintenance outcome.

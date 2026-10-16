@@ -6527,7 +6527,7 @@ try {
      same-named shims. ?v= is the first 12 hex of the file's SHA-256, so a phone never pairs a
      new index.html with an older engine from its HTTP cache; scripts/verify-engine-build.mjs
      fails if it is stale. Listed in scripts/publish-files.txt. -->
-<script src="engine/dist/bloc-engine.js?v=f1b3b652d6f0"></script>
+<script src="engine/dist/bloc-engine.js?v=21c019eac047"></script>
 <script>
 // ════════════════════════════════════════════════
 // DATE HELPERS
@@ -14016,6 +14016,17 @@ function buildMaintRecalHTML(macro, ins, factsOnly) {
     </button>`;
 }
 
+// Coached mode's whole Insights card is hidden (§132); this is the one part a
+// coached client sees, facts only.
+function buildCoachedMaintFactsHTML() {
+  const macro = resolveProgressMacro();
+  if (!macro || macro.goalType !== 'maintenance') return '';
+  const ins = computeWeeklyInsights(macro);
+  if (!ins || ins.insufficientData) return '';
+  const facts = buildMaintRecalHTML(macro, ins, true);
+  return facts ? `<div class="insight-block">${facts}</div>` : '';
+}
+
 // Pending plans, stashed between the preview and Accept — the same
 // ephemeral, non-persisted pattern as _pendingNextCyclePlan.
 let _pendingMaintRecalibration = null;
@@ -16611,7 +16622,10 @@ function renderProgressInsights(macro) {
   // whatever the coach is saying about the same weeks, and so
   // would BLOC's own calorie target (below) against the coach's goal phases.
   const coached = coachedView();
-  const trendHtml = coached ? '' : buildInsightsCardHTML();
+  // v8.60 (§175): a coached client on a maintenance cycle still sees the
+  // recalibration's facts (the estimate and why), never a climb or a button:
+  // the coach recalibrates in BLOC Coach.
+  const trendHtml = coached ? buildCoachedMaintFactsHTML() : buildInsightsCardHTML();
 
   // ── Metabolism ──
   const mifflinBmr = calcMifflinBMR();
@@ -30197,7 +30211,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.59</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.60</span>`;
 }
 
 function renderSettings() {

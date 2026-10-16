@@ -325,6 +325,12 @@ function NeedsBody({ it, name, first, who, onRequest, onCancel, onLeave, onDismi
         </div>
       </>;
     }
+    case 'recal':
+      return <>
+        <CardHead icon="warning" eyebrow="Maintenance off the plan" name={name} />
+        <p className="body-copy" style={{ marginTop: 12 }}>{it.reason}</p>
+        <div className="btnrow"><Button size="card" icon="target" onClick={() => navigate(clientPath(it.cardId, 'review', it.macroId, null, { at: 'findings' }))}>See findings</Button></div>
+      </>;
     case 'missedGroup': {
       const o = it.occ;
       return <>

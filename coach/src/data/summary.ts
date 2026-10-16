@@ -7,7 +7,7 @@
 //    The coach's own date is only used for things that are the coach's: an
 //    invite's expiry, "last synced".
 // ═══════════════════════════════════════════════════════════════════════
-import { dayDiff, getDateActiveMacroId, getMacroDurationWeeks, shiftDateStr, type BlocState, type Macrocycle } from '@engine';
+import { dayDiff, getCycleReferenceLbs, getDateActiveMacroId, getMacroDurationWeeks, shiftDateStr, type BlocState, type Macrocycle } from '@engine';
 import type { LinkStatus, OutcomeStatus } from '@/domain/types';
 import { reviewFor } from '@/review/model';
 import { fmt, initials as toInitials } from '@/lib/format';
@@ -47,6 +47,8 @@ export interface ClientSummary {
   problem: string | null;
   /** The current cycle's outcome at their today (Review's model), whoever owns the cycle. */
   outcome: { status: OutcomeStatus; reason: string };
+  /** v8.60 (§175): the running maintenance cycle needs recalibrating (Needs you). */
+  recal: { macroId: string; reason: string } | null;
 }
 
 export function linkStatusOf(b: ClientBundle): LinkStatus {
@@ -126,13 +128,16 @@ export function summarise(b: ClientBundle, nowMs: number): ClientSummary {
     }
     weights.sort((a, z) => a.date.localeCompare(z.date));
     const m = cycle ? (snap.state.macrocycles || []).find((x) => x.id === cycle.macroId) : null;
-    targetLbs = m ? num((m as Macrocycle & { targetBw?: unknown }).targetBw) : null;
+    // v8.60 (§175): a maintenance cycle's line is its baseline, week 1's average.
+    targetLbs = m ? getCycleReferenceLbs(snap.state, m, { today: clientToday }) : null;
   }
 
   let outcome: ClientSummary['outcome'] = { status: 'no-data', reason: cycleText };
+  let recal: ClientSummary['recal'] = null;
   if (snap && clientToday && cycle) {
     const r = reviewFor(b.card.id, snap.hash, snap.state, cycle.macroId, clientToday, name.split(' ')[0]);
     if (r) outcome = { status: r.outcome.status, reason: r.outcome.reason };
+    if (r?.recal) recal = { macroId: cycle.macroId, reason: String(r.recal.reason) };
   }
 
   return {
@@ -146,6 +151,7 @@ export function summarise(b: ClientBundle, nowMs: number): ClientSummary {
     cycleText,
     weights,
     targetLbs,
+    recal,
     syncedHoursAgo,
     staleSync: syncedHoursAgo != null && syncedHoursAgo >= STALE_SYNC_HOURS,
     photoConsent: !!b.link?.photoConsent && status === 'linked',
