@@ -140,12 +140,13 @@ const sC = state(day(14));
 sC.bodyLogs.forEach(l => { if (l.date > day(7)) l.weight = 179.0; });
 const rC = recalOn(sC, day(15));
 const pC = rC && plan(sC, day(15), rC, 'schedule');
-check(`schedule: climb ${rC && rC.climbStart} → ${rC && rC.estimate}, divided over the 3 weeks before the hold`,
-  pC && pC.rows.length >= 3 && pC.rows[2].kcal === rC.estimate && pC.stepKcal === Math.round((rC.estimate - rC.climbStart) / 3)
-    && pC.rows[0].kcal === Math.round(rC.climbStart + (rC.estimate - rC.climbStart) / 3),
+const gapC = rC ? rC.estimate - rC.climbStart : 0;
+check(`schedule: climb ${rC && rC.climbStart} → ${rC && rC.estimate} in 4 even steps: the 3 weeks before the hold, then the hold`,
+  pC && pC.stepKcal === Math.round(gapC / 4) && [0, 1, 2].every(i => pC.rows[i].kcal === Math.round(rC.climbStart + gapC * (i + 1) / 4)) && pC.rows[3].kcal === rC.estimate,
   JSON.stringify(pC && pC.rows.slice(0, 4)));
-check('schedule: the hold keeps its planned start (12 Oct); the week before it, though on the target, is a climb week',
-  pC && pC.goals.find(g => g.hold).startDate === '2026-10-12' && pC.rows[2].hold === false, JSON.stringify(pC && pC.goals.map(g => [g.startDate, g.kcal, g.hold])));
+check('schedule: every climb week is below the hold; the hold starts on its planned date (12 Oct), at the hold\'s kcal',
+  pC && pC.rows.filter(r => !r.hold).every(r => r.kcal < rC.estimate) && pC.goals.find(g => g.hold).startDate === '2026-10-12' && pC.rows[3].hold === true,
+  JSON.stringify(pC && pC.goals.map(g => [g.startDate, g.kcal, g.hold])));
 
 const rising = state(day(21));
 rising.bodyLogs.forEach(l => { l.weight = 180 + (l.date > day(7) ? 0.8 : 0) + (l.date > day(14) ? 0.8 : 0); });

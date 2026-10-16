@@ -256,7 +256,8 @@ export interface RecalibrationPlan {
 //                weeks (extensionWeeks, as Extend cycle does) when that runs
 //                past its end.
 //   'schedule' — the hold keeps its planned start; the gap is divided evenly
-//                over the weeks before it (the last of them lands on the hold).
+//                over the weeks before it and the hold's first week, so every
+//                climb week is below the hold.
 //                The cycle's length doesn't change.
 // Each new goal keeps the protein of the goal it replaces on that date (the
 // hold's beyond the old end), the hold goal's steps, and splits the rest of
@@ -282,9 +283,13 @@ export function buildMaintenanceRecalibrationPlan(s: BlocState, ctx: EngineConte
     extra = Math.max(0, needed - weeksLeft);
   } else {
     const before = hold.start > from ? Math.round(dayDiff(from, hold.start) / 7) : 0;
+    // The gap is split into before + 1 even steps: every climb week stays below
+    // the hold, and the hold's own first week is the last step. 🚨 Dividing by
+    // `before` puts the last climb week at the hold's kcal a week before the
+    // hold starts, which reads as a hold that began early.
     if (before > 0 && startKcal < target) {
-      stepKcal = Math.round((target - startKcal) / before);
-      climb = Array.from({ length: before }, (_, i) => i === before - 1 ? target : Math.round(startKcal + (target - startKcal) * (i + 1) / before));
+      stepKcal = Math.round((target - startKcal) / (before + 1));
+      climb = Array.from({ length: before }, (_, i) => Math.round(startKcal + (target - startKcal) * (i + 1) / (before + 1)));
     } else if (before > 0) {
       climb = Array.from({ length: before }, () => target);
     }

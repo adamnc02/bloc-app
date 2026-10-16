@@ -1766,8 +1766,8 @@ Write this cycle's review per the schema above.`;
     } else {
       const before = hold.start > from ? Math.round(dayDiff(from, hold.start) / 7) : 0;
       if (before > 0 && startKcal < target) {
-        stepKcal = Math.round((target - startKcal) / before);
-        climb = Array.from({ length: before }, (_, i) => i === before - 1 ? target : Math.round(startKcal + (target - startKcal) * (i + 1) / before));
+        stepKcal = Math.round((target - startKcal) / (before + 1));
+        climb = Array.from({ length: before }, (_, i) => Math.round(startKcal + (target - startKcal) * (i + 1) / (before + 1)));
       } else if (before > 0) {
         climb = Array.from({ length: before }, () => target);
       }

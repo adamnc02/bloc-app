@@ -11778,9 +11778,10 @@ cycle the same way.
     runs past the cycle's end, `extensionWeeks` grows by the whole weeks needed, as Extend cycle stores them (§99:
     weeks, not mesocycles, so a part mesocycle is fine), and the hold runs to the new end. Refused (`blocked`) when
     the longer cycle would overlap another (`findMacroClash`).
-  - `'schedule'`: the hold keeps its planned start; the gap is divided evenly over the weeks before it, the last of
-    them landing on the hold (still a climb week: the hold starts on its date). No length change. A hold already under
-    way changes from `effectiveFrom`.
+  - `'schedule'`: the hold keeps its planned start; the gap is split into (weeks before it + 1) even steps, so every
+    climb week is below the hold and the hold's first week is the last step. 🚨 Splitting it into (weeks before it)
+    puts the last climb week at the hold's kcal a week before the hold starts, which reads as a hold that began early.
+    No length change. A hold already under way changes from `effectiveFrom`.
   - Weeks at the same kcal and phase are grouped into one goal. Each new goal keeps the protein of the goal it
     replaces on that date (the hold's beyond the old end), the hold goal's steps, and splits the rest of its kcal
     between carbs and fats in the hold goal's ratio. The goal running across `effectiveFrom` ends the Sunday before,
