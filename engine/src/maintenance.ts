@@ -299,7 +299,8 @@ export function buildMaintenanceRecalibrationPlan(s: BlocState, ctx: EngineConte
   // week that lands on it is its first week (the bridge builder's rule).
   // Choice 'schedule': the hold starts on its planned date, so the climb week
   // before it that lands on the target is still a climb week.
-  const holdFrom = choice === 'schedule' && hold.start > from ? hold.start : from;
+  // With no climb (already eating at the new hold) it starts from effectiveFrom.
+  const holdFrom = choice === 'schedule' && hold.start > from && startKcal < target ? hold.start : from;
   for (let i = rows.length - 1, inRun = true; i >= 0; i--) {
     inRun = inRun && rows[i].kcal === target && rows[i].start >= holdFrom;
     rows[i].hold = inRun;

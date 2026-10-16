@@ -1590,7 +1590,7 @@ function buildMaintenanceRecalibrationPlan(s, ctx, macro, recal, choice) {
     const kcal = w < climb.length ? climb[w] : target;
     rows.push({ start: shiftDateStr(from, w * 7), kcal, hold: kcal === target });
   }
-  const holdFrom = choice === "schedule" && hold.start > from ? hold.start : from;
+  const holdFrom = choice === "schedule" && hold.start > from && startKcal < target ? hold.start : from;
   for (let i = rows.length - 1, inRun = true; i >= 0; i--) {
     inRun = inRun && rows[i].kcal === target && rows[i].start >= holdFrom;
     rows[i].hold = inRun;

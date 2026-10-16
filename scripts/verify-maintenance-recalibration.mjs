@@ -99,6 +99,10 @@ check('already eating at the new hold: no climb, the hold from Monday (28 Sep) t
   JSON.stringify(p.goals.map(g => [g.startDate, g.endDate, g.kcal, g.hold])));
 check('…the goals from that Monday on (g3, g4) are replaced; g1 and g2 are not touched', p.removeGoalIds.join() === 'g3,g4', p.removeGoalIds.join());
 check('…no extension', p.extensionWeeks === null && !p.blocked);
+const pS0 = plan(s3, FRI3, r3, 'schedule');
+check('…and "on schedule" is the same: no climb weeks at the hold\'s kcal before its old start, the hold from Monday',
+  pS0.climbWeeks === 0 && pS0.goals.length === 1 && pS0.goals[0].hold === true && pS0.goals[0].startDate === day(22),
+  JSON.stringify(pS0.goals.map(g => [g.startDate, g.kcal, g.hold])));
 check('…the protein of the goal it replaces on that date (g3: 180 g), and the hold\'s carbs:fat split (720:360 kcal)',
   p.goals[0].protein === 180 && Math.abs((p.goals[0].carbs * 4) / (p.goals[0].fats * 9) - 2) < 0.05, JSON.stringify(p.goals[0]));
 // A goal running across that Monday is cut to the Sunday before, keeping its id.
