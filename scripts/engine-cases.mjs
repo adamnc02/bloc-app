@@ -307,10 +307,12 @@ const trending = dir => state(s => {
   s.bodyLogs.forEach((l, i) => { l.weight = 205 + dir * i * 0.25; });
   return s;
 });
+// v8.60 (§175): rebuilt (complete weeks, compared with the hold), so no BLOC
+// counterpart before v8.60; verify-maintenance-recalibration.mjs checks what it decides.
 for (const st of [S.demo, S.maint, trending(1), trending(-1)]) {
   add('computeMaintenanceRecalibration', eachDay(st, (s, c) => {
     const ins = insightsLike(s);
-    return { engine: [s, c, m0(s), ins], bloc: { args: [m0(s), ins] } };
+    return { engine: [s, c, m0(s), ins], bloc: null };
   }));
 }
 // The recommendation's overrides: a target, a deadline, one beyond the floor, a forced direction.
@@ -607,7 +609,8 @@ add('postProcessAdviceResponse', [at(S.demo, '2026-08-02', (s, c) => ({ engine: 
 add('postProcessChallengeResponse', [false, true].map(sig => at(S.demo, '2026-08-02', (s, c) => ({ engine: [challengeReply(sig), m0(s), c], bloc: null }))));
 add('postProcessCycleReviewResponse', [at(S.demo, '2026-09-13', (s, c) => ({ engine: [reviewReply(), { measurements: { weightTargetDelta: 1.2, totalWeightChange: -8.8 } }, 2, 1, c], bloc: null }))]);
 const cycleReply = (weeks, end, key = 'sustainable') => ({ key, label: key, rationale: 'r', summary: 's', weeks,
-  goals: [{ startDate: '2026-09-14', endDate: '2026-09-27', kcal: 2100, protein: 200, carbs: 200, steps: 12000 }, { startDate: '2026-09-28', endDate: end, kcal: 2200, protein: 200, carbs: 220 }] });
+  // v8.60 (§175): a maintenance plan marks its hold.
+  goals: [{ startDate: '2026-09-14', endDate: '2026-09-27', kcal: 2100, protein: 200, carbs: 200, steps: 12000, hold: false }, { startDate: '2026-09-28', endDate: end, kcal: 2200, protein: 200, carbs: 220, hold: true }] });
 export const nextCycleReply = plans => JSON.stringify({ signal: 'maint-stable', headline: 'H', narrative: 'N', plans });
 add('postProcessNextCycleResponse', [
   at(S.demo, '2026-09-08', (s, c) => ({ engine: [nextCycleReply([cycleReply(8, '2026-11-08')]), m0(s), nextRec(s), null, c], bloc: null })),
@@ -703,6 +706,26 @@ add('planReplaceOffer', [
   ['2026-08-04', '2026-08-03', S.demo], ['2026-08-02', '2026-08-05', S.demo], ['2026-08-02', '2026-08-10', asCoachs],
   ['2026-06-01', '2026-06-15', S.demo], ['2026-08-02', '2026-09-14', S.demo], ['2026-08-02', '2026-08-10', S.history],
 ].map(([today, start, st]) => at(st, today, (s, c) => ({ engine: [coachCycle(start), s.macrocycles, s.goals, c], bloc: null }))));
+
+// v8.60 (§175): maintenance cycles' baseline, stability, hold and the
+// recalibration plan. No BLOC counterpart before v8.60;
+// verify-maintenance-baseline.mjs and verify-maintenance-recalibration.mjs
+// check what they decide.
+const asMaint = state(s => { s.macrocycles[0].goalType = 'maintenance'; return s; });
+const maintFalling = state(s => {
+  s.macrocycles[0].goalType = 'maintenance';
+  s.bodyLogs.forEach((l, i) => { l.weight = 215 - i * 0.12; });
+  return s;
+});
+for (const name of ['getMaintenanceBaseline', 'getCycleReferenceLbs', 'judgeMaintenanceStability']) {
+  add(name, [S.demo, asMaint].flatMap(st => ['2026-06-07', '2026-06-10', '2026-06-20', '2026-08-02']
+    .map(d => at(st, d, (s, c) => ({ engine: [s, m0(s), c], bloc: null })))));
+}
+add('getMaintenanceHold', [S.demo, asMaint].map(st => at(st, '2026-08-02', s => ({ engine: [s.goals, m0(s)], bloc: null }))));
+add('buildMaintenanceRecalibrationPlan', ['step', 'schedule'].flatMap(choice => [asMaint, maintFalling].map(st => at(st, '2026-08-02', (s, c) => {
+  const recal = { estimate: 2600, avgKcal: 2300, climbStart: 2300, effectiveFrom: '2026-08-03', hold: {} };
+  return { engine: [s, c, m0(s), recal, choice], bloc: null };
+}))));
 
 // v8.46 (§147): an exercise that joined at a later mesocycle week. No BLOC
 // counterpart before v8.46; verify-exercise-from-week.mjs checks what it decides.

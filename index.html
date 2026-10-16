@@ -4789,7 +4789,7 @@ try {
       <button type="button" class="toggle-btn" data-goal="maintenance" onclick="setMacroFormValue('macro-goal-type-input','maintenance')">Maintain</button>
     </div>
     <div class="input-row" style="align-items:flex-start;">
-      <div>
+      <div id="macro-target-bw-row">
         <div class="label">Goal weight lbs</div>
         <input type="number" inputmode="decimal" id="macro-target-bw-input" placeholder="optional" step="0.1" oninput="validateMacroPace('macro')">
       </div>
@@ -5125,7 +5125,7 @@ try {
       <div class="label">Goal</div>
       <input type="text" id="edit-macro-goal-input" placeholder="e.g. Cut to 180lbs">
     </div>
-    <div class="form-group">
+    <div class="form-group" id="edit-macro-target-bw-row">
       <div class="label">Target body weight (lbs) <span style="color:var(--text3);font-size:11px;">— optional</span></div>
       <input type="number" inputmode="decimal" id="edit-macro-target-bw-input" placeholder="e.g. 180" step="0.1" oninput="validateMacroPace('edit-macro')">
       <div id="edit-macro-pace-warning" style="display:none;margin-top:5px;font-size:11px;color:var(--red);line-height:1.4;"></div>
@@ -5233,6 +5233,16 @@ try {
         <div class="label">Daily steps</div>
         <input type="number" inputmode="numeric" id="goal-steps-input" placeholder="10000">
       </div>
+    </div>
+    <!-- v8.60 (§175): maintenance cycles only — which goals are the hold -->
+    <div class="form-group" id="goal-hold-row" style="display:none;">
+      <div class="label">Phase</div>
+      <input type="hidden" id="goal-hold-input" value="">
+      <div class="toggle-row" role="group" aria-label="Phase" id="goal-hold-seg">
+        <button type="button" class="toggle-btn" data-hold="" onclick="setGoalHold('')">Climb</button>
+        <button type="button" class="toggle-btn" data-hold="1" onclick="setGoalHold('1')">Hold</button>
+      </div>
+      <div class="field-hint">The hold is the weeks at maintenance kcal. A recalibration moves it.</div>
     </div>
 
     <div class="macro-slider-cols">
@@ -6517,7 +6527,7 @@ try {
      same-named shims. ?v= is the first 12 hex of the file's SHA-256, so a phone never pairs a
      new index.html with an older engine from its HTTP cache; scripts/verify-engine-build.mjs
      fails if it is stale. Listed in scripts/publish-files.txt. -->
-<script src="engine/dist/bloc-engine.js?v=44cb8d8a056e"></script>
+<script src="engine/dist/bloc-engine.js?v=f1b3b652d6f0"></script>
 <script>
 // ════════════════════════════════════════════════
 // DATE HELPERS
@@ -11414,6 +11424,8 @@ function openModal(id) {
     const sel = document.getElementById('goal-macro-select');
     sel.innerHTML = (state.macrocycles || []).map(m => '<option value="' + m.id + '"' + (m.id === editingMacroId ? ' selected' : '') + '>' + m.name + '</option>').join('') || '<option value="">No macrocycles yet</option>';
     if (editingMacroId) sel.value = editingMacroId;
+    setGoalHold(isEditing && state.goals[modal._editIdx] && state.goals[modal._editIdx].hold === true ? '1' : '');
+    syncGoalHoldRow();
     if (!isEditing) {
       applyNewGoalDefaultDates();
       document.getElementById('goal-kcal-input').value = '';
@@ -12433,8 +12445,9 @@ function createMacrocycle() {
   if (clashErrEl) clashErrEl.style.display = 'none';
 
   const goal = document.getElementById('macro-goal-input').value.trim();
-  const targetBw = parseFloat(document.getElementById('macro-target-bw-input').value) || null;
   const goalType = document.getElementById('macro-goal-type-input') ? document.getElementById('macro-goal-type-input').value : 'loss';
+  // v8.60 (§175): never a goal weight on a maintenance cycle.
+  const targetBw = goalType === 'maintenance' ? null : (parseFloat(document.getElementById('macro-target-bw-input').value) || null);
   const form = state._macroForm || { split: 'ppl', micro: 'yes' };
   const splitType = form.split;
   const useMicrocycles = form.micro !== 'no';
@@ -13979,10 +13992,32 @@ function renameDaySessionStart(macroId, day, spanId, currentLabel) {
 // on the hero itself, so the person can review past cycles without
 // leaving the Progress page or editing anything (tap-to-edit still lives
 // on the Plan page hero, untouched).
-// ── Maintenance recalibration modal (Phase 3) ──────────────────────────────
-// Pending batch update, stashed here between opening the preview and the
-// single Accept button — same ephemeral, non-persisted pattern already
-// used for _pendingNextCyclePlan.
+// ── Maintenance recalibration (v8.60, TECHNICAL §175) ─────────────────────
+// The engine decides everything (computeMaintenanceRecalibration,
+// buildMaintenanceRecalibrationPlan); this is the card's block, the preview
+// sheet and the apply. The same plan is what BLOC Coach publishes for a linked
+// client, so the two can't differ.
+//
+// The card's block: the facts and the reason (the deterministic estimate and
+// what it rests on), then the Recalibrate button. factsOnly: no button and no
+// new climb — what a coached client may see, because the coach recalibrates.
+function buildMaintRecalHTML(macro, ins, factsOnly) {
+  const recal = computeMaintenanceRecalibration(macro, ins);
+  if (!recal) return '';
+  const facts = `<div class="insight-line" style="margin-top:10px;">
+      <span class="insight-line-lead" style="color:var(--amber);">▦ Maintenance estimate ${recal.estimate.toLocaleString()} kcal</span> — ${recal.reason}
+    </div>`;
+  if (factsOnly) return facts;
+  return facts + `<button onclick="openMaintenanceRecalibrationModal()"
+      style="width:100%;padding:11px;border-radius:var(--r-sm);font-size:13px;font-weight:500;
+             background:transparent;color:var(--accent);border:1px solid var(--accent);cursor:pointer;margin-top:10px;
+             font-family:var(--font-display);">
+      Recalibrate →
+    </button>`;
+}
+
+// Pending plans, stashed between the preview and Accept — the same
+// ephemeral, non-persisted pattern as _pendingNextCyclePlan.
 let _pendingMaintRecalibration = null;
 
 function openMaintenanceRecalibrationModal() {
@@ -13991,71 +14026,83 @@ function openMaintenanceRecalibrationModal() {
   const ins = computeWeeklyInsights(macro);
   const recal = computeMaintenanceRecalibration(macro, ins);
   if (!recal) return;
-
-  const latestLog = [...(state.bodyLogs || [])].filter(l => l.weight).sort((a, b) => b.date.localeCompare(a.date))[0];
-  const bwRounded = latestLog ? Math.round(parseFloat(latestLog.weight)) : 150;
-  const proteinG  = Math.max(1, Math.ceil(bwRounded));
-  const newKcal   = recal.localImpliedTDEE;
-  const remaining = Math.max(0, newKcal - proteinG * 4);
-  const newCarbs  = Math.round(remaining * 0.5 / 4);
-  const newFats   = Math.round(remaining * 0.5 / 9);
-
-  _pendingMaintRecalibration = {
-    newKcal, newProtein: proteinG, newCarbs, newFats,
-    macroId: macro.id,
-    goalStartDates: recal.affectedGoals.map(g => g.startDate),
+  const ctx = engineCtx();
+  const plans = {
+    step: BlocEngine.buildMaintenanceRecalibrationPlan(state, ctx, macro, recal, 'step'),
+    schedule: BlocEngine.buildMaintenanceRecalibrationPlan(state, ctx, macro, recal, 'schedule'),
   };
-
-  const directionText = recal.direction === 'gaining'
-    ? `Your weight has been climbing over the last few weeks while eating at what was set as your maintenance target — that means your real TDEE is likely lower than ${recal.currentTargetKcal.toLocaleString()} kcal.`
-    : `You're still losing weight over the last few weeks despite eating at what was set as your maintenance target — that means your real TDEE is likely higher than ${recal.currentTargetKcal.toLocaleString()} kcal.`;
-
-  const rows = recal.affectedGoals.map(g => {
-    const oldKcal = parseInt(g.kcal) || 0;
-    return `<tr>
-      <td style="padding:8px;font-size:11px;color:var(--text3);">${g.startDate} – ${g.endDate}</td>
-      <td style="padding:8px;font-size:12px;">
-        <span style="color:var(--text3);text-decoration:line-through;">${oldKcal.toLocaleString()}</span>
-        <span style="color:var(--accent);font-weight:600;"> → ${newKcal.toLocaleString()} kcal</span>
-      </td>
-    </tr>`;
-  }).join('');
-
-  const el = document.getElementById('maint-recalibration-content');
-  if (!el) return;
-  el.innerHTML = `
-    <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:12px;">${directionText}</div>
-    <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">New macros for every affected goal</div>
-    <div style="font-size:13px;color:var(--text);font-weight:600;margin-bottom:14px;">
-      ${newKcal.toLocaleString()} kcal · P ${proteinG}g · C ${newCarbs}g · F ${newFats}g
-    </div>
-    <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Affected goals (${recal.affectedGoals.length}) — steps stay at 8,000, unchanged</div>
-    <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">${rows}</table>
-    <button onclick="acceptMaintenanceRecalibration()"
-      style="width:100%;padding:12px;border-radius:10px;font-size:14px;font-weight:600;
-             background:var(--accent);color:#06281f;border:none;cursor:pointer;
-             font-family:var(--font-display);">
-      Accept — update ${recal.affectedGoals.length} goal${recal.affectedGoals.length !== 1 ? 's' : ''}
-    </button>`;
-
+  _pendingMaintRecalibration = { macroId: macro.id, recal, plans, choice: plans.step && !plans.step.blocked ? 'step' : 'schedule' };
+  renderMaintenanceRecalibrationModal();
   openModal('modal-maint-recalibration');
 }
 
-// Batch-applies the previewed recalibration to every affected goal in one
-// shot. Steps are never touched — maintenance goals are always 8,000 flat,
-// enforced separately (see buildNextCycleGoalSteps' stepsTarget logic).
-function acceptMaintenanceRecalibration() {
+function setMaintRecalChoice(choice) {
   if (!_pendingMaintRecalibration) return;
-  const { newKcal, newProtein, newCarbs, newFats, macroId, goalStartDates } = _pendingMaintRecalibration;
-  (state.goals || []).forEach(g => {
-    if (g.macroId === macroId && goalStartDates.includes(g.startDate)) {
-      g.kcal = newKcal;
-      g.protein = newProtein;
-      g.carbs = newCarbs;
-      g.fats = newFats;
-      // g.steps intentionally untouched — always 8,000 for maintenance
-    }
-  });
+  _pendingMaintRecalibration.choice = choice;
+  renderMaintenanceRecalibrationModal();
+}
+
+function renderMaintenanceRecalibrationModal() {
+  const el = document.getElementById('maint-recalibration-content');
+  const p = _pendingMaintRecalibration;
+  if (!el || !p) return;
+  const { recal, plans, choice } = p;
+  const plan = plans[choice];
+  const fmtD = d => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const seg = (key, label) => `<button type="button" class="toggle-btn${choice === key ? ' active' : ''}" onclick="setMaintRecalChoice('${key}')">${label}</button>`;
+  const what = choice === 'step'
+    ? (plan.climbWeeks
+        ? `Climbs ${plan.stepKcal} kcal a week from ${recal.climbStart.toLocaleString()} kcal, then holds ${plan.holdWeeks} weeks.${plan.extensionWeeks !== null ? ` Extends the cycle to ${fmtD(plan.newEnd)} for the full hold.` : ''}`
+        : `You're already eating at the new hold, so it starts ${fmtD(recal.effectiveFrom)} and runs ${plan.holdWeeks} weeks.${plan.extensionWeeks !== null ? ` Extends the cycle to ${fmtD(plan.newEnd)}.` : ''}`)
+    : (plan.climbWeeks
+        ? `Reaches the hold on ${fmtD(recal.hold.start > recal.effectiveFrom ? recal.hold.start : recal.effectiveFrom)} as planned: ${plan.climbWeeks} climb week${plan.climbWeeks === 1 ? '' : 's'} of about ${plan.stepKcal} kcal each. The cycle's length doesn't change.`
+        : `The hold has no climb weeks left before it, so it starts ${fmtD(recal.effectiveFrom)}. The cycle's length doesn't change.`);
+  const rows = plan.goals.map(g => {
+    const old = (state.goals || []).find(x => x.macroGoalID === g.macroGoalID);
+    const trimmed = old && old.endDate !== g.endDate && old.kcal === g.kcal;
+    return `<tr>
+      <td style="padding:8px;font-size:11px;color:var(--text3);">${fmtD(g.startDate)} – ${fmtD(g.endDate)}${g.hold ? ' · hold' : ''}</td>
+      <td style="padding:8px;font-size:12px;text-align:right;">${trimmed ? `<span style="color:var(--text3);">${(parseInt(g.kcal) || 0).toLocaleString()} kcal (unchanged)</span>`
+        : `<span style="color:var(--accent);font-weight:600;">${(parseInt(g.kcal) || 0).toLocaleString()} kcal</span><div style="font-size:11px;color:var(--text3);">P ${g.protein}g · C ${g.carbs}g · F ${g.fats}g</div>`}</td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `
+    <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:12px;">${recal.reason}</div>
+    <div class="toggle-row" role="group" aria-label="How to reach the new hold" style="margin-bottom:10px;">
+      ${seg('step', 'Keep +125 a week')}${seg('schedule', 'Reach the hold on schedule')}
+    </div>
+    <div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:12px;">${what}</div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:12px;">${rows}</table>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:14px;">From ${fmtD(recal.effectiveFrom)}. Steps stay as they are. Earlier weeks are unchanged.</div>
+    ${plan.blocked ? `<div style="font-size:12px;color:var(--red);margin-bottom:12px;">${plan.blocked}</div>` : ''}
+    <button onclick="acceptMaintenanceRecalibration()" ${plan.blocked ? 'disabled' : ''}
+      style="width:100%;padding:12px;border-radius:10px;font-size:14px;font-weight:600;
+             background:var(--accent);color:#06281f;border:none;cursor:pointer;opacity:${plan.blocked ? '0.4' : '1'};
+             font-family:var(--font-display);">
+      Accept — update ${plan.goals.length} goal${plan.goals.length !== 1 ? 's' : ''}
+    </button>`;
+}
+
+// Applies the chosen plan: upserts its goals by macroGoalID (the running
+// goal, trimmed to the Sunday before, keeps its id), removes the later goals
+// it replaces, and sets extensionWeeks when the +125 choice lengthens the
+// cycle (whole weeks, as Extend cycle does).
+function acceptMaintenanceRecalibration() {
+  const p = _pendingMaintRecalibration;
+  if (!p) return;
+  const plan = p.plans[p.choice];
+  if (!plan || plan.blocked) return;
+  const macro = (state.macrocycles || []).find(m => m.id === p.macroId);
+  if (!macro) return;
+  const remove = new Set(plan.removeGoalIds);
+  state.goals = (state.goals || []).filter(g => !remove.has(g.macroGoalID));
+  for (const g of plan.goals) {
+    const i = state.goals.findIndex(x => x.macroGoalID === g.macroGoalID);
+    if (i >= 0) state.goals[i] = { ...g };
+    else state.goals.push({ ...g });
+  }
+  if (plan.extensionWeeks !== null) macro.extensionWeeks = plan.extensionWeeks;
+  renumberMacroGoalSteps(macro.id);
   _pendingMaintRecalibration = null;
   save();
   closeModal('modal-maint-recalibration');
@@ -14245,17 +14292,31 @@ function buildProgressHeroHTML(macro) {
   const startBw  = cycleLogs.length ? parseFloat(cycleLogs[0].weight) : null;
 
   // ── v8.46 (§148): the callout is what the cycle is FOR ──
-  const callout = progressHeroCallout(goalType, startBw, latestBw, macro.targetBw);
+  // v8.60 (§175): a maintenance cycle's reference is its baseline (week 1's
+  // average), never a goal weight; any other cycle's is its targetBw.
+  const maintStab = isMaintenance ? BlocEngine.judgeMaintenanceStability(state, macro, engineCtx()) : null;
+  const refLbs = BlocEngine.getCycleReferenceLbs(state, macro, engineCtx());
+  const callout = progressHeroCallout(goalType, startBw, latestBw, isMaintenance ? null : macro.targetBw, maintStab);
 
   // ── The status line — the existing status logic and its colours ──
   let statusLine = '';
-  if (isMaintenance && latestBw !== null && macro.targetBw) {
+  if (isMaintenance) {
     // Maintenance succeeds by staying put, so there is no schedule to be
-    // ahead of or behind — stability IS the goal.
-    const diff = Math.abs(latestBw - macro.targetBw);
-    const colour = diff <= 2.0 ? 'var(--green-text)' : diff > 5.0 ? 'var(--red)' : 'var(--amber)';
-    const label = diff <= 2.0 ? 'Stable' : diff > 5.0 ? 'Drifting' : 'Slipping';
-    statusLine = `<span style="color:${colour};font-weight:700;">${label}</span> · within ${diff.toFixed(1)} lbs of your ${macro.targetBw} lb target`;
+    // ahead of or behind — stability IS the goal. v8.60 (§175): a complete
+    // week's average against the baseline, never the latest single weigh-in.
+    const st = maintStab;
+    if (st && st.week) {
+      const colour = st.state === 'stable' ? 'var(--green-text)' : st.state === 'drifting' ? 'var(--red)' : 'var(--amber)';
+      const label = st.state === 'stable' ? 'Stable' : st.state === 'drifting' ? 'Drifting' : 'Slipping';
+      const rel = st.diff === 0 ? 'level with' : `${Math.abs(st.diff).toFixed(1)} lbs ${st.diff > 0 ? 'above' : 'below'}`;
+      statusLine = `<span style="color:${colour};font-weight:700;">${label}</span> · week ${st.week.n} averaged ${st.week.lbs} lbs, ${rel} baseline`;
+    } else if (st && st.baseline) {
+      statusLine = st.baseline.locked
+        ? `Baseline set · judged from the first complete week after week 1`
+        : `Baseline forming · week 1's average over ${st.baseline.days} weigh-in${st.baseline.days === 1 ? '' : 's'}`;
+    } else {
+      statusLine = `Log a weigh-in in week 1 to set your baseline`;
+    }
   } else if (isPast && macro.targetBw && latestBw !== null) {
     const diff = latestBw - macro.targetBw;
     const onTarget = Math.abs(diff) <= 0.1;
@@ -14293,7 +14354,7 @@ function buildProgressHeroHTML(macro) {
     </div>
     <div class="prog-hero-val digits">${callout.value}<span class="prog-hero-unit"> lbs</span></div>
     ${statusLine ? `<div class="prog-hero-status">${statusLine}</div>` : ''}
-    ${buildProgressHeroChart(cycleLogs, macro.targetBw)}
+    ${buildProgressHeroChart(cycleLogs, refLbs)}
     <div class="prog-hero-foot"><span>Tap to switch cycle</span></div>
   </div>`;
 }
@@ -14302,12 +14363,13 @@ function buildProgressHeroHTML(macro) {
 // goal. Body weight alone said nothing about the cycle:
 //   · a cut: the total lost since the cycle's first weigh-in ("Lost this cycle");
 //   · a gain cycle: the total gained ("Gained this cycle");
-//   · maintenance: the target it holds ("Maintenance weight"), else the latest weigh-in.
+//   · maintenance: its baseline, week 1's average ("Baseline", "Baseline so far"
+//     until day 7 has passed; v8.60, §175), else the latest weigh-in.
 // Moving the wrong way says so: a cut that has gained reads "Gained this cycle".
-function progressHeroCallout(goalType, startBw, latestBw, targetBw) {
-  const target = targetBw !== null && targetBw !== undefined && targetBw !== '' ? parseFloat(targetBw) : null;
+function progressHeroCallout(goalType, startBw, latestBw, targetBw, maintStab) {
   if (goalType === 'maintenance') {
-    if (target !== null && !isNaN(target)) return { label: 'Maintenance weight', value: target.toFixed(1) };
+    const b = maintStab && maintStab.baseline;
+    if (b) return { label: b.locked ? 'Baseline' : 'Baseline so far', value: b.lbs.toFixed(1) };
     return { label: 'Body weight', value: latestBw !== null ? latestBw.toFixed(1) : '—' };
   }
   if (startBw === null || latestBw === null) return { label: goalType === 'gain' || goalType === 'strength' ? 'Gained this cycle' : 'Lost this cycle', value: '—' };
@@ -16557,7 +16619,8 @@ function renderProgressInsights(macro) {
   const dynResult  = calcDynamicTDEE();
 
   const goalWeightETA = (() => {
-    if (!macro || !macro.targetBw || !latest) return null;
+    // v8.60 (§175): a maintenance cycle has no goal weight to reach.
+    if (!macro || macro.goalType === 'maintenance' || !macro.targetBw || !latest) return null;
     const target = parseFloat(macro.targetBw);
     const current = parseFloat(latest.weight);
     if (isGainCycle ? current >= target : current <= target) return null;
@@ -17321,17 +17384,7 @@ function buildInsightsCardHTML() {
     </div>`;
   }
 
-  // Phase 3: recalibration button — only ever appears for the active
-  // maintenance macro, only when a genuine directional trend implies the
-  // current/future goals are meaningfully off from what's actually happening.
-  const recal = (goalType === 'maintenance') ? computeMaintenanceRecalibration(macro, ins) : null;
-  const recalButtonHtml = recal
-    ? `<button onclick="openMaintenanceRecalibrationModal()"
-        style="width:100%;padding:11px;border-radius:var(--r-sm);font-size:13px;font-weight:500;
-               background:transparent;color:var(--accent);border:1px solid var(--accent);cursor:pointer;margin-top:10px;
-               font-family:var(--font-display);">
-        Start recalibration →
-      </button>` : '';
+  const recalButtonHtml = goalType === 'maintenance' ? buildMaintRecalHTML(macro, ins, false) : '';
 
   return `<div class="insight-block">
     <span class="chip" style="--chip-c:${pill.color}">${pill.label}</span>
@@ -19223,6 +19276,9 @@ function _openQueueStep(idx) {
   // macroId straight off this dropdown when it saves.
   const macroSelect = document.getElementById('goal-macro-select');
   if (macroSelect) macroSelect.value = macro.id;
+  // v8.60 (§175): a plan's hold arrives marked; the truncation step keeps its own.
+  if (editIdx < 0) setGoalHold(g.hold === true ? '1' : '');
+  syncGoalHoldRow();
 
   // ── Queue indicator (applies to all steps) ──
   const queueInd  = document.getElementById('goal-queue-indicator');
@@ -19320,6 +19376,7 @@ function saveGoalAndAdvanceQueue() {
     protein, carbs, fats,
     macroGoalID,
     _blocLabel: labelVal,
+    ...goalHoldFromForm(macroId),
   };
 
   // Truncation step: update in place. New LLM steps: push.
@@ -20026,6 +20083,9 @@ function renderPlanHero(macro) {
   const goalPeriodCount = (state.goals || []).filter(g => g.macroId === macro.id).length;
   const totalSessionCount = Math.round((macro.sessionsPerWeek || 3) * totalWks);
   const statusLabel = today < startDate ? 'Upcoming' : today > endDate ? 'Past' : 'Active';
+  // v8.60 (§175): a maintenance cycle shows its baseline, never a goal weight.
+  const planRefLbs = BlocEngine.getCycleReferenceLbs(state, macro, engineCtx());
+  const planRefLabel = macro.goalType === 'maintenance' ? 'Baseline' : 'Goal weight';
 
   el.innerHTML = `<div class="card plan-hero rise" onclick="openCycleHistory()">
     <div class="plan-hero-top">
@@ -20035,7 +20095,7 @@ function renderPlanHero(macro) {
     <div class="meso-row">${pills.join('')}</div>
     <div class="plan-hero-divider"></div>
     <div class="prog-tile-row">
-      <div class="fuel-rest-tile"><div class="fuel-rest-tile-lbl">Goal weight</div><div class="fuel-rest-tile-val">${macro.targetBw ? macro.targetBw : '—'}<span class="fuel-rest-tile-unit">${macro.targetBw ? ' lbs' : ''}</span></div></div>
+      <div class="fuel-rest-tile"><div class="fuel-rest-tile-lbl">${planRefLabel}</div><div class="fuel-rest-tile-val">${planRefLbs !== null ? planRefLbs : '—'}<span class="fuel-rest-tile-unit">${planRefLbs !== null ? ' lbs' : ''}</span></div></div>
       <div class="fuel-rest-tile"><div class="fuel-rest-tile-lbl">Sessions</div><div class="fuel-rest-tile-val">${totalSessionCount}</div></div>
       <div class="fuel-rest-tile"><div class="fuel-rest-tile-lbl">Phases</div><div class="fuel-rest-tile-val">${goalPeriodCount}</div></div>
     </div>
@@ -20937,7 +20997,9 @@ function saveEditMacro() {
     weeks: parseInt(document.getElementById('edit-macro-weeks-input').value) || macro.weeks,
     start: startVal,
     goal: document.getElementById('edit-macro-goal-input').value.trim(),
-    targetBw: parseFloat(document.getElementById('edit-macro-target-bw-input').value) || null,
+    // v8.60 (§175): never a goal weight on a maintenance cycle.
+    targetBw: document.getElementById('edit-macro-goal-type-input').value === 'maintenance' ? null
+      : (parseFloat(document.getElementById('edit-macro-target-bw-input').value) || null),
     goalType: document.getElementById('edit-macro-goal-type-input').value,
     weightIncrement: document.getElementById('edit-macro-weight-increment-input').value || '2.5',
     weeksPerMeso: parseInt(document.getElementById('edit-macro-weeks-per-meso-input').value) || 1,
@@ -21458,6 +21520,10 @@ function onMacroGoalTypeChange(prefix) {
   const gt = (document.getElementById(prefix + '-goal-type-input') || {}).value || 'loss';
   const incRow = document.getElementById(prefix === 'macro' ? 'weight-increment-row' : 'edit-weight-increment-row');
   if (incRow) incRow.style.display = gt === 'maintenance' ? 'none' : '';
+  // v8.60 (§175): a maintenance cycle has no goal weight — its baseline is
+  // week 1's average weigh-in. Loss and gain keep the field.
+  const bwRow = document.getElementById(prefix + '-target-bw-row');
+  if (bwRow) bwRow.style.display = gt === 'maintenance' ? 'none' : '';
   validateMacroPace(prefix);
 }
 
@@ -21969,7 +22035,8 @@ function buildHomeGoalLineText() {
   const macro = (state.macrocycles || []).find(m => m.id === state.currentMacroId);
   if (!goal) return 'No goal period covering today.';
   const label = goal.label || goal._blocLabel || 'Goal period';
-  const targetBw = macro && macro.targetBw;
+  // v8.60 (§175): maintenance holds near its baseline (week 1's average).
+  const targetBw = BlocEngine.getCycleReferenceLbs(state, macro, engineCtx());
   if (!targetBw) return label;
   const type = (macro && macro.goalType) || '';
   const verb = type === 'maintenance' ? 'hold near'
@@ -30571,6 +30638,7 @@ function prefillGoalLabelForSelectedMacro() {
 // cycle's first goal default to that cycle's start (openModal ran before
 // the macro was chosen).
 function onGoalMacroSelectChange() {
+  syncGoalHoldRow();
   const modal = document.getElementById('modal-add-goal');
   const isEditing = modal._editIdx !== undefined && modal._editIdx !== null;
   if (!isEditing) {
@@ -30617,6 +30685,28 @@ function applyNewGoalDefaultDates() {
   const { start, end } = defaultNewGoalDates(macro, state.goals || [], getLocalToday());
   document.getElementById('goal-start-input').value = start;
   document.getElementById('goal-end-input').value = end;
+}
+
+// ── The goal's Phase (v8.60, §175) ──
+// Maintenance cycles only: which goals are the hold. Every other cycle has no
+// hold, and a goal saved to one never carries the flag.
+function setGoalHold(v) {
+  const input = document.getElementById('goal-hold-input');
+  if (input) input.value = v;
+  document.querySelectorAll('#goal-hold-seg [data-hold]').forEach(b => b.classList.toggle('active', b.dataset.hold === v));
+}
+function syncGoalHoldRow() {
+  const row = document.getElementById('goal-hold-row');
+  if (!row) return;
+  const macroId = (document.getElementById('goal-macro-select') || {}).value;
+  const m = (state.macrocycles || []).find(x => x.id === macroId);
+  row.style.display = m && m.goalType === 'maintenance' ? '' : 'none';
+}
+// { hold: true } for a hold goal on a maintenance cycle, else {} (no key).
+function goalHoldFromForm(macroId) {
+  const m = (state.macrocycles || []).find(x => x.id === macroId);
+  const on = (document.getElementById('goal-hold-input') || {}).value === '1';
+  return m && m.goalType === 'maintenance' && on ? { hold: true } : {};
 }
 
 // Opens the goal modal pre-filled for editing an existing goal period.
@@ -30747,6 +30837,7 @@ function saveGoal() {
     fats:    useComputedMacros ? macros.fatG     : state.goals[editIdx].fats,
     macroGoalID,
     _blocLabel: labelVal,
+    ...goalHoldFromForm(macroId),
   };
   // A goal deliberately moved to another macrocycle leaves a gap in its old
   // one's Step numbering — renumber both.

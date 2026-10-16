@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════
-// Weekly insights, the safety floor, the maintenance recalibration and the
-// check-in's state (TECHNICAL §125).
+// Weekly insights, the safety floor and the check-in's state (TECHNICAL
+// §125). The maintenance recalibration is in maintenance.ts (§175).
 //
 // Moved from index.html in v8.35, UNCHANGED apart from their inputs, behind
 // same-named shims: the state as `s`, "today" as `ctx` (§123). Every AI
@@ -11,6 +11,7 @@ import type { BlocState, Loose, Macrocycle } from './state.ts';
 import { type EngineContext, getMacroEndDate, getMondayAfter, getSundayAfterWeeks, toLocalDateStr } from './dates.ts';
 import { buildSignalPeriods } from './prompts.ts';
 import { buildDayMap, calcDynamicTDEE } from './tdee.ts';
+import { judgeMaintenanceStability } from './maintenance.ts';
 
 // Computes per-week stats for the resolved macrocycle, detects caloric drift
 // and plateau/undereating signals, and produces a goalType-branched narrative.
@@ -187,8 +188,11 @@ export function computeWeeklyInsights(s: BlocState, ctx: EngineContext, macro: M
   const hasPlateauSignal = isLoss && stuckSignal;
 
   // ── Maintenance: weight stability check ──
+  // v8.60 (§175): judged against the baseline (week 1's average), never a goal
+  // weight. maintVariance (the spread of weekly averages) stays for the tile.
   let maintVariance = null;
-  if (isMaint && macro.targetBw) {
+  const maintStability = isMaint ? judgeMaintenanceStability(s, macro, ctx) : null;
+  if (isMaint) {
     const wksWithWeight = weekBuckets.filter(b => b.avgWeight !== null);
     if (wksWithWeight.length >= 2) {
       const weights: number[] = wksWithWeight.map(b => b.avgWeight);
@@ -260,19 +264,24 @@ export function computeWeeklyInsights(s: BlocState, ctx: EngineContext, macro: M
     }
 
   } else {
-    // Maintenance
-    if (maintVariance !== null && maintVariance > 3) {
-      signal = 'maint-unstable';
-      headline = `Weight varying ${maintVariance} lbs — more than expected for maintenance`;
-      detail = `Maintenance targets ±1–2 lbs variance around goal weight. A ${maintVariance} lb range may indicate inconsistent intake${macro.targetBw ? ` relative to your ${macro.targetBw} lbs target` : ''}. Check if calorie intake is fluctuating significantly week-to-week.`;
-    } else if (maintVariance !== null) {
-      signal = 'maint-stable';
-      headline = `Weight is stable — maintenance on track`;
-      detail = `Weight range across logged weeks is ${maintVariance} lbs${macro.targetBw ? ` around your ${macro.targetBw} lbs target` : ''}. That's within the expected variance for maintenance. Focus on keeping training performance steady.`;
-    } else {
+    // Maintenance (v8.60, §175): the stability judgement against the baseline.
+    const st = maintStability;
+    if (!st || st.state === 'none') {
       signal = 'maint-nodata';
-      headline = 'Log more weigh-ins to track stability';
-      detail = 'Maintenance insights need at least 2 weeks of body weight data to detect variance trends.';
+      headline = 'Log a weigh-in to set your baseline';
+      detail = st ? st.reason : 'Maintenance insights need a weigh-in in the first week of the cycle.';
+    } else if (st.state === 'forming') {
+      signal = 'maint-stable';
+      headline = `Baseline ${st.baseline!.lbs} lbs${st.baseline!.locked ? '' : ' so far'}`;
+      detail = st.reason;
+    } else if (st.state === 'stable') {
+      signal = 'maint-stable';
+      headline = 'Weight is stable — maintenance on track';
+      detail = st.reason;
+    } else {
+      signal = 'maint-unstable';
+      headline = `Weight is ${Math.abs(st.diff!).toFixed(1)} lbs ${st.diff! > 0 ? 'above' : 'below'} your baseline`;
+      detail = `${st.reason} Check whether intake has moved week to week.`;
     }
   }
 
@@ -291,6 +300,7 @@ export function computeWeeklyInsights(s: BlocState, ctx: EngineContext, macro: M
     activePeriodIsOngoing,  // true if activePeriod is also the most recent period (i.e. still happening now)
     baselineWeekLabel: weekBuckets[baselineIdx] ? weekBuckets[baselineIdx].label : 'W1',
     maintVariance,
+    ...(isMaint ? { maintStability } : {}), // v8.60 (§175): maintenance cycles only
     signal, headline, detail,
     insufficientData: false,
   };
@@ -320,64 +330,7 @@ export function computeSafetyFloor(s: BlocState, ctx: EngineContext, macro: Macr
   return 1400;
 }
 
-// ── Maintenance TDEE-discrepancy recalibration (Phase 3) ───────────────────
-// Distinct from calcTrendBasedTDEE()'s whole-history median, which is
-// deliberately slow-moving — this is a locally-scoped check specifically
-// for "my body is doing something different RIGHT NOW, mid-bridge," which
-// the global figure won't catch quickly by design. Only fires for the
-// CURRENTLY ACTIVE maintenance macro — recalibrating a past cycle's
-// already-finished goals wouldn't mean anything.
-//
-// Trigger: a genuine directional weight trend over the last 3 qualifying
-// weeks (not just variance/noise — same ±0.5 lb/week stability threshold
-// used elsewhere), AND the resulting locally-implied TDEE meaningfully
-// disagrees (>150 kcal or >7%) with what the current/future goals are
-// actually set to.
-//
-// Returns null if recalibration isn't warranted, otherwise
-// { localImpliedTDEE, currentTargetKcal, discrepancy, direction, affectedGoals }
-// — affectedGoals is every goal in this macro with endDate >= today (today's
-// goal plus all not-yet-started future ones), the exact set Card 3's modal
-// will preview and batch-update.
-export function computeMaintenanceRecalibration(s: BlocState, ctx: EngineContext, macro: Macrocycle | null | undefined, ins: Loose): Loose {
-  if (!macro || macro.goalType !== 'maintenance') return null;
-  const today = ctx.today;
-  const macroEnd = getMacroEndDate(macro, ctx);
-  if (today < (macro.start || today) || today > macroEnd) return null; // active cycle only
-
-  const qualifying = (ins.weekBuckets || []).filter((b: Loose) => b.avgWeight !== null && b.nutrDayCount >= 4);
-  if (qualifying.length < 3) return null; // need a real trend, not one or two noisy points
-
-  const recent = qualifying.slice(-3);
-  const deltas = recent.slice(1).map((b: Loose, i: number) => b.avgWeight - recent[i].avgWeight);
-  const avgWeeklyDelta = deltas.reduce((a: number, b: number) => a + b, 0) / deltas.length;
-  if (Math.abs(avgWeeklyDelta) <= 0.5) return null; // stable — this is what maintenance should look like, no action needed
-
-  // Locally-implied TDEE from just the two most recent qualifying weeks —
-  // deliberately NOT the whole-history calcDynamicTDEE(), since the whole
-  // point is catching a shift that figure won't reflect for a long time.
-  const w1 = recent[recent.length - 2], w2 = recent[recent.length - 1];
-  const weightChangeLbs = w2.avgWeight - w1.avgWeight;
-  const localImpliedTDEE = Math.round(w2.avgKcal - (weightChangeLbs * 3500) / 7);
-  if (localImpliedTDEE < 800 || localImpliedTDEE > 6000) return null; // sanity guard, same bounds as calcDynamicTDEE
-
-  const affectedGoals = (s.goals || [])
-    .filter(g => g.macroId === macro.id && g.endDate >= today)
-    .sort((a, b) => a.startDate.localeCompare(b.startDate));
-  if (!affectedGoals.length) return null;
-
-  const currentTargetKcal = parseInt(affectedGoals[0].kcal) || null;
-  if (!currentTargetKcal) return null;
-
-  const discrepancy = localImpliedTDEE - currentTargetKcal;
-  if (Math.abs(discrepancy) < 150 && Math.abs(discrepancy / currentTargetKcal) < 0.07) return null; // not meaningful
-
-  return {
-    localImpliedTDEE, currentTargetKcal, discrepancy,
-    direction: avgWeeklyDelta > 0 ? 'gaining' : 'losing',
-    affectedGoals,
-  };
-}
+// The maintenance recalibration moved to maintenance.ts in v8.60 (§175).
 
 // ── The check-in's eligibility, cooldown and stored state ─────────────────
 // One implementation, read by the section and by its full-view sheet. It was

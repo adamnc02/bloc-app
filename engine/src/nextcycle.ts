@@ -434,7 +434,8 @@ export function buildNextCycleGoalSteps(s: BlocState, ctx: EngineContext, rec: L
       const label = gr.startWeek === gr.endWeek
         ? `Wk ${gr.startWeek}${gr.isHoldWeek ? ' (hold)' : ''}`
         : `Wk ${gr.startWeek}-${gr.endWeek}${gr.isHoldWeek ? ' (hold)' : ''}`;
-      steps.push({ label, startDate, endDate, kcal: gr.kcal, steps: stepsTarget, ...macrosFor(gr.kcal) });
+      // v8.60 (§175): the hold is marked, so a recalibration can find it.
+      steps.push({ label, startDate, endDate, kcal: gr.kcal, steps: stepsTarget, ...macrosFor(gr.kcal), ...(gr.isHoldWeek ? { hold: true } : {}) });
       cursor = addDays(cursor, weeksSpanned * 7);
     });
   } else if (rec.directionRamp && rec.directionRamp.length) {

@@ -121,7 +121,7 @@ if (process.env.BLOC_LEAVES_CHILD) {
     try { return ser(typeof f === 'function' ? f(...args) : f); } catch (e) { return `threw ${e.constructor.name}: ${e.message}`; }
   };
 
-  let runs = 0, diffs = 0, throws = 0, h7Moved = 0, badgeMoved = 0, plannedAdded = 0, dropBtnGone = 0, kgTrimmed = 0;
+  let runs = 0, diffs = 0, throws = 0, h7Moved = 0, badgeMoved = 0, plannedAdded = 0, dropBtnGone = 0, kgTrimmed = 0, maintJudged = 0, holdMarked = 0, promptBaseline = 0, holdAsked = 0;
   const firstDiffs = [], firstThrows = [];
   const compare = (label, name, mkArgs, today = '2026-08-02') => {
     const D = fixedAt(today);
@@ -290,6 +290,49 @@ if (process.env.BLOC_LEAVES_CHILD) {
   // the renders where the v8.34 side had one are counted. Anything else that
   // differs still fails. verify-train-kg checks fmtKg itself.
   const noPointZero = str => str.replace(/(\d)\.0(?!\d)/g, '$1');
+  // v8.60 (§175): a maintenance cycle's stability is judged against its
+  // baseline (week 1's average), so computeWeeklyInsights' maintenance
+  // judgement (maintStability, signal, headline, detail) is new. Those four
+  // fields are removed from both sides of a maintenance result; everything
+  // else in it, and every non-maintenance result, must still match.
+  // verify-maintenance-baseline checks the judgement itself.
+  // The insights may be nested (computeCheckinState carries them), so every
+  // object with weekBuckets and a maint- signal is stripped, wherever it is.
+  const stripMaint = v => {
+    if (Array.isArray(v)) return v.map(stripMaint);
+    if (!v || typeof v !== 'object') return v;
+    const out = {};
+    const isMaintIns = Array.isArray(v.weekBuckets) && String(v.signal || '').startsWith('maint-');
+    for (const [k, x] of Object.entries(v)) {
+      if (isMaintIns && ['maintStability', 'signal', 'headline', 'detail'].includes(k)) continue;
+      out[k] = stripMaint(x);
+    }
+    return out;
+  };
+  // v8.60 (§175): the bridge's hold goals carry hold: true, so a
+  // recalibration can find them. Removed from today's side; nothing else in
+  // the goal steps may differ.
+  // v8.60 (§175): a maintenance cycle's prompt states its baseline where a
+  // target stood ("Baseline: … / Change from baseline: …"), and its stability
+  // headline and detail are the baseline judgement. Both weight lines, and the
+  // maintenance insight sentences, are replaced by a marker on both sides of a
+  // maintenance prompt; the rest of the prompt must still match.
+  const MAINT_INS = /(Weight varying [^\n]*?maintenance|Weight is stable — maintenance on track|Log more weigh-ins to track stability|Log a weigh-in to set your baseline|Baseline [0-9.]+ lbs( so far)?|Weight is [0-9.]+ lbs (above|below) your baseline)[^\n]*/g;
+  const noMaintPromptLines = str => str
+    .replace(/Current weight: [^\n\\]*(\\n|\n)(Remaining|Change from baseline): [^\n\\]*/g, 'WEIGHT-LINES')
+    .replace(MAINT_INS, 'MAINT-INSIGHT');
+  // v8.60 (§175): a maintenance next-cycle prompt requires "hold" on every
+  // goal (the schema field and its HARD CONSTRAINT). Removed from today's side.
+  // Any depth of JSON escaping: the AI flows below compare request bodies.
+  const noHoldAsk = str => str
+    .replace(/\\+n- Every goal must carry \\+"hold\\+".*?is rejected\./g, '')
+    .replace(/,\\+n {10}\\+"hold\\+": boolean \([^)]*\)/g, '');
+  const noHoldFlag = str => str.replace(/,"hold":true/g, '');
+  const noMaintJudgement = str => {
+    const i = str.indexOf(' || state ');
+    let v; try { v = JSON.parse(i < 0 ? str : str.slice(0, i)); } catch { return str; }
+    return JSON.stringify(stripMaint(v)) + (i < 0 ? '' : str.slice(i));
+  };
   for (const [name, cases] of only === 'ai' ? [] : Object.entries(STATE_CASES)) {
     if (!cases.length) {
       // A constant: the engine's value against v8.34's own declaration.
@@ -314,6 +357,10 @@ if (process.env.BLOC_LEAVES_CHILD) {
         if (first.bloc.fn === 'renderTrainDay' && o !== n && noDropBtn(o) !== o && noDropBtn(o) === n) { dropBtnGone++; o = noDropBtn(o); }
         if (first.bloc.fn === 'renderTrainDay' && o !== n && noBadge(o) === noBadge(n)) { badgeMoved++; o = noBadge(o); n = noBadge(n); }
         if (first.bloc.fn === 'renderHomeThisWeek' && o !== n && o === noPlanned(n)) { plannedAdded++; n = noPlanned(n); }
+        if (name === 'buildNextCycleAdvicePrompt' && o !== n && noHoldAsk(n) !== n) { holdAsked++; n = noHoldAsk(n); }
+        if (/Prompt$/.test(name) && o !== n && n.includes('Baseline: ') && noMaintPromptLines(o) === noMaintPromptLines(n)) { promptBaseline++; o = noMaintPromptLines(o); n = noMaintPromptLines(n); }
+        if (name === 'buildNextCycleGoalSteps' && o !== n && o === noHoldFlag(n)) { holdMarked++; n = noHoldFlag(n); }
+        if (['computeWeeklyInsights', 'computeCheckinState'].includes(name) && o !== n && noMaintJudgement(o) === noMaintJudgement(n)) { maintJudged++; o = noMaintJudgement(o); n = noMaintJudgement(n); }
         runs++;
         if (o.startsWith('threw') || n.startsWith('threw')) { throws++; if (firstThrows.length < 3) firstThrows.push(`${name} #${i + 1}: ${o.slice(0, 120)} / ${n.slice(0, 120)}`); }
         if (o !== n) {
@@ -419,12 +466,14 @@ if (process.env.BLOC_LEAVES_CHILD) {
     const mode = E0.nextCycleAdvicePlanMode(rec, override);
     const pr = mode.planRec;
     const keys = mode.returnTwoPlans ? ['sustainable', 'aggressive'] : ['plan'];
+    // v8.60 (§175): a maintenance plan marks its hold ("hold" is required).
+    const holdOf = v => (pr.goalType === 'maintenance' ? { hold: v } : {});
     return nextCycleReply(keys.map((key, i) => {
       const weeks = (mode.directionTwoPlans || mode.maintenanceFlex) ? Math.max(8 + i * 2, (pr.bridge && pr.bridge.climbWeeks) || 0) : null;
       const end = weeks ? E0.getSundayAfterWeeks(pr.newMacroStart, weeks) : pr.newMacroEnd;
       return tweak({ key, label: key, rationale: 'r', summary: 's', ...(weeks ? { weeks } : {}),
-        goals: [{ startDate: pr.newMacroStart, endDate: E0.getSundayAfterWeeks(pr.newMacroStart, 2), kcal: 2100, protein: 200, carbs: 200, steps: 11000 },
-          { startDate: '2026-10-01', endDate: end, kcal: 2200, protein: 205, carbs: 230 }] }, i);
+        goals: [{ startDate: pr.newMacroStart, endDate: E0.getSundayAfterWeeks(pr.newMacroStart, 2), kcal: 2100, protein: 200, carbs: 200, steps: 11000, ...holdOf(false) },
+          { startDate: '2026-10-01', endDate: end, kcal: 2200, protein: 205, carbs: 230, ...holdOf(true) }] }, i);
     }));
   };
   const withStored = (sig) => fresh(s => {
@@ -498,7 +547,10 @@ if (process.env.BLOC_LEAVES_CHILD) {
       if (o !== n) { diffs++; if (firstDiffs.length < 3) { let k = 0; while (k < o.length && o[k] === n[k]) k++; firstDiffs.push(`AI ${sc.label} differs at ${k}\n      v8.34: …${o.slice(Math.max(0, k - 100), k + 160)}\n      now:   …${n.slice(Math.max(0, k - 100), k + 160)}`); } }
       continue;
     }
-    const o = await runAi(OLD_AI, docA, sc), n = await runAi(NEW_AI, docB, sc);
+    const o = await runAi(OLD_AI, docA, sc);
+    let n = await runAi(NEW_AI, docB, sc);
+    // v8.60 (§175): see noHoldAsk above.
+    if (sc.fn === 'askBlocForNextCycleAdvice' && o !== n && noHoldAsk(n) !== n) { holdAsked++; n = noHoldAsk(n); }
     aiRuns++; runs++;
     ((outcomes[sc.fn] ||= {})[NEW_AI.outcome] = ((outcomes[sc.fn] || {})[NEW_AI.outcome] || 0) + 1);
     if (o !== n) { diffs++; if (firstDiffs.length < 3) { let k = 0; while (k < o.length && o[k] === n[k]) k++; firstDiffs.push(`AI ${sc.label} differs at ${k}\n      v8.34: …${o.slice(Math.max(0, k - 100), k + 160)}\n      now:   …${n.slice(Math.max(0, k - 100), k + 160)}`); } }
@@ -507,7 +559,7 @@ if (process.env.BLOC_LEAVES_CHILD) {
   }
   }
 
-  console.log(JSON.stringify({ runs, diffs, firstDiffs, throws, firstThrows, h7Moved, badgeMoved, plannedAdded, dropBtnGone, kgTrimmed, aiRuns: typeof aiCount === 'number' ? aiCount : 0, aiOutcomes: typeof aiOutcomes === 'object' ? aiOutcomes : {} }));
+  console.log(JSON.stringify({ runs, diffs, firstDiffs, throws, firstThrows, h7Moved, badgeMoved, plannedAdded, dropBtnGone, kgTrimmed, maintJudged, holdMarked, promptBaseline, holdAsked, aiRuns: typeof aiCount === 'number' ? aiCount : 0, aiOutcomes: typeof aiOutcomes === 'object' ? aiOutcomes : {} }));
   process.exit(0);
 }
 
@@ -553,6 +605,10 @@ ZONES.forEach((zone, k) => {
   check(`${zone}: Home's "Planned this week avg" line was added on ${r.plannedAdded || 0} renders, and nothing else on Home moved`, !r.error && r.plannedAdded > 0);
   check(`${zone}: a drop set lost its auto-complete button on ${r.dropBtnGone || 0} renders (v8.59, §174), and nothing else did`, !r.error && r.dropBtnGone > 0);
   check(`${zone}: Train's weights lost a trailing .0 on ${r.kgTrimmed || 0} renders (v8.57, §172), and nothing else did`, !r.error && r.kgTrimmed > 0);
+  check(`${zone}: maintenance insights are judged against the baseline in ${r.maintJudged || 0} runs (v8.60, §175), and nothing else in them moved`, !r.error && r.maintJudged > 0);
+  check(`${zone}: the bridge's hold goals are marked hold: true in ${r.holdMarked || 0} runs (v8.60, §175), and nothing else in the goal steps moved`, !r.error && r.holdMarked > 0);
+  check(`${zone}: maintenance prompts state the baseline, not a target, in ${r.promptBaseline || 0} runs (v8.60, §175), and nothing else in them moved`, !r.error && r.promptBaseline > 0);
+  check(`${zone}: maintenance next-cycle prompts require "hold" on every goal in ${r.holdAsked || 0} runs (v8.60, §175)`, !r.error && r.holdAsked > 0);
   const oc = r.aiOutcomes || {};
   const flows = ['askBlocForAdvice', 'askBlocForChallenge', 'askBlocForNextCycleAdvice', 'generateCycleReview'];
   check(`${zone}: the AI flows match v8.34 end to end (${r.aiRuns || 0} scenarios), each reaching both a stored result and a shown error (${flows.map(f => `${f.replace(/^(askBlocFor|generate)/, '')} ${(oc[f] || {}).stored || 0}/${(oc[f] || {}).failed || 0}`).join(', ')})`,
