@@ -695,6 +695,15 @@ h3 {
 /* display:block so the pair stacks whether the call site used <div> or <span>. */
 .row-btn-title { display: block; font-size: 14.5px; font-weight: 700; color: var(--text); }
 .row-btn-sub { display: block; font-size: 12.5px; font-weight: 500; color: var(--text2); margin-top: 2px; line-height: 1.35; }
+/* v8.61 (§176): household recipes from Pinch */
+.household-marker { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; vertical-align: middle; color: var(--accent2); background: color-mix(in srgb, var(--accent2) 14%, transparent); }
+.household-incomplete { opacity: .55; cursor: default; }
+.recipe-locked { opacity: .55; }
+.household-p { font-size: 13px; color: var(--text2); line-height: 1.45; margin: 12px 2px; }
+.household-note { font-size: 12.5px; color: var(--text2); background: var(--surface2); border-radius: var(--r-sm); padding: 9px 11px; margin: 10px 0; }
+.household-btn { width: 100%; margin-top: 10px; }
+.household-or { text-align: center; font-size: 12px; color: var(--text3); margin: 12px 0 4px; }
+.household-input { display: block; width: 100%; box-sizing: border-box; margin-top: 8px; font-size: 15px; padding: 10px 12px; border-radius: var(--r-sm); border: 0.5px solid var(--border2); background: var(--surface2); color: var(--text); }
 /* Holds icoChevron(). display:flex stops the svg sitting on the text baseline
    and leaving a descender's worth of gap under every row. */
 .row-btn-chevron { flex-shrink: 0; color: var(--text3); display: flex; align-items: center; }
@@ -6197,7 +6206,24 @@ try {
           <div class="settings-row-sub">Powers the check-in, cycle review, next-cycle advice and photo logging.</div>
         </div>
       </div>
+      <div class="settings-row settings-row-nav" onclick="openModal('modal-household')">
+        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="M10 20v-6h4v6"/></svg></div>
+        <div class="settings-row-text">Household recipes
+          <div class="settings-row-sub" id="linked-household-sub">Read your household’s recipes from Pinch.</div>
+        </div>
+      </div>
     </div>
+  </div>
+</div>
+
+<!-- Linked Services → Household recipes (v8.61, §176): sign in to Pinch's
+     project, read-only. renderHouseholdModal() fills #household-body. -->
+<div class="modal-overlay" id="modal-household">
+  <div class="modal-sheet" data-modal="modal-household">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-household')">✕</button></div>
+    <div class="modal-title">Household recipes</div>
+    <div class="modal-sub">Recipes from Pinch, the household's recipe library. Read-only in BLOC.</div>
+    <div id="household-body"></div>
   </div>
 </div>
 
@@ -7329,6 +7355,7 @@ async function initSupabaseAuth() {
     // already handled by the getSession() call above; onAuthResolved()/
     // maybeFinalizeBoot()'s own guards make that redundant call harmless.
     supabase.auth.onAuthStateChange((_event, session) => { onAuthResolved(session); });
+    initHousehold(); // v8.61 (§176): the second client, for Pinch's project
   } catch (err) {
     console.warn('[auth] Supabase init/session check failed:', err && err.message);
     showAuthGateError('Couldn\u2019t connect. Check your connection and try reloading.');
@@ -8242,7 +8269,10 @@ const STATE_OWNER_KEY = IS_LOCAL_REAL_AUTH ? 'bloc_state_owner_authreal' : 'bloc
 // The keys that belong to the account whose data is local. The device's own
 // (its id, push registration, the AI key, theme) stay.
 const ACCOUNT_LOCAL_KEYS = [STATE_KEY, 'bloc_last_snapshot_date', 'bloc_snapshot_zero_pending', 'bloc_snapshot_zero_done',
-  'bloc_snapshot_autorestore_done', 'bloc_client_state_meta', 'bloc_coach_link'];
+  'bloc_snapshot_autorestore_done', 'bloc_client_state_meta', 'bloc_coach_link',
+  // v8.61 (§176): the household connection is the account's too — the next
+  // person on this phone must not see the last one's household.
+  'bloc_household_recipes', 'blocHousehold_auth', 'blocHousehold_auth-code-verifier', 'blocHousehold_auth-user'];
 function stateOwnerGet() { try { return JSON.parse(localStorage.getItem(STATE_OWNER_KEY) || 'null'); } catch (e) { return null; } }
 function stateOwnerSet(user) {
   try { localStorage.setItem(STATE_OWNER_KEY, JSON.stringify({ uid: user.id, at: new Date().toISOString() })); } catch (e) {}
@@ -11374,6 +11404,7 @@ function openModal(id) {
     mountPasswordField('change-password-confirm', 'change-password-confirm-wrap',
       '<input type="password" id="change-password-confirm" autocomplete="new-password" style="font-size:15px;width:100%;box-sizing:border-box;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">');
   }
+  if (id === 'modal-household') renderHouseholdModal(); // v8.61 (§176); mounts its password field itself
   if (id === 'modal-api-key') {
     mountPasswordField('settings-api-key-input', 'settings-api-key-wrap',
       '<input type="password" id="settings-api-key-input" placeholder="sk-ant-…" autocomplete="off" style="flex:1;font-size:13px;padding:9px 11px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);font-family:var(--font-mono);">');
@@ -11511,6 +11542,7 @@ function closeModal(id) {
     unmountPasswordField('change-password-confirm');
   }
   if (id === 'modal-api-key') unmountPasswordField('settings-api-key-input');
+  if (id === 'modal-household') unmountPasswordField('household-password'); // v8.61 (§176)
   // If the food-search modal (modal-nutr-add) was opened in "recipe
   // ingredient search" mode and is being dismissed outright (backdrop tap,
   // swipe-down, or the ✕ button — all funnel through here) rather than
@@ -22593,7 +22625,7 @@ function renderHomeFoodPlan() {
   const firstMealIndex = {};
   mealOrder.forEach((mealName, mealIdx) => {
     (meals[mealName] || []).forEach(item => {
-      const isRecipe = item.source === 'recipe' || item.isRecipe;
+      const isRecipe = item.source === 'recipe' || item.source === 'household-recipe' || item.isRecipe;
       const name = item.name || 'Unnamed item';
       const key = (isRecipe ? 'r:' : 'f:') + name;
       if (firstMealIndex[key] === undefined) firstMealIndex[key] = mealIdx;
@@ -26417,7 +26449,7 @@ function findSampleGroupForFillDay(goal) {
 // as the day's identifying label.
 function getDinnerRecipeItem(date) {
   const items = getNutrDayMeals(date).Dinner || [];
-  return items.find(i => i.source === 'recipe') || null;
+  return items.find(i => i.source === 'recipe' || i.source === 'household-recipe') || null;
 }
 
 // Whether a date has already been saved into any sample group.
@@ -27032,7 +27064,7 @@ function renderNutrDiary() {
     const hasItems = items.length > 0;
 
     const itemRows = items.map((item, idx) => {
-      const servingLabel = item.source === 'recipe'
+      const servingLabel = (item.source === 'recipe' || item.source === 'household-recipe')
         ? `${item.servings || 1} serving${(item.servings || 1) !== 1 ? 's' : ''}`
         : (item.grams && item.servings && item.servings !== 1
           ? `${item.grams}g × ${item.servings}`
@@ -27653,6 +27685,17 @@ function getLastNutrEntryForFood(name) {
   return null;
 }
 
+// v8.61 (§176): the newest diary entry for one household recipe, by its Pinch
+// id (a personal recipe may share its name).
+function getLastHouseholdEntry(householdRecipeId) {
+  const allMeals = state.nutritionMeals || {};
+  for (const date of Object.keys(allMeals).sort().reverse()) {
+    const match = Object.values(allMeals[date] || {}).flat().find(e => e.source === 'household-recipe' && e.householdRecipeId === householdRecipeId);
+    if (match) return match;
+  }
+  return null;
+}
+
 // Renders the food search results list inside the add-food modal, sourced
 // from the merged exercise-adjacent food library (getLibrary()-style merge
 // of built-ins + custom) plus state.foodLibrary, sorted most-recently-logged
@@ -27671,8 +27714,21 @@ function renderNutrAddList() {
     });
   });
 
+  // v8.61 (§176): in the diary, household recipes join the list (and its
+  // Recipes filter) and an imported personal recipe appears once — see
+  // recipeLogRows(). Building a recipe or reviewing a photo lists personal
+  // items only: a household recipe is never nested or copied.
+  const diary = nutrAddContext === 'meal';
+  const householdItems = diary ? recipeLogRows('').filter(r => r.kind === 'household').map(r => ({
+    id: 'household:' + r.household.id, name: r.household.name, brand: 'Household',
+    per100kcal: r.household.kcal, per100p: r.household.protein, per100c: r.household.carbs, per100f: r.household.fats,
+    source: 'household-recipe', householdRecipeId: r.household.id,
+    complete: r.household.complete, missing: r.household.missing,
+  })) : [];
   const items = lib
-    .filter(i => !nutrShowRecipesOnly || i.source === 'recipe')
+    .filter(i => !(diary && i.source === 'recipe' && (householdRecipeForPersonal(i) || {}).complete))
+    .concat(householdItems)
+    .filter(i => !nutrShowRecipesOnly || i.source === 'recipe' || i.source === 'household-recipe')
     .filter(i => !query || i.name.toLowerCase().includes(query) || (i.brand && i.brand.toLowerCase().includes(query)))
     .sort((a, b) => {
       const da = lastLogged[a.name] || '0000-00-00';
@@ -27695,8 +27751,18 @@ function renderNutrAddList() {
 
   el.innerHTML = items.map((item, idx) => {
     const brand = item.brand || (allEntries.find(e => e.name === item.name && e.brand)?.brand) || '';
-    const isRecipe = item.source === 'recipe';
-    const lastEntry = getLastNutrEntryForFood(item.name);
+    const isHousehold = item.source === 'household-recipe';
+    const isRecipe = item.source === 'recipe' || isHousehold;
+    if (isHousehold && !item.complete) {
+      return `
+      <div aria-disabled="true" class="household-incomplete" style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtmlText(item.name)} ${householdMarker()}</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px;">${item.missing} ingredient${item.missing === 1 ? ' needs' : 's need'} nutrition in Pinch</div>
+        </div>
+      </div>`;
+    }
+    const lastEntry = isHousehold ? getLastHouseholdEntry(item.householdRecipeId) : getLastNutrEntryForFood(item.name);
     let amountLabel, kcal, p, c, f;
     if (lastEntry) {
       kcal = lastEntry.kcal || 0;
@@ -27718,13 +27784,13 @@ function renderNutrAddList() {
     return `
       <div onclick="selectFromAddList(${idx})" style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);cursor:pointer;">
         <div style="flex:1;min-width:0;">
-          <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</div>
+          <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${isHousehold ? escapeHtmlText(item.name) + ' ' + householdMarker() : item.name}</div>
           <div style="font-size:10px;color:var(--text3);margin-top:2px;">
             ${amountLabel} · ${kcal.toLocaleString()} kcal · P:${Math.round(p)}g C:${Math.round(c)}g F:${Math.round(f)}g
             ${(!isRecipe && brand) ? ` · ${brand}` : ''}
           </div>
         </div>
-        <button onclick="event.stopPropagation();shareFoodLibItemByIdx(${idx})" class="btn btn-sm" style="flex-shrink:0;padding:6px 8px;margin-left:4px;" title="Share">
+        <button onclick="event.stopPropagation();shareFoodLibItemByIdx(${idx})" class="btn btn-sm" style="flex-shrink:0;padding:6px 8px;margin-left:4px;${isHousehold ? 'display:none;' : ''}" title="Share">
           <svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="9 10 5 10 5 20 19 20 19 10 15 10"/><polyline points="12 3 8 7 12 3 16 7"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         </button>
         <button onclick="event.stopPropagation();quickAddFromList(${idx})" id="nutr-quickadd-btn-${idx}" class="btn btn-sm${(_nutrQuickAddedThisSession.has(item.id || item.name)) ? ' quick-add-btn-done' : ''}" style="flex-shrink:0;padding:6px 8px;margin-left:4px;" title="Quick add" aria-label="Quick add">
@@ -27743,8 +27809,10 @@ function quickAddFromList(idx) {
   const el = document.getElementById('nutr-add-list');
   const item = (el._items || [])[idx];
   if (!item) return;
-  const isRecipe = item.source === 'recipe';
-  const lastEntry = getLastNutrEntryForFood(item.name);
+  const isHousehold = item.source === 'household-recipe';
+  if (isHousehold && !item.complete) return;
+  const isRecipe = item.source === 'recipe' || isHousehold;
+  const lastEntry = isHousehold ? getLastHouseholdEntry(item.householdRecipeId) : getLastNutrEntryForFood(item.name);
 
   let grams, servings, kcal, protein, carbs, fats;
   if (lastEntry) {
@@ -27804,6 +27872,17 @@ function quickAddFromList(idx) {
       kcal, protein, carbs, fats,
       isRecipe,
     });
+  } else if (isHousehold) {
+    // v8.61 (§176): today's Pinch figures × servings, never the last entry's
+    // totals (Pinch may have changed since), as a snapshot.
+    addFoodEntry({
+      name: item.name, brand: 'Household',
+      grams: 1, servings, serving: servings,
+      kcal: Math.round(item.per100kcal * servings), protein: Math.round(item.per100p * servings),
+      carbs: Math.round(item.per100c * servings), fats: Math.round(item.per100f * servings),
+      perServing: { kcal: item.per100kcal, protein: item.per100p, carbs: item.per100c, fats: item.per100f },
+      source: 'household-recipe', householdRecipeId: item.householdRecipeId,
+    });
   } else {
     addFoodEntry({
       name: item.name,
@@ -27834,6 +27913,17 @@ function selectFromAddList(idx) {
   const el = document.getElementById('nutr-add-list');
   const item = (el._items || [])[idx];
   if (!item) return;
+  if (item.source === 'household-recipe') {
+    // v8.61 (§176)
+    const hh = householdRecipeById(item.householdRecipeId);
+    if (!hh || !hh.complete) return;
+    nutrPendingProduct = householdPendingProduct(hh);
+    _nutrReturnToAddList = true;
+    _nutrAddTransitioning = true;
+    closeModal('modal-nutr-add');
+    requestAnimationFrame(() => openNutrServingModal());
+    return;
+  }
   nutrPendingProduct = {
     name: item.name,
     brand: item.brand || '',
@@ -29426,8 +29516,14 @@ function openNutrServingModal() {
   // Show recipe ingredients if this is a recipe
   const ingPanel = document.getElementById('nutr-serving-recipe-ings');
   const ingList  = document.getElementById('nutr-serving-recipe-ing-list');
-  const isRecipe = nutrPendingProduct.source === 'recipe';
-  if (isRecipe) {
+  const isHousehold = nutrPendingProduct.source === 'household-recipe';
+  const isRecipe = nutrPendingProduct.source === 'recipe' || isHousehold;
+  const householdForPanel = isHousehold ? householdRecipeById(nutrPendingProduct.householdRecipeId) : null;
+  if (householdForPanel) {
+    // v8.61 (§176): Pinch's ingredients, read-only, as written for the whole recipe.
+    ingList.innerHTML = householdIngredientRows(householdForPanel);
+    ingPanel.style.display = householdForPanel.ingredients.length ? 'block' : 'none';
+  } else if (isRecipe) {
     // Find the recipe in state.recipes to get ingredient list
     const recipe = (state.recipes || []).find(r => r.name === nutrPendingProduct.name);
     if (recipe && recipe.ingredients && recipe.ingredients.length) {
@@ -29446,7 +29542,7 @@ function openNutrServingModal() {
   }
 
   // Pre-fill from last logged entry for this food; fall back to RSS then 100g
-  const lastEntry = getLastNutrEntryForFood(nutrPendingProduct.name);
+  const lastEntry = isHousehold ? getLastHouseholdEntry(nutrPendingProduct.householdRecipeId) : getLastNutrEntryForFood(nutrPendingProduct.name);
   const gramsInput = document.getElementById('nutr-serving-grams');
   const pickerSelect = document.getElementById('nutr-serving-picker-select');
   if (isRecipe) {
@@ -29584,8 +29680,17 @@ function confirmServing() {
     kcal, protein, carbs, fats,
     source:   nutrPendingProduct.source || 'barcode',
   };
+  // v8.61 (§176): a household recipe is a snapshot — its Pinch id and
+  // per-serving figures go on the entry, and it is NEVER added to the food
+  // library (which would mirror it to BLOC's own tables as a personal food).
+  if (nutrPendingProduct.source === 'household-recipe') {
+    entry.grams = 1;
+    entry.serving = servings;
+    entry.householdRecipeId = nutrPendingProduct.householdRecipeId;
+    entry.perServing = { kcal: nutrPendingProduct.per100kcal, protein: nutrPendingProduct.per100p, carbs: nutrPendingProduct.per100c, fats: nutrPendingProduct.per100f };
+  }
   // Save to library (skip if sourced from library itself to avoid loops)
-  if (nutrPendingProduct.source !== 'library') {
+  if (nutrPendingProduct.source !== 'library' && nutrPendingProduct.source !== 'household-recipe') {
     addToFoodLibrary({
       name: nutrPendingProduct.name,
       brand: nutrPendingProduct.brand || '',
@@ -29771,6 +29876,8 @@ function addFoodEntry(entry) {
 // library modal (if open) and the entry that was just logged are both
 // left exactly as they are.
 function maybePromptFillDinnerDay(entry) {
+  // Personal recipes only: Fill Day matches dinners saved in BLOC's own
+  // sample library, which a household recipe is never part of (§176).
   if (!entry || entry.source !== 'recipe') return;
   const goal = getGoalForDay(nutrSelectedDate);
   if (!goal) return;
@@ -29827,8 +29934,11 @@ function openEditFoodEntry(date, meal, idx) {
   const item = (state.nutritionMeals && state.nutritionMeals[date] && state.nutritionMeals[date][meal] || [])[idx];
   if (!item) return;
   const isManual = item.source === 'manual';
-  const libEntry = isManual ? null : (state.foodLibrary || []).find(f => f.name === item.name);
-  const isRecipe = !!(libEntry && libEntry.source === 'recipe');
+  // v8.61 (§176): a household entry carries its own per-serving figures and
+  // is never matched to the library by name.
+  const isHousehold = item.source === 'household-recipe';
+  const libEntry = (isManual || isHousehold) ? null : (state.foodLibrary || []).find(f => f.name === item.name);
+  const isRecipe = isHousehold || !!(libEntry && libEntry.source === 'recipe');
 
   document.getElementById('nutr-edit-date').value = date;
   document.getElementById('nutr-edit-meal').value = meal;
@@ -29888,10 +29998,19 @@ function openEditFoodEntry(date, meal, idx) {
         document.getElementById('nutr-edit-servings').value = grams * servingsVal;
       }
     }
+    if (isHousehold) {
+      const n = item.servings || 1;
+      const per = item.perServing || { kcal: item.kcal / n, protein: item.protein / n, carbs: item.carbs / n, fats: item.fats / n };
+      document.getElementById('nutr-edit-kcal').value    = +Number(per.kcal).toFixed(1);
+      document.getElementById('nutr-edit-protein').value = +Number(per.protein).toFixed(1);
+      document.getElementById('nutr-edit-carbs').value   = +Number(per.carbs).toFixed(1);
+      document.getElementById('nutr-edit-fats').value    = +Number(per.fats).toFixed(1);
+    } else {
     document.getElementById('nutr-edit-kcal').value    = libEntry ? libEntry.per100kcal : (item.serving ? Math.round(item.kcal    / item.serving * 100) : 0);
     document.getElementById('nutr-edit-protein').value = libEntry ? libEntry.per100p    : (item.serving ? Math.round(item.protein / item.serving * 100) : 0);
     document.getElementById('nutr-edit-carbs').value   = libEntry ? libEntry.per100c    : (item.serving ? Math.round(item.carbs   / item.serving * 100) : 0);
     document.getElementById('nutr-edit-fats').value    = libEntry ? libEntry.per100f    : (item.serving ? Math.round(item.fats    / item.serving * 100) : 0);
+    }
     document.getElementById('nutr-edit-serving').value = item.serving || 100;
   }
 
@@ -30248,7 +30367,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.60</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.61</span>`;
 }
 
 function renderSettings() {
@@ -31784,6 +31903,9 @@ function openFoodLibEntry(idx) {
   const el = document.getElementById('food-lib-list');
   const item = (el._items || [])[idx];
   if (!item) return;
+  // v8.61 (§176): a recipe now in Pinch is edited there, not here.
+  if (isPersonalRecipeLocked(item)) { householdLockedNotice(); return; }
+
   document.getElementById('fle-id').value = item.id || '';
   document.getElementById('fle-name').value = item.name;
   document.getElementById('fle-brand').value = item.brand || '';
@@ -31872,6 +31994,9 @@ function deleteFoodLibEntry(idx) {
   const el = document.getElementById('food-lib-list');
   const item = (el._items || [])[idx];
   if (!item) return;
+  // v8.61 (§176): a recipe now in Pinch is edited there, not here.
+  if (isPersonalRecipeLocked(item)) { householdLockedNotice(); return; }
+
   showConfirm(
     'Delete food?',
     '"' + item.name + '" will be removed from your library. Logged entries using this food are not affected.',
@@ -31910,6 +32035,9 @@ let recipePendingIngredient = null; // barcode lookup result pending confirm
 
 // ── Step 1: open builder ──────────────────────────────────────────────────────
 function openRecipeBuilder(editId) {
+  const lockedRecipe = editId ? (state.recipes || []).find(r => r.id === editId) : null;
+  // v8.61 (§176): a recipe now in Pinch is edited there, not here.
+  if (isPersonalRecipeLocked(lockedRecipe)) { householdLockedNotice(); return; }
   recipeIngredients = [];
   _recipeLogEligible = true; // opened from Settings → My Recipes — see flag comment above
   const existing = editId ? (state.recipes || []).find(r => r.id === editId) : null;
@@ -32478,9 +32606,25 @@ function confirmRecipeLogTarget() {
     ? _recipeLogTargetDate
     : document.getElementById('recipe-log-target-date').value;
   const recipeName = _pendingLogRecipeName;
+  const householdId = _pendingLogHouseholdId;
   closeModal('modal-recipe-log-target');
   _pendingLogRecipeName = null;
+  _pendingLogHouseholdId = null;
   if (!recipeName || !date) return;
+
+  // v8.61 (§176): a household recipe, by its Pinch id.
+  if (householdId) {
+    const hh = householdRecipeById(householdId);
+    if (!hh || !hh.complete) return;
+    showScreen('nutrition');
+    nutrSelectedDate = date;
+    nutrActiveMeal = meal;
+    renderNutrDaily();
+    nutrPendingProduct = householdPendingProduct(hh);
+    _nutrReturnToAddList = false;
+    requestAnimationFrame(() => openNutrServingModal());
+    return;
+  }
 
   const libItem = (state.foodLibrary || []).find(f => f.source === 'recipe' && f.name.toLowerCase() === recipeName.toLowerCase());
   if (!libItem) return;
@@ -32507,6 +32651,299 @@ function confirmRecipeLogTarget() {
   };
   _nutrReturnToAddList = false;
   requestAnimationFrame(() => openNutrServingModal());
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// HOUSEHOLD RECIPES (v8.61, §176) — read-only recipes from Pinch
+// ════════════════════════════════════════════════════════════════════════
+// Pinch is the household's recipe library, on a DIFFERENT Supabase project
+// (the shared one) from BLOC's. BLOC signs in to it separately (Settings ›
+// Linked services › Household recipes) with whatever login the person uses
+// there, Google or email + password, and reads two published views:
+//   pinch.bloc_recipes_v1             one row per recipe, per-serving macros
+//   pinch.bloc_recipe_ingredients_v1  each recipe's ingredients, as written
+// Never the base tables, and never a write: recipes are edited only in Pinch.
+//
+// 🚨 The recipes are kept in localStorage['bloc_household_recipes'], NOT in
+//    `state`. Everything in `state` leaves the device — the daily snapshot
+//    (uploadSnapshot), client_state for a coach, exportData, and, for
+//    state.recipes / state.foodLibrary, the relational mirror. The household's
+//    recipes are not this person's data and go in none of those.
+// 🚨 The client's storageKey is 'blocHousehold_auth'. It must never match
+//    /^sb-.*-auth-token$/: the pre-paint check reads any such key as "signed
+//    in to BLOC" (see the script before #splash).
+// 🚨 flowType 'pkce' and detectSessionInUrl as a function that returns false:
+//    this client only takes a ?code= it started itself (its own verifier is
+//    in its own storage), and never BLOC's #access_token. BLOC's client
+//    (implicit, default) ignores a ?code= it has no verifier for, and an
+//    ?error= return never removes its session (supabase-js _initialize).
+// 🚨 Logging one never touches state.foodLibrary (confirmServing skips
+//    addToFoodLibrary for this source). The diary entry is a snapshot —
+//    { source: 'household-recipe', householdRecipeId, perServing } — so a
+//    later change in Pinch never changes a past log.
+// 🚨 Lookups are by Pinch id, never by name: a personal recipe may share a
+//    household recipe's name.
+const HOUSEHOLD_URL = 'https://nxekrfdagkdwhjuunsrl.supabase.co';
+const HOUSEHOLD_KEY = 'sb_publishable_hv-9Mb3Y36PklJ2Yo4KBhw_XEy3z5lP';
+const HOUSEHOLD_AUTH_KEY = 'blocHousehold_auth';
+const HOUSEHOLD_CACHE_KEY = 'bloc_household_recipes';
+const HOUSEHOLD_REFRESH_MS = 5 * 60 * 1000;
+let householdClient = null;
+let _householdUser = null;
+let _householdBusy = false;
+let _householdError = null;
+let _pendingLogHouseholdId = null;
+
+// The cached copy: { fetchedAt, email, recipes: [{ id, name, meal, cuisine,
+// serves, kcal, protein, carbs, fats, complete, missing, blocRecipeId,
+// updatedAt, ingredients: [{ name, qty, unit, kcal, hasNutrition }] }] }.
+function householdCache() {
+  try {
+    const c = JSON.parse(localStorage.getItem(HOUSEHOLD_CACHE_KEY) || 'null');
+    return c && Array.isArray(c.recipes) ? c : null;
+  } catch (e) { return null; }
+}
+function householdRecipes() { const c = householdCache(); return c ? c.recipes : []; }
+function householdRecipeById(id) { return householdRecipes().find(r => r.id === id) || null; }
+
+// The household recipe a personal BLOC recipe was imported into, if any. A
+// personal recipe is matched by its id; a food-library twin by its own id
+// or, because addToFoodLibrary keeps an older twin's id, by its recipe's.
+function householdRecipeForPersonal(recipeOrLib) {
+  if (!recipeOrLib) return null;
+  const list = householdRecipes();
+  if (!list.length) return null;
+  const ids = new Set([recipeOrLib.id]);
+  if (recipeOrLib.source === 'recipe') {
+    const rec = (state.recipes || []).find(r => r.name.toLowerCase() === String(recipeOrLib.name).toLowerCase());
+    if (rec) ids.add(rec.id);
+  }
+  return list.find(h => h.blocRecipeId && ids.has(h.blocRecipeId)) || null;
+}
+// A personal recipe that is now in Pinch: listed greyed in My Recipes, not
+// editable or deletable here.
+function isPersonalRecipeLocked(recipeOrLib) { return !!householdRecipeForPersonal(recipeOrLib); }
+
+// The rows a recipe picker shows, personal and household together. An
+// imported recipe appears ONCE: as its household version when Pinch has its
+// nutrition complete (Pinch is the copy that is edited now), otherwise as the
+// personal copy, logging BLOC's own figures as before. A household recipe with
+// no personal twin and missing nutrition is listed but not loggable.
+function recipeLogRows(query) {
+  const q = (query || '').trim().toLowerCase();
+  const rows = [];
+  const pairedHousehold = new Set();
+  (state.foodLibrary || []).filter(f => f.source === 'recipe').forEach(lib => {
+    const hh = householdRecipeForPersonal(lib);
+    if (hh) pairedHousehold.add(hh.id);
+    if (hh && hh.complete) return;
+    rows.push({ kind: 'personal', name: lib.name, lib, household: hh });
+  });
+  householdRecipes().forEach(hh => {
+    if (pairedHousehold.has(hh.id) && !hh.complete) return;
+    rows.push({ kind: 'household', name: hh.name, household: hh });
+  });
+  return rows.filter(r => !q || r.name.toLowerCase().includes(q))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// A household recipe as the serving modal's pending product. per100* hold
+// PER-SERVING figures, the convention every recipe uses (grams fixed at 100).
+function householdPendingProduct(hh) {
+  return {
+    name: hh.name, brand: 'Household', barcode: null,
+    per1kcal: hh.kcal / 100, per1p: hh.protein / 100, per1c: hh.carbs / 100, per1f: hh.fats / 100,
+    per100kcal: hh.kcal, per100p: hh.protein, per100c: hh.carbs, per100f: hh.fats,
+    defaultServing: null, source: 'household-recipe', householdRecipeId: hh.id,
+  };
+}
+
+const householdMarker = () => '<span class="household-marker">Household</span>';
+
+async function initHousehold() {
+  // The dev bypass has no Supabase anywhere; the demo tour never fetches.
+  if (IS_LOCAL_DEV) return;
+  try {
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+    householdClient = createClient(HOUSEHOLD_URL, HOUSEHOLD_KEY, {
+      db: { schema: 'pinch' },
+      auth: {
+        storageKey: HOUSEHOLD_AUTH_KEY,
+        flowType: 'pkce',
+        detectSessionInUrl: () => false,
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    });
+    const { data } = await householdClient.auth.getSession();
+    _householdUser = data.session ? data.session.user : null;
+    // A Google round trip for the household leaves ?code= behind once the
+    // client has exchanged it.
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('code') && _householdUser) {
+      url.searchParams.delete('code');
+      history.replaceState(history.state, '', url.toString());
+      requestAnimationFrame(() => openModal('modal-household'));
+    }
+    householdClient.auth.onAuthStateChange((_event, session) => {
+      const was = _householdUser && _householdUser.id;
+      _householdUser = session ? session.user : null;
+      if ((_householdUser && _householdUser.id) !== was) {
+        if (_householdUser) refreshHousehold(true); else renderHouseholdModal();
+      }
+    });
+    if (_householdUser) refreshHousehold(false);
+  } catch (err) {
+    console.warn('[household] init failed:', err && err.message);
+  }
+}
+
+// Reads both views into the cache. Keeps the old copy, and says so, when the
+// read fails (offline included). `force` skips the 5-minute throttle.
+async function refreshHousehold(force) {
+  if (!householdClient || !_householdUser || _householdBusy) return;
+  if (typeof demoTourIsRunning === 'function' && demoTourIsRunning()) return;
+  const cache = householdCache();
+  if (!force && cache && cache.email === _householdUser.email
+      && Date.now() - new Date(cache.fetchedAt).getTime() < HOUSEHOLD_REFRESH_MS) return;
+  _householdBusy = true;
+  renderHouseholdModal();
+  try {
+    const [r, i] = await Promise.all([
+      householdClient.from('bloc_recipes_v1').select('*').order('name'),
+      householdClient.from('bloc_recipe_ingredients_v1').select('*').order('recipe_id').order('position'),
+    ]);
+    if (r.error) throw r.error;
+    if (i.error) throw i.error;
+    const ings = {};
+    (i.data || []).forEach(x => {
+      (ings[x.recipe_id] = ings[x.recipe_id] || []).push({
+        name: x.name, qty: x.qty == null ? null : Number(x.qty), unit: x.unit,
+        kcal: x.kcal == null ? null : Number(x.kcal), hasNutrition: !!x.has_nutrition,
+      });
+    });
+    const num = v => (v == null ? 0 : Number(v));
+    const recipes = (r.data || []).map(x => ({
+      id: x.id, name: x.name, meal: x.meal, cuisine: x.cuisine, serves: x.serves,
+      kcal: num(x.kcal), protein: num(x.protein), carbs: num(x.carbs), fats: num(x.fats),
+      complete: !!x.nutrition_complete, missing: x.missing_count || 0,
+      blocRecipeId: x.bloc_recipe_id || null, updatedAt: x.updated_at,
+      ingredients: ings[x.id] || [],
+    }));
+    localStorage.setItem(HOUSEHOLD_CACHE_KEY, JSON.stringify({ fetchedAt: new Date().toISOString(), email: _householdUser.email, recipes }));
+    _householdError = null;
+  } catch (err) {
+    _householdError = navigator.onLine === false
+      ? 'Offline: showing the recipes BLOC last saw.'
+      : (err && err.code === 'PGRST106')
+        ? 'Pinch isn’t reachable yet. Showing the recipes BLOC last saw.'
+        : 'Couldn’t refresh. Showing the recipes BLOC last saw.';
+  } finally {
+    _householdBusy = false;
+    renderHouseholdModal();
+    householdRerenderLists();
+  }
+}
+
+// Re-renders whichever recipe lists are on screen.
+function householdRerenderLists() {
+  const open = id => { const el = document.getElementById(id); return el && el.classList.contains('open'); };
+  if (open('modal-recipe-pick')) renderRecipePickList();
+  if (open('modal-nutr-add')) renderNutrAddList();
+  if (open('modal-recipe-list')) renderRecipeList();
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') refreshHousehold(false);
+});
+
+async function householdSignInGoogle() {
+  if (!householdClient) return;
+  _householdError = null;
+  const { error } = await householdClient.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.origin + window.location.pathname },
+  });
+  if (error) { _householdError = error.message; renderHouseholdModal(); }
+}
+
+async function householdSignInEmail() {
+  if (!householdClient) return;
+  const email = (document.getElementById('household-email') || {}).value || '';
+  const password = (document.getElementById('household-password') || {}).value || '';
+  if (!email.trim() || !password) { _householdError = 'Enter the email and password you use for Pinch.'; renderHouseholdModal(); return; }
+  _householdBusy = true; _householdError = null; renderHouseholdModal();
+  const { error } = await householdClient.auth.signInWithPassword({ email: email.trim(), password });
+  _householdBusy = false;
+  if (error) { _householdError = error.message; renderHouseholdModal(); }
+  // Success arrives through onAuthStateChange, which refreshes.
+}
+
+function householdDisconnect() {
+  showConfirm('Disconnect household recipes?', 'BLOC stops showing the household’s recipes. Anything you have already logged stays in your diary.', 'Disconnect', async () => {
+    try { if (householdClient) await householdClient.auth.signOut({ scope: 'local' }); } catch (e) {}
+    try { localStorage.removeItem(HOUSEHOLD_CACHE_KEY); } catch (e) {}
+    _householdUser = null; _householdError = null;
+    renderHouseholdModal();
+    householdRerenderLists();
+  });
+}
+
+function renderHouseholdModal() {
+  const sub = document.getElementById('linked-household-sub');
+  if (sub) sub.textContent = _householdUser ? `Connected as ${_householdUser.email || 'you'}` : 'Read your household’s recipes from Pinch.';
+  const body = document.getElementById('household-body');
+  if (!body) return;
+  const err = _householdError ? `<div class="household-note">${escapeHtmlText(_householdError)}</div>` : '';
+  if (!householdClient) {
+    body.innerHTML = `<div class="household-note">Household recipes aren’t available on this build.</div>`;
+    return;
+  }
+  if (!_householdUser) {
+    body.innerHTML = `
+      <p class="household-p">Sign in with the account you use for Pinch. BLOC only reads the household’s recipes; nothing in Pinch is changed from here.</p>
+      <button class="btn btn-primary household-btn" onclick="householdSignInGoogle()" ${_householdBusy ? 'disabled' : ''}>Continue with Google</button>
+      <div class="household-or">or</div>
+      <input type="email" id="household-email" class="household-input" placeholder="Email" autocomplete="username">
+      <div id="household-password-wrap"></div>
+      <button class="btn household-btn" onclick="householdSignInEmail()" ${_householdBusy ? 'disabled' : ''}>Sign in</button>
+      ${err}`;
+    mountPasswordField('household-password', 'household-password-wrap',
+      '<input type="password" id="household-password" class="household-input" placeholder="Password" autocomplete="current-password">');
+    return;
+  }
+  const cache = householdCache();
+  const n = cache ? cache.recipes.length : 0;
+  const when = cache ? new Date(cache.fetchedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'never';
+  body.innerHTML = `
+    <div class="card"><div class="settings-row">
+      <div class="settings-row-text">${n} household recipe${n === 1 ? '' : 's'}
+        <div class="settings-row-sub">Connected as ${escapeHtmlText(_householdUser.email || '')} · updated ${escapeHtmlText(when)}</div>
+      </div></div></div>
+    <p class="household-p">They appear in Fuel › Recipes and in Add food › Recipes, marked Household. Edit them in Pinch.</p>
+    ${err}
+    <button class="btn household-btn" onclick="refreshHousehold(true)" ${_householdBusy ? 'disabled' : ''}>${_householdBusy ? 'Refreshing…' : 'Refresh now'}</button>
+    <button class="btn btn-danger household-btn" onclick="householdDisconnect()">Disconnect</button>`;
+}
+
+function householdLockedNotice() {
+  showConfirm('Now in Pinch', 'This recipe was brought into Pinch, the household\u2019s recipe library, so it is edited there. You can still log it from Fuel \u203a Recipes or Add food.', 'OK', () => {});
+}
+
+function escapeHtmlText(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+}
+
+// The read-only ingredient list for a household recipe, in the serving modal.
+function householdIngredientRows(hh) {
+  return (hh.ingredients || []).map(ing => {
+    const amount = ing.unit === 'to taste' ? 'to taste' : (ing.qty == null ? '' : `${+Number(ing.qty).toFixed(2)} ${ing.unit === 'each' ? '' : ing.unit}`.trim());
+    const kcal = ing.hasNutrition && ing.kcal != null ? ` · ${Math.round(ing.kcal).toLocaleString()} kcal` : (ing.unit === 'to taste' ? '' : ' · needs nutrition');
+    return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:0.5px solid var(--border);">
+      <span style="font-size:12px;color:var(--text2);">${escapeHtmlText(ing.name)}</span>
+      <span style="font-size:12px;color:var(--text3);">${escapeHtmlText(amount)}${kcal}</span>
+    </div>`;
+  }).join('');
 }
 
 // ── Log a recipe, from the Fuel page's Shortcuts ─────────────────────────────
@@ -32538,12 +32975,10 @@ function renderRecipePickList() {
   const el = document.getElementById('recipe-pick-list');
   if (!el) return;
   const query = (document.getElementById('recipe-pick-search').value || '').trim().toLowerCase();
-  const recipes = (state.foodLibrary || [])
-    .filter(f => f.source === 'recipe')
-    .filter(f => !query || f.name.toLowerCase().includes(query))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  // v8.61 (§176): personal and household recipes together (recipeLogRows).
+  const rows = recipeLogRows(query);
 
-  if (!recipes.length) {
+  if (!rows.length) {
     el.innerHTML = `<div class="empty-inline" style="text-align:center;padding:24px 0;">${
       query ? `No recipes match “${query}”.` : 'No recipes saved yet. Build one from Settings › Nutrition › My Recipes.'
     }</div>`;
@@ -32552,20 +32987,55 @@ function renderRecipePickList() {
 
   // per100* on a recipe entry is per SERVING, not per 100g — a recipe's unit is
   // one serving, which is why the Add-food list treats grams as 1 for recipes.
-  el.innerHTML = recipes.map(r => `
+  el.innerHTML = rows.map(row => {
+    if (row.kind === 'household') {
+      const hh = row.household;
+      if (!hh.complete) {
+        return `
+    <div class="row-btn recipe-pick-row household-incomplete" aria-disabled="true">
+      <span class="row-btn-text">
+        <span class="row-btn-title">${escapeHtmlText(hh.name)} ${householdMarker()}</span>
+        <span class="row-btn-sub">${hh.missing} ingredient${hh.missing === 1 ? ' needs' : 's need'} nutrition in Pinch</span>
+      </span>
+    </div>`;
+      }
+      return `
+    <button class="row-btn recipe-pick-row" onclick="chooseHouseholdRecipeToLog('${hh.id}')">
+      <span class="row-btn-text">
+        <span class="row-btn-title">${escapeHtmlText(hh.name)} ${householdMarker()}</span>
+        <span class="row-btn-sub">${Math.round(hh.kcal).toLocaleString()} kcal per serving · P${Math.round(hh.protein)} C${Math.round(hh.carbs)} F${Math.round(hh.fats)}</span>
+      </span>
+      <span class="row-btn-chevron">${icoChevron()}</span>
+    </button>`;
+    }
+    const r = row.lib;
+    return `
     <button class="row-btn recipe-pick-row" onclick="chooseRecipeToLog('${String(r.name).replace(/'/g, "\\'")}')">
       <span class="row-btn-text">
         <span class="row-btn-title">${r.name}</span>
         <span class="row-btn-sub">${Math.round(r.per100kcal).toLocaleString()} kcal per serving · P${Math.round(r.per100p)} C${Math.round(r.per100c)} F${Math.round(r.per100f)}</span>
       </span>
       <span class="row-btn-chevron">${icoChevron()}</span>
-    </button>`).join('');
+    </button>`;
+  }).join('');
+}
+
+// v8.61 (§176): a household recipe goes through the same meal step, carried
+// by its Pinch id (never its name).
+function chooseHouseholdRecipeToLog(id) {
+  const hh = householdRecipeById(id);
+  if (!hh || !hh.complete) return;
+  _pendingLogHouseholdId = id;
+  _pendingLogRecipeName = hh.name;
+  closeModal('modal-recipe-pick');
+  requestAnimationFrame(() => openRecipeLogTargetPicker('mealOnly'));
 }
 
 // Hands the chosen recipe to the meal step, then into the standard serving modal
 // via confirmRecipeLogTarget() — the same path Save & Log uses, so there is one
 // implementation of "log this recipe" rather than two.
 function chooseRecipeToLog(name) {
+  _pendingLogHouseholdId = null;
   _pendingLogRecipeName = name;
   closeModal('modal-recipe-pick');
   requestAnimationFrame(() => openRecipeLogTargetPicker('mealOnly'));
@@ -32592,6 +33062,8 @@ function renderRecipeList() {
   }
 
   el.innerHTML = recipes.map(r => {
+    // v8.61 (§176): imported into Pinch — still listed, greyed, not editable.
+    const locked = isPersonalRecipeLocked(r);
     const ingredients = r.ingredients || [];
     const ingList = ingredients.length
       ? ingredients.map(ing => `
@@ -32602,17 +33074,17 @@ function renderRecipeList() {
       : `<div style="font-size:11px;color:var(--text3);padding:4px 0;">No ingredients recorded</div>`;
 
     return `
-      <div style="padding:14px 0;border-bottom:0.5px solid var(--border2);">
+      <div class="${locked ? 'recipe-locked' : ''}" style="padding:14px 0;border-bottom:0.5px solid var(--border2);">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
-          <div style="flex:1;min-width:0;cursor:pointer;" onclick="_recipeListReturnPending=true;closeModal('modal-recipe-list');requestAnimationFrame(()=>openRecipeBuilder('${r.id}'))">
-            <div style="font-size:15px;font-weight:700;font-family:var(--font-display);">${r.name}</div>
+          <div style="flex:1;min-width:0;cursor:pointer;" onclick="${locked ? 'householdLockedNotice()' : `_recipeListReturnPending=true;closeModal('modal-recipe-list');requestAnimationFrame(()=>openRecipeBuilder('${r.id}'))`}">
+            <div style="font-size:15px;font-weight:700;font-family:var(--font-display);">${r.name}${locked ? ' <span class="household-marker">Now in Pinch</span>' : ''}</div>
             <div style="font-size:11px;color:var(--text3);margin-top:3px;">
               ${r.servings} serving${r.servings !== 1 ? 's' : ''} ·
               ${r.per_serving_kcal.toLocaleString()} kcal/serving ·
               P:${r.per_serving_p}g C:${r.per_serving_c}g F:${r.per_serving_f}g
             </div>
           </div>
-          <div style="display:flex;gap:6px;flex-shrink:0;margin-left:10px;">
+          <div style="display:flex;gap:6px;flex-shrink:0;margin-left:10px;${locked ? 'display:none;' : ''}">
             <button class="btn btn-sm btn-danger" style="padding:5px 10px;" onclick="event.stopPropagation();deleteRecipe('${r.id}')" title="Delete"><svg viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
           </div>
         </div>
@@ -32631,6 +33103,9 @@ function renderRecipeList() {
 function deleteRecipe(id) {
   const recipe = (state.recipes || []).find(r => r.id === id);
   if (!recipe) return;
+  // v8.61 (§176): a recipe now in Pinch is edited there, not here.
+  if (isPersonalRecipeLocked(recipe)) { householdLockedNotice(); return; }
+
   showConfirm('Delete recipe?', `"${recipe.name}" will be removed from your library. Existing nutrition logs are not affected.`, 'Delete', () => {
     state.recipes = (state.recipes || []).filter(r => r.id !== id);
     state.foodLibrary = (state.foodLibrary || []).filter(f => f.id !== id);

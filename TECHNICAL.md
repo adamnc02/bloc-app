@@ -11822,3 +11822,75 @@ cycle the same way.
   state, the bridge's `hold: true`, the maintenance prompts' baseline lines and hold requirement); the golden file
   was regenerated for the hold flag and the hold requirement only. Coach: `src/review/recal.test.ts`, and
   `review.test.ts`'s maintenance outcome.
+
+## §176 — v8.61: household recipes from Pinch, read-only
+
+Pinch is the household's recipe library (its own repo, `pinch`, and its own schema, `pinch`, on the **shared**
+Supabase project `nxekrfdagkdwhjuunsrl` — not BLOC's `pinfjcxwwbbbwfqppqsj`). BLOC reads it; it never writes to it.
+The code is the `HOUSEHOLD RECIPES` block in `index.html`, beside the recipe pickers.
+
+**What BLOC reads.** Two published views, never the base tables (Pinch's `silver-octo-invention/docs/pinch-SUPABASE.md`,
+"The BLOC contract"; a breaking change there ships as `_v2`):
+
+| View | Used for |
+|---|---|
+| `pinch.bloc_recipes_v1` | one row per recipe: `id` (the stable key), `name`, `serves`, per-serving `kcal`/`protein`/`carbs`/`fats`, `nutrition_complete`, `missing_count`, `bloc_recipe_id` |
+| `pinch.bloc_recipe_ingredients_v1` | the read-only ingredient list: `name`, `qty`, `unit`, that ingredient's `kcal`, `has_nutrition` |
+
+Both are `security_invoker`, so the reader sees only the households its Pinch login belongs to.
+
+**The second client.** `initHousehold()` (started from `initSupabaseAuth()`, so never in the dev bypass) creates a
+supabase-js client for the shared project with `db.schema: 'pinch'` and:
+
+- `auth.storageKey: 'blocHousehold_auth'`. 🚨 It must never match `/^sb-.*-auth-token$/`: the pre-paint check before
+  `#splash` reads any such key as "signed in to BLOC".
+- `flowType: 'pkce'` and `detectSessionInUrl: () => false`. The household client takes only a `?code=` it started (its
+  code verifier is under its own storage key) and never an `#access_token`. BLOC's own client (implicit, the default)
+  ignores a `?code=` it has no verifier for, and an `?error=` return never removes its session (supabase-js
+  `_initialize`: "Don't remove existing session on URL login failure"). After a household Google round trip,
+  `initHousehold()` strips the leftover `?code=` and reopens the sheet.
+- Sign-in is whatever the person uses for Pinch: **Continue with Google** (redirect to this page; BLOC's URL is on the
+  shared project's Redirect URLs) or email + password (the password field is mounted only while the sheet is open, §61).
+  **Disconnect** is `signOut({ scope: 'local' })` plus removing the cache.
+
+**The cache.** `refreshHousehold()` reads both views and stores
+`{ fetchedAt, email, recipes: [{ id, name, serves, kcal, protein, carbs, fats, complete, missing, blocRecipeId,
+ingredients }] }` in `localStorage['bloc_household_recipes']`. It runs on start (signed in), on returning to the
+front (at most every 5 minutes), on connect, and from **Refresh now**; a failed read keeps the old copy and says so;
+offline the copy is used as is. The demo tour never fetches.
+🚨 **It is not in `state`.** Everything in `state` leaves the device — `uploadSnapshot()` (backups), `uploadClientStateOnce()`
+(`client_state`, which a coach reads, §130), `exportData()` — and `state.recipes` / `state.foodLibrary` are also mirrored
+to BLOC's `recipes` / `foods`. The household's recipes are none of those. Both household keys (and the session's
+`-code-verifier` / `-user` siblings) are in `ACCOUNT_LOCAL_KEYS`, so an account switch (§145) clears them.
+
+**Showing and logging.**
+- `recipeLogRows(query)` is the one list both pickers use (Fuel → Shortcuts → Recipes, and Add food's list and Recipes
+  filter in the `meal` context). A BLOC recipe that was imported into Pinch — some household recipe's `blocRecipeId`
+  is its id, or its food-library twin's recipe id (`addToFoodLibrary` keeps an older twin's id, so twin and recipe ids
+  can differ) — appears **once**: as the household recipe when Pinch's nutrition is complete, otherwise as the
+  personal recipe, logging BLOC's own figures as before. A household recipe that is incomplete and has no BLOC
+  original is listed, dimmed, "N ingredients need nutrition in Pinch", and can't be logged.
+- Building a recipe or reviewing a photo (`nutrAddContext` `recipe` / `photo`) never lists household recipes: one is
+  never nested in a personal recipe or copied.
+- `householdPendingProduct(hh)` puts the per-serving figures in `per100*`, the convention every recipe uses (grams
+  fixed at 100 in the serving sheet). The sheet's ingredient panel shows Pinch's ingredients read-only.
+- `confirmServing()` writes `{ name, brand: 'Household', grams: 1, servings, serving, kcal, protein, carbs, fats,
+  source: 'household-recipe', householdRecipeId, perServing }`. 🚨 It **never** calls `addToFoodLibrary` for this source:
+  that would make a personal food out of a household recipe and mirror it to `foods`.
+- 🚨 **Lookups are by Pinch id, never by name** (`householdRecipeById`, `getLastHouseholdEntry`): a personal recipe may
+  share a household recipe's name. `openEditFoodEntry()` takes a household entry's figures from its own `perServing`
+  and never matches the library by name; editing changes the servings.
+- A household entry counts as a recipe for the Home food preview, the dinner label and the meal card's serving
+  label. `maybePromptFillDinnerDay()` stays personal-only: Fill Day matches dinners in BLOC's own sample library.
+- The diary entry is a snapshot, so a later change in Pinch never changes a past log. The `meal_items` mirror copies
+  `source` as text (no check constraint), so the new value syncs like any other.
+
+**The lock.** `isPersonalRecipeLocked()` — the recipe (or its library twin) is some household recipe's `blocRecipeId`.
+My Recipes lists it greyed, **Now in Pinch**, with no delete; `openRecipeBuilder`, `deleteRecipe`, `openFoodLibEntry`
+and `deleteFoodLibEntry` refuse it with a note that it is edited in Pinch. It stays loggable (above). Past diary
+entries are untouched.
+
+**Checks.** `scripts/verify-household-recipes.mjs`: the session key, the cache outside `state`, the client's PKCE /
+storage key / URL detection, views-only reads and no writes, `confirmServing` skipping the library, the account-switch
+keys, the edit sheet, the four lock guards, and `recipeLogRows` run on synthetic data — with a control on the v8.60
+`index.html`, which fails 9 of them.
