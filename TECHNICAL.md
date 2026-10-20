@@ -11885,6 +11885,9 @@ to BLOC's `recipes` / `foods`. The household's recipes are none of those. Both h
 - The diary entry is a snapshot, so a later change in Pinch never changes a past log. The `meal_items` mirror copies
   `source` as text (no check constraint), so the new value syncs like any other.
 
+**Where it lives in Settings.** Settings → Linked services (subtitle: "Your Anthropic API key, and your household's
+recipes from Pinch.") → **Household recipes**, the second row in that sheet after the Anthropic API key.
+
 **The lock.** `isPersonalRecipeLocked()` — the recipe (or its library twin) is some household recipe's `blocRecipeId`.
 My Recipes lists it greyed, **Now in Pinch**, with no delete; `openRecipeBuilder`, `deleteRecipe`, `openFoodLibEntry`
 and `deleteFoodLibEntry` refuse it with a note that it is edited in Pinch. It stays loggable (above). Past diary
