@@ -11885,6 +11885,12 @@ to BLOC's `recipes` / `foods`. The household's recipes are none of those. Both h
 - The diary entry is a snapshot, so a later change in Pinch never changes a past log. The `meal_items` mirror copies
   `source` as text (no check constraint), so the new value syncs like any other.
 
+**Names (v8.63).** BLOC's recipes are named "(Dinner) Carbonara". Pinch keeps the meal in its own field and shows names
+without it, so `householdDisplayName(hh)` puts `(Meal) ` in front from Pinch's `meal`, unless the name already starts
+with a bracketed meal (`MEAL_PREFIX`: Breakfast, Lunch, Dinner, Snack(s)) — a recipe imported from BLOC keeps its own
+prefix in Pinch and is shown as it is, never prefixed twice. It is the name every picker shows, sorts and searches by,
+and the diary entry's name. Display only: BLOC never writes to Pinch.
+
 **Where it lives in Settings.** Settings → Linked services (subtitle: "Your Anthropic API key, and your household's
 recipes from Pinch.") → **Household recipes**, the second row in that sheet after the Anthropic API key.
 
@@ -11897,3 +11903,16 @@ entries are untouched.
 storage key / URL detection, views-only reads and no writes, `confirmServing` skipping the library, the account-switch
 keys, the edit sheet, the four lock guards, and `recipeLogRows` run on synthetic data — with a control on the v8.60
 `index.html`, which fails 9 of them.
+
+## §177 — v8.63: a sheet opened from a swiped row takes its first tap; "(Meal) " recipe names
+
+- **The swipe rows' tap swallow.** The capture-phase `touchstart` that closes an open swipe row also sets
+  `_swipeJustClosed`, and the capture-phase `click` listener then swallows the click that follows — so a tap on the
+  page to close a row never also opens what it landed on. A row's own buttons are let straight through. 🚨 But a
+  row's **Copy** opens "Copy to…" (and **Delete** opens the confirm) while the row is still swiped underneath, so the
+  first tap on the sheet's own button was taken as a close-the-row tap and swallowed: **Copy →** needed two taps. A
+  touch inside an open sheet (`.modal-overlay.open`) now closes the row without arming the swallow. Checked by
+  `scripts/verify-swipe-sheet-tap.mjs`, with a control on the v8.62 handler.
+- **Save meal as recipe** (the meal's `···` menu) pre-fills the name as `(${meal}) ` — the house convention, "(Dinner)
+  Carbonara" — with the caret ready for the dish's name. Household recipe names follow the same convention (§176,
+  "Names").

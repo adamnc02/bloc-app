@@ -26097,6 +26097,14 @@ document.addEventListener('touchstart', function(e) {
   if (!_swipeOpenWrap) return;
   const actions = _swipeOpenWrap.querySelector('.swipe-actions');
   if (actions && actions.contains(e.target)) return; // button tap — let through
+  // v8.63: a tap inside an open sheet is never a "close the row" tap. A row's
+  // Copy / Delete opens a sheet while the row is still swiped underneath, and
+  // swallowing that tap's click made the sheet's own button (Copy →, Delete)
+  // need a second tap. The row still closes; the tap goes through.
+  if (e.target && e.target.closest && e.target.closest('.modal-overlay.open')) {
+    _swipeCloseAll();
+    return;
+  }
   _swipeJustClosed = true;
   _swipeCloseAll();
 }, { passive: true, capture: true });
@@ -27322,7 +27330,9 @@ function saveMealAsRecipe() {
   // Open the recipe name step with a sensible default
   document.getElementById('recipe-edit-id').value = '';
   document.getElementById('recipe-step1-title').textContent = 'Save Meal as Recipe';
-  document.getElementById('recipe-name-input').value = meal; // pre-fill with meal name
+  // v8.63: the house naming convention, "(Dinner) Carbonara": the meal in
+  // brackets and a space, ready for the dish's name.
+  document.getElementById('recipe-name-input').value = `(${meal}) `;
   document.getElementById('recipe-servings-input').value = 1;
 
   // After naming, recipeGoToIngredients() will render the pre-populated list
@@ -27720,7 +27730,7 @@ function renderNutrAddList() {
   // items only: a household recipe is never nested or copied.
   const diary = nutrAddContext === 'meal';
   const householdItems = diary ? recipeLogRows('').filter(r => r.kind === 'household').map(r => ({
-    id: 'household:' + r.household.id, name: r.household.name, brand: 'Household',
+    id: 'household:' + r.household.id, name: r.name, brand: 'Household',
     per100kcal: r.household.kcal, per100p: r.household.protein, per100c: r.household.carbs, per100f: r.household.fats,
     source: 'household-recipe', householdRecipeId: r.household.id,
     complete: r.household.complete, missing: r.household.missing,
@@ -30367,7 +30377,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.62</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.63</span>`;
 }
 
 function renderSettings() {
@@ -32741,7 +32751,7 @@ function recipeLogRows(query) {
   });
   householdRecipes().forEach(hh => {
     if (pairedHousehold.has(hh.id) && !hh.complete) return;
-    rows.push({ kind: 'household', name: hh.name, household: hh });
+    rows.push({ kind: 'household', name: householdDisplayName(hh), household: hh });
   });
   return rows.filter(r => !q || r.name.toLowerCase().includes(q))
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -32751,7 +32761,7 @@ function recipeLogRows(query) {
 // PER-SERVING figures, the convention every recipe uses (grams fixed at 100).
 function householdPendingProduct(hh) {
   return {
-    name: hh.name, brand: 'Household', barcode: null,
+    name: householdDisplayName(hh), brand: 'Household', barcode: null,
     per1kcal: hh.kcal / 100, per1p: hh.protein / 100, per1c: hh.carbs / 100, per1f: hh.fats / 100,
     per100kcal: hh.kcal, per100p: hh.protein, per100c: hh.carbs, per100f: hh.fats,
     defaultServing: null, source: 'household-recipe', householdRecipeId: hh.id,
@@ -32759,6 +32769,19 @@ function householdPendingProduct(hh) {
 }
 
 const householdMarker = () => '<span class="household-marker">Household</span>';
+
+// v8.63: BLOC names recipes "(Dinner) Carbonara". Pinch keeps the meal in its
+// own field and shows names without it, so a household recipe is shown here
+// with "(Meal) " in front, from Pinch's meal. A name that already starts with
+// a bracketed meal (one imported from BLOC keeps its own) is shown as it is,
+// never prefixed twice. Display only: nothing is written back to Pinch.
+const MEAL_PREFIX = /^\((breakfast|lunch|dinner|snacks?)\)\s*/i;
+function householdDisplayName(hh) {
+  const name = String(hh.name || '').trim();
+  if (MEAL_PREFIX.test(name) || !hh.meal) return name;
+  const meal = String(hh.meal);
+  return `(${meal.charAt(0).toUpperCase()}${meal.slice(1)}) ${name}`;
+}
 
 async function initHousehold() {
   // The dev bypass has no Supabase anywhere; the demo tour never fetches.
@@ -32994,7 +33017,7 @@ function renderRecipePickList() {
         return `
     <div class="row-btn recipe-pick-row household-incomplete" aria-disabled="true">
       <span class="row-btn-text">
-        <span class="row-btn-title">${escapeHtmlText(hh.name)} ${householdMarker()}</span>
+        <span class="row-btn-title">${escapeHtmlText(row.name)} ${householdMarker()}</span>
         <span class="row-btn-sub">${hh.missing} ingredient${hh.missing === 1 ? ' needs' : 's need'} nutrition in Pinch</span>
       </span>
     </div>`;
@@ -33002,7 +33025,7 @@ function renderRecipePickList() {
       return `
     <button class="row-btn recipe-pick-row" onclick="chooseHouseholdRecipeToLog('${hh.id}')">
       <span class="row-btn-text">
-        <span class="row-btn-title">${escapeHtmlText(hh.name)} ${householdMarker()}</span>
+        <span class="row-btn-title">${escapeHtmlText(row.name)} ${householdMarker()}</span>
         <span class="row-btn-sub">${Math.round(hh.kcal).toLocaleString()} kcal per serving · P${Math.round(hh.protein)} C${Math.round(hh.carbs)} F${Math.round(hh.fats)}</span>
       </span>
       <span class="row-btn-chevron">${icoChevron()}</span>
@@ -33026,7 +33049,7 @@ function chooseHouseholdRecipeToLog(id) {
   const hh = householdRecipeById(id);
   if (!hh || !hh.complete) return;
   _pendingLogHouseholdId = id;
-  _pendingLogRecipeName = hh.name;
+  _pendingLogRecipeName = householdDisplayName(hh);
   closeModal('modal-recipe-pick');
   requestAnimationFrame(() => openRecipeLogTargetPicker('mealOnly'));
 }
