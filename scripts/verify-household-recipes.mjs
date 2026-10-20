@@ -70,7 +70,8 @@ function run(src, label, quiet = false) {
     ['openRecipeBuilder', 'deleteRecipe', 'openFoodLibEntry', 'deleteFoodLibEntry'].every((n) => fn(n).includes('isPersonalRecipeLocked(')));
 
   // recipeLogRows: an imported recipe appears once.
-  const helpers = ['householdCache', 'householdRecipes', 'householdRecipeForPersonal', 'recipeLogRows'].map(fn).join('\n');
+  const mealPrefix = (src.match(/const MEAL_PREFIX = [^\n]+/) || [''])[0];
+  const helpers = mealPrefix + '\n' + ['householdCache', 'householdRecipes', 'householdRecipeForPersonal', 'householdDisplayName', 'recipeLogRows'].map(fn).join('\n');
   if (helpers.includes('function recipeLogRows')) {
     const store = {};
     const ctx = vm.createContext({
@@ -93,9 +94,18 @@ function run(src, label, quiet = false) {
       rowsWith([{ id: 'h1', name: 'Lasagne', complete: false, blocRecipeId: 'recipe_1' }]) === 'personal:Lasagne,personal:Soup');
     check(`${label}: a household recipe with no BLOC original is listed beside the personal ones`,
       rowsWith([{ id: 'h2', name: 'Dal', complete: false, blocRecipeId: null }]) === 'household:Dal,personal:Lasagne,personal:Soup');
+    // v8.63: BLOC's "(Meal) Name" convention, from Pinch's meal, never doubled.
+    const show = (hh) => vm.runInContext(`householdDisplayName(${JSON.stringify(hh)})`, ctx);
+    check(`${label}: a household recipe is shown as "(Dinner) Carbonara" from Pinch's meal`,
+      show({ name: 'Carbonara', meal: 'dinner' }) === '(Dinner) Carbonara');
+    check(`${label}: a name that already has a bracketed meal is shown as it is`,
+      show({ name: '(Breakfast) Overnight oats', meal: 'breakfast' }) === '(Breakfast) Overnight oats'
+      && show({ name: '(Dinner) Lasagne', meal: 'lunch' }) === '(Dinner) Lasagne');
   } else {
     check(`${label}: recipeLogRows exists`, false);
   }
+  check(`${label}: Save meal as recipe pre-fills "(Meal) " — the meal in brackets and a space`,
+    fn('saveMealAsRecipe').includes("value = `(${meal}) `"));
   return failures;
 }
 
