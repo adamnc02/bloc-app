@@ -11925,7 +11925,7 @@ The server half is migration `0037` and the Edge Function `bloc-steps` (super-du
 **The flow.**
 1. Settings → Linked services → **Steps from Shortcuts** → **Make a key** calls `create_step_token()`. It returns the
    key (`bst_` + 64 hex) once; the server keeps only its SHA-256 hash.
-2. The Shortcut (an iOS Personal Automation, typically 23:00, *Run Immediately*) reads yesterday's and today's step
+2. The Shortcut (run by hand from a Home Screen button, or by a Personal Automation) reads yesterday's and today's step
    totals from Apple Health and POSTs `{"days": [{"date": "YYYY-MM-DD", "steps": n}, …]}` to
    `SUPABASE_URL/functions/v1/bloc-steps` with `Authorization: Bearer <key>`.
 3. `record_steps()` writes `step_imports`, one row per user per date, and the function replies with the sentence
@@ -11943,7 +11943,15 @@ fixture user would query the live project. One pull at a time.
 
 **What it writes:** steps only. Weight, waist and hip are kept; a date with no body log gets one with steps alone.
 **An import replaces that date's steps, including a hand-typed figure:** Apple Health is the source, and each run
-sends a fuller total (yesterday's final figure and today's so far, so the 23:00–midnight steps arrive the next night).
+sends a fuller total (yesterday's final figure and today's so far, so a day's late steps arrive with the next run).
+
+🚨 **iOS hides Health data while the phone is locked.** A run on a locked phone (any overnight automation, in
+practice) reads nothing, and `bloc-steps` replies "No steps read (was the phone locked?)". Because every run sends
+yesterday too, the next run made with the phone unlocked completes the day.
+
+**The Shortcut's query:** Find Health Samples, Type Steps, Start Date *is between* the start of yesterday and now
++ 1 day, Group by Day, **Fill Missing off**. Ending at now drops today's group; Fill Missing on adds tomorrow as an
+empty day.
 
 🚨 **The ledger lives in `state`** (`state.stepImports`, `{date: received_at}`), as the publications ledger does:
 - The pull fetches rows with `received_at` after the newest in the ledger (`stepImportCursor()`).

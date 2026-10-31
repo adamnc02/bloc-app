@@ -11093,7 +11093,7 @@ function renderStepsShortcutModal() {
   }
   if (_stepsKeyStatus === 'none') {
     body.innerHTML = `
-      <p class="household-p">An iPhone Shortcut can send your daily steps from Apple Health to BLOC, on a schedule. They appear in Body logs the next time you open BLOC. Start by making a key for the Shortcut.</p>
+      <p class="household-p">An iPhone Shortcut can send your daily steps from Apple Health to BLOC whenever you run it, with your phone unlocked. They appear in Body logs the next time you open BLOC. Start by making a key for the Shortcut.</p>
       ${err}
       <button class="btn btn-primary household-btn" onclick="makeStepsKey()" ${_stepsBusy ? 'disabled' : ''}>${_stepsBusy ? 'Making…' : 'Make a key'}</button>`;
     return;
