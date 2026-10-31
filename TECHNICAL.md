@@ -11916,3 +11916,62 @@ keys, the edit sheet, the four lock guards, and `recipeLogRows` run on synthetic
 - **Save meal as recipe** (the meal's `···` menu) pre-fills the name as `(${meal}) ` — the house convention, "(Dinner)
   Carbonara" — with the caret ready for the dish's name. Household recipe names follow the same convention (§176,
   "Names").
+
+## §178 — v8.64: steps from an iOS Shortcut
+
+The server half is migration `0037` and the Edge Function `bloc-steps` (super-duper-octo-barnacle,
+`docs/SUPABASE.md` → "Steps from an iOS Shortcut"). The Shortcut is the user's own, on their iPhone.
+
+**The flow.**
+1. Settings → Linked services → **Steps from Shortcuts** → **Make a key** calls `create_step_token()`. It returns the
+   key (`bst_` + 64 hex) once; the server keeps only its SHA-256 hash.
+2. The Shortcut (an iOS Personal Automation, typically 23:00, *Run Immediately*) reads yesterday's and today's step
+   totals from Apple Health and POSTs `{"days": [{"date": "YYYY-MM-DD", "steps": n}, …]}` to
+   `SUPABASE_URL/functions/v1/bloc-steps` with `Authorization: Bearer <key>`.
+3. `record_steps()` writes `step_imports`, one row per user per date, and the function replies with the sentence
+   the Shortcut shows as its notification ("Steps saved: Fri 30 Oct 11,204 · Sat 31 Oct 9,412").
+4. BLOC pulls (`pullStepImportsOnce()`) and puts each day's figure into `state.bodyLogs` (`applyStepImports()`),
+   then `save()`s, so the mirror and `client_state` follow.
+
+🚨 **The server never writes `body_logs`.** That table is the mirror BLOC deletes and rewrites on every push and
+never reads (§57): a server write there would be wiped by the next push and never reach the phone. `step_imports` is
+an inbox BLOC reads, as `publications` is (§131).
+
+**When it pulls:** on sign-in, on resume, on coming online, every 5 minutes while visible, and when the sheet opens.
+Only while signed in, outside the Demo Tour and **never in the local dev bypass** (`stepImportsAvailable()`), where the
+fixture user would query the live project. One pull at a time.
+
+**What it writes:** steps only. Weight, waist and hip are kept; a date with no body log gets one with steps alone.
+**An import replaces that date's steps, including a hand-typed figure:** Apple Health is the source, and each run
+sends a fuller total (yesterday's final figure and today's so far, so the 23:00–midnight steps arrive the next night).
+
+🚨 **The ledger lives in `state`** (`state.stepImports`, `{date: received_at}`), as the publications ledger does:
+- The pull fetches rows with `received_at` after the newest in the ledger (`stepImportCursor()`).
+- A row whose `received_at` is already in the ledger is skipped, so a hand edit made after an import stands until
+  the Shortcut sends a new figure for that date. Without that, every pull would overwrite it.
+- A restore, an import or a clear brings back an older ledger, or none; the cursor drops with it and the next pull
+  re-applies what that state lacks.
+
+🚨 **It waits** exactly as publications do (`publicationsMustWait()`): never under an open sheet, a focused Train
+input, the goal queue or the Demo Tour. The Body log sheet's own save would otherwise overwrite the import with its
+stale copy. Rows wait in memory and retry every 3 s.
+
+🚨 **An empty device whose account has backups waits for its restore** (§134's rule): the backup carries the ledger,
+and applying first would make the steps the device's only data, which the §109 guard then lets push over the
+account's mirror and snapshot.
+
+🚨 **A 0 is never saved**, by the server (`record_steps()` skips it as `zero`) and again by `applyStepImports()`.
+iOS hides Health data while the phone is locked, so a locked-phone run reads 0; saving it would wipe a real day.
+The Shortcut's notification then says "not saved: 0 steps read (was the phone locked?)".
+
+**The key.** Shown on the sheet once, with **Copy key** and **Copy address**, and forgotten when the sheet closes
+(`closeModal` clears `_stepsNewKey`): the server can't show it again, so a lost key is replaced, not recovered.
+**Make a new key** replaces it (the old one stops working at once); **Turn off** (`revoke_step_token()`) removes it.
+The sheet shows when the key was made and last used (`step_tokens`; the hash isn't readable). BLOC never writes
+`step_imports` or `step_tokens` directly.
+
+**Check:** `scripts/verify-step-imports.mjs` runs `applyStepImports()` and `stepImportCursor()` on demo-shaped data
+(weight, waist and hip kept; a new day; an untouched day; the same row twice leaving a hand edit; a newer row;
+zero, bad date, no `received_at`; the cursor after a restore) and checks the wiring (the pull's query, the empty-device
+and account-switch guards, the wait, the dev-bypass guard, the four triggers, no writes, the RPCs, the sheet).
+**Control:** v8.63 (`c19166d`) fails 16.

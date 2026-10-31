@@ -94,6 +94,7 @@ function page(source, dev) {
     const hideAuthGate = rec('hideAuthGate'), showAuthGate = rec('showAuthGate'), updateAccountUI = rec('updateAccountUI');
     const maybeUploadSnapshotZero = rec('snapshotZero'), maybeForceFullSyncOnSignIn = rec('fullSync'), flushSyncQueue = rec('flush');
     const maybeRefreshCoachLink = rec('coachLink'), maybeFinalizeBoot = rec('boot'), exportData = rec('export');
+    const requestStepImportPull = rec('steps'); // v8.64 (§178)
     const coachEsc = (x) => String(x);
     const document = { getElementById: () => ({ classList: { add() {}, remove: () => env.calls.push('switchScreen') }, set innerHTML(v) { env.screen = v; } }) };
     const location = { reload: () => env.calls.push('reload') };
@@ -106,7 +107,7 @@ function page(source, dev) {
 }
 const A = { id: 'uid-A', email: 'a@example.com' };
 const B = { id: 'uid-B', email: 'b@example.com' };
-const WRITERS = ['fullSync', 'snapshotZero', 'coachLink', 'flush', 'boot'];
+const WRITERS = ['fullSync', 'snapshotZero', 'coachLink', 'steps', 'flush', 'boot'];
 const BOOT = ['fullSync', 'snapshotZero', 'coachLink', 'boot']; // flush runs only with an unsynced save
 const aData = { macrocycles: [{ id: 'm_a', name: 'A cycle' }], bodyLogs: [{ date: '2026-09-01', weight: 180 }], nutritionLogs: [], trainLogs: {}, nutritionMeals: {} };
 
@@ -166,7 +167,7 @@ if (prev) {
 }
 
 // ── Every writer refuses while the switch is pending ──
-const guarded = ['flushSyncQueue', 'forceFullRelationalSync', 'uploadSnapshot', 'maybeUploadOpportunisticSnapshot', 'pullPublicationsOnce', 'sendPendingAcks', 'uploadClientStateOnce', 'maybeRefreshCoachLink'];
+const guarded = ['flushSyncQueue', 'forceFullRelationalSync', 'uploadSnapshot', 'maybeUploadOpportunisticSnapshot', 'pullPublicationsOnce', 'sendPendingAcks', 'uploadClientStateOnce', 'maybeRefreshCoachLink', 'pullStepImportsOnce'];
 const unguarded = guarded.filter((n) => !/accountSwitchBlocks\(\)/.test((extract(current, n) || '').split('\n').slice(0, 5).join('\n')));
 check(`every writer refuses while another account’s data is here (${guarded.length})`, unguarded.length === 0, unguarded.join(', '));
 check('no switch screen: nothing in the page shows another account', !/account-switch"|openAccountSwitch/.test(current));

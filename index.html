@@ -4369,7 +4369,7 @@ try {
           <div class="settings-row settings-row-nav" onclick="openModal('modal-linked-services')">
             <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
             <div class="settings-row-text">Linked services
-              <div class="settings-row-sub">Your Anthropic API key, and your household's recipes from Pinch.</div>
+              <div class="settings-row-sub">Your Anthropic API key, your household's recipes from Pinch, and steps from Shortcuts.</div>
             </div>
           </div>
           <!-- Account (Phase 5, v8.03) — Supabase auth account info + sign out.
@@ -6212,7 +6212,24 @@ try {
           <div class="settings-row-sub" id="linked-household-sub">Read your household’s recipes from Pinch.</div>
         </div>
       </div>
+      <div class="settings-row settings-row-nav" onclick="openModal('modal-steps-shortcut')">
+        <div class="settings-row-icon"><svg viewBox="0 0 24 24"><path d="M8 3c-1.7 0-3 1.8-3 4.5S6 12 7.5 12 10 10 10 7.5 9.7 3 8 3z"/><path d="M6.5 14.5h3v2a1.5 1.5 0 0 1-3 0z"/><path d="M16 8c1.7 0 3 1.8 3 4.5S18 17 16.5 17 14 15 14 12.5 14.3 8 16 8z"/><path d="M14.5 19.5h3v.5a1.5 1.5 0 0 1-3 0z"/></svg></div>
+        <div class="settings-row-text">Steps from Shortcuts
+          <div class="settings-row-sub" id="linked-steps-sub">Send your daily steps from Apple Health.</div>
+        </div>
+      </div>
     </div>
+  </div>
+</div>
+
+<!-- Linked Services → Steps from Shortcuts (v8.64, §178): the iOS Shortcut's
+     key. renderStepsShortcutModal() fills #steps-shortcut-body. -->
+<div class="modal-overlay" id="modal-steps-shortcut">
+  <div class="modal-sheet" data-modal="modal-steps-shortcut">
+    <div class="modal-handle-row"><div class="modal-handle"></div><button class="modal-close-btn" onclick="closeModal('modal-steps-shortcut')">✕</button></div>
+    <div class="modal-title">Steps from Shortcuts</div>
+    <div class="modal-sub">Your daily steps from Apple Health, sent by an iPhone Shortcut.</div>
+    <div id="steps-shortcut-body"></div>
   </div>
 </div>
 
@@ -8318,6 +8335,7 @@ function onAuthResolved(session) {
     maybeForceFullSyncOnSignIn();
     if (_syncDirty) flushSyncQueue();
     maybeRefreshCoachLink(); // v8.37 (§129)
+    requestStepImportPull('sign-in'); // v8.64 (§178)
   } else {
     showAuthGate();
   }
@@ -10915,6 +10933,221 @@ function syncPublicationChannel() {
 window.addEventListener('online', () => requestPublicationPull('online'));
 setInterval(() => { if (document.visibilityState === 'visible') requestPublicationPull('poll'); }, PUB_POLL_MS);
 
+// ── Steps from an iOS Shortcut (v8.64, §178) ───────────────────────────────
+// A personal Shortcut posts the day's steps to the Edge Function bloc-steps,
+// which writes step_imports (migration 0037). BLOC pulls that inbox and puts
+// each day's figure into state.bodyLogs; the mirror follows save().
+//
+// 🚨 The server never writes body_logs. That table is the mirror this app
+// deletes and rewrites on every push (§57) and never reads, so a server write
+// there would be wiped and never reach the phone.
+//
+// 🚨 The ledger lives in `state` (state.stepImports, {date: received_at}), as
+// the publications ledger does (§131). A restore or an import brings back an
+// older ledger, the cursor drops with it, and the next pull re-applies what
+// that state lacks.
+const BLOC_STEPS_URL = SUPABASE_URL + '/functions/v1/bloc-steps';
+
+function stepImportsAvailable() {
+  return !IS_LOCAL_DEV && coachingAvailable(); // coachingAvailable(): signed in, not the Demo Tour
+}
+
+// Where the next pull starts: the newest received_at already applied.
+function stepImportCursor() {
+  let max = '';
+  for (const v of Object.values(state.stepImports || {})) {
+    if (typeof v === 'string' && (!max || Date.parse(v) > Date.parse(max))) max = v;
+  }
+  return max || '1970-01-01T00:00:00Z';
+}
+
+// Pure on `st`: writes each row's steps into that date's body log and records
+// it in the ledger. Returns the dates it changed. Steps only: weight, waist
+// and hip are kept. An import replaces a hand-typed figure for that date,
+// because Apple Health is the source and each run sends a fuller total.
+function applyStepImports(st, rows) {
+  if (!st.stepImports || typeof st.stepImports !== 'object') st.stepImports = {};
+  if (!Array.isArray(st.bodyLogs)) st.bodyLogs = [];
+  const changed = [];
+  for (const r of rows || []) {
+    if (!r || !/^\d{4}-\d{2}-\d{2}$/.test(r.log_date) || !(r.steps > 0) || typeof r.received_at !== 'string') continue;
+    if (st.stepImports[r.log_date] === r.received_at) continue; // already applied
+    const i = st.bodyLogs.findIndex(l => l.date === r.log_date);
+    if (i >= 0) st.bodyLogs[i] = { ...st.bodyLogs[i], steps: r.steps };
+    else st.bodyLogs.push({ date: r.log_date, weight: null, steps: r.steps, waist: null, hip: null });
+    st.stepImports[r.log_date] = r.received_at;
+    if (!changed.includes(r.log_date)) changed.push(r.log_date);
+  }
+  return changed;
+}
+
+let _stepsPending = [];
+let _stepsRetryTimer = null;
+let _stepsRunning = null;
+
+async function pullStepImportsOnce() {
+  if (!stepImportsAvailable()) return 'unavailable';
+  if (accountSwitchBlocks()) return 'account-switch'; // §145: nothing lands in another account's data
+  // §134's rule: an empty device whose account has backups is waiting for its
+  // restore, and the backup carries the ledger. Applying first would make
+  // these steps its only data, which the §109 guard then lets overwrite the
+  // account's real mirror and snapshot.
+  if (!deviceHasRealData()) {
+    let backups = 1; // can't tell → treat as "has backups": waiting is safe
+    try { backups = (await listSnapshots()).length; } catch (e) { /* keep waiting */ }
+    if (backups > 0) return 'awaiting-restore';
+  }
+  const { data, error } = await supabase.from('step_imports')
+    .select('log_date, steps, received_at')
+    .eq('user_id', _authResolvedSession.user.id).gt('received_at', stepImportCursor())
+    .order('received_at', { ascending: true }).limit(500);
+  if (error) throw error;
+  const seen = new Set(_stepsPending.map(r => r.log_date + '|' + r.received_at));
+  for (const r of (data || [])) if (!seen.has(r.log_date + '|' + r.received_at)) _stepsPending.push(r);
+  return drainStepImports();
+}
+
+// The publications' wait (§131): never under an open sheet, a Train input or
+// the Demo Tour. The Body log sheet's own save would overwrite the day with
+// its stale copy.
+function drainStepImports() {
+  if (!_stepsPending.length) return 'nothing-new';
+  const wait = publicationsMustWait();
+  if (wait) {
+    if (!_stepsRetryTimer) _stepsRetryTimer = setTimeout(() => { _stepsRetryTimer = null; drainStepImports(); }, PUB_RETRY_MS);
+    return 'waiting:' + wait;
+  }
+  const batch = _stepsPending; _stepsPending = [];
+  const changed = applyStepImports(state, batch);
+  if (!changed.length) return 'nothing-new';
+  save();
+  const active = document.querySelector('.screen.active');
+  if (active && active.id) showScreen(active.id.replace(/^screen-/, ''));
+  return 'applied';
+}
+
+function requestStepImportPull(reason) {
+  if (!stepImportsAvailable() || _stepsRunning) return;
+  _stepsRunning = pullStepImportsOnce()
+    .then(r => { if (r === 'applied') console.info(`[steps] applied (${reason})`); })
+    .catch(err => console.warn(`[steps] pull failed (${reason}), will retry:`, err && err.message))
+    .finally(() => { _stepsRunning = null; });
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') requestStepImportPull('resume'); });
+window.addEventListener('online', () => requestStepImportPull('online'));
+setInterval(() => { if (document.visibilityState === 'visible') requestStepImportPull('poll'); }, PUB_POLL_MS);
+
+// ── Settings → Linked services → Steps from Shortcuts ──────────────────────
+// The key is made by create_step_token(), which returns it once; the server
+// keeps only its hash. So the key is shown on this sheet until it closes, and
+// never again: a lost key is replaced, not recovered.
+let _stepsKeyStatus = null;   // {created_at, last_used_at} | 'none' | null (not loaded)
+let _stepsNewKey = null;      // the key just made, until the sheet closes
+let _stepsBusy = false;
+let _stepsError = null;
+
+async function loadStepsKeyStatus() {
+  if (!stepImportsAvailable()) return;
+  const { data, error } = await supabase.from('step_tokens').select('created_at, last_used_at').maybeSingle();
+  if (error) { _stepsError = error.message; return; }
+  _stepsKeyStatus = data || 'none';
+}
+
+function openStepsShortcut() {
+  _stepsNewKey = null; _stepsError = null;
+  renderStepsShortcutModal();
+  loadStepsKeyStatus().finally(renderStepsShortcutModal);
+  requestStepImportPull('settings');
+}
+
+function stepsWhen(iso) {
+  return iso ? new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'never';
+}
+
+function renderStepsShortcutModal() {
+  const sub = document.getElementById('linked-steps-sub');
+  if (sub) sub.textContent = _stepsKeyStatus && _stepsKeyStatus !== 'none'
+    ? `On · last used ${stepsWhen(_stepsKeyStatus.last_used_at)}`
+    : 'Send your daily steps from Apple Health.';
+  const body = document.getElementById('steps-shortcut-body');
+  if (!body) return;
+  const err = _stepsError ? `<div class="household-note">${escapeHtmlText(_stepsError)}</div>` : '';
+  if (!stepImportsAvailable()) {
+    body.innerHTML = `<div class="household-note">${IS_LOCAL_DEV ? 'Not available on a local build with fixture data. Open it with ?auth=real.' : 'Sign in to BLOC to use this.'}</div>`;
+    return;
+  }
+  if (_stepsNewKey) {
+    body.innerHTML = `
+      <p class="household-p"><strong>Copy this key into your Shortcut now.</strong> BLOC keeps only a fingerprint of it, so it can’t be shown again once this sheet closes.</p>
+      <input class="household-input" id="steps-key-field" readonly value="${escapeHtmlText(_stepsNewKey)}" onclick="this.select()">
+      <button class="btn btn-primary household-btn" onclick="copyStepsText('steps-key-field', this)">Copy key</button>
+      <p class="household-p">The Shortcut sends it to this address:</p>
+      <input class="household-input" id="steps-url-field" readonly value="${escapeHtmlText(BLOC_STEPS_URL)}" onclick="this.select()">
+      <button class="btn household-btn" onclick="copyStepsText('steps-url-field', this)">Copy address</button>
+      ${err}`;
+    return;
+  }
+  if (_stepsKeyStatus === null) {
+    body.innerHTML = `<div class="household-note">Loading…</div>${err}`;
+    return;
+  }
+  if (_stepsKeyStatus === 'none') {
+    body.innerHTML = `
+      <p class="household-p">An iPhone Shortcut can send your daily steps from Apple Health to BLOC, on a schedule. They appear in Body logs the next time you open BLOC. Start by making a key for the Shortcut.</p>
+      ${err}
+      <button class="btn btn-primary household-btn" onclick="makeStepsKey()" ${_stepsBusy ? 'disabled' : ''}>${_stepsBusy ? 'Making…' : 'Make a key'}</button>`;
+    return;
+  }
+  body.innerHTML = `
+    <div class="card"><div class="settings-row">
+      <div class="settings-row-text">Shortcut key on
+        <div class="settings-row-sub">Made ${escapeHtmlText(stepsWhen(_stepsKeyStatus.created_at))} · last used ${escapeHtmlText(stepsWhen(_stepsKeyStatus.last_used_at))}</div>
+      </div></div></div>
+    <p class="household-p">A figure from the Shortcut replaces that day’s steps. Weight and measurements are never changed.</p>
+    ${err}
+    <button class="btn household-btn" onclick="makeStepsKey(true)" ${_stepsBusy ? 'disabled' : ''}>Make a new key</button>
+    <button class="btn btn-danger household-btn" onclick="revokeStepsKey()" ${_stepsBusy ? 'disabled' : ''}>Turn off</button>`;
+}
+
+function makeStepsKey(replace) {
+  const go = async () => {
+    _stepsBusy = true; _stepsError = null; renderStepsShortcutModal();
+    try {
+      const { data, error } = await supabase.rpc('create_step_token');
+      if (error) throw error;
+      _stepsNewKey = data;
+      await loadStepsKeyStatus();
+    } catch (e) {
+      _stepsError = (e && e.message) || 'Could not make a key.';
+    }
+    _stepsBusy = false; renderStepsShortcutModal();
+  };
+  if (replace) showConfirm('Make a new key?', 'The Shortcut using the old key stops working until you paste the new one into it.', 'Make a new key', go);
+  else go();
+}
+
+function revokeStepsKey() {
+  showConfirm('Turn off?', 'The Shortcut’s key stops working. Steps already in BLOC stay.', 'Turn off', async () => {
+    _stepsBusy = true; _stepsError = null; renderStepsShortcutModal();
+    try {
+      const { error } = await supabase.rpc('revoke_step_token');
+      if (error) throw error;
+      _stepsNewKey = null; _stepsKeyStatus = 'none';
+    } catch (e) {
+      _stepsError = (e && e.message) || 'Could not turn it off.';
+    }
+    _stepsBusy = false; renderStepsShortcutModal();
+  });
+}
+
+function copyStepsText(fieldId, btn) {
+  const field = document.getElementById(fieldId);
+  if (!field) return;
+  const done = () => { const t = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = t; }, 1500); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(field.value).then(done, () => { field.select(); });
+  else field.select();
+}
+
 
 
 // Populates and opens the restore picker with this account's dated
@@ -11405,6 +11638,7 @@ function openModal(id) {
       '<input type="password" id="change-password-confirm" autocomplete="new-password" style="font-size:15px;width:100%;box-sizing:border-box;padding:10px 12px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);">');
   }
   if (id === 'modal-household') renderHouseholdModal(); // v8.61 (§176); mounts its password field itself
+  if (id === 'modal-steps-shortcut') openStepsShortcut(); // v8.64 (§178)
   if (id === 'modal-api-key') {
     mountPasswordField('settings-api-key-input', 'settings-api-key-wrap',
       '<input type="password" id="settings-api-key-input" placeholder="sk-ant-…" autocomplete="off" style="flex:1;font-size:13px;padding:9px 11px;border-radius:var(--r-sm);border:0.5px solid var(--border2);background:var(--surface2);color:var(--text);font-family:var(--font-mono);">');
@@ -11543,6 +11777,7 @@ function closeModal(id) {
   }
   if (id === 'modal-api-key') unmountPasswordField('settings-api-key-input');
   if (id === 'modal-household') unmountPasswordField('household-password'); // v8.61 (§176)
+  if (id === 'modal-steps-shortcut') _stepsNewKey = null; // v8.64 (§178): the key is shown once
   // If the food-search modal (modal-nutr-add) was opened in "recipe
   // ingredient search" mode and is being dismissed outright (backdrop tap,
   // swipe-down, or the ✕ button — all funnel through here) rather than
@@ -30377,7 +30612,7 @@ function renderSettingsHero() {
       <span class="settings-hero-name">${name}</span>
       <span class="settings-hero-sub">${sub}</span>
     </span>
-    <span class="chip" style="--chip-c:var(--accent2);">v8.63</span>`;
+    <span class="chip" style="--chip-c:var(--accent2);">v8.64</span>`;
 }
 
 function renderSettings() {
